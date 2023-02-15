@@ -1,20 +1,34 @@
 From stdpp Require Export strings.
 
+(* ------------------------------------------------------------------------ *)
+
 (* Variables. *)
 
 Definition var :=
   string.
 
+(* ------------------------------------------------------------------------ *)
+
 (* Data constructors. *)
 
-Definition tag :=
+Definition data :=
   string.
 
+(* ------------------------------------------------------------------------ *)
+
+(* Patterns. *)
+
 Inductive pat :=
+  (* The wildcard pattern. *)
   | PAny
+  (* A variable. *)
   | PVar (x : var)
-  | PTup (ps : pats)
-  | PInj (c : tag) (p : pat)
+  (* A tuple pattern. *)
+  | PTuple (ps : pats)
+  (* A data constructor pattern. *)
+  | PData (c : data) (p : pat)
+
+(* Lists of patterns. *)
 
 with pats :=
   | PNil
@@ -25,24 +39,36 @@ Scheme my_pat_ind :=
 with my_pats_ind :=
   Induction for pats Sort Prop.
 
+(* ------------------------------------------------------------------------ *)
+
+(* Expressions. *)
+
 Inductive expr :=
-  (* λ-calculus *)
-  | Var (x : var)
-  | Rec (f x : var) (e : expr)
-  | App (e1 e2 : expr)
-  (* Tuples *)
-  | Tup (es : exprs)
-  (* Sums *)
-  | Inj (c : tag) (e : expr)
-  (* Match *)
-  | Match (e : expr) (bs : branches)
+  (* A variable. *)
+  | EVar (x : var)
+  (* A (recursive) closure construction expression. *)
+  | ERec (f x : var) (e : expr)
+  (* A function call. *)
+  | EApp (e1 e2 : expr)
+  (* A tuple construction expression. *)
+  | ETuple (es : exprs)
+  (* A data constructor application expression. *)
+  | EData (c : data) (e : expr)
+  (* A pattern-matching construct. *)
+  | EMatch (e : expr) (bs : branches)
+
+(* Lists of expressions. *)
 
 with exprs :=
   | ENil
   | ECons (e : expr) (es : exprs)
 
+(* A branch is of the form [p -> e]. *)
+
 with branch :=
   | Branch (pat : pat) (e : expr)
+
+(* Lists of branches. *)
 
 with branches :=
   | BNil
@@ -57,14 +83,25 @@ with my_branch_ind :=
 with my_branches_ind :=
   Induction for branches Sort Prop.
 
+(* ------------------------------------------------------------------------ *)
+
+(* Values. *)
+
 Inductive val :=
+  (* A (recursive) closure. *)
   | VRec (η : env) (f x : var) (e : expr)
-  | VTup (vs : vals)
-  | VInj (c : tag) (v : val)
+  (* A tuple. *)
+  | VTuple (vs : vals)
+  (* A data constructor value. *)
+  | VData (c : data) (v : val)
+
+(* Lists of values. *)
 
 with vals :=
   | VNil
   | VCons (v : val) (vs : vals)
+
+(* Environments are association lists. *)
 
 with env :=
   | EnvNil

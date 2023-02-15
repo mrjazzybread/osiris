@@ -1,7 +1,7 @@
 Require Import lang.
 
 Implicit Type f x : var.
-Implicit Type c : tag.
+Implicit Type c : data.
 Implicit Type p : pat.
 Implicit Type ps : pats.
 Implicit Type e : expr.
@@ -110,14 +110,14 @@ Fixpoint extend η p v : mon env :=
       Ret η
   | PVar x, _ =>
       Ret (EnvCons x v η)
-  | PTup ps, VTup vs =>
+  | PTuple ps, VTuple vs =>
       extends η ps vs
         (* This causes a hard failure when [length ps ≠ length vs]. *)
-  | PTup _, _ =>
+  | PTuple _, _ =>
       Fail
-  | PInj c p, VInj c' v =>
+  | PData c p, VData c' v =>
       if decide (c = c') then extend η p v else Next (* soft failure *)
-  | PInj _ _, _ =>
+  | PData _ _, _ =>
       Fail
   end
 
@@ -135,11 +135,11 @@ with extends η ps vs : mon env :=
 
 Fixpoint eval η e : mon val :=
   match e with
-  | Var x =>
+  | EVar x =>
       lookup η x
-  | Rec f x e =>
+  | ERec f x e =>
       Ret (VRec η f x e)
-  | App e1 e2 =>
+  | EApp e1 e2 =>
       bind (eval η e1) $ λ v1,
       bind (eval η e2) $ λ v2,
       match v1 with
@@ -152,13 +152,13 @@ Fixpoint eval η e : mon val :=
      | _ =>
          Fail
      end
-  | Tup es =>
+  | ETuple es =>
       bind (evals η es) $ λ vs,
-      Ret (VTup vs)
-  | Inj c e =>
+      Ret (VTuple vs)
+  | EData c e =>
       bind (eval η e) $ λ v,
-      Ret (VInj c v)
-  | Match e bs =>
+      Ret (VData c v)
+  | EMatch e bs =>
       bind (eval η e) $ λ v,
       eval_branches η v bs
   end
@@ -332,33 +332,33 @@ Opaque wp.
 
 (* An example. *)
 
-Definition Let p e1 e2 :=
-  Match e1 (BCons (Branch p e2) BNil).
+Definition ELet p e1 e2 :=
+  EMatch e1 (BCons (Branch p e2) BNil).
 
-Definition Unit :=
-  Tup ENil.
+Definition EUnit :=
+  ETuple ENil.
 
-Definition Constant c :=
-  Inj c Unit.
+Definition EConstant c :=
+  EData c EUnit.
 
-Definition Pair e1 e2 :=
-  Tup (ECons e1 (ECons e2 ENil)).
+Definition EPair e1 e2 :=
+  ETuple (ECons e1 (ECons e2 ENil)).
 
 Definition PPair p1 p2 :=
-  PTup (PCons p1 (PCons p2 PNil)).
+  PTuple (PCons p1 (PCons p2 PNil)).
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
 Definition example :=
-  Let (PVar "x") (Pair (Constant "A") (Constant "B")) $
-  Let (PPair (PVar "x1") (PVar "x2")) (Var "x") $
-  Var "x1".
+  ELet (PVar "x") (EPair (EConstant "A") (EConstant "B")) $
+  ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  EVar "x1".
 
 Eval cbv in eval EnvNil example.
 
 (* An example of reasoning about straight-line code. *)
 
-Goal wp (eval EnvNil example) (λ v, v = VInj "A" (VTup VNil)).
+Goal wp (eval EnvNil example) (λ v, v = VData "A" (VTuple VNil)).
 Proof.
   cbv. rewrite fixed_point. cbv. reflexivity.
 Qed.
@@ -366,9 +366,9 @@ Qed.
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
 Definition example2 :=
-  Let (PVar "x") (Pair (Var "z1") (Var "z2")) $
-  Let (PPair (PVar "x1") (PVar "x2")) (Var "x") $
-  Var "x1".
+  ELet (PVar "x") (EPair (EVar "z1") (EVar "z2")) $
+  ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  EVar "x1".
 
 Goal
   ∀ v1 v2,
