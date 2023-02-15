@@ -1,5 +1,4 @@
 Require Import lang.
-
 Implicit Type f x : var.
 Implicit Type c : data.
 Implicit Type p : pat.
@@ -12,23 +11,41 @@ Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
 
-(* A free monad in which the evaluator will be expressed. *)
+(* ------------------------------------------------------------------------ *)
+
+(* A free monad in which the evaluator is expressed. *)
+
+(* The effects allowed by this free monad are:
+
+   - [Fail], a hard failure, which represents a crash and must be avoided;
+   - [Next], a soft failure, which represents a request to jump to the next
+             branch in a [match] construct;
+   - [Stop], an effect whose signature is [request → val];
+             this effect can be viewed of consulting an oracle,
+             which answers a request with a value.
+
+   The requests allowed by this monad are:
+
+   - [REval η e], a request to evaluate the expression [e]
+                  under the environment [η]. *)
 
 Inductive request :=
-  | REval η e.
-
-Implicit Type req : request.
+  | REval (η : env) (e : expr).
 
 Inductive mon A :=
   | Ret (a : A)
-  | Fail (* hard failure *)
-  | Next (* soft failure: please try the next branch in a [match] construct *)
-  | Stop req (k : val → mon A).
+  | Fail
+  | Next
+  | Stop (req : request) (k : val → mon A).
+
+(* Make [A] an implicit argument. *)
 
 Arguments Ret {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
 Arguments Stop {A} req k.
+
+(* ------------------------------------------------------------------------ *)
 
 (* TODO if call-by-value evaluation is used
    then [g] should have type [unit → mon B]
