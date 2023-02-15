@@ -119,8 +119,13 @@ Fixpoint eval η e : mon val :=
       bind (eval η e2) $ λ v2,
       match v1 with
       | VRec η f x e =>
+          (* The environment of the closure is extended with bindings
+             for the variables [f] and [x]. *)
           let η := EnvCons f v1 η in
           let η := EnvCons x v2 η in
+          (* In this extended environment, the function body [e] must
+             be evaluated. A recursive call to [eval] cannot be used,
+             so we request the evaluation of [e] via a [Stop] effect. *)
           Stop (REval η e) $ λ v,
           Ret v
      | _ =>
@@ -134,8 +139,11 @@ Fixpoint eval η e : mon val :=
       Ret (VData c v)
   | EMatch e bs =>
       bind (eval η e) $ λ v,
-      eval_branches η v bs
+      eval_match η v bs
   end
+
+(* [evals η es] evaluates the expressions in the list [es], from left
+   to right, producing a list of values [vs]. *)
 
 with evals η es : mon vals :=
   match es with
@@ -147,17 +155,21 @@ with evals η es : mon vals :=
       Ret (VCons v vs)
   end
 
-with eval_branches η v bs :=
+(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
+
+with eval_match η v bs :=
   match bs with
   | BNil =>
+      (* A nonexhaustive [match] construct causes a hard failure. *)
       Fail
   | BCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
-      try (extend η p v)
-        (* Success: commit to this branch. Evaluate its body. *)
-        (λ η, eval η e)
-        (* Soft failure: abandon this branch. Try the following branches. *)
-        (λ tt, eval_branches η v bs)
+      try
+        (extend η p v)
+      (* Success: commit to this branch. Evaluate its body. *)
+      (λ η, eval η e)
+      (* Soft failure: abandon this branch. Try the following branches. *)
+      (λ tt, eval_match η v bs)
   end.
 
 (* A reduction semantics on top of the above evaluator. *)
