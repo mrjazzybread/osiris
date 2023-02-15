@@ -99,7 +99,7 @@ Inductive eq {A} : mon A → mon A → Prop :=
 
 Local Hint Constructors eq : eq.
 
-Infix "~" := eq (at level 70, no associativity).
+Local Infix "~" := eq (at level 70, no associativity).
 
 (* Equality is reflexive and transitive. *)
 

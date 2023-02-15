@@ -172,64 +172,6 @@ with eval_match η v bs :=
       (λ tt, eval_match η v bs)
   end.
 
-(* A reduction semantics on top of the above evaluator. *)
-
-(* The divergence monad. *)
-
-CoInductive div A :=
-  | CRet (a : A)
-  | CFail
-  | CSkip (m : div A).
-
-Arguments CRet {A} a.
-Arguments CFail {A}.
-Arguments CSkip {A} m.
-
-CoInductive ceq {A} : div A → div A → Prop :=
-| CEqCRet a :
-    ceq (CRet a) (CRet a)
-| CEqCFail :
-    ceq CFail CFail
-| CEqCSkip m1 m2 :
-    ceq m1 m2 →
-    ceq (CSkip m1) (CSkip m2)
-.
-
-CoFixpoint dbind {A B} (m : div A) (f : A → div B) : div B :=
-  match m with
-  | CRet a =>
-      f a
-  | CFail =>
-      CFail
-  | CSkip m =>
-      CSkip (dbind m f)
-  end.
-
-CoFixpoint handle {A} (m : mon A) : div A :=
-  match m with
-  | Ret a =>
-      CRet a
-  | Fail =>
-      CFail
-  | Next =>
-      (* This must not happen. *)
-      CFail
-  | Stop req k =>
-      match req with
-      | REval η e =>
-          CSkip (handle (bind (eval η e) k))
-      end
-  end.
-
-Definition execute η e : div val :=
-  handle (eval η e).
-
-Lemma compatibility {B} m {k : val → mon B} :
-  handle (bind m k) =
-  dbind (handle m) (λ v, handle (k v)).
-Proof.
-Admitted.
-
 (* The wp monad. *)
 
 Definition wpm A :=
