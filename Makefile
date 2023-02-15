@@ -1,3 +1,6 @@
+# This prevents Coq from producing stack backtraces.
+export OCAMLRUNPARAM=
+
 .PHONY: clean
 clean::
 	git clean -fX
