@@ -442,3 +442,18 @@ Goal wp (eval EnvNil example) (λ v, v = VInj "A" (VTup VNil)).
 Proof.
   cbv. rewrite fixed_point. cbv. reflexivity.
 Qed.
+
+(* let x = (z1, z2) in let (x1, x2) = x in x1 *)
+
+Definition example2 :=
+  Let (PVar "x") (Pair (Var "z1") (Var "z2")) $
+  Let (PPair (PVar "x1") (PVar "x2")) (Var "x") $
+  Var "x1".
+
+Goal
+  ∀ v1 v2,
+  let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
+  wp (eval env example2) (λ v, v = v1).
+Proof.
+  intros. cbv. rewrite fixed_point. cbv. reflexivity.
+Qed.
