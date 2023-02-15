@@ -1,6 +1,8 @@
 Require Import lang.
 Require Import free.
 
+(* Conventional metavariables. *)
+
 Implicit Type f x : var.
 Implicit Type c : data.
 Implicit Type p : pat.
@@ -15,7 +17,9 @@ Implicit Type η : env.
 
 (* ------------------------------------------------------------------------ *)
 
-(* Evaluation. *)
+(* [lookup η x] looks up the variable [x] in the environment [env].
+   The result is normally a value. A hard failure occurs if [x] is
+   unbound. *)
 
 Fixpoint lookup η x : mon val :=
   match η with
@@ -25,22 +29,51 @@ Fixpoint lookup η x : mon val :=
       Fail
   end.
 
+(* ------------------------------------------------------------------------ *)
+
+(* [extend η p v] matches the value [v] against the pattern [p].
+
+   In case of success, the result is an extension of the environment
+   [η] with bindings for the bound variables of the pattern [p].
+
+   A soft failure takes place if [p] does not match [v], e.g., if [p]
+   selects a data constructor [c] but [v] carries a distinct data
+   constructor [c'].
+
+   A hard failure takes place if [p] and [v] have incompatible types,
+   e.g., if [p] is a tuple pattern and [v] is not a tuple value or
+   is a tuple value of an incorrect arity. *)
+
 Fixpoint extend η p v : mon env :=
   match p, v with
   | PAny, _ =>
+      (* A wildcard pattern always succeeds. *)
       Ret η
   | PVar x, _ =>
+      (* A variable pattern always succeeds, and causes the environment
+         to be extended. *)
       Ret (EnvCons x v η)
   | PTuple ps, VTuple vs =>
+      (* A tuple pattern matches a tuple value. *)
+      (* A hard failure occurs when [length ps ≠ length vs]. *)
       extends η ps vs
-        (* This causes a hard failure when [length ps ≠ length vs]. *)
-  | PTuple _, _ =>
-      Fail
   | PData c p, VData c' v =>
-      if decide (c = c') then extend η p v else Next (* soft failure *)
+      (* A data pattern matches a data value, provided the data constructors
+         match. If the data constructors do not match, a soft failure takes
+         place. *)
+      if decide (c = c') then extend η p v else Next
+  | PTuple _, _
   | PData _ _, _ =>
+      (* A type mismatch between pattern and value causes a hard failure. *)
       Fail
   end
+
+(* [extends η ps vs] matches the values [vs] against the patterns [ps].
+
+   In case of success, the result is an extension of the environment
+   [η] with bindings for the bound variables of the patterns [ps].
+
+   A hard failure occurs when [length ps ≠ length vs]. *)
 
 with extends η ps vs : mon env :=
   match ps, vs with
@@ -54,13 +87,34 @@ with extends η ps vs : mon env :=
       Fail
   end.
 
+(* ------------------------------------------------------------------------ *)
+
+(* [eval η e] evaluates the expression [e] in environment [η].
+
+   In case of success, the result is a value.
+
+   A hard failure reflects a dynamic type error (a crash).
+
+   A soft failure is impossible.
+
+   No substitutions are involved; this is an environment-based semantics.
+
+   [eval] is inductively defined. In some cases, it invokes itself
+   recursively on a subexpression of [e]. When an expression must be
+   evaluated but is not a subexpression of [e], a [Stop] effect is
+   used instead of a recursive call to [eval]. *)
+
 Fixpoint eval η e : mon val :=
   match e with
   | EVar x =>
+      (* A variable [x] is looked up in the environment [η]. *)
       lookup η x
   | ERec f x e =>
+      (* The creation of a closure captures the environment [η]. *)
       Ret (VRec η f x e)
   | EApp e1 e2 =>
+      (* The left-hand side of an application must evaluate
+         to a closure. *)
       bind (eval η e1) $ λ v1,
       bind (eval η e2) $ λ v2,
       match v1 with
