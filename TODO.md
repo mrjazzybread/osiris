@@ -1,5 +1,7 @@
 # TODO
 
+* Use existing type classes and notation for monads?
+
 * Think about order of evaluation: is it really unspecified in OCaml?
   Introduce a parallel-bind or a parallel-tuple construct in the evaluator,
   and think about its implementation.
