@@ -119,7 +119,6 @@ Fixpoint eval η e : mon val :=
       bind (eval η e2) $ λ v2,
       match v1 with
       | VRec η f x e =>
-          let η := EnvNil in
           let η := EnvCons f v1 η in
           let η := EnvCons x v2 η in
           Stop (REval η e) $ λ v,
