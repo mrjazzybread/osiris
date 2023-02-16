@@ -1,3 +1,4 @@
+Require Import Coq.Logic.FunctionalExtensionality.
 Require Import lang.
 
 (* ------------------------------------------------------------------------ *)
@@ -76,14 +77,14 @@ Definition bind {A B} (m : mon A) (f : A → mon B) : mon B :=
 
 (* Equality of monadic computations. *)
 
-(* This equality is needed to state some of the monad laws. That said, it
-   may be the case that we actually do not need these laws. *)
+(* Equality is needed to state the monad laws. *)
 
 (* This equality is just equality of trees whose internal nodes are the
    [Stop] nodes and whose leaves are [Ret], [Fail] and [Next]. *)
 
-(* If the axiom of functional extensionality is accepted, then [eq]
-   coincides with Coq's ordinary notion of equality. *)
+(* We could give an inductive definition of this equality, as follows. *)
+
+Section Unused.
 
 Inductive eq {A} : mon A → mon A → Prop :=
 | EqRet a :
@@ -117,24 +118,48 @@ Qed.
 
 Local Hint Resolve eq_reflexive : eq.
 
-(* The monadic laws. *)
+End Unused.
 
-Lemma monad_law_left_unit {A B} (a : A) (f : A → mon B) :
-  bind (Ret a) f ~ f a.
+(* I prefer to accept the axiom of functional extensionality, which implies
+   that [eq] coincides with Coq's ordinary equality. *)
+
+Lemma eq_stop_stop A (k1 k2 : val → mon A) req :
+  (∀ v, k1 v = k2 v) →
+  Stop req k1 = Stop req k2.
 Proof.
-  apply eq_reflexive.
+  intros.
+  assert (k1 = k2). { extensionality v. eauto. }
+ congruence.
 Qed.
 
-Lemma monad_law_right_unit {A} (m : mon A) :
-  bind m Ret ~ m.
+#[export] Hint Resolve eq_stop_stop : eq.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The monadic laws. *)
+
+Lemma monad_law_left_unit A B (a : A) (f : A → mon B) :
+  bind (Ret a) f = f a.
 Proof.
-  unfold bind. induction m; simpl try; constructor; eauto.
+  reflexivity.
+Qed.
+
+Lemma monad_law_right_unit A (m : mon A) :
+  bind m Ret = m.
+Proof.
+  unfold bind. induction m; simpl try; eauto with eq.
 Qed.
 
 Lemma monad_law_associativity
-  {A B C} (m : mon A) (g : A → mon B) (h : B → mon C) :
-  bind (bind m g) h ~
+  A B C (m : mon A) (g : A → mon B) (h : B → mon C) :
+  bind (bind m g) h =
   bind m (λ a, bind (g a) h).
 Proof.
   unfold bind. induction m; simpl; eauto with eq.
 Qed.
+
+#[export] Hint Rewrite
+  monad_law_left_unit
+  monad_law_right_unit
+  monad_law_associativity
+  : monad_laws.
