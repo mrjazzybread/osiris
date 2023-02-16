@@ -1,3 +1,4 @@
+From ExtLib.Structures Require Export Monads MonadLaws.
 From stdpp Require Import base.
 
 (* ------------------------------------------------------------------------ *)
@@ -29,6 +30,14 @@ CoFixpoint bind {A B} (m : div A) (f : A → div B) : div B :=
   | Skip m =>
       Skip (bind m f)
   end.
+
+Global Instance div_monad :
+  Monad div.
+Proof.
+  constructor.
+  exact @Ret.
+  exact @bind.
+Defined.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -102,3 +111,10 @@ Lemma monad_law_associativity :
   bind m (λ a, bind (g a) h).
 Proof.
 Abort.
+
+(* This does not work:
+
+CoFixpoint mfix {T U} (ff : (T → div U) → (T → div U)) (t : T) : div U :=
+  ff (λ t, Skip (mfix ff t)) t.
+
+ *)
