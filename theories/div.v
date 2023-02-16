@@ -1,4 +1,4 @@
-From stdpp Require Import strings.
+From stdpp Require Import base.
 
 (* ------------------------------------------------------------------------ *)
 
