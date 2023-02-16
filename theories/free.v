@@ -1,4 +1,5 @@
-Require Import Coq.Logic.FunctionalExtensionality.
+From Coq.Logic Require Import FunctionalExtensionality.
+From ExtLib.Structures Require Export Monads MonadLaws.
 Require Import lang.
 
 (* ------------------------------------------------------------------------ *)
@@ -75,6 +76,18 @@ Definition bind {A B} (m : mon A) (f : A → mon B) : mon B :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* This is a monad. *)
+
+Global Instance free_monad :
+  Monad mon.
+Proof.
+  constructor.
+  exact @Ret.
+  exact @bind.
+Defined.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Equality of monadic computations. *)
 
 (* Equality is needed to state the monad laws. *)
@@ -139,13 +152,13 @@ Qed.
 (* The monadic laws. *)
 
 Lemma monad_law_left_unit A B (a : A) (f : A → mon B) :
-  bind (Ret a) f = f a.
+  bind (ret a) f = f a.
 Proof.
   reflexivity.
 Qed.
 
 Lemma monad_law_right_unit A (m : mon A) :
-  bind m Ret = m.
+  bind m ret = m.
 Proof.
   unfold bind. induction m; simpl try; eauto with eq.
 Qed.
@@ -163,3 +176,12 @@ Qed.
   monad_law_right_unit
   monad_law_associativity
   : monad_laws.
+
+Global Instance free_monad_laws :
+  MonadLaws free_monad.
+Proof.
+  constructor.
+  { eauto using monad_law_left_unit. }
+  { eauto using monad_law_right_unit. }
+  { eauto using monad_law_associativity. }
+Qed.
