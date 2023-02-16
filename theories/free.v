@@ -10,7 +10,7 @@ Require Import lang.
    - [Next], a soft failure, which represents a request to jump to the next
              branch in a [match] construct;
    - [Stop], an effect whose signature is [request → val];
-             this effect can be viewed of consulting an oracle,
+             this effect can be viewed as consulting an oracle,
              which answers a request with a value.
 
    The definition of the type [mon A] is inductive:
