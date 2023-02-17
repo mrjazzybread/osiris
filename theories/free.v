@@ -74,6 +74,26 @@ Fixpoint try {A B} (m : mon A) (f : A → mon B) (g : unit → mon B) : mon B :=
 Definition bind {A B} (m : mon A) (f : A → mon B) : mon B :=
   try m f (λ tt, Next).
 
+(* Paraphrase lemmas. *)
+
+Lemma free_bind_fail {A B} (f : A → mon B) :
+  bind Fail f = Fail.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma free_bind_next {A B} (f : A → mon B) :
+  bind Next f = Next.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma free_bind_stop {A B} req k (f : A → mon B) :
+  bind (Stop req k) f = Stop req (λ v, bind (k v) f).
+Proof.
+  reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* This is a monad. *)
