@@ -69,19 +69,41 @@ Implicit Type t : T.
 Implicit Type φ : A → Prop.
 Implicit Type p : T → spec A.
 
+(* Let us define implication, viewed as an ordering [p1 ≼ p2]. *)
+
 Definition leq p1 p2 :=
   ∀ t φ, p1 t φ → p2 t φ.
 
 Local Infix "≼" := leq (at level 70, no associativity).
 
-Definition monotone ff :=
-  ∀ p1 p2, p1 ≼ p2 → ff p1 ≼ ff p2.
+(* The greatest fixed point is constructed as follows. The existential
+   quantifier can be read here as an infinite union. The greatest fixed
+   point is the union of all post fixed points, where we say that [p] is
+   a post fixed point if [p ≼ ff p] holds. *)
 
 Definition spec_mfix : T → spec A :=
   λ t φ, ∃ p, p t φ ∧ p ≼ ff p.
 
+(* By definition, [mspec_fix] is greater than any post fixed point.
+   So, if it is a fixed point (which we will prove below), then it
+   must be the greatest fixed point. This is the coinduction principle. *)
+
+Lemma spec_coinduction p :
+  p ≼ ff p →
+  p ≼ spec_mfix.
+Proof.
+  intros post t φ ptφ. unfold spec_mfix. eauto.
+Qed.
+
+(* The transformer [ff] must be monotone. *)
+
+Definition monotone ff :=
+  ∀ p1 p2, p1 ≼ p2 → ff p1 ≼ ff p2.
+
 Variable monotone_ff :
   monotone ff.
+
+(* [spec_mfix] is itself a post fixed point. *)
 
 Lemma deconstruction :
   spec_mfix ≼ ff spec_mfix.
@@ -89,7 +111,7 @@ Proof.
   intros t φ.
   intros (p & ptφ & propagation).
   eapply (monotone_ff p).
-  { intros t' φ'. unfold spec_mfix. eauto. }
+  { eauto using spec_coinduction. }
   { eauto. }
 Qed.
 
@@ -99,12 +121,14 @@ Proof.
   eauto using deconstruction.
 Qed.
 
+(* [spec_mfix] is also a pre fixed point. *)
+
 Lemma construction :
   ff spec_mfix ≼ spec_mfix.
 Proof.
   intros t φ.
   intros Hff.
-  (* We have just one witness at hand. *)
+  (* We have just one witness at hand, namely [ff mspec_fix]. *)
   eexists. split; [ eauto |].
   (* Miracle! The goal now looks like [deconstruction]. *)
   clear t Hff φ.
@@ -116,6 +140,8 @@ Lemma construction_expanded t φ :
 Proof.
   eauto using construction.
 Qed.
+
+(* Therefore, [spec_mfix] is a fixed point. *)
 
 Lemma fixed_point :
   spec_mfix = ff spec_mfix.
