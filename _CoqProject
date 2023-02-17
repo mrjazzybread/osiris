@@ -4,4 +4,6 @@ theories/free.v
 theories/eval.v
 theories/div.v
 theories/free_div.v
+theories/spec.v
+theories/handle.v
 theories/wp.v
