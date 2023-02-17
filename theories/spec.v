@@ -155,4 +155,25 @@ End Fix.
 
 Opaque spec_mfix.
 
+Global Instance spec_monad_fix :
+  MonadFix spec.
+Proof.
+  constructor.
+  exact @spec_mfix.
+Defined.
+
+Global Instance spec_monad_fix_laws :
+  MonadFixLaws spec_monad_fix.
+Print MonadFixLaws.
+Proof.
+  pose (mleq := (λ (A : Type) (_ : relation A), @eq (spec A))).
+  eapply (Build_MonadFixLaws _ mleq).
+  unfold respectful.
+  unfold mleq.
+  unfold mfix; simpl.
+  intros T A ff t t' ?. subst t'.
+  rewrite <- fixed_point. 2: admit. (* problem! *)
+  reflexivity.
+Abort.
+
 (* ------------------------------------------------------------------------ *)
