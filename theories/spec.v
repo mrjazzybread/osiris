@@ -69,7 +69,7 @@ Implicit Type t : T.
 Implicit Type φ : A → Prop.
 Implicit Type p : T → spec A.
 
-(* Let us define implication, viewed as an ordering [p1 ≼ p2]. *)
+(* Let us view implication as an ordering [p1 ≼ p2]. *)
 
 Definition leq p1 p2 :=
   ∀ t φ, p1 t φ → p2 t φ.
