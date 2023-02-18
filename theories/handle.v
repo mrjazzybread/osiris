@@ -129,6 +129,10 @@ Proof.
     (* TODO We are in trouble: we are trying to establish something
        that looks like the initial goal,
        where [m] has been instantiated with [eval η e]. *)
+    generalize (eval η e); intros m. clear η e.
+    rewrite <- bind_associativity by typeclasses eauto.
+    generalize (bind m k0). clear m k0. intros m.
+    (* This is exactly the original goal... *)
     (* We may need some form of co-induction:
        we need to know that [handle] is a greatest fixed point,
        and it is OK to use a co-induction hypothesis here. *)
