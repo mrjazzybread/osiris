@@ -13,6 +13,7 @@ Context {MZ : MonadZero target}.
 Context {MZL : MonadZeroLaws M MZ}.
 Context {MF : MonadFix target}.
 Context {MFL : MonadFixLaws MF}.
+Context {MFC : MonadFixCoinduction MF MFL}.
 
 Section A.
 
@@ -84,14 +85,12 @@ Qed.
 Lemma handle_stop η e (k : val → free.mon A) :
   handle (free.Stop (free.REval η e) k) = handle (bind (eval η e) k).
 Proof.
-  rewrite handle_fixed_point. (* rewrites both occurrences... *)
-  simpl. rewrite <- handle_fixed_point.       (* rewrite back *)
+  pattern handle at 1; rewrite handle_fixed_point.
+  simpl.
   reflexivity.
 Qed.
 
 End A.
-
-Global Opaque handle.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -107,31 +106,32 @@ Definition run η e : target val :=
 
 (* In other words, [handle] is a monad morphism. *)
 
-Lemma compatibility {A B} (m : free.mon A) (k : A → free.mon B) :
-  handle (bind m k) =
-  bind (handle m) (λ v, handle (k v)).
+Lemma compatibility {A B} (m : free.mon A) :
+  ∀ (f : A → free.mon B),
+  mleq
+    (bind (handle m) (λ v, handle (f v)))
+    (handle (bind m f)).
 Proof.
-  destruct m.
+  induction m as [ | | | [ η e] k IH ]; intros.
   { rewrite handle_ret.
     do 2 rewrite bind_of_return by typeclasses eauto.
-    reflexivity. }
+    eapply mleq_reflexive. }
   { rewrite free.free_bind_fail.
     do 2 rewrite handle_fail.
     rewrite bind_zero by typeclasses eauto.
-    reflexivity. }
+    eapply mleq_reflexive. }
   { rewrite free.free_bind_next.
     do 2 rewrite handle_next.
     rewrite bind_zero by typeclasses eauto.
-    reflexivity. }
+    eapply mleq_reflexive. }
   { rewrite free.free_bind_stop.
-    destruct req as (η & e).
     do 2 rewrite handle_stop.
     (* TODO We are in trouble: we are trying to establish something
        that looks like the initial goal,
        where [m] has been instantiated with [eval η e]. *)
     generalize (eval η e); intros m. clear η e.
     rewrite <- bind_associativity by typeclasses eauto.
-    generalize (bind m k0). clear m k0. intros m.
+    generalize (bind m k). clear m k IH. intros m.
     (* This is exactly the original goal... *)
     (* We may need some form of co-induction:
        we need to know that [handle] is a greatest fixed point,
@@ -139,3 +139,5 @@ Proof.
 Abort.
 
 End Handle.
+
+Global Opaque handle.
