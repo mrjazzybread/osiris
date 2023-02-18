@@ -1,90 +1,9 @@
-Require Import lang free eval.
+Require Import lang free eval spec handle.
 
-(* The wp monad. *)
+(* Instantiate the generic [handle] with the [spec] monad. *)
 
-Definition wpm A :=
-  (A → Prop) → Prop.
-
-Definition wret {A} : A → wpm A :=
-  λ (a : A) (φ : A → Prop),
-    φ a.
-
-Definition wfail {A} : wpm A :=
-  λ (φ : A → Prop),
-    False.
-
-Definition wbind {A B} (m : wpm A) (f : A → wpm B) : wpm B :=
-  λ (φ : B → Prop),
-    m (λ a, f a φ).
-
-Definition whandle {A} (self : mon A → wpm A) (m : mon A) : wpm A :=
-  match m with
-  | Ret a =>
-      wret a
-  | Fail =>
-      wfail
-  | Next =>
-      (* This must not happen. *)
-      wfail
-  | Stop req k =>
-      match req with
-      | REval η e =>
-          self (bind (eval η e) k)
-      end
-  end.
-
-Lemma whandle_monotonic {A} (self1 self2 : mon A → wpm A) m φ :
-  (∀ m φ, self1 m φ → self2 m φ) →
-  whandle self1 m φ →
-  whandle self2 m φ.
-Proof.
-  intros H.
-  destruct m; simpl whandle; eauto.
-  destruct req. eauto.
-Qed.
-
-(* We want the greatest fixed point of [whandle]. *)
-
-(* TODO not accepted:
-CoInductive wp {A} (m : mon A) : wpm A :=
-| WpStep :
-    ∀ φ,
-    whandle wp m φ →
-    wp m φ.
- *)
-
-Definition wp {A} (m : mon A) : wpm A :=
-  λ (φ : A → Prop),
-    ∃ wp : mon A → wpm A,
-      wp m φ ∧ (∀ m φ, wp m φ → whandle wp m φ).
-
-Lemma deconstruction {A} (m : mon A) φ :
-  wp m φ →
-  whandle wp m φ.
-Proof.
-  intros (witness & Hwitness & Hprop).
-  eapply whandle_monotonic; [| eauto ].
-  unfold wp; eauto.
-Qed.
-
-Lemma construction {A} (m : mon A) φ :
-  whandle wp m φ →
-  wp m φ.
-Proof.
-  intros H.
-  eexists. split; [ eauto |].
-  clear m H φ.
-  intros m φ H.
-  eauto using whandle_monotonic, deconstruction.
-Qed.
-
-Lemma fixed_point {A} (m : mon A) φ :
-  wp m φ ↔ whandle wp m φ.
-Proof.
-  split; eauto using construction, deconstruction.
-Qed.
-
-Opaque wp.
+Definition wp η e φ :=
+  run η e φ.
 
 (* An example. *)
 
@@ -114,9 +33,9 @@ Eval cbv in eval EnvNil example.
 
 (* An example of reasoning about straight-line code. *)
 
-Goal wp (eval EnvNil example) (λ v, v = VData "A" (VTuple VNil)).
+Goal wp EnvNil example (λ v, v = VData "A" (VTuple VNil)).
 Proof.
-  cbv. rewrite fixed_point. cbv. reflexivity.
+  cbv. rewrite handle_fixed_point. cbv. reflexivity.
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
@@ -129,7 +48,7 @@ Definition example2 :=
 Goal
   ∀ v1 v2,
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
-  wp (eval env example2) (λ v, v = v1).
+  wp env example2 (λ v, v = v1).
 Proof.
-  intros. cbv. rewrite fixed_point. cbv. reflexivity.
+  intros. cbv. rewrite handle_fixed_point. cbv. reflexivity.
 Qed.

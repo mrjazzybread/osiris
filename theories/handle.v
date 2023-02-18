@@ -6,13 +6,13 @@ Require free.
 
 Section Handle.
 
-Variable target : Type → Type.
-Variable M : Monad target.
-Variable ML : MonadLaws M.
-Variable MZ : MonadZero target.
-Variable MZL : MonadZeroLaws M MZ.
-Variable MF : MonadFix target.
-Variable MFL : MonadFixLaws MF.
+Context {target : Type → Type}.
+Context {M : Monad target}.
+Context {ML : MonadLaws M}.
+Context {MZ : MonadZero target}.
+Context {MZL : MonadZeroLaws M MZ}.
+Context {MF : MonadFix target}.
+Context {MFL : MonadFixLaws MF}.
 
 Section A.
 
@@ -90,6 +90,8 @@ Proof.
 Qed.
 
 End A.
+
+Global Opaque handle.
 
 (* ------------------------------------------------------------------------ *)
 
