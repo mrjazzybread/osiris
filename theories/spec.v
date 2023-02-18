@@ -172,6 +172,13 @@ Proof.
   unfold spec_mleq;
   unfold mfix; simpl;
   eauto using fixed_point.
+Defined.
+
+Global Instance spec_monad_fix_coinduction :
+  MonadFixCoinduction spec_monad_fix spec_monad_fix_laws.
+Proof.
+  constructor. unfold mleq; simpl.
+  intros. eapply spec_coinduction. eauto.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
