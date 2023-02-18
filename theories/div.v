@@ -1,5 +1,5 @@
-From ExtLib.Structures Require Export Monads MonadLaws.
 From stdpp Require Import base.
+Require Import monads.
 
 (* ------------------------------------------------------------------------ *)
 

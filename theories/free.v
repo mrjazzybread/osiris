@@ -1,6 +1,5 @@
 From Coq.Logic Require Import FunctionalExtensionality.
-From ExtLib.Structures Require Export Monads MonadLaws.
-Require Import lang.
+Require Import monads lang.
 
 (* ------------------------------------------------------------------------ *)
 

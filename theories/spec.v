@@ -1,6 +1,6 @@
 From Coq.Logic Require Import FunctionalExtensionality PropExtensionality.
-From ExtLib.Structures Require Export Monads MonadLaws.
 From stdpp Require Import base.
+Require Import monads.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -71,10 +71,13 @@ Implicit Type p : T → spec A.
 
 (* Let us view implication as an ordering [p1 ≼ p2]. *)
 
-Definition spec_mleq p1 p2 :=
-  ∀ t φ, p1 t φ → p2 t φ.
+Definition spec_mleq (m1 m2 : spec A) :=
+  ∀ φ, m1 φ → m2 φ.
 
-Local Infix "≼" := spec_mleq (at level 70, no associativity).
+Definition leq p1 p2 :=
+  ∀ t, spec_mleq (p1 t) (p2 t).
+
+Local Infix "≼" := leq (at level 70, no associativity).
 
 (* The greatest fixed point is constructed as follows. The existential
    quantifier can be read here as an infinite union. The greatest fixed
@@ -112,13 +115,13 @@ Proof.
   intros (p & ptφ & propagation).
   eapply (monotone_ff p).
   { eauto using spec_coinduction. }
-  { eauto. }
+  { eapply propagation. exact ptφ. }
 Qed.
 
 Lemma deconstruction_expanded t φ :
   spec_mfix t φ → ff spec_mfix t φ.
 Proof.
-  eauto using deconstruction.
+  intros. eapply deconstruction. eauto.
 Qed.
 
 (* [spec_mfix] is also a pre fixed point. *)
@@ -138,7 +141,7 @@ Qed.
 Lemma construction_expanded t φ :
   ff spec_mfix t φ → spec_mfix t φ.
 Proof.
-  eauto using construction.
+  intros. eapply construction. eauto.
 Qed.
 
 (* Therefore, [spec_mfix] is a fixed point. *)
@@ -148,7 +151,7 @@ Lemma fixed_point :
 Proof.
   extensionality t. extensionality φ.
   apply propositional_extensionality.
-  split; eauto using construction, deconstruction.
+  split; eauto using construction_expanded, deconstruction_expanded.
 Qed.
 
 End Fix.
@@ -162,29 +165,12 @@ Proof.
   exact @spec_mfix.
 Defined.
 
-Section MonadFixLaws.
-
-  Context {m : Type -> Type}.
-  Context (MF : MonadFix m).
-
-  Class MonadFixLaws :=
-    {
-      mleq :
-        forall {T A}, relation (T -> m A);
-      mfix_fixed_point :
-        forall {T A} (ff : (T -> m A) -> (T -> m A)),
-        (∀ p1 p2, mleq p1 p2 -> mleq (ff p1) (ff p2)) ->
-        mfix ff = ff (mfix ff)
-    }.
-
-End MonadFixLaws.
-
 Global Instance spec_monad_fix_laws :
   MonadFixLaws spec_monad_fix.
 Proof.
-  econstructor.
-  instantiate (1 := @spec_mleq).
-  unfold mfix; simpl.
+  eapply (@Build_MonadFixLaws _ _ (@spec_mleq));
+  unfold spec_mleq;
+  unfold mfix; simpl;
   eauto using fixed_point.
 Qed.
 
