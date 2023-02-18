@@ -71,10 +71,10 @@ Implicit Type p : T → spec A.
 
 (* Let us view implication as an ordering [p1 ≼ p2]. *)
 
-Definition leq p1 p2 :=
+Definition spec_mleq p1 p2 :=
   ∀ t φ, p1 t φ → p2 t φ.
 
-Local Infix "≼" := leq (at level 70, no associativity).
+Local Infix "≼" := spec_mleq (at level 70, no associativity).
 
 (* The greatest fixed point is constructed as follows. The existential
    quantifier can be read here as an infinite union. The greatest fixed
@@ -162,18 +162,30 @@ Proof.
   exact @spec_mfix.
 Defined.
 
+Section MonadFixLaws.
+
+  Context {m : Type -> Type}.
+  Context (MF : MonadFix m).
+
+  Class MonadFixLaws :=
+    {
+      mleq :
+        forall {T A}, relation (T -> m A);
+      mfix_fixed_point :
+        forall {T A} (ff : (T -> m A) -> (T -> m A)),
+        (∀ p1 p2, mleq p1 p2 -> mleq (ff p1) (ff p2)) ->
+        mfix ff = ff (mfix ff)
+    }.
+
+End MonadFixLaws.
+
 Global Instance spec_monad_fix_laws :
   MonadFixLaws spec_monad_fix.
-Print MonadFixLaws.
 Proof.
-  pose (mleq := (λ (A : Type) (_ : relation A), @eq (spec A))).
-  eapply (Build_MonadFixLaws _ mleq).
-  unfold respectful.
-  unfold mleq.
+  econstructor.
+  instantiate (1 := @spec_mleq).
   unfold mfix; simpl.
-  intros T A ff t t' ?. subst t'.
-  rewrite <- fixed_point. 2: admit. (* problem! *)
-  reflexivity.
-Abort.
+  eauto using fixed_point.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
