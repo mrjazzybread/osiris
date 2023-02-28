@@ -1,4 +1,6 @@
 From ExtLib.Structures Require Export Monads MonadLaws.
+  (* TODO remove dependency on coq-ext-lib *)
+  (* TODO define >>= *)
 
 Section Laws.
 
@@ -32,3 +34,8 @@ Class MonadFixCoinduction (MF : MonadFix m) (MFL : MonadFixLaws MF) := {
 }.
 
 End Laws.
+
+(* This type class is taken from Interaction Trees: Basics/Basics.v. *)
+
+Polymorphic Class MonadIter (m : Type -> Type) : Type :=
+  iter : forall {R I: Type}, (I -> m (I + R)%type) -> I -> m R.

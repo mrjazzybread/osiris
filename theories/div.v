@@ -143,10 +143,6 @@ Abort.
 
 (* We can however define an iteration combinator [iter]. *)
 
-(* From Interaction Trees: Basics/Basics.v *)
-Polymorphic Class MonadIter (M : Type -> Type) : Type :=
-  iter : forall {R I: Type}, (I -> M (I + R)%type) -> I -> M R.
-
 CoFixpoint div_iter {R I} (body : I → div (I + R)) (init : I) : div R :=
   bind (body init) (λ signal,
   match signal with
