@@ -146,12 +146,18 @@ Qed.
 
 (* Therefore, [spec_mfix] is a fixed point. *)
 
+Lemma fixed_point_expanded t :
+  spec_mfix t = ff spec_mfix t.
+Proof.
+  extensionality φ.
+  apply propositional_extensionality.
+  split; eauto using construction_expanded, deconstruction_expanded.
+Qed.
+
 Lemma fixed_point :
   spec_mfix = ff spec_mfix.
 Proof.
-  extensionality t. extensionality φ.
-  apply propositional_extensionality.
-  split; eauto using construction_expanded, deconstruction_expanded.
+  extensionality t. eapply fixed_point_expanded.
 Qed.
 
 End Fix.
@@ -185,8 +191,13 @@ Qed.
 
 (* An iteration combinator [iter] can be derived from [mfix]. *)
 
-Definition spec_iter {R I} (body : I → spec (I + R)) : I → spec R :=
-  spec_mfix (λ (self : I → spec R) (i : I),
+Section Iter.
+
+Context {R I : Type}.
+Context (body : I → spec (I + R)).
+
+Definition spec_iter_body (self : I → spec R) : I → spec R :=
+  λ (i : I),
     (* Evaluate [body] out of the state [i]. *)
     bind (body i) (λ (signal : I + R),
       match signal with
@@ -196,7 +207,57 @@ Definition spec_iter {R I} (body : I → spec (I + R)) : I → spec R :=
       | inr r =>
           (* If the body yields a result [r], return this result. *)
           ret r
-      end)).
+      end).
+
+Definition spec_iter : I → spec R :=
+  spec_mfix spec_iter_body.
+
+(* TODO move *)
+Lemma spec_mleq_reflexive {A} (m : spec A) :
+  spec_mleq m m.
+Proof.
+  unfold spec_mleq. eauto.
+Qed.
+
+(* TODO prove and move *)
+Lemma spec_mleq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
+  spec_mleq m1 m2 →
+  (∀ a, spec_mleq (f1 a) (f2 a)) →
+  spec_mleq (spec_bind m1 f1) (spec_bind m2 f2).
+Proof.
+Admitted.
+
+Lemma monotone_spec_iter_body :
+  monotone spec_iter_body.
+Proof.
+  unfold monotone, leq. intros self1 self2 ?.
+  unfold spec_iter_body.
+  intros i.
+  eapply spec_mleq_bind.
+  { eapply spec_mleq_reflexive. }
+  intros signal. destruct signal.
+  { eauto. }
+  { eapply spec_mleq_reflexive. }
+Qed.
+
+End Iter.
 
 Global Instance monaditer_spec : MonadIter spec :=
   { iter := @spec_iter }.
+
+Global Instance monadskip_spec : MonadSkip spec :=
+  { skip := (λ {A} (m : spec A), m) }.
+
+Global Instance monaditerlaws_spec :
+  MonadIterLaws _ _ _.
+Proof.
+  constructor.
+  unfold iter, monaditer_spec.
+  unfold skip, monadskip_spec.
+  simpl.
+  unfold spec_iter.
+  intros.
+  rewrite fixed_point_expanded; [ | eapply monotone_spec_iter_body ].
+  unfold spec_iter_body at 1.
+  reflexivity.
+Qed.
