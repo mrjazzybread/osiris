@@ -143,14 +143,17 @@ Abort.
 
 (* We can however define an iteration combinator [iter]. *)
 
-CoFixpoint div_iter {R I} (body : I → div (I + R)) (init : I) : div R :=
-  bind (body init) (λ signal,
-  match signal with
-  | inl state =>
-      Skip (div_iter body state)
-  | inr result =>
-      Ret result
-  end).
+CoFixpoint div_iter {R I} (body : I → div (I + R)) (i : I) : div R :=
+  (* Evaluate [body] out of the state [i]... *)
+  bind (body i) (λ (signal : I + R),
+    match signal with
+    | inl state =>
+        (* If the body yields a new state [i], continue. *)
+        Skip (div_iter body state)
+    | inr result =>
+        (* If the body yields a result [r], return this result. *)
+        Ret result
+    end).
 
 Global Instance monaditer_div : MonadIter div :=
   { iter := @div_iter }.
