@@ -52,7 +52,7 @@ End Subst.
 Definition bind {A B} (m : div A) (f : A → div B) : div B :=
   subst f m.
 
-Global Instance div_monad : Monad div :=
+Global Instance monad_div : Monad div :=
   { ret := @Ret; bind := @bind }.
 
 (* ------------------------------------------------------------------------ *)
@@ -144,16 +144,25 @@ Abort.
 (* We can however define an iteration combinator [iter]. *)
 
 CoFixpoint div_iter {R I} (body : I → div (I + R)) (i : I) : div R :=
-  (* Evaluate [body] out of the state [i]... *)
+  (* Evaluate [body] out of the state [i]. *)
   bind (body i) (λ (signal : I + R),
     match signal with
-    | inl state =>
+    | inl i =>
         (* If the body yields a new state [i], continue. *)
-        Skip (div_iter body state)
-    | inr result =>
+        Skip (div_iter body i)
+    | inr r =>
         (* If the body yields a result [r], return this result. *)
-        Ret result
+        Ret r
     end).
 
 Global Instance monaditer_div : MonadIter div :=
   { iter := @div_iter }.
+
+Global Instance monadskip_div : MonadSkip div :=
+  { skip := @Skip }.
+
+Global Instance monaditerlaws_div :
+  MonadIterLaws _ _ _.
+Proof.
+  constructor. simpl.
+Admitted.
