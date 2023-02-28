@@ -8,6 +8,9 @@ Require Import monads.
 (* This type is co-inductive and offers a [Skip] constructor, as usual in
    a divergence monad. It also offers a hard failure constructor [Fail]. *)
 
+(* This type COULD be viewed as an instance of the type [itree] offered by
+   the Interaction Trees library. *)
+
 CoInductive div A :=
   | Ret (a : A)
   | Fail
@@ -21,23 +24,36 @@ Arguments Skip {A} m.
 
 (* Monadic combinators. *)
 
-CoFixpoint bind {A B} (m : div A) (f : A → div B) : div B :=
-  match m with
-  | Ret a =>
-      f a
-  | Fail =>
-      Fail
-  | Skip m =>
-      Skip (bind m f)
-  end.
+(* [subst f m] is [bind m f]. Defining [subst] first allows us to point out
+   to Coq that the argument [f] is invariant (i.e., it does not change as
+   the cofixpoint is unfolded). This in turn allows Coq to accept more
+   co-inductive definitions that involve [bind]; the definition of [iter]
+   is an example. *)
 
-Global Instance div_monad :
-  Monad div.
-Proof.
-  constructor.
-  exact @Ret.
-  exact @bind.
-Defined.
+Section Subst.
+
+  Context {A B : Type}.
+  Variable (f : A → div B).
+
+  CoFixpoint subst (m : div A) : div B :=
+    match m with
+    | Ret a =>
+        f a
+    | Fail =>
+        Fail
+    | Skip m =>
+        Skip (subst m)
+    end.
+
+End Subst.
+
+(* [bind] is [subst] with its argument reversed. *)
+
+Definition bind {A B} (m : div A) (f : A → div B) : div B :=
+  subst f m.
+
+Global Instance div_monad : Monad div :=
+  { ret := @Ret; bind := @bind }.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -112,9 +128,33 @@ Lemma monad_law_associativity :
 Proof.
 Abort.
 
-(* This does not work:
+(* ------------------------------------------------------------------------ *)
 
-CoFixpoint mfix {T U} (ff : (T → div U) → (T → div U)) (t : T) : div U :=
-  ff (λ t, Skip (mfix ff t)) t.
+(* We cannot define a general fixed point combinator. This definition
+   is not accepted by Coq, as the function [ff] could deconstruct its
+   argument:
+
+   CoFixpoint mfix {T U} (ff : (T → div U) → (T → div U)) (t : T) : div U :=
+     ff (λ t, Skip (mfix ff t)) t.
 
  *)
+
+(* ------------------------------------------------------------------------ *)
+
+(* We can however define an iteration combinator [iter]. *)
+
+(* From Interaction Trees: Basics/Basics.v *)
+Polymorphic Class MonadIter (M : Type -> Type) : Type :=
+  iter : forall {R I: Type}, (I -> M (I + R)%type) -> I -> M R.
+
+CoFixpoint div_iter {R I} (body : I → div (I + R)) (init : I) : div R :=
+  bind (body init) (λ signal,
+  match signal with
+  | inl state =>
+      Skip (div_iter body state)
+  | inr result =>
+      Ret result
+  end).
+
+Global Instance monaditer_div : MonadIter div :=
+  { iter := @div_iter }.
