@@ -182,3 +182,21 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
+
+(* An iteration combinator [iter] can be derived from [mfix]. *)
+
+Definition spec_iter {R I} (body : I → spec (I + R)) : I → spec R :=
+  spec_mfix (λ (self : I → spec R) (i : I),
+    (* Evaluate [body] out of the state [i]. *)
+    bind (body i) (λ (signal : I + R),
+      match signal with
+      | inl i =>
+          (* If the body yields a new state [i], continue. *)
+          self i
+      | inr r =>
+          (* If the body yields a result [r], return this result. *)
+          ret r
+      end)).
+
+Global Instance monaditer_spec : MonadIter spec :=
+  { iter := @spec_iter }.
