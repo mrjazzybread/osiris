@@ -2,11 +2,11 @@ From ExtLib.Structures Require Export Monads MonadLaws.
   (* TODO remove dependency on coq-ext-lib *)
   (* TODO define >>= *)
 
-Section Laws.
+Section MonadFixLaws.
 
 Context {m : Type -> Type}.
 
-(* The type class MonadFix in coq-ext-lib does not work for us,
+(* The type class MonadFixLaws in coq-ext-lib does not work for us,
    so we replace it with the following class. *)
 
 Class MonadFixLaws (MF : MonadFix m) := {
@@ -33,9 +33,37 @@ Class MonadFixCoinduction (MF : MonadFix m) (MFL : MonadFixLaws MF) := {
     (forall t, mleq (p t) (mfix ff t))
 }.
 
-End Laws.
+End MonadFixLaws.
 
 (* This type class is taken from Interaction Trees: Basics/Basics.v. *)
 
-Polymorphic Class MonadIter (m : Type -> Type) : Type :=
-  iter : forall {R I: Type}, (I -> m (I + R)%type) -> I -> m R.
+Class MonadIter (m : Type -> Type) : Type :=
+  iter : forall {R I}, (I -> m (I + R)%type) -> I -> m R.
+
+Class MonadSkip (m : Type -> Type) : Type :=
+  skip : forall {A}, m A -> m A.
+
+Section MonadIterLaws.
+
+Context {m : Type -> Type}.
+Context (M : Monad m).
+Context (MI : MonadIter m).
+Context (MS : MonadSkip m).
+
+Class MonadIterLaws := {
+  unfold_iter :
+    forall {R I} (body : I -> m (I + R)) (i : I),
+    iter body i =
+      (* Evaluate [body] out the state [i]. *)
+      bind (body i) (fun (signal : I + R) =>
+        match signal with
+        | inl j =>
+            (* If the body yields a new state [j], continue. *)
+            skip (iter body j)
+        | inr r =>
+            (* If the body yields a result [r], return this result. *)
+            ret r
+        end)
+  }.
+
+End MonadIterLaws.
