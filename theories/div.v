@@ -20,8 +20,6 @@ Definition div A :=
 Global Instance monad_div : Monad div :=
   Monad_itree.
 
-Arguments monad_div /.
-
 Global Instance monadlaws_div : MonadLaws _.
 Proof.
   (* The monad laws hold with respect to strong bisimulation [≅],
@@ -39,19 +37,15 @@ Qed.
 Definition div_skip {A} (m : div A) :=
   Tau m.
 
-Arguments div_skip {A} m /.
-
 Global Instance monadskip_div : MonadSkip div :=
   { skip := @div_skip }.
-
-Arguments monadskip_div /.
 
 Local Ltac msimpl :=
   unfold Proper, eq1; simpl;
   unfold Eq1_ITree; simpl.
 
 Global Instance monadskiplaws_div :
-  MonadSkipLaws monad_div monadskip_div.
+  MonadSkipLaws _ _.
 Proof.
   constructor.
   (* bind_skip *)
@@ -62,12 +56,39 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
+(* The hard failure combinator [mzero]. *)
+
+Program Definition div_mzero {A} : div A :=
+  throw tt.
+
+Global Instance div_monad_zero : MonadZero div :=
+  { mzero := @div_mzero }.
+
+Global Instance monadzerolaws_div :
+  MonadZeroLaws _ _.
+Proof.
+  constructor; intros; simpl.
+  eapply bisimulation_is_eq.
+  unfold div_mzero.
+  (* [bind (throw v) k] is [throw v]. *)
+  (* This lemma seems to be missing in Interaction Trees. *)
+  unfold throw.
+  rewrite bind_vis.
+  (* [vis (Throw v) k1 ≅ vis (Throw v) k2]. *)
+  (* This lemma seems to be missing in Interaction Trees. *)
+  (* The equality holds even if [k1] and [k2] are apparently distinct
+     functions. They are functions of type [void → ...], so they are
+     in fact extensionally equal. *)
+  eapply fold_eqitF; [| simpl; reflexivity | simpl; reflexivity ].
+  constructor. intros v. destruct v.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* An iteration combinator [iter] is available. *)
 
 Global Instance monaditer_div : MonadIter div :=
   MonadIter_itree.
-
-Arguments monaditer_div /.
 
 Global Instance monaditerlaws_div :
   MonadIterLaws _ _ _.
