@@ -9,6 +9,14 @@ Require Import monads.
 Definition spec A :=
   (A → Prop) → Prop.
 
+(* It seems that we should really restrict our attention to elements
+   of [(A → Prop) → Prop] that are monotonic in the following sense.
+   The need for this property shows up in the attempted proof of
+   [spec_mleq_bind]. For now, we are able to get away without it. *)
+
+Definition monotonic {A} (m : spec A) :=
+  ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m φ → m φ'.
+
 (* ------------------------------------------------------------------------ *)
 
 (* The monadic combinators. *)
@@ -192,19 +200,17 @@ Proof.
 Qed.
 
 Lemma spec_mleq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
+  monotonic m1 → (* TODO *)
   spec_mleq m1 m2 →
   (∀ a, spec_mleq (f1 a) (f2 a)) →
   spec_mleq (spec_bind m1 f1) (spec_bind m2 f2).
 Proof.
   unfold spec_mleq, spec_bind.
-  intros Hmm Hff φ Hm1.
-  (* TODO we are missing this monotonicity property: *)
-  assert (Hmono: ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m1 φ → m1 φ').
-  { admit. }
+  intros Hmono Hmm Hff φ Hm1.
   eapply Hmm.
   eapply Hmono; [| eapply Hm1 ].
   simpl. eauto.
-Admitted.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -232,12 +238,14 @@ Definition spec_iter : I → spec R :=
   spec_mfix spec_iter_body.
 
 Lemma monotone_spec_iter_body :
+  (∀ i, monotonic (body i)) → (* TODO *)
   monotone spec_iter_body.
 Proof.
-  unfold monotone, leq. intros self1 self2 ?.
+  unfold monotone, leq. intros Hmono self1 self2 ?.
   unfold spec_iter_body.
   intros i.
   eapply spec_mleq_bind.
+  { eapply Hmono. }
   { eapply spec_mleq_reflexive. }
   intros signal. destruct signal.
   { eauto. }
@@ -264,4 +272,4 @@ Proof.
   rewrite fixed_point_expanded; [ | eapply monotone_spec_iter_body ].
   unfold spec_iter_body at 1.
   reflexivity.
-Qed.
+Admitted.
