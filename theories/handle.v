@@ -85,7 +85,7 @@ Proof.
 Qed.
 
 Lemma handle_stop η e (k : val → free A) :
-  handle (free.Stop (free.REval η e) k) =
+  handle (Stop (REval η e) k) =
   skip (handle (bind (eval η e) k)).
 Proof.
   rewrite (handle_fixed_point (Stop _ _)). unfold handle_body.
