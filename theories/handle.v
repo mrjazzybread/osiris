@@ -1,3 +1,5 @@
+From Paco Require Import paco.
+From ITree Require Import Eq EqAxiom.
 Require Import lang monads free eval.
 
 (* This file defines an interpretation (a transformation) of the [free]
@@ -103,46 +105,52 @@ End A.
 Definition run η e : target val :=
   handle (eval η e).
 
+End Handle.
+
+Global Opaque handle.
+
 (* ------------------------------------------------------------------------ *)
+
+(* TODO the following lemma is specialized to [div] for now. *)
+From ITree Require Import Eq.Paco2.
+Require Import div.
 
 (* [handle] commutes with [bind]. *)
 
 (* In other words, [handle] is a monad morphism. *)
 
-Lemma compatibility {A B} (m : free A) :
+(* This resembles [interp_mrec_bind] in ITree.Interp.RecursionFacts.
+   The coinductive structure of the proof is roughly the same. *)
+
+Lemma handle_bind {A B} (m : free A) :
   ∀ (f : A → free B),
-  bind (handle m) (λ v, handle (f v)) =
-  handle (bind m f).
+  handle (bind m f) =
+  bind (handle m) (λ v, handle (f v)).
 Proof.
-  induction m as [ | | | [ η e] k IH ]; intros.
+  intros. eapply bisimulation_is_eq. revert m f.
+  ginit. pcofix CIH; intros.
+  destruct m as [ | | | [ η e] k ]; intros.
   { rewrite handle_ret.
     do 2 rewrite bind_of_return by typeclasses eauto.
-    reflexivity. }
+    apply reflexivity. }
   { rewrite bind_fail.
     do 2 rewrite handle_fail.
     rewrite bind_zero by typeclasses eauto.
-    reflexivity. }
+    apply reflexivity. }
   { rewrite bind_next.
     do 2 rewrite handle_next.
     rewrite bind_zero by typeclasses eauto.
-    reflexivity. }
+    apply reflexivity. }
   { rewrite bind_stop.
     do 2 rewrite handle_stop.
     rewrite bind_skip by typeclasses eauto.
-    f_equal.
-    (* TODO We are in trouble: we are trying to establish something
-       that looks like the initial goal,
-       where [m] has been instantiated with [eval η e]. *)
-    generalize (eval η e); intros m. clear η e.
     rewrite <- bind_bind.
-    generalize (bind m k). clear m k IH. intros m.
-    (* This is exactly the original goal... *)
-    (* We may need some form of co-induction:
-       we need to know that equality is co-inductive
-       and that the co-induction hypothesis can be used
-       once a pair of [skip]s have been peeled off. *)
-Abort.
-
-End Handle.
-
-Global Opaque handle.
+    (* We are trying to establish something that looks like the initial goal
+       under a pair of [skip]s. *)
+    generalize (eval η e); intros m. clear η e.
+    generalize (bind m k). clear m k. intros m.
+    (* Descend under the [skip]s. *)
+    gstep. constructor.
+    (* Apply the coinduction hypothesis. *)
+    eapply gpaco2_base. eapply CIH. }
+Qed.
