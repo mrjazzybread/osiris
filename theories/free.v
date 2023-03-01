@@ -134,13 +134,26 @@ Arguments eq1_free /.
 (* The monadic laws. *)
 
 Global Instance monadlaws_free :
-  MonadLawsE free.
+  MonadLaws _.
 Proof.
   constructor; unfold bind, ret, eq1; simpl; unfold free_bind.
   { reflexivity. }
   { intros A m. induction m; simpl; eauto with eq. }
   { intros A B C m g h. induction m; simpl; eauto with eq. }
-  { intros A B m m' ?. subst m'.
+Qed.
+
+(* We probably do not need the following variant, but prove it anyway. *)
+
+Global Instance monadlawse_free :
+  MonadLawsE free.
+Proof.
+  constructor; intros.
+  { eapply bind_of_return; typeclasses eauto. }
+  { eapply return_of_bind; typeclasses eauto. }
+  { eapply bind_associativity; typeclasses eauto. }
+  { unfold eq1, eq1_free.
+    intros m m' ?. subst m'.
     unfold pointwise_relation, respectful.
-    induction m; simpl; eauto with eq. }
+    intros f1 f2 ?.
+    f_equal. extensionality a. eauto. }
 Qed.

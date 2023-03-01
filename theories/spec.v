@@ -32,17 +32,9 @@ Global Instance eq1_spec : Eq1 spec :=
 Arguments eq1_spec /.
 
 Global Instance spec_monad_laws :
-  MonadLawsE spec.
+  MonadLaws _.
 Proof.
-  constructor; intros; unfold eq1; simpl.
-  { extensionality φ; reflexivity. }
-  { extensionality φ; reflexivity. }
-  { extensionality φ; reflexivity. }
-  { intros m m' ?. subst m'.
-    unfold pointwise_relation, respectful.
-    intros f1 f2 ?.
-    f_equal.
-    extensionality a. eauto. }
+  constructor; intros; simpl; extensionality φ; reflexivity.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -251,7 +243,7 @@ Global Instance monadskip_spec : MonadSkip spec :=
   { skip := (λ {A} (m : spec A), m) }.
 
 Global Instance monaditerlaws_spec :
-  MonadIterLawsE _ _ _.
+  MonadIterLaws _ _ _.
 Proof.
   constructor.
   unfold iter, monaditer_spec.

@@ -42,19 +42,13 @@ Section MonadSkipLaws.
 
 Context {m : Type -> Type}.
 
-Context {Eq1 : @Eq1 m}. (* \approx : ≈ *)
-Local Open Scope monad_scope.
-
 Context (M : Monad m).
 Context (MS : MonadSkip m).
 
-Class MonadSkipLawsE := {
-  Proper_skip :
-    forall A,
-    @Proper (m A -> m A) (eq1 ==> eq1) skip;
+Class MonadSkipLaws := {
   bind_skip :
     forall A B (c : m A) (f : A -> m B),
-    bind (skip c) f ≈ skip (bind c f)
+    bind (skip c) f = skip (bind c f)
 }.
 
 End MonadSkipLaws.
@@ -67,18 +61,14 @@ Section MonadIterLaws.
 
 Context {m : Type -> Type}.
 
-Context {Eq1 : @Eq1 m}. (* \approx : ≈ *)
-Local Open Scope monad_scope.
-
 Context (M : Monad m).
 Context (MI : MonadIter m).
 Context (MS : MonadSkip m).
 
-Class MonadIterLawsE := {
-  (* TODO Proper_iter? *)
+Class MonadIterLaws := {
   unfold_iter :
     forall {R I} (body : I -> m (I + R)) (i : I),
-    iter body i ≈
+    iter body i =
       (* Evaluate [body] out the state [i]. *)
       bind (body i) (fun (signal : I + R) =>
         match signal with

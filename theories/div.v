@@ -1,5 +1,5 @@
 From stdpp Require Import base.
-From ITree Require Import ITree Eq Exception ITreeMonad.
+From ITree Require Import ITree Eq EqAxiom Exception ITreeMonad.
 Require Import monads.
 
 (* ------------------------------------------------------------------------ *)
@@ -22,16 +22,6 @@ Global Instance monad_div : Monad div :=
 
 Arguments monad_div /.
 
-(* We use [eutt], also known as [≈], as the natural notion of equality
-   between computations. That said, some of the statements below would
-   hold also with a stronger equality; e.g. [MonadSkipLawE] would hold
-   with strong bisimulation [≅]. *)
-
-Global Instance eq1_div : Eq1 div :=
-  Eq1_ITree.
-
-Arguments eq1_div /.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [skip] is a silent step. *)
@@ -51,20 +41,13 @@ Local Ltac msimpl :=
   unfold Eq1_ITree; simpl.
 
 Global Instance monadskiplaws_div :
-  MonadSkipLawsE monad_div monadskip_div.
+  MonadSkipLaws monad_div monadskip_div.
 Proof.
   constructor.
-  (* Proper_skip *)
-  { msimpl. intros A m1 m2. unfold skip; simpl. intros.
-    (* We exploit the fact that equality ignores [Tau] steps. That said,
-       this congruence property would be true even if we used a stronger
-       equality that does not ignore silent steps. *)
-    do 2 rewrite tau_eutt. assumption. }
   (* bind_skip *)
   { msimpl. intros. unfold skip; simpl.
-    (* The lemma [bind_tau] is a strong bisimulation statement. A fortiori,
-       a weak bisimulation statement holds as well. *)
-    rewrite bind_tau. reflexivity. }
+    (* The lemma [bind_tau] is a strong bisimulation statement. *)
+    eapply bisimulation_is_eq. eapply bind_tau. }
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -77,9 +60,9 @@ Global Instance monaditer_div : MonadIter div :=
 Arguments monaditer_div /.
 
 Global Instance monaditerlaws_div :
-  MonadIterLawsE _ _ _.
+  MonadIterLaws _ _ _.
 Proof.
   constructor. msimpl. unfold skip, iter; simpl. intros.
   (* The lemma [Eqit.unfold_iter] is a strong bisimulation statement. *)
-  rewrite Eqit.unfold_iter. reflexivity.
+  eapply bisimulation_is_eq. eapply Eqit.unfold_iter.
 Qed.

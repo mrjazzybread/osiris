@@ -6,17 +6,14 @@ Require Import lang monads free eval.
 Section Handle.
 
 Context {target : Type → Type}.
-Context {EQ1 : Eq1 target}.
-Local Open Scope monad_scope.
 Context {M : Monad target}.
-Context {EQ1Equivalence : Eq1Equivalence target}.
-Context {ML : MonadLawsE target}.
+Context {ML : MonadLaws M}.
 Context {MZ : MonadZero target}.
 Context {MZL : MonadZeroLaws M MZ}.
 Context {MS : MonadSkip target}.
-Context {MSL : MonadSkipLawsE M MS}.
+Context {MSL : MonadSkipLaws M MS}.
 Context {MI : MonadIter target}.
-Context {MIL : MonadIterLawsE M MI MS}.
+Context {MIL : MonadIterLaws M MI MS}.
 
 Section A.
 
@@ -49,7 +46,7 @@ Definition handle : free A → target A :=
   iter handle_body.
 
 Lemma handle_fixed_point (m : free A) :
-  handle m ≈
+  handle m =
     bind (handle_body m) (fun (signal : free A + A) =>
       match signal with
       | inl m =>
@@ -64,35 +61,35 @@ Qed.
 (* Paraphrase lemmas. *)
 
 Lemma handle_ret (a : A) :
-  handle (Ret a) ≈ ret a.
+  handle (Ret a) = ret a.
 Proof.
   rewrite handle_fixed_point. unfold handle_body.
-  rewrite bind_ret_l.
+  rewrite bind_of_return by eauto.
   reflexivity.
 Qed.
 
 Lemma handle_fail :
-  handle Fail ≈ mzero.
+  handle Fail = mzero.
 Proof.
   rewrite handle_fixed_point. unfold handle_body.
-  rewrite bind_zero by typeclasses eauto.
+  rewrite bind_zero by eauto.
   reflexivity.
 Qed.
 
 Lemma handle_next :
-  handle Next ≈ mzero.
+  handle Next = mzero.
 Proof.
   rewrite handle_fixed_point. unfold handle_body.
-  rewrite bind_zero by typeclasses eauto.
+  rewrite bind_zero by eauto.
   reflexivity.
 Qed.
 
 Lemma handle_stop η e (k : val → free A) :
-  handle (free.Stop (free.REval η e) k) ≈
+  handle (free.Stop (free.REval η e) k) =
   skip (handle (bind (eval η e) k)).
 Proof.
   rewrite (handle_fixed_point (Stop _ _)). unfold handle_body.
-  rewrite bind_ret_l.
+  rewrite bind_of_return by eauto.
   reflexivity.
 Qed.
 
@@ -114,12 +111,12 @@ Definition run η e : target val :=
 
 Lemma compatibility {A B} (m : free A) :
   ∀ (f : A → free B),
-  bind (handle m) (λ v, handle (f v)) ≈
+  bind (handle m) (λ v, handle (f v)) =
   handle (bind m f).
 Proof.
   induction m as [ | | | [ η e] k IH ]; intros.
   { rewrite handle_ret.
-    do 2 rewrite bind_ret_l.
+    do 2 rewrite bind_of_return by typeclasses eauto.
     reflexivity. }
   { rewrite bind_fail.
     do 2 rewrite handle_fail.
@@ -132,7 +129,7 @@ Proof.
   { rewrite bind_stop.
     do 2 rewrite handle_stop.
     rewrite bind_skip by typeclasses eauto.
-    eapply Proper_skip; try solve [ typeclasses eauto ].
+    f_equal.
     (* TODO We are in trouble: we are trying to establish something
        that looks like the initial goal,
        where [m] has been instantiated with [eval η e]. *)
