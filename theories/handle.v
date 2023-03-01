@@ -11,8 +11,9 @@ Context {M : Monad target}.
 Context {ML : MonadLaws M}.
 Context {MZ : MonadZero target}.
 Context {MZL : MonadZeroLaws M MZ}.
-Context {MI : MonadIter target}.
 Context {MS : MonadSkip target}.
+Context {MSL : MonadSkipLaws M MS}.
+Context {MI : MonadIter target}.
 Context {MIL : MonadIterLaws M MI MS}.
 
 Section A.
@@ -128,7 +129,7 @@ Proof.
     reflexivity. }
   { rewrite free.free_bind_stop.
     do 2 rewrite handle_stop.
-    (* TODO equality must ignore [skip] *)
+    rewrite bind_skip by typeclasses eauto. f_equal.
     (* TODO We are in trouble: we are trying to establish something
        that looks like the initial goal,
        where [m] has been instantiated with [eval η e]. *)
@@ -137,8 +138,9 @@ Proof.
     generalize (bind m k). clear m k IH. intros m.
     (* This is exactly the original goal... *)
     (* We may need some form of co-induction:
-       we need to know that [handle] is a greatest fixed point,
-       and it is OK to use a co-induction hypothesis here. *)
+       we need to know that equality is co-inductive
+       and that the co-induction hypothesis can be used
+       once a pair of [skip]s have been peeled off. *)
 Abort.
 
 End Handle.
