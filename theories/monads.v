@@ -67,3 +67,17 @@ Class MonadIterLaws := {
   }.
 
 End MonadIterLaws.
+
+Section MonadSkipLaws.
+
+Context {m : Type -> Type}.
+Context (M : Monad m).
+Context (MS : MonadSkip m).
+
+Class MonadSkipLaws := {
+  bind_skip :
+    forall {A B} (c : m A) (f : A -> m B),
+    bind (skip c) f = skip (bind c f)
+}.
+
+End MonadSkipLaws.

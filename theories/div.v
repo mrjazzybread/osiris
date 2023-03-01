@@ -55,6 +55,16 @@ Definition bind {A B} (m : div A) (f : A → div B) : div B :=
 Global Instance monad_div : Monad div :=
   { ret := @Ret; bind := @bind }.
 
+Global Instance monadskip_div : MonadSkip div :=
+  { skip := @Skip }.
+
+Global Instance monadskiplaws_div :
+  MonadSkipLaws _ _.
+Proof.
+  constructor; simpl. intros.
+  unfold bind, skip, monadskip_div.
+Admitted.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
@@ -157,9 +167,6 @@ CoFixpoint div_iter {R I} (body : I → div (I + R)) (i : I) : div R :=
 
 Global Instance monaditer_div : MonadIter div :=
   { iter := @div_iter }.
-
-Global Instance monadskip_div : MonadSkip div :=
-  { skip := @Skip }.
 
 Global Instance monaditerlaws_div :
   MonadIterLaws _ _ _.
