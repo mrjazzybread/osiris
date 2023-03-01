@@ -22,6 +22,16 @@ Global Instance monad_div : Monad div :=
 
 Arguments monad_div /.
 
+Global Instance monadlaws_div : MonadLaws _.
+Proof.
+  (* The monad laws hold with respect to strong bisimulation [≅],
+     which is the same as equality [=]. *)
+  constructor; intros; eapply bisimulation_is_eq.
+  { eapply Eqit.bind_ret_l. }
+  { eapply Eqit.bind_ret_r. }
+  { eapply Eqit.bind_bind. }
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [skip] is a silent step. *)
