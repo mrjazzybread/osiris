@@ -1,6 +1,6 @@
+From Coq Require Import Morphisms.
 From ExtLib.Structures Require Export Monads MonadLaws.
-  (* TODO remove dependency on coq-ext-lib *)
-  (* TODO define >>= *)
+From ITree Require Export Monad Basics.
 
 Section MonadFixLaws.
 
@@ -35,25 +35,50 @@ Class MonadFixCoinduction (MF : MonadFix m) (MFL : MonadFixLaws MF) := {
 
 End MonadFixLaws.
 
-(* This type class is taken from Interaction Trees: Basics/Basics.v. *)
-
-Class MonadIter (m : Type -> Type) : Type :=
-  iter : forall {R I}, (I -> m (I + R)%type) -> I -> m R.
-
-Class MonadSkip (m : Type -> Type) : Type :=
+Polymorphic Class MonadSkip (m : Type -> Type) : Type :=
   skip : forall {A}, m A -> m A.
+
+Section MonadSkipLaws.
+
+Context {m : Type -> Type}.
+
+Context {Eq1 : @Eq1 m}. (* \approx : ≈ *)
+Local Open Scope monad_scope.
+
+Context (M : Monad m).
+Context (MS : MonadSkip m).
+
+Class MonadSkipLawsE := {
+  Proper_skip :
+    forall A,
+    @Proper (m A -> m A) (eq1 ==> eq1) skip;
+  bind_skip :
+    forall A B (c : m A) (f : A -> m B),
+    bind (skip c) f ≈ skip (bind c f)
+}.
+
+End MonadSkipLaws.
+
+(* ITree.Basics.CategoryTheory defines the type class [IterUnfold],
+   which is related to the statement below, but is unfortunately
+   stated in a more abstract way. *)
 
 Section MonadIterLaws.
 
 Context {m : Type -> Type}.
+
+Context {Eq1 : @Eq1 m}. (* \approx : ≈ *)
+Local Open Scope monad_scope.
+
 Context (M : Monad m).
 Context (MI : MonadIter m).
 Context (MS : MonadSkip m).
 
-Class MonadIterLaws := {
+Class MonadIterLawsE := {
+  (* TODO Proper_iter? *)
   unfold_iter :
     forall {R I} (body : I -> m (I + R)) (i : I),
-    iter body i =
+    iter body i ≈
       (* Evaluate [body] out the state [i]. *)
       bind (body i) (fun (signal : I + R) =>
         match signal with
@@ -67,17 +92,3 @@ Class MonadIterLaws := {
   }.
 
 End MonadIterLaws.
-
-Section MonadSkipLaws.
-
-Context {m : Type -> Type}.
-Context (M : Monad m).
-Context (MS : MonadSkip m).
-
-Class MonadSkipLaws := {
-  bind_skip :
-    forall {A B} (c : m A) (f : A -> m B),
-    bind (skip c) f = skip (bind c f)
-}.
-
-End MonadSkipLaws.

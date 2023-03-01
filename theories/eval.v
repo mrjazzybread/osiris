@@ -1,5 +1,4 @@
-Require Import lang.
-Require Import free.
+Require Import lang monads free.
 
 (* Conventional metavariables. *)
 
@@ -21,7 +20,7 @@ Implicit Type η : env.
    The result is normally a value. A hard failure occurs if [x] is
    unbound. *)
 
-Fixpoint lookup η x : mon val :=
+Fixpoint lookup η x : free val :=
   match η with
   | EnvCons x' v η =>
       if decide (x = x') then Ret v else lookup η x
@@ -44,7 +43,7 @@ Fixpoint lookup η x : mon val :=
    e.g., if [p] is a tuple pattern and [v] is not a tuple value or
    is a tuple value of an incorrect arity. *)
 
-Fixpoint extend η p v : mon env :=
+Fixpoint extend η p v : free env :=
   match p, v with
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
@@ -75,7 +74,7 @@ Fixpoint extend η p v : mon env :=
 
    A hard failure occurs when [length ps ≠ length vs]. *)
 
-with extends η ps vs : mon env :=
+with extends η ps vs : free env :=
   match ps, vs with
   | PNil, VNil =>
       Ret η
@@ -104,7 +103,7 @@ with extends η ps vs : mon env :=
    evaluated but is not a subexpression of [e], a [Stop] effect is
    used instead of a recursive call to [eval]. *)
 
-Fixpoint eval η e : mon val :=
+Fixpoint eval η e : free val :=
   match e with
   | EVar x =>
       (* A variable [x] is looked up in the environment [η]. *)
@@ -145,7 +144,7 @@ Fixpoint eval η e : mon val :=
 (* [evals η es] evaluates the expressions in the list [es], from left
    to right, producing a list of values [vs]. *)
 
-with evals η es : mon vals :=
+with evals η es : free vals :=
   match es with
   | ENil =>
       Ret VNil

@@ -25,11 +25,11 @@ Require Import monads lang.
 Inductive request :=
   | REval (η : env) (e : expr).
 
-Inductive mon A :=
+Inductive free A :=
   | Ret (a : A)
   | Fail
   | Next
-  | Stop (req : request) (k : val → mon A).
+  | Stop (req : request) (k : val → free A).
 
 (* Make [A] an implicit argument. *)
 
@@ -40,7 +40,7 @@ Arguments Stop {A} req k.
 
 (* ------------------------------------------------------------------------ *)
 
-(* Monadic combinators. *)
+(* Monadic combinators: [try] and [bind]. *)
 
 (* [try m f g] runs the computation [m]. If [m] returns a result [v], then
    [f v] is executed. If [m] ends with a soft failure [Next], then [g()] is
@@ -50,7 +50,7 @@ Arguments Stop {A} req k.
    we execute monadic computations (in Coq) using call-by-value evaluation
    and we do not want to evaluate ALL branches in a [match] construct. *)
 
-Fixpoint try {A B} (m : mon A) (f : A → mon B) (g : unit → mon B) : mon B :=
+Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free B :=
   match m with
   | Ret a =>
       f a
@@ -70,40 +70,35 @@ Fixpoint try {A B} (m : mon A) (f : A → mon B) (g : unit → mon B) : mon B :=
 (* [bind] is a special case of [try]. If [m] ends with a soft failure,
    it is transmitted. *)
 
-Definition bind {A B} (m : mon A) (f : A → mon B) : mon B :=
+Definition free_bind {A B} (m : free A) (f : A → free B) : free B :=
   try m f (λ tt, Next).
+
+(* This is a monad. *)
+
+Global Instance free_monad : Monad free :=
+  { ret := @Ret; bind := @free_bind }.
+
+(* ------------------------------------------------------------------------ *)
 
 (* Paraphrase lemmas. *)
 
-Lemma free_bind_fail {A B} (f : A → mon B) :
+Lemma bind_fail {A B} (f : A → free B) :
   bind Fail f = Fail.
 Proof.
   reflexivity.
 Qed.
 
-Lemma free_bind_next {A B} (f : A → mon B) :
+Lemma bind_next {A B} (f : A → free B) :
   bind Next f = Next.
 Proof.
   reflexivity.
 Qed.
 
-Lemma free_bind_stop {A B} req k (f : A → mon B) :
+Lemma bind_stop {A B} req k (f : A → free B) :
   bind (Stop req k) f = Stop req (λ v, bind (k v) f).
 Proof.
   reflexivity.
 Qed.
-
-(* ------------------------------------------------------------------------ *)
-
-(* This is a monad. *)
-
-Global Instance free_monad :
-  Monad mon.
-Proof.
-  constructor.
-  exact @Ret.
-  exact @bind.
-Defined.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -118,7 +113,7 @@ Defined.
    accept the axiom of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
-Lemma eq_stop_stop A (k1 k2 : val → mon A) req :
+Lemma eq_stop_stop A (k1 k2 : val → free A) req :
   (∀ v, k1 v = k2 v) →
   Stop req k1 = Stop req k2.
 Proof.
@@ -129,41 +124,23 @@ Qed.
 
 #[export] Hint Resolve eq_stop_stop : eq.
 
+Global Instance eq1_free : Eq1 free :=
+  λ (A : Type), @eq (free A).
+
+Arguments eq1_free /.
+
 (* ------------------------------------------------------------------------ *)
 
 (* The monadic laws. *)
 
-Lemma monad_law_left_unit A B (a : A) (f : A → mon B) :
-  bind (ret a) f = f a.
+Global Instance monadlaws_free :
+  MonadLawsE free.
 Proof.
-  reflexivity.
-Qed.
-
-Lemma monad_law_right_unit A (m : mon A) :
-  bind m ret = m.
-Proof.
-  unfold bind. induction m; simpl try; eauto with eq.
-Qed.
-
-Lemma monad_law_associativity
-  A B C (m : mon A) (g : A → mon B) (h : B → mon C) :
-  bind (bind m g) h =
-  bind m (λ a, bind (g a) h).
-Proof.
-  unfold bind. induction m; simpl; eauto with eq.
-Qed.
-
-#[export] Hint Rewrite
-  monad_law_left_unit
-  monad_law_right_unit
-  monad_law_associativity
-  : monad_laws.
-
-Global Instance free_monad_laws :
-  MonadLaws free_monad.
-Proof.
-  constructor.
-  { eauto using monad_law_left_unit. }
-  { eauto using monad_law_right_unit. }
-  { eauto using monad_law_associativity. }
+  constructor; unfold bind, ret, eq1; simpl; unfold free_bind.
+  { reflexivity. }
+  { intros A m. induction m; simpl; eauto with eq. }
+  { intros A B C m g h. induction m; simpl; eauto with eq. }
+  { intros A B m m' ?. subst m'.
+    unfold pointwise_relation, respectful.
+    induction m; simpl; eauto with eq. }
 Qed.

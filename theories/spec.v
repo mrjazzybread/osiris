@@ -21,18 +21,28 @@ Definition spec_bind {A B} (m : spec A) (f : A → spec B) : spec B :=
   λ (φ : B → Prop),
     m (λ a, f a φ).
 
-Global Instance spec_monad :
-  Monad spec.
-Proof.
-  constructor.
-  exact @spec_ret.
-  exact @spec_bind.
-Defined.
+Global Instance spec_monad : Monad spec :=
+  { ret := @spec_ret; bind := @spec_bind }.
+
+Arguments spec_monad /.
+
+Global Instance eq1_spec : Eq1 spec :=
+  λ (A : Type), @eq (spec A).
+
+Arguments eq1_spec /.
 
 Global Instance spec_monad_laws :
-  MonadLaws spec_monad.
+  MonadLawsE spec.
 Proof.
-  constructor; intros; extensionality φ; reflexivity.
+  constructor; intros; unfold eq1; simpl.
+  { extensionality φ; reflexivity. }
+  { extensionality φ; reflexivity. }
+  { extensionality φ; reflexivity. }
+  { intros m m' ?. subst m'.
+    unfold pointwise_relation, respectful.
+    intros f1 f2 ?.
+    f_equal.
+    extensionality a. eauto. }
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -43,12 +53,8 @@ Definition spec_fail {A} : spec A :=
   λ (φ : A → Prop),
     False.
 
-Global Instance spec_monad_zero :
-  MonadZero spec.
-Proof.
-  constructor.
-  exact @spec_fail.
-Defined.
+Global Instance spec_monad_zero : MonadZero spec :=
+  { mzero := @spec_fail }.
 
 Global Instance spec_monad_zero_laws :
   MonadZeroLaws spec_monad spec_monad_zero.
@@ -164,12 +170,8 @@ End Fix.
 
 Opaque spec_mfix.
 
-Global Instance spec_monad_fix :
-  MonadFix spec.
-Proof.
-  constructor.
-  exact @spec_mfix.
-Defined.
+Global Instance spec_monad_fix : MonadFix spec :=
+  { mfix := @spec_mfix }.
 
 Global Instance spec_monad_fix_laws :
   MonadFixLaws spec_monad_fix.
@@ -249,7 +251,7 @@ Global Instance monadskip_spec : MonadSkip spec :=
   { skip := (λ {A} (m : spec A), m) }.
 
 Global Instance monaditerlaws_spec :
-  MonadIterLaws _ _ _.
+  MonadIterLawsE _ _ _.
 Proof.
   constructor.
   unfold iter, monaditer_spec.
