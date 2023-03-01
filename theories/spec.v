@@ -183,6 +183,31 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Properties of [spec_mleq]. *)
+
+Lemma spec_mleq_reflexive {A} (m : spec A) :
+  spec_mleq m m.
+Proof.
+  unfold spec_mleq. eauto.
+Qed.
+
+Lemma spec_mleq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
+  spec_mleq m1 m2 →
+  (∀ a, spec_mleq (f1 a) (f2 a)) →
+  spec_mleq (spec_bind m1 f1) (spec_bind m2 f2).
+Proof.
+  unfold spec_mleq, spec_bind.
+  intros Hmm Hff φ Hm1.
+  (* TODO we are missing this monotonicity property: *)
+  assert (Hmono: ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m1 φ → m1 φ').
+  { admit. }
+  eapply Hmm.
+  eapply Hmono; [| eapply Hm1 ].
+  simpl. eauto.
+Admitted.
+
+(* ------------------------------------------------------------------------ *)
+
 (* An iteration combinator [iter] can be derived from [mfix]. *)
 
 Section Iter.
@@ -205,21 +230,6 @@ Definition spec_iter_body (self : I → spec R) : I → spec R :=
 
 Definition spec_iter : I → spec R :=
   spec_mfix spec_iter_body.
-
-(* TODO move *)
-Lemma spec_mleq_reflexive {A} (m : spec A) :
-  spec_mleq m m.
-Proof.
-  unfold spec_mleq. eauto.
-Qed.
-
-(* TODO prove and move *)
-Lemma spec_mleq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
-  spec_mleq m1 m2 →
-  (∀ a, spec_mleq (f1 a) (f2 a)) →
-  spec_mleq (spec_bind m1 f1) (spec_bind m2 f2).
-Proof.
-Admitted.
 
 Lemma monotone_spec_iter_body :
   monotone spec_iter_body.
