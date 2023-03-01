@@ -3,7 +3,7 @@ Require Import monads lang free eval spec handle.
 (* Instantiate the generic [handle] with the [spec] monad. *)
 
 Definition wp η e φ :=
-  run η e φ.
+  run η e ∋ φ.
 
 (* An example. *)
 
@@ -31,25 +31,11 @@ Definition example :=
 
 Eval cbv in eval EnvNil example.
 
-Lemma handle_fixed_point_paraphrase {A} (m : free A) :
-  handle m =
-    bind (handle_body m) (fun (signal : free A + A) =>
-      match signal with
-      | inl m =>
-          skip (handle m)
-      | inr r =>
-          ret r
-      end).
-Proof.
-  eapply @handle_fixed_point.
-  typeclasses eauto.
-Qed.
-
 (* An example of reasoning about straight-line code. *)
 
 Goal wp EnvNil example (λ v, v = VData "A" (VTuple VNil)).
 Proof.
-  cbv. rewrite handle_fixed_point_paraphrase. cbv. reflexivity.
+  unfold wp, run. rewrite handle_fixed_point. cbv. reflexivity.
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
@@ -64,5 +50,5 @@ Goal
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
   wp env example2 (λ v, v = v1).
 Proof.
-  intros. cbv. rewrite handle_fixed_point_paraphrase. cbv. reflexivity.
+  intros. unfold wp, run. rewrite handle_fixed_point. cbv. reflexivity.
 Qed.

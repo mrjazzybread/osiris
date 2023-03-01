@@ -1,57 +1,119 @@
 From Coq.Logic Require Import FunctionalExtensionality PropExtensionality.
+From Coq.Logic Require Import ProofIrrelevance ProofIrrelevanceFacts.
+Module P := ProofIrrelevanceTheory(ProofIrrelevance).
 From stdpp Require Import base.
 Require Import monads.
+
+Set Warnings "-notation-overridden".
 
 (* ------------------------------------------------------------------------ *)
 
 (* The specification monad. *)
 
+(* A "computation" in this monad is not executable; it is a specification.
+
+   An inhabitant of the type type [(A → Prop) → Prop] can be understood as a
+   predicate transformer that maps a postcondition of type [A → Prop] to a
+   precondition of type [Prop]. It can also be understood as a set of
+   postconditions. *)
+
+(* We restrict our attention to specifications [m] that are upward-closed,
+   that is, such that [m φ] implies [m φ'] when [φ] implies [φ'].
+
+   The need for this property shows up in the proof of [spec_leq_bind]. To
+   argue that [bind] is monotone in its second argument, we need the first
+   argument (a specification) to be upward-closed. *)
+
 Definition spec A :=
-  (A → Prop) → Prop.
+  { m : (A → Prop) → Prop
+  | ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m φ → m φ' }.
 
-(* It seems that we should really restrict our attention to elements
-   of [(A → Prop) → Prop] that are monotonic in the following sense.
-   The need for this property shows up in the attempted proof of
-   [spec_mleq_bind]. For now, we are able to get away without it. *)
+(* ------------------------------------------------------------------------ *)
 
-Definition monotonic {A} (m : spec A) :=
-  ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m φ → m φ'.
+(* An important notation. *)
+
+(* [m ∋ φ] means that the specification [m], viewed as a set of
+   postconditions, contains the postcondition [φ].
+
+   It can also be read as stating that [m], viewed as a computation,
+   admits the postcondition [φ]. Thus, it is like a [wp] judgement
+   in Iris. *)
+
+Notation "m ∋ φ" :=
+  (proj1_sig m φ) (at level 70).
+
+(* ------------------------------------------------------------------------ *)
+
+(* The consequence rule. *)
+
+(* The judgement [m ∋ φ] is covariant in [φ]. *)
+
+Lemma exploit_upward_closed {A} (m : spec A) :
+  ∀ (φ φ' : A → Prop), (∀ a, φ a → φ' a) → m ∋ φ → m ∋ φ'.
+Proof.
+  destruct m as (m & Hm). simpl. exact Hm.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* Equality of specifications. *)
+
+(* To prove that two specifications are equal, it suffices to prove that
+   they have the same inhabitants. *)
+
+Lemma prove_spec_eq {A} (m1 m2 : spec A) :
+  (∀ φ, (m1 ∋ φ) = (m2 ∋ φ)) →
+  m1 = m2.
+Proof.
+  destruct m1 as (m1 & Hm1).
+  destruct m2 as (m2 & Hm2).
+  simpl. intros.
+  apply P.subset_eq_compat. (* This is proof irrelevance. *)
+  extensionality φ. eauto.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 
 (* The monadic combinators. *)
 
-Definition spec_ret {A} : A → spec A :=
-  λ (a : A) (φ : A → Prop),
-    φ a.
+Program Definition spec_ret {A} : A → spec A :=
+  λ (a : A) (φ : A → Prop), φ a.
+Next Obligation.
+  intros. simpl. eauto.
+Defined.
 
-Definition spec_bind {A B} (m : spec A) (f : A → spec B) : spec B :=
-  λ (φ : B → Prop),
-    m (λ a, f a φ).
+Program Definition spec_bind {A B} (m : spec A) (f : A → spec B) : spec B :=
+  λ (φ : B → Prop), m ∋ (λ a, f a ∋ φ).
+Next Obligation.
+  intros. simpl.
+  destruct m as (m & Hm). simpl.
+  intros φ φ' Hφφ'.
+  intros H.
+  eapply Hm; [ clear H Hm | eapply H ].
+  eauto using exploit_upward_closed.
+Defined.
 
 Global Instance spec_monad : Monad spec :=
   { ret := @spec_ret; bind := @spec_bind }.
 
-Arguments spec_monad /.
-
-Global Instance eq1_spec : Eq1 spec :=
-  λ (A : Type), @eq (spec A).
-
-Arguments eq1_spec /.
-
 Global Instance spec_monad_laws :
   MonadLaws _.
 Proof.
-  constructor; intros; simpl; extensionality φ; reflexivity.
+  constructor; intros; simpl;
+  eapply prove_spec_eq;
+  unfold spec_bind, spec_ret; simpl;
+  reflexivity.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
 
 (* The hard failure combinator, whose precondition is [False]. *)
 
-Definition spec_fail {A} : spec A :=
-  λ (φ : A → Prop),
-    False.
+Program Definition spec_fail {A} : spec A :=
+  λ (φ : A → Prop), False.
+Next Obligation.
+  intros. simpl. tauto.
+Qed.
 
 Global Instance spec_monad_zero : MonadZero spec :=
   { mzero := @spec_fail }.
@@ -59,7 +121,62 @@ Global Instance spec_monad_zero : MonadZero spec :=
 Global Instance spec_monad_zero_laws :
   MonadZeroLaws spec_monad spec_monad_zero.
 Proof.
-  constructor; intros; extensionality φ; reflexivity.
+  constructor; intros; simpl;
+  eapply prove_spec_eq;
+  unfold spec_bind, spec_fail; simpl;
+  reflexivity.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* A partial order on specifications. *)
+
+Definition spec_leq {A} (m1 m2 : spec A) :=
+  ∀ φ, m1 ∋ φ → m2 ∋ φ.
+
+Definition pointwise_spec_leq {T A} (f1 f2 : T → spec A) :=
+  ∀ t, spec_leq (f1 t) (f2 t).
+
+Module Notations.
+  Infix "≤" := spec_leq (at level 70, no associativity).
+  Infix "≼" := pointwise_spec_leq (at level 70, no associativity).
+End Notations.
+
+Import Notations.
+
+(* This is a partial order. *)
+
+Global Instance preorder_spec_leq {A} : PreOrder (@spec_leq A).
+Proof.
+  constructor.
+  { intros m. unfold spec_leq. eauto. }
+  { intros m1 m2 m3. unfold spec_leq. eauto. }
+Qed.
+
+Lemma spec_leq_antisymmetric {A} (m1 m2 : spec A) :
+  m1 ≤ m2 → m2 ≤ m1 → m1 = m2.
+Proof.
+  unfold spec_leq.
+  intros. eapply prove_spec_eq. intros.
+  apply propositional_extensionality.
+  split; eauto.
+Qed.
+
+(* [bind] is covariant in both positions. *)
+
+(* The fact that [m1] is upward-closed is exploited. *)
+
+Lemma spec_leq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
+  m1 ≤ m2 →
+  f1 ≼ f2 →
+  spec_bind m1 f1 ≤ spec_bind m2 f2.
+Proof.
+  unfold pointwise_spec_leq.
+  unfold spec_leq, spec_bind. simpl.
+  intros Hmm Hff φ Hm1.
+  eapply Hmm; clear Hmm.
+  eapply exploit_upward_closed; [ clear Hm1 | eapply Hm1 ].
+  simpl. eauto.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -75,23 +192,21 @@ Implicit Type t : T.
 Implicit Type φ : A → Prop.
 Implicit Type p : T → spec A.
 
-(* Let us view implication as an ordering [p1 ≼ p2]. *)
-
-Definition spec_mleq (m1 m2 : spec A) :=
-  ∀ φ, m1 φ → m2 φ.
-
-Definition leq p1 p2 :=
-  ∀ t, spec_mleq (p1 t) (p2 t).
-
-Local Infix "≼" := leq (at level 70, no associativity).
-
 (* The greatest fixed point is constructed as follows. The existential
    quantifier can be read here as an infinite union. The greatest fixed
    point is the union of all post fixed points, where we say that [p] is
    a post fixed point if [p ≼ ff p] holds. *)
 
-Definition spec_mfix : T → spec A :=
-  λ t φ, ∃ p, p t φ ∧ p ≼ ff p.
+Program Definition spec_mfix (t : T) : spec A :=
+  λ φ,
+    ∃ p,
+      p t ∋ φ  ∧
+      p ≼ ff p .
+Next Obligation.
+  intros t φ φ' Hφφ'.
+  intros (p & ? & ?).
+  eauto using exploit_upward_closed.
+Defined.
 
 (* By definition, [mspec_fix] is greater than any post fixed point.
    So, if it is a fixed point (which we will prove below), then it
@@ -101,16 +216,14 @@ Lemma spec_coinduction p :
   p ≼ ff p →
   p ≼ spec_mfix.
 Proof.
-  intros post t φ ptφ. unfold spec_mfix. eauto.
+  intros post t φ ptφ. unfold spec_mfix. simpl.
+  eauto.
 Qed.
 
 (* The transformer [ff] must be monotone. *)
 
-Definition monotone ff :=
-  ∀ p1 p2, p1 ≼ p2 → ff p1 ≼ ff p2.
-
 Variable monotone_ff :
-  monotone ff.
+  ∀ p1 p2, p1 ≼ p2 → ff p1 ≼ ff p2.
 
 (* [spec_mfix] is itself a post fixed point. *)
 
@@ -125,7 +238,7 @@ Proof.
 Qed.
 
 Lemma deconstruction_expanded t φ :
-  spec_mfix t φ → ff spec_mfix t φ.
+  spec_mfix t ∋ φ → ff spec_mfix t ∋ φ.
 Proof.
   intros. eapply deconstruction. eauto.
 Qed.
@@ -145,7 +258,7 @@ Proof.
 Qed.
 
 Lemma construction_expanded t φ :
-  ff spec_mfix t φ → spec_mfix t φ.
+  ff spec_mfix t ∋ φ → spec_mfix t ∋ φ.
 Proof.
   intros. eapply construction. eauto.
 Qed.
@@ -155,9 +268,8 @@ Qed.
 Lemma fixed_point_expanded t :
   spec_mfix t = ff spec_mfix t.
 Proof.
-  extensionality φ.
-  apply propositional_extensionality.
-  split; eauto using construction_expanded, deconstruction_expanded.
+  eapply spec_leq_antisymmetric;
+  eauto using construction, deconstruction.
 Qed.
 
 Lemma fixed_point :
@@ -176,8 +288,8 @@ Global Instance spec_monad_fix : MonadFix spec :=
 Global Instance spec_monad_fix_laws :
   MonadFixLaws spec_monad_fix.
 Proof.
-  eapply (@Build_MonadFixLaws _ _ (@spec_mleq));
-  unfold spec_mleq;
+  eapply (@Build_MonadFixLaws _ _ (@spec_leq));
+  unfold spec_leq;
   unfold mfix; simpl;
   eauto using fixed_point.
 Defined.
@@ -187,29 +299,6 @@ Global Instance spec_monad_fix_coinduction :
 Proof.
   constructor. unfold mleq; simpl.
   intros. eapply spec_coinduction. eauto.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
-
-(* Properties of [spec_mleq]. *)
-
-Lemma spec_mleq_reflexive {A} (m : spec A) :
-  spec_mleq m m.
-Proof.
-  unfold spec_mleq. eauto.
-Qed.
-
-Lemma spec_mleq_bind {A B} (m1 m2 : spec A) (f1 f2 : A → spec B) :
-  monotonic m1 → (* TODO *)
-  spec_mleq m1 m2 →
-  (∀ a, spec_mleq (f1 a) (f2 a)) →
-  spec_mleq (spec_bind m1 f1) (spec_bind m2 f2).
-Proof.
-  unfold spec_mleq, spec_bind.
-  intros Hmono Hmm Hff φ Hm1.
-  eapply Hmm.
-  eapply Hmono; [| eapply Hm1 ].
-  simpl. eauto.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -238,18 +327,15 @@ Definition spec_iter : I → spec R :=
   spec_mfix spec_iter_body.
 
 Lemma monotone_spec_iter_body :
-  (∀ i, monotonic (body i)) → (* TODO *)
-  monotone spec_iter_body.
+  ∀ p1 p2, p1 ≼ p2 → spec_iter_body p1 ≼ spec_iter_body p2.
 Proof.
-  unfold monotone, leq. intros Hmono self1 self2 ?.
+  intros. intro i.
   unfold spec_iter_body.
-  intros i.
-  eapply spec_mleq_bind.
-  { eapply Hmono. }
-  { eapply spec_mleq_reflexive. }
-  intros signal. destruct signal.
+  eapply spec_leq_bind.
+  { reflexivity. }
+  intro signal. destruct signal.
   { eauto. }
-  { eapply spec_mleq_reflexive. }
+  { reflexivity. }
 Qed.
 
 End Iter.
@@ -272,4 +358,6 @@ Proof.
   rewrite fixed_point_expanded; [ | eapply monotone_spec_iter_body ].
   unfold spec_iter_body at 1.
   reflexivity.
-Admitted.
+Qed.
+
+Global Opaque spec_iter.
