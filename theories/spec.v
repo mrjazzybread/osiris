@@ -181,6 +181,20 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
+(* A dummy [skip] combinator. *)
+
+Global Instance monadskip_spec : MonadSkip spec :=
+  { skip := (λ {A} (m : spec A), m) }.
+
+Global Instance monadskiplaws_spec :
+  MonadSkipLaws _ _.
+Proof.
+  constructor.
+  { unfold skip, monadskip_spec. reflexivity. }
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* The greatest fixed point combinator. *)
 
 Section Fix.
@@ -342,9 +356,6 @@ End Iter.
 
 Global Instance monaditer_spec : MonadIter spec :=
   { iter := @spec_iter }.
-
-Global Instance monadskip_spec : MonadSkip spec :=
-  { skip := (λ {A} (m : spec A), m) }.
 
 Global Instance monaditerlaws_spec :
   MonadIterLaws _ _ _.
