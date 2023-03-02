@@ -107,5 +107,3 @@ Definition run η e : target val :=
   handle (eval η e).
 
 End Handle.
-
-Global Opaque handle.
