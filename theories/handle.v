@@ -3,7 +3,8 @@ From ITree Require Import Eq EqAxiom.
 Require Import lang monads free eval.
 
 (* This file defines an interpretation (a transformation) of the [free]
-   monad into a monad equipped with [mzero] and [mfix] combinators. *)
+   monad into a monad that must be equipped with [mzero], [skip], and
+   [iter]. *)
 
 Section Handle.
 
