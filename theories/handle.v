@@ -14,7 +14,7 @@ Context {ML : MonadLaws M}.
 Context {MZ : MonadZero target}.
 Context {MZL : MonadZeroLaws M MZ}.
 Context {MS : MonadSkip target}.
-Context {MSL : MonadSkipLaws M MS}.
+(* Context {MSL : MonadSkipLaws M MS}. *) (* TODO not needed *)
 Context {MI : MonadIter target}.
 Context {MIL : MonadIterLaws M MI MS}.
 
