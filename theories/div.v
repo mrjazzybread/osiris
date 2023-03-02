@@ -30,6 +30,15 @@ Proof.
   { eapply Eqit.bind_bind. }
 Qed.
 
+(* This inversion lemma is used to simplify applications of [bind]
+   in situations where an equation on [observe m] is known. *)
+
+Lemma unfold_bind {A B} (m : div A) (f : A -> div B) :
+  bind m f = bind_ m f.
+Proof.
+  apply bisimulation_is_eq. apply unfold_bind.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [skip] is a silent step. *)
