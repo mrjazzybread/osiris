@@ -7,4 +7,5 @@ theories/div.v
 theories/spec.v
 theories/handle.v
 theories/handle_div.v
+theories/handle_spec.v
 theories/wp.v
