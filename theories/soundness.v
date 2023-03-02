@@ -115,6 +115,16 @@ Proof.
   destruct n as [| n ]; simpl; eauto.
 Qed.
 
+(* [mzero] and [mzero] are related. *)
+
+Lemma admits_mzero {A} :
+  @admits A mzero mzero.
+Proof.
+  unfold mzero. simpl.
+  unfold div_mzero, spec_fail.
+  unfold admits. simpl. tauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following three lemmas are inversion lemmas. They extract information
@@ -311,4 +321,24 @@ Proof.
   rewrite unfold_admits.
   unfold initially_admits.
   eauto using initially_admits_iter.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Lemma admits_handle {A} (m : free A) :
+  admits (handle m) (handle m).
+Proof.
+  unfold handle.
+  apply admits_iter.
+  clear m. intros m.
+  unfold handle_body.
+  destruct m.
+  (* Case: returning a value. *)
+  { apply admits_ret. }
+  (* Case: hard failure. *)
+  { apply admits_mzero. }
+  (* Case: soft failure. *)
+  { apply admits_mzero. }
+  (* Case: recursive evaluation request. *)
+  { destruct req. apply admits_ret. }
 Qed.
