@@ -39,4 +39,26 @@ Proof.
     (* Descend under the [skip]s. *)
     f_equal.
     (* Apply the coinduction hypothesis. *)
-Abort.
+Admitted.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The following notation is required for the following statement to be
+   type-checked by Coq. Otherwise, the type-checker enters an infinite
+   loop. *)
+Local Notation handle :=
+  (@handle spec _ _ _ _).
+
+(* ------------------------------------------------------------------------ *)
+
+(* As an immediate corollary of the previous lemma, we obtain the Bind
+   rule of the program logic. That is, to reason about a sequence, it
+   suffices to reason about the left-hand side first, then to reason
+   about the right-hand side. *)
+
+Lemma wp_bind {A B} (m : free A) (f : A → free B) (φ : B → Prop) :
+  handle m ∋ (λ v, handle (f v) ∋ φ) →
+  handle (bind m f) ∋ φ.
+Proof.
+  rewrite handle_bind. tauto.
+Qed.
