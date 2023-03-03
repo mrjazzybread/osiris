@@ -1,4 +1,4 @@
-Require Import monads lang free eval spec handle wp.
+Require Import monads lang free eval spec handle wp soundness handle_spec.
 
 (* TODO move elsewhere *)
 (* Syntax. *)
@@ -9,14 +9,23 @@ Definition ELet p e1 e2 :=
 Definition EUnit :=
   ETuple ENil.
 
+Definition VUnit :=
+  VTuple VNil.
+
 Definition EConstant c :=
   EData c EUnit.
+
+Definition VConstant c :=
+  VData c VUnit.
 
 Definition EPair e1 e2 :=
   ETuple (ECons e1 (ECons e2 ENil)).
 
 Definition PPair p1 p2 :=
   PTuple (PCons p1 (PCons p2 PNil)).
+
+Definition VPair v1 v2 :=
+  VTuple (VCons v1 (VCons v2 VNil)).
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -48,3 +57,30 @@ Goal
 Proof.
   intros. wp. reflexivity.
 Qed.
+
+(* (id (A()), id (A())) *)
+
+Definition example3 :=
+  let idA := EApp (EVar "id") (EConstant "A") in
+  EPair idA idA.
+
+Ltac decide_success :=
+  match goal with |- context[decide (?x = ?x)] =>
+    change (decide (x = x)) with (@left _ (x ≠ x) (eq_refl x))
+  end.
+
+Goal
+  ∀ (id : val),
+  let env := EnvCons "id" id EnvNil in
+  wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
+Proof.
+  intros.
+  unfold wp, run.
+  (* rewrite handle_fixed_point. *)
+  cbn.
+  decide_success.
+  cbn.
+  rewrite !fold_bind.
+  apply wp_bind.
+  apply wp_bind.
+Abort.
