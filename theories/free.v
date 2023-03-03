@@ -82,6 +82,12 @@ Global Instance free_monad : Monad free :=
 
 (* Paraphrase lemmas. *)
 
+Lemma fold_bind {A B} (m : free A) (f : A → free B) :
+  try m f (λ tt, Next) = bind m f.
+Proof.
+  reflexivity.
+Qed.
+
 Lemma bind_fail {A B} (f : A → free B) :
   bind Fail f = Fail.
 Proof.
