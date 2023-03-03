@@ -5,11 +5,31 @@ Require Import lang monads free eval handle spec.
 
 (* ------------------------------------------------------------------------ *)
 
+(* The following notation is required for the following statement to be
+   type-checked by Coq. Otherwise, the type-checker enters an infinite
+   loop. *) (* TODO *)
+
+Local Notation handle :=
+  (@handle spec _ _ _ _).
+
+(* ------------------------------------------------------------------------ *)
+
+(* [handle] interacts with [ret] in the following (trivial) way. *)
+
+Lemma prove_handle_ret {A} (a : A) (φ : A → Prop) :
+  φ a →
+  handle (ret a) ∋ φ.
+Proof.
+  intros. rewrite handle_fixed_point. simpl. tauto.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [handle] commutes with [bind]. *)
 
 (* In other words, [handle] is a monad morphism. *)
 
-Lemma handle_bind {A B} (m : free A) :
+Lemma unfold_handle_bind {A B} (m : free A) :
   ∀ (f : A → free B),
   handle (bind m f) =
   bind (handle m) (λ v, handle (f v)).
@@ -43,22 +63,14 @@ Admitted.
 
 (* ------------------------------------------------------------------------ *)
 
-(* The following notation is required for the following statement to be
-   type-checked by Coq. Otherwise, the type-checker enters an infinite
-   loop. *)
-Local Notation handle :=
-  (@handle spec _ _ _ _).
-
-(* ------------------------------------------------------------------------ *)
-
 (* As an immediate corollary of the previous lemma, we obtain the Bind
    rule of the program logic. That is, to reason about a sequence, it
    suffices to reason about the left-hand side first, then to reason
    about the right-hand side. *)
 
-Lemma wp_bind {A B} (m : free A) (f : A → free B) (φ : B → Prop) :
+Lemma prove_handle_bind {A B} (m : free A) (f : A → free B) (φ : B → Prop) :
   handle m ∋ (λ v, handle (f v) ∋ φ) →
   handle (bind m f) ∋ φ.
 Proof.
-  rewrite handle_bind. tauto.
+  rewrite unfold_handle_bind. tauto.
 Qed.

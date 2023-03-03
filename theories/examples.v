@@ -64,23 +64,23 @@ Definition example3 :=
   let idA := EApp (EVar "id") (EConstant "A") in
   EPair idA idA.
 
-Ltac decide_success :=
-  match goal with |- context[decide (?x = ?x)] =>
-    change (decide (x = x)) with (@left _ (x ≠ x) (eq_refl x))
-  end.
+
+Definition texan {A} (m : free A) (φ : A → Prop) :=
+  ∀ (φ' : A → Prop),
+  (∀ v, φ v → φ' v) →
+  @handle spec _ _ _ _ m ∋ φ'. (* TODO *)
 
 Goal
   ∀ (id : val),
+  (∀ v, texan (call id v) (λ v', v' = v)) →
   let env := EnvCons "id" id EnvNil in
   wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
-  intros.
-  unfold wp, run.
-  (* rewrite handle_fixed_point. *)
-  cbn.
-  decide_success.
-  cbn.
-  rewrite !fold_bind.
-  apply wp_bind.
-  apply wp_bind.
-Abort.
+  intros id Hid.
+  wp.
+  apply Hid. intros v ?. subst v.
+  wp.
+  apply Hid. intros v ?. subst v.
+  wp.
+  reflexivity.
+Qed.

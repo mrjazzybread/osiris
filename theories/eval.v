@@ -88,6 +88,26 @@ with extends η ps vs : free env :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [call v1 v2] evaluates the function call [v1 v2]. *)
+
+Definition call v1 v2 :=
+  match v1 with
+  | VRec η f x e =>
+      (* The environment of the closure is extended with bindings
+         for the variables [f] and [x]. *)
+      let η := EnvCons f v1 η in
+      let η := EnvCons x v2 η in
+      (* In this extended environment, the function body [e] must
+         be evaluated. A recursive call to [eval] cannot be used,
+         so we request the evaluation of [e] via a [Stop] effect. *)
+      Stop (REval η e) $ λ v,
+      Ret v
+ | _ =>
+     Fail
+ end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -116,20 +136,7 @@ Fixpoint eval η e : free val :=
          to a closure. *)
       bind (eval η e1) $ λ v1,
       bind (eval η e2) $ λ v2,
-      match v1 with
-      | VRec η f x e =>
-          (* The environment of the closure is extended with bindings
-             for the variables [f] and [x]. *)
-          let η := EnvCons f v1 η in
-          let η := EnvCons x v2 η in
-          (* In this extended environment, the function body [e] must
-             be evaluated. A recursive call to [eval] cannot be used,
-             so we request the evaluation of [e] via a [Stop] effect. *)
-          Stop (REval η e) $ λ v,
-          Ret v
-     | _ =>
-         Fail
-     end
+      call v1 v2
   | ETuple es =>
       bind (evals η es) $ λ vs,
       Ret (VTuple vs)
