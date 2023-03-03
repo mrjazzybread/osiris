@@ -1,5 +1,5 @@
 From ITree Require Import ITree Eqit Exception.
-Require Import lang monads free eval handle div spec.
+Require Import lang monads free eval handle div spec wp.
 
 (* This file establishes that the [spec] monad offers a sound abstract
    interpretation of the [div] monad. *)
@@ -325,6 +325,10 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* [handle] preserves relatedness. *)
+
+(* This is a beautiful abstract proof. *)
+
 Lemma admits_handle {A} (m : free A) :
   admits (handle m) (handle m).
 Proof.
@@ -342,3 +346,26 @@ Proof.
   (* Case: recursive evaluation request. *)
   { destruct req. apply admits_ret. }
 Qed.
+
+(* An immediate corollary. *)
+
+Lemma admits_run η e :
+  admits (run η e) (run η e).
+Proof.
+  unfold run. apply admits_handle.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The final soundness statement follows. *)
+
+Lemma soundness η e φ :
+  wp η e φ →
+  safe (run η e) φ.
+Proof.
+  unfold wp. apply admits_run.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Global Opaque handle.
