@@ -54,6 +54,35 @@ Proof.
   destruct m as (m & Hm). simpl. exact Hm.
 Qed.
 
+(* A bidirectional version of the previous lemma. *)
+
+Lemma descend_post {A} (m : spec A) (φ φ' : A → Prop) :
+  (∀ a, φ a ↔ φ' a) →
+  m ∋ φ ↔ m ∋ φ'.
+Proof.
+  intros H. split; intros Hm.
+  { eapply exploit_upward_closed; [ | eapply Hm ].
+    intros a. specialize (H a). tauto. }
+  { eapply exploit_upward_closed; [ | eapply Hm ].
+    intros a. specialize (H a). tauto. }
+Qed.
+
+(* Auxiliary lemmas. *)
+
+Local Lemma descend_forall {A} (P Q : A → Prop) :
+  (∀ a, P a ↔ Q a) →
+  (∀ a, P a) ↔ (∀ a, Q a).
+Proof.
+  firstorder.
+Qed.
+
+Local Lemma descend_exists {A} (P Q : A → Prop) :
+  (∀ a, P a ↔ Q a) →
+  (∃ a, P a) ↔ (∃ a, Q a).
+Proof.
+  firstorder.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of specifications. *)
@@ -294,8 +323,6 @@ Qed.
 
 End Fix.
 
-Opaque spec_mfix.
-
 Global Instance spec_monad_fix : MonadFix spec :=
   { mfix := @spec_mfix }.
 
@@ -352,6 +379,64 @@ Proof.
   { reflexivity. }
 Qed.
 
+(* A reformulation of the definition of [spec_iter]. *)
+
+Lemma unfold_spec_iter_preliminary (i : I) (φ : R → Prop) :
+  spec_iter i ∋ φ =
+  ∃ (p : I → spec R),
+    p i ∋ φ ∧
+    p ≼ spec_iter_body p.
+Proof.
+  reflexivity.
+Qed.
+
+(* A reformulation of the inequality [p ≼ spec_iter_body p]. *)
+
+Lemma unfold_post_fixed_point (p : I → spec R) :
+  (p ≼ spec_iter_body p) =
+    ∀ i φ,
+      p i ∋ φ →
+      body i ∋ (λ (signal : I + R),
+        match signal with
+        | inl i => p i ∋ φ
+        | inr r => φ r
+        end).
+Proof.
+  unfold spec_iter_body.
+  unfold pointwise_spec_leq.
+  unfold spec_leq.
+  unfold bind. simpl.
+  unfold spec_ret.
+  apply propositional_extensionality.
+  apply descend_forall; intros i.
+  apply descend_forall; intros φ.
+  apply descend_forall. intros piφ.
+  apply descend_post. intros [ j | r ]; simpl; tauto.
+Qed.
+
+(* A second reformulation of the definition of [spec_iter]. *)
+
+(* This is essentially Hoare's reasoning rule for [while] loops. *)
+
+Lemma unfold_spec_iter (i : I) (φ : R → Prop) :
+  spec_iter i ∋ φ =
+  ∃ (p : I → spec R),
+    p i ∋ φ ∧
+    ∀ i φ,
+      p i ∋ φ →
+      body i ∋ (λ (signal : I + R),
+        match signal with
+        | inl i => p i ∋ φ
+        | inr r => φ r
+        end).
+Proof.
+  rewrite unfold_spec_iter_preliminary.
+  apply propositional_extensionality.
+  apply descend_exists; intros p.
+  rewrite unfold_post_fixed_point.
+  reflexivity.
+Qed.
+
 End Iter.
 
 Global Instance monaditer_spec : MonadIter spec :=
@@ -371,4 +456,5 @@ Proof.
   reflexivity.
 Qed.
 
+Global Opaque spec_mfix.
 Global Opaque spec_iter.
