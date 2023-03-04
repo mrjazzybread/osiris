@@ -116,7 +116,7 @@ Qed.
    [Stop] nodes and whose leaves are [Ret], [Fail] and [Next]. *)
 
 (* We could give an inductive definition of this equality. I prefer to
-   accept the axiom of functional extensionality, which implies that
+   accept the law of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
 Lemma eq_stop_stop A (k1 k2 : val → free A) req :
