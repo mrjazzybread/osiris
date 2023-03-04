@@ -147,9 +147,8 @@ Proof.
   intros i φ ?. exists 0. tauto.
 Qed.
 
-(* This invariant, which has type [free B → spec B], is preserved by
-   [spec_iter_body handle_body], a function of type
-   [(free B → spec B) → (free B → spec B)]. *)
+(* This invariant is preserved by [spec_iter_body handle_body],
+   a function of type [(free B → spec B) → (free B → spec B)]. *)
 
 Local Lemma preservation {B} :
   @invariant B ≼ spec_iter_body handle_body (@invariant B).
