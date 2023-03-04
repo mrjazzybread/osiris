@@ -9,3 +9,10 @@ clean::
 
 Makefile.coq: _CoqProject
 	coq_makefile -f $< -o $@
+
+.PHONY: axioms
+axioms:
+	@ for word in Axiom Abort Admitted ; do \
+	    echo "Looking for $${word}..." ; \
+	    grep -w $${word} theories/*.v || true ; \
+	  done
