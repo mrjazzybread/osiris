@@ -134,6 +134,18 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma unfold_spec_ret {A} (a : A) (φ : A → Prop) :
+  (ret a ∋ φ) = φ a.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma unfold_spec_bind {A B} (m : spec A) (f : A → spec B) (φ : B → Prop) :
+  (bind m f ∋ φ) = (m ∋ (λ a, f a ∋ φ)).
+Proof.
+  reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* The hard failure combinator, whose precondition is [False]. *)
@@ -220,6 +232,13 @@ Global Instance monadskiplaws_spec :
 Proof.
   constructor.
   { unfold skip, monadskip_spec. reflexivity. }
+Qed.
+
+Lemma unfold_skip {A} (m : spec A) (φ : A → Prop) :
+  skip m ∋ φ ↔
+  m ∋ φ.
+Proof.
+  tauto.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -379,7 +398,7 @@ Proof.
   { reflexivity. }
 Qed.
 
-(* A reformulation of the definition of [spec_iter]. *)
+(* A first reformulation of the definition of [spec_iter]. *)
 
 Lemma unfold_spec_iter_preliminary (i : I) (φ : R → Prop) :
   spec_iter i ∋ φ =
@@ -390,17 +409,55 @@ Proof.
   reflexivity.
 Qed.
 
+(* A reformulation of the postcondition of the loop body. *)
+
+Definition spec_iter_body_post (self : I → spec R) (φ : R → Prop) :=
+  λ (signal : I + R),
+    match signal with
+    | inl i =>
+        (* If the body yields a new state [i], continue. *)
+        self i ∋ φ
+    | inr r =>
+        (* If the body yields a result [r], return this result. *)
+        φ r
+    end.
+
+Lemma monotone_spec_iter_body_post
+  (self1 self2 : I → spec R) :
+  self1 ≼ self2 →
+  (* The following three lines could be written:
+       spec_iter_body_post self1 ≼ spec_iter_body_post self2
+     if [spec_iter_body_post self] had type [spec (I + R)];
+                            but it has type [(I + R) → Prop]. *)
+  ∀ (φ : R → Prop) (signal : I + R),
+  spec_iter_body_post self1 φ signal →
+  spec_iter_body_post self2 φ signal.
+Proof.
+  unfold pointwise_spec_leq, spec_leq.
+  intros Hself φ signal.
+  unfold spec_iter_body_post.
+  destruct signal; eauto.
+Qed.
+
+(* A reformulation of the definition of [spec_iter_body]. *)
+
+Lemma unfold_spec_iter_body
+  (self : I → spec R)
+  (i : I) (φ : R → Prop) :
+  spec_iter_body self i ∋ φ ↔
+  body i ∋ (spec_iter_body_post self φ).
+Proof.
+  unfold spec_iter_body. simpl.
+  apply descend_post. intros [|]; simpl spec_iter_body_post; tauto.
+Qed.
+
 (* A reformulation of the inequality [p ≼ spec_iter_body p]. *)
 
 Lemma unfold_post_fixed_point (p : I → spec R) :
   (p ≼ spec_iter_body p) =
     ∀ i φ,
       p i ∋ φ →
-      body i ∋ (λ (signal : I + R),
-        match signal with
-        | inl i => p i ∋ φ
-        | inr r => φ r
-        end).
+      body i ∋ spec_iter_body_post p φ.
 Proof.
   unfold spec_iter_body.
   unfold pointwise_spec_leq.
@@ -424,11 +481,7 @@ Lemma unfold_spec_iter (i : I) (φ : R → Prop) :
     p i ∋ φ ∧
     ∀ i φ,
       p i ∋ φ →
-      body i ∋ (λ (signal : I + R),
-        match signal with
-        | inl i => p i ∋ φ
-        | inr r => φ r
-        end).
+      body i ∋ spec_iter_body_post p φ.
 Proof.
   rewrite unfold_spec_iter_preliminary.
   apply propositional_extensionality.
