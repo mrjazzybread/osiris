@@ -88,7 +88,7 @@ Qed.
    [spec] monad, satisfies the postcondition [φ]. However, [handle c ∋ φ] is
    just the base case. In general, we allow the computation [c] to be a
    sequence of [n+1] computation segments, separated by [bind]s, and the
-   specifications are chained. The specification of each segment is that it
+   specifications are chained. The postcondition of each segment is that it
    eventually produces a result [a] out of which the remaining segments are
    able to reach [φ]. *)
 
