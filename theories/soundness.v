@@ -37,8 +37,128 @@ Definition safe {A} (m : div A) (φ : A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO it should be possible to give an alternative definition of [safe] as
-   a coinductive predicate. Do it and prove the equivalence. *)
+(* The following three lemmas are inversion lemmas. They extract information
+   out of the judgement [initially_safe (S n) m φ] under a hypothesis about
+   the observable behavior of the computation [m]. *)
+
+Lemma invert_initially_safe_RetF {A} n (m : div A) a (φ : A → Prop) :
+  initially_safe (S n) m φ →
+  observe m = RetF a →
+  φ a.
+Proof.
+  intros Hsafe Hm. simpl in Hsafe. rewrite Hm in Hsafe. tauto.
+Qed.
+
+Lemma invert_initially_safe_TauF {A} n (m m' : div A) (φ : A → Prop) :
+  initially_safe (S n) m φ →
+  observe m = TauF m' →
+  initially_safe n m' φ.
+Proof.
+  intros Hsafe Hm. simpl in Hsafe. rewrite Hm in Hsafe. tauto.
+Qed.
+
+Lemma invert_initially_safe_VisF {A X} n (m : div A) e (k : X → div A) (φ : A → Prop) :
+  initially_safe (S n) m φ →
+  observe m = VisF e k →
+  False.
+Proof.
+  intros Hsafe Hm. simpl in Hsafe. rewrite Hm in Hsafe. tauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following three lemmas are inversion lemmas. They extract information
+   out of the judgement [safe m φ] under a hypothesis about the observable
+   behavior of the computation [m]. *)
+
+Lemma invert_safe_RetF {A} {m : div A} {a} {φ : A → Prop} :
+  safe m φ →
+  observe m = RetF a →
+  φ a.
+Proof.
+  unfold safe. intros Hsafe Hm. specialize (Hsafe 1).
+  eapply invert_initially_safe_RetF; eauto.
+Qed.
+
+Lemma invert_safe_TauF {A} {m m' : div A} {φ : A → Prop} :
+  safe m φ →
+  observe m = TauF m' →
+  safe m' φ.
+Proof.
+  unfold safe. eauto using invert_initially_safe_TauF.
+Qed.
+
+Lemma invert_safe_VisF {A X} {m : div A} {e} {k : X → div A} {φ : A → Prop} :
+  safe m φ →
+  observe m = VisF e k →
+  False.
+Proof.
+  unfold safe. intros Hsafe Hm. specialize (Hsafe 1).
+  eauto using invert_initially_safe_VisF.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* An alternative definition of [safe] as a coinductive predicate can be
+   given. This definition is technically not needed, but we offer it and
+   prove its equivalence, as a sanity check. *)
+
+CoInductive alt_safe {A} : div A → (A → Prop) → Prop :=
+  | AltSafeRetF :
+      ∀ m v (φ : A → Prop),
+      observe m = RetF v →
+      φ v →
+      alt_safe m φ
+  | AltSafeTauF :
+      ∀ m m' (φ : A → Prop),
+      observe m = TauF m' →
+      alt_safe m' φ →
+      alt_safe m φ
+.
+
+(* The following lemmas prove that [safe] and [alt_safe] are equivalent. *)
+
+Lemma safe_implies_alt_safe {A} (φ : A → Prop) :
+  ∀ m,
+  safe m φ →
+  alt_safe m φ.
+Proof.
+  cofix CIH.
+  intro m; case_eq (observe m); [ clear CIH | | clear CIH ].
+  { intros a Hm Hsafe.
+    specialize (invert_safe_RetF Hsafe Hm); clear Hsafe; intro Hsafe.
+    eauto using AltSafeRetF. }
+  { intros m' Hm Hsafe.
+    specialize (invert_safe_TauF Hsafe Hm); clear Hsafe; intro Hsafe.
+    eapply AltSafeTauF; eauto. }
+  { intros X e k Hm Hsafe.
+    specialize (invert_safe_VisF Hsafe Hm).
+    tauto. }
+Qed.
+
+Lemma alt_safe_implies_initially_safe {A} (φ : A → Prop) :
+  ∀ n m,
+  alt_safe m φ →
+  initially_safe n m φ.
+Proof.
+  induction n; simpl; [ tauto |].
+  intros m Hsafe.
+  destruct Hsafe;
+  match goal with Hm: observe m = _ |- _ => rewrite Hm end;
+  eauto.
+Qed.
+
+Lemma alt_safe_implies_safe {A} (φ : A → Prop) :
+  ∀ m, alt_safe m φ → safe m φ.
+Proof.
+  unfold safe. eauto using alt_safe_implies_initially_safe.
+Qed.
+
+Lemma alt_safe_iff_safe {A} (φ : A → Prop) :
+  ∀ m, alt_safe m φ ↔ safe m φ.
+Proof.
+  split; eauto using safe_implies_alt_safe, alt_safe_implies_safe.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
