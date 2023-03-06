@@ -59,6 +59,28 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* If [φ] entails [φ'], then a computation that is safe with respect to [φ]
+   is also safe with respect to [φ']. *)
+
+Lemma initially_safe_covariant {A} (φ φ' : A → Prop) :
+  (∀ a, φ a → φ' a) →
+  ∀ n m,
+  initially_safe n m φ →
+  initially_safe n m φ'.
+Proof.
+  induction n; simpl; intros; [ tauto |].
+  destruct (observe m); eauto.
+Qed.
+
+Lemma safe_covariant {A} (m : div A) (φ φ' : A → Prop) :
+  (∀ a, φ a → φ' a) →
+  safe m φ → safe m φ'.
+Proof.
+  unfold safe. eauto using initially_safe_covariant.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The relation [admits m s] relates a computation [m] in the [div] monad
    and a specification [s] in the [spec] monad. This relation means that the
    specification [s] is a sound description of the computation [m]. This
