@@ -1,10 +1,9 @@
 # TODO
 
-* Generalize the definition of `handle` in `free_div.v`
-  so that it works with an arbitrary destination monad
-  provided we have a fixed point combinator in this monad.
+* Separate the monadic support layer from the definition of the
+  OCaml semantics.
 
-* Use existing type classes and notation for monads?
+* Clean the type classes and notation for monads.
 
 * Think about [order of evaluation](https://v2.ocaml.org/manual/expr.html#sss:expr-functions-application).
   Is it faithful to have only binary function applications in our calculus?
