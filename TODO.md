@@ -3,6 +3,9 @@
 * Separate the monadic support layer from the definition of the
   OCaml semantics.
 
+* Annotate [mzero] with a string, in every monad,
+  so we can keep track of the reason for the failure.
+
 * Clean the type classes and notation for monads.
 
 * Think about [order of evaluation](https://v2.ocaml.org/manual/expr.html#sss:expr-functions-application).
