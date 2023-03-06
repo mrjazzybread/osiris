@@ -196,19 +196,22 @@ Qed.
 (* Because [safe m] is covariant in [φ], it can be viewed as an inhabitant
    of the [spec] monad. *)
 
-Program Definition SAFE {A} (m : div A) : spec A := (* TODO better name? *)
+Program Definition safety {A} (m : div A) : spec A :=
   safe m.
 Next Obligation.
   simpl. eauto using safe_covariant.
 Qed.
 
-Lemma unfold_SAFE {A} (m : div A) (φ : A → Prop) :
-  SAFE m ∋ φ ↔ safe m φ.
+Lemma unfold_safety {A} (m : div A) (φ : A → Prop) :
+  safety m ∋ φ ↔ safe m φ.
 Proof.
   reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+
+(* TODO WIP the relation [admits] should now disappear: [admits m s]
+   is just [s ≤ safety m], I think. *)
 
 (* The relation [admits m s] relates a computation [m] in the [div] monad
    and a specification [s] in the [spec] monad. This relation means that the
@@ -268,12 +271,12 @@ Qed.
 
 (* TODO *)
 
-Lemma SAFE_ret {A} :
+Lemma safety_ret {A} :
   ∀ (a : A),
-  SAFE (ret a : div A) = (ret a : spec A).
+  safety (ret a : div A) = (ret a : spec A).
 Proof.
   intros. eapply prove_spec_eq_ext. intros.
-  rewrite unfold_SAFE.
+  rewrite unfold_safety.
   split; intros H.
   { specialize (invert_safe_RetF φ H eq_refl). simpl. tauto. }
   { simpl in H. intros [| n]; simpl; eauto. }
@@ -291,11 +294,11 @@ Qed.
 
 (* TODO *)
 
-Lemma SAFE_mzero {A} :
-  SAFE (mzero : div A) = (mzero : spec A).
+Lemma safety_mzero {A} :
+  safety (mzero : div A) = (mzero : spec A).
 Proof.
   eapply prove_spec_eq_ext. intros.
-  rewrite unfold_SAFE.
+  rewrite unfold_safety.
   split; intros H.
   { specialize (invert_safe_VisF H eq_refl). tauto. }
   { simpl in H. tauto. }
@@ -344,6 +347,133 @@ Lemma invert_admits_TauF {A} n (m m' : div A) (s : spec A) :
   initially_admits n m' s.
 Proof.
   unfold initially_admits. eauto using invert_initially_safe_TauF.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Interaction of safety and [bind]. *)
+
+(* If [m1] is safe for [n1] steps and [m2 a] is safe for [n2] steps then
+   [bind m1 m2] is safe for [min n1 n2] steps. (One cannot expect to obtain
+   safety for [n1+n2] steps! To see this, consider the case where [n1] is
+   zero.) This is stated, in a simpler way, by the following lemma. *)
+
+Lemma initially_safe_bind_aux_1 {A B} (m2 : A → div B) :
+  ∀ n (m1 : div A) (φ : B → Prop),
+  initially_safe n m1 (λ a, initially_safe n (m2 a) φ) →
+  initially_safe n (bind m1 m2) φ.
+Proof.
+  induction n; [tauto |]. intros m1 φ Hsafe.
+  (* Expose two occurrences of [observe m1]. *)
+  rewrite unfold_bind.
+  unfold initially_safe at 1 in Hsafe;
+  fold @initially_safe in Hsafe.
+  (* Proceed by cases on [m1]. Three cases arise. *)
+  destruct (observe m1); [ clear IHn | | clear IHn ].
+
+  (* Case: [m1] is [ret a]. *)
+  { tauto. }
+
+  (* Case: [m1] is [skip m'1]. *)
+  { (* The goal is to prove that [bind m'1 m2] is safe for [n] steps. *)
+    simpl.
+    (* This follows from the induction hypothesis and from the fact that
+       [initially_safe] is covariant in its postcondition and monotonic
+       in its step index. *)
+    eapply IHn; clear IHn.
+    eapply initially_safe_covariant; [| exact Hsafe ]; clear Hsafe.
+    intros a Hm2a.
+    eapply initially_safe_monotonic; [ exact Hm2a |].
+    lia. }
+
+  (* Case: [m1] fails. *)
+  { (* The goal is to show that this cannot happen. *)
+    simpl. tauto. }
+
+Qed.
+
+(* Conversely, if [bind m1 m2] is safe for [n1 + n2] steps then [m1] is safe
+   for [n1] steps and [m2 a] is safe for [n2] steps. *)
+
+Lemma initially_safe_bind_aux_2 {A B} (m2 : A → div B) :
+  ∀ n1 n2 (m1 : div A)  (φ : B → Prop),
+  initially_safe (n1 + n2) (bind m1 m2) φ →
+  initially_safe n1 m1 (λ a, initially_safe n2 (m2 a) φ).
+Proof.
+  induction n1; intros n2 m1 φ.
+  (* The base case is trivial. *)
+  { intros _. simpl. tauto. }
+
+  (* Expose two occurrences of [observe m1]. *)
+  rewrite unfold_bind.
+  unfold initially_safe at 2; fold @initially_safe.
+  (* Proceed by cases on [m1]. Three cases arise. *)
+  destruct (observe m1); [ clear IHn1 | | clear IHn1 ].
+
+  (* Case: [m1] is [ret a]. *)
+  { eauto using initially_safe_monotonic with lia. }
+
+  (* Case: [m1] is [skip m'1]. *)
+  { simpl. intros Hsafe. apply IHn1. exact Hsafe. }
+
+  (* Case: [m1] fails. *)
+  { intros Hsafe. eauto using invert_initially_safe_VisF. }
+
+Qed.
+
+(* The intersection rule of Hoare logic: if for every [x] the computation
+   [m] admits the postcondition [φ x], then [m] admits the postcondition
+   [∀ x, φ x]. *)
+
+Lemma initially_safe_intersection {A X} {_ : Inhabited X} (φ : X → A → Prop) :
+  ∀ n m,
+  (∀ x, initially_safe n m (φ x)) →
+  initially_safe n m (λ a, ∀ x, φ x a).
+Proof.
+  induction n; [ simpl; tauto |]; intros m Hsafe.
+
+  (* Expose two occurrences of [observe m]. *)
+  unfold initially_safe in *; fold @initially_safe in *.
+  (* Proceed by cases on [m]. Three cases arise. *)
+  destruct (observe m); [ clear IHn | | clear IHn ].
+
+  (* Case: [m] is [ret a]. *)
+  { assumption. }
+  (* Case: [m] is [skip m']. *)
+  { eauto. }
+  (* Case: [m1] fails. *)
+  (* The fact that the type [X] is inhabited is exploited. *)
+  { specialize (Hsafe inhabitant). tauto. }
+Qed.
+
+(* A sequence [bind m1 m2] is safe if and only if [m1] and [m2] are safe.
+   The safety of [m2 a] is stated inside the postcondition of [m1], so it
+   must hold only in the situations where [m1] terminates. *)
+
+Lemma safe_bind {A B} (m1 : div A) (m2 : A → div B) (φ : B → Prop) :
+  safe (bind m1 m2) φ ↔ safe m1 (λ a, safe (m2 a) φ).
+Proof.
+  unfold safe.
+  split; intros Hsafe.
+  (* This implication corresponds to the completeness of the program logic.
+     It is interesting to note that the intersection rule is used here. *)
+  { intros n1.
+    eapply initially_safe_intersection. intros n2.
+    eapply initially_safe_bind_aux_2.
+    eapply Hsafe. }
+  (* This implication corresponds to the soundness of the program logic. *)
+  { intros n.
+    eapply initially_safe_bind_aux_1.
+    eapply initially_safe_covariant; [| eauto ]; intros a Hm2a.
+    eapply Hm2a. }
+Qed.
+
+(* [safety] commutes with [bind]. *)
+
+Lemma safety_bind {A B} (m1 : div A) (m2 : A → div B) :
+  safety (bind m1 m2) = bind (safety m1) (λ a, safety (m2 a)).
+Proof.
+  eapply prove_spec_eq_ext. intros φ. rewrite unfold_safety. apply safe_bind.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -422,6 +552,22 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* [skip] preserves relatedness. *)
+
+Lemma safe_skip {A} (m : div A) (φ : A → Prop) :
+  safe (skip m) φ ↔ safe m φ.
+Proof.
+  unfold safe. split; intros Hsafe n.
+  { specialize (Hsafe (S n)). tauto. }
+  { destruct n as [| n ]; simpl; eauto. }
+Qed.
+
+Lemma safety_skip {A} (m : div A) :
+  safety (skip m) = safety m.
+Proof.
+  eapply prove_spec_eq_ext. intros φ.
+  rewrite !unfold_safety.
+  apply safe_skip.
+Qed.
 
 Lemma initially_admits_skip {A} n (m : div A) (s : spec A) :
   initially_admits n m s →
