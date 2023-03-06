@@ -193,6 +193,21 @@ Proof.
   unfold safe. eauto using initially_safe_covariant.
 Qed.
 
+(* Because [safe m] is covariant in [φ], it can be viewed as an inhabitant
+   of the [spec] monad. *)
+
+Program Definition SAFE {A} (m : div A) : spec A := (* TODO better name? *)
+  safe m.
+Next Obligation.
+  simpl. eauto using safe_covariant.
+Qed.
+
+Lemma unfold_SAFE {A} (m : div A) (φ : A → Prop) :
+  SAFE m ∋ φ ↔ safe m φ.
+Proof.
+  reflexivity.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The relation [admits m s] relates a computation [m] in the [div] monad
@@ -251,6 +266,19 @@ Proof.
   destruct n as [| n ]; simpl; eauto.
 Qed.
 
+(* TODO *)
+
+Lemma SAFE_ret {A} :
+  ∀ (a : A),
+  SAFE (ret a : div A) = (ret a : spec A).
+Proof.
+  intros. eapply prove_spec_eq_ext. intros.
+  rewrite unfold_SAFE.
+  split; intros H.
+  { specialize (invert_safe_RetF φ H eq_refl). simpl. tauto. }
+  { simpl in H. intros [| n]; simpl; eauto. }
+Qed.
+
 (* [mzero] and [mzero] are related. *)
 
 Lemma admits_mzero {A} :
@@ -259,6 +287,18 @@ Proof.
   unfold mzero. simpl.
   unfold div_mzero, spec_fail.
   unfold admits. simpl. tauto.
+Qed.
+
+(* TODO *)
+
+Lemma SAFE_mzero {A} :
+  SAFE (mzero : div A) = (mzero : spec A).
+Proof.
+  eapply prove_spec_eq_ext. intros.
+  rewrite unfold_SAFE.
+  split; intros H.
+  { specialize (invert_safe_VisF H eq_refl). tauto. }
+  { simpl in H. tauto. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
