@@ -156,7 +156,7 @@ Proof.
   (* Put the goal into a suitable form for induction over [n]. *)
   intros i ψ.
   intros (n & H). revert n i ψ H.
-  (* Reduction by induction over [n]. *)
+  (* Reason by induction over [n]. *)
   induction n; intros i ψ.
   (* Base case. *)
   { unfold stack.
