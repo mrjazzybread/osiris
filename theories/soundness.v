@@ -41,7 +41,7 @@ Definition safe {A} (m : div A) (φ : A → Prop) :=
    out of the judgement [initially_safe (S n) m φ] under a hypothesis about
    the observable behavior of the computation [m]. *)
 
-Lemma invert_initially_safe_RetF {A} n (m : div A) a (φ : A → Prop) :
+Lemma invert_initially_safe_RetF {A} {n} {m : div A} {a} (φ : A → Prop) :
   initially_safe (S n) m φ →
   observe m = RetF a →
   φ a.
@@ -49,7 +49,7 @@ Proof.
   intros Hsafe Hm. simpl in Hsafe. rewrite Hm in Hsafe. tauto.
 Qed.
 
-Lemma invert_initially_safe_TauF {A} n (m m' : div A) (φ : A → Prop) :
+Lemma invert_initially_safe_TauF {A} {n} {m m' : div A} {φ : A → Prop} :
   initially_safe (S n) m φ →
   observe m = TauF m' →
   initially_safe n m' φ.
@@ -57,7 +57,7 @@ Proof.
   intros Hsafe Hm. simpl in Hsafe. rewrite Hm in Hsafe. tauto.
 Qed.
 
-Lemma invert_initially_safe_VisF {A X} n (m : div A) e (k : X → div A) (φ : A → Prop) :
+Lemma invert_initially_safe_VisF {A X} {n} {m : div A} {e} {k : X → div A} {φ : A → Prop} :
   initially_safe (S n) m φ →
   observe m = VisF e k →
   False.
@@ -71,13 +71,13 @@ Qed.
    out of the judgement [safe m φ] under a hypothesis about the observable
    behavior of the computation [m]. *)
 
-Lemma invert_safe_RetF {A} {m : div A} {a} {φ : A → Prop} :
+Lemma invert_safe_RetF {A} {m : div A} {a} (φ : A → Prop) :
   safe m φ →
   observe m = RetF a →
   φ a.
 Proof.
   unfold safe. intros Hsafe Hm. specialize (Hsafe 1).
-  eapply invert_initially_safe_RetF; eauto.
+  eauto using (invert_initially_safe_RetF φ).
 Qed.
 
 Lemma invert_safe_TauF {A} {m m' : div A} {φ : A → Prop} :
@@ -125,15 +125,9 @@ Lemma safe_implies_alt_safe {A} (φ : A → Prop) :
 Proof.
   cofix CIH.
   intro m; case_eq (observe m); [ clear CIH | | clear CIH ].
-  { intros a Hm Hsafe.
-    specialize (invert_safe_RetF Hsafe Hm); clear Hsafe; intro Hsafe.
-    eauto using AltSafeRetF. }
-  { intros m' Hm Hsafe.
-    specialize (invert_safe_TauF Hsafe Hm); clear Hsafe; intro Hsafe.
-    eapply AltSafeTauF; eauto. }
-  { intros X e k Hm Hsafe.
-    specialize (invert_safe_VisF Hsafe Hm).
-    tauto. }
+  { eauto using (invert_safe_RetF φ), AltSafeRetF. }
+  { intros; eapply AltSafeTauF; eauto using invert_safe_TauF. }
+  { intros. elimtype False. eauto using invert_safe_VisF. }
 Qed.
 
 Lemma alt_safe_implies_initially_safe {A} (φ : A → Prop) :
@@ -286,29 +280,20 @@ Lemma invert_admits_RetF {A} n (m : div A) (s : spec A) (a : A) φ :
   s ∋ φ →
   φ a.
 Proof.
-  unfold initially_admits. intros Hsafe Hm Hsφ.
-  specialize (Hsafe φ Hsφ).
-  simpl in Hsafe.
-  rewrite Hm in Hsafe.
-  tauto.
+  unfold initially_admits. eauto using (invert_initially_safe_RetF φ).
 Qed.
 
 (* [throw ()] cannot admit a nonempty specification. That is, if [throw ()]
    admits the specification [s] and if [s] is nonempty, then a contradiction
    is obtained. *)
 
-Lemma invert_admits_Throw {A} n (m : div A) (s : spec A) (k : void → div A) φ :
+Lemma invert_admits_VisF {A X} n (m : div A) (s : spec A) e (k : X → div A) φ :
   initially_admits (S n) m s →
-  observe m = VisF (Throw ()) k →
+  observe m = VisF e k →
   s ∋ φ →
   False.
 Proof.
-  (* The proof script is the same as that of the previous lemma! *)
-  unfold initially_admits. intros Hsafe Hm Hsφ.
-  specialize (Hsafe φ Hsφ).
-  simpl in Hsafe.
-  rewrite Hm in Hsafe.
-  tauto.
+  unfold initially_admits. eauto using invert_initially_safe_VisF.
 Qed.
 
 (* The relation [admits m s] is stable under reduction of [m] to [m']. *)
@@ -318,12 +303,7 @@ Lemma invert_admits_TauF {A} n (m m' : div A) (s : spec A) :
   observe m = TauF m' →
   initially_admits n m' s.
 Proof.
-  (* The proof script is the same as that of the previous lemma! *)
-  unfold initially_admits. intros Hsafe Hm φ Hsφ.
-  specialize (Hsafe φ Hsφ).
-  simpl in Hsafe.
-  rewrite Hm in Hsafe.
-  tauto.
+  unfold initially_admits. eauto using invert_initially_safe_TauF.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -384,7 +364,7 @@ Proof.
     simpl.
     destruct e as (u). destruct u.
     unfold bind in Hbφ; simpl in Hbφ.
-    eauto using invert_admits_Throw. }
+    eauto using invert_admits_VisF. }
 
 Qed.
 
