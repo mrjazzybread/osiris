@@ -101,6 +101,16 @@ Proof.
   extensionality φ. eauto.
 Qed.
 
+Lemma prove_spec_eq_ext {A} (m1 m2 : spec A) :
+  (∀ φ, (m1 ∋ φ) ↔ (m2 ∋ φ)) →
+  m1 = m2.
+Proof.
+  intros.
+  eapply prove_spec_eq. intros φ.
+  eapply propositional_extensionality.
+  eauto.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* The monadic combinators. *)
@@ -198,8 +208,7 @@ Lemma spec_leq_antisymmetric {A} (m1 m2 : spec A) :
   m1 ≤ m2 → m2 ≤ m1 → m1 = m2.
 Proof.
   unfold spec_leq.
-  intros. eapply prove_spec_eq. intros.
-  apply propositional_extensionality.
+  intros. eapply prove_spec_eq_ext. intros.
   split; eauto.
 Qed.
 
