@@ -1,5 +1,7 @@
 Require Import monads lang free eval spec handle wp handle_spec.
 
+Global Opaque handle.
+
 (* Rewrite [decide (x = x)] to [true]. *)
 
 Ltac wp_decide :=
