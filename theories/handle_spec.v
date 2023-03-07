@@ -1,5 +1,5 @@
 From Coq.Logic Require Import FunctionalExtensionality PropExtensionality.
-Require Import lang monads free eval handle spec.
+Require Import lang monads free eval handle spec handle_div soundness.
 Set Warnings "-notation-overridden".
 Import spec.Notations.
 
@@ -12,37 +12,47 @@ Import spec.Notations.
    type-checked by Coq. Otherwise, the type-checker enters an infinite
    loop. *)
 
-(* TODO fix this *)
+(* TODO can this be fixed? *)
 
 Local Notation handle :=
   (@handle spec _ _ _ _).
 
 (* ------------------------------------------------------------------------ *)
 
-(* A paraphrase lemma about [handle]. *)
+(* [handle] interacts with [ret] in the following (trivial) way. *)
 
-Lemma unfold_handle {A} (m : free A) (φ : A → Prop) :
-  handle m ∋ φ ↔
-  handle_body m ∋ spec_iter_body_post handle φ.
+Lemma unfold_handle_ret {A} (a : A) (φ : A → Prop) :
+  handle (ret a) ∋ φ ↔
+  φ a.
 Proof.
-  rewrite handle_fixed_point. simpl.
-  apply descend_post. intros [|]; simpl; tauto.
+  intros. rewrite handle_fixed_point. simpl. tauto.
 Qed.
 
-(* ------------------------------------------------------------------------ *)
+(* An alternative proof of this result. *)
 
-(* [handle] interacts with [ret] in the following (trivial) way. *)
+Goal ∀ {A} (a : A) (φ : A → Prop),
+  handle (ret a) ∋ φ ↔
+  φ a.
+Proof.
+  intros.
+  rewrite <- safety_handle.
+  rewrite handle_ret.
+  rewrite safety_ret.
+  tauto.
+Qed.
+
+(* Just one direction. *)
 
 Lemma prove_handle_ret {A} (a : A) (φ : A → Prop) :
   φ a →
   handle (ret a) ∋ φ.
 Proof.
-  intros. rewrite handle_fixed_point. simpl. tauto.
+  rewrite unfold_handle_ret. tauto.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-(* We might wish to state that [handle] commutes with [bind] in a direct
+(* We now wish to state that [handle] commutes with [bind] in a direct
    way, as an equality:
 
    Lemma handle_bind {A B} (m : free A) (f : A → free B) :
@@ -57,17 +67,59 @@ Qed.
    Here, however, the equality of two inhabitants of the [spec] is
    not co-inductively defined, so we cannot use such an argument. *)
 
-(* Instead, we split this equality into two implications, and we prove
-   one implication, arguably the most important one, the Bind rule.
-   The proof, which involves an inductive invariant, is nontrivial
-   (see below). It feels as though, to establish the Bind rule, we
-   essentially have to prove the equivalence between small-step and
-   big-step semantics. *)
+(* There (at least) two ways of establishing this commutation law.
 
-(* TODO think about the proof of the reverse implication;
-        think about proving both directions at once (unlikely). *)
+   The easy way is to transport the law from the [div] monad to the [spec]
+   monad by exploiting the equation that [handle = safety ∘ handle], which
+   we have established in soundness.v.
+
+   The hard way is to attempt a direct proof. I have done a direct proof
+   of one implication, arguably the most important one, the Bind rule.
+   The proof, which involves an inductive invariant, is nontrivial,
+   which is why I have not removed it, even though it is now redundant. *)
 
 (* ------------------------------------------------------------------------ *)
+
+(* The easy way. *)
+
+Lemma handle_bind {A B} (m : free A) (f : A → free B) :
+  handle (bind m f) =
+  bind (handle m) (λ v, handle (f v)).
+Proof.
+  (* Exploit the equation [handle = safety ∘ handle]. *)
+  rewrite <- !safety_handle.
+  (* Exploit the law [handle_bind] at the level of the [div] monad. *)
+  rewrite handle_bind.
+  (* Exploit the fact that safety commutes with [bind]. *)
+  rewrite safety_bind.
+  (* In principe, we are done, but Coq has not rewritten under λ in
+     the first line of the proof (above), so we have to force this
+     rewriting step. *)
+  f_equal. extensionality a. apply safety_handle.
+Qed.
+
+(* An expanded form of the previous lemma. This is the soundness and
+   completeness of the Bind rule of the program logic. *)
+
+Lemma unfold_handle_bind {A B} (m : free A) (f : A → free B) (φ : B → Prop) :
+  handle m ∋ (λ v, handle (f v) ∋ φ) ↔
+  handle (bind m f) ∋ φ.
+Proof.
+  rewrite handle_bind. tauto.
+Qed.
+
+(* Just the soundness of the Bind rule. *)
+
+Lemma prove_handle_bind {A B} (m : free A) (f : A → free B) (φ : B → Prop) :
+  handle m ∋ (λ v, handle (f v) ∋ φ) →
+  handle (bind m f) ∋ φ.
+Proof.
+  rewrite unfold_handle_bind. tauto.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The hard way. *)
 
 (* The statement that we want to prove is roughly
    that [bind (handle m) (handle f)] implies
@@ -147,6 +199,16 @@ Proof.
   intros i φ ?. exists 0. tauto.
 Qed.
 
+(* A paraphrase lemma about [handle]. *)
+
+Local Lemma unfold_handle {A} (m : free A) (φ : A → Prop) :
+  handle m ∋ φ ↔
+  handle_body m ∋ spec_iter_body_post handle φ.
+Proof.
+  rewrite handle_fixed_point. simpl.
+  apply descend_post. intros [|]; simpl; tauto.
+Qed.
+
 (* This invariant is preserved by [spec_iter_body handle_body],
    a function of type [(free B → spec B) → (free B → spec B)]. *)
 
@@ -193,7 +255,7 @@ Qed.
 
 (* Yet, coming up with this invariant was hard. *)
 
-Lemma prove_handle_bind :
+Local Lemma prove_handle_bind_alternate :
   ∀ {A B} (m : free A) (f : A → free B) (φ : B → Prop),
   handle m ∋ (λ v, handle (f v) ∋ φ) →
   handle (bind m f) ∋ φ.
