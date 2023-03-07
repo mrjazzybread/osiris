@@ -100,6 +100,24 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Two high-level inversion lemmas. *)
+
+Lemma invert_safe_ret {A} (a : A) (φ : A → Prop) :
+  safe (ret a) φ →
+  φ a.
+Proof.
+  intros Hsafe. specialize (invert_safe_RetF _ Hsafe eq_refl). tauto.
+Qed.
+
+Lemma invert_safe_mzero {A} (φ : A → Prop) :
+  safe mzero φ →
+  False.
+Proof.
+  intros Hsafe. specialize (invert_safe_VisF Hsafe eq_refl). tauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* An alternative definition of [safe] as a coinductive predicate can be
    given. This definition is technically not needed, but we offer it and
    prove its equivalence, as a sanity check. *)
@@ -279,7 +297,7 @@ Proof.
   intros. eapply prove_spec_eq_ext. intros.
   rewrite unfold_safety.
   split; intros H.
-  { specialize (invert_safe_RetF φ H eq_refl). simpl. tauto. }
+  { simpl. eapply invert_safe_ret. assumption. }
   { simpl in H. intros [| n]; simpl; eauto. }
 Qed.
 
@@ -301,7 +319,7 @@ Proof.
   eapply prove_spec_eq_ext. intros.
   rewrite unfold_safety.
   split; intros H.
-  { specialize (invert_safe_VisF H eq_refl). tauto. }
+  { simpl. eapply invert_safe_mzero. eauto. }
   { simpl in H. tauto. }
 Qed.
 
