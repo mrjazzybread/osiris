@@ -30,6 +30,22 @@ Fixpoint initially_safe {A} (n : nat) (m : div A) (φ : A → Prop) : Prop :=
       False
   end.
 
+(* A paraphrase lemma. *)
+
+Lemma unfold_initially_safe_S {A} (n : nat) (m : div A) (φ : A → Prop) :
+  initially_safe (S n) m φ =
+  match observe m with
+  | RetF v =>
+      φ v
+  | TauF m =>
+      initially_safe n m φ
+  | VisF _tt _k =>
+      False
+  end.
+Proof.
+  reflexivity.
+Qed.
+
 (* If, for every [n], a computation is safe for [n] steps,
    then this computation is safe. *)
 
