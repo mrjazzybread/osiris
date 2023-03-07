@@ -1,3 +1,4 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From ITree Require Import ITree Eqit Exception.
 Require Import lang monads free eval handle div spec wp.
 
