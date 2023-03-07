@@ -1,4 +1,4 @@
-Require Import monads lang free eval spec handle wp soundness handle_spec.
+Require Import monads lang free eval spec handle wp soundness wp_tactics.
 
 (* TODO move elsewhere *)
 (* Syntax. *)

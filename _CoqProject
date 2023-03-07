@@ -10,4 +10,5 @@ theories/handle_div.v
 theories/handle_spec.v
 theories/wp.v
 theories/soundness.v
+theories/wp_tactics.v
 theories/examples.v
