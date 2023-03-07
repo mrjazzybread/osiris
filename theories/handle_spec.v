@@ -1,4 +1,4 @@
-From Coq.Logic Require Import PropExtensionality.
+From Coq.Logic Require Import FunctionalExtensionality PropExtensionality.
 Require Import lang monads free eval handle spec.
 Set Warnings "-notation-overridden".
 Import spec.Notations.
