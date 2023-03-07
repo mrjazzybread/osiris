@@ -33,3 +33,12 @@
 
 * Can we show that performing a `Stop` effect is "the same" as performing
   a recursive call to `eval`, when this call is permitted?
+
+## References
+
+* maillard-al-19
+* silver-zdancewic-21
+* nigron-dagand-21
+* zakowski-al-21
+* yoon-zakowski-zdancewic-22
+* chappe-al-23
