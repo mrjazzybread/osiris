@@ -42,3 +42,40 @@
 * zakowski-al-21
 * yoon-zakowski-zdancewic-22
 * chappe-al-23
+
+## Features of OCaml that we want to support (at some point)
+
+* Functions and function applications of multiple arguments
+* Mutually-recursive functions
+* Algebraic data types (sums, records, sums-of-records; mutable fields)
+* Arrays
+* Integers (bounded or idealized?)
+* Polymorphic variants
+* Pattern matching on immutable data
+* Unspecified evaluation order of `let/and` definitions and function applications
+* Unspecified evaluation of `assert` statements
+* Modules, functors, signature ascription, `open` and `include` directives
+  - Note that `open` and `include` break the lexical scoping discipline
+    (and require keeping track of module signatures at runtime)
+    unless we ask the OCaml compiler to perform disambiguation and annotate
+    these constructs with a (fully expanded) signature.
+* Unspecified evaluation order of toplevel modules
+* First-class modules
+* Extensible algebraic data types
+* Exceptions
+* Effect handlers
+* Shared-memory concurrency (SC)
+* Shared-memory concurrency (weak memory)
+
+## Features of OCaml that we do not want to support
+
+* Polymorphic comparison operators
+* Floating point numbers
+* Nonexhaustive pattern matching (must be forbidden)
+* Pattern matching on mutable data
+* The `lazy` pattern
+* `when` clauses
+* Recursive values other than functions
+* Objects and classes
+* Labeled arguments
+* Optional arguments and default values
