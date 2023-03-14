@@ -45,13 +45,13 @@
 
 ## Features of OCaml that we want to support (at some point)
 
-* Functions and function applications of multiple arguments
+* Functions and function applications
 * Mutually-recursive functions
-* Algebraic data types (sums, records, sums-of-records; mutable fields)
 * Arrays
+* Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
 * Integers (bounded or idealized?)
+* Pattern matching on immutable data (must prove absence of match failure)
 * Polymorphic variants
-* Pattern matching on immutable data
 * Unspecified evaluation order of `let/and` definitions and function applications
 * Unspecified evaluation of `assert` statements
 * Modules, functors, signature ascription, `open` and `include` directives
@@ -62,6 +62,7 @@
 * Unspecified evaluation order of toplevel modules
 * First-class modules
 * Extensible algebraic data types
+* Recursive values of a mutable type
 * Exceptions
 * Effect handlers
 * Shared-memory concurrency (SC)
@@ -71,11 +72,10 @@
 
 * Polymorphic comparison operators
 * Floating point numbers
-* Nonexhaustive pattern matching (must be forbidden)
 * Pattern matching on mutable data
 * The `lazy` pattern
 * `when` clauses
-* Recursive values other than functions
+* Immutable recursive values other than functions
 * Objects and classes
 * Labeled arguments
 * Optional arguments and default values
