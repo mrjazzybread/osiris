@@ -163,3 +163,16 @@ Proof.
     intros f1 f2 ?.
     f_equal. extensionality a. eauto. }
 Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [mzero] is [Fail]. *)
+
+Global Instance monadzero_free : MonadZero free :=
+  { mzero := @Fail }.
+
+Global Instance monadzerolaws_free :
+  MonadZeroLaws _ _.
+Proof.
+  constructor. reflexivity.
+Qed.
