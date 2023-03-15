@@ -3,6 +3,7 @@ theories/monads.v
 theories/lang.v
 theories/free.v
 theories/eval.v
+theories/step.v
 theories/div.v
 theories/spec.v
 theories/handle.v
