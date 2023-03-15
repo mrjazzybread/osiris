@@ -78,7 +78,7 @@ Proof.
   reflexivity.
 Qed.
 
-Local Hint Resolve prove_step_stop : step.
+Global Hint Resolve prove_step_stop : step.
 
 (* Stepping in the left-hand side of [bind] is permitted. *)
 
@@ -160,7 +160,7 @@ Proof.
   intros (m' & Hstep). simpl in Hstep. tauto.
 Qed.
 
-Local Hint Resolve
+Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Fail
   invert_can_step_Next
