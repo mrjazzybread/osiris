@@ -4,11 +4,14 @@ theories/lang.v
 theories/free.v
 theories/eval.v
 theories/step.v
+theories/safe.v
 theories/div.v
 theories/spec.v
+theories/safety.v
 theories/handle.v
 theories/handle_div.v
 theories/handle_spec.v
+theories/handle_safety.v
 theories/wp.v
 theories/soundness.v
 theories/wp_tactics.v
