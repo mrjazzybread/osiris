@@ -78,7 +78,13 @@ Proof.
   reflexivity.
 Qed.
 
-Global Hint Resolve prove_step_stop : step.
+Lemma can_step_stop {A} η e (k : val → free A) :
+  can_step (Stop (REval η e) k).
+Proof.
+  unfold can_step. eauto using prove_step_stop.
+Qed.
+
+Global Hint Resolve prove_step_stop can_step_stop : step.
 
 (* Stepping in the left-hand side of [bind] is permitted. *)
 
@@ -288,7 +294,7 @@ Proof.
   { eauto. }
   { eauto using stuck_Fail. }
   { eauto using stuck_Next. }
-  { unfold can_step. eauto using prove_step_stop. }
+  { eauto with step. }
 Qed.
 
 Ltac triplicity m :=
