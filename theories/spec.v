@@ -178,6 +178,12 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma unfold_spec_mzero {A} (φ : A → Prop) :
+  (mzero ∋ φ) = False.
+Proof.
+  reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* A partial order on specifications. *)
