@@ -1,6 +1,4 @@
-Require Import monads lang free eval spec handle.
-
-(* Instantiate the generic [handle] with the [spec] monad. *)
+Require Import monads lang free eval step safe.
 
 Definition wp η e φ :=
-  run η e ∋ φ.
+  safe (eval η e) φ.

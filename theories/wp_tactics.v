@@ -1,6 +1,4 @@
-Require Import monads lang free eval spec handle wp handle_spec.
-
-Global Opaque handle.
+Require Import monads lang free eval step safe wp.
 
 (* Rewrite [decide (x = x)] to [true]. *)
 
@@ -26,21 +24,19 @@ Proof.
   wp_decide. simpl. tauto.
 Qed.
 
-(* Simplify a goal of the form [handle m ∋ φ]. *)
+(* Simplify a goal of the form [safe m φ]. *)
 
 Ltac wp_simplify :=
   cbn;
   repeat progress (wp_decide; cbn);
   try rewrite !fold_bind.
 
-(* Reduce and reason about a goal of the form [handle m ∋ φ]. *)
+(* Reduce and reason about a goal of the form [safe m φ]. *)
 
 Ltac wp :=
-  (* Expose [handle (eval η e) ∋ φ] in the goal. *)
-  try unfold wp, run;
   (* Repeatedly simplify. *)
   wp_simplify;
   repeat first [
-    apply prove_handle_ret; wp_simplify
-  | apply prove_handle_bind; wp_simplify
+    apply prove_safe_ret; wp_simplify
+  | apply prove_safe_bind; wp_simplify
   ].

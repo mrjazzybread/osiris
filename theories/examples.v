@@ -1,4 +1,4 @@
-Require Import monads lang free eval spec handle wp soundness wp_tactics.
+Require Import monads lang free eval step safe wp wp_tactics.
 
 (* TODO move elsewhere *)
 (* Syntax. *)
@@ -68,7 +68,7 @@ Definition example3 :=
 Definition texan {A} (m : free A) (φ : A → Prop) :=
   ∀ (φ' : A → Prop),
   (∀ v, φ v → φ' v) →
-  @handle spec _ _ _ _ m ∋ φ'. (* TODO *)
+  safe m φ'.
 
 Goal
   ∀ (id : val),
