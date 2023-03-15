@@ -1,6 +1,6 @@
 From Coq.Logic Require Import FunctionalExtensionality.
 From ITree Require Import ITree Eqit Exception.
-Require Import lang monads free eval handle div spec wp.
+Require Import lang monads free eval handle div spec.
 
 (* This file establishes that the [spec] monad offers a sound abstract
    interpretation of the [div] monad. *)
@@ -619,18 +619,3 @@ Lemma safety_run η e :
 Proof.
   unfold run. apply safety_handle.
 Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* The final soundness and completeness statement follows. The assertion
-   [wp η e φ] of the program logic is equivalent to the property that the
-   computation [run η e] is safe with respect to [φ]. *)
-
-Lemma soundness_and_completeness η e φ :
-  wp η e φ ↔
-  safe (run η e) φ.
-Proof.
-  unfold wp. rewrite <- safety_run. rewrite unfold_safety. tauto.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
