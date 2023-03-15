@@ -2,6 +2,11 @@ From Coq Require Import Morphisms.
 From ExtLib.Structures Require Export Monads MonadLaws.
 From ITree Require Export Monad Basics.
 
+(* TODO this file needs cleaning up *)
+
+Ltac false :=
+  elimtype False.
+
 Section MonadFixLaws.
 
 Context {m : Type -> Type}.

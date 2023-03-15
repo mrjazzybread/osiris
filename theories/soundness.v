@@ -144,7 +144,7 @@ Proof.
   intro m; case_eq (observe m); [ clear CIH | | clear CIH ].
   { eauto using (invert_safe_RetF φ), AltSafeRetF. }
   { intros; eapply AltSafeTauF; eauto using invert_safe_TauF. }
-  { intros. elimtype False. eauto using invert_safe_VisF. }
+  { intros. false. eauto using invert_safe_VisF. }
 Qed.
 
 Lemma alt_safe_implies_initially_safe {A} (φ : A → Prop) :
