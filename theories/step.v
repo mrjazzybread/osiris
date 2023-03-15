@@ -271,3 +271,27 @@ Proof.
     specialize (invert_step_bind' _ _ _ Hstep Hnoret); clear Hstep.
     firstorder. }
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A triplicity principle. *)
+
+(* This principle allows case analyses with three cases, as follows:
+   either [m] is a result, or [m] can step, or [m] is stuck. *)
+
+Lemma triplicity {A} (m : free A) :
+  (∃ a, m = Ret a) ∨
+  can_step m ∨
+  stuck m.
+Proof.
+  destruct m as [| | | [η e]].
+  { eauto. }
+  { eauto using stuck_Fail. }
+  { eauto using stuck_Next. }
+  { unfold can_step. eauto using prove_step_stop. }
+Qed.
+
+Ltac triplicity m :=
+  let a := fresh "a" in
+  destruct (triplicity m) as [ (a & ?) | [ ? | ? ]];
+  [ subst m | | ].
