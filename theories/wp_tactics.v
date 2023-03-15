@@ -34,9 +34,11 @@ Ltac wp_simplify :=
 (* Reduce and reason about a goal of the form [safe m φ]. *)
 
 Ltac wp :=
+  unfold wp;
   (* Repeatedly simplify. *)
   wp_simplify;
   repeat first [
     apply prove_safe_ret; wp_simplify
   | apply prove_safe_bind; wp_simplify
+  | apply prove_safe_stop; wp_simplify
   ].
