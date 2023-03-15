@@ -413,3 +413,18 @@ Lemma prove_safe_bind {A B} (m1 : free A) (m2 : A → free B) (φ : B → Prop) 
 Proof.
   rewrite safe_bind. eauto.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Special cases of [safe_step]. *)
+
+Lemma prove_safe_stop {A} η e (k : val → free A) φ :
+  safe (eval η e) (λ v, safe (k v) φ) →
+  safe (Stop (REval η e) k) φ.
+Proof.
+  intros.
+  rewrite safe_step by eauto with step.
+  intros m'. rewrite step_stop. intro. subst m'.
+  rewrite safe_bind.
+  assumption.
+Qed.
