@@ -181,13 +181,18 @@ Qed.
 
 (* [ret a] is safe iff [φ a] holds. *)
 
+Lemma prove_safe_ret {A} (a : A) (φ : A → Prop) :
+  φ a →
+  safe (ret a) φ.
+Proof.
+  unfold safe. eauto using initially_safe_ret.
+Qed.
+
 Lemma safe_ret {A} (a : A) (φ : A → Prop) :
   safe (ret a) φ ↔
   φ a.
 Proof.
-  split.
-  { eauto using (invert_safe_result φ). }
-  { unfold safe. eauto using initially_safe_ret. }
+  split; eauto using (invert_safe_result φ), prove_safe_ret.
 Qed.
 
 (* Provided [m] is not stuck,
@@ -400,4 +405,11 @@ Proof.
     eapply initially_safe_bind_aux_1.
     eapply initially_safe_covariant; [| eauto ]; intros a Hm2a.
     eapply Hm2a. }
+Qed.
+
+Lemma prove_safe_bind {A B} (m1 : free A) (m2 : A → free B) (φ : B → Prop) :
+  safe m1 (λ a, safe (m2 a) φ) →
+  safe (bind m1 m2) φ.
+Proof.
+  rewrite safe_bind. eauto.
 Qed.
