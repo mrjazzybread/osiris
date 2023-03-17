@@ -428,3 +428,13 @@ Proof.
   rewrite safe_bind.
   assumption.
 Qed.
+
+Lemma prove_safe_flip {A} (k : bool → free A) φ :
+  (∀ b, safe (k b) φ) →
+  safe (Flip k) φ.
+Proof.
+  intros.
+  rewrite safe_step by eauto with step.
+  intros m'. rewrite step_flip. intros [|]; subst m';
+  eauto.
+Qed.
