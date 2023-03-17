@@ -7,6 +7,10 @@ From ITree Require Export Monad Basics.
 Ltac false :=
   elimtype False.
 
+Class MonadFlip (m : Type -> Type) := {
+  mflip: m bool
+}.
+
 Section MonadFixLaws.
 
 Context {m : Type -> Type}.
