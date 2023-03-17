@@ -35,7 +35,7 @@ Fixpoint lookup η x : free val :=
   | EnvCons x' v η =>
       if decide (x = x') then ret v else lookup η x
   | EnvNil =>
-      fail
+      fail (* unbound variable *)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -74,7 +74,7 @@ Fixpoint extend η p v : free env :=
   | PTuple _, _
   | PData _ _, _ =>
       (* A type mismatch between pattern and value causes a hard failure. *)
-      fail
+      fail (* type mismatch *)
   end
 
 (* [extends η ps vs] matches the values [vs] against the patterns [ps].
@@ -93,14 +93,14 @@ with extends η ps vs : free env :=
       bind (extends η ps vs) $ λ η,
       ret η
   | _, _ =>
-      fail
+      fail (* length mismatch *)
   end.
 
 (* ------------------------------------------------------------------------ *)
 
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
-Definition call v1 v2 :=
+Definition call v1 v2 : free val :=
   match v1 with
   | VRec η f x e =>
       (* The environment of the closure is extended with bindings
@@ -113,7 +113,7 @@ Definition call v1 v2 :=
       stop η e $ λ v,
       ret v
  | _ =>
-     fail
+     fail (* type mismatch: closure expected *)
  end.
 
 (* ------------------------------------------------------------------------ *)
