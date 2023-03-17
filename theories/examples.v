@@ -114,3 +114,18 @@ Proof.
   wp_use (Hexample3 _ Hid).
   simpl. eauto.
 Qed.
+
+(* An example that involves an assertion. *)
+
+Definition example5 :=
+  ESeq (EAssert ETrue) EFalse.
+
+Lemma spec_example5:
+  wp EnvNil example5 (λ v, v = VFalse).
+Proof.
+  wp.
+  (* Subgoal: prove that [assert true] succeeds. *)
+  { reflexivity. }
+  (* Remainder: prove that [false] returns [false], as promised. *)
+  reflexivity.
+Qed.

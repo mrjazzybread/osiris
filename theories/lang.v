@@ -58,6 +58,8 @@ Inductive expr :=
   | EMatch (e : expr) (bs : branches)
   (* A fatal error. *)
   | EAssertFalse
+  (* A runtime assertion. *)
+  | EAssert (e : expr)
 
 (* Lists of expressions. *)
 

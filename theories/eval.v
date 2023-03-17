@@ -175,7 +175,19 @@ Fixpoint eval η e : free val :=
       bind (eval η e) $ λ v,
       eval_match η v bs
   | EAssertFalse =>
-      mzero
+      fail (* assertion failure *)
+  | EAssert e =>
+      (* OCaml runtime assertions are erased when a module is compiled with
+         the compiler flag [-noassert]; they are retained otherwise. We do not
+         wish to depend on this flag, so we make a non-deterministic choice:
+         either the runtime test is executed, or it is skipped. This forces
+         the user to prove that the program is safe in both scenarios. *)
+      let test : free val :=
+        bind (eval η e) $ λ v,
+        bind (as_bool v) $ λ (b : bool),
+        if b then ok else fail (* assertion failure *)
+      in
+      choose ok test
   end
 
 (* [evals η es] evaluates the expressions in the list [es], from left
