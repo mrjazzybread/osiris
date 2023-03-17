@@ -41,4 +41,5 @@ Ltac wp :=
     apply prove_safe_ret; wp_simplify
   | apply prove_safe_bind; wp_simplify
   | apply prove_safe_stop; wp_simplify
+  | apply prove_safe_flip; intro; wp_simplify
   ].
