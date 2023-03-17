@@ -11,7 +11,9 @@ Require Import monads lang.
    - [Next], a soft failure, which represents a request to jump to the next
              branch in a [match] construct;
    - [Stop η e k], a request to evaluate expression [e] under environment [η],
-                   producing a value, which the continuation [k] consumes.
+                   producing a value, which the continuation [k] consumes;
+   - [Flip k], a non-deterministic coin flip, producing a Boolean result,
+               which the continuation [k] consumes.
 
    The type [mon A] is inductive: every computation terminates. *)
 
@@ -19,7 +21,8 @@ Inductive free A :=
   | Ret (a : A)
   | Fail
   | Next
-  | Stop (η : env) (e : expr) (k : val → free A).
+  | Stop (η : env) (e : expr) (k : val → free A)
+  | Flip (k : bool → free A).
 
 (* Make [A] an implicit argument. *)
 
@@ -27,6 +30,7 @@ Arguments Ret {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
 Arguments Stop {A} η e k.
+Arguments Flip {A} k.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -53,6 +57,9 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
       (* An effect is transmitted. The combinator [try _ f g] remains
          installed on top of the continuation. *)
       Stop η e (λ v, try (k v) f g)
+  | Flip k =>
+      (* Same here. *)
+      Flip (λ v, try (k v) f g)
   end.
 
 (* [bind m f] sequences the computations [m] and [f]. *)
@@ -96,6 +103,12 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma bind_flip {A B} k (f : A → free B) :
+  bind (Flip k) f = Flip (λ v, bind (k v) f).
+Proof.
+  reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
@@ -113,12 +126,17 @@ Lemma eq_stop_stop A (k1 k2 : val → free A) η e :
   (∀ v, k1 v = k2 v) →
   Stop η e k1 = Stop η e k2.
 Proof.
-  intros.
-  assert (k1 = k2). { extensionality v. eauto. }
- congruence.
+  intros. f_equal. extensionality v. eauto.
 Qed.
 
-#[export] Hint Resolve eq_stop_stop : eq.
+Lemma eq_flip_flip A (k1 k2 : bool → free A) :
+  (∀ v, k1 v = k2 v) →
+  Flip k1 = Flip k2.
+Proof.
+  intros. f_equal. extensionality b. eauto.
+Qed.
+
+#[export] Hint Resolve eq_stop_stop eq_flip_flip : eq.
 
 Global Instance eq1_free : Eq1 free :=
   λ (A : Type), @eq (free A).
@@ -166,3 +184,26 @@ Global Instance monadzerolaws_free :
 Proof.
   constructor. reflexivity.
 Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [mflip] is [Flip] with a trivial continuation. *)
+
+Global Instance monadflip_free : MonadFlip free :=
+  { mflip := Flip ret }.
+
+(* [mplus] can be defined in terms of [flip]. *)
+
+Global Instance monadplus_free : MonadPlus free :=
+  { mplus :=
+      λ {A1 A2 :Type} (m1 : free A1) (m2 : free A2),
+        Flip $ λ b,
+        if b then
+          bind m1 $ λ a1,
+          ret (inl a1)
+        else
+          bind m2 $ λ a2,
+          ret (inr a2)
+  }.
+
+(* coq-ext-lib does not seem to define MonadPlusLaws. *)

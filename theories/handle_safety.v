@@ -35,11 +35,18 @@ Proof.
   intros Hmφ Hstep.
   (* [Ret], [Next], [Fail] cannot step. *)
   destruct m; try solve [ simpl in Hstep; tauto ].
-  (* There remains to examine [Stop]. *)
-  rewrite handle_stop in Hmφ.
-  rewrite step_stop in Hstep. subst m'.
-  rewrite unfold_skip in Hmφ.
-  assumption.
+  (* Case: [Stop]. *)
+  { rewrite handle_stop in Hmφ.
+    rewrite step_stop in Hstep. subst m'.
+    rewrite unfold_skip in Hmφ.
+    assumption. }
+  (* Case: [Flip]. *)
+  { rewrite handle_flip in Hmφ.
+    (* This is where we exploit the fact that [mflip] in the [spec] monad
+       expands to a universal quantifier. *)
+    simpl in Hmφ.
+    rewrite step_flip in Hstep.
+    destruct Hstep; subst m'; eauto. }
 Qed.
 
 (* The property [handle m ∋ φ] guarantees that [m] is not stuck. *)
@@ -61,6 +68,7 @@ Proof.
     rewrite unfold_spec_mzero in Hmφ.
     tauto. }
   { eauto using invert_stuck_stop. }
+  { eauto using invert_stuck_flip. }
 Qed.
 
 (* From the previous two results, we deduce that if [handle m ∋ φ] holds
@@ -125,6 +133,7 @@ Proof.
   { rewrite safe_stuck in Hsafe by apply stuck_Fail. tauto. }
   { rewrite safe_stuck in Hsafe by apply stuck_Next. tauto. }
   { eapply invert_safe_step; eauto with step. }
+  { intro b. eapply invert_safe_step; eauto with step. }
 Qed.
 
 Lemma safety_preservation {A} :

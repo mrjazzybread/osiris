@@ -1,3 +1,4 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From Paco Require Import paco.
 From ITree Require Import Eq EqAxiom.
 Require Import lang monads free eval.
@@ -13,6 +14,7 @@ Context {M : Monad target}.
 Context {ML : MonadLaws M}.
 Context {MZ : MonadZero target}.
 Context {MZL : MonadZeroLaws M MZ}.
+Context {MF : MonadFlip target}.
 Context {MS : MonadSkip target}.
 (* Context {MSL : MonadSkipLaws M MS}. *) (* TODO not needed *)
 Context {MI : MonadIter target}.
@@ -43,6 +45,10 @@ Definition handle_body (m : free A) : target (free A + A) :=
          is then transported from the free monad into the target monad via
          an (implicit) tail recursive call to [handle]. *)
       ret (inl (bind (eval η e) k))
+  | Flip k =>
+      (* A [Flip] effect is mapped to [mflip] in the target monad. *)
+      bind mflip $ λ b,
+      ret (inl (k b))
   end.
 
 Definition handle : free A → target A :=
@@ -92,6 +98,18 @@ Lemma handle_stop η e (k : val → free A) :
   skip (handle (bind (eval η e) k)).
 Proof.
   rewrite handle_fixed_point. unfold handle_body.
+  rewrite bind_of_return by eauto.
+  reflexivity.
+Qed.
+
+Lemma handle_flip (k : bool → free A) :
+  handle (Flip k) =
+  bind mflip (λ b, skip (handle (k b))).
+Proof.
+  rewrite handle_fixed_point. unfold handle_body.
+  rewrite bind_associativity by eauto.
+  (* Descend into the continuations. *)
+  f_equal. extensionality b.
   rewrite bind_of_return by eauto.
   reflexivity.
 Qed.

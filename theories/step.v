@@ -31,6 +31,10 @@ Definition step {A} (m : free A) (m' : free A) : Prop :=
       (* A [Stop] configuration steps to an invocation of [eval]. The call
          [eval η e] is composed with the continuation [k]. *)
       m' = bind (eval η e) k
+  | Flip k =>
+      (* The configuration [Flip k] steps to an application of the
+         continuation [k] to either [false] or [true]. *)
+      m' = k false ∨ m' = k true
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -86,6 +90,27 @@ Qed.
 
 Global Hint Resolve prove_step_stop can_step_stop : step.
 
+Lemma step_flip {A} k (m' : free A) :
+  step (Flip k) m' =
+  (m' = k false ∨ m' = k true).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma prove_step_flip {A} b (k : bool → free A) :
+  step (Flip k) (k b).
+Proof.
+  destruct b; simpl; tauto.
+Qed.
+
+Lemma can_step_flip {A} (k : bool → free A) :
+  can_step (Flip k).
+Proof.
+  unfold can_step. eauto using (prove_step_flip false).
+Qed.
+
+Global Hint Resolve prove_step_flip can_step_flip : step.
+
 (* Stepping in the left-hand side of [bind] is permitted. *)
 
 (* This corresponds to reduction under an evaluation context. *)
@@ -100,6 +125,9 @@ Proof.
     rewrite !step_stop. intros. subst m'.
     rewrite bind_bind.
     reflexivity. }
+  (* Case: [Flip]. *)
+  { rewrite bind_flip.
+    rewrite !step_flip. intros [|]; subst m'; eauto. }
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -117,11 +145,13 @@ Proof.
   (* Case: [Ret]. *)
   { rewrite bind_of_return by typeclasses eauto. right. eauto. }
   (* Case: [Stop]. *)
-  { rewrite bind_stop.
-    rewrite step_stop. intros. subst b'.
+  { rewrite bind_stop, step_stop. intros. subst b'.
     left. eexists. split.
     + rewrite step_stop. reflexivity.
     + rewrite bind_bind. reflexivity. }
+  (* Case: [Flip]. *)
+  { rewrite bind_flip, step_flip. intros [|]; subst b';
+      left; eauto with step. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -188,8 +218,7 @@ Lemma can_step_not_result {A} (m : free A) :
   ¬ is_result m.
 Proof.
   intros.
-  destruct m; try solve [ false; eauto with invert_can_step ].
-  { simpl. tauto. }
+  destruct m; try solve [ false; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
 (* As a special case of [invert_step_bind], if it is known that [m] is not a
@@ -249,6 +278,17 @@ Proof.
   eauto with step.
 Qed.
 
+(* [Flip] is not stuck. *)
+
+Lemma invert_stuck_flip {A} k :
+  stuck (Flip k : free A) →
+  False.
+Proof.
+  intros (_ & H).
+  unfold not in H. eapply H.
+  eauto using (prove_step_flip false).
+Qed.
+
 (* A term that can step is not stuck. *)
 
 Lemma can_step_not_stuck {A} (m : free A) :
@@ -289,11 +329,7 @@ Lemma triplicity {A} (m : free A) :
   can_step m ∨
   stuck m.
 Proof.
-  destruct m.
-  { eauto. }
-  { eauto using stuck_Fail. }
-  { eauto using stuck_Next. }
-  { eauto with step. }
+  destruct m; eauto using stuck_Fail, stuck_Next with step.
 Qed.
 
 Ltac triplicity m :=

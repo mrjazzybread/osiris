@@ -1,5 +1,5 @@
 From Coq.Logic Require Import FunctionalExtensionality PropExtensionality.
-Require Import lang monads free eval handle spec handle_div soundness.
+Require Import lang monads free eval handle spec safety handle_safety.
 Set Warnings "-notation-overridden".
 Import spec.Notations.
 
@@ -28,19 +28,6 @@ Proof.
   intros. rewrite handle_fixed_point. simpl. tauto.
 Qed.
 
-(* An alternative proof of this result. *)
-
-Goal ∀ {A} (a : A) (φ : A → Prop),
-  handle (ret a) ∋ φ ↔
-  φ a.
-Proof.
-  intros.
-  rewrite <- safety_handle.
-  rewrite handle_ret.
-  rewrite safety_ret.
-  tauto.
-Qed.
-
 (* Just one direction. *)
 
 Lemma prove_handle_ret {A} (a : A) (φ : A → Prop) :
@@ -59,19 +46,11 @@ Qed.
      handle (bind m f) =
      bind (handle m) (λ v, handle (f v)).
 
-   We did so in the case of the divergence monad (see handle_div.v),
-   and we were able to prove this fact via a co-inductive argument,
-   because the equality of two computations in the [div] monad is a
-   co-inductive relation.
+   There are (at least) two ways of establishing this commutation law.
 
-   Here, however, the equality of two inhabitants of the [spec] is
-   not co-inductively defined, so we cannot use such an argument. *)
-
-(* There are (at least) two ways of establishing this commutation law.
-
-   The easy way is to transport the law from the [div] monad to the [spec]
-   monad by exploiting the equation [handle = safety ∘ handle],
-   which we have established in soundness.v.
+   The easy way is to transport the law from the [free] monad to the [spec]
+   monad by exploiting the equation that [handle m = safety m], which
+   we have established in handle_safety.v.
 
    The hard way is to attempt a direct proof. I have done a direct proof
    of one implication, arguably the most important one, the Bind rule.
@@ -87,15 +66,13 @@ Lemma handle_bind {A B} (m : free A) (f : A → free B) :
   bind (handle m) (λ v, handle (f v)).
 Proof.
   (* Exploit the equation [handle = safety ∘ handle]. *)
-  rewrite <- !safety_handle.
-  (* Exploit the law [handle_bind] at the level of the [div] monad. *)
-  rewrite handle_bind.
-  (* Exploit the fact that safety commutes with [bind]. *)
+  rewrite !handle_safety.
+  (* Exploit the law [safety_bind] at the level of the [free] monad. *)
   rewrite safety_bind.
   (* In principle, we are done, but Coq has not rewritten under λ in
      the first line of the proof (above), so we have to force this
      rewriting step. *)
-  f_equal. extensionality a. apply safety_handle.
+  f_equal. extensionality a. rewrite handle_safety. reflexivity.
 Qed.
 
 (* An expanded form of the previous lemma. This is the soundness and
@@ -248,6 +225,10 @@ Proof.
       (* Build a higher stack. *)
       exists (S n). do 3 eexists. split; [| eauto ].
       rewrite bind_bind. reflexivity. }
+    { rewrite bind_flip. unfold handle_body. simpl. intros b.
+      rewrite handle_flip in Hm. simpl in Hm. specialize (Hm b).
+      rewrite unfold_skip in Hm.
+      exists (S n). do 3 eexists. split; eauto. }
   }
 Qed.
 
