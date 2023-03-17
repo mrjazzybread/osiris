@@ -16,6 +16,16 @@ Implicit Type η : env.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Local notations. *)
+
+Local Notation fail :=
+  Fail.
+
+Local Notation stop :=
+  Stop.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [lookup η x] looks up the variable [x] in the environment [env].
    The result is normally a value. A hard failure occurs if [x] is
    unbound. *)
@@ -23,9 +33,9 @@ Implicit Type η : env.
 Fixpoint lookup η x : free val :=
   match η with
   | EnvCons x' v η =>
-      if decide (x = x') then Ret v else lookup η x
+      if decide (x = x') then ret v else lookup η x
   | EnvNil =>
-      Fail
+      fail
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -47,11 +57,11 @@ Fixpoint extend η p v : free env :=
   match p, v with
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
-      Ret η
+      ret η
   | PVar x, _ =>
       (* A variable pattern always succeeds, and causes the environment
          to be extended. *)
-      Ret (EnvCons x v η)
+      ret (EnvCons x v η)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       (* A hard failure occurs when [length ps ≠ length vs]. *)
@@ -64,7 +74,7 @@ Fixpoint extend η p v : free env :=
   | PTuple _, _
   | PData _ _, _ =>
       (* A type mismatch between pattern and value causes a hard failure. *)
-      Fail
+      fail
   end
 
 (* [extends η ps vs] matches the values [vs] against the patterns [ps].
@@ -77,13 +87,13 @@ Fixpoint extend η p v : free env :=
 with extends η ps vs : free env :=
   match ps, vs with
   | PNil, VNil =>
-      Ret η
+      ret η
   | PCons p ps, VCons v vs =>
       bind (extend η p v) $ λ η,
       bind (extends η ps vs) $ λ η,
-      Ret η
+      ret η
   | _, _ =>
-      Fail
+      fail
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -99,11 +109,11 @@ Definition call v1 v2 :=
       let η := EnvCons x v2 η in
       (* In this extended environment, the function body [e] must
          be evaluated. A recursive call to [eval] cannot be used,
-         so we request the evaluation of [e] via a [Stop] effect. *)
-      Stop η e $ λ v,
-      Ret v
+         so we request the evaluation of [e] via a [stop] effect. *)
+      stop η e $ λ v,
+      ret v
  | _ =>
-     Fail
+     fail
  end.
 
 (* ------------------------------------------------------------------------ *)
@@ -120,7 +130,7 @@ Definition call v1 v2 :=
 
    [eval] is inductively defined. In some cases, it invokes itself
    recursively on a subexpression of [e]. When an expression must be
-   evaluated but is not a subexpression of [e], a [Stop] effect is
+   evaluated but is not a subexpression of [e], a [stop] effect is
    used instead of a recursive call to [eval]. *)
 
 Fixpoint eval η e : free val :=
@@ -130,7 +140,7 @@ Fixpoint eval η e : free val :=
       lookup η x
   | ERec f x e =>
       (* The creation of a closure captures the environment [η]. *)
-      Ret (VRec η f x e)
+      ret (VRec η f x e)
   | EApp e1 e2 =>
       (* The left-hand side of an application must evaluate
          to a closure. *)
@@ -139,10 +149,10 @@ Fixpoint eval η e : free val :=
       call v1 v2
   | ETuple es =>
       bind (evals η es) $ λ vs,
-      Ret (VTuple vs)
+      ret (VTuple vs)
   | EData c e =>
       bind (eval η e) $ λ v,
-      Ret (VData c v)
+      ret (VData c v)
   | EMatch e bs =>
       bind (eval η e) $ λ v,
       eval_match η v bs
@@ -156,11 +166,11 @@ Fixpoint eval η e : free val :=
 with evals η es : free vals :=
   match es with
   | ENil =>
-      Ret VNil
+      ret VNil
   | ECons e es =>
       bind (eval η e) $ λ v,
       bind (evals η es) $ λ vs,
-      Ret (VCons v vs)
+      ret (VCons v vs)
   end
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
@@ -169,7 +179,7 @@ with eval_match η v bs :=
   match bs with
   | BNil =>
       (* A nonexhaustive [match] construct causes a hard failure. *)
-      Fail
+      fail
   | BCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
