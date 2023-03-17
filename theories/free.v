@@ -192,7 +192,13 @@ Qed.
 Global Instance monadflip_free : MonadFlip free :=
   { mflip := Flip ret }.
 
-(* [mplus] can be defined in terms of [flip]. *)
+(* [choose] can be defined in terms of [mflip]. *)
+
+Definition choose {A} (m1 m2 : free A) : free A :=
+  bind mflip $ λ b,
+  if b then m1 else m2.
+
+(* [mplus] can be defined in terms of [mflip]. *)
 
 Global Instance monadplus_free : MonadPlus free :=
   { mplus :=
