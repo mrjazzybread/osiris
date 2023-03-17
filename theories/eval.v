@@ -121,6 +121,21 @@ Definition call v1 v2 : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [as_bool v] checks that the value [v] is a language-level Boolean value
+   and returns its meta-level Boolean value. *)
+
+Definition as_bool (v : val) : free bool :=
+  match v with
+  | VFalse =>
+      ret false
+  | VTrue =>
+      ret true
+  | _ =>
+      fail (* type mismatch: Boolean value expected *)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
