@@ -67,11 +67,11 @@ Qed.
    Here, however, the equality of two inhabitants of the [spec] is
    not co-inductively defined, so we cannot use such an argument. *)
 
-(* There (at least) two ways of establishing this commutation law.
+(* There are (at least) two ways of establishing this commutation law.
 
    The easy way is to transport the law from the [div] monad to the [spec]
-   monad by exploiting the equation that [handle = safety ∘ handle], which
-   we have established in soundness.v.
+   monad by exploiting the equation [handle = safety ∘ handle],
+   which we have established in soundness.v.
 
    The hard way is to attempt a direct proof. I have done a direct proof
    of one implication, arguably the most important one, the Bind rule.
@@ -92,7 +92,7 @@ Proof.
   rewrite handle_bind.
   (* Exploit the fact that safety commutes with [bind]. *)
   rewrite safety_bind.
-  (* In principe, we are done, but Coq has not rewritten under λ in
+  (* In principle, we are done, but Coq has not rewritten under λ in
      the first line of the proof (above), so we have to force this
      rewriting step. *)
   f_equal. extensionality a. apply safety_handle.
