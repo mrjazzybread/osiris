@@ -420,7 +420,7 @@ Qed.
 
 Lemma prove_safe_stop {A} η e (k : val → free A) φ :
   safe (eval η e) (λ v, safe (k v) φ) →
-  safe (Stop (REval η e) k) φ.
+  safe (Stop η e k) φ.
 Proof.
   intros.
   rewrite safe_step by eauto with step.

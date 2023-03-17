@@ -609,7 +609,7 @@ Proof.
   (* Case: soft failure. *)
   { rewrite safety_mzero. reflexivity. }
   (* Case: recursive evaluation request. *)
-  { destruct req. rewrite safety_ret. reflexivity. }
+  { rewrite safety_ret. reflexivity. }
 Qed.
 
 (* As an immediate corollary, [safety] commutes with [run]. *)

@@ -27,7 +27,7 @@ Definition step {A} (m : free A) (m' : free A) : Prop :=
       (* [Next] cannot step, and is not expected to occur at the top level
          of a computation anyway. *)
       False
-  | Stop (REval η e) k =>
+  | Stop η e k =>
       (* A [Stop] configuration steps to an invocation of [eval]. The call
          [eval η e] is composed with the continuation [k]. *)
       m' = bind (eval η e) k
@@ -62,24 +62,24 @@ Definition stuck {A} (m : free A) :=
 
 (* Basic lemmas about [step]. *)
 
-(* [Stop (REval η e) k] steps to [bind (eval η e) k],
+(* [Stop η e k] steps to [bind (eval η e) k],
    and steps to no other term. *)
 
 Lemma step_stop {A} η e k (m' : free A) :
-  step (Stop (REval η e) k) m' =
+  step (Stop η e k) m' =
   (m' = bind (eval η e) k).
 Proof.
   reflexivity.
 Qed.
 
 Lemma prove_step_stop {A} η e (k : val → free A) :
-  step (Stop (REval η e) k) (bind (eval η e) k).
+  step (Stop η e k) (bind (eval η e) k).
 Proof.
   reflexivity.
 Qed.
 
 Lemma can_step_stop {A} η e (k : val → free A) :
-  can_step (Stop (REval η e) k).
+  can_step (Stop η e k).
 Proof.
   unfold can_step. eauto using prove_step_stop.
 Qed.
@@ -94,7 +94,7 @@ Lemma step_bind {A B} (m m' : free A) (f : A → free B) :
   step m m' →
   step (bind m f) (bind m' f).
 Proof.
-  destruct m as [ | | | [η e]]; try (simpl; tauto).
+  destruct m; try (simpl; tauto).
   (* Case: [Stop]. *)
   { rewrite bind_stop.
     rewrite !step_stop. intros. subst m'.
@@ -113,7 +113,7 @@ Lemma invert_step_bind {A B} (m : free A) (f : A → free B) (b' : free B) :
   (∃ m', step m m' ∧ b' = bind m' f) ∨
   (∃ a, m = Ret a ∧ step (f a) b').
 Proof.
-  destruct m as [ | | | [η e]]; try (simpl; tauto).
+  destruct m; try (simpl; tauto).
   (* Case: [Ret]. *)
   { rewrite bind_of_return by typeclasses eauto. right. eauto. }
   (* Case: [Stop]. *)
@@ -240,12 +240,11 @@ Qed.
 
 (* [Stop] is not stuck. *)
 
-Lemma invert_stuck_stop {A} req k :
-  stuck (Stop req k : free A) →
+Lemma invert_stuck_stop {A} η e k :
+  stuck (Stop η e k : free A) →
   False.
 Proof.
   intros (_ & H).
-  destruct req as [ η e ].
   unfold not in H. eapply H.
   eauto with step.
 Qed.
@@ -290,7 +289,7 @@ Lemma triplicity {A} (m : free A) :
   can_step m ∨
   stuck m.
 Proof.
-  destruct m as [| | | [η e]].
+  destruct m.
   { eauto. }
   { eauto using stuck_Fail. }
   { eauto using stuck_Next. }

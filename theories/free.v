@@ -10,33 +10,23 @@ Require Import monads lang.
    - [Fail], a hard failure, which represents a crash and must be avoided;
    - [Next], a soft failure, which represents a request to jump to the next
              branch in a [match] construct;
-   - [Stop], an effect whose signature is [request → val];
-             this effect can be viewed as consulting an oracle,
-             which answers a request with a value.
+   - [Stop η e k], a request to evaluate expression [e] under environment [η],
+                   producing a value, which the continuation [k] consumes.
 
-   The definition of the type [mon A] is inductive:
-   every computation must terminate.
-
-   The requests allowed by this monad are:
-
-   - [REval η e], a request to evaluate the expression [e]
-                  under the environment [η]. *)
-
-Inductive request :=
-  | REval (η : env) (e : expr).
+   The type [mon A] is inductive: every computation terminates. *)
 
 Inductive free A :=
   | Ret (a : A)
   | Fail
   | Next
-  | Stop (req : request) (k : val → free A).
+  | Stop (η : env) (e : expr) (k : val → free A).
 
 (* Make [A] an implicit argument. *)
 
 Arguments Ret {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
-Arguments Stop {A} req k.
+Arguments Stop {A} η e k.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -59,10 +49,10 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
       Fail
   | Next =>
       g()
-  | Stop req k =>
+  | Stop η e k =>
       (* An effect is transmitted. The combinator [try _ f g] remains
          installed on top of the continuation. *)
-      Stop req (λ v, try (k v) f g)
+      Stop η e (λ v, try (k v) f g)
   end.
 
 (* [bind m f] sequences the computations [m] and [f]. *)
@@ -100,8 +90,8 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_stop {A B} req k (f : A → free B) :
-  bind (Stop req k) f = Stop req (λ v, bind (k v) f).
+Lemma bind_stop {A B} η e k (f : A → free B) :
+  bind (Stop η e k) f = Stop η e (λ v, bind (k v) f).
 Proof.
   reflexivity.
 Qed.
@@ -119,9 +109,9 @@ Qed.
    accept the law of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
-Lemma eq_stop_stop A (k1 k2 : val → free A) req :
+Lemma eq_stop_stop A (k1 k2 : val → free A) η e :
   (∀ v, k1 v = k2 v) →
-  Stop req k1 = Stop req k2.
+  Stop η e k1 = Stop η e k2.
 Proof.
   intros.
   assert (k1 = k2). { extensionality v. eauto. }

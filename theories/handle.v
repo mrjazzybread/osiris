@@ -37,7 +37,7 @@ Definition handle_body (m : free A) : target (free A + A) :=
   | Next =>
       (* Soft failure is not expected to happen. *)
       mzero
-  | Stop (REval η e) k =>
+  | Stop η e k =>
       (* A [Stop] effect is mapped to an invocation of [eval]. The call
          [eval η e] is composed with the continuation [k]. This computation
          is then transported from the free monad into the target monad via
@@ -88,10 +88,10 @@ Proof.
 Qed.
 
 Lemma handle_stop η e (k : val → free A) :
-  handle (Stop (REval η e) k) =
+  handle (Stop η e k) =
   skip (handle (bind (eval η e) k)).
 Proof.
-  rewrite (handle_fixed_point (Stop _ _)). unfold handle_body.
+  rewrite handle_fixed_point. unfold handle_body.
   rewrite bind_of_return by eauto.
   reflexivity.
 Qed.

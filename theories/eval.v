@@ -100,7 +100,7 @@ Definition call v1 v2 :=
       (* In this extended environment, the function body [e] must
          be evaluated. A recursive call to [eval] cannot be used,
          so we request the evaluation of [e] via a [Stop] effect. *)
-      Stop (REval η e) $ λ v,
+      Stop η e $ λ v,
       Ret v
  | _ =>
      Fail

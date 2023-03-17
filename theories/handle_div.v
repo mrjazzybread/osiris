@@ -21,7 +21,7 @@ Lemma handle_bind {A B} (m : free A) :
 Proof.
   intros. eapply bisimulation_is_eq. revert m f.
   ginit. pcofix CIH; intros.
-  destruct m as [ | | | [ η e] k ]; intros.
+  destruct m; intros.
   { rewrite handle_ret.
     do 2 rewrite bind_of_return by typeclasses eauto.
     apply reflexivity. }

@@ -36,7 +36,6 @@ Proof.
   (* [Ret], [Next], [Fail] cannot step. *)
   destruct m; try solve [ simpl in Hstep; tauto ].
   (* There remains to examine [Stop]. *)
-  destruct req as [ η e ].
   rewrite handle_stop in Hmφ.
   rewrite step_stop in Hstep. subst m'.
   rewrite unfold_skip in Hmφ.
@@ -121,7 +120,7 @@ Lemma safety_preservation_aux {A} (m : free A) φ :
   handle_body m ∋ spec_iter_body_post safety φ.
 Proof.
   intros Hsafe.
-  destruct m as [| | | [η e]]; simpl.
+  destruct m; simpl.
   { rewrite safe_ret in Hsafe. tauto. }
   { rewrite safe_stuck in Hsafe by apply stuck_Fail. tauto. }
   { rewrite safe_stuck in Hsafe by apply stuck_Next. tauto. }

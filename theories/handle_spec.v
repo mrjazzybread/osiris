@@ -231,7 +231,7 @@ Proof.
   { intros (A & m & k & ? & Hm). subst i.
     rewrite unfold_spec_iter_body.
     (* By cases over [m]. *)
-    destruct m as [ | | | [ η e ]].
+    destruct m.
     { rewrite bind_of_return by typeclasses eauto.
       rewrite handle_ret in Hm. simpl in Hm.
       specialize (IHn _ _ Hm).
