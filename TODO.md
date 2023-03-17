@@ -41,6 +41,7 @@
 * nigron-dagand-21
 * zakowski-al-21
 * yoon-zakowski-zdancewic-22
+* [keuchel-al-22](https://iris-project.org/pdfs/2022-icfp-symbexec-final.pdf)
 * chappe-al-23
 
 ## Features of OCaml that we want to support (at some point)
