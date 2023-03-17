@@ -24,6 +24,9 @@ Local Notation fail :=
 Local Notation stop :=
   Stop.
 
+Local Notation ok :=
+  (ret VUnit).
+
 (* ------------------------------------------------------------------------ *)
 
 (* [lookup η x] looks up the variable [x] in the environment [env].
