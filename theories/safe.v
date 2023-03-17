@@ -255,8 +255,9 @@ Proof.
 Qed.
 
 Lemma safe_covariant {A} (m : free A) (φ φ' : A → Prop) :
+  safe m φ →
   (∀ a, φ a → φ' a) →
-  safe m φ → safe m φ'.
+  safe m φ'.
 Proof.
   unfold safe. eauto using initially_safe_covariant.
 Qed.

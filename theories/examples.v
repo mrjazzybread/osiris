@@ -96,7 +96,7 @@ Proof.
 Qed.
 
 Ltac wp_use H :=
-  eapply safe_covariant; [| eapply H ].
+  eapply safe_covariant; [ eapply H |].
 
 Lemma spec_example4:
   wp EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
