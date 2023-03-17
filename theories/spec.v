@@ -186,6 +186,29 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
+(* The [mflip] combinator. *)
+
+(* Demonic non-determinism gives rise to a universal quantifier in the
+   precondition: the remainder of the program must be proved safe for
+   every Boolean value [b]. *)
+
+Program Definition spec_mflip : spec bool :=
+  λ (φ : bool → Prop), ∀ b, φ b.
+Next Obligation.
+  intros. simpl. firstorder.
+Qed.
+
+Global Instance monadflip_spec : MonadFlip spec :=
+  { mflip := @spec_mflip }.
+
+Lemma unfold_spec_mflip (φ : bool → Prop) :
+  (mflip ∋ φ) = ∀ b, φ b.
+Proof.
+  reflexivity.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* A partial order on specifications. *)
 
 Definition spec_leq {A} (m1 m2 : spec A) :=
