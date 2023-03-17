@@ -28,12 +28,12 @@ Definition step {A} (m : free A) (m' : free A) : Prop :=
          of a computation anyway. *)
       False
   | Stop η e k =>
-      (* A [Stop] configuration steps to an invocation of [eval]. The call
-         [eval η e] is composed with the continuation [k]. *)
+      (* [Stop η e k] steps to an invocation of [eval η e] followed
+         with the continuation [k]. *)
       m' = bind (eval η e) k
   | Flip k =>
-      (* The configuration [Flip k] steps to an application of the
-         continuation [k] to either [false] or [true]. *)
+      (* [Flip k] steps to an application of the continuation [k] to
+         either [false] or [true]. *)
       m' = k false ∨ m' = k true
   end.
 
