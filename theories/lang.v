@@ -115,3 +115,78 @@ with my_vals_ind :=
   Induction for vals Sort Prop
 with my_env_ind :=
   Induction for env Sort Prop.
+
+(* ------------------------------------------------------------------------ *)
+
+(* Sugar. *)
+
+(* Unit. *)
+
+Notation PUnit :=
+  (PTuple PNil).
+
+Notation EUnit :=
+  (ETuple ENil).
+
+Notation VUnit :=
+  (VTuple VNil).
+
+(* Constant constructors, that is, constructors of arity 0. *)
+
+Notation PConstant c :=
+  (PData c PUnit).
+
+Notation EConstant c :=
+  (EData c EUnit).
+
+Notation VConstant c :=
+  (VData c VUnit).
+
+(* The Boolean constants. *)
+
+Notation PFalse :=
+  (PConstant "false").
+
+Notation PTrue :=
+  (PConstant "true").
+
+Notation EFalse :=
+  (EConstant "false").
+
+Notation ETrue :=
+  (EConstant "true").
+
+Notation VFalse :=
+  (VConstant "false").
+
+Notation VTrue :=
+  (VConstant "true").
+
+(* Pairs. *)
+
+Notation PPair p1 p2 :=
+  (PTuple (PCons p1 (PCons p2 PNil))).
+
+Notation EPair e1 e2 :=
+  (ETuple (ECons e1 (ECons e2 ENil))).
+
+Notation VPair v1 v2 :=
+  (VTuple (VCons v1 (VCons v2 VNil))).
+
+(* Local definition constructs. *)
+
+Definition ELet p e1 e2 :=
+  EMatch e1 (BCons (Branch p e2) BNil).
+
+Definition ELetVar x e1 e2 :=
+  ELet (PVar x) e1 e2.
+
+(* Sequencing. *)
+
+(* Sequencing is defined using a wildcard pattern, as opposed to a unit
+   pattern, because this removes a runtime test, therefore removes a static
+   proof obligation as well. This proof obligation would always succeed (in
+   a well-typed program) but would be noisy. *)
+
+Definition ESeq e1 e2 :=
+  ELet PAny e1 e2.

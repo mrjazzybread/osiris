@@ -1,36 +1,9 @@
 Require Import monads lang free eval step safe wp wp_tactics.
 
-(* TODO move elsewhere *)
-(* Syntax. *)
-
-Definition ELet p e1 e2 :=
-  EMatch e1 (BCons (Branch p e2) BNil).
-
-Definition EUnit :=
-  ETuple ENil.
-
-Definition VUnit :=
-  VTuple VNil.
-
-Definition EConstant c :=
-  EData c EUnit.
-
-Definition VConstant c :=
-  VData c VUnit.
-
-Definition EPair e1 e2 :=
-  ETuple (ECons e1 (ECons e2 ENil)).
-
-Definition PPair p1 p2 :=
-  PTuple (PCons p1 (PCons p2 PNil)).
-
-Definition VPair v1 v2 :=
-  VTuple (VCons v1 (VCons v2 VNil)).
-
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
 Definition example :=
-  ELet (PVar "x") (EPair (EConstant "A") (EConstant "B")) $
+  ELetVar "x" (EPair (EConstant "A") (EConstant "B")) $
   ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
@@ -46,7 +19,7 @@ Qed.
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
 Definition example2 :=
-  ELet (PVar "x") (EPair (EVar "z1") (EVar "z2")) $
+  ELetVar "x" (EPair (EVar "z1") (EVar "z2")) $
   ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
@@ -110,7 +83,7 @@ Qed.
    (id (A()), id (A())) *)
 
 Definition example4 :=
-  ELet (PVar "id") identity $
+  ELetVar "id" identity $
   example3.
 
 Goal
