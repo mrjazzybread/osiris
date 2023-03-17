@@ -56,6 +56,8 @@ Inductive expr :=
   | EData (c : data) (e : expr)
   (* A pattern-matching construct. *)
   | EMatch (e : expr) (bs : branches)
+  (* A fatal error. *)
+  | EAssertFalse
 
 (* Lists of expressions. *)
 

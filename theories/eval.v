@@ -146,6 +146,8 @@ Fixpoint eval η e : free val :=
   | EMatch e bs =>
       bind (eval η e) $ λ v,
       eval_match η v bs
+  | EAssertFalse =>
+      mzero
   end
 
 (* [evals η es] evaluates the expressions in the list [es], from left
