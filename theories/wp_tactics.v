@@ -28,8 +28,7 @@ Qed.
 
 Ltac wp_simplify :=
   cbn;
-  repeat progress (wp_decide; cbn);
-  try rewrite !fold_bind.
+  repeat progress (wp_decide; cbn).
 
 (* Simplify goals that introduce simple values. *)
 

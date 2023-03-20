@@ -5,28 +5,41 @@ Require Import monads lang.
 
 (* A free monad in which the evaluator is expressed. *)
 
-(* The effects allowed by this free monad are:
+(* The custom constructors of this free monad are:
 
-   - [Fail], a hard failure, which represents a crash and must be avoided;
-   - [Next], a soft failure, which represents a request to jump to the next
-             branch in a [match] construct;
-   - [Stop η e k], a request to evaluate expression [e] under environment [η],
-                   producing a value, which the continuation [k] consumes;
-   - [Flip k], a non-deterministic coin flip, producing a Boolean result,
-               which the continuation [k] consumes.
+   - [Fail],
+     a hard failure, which represents a crash and cannot be caught;
 
-   The type [mon A] is inductive: every computation terminates. *)
+   - [Next],
+     a soft failure, which can be caught by a [try] combinator;
+
+   - [Stop η e k],
+     a request to evaluate expression [e] under environment [η],
+     producing a value, which the continuation [k] consumes;
+
+   - [Flip k],
+     a non-deterministic coin flip, producing a Boolean result,
+     which the continuation [k] consumes.
+
+   The fact that [Stop] and [Flip] do not carry a second continuation
+   (which would be a soft failure continuation) reflect the fact that
+   [eval] and [flip] cannot raise a soft failure.
+
+   The type [mon A] is inductive: every computation terminates.
+   Non-terminating computations can be represented, but must
+   (infinitely often) pause by performing a [Stop] effect. *)
 
 Inductive free A :=
   | Ret (a : A)
   | Fail
   | Next
   | Stop (η : env) (e : expr) (k : val → free A)
-  | Flip (k : bool → free A).
+  | Flip (k : bool → free A)
+.
 
-(* Make [A] an implicit argument. *)
+(* Make [A] an implicit argument of the constructors. *)
 
-Arguments Ret {A}.
+Arguments Ret  {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
 Arguments Stop {A} η e k.
@@ -35,6 +48,27 @@ Arguments Flip {A} k.
 (* ------------------------------------------------------------------------ *)
 
 (* Monadic combinators: [try] and [bind]. *)
+
+(* [bind m f] sequences the computations [m] and [f]. *)
+
+Fixpoint _bind {A B} (m : free A) (f : A → free B) : free B :=
+  match m with
+  | Ret a =>
+      f a
+  | Fail =>
+      (* A hard failure is transmitted. *)
+      Fail
+  | Next =>
+      (* A soft failure is transmitted. *)
+      Next
+  | Stop η e k =>
+      (* A [Stop] effect is transmitted. The handler [_bind _ f] remains
+         installed on top of the continuation. *)
+      Stop η e (λ v, _bind (k v) f)
+  | Flip k =>
+      (* Same here. *)
+      Flip (λ v, _bind (k v) f)
+  end.
 
 (* [try m f g] runs the computation [m]. If [m] returns a result [v], then
    [f v] is executed. If [m] ends with a soft failure [Next], then [g()] is
@@ -49,41 +83,42 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   | Ret a =>
       f a
   | Fail =>
-      (* A hard failure is transmitted. *)
       Fail
   | Next =>
+      (* A soft failure is handled by [g]. *)
       g()
   | Stop η e k =>
-      (* An effect is transmitted. The combinator [try _ f g] remains
-         installed on top of the continuation. *)
+      (* A [Stop] effect is transmitted. The handler [try _ f g] remains
+         installed on top of the continuation. Because [eval η e] cannot
+         cause a soft failure, there is no need for the handler to monitor
+         its execution. *)
       Stop η e (λ v, try (k v) f g)
   | Flip k =>
       (* Same here. *)
       Flip (λ v, try (k v) f g)
   end.
 
-(* [bind m f] sequences the computations [m] and [f]. *)
-
-(* [bind] is a special case of [try]. If [m] ends with a soft failure,
-   it is transmitted. *)
-
-Definition free_bind {A B} (m : free A) (f : A → free B) : free B :=
-  try m f (λ tt, Next).
-
 (* This is a monad. *)
 
 Global Instance free_monad : Monad free :=
-  { ret := @Ret; bind := @free_bind }.
+  { ret := @Ret; bind := @_bind }.
+
+(* [bind] is in fact a special case of [try]. We prefer to give a direct
+   definition of [bind] anyway, so as to prevent Coq from expanding uses
+   of [bind] into more complex expressions that seem to involve [try]. *)
+
+Lemma bind_as_try {A B} (m : free A) (f : A → free B) :
+  bind m f =
+  try m f (λ tt, Next).
+Proof.
+  induction m; try solve [
+    reflexivity
+  | simpl; f_equal; extensionality v; eauto ].
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 
 (* Paraphrase lemmas. *)
-
-Lemma fold_bind {A B} (m : free A) (f : A → free B) :
-  try m f (λ tt, Next) = bind m f.
-Proof.
-  reflexivity.
-Qed.
 
 Lemma bind_fail {A B} (f : A → free B) :
   bind Fail f = Fail.
@@ -150,7 +185,7 @@ Arguments eq1_free /.
 Global Instance monadlaws_free :
   MonadLaws _.
 Proof.
-  constructor; unfold bind, ret, eq1; simpl; unfold free_bind.
+  constructor; unfold bind, ret, eq1; simpl.
   { reflexivity. }
   { intros A m. induction m; simpl; eauto with eq. }
   { intros A B C m g h. induction m; simpl; eauto with eq. }
@@ -192,13 +227,13 @@ Qed.
 Global Instance monadflip_free : MonadFlip free :=
   { mflip := Flip ret }.
 
-(* [choose] can be defined in terms of [mflip]. *)
+(* [choose] can be defined in terms of [Flip]. *)
 
 Definition choose {A} (m1 m2 : free A) : free A :=
-  bind mflip $ λ b,
+  Flip $ λ b,
   if b then m1 else m2.
 
-(* [mplus] can be defined in terms of [mflip]. *)
+(* [mplus] can be defined in terms of [Flip]. *)
 
 Global Instance monadplus_free : MonadPlus free :=
   { mplus :=
