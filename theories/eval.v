@@ -209,7 +209,10 @@ with eval_match η v bs :=
   match bs with
   | BNil =>
       (* A nonexhaustive [match] construct causes a hard failure. *)
-      fail
+      (* Because the proof system forbids hard failures, the user of
+         the system will have to prove that this cannot happen, i.e.,
+         every case analysis is exhaustive. *)
+      fail (* nonexhaustive case analysis *)
   | BCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
