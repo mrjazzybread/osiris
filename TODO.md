@@ -1,12 +1,14 @@
 # TODO
 
-* Separate the monadic support layer from the definition of the
-  OCaml semantics.
+* Can we separate the monadic support layer
+  from the OCaml-specific aspects?
+  That is, make `free.v` independent of `lang.v`.
+  And make that monadic support layer an independent library.
 
-* Annotate [mzero] with a string, in every monad,
+* Find a way of annotating failures with a string,
   so we can keep track of the reason for the failure.
 
-* Clean the type classes and notation for monads.
+* Clean up the type classes and notation for monads.
 
 * Think about [order of evaluation](https://v2.ocaml.org/manual/expr.html#sss:expr-functions-application).
   Is it faithful to have only binary function applications in our calculus?
@@ -15,8 +17,7 @@
      of the two sides.)
   Introduce a parallel-bind or a parallel-tuple construct in the evaluator,
   and think about its implementation.
-  Should the evaluation of a parallel-tuple just cause a [Stop] effect?
-  Can we evaluate parallel-tuples without stopping
+  Can we simplify `par`
   when all components (except at most one) are trivial?
 
 * Use Coq lists, if possible, instead of custom `Nil` and `Cons`
@@ -31,12 +32,10 @@
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
 
-* Can we show that performing a `Stop` effect is "the same" as performing
-  a recursive call to `eval`, when this call is permitted?
-
 ## References
 
 * maillard-al-19
+* fromherz-steel-21
 * silver-zdancewic-21
 * nigron-dagand-21
 * zakowski-al-21
