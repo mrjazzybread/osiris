@@ -100,15 +100,25 @@ Qed.
 
 (* The following lemmas are inversion lemmas. They extract information out
    of the judgement [initially_safe (S n) m φ] under a hypothesis about the
-   observable behavior of the computation [m]. The three lemmas correspond
-   to the three cases of the triplicity principle. *)
+   observable behavior of the computation [m]. They correspond to the three
+   cases of the triplicity principle (with two subcases for answers). *)
 
 Lemma invert_initially_safe_result {A} {n} {a} (φ : A → Prop) :
   initially_safe (S n) (Ret a) φ →
   φ a.
 Proof.
   simpl.
-  intros [ H | H].
+  intros [ H | H ].
+  { destruct H as (v & ? & ?). congruence. }
+  { destruct H as (H & _). false. eauto with invert_can_step. }
+Qed.
+
+Lemma invert_initially_safe_next {A} {n} (φ : A → Prop) :
+  initially_safe (S n) Next φ →
+  False.
+Proof.
+  simpl.
+  intros [ H | H ].
   { destruct H as (v & ? & ?). congruence. }
   { destruct H as (H & _). false. eauto with invert_can_step. }
 Qed.
@@ -135,7 +145,7 @@ Proof.
 
   (* Case: [m] is a result. *)
   (* A result is not stuck: contradiction. *)
-  { subst m. eauto using invert_stuck_ret. }
+  { subst m. eauto using invert_stuck_answer with is_answer. }
 
   (* Case: [m] can step. *)
   (* A term that can step is not stuck. Contradiction. *)
@@ -155,6 +165,14 @@ Lemma invert_safe_result {A} {a} (φ : A → Prop) :
 Proof.
   unfold safe. intros Hsafe. specialize (Hsafe 1).
   eauto using (invert_initially_safe_result φ).
+Qed.
+
+Lemma invert_safe_next {A} (φ : A → Prop) :
+  safe Next φ →
+  False.
+Proof.
+  unfold safe. intros Hsafe. specialize (Hsafe 1).
+  eauto using invert_initially_safe_next.
 Qed.
 
 Lemma invert_safe_step {A} m m' {φ : A → Prop} :
@@ -193,6 +211,15 @@ Lemma safe_ret {A} (a : A) (φ : A → Prop) :
   φ a.
 Proof.
   split; eauto using (invert_safe_result φ), prove_safe_ret.
+Qed.
+
+(* [Next] is not safe. *)
+
+Lemma safe_next {A} (φ : A → Prop) :
+  safe Next φ ↔
+  False.
+Proof.
+  split; [ eauto using invert_safe_next | tauto ].
 Qed.
 
 (* Provided [m] is not stuck,
@@ -303,7 +330,7 @@ Proof.
     intros m' Hstep.
     (* Because [m1] can step, a reduct of [bind m1 m2] must be of the form
        [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
-    assert (Hnoret: ¬ is_result m1) by eauto using can_step_not_result.
+    assert (Hnoret: ¬ is_answer m1) by eauto using can_step_not_answer.
     specialize (invert_step_bind' _ _ _ Hstep Hnoret).
     clear Hstep Hcanstep Hnoret.
     intros (m'1 & Hstep & ?). subst m'.
@@ -332,11 +359,16 @@ Proof.
   intros Hsafe.
   rewrite unfold_initially_safe_S.
   (* Proceed by cases on [m1]. Three cases arise. *)
-  triplicity m1; [ clear IHn1 | | clear IHn1 ].
+  triplicity m1 Hm1; [ clear IHn1 | | clear IHn1 ].
 
-  (* Case: [m1] is [ret a]. *)
-  { eauto using initially_safe_monotonic with lia. }
-
+  (* Case: [m1] is an answer. *)
+  { destruct_answer.
+    (* Sub-case: [m1] is [ret a]. *)
+    { eauto using initially_safe_monotonic with lia. }
+    (* Sub-case: [m1] is [Next]. *)
+    { false. rewrite bind_next in Hsafe.
+      eauto using invert_initially_safe_next. }
+  }
   (* Case: [m1] can step. *)
   { right. split; [ eauto |].
     intros m'1 Hstep.
@@ -362,14 +394,19 @@ Proof.
   induction n; [ simpl; tauto |]; intros m Hsafe.
   rewrite unfold_initially_safe_S.
   (* Proceed by cases on [m]. Three cases arise. *)
-  triplicity m; [ clear IHn | | clear IHn ].
+  triplicity m Hm; [ clear IHn | | clear IHn ].
 
-  (* Case: [m] is [ret a]. *)
-  { left. eexists. split; [ eauto |].
-    intros x. specialize (Hsafe x).
-    destruct_initially_safe_S Hsafe.
-    congruence. }
-
+  (* Case: [m] is an answer. *)
+  { destruct_answer.
+    (* Sub-case: [m] is [ret a]. *)
+    { left. eexists. split; [ eauto |].
+      intros x. specialize (Hsafe x).
+      destruct_initially_safe_S Hsafe.
+      congruence. }
+    (* Sub-case: [m] is [Next]. *)
+    { false. specialize (Hsafe inhabitant).
+      eauto using invert_initially_safe_next. }
+  }
   (* Case: [m] can step. *)
   { right. split; [ eauto |].
     intros m' Hstep.

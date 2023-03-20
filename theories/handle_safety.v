@@ -60,7 +60,7 @@ Lemma handle_progress {A} (m : free A) φ :
 Proof.
   intros Hmφ Hstuck.
   destruct m.
-  { eauto using invert_stuck_ret. }
+  { eauto using invert_stuck_answer with is_answer. }
   { rewrite handle_fail in Hmφ.
     rewrite unfold_spec_mzero in Hmφ.
     tauto. }
@@ -84,13 +84,18 @@ Proof.
   induction n; [ simpl; tauto |].
   intros m φ Hmφ.
   rewrite unfold_initially_safe_S.
-  triplicity m.
+  triplicity m Hm.
 
   (* Case: [m] is a result. *)
-  { left. eexists. split; [ eauto |].
-    rewrite handle_ret in Hmφ.
-    rewrite unfold_spec_ret in Hmφ.
-    assumption. }
+  { destruct_answer.
+    (* Sub-case: [m] is [ret a]. *)
+    { left. eexists. split; [ eauto |].
+      rewrite handle_ret in Hmφ.
+      rewrite unfold_spec_ret in Hmφ.
+      assumption. }
+    (* Sub-case: [m] is [Next]. *)
+    { rewrite handle_next in Hmφ. rewrite unfold_spec_mzero in Hmφ. tauto. }
+  }
 
   (* Case: [m] steps. *)
   { right. split; [ eauto |].
@@ -131,7 +136,7 @@ Proof.
   destruct m; simpl.
   { rewrite safe_ret in Hsafe. tauto. }
   { rewrite safe_stuck in Hsafe by apply stuck_Fail. tauto. }
-  { rewrite safe_stuck in Hsafe by apply stuck_Next. tauto. }
+  { eauto using invert_safe_next. }
   { eapply invert_safe_step; eauto with step. }
   { intro b. eapply invert_safe_step; eauto with step. }
 Qed.

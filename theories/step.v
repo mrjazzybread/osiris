@@ -39,12 +39,32 @@ Definition step {A} (m : free A) (m' : free A) : Prop :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* A term [m] is a result iff it is of the form [Ret a]. *)
+(* A term [m] is an answer iff it is of the form [Ret a] or [Next]. *)
 
-Definition is_result {A} (m : free A) :=
+Definition is_answer {A} (m : free A) :=
   match m with
   | Ret a => True
+  | Next  => True
   | _     => False
+  end.
+
+Lemma is_answer_ret {A} (a : A) :
+  is_answer (Ret a).
+Proof.
+  simpl. eauto.
+Qed.
+
+Lemma is_answer_next {A} :
+  is_answer (@Next A).
+Proof.
+  simpl. eauto.
+Qed.
+
+Global Hint Resolve is_answer_ret is_answer_next : is_answer.
+
+Ltac destruct_answer :=
+  match goal with h: is_answer ?m |- _ =>
+    destruct m; try solve [ false; tauto ]; clear h
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -56,10 +76,10 @@ Definition can_step {A} (m : free A) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* A term that is not a result and that is unable to step is stuck. *)
+(* A term that is not an answer and that is unable to step is stuck. *)
 
 Definition stuck {A} (m : free A) :=
-  ¬ is_result m ∧
+  ¬ is_answer m ∧
   (∀ m', ¬ step m m').
 
 (* -------------------------------------------------------------------------- *)
@@ -156,11 +176,11 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic lemmas about [is_result]. *)
+(* Basic lemmas about [is_answer]. *)
 
-Lemma is_result_bind {A B} (m : free A) (f : A → free B) :
-  ¬ is_result m →
-  ¬ is_result (bind m f).
+Lemma is_answer_bind {A B} (m : free A) (f : A → free B) :
+  ¬ is_answer m →
+  ¬ is_answer (bind m f).
 Proof.
   destruct m; simpl; tauto.
 Qed.
@@ -211,24 +231,24 @@ Proof.
   unfold can_step. intros (m' & Hstep). eauto using step_bind.
 Qed.
 
-(* A term that can step is not a result. *)
+(* A term that can step is not an answer. *)
 
-Lemma can_step_not_result {A} (m : free A) :
+Lemma can_step_not_answer {A} (m : free A) :
   can_step m →
-  ¬ is_result m.
+  ¬ is_answer m.
 Proof.
   intros.
   destruct m; try solve [ false; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* As a special case of [invert_step_bind], if it is known that [m] is not a
-   result, and if [bind m f] takes a step, then this must be because [m] takes
+(* As a special case of [invert_step_bind], if it is known that [m] is not an
+   answer, and if [bind m f] takes a step, then this must be because [m] takes
    a step (under a context). In other words, reduction under a context is
    mandatory: no other reduction is possible. *)
 
 Lemma invert_step_bind' {A B} (m : free A) (f : A → free B) (b' : free B) :
   step (bind m f) b' →
-  ¬ is_result m →
+  ¬ is_answer m →
   (∃ m', step m m' ∧ b' = bind m' f).
 Proof.
   intros Hstep Hnoret.
@@ -242,27 +262,20 @@ Qed.
 
 (* Basic lemmas about [stuck]. *)
 
-(* A result is not stuck. *)
+(* An answer is not stuck. *)
 
-Lemma invert_stuck_ret {A} (a : A) :
-  stuck (Ret a) →
+Lemma invert_stuck_answer {A} (m : free A) :
+  is_answer m →
+  stuck m →
   False.
 Proof.
-  unfold stuck. simpl. tauto.
+  unfold stuck. tauto.
 Qed.
 
 (* [Fail] is stuck. *)
 
 Lemma stuck_Fail {A} :
   stuck (Fail : free A).
-Proof.
-  unfold stuck. eauto using invert_can_step_Fail.
-Qed.
-
-(* [Next] is stuck. *)
-
-Lemma stuck_Next {A} :
-  stuck (Next : free A).
 Proof.
   unfold stuck. eauto using invert_can_step_Fail.
 Qed.
@@ -311,7 +324,7 @@ Proof.
   unfold stuck.
   intros (Hnoret & Hnostep).
   split.
-  { eauto using is_result_bind. }
+  { eauto using is_answer_bind. }
   { intros b' Hstep.
     specialize (invert_step_bind' _ _ _ Hstep Hnoret); clear Hstep.
     firstorder. }
@@ -325,14 +338,12 @@ Qed.
    either [m] is a result, or [m] can step, or [m] is stuck. *)
 
 Lemma triplicity {A} (m : free A) :
-  (∃ a, m = Ret a) ∨
+  is_answer m ∨
   can_step m ∨
   stuck m.
 Proof.
-  destruct m; eauto using stuck_Fail, stuck_Next with step.
+  destruct m; eauto using stuck_Fail with step is_answer.
 Qed.
 
-Ltac triplicity m :=
-  let a := fresh "a" in
-  destruct (triplicity m) as [ (a & ?) | [ ? | ? ]];
-  [ subst m | | ].
+Ltac triplicity m H :=
+  destruct (triplicity m) as [ H | [ H | H ]].
