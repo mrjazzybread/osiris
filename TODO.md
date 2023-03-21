@@ -22,6 +22,21 @@
   It may be necessary to define `safe2` and to establish
   its reasoning rules.
 
+* There are two approaches to reasoning about `match` constructs.
+  In one approach, the user first performs a case analysis at the
+  logical level. In each branch of this logical case analysis,
+  enough information is obtained to allow determining which
+  branch of the `match` construct is taken. The `match`
+  construct can then be symbolically evaluated.
+  In the other approach, the user performs no case analysis
+  up front; a set of Hoare-style reasoning rules are used
+  to reason about the body of each branch,
+  under the hypothesis that the previous branches
+  have not been taken and that this branch has been taken.
+  In the first approach, the judgement `safe` suffices.
+  In the second approach, the judgement `safe2` may be needed.
+  Which approach do we wish to favor?
+
 * Use Coq lists, if possible, instead of custom `Nil` and `Cons`
   constructors in patterns, values, etc.
 
