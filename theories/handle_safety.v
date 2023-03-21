@@ -32,12 +32,9 @@ Lemma handle_preservation {A} (m m' : free A) φ :
   step m m' →
   handle m' ∋ φ.
 Proof.
-  intros Hmφ Hstep.
-  (* [Ret], [Next], [Fail] cannot step. *)
-  destruct m; try solve [ simpl in Hstep; tauto ].
+  intros Hmφ. inversion 1; subst.
   (* Case: [Stop]. *)
   { rewrite handle_stop in Hmφ.
-    rewrite step_stop in Hstep. subst m'.
     rewrite unfold_skip in Hmφ.
     assumption. }
   (* Case: [Flip]. *)
@@ -45,8 +42,7 @@ Proof.
     (* This is where we exploit the fact that [mflip] in the [spec] monad
        expands to a universal quantifier. *)
     simpl in Hmφ.
-    rewrite step_flip in Hstep.
-    destruct Hstep; subst m'; eauto. }
+    eauto. }
 Qed.
 
 (* The property [handle m ∋ φ] guarantees that [m] is not stuck. *)

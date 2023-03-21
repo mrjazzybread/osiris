@@ -15,26 +15,36 @@ Require Import lang monads free eval.
 
 (* The relation [step] is defined as follows. *)
 
-Definition step {A} (m : free A) (m' : free A) : Prop :=
-  match m with
-  | Ret a =>
-      (* [Ret a] cannot step. It is a result. *)
-      False
-  | Fail =>
-      (* [Fail] cannot step. It represents a crash. *)
-      False
-  | Next =>
-      (* [Next] cannot step, and is not expected to occur at the top level
-         of a computation anyway. *)
-      False
-  | Stop η e k =>
-      (* [Stop η e k] steps to an invocation of [eval η e] followed
-         with the continuation [k]. *)
-      m' = bind (eval η e) k
-  | Flip k =>
-      (* [Flip k] steps to an application of the continuation [k] to
-         either [false] or [true]. *)
-      m' = k false ∨ m' = k true
+(* [Ret a] and [Next] cannot step. They are answers. *)
+
+(* [Fail] cannot step. It represents a crash. *)
+
+Inductive step {A} : free A → free A → Prop :=
+
+  (* [Stop η e k] steps to an invocation of [eval η e] followed
+     with the continuation [k]. *)
+  | StepStop :
+      ∀ η e k,
+      step
+        (Stop η e k)
+        (bind (eval η e) k)
+
+  (* [Flip k] steps to an application of the continuation [k] to
+     either [false] or [true]. *)
+  | StepFlip :
+      ∀ b k,
+      step
+        (Flip k)
+        (k b)
+
+.
+
+Global Hint Constructors step : step.
+
+Ltac destruct_step :=
+  match goal with h: step ?m ?m' |- _ =>
+    inversion h; try subst m; try subst m';
+    clear h
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -86,50 +96,29 @@ Definition stuck {A} (m : free A) :=
 
 (* Basic lemmas about [step]. *)
 
-(* [Stop η e k] steps to [bind (eval η e) k],
-   and steps to no other term. *)
-
-Lemma step_stop {A} η e k (m' : free A) :
-  step (Stop η e k) m' =
-  (m' = bind (eval η e) k).
+Lemma step_eq {A} (m1 m2 m2' : free A) :
+  step m1 m2 →
+  m2 = m2' →
+  step m1 m2'.
 Proof.
-  reflexivity.
-Qed.
-
-Lemma prove_step_stop {A} η e (k : val → free A) :
-  step (Stop η e k) (bind (eval η e) k).
-Proof.
-  reflexivity.
+  intros. subst. assumption.
 Qed.
 
 Lemma can_step_stop {A} η e (k : val → free A) :
   can_step (Stop η e k).
 Proof.
-  unfold can_step. eauto using prove_step_stop.
+  unfold can_step. eauto with step.
 Qed.
 
-Global Hint Resolve prove_step_stop can_step_stop : step.
-
-Lemma step_flip {A} k (m' : free A) :
-  step (Flip k) m' =
-  (m' = k false ∨ m' = k true).
-Proof.
-  reflexivity.
-Qed.
-
-Lemma prove_step_flip {A} b (k : bool → free A) :
-  step (Flip k) (k b).
-Proof.
-  destruct b; simpl; tauto.
-Qed.
+Global Hint Resolve can_step_stop : step.
 
 Lemma can_step_flip {A} (k : bool → free A) :
   can_step (Flip k).
 Proof.
-  unfold can_step. eauto using (prove_step_flip false).
+  unfold can_step. eauto using (StepFlip false).
 Qed.
 
-Global Hint Resolve prove_step_flip can_step_flip : step.
+Global Hint Resolve can_step_flip : step.
 
 (* Stepping in the left-hand side of [bind] is permitted. *)
 
@@ -139,15 +128,11 @@ Lemma step_bind {A B} (m m' : free A) (f : A → free B) :
   step m m' →
   step (bind m f) (bind m' f).
 Proof.
-  destruct m; try (simpl; tauto).
+  inversion 1; subst.
   (* Case: [Stop]. *)
-  { rewrite bind_stop.
-    rewrite !step_stop. intros. subst m'.
-    rewrite bind_bind.
-    reflexivity. }
+  { rewrite bind_stop, bind_bind. constructor. }
   (* Case: [Flip]. *)
-  { rewrite bind_flip.
-    rewrite !step_flip. intros [|]; subst m'; eauto. }
+  { rewrite bind_flip. eauto using step_eq with step. }
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -161,17 +146,20 @@ Lemma invert_step_bind {A B} (m : free A) (f : A → free B) (b' : free B) :
   (∃ m', step m m' ∧ b' = bind m' f) ∨
   (∃ a, m = Ret a ∧ step (f a) b').
 Proof.
-  destruct m; try (simpl; tauto).
+  destruct m.
   (* Case: [Ret]. *)
-  { rewrite bind_of_return by typeclasses eauto. right. eauto. }
+  { rewrite bind_ret. right. eauto. }
+  (* Case: [Fail]. *)
+  { rewrite bind_fail. inversion 1. }
+  (* Case: [Next]. *)
+  { rewrite bind_next. inversion 1. }
   (* Case: [Stop]. *)
-  { rewrite bind_stop, step_stop. intros. subst b'.
-    left. eexists. split.
-    + rewrite step_stop. reflexivity.
-    + rewrite bind_bind. reflexivity. }
+  { rewrite bind_stop. inversion 1; subst.
+    left. eexists. split; [ constructor |].
+    rewrite bind_bind. reflexivity. }
   (* Case: [Flip]. *)
-  { rewrite bind_flip, step_flip. intros [|]; subst b';
-      left; eauto with step. }
+  { rewrite bind_flip. inversion 1; subst.
+    left; eauto with step. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -195,7 +183,7 @@ Lemma invert_can_step_Ret {A} (a : A) :
   can_step (Ret a) →
   False.
 Proof.
-  intros (m' & Hstep). simpl in Hstep. tauto.
+  intros (m' & ?). destruct_step.
 Qed.
 
 (* [Fail] cannot step. *)
@@ -204,7 +192,7 @@ Lemma invert_can_step_Fail {A} :
   can_step (Fail : free A) →
   False.
 Proof.
-  intros (m' & Hstep). simpl in Hstep. tauto.
+  intros (m' & ?). destruct_step.
 Qed.
 
 (* [Next] cannot step. *)
@@ -213,7 +201,7 @@ Lemma invert_can_step_Next {A} :
   can_step (Next : free A) →
   False.
 Proof.
-  intros (m' & Hstep). simpl in Hstep. tauto.
+  intros (m' & ?). destruct_step.
 Qed.
 
 Global Hint Resolve
@@ -277,7 +265,7 @@ Qed.
 Lemma stuck_Fail {A} :
   stuck (Fail : free A).
 Proof.
-  unfold stuck. eauto using invert_can_step_Fail.
+  unfold stuck. split. eauto. inversion 1.
 Qed.
 
 (* [Stop] is not stuck. *)
@@ -299,7 +287,7 @@ Lemma invert_stuck_flip {A} k :
 Proof.
   intros (_ & H).
   unfold not in H. eapply H.
-  eauto using (prove_step_flip false).
+  apply (StepFlip false).
 Qed.
 
 (* The only stuck term is [Fail]. *)

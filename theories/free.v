@@ -120,6 +120,12 @@ Qed.
 
 (* Paraphrase lemmas. *)
 
+Lemma bind_ret {A B} (a : A) (f : A → free B) :
+  bind (Ret a) f = f a.
+Proof.
+  reflexivity.
+Qed.
+
 Lemma bind_fail {A B} (f : A → free B) :
   bind Fail f = Fail.
 Proof.

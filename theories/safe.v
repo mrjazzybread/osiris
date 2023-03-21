@@ -62,7 +62,10 @@ Qed.
 Ltac destruct_initially_safe_S H :=
   let Hcanstep := fresh "Hcanstep" in
   destruct H as [(? & ? & ?) | (Hcanstep & H)];
-  try solve [ false; subst; eauto with invert_can_step ].
+  try solve [
+    false; subst; destruct_step
+  | false; eauto with invert_can_step
+  ].
 
 (* -------------------------------------------------------------------------- *)
 
@@ -462,7 +465,7 @@ Lemma prove_safe_stop {A} η e (k : val → free A) φ :
 Proof.
   intros.
   rewrite safe_step by eauto with step.
-  intros m'. rewrite step_stop. intro. subst m'.
+  intros m'. inversion 1; subst.
   rewrite safe_bind.
   assumption.
 Qed.
@@ -473,6 +476,5 @@ Lemma prove_safe_flip {A} (k : bool → free A) φ :
 Proof.
   intros.
   rewrite safe_step by eauto with step.
-  intros m'. rewrite step_flip. intros [|]; subst m';
-  eauto.
+  intros m'. inversion 1; subst; eauto.
 Qed.
