@@ -7,10 +7,6 @@ theories/step.v
 theories/safe.v
 theories/div.v
 theories/spec.v
-theories/safety.v
-theories/handle.v
-theories/handle_spec.v
-theories/handle_safety.v
 theories/wp.v
 theories/wp_tactics.v
 theories/examples.v
