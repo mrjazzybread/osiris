@@ -6,8 +6,6 @@ theories/eval.v
 theories/step.v
 theories/steps.v
 theories/safe.v
-theories/div.v
-theories/spec.v
 theories/wp.v
 theories/wp_tactics.v
 theories/examples.v
