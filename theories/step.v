@@ -302,6 +302,21 @@ Proof.
   eauto using (prove_step_flip false).
 Qed.
 
+(* The only stuck term is [Fail]. *)
+
+Lemma only_fail_is_stuck {A} (m : free A) :
+  stuck m →
+  m = Fail.
+Proof.
+  intros.
+  destruct m; try solve [
+    false;
+    eauto using invert_stuck_answer, invert_stuck_stop, invert_stuck_flip
+      with is_answer
+  | reflexivity
+  ].
+Qed.
+
 (* A term that can step is not stuck. *)
 
 Lemma can_step_not_stuck {A} (m : free A) :
@@ -309,6 +324,8 @@ Lemma can_step_not_stuck {A} (m : free A) :
   stuck m →
   False.
 Proof.
+  (* We keep this generic proof, although a simpler proof would be
+     possible based on the fact that only [Fail] is stuck. *)
   unfold can_step, stuck.
   intros (m' & Hstep).
   intros (_ & Hnostep).
@@ -321,6 +338,8 @@ Lemma stuck_bind {A B} (m : free A) (f : A → free B) :
   stuck m →
   stuck (bind m f).
 Proof.
+  (* We keep this generic proof, although a simpler proof would be
+     possible based on the fact that only [Fail] is stuck. *)
   unfold stuck.
   intros (Hnoret & Hnostep).
   split.
