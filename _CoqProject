@@ -4,6 +4,7 @@ theories/lang.v
 theories/free.v
 theories/eval.v
 theories/step.v
+theories/steps.v
 theories/safe.v
 theories/div.v
 theories/spec.v
