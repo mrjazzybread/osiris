@@ -11,14 +11,16 @@
 * Clean up the type classes and notation for monads.
 
 * Think about [order of evaluation](https://v2.ocaml.org/manual/expr.html#sss:expr-functions-application).
-  Is it faithful to have only binary function applications in our calculus?
-    (To recover all possible behaviors of an n-ary application,
-     our binary application must allow interleaved execution
-     of the two sides.)
-  Introduce a parallel-bind or a parallel-tuple construct in the evaluator,
-  and think about its implementation.
-  Can we simplify `par`
-  when all components (except at most one) are trivial?
+  Use `par` in the evaluator.
+  Write examples to test it.
+
+* The judgement `safe m φ` has just one postcondition
+  and forbids the answer `Next`.
+  It is really a special case of a more general judgement
+  `safe2 m φ ψ` which means that if `m` reduces to `Next`
+  then `ψ` holds.
+  It may be necessary to define `safe2` and to establish
+  its reasoning rules.
 
 * Use Coq lists, if possible, instead of custom `Nil` and `Cons`
   constructors in patterns, values, etc.
