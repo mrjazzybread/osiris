@@ -220,7 +220,8 @@ Lemma step_bind {A B} (m m' : free A) (f : A → free B) :
   step (bind m f) (bind m' f).
 Proof.
   inversion 1; subst;
-  rewrite ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail, ?bind_bind;
+  rewrite ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail;
+  rewrite ?bind_associativity by typeclasses eauto;
   eauto using step_eq with step.
 Qed.
 
@@ -249,7 +250,8 @@ Proof.
      so we deal with it by hand. *)
   { left. destruct_step.
     eexists. split; [ constructor |].
-    rewrite bind_bind. reflexivity. }
+    rewrite bind_associativity by typeclasses eauto.
+    reflexivity. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

@@ -258,22 +258,6 @@ Proof.
   { intros A B C m g h. induction m; simpl; eauto with eq. }
 Qed.
 
-(* We probably do not need the following variant, but prove it anyway. *)
-
-Global Instance monadlawse_free :
-  MonadLawsE free.
-Proof.
-  constructor; intros.
-  { eapply bind_of_return; typeclasses eauto. }
-  { eapply return_of_bind; typeclasses eauto. }
-  { eapply bind_associativity; typeclasses eauto. }
-  { unfold eq1, eq1_free.
-    intros m m' ?. subst m'.
-    unfold pointwise_relation, respectful.
-    intros f1 f2 ?.
-    f_equal. extensionality a. eauto. }
-Qed.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [mzero] is [Fail]. *)
@@ -289,29 +273,13 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-(* [mflip] is [Flip] with a trivial continuation. *)
+(* [flip] is [Flip] with a trivial continuation. *)
 
-Global Instance monadflip_free : MonadFlip free :=
-  { mflip := Flip ret }.
+Definition flip : free bool :=
+  Flip ret.
 
 (* [choose] can be defined in terms of [Flip]. *)
 
 Definition choose {A} (m1 m2 : free A) : free A :=
   Flip $ λ b,
   if b then m1 else m2.
-
-(* [mplus] can be defined in terms of [Flip]. *)
-
-Global Instance monadplus_free : MonadPlus free :=
-  { mplus :=
-      λ {A1 A2 :Type} (m1 : free A1) (m2 : free A2),
-        Flip $ λ b,
-        if b then
-          bind m1 $ λ a1,
-          ret (inl a1)
-        else
-          bind m2 $ λ a2,
-          ret (inr a2)
-  }.
-
-(* coq-ext-lib does not seem to define MonadPlusLaws. *)
