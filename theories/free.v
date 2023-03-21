@@ -19,7 +19,17 @@ Require Import monads lang.
 
    - [Flip k],
      a non-deterministic coin flip, producing a Boolean result,
-     which the continuation [k] consumes.
+     which the continuation [k] consumes;
+
+   - [Par m1 m2 k ko],
+     a parallel evaluation construct,
+     which evaluates [m1] and [m2] independently.
+     If both computations succeed and return two results [v1] and [v2],
+     then the continuation [k] is applied to the pair [(v1, v2)].
+     If either computation causes a hard failure,
+     this hard failure is transmitted upwards.
+     If either computation causes a soft failure,
+     then the failure continuation [ko] is invoked.
 
    The fact that [Stop] and [Flip] do not carry a second continuation
    (which would be a soft failure continuation) reflect the fact that
@@ -35,6 +45,9 @@ Inductive free A :=
   | Next
   | Stop (η : env) (e : expr) (k : val → free A)
   | Flip (k : bool → free A)
+  | Par {A1 A2} (m1 : free A1) (m2 : free A2)
+                (k : A1 * A2 → free A)
+                (ko : unit → free A)
 .
 
 (* Make [A] an implicit argument of the constructors. *)
@@ -44,10 +57,17 @@ Arguments Fail {A}.
 Arguments Next {A}.
 Arguments Stop {A} η e k.
 Arguments Flip {A} k.
+Arguments Par  {A A1 A2} m1 m2 k ko.
 
 (* ------------------------------------------------------------------------ *)
 
 (* Monadic combinators: [try] and [bind]. *)
+
+(* [par m1 m2] runs the computations [m1] and [m2] in parallel,
+   producing a pair of results. *)
+
+Definition par {A1 A2} (m1 : free A1) (m2 : free A2) : free (A1 * A2) :=
+  Par m1 m2 Ret (λ tt, Next).
 
 (* [bind m f] sequences the computations [m] and [f]. *)
 
@@ -68,6 +88,9 @@ Fixpoint _bind {A B} (m : free A) (f : A → free B) : free B :=
   | Flip k =>
       (* Same here. *)
       Flip (λ v, _bind (k v) f)
+  | Par m1 m2 k ko =>
+      (* Same here. *)
+      Par m1 m2 (λ v, _bind (k v) f) (λ tt, _bind (ko()) f)
   end.
 
 (* [try m f g] runs the computation [m]. If [m] returns a result [v], then
@@ -90,12 +113,15 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   | Stop η e k =>
       (* A [Stop] effect is transmitted. The handler [try _ f g] remains
          installed on top of the continuation. Because [eval η e] cannot
-         cause a soft failure, there is no need for the handler to monitor
-         its execution. *)
+         cause a soft failure, there is only one continuation. *)
       Stop η e (λ v, try (k v) f g)
   | Flip k =>
       (* Same here. *)
       Flip (λ v, try (k v) f g)
+  | Par m1 m2 k ko =>
+      (* Same here. The handler [try _ f g] remains installed on top of
+         both continuations. *)
+      Par m1 m2 (λ v, try (k v) f g) (λ tt, try (ko()) f g)
   end.
 
 (* This is a monad. *)
@@ -150,6 +176,30 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma bind_par {A1 A2 A B} (m1 : free A1) (m2 : free A2) k ko (f : A → free B) :
+  bind (Par m1 m2 k ko) f =
+  Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f).
+Proof.
+  reflexivity.
+Qed.
+
+(* Special cases that involve the [par] combinator. *)
+
+Lemma try_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2)
+  (f : A1 * A2 → free A) (g : unit → free A) :
+  try (par m1 m2) f g =
+  Par m1 m2 f g.
+Proof.
+  simpl. f_equal. extensionality tt. destruct tt. reflexivity.
+Qed.
+
+Lemma bind_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2) (f : A1 * A2 → free A) :
+  bind (par m1 m2) f =
+  Par m1 m2 f (λ tt, Next).
+Proof.
+  rewrite bind_as_try, try_par_comb. reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
@@ -177,7 +227,18 @@ Proof.
   intros. f_equal. extensionality b. eauto.
 Qed.
 
-#[export] Hint Resolve eq_stop_stop eq_flip_flip : eq.
+Lemma eq_par_par {A A1 A2} (m1 : free A1) (m2 : free A2)
+  (k k' : A1 * A2 → free A) (ko ko' : unit → free A) :
+  (∀ v, k v = k' v) →
+  ko() = ko'() →
+  Par m1 m2 k ko = Par m1 m2 k' ko'.
+Proof.
+  intros. f_equal.
+  { extensionality v. eauto. }
+  { extensionality tt. destruct tt. eauto. }
+Qed.
+
+#[export] Hint Resolve eq_stop_stop eq_flip_flip eq_par_par : eq.
 
 Global Instance eq1_free : Eq1 free :=
   λ (A : Type), @eq (free A).

@@ -1,3 +1,4 @@
+Require Import Coq.Program.Equality.
 Require Import lang monads free eval.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
@@ -19,6 +20,11 @@ Require Import lang monads free eval.
 
 (* [Fail] cannot step. It represents a crash. *)
 
+(* The reduction rules for [Par] are designed so as to guarantee that [Par]
+   can always be reduced. This preserves the property that the only stuck term
+   is [Fail]. There is a lot of non-determinism in these reduction rules:
+   e.g., [Par Fail Next _ _] can reduce to either [Fail] or [Next]. *)
+
 Inductive step {A} : free A → free A → Prop :=
 
   (* [Stop η e k] steps to an invocation of [eval η e] followed
@@ -37,14 +43,60 @@ Inductive step {A} : free A → free A → Prop :=
         (Flip k)
         (k b)
 
+  (* If [m1] and [m2] have reached values [v1] and [v2],
+     then the continuation [k] is applied to the pair [(v1, v2)]. *)
+  | StepParRetRet :
+      ∀ {A1 A2} (v1 : A1) (v2 : A2) k ko,
+      step
+        (Par (Ret v1) (Ret v2) k ko)
+        (k (v1, v2))
+
+  (* A hard failure on either side can be propagated up. *)
+  | StepParFailLeft :
+      ∀ {A1 A2} (m2 : free A2) k ko,
+      step
+        (Par (@Fail A1) m2 k ko)
+        Fail
+  | StepParFailRight :
+      ∀ {A1 A2} (m1 : free A1) k ko,
+      step
+        (Par m1 (@Fail A2) k ko)
+        Fail
+
+  (* If a soft failure on either side is detected, then
+     the failure continuation [n] can be invoked. *)
+  | StepParNextLeft :
+      ∀ {A1 A2} (m2 : free A2) k ko,
+      step
+        (Par (@Next A1) m2 k ko)
+        (ko())
+  | StepParNextRight :
+      ∀ {A1 A2} (m1 : free A1) k ko,
+      step
+        (Par m1 (@Next A2) k ko)
+        (ko())
+
+  (* Reduction steps on either side are permitted. *)
+  | StepParLeft :
+      ∀ {A1 A2} (m1 m'1 : free A1) (m2 : free A2) k ko,
+      step m1 m'1 →
+      step
+        (Par m1 m2 k ko)
+        (Par m'1 m2 k ko)
+  | StepParRight :
+      ∀ {A1 A2} (m1 : free A1) {m2 m'2 : free A2} k ko,
+      step m2 m'2 →
+      step
+        (Par m1 m2 k ko)
+        (Par m1 m'2 k ko)
+
 .
 
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
-    inversion h; try subst m; try subst m';
-    clear h
+    dependent destruction h
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -84,6 +136,8 @@ Ltac destruct_answer :=
 Definition can_step {A} (m : free A) :=
   ∃ m', step m m'.
 
+Global Hint Unfold can_step : step.
+
 (* -------------------------------------------------------------------------- *)
 
 (* A term that is not an answer and that is unable to step is stuck. *)
@@ -94,7 +148,10 @@ Definition stuck {A} (m : free A) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic lemmas about [step]. *)
+(* Basic lemmas about [step] and [can_step]. *)
+
+(* This auxiliary lemma is useful when a constructor of the relation [step]
+   cannot be applied directly. *)
 
 Lemma step_eq {A} (m1 m2 m2' : free A) :
   step m1 m2 →
@@ -104,6 +161,8 @@ Proof.
   intros. subst. assumption.
 Qed.
 
+(* [Stop] can step. *)
+
 Lemma can_step_stop {A} η e (k : val → free A) :
   can_step (Stop η e k).
 Proof.
@@ -111,6 +170,8 @@ Proof.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
+
+(* [Flip] can step. *)
 
 Lemma can_step_flip {A} (k : bool → free A) :
   can_step (Flip k).
@@ -120,6 +181,36 @@ Qed.
 
 Global Hint Resolve can_step_flip : step.
 
+(* The following auxiliary lemma is used in the proof of [can_step_par],
+   which establishes a stronger result. *)
+
+Local Lemma can_step_under_par {A1 A2 A} m1 m2 (k : A1 * A2 → free A) ko :
+  can_step m1 ∨ can_step m2 →
+  can_step (Par m1 m2 k ko).
+Proof.
+  unfold can_step.
+  intros [ (m'1 & ?) | (m'2 & ?) ]; eauto with step.
+Qed.
+
+(* [Par] can step. *)
+
+Lemma can_step_par :
+  ∀ {A} (m : free A) {A1 A2} m1 m2 (k : A1 * A2 → free A) ko,
+  m = Par m1 m2 k ko →
+  can_step m.
+Proof.
+  induction m; try solve [ congruence ].
+  intros A'1 A'2 m'1 m'2 k' ko' Heq.
+  (* The hypothesis [Heq] is tricky because it involves different types
+     on either side. Fortunately, [dependent destruction] is capable
+     of deconstructing it for us. Phew! *)
+  dependent destruction Heq.
+  destruct m'1; eauto using can_step_under_par with step.
+  destruct m'2; eauto using can_step_under_par with step.
+Qed.
+
+Global Hint Resolve can_step_par : step.
+
 (* Stepping in the left-hand side of [bind] is permitted. *)
 
 (* This corresponds to reduction under an evaluation context. *)
@@ -128,11 +219,9 @@ Lemma step_bind {A B} (m m' : free A) (f : A → free B) :
   step m m' →
   step (bind m f) (bind m' f).
 Proof.
-  inversion 1; subst.
-  (* Case: [Stop]. *)
-  { rewrite bind_stop, bind_bind. constructor. }
-  (* Case: [Flip]. *)
-  { rewrite bind_flip. eauto using step_eq with step. }
+  inversion 1; subst;
+  rewrite ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail, ?bind_bind;
+  eauto using step_eq with step.
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -146,20 +235,21 @@ Lemma invert_step_bind {A B} (m : free A) (f : A → free B) (b' : free B) :
   (∃ m', step m m' ∧ b' = bind m' f) ∨
   (∃ a, m = Ret a ∧ step (f a) b').
 Proof.
-  destruct m.
-  (* Case: [Ret]. *)
-  { rewrite bind_ret. right. eauto. }
-  (* Case: [Fail]. *)
-  { rewrite bind_fail. inversion 1. }
-  (* Case: [Next]. *)
-  { rewrite bind_next. inversion 1. }
+  destruct m;
+  rewrite ?bind_ret, ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail;
+  intro;
+  try solve [
+    (* Case: [Ret] *)
+    right; eauto
+  | (* Every other case: *)
+    left; destruct_step; eauto with step
+  ].
   (* Case: [Stop]. *)
-  { rewrite bind_stop. inversion 1; subst.
-    left. eexists. split; [ constructor |].
+  (* This case does not quite fall into the general case above,
+     so we deal with it by hand. *)
+  { left. destruct_step.
+    eexists. split; [ constructor |].
     rewrite bind_bind. reflexivity. }
-  (* Case: [Flip]. *)
-  { rewrite bind_flip. inversion 1; subst.
-    left; eauto with step. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -260,34 +350,25 @@ Proof.
   unfold stuck. tauto.
 Qed.
 
+(* A term that can step is not stuck. *)
+
+Lemma can_step_not_stuck {A} (m : free A) :
+  can_step m →
+  stuck m →
+  False.
+Proof.
+  unfold can_step, stuck.
+  intros (m' & Hstep).
+  intros (_ & Hnostep).
+  eapply Hnostep. exact Hstep.
+Qed.
+
 (* [Fail] is stuck. *)
 
 Lemma stuck_Fail {A} :
   stuck (Fail : free A).
 Proof.
   unfold stuck. split. eauto. inversion 1.
-Qed.
-
-(* [Stop] is not stuck. *)
-
-Lemma invert_stuck_stop {A} η e k :
-  stuck (Stop η e k : free A) →
-  False.
-Proof.
-  intros (_ & H).
-  unfold not in H. eapply H.
-  eauto with step.
-Qed.
-
-(* [Flip] is not stuck. *)
-
-Lemma invert_stuck_flip {A} k :
-  stuck (Flip k : free A) →
-  False.
-Proof.
-  intros (_ & H).
-  unfold not in H. eapply H.
-  apply (StepFlip false).
 Qed.
 
 (* The only stuck term is [Fail]. *)
@@ -298,26 +379,10 @@ Lemma only_fail_is_stuck {A} (m : free A) :
 Proof.
   intros.
   destruct m; try solve [
-    false;
-    eauto using invert_stuck_answer, invert_stuck_stop, invert_stuck_flip
-      with is_answer
-  | reflexivity
+    reflexivity
+  | false;
+    eauto using invert_stuck_answer, can_step_not_stuck with step is_answer
   ].
-Qed.
-
-(* A term that can step is not stuck. *)
-
-Lemma can_step_not_stuck {A} (m : free A) :
-  can_step m →
-  stuck m →
-  False.
-Proof.
-  (* We keep this generic proof, although a simpler proof would be
-     possible based on the fact that only [Fail] is stuck. *)
-  unfold can_step, stuck.
-  intros (m' & Hstep).
-  intros (_ & Hnostep).
-  eapply Hnostep. exact Hstep.
 Qed.
 
 (* If [m] is stuck then [bind m f] is also stuck. *)
@@ -326,15 +391,10 @@ Lemma stuck_bind {A B} (m : free A) (f : A → free B) :
   stuck m →
   stuck (bind m f).
 Proof.
-  (* We keep this generic proof, although a simpler proof would be
-     possible based on the fact that only [Fail] is stuck. *)
-  unfold stuck.
-  intros (Hnoret & Hnostep).
-  split.
-  { eauto using is_answer_bind. }
-  { intros b' Hstep.
-    specialize (invert_step_bind' _ _ _ Hstep Hnoret); clear Hstep.
-    firstorder. }
+  intros.
+  assert (m = Fail) by eauto using only_fail_is_stuck.
+  subst m. rewrite bind_fail.
+  eauto using stuck_Fail.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
