@@ -61,8 +61,16 @@ with wp_step :=
   | apply prove_safe_stop; wp_simplify
   | apply prove_safe_flip; intro; wp_simplify
   | apply prove_safe_par_ret_ret; wp_simplify
+  | apply prove_safe_Par_ret_left; wp_simplify
+  | apply prove_safe_Par_ret_right; wp_simplify
   | wp_scoped_case_analysis
   ].
+
+(* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
+
+(* TODO should [wp] automatically apply [wp_par]? *)
+Ltac wp_par :=
+  eapply prove_safe_par.
 
 (* Apply brute force. *)
 
