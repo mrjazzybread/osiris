@@ -104,6 +104,7 @@ with extends η ps vs : free env :=
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
 Definition call v1 v2 : free val :=
+  (* The value [v1] must be a closure. *)
   match v1 with
   | VRec η f x e =>
       (* The environment of the closure is extended with bindings
@@ -160,8 +161,6 @@ Fixpoint eval η e : free val :=
       (* The creation of a closure captures the environment [η]. *)
       ret (VRec η f x e)
   | EApp e1 e2 =>
-      (* The left-hand side of an application must evaluate
-         to a closure. *)
       bind (eval η e1) $ λ v1,
       bind (eval η e2) $ λ v2,
       call v1 v2
