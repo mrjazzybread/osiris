@@ -34,11 +34,6 @@ with pats :=
   | PNil
   | PCons (p : pat) (ps : pats).
 
-Scheme my_pat_ind :=
-  Induction for pat Sort Prop
-with my_pats_ind :=
-  Induction for pats Sort Prop.
-
 (* ------------------------------------------------------------------------ *)
 
 (* Expressions. *)
@@ -78,15 +73,6 @@ with branches :=
   | BNil
   | BCons (b : branch) (bs : branches).
 
-Scheme my_expr_ind :=
-  Induction for expr Sort Prop
-with my_exprs_ind :=
-  Induction for exprs Sort Prop
-with my_branch_ind :=
-  Induction for branch Sort Prop
-with my_branches_ind :=
-  Induction for branches Sort Prop.
-
 (* ------------------------------------------------------------------------ *)
 
 (* Values. *)
@@ -110,13 +96,6 @@ with vals :=
 with env :=
   | EnvNil
   | EnvCons (x : var) (v : val) (η : env).
-
-Scheme my_val_ind :=
-  Induction for val Sort Prop
-with my_vals_ind :=
-  Induction for vals Sort Prop
-with my_env_ind :=
-  Induction for env Sort Prop.
 
 (* ------------------------------------------------------------------------ *)
 
