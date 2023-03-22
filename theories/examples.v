@@ -129,3 +129,140 @@ Proof.
   (* Remainder: prove that [false] returns [false], as promised. *)
   reflexivity.
 Qed.
+
+(* let id = identity in
+   (id id) id *)
+
+Definition example4b :=
+  ELetVar "id" identity $
+  let id := EVar "id" in
+  EApp (EApp id id) EUnit.
+
+Lemma spec_example4b:
+  wp EnvNil example4b (λ v, v = VUnit).
+Proof.
+  unfold example4b.
+  (* Abstract away the [identity] function; its spec suffices. *)
+  generalize identity spec_identity.
+  intros identity Hidentity.
+  (* Attack the goal. *)
+  wp.
+  (* Exploit the spec of the expression [identity]. *)
+  wp_use Hidentity. simpl. intros id Hid.
+  wp.
+  (* We are looking at [id id]. *)
+  (* Exploit the spec of the value [id]. *)
+  wp_use Hid.
+  { (* TODO not great: the Texan triple requires a postcondition *)
+    instantiate (1 := λ v, v = id).
+    simpl. eauto. }
+  simpl. intros. subst.
+  (* We are now looking at [id()]. *)
+  (* Exploit the spec of the value [id] again. *)
+  wp_use Hid.
+  { (* TODO not great: the Texan triple requires an explicit postcondition *)
+    instantiate (1 := λ v, v = VUnit).
+    simpl. eauto. }
+  simpl. intros. subst.
+  (* Done. *)
+  reflexivity.
+Qed.
+
+(* let id = identity in
+   id (id ()) *)
+
+Definition example4c :=
+  ELetVar "id" identity $
+  let id := EVar "id" in
+  EApp id (EApp id EUnit).
+
+Lemma spec_example4c:
+  wp EnvNil example4c (λ v, v = VUnit).
+Proof.
+  unfold example4c.
+  (* Abstract away the [identity] function; its spec suffices. *)
+  generalize identity spec_identity.
+  intros identity Hidentity.
+  (* Attack the goal. *)
+  wp.
+  (* Exploit the spec of the expression [identity]. *)
+  wp_use Hidentity. simpl. intros id Hid.
+  wp.
+  (* We are looking at [id()]. *)
+  (* Exploit the spec of the value [id]. *)
+  wp_use Hid.
+  { (* TODO not great: the Texan triple requires an explicit postcondition *)
+    instantiate (1 := λ v, v = VUnit).
+    simpl. eauto. }
+  simpl. intros. subst.
+  (* We are looking at [id()]. *)
+  (* Exploit the spec of the value [id]. *)
+  wp_use Hid.
+  { (* TODO not great: the Texan triple requires an explicit postcondition *)
+    instantiate (1 := λ v, v = VUnit).
+    simpl. eauto. }
+  simpl. intros. subst.
+  (* Done. *)
+  reflexivity.
+Qed.
+
+(* let id = identity in
+   (id id) (id ()) *)
+
+Definition example4d :=
+  ELetVar "id" identity $
+  let id := EVar "id" in
+  EApp (EApp id id) (EApp id EUnit).
+
+Lemma spec_example4d:
+  wp EnvNil example4d (λ v, v = VUnit).
+Proof.
+  unfold example4d.
+  (* Abstract away the [identity] function; its spec suffices. *)
+  generalize identity spec_identity.
+  intros identity Hidentity.
+  (* Attack the goal. *)
+  wp.
+  (* Exploit the spec of the expression [identity]. *)
+  wp_use Hidentity. simpl. intros id Hid.
+  (* Here, [wp] is unable to make progress because we are looking at two
+     function calls in parallel. *)
+  wp.
+  wp_par.
+
+  (* Subgoal 1. Application [id id]. *)
+  {
+    (* TODO specify the postcondition: *)
+    instantiate (1 := λ v, v = id).
+    wp.
+    (* Exploit the spec of the value [id]. *)
+    wp_use Hid.
+    { (* TODO *)
+      instantiate (1 := λ v, v = id). simpl. eauto. }
+    simpl. intros. subst.
+    reflexivity.
+  }
+
+  (* Subgoal 2. Application [id()]. *)
+  {
+    (* TODO specify the postcondition: *)
+    instantiate (1 := λ v, v = VUnit).
+    wp.
+    (* Exploit the spec of the value [id]. *)
+    wp_use Hid.
+    { (* TODO *)
+      instantiate (1 := λ v, v = VUnit). simpl. eauto. }
+    simpl. intros. subst.
+    reflexivity.
+  }
+
+  (* Subgoal 3. Residual application [id()]. *)
+  simpl. intros. subst.
+  (* Exploit the spec of the value [id]. *)
+  wp_use Hid.
+  { (* TODO not great: the Texan triple requires an explicit postcondition *)
+    instantiate (1 := λ v, v = VUnit). simpl. eauto. }
+  simpl. intros. subst.
+  (* Done. *)
+  reflexivity.
+Qed.
