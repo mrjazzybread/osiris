@@ -152,6 +152,15 @@ Definition as_bool (v : val) : free bool :=
    evaluated but is not a subexpression of [e], a [stop] effect is
    used instead of a recursive call to [eval]. *)
 
+(* In a binary application [e1 e2], the expressions [e1] and [e2] are
+   evaluated in parallel. This allows an interleaving of steps inside [e1]
+   and steps inside [e2]. This is more permissive than a choice between the
+   sequence [e1; e2] and the sequence [e2; e1]. As a result, in an n-ary
+   application [e1 e2 ... en], the expressions [e1], [e2], ... [en] can be
+   evaluated in an arbitrary order. That is, an arbitrary permutation of
+   these expressions is possible: the evaluation order is not necessarily
+   left-to-right or right-to-left. *)
+
 Fixpoint eval η e : free val :=
   match e with
   | EVar x =>
@@ -161,8 +170,8 @@ Fixpoint eval η e : free val :=
       (* The creation of a closure captures the environment [η]. *)
       ret (VRec η f x e)
   | EApp e1 e2 =>
-      bind (eval η e1) $ λ v1,
-      bind (eval η e2) $ λ v2,
+      (* The expressions [e1] and [e2] are evaluated in parallel. *)
+      bind (par (eval η e1) (eval η e2)) $ λ '(v1, v2),
       call v1 v2
   | ETuple es =>
       bind (evals η es) $ λ vs,
