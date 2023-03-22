@@ -1,5 +1,17 @@
 # TODO
 
+* When we have a tree of nested `Par` and some of the leaves in the middle
+  are of the form `Ret _`, one should in principle be able to permute the
+  leaves so as to then be able to use `prove_safe_Par_ret_left`. Can this
+  be implemented? Is it worth the trouble?
+  Minimal example: suppose we have `par m1 (par (ret a2) (ret a3))`
+  where `m1` is a complex computation. Currently we are forced to
+  apply the general reasoning rule `prove_safe_par` but if we could
+  permute and/or reassociate the leaves then we could apply
+  `prove_safe_Par_ret_left` or `prove_safe_Par_ret_right` (twice)
+  and we would end up *not* needing to reason about a parallel
+  composition.
+
 * Rename `Flip` and `Stop` to `BindFlip` and `BindStop`,
   and rename `Par` to `TryPar`?
   Otherwise there is potential confusion between `flip` and `Flip`,
@@ -14,10 +26,6 @@
   so we can keep track of the reason for the failure.
 
 * Clean up the type classes and notation for monads.
-
-* Think about [order of evaluation](https://v2.ocaml.org/manual/expr.html#sss:expr-functions-application).
-  Use `par` in the evaluator.
-  Write examples to test it.
 
 * The judgement `safe m φ` has just one postcondition
   and forbids the answer `Next`.
