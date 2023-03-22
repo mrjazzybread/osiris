@@ -497,7 +497,7 @@ Lemma prove_safe_stop {A} η e (k : val → free A) φ :
 Proof.
   intros.
   rewrite safe_step by eauto with step.
-  intros m'. inversion 1; subst.
+  intros. destruct_step.
   rewrite safe_bind.
   assumption.
 Qed.
@@ -508,7 +508,8 @@ Lemma prove_safe_flip {A} (k : bool → free A) φ :
 Proof.
   intros.
   rewrite safe_step by eauto with step.
-  intros m'. inversion 1; subst; eauto.
+  intros. destruct_step. eauto.
+Qed.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
