@@ -510,6 +510,14 @@ Proof.
   rewrite safe_step by eauto with step.
   intros. destruct_step. eauto.
 Qed.
+
+Lemma prove_safe_par_ret_ret {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko φ :
+  safe (k (a1, a2)) φ →
+  safe (Par (Ret a1) (Ret a2) k ko) φ.
+Proof.
+  intros.
+  rewrite safe_step by eauto with step.
+  intros. repeat destruct_step. eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

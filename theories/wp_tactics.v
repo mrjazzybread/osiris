@@ -60,6 +60,7 @@ with wp_step :=
   | apply prove_safe_bind; wp_simplify
   | apply prove_safe_stop; wp_simplify
   | apply prove_safe_flip; intro; wp_simplify
+  | apply prove_safe_par_ret_ret; wp_simplify
   | wp_scoped_case_analysis
   ].
 
