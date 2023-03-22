@@ -66,8 +66,11 @@ Arguments Par  {A A1 A2} m1 m2 k ko.
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
 
+Notation next :=
+  (λ tt, Next).
+
 Definition par {A1 A2} (m1 : free A1) (m2 : free A2) : free (A1 * A2) :=
-  Par m1 m2 Ret (λ tt, Next).
+  Par m1 m2 Ret next.
 
 (* [bind m f] sequences the computations [m] and [f]. *)
 
@@ -135,7 +138,7 @@ Global Instance free_monad : Monad free :=
 
 Lemma bind_as_try {A B} (m : free A) (f : A → free B) :
   bind m f =
-  try m f (λ tt, Next).
+  try m f next.
 Proof.
   induction m; try solve [
     reflexivity
@@ -195,7 +198,7 @@ Qed.
 
 Lemma bind_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2) (f : A1 * A2 → free A) :
   bind (par m1 m2) f =
-  Par m1 m2 f (λ tt, Next).
+  Par m1 m2 f next.
 Proof.
   rewrite bind_as_try, try_par_comb. reflexivity.
 Qed.

@@ -524,7 +524,7 @@ Qed.
 
 (* The following lemmas describe the interaction of safety and [par]. *)
 
-(* Some of these lemmas concern the special case where [ko] is [λ(), Next].
+(* Some of these lemmas concern the special case where [ko] is [next].
    It may be desirable to remove this hypothesis and to state more general
    lemmas. These more general statements may need to use the more general
    judgement [safe2]. TODO *)
@@ -593,14 +593,13 @@ Qed.
    in at most [n] steps. *)
 
 Lemma invert_initially_safe_par_left :
-  ∀ n {A1 A2 A} m1 m2 (k : A1 * A2 → free A) ko φ,
-  (ko = λ tt, Next) →
-  initially_safe (S n) (Par m1 m2 k ko) φ →
+  ∀ n {A1 A2 A} m1 m2 (k : A1 * A2 → free A) φ,
+  initially_safe (S n) (Par m1 m2 k next) φ →
   let φ1 := produces n m1 in
   initially_safe n m1 φ1.
 Proof.
   induction n; [ simpl; tauto |].
-  intros A1 A2 A m1 m2 k ko φ ? Hsafe φ1. subst ko.
+  intros A1 A2 A m1 m2 k φ Hsafe φ1.
 
   triplicity m1 Hm1.
 
@@ -608,7 +607,7 @@ Proof.
   { destruct_answer.
     { eapply initially_safe_ret. subst φ1. eauto with steps. }
     { false.
-      (* The hypothesis [ko() = Next] is used in this subcase. *)
+      (* The hypothesis [ko = next] is used in this subcase. *)
       eapply invert_initially_safe_step in Hsafe; [| eauto with step ].
       eapply invert_initially_safe_next in Hsafe.
       tauto. }
@@ -619,7 +618,7 @@ Proof.
     intros m'1 Hstep. subst φ1.
     eapply initially_safe_covariant with (φ := produces n m'1).
     { eauto with steps. }
-    eapply IHn; [ reflexivity |].
+    eapply IHn.
     eapply invert_initially_safe_step; [ exact Hsafe |].
     eauto with step. }
 
@@ -634,14 +633,13 @@ Qed.
 (* A symmetric copy of the previous lemma. *)
 
 Lemma invert_initially_safe_par_right :
-  ∀ n {A1 A2 A} m1 m2 (k : A1 * A2 → free A) ko φ,
-  (ko = λ tt, Next) →
-  initially_safe (S n) (Par m1 m2 k ko) φ →
+  ∀ n {A1 A2 A} m1 m2 (k : A1 * A2 → free A) φ,
+  initially_safe (S n) (Par m1 m2 k next) φ →
   let φ2 := produces n m2 in
   initially_safe n m2 φ2.
 Proof.
   induction n; [ simpl; tauto |].
-  intros A1 A2 A m1 m2 k ko φ ? Hsafe φ2. subst ko.
+  intros A1 A2 A m1 m2 k φ Hsafe φ2.
 
   triplicity m2 Hm2.
 
@@ -649,7 +647,7 @@ Proof.
   { destruct_answer.
     { eapply initially_safe_ret. subst φ2. eauto with steps. }
     { false.
-      (* The hypothesis [ko() = Next] is used in this subcase. *)
+      (* The hypothesis [ko = next] is used in this subcase. *)
       eapply invert_initially_safe_step in Hsafe; [| eauto with step ].
       eapply invert_initially_safe_next in Hsafe.
       tauto. }
@@ -660,7 +658,7 @@ Proof.
     intros m'2 Hstep. subst φ2.
     eapply initially_safe_covariant with (φ := produces n m'2).
     { eauto with steps. }
-    eapply IHn; [ reflexivity |].
+    eapply IHn.
     eapply invert_initially_safe_step; [ exact Hsafe |].
     eauto with step. }
 
@@ -697,30 +695,29 @@ Proof.
   { eapply one_step. eauto with step. }
 Qed.
 
-(* If [Par m1 m2 k (λ(), Next)] is safe
+(* If [Par m1 m2 k next] is safe
    then [m1] and [m2] are (independently) safe
    and the continuation [k],
    applied to a pair [(v1, v2)],
    where [v1] and [v2] are values that can be produced by [m1] and [m2],
    is safe. *)
 
-Lemma invert_safe_par {A1 A2 A} m1 m2 (k : A1 * A2 → free A) ko φ :
-  (ko = λ tt, Next) →
-  safe (Par m1 m2 k ko) φ →
+Lemma invert_safe_par {A1 A2 A} m1 m2 (k : A1 * A2 → free A) φ :
+  safe (Par m1 m2 k next) φ →
   ∃ φ1 φ2,
   safe m1 φ1 ∧
   safe m2 φ2 ∧
   (∀ v1 v2, φ1 v1 → φ2 v2 → safe (k (v1, v2)) φ).
 Proof.
-  unfold safe. intros ? Hsafe.
+  unfold safe. intros Hsafe.
   exists (λ a1, ∃ n, produces n m1 a1).
   exists (λ a2, ∃ n, produces n m2 a2).
   repeat split.
   { intros n. specialize (Hsafe (S n)).
-    apply invert_initially_safe_par_left in Hsafe; [| assumption ].
+    apply invert_initially_safe_par_left in Hsafe.
     eauto using initially_safe_covariant. }
   { intros n. specialize (Hsafe (S n)).
-    apply invert_initially_safe_par_right in Hsafe; [| assumption ].
+    apply invert_initially_safe_par_right in Hsafe.
     eauto using initially_safe_covariant. }
   { intros v1 v2 (n1 & Hv1) (n2 & Hv2).
     eauto using invert_initially_safe_par_continuation. }
@@ -728,11 +725,10 @@ Qed.
 
 (* Thus, we have proved the following equivalence law,
    which characterizes the safety of a [Par] construct,
-   in the case where [ko] is [λ(), Next]. *)
+   in the case where [ko] is [next]. *)
 
-Lemma safe_par {A1 A2 A} m1 m2 (k : A1 * A2 → free A) ko φ :
-  (ko = λ tt, Next) →
-  safe (Par m1 m2 k ko) φ ↔
+Lemma safe_par {A1 A2 A} m1 m2 (k : A1 * A2 → free A) φ :
+  safe (Par m1 m2 k next) φ ↔
   ∃ φ1 φ2,
   safe m1 φ1 ∧
   safe m2 φ2 ∧
@@ -778,7 +774,7 @@ Lemma safe_par' {A1 A2} (m1 : free A1) (m2 : free A2)
   safe m2 φ2 ∧
   (∀ v1 v2, φ1 v1 → φ2 v2 → φ (v1, v2)).
 Proof.
-  unfold par. rewrite safe_par by reflexivity.
+  unfold par. rewrite safe_par.
   apply descend_exists; intro φ1.
   apply descend_exists; intro φ2.
   apply descend_conj; [ tauto |].
@@ -790,47 +786,73 @@ Proof.
   rewrite safe_ret. tauto.
 Qed.
 
-(* If one side is a result, then the above equivalence law can be
+(* If one side is a result, then the above equivalence laws can be
    further simplified as follows. *)
+
+Lemma prove_safe_Par_ret_left {A1 A2 A} a1 m2
+  (k : A1 * A2 → free A)
+  (φ : A → Prop) :
+  safe m2 (λ v2, safe (k (a1, v2)) φ) →
+  safe (Par (Ret a1) m2 k next) φ.
+Proof.
+  intros Hsafe.
+  rewrite safe_par.
+  exists (λ v1, v1 = a1).
+  exists (λ v2, safe (k (a1, v2)) φ).
+  rewrite safe_ret.
+  repeat split.
+  + assumption.
+  + intros. subst. assumption.
+Qed.
 
 Lemma safe_par_ret_left {A1 A2} (a1 : A1) (m2 : free A2)
   (φ : A1 * A2 → Prop) :
   safe (par (ret a1) m2) φ ↔
   safe m2 (λ v2, φ (a1, v2)).
 Proof.
-  rewrite safe_par'. split.
+  split.
   (* One implication. *)
-  { intros (φ1 & φ2 & Ha1 & Hm2 & Hk).
+  { rewrite safe_par'.
+    intros (φ1 & φ2 & Ha1 & Hm2 & Hk).
     rewrite safe_ret in Ha1.
     eauto using safe_covariant. }
   (* The reverse implication. *)
-  { intros Hm2.
-    exists (λ v1, v1 = a1).
-    exists (λ v2, φ (a1, v2)).
-    rewrite safe_ret.
-    repeat split.
-    + exact Hm2.
-    + intros. subst v1. assumption. }
+  { intros Hm2. eapply prove_safe_Par_ret_left.
+    eapply safe_covariant; [ eassumption |].
+    intros a2. simpl. rewrite safe_ret. tauto. }
 Qed.
 
-(* A symmetric copy of the previous lemma. *)
+(* Symmetric copies of the previous lemmas. *)
+
+Lemma prove_safe_Par_ret_right {A1 A2 A} m1 a2
+  (k : A1 * A2 → free A)
+  (φ : A → Prop) :
+  safe m1 (λ v1, safe (k (v1, a2)) φ) →
+  safe (Par m1 (Ret a2) k next) φ.
+Proof.
+  intros Hsafe.
+  rewrite safe_par.
+  exists (λ v1, safe (k (v1, a2)) φ).
+  exists (λ v2, v2 = a2).
+  rewrite safe_ret.
+  repeat split.
+  + assumption.
+  + intros. subst. assumption.
+Qed.
 
 Lemma safe_par_ret_right {A1 A2} (m1 : free A1) (a2 : A2)
   (φ : A1 * A2 → Prop) :
   safe (par m1 (ret a2)) φ ↔
   safe m1 (λ v1, φ (v1, a2)).
 Proof.
-  rewrite safe_par'. split.
+  split.
   (* One implication. *)
-  { intros (φ1 & φ2 & Hm1 & Ha2 & Hk).
+  { rewrite safe_par'.
+    intros (φ1 & φ2 & Hm1 & Ha2 & Hk).
     rewrite safe_ret in Ha2.
     eauto using safe_covariant. }
   (* The reverse implication. *)
-  { intros Hm1.
-    exists (λ v1, φ (v1, a2)).
-    exists (λ v2, v2 = a2).
-    rewrite safe_ret.
-    repeat split.
-    + exact Hm1.
-    + intros. subst v2. assumption. }
+  { intros Hm1. eapply prove_safe_Par_ret_right.
+    eapply safe_covariant; [ eassumption |].
+    intros a1. simpl. rewrite safe_ret. tauto. }
 Qed.
