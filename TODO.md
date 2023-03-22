@@ -1,5 +1,10 @@
 # TODO
 
+* Rename `Flip` and `Stop` to `BindFlip` and `BindStop`,
+  and rename `Par` to `TryPar`?
+  Otherwise there is potential confusion between `flip` and `Flip`,
+  `par` and `Par`, etc.
+
 * Can we separate the monadic support layer
   from the OCaml-specific aspects?
   That is, make `free.v` independent of `lang.v`.
