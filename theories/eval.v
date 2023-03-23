@@ -117,10 +117,10 @@ Definition call v1 v2 : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [as_bool v] checks that the value [v] is a language-level Boolean value
-   and returns its meta-level Boolean value. *)
+(* [val_as_bool v] checks that the value [v] is a language-level Boolean
+   value and returns its meta-level Boolean value. *)
 
-Definition as_bool (v : val) : free bool :=
+Definition val_as_bool (v : val) : free bool :=
   match v with
   | VFalse =>
       ret false
@@ -129,6 +129,9 @@ Definition as_bool (v : val) : free bool :=
   | _ =>
       fail (* type mismatch: Boolean value expected *)
   end.
+
+Definition as_bool (m : free val) : free bool :=
+  bind m val_as_bool.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -186,8 +189,7 @@ Fixpoint eval η e : free val :=
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
       let test : free val :=
-        v ← eval η e ;
-        b ← as_bool v ;
+        b ← as_bool (eval η e) ;
         if (b : bool) then ok else fail (* assertion failure *)
       in
       choose ok test
