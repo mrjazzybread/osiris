@@ -1,4 +1,4 @@
-From stdpp Require Export strings.
+Require Import monads.
 
 (* ------------------------------------------------------------------------ *)
 

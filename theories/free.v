@@ -61,20 +61,42 @@ Arguments Par  {A A1 A2} m1 m2 k ko.
 
 (* ------------------------------------------------------------------------ *)
 
-(* Monadic combinators: [try] and [bind]. *)
+(* Let the user view some of the constructors as combinators. *)
 
-(* [par m1 m2] runs the computations [m1] and [m2] in parallel,
-   producing a pair of results. *)
+Notation ret :=
+  (Ret).
+
+Notation fail :=
+  (Fail).
 
 Notation next :=
   (λ tt, Next).
 
+(* [flip] flips a coin. *)
+
+Definition flip : free bool :=
+  Flip ret.
+
+(* [choose m1 m2] is a non-deterministic choice between the
+   computations [m1] and [m2]. *)
+
+Definition choose {A} (m1 m2 : free A) : free A :=
+  Flip $ λ b,
+  if b then m1 else m2.
+
+(* [par m1 m2] runs the computations [m1] and [m2] in parallel,
+   producing a pair of results. *)
+
 Definition par {A1 A2} (m1 : free A1) (m2 : free A2) : free (A1 * A2) :=
-  Par m1 m2 Ret next.
+  Par m1 m2 ret next.
+
+(* ------------------------------------------------------------------------ *)
+
+(* Monadic combinators: [try] and [bind]. *)
 
 (* [bind m f] sequences the computations [m] and [f]. *)
 
-Fixpoint _bind {A B} (m : free A) (f : A → free B) : free B :=
+Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
   match m with
   | Ret a =>
       f a
@@ -85,15 +107,15 @@ Fixpoint _bind {A B} (m : free A) (f : A → free B) : free B :=
       (* A soft failure is transmitted. *)
       Next
   | Stop η e k =>
-      (* A [Stop] effect is transmitted. The handler [_bind _ f] remains
+      (* A [Stop] effect is transmitted. The handler [bind _ f] remains
          installed on top of the continuation. *)
-      Stop η e (λ v, _bind (k v) f)
+      Stop η e (λ v, bind (k v) f)
   | Flip k =>
       (* Same here. *)
-      Flip (λ v, _bind (k v) f)
+      Flip (λ v, bind (k v) f)
   | Par m1 m2 k ko =>
       (* Same here. *)
-      Par m1 m2 (λ v, _bind (k v) f) (λ tt, _bind (ko()) f)
+      Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f)
   end.
 
 (* [try m f g] runs the computation [m]. If [m] returns a result [v], then
@@ -129,8 +151,11 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
 
 (* This is a monad. *)
 
-Global Instance free_monad : Monad free :=
-  { ret := @Ret; bind := @_bind }.
+Global Instance free_mret : MRet free :=
+  { mret := @Ret }.
+
+Global Instance free_mbind : MBind free :=
+  { mbind := λ {A B} (f : A → free B) (m : free A), bind m f }.
 
 (* [bind] is in fact a special case of [try]. We prefer to give a direct
    definition of [bind] anyway, so as to prevent Coq from expanding uses
@@ -243,46 +268,23 @@ Qed.
 
 #[export] Hint Resolve eq_stop_stop eq_flip_flip eq_par_par : eq.
 
-Global Instance eq1_free : Eq1 free :=
-  λ (A : Type), @eq (free A).
-
-Arguments eq1_free /.
-
 (* ------------------------------------------------------------------------ *)
 
-(* The monadic laws. *)
+(* The monad laws. *)
 
-Global Instance monadlaws_free :
-  MonadLaws _.
+(* [bind_ret] has been proved already. *)
+
+Lemma ret_bind {A} (m : free A) :
+  bind m Ret = m.
 Proof.
-  constructor; unfold bind, ret, eq1; simpl.
-  { reflexivity. }
-  { intros A m. induction m; simpl; eauto with eq. }
-  { intros A B C m g h. induction m; simpl; eauto with eq. }
+  induction m; simpl; eauto with eq.
+Qed.
+
+Lemma bind_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) :
+  bind (bind m f) g =
+  bind m (λ a, bind (f a) g).
+Proof.
+  induction m; simpl; eauto with eq.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-
-(* [mzero] is [Fail]. *)
-
-Global Instance monadzero_free : MonadZero free :=
-  { mzero := @Fail }.
-
-Global Instance monadzerolaws_free :
-  MonadZeroLaws _ _.
-Proof.
-  constructor. reflexivity.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [flip] is [Flip] with a trivial continuation. *)
-
-Definition flip : free bool :=
-  Flip ret.
-
-(* [choose] can be defined in terms of [Flip]. *)
-
-Definition choose {A} (m1 m2 : free A) : free A :=
-  Flip $ λ b,
-  if b then m1 else m2.

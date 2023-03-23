@@ -353,9 +353,7 @@ Proof.
   destruct_initially_safe_S Hsafe.
 
   (* Case: [m1] is [ret _]. *)
-  { subst m1. clear IHn.
-    rewrite bind_of_return by typeclasses eauto.
-    assumption. }
+  { subst m1. clear IHn. rewrite bind_ret. assumption. }
 
   (* Case: [m1] can step. *)
   { rewrite unfold_initially_safe_S. right. split.
