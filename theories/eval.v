@@ -36,7 +36,7 @@ Local Notation ok :=
 Fixpoint lookup η x : free val :=
   match η with
   | EnvCons x' v η =>
-      if decide (x = x') then ret v else lookup η x
+      if x =? x' then ret v else lookup η x
   | EnvNil =>
       fail (* unbound variable *)
   end.
@@ -73,7 +73,7 @@ Fixpoint extend η p v : free env :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a soft failure takes
          place. *)
-      if decide (c = c') then extend η p v else Next
+      if c =? c' then extend η p v else Next
   | PTuple _, _
   | PData _ _, _ =>
       (* A type mismatch between pattern and value causes a hard failure. *)
