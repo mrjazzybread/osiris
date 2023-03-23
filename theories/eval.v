@@ -172,6 +172,7 @@ Fixpoint eval η e : free val :=
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       call v1 v2
   | ETuple es =>
+      (* The tuple components are evaluated in parallel. *)
       vs ← evals η es ;
       ret (VTuple vs)
   | EData c e =>
@@ -195,16 +196,15 @@ Fixpoint eval η e : free val :=
       choose ok test
   end
 
-(* [evals η es] evaluates the expressions in the list [es], from left
-   to right, producing a list of values [vs]. *)
+(* [evals η es] evaluates the expressions in the list [es] in parallel,
+   producing a list of values [vs]. *)
 
 with evals η es : free vals :=
   match es with
   | ENil =>
       ret VNil
   | ECons e es =>
-      v ← eval η e ;
-      vs ← evals η es ;
+      '(v, vs) ← par (eval η e) (evals η es) ;
       ret (VCons v vs)
   end
 

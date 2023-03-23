@@ -7,8 +7,6 @@ Definition example :=
   ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
-Eval cbv in eval EnvNil example.
-
 (* An example of reasoning about straight-line code. *)
 
 Goal wp EnvNil example (λ v, v = VData "A" (VTuple VNil)).
@@ -56,9 +54,20 @@ Lemma spec_example3:
 Proof.
   intros id Hid.
   wp.
-  apply Hid. intros v ?. subst v.
-  wp.
-  apply Hid. intros v ?. subst v.
+  (* The two components of the pair are evaluated in parallel,
+     and each of them is a function application, which is itself
+     evaluated in parallel. So we have a tree of nested [Par]. *)
+  wp_par.
+  { wp.
+    apply Hid. intros. subst.
+    instantiate (1 := λ v, v = VConstant "A"). (* TODO *)
+    reflexivity. }
+  { wp.
+    apply Hid. intros. subst.
+    wp.
+    instantiate (1 := λ v, v = VCons (VConstant "A") VNil). (* TODO *)
+    reflexivity. }
+  simpl. intros. subst.
   wp.
   reflexivity.
 Qed.
@@ -85,15 +94,6 @@ Qed.
 Definition example4 :=
   ELetVar "id" identity $
   example3.
-
-Goal
-  wp EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
-Proof.
-  (* This goes too far! I was expecting to re-use the specs that were proved
-     earlier about [example3] and [identity], but the interpreter executes
-     the whole program. The next example shows how to avoid this problem. *)
-  wp. reflexivity.
-Qed.
 
 Ltac wp_use H :=
   eapply safe_covariant; [ eapply H |].
