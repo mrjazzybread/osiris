@@ -68,7 +68,6 @@ with wp_step :=
 
 (* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
 
-(* TODO should [wp] automatically apply [wp_par]? *)
 Ltac wp_par :=
   eapply prove_safe_par.
 
