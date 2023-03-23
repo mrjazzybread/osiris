@@ -72,6 +72,12 @@ Notation fail :=
 Notation next :=
   (λ tt, Next).
 
+(* [stop η e] stops the interpreter, and, once restarted, behaves
+   like the computation [eval η e]. *)
+
+Definition stop η e : free val :=
+  Stop η e ret.
+
 (* [flip] flips a coin. *)
 
 Definition flip : free bool :=
