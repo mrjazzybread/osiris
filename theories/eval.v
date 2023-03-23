@@ -52,6 +52,9 @@ Fixpoint lookup η x : free val :=
    e.g., if [p] is a tuple pattern and [v] is not a tuple value or
    is a tuple value of an incorrect arity. *)
 
+(* We assume that the pattern [p] is linear: that is, no variable is
+   bound twice. This property is enforced by the OCaml type-checker. *)
+
 Fixpoint extend η p v : free env :=
   match p, v with
   | PAny, _ =>
