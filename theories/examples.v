@@ -46,9 +46,17 @@ Ltac prove_texan :=
   let finished := fresh "finished" in
   intros φ' finished.
 
+(* TODO not great *)
+Ltac wp_set_postcondition :=
+  match goal with |- ?φ ?v =>
+    is_evar φ;
+    instantiate (1 := λ w, w = v);
+    reflexivity
+  end.
+
 Lemma spec_example3:
   ∀ (id : val),
-  (∀ v, texan (call id v) (λ v', v' = v)) →
+  (∀ v, safe (call id v) (λ v', v' = v)) →
   let env := EnvCons "id" id EnvNil in
   wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
@@ -58,17 +66,9 @@ Proof.
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
   wp_par.
-  { wp.
-    apply Hid. intros. subst.
-    instantiate (1 := λ v, v = VConstant "A"). (* TODO *)
-    reflexivity. }
-  { wp.
-    apply Hid. intros. subst.
-    wp.
-    instantiate (1 := λ v, v = VCons (VConstant "A") VNil). (* TODO *)
-    reflexivity. }
-  simpl. intros. subst.
-  wp.
+  { wp. wp_use Hid. }
+  { wp. wp_use Hid. wp. wp_set_postcondition. }
+  wp_intros. wp.
   reflexivity.
 Qed.
 
@@ -81,11 +81,10 @@ Definition identity :=
   ERec "self" "x" (EVar "x").
 
 Lemma spec_identity:
-  wp EnvNil identity (λ c, ∀ v, texan (call c v) (λ v', v' = v)).
+  wp EnvNil identity (λ c, ∀ v, safe (call c v) (λ v', v' = v)).
 Proof.
   wp. intros c.
-  prove_texan.
-  wp. eauto.
+  wp. reflexivity.
 Qed.
 
 (* let id = identity in
@@ -94,9 +93,6 @@ Qed.
 Definition example4 :=
   ELetVar "id" identity $
   example3.
-
-Ltac wp_use H :=
-  eapply safe_covariant; [ eapply H |].
 
 Lemma spec_example4:
   wp EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
@@ -110,9 +106,10 @@ Proof.
   intros example3 Hexample3.
   (* Attack the goal. *)
   wp.
-  wp_use Hidentity. simpl. intros id Hid.
-  wp_use (Hexample3 _ Hid).
-  simpl. eauto.
+  wp_use Hidentity.
+  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
+  wp_use Hexample3.
+  wp_use Hid.
 Qed.
 
 (* An example that involves an assertion. *)
@@ -148,24 +145,12 @@ Proof.
   (* Attack the goal. *)
   wp.
   (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity. simpl. intros id Hid.
+  wp_use Hidentity.
+  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   wp.
   (* We are looking at [id id]. *)
-  (* Exploit the spec of the value [id]. *)
   wp_use Hid.
-  { (* TODO not great: the Texan triple requires a postcondition *)
-    instantiate (1 := λ v, v = id).
-    simpl. eauto. }
-  simpl. intros. subst.
-  (* We are now looking at [id()]. *)
-  (* Exploit the spec of the value [id] again. *)
   wp_use Hid.
-  { (* TODO not great: the Texan triple requires an explicit postcondition *)
-    instantiate (1 := λ v, v = VUnit).
-    simpl. eauto. }
-  simpl. intros. subst.
-  (* Done. *)
-  reflexivity.
 Qed.
 
 (* let id = identity in
@@ -186,24 +171,12 @@ Proof.
   (* Attack the goal. *)
   wp.
   (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity. simpl. intros id Hid.
+  wp_use Hidentity.
+  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   wp.
   (* We are looking at [id()]. *)
-  (* Exploit the spec of the value [id]. *)
   wp_use Hid.
-  { (* TODO not great: the Texan triple requires an explicit postcondition *)
-    instantiate (1 := λ v, v = VUnit).
-    simpl. eauto. }
-  simpl. intros. subst.
-  (* We are looking at [id()]. *)
-  (* Exploit the spec of the value [id]. *)
   wp_use Hid.
-  { (* TODO not great: the Texan triple requires an explicit postcondition *)
-    instantiate (1 := λ v, v = VUnit).
-    simpl. eauto. }
-  simpl. intros. subst.
-  (* Done. *)
-  reflexivity.
 Qed.
 
 (* let id = identity in
@@ -224,45 +197,20 @@ Proof.
   (* Attack the goal. *)
   wp.
   (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity. simpl. intros id Hid.
+  wp_use Hidentity.
+  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
   wp.
   wp_par.
 
   (* Subgoal 1. Application [id id]. *)
-  {
-    (* TODO specify the postcondition: *)
-    instantiate (1 := λ v, v = id).
-    wp.
-    (* Exploit the spec of the value [id]. *)
-    wp_use Hid.
-    { (* TODO *)
-      instantiate (1 := λ v, v = id). simpl. eauto. }
-    simpl. intros. subst.
-    reflexivity.
-  }
+  { wp. wp_use Hid. }
 
   (* Subgoal 2. Application [id()]. *)
-  {
-    (* TODO specify the postcondition: *)
-    instantiate (1 := λ v, v = VUnit).
-    wp.
-    (* Exploit the spec of the value [id]. *)
-    wp_use Hid.
-    { (* TODO *)
-      instantiate (1 := λ v, v = VUnit). simpl. eauto. }
-    simpl. intros. subst.
-    reflexivity.
-  }
+  { wp. wp_use Hid. }
 
   (* Subgoal 3. Residual application [id()]. *)
-  simpl. intros. subst.
-  (* Exploit the spec of the value [id]. *)
+  wp_intros.
   wp_use Hid.
-  { (* TODO not great: the Texan triple requires an explicit postcondition *)
-    instantiate (1 := λ v, v = VUnit). simpl. eauto. }
-  simpl. intros. subst.
-  (* Done. *)
-  reflexivity.
 Qed.

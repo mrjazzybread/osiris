@@ -7,8 +7,22 @@ Ltac wp_simplify :=
 
 (* Simplify goals that introduce simple values. *)
 
-Ltac wp_intro :=
-  match goal with |- ∀ v, v = VUnit → _ => intros v ?; subst v end.
+Ltac wp_intros :=
+  simpl;
+  repeat match goal with
+  | |- ?v = _ → _ => intro; try subst v
+  | |- ∀ v, _     => intro
+  end.
+
+(* Deal with a goal of the form [safe m φ] when we already have
+   a hypothesis [H] of the form [safe m φ']. *)
+
+Ltac wp_use H :=
+  first [
+    eapply H
+  | eapply safe_covariant; [ eapply H |]
+  ];
+  simpl; wp_intros.
 
 (* Deal with a goal of the form [safe (if b then ok else _)]. *)
 
@@ -24,7 +38,7 @@ Ltac wp_scoped_case_analysis :=
       | (* user goal here: must prove that the assertion succeeds *)
         idtac
       ]
-    | wp_intro (* user goal here: continuation *) ]
+    | wp_intros (* user goal here: continuation *) ]
   end
 
 (* Reduce and reason about a goal of the form [safe m φ]. *)
