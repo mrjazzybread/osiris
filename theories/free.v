@@ -1,5 +1,5 @@
 From Coq.Logic Require Import FunctionalExtensionality.
-Require Import monads lang.
+Require Import base lang.
 
 (* ------------------------------------------------------------------------ *)
 

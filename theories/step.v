@@ -1,5 +1,5 @@
 Require Import Coq.Program.Equality.
-Require Import lang monads free eval.
+Require Import lang base free eval.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
    of the form [step m m'] where [m] and [m'] are computations in the [free]

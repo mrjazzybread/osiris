@@ -1,4 +1,4 @@
-Require Import lang monads free eval step steps.
+Require Import lang base free eval step steps.
 
 (* This file defines what it means for a computation (in the free monad) to
    be safe. The structure of computations does not matter; the definition

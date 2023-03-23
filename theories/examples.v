@@ -1,4 +1,4 @@
-Require Import monads lang free eval step safe wp wp_tactics.
+Require Import base lang free eval step safe wp wp_tactics.
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 

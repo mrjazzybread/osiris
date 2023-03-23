@@ -1,5 +1,5 @@
 Require Import Coq.Program.Equality.
-Require Import lang monads free eval step.
+Require Import lang base free eval step.
 
 (* This file defines the relations [steps] and [produces]
    and establishes some of their properties. *)
