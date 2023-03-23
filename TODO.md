@@ -17,15 +17,8 @@
   Otherwise there is potential confusion between `flip` and `Flip`,
   `par` and `Par`, etc.
 
-* Can we separate the monadic support layer
-  from the OCaml-specific aspects?
-  That is, make `free.v` independent of `lang.v`.
-  And make that monadic support layer an independent library.
-
 * Find a way of annotating failures with a string,
   so we can keep track of the reason for the failure.
-
-* Clean up the type classes and notation for monads.
 
 * The judgement `safe m φ` has just one postcondition
   and forbids the answer `Next`.
@@ -52,12 +45,6 @@
 
 * Use Coq lists, if possible, instead of custom `Nil` and `Cons`
   constructors in patterns, values, etc.
-
-* Add support for mutable record fields.
-  The name of each field should indicate whether it is mutable
-  or immutable.
-
-* Add support for spawning threads.
 
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
