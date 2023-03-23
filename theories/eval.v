@@ -18,13 +18,9 @@ Implicit Type η : env.
 
 (* Local notations. *)
 
-Local Notation fail :=
-  Fail.
+(* [ok] is an inert computation. It produces the value [VUnit]. *)
 
-Local Notation stop :=
-  Stop.
-
-Local Notation ok :=
+Notation ok :=
   (ret VUnit).
 
 (* ------------------------------------------------------------------------ *)
@@ -73,7 +69,7 @@ Fixpoint extend η p v : free env :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a soft failure takes
          place. *)
-      if c =? c' then extend η p v else Next
+      if c =? c' then extend η p v else next()
   | PTuple _, _
   | PData _ _, _ =>
       (* A type mismatch between pattern and value causes a hard failure. *)
@@ -92,8 +88,8 @@ with extends η ps vs : free env :=
   | PNil, VNil =>
       ret η
   | PCons p ps, VCons v vs =>
-      bind (extend η p v) $ λ η,
-      bind (extends η ps vs) $ λ η,
+      η ← extend η p v ;
+      η ← extends η ps vs ;
       ret η
   | _, _ =>
       fail (* length mismatch *)
@@ -114,8 +110,7 @@ Definition call v1 v2 : free val :=
       (* In this extended environment, the function body [e] must
          be evaluated. A recursive call to [eval] cannot be used,
          so we request the evaluation of [e] via a [stop] effect. *)
-      stop η e $ λ v,
-      ret v
+      stop η e
  | _ =>
      fail (* type mismatch: closure expected *)
  end.
@@ -171,16 +166,16 @@ Fixpoint eval η e : free val :=
       ret (VRec η f x e)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
-      bind (par (eval η e1) (eval η e2)) $ λ '(v1, v2),
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
       call v1 v2
   | ETuple es =>
-      bind (evals η es) $ λ vs,
+      vs ← evals η es ;
       ret (VTuple vs)
   | EData c e =>
-      bind (eval η e) $ λ v,
+      v ← eval η e ;
       ret (VData c v)
   | EMatch e bs =>
-      bind (eval η e) $ λ v,
+      v ← eval η e ;
       eval_match η v bs
   | EAssertFalse =>
       fail (* assertion failure *)
@@ -191,9 +186,9 @@ Fixpoint eval η e : free val :=
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
       let test : free val :=
-        bind (eval η e) $ λ v,
-        bind (as_bool v) $ λ (b : bool),
-        if b then ok else fail (* assertion failure *)
+        v ← eval η e ;
+        b ← as_bool v ;
+        if (b : bool) then ok else fail (* assertion failure *)
       in
       choose ok test
   end
@@ -206,8 +201,8 @@ with evals η es : free vals :=
   | ENil =>
       ret VNil
   | ECons e es =>
-      bind (eval η e) $ λ v,
-      bind (evals η es) $ λ vs,
+      v ← eval η e ;
+      vs ← evals η es ;
       ret (VCons v vs)
   end
 
