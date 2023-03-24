@@ -12,11 +12,6 @@
   and we would end up *not* needing to reason about a parallel
   composition.
 
-* Rename `Flip` and `Stop` to `BindFlip` and `BindStop`,
-  and rename `Par` to `TryPar`?
-  Otherwise there is potential confusion between `flip` and `Flip`,
-  `par` and `Par`, etc.
-
 * Find a way of annotating failures with a string,
   so we can keep track of the reason for the failure.
 
