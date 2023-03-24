@@ -489,7 +489,7 @@ Qed.
 
 (* Special cases of [safe_step]. *)
 
-Lemma prove_safe_stop {A} η e (k : val → free A) φ :
+Lemma prove_safe_eval {A} η e (k : val → free A) φ :
   safe (eval η e) (λ v, safe (k v) φ) →
   safe (Stop Eval (η, e) k) φ.
 Proof.
@@ -500,9 +500,9 @@ Proof.
   assumption.
 Qed.
 
-Lemma prove_safe_flip {A} (k : bool → free A) φ :
+Lemma prove_safe_flip {A} x (k : bool → free A) φ :
   (∀ b, safe (k b) φ) →
-  safe (Flip k) φ.
+  safe (Stop Flip x k) φ.
 Proof.
   intros.
   rewrite safe_step by eauto with step.

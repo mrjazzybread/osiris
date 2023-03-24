@@ -47,7 +47,7 @@ with wp_step :=
   first [
     apply prove_safe_ret; wp_simplify
   | apply prove_safe_bind; wp_simplify
-  | apply prove_safe_stop; wp_simplify
+  | apply prove_safe_eval; wp_simplify
   | apply prove_safe_flip; intro; wp_simplify
   | apply prove_safe_par_ret_ret; wp_simplify
   | apply prove_safe_Par_ret_left; wp_simplify

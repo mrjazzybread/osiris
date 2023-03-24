@@ -19,9 +19,6 @@ Section Free.
      [c], with argument [x], producing a result which the continuation
      [k] consumes;
 
-   - [Flip k], a non-deterministic coin flip, producing a Boolean
-     result, which the continuation [k] consumes;
-
    - [Par m1 m2 k ko], a parallel evaluation construct, which
      evaluates [m1] and [m2] independently. If both computations
      succeed and return two results [v1] and [v2], then the
@@ -37,9 +34,10 @@ Section Free.
    similar to the constructor [Vis] of interaction trees, and the type
    code is similar to an effect signature [E].
 
-   The fact that [Stop] and [Flip] do not carry a second continuation
-   (which would be a soft failure continuation) reflect the fact that
-   [eval] and [flip] cannot raise a soft failure. TODO fix
+   The fact that [Stop] does not carry a second continuation
+   (which would be a soft failure continuation) reflects
+   a convention that the computation denoted by a code
+   is not allowed to raise a soft failure.
 
    The type [free A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must
@@ -52,7 +50,6 @@ Inductive free A :=
   | Fail
   | Next
   | Stop {X Y} (c : code X Y) (x : X) (k : Y → free A)
-  | Flip (k : bool → free A)
   | Par {A1 A2} (m1 : free A1) (m2 : free A2)
                 (k : A1 * A2 → free A)
                 (ko : unit → free A)
@@ -64,7 +61,6 @@ Arguments Ret  {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
 Arguments Stop {A X Y} c x k.
-Arguments Flip {A} k.
 Arguments Par  {A A1 A2} m1 m2 k ko.
 
 (* ------------------------------------------------------------------------ *)
@@ -87,18 +83,6 @@ Notation next :=
 
 Definition stop {X Y} (c : code X Y) (x : X) : free Y :=
   Stop c x ret.
-
-(* [flip] flips a coin. *)
-
-Definition flip : free bool :=
-  Flip ret.
-
-(* [choose m1 m2] is a non-deterministic choice between the
-   computations [m1] and [m2]. *)
-
-Definition choose {A} (m1 m2 : free A) : free A :=
-  Flip $ λ b,
-  if b then m1 else m2.
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
@@ -126,9 +110,6 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
       (* A [Stop] effect is transmitted. The handler [bind _ f] remains
          installed on top of the continuation. *)
       Stop c x (λ v, bind (k v) f)
-  | Flip k =>
-      (* Same here. *)
-      Flip (λ v, bind (k v) f)
   | Par m1 m2 k ko =>
       (* Same here. *)
       Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f)
@@ -156,9 +137,6 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
          installed on top of the continuation. Because [eval η e] cannot
          cause a soft failure, there is only one continuation. TODO fix *)
       Stop c x (λ v, try (k v) f g)
-  | Flip k =>
-      (* Same here. *)
-      Flip (λ v, try (k v) f g)
   | Par m1 m2 k ko =>
       (* Same here. The handler [try _ f g] remains installed on top of
          both continuations. *)
@@ -218,13 +196,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_flip {A B} k (f : A → free B) :
-  bind (Flip k) f =
-  Flip (λ v, bind (k v) f).
-Proof.
-  reflexivity.
-Qed.
-
 Lemma bind_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) :
   bind (Par m1 m2 k ko) f =
   Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f).
@@ -269,13 +240,6 @@ Proof.
   intros. f_equal. extensionality v. eauto.
 Qed.
 
-Lemma eq_flip_flip A (k1 k2 : bool → free A) :
-  (∀ v, k1 v = k2 v) →
-  Flip k1 = Flip k2.
-Proof.
-  intros. f_equal. extensionality b. eauto.
-Qed.
-
 Lemma eq_par_par {A A1 A2} (m1 : free A1) (m2 : free A2)
   (k k' : A1 * A2 → free A) (ko ko' : unit → free A) :
   (∀ v, k v = k' v) →
@@ -287,7 +251,7 @@ Proof.
   { extensionality tt. destruct tt. eauto. }
 Qed.
 
-Local Hint Resolve eq_stop_stop eq_flip_flip eq_par_par : eq.
+Local Hint Resolve eq_stop_stop eq_par_par : eq.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -327,5 +291,4 @@ Arguments Ret  {code A}.
 Arguments Fail {code A}.
 Arguments Next {code A}.
 Arguments Stop {code A X Y} c x k.
-Arguments Flip {code A} k.
 Arguments Par  {code A A1 A2} m1 m2 k ko.

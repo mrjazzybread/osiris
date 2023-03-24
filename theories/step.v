@@ -30,19 +30,19 @@ Inductive step {A} : free A → free A → Prop :=
      with the continuation [k]. *)
   (* Isolating an explicit equality [x = (η, e)] seems necessary to work
      around a bug or limitation (?) in [dependent destruction]. *)
-  | StepStop :
+  | StepEval :
       ∀ x η e k,
       x = (η, e) →
       step
         (Stop Eval x k)
         (bind (eval η e) k)
 
-  (* [Flip k] steps to an application of the continuation [k] to
+  (* [Stop Flip () k] steps to an application of the continuation [k] to
      either [false] or [true]. *)
   | StepFlip :
-      ∀ b k,
+      ∀ b x k,
       step
-        (Flip k)
+        (Stop Flip x k)
         (k b)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -168,20 +168,11 @@ Qed.
 Lemma can_step_stop {A X Y} (c : code X Y) x (k : Y → free A) :
   can_step (Stop c x k).
 Proof.
-  unfold can_step. destruct c; destruct x; eauto with step.
+  unfold can_step. destruct c; destruct x;
+  eauto using (StepFlip false), StepEval.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
-
-(* [Flip] can step. *)
-
-Lemma can_step_flip {A} (k : bool → free A) :
-  can_step (Flip k).
-Proof.
-  unfold can_step. eauto using (StepFlip false).
-Qed.
-
-Global Hint Resolve can_step_flip : step.
 
 (* The following auxiliary lemma is used in the proof of [can_step_par],
    which establishes a stronger result. *)
@@ -222,7 +213,7 @@ Lemma step_bind {A B} (m m' : free A) (f : A → free B) :
   step (bind m f) (bind m' f).
 Proof.
   inversion 1; subst;
-  rewrite ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail, ?bind_bind;
+  rewrite ?bind_stop, ?bind_par, ?bind_fail, ?bind_bind;
   eauto using step_eq with step.
 Qed.
 
@@ -232,26 +223,22 @@ Qed.
 
 (* See also [invert_step_bind'] further on. *)
 
+Local Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
+
 Lemma invert_step_bind {A B} (m : free A) (f : A → free B) (b' : free B) :
   step (bind m f) b' →
   (∃ m', step m m' ∧ b' = bind m' f) ∨
   (∃ a, m = Ret a ∧ step (f a) b').
 Proof.
   destruct m;
-  rewrite ?bind_ret, ?bind_stop, ?bind_flip, ?bind_par, ?bind_fail;
+  rewrite ?bind_ret, ?bind_stop, ?bind_par, ?bind_fail;
   intro;
   try solve [
     (* Case: [Ret] *)
     right; eauto
   | (* Every other case: *)
-    left; destruct_step; eauto with step
+    left; destruct_step; eauto with step bind_bind
   ].
-  (* Case: [Stop]. *)
-  (* This case does not quite fall into the general case above,
-     so we deal with it by hand. *)
-  { left. destruct_step.
-    eexists. split; [ eauto with step |].
-    rewrite bind_bind. reflexivity. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

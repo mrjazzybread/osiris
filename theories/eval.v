@@ -20,13 +20,29 @@ Implicit Type η : env.
 
 (* The code [Eval (η, e)] is a request for a recursive call [eval η e]. *)
 
+(* The code [Flip] is a request to flip a Boolean coin. *)
+
 Inductive code : Type → Type → Type :=
-| Eval : code (env * expr) val.
+| Eval : code (env * expr) val
+| Flip : code unit bool
+.
 
 (* We fix this particular type of codes. *)
 
 Notation free :=
   (@free.free code).
+
+(* [flip] flips a coin. *)
+
+Definition flip : free bool :=
+  stop Flip ().
+
+(* [choose m1 m2] is a non-deterministic choice between the
+   computations [m1] and [m2]. *)
+
+Definition choose {A} (m1 m2 : free A) : free A :=
+  b ← flip ;
+  if (b : bool) then m1 else m2.
 
 (* ------------------------------------------------------------------------ *)
 
