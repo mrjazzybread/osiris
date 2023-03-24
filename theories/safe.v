@@ -1,4 +1,4 @@
-Require Import lang base free eval step steps.
+Require Import lang base free eval step steps Setoid Morphisms.
 
 (* This file defines what it means for a computation (in the free monad) to
    be safe. The structure of computations does not matter; the definition
@@ -854,3 +854,109 @@ Proof.
     eapply safe_covariant; [ eassumption |].
     intros a1. simpl. rewrite safe_ret. tauto. }
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Refinement *)
+
+Definition refinement A (m m': free A): Prop :=
+  forall (φ: A -> Prop), safe m' φ -> safe m φ.
+
+(* Infix "«" := (refine _) (at level 60). *)
+
+Lemma safe_refinement_par_left {A1 A2} (m1 m1' : free A1) (m2 : free A2)
+  (φ : A1 * A2 → Prop) :
+  refinement _ m1 m1'
+  -> safe (par m1' m2) φ
+  -> safe (par m1 m2) φ.
+Proof.
+  intros Hphi (φ1 & φ2 & Hm1' & Hm2 & H)%invert_safe_par.
+  rewrite safe_par'.
+  exists φ1, φ2.
+  repeat split.
+  - now apply Hphi.
+  - assumption.
+  - intros v1 v2 H1 H2.
+    now pose proof (H v1 v2 H1 H2) as H'%invert_safe_result.
+Qed.
+
+Lemma safe_refinement_par_right {A1 A2} (m1 : free A1) (m2 m2' : free A2)
+  (φ : A1 * A2 → Prop) :
+  refinement _ m2 m2'
+  -> safe (par m1 m2') φ
+  -> safe (par m1 m2) φ.
+Proof.
+  intros Hphi (φ1 & φ2 & Hm1 & Hm2' & H)%invert_safe_par.
+  rewrite safe_par'.
+  exists φ1, φ2.
+  repeat split.
+  - assumption.
+  - now apply Hphi.
+  - intros v1 v2 H1 H2.
+    now pose proof (H v1 v2 H1 H2) as H'%invert_safe_result.
+Qed.
+
+
+
+#[global]
+Instance refinement_sym A: Reflexive (refinement A).
+Proof.
+  intros???; auto.
+Qed.
+
+#[global]
+Instance refinement_trans A: Transitive (refinement A).
+Proof.
+  intros???????; auto.
+Qed.
+
+#[global]
+Instance refinement_proper_par A B:
+  Proper (refinement A ==> refinement B ==> refinement (A * B)) par.
+Proof.
+  intros a1 a2 Ha b1 b2 Hb φ (φ1 & φ2 & Ha2 & Hb2 & H)%invert_safe_par.
+  eapply safe_refinement_par_left; [exact Ha | ].
+  rewrite safe_par'.
+  exists φ1, φ2.
+  repeat split; auto.
+  intros v1 v2 H1 H2.
+  now pose proof (H v1 v2 H1 H2) as H'%invert_safe_result.
+Qed.
+
+#[global]
+Instance refinement_proper_Par A B:
+  Proper (refinement A ==> refinement B ==> eq ==>
+         (fun e e' => e = next /\ e' = next) ==> refinement A)
+         Par.
+Proof.
+  intros a1 a2 Ha1 b1 b2 Hb1 ? φ -> ?? [->->] φ' H2.
+  pose proof (invert_safe_par a2 b2 φ φ' H2) as (φ1 & φ2 & Ha2 & Hb2 & H2').
+  apply prove_safe_par with φ1 φ2; try assumption.
+  - now apply Ha1.
+  - now apply Hb1.
+Qed.
+
+#[global]
+Instance refinement_proper_safe A:
+Proper (refinement A ==> eq ==> (Basics.flip impl)) safe.
+Proof.
+  intros x y Hxy φ ? -> H.
+  auto.
+Qed.
+
+
+
+(* TODO: generalize this lemma. *)
+Lemma call_ret_ret v v':
+  refinement val
+    (Par (ret v) (ret v') (λ '(v1, v2), call v1 v2)
+                          (λ _ : (), Next))
+    (call v v').
+Proof.
+  intros φ H.
+  apply safe_par.
+  exists (λ v', v' = v), (λ v, v = v').
+  repeat split; try now apply safe_ret.
+  now intros ??->->.
+Qed.
+Local Hint Resolve call_ret_ret: eq.

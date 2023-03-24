@@ -1,4 +1,5 @@
 Require Import base lang free eval step safe wp wp_tactics.
+Require Import Setoid.
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -54,6 +55,16 @@ Ltac wp_set_postcondition :=
     reflexivity
   end.
 
+(* Current inference issues
+   |- Proper (refine val ==> ?r2 ==> ?r1 ==> ?r0 ==> ?r) Par]
+   |- Proper (refine val ==> ?r ==> ?r5 ==> ?r4 ==> ?r3) Par]
+   |- ProperProxy ?r5
+   (λ v : val * vals,
+   bind (let '(v0, vs) := v in ret (VCons v0 vs))
+   (λ vs : vals, ret (VTuple vs)))] (internal placeholder) {?p4}
+   |- Proper (?r3 ==> ?r6 ==> Basics.flip impl) safe]
+   |- ProperProxy ?r6
+   (λ v : val, v = VPair (VConstant "A") (VConstant "A"))] *)
 Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
