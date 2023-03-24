@@ -26,12 +26,15 @@ Require Import lang base free eval.
 
 Inductive step {A} : free A → free A → Prop :=
 
-  (* [Stop η e k] steps to an invocation of [eval η e] followed
+  (* [Stop Eval (η, e) k] steps to an invocation of [eval η e] followed
      with the continuation [k]. *)
+  (* Isolating an explicit equality [x = (η, e)] seems necessary to work
+     around a bug or limitation (?) in [dependent destruction]. *)
   | StepStop :
-      ∀ η e k,
+      ∀ x η e k,
+      x = (η, e) →
       step
-        (Stop η e k)
+        (Stop Eval x k)
         (bind (eval η e) k)
 
   (* [Flip k] steps to an application of the continuation [k] to
@@ -52,27 +55,27 @@ Inductive step {A} : free A → free A → Prop :=
 
   (* A hard failure on either side can be propagated up. *)
   | StepParFailLeft :
-      ∀ {A1 A2} (m2 : free A2) k ko,
+      ∀ {A1 A2} m2 (k : A1 * A2 → free A) ko,
       step
-        (Par (@Fail A1) m2 k ko)
+        (Par Fail m2 k ko)
         Fail
   | StepParFailRight :
-      ∀ {A1 A2} (m1 : free A1) k ko,
+      ∀ {A1 A2} m1 (k : A1 * A2 → free A) ko,
       step
-        (Par m1 (@Fail A2) k ko)
+        (Par m1 Fail k ko)
         Fail
 
   (* If a soft failure on either side is detected, then
      the failure continuation [n] can be invoked. *)
   | StepParNextLeft :
-      ∀ {A1 A2} (m2 : free A2) k ko,
+      ∀ {A1 A2} m2(k : A1 * A2 → free A) ko,
       step
-        (Par (@Next A1) m2 k ko)
+        (Par Next m2 k ko)
         (ko())
   | StepParNextRight :
-      ∀ {A1 A2} (m1 : free A1) k ko,
+      ∀ {A1 A2} m1 (k : A1 * A2 → free A) ko,
       step
-        (Par m1 (@Next A2) k ko)
+        (Par m1 Next k ko)
         (ko())
 
   (* Reduction steps on either side are permitted. *)
@@ -116,7 +119,7 @@ Proof.
 Qed.
 
 Lemma is_answer_next {A} :
-  is_answer (@Next A).
+  is_answer (Next : free A).
 Proof.
   simpl. eauto.
 Qed.
@@ -162,10 +165,10 @@ Qed.
 
 (* [Stop] can step. *)
 
-Lemma can_step_stop {A} η e (k : val → free A) :
-  can_step (Stop η e k).
+Lemma can_step_stop {A X Y} (c : code X Y) x (k : Y → free A) :
+  can_step (Stop c x k).
 Proof.
-  unfold can_step. eauto with step.
+  unfold can_step. destruct c; destruct x; eauto with step.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -247,7 +250,7 @@ Proof.
   (* This case does not quite fall into the general case above,
      so we deal with it by hand. *)
   { left. destruct_step.
-    eexists. split; [ constructor |].
+    eexists. split; [ eauto with step |].
     rewrite bind_bind. reflexivity. }
 Qed.
 

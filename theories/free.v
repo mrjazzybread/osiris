@@ -1,49 +1,57 @@
 From Coq.Logic Require Import FunctionalExtensionality.
-Require Import base lang.
+Require Import base.
+
+Section Free.
 
 (* ------------------------------------------------------------------------ *)
 
-(* A free monad in which the evaluator is expressed. *)
+(* A free monad. *)
 
 (* The custom constructors of this free monad are:
 
-   - [Fail],
-     a hard failure, which represents a crash and cannot be caught;
+   - [Fail], a hard failure, which represents a crash and cannot be
+     caught;
 
-   - [Next],
-     a soft failure, which can be caught by a [try] combinator;
+   - [Next], a soft failure, which can be caught by a [try]
+     combinator;
 
-   - [Stop η e k],
-     a request to evaluate expression [e] under environment [η],
-     producing a value, which the continuation [k] consumes;
+   - [Stop c x k], a request to evaluate a computation whose code is
+     [c], with argument [x], producing a result which the continuation
+     [k] consumes;
 
-   - [Flip k],
-     a non-deterministic coin flip, producing a Boolean result,
-     which the continuation [k] consumes;
+   - [Flip k], a non-deterministic coin flip, producing a Boolean
+     result, which the continuation [k] consumes;
 
-   - [Par m1 m2 k ko],
-     a parallel evaluation construct,
-     which evaluates [m1] and [m2] independently.
-     If both computations succeed and return two results [v1] and [v2],
-     then the continuation [k] is applied to the pair [(v1, v2)].
-     If either computation causes a hard failure,
-     this hard failure is transmitted upwards.
-     If either computation causes a soft failure,
+   - [Par m1 m2 k ko], a parallel evaluation construct, which
+     evaluates [m1] and [m2] independently. If both computations
+     succeed and return two results [v1] and [v2], then the
+     continuation [k] is applied to the pair [(v1, v2)]. If either
+     computation causes a hard failure, this hard failure is
+     transmitted upwards. If either computation causes a soft failure,
      then the failure continuation [ko] is invoked.
+
+   The code [c] carried in [Stop c x k] has type [code X Y], for some
+   types [X] and [Y]. The parameter [x] has type [X], and the
+   continuation [k] expects a value of type [Y]. Throughout this file,
+   the type family [code] is a parameter. The constructor [Stop] is
+   similar to the constructor [Vis] of interaction trees, and the type
+   code is similar to an effect signature [E].
 
    The fact that [Stop] and [Flip] do not carry a second continuation
    (which would be a soft failure continuation) reflect the fact that
-   [eval] and [flip] cannot raise a soft failure.
+   [eval] and [flip] cannot raise a soft failure. TODO fix
 
-   The type [mon A] is inductive: every computation terminates.
+   The type [free A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must
    (infinitely often) pause by performing a [Stop] effect. *)
+
+Context {code : Type → Type → Type}.
 
 Inductive free A :=
   | Ret (a : A)
   | Fail
   | Next
-  | Stop (η : env) (e : expr) (k : val → free A)
+  | Stop {X Y} (c : code X Y) (x : X) (k : Y → free A)
   | Flip (k : bool → free A)
   | Par {A1 A2} (m1 : free A1) (m2 : free A2)
                 (k : A1 * A2 → free A)
@@ -55,7 +63,7 @@ Inductive free A :=
 Arguments Ret  {A}.
 Arguments Fail {A}.
 Arguments Next {A}.
-Arguments Stop {A} η e k.
+Arguments Stop {A X Y} c x k.
 Arguments Flip {A} k.
 Arguments Par  {A A1 A2} m1 m2 k ko.
 
@@ -72,11 +80,13 @@ Notation fail :=
 Notation next :=
   (λ tt, Next).
 
-(* [stop η e] stops the interpreter, and, once restarted, behaves
-   like the computation [eval η e]. *)
+(* [stop c x] stops, and, once restarted, behaves like the computation
+   denoted by the code [c] applied to the argument [x]. The mapping of
+   codes to computations is not defined here; it must be supplied a
+   posteriori (step.v). *)
 
-Definition stop η e : free val :=
-  Stop η e ret.
+Definition stop {X Y} (c : code X Y) (x : X) : free Y :=
+  Stop c x ret.
 
 (* [flip] flips a coin. *)
 
@@ -112,10 +122,10 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
   | Next =>
       (* A soft failure is transmitted. *)
       Next
-  | Stop η e k =>
+  | Stop c x k =>
       (* A [Stop] effect is transmitted. The handler [bind _ f] remains
          installed on top of the continuation. *)
-      Stop η e (λ v, bind (k v) f)
+      Stop c x (λ v, bind (k v) f)
   | Flip k =>
       (* Same here. *)
       Flip (λ v, bind (k v) f)
@@ -141,11 +151,11 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   | Next =>
       (* A soft failure is handled by [g]. *)
       g()
-  | Stop η e k =>
+  | Stop c x k =>
       (* A [Stop] effect is transmitted. The handler [try _ f g] remains
          installed on top of the continuation. Because [eval η e] cannot
-         cause a soft failure, there is only one continuation. *)
-      Stop η e (λ v, try (k v) f g)
+         cause a soft failure, there is only one continuation. TODO fix *)
+      Stop c x (λ v, try (k v) f g)
   | Flip k =>
       (* Same here. *)
       Flip (λ v, try (k v) f g)
@@ -181,36 +191,41 @@ Qed.
 (* Paraphrase lemmas. *)
 
 Lemma bind_ret {A B} (a : A) (f : A → free B) :
-  bind (Ret a) f = f a.
+  bind (Ret a) f =
+  f a.
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_fail {A B} (f : A → free B) :
-  bind Fail f = Fail.
+  bind Fail f =
+  Fail.
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_next {A B} (f : A → free B) :
-  bind Next f = Next.
+  bind Next f =
+  Next.
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_stop {A B} η e k (f : A → free B) :
-  bind (Stop η e k) f = Stop η e (λ v, bind (k v) f).
+Lemma bind_stop {A B X Y} (c : code X Y) x k (f : A → free B) :
+  bind (Stop c x k) f =
+  Stop c x (λ v, bind (k v) f).
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_flip {A B} k (f : A → free B) :
-  bind (Flip k) f = Flip (λ v, bind (k v) f).
+  bind (Flip k) f =
+  Flip (λ v, bind (k v) f).
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_par {A1 A2 A B} (m1 : free A1) (m2 : free A2) k ko (f : A → free B) :
+Lemma bind_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) :
   bind (Par m1 m2 k ko) f =
   Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f).
 Proof.
@@ -247,9 +262,9 @@ Qed.
    accept the law of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
-Lemma eq_stop_stop A (k1 k2 : val → free A) η e :
+Lemma eq_stop_stop A X Y (k1 k2 : Y → free A) (c : code X Y) x :
   (∀ v, k1 v = k2 v) →
-  Stop η e k1 = Stop η e k2.
+  Stop c x k1 = Stop c x k2.
 Proof.
   intros. f_equal. extensionality v. eauto.
 Qed.
@@ -272,7 +287,7 @@ Proof.
   { extensionality tt. destruct tt. eauto. }
 Qed.
 
-#[export] Hint Resolve eq_stop_stop eq_flip_flip eq_par_par : eq.
+Local Hint Resolve eq_stop_stop eq_flip_flip eq_par_par : eq.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -294,3 +309,23 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
+
+End Free.
+
+(* Recreate some things that are lost when the section is closed. *)
+
+Notation ret :=
+  (Ret).
+
+Notation fail :=
+  (Fail).
+
+Definition next {code A} : unit → @free code A :=
+  (λ tt, @Next code A).
+
+Arguments Ret  {code A}.
+Arguments Fail {code A}.
+Arguments Next {code A}.
+Arguments Stop {code A X Y} c x k.
+Arguments Flip {code A} k.
+Arguments Par  {code A A1 A2} m1 m2 k ko.

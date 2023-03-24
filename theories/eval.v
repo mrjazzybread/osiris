@@ -16,6 +16,20 @@ Implicit Type η : env.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Codes for effects. *)
+
+(* The code [Eval (η, e)] is a request for a recursive call [eval η e]. *)
+
+Inductive code : Type → Type → Type :=
+| Eval : code (env * expr) val.
+
+(* We fix this particular type of codes. *)
+
+Notation free :=
+  (@free.free code).
+
+(* ------------------------------------------------------------------------ *)
+
 (* Local notations. *)
 
 (* [ok] is an inert computation. It produces the value [VUnit]. *)
@@ -113,7 +127,7 @@ Definition call v1 v2 : free val :=
       (* In this extended environment, the function body [e] must
          be evaluated. A recursive call to [eval] cannot be used,
          so we request the evaluation of [e] via a [stop] effect. *)
-      stop η e
+      stop Eval (η, e)
  | _ =>
      fail (* type mismatch: closure expected *)
  end.
