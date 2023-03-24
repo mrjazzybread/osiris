@@ -223,8 +223,8 @@ Fixpoint eval η e : free val :=
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
       let test : free val :=
-        b ← as_bool (eval η e) ;
-        if (b : bool) then ok else fail (* assertion failure *)
+        success ← as_bool (eval η e) ;
+        if (success : bool) then ok else fail (* assertion failure *)
       in
       choose ok test
   end
