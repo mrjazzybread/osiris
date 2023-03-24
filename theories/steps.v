@@ -1,4 +1,3 @@
-Require Import Coq.Program.Equality.
 Require Import lang base free eval step.
 
 (* This file defines the relations [steps] and [produces]
