@@ -1,5 +1,5 @@
 Require Import base lang free eval step safe wp wp_tactics.
-Require Import Setoid.
+Require Import Setoid Morphisms.
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -55,16 +55,6 @@ Ltac wp_set_postcondition :=
     reflexivity
   end.
 
-(* Current inference issues
-   |- Proper (refine val ==> ?r2 ==> ?r1 ==> ?r0 ==> ?r) Par]
-   |- Proper (refine val ==> ?r ==> ?r5 ==> ?r4 ==> ?r3) Par]
-   |- ProperProxy ?r5
-   (λ v : val * vals,
-   bind (let '(v0, vs) := v in ret (VCons v0 vs))
-   (λ vs : vals, ret (VTuple vs)))] (internal placeholder) {?p4}
-   |- Proper (?r3 ==> ?r6 ==> Basics.flip impl) safe]
-   |- ProperProxy ?r6
-   (λ v : val, v = VPair (VConstant "A") (VConstant "A"))] *)
 Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
@@ -72,12 +62,45 @@ Lemma spec_example3:
   wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   intros id Hid.
+  wp_step.
   wp.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
+  replace
+  (Par
+  (ret id)
+  (ret (VConstant "A")) (λ '(v1, v2), call v1 v2)
+  (λ _ : (), Next))
+  with
+    (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2));
+    [ | reflexivity ].
+
+  replace
+  (Par
+  (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+  (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+  (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
+  (λ _ : (), Next)) (λ '(v0, vs), ret (VCons v0 vs)) 
+  (λ _ : (), Next))
+  with
+    (Par'
+    (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+    (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
+    (λ _ : (), Next)) (λ '(v0, vs), ret (VCons v0 vs)));
+    [ | reflexivity ].
+
+  replace (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
+    (λ _ : (), Next))
+    with (Par' (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
+    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)));
+    [ | reflexivity].
+
+  rewrite call_ret_ret; try reflexivity.
   wp_par.
-  { wp. wp_use Hid. }
+  { apply Hid. }
   { wp. wp_use Hid. wp. wp_set_postcondition. }
   wp_intros. wp.
   reflexivity.
