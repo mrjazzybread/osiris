@@ -46,6 +46,7 @@
 
 ## References
 
+* letan-al-18, letan-al-21 (FreeSpec)
 * maillard-al-19
 * fromherz-steel-21
 * silver-zdancewic-21
