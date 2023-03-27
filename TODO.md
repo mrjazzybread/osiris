@@ -60,8 +60,17 @@
 * Functions and function applications
 * Mutually-recursive functions
 * Arrays
+* Conditionals
+* `while` loops
+  - Check that we are able to reason about infinite loops using Löb induction
+  - Check that we are able to reason about terminating loops using induction
+  - Check that we are able to frame out an assertion during
+    the execution of the rest of the loop
 * Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
-* Integers (bounded or idealized?)
+* Integers (bounded, idealized, both?)
+* `for` loops
+  - Must evaluate both bounds up front,
+    then invoke an auxiliary recursive function `eval_for_loop`
 * Pattern matching on immutable data (must prove absence of match failure)
 * Polymorphic variants
 * Unspecified evaluation order of `let/and` definitions and function applications
@@ -79,15 +88,15 @@
 * Effect handlers
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
+* Pattern matching on mutable data
+* `when` clauses
 
 ## Features of OCaml that we do not want to support
 
-* Polymorphic comparison operators
 * Floating point numbers
-* Pattern matching on mutable data
-* The `lazy` pattern
-* `when` clauses
-* Immutable recursive values other than functions
 * Objects and classes
+* Polymorphic comparison operators
+* The `lazy` pattern
+* Immutable recursive values other than functions
 * Labeled arguments
 * Optional arguments and default values
