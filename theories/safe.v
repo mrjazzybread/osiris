@@ -859,7 +859,6 @@ Qed.
 
 (* Refinement *)
 
-Check Par.
 Definition Par' {A1 A2 A3} (e: free A1) (e': free A2) (k: A1 * A2 -> free A3) :=
   Par e e' k (λ _, Next).
 

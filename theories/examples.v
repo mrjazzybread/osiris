@@ -55,6 +55,15 @@ Ltac wp_set_postcondition :=
     reflexivity
   end.
 
+Lemma Par_Par'_eq {A B C} (a: free A) (b: free B) (ko: A * B -> free C):
+  Par a b ko (λ _: (), Next) = Par' a b ko.
+Proof. reflexivity. Qed.
+
+Ltac wp_par_simpl :=
+  (repeat rewrite Par_Par'_eq);
+  (try (rewrite call_ret_ret; try reflexivity)).
+Ltac wp_par' := repeat (wp_par_simpl + wp_par).
+
 Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
@@ -67,38 +76,7 @@ Proof.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
-  replace
-  (Par
-  (ret id)
-  (ret (VConstant "A")) (λ '(v1, v2), call v1 v2)
-  (λ _ : (), Next))
-  with
-    (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2));
-    [ | reflexivity ].
-
-  replace
-  (Par
-  (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-  (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-  (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
-  (λ _ : (), Next)) (λ '(v0, vs), ret (VCons v0 vs)) 
-  (λ _ : (), Next))
-  with
-    (Par'
-    (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-    (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
-    (λ _ : (), Next)) (λ '(v0, vs), ret (VCons v0 vs)));
-    [ | reflexivity ].
-
-  replace (Par (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)) 
-    (λ _ : (), Next))
-    with (Par' (Par' (ret id) (ret (VConstant "A")) (λ '(v1, v2), call v1 v2))
-    (ret VNil) (λ '(v0, vs), ret (VCons v0 vs)));
-    [ | reflexivity].
-
-  rewrite call_ret_ret; try reflexivity.
+  wp_par_simpl.
   wp_par.
   { apply Hid. }
   { wp. wp_use Hid. wp. wp_set_postcondition. }
@@ -236,15 +214,19 @@ Proof.
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
   wp.
-  wp_par.
 
-  (* Subgoal 1. Application [id id]. *)
-  { wp. wp_use Hid. }
+  assert (H: forall v, refinement val (call id v) (ret v)).
+  { intros???%invert_safe_result. now wp_use Hid. }
 
-  (* Subgoal 2. Application [id()]. *)
-  { wp. wp_use Hid. }
+  wp_par'.
 
-  (* Subgoal 3. Residual application [id()]. *)
-  wp_intros.
-  wp_use Hid.
+  (* Subgoal 1. Application [id ()]. *)
+  { wp_use Hid. }
+
+
+  (* Subgoal 2. [id id <= id] . *)
+  { now rewrite H. }
+
+  (* Subgoal 3. [id() <= ()]. *)
+  { now rewrite H. }
 Qed.
