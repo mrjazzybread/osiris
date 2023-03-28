@@ -55,9 +55,6 @@ Ltac wp_set_postcondition :=
     reflexivity
   end.
 
-Set Typeclasses Debug.
-Set Typeclasses Debug Verbosity 2.
-  Typeclasses eauto := debug 1000.
 Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
@@ -70,15 +67,13 @@ Proof.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
-  wp_par.
-  - rewrite refine_expr.
-  - wp_par.
-    + now rewrite refine_expr.
-    + wp. wp_set_postcondition.
-    + wp_intros.
-      wp. wp_set_postcondition.
+  wp_simp.
+  repeat wp_par; eauto.
+  - wp. wp_set_postcondition.
   - wp_intros.
-    wp. reflexivity.
+    wp. wp_set_postcondition.
+  - wp_intros. wp.
+    reflexivity.
 Qed.
 
 (* The identity function. *)
@@ -211,8 +206,7 @@ Proof.
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
 
-  rewrite refine_expr.
-
+  wp_simp.
   wp_par.
 
   (* id id *)

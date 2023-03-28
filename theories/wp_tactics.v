@@ -2,6 +2,9 @@ Require Import base lang free eval step safe wp refinement.
 
 (* Simplify a goal of the form [safe m φ]. *)
 
+Ltac wp_simp :=
+  eapply refinement_simpl; [typeclasses eauto .. |].
+
 Ltac wp_simplify :=
   cbn.
 
