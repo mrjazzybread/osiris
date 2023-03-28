@@ -1,4 +1,4 @@
-Require Import base lang free eval step safe wp wp_tactics.
+Require Import base lang free eval step safe wp wp_tactics refinement.
 Require Import Setoid Morphisms.
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
@@ -55,15 +55,9 @@ Ltac wp_set_postcondition :=
     reflexivity
   end.
 
-Lemma Par_Par'_eq {A B C} (a: free A) (b: free B) (ko: A * B -> free C):
-  Par a b ko (λ _: (), Next) = Par' a b ko.
-Proof. reflexivity. Qed.
-
-Ltac wp_par_simpl :=
-  (repeat rewrite Par_Par'_eq);
-  (try (rewrite call_ret_ret; try reflexivity)).
-Ltac wp_par' := repeat (wp_par_simpl + wp_par).
-
+Set Typeclasses Debug.
+Set Typeclasses Debug Verbosity 2.
+  Typeclasses eauto := debug 1000.
 Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
@@ -76,12 +70,15 @@ Proof.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
-  wp_par_simpl.
   wp_par.
-  { apply Hid. }
-  { wp. wp_use Hid. wp. wp_set_postcondition. }
-  wp_intros. wp.
-  reflexivity.
+  - rewrite refine_expr.
+  - wp_par.
+    + now rewrite refine_expr.
+    + wp. wp_set_postcondition.
+    + wp_intros.
+      wp. wp_set_postcondition.
+  - wp_intros.
+    wp. reflexivity.
 Qed.
 
 (* The identity function. *)
@@ -213,20 +210,17 @@ Proof.
   revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
-  wp.
 
-  assert (H: forall v, refinement val (call id v) (ret v)).
-  { intros???%invert_safe_result. now wp_use Hid. }
+  rewrite refine_expr.
 
-  wp_par'.
+  wp_par.
 
-  (* Subgoal 1. Application [id ()]. *)
-  { wp_use Hid. }
+  (* id id *)
+  { apply Hid. }
 
+  (* id () *)
+  { apply Hid. }
 
-  (* Subgoal 2. [id id <= id] . *)
-  { now rewrite H. }
-
-  (* Subgoal 3. [id() <= ()]. *)
-  { now rewrite H. }
+  wp_intros.
+  apply Hid.
 Qed.

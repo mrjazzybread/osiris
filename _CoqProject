@@ -8,4 +8,5 @@ theories/steps.v
 theories/safe.v
 theories/wp.v
 theories/wp_tactics.v
+theories/refinement.v
 theories/examples.v

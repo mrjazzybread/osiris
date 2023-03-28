@@ -1,4 +1,4 @@
-Require Import base lang free eval step safe wp.
+Require Import base lang free eval step safe wp refinement.
 
 (* Simplify a goal of the form [safe m φ]. *)
 
