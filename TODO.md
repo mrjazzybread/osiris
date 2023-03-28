@@ -44,8 +44,14 @@
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
 
+* Can we (automatically) measure the coverage of our test suite?
+  i.e., measure whether (and how many times) each line of code
+  in the interpreter (eval.v) is exercised by the tests (examples.v).
+
 ## References
 
+* Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
+* Scott Owens
 * letan-al-18, letan-al-21 (FreeSpec)
 * maillard-al-19
 * fromherz-steel-21
