@@ -53,7 +53,7 @@
 * Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
 * Scott Owens
 * audebaud-zucca-99 (spec monad)
-* harrison-06, pirog-gibbons-14 (resumption monad)
+* claessen-99, harrison-06, pirog-gibbons-14 (resumption monad)
 * voigtlander-08 (efficient presentation of the free monad)
 * letan-al-18, letan-al-21 (FreeSpec)
 * maillard-al-19
