@@ -54,9 +54,11 @@
 * Scott Owens
 * audebaud-zucca-99 (spec monad)
 * claessen-99, harrison-06, pirog-gibbons-14 (resumption monad)
-* voigtlander-08 (efficient presentation of the free monad)
+* voigtlander-08, jaskelioff-rivas-15 (efficient presentation of the free monad)
+* svenningsson-axelsson-15
 * letan-al-18, letan-al-21 (FreeSpec)
 * maillard-al-19
+* swierstra-baanen-19
 * fromherz-steel-21
 * silver-zdancewic-21
 * nigron-dagand-21
