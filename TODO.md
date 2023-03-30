@@ -43,6 +43,11 @@
 
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
+  We should also prove that each ample step corresponds to a bounded
+  number of small steps (where the bound may depend on the source
+  code of the program) (giving formal meaning to this claim requires
+  distinguishing the program and the environment in which the program
+  is executed). This means that Osiris with time credits is sound!
 
 * Can we (automatically) measure the coverage of our test suite?
   i.e., measure whether (and how many times) each line of code
