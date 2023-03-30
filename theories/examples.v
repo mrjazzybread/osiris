@@ -1,4 +1,5 @@
-Require Import base lang free eval step safe wp wp_tactics.
+Require Import base lang free eval step safe wp wp_tactics refinement.
+Require Import Setoid Morphisms.
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -61,15 +62,18 @@ Lemma spec_example3:
   wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   intros id Hid.
+  wp_step.
   wp.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
-  wp_par.
-  { wp. wp_use Hid. }
-  { wp. wp_use Hid. wp. wp_set_postcondition. }
-  wp_intros. wp.
-  reflexivity.
+  wp_simp.
+  repeat wp_par; eauto.
+  - wp. wp_set_postcondition.
+  - wp_intros.
+    wp. wp_set_postcondition.
+  - wp_intros. wp.
+    reflexivity.
 Qed.
 
 (* The identity function. *)
@@ -201,16 +205,16 @@ Proof.
   revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
-  wp.
+
+  wp_simp.
   wp_par.
 
-  (* Subgoal 1. Application [id id]. *)
-  { wp. wp_use Hid. }
+  (* id id *)
+  { apply Hid. }
 
-  (* Subgoal 2. Application [id()]. *)
-  { wp. wp_use Hid. }
+  (* id () *)
+  { apply Hid. }
 
-  (* Subgoal 3. Residual application [id()]. *)
   wp_intros.
-  wp_use Hid.
+  apply Hid.
 Qed.
