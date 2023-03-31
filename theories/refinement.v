@@ -1,26 +1,43 @@
 Require Import lang base free eval step steps Setoid Morphisms.
 Require Import safe.
 
-(* TODO this file should be cleaned up and commented *)
-(* TODO since the Proper/Reflexive/Transitive instances are unused for now,
-        they could be changed into Lemmas instead of Instances *)
-
-(* Refinement *)
-
-Definition Par' {A1 A2 A3} (e: free A1) (e': free A2) (k: A1 * A2 -> free A3) :=
-  Par e e' k (λ _, Next).
-
+(* -------------------------------------------------------------------------- *)
+(* Definition of [refinement]. *)
 Definition refinement {A: Type} (m m': free A): Prop :=
   forall (φ: A -> Prop), safe m' φ -> safe m φ.
+
+#[global]
+Instance refinement_sym A: Reflexive (@refinement A).
+Proof. now intros???. Qed.
+
+#[global]
+Instance refinement_trans A: Transitive (@refinement A).
+Proof. intros???????; auto. Qed.
+
+
+
+(* -------------------------------------------------------------------------- *)
+(* Definition of a [Refinement] used in program simplification. *)
+
+(* Note: I removed the parametrized instance that translates the transitivity of 
+ * the relation to allow for terminating typeclass inference. *)
 
 Class Refinement {A} (e' e: free A) := { refine_expr : refinement e' e }.
 
 Global Hint Mode Refinement - ! - : typeclass_instances.
 
-
 (** TODO: define a nice notation *)
 Infix "◁" := (refinement) (at level 60).
 
+(* Main lemma used in the tactic [wp_simpl] to simplify a program. *)
+Lemma refinement_simpl {A} (e e': free A) φ:
+  Refinement e' e
+  -> safe e φ
+  -> safe e' φ.
+Proof.
+  intros R H.
+  now apply R.(refine_expr).
+Qed.
 
 
 (* TODO unused? *)
@@ -45,23 +62,47 @@ Proof.
 Qed.
 
 #[global]
-Instance refinement_sym A: Reflexive (@refinement A).
-Proof. now intros???. Qed.
-
-#[global]
 Instance safe_refinement_refl {A}
   (m: free A) : Refinement m m | 999.
 Proof. constructor. reflexivity. Qed.
 
 #[global]
-Instance refinement_trans A: Transitive (@refinement A).
-   Proof. intros???????; auto. Qed.
+Instance safe_refinement_Par A B C
+  (ko: A * B -> free C) (a a': free A) (b b': free B)
+  (R1: Refinement a' a)
+  (R2: Refinement b' b):
+  Refinement (Par a' b' ko next) (Par a b ko next).
+Proof.
+  constructor.
+  intros φ (φ1&φ2&Ha&Hb&H)%invert_safe_par.
+  rewrite safe_par.
+  exists φ1, φ2.
+  repeat split; eauto.
+  - now apply R1.(refine_expr).
+  - now apply R2.(refine_expr).
+Qed.
 
-   (* #[global]
-Instance safe_refinement_trans {A}
-  (m m' m'': free A)
-  (R1: Refinement m m') (R2: Refinement m' m''): Refinement m m''.
-      Proof. constructor. transitivity m'; apply refine_expr. Qed. *)
+#[global]
+Instance safe_refinement_call_ret_ret A B C
+  (a: A) (b: B) (k: A * B -> free C):
+  Refinement (Par (Ret a) (Ret b) k next) (k (a, b)).
+Proof.
+  constructor.
+  intros φ H.
+  now apply prove_safe_par_ret_ret.
+Qed.
+
+
+
+(* -------------------------------------------------------------------------- *)
+(* The following contains Proper instances. These allow to rewrite lemmas under 
+ * constructs such as [Par] but are *not* used yet. *)
+
+(* As Par is often applied to next, we define Par' that does not take the final 
+ * continuation. This allows to use Proper without having to specify the 
+ * relation tu use on this last argument of [Par]. *)
+Definition Par' {A1 A2 A3} (e: free A1) (e': free A2) (k: A1 * A2 -> free A3) :=
+  Par e e' k (λ _, Next).
 
 #[global]
 Instance refinement_proper_par A B:
@@ -86,22 +127,6 @@ Proof.
 Qed.
 
 #[global]
-Instance safe_refinement_Par A B C
-  (ko: A * B -> free C) (a a': free A) (b b': free B)
-  (R1: Refinement a' a)
-  (R2: Refinement b' b):
-  Refinement (Par a' b' ko next) (Par a b ko next).
-Proof.
-  constructor.
-  intros φ (φ1&φ2&Ha&Hb&H)%invert_safe_par.
-  rewrite safe_par.
-  exists φ1, φ2.
-  repeat split; eauto.
-  - now apply R1.(refine_expr).
-  - now apply R2.(refine_expr).
-Qed.
-
-#[global]
 Instance refinement_proper_safe A:
 Proper (@refinement A ==> eq ==> (Basics.flip impl)) safe.
 Proof.
@@ -117,13 +142,4 @@ Proof.
   constructor.
   intros φ H.
   now apply prove_safe_par_ret_ret.
-Qed.
-
-Lemma refinement_simpl {A} (e e': free A) φ:
-  Refinement e' e
-  -> safe e φ
-  -> safe e' φ.
-Proof.
-  intros R H.
-  now apply R.(refine_expr).
 Qed.
