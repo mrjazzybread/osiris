@@ -61,6 +61,8 @@ Inductive expr :=
   | EIfThenElse (e e1 e2 : expr)
   (* A pattern-matching construct. *)
   | EMatch (e : expr) (bs : branches)
+  (* The [while] loop. *)
+  | EWhile (e body : expr)
 
   (* A fatal error. *)
   | EAssertFalse

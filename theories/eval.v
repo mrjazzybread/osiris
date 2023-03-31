@@ -223,6 +223,13 @@ Fixpoint eval η e : free val :=
   | EMatch e bs =>
       v ← eval η e ;
       eval_match η v bs
+  | EWhile e body =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then
+        _ ← eval η body ;
+        stop Eval (η, EWhile e body)
+      else
+        ok
   | EAssertFalse =>
       fail (* assertion failure *)
   | EAssert e =>
