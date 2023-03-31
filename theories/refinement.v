@@ -1,6 +1,10 @@
 Require Import lang base free eval step steps Setoid Morphisms.
 Require Import safe.
 
+(* TODO this file should be cleaned up and commented *)
+(* TODO since the Proper/Reflexive/Transitive instances are unused for now,
+        they could be changed into Lemmas instead of Instances *)
+
 (* Refinement *)
 
 Definition Par' {A1 A2 A3} (e: free A1) (e': free A2) (k: A1 * A2 -> free A3) :=
@@ -19,7 +23,7 @@ Infix "◁" := (refinement) (at level 60).
 
 
 
-
+(* TODO unused? *)
 #[global]
 Instance safe_refinement_par {A1 A2 A}
   (m1 m1' : free A1) (m2 m2' : free A2)
@@ -106,7 +110,7 @@ Proof.
 Qed.
 
 #[global]
-Instance safe_refinement_call_ret_ret A B C
+Instance safe_refinement_par_ret_ret A B C
   (a: A) (b: B) (k: A * B -> free C):
   Refinement (Par (Ret a) (Ret b) k next) (k (a, b)).
 Proof.

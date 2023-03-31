@@ -62,18 +62,16 @@ Lemma spec_example3:
   wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   intros id Hid.
-  wp_step.
   wp.
   (* The two components of the pair are evaluated in parallel,
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
-  wp_simp.
-  repeat wp_par; eauto.
-  - wp. wp_set_postcondition.
-  - wp_intros.
-    wp. wp_set_postcondition.
-  - wp_intros. wp.
-    reflexivity.
+  wp_par.
+  { wp_use Hid. }
+  { wp_use Hid.
+    wp. wp_set_postcondition. }
+  { wp_intros.
+    wp. reflexivity. }
 Qed.
 
 (* The identity function. *)
@@ -205,16 +203,14 @@ Proof.
   revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
-
-  wp_simp.
   wp_par.
 
   (* id id *)
-  { apply Hid. }
+  { wp_use Hid. }
 
   (* id () *)
-  { apply Hid. }
+  { wp_use Hid. }
 
   wp_intros.
-  apply Hid.
+  wp_use Hid.
 Qed.

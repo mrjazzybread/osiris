@@ -1,13 +1,5 @@
 Require Import base lang free eval step safe wp refinement.
 
-(* Simplify a goal of the form [safe m φ]. *)
-
-Ltac wp_simp :=
-  eapply refinement_simpl; [typeclasses eauto .. |].
-
-Ltac wp_simplify :=
-  cbn.
-
 (* Simplify goals that introduce simple values. *)
 
 Ltac wp_intros :=
@@ -30,7 +22,7 @@ Ltac wp_use H :=
 (* Deal with a goal of the form [safe (if b then ok else _)]. *)
 
 Ltac wp_scoped_case_analysis :=
-  match goal with |- safe (if ?b then Ret VUnit else _) _ =>
+  match goal with |- safe (if ?b then ok else _) _ =>
     (* We wish to perform a case analysis on [b], but first, we must
        limit the scope of this case analysis by claiming that this
        runtime assertion always succeeds. *)
@@ -48,25 +40,31 @@ Ltac wp_scoped_case_analysis :=
 
 with wp_step :=
   first [
-    apply prove_safe_ret; wp_simplify
-  | apply prove_safe_bind; wp_simplify
-  | apply prove_safe_eval; wp_simplify
-  | apply prove_safe_flip; intro; wp_simplify
-  | apply prove_safe_par_ret_ret; wp_simplify
-  | apply prove_safe_Par_ret_left; wp_simplify
-  | apply prove_safe_Par_ret_right; wp_simplify
+    apply prove_safe_ret; cbn
+  | apply prove_safe_bind; cbn
+  | apply prove_safe_eval; cbn
+  | apply prove_safe_flip; intro; cbn
+  | apply prove_safe_Par_ret_left; cbn
+  | apply prove_safe_Par_ret_right; cbn
   | wp_scoped_case_analysis
-  ].
+  | eapply refinement_simpl; [ typeclasses eauto .. | cbn ]
+      (* this line subsumes [prove_safe_par_ret_ret] *)
+      (* TODO develop examples where [refinement_simpl] is used *)
+      (* TODO explain why there is no risk of divergence here,
+              due to a trivial refinement that does not make progress *)
+  ]
+
+(* Simplify a goal of the form [wp m φ] or [safe m φ]. *)
+
+with wp :=
+  unfold wp;
+  cbn;
+  repeat wp_step.
 
 (* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
 
 Ltac wp_par :=
-  eapply prove_safe_par.
-
-(* Apply brute force. *)
-
-Ltac wp :=
-  unfold wp;
-  wp_simplify;
-  repeat wp_step.
-    (* TODO not clearly correct: should we iterate? *)
+  eapply prove_safe_par; [ wp | wp |].
+    (* [wp_intros] in the third subgoal would be desirable but does not
+       work as expected; [simpl] is ineffective. Also, we might wish to
+       let the user name the hypotheses. *)
