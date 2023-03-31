@@ -39,18 +39,27 @@ with pats :=
 (* Expressions. *)
 
 Inductive expr :=
+
   (* A variable. *)
   | EVar (x : var)
+
   (* A (recursive) closure construction expression. *)
   | ERec (f x : var) (e : expr)
   (* A function call. *)
   | EApp (e1 e2 : expr)
+
   (* A tuple construction expression. *)
   | ETuple (es : exprs)
+
   (* A data constructor application expression. *)
   | EData (c : data) (e : expr)
+
+  (* Conditionals. *)
+  | EIfThen (e e1 : expr)
+  | EIfThenElse (e e1 e2 : expr)
   (* A pattern-matching construct. *)
   | EMatch (e : expr) (bs : branches)
+
   (* A fatal error. *)
   | EAssertFalse
   (* A runtime assertion. *)

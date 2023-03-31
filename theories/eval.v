@@ -211,6 +211,12 @@ Fixpoint eval η e : free val :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | EIfThen e e1 =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then eval η e1 else ok
+  | EIfThenElse e e1 e2 =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       v ← eval η e ;
       eval_match η v bs
