@@ -40,33 +40,41 @@ with pats :=
 
 Inductive expr :=
 
-  (* A variable. *)
+  (* Variable: [x]. *)
   | EVar (x : var)
 
   (* A (recursive) closure construction expression. *)
+  (* TODO does not exist in OCaml *)
   | ERec (f x : var) (e : expr)
-  (* A function call. *)
+
+  (* Function application: [e1 e2]. *)
+  (* Every function is considered unary. *)
   | EApp (e1 e2 : expr)
 
-  (* A tuple construction expression. *)
+  (* Tuple construction: [(e1, e2, ...)]. *)
   | ETuple (es : exprs)
 
-  (* A data constructor application expression. *)
+  (* Data constructor application: [A (e)]. *)
+  (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
 
-  (* Sequence. *)
+  (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
-  (* Conditionals. *)
+
+  (* Conditional: [if e then e1] and [if e then e1 else e2]. *)
   | EIfThen (e e1 : expr)
   | EIfThenElse (e e1 e2 : expr)
-  (* A pattern-matching construct. *)
+
+  (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : branches)
-  (* The [while] loop. *)
+
+  (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
 
-  (* A fatal error. *)
+  (* Fatal error: [assert false]. *)
   | EAssertFalse
-  (* A runtime assertion. *)
+
+  (* Runtime assertion: [assert(e)]. *)
   | EAssert (e : expr)
 
 (* Lists of expressions. *)
