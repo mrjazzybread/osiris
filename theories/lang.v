@@ -58,6 +58,11 @@ Inductive expr :=
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
 
+  (* Boolean conjunction, disjunction, and negation. *)
+  | EBoolConj (e1 e2 : expr)
+  | EBoolDisj (e1 e2 : expr)
+  | EBoolNeg (e : expr)
+
   (* Local definition: [let p = e1 in e2]. *)
   | ELet (p : pat) (e1 e2 : expr)
 
@@ -149,17 +154,17 @@ Notation VConstant c :=
 
 (* The Boolean constants. *)
 
-Notation PFalse :=
-  (PConstant "false").
+Definition BoolConstructor (b : bool) :=
+  if b then "true" else "false".
 
-Notation PTrue :=
-  (PConstant "true").
+Notation PBool b :=
+  (PConstant (BoolConstructor b)).
 
-Notation EFalse :=
-  (EConstant "false").
+Notation EBool b :=
+  (EConstant (BoolConstructor b)).
 
-Notation ETrue :=
-  (EConstant "true").
+Notation VBool b :=
+  (VConstant (BoolConstructor b)).
 
 Notation VFalse :=
   (VConstant "false").

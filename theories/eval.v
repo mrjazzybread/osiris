@@ -211,6 +211,15 @@ Fixpoint eval η e : free val :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | EBoolConj e1 e2 =>
+      b1 ← as_bool (eval η e1) ;
+     if (b1 : bool) then eval η e2 else ret VFalse
+  | EBoolDisj e1 e2 =>
+      b1 ← as_bool (eval η e1) ;
+      if (b1 : bool) then ret VTrue else eval η e2
+  | EBoolNeg e =>
+      b ← as_bool (eval η e) ;
+      ret (VBool (negb b))
   | ELet p e1 e2 =>
       (* This is evaluated like a [match] construct with one branch. *)
       v1 ← eval η e1 ;
