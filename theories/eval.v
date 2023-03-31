@@ -211,6 +211,9 @@ Fixpoint eval η e : free val :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | ESeq e1 e2 =>
+      v ← eval η e1 ;
+      eval η e2
   | EIfThen e e1 =>
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else ok

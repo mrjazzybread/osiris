@@ -54,6 +54,8 @@ Inductive expr :=
   (* A data constructor application expression. *)
   | EData (c : data) (e : expr)
 
+  (* Sequence. *)
+  | ESeq (e1 e2 : expr)
   (* Conditionals. *)
   | EIfThen (e e1 : expr)
   | EIfThenElse (e e1 e2 : expr)
@@ -170,13 +172,3 @@ Definition ELet p e1 e2 :=
 
 Definition ELetVar x e1 e2 :=
   ELet (PVar x) e1 e2.
-
-(* Sequencing. *)
-
-(* Sequencing is defined using a wildcard pattern, as opposed to a unit
-   pattern, because this removes a runtime test, therefore removes a static
-   proof obligation as well. This proof obligation would always succeed (in
-   a well-typed program) but would be noisy. *)
-
-Definition ESeq e1 e2 :=
-  ELet PAny e1 e2.
