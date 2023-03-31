@@ -58,6 +58,9 @@ Inductive expr :=
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
 
+  (* Local definition: [let p = e1 in e2]. *)
+  | ELet (p : pat) (e1 e2 : expr)
+
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
 
@@ -176,9 +179,6 @@ Notation VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
 (* Local definition constructs. *)
-
-Definition ELet p e1 e2 :=
-  EMatch e1 (BCons (Branch p e2) BNil).
 
 Definition ELetVar x e1 e2 :=
   ELet (PVar x) e1 e2.

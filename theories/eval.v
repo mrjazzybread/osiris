@@ -211,6 +211,13 @@ Fixpoint eval η e : free val :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | ELet p e1 e2 =>
+      (* This is evaluated like a [match] construct with one branch. *)
+      v1 ← eval η e1 ;
+      try
+        (extend η p v1)
+      (λ η, eval η e2)
+      (λ tt, fail)
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
