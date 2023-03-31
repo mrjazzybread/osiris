@@ -163,6 +163,12 @@ Notation PBool b :=
 Notation EBool b :=
   (EConstant (BoolConstructor b)).
 
+Notation EFalse :=
+  (EBool false).
+
+Notation ETrue :=
+  (EBool true).
+
 Notation VBool b :=
   (VConstant (BoolConstructor b)).
 
