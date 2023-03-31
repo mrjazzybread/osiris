@@ -238,8 +238,11 @@ Fixpoint eval η e : free val :=
       choose ok test
   end
 
-(* [evals η es] evaluates the expressions in the list [es] in parallel,
-   producing a list of values [vs]. *)
+(* ------------------------------------------------------------------------ *)
+
+(* [evals η es] evaluates the expressions in the list [es] in the
+   environment [η], producing a list of values [vs].
+   The expressions are evaluated in parallel. *)
 
 with evals η es : free vals :=
   match es with
@@ -249,6 +252,8 @@ with evals η es : free vals :=
       '(v, vs) ← par (eval η e) (evals η es) ;
       ret (VCons v vs)
   end
+
+(* ------------------------------------------------------------------------ *)
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
