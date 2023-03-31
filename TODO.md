@@ -84,7 +84,15 @@
   - Check that we are able to frame out an assertion during
     the execution of the rest of the loop
 * Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
-* Integers (bounded, idealized, both?)
+* Integers (bounded, idealized, both?) (rauch-wolff-03, jacobs-03)
+  https://coq.discourse.group/t/best-practices-for-machine-level-representation-of-numbers-and-bitwise-operations/482/6
+  coq-nbits (https://troll.iis.sinica.edu.tw/by-publ/recent/coq-qfbv.pdf, Section 4)
+  https://github.com/fmlab-iis/coq-nbits
+  SInt63:
+  https://www.ub.edu/prooftheory/media/sint6320x85.pdf
+  https://coq.github.io/doc/master/stdlib/Coq.Numbers.Cyclic.Int63.Sint63.html
+  Bit sets:
+  https://www.irif.fr/~dagand/stuffs/coq-bitset/flops/paper.pdf
 * `for` loops
   - Must evaluate both bounds up front,
     then invoke an auxiliary recursive function `eval_for_loop`
