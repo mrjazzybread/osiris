@@ -784,23 +784,22 @@ Proof.
   rewrite safe_ret. tauto.
 Qed.
 
-(* If one side is a result, then the above equivalence laws can be
+(* If one side is a result, then the lemma [prove_safe_par] can be
    further simplified as follows. *)
 
 Lemma prove_safe_Par_ret_left {A1 A2 A} a1 m2
-  (k : A1 * A2 → free A)
+  (k : A1 * A2 → free A) ko
   (φ : A → Prop) :
   safe m2 (λ v2, safe (k (a1, v2)) φ) →
-  safe (Par (Ret a1) m2 k next) φ.
+  safe (Par (Ret a1) m2 k ko) φ.
 Proof.
   intros Hsafe.
-  rewrite safe_par.
-  exists (λ v1, v1 = a1).
-  exists (λ v2, safe (k (a1, v2)) φ).
-  rewrite safe_ret.
-  repeat split.
-  + assumption.
-  + intros. subst. assumption.
+  eapply prove_safe_par
+    with (φ1 := λ v1, v1 = a1)
+         (φ2 := λ v2, safe (k (a1, v2)) φ).
+  { eapply safe_ret. reflexivity. }
+  { assumption. }
+  { intros. subst. assumption. }
 Qed.
 
 Lemma safe_par_ret_left {A1 A2} (a1 : A1) (m2 : free A2)
@@ -823,19 +822,18 @@ Qed.
 (* Symmetric copies of the previous lemmas. *)
 
 Lemma prove_safe_Par_ret_right {A1 A2 A} m1 a2
-  (k : A1 * A2 → free A)
+  (k : A1 * A2 → free A) ko
   (φ : A → Prop) :
   safe m1 (λ v1, safe (k (v1, a2)) φ) →
-  safe (Par m1 (Ret a2) k next) φ.
+  safe (Par m1 (Ret a2) k ko) φ.
 Proof.
   intros Hsafe.
-  rewrite safe_par.
-  exists (λ v1, safe (k (v1, a2)) φ).
-  exists (λ v2, v2 = a2).
-  rewrite safe_ret.
-  repeat split.
-  + assumption.
-  + intros. subst. assumption.
+  eapply prove_safe_par
+    with (φ1 := λ v1, safe (k (v1, a2)) φ)
+         (φ2 := λ v2, v2 = a2).
+  { assumption. }
+  { eapply safe_ret. reflexivity. }
+  { intros. subst. assumption. }
 Qed.
 
 Lemma safe_par_ret_right {A1 A2} (m1 : free A1) (a2 : A2)
