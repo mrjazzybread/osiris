@@ -854,3 +854,27 @@ Proof.
     eapply safe_covariant; [ eassumption |].
     intros a1. simpl. rewrite safe_ret. tauto. }
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following ad hoc lemmas help reason about binary branches where one
+   branch is trivial. *)
+
+Lemma prove_safe_if_left (b : bool) e (φ : val → Prop) :
+  safe e φ →
+  φ VUnit →
+  safe (if b then ok else e) φ.
+Proof.
+  destruct b; intros.
+  { eapply safe_ret. assumption. }
+  { assumption. }
+Qed.
+
+Lemma prove_safe_if_right (b : bool) e (φ : val → Prop) :
+  safe e φ →
+  φ VUnit →
+  safe (if b then e else ok) φ.
+  destruct b; intros.
+  { assumption. }
+  { eapply safe_ret. assumption. }
+Qed.
