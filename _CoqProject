@@ -5,6 +5,7 @@ theories/free.v
 theories/eval.v
 theories/step.v
 theories/steps.v
+theories/test.v
 theories/safe.v
 theories/wp.v
 theories/wp_tactics.v
