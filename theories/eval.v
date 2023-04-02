@@ -237,12 +237,11 @@ Fixpoint eval η e : free val :=
   | EBoolNeg e =>
       b ← as_bool (eval η e) ;
       ret (VBool (negb b))
-  | ELet1 p e1 e2 =>
+  | ELet bs e =>
       (* This is evaluated like a [match] construct with one branch. *)
-      v1 ← eval η e1 ;
       try
-        (extend η p v1)
-      (λ η, eval η e2)
+        (eval_extend_bindings η bs)
+      (λ η, eval η e)
       (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
@@ -292,6 +291,35 @@ with evals η es : free vals :=
   | ECons e es =>
       '(v, vs) ← par (eval η e) (evals η es) ;
       ret (VCons v vs)
+  end
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_extend_bindings η bs] evaluates the bindings [bs] in the environment
+   [η], producing an extended environment. *)
+
+(* [eval_extend_bindings] is used to evaluate the [let/and] construct. *)
+
+(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
+   bindings [bs] are evaluated in parallel. The values thus obtained are then
+   matched against the patterns in the left-hand sides. The pattern matching
+   process is sequential. TODO *)
+
+(* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
+   as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
+   then [eval_extend_bindings] would disappear. We prefer to avoid encodings. *)
+
+with eval_extend_bindings η (bs : bindings) : free env :=
+  match bs with
+  | BiNil =>
+      ret η
+  | BiCons (Binding p e) bs =>
+      (* Evaluate the expression [e], yielding a value [v]. In parallel,
+         evaluate the remaining bindings, yielding an extended environment
+         [η]. *)
+      '(v, η) ← par (eval η e) (eval_extend_bindings η bs) ;
+      (* Match the value [v] against the pattern [p], extending [η] again. *)
+      extend η p v
   end
 
 (* ------------------------------------------------------------------------ *)

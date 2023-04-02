@@ -63,8 +63,8 @@ Inductive expr :=
   | EBoolDisj (e1 e2 : expr)
   | EBoolNeg (e : expr)
 
-  (* Local definition: [let p = e1 in e2]. *)
-  | ELet1 (p : pat) (e1 e2 : expr)
+  (* Non-recursive local definition: [let bs in e]. *)
+  | ELet (bs : bindings) (e : expr)
 
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
@@ -101,6 +101,18 @@ with branch :=
 with branches :=
   | BrNil
   | BrCons (b : branch) (bs : branches)
+
+(* A binding is of the form [p = e]. *)
+
+with binding :=
+  | Binding (p : pat) (e : expr)
+
+(* Lists of bindings. *)
+
+with bindings :=
+  | BiNil
+  | BiCons (b : binding) (bs : bindings)
+.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -189,7 +201,14 @@ Notation EPair e1 e2 :=
 Notation VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
-(* Local definition constructs. *)
+(* [let p = e1 in e2]. *)
 
-Definition ELet1Var x e1 e2 :=
+Definition ELet1 (p : pat) (e1 e2 : expr) :=
+  let binding := Binding p e1 in
+  let bindings := BiCons binding BiNil in
+  ELet bindings e2.
+
+(* [let x = e1 in e2]. *)
+
+Definition ELet1Var (x : var) (e1 e2 : expr) :=
   ELet1 (PVar x) e1 e2.
