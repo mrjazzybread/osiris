@@ -280,9 +280,10 @@ Fixpoint eval η e : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [evals η es] evaluates the expressions in the list [es] in the
-   environment [η], producing a list of values [vs].
-   The expressions are evaluated in parallel. *)
+(* [evals η es] evaluates the expressions [es] in the environment [η],
+   producing values [vs]. The expressions are evaluated in parallel. *)
+
+(* [evals] is used to evaluate tuples. *)
 
 with evals η es : free vals :=
   match es with
