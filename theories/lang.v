@@ -94,13 +94,13 @@ with exprs :=
 (* A branch is of the form [p -> e]. *)
 
 with branch :=
-  | Branch (pat : pat) (e : expr)
+  | Branch (p : pat) (e : expr)
 
 (* Lists of branches. *)
 
 with branches :=
-  | BNil
-  | BCons (b : branch) (bs : branches).
+  | BrNil
+  | BrCons (b : branch) (bs : branches)
 
 (* ------------------------------------------------------------------------ *)
 

@@ -300,13 +300,13 @@ with evals η es : free vals :=
 
 with eval_match η v bs :=
   match bs with
-  | BNil =>
+  | BrNil =>
       (* A nonexhaustive [match] construct causes a hard failure. *)
       (* Because the proof system forbids hard failures, the user of
          the system will have to prove that this cannot happen, i.e.,
          every case analysis is exhaustive. *)
       crash "pattern matching failure (nonexhaustive case analysis)"
-  | BCons (Branch p e) bs =>
+  | BrCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
         (extend η p v)
