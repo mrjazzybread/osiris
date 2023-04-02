@@ -1,5 +1,17 @@
 Require Import base lang free eval step safe wp refinement.
 
+(* Do not allow [crash] to be unfolded. *)
+
+Global Opaque crash.
+
+(* Evaluate the message carried by [crash]. *)
+
+Ltac wp_crash :=
+  match goal with |- context[crash ?msg] =>
+    let msg' := eval cbv in msg in
+    change msg with msg'
+  end.
+
 (* Simplify goals that introduce simple values. *)
 
 Ltac wp_intros :=
@@ -43,7 +55,8 @@ Ltac wp_step :=
 with wp :=
   unfold wp;
   cbn;
-  repeat wp_step.
+  repeat wp_step;
+  try wp_crash.
 
 (* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
 

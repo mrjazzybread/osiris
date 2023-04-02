@@ -44,6 +44,20 @@ Definition choose {A} (m1 m2 : free A) : free A :=
   b ← flip ;
   if (b : bool) then m1 else m2.
 
+(* [crash msg] represents a failure of the interpreter. The message
+   [msg] is unused, but will be visible by the user during a proof,
+   and can help understand why the interpreter has crashed. *)
+
+(* If desired, we could use a custom inductive type, instead of a string,
+   to represent the reason for the failure. *)
+
+(* We note that most kinds of crashes cannot occur in well-typed code,
+   but some can, namely, pattern matching failures (caused by
+   nonexhaustive case analyses) and assertion failures. *)
+
+Definition crash {A} (msg : string) : free A :=
+  fail.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Local notations. *)
@@ -64,7 +78,7 @@ Fixpoint lookup η x : free val :=
   | EnvCons x' v η =>
       if x =? x' then ret v else lookup η x
   | EnvNil =>
-      fail (* unbound variable *)
+      crash ("unbound variable: " ++ x)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -103,10 +117,10 @@ Fixpoint extend η p v : free env :=
          match. If the data constructors do not match, a soft failure takes
          place. *)
       if c =? c' then extend η p v else next()
-  | PTuple _, _
+  | PTuple _, _ =>
+      crash "type mismatch (tuple expected)"
   | PData _ _, _ =>
-      (* A type mismatch between pattern and value causes a hard failure. *)
-      fail (* type mismatch *)
+      crash "type mismatch (algebraic data expected)"
   end
 
 (* [extends η ps vs] matches the values [vs] against the patterns [ps].
@@ -124,8 +138,10 @@ with extends η ps vs : free env :=
       η ← extend η p v ;
       η ← extends η ps vs ;
       ret η
-  | _, _ =>
-      fail (* length mismatch *)
+  | PCons _ _, VNil =>
+      crash "length mismatch (longer tuple expected)"
+  | PNil, VCons _ _ =>
+      crash "length mismatch (shorter tuple expected)"
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -144,9 +160,9 @@ Definition call v1 v2 : free val :=
          be evaluated. A recursive call to [eval] cannot be used,
          so we request the evaluation of [e] via a [stop] effect. *)
       stop Eval (η, e)
- | _ =>
-     fail (* type mismatch: closure expected *)
- end.
+   | _ =>
+      crash "type mismatch (closure expected)"
+   end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -160,7 +176,7 @@ Definition val_as_bool (v : val) : free bool :=
   | VTrue =>
       ret true
   | _ =>
-      fail (* type mismatch: Boolean value expected *)
+      crash "type mismatch (Boolean value expected)"
   end.
 
 Definition as_bool (m : free val) : free bool :=
@@ -226,7 +242,7 @@ Fixpoint eval η e : free val :=
       try
         (extend η p v1)
       (λ η, eval η e2)
-      (λ tt, fail)
+      (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
@@ -247,7 +263,7 @@ Fixpoint eval η e : free val :=
       else
         ok
   | EAssertFalse =>
-      fail (* assertion failure *)
+      crash "assertion failed"
   | EAssert e =>
       (* OCaml runtime assertions are erased when a module is compiled with
          the compiler flag [-noassert]; they are retained otherwise. We do not
@@ -256,7 +272,7 @@ Fixpoint eval η e : free val :=
          the user to prove that the program is safe in both scenarios. *)
       let test : free val :=
         success ← as_bool (eval η e) ;
-        if (success : bool) then ok else fail (* assertion failure *)
+        if (success : bool) then ok else crash "assertion failed"
       in
       choose ok test
   end
@@ -287,7 +303,7 @@ with eval_match η v bs :=
       (* Because the proof system forbids hard failures, the user of
          the system will have to prove that this cannot happen, i.e.,
          every case analysis is exhaustive. *)
-      fail (* nonexhaustive case analysis *)
+      crash "pattern matching failure (nonexhaustive case analysis)"
   | BCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try

@@ -1,5 +1,15 @@
 Require Import base lang free eval step safe wp wp_tactics.
 
+(* let x = A() in y *)
+
+Goal
+  let e := ELetVar "x" (EConstant "A") $ EVar "y" in
+  wp EnvNil e (λ v, v = VConstant "A").
+Proof.
+  (* This goal is false: the variable [y] is unbound. *)
+  wp.
+Abort.
+
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
 Definition example :=
