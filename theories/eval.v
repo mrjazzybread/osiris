@@ -8,8 +8,6 @@ Implicit Type p : pat.
 Implicit Type ps : pats.
 Implicit Type e : expr.
 Implicit Type es : exprs.
-Implicit Type b : branch.
-Implicit Type bs : branches.
 Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
