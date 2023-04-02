@@ -128,6 +128,9 @@ Fixpoint extend η p v : free env :=
 
    A hard failure occurs when [length ps ≠ length vs]. *)
 
+(* For now, pattern matching is sequential. Parallel evaluation would
+   make sense once we enable pattern matching on mutable state. TODO *)
+
 with extends η ps vs : free env :=
   match ps, vs with
   | PNil, VNil =>
