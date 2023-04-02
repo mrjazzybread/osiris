@@ -2,6 +2,9 @@
 
 ## Engineering and proof mode
 
+* Hide continuations in goals, by default; they are too verbose.
+  Offer an option to show them.
+
 * When we have a tree of nested `Par` and some of the leaves in the middle
   are of the form `Ret _`, one should in principle be able to permute the
   leaves so as to then be able to use `prove_safe_Par_ret_left`. Can this
