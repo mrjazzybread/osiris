@@ -53,6 +53,9 @@
   i.e., measure whether (and how many times) each line of code
   in the interpreter (eval.v) is exercised by the tests (examples.v).
 
+* Write a `help` tactic that analyzes the goal, explains its shape,
+  explains why we are here and what likely is the next thing to do.
+
 ## References
 
 * Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
