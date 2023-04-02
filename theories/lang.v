@@ -64,7 +64,7 @@ Inductive expr :=
   | EBoolNeg (e : expr)
 
   (* Local definition: [let p = e1 in e2]. *)
-  | ELet (p : pat) (e1 e2 : expr)
+  | ELet1 (p : pat) (e1 e2 : expr)
 
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
@@ -191,5 +191,5 @@ Notation VPair v1 v2 :=
 
 (* Local definition constructs. *)
 
-Definition ELetVar x e1 e2 :=
-  ELet (PVar x) e1 e2.
+Definition ELet1Var x e1 e2 :=
+  ELet1 (PVar x) e1 e2.

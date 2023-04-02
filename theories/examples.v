@@ -3,7 +3,7 @@ Require Import base lang free eval step safe wp wp_tactics.
 (* let x = A() in y *)
 
 Goal
-  let e := ELetVar "x" (EConstant "A") $ EVar "y" in
+  let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
   wp EnvNil e (λ v, v = VConstant "A").
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
@@ -13,8 +13,8 @@ Abort.
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
 Definition example :=
-  ELetVar "x" (EPair (EConstant "A") (EConstant "B")) $
-  ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  ELet1Var "x" (EPair (EConstant "A") (EConstant "B")) $
+  ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
 (* An example of reasoning about straight-line code. *)
@@ -27,8 +27,8 @@ Qed.
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
 Definition example2 :=
-  ELetVar "x" (EPair (EVar "z1") (EVar "z2")) $
-  ELet (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  ELet1Var "x" (EPair (EVar "z1") (EVar "z2")) $
+  ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
 Goal
@@ -102,7 +102,7 @@ Qed.
    (id (A()), id (A())) *)
 
 Definition example4 :=
-  ELetVar "id" identity $
+  ELet1Var "id" identity $
   example3.
 
 Lemma spec_example4:
@@ -142,7 +142,7 @@ Qed.
    (id id) id *)
 
 Definition example4b :=
-  ELetVar "id" identity $
+  ELet1Var "id" identity $
   let id := EVar "id" in
   EApp (EApp id id) EUnit.
 
@@ -168,7 +168,7 @@ Qed.
    id (id ()) *)
 
 Definition example4c :=
-  ELetVar "id" identity $
+  ELet1Var "id" identity $
   let id := EVar "id" in
   EApp id (EApp id EUnit).
 
@@ -194,7 +194,7 @@ Qed.
    (id id) (id ()) *)
 
 Definition example4d :=
-  ELetVar "id" identity $
+  ELet1Var "id" identity $
   let id := EVar "id" in
   EApp (EApp id id) (EApp id EUnit).
 

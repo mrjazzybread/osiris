@@ -236,7 +236,7 @@ Fixpoint eval η e : free val :=
   | EBoolNeg e =>
       b ← as_bool (eval η e) ;
       ret (VBool (negb b))
-  | ELet p e1 e2 =>
+  | ELet1 p e1 e2 =>
       (* This is evaluated like a [match] construct with one branch. *)
       v1 ← eval η e1 ;
       try

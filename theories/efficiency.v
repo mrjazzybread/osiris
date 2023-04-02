@@ -2,7 +2,7 @@ Require Import base lang free eval step safe wp wp_tactics.
 
 Definition do_something (v : val) : free val :=
   let η := EnvCons "v" v EnvNil in
-  eval η (ELet (PVar "x") (EVar "v") (EVar "x")).
+  eval η (ELet1Var "x" (EVar "v") (EVar "x")).
 
 (* -------------------------------------------------------------------------- *)
 
