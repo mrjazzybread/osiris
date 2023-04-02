@@ -1,5 +1,7 @@
 # TODO
 
+## Engineering and proof mode
+
 * When we have a tree of nested `Par` and some of the leaves in the middle
   are of the form `Ret _`, one should in principle be able to permute the
   leaves so as to then be able to use `prove_safe_Par_ret_left`. Can this
@@ -11,9 +13,6 @@
   `prove_safe_Par_ret_left` or `prove_safe_Par_ret_right` (twice)
   and we would end up *not* needing to reason about a parallel
   composition.
-
-* Find a way of annotating failures with a string,
-  so we can keep track of the reason for the failure.
 
 * The judgement `safe m φ` has just one postcondition
   and forbids the answer `Next`.
@@ -41,6 +40,22 @@
 * Use Coq lists, if possible, instead of custom `Nil` and `Cons`
   constructors in patterns, values, etc.
 
+* Write a `help` tactic that analyzes the goal, explains its shape,
+  explains why we are here and what likely is the next thing to do.
+
+* Allowing the user to place labels in the OCaml code, disguished as comments
+  `(* label: *)`, could be useful. (Agree with Mario and the Gospel people on
+  a standard syntax.) These comments could be preserved in the AST and could
+  serve multiple purposes, e.g.: they could be printed in a special way (print
+  just the label, not the code below it); they could be used to prevent `cbn`
+  to perform simplifications too early; they could serve as targets for the
+  symbolic execution engine ("please perform symbolic execution until the
+  label foo"). Comments (perhaps of a different kind?) could also be used to
+  indicate where we want a sub-AST to be isolated in a toplevel (Coq)
+  definition.
+
+## Semantics
+
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
   We should also prove that each ample step corresponds to a bounded
@@ -49,12 +64,14 @@
   distinguishing the program and the environment in which the program
   is executed). This means that Osiris with time credits is sound!
 
+## Tests
+
+* Once the translation of OCaml to our AST works, develop a more serious
+  test suite of the semantics.
+
 * Can we (automatically) measure the coverage of our test suite?
   i.e., measure whether (and how many times) each line of code
   in the interpreter (eval.v) is exercised by the tests (examples.v).
-
-* Write a `help` tactic that analyzes the goal, explains its shape,
-  explains why we are here and what likely is the next thing to do.
 
 ## References
 
