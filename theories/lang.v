@@ -43,8 +43,8 @@ Inductive expr :=
   (* Variable: [x]. *)
   | EVar (x : var)
 
-  (* An anonymous function [fun x -> e]. *)
-  | EFun (x : var) (e : expr)
+  (* An anonymous function. *)
+  | EAnonFun (a : anonfun)
 
   (* Function application: [e1 e2]. *)
   (* Every function is considered unary. *)
@@ -115,16 +115,21 @@ with bindings :=
   | BiNil
   | BiCons (b : binding) (bs : bindings)
 
-(* A recursive binding is of the form [f = fun x -> e]. *)
+(* A recursive binding is of the form [f = a]. *)
 
 with rec_binding :=
-  | RecBinding (f : var) (x : var) (e : expr)
+  | RecBinding (f : var) (a : anonfun)
 
 (* Lists of recursive bindings. *)
 
 with rec_bindings :=
   | RecBiNil
   | RecBiCons (rb : rec_binding) (rbs : rec_bindings)
+
+(* An anonymous function is of the form [fun x -> e]. *)
+
+with anonfun :=
+  | AnonFun (x : var) (e : expr)
 
 .
 
@@ -134,7 +139,7 @@ with rec_bindings :=
 
 Inductive val :=
   (* A simple (non-recursive) closure. *)
-  | VClo (η : env) (x : var) (e : expr)
+  | VClo (η : env) (a : anonfun)
   (* A recursive closure. *)
   (* [η] is the environment at the closure creation site. It does not include
      entries for the functions defined by the recursive bindings [rbs]. *)
@@ -236,6 +241,11 @@ Definition ELet1Var (x : var) (e1 e2 : expr) :=
 (* [let rec f x = e1 in e2]. *)
 
 Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
-  let rb := RecBinding f x e1 in
+  let rb := RecBinding f (AnonFun x e1) in
   let rbs := RecBiCons rb RecBiNil in
   ELetRec rbs e2.
+
+(* [fun x -> e]. *)
+
+Definition EFun (x : var) (e : expr) :=
+  EAnonFun (AnonFun x e).

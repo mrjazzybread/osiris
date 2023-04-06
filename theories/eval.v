@@ -8,6 +8,7 @@ Implicit Type p : pat.
 Implicit Type ps : pats.
 Implicit Type e : expr.
 Implicit Type es : exprs.
+Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
@@ -93,7 +94,7 @@ Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
   | RecBiNil =>
       η
-  | RecBiCons (RecBinding f x e) rbs' =>
+  | RecBiCons (RecBinding f _a) rbs' =>
       EnvCons f (VCloRec η rbs f) (eval_rec_bindings_aux η rbs rbs')
   end.
 
@@ -107,12 +108,12 @@ Definition eval_rec_bindings η rbs : env :=
 (* ------------------------------------------------------------------------ *)
 
 (* [lookup_rec_bindings rbs f] looks up the function [f] in the recursive
-   bindings [rbs]. The right-hand side is a function body [fun x -> e]. *)
+   bindings [rbs]. The right-hand side is an anonymous function [a]. *)
 
-Fixpoint lookup_rec_bindings rbs f : free (var * expr) :=
+Fixpoint lookup_rec_bindings rbs f : free anonfun :=
   match rbs with
-  | RecBiCons (RecBinding f' x e) rbs =>
-      if f =? f' then ret (x, e) else lookup_rec_bindings rbs f
+  | RecBiCons (RecBinding f' a) rbs =>
+      if f =? f' then ret a else lookup_rec_bindings rbs f
   | RecBiNil =>
       crash ("unbound variable: " ++ f)
   end.
@@ -187,10 +188,14 @@ with extends η ps vs : free env :=
 
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
+(* The value [v1] is expected to be either a non-recursive closure [VClo]
+   or a recursive closure [VCloRec]. *)
+
 Definition call v1 v2 : free val :=
   (* The value [v1] must be a closure. *)
   match v1 with
-  | VClo η x e =>
+  | VClo η a =>
+      let '(AnonFun x e) := a in
       (* The environment of the closure is extended with a binding
          for the variable [x]. *)
       let η := EnvCons x v2 η in
@@ -202,11 +207,12 @@ Definition call v1 v2 : free val :=
       (* The environment of the closure is extended with bindings
          for the recursive functions in [rbs]. *)
       let η := eval_rec_bindings η rbs in
-      (* The entry point [f] is looked up in [rbs], yielding a
-         function body [fun x -> e]. *)
-      '(x, e) ← lookup_rec_bindings rbs f ;
+      (* The entry point [f] is looked up in [rbs], yielding an
+         anonymous function [a]. *)
+      a ← lookup_rec_bindings rbs f ;
       (* The environment is then extended with a binding for the
          variable [x], and the function body [e] is evaluated. *)
+      let '(AnonFun x e) := a in
       let η := EnvCons x v2 η in
       stop Eval (η, e)
    | _ =>
@@ -262,9 +268,9 @@ Fixpoint eval η e : free val :=
   | EVar x =>
       (* A variable [x] is looked up in the environment [η]. *)
       lookup η x
-  | EFun x e =>
+  | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
-      ret (VClo η x e)
+      ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
