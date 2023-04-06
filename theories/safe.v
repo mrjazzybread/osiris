@@ -500,6 +500,13 @@ Proof.
   assumption.
 Qed.
 
+Lemma prove_safe_eval_ret η e φ :
+  safe (eval η e) φ →
+  safe (stop Eval (η, e)) φ.
+Proof.
+  eauto using prove_safe_eval, safe_covariant, prove_safe_ret.
+Qed.
+
 Lemma prove_safe_flip {A} x (k : bool → free A) φ :
   (∀ b, safe (k b) φ) →
   safe (Stop Flip x k) φ.

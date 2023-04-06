@@ -37,6 +37,7 @@ Ltac wp_step :=
   first [
     apply prove_safe_ret; cbn
   | apply prove_safe_bind; cbn
+  | apply prove_safe_eval_ret; cbn
   | apply prove_safe_eval; cbn
   | apply prove_safe_flip; intro; cbn
   | apply prove_safe_par_ret_ret; cbn
