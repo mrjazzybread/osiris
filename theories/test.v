@@ -88,7 +88,7 @@ Proof. reduces. Qed.
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
-      ERec "pair" "x" (ERec "_" "y" (
+      EFun "x" (EFun "y" (
         EPair (EVar "x") (EVar "y")
     ))) $
     EApp (EApp (EVar "pair") ETrue) EFalse

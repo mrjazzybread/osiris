@@ -43,6 +43,9 @@ Inductive expr :=
   (* Variable: [x]. *)
   | EVar (x : var)
 
+  (* An anonymous function [fun x -> e]. *)
+  | EFun (x : var) (e : expr)
+
   (* A (recursive) closure construction expression. *)
   (* TODO does not exist in OCaml *)
   | ERec (f x : var) (e : expr)

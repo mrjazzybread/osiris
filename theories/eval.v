@@ -219,6 +219,9 @@ Fixpoint eval η e : free val :=
   | EVar x =>
       (* A variable [x] is looked up in the environment [η]. *)
       lookup η x
+  | EFun x e =>
+      (* The creation of a closure captures the environment [η]. *)
+      ret (VClo η x e)
   | ERec f x e =>
       (* The creation of a closure captures the environment [η]. *)
       ret (VRec η f x e)

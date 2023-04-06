@@ -89,7 +89,7 @@ Qed.
    the identity function. *)
 
 Definition identity :=
-  ERec "self" "x" (EVar "x").
+  EFun "x" (EVar "x").
 
 Lemma spec_identity:
   wp EnvNil identity (λ c, ∀ v, safe (call c v) (λ v', v' = v)).
