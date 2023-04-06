@@ -186,35 +186,38 @@ with extends η ps vs : free env :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [acall η a v] evaluates the application of the anonymous function [a]
+   to the value [v] in the environment [η]. *)
+
+Definition acall η a v : free val :=
+  (* An anonymous function [a] is of the form [fun x -> e]. *)
+  let '(AnonFun x e) := a in
+  (* Extend the environment [η] with a binding of the variable [x]
+     to the value [v]. *)
+  let η := EnvCons x v η in
+  (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
+     be used, so evaluation of [e] is requested via a [stop] effect. *)
+  stop Eval (η, e).
+
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
-(* The value [v1] is expected to be either a non-recursive closure [VClo]
-   or a recursive closure [VCloRec]. *)
+(* The value [v1] is expected to be either a non-recursive closure [VClo η a]
+   or a recursive closure [VCloRec η rbs f]. *)
 
 Definition call v1 v2 : free val :=
   (* The value [v1] must be a closure. *)
   match v1 with
   | VClo η a =>
-      let '(AnonFun x e) := a in
-      (* The environment of the closure is extended with a binding
-         for the variable [x]. *)
-      let η := EnvCons x v2 η in
-      (* In this extended environment, the function body [e] must
-         be evaluated. A recursive call to [eval] cannot be used,
-         so evaluation of [e] is requested via a [stop] effect. *)
-      stop Eval (η, e)
+      acall η a v2
   | VCloRec η rbs f =>
-      (* The environment of the closure is extended with bindings
+      (* Extend the environment [η] found in the closure with bindings
          for the recursive functions in [rbs]. *)
       let η := eval_rec_bindings η rbs in
-      (* The entry point [f] is looked up in [rbs], yielding an
-         anonymous function [a]. *)
+      (* Look up the entry point [f] in [rbs], yielding an anonymous
+         function [a]. *)
       a ← lookup_rec_bindings rbs f ;
-      (* The environment is then extended with a binding for the
-         variable [x], and the function body [e] is evaluated. *)
-      let '(AnonFun x e) := a in
-      let η := EnvCons x v2 η in
-      stop Eval (η, e)
+      (* Then, proceed as in the case of a non-recursive closure. *)
+      acall η a v2
    | _ =>
       crash "type mismatch (closure expected)"
    end.
