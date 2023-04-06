@@ -119,7 +119,9 @@ with bindings :=
 (* Values. *)
 
 Inductive val :=
-  (* A (recursive) closure. *)
+  (* A simple (non-recursive) closure. *)
+  | VClo (η : env) (x : var) (e : expr)
+  (* A recursive closure. *)
   | VRec (η : env) (f x : var) (e : expr)
   (* A tuple. *)
   | VTuple (vs : vals)

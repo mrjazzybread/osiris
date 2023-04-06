@@ -152,14 +152,19 @@ with extends η ps vs : free env :=
 Definition call v1 v2 : free val :=
   (* The value [v1] must be a closure. *)
   match v1 with
+  | VClo η x e =>
+      (* The environment of the closure is extended with a binding
+         for the variable [x]. *)
+      let η := EnvCons x v2 η in
+      (* In this extended environment, the function body [e] must
+         be evaluated. A recursive call to [eval] cannot be used,
+         so evaluation of [e] is requested via a [stop] effect. *)
+      stop Eval (η, e)
   | VRec η f x e =>
       (* The environment of the closure is extended with bindings
          for the variables [f] and [x]. *)
       let η := EnvCons f v1 η in
       let η := EnvCons x v2 η in
-      (* In this extended environment, the function body [e] must
-         be evaluated. A recursive call to [eval] cannot be used,
-         so we request the evaluation of [e] via a [stop] effect. *)
       stop Eval (η, e)
    | _ =>
       crash "type mismatch (closure expected)"
