@@ -46,10 +46,6 @@ Inductive expr :=
   (* An anonymous function [fun x -> e]. *)
   | EFun (x : var) (e : expr)
 
-  (* A (recursive) closure construction expression. *)
-  (* TODO does not exist in OCaml *)
-  | ERec (f x : var) (e : expr)
-
   (* Function application: [e1 e2]. *)
   (* Every function is considered unary. *)
   | EApp (e1 e2 : expr)
@@ -68,6 +64,9 @@ Inductive expr :=
 
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)
+
+  (* Recursive local definition: [let rbs in e]. *)
+  | ELetRec (rbs : rec_bindings) (e : expr)
 
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
@@ -115,6 +114,18 @@ with binding :=
 with bindings :=
   | BiNil
   | BiCons (b : binding) (bs : bindings)
+
+(* A recursive binding is of the form [f = fun x -> e]. *)
+
+with rec_binding :=
+  | RecBinding (f : var) (x : var) (e : expr)
+
+(* Lists of recursive bindings. *)
+
+with rec_bindings :=
+  | RecBiNil
+  | RecBiCons (rb : rec_binding) (rbs : rec_bindings)
+
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -125,7 +136,11 @@ Inductive val :=
   (* A simple (non-recursive) closure. *)
   | VClo (η : env) (x : var) (e : expr)
   (* A recursive closure. *)
-  | VRec (η : env) (f x : var) (e : expr)
+  (* [η] is the environment at the closure creation site. It does not include
+     entries for the functions defined by the recursive bindings [rbs]. *)
+  (* The recursive bindings [rbs] are those of the closure creation site. *)
+  (* The name [f] is the closure's entry point. *)
+  | VCloRec (η : env) (rbs : rec_bindings) (f : var)
   (* A tuple. *)
   | VTuple (vs : vals)
   (* A data constructor value. *)
@@ -217,3 +232,10 @@ Definition ELet1 (p : pat) (e1 e2 : expr) :=
 
 Definition ELet1Var (x : var) (e1 e2 : expr) :=
   ELet1 (PVar x) e1 e2.
+
+(* [let rec f x = e1 in e2]. *)
+
+Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+  let rb := RecBinding f x e1 in
+  let rbs := RecBiCons rb RecBiNil in
+  ELetRec rbs e2.

@@ -11,6 +11,7 @@ Implicit Type es : exprs.
 Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
+Implicit Type rbs : rec_bindings.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -77,6 +78,43 @@ Fixpoint lookup η x : free val :=
       if x =? x' then ret v else lookup η x
   | EnvNil =>
       crash ("unbound variable: " ++ x)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_rec_bindings_aux η rbs rbs'] extends the environment [η] with the
+   bindings [rbs'], where each name [f] is mapped to a recursive closure
+   that captures the environment [η] and the bindings [rbs]. *)
+
+(* The parameters [η] and [rbs] are invariant. At the beginning, [rbs']
+   is [rbs], so, in general, [rbs'] is a suffix of [rbs]. *)
+
+Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
+  match rbs' with
+  | RecBiNil =>
+      η
+  | RecBiCons (RecBinding f x e) rbs' =>
+      EnvCons f (VCloRec η rbs f) (eval_rec_bindings_aux η rbs rbs')
+  end.
+
+(* [eval_rec_bindings η rbs rbs'] extends the environment [η] with the
+   bindings [rbs], where each name [f] is mapped to a recursive closure
+   that captures the environment [η] and the bindings [rbs]. *)
+
+Definition eval_rec_bindings η rbs : env :=
+  eval_rec_bindings_aux η rbs rbs.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [lookup_rec_bindings rbs f] looks up the function [f] in the recursive
+   bindings [rbs]. The right-hand side is a function body [fun x -> e]. *)
+
+Fixpoint lookup_rec_bindings rbs f : free (var * expr) :=
+  match rbs with
+  | RecBiCons (RecBinding f' x e) rbs =>
+      if f =? f' then ret (x, e) else lookup_rec_bindings rbs f
+  | RecBiNil =>
+      crash ("unbound variable: " ++ f)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -160,10 +198,15 @@ Definition call v1 v2 : free val :=
          be evaluated. A recursive call to [eval] cannot be used,
          so evaluation of [e] is requested via a [stop] effect. *)
       stop Eval (η, e)
-  | VRec η f x e =>
+  | VCloRec η rbs f =>
       (* The environment of the closure is extended with bindings
-         for the variables [f] and [x]. *)
-      let η := EnvCons f v1 η in
+         for the recursive functions in [rbs]. *)
+      let η := eval_rec_bindings η rbs in
+      (* The entry point [f] is looked up in [rbs], yielding a
+         function body [fun x -> e]. *)
+      '(x, e) ← lookup_rec_bindings rbs f ;
+      (* The environment is then extended with a binding for the
+         variable [x], and the function body [e] is evaluated. *)
       let η := EnvCons x v2 η in
       stop Eval (η, e)
    | _ =>
@@ -222,9 +265,6 @@ Fixpoint eval η e : free val :=
   | EFun x e =>
       (* The creation of a closure captures the environment [η]. *)
       ret (VClo η x e)
-  | ERec f x e =>
-      (* The creation of a closure captures the environment [η]. *)
-      ret (VRec η f x e)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
@@ -251,6 +291,11 @@ Fixpoint eval η e : free val :=
         (eval_extend_bindings η bs)
       (λ η, eval η e)
       (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
+  | ELetRec rbs e =>
+      (* Extend the environment with a mapping of each function name in [rbs]
+         to a suitable recursive closure; then, evaluate [e]. *)
+      let η := eval_rec_bindings η rbs in
+      eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
