@@ -39,12 +39,14 @@ Ltac wp_step :=
   | apply prove_safe_bind; cbn
   | apply prove_safe_eval; cbn
   | apply prove_safe_flip; intro; cbn
+  | apply prove_safe_par_ret_ret; cbn
   | apply prove_safe_Par_ret_left; cbn
   | apply prove_safe_Par_ret_right; cbn
   | apply prove_safe_if_left; [ cbn | cbn ]
       (* this line is intended to help reason about [EAssert] *)
   | eapply refinement_simpl; [ typeclasses eauto .. | cbn ]
-      (* this line subsumes [prove_safe_par_ret_ret] *)
+      (* TODO this line should subsume [prove_safe_par_ret_ret],
+              but in my tests, this does not work; investigate *)
       (* TODO develop examples where [refinement_simpl] is used *)
       (* TODO explain why there is no risk of divergence here,
               due to a trivial refinement that does not make progress *)
