@@ -8,7 +8,7 @@ Goal
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   wp.
-Abort.
+Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -223,3 +223,18 @@ Proof.
   wp_intros.
   wp_use Hid.
 Qed.
+
+(* let rec diverge x = diverge x in diverge() *)
+
+Definition divergence :=
+  ELetRec1 "diverge" "x" (EApp (EVar "diverge") (EVar "x")) $
+  EApp (EVar "diverge") EUnit.
+
+Lemma spec_divergence:
+  wp EnvNil divergence (λ _, False).
+Proof.
+  (* The tactic [wp_step] can be applied as many times as one wishes,
+     since this term does not terminate, but the goal can never be
+     reached in this way. *)
+  do 100 wp_step.
+Abort. (* TODO once we have Löb induction, prove this goal *)
