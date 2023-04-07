@@ -226,6 +226,36 @@ Notation EPair e1 e2 :=
 Notation VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
+(* Options. *)
+
+Notation VNone :=
+  (VConstant "None").
+
+Notation VSome v :=
+  (VData "Some" v).
+
+(* Lists. *)
+
+(* TODO would like to use VNil and VCons, but this causes a name clash *)
+
+Notation pNil :=
+  (PConstant "[]").
+
+Notation pCons p1 p2 :=
+  (PData "::" (PPair p1 p2)).
+
+Notation eNil :=
+  (EConstant "[]").
+
+Notation eCons e1 e2 :=
+  (EData "::" (EPair e1 e2)).
+
+Notation vNil :=
+  (VConstant "[]").
+
+Notation vCons v1 v2 :=
+  (VData "::" (VPair v1 v2)).
+
 (* [let p = e1 in e2]. *)
 
 Definition ELet1 (p : pat) (e1 e2 : expr) :=
