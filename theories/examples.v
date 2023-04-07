@@ -1,4 +1,4 @@
-Require Import base lang free eval step safe wp wp_tactics.
+Require Import base lang free eval step safe wp wp_tactics encode.
 
 (* let x = A() in y *)
 
@@ -238,3 +238,61 @@ Proof.
      reached in this way. *)
   do 100 wp_step.
 Abort. (* TODO once we have Löb induction, prove this goal *)
+
+(* A recursive function that walks a list. *)
+
+(* let rec walk xs =
+     match xs with
+     | [] -> ()
+     | x :: xs -> walk xs
+   in
+   walk e *)
+
+Definition walk : rec_bindings :=
+  let rb := RecBinding "walk" (AnonFun "xs" (
+    EMatch (EVar "xs") (
+      BrCons (Branch pNil EUnit) $
+      BrCons (Branch (pCons (PVar "x") (PVar "xs"))
+                     (EApp (EVar "walk") (EVar "xs"))
+             ) $
+      BrNil
+    )
+  )) in
+  RecBiCons rb RecBiNil.
+
+Definition walk_example e :=
+  ELetRec walk $
+  EApp (EVar "walk") e.
+
+Lemma spec_walk_example_easy :
+  let e := (eCons ETrue (eCons EFalse eNil)) in
+  wp EnvNil (walk_example e) (λ v, v = encode ()).
+Proof.
+  (* This example is easy: the code is pure and terminating
+     and can be fully evaluated. *)
+  wp. reflexivity.
+Qed.
+
+Lemma spec_walk_example :
+  forall (vs : list bool),
+  let η := EnvCons "xs" (encode vs) EnvNil in
+  wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
+Proof.
+  intros.
+  unfold wp.
+  wp_step.
+  wp_step.
+  Opaque call. (* TODO clean this up *)
+  wp_step.
+  (* The environment that is captured by the closure does not matter,
+     since the code is in fact closed. So, we must in fact universally
+     quantify over this environment. *)
+  generalize η. clear η.
+  (* We now have a lemma that can be proved by induction on [vs]. *)
+  revert vs. induction vs as [| v vs ]; intro η.
+  (* Base case. *)
+  { Transparent call. wp. reflexivity. }
+  (* Step case. *)
+  { Transparent call. wp_step. Opaque call.
+    wp. wp_use IHvs. }
+Qed.
