@@ -59,6 +59,11 @@
 
 ## Semantics
 
+* At closure construction time, should the semantics trim the environment η
+  so as to keep only the variables that occur free in the code?
+  + Cons: this makes the semantics more complex.
+  + Pros: this should lead to simpler and more natural goals.
+
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
   We should also prove that each ample step corresponds to a bounded
