@@ -2,8 +2,13 @@
 
 ## Engineering and proof mode
 
-* Hide continuations in goals, by default; they are too verbose.
+* By default, hide continuations in goals (they are too verbose).
   Offer an option to show them.
+
+* Display environments in a nice form in goals.
+  + One binding per line.
+  + By default, display complex values (such as closures)
+    in an abbreviated form.
 
 * When we have a tree of nested `Par` and some of the leaves in the middle
   are of the form `Ret _`, one should in principle be able to permute the
