@@ -1,6 +1,7 @@
 -R . AmpleStep
 theories/base.v
 theories/lang.v
+theories/encode.v
 theories/free.v
 theories/eval.v
 theories/step.v
