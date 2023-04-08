@@ -110,6 +110,7 @@
 * Functions and function applications
 * Mutually-recursive functions
 * Arrays
+* Characters and strings
 * Conditionals
 * `while` loops
   - Check that we are able to reason about infinite loops using Löb induction
