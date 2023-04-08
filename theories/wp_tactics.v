@@ -1,6 +1,9 @@
 Require Import base lang free eval step safe wp refinement.
 
-(* Do not allow [crash] to be unfolded. *)
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [crash] to be unfolded. We wish to preserve the error
+   message carried by [crash]. It would be lost if [crash] was unfolded. *)
 
 Global Opaque crash.
 
@@ -12,6 +15,8 @@ Ltac wp_crash :=
     change msg with msg'
   end.
 
+(* -------------------------------------------------------------------------- *)
+
 (* Simplify goals that introduce simple values. *)
 
 Ltac wp_intros :=
@@ -20,6 +25,8 @@ Ltac wp_intros :=
   | |- ?v = _ → _ => intro; try subst v
   | |- ∀ v, _     => intro
   end.
+
+(* -------------------------------------------------------------------------- *)
 
 (* Deal with a goal of the form [safe m φ] when we already have
    a hypothesis [H] of the form [safe m φ']. *)
@@ -30,6 +37,8 @@ Ltac wp_use H :=
   | eapply safe_covariant; [ eapply H |]
   ];
   simpl; wp_intros.
+
+(* -------------------------------------------------------------------------- *)
 
 (* Reduce and reason about a goal of the form [safe m φ]. *)
 
@@ -60,6 +69,8 @@ with wp :=
   cbn;
   repeat wp_step;
   try wp_crash.
+
+(* -------------------------------------------------------------------------- *)
 
 (* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
 
