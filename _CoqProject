@@ -2,6 +2,7 @@
 theories/CompCert/Coqlib.v
 theories/CompCert/Zbits.v
 theories/CompCert/Integers.v
+theories/int.v
 theories/base.v
 theories/lang.v
 theories/encode.v
