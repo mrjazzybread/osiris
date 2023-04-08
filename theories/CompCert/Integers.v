@@ -960,6 +960,15 @@ Proof.
   apply eqm_mult; apply eqm_sym; apply eqm_signed_unsigned.
 Qed.
 
+(* fpottier *)
+(* Multiplication of machine integers corresponds to multiplication
+   of ideal integers. *)
+Lemma mul_repr_repr (i j : Z) :
+  mul (repr i) (repr j) = repr (i * j).
+Proof.
+  unfold mul. eapply eqm_samerepr. eauto with ints.
+Qed.
+
 (** ** Properties of division and modulus *)
 
 Lemma modu_divu_Euclid:
