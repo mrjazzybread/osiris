@@ -82,26 +82,6 @@ Ltac wp_par :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* This paraphrase of the definition of [call] is required because we want
-   to make [call] opaque and to nevertheless retain a way of explicitly
-   unfolding it when desired. I don't know of a better way of doing this. *)
-
-Lemma call_def v1 v2 :
-  call v1 v2 =
-  match v1 with
-  | VClo η a =>
-      acall η a v2
-  | VCloRec η rbs f =>
-      let η := eval_rec_bindings η rbs in
-      a ← lookup_rec_bindings rbs f ;
-      acall η a v2
-   | _ =>
-      crash "type mismatch (closure expected)"
-   end.
-Proof.
-  reflexivity.
-Qed.
-
 (* Do not allow [call] to be unfolded. We do not want symbolic execution
    to automaticaly step into function calls. *)
 
@@ -110,5 +90,6 @@ Global Opaque call.
 (* [wp_call] steps into a call. *)
 
 Ltac wp_call :=
-  rewrite call_def;
+  with_strategy transparent [call] unfold call;
+    (* TODO make sure that we unfold just the root occurrence *)
   wp.
