@@ -242,6 +242,22 @@ Definition as_bool (m : free val) : free bool :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_int v] checks that the value [v] is a language-level integer
+   value and returns its meta-level value. *)
+
+Definition val_as_int (v : val) : free int :=
+  match v with
+  | VInt i =>
+      ret i
+  | _ =>
+      crash "type mismatch (integer value expected)"
+  end.
+
+Definition as_int (m : free val) : free int :=
+  bind m val_as_int.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -288,6 +304,14 @@ Fixpoint eval η e : free val :=
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
+  | EInt i =>
+      (* An integer literal is interpreted as a machine integer. *)
+      (* We do not require this integer literal to lie within a certain
+         range; we project it into the range of machine integers. *)
+      ret (VInt (int.repr i))
+  | EIntAdd e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.add i1 i2))
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2

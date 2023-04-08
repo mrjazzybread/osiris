@@ -1,3 +1,4 @@
+Require int.
 Require Import base.
 
 (* ------------------------------------------------------------------------ *)
@@ -13,6 +14,13 @@ Definition var :=
 
 Definition data :=
   string.
+
+(* ------------------------------------------------------------------------ *)
+
+(* Machine integers. *)
+
+Definition int :=
+  int.int.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -61,6 +69,11 @@ Inductive expr :=
   | EBoolConj (e1 e2 : expr)
   | EBoolDisj (e1 e2 : expr)
   | EBoolNeg (e : expr)
+
+  (* Integer literals. *)
+  | EInt (i : Z)
+  (* Integer operations. *)
+  | EIntAdd (e1 e2 : expr)
 
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)
@@ -146,6 +159,8 @@ Inductive val :=
   (* The recursive bindings [rbs] are those of the closure creation site. *)
   (* The name [f] is the closure's entry point. *)
   | VCloRec (η : env) (rbs : rec_bindings) (f : var)
+  (* A machine integer. *)
+  | VInt (i : int)
   (* A tuple. *)
   | VTuple (vs : vals)
   (* A data constructor value. *)
