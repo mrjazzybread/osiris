@@ -760,6 +760,14 @@ Proof.
   rewrite unsigned_one. right; lia.
 Qed.
 
+(* fpottier *)
+(* Addition of machine integers corresponds to addition of ideal integers. *)
+Lemma add_repr_repr_eq (i j : Z) :
+  add (repr i) (repr j) = repr (i + j).
+Proof.
+  unfold add. eapply eqm_samerepr. eauto with ints.
+Qed.
+
 (** ** Properties of negation *)
 
 Theorem neg_repr: forall z, neg (repr z) = repr (-z).
