@@ -865,6 +865,14 @@ Proof.
   rewrite unsigned_zero. apply Zmod_unique with 0. lia. lia.
 Qed.
 
+(* fpottier *)
+(* Subtraction of machine integers corresponds to subtraction of ideal integers. *)
+Lemma sub_repr_repr (i j : Z) :
+  sub (repr i) (repr j) = repr (i - j).
+Proof.
+  unfold sub. eapply eqm_samerepr. eauto with ints.
+Qed.
+
 (** ** Properties of multiplication *)
 
 Theorem mul_commut: forall x y, mul x y = mul y x.
