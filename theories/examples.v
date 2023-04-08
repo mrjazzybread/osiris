@@ -94,8 +94,7 @@ Definition identity :=
 Lemma spec_identity:
   wp EnvNil identity (λ c, ∀ v, safe (call c v) (λ v', v' = v)).
 Proof.
-  wp. intros c.
-  wp. reflexivity.
+  wp. intros c. wp_call. reflexivity.
 Qed.
 
 (* let id = identity in
@@ -270,7 +269,7 @@ Lemma spec_walk_example_easy :
 Proof.
   (* This example is easy: the code is pure and terminating
      and can be fully evaluated. *)
-  wp. reflexivity.
+  wp. do 3 wp_call. reflexivity.
 Qed.
 
 Lemma spec_walk_example :
@@ -278,21 +277,15 @@ Lemma spec_walk_example :
   let η := EnvCons "xs" (encode vs) EnvNil in
   wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
 Proof.
-  intros.
-  unfold wp.
-  wp_step.
-  wp_step.
-  Opaque call. (* TODO clean this up *)
-  wp_step.
+  intros. wp.
   (* The environment that is captured by the closure does not matter,
      since the code is in fact closed. So, we must in fact universally
      quantify over this environment. *)
   generalize η. clear η.
   (* We now have a lemma that can be proved by induction on [vs]. *)
-  revert vs. induction vs as [| v vs ]; intro η.
+  revert vs. induction vs as [| v vs ]; intro η; wp_call.
   (* Base case. *)
-  { Transparent call. wp. reflexivity. }
+  { reflexivity. }
   (* Step case. *)
-  { Transparent call. wp_step. Opaque call.
-    wp. wp_use IHvs. }
+  { wp_use IHvs. }
 Qed.
