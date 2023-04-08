@@ -72,8 +72,15 @@ Inductive expr :=
 
   (* Integer literals. *)
   | EInt (i : Z)
-  (* Integer operations. *)
+  | EMaxInt
+  | EMinInt
+  (* Integer arithmetic. *)
+  | EIntNeg (e : expr)
   | EIntAdd (e1 e2 : expr)
+  | EIntSub (e1 e2 : expr)
+  | EIntMul (e1 e2 : expr)
+  | EIntDiv (e1 e2 : expr)
+  | EIntMod (e1 e2 : expr)
 
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)

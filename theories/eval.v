@@ -256,6 +256,14 @@ Definition val_as_int (v : val) : free int :=
 Definition as_int (m : free val) : free int :=
   bind m val_as_int.
 
+(* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
+
+Definition check_div_by_zero (i : int) : free unit :=
+  if int.eq i int.zero then
+    crash "division by zero" (* TODO raise an exception *)
+  else
+    ret ().
+
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -309,9 +317,32 @@ Fixpoint eval η e : free val :=
       (* We do not require this integer literal to lie within a certain
          range; we project it into the range of machine integers. *)
       ret (VInt (int.repr i))
+  | EMaxInt =>
+      ret (VInt (int.repr int.max_signed))
+  | EMinInt =>
+      ret (VInt (int.repr int.min_signed))
+  | EIntNeg e =>
+      i ← as_int (eval η e) ;
+      ret (VInt (int.neg i))
   | EIntAdd e1 e2 =>
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.add i1 i2))
+  | EIntSub e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.sub i1 i2))
+  | EIntMul e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.mul i1 i2))
+  | EIntDiv e1 e2 =>
+      (* Signed division is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.divs i1 i2))
+  | EIntMod e1 e2 =>
+      (* Signed remainder is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.mods i1 i2))
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2
