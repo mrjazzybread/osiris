@@ -762,7 +762,7 @@ Qed.
 
 (* fpottier *)
 (* Addition of machine integers corresponds to addition of ideal integers. *)
-Lemma add_repr_repr_eq (i j : Z) :
+Lemma add_repr_repr (i j : Z) :
   add (repr i) (repr j) = repr (i + j).
 Proof.
   unfold add. eapply eqm_samerepr. eauto with ints.

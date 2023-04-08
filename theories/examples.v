@@ -324,6 +324,6 @@ Proof.
   { reflexivity. }
   { wp_use IHxs. wp.
     rewrite Nat2Z.inj_succ.
-    rewrite int.add_repr_repr_eq.
+    rewrite int.add_repr_repr.
     do 2 f_equal. lia. }
 Qed.
