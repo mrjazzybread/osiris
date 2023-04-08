@@ -248,7 +248,7 @@ Abort. (* TODO once we have Löb induction, prove this goal *)
    walk e *)
 
 Definition walk : rec_bindings :=
-  let rb := RecBinding "walk" (AnonFun "xs" (
+  RecBinding1 "walk" "xs" (
     EMatch (EVar "xs") (
       BrCons (Branch pNil EUnit) $
       BrCons (Branch (pCons (PVar "x") (PVar "xs"))
@@ -256,36 +256,40 @@ Definition walk : rec_bindings :=
              ) $
       BrNil
     )
-  )) in
-  RecBiCons rb RecBiNil.
+  ).
+
+Lemma spec_walk :
+  ∀ (bs : list bool) η,
+  safe (call (VCloRec η walk "walk") (encode_list bs)) (λ v, v = VUnit).
+Proof.
+  (* The environment that is captured by the closure does not matter,
+     since the code is in fact closed. So, we must in fact universally
+     quantify over this environment. *)
+  (* TODO It would be desirable to avoid writing [VCloRec η walk "walk"]
+     explicitly, as the structure of this value is an internal detail of
+     the semantics. Instead we would like to refer this value as "the
+     value produced by evaluating the recursive bindings [walk]". *)
+  induction bs as [| b bs ]; intro η; wp_call.
+  { reflexivity. }
+  { wp_use IHbs. }
+Qed.
 
 Definition walk_example e :=
   ELetRec walk $
   EApp (EVar "walk") e.
 
-Lemma spec_walk_example_easy :
+Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
   wp EnvNil (walk_example e) (λ v, v = encode ()).
 Proof.
-  (* This example is easy: the code is pure and terminating
-     and can be fully evaluated. *)
+  (* The code is pure and terminating and can be fully evaluated. *)
   wp. do 3 wp_call. reflexivity.
 Qed.
 
-Lemma spec_walk_example :
-  forall (vs : list bool),
-  let η := EnvCons "xs" (encode vs) EnvNil in
+Lemma spec_walk_example_abstract :
+  forall (bs : list bool),
+  let η := EnvCons "xs" (encode bs) EnvNil in
   wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
 Proof.
-  intros. wp.
-  (* The environment that is captured by the closure does not matter,
-     since the code is in fact closed. So, we must in fact universally
-     quantify over this environment. *)
-  generalize η. clear η.
-  (* We now have a lemma that can be proved by induction on [vs]. *)
-  revert vs. induction vs as [| v vs ]; intro η; wp_call.
-  (* Base case. *)
-  { reflexivity. }
-  (* Step case. *)
-  { wp_use IHvs. }
+  intros. wp. wp_use spec_walk.
 Qed.
