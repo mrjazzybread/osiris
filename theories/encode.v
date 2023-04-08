@@ -15,6 +15,12 @@ Global Instance Encode_unit : Encode unit :=
 Global Instance Encode_bool : Encode bool :=
   { encode := λ b, VBool b }.
 
+Global Instance Encode_nat : Encode nat :=
+  { encode := λ n, VInt (int.repr (Z.of_nat n)) }.
+
+Global Instance Encode_Z : Encode Z :=
+  { encode := λ n, VInt (int.repr n) }.
+
 Global Instance Encode_pair `{Encode A, Encode B} : Encode (A * B) :=
   { encode :=
       λ '(a, b), VPair (encode a) (encode b) }.
