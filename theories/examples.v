@@ -293,3 +293,37 @@ Lemma spec_walk_example_abstract :
 Proof.
   intros. wp. wp_use spec_walk.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A recursive function that computes the length of a list. *)
+
+(* let rec length xs =
+     match xs with
+     | [] -> 0
+     | x :: xs -> 1 + length xs *)
+
+Definition length : rec_bindings :=
+  RecBinding1 "length" "xs" (
+    EMatch (EVar "xs") (
+      BrCons (Branch pNil (EInt 0)) $
+      BrCons (Branch (pCons (PVar "x") (PVar "xs"))
+                     (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
+             ) $
+      BrNil
+    )
+  ).
+
+Lemma spec_length :
+  ∀ `{Encode A} (xs : list A) η,
+  safe
+    (call (VCloRec η length "length") (encode_list xs))
+    (λ v, v = encode (List.length xs)).
+Proof.
+  induction xs as [| x xs ]; intro η; wp_call.
+  { reflexivity. }
+  { wp_use IHxs. wp.
+    rewrite Nat2Z.inj_succ.
+    rewrite int.add_repr_repr_eq.
+    do 2 f_equal. lia. }
+Qed.
