@@ -238,14 +238,14 @@ Proof.
   do 100 wp_step.
 Abort. (* TODO once we have Löb induction, prove this goal *)
 
+(* -------------------------------------------------------------------------- *)
+
 (* A recursive function that walks a list. *)
 
 (* let rec walk xs =
      match xs with
      | [] -> ()
-     | x :: xs -> walk xs
-   in
-   walk e *)
+     | x :: xs -> walk xs *)
 
 Definition walk : rec_bindings :=
   RecBinding1 "walk" "xs" (
