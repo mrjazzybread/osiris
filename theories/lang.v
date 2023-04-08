@@ -270,10 +270,12 @@ Definition ELet1Var (x : var) (e1 e2 : expr) :=
 
 (* [let rec f x = e1 in e2]. *)
 
-Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+Definition RecBinding1 (f x : var) (e1 : expr) :=
   let rb := RecBinding f (AnonFun x e1) in
-  let rbs := RecBiCons rb RecBiNil in
-  ELetRec rbs e2.
+  RecBiCons rb RecBiNil.
+
+Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+  ELetRec (RecBinding1 f x e1) e2.
 
 (* [fun x -> e]. *)
 
