@@ -1,6 +1,28 @@
 Require Import Coqlib Integers.
 Open Scope Z_scope.
 
+(* This file defines the type [int], a model of the OCaml type [int],
+   the type of machine integers. *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Technical lemmas about integer arithmetic. *)
+
+Lemma half_of_double x :
+  (2 * x) / 2 = x.
+Proof.
+  rewrite Z.mul_comm, Z.div_mul by lia. reflexivity.
+Qed.
+
+Lemma two_power_nat_mono i j :
+  (i <= j)%nat ->
+  two_power_nat i <= two_power_nat j.
+Proof.
+  intros.
+  rewrite !two_power_nat_equiv.
+  apply Z.pow_le_mono_r; lia.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Integers in OCaml have an unspecified size. The manual explicitly states
@@ -69,6 +91,12 @@ Global Notation representable i :=
 (* The function [repr : Z -> int] maps an ideal integer to the machine
    integer that represents it, if there is one. *)
 
+(* The type [int] is internally defined as a subset of Z, which
+   corresponds to the interval of the unsigned integers, from 0
+   to [2^wordsize-1]. This can be confusing, so it is preferable
+   not to think about it, as far as possible. Just view [int] as
+   an abstract type. *)
+
 (* The following properties hold: *)
 
 Goal forall i : int, representable (signed i).
@@ -80,31 +108,44 @@ Proof. apply repr_signed. Qed.
 Goal forall z : Z, representable z -> signed (repr z) = z.
 Proof. apply signed_repr. Qed.
 
+(* [min_signed] is [-2^w]. *)
+
+Lemma min_signed_eq :
+  min_signed = -(two_power_nat w).
+Proof.
+  unfold min_signed, half_modulus, modulus.
+  rewrite wordsize_is_int_size.
+  rewrite int_size_eq_succ_w.
+  rewrite (two_power_nat_S w).
+  rewrite half_of_double.
+  reflexivity.
+Qed.
+
+(* [max_signed] is [2^w-1]. *)
+
+Lemma max_signed_eq :
+  max_signed = two_power_nat w - 1.
+Proof.
+  unfold max_signed, half_modulus, modulus.
+  rewrite wordsize_is_int_size.
+  rewrite int_size_eq_succ_w.
+  rewrite (two_power_nat_S w).
+  rewrite half_of_double.
+  reflexivity.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas and tactics are intended to help prove that certain
    numbers are representable. *)
 
-Local Lemma half_of_double x :
-  (2 * x) / 2 = x.
-Proof.
-  rewrite Z.mul_comm, Z.div_mul by lia. reflexivity.
-Qed.
-
 Lemma prove_representable_30 i :
   -(two_power_nat 30) <= i < two_power_nat 30 ->
   representable i.
 Proof.
-  unfold min_signed, max_signed, half_modulus, modulus.
-  rewrite wordsize_is_int_size.
-  rewrite int_size_eq_succ_w.
-  rewrite (two_power_nat_S w).
-  rewrite half_of_double.
-  pose proof w_ge_30.
-  assert (two_power_nat 30 <= two_power_nat w).
-  { rewrite !two_power_nat_equiv.
-    apply Z.pow_le_mono_r; lia. }
-  (* Now attack! *)
+  rewrite min_signed_eq, max_signed_eq.
+  assert (two_power_nat 30 <= two_power_nat w)
+    by auto using two_power_nat_mono, w_ge_30.
   lia.
 Qed.
 
