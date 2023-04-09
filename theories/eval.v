@@ -382,6 +382,10 @@ Fixpoint eval η e : free val :=
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       b ← eq_val v1 v2 ;
       ret (VBool b)
+  | EOpNe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← eq_val v1 v2 ;
+      ret (VBool (negb b))
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2

@@ -84,6 +84,7 @@ Inductive expr :=
 
   (* Polymorphic comparison operators. *)
   | EOpEq (e1 e2 : expr)
+  | EOpNe (e1 e2 : expr)
 
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)
