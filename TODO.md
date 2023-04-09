@@ -127,6 +127,10 @@
   - Must evaluate both bounds up front,
     then invoke an auxiliary recursive function `eval_for_loop`
 * Pattern matching on immutable data (must prove absence of match failure)
+* Polymorphic comparison operators
+  + Equality can be supported at immutable data types
+  + Ordering can be supported at base types and tuples
+    (ordering at algebraic data types cannot be supported)
 * Polymorphic variants
 * Unspecified evaluation order of `let/and` definitions and function applications
 * Unspecified evaluation of `assert` statements
@@ -150,7 +154,6 @@
 
 * Floating point numbers
 * Objects and classes
-* Polymorphic comparison operators
 * The `lazy` pattern
 * Immutable recursive values other than functions
 * Labeled arguments
