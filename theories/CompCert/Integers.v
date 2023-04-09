@@ -3248,6 +3248,17 @@ Proof.
   intros. rewrite <- negb_orb. rewrite <- not_ltu. rewrite negb_involutive. auto.
 Qed.
 
+(* fpottier *)
+(* If [x] and [y] are representable as signed integers, then comparing
+   them is the same as comparing their representations. *)
+Lemma lt_repr_repr x y :
+  min_signed <= x <= max_signed ->
+  min_signed <= y <= max_signed ->
+  lt (repr x) (repr y) = zlt x y.
+Proof.
+  intros. unfold lt. do 2 rewrite signed_repr by assumption. reflexivity.
+Qed.
+
 (** ** Non-overlapping test *)
 
 Definition no_overlap (ofs1: int) (sz1: Z) (ofs2: int) (sz2: Z) : bool :=
