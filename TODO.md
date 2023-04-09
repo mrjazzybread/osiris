@@ -122,7 +122,9 @@
   + bitwise operations
   + comparison operators: `=`, `<>`, `<`, `>`, `<=`, `>=`, `compare`, `min`, `max`
 * Booleans:
-  + comparison operators: `=`, `<>`, `<`, `>`, `<=`, `>=`, `compare`, `min`, `max`
+  + We would like to have all of the comparison operators,
+    but because our model views Booleans as data constructors,
+    we cannot have the ordering operators.
 * `for` loops
   - Must evaluate both bounds up front,
     then invoke an auxiliary recursive function `eval_for_loop`
