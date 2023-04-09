@@ -179,9 +179,9 @@ with extends η ps vs : free env :=
       η ← extends η ps vs ;
       ret η
   | PCons _ _, VNil =>
-      crash "length mismatch (longer tuple expected)"
+      crash "pattern matching: length mismatch (longer tuple expected)"
   | PNil, VCons _ _ =>
-      crash "length mismatch (shorter tuple expected)"
+      crash "pattern matching: length mismatch (shorter tuple expected)"
   end.
 
 (* ------------------------------------------------------------------------ *)
