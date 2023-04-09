@@ -98,9 +98,15 @@ Lemma test_call :
   reduces e v.
 Proof. reduces. Qed.
 
-Lemma test_while_loop :
+Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
   ∃ e', steps 10 (eval EnvNil e) e'.
+Proof. reduces. Qed.
+
+Lemma test_trivial_while_loop :
+  let e := EWhile EFalse EUnit in
+  let v := VUnit in
+  reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_for_loop :
