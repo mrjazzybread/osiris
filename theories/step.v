@@ -28,14 +28,23 @@ Inductive step {A} : free A → free A → Prop :=
 
   (* [Stop Eval (η, e) k] steps to an invocation of [eval η e] followed
      with the continuation [k]. *)
-  (* Isolating an explicit equality [x = (η, e)] seems necessary to work
+  (* Isolating an explicit equality [p = (η, e)] seems necessary to work
      around a bug or limitation (?) in [dependent destruction]. *)
   | StepEval :
-      ∀ x η e k,
-      x = (η, e) →
+      ∀ p η e k,
+      p = (η, e) →
       step
-        (Stop Eval x k)
+        (Stop Eval p k)
         (bind (eval η e) k)
+
+  (* [Stop Loop (η, x, i1, i2, e) k] steps to [loop η x i1 i2 e] followed
+     with the continuation [k]. *)
+  | StepLoop :
+      ∀ p η x i1 i2 e k,
+      p = (η, x, i1, i2, e) →
+      step
+        (Stop Loop p k)
+        (bind (loop η x i1 i2 e) k)
 
   (* [Stop Flip () k] steps to an application of the continuation [k] to
      either [false] or [true]. *)
@@ -168,8 +177,8 @@ Qed.
 Lemma can_step_stop {A X Y} (c : code X Y) x (k : Y → free A) :
   can_step (Stop c x k).
 Proof.
-  unfold can_step. destruct c; destruct x;
-  eauto using (StepFlip false), StepEval.
+  unfold can_step. destruct c; repeat destruct x as (x & ?);
+  eauto using (StepFlip false), StepEval, StepLoop.
 Qed.
 
 Global Hint Resolve can_step_stop : step.

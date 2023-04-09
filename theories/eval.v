@@ -13,17 +13,22 @@ Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
 Implicit Type rbs : rec_bindings.
+Implicit Type i : int.
 
 (* ------------------------------------------------------------------------ *)
 
 (* Codes for effects. *)
 
-(* The code [Eval (η, e)] is a request for a recursive call [eval η e]. *)
+(* The code [Eval (η, e)] is a request for the computation [eval η e]. *)
+
+(* The code [Loop (η, x, i1, i2, e)] is a request for the computation
+   [loop η x v1 v2 e]. *)
 
 (* The code [Flip] is a request to flip a Boolean coin. *)
 
 Inductive code : Type → Type → Type :=
 | Eval : code (env * expr) val
+| Loop : code (env * var * int * int * expr) val
 | Flip : code unit bool
 .
 
@@ -258,7 +263,7 @@ Definition as_int (m : free val) : free int :=
 
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
-Definition check_div_by_zero (i : int) : free unit :=
+Definition check_div_by_zero i : free unit :=
   if int.eq i int.zero then
     crash "division by zero" (* TODO raise an exception *)
   else
@@ -484,6 +489,11 @@ Fixpoint eval η e : free val :=
         stop Eval (η, EWhile e body)
       else
         ok
+  | EFor x e1 e2 e =>
+      (* The bounds are evaluated first. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      (* Then, the loop is executed. *)
+      stop Loop (η, x, i1, i2, e)
   | EAssertFalse =>
       crash "assertion failed"
   | EAssert e =>
@@ -565,3 +575,23 @@ with eval_match η v bs :=
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
+   in the environment [η]. *)
+
+Definition loop η x i1 i2 e : free val :=
+  if int.lt i2 i1 then
+    (* If [i2 < i1] holds, then there is nothing to do. *)
+    ok
+  else
+    (* Otherwise, the loop body [e] must be executed with a binding of [x]
+       to [i1]. The value of [e] is ignored. Then, the loop continues. *)
+    let η' := EnvCons x (VInt i1) η in
+    _v ← eval η' e ;
+    (* Every [for] loop terminates, so we could in principle arrange to
+       use a recursive call to [loop], but using a [stop] effect is much
+       easier. *)
+    stop Loop (η, x, int.add i1 int.one, i2, e)
+.

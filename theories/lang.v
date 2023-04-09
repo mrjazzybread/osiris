@@ -108,6 +108,8 @@ Inductive expr :=
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
+  (* Loop: [for x = e1 to e2 do e done]. *)
+  | EFor (x : var) (e1 e2 e : expr)
 
   (* Fatal error: [assert false]. *)
   | EAssertFalse

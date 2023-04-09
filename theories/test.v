@@ -38,6 +38,7 @@ Local Notation fails e :=
 Local Ltac step :=
   first [
     eapply StepEval; [ reflexivity ]
+  | eapply StepLoop; [ reflexivity ]
   | eapply (@StepFlip val false)
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
@@ -96,3 +97,41 @@ Lemma test_call :
   let v := VPair VTrue VFalse in
   reduces e v.
 Proof. reduces. Qed.
+
+Lemma test_while_loop :
+  let e := EWhile ETrue EUnit in
+  ∃ e', steps 10 (eval EnvNil e) e'.
+Proof. reduces. Qed.
+
+Lemma test_for_loop :
+  (* for i = 0 to 1 do () done *)
+  let e := EFor "i" (EInt 0) (EInt 1) EUnit in
+  let v := VUnit in
+  reduces e v.
+Proof.
+  (* This example is quite artificial, as we must manually force the
+     execution of the loop. It is a good sanity check anyway. *)
+  reduces.
+
+  (* Iteration 0. *)
+  (* Unroll this iteration. *)
+  unfold loop.
+  (* Simplify the comparison. *)
+  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  (* Simplify the incrementation. *)
+  unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
+  (* Step. *)
+  steps.
+
+  (* Iteration 1. *)
+  unfold loop.
+  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
+  steps.
+
+  (* Iteration 2. *)
+  unfold loop.
+  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  steps.
+
+Qed.

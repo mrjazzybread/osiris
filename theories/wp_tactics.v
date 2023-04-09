@@ -48,6 +48,8 @@ Ltac wp_step :=
   | apply prove_safe_bind; cbn
   | apply prove_safe_eval_ret; cbn
   | apply prove_safe_eval; cbn
+  | apply prove_safe_loop_ret; cbn
+  | apply prove_safe_loop; cbn
   | apply prove_safe_flip; intro; cbn
   | apply prove_safe_par_ret_ret; cbn
   | apply prove_safe_Par_ret_left; cbn
