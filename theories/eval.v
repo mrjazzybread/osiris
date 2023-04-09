@@ -266,7 +266,7 @@ Definition check_div_by_zero (i : int) : free unit :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eq_val v1 v2] implements OCaml's structural equality operator. *)
+(* [eq_val v1 v2] implements OCaml's structural equality operator [=]. *)
 
 (* This operator cannot be applied to closures or to mutable data, but can be
    applied to values of base type (e.g., integers) and to composite immutable
@@ -298,6 +298,52 @@ with eq_vals vs1 vs2 : free bool :=
   | VNil, VCons _ _ =>
       crash "structural equality: tuple length mismatch"
   end.
+
+Definition ne_val v1 v2 :=
+  b ← eq_val v1 v2 ;
+  ret (negb b).
+
+(* [lt_val v1 v2] implements OCaml's structural ordering operator [<]. *)
+
+(* This operator can be applied to values of base type (e.g., integers). *)
+
+(* It currently cannot be applied to tuples, but this could be changed if
+   desired. *)
+
+(* It cannot be applied to algebraic data, because our model of algebraic
+   data (where data constructors are strings) does not allow defining an
+   order that is compatible with the reality of OCaml's semantics.
+   Attempting to rely on an unspecified order on data constructors would
+   still allow the user to draw invalid conclusions. In OCaml, the outcome
+   of the comparison between two data constructors A and B depends on their
+   type; but, in our model of values, type information is absent. *)
+
+Definition lt_val v1 v2 : free bool :=
+  match v1, v2 with
+  | VInt i1, VInt i2 =>
+      (* A signed integer comparison. *)
+      ret (int.lt i1 i2)
+  | _, _ =>
+      crash "structural ordering: invalid or unsupported arguments"
+  end.
+
+(* The other three structural ordering operators. *)
+
+(* [le] is defined as the negation of [gt]. This may surprise the user: when
+   the user writes [0 <= x], the proof system produces [¬(x < 0)]. It may be
+   preferable to give a direct definition of [le] that relies on [int.le].
+   However, for the moment, [int.le] itself does not exist. *)
+
+Definition gt_val v1 v2 :=
+  lt_val v2 v1.
+
+Definition le_val v1 v2 :=
+  b ← gt_val v1 v2 ;
+  ret (negb b).
+
+Definition ge_val v1 v2 :=
+  b ← lt_val v1 v2 ;
+  ret (negb b).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -384,8 +430,24 @@ Fixpoint eval η e : free val :=
       ret (VBool b)
   | EOpNe e1 e2 =>
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
-      b ← eq_val v1 v2 ;
-      ret (VBool (negb b))
+      b ← ne_val v1 v2 ;
+      ret (VBool b)
+  | EOpLt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← lt_val v1 v2 ;
+      ret (VBool b)
+  | EOpLe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← le_val v1 v2 ;
+      ret (VBool b)
+  | EOpGt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← gt_val v1 v2 ;
+      ret (VBool b)
+  | EOpGe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← ge_val v1 v2 ;
+      ret (VBool b)
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2
