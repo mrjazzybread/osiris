@@ -266,6 +266,41 @@ Definition check_div_by_zero (i : int) : free unit :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [eq_val v1 v2] implements OCaml's structural equality operator. *)
+
+(* This operator cannot be applied to closures or to mutable data, but can be
+   applied to values of base type (e.g., integers) and to composite immutable
+   data structures (tuples, algebraic data, etc.). *)
+
+Fixpoint eq_val v1 v2 : free bool :=
+  match v1, v2 with
+  | VInt i1, VInt i2 =>
+      ret (int.eq i1 i2)
+  | VTuple vs1, VTuple vs2 =>
+      eq_vals vs1 vs2
+  | VData c1 v1, VData c2 v2 =>
+      let b := c1 =? c2 in
+      b' ← eq_val v1 v2 ;
+      ret (b && b')
+  | _, _ =>
+      crash "structural equality: invalid or unsupported arguments"
+  end
+
+with eq_vals vs1 vs2 : free bool :=
+  match vs1, vs2 with
+  | VNil, VNil =>
+      ret true
+  | VCons v1 vs1, VCons v2 vs2 =>
+      b ← eq_val v1 v2 ;
+      b' ← eq_vals vs1 vs2 ;
+      ret (b && b')
+  | VCons _ _, VNil
+  | VNil, VCons _ _ =>
+      crash "structural equality: tuple length mismatch"
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -343,6 +378,10 @@ Fixpoint eval η e : free val :=
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
+  | EOpEq e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← eq_val v1 v2 ;
+      ret (VBool b)
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2

@@ -82,6 +82,9 @@ Inductive expr :=
   | EIntDiv (e1 e2 : expr)
   | EIntMod (e1 e2 : expr)
 
+  (* Polymorphic comparison operators. *)
+  | EOpEq (e1 e2 : expr)
+
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)
 
