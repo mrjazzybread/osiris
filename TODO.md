@@ -119,6 +119,8 @@
     the execution of the rest of the loop
 * Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
 * Integers:
+  + give lemmas to help establish that the result of an operation
+    is representable
   + bitwise operations
   + comparison operators: `=`, `<>`, `<`, `>`, `<=`, `>=`, `compare`, `min`, `max`
 * Booleans:
