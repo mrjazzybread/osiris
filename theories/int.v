@@ -136,6 +136,51 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* The following facts are the specifications of the operations on machine
+   integers that are of interest to us. *)
+
+(* It is worth noting that negation, addition, subtraction, multiplication
+   have no proof obligation. There is no need to prove that the arguments
+   or result of the operation are representable. *)
+
+Goal forall z, neg (repr z) = repr (-z).
+Proof. apply neg_repr. Qed.
+
+Goal forall z1 z2, add (repr z1) (repr z2) = repr (z1 + z2).
+Proof. apply add_repr_repr. Qed.
+
+Goal forall z1 z2, sub (repr z1) (repr z2) = repr (z1 - z2).
+Proof. apply sub_repr_repr. Qed.
+
+Goal forall z1 z2, mul (repr z1) (repr z2) = repr (z1 * z2).
+Proof. apply mul_repr_repr. Qed.
+
+Goal
+  forall z1 z2,
+  representable z1 -> representable z2 ->
+  divs (repr z1) (repr z2) = repr (z1 ÷ z2).
+Proof. apply divs_repr_repr. Qed.
+
+Goal
+  forall z1 z2,
+  representable z1 -> representable z2 ->
+  mods (repr z1) (repr z2) = repr (Z.rem z1 z2).
+Proof. apply mods_repr_repr. Qed.
+
+Goal
+  forall z1 z2,
+  representable z1 -> representable z2 ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof. apply eq_repr_repr. Qed.
+
+Goal
+  forall z1 z2,
+  representable z1 -> representable z2 ->
+  lt (repr z1) (repr z2) = (z1 <? z2).
+Proof. apply lt_repr_repr. Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The following lemmas and tactics are intended to help prove that certain
    numbers are representable. *)
 

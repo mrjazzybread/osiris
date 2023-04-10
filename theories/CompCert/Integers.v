@@ -685,6 +685,19 @@ Proof.
   elim H. rewrite <- (repr_signed x). rewrite <- (repr_signed y). congruence.
 Qed.
 
+(* fpottier *)
+Lemma eq_repr_repr z1 z2 :
+  min_signed <= z1 <= max_signed ->
+  min_signed <= z2 <= max_signed ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof.
+  intros.
+  rewrite eq_signed.
+  rewrite !signed_repr by assumption.
+  destruct (zeq z1 z2); destruct (Z.eqb_spec z1 z2);
+  try reflexivity; lia.
+Qed.
+
 (** ** Properties of addition *)
 
 Theorem add_unsigned: forall x y, add x y = repr (unsigned x + unsigned y).
@@ -1143,6 +1156,28 @@ Proof.
   }
   unfold proj_sumbool; rewrite ! zle_true by lia; simpl.
   unfold Q, R; rewrite H2; auto.
+Qed.
+
+(* fpottier *)
+(* Signed division of machine integers corresponds to Round-Toward-Zero
+   Euclidean division, also known as [Z.quot] and [÷]. *)
+Lemma divs_repr_repr x y :
+  min_signed <= x <= max_signed ->
+  min_signed <= y <= max_signed ->
+  divs (repr x) (repr y) = repr (x ÷ y).
+Proof.
+  intros. unfold divs. rewrite !signed_repr by assumption. reflexivity.
+Qed.
+
+(* fpottier *)
+(* Signed remainder of machine integers corresponds to Round-Toward-Zero
+   Euclidean remainder, also known as [Z.rem]. *)
+Lemma mods_repr_repr x y :
+  min_signed <= x <= max_signed ->
+  min_signed <= y <= max_signed ->
+  mods (repr x) (repr y) = repr (Z.rem x y).
+Proof.
+  intros. unfold mods. rewrite !signed_repr by assumption. reflexivity.
 Qed.
 
 (** ** Bit-level properties *)
@@ -3254,9 +3289,12 @@ Qed.
 Lemma lt_repr_repr x y :
   min_signed <= x <= max_signed ->
   min_signed <= y <= max_signed ->
-  lt (repr x) (repr y) = zlt x y.
+  lt (repr x) (repr y) = (x <? y).
 Proof.
-  intros. unfold lt. do 2 rewrite signed_repr by assumption. reflexivity.
+  intros. unfold lt.
+  do 2 rewrite signed_repr by assumption.
+  destruct (zlt x y); destruct (Z.ltb_spec0 x y);
+  try reflexivity; lia.
 Qed.
 
 (** ** Non-overlapping test *)
