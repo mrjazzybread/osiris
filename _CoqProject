@@ -1,6 +1,11 @@
 -R . AmpleStep
+theories/CompCert/Coqlib.v
+theories/CompCert/Zbits.v
+theories/CompCert/Integers.v
+theories/int.v
 theories/base.v
 theories/lang.v
+theories/encode.v
 theories/free.v
 theories/eval.v
 theories/step.v

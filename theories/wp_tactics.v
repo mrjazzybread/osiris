@@ -1,6 +1,9 @@
 Require Import base lang free eval step safe wp refinement.
 
-(* Do not allow [crash] to be unfolded. *)
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [crash] to be unfolded. We wish to preserve the error
+   message carried by [crash]. It would be lost if [crash] was unfolded. *)
 
 Global Opaque crash.
 
@@ -12,6 +15,8 @@ Ltac wp_crash :=
     change msg with msg'
   end.
 
+(* -------------------------------------------------------------------------- *)
+
 (* Simplify goals that introduce simple values. *)
 
 Ltac wp_intros :=
@@ -20,6 +25,8 @@ Ltac wp_intros :=
   | |- ?v = _ → _ => intro; try subst v
   | |- ∀ v, _     => intro
   end.
+
+(* -------------------------------------------------------------------------- *)
 
 (* Deal with a goal of the form [safe m φ] when we already have
    a hypothesis [H] of the form [safe m φ']. *)
@@ -31,20 +38,27 @@ Ltac wp_use H :=
   ];
   simpl; wp_intros.
 
+(* -------------------------------------------------------------------------- *)
+
 (* Reduce and reason about a goal of the form [safe m φ]. *)
 
 Ltac wp_step :=
   first [
     apply prove_safe_ret; cbn
   | apply prove_safe_bind; cbn
+  | apply prove_safe_eval_ret; cbn
   | apply prove_safe_eval; cbn
+  | apply prove_safe_loop_ret; cbn
+  | apply prove_safe_loop; cbn
   | apply prove_safe_flip; intro; cbn
+  | apply prove_safe_par_ret_ret; cbn
   | apply prove_safe_Par_ret_left; cbn
   | apply prove_safe_Par_ret_right; cbn
   | apply prove_safe_if_left; [ cbn | cbn ]
       (* this line is intended to help reason about [EAssert] *)
   | eapply refinement_simpl; [ typeclasses eauto .. | cbn ]
-      (* this line subsumes [prove_safe_par_ret_ret] *)
+      (* TODO this line should subsume [prove_safe_par_ret_ret],
+              but in my tests, this does not work; investigate *)
       (* TODO develop examples where [refinement_simpl] is used *)
       (* TODO explain why there is no risk of divergence here,
               due to a trivial refinement that does not make progress *)
@@ -58,6 +72,8 @@ with wp :=
   repeat wp_step;
   try wp_crash.
 
+(* -------------------------------------------------------------------------- *)
+
 (* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
 
 Ltac wp_par :=
@@ -65,3 +81,17 @@ Ltac wp_par :=
     (* [wp_intros] in the third subgoal would be desirable but does not
        work as expected; [simpl] is ineffective. Also, we might wish to
        let the user name the hypotheses. *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [call] to be unfolded. We do not want symbolic execution
+   to automaticaly step into function calls. *)
+
+Global Opaque call.
+
+(* [wp_call] steps into a call. *)
+
+Ltac wp_call :=
+  with_strategy transparent [call] unfold call;
+    (* TODO make sure that we unfold just the root occurrence *)
+  wp.

@@ -11,20 +11,27 @@ Implicit Type p : pat.
 Implicit Type ps : pats.
 Implicit Type e : expr.
 Implicit Type es : exprs.
+Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
 Implicit Type η : env.
+Implicit Type rbs : rec_bindings.
+Implicit Type i : int.
 
 (* ------------------------------------------------------------------------ *)
 
 (* Codes for effects. *)
 
-(* The code [Eval (η, e)] is a request for a recursive call [eval η e]. *)
+(* The code [Eval (η, e)] is a request for the computation [eval η e]. *)
+
+(* The code [Loop (η, x, i1, i2, e)] is a request for the computation
+   [loop η x v1 v2 e]. *)
 
 (* The code [Flip] is a request to flip a Boolean coin. *)
 
 Inductive code : Type → Type → Type :=
 | Eval : code (env * expr) val
+| Loop : code (env * var * int * int * expr) val
 | Flip : code unit bool
 .
 
@@ -80,6 +87,43 @@ Fixpoint lookup η x : free val :=
       if x =? x' then ret v else lookup η x
   | EnvNil =>
       crash ("unbound variable: " ++ x)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_rec_bindings_aux η rbs rbs'] extends the environment [η] with the
+   bindings [rbs'], where each name [f] is mapped to a recursive closure
+   that captures the environment [η] and the bindings [rbs]. *)
+
+(* The parameters [η] and [rbs] are invariant. At the beginning, [rbs']
+   is [rbs], so, in general, [rbs'] is a suffix of [rbs]. *)
+
+Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
+  match rbs' with
+  | RecBiNil =>
+      η
+  | RecBiCons (RecBinding f _a) rbs' =>
+      EnvCons f (VCloRec η rbs f) (eval_rec_bindings_aux η rbs rbs')
+  end.
+
+(* [eval_rec_bindings η rbs rbs'] extends the environment [η] with the
+   bindings [rbs], where each name [f] is mapped to a recursive closure
+   that captures the environment [η] and the bindings [rbs]. *)
+
+Definition eval_rec_bindings η rbs : env :=
+  eval_rec_bindings_aux η rbs rbs.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [lookup_rec_bindings rbs f] looks up the function [f] in the recursive
+   bindings [rbs]. The right-hand side is an anonymous function [a]. *)
+
+Fixpoint lookup_rec_bindings rbs f : free anonfun :=
+  match rbs with
+  | RecBiCons (RecBinding f' a) rbs =>
+      if f =? f' then ret a else lookup_rec_bindings rbs f
+  | RecBiNil =>
+      crash ("unbound variable: " ++ f)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -143,27 +187,45 @@ with extends η ps vs : free env :=
       η ← extends η ps vs ;
       ret η
   | PCons _ _, VNil =>
-      crash "length mismatch (longer tuple expected)"
+      crash "pattern matching: length mismatch (longer tuple expected)"
   | PNil, VCons _ _ =>
-      crash "length mismatch (shorter tuple expected)"
+      crash "pattern matching: length mismatch (shorter tuple expected)"
   end.
 
 (* ------------------------------------------------------------------------ *)
 
+(* [acall η a v] evaluates the application of the anonymous function [a]
+   to the value [v] in the environment [η]. *)
+
+Definition acall η a v : free val :=
+  (* An anonymous function [a] is of the form [fun x -> e]. *)
+  let '(AnonFun x e) := a in
+  (* Extend the environment [η] with a binding of the variable [x]
+     to the value [v]. *)
+  let η := EnvCons x v η in
+  (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
+     be used, so evaluation of [e] is requested via a [stop] effect. *)
+  stop Eval (η, e).
+
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
+
+(* The value [v1] is expected to be either a non-recursive closure [VClo η a]
+   or a recursive closure [VCloRec η rbs f]. *)
 
 Definition call v1 v2 : free val :=
   (* The value [v1] must be a closure. *)
   match v1 with
-  | VRec η f x e =>
-      (* The environment of the closure is extended with bindings
-         for the variables [f] and [x]. *)
-      let η := EnvCons f v1 η in
-      let η := EnvCons x v2 η in
-      (* In this extended environment, the function body [e] must
-         be evaluated. A recursive call to [eval] cannot be used,
-         so we request the evaluation of [e] via a [stop] effect. *)
-      stop Eval (η, e)
+  | VClo η a =>
+      acall η a v2
+  | VCloRec η rbs f =>
+      (* Extend the environment [η] found in the closure with bindings
+         for the recursive functions in [rbs]. *)
+      let η := eval_rec_bindings η rbs in
+      (* Look up the entry point [f] in [rbs], yielding an anonymous
+         function [a]. *)
+      a ← lookup_rec_bindings rbs f ;
+      (* Then, proceed as in the case of a non-recursive closure. *)
+      acall η a v2
    | _ =>
       crash "type mismatch (closure expected)"
    end.
@@ -185,6 +247,111 @@ Definition val_as_bool (v : val) : free bool :=
 
 Definition as_bool (m : free val) : free bool :=
   bind m val_as_bool.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_int v] checks that the value [v] is a language-level integer
+   value and returns its meta-level value. *)
+
+Definition val_as_int (v : val) : free int :=
+  match v with
+  | VInt i =>
+      ret i
+  | _ =>
+      crash "type mismatch (integer value expected)"
+  end.
+
+Definition as_int (m : free val) : free int :=
+  bind m val_as_int.
+
+(* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
+
+Definition check_div_by_zero i : free unit :=
+  if int.eq i int.zero then
+    crash "division by zero" (* TODO raise an exception *)
+  else
+    ret ().
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eq_val v1 v2] implements OCaml's structural equality operator [=]. *)
+
+(* This operator cannot be applied to closures or to mutable data, but can be
+   applied to values of base type (e.g., integers) and to composite immutable
+   data structures (tuples, algebraic data, etc.). *)
+
+Fixpoint eq_val v1 v2 : free bool :=
+  match v1, v2 with
+  | VInt i1, VInt i2 =>
+      ret (int.eq i1 i2)
+  | VTuple vs1, VTuple vs2 =>
+      eq_vals vs1 vs2
+  | VData c1 v1, VData c2 v2 =>
+      let b := c1 =? c2 in
+      b' ← eq_val v1 v2 ;
+      ret (b && b')
+  | _, _ =>
+      crash "structural equality: invalid or unsupported arguments"
+  end
+
+with eq_vals vs1 vs2 : free bool :=
+  match vs1, vs2 with
+  | VNil, VNil =>
+      ret true
+  | VCons v1 vs1, VCons v2 vs2 =>
+      b ← eq_val v1 v2 ;
+      b' ← eq_vals vs1 vs2 ;
+      ret (b && b')
+  | VCons _ _, VNil
+  | VNil, VCons _ _ =>
+      crash "structural equality: tuple length mismatch"
+  end.
+
+Definition ne_val v1 v2 :=
+  b ← eq_val v1 v2 ;
+  ret (negb b).
+
+(* [lt_val v1 v2] implements OCaml's structural ordering operator [<]. *)
+
+(* This operator can be applied to values of base type (e.g., integers). *)
+
+(* It currently cannot be applied to tuples, but this could be changed if
+   desired. *)
+
+(* It cannot be applied to algebraic data, because our model of algebraic
+   data (where data constructors are strings) does not allow defining an
+   order that is compatible with the reality of OCaml's semantics.
+   Attempting to rely on an unspecified order on data constructors would
+   still allow the user to draw invalid conclusions. In OCaml, the outcome
+   of the comparison between two data constructors A and B depends on their
+   type; but, in our model of values, type information is absent. *)
+
+Definition lt_val v1 v2 : free bool :=
+  match v1, v2 with
+  | VInt i1, VInt i2 =>
+      (* A signed integer comparison. *)
+      ret (int.lt i1 i2)
+  | _, _ =>
+      crash "structural ordering: invalid or unsupported arguments"
+  end.
+
+(* The other three structural ordering operators. *)
+
+(* [le] is defined as the negation of [gt]. This may surprise the user: when
+   the user writes [0 <= x], the proof system produces [¬(x < 0)]. It may be
+   preferable to give a direct definition of [le] that relies on [int.le].
+   However, for the moment, [int.le] itself does not exist. *)
+
+Definition gt_val v1 v2 :=
+  lt_val v2 v1.
+
+Definition le_val v1 v2 :=
+  b ← gt_val v1 v2 ;
+  ret (negb b).
+
+Definition ge_val v1 v2 :=
+  b ← lt_val v1 v2 ;
+  ret (negb b).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -217,9 +384,9 @@ Fixpoint eval η e : free val :=
   | EVar x =>
       (* A variable [x] is looked up in the environment [η]. *)
       lookup η x
-  | ERec f x e =>
+  | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
-      ret (VRec η f x e)
+      ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
@@ -234,6 +401,61 @@ Fixpoint eval η e : free val :=
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
+  | EInt i =>
+      (* An integer literal is interpreted as a machine integer. *)
+      (* We do not require this integer literal to lie within a certain
+         range; we project it into the range of machine integers. *)
+      ret (VInt (int.repr i))
+  | EMaxInt =>
+      ret (VInt (int.repr int.max_signed))
+  | EMinInt =>
+      ret (VInt (int.repr int.min_signed))
+  | EIntNeg e =>
+      i ← as_int (eval η e) ;
+      ret (VInt (int.neg i))
+  | EIntAdd e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.add i1 i2))
+  | EIntSub e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.sub i1 i2))
+  | EIntMul e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.mul i1 i2))
+  | EIntDiv e1 e2 =>
+      (* Signed division is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.divs i1 i2))
+  | EIntMod e1 e2 =>
+      (* Signed remainder is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.mods i1 i2))
+  | EOpEq e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← eq_val v1 v2 ;
+      ret (VBool b)
+  | EOpNe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← ne_val v1 v2 ;
+      ret (VBool b)
+  | EOpLt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← lt_val v1 v2 ;
+      ret (VBool b)
+  | EOpLe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← le_val v1 v2 ;
+      ret (VBool b)
+  | EOpGt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← gt_val v1 v2 ;
+      ret (VBool b)
+  | EOpGe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← ge_val v1 v2 ;
+      ret (VBool b)
   | EBoolDisj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then ret VTrue else eval η e2
@@ -246,6 +468,11 @@ Fixpoint eval η e : free val :=
         (eval_extend_bindings η bs)
       (λ η, eval η e)
       (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
+  | ELetRec rbs e =>
+      (* Extend the environment with a mapping of each function name in [rbs]
+         to a suitable recursive closure; then, evaluate [e]. *)
+      let η := eval_rec_bindings η rbs in
+      eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
@@ -265,6 +492,11 @@ Fixpoint eval η e : free val :=
         stop Eval (η, EWhile e body)
       else
         ok
+  | EFor x e1 e2 e =>
+      (* The bounds are evaluated first. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      (* Then, the loop is executed. *)
+      stop Loop (η, x, i1, i2, e)
   | EAssertFalse =>
       crash "assertion failed"
   | EAssert e =>
@@ -346,3 +578,23 @@ with eval_match η v bs :=
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
+   in the environment [η]. *)
+
+Definition loop η x i1 i2 e : free val :=
+  if int.lt i2 i1 then
+    (* If [i2 < i1] holds, then there is nothing to do. *)
+    ok
+  else
+    (* Otherwise, the loop body [e] must be executed with a binding of [x]
+       to [i1]. The value of [e] is ignored. Then, the loop continues. *)
+    let η' := EnvCons x (VInt i1) η in
+    _v ← eval η' e ;
+    (* Every [for] loop terminates, so we could in principle arrange to
+       use a recursive call to [loop], but using a [stop] effect is much
+       easier. *)
+    stop Loop (η, x, int.add i1 int.one, i2, e)
+.

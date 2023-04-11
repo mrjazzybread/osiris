@@ -2,8 +2,13 @@
 
 ## Engineering and proof mode
 
-* Hide continuations in goals, by default; they are too verbose.
+* By default, hide continuations in goals (they are too verbose).
   Offer an option to show them.
+
+* Display environments in a nice form in goals.
+  + One binding per line.
+  + By default, display complex values (such as closures)
+    in an abbreviated form.
 
 * When we have a tree of nested `Par` and some of the leaves in the middle
   are of the form `Ret _`, one should in principle be able to permute the
@@ -59,6 +64,11 @@
 
 ## Semantics
 
+* At closure construction time, should the semantics trim the environment η
+  so as to keep only the variables that occur free in the code?
+  + Cons: this makes the semantics more complex.
+  + Pros: this should lead to simpler and more natural goals.
+
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
   We should also prove that each ample step corresponds to a bounded
@@ -100,6 +110,7 @@
 * Functions and function applications
 * Mutually-recursive functions
 * Arrays
+* Characters and strings
 * Conditionals
 * `while` loops
   - Check that we are able to reason about infinite loops using Löb induction
@@ -107,19 +118,23 @@
   - Check that we are able to frame out an assertion during
     the execution of the rest of the loop
 * Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
-* Integers (bounded, idealized, both?) (rauch-wolff-03, jacobs-03)
-  https://coq.discourse.group/t/best-practices-for-machine-level-representation-of-numbers-and-bitwise-operations/482/6
-  coq-nbits (https://troll.iis.sinica.edu.tw/by-publ/recent/coq-qfbv.pdf, Section 4)
-  https://github.com/fmlab-iis/coq-nbits
-  SInt63:
-  https://www.ub.edu/prooftheory/media/sint6320x85.pdf
-  https://coq.github.io/doc/master/stdlib/Coq.Numbers.Cyclic.Int63.Sint63.html
-  Bit sets:
-  https://www.irif.fr/~dagand/stuffs/coq-bitset/flops/paper.pdf
+* Integers:
+  + give lemmas to help establish that the result of an operation
+    is representable
+  + bitwise operations
+  + comparison operators: `=`, `<>`, `<`, `>`, `<=`, `>=`, `compare`, `min`, `max`
+* Booleans:
+  + We would like to have all of the comparison operators,
+    but because our model views Booleans as data constructors,
+    we cannot have the ordering operators.
 * `for` loops
   - Must evaluate both bounds up front,
     then invoke an auxiliary recursive function `eval_for_loop`
 * Pattern matching on immutable data (must prove absence of match failure)
+* Polymorphic comparison operators
+  + Equality can be supported at immutable data types
+  + Ordering can be supported at base types and tuples
+    (ordering at algebraic data types cannot be supported)
 * Polymorphic variants
 * Unspecified evaluation order of `let/and` definitions and function applications
 * Unspecified evaluation of `assert` statements
@@ -143,8 +158,19 @@
 
 * Floating point numbers
 * Objects and classes
-* Polymorphic comparison operators
 * The `lazy` pattern
 * Immutable recursive values other than functions
 * Labeled arguments
 * Optional arguments and default values
+
+## Miscellaneous notes
+
+* Integers (rauch-wolff-03, jacobs-03)
+  https://coq.discourse.group/t/best-practices-for-machine-level-representation-of-numbers-and-bitwise-operations/482/6
+  coq-nbits (https://troll.iis.sinica.edu.tw/by-publ/recent/coq-qfbv.pdf, Section 4)
+  https://github.com/fmlab-iis/coq-nbits
+  SInt63:
+  https://www.ub.edu/prooftheory/media/sint6320x85.pdf
+  https://coq.github.io/doc/master/stdlib/Coq.Numbers.Cyclic.Int63.Sint63.html
+  Bit sets:
+  https://www.irif.fr/~dagand/stuffs/coq-bitset/flops/paper.pdf

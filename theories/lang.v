@@ -1,3 +1,4 @@
+Require int.
 Require Import base.
 
 (* ------------------------------------------------------------------------ *)
@@ -13,6 +14,13 @@ Definition var :=
 
 Definition data :=
   string.
+
+(* ------------------------------------------------------------------------ *)
+
+(* Machine integers. *)
+
+Definition int :=
+  int.int.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -43,9 +51,8 @@ Inductive expr :=
   (* Variable: [x]. *)
   | EVar (x : var)
 
-  (* A (recursive) closure construction expression. *)
-  (* TODO does not exist in OCaml *)
-  | ERec (f x : var) (e : expr)
+  (* An anonymous function. *)
+  | EAnonFun (a : anonfun)
 
   (* Function application: [e1 e2]. *)
   (* Every function is considered unary. *)
@@ -63,8 +70,31 @@ Inductive expr :=
   | EBoolDisj (e1 e2 : expr)
   | EBoolNeg (e : expr)
 
+  (* Integer literals. *)
+  | EInt (i : Z)
+  | EMaxInt
+  | EMinInt
+  (* Integer arithmetic. *)
+  | EIntNeg (e : expr)
+  | EIntAdd (e1 e2 : expr)
+  | EIntSub (e1 e2 : expr)
+  | EIntMul (e1 e2 : expr)
+  | EIntDiv (e1 e2 : expr)
+  | EIntMod (e1 e2 : expr)
+
+  (* Polymorphic comparison operators. *)
+  | EOpEq (e1 e2 : expr)
+  | EOpNe (e1 e2 : expr)
+  | EOpLt (e1 e2 : expr)
+  | EOpLe (e1 e2 : expr)
+  | EOpGt (e1 e2 : expr)
+  | EOpGe (e1 e2 : expr)
+
   (* Non-recursive local definition: [let bs in e]. *)
   | ELet (bs : bindings) (e : expr)
+
+  (* Recursive local definition: [let rbs in e]. *)
+  | ELetRec (rbs : rec_bindings) (e : expr)
 
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
@@ -78,6 +108,8 @@ Inductive expr :=
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
+  (* Loop: [for x = e1 to e2 do e done]. *)
+  | EFor (x : var) (e1 e2 e : expr)
 
   (* Fatal error: [assert false]. *)
   | EAssertFalse
@@ -112,6 +144,23 @@ with binding :=
 with bindings :=
   | BiNil
   | BiCons (b : binding) (bs : bindings)
+
+(* A recursive binding is of the form [f = a]. *)
+
+with rec_binding :=
+  | RecBinding (f : var) (a : anonfun)
+
+(* Lists of recursive bindings. *)
+
+with rec_bindings :=
+  | RecBiNil
+  | RecBiCons (rb : rec_binding) (rbs : rec_bindings)
+
+(* An anonymous function is of the form [fun x -> e]. *)
+
+with anonfun :=
+  | AnonFun (x : var) (e : expr)
+
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -119,8 +168,16 @@ with bindings :=
 (* Values. *)
 
 Inductive val :=
-  (* A (recursive) closure. *)
-  | VRec (η : env) (f x : var) (e : expr)
+  (* A simple (non-recursive) closure. *)
+  | VClo (η : env) (a : anonfun)
+  (* A recursive closure. *)
+  (* [η] is the environment at the closure creation site. It does not include
+     entries for the functions defined by the recursive bindings [rbs]. *)
+  (* The recursive bindings [rbs] are those of the closure creation site. *)
+  (* The name [f] is the closure's entry point. *)
+  | VCloRec (η : env) (rbs : rec_bindings) (f : var)
+  (* A machine integer. *)
+  | VInt (i : int)
   (* A tuple. *)
   | VTuple (vs : vals)
   (* A data constructor value. *)
@@ -201,6 +258,36 @@ Notation EPair e1 e2 :=
 Notation VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
+(* Options. *)
+
+Notation VNone :=
+  (VConstant "None").
+
+Notation VSome v :=
+  (VData "Some" v).
+
+(* Lists. *)
+
+(* TODO would like to use VNil and VCons, but this causes a name clash *)
+
+Notation pNil :=
+  (PConstant "[]").
+
+Notation pCons p1 p2 :=
+  (PData "::" (PPair p1 p2)).
+
+Notation eNil :=
+  (EConstant "[]").
+
+Notation eCons e1 e2 :=
+  (EData "::" (EPair e1 e2)).
+
+Notation vNil :=
+  (VConstant "[]").
+
+Notation vCons v1 v2 :=
+  (VData "::" (VPair v1 v2)).
+
 (* [let p = e1 in e2]. *)
 
 Definition ELet1 (p : pat) (e1 e2 : expr) :=
@@ -212,3 +299,17 @@ Definition ELet1 (p : pat) (e1 e2 : expr) :=
 
 Definition ELet1Var (x : var) (e1 e2 : expr) :=
   ELet1 (PVar x) e1 e2.
+
+(* [let rec f x = e1 in e2]. *)
+
+Definition RecBinding1 (f x : var) (e1 : expr) :=
+  let rb := RecBinding f (AnonFun x e1) in
+  RecBiCons rb RecBiNil.
+
+Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+  ELetRec (RecBinding1 f x e1) e2.
+
+(* [fun x -> e]. *)
+
+Definition EFun (x : var) (e : expr) :=
+  EAnonFun (AnonFun x e).

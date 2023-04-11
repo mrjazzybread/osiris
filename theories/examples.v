@@ -1,4 +1,4 @@
-Require Import base lang free eval step safe wp wp_tactics.
+Require Import base lang free eval step safe wp wp_tactics encode.
 
 (* let x = A() in y *)
 
@@ -8,7 +8,7 @@ Goal
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   wp.
-Abort.
+Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
 
@@ -89,13 +89,12 @@ Qed.
    the identity function. *)
 
 Definition identity :=
-  ERec "self" "x" (EVar "x").
+  EFun "x" (EVar "x").
 
 Lemma spec_identity:
   wp EnvNil identity (λ c, ∀ v, safe (call c v) (λ v', v' = v)).
 Proof.
-  wp. intros c.
-  wp. reflexivity.
+  wp. intros c. wp_call. reflexivity.
 Qed.
 
 (* let id = identity in
@@ -222,4 +221,109 @@ Proof.
 
   wp_intros.
   wp_use Hid.
+Qed.
+
+(* let rec diverge x = diverge x in diverge() *)
+
+Definition divergence :=
+  ELetRec1 "diverge" "x" (EApp (EVar "diverge") (EVar "x")) $
+  EApp (EVar "diverge") EUnit.
+
+Lemma spec_divergence:
+  wp EnvNil divergence (λ _, False).
+Proof.
+  (* The tactic [wp_step] can be applied as many times as one wishes,
+     since this term does not terminate, but the goal can never be
+     reached in this way. *)
+  do 100 wp_step.
+Abort. (* TODO once we have Löb induction, prove this goal *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* A recursive function that walks a list. *)
+
+(* let rec walk xs =
+     match xs with
+     | [] -> ()
+     | x :: xs -> walk xs *)
+
+Definition walk : rec_bindings :=
+  RecBinding1 "walk" "xs" (
+    EMatch (EVar "xs") (
+      BrCons (Branch pNil EUnit) $
+      BrCons (Branch (pCons (PVar "x") (PVar "xs"))
+                     (EApp (EVar "walk") (EVar "xs"))
+             ) $
+      BrNil
+    )
+  ).
+
+Lemma spec_walk :
+  ∀ (bs : list bool) η,
+  safe (call (VCloRec η walk "walk") (encode_list bs)) (λ v, v = VUnit).
+Proof.
+  (* The environment that is captured by the closure does not matter,
+     since the code is in fact closed. So, we must in fact universally
+     quantify over this environment. *)
+  (* TODO It would be desirable to avoid writing [VCloRec η walk "walk"]
+     explicitly, as the structure of this value is an internal detail of
+     the semantics. Instead we would like to refer this value as "the
+     value produced by evaluating the recursive bindings [walk]". *)
+  induction bs as [| b bs ]; intro η; wp_call.
+  { reflexivity. }
+  { wp_use IHbs. }
+Qed.
+
+Definition walk_example e :=
+  ELetRec walk $
+  EApp (EVar "walk") e.
+
+Lemma spec_walk_example_concrete :
+  let e := (eCons ETrue (eCons EFalse eNil)) in
+  wp EnvNil (walk_example e) (λ v, v = encode ()).
+Proof.
+  (* The code is pure and terminating and can be fully evaluated. *)
+  wp. do 3 wp_call. reflexivity.
+Qed.
+
+Lemma spec_walk_example_abstract :
+  forall (bs : list bool),
+  let η := EnvCons "xs" (encode bs) EnvNil in
+  wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
+Proof.
+  intros. wp. wp_use spec_walk.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A recursive function that computes the length of a list. *)
+
+(* let rec length xs =
+     match xs with
+     | [] -> 0
+     | x :: xs -> 1 + length xs *)
+
+Definition length : rec_bindings :=
+  RecBinding1 "length" "xs" (
+    EMatch (EVar "xs") (
+      BrCons (Branch pNil (EInt 0)) $
+      BrCons (Branch (pCons (PVar "x") (PVar "xs"))
+                     (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
+             ) $
+      BrNil
+    )
+  ).
+
+Lemma spec_length :
+  ∀ `{Encode A} (xs : list A) η,
+  safe
+    (call (VCloRec η length "length") (encode_list xs))
+    (λ v, v = encode (List.length xs)).
+Proof.
+  induction xs as [| x xs ]; intro η; wp_call.
+  { reflexivity. }
+  { wp_use IHxs. wp.
+    rewrite Nat2Z.inj_succ.
+    rewrite int.add_repr_repr.
+    do 2 f_equal. lia. }
 Qed.

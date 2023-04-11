@@ -500,6 +500,31 @@ Proof.
   assumption.
 Qed.
 
+Lemma prove_safe_eval_ret η e φ :
+  safe (eval η e) φ →
+  safe (stop Eval (η, e)) φ.
+Proof.
+  eauto using prove_safe_eval, safe_covariant, prove_safe_ret.
+Qed.
+
+Lemma prove_safe_loop {A} η x i1 i2 e (k : val → free A) φ :
+  safe (loop η x i1 i2 e) (λ v, safe (k v) φ) →
+  safe (Stop Loop (η, x, i1, i2, e) k) φ.
+Proof.
+  intros.
+  rewrite safe_step by eauto with step.
+  intros. destruct_step.
+  rewrite safe_bind.
+  assumption.
+Qed.
+
+Lemma prove_safe_loop_ret η x i1 i2 e φ :
+  safe (loop η x i1 i2 e) φ →
+  safe (stop Loop (η, x, i1, i2, e)) φ.
+Proof.
+  eauto using prove_safe_loop, safe_covariant, prove_safe_ret.
+Qed.
+
 Lemma prove_safe_flip {A} x (k : bool → free A) φ :
   (∀ b, safe (k b) φ) →
   safe (Stop Flip x k) φ.
