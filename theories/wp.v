@@ -241,26 +241,20 @@ End wp.
  *)
 
 Section wp_lemmas.
-  Context (A: Type).
   Context `{!osirisGS_gen hlc Σ}.
-  Implicit Types s : stuckness.
-  Implicit Types P : iProp Σ.
-  Implicit Types φ : A → iProp Σ.
-  Implicit Types v : A.
-  Implicit Types m : free A.
 
-  Lemma wp_ret s E v φ:
+  Lemma wp_ret {A} s E (v: A) φ:
     φ v -∗ WP (Ret v) @ s; E {{ φ }}.
   Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
 
-  Lemma ret_wp s E v φ:
+  Lemma ret_wp {A} s E (v: A) φ:
     WP (Ret v) @ s; E {{ φ }}-∗ φ v.
   Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
 
 
   (* It might be useful to prove that there is no associate WP to [Fail] (should 
    * be trivial because Fail is stuck (ie. not a value and does not reduce)). *)
-  Lemma wp_fail s E φ:
+  Lemma wp_fail {A} s E (φ: A → iProp Σ):
     ⊢(WP Fail @ s; E {{ φ }}) -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
@@ -269,8 +263,16 @@ Section wp_lemmas.
     apply H, stuck_Fail.
   Qed.
 
+  Lemma wp_next {A} s E (φ: A → iProp Σ):
+    ⊢(WP free.Next @ s; E {{ φ }}) -∗ ⌜False⌝.
+  Proof.
+    rewrite !wp_unfold/wp_pre/=.
+    iIntros "[[%H _] _]".
+    iPureIntro. by apply H.
+  Qed.
 
-  Lemma wp_step s E m φ:
+
+  Lemma wp_step {A} s E m (φ: A → iProp Σ):
     ⌜can_step m⌝ -∗
     (∀ m', ⌜step m m'⌝ -∗ WP m' @ s; E {{ φ }}) -∗
     WP m @ s; E {{ φ }}.
@@ -283,112 +285,57 @@ Section wp_lemmas.
     by iApply "H".
   Qed.
 
+  Lemma step_wp {A} s E m m' (φ: A → iProp Σ):
+    ⌜step m m'⌝ -∗
+    WP m @ s; E {{ φ }} -∗
+    ▷ WP m' @ s; E {{ φ }}.
+  Proof.
+    iIntros (Hstep) "Hwp".
+    setoid_rewrite wp_unfold at 1. rewrite/wp_pre(to_val_can_step _ _ Hstep).
+    iDestruct "Hwp" as "[_ Hwp]".
+    by iApply "Hwp".
+  Qed.
 
-  Lemma wp_bind s E m1 n2 φ:
+
+  Lemma wp_bind {A1 A2} s E (m1: free A1) (n2: A1 → free A2) φ:
     ⊢ WP m1 @ s; E {{ λ a, WP (n2 a) @ s; E {{ φ }} }}
     -∗ WP (bind m1 n2) @ s; E {{ φ }}.
   Proof.
-    iIntros "H".
   Admitted.
 
 
-
-  Lemma wp_par_ret_left s E v1 m2 k ko φ φ1 φ2:
-    φ1 v1
-    -∗ WP m2 @ s ; E {{ φ2 }}
-    -∗ (∀ (v1 v2: A),
-      (φ1 v1) -∗ (φ2 v2) -∗ WP (k (v1, v2)) @ s; E {{ φ }})
-     -∗ WP (Par (ret v1) m2 k ko) @ s ; E {{ φ }}.
+  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ ϕ1 ϕ2:
+    ϕ1 v1 -∗ ϕ2 v2
+    -∗ (∀ (v1: A1) (v2: A2), (ϕ1 v1) -∗ (ϕ2 v2) -∗ WP (k (v1, v2)) @ s; E {{ ϕ }})
+    -∗ WP (Par (ret v1) (ret v2) k ko) @s; E {{ ϕ }}.
   Proof.
     iIntros "H1 H2 Hcomb".
     iApply wp_step.
     { eauto with step. }
-    iIntros (m' Hstep).
-    destruct m2.
-    - iPoseProof (ret_wp with "H2") as "H2".
-      rewrite (step_par_ret_ret Hstep).
-      iApply ("Hcomb" with "H1 H2").
-    - iPoseProof (wp_fail with "H2") as "%". intuition.
-    - admit.
-    - destruct c.
-      + destruct x as [η e].
-        rewrite (step_par_stopeval_right v1 η e k0 k ko m' Hstep).
-
-
-    Restart.
-
-
-    iIntros "H1 H2 Hcomb".
-    iInduction m2 as [A v2 | | | | ] "IHm2".
-    - rewrite!wp_unfold/wp_pre/=.
-      iSplit.
-      { iPureIntro. apply not_stuck_step with (k (v1, v2)), StepParRetRet. }
-      iIntros (m' ->%step_par_ret_ret).
-      iNext. iApply ("Hcomb" with "H1 H2").
-    - rewrite!wp_unfold/wp_pre/=.
-      iSplit.
-      { iPureIntro. apply not_stuck_step with Fail, StepParFailRight. }
-      iIntros (m' ->%step_par_fail_right).
-      iPoseProof "H2" as "[%H _]".
-      exfalso. apply H, stuck_Fail.
-    - rewrite!wp_unfold/wp_pre/=.
-      iSplit.
-      { iPureIntro. apply not_stuck_step with (ko()), StepParNextRight. }
-      iIntros (m' ->%step_par_next_right).
-      iPoseProof "H2" as "[%H _]".
-      exfalso. destruct H as [H1 H2]. by apply H1.
-    - rewrite!wp_unfold/wp_pre/=.
-      iSplit.
-      { iPureIntro. admit. }
-      iIntros (m' Hstep).
-      destruct_step.
-      + inversion Hstep.
-      + iPoseProof "H2" as "[%H2 H2]".
-        iSpecialize ("H2" $! m'2 Hstep).
-        iNext.
-        (* Same as below, I would like to use [wp_step], but cannot. *)
-        admit.
-    - admit.
-  Admitted.
+    iIntros (m' ->%step_par_ret_ret).
+    iApply ("Hcomb" $! v1 v2 with "H1 H2").
+  Qed.
 
 
 
   (* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1 
-  * and φ2 and show that:
+   * and φ2 and show that:
    * - m1 satisfies the post-condition φ1
    * - m2 satisfies the post-condition φ1
    * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
    *     the pair (v1, v2) satisfies φ.
   *)
-  Lemma wp_par s E m1 m2 k ko φ φ1 φ2:
+  Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko φ φ1 φ2:
     WP m1 @ s ; E {{ φ1 }} -∗ WP m2 @ s ; E {{ φ2 }}
-    -∗ (∀ (v1 v2: A),
+    -∗ (∀ (v1: A1) (v2: A2),
       (φ1 v1) -∗ (φ2 v2)
          -∗ WP (k (v1, v2)) @ s; E {{ φ }})
-         -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
+    -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
   Proof.
-    (*
-     * Using Löb induction cannot work here as there would be a later in 
-     * a hypothesis that cannot be eliminated (Cf the restarted proof below).
-     *
-     * The current approach is to use usual induction on [m1].
-     *)
-
-    iInduction (m1) as [] "IHm1";
-      iIntros "H1 H2 Hcomb".
-    - rewrite!wp_unfold/wp_pre/=.
-      triplicity m2 IHm2.
-      +
-      iSplit.
-      { admit. }
-      iIntros (m' Hstep).
-
-      Restart.
-
-
-    iLöb as "IH".
+    iLöb as "IH" forall (m1 m2).
     iIntros "H1 H2 Hcomb".
-    rewrite !wp_unfold/wp_pre.
+    setoid_rewrite wp_unfold at 8.
+    rewrite /wp_pre.
     simpl.
     iSplitR.
     { (* non-stuckness of Par *)
@@ -399,34 +346,24 @@ Section wp_lemmas.
 
     iIntros (m' Hstep). destruct_step; simpl.
     { (* Case: [StepParRetRet] *)
-      iApply ("Hcomb" with "H1 H2"). }
+      iApply ("Hcomb" with "[H1][H2]"); by iApply ret_wp. }
     { (* Case: [StepParFailLeft] *)
-      iPoseProof "H1" as "[%H _]".
-      exfalso. apply H, stuck_Fail. }
+      by iPoseProof (wp_fail with "H1") as "?". }
     { (* Case: [StepFailRight] *)
-      iPoseProof "H2" as "[%H _]".
-      exfalso. apply H, stuck_Fail. }
-    { (* Case: [StepNextRight] *)
-      iPoseProof "H1" as "[[%H _] _]".
-      exfalso. by apply H. }
+      by iPoseProof (wp_fail with "H2") as "?". }
     { (* Case: [StepNextLeft] *)
-      iPoseProof "H2" as "[[%H _] _]".
-      exfalso. by apply H. }
+      by iPoseProof (wp_next with "H1") as "?". }
+    { (* Case: [StepNextRight] *)
+      by iPoseProof (wp_next with "H2") as "?". }
     { (* Case: [StepParLeft] *)
-      rewrite (to_val_can_step m1 m'1 Hstep).
+      iPoseProof (step_wp with "[//] H1") as "H1".
       iNext.
-      iPoseProof ("IH" with "H1 H2 Hcomb") as "IH'".
-      iPoseProof "IH'" as "[_ JJ]".
-      Fail iApply "IH'".
-      (* Current issue: The induction adds a later in the hypothesis. Thus, it 
-       * is impossible to use [IH] here.
-       * In [safe.v], the lemma [initially_safe_monotonic] is used. I do not 
-       * think that it holds in iProp Σ. *)
-      admit. }
+      iApply ("IH" with "H1 H2 Hcomb"). }
     { (* Case: [StepParRight] *)
-      (* Ditto. *)
-      admit. }
-  Admitted.
+      iPoseProof (step_wp with "[//] H2") as "H2".
+      iNext.
+      iApply ("IH" with "H1 H2 Hcomb"). }
+  Qed.
 
 End wp_lemmas.
 
