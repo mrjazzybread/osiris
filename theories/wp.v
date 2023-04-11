@@ -313,16 +313,13 @@ Section wp_lemmas.
     - destruct c.
       + destruct x as [η e].
         rewrite (step_par_stopeval_right v1 η e k0 k ko m' Hstep).
-        a
-      +
-    -
 
 
+    Restart.
 
 
-
-    a
-    iInduction m2 as [A v2 | | | | ] "IHm2";
+    iIntros "H1 H2 Hcomb".
+    iInduction m2 as [A v2 | | | | ] "IHm2".
     - rewrite!wp_unfold/wp_pre/=.
       iSplit.
       { iPureIntro. apply not_stuck_step with (k (v1, v2)), StepParRetRet. }
@@ -384,18 +381,7 @@ Section wp_lemmas.
       +
       iSplit.
       { admit. }
-      iIntros (m' Hstep). rewrite (step_par_ret_ret Hstep).
-      iNext.
-      iApply ("Hcomb" with "H1 H2").
-    - (* TODO: understand why [wp_fail] cannot be used here. *)
-      rewrite!wp_unfold/wp_pre/=.
-      iPoseProof "H2" as "[%H _]".
-      exfalso. apply H, stuck_Fail.
-
-    - (* TODO: should be close to the previous case. *) admit.
-
-    - (* TODO: understand why [wp_step] cannot be used here. *)
-
+      iIntros (m' Hstep).
 
       Restart.
 
