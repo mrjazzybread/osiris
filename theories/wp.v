@@ -91,24 +91,16 @@ Qed.
  * If this lemma remains (currently in discussion), it might be used to simplify 
  * the definition below.
  *)
-Definition not_stuck {A} (m: free A): Prop :=
-  ~ is_answer m /\ ~ stuck m.
-
-Lemma not_stuck_step {A} (m m': free A):
-  step m m' → not_stuck m.
+Lemma step_can_step {A} (m m': free A):
+  step m m' → can_step m.
 Proof.
-  intros Hstep.
-  split.
-  + apply can_step_not_answer.
-    by exists m'.
-  + intros [_ H].
-    by apply (H m').
+  intros?. by exists m'.
 Qed.
 
 Lemma not_stuck_fail {A} :
-  ~ (@not_stuck A Fail).
+  ~ (@can_step A Fail).
 Proof.
-  intros [_ H]. apply H, stuck_Fail.
+  intros H. apply (invert_can_step_Fail H).
 Qed.
 
 
@@ -137,7 +129,7 @@ Section wp_def.
     λ E m φ,
     match to_val m with
     | Some v => φ v
-    | None => (⌜not_stuck m⌝
+    | None => (⌜can_step m⌝
         ∗ ∀ (m': free A),
         ⌜step m m'⌝ -∗ ▷ wp E m' φ)%I
     end.
@@ -260,15 +252,15 @@ Section wp_lemmas.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "[%H _]".
     iPureIntro.
-    apply H, stuck_Fail.
+    apply (invert_can_step_Fail H).
   Qed.
 
   Lemma wp_next {A} s E (φ: A → iProp Σ):
     ⊢(WP free.Next @ s; E {{ φ }}) -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
-    iIntros "[[%H _] _]".
-    iPureIntro. by apply H.
+    iIntros "[%H _]".
+    iPureIntro. apply (invert_can_step_Next H).
   Qed.
 
 
@@ -280,7 +272,7 @@ Section wp_lemmas.
     iIntros ( (m' & Hstep) ) "H".
     rewrite !wp_unfold/wp_pre(to_val_can_step m m' Hstep).
     iSplitR.
-    { iPureIntro. by eapply not_stuck_step. }
+    { iPureIntro. by eapply step_can_step. }
     iIntros (m'' Hstep').
     by iApply "H".
   Qed.
@@ -342,7 +334,7 @@ Section wp_lemmas.
       unshelve epose proof (can_step_par (Par m1 m2 k ko) m1 m2 k ko _)
         as [??];
         first done.
-      iPureIntro. by apply not_stuck_step with x. }
+      iPureIntro. by apply step_can_step with x. }
 
     iIntros (m' Hstep). destruct_step; simpl.
     { (* Case: [StepParRetRet] *)
