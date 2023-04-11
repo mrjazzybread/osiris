@@ -45,11 +45,6 @@ Qed.
 
 
 
-(* Keep the previous definition of [wp] based on [safe] for the examples using 
- * it to remain valid. *)
-Definition old_wp η e ϕ :=
-  safe (eval η e) ϕ.
-
 (* -------------------------------------------------------------------------- *)
 (* Definition of the meaning of being a value in [free val], as well as defining 
  * a notion of stuckness. *)
@@ -366,33 +361,20 @@ Section wp_lemmas.
     setoid_rewrite wp_unfold at 4.
     rewrite /wp_pre.
     destruct (to_val m1) as [v1|] eqn:Em1.
-
     { (* Case: [m] is [ret _]. *)
       by rewrite (to_val_from_Ret _ _ Em1). }
-
     { (* Case: [m] can step. *)
       iDestruct "Hm" as "[%Hcanstep Hm]".
       rewrite !wp_unfold/wp_pre/=.
-
       pose proof (can_step_bind m1 m2 Hcanstep) as ->%can_step_to_val.
-
       iSplit.
       { eauto using can_step_bind with step. }
-
       iIntros (m' Hstep).
-
       (* [m' = bind m'1 m2] for some [m'1] st. [step m1 m1'] *)
       assert (Hnoret: ¬ is_answer m1) by eauto using can_step_not_answer.
-      pose proof (invert_step_bind' m1 m2 m' Hstep Hnoret)
-        as (m'1 & Hsrtep & ->).
-
+      pose proof (invert_step_bind' m1 m2 m' Hstep Hnoret) as (m'1 & Hsrtep & ->).
       iApply "IH".
       by iApply "Hm". }
   Qed.
 
 End wp_lemmas.
-
-
-
-(* Keep a definition based on [safe] so that [examples.v] does not break. *)
-Definition wp := old_wp.

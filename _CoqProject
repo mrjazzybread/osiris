@@ -13,6 +13,6 @@ theories/steps.v
 theories/test.v
 theories/safe.v
 theories/wp.v
-theories/wp_tactics.v
+theories/safe_tactics.v
 theories/refinement.v
-theories/examples.v
+theories/examples_safe.v
