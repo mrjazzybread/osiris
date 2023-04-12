@@ -236,6 +236,23 @@ End wp.
 Section wp_lemmas.
   Context `{!osirisGS_gen hlc Σ}.
 
+  Lemma wp_covariant {A} s E m (ϕ: A -> iProp Σ) (ϕ': A -> iProp Σ) :
+    ⊢ WP m @ s; E {{ ϕ }} -∗
+    (∀ v, (ϕ v) -∗ (ϕ' v)) -∗
+    WP m @ s; E {{ ϕ' }}.
+  Proof.
+    iLöb as "IH" forall (ϕ ϕ' m).
+    iIntros "Hwp Himpl".
+    rewrite!wp_unfold/wp_pre.
+    destruct (to_val m).
+    {  iApply ("Himpl" with "Hwp"). }
+    iDestruct "Hwp" as "[% Hwp]".
+    iSplit; first done.
+    iIntros (??).
+    iApply ("IH" with "[Hwp]"); last done.
+    by iApply "Hwp".
+  Qed.
+
   Lemma wp_ret {A} s E (v: A) ϕ:
     ϕ v -∗ WP (Ret v) @ s; E {{ ϕ }}.
   Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
@@ -290,16 +307,15 @@ Section wp_lemmas.
   Qed.
 
 
-  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ ϕ1 ϕ2:
-    ϕ1 v1 -∗ ϕ2 v2
-    -∗ (∀ (v1: A1) (v2: A2), (ϕ1 v1) -∗ (ϕ2 v2) -∗ WP (k (v1, v2)) @ s; E {{ ϕ }})
+  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ:
+    WP (k (v1, v2)) @ s; E {{ ϕ }}
     -∗ WP (Par (ret v1) (ret v2) k ko) @s; E {{ ϕ }}.
   Proof.
-    iIntros "H1 H2 Hcomb".
+    iIntros "H".
     iApply wp_step.
     { eauto with step. }
     iIntros (m' ->%step_par_ret_ret).
-    iApply ("Hcomb" $! v1 v2 with "H1 H2").
+    iApply ("H").
   Qed.
 
 
@@ -351,6 +367,32 @@ Section wp_lemmas.
       iApply ("IH" with "H1 H2 Hcomb"). }
   Qed.
 
+  Lemma wp_par_ret_right {A1 A2 A} m1 a2
+    (k : A1 * A2 → free A) ko
+    (ϕ : A → iProp Σ) :
+    ⊢ WP m1 {{ λ v1, WP (k (v1, a2)) {{ ϕ }} }} -∗
+    WP (Par m1 (Ret a2) k ko) {{ ϕ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) {{ ϕ }}) (λ v, ⌜v = a2⌝)
+           with "Hwp")%I.
+    { by iApply wp_ret. }
+    { by iIntros (??) "?->". }
+  Qed.
+
+  Lemma wp_par_ret_left {A1 A2 A} a1 m2
+    (k : A1 * A2 → free A) ko
+    (ϕ : A → iProp Σ) :
+    ⊢ WP m2 {{ λ v2, WP (k (a1, v2)) {{ ϕ }} }} -∗
+    WP (Par (Ret a1) m2 k ko) {{ ϕ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) {{ ϕ }})
+           with "[] Hwp")%I.
+    { by iApply wp_ret. }
+    { by iIntros (??) "->?". }
+  Qed.
+
 
   Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ϕ:
     ⊢ WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ϕ }} }}
@@ -376,5 +418,22 @@ Section wp_lemmas.
       iApply "IH".
       by iApply "Hm". }
   Qed.
+
+
+  Lemma wp_eval {A} s E η e k (ϕ: A -> iProp Σ) :
+    ⊢ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
+    WP (Stop Eval (η, e) k) @ s; E {{ ϕ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply wp_step.
+    { eauto with step. }
+    iIntros (m' Hstep).
+    destruct_step.
+    iApply wp_bind.
+    iAssumption.
+  Qed.
+
+  Definition wp_eval_ret s E η e ϕ :=
+    wp_eval s E η e ret ϕ.
 
 End wp_lemmas.

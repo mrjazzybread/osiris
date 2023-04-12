@@ -16,3 +16,4 @@ theories/wp.v
 theories/safe_tactics.v
 theories/refinement.v
 theories/examples_safe.v
+theories/examples_wp.v
