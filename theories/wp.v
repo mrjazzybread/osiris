@@ -374,27 +374,27 @@ Section wp_lemmas.
       iApply ("IH" with "H1 H2 Hcomb"). }
   Qed.
 
-  Lemma wp_par_ret_right {A1 A2 A} m1 a2
+  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2
     (k : A1 * A2 → free A) ko
     (ϕ : A → iProp Σ) :
-    ⊢ ▷ WP m1 {{ λ v1, WP (k (v1, a2)) {{ ϕ }} }} -∗
-    WP (Par m1 (Ret a2) k ko) {{ ϕ }}.
+    ⊢ ▷ WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ ϕ }} }} -∗
+    WP (Par m1 (Ret a2) k ko) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) {{ ϕ }}) (λ v, ⌜v = a2⌝)
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) @ s; E {{ ϕ }}) (λ v, ⌜v = a2⌝)
            with "Hwp")%I.
     { by iApply wp_ret. }
     { iNext. by iIntros (??) "?->". }
   Qed.
 
-  Lemma wp_par_ret_left {A1 A2 A} a1 m2
+  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2
     (k : A1 * A2 → free A) ko
     (ϕ : A → iProp Σ) :
-    ⊢ ▷ WP m2 {{ λ v2, WP (k (a1, v2)) {{ ϕ }} }} -∗
-    WP (Par (Ret a1) m2 k ko) {{ ϕ }}.
+    ⊢ ▷ WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ ϕ }} }} -∗
+    WP (Par (Ret a1) m2 k ko) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) {{ ϕ }})
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) @ s; E {{ ϕ }})
            with "[] Hwp")%I.
     { by iApply wp_ret. }
     { iNext. by iIntros (??) "->?". }
@@ -440,13 +440,34 @@ Section wp_lemmas.
     iAssumption.
   Qed.
 
-  Definition wp_eval_ret s E η e ϕ :=
-    wp_eval s E η e ret ϕ.
+  (* [wp_eval_ret] should not simply be defined as
+     [λ s E η e ϕ, wp_eval s E η e ret ϕ] or it would make its premice more difficult to
+     work with. *)
+  Lemma wp_eval_ret s E η e ϕ :
+    ⊢ ▷ WP (eval η e) @ s; E {{ ϕ }} -∗
+    WP (Stop Eval (η, e) ret) @ s; E {{ ϕ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply wp_eval.
+    iNext. iApply (wp_covariant with "Hwp").
+    iIntros. by iApply wp_ret.
+  Qed.
 
   Lemma wp_try_ret {A B} s E (v: A) (k: A -> free B) ko ϕ :
     ⊢ WP bind (ret v) k @ s; E {{ ϕ }} -∗ WP try (ret v) k ko @s; E {{ ϕ }}.
   Proof.
     by iIntros "H".
+  Qed.
+
+  Lemma wp_flip {A} s E x (k: bool -> free A) ϕ :
+    ⊢ ▷ (∀ b, WP (k b) @ s; E {{ ϕ }} ) -∗
+    WP (Stop Flip x k) @ s; E {{ ϕ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply wp_step; first eauto with step.
+    iNext.
+    iIntros (m' Hstep).
+    by destruct_step.
   Qed.
 
 End wp_lemmas.
