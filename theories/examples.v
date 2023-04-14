@@ -50,17 +50,6 @@ Definition example3 :=
   let idA := EApp (EVar "id") (EConstant "A") in
   EPair idA idA.
 
-Definition texan {A} (m : free A) (φ : A → Prop) :=
-  ∀ (φ' : A → Prop),
-  (∀ v, φ v → φ' v) →
-  safe m φ'.
-
-Ltac prove_texan :=
-  unfold texan;
-  let φ' := fresh "φ'" in
-  let finished := fresh "finished" in
-  intros φ' finished.
-
 (* TODO not great *)
 Ltac wp_set_postcondition :=
   match goal with |- ?φ ?v =>
