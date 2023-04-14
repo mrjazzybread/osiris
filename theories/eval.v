@@ -138,10 +138,10 @@ Fixpoint lookup_rec_bindings rbs f : free anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [extend η p v] matches the value [v] against the pattern [p].
+(* [extend δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
-   [η] with bindings for the bound variables of the pattern [p].
+   fragment [δ] with bindings for the bound variables of the pattern [p].
 
    A soft failure takes place if [p] does not match [v], e.g., if [p]
    selects a data constructor [c] but [v] carries a distinct data
@@ -154,48 +154,48 @@ Fixpoint lookup_rec_bindings rbs f : free anonfun :=
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Fixpoint extend η p v : free env :=
+Fixpoint extend δ p v : free env :=
   match p, v with
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
-      ret η
+      ret δ
   | PVar x, _ =>
       (* A variable pattern always succeeds, and causes the environment
          to be extended. *)
-      ret (EnvCons x v η)
+      ret (EnvCons x v δ)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       (* A hard failure occurs when [length ps ≠ length vs]. *)
-      extends η ps vs
+      extends δ ps vs
   | PData c p, VData c' v =>
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a soft failure takes
          place. *)
-      if c =? c' then extend η p v else next()
+      if c =? c' then extend δ p v else next()
   | PTuple _, _ =>
       crash "type mismatch (tuple expected)"
   | PData _ _, _ =>
       crash "type mismatch (algebraic data expected)"
   end
 
-(* [extends η ps vs] matches the values [vs] against the patterns [ps].
+(* [extends δ ps vs] matches the values [vs] against the patterns [ps].
 
    In case of success, the result is an extension of the environment
-   [η] with bindings for the bound variables of the patterns [ps].
+   fragment [δ] with bindings for the bound variables of the patterns [ps].
 
    A hard failure occurs when [length ps ≠ length vs]. *)
 
 (* For now, pattern matching is sequential. Parallel evaluation would
    make sense once we enable pattern matching on mutable state. TODO *)
 
-with extends η ps vs : free env :=
+with extends δ ps vs : free env :=
   match ps, vs with
   | PNil, VNil =>
-      ret η
+      ret δ
   | PCons p ps, VCons v vs =>
-      η ← extend η p v ;
-      η ← extends η ps vs ;
-      ret η
+      δ ← extend δ p v ;
+      δ ← extends δ ps vs ;
+      ret δ
   | PCons _ _, VNil =>
       crash "pattern matching: length mismatch (longer tuple expected)"
   | PNil, VCons _ _ =>
@@ -474,10 +474,11 @@ Fixpoint eval η e : free val :=
       b ← as_bool (eval η e) ;
       ret (VBool (negb b))
   | ELet bs e =>
+      (* TODO isolate an auxiliary function here *)
       (* This is evaluated like a [match] construct with one branch. *)
       try
-        (eval_extend_bindings η bs)
-      (λ η, eval η e)
+        (eval_bindings η bs)
+      (λ δ, let η := concat δ η in eval η e)
       (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
@@ -542,31 +543,30 @@ with evals η es : free vals :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_extend_bindings η bs] evaluates the bindings [bs] in the environment
-   [η], producing an extended environment. *)
+(* [eval_bindings η bs] evaluates the bindings [bs] in the environment [η],
+   producing an environment fragment. *)
 
-(* [eval_extend_bindings] is used to evaluate the [let/and] construct. *)
+(* [eval_bindings] is used to evaluate the [let/and] construct. *)
 
 (* A binding is a pair [p = e]. The expressions in the right-hand sides of the
    bindings [bs] are evaluated in parallel. The values thus obtained are then
    matched against the patterns in the left-hand sides. The pattern matching
-   process is sequential. TODO *)
+   process is sequential. *)
 
 (* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
-   then [eval_extend_bindings] would disappear. We prefer to avoid encodings. *)
+   then [eval_bindings] would disappear. We prefer to avoid encodings. *)
 
-with eval_extend_bindings η (bs : bindings) : free env :=
+with eval_bindings η (bs : bindings) : free env :=
   match bs with
   | BiNil =>
-      ret η
+      ret EnvNil
   | BiCons (Binding p e) bs =>
       (* Evaluate the expression [e], yielding a value [v]. In parallel,
-         evaluate the remaining bindings, yielding an extended environment
-         [η]. *)
-      '(v, η) ← par (eval η e) (eval_extend_bindings η bs) ;
-      (* Match the value [v] against the pattern [p], extending [η] again. *)
-      extend η p v
+         evaluate the bindings [bs], yielding an environment fragment [δ]. *)
+      '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
+      (* Match the value [v] against the pattern [p], extending [δ]. *)
+      extend δ p v
   end
 
 (* ------------------------------------------------------------------------ *)
@@ -584,9 +584,9 @@ with eval_match η v bs :=
   | BrCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
-        (extend η p v)
+        (extend EnvNil p v)
       (* Success: commit to this branch. Evaluate its body. *)
-      (λ η, eval η e)
+      (λ δ, let η := concat δ η in eval η e)
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end.
