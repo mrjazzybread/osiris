@@ -11,7 +11,7 @@ Implicit Type es : exprs.
 Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
-Implicit Type η : env.
+Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
 
@@ -88,9 +88,22 @@ Fixpoint lookup η x : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_rec_bindings_aux η rbs rbs'] extends the environment [η] with the
-   bindings [rbs'], where each name [f] is mapped to a recursive closure
-   that captures the environment [η] and the bindings [rbs]. *)
+(* [concat δ η] concatenates the environment fragment [δ] in front of the
+   environment [η], yielding an extended environment. *)
+
+Fixpoint concat δ η : env :=
+  match δ with
+  | EnvNil =>
+      η
+  | EnvCons x v δ =>
+      EnvCons x v (concat δ η)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
+   environment fragment. Each name [f] is mapped to a recursive closure that
+   captures the environment [η] and the bindings [rbs]. *)
 
 (* The parameters [η] and [rbs] are invariant. At the beginning, [rbs']
    is [rbs], so, in general, [rbs'] is a suffix of [rbs]. *)
@@ -98,14 +111,14 @@ Fixpoint lookup η x : free val :=
 Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
   | RecBiNil =>
-      η
+      EnvNil
   | RecBiCons (RecBinding f _a) rbs' =>
       EnvCons f (VCloRec η rbs f) (eval_rec_bindings_aux η rbs rbs')
   end.
 
-(* [eval_rec_bindings η rbs rbs'] extends the environment [η] with the
-   bindings [rbs], where each name [f] is mapped to a recursive closure
-   that captures the environment [η] and the bindings [rbs]. *)
+(* [eval_rec_bindings η rbs] transforms the bindings [rbs] into an environment
+   fragment. Each name [f] is mapped to a recursive closure that captures the
+   environment [η] and the bindings [rbs]. *)
 
 Definition eval_rec_bindings η rbs : env :=
   eval_rec_bindings_aux η rbs rbs.
@@ -217,7 +230,8 @@ Definition call v1 v2 : free val :=
   | VCloRec η rbs f =>
       (* Extend the environment [η] found in the closure with bindings
          for the recursive functions in [rbs]. *)
-      let η := eval_rec_bindings η rbs in
+      let δ := eval_rec_bindings η rbs in
+      let η := concat δ η in
       (* Look up the entry point [f] in [rbs], yielding an anonymous
          function [a]. *)
       a ← lookup_rec_bindings rbs f ;
@@ -468,7 +482,8 @@ Fixpoint eval η e : free val :=
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
-      let η := eval_rec_bindings η rbs in
+      let δ := eval_rec_bindings η rbs in
+      let η := concat δ η in
       eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
