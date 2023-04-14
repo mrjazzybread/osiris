@@ -79,3 +79,51 @@ Ltac wp_call :=
   with_strategy transparent [call] unfold call;
     (* TODO make sure that we unfold just the root occurrence *)
   wp.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [concatenating] to be unfolded. We want symbolic execution
+   to stop at [concatenating], that is, when the environment is extended
+   with new bindings. This gives the user a chance to prove specifications
+   about these bindings using [wp_specify]. *)
+
+Global Opaque concatenating.
+
+(* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
+   to continue simplifying the goal. *)
+
+Lemma concatenating_def eval η e δ :
+  concatenating eval η e δ =
+  let η := concat δ η in eval η e.
+Proof.
+  reflexivity.
+Qed.
+
+Ltac wp_continue :=
+  rewrite concatenating_def; wp.
+
+(* The tactic [wp_specify x φ] should be used when the goal begins with
+   [concatenating eval η e δ], that is, when the environment is about to
+   be extended with the environment fragment [δ].
+
+   The tactic looks up the variable [x] in the environment fragment [δ]
+   so as to find the value [v] of this variable. Then, it produces two
+   subgoals:
+   - the subgoal [φ v],
+     letting the user prove that [v] satisfies the specification [φ];
+   - the original goal,
+     generalized under the form [∀ v, φ v → ...],
+     which means that [v] becomes an opaque value
+     about which nothing is known except that [φ v] holds. *)
+
+Ltac wp_specify x φ :=
+  match goal with |- context[concatenating eval _ _ ?δ] =>
+    let o := eval cbn in (lookup δ x) in
+    match o with
+    | Ret ?v =>
+        let H := fresh "spec" in
+        assert (spec: φ v); [| revert spec; generalize v ]
+          (* not perfect, as [generalize] could abstract [v] away
+             also inside φ, which would be undesirable *)
+    end
+  end.

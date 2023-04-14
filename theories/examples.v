@@ -21,7 +21,9 @@ Definition example :=
 
 Goal wp EnvNil example (λ v, v = VData "A" (VTuple VNil)).
 Proof.
-  wp. reflexivity.
+  wp.
+  wp_continue. wp_continue.
+  reflexivity.
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
@@ -36,7 +38,10 @@ Goal
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
   wp env example2 (λ v, v = v1).
 Proof.
-  intros. wp. reflexivity.
+  intros. wp.
+  wp_continue.
+  wp_continue.
+  reflexivity.
 Qed.
 
 (* (id (A()), id (A())) *)
@@ -91,8 +96,11 @@ Qed.
 Definition identity :=
   EFun "x" (EVar "x").
 
-Lemma spec_identity:
-  wp EnvNil identity (λ c, ∀ v, safe (call c v) (λ v', v' = v)).
+Definition spec_id (c : val) :=
+  ∀ v, safe (call c v) (λ v', v' = v).
+
+Goal
+  wp EnvNil identity spec_id.
 Proof.
   wp. intros c. wp_call. reflexivity.
 Qed.
@@ -108,16 +116,20 @@ Lemma spec_example4:
   wp EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   unfold example4.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
+  wp.
+  (* The environment is about to be extended with a binding of the variable
+     "id" to a certain closure. Now is the time to prove a specification
+     for this closure; then, we can make this closure opaque. *)
+  wp_specify "id" spec_id.
+  (* Subgoal: prove that [fun x -> x] satisfies [spec_id]. *)
+  { unfold spec_id. intros v. wp_call. reflexivity. }
+  (* The variable "id" is now bound to an abstract closure [id]. *)
+  intros id Hid.
   (* Abstract away [example3]; its spec suffices. *)
   generalize example3 spec_example3.
   intros example3 Hexample3.
   (* Attack the goal. *)
-  wp.
-  wp_use Hidentity.
-  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
+  wp_continue.
   wp_use Hexample3.
   wp_use Hid.
 Qed.
@@ -148,16 +160,11 @@ Definition example4b :=
 Lemma spec_example4b:
   wp EnvNil example4b (λ v, v = VUnit).
 Proof.
-  unfold example4b.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
-  wp.
+  unfold example4b. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. intros v. wp_call. reflexivity. }
+  intros id Hid. wp_continue.
   (* We are looking at [id id]. *)
   wp_use Hid.
   wp_use Hid.
@@ -174,18 +181,14 @@ Definition example4c :=
 Lemma spec_example4c:
   wp EnvNil example4c (λ v, v = VUnit).
 Proof.
-  unfold example4c.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
-  wp.
+  unfold example4c. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. intros v. wp_call. reflexivity. }
+  intros id Hid. wp_continue.
   (* We are looking at [id()]. *)
   wp_use Hid.
+  (* We are again looking at [id()]. *)
   wp_use Hid.
 Qed.
 
@@ -200,15 +203,11 @@ Definition example4d :=
 Lemma spec_example4d:
   wp EnvNil example4d (λ v, v = VUnit).
 Proof.
-  unfold example4d.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  revert a H; intros id Hid. (* TODO wp_intros does not let us pick names *)
+  unfold example4d. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. intros v. wp_call. reflexivity. }
+  intros id Hid. wp_continue.
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
   wp_par.
@@ -258,18 +257,18 @@ Definition walk : rec_bindings :=
     )
   ).
 
-Lemma spec_walk :
-  ∀ (bs : list bool) η,
-  safe (call (VCloRec η walk "walk") (encode_list bs)) (λ v, v = VUnit).
+Definition spec_walk (walk : val) :=
+  ∀ (bs : list bool),
+  safe (call walk (encode_list bs)) (λ v, v = VUnit).
+
+(* This is a subgoal that appears in the proof of
+   [spec_walk_example_abstract] below. *)
+Goal
+  ∀ η,
+  spec_walk (VCloRec η walk "walk").
 Proof.
-  (* The environment that is captured by the closure does not matter,
-     since the code is in fact closed. So, we must in fact universally
-     quantify over this environment. *)
-  (* TODO It would be desirable to avoid writing [VCloRec η walk "walk"]
-     explicitly, as the structure of this value is an internal detail of
-     the semantics. Instead we would like to refer this value as "the
-     value produced by evaluating the recursive bindings [walk]". *)
-  induction bs as [| b bs ]; intro η; wp_call.
+  unfold spec_walk.
+  induction bs as [| b bs ]; wp_call; wp_continue.
   { reflexivity. }
   { wp_use IHbs. }
 Qed.
@@ -283,15 +282,43 @@ Lemma spec_walk_example_concrete :
   wp EnvNil (walk_example e) (λ v, v = encode ()).
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
-  wp. do 3 wp_call. reflexivity.
+  wp.
+  wp_continue.
+  wp_call. wp_continue.
+  wp_call. wp_continue.
+  wp_call. wp_continue.
+  reflexivity.
 Qed.
+
+(* The following example illustrates how to reason about a local function.
+   When the environment is about to be extended with a binding of the
+   variable "walk" to a closure, we prove a specification for this closure,
+   then we make this closure opaque. *)
 
 Lemma spec_walk_example_abstract :
   forall (bs : list bool),
   let η := EnvCons "xs" (encode bs) EnvNil in
   wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
 Proof.
-  intros. wp. wp_use spec_walk.
+  intros. wp.
+  (* The environment is about to be extended with a binding of the variable
+     "walk" to a certain closure. Now is the time to prove a specification
+     for this closure; then, we can make this closure opaque. *)
+  wp_specify "walk" spec_walk.
+  (* Subgoal: prove that the closure satisfies [spec_walk]. *)
+  { (* The environment [η] is irrelevant, since the code is in fact closed.
+       Abstract it away. *)
+    generalize η. clear bs η. intros η.
+    unfold spec_walk.
+    (* Prove the spec by induction on the list [bs]. *)
+    induction bs as [| b bs ]; wp_call; wp_continue.
+    { reflexivity. }
+    { wp_use IHbs. }
+  }
+  (* The variable "walk" is now bound to an abstract closure [walk]. *)
+  intros walk Hwalk. wp_continue.
+  (* The remains to exploit the hypothesis [Hwalk]. *)
+  wp_use Hwalk.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -314,13 +341,18 @@ Definition length : rec_bindings :=
     )
   ).
 
-Lemma spec_length :
-  ∀ `{Encode A} (xs : list A) η,
+Definition spec_length (length : val) :=
+  ∀ A (eA : Encode A) (xs : list A),
   safe
-    (call (VCloRec η length "length") (encode_list xs))
+    (call length (encode_list xs))
     (λ v, v = encode (List.length xs)).
+
+Goal
+  ∀ η,
+  spec_length (VCloRec η length "length").
 Proof.
-  induction xs as [| x xs ]; intro η; wp_call.
+  unfold spec_length.
+  induction xs as [| x xs ]; wp_call; wp_continue.
   { reflexivity. }
   { wp_use IHxs. wp.
     rewrite Nat2Z.inj_succ.
