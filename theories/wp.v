@@ -49,6 +49,7 @@ Qed.
 (* Definition of the meaning of being a value in [free val], as well as defining 
  * a notion of stuckness. *)
 
+(* TODO: rename [to_val] to [is_ret/to_ret] *)
 Definition to_val {A} (m: free A) : option A :=
   match m with
   | Ret v => Some v
@@ -253,6 +254,9 @@ Section wp_lemmas.
     by iApply "Hwp".
   Qed.
 
+  (* TODO: show strong_mono :
+    P ∗ WP => WP _ (P ∗ _) *)
+
   Lemma wp_ret {A} s E (v: A) ϕ:
     ϕ v -∗ WP (Ret v) @ s; E {{ ϕ }}.
   Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
@@ -284,7 +288,7 @@ Section wp_lemmas.
 
   Lemma wp_step {A} s E m (ϕ: A → iProp Σ):
     ⌜can_step m⌝ -∗
-    (∀ m', ⌜step m m'⌝ -∗ WP m' @ s; E {{ ϕ }}) -∗
+    (▷ ∀ m', ⌜step m m'⌝ -∗ WP m' @ s; E {{ ϕ }}) -∗
     WP m @ s; E {{ ϕ }}.
   Proof.
     iIntros ( (m' & Hstep) ) "H".
@@ -308,7 +312,7 @@ Section wp_lemmas.
 
 
   Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ:
-    WP (k (v1, v2)) @ s; E {{ ϕ }}
+    ▷ WP (k (v1, v2)) @ s; E {{ ϕ }}
     -∗ WP (Par (ret v1) (ret v2) k ko) @s; E {{ ϕ }}.
   Proof.
     iIntros "H".
@@ -328,10 +332,11 @@ Section wp_lemmas.
    *     the pair (v1, v2) satisfies ϕ.
   *)
   Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko ϕ ϕ1 ϕ2:
-    WP m1 @ s ; E {{ ϕ1 }} -∗ WP m2 @ s ; E {{ ϕ2 }}
-    -∗ (∀ (v1: A1) (v2: A2),
-      (ϕ1 v1) -∗ (ϕ2 v2)
-         -∗ WP (k (v1, v2)) @ s; E {{ ϕ }})
+    ▷ WP m1 @ s ; E {{ ϕ1 }} -∗
+    ▷ WP m2 @ s ; E {{ ϕ2 }} -∗
+    ▷ (∀ (v1: A1) (v2: A2),
+        ϕ1 v1 -∗ ϕ2 v2 -∗
+        WP (k (v1, v2)) @ s; E {{ ϕ }})
     -∗ WP (Par m1 m2 k ko) @ s ; E {{ ϕ }}.
   Proof.
     iLöb as "IH" forall (m1 m2).
@@ -350,47 +355,49 @@ Section wp_lemmas.
     { (* Case: [StepParRetRet] *)
       iApply ("Hcomb" with "[H1][H2]"); by iApply ret_wp. }
     { (* Case: [StepParFailLeft] *)
+      iNext.
       by iPoseProof (wp_fail with "H1") as "?". }
     { (* Case: [StepFailRight] *)
+      iNext.
       by iPoseProof (wp_fail with "H2") as "?". }
     { (* Case: [StepNextLeft] *)
+      iNext.
       by iPoseProof (wp_next with "H1") as "?". }
     { (* Case: [StepNextRight] *)
+      iNext.
       by iPoseProof (wp_next with "H2") as "?". }
     { (* Case: [StepParLeft] *)
       iPoseProof (step_wp with "[//] H1") as "H1".
-      iNext.
       iApply ("IH" with "H1 H2 Hcomb"). }
     { (* Case: [StepParRight] *)
       iPoseProof (step_wp with "[//] H2") as "H2".
-      iNext.
       iApply ("IH" with "H1 H2 Hcomb"). }
   Qed.
 
   Lemma wp_par_ret_right {A1 A2 A} m1 a2
     (k : A1 * A2 → free A) ko
     (ϕ : A → iProp Σ) :
-    ⊢ WP m1 {{ λ v1, WP (k (v1, a2)) {{ ϕ }} }} -∗
+    ⊢ ▷ WP m1 {{ λ v1, WP (k (v1, a2)) {{ ϕ }} }} -∗
     WP (Par m1 (Ret a2) k ko) {{ ϕ }}.
   Proof.
     iIntros "Hwp".
     iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) {{ ϕ }}) (λ v, ⌜v = a2⌝)
            with "Hwp")%I.
     { by iApply wp_ret. }
-    { by iIntros (??) "?->". }
+    { iNext. by iIntros (??) "?->". }
   Qed.
 
   Lemma wp_par_ret_left {A1 A2 A} a1 m2
     (k : A1 * A2 → free A) ko
     (ϕ : A → iProp Σ) :
-    ⊢ WP m2 {{ λ v2, WP (k (a1, v2)) {{ ϕ }} }} -∗
+    ⊢ ▷ WP m2 {{ λ v2, WP (k (a1, v2)) {{ ϕ }} }} -∗
     WP (Par (Ret a1) m2 k ko) {{ ϕ }}.
   Proof.
     iIntros "Hwp".
     iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) {{ ϕ }})
            with "[] Hwp")%I.
     { by iApply wp_ret. }
-    { by iIntros (??) "->?". }
+    { iNext. by iIntros (??) "->?". }
   Qed.
 
 
@@ -421,7 +428,7 @@ Section wp_lemmas.
 
 
   Lemma wp_eval {A} s E η e k (ϕ: A -> iProp Σ) :
-    ⊢ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
+    ⊢ ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
     WP (Stop Eval (η, e) k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
@@ -435,5 +442,11 @@ Section wp_lemmas.
 
   Definition wp_eval_ret s E η e ϕ :=
     wp_eval s E η e ret ϕ.
+
+  Lemma wp_try_ret {A B} s E (v: A) (k: A -> free B) ko ϕ :
+    ⊢ WP bind (ret v) k @ s; E {{ ϕ }} -∗ WP try (ret v) k ko @s; E {{ ϕ }}.
+  Proof.
+    by iIntros "H".
+  Qed.
 
 End wp_lemmas.

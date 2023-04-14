@@ -14,13 +14,45 @@ Context `{!osirisGS_gen hlc Σ}.
 (* ---------------------------------------------------------------------- *)
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)
 
+(* TODO:
+ * - instead of using [cbn], try to only reduce what should be reduced (not continutations, ...).
+ * - eliminate later modalities if required.
+ *   It can *at least* be done when the goal is automatically provable after 
+ *   [repeat iNext].
+ * - move the tactics and tactics-related elements to a new file [theories/wp_tactics.v]
+ *)
+
+Definition our__id {A}: A → A := λ i, i.
+Lemma our__id_is_id {A} (i: A) :
+  i = our__id i.
+Proof. reflexivity. Qed.
+Global Opaque our__id.
+
 Ltac wp_step :=
-  first [
-      iApply wp_ret; cbn
-    | iApply wp_eval_ret; cbn
-    | iApply wp_par_ret_ret; cbn
-    | iApply wp_par_ret_left; cbn
-    | iApply wp_par_ret_right; cbn].
+  lazymatch goal with
+  | |- environments.envs_entails _
+        (wp _ _ (ret _) _) => iApply wp_ret
+  | |- environments.envs_entails _
+        (wp _ _ (bind _ _) _) => iApply wp_bind
+  | |- environments.envs_entails _
+        (wp _ _ (Par (ret _) (ret _) _ _) _) => iApply wp_par_ret_ret
+  | |- environments.envs_entails _
+        (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
+      remember k; remember ko;
+      iApply wp_par_ret_right
+  | |- environments.envs_entails _
+        (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
+      remember k; remember ko;
+      iApply wp_par_ret_left
+  | |- environments.envs_entails _ (bi_later _) => iNext
+  | |- environments.envs_entails _
+        (wp _ _ (try (ret _) _ _) _) => iApply wp_try_ret
+  | |- environments.envs_entails _
+        (wp _ _ (eval.lookup _ _) _) => simpl (eval.lookup _ _)
+  | H: ?k = _ |- environments.envs_entails _
+        (wp _ _ (?k _) _) =>
+      rewrite H; clear H k
+  end.
 
 Ltac wp :=
   cbn;
@@ -42,6 +74,16 @@ Ltac wp_use H :=
 Global Opaque call.
 Ltac wp_call :=
   with_strategy transparent [call] unfold call at 1; wp.
+
+
+(* TODO not great *)
+Ltac wp_set_postcondition :=
+  match goal with
+    |- @environments.envs_entails _ _
+        (?ϕ ?v) =>
+      is_evar ϕ;
+      instantiate (1 := (λ w, ⌜w = v⌝)%I)
+  end.
 
 (* ----------------------------------------------------------------------*)
 (* Examples. *)
@@ -71,8 +113,13 @@ Definition example :=
 Goal
   ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  wp. iPureIntro. reflexivity.
-Qed.
+  iStartProof.
+  Time cbn.
+  Time wp.
+  iApply wp_try_ret.
+  iApply wp_ret.
+  iPureIntro. reflexivity.
+Time Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
@@ -81,6 +128,7 @@ Definition example2 :=
   ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
+(* 
 Goal
   ∀ v1 v2,
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
@@ -96,29 +144,10 @@ Definition example3 :=
   let idA := EApp (EVar "id") (EConstant "A") in
   EPair idA idA.
 
-Definition texan {A} (m : free A) (φ : A → iProp Σ) :=
-  ∀ (φ' : A → iProp Σ),
-  (∀ v, φ v -∗ φ' v) →
-  ⊢ WP m  {{ φ' }}.
-
-Ltac prove_texan :=
-  unfold texan;
-  let φ' := fresh "φ'" in
-  let finished := fresh "finished" in
-  intros φ' finished.
-
-(* TODO not great *)
-Ltac wp_set_postcondition :=
-  match goal with
-    |- @environments.envs_entails _ _
-        (?ϕ ?v) =>
-      is_evar ϕ;
-      instantiate (1 := (λ w, ⌜w = v⌝)%I)
-  end.
-
+(* TODO. *)
 Lemma spec_example3:
   ∀ (id : val),
-  ⊢ (∀ v, {{{ ⌜True⌝ }}} (call id v) {{{ v', RET v'; ⌜ v' = v⌝ }}} ) -∗
+  ⊢ □ (∀ v, WP (call id v) {{λ v', ⌜ v' = v⌝ }} ) -∗
   let env := EnvCons "id" id EnvNil in
   WP (eval env example3) {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
@@ -128,18 +157,16 @@ Proof.
      and each of them is a function application, which is itself
      evaluated in parallel. So we have a tree of nested [Par]. *)
   wp_par.
-  { iApply "Hid"; first trivial. (* TODO: fix this part *)
-    iIntros "!>%%".
-    by instantiate(1 := (λ v, ⌜v = VConstant "A"⌝)%I). }
+  { iApply "Hid". }
   { iApply wp_covariant.
-    - iApply "Hid"; first trivial. (* TODO: ditto. *)
-      + iIntros "!>%%".
-        by instantiate(1 := (λ v, ⌜v = VConstant "A"⌝)%I).
+    - iApply "Hid".
     - iIntros (v->).
-      wp. by wp_set_postcondition. }
+      do 3 iNext. wp. by wp_set_postcondition. }
+  iNext.
   iIntros (??) "->->".
   wp. iPureIntro. reflexivity.
 Qed.
+
 
 (* The identity function. *)
 
@@ -150,14 +177,12 @@ Definition identity :=
   EFun "x" (EVar "x").
 
 Lemma spec_identity s E:
-  ⊢ {{{ ⌜True⌝ }}} (eval EnvNil identity) {{{ c, RET c; ∀ v, WP (call c v) @ s; E {{ λ v', ⌜v' = v⌝ }} }}}.
+  ⊢ □ WP (eval EnvNil identity) @ s; E {{λ c, ∀ v, WP (call c v) @ s; E {{ λ v', ⌜v' = v⌝ }} }}.
 Proof.
-  (* Show the WP. *)
-  iIntros "%ϕ !> _ Hϕ".
+  iModIntro.
   wp. iIntros.
-  wp_call.
-  (* TODO: iApply "Hϕ". *)
-Admitted.
+  by wp_call.
+Qed.
 
 (* let id = identity in
    (id (A()), id (A())) *)
@@ -166,8 +191,8 @@ Definition example4 :=
   ELet1Var "id" identity $
   example3.
 
-Lemma spec_example4:
-  ⊢ WP (eval EnvNil example4) {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+Lemma spec_example4 s E:
+  ⊢ WP (eval EnvNil example4) @ s; E {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
   (* Abstract away the [identity] function; its spec suffices. *)
@@ -178,7 +203,14 @@ Proof.
   intros example3 Hexample3.
   (* Attack the goal. *)
   wp.
-  wp_use Hidentity; first trivial.
+  iPoseProof (Hidentity s E) as "#Hid".
+  wp_par.
+  - wp_use "Hid".
+  - wp.
+    iNext. wp_set_postcondition.
+    iPureIntro. reflexivity.
+  - iNext.
+    iIntros (v1 v2) "H->". wp.
 Admitted.
 
 (*
@@ -388,4 +420,4 @@ Proof.
     do 2 f_equal. lia. }
 Qed.
 
-*)
+*) *)
