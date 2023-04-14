@@ -49,19 +49,32 @@ Definition choose {A} (m1 m2 : free A) : free A :=
   b ← flip ;
   if (b : bool) then m1 else m2.
 
-(* [crash msg] represents a failure of the interpreter. The message
-   [msg] is unused, but will be visible by the user during a proof,
-   and can help understand why the interpreter has crashed. *)
+(* ------------------------------------------------------------------------ *)
 
-(* If desired, we could use a custom inductive type, instead of a string,
-   to represent the reason for the failure. *)
+(* Crashes. *)
 
-(* We note that most kinds of crashes cannot occur in well-typed code,
-   but some can, namely, pattern matching failures (caused by
-   nonexhaustive case analyses) and assertion failures. *)
+(* Most kinds of crashes cannot occur in well-typed code, but some can,
+   namely, pattern matching failures (caused by nonexhaustive case analyses)
+   and assertion failures. *)
 
 Definition crash {A} (msg : string) : free A :=
   fail.
+
+Definition assertion_failure {A} : free A :=
+  fail.
+
+Definition match_failure {A} (tt : unit) : free A :=
+  fail.
+
+Definition unbound_variable {A} (x : var) : free A :=
+  fail.
+
+Global Opaque
+  crash
+  assertion_failure
+  match_failure
+  unbound_variable
+.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -83,7 +96,7 @@ Fixpoint lookup η x : free val :=
   | EnvCons x' v η =>
       if x =? x' then ret v else lookup η x
   | EnvNil =>
-      crash ("unbound variable: " ++ x)
+      unbound_variable x
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -133,7 +146,7 @@ Fixpoint lookup_rec_bindings rbs f : free anonfun :=
   | RecBiCons (RecBinding f' a) rbs =>
       if f =? f' then ret a else lookup_rec_bindings rbs f
   | RecBiNil =>
-      crash ("unbound variable: " ++ f)
+      unbound_variable f
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -479,7 +492,7 @@ Fixpoint eval η e : free val :=
       try
         (eval_bindings η bs)
       (λ δ, let η := concat δ η in eval η e)
-      (λ tt, crash "pattern matching failure (nonexhaustive case analysis)")
+      match_failure
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
@@ -511,7 +524,7 @@ Fixpoint eval η e : free val :=
       (* Then, the loop is executed. *)
       stop Loop (η, x, i1, i2, e)
   | EAssertFalse =>
-      crash "assertion failed"
+      assertion_failure
   | EAssert e =>
       (* OCaml runtime assertions are erased when a module is compiled with
          the compiler flag [-noassert]; they are retained otherwise. We do not
@@ -520,7 +533,7 @@ Fixpoint eval η e : free val :=
          the user to prove that the program is safe in both scenarios. *)
       let test : free val :=
         success ← as_bool (eval η e) ;
-        if (success : bool) then ok else crash "assertion failed"
+        if (success : bool) then ok else assertion_failure
       in
       choose ok test
   end
@@ -580,7 +593,7 @@ with eval_match η v bs :=
       (* Because the proof system forbids hard failures, the user of
          the system will have to prove that this cannot happen, i.e.,
          every case analysis is exhaustive. *)
-      crash "pattern matching failure (nonexhaustive case analysis)"
+      match_failure()
   | BrCons (Branch p e) bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
