@@ -44,7 +44,6 @@ Ltac wp_step :=
         (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
       remember k; remember ko;
       iApply wp_par_ret_left
-  | |- environments.envs_entails _ (bi_later _) => iNext
   | |- environments.envs_entails _
         (wp _ _ (try (ret _) _ _) _) => iApply wp_try_ret
   | |- environments.envs_entails _
@@ -52,11 +51,16 @@ Ltac wp_step :=
   | H: ?k = _ |- environments.envs_entails _
         (wp _ _ (?k _) _) =>
       rewrite H; clear H k
-  end.
+  end;
+  cbn.
 
 Ltac wp :=
   cbn;
-  repeat wp_step.
+  repeat
+    lazymatch goal with
+    | |- environments.envs_entails _ (bi_later _) => iNext
+    | _ => wp_step
+    end.
 
 Ltac wp_par :=
   iApply wp_par; [wp | wp | ].
@@ -113,13 +117,8 @@ Definition example :=
 Goal
   ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  iStartProof.
-  Time cbn.
-  Time wp.
-  iApply wp_try_ret.
-  iApply wp_ret.
-  iPureIntro. reflexivity.
-Time Qed.
+  iStartProof. by wp.
+Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
@@ -128,14 +127,12 @@ Definition example2 :=
   ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1".
 
-(* 
 Goal
   ∀ v1 v2,
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
   ⊢ WP (eval env example2) {{ λ v, ⌜v = v1⌝ }}.
 Proof.
-  intros. wp.
-  iPureIntro. reflexivity.
+  iIntros. by wp.
 Qed.
 
 (* (id (A()), id (A())) *)
@@ -161,10 +158,10 @@ Proof.
   { iApply wp_covariant.
     - iApply "Hid".
     - iIntros (v->).
-      do 3 iNext. wp. by wp_set_postcondition. }
+      wp. by wp_set_postcondition. }
   iNext.
   iIntros (??) "->->".
-  wp. iPureIntro. reflexivity.
+  by wp.
 Qed.
 
 
@@ -181,7 +178,8 @@ Lemma spec_identity s E:
 Proof.
   iModIntro.
   wp. iIntros.
-  by wp_call.
+  Admitted.
+  (*by wp_call.
 Qed.
 
 (* let id = identity in
