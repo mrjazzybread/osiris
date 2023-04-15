@@ -1,4 +1,19 @@
-Require Import base lang free eval step safe wp refinement.
+Require Import base lang free eval step safe refinement.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [crash] to be unfolded. We wish to preserve the error
+   message carried by [crash]. It would be lost if [crash] was unfolded. *)
+
+Global Opaque crash.
+
+(* Evaluate the message carried by [crash]. *)
+
+Ltac wp_crash :=
+  match goal with |- context[crash ?msg] =>
+    let msg' := eval cbv in msg in
+    change msg with msg'
+  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -52,9 +67,10 @@ Ltac wp_step :=
 (* Simplify a goal of the form [wp m φ] or [safe m φ]. *)
 
 with wp :=
-  unfold wp;
+  unfold is_safe;
   cbn;
-  repeat wp_step.
+  repeat wp_step;
+  try wp_crash.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -72,9 +88,6 @@ Ltac wp_par :=
    to automaticaly step into function calls. *)
 
 Global Opaque call.
-
-(* [wp_call] steps into a call. *)
-
 Ltac wp_call :=
   with_strategy transparent [call] unfold call;
     (* TODO make sure that we unfold just the root occurrence *)
