@@ -40,6 +40,9 @@ Inductive code : Type → Type → Type :=
 Notation free :=
   (@free.free code).
 
+Notation ret :=
+  (@free.ret code).
+
 (* [flip] flips a coin. *)
 
 Definition flip : free bool :=
