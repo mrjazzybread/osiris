@@ -16,3 +16,8 @@ axioms:
 	    echo "Looking for $${word}..." ; \
 	    grep -w $${word} theories/*.v || true ; \
 	  done
+
+.PHONY: tutorial
+tutorial: all
+	alectryon -R . AmpleStep tutorial/tutorial.v
+	open tutorial/tutorial.html
