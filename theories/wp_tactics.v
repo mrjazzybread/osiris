@@ -1,129 +1,108 @@
-Require Import base lang free eval step safe wp refinement.
+From iris.proofmode Require Import proofmode.
+From iris.bi Require Import weakestpre.
+Require Import free eval wp.
 
-(* -------------------------------------------------------------------------- *)
+(* ---------------------------------------------------------------------- *)
+(* Tactics to work on WPs. They mimic those on [is_safe]. *)
 
-(* Simplify goals that introduce simple values. *)
+(* TODO:
+ * - instead of using [cbn], try to only reduce what should be reduced
+ *   For example, continuations and hypotheses should never be reduced by
+ *   tactics aimed for the goal.
+ *
+ * - Find a better way to hide continuations.
+ *   The current behaviour is:
+ *     if the goal is a [Par _ ret k ko] or [Par ret _ k ko], then remember
+ *     [k] and [ko].
+ *   Thus, continuations only appear once in the proof term as the other
+ *   occurences are replaced by the fresh variable allocated by [remember].
+ *
+ *   This is important, as it prevents the proof term (and the duration
+ *   of lemmas applications and Qed) to explode
+ *
+ *   Note : the use of an ad-hoc opaque identity function is also slow.
+ *          => TODO: understand why and if fixable, use it instead.
+ *)
 
-Ltac wp_intros :=
-  simpl;
-  repeat match goal with
-  | |- ?v = _ → _ => intro; try subst v
-  | |- ∀ v, _     => intro
-  end.
+Ltac wp_restore :=
+  try lazymatch goal with
+    | H: ?k = _ |- environments.envs_entails _
+                    (wp _ _ (?k _) _) =>
+        rewrite H (* -our__id_is_id *); clear H k
+    end.
 
-(* -------------------------------------------------------------------------- *)
+Ltac wp_remember k :=
+  let Hk := fresh "Hk" in
+  remember k eqn:Hk.
 
-(* Deal with a goal of the form [safe m φ] when we already have
-   a hypothesis [H] of the form [safe m φ']. *)
+Ltac wp_step :=
+  wp_restore;
+  (* The lazymatch stills misses a few cases and should be completed. *)
+  lazymatch goal with
+  | |- environments.envs_entails _
+        (wp _ _ (ret _) _) => iApply wp_ret
+  | |- environments.envs_entails _
+        (wp _ _ (bind _ _) _) => iApply wp_bind
+  | |- environments.envs_entails _
+        (wp _ _ (Par (ret _) (ret _) _ _) _) => iApply wp_par_ret_ret
+  | |- environments.envs_entails _
+        (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
+      wp_remember k;
+      wp_remember ko;
+      iApply wp_par_ret_right
+  | |- environments.envs_entails _
+        (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
+      wp_remember k;
+      wp_remember ko;
+      iApply wp_par_ret_left
+  | |- environments.envs_entails _
+        (wp _ _ (try (ret _) _ _) _) => iApply wp_try_ret
+  | |- environments.envs_entails _
+        (wp _ _ (eval.lookup _ _) _) => simpl (eval.lookup _ _)
+  | |- environments.envs_entails _
+        (wp _ _ (stop Eval _) _) =>
+      (iApply wp_eval_ret + iApply wp_eval)
+  | |- environments.envs_entails _
+        (wp _ _ (Stop Flip _ _) _) => iApply wp_flip
+  | H: ?k = _ |- environments.envs_entails _
+                  (wp _ _ (?k _) _) =>
+      rewrite H; clear H k
+  end;
+  cbn.
+
+Ltac wp :=
+  iStartProof;
+  cbn; (* TODO: better control the reduction strategy. *)
+  (repeat
+    lazymatch goal with
+    | |- environments.envs_entails _ (bi_later _) => iNext
+    | _ => wp_step
+     end);
+  repeat wp_restore.
+
+Ltac wp_par :=
+  iApply wp_par; [wp | wp | ]; wp_restore.
+
+Ltac wp_par_with H :=
+  iApply (wp_par with H); [wp | wp | ]; wp_restore.
 
 Ltac wp_use H :=
   first [
-    eapply H
-  | eapply safe_covariant; [ eapply H |]
+    iApply H
+  | iApply wp_covariant; [ iApply H |]
   ];
-  simpl; wp_intros.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Reduce and reason about a goal of the form [safe m φ]. *)
-
-Ltac wp_step :=
-  first [
-    apply prove_safe_ret; cbn
-  | apply prove_safe_bind; cbn
-  | apply prove_safe_eval_ret; cbn
-  | apply prove_safe_eval; cbn
-  | apply prove_safe_loop_ret; cbn
-  | apply prove_safe_loop; cbn
-  | apply prove_safe_flip; intro; cbn
-  | apply prove_safe_par_ret_ret; cbn
-  | apply prove_safe_Par_ret_left; cbn
-  | apply prove_safe_Par_ret_right; cbn
-  | apply prove_safe_if_left; [ cbn | cbn ]
-      (* this line is intended to help reason about [EAssert] *)
-  | eapply refinement_simpl; [ typeclasses eauto .. | cbn ]
-      (* TODO this line should subsume [prove_safe_par_ret_ret],
-              but in my tests, this does not work; investigate *)
-      (* TODO develop examples where [refinement_simpl] is used *)
-      (* TODO explain why there is no risk of divergence here,
-              due to a trivial refinement that does not make progress *)
-  ]
-
-(* Simplify a goal of the form [wp m φ] or [safe m φ]. *)
-
-with wp :=
-  unfold wp;
-  cbn;
-  repeat wp_step.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Reason about a goal of the form [safe (Par m1 m2 k next) φ]. *)
-
-Ltac wp_par :=
-  eapply prove_safe_par; [ wp | wp |].
-    (* [wp_intros] in the third subgoal would be desirable but does not
-       work as expected; [simpl] is ineffective. Also, we might wish to
-       let the user name the hypotheses. *)
-
-(* -------------------------------------------------------------------------- *)
-
-(* Do not allow [call] to be unfolded. We do not want symbolic execution
-   to automaticaly step into function calls. *)
+  simpl; wp_restore.
 
 Global Opaque call.
-
-(* [wp_call] steps into a call. *)
-
 Ltac wp_call :=
-  with_strategy transparent [call] unfold call;
-    (* TODO make sure that we unfold just the root occurrence *)
-  wp.
+  with_strategy transparent [call] unfold call; wp.
 
-(* -------------------------------------------------------------------------- *)
 
-(* Do not allow [concatenating] to be unfolded. We want symbolic execution
-   to stop at [concatenating], that is, when the environment is extended
-   with new bindings. This gives the user a chance to prove specifications
-   about these bindings using [wp_specify]. *)
-
-Global Opaque concatenating.
-
-(* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
-   to continue simplifying the goal. *)
-
-Lemma concatenating_def eval η e δ :
-  concatenating eval η e δ =
-  let η := concat δ η in eval η e.
-Proof.
-  reflexivity.
-Qed.
-
-Ltac wp_continue :=
-  rewrite concatenating_def; wp.
-
-(* The tactic [wp_specify x φ] should be used when the goal begins with
-   [concatenating eval η e δ], that is, when the environment is about to
-   be extended with the environment fragment [δ].
-
-   The tactic looks up the variable [x] in the environment fragment [δ]
-   so as to find the value [v] of this variable. Then, it produces two
-   subgoals:
-   - the subgoal [φ v],
-     letting the user prove that [v] satisfies the specification [φ];
-   - the original goal,
-     generalized under the form [∀ v, φ v → ...],
-     which means that [v] becomes an opaque value
-     about which nothing is known except that [φ v] holds. *)
-
-Ltac wp_specify x φ :=
-  match goal with |- context[concatenating eval _ _ ?δ] =>
-    let o := eval cbn in (lookup δ x) in
-    match o with
-    | Ret ?v =>
-        let H := fresh "spec" in
-        assert (spec: φ v); [| revert spec; generalize v ]
-          (* not perfect, as [generalize] could abstract [v] away
-             also inside φ, which would be undesirable *)
-    end
+(* TODO not great *)
+Ltac wp_set_postcondition :=
+  match goal with
+    |- @environments.envs_entails _ _
+        (?ϕ ?v) =>
+      is_evar ϕ;
+      instantiate (1 := (λ w, ⌜w = v⌝)%I)
   end.

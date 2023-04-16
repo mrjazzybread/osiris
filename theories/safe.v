@@ -901,3 +901,9 @@ Lemma prove_safe_if_right (b : bool) e (φ : val → Prop) :
   { assumption. }
   { eapply safe_ret. assumption. }
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+(* The former [wp] is renamed [is_safe] *)
+
+Definition is_safe η e ϕ :=
+  safe (eval η e) ϕ.

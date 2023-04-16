@@ -1,10 +1,10 @@
-Require Import base lang free eval step safe wp wp_tactics encode.
+Require Import base lang free eval step safe safe_tactics encode.
 
 (* let x = A() in y *)
 
 Goal
   let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
-  wp EnvNil e (λ v, v = VConstant "A").
+  is_safe EnvNil e (λ v, v = VConstant "A").
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   wp.
@@ -19,7 +19,7 @@ Definition example :=
 
 (* An example of reasoning about straight-line code. *)
 
-Goal wp EnvNil example (λ v, v = VData "A" (VTuple VNil)).
+Goal is_safe EnvNil example (λ v, v = VData "A" (VTuple VNil)).
 Proof.
   wp.
   wp_continue. wp_continue.
@@ -36,7 +36,7 @@ Definition example2 :=
 Goal
   ∀ v1 v2,
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
-  wp env example2 (λ v, v = v1).
+  is_safe env example2 (λ v, v = v1).
 Proof.
   intros. wp.
   wp_continue.
@@ -62,7 +62,7 @@ Lemma spec_example3:
   ∀ (id : val),
   (∀ v, safe (call id v) (λ v', v' = v)) →
   let env := EnvCons "id" id EnvNil in
-  wp env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
+  is_safe env example3 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   intros id Hid.
   wp.
@@ -89,7 +89,7 @@ Definition spec_id (c : val) :=
   ∀ v, safe (call c v) (λ v', v' = v).
 
 Goal
-  wp EnvNil identity spec_id.
+  is_safe EnvNil identity spec_id.
 Proof.
   wp. intros c. wp_call. reflexivity.
 Qed.
@@ -102,7 +102,7 @@ Definition example4 :=
   example3.
 
 Lemma spec_example4:
-  wp EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
+  is_safe EnvNil example4 (λ v, v = VPair (VConstant "A") (VConstant "A")).
 Proof.
   unfold example4.
   wp.
@@ -129,7 +129,7 @@ Definition example5 :=
   ESeq (EAssert ETrue) EFalse.
 
 Lemma spec_example5:
-  wp EnvNil example5 (λ v, v = VFalse).
+  is_safe EnvNil example5 (λ v, v = VFalse).
 Proof.
   wp.
   (* Subgoal: prove that [assert true] succeeds. *)
@@ -147,7 +147,7 @@ Definition example4b :=
   EApp (EApp id id) EUnit.
 
 Lemma spec_example4b:
-  wp EnvNil example4b (λ v, v = VUnit).
+  is_safe EnvNil example4b (λ v, v = VUnit).
 Proof.
   unfold example4b. wp.
   (* Deal with the local binding of [id]. *)
@@ -168,7 +168,7 @@ Definition example4c :=
   EApp id (EApp id EUnit).
 
 Lemma spec_example4c:
-  wp EnvNil example4c (λ v, v = VUnit).
+  is_safe EnvNil example4c (λ v, v = VUnit).
 Proof.
   unfold example4c. wp.
   (* Deal with the local binding of [id]. *)
@@ -190,7 +190,7 @@ Definition example4d :=
   EApp (EApp id id) (EApp id EUnit).
 
 Lemma spec_example4d:
-  wp EnvNil example4d (λ v, v = VUnit).
+  is_safe EnvNil example4d (λ v, v = VUnit).
 Proof.
   unfold example4d. wp.
   (* Deal with the local binding of [id]. *)
@@ -218,7 +218,7 @@ Definition divergence :=
   EApp (EVar "diverge") EUnit.
 
 Lemma spec_divergence:
-  wp EnvNil divergence (λ _, False).
+  is_safe EnvNil divergence (λ _, False).
 Proof.
   (* The tactic [wp_step] can be applied as many times as one wishes,
      since this term does not terminate, but the goal can never be
@@ -268,7 +268,7 @@ Definition walk_example e :=
 
 Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
-  wp EnvNil (walk_example e) (λ v, v = encode ()).
+  is_safe EnvNil (walk_example e) (λ v, v = encode ()).
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   wp.
@@ -287,7 +287,7 @@ Qed.
 Lemma spec_walk_example_abstract :
   forall (bs : list bool),
   let η := EnvCons "xs" (encode bs) EnvNil in
-  wp η (walk_example (EVar "xs")) (λ v, v = encode ()).
+  is_safe η (walk_example (EVar "xs")) (λ v, v = encode ()).
 Proof.
   intros. wp.
   (* The environment is about to be extended with a binding of the variable

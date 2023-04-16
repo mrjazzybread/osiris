@@ -145,11 +145,12 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
 
 (* This is a monad. *)
 
-Global Instance free_mret : MRet free :=
+(* Global Instance free_mret : MRet free :=
   { mret := @Ret }.
 
 Global Instance free_mbind : MBind free :=
-  { mbind := λ {A B} (f : A → free B) (m : free A), bind m f }.
+   { mbind := λ {A B} (f : A → free B) (m : free A), bind m f }. *)
+
 
 (* [bind] is in fact a special case of [try]. We prefer to give a direct
    definition of [bind] anyway, so as to prevent Coq from expanding uses
