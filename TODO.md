@@ -1,5 +1,10 @@
 # TODO
 
+## Tutorial
+
+* Find out how to prevent Alectryon from incorrectly highlighting
+  `Eval` and `Fail`.
+
 ## Engineering and proof mode
 
 * By default, hide continuations in goals (they are too verbose).

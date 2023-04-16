@@ -1,4 +1,21 @@
 Set Warnings "-require-in-section". (* .none *)
+Require Import base lang free eval step safe. (* .none *)
+Implicit Type f x : var. (* .none *)
+Implicit Type c : data. (* .none *)
+Implicit Type p : pat. (* .none *)
+Implicit Type ps : pats. (* .none *)
+Implicit Type e : expr. (* .none *)
+Implicit Type es : exprs. (* .none *)
+Implicit Type a : anonfun. (* .none *)
+Implicit Type v : val. (* .none *)
+Implicit Type vs : vals. (* .none *)
+Implicit Type η δ : env. (* .none *)
+Implicit Type rbs : rec_bindings. (* .none *)
+Implicit Type i : int. (* .none *)
+Implicit Type b : bool. (* none *)
+
+Implicit Type A B X Y : Type. (* .none *)
+Implicit Type code : Type → Type → Type. (* .none *)
 
 (*|
 =====================
@@ -7,7 +24,6 @@ Hoare Logic for OCaml
 |*)
 
 Section Eval. (* .none *)
-Require Import base lang free eval. (* .none *)
 
 Notation ε := EnvNil. (* .none *)
 Notation int := int.int. (* .none *)
@@ -297,14 +313,15 @@ The Monad
 |*)
 
 Section Free. (* .none *)
-Require Import base lang free eval. (* .none *)
 
 (*|
 The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
+Require Import free. (* .none *) (* avoid showing that [free] is a notation *)
 Print free. (* .unfold *)
+Require Import eval. (* .none *)
 
 (*|
 This is an inductive type: every computation must eventually
@@ -429,7 +446,100 @@ The Scheduler
 |*)
 
 Section Step. (* .none *)
-Require Import base lang free step. (* .none *)
+
+(*|
+There remains to somehow give meaning to monadic computations
+of type `free A`. As explained earlier, these computations are
+effectful: in particular, they can diverge, and they are
+nondeterministic. Thus, we cannot expect to give them a
+computational behavior inside Coq. However, there are other
+ways in which we can describe their behavior (or, more accurately,
+the set of their possible behaviors) inside Coq. One traditional
+approach is *reduction semantics*.
+This is done by defining a binary relation `step`:
+|*)
+
+Check @step. (* .unfold *)
+
+(*|
+The idea is that `step m m'` means that the computation `m`
+can, in one step, transform itself into the computation `m'`.
+
+Although reduction semantics is traditionally also known as
+*small-step semantics*, in this case, it would be more appropriate
+to call this an *ample-step semantics*. Indeed, in this approach,
+the β-reduction work performed by Coq is implicit (invisible).
+The interpreter pauses itself from time to time, and each step
+takes us from one pause to the next pause.
+
+The relation `step` is inductively defined.
+|*)
+
+Print step. (* .fold *)
+
+(*|
+Let us look at some of the cases in this definition.
+An `Eval` request steps to an invocation of `eval`:
+|*)
+
+Check @StepEval. (* .unfold *)
+
+(*|
+A `Flip` request returns a Boolean result `b`,
+which may either `true` or `false`.
+This makes the relation `step` non-deterministic:
+|*)
+
+Check @StepFlip. (* .unfold *)
+
+(*|
+Under a parallel composition constructor `Par`,
+either thread is allowed to take a step.
+The following reduction rule shows that the left-hand thread
+may take a step:
+|*)
+
+Check @StepParLeft. (* .unfold *)
+
+(*|
+If both threads have reached a result, then
+the parallel composition disappears.
+The continuation `k` is applied to the pair `(v1, v2)`
+of the results:
+|*)
+
+Check @StepParRetRet. (* .unfold *)
+
+(*|
+There are more reduction rules, not shown.
+
+We sometimes refer to this semantics as the «scheduler»,
+because it appears to make scheduling decisions;
+however, it is in fact non-deterministic.
+
+We also sometimes refer to this semantics as the «system»,
+because it answers `Stop` requests.
+|*)
+
+(*|
+------
+Safety
+------
+|*)
+
+(*|
+This reduction semantics allows us to define what it means for a program
+to be safe. A program is *safe* if it cannot crash, that is, if it cannot
+reduce (in zero, one, or more steps) to `Fail`.
+
+Technically, we say that a program is *initially safe* for `n` steps
+if it cannot reduce in at most `n` steps to `Fail`.
+We say that a program is safe
+if, for every `n`, this program is initially safe for `n` steps.
+|*)
+
+Print initially_safe. (* .fold *)
+Print safe. (* .fold *)
 
 End Step. (* .none *)
 
