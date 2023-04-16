@@ -18,9 +18,9 @@ Implicit Type A B X Y : Type. (* .none *)
 Implicit Type code : Type → Type → Type. (* .none *)
 
 (*|
-=====================
-Hoare Logic for OCaml
-=====================
+=========================
+A Program Logic for OCaml
+=========================
 |*)
 
 Section Eval. (* .none *)
@@ -540,6 +540,20 @@ if, for every `n`, this program is initially safe for `n` steps.
 
 Print initially_safe. (* .fold *)
 Print safe. (* .fold *)
+
+(*|
+The following lemmas can be used to prove that a program is safe.
+Because the monad has few data constructors,
+few lemmas are needed.
+This is a minimalist program logic,
+yet it is a full-fledged logic!
+|*)
+
+Check @safe_ret. (* .unfold *)
+
+Check @safe_bind. (* .unfold *)
+
+Check @safe_par. (* .unfold *)
 
 End Step. (* .none *)
 
