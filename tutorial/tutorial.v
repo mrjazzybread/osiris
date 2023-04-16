@@ -297,9 +297,128 @@ The Monad
 |*)
 
 Section Free. (* .none *)
-Require Import base lang free. (* .none *)
+Require Import base lang free eval. (* .none *)
+
+(*|
+The monad that is used to write the interpreter
+is defined as follows:
+|*)
 
 Print free. (* .unfold *)
+
+(*|
+This is an inductive type: every computation must eventually
+produce a result or stop. Up to β-reduction (which Coq can
+perform for us), every computation must exhibit one of the
+following five forms:
+
+* `Ret a` represents a computation that is finished
+  and has produced a result `a`.
+
+* `Fail` represents a computation that has encountered a serious problem
+  and crashed. This is a situation that we want to avoid, and this is the
+  purpose of the program logic that we wish to set up.
+
+* `Next` represents an exception that the interpreter raises and catches
+  as part of its normal execution. It is typically used to indicate that
+  a pattern does not match a value and to request moving on to the next
+  branch in a `match` construct.
+
+* `Stop c x k` represents a request by the interpreter for some service.
+  It can be thought of as a system call. The *code* `c` is the name of
+  the system call. This code has type `code X Y`, where `X` is the type
+  of the argument of the system call, and `Y` is the type of its result.
+  Accordingly, the *argument* `x` has type `X` and the *continuation* `k`
+  has type `Y → free A`.
+
+* `Par m1 m2 k ko` represents a request by the interpreter to execute
+  the computations `m1` and `m2` in parallel. The *success continuation*
+  `k` is invoked if both computations produce a result. The *failure
+  continuation* `ko` is invoked if either computation raises `Next`.
+
+|*)
+
+(*|
+Expert readers may note that the definition of this monad is
+reminiscent of *interaction trees*. However, interaction trees are
+potentially infinite trees, whereas our computations are finite.
+Furthermore, interaction trees do not have the parallel composition
+constructor `Par`.
+
+The combinators `stop` and `par`, which have been mentioned earlier,
+are sugar for `Stop` and `Par` with trivial continuations.
+|*)
+
+Print stop. (* .fold *)
+Print par.  (* .fold *)
+
+(*|
+As in every monad, a `bind` combinator is used to construct the
+sequential composition of two computations:
+|*)
+
+Check @bind. (* .unfold *)
+
+(*|
+The `try` combinator, a generalization of `bind`,
+also composes two computations,
+and can catch the exception `Next`
+if it raised by the first computation.
+|*)
+
+Check @try. (* .unfold *)
+
+(*|
+There are several ways of thinking about this monad. On the one hand,
+from an abstract point of view, it can be regarded as *an abstract type
+of computations*, equipped with the facilities that are needed to write
+the interpreter in a natural style. On the other hand, from a concrete
+point of view, it offers *a syntactic representation of a collection of
+threads*. The constructor `Par`  allows describing a binary tree of
+threads. At the leaves, the constructors `Ret`, `Fail`, and `Next`
+represent threads that have finished (in one way or another), while
+the constructor `Stop` represents a thread that is paused and needs
+to continue.
+|*)
+
+(*|
+There are also several ways of thinking about the function `eval`:
+|*)
+
+Check eval. (* .unfold *)
+
+(*|
+On the one hand, one can think of it as an interpreter:
+the computation `eval η e` executes the expression `e`.
+On the other hand, one can also think of it as a compiler:
+whereas the syntactic object `e` inhabits a large language
+(namely, OCaml), the syntactic object `eval η e` inhabits a
+much smaller and simpler language (namely, the monad).
+
+It is well-known that a compiler can be in principle obtained
+by specializing an interpreter, but this is usually a difficult
+task. Here, this happens essentially for free, thanks to the fact
+that Coq's β-reduction engine can simplify the application `eval η e`.
+|*)
+
+(*|
+The monad is parametric in the type `code`: it does not care what
+the system calls are or what is their meaning. Our interpreter
+uses the following set of codes:
+|*)
+
+Print code. (* .unfold *)
+
+(*|
+The code `Eval`, which we have encountered earlier, is used to request
+a recursive invocation of the function `eval`. The code `Loop` plays a
+similar role, but is used in the interpretation of `for` loops. The
+code `Flip` is used to request a Boolean value from the system: it is
+used to encode a binary non-deterministic choice combinator, `choose`.
+|*)
+
+Print flip. (* .unfold *)
+Print choose. (* .unfold *)
 
 End Free. (* .none *)
 
@@ -309,6 +428,10 @@ The Scheduler
 -------------
 |*)
 
+Section Step. (* .none *)
+Require Import base lang free step. (* .none *)
+
+End Step. (* .none *)
 
 (*|
 |*)
