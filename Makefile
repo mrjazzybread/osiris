@@ -20,4 +20,3 @@ axioms:
 .PHONY: tutorial
 tutorial: all
 	alectryon -R . AmpleStep tutorial/tutorial.v
-	open tutorial/tutorial.html
