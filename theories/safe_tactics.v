@@ -67,7 +67,6 @@ Ltac wp_step :=
 (* Simplify a goal of the form [wp m φ] or [safe m φ]. *)
 
 with wp :=
-  unfold is_safe;
   cbn;
   repeat wp_step;
   try wp_crash.
