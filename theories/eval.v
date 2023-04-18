@@ -1,7 +1,4 @@
 Require Import lang base free.
-Notation "x ← y ; z" := (bind y (λ x, z)).
-Notation "' x ← y ; z" := (bind y (λ x : _, z))
-  (at level 20, x pattern, y at level 100, z at level 200, only parsing) : stdpp_scope.
 
 (* Conventional metavariables. *)
 

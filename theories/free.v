@@ -293,3 +293,14 @@ Arguments Fail {code A}.
 Arguments Next {code A}.
 Arguments Stop {code A X Y} c x k.
 Arguments Par  {code A A1 A2} m1 m2 k ko.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The left-arrow notation, analogous to Haskell's do notation. *)
+
+Notation "x ← y ; z" :=
+  (bind y (λ x, z)).
+
+Notation "' x ← y ; z" :=
+  (bind y (λ x : _, z))
+  (at level 20, x pattern, y at level 100, z at level 200).
