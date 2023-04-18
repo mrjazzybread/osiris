@@ -8,6 +8,7 @@ Goal
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   wp.
+  wp_continue.
 Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
