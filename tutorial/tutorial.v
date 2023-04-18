@@ -12,7 +12,7 @@ Implicit Type vs : vals. (* .none *)
 Implicit Type η δ : env. (* .none *)
 Implicit Type rbs : rec_bindings. (* .none *)
 Implicit Type i : int. (* .none *)
-Implicit Type b : bool. (* none *)
+Implicit Type b : bool. (* .none *)
 
 Implicit Type A B X Y : Type. (* .none *)
 Implicit Type code : Type → Type → Type. (* .none *)
