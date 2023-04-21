@@ -258,12 +258,12 @@ Section wp_lemmas.
     P ∗ WP => WP _ (P ∗ _) *)
 
   Lemma wp_ret {A} s E (v: A) ϕ:
-    ϕ v -∗ WP (Ret v) @ s; E {{ ϕ }}.
-  Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
+    ⊢ ϕ v -∗ WP (Ret v) @ s; E {{ ϕ }}.
+  Proof. rewrite!wp_unfold/wp_pre/=. eauto. Qed.
 
   Lemma ret_wp {A} s E (v: A) ϕ:
-    WP (Ret v) @ s; E {{ ϕ }}-∗ ϕ v.
-  Proof. by rewrite!wp_unfold/wp_pre/=. Qed.
+    ⊢ WP (Ret v) @ s; E {{ ϕ }}-∗ ϕ v.
+  Proof. rewrite!wp_unfold/wp_pre/=. eauto. Qed.
 
 
   (* It might be useful to prove that there is no associate WP to [Fail] (should 
@@ -312,7 +312,7 @@ Section wp_lemmas.
 
 
   Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ:
-    ▷ WP (k (v1, v2)) @ s; E {{ ϕ }}
+    ⊢ ▷ WP (k (v1, v2)) @ s; E {{ ϕ }}
     -∗ WP (Par (ret v1) (ret v2) k ko) @s; E {{ ϕ }}.
   Proof.
     iIntros "H".

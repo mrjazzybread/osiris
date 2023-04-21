@@ -1,9 +1,26 @@
-From iris.proofmode Require Import proofmode.
+From iris.proofmode Require Import classes proofmode.
+From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 Require Import free eval wp.
 
 (* ---------------------------------------------------------------------- *)
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)
+
+Lemma tac_change_goal {Σ: gFunctors} Δ (P Q : iProp Σ) :
+  (⊢ P -∗ Q) →
+  environments.envs_entails Δ P →
+  environments.envs_entails Δ Q.
+Proof.
+  intros H Henv.
+  eapply coq_tactics.tac_eval; last done.
+  intros Q''; subst Q''. by apply bi.wand_entails.
+Qed.
+
+(* [lem] must be of the form (⊢ P -∗ Q). Thanks to the tactic notation it can be
+   lemma whose forall quantifiers have been instantiated with [_]. *)
+Ltac tac_change_goal lem :=
+  simple notypeclasses refine (tac_change_goal _ _ _ lem _).
+Tactic Notation "tac_change_goal" uconstr(lem) := (tac_change_goal lem).
 
 (* NOTE:
  * - The performance of the calls to [cbn] made by the functions below
@@ -22,27 +39,23 @@ Require Import free eval wp.
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
-  | |- environments.envs_entails _
-        (wp _ _ (ret _) _) => iApply wp_ret
-  | |- environments.envs_entails _
-        (wp _ _ (bind _ _) _) => iApply wp_bind
-  | |- environments.envs_entails _
-        (wp _ _ (Par (ret _) (ret _) _ _) _) => iApply wp_par_ret_ret
-  | |- environments.envs_entails _
-        (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
-      iApply wp_par_ret_right
-  | |- environments.envs_entails _
-        (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
-      iApply wp_par_ret_left
-  | |- environments.envs_entails _
-        (wp _ _ (try (ret _) _ _) _) => iApply wp_try_ret
-  | |- environments.envs_entails _
-        (wp _ _ (eval.lookup _ _) _) => simpl (eval.lookup _ _)
-  | |- environments.envs_entails _
-        (wp _ _ (stop Eval _) _) =>
-      (iApply wp_eval_ret + iApply wp_eval)
-  | |- environments.envs_entails _
-        (wp _ _ (Stop Flip _ _) _) => iApply wp_flip
+  | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
+      tac_change_goal (wp_ret _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+      tac_change_goal (wp_bind _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
+      tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
+      tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
+      tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (try (ret _) _ _) _) =>
+      tac_change_goal (wp_try_ret _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (stop Eval _) _) =>
+      first [ tac_change_goal (wp_eval_ret _ _ _ _ _)
+            | tac_change_goal (wp_eval _ _ _ _ _ _) ]
+  | |- environments.envs_entails _ (wp _ _ (Stop Flip _ _) _) =>
+      tac_change_goal (wp_flip _ _ _ _ _)
   end;
   cbn.
 
