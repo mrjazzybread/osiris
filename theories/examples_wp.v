@@ -25,7 +25,7 @@ Proof.
   (* This goal is false: the variable [y] is unbound. *)
   intros. subst e. simpl.
   iApply wp_par_ret_ret.
-  simpl.
+  cbn.
 Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
