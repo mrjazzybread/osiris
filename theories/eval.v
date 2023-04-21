@@ -1,4 +1,4 @@
-Require Import lang base free.
+Require Import store lang base free.
 Notation "x ← y ; z" := (bind y (λ x, z)).
 Notation "' x ← y ; z" := (bind y (λ x : _, z))
   (at level 20, x pattern, y at level 100, z at level 200, only parsing) : stdpp_scope.
@@ -17,6 +17,7 @@ Implicit Type vs : vals.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
+Implicit Type σ : store.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -30,9 +31,12 @@ Implicit Type i : int.
 (* The code [Flip] is a request to flip a Boolean coin. *)
 
 Inductive code : Type → Type → Type :=
-| Eval : code (env * expr) val
-| Loop : code (env * var * int * int * expr) val
-| Flip : code unit bool
+| Eval  : code (env * expr) val
+| Loop  : code (env * var * int * int * expr) val
+| Flip  : code unit bool
+| Ref   : code val loc
+| Load  : code loc val
+| Store : code (loc * val) ()
 .
 
 (* We fix this particular type of codes. *)
