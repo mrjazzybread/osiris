@@ -106,3 +106,11 @@ Ltac wp_set_postcondition :=
       is_evar ϕ;
       instantiate (1 := (λ w, ⌜w = v⌝)%I)
   end.
+
+
+Ltac wp_ref ℓ H:=
+  iApply wp_ref; iNext; iIntros (ℓ) H; wp.
+Ltac wp_load H :=
+  iApply (wp_load with H); iNext; iIntros H; wp.
+Ltac wp_store H :=
+  iApply (wp_store with H); iNext; iIntros H; wp.

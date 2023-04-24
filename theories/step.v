@@ -71,8 +71,7 @@ Inductive step {A} : state A → state A → Prop :=
         (σ', k l)
 
   | StepStopLoadSuccess :
-      ∀ σ l k (H: l ∈ dom σ),
-      let v := store_load σ l H in
+      ∀ σ l k v (H: σ !! l = Some v),
       step
         (σ, Stop Load l k)
         (σ, k v)
@@ -84,14 +83,15 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Fail)
 
   | StepStopStoreSuccess :
-      ∀ σ l v k (H: l ∈ dom σ),
-      step (σ, Stop Store (l, v) k) (<[ l := v]> σ, k tt)
+      ∀ σ l v' v k (H: σ !! l = Some v'),
+      let '(σ', m') := (<[ l := v ]> σ, k tt) in
+      step (σ, Stop Store (l, v) k) (σ', m')
 
   | StepStopStoreFailure :
       ∀ σ (l: loc) v k (H: l ∉ dom σ),
       step
         (σ, Stop Store (l, v) k)
-        (<[ l := v ]>σ, Fail)
+        (σ, Fail)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
      then the continuation [k] is applied to the pair [(v1, v2)]. *)
@@ -147,7 +147,6 @@ Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* A term [m] is an answer iff it is of the form [Ret a] or [Next]. *)
@@ -228,21 +227,19 @@ Proof.
      *       lookup. *)
     destruct (σ !! x) eqn:E.
     + (* The load operation will succeed. *)
-      apply elem_of_dom_2 in E.
-      exists (σ, k (store_load σ x E)).
-      apply StepStopLoadSuccess.
+      exists (σ, k v).
+      by apply StepStopLoadSuccess.
     + (* The load operation will fail. *)
       exists (σ, Fail). apply StepStopLoadFailure.
       apply not_elem_of_dom_2, E.
   - (* TODO: ditto. *)
     destruct (σ !! x) eqn:E.
     + (* The store operation will succeed. *)
-      apply elem_of_dom_2 in E.
-      exists (store_store σ x v E, k tt).
-      by apply StepStopStoreSuccess.
+      eexists _.
+      by eapply StepStopStoreSuccess.
     + (* The store operation will fail. *)
       apply not_elem_of_dom_2 in E.
-      exists (<[ x := v ]> σ, Fail).
+      exists (σ, Fail).
       by apply StepStopStoreFailure.
 Qed.
 
@@ -294,7 +291,7 @@ Proof.
   eauto using StepFlip, step_eq with step.
   (* TODO: improve the way the new cases are handeled. *)
   - by pose proof (StepStopRef σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
-  - by pose proof (StepStopLoadSuccess σ' l (λ v1 : val, bind (k v1) f) H3) as Hstep.
+  - by pose proof (StepStopLoadSuccess σ' l (λ v1 : val, bind (k v1) f) _ H1) as Hstep.
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -380,6 +377,61 @@ Global Hint Resolve
   invert_can_step_Fail
   invert_can_step_Next
 : invert_can_step.
+
+(* [Par (ret _) (ret _) _ _] can only reduce in one way.  *)
+Lemma step_par_ret_ret {A1 A2 A3} {v: A1} {v': A2} {k: A1 * A2 -> free A3} {ko σ m}:
+  step (σ, Par (ret v) (ret v') k ko) m → m = (σ, k (v, v')).
+Proof.
+  intros H; destruct_step; first done.
+  - inversion H.
+  - inversion H.
+Qed.
+
+Lemma invert_step_flip {A} σ x (k: bool -> free A) m':
+  step (σ, Stop Flip x k) m' →
+  ∃ b,  m' = (σ, k b).
+Proof.
+  intros Hstep.
+  inversion Hstep.
+  exists b. reflexivity.
+Qed.
+
+Lemma invert_step_ref {A} σ v (k: loc -> free A) m':
+  let '(l, σ') := store_ref σ v in
+  step (σ, Stop Ref v k) m' →
+  m' = (σ', k l).
+Proof.
+  intros Hstep.
+  inversion Hstep.
+  apply Eqdep.EqdepTheory.inj_pair2 in H1, H2.
+  subst. reflexivity.
+Qed.
+
+Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
+  σ !! ℓ = Some v' →
+  step (σ, Stop Store (ℓ, v) k) m' →
+  m' = (<[ ℓ := v ]> σ, k ()).
+Proof.
+  intros Hℓ Hstep. remember (ℓ, v).
+  inversion Hstep.
+  all: apply Eqdep.EqdepTheory.inj_pair2 in H1, H2.
+  all: simplify_eq.
+  - reflexivity.
+  - exfalso.
+    apply H3. apply elem_of_dom_2 in Hℓ. exact Hℓ.
+Qed.
+
+Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
+  σ !! ℓ = Some v →
+  step (σ, Stop Load ℓ k) (σ', m') →
+  σ' = σ ∧ m' = k v.
+Proof.
+  intros Hin Hstep.
+  dependent destruction Hstep;
+    (split; first reflexivity).
+  - by simplify_eq.
+  - exfalso. apply H, elem_of_dom_2 with v, Hin.
+Qed.
 
 (* Stepping in the left-hand side of [bind] is permitted. *)
 

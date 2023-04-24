@@ -354,3 +354,24 @@ Proof.
     rewrite int.add_repr_repr.
     do 2 f_equal. lia. }
 Qed.
+
+(* let l = ref "A" in
+   l := "B";
+   !l
+ *)
+Definition ref_store_load: expr :=
+  ELet1Var "l" (ERef (EConstant "A")) $
+    ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
+    ELoad (EVar "l").
+
+Goal forall s E,
+  ⊢ WP (eval EnvNil ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.
+Proof.
+  unfold ref_store_load.
+  iIntros(??).
+  wp.
+  wp_ref ℓ "[Hℓ _]".
+  wp_store "Hℓ".
+  wp_load "Hℓ".
+  iPureIntro. reflexivity.
+Qed.

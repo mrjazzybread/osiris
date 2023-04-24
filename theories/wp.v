@@ -15,33 +15,32 @@ Require Import store base lang free eval step safe.
 (* Definition of the meaning of being a value in [free val], as well as defining 
  * a notion of stuckness. *)
 
-(* TODO: rename [to_val] to [is_ret/to_ret] *)
-Definition to_val {A} (m: free A) : option A :=
+Definition of_ret {A} (m: free A) : option A :=
   match m with
   | Ret v => Some v
   | _ => None
   end.
 
-Lemma step_to_val {A} (m m': free A) σ σ':
-  step (σ, m) (σ', m') → to_val m = None.
+Lemma step_of_ret {A} (m m': free A) σ σ':
+  step (σ, m) (σ', m') → of_ret m = None.
 Proof.
   intros ?. by destruct_step.
 Qed.
 
-Lemma can_step_to_val {A} (m: free A) σ:
-  can_step (σ, m) → to_val m = None.
+Lemma can_step_of_ret {A} (m: free A) σ:
+  can_step (σ, m) → of_ret m = None.
 Proof.
   intros [??]. by destruct_step.
 Qed.
 
-Lemma to_val_from_Ret {A} (m: free A) (v: A) : to_val m = Some v -> m = Ret v.
+Lemma of_ret_from_Ret {A} (m: free A) (v: A) : of_ret m = Some v -> m = Ret v.
 Proof.
-  unfold to_val.
+  unfold of_ret.
   by destruct m; inversion 1.
 Qed.
 
-Lemma to_val_non_Ret {A} (m: free A) :
-  to_val m = None ->
+Lemma of_ret_non_Ret {A} (m: free A) :
+  of_ret m = None ->
       m = Fail
     ∨ m = free.Next
     ∨ (∃ A B (c: code A B) x k, m = Stop c x k)
@@ -86,8 +85,7 @@ Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsrisG {
 
 (* -------------------------------------------------------------------------- *)
 (* Definition of the weakest precondition.
- * This is heavily inspired from [iris/{bi,program_logic}/weakestpre.v].
- *)
+   This is heavily inspired from [iris/{bi,program_logic}/weakestpre.v]. *)
 
 Section wp_def.
   Context (A: Type).
@@ -102,7 +100,7 @@ Section wp_def.
     coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ :=
     λ E m ϕ,
       (∀ σ, state_interp σ -∗
-           match to_val m with
+           match of_ret m with
            | Some v => state_interp σ ∗ ϕ v
            | None =>
                ⌜can_step (σ, m)⌝ ∗
@@ -174,7 +172,7 @@ Section wp.
     by intros Φ Φ' ?; apply equiv_dist=>n; apply wp_ne=>v; apply equiv_dist.
   Qed.
   Global Instance wp_contractive s E m n :
-    TCEq (to_val m) None →
+    TCEq (of_ret m) None →
     Proper (pointwise_relation _ (dist_later n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
     intros He Φ Ψ HΦ. rewrite !wp_unfold /wp_pre He /=.
@@ -215,49 +213,18 @@ Section aux_lemmas.
     state_interp σ -∗
     mapsto ℓ dq v -∗
     state_interp σ ∗ ⌜σ !! ℓ = Some v⌝ ∗ mapsto ℓ dq v.
-  Admitted.
-
-  (* TODO: add the following lemmas to [step.v] after having proving them all. *)
-  Lemma step_par_ret_ret {A1 A2 A3} {v: A1} {v': A2} {k: A1 * A2 -> free A3} {ko σ m}:
-    step (σ, Par (ret v) (ret v') k ko) m → m = (σ, k (v, v')).
-  Proof.
-    intros H; destruct_step; first done.
-    - inversion H.
-    - inversion H.
+  Proof. (* TODO: cleanup the proof with appropriate high(er)-level lemmas. *)
+    iIntros "(%m&%Hm&Hσ&?)Hℓ".
+    with_strategy transparent[mapsto] unfold mapsto.
+    with_strategy transparent [gen_heap.mapsto_aux] rewrite gen_heap.mapsto_aux.(seal_eq).
+    with_strategy transparent [gen_heap.mapsto_def] unfold gen_heap.mapsto_def.
+    iDestruct (ghost_map.ghost_map_lookup with "Hσ Hℓ") as %?.
+    iFrame. iFrame "%".
+    iExists m. iSplit.
+    - iPureIntro. assumption.
+    - iFrame.
   Qed.
 
-  Lemma invert_step_flip {A} σ x (k: bool -> free A) m':
-    step (σ, Stop Flip x k) m'
-    → ∃ b,  m' = (σ, k b).
-  Proof.
-    intros Hstep.
-    inversion Hstep.
-    exists b. reflexivity.
-  Qed.
-
-  Lemma invert_step_ref {A} σ v (k: loc -> free A) m':
-    let '(l, σ') := store_ref σ v in
-    step (σ, Stop Ref v k) m'
-    → m' = (σ', k l).
-  Proof.
-    intros Hstep.
-    inversion Hstep.
-    apply Eqdep.EqdepTheory.inj_pair2 in H1, H2.
-    subst. reflexivity.
-  Qed.
-
-  Lemma invert_step_store {A} σ ℓ v k (m': state A) :
-    ℓ ∈ dom σ →
-    step (σ, Stop Store (ℓ, v) k) m' →
-    m' = (<[ ℓ := v ]> σ, k ()).
-  Proof.
-  Admitted.
-
-  Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
-    σ !! ℓ = Some v →
-    step (σ, Stop Load ℓ k) (σ', m') →
-    σ' = σ ∧ m' = k v.
-  Admitted.
 End aux_lemmas.
 
 
@@ -281,7 +248,7 @@ Section wp_lemmas.
     iLöb as "IH" forall (ϕ ϕ' m).
     iIntros "Hwp Himpl".
     rewrite!wp_unfold/wp_pre.
-    destruct (to_val m).
+    destruct (of_ret m).
 
     { (* Case [m] is [ret _]. *)
       iIntros(?) "H".
@@ -303,7 +270,7 @@ Section wp_lemmas.
     iStartProof.
     rewrite wp_unfold/wp_pre/=.
     iLöb as "IH" forall (m).
-    destruct (to_val m) as [a|]eqn:Em.
+    destruct (of_ret m) as [a|]eqn:Em.
     { iIntros"[? Hwp]". rewrite wp_unfold/wp_pre Em/=.
       iIntros (σ)"Hsi".
       iPoseProof ("Hwp" with "Hsi") as "Hwp".
@@ -367,7 +334,6 @@ Section wp_lemmas.
    * - for any values v1 and v2 satisfying ϕ1 and ϕ2 respectively,
    *     the pair (v1, v2) satisfies ϕ.
   *)
-  (* TODO: get back the laters in the hyoptheses! *)
   Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko ϕ ϕ1 ϕ2:
     WP m1 @ s ; E {{ ϕ1 }} -∗
     WP m2 @ s ; E {{ ϕ2 }} -∗
@@ -416,8 +382,8 @@ Section wp_lemmas.
       exfalso. assumption. }
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 5. rewrite /wp_pre/=.
-      assert (to_val m1 = None) as ->.
-      { by eapply can_step_to_val, step_can_step. }
+      assert (of_ret m1 = None) as ->.
+      { by eapply can_step_of_ret, step_can_step. }
       iDestruct ("H1" with "Hsi") as "[%Hstep1 H1]".
       iPoseProof
         ("H1" $! σ' with "[//]")
@@ -426,8 +392,8 @@ Section wp_lemmas.
       iApply ("IH" with "H1 H2 Hcomb"). }
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 6. rewrite /wp_pre/=.
-      assert (to_val m2 = None) as ->.
-      { by eapply can_step_to_val, step_can_step. }
+      assert (of_ret m2 = None) as ->.
+      { by eapply can_step_of_ret, step_can_step. }
       iDestruct ("H2" with "Hsi") as "[%Hstuck2 H2]".
       iPoseProof
         ("H2" $! σ' with "[//]")
@@ -473,9 +439,9 @@ Section wp_lemmas.
     iIntros "Hm".
     setoid_rewrite wp_unfold at 4.
     rewrite /wp_pre.
-    destruct (to_val m1) as [v1|] eqn:Em1.
+    destruct (of_ret m1) as [v1|] eqn:Em1.
     { (* Case: [m] is [ret _]. *)
-      rewrite (to_val_from_Ret _ _ Em1).
+      rewrite (of_ret_from_Ret _ _ Em1).
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[Hsi Hwp]".
@@ -485,7 +451,7 @@ Section wp_lemmas.
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[%Hcanstep Hm]".
-      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_to_val.
+      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_of_ret.
       iSplit.
       { iPureIntro. eauto using can_step_bind with step. }
 
@@ -522,7 +488,7 @@ Section wp_lemmas.
 
 
   Lemma wp_eval {A} s E η e k (ϕ: A -> iProp Σ) :
-    ⊢ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
+    ⊢ ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
     WP (Stop Eval (η, e) k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
@@ -547,12 +513,13 @@ Section wp_lemmas.
      [λ s E η e ϕ, wp_eval s E η e ret ϕ] or it would make its premice more difficult to
      work with. *)
   Lemma wp_eval_ret s E η e ϕ :
-    ⊢ WP (eval η e) @ s; E {{ ϕ }} -∗
+    ⊢ ▷ WP (eval η e) @ s; E {{ ϕ }} -∗
     WP (Stop Eval (η, e) ret) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
     iApply (wp_covariant with "Hwp").
+    iNext.
     iIntros. by iApply wp_ret.
   Qed.
 
@@ -563,7 +530,7 @@ Section wp_lemmas.
   Qed.
 
   Lemma wp_flip {A} s E x (k: bool -> free A) ϕ :
-    ⊢ (∀ b, WP (k b) @ s; E {{ ϕ }} ) -∗
+    ⊢ ▷ (∀ b, WP (k b) @ s; E {{ ϕ }} ) -∗
     WP (Stop Flip x k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "H".
@@ -578,7 +545,7 @@ Section wp_lemmas.
   Qed.
 
   Lemma wp_ref {A} s E x (k: loc -> free A) ϕ :
-    ⊢ (∀ ℓ,
+    ⊢ ▷ (∀ ℓ,
          mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
          WP (k ℓ) @ s; E {{ ϕ }} ) -∗
     WP (Stop Ref x k) @ s; E {{ ϕ }}.
@@ -602,7 +569,7 @@ Section wp_lemmas.
   (* Lemma about the success of a [Stop Store _ _]. *)
   Lemma wp_store {A} s E ℓ v v' k (ϕ: A → iProp Σ) :
     ⊢ mapsto ℓ (DfracOwn 1) v -∗
-    (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ ϕ }}) -∗
+    ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ ϕ }}) -∗
     WP (Stop Store (ℓ, v') k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hℓ Hwp".
@@ -615,8 +582,7 @@ Section wp_lemmas.
     iPoseProof (state_interp_some with "Hsi Hℓ")
       as "(Hsi & %Hin & Hℓ)".
     iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
-    apply elem_of_dom_2 in Hin.
-    pose proof (invert_step_store σ ℓ v' k (σ', m') Hin Hstep)
+    pose proof (invert_step_store σ ℓ _ v' k (σ', m') Hin Hstep)
       as [->->]%pair_equal_spec.
     iFrame.
     do 2 iModIntro.
@@ -626,7 +592,7 @@ Section wp_lemmas.
   (* Lemma about the success of a [Stop Load _ _]. *)
   Lemma wp_load {A} s E ℓ v dq (k: val -> free A) ϕ :
     ⊢ mapsto ℓ dq v -∗
-      (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ ϕ }}) -∗
+      ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ ϕ }}) -∗
       WP (Stop Load ℓ k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hℓ Hwp".
@@ -648,3 +614,9 @@ Section wp_lemmas.
   Qed.
 
 End wp_lemmas.
+
+
+(* -------------------------------------------------------------------------- *)
+(* Notations *)
+(* TODO: move to a dedicated file *)
+Notation "l ↦ v" := (mapsto l (DfracOwn 1) v) (at level 20).

@@ -281,6 +281,22 @@ Definition as_bool (m : free val) : free bool :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_loc v] checks that the value [v] is a language-level location
+   value and returns its meta-level value. *)
+
+Definition val_as_loc (v: val) : free loc :=
+  match v with
+  | VLoc l =>
+      ret l
+  | _ =>
+      crash "type mismatch (location value expected)"
+  end.
+
+Definition as_val (m : free val) : free loc :=
+  bind m val_as_loc.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
@@ -560,6 +576,17 @@ Fixpoint eval η e : free val :=
         if (success : bool) then ok else assertion_failure
       in
       choose ok test
+  | ERef e =>
+      v ← (eval η e) ;
+      ℓ ← stop Ref v ;
+      ret (VLoc ℓ)
+  | ELoad e =>
+      ℓ ← bind (eval η e) val_as_loc ;
+      stop Load ℓ
+  | EStore e1 e2 =>
+      '(ℓ, v) ← par (bind (eval η e1) val_as_loc) (eval η e2) ;
+      _ ← stop Store (ℓ, v) ;
+      ret (VUnit)
   end
 
 (* ------------------------------------------------------------------------ *)
