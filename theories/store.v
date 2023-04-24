@@ -2,7 +2,7 @@ From stdpp Require Import countable numbers gmap.
 From iris.prelude Require Export prelude.
 From iris.prelude Require Import options.
 
-Require Import lang.
+Require Import lang locations.
 
 
 (* TODO:

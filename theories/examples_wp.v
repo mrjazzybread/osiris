@@ -4,7 +4,7 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-Require Import base lang free eval step wp wp_tactics encode.
+Require Import base lang free eval step wp wp_tactics encode notations.
 
 
 Context `{!osirisGS_gen hlc Σ}.

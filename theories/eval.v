@@ -1,4 +1,4 @@
-Require Import store lang base free.
+Require Import store lang base free locations.
 Notation "x ← y ; z" := (bind y (λ x, z)).
 Notation "' x ← y ; z" := (bind y (λ x : _, z))
   (at level 20, x pattern, y at level 100, z at level 200, only parsing) : stdpp_scope.
@@ -292,7 +292,7 @@ Definition val_as_loc (v: val) : free loc :=
       crash "type mismatch (location value expected)"
   end.
 
-Definition as_val (m : free val) : free loc :=
+Definition as_loc (m : free val) : free loc :=
   bind m val_as_loc.
 
 (* ------------------------------------------------------------------------ *)
@@ -577,16 +577,16 @@ Fixpoint eval η e : free val :=
       in
       choose ok test
   | ERef e =>
-      v ← (eval η e) ;
+      v ← eval η e ;
       ℓ ← stop Ref v ;
       ret (VLoc ℓ)
   | ELoad e =>
-      ℓ ← bind (eval η e) val_as_loc ;
+      ℓ ← as_loc (eval η e) ;
       stop Load ℓ
   | EStore e1 e2 =>
-      '(ℓ, v) ← par (bind (eval η e1) val_as_loc) (eval η e2) ;
+      '(ℓ, v) ← par (as_loc (eval η e1)) (eval η e2) ;
       _ ← stop Store (ℓ, v) ;
-      ret (VUnit)
+      ok
   end
 
 (* ------------------------------------------------------------------------ *)

@@ -1,5 +1,5 @@
 From stdpp Require Import gmap.
-Require Import lang base free eval store.
+Require Import lang base free eval store locations.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
    of the form [step m m'] where [m] and [m'] are computations in the [free]
@@ -63,31 +63,38 @@ Inductive step {A} : state A → state A → Prop :=
 
   (* [Stop Ref v] adds a fresh location in the store and stores [v] there; and
       steps to an application of the continuation [k] to this location. *)
-  | StepStopRef :
+  | StepRef :
       ∀ σ v k,
       let '(l, σ') := store_ref σ v in
       step
         (σ, Stop Ref v k)
         (σ', k l)
 
-  | StepStopLoadSuccess :
-      ∀ σ l k v (H: σ !! l = Some v),
+  | StepLoadSuccess :
+      ∀ σ l k v,
+      σ !! l = Some v →
       step
         (σ, Stop Load l k)
         (σ, k v)
 
-  | StepStopLoadFailure :
-      ∀ σ l k (H: l ∉ dom σ),
+  (* The [Load] code fails if the accessed location is unknown to the store
+     This case is required to ensure that [Fail] is the only stuck term. *)
+  | StepLoadFailure :
+      ∀ σ l k,
+      l ∉ dom σ →
       step
         (σ, Stop Load l k)
         (σ, Fail)
 
-  | StepStopStoreSuccess :
-      ∀ σ l v' v k (H: σ !! l = Some v'),
+  | StepStoreSuccess :
+      ∀ σ l v' v k,
+      σ !! l = Some v' →
       let '(σ', m') := (<[ l := v ]> σ, k tt) in
       step (σ, Stop Store (l, v) k) (σ', m')
 
-  | StepStopStoreFailure :
+  (* The [Store] code fails if the updated location is unknown to the store
+     This case is required to ensure that [Fail] is the only stuck term. *)
+  | StepStoreFailure :
       ∀ σ (l: loc) v k (H: l ∉ dom σ),
       step
         (σ, Stop Store (l, v) k)
@@ -219,28 +226,28 @@ Proof.
   eauto with step.
   destruct c; repeat destruct x as (x & ?).
   - exists (σ, bind (eval x e) k). apply StepEval, eq_refl.
-  - exists (σ, bind (loop x v i0 i e) k). apply StepLoop, eq_refl.
+  - exists (σ, bind (loop x v i0 i e) k). eapply StepLoop, eq_refl.
   - exists (σ, k false). apply StepFlip.
   - set ℓ := fresh_locs (dom σ).
-    exists (<[ℓ:=x]> σ, k ℓ). apply StepStopRef.
+    exists (<[ℓ:=x]> σ, k ℓ). apply StepRef.
   - (* TODO: destruct the "belongs to" predicate instead of the result of
      *       lookup. *)
     destruct (σ !! x) eqn:E.
     + (* The load operation will succeed. *)
       exists (σ, k v).
-      by apply StepStopLoadSuccess.
+      by apply StepLoadSuccess.
     + (* The load operation will fail. *)
-      exists (σ, Fail). apply StepStopLoadFailure.
+      exists (σ, Fail). apply StepLoadFailure.
       apply not_elem_of_dom_2, E.
   - (* TODO: ditto. *)
     destruct (σ !! x) eqn:E.
     + (* The store operation will succeed. *)
       eexists _.
-      by eapply StepStopStoreSuccess.
+      by eapply StepStoreSuccess.
     + (* The store operation will fail. *)
       apply not_elem_of_dom_2 in E.
       exists (σ, Fail).
-      by apply StepStopStoreFailure.
+      by apply StepStoreFailure.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -290,8 +297,8 @@ Proof.
   eauto using step_eq with step;
   eauto using StepFlip, step_eq with step.
   (* TODO: improve the way the new cases are handeled. *)
-  - by pose proof (StepStopRef σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
-  - by pose proof (StepStopLoadSuccess σ' l (λ v1 : val, bind (k v1) f) _ H1) as Hstep.
+  - by pose proof (StepRef σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
+  - by pose proof (StepLoadSuccess σ' l (λ v1 : val, bind (k v1) f) _ H1) as Hstep.
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -324,7 +331,7 @@ Proof.
   - pose proof (StepLoop σ (η, x0, i1, i2, e) η x0 i1 i2 e k (eq_refl _)).
     exists (bind (loop η x0 i1 i2 e) k), σ.
     split; eauto with step bind_bind.
-  - pose proof (StepStopRef σ x k).
+  - pose proof (StepRef σ x k).
     simpl in H.
     exists (k (fresh_locs (dom σ))), (<[fresh_locs (dom σ):=x]> σ).
     split; eauto with step bind_bind.
@@ -528,6 +535,17 @@ Proof.
   subst m. rewrite bind_fail.
   eauto using stuck_Fail.
 Qed.
+
+Lemma step_can_step {A} (s s': state A):
+  step s s' → can_step s.
+Proof.
+  intros?. by exists s'.
+Qed.
+
+Lemma can_step_fail {A} σ :
+  ~ (can_step (σ, @fail _ A)).
+Proof. intros H%invert_can_step_Fail. assumption. Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 
