@@ -115,6 +115,8 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
       Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f)
   end.
 
+Global Arguments bind A B !m f : simpl nomatch.
+
 (* [try m f g] runs the computation [m]. If [m] returns a result [v], then
    [f v] is executed. If [m] ends with a soft failure [Next], then [g()] is
    executed. *)

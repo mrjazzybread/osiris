@@ -1,7 +1,4 @@
-Require Import store lang base free locations.
-Notation "x ← y ; z" := (bind y (λ x, z)).
-Notation "' x ← y ; z" := (bind y (λ x : _, z))
-  (at level 20, x pattern, y at level 100, z at level 200, only parsing) : stdpp_scope.
+Require Import store lang base free locations notations.
 
 (* Conventional metavariables. *)
 
@@ -43,6 +40,9 @@ Inductive code : Type → Type → Type :=
 
 Notation free :=
   (@free.free code).
+
+Notation ret :=
+  (@free.ret code).
 
 (* [flip] flips a coin. *)
 
@@ -106,6 +106,8 @@ Fixpoint lookup η x : free val :=
       unbound_variable x
   end.
 
+Global Arguments lookup !η !x : simpl nomatch.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [concat δ η] concatenates the environment fragment [δ] in front of the
@@ -118,6 +120,8 @@ Fixpoint concat δ η : env :=
   | EnvCons x v δ =>
       EnvCons x v (concat δ η)
   end.
+
+Global Arguments concat !δ η : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -221,6 +225,9 @@ with extends δ ps vs : free env :=
   | PNil, VCons _ _ =>
       crash "pattern matching: length mismatch (shorter tuple expected)"
   end.
+
+Global Arguments extend δ !p v : simpl nomatch.
+Global Arguments extends δ !ps !vs : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 

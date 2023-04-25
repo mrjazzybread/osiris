@@ -18,3 +18,4 @@ theories/safe.v
 theories/wp.v
 theories/wp_tactics.v
 theories/examples_wp.v
+tutorial/tutorial.v

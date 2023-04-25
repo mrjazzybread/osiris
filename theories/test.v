@@ -18,13 +18,13 @@ Require Import base lang free eval step steps.
 
 (* [reduces e v] means that the expression [e] can reduce to the value [v]. *)
 
-Local Notation reduces e σ v :=
-  (∃ n, steps n (σ, eval EnvNil e) (σ, ret v)).
+Local Notation reduces e v :=
+  (∃ n, steps n (∅, eval EnvNil e) (∅, ret v)).
 
 (* [fails e] means that the expression [e] can fail. *)
 
-Local Notation fails e σ :=
-  (∃ n, steps n (σ, eval EnvNil e) (σ, fail)).
+Local Notation fails e :=
+  (∃ n, steps n (∅, eval EnvNil e) (∅, fail)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -39,7 +39,7 @@ Local Ltac step :=
   first [
     eapply StepEval; [ reflexivity ]
   | eapply StepLoop; [ reflexivity ]
-  | eapply (@StepFlip val false)
+  | eapply (@StepFlip val _ false)
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]
@@ -65,28 +65,25 @@ Local Ltac reduces :=
 
 Lemma test_assert_false :
   let e := EAssert EFalse in
-  fails e ∅.
-Proof.
-  cbn. eexists.
-  eapply StepsSucc; first apply StepFlip.
-Admitted.
+  fails e.
+Proof. reduces. Qed.
 
 Lemma test_assert_true :
   let e := EAssert ETrue in
   let v := VUnit in
-  reduces e ∅ v.
-Proof. reduces. Admitted.
+  reduces e v.
+Proof. reduces. Qed.
 
 Lemma test_seq_assert_true_unit :
   let e := ESeq (EAssert ETrue) EUnit in
   let v := VUnit in
-  reduces e ∅ v.
-Proof. reduces. Admitted.
+  reduces e v.
+Proof. reduces. Qed.
 
 Lemma test_pair :
   let e := EPair ETrue EFalse in
   let v := VPair VTrue VFalse in
-  reduces e ∅ v.
+  reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_call :
@@ -98,25 +95,25 @@ Lemma test_call :
     EApp (EApp (EVar "pair") ETrue) EFalse
   in
   let v := VPair VTrue VFalse in
-  reduces e ∅ v.
+  reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
-  ∃ e', steps 10 (∅,eval EnvNil e) e'.
+  ∃ e', steps 10 (∅, eval EnvNil e) e'.
 Proof. reduces. Qed.
 
 Lemma test_trivial_while_loop :
   let e := EWhile EFalse EUnit in
   let v := VUnit in
-  reduces e ∅ v.
+  reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_for_loop :
   (* for i = 0 to 1 do () done *)
   let e := EFor "i" (EInt 0) (EInt 1) EUnit in
   let v := VUnit in
-  reduces e ∅ v.
+  reduces e v.
 Proof.
   (* This example is quite artificial, as we must manually force the
      execution of the loop. It is a good sanity check anyway. *)

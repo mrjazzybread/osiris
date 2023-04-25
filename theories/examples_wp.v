@@ -25,7 +25,7 @@ Proof.
   (* This goal is false: the variable [y] is unbound. *)
   intros. subst e. simpl.
   iApply wp_par_ret_ret.
-  simpl.
+  cbn.
 Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
@@ -224,9 +224,6 @@ Proof.
   wp_use Hidentity.
   iIntros (id) "#Hid".
 
-  (* We currently need [wp_restore] here to get the continuation that was stored 
-   * in a hypotheses. *)
-  wp_restore.
   wp_par.
 
   (* id id *)
@@ -346,7 +343,7 @@ Lemma spec_length s E :
 Proof.
   induction xs as [| x xs ]; intro η; wp_call.
   { iPureIntro. reflexivity. }
-  { wp_use IHxs. wp.
+  { wp_use IHxs.
     rewrite Nat2Z.inj_succ.
     iIntros(?->).
     wp.
