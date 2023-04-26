@@ -140,6 +140,16 @@ Lemma test_match_integer_and_alias_pattern :
   reduces e v.
 Proof. reduces. Qed.
 
+Lemma test_match_integer_and_disjunction_pattern :
+  let e := EInt 1 in
+  let branch1 := Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x")) in
+  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33)) in
+  let branches := BrCons branch1 (BrCons branch2 BrNil) in
+  let e := EMatch e branches in
+  let v := VInt (int.repr 2) in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
