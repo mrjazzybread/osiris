@@ -2,7 +2,7 @@ Require Import lang base free.
 
 (* Conventional metavariables. *)
 
-Implicit Type f x : var.
+Implicit Type g x : var.
 Implicit Type c : data.
 Implicit Type p : pat.
 Implicit Type ps : pats.
@@ -122,7 +122,7 @@ Global Arguments concat !δ η : simpl nomatch.
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
-   environment fragment. Each name [f] is mapped to a recursive closure that
+   environment fragment. Each name [g] is mapped to a recursive closure that
    captures the environment [η] and the bindings [rbs]. *)
 
 (* The parameters [η] and [rbs] are invariant. At the beginning, [rbs']
@@ -132,12 +132,12 @@ Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
   | RecBiNil =>
       EnvNil
-  | RecBiCons (RecBinding f _a) rbs' =>
-      EnvCons f (VCloRec η rbs f) (eval_rec_bindings_aux η rbs rbs')
+  | RecBiCons (RecBinding g _a) rbs' =>
+      EnvCons g (VCloRec η rbs g) (eval_rec_bindings_aux η rbs rbs')
   end.
 
 (* [eval_rec_bindings η rbs] transforms the bindings [rbs] into an environment
-   fragment. Each name [f] is mapped to a recursive closure that captures the
+   fragment. Each name [g] is mapped to a recursive closure that captures the
    environment [η] and the bindings [rbs]. *)
 
 Definition eval_rec_bindings η rbs : env :=
@@ -145,15 +145,15 @@ Definition eval_rec_bindings η rbs : env :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [lookup_rec_bindings rbs f] looks up the function [f] in the recursive
+(* [lookup_rec_bindings rbs g] looks up the function [g] in the recursive
    bindings [rbs]. The right-hand side is an anonymous function [a]. *)
 
-Fixpoint lookup_rec_bindings rbs f : free anonfun :=
+Fixpoint lookup_rec_bindings rbs g : free anonfun :=
   match rbs with
-  | RecBiCons (RecBinding f' a) rbs =>
-      if f =? f' then ret a else lookup_rec_bindings rbs f
+  | RecBiCons (RecBinding g' a) rbs =>
+      if g =? g' then ret a else lookup_rec_bindings rbs g
   | RecBiNil =>
-      unbound_variable f
+      unbound_variable g
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -243,21 +243,21 @@ Definition acall η a v : free val :=
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
 (* The value [v1] is expected to be either a non-recursive closure [VClo η a]
-   or a recursive closure [VCloRec η rbs f]. *)
+   or a recursive closure [VCloRec η rbs g]. *)
 
 Definition call v1 v2 : free val :=
   (* The value [v1] must be a closure. *)
   match v1 with
   | VClo η a =>
       acall η a v2
-  | VCloRec η rbs f =>
+  | VCloRec η rbs g =>
       (* Extend the environment [η] found in the closure with bindings
          for the recursive functions in [rbs]. *)
       let δ := eval_rec_bindings η rbs in
       let η := concat δ η in
-      (* Look up the entry point [f] in [rbs], yielding an anonymous
+      (* Look up the entry point [g] in [rbs], yielding an anonymous
          function [a]. *)
-      a ← lookup_rec_bindings rbs f ;
+      a ← lookup_rec_bindings rbs g ;
       (* Then, proceed as in the case of a non-recursive closure. *)
       acall η a v2
    | _ =>
