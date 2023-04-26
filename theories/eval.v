@@ -229,6 +229,11 @@ Fixpoint extend δ p v : free env :=
       (* A variable pattern always succeeds, and causes the environment
          to be extended. *)
       ret (EnvCons x v δ)
+  | PAlias p x, _ =>
+      (* An alias pattern [p as x] is an intersection pattern: the value
+         [v] must match both the pattern [p] and the pattern [x]. *)
+      δ ← extend δ p v ;
+      ret (EnvCons x v δ)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       (* A hard failure occurs when [length ps ≠ length vs]. *)

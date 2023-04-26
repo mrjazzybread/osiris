@@ -130,6 +130,16 @@ Lemma test_match_integer :
   reduces e v.
 Proof. reduces. Qed.
 
+Lemma test_match_integer_and_alias_pattern :
+  let e := EInt 0 in
+  let branch1 := Branch (PAlias (PInt 0) "x") (EVar "x") in
+  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
+  let branches := BrCons branch1 (BrCons branch2 BrNil) in
+  let e := EMatch e branches in
+  let v := VInt (int.repr 0) in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_call :
   let e :=
     ELet1Var "pair" (

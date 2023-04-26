@@ -38,6 +38,8 @@ Inductive pat :=
   | PAny
   (* A variable. *)
   | PVar (x : var)
+  (* An alias pattern [p as x]. *)
+  | PAlias (p : pat) (x : var)
   (* A tuple pattern. *)
   | PTuple (ps : pats)
   (* A data constructor pattern. *)
