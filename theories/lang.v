@@ -40,6 +40,8 @@ Inductive pat :=
   | PVar (x : var)
   (* An alias pattern [p as x]. *)
   | PAlias (p : pat) (x : var)
+  (* A disjunction pattern [p1 | p2]. *)
+  | POr (p1 p2 : pat)
   (* A tuple pattern. *)
   | PTuple (ps : pats)
   (* A data constructor pattern. *)

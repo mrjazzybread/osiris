@@ -145,6 +145,12 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
       Par m1 m2 (λ v, try (k v) f g) (λ tt, try (ko()) f g)
   end.
 
+(* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
+   transmitted. If [m1] fails, then [m2] is run. *)
+
+Definition orelse {A} (m1 m2 : free A) : free A :=
+  try m1 ret (λ tt, m2).
+
 (* This is a monad. *)
 
 (* Global Instance free_mret : MRet free :=

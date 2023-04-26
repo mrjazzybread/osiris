@@ -234,6 +234,10 @@ Fixpoint extend δ p v : free env :=
          [v] must match both the pattern [p] and the pattern [x]. *)
       δ ← extend δ p v ;
       ret (EnvCons x v δ)
+  | POr p1 p2, _ =>
+      (* A disjunction pattern [p1 | p2] requires that the value [v]
+         match either [p1] or [p2]. *)
+      orelse (extend δ p1 v) (extend δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       (* A hard failure occurs when [length ps ≠ length vs]. *)
