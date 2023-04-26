@@ -4,13 +4,16 @@ Require Import lang base free.
 
 Implicit Type g x : var.
 Implicit Type c : data.
+Implicit Type f : field.
 Implicit Type p : pat.
 Implicit Type ps : pats.
 Implicit Type e : expr.
 Implicit Type es : exprs.
+Implicit Type fes : fexprs.
 Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
+Implicit Type fvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
@@ -93,6 +96,8 @@ Notation ok :=
 (* [lookup η x] looks up the variable [x] in the environment [env].
    The result is normally a value. A hard failure occurs if [x] is
    unbound. *)
+
+(* [lookup] is also used to look up fields in records. *)
 
 Fixpoint lookup η x : free val :=
   match η with
@@ -308,6 +313,23 @@ Definition check_div_by_zero i : free unit :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_record v] checks that the value [v] is a language-level record
+   value and returns its content, a list of field-value pairs, which can
+   also be viewed as an environment fragment. *)
+
+Definition val_as_record (v : val) : free env :=
+  match v with
+  | VRecord fvs =>
+      ret fvs
+  | _ =>
+      crash "type mismatch (record value expected)"
+  end.
+
+Definition as_record (m : free val) : free env :=
+  bind m val_as_record.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eq_val v1 v2] implements OCaml's structural equality operator [=]. *)
 
 (* This operator cannot be applied to closures or to mutable data, but can be
@@ -451,6 +473,13 @@ Fixpoint eval η e : free val :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | ERecord fes =>
+      (* The record components are evaluated in parallel. *)
+      fvs ← evalfs η fes ;
+      ret (VRecord fvs)
+  | ERecordAccess e f =>
+      fvs ← as_record (eval η e) ;
+      lookup fvs f
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
@@ -579,6 +608,25 @@ with evals η es : free vals :=
   | ECons e es =>
       '(v, vs) ← par (eval η e) (evals η es) ;
       ret (VCons v vs)
+  end
+
+(* ------------------------------------------------------------------------ *)
+
+(* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
+   producing values [fvs]. The expressions are evaluated in parallel.
+
+   Each expression in the list [fes] and each value in the list [fvs]
+   is indexed with a record field. *)
+
+(* [evalfs] is used to evaluate record construction expressions. *)
+
+with evalfs η fes : free env :=
+  match fes with
+  | FENil =>
+      ret EnvNil
+  | FECons f e fes =>
+      '(v, fvs) ← par (eval η e) (evalfs η fes) ;
+      ret (EnvCons f v fvs)
   end
 
 (* ------------------------------------------------------------------------ *)

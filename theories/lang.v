@@ -17,6 +17,13 @@ Definition data :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Record fields. *)
+
+Definition field :=
+  string.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Machine integers. *)
 
 Definition int :=
@@ -64,6 +71,11 @@ Inductive expr :=
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
+
+  (* Record construction: [{ fs = es }]. *)
+  | ERecord (fes : fexprs)
+  (* Record access: [e.f]. *)
+  | ERecordAccess (e : expr) (f : field)
 
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj (e1 e2 : expr)
@@ -122,6 +134,12 @@ Inductive expr :=
 with exprs :=
   | ENil
   | ECons (e : expr) (es : exprs)
+
+(* Lists of field-expression pairs. *)
+
+with fexprs :=
+  | FENil
+  | FECons (f : field) (e : expr) (fes : fexprs)
 
 (* A branch is of the form [p -> e]. *)
 
@@ -182,6 +200,10 @@ Inductive val :=
   | VTuple (vs : vals)
   (* A data constructor value. *)
   | VData (c : data) (v : val)
+  (* A record. *)
+  (* A list of field-value pairs is the same thing as an environment,
+     so, for the moment at least, we identify these concepts. *)
+  | VRecord (fvs : env)
 
 (* Lists of values. *)
 

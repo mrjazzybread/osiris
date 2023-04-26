@@ -86,6 +86,20 @@ Lemma test_pair :
   reduces e v.
 Proof. reduces. Qed.
 
+Lemma test_record_construction_and_access_1 :
+  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
+  let e := ERecordAccess e "bar" in
+  let v := VTrue in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_record_construction_and_access_2 :
+  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
+  let e := ERecordAccess e "foo" in
+  let v := VInt (int.repr 0) in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
