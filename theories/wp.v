@@ -14,32 +14,32 @@ Require Import store base lang free eval step safe locations notations.
 (* -------------------------------------------------------------------------- *)
 (* Definition of the meaning of being a value in [free val]. *)
 
-Definition of_ret {A} (m: free A) : option A :=
+Definition is_ret {A} (m: free A) : option A :=
   match m with
   | Ret v => Some v
   | _ => None
   end.
 
-Lemma step_of_ret {A} (m m': free A) σ σ':
-  step (σ, m) (σ', m') → of_ret m = None.
+Lemma step_is_ret {A} (m m': free A) σ σ':
+  step (σ, m) (σ', m') → is_ret m = None.
 Proof.
   intros ?. by destruct_step.
 Qed.
 
-Lemma can_step_of_ret {A} (m: free A) σ:
-  can_step (σ, m) → of_ret m = None.
+Lemma can_step_is_ret {A} (m: free A) σ:
+  can_step (σ, m) → is_ret m = None.
 Proof.
   intros [??]. by destruct_step.
 Qed.
 
-Lemma of_ret_from_Ret {A} (m: free A) (v: A) : of_ret m = Some v -> m = Ret v.
+Lemma is_ret_from_Ret {A} (m: free A) (v: A) : is_ret m = Some v -> m = Ret v.
 Proof.
-  unfold of_ret.
+  unfold is_ret.
   by destruct m; inversion 1.
 Qed.
 
-Lemma of_ret_non_Ret {A} (m: free A) :
-  of_ret m = None ->
+Lemma is_ret_non_Ret {A} (m: free A) :
+  is_ret m = None ->
       m = Fail
     ∨ m = free.Next
     ∨ (∃ A B (c: code A B) x k, m = Stop c x k)
@@ -82,7 +82,7 @@ Section wp_def.
     coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ :=
     λ E m ϕ,
       (∀ σ, state_interp σ -∗
-           match of_ret m with
+           match is_ret m with
            | Some v => state_interp σ ∗ ϕ v
            | None =>
                ⌜can_step (σ, m)⌝ ∗
@@ -154,7 +154,7 @@ Section wp.
     by intros Φ Φ' ?; apply equiv_dist=>n; apply wp_ne=>v; apply equiv_dist.
   Qed.
   Global Instance wp_contractive s E m n :
-    TCEq (of_ret m) None →
+    TCEq (is_ret m) None →
     Proper (pointwise_relation _ (dist_later n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
     intros He Φ Ψ HΦ. rewrite !wp_unfold /wp_pre He /=.
@@ -197,7 +197,7 @@ Section wp_lemmas.
     iLöb as "IH" forall (ϕ ϕ' m).
     iIntros "Hwp Himpl".
     rewrite!wp_unfold/wp_pre.
-    destruct (of_ret m).
+    destruct (is_ret m).
 
     { (* Case [m] is [ret _]. *)
       iIntros(?) "H".
@@ -219,7 +219,7 @@ Section wp_lemmas.
     iStartProof.
     rewrite wp_unfold/wp_pre/=.
     iLöb as "IH" forall (m).
-    destruct (of_ret m) as [a|]eqn:Em.
+    destruct (is_ret m) as [a|]eqn:Em.
     { iIntros"[? Hwp]". rewrite wp_unfold/wp_pre Em/=.
       iIntros (σ)"Hsi".
       iPoseProof ("Hwp" with "Hsi") as "Hwp".
@@ -283,9 +283,9 @@ Section wp_lemmas.
     iIntros "Hm".
     setoid_rewrite wp_unfold at 4.
     rewrite /wp_pre.
-    destruct (of_ret m1) as [v1|] eqn:Em1.
+    destruct (is_ret m1) as [v1|] eqn:Em1.
     { (* Case: [m] is [ret _]. *)
-      rewrite (of_ret_from_Ret _ _ Em1).
+      rewrite (is_ret_from_Ret _ _ Em1).
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[Hsi Hwp]".
@@ -295,7 +295,7 @@ Section wp_lemmas.
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[%Hcanstep Hm]".
-      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_of_ret.
+      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_is_ret.
       iSplit.
       { iPureIntro. eauto using can_step_bind with step. }
 
@@ -377,8 +377,8 @@ Section wp_lemmas.
       exfalso. assumption. }
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 5. rewrite /wp_pre/=.
-      assert (of_ret m1 = None) as ->.
-      { by eapply can_step_of_ret, step_can_step. }
+      assert (is_ret m1 = None) as ->.
+      { by eapply can_step_is_ret, step_can_step. }
       iDestruct ("H1" with "Hsi") as "[%Hstep1 H1]".
       iPoseProof
         ("H1" $! σ' with "[//]")
@@ -387,8 +387,8 @@ Section wp_lemmas.
       iApply ("IH" with "H1 H2 Hcomb"). }
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 6. rewrite /wp_pre/=.
-      assert (of_ret m2 = None) as ->.
-      { by eapply can_step_of_ret, step_can_step. }
+      assert (is_ret m2 = None) as ->.
+      { by eapply can_step_is_ret, step_can_step. }
       iDestruct ("H2" with "Hsi") as "[%Hstuck2 H2]".
       iPoseProof
         ("H2" $! σ' with "[//]")

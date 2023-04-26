@@ -1,5 +1,9 @@
 From stdpp Require Import countable numbers gmap.
 
+(* TODO:
+   - add the required lemmas so that the types declared below can remain opaque
+     to the rest of the development. *)
+
 (* The following section comes from the file
    [iris_heap_lang/locations.v] available in the [iris] repository. *)
 

@@ -6,10 +6,10 @@ Require Import lang locations.
 
 
 (* TODO:
- * - add the required lemmas so that the above types can remain opaque to the
- *   rest of the development.
- * - declare the required instances of [ElemOf] and [Dom].
- *)
+   - add the required lemmas so that the types declared below can remain opaque
+     to the rest of the development.
+   - declare the required instances of [ElemOf] and [Dom] so that the store can
+     be seen "as a gmap" (whatever its future definitions might be). *)
 
 
 (* -------------------------------------------------------------------------- *)
