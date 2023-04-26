@@ -91,10 +91,17 @@
   i.e., measure whether (and how many times) each line of code
   in the interpreter (eval.v) is exercised by the tests (examples.v).
 
+* Test the reasoning rules via examples:
+  - Check that we are able to reason about infinite loops using Löb induction
+  - Check that we are able to reason about terminating loops using induction
+  - Check that we are able to frame out an assertion during
+    the execution of the rest of the loop
+
 ## References
 
 * Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
 * Scott Owens
+* Malfunction
 * audebaud-zucca-99 (spec monad)
 * claessen-99, harrison-06, pirog-gibbons-14 (resumption monad)
 * voigtlander-08, jaskelioff-rivas-15 (efficient presentation of the free monad)
@@ -112,17 +119,18 @@
 
 ## Features of OCaml that we want to support (at some point)
 
-* Functions and function applications
-* Mutually-recursive functions
+* Functions and function applications ✓
+* Mutually recursive functions ✓
+* Algebraic data types (unit, tuples, sums, records, sums-of-records) ✓
+* Pattern matching on immutable data ✓
+* Conditionals ✓
+* `while` loops ✓
+* `for` loops ✓
+* Unspecified evaluation order of `let/and` definitions and function applications ✓
+* Unspecified evaluation of `assert` statements ✓
 * Arrays
 * Characters and strings
-* Conditionals
-* `while` loops
-  - Check that we are able to reason about infinite loops using Löb induction
-  - Check that we are able to reason about terminating loops using induction
-  - Check that we are able to frame out an assertion during
-    the execution of the rest of the loop
-* Algebraic data types (unit, tuples, sums, records, sums-of-records; mutable fields)
+* Records with mutable fields
 * Integers:
   + give lemmas to help establish that the result of an operation
     is representable
@@ -132,17 +140,11 @@
   + We would like to have all of the comparison operators,
     but because our model views Booleans as data constructors,
     we cannot have the ordering operators.
-* `for` loops
-  - Must evaluate both bounds up front,
-    then invoke an auxiliary recursive function `eval_for_loop`
-* Pattern matching on immutable data (must prove absence of match failure)
 * Polymorphic comparison operators
   + Equality can be supported at immutable data types
   + Ordering can be supported at base types and tuples
     (ordering at algebraic data types cannot be supported)
 * Polymorphic variants
-* Unspecified evaluation order of `let/and` definitions and function applications
-* Unspecified evaluation of `assert` statements
 * Modules, functors, signature ascription, `open` and `include` directives
   - Note that `open` and `include` break the lexical scoping discipline
     (and require keeping track of module signatures at runtime)
