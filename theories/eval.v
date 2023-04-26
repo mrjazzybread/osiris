@@ -72,6 +72,9 @@ Definition assertion_failure {A} : free A :=
 Definition match_failure {A} (tt : unit) : free A :=
   fail.
 
+Definition missing_field {A} (f : field) : free A :=
+  fail.
+
 Definition unbound_variable {A} (x : var) : free A :=
   fail.
 
@@ -79,6 +82,7 @@ Global Opaque
   crash
   assertion_failure
   match_failure
+  missing_field
   unbound_variable
 .
 
@@ -97,7 +101,9 @@ Notation ok :=
    The result is normally a value. A hard failure occurs if [x] is
    unbound. *)
 
-(* [lookup] is also used to look up fields in records. *)
+(* [lookup] is also used to look up fields in records. In that case,
+   the [unbound_variable] error should really be a [missing_field]
+   error. TODO FIX? *)
 
 Fixpoint lookup η x : free val :=
   match η with
@@ -123,6 +129,41 @@ Fixpoint concat δ η : env :=
   end.
 
 Global Arguments concat !δ η : simpl nomatch.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
+
+Fixpoint remove f fvs : free env :=
+  match fvs with
+  | EnvCons f' v fvs =>
+      if f =? f' then
+        ret fvs
+      else
+        fvs ← remove f fvs ;
+        ret (EnvCons f' v fvs)
+  | EnvNil =>
+      missing_field f
+  end.
+
+Global Arguments remove !f !fvs : simpl nomatch.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [update fvs fvs'] updates the existing record fields [fvs] with the new
+   record fields [fvs']. *)
+
+Fixpoint update fvs fvs' : free env :=
+  match fvs' with
+  | EnvNil =>
+      ret fvs
+  | EnvCons f v' fvs' =>
+      fvs ← remove f fvs ;
+      let fvs := EnvCons f v' fvs in
+      update fvs fvs'
+  end.
+
+Global Arguments update !fvs !fvs' : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -504,6 +545,13 @@ Fixpoint eval η e : free val :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
+      ret (VRecord fvs)
+  | ERecordUpdate e fes =>
+      (* The existing record and the new record components are evaluated in
+         parallel. *)
+      '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      (* The new components override existing components by the same name. *)
+      fvs ← update fvs fvs' ;
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;

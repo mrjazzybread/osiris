@@ -82,6 +82,8 @@ Inductive expr :=
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : fexprs)
+  (* Record update: [{ e with fs = es }]. *)
+  | ERecordUpdate (e : expr) (fes : fexprs)
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
 

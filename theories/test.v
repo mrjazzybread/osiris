@@ -109,6 +109,15 @@ Lemma test_record_construction_and_deconstruction :
   reduces e v.
 Proof. reduces. Qed.
 
+Lemma test_record_construction_update_and_deconstruction :
+  let e := ERecord (FECons "foo" (EInt 10) (FECons "bar" (EInt 32) FENil)) in
+  let e := ERecordUpdate e (FECons "bar" (EInt 14) FENil) in
+  let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
+  let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
+  let v := VInt (int.repr 24) in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
