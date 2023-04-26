@@ -295,9 +295,9 @@ with extendfs δ fps fvs : free env :=
       ret δ
   end.
 
-Global Arguments extend δ !p v : simpl nomatch.
-Global Arguments extends δ !ps !vs : simpl nomatch.
-Global Arguments extendfs δ !fps !fvs : simpl nomatch.
+Global Arguments extend δ !p v.
+Global Arguments extends δ !ps !vs.
+Global Arguments extendfs δ !fps !fvs.
 
 (* ------------------------------------------------------------------------ *)
 
