@@ -50,9 +50,11 @@ Local Ltac step :=
 Local Ltac steps :=
   cbn;
   repeat first [
-    eapply (StepsZero 0)
+    rewrite bind_ret (* not sure why this is needed; [cbn] not enough *)
+  | eapply (StepsZero 0)
   | eapply StepsSucc; [ step | cbn ]
   | rewrite int.add_repr_repr
+  | rewrite int.eq_repr_repr by int.prove_representable_30
   ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
@@ -115,6 +117,16 @@ Lemma test_record_construction_update_and_deconstruction :
   let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
   let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
   let v := VInt (int.repr 24) in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_match_integer :
+  let e := EInt 12 in
+  let branch1 := Branch (PInt 0) (EInt 0) in
+  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
+  let branches := BrCons branch1 (BrCons branch2 BrNil) in
+  let e := EMatch e branches in
+  let v := VInt (int.repr 13) in
   reduces e v.
 Proof. reduces. Qed.
 

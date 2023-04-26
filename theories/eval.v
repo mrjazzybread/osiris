@@ -244,12 +244,17 @@ Fixpoint extend δ p v : free env :=
       (* A hard failure occurs if a field is present in the pattern
          but absent in the value. *)
       extendfs δ fps fvs
+  | PInt z, VInt i' =>
+      let i := int.repr z in
+      if int.eq i i' then ret δ else next()
   | PTuple _, _ =>
       crash "type mismatch (tuple expected)"
   | PData _ _, _ =>
       crash "type mismatch (algebraic data expected)"
   | PRecord _, _ =>
       crash "type mismatch (record expected)"
+  | PInt _, _ =>
+      crash "type mismatch (integer expected)"
   end
 
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].

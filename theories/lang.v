@@ -44,6 +44,8 @@ Inductive pat :=
   | PData (c : data) (p : pat)
   (* A record pattern. *)
   | PRecord (fps : fpats)
+  (* A literal integer pattern. *)
+  | PInt (i : Z)
 
 (* Lists of patterns. *)
 
