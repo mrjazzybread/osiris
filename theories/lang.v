@@ -42,12 +42,20 @@ Inductive pat :=
   | PTuple (ps : pats)
   (* A data constructor pattern. *)
   | PData (c : data) (p : pat)
+  (* A record pattern. *)
+  | PRecord (fps : fpats)
 
 (* Lists of patterns. *)
 
 with pats :=
   | PNil
-  | PCons (p : pat) (ps : pats).
+  | PCons (p : pat) (ps : pats)
+
+(* Lists of field-pattern pairs. *)
+
+with fpats :=
+  | FPNil
+  | FPCons (f : field) (p : pat) (fps : fpats).
 
 (* ------------------------------------------------------------------------ *)
 

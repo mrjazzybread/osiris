@@ -197,10 +197,18 @@ Fixpoint extend δ p v : free env :=
          match. If the data constructors do not match, a soft failure takes
          place. *)
       if c =? c' then extend δ p v else next()
+  | PRecord fps, VRecord fvs =>
+      (* A record pattern matches a record value. *)
+      (* The pattern may have fewer fields than the value. *)
+      (* A hard failure occurs if a field is present in the pattern
+         but absent in the value. *)
+      extendfs δ fps fvs
   | PTuple _, _ =>
       crash "type mismatch (tuple expected)"
   | PData _ _, _ =>
       crash "type mismatch (algebraic data expected)"
+  | PRecord _, _ =>
+      crash "type mismatch (record expected)"
   end
 
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
@@ -211,7 +219,7 @@ Fixpoint extend δ p v : free env :=
    A hard failure occurs when [length ps ≠ length vs]. *)
 
 (* For now, pattern matching is sequential. Parallel evaluation would
-   make sense once we enable pattern matching on mutable state. TODO *)
+   make sense once we enable pattern matching on mutable state. *)
 
 with extends δ ps vs : free env :=
   match ps, vs with
@@ -225,10 +233,30 @@ with extends δ ps vs : free env :=
       crash "pattern matching: length mismatch (longer tuple expected)"
   | PNil, VCons _ _ =>
       crash "pattern matching: length mismatch (shorter tuple expected)"
+  end
+
+(* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
+   field-indexed patterns [fps].
+
+   In case of success, the result is an extension of the environment fragment
+   [δ] with bindings for the bound variables of the patterns [fps].
+
+   A hard failure occurs if a field is present in [fps] but absent in [fvs]. *)
+
+with extendfs δ fps fvs : free env :=
+  match fps with
+  | FPNil =>
+      ret δ
+  | FPCons f p fps =>
+      v ← lookup fvs f ;
+      δ ← extend δ p v ;
+      δ ← extendfs δ fps fvs ;
+      ret δ
   end.
 
 Global Arguments extend δ !p v : simpl nomatch.
 Global Arguments extends δ !ps !vs : simpl nomatch.
+Global Arguments extendfs δ !fps !fvs : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 

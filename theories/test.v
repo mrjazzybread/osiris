@@ -52,6 +52,7 @@ Local Ltac steps :=
   repeat first [
     eapply (StepsZero 0)
   | eapply StepsSucc; [ step | cbn ]
+  | rewrite int.add_repr_repr
   ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
@@ -97,6 +98,14 @@ Lemma test_record_construction_and_access_2 :
   let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
   let e := ERecordAccess e "foo" in
   let v := VInt (int.repr 0) in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_record_construction_and_deconstruction :
+  let e := ERecord (FECons "foo" (EInt 10) (FECons "bar" (EInt 32) FENil)) in
+  let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
+  let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
+  let v := VInt (int.repr 42) in
   reduces e v.
 Proof. reduces. Qed.
 
