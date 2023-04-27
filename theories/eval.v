@@ -167,6 +167,47 @@ Global Arguments update !fvs !fvs' : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 
+(* A [sort] function for lists of string-value pairs, also known as
+   environments. *)
+
+(* A painful difficulty is that [env] is a custom type of lists, so the
+   standard [sort] function cannot be applied directly to it. We extract a
+   list of keys, sort this list, then reconstruct a sorted environment by
+   performing lookups in the original environment. This has quadratic cost. *)
+
+Require Import Orders Sorting.
+
+Module StringOrder <: TotalLeBool.
+  Definition t := string.
+  Definition leb := String.leb.
+  Definition leb_total := String.leb_total.
+End StringOrder.
+
+Module Import StringSort := Sort StringOrder.
+
+Fixpoint domain (η : env) : list string :=
+  match η with
+  | EnvNil =>
+      []
+  | EnvCons x v η =>
+      x :: domain η
+  end.
+
+Fixpoint build (η : env) (xs : list string) : free env :=
+  match xs with
+  | [] =>
+      ret EnvNil
+  | x :: xs =>
+      v ← lookup η x ;
+      xs ← build η xs ;
+      ret (EnvCons x v xs)
+  end.
+
+Definition sort (η : env) : free env :=
+  build η (sort (domain η)).
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
    environment fragment. Each name [g] is mapped to a recursive closure that
    captures the environment [η] and the bindings [rbs]. *)
@@ -559,6 +600,7 @@ Fixpoint eval η e : free val :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
+      fvs ← sort fvs ;
       ret (VRecord fvs)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
@@ -566,6 +608,7 @@ Fixpoint eval η e : free val :=
       '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
       (* The new components override existing components by the same name. *)
       fvs ← update fvs fvs' ;
+      fvs ← sort fvs ;
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;

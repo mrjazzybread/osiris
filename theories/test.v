@@ -89,6 +89,24 @@ Lemma test_pair :
   reduces e v.
 Proof. reduces. Qed.
 
+(* The following tests verify that record fields are always alphabetically
+   sorted in a record value, regardless of the order in which fields appear
+   in the record construction expression. *)
+
+Lemma test_record_construction_with_sorting_1 :
+  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
+  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (int.repr 0)) EnvNil) in
+  let v := VRecord fvs in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_record_construction_with_sorting_2 :
+  let e := ERecord (FECons "bar" ETrue (FECons "foo" (EInt 0) FENil)) in
+  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (int.repr 0)) EnvNil) in
+  let v := VRecord fvs in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_record_construction_and_access_1 :
   let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
   let e := ERecordAccess e "bar" in
