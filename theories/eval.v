@@ -914,6 +914,27 @@ Fixpoint lookup_path η π : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* The evaluation of a list of structure items involves two environments [η]
+   and [δ]. The environment [η] contains the bindings that are currently in
+   scope: it is used when a name must be looked up. The environment [δ]
+   accumulates the bindings that form the current (incomplete) structure
+   that is being built. *)
+
+Definition envs : Type :=
+  (* η: *) env *
+  (* δ: *) env.
+
+Implicit Type ηδ : envs.
+
+(* [dconcat δ' ηδ] prepends the environment fragment [δ'] in front of both
+   components of the double environment [ηδ]. This reflects the common case
+   where a new binding is both in scope in the following bindings and added
+   to the current structure. *)
+
+Definition dconcat δ' ηδ : envs :=
+  let '(η, δ) := ηδ in
+  (concat δ' η, concat δ' δ).
+
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
@@ -923,44 +944,54 @@ Fixpoint eval_mexpr η me : free val :=
       (* A path is looked up in the environment [η]. *)
       lookup_path η π
   | MStruct items =>
-      (* Beginning with an empty accumulator, the structure items are
-         sequentially evaluated, yielding an environment fragment [δ], *)
+      (* Beginning with an empty current structure, *)
       let δ := EnvNil in
-      δ ← eval_sitems η δ items ;
-      (* which is then wrapped in a [VStruct] value. *)
+      (* evaluate the structure items, yielding an environment [δ], *)
+      '(_, δ) ← eval_sitems (η, δ) items ;
+      (* and wrap it in a [VStruct] value. *)
       ret (VStruct δ)
   end
 
-(* [eval_sitems η δ items] evaluates the structure items [items] in the
-   environment [η], yielding an environment fragment that is prepended
-   to the environment fragment [δ]. *)
+(* [eval_sitems ηδ items] evaluates the structure items [items] in the
+   double environment [ηδ], yielding an updated double environment. *)
 
-with eval_sitems η δ items : free env :=
+with eval_sitems ηδ items : free envs :=
   match items with
   | INil =>
-      ret δ
+      ret ηδ
   | ICons item items =>
-      (* Evaluate this item in environment [η]. *)
-      δ' ← eval_sitem η item ;
-      (* Extend [δ], as required by the above specification. *)
-      let δ := concat δ' δ in
-      (* Extend [η], because the following items must be evaluated in the
-         scope of the bindings produced by this items. *)
-      let η := concat δ' η in
+      (* Evaluate this item. *)
+      ηδ ← eval_sitem ηδ item ;
       (* Evaluate the remaining items. *)
-      eval_sitems η δ items
+      eval_sitems ηδ items
   end
 
-(* [eval_sitem η item] evaluates the structure item [item] in the
-   environment [η], yielding an environment fragment. *)
+(* [eval_sitem ηδ item] evaluates the structure item [item] in the
+   double environment [ηδ], yielding an updated double environment. *)
 
-with eval_sitem η item : free env :=
+with eval_sitem (ηδ : envs) item : free envs :=
+  let '(η, δ) := ηδ in
   match item with
   | ILet bs =>
-      eval_bindings η bs
+      δ' ← eval_bindings η bs ;
+      ret (dconcat δ' ηδ)
   | ILetRec rbs =>
-      ret (eval_rec_bindings η rbs)
+      let δ' := eval_rec_bindings η rbs in
+      ret (dconcat δ' ηδ)
   | IModule m me =>
       v ← eval_mexpr η me ;
-      ret (EnvCons m v EnvNil)
+      let δ' := EnvCons m v EnvNil in
+      ret (dconcat δ' ηδ)
+  | IOpen π =>
+      (* The bindings contained in the structure denoted by the path [π]
+         are used to extend [η] but not [δ]. This reflects the fact that
+         these bindings become visible, but do not extend the current
+         structure. *)
+      δ' ← as_struct (lookup_path η π) ;
+      ret (concat δ' η, δ)
+  | IInclude me =>
+      δ' ← as_struct (eval_mexpr η me) ;
+      (* The bindings contained in the structure denoted by the module
+         expression [me] are used to extend both [η] and [δ]. *)
+      ret (dconcat δ' ηδ)
   end.

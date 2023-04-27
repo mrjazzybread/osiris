@@ -248,6 +248,12 @@ with sitem :=
   (* A module definition [M = me]. *)
   | IModule (m : module) (me : mexpr)
 
+  (* An [open] directive [open π]. *)
+  | IOpen (π : path)
+
+  (* An [include] directive [include me]. *)
+  | IInclude (me : mexpr)
+
 .
 
 (* ------------------------------------------------------------------------ *)
