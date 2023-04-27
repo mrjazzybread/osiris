@@ -3,6 +3,9 @@ theories/CompCert/Coqlib.v
 theories/CompCert/Zbits.v
 theories/CompCert/Integers.v
 theories/int.v
+theories/locations.v
+theories/notations.v
+theories/store.v
 theories/base.v
 theories/lang.v
 theories/encode.v
@@ -12,10 +15,7 @@ theories/step.v
 theories/steps.v
 theories/test.v
 theories/safe.v
-theories/safe_tactics.v
 theories/wp.v
 theories/wp_tactics.v
-theories/refinement.v
-theories/examples_safe.v
 theories/examples_wp.v
 tutorial/tutorial.v

@@ -19,12 +19,12 @@ Require Import base lang free eval step steps.
 (* [reduces e v] means that the expression [e] can reduce to the value [v]. *)
 
 Local Notation reduces e v :=
-  (∃ n, steps n (eval EnvNil e) (ret v)).
+  (∃ n, steps n (∅, eval EnvNil e) (∅, ret v)).
 
 (* [fails e] means that the expression [e] can fail. *)
 
 Local Notation fails e :=
-  (∃ n, steps n (eval EnvNil e) fail).
+  (∃ n, steps n (∅, eval EnvNil e) (∅, fail)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -39,7 +39,7 @@ Local Ltac step :=
   first [
     eapply StepEval; [ reflexivity ]
   | eapply StepLoop; [ reflexivity ]
-  | eapply (@StepFlip val false)
+  | eapply (@StepFlip val _ false)
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]
@@ -182,7 +182,7 @@ Proof. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
-  ∃ e', steps 10 (eval EnvNil e) e'.
+  ∃ e', steps 10 (∅, eval EnvNil e) e'.
 Proof. reduces. Qed.
 
 Lemma test_trivial_while_loop :

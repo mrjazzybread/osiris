@@ -1,5 +1,5 @@
 Set Warnings "-require-in-section". (* .none *)
-Require Import base lang free eval step safe. (* .none *)
+Require Import base store lang free eval step safe notations. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
 Implicit Type p : pat. (* .none *)
@@ -552,8 +552,6 @@ yet it is a full-fledged logic!
 Check @safe_ret. (* .unfold *)
 
 Check @safe_bind. (* .unfold *)
-
-Check @safe_par. (* .unfold *)
 
 End Step. (* .none *)
 

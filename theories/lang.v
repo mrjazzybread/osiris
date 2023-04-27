@@ -1,5 +1,5 @@
 Require int.
-Require Import base.
+Require Import base locations.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -145,6 +145,11 @@ Inductive expr :=
   (* Runtime assertion: [assert(e)]. *)
   | EAssert (e : expr)
 
+  (* store-related constructors. *)
+  | ERef (e: expr)
+  | ELoad (e: expr)
+  | EStore (e1 e2: expr)
+
 (* Lists of expressions. *)
 
 with exprs :=
@@ -220,6 +225,8 @@ Inductive val :=
   (* A list of field-value pairs is the same thing as an environment,
      so, for the moment at least, we identify these concepts. *)
   | VRecord (fvs : env)
+  (* A location. *)
+  | VLoc (l: loc)
 
 (* Lists of values. *)
 

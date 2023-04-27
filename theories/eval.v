@@ -1,4 +1,4 @@
-Require Import lang base free.
+Require Import store lang base free locations notations.
 
 (* Conventional metavariables. *)
 
@@ -17,6 +17,7 @@ Implicit Type fvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
+Implicit Type σ : store.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -30,9 +31,12 @@ Implicit Type i : int.
 (* The code [Flip] is a request to flip a Boolean coin. *)
 
 Inductive code : Type → Type → Type :=
-| Eval : code (env * expr) val
-| Loop : code (env * var * int * int * expr) val
-| Flip : code unit bool
+| Eval  : code (env * expr) val
+| Loop  : code (env * var * int * int * expr) val
+| Flip  : code unit bool
+| Ref   : code val loc
+| Load  : code loc val
+| Store : code (loc * val) ()
 .
 
 (* We fix this particular type of codes. *)
@@ -415,6 +419,22 @@ Definition as_bool (m : free val) : free bool :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_loc v] checks that the value [v] is a language-level location
+   value and returns its meta-level value. *)
+
+Definition val_as_loc (v: val) : free loc :=
+  match v with
+  | VLoc l =>
+      ret l
+  | _ =>
+      crash "type mismatch (location value expected)"
+  end.
+
+Definition as_loc (m : free val) : free loc :=
+  bind m val_as_loc.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
@@ -727,6 +747,17 @@ Fixpoint eval η e : free val :=
         if (success : bool) then ok else assertion_failure
       in
       choose ok test
+  | ERef e =>
+      v ← eval η e ;
+      ℓ ← stop Ref v ;
+      ret (VLoc ℓ)
+  | ELoad e =>
+      ℓ ← as_loc (eval η e) ;
+      stop Load ℓ
+  | EStore e1 e2 =>
+      '(ℓ, v) ← par (as_loc (eval η e1)) (eval η e2) ;
+      _ ← stop Store (ℓ, v) ;
+      ok
   end
 
 (* ------------------------------------------------------------------------ *)

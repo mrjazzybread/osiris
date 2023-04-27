@@ -7,7 +7,7 @@ Require Import lang base free eval step.
 
 (* [steps n m m'] means that [m] reduces to [m'] in at most [n] steps. *)
 
-Inductive steps {A} : nat → free A → free A → Prop :=
+Inductive steps {A} : nat → state A → state A → Prop :=
 | StepsZero:
     ∀ n m,
     steps n m m
@@ -25,7 +25,7 @@ Global Hint Constructors steps : steps.
 
 (* [step] implies [steps 1]. *)
 
-Lemma one_step {A} (m m' : free A) :
+Lemma one_step {A} (m m' : state A) :
   step m m' →
   steps 1 m m'.
 Proof.
@@ -35,7 +35,7 @@ Qed.
 (* [steps] is monotonic in [n]. *)
 
 Lemma steps_monotonic {A} :
-  ∀ n (m m' : free A),
+  ∀ n (m m' : state A),
   steps n m m' →
   ∀ n',
   n ≤ n' →
@@ -49,7 +49,7 @@ Qed.
 (* [steps] is transitive. *)
 
 Lemma steps_transitive {A} :
-  ∀ n1 (m1 m2 : free A),
+  ∀ n1 (m1 m2 : state A),
   steps n1 m1 m2 →
   ∀ n2 m3,
   steps n2 m2 m3 →
@@ -65,33 +65,43 @@ Qed.
 (* [steps] can be taken under a [Par] constructor. *)
 
 Lemma steps_par_left :
-  ∀ {A1 A2 A} n m1 m'1,
-  steps n m1 m'1 →
+  ∀ {A1 A2 A} n σ1 σ'1 m1 m'1,
+  steps n (σ1, m1) (σ'1, m'1) →
   ∀ m2 (k : A1 * A2 → free A) ko,
-  steps n (Par m1 m2 k ko) (Par m'1 m2 k ko).
+  steps n (σ1, Par m1 m2 k ko) (σ'1, Par m'1 m2 k ko).
 Proof.
-  induction n; intros m1 m'1 Hsteps;
+  induction n; intros σ1 σ'1 m1 m'1 Hsteps;
   dependent destruction Hsteps;
   eauto with step steps.
+  intros???.
+  destruct m2 as [σ''1 m''1].
+  eapply StepsSucc with (σ''1, Par m''1 m0 k ko);
+    [ by apply StepParLeft
+    | by apply IHn ].
 Qed.
 
 Lemma steps_par_right :
-  ∀ {A1 A2 A} n m2 m'2,
-  steps n m2 m'2 →
+  ∀ {A1 A2 A} n σ2 σ'2 m2 m'2,
+  steps n (σ2, m2) (σ'2, m'2) →
   ∀ m1 (k : A1 * A2 → free A) ko,
-  steps n (Par m1 m2 k ko) (Par m1 m'2 k ko).
+  steps n (σ2, Par m1 m2 k ko) (σ'2, Par m1 m'2 k ko).
 Proof.
-  induction n; intros m2 m'2 Hsteps;
+  induction n; intros σ2 σ'2 m2 m'2 Hsteps;
   dependent destruction Hsteps;
   eauto with step steps.
+  intros???.
+  destruct m0 as [σ''2 m''2].
+  eapply StepsSucc with (σ''2, Par m1 m''2 k ko);
+    [ by apply StepParRight
+    | by apply IHn ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
 (* [produces n m a] means that [m] reduces to [Ret a] in at most [n] steps. *)
 
-Definition produces {A} n (m : free A) (a : A) :=
-  steps n m (Ret a).
+Definition produces {A} n (m : free A) σ (a : A) :=
+  steps n (σ, m) (σ, Ret a).
 
 Global Hint Unfold produces : steps.
 
@@ -101,10 +111,10 @@ Global Hint Unfold produces : steps.
 
 (* [step] and [produces] can be composed. *)
 
-Lemma step_produces {A} n (m m' : free A) a :
-  step m m' →
-  produces n m' a →
-  produces (S n) m a.
+Lemma step_produces {A} n (m m' : free A) σ a :
+  step (σ, m) (σ, m') →
+  produces n m' σ a →
+  produces (S n) m σ a.
 Proof.
   unfold produces. eauto with steps.
 Qed.
