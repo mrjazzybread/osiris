@@ -10,6 +10,13 @@ Definition var :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Module names. *)
+
+Definition module :=
+  string.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Data constructors. *)
 
 Definition data :=
@@ -204,7 +211,52 @@ with anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Module paths. *)
+
+Inductive path :=
+  (* An unqualified name [M]. *)
+  | PathBase (M : module)
+  (* A qualified name [π.M]. *)
+  | PathDot (π : path) (M : module).
+
+(* Module expressions. *)
+
+Inductive mexpr :=
+
+  (* A module path. *)
+  | MPath (π : path)
+
+  (* A structure [struct ... end]. *)
+  | MStruct (items : sitems)
+
+(* Lists of structure items. *)
+
+with sitems :=
+  | INil
+  | ICons (item : sitem) (items : sitems)
+
+(* Structure items. *)
+
+with sitem :=
+
+  (* A non-recursive toplevel definition [let bs]. *)
+  | ILet (bs : bindings)
+
+  (* A recursive toplevel definition [let rec rbs]. *)
+  | ILetRec (rbs : rec_bindings)
+
+  (* A module definition [M = me]. *)
+  | IModule (m : module) (me : mexpr)
+
+.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Values. *)
+
+(* These values serve as values both for expressions and for module
+   expressions. Similarly, environments map both variables to values
+   and modules to values. *)
 
 Inductive val :=
   (* A simple (non-recursive) closure. *)
@@ -227,6 +279,9 @@ Inductive val :=
   | VRecord (fvs : env)
   (* A location. *)
   | VLoc (l: loc)
+  (* A module. *)
+  (* This is very much like a record. We use two distinct tags for clarity. *)
+  | VStruct (fvs : env)
 
 (* Lists of values. *)
 

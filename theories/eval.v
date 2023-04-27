@@ -18,6 +18,11 @@ Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
 Implicit Type σ : store.
+Implicit Type M : module.
+Implicit Type π : path.
+Implicit Type me : mexpr.
+Implicit Type item : sitem.
+Implicit Type items : sitems.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -487,6 +492,22 @@ Definition as_record (m : free val) : free env :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
+   fvs] and returns its content [fvs]. *)
+
+Definition val_as_struct (v : val) : free env :=
+  match v with
+  | VStruct fvs =>
+      ret fvs
+  | _ =>
+      crash "type mismatch (structure expected)"
+  end.
+
+Definition as_struct (m : free val) : free env :=
+  bind m val_as_struct.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eq_val v1 v2] implements OCaml's structural equality operator [=]. *)
 
 (* This operator cannot be applied to closures or to mutable data, but can be
@@ -875,3 +896,71 @@ Definition loop η x i1 i2 e : free val :=
        easier. *)
     stop Loop (η, x, int.add i1 int.one, i2, e)
 .
+
+(* ------------------------------------------------------------------------ *)
+
+(* [lookup_path η π] looks up the path [π] in the environment [η]. *)
+
+Fixpoint lookup_path η π : free val :=
+  match π with
+  | PathBase M =>
+      lookup η M
+  | PathDot π M =>
+      (* The content of a structure is an environment, *)
+      fvs ← as_struct (lookup_path η π) ;
+      (* so we can look up [M] in the environment [fvs]. *)
+      lookup fvs M
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
+   yielding a value. *)
+
+Fixpoint eval_mexpr η me : free val :=
+  match me with
+  | MPath π =>
+      (* A path is looked up in the environment [η]. *)
+      lookup_path η π
+  | MStruct items =>
+      (* Beginning with an empty accumulator, the structure items are
+         sequentially evaluated, yielding an environment fragment [δ], *)
+      let δ := EnvNil in
+      δ ← eval_sitems η δ items ;
+      (* which is then wrapped in a [VStruct] value. *)
+      ret (VStruct δ)
+  end
+
+(* [eval_sitems η δ items] evaluates the structure items [items] in the
+   environment [η], yielding an environment fragment that is prepended
+   to the environment fragment [δ]. *)
+
+with eval_sitems η δ items : free env :=
+  match items with
+  | INil =>
+      ret δ
+  | ICons item items =>
+      (* Evaluate this item in environment [η]. *)
+      δ' ← eval_sitem η item ;
+      (* Extend [δ], as required by the above specification. *)
+      let δ := concat δ' δ in
+      (* Extend [η], because the following items must be evaluated in the
+         scope of the bindings produced by this items. *)
+      let η := concat δ' η in
+      (* Evaluate the remaining items. *)
+      eval_sitems η δ items
+  end
+
+(* [eval_sitem η item] evaluates the structure item [item] in the
+   environment [η], yielding an environment fragment. *)
+
+with eval_sitem η item : free env :=
+  match item with
+  | ILet bs =>
+      eval_bindings η bs
+  | ILetRec rbs =>
+      ret (eval_rec_bindings η rbs)
+  | IModule m me =>
+      v ← eval_mexpr η me ;
+      ret (EnvCons m v EnvNil)
+  end.
