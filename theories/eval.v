@@ -173,7 +173,9 @@ Global Arguments update !fvs !fvs' : simpl nomatch.
 (* A painful difficulty is that [env] is a custom type of lists, so the
    standard [sort] function cannot be applied directly to it. We extract a
    list of keys, sort this list, then reconstruct a sorted environment by
-   performing lookups in the original environment. This has quadratic cost. *)
+   performing lookups in the original environment. This has quadratic cost,
+   but all of operations on environments and records have quadratic cost
+   anyway. *)
 
 Require Import Orders Sorting.
 
