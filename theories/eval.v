@@ -185,7 +185,7 @@ Module StringOrder <: TotalLeBool.
   Definition leb_total := String.leb_total.
 End StringOrder.
 
-Module Import StringSort := Sort StringOrder.
+Module StringSort := Sort StringOrder.
 
 Fixpoint domain (η : env) : list string :=
   match η with
@@ -206,7 +206,7 @@ Fixpoint build (η : env) (xs : list string) : free env :=
   end.
 
 Definition sort (η : env) : free env :=
-  build η (sort (domain η)).
+  build η (StringSort.sort (domain η)).
 
 (* ------------------------------------------------------------------------ *)
 
