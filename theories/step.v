@@ -181,7 +181,7 @@ Global Hint Resolve is_answer_ret is_answer_next : is_answer.
 
 Ltac destruct_answer :=
   match goal with h: is_answer ?m |- _ =>
-    destruct m; try solve [ false; tauto ]; clear h
+    destruct m; try solve [ exfalso; tauto ]; clear h
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -456,7 +456,7 @@ Lemma can_step_not_answer {A} σ (m : free A) :
   ¬ is_answer m.
 Proof.
   intros.
-  destruct m; try solve [ false; eauto with invert_can_step | simpl; tauto ].
+  destruct m; try solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
 (* As a special case of [invert_step_bind], if it is known that [m] is not an
@@ -519,7 +519,7 @@ Proof.
   intros.
   destruct m; try solve [
     reflexivity
-  | false;
+  | exfalso;
     eauto using invert_stuck_answer, can_step_not_stuck with step is_answer
   ].
 Qed.

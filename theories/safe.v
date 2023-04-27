@@ -64,8 +64,8 @@ Ltac destruct_initially_safe_S H :=
   let Hcanstep := fresh "Hcanstep" in
   destruct H as [(? & ? & ? & ?) | (Hcanstep & H)];
   try solve [
-    false; subst; destruct_step
-  | false; eauto with invert_can_step
+    exfalso; subst; destruct_step
+  | exfalso; eauto with invert_can_step
   ].
 
 (* -------------------------------------------------------------------------- *)
@@ -156,7 +156,7 @@ Proof.
   simpl.
   intros [ H | H ].
   { destruct H as (v & ? & ? & ?). congruence. }
-  { destruct H as (H & _). false. eauto with invert_can_step. }
+  { destruct H as (H & _). exfalso. eauto with invert_can_step. }
 Qed.
 
 Lemma invert_initially_safe_next {A} {n} {σ} (φ : store → A → Prop) :
@@ -166,7 +166,7 @@ Proof.
   simpl.
   intros [ H | H ].
   { destruct H as (v & ? & ? & ?). congruence. }
-  { destruct H as (H & _). false. eauto with invert_can_step. }
+  { destruct H as (H & _). exfalso. eauto with invert_can_step. }
 Qed.
 
 Lemma invert_initially_safe_step {A} {n} m m' {φ : store → A → Prop} :
@@ -400,7 +400,7 @@ Proof.
     (* Sub-case: [m1] is [ret a]. *)
     { left. eauto using initially_safe_monotonic with lia. }
     (* Sub-case: [m1] is [Next]. *)
-    { false. rewrite bind_next in Hsafe.
+    { exfalso. rewrite bind_next in Hsafe.
       eauto using invert_initially_safe_next. }
   }
   (* Case: [m1] can step. *)
@@ -412,7 +412,7 @@ Proof.
     + eauto using step_bind. }
 
   (* Case: [m1] fails. *)
-  { false. eauto using invert_initially_safe_stuck, stuck_bind. }
+  { exfalso. eauto using invert_initially_safe_stuck, stuck_bind. }
 
 Qed.
 
@@ -438,7 +438,7 @@ Proof.
       destruct_initially_safe_S Hsafe.
       congruence. }
     (* Sub-case: [m] is [Next]. *)
-    { false. specialize (Hsafe inhabitant).
+    { exfalso. specialize (Hsafe inhabitant).
       eauto using invert_initially_safe_next. }
   }
   (* Case: [m] can step. *)
@@ -451,7 +451,7 @@ Proof.
 
   (* Case: [m1] is stuck. *)
   (* The fact that the type [X] is inhabited is exploited. *)
-  { false.
+  { exfalso.
     specialize (Hsafe inhabitant).
     eauto using invert_initially_safe_stuck. }
 
