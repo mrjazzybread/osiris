@@ -1,0 +1,4 @@
+(executable
+ (public_name translator)
+ (name main)
+ (libraries ocaml-compiler-libs.common pprint translator))
