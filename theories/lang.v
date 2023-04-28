@@ -296,11 +296,12 @@ Inductive val :=
   (* A record. *)
   (* A list of field-value pairs is the same thing as an environment,
      so, for the moment at least, we identify these concepts. *)
+  (* The fields in a record are always pairwise distinct (this is checked
+     by OCaml, not by us) and alphabetically sorted. *)
   | VRecord (fvs : env)
   (* A location. *)
   | VLoc (l: loc)
   (* A module. *)
-  (* This is very much like a record. We use two distinct tags for clarity. *)
   | VStruct (fvs : env)
 
 (* Lists of values. *)
