@@ -140,7 +140,7 @@ Definition EFun1Var (x : var) (e : expr) :=
    reserved name in their OCaml source code, we can be assured that [x]
    does not occur free in [bs]. *)
 
-Definition EFun (bs : branches) :=
+Definition EFunction (bs : branches) :=
   let x := "__osiris_anonymous_arg" in
   EFun1Var x $
   EMatch (EVar x) bs.
@@ -152,10 +152,12 @@ Definition EMatchMkBranches (e : expr) (bs : list branch) :=
 
 (* [fun p -> e] is sugar for [fun x -> match x with p -> e]. *)
 
+(* It is the same as [function p -> e]. *)
+
 (* It is a special case of the previous sugar. *)
 
 Definition EFun1Pat (p : pat) (e : expr) :=
-  EFun (MkBranches [Branch p e]).
+  EFunction (MkBranches [Branch p e]).
 
 (* ------------------------------------------------------------------------ *)
 
