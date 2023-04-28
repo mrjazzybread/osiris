@@ -35,7 +35,7 @@ let header (ci: Cmt_format.cmt_infos) =
     | [] -> ()
     | (h, _) :: t ->
        if not (List.mem h [ci.cmt_modname; "CamlinternalFormatBasics"])
-       then Format.fprintf fmt "From libs Require Import %s.@.%a" h aux t
+       then Format.fprintf fmt "(* TODO: get the From _ to work From libs *) Require Import %s.@.%a" h aux t
        else aux fmt t
   in
   Format.asprintf "(* Converting a single CMT file for [%s]. *)@.@.\

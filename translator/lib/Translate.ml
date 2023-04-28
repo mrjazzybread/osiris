@@ -64,11 +64,11 @@ and trans_tl_expr (e: expression) =
   | Texp_function _ -> assert false
 
   | Texp_apply (f, el) ->
-     List.fold_right
-       ( fun a f -> match a with
+     List.fold_left
+       ( fun f a -> match a with
                  | (_, None) -> f
                  | (_, Some e) -> EConstr ("EApp", [f; trans_tl_expr e]))
-       el (trans_tl_expr f)
+       (trans_tl_expr f) el
 
   | Texp_assert e -> EConstr ("EAssert", [trans_tl_expr e])
 
