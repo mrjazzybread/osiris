@@ -155,6 +155,8 @@
 * Extensible algebraic data types
 * Recursive values of a mutable type
 * Exceptions
+  + Exception names must be treated like variables,
+    *not* like data constructors
 * Effect handlers
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
