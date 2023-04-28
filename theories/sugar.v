@@ -26,6 +26,21 @@ Definition MkPath (xs : list name) : path :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Branches. *)
+
+Fixpoint MkBranches (bs : list branch) : branches :=
+  match bs with
+  | [] =>
+      BrNil
+  | b :: bs =>
+      BrCons b (MkBranches bs)
+  end.
+
+Definition Branch1 p e : branches :=
+  BrCons (Branch p e) BrNil.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Pairs: pattern, expression, value. *)
 
 Definition PPair p1 p2 :=
@@ -116,6 +131,11 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 
 Definition EFun (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
+
+(* [match e with bs]. *)
+
+Definition EMatchMkBranches (e : expr) (bs : list branch) :=
+  EMatch e (MkBranches bs).
 
 (* ------------------------------------------------------------------------ *)
 

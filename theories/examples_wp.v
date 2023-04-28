@@ -265,15 +265,12 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
    | x :: xs -> walk xs *)
 
 Definition walk : rec_bindings :=
-  RecBinding1 "walk" "xs" (
-      EMatch (EVar "xs") (
-          BrCons (Branch pNil EUnit) $
-            BrCons (Branch (pCons (PVar "x") (PVar "xs"))
-                      (EApp (EVar "walk") (EVar "xs"))
-            ) $
-            BrNil
-        )
-    ).
+  RecBinding1 "walk" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil EUnit;
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EApp (EVar "walk") (EVar "xs"))
+  ].
 
 Lemma spec_walk s E:
   ∀ (bs : list bool) η,
@@ -324,15 +321,12 @@ Definition walk_example e :=
     | x :: xs -> 1 + length xs *)
 
 Definition length : rec_bindings :=
-  RecBinding1 "length" "xs" (
-      EMatch (EVar "xs") (
-          BrCons (Branch pNil (EInt 0)) $
-            BrCons (Branch (pCons (PVar "x") (PVar "xs"))
-                      (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
-            ) $
-            BrNil
-        )
-    ).
+  RecBinding1 "length" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil (EInt 0);
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
+  ].
 
 Lemma spec_length s E :
   ∀ `{Encode A} (xs : list A) η,
@@ -358,8 +352,8 @@ Qed.
  *)
 Definition ref_store_load: expr :=
   ELet1Var "l" (ERef (EConstant "A")) $
-    ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
-    ELoad (EVar "l").
+  ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
+  ELoad (EVar "l").
 
 Goal forall s E,
   ⊢ WP (eval EnvNil ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.

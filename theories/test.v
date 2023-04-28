@@ -140,30 +140,30 @@ Proof. reduces. Qed.
 
 Lemma test_match_integer :
   let e := EInt 12 in
-  let branch1 := Branch (PInt 0) (EInt 0) in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PInt 0) (EInt 0);
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
+  ] in
   let v := VInt (int.repr 13) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
-  let branch1 := Branch (PAlias (PInt 0) "x") (EVar "x") in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PAlias (PInt 0) "x") (EVar "x");
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
+  ] in
   let v := VInt (int.repr 0) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
-  let branch1 := Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x")) in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x"));
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
+] in
   let v := VInt (int.repr 2) in
   reduces e v.
 Proof. reduces. Qed.
