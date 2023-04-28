@@ -224,34 +224,6 @@ Proof.
 
 Qed.
 
-Fixpoint MkSItems (items : list sitem) : sitems :=
-  match items with
-  | [] =>
-      INil
-  | item :: items =>
-      ICons item (MkSItems items)
-  end.
-
-Definition MkStruct (items : list sitem) : mexpr :=
-  MStruct (MkSItems items).
-
-Fixpoint MkPathRev (xs : list name) : path :=
-  match xs with
-  | [] =>
-      (* Not supposed to happen. *)
-      PathBase "<error in MkPath>"
-  | [x] =>
-      PathBase x
-  | x :: xs =>
-      PathDot (MkPathRev xs) x
-  end.
-
-Definition MkPath (xs : list name) : path :=
-  MkPathRev (rev xs).
-
-Notation EMkPath xs :=
-  (EPath (MkPath xs)).
-
 (*
   let module A = struct
     module B = struct
@@ -275,6 +247,66 @@ Lemma test_struct_access :
       ]
     ) $
     EMkPath ["A"; "z"]
+  in
+  let v := VInt (int.repr 1) in
+  reduces e v.
+Proof. reduces. Qed.
+
+(*
+  let module A = struct
+    module B = struct
+      let x = 0
+      let y = x + 1
+    end
+    open B
+    let z = y
+  end
+  in A.z
+ *)
+
+Lemma test_open :
+  let e :=
+    ELetModule "A" (
+      MkStruct [
+        IModule "B" $ MkStruct [
+          ILet (Binding1 (PVar "x") (EInt 0));
+          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+        ];
+        IOpenMkPath ["B"];
+        ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+      ]
+    ) $
+    EMkPath ["A"; "z"]
+  in
+  let v := VInt (int.repr 1) in
+  reduces e v.
+Proof. reduces. Qed.
+
+(*
+  let module A = struct
+    module B = struct
+      let x = 0
+      let y = x + 1
+    end
+    include B
+    let z = y
+  end
+  in A.x + A.z
+ *)
+
+Lemma test_include :
+  let e :=
+    ELetModule "A" (
+      MkStruct [
+        IModule "B" $ MkStruct [
+          ILet (Binding1 (PVar "x") (EInt 0));
+          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+        ];
+        IIncludeMkPath ["B"];
+        ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+      ]
+    ) $
+    EIntAdd (EMkPath ["A"; "x"]) (EMkPath ["A"; "z"])
   in
   let v := VInt (int.repr 1) in
   reduces e v.

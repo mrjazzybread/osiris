@@ -317,7 +317,7 @@ with env :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Sugar. *)
+(* Sugar for patterns and expressions. *)
 
 (* Variables. *)
 
@@ -444,3 +444,41 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 
 Definition EFun (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
+
+(* ------------------------------------------------------------------------ *)
+
+(* Sugar for module expressions. *)
+
+Fixpoint MkSItems (items : list sitem) : sitems :=
+  match items with
+  | [] =>
+      INil
+  | item :: items =>
+      ICons item (MkSItems items)
+  end.
+
+Definition MkStruct (items : list sitem) : mexpr :=
+  MStruct (MkSItems items).
+
+Fixpoint MkPathRev (xs : list name) : path :=
+  match xs with
+  | [] =>
+      (* Not supposed to happen. *)
+      PathBase "<error in MkPath>"
+  | [x] =>
+      PathBase x
+  | x :: xs =>
+      PathDot (MkPathRev xs) x
+  end.
+
+Definition MkPath (xs : list name) : path :=
+  MkPathRev (rev xs).
+
+Notation EMkPath xs :=
+  (EPath (MkPath xs)).
+
+Notation IOpenMkPath xs :=
+  (IOpen (MkPath xs)).
+
+Notation IIncludeMkPath xs :=
+  (IInclude (MPath (MkPath xs))).
