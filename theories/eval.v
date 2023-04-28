@@ -792,6 +792,9 @@ Fixpoint eval η e : free val :=
       v ← eval_mexpr η me ;
       let δ := EnvCons M v EnvNil in
       concatenating eval η e δ
+  | ELetOpen π e =>
+      δ ← as_struct (lookup_path η π) ;
+      concatenating eval η e δ
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2

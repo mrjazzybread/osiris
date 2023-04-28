@@ -311,3 +311,33 @@ Lemma test_include :
   let v := VInt (int.repr 1) in
   reduces e v.
 Proof. reduces. Qed.
+
+(*
+  let module A = struct
+    module B = struct
+      let x = 0
+      let y = x + 1
+    end
+  end
+  let open A in
+  let open B in
+  y
+ *)
+
+Lemma test_let_open :
+  let e :=
+    ELetModule "A" (
+      MkStruct [
+        IModule "B" $ MkStruct [
+          ILet (Binding1 (PVar "x") (EInt 0));
+          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+        ]
+      ]
+    ) $
+    ELetOpen (MkPath ["A"]) $
+    ELetOpen (MkPath ["B"]) $
+    EVar "y"
+  in
+  let v := VInt (int.repr 1) in
+  reduces e v.
+Proof. reduces. Qed.

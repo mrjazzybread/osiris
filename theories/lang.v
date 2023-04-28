@@ -155,6 +155,9 @@ Inductive expr :=
   (* Local module definition: [let module M = me in e]. *)
   | ELetModule (M : module) (me : mexpr) (e : expr)
 
+  (* Local [open] directive: [let open π in e]. *)
+  | ELetOpen (π : path) (e : expr)
+
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
 
