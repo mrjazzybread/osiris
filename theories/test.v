@@ -171,7 +171,7 @@ Proof. reduces. Qed.
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
-      EFun "x" (EFun "y" (
+      EFun1Var "x" (EFun1Var "y" (
         EPair (EVar "x") (EVar "y")
     ))) $
     EApp (EApp (EVar "pair") ETrue) EFalse

@@ -95,7 +95,7 @@ Qed.
  * identity function. *)
 
 Definition identity :=
-  EFun "x" (EVar "x").
+  EFun1Var "x" (EVar "x").
 
 Lemma spec_identity s E:
   ⊢ □ WP (eval EnvNil identity) @ s; E

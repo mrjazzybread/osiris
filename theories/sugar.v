@@ -129,7 +129,7 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 
 (* [fun x -> e]. *)
 
-Definition EFun (x : var) (e : expr) :=
+Definition EFun1Var (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
 
 (* [match e with bs]. *)
