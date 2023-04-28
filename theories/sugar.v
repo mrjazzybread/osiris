@@ -132,6 +132,8 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 Definition EFun1Var (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
 
+(* [fun p -> e]. *)
+
 (* [match e with bs]. *)
 
 Definition EMatchMkBranches (e : expr) (bs : list branch) :=
