@@ -180,6 +180,36 @@ Lemma test_call :
   reduces e v.
 Proof. reduces. Qed.
 
+Lemma test_EFunction :
+  let e :=
+    ELet1Var "f" (EFunction $ MkBranches [
+      Branch (PInt 0) (EInt 32);
+      Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
+    ]) $
+    EApp (EVar "f") (EInt 1)
+  in
+  let v := VInt (int.repr 34) in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_EFun :
+  let e :=
+    ELet1Var "f" (
+      EFun [
+        PPair (PVar "x1") (PVar "x2");
+        PPair (PVar "y1") (PVar "y2")
+      ] $
+      EIntAdd (EVar "x1") (EVar "y2")
+    ) $
+    EMultiApp (EVar "f") [
+      EPair (EInt 10) (EInt 20);
+      EPair (EInt 30) (EInt 40)
+    ]
+  in
+  let v := VInt (int.repr 50) in
+  reduces e v.
+Proof. reduces. Qed.
+
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
   ∃ e', steps 10 (∅, eval EnvNil e) e'.

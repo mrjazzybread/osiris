@@ -171,6 +171,16 @@ Fixpoint EFun (ps : list pat) (e : expr) :=
       EFun1Pat p (EFun ps e)
   end.
 
+(* [e0 e1 ... en] is sugar for [((e0 e1) ... en)]. *)
+
+Fixpoint EMultiApp (e0 : expr) (es : list expr) :=
+  match es with
+  | [] =>
+      e0
+  | e1 :: es =>
+      EMultiApp (EApp e0 e1) es
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Sugar for module expressions. *)
