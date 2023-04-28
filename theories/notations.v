@@ -1,5 +1,5 @@
 From iris Require Import base_logic.lib.gen_heap.
-Require Import free lang.
+Require Import free lang sugar.
 
 (* ------------------------------------------------------------------------ *)
 
