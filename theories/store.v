@@ -36,7 +36,7 @@ Section Store.
   Qed.
 
 
-  Global Instance val_inhabited: Inhabited val := populate VUnit.
+  Global Instance val_inhabited: Inhabited val := populate (VTuple VNil).
 
 End Store.
 

@@ -4,7 +4,7 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-Require Import base lang free eval step wp wp_tactics encode notations.
+Require Import base lang sugar free eval step wp wp_tactics encode notations.
 
 
 Context `{!osirisGS_gen hlc Σ}.
@@ -74,8 +74,8 @@ Lemma spec_example3 s E:
 Proof.
   iIntros (id) "#Hid".
   wp.
-  (* The two components of the pair are evaluated in parallel, and each of them 
-   * is a function application, which is itself evaluated in parallel. So we 
+  (* The two components of the pair are evaluated in parallel, and each of them
+   * is a function application, which is itself evaluated in parallel. So we
    * have a tree of nested [Par]. *)
   wp_par.
   { iApply "Hid". }
@@ -91,7 +91,7 @@ Qed.
 
 (* The identity function. *)
 
-(* [identity] is an expression which returns a closure whose behavior is the 
+(* [identity] is an expression which returns a closure whose behavior is the
  * identity function. *)
 
 Definition identity :=

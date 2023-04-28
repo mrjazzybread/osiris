@@ -1,4 +1,4 @@
-Require Import store lang base free locations notations.
+Require Import store lang sugar base free locations notations.
 
 (* Conventional metavariables. *)
 

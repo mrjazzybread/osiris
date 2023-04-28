@@ -1,4 +1,4 @@
-Require Import base lang free eval step steps.
+Require Import base lang sugar free eval step steps.
 
 (* We want to test our semantics, so as to ensure that it seems to be
    consistent with our expectations and with the informal definition

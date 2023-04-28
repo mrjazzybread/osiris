@@ -1,4 +1,4 @@
-Require Import base lang.
+Require Import base lang sugar.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
