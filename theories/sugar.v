@@ -132,12 +132,30 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 Definition EFun1Var (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
 
-(* [fun p -> e]. *)
+(* [function bs] is sugar for [fun x -> match x with bs]. *)
+
+(* The variable [x] must not occur free in [bs]. *)
+
+(* We use a reserved name for [x]. Provided end users do not use such a
+   reserved name in their OCaml source code, we can be assured that [x]
+   does not occur free in [bs]. *)
+
+Definition EFun (bs : branches) :=
+  let x := "__osiris_anonymous_arg" in
+  EFun1Var x $
+  EMatch (EVar x) bs.
 
 (* [match e with bs]. *)
 
 Definition EMatchMkBranches (e : expr) (bs : list branch) :=
   EMatch e (MkBranches bs).
+
+(* [fun p -> e] is sugar for [fun x -> match x with p -> e]. *)
+
+(* It is a special case of the previous sugar. *)
+
+Definition EFun1Pat (p : pat) (e : expr) :=
+  EFun (MkBranches [Branch p e]).
 
 (* ------------------------------------------------------------------------ *)
 
