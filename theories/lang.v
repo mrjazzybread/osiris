@@ -152,6 +152,9 @@ Inductive expr :=
   (* Recursive local definition: [let rbs in e]. *)
   | ELetRec (rbs : rec_bindings) (e : expr)
 
+  (* Local module definition: [let module M = me in e]. *)
+  | ELetModule (M : module) (me : mexpr) (e : expr)
+
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
 
@@ -228,13 +231,11 @@ with rec_bindings :=
 with anonfun :=
   | AnonFun (x : var) (e : expr)
 
-.
-
 (* ------------------------------------------------------------------------ *)
 
 (* Module expressions. *)
 
-Inductive mexpr :=
+with mexpr :=
 
   (* A module path. *)
   | MPath (π : path)
@@ -412,23 +413,29 @@ Notation vNil :=
 Notation vCons v1 v2 :=
   (VData "::" (VPair v1 v2)).
 
+(* [p = e]. *)
+
+Definition Binding1 (p : pat) (e : expr) : bindings :=
+  let binding := Binding p e in
+  BiCons binding BiNil.
+
 (* [let p = e1 in e2]. *)
 
 Definition ELet1 (p : pat) (e1 e2 : expr) :=
-  let binding := Binding p e1 in
-  let bindings := BiCons binding BiNil in
-  ELet bindings e2.
+  ELet (Binding1 p e1) e2.
 
 (* [let x = e1 in e2]. *)
 
 Definition ELet1Var (x : var) (e1 e2 : expr) :=
   ELet1 (PVar x) e1 e2.
 
-(* [let rec f x = e1 in e2]. *)
+(* [rec f x = e1]. *)
 
-Definition RecBinding1 (f x : var) (e1 : expr) :=
+Definition RecBinding1 (f x : var) (e1 : expr) : rec_bindings :=
   let rb := RecBinding f (AnonFun x e1) in
   RecBiCons rb RecBiNil.
+
+(* [let rec f x = e1 in e2]. *)
 
 Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
   ELetRec (RecBinding1 f x e1) e2.

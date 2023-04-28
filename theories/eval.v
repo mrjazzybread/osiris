@@ -630,6 +630,30 @@ Definition concatenating eval η e δ : free val :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* The evaluation of a list of structure items involves two environments [η]
+   and [δ]. The environment [η] contains the bindings that are currently in
+   scope: it is used when a name must be looked up. The environment [δ]
+   accumulates the bindings that form the current (incomplete) structure
+   that is being built. *)
+
+Definition envs : Type :=
+  (* η: *) env *
+  (* δ: *) env.
+
+Implicit Type ηδ : envs.
+
+(* [dconcat δ' ηδ] prepends the environment fragment [δ'] in front of both
+   components of the double environment [ηδ]. This reflects the common case
+   where a new binding is both in scope in the following bindings and added
+   to the current structure. *)
+
+Definition dconcat δ' ηδ : envs :=
+  let '(η, δ) := ηδ in
+  (concat δ' η, concat δ' δ).
+
+(* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -764,6 +788,10 @@ Fixpoint eval η e : free val :=
          to a suitable recursive closure; then, evaluate [e]. *)
       let δ := eval_rec_bindings η rbs in
       concatenating eval η e δ
+  | ELetModule M me e =>
+      v ← eval_mexpr η me ;
+      let δ := EnvCons M v EnvNil in
+      concatenating eval η e δ
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
@@ -897,55 +925,14 @@ with eval_match η v bs :=
       (concatenating eval η e)
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
-  end.
+  end
 
 (* ------------------------------------------------------------------------ *)
-
-(* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
-   in the environment [η]. *)
-
-Definition loop η x i1 i2 e : free val :=
-  if int.lt i2 i1 then
-    (* If [i2 < i1] holds, then there is nothing to do. *)
-    ok
-  else
-    (* Otherwise, the loop body [e] must be executed with a binding of [x]
-       to [i1]. The value of [e] is ignored. Then, the loop continues. *)
-    let η' := EnvCons x (VInt i1) η in
-    _v ← eval η' e ;
-    (* Every [for] loop terminates, so we could in principle arrange to
-       use a recursive call to [loop], but using a [stop] effect is much
-       easier. *)
-    stop Loop (η, x, int.add i1 int.one, i2, e)
-.
-
-(* ------------------------------------------------------------------------ *)
-
-(* The evaluation of a list of structure items involves two environments [η]
-   and [δ]. The environment [η] contains the bindings that are currently in
-   scope: it is used when a name must be looked up. The environment [δ]
-   accumulates the bindings that form the current (incomplete) structure
-   that is being built. *)
-
-Definition envs : Type :=
-  (* η: *) env *
-  (* δ: *) env.
-
-Implicit Type ηδ : envs.
-
-(* [dconcat δ' ηδ] prepends the environment fragment [δ'] in front of both
-   components of the double environment [ηδ]. This reflects the common case
-   where a new binding is both in scope in the following bindings and added
-   to the current structure. *)
-
-Definition dconcat δ' ηδ : envs :=
-  let '(η, δ) := ηδ in
-  (concat δ' η, concat δ' δ).
 
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
-Fixpoint eval_mexpr η me : free val :=
+with eval_mexpr η me : free val :=
   match me with
   | MPath π =>
       (* A path is looked up in the environment [η]. *)
@@ -1001,4 +988,26 @@ with eval_sitem (ηδ : envs) item : free envs :=
       (* The bindings contained in the structure denoted by the module
          expression [me] are used to extend both [η] and [δ]. *)
       ret (dconcat δ' ηδ)
-  end.
+  end
+
+.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
+   in the environment [η]. *)
+
+Definition loop η x i1 i2 e : free val :=
+  if int.lt i2 i1 then
+    (* If [i2 < i1] holds, then there is nothing to do. *)
+    ok
+  else
+    (* Otherwise, the loop body [e] must be executed with a binding of [x]
+       to [i1]. The value of [e] is ignored. Then, the loop continues. *)
+    let η' := EnvCons x (VInt i1) η in
+    _v ← eval η' e ;
+    (* Every [for] loop terminates, so we could in principle arrange to
+       use a recursive call to [loop], but using a [stop] effect is much
+       easier. *)
+    stop Loop (η, x, int.add i1 int.one, i2, e)
+.
