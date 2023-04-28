@@ -25,6 +25,7 @@ Implicit Type item : sitem.
 Implicit Type items : sitems.
 
 (* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
 
 (* Codes for effects. *)
 
@@ -65,6 +66,7 @@ Definition choose {A} (m1 m2 : free A) : free A :=
   if (b : bool) then m1 else m2.
 
 (* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
 
 (* Crashes. *)
 
@@ -81,10 +83,13 @@ Definition assertion_failure {A} : free A :=
 Definition match_failure {A} (tt : unit) : free A :=
   fail.
 
-Definition missing_field {A} (f : field) : free A :=
+Definition missing_field {A} (x : var) : free A :=
   fail.
 
-Definition unbound_variable {A} (x : var) : free A :=
+Definition missing_variable {A} (x : var) : free A :=
+  fail.
+
+Definition missing_variable_or_field {A} (x : var) : free A :=
   fail.
 
 Global Opaque
@@ -92,7 +97,8 @@ Global Opaque
   assertion_failure
   match_failure
   missing_field
-  unbound_variable
+  missing_variable
+  missing_variable_or_field
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -105,24 +111,141 @@ Notation ok :=
   (ret VUnit).
 
 (* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
 
-(* [lookup η x] looks up the variable [x] in the environment [env].
-   The result is normally a value. A hard failure occurs if [x] is
-   unbound. *)
+(* [val_as_bool v] checks that the value [v] is a language-level Boolean
+   value and returns its meta-level Boolean value. *)
 
-(* [lookup] is also used to look up fields in records. In that case,
-   the [unbound_variable] error should really be a [missing_field]
-   error. TODO FIX? *)
-
-Fixpoint lookup η x : free val :=
-  match η with
-  | EnvCons x' v η =>
-      if x =? x' then ret v else lookup η x
-  | EnvNil =>
-      unbound_variable x
+Definition val_as_bool (v : val) : free bool :=
+  match v with
+  | VFalse =>
+      ret false
+  | VTrue =>
+      ret true
+  | _ =>
+      crash "type mismatch (Boolean value expected)"
   end.
 
-Global Arguments lookup !η !x : simpl nomatch.
+Definition as_bool (m : free val) : free bool :=
+  bind m val_as_bool.
+
+(* This lemma is likely to be useful when reasoning about unknown Boolean
+   values. *)
+(* TODO move this lemma elsewhere, and integrate it with our automated
+   simplification tactics *)
+
+Lemma val_as_bool_VBool b :
+  val_as_bool (VBool b) = ret b.
+Proof.
+  destruct b; reflexivity.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_loc v] checks that the value [v] is a language-level location
+   value and returns its meta-level value. *)
+
+Definition val_as_loc (v: val) : free loc :=
+  match v with
+  | VLoc l =>
+      ret l
+  | _ =>
+      crash "type mismatch (location value expected)"
+  end.
+
+Definition as_loc (m : free val) : free loc :=
+  bind m val_as_loc.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_int v] checks that the value [v] is a language-level integer
+   value and returns its meta-level value. *)
+
+Definition val_as_int (v : val) : free int :=
+  match v with
+  | VInt i =>
+      ret i
+  | _ =>
+      crash "type mismatch (integer value expected)"
+  end.
+
+Definition as_int (m : free val) : free int :=
+  bind m val_as_int.
+
+(* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
+
+Definition check_div_by_zero i : free unit :=
+  if int.eq i int.zero then
+    crash "division by zero" (* TODO raise an exception *)
+  else
+    ret ().
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_record v] checks that the value [v] is a language-level record
+   value and returns its content, a list of field-value pairs, which can
+   also be viewed as an environment fragment. *)
+
+Definition val_as_record (v : val) : free env :=
+  match v with
+  | VRecord fvs =>
+      ret fvs
+  | _ =>
+      crash "type mismatch (record value expected)"
+  end.
+
+Definition as_record (m : free val) : free env :=
+  bind m val_as_record.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
+   fvs] and returns its content [fvs]. *)
+
+Definition val_as_struct (v : val) : free env :=
+  match v with
+  | VStruct fvs =>
+      ret fvs
+  | _ =>
+      crash "type mismatch (structure expected)"
+  end.
+
+Definition as_struct (m : free val) : free env :=
+  bind m val_as_struct.
+
+(* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
+
+(* [lookup_name η x] looks up the name [x] in the environment [env],
+   producing a value. A hard failure occurs if [x] is unbound. *)
+
+(* This function is used also to look up fields in records and module
+   components in modules. *)
+
+Fixpoint lookup_name η x : free val :=
+  match η with
+  | EnvCons x' v η =>
+      if x =? x' then ret v else lookup_name η x
+  | EnvNil =>
+      missing_variable_or_field x
+  end.
+
+Global Arguments lookup_name !η !x : simpl nomatch.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [lookup_path η π] looks up the path [π] in the environment [η]. *)
+
+Fixpoint lookup_path η π : free val :=
+  match π with
+  | PathBase x =>
+      lookup_name η x
+  | PathDot π x =>
+      (* The content of a structure is an environment, *)
+      fvs ← as_struct (lookup_path η π) ;
+      (* so we can look up [x] in the environment [fvs]. *)
+      lookup_name fvs x
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -209,7 +332,7 @@ Fixpoint build (η : env) (xs : list string) : free env :=
   | [] =>
       ret EnvNil
   | x :: xs =>
-      v ← lookup η x ;
+      v ← lookup_name η x ;
       xs ← build η xs ;
       ret (EnvCons x v xs)
   end.
@@ -217,6 +340,7 @@ Fixpoint build (η : env) (xs : list string) : free env :=
 Definition sort (η : env) : free env :=
   build η (StringSort.sort (domain η)).
 
+(* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
@@ -251,7 +375,7 @@ Fixpoint lookup_rec_bindings rbs g : free anonfun :=
   | RecBiCons (RecBinding g' a) rbs =>
       if g =? g' then ret a else lookup_rec_bindings rbs g
   | RecBiNil =>
-      unbound_variable g
+      missing_variable g
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -355,7 +479,7 @@ with extendfs δ fps fvs : free env :=
   | FPNil =>
       ret δ
   | FPCons f p fps =>
-      v ← lookup fvs f ;
+      v ← lookup_name fvs f ;
       δ ← extend δ p v ;
       δ ← extendfs δ fps fvs ;
       ret δ
@@ -403,108 +527,6 @@ Definition call v1 v2 : free val :=
    | _ =>
       crash "type mismatch (closure expected)"
    end.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_bool v] checks that the value [v] is a language-level Boolean
-   value and returns its meta-level Boolean value. *)
-
-Definition val_as_bool (v : val) : free bool :=
-  match v with
-  | VFalse =>
-      ret false
-  | VTrue =>
-      ret true
-  | _ =>
-      crash "type mismatch (Boolean value expected)"
-  end.
-
-Definition as_bool (m : free val) : free bool :=
-  bind m val_as_bool.
-
-(* This lemma is likely to be useful when reasoning about unknown Boolean
-   values. *)
-(* TODO move this lemma elsewhere, and integrate it with our automated
-   simplification tactics *)
-
-Lemma val_as_bool_VBool b :
-  val_as_bool (VBool b) = ret b.
-Proof.
-  destruct b; reflexivity.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_loc v] checks that the value [v] is a language-level location
-   value and returns its meta-level value. *)
-
-Definition val_as_loc (v: val) : free loc :=
-  match v with
-  | VLoc l =>
-      ret l
-  | _ =>
-      crash "type mismatch (location value expected)"
-  end.
-
-Definition as_loc (m : free val) : free loc :=
-  bind m val_as_loc.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_int v] checks that the value [v] is a language-level integer
-   value and returns its meta-level value. *)
-
-Definition val_as_int (v : val) : free int :=
-  match v with
-  | VInt i =>
-      ret i
-  | _ =>
-      crash "type mismatch (integer value expected)"
-  end.
-
-Definition as_int (m : free val) : free int :=
-  bind m val_as_int.
-
-(* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
-
-Definition check_div_by_zero i : free unit :=
-  if int.eq i int.zero then
-    crash "division by zero" (* TODO raise an exception *)
-  else
-    ret ().
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_record v] checks that the value [v] is a language-level record
-   value and returns its content, a list of field-value pairs, which can
-   also be viewed as an environment fragment. *)
-
-Definition val_as_record (v : val) : free env :=
-  match v with
-  | VRecord fvs =>
-      ret fvs
-  | _ =>
-      crash "type mismatch (record value expected)"
-  end.
-
-Definition as_record (m : free val) : free env :=
-  bind m val_as_record.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
-   fvs] and returns its content [fvs]. *)
-
-Definition val_as_struct (v : val) : free env :=
-  match v with
-  | VStruct fvs =>
-      ret fvs
-  | _ =>
-      crash "type mismatch (structure expected)"
-  end.
-
-Definition as_struct (m : free val) : free env :=
-  bind m val_as_struct.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -634,9 +656,9 @@ Definition concatenating eval η e δ : free val :=
 
 Fixpoint eval η e : free val :=
   match e with
-  | EVar x =>
-      (* A variable [x] is looked up in the environment [η]. *)
-      lookup η x
+  | EPath π =>
+      (* A path [π] is looked up in the environment [η]. *)
+      lookup_path η π
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
       ret (VClo η a)
@@ -666,7 +688,7 @@ Fixpoint eval η e : free val :=
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
-      lookup fvs f
+      lookup_name fvs f
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
@@ -896,21 +918,6 @@ Definition loop η x i1 i2 e : free val :=
        easier. *)
     stop Loop (η, x, int.add i1 int.one, i2, e)
 .
-
-(* ------------------------------------------------------------------------ *)
-
-(* [lookup_path η π] looks up the path [π] in the environment [η]. *)
-
-Fixpoint lookup_path η π : free val :=
-  match π with
-  | PathBase M =>
-      lookup η M
-  | PathDot π M =>
-      (* The content of a structure is an environment, *)
-      fvs ← as_struct (lookup_path η π) ;
-      (* so we can look up [M] in the environment [fvs]. *)
-      lookup fvs M
-  end.
 
 (* ------------------------------------------------------------------------ *)
 

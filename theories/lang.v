@@ -8,12 +8,31 @@ Require Import base locations.
 Definition var :=
   string.
 
-(* ------------------------------------------------------------------------ *)
-
 (* Module names. *)
 
 Definition module :=
   string.
+
+(* We place variables and module names in the same namespace. (This creates
+   no conflicts because OCaml variables begin with a lowercase letter while
+   OCaml module names begin with an uppercase letter.) Thus, variables and
+   module names appear together in environments, structures, etc. *)
+
+Definition name :=
+  string. (* A variable or module name. *)
+
+(* ------------------------------------------------------------------------ *)
+
+(* Module paths. *)
+
+(* A module path is a possibly-empty list of module names [M], followed with
+   a final name, which can be a variable [x] or a module name [M]. *)
+
+Inductive path :=
+  (* An unqualified name. *)
+  | PathBase (n : name)
+  (* A qualified name. *)
+  | PathDot (π : path) (n : name).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -22,12 +41,14 @@ Definition module :=
 Definition data :=
   string.
 
-(* ------------------------------------------------------------------------ *)
-
 (* Record fields. *)
 
 Definition field :=
   string.
+
+(* Data constructors and record fields are not treated like variables and
+   module names. They are never considered "bound" and never looked up in
+   an environment. They are regarded as constants. *)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -76,8 +97,8 @@ with fpats :=
 
 Inductive expr :=
 
-  (* Variable: [x]. *)
-  | EVar (x : var)
+  (* Path: [x] or [π.x]. *)
+  | EPath (x : path)
 
   (* An anonymous function. *)
   | EAnonFun (a : anonfun)
@@ -211,14 +232,6 @@ with anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Module paths. *)
-
-Inductive path :=
-  (* An unqualified name [M]. *)
-  | PathBase (M : module)
-  (* A qualified name [π.M]. *)
-  | PathDot (π : path) (M : module).
-
 (* Module expressions. *)
 
 Inductive mexpr :=
@@ -304,6 +317,11 @@ with env :=
 (* ------------------------------------------------------------------------ *)
 
 (* Sugar. *)
+
+(* Variables. *)
+
+Notation EVar x :=
+  (EPath (PathBase x)).
 
 (* Unit. *)
 
