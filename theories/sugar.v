@@ -159,6 +159,18 @@ Definition EMatchMkBranches (e : expr) (bs : list branch) :=
 Definition EFun1Pat (p : pat) (e : expr) :=
   EFunction (MkBranches [Branch p e]).
 
+(* [fun ps -> e]. *)
+
+(* [fun p1 p2 ... pn -> e] is [fun p1 -> fun p2 -> ... fun pn -> e]. *)
+
+Fixpoint EFun (ps : list pat) (e : expr) :=
+  match ps with
+  | [] =>
+      e
+  | p :: ps =>
+      EFun1Pat p (EFun ps e)
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Sugar for module expressions. *)
