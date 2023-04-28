@@ -17,6 +17,12 @@ Context `{!osirisGS_gen hlc Σ}.
 
 
 
+(* Original file:
+let a = 1
+let b = 2
+let c = a + b
+let truc x y = let t = y in let z = x in t + z
+let _ = 0 *)
 (* Converting a single CMT file for [Test]. *)
 
 (* Auto generated headers. They import the required Coq modules:
