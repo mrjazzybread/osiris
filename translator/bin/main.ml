@@ -2,6 +2,14 @@
    on its arguments. *)
 include Translator.Options
 
+let require_imports =
+  [
+    "base";
+    "lang";
+    "sugar";
+    "encode";
+  ]
+
 
 (* -------------------------------------------------------------------------- *)
 (* Miscellaneous functions. *)
@@ -38,13 +46,19 @@ let header (ci: Cmt_format.cmt_infos) =
        then Format.fprintf fmt "(* TODO: get the From _ to work From libs *) Require Import %s.@.%a" h aux t
        else aux fmt t
   in
+  let rec others fmt = function
+    | [] -> ()
+    | h :: t ->
+        Format.fprintf fmt " %s%a" h others t
+  in
   Format.asprintf "(* Converting a single CMT file for [%s]. *)@.@.\
                    (* Auto generated headers. They import the required Coq modules:@.\
                    \   - either translations of the dependencies of the present file@.\
                    \   - or static dependencies defining the language@.\
                    \   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)@.\
-                   %a"
+                   Require Import%a.@.%a"
                   ci.cmt_modname
+                  others require_imports
                   aux ci.cmt_imports
 
 

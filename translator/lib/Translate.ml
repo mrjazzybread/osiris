@@ -52,7 +52,20 @@ and trans_tl_expr (e: expression) =
          | Tpat_var (i, _) ->
             EConstr ("EFun", [EPlain ("\"" ^ Ident.name i ^ "\"");
                               trans_tl_expr e])
-         | _ -> assert false
+         | Tpat_any ->
+            EConstr ("EFun", [EPlain "\"_\"";
+                              trans_tl_expr e])
+
+         | Tpat_construct _ ->
+            EConstr ("EFun", [EPlain "\"_\"";
+                              trans_tl_expr e])
+
+         | Tpat_alias _ -> assert false
+         | Tpat_constant _ -> assert false
+         | Tpat_tuple _ -> assert false
+         | Tpat_variant _ -> assert false
+         | Tpat_record _ -> assert false
+         | Tpat_array _ | Tpat_lazy _ | Tpat_or _ -> assert false
        in
        (* The EFun and variable would be redundant otherwise
          EConstr
@@ -77,9 +90,20 @@ and trans_tl_expr (e: expression) =
   | Texp_let (_, vbl, e) ->
      EConstr ("ELet", [trans_value_bindings vbl; trans_tl_expr e])
 
+  | Texp_tuple el ->
+     (* A tuple [e1, ..., en] is represented by
+        [ETuple (ECons e1 (.. (ECons en ENil) ..))]. *)
+     let body =
+       List.fold_right
+         (fun elt l ->
+           EConstr ("ECons", [trans_tl_expr elt; l])
+         )
+         el (EPlain "ENil")
+     in
+     EConstr("ETuple", [body])
+
   | Texp_match (_, _, _) -> assert false
   | Texp_try (_, _) -> assert false
-  | Texp_tuple _ -> assert false
   | Texp_construct (_, _, _) -> assert false
   | Texp_variant (_, _) -> assert false
   | Texp_record _ -> assert false

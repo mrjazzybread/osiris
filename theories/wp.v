@@ -83,11 +83,11 @@ Section wp_def.
     λ E m ϕ,
       (∀ σ, state_interp σ -∗
            match is_ret m with
-           | Some v => state_interp σ ∗ ϕ v
+           | Some v => |={E}=> state_interp σ ∗ ϕ v
            | None =>
                ⌜can_step (σ, m)⌝ ∗
                 ∀ (σ': store) (m': free A),
-                  ⌜step (σ, m) (σ', m')⌝ ==∗ 
+                  ⌜step (σ, m) (σ', m')⌝ ={E}=∗ 
                   ▷ (state_interp σ' ∗
                      wp E m' ϕ)
            end)%I.
@@ -163,18 +163,28 @@ Section wp.
 
 
 
-  (* TODO: prove the following after adding invariant support in [wp_pre]
+  (* TODO: prove the following after adding invariant support in [wp_pre] *)
 
-     Lemma wp_value_fupd' s E Φ m v :
+  (*
+   Lemma wp_value_fupd' s E Φ m v :
      WP (Ret v) @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
+  Proof.
+    iSplit.
+    - rewrite wp_unfold/wp_pre.
+      iIntros "Hwp".
+      iSpecialize ("Hwp" $! ∅ with "[]").
+      { iExists ∅.
+    -
+  Qed. *)
+  
 
-     Lemma fupd_wp s E m (Φ: val -> iProp Σ) :
-     (|={E}=> WP m @ s; E {{ Φ }}) ⊢ WP m @ s; E {{ Φ }}.
+ (* Lemma fupd_wp s E m (Φ: val -> iProp Σ) :
+   (|={E}=> WP m @ s; E {{ Φ }}) ⊢ WP m @ s; E {{ Φ }}.
 
-     Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
-     s1 ⊑ s2 → E1 ⊆ E2 →
-     WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
-
+  Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
+    s1 ⊑ s2 → E1 ⊆ E2 →
+    WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
+  
      Lemma wp_fupd s E m Φ :
      WP m @ s; E {{ v, |={E}=> Φ v }} ⊢ WP m @ s; E {{ Φ }}. *)
 
