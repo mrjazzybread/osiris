@@ -29,6 +29,12 @@ Section StdLib.
       AnonFun "x" $
       ELoad (EVar "x").
 
+  Definition Stdlib__store : val :=
+    VClo EnvNil $
+      AnonFun "x" $
+      EFun "i" $
+      EStore (EVar "x") (EVar "i").
+
 
 
   (* Putting everything together. *)
@@ -37,6 +43,7 @@ Section StdLib.
       EnvCons "+" Stdlib__add $
       EnvCons "ref" Stdlib__ref $
       EnvCons "!" Stdlib__load $
+      EnvCons ":=" Stdlib__store $
       EnvNil.
 
 
@@ -79,7 +86,23 @@ Section StdLib.
     iPureIntro. reflexivity.
   Qed.
 
+  Lemma Stdlib__store__spec vl l v v' s E :
+    {{{ ⌜vl = VLoc l⌝ ∗ l ↦ v }}}
+      call Stdlib__store vl @ s; E
+    {{{ vstore, RET vstore;
+        WP call vstore v' @ s; E
+           {{ λ v, ⌜ v = VUnit ⌝ ∗
+                   l ↦ v' }} }}}.
+  Proof.
+    iIntros (ϕ) "[-> Hℓ] Hϕ".
+    wp_call. iApply "Hϕ". clear ϕ.
+    wp_call.
+    wp_store "Hℓ". by iSplit.
+  Qed.
+
+
   Opaque Stdlib__add.
   Opaque Stdlib__ref.
   Opaque Stdlib__load.
+  Opaque Stdlib__store.
 End StdLib.

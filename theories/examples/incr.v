@@ -108,3 +108,90 @@ Definition _test :=
                      BiNil)
                   (EVar "res")))
             BrNil).
+
+
+
+
+
+
+From iris.proofmode Require Import base proofmode classes.
+From iris.base_logic.lib Require Import fancy_updates.
+From iris.bi Require Import weakestpre.
+From iris.prelude Require Import options.
+Import uPred.
+
+From iris Require Import base_logic.lib.gen_heap.
+
+Require Import base lang sugar locations free eval step wp wp_tactics encode notations.
+
+Context `{!osirisGS_gen hlc Σ}.
+
+Definition is_counter ℓ i : iProp Σ :=
+  ∃ v, ⌜ v = VInt (int.repr i) ⌝ ∗ ℓ ↦ v.
+
+Definition get_spec ℓ get : iProp Σ :=
+  ∀ i s E,
+  {{{ is_counter ℓ i }}}
+    call get VUnit @ s; E
+  {{{ v, RET v; ∃ i, ⌜ v = VInt (int.repr i) ⌝ }}}.
+
+Definition upd_spec ℓ upd : iProp Σ :=
+  ∀ s E i i',
+    {{{ is_counter ℓ i }}}
+      call upd (VInt (int.repr i')) @ s; E
+    {{{ RET VUnit; is_counter ℓ i' }}}.
+
+Lemma new_counter__spec s E :
+  let η := EnvCons "Stdlib" Stdlib $
+           EnvNil in
+  ⊢ WP eval η new_counter @ s; E
+       {{ λ v, {{{ ⌜ True ⌝ }}}
+                 call v VUnit
+               {{{ vget vupd,
+                     RET (VTuple (VCons vget (VCons vupd VNil)));
+                   ∃ ℓ,
+                   is_counter ℓ 0 ∗
+                   get_spec ℓ vget ∗
+                   upd_spec ℓ vupd }}} }}.
+Proof.
+  intros. wp.
+  iIntros (ϕ) "!> _ Hϕ".
+  wp_call.
+  iApply wp_covariant; first by iApply Stdlib__ref__spec.
+  iIntros (?) "(%ℓ&Hℓ&->)".
+  wp. iApply "Hϕ". clear ϕ.
+  iExists ℓ.
+  iSplitL; last iSplit.
+
+  { (* Proof of the [is_counter] predicate. *)
+    unfold is_counter. iExists _. by iFrame. }
+
+  { (* Proving the specification of [get]. *)
+    unfold get_spec. iIntros.
+    iIntros(ϕ)"!>Hℓ Hϕ".
+    wp_call. wp.
+    iApply (wp_covariant with "[Hℓ]"); last first.
+    { iIntros (v)"Hv".
+      iApply "Hϕ".
+      iAssumption. }
+    { unfold is_counter.
+      iDestruct "Hℓ" as "(%&->&Hℓ)".
+      iApply (Stdlib__load__spec with "[$Hℓ]"); first done.
+      iNext.
+      iIntros(?) "[-> Hℓ]".
+      by iExists _. } }
+
+  { (* Proof of the specification of [upd]. *)
+    unfold upd_spec. iIntros.
+    iIntros (ϕ) "!>(%&->&Hℓ) Hϕ".
+    wp_call.
+    iApply ((Stdlib__store__spec _ _ (VInt (int.repr i)) (VInt (int.repr i')))
+             with "[Hℓ]").
+    { by iFrame. }
+    iNext.
+    iIntros (?)"Hstore".
+    iApply (wp_covariant with "Hstore").
+    iIntros (?) "[-> Hℓ]".
+    iApply "Hϕ".
+    iExists _. by iFrame. }
+Qed.
