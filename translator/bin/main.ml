@@ -8,6 +8,7 @@ let require_imports =
     "lang";
     "sugar";
     "encode";
+    "notations";
   ]
 
 
