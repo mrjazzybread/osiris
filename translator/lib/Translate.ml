@@ -1,32 +1,86 @@
 open Ast
 open Typedtree
 
+let string_of_longident (i: Longident.t): string =
+  Longident.flatten i
+  |> List.map (fun s -> "\"" ^ s ^ "\"")
+  |> String.concat "."
+
 let rec string_of_path : Path.t -> string = function
   | Pident i -> Ident.name i
   | Pdot (p, s) -> (string_of_path p) ^ "." ^ s
   | _ -> assert false
 
+let rec trans_computation_pat (p: computation general_pattern): expr =
+  (* p.pat_desc => Tpat_value v, with v of type tpat_value_argument.
+     Hence, working with v would be difficult.
+   *)
+  match split_pattern p with
+  | (Some p, None) ->
+     begin
+       match p.pat_desc with
+       | Tpat_any -> EPlain "PAny"
+       | Tpat_var (_, v) -> EConstr ("PVar", [EPlain v.txt])
+
+       | Tpat_construct (i, _, args, _) ->
+          let args =
+            List.fold_left
+              (fun res e ->
+                EConstr ("PCons",
+                         [trans_pat e;
+                          res]))
+              (EPlain "PNil") args
+          in
+          EConstr ("PData",
+                   [EPlain (string_of_longident i.txt);
+                    EConstr ("PTuple",
+                             [args])])
+
+       | Tpat_alias (_, _, _) -> assert false
+       | Tpat_constant _ -> assert false
+       | Tpat_tuple _ -> assert false
+       | Tpat_variant (_, _, _) -> assert false
+       | Tpat_record (_, _) -> assert false
+       | Tpat_array _ -> assert false
+       | Tpat_lazy _ -> assert false
+       | Tpat_or (_, _, _) -> assert false
+     end
+  | _ -> assert false
+
+and trans_pat (p: value general_pattern): expr =
+  match p.pat_desc with
+  | Tpat_any -> EPlain "PAny"
+  | Tpat_var (_, v) -> EConstr ("PVar", [EPlain v.txt])
+
+  | Tpat_tuple pl ->
+     let pl =
+       List.fold_left
+         (fun res p ->
+           EConstr ("PCons",
+                    [trans_pat p;
+                     res]))
+         (EPlain "PNil") pl
+     in
+     EConstr ("PTuple", [pl])
+
+  | Tpat_alias (_, _, _) -> assert false
+  | Tpat_constant _ -> assert false
+  | Tpat_construct (_, _, _, _) -> assert false
+  | Tpat_variant (_, _, _) -> assert false
+  | Tpat_record (_, _) -> assert false
+  | Tpat_array _ -> assert false
+  | Tpat_lazy _ -> assert false
+  | Tpat_or (_, _, _) -> assert false
+
 let rec trans_value_bindings vbs =
   List.fold_right
     (fun vb e ->
-      match (vb.vb_pat).pat_desc with
-      | Tpat_var (_, v) ->
-         EConstr
-           ("BiCons",
-            [EConstr
-               ("Binding",
-                [ EConstr ("PVar", [EPlain v.txt]);
-                  trans_tl_expr vb.vb_expr]); e])
-      | Tpat_any -> assert false
-      | Tpat_alias (_, _, _) -> assert false
-      | Tpat_constant _ -> assert false
-      | Tpat_tuple _ -> assert false
-      | Tpat_construct (_, _, _, _) -> assert false
-      | Tpat_variant (_, _, _) -> assert false
-      | Tpat_record (_, _) -> assert false
-      | Tpat_array _ -> assert false
-      | Tpat_lazy _ -> assert false
-      | Tpat_or (_, _, _) -> assert false)
+      EConstr
+        ("BiCons",
+         [EConstr
+            ("Binding",
+             [ trans_pat vb.vb_pat;
+               trans_tl_expr vb.vb_expr]); e]))
     vbs (EPlain "BiNil")
 
 and trans_tl_expr (e: expression) =
@@ -52,7 +106,25 @@ and trans_tl_expr (e: expression) =
          | Tpat_var (i, _) ->
             EConstr ("EFun", [EPlain ("\"" ^ Ident.name i ^ "\"");
                               trans_tl_expr e])
-         | _ -> assert false
+         | Tpat_any ->
+            EConstr ("EFun", [EPlain "\"_\"";
+                              trans_tl_expr e])
+
+         | Tpat_construct (i, desc, _, _) ->
+            (* This construction should only be used for [()].
+               Here, [()] is translated [EPlain "()"], not
+               [EConstr ("EData", [EPlain "()"])]. *)
+            if desc.cstr_arity = 0
+            then EConstr ("EFun", [EPlain (string_of_longident i.txt);
+                                   trans_tl_expr e])
+            else assert false
+
+         | Tpat_alias _ -> assert false
+         | Tpat_constant _ -> assert false
+         | Tpat_tuple _ -> assert false
+         | Tpat_variant _ -> assert false
+         | Tpat_record _ -> assert false
+         | Tpat_array _ | Tpat_lazy _ | Tpat_or _ -> assert false
        in
        (* The EFun and variable would be redundant otherwise
          EConstr
@@ -77,10 +149,48 @@ and trans_tl_expr (e: expression) =
   | Texp_let (_, vbl, e) ->
      EConstr ("ELet", [trans_value_bindings vbl; trans_tl_expr e])
 
-  | Texp_match (_, _, _) -> assert false
+  | Texp_tuple el ->
+     (* A tuple [e1, ..., en] is represented by
+        [ETuple (ECons e1 (.. (ECons en ENil) ..))]. *)
+     let body =
+       List.fold_right
+         (fun elt l ->
+           EConstr ("ECons", [trans_tl_expr elt; l])
+         )
+         el (EPlain "ENil")
+     in
+     EConstr("ETuple", [body])
+
+  | Texp_match (e, cl, _) ->
+     (* [e]  : expression
+        [cl] : computation case list *)
+     let cases =
+       List.fold_left
+         (fun (cases: expr) (case: computation case) ->
+           match case with
+           | { c_lhs=pat; c_guard=None; c_rhs=e } ->
+              EConstr ("BrCons",
+                       [EConstr ("Branch",
+                                 [trans_computation_pat pat; trans_tl_expr e])
+                       ; cases])
+           | _ -> assert false)
+         (EPlain "BrNil") cl in
+     EConstr ("EMatch", [trans_tl_expr e; cases])
+
+  | Texp_construct (c, _, el) ->
+     let args =
+       List.fold_left
+         (fun res e ->
+           EConstr ("ECons",
+                    [trans_tl_expr e;
+                     res]))
+         (EPlain "ENil") el
+     in
+     EConstr ("EData",
+              [EPlain (string_of_longident c.txt);
+               EConstr ("ETuple", [args])])
+
   | Texp_try (_, _) -> assert false
-  | Texp_tuple _ -> assert false
-  | Texp_construct (_, _, _) -> assert false
   | Texp_variant (_, _) -> assert false
   | Texp_record _ -> assert false
   | Texp_field (_, _, _) -> assert false

@@ -15,3 +15,7 @@ Makefile.coq
 .coq-native/
 .Makefile.coq.d
 .nia.cache
+*.cmi
+*.cmo
+*.cmt
+*.out
