@@ -81,6 +81,29 @@ Definition pleasedontclash (*This is not a name. *) :=
           BrNil).
 
 Definition _test :=
+  (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
+  (* The current translator assumes that the user will provide the correct
+     environment to work with previously-defined symbols. Nonetheless, as
+     translations are in fact expressions and not values (at least for now), it
+     would be tedious to do so. An alternative is to use the trick described in
+     [traduction/lib/Pp.ml]: translate a single file as a huge let:
+     let a, b, c, ... =
+         let a_at_top-level := ... in
+         let _ = ... in
+         let b_at_top-level := ... in
+         let c_at_top-level := ... in
+         (a_at_top-level, ...).
+     Note: this would also solve the issue of taking into account the
+     [let _ = ...] and [let () = ...] that appear at top-level.
+
+     For now, I add this let by hand, but the above trick will be directly
+     applied by the translator in the futur. *)
+  ELet
+    (BiCons
+       (Binding (PVar "new_counter")
+                new_counter)
+       BiNil) $
+  (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
   ELet
     (BiCons
        (Binding (PTuple (PCons (PVar "upd")
@@ -195,3 +218,23 @@ Proof.
     iApply "Hϕ".
     iExists _. by iFrame. }
 Qed.
+
+
+(* The following example shows the necessity of a better way to interact with
+   the definitions of [Stdlib]. *)
+Lemma _test__spec s E:
+  let η :=
+    EnvCons "Stdlib" Stdlib $
+    EnvNil in
+  {{{ ⌜ True ⌝ }}}
+    eval η _test @ s; E
+                        {{{ v, RET v; ⌜ True ⌝ }}}.
+Proof.
+  iIntros (η ϕ)"_ Hϕ".
+  wp.
+  wp_call.
+  iApply wp_covariant; first by iApply Stdlib__ref__spec.
+  iIntros(v)"(%ℓ & Hℓ & ->)".
+  wp.
+  wp_call.
+Abort.
