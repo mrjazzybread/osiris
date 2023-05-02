@@ -1,6 +1,13 @@
 open Ast
 open PPrint
 
+
+let newline_construct_k (c: string) =
+  if c = "ELet" then (true, true)
+  else if c = "EFun" then (true, false)
+  else (false, false)
+
+
 let string_of_var c (v: string) : string =
   if String.contains v '.' && c = "EVar"
   then
@@ -13,22 +20,48 @@ let string_of_var c (v: string) : string =
     end
   else c ^ " \"" ^ v ^ "\""
 
-let rec document_of_expr = function
+(* [document_of_expr b] translates an expression into a document.
+   The boolean [b] indicates whether parentehsis are needed around the
+   expression. *)
+let rec document_of_expr (b: bool) e =
+  let maybeparens =
+    match b with
+    | true -> parens
+    | false -> fun i -> i
+  in
+  match e with
   | EPlain s -> string s
   | EConstr (c, l) ->
      match l with
      | [ EPlain v ] ->
         if c = "EVar" || c = "PVar"
-        then parens (string (string_of_var c v))
-        else parens (flow space (string c :: List.map document_of_expr l))
+        then maybeparens (string (string_of_var c v))
+        else maybeparens (flow space (string c :: List.map (document_of_expr true) l))
      | _ ->
-        parens (flow space (string c :: List.map document_of_expr l))
+        match newline_construct_k c with
+        | true, b ->
+           begin
+             let hl = if b then hardline else space in
+             match l with
+             | [e1; e2] ->
+                let d1 = document_of_expr true e1 in
+                let d2 = document_of_expr false e2 in
+                [string c; hl;
+                 nest 2 (align d1);
+                 space; dollar; hardline;
+                 nest 2 (align d2)]
+                |> concat |> maybeparens
+             | _ -> assert false
+           end
+        | false, _ ->
+           maybeparens (flow space (string c ::
+                                      List.map (document_of_expr true) l))
 
 let definition = function
   | (None, h) ->
-     (* TODO: The representation of [let _ = e] and [let () = e] should change so
-        that these expressions are taken into account by the definitions following
-        them !
+     (* TODO: The representation of [let _ = e] and [let () = e] should change
+        so that these expressions are taken into account by the definitions
+        following them !
         Eg. It is not possible to reason about the following code
             let a = ref 0
             let () = a := 1
@@ -51,14 +84,15 @@ let definition = function
             string "Definition";
             string "pleasedontclash (*This is not a name. *)";
             string ":="; hardline;
-            (align (group (concat [document_of_expr h; dot])))
+            (align (group (concat [document_of_expr false h; dot])));
+            repeat 2 hardline;
           ]))
   | (Some n, h) ->
      (nest 2 (concat [
          string "Definition"; space;
          string n; space;
-         string ":= ";
-         (align (group (concat [document_of_expr h; char '.';])))
+         string ":= "; hardline;
+         (align (group (concat [document_of_expr false h; char '.';])))
        ]))
 
 let rec document_of_ast = function
