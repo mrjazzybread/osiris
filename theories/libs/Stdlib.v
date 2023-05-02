@@ -101,6 +101,54 @@ Section StdLib.
   Qed.
 
 
+  (* Lemmas to better handle fully-applied functions of the standart library. *)
+  Lemma Stdlib__load__spec_tac vl ℓ v s E ϕ :
+    ⊢ ⌜ vl = VLoc ℓ ⌝ -∗
+    ℓ ↦ v -∗
+    ϕ v -∗ (* TODO: add a later to this premice (will require to change
+              [wp_covariant]. *)
+    WP call Stdlib__load vl @ s; E {{ λ v, ϕ v }}.
+  Proof.
+    iIntros "-> Hℓ Hv".
+    iApply (wp_covariant with "[Hℓ]").
+    { iApply (Stdlib__load__spec with "[$Hℓ]"); first done.
+      iNext. iIntros. iAssumption. }
+    iIntros (?) "[-> Hℓ]".
+    iFrame.
+  Qed.
+
+  (* TODO: same as above: get a later in the premice. *)
+  Lemma Stdlib__ref__spec_tac {A} v s E ϕ (k: free A) :
+    ⊢ (∀ ℓ vl, ⌜vl = VLoc ℓ⌝ -∗ ℓ ↦ v -∗ WP k @ s; E {{ ϕ }}) -∗
+    WP call Stdlib__ref v {{ λ (vl: val), WP k @s; E {{ ϕ }} }}.
+  Proof.
+    iIntros "H".
+    iApply wp_covariant.
+    { iApply Stdlib__ref__spec. }
+    iIntros (vl)"(%ℓ & Hℓ & ->)".
+    by iApply "H".
+  Qed.
+
+  Lemma Stdlib__store__spec_tac ℓ v v' ϕ s E :
+    ℓ ↦ v -∗
+    ▷ (ℓ ↦ v' -∗ ϕ VUnit) -∗
+    WP call Stdlib__store (VLoc ℓ) @ s; E
+         {{ vpartial, WP call vpartial v' @ s; E {{ v, ϕ v }} }}.
+  Proof.
+    iIntros "Hℓ Hccl".
+    iApply (Stdlib__store__spec with "[$Hℓ //]").
+    iNext.
+    iIntros (vstore) "Hstore".
+    iApply (wp_covariant with "Hstore").
+    iIntros(?)"[-> Hℓ]".
+    iApply ("Hccl" with "Hℓ").
+  Qed.
+
+
+
+
+
+
   Opaque Stdlib__add.
   Opaque Stdlib__ref.
   Opaque Stdlib__load.

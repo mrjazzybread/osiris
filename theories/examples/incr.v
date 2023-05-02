@@ -93,8 +93,10 @@ Definition _test :=
          let b_at_top-level := ... in
          let c_at_top-level := ... in
          (a_at_top-level, ...).
-     Note: this would also solve the issue of taking into account the
-     [let _ = ...] and [let () = ...] that appear at top-level.
+     Notes:
+       - this would also solve the issue of taking into account the
+         [let _ = ...] and [let () = ...] that appear at top-level.
+       - use structures instead of an enclosing let.
 
      For now, I add this let by hand, but the above trick will be directly
      applied by the translator in the futur. *)
@@ -191,37 +193,31 @@ Proof.
 
   { (* Proving the specification of [get]. *)
     unfold get_spec. iIntros.
-    iIntros(ϕ)"!>Hℓ Hϕ".
+    iIntros(ϕ)"!>(%&->&Hℓ) Hϕ".
     wp_call. wp.
-    iApply (wp_covariant with "[Hℓ]"); last first.
-    { iIntros (v)"Hv".
-      iApply "Hϕ".
-      iAssumption. }
-    { unfold is_counter.
-      iDestruct "Hℓ" as "(%&->&Hℓ)".
-      iApply (Stdlib__load__spec with "[$Hℓ]"); first done.
-      iNext.
-      iIntros(?) "[-> Hℓ]".
-      by iExists _. } }
+
+    (* TODO: understand why the postcondition has to be specified. *)
+    iApply ((Stdlib__load__spec_tac _ _ _ _ _ ϕ)
+             with "[//]Hℓ").
+    iApply "Hϕ".
+    iExists _. done. }
 
   { (* Proof of the specification of [upd]. *)
     unfold upd_spec. iIntros.
     iIntros (ϕ) "!>(%&->&Hℓ) Hϕ".
     wp_call.
-    iApply ((Stdlib__store__spec _ _ (VInt (int.repr i)) (VInt (int.repr i')))
-             with "[Hℓ]").
-    { by iFrame. }
+    iApply (Stdlib__store__spec_tac with "Hℓ[Hϕ]").
     iNext.
-    iIntros (?)"Hstore".
-    iApply (wp_covariant with "Hstore").
-    iIntros (?) "[-> Hℓ]".
+    iIntros "Hℓ".
     iApply "Hϕ".
     iExists _. by iFrame. }
 Qed.
 
 
+Opaque new_counter.
 (* The following example shows the necessity of a better way to interact with
-   the definitions of [Stdlib]. *)
+   the definitions of [Stdlib], as well as better ways to use former
+    specifications. *)
 Lemma _test__spec s E:
   let η :=
     EnvCons "Stdlib" Stdlib $
@@ -232,9 +228,4 @@ Lemma _test__spec s E:
 Proof.
   iIntros (η ϕ)"_ Hϕ".
   wp.
-  wp_call.
-  iApply wp_covariant; first by iApply Stdlib__ref__spec.
-  iIntros(v)"(%ℓ & Hℓ & ->)".
-  wp.
-  wp_call.
 Abort.
