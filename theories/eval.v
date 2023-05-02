@@ -1,4 +1,4 @@
-Require Import store lang sugar base free locations notations.
+Require Import store lang base free locations notations.
 
 (* Conventional metavariables. *)
 
@@ -912,7 +912,7 @@ with eval_bindings η (bs : bindings) : free env :=
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
-with eval_match η v bs :=
+with eval_match η v bs : free val :=
   match bs with
   | BrNil =>
       (* A nonexhaustive [match] construct causes a hard failure. *)

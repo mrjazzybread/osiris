@@ -15,12 +15,12 @@ Section StdLib.
   Definition Stdlib__add : val :=
     VClo EnvNil $
       AnonFun "x" $
-      EFun "y" $
+      EAnonFun $ AnonFun "y" $
       EIntAdd (EVar "x") (EVar "y").
   Definition Stdlib__sub : val :=
     VClo EnvNil $
       AnonFun "x" $
-      EFun "y" $
+      EAnonFun $ AnonFun "y" $
       EIntSub (EVar "x") (EVar "y").
 
 
@@ -38,7 +38,7 @@ Section StdLib.
   Definition Stdlib__store : val :=
     VClo EnvNil $
       AnonFun "x" $
-      EFun "i" $
+      EAnonFun $ AnonFun "i" $
       EStore (EVar "x") (EVar "i").
 
 

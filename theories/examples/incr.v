@@ -22,22 +22,21 @@ Require Import base lang sugar encode notations.
 
 (* Generated code: *)
 Definition new_counter :=
-  EFun "()" $
-  ELet
+  EAnonFun $ AnonFun "()" (ELet
     (BiCons
       (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
     BiNil) $
   ELet
     (BiCons
-      (Binding (PVar "upd") (EFun "i" $
-      EApp (EApp (EMkPath ["Stdlib";":="]) (EVar "c")) (EVar "i"))) $
+      (Binding (PVar "upd") (EAnonFun $ AnonFun "i" (EApp (EApp (EMkPath
+["Stdlib";":="]) (EVar "c")) (EVar "i")))) $
     BiNil) $
   ELet
     (BiCons
-      (Binding (PVar "get") (EFun "()" $
-      EApp (EMkPath ["Stdlib";"!"]) (EVar "c"))) $
+      (Binding (PVar "get") (EAnonFun $ AnonFun "()" (EApp (EMkPath
+["Stdlib";"!"]) (EVar "c")))) $
     BiNil) $
-  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)).
+  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil))).
 
 
 Definition pleasedontclash (*This is not a name. *) :=

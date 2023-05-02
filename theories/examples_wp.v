@@ -10,98 +10,10 @@ Require Import base lang sugar free eval step wp wp_tactics encode notations.
 Context `{!osirisGS_gen hlc Σ}.
 
 
-(* ---------------------------------------------------------------------------*)
-(* Generated Examples (from a single file).
-   Only the formatting has been altered since generation, the definitions
-   themselves have not. *)
-
-
-
-(* Original file:
-let a = 1
-let b = 2
-let c = a + b
-let truc x y = let t = y in let z = x in t + z
-let _ = 0 *)
-(* Converting a single CMT file for [Test]. *)
-
-(* Auto generated headers. They import the required Coq modules:
-   - either translations of the dependencies of the present file
-   - or static dependencies defining the language
-   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
-(* TODO: get the From _ to work From libs *) Require Import Stdlib.
-
-
-(* Generated code: *)
-Definition a := (EInt 1).
-Definition b := (EInt 2).
-Definition c :=
-  (EApp (EApp (EMkPath ["Stdlib";"+"]) (EVar "a")) (EVar "b")).
-Definition truc :=
-  (EFun "x" (EFun "y"
-    (ELet (BiCons (Binding (PVar "t") (EVar "y")) BiNil)
-    (ELet (BiCons (Binding (PVar "z") (EVar "x")) BiNil)             
-    (EApp (EApp (EMkPath ["Stdlib";"+"]) (EVar "t")) (EVar "z")))))).
-Definition pleasedontclash (*This is not a name. *) :=
-   (EInt 0).
-
-
-
-(* Specification of the generated code.
-   (This part has not been generated.) *)
-Lemma a__spec s E:
-  ⊢ WP (eval EnvNil a) @s; E {{ λ v, ⌜v = VInt (int.repr 1)⌝ }}.
-Proof. by wp. Qed.
-
-Lemma b__spec s E:
-  ⊢ WP (eval EnvNil b) @s; E {{ λ v, ⌜v = VInt (int.repr 2)⌝ }}.
-Proof. by wp. Qed.
-
-Lemma c__spec s E:
-  let v1 := (VInt (int.repr 1)) in
-  let v2 := (VInt (int.repr 2)) in
-  let η :=
-    EnvCons "a" v1 $
-    EnvCons "b" v2 $
-    EnvCons "Stdlib" Stdlib $
-    EnvNil
-    in
-  ⊢ WP (eval η c) @s; E {{ λ v, ⌜v = VInt (int.repr 3)⌝ }}.
-Proof.
-  intros. wp.
-  wp_use Stdlib__add__spec; try done.
-  iIntros (v) "Hv". subst v1.
-  wp_use "Hv".
-Qed.
-
-(* [truc__spec] proves that [truc] indeed defines the addition. *)
-Lemma truc__spec s E:
-  let η :=
-    EnvCons "Stdlib" Stdlib $
-    EnvNil
-    in
-  ⊢ WP (eval η truc) @s; E
-       {{ λ add,
-            ∀ v1 i1,
-            ⌜v1 = VInt (int.repr i1)⌝ →
-            WP call add v1
-               {{ λ add1,
-                    ∀ v2 i2,
-                    ⌜v2 = VInt (int.repr i2)⌝ →
-                    WP call add1 v2
-                      {{ λ v, ⌜ v = VInt (int.repr (i1 + i2)) ⌝ }} }} }}.
-Proof.
-  iIntros. wp.
-  iIntros. wp_call.
-  iIntros. wp_call.
-  replace (i1 + i2)%Z with (i2 + i1)%Z; last lia.
-  by wp_use Stdlib__add__spec.
-Qed.
-
 
 
 (* ---------------------------------------------------------------------------*)
-(* Hand-Written Examples. *)
+(* Examples. *)
 
 
 (* let x = A() in y *)
@@ -183,7 +95,7 @@ Qed.
  * identity function. *)
 
 Definition identity :=
-  EFun "x" (EVar "x").
+  EFun1Var "x" (EVar "x").
 
 Lemma spec_identity s E:
   ⊢ □ WP (eval EnvNil identity) @ s; E
@@ -353,15 +265,12 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
    | x :: xs -> walk xs *)
 
 Definition walk : rec_bindings :=
-  RecBinding1 "walk" "xs" (
-      EMatch (EVar "xs") (
-          BrCons (Branch pNil EUnit) $
-            BrCons (Branch (pCons (PVar "x") (PVar "xs"))
-                      (EApp (EVar "walk") (EVar "xs"))
-            ) $
-            BrNil
-        )
-    ).
+  RecBinding1 "walk" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil EUnit;
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EApp (EVar "walk") (EVar "xs"))
+  ].
 
 Lemma spec_walk s E:
   ∀ (bs : list bool) η,
@@ -412,15 +321,12 @@ Definition walk_example e :=
     | x :: xs -> 1 + length xs *)
 
 Definition length : rec_bindings :=
-  RecBinding1 "length" "xs" (
-      EMatch (EVar "xs") (
-          BrCons (Branch pNil (EInt 0)) $
-            BrCons (Branch (pCons (PVar "x") (PVar "xs"))
-                      (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
-            ) $
-            BrNil
-        )
-    ).
+  RecBinding1 "length" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil (EInt 0);
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
+  ].
 
 Lemma spec_length s E :
   ∀ `{Encode A} (xs : list A) η,
@@ -446,8 +352,8 @@ Qed.
  *)
 Definition ref_store_load: expr :=
   ELet1Var "l" (ERef (EConstant "A")) $
-    ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
-    ELoad (EVar "l").
+  ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
+  ELoad (EVar "l").
 
 Goal forall s E,
   ⊢ WP (eval EnvNil ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.

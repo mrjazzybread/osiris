@@ -110,10 +110,10 @@ and trans_tl_expr (e: expression) =
      let body: expr =
          match p.pat_desc with
          | Tpat_var (i, _) ->
-            EConstr ("EFun", [EPlain ("\"" ^ Ident.name i ^ "\"");
+            EConstr ("EAnonFun $ AnonFun", [EPlain ("\"" ^ Ident.name i ^ "\"");
                               trans_tl_expr e])
          | Tpat_any ->
-            EConstr ("EFun", [EPlain "\"_\"";
+            EConstr ("EAnonFun $ AnonFun", [EPlain "\"_\"";
                               trans_tl_expr e])
 
          | Tpat_construct (i, desc, _, _) ->
@@ -121,7 +121,7 @@ and trans_tl_expr (e: expression) =
                Here, [()] is translated [EPlain "()"], not
                [EConstr ("EData", [EPlain "()"])]. *)
             if desc.cstr_arity = 0
-            then EConstr ("EFun", [EPlain (string_of_longident i.txt);
+            then EConstr ("EAnonFun $ AnonFun", [EPlain (string_of_longident i.txt);
                                    trans_tl_expr e])
             else assert false
 

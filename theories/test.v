@@ -140,30 +140,30 @@ Proof. reduces. Qed.
 
 Lemma test_match_integer :
   let e := EInt 12 in
-  let branch1 := Branch (PInt 0) (EInt 0) in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PInt 0) (EInt 0);
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
+  ] in
   let v := VInt (int.repr 13) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
-  let branch1 := Branch (PAlias (PInt 0) "x") (EVar "x") in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PAlias (PInt 0) "x") (EVar "x");
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
+  ] in
   let v := VInt (int.repr 0) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
-  let branch1 := Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x")) in
-  let branch2 := Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33)) in
-  let branches := BrCons branch1 (BrCons branch2 BrNil) in
-  let e := EMatch e branches in
+  let e := EMatchMkBranches e [
+    Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x"));
+    Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
+] in
   let v := VInt (int.repr 2) in
   reduces e v.
 Proof. reduces. Qed.
@@ -171,12 +171,42 @@ Proof. reduces. Qed.
 Lemma test_call :
   let e :=
     ELet1Var "pair" (
-      EFun "x" (EFun "y" (
+      EFun1Var "x" (EFun1Var "y" (
         EPair (EVar "x") (EVar "y")
     ))) $
     EApp (EApp (EVar "pair") ETrue) EFalse
   in
   let v := VPair VTrue VFalse in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_EFunction :
+  let e :=
+    ELet1Var "f" (EFunction $ MkBranches [
+      Branch (PInt 0) (EInt 32);
+      Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
+    ]) $
+    EApp (EVar "f") (EInt 1)
+  in
+  let v := VInt (int.repr 34) in
+  reduces e v.
+Proof. reduces. Qed.
+
+Lemma test_EFun :
+  let e :=
+    ELet1Var "f" (
+      EFun [
+        PPair (PVar "x1") (PVar "x2");
+        PPair (PVar "y1") (PVar "y2")
+      ] $
+      EIntAdd (EVar "x1") (EVar "y2")
+    ) $
+    EMultiApp (EVar "f") [
+      EPair (EInt 10) (EInt 20);
+      EPair (EInt 30) (EInt 40)
+    ]
+  in
+  let v := VInt (int.repr 50) in
   reduces e v.
 Proof. reduces. Qed.
 

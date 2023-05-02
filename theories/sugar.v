@@ -26,6 +26,21 @@ Definition MkPath (xs : list name) : path :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Branches. *)
+
+Fixpoint MkBranches (bs : list branch) : branches :=
+  match bs with
+  | [] =>
+      BrNil
+  | b :: bs =>
+      BrCons b (MkBranches bs)
+  end.
+
+Definition Branch1 p e : branches :=
+  BrCons (Branch p e) BrNil.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Pairs: pattern, expression, value. *)
 
 Definition PPair p1 p2 :=
@@ -114,8 +129,57 @@ Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
 
 (* [fun x -> e]. *)
 
-Definition EFun (x : var) (e : expr) :=
+Definition EFun1Var (x : var) (e : expr) :=
   EAnonFun (AnonFun x e).
+
+(* [function bs] is sugar for [fun x -> match x with bs]. *)
+
+(* The variable [x] must not occur free in [bs]. *)
+
+(* We use a reserved name for [x]. Provided end users do not use such a
+   reserved name in their OCaml source code, we can be assured that [x]
+   does not occur free in [bs]. *)
+
+Definition EFunction (bs : branches) :=
+  let x := "__osiris_anonymous_arg" in
+  EFun1Var x $
+  EMatch (EVar x) bs.
+
+(* [match e with bs]. *)
+
+Definition EMatchMkBranches (e : expr) (bs : list branch) :=
+  EMatch e (MkBranches bs).
+
+(* [fun p -> e] is sugar for [fun x -> match x with p -> e]. *)
+
+(* It is the same as [function p -> e]. *)
+
+(* It is a special case of the previous sugar. *)
+
+Definition EFun1Pat (p : pat) (e : expr) :=
+  EFunction (MkBranches [Branch p e]).
+
+(* [fun ps -> e]. *)
+
+(* [fun p1 p2 ... pn -> e] is [fun p1 -> fun p2 -> ... fun pn -> e]. *)
+
+Fixpoint EFun (ps : list pat) (e : expr) :=
+  match ps with
+  | [] =>
+      e
+  | p :: ps =>
+      EFun1Pat p (EFun ps e)
+  end.
+
+(* [e0 e1 ... en] is sugar for [((e0 e1) ... en)]. *)
+
+Fixpoint EMultiApp (e0 : expr) (es : list expr) :=
+  match es with
+  | [] =>
+      e0
+  | e1 :: es =>
+      EMultiApp (EApp e0 e1) es
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
