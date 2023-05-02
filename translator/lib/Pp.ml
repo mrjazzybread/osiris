@@ -5,7 +5,7 @@ open PPrint
 let newline_construct_k (c: string) =
   let l1 = ["ELet"; "BiCons"] in
   if List.mem c l1 then (true, true)
-  else if c = "EFun" then (true, false)
+  else if c = "EFun1Var" then (true, false)
   else (false, false)
 
 
