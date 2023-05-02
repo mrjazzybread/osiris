@@ -3,7 +3,8 @@ open PPrint
 
 
 let newline_construct_k (c: string) =
-  if c = "ELet" then (true, true)
+  let l1 = ["ELet"; "BiCons"] in
+  if List.mem c l1 then (true, true)
   else if c = "EFun" then (true, false)
   else (false, false)
 
@@ -46,10 +47,10 @@ let rec document_of_expr (b: bool) e =
              | [e1; e2] ->
                 let d1 = document_of_expr true e1 in
                 let d2 = document_of_expr false e2 in
-                [string c; hl;
-                 nest 2 (align d1);
+                [string c;
+                 nest 2 (hl ^^ d1);
                  space; dollar; hardline;
-                 nest 2 (align d2)]
+                 d2]
                 |> concat |> maybeparens
              | _ -> assert false
            end
@@ -84,15 +85,16 @@ let definition = function
             string "Definition";
             string "pleasedontclash (*This is not a name. *)";
             string ":="; hardline;
-            (align (group (concat [document_of_expr false h; dot])));
+            (align (document_of_expr false h ^^ dot));
             repeat 2 hardline;
           ]))
   | (Some n, h) ->
      (nest 2 (concat [
          string "Definition"; space;
          string n; space;
-         string ":= "; hardline;
-         (align (group (concat [document_of_expr false h; char '.';])))
+         string ":="; hardline;
+         (align (document_of_expr false h ^^ char '.'));
+         repeat 2 hardline;
        ]))
 
 let rec document_of_ast = function

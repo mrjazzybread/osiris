@@ -23,18 +23,24 @@ let rec trans_computation_pat (p: computation general_pattern): expr =
        | Tpat_var (_, v) -> EConstr ("PVar", [EPlain v.txt])
 
        | Tpat_construct (i, _, args, _) ->
-          let args =
-            List.fold_left
-              (fun res e ->
-                EConstr ("PCons",
-                         [trans_pat e;
-                          res]))
-              (EPlain "PNil") args
-          in
-          EConstr ("PData",
-                   [EPlain (string_of_longident i.txt);
-                    EConstr ("PTuple",
-                             [args])])
+          let name = string_of_longident i.txt in
+          if name = "\"()\"" && args = []
+          then EPlain "PUnit"
+          else
+            begin
+              let args =
+                List.fold_left
+                  (fun res e ->
+                    EConstr ("PCons",
+                             [trans_pat e;
+                              res]))
+                  (EPlain "PNil") args
+              in
+              EConstr ("PData",
+                       [EPlain name;
+                        EConstr ("PTuple",
+                                 [args])])
+            end
 
        | Tpat_alias (_, _, _) -> assert false
        | Tpat_constant _ -> assert false
@@ -178,17 +184,23 @@ and trans_tl_expr (e: expression) =
      EConstr ("EMatch", [trans_tl_expr e; cases])
 
   | Texp_construct (c, _, el) ->
-     let args =
-       List.fold_left
-         (fun res e ->
-           EConstr ("ECons",
-                    [trans_tl_expr e;
-                     res]))
-         (EPlain "ENil") el
-     in
-     EConstr ("EData",
-              [EPlain (string_of_longident c.txt);
-               EConstr ("ETuple", [args])])
+     let name = string_of_longident c.txt in
+     if name = "\"()\"" && el = []
+     then EPlain "EUnit"
+     else
+       begin
+         let args =
+           List.fold_left
+             (fun res e ->
+               EConstr ("ECons",
+                        [trans_tl_expr e;
+                         res]))
+             (EPlain "ENil") el
+         in
+         EConstr ("EData",
+                  [EPlain name;
+                   EConstr ("ETuple", [args])])
+       end
 
   | Texp_try (_, _) -> assert false
   | Texp_variant (_, _) -> assert false

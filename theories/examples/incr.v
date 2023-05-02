@@ -23,25 +23,22 @@ Require Import base lang sugar encode notations.
 (* Generated code: *)
 Definition new_counter :=
   EFun "()" $
-    ELet
-      (BiCons
-         (Binding (PVar "c")
-                  (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0)))
-         BiNil) $
-    ELet
-      (BiCons
-         (Binding (PVar "upd")
-                  (EFun "i"
-                        (EApp
-                           (EApp (EMkPath ["Stdlib";":="]) (EVar "c"))
-                           (EVar "i"))))
-         BiNil) $
-    ELet
-      (BiCons
-         (Binding (PVar "get")
-                  (EFun "()" (EApp (EMkPath ["Stdlib";"!"]) (EVar "c"))))
-         BiNil) $
-    ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)).
+  ELet
+    (BiCons
+      (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
+    BiNil) $
+  ELet
+    (BiCons
+      (Binding (PVar "upd") (EFun "i" $
+      EApp (EApp (EMkPath ["Stdlib";":="]) (EVar "c")) (EVar "i"))) $
+    BiNil) $
+  ELet
+    (BiCons
+      (Binding (PVar "get") (EFun "()" $
+      EApp (EMkPath ["Stdlib";"!"]) (EVar "c"))) $
+    BiNil) $
+  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)).
+
 
 Definition pleasedontclash (*This is not a name. *) :=
   (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
@@ -69,41 +66,31 @@ Definition pleasedontclash (*This is not a name. *) :=
                 new_counter)
        BiNil) $
   (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
-  ELet
-    (BiCons
-       (Binding (PVar "res")
-                (EApp (EVar "new_counter") (EData "()" (ETuple ENil))))
-       BiNil) $
-  ELet
-    (BiCons
-       (Binding (PVar "get")
-                (EApp (EMkPath ["Stdlib";"fst"]) (EVar "res")))
-       BiNil) $
-  ELet
-    (BiCons
-       (Binding (PVar "upd")
-                (EApp (EMkPath ["Stdlib";"snd"]) (EVar "res")))
-       BiNil) $
-  ELet
-    (BiCons
-       (Binding (PVar "c")
-                (EApp (EVar "get") (EData "()" (ETuple ENil))))
-       BiNil) $
-  EMatch
-  (EApp (EVar "upd") (EInt 13))
-  (BrCons (Branch
-             (PData "()" (PTuple PNil))
-             (ELet
-                (BiCons
-                   (Binding (PVar "res")
-                            (EApp (EApp
-                                     (EMkPath ["Stdlib";"-"])
-                                     (EApp (EVar "get")
-                                           (EData "()" (ETuple ENil))))
-                                  (EVar "c")))
-                   BiNil)
-                (EVar "res")))
-          BrNil).
+   ELet
+     (BiCons
+       (Binding (PVar "res") (EApp (EVar "new_counter") EUnit)) $
+     BiNil) $
+   ELet
+     (BiCons
+       (Binding (PVar "get") (EApp (EMkPath ["Stdlib";"fst"]) (EVar "res")))
+$
+     BiNil) $
+   ELet
+     (BiCons
+       (Binding (PVar "upd") (EApp (EMkPath ["Stdlib";"snd"]) (EVar "res")))
+$
+     BiNil) $
+   ELet
+     (BiCons
+       (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
+     BiNil) $
+   EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
+     (BiCons
+       (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EVar
+"get") EUnit)) (EVar "c"))) $
+     BiNil) $
+   EVar "res")) BrNil).
+
 
 Definition _test :=
   (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
@@ -133,34 +120,20 @@ Definition _test :=
   (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
   ELet
     (BiCons
-       (Binding (PTuple (PCons (PVar "upd")
-                         (PCons (PVar "get") PNil)))
-                (EApp (EVar "new_counter") (EData "()" (ETuple ENil))))
-       BiNil) $
+      (Binding (PTuple (PCons (PVar "upd") (PCons (PVar "get") PNil))) (EApp
+(EVar "new_counter") EUnit)) $
+    BiNil) $
   ELet
     (BiCons
-       (Binding
-          (PVar "c")
-          (EApp (EVar "get") (EData "()" (ETuple ENil))))
-       BiNil) $
-    EMatch
-    (EApp (EVar "upd") (EInt 13))
-    (BrCons (Branch
-               (PData "()" (PTuple PNil))
-               (ELet
-                  (BiCons
-                     (Binding (PVar "res")
-                              (EApp (EApp
-                                       (EMkPath ["Stdlib";"-"])
-                                       (EApp (EVar "get")
-                                             (EData "()" (ETuple ENil))))
-                                    (EVar "c")))
-                     BiNil)
-                  (EVar "res")))
-            BrNil).
-
-
-
+      (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
+    BiNil) $
+  EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
+    (BiCons
+      (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EVar
+"get") EUnit)) (EVar "c"))) $
+    BiNil) $
+  EVar "res"))
+BrNil).
 
 
 
@@ -279,7 +252,6 @@ Proof.
   iNext.
   iApply wp_bind.
   iApply wp_ret.
-  replace (VConstant "()") with VUnit; last admit.
 
   iApply ("Hnew_counter_spec" with "[//][Hϕ]").
 
@@ -298,8 +270,6 @@ Proof.
   iApply wp_bind.
   iApply wp_ret.
 
-  replace (VConstant "()") with VUnit; last admit.
-
   iApply ("Hget" $! 0 NotStuck top with "Hcounter").
   do 2 iNext.
   iIntros (?)"(->&Hℓ)".
@@ -317,10 +287,7 @@ Proof.
   iApply ("Hupd" with "Hℓ").
   iNext. iIntros "Hℓ".
 
-  replace (PConstant "()") with PUnit; last admit.
-
   wp.
-  replace (VConstant "()") with VUnit; last admit.
 
   iApply ("Hget" with "Hℓ").
   iNext.
@@ -335,4 +302,4 @@ Proof.
   iApply wp_ret.
   iApply "Hϕ".
   iPureIntro. reflexivity.
-Admitted.
+Qed.
