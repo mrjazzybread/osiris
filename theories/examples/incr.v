@@ -44,6 +44,31 @@ Definition new_counter :=
     ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)).
 
 Definition pleasedontclash (*This is not a name. *) :=
+  (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
+  (* The current translator assumes that the user will provide the correct
+     environment to work with previously-defined symbols. Nonetheless, as
+     translations are in fact expressions and not values (at least for now), it
+     would be tedious to do so. An alternative is to use the trick described in
+     [traduction/lib/Pp.ml]: translate a single file as a huge let:
+     let a, b, c, ... =
+         let a_at_top-level := ... in
+         let _ = ... in
+         let b_at_top-level := ... in
+         let c_at_top-level := ... in
+         (a_at_top-level, ...).
+     Notes:
+       - this would also solve the issue of taking into account the
+         [let _ = ...] and [let () = ...] that appear at top-level.
+       - use structures instead of an enclosing let.
+
+     For now, I add this let by hand, but the above trick will be directly
+     applied by the translator in the futur. *)
+  ELet
+    (BiCons
+       (Binding (PVar "new_counter")
+                new_counter)
+       BiNil) $
+  (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
   ELet
     (BiCons
        (Binding (PVar "res")
@@ -158,7 +183,7 @@ Definition get_spec ℓ get : iProp Σ :=
   ∀ i s E,
   {{{ is_counter ℓ i }}}
     call get VUnit @ s; E
-  {{{ v, RET v; ∃ i, ⌜ v = VInt (int.repr i) ⌝ }}}.
+  {{{ v, RET v; ⌜ v = VInt (int.repr i) ⌝ ∗ is_counter ℓ i }}}.
 
 Definition upd_spec ℓ upd : iProp Σ :=
   ∀ s E i i',
@@ -196,11 +221,14 @@ Proof.
     iIntros(ϕ)"!>(%&->&Hℓ) Hϕ".
     wp_call. wp.
 
-    (* TODO: understand why the postcondition has to be specified. *)
-    iApply ((Stdlib__load__spec_tac _ _ _ _ _ ϕ)
-             with "[//]Hℓ").
-    iApply "Hϕ".
-    iExists _. done. }
+    iApply (wp_covariant with "[Hℓ]"); last first.
+    { iIntros (v) "Hv".
+      iApply "Hϕ". iAssumption. }
+
+    { iApply (Stdlib__load__spec_tac with "[//]Hℓ").
+      iIntros "Hℓ".
+      iSplit; first done.
+      iExists _; by iFrame. } }
 
   { (* Proof of the specification of [upd]. *)
     unfold upd_spec. iIntros.
@@ -214,18 +242,97 @@ Proof.
 Qed.
 
 
+(* The following example shows issues in the translation process :
+   - [()] should be translated as [VUnit], [EUnit] and [PUnit], not as a
+     constant.
+   as well as the standart library :
+   - arithmetic operators should *not* require user interactions at all.
+     TODO: write clean lemmas about totally applied ["Stdlib"."+"] and al. and
+           add them to a hint database.
+*)
 Opaque new_counter.
-(* The following example shows the necessity of a better way to interact with
-   the definitions of [Stdlib], as well as better ways to use former
-    specifications. *)
-Lemma _test__spec s E:
+Lemma pleasedontclash__spec :
   let η :=
     EnvCons "Stdlib" Stdlib $
     EnvNil in
   {{{ ⌜ True ⌝ }}}
-    eval η _test @ s; E
-                        {{{ v, RET v; ⌜ True ⌝ }}}.
+    eval η pleasedontclash
+  {{{ v, RET v; ⌜ v = VInt (int.repr 13) ⌝ }}}.
 Proof.
   iIntros (η ϕ)"_ Hϕ".
   wp.
-Abort.
+
+  (* Fetch the specification of [new_counter] proven above.
+     TODO: better handle the use of recent definitions. *)
+  pose proof (new_counter__spec) as Hspec; simpl in Hspec;
+    iPoseProof Hspec as "#Hspec". clear Hspec.
+
+  (* Use the aforementioned specification to get the value to which
+     [new_counter] evaluates and its specification. *)
+  iApply (wp_covariant with "Hspec").
+  iIntros (vnew_counter)"#Hnew_counter_spec".
+
+  (* I avoid using tactics from [wp_tactics.v] not to reduce under the
+     continuations anymore. *)
+  iApply wp_par_ret_right.
+  iApply wp_par_ret_ret.
+  iNext.
+  iApply wp_bind.
+  iApply wp_ret.
+  replace (VConstant "()") with VUnit; last admit.
+
+  iApply ("Hnew_counter_spec" with "[//][Hϕ]").
+
+  iNext. iIntros (vget vupd) "(%ℓ&Hcounter&#Hget&#Hupd)".
+  iApply wp_try_ret.
+  iApply wp_bind. iApply wp_ret.
+
+  wp.
+  iPoseProof (Stdlib__fst__spec_tac with "[//][Hϕ Hcounter]") as "H"; last iAssumption.
+  wp.
+  iPoseProof (Stdlib__snd__spec_tac with "[//][Hϕ Hcounter]") as "H"; last iAssumption.
+
+  iNext.
+  iApply wp_par_ret_right.
+  iApply wp_par_ret_ret.
+  iApply wp_bind.
+  iApply wp_ret.
+
+  replace (VConstant "()") with VUnit; last admit.
+
+  iApply ("Hget" $! 0 NotStuck top with "Hcounter").
+  do 2 iNext.
+  iIntros (?)"(->&Hℓ)".
+
+  iApply wp_try_ret.
+  iApply wp_bind.
+  iApply wp_ret.
+  unfold concatenating.
+
+  iApply wp_bind; fold eval.
+  iApply wp_bind. iApply wp_par_ret_right.
+  simpl (eval _ _).
+  do 2 iApply wp_ret.
+
+  iApply ("Hupd" with "Hℓ").
+  iNext. iIntros "Hℓ".
+
+  replace (PConstant "()") with PUnit; last admit.
+
+  wp.
+  replace (VConstant "()") with VUnit; last admit.
+
+  iApply ("Hget" with "Hℓ").
+  iNext.
+  iIntros(?)"[->Hℓ]".
+  iPoseProof (Stdlib__sub__spec) as "Hsub".
+  { exact (eq_refl (VInt (int.repr 13))). }
+  { exact (eq_refl (VInt (int.repr 0))). }
+  iApply (wp_covariant with "Hsub").
+  iIntros (v)"Hv".
+  iApply (wp_covariant with "Hv"). clear v.
+  iIntros (?->).
+  iApply wp_ret.
+  iApply "Hϕ".
+  iPureIntro. reflexivity.
+Admitted.

@@ -17,6 +17,12 @@ Section StdLib.
       AnonFun "x" $
       EFun "y" $
       EIntAdd (EVar "x") (EVar "y").
+  Definition Stdlib__sub : val :=
+    VClo EnvNil $
+      AnonFun "x" $
+      EFun "y" $
+      EIntSub (EVar "x") (EVar "y").
+
 
   (* About references. *)
   Definition Stdlib__ref : val :=
@@ -36,14 +42,37 @@ Section StdLib.
       EStore (EVar "x") (EVar "i").
 
 
+  (* About tuples *)
+  Definition Stdlib__fst : val :=
+    VClo EnvNil $
+      AnonFun "x" $
+      EMatch
+        (EVar "x")
+        (BrCons
+           (Branch (PTuple (PCons (PVar "l") (PCons (PVar "r") PNil))) (EVar "l"))
+        BrNil).
+
+  Definition Stdlib__snd : val :=
+    VClo EnvNil $
+      AnonFun "x" $
+      EMatch
+        (EVar "x")
+        (BrCons
+           (Branch (PTuple (PCons (PVar "l") (PCons (PVar "r") PNil))) (EVar "r"))
+        BrNil).
+
+
 
   (* Putting everything together. *)
   Definition Stdlib :=
     VStruct $
+      EnvCons "-" Stdlib__sub $
       EnvCons "+" Stdlib__add $
       EnvCons "ref" Stdlib__ref $
       EnvCons "!" Stdlib__load $
       EnvCons ":=" Stdlib__store $
+      EnvCons "fst" Stdlib__fst $
+      EnvCons "snd" Stdlib__snd $
       EnvNil.
 
 
@@ -60,6 +89,19 @@ Section StdLib.
     wp_call.
     by rewrite int.add_repr_repr.
   Qed.
+
+  Lemma Stdlib__sub__spec s E:
+    ∀ v1 v2 i1 i2,
+    v1 = VInt (int.repr i1) →
+    v2 = VInt (int.repr i2) →
+    ⊢ WP call Stdlib__sub v1 @s; E
+         {{ λ v, WP call v v2 @s; E {{ λ v, ⌜v = VInt (int.repr (i1 - i2))⌝ }} }}.
+  Proof.
+    intros. subst. wp.
+    wp_call.
+    by rewrite int.sub_repr_repr.
+  Qed.
+
 
 
   (* Specifications : store. *)
@@ -101,11 +143,43 @@ Section StdLib.
   Qed.
 
 
+  Lemma Stdlib__fst__spec v1 v2 s E :
+    {{{ ⌜ True ⌝ }}}
+      call Stdlib__fst (VTuple (VCons v1 (VCons v2 VNil))) @ s; E
+    {{{ v, RET v; ⌜ v = v1 ⌝ }}}.
+  Proof.
+    iIntros (ϕ)"_ Hϕ".
+    wp_call.
+    by iApply "Hϕ".
+  Qed.
+
+  Lemma Stdlib__snd__spec v1 v2 s E :
+    {{{ ⌜ True ⌝ }}}
+      call Stdlib__snd (VTuple (VCons v1 (VCons v2 VNil))) @ s; E
+    {{{ v, RET v; ⌜ v = v2 ⌝ }}}.
+  Proof.
+    iIntros (ϕ)"_ Hϕ".
+    wp_call.
+    by iApply "Hϕ".
+  Qed.
+
+  Opaque Stdlib__sub.
+  Opaque Stdlib__add.
+  Opaque Stdlib__ref.
+  Opaque Stdlib__load.
+  Opaque Stdlib__store.
+  Opaque Stdlib__fst.
+  Opaque Stdlib__snd.
+End StdLib.
+
+Section Stdlib_Lemmas.
+  Context `{!osirisGS_gen hlc Σ}.
+
   (* Lemmas to better handle fully-applied functions of the standart library. *)
   Lemma Stdlib__load__spec_tac vl ℓ v s E ϕ :
     ⊢ ⌜ vl = VLoc ℓ ⌝ -∗
     ℓ ↦ v -∗
-    ϕ v -∗ (* TODO: add a later to this premice (will require to change
+    (ℓ ↦ v -∗ ϕ v) -∗ (* TODO: add a later to this premice (will require to change
               [wp_covariant]. *)
     WP call Stdlib__load vl @ s; E {{ λ v, ϕ v }}.
   Proof.
@@ -114,7 +188,7 @@ Section StdLib.
     { iApply (Stdlib__load__spec with "[$Hℓ]"); first done.
       iNext. iIntros. iAssumption. }
     iIntros (?) "[-> Hℓ]".
-    iFrame.
+    iApply ("Hv" with "Hℓ").
   Qed.
 
   (* TODO: same as above: get a later in the premice. *)
@@ -144,13 +218,31 @@ Section StdLib.
     iApply ("Hccl" with "Hℓ").
   Qed.
 
+  Lemma Stdlib__fst__spec_tac s E v v1 v2 ϕ :
+    ⌜ v = VTuple (VCons v1 (VCons v2 VNil)) ⌝ -∗
+    ▷ ϕ v1 -∗
+    WP call Stdlib__fst v @ s; E {{ ϕ }}.
+  Proof.
+    iIntros "-> Hϕ".
+    iApply ((Stdlib__fst__spec v1 v2 s E ϕ) with "[//]").
+    iNext. iIntros (?->).
+    iAssumption.
+  Qed.
 
+  Lemma Stdlib__snd__spec_tac s E v v1 v2 ϕ :
+    ⌜ v = VTuple (VCons v1 (VCons v2 VNil)) ⌝ -∗
+    ▷ ϕ v2 -∗
+    WP call Stdlib__snd v @ s; E {{ ϕ }}.
+  Proof.
+    iIntros "-> Hϕ".
+    iApply ((Stdlib__snd__spec v1 v2 s E ϕ) with "[//]").
+    iNext. iIntros (?->).
+    iAssumption.
+  Qed.
 
+End Stdlib_Lemmas.
 
-
-
-  Opaque Stdlib__add.
-  Opaque Stdlib__ref.
-  Opaque Stdlib__load.
-  Opaque Stdlib__store.
-End StdLib.
+(* TODO:
+Section Stdlib_tactics.
+  Context `{!osirisGS_gen hlc Σ}.
+End Stdlib_tactics. *)
