@@ -44,7 +44,7 @@ let header (ci: Cmt_format.cmt_infos) =
     | [] -> ()
     | (h, _) :: t ->
        if not (List.mem h [ci.cmt_modname; "CamlinternalFormatBasics"])
-       then Format.fprintf fmt "(* TODO: get the From _ to work From libs *) Require Import %s.@.%a" h aux t
+       then Format.fprintf fmt "From osiris.libs Require Import %s.@.%a" h aux t
        else aux fmt t
   in
   let rec others fmt = function
@@ -57,7 +57,7 @@ let header (ci: Cmt_format.cmt_infos) =
                    \   - either translations of the dependencies of the present file@.\
                    \   - or static dependencies defining the language@.\
                    \   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)@.\
-                   Require Import%a.@.%a"
+                   From osiris Require Import%a.@.%a"
                   ci.cmt_modname
                   others require_imports
                   aux ci.cmt_imports

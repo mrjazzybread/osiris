@@ -1,0 +1,17 @@
+(coq.theory
+  (package osiris)
+  (theories osiris)
+  (name test))
+
+(rule
+  (targets incr.v)
+  (mode promote)
+  (deps    (:gen ../../translator/bin/main.exe)
+           (:src ../ml/incr.ml))
+  (action
+    (ignore-stderr 
+      (with-stdout-to
+        %{targets}
+        (progn
+          (run %{ocamlc} -bin-annot %{src})
+          (run %{gen} -ml %{src} -verbose))))))
