@@ -19,3 +19,5 @@ Makefile.coq
 *.cmo
 *.cmt
 *.out
+\#*\#
+_build

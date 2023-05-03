@@ -6,7 +6,10 @@ Import uPred.
 
 From iris Require Import base_logic.lib.gen_heap.
 
-Require Import base lang sugar locations free eval step wp wp_tactics encode notations incr Stdlib.
+From osiris Require Import base lang sugar locations free eval step wp wp_tactics encode notations.
+From osiris.examples Require Import incr.
+From osiris.libs Require Import Stdlib.
+
 
 Context `{!osirisGS_gen hlc Σ}.
 
