@@ -19,4 +19,7 @@ theories/safe.v
 theories/wp.v
 theories/wp_tactics.v
 theories/examples_wp.v
+theories/libs/Stdlib.v
+theories/examples/incr.v
+theories/examples/incr_proof.v
 tutorial/tutorial.v
