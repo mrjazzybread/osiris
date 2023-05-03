@@ -176,14 +176,14 @@ Section Stdlib_Lemmas.
   Context `{!osirisGS_gen hlc Σ}.
 
   (* Lemmas to better handle fully-applied functions of the standart library. *)
-  Lemma Stdlib__load__spec_tac vl ℓ v s E ϕ :
-    ⊢ ⌜ vl = VLoc ℓ ⌝ -∗
+  Lemma Stdlib__load__spec_tac vl ℓ v s E :
+    ⊢ ∀ ϕ, ⌜ vl = VLoc ℓ ⌝ -∗
     ℓ ↦ v -∗
     (ℓ ↦ v -∗ ϕ v) -∗ (* TODO: add a later to this premice (will require to change
               [wp_covariant]. *)
     WP call Stdlib__load vl @ s; E {{ λ v, ϕ v }}.
   Proof.
-    iIntros "-> Hℓ Hv".
+    iIntros(ϕ) "-> Hℓ Hv".
     iApply (wp_covariant with "[Hℓ]").
     { iApply (Stdlib__load__spec with "[$Hℓ]"); first done.
       iNext. iIntros. iAssumption. }

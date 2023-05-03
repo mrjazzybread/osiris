@@ -36,7 +36,7 @@ Tactic Notation "tac_change_goal" uconstr(lem) := (tac_change_goal lem).
        hypotheses!
  *)
 
-Ltac wp_step :=
+Ltac wp_step' :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
@@ -56,8 +56,9 @@ Ltac wp_step :=
             | tac_change_goal (wp_eval _ _ _ _ _ _) ]
   | |- environments.envs_entails _ (wp _ _ (Stop Flip _ _) _) =>
       tac_change_goal (wp_flip _ _ _ _ _)
-  end;
-  cbn.
+  end.
+
+Ltac wp_step := (wp_step' || cbn).
 
 Ltac wp :=
   iStartProof;

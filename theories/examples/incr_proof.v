@@ -11,6 +11,25 @@ Require Import base lang sugar locations free eval step wp wp_tactics encode not
 Context `{!osirisGS_gen hlc Σ}.
 
 
+(* --------------------------------------------------------------------------- *)
+(* Additionnal notations which are not provided by [notations.v] due to a cyclic
+   dependency on eval that it would cause.
+   TODO: move to [weakestpre/notations.v] after the project refactoring.  *)
+
+Notation "'WP'  'call' f v1 v2 .. vn @ s ; E {{ ϕ }}" :=
+  (wp s E (call f v1) (fun v => wp s E (call v v2) (.. (fun v =>  wp s E (call v vn) ϕ ) ..)))
+    (only printing).
+
+Notation "'WP' Par m m' '...' @ s ; E {{ ϕ }}" :=
+  (wp s E (Par m m' _ _) ϕ)
+    (only printing).
+
+
+
+(* --------------------------------------------------------------------------- *)
+(* Redefinition of part of the implementation so that one has access to
+   [new_counter] when using it. *)
+
 Definition pleasedontclash (*This is not a name. *) :=
   (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
   (* The current translator assumes that the user will provide the correct
@@ -70,6 +89,9 @@ Definition _test :=
 
 
 
+(* --------------------------------------------------------------------------- *)
+(* Definition of the specifications of the [get] and [upd] functions returned by
+   [new_counter ()]. *)
 
 Definition is_counter ℓ i : iProp Σ :=
   ∃ v, ⌜ v = VInt (int.repr i) ⌝ ∗ ℓ ↦ v.
@@ -85,6 +107,11 @@ Definition upd_spec ℓ upd : iProp Σ :=
     {{{ is_counter ℓ i }}}
       call upd (VInt (int.repr i')) @ s; E
     {{{ RET VUnit; is_counter ℓ i' }}}.
+
+
+
+(* --------------------------------------------------------------------------- *)
+(* Proof of the program. *)
 
 Lemma new_counter__spec s E :
   let η := EnvCons "Stdlib" Stdlib $
@@ -102,6 +129,9 @@ Proof.
   intros. wp.
   iIntros (ϕ) "!> _ Hϕ".
   wp_call.
+
+  (* TODO: fix the proof ([Stdlib__ref__spec_tac] should be applicable instead
+     of using [wp_covariant]). *)
   iApply wp_covariant; first by iApply Stdlib__ref__spec.
   iIntros (?) "(%ℓ&Hℓ&->)".
   wp. iApply "Hϕ". clear ϕ.
@@ -116,14 +146,13 @@ Proof.
     iIntros(ϕ)"!>(%&->&Hℓ) Hϕ".
     wp_call. wp.
 
-    iApply (wp_covariant with "[Hℓ]"); last first.
-    { iIntros (v) "Hv".
-      iApply "Hϕ". iAssumption. }
+    iApply (Stdlib__load__spec_tac $! ϕ with "[//]Hℓ").
 
-    { iApply (Stdlib__load__spec_tac with "[//]Hℓ").
-      iIntros "Hℓ".
-      iSplit; first done.
-      iExists _; by iFrame. } }
+    iIntros "Hℓ".
+    iApply "Hϕ".
+    iSplit; first done.
+    iExists _; by iFrame. }
+
 
   { (* Proof of the specification of [upd]. *)
     unfold upd_spec. iIntros.
@@ -166,48 +195,28 @@ Proof.
 
   (* I avoid using tactics from [wp_tactics.v] not to reduce under
      continuations anymore. *)
-  iApply wp_par_ret_right.
-  iApply wp_par_ret_ret.
-  iNext.
-  iApply wp_bind.
-  iApply wp_ret.
-
+  wp.
   iApply ("Hnew_counter_spec" with "[//][Hϕ]").
 
   iNext. iIntros (vget vupd) "(%ℓ&Hcounter&#Hget&#Hupd)".
-  iApply wp_try_ret.
-  iApply wp_bind. iApply wp_ret.
 
   wp.
   iPoseProof (Stdlib__fst__spec_tac with "[//][Hϕ Hcounter]") as "H"; last iAssumption.
+
   wp.
   iPoseProof (Stdlib__snd__spec_tac with "[//][Hϕ Hcounter]") as "H"; last iAssumption.
 
-  iNext.
-  iApply wp_par_ret_right.
-  iApply wp_par_ret_ret.
-  iApply wp_bind.
-  iApply wp_ret.
+  wp.
 
   iApply ("Hget" $! 0 NotStuck top with "Hcounter").
-  do 2 iNext.
+  iNext.
   iIntros (?)"(->&Hℓ)".
 
-  iApply wp_try_ret.
-  iApply wp_bind.
-  iApply wp_ret.
-  unfold concatenating.
-
-  iApply wp_bind; fold eval.
-  iApply wp_bind. iApply wp_par_ret_right.
-  simpl (eval _ _).
-  do 2 iApply wp_ret.
-
+  wp.
   iApply ("Hupd" with "Hℓ").
   iNext. iIntros "Hℓ".
 
   wp.
-
   iApply ("Hget" with "Hℓ").
   iNext.
   iIntros(?)"[->Hℓ]".
@@ -221,4 +230,4 @@ Proof.
   iApply wp_ret.
   iApply "Hϕ".
   iPureIntro. reflexivity.
-Qed.
+Time Qed.
