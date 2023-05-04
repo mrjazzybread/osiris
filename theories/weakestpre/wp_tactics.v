@@ -1,7 +1,8 @@
 From iris.proofmode Require Import classes proofmode.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
-Require Import free eval wp.
+From osiris.semantics Require Import free eval.
+From osiris.weakestpre Require Import wp.
 
 (* ---------------------------------------------------------------------- *)
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)

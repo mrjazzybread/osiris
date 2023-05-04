@@ -7,7 +7,9 @@ Import uPred.
 
 From iris.algebra Require Import gmap.
 
-Require Import store base lang free eval step safe locations notations.
+From osiris Require Import base.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import store free eval step notations locations.
 
 
 
@@ -87,7 +89,7 @@ Section wp_def.
            | None =>
                ⌜can_step (σ, m)⌝ ∗
                 ∀ (σ': store) (m': free A),
-                  ⌜step (σ, m) (σ', m')⌝ ==∗ 
+                  ⌜step (σ, m) (σ', m')⌝ ==∗
                   ▷ (state_interp σ' ∗
                      wp E m' ϕ)
            end)%I.
@@ -100,7 +102,7 @@ Section wp_def.
     apply Hwp.
   Qed.
 
-  (* Keeping the stuckness bit and the following notation ensure that the usual 
+  (* Keeping the stuckness bit and the following notation ensure that the usual
      notations will work (ie. [WP _ @ _ {{ _ }}] and [WP _@ _ ?{{ _ }}]). *)
   Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
     λ (s: stuckness), fixpoint (wp_pre s).
@@ -117,7 +119,7 @@ End wp_def.
 
 (* -------------------------------------------------------------------------- *)
 (* Definitions and lemmas to better work with our WP.
-   Once again, this is heavily inspired from 
+   Once again, this is heavily inspired from
    [iris/{bi,program_logic}/weakestpre.v] *)
 
 Section wp.
@@ -141,7 +143,7 @@ Section wp.
   Proof.
     revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
     rewrite !wp_unfold /wp_pre /=.
-    (* Cf. the comment in [program_logic/wp.v] for an explanation on the time 
+    (* Cf. the comment in [program_logic/wp.v] for an explanation on the time
      * taken by the following line. *)
     repeat ((by rewrite IH; [done|lia|];
                 intros v; eapply dist_le; [apply HΦ|lia])
@@ -183,7 +185,7 @@ End wp.
 
 
 (* -------------------------------------------------------------------------- *)
-(* The following are lemmas about the evolutions of a term. They are designed to 
+(* The following are lemmas about the evolutions of a term. They are designed to
    be used in [wp_tactics]. *)
 
 Section wp_lemmas.
@@ -322,7 +324,7 @@ Section wp_lemmas.
 
 
   (* [Par]-related lemmas. *)
-  (* To prove [WP (Par m1 m2 k ko) ϕ], one should provide two post conditions ϕ1 
+  (* To prove [WP (Par m1 m2 k ko) ϕ], one should provide two post conditions ϕ1
    * and ϕ2 and show that:
    * - m1 satisfies the post-condition ϕ1
    * - m2 satisfies the post-condition ϕ1

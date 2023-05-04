@@ -16,7 +16,10 @@ let _test =
    - either translations of the dependencies of the present file
    - or static dependencies defining the language
    - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
-From osiris Require Import base lang sugar encode notations.
+From osiris Require Import base.
+From osiris.lang Require Import lang encode.
+From osiris.semantics Require Import sugar notations.
+
 From osiris.libs Require Import Stdlib.
 
 

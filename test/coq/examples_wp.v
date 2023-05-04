@@ -4,7 +4,10 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-From osiris Require Import base lang sugar free eval step wp wp_tactics encode notations.
+From osiris Require Import base.
+From osiris.lang Require Import lang encode.
+From osiris.semantics Require Import sugar free eval step notations.
+From osiris.weakestpre Require Import wp wp_tactics notations.
 
 
 Context `{!osirisGS_gen hlc Σ}.

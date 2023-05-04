@@ -1,6 +1,7 @@
 (coq.theory
   (package osiris)
   (theories osiris)
+  (modules :standard \ efficiency)
   (name test))
 
 (rule
