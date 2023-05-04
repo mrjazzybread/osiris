@@ -7,7 +7,7 @@ all:
 
 .PHONY: clean
 clean:
-	@ git clean -fX
+	@ git clean -fdX
 
 .PHONY: axioms
 axioms:
