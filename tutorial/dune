@@ -1,0 +1,11 @@
+(rule
+  (targets alectryon.css alectryon.js docutils_basic.css pygments.css 
+           tutorial.html)
+  (mode (promote (until-clean)))
+  (deps tutorial.v
+        (package osiris))
+  (action
+    (run alectryon
+         --long-line-threshold 80
+         -R ../theories osiris
+         tutorial.v)))

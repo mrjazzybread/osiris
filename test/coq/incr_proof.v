@@ -6,23 +6,16 @@ Import uPred.
 
 From iris Require Import base_logic.lib.gen_heap.
 
-Require Import base lang sugar locations free eval step wp wp_tactics encode notations incr Stdlib.
+From osiris Require Import base.
+From osiris.lang Require Import lang encode.
+From osiris.semantics Require Import sugar locations free eval step notations.
+From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.libs Require Import Stdlib.
+From test Require Import incr.
+
 
 Context `{!osirisGS_gen hlc Σ}.
 
-
-(* --------------------------------------------------------------------------- *)
-(* Additionnal notations which are not provided by [notations.v] due to a cyclic
-   dependency on eval that it would cause.
-   TODO: move to [weakestpre/notations.v] after the project refactoring.  *)
-
-Notation "'WP'  'call' f v1 v2 .. vn @ s ; E {{ ϕ }}" :=
-  (wp s E (call f v1) (fun v => wp s E (call v v2) (.. (fun v =>  wp s E (call v vn) ϕ ) ..)))
-    (only printing).
-
-Notation "'WP' Par m m' '...' @ s ; E {{ ϕ }}" :=
-  (wp s E (Par m m' _ _) ϕ)
-    (only printing).
 
 
 

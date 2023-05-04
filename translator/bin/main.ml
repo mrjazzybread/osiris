@@ -4,11 +4,11 @@ include Translator.Options
 
 let require_imports =
   [
-    "base";
-    "lang";
-    "sugar";
-    "encode";
-    "notations";
+    ("osiris", ["base"]);
+    ("osiris.lang",
+     [ "lang";
+       "encode"]);
+    ("osiris.semantics", ["sugar"; "notations"]);
   ]
 
 
@@ -40,27 +40,35 @@ let comment_and_print fmt p =
    For now, it assumes that the dependencies live in a directory called [libs]
    at the root of the project. *)
 let header (ci: Cmt_format.cmt_infos) =
-  let rec aux fmt = function
+  let rec ocaml_deps fmt = function
     | [] -> ()
     | (h, _) :: t ->
        if not (List.mem h [ci.cmt_modname; "CamlinternalFormatBasics"])
-       then Format.fprintf fmt "(* TODO: get the From _ to work From libs *) Require Import %s.@.%a" h aux t
-       else aux fmt t
+       then Format.fprintf fmt "From osiris.libs Require Import %s.@.%a"
+              h ocaml_deps t
+       else ocaml_deps fmt t
   in
-  let rec others fmt = function
+  let rec coq_deps fmt (l: (string * string list) list) =
+    let rec print_line fmt = function
+      | [] -> ()
+      | h :: t -> Format.fprintf fmt " %s%a" h print_line t
+    in
+    match l with
     | [] -> ()
-    | h :: t ->
-        Format.fprintf fmt " %s%a" h others t
+    | (prefix, l) :: t ->
+       Format.fprintf fmt"From %s Require Import%a.@.%a"
+         prefix print_line l
+         coq_deps t
   in
   Format.asprintf "(* Converting a single CMT file for [%s]. *)@.@.\
                    (* Auto generated headers. They import the required Coq modules:@.\
                    \   - either translations of the dependencies of the present file@.\
                    \   - or static dependencies defining the language@.\
                    \   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)@.\
-                   Require Import%a.@.%a"
+                   %a@.%a"
                   ci.cmt_modname
-                  others require_imports
-                  aux ci.cmt_imports
+                  coq_deps require_imports
+                  ocaml_deps ci.cmt_imports
 
 
 (* -------------------------------------------------------------------------- *)
