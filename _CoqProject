@@ -1,2 +1,2 @@
 -Q _build/default/theories osiris
--Q _build/default/test test
+-Q _build/default/test/coq test

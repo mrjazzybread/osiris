@@ -17,19 +17,6 @@ From test Require Import incr.
 Context `{!osirisGS_gen hlc Σ}.
 
 
-(* --------------------------------------------------------------------------- *)
-(* Additionnal notations which are not provided by [notations.v] due to a cyclic
-   dependency on eval that it would cause.
-   TODO: move to [weakestpre/notations.v] after the project refactoring.  *)
-
-Notation "'WP'  'call' f v1 v2 .. vn @ s ; E {{ ϕ }}" :=
-  (wp s E (call f v1) (fun v => wp s E (call v v2) (.. (fun v =>  wp s E (call v vn) ϕ ) ..)))
-    (only printing).
-
-Notation "'WP' Par m m' '...' @ s ; E {{ ϕ }}" :=
-  (wp s E (Par m m' _ _) ϕ)
-    (only printing).
-
 
 
 (* --------------------------------------------------------------------------- *)
