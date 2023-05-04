@@ -309,7 +309,7 @@ Inductive val :=
   (* A location. *)
   | VLoc (l: loc)
   (* A module. *)
-  | VStruct (fvs : env)
+  | VStruct (xvs : env)
 
 (* Lists of values. *)
 

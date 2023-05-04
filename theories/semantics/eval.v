@@ -16,7 +16,7 @@ Implicit Type fes : fexprs.
 Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
-Implicit Type fvs : env.
+Implicit Type fvs xvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
@@ -203,12 +203,12 @@ Definition as_record (m : free val) : free env :=
 (* ------------------------------------------------------------------------ *)
 
 (* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
-   fvs] and returns its content [fvs]. *)
+   xvs] and returns its content [xvs]. *)
 
 Definition val_as_struct (v : val) : free env :=
   match v with
-  | VStruct fvs =>
-      ret fvs
+  | VStruct xvs =>
+      ret xvs
   | _ =>
       crash "type mismatch (structure expected)"
   end.
@@ -245,9 +245,9 @@ Fixpoint lookup_path η π : free val :=
       lookup_name η x
   | PathDot π x =>
       (* The content of a structure is an environment, *)
-      fvs ← as_struct (lookup_path η π) ;
-      (* so we can look up [x] in the environment [fvs]. *)
-      lookup_name fvs x
+      xvs ← as_struct (lookup_path η π) ;
+      (* so we can look up [x] in the environment [xvs]. *)
+      lookup_name xvs x
   end.
 
 (* ------------------------------------------------------------------------ *)
