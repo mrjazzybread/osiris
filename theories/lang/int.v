@@ -1,4 +1,4 @@
-Require Import Coqlib Integers.
+From osiris.CompCert Require Import Coqlib Integers.
 Open Scope Z_scope.
 
 (* This file defines the type [int], a model of the OCaml type [int],
