@@ -7,11 +7,10 @@ Import uPred.
 From osiris Require Import base.
 From osiris.lang Require Import lang encode.
 From osiris.semantics Require Import sugar free eval step notations.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.weakestpre Require Import wp wp_tactics notations safe.
 
 
 Context `{!osirisGS_gen hlc Σ}.
-
 
 
 
@@ -21,44 +20,48 @@ Context `{!osirisGS_gen hlc Σ}.
 
 (* let x = A() in y *)
 
-Goal forall s E,
+Goal
   let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
-  ⊢ WP (eval EnvNil e) @ s; E {{ λ v, ⌜v = VConstant "A"⌝ }}.
+  ⊢ WP (eval EnvNil e) {{ λ v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
-  intros. subst e. simpl.
-  iApply wp_par_ret_ret.
-  cbn.
+  iIntros.
+  wp.
+  wp_continue.
 Abort. (* expected *)
 
 (* let x = (A (), B ()) in let (x1, x2) = x in x1 *)
+
 Definition example :=
   ELet1Var "x" (EPair (EConstant "A") (EConstant "B")) $
-    ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
-    EVar "x1".
-
+  ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  EVar "x1".
 
 (* An example of reasoning about straight-line code. *)
 
-Goal
-  ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
+Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  by wp.
+  wp.
+  wp_continue. wp_continue.
+  iPureIntro. reflexivity.
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
 
 Definition example2 :=
   ELet1Var "x" (EPair (EVar "z1") (EVar "z2")) $
-    ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
-    EVar "x1".
+  ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
+  EVar "x1".
 
 Goal
   ∀ v1 v2,
   let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
   ⊢ WP (eval env example2) {{ λ v, ⌜v = v1⌝ }}.
 Proof.
-  iIntros. by wp.
+  iIntros. wp.
+  wp_continue.
+  wp_continue.
+  iPureIntro. reflexivity.
 Qed.
 
 (* (id (A()), id (A())) *)
@@ -67,47 +70,43 @@ Definition example3 :=
   let idA := EApp (EVar "id") (EConstant "A") in
   EPair idA idA.
 
-(* TODO. *)
-Lemma spec_example3 s E:
+Lemma spec_example3:
   ∀ (id : val),
-  ⊢ □ (∀ v, WP (call id v) @ s; E {{λ v', ⌜ v' = v⌝ }} ) -∗
+  ⊢ □ (∀ v, WP (call id v) {{ λ v', ⌜ v' = v⌝ }} ) -∗
   let env := EnvCons "id" id EnvNil in
-  WP (eval env example3) @ s; E
-                                {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+  WP (eval env example3) {{ λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   iIntros (id) "#Hid".
   wp.
   (* The two components of the pair are evaluated in parallel, and each of them
-   * is a function application, which is itself evaluated in parallel. So we
-   * have a tree of nested [Par]. *)
+     is a function application, which is itself evaluated in parallel. So we
+     have a tree of nested [Par]. *)
   wp_par.
-  { iApply "Hid". }
-  { iApply wp_covariant.
-    - iApply "Hid".
-    - iIntros (v->).
-      wp. by wp_set_postcondition. }
-  iNext.
-  iIntros (??) "->->".
-  by wp.
+  { wp_use "Hid". }
+  { wp_use "Hid".
+    iIntros (v->).
+    wp. wp_set_postcondition.
+    iPureIntro. reflexivity. }
+  { iNext. iIntros (??) "->->".
+    wp. iPureIntro. reflexivity. }
 Qed.
-
 
 (* The identity function. *)
 
 (* [identity] is an expression which returns a closure whose behavior is the
- * identity function. *)
+   identity function. *)
 
 Definition identity :=
   EFun1Var "x" (EVar "x").
 
-Lemma spec_identity s E:
-  ⊢ □ WP (eval EnvNil identity) @ s; E
-                                       {{λ c, □ ∀ v, WP (call c v) @ s; E {{ λ v', ⌜v' = v⌝ }} }}.
+Definition spec_id (c: val) : iProp Σ :=
+  □ ∀ v, WP call c v {{ λ v', ⌜ v' = v ⌝ }}.
+
+Goal
+  ⊢ WP (eval EnvNil identity) {{ spec_id }}.
 Proof.
-  iModIntro.
-  wp.
-  iModIntro. iIntros.
-  by wp_call.
+  wp. iModIntro. iIntros.
+  wp_call. iPureIntro. reflexivity.
 Qed.
 
 (* let id = identity in
@@ -115,25 +114,32 @@ Qed.
 
 Definition example4 :=
   ELet1Var "id" identity $
-    example3.
+  example3.
 
-Lemma spec_example4 s E:
-  ⊢ WP (eval EnvNil example4) @ s; E
-                                     {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+Lemma spec_example4:
+  ⊢ WP (eval EnvNil example4)
+    {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
+  wp.
+  (* The environment is about to be extended with a binding of the variable
+     "id" to a certain closure. Now is the time to prove a specification
+     for this closure; then, we can make this closure opaque. *)
+  wp_specify "id" spec_id.
+  (* Subgoal: prove that [fun x -> x] satisfies [spec_id]. *)
+  { unfold spec_id. iModIntro. iIntros (v). wp_call.
+    iPureIntro. reflexivity. }
+  (* The variable "id" is now bound to an abstract closure [id]. *)
+  iIntros (id) "Hid".
+
   (* Abstract away [example3]; its spec suffices. *)
   generalize example3 spec_example3.
   intros example3 Hexample3.
   (* Attack the goal. *)
   iStartProof.
-  wp.
-  wp_use Hidentity.
-  iIntros (id) "#Hid". wp.
-  by wp_use Hexample3.
+  wp_continue.
+  wp_use Hexample3.
+  wp_use "Hid".
 Qed.
 
 (* An example that involves an assertion. *)
@@ -141,8 +147,8 @@ Qed.
 Definition example5 :=
   ESeq (EAssert ETrue) EFalse.
 
-Lemma spec_example5 s E:
-  ⊢ WP (eval EnvNil example5) @ s; E {{ λ v, ⌜v = VFalse⌝ }}.
+Lemma spec_example5:
+  ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
   wp.
   iIntros ([|]).
@@ -157,25 +163,21 @@ Qed.
 
 Definition example4b :=
   ELet1Var "id" identity $
-    let id := EVar "id" in
-    EApp (EApp id id) EUnit.
+  let id := EVar "id" in
+  EApp (EApp id id) EUnit.
 
-Lemma spec_example4b s E:
-  ⊢ WP (eval EnvNil example4b) @ s; E {{λ v, ⌜v = VUnit⌝ }}.
+Lemma spec_example4b:
+  ⊢ WP eval EnvNil example4b {{λ v, ⌜v = VUnit⌝ }}.
 Proof.
-  unfold example4b.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  iIntros (id) "#Hid".
-  wp.
+  unfold example4b. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. iIntros (v).
+    iModIntro. wp_call.
+    iPureIntro. reflexivity. }
+  iIntros (id) "#Hid". wp_continue.
   (* We are looking at [id id]. *)
-  wp_use "Hid".
-  iIntros(?->).
+  wp_use "Hid". iIntros(?->).
   wp_use "Hid".
 Qed.
 
@@ -184,25 +186,22 @@ Qed.
 
 Definition example4c :=
   ELet1Var "id" identity $
-    let id := EVar "id" in
-    EApp id (EApp id EUnit).
+  let id := EVar "id" in
+  EApp id (EApp id EUnit).
 
-Lemma spec_example4c s E:
-  ⊢ WP (eval EnvNil example4c) @ s; E {{λ v, ⌜v = VUnit⌝}}.
+Lemma spec_example4c:
+  ⊢ WP eval EnvNil example4c {{λ v, ⌜v = VUnit⌝}}.
 Proof.
-  unfold example4c.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  iIntros (id) "#Hid".
-  wp.
+  unfold example4c. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. iIntros (v).
+    iModIntro. wp_call.
+    iPureIntro. reflexivity. }
+  iIntros (id) "#Hid". wp_continue.
   (* We are looking at [id()]. *)
-  wp_use "Hid".
-  iIntros(?->).
+  wp_use "Hid". iIntros(?->).
+  (* We are again looking at [id()]. *)
   wp_use "Hid".
 Qed.
 
@@ -211,22 +210,21 @@ Qed.
 
 Definition example4d :=
   ELet1Var "id" identity $
-    let id := EVar "id" in
-    EApp (EApp id id) (EApp id EUnit).
+  let id := EVar "id" in
+  EApp (EApp id id) (EApp id EUnit).
 
-Lemma spec_example4d s E:
-  ⊢ WP (eval EnvNil example4d) @ s; E {{λ v, ⌜v = VUnit⌝}}.
+Lemma spec_example4d:
+  ⊢ WP eval EnvNil example4d {{λ v, ⌜v = VUnit⌝}}.
 Proof.
-  unfold example4d.
-  (* Abstract away the [identity] function; its spec suffices. *)
-  generalize identity spec_identity.
-  intros identity Hidentity.
-  (* Attack the goal. *)
-  wp.
-  (* Exploit the spec of the expression [identity]. *)
-  wp_use Hidentity.
-  iIntros (id) "#Hid".
-
+  unfold example4d. wp.
+  (* Deal with the local binding of [id]. *)
+  wp_specify "id" spec_id.
+  { unfold spec_id. iIntros (v).
+    iModIntro. wp_call.
+    iPureIntro; reflexivity. }
+  iIntros (id) "#Hid". wp_continue.
+  (* Here, [wp] is unable to make progress because we are looking at two
+     function calls in parallel. *)
   wp_par.
 
   (* id id *)
@@ -243,10 +241,10 @@ Qed.
 
 Definition divergence :=
   ELetRec1 "diverge" "x" (EApp (EVar "diverge") (EVar "x")) $
-    EApp (EVar "diverge") EUnit.
+  EApp (EVar "diverge") EUnit.
 
 Lemma spec_divergence:
-  ⊢ WP (eval EnvNil divergence) {{λ _, ⌜False⌝}}.
+  ⊢ WP eval EnvNil divergence {{ λ _, ⌜False⌝ }}.
 Proof.
   (* The tactic [wp_call] can be applied as many times as one wishes,
      since this term does not terminate, but the goal can never be
@@ -263,9 +261,9 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
 (* A recursive function that walks a list. *)
 
 (* let rec walk xs =
-   match xs with
-   | [] -> ()
-   | x :: xs -> walk xs *)
+     match xs with
+     | [] -> ()
+     | x :: xs -> walk xs *)
 
 Definition walk : rec_bindings :=
   RecBinding1 "walk" "xs" $
@@ -273,55 +271,82 @@ Definition walk : rec_bindings :=
     Branch pNil EUnit;
     Branch (pCons (PVar "x") (PVar "xs"))
            (EApp (EVar "walk") (EVar "xs"))
-  ].
+    ].
 
-Lemma spec_walk s E:
-  ∀ (bs : list bool) η,
-  ⊢ WP (call (VCloRec η walk "walk") (encode_list bs)) @s; E
-                                                             {{λ v, ⌜v = VUnit⌝}}.
+Definition spec_walk (walk : val): iProp Σ :=
+  ∀ (bs : list bool),
+  WP call walk (encode_list bs) {{ λ v, ⌜v = VUnit⌝ }}.
+
+(* This is a subgoal that appears in the proof of
+   [spec_walk_example_abstract] below. *)
+Goal
+  ∀ η,
+  ⊢ spec_walk (VCloRec η walk "walk").
 Proof.
-  (* The environment that is captured by the closure does not matter,
-     since the code is in fact closed. So, we must in fact universally
-     quantify over this environment. *)
-  (* TODO It would be desirable to avoid writing [VCloRec η walk "walk"]
-     explicitly, as the structure of this value is an internal detail of
-     the semantics. Instead we would like to refer this value as "the
-     value produced by evaluating the recursive bindings [walk]". *)
-  induction bs as [| b bs ]; intro η; wp_call.
+  unfold spec_walk.
+  iIntros (η bs).
+  iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
   { iPureIntro. reflexivity. }
-  { wp_use IHbs. }
+  { wp_use "IHbs". }
 Qed.
 
 Definition walk_example e :=
   ELetRec walk $
-    EApp (EVar "walk") e.
+  EApp (EVar "walk") e.
 
-(* TODO: resolve evar-related issues.
+Lemma spec_walk_example_concrete :
+  let e := (eCons ETrue (eCons EFalse eNil)) in
+  ⊢ WP eval EnvNil (walk_example e) {{ λ v, ⌜v = encode tt⌝ }}.
+Proof.
+  (* The code is pure and terminating and can be fully evaluated. *)
+  iIntros.
+  wp.
+  wp_continue.
+  wp_call. wp_continue.
+  wp_call. wp_continue.
+  wp_call. wp_continue.
+  iPureIntro. reflexivity.
+Qed.
 
-   Lemma spec_walk_example_concrete s E:
-   let e := (eCons ETrue (eCons EFalse eNil)) in
-   ⊢ WP (eval EnvNil (walk_example e)) @ s; E {{λ v, ⌜v = encode ()⌝}}.
-   Proof.
-     (* The code is pure and terminating and can be fully evaluated. *)
-   wp. do 3 wp_call. reflexivity.
-   Qed.
-
-   Lemma spec_walk_example_abstract s E:
-   forall (bs : list bool),
-   let η := EnvCons "xs" (encode bs) EnvNil in
-   ⊢ WP (eval η (walk_example (EVar "xs"))) @ s; E {{ λ v, ⌜v = encode ()⌝ }}.
-   Proof.
-   intros. wp. wp_use spec_walk.
-   Qed. *)
+(* The following example illustrates how to reason about a local function.
+   When the environment is about to be extended with a binding of the
+   variable "walk" to a closure, we prove a specification for this closure,
+   then we make this closure opaque. *)
+Lemma spec_walk_example_abstract :
+  forall (bs : list bool),
+  let η := EnvCons "xs" (encode bs) EnvNil in
+  ⊢ WP (eval η (walk_example (EVar "xs"))) {{ λ v, ⌜v = encode tt⌝ }}.
+Proof.
+  intros. wp.
+  (* The environment is about to be extended with a binding of the variable
+     "walk" to a certain closure. Now is the time to prove a specification
+     for this closure; then, we can make this closure opaque. *)
+  wp_specify "walk" spec_walk.
+  (* Subgoal: prove that the closure satisfies [spec_walk]. *)
+  { (* The environment [η] is irrelevant, since the code is in fact closed.
+       Abstract it away. *)
+    generalize η. clear bs η. intros η.
+    unfold spec_walk.
+    (* Prove the spec by induction on the list [bs]. *)
+    iIntros(bs).
+    iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
+    { iPureIntro. reflexivity. }
+    { wp_use "IHbs". }
+  }
+  (* The variable "walk" is now bound to an abstract closure [walk]. *)
+  iIntros (walk) "Hwalk". wp_continue.
+  (* The remains to exploit the hypothesis [Hwalk]. *)
+  wp_use "Hwalk".
+Qed.
 
 (* ------------------------------------------------------------------------- *)
 
 (* A recursive function that computes the length of a list. *)
 
 (* let rec length xs =
-    match xs with
-    | [] -> 0
-    | x :: xs -> 1 + length xs *)
+     match xs with
+     | [] -> 0
+     | x :: xs -> 1 + length xs *)
 
 Definition length : rec_bindings :=
   RecBinding1 "length" "xs" $
@@ -329,22 +354,22 @@ Definition length : rec_bindings :=
     Branch pNil (EInt 0);
     Branch (pCons (PVar "x") (PVar "xs"))
            (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
-  ].
+    ].
 
-Lemma spec_length s E :
-  ∀ `{Encode A} (xs : list A) η,
-  ⊢ WP
-      (call (VCloRec η length "length") (encode_list xs))
-      @ s; E
-             {{ λ v, ⌜v = encode (List.length xs)⌝ }}.
+Definition spec_length (length : val) :=
+  ∀ A (eA : Encode A) (xs : list A),
+  ⊢ WP call length (encode_list xs)
+       {{ λ v, ⌜v = encode (List.length xs)⌝ }}.
+
+Goal
+  ∀ η,
+  spec_length (VCloRec η length "length").
 Proof.
-  induction xs as [| x xs ]; intro η; wp_call.
+  unfold spec_length. intros η ?? xs.
+  iInduction (xs) as [| x xs ] "IHxs"; wp_call; wp_continue.
   { iPureIntro. reflexivity. }
-  { wp_use IHxs.
-    rewrite Nat2Z.inj_succ.
-    iIntros(?->).
-    wp.
-    iPureIntro.
+  { wp_use "IHxs". wp. iIntros(?->).
+    rewrite Nat2Z.inj_succ. wp. iPureIntro.
     rewrite int.add_repr_repr.
     do 2 f_equal. lia. }
 Qed.
@@ -364,8 +389,57 @@ Proof.
   unfold ref_store_load.
   iIntros(??).
   wp.
-  wp_ref ℓ "[Hℓ _]".
-  wp_store "Hℓ".
+  wp_ref ℓ "[Hℓ _]". wp_continue.
+  wp_store "Hℓ". wp_continue.
   wp_load "Hℓ".
   iPureIntro. reflexivity.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(* On verifying modules. *)
+
+(* [simple_module] defines stand alone module expression.
+   There are no side-effects to deal with. *)
+Definition simple_module: mexpr :=
+  MkStruct
+    [
+      ILet (Binding1 (PVar "f")
+                     identity);
+      ILet (Binding1 (PVar "g") $
+                     EVar "f");
+      ILet (Binding1 (PVar "h") $
+                     EApp (EVar "f") (EVar "g"))
+    ].
+
+Definition simple_module_spec: val → iProp Σ :=
+  module_spec $
+  [
+    ("f", spec_id) ;
+    ("h", spec_id)
+  ]
+.
+
+
+Goal
+  ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
+Proof.
+  wp.
+
+  (* [f] is about to be added to the environment *)
+  wp_specify "f" spec_id.
+  { iIntros(v). iModIntro.
+    wp_call. iPureIntro. reflexivity. }
+  iIntros (id) "#Hid". wp_continue.
+
+  (* [g] is about to be added to the environment *)
+  wp_specify "g" spec_id.
+  { iIntros(v). iModIntro.
+    wp_use "Hid". }
+  iIntros (id') "#Hid'". wp_continue.
+
+  (* We can use the spec of [f] at the function call (of the body of [h]). *)
+  wp_use "Hid". iIntros (?->). wp_continue.
+
+  (* Proving the trivial post condition using the aforementioned specs. *)
+  wp_module_spec.
 Qed.

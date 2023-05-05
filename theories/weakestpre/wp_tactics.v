@@ -1,8 +1,10 @@
 From iris.proofmode Require Import classes proofmode.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
+From osiris.lang Require Import lang.
 From osiris.semantics Require Import free eval.
 From osiris.weakestpre Require Import wp.
+
 
 (* ---------------------------------------------------------------------- *)
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)
@@ -68,7 +70,7 @@ Ltac wp :=
     lazymatch goal with
     | |- environments.envs_entails _ (bi_later _) => iNext
     | _ => wp_step
-     end).
+    end).
 
 Ltac wp_par :=
   iApply wp_par; [wp | wp | ].
@@ -104,3 +106,91 @@ Ltac wp_load H :=
   iApply (wp_load with H); iNext; iIntros H; wp.
 Ltac wp_store H :=
   iApply (wp_store with H); iNext; iIntros H; wp.
+
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Do not allow [concatenating] to be unfolded. We want symbolic execution
+   to stop at [concatenating], that is, when the environment is extended
+   with new bindings. This gives the user a chance to prove specifications
+   about these bindings using [wp_specify]. *)
+
+Global Opaque concatenating.
+Global Opaque dconcatenating.
+
+(* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
+   to continue simplifying the goal. *)
+
+Lemma concatenating_def eval η e δ :
+  concatenating eval η e δ =
+  let η := concat δ η in eval η e.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma dconcatenating_def {A} δ ηδ (k: envs → A) :
+  dconcatenating δ ηδ k =
+  k (dconcat δ ηδ).
+Proof.
+  reflexivity.
+Qed.
+
+Ltac wp_continue :=
+  lazymatch goal with
+  | |- context [ concatenating eval _ _ ?δ ] => rewrite concatenating_def
+  | |- context [ dconcatenating ?δ _ _ ] => rewrite dconcatenating_def
+  end; wp.
+
+Ltac wp_autocontinue :=
+  repeat (wp || wp_continue).
+
+
+(* The tactic [wp_specify x φ H] should be used when the goal begins with
+   [concatenating eval η e δ], that is, when the environment is about to
+   be extended with the environment fragment [δ].
+
+   The tactic looks up the variable [x] in the environment fragment [δ]
+   so as to find the value [v] of this variable. Then, it produces two
+   subgoals:
+   - the subgoal [φ v],
+     letting the user prove that [v] satisfies the specification [φ];
+   - the original goal,
+     generalized under the form [∀ v, φ v → ...],
+     which means that [v] becomes an opaque value
+     about which nothing is known except that [φ v] holds. *)
+
+Ltac wp_specify x φ :=
+  lazymatch goal with
+  | |- context [ concatenating eval _ _ ?δ ] =>
+      let o := eval cbn in (lookup_name δ x) in
+        match o with
+        | free.ret ?v =>
+            let H := iFresh in
+            iAssert (φ v) as H; [ | iRevert H; generalize v ]
+        end
+  | |- context [ dconcatenating ?δ _ _ ] =>
+      let o := eval cbn in (lookup_name δ x) in
+        match o with
+        | ret ?v =>
+            let H := iFresh in
+            iAssert (φ v) as H; [ | iRevert H; generalize v]
+        end
+  end.
+
+
+
+(* -------------------------------------------------------------------------- *)
+(* Tactics used to prove the specification of a module expression. *)
+
+
+Ltac wp_module_spec :=
+  lazymatch goal with
+  | |- environments.envs_entails _  (?φ (VStruct ?η)) =>
+      iExists η; iSplit; first (iPureIntro; reflexivity);
+      repeat progress first
+             [ (iApply big_sepL_cons; iSplit;
+                first (iExists _; iSplit; [done | iAssumption]))
+             | iApply big_sepL_nil; iPureIntro; exact I
+             | idtac "You should now prove the next spec by yourself."]
+  end.

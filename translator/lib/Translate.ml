@@ -60,12 +60,12 @@ and trans_pat (p: value general_pattern): expr =
 
   | Tpat_tuple pl ->
      let pl =
-       List.fold_left
-         (fun res p ->
+       List.fold_right
+         (fun p res ->
            EConstr ("PCons",
                     [trans_pat p;
                      res]))
-         (EPlain "PNil") pl
+         pl (EPlain "PNil")
      in
      EConstr ("PTuple", [pl])
 

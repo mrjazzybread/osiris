@@ -74,7 +74,7 @@ $
 ILet (Binding1 (PVar "_test") $
   ELet
     (BiCons
-      (Binding (PTuple (PCons (PVar "upd") (PCons (PVar "get") PNil))) (EApp
+      (Binding (PTuple (PCons (PVar "get") (PCons (PVar "upd") PNil))) (EApp
 (EVar "new_counter") EUnit)) $
     BiNil) $
   ELet

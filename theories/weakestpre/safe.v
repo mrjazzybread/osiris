@@ -545,3 +545,21 @@ Proof.
   erewrite safe_step by eauto with step.
   intros. repeat destruct_step. eauto.
 Qed.
+
+
+
+(* --------------------------------------------------------------------------*)
+(* The following part defines module specifications.
+   It requires to know what a *)
+
+From iris.base_logic Require Import iprop.
+
+Definition spec_env {Σ} : Type :=
+  list (var * (val → iProp Σ)).
+
+Definition module_spec_list {Σ} (Λ : spec_env) (η: env) : iProp Σ :=
+  [∗ list] '(x, φx) ∈ Λ,
+    ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
+
+Definition module_spec {Σ} (Λ : spec_env) (v: val) : iProp Σ :=
+  ∃ η, ⌜ v = VStruct η ⌝ ∗ module_spec_list Λ η.

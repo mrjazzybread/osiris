@@ -153,6 +153,7 @@ Section StdLib.
   Proof.
     iIntros (ϕ)"_ Hϕ".
     wp_call.
+    wp_continue.
     by iApply "Hϕ".
   Qed.
 
@@ -163,6 +164,7 @@ Section StdLib.
   Proof.
     iIntros (ϕ)"_ Hϕ".
     wp_call.
+    wp_continue.
     by iApply "Hϕ".
   Qed.
 
