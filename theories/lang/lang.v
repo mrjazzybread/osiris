@@ -1,5 +1,6 @@
-Require int.
-Require Import base locations.
+From osiris.lang Require int.
+From osiris Require Import base.
+From osiris.semantics Require Import locations.
 
 (* ------------------------------------------------------------------------ *)
 
