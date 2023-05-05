@@ -1,7 +1,7 @@
 From stdpp Require Import gmap.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import store free eval step steps.
+From osiris.semantics Require Import store code eval step steps.
 
 (* This file defines what it means for a computation (in the free monad) to
    be safe. The structure of computations does not matter; the definition

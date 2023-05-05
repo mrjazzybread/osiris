@@ -2,7 +2,7 @@ Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import base. (* .none *)
 From osiris.semantics Require Import store. (* .none *)
 From osiris.lang Require Import lang. (* .none *)
-From osiris.semantics Require Import free eval step notations. (* .none *)
+From osiris.semantics Require Import code eval step notations. (* .none *)
 From osiris.weakestpre Require Import safe notations. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
@@ -19,7 +19,6 @@ Implicit Type i : int. (* .none *)
 Implicit Type b : bool. (* .none *)
 
 Implicit Type A B X Y : Type. (* .none *)
-Implicit Type code : Type → Type → Type. (* .none *)
 
 (*|
 =========================
@@ -323,7 +322,7 @@ The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
-From osiris.semantics Require Import free. (* .none *) (* avoid showing that [free] is a notation *)
+From osiris.semantics Require Import code. (* .none *) (* avoid showing that [free] is a notation *)
 Print free. (* .unfold *)
 From osiris.semantics Require Import eval. (* .none *)
 

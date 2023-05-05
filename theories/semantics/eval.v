@@ -1,7 +1,7 @@
 From osiris.semantics Require Import store.
 From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import free locations notations.
+From osiris.semantics Require Import code locations notations.
 
 (* Conventional metavariables. *)
 
@@ -26,47 +26,6 @@ Implicit Type π : path.
 Implicit Type me : mexpr.
 Implicit Type item : sitem.
 Implicit Type items : sitems.
-
-(* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
-
-(* Codes for effects. *)
-
-(* The code [Eval (η, e)] is a request for the computation [eval η e]. *)
-
-(* The code [Loop (η, x, i1, i2, e)] is a request for the computation
-   [loop η x v1 v2 e]. *)
-
-(* The code [Flip] is a request to flip a Boolean coin. *)
-
-Inductive code : Type → Type → Type :=
-| Eval  : code (env * expr) val
-| Loop  : code (env * var * int * int * expr) val
-| Flip  : code unit bool
-| Ref   : code val loc
-| Load  : code loc val
-| Store : code (loc * val) ()
-.
-
-(* We fix this particular type of codes. *)
-
-Notation free :=
-  (@free.free code).
-
-Notation ret :=
-  (@free.ret code).
-
-(* [flip] flips a coin. *)
-
-Definition flip : free bool :=
-  stop Flip ().
-
-(* [choose m1 m2] is a non-deterministic choice between the
-   computations [m1] and [m2]. *)
-
-Definition choose {A} (m1 m2 : free A) : free A :=
-  b ← flip ;
-  if (b : bool) then m1 else m2.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)

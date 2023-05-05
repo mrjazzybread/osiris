@@ -1,7 +1,7 @@
 From stdpp Require Import gmap.
 From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import free eval store locations.
+From osiris.semantics Require Import code eval store locations.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
    of the form [step m m'] where [m] and [m'] are computations in the [free]
@@ -544,10 +544,12 @@ Proof.
   intros?. by exists s'.
 Qed.
 
+(* TODO seems redundant with invert_can_step_fail *)
 Lemma can_step_fail {A} σ :
-  ~ (can_step (σ, @fail _ A)).
-Proof. intros H%invert_can_step_Fail. assumption. Qed.
-
+  ~ (can_step (σ, @fail A)).
+Proof.
+  intros H%invert_can_step_Fail. assumption.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -1,11 +1,26 @@
 From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 
-Section Free.
+(* This module defines a meta-language (a monad) within which one can
+   implement an interpreter for an object language (such as OCaml). *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* A free monad. *)
+(* The monad is parameterized over a type constructor [code], which describes
+   a set of services that a computation can request from the runtime system.
+   These services can also be thought of as "system calls" that a computation
+   can make. A value of type [code X Y] represents the name of a system call
+   whose parameter has type [X] and whose result has type  [Y]. *)
+
+Module Type CODE.
+  Parameter code : Type → Type → Type.
+End CODE.
+
+Module Make (C : CODE).
+
+Import C. (* We write [code] for [C.code]. *)
+
+(* ------------------------------------------------------------------------ *)
 
 (* The custom constructors of this free monad are:
 
@@ -42,8 +57,6 @@ Section Free.
    The type [free A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must
    (infinitely often) pause by performing a [Stop] effect. *)
-
-Context {code : Type → Type → Type}.
 
 Inductive free A :=
   | Ret (a : A)
@@ -283,21 +296,4 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-End Free.
-
-(* Recreate some things that are lost when the section is closed. *)
-
-Notation ret :=
-  (Ret).
-
-Notation fail :=
-  (Fail).
-
-Definition next {code A} : unit → @free code A :=
-  (λ tt, @Next code A).
-
-Arguments Ret  {code A}.
-Arguments Fail {code A}.
-Arguments Next {code A}.
-Arguments Stop {code A X Y} c x k.
-Arguments Par  {code A A1 A2} m1 m2 k ko.
+End Make.

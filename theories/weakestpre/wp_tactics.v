@@ -1,7 +1,7 @@
 From iris.proofmode Require Import classes proofmode.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
-From osiris.semantics Require Import free eval.
+From osiris.semantics Require Import code eval.
 From osiris.weakestpre Require Import wp.
 
 (* ---------------------------------------------------------------------- *)

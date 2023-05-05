@@ -9,7 +9,7 @@ From iris.algebra Require Import gmap.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import store free eval step notations locations.
+From osiris.semantics Require Import store code eval step notations locations.
 
 
 
@@ -43,7 +43,7 @@ Qed.
 Lemma is_ret_non_Ret {A} (m: free A) :
   is_ret m = None ->
       m = Fail
-    ∨ m = free.Next
+    ∨ m = Next
     ∨ (∃ A B (c: code A B) x k, m = Stop c x k)
     ∨ (∃ A1 A2 (m1: free A1) (m2: free A2) k (ko: unit → free A),
         m = Par m1 m2 k ko).
@@ -258,7 +258,7 @@ Section wp_lemmas.
 
   (* It might be useful to prove that there is no associate WP to [Fail]. *)
   Lemma wp_fail {A} s E σ ϕ:
-    state_interp σ -∗ WP (@fail _ A) @ s; E {{ϕ}} -∗ ⌜False⌝.
+    state_interp σ -∗ WP (@fail A) @ s; E {{ϕ}} -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "Hsi Hwp".
@@ -267,7 +267,7 @@ Section wp_lemmas.
   Qed.
 
   Lemma wp_next {A} s E σ (ϕ: A → iProp Σ):
-    state_interp σ -∗ (WP free.Next @ s; E {{ ϕ }}) -∗ ⌜False⌝.
+    state_interp σ -∗ (WP Next @ s; E {{ ϕ }}) -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "Hsi Hwp".

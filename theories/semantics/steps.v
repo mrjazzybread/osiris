@@ -1,6 +1,6 @@
 From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import free eval step.
+From osiris.semantics Require Import code eval step.
 
 (* This file defines the relations [steps] and [produces]
    and establishes some of their properties. *)
