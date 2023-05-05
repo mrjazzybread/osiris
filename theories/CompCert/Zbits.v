@@ -18,7 +18,7 @@
     on top of the ZArith standard library. *)
 
 Require Import Psatz Zquot.
-Require Import Coqlib.
+From osiris.CompCert Require Import Coqlib.
 
 (** ** Modulo arithmetic *)
 
@@ -499,10 +499,10 @@ Corollary Ztestbit_neg_two_p:
   forall n i, 0 <= n -> 0 <= i ->
   Z.testbit (- (two_p n)) i = if zlt i n then false else true.
 Proof.
-  intros. 
-  replace (- two_p n) with (- (two_p n - 1) - 1) by lia. 
+  intros.
+  replace (- two_p n) with (- (two_p n - 1) - 1) by lia.
   rewrite Z_one_complement by auto.
-  rewrite Ztestbit_two_p_m1 by auto. 
+  rewrite Ztestbit_two_p_m1 by auto.
   destruct (zlt i n); auto.
 Qed.
 
@@ -610,7 +610,7 @@ Lemma Zsign_ext_spec:
   forall n x i, 0 <= i ->
   Z.testbit (Zsign_ext n x) i = Z.testbit x (if zlt i n then i else n - 1).
 Proof.
-  intros n0 x i I0. unfold Zsign_ext. 
+  intros n0 x i I0. unfold Zsign_ext.
   unfold proj_sumbool; destruct (zlt 0 n0) as [N0|N0]; simpl.
 - revert x i I0. pattern n0. apply Zlt_lower_bound_ind with (z := 1); [ | lia ].
   unfold Zsign_ext. intros.
@@ -632,7 +632,7 @@ Proof.
       ** rewrite zlt_false by lia.
          rewrite (Ztestbit_eq (x - 1) x0) by lia.
          rewrite zeq_false by lia. auto.
-- rewrite Ziter_base by lia. rewrite andb_false_r. 
+- rewrite Ziter_base by lia. rewrite andb_false_r.
   rewrite Z.testbit_0_l, Z.testbit_neg_r. auto.
   destruct (zlt i n0); lia.
 Qed.
@@ -670,9 +670,9 @@ Proof.
   intros. apply equal_same_bits; intros.
   rewrite Zsign_ext_spec by auto.
   destruct (Z.testbit x (n - 1)) eqn:SIGNBIT.
-- set (n' := - two_p n). 
+- set (n' := - two_p n).
   replace (Zzero_ext n x - two_p n) with (Zzero_ext n x + n') by (unfold n'; lia).
-  rewrite Z_add_is_or; auto. 
+  rewrite Z_add_is_or; auto.
   rewrite Zzero_ext_spec by auto. unfold n'; rewrite Ztestbit_neg_two_p by lia.
   destruct (zlt i n). rewrite orb_false_r; auto. auto.
   intros. rewrite Zzero_ext_spec by lia. unfold n'; rewrite Ztestbit_neg_two_p by lia.
@@ -693,10 +693,10 @@ Proof.
   assert (B: Z.testbit (Zzero_ext n x) (n - 1) =
              if zlt (Zzero_ext n x) (two_p (n - 1)) then false else true).
   { set (N := Z.to_nat (n - 1)).
-    generalize (Zsign_bit N (Zzero_ext n x)). 
+    generalize (Zsign_bit N (Zzero_ext n x)).
     rewrite ! two_power_nat_two_p.
     rewrite inj_S.  unfold N; rewrite Z2Nat.id by lia.
-    intros X; apply X.  replace (Z.succ (n - 1)) with n by lia. exact A. 
+    intros X; apply X.  replace (Z.succ (n - 1)) with n by lia. exact A.
   }
   assert (C: two_p n = 2 * two_p (n - 1)).
   { rewrite <- two_p_S by lia. f_equal; lia. }
@@ -709,9 +709,9 @@ Lemma eqmod_Zsign_ext:
   forall n x, 0 <= n ->
   eqmod (two_p n) (Zsign_ext n x) x.
 Proof.
-  intros. rewrite Zsign_ext_zero_ext by auto. 
-  apply eqmod_trans with (x - 0). 
-  apply eqmod_sub. 
+  intros. rewrite Zsign_ext_zero_ext by auto.
+  apply eqmod_trans with (x - 0).
+  apply eqmod_sub.
   apply eqmod_Zzero_ext; lia.
   exists (if Z.testbit x (n - 1) then 1 else 0). destruct (Z.testbit x (n - 1)); ring.
   apply eqmod_refl2; lia.
@@ -833,7 +833,7 @@ Proof.
   destruct (P_is_power2 p) eqn:P; try discriminate.
   replace i with (Z.log2 (Z.pos p)) by congruence. apply Z.log2_nonneg.
 Qed.
- 
+
 Lemma Z_is_power2_sound:
   forall x i, Z_is_power2 x = Some i -> x = two_p i /\ i = Z.log2 x.
 Proof.
@@ -1091,9 +1091,9 @@ Proof.
   unfold Zinsert; intros. set (mask := two_p len - 1).
   assert (M: forall j, 0 <= j -> Z.testbit mask j = if zlt j len then true else false).
   { intros; apply Ztestbit_two_p_m1; auto. }
-  rewrite Z.lor_spec, Z.land_spec, Z.ldiff_spec by auto. 
+  rewrite Z.lor_spec, Z.land_spec, Z.ldiff_spec by auto.
   destruct (zle to i).
-- rewrite ! Z.shiftl_spec by auto. rewrite ! M by lia. 
+- rewrite ! Z.shiftl_spec by auto. rewrite ! M by lia.
   unfold proj_sumbool; destruct (zlt (i - to) len); simpl;
   rewrite andb_true_r, andb_false_r.
 + rewrite zlt_true by lia. apply orb_false_r.

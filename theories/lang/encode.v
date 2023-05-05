@@ -1,4 +1,6 @@
-Require Import base lang sugar.
+From osiris Require Import base.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import sugar.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into

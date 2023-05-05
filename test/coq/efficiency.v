@@ -1,4 +1,7 @@
-Require Import base lang free eval step safe wp wp_tactics.
+From osiris Require Import base.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import free eval step.
+From osiris.weakestpre Require Imoprt safe wp wp_tactics.
 
 Definition do_something (v : val) : free val :=
   let η := EnvCons "v" v EnvNil in

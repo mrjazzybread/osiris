@@ -1,10 +1,20 @@
 # This prevents Coq from producing stack backtraces.
 export OCAMLRUNPARAM=
 
-.PHONY: all clean
-
+.PHONY: all
 all:
-	dune build --display=short
+	@ dune build
 
+.PHONY: clean
 clean:
-	dune clean
+	@ git clean -fdX
+
+.PHONY: axioms
+axioms:
+	@ for word in Axiom Abort Admitted ; do \
+	    git grep $${word} '*.v' || true ; \
+	  done
+
+.PHONY: tutorial
+tutorial: all
+	@ dune build tutorial/tutorial.html

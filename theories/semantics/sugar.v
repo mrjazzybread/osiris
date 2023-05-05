@@ -1,5 +1,6 @@
-Require int.
-Require Import base lang.
+From osiris.lang Require int.
+From osiris Require Import base.
+From osiris.lang Require Import lang.
 
 (* The sugar in this file can help construct ASTs by hand in Coq. *)
 

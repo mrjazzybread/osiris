@@ -1,5 +1,6 @@
-Require int.
-Require Import base locations.
+From osiris.lang Require int.
+From osiris Require Import base.
+From osiris.semantics Require Import locations.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -90,6 +91,34 @@ with pats :=
 with fpats :=
   | FPNil
   | FPCons (f : field) (p : pat) (fps : fpats).
+
+(* ------------------------------------------------------------------------ *)
+
+(* Module coercions. *)
+
+(* Module coercions can be understood as a very impoverished form of module
+   types. They play a role in the dynamic semantics of the shape restriction
+   operation on modules. *)
+
+Inductive coercion :=
+
+  (* The coercion [CIdentity] has no effect. *)
+  | CIdentity
+
+  (* The coercion [CStruct cs] expects to be applied to a structure. The
+     fields named in the list [xcs] are retained, and the corresponding
+     coercions in the list [xcs] are applied to them. All other fields are
+     dropped. *)
+  | CStruct (xcs : coercions)
+
+with coercions :=
+  | CNil
+  | CCons (x : var) (c : coercion) (xcs : coercions).
+      (* In [CCons x c xcs], the name [x] refers to a structure component,
+         which can be a value or a substructure. The coercion [c] is applied
+         to this component. *)
+      (* A name-coercion list [xcs] is expected to have no duplicate names.
+         At the moment, this property is not checked by us. *)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -250,6 +279,12 @@ with mexpr :=
   (* A structure [struct ... end]. *)
   | MStruct (items : sitems)
 
+  (* A coercion, that is, a shape restriction operation. This operation is
+     written [M : S] in OCaml surface syntax, and is sometimes implicit: for
+     example, a functor application [F(M)] must be understood as [F(M : S)]
+     where [S] is the expected shape of the argument of the functor [F]. *)
+  | MCoercion (me : mexpr) (c : coercion)
+
 (* Lists of structure items. *)
 
 with sitems :=
@@ -309,7 +344,7 @@ Inductive val :=
   (* A location. *)
   | VLoc (l: loc)
   (* A module. *)
-  | VStruct (fvs : env)
+  | VStruct (xvs : env)
 
 (* Lists of values. *)
 

@@ -323,9 +323,9 @@ The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
-Require Import free. (* .none *) (* avoid showing that [free] is a notation *)
+From osiris.semantics Require Import free. (* .none *) (* avoid showing that [free] is a notation *)
 Print free. (* .unfold *)
-Require Import eval. (* .none *)
+From osiris.semantics Require Import eval. (* .none *)
 
 (*|
 This is an inductive type: every computation must eventually

@@ -1,5 +1,5 @@
 From Coq.Logic Require Import FunctionalExtensionality.
-Require Import base.
+From osiris Require Import base.
 
 Section Free.
 

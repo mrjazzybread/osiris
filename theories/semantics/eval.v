@@ -6,7 +6,7 @@ From osiris.semantics Require Import free locations notations.
 (* Conventional metavariables. *)
 
 Implicit Type g x : var.
-Implicit Type c : data.
+Implicit Type c : data. (* or coercion; TODO *)
 Implicit Type f : field.
 Implicit Type p : pat.
 Implicit Type ps : pats.
@@ -16,7 +16,7 @@ Implicit Type fes : fexprs.
 Implicit Type a : anonfun.
 Implicit Type v : val.
 Implicit Type vs : vals.
-Implicit Type fvs : env.
+Implicit Type fvs xvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
@@ -203,12 +203,12 @@ Definition as_record (m : free val) : free env :=
 (* ------------------------------------------------------------------------ *)
 
 (* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
-   fvs] and returns its content [fvs]. *)
+   xvs] and returns its content [xvs]. *)
 
 Definition val_as_struct (v : val) : free env :=
   match v with
-  | VStruct fvs =>
-      ret fvs
+  | VStruct xvs =>
+      ret xvs
   | _ =>
       crash "type mismatch (structure expected)"
   end.
@@ -245,9 +245,9 @@ Fixpoint lookup_path η π : free val :=
       lookup_name η x
   | PathDot π x =>
       (* The content of a structure is an environment, *)
-      fvs ← as_struct (lookup_path η π) ;
-      (* so we can look up [x] in the environment [fvs]. *)
-      lookup_name fvs x
+      xvs ← as_struct (lookup_path η π) ;
+      (* so we can look up [x] in the environment [xvs]. *)
+      lookup_name xvs x
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -657,6 +657,47 @@ Definition dconcat δ' ηδ : envs :=
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
+(* [coerce c v] applies the module coercion [c] to the module value [v]. *)
+
+Fixpoint coerce (c : coercion) (v : val) : free val :=
+  match c with
+  | CIdentity =>
+      ret v
+  | CStruct xcs =>
+      (* [v] must be a structure, whose components form a list [xvs]. *)
+      xvs ← val_as_struct v ;
+      (* From [xvs], fetch the components named in the list [xcs], and
+         apply the corresponding coercions to them. *)
+      xvs ← coerces xcs xvs ;
+      (* Return a structure. *)
+      ret (VStruct xvs)
+  end
+
+(* [coerces xcs xvs] applies the name-coercion list [xcs] to the
+   name-value list [xvs], producing a new name-value list. *)
+
+with coerces (xcs : coercions) (xvs : env) : free env :=
+  match xcs with
+  | CNil =>
+      ret EnvNil
+  | CCons x c xcs =>
+      (* Fetch the component [x] from [xvs]. *)
+      v ← lookup_name xvs x ;
+      (* Apply the coercion [c] to it. *)
+      v ← coerce c v ;
+      (* Fetch the rest. *)
+      xvs ← coerces xcs xvs ;
+      (* Combine the results. Whether we place [x] in front of [xvs] or
+         behind [xvs] should not make any difference, because the field
+         names that appear in the coercion should be pairwise distinct,
+         so the order in which these fields appear in the new structure
+         should be irrelevant. *)
+      ret (EnvCons x v xvs)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -950,6 +991,9 @@ with eval_mexpr η me : free val :=
       '(_, δ) ← eval_sitems (η, δ) items ;
       (* and wrap it in a [VStruct] value. *)
       ret (VStruct δ)
+  | MCoercion me c =>
+      v ← eval_mexpr η me ;
+      coerce c v
   end
 
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
