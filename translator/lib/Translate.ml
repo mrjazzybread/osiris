@@ -113,15 +113,15 @@ and trans_tl_expr (e: expression) =
             EConstr ("EFun1Var", [EPlain ("\"" ^ Ident.name i ^ "\"");
                               trans_tl_expr e])
          | Tpat_any ->
-            EConstr ("EFun1Var", [EPlain "\"_\"";
+            EConstr ("EFun1Pat", [EPlain "PAny";
                               trans_tl_expr e])
 
          | Tpat_construct (i, desc, _, _) ->
             (* This construction should only be used for [()].
                Here, [()] is translated [EPlain "()"], not
                [EConstr ("EData", [EPlain "()"])]. *)
-            if desc.cstr_arity = 0
-            then EConstr ("EFun1Var", [EPlain (string_of_longident i.txt);
+            if desc.cstr_arity = 0 && (string_of_longident i.txt = "\"()\"")
+            then EConstr ("EFun1Pat", [EPlain ("PAny");
                                    trans_tl_expr e])
             else assert false
 
@@ -241,7 +241,7 @@ and trans_tl_value_binding (vb: Typedtree.value_binding): string option * expr =
   | _ -> assert false
 
 
-(* [translate_structure] traslates a typed program into a value of type [Ast].
+(* [translate_structure] translates a typed program into a value of type [ast].
    Note: if need be, it is possible to query the environment at the
    ````` [structure_item] at hand, which might be useful if the translation tool
    ever need to generate environment in the Coq development. *)
@@ -251,8 +251,9 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   | Tstr_value (Nonrecursive, vbl) ->
      List.map trans_tl_value_binding vbl
   (* Recursive top-level bindings. *)
-  | Tstr_value (Recursive, vbl) ->
-     List.map trans_tl_value_binding vbl
+  | Tstr_value (Recursive, _vbl) ->
+  (* List.map trans_tl_value_binding vbl *)
+     assert false
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
   | Tstr_type _ -> assert false (* of Asttypes.rec_flag * type_declaration list *)
@@ -269,5 +270,5 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   | Tstr_include _ -> assert false (* of include_declaration *)
   | Tstr_attribute _ -> assert false (*of attribute*)
 
-let translate (t: Typedtree.structure) =
+let translate (t: Typedtree.structure): ast =
   List.flatten (List.map trans_tl_structure t.str_items)

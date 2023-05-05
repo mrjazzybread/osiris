@@ -24,9 +24,10 @@ From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)
-Definition new_counter :=
-  EFun1Var "()" $
-  ELet
+Definition Incr : mexpr :=
+                    MkStruct [ ILet (Binding1
+(PVar "new_counter") $
+  EFun1Pat PAny (ELet
     (BiCons
       (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
     BiNil) $
@@ -37,13 +38,13 @@ Definition new_counter :=
     BiNil) $
   ELet
     (BiCons
-      (Binding (PVar "get") (EFun1Var "()" $
-      EApp (EMkPath ["Stdlib";"!"]) (EVar "c"))) $
+      (Binding (PVar "get") (EFun1Pat PAny (EApp (EMkPath ["Stdlib";"!"])
+(EVar "c")))) $
     BiNil) $
-  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)).
+  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil))))
 
-
-Definition pleasedontclash (*This is not a name. *) :=
+  ;
+ILet (Binding1 PAny $
    ELet
      (BiCons
        (Binding (PVar "res") (EApp (EVar "new_counter") EUnit)) $
@@ -67,10 +68,10 @@ $
        (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EVar
 "get") EUnit)) (EVar "c"))) $
      BiNil) $
-   EVar "res")) BrNil).
+   EVar "res")) BrNil))
 
-
-Definition _test :=
+  ;
+ILet (Binding1 (PVar "_test") $
   ELet
     (BiCons
       (Binding (PTuple (PCons (PVar "upd") (PCons (PVar "get") PNil))) (EApp
@@ -86,6 +87,9 @@ Definition _test :=
 "get") EUnit)) (EVar "c"))) $
     BiNil) $
   EVar "res"))
-BrNil).
+BrNil))
 
 
+ ].
+
+(* END. *)

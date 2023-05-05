@@ -18,70 +18,6 @@ Context `{!osirisGS_gen hlc Σ}.
 
 
 
-
-(* --------------------------------------------------------------------------- *)
-(* Redefinition of part of the implementation so that one has access to
-   [new_counter] when using it. *)
-
-Definition pleasedontclash (*This is not a name. *) :=
-  (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
-  (* The current translator assumes that the user will provide the correct
-     environment to work with previously-defined symbols. Nonetheless, as
-     translations are in fact expressions and not values (at least for now), it
-     would be tedious to do so. An alternative is to use the trick described in
-     [traduction/lib/Pp.ml]: translate a single file as a huge let:
-     let a, b, c, ... =
-         let a_at_top-level := ... in
-         let _ = ... in
-         let b_at_top-level := ... in
-         let c_at_top-level := ... in
-         (a_at_top-level, ...).
-     Notes:
-       - this would also solve the issue of taking into account the
-         [let _ = ...] and [let () = ...] that appear at top-level.
-       - use structures instead of an enclosing let.
-
-     For now, I add this let by hand, but the above trick will be directly
-     applied by the translator in the futur. *)
-  ELet
-    (BiCons
-       (Binding (PVar "new_counter")
-                new_counter)
-       BiNil) $
-  (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
-  incr.pleasedontclash.
-
-
-Definition _test :=
-  (* *** START OF A MODIFICATION TO THE TRANSLATION *** *)
-  (* The current translator assumes that the user will provide the correct
-     environment to work with previously-defined symbols. Nonetheless, as
-     translations are in fact expressions and not values (at least for now), it
-     would be tedious to do so. An alternative is to use the trick described in
-     [traduction/lib/Pp.ml]: translate a single file as a huge let:
-     let a, b, c, ... =
-         let a_at_top-level := ... in
-         let _ = ... in
-         let b_at_top-level := ... in
-         let c_at_top-level := ... in
-         (a_at_top-level, ...).
-     Notes:
-       - this would also solve the issue of taking into account the
-         [let _ = ...] and [let () = ...] that appear at top-level.
-       - use structures instead of an enclosing let.
-
-     For now, I add this let by hand, but the above trick will be directly
-     applied by the translator in the futur. *)
-  ELet
-    (BiCons
-       (Binding (PVar "new_counter")
-                new_counter)
-       BiNil) $
-  (* ***  END OF A MODIFICATION TO THE TRANSLATION  *** *)
-  incr._test.
-
-
-
 (* --------------------------------------------------------------------------- *)
 (* Definition of the specifications of the [get] and [upd] functions returned by
    [new_counter ()]. *)
@@ -100,6 +36,100 @@ Definition upd_spec ℓ upd : iProp Σ :=
     {{{ is_counter ℓ i }}}
       call upd (VInt (int.repr i')) @ s; E
     {{{ RET VUnit; is_counter ℓ i' }}}.
+
+Definition new_counter_spec v : iProp Σ :=
+  {{{ ⌜ True ⌝ }}}
+    call v VUnit
+  {{{ vget vupd,
+      RET (VTuple (VCons vget (VCons vupd VNil)));
+      ∃ ℓ,
+        is_counter ℓ 0 ∗
+        get_spec ℓ vget ∗
+        upd_spec ℓ vupd }}}.
+
+Definition thirteen_spec v : iProp Σ :=
+  ⌜ v = encode 13 ⌝.
+
+
+
+Definition spec_env : Type :=
+  gmap var (val → iProp Σ).
+
+Definition module_spec_env (Λ : spec_env) (η: env) : iProp Σ :=
+  ∀ x,
+  ∃ φ, ⌜Λ !! x = Some φ⌝ -∗
+       ∃ v, ⌜lookup_name η x = Ret v⌝ -∗
+       φ v.
+
+
+Definition module_spec (Λ : spec_env) (v: val) : iProp Σ :=
+  ∃ η, ⌜ v = VStruct η ⌝ ∗ module_spec_env Λ η.
+
+
+Implicit Type Λ : spec_env.
+Implicit Type η : env.
+Implicit Type x : var.
+Implicit Type e : expr.
+
+Definition module_spec_delete x Λ :=
+  let φ : val → iProp Σ := λ _, ⌜False⌝%I in
+  <[ x := φ ]> Λ.
+
+
+Lemma module_spec_ILet_now Λ η x e (t: list sitem) φx :
+  Λ !! x = Some φx →
+  let Λx := module_spec_delete x Λ in
+  ⊢ WP eval η e {{ φx }} -∗
+    (∀ v, φx v -∗
+      WP eval_mexpr (EnvCons x v η) (MkStruct t) {{ module_spec Λx }}) -∗
+    WP eval_mexpr η (MkStruct (ILet (Binding1 (PVar x) e) :: t))
+    {{ module_spec Λ }}.
+Proof.
+  iIntros (Hsome Λx) "He Ht".
+  wp.
+  iApply (wp_covariant with "He").
+  iIntros (v) "Hv".
+  iSpecialize ("Ht" with "Hv").
+Admitted.
+
+Lemma Incr__spec s E:
+  let Λ :=
+    {[
+      "new_counter" := new_counter_spec;
+      "test" := thirteen_spec
+    ]}
+  in
+  let η := EnvCons "Stdlib" Stdlib $
+           EnvNil in
+  ⊢ WP eval_mexpr η Incr @ s; E {{ module_spec Λ }}.
+Proof.
+  intros.
+  unfold Incr.
+  iStartProof.
+  remember (EFun1Pat _ _).
+  remember (Binding1 PAny _).
+  remember (Binding1 (PVar "_test") (ELet _ _)).
+
+  wp.
+  wp_call.
+  iApply wp_covariant; first by iApply Stdlib__ref__spec.
+  iIntros (?)"(%l&Hl&->)".
+  wp.
+  iPoseProof (Stdlib__snd__spec_tac with "[//][Hl]") as "H"; last iAssumption.
+  wp.
+  wp_call.
+  iApply (Stdlib__load__spec_tac with "[//]Hl").
+  iIntros "Hl".
+  wp.
+  iApply (Stdlib__store__spec_tac with "Hl").
+  wp.
+  iIntros "Hl".
+  wp.
+  wp_call.
+  iApply (Stdlib__load__spec_tac with "[//]Hl").
+  iIntros "Hl".
+  wp.
+  iApply (Stdlib__store__spec_tac with "Hl").
 
 
 

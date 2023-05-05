@@ -111,7 +111,7 @@ let run_cmt fmt input_cmt =
   (* Translate the AST. *)
   |> Translator.Translate.translate
   (* Print the final result. *)
-  |> Translator.Pp.print fmt headers
+  |> Translator.Pp.print fmt cmt_infos.cmt_modname headers
 
 
 

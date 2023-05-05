@@ -59,7 +59,7 @@ Ltac wp_step' :=
       tac_change_goal (wp_flip _ _ _ _ _)
   end.
 
-Ltac wp_step := (wp_step' || cbn).
+Ltac wp_step := (wp_step' + cbn).
 
 Ltac wp :=
   iStartProof;

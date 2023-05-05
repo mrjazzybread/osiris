@@ -82,32 +82,35 @@ let definition = function
 
         This is still a silent error so that the translator can still be used. *)
      (nest 2 (flow space [
-            string "Definition";
-            string "pleasedontclash (*This is not a name. *)";
-            string ":="; hardline;
-            (align (document_of_expr false h ^^ dot));
+            string "ILet (Binding1 PAny $"; hardline;
+            (align (document_of_expr false h ^^ char ')'));
             repeat 2 hardline;
           ]))
   | (Some n, h) ->
      (nest 2 (concat [
-         string "Definition"; space;
-         string n; space;
-         string ":="; hardline;
-         (align (document_of_expr false h ^^ char '.'));
+         string "ILet (Binding1 (PVar \"";
+         string n;
+         string "\") $"; hardline;
+         (align (document_of_expr false h ^^ char ')'));
          repeat 2 hardline;
        ]))
 
 let rec document_of_ast = function
   | [] -> empty
-  | h :: t ->
-     concat [definition h ; hardline; document_of_ast t]
+  | h :: h' :: t ->
+     concat [definition h ; semi; hardline; document_of_ast (h' :: t)]
+  | h :: [] ->
+     concat [definition h ; hardline]
 
 let print_ast fmt ast =
   (PPrint.ToFormatter.pretty 0.5 100) fmt (document_of_ast ast)
 
-let print fmt headers (a: ast) : unit =
+let print fmt module_name headers (a: ast) : unit =
   Format.fprintf fmt
                  "%s@.@.\
-                 (* Generated code: *)@.\
-                 %a"
-                 headers print_ast a
+                  (* Generated code: *)@.\
+                  Definition %s : mexpr :=
+                    MkStruct [ %a ].@.\
+                  @.(* END. *)"
+                 headers module_name
+                 print_ast a
