@@ -230,7 +230,7 @@ Proof.
   - exists (σ, bind (eval x e) k). apply StepEval, eq_refl.
   - exists (σ, bind (loop x v i0 i e) k). eapply StepLoop, eq_refl.
   - exists (σ, k false). apply StepFlip.
-  - set ℓ := fresh_locs (dom σ).
+  - set ℓ := fresh_loc (dom σ).
     exists (<[ℓ:=x]> σ, k ℓ). apply StepRef.
   - (* TODO: destruct the "belongs to" predicate instead of the result of
      *       lookup. *)
@@ -335,7 +335,7 @@ Proof.
     split; eauto with step bind_bind.
   - pose proof (StepRef σ x k).
     simpl in H.
-    exists (k (fresh_locs (dom σ))), (<[fresh_locs (dom σ):=x]> σ).
+    exists (k (fresh_loc (dom σ))), (<[fresh_loc (dom σ):=x]> σ).
     split; eauto with step bind_bind.
 Qed.
 

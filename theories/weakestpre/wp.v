@@ -507,7 +507,7 @@ Section wp_lemmas.
     iSplit.
     { iPureIntro. eauto with step. }
     iIntros (σ' m' [->->]%invert_step_ref%pair_equal_spec).
-    set ℓ := (fresh_locs (dom σ)).
+    set ℓ := (fresh_loc (dom σ)).
     iDestruct ("H" $! ℓ) as "H".
     pose proof (store_ref_dom σ x) as [_ Hfresh%not_elem_of_dom].
     iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]";

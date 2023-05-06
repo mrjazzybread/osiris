@@ -23,7 +23,7 @@ Section Store.
   (* [store_ref] finds a fresh location to add to its argument.
    * It returns the fresh location and the updated store. *)
   Definition store_ref (s: store) (v: val) : loc * store :=
-    let l := fresh_locs (dom s) in
+    let l := fresh_loc (dom s) in
     (l, <[l := v]>s).
 
   Lemma store_ref_dom (s: store) (v: val) :
@@ -31,7 +31,7 @@ Section Store.
     dom s' = (dom s) ∪ {[ l ]} ∧ l ∉ dom s.
   Proof.
     split; first set_solver.
-    apply fresh_locs_fresh.
+    apply fresh_loc_fresh.
   Qed.
 
   Global Instance val_inhabited: Inhabited val := populate (VTuple VNil).
