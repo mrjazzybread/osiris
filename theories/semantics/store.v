@@ -31,11 +31,8 @@ Section Store.
     dom s' = (dom s) ∪ {[ l ]} ∧ l ∉ dom s.
   Proof.
     split; first set_solver.
-    unshelve epose proof (fresh_locs_fresh (dom s) 0 _) as H; first reflexivity.
-    rewrite loc_add_0 in H.
-    assumption.
+    apply fresh_locs_fresh.
   Qed.
-
 
   Global Instance val_inhabited: Inhabited val := populate (VTuple VNil).
 
