@@ -38,17 +38,19 @@ Section wp_def.
   Definition wp_pre  (s: stuckness)
     (wp: coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ):
     coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ :=
-    λ E m ϕ,
-      (∀ σ, state_interp σ -∗
-           match is_ret m with
-           | Some v => state_interp σ ∗ ϕ v
-           | None =>
-               ⌜can_step (σ, m)⌝ ∗
-                ∀ (σ': store) (m': free A),
-                  ⌜step (σ, m) (σ', m')⌝ ==∗
-                  ▷ (state_interp σ' ∗
-                     wp E m' ϕ)
-           end)%I.
+    λ E m φ, (
+      ∀ σ,
+        state_interp σ -∗
+        match is_ret m with
+        | Some v =>
+            state_interp σ ∗ φ v
+        | None =>
+            ⌜can_step (σ, m)⌝ ∗
+            ∀ σ' m',
+            ⌜step (σ, m) (σ', m')⌝ ==∗
+            ▷ (state_interp σ' ∗ wp E m' φ)
+        end
+    )%I.
 
   #[local]
   Instance wp_pre_contractive s : Contractive (wp_pre s).
@@ -83,12 +85,12 @@ Section wp.
   Context `{!osirisGS_gen hlc Σ}.
   Implicit Types s : stuckness.
   Implicit Types P : iProp Σ.
-  Implicit Types ϕ : A → iProp Σ.
+  Implicit Types φ : A → iProp Σ.
   Implicit Types v : A.
   Implicit Types m : free A.
 
-  Lemma wp_unfold s E m ϕ :
-    WP m @ s; E {{ ϕ }} ⊣⊢ wp_pre A s (wp (PROP:=iProp Σ) s) E m ϕ.
+  Lemma wp_unfold s E m φ :
+    WP m @ s; E {{ φ }} ⊣⊢ wp_pre A s (wp (PROP:=iProp Σ) s) E m φ.
   Proof.
     rewrite wp_unseal.
     apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
@@ -147,12 +149,12 @@ End wp.
 Section wp_lemmas.
   Context `{!osirisGS_gen hlc Σ}.
 
-  Lemma wp_covariant {A} s E m (ϕ: A -> iProp Σ) (ϕ': A -> iProp Σ) :
-    WP m @ s; E {{ ϕ }} -∗
-    (∀ v, (ϕ v) -∗ (ϕ' v)) -∗
-    WP m @ s; E {{ ϕ' }}.
+  Lemma wp_covariant {A} s E m (φ: A -> iProp Σ) (φ': A -> iProp Σ) :
+    WP m @ s; E {{ φ }} -∗
+    (∀ v, (φ v) -∗ (φ' v)) -∗
+    WP m @ s; E {{ φ' }}.
   Proof.
-    iLöb as "IH" forall (ϕ ϕ' m).
+    iLöb as "IH" forall (φ φ' m).
     iIntros "Hwp Himpl".
     rewrite!wp_unfold/wp_pre.
     destruct (is_ret m).
@@ -171,8 +173,8 @@ Section wp_lemmas.
       iApply ("IH" with "Hwp Himpl"). }
   Qed.
 
-  Lemma strong_mono {A} P m s E (ϕ: A → iProp Σ):
-    (P ∗ WP m @ s; E {{ ϕ }}) -∗ WP m @ s; E {{ λ v, P ∗ ϕ v }}.
+  Lemma strong_mono {A} P m s E (φ: A → iProp Σ):
+    (P ∗ WP m @ s; E {{ φ }}) -∗ WP m @ s; E {{ λ v, P ∗ φ v }}.
   Proof.
     iStartProof.
     rewrite wp_unfold/wp_pre/=.
@@ -193,17 +195,17 @@ Section wp_lemmas.
     { by rewrite!wp_unfold/wp_pre/=. }
   Qed.
 
-  Lemma wp_ret {A} s E (v: A) ϕ:
-    ϕ v -∗ WP (Ret v) @ s; E {{ ϕ }}.
+  Lemma wp_ret {A} s E (v: A) φ:
+    φ v -∗ WP (Ret v) @ s; E {{ φ }}.
   Proof.
     rewrite!wp_unfold/wp_pre/=.
     iIntros. iFrame.
   Qed.
 
-  Lemma ret_wp {A} s E (v: A) σ ϕ:
+  Lemma ret_wp {A} s E (v: A) σ φ:
     state_interp σ -∗
-    WP (Ret v) @ s; E {{ ϕ }} ==∗
-    state_interp σ ∗ ϕ v.
+    WP (Ret v) @ s; E {{ φ }} ==∗
+    state_interp σ ∗ φ v.
   Proof.
     rewrite wp_unfold/wp_pre/=.
     iIntros "Hsi H".
@@ -213,8 +215,8 @@ Section wp_lemmas.
 
 
   (* It might be useful to prove that there is no associate WP to [Crash]. *)
-  Lemma wp_crash {A} s E σ ϕ:
-    state_interp σ -∗ WP (@crash A) @ s; E {{ϕ}} -∗ ⌜False⌝.
+  Lemma wp_crash {A} s E σ φ:
+    state_interp σ -∗ WP (@crash A) @ s; E {{φ}} -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "Hsi Hwp".
@@ -222,8 +224,8 @@ Section wp_lemmas.
     exfalso. inversion H as [s' H']. inversion H'.
   Qed.
 
-  Lemma wp_next {A} s E σ (ϕ: A → iProp Σ):
-    state_interp σ -∗ (WP Next @ s; E {{ ϕ }}) -∗ ⌜False⌝.
+  Lemma wp_next {A} s E σ (φ: A → iProp Σ):
+    state_interp σ -∗ (WP Next @ s; E {{ φ }}) -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "Hsi Hwp".
@@ -233,11 +235,11 @@ Section wp_lemmas.
 
 
   (* [bind]-related lemmas. *)
-  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ϕ:
-    WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ϕ }} }} -∗
-    WP (bind m1 m2) @ s; E {{ ϕ }}.
+  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ:
+    WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
+    WP (bind m1 m2) @ s; E {{ φ }}.
   Proof.
-    iLöb as "IH" forall (m1 m2 ϕ).
+    iLöb as "IH" forall (m1 m2 φ).
     iIntros "Hm".
     setoid_rewrite wp_unfold at 4.
     rewrite /wp_pre.
@@ -272,28 +274,28 @@ Section wp_lemmas.
       iApply "IH". iApply "Hm". }
   Qed.
 
-  Lemma wp_try_ret {A B} s E (v: A) (k: A -> free B) ko ϕ :
-    WP bind (ret v) k @ s; E {{ ϕ }} -∗ WP try (ret v) k ko @s; E {{ ϕ }}.
+  Lemma wp_try_ret {A B} s E (v: A) (k: A -> free B) ko φ :
+    WP bind (ret v) k @ s; E {{ φ }} -∗ WP try (ret v) k ko @s; E {{ φ }}.
   Proof.
     by iIntros "H".
   Qed.
 
 
   (* [Par]-related lemmas. *)
-  (* To prove [WP (Par m1 m2 k ko) ϕ], one should provide two post conditions ϕ1
-   * and ϕ2 and show that:
-   * - m1 satisfies the post-condition ϕ1
-   * - m2 satisfies the post-condition ϕ1
-   * - for any values v1 and v2 satisfying ϕ1 and ϕ2 respectively,
-   *     the pair (v1, v2) satisfies ϕ.
+  (* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
+   * and φ2 and show that:
+   * - m1 satisfies the post-condition φ1
+   * - m2 satisfies the post-condition φ1
+   * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
+   *     the pair (v1, v2) satisfies φ.
   *)
-  Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko ϕ ϕ1 ϕ2:
-    WP m1 @ s ; E {{ ϕ1 }} -∗
-    WP m2 @ s ; E {{ ϕ2 }} -∗
+  Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko φ φ1 φ2:
+    WP m1 @ s ; E {{ φ1 }} -∗
+    WP m2 @ s ; E {{ φ2 }} -∗
     ▷ (∀ (v1: A1) (v2: A2),
-        ϕ1 v1 -∗ ϕ2 v2 -∗
-        WP (k (v1, v2)) @ s; E {{ ϕ }})
-    -∗ WP (Par m1 m2 k ko) @ s ; E {{ ϕ }}.
+        φ1 v1 -∗ φ2 v2 -∗
+        WP (k (v1, v2)) @ s; E {{ φ }})
+    -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
   Proof.
     iLöb as "IH" forall (m1 m2).
     iIntros "H1 H2 Hcomb".
@@ -351,12 +353,12 @@ Section wp_lemmas.
 
   Lemma wp_par_ret_right {A1 A2 A} s E m1 a2
     (k : A1 * A2 → free A) ko
-    (ϕ : A → iProp Σ) :
-    WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ ϕ }} }} -∗
-    WP (Par m1 (Ret a2) k ko) @ s; E {{ ϕ }}.
+    (φ : A → iProp Σ) :
+    WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
+    WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) @ s; E {{ ϕ }}) (λ v, ⌜v = a2⌝)
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) @ s; E {{ φ }}) (λ v, ⌜v = a2⌝)
            with "Hwp")%I.
     { by iApply wp_ret. }
     { iNext. by iIntros (??) "?->". }
@@ -364,21 +366,21 @@ Section wp_lemmas.
 
   Lemma wp_par_ret_left {A1 A2 A} s E a1 m2
     (k : A1 * A2 → free A) ko
-    (ϕ : A → iProp Σ) :
-    WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ ϕ }} }} -∗
-    WP (Par (Ret a1) m2 k ko) @ s; E {{ ϕ }}.
+    (φ : A → iProp Σ) :
+    WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
+    WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) @ s; E {{ ϕ }})
+    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) @ s; E {{ φ }})
            with "[] Hwp")%I.
     { by iApply wp_ret. }
     { iNext. by iIntros (??) "->?". }
   Qed.
 
 
-  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko ϕ:
-    ▷ WP (k (v1, v2)) @ s; E {{ ϕ }} -∗
-    WP (Par (ret v1) (ret v2) k ko) @s; E {{ ϕ }}.
+  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko φ:
+    ▷ WP (k (v1, v2)) @ s; E {{ φ }} -∗
+    WP (Par (ret v1) (ret v2) k ko) @s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -394,9 +396,9 @@ Section wp_lemmas.
 
 
   (* [Stop]-related lemmas. *)
-  Lemma wp_eval {A} s E η e k (ϕ: A -> iProp Σ) :
-    ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
-    WP (Stop CEval (η, e) k) @ s; E {{ ϕ }}.
+  Lemma wp_eval {A} s E η e k (φ: A -> iProp Σ) :
+    ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
+    WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_unfold. unfold wp_pre.
@@ -411,11 +413,11 @@ Section wp_lemmas.
   Qed.
 
   (* [wp_eval_ret] should not simply be defined as
-     [λ s E η e ϕ, wp_eval s E η e ret ϕ] or it would make its premice more difficult to
+     [λ s E η e φ, wp_eval s E η e ret φ] or it would make its premice more difficult to
      work with. *)
-  Lemma wp_eval_ret s E η e ϕ :
-    ▷ WP (eval η e) @ s; E {{ ϕ }} -∗
-    WP (Stop CEval (η, e) ret) @ s; E {{ ϕ }}.
+  Lemma wp_eval_ret s E η e φ :
+    ▷ WP (eval η e) @ s; E {{ φ }} -∗
+    WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
@@ -424,9 +426,9 @@ Section wp_lemmas.
     iIntros. by iApply wp_ret.
   Qed.
 
-  Lemma wp_flip {A} s E x (k: bool -> free A) ϕ :
-    ▷ (∀ b, WP (k b) @ s; E {{ ϕ }} ) -∗
-    WP (Stop CFlip x k) @ s; E {{ ϕ }}.
+  Lemma wp_flip {A} s E x (k: bool -> free A) φ :
+    ▷ (∀ b, WP (k b) @ s; E {{ φ }} ) -∗
+    WP (Stop CFlip x k) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -441,11 +443,11 @@ Section wp_lemmas.
     iFrame.
   Qed.
 
-  Lemma wp_ref {A} s E x (k: loc -> free A) ϕ :
+  Lemma wp_ref {A} s E x (k: loc -> free A) φ :
     ▷ (∀ ℓ,
          mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
-         WP (k ℓ) @ s; E {{ ϕ }} ) -∗
-    WP (Stop CAlloc x k) @ s; E {{ ϕ }}.
+         WP (k ℓ) @ s; E {{ φ }} ) -∗
+    WP (Stop CAlloc x k) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -462,10 +464,10 @@ Section wp_lemmas.
     iApply ("H" with "HH").
   Qed.
 
-  Lemma wp_store {A} s E ℓ v v' k (ϕ: A → iProp Σ) :
+  Lemma wp_store {A} s E ℓ v v' k (φ: A → iProp Σ) :
     mapsto ℓ (DfracOwn 1) v -∗
-    ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ ϕ }}) -∗
-    WP (Stop CStore (ℓ, v') k) @ s; E {{ ϕ }}.
+    ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ φ }}) -∗
+    WP (Stop CStore (ℓ, v') k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hℓ Hwp".
     iApply wp_unfold. unfold wp_pre.
@@ -482,10 +484,10 @@ Section wp_lemmas.
     iApply ("Hwp" with "Hℓ").
   Qed.
 
-  Lemma wp_load {A} s E ℓ v dq (k: val -> free A) ϕ :
+  Lemma wp_load {A} s E ℓ v dq (k: val -> free A) φ :
     mapsto ℓ dq v -∗
-    ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ ϕ }}) -∗
-    WP (Stop CLoad ℓ k) @ s; E {{ ϕ }}.
+    ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ φ }}) -∗
+    WP (Stop CLoad ℓ k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hℓ Hwp".
     iApply wp_unfold. unfold wp_pre.
