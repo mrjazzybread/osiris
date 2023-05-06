@@ -44,7 +44,8 @@ Definition state (A : Type) : Type := store * free A.
 Inductive step {A} : state A → state A → Prop :=
 
   (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] followed
-     with the continuation [k]. *)
+     with the continuation [k]. Thus, from the user's perspective, the
+     computation [stop CEval (η, e)] behaves just like [eval η e]. *)
   (* Isolating an explicit equality [p = (η, e)] seems necessary to work
      around a bug or limitation (?) in [dependent destruction]. *)
   | StepEval :
@@ -54,8 +55,7 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop CEval p k)
         (σ, bind (eval η e) k)
 
-  (* [Stop CLoop (η, x, i1, i2, e) k] steps to [loop η x i1 i2 e] followed
-     with the continuation [k]. *)
+  (* [stop (η, x, i1, i2, e) k] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
       ∀ σ p η x i1 i2 e k,
       p = (η, x, i1, i2, e) →
@@ -63,17 +63,15 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop CLoop p k)
         (σ, bind (loop η x i1 i2 e) k)
 
-  (* [Stop CFlip () k] steps to an application of the continuation [k] to
-     either [false] or [true]. *)
+  (* [stop CFlip ()] returns either [false] or [true]. *)
   | StepFlip :
       ∀ σ b x k,
       step
         (σ, Stop CFlip x k)
         (σ, k b)
 
-  (* [Stop CAlloc v] allocates a fresh location in the store and initializes
-     it with [v]. It then steps to an application of the continuation [k] to
-      this location. *)
+  (* [stop CAlloc v] allocates a fresh location in the heap,
+     initializes it with [v], and returns this location. *)
   | StepAlloc :
       ∀ σ v l k,
       l ∉ dom σ →
@@ -82,6 +80,8 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop CAlloc v k)
         (σ', k l)
 
+  (* If the location [l] exists, then [stop CLoad l] looks up its content
+     in the heap and returns it. *)
   | StepLoadSuccess :
       ∀ σ l k v,
       σ !! l = Some v →
@@ -89,8 +89,8 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop CLoad l k)
         (σ, k v)
 
-  (* The [Load] code fails if the accessed location is unknown to the store
-     This case is required to ensure that [Crash] is the only stuck term. *)
+  (* If the location [l] does not exist, then [stop CLoad l] fails. This
+     ensures that [Crash] is the only stuck term. *)
   | StepLoadFailure :
       ∀ σ l k,
       l ∉ dom σ →
@@ -98,11 +98,13 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop CLoad l k)
         (σ, Crash)
 
+  (* If the location [l] exists, then [stop CStore (l, v')] overwrites
+     its content with [v'] and returns a unit value. *)
   | StepStoreSuccess :
       ∀ σ l v' v k,
-      σ !! l = Some v' →
-      let '(σ', m') := (<[ l := v ]> σ, k tt) in
-      step (σ, Stop CStore (l, v) k) (σ', m')
+      σ !! l = Some v →
+      let '(σ', m') := (<[ l := v' ]> σ, k tt) in
+      step (σ, Stop CStore (l, v') k) (σ', m')
 
   (* The [Store] code fails if the updated location is unknown to the store
      This case is required to ensure that [Crash] is the only stuck term. *)
