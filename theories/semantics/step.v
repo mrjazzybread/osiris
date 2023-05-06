@@ -224,6 +224,12 @@ Definition can_step {A} (s : state A) :=
 
 Global Hint Unfold can_step : step.
 
+Ltac destruct_can_step :=
+  match goal with
+  | h: can_step ?s |- _ =>
+      destruct h as ((? & ?) & ?)
+  end.
+
 (* -------------------------------------------------------------------------- *)
 
 (* A term that is not an answer and that is unable to step is stuck. *)
@@ -266,10 +272,7 @@ Local Lemma can_step_under_par {A1 A2 A} σ m1 m2 (k : A1 * A2 → free A) ko :
   can_step (σ, m1) ∨ can_step (σ, m2) →
   can_step (σ, Par m1 m2 k ko).
 Proof.
-  unfold can_step. eauto with step.
-  intros[[[]]|[[]]]. (* TODO: restore the previous proof relying on [eauto]. *)
-  - eexists _. apply StepParLeft, H.
-  - eexists _. apply StepParRight, H.
+  intros [|]; destruct_can_step; eauto using step_up_to_eq with step.
 Qed.
 
 (* [Par] can step. *)
