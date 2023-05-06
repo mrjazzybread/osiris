@@ -527,9 +527,8 @@ Section wp_lemmas.
     iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
     iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
     eapply invert_step_store in Hstep; [| eauto ].
-    injection Hstep; intros; subst.
-    iFrame.
-    iModIntro. iNext.
+    destruct Hstep. subst.
+    iModIntro. iNext. iFrame "Hsi".
     iApply ("Hwp" with "Hℓ").
   Qed.
 
@@ -547,11 +546,9 @@ Section wp_lemmas.
     iIntros (σ' m' Hstep).
 
     iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
-    pose proof (invert_step_load σ σ' ℓ v k m' Hin Hstep)
-      as [->->].
-
-    do 2 iModIntro.
-    iFrame "Hsi".
+    eapply invert_step_load in Hstep; [| eauto ].
+    destruct Hstep. subst.
+    iModIntro. iNext. iFrame "Hsi".
     iApply ("Hwp" with "Hℓ").
   Qed.
 

@@ -38,9 +38,9 @@ Definition state (A : Type) : Type :=
 (* [Crash] cannot step. It represents a crash. *)
 
 (* The reduction rules for [Par] are designed so as to guarantee that [Par]
-   can always be reduced. This preserves the property that the only stuck term
+   can always step. This preserves the property that the only stuck term
    is [Crash]. There is a lot of non-determinism in these reduction rules:
-   e.g., [Par Crash Next _ _] can reduce to either [Crash] or [Next]. *)
+   e.g., [Par Crash Next _ _] can step to either [Crash] or [Next]. *)
 
 Inductive step {A} : state A → state A → Prop :=
 
@@ -378,7 +378,7 @@ Global Hint Resolve
   invert_can_step_Next
 : invert_can_step.
 
-(* [Par (ret _) (ret _) _ _] can reduce in only one way.  *)
+(* [Par (ret _) (ret _) _ _] can step in only one way.  *)
 
 Lemma step_par_ret_ret {A1 A2 A3} v v' (k: A1 * A2 -> free A3) ko σ m :
   step (σ, Par (ret v) (ret v') k ko) m →
@@ -388,18 +388,26 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
-  σ !! ℓ = Some v' →
-  step (σ, Stop CStore (ℓ, v) k) m' →
-  m' = (<[ ℓ := v ]> σ, k ()).
+(* If the location [l] exists in the store, then [stop CStore (l, v')]
+   can step in only one way. *)
+
+Lemma invert_step_store {A} σ l v' v k σ' (m' : free A) :
+  σ !! l = Some v →
+  step (σ, Stop CStore (l, v') k) (σ', m') →
+  σ' = <[ l := v' ]> σ ∧
+  m' = k ().
 Proof.
-  intros. destruct_step; congruence.
+  intros. destruct_step; split; congruence.
 Qed.
 
-Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
-  σ !! ℓ = Some v →
-  step (σ, Stop CLoad ℓ k) (σ', m') →
-  σ' = σ ∧ m' = k v.
+(* If the location [l] exists in the store, then [stop CLoad l]
+   can step in only one way. *)
+
+Lemma invert_step_load {A} σ σ' l v k (m' : free A) :
+  σ !! l = Some v →
+  step (σ, Stop CLoad l k) (σ', m') →
+  σ' = σ ∧
+  m' = k v.
 Proof.
   intros. destruct_step; split; congruence.
 Qed.
