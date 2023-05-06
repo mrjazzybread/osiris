@@ -25,8 +25,6 @@ A Program Logic for OCaml
 =========================
 |*)
 
-Section Eval. (* .none *)
-
 Notation ε := EnvNil. (* .none *)
 Notation int := int.int. (* .none *)
 
@@ -306,24 +304,18 @@ and how the scheduler is implemented.
 We do so in the next two sections.
 |*)
 
-End Eval. (* .none *)
-
 (*|
 ---------
 The Monad
 ---------
 |*)
 
-Section Free. (* .none *)
-
 (*|
 The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
-From osiris.semantics Require Import code. (* .none *) (* avoid showing that [free] is a notation *)
 Print free. (* .unfold *)
-From osiris.semantics Require Import eval. (* .none *)
 
 (*|
 This is an inductive type: every computation must eventually
@@ -439,15 +431,11 @@ used to encode a binary non-deterministic choice combinator, `choose`.
 Print flip. (* .unfold *)
 Print choose. (* .unfold *)
 
-End Free. (* .none *)
-
 (*|
 -------------
 The Scheduler
 -------------
 |*)
-
-Section Step. (* .none *)
 
 (*|
 There remains to somehow give meaning to monadic computations
@@ -554,8 +542,6 @@ yet it is a full-fledged logic!
 Check @safe_ret. (* .unfold *)
 
 Check @safe_bind. (* .unfold *)
-
-End Step. (* .none *)
 
 (*|
 |*)
