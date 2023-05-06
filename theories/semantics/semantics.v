@@ -3,7 +3,6 @@
 Require Export
   free
   code
-  store
   eval
   step
   steps

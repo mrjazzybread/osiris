@@ -1,7 +1,7 @@
 From stdpp Require Import gmap.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval store.
+From osiris.semantics Require Import code eval.
 From iris.prelude Require Import prelude options.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
@@ -16,6 +16,13 @@ From iris.prelude Require Import prelude options.
    job of the function [handle] defined in handle.v.) *)
 
 (* -------------------------------------------------------------------------- *)
+
+(* A store is a finite map of locations to values. *)
+
+Definition store : Type := gmap loc val.
+
+Implicit Type σ : store.
+
 (* The state of an execution is a term of type [free A] taken together with
    a store. *)
 Definition state (A : Type) : Type := store * free A.

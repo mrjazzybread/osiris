@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import code store.
+From osiris.semantics Require Import code.
 
 (* Conventional metavariables. *)
 
@@ -19,7 +19,6 @@ Implicit Type fvs xvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
-Implicit Type σ : store.
 Implicit Type M : module.
 Implicit Type π : path.
 Implicit Type me : mexpr.
