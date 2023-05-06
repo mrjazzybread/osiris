@@ -531,10 +531,10 @@ Section wp_lemmas.
     iIntros (σ' m' Hstep).
     iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
     iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
-    pose proof (invert_step_store σ ℓ _ v' k (σ', m') Hin Hstep)
-      as [->->]%pair_equal_spec.
+    eapply invert_step_store in Hstep; [| eauto ].
+    injection Hstep; intros; subst.
     iFrame.
-    do 2 iModIntro.
+    iModIntro. iNext.
     iApply ("Hwp" with "Hℓ").
   Qed.
 
