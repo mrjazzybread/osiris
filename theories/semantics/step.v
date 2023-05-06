@@ -442,7 +442,8 @@ Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) (b' : state B) 
   (∃ σ' m', step (σ, m) (σ', m') ∧ b' = (σ', bind m' f)).
 Proof.
   intros Hstep Hnoret.
-  pose proof (invert_step_bind σ m f b' Hstep) as [(?&?&Hstep'&->)|(?&->&?)].
+  apply invert_step_bind in Hstep.
+  destruct Hstep as [ (? & ? & Hstep & ->) | ( ? & -> & ? )].
   { eauto. }
   { exfalso. by apply Hnoret. }
 Qed.
@@ -514,13 +515,6 @@ Lemma step_can_step {A} (s s': state A):
   step s s' → can_step s.
 Proof.
   intros?. by exists s'.
-Qed.
-
-(* TODO seems redundant with invert_can_step_crash *)
-Lemma can_step_crash {A} σ :
-  ~ (can_step (σ, @crash A)).
-Proof.
-  intros H%invert_can_step_Crash. assumption.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
