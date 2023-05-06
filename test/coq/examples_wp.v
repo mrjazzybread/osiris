@@ -5,7 +5,7 @@ From iris.prelude Require Import options.
 Import uPred.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang sugar encode.
+From osiris.lang Require Import lang.
 From osiris.semantics Require Import free eval step notations.
 From osiris.weakestpre Require Import wp wp_tactics notations.
 

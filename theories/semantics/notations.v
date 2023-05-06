@@ -1,5 +1,5 @@
 From iris Require Import base_logic.lib.gen_heap.
-From osiris.lang Require Import lang encode sugar.
+From osiris.lang Require Import lang.
 
 (* ------------------------------------------------------------------------ *)
 
