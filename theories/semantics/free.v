@@ -24,7 +24,7 @@ Import C. (* We write [code] for [C.code]. *)
 
 (* The custom constructors of this free monad are:
 
-   - [Fail], a hard failure, which represents a crash and cannot be
+   - [Crash], a hard failure, which represents a crash and cannot be
      caught;
 
    - [Next], a soft failure, which can be caught by a [try]
@@ -60,7 +60,7 @@ Import C. (* We write [code] for [C.code]. *)
 
 Inductive free A :=
   | Ret (a : A)
-  | Fail
+  | Crash
   | Next
   | Stop {X Y} (c : code X Y) (x : X) (k : Y → free A)
   | Par {A1 A2} (m1 : free A1) (m2 : free A2)
@@ -71,7 +71,7 @@ Inductive free A :=
 (* Make [A] an implicit argument of the constructors. *)
 
 Arguments Ret  {A}.
-Arguments Fail {A}.
+Arguments Crash {A}.
 Arguments Next {A}.
 Arguments Stop {A X Y} c x k.
 Arguments Par  {A A1 A2} m1 m2 k ko.
@@ -83,8 +83,8 @@ Arguments Par  {A A1 A2} m1 m2 k ko.
 Notation ret :=
   (Ret).
 
-Notation fail :=
-  (Fail).
+Notation crash :=
+  (Crash).
 
 Notation next :=
   (λ tt, Next).
@@ -113,9 +113,9 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
   match m with
   | Ret a =>
       f a
-  | Fail =>
+  | Crash =>
       (* A hard failure is transmitted. *)
-      Fail
+      Crash
   | Next =>
       (* A soft failure is transmitted. *)
       Next
@@ -142,8 +142,8 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   match m with
   | Ret a =>
       f a
-  | Fail =>
-      Fail
+  | Crash =>
+      Crash
   | Next =>
       (* A soft failure is handled by [g]. *)
       g()
@@ -197,9 +197,9 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_fail {A B} (f : A → free B) :
-  bind Fail f =
-  Fail.
+Lemma bind_crash {A B} (f : A → free B) :
+  bind Crash f =
+  Crash.
 Proof.
   reflexivity.
 Qed.
@@ -249,7 +249,7 @@ Qed.
 (* Equality is needed to state the monad laws. *)
 
 (* This equality is just equality of trees whose internal nodes are the
-   [Stop] nodes and whose leaves are [Ret], [Fail] and [Next]. *)
+   [Stop] nodes and whose leaves are [Ret], [Crash] and [Next]. *)
 
 (* We could give an inductive definition of this equality. I prefer to
    accept the law of functional extensionality, which implies that

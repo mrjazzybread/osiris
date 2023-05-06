@@ -26,12 +26,12 @@ Definition state (A : Type) : Type := store * free A.
 
 (* [Ret a] and [Next] cannot step. They are answers. *)
 
-(* [Fail] cannot step. It represents a crash. *)
+(* [Crash] cannot step. It represents a crash. *)
 
 (* The reduction rules for [Par] are designed so as to guarantee that [Par]
    can always be reduced. This preserves the property that the only stuck term
-   is [Fail]. There is a lot of non-determinism in these reduction rules:
-   e.g., [Par Fail Next _ _] can reduce to either [Fail] or [Next]. *)
+   is [Crash]. There is a lot of non-determinism in these reduction rules:
+   e.g., [Par Crash Next _ _] can reduce to either [Crash] or [Next]. *)
 
 Inductive step {A} : state A → state A → Prop :=
 
@@ -80,13 +80,13 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, k v)
 
   (* The [Load] code fails if the accessed location is unknown to the store
-     This case is required to ensure that [Fail] is the only stuck term. *)
+     This case is required to ensure that [Crash] is the only stuck term. *)
   | StepLoadFailure :
       ∀ σ l k,
       l ∉ dom σ →
       step
         (σ, Stop Load l k)
-        (σ, Fail)
+        (σ, Crash)
 
   | StepStoreSuccess :
       ∀ σ l v' v k,
@@ -95,12 +95,12 @@ Inductive step {A} : state A → state A → Prop :=
       step (σ, Stop Store (l, v) k) (σ', m')
 
   (* The [Store] code fails if the updated location is unknown to the store
-     This case is required to ensure that [Fail] is the only stuck term. *)
+     This case is required to ensure that [Crash] is the only stuck term. *)
   | StepStoreFailure :
       ∀ σ (l: loc) v k (H: l ∉ dom σ),
       step
         (σ, Stop Store (l, v) k)
-        (σ, Fail)
+        (σ, Crash)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
      then the continuation [k] is applied to the pair [(v1, v2)]. *)
@@ -111,16 +111,16 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, k (v1, v2))
 
   (* A hard failure on either side can be propagated up. *)
-  | StepParFailLeft :
+  | StepParCrashLeft :
       ∀ {A1 A2} σ m2 (k : A1 * A2 → free A) ko,
       step
-        (σ, Par Fail m2 k ko)
-        (σ, Fail)
-  | StepParFailRight :
+        (σ, Par Crash m2 k ko)
+        (σ, Crash)
+  | StepParCrashRight :
       ∀ {A1 A2} σ m1 (k : A1 * A2 → free A) ko,
       step
-        (σ, Par m1 Fail k ko)
-        (σ, Fail)
+        (σ, Par m1 Crash k ko)
+        (σ, Crash)
 
   (* If a soft failure on either side is detected, then
      the failure continuation [n] can be invoked. *)
@@ -239,7 +239,7 @@ Proof.
       exists (σ, k v).
       by apply StepLoadSuccess.
     + (* The load operation will fail. *)
-      exists (σ, Fail). apply StepLoadFailure.
+      exists (σ, Crash). apply StepLoadFailure.
       apply not_elem_of_dom_2, E.
   - (* TODO: ditto. *)
     destruct (σ !! x) eqn:E.
@@ -248,7 +248,7 @@ Proof.
       by eapply StepStoreSuccess.
     + (* The store operation will fail. *)
       apply not_elem_of_dom_2 in E.
-      exists (σ, Fail).
+      exists (σ, Crash).
       by apply StepStoreFailure.
 Qed.
 
@@ -295,7 +295,7 @@ Lemma step_bind {A B} (σ σ': store) (m m' : free A) (f : A → free B) :
   step (σ, (bind m) f) (σ', (bind m') f).
 Proof.
   inversion 1; subst;
-  rewrite ?bind_stop ?bind_par ?bind_fail ?bind_bind;
+  rewrite ?bind_stop ?bind_par ?bind_crash ?bind_bind;
   eauto using step_eq with step;
   eauto using StepFlip, step_eq with step.
   (* TODO: improve the way the new cases are handeled. *)
@@ -317,7 +317,7 @@ Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) (b' : state B) :
   (∃ a, m = Ret a ∧ step (σ, f a) b').
 Proof.
   destruct m;
-  rewrite ?bind_ret ?bind_stop ?bind_par ?bind_fail;
+  rewrite ?bind_ret ?bind_stop ?bind_par ?bind_crash;
   intro;
   try solve [
     (* Case: [Ret] *)
@@ -363,10 +363,10 @@ Proof.
   intros (m' & ?). destruct_step.
 Qed.
 
-(* [Fail] cannot step. *)
+(* [Crash] cannot step. *)
 
-Lemma invert_can_step_Fail {A} σ :
-  can_step (σ, Fail : free A) →
+Lemma invert_can_step_Crash {A} σ :
+  can_step (σ, Crash : free A) →
   False.
 Proof.
   intros (m' & ?). destruct_step.
@@ -383,7 +383,7 @@ Qed.
 
 Global Hint Resolve
   invert_can_step_Ret
-  invert_can_step_Fail
+  invert_can_step_Crash
   invert_can_step_Next
 : invert_can_step.
 
@@ -504,19 +504,19 @@ Proof.
   eapply Hnostep. exact Hstep.
 Qed.
 
-(* [Fail] is stuck. *)
+(* [Crash] is stuck. *)
 
-Lemma stuck_Fail {A} σ :
-  stuck (σ, Fail : free A).
+Lemma stuck_Crash {A} σ :
+  stuck (σ, Crash : free A).
 Proof.
   unfold stuck. split. eauto. inversion 1.
 Qed.
 
-(* The only stuck term is [Fail]. *)
+(* The only stuck term is [Crash]. *)
 
-Lemma only_fail_is_stuck {A} σ (m : free A) :
+Lemma only_crash_is_stuck {A} σ (m : free A) :
   stuck (σ, m) →
-  m = Fail.
+  m = Crash.
 Proof.
   intros.
   destruct m; try solve [
@@ -533,9 +533,9 @@ Lemma stuck_bind {A B} σ (m : free A) (f : A → free B) :
   stuck (σ, bind m f).
 Proof.
   intros.
-  assert (m = Fail) by eauto using only_fail_is_stuck.
-  subst m. rewrite bind_fail.
-  eauto using stuck_Fail.
+  assert (m = Crash) by eauto using only_crash_is_stuck.
+  subst m. rewrite bind_crash.
+  eauto using stuck_Crash.
 Qed.
 
 Lemma step_can_step {A} (s s': state A):
@@ -544,11 +544,11 @@ Proof.
   intros?. by exists s'.
 Qed.
 
-(* TODO seems redundant with invert_can_step_fail *)
-Lemma can_step_fail {A} σ :
-  ~ (can_step (σ, @fail A)).
+(* TODO seems redundant with invert_can_step_crash *)
+Lemma can_step_crash {A} σ :
+  ~ (can_step (σ, @crash A)).
 Proof.
-  intros H%invert_can_step_Fail. assumption.
+  intros H%invert_can_step_Crash. assumption.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -563,7 +563,7 @@ Lemma triplicity {A} σ (m : free A) :
   can_step (σ, m) ∨
   stuck (σ, m).
 Proof.
-  destruct m; eauto using stuck_Fail with step is_answer.
+  destruct m; eauto using stuck_Crash with step is_answer.
 Qed.
 
 Ltac triplicity σ m H :=

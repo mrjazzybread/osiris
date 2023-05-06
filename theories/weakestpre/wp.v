@@ -42,7 +42,7 @@ Qed.
 
 Lemma is_ret_non_Ret {A} (m: free A) :
   is_ret m = None ->
-      m = Fail
+      m = Crash
     ∨ m = Next
     ∨ (∃ A B (c: code A B) x k, m = Stop c x k)
     ∨ (∃ A1 A2 (m1: free A1) (m2: free A2) k (ko: unit → free A),
@@ -256,9 +256,9 @@ Section wp_lemmas.
   Qed.
 
 
-  (* It might be useful to prove that there is no associate WP to [Fail]. *)
-  Lemma wp_fail {A} s E σ ϕ:
-    state_interp σ -∗ WP (@fail A) @ s; E {{ϕ}} -∗ ⌜False⌝.
+  (* It might be useful to prove that there is no associate WP to [Crash]. *)
+  Lemma wp_crash {A} s E σ ϕ:
+    state_interp σ -∗ WP (@crash A) @ s; E {{ϕ}} -∗ ⌜False⌝.
   Proof.
     rewrite !wp_unfold/wp_pre/=.
     iIntros "Hsi Hwp".
@@ -361,13 +361,13 @@ Section wp_lemmas.
       iDestruct (ret_wp with "Hsi H1") as ">[Hsi H1]".
       iDestruct (ret_wp with "Hsi H2") as ">[Hsi H2]".
       iModIntro. iFrame. iNext. iApply ("Hcomb" with "H1 H2"). }
-    { (* Case: [StepParFailLeft] *)
+    { (* Case: [StepParCrashLeft] *)
       iModIntro. iNext.
-      iPoseProof (wp_fail with "Hsi H1") as "%".
+      iPoseProof (wp_crash with "Hsi H1") as "%".
       exfalso. assumption. }
-    { (* Case: [StepFailRight] *)
+    { (* Case: [StepCrashRight] *)
       iModIntro. iNext.
-      iPoseProof (wp_fail with "Hsi H2") as "%".
+      iPoseProof (wp_crash with "Hsi H2") as "%".
       exfalso. assumption. }
     { (* Case: [StepNextLeft] *)
       iModIntro. iNext.

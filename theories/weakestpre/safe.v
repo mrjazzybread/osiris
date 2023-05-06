@@ -226,11 +226,11 @@ Qed.
 
 (* A consequence of [invert_initially_safe_stuck]. *)
 
-Lemma invert_initially_safe_fail {A} {n} {σ} {φ : store → A → Prop} :
-  initially_safe (S n) (σ, Fail) φ →
+Lemma invert_initially_safe_crash {A} {n} {σ} {φ : store → A → Prop} :
+  initially_safe (S n) (σ, Crash) φ →
   False.
 Proof.
-  eauto using invert_initially_safe_stuck, stuck_Fail.
+  eauto using invert_initially_safe_stuck, stuck_Crash.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
