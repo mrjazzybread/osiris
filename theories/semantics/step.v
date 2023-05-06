@@ -348,7 +348,7 @@ Lemma invert_can_step_Ret {A} σ (a : A) :
   can_step (σ, Ret a) →
   False.
 Proof.
-  intros (m' & ?). destruct_step.
+  intros. destruct_can_step. destruct_step.
 Qed.
 
 (* [Crash] cannot step. *)
@@ -357,7 +357,7 @@ Lemma invert_can_step_Crash {A} σ :
   can_step (σ, Crash : free A) →
   False.
 Proof.
-  intros (m' & ?). destruct_step.
+  intros. destruct_can_step. destruct_step.
 Qed.
 
 (* [Next] cannot step. *)
@@ -366,7 +366,7 @@ Lemma invert_can_step_Next {A} σ :
   can_step (σ, Next : free A) →
   False.
 Proof.
-  intros (m' & ?). destruct_step.
+  intros. destruct_can_step. destruct_step.
 Qed.
 
 Global Hint Resolve
