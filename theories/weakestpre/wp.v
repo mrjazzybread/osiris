@@ -81,7 +81,7 @@ End wp_def.
    [iris/{bi,program_logic}/weakestpre.v] *)
 
 Section wp.
-  Context (A: Type).
+  Context {A : Type}.
   Context `{!osirisGS_gen hlc Σ}.
   Implicit Types s : stuckness.
   Implicit Types P : iProp Σ.
@@ -89,18 +89,38 @@ Section wp.
   Implicit Types v : A.
   Implicit Types m : free A.
 
-  Lemma wp_unfold s E m φ :
+  Lemma wp_unfold {s E} m {φ} :
     WP m @ s; E {{ φ }} ⊣⊢ wp_pre A s (wp (PROP:=iProp Σ) s) E m φ.
   Proof.
     rewrite wp_unseal.
     apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
   Qed.
 
+  Ltac unfold_wp :=
+    rewrite !wp_unfold /wp_pre /=.
+
+  Lemma wp_expand {s E} m {φ} :
+    WP m @ s; E {{ φ }} ⊣⊢
+      ∀ σ,
+        state_interp σ -∗
+        match is_ret m with
+        | Some v =>
+            state_interp σ ∗ φ v
+        | None =>
+            ⌜can_step (σ, m)⌝ ∗
+            ∀ σ' m',
+            ⌜step (σ, m) (σ', m')⌝ ==∗
+            ▷ (state_interp σ' ∗ WP m' @ s; E {{ φ }})
+        end.
+  Proof.
+    rewrite wp_unfold /wp_pre. eauto.
+  Qed.
+
   Global Instance wp_ne s E m n :
     Proper (pointwise_relation _ (dist n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
     revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
-    rewrite !wp_unfold /wp_pre /=.
+    unfold_wp.
     (* Cf. the comment in [program_logic/wp.v] for an explanation on the time
      * taken by the following line. *)
     repeat ((by rewrite IH; [done|lia|];
@@ -117,7 +137,7 @@ Section wp.
     TCEq (is_ret m) None →
     Proper (pointwise_relation _ (dist_later n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
-    intros He Φ Ψ HΦ. rewrite !wp_unfold /wp_pre He /=.
+    intros He Φ Ψ HΦ. unfold_wp. rewrite He /=.
     repeat (f_contractive || f_equiv).
   Qed.
 
@@ -141,7 +161,7 @@ Section wp.
 End wp.
 
 Local Ltac unfold_wp :=
-  rewrite !wp_unfold /wp_pre /=.
+  rewrite !wp_expand /=.
 
 (* -------------------------------------------------------------------------- *)
 (* The following are lemmas about the evolutions of a term. They are designed to
@@ -224,23 +244,32 @@ Section wp_lemmas.
     eauto with invert_can_step.
   Qed.
 
-  (* [bind]-related lemmas. *)
-  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ:
+  Lemma wp_grab_state_invariant {A} (m : free A) s E φ :
+    (∀ σ, state_interp σ -∗ state_interp σ ∗ WP m @ s; E {{ φ }}) -∗
+    WP m @ s; E {{ φ }}.
+  Proof.
+    iIntros "H".
+    setoid_rewrite wp_expand.
+    iIntros (σ) "Hsi".
+    iDestruct ("H" with "Hsi") as "[Hsi H]".
+    iSpecialize ("H" with "Hsi").
+    eauto.
+  Qed.
+
+  (* The Bind rule of Separation Logic. *)
+  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
     WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
     WP (bind m1 m2) @ s; E {{ φ }}.
   Proof.
     iLöb as "IH" forall (m1 m2 φ).
     iIntros "Hm".
-    setoid_rewrite wp_unfold at 4.
-    rewrite /wp_pre.
-    destruct (is_ret m1) as [v1|] eqn:Em1.
-    { (* Case: [m] is [ret _]. *)
-      rewrite (invert_is_ret_Some Em1).
-      iApply wp_unfold. unfold wp_pre.
-      iIntros (σ) "Hsi".
-      iDestruct ("Hm" with "Hsi") as "[Hsi Hwp]".
-      iDestruct (wp_unfold with "Hwp") as "Hwp". unfold wp_pre.
-      iApply ("Hwp" with "Hsi"). }
+    rewrite (wp_expand m1).
+    destruct (is_ret m1) as [a1|] eqn:Hret1.
+
+    (* Case: [m] is [ret a1]. *)
+    { rewrite (invert_is_ret_Some Hret1). simpl.
+      by iApply wp_grab_state_invariant. }
+
     { (* Case: [m] can step. *)
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
