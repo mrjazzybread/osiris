@@ -47,21 +47,17 @@ Inductive step {A} : state A → state A → Prop :=
   (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] followed
      with the continuation [k]. Thus, from the user's perspective, the
      computation [stop CEval (η, e)] behaves just like [eval η e]. *)
-  (* Isolating an explicit equality [p = (η, e)] seems necessary to work
-     around a bug or limitation (?) in [dependent destruction]. *)
   | StepEval :
-      ∀ σ p η e k,
-      p = (η, e) →
+      ∀ σ η e k,
       step
-        (σ, Stop CEval p k)
+        (σ, Stop CEval (η, e) k)
         (σ, bind (eval η e) k)
 
   (* [stop (η, x, i1, i2, e) k] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
-      ∀ σ p η x i1 i2 e k,
-      p = (η, x, i1, i2, e) →
+      ∀ σ η x i1 i2 e k,
       step
-        (σ, Stop CLoop p k)
+        (σ, Stop CLoop (η, x, i1, i2, e) k)
         (σ, bind (loop η x i1 i2 e) k)
 
   (* [stop CFlip ()] returns either [false] or [true]. *)
@@ -170,6 +166,9 @@ Inductive step {A} : state A → state A → Prop :=
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
+  try match goal with h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
+    remember x
+  end;
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
@@ -329,14 +328,6 @@ Proof.
   | (* Every other case: *)
     left; destruct_step; eauto with step bind_bind
   ].
-  (* TODO: unify the Stop case with the others. *)
-  left; destruct_step; unshelve eauto with step bind_bind.
-  - pose proof (StepEval σ (η, e) η e k (eq_refl (η, e))) as Hstep.
-    exists (bind (eval η e) k), σ.
-    split; eauto with step bind_bind.
-  - pose proof (StepLoop σ (η, x0, i1, i2, e) η x0 i1 i2 e k (eq_refl _)).
-    exists (bind (loop η x0 i1 i2 e) k), σ.
-    split; eauto with step bind_bind.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -388,7 +379,8 @@ Global Hint Resolve
 : invert_can_step.
 
 (* [Par (ret _) (ret _) _ _] can reduce in only one way.  *)
-Lemma step_par_ret_ret {A1 A2 A3} {v: A1} {v': A2} {k: A1 * A2 -> free A3} {ko σ m}:
+
+Lemma step_par_ret_ret {A1 A2 A3} v v' (k: A1 * A2 -> free A3) ko σ m :
   step (σ, Par (ret v) (ret v') k ko) m →
   m = (σ, k (v, v')).
 Proof.
@@ -401,7 +393,7 @@ Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
   step (σ, Stop CStore (ℓ, v) k) m' →
   m' = (<[ ℓ := v ]> σ, k ()).
 Proof.
-  intros. remember (ℓ, v). destruct_step; congruence.
+  intros. destruct_step; congruence.
 Qed.
 
 Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :

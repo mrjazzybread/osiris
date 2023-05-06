@@ -437,8 +437,9 @@ Section wp_lemmas.
     iSplit.
     { iPureIntro. eauto with step. }
     iIntros (σ' m' Hstep).
-    pose proof (step_par_ret_ret Hstep) as [->->]%pair_equal_spec.
-    iModIntro. iFrame.
+    apply step_par_ret_ret in Hstep.
+    injection Hstep; intros; subst; clear Hstep.
+    iModIntro. iNext. iFrame.
   Qed.
 
 
@@ -454,14 +455,8 @@ Section wp_lemmas.
     { iPureIntro. eauto with step. }
 
     iIntros(σ' m' Hstep).
-    assert (σ' = σ) as ->. { by inversion Hstep. }
-    assert (m' = bind (eval η e) k).
-    { inversion Hstep.
-      apply Eqdep.EqdepTheory.inj_pair2 in H1.
-      apply Eqdep.EqdepTheory.inj_pair2 in H2.
-      simplify_eq. reflexivity. }
-    iFrame.
-    simplify_eq. do 2 iModIntro.
+    destruct_step.
+    iModIntro. iNext. iFrame "Hsi".
     by iApply wp_bind.
   Qed.
 
