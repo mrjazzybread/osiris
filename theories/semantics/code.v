@@ -14,14 +14,14 @@ From osiris.semantics Require Import free locations.
 
 (* [Flip] is a request to flip a Boolean coin. *)
 
-(* [Ref], [Load], [Store] are requests to allocate, read, write a memory
+(* [Alloc], [Load], [Store] are requests to allocate, read, write a memory
    location in the heap. *)
 
 Inductive code : Type → Type → Type :=
 | Eval  : code (env * expr) val
 | Loop  : code (env * var * int * int * expr) val
 | Flip  : code unit bool
-| Ref   : code val loc
+| Alloc : code val loc
 | Load  : code loc val
 | Store : code (loc * val) unit
 .

@@ -853,7 +853,7 @@ Fixpoint eval η e : free val :=
       choose ok test
   | ERef e =>
       v ← eval η e ;
-      ℓ ← stop Ref v ;
+      ℓ ← stop Alloc v ;
       ret (VLoc ℓ)
   | ELoad e =>
       ℓ ← as_loc (eval η e) ;

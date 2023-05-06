@@ -63,13 +63,14 @@ Inductive step {A} : state A → state A → Prop :=
         (σ, Stop Flip x k)
         (σ, k b)
 
-  (* [Stop Ref v] adds a fresh location in the store and stores [v] there; and
-      steps to an application of the continuation [k] to this location. *)
-  | StepRef :
+  (* [Stop Alloc v] allocates a fresh location in the store and initializes
+     it with [v]. It then steps to an application of the continuation [k] to
+      this location. *)
+  | StepAlloc :
       ∀ σ v k,
       let '(l, σ') := store_ref σ v in
       step
-        (σ, Stop Ref v k)
+        (σ, Stop Alloc v k)
         (σ', k l)
 
   | StepLoadSuccess :
@@ -227,29 +228,28 @@ Lemma can_step_stop {A X Y} (σ: store) (c : code X Y) x (k : Y → free A) :
 Proof.
   eauto with step.
   destruct c; repeat destruct x as (x & ?).
-  - exists (σ, bind (eval x e) k). apply StepEval, eq_refl.
-  - exists (σ, bind (loop x v i0 i e) k). eapply StepLoop, eq_refl.
-  - exists (σ, k false). apply StepFlip.
+  - exists (σ, bind (eval x e) k). eauto with step.
+  - exists (σ, bind (loop x v i0 i e) k). eauto with step.
+  - exists (σ, k false). eauto with step.
   - set ℓ := fresh_loc (dom σ).
-    exists (<[ℓ:=x]> σ, k ℓ). apply StepRef.
+    exists (<[ℓ:=x]> σ, k ℓ).
+    constructor.
   - (* TODO: destruct the "belongs to" predicate instead of the result of
      *       lookup. *)
     destruct (σ !! x) eqn:E.
     + (* The load operation will succeed. *)
-      exists (σ, k v).
-      by apply StepLoadSuccess.
+      exists (σ, k v). eauto with step.
     + (* The load operation will fail. *)
-      exists (σ, Crash). apply StepLoadFailure.
+      exists (σ, Crash). constructor.
       apply not_elem_of_dom_2, E.
   - (* TODO: ditto. *)
     destruct (σ !! x) eqn:E.
     + (* The store operation will succeed. *)
-      eexists _.
-      by eapply StepStoreSuccess.
+      eexists _. eauto with step.
     + (* The store operation will fail. *)
       apply not_elem_of_dom_2 in E.
       exists (σ, Crash).
-      by apply StepStoreFailure.
+      eauto with step.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -298,8 +298,8 @@ Proof.
   rewrite ?bind_stop ?bind_par ?bind_crash ?bind_bind;
   eauto using step_eq with step;
   eauto using StepFlip, step_eq with step.
-  (* TODO: improve the way the new cases are handeled. *)
-  - by pose proof (StepRef σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
+  (* TODO: improve the way the new cases are handled. *)
+  - by pose proof (StepAlloc σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
   - by pose proof (StepLoadSuccess σ' l (λ v1 : val, bind (k v1) f) _ H1) as Hstep.
 Qed.
 
@@ -333,7 +333,7 @@ Proof.
   - pose proof (StepLoop σ (η, x0, i1, i2, e) η x0 i1 i2 e k (eq_refl _)).
     exists (bind (loop η x0 i1 i2 e) k), σ.
     split; eauto with step bind_bind.
-  - pose proof (StepRef σ x k).
+  - pose proof (StepAlloc σ x k).
     simpl in H.
     exists (k (fresh_loc (dom σ))), (<[fresh_loc (dom σ):=x]> σ).
     split; eauto with step bind_bind.
@@ -405,9 +405,9 @@ Proof.
   exists b. reflexivity.
 Qed.
 
-Lemma invert_step_ref {A} σ v (k: loc -> free A) m':
+Lemma invert_step_alloc {A} σ v (k: loc -> free A) m':
   let '(l, σ') := store_ref σ v in
-  step (σ, Stop Ref v k) m' →
+  step (σ, Stop Alloc v k) m' →
   m' = (σ', k l).
 Proof.
   intros Hstep.

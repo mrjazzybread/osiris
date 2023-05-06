@@ -498,7 +498,7 @@ Section wp_lemmas.
     ▷ (∀ ℓ,
          mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
          WP (k ℓ) @ s; E {{ ϕ }} ) -∗
-    WP (Stop Ref x k) @ s; E {{ ϕ }}.
+    WP (Stop Alloc x k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -506,7 +506,7 @@ Section wp_lemmas.
     simpl.
     iSplit.
     { iPureIntro. eauto with step. }
-    iIntros (σ' m' [->->]%invert_step_ref%pair_equal_spec).
+    iIntros (σ' m' [->->]%invert_step_alloc%pair_equal_spec).
     set ℓ := (fresh_loc (dom σ)).
     iDestruct ("H" $! ℓ) as "H".
     pose proof (store_ref_dom σ x) as [_ Hfresh%not_elem_of_dom].
