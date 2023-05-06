@@ -156,21 +156,22 @@ Section wp_lemmas.
   Proof.
     iLöb as "IH" forall (φ φ' m).
     iIntros "Hwp Himpl".
-    rewrite!wp_unfold/wp_pre.
+    rewrite !wp_unfold /wp_pre.
     destruct (is_ret m).
 
-    { (* Case [m] is [ret _]. *)
-      iIntros(?) "H".
+    (* Case: [m] is [ret _]. *)
+    { iIntros (?) "H".
       iDestruct ("Hwp" with "H") as "[$ H]".
       iApply ("Himpl" with "H"). }
 
-    (* Other cases *)
+    (* Case: [m] is not [ret _]. *)
     { iIntros (σ) "Hsi".
       iPoseProof ("Hwp" $! σ with "Hsi") as "[$ Hwp]";
       iIntros (σ' m' Hstep).
       iPoseProof ("Hwp" with "[//]") as ">[$ Hwp]".
       iModIntro. iNext.
       iApply ("IH" with "Hwp Himpl"). }
+
   Qed.
 
   Lemma strong_mono {A} P m s E (φ: A → iProp Σ):
