@@ -3,34 +3,32 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
-(* This file defines what it means for a computation (in the free monad) to
-   be safe. The structure of computations does not matter; the definition
-   of safety relies only on 1- recognizing results; and 2- the relation
-   [step]. *)
+(* This file defines what it means for a configuration to be safe. The
+   structure of configurations does not matter; the definition of safety
+   relies only on 1- recognizing results; and 2- the relation [step]. *)
 
 (* -------------------------------------------------------------------------- *)
 
-(* A computation [m] is safe with respect to a postcondition [φ] if
-   1- [m] does not fail; and 2- if [m] produces a result [v] then [φ v]
-   holds. This is a partial correctness interpretation: divergence is
-   permitted. *)
+(* A configuration [c] is safe with respect to a postcondition [φ] if 1- [c]
+   does not fail; and 2- if [c] produces a result [v] then [φ v] holds. This
+   is a partial correctness interpretation: divergence is permitted. *)
 
 (* We first define what it means to be safe for [n] steps. *)
 
-Fixpoint initially_safe {A} (n : nat) (m : config A) (φ : store → A → Prop) : Prop :=
+Fixpoint initially_safe {A} (n : nat) (c : config A) (φ : store → A → Prop) : Prop :=
   match n with
   | 0 =>
       (* Every computation is safe for zero steps. *)
       True
   | S n =>
-      (* A result [Ret v] is safe with respect to [φ] if [φ v] holds. *)
-      (∃ σ v, m = (σ, Ret v) ∧ φ σ v) ∨
+      (* A result [(σ, Ret v)] is safe with respect to [φ] if [φ v] holds. *)
+      (∃ σ v, c = (σ, Ret v) ∧ φ σ v) ∨
       (
-        (* A non-result [m] is safe for [n+1] steps if and only if
+        (* A non-result [c] is safe for [n+1] steps if and only if
            1- it is not stuck, i.e., it can step; and
-           2- every reduct [m'] of [m] is safe for [n] steps. *)
-        can_step m ∧
-        (∀ m', step m m' → initially_safe n m' φ)
+           2- every reduct [c'] of [c] is safe for [n] steps. *)
+        can_step c ∧
+        (∀ c', step c c' → initially_safe n c' φ)
       )
   end.
 

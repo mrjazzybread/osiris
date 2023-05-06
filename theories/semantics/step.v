@@ -5,15 +5,12 @@ From osiris.semantics Require Import code eval.
 From iris.prelude Require Import prelude options.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
-   of the form [step m m'] where [m] and [m'] are computations in the [free]
-   monad. *)
+   of the form [step c c'] where [c] and [c'] are pairs of a computation in
+   the [free] monad and a store. *)
 
-(* The definition of the relation [step] interprets a [Stop] event as a
-   request for a recursive invocation of the evaluator. *)
-
-(* Working directly with the relation [step] removes the need to transport
-   computations from the free monad into some other monad. (This was the
-   job of the function [handle] defined in handle.v.) *)
+(* The definition of the relation [step] provides an interpretation of system
+   calls, that is, of [Stop] events. For example, a [Stop CEval] event is
+   interpreted as a request for a recursive invocation of the evaluator. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -216,28 +213,28 @@ Ltac destruct_answer :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* [m] can step if there exists [m'] such that [m] steps to [m']. *)
+(* [c] can step if there exists [c'] such that [c] steps to [c']. *)
 
-Definition can_step {A} (s : config A) :=
-  ∃ s', step s s'.
+Definition can_step {A} (c : config A) :=
+  ∃ c', step c c'.
 
 Global Hint Unfold can_step : step.
 
 Ltac destruct_can_step :=
   match goal with
-  | h: can_step ?s |- _ =>
+  | h: can_step _ |- _ =>
       destruct h as ((? & ?) & ?)
   end.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A term that is not an answer and that is unable to step is stuck. *)
+(* A configuration that is not an answer and that is unable to step is
+   stuck. *)
 
-Definition stuck {A} (m : config A) :=
-  match m with
-  | (σ, m) => ¬ is_answer m ∧
-             (∀ m' σ', ¬ step (σ, m) (σ', m'))
-  end.
+Definition stuck {A} (c : config A) :=
+  let '(σ, m) := c in
+  ¬ is_answer m ∧
+  ∀ σ' m', ¬ step (σ, m) (σ', m').
 
 (* -------------------------------------------------------------------------- *)
 
@@ -245,7 +242,7 @@ Definition stuck {A} (m : config A) :=
 
 (* [Stop] can step. *)
 
-Lemma can_step_stop {A X Y} (σ: store) (c : code X Y) x (k : Y → free A) :
+Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → free A) :
   can_step (σ, Stop c x k).
 Proof.
   destruct c; repeat destruct x as (x & ?);
@@ -297,7 +294,7 @@ Global Hint Resolve can_step_par : step.
 
 (* This corresponds to reduction under an evaluation context. *)
 
-Lemma step_bind {A B} (σ σ': store) (m m' : free A) (f : A → free B) :
+Lemma step_bind {A B} σ σ' (m m' : free A) (f : A → free B) :
   step (σ, m) (σ', m') →
   step (σ, bind m f) (σ', bind m' f).
 Proof.
@@ -314,10 +311,10 @@ Qed.
 
 Local Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
 
-Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) (b' : config B) :
-  step (σ, bind m f) b' →
-  (∃ m' σ', step (σ, m) (σ', m') ∧ b' = (σ', bind m' f)) ∨
-  (∃ a, m = Ret a ∧ step (σ, f a) b').
+Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) c' :
+  step (σ, bind m f) c' →
+  (∃ m' σ', step (σ, m) (σ', m') ∧ c' = (σ', bind m' f)) ∨
+  (∃ a, m = Ret a ∧ step (σ, f a) c').
 Proof.
   destruct m;
   rewrite ?bind_ret ?bind_stop ?bind_par ?bind_crash;
@@ -380,12 +377,13 @@ Global Hint Resolve
 
 (* [Par (ret _) (ret _) _ _] can step in only one way.  *)
 
-Lemma step_par_ret_ret {A1 A2 A3} v v' (k: A1 * A2 -> free A3) ko σ m :
-  step (σ, Par (ret v) (ret v') k ko) m →
-  m = (σ, k (v, v')).
+Lemma step_par_ret_ret {A1 A2 A3} v v' (k: A1 * A2 -> free A3) ko σ σ' m' :
+  step (σ, Par (ret v) (ret v') k ko) (σ', m') →
+  σ' = σ ∧
+  m' = k (v, v').
 Proof.
   intros. destruct_step; try solve [ exfalso; destruct_step ].
-  reflexivity.
+  split; congruence.
 Qed.
 
 (* If the location [l] exists in the store, then [stop CStore (l, v')]
@@ -436,10 +434,10 @@ Qed.
    a step (under a context). In other words, reduction under a context is
    mandatory: no other reduction is possible. *)
 
-Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) (b' : config B) :
-  step (σ, bind m f) b' →
+Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) c' :
+  step (σ, bind m f) c' →
   ¬ is_answer m →
-  (∃ σ' m', step (σ, m) (σ', m') ∧ b' = (σ', bind m' f)).
+  (∃ σ' m', step (σ, m) (σ', m') ∧ c' = (σ', bind m' f)).
 Proof.
   intros Hstep Hnoret.
   apply invert_step_bind in Hstep.
@@ -511,10 +509,10 @@ Proof.
   eauto using stuck_Crash.
 Qed.
 
-Lemma step_can_step {A} (s s': config A):
-  step s s' → can_step s.
+Lemma step_can_step {A} (c c' : config A):
+  step c c' → can_step c.
 Proof.
-  intros?. by exists s'.
+  eauto with step.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

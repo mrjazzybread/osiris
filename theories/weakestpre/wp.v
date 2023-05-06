@@ -438,7 +438,7 @@ Section wp_lemmas.
     { iPureIntro. eauto with step. }
     iIntros (σ' m' Hstep).
     apply step_par_ret_ret in Hstep.
-    injection Hstep; intros; subst; clear Hstep.
+    destruct Hstep; subst.
     iModIntro. iNext. iFrame.
   Qed.
 
