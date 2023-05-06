@@ -264,13 +264,6 @@ Section wp_lemmas.
       iApply "IH". iApply "Hm". }
   Qed.
 
-  Lemma wp_try_ret {A B} s E (v: A) (k: A -> free B) ko φ :
-    WP bind (ret v) k @ s; E {{ φ }} -∗ WP try (ret v) k ko @s; E {{ φ }}.
-  Proof.
-    by iIntros "H".
-  Qed.
-
-
   (* [Par]-related lemmas. *)
   (* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
    * and φ2 and show that:

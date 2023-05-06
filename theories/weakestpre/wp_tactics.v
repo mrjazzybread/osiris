@@ -50,8 +50,6 @@ Ltac wp_step' :=
       tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
       tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (try (ret _) _ _) _) =>
-      tac_change_goal (wp_try_ret _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ tac_change_goal (wp_eval_ret _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _) ]
