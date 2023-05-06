@@ -40,23 +40,6 @@ Proof.
   by destruct m; inversion 1.
 Qed.
 
-Lemma is_ret_non_Ret {A} (m: free A) :
-  is_ret m = None ->
-      m = Crash
-    ∨ m = Next
-    ∨ (∃ A B (c: code A B) x k, m = Stop c x k)
-    ∨ (∃ A1 A2 (m1: free A1) (m2: free A2) k (ko: unit → free A),
-        m = Par m1 m2 k ko).
-Proof.
-  destruct m; first inversion 1; intros?; eauto.
-  - do 2 right. left.
-    by eexists _, _, _, _, _.
-  - do 3 right.
-    by eexists _, _, _, _, _, _.
-Qed.
-
-
-
 (* -------------------------------------------------------------------------- *)
 
 Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsrisG {
