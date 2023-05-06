@@ -6,7 +6,6 @@ let require_imports =
   [
     ("osiris", ["base"]);
     ("osiris.lang", [ "lang" ]);
-    ("osiris.semantics", ["notations"]);
   ]
 
 

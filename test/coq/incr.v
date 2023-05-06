@@ -18,7 +18,6 @@ let _test =
    - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import notations.
 
 From osiris.libs Require Import Stdlib.
 
