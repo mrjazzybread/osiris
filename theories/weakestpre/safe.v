@@ -492,58 +492,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Special cases of [safe_step]. *)
-
-Lemma prove_safe_eval {A} η e σ (k : val → free A) φ :
-  safe (σ, eval η e) (λ σ' v, safe (σ', k v) φ) →
-  safe (σ, Stop CEval (η, e) k) φ.
-Proof.
-  intros.
-  erewrite safe_step by eauto with step.
-  intros. destruct_step.
-  rewrite safe_bind.
-  assumption.
-Qed.
-
-Lemma prove_safe_eval_ret η e σ φ :
-  safe (σ, eval η e) φ →
-  safe (σ, stop CEval (η, e)) φ.
-Proof.
-  eauto using prove_safe_eval, safe_covariant, prove_safe_ret.
-Qed.
-
-Lemma prove_safe_loop {A} η σ x i1 i2 e (k : val → free A) φ :
-  safe (σ, loop η x i1 i2 e) (λ σ' v, safe (σ', k v) φ) →
-  safe (σ, Stop CLoop (η, x, i1, i2, e) k) φ.
-Proof.
-  intros.
-  erewrite safe_step by eauto with step.
-  intros. destruct_step.
-  rewrite safe_bind.
-  assumption.
-Qed.
-
-Lemma prove_safe_loop_ret η σ x i1 i2 e φ :
-  safe (σ, loop η x i1 i2 e) φ →
-  safe (σ, stop CLoop (η, x, i1, i2, e)) φ.
-Proof.
-  eauto using prove_safe_loop, safe_covariant, prove_safe_ret.
-Qed.
-
-Lemma prove_safe_flip {A} σ x (k : bool → free A) φ :
-  (∀ b, safe (σ, k b) φ) →
-  safe (σ, Stop CFlip x k) φ.
-Proof.
-  intros.
-  erewrite safe_step by eauto with step.
-  intros. destruct_step. eauto.
-Qed.
-
-Lemma prove_safe_par_ret_ret {A1 A2 A} a1 a2 σ (k : A1 * A2 → free A) ko φ :
-  safe (σ, k (a1, a2)) φ →
-  safe (σ, Par (Ret a1) (Ret a2) k ko) φ.
-Proof.
-  intros.
-  erewrite safe_step by eauto with step.
-  intros. repeat destruct_step. eauto.
-Qed.
+(* The natural next step would be to prove a rule for parallel composition,
+   but it is not easy to provide such a rule for a Hoare logic where the
+   state is monolithic. So, this exercise stops here. *)
