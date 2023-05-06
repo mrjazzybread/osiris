@@ -74,11 +74,10 @@ Inductive step {A} : state A → state A → Prop :=
      initializes it with [v], and returns this location. *)
   | StepAlloc :
       ∀ σ v l k,
-      l ∉ dom σ →
-      let σ' := <[l := v]>σ in
+      σ !! l = None →
       step
         (σ, Stop CAlloc v k)
-        (σ', k l)
+        (<[l := v]>σ, k l)
 
   (* If the location [l] exists, then [stop CLoad l] looks up its content
      in the heap and returns it. *)
@@ -93,7 +92,7 @@ Inductive step {A} : state A → state A → Prop :=
      ensures that [Crash] is the only stuck term. *)
   | StepLoadFailure :
       ∀ σ l k,
-      l ∉ dom σ →
+      σ !! l = None →
       step
         (σ, Stop CLoad l k)
         (σ, Crash)
@@ -103,15 +102,17 @@ Inductive step {A} : state A → state A → Prop :=
   | StepStoreSuccess :
       ∀ σ l v' v k,
       σ !! l = Some v →
-      let '(σ', m') := (<[ l := v' ]> σ, k tt) in
-      step (σ, Stop CStore (l, v') k) (σ', m')
-
-  (* The [Store] code fails if the updated location is unknown to the store
-     This case is required to ensure that [Crash] is the only stuck term. *)
-  | StepStoreFailure :
-      ∀ σ (l: loc) v k (H: l ∉ dom σ),
       step
-        (σ, Stop CStore (l, v) k)
+        (σ, Stop CStore (l, v') k)
+        (<[ l := v' ]> σ, k tt)
+
+  (* If the location [l] does not exist, then [stop CStore (l, v')] fails.
+     This ensures that [Crash] is the only stuck term. *)
+  | StepStoreFailure :
+      ∀ σ l v' k,
+      σ !! l = None →
+      step
+        (σ, Stop CStore (l, v') k)
         (σ, Crash)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -246,30 +247,20 @@ Qed.
 Lemma can_step_stop {A X Y} (σ: store) (c : code X Y) x (k : Y → free A) :
   can_step (σ, Stop c x k).
 Proof.
-  eauto with step.
+  (* TODO beautify this proof *)
   destruct c; repeat destruct x as (x & ?).
   - exists (σ, bind (eval x e) k). eauto with step.
   - exists (σ, bind (loop x v i0 i e) k). eauto with step.
   - exists (σ, k false). eauto with step.
   - set (l := fresh_loc (dom σ)).
+    pose proof (Hl := fresh_loc_fresh (dom σ)).
+    rewrite not_elem_of_dom in Hl.
     exists (<[l:=x]> σ, k l).
-    eauto using fresh_loc_fresh with step.
-  - (* TODO: destruct the "belongs to" predicate instead of the result of
-     *       lookup. *)
-    destruct (σ !! x) eqn:E.
-    + (* The load operation will succeed. *)
-      exists (σ, k v). eauto with step.
-    + (* The load operation will fail. *)
-      exists (σ, Crash). constructor.
-      apply not_elem_of_dom_2, E.
-  - (* TODO: ditto. *)
-    destruct (σ !! x) eqn:E.
-    + (* The store operation will succeed. *)
-      eexists _. eauto with step.
-    + (* The store operation will fail. *)
-      apply not_elem_of_dom_2 in E.
-      exists (σ, Crash).
-      eauto with step.
+    eauto with step.
+  - destruct (σ !! x) eqn:E.
+    + exists (σ, k v). eauto with step.
+    + eauto with step.
+  - destruct (σ !! x) eqn:E; eauto with step.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -317,8 +308,6 @@ Proof.
   inversion 1; subst;
   rewrite ?bind_stop ?bind_par ?bind_crash ?bind_bind;
   eauto using step_up_to_eq with step.
-  (* TODO: improve the way this case is handled: *)
-  - econstructor. eauto.
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -401,13 +390,13 @@ Global Hint Resolve
   invert_can_step_Next
 : invert_can_step.
 
-(* [Par (ret _) (ret _) _ _] can only reduce in one way.  *)
+(* [Par (ret _) (ret _) _ _] can reduce in only one way.  *)
 Lemma step_par_ret_ret {A1 A2 A3} {v: A1} {v': A2} {k: A1 * A2 -> free A3} {ko σ m}:
-  step (σ, Par (ret v) (ret v') k ko) m → m = (σ, k (v, v')).
+  step (σ, Par (ret v) (ret v') k ko) m →
+  m = (σ, k (v, v')).
 Proof.
-  intros H; destruct_step; first done.
-  - inversion H.
-  - inversion H.
+  intros. destruct_step; try solve [ exfalso; destruct_step ].
+  reflexivity.
 Qed.
 
 Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
@@ -415,13 +404,7 @@ Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
   step (σ, Stop CStore (ℓ, v) k) m' →
   m' = (<[ ℓ := v ]> σ, k ()).
 Proof.
-  intros Hℓ Hstep. remember (ℓ, v).
-  inversion Hstep.
-  all: apply Eqdep.EqdepTheory.inj_pair2 in H1, H2.
-  all: simplify_eq.
-  - reflexivity.
-  - exfalso.
-    apply H3. apply elem_of_dom_2 in Hℓ. exact Hℓ.
+  intros. remember (ℓ, v). destruct_step; congruence.
 Qed.
 
 Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
@@ -429,11 +412,7 @@ Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
   step (σ, Stop CLoad ℓ k) (σ', m') →
   σ' = σ ∧ m' = k v.
 Proof.
-  intros Hin Hstep.
-  dependent destruction Hstep;
-    (split; first reflexivity).
-  - by simplify_eq.
-  - exfalso. apply H, elem_of_dom_2 with v, Hin.
+  intros. destruct_step; split; congruence.
 Qed.
 
 (* Stepping in the left-hand side of [bind] is permitted. *)

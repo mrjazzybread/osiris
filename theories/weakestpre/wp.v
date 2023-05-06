@@ -512,7 +512,7 @@ Section wp_lemmas.
     destruct_step.
     iSpecialize ("H" $! l).
     iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]".
-    { rewrite -not_elem_of_dom. assumption. }
+    { assumption. }
     iModIntro. iNext.
     iApply ("H" with "HH").
   Qed.
