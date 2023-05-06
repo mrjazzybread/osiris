@@ -494,7 +494,7 @@ Qed.
 
 Lemma prove_safe_eval {A} η e σ (k : val → free A) φ :
   safe (σ, eval η e) (λ σ' v, safe (σ', k v) φ) →
-  safe (σ, Stop Eval (η, e) k) φ.
+  safe (σ, Stop CEval (η, e) k) φ.
 Proof.
   intros.
   erewrite safe_step by eauto with step.
@@ -505,14 +505,14 @@ Qed.
 
 Lemma prove_safe_eval_ret η e σ φ :
   safe (σ, eval η e) φ →
-  safe (σ, stop Eval (η, e)) φ.
+  safe (σ, stop CEval (η, e)) φ.
 Proof.
   eauto using prove_safe_eval, safe_covariant, prove_safe_ret.
 Qed.
 
 Lemma prove_safe_loop {A} η σ x i1 i2 e (k : val → free A) φ :
   safe (σ, loop η x i1 i2 e) (λ σ' v, safe (σ', k v) φ) →
-  safe (σ, Stop Loop (η, x, i1, i2, e) k) φ.
+  safe (σ, Stop CLoop (η, x, i1, i2, e) k) φ.
 Proof.
   intros.
   erewrite safe_step by eauto with step.
@@ -523,14 +523,14 @@ Qed.
 
 Lemma prove_safe_loop_ret η σ x i1 i2 e φ :
   safe (σ, loop η x i1 i2 e) φ →
-  safe (σ, stop Loop (η, x, i1, i2, e)) φ.
+  safe (σ, stop CLoop (η, x, i1, i2, e)) φ.
 Proof.
   eauto using prove_safe_loop, safe_covariant, prove_safe_ret.
 Qed.
 
 Lemma prove_safe_flip {A} σ x (k : bool → free A) φ :
   (∀ b, safe (σ, k b) φ) →
-  safe (σ, Stop Flip x k) φ.
+  safe (σ, Stop CFlip x k) φ.
 Proof.
   intros.
   erewrite safe_step by eauto with step.

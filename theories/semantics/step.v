@@ -35,7 +35,7 @@ Definition state (A : Type) : Type := store * free A.
 
 Inductive step {A} : state A → state A → Prop :=
 
-  (* [Stop Eval (η, e) k] steps to an invocation of [eval η e] followed
+  (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] followed
      with the continuation [k]. *)
   (* Isolating an explicit equality [p = (η, e)] seems necessary to work
      around a bug or limitation (?) in [dependent destruction]. *)
@@ -43,41 +43,41 @@ Inductive step {A} : state A → state A → Prop :=
       ∀ σ p η e k,
       p = (η, e) →
       step
-        (σ, Stop Eval p k)
+        (σ, Stop CEval p k)
         (σ, bind (eval η e) k)
 
-  (* [Stop Loop (η, x, i1, i2, e) k] steps to [loop η x i1 i2 e] followed
+  (* [Stop CLoop (η, x, i1, i2, e) k] steps to [loop η x i1 i2 e] followed
      with the continuation [k]. *)
   | StepLoop :
       ∀ σ p η x i1 i2 e k,
       p = (η, x, i1, i2, e) →
       step
-        (σ, Stop Loop p k)
+        (σ, Stop CLoop p k)
         (σ, bind (loop η x i1 i2 e) k)
 
-  (* [Stop Flip () k] steps to an application of the continuation [k] to
+  (* [Stop CFlip () k] steps to an application of the continuation [k] to
      either [false] or [true]. *)
   | StepFlip :
       ∀ σ b x k,
       step
-        (σ, Stop Flip x k)
+        (σ, Stop CFlip x k)
         (σ, k b)
 
-  (* [Stop Alloc v] allocates a fresh location in the store and initializes
+  (* [Stop CAlloc v] allocates a fresh location in the store and initializes
      it with [v]. It then steps to an application of the continuation [k] to
       this location. *)
   | StepAlloc :
       ∀ σ v k,
       let '(l, σ') := store_ref σ v in
       step
-        (σ, Stop Alloc v k)
+        (σ, Stop CAlloc v k)
         (σ', k l)
 
   | StepLoadSuccess :
       ∀ σ l k v,
       σ !! l = Some v →
       step
-        (σ, Stop Load l k)
+        (σ, Stop CLoad l k)
         (σ, k v)
 
   (* The [Load] code fails if the accessed location is unknown to the store
@@ -86,21 +86,21 @@ Inductive step {A} : state A → state A → Prop :=
       ∀ σ l k,
       l ∉ dom σ →
       step
-        (σ, Stop Load l k)
+        (σ, Stop CLoad l k)
         (σ, Crash)
 
   | StepStoreSuccess :
       ∀ σ l v' v k,
       σ !! l = Some v' →
       let '(σ', m') := (<[ l := v ]> σ, k tt) in
-      step (σ, Stop Store (l, v) k) (σ', m')
+      step (σ, Stop CStore (l, v) k) (σ', m')
 
   (* The [Store] code fails if the updated location is unknown to the store
      This case is required to ensure that [Crash] is the only stuck term. *)
   | StepStoreFailure :
       ∀ σ (l: loc) v k (H: l ∉ dom σ),
       step
-        (σ, Stop Store (l, v) k)
+        (σ, Stop CStore (l, v) k)
         (σ, Crash)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -397,7 +397,7 @@ Proof.
 Qed.
 
 Lemma invert_step_flip {A} σ x (k: bool -> free A) m':
-  step (σ, Stop Flip x k) m' →
+  step (σ, Stop CFlip x k) m' →
   ∃ b,  m' = (σ, k b).
 Proof.
   intros Hstep.
@@ -407,7 +407,7 @@ Qed.
 
 Lemma invert_step_alloc {A} σ v (k: loc -> free A) m':
   let '(l, σ') := store_ref σ v in
-  step (σ, Stop Alloc v k) m' →
+  step (σ, Stop CAlloc v k) m' →
   m' = (σ', k l).
 Proof.
   intros Hstep.
@@ -418,7 +418,7 @@ Qed.
 
 Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
   σ !! ℓ = Some v' →
-  step (σ, Stop Store (ℓ, v) k) m' →
+  step (σ, Stop CStore (ℓ, v) k) m' →
   m' = (<[ ℓ := v ]> σ, k ()).
 Proof.
   intros Hℓ Hstep. remember (ℓ, v).
@@ -432,7 +432,7 @@ Qed.
 
 Lemma invert_step_load {A} σ σ' ℓ v k (m': free A) :
   σ !! ℓ = Some v →
-  step (σ, Stop Load ℓ k) (σ', m') →
+  step (σ, Stop CLoad ℓ k) (σ', m') →
   σ' = σ ∧ m' = k v.
 Proof.
   intros Hin Hstep.

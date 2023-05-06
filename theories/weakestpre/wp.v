@@ -445,7 +445,7 @@ Section wp_lemmas.
   (* [Stop]-related lemmas. *)
   Lemma wp_eval {A} s E η e k (ϕ: A -> iProp Σ) :
     ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ ϕ }} }} -∗
-    WP (Stop Eval (η, e) k) @ s; E {{ ϕ }}.
+    WP (Stop CEval (η, e) k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_unfold. unfold wp_pre.
@@ -470,7 +470,7 @@ Section wp_lemmas.
      work with. *)
   Lemma wp_eval_ret s E η e ϕ :
     ▷ WP (eval η e) @ s; E {{ ϕ }} -∗
-    WP (Stop Eval (η, e) ret) @ s; E {{ ϕ }}.
+    WP (Stop CEval (η, e) ret) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
@@ -481,7 +481,7 @@ Section wp_lemmas.
 
   Lemma wp_flip {A} s E x (k: bool -> free A) ϕ :
     ▷ (∀ b, WP (k b) @ s; E {{ ϕ }} ) -∗
-    WP (Stop Flip x k) @ s; E {{ ϕ }}.
+    WP (Stop CFlip x k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -498,7 +498,7 @@ Section wp_lemmas.
     ▷ (∀ ℓ,
          mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
          WP (k ℓ) @ s; E {{ ϕ }} ) -∗
-    WP (Stop Alloc x k) @ s; E {{ ϕ }}.
+    WP (Stop CAlloc x k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "H".
     iApply wp_unfold. unfold wp_pre.
@@ -519,7 +519,7 @@ Section wp_lemmas.
   Lemma wp_store {A} s E ℓ v v' k (ϕ: A → iProp Σ) :
     mapsto ℓ (DfracOwn 1) v -∗
     ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ ϕ }}) -∗
-    WP (Stop Store (ℓ, v') k) @ s; E {{ ϕ }}.
+    WP (Stop CStore (ℓ, v') k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hℓ Hwp".
     iApply wp_unfold. unfold wp_pre.
@@ -540,7 +540,7 @@ Section wp_lemmas.
   Lemma wp_load {A} s E ℓ v dq (k: val -> free A) ϕ :
     mapsto ℓ dq v -∗
     ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ ϕ }}) -∗
-    WP (Stop Load ℓ k) @ s; E {{ ϕ }}.
+    WP (Stop CLoad ℓ k) @ s; E {{ ϕ }}.
   Proof.
     iIntros "Hℓ Hwp".
     iApply wp_unfold. unfold wp_pre.

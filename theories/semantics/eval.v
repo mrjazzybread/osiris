@@ -480,7 +480,7 @@ Definition acall η a v : free val :=
   let η := EnvCons x v η in
   (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
      be used, so evaluation of [e] is requested via a [stop] effect. *)
-  stop Eval (η, e).
+  stop CEval (η, e).
 
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
@@ -830,14 +830,14 @@ Fixpoint eval η e : free val :=
       b ← as_bool (eval η e) ;
       if (b : bool) then
         _ ← eval η body ;
-        stop Eval (η, EWhile e body)
+        stop CEval (η, EWhile e body)
       else
         ok
   | EFor x e1 e2 e =>
       (* The bounds are evaluated first. *)
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       (* Then, the loop is executed. *)
-      stop Loop (η, x, i1, i2, e)
+      stop CLoop (η, x, i1, i2, e)
   | EAssertFalse =>
       assertion_failure
   | EAssert e =>
@@ -853,14 +853,14 @@ Fixpoint eval η e : free val :=
       choose ok test
   | ERef e =>
       v ← eval η e ;
-      ℓ ← stop Alloc v ;
+      ℓ ← stop CAlloc v ;
       ret (VLoc ℓ)
   | ELoad e =>
       ℓ ← as_loc (eval η e) ;
-      stop Load ℓ
+      stop CLoad ℓ
   | EStore e1 e2 =>
       '(ℓ, v) ← par (as_loc (eval η e1)) (eval η e2) ;
-      _ ← stop Store (ℓ, v) ;
+      _ ← stop CStore (ℓ, v) ;
       ok
   end
 
@@ -1034,5 +1034,5 @@ Definition loop η x i1 i2 e : free val :=
     (* Every [for] loop terminates, so we could in principle arrange to
        use a recursive call to [loop], but using a [stop] effect is much
        easier. *)
-    stop Loop (η, x, int.add i1 int.one, i2, e)
+    stop CLoop (η, x, int.add i1 int.one, i2, e)
 .

@@ -18,12 +18,12 @@ From osiris.semantics Require Import free locations.
    location in the heap. *)
 
 Inductive code : Type → Type → Type :=
-| Eval  : code (env * expr) val
-| Loop  : code (env * var * int * int * expr) val
-| Flip  : code unit bool
-| Alloc : code val loc
-| Load  : code loc val
-| Store : code (loc * val) unit
+| CEval  : code (env * expr) val
+| CLoop  : code (env * var * int * int * expr) val
+| CFlip  : code unit bool
+| CAlloc : code val loc
+| CLoad  : code loc val
+| CStore : code (loc * val) unit
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -51,7 +51,7 @@ Notation "' x ← y ; z" :=
 (* [flip] flips a coin. *)
 
 Definition flip : free bool :=
-  stop Flip ().
+  stop CFlip ().
 
 (* [choose m1 m2] is a non-deterministic choice between the
    computations [m1] and [m2]. *)
