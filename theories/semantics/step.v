@@ -19,14 +19,15 @@ From iris.prelude Require Import prelude options.
 
 (* A store is a finite map of locations to values. *)
 
-Definition store : Type := gmap loc val.
+Definition store : Type :=
+  gmap loc val.
 
 Implicit Type σ : store.
 
-(* The state of an execution is a term of type [free A] taken together with
-   a store. *)
-Definition state (A : Type) : Type := store * free A.
+(* A state is a pair of a computation and a store. *)
 
+Definition state (A : Type) : Type :=
+  store * free A.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -129,6 +130,7 @@ Inductive step {A} : state A → state A → Prop :=
       step
         (σ, Par Crash m2 k ko)
         (σ, Crash)
+
   | StepParCrashRight :
       ∀ {A1 A2} σ m1 (k : A1 * A2 → free A) ko,
       step
@@ -142,6 +144,7 @@ Inductive step {A} : state A → state A → Prop :=
       step
         (σ, Par Next m2 k ko)
         (σ, ko())
+
   | StepParNextRight :
       ∀ {A1 A2} σ m1 (k : A1 * A2 → free A) ko,
       step
@@ -155,6 +158,7 @@ Inductive step {A} : state A → state A → Prop :=
       step
         (σ, Par m1 m2 k ko)
         (σ', Par m'1 m2 k ko)
+
   | StepParRight :
       ∀ {A1 A2} σ σ' (m1 : free A1) {m2 m'2 : free A2} k ko,
       step (σ, m2) (σ', m'2) →
@@ -169,6 +173,9 @@ Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
+
+(* This auxiliary lemma is useful when a constructor of the relation [step]
+   cannot be applied directly. *)
 
 Lemma step_up_to_eq {A} (c : state A) σ e e' :
   step c (σ, e) →
@@ -230,17 +237,6 @@ Definition stuck {A} (m : state A) :=
 (* -------------------------------------------------------------------------- *)
 
 (* Basic lemmas about [step] and [can_step]. *)
-
-(* This auxiliary lemma is useful when a constructor of the relation [step]
-   cannot be applied directly. *)
-
-Lemma step_eq {A} (s1 s2 s2' : state A) :
-  step s1 s2 →
-  s2 = s2' →
-  step s1 s2'.
-Proof.
-  intros. subst. assumption.
-Qed.
 
 (* [Stop] can step. *)
 
