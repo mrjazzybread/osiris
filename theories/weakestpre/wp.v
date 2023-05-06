@@ -348,13 +348,7 @@ Section wp_lemmas.
     iSplitR.
     { iPureIntro. eapply can_step_par. reflexivity. }
     iIntros (σ' m' Hstep).
-    assert (can_step (σ, Par m1 m2 k ko)) as Hpar.
-    { (* non-stuckness of Par *)
-      unshelve epose proof (can_step_par (Par m1 m2 k ko) _ m1 m2 k ko _)
-        as [??];
-        [ done | reflexivity | ].
-      by apply step_can_step with (σ', m'). }
-    (* TODO: cleanup hyopthesis at this point *)
+    (* TODO: cleanup hypotheses at this point *)
 
     destruct_step; simpl.
     { (* Case: [StepParRetRet] *)
