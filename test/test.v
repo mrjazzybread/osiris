@@ -1,6 +1,6 @@
 From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import sugar free eval step steps.
+From osiris.lang Require Import lang sugar encode.
+From osiris.semantics Require Import free eval step steps.
 
 (* We want to test our semantics, so as to ensure that it seems to be
    consistent with our expectations and with the informal definition

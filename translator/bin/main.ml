@@ -6,9 +6,8 @@ let require_imports =
   [
     ("osiris", ["base"]);
     ("osiris.lang",
-     [ "lang";
-       "encode"]);
-    ("osiris.semantics", ["sugar"; "notations"]);
+     [ "lang"; "sugar"; "encode"]);
+    ("osiris.semantics", ["notations"]);
   ]
 
 
