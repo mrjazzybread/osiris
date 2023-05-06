@@ -408,15 +408,6 @@ Proof.
   - inversion H.
 Qed.
 
-Lemma invert_step_flip {A} σ x (k: bool -> free A) m':
-  step (σ, Stop CFlip x k) m' →
-  ∃ b,  m' = (σ, k b).
-Proof.
-  intros Hstep.
-  inversion Hstep.
-  exists b. reflexivity.
-Qed.
-
 Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
   σ !! ℓ = Some v' →
   step (σ, Stop CStore (ℓ, v) k) m' →

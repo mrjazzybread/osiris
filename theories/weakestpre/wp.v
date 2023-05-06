@@ -489,9 +489,11 @@ Section wp_lemmas.
     simpl.
     iSplit.
     { iPureIntro. eauto with step. }
-    iIntros (σ' m' [b [->->]%pair_equal_spec]%invert_step_flip).
-    iDestruct ("H" $! b) as "H".
-    iModIntro. iFrame.
+    iIntros (σ' m') "%Hstep".
+    destruct_step.
+    iModIntro. iNext.
+    iSpecialize ("H" $! b).
+    iFrame.
   Qed.
 
   Lemma wp_ref {A} s E x (k: loc -> free A) ϕ :
