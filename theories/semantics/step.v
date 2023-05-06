@@ -66,7 +66,7 @@ Inductive step {A} : state A → state A → Prop :=
 
   (* [stop CFlip ()] returns either [false] or [true]. *)
   | StepFlip :
-      ∀ σ b x k,
+      ∀ b σ x k,
       step
         (σ, Stop CFlip x k)
         (σ, k b)
@@ -243,20 +243,18 @@ Definition stuck {A} (m : state A) :=
 Lemma can_step_stop {A X Y} (σ: store) (c : code X Y) x (k : Y → free A) :
   can_step (σ, Stop c x k).
 Proof.
-  (* TODO beautify this proof *)
-  destruct c; repeat destruct x as (x & ?).
-  - exists (σ, bind (eval x e) k). eauto with step.
-  - exists (σ, bind (loop x v i0 i e) k). eauto with step.
-  - exists (σ, k false). eauto with step.
-  - set (l := fresh_loc (dom σ)).
+  destruct c; repeat destruct x as (x & ?);
+  (* For reading and writing, we must reason by cases, according to
+     whether the location [l] is or is not in the domain of [σ]. *)
+  try match goal with σ: store, l: loc |- _ => case_eq (σ !! l) end;
+  (* All cases except allocation are handled here: *)
+  eauto using (StepFlip false), step_up_to_eq with step.
+  (* In the case of allocation, we must exhibit an address [l]
+     that is not in the domain of [σ]. *)
+  { set (l := fresh_loc (dom σ)).
     pose proof (Hl := fresh_loc_fresh (dom σ)).
     rewrite not_elem_of_dom in Hl.
-    exists (<[l:=x]> σ, k l).
-    eauto with step.
-  - destruct (σ !! x) eqn:E.
-    + exists (σ, k v). eauto with step.
-    + eauto with step.
-  - destruct (σ !! x) eqn:E; eauto with step.
+    eauto using step_up_to_eq with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.
