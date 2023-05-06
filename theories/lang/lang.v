@@ -1,6 +1,5 @@
-From osiris.lang Require int.
 From osiris Require Import base.
-From osiris.semantics Require Import locations.
+From osiris.lang Require Import int locations.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -56,7 +55,7 @@ Definition field :=
 (* Machine integers. *)
 
 Definition int :=
-  int.int.
+  int.
 
 (* ------------------------------------------------------------------------ *)
 

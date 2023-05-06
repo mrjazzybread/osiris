@@ -7,8 +7,8 @@ Import uPred.
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang sugar encode.
-From osiris.semantics Require Import locations code eval step notations.
+From osiris.lang Require Import locations lang sugar encode.
+From osiris.semantics Require Import code eval step notations.
 From osiris.weakestpre Require Import wp wp_tactics notations.
 
 Section StdLib.

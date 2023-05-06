@@ -1,7 +1,6 @@
-From osiris.semantics Require Import store.
-From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import code locations notations.
+From osiris.lang Require Import locations lang.
+From osiris.semantics Require Import free code store notations.
 
 (* Conventional metavariables. *)
 

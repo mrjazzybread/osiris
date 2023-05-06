@@ -1,6 +1,6 @@
 From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import free locations.
+From osiris.lang Require Import locations lang.
+From osiris.semantics Require Import free.
 
 (* This module fixes the specific set of codes that we need to write an
    interpreter for OCaml. *)

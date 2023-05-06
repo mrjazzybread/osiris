@@ -1,7 +1,8 @@
 From stdpp Require Import gmap.
-From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import code eval store locations.
+From osiris.lang Require Import locations lang.
+From osiris.semantics Require Import code eval store.
+From iris.prelude Require Import prelude options.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
    of the form [step m m'] where [m] and [m'] are computations in the [free]
@@ -231,8 +232,8 @@ Proof.
   - exists (σ, bind (eval x e) k). eauto with step.
   - exists (σ, bind (loop x v i0 i e) k). eauto with step.
   - exists (σ, k false). eauto with step.
-  - set ℓ := fresh_loc (dom σ).
-    exists (<[ℓ:=x]> σ, k ℓ).
+  - set (l := fresh_loc (dom σ)).
+    exists (<[l:=x]> σ, k l).
     constructor.
   - (* TODO: destruct the "belongs to" predicate instead of the result of
      *       lookup. *)
@@ -509,7 +510,9 @@ Qed.
 Lemma stuck_Crash {A} σ :
   stuck (σ, Crash : free A).
 Proof.
-  unfold stuck. split. eauto. inversion 1.
+  unfold stuck. split.
+  { eauto. }
+  { inversion 1. }
 Qed.
 
 (* The only stuck term is [Crash]. *)

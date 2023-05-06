@@ -8,8 +8,8 @@ Import uPred.
 From iris.algebra Require Import gmap.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import store code eval step notations locations.
+From osiris.lang Require Import locations lang.
+From osiris.semantics Require Import store code eval step notations.
 
 
 
