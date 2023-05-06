@@ -309,7 +309,7 @@ Section wp_lemmas.
         unfold is_answer in H.
         destruct m1 eqn:E'; try assumption;
         destruct_step. }
-      pose proof (invert_step_bind' _ m1 m2 (_, m') Hstep Hnoret) as (σ'1 & m'1 & Hsrtep & a).
+      pose proof (invert_step_bind' Hstep Hnoret) as (σ'1 & m'1 & Hsrtep & a).
       simplify_eq/=.
       iPoseProof ("Hm" with "[//]") as ">[$Hm]".
       iModIntro. iNext.

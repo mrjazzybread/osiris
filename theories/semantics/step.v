@@ -434,7 +434,7 @@ Qed.
    a step (under a context). In other words, reduction under a context is
    mandatory: no other reduction is possible. *)
 
-Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) c' :
+Lemma invert_step_bind' {A B σ m} {f : A → free B} {c'} :
   step (σ, bind m f) c' →
   ¬ is_answer m →
   (∃ σ' m', step (σ, m) (σ', m') ∧ c' = (σ', bind m' f)).
@@ -460,16 +460,17 @@ Proof.
   unfold stuck. tauto.
 Qed.
 
-(* A term that can step is not stuck. *)
+(* A configuration that can step is not stuck. *)
 
-Lemma can_step_not_stuck {A} (m : free A) σ :
-  can_step (σ, m) →
-  stuck (σ, m) →
+Lemma can_step_not_stuck {A} (c : config A) :
+  stuck c →
+  can_step c →
   False.
 Proof.
+  destruct c as (σ, m).
   unfold can_step, stuck.
-  intros ([] & Hstep).
   intros (_ & Hnostep).
+  intros ([σ' m'] & Hstep).
   eapply Hnostep. exact Hstep.
 Qed.
 
@@ -492,8 +493,8 @@ Proof.
   intros.
   destruct m; try solve [
     reflexivity
-  | exfalso;
-    eauto using invert_stuck_answer, can_step_not_stuck with step is_answer
+  | exfalso; eauto using invert_stuck_answer with is_answer
+  | exfalso; eauto using can_step_not_stuck with step
   ].
 Qed.
 
