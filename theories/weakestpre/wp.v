@@ -22,12 +22,6 @@ Definition is_ret {A} (m: free A) : option A :=
   | _ => None
   end.
 
-Lemma step_is_ret {A} (m m': free A) σ σ':
-  step (σ, m) (σ', m') → is_ret m = None.
-Proof.
-  intros ?. by destruct_step.
-Qed.
-
 Lemma can_step_is_ret {A} (m: free A) σ:
   can_step (σ, m) → is_ret m = None.
 Proof.
