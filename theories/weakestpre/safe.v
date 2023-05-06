@@ -17,7 +17,7 @@ From osiris.semantics Require Import semantics.
 
 (* We first define what it means to be safe for [n] steps. *)
 
-Fixpoint initially_safe {A} (n : nat) (m : state A) (φ : store → A → Prop) : Prop :=
+Fixpoint initially_safe {A} (n : nat) (m : config A) (φ : store → A → Prop) : Prop :=
   match n with
   | 0 =>
       (* Every computation is safe for zero steps. *)
@@ -37,7 +37,7 @@ Fixpoint initially_safe {A} (n : nat) (m : state A) (φ : store → A → Prop) 
 (* If, for every [n], a computation is safe for [n] steps,
    then this computation is safe. *)
 
-Definition safe {A} (m : state A) (φ : store → A → Prop) :=
+Definition safe {A} (m : config A) (φ : store → A → Prop) :=
   ∀ n, initially_safe n m φ.
 
 (* -------------------------------------------------------------------------- *)
@@ -46,7 +46,7 @@ Definition safe {A} (m : state A) (φ : store → A → Prop) :=
 
 (* A paraphrase lemma. *)
 
-Lemma unfold_initially_safe_S {A} (n : nat) (m : state A) (φ : store → A → Prop) :
+Lemma unfold_initially_safe_S {A} (n : nat) (m : config A) (φ : store → A → Prop) :
   initially_safe (S n) m φ =
   (
     (∃ σ v, m = (σ, Ret v) ∧ φ σ v) ∨
@@ -104,7 +104,7 @@ Proof.
   { intuition eauto. }
 Qed.
 
-Lemma safe_covariant {A} (m : state A) (φ φ' : store → A → Prop) :
+Lemma safe_covariant {A} (m : config A) (φ φ' : store → A → Prop) :
   safe m φ →
   (∀ σ a, φ σ a → φ' σ a) →
   safe m φ'.
@@ -118,7 +118,7 @@ Qed.
 
 (* Every term is safe for 0 steps. *)
 
-Lemma initially_safe_zero {A} (m : state A) (φ : store → A → Prop) :
+Lemma initially_safe_zero {A} (m : config A) (φ : store → A → Prop) :
   initially_safe 0 m φ.
 Proof.
   simpl. tauto.
@@ -182,7 +182,7 @@ Proof.
   eauto.
 Qed.
 
-Lemma invert_initially_safe_stuck {A} {n} {s : state A} {φ : store → A → Prop} :
+Lemma invert_initially_safe_stuck {A} {n} {s : config A} {φ : store → A → Prop} :
   initially_safe (S n) s φ →
   stuck s →
   False.
@@ -263,7 +263,7 @@ Proof.
   unfold safe. eauto using invert_initially_safe_step.
 Qed.
 
-Lemma invert_safe_stuck {A} {s : state A} {φ : store → A → Prop} :
+Lemma invert_safe_stuck {A} {s : config A} {φ : store → A → Prop} :
   safe s φ →
   stuck s →
   False.

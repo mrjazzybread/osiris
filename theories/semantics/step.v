@@ -24,9 +24,9 @@ Definition store : Type :=
 
 Implicit Type σ : store.
 
-(* A state is a pair of a computation and a store. *)
+(* A configuration is a pair of a computation and a store. *)
 
-Definition state (A : Type) : Type :=
+Definition config (A : Type) : Type :=
   store * free A.
 
 (* -------------------------------------------------------------------------- *)
@@ -42,7 +42,7 @@ Definition state (A : Type) : Type :=
    is [Crash]. There is a lot of non-determinism in these reduction rules:
    e.g., [Par Crash Next _ _] can step to either [Crash] or [Next]. *)
 
-Inductive step {A} : state A → state A → Prop :=
+Inductive step {A} : config A → config A → Prop :=
 
   (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] followed
      with the continuation [k]. Thus, from the user's perspective, the
@@ -176,7 +176,7 @@ Ltac destruct_step :=
 (* This auxiliary lemma is useful when a constructor of the relation [step]
    cannot be applied directly. *)
 
-Lemma step_up_to_eq {A} (c : state A) σ e e' :
+Lemma step_up_to_eq {A} (c : config A) σ e e' :
   step c (σ, e) →
   e = e' →
   step c (σ, e').
@@ -218,7 +218,7 @@ Ltac destruct_answer :=
 
 (* [m] can step if there exists [m'] such that [m] steps to [m']. *)
 
-Definition can_step {A} (s : state A) :=
+Definition can_step {A} (s : config A) :=
   ∃ s', step s s'.
 
 Global Hint Unfold can_step : step.
@@ -233,7 +233,7 @@ Ltac destruct_can_step :=
 
 (* A term that is not an answer and that is unable to step is stuck. *)
 
-Definition stuck {A} (m : state A) :=
+Definition stuck {A} (m : config A) :=
   match m with
   | (σ, m) => ¬ is_answer m ∧
              (∀ m' σ', ¬ step (σ, m) (σ', m'))
@@ -314,7 +314,7 @@ Qed.
 
 Local Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
 
-Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) (b' : state B) :
+Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) (b' : config B) :
   step (σ, bind m f) b' →
   (∃ m' σ', step (σ, m) (σ', m') ∧ b' = (σ', bind m' f)) ∨
   (∃ a, m = Ret a ∧ step (σ, f a) b').
@@ -436,7 +436,7 @@ Qed.
    a step (under a context). In other words, reduction under a context is
    mandatory: no other reduction is possible. *)
 
-Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) (b' : state B) :
+Lemma invert_step_bind' {A B} σ (m : free A) (f : A → free B) (b' : config B) :
   step (σ, bind m f) b' →
   ¬ is_answer m →
   (∃ σ' m', step (σ, m) (σ', m') ∧ b' = (σ', bind m' f)).
@@ -511,7 +511,7 @@ Proof.
   eauto using stuck_Crash.
 Qed.
 
-Lemma step_can_step {A} (s s': state A):
+Lemma step_can_step {A} (s s': config A):
   step s s' → can_step s.
 Proof.
   intros?. by exists s'.

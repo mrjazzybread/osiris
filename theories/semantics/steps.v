@@ -9,7 +9,7 @@ From osiris.semantics Require Import code eval step.
 
 (* [steps n m m'] means that [m] reduces to [m'] in at most [n] steps. *)
 
-Inductive steps {A} : nat → state A → state A → Prop :=
+Inductive steps {A} : nat → config A → config A → Prop :=
 | StepsZero:
     ∀ n m,
     steps n m m
@@ -27,7 +27,7 @@ Global Hint Constructors steps : steps.
 
 (* [step] implies [steps 1]. *)
 
-Lemma one_step {A} (m m' : state A) :
+Lemma one_step {A} (m m' : config A) :
   step m m' →
   steps 1 m m'.
 Proof.
@@ -37,7 +37,7 @@ Qed.
 (* [steps] is monotonic in [n]. *)
 
 Lemma steps_monotonic {A} :
-  ∀ n (m m' : state A),
+  ∀ n (m m' : config A),
   steps n m m' →
   ∀ n',
   n ≤ n' →
@@ -51,7 +51,7 @@ Qed.
 (* [steps] is transitive. *)
 
 Lemma steps_transitive {A} :
-  ∀ n1 (m1 m2 : state A),
+  ∀ n1 (m1 m2 : config A),
   steps n1 m1 m2 →
   ∀ n2 m3,
   steps n2 m2 m3 →
