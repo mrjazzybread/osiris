@@ -374,7 +374,7 @@ Section wp_lemmas.
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 5. rewrite /wp_pre/=.
       assert (is_ret m1 = None) as ->.
-      { by eapply can_step_is_ret, step_can_step. }
+      { eauto using can_step_is_ret with step. }
       iDestruct ("H1" with "Hsi") as "[%Hstep1 H1]".
       iPoseProof
         ("H1" $! σ' with "[//]")
@@ -384,7 +384,7 @@ Section wp_lemmas.
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 6. rewrite /wp_pre/=.
       assert (is_ret m2 = None) as ->.
-      { by eapply can_step_is_ret, step_can_step. }
+      { eauto using can_step_is_ret with step. }
       iDestruct ("H2" with "Hsi") as "[%Hstuck2 H2]".
       iPoseProof
         ("H2" $! σ' with "[//]")

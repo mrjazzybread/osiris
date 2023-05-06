@@ -509,12 +509,6 @@ Proof.
   eauto using stuck_Crash.
 Qed.
 
-Lemma step_can_step {A} (c c' : config A):
-  step c c' → can_step c.
-Proof.
-  eauto with step.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* A triplicity principle. *)
