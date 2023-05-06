@@ -506,13 +506,12 @@ Section wp_lemmas.
     simpl.
     iSplit.
     { iPureIntro. eauto with step. }
-    iIntros (σ' m' [->->]%invert_step_alloc%pair_equal_spec).
-    set ℓ := (fresh_loc (dom σ)).
-    iDestruct ("H" $! ℓ) as "H".
-    pose proof (store_ref_dom σ x) as [_ Hfresh%not_elem_of_dom].
-    iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]";
-      first exact Hfresh.
-    do 2 iModIntro.
+    iIntros (σ' m') "%Hstep".
+    destruct_step.
+    iSpecialize ("H" $! l).
+    iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]".
+    { rewrite -not_elem_of_dom. assumption. }
+    iModIntro. iNext.
     iApply ("H" with "HH").
   Qed.
 

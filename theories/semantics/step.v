@@ -68,8 +68,9 @@ Inductive step {A} : state A → state A → Prop :=
      it with [v]. It then steps to an application of the continuation [k] to
       this location. *)
   | StepAlloc :
-      ∀ σ v k,
-      let '(l, σ') := store_ref σ v in
+      ∀ σ v l k,
+      l ∉ dom σ →
+      let σ' := <[l := v]>σ in
       step
         (σ, Stop CAlloc v k)
         (σ', k l)
@@ -158,6 +159,15 @@ Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
+
+Lemma step_up_to_eq {A} (c : state A) σ e e' :
+  step c (σ, e) →
+  e = e' →
+  step c (σ, e').
+Proof.
+  congruence.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* A term [m] is an answer iff it is of the form [Ret a] or [Next]. *)
@@ -234,7 +244,7 @@ Proof.
   - exists (σ, k false). eauto with step.
   - set (l := fresh_loc (dom σ)).
     exists (<[l:=x]> σ, k l).
-    constructor.
+    eauto using fresh_loc_fresh with step.
   - (* TODO: destruct the "belongs to" predicate instead of the result of
      *       lookup. *)
     destruct (σ !! x) eqn:E.
@@ -293,15 +303,13 @@ Global Hint Resolve can_step_par : step.
 
 Lemma step_bind {A B} (σ σ': store) (m m' : free A) (f : A → free B) :
   step (σ, m) (σ', m') →
-  step (σ, (bind m) f) (σ', (bind m') f).
+  step (σ, bind m f) (σ', bind m' f).
 Proof.
   inversion 1; subst;
   rewrite ?bind_stop ?bind_par ?bind_crash ?bind_bind;
-  eauto using step_eq with step;
-  eauto using StepFlip, step_eq with step.
-  (* TODO: improve the way the new cases are handled. *)
-  - by pose proof (StepAlloc σ v (λ v0 : loc, bind (k v0) f)) as Hstep.
-  - by pose proof (StepLoadSuccess σ' l (λ v1 : val, bind (k v1) f) _ H1) as Hstep.
+  eauto using step_up_to_eq with step.
+  (* TODO: improve the way this case is handled: *)
+  - econstructor. eauto.
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -333,10 +341,6 @@ Proof.
     split; eauto with step bind_bind.
   - pose proof (StepLoop σ (η, x0, i1, i2, e) η x0 i1 i2 e k (eq_refl _)).
     exists (bind (loop η x0 i1 i2 e) k), σ.
-    split; eauto with step bind_bind.
-  - pose proof (StepAlloc σ x k).
-    simpl in H.
-    exists (k (fresh_loc (dom σ))), (<[fresh_loc (dom σ):=x]> σ).
     split; eauto with step bind_bind.
 Qed.
 
@@ -404,17 +408,6 @@ Proof.
   intros Hstep.
   inversion Hstep.
   exists b. reflexivity.
-Qed.
-
-Lemma invert_step_alloc {A} σ v (k: loc -> free A) m':
-  let '(l, σ') := store_ref σ v in
-  step (σ, Stop CAlloc v k) m' →
-  m' = (σ', k l).
-Proof.
-  intros Hstep.
-  inversion Hstep.
-  apply Eqdep.EqdepTheory.inj_pair2 in H1, H2.
-  subst. reflexivity.
 Qed.
 
 Lemma invert_step_store {A} σ ℓ v' v k (m': state A) :
