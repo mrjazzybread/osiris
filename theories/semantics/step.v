@@ -527,3 +527,32 @@ Qed.
 
 Ltac triplicity σ m H :=
   destruct (triplicity σ m) as [ H | [ H | H ]].
+
+(* -------------------------------------------------------------------------- *)
+
+(* [is_ret m] is [Some a] if and only if [m] is [Ret a]. *)
+
+(* [is_ret] offers an executable way of testing whether a computation is
+   [Ret _]. *)
+
+Definition is_ret {A} (m : free A) : option A :=
+  match m with
+  | Ret a => Some a
+  | _     => None
+  end.
+
+Lemma invert_is_ret_Some {A} {m : free A} {a} :
+  is_ret m = Some a →
+  m = Ret a.
+Proof.
+  destruct m; inversion 1; reflexivity.
+Qed.
+
+Lemma can_step_is_not_ret {A} (m : free A) σ :
+  can_step (σ, m) →
+  is_ret m = None.
+Proof.
+  case_eq (is_ret m); [| reflexivity ].
+  intros a H%invert_is_ret_Some Hstep. subst. exfalso.
+  eauto using invert_can_step_Ret.
+Qed.

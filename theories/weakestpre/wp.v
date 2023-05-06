@@ -14,27 +14,6 @@ From osiris.semantics Require Import semantics.
 
 
 (* -------------------------------------------------------------------------- *)
-(* Definition of the meaning of being a value in [free val]. *)
-
-Definition is_ret {A} (m: free A) : option A :=
-  match m with
-  | Ret v => Some v
-  | _ => None
-  end.
-
-Lemma can_step_is_ret {A} (m: free A) σ:
-  can_step (σ, m) → is_ret m = None.
-Proof.
-  intros [??]. by destruct_step.
-Qed.
-
-Lemma is_ret_from_Ret {A} (m: free A) (v: A) : is_ret m = Some v -> m = Ret v.
-Proof.
-  unfold is_ret.
-  by destruct m; inversion 1.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
 
 Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsrisG {
   osiris_invGS :> invGS_gen hlc Σ;
@@ -264,7 +243,7 @@ Section wp_lemmas.
     rewrite /wp_pre.
     destruct (is_ret m1) as [v1|] eqn:Em1.
     { (* Case: [m] is [ret _]. *)
-      rewrite (is_ret_from_Ret _ _ Em1).
+      rewrite (invert_is_ret_Some Em1).
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[Hsi Hwp]".
@@ -274,7 +253,7 @@ Section wp_lemmas.
       iApply wp_unfold. unfold wp_pre.
       iIntros (σ) "Hsi".
       iDestruct ("Hm" with "Hsi") as "[%Hcanstep Hm]".
-      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_is_ret.
+      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_is_not_ret.
       iSplit.
       { iPureIntro. eauto using can_step_bind with step. }
 
@@ -351,7 +330,7 @@ Section wp_lemmas.
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 5. rewrite /wp_pre/=.
       assert (is_ret m1 = None) as ->.
-      { eauto using can_step_is_ret with step. }
+      { eauto using can_step_is_not_ret with step. }
       iDestruct ("H1" with "Hsi") as "[%Hstep1 H1]".
       iPoseProof
         ("H1" $! σ' with "[//]")
@@ -361,7 +340,7 @@ Section wp_lemmas.
     { (* Case: [StepParLeft] *)
       setoid_rewrite wp_unfold at 6. rewrite /wp_pre/=.
       assert (is_ret m2 = None) as ->.
-      { eauto using can_step_is_ret with step. }
+      { eauto using can_step_is_not_ret with step. }
       iDestruct ("H2" with "Hsi") as "[%Hstuck2 H2]".
       iPoseProof
         ("H2" $! σ' with "[//]")
