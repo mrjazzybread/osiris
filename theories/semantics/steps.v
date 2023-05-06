@@ -64,40 +64,6 @@ Proof.
   { eauto with steps. }
 Qed.
 
-(* [steps] can be taken under a [Par] constructor. *)
-
-Lemma steps_par_left :
-  ∀ {A1 A2 A} n σ1 σ'1 m1 m'1,
-  steps n (σ1, m1) (σ'1, m'1) →
-  ∀ m2 (k : A1 * A2 → free A) ko,
-  steps n (σ1, Par m1 m2 k ko) (σ'1, Par m'1 m2 k ko).
-Proof.
-  induction n; intros σ1 σ'1 m1 m'1 Hsteps;
-  dependent destruction Hsteps;
-  eauto with step steps.
-  intros???.
-  destruct m2 as [σ''1 m''1].
-  eapply StepsSucc with (σ''1, Par m''1 m0 k ko);
-    [ by apply StepParLeft
-    | by apply IHn ].
-Qed.
-
-Lemma steps_par_right :
-  ∀ {A1 A2 A} n σ2 σ'2 m2 m'2,
-  steps n (σ2, m2) (σ'2, m'2) →
-  ∀ m1 (k : A1 * A2 → free A) ko,
-  steps n (σ2, Par m1 m2 k ko) (σ'2, Par m1 m'2 k ko).
-Proof.
-  induction n; intros σ2 σ'2 m2 m'2 Hsteps;
-  dependent destruction Hsteps;
-  eauto with step steps.
-  intros???.
-  destruct m0 as [σ''2 m''2].
-  eapply StepsSucc with (σ''2, Par m1 m''2 k ko);
-    [ by apply StepParRight
-    | by apply IHn ].
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* [produces n m a] means that [m] reduces to [Ret a] in at most [n] steps. *)
