@@ -140,7 +140,8 @@ Section wp.
 
 End wp.
 
-
+Local Ltac unfold_wp :=
+  rewrite !wp_unfold /wp_pre /=.
 
 (* -------------------------------------------------------------------------- *)
 (* The following are lemmas about the evolutions of a term. They are designed to
@@ -156,7 +157,7 @@ Section wp_lemmas.
   Proof.
     iLöb as "IH" forall (φ φ' m).
     iIntros "Hwp Himpl".
-    rewrite !wp_unfold /wp_pre.
+    unfold_wp.
     destruct (is_ret m).
 
     (* Case: [m] is [ret _]. *)
@@ -186,8 +187,7 @@ Section wp_lemmas.
   Lemma wp_ret {A} s E (v: A) φ:
     φ v -∗ WP (Ret v) @ s; E {{ φ }}.
   Proof.
-    rewrite!wp_unfold/wp_pre/=.
-    iIntros. iFrame.
+    unfold_wp. iIntros. iFrame.
   Qed.
 
   Lemma ret_wp {A} s E (v: A) σ φ:
@@ -195,32 +195,34 @@ Section wp_lemmas.
     WP (Ret v) @ s; E {{ φ }} ==∗
     state_interp σ ∗ φ v.
   Proof.
-    rewrite wp_unfold/wp_pre/=.
-    iIntros "Hsi H".
-    iSpecialize ("H" $! σ with "Hsi").
+    unfold_wp.
+    iIntros "Hsi Hwp".
+    iSpecialize ("Hwp" with "Hsi").
     iAssumption.
   Qed.
 
 
-  (* It might be useful to prove that there is no associate WP to [Crash]. *)
-  Lemma wp_crash {A} s E σ φ:
-    state_interp σ -∗ WP (@crash A) @ s; E {{φ}} -∗ ⌜False⌝.
+  Lemma wp_crash {A s E σ φ} :
+    state_interp σ -∗
+    WP (@crash A) @ s; E {{φ}} -∗
+    False.
   Proof.
-    rewrite !wp_unfold/wp_pre/=.
+    unfold_wp.
     iIntros "Hsi Hwp".
-    iPoseProof ("Hwp" with "Hsi") as "[% _]".
-    exfalso. inversion H as [s' H']. inversion H'.
+    iDestruct ("Hwp" with "Hsi") as "[% _]".
+    eauto with invert_can_step.
   Qed.
 
-  Lemma wp_next {A} s E σ (φ: A → iProp Σ):
-    state_interp σ -∗ (WP Next @ s; E {{ φ }}) -∗ ⌜False⌝.
+  Lemma wp_next {A s E σ φ} :
+    state_interp σ -∗
+    WP (@Next A) @ s; E {{ φ }} -∗
+    False.
   Proof.
-    rewrite !wp_unfold/wp_pre/=.
+    unfold_wp.
     iIntros "Hsi Hwp".
-    iPoseProof ("Hwp" with "Hsi") as "[% _]".
-    exfalso. inversion H as [s' H']. inversion H'.
+    iDestruct ("Hwp" with "Hsi") as "[% _]".
+    eauto with invert_can_step.
   Qed.
-
 
   (* [bind]-related lemmas. *)
   Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ:
