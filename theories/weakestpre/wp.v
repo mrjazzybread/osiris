@@ -177,23 +177,10 @@ Section wp_lemmas.
   Lemma strong_mono {A} P m s E (φ: A → iProp Σ):
     (P ∗ WP m @ s; E {{ φ }}) -∗ WP m @ s; E {{ λ v, P ∗ φ v }}.
   Proof.
-    iStartProof.
-    rewrite wp_unfold/wp_pre/=.
-    iLöb as "IH" forall (m).
-    destruct (is_ret m) as [a|]eqn:Em.
-    { iIntros"[? Hwp]". rewrite wp_unfold/wp_pre Em/=.
-      iIntros (σ)"Hsi".
-      iPoseProof ("Hwp" with "Hsi") as "Hwp".
-      by iFrame. }
-    iIntros "(HP & Hwp)".
-    rewrite wp_unfold/wp_pre Em/=.
-    iIntros (σ) "Hsi".
-    iPoseProof ("Hwp" with "Hsi") as "[$Hwp]".
-    iIntros (σ' m' Hstep).
-    iPoseProof ("Hwp" with "[//]") as ">[$Hwp]".
-    iModIntro. iNext.
-    iApply ("IH" with "[$HP Hwp]").
-    { by rewrite!wp_unfold/wp_pre/=. }
+    iIntros "[HP Hwp]".
+    iApply (wp_covariant with "Hwp [HP]").
+    iFrame "HP".
+    eauto.
   Qed.
 
   Lemma wp_ret {A} s E (v: A) φ:
