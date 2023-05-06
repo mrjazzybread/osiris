@@ -8,7 +8,7 @@ From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import code eval step notations.
+From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import wp wp_tactics notations.
 
 Section StdLib.

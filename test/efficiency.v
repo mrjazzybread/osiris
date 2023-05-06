@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import free eval step.
+From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Imoprt safe wp wp_tactics.
 
 Definition do_something (v : val) : free val :=
