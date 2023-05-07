@@ -7,150 +7,189 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 
+(* This file defines the predicate [WP]. *)
+
+(* It is heavily inspired from [iris/{bi,program_logic}/weakestpre.v]. *)
+
 (* -------------------------------------------------------------------------- *)
 
-Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsrisG {
+(* For details about these incantations, see
+   [iris.base_logic.lib.fancy_updates] and
+   [iris.base_logic.lib.gen_heap].
+   [hlc] stands for "has later credits". *)
+
+Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsirisG {
+
+  (* This gives us fancy updates. *)
   osiris_invGS :> invGS_gen hlc Σ;
 
+  (* This gives us a heap, which maps locations to values. *)
   osiris_heapGS :> gen_heapGS loc val Σ;
+
 }.
 
+(* -------------------------------------------------------------------------- *)
 
+(* This is the definition of the predicate [WP]. *)
+
+Section definition.
+
+Context (A: Type).
+Context `{!osirisGS_gen hlc Σ}.
+
+(* This is our state interpretation predicate. *)
+
+(* For the moment, it contains just [gen_heap_interp σ], which connects
+   the physical heap with the ghost heap. *)
+
+Definition state_interp σ :=
+  gen_heap_interp σ.
+
+(* The (open) recursive definition of [wp]. *)
+
+Definition wp_pre
+  (s : stuckness)
+  (wp: coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
+       coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ
+:=
+  λ E m φ, (
+    ∀ σ,
+      state_interp σ -∗
+      match is_ret m with
+      | Some v =>
+          state_interp σ ∗ φ v
+      | None =>
+          ⌜can_step (σ, m)⌝ ∗
+          ∀ σ' m',
+          ⌜step (σ, m) (σ', m')⌝ ==∗
+          ▷ (state_interp σ' ∗ wp E m' φ)
+      end
+  )%I.
+
+Local Instance wp_pre_contractive s : Contractive (wp_pre s).
+Proof.
+  rewrite /wp_pre /= => n wp wp' Hwp E m Φ.
+  repeat (f_contractive || f_equiv).
+  apply Hwp.
+Qed.
+
+(* The following definition is intended to ensure that the usual Iris
+   notation is available, e.g.:
+     [WP _ @ _ {{ _ }}]
+     [WP _ @ _ ?{{ _ }}]).
+ *)
+
+Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
+  λ (s : stuckness), fixpoint (wp_pre s).
+
+(* Standard boilerplate. *)
+
+Local Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
+Definition wp' := wp_aux.(unseal).
+Global Arguments wp' {hlc Σ _ _}.
+Global Existing Instance wp'.
+Local Lemma wp_unseal: wp = wp_def.
+Proof. rewrite -wp_aux.(seal_eq) //. Qed.
+
+End definition.
 
 (* -------------------------------------------------------------------------- *)
-(* Definition of the weakest precondition.
-   This is heavily inspired from [iris/{bi,program_logic}/weakestpre.v]. *)
 
-Section wp_def.
-  Context (A: Type).
-  Context `{!osirisGS_gen hlc Σ}.
-
-  Definition state_interp σ :=
-    gen_heap_interp σ.
-
-  (* TODO: add the required fancy update(s) to permit using invariants. *)
-  Definition wp_pre  (s: stuckness)
-    (wp: coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ):
-    coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ :=
-    λ E m φ, (
-      ∀ σ,
-        state_interp σ -∗
-        match is_ret m with
-        | Some v =>
-            state_interp σ ∗ φ v
-        | None =>
-            ⌜can_step (σ, m)⌝ ∗
-            ∀ σ' m',
-            ⌜step (σ, m) (σ', m')⌝ ==∗
-            ▷ (state_interp σ' ∗ wp E m' φ)
-        end
-    )%I.
-
-  #[local]
-  Instance wp_pre_contractive s : Contractive (wp_pre s).
-  Proof.
-    rewrite /wp_pre /= => n wp wp' Hwp E m Φ.
-    repeat (f_contractive || f_equiv).
-    apply Hwp.
-  Qed.
-
-  (* Keeping the stuckness bit and the following notation ensure that the usual
-     notations will work (ie. [WP _ @ _ {{ _ }}] and [WP _@ _ ?{{ _ }}]). *)
-  Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
-    λ (s: stuckness), fixpoint (wp_pre s).
-
-  Local Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
-  Definition wp' := wp_aux.(unseal).
-  Global Arguments wp' {hlc Σ _ _}.
-  Global Existing Instance wp'.
-  Local Lemma wp_unseal: wp = wp_def.
-  Proof. rewrite -wp_aux.(seal_eq) //. Qed.
-
-End wp_def.
-
-
-(* -------------------------------------------------------------------------- *)
-(* Definitions and lemmas to better work with our WP.
-   Once again, this is heavily inspired from
+(* More boilerplate, once again inspired by
    [iris/{bi,program_logic}/weakestpre.v] *)
 
-Section wp.
-  Context {A : Type}.
-  Context `{!osirisGS_gen hlc Σ}.
-  Implicit Types s : stuckness.
-  Implicit Types P : iProp Σ.
-  Implicit Types φ : A → iProp Σ.
-  Implicit Types v : A.
-  Implicit Types m : free A.
+Section boilerplate.
 
-  Lemma wp_unfold {s E} m {φ} :
-    WP m @ s; E {{ φ }} ⊣⊢ wp_pre A s (wp (PROP:=iProp Σ) s) E m φ.
-  Proof.
-    rewrite wp_unseal.
-    apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
-  Qed.
+Context {A : Type}.
+Context `{!osirisGS_gen hlc Σ}.
+Implicit Type s : stuckness.
+Implicit Type P : iProp Σ.
+Implicit Type φ : A → iProp Σ.
+Implicit Type a : A.
+Implicit Type m : free A.
 
-  Ltac wp_unfold_all :=
-    rewrite !wp_unfold /wp_pre /=.
+Notation wp := (wp (PROP:=iProp Σ)).
 
-  Global Instance wp_ne s E m n :
-    Proper (pointwise_relation _ (dist n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
-  Proof.
-    revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
-    wp_unfold_all.
-    (* Cf. the comment in [program_logic/wp.v] for an explanation on the time
-     * taken by the following line. *)
-    repeat ((by rewrite IH; [done|lia|];
-                intros v; eapply dist_le; [apply HΦ|lia])
-            + (f_contractive || f_equiv)).
-  Qed.
-
-  Global Instance wp_proper s E m :
-    Proper (pointwise_relation _ (≡) ==> (≡)) (wp (PROP:=iProp Σ) s E m).
-  Proof.
-    by intros Φ Φ' ?; apply equiv_dist=>n; apply wp_ne=>v; apply equiv_dist.
-  Qed.
-  Global Instance wp_contractive s E m n :
-    TCEq (is_ret m) None →
-    Proper (pointwise_relation _ (dist_later n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
-  Proof.
-    intros He Φ Ψ HΦ. wp_unfold_all. rewrite He /=.
-    repeat (f_contractive || f_equiv).
-  Qed.
-
-
-
-  (* TODO: prove the following after adding invariant support in [wp_pre]
-
-     Lemma wp_value_fupd' s E Φ m v :
-     WP (Ret v) @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
-
-     Lemma fupd_wp s E m (Φ: val -> iProp Σ) :
-     (|={E}=> WP m @ s; E {{ Φ }}) ⊢ WP m @ s; E {{ Φ }}.
-
-     Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
-     s1 ⊑ s2 → E1 ⊆ E2 →
-     WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
-
-     Lemma wp_fupd s E m Φ :
-     WP m @ s; E {{ v, |={E}=> Φ v }} ⊢ WP m @ s; E {{ Φ }}. *)
-
-End wp.
+Lemma wp_unfold {s E} m {φ} :
+  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A s (wp s) E m φ.
+Proof.
+  rewrite wp_unseal.
+  apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
+Qed.
 
 Local Ltac wp_unfold_all :=
   rewrite !wp_unfold /wp_pre /=.
 
+Global Instance wp_ne s E m n :
+  Proper
+    (pointwise_relation _ (dist n) ==> dist n)
+    (wp s E m).
+Proof.
+  revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
+  wp_unfold_all.
+  repeat ((by rewrite IH; [done|lia|];
+              intros v; eapply dist_le; [apply HΦ|lia])
+          + (f_contractive || f_equiv)).
+Qed.
+
+Global Instance wp_proper s E m :
+  Proper
+    (pointwise_relation _ (≡) ==> (≡))
+    (wp s E m).
+Proof.
+  by intros Φ Φ' ?; apply equiv_dist=>n; apply wp_ne=>v; apply equiv_dist.
+Qed.
+
+Global Instance wp_contractive s E m n :
+  TCEq (is_ret m) None →
+  Proper
+    (pointwise_relation _ (dist_later n) ==> dist n)
+    (wp s E m).
+Proof.
+  intros He Φ Ψ HΦ. wp_unfold_all. rewrite He /=.
+  repeat (f_contractive || f_equiv).
+Qed.
+
+(* TODO: prove the following after adding invariant support in [wp_pre]
+
+   Lemma wp_value_fupd' s E Φ m v :
+   WP (Ret v) @ s; E {{ Φ }} ⊣⊢ |={E}=> Φ v.
+
+   Lemma fupd_wp s E m (Φ: val -> iProp Σ) :
+   (|={E}=> WP m @ s; E {{ Φ }}) ⊢ WP m @ s; E {{ Φ }}.
+
+   Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
+   s1 ⊑ s2 → E1 ⊆ E2 →
+   WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
+
+   Lemma wp_fupd s E m Φ :
+   WP m @ s; E {{ v, |={E}=> Φ v }} ⊢ WP m @ s; E {{ Φ }}. *)
+
+End boilerplate.
+
+(* This tactic is supposed to unfold all occurrences of [wp]. *)
+
+Local Ltac wp_unfold_all :=
+  rewrite !wp_unfold /wp_pre /=.
+
+(* This tactic unfolds one occurrence of [wp] at the head of the goal. *)
+
 Local Ltac wp_unfold_head :=
   iApply wp_unfold; rewrite /wp_pre /=.
+
+(* This tactic unfolds [wp] applied to the computation [m]. *)
 
 Local Ltac wp_unfold m :=
   setoid_rewrite (wp_unfold m); rewrite /wp_pre /=.
 
 (* -------------------------------------------------------------------------- *)
-(* The following are lemmas about the evolutions of a term. They are designed to
-   be used in [wp_tactics]. *)
+
+(* The following are the reasoning rules of our program logic. *)
+
+(* These rules are applied by the tactics in [wp_tactics.v]. *)
 
 Section wp_lemmas.
+
   Context `{!osirisGS_gen hlc Σ}.
 
   Lemma wp_covariant {A} s E m (φ: A -> iProp Σ) (φ': A -> iProp Σ) :
