@@ -248,7 +248,7 @@ Local Ltac step_wp :=
 
 (* These rules are applied by the tactics in [wp_tactics.v]. *)
 
-Section wp_lemmas.
+Section rules.
 
 Context `{!osirisGS_gen hlc Σ}.
 
@@ -529,7 +529,11 @@ Qed.
 
 (* [CFlip]. *)
 
-Lemma wp_flip {A} s E x (k: bool -> free A) φ :
+(* This is the Hoare rule for a coin flip. The result can be any Boolean
+   value [b], so the computation [k b] must be proved safe for every
+   possible value of [b]. *)
+
+Lemma wp_flip {A} s E x (k: bool → free A) φ :
   ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
   WP (Stop CFlip x k) @ s; E {{ φ }}.
 Proof.
@@ -542,55 +546,76 @@ Proof.
   by iApply "H".
 Qed.
 
-Lemma wp_alloc {A} s E x (k: loc -> free A) φ :
-  ▷ (∀ ℓ,
-       mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
-       WP (k ℓ) @ s; E {{ φ }} ) -∗
-  WP (Stop CAlloc x k) @ s; E {{ φ }}.
+(* [CAlloc]. *)
+
+(* The standard memory allocation rule of Separation Logic. *)
+
+Lemma wp_alloc {A} s E v (k : loc → free A) φ :
+  ▷ (
+    ∀ l,
+    mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
+     WP (k l) @ s; E {{ φ }}
+  ) -∗
+  WP (Stop CAlloc v k) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   wp_unfold_head.
   intro_state.
   construct_wp_nonret.
   destruct_step.
-  iSpecialize ("H" $! l).
+  (* Allocate a new location in the ghost heap. *)
   iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]".
   { eassumption. }
   tick_wp.
   iApply ("H" with "HH").
 Qed.
 
-Lemma wp_store {A} s E ℓ v v' k (φ: A → iProp Σ) :
-  mapsto ℓ (DfracOwn 1) v -∗
-  ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ φ }}) -∗
-  WP (Stop CStore (ℓ, v') k) @ s; E {{ φ }}.
+(* [CStore]. *)
+
+(* The standard memory write rule of Separation Logic. *)
+
+Lemma wp_store {A} s E l v v' (k : unit → free A) φ :
+  mapsto l (DfracOwn 1) v -∗
+  ▷ (
+    mapsto l (DfracOwn 1) v' -∗
+    WP (k tt) @ s; E {{ φ }}
+  ) -∗
+  WP (Stop CStore (l, v') k) @ s; E {{ φ }}.
 Proof.
-  iIntros "Hℓ Hwp".
+  iIntros "Hl Hwp".
   wp_unfold_head.
   intro_state.
   construct_wp_nonret.
-  iDestruct (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
-  iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
-  eapply invert_step_store in Hstep; [| eauto ].
-  destruct Hstep. subst.
+  (* Argue that [l] must be in the domain of the ghost heap. *)
+  iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+  (* Thus, the reduction step must be a successful step. *)
+  eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+  (* Update the ghost heap. *)
+  iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
   tick_wp.
-  iApply ("Hwp" with "Hℓ").
+  iApply ("Hwp" with "Hl").
 Qed.
 
-Lemma wp_load {A} s E ℓ v dq (k: val -> free A) φ :
-  mapsto ℓ dq v -∗
-  ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ φ }}) -∗
-  WP (Stop CLoad ℓ k) @ s; E {{ φ }}.
+(* The standard memory load rule of Separation Logic. *)
+
+Lemma wp_load {A} s E l v dq (k: val → free A) φ :
+  mapsto l dq v -∗
+  ▷ (
+    mapsto l dq v -∗
+    WP (k v) @ s; E {{ φ }}
+  ) -∗
+  WP (Stop CLoad l k) @ s; E {{ φ }}.
 Proof.
-  iIntros "Hℓ Hwp".
+  iIntros "Hl Hwp".
   wp_unfold_head.
   intro_state.
   construct_wp_nonret.
-  iDestruct (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
-  eapply invert_step_load in Hstep; [| eauto ].
-  destruct Hstep. subst.
+  (* Argue that [l] must be in the domain of the ghost heap. *)
+  iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+  (* Thus, the reduction step must be a successful step. *)
+  eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
   tick_wp.
-  iApply ("Hwp" with "Hℓ").
+  iApply ("Hwp" with "Hl").
 Qed.
 
-End wp_lemmas.
+End rules.
