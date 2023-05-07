@@ -1,9 +1,14 @@
 # TODO
 
-## Tutorial
+## Cleanup
 
-* Find out how to prevent Alectryon from incorrectly highlighting
-  `Eval` and `Fail`.
+* Rename `free` to `meta`.
+* Rename `osirisGS_gen` to something less ugly.
+
+## Iris machinery
+
+* Prove adequacy.
+* Add support for Iris invariants.
 
 ## Engineering and proof mode
 
