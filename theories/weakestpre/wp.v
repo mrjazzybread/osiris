@@ -291,6 +291,16 @@ Section wp_lemmas.
 
   Qed.
 
+(* This tactic is used when the goal is the [None] branch in the definition
+   of [wp], that is, when the computation at hand is not [ret _]. *)
+Local Ltac construct_wp :=
+  iSplitR; [
+    (* Prove [can_step]: *)
+    iPureIntro; eauto with step
+  | (* Introduce a hypothetical step: *)
+    iIntros (σ' m') "%Hstep"
+  ].
+
   (* [Par]-related lemmas. *)
   (* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
    * and φ2 and show that:
@@ -313,9 +323,7 @@ Section wp_lemmas.
     iIntros "H1 H2 Hjoin".
     wp_unfold (Par m1 m2 k ko).
     iIntros (σ) "Hsi".
-    iSplitR; [ iPureIntro |].
-    { eauto with step. }
-    iIntros (σ' m' Hstep).
+    construct_wp.
     destruct_step.
 
     { (* Case: [StepParRetRet] *)
@@ -398,47 +406,39 @@ Section wp_lemmas.
   Qed.
 
   (* [Stop]-related lemmas. *)
-  Lemma wp_eval {A} s E η e k (φ: A -> iProp Σ) :
+
+  Lemma wp_eval {A} s E η e (k : val → free A) φ :
     ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
     WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold_head.
     iIntros (σ) "Hsi".
-    iSplit.
-    { iPureIntro. eauto with step. }
-
-    iIntros(σ' m' Hstep).
+    construct_wp.
     destruct_step.
     iModIntro. iNext. iFrame "Hsi".
     by iApply wp_bind.
   Qed.
 
-  (* [wp_eval_ret] should not simply be defined as
-     [λ s E η e φ, wp_eval s E η e ret φ] or it would make its premice more difficult to
-     work with. *)
   Lemma wp_eval_ret s E η e φ :
     ▷ WP (eval η e) @ s; E {{ φ }} -∗
     WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
-    iApply (wp_covariant with "Hwp").
     iNext.
+    iApply (wp_covariant with "Hwp").
     iIntros. by iApply wp_ret.
   Qed.
 
   Lemma wp_flip {A} s E x (k: bool -> free A) φ :
-    ▷ (∀ b, WP (k b) @ s; E {{ φ }} ) -∗
+    ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
     WP (Stop CFlip x k) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold_head.
     iIntros (σ) "Hsi".
-    simpl.
-    iSplit.
-    { iPureIntro. eauto with step. }
-    iIntros (σ' m') "%Hstep".
+    construct_wp.
     destruct_step.
     iModIntro. iNext.
     iSpecialize ("H" $! b).
@@ -452,12 +452,9 @@ Section wp_lemmas.
     WP (Stop CAlloc x k) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold_head.
     iIntros (σ) "Hsi".
-    simpl.
-    iSplit.
-    { iPureIntro. eauto with step. }
-    iIntros (σ' m') "%Hstep".
+    construct_wp.
     destruct_step.
     iSpecialize ("H" $! l).
     iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]".
@@ -472,12 +469,9 @@ Section wp_lemmas.
     WP (Stop CStore (ℓ, v') k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hℓ Hwp".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold_head.
     iIntros (σ) "Hsi".
-    simpl.
-    iSplit.
-    { iPureIntro. eauto with step. }
-    iIntros (σ' m' Hstep).
+    construct_wp.
     iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
     iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
     eapply invert_step_store in Hstep; [| eauto ].
@@ -492,13 +486,9 @@ Section wp_lemmas.
     WP (Stop CLoad ℓ k) @ s; E {{ φ }}.
   Proof.
     iIntros "Hℓ Hwp".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold_head.
     iIntros (σ) "Hsi".
-    simpl.
-    iSplit.
-    { iPureIntro. eauto with step. }
-    iIntros (σ' m' Hstep).
-
+    construct_wp.
     iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
     eapply invert_step_load in Hstep; [| eauto ].
     destruct Hstep. subst.
