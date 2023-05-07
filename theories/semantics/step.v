@@ -30,14 +30,14 @@ Definition config (A : Type) : Type :=
 
 (* The relation [step] is defined as follows. *)
 
-(* [Ret a] and [Next] cannot step. They are answers. *)
+(* [Ret a] cannot step. It is an answer. *)
 
-(* [Crash] cannot step. It represents a crash. *)
+(* [Next] and [Crash] cannot step. *)
 
 (* The reduction rules for [Par] are designed so as to guarantee that [Par]
-   can always step. This preserves the property that the only stuck term
-   is [Crash]. There is a lot of non-determinism in these reduction rules:
-   e.g., [Par Crash Next _ _] can step to either [Crash] or [Next]. *)
+   can always step. This preserves the property that the only stuck terms are
+   [Next] and [Crash]. There is a lot of non-determinism in these reduction
+   rules: e.g., [Par Crash Next _ _] can step to either [Crash] or [Next]. *)
 
 Inductive step {A} : config A → config A → Prop :=
 
@@ -183,12 +183,11 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A term [m] is an answer iff it is of the form [Ret a] or [Next]. *)
+(* A term [m] is an answer iff it is of the form [Ret a]. *)
 
 Definition is_answer {A} (m : free A) :=
   match m with
   | Ret a => True
-  | Next  => True
   | _     => False
   end.
 
@@ -198,13 +197,7 @@ Proof.
   simpl. eauto.
 Qed.
 
-Lemma is_answer_next {A} :
-  is_answer (Next : free A).
-Proof.
-  simpl. eauto.
-Qed.
-
-Global Hint Resolve is_answer_ret is_answer_next : is_answer.
+Global Hint Resolve is_answer_ret : is_answer.
 
 Ltac destruct_answer :=
   match goal with h: is_answer ?m |- _ =>
@@ -473,15 +466,25 @@ Proof.
   { inversion 1. }
 Qed.
 
-(* The only stuck term is [Crash]. *)
+(* [Next] is stuck. *)
 
-Lemma only_crash_is_stuck {A} σ (m : free A) :
+Lemma stuck_Next {A} σ :
+  stuck (σ, Next : free A).
+Proof.
+  unfold stuck. split.
+  { eauto. }
+  { inversion 1. }
+Qed.
+
+(* The only stuck terms are [Crash] and [Next]. *)
+
+Lemma only_crash_and_next_are_stuck {A} σ (m : free A) :
   stuck (σ, m) →
-  m = Crash.
+  m = Crash ∨ m = Next.
 Proof.
   intros.
   destruct m; try solve [
-    reflexivity
+    eauto
   | exfalso; eauto using invert_stuck_answer with is_answer
   | exfalso; eauto using can_step_not_stuck with step
   ].
@@ -493,10 +496,9 @@ Lemma stuck_bind {A B} σ (m : free A) (f : A → free B) :
   stuck (σ, m) →
   stuck (σ, bind m f).
 Proof.
-  intros.
-  assert (m = Crash) by eauto using only_crash_is_stuck.
-  subst m. rewrite bind_crash.
-  eauto using stuck_Crash.
+  intros [|]%only_crash_and_next_are_stuck; subst m.
+  + rewrite bind_crash. eauto using stuck_Crash.
+  + rewrite bind_next. eauto using stuck_Next.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -511,7 +513,7 @@ Lemma triplicity {A} σ (m : free A) :
   can_step (σ, m) ∨
   stuck (σ, m).
 Proof.
-  destruct m; eauto using stuck_Crash with step is_answer.
+  destruct m; eauto using stuck_Crash, stuck_Next with step is_answer.
 Qed.
 
 Ltac triplicity σ m H :=
@@ -529,6 +531,13 @@ Definition is_ret {A} (m : free A) : option A :=
   | Ret a => Some a
   | _     => None
   end.
+
+Lemma is_ret_None {A} (m : free A) :
+  is_ret m = None ↔
+  ¬ is_answer m.
+Proof.
+  destruct m; simpl; split; first [ congruence | tauto ].
+Qed.
 
 Lemma invert_is_ret_Some {A} {m : free A} {a} :
   is_ret m = Some a →
@@ -548,9 +557,7 @@ Lemma can_step_is_not_ret {A} (m : free A) σ :
   can_step (σ, m) →
   is_ret m = None.
 Proof.
-  case_eq (is_ret m); [| reflexivity ].
-  intros a H%invert_is_ret_Some Hstep. subst. exfalso.
-  eauto using invert_can_step_Ret.
+  intro. rewrite is_ret_None. eauto using can_step_not_answer.
 Qed.
 
 Global Hint Resolve can_step_is_not_ret : is_ret.

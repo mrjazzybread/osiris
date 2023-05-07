@@ -6,6 +6,7 @@ From iris.proofmode Require Import base proofmode classes.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
+From osiris.weakestpre Require Import safe.
 
 (* This file defines the predicate [WP]. *)
 
@@ -377,6 +378,7 @@ Proof.
 
   (* Case: [m1] is not [ret _]. *)
   {
+    assert (Hnotanswer: ¬ is_answer m1) by rewrite -is_ret_None //.
     (* Unfold and simplify the goal. *)
     wp_unfold_all. intro_state. spec_state "Hwp".
     (* [bind m1 m2] cannot be [ret _]. *)
@@ -384,7 +386,6 @@ Proof.
     rewrite Hret; clear Hret.
     (* Simplify and destruct the hypothesis. *)
     destruct_wp_nonret.
-    assert (Hnotanswer: ¬ is_answer m1) by eauto using can_step_not_answer.
     construct_wp_nonret.
     clear Hcanstep.
     (* We must prove that every reduct of [bind m1 m2] is safe. *)
@@ -425,12 +426,14 @@ Qed.
 
 (* Progress. *)
 
-Lemma wp_not_stuck {A} {σ} {m : free A} {φ} :
+Opaque stuck. (* TODO *)
+
+Lemma wp_not_stuck {A} {σ} {m : free A} s E {φ} :
   state_interp σ -∗
-  WP m {{ φ }} ==∗
+  WP m @ s; E {{ φ }} -∗
   ⌜ ¬ stuck (σ, m) ⌝.
 Proof.
-  iIntros "Hsi Hwp". Opaque stuck.
+  iIntros "Hsi Hwp".
   wp_unfold m. spec_state "Hwp".
   wp_case_is_ret m Hret; [| destruct_wp_nonret ]; iPureIntro.
   (* Case: [m] is [ret a]. *)
@@ -440,6 +443,116 @@ Proof.
   (* A configuration that can step is not stuck. *)
   { eauto using can_step_not_stuck. }
 Qed.
+
+(* Adequacy. *)
+
+Lemma wp_adequate {A} {σ} {m : free A} s E {φ} :
+  state_interp σ -∗
+  WP m @ s; E {{ λ a, ⌜ φ a ⌝ }} -∗
+  ⌜ ∀ a, m = ret a → φ a ⌝.
+Proof.
+  iIntros "Hsi Hwp".
+  wp_unfold m. spec_state "Hwp".
+  wp_case_is_ret m Hret; [ destruct_wp_ret | destruct_wp_nonret ].
+  (* Case: [m] is [ret a]. *)
+  { iDestruct "Hwp" as "%". iPureIntro. intros a' ?. congruence. }
+  (* Case: [m] can step. *)
+  { iPureIntro. intros ? ->. simpl in *. congruence. }
+Qed.
+
+(* TODO this iterated modality should exist somewhere in the Iris library? *)
+
+Fixpoint tonight n (P : iProp Σ) :=
+  match n with
+  | 0 => P
+  | S n => |==> ▷ (tonight n P)
+  end%I.
+
+Lemma now_tonight (P : iProp Σ) :
+  ∀ n, P -∗ tonight n P.
+Proof.
+  induction n; simpl.
+  { eauto. }
+  { iIntros "H". iModIntro. iNext. iApply (IHn with "H"). }
+Qed.
+
+(* A combination of preservation, progress, and adequacy. *)
+
+Lemma wp_steps {A n σ σ'} {m m' : free A} s E {φ : A → Prop} :
+  steps n (σ, m) (σ', m') →
+  state_interp σ -∗
+  WP m @ s; E {{ a, ⌜ φ a ⌝ }} -∗
+  tonight n
+  ⌜ ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a ⌝.
+Proof.
+  intros Hsteps.
+  remember (σ, m) as c eqn:Hc.
+  remember (σ', m') as c' eqn:Hc'.
+  revert n c c' Hsteps σ m σ' m' Hc Hc'.
+  induction 1; intros; simplify_eq; iIntros "Hsi Hwp".
+  (* Case: zero steps are taken. *)
+  { iDestruct (wp_not_stuck with "Hsi Hwp") as "%".
+    iDestruct (wp_adequate with "Hsi Hwp") as "%".
+    iApply now_tonight. iPureIntro. tauto. }
+  (* Case: [n] is nonzero. *)
+  { (* [m] steps to [m1]. *)
+    match goal with h: step _ ?m |- _ => destruct m as [σ1 m1] end.
+    specialize (IHHsteps _ _ _ _ eq_refl eq_refl).
+    simpl.
+    (* [WP m ...] implies [WP m1 ...]. *)
+    iDestruct (wp_step with "Hsi Hwp") as ">[Hsi Hwp]".
+    { eassumption. }
+    (* Eliminate two modalities. *)
+    iModIntro. iNext.
+    (* The induction hypothesis can then be exploited. *)
+    iApply (IHHsteps with "Hsi Hwp"). }
+Qed.
+
+(* TODO is this lemma useful? If so, move it to safe.v where it belongs. *)
+
+Lemma prove_initially_safe {A} :
+  ∀ n σ {m : free A} {φ : A → Prop},
+  (
+    ∀ j σ' m',
+    j ≤ n →
+    steps j (σ, m) (σ', m') →
+    ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
+  ) →
+  initially_safe n (σ, m) (λ _ a, φ a).
+Proof.
+  induction n; intros σ m φ H.
+  { eauto using initially_safe_zero. }
+  triplicity σ m Hm.
+
+  (* Case: [m] is [ret a]. *)
+  { destruct m; simpl in Hm; try tauto.
+    eapply initially_safe_ret.
+    (* The goal is now [φ a]. *)
+    eapply (H 0 σ (ret a)); eauto with lia steps. }
+
+  (* Case: [(σ, m)] can step. *)
+  { right. split; [ eauto |]. intros (σ', m') Hstep.
+    eapply IHn.
+    intros j σ'' m'' ? Hsteps.
+    eapply (H (S j)); eauto with lia steps. }
+
+  (* Case: [(σ, m)] is stuck. *)
+  { exfalso. eapply (H 0); eauto with lia steps. }
+
+Qed.
+
+Lemma prove_safe {A} σ {m : free A} {φ : A → Prop} :
+  (
+    ∀ j σ' m',
+    steps j (σ, m) (σ', m') →
+    ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
+  ) →
+  safe (σ, m) (λ _ a, φ a).
+Proof.
+  unfold safe. eauto using prove_initially_safe.
+Qed.
+
+(* TODO where do we go from here? *)
 
 (* -------------------------------------------------------------------------- *)
 

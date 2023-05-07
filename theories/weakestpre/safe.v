@@ -399,14 +399,9 @@ Proof.
   (* Proceed by cases on [m1]. Three cases arise. *)
   triplicity σ m1 Hm1; [ clear IHn1 | | clear IHn1 ].
 
-  (* Case: [m1] is an answer. *)
+  (* Case: [m1] is an answer [ret a]. *)
   { destruct_answer.
-    (* Sub-case: [m1] is [ret a]. *)
-    { left. eauto using initially_safe_monotonic with lia. }
-    (* Sub-case: [m1] is [Next]. *)
-    { exfalso. rewrite bind_next in Hsafe.
-      eauto using invert_initially_safe_next. }
-  }
+    left. eauto using initially_safe_monotonic with lia. }
   (* Case: [m1] can step. *)
   { right. split; [ eauto |].
     intros [σ'1 m'1] Hstep.
@@ -435,17 +430,12 @@ Proof.
   (* Proceed by cases on [m]. Three cases arise. *)
   triplicity σ m Hm; [ clear IHn | | clear IHn ].
 
-  (* Case: [m] is an answer. *)
+  (* Case: [m] is an answer [ret a]. *)
   { destruct_answer.
-    (* Sub-case: [m] is [ret a]. *)
-    { left. eexists _, _. split; [ eauto |].
-      intros x. specialize (Hsafe x).
-      destruct_initially_safe_S Hsafe.
-      congruence. }
-    (* Sub-case: [m] is [Next]. *)
-    { exfalso. specialize (Hsafe inhabitant).
-      eauto using invert_initially_safe_next. }
-  }
+    left. eexists _, _. split; [ eauto |].
+    intros x. specialize (Hsafe x).
+    destruct_initially_safe_S Hsafe.
+    congruence. }
   (* Case: [m] can step. *)
   { right. split; [ eauto |].
     intros m' Hstep.
