@@ -390,6 +390,31 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Preservation. *)
+
+(* The assertion [WP m @ s; E {{ φ }}] is preserved by a reduction step. *)
+
+Lemma wp_step {A σ σ'} {m m' : free A} {s E φ} :
+  step (σ, m) (σ', m') →
+  state_interp σ -∗
+  WP m @ s; E {{ φ }} ==∗
+  ▷ (
+    state_interp σ' ∗
+    WP m' @ s; E {{ φ }}
+  ).
+Proof.
+  intro Hstep.
+  iIntros "Hsi Hwp".
+  wp_unfold m. spec_state "Hwp".
+  assert (is_ret m = None) as -> by eauto with is_ret step.
+  destruct_wp_nonret.
+  step_wp.
+  tick_wp.
+  eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The parallel composition rule of Separation Logic. *)
 
 (* To prove that [Par m1 m2 k ko] satisfies [φ], one must provide
@@ -434,21 +459,14 @@ Proof.
     iDestruct (invert_wp_next with "Hsi H2") as "%".
     tauto. }
   { (* Case: [StepParLeft] *)
-    wp_unfold m1.
-    assert (is_ret m1 = None) as -> by eauto with is_ret step.
-    iRename "H1" into "Hwp".
-    spec_state "Hwp".
-    destruct_wp_nonret.
-    step_wp. tick_wp.
-    iApply ("IH" with "Hwp H2 Hjoin"). }
+    (* [m1] steps to [m'1]. *)
+    iDestruct (wp_step Hstep with "Hsi H1") as ">[Hsi H1]".
+    tick_wp.
+    iApply ("IH" with "H1 H2 Hjoin"). }
   { (* Case: [StepParRight] *)
-    wp_unfold m2.
-    assert (is_ret m2 = None) as -> by eauto with is_ret step.
-    iRename "H2" into "Hwp".
-    spec_state "Hwp".
-    destruct_wp_nonret.
-    step_wp. tick_wp.
-    iApply ("IH" with "H1 Hwp Hjoin"). }
+    iDestruct (wp_step Hstep with "Hsi H2") as ">[Hsi H2]".
+    tick_wp.
+    iApply ("IH" with "H1 H2 Hjoin"). }
 Qed.
 
 (* The following three lemmas are special cases of the previous rule. *)
