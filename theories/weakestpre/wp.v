@@ -182,6 +182,17 @@ Local Ltac wp_unfold_head :=
 Local Ltac wp_unfold m :=
   setoid_rewrite (wp_unfold m); rewrite /wp_pre /=.
 
+(* This tactic is used when the goal is the [None] branch in the definition
+ of [wp], that is, when the computation at hand is not [ret _]. *)
+
+Local Ltac construct_wp :=
+  iSplitR; [
+    (* Prove [can_step]: *)
+    iPureIntro; eauto with step
+  | (* Introduce a hypothetical step: *)
+    iIntros (σ' m') "%Hstep"
+  ].
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following are the reasoning rules of our program logic. *)
@@ -192,28 +203,39 @@ Section wp_lemmas.
 
 Context `{!osirisGS_gen hlc Σ}.
 
-Lemma wp_covariant {A} s E m (φ: A -> iProp Σ) (φ': A -> iProp Σ) :
+Local Ltac intro_state :=
+  iIntros (σ) "Hsi".
+
+Local Ltac spec_state H :=
+  iSpecialize (H with "Hsi").
+
+Local Ltac release_state :=
+  iFrame "Hsi".
+
+(* The consequence rule of Separation Logic. *)
+
+Lemma wp_covariant {A} s E m (φ φ' : A -> iProp Σ) :
   WP m @ s; E {{ φ }} -∗
-  (∀ v, (φ v) -∗ (φ' v)) -∗
+  (∀ a, φ a -∗ φ' a) -∗
   WP m @ s; E {{ φ' }}.
 Proof.
   iLöb as "IH" forall (φ φ' m).
-  iIntros "Hwp Himpl".
+  iIntros "Hwp Himplication".
   wp_unfold_all.
+  intro_state. spec_state "Hwp".
   destruct (is_ret m).
 
   (* Case: [m] is [ret _]. *)
-  { iIntros (?) "H".
-    iDestruct ("Hwp" with "H") as "[$ H]".
-    iApply ("Himpl" with "H"). }
+  { iDestruct "Hwp" as "[Hsi Hwp]".
+    release_state.
+    iApply ("Himplication" with "Hwp"). }
 
   (* Case: [m] is not [ret _]. *)
-  { iIntros (σ) "Hsi".
-    iPoseProof ("Hwp" $! σ with "Hsi") as "[$ Hwp]";
-    iIntros (σ' m' Hstep).
-    iPoseProof ("Hwp" with "[//]") as ">[$ Hwp]".
-    iModIntro. iNext.
-    iApply ("IH" with "Hwp Himpl"). }
+  { iPoseProof "Hwp" as "[%Hcanstep Hwp]".
+    construct_wp.
+    iPoseProof ("Hwp" with "[//]") as ">[Hsi Hwp]".
+    iModIntro. iNext. release_state.
+    iApply ("IH" with "Hwp Himplication"). }
 
 Qed.
 
@@ -239,10 +261,10 @@ Lemma ret_wp {A} s E (v: A) σ φ:
 Proof.
   wp_unfold_all.
   iIntros "Hsi Hwp".
-  iSpecialize ("Hwp" with "Hsi").
-  iAssumption.
+  spec_state "Hwp".
+  iDestruct "Hwp" as "[Hsi Hwp]".
+  iModIntro. release_state. iAssumption.
 Qed.
-
 
 Lemma wp_crash {A s E σ φ} :
   state_interp σ -∗
@@ -251,7 +273,8 @@ Lemma wp_crash {A s E σ φ} :
 Proof.
   wp_unfold_all.
   iIntros "Hsi Hwp".
-  iDestruct ("Hwp" with "Hsi") as "[% _]".
+  spec_state "Hwp".
+  iDestruct "Hwp" as "[%Hcanstep Hwp]".
   eauto with invert_can_step.
 Qed.
 
@@ -262,7 +285,8 @@ Lemma wp_next {A s E σ φ} :
 Proof.
   wp_unfold_all.
   iIntros "Hsi Hwp".
-  iDestruct ("Hwp" with "Hsi") as "[% _]".
+  spec_state "Hwp".
+  iDestruct "Hwp" as "[%Hcanstep Hwp]".
   eauto with invert_can_step.
 Qed.
 
@@ -270,21 +294,22 @@ Lemma wp_grab_state_invariant {A} (m : free A) s E φ :
   (∀ σ, state_interp σ -∗ state_interp σ ∗ WP m @ s; E {{ φ }}) -∗
   WP m @ s; E {{ φ }}.
 Proof.
-  iIntros "H".
+  iIntros "Hwp".
   wp_unfold m.
-  iIntros (σ) "Hsi".
-  iDestruct ("H" with "Hsi") as "[Hsi H]".
-  iSpecialize ("H" with "Hsi").
+  intro_state. spec_state "Hwp".
+  iDestruct "Hwp" as "[Hsi Hwp]".
+  spec_state "Hwp".
   eauto.
 Qed.
 
 (* The Bind rule of Separation Logic. *)
+
 Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
   WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
   WP (bind m1 m2) @ s; E {{ φ }}.
 Proof.
   iLöb as "IH" forall (m1 m2 φ).
-  iIntros "Hm1".
+  iIntros "Hwp".
   wp_unfold m1.
   destruct (is_ret m1) as [a1|] eqn:Hret.
 
@@ -299,10 +324,10 @@ Proof.
     eapply (is_ret_bind_None _ m2) in Hret.
     (* Unfold and simplify the goal. *)
     wp_unfold_all.
-    iIntros (σ) "Hsi".
+    intro_state. spec_state "Hwp".
     rewrite Hret; clear Hret.
     (* Simplify and destruct the hypothesis. *)
-    iDestruct ("Hm1" with "Hsi") as "[%Hcanstep Hm1]".
+    iDestruct "Hwp" as "[%Hcanstep Hwp]".
     assert (Hnotanswer: ¬ is_answer m1) by eauto using can_step_not_answer.
 
     iSplit.
@@ -316,32 +341,23 @@ Proof.
     destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
     subst. clear Hstep. rename Hstep' into Hstep.
     (* The hypothesis can then be further exploited. *)
-    iPoseProof ("Hm1" with "[//]") as ">[$Hm1]".
+    iPoseProof ("Hwp" with "[//]") as ">[$Hwp]".
     iModIntro. iNext.
     iApply "IH". iClear "IH".
-    iApply "Hm1". }
+    iApply "Hwp". }
   }
 
 Qed.
 
-(* This tactic is used when the goal is the [None] branch in the definition
- of [wp], that is, when the computation at hand is not [ret _]. *)
-Local Ltac construct_wp :=
-iSplitR; [
-  (* Prove [can_step]: *)
-  iPureIntro; eauto with step
-| (* Introduce a hypothetical step: *)
-  iIntros (σ' m') "%Hstep"
-].
+(* The parallel composition rule of Separation Logic. *)
 
-(* [Par]-related lemmas. *)
-(* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
- * and φ2 and show that:
- * - m1 satisfies the post-condition φ1
- * - m2 satisfies the post-condition φ1
- * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
- *     the pair (v1, v2) satisfies φ.
-*)
+(* To prove that [Par m1 m2 k ko] satisfies [φ], one must provide
+   two postconditions [φ1] and [φ2] and *separately* prove that:
+   - [m1] satisfies [φ1]
+   - [m2] satisfies [φ2]
+   - for all results [a1] and [a2] that satisfy [φ1] and [φ2],
+     the pair [(a1, a2)] satisfies [φ]. *)
+
 Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
   WP m1 @ s ; E {{ φ1 }} -∗
   WP m2 @ s ; E {{ φ2 }} -∗
@@ -355,7 +371,7 @@ Proof.
   iLöb as "IH" forall (m1 m2).
   iIntros "H1 H2 Hjoin".
   wp_unfold (Par m1 m2 k ko).
-  iIntros (σ) "Hsi".
+  intro_state.
   construct_wp.
   destruct_step.
 
@@ -384,7 +400,8 @@ Proof.
     wp_unfold m1.
     assert (is_ret m1 = None) as ->.
     { eauto using can_step_is_not_ret with step. }
-    iDestruct ("H1" with "Hsi") as "[%Hcanstep1 H1]".
+    spec_state "H1".
+    iDestruct "H1" as "[%Hcanstep1 H1]".
     iPoseProof ("H1" with "[//]") as ">[$H1]".
     iModIntro. iNext.
     iApply ("IH" with "H1 H2 Hjoin"). }
@@ -392,7 +409,8 @@ Proof.
     wp_unfold m2.
     assert (is_ret m2 = None) as ->.
     { eauto using can_step_is_not_ret with step. }
-    iDestruct ("H2" with "Hsi") as "[%Hcanstep2 H2]".
+    spec_state "H2".
+    iDestruct "H2" as "[%Hcanstep2 H2]".
     iPoseProof ("H2" with "[//]") as ">[$H2]".
     iModIntro. iNext.
     iApply ("IH" with "H1 H2 Hjoin"). }
