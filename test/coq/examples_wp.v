@@ -5,9 +5,9 @@ From iris.prelude Require Import options.
 Import uPred.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang encode.
-From osiris.semantics Require Import sugar free eval step notations.
-From osiris.weakestpre Require Import wp wp_tactics notations safe.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
+From osiris.weakestpre Require Import wp wp_tactics notations.
 
 
 Context `{!osirisGS_gen hlc Σ}.
@@ -389,7 +389,7 @@ Proof.
   unfold ref_store_load.
   iIntros(??).
   wp.
-  wp_ref ℓ "[Hℓ _]". wp_continue.
+  wp_alloc ℓ "[Hℓ _]". wp_continue.
   wp_store "Hℓ". wp_continue.
   wp_load "Hℓ".
   iPureIntro. reflexivity.

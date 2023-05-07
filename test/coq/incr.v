@@ -17,8 +17,7 @@ let _test =
    - or static dependencies defining the language
    - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
 From osiris Require Import base.
-From osiris.lang Require Import lang encode.
-From osiris.semantics Require Import sugar notations.
+From osiris.lang Require Import lang.
 
 From osiris.libs Require Import Stdlib.
 

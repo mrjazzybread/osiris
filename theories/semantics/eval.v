@@ -1,7 +1,6 @@
-From osiris.semantics Require Import store.
-From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import free locations notations.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import code.
 
 (* Conventional metavariables. *)
 
@@ -20,53 +19,11 @@ Implicit Type fvs xvs : env.
 Implicit Type η δ : env.
 Implicit Type rbs : rec_bindings.
 Implicit Type i : int.
-Implicit Type σ : store.
 Implicit Type M : module.
 Implicit Type π : path.
 Implicit Type me : mexpr.
 Implicit Type item : sitem.
 Implicit Type items : sitems.
-
-(* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
-
-(* Codes for effects. *)
-
-(* The code [Eval (η, e)] is a request for the computation [eval η e]. *)
-
-(* The code [Loop (η, x, i1, i2, e)] is a request for the computation
-   [loop η x v1 v2 e]. *)
-
-(* The code [Flip] is a request to flip a Boolean coin. *)
-
-Inductive code : Type → Type → Type :=
-| Eval  : code (env * expr) val
-| Loop  : code (env * var * int * int * expr) val
-| Flip  : code unit bool
-| Ref   : code val loc
-| Load  : code loc val
-| Store : code (loc * val) ()
-.
-
-(* We fix this particular type of codes. *)
-
-Notation free :=
-  (@free.free code).
-
-Notation ret :=
-  (@free.ret code).
-
-(* [flip] flips a coin. *)
-
-Definition flip : free bool :=
-  stop Flip ().
-
-(* [choose m1 m2] is a non-deterministic choice between the
-   computations [m1] and [m2]. *)
-
-Definition choose {A} (m1 m2 : free A) : free A :=
-  b ← flip ;
-  if (b : bool) then m1 else m2.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -77,31 +34,47 @@ Definition choose {A} (m1 m2 : free A) : free A :=
    namely, pattern matching failures (caused by nonexhaustive case analyses)
    and assertion failures. *)
 
-Definition crash {A} (msg : string) : free A :=
-  fail.
-
 Definition assertion_failure {A} : free A :=
-  fail.
+  crash.
+
+Definition division_by_zero {A} : free A :=
+  crash.
+
+Definition length_mismatch {A} (msg : string) : free A :=
+  crash.
 
 Definition match_failure {A} (tt : unit) : free A :=
-  fail.
+  crash.
 
 Definition missing_field {A} (x : var) : free A :=
-  fail.
+  crash.
 
 Definition missing_variable {A} (x : var) : free A :=
-  fail.
+  crash.
 
 Definition missing_variable_or_field {A} (x : var) : free A :=
-  fail.
+  crash.
+
+Definition structural_equality_error {A} (msg : string) : free A :=
+  crash.
+
+Definition structural_ordering_error {A} (msg : string) : free A :=
+  crash.
+
+Definition type_mismatch {A} (msg : string) : free A :=
+  crash.
 
 Global Opaque
-  crash
   assertion_failure
+  division_by_zero
+  length_mismatch
   match_failure
   missing_field
   missing_variable
   missing_variable_or_field
+  structural_equality_error
+  structural_ordering_error
+  type_mismatch
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -126,7 +99,7 @@ Definition val_as_bool (v : val) : free bool :=
   | VTrue =>
       ret true
   | _ =>
-      crash "type mismatch (Boolean value expected)"
+      type_mismatch "Boolean value expected"
   end.
 
 Definition as_bool (m : free val) : free bool :=
@@ -153,7 +126,7 @@ Definition val_as_loc (v: val) : free loc :=
   | VLoc l =>
       ret l
   | _ =>
-      crash "type mismatch (location value expected)"
+      type_mismatch "location value expected"
   end.
 
 Definition as_loc (m : free val) : free loc :=
@@ -169,7 +142,7 @@ Definition val_as_int (v : val) : free int :=
   | VInt i =>
       ret i
   | _ =>
-      crash "type mismatch (integer value expected)"
+      type_mismatch "integer value expected"
   end.
 
 Definition as_int (m : free val) : free int :=
@@ -179,7 +152,7 @@ Definition as_int (m : free val) : free int :=
 
 Definition check_div_by_zero i : free unit :=
   if int.eq i int.zero then
-    crash "division by zero" (* TODO raise an exception *)
+    division_by_zero (* TODO raise an exception *)
   else
     ret ().
 
@@ -194,7 +167,7 @@ Definition val_as_record (v : val) : free env :=
   | VRecord fvs =>
       ret fvs
   | _ =>
-      crash "type mismatch (record value expected)"
+      type_mismatch "record value expected"
   end.
 
 Definition as_record (m : free val) : free env :=
@@ -210,7 +183,7 @@ Definition val_as_struct (v : val) : free env :=
   | VStruct xvs =>
       ret xvs
   | _ =>
-      crash "type mismatch (structure expected)"
+      type_mismatch "structure expected"
   end.
 
 Definition as_struct (m : free val) : free env :=
@@ -436,13 +409,13 @@ Fixpoint extend δ p v : free env :=
       let i := int.repr z in
       if int.eq i i' then ret δ else next()
   | PTuple _, _ =>
-      crash "type mismatch (tuple expected)"
+      type_mismatch "tuple expected"
   | PData _ _, _ =>
-      crash "type mismatch (algebraic data expected)"
+      type_mismatch "algebraic data expected"
   | PRecord _, _ =>
-      crash "type mismatch (record expected)"
+      type_mismatch "record expected"
   | PInt _, _ =>
-      crash "type mismatch (integer expected)"
+      type_mismatch "integer expected"
   end
 
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
@@ -464,9 +437,9 @@ with extends δ ps vs : free env :=
       δ ← extends δ ps vs ;
       ret δ
   | PCons _ _, VNil =>
-      crash "pattern matching: length mismatch (longer tuple expected)"
+      length_mismatch "longer tuple expected"
   | PNil, VCons _ _ =>
-      crash "pattern matching: length mismatch (shorter tuple expected)"
+      length_mismatch "shorter tuple expected"
   end
 
 (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
@@ -505,7 +478,7 @@ Definition acall η a v : free val :=
   let η := EnvCons x v η in
   (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
      be used, so evaluation of [e] is requested via a [stop] effect. *)
-  stop Eval (η, e).
+  stop CEval (η, e).
 
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
@@ -528,7 +501,7 @@ Definition call v1 v2 : free val :=
       (* Then, proceed as in the case of a non-recursive closure. *)
       acall η a v2
    | _ =>
-      crash "type mismatch (closure expected)"
+      type_mismatch "closure expected"
    end.
 
 (* ------------------------------------------------------------------------ *)
@@ -550,7 +523,7 @@ Fixpoint eq_val v1 v2 : free bool :=
       b' ← eq_val v1 v2 ;
       ret (b && b')
   | _, _ =>
-      crash "structural equality: invalid or unsupported arguments"
+      structural_equality_error "invalid or unsupported arguments"
   end
 
 with eq_vals vs1 vs2 : free bool :=
@@ -563,7 +536,7 @@ with eq_vals vs1 vs2 : free bool :=
       ret (b && b')
   | VCons _ _, VNil
   | VNil, VCons _ _ =>
-      crash "structural equality: tuple length mismatch"
+      structural_equality_error "tuple length mismatch"
   end.
 
 Definition ne_val v1 v2 :=
@@ -591,7 +564,7 @@ Definition lt_val v1 v2 : free bool :=
       (* A signed integer comparison. *)
       ret (int.lt i1 i2)
   | _, _ =>
-      crash "structural ordering: invalid or unsupported arguments"
+      structural_ordering_error "invalid or unsupported arguments"
   end.
 
 (* The other three structural ordering operators. *)
@@ -858,14 +831,14 @@ Fixpoint eval η e : free val :=
       b ← as_bool (eval η e) ;
       if (b : bool) then
         _ ← eval η body ;
-        stop Eval (η, EWhile e body)
+        stop CEval (η, EWhile e body)
       else
         ok
   | EFor x e1 e2 e =>
       (* The bounds are evaluated first. *)
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       (* Then, the loop is executed. *)
-      stop Loop (η, x, i1, i2, e)
+      stop CLoop (η, x, i1, i2, e)
   | EAssertFalse =>
       assertion_failure
   | EAssert e =>
@@ -881,14 +854,14 @@ Fixpoint eval η e : free val :=
       choose ok test
   | ERef e =>
       v ← eval η e ;
-      ℓ ← stop Ref v ;
+      ℓ ← stop CAlloc v ;
       ret (VLoc ℓ)
   | ELoad e =>
       ℓ ← as_loc (eval η e) ;
-      stop Load ℓ
+      stop CLoad ℓ
   | EStore e1 e2 =>
       '(ℓ, v) ← par (as_loc (eval η e1)) (eval η e2) ;
-      _ ← stop Store (ℓ, v) ;
+      _ ← stop CStore (ℓ, v) ;
       ok
   end
 
@@ -1062,5 +1035,5 @@ Definition loop η x i1 i2 e : free val :=
     (* Every [for] loop terminates, so we could in principle arrange to
        use a recursive call to [loop], but using a [stop] effect is much
        easier. *)
-    stop Loop (η, x, int.add i1 int.one, i2, e)
+    stop CLoop (η, x, int.add i1 int.one, i2, e)
 .

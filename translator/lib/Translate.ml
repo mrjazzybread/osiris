@@ -118,7 +118,7 @@ and trans_tl_expr (e: expression) =
 
          | Tpat_construct (i, desc, _, _) ->
             (* This construction should only be used for [()].
-               Here, [()] is translated [EPlain "()"], not
+               Here, [()] is translated to [EPlain "()"], not
                [EConstr ("EData", [EPlain "()"])]. *)
             if desc.cstr_arity = 0 && (string_of_longident i.txt = "\"()\"")
             then EConstr ("EFun1Pat", [EPlain ("PAny");

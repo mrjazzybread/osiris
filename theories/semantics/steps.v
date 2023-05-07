@@ -1,6 +1,6 @@
 From osiris.lang Require Import lang.
 From osiris Require Import base.
-From osiris.semantics Require Import free eval step.
+From osiris.semantics Require Import code eval step.
 
 (* This file defines the relations [steps] and [produces]
    and establishes some of their properties. *)
@@ -9,7 +9,7 @@ From osiris.semantics Require Import free eval step.
 
 (* [steps n m m'] means that [m] reduces to [m'] in at most [n] steps. *)
 
-Inductive steps {A} : nat → state A → state A → Prop :=
+Inductive steps {A} : nat → config A → config A → Prop :=
 | StepsZero:
     ∀ n m,
     steps n m m
@@ -27,7 +27,7 @@ Global Hint Constructors steps : steps.
 
 (* [step] implies [steps 1]. *)
 
-Lemma one_step {A} (m m' : state A) :
+Lemma one_step {A} (m m' : config A) :
   step m m' →
   steps 1 m m'.
 Proof.
@@ -37,7 +37,7 @@ Qed.
 (* [steps] is monotonic in [n]. *)
 
 Lemma steps_monotonic {A} :
-  ∀ n (m m' : state A),
+  ∀ n (m m' : config A),
   steps n m m' →
   ∀ n',
   n ≤ n' →
@@ -51,7 +51,7 @@ Qed.
 (* [steps] is transitive. *)
 
 Lemma steps_transitive {A} :
-  ∀ n1 (m1 m2 : state A),
+  ∀ n1 (m1 m2 : config A),
   steps n1 m1 m2 →
   ∀ n2 m3,
   steps n2 m2 m3 →
@@ -62,40 +62,6 @@ Proof.
   { eauto using steps_monotonic with lia. }
   (* Step case. *)
   { eauto with steps. }
-Qed.
-
-(* [steps] can be taken under a [Par] constructor. *)
-
-Lemma steps_par_left :
-  ∀ {A1 A2 A} n σ1 σ'1 m1 m'1,
-  steps n (σ1, m1) (σ'1, m'1) →
-  ∀ m2 (k : A1 * A2 → free A) ko,
-  steps n (σ1, Par m1 m2 k ko) (σ'1, Par m'1 m2 k ko).
-Proof.
-  induction n; intros σ1 σ'1 m1 m'1 Hsteps;
-  dependent destruction Hsteps;
-  eauto with step steps.
-  intros???.
-  destruct m2 as [σ''1 m''1].
-  eapply StepsSucc with (σ''1, Par m''1 m0 k ko);
-    [ by apply StepParLeft
-    | by apply IHn ].
-Qed.
-
-Lemma steps_par_right :
-  ∀ {A1 A2 A} n σ2 σ'2 m2 m'2,
-  steps n (σ2, m2) (σ'2, m'2) →
-  ∀ m1 (k : A1 * A2 → free A) ko,
-  steps n (σ2, Par m1 m2 k ko) (σ'2, Par m1 m'2 k ko).
-Proof.
-  induction n; intros σ2 σ'2 m2 m'2 Hsteps;
-  dependent destruction Hsteps;
-  eauto with step steps.
-  intros???.
-  destruct m0 as [σ''2 m''2].
-  eapply StepsSucc with (σ''2, Par m1 m''2 k ko);
-    [ by apply StepParRight
-    | by apply IHn ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)

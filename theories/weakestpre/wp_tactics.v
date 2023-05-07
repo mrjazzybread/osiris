@@ -2,7 +2,7 @@ From iris.proofmode Require Import classes proofmode.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import free eval.
+From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import wp.
 
 
@@ -52,12 +52,10 @@ Ltac wp_step' :=
       tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
       tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (try (ret _) _ _) _) =>
-      tac_change_goal (wp_try_ret _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (stop Eval _) _) =>
+  | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ tac_change_goal (wp_eval_ret _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _) ]
-  | |- environments.envs_entails _ (wp _ _ (Stop Flip _ _) _) =>
+  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _) _) =>
       tac_change_goal (wp_flip _ _ _ _ _)
   end.
 
@@ -100,8 +98,8 @@ Ltac wp_set_postcondition :=
   end.
 
 
-Ltac wp_ref ℓ H:=
-  iApply wp_ref; iNext; iIntros (ℓ) H; wp.
+Ltac wp_alloc ℓ H:=
+  iApply wp_alloc; iNext; iIntros (ℓ) H; wp.
 Ltac wp_load H :=
   iApply (wp_load with H); iNext; iIntros H; wp.
 Ltac wp_store H :=
@@ -165,7 +163,7 @@ Ltac wp_specify x φ :=
   | |- context [ concatenating eval _ _ ?δ ] =>
       let o := eval cbn in (lookup_name δ x) in
         match o with
-        | free.ret ?v =>
+        | Ret ?v =>
             let H := iFresh in
             iAssert (φ v) as H; [ | iRevert H; generalize v ]
         end

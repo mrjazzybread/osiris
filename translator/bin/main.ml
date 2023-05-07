@@ -5,10 +5,7 @@ include Translator.Options
 let require_imports =
   [
     ("osiris", ["base"]);
-    ("osiris.lang",
-     [ "lang";
-       "encode"]);
-    ("osiris.semantics", ["sugar"; "notations"]);
+    ("osiris.lang", [ "lang" ]);
   ]
 
 

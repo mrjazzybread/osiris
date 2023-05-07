@@ -1,15 +1,30 @@
 From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 
-Section Free.
+(* This module defines a meta-language (a monad) within which one can
+   implement an interpreter for an object language (such as OCaml). *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* A free monad. *)
+(* The monad is parameterized over a type constructor [code], which describes
+   a set of services that a computation can request from the runtime system.
+   These services can also be thought of as "system calls" that a computation
+   can make. A value of type [code X Y] represents the name of a system call
+   whose parameter has type [X] and whose result has type  [Y]. *)
+
+Module Type CODE.
+  Parameter code : Type → Type → Type.
+End CODE.
+
+Module Make (C : CODE).
+
+Import C. (* We write [code] for [C.code]. *)
+
+(* ------------------------------------------------------------------------ *)
 
 (* The custom constructors of this free monad are:
 
-   - [Fail], a hard failure, which represents a crash and cannot be
+   - [Crash], a hard failure, which represents a crash and cannot be
      caught;
 
    - [Next], a soft failure, which can be caught by a [try]
@@ -43,11 +58,9 @@ Section Free.
    Non-terminating computations can be represented, but must
    (infinitely often) pause by performing a [Stop] effect. *)
 
-Context {code : Type → Type → Type}.
-
 Inductive free A :=
   | Ret (a : A)
-  | Fail
+  | Crash
   | Next
   | Stop {X Y} (c : code X Y) (x : X) (k : Y → free A)
   | Par {A1 A2} (m1 : free A1) (m2 : free A2)
@@ -58,7 +71,7 @@ Inductive free A :=
 (* Make [A] an implicit argument of the constructors. *)
 
 Arguments Ret  {A}.
-Arguments Fail {A}.
+Arguments Crash {A}.
 Arguments Next {A}.
 Arguments Stop {A X Y} c x k.
 Arguments Par  {A A1 A2} m1 m2 k ko.
@@ -70,8 +83,8 @@ Arguments Par  {A A1 A2} m1 m2 k ko.
 Notation ret :=
   (Ret).
 
-Notation fail :=
-  (Fail).
+Notation crash :=
+  (Crash).
 
 Notation next :=
   (λ tt, Next).
@@ -100,9 +113,9 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
   match m with
   | Ret a =>
       f a
-  | Fail =>
+  | Crash =>
       (* A hard failure is transmitted. *)
-      Fail
+      Crash
   | Next =>
       (* A soft failure is transmitted. *)
       Next
@@ -129,8 +142,8 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   match m with
   | Ret a =>
       f a
-  | Fail =>
-      Fail
+  | Crash =>
+      Crash
   | Next =>
       (* A soft failure is handled by [g]. *)
       g()
@@ -184,9 +197,9 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_fail {A B} (f : A → free B) :
-  bind Fail f =
-  Fail.
+Lemma bind_crash {A B} (f : A → free B) :
+  bind Crash f =
+  Crash.
 Proof.
   reflexivity.
 Qed.
@@ -236,7 +249,7 @@ Qed.
 (* Equality is needed to state the monad laws. *)
 
 (* This equality is just equality of trees whose internal nodes are the
-   [Stop] nodes and whose leaves are [Ret], [Fail] and [Next]. *)
+   [Stop] nodes and whose leaves are [Ret], [Crash] and [Next]. *)
 
 (* We could give an inductive definition of this equality. I prefer to
    accept the law of functional extensionality, which implies that
@@ -283,21 +296,4 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-End Free.
-
-(* Recreate some things that are lost when the section is closed. *)
-
-Notation ret :=
-  (Ret).
-
-Notation fail :=
-  (Fail).
-
-Definition next {code A} : unit → @free code A :=
-  (λ tt, @Next code A).
-
-Arguments Ret  {code A}.
-Arguments Fail {code A}.
-Arguments Next {code A}.
-Arguments Stop {code A X Y} c x k.
-Arguments Par  {code A A1 A2} m1 m2 k ko.
+End Make.

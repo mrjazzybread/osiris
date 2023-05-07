@@ -1,8 +1,7 @@
 Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import base. (* .none *)
-From osiris.semantics Require Import store. (* .none *)
 From osiris.lang Require Import lang. (* .none *)
-From osiris.semantics Require Import free eval step notations. (* .none *)
+From osiris.semantics Require Import semantics. (* .none *)
 From osiris.weakestpre Require Import safe notations. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
@@ -19,15 +18,12 @@ Implicit Type i : int. (* .none *)
 Implicit Type b : bool. (* .none *)
 
 Implicit Type A B X Y : Type. (* .none *)
-Implicit Type code : Type → Type → Type. (* .none *)
 
 (*|
 =========================
 A Program Logic for OCaml
 =========================
 |*)
-
-Section Eval. (* .none *)
 
 Notation ε := EnvNil. (* .none *)
 Notation int := int.int. (* .none *)
@@ -212,7 +208,7 @@ Goal ∀ η e body,
     b ← as_bool (eval η e) ;
     if (b : bool) then
       _ ← eval η body ;
-      stop Eval (η, EWhile e body)
+      stop CEval (η, EWhile e body)
     else
       ok. (* .no-goals *)
 Proof. (* .none *)
@@ -308,24 +304,18 @@ and how the scheduler is implemented.
 We do so in the next two sections.
 |*)
 
-End Eval. (* .none *)
-
 (*|
 ---------
 The Monad
 ---------
 |*)
 
-Section Free. (* .none *)
-
 (*|
 The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
-From osiris.semantics Require Import free. (* .none *) (* avoid showing that [free] is a notation *)
 Print free. (* .unfold *)
-From osiris.semantics Require Import eval. (* .none *)
 
 (*|
 This is an inductive type: every computation must eventually
@@ -336,7 +326,7 @@ following five forms:
 * `Ret a` represents a computation that is finished
   and has produced a result `a`.
 
-* `Fail` represents a computation that has encountered a serious problem
+* `Crash` represents a computation that has encountered a serious problem
   and crashed. This is a situation that we want to avoid, and this is the
   purpose of the program logic that we wish to set up.
 
@@ -396,7 +386,7 @@ of computations*, equipped with the facilities that are needed to write
 the interpreter in a natural style. On the other hand, from a concrete
 point of view, it offers *a syntactic representation of a collection of
 threads*. The constructor `Par`  allows describing a binary tree of
-threads. At the leaves, the constructors `Ret`, `Fail`, and `Next`
+threads. At the leaves, the constructors `Ret`, `Crash`, and `Next`
 represent threads that have finished (in one way or another), while
 the constructor `Stop` represents a thread that is paused and needs
 to continue.
@@ -431,7 +421,7 @@ uses the following set of codes:
 Print code. (* .unfold *)
 
 (*|
-The code `Eval`, which we have encountered earlier, is used to request
+The code `CEval`, which we have encountered earlier, is used to request
 a recursive invocation of the function `eval`. The code `Loop` plays a
 similar role, but is used in the interpretation of `for` loops. The
 code `Flip` is used to request a Boolean value from the system: it is
@@ -441,15 +431,11 @@ used to encode a binary non-deterministic choice combinator, `choose`.
 Print flip. (* .unfold *)
 Print choose. (* .unfold *)
 
-End Free. (* .none *)
-
 (*|
 -------------
 The Scheduler
 -------------
 |*)
-
-Section Step. (* .none *)
 
 (*|
 There remains to somehow give meaning to monadic computations
@@ -483,7 +469,7 @@ Print step. (* .fold *)
 
 (*|
 Let us look at some of the cases in this definition.
-An `Eval` request steps to an invocation of `eval`:
+An `CEval` request steps to an invocation of `eval`:
 |*)
 
 Check @StepEval. (* .unfold *)
@@ -534,10 +520,10 @@ Safety
 (*|
 This reduction semantics allows us to define what it means for a program
 to be safe. A program is *safe* if it cannot crash, that is, if it cannot
-reduce (in zero, one, or more steps) to `Fail`.
+reduce (in zero, one, or more steps) to `Crash`.
 
 Technically, we say that a program is *initially safe* for `n` steps
-if it cannot reduce in at most `n` steps to `Fail`.
+if it cannot reduce in at most `n` steps to `Crash`.
 We say that a program is safe
 if, for every `n`, this program is initially safe for `n` steps.
 |*)
@@ -556,8 +542,6 @@ yet it is a full-fledged logic!
 Check @safe_ret. (* .unfold *)
 
 Check @safe_bind. (* .unfold *)
-
-End Step. (* .none *)
 
 (*|
 |*)

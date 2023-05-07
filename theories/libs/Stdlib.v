@@ -7,8 +7,8 @@ Import uPred.
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang encode.
-From osiris.semantics Require Import sugar locations free eval step notations.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import wp wp_tactics notations.
 
 Section StdLib.
@@ -112,7 +112,7 @@ Section StdLib.
     ⊢ WP call Stdlib__ref v @ s; E
            {{ λ vl, ∃ (ℓ: loc), ℓ ↦ v ∗ ⌜vl = VLoc ℓ ⌝ }}.
   Proof.
-    wp_call. wp_ref l "[Hl _]".
+    wp_call. wp_alloc l "[Hl _]".
     iExists l.
     iFrame.
     iPureIntro. reflexivity.

@@ -1,6 +1,13 @@
 From iris.bi Require Import weakestpre.
-From osiris.semantics Require Import free eval.
+From iris Require Import base_logic.lib.gen_heap.
+From osiris.semantics Require Import semantics.
 
+(* ------------------------------------------------------------------------ *)
+
+(* Store-related notations. *)
+
+Notation "l ↦ v" :=
+  (mapsto l (DfracOwn 1) v) (at level 20).
 
 (* -------------------------------------------------------------------------- *)
 (* Notations used to handle n-ary calls. *)
