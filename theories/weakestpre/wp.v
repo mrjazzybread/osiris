@@ -319,57 +319,52 @@ Section wp_lemmas.
     -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
   Proof.
     iLöb as "IH" forall (m1 m2).
-    iIntros "H1 H2 Hcomb".
+    iIntros "H1 H2 Hjoin".
     (* TODO: make the prof more robust. *)
-    setoid_rewrite wp_unfold at 8.
-    rewrite /wp_pre/=.
+    setoid_rewrite (wp_unfold (Par m1 m2 _ _)); rewrite /wp_pre /=.
     iIntros (σ) "Hsi".
-    iSplitR.
-    { iPureIntro. eapply can_step_par. reflexivity. }
+    iSplitR; [ iPureIntro |].
+    { eauto with step. }
     iIntros (σ' m' Hstep).
-    (* TODO: cleanup hypotheses at this point *)
+    destruct_step.
 
-    destruct_step; simpl.
     { (* Case: [StepParRetRet] *)
       iDestruct (ret_wp with "Hsi H1") as ">[Hsi H1]".
       iDestruct (ret_wp with "Hsi H2") as ">[Hsi H2]".
-      iModIntro. iFrame. iNext. iApply ("Hcomb" with "H1 H2"). }
+      iModIntro. iNext. iFrame "Hsi".
+      iApply ("Hjoin" with "H1 H2"). }
     { (* Case: [StepParCrashLeft] *)
       iModIntro. iNext.
       iPoseProof (wp_crash with "Hsi H1") as "%".
-      exfalso. assumption. }
+      tauto. }
     { (* Case: [StepCrashRight] *)
       iModIntro. iNext.
       iPoseProof (wp_crash with "Hsi H2") as "%".
-      exfalso. assumption. }
+      tauto. }
     { (* Case: [StepNextLeft] *)
       iModIntro. iNext.
       iPoseProof (wp_next with "Hsi H1") as "%".
-      exfalso. assumption. }
+      tauto. }
     { (* Case: [StepNextRight] *)
       iModIntro. iNext.
       iPoseProof (wp_next with "Hsi H2") as "%".
-      exfalso. assumption. }
+      tauto. }
     { (* Case: [StepParLeft] *)
-      setoid_rewrite wp_unfold at 5. rewrite /wp_pre/=.
+      setoid_rewrite (wp_unfold m1); rewrite /wp_pre /=.
       assert (is_ret m1 = None) as ->.
       { eauto using can_step_is_not_ret with step. }
-      iDestruct ("H1" with "Hsi") as "[%Hstep1 H1]".
-      iPoseProof
-        ("H1" $! σ' with "[//]")
-        as ">[$H1]".
+      iDestruct ("H1" with "Hsi") as "[%Hcanstep1 H1]".
+      iPoseProof ("H1" with "[//]") as ">[$H1]".
       iModIntro. iNext.
-      iApply ("IH" with "H1 H2 Hcomb"). }
-    { (* Case: [StepParLeft] *)
-      setoid_rewrite wp_unfold at 6. rewrite /wp_pre/=.
+      iApply ("IH" with "H1 H2 Hjoin"). }
+    { (* Case: [StepParRight] *)
+      setoid_rewrite (wp_unfold m2); rewrite /wp_pre /=.
       assert (is_ret m2 = None) as ->.
       { eauto using can_step_is_not_ret with step. }
-      iDestruct ("H2" with "Hsi") as "[%Hstuck2 H2]".
-      iPoseProof
-        ("H2" $! σ' with "[//]")
-        as ">[$H2]".
+      iDestruct ("H2" with "Hsi") as "[%Hcanstep2 H2]".
+      iPoseProof ("H2" with "[//]") as ">[$H2]".
       iModIntro. iNext.
-      iApply ("IH" with "H1 H2 Hcomb"). }
+      iApply ("IH" with "H1 H2 Hjoin"). }
   Qed.
 
   Lemma wp_par_ret_right {A1 A2 A} s E m1 a2
