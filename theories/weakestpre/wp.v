@@ -96,14 +96,14 @@ Section wp.
     apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
   Qed.
 
-  Ltac unfold_wp :=
+  Ltac wp_unfold_all :=
     rewrite !wp_unfold /wp_pre /=.
 
   Global Instance wp_ne s E m n :
     Proper (pointwise_relation _ (dist n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
     revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
-    unfold_wp.
+    wp_unfold_all.
     (* Cf. the comment in [program_logic/wp.v] for an explanation on the time
      * taken by the following line. *)
     repeat ((by rewrite IH; [done|lia|];
@@ -120,7 +120,7 @@ Section wp.
     TCEq (is_ret m) None →
     Proper (pointwise_relation _ (dist_later n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
-    intros He Φ Ψ HΦ. unfold_wp. rewrite He /=.
+    intros He Φ Ψ HΦ. wp_unfold_all. rewrite He /=.
     repeat (f_contractive || f_equiv).
   Qed.
 
@@ -143,8 +143,14 @@ Section wp.
 
 End wp.
 
-Local Ltac unfold_wp :=
+Local Ltac wp_unfold_all :=
   rewrite !wp_unfold /wp_pre /=.
+
+Local Ltac wp_unfold_head :=
+  iApply wp_unfold; rewrite /wp_pre /=.
+
+Local Ltac wp_unfold m :=
+  setoid_rewrite (wp_unfold m); rewrite /wp_pre /=.
 
 (* -------------------------------------------------------------------------- *)
 (* The following are lemmas about the evolutions of a term. They are designed to
@@ -160,7 +166,7 @@ Section wp_lemmas.
   Proof.
     iLöb as "IH" forall (φ φ' m).
     iIntros "Hwp Himpl".
-    unfold_wp.
+    wp_unfold_all.
     destruct (is_ret m).
 
     (* Case: [m] is [ret _]. *)
@@ -190,7 +196,7 @@ Section wp_lemmas.
   Lemma wp_ret {A} s E (v: A) φ:
     φ v -∗ WP (Ret v) @ s; E {{ φ }}.
   Proof.
-    unfold_wp. iIntros. iFrame.
+    wp_unfold_all. iIntros. iFrame.
   Qed.
 
   Lemma ret_wp {A} s E (v: A) σ φ:
@@ -198,7 +204,7 @@ Section wp_lemmas.
     WP (Ret v) @ s; E {{ φ }} ==∗
     state_interp σ ∗ φ v.
   Proof.
-    unfold_wp.
+    wp_unfold_all.
     iIntros "Hsi Hwp".
     iSpecialize ("Hwp" with "Hsi").
     iAssumption.
@@ -210,7 +216,7 @@ Section wp_lemmas.
     WP (@crash A) @ s; E {{φ}} -∗
     False.
   Proof.
-    unfold_wp.
+    wp_unfold_all.
     iIntros "Hsi Hwp".
     iDestruct ("Hwp" with "Hsi") as "[% _]".
     eauto with invert_can_step.
@@ -221,7 +227,7 @@ Section wp_lemmas.
     WP (@Next A) @ s; E {{ φ }} -∗
     False.
   Proof.
-    unfold_wp.
+    wp_unfold_all.
     iIntros "Hsi Hwp".
     iDestruct ("Hwp" with "Hsi") as "[% _]".
     eauto with invert_can_step.
@@ -232,7 +238,7 @@ Section wp_lemmas.
     WP m @ s; E {{ φ }}.
   Proof.
     iIntros "H".
-    setoid_rewrite wp_unfold. rewrite /wp_pre.
+    wp_unfold m.
     iIntros (σ) "Hsi".
     iDestruct ("H" with "Hsi") as "[Hsi H]".
     iSpecialize ("H" with "Hsi").
@@ -246,7 +252,7 @@ Section wp_lemmas.
   Proof.
     iLöb as "IH" forall (m1 m2 φ).
     iIntros "Hm1".
-    rewrite (wp_unfold m1) /wp_pre.
+    wp_unfold m1.
     destruct (is_ret m1) as [a1|] eqn:Hret.
 
     (* Case: [m1] is [ret a1]. *)
@@ -259,7 +265,7 @@ Section wp_lemmas.
       (* Therefore, [bind m1 m2] is not [ret _] either. *)
       eapply (is_ret_bind_None _ m2) in Hret.
       (* Unfold and simplify the goal. *)
-      unfold_wp.
+      wp_unfold_all.
       iIntros (σ) "Hsi".
       rewrite Hret; clear Hret.
       (* Simplify and destruct the hypothesis. *)
@@ -303,8 +309,7 @@ Section wp_lemmas.
   Proof.
     iLöb as "IH" forall (m1 m2).
     iIntros "H1 H2 Hjoin".
-    (* TODO: make the prof more robust. *)
-    setoid_rewrite (wp_unfold (Par m1 m2 _ _)); rewrite /wp_pre /=.
+    wp_unfold (Par m1 m2 k ko).
     iIntros (σ) "Hsi".
     iSplitR; [ iPureIntro |].
     { eauto with step. }
@@ -333,7 +338,7 @@ Section wp_lemmas.
       iPoseProof (wp_next with "Hsi H2") as "%".
       tauto. }
     { (* Case: [StepParLeft] *)
-      setoid_rewrite (wp_unfold m1); rewrite /wp_pre /=.
+      wp_unfold m1.
       assert (is_ret m1 = None) as ->.
       { eauto using can_step_is_not_ret with step. }
       iDestruct ("H1" with "Hsi") as "[%Hcanstep1 H1]".
@@ -341,7 +346,7 @@ Section wp_lemmas.
       iModIntro. iNext.
       iApply ("IH" with "H1 H2 Hjoin"). }
     { (* Case: [StepParRight] *)
-      setoid_rewrite (wp_unfold m2); rewrite /wp_pre /=.
+      wp_unfold m2.
       assert (is_ret m2 = None) as ->.
       { eauto using can_step_is_not_ret with step. }
       iDestruct ("H2" with "Hsi") as "[%Hcanstep2 H2]".
@@ -382,7 +387,7 @@ Section wp_lemmas.
     WP (Par (ret v1) (ret v2) k ko) @s; E {{ φ }}.
   Proof.
     iIntros "H".
-    iApply wp_unfold. unfold wp_pre.
+    wp_unfold (Par (ret v1) (ret v2) k ko).
     iIntros (σ) "Hsi".
     simpl.
     iSplit.
