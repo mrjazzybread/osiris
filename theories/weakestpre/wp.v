@@ -1,17 +1,11 @@
-From iris.proofmode Require Import base proofmode classes.
-From iris.base_logic.lib Require Import fancy_updates.
-From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
-From iris Require Import base_logic.lib.gen_heap.
-Import uPred.
-
-From iris.algebra Require Import gmap.
+From iris.bi Require Import weakestpre.
+From iris.base_logic.lib Require Import fancy_updates gen_heap.
+From iris.proofmode Require Import base proofmode classes.
 
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-
-
 
 (* -------------------------------------------------------------------------- *)
 
