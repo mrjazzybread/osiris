@@ -186,6 +186,17 @@ Local Ltac wp_unfold m :=
 
 (* Local tactics. *)
 
+(* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
+   of the form [ret a], or it is not. In the second branch, the equality
+   [is_ret m = None] appears under the name [Hret]. *)
+
+Local Ltac wp_case_is_ret m Hret :=
+  case_eq (is_ret m); [
+    intros ? Hret;
+    apply invert_is_ret_Some in Hret; subst m
+  | intros Hret
+  ].
+
 (* The following tactics corresponds to the branch [is_ret _ = Some _] in
    the definition of [wp]. This branch is a conjunction
      state_interp σ ∗ φ v
@@ -358,12 +369,11 @@ Proof.
   iLöb as "IH" forall (m1 m2 φ).
   iIntros "Hwp".
   wp_unfold m1.
-  destruct (is_ret m1) as [a1|] eqn:Hret.
+  wp_case_is_ret m1 Hret.
 
-  (* Case: [m1] is [ret a1]. *)
+  (* Case: [m1] is [ret _]. *)
   (* The result is immediate. *)
-  { rewrite (invert_is_ret_Some Hret) /=.
-    by iApply wp_grab. }
+  { by iApply wp_grab. }
 
   (* Case: [m1] is not [ret _]. *)
   {
@@ -411,6 +421,24 @@ Proof.
   step_wp.
   tick_wp.
   eauto.
+Qed.
+
+(* Progress. *)
+
+Lemma wp_not_stuck {A} {σ} {m : free A} {φ} :
+  state_interp σ -∗
+  WP m {{ φ }} ==∗
+  ⌜ ¬ stuck (σ, m) ⌝.
+Proof.
+  iIntros "Hsi Hwp". Opaque stuck.
+  wp_unfold m. spec_state "Hwp".
+  wp_case_is_ret m Hret; [| destruct_wp_nonret ]; iPureIntro.
+  (* Case: [m] is [ret a]. *)
+  (* [ret a] is not stuck. *)
+  { eauto using invert_stuck_answer with is_answer. }
+  (* Case: [m] can step. *)
+  (* A configuration that can step is not stuck. *)
+  { eauto using can_step_not_stuck. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
