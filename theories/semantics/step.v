@@ -311,10 +311,10 @@ Qed.
 
 Local Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
 
-Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) c' :
-  step (σ, bind m f) c' →
-  (∃ m' σ', step (σ, m) (σ', m') ∧ c' = (σ', bind m' f)) ∨
-  (∃ a, m = Ret a ∧ step (σ, f a) c').
+Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) σ' mm :
+  step (σ, bind m f) (σ', mm) →
+  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f) ∨
+  (∃ a, m = Ret a ∧ step (σ, f a) (σ', mm)).
 Proof.
   destruct m;
   rewrite ?bind_ret ?bind_stop ?bind_par ?bind_crash;
@@ -434,14 +434,14 @@ Qed.
    a step (under a context). In other words, reduction under a context is
    mandatory: no other reduction is possible. *)
 
-Lemma invert_step_bind' {A B σ m} {f : A → free B} {c'} :
-  step (σ, bind m f) c' →
+Lemma invert_step_bind' {A B σ m} {f : A → free B} {σ' mm} :
+  step (σ, bind m f) (σ', mm) →
   ¬ is_answer m →
-  (∃ σ' m', step (σ, m) (σ', m') ∧ c' = (σ', bind m' f)).
+  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
 Proof.
   intros Hstep Hnoret.
   apply invert_step_bind in Hstep.
-  destruct Hstep as [ (? & ? & Hstep & ->) | ( ? & -> & ? )].
+  destruct Hstep as [ (? & Hstep & ->) | ( ? & -> & ? )].
   { eauto. }
   { exfalso. by apply Hnoret. }
 Qed.
@@ -546,6 +546,13 @@ Lemma invert_is_ret_Some {A} {m : free A} {a} :
   m = Ret a.
 Proof.
   destruct m; inversion 1; reflexivity.
+Qed.
+
+Lemma is_ret_bind_None {A B} m (f : A → free B):
+  is_ret m = None →
+  is_ret (bind m f) = None.
+Proof.
+  destruct m; simpl; congruence.
 Qed.
 
 Lemma can_step_is_not_ret {A} (m : free A) σ :

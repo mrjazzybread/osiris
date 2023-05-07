@@ -161,7 +161,7 @@ Section wp.
 End wp.
 
 Local Ltac unfold_wp :=
-  rewrite !wp_expand /=.
+  rewrite !wp_unfold /wp_pre /=.
 
 (* -------------------------------------------------------------------------- *)
 (* The following are lemmas about the evolutions of a term. They are designed to
@@ -249,7 +249,7 @@ Section wp_lemmas.
     WP m @ s; E {{ φ }}.
   Proof.
     iIntros "H".
-    setoid_rewrite wp_expand.
+    setoid_rewrite wp_unfold. rewrite /wp_pre.
     iIntros (σ) "Hsi".
     iDestruct ("H" with "Hsi") as "[Hsi H]".
     iSpecialize ("H" with "Hsi").
@@ -262,35 +262,44 @@ Section wp_lemmas.
     WP (bind m1 m2) @ s; E {{ φ }}.
   Proof.
     iLöb as "IH" forall (m1 m2 φ).
-    iIntros "Hm".
-    rewrite (wp_expand m1).
-    destruct (is_ret m1) as [a1|] eqn:Hret1.
+    iIntros "Hm1".
+    rewrite (wp_unfold m1) /wp_pre.
+    destruct (is_ret m1) as [a1|] eqn:Hret.
 
-    (* Case: [m] is [ret a1]. *)
-    { rewrite (invert_is_ret_Some Hret1). simpl.
+    (* Case: [m1] is [ret a1]. *)
+    (* The result is immediate. *)
+    { rewrite (invert_is_ret_Some Hret). simpl.
       by iApply wp_grab_state_invariant. }
 
-    { (* Case: [m] can step. *)
-      iApply wp_unfold. unfold wp_pre.
+    (* Case: [m1] is not [ret _]. *)
+    {
+      (* Therefore, [bind m1 m2] is not [ret _] either. *)
+      eapply (is_ret_bind_None _ m2) in Hret.
+      (* Unfold and simplify the goal. *)
+      unfold_wp.
       iIntros (σ) "Hsi".
-      iDestruct ("Hm" with "Hsi") as "[%Hcanstep Hm]".
-      pose proof (can_step_bind _ m1 m2 Hcanstep) as ->%can_step_is_not_ret.
+      rewrite Hret; clear Hret.
+      (* Simplify and destruct the hypothesis. *)
+      iDestruct ("Hm1" with "Hsi") as "[%Hcanstep Hm1]".
+      assert (Hnotanswer: ¬ is_answer m1) by eauto using can_step_not_answer.
+
       iSplit.
-      { iPureIntro. eauto using can_step_bind with step. }
-
-
-      iIntros (σ' m') "%Hstep".
-      (* [m' = bind m'1 m2] for some [m'1] st. [step m1 m1'] *)
-      assert (Hnoret: ¬ is_answer m1).
-      { intros?.
-        unfold is_answer in H.
-        destruct m1 eqn:E'; try assumption;
-        destruct_step. }
-      pose proof (invert_step_bind' Hstep Hnoret) as (σ'1 & m'1 & Hsrtep & a).
-      simplify_eq/=.
-      iPoseProof ("Hm" with "[//]") as ">[$Hm]".
+      (* Subgoal: [bind m1 m2] can step. *)
+      { eauto using can_step_bind. }
+      (* Subgoal: every reduct of [bind m1 m2] is safe. *)
+      { clear Hcanstep.
+        iIntros (σ' m') "%Hstep".
+        (* Because [m1] is not an answer, a reduct of [bind m1 m2] must be
+           of the form [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
+      destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
+      subst. clear Hstep. rename Hstep' into Hstep.
+      (* The hypothesis can then be further exploited. *)
+      iPoseProof ("Hm1" with "[//]") as ">[$Hm1]".
       iModIntro. iNext.
-      iApply "IH". iApply "Hm". }
+      iApply "IH". iClear "IH".
+      iApply "Hm1". }
+    }
+
   Qed.
 
   (* [Par]-related lemmas. *)

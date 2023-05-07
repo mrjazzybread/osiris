@@ -63,6 +63,7 @@ Qed.
 Ltac destruct_initially_safe_S H :=
   let Hcanstep := fresh "Hcanstep" in
   destruct H as [(? & ? & ? & ?) | (Hcanstep & H)];
+  simplify_eq;
   try solve [
     exfalso; subst; destruct_step
   | exfalso; eauto with invert_can_step
@@ -356,26 +357,27 @@ Proof.
   destruct_initially_safe_S Hsafe.
 
   (* Case: [m1] is [ret _]. *)
-  { simplify_eq. clear IHn. assumption. }
+  { clear IHn. assumption. }
 
   (* Case: [m1] can step. *)
   { rewrite unfold_initially_safe_S. right. split.
     (* Subgoal: [bind m1 m2] can step as well. *)
     { eauto using can_step_bind. }
     (* Subgoal: every reduct of [bind m1 m2] is safe for [n] steps. *)
-    intros m' Hstep.
+    intros [σ' m'] Hstep.
     (* Because [m1] can step, a reduct of [bind m1 m2] must be of the form
        [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
     assert (Hnoret: ¬ is_answer m1) by eauto using can_step_not_answer.
     specialize (invert_step_bind' Hstep Hnoret).
     clear Hstep Hcanstep Hnoret.
-    intros (m'1 & ?& Hstep & ?). simplify_eq.
+    intros (m'1 & Hstep & ?). subst.
     specialize (Hsafe _ Hstep). clear Hstep.
     (* The goal follows from the induction hypothesis and from the fact that
        [initially_safe] is covariant in its postcondition and monotonic
        in its step index. *)
     eapply IHn; clear IHn.
-    eapply initially_safe_covariant; [| exact Hsafe ]; clear Hsafe.
+    eapply initially_safe_covariant; [| exact Hsafe ].
+    clear Hsafe σ σ' m1 m'1.
     intros σ' a Hm2a.
     eapply initially_safe_monotonic; [ exact Hm2a |].
     lia. }
