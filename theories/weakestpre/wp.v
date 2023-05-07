@@ -99,23 +99,6 @@ Section wp.
   Ltac unfold_wp :=
     rewrite !wp_unfold /wp_pre /=.
 
-  Lemma wp_expand {s E} m {φ} :
-    WP m @ s; E {{ φ }} ⊣⊢
-      ∀ σ,
-        state_interp σ -∗
-        match is_ret m with
-        | Some v =>
-            state_interp σ ∗ φ v
-        | None =>
-            ⌜can_step (σ, m)⌝ ∗
-            ∀ σ' m',
-            ⌜step (σ, m) (σ', m')⌝ ==∗
-            ▷ (state_interp σ' ∗ WP m' @ s; E {{ φ }})
-        end.
-  Proof.
-    rewrite wp_unfold /wp_pre. eauto.
-  Qed.
-
   Global Instance wp_ne s E m n :
     Proper (pointwise_relation _ (dist n) ==> dist n) (wp (PROP:=iProp Σ) s E m).
   Proof.
