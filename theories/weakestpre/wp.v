@@ -299,12 +299,14 @@ Section wp_lemmas.
    * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
    *     the pair (v1, v2) satisfies φ.
   *)
-  Lemma wp_par {A1 A2 A3} s E m1 m2 (k: A1 * A2 → free A3) ko φ φ1 φ2:
+  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
     WP m1 @ s ; E {{ φ1 }} -∗
     WP m2 @ s ; E {{ φ2 }} -∗
-    ▷ (∀ (v1: A1) (v2: A2),
-        φ1 v1 -∗ φ2 v2 -∗
-        WP (k (v1, v2)) @ s; E {{ φ }})
+    ▷ (
+      ∀ a1 a2,
+      φ1 a1 -∗ φ2 a2 -∗
+      WP (k (a1, a2)) @ s; E {{ φ }}
+    )
     -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
   Proof.
     iLöb as "IH" forall (m1 m2).
@@ -355,49 +357,45 @@ Section wp_lemmas.
       iApply ("IH" with "H1 H2 Hjoin"). }
   Qed.
 
-  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2
-    (k : A1 * A2 → free A) ko
-    (φ : A → iProp Σ) :
+  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
     WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
     WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
   Proof.
-    iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, WP (k (v, a2)) @ s; E {{ φ }}) (λ v, ⌜v = a2⌝)
-           with "Hwp")%I.
+    iIntros "H".
+    iApply (wp_par
+        (λ a1, WP (k (a1, a2)) @ s; E {{ φ }})
+        (λ a', ⌜a' = a2⌝)
+      with "H []")%I.
     { by iApply wp_ret. }
-    { iNext. by iIntros (??) "?->". }
+    { iNext. by iIntros (??) "? ->". }
   Qed.
 
-  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2
-    (k : A1 * A2 → free A) ko
-    (φ : A → iProp Σ) :
+  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
     WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
     WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
   Proof.
-    iIntros "Hwp".
-    iApply (wp_par _ _ _ _ _ _ _ (λ v, ⌜v = a1⌝) (λ v, WP (k (a1, v)) @ s; E {{ φ }})
-           with "[] Hwp")%I.
+    iIntros "H".
+    iApply (wp_par
+        (λ a', ⌜a' = a1⌝)
+        (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
+      with "[] H")%I.
     { by iApply wp_ret. }
-    { iNext. by iIntros (??) "->?". }
+    { iNext. by iIntros (??) "-> ?". }
   Qed.
 
-
-  Lemma wp_par_ret_ret {A1 A2 A3} s E v1 v2 (k: A1 * A2 → free A3) ko φ:
-    ▷ WP (k (v1, v2)) @ s; E {{ φ }} -∗
-    WP (Par (ret v1) (ret v2) k ko) @s; E {{ φ }}.
+  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
+    ▷ WP (k (a1, a2)) @ s; E {{ φ }} -∗
+    WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
   Proof.
     iIntros "H".
-    wp_unfold (Par (ret v1) (ret v2) k ko).
-    iIntros (σ) "Hsi".
-    simpl.
-    iSplit.
-    { iPureIntro. eauto with step. }
-    iIntros (σ' m' Hstep).
-    apply step_par_ret_ret in Hstep.
-    destruct Hstep; subst.
-    iModIntro. iNext. iFrame.
+    iApply (wp_par
+        (λ a', ⌜a' = a1⌝)
+        (λ a', ⌜a' = a2⌝)
+      with "[] []")%I.
+    { by iApply wp_ret. }
+    { by iApply wp_ret. }
+    { iNext. by iIntros (??) "-> ->". }
   Qed.
-
 
   (* [Stop]-related lemmas. *)
   Lemma wp_eval {A} s E η e k (φ: A -> iProp Σ) :

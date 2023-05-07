@@ -375,17 +375,6 @@ Global Hint Resolve
   invert_can_step_Next
 : invert_can_step.
 
-(* [Par (ret _) (ret _) _ _] can step in only one way.  *)
-
-Lemma step_par_ret_ret {A1 A2 A3} v v' (k: A1 * A2 -> free A3) ko σ σ' m' :
-  step (σ, Par (ret v) (ret v') k ko) (σ', m') →
-  σ' = σ ∧
-  m' = k (v, v').
-Proof.
-  intros. destruct_step; try solve [ exfalso; destruct_step ].
-  split; congruence.
-Qed.
-
 (* If the location [l] exists in the store, then [stop CStore (l, v')]
    can step in only one way. *)
 
