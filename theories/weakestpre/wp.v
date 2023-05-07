@@ -18,7 +18,7 @@ From osiris.semantics Require Import semantics.
    [iris.base_logic.lib.gen_heap].
    [hlc] stands for "has later credits". *)
 
-Class osirisGS_gen (hlc: has_lc) (Σ: gFunctor) := OsirisG {
+Class osirisGS_gen (hlc: has_lc) (Σ: gFunctors) := OsirisG {
 
   (* This gives us fancy updates. *)
   osiris_invGS :> invGS_gen hlc Σ;
