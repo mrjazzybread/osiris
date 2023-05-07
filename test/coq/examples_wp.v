@@ -364,7 +364,7 @@ Proof.
   unfold ref_store_load.
   iIntros(??).
   wp.
-  wp_ref ℓ "[Hℓ _]".
+  wp_alloc ℓ "[Hℓ _]".
   wp_store "Hℓ".
   wp_load "Hℓ".
   iPureIntro. reflexivity.

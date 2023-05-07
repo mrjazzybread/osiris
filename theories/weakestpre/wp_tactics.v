@@ -96,8 +96,8 @@ Ltac wp_set_postcondition :=
   end.
 
 
-Ltac wp_ref ℓ H:=
-  iApply wp_ref; iNext; iIntros (ℓ) H; wp.
+Ltac wp_alloc ℓ H:=
+  iApply wp_alloc; iNext; iIntros (ℓ) H; wp.
 Ltac wp_load H :=
   iApply (wp_load with H); iNext; iIntros H; wp.
 Ltac wp_store H :=

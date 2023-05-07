@@ -112,7 +112,7 @@ Section StdLib.
     ⊢ WP call Stdlib__ref v @ s; E
            {{ λ vl, ∃ (ℓ: loc), ℓ ↦ v ∗ ⌜vl = VLoc ℓ ⌝ }}.
   Proof.
-    wp_call. wp_ref l "[Hl _]".
+    wp_call. wp_alloc l "[Hl _]".
     iExists l.
     iFrame.
     iPureIntro. reflexivity.

@@ -552,3 +552,5 @@ Proof.
   intros a H%invert_is_ret_Some Hstep. subst. exfalso.
   eauto using invert_can_step_Ret.
 Qed.
+
+Global Hint Resolve can_step_is_not_ret : is_ret.
