@@ -190,343 +190,343 @@ Local Ltac wp_unfold m :=
 
 Section wp_lemmas.
 
-  Context `{!osirisGS_gen hlc Σ}.
+Context `{!osirisGS_gen hlc Σ}.
 
-  Lemma wp_covariant {A} s E m (φ: A -> iProp Σ) (φ': A -> iProp Σ) :
-    WP m @ s; E {{ φ }} -∗
-    (∀ v, (φ v) -∗ (φ' v)) -∗
-    WP m @ s; E {{ φ' }}.
-  Proof.
-    iLöb as "IH" forall (φ φ' m).
-    iIntros "Hwp Himpl".
+Lemma wp_covariant {A} s E m (φ: A -> iProp Σ) (φ': A -> iProp Σ) :
+  WP m @ s; E {{ φ }} -∗
+  (∀ v, (φ v) -∗ (φ' v)) -∗
+  WP m @ s; E {{ φ' }}.
+Proof.
+  iLöb as "IH" forall (φ φ' m).
+  iIntros "Hwp Himpl".
+  wp_unfold_all.
+  destruct (is_ret m).
+
+  (* Case: [m] is [ret _]. *)
+  { iIntros (?) "H".
+    iDestruct ("Hwp" with "H") as "[$ H]".
+    iApply ("Himpl" with "H"). }
+
+  (* Case: [m] is not [ret _]. *)
+  { iIntros (σ) "Hsi".
+    iPoseProof ("Hwp" $! σ with "Hsi") as "[$ Hwp]";
+    iIntros (σ' m' Hstep).
+    iPoseProof ("Hwp" with "[//]") as ">[$ Hwp]".
+    iModIntro. iNext.
+    iApply ("IH" with "Hwp Himpl"). }
+
+Qed.
+
+Lemma strong_mono {A} P m s E (φ: A → iProp Σ):
+  (P ∗ WP m @ s; E {{ φ }}) -∗ WP m @ s; E {{ λ v, P ∗ φ v }}.
+Proof.
+  iIntros "[HP Hwp]".
+  iApply (wp_covariant with "Hwp [HP]").
+  iFrame "HP".
+  eauto.
+Qed.
+
+Lemma wp_ret {A} s E (v: A) φ:
+  φ v -∗ WP (Ret v) @ s; E {{ φ }}.
+Proof.
+  wp_unfold_all. iIntros. iFrame.
+Qed.
+
+Lemma ret_wp {A} s E (v: A) σ φ:
+  state_interp σ -∗
+  WP (Ret v) @ s; E {{ φ }} ==∗
+  state_interp σ ∗ φ v.
+Proof.
+  wp_unfold_all.
+  iIntros "Hsi Hwp".
+  iSpecialize ("Hwp" with "Hsi").
+  iAssumption.
+Qed.
+
+
+Lemma wp_crash {A s E σ φ} :
+  state_interp σ -∗
+  WP (@crash A) @ s; E {{φ}} -∗
+  False.
+Proof.
+  wp_unfold_all.
+  iIntros "Hsi Hwp".
+  iDestruct ("Hwp" with "Hsi") as "[% _]".
+  eauto with invert_can_step.
+Qed.
+
+Lemma wp_next {A s E σ φ} :
+  state_interp σ -∗
+  WP (@Next A) @ s; E {{ φ }} -∗
+  False.
+Proof.
+  wp_unfold_all.
+  iIntros "Hsi Hwp".
+  iDestruct ("Hwp" with "Hsi") as "[% _]".
+  eauto with invert_can_step.
+Qed.
+
+Lemma wp_grab_state_invariant {A} (m : free A) s E φ :
+  (∀ σ, state_interp σ -∗ state_interp σ ∗ WP m @ s; E {{ φ }}) -∗
+  WP m @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  wp_unfold m.
+  iIntros (σ) "Hsi".
+  iDestruct ("H" with "Hsi") as "[Hsi H]".
+  iSpecialize ("H" with "Hsi").
+  eauto.
+Qed.
+
+(* The Bind rule of Separation Logic. *)
+Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
+  WP (bind m1 m2) @ s; E {{ φ }}.
+Proof.
+  iLöb as "IH" forall (m1 m2 φ).
+  iIntros "Hm1".
+  wp_unfold m1.
+  destruct (is_ret m1) as [a1|] eqn:Hret.
+
+  (* Case: [m1] is [ret a1]. *)
+  (* The result is immediate. *)
+  { rewrite (invert_is_ret_Some Hret). simpl.
+    by iApply wp_grab_state_invariant. }
+
+  (* Case: [m1] is not [ret _]. *)
+  {
+    (* Therefore, [bind m1 m2] is not [ret _] either. *)
+    eapply (is_ret_bind_None _ m2) in Hret.
+    (* Unfold and simplify the goal. *)
     wp_unfold_all.
-    destruct (is_ret m).
-
-    (* Case: [m] is [ret _]. *)
-    { iIntros (?) "H".
-      iDestruct ("Hwp" with "H") as "[$ H]".
-      iApply ("Himpl" with "H"). }
-
-    (* Case: [m] is not [ret _]. *)
-    { iIntros (σ) "Hsi".
-      iPoseProof ("Hwp" $! σ with "Hsi") as "[$ Hwp]";
-      iIntros (σ' m' Hstep).
-      iPoseProof ("Hwp" with "[//]") as ">[$ Hwp]".
-      iModIntro. iNext.
-      iApply ("IH" with "Hwp Himpl"). }
-
-  Qed.
-
-  Lemma strong_mono {A} P m s E (φ: A → iProp Σ):
-    (P ∗ WP m @ s; E {{ φ }}) -∗ WP m @ s; E {{ λ v, P ∗ φ v }}.
-  Proof.
-    iIntros "[HP Hwp]".
-    iApply (wp_covariant with "Hwp [HP]").
-    iFrame "HP".
-    eauto.
-  Qed.
-
-  Lemma wp_ret {A} s E (v: A) φ:
-    φ v -∗ WP (Ret v) @ s; E {{ φ }}.
-  Proof.
-    wp_unfold_all. iIntros. iFrame.
-  Qed.
-
-  Lemma ret_wp {A} s E (v: A) σ φ:
-    state_interp σ -∗
-    WP (Ret v) @ s; E {{ φ }} ==∗
-    state_interp σ ∗ φ v.
-  Proof.
-    wp_unfold_all.
-    iIntros "Hsi Hwp".
-    iSpecialize ("Hwp" with "Hsi").
-    iAssumption.
-  Qed.
-
-
-  Lemma wp_crash {A s E σ φ} :
-    state_interp σ -∗
-    WP (@crash A) @ s; E {{φ}} -∗
-    False.
-  Proof.
-    wp_unfold_all.
-    iIntros "Hsi Hwp".
-    iDestruct ("Hwp" with "Hsi") as "[% _]".
-    eauto with invert_can_step.
-  Qed.
-
-  Lemma wp_next {A s E σ φ} :
-    state_interp σ -∗
-    WP (@Next A) @ s; E {{ φ }} -∗
-    False.
-  Proof.
-    wp_unfold_all.
-    iIntros "Hsi Hwp".
-    iDestruct ("Hwp" with "Hsi") as "[% _]".
-    eauto with invert_can_step.
-  Qed.
-
-  Lemma wp_grab_state_invariant {A} (m : free A) s E φ :
-    (∀ σ, state_interp σ -∗ state_interp σ ∗ WP m @ s; E {{ φ }}) -∗
-    WP m @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    wp_unfold m.
     iIntros (σ) "Hsi".
-    iDestruct ("H" with "Hsi") as "[Hsi H]".
-    iSpecialize ("H" with "Hsi").
-    eauto.
-  Qed.
+    rewrite Hret; clear Hret.
+    (* Simplify and destruct the hypothesis. *)
+    iDestruct ("Hm1" with "Hsi") as "[%Hcanstep Hm1]".
+    assert (Hnotanswer: ¬ is_answer m1) by eauto using can_step_not_answer.
 
-  (* The Bind rule of Separation Logic. *)
-  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
-    WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
-    WP (bind m1 m2) @ s; E {{ φ }}.
-  Proof.
-    iLöb as "IH" forall (m1 m2 φ).
-    iIntros "Hm1".
-    wp_unfold m1.
-    destruct (is_ret m1) as [a1|] eqn:Hret.
+    iSplit.
+    (* Subgoal: [bind m1 m2] can step. *)
+    { eauto using can_step_bind. }
+    (* Subgoal: every reduct of [bind m1 m2] is safe. *)
+    { clear Hcanstep.
+      iIntros (σ' m') "%Hstep".
+      (* Because [m1] is not an answer, a reduct of [bind m1 m2] must be
+         of the form [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
+    destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
+    subst. clear Hstep. rename Hstep' into Hstep.
+    (* The hypothesis can then be further exploited. *)
+    iPoseProof ("Hm1" with "[//]") as ">[$Hm1]".
+    iModIntro. iNext.
+    iApply "IH". iClear "IH".
+    iApply "Hm1". }
+  }
 
-    (* Case: [m1] is [ret a1]. *)
-    (* The result is immediate. *)
-    { rewrite (invert_is_ret_Some Hret). simpl.
-      by iApply wp_grab_state_invariant. }
-
-    (* Case: [m1] is not [ret _]. *)
-    {
-      (* Therefore, [bind m1 m2] is not [ret _] either. *)
-      eapply (is_ret_bind_None _ m2) in Hret.
-      (* Unfold and simplify the goal. *)
-      wp_unfold_all.
-      iIntros (σ) "Hsi".
-      rewrite Hret; clear Hret.
-      (* Simplify and destruct the hypothesis. *)
-      iDestruct ("Hm1" with "Hsi") as "[%Hcanstep Hm1]".
-      assert (Hnotanswer: ¬ is_answer m1) by eauto using can_step_not_answer.
-
-      iSplit.
-      (* Subgoal: [bind m1 m2] can step. *)
-      { eauto using can_step_bind. }
-      (* Subgoal: every reduct of [bind m1 m2] is safe. *)
-      { clear Hcanstep.
-        iIntros (σ' m') "%Hstep".
-        (* Because [m1] is not an answer, a reduct of [bind m1 m2] must be
-           of the form [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
-      destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
-      subst. clear Hstep. rename Hstep' into Hstep.
-      (* The hypothesis can then be further exploited. *)
-      iPoseProof ("Hm1" with "[//]") as ">[$Hm1]".
-      iModIntro. iNext.
-      iApply "IH". iClear "IH".
-      iApply "Hm1". }
-    }
-
-  Qed.
+Qed.
 
 (* This tactic is used when the goal is the [None] branch in the definition
-   of [wp], that is, when the computation at hand is not [ret _]. *)
+ of [wp], that is, when the computation at hand is not [ret _]. *)
 Local Ltac construct_wp :=
-  iSplitR; [
-    (* Prove [can_step]: *)
-    iPureIntro; eauto with step
-  | (* Introduce a hypothetical step: *)
-    iIntros (σ' m') "%Hstep"
-  ].
+iSplitR; [
+  (* Prove [can_step]: *)
+  iPureIntro; eauto with step
+| (* Introduce a hypothetical step: *)
+  iIntros (σ' m') "%Hstep"
+].
 
-  (* [Par]-related lemmas. *)
-  (* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
-   * and φ2 and show that:
-   * - m1 satisfies the post-condition φ1
-   * - m2 satisfies the post-condition φ1
-   * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
-   *     the pair (v1, v2) satisfies φ.
-  *)
-  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
-    WP m1 @ s ; E {{ φ1 }} -∗
-    WP m2 @ s ; E {{ φ2 }} -∗
-    ▷ (
-      ∀ a1 a2,
-      φ1 a1 -∗ φ2 a2 -∗
-      WP (k (a1, a2)) @ s; E {{ φ }}
-    )
-    -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
-  Proof.
-    iLöb as "IH" forall (m1 m2).
-    iIntros "H1 H2 Hjoin".
-    wp_unfold (Par m1 m2 k ko).
-    iIntros (σ) "Hsi".
-    construct_wp.
-    destruct_step.
+(* [Par]-related lemmas. *)
+(* To prove [WP (Par m1 m2 k ko) φ], one should provide two post conditions φ1
+ * and φ2 and show that:
+ * - m1 satisfies the post-condition φ1
+ * - m2 satisfies the post-condition φ1
+ * - for any values v1 and v2 satisfying φ1 and φ2 respectively,
+ *     the pair (v1, v2) satisfies φ.
+*)
+Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
+  WP m1 @ s ; E {{ φ1 }} -∗
+  WP m2 @ s ; E {{ φ2 }} -∗
+  ▷ (
+    ∀ a1 a2,
+    φ1 a1 -∗ φ2 a2 -∗
+    WP (k (a1, a2)) @ s; E {{ φ }}
+  )
+  -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
+Proof.
+  iLöb as "IH" forall (m1 m2).
+  iIntros "H1 H2 Hjoin".
+  wp_unfold (Par m1 m2 k ko).
+  iIntros (σ) "Hsi".
+  construct_wp.
+  destruct_step.
 
-    { (* Case: [StepParRetRet] *)
-      iDestruct (ret_wp with "Hsi H1") as ">[Hsi H1]".
-      iDestruct (ret_wp with "Hsi H2") as ">[Hsi H2]".
-      iModIntro. iNext. iFrame "Hsi".
-      iApply ("Hjoin" with "H1 H2"). }
-    { (* Case: [StepParCrashLeft] *)
-      iModIntro. iNext.
-      iPoseProof (wp_crash with "Hsi H1") as "%".
-      tauto. }
-    { (* Case: [StepCrashRight] *)
-      iModIntro. iNext.
-      iPoseProof (wp_crash with "Hsi H2") as "%".
-      tauto. }
-    { (* Case: [StepNextLeft] *)
-      iModIntro. iNext.
-      iPoseProof (wp_next with "Hsi H1") as "%".
-      tauto. }
-    { (* Case: [StepNextRight] *)
-      iModIntro. iNext.
-      iPoseProof (wp_next with "Hsi H2") as "%".
-      tauto. }
-    { (* Case: [StepParLeft] *)
-      wp_unfold m1.
-      assert (is_ret m1 = None) as ->.
-      { eauto using can_step_is_not_ret with step. }
-      iDestruct ("H1" with "Hsi") as "[%Hcanstep1 H1]".
-      iPoseProof ("H1" with "[//]") as ">[$H1]".
-      iModIntro. iNext.
-      iApply ("IH" with "H1 H2 Hjoin"). }
-    { (* Case: [StepParRight] *)
-      wp_unfold m2.
-      assert (is_ret m2 = None) as ->.
-      { eauto using can_step_is_not_ret with step. }
-      iDestruct ("H2" with "Hsi") as "[%Hcanstep2 H2]".
-      iPoseProof ("H2" with "[//]") as ">[$H2]".
-      iModIntro. iNext.
-      iApply ("IH" with "H1 H2 Hjoin"). }
-  Qed.
-
-  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
-    WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
-    WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply (wp_par
-        (λ a1, WP (k (a1, a2)) @ s; E {{ φ }})
-        (λ a', ⌜a' = a2⌝)
-      with "H []")%I.
-    { by iApply wp_ret. }
-    { iNext. by iIntros (??) "? ->". }
-  Qed.
-
-  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
-    WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
-    WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply (wp_par
-        (λ a', ⌜a' = a1⌝)
-        (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
-      with "[] H")%I.
-    { by iApply wp_ret. }
-    { iNext. by iIntros (??) "-> ?". }
-  Qed.
-
-  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
-    ▷ WP (k (a1, a2)) @ s; E {{ φ }} -∗
-    WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply (wp_par
-        (λ a', ⌜a' = a1⌝)
-        (λ a', ⌜a' = a2⌝)
-      with "[] []")%I.
-    { by iApply wp_ret. }
-    { by iApply wp_ret. }
-    { iNext. by iIntros (??) "-> ->". }
-  Qed.
-
-  (* [Stop]-related lemmas. *)
-
-  Lemma wp_eval {A} s E η e (k : val → free A) φ :
-    ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
-    WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hwp".
-    wp_unfold_head.
-    iIntros (σ) "Hsi".
-    construct_wp.
-    destruct_step.
+  { (* Case: [StepParRetRet] *)
+    iDestruct (ret_wp with "Hsi H1") as ">[Hsi H1]".
+    iDestruct (ret_wp with "Hsi H2") as ">[Hsi H2]".
     iModIntro. iNext. iFrame "Hsi".
-    by iApply wp_bind.
-  Qed.
-
-  Lemma wp_eval_ret s E η e φ :
-    ▷ WP (eval η e) @ s; E {{ φ }} -∗
-    WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hwp".
-    iApply wp_eval.
-    iNext.
-    iApply (wp_covariant with "Hwp").
-    iIntros. by iApply wp_ret.
-  Qed.
-
-  Lemma wp_flip {A} s E x (k: bool -> free A) φ :
-    ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
-    WP (Stop CFlip x k) @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    wp_unfold_head.
-    iIntros (σ) "Hsi".
-    construct_wp.
-    destruct_step.
+    iApply ("Hjoin" with "H1 H2"). }
+  { (* Case: [StepParCrashLeft] *)
     iModIntro. iNext.
-    iSpecialize ("H" $! b).
-    iFrame.
-  Qed.
-
-  Lemma wp_ref {A} s E x (k: loc -> free A) φ :
-    ▷ (∀ ℓ,
-         mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
-         WP (k ℓ) @ s; E {{ φ }} ) -∗
-    WP (Stop CAlloc x k) @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    wp_unfold_head.
-    iIntros (σ) "Hsi".
-    construct_wp.
-    destruct_step.
-    iSpecialize ("H" $! l).
-    iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]".
-    { assumption. }
+    iPoseProof (wp_crash with "Hsi H1") as "%".
+    tauto. }
+  { (* Case: [StepCrashRight] *)
     iModIntro. iNext.
-    iApply ("H" with "HH").
-  Qed.
+    iPoseProof (wp_crash with "Hsi H2") as "%".
+    tauto. }
+  { (* Case: [StepNextLeft] *)
+    iModIntro. iNext.
+    iPoseProof (wp_next with "Hsi H1") as "%".
+    tauto. }
+  { (* Case: [StepNextRight] *)
+    iModIntro. iNext.
+    iPoseProof (wp_next with "Hsi H2") as "%".
+    tauto. }
+  { (* Case: [StepParLeft] *)
+    wp_unfold m1.
+    assert (is_ret m1 = None) as ->.
+    { eauto using can_step_is_not_ret with step. }
+    iDestruct ("H1" with "Hsi") as "[%Hcanstep1 H1]".
+    iPoseProof ("H1" with "[//]") as ">[$H1]".
+    iModIntro. iNext.
+    iApply ("IH" with "H1 H2 Hjoin"). }
+  { (* Case: [StepParRight] *)
+    wp_unfold m2.
+    assert (is_ret m2 = None) as ->.
+    { eauto using can_step_is_not_ret with step. }
+    iDestruct ("H2" with "Hsi") as "[%Hcanstep2 H2]".
+    iPoseProof ("H2" with "[//]") as ">[$H2]".
+    iModIntro. iNext.
+    iApply ("IH" with "H1 H2 Hjoin"). }
+Qed.
 
-  Lemma wp_store {A} s E ℓ v v' k (φ: A → iProp Σ) :
-    mapsto ℓ (DfracOwn 1) v -∗
-    ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ φ }}) -∗
-    WP (Stop CStore (ℓ, v') k) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hℓ Hwp".
-    wp_unfold_head.
-    iIntros (σ) "Hsi".
-    construct_wp.
-    iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
-    iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
-    eapply invert_step_store in Hstep; [| eauto ].
-    destruct Hstep. subst.
-    iModIntro. iNext. iFrame "Hsi".
-    iApply ("Hwp" with "Hℓ").
-  Qed.
+Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
+  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
+  WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_par
+      (λ a1, WP (k (a1, a2)) @ s; E {{ φ }})
+      (λ a', ⌜a' = a2⌝)
+    with "H []")%I.
+  { by iApply wp_ret. }
+  { iNext. by iIntros (??) "? ->". }
+Qed.
 
-  Lemma wp_load {A} s E ℓ v dq (k: val -> free A) φ :
-    mapsto ℓ dq v -∗
-    ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ φ }}) -∗
-    WP (Stop CLoad ℓ k) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hℓ Hwp".
-    wp_unfold_head.
-    iIntros (σ) "Hsi".
-    construct_wp.
-    iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
-    eapply invert_step_load in Hstep; [| eauto ].
-    destruct Hstep. subst.
-    iModIntro. iNext. iFrame "Hsi".
-    iApply ("Hwp" with "Hℓ").
-  Qed.
+Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
+  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
+  WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_par
+      (λ a', ⌜a' = a1⌝)
+      (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
+    with "[] H")%I.
+  { by iApply wp_ret. }
+  { iNext. by iIntros (??) "-> ?". }
+Qed.
+
+Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
+  ▷ WP (k (a1, a2)) @ s; E {{ φ }} -∗
+  WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_par
+      (λ a', ⌜a' = a1⌝)
+      (λ a', ⌜a' = a2⌝)
+    with "[] []")%I.
+  { by iApply wp_ret. }
+  { by iApply wp_ret. }
+  { iNext. by iIntros (??) "-> ->". }
+Qed.
+
+(* [Stop]-related lemmas. *)
+
+Lemma wp_eval {A} s E η e (k : val → free A) φ :
+  ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
+  WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
+Proof.
+  iIntros "Hwp".
+  wp_unfold_head.
+  iIntros (σ) "Hsi".
+  construct_wp.
+  destruct_step.
+  iModIntro. iNext. iFrame "Hsi".
+  by iApply wp_bind.
+Qed.
+
+Lemma wp_eval_ret s E η e φ :
+  ▷ WP (eval η e) @ s; E {{ φ }} -∗
+  WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
+Proof.
+  iIntros "Hwp".
+  iApply wp_eval.
+  iNext.
+  iApply (wp_covariant with "Hwp").
+  iIntros. by iApply wp_ret.
+Qed.
+
+Lemma wp_flip {A} s E x (k: bool -> free A) φ :
+  ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
+  WP (Stop CFlip x k) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  wp_unfold_head.
+  iIntros (σ) "Hsi".
+  construct_wp.
+  destruct_step.
+  iModIntro. iNext.
+  iSpecialize ("H" $! b).
+  iFrame.
+Qed.
+
+Lemma wp_ref {A} s E x (k: loc -> free A) φ :
+  ▷ (∀ ℓ,
+       mapsto ℓ (DfracOwn 1) x ∗ meta_token ℓ ⊤ -∗
+       WP (k ℓ) @ s; E {{ φ }} ) -∗
+  WP (Stop CAlloc x k) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  wp_unfold_head.
+  iIntros (σ) "Hsi".
+  construct_wp.
+  destruct_step.
+  iSpecialize ("H" $! l).
+  iPoseProof (gen_heap_alloc with "Hsi") as ">[$ HH]".
+  { assumption. }
+  iModIntro. iNext.
+  iApply ("H" with "HH").
+Qed.
+
+Lemma wp_store {A} s E ℓ v v' k (φ: A → iProp Σ) :
+  mapsto ℓ (DfracOwn 1) v -∗
+  ▷ (mapsto ℓ (DfracOwn 1) v' -∗ WP (k tt) @ s; E {{ φ }}) -∗
+  WP (Stop CStore (ℓ, v') k) @ s; E {{ φ }}.
+Proof.
+  iIntros "Hℓ Hwp".
+  wp_unfold_head.
+  iIntros (σ) "Hsi".
+  construct_wp.
+  iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
+  iMod ((gen_heap_update _ _ _ v') with "Hsi Hℓ") as "[Hsi Hℓ]".
+  eapply invert_step_store in Hstep; [| eauto ].
+  destruct Hstep. subst.
+  iModIntro. iNext. iFrame "Hsi".
+  iApply ("Hwp" with "Hℓ").
+Qed.
+
+Lemma wp_load {A} s E ℓ v dq (k: val -> free A) φ :
+  mapsto ℓ dq v -∗
+  ▷ (mapsto ℓ dq v -∗ WP (k v) @ s; E {{ φ }}) -∗
+  WP (Stop CLoad ℓ k) @ s; E {{ φ }}.
+Proof.
+  iIntros "Hℓ Hwp".
+  wp_unfold_head.
+  iIntros (σ) "Hsi".
+  construct_wp.
+  iPoseProof (gen_heap_valid with "Hsi Hℓ")  as "%Hin".
+  eapply invert_step_load in Hstep; [| eauto ].
+  destruct Hstep. subst.
+  iModIntro. iNext. iFrame "Hsi".
+  iApply ("Hwp" with "Hℓ").
+Qed.
 
 End wp_lemmas.
