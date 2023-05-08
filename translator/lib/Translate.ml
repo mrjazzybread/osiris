@@ -202,14 +202,28 @@ and trans_tl_expr (e: expression) =
                    EConstr ("ETuple", [args])])
        end
 
+  | Texp_sequence (e1, e2) ->
+     EConstr ("ESeq",
+              [ trans_tl_expr e1;
+                trans_tl_expr e2 ])
+
+  | Texp_ifthenelse (e1, e2, Some e3) ->
+     EConstr ("EIfThenElse",
+              [ trans_tl_expr e1;
+                trans_tl_expr e2;
+                trans_tl_expr e3 ])
+
+  | Texp_ifthenelse (e1, e2, None) ->
+     EConstr ("EIfThen",
+              [ trans_tl_expr e1;
+                trans_tl_expr e2 ])
+
   | Texp_try (_, _) -> assert false
   | Texp_variant (_, _) -> assert false
   | Texp_record _ -> assert false
   | Texp_field (_, _, _) -> assert false
   | Texp_setfield (_, _, _, _) -> assert false
   | Texp_array _ -> assert false
-  | Texp_ifthenelse (_, _, _) -> assert false
-  | Texp_sequence (_, _) -> assert false
   | Texp_while (_, _) -> assert false
   | Texp_for (_, _, _, _, _, _) -> assert false
   | Texp_send (_, _) -> assert false
@@ -229,14 +243,15 @@ and trans_tl_expr (e: expression) =
 
 (* TODO: Other patterns should be supported once the type of [AnnonFun] changes.
    For example, tuples should be allowed. *)
-and trans_tl_value_binding (vb: Typedtree.value_binding): string option * expr =
+and trans_tl_value_binding (recursive: bool) (vb: Typedtree.value_binding):
+      string option * bool * expr =
   match vb.vb_pat.pat_desc with
-  | Tpat_any -> None, trans_tl_expr vb.vb_expr
-  | Tpat_var (i, _) -> Some (Ident.name i), trans_tl_expr vb.vb_expr
+  | Tpat_any -> None, recursive, trans_tl_expr vb.vb_expr
+  | Tpat_var (i, _) -> Some (Ident.name i), recursive, trans_tl_expr vb.vb_expr
   | Tpat_construct (_, i, _, _) ->
      (* [let () = e] bahaves as [let _ = e] at top-level. *)
      if i.cstr_name = "()"
-     then None, trans_tl_expr vb.vb_expr
+     then None, recursive, trans_tl_expr vb.vb_expr
      else assert false
   | _ -> assert false
 
@@ -249,11 +264,12 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   match si.str_desc with
   (* Non-recursive top-level bindings. *)
   | Tstr_value (Nonrecursive, vbl) ->
-     List.map trans_tl_value_binding vbl
+     List.map (trans_tl_value_binding false) vbl
   (* Recursive top-level bindings. *)
-  | Tstr_value (Recursive, _vbl) ->
+  | Tstr_value (Recursive, vbl) ->
   (* List.map trans_tl_value_binding vbl *)
-     assert false
+     List.map (trans_tl_value_binding true) vbl
+
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
   | Tstr_type _ -> assert false (* of Asttypes.rec_flag * type_declaration list *)

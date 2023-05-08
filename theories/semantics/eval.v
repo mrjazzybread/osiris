@@ -997,7 +997,7 @@ with eval_sitem (ηδ : envs) item : free envs :=
       (dconcatenating δ' ηδ ret)
   | ILetRec rbs =>
       let δ' := eval_rec_bindings η rbs in
-      ret (dconcat δ' ηδ)
+      dconcatenating δ' ηδ ret
   | IModule m me =>
       v ← eval_mexpr η me ;
       let δ' := EnvCons m v EnvNil in
