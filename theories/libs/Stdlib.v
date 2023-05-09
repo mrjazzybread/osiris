@@ -134,6 +134,18 @@ Section StdLib__code.
 
 
 
+  Section Stdlib__bool.
+    Definition Stdlib__not : val :=
+      VClo EnvNil $
+           AnonFun "b" $
+           EIfThenElse
+           (EVar "b")
+           (EBool false)
+           (EBool true).
+  End Stdlib__bool.
+
+
+
   (* Putting everything together. *)
   Definition Stdlib :=
     VStruct $
@@ -150,6 +162,7 @@ Section StdLib__code.
       EnvCons ":=" Stdlib__store $
       EnvCons "fst" Stdlib__fst $
       EnvCons "snd" Stdlib__snd $
+      EnvCons "not" Stdlib__not $
       EnvNil.
 End StdLib__code.
 
