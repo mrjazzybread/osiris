@@ -72,6 +72,15 @@
   indicate where we want a sub-AST to be isolated in a toplevel (Coq)
   definition.
 
+ * Find a way to declare a function n-ary so that proving specifications of its
+   partial applications is not required.
+
+ * Find a way to declare functions "pure" so that their applications can move 
+   out of Par-trees.
+
+ * Define a better [wp] tactic so that it automatically calls user-defined 
+   specification lemmas and those about the standard library.
+
 ## Semantics
 
 * At closure construction time, should the semantics trim the environment η
