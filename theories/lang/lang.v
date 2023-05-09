@@ -1,9 +1,10 @@
 (* This file summarizes the content of the lang/ directory. *)
 
-Require Export
-  (* int *)
-  locations
-  syntax
-  sugar
-  encode
+From osiris.lang Require Export
+     (* int *)
+     locations
+     syntax
+     sugar
+     encode
+     notations
 .

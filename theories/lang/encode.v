@@ -30,6 +30,9 @@ Global Instance Encode_option `{Encode A} : Encode (option A) :=
   { encode :=
       λ o, match o with None => VNone | Some v => VSome (encode v) end }.
 
+Global Instance Encode_val : Encode val :=
+  { encode := λ v, v }.
+
 Fixpoint encode_list `{Encode A} (xs : list A) :=
   match xs with
   | []      => vNil
