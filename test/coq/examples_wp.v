@@ -438,7 +438,8 @@ Proof.
   iIntros (id') "#Hid'". wp_continue.
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_use "Hid". iIntros (?->). wp_continue.
+  wp_use "Hid". iIntros (?->). wp.
+  wp_continue.
 
   (* Proving the trivial post condition using the aforementioned specs. *)
   wp_module_spec.

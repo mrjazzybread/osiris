@@ -134,10 +134,16 @@ Proof.
   reflexivity.
 Qed.
 
+(* One should avoid [context] in the following tactic, as it might match an
+   occurence that is in the postcondition. *)
 Ltac wp_continue :=
   lazymatch goal with
-  | |- context [ concatenating eval _ _ ?δ ] => rewrite concatenating_def
-  | |- context [ dconcatenating ?δ _ _ ] => rewrite dconcatenating_def
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (concatenating eval _ _ ?δ) _ => rewrite concatenating_def
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (dconcatenating ?δ _ _) _ => rewrite dconcatenating_def
   end; wp.
 
 Ltac wp_autocontinue :=
@@ -158,23 +164,28 @@ Ltac wp_autocontinue :=
      which means that [v] becomes an opaque value
      about which nothing is known except that [φ v] holds. *)
 
+(* One should avoid [context] in the following tactic, as it might match an
+   occurence that is in the postcondition. *)
 Ltac wp_specify x φ :=
   lazymatch goal with
-  | |- context [ concatenating eval _ _ ?δ ] =>
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (concatenating eval _ _ ?δ) _ =>
       let o := eval cbn in (lookup_name δ x) in
         match o with
-        | Ret ?v =>
-            let H := iFresh in
-            iAssert (φ v) as H; [ | iRevert H; generalize v ]
+        | ret ?v => let H := iFresh in
+                    iAssert (φ v) as H; [  | iRevert H; generalize v ]
         end
-  | |- context [ dconcatenating ?δ _ _ ] =>
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (dconcatenating ?δ _ _) _ =>
       let o := eval cbn in (lookup_name δ x) in
         match o with
-        | ret ?v =>
-            let H := iFresh in
-            iAssert (φ v) as H; [ | iRevert H; generalize v]
+        | ret ?v => let H := iFresh in
+                    iAssert (φ v) as H; [  | iRevert H; generalize v ]
         end
   end.
+
 
 
 
@@ -185,10 +196,13 @@ Ltac wp_specify x φ :=
 Ltac wp_module_spec :=
   lazymatch goal with
   | |- environments.envs_entails _  (?φ (VStruct ?η)) =>
-      iExists η; iSplit; first (iPureIntro; reflexivity);
-      repeat progress first
-             [ (iApply big_sepL_cons; iSplit;
-                first (iExists _; iSplit; [done | iAssumption]))
+      iExists _; iSplit ; first  (iPureIntro; reflexivity);
+      repeat first
+             [ (iApply big_sepL_cons; iSplitL;
+                first (iExists _; iSplit; [ done | iAssumption || done ])
+               )
              | iApply big_sepL_nil; iPureIntro; exact I
-             | idtac "You should now prove the next spec by yourself."]
+             | idtac
+                 "I cannot prove the required spec; please go back and prove the required specifications."
+             ]
   end.
