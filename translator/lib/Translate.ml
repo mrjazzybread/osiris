@@ -1,5 +1,11 @@
 open Ast
 open Typedtree
+open Types
+
+
+
+(* -------------------------------------------------------------------------- *)
+(* The following function transforms identifiers into strings. *)
 
 let string_of_longident (i: Longident.t): string =
   Longident.flatten i
@@ -10,6 +16,66 @@ let rec string_of_path : Path.t -> string = function
   | Pident i -> Ident.name i
   | Pdot (p, s) -> (string_of_path p) ^ "." ^ s
   | _ -> assert false
+
+
+
+(* -------------------------------------------------------------------------- *)
+(* The following functions translate small pieces of the AST into expressions of
+   type[expr]. *)
+let translate_record
+      (fields: (Types.label_description * record_label_definition) array)
+      (representation : Types.record_representation)
+      (extended_expression : expression option)
+      trans_expr : expr =
+  match extended_expression, representation with
+  | None, Record_regular ->
+     (* This explicitely defines the whole record in the expected way. *)
+     begin
+       let body =
+         (* Each element of the array defines a new field of the record.  *)
+         Array.fold_right
+           (fun (elt, e) expr ->
+             match e with
+             | Kept _ -> assert false
+             | Overridden (_, e) ->
+                let name : string = "\"" ^ elt.lbl_name ^ "\"" in
+                let body : expr = trans_expr e in
+                EConstr ("FECons",
+                         [ EPlain name ;
+                           body ;
+                           expr ]))
+           fields (EPlain "FENil")
+       in
+       EConstr ("ERecord", [body])
+     end
+  | Some e, Record_regular ->
+     (* This defines a modification to an existing record *)
+     begin
+       let body =
+         (* Each element of the array defines a new field of the record.  *)
+         Array.fold_right
+           (fun (_elt, e) expr ->
+             match e with
+             | Kept _ -> expr
+             | Overridden (li, e) ->
+                let name : string = string_of_longident li.txt in
+                let body : expr = trans_expr e in
+                EConstr ("FECons",
+                         [ EPlain name ;
+                           body ;
+                           expr ]))
+           fields (EPlain "FENil")
+       in
+       EConstr ("ERecordUpdate",
+                [ trans_expr e ;
+                  body])
+     end
+  | _ -> assert false
+
+
+
+
+
 
 let rec trans_computation_pat (p: computation general_pattern): expr =
   (* p.pat_desc => Tpat_value v, with v of type tpat_value_argument.
@@ -26,15 +92,19 @@ let rec trans_computation_pat (p: computation general_pattern): expr =
           let name = string_of_longident i.txt in
           if name = "\"()\"" && args = []
           then EPlain "PUnit"
+          else if name = "\"true\"" && args = []
+          then EPlain "(PBool true)"
+          else if name = "\"false\"" && args = []
+          then EPlain "(PBool false)"
           else
             begin
               let args =
-                List.fold_left
-                  (fun res e ->
+                List.fold_right
+                  (fun e res ->
                     EConstr ("PCons",
                              [trans_pat e;
                               res]))
-                  (EPlain "PNil") args
+                  args (EPlain "PNil")
               in
               EConstr ("PData",
                        [EPlain name;
@@ -69,9 +139,10 @@ and trans_pat (p: value general_pattern): expr =
      in
      EConstr ("PTuple", [pl])
 
+  | Tpat_construct (_, _, _, _) -> assert false
+
   | Tpat_alias (_, _, _) -> assert false
   | Tpat_constant _ -> assert false
-  | Tpat_construct (_, _, _, _) -> assert false
   | Tpat_variant (_, _, _) -> assert false
   | Tpat_record (_, _) -> assert false
   | Tpat_array _ -> assert false
@@ -171,8 +242,8 @@ and trans_tl_expr (e: expression) =
      (* [e]  : expression
         [cl] : computation case list *)
      let cases =
-       List.fold_left
-         (fun (cases: expr) (case: computation case) ->
+       List.fold_right
+         (fun (case: computation case) (cases: expr) ->
            match case with
            | { c_lhs=pat; c_guard=None; c_rhs=e } ->
               EConstr ("BrCons",
@@ -180,22 +251,24 @@ and trans_tl_expr (e: expression) =
                                  [trans_computation_pat pat; trans_tl_expr e])
                        ; cases])
            | _ -> assert false)
-         (EPlain "BrNil") cl in
+         cl (EPlain "BrNil") in
      EConstr ("EMatch", [trans_tl_expr e; cases])
 
   | Texp_construct (c, _, el) ->
+     (* Some OCaml constructors directly have counterpart in the syntax, as :
+        - Unit: ["()"]
+      *)
      let name = string_of_longident c.txt in
-     if name = "\"()\"" && el = []
-     then EPlain "EUnit"
+     if name = "\"()\"" && el = [] then EPlain "EUnit"
      else
        begin
          let args =
-           List.fold_left
-             (fun res e ->
+           List.fold_right
+             (fun e res ->
                EConstr ("ECons",
                         [trans_tl_expr e;
                          res]))
-             (EPlain "ENil") el
+             el (EPlain "ENil")
          in
          EConstr ("EData",
                   [EPlain name;
@@ -218,10 +291,19 @@ and trans_tl_expr (e: expression) =
               [ trans_tl_expr e1;
                 trans_tl_expr e2 ])
 
+  | Texp_record { fields; representation; extended_expression } ->
+     translate_record
+       fields representation extended_expression
+       trans_tl_expr
+
+  | Texp_field (e, _, label) ->
+     EConstr ("ERecordAccess",
+              [ trans_tl_expr e ;
+                EPlain ("\"" ^ label.lbl_name ^ "\"")
+       ])
+
   | Texp_try (_, _) -> assert false
   | Texp_variant (_, _) -> assert false
-  | Texp_record _ -> assert false
-  | Texp_field (_, _, _) -> assert false
   | Texp_setfield (_, _, _, _) -> assert false
   | Texp_array _ -> assert false
   | Texp_while (_, _) -> assert false
@@ -270,9 +352,12 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   (* List.map trans_tl_value_binding vbl *)
      List.map (trans_tl_value_binding true) vbl
 
+  | Tstr_type _ -> []
+  (* Ignoring the type definition. *)
+  (* of Asttypes.rec_flag * type_declaration list *)
+
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
-  | Tstr_type _ -> assert false (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_typext _ -> assert false (* of type_extension *)
   | Tstr_exception _ -> assert false (* of type_exception *)
   | Tstr_module _ -> assert false (* of module_binding *)
