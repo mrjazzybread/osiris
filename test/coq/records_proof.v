@@ -7,9 +7,10 @@ Import uPred.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.weakestpre Require Import wp wp_tactics notations specifications.
 From osiris.libs Require Import Stdlib.
 From test Require Import records.
+
 
 Context `{!osirisGS_gen hlc Σ}.
 
@@ -82,8 +83,9 @@ Proof.
 
   (* [flip] has teh expected spec. *)
   wp_specify "flip" flip_spec.
-  { iIntros (v'). wp. wp_call.
-    iIntros ([] i <-); wp; wp_call; simpl; wp; done. }
+  { iIntros (v'). wp.
+    iIntros (b i <-); wp_call.
+    wp. simpl (build _ _). wp. done. }
   iIntros (flip) "#Hflip". wp_continue.
 
   (* [flip] is applied to [r_elt]. *)
@@ -102,11 +104,9 @@ Proof.
 
   (* [r_val] has the expected value. *)
   wp_specify "r_val" r_val_spec.
-  { iIntros (r i [] ->).
-    - wp_call. wp_continue. wp.
-      iPureIntro. reflexivity.
-    - wp_call. wp_continue.
-      iPureIntro. reflexivity. }
+  { iIntros (r i [] ->);
+      wp_call; wp_continue; wp;
+      iPureIntro; reflexivity. }
   iIntros (r_val) "#Hr_val". wp_continue.
 
 
@@ -126,4 +126,4 @@ Proof.
 
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.
-Qed.
+Time Qed.

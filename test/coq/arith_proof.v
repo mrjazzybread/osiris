@@ -7,7 +7,7 @@ Import uPred.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.weakestpre Require Import wp wp_tactics notations specifications.
 From osiris.libs Require Import Stdlib.
 From test Require Import arith.
 
@@ -99,9 +99,7 @@ Proof.
       { (* y < 0 *)
         wp.
         wp_par.
-        2: { iPoseProof (Stdlib__neg__spec) as "H".
-             1: reflexivity.
-             iExact "H". }
+        2: { wp. by wp_set_postcondition. }
         2: { iNext. iIntros (? ?) "Hpartial' ->".
              wp. iExact "Hpartial'". }
         { iSpecialize ("IH" $! x).
@@ -111,13 +109,7 @@ Proof.
           { (* Prove that -y is reprensentable *) admit. }
           iApply (wp_covariant with "H").
           iIntros (?->).
-          iPoseProof Stdlib__neg__spec as "Hneg"; first reflexivity.
-          iApply (wp_covariant with "Hneg").
-          iIntros (?->).
-          iPureIntro.
-          unfold encode, Encode_Z.
-          do 2 f_equal.
-          lia. } }
+          wp. iPureIntro. do 2 f_equal. lia. } }
       { (* y >= 0 *)
         apply Z.ltb_nlt in n; rewrite n. wp.
         iIntros ([]); wp.

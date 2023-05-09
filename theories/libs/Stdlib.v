@@ -9,7 +9,7 @@ From iris Require Import base_logic.lib.gen_heap.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.weakestpre Require Import wp wp_tactics notations specifications.
 
 (* The symbols of the OCaml standard library are translated as
    [Stdlib.<symbol>].
@@ -390,8 +390,21 @@ Section Stdlib__specs.
     iNext. iIntros (?->).
     iAssumption.
   Qed.
+
+
+
+  Global Instance Stdlib__not__spec : pure_unary_spec Stdlib__not negb.
+  Proof. iIntros ([] s E φ); iIntros "H"; wp_call; iAssumption. Qed.
+
+  Global Instance Stdlib__neg__spec' : pure_unary_spec Stdlib__neg Z.opp.
+  Proof.
+    iIntros (i s E φ); iIntros "H"; wp_call; rewrite int.neg_repr; iAssumption.
+  Qed.
+
 End Stdlib__specs.
 
+Global Opaque Stdlib__not.
+Global Opaque Stdlib__neg.
 Global Opaque Stdlib__mul.
 Global Opaque Stdlib__add.
 Global Opaque Stdlib__add.
@@ -430,12 +443,21 @@ Proof.
 Qed.
 
 
+
+
+
 (* Shadow the standart [wp] tactic to automatically deal with operations. *)
 Ltac wp :=
   iStartProof; cbn;
   repeat
     lazymatch goal with
     | |- environments.envs_entails _ (▷ _) => iNext
+    | |- environments.envs_entails
+          _
+          (wp _ _ (call Stdlib__neg _) _) => apply tc_change_goal
+    | |- environments.envs_entails
+          _
+          (wp _ _ (call Stdlib__not _) _) => apply tc_change_goal
     | |- environments.envs_entails
           ?Δ
           (wp ?s ?E (call Stdlib__fst ?v) ?φ) =>
