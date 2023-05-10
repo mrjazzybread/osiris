@@ -6,10 +6,7 @@ Import uPred.
 
 From iris Require Import base_logic.lib.gen_heap.
 
-From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import incr.
 
@@ -104,9 +101,8 @@ Proof.
      found in the [let () = ...] of the OCaml file. *)
   wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%ℓ&Hℓ&#Hget&#Hupd)".
-  wp_continue.
+  wp_continue. wp. do 2 wp_continue.
 
-  wp.
   wp_use ("Hget" with "Hℓ").
   iNext. iIntros (?)"[->Hℓ]".
   wp_continue.
