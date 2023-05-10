@@ -2,7 +2,7 @@
 
 ## Cleanup
 
-* Rename `free` to `meta`.
+* Rename `free` to `micro`.
 * Rename `osirisGS_gen` to something less ugly.
 
 ## Iris machinery
@@ -11,6 +11,13 @@
 * Add support for Iris invariants.
 
 ## Engineering and proof mode
+
+* Experiment with the granularity of Coq toplevel definitions.
+  We could use as few as one per OCaml file
+  as as many as one per AST node.
+  In between, we could use one per OCaml definition,
+  and/or make sure that we use enough to ensure that
+  every Coq definition has bounded size.
 
 * By default, hide continuations in goals (they are too verbose).
   Offer an option to show them.
