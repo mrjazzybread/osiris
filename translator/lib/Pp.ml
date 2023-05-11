@@ -81,6 +81,22 @@ let definition = function
                   (align (document_of_expr false body ^^ char ')'));
                   repeat 2 hardline
      ]))
+  | Some n, true, (EConstr ("EFun1Pat", [pat; body])) ->
+     let v = "__osiris_reserved_arg_name" in
+
+     (* [body] is gradually replaced by a match over [pat] *)
+     let branch = EConstr ("Branch", [ pat ; body ]) in
+     let branches = EConstr ("BrCons", [ branch ; EPlain "BrNil" ]) in
+     let match_expr = EConstr ("EMatch", [ EConstr ("EVar", [EPlain v]);
+                                           branches ]) in
+
+     (nest 2 (concat [
+                  string "ILetRec (RecBinding1 \"";
+                  string n; string "\" \""; string v ; string "\"";
+                  space; dollar; hardline;
+                  (align (document_of_expr false match_expr ^^ rparen));
+                  repeat 2 hardline
+     ]))
   | _ -> assert false
 
 let rec document_of_ast = function
