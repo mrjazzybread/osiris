@@ -368,7 +368,7 @@ and trans_tl_value_binding (recursive: bool) (vb: Typedtree.value_binding):
    - module-related declarations
 
    Current issue :
-     mutually recursive definitions are represented as two distinct 
+     mutually recursive definitions are represented as two distinct
      [let (rec)? ...] constructs, which does not allow them to be verified.
 
      The [translate] function should not flatten the definitions, but rather
@@ -391,10 +391,10 @@ let trans_tl_structure (si: Typedtree.structure_item) =
      List.map (trans_tl_value_binding true) vbl
 
   (* Ignoring the type-related definitions. *)
-  | Tstr_type _ -> (* of Asttypes.rec_flag * type_declaration list *)
-  | Tstr_modtype _ -> (* of module_type_declaration *)
-  | Tstr_class_type _ -> (* of (Ident.t * string Location.loc * class_type_declaration) list *)
-      []
+  | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
+  | Tstr_modtype _ (* of module_type_declaration *)
+  | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
+      -> []
 
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
