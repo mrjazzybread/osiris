@@ -444,3 +444,12 @@ Proof.
   (* Proving the trivial post condition using the aforementioned specs. *)
   wp_module_spec.
 Qed.
+
+From osiris.libs Require Import Stdlib.
+
+Goal
+  ⊢ WP call Stdlib__add #3 {{ λ v,
+       WP call v #3 {{ λ res, ⌜res = #6⌝ }} }}.
+Proof.
+  wp. iPureIntro. reflexivity.
+Qed.
