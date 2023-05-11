@@ -79,6 +79,21 @@
   indicate where we want a sub-AST to be isolated in a toplevel (Coq)
   definition.
 
+ * Find a way to declare a function n-ary so that proving specifications of its
+   partial applications is not required.
+
+ * Find a way to declare functions "pure" so that their applications can move
+   out of Par-trees.
+
+ * Define a better [wp] tactic so that it automatically calls user-defined
+   specification lemmas and those about the standard library.
+
+ * Using distinct typeclasses for partially and totally applied binary functions
+   allows to decide which functions are allowed to be partially applied. On the
+   other hand, it duplicates all the proofs.  It might be interesting to use
+   only one TC and add a trivial typeclass to request an automatic treatment of
+   partial applications.
+
 ## Semantics
 
 * At closure construction time, should the semantics trim the environment η

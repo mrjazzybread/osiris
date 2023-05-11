@@ -6,10 +6,7 @@ Import uPred.
 
 From iris Require Import base_logic.lib.gen_heap.
 
-From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import incr.
 
@@ -104,27 +101,22 @@ Proof.
      found in the [let () = ...] of the OCaml file. *)
   wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%ℓ&Hℓ&#Hget&#Hupd)".
-  wp_continue.
-
-  wp_use Stdlib__fst__spec_tac; first done. iNext. wp_continue.
-  wp_use Stdlib__snd__spec_tac; first done. iNext. wp_continue.
+  wp_continue. wp. do 2 wp_continue.
 
   wp_use ("Hget" with "Hℓ").
   iNext. iIntros (?)"[->Hℓ]".
   wp_continue.
 
+  wp.
   wp_use ("Hupd" with "Hℓ").
   iNext. iIntros "Hℓ".
   wp_continue.
 
+  wp.
   wp_use ("Hget" with "Hℓ").
   iNext. iIntros (?)"[->Hℓ]".
-  wp_continue.
+  wp; wp_continue. wp.
 
-  wp_use Stdlib__sub__spec;
-    [ done | done | ].
-  iIntros (vsub)"Hsub". iApply (wp_covariant with "Hsub").
-  iIntros (?->).
 
   iClear "Hget Hupd Hℓ". clear ℓ.
 
@@ -146,10 +138,7 @@ Proof.
   wp_use ("Hget" with "Hℓ").
   iNext. iIntros (?)"[->Hℓ]".
 
-  wp_use Stdlib__sub__spec;
-    [ done | done | ].
-  iIntros (vsub')"Hsub". iApply (wp_covariant with "Hsub").
-  iIntros (?->). wp_continue.
+  wp. wp_continue.
 
   wp_specify "_test" thirteen_spec; first trivial.
   iIntros(_test)"#H_test". wp_continue.
@@ -159,4 +148,3 @@ Proof.
      [wp_module_spec] will finish the proof. *)
   wp_module_spec.
 Time Qed.
-(* With iApply everywhere 8.057 *)

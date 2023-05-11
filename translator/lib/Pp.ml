@@ -59,41 +59,45 @@ let rec document_of_expr (b: bool) e =
                                       List.map (document_of_expr true) l))
 
 let definition = function
-  | (None, h) ->
-     (* TODO: The representation of [let _ = e] and [let () = e] should change
-        so that these expressions are taken into account by the definitions
-        following them !
-        Eg. It is not possible to reason about the following code
-            let a = ref 0
-            let () = a := 1
-            let b = !a
-            ...
-            let z = ...
-
-        An alternative would be to translate the above (assuming this is the sole
-        content of a file) as:
-            let <some name> =
-                let a = ref 0 in
-                a := 1;
-                let b = !a
-                ...
-                let z = ...
-                (a, (b, .., (y, z)))
-
-        This is still a silent error so that the translator can still be used. *)
+  | (None, false, h) ->
      (nest 2 (flow space [
             string "ILet (Binding1 PAny $"; hardline;
             (align (document_of_expr false h ^^ char ')'));
             repeat 2 hardline;
           ]))
-  | (Some n, h) ->
+  | (Some n, false, h) ->
      (nest 2 (concat [
          string "ILet (Binding1 (PVar \"";
          string n;
          string "\") $"; hardline;
          (align (document_of_expr false h ^^ char ')'));
          repeat 2 hardline;
-       ]))
+     ]))
+  | (Some n, true, EConstr ("EFun1Var", [EPlain var; body])) ->
+     (nest 2 (concat [
+                  string "ILetRec (RecBinding1 \"";
+                  string n; string "\""; space;
+                  string var; space; dollar; hardline;
+                  (align (document_of_expr false body ^^ char ')'));
+                  repeat 2 hardline
+     ]))
+  | Some n, true, (EConstr ("EFun1Pat", [pat; body])) ->
+     let v = "__osiris_reserved_arg_name" in
+
+     (* [body] is gradually replaced by a match over [pat] *)
+     let branch = EConstr ("Branch", [ pat ; body ]) in
+     let branches = EConstr ("BrCons", [ branch ; EPlain "BrNil" ]) in
+     let match_expr = EConstr ("EMatch", [ EConstr ("EVar", [EPlain v]);
+                                           branches ]) in
+
+     (nest 2 (concat [
+                  string "ILetRec (RecBinding1 \"";
+                  string n; string "\" \""; string v ; string "\"";
+                  space; dollar; hardline;
+                  (align (document_of_expr false match_expr ^^ rparen));
+                  repeat 2 hardline
+     ]))
+  | _ -> assert false
 
 let rec document_of_ast = function
   | [] -> empty

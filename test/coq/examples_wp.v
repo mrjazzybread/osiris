@@ -7,7 +7,7 @@ Import uPred.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics notations.
+From osiris.weakestpre Require Import wp wp_tactics tactics notations.
 
 
 Context `{!osirisGS_gen hlc Σ}.
@@ -438,8 +438,18 @@ Proof.
   iIntros (id') "#Hid'". wp_continue.
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_use "Hid". iIntros (?->). wp_continue.
+  wp_use "Hid". iIntros (?->). wp.
+  wp_continue.
 
   (* Proving the trivial post condition using the aforementioned specs. *)
   wp_module_spec.
+Qed.
+
+From osiris.libs Require Import Stdlib.
+
+Goal
+  ⊢ WP call Stdlib__add #3 {{ λ v,
+       WP call v #3 {{ λ res, ⌜res = #6⌝ }} }}.
+Proof.
+  wp. iPureIntro. reflexivity.
 Qed.
