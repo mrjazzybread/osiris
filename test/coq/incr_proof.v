@@ -19,30 +19,30 @@ Context `{!osirisGS_gen hlc Σ}.
 (* Definition of the specifications of the [get] and [upd] functions returned by
    [new_counter ()]. *)
 
-Definition is_counter ℓ i : iProp Σ :=
-  ∃ v, ⌜ v = VInt (int.repr i) ⌝ ∗ ℓ ↦ v.
+Definition is_counter l i : iProp Σ :=
+  ∃ v, ⌜ v = VInt (int.repr i) ⌝ ∗ l ↦ v.
 
-Definition get_spec ℓ get : iProp Σ :=
+Definition get_spec l get : iProp Σ :=
   ∀ i s E,
-  {{{ is_counter ℓ i }}}
+  {{{ is_counter l i }}}
     call get VUnit @ s; E
-  {{{ v, RET v; ⌜ v = VInt (int.repr i) ⌝ ∗ is_counter ℓ i }}}.
+  {{{ v, RET v; ⌜ v = VInt (int.repr i) ⌝ ∗ is_counter l i }}}.
 
-Definition upd_spec ℓ upd : iProp Σ :=
+Definition upd_spec l upd : iProp Σ :=
   ∀ s E i i',
-    {{{ is_counter ℓ i }}}
+    {{{ is_counter l i }}}
       call upd (VInt (int.repr i')) @ s; E
-    {{{ RET VUnit; is_counter ℓ i' }}}.
+    {{{ RET VUnit; is_counter l i' }}}.
 
 Definition new_counter_spec v : iProp Σ :=
   {{{ ⌜ True ⌝ }}}
     call v VUnit
   {{{ vget vupd,
       RET (VTuple (VCons vget (VCons vupd VNil)));
-      ∃ ℓ,
-        is_counter ℓ 0 ∗
-        get_spec ℓ vget ∗
-        upd_spec ℓ vupd }}}.
+      ∃ l,
+        is_counter l 0 ∗
+        get_spec l vget ∗
+        upd_spec l vupd }}}.
 
 Definition thirteen_spec v : iProp Σ :=
   ⌜ v = encode 13 ⌝.
@@ -67,32 +67,32 @@ Proof.
   { iIntros (φ) "!>_ Hφ".
     wp_call. wp_continue.
     iApply wp_covariant; first by iApply Stdlib__ref__spec.
-    iIntros (?) "(%ℓ&Hℓ&->)".
+    iIntros (?) "(%l&Hl&->)".
     wp_autocontinue. wp_use "Hφ". clear φ.
-    iExists ℓ.
+    iExists l.
     iSplitL; last iSplit.
     { (* Proof of the [is_counter] predicate. *)
       unfold is_counter. iExists _. by iFrame. }
 
     { (* Proving the specification of [get]. *)
       unfold get_spec. iIntros.
-      iIntros(ϕ)"!>(%&->&Hℓ) Hϕ".
+      iIntros(φ)"!>(%&->&Hl) Hφ".
       wp_call. wp_autocontinue.
 
-      iApply (Stdlib__load__spec_tac $! ϕ with "[//]Hℓ").
+      iApply (Stdlib__load__spec_tac $! φ with "[//]Hl").
 
-      iIntros "Hℓ".
-      iApply "Hϕ".
+      iIntros "Hl".
+      iApply "Hφ".
       iSplit; first done.
       iExists _; by iFrame. }
 
     { (* Proof of the specification of [upd]. *)
       unfold upd_spec. iIntros.
-      iIntros (ϕ) "!>(%&->&Hℓ) Hϕ".
+      iIntros (φ) "!>(%&->&Hl) Hφ".
       wp_call.
-      iApply (Stdlib__store__spec_tac with "Hℓ[Hϕ]").
-      iNext. iIntros "Hℓ".
-      iApply "Hϕ".
+      iApply (Stdlib__store__spec_tac with "Hl[Hφ]").
+      iNext. iIntros "Hl".
+      iApply "Hφ".
       iExists _. by iFrame. }
   }
   iIntros(new_counter) "#Hnew_counter". wp_continue.
@@ -100,43 +100,43 @@ Proof.
   (* The interpreter stops at the first call of [new_couter]. This call can be
      found in the [let () = ...] of the OCaml file. *)
   wp_use ("Hnew_counter" with "[//][]"). iNext.
-  iIntros (vget vupd) "(%ℓ&Hℓ&#Hget&#Hupd)".
+  iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
   wp_continue. wp. do 2 wp_continue.
 
-  wp_use ("Hget" with "Hℓ").
-  iNext. iIntros (?)"[->Hℓ]".
+  wp_use ("Hget" with "Hl").
+  iNext. iIntros (?)"[->Hl]".
   wp_continue.
 
   wp.
-  wp_use ("Hupd" with "Hℓ").
-  iNext. iIntros "Hℓ".
+  wp_use ("Hupd" with "Hl").
+  iNext. iIntros "Hl".
   wp_continue.
 
   wp.
-  wp_use ("Hget" with "Hℓ").
-  iNext. iIntros (?)"[->Hℓ]".
+  wp_use ("Hget" with "Hl").
+  iNext. iIntros (?)"[->Hl]".
   wp; wp_continue. wp.
 
 
-  iClear "Hget Hupd Hℓ". clear ℓ.
+  iClear "Hget Hupd Hl". clear l.
 
 
   (* The interpreter stops at the second call of [new_counter], which occurs in
      the definition of [_test]. *)
   wp_continue.
   wp_use ("Hnew_counter" with "[//][]"). iNext.
-  iIntros (vget' vupd') "(%ℓ&Hℓ&#Hget&#Hupd)". wp_continue.
+  iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)". wp_continue.
 
-  wp_use ("Hget" with "Hℓ").
-  iNext. iIntros (?)"[->Hℓ]".
+  wp_use ("Hget" with "Hl").
+  iNext. iIntros (?)"[->Hl]".
   wp_continue.
 
-  wp_use ("Hupd" with "Hℓ").
-  iNext. iIntros "Hℓ".
+  wp_use ("Hupd" with "Hl").
+  iNext. iIntros "Hl".
   wp_continue.
 
-  wp_use ("Hget" with "Hℓ").
-  iNext. iIntros (?)"[->Hℓ]".
+  wp_use ("Hget" with "Hl").
+  iNext. iIntros (?)"[->Hl]".
 
   wp. wp_continue.
 

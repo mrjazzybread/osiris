@@ -11,18 +11,18 @@ Notation "l ↦ v" :=
 
 (* -------------------------------------------------------------------------- *)
 (* Notations used to handle n-ary calls. *)
-Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ ϕ }}" :=
+Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
   (wp s E (call f v1)
       (fun v => wp s E (call v v2)
-                   (.. (fun v =>  wp s E (call v vn) ϕ ) ..)))
+                   (.. (fun v =>  wp s E (call v vn) φ ) ..)))
   (only printing).
 
 
 
 (* -------------------------------------------------------------------------- *)
 (* Notations to hide some continuations. *)
-Notation "'WP' Par m m' '...' @ s ; E {{ ϕ }}" :=
-  (wp s E (Par m m' _ _) ϕ)
+Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
+  (wp s E (Par m m' _ _) φ)
   (only printing).
 
 Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  'be'  'added.'" :=

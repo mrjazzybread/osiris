@@ -78,7 +78,7 @@ Proof.
   (* There is no need to keep the "spec" of [r_elt] around.*)
   iIntros (r_elt) "->". wp_continue.
 
-  (* [flip] has teh expected spec. *)
+  (* [flip] has the expected spec. *)
   wp_specify "flip" flip_spec.
   { iIntros (v'). wp.
     iIntros (b i <-); wp_call.
@@ -91,7 +91,7 @@ Proof.
           | ].
   iIntros (?? <- ->). wp.
 
-  (* [lily] has teh expected value. *)
+  (* [lily] has the expected value. *)
   wp_specify "lily" (is_equal enc_lily).
   { iPureIntro. reflexivity. }
   iIntros (lily) "#Hlily". wp_continue.

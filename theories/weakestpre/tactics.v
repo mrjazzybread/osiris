@@ -74,14 +74,14 @@ Ltac wp_call :=
 Ltac wp_set_postcondition :=
   match goal with
     |- @environments.envs_entails _ _
-        (?ϕ ?v) =>
-      is_evar ϕ;
+        (?φ ?v) =>
+      is_evar φ;
       instantiate (1 := (λ w, ⌜w = v⌝)%I)
   end.
 
 
-Ltac wp_alloc ℓ H:=
-  iApply wp_alloc; iNext; iIntros (ℓ) H; wp.
+Ltac wp_alloc l H:=
+  iApply wp_alloc; iNext; iIntros (l) H; wp.
 Ltac wp_load H :=
   iApply (wp_load with H); iNext; iIntros H; wp.
 Ltac wp_store H :=

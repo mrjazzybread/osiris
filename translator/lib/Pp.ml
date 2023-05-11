@@ -22,7 +22,7 @@ let string_of_var c (v: string) : string =
   else c ^ " \"" ^ v ^ "\""
 
 (* [document_of_expr b] translates an expression into a document.
-   The boolean [b] indicates whether parentehsis are needed around the
+   The boolean [b] indicates whether parenthesis are needed around the
    expression. *)
 let rec document_of_expr (b: bool) e =
   let maybeparens =

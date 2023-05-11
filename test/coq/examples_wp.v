@@ -389,9 +389,9 @@ Proof.
   unfold ref_store_load.
   iIntros(??).
   wp.
-  wp_alloc ℓ "[Hℓ _]". wp_continue.
-  wp_store "Hℓ". wp_continue.
-  wp_load "Hℓ".
+  wp_alloc l "[Hl _]". wp_continue.
+  wp_store "Hl". wp_continue.
+  wp_load "Hl".
   iPureIntro. reflexivity.
 Qed.
 

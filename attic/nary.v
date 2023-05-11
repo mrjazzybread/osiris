@@ -167,7 +167,7 @@ Section PureEncoder.
 
 
   (* ------------------------------------------------------------------------ *)
-  (* Step 3: write teh definition of what having some (pure for now) n-ary model
+  (* Step 3: write the definition of what having some (pure for now) n-ary model
      means. *)
 
   (* TODO: replace the body of the [Fipoint] by a proper [match] *)

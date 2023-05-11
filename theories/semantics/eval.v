@@ -854,14 +854,14 @@ Fixpoint eval η e : free val :=
       choose ok test
   | ERef e =>
       v ← eval η e ;
-      ℓ ← stop CAlloc v ;
-      ret (VLoc ℓ)
+      l ← stop CAlloc v ;
+      ret (VLoc l)
   | ELoad e =>
-      ℓ ← as_loc (eval η e) ;
-      stop CLoad ℓ
+      l ← as_loc (eval η e) ;
+      stop CLoad l
   | EStore e1 e2 =>
-      '(ℓ, v) ← par (as_loc (eval η e1)) (eval η e2) ;
-      _ ← stop CStore (ℓ, v) ;
+      '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
+      _ ← stop CStore (l, v) ;
       ok
   end
 
