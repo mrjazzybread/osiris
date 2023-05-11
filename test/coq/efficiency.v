@@ -1,11 +1,13 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Imoprt safe wp wp_tactics.
 
 Definition do_something (v : val) : free val :=
   let η := EnvCons "v" v EnvNil in
-  eval η (ELet1Var "x" (EVar "v") (EVar "x")).
+  v ← lookup_name η "v" ;
+  let η := EnvCons "x" v EnvNil in
+  v ← lookup_name η "x" ;
+  ret v.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -19,14 +21,14 @@ Fixpoint left_leaning_sequence_of_binds (n : nat) : free val :=
   end.
 
 (* This seems to exhibit linear time complexity.
-   Speed is roughly 1400 iterations per second. *)
+   Speed is roughly 2500 iterations per second. *)
 
-Time Eval cbn in left_leaning_sequence_of_binds 1400.
+Time Eval cbn in left_leaning_sequence_of_binds 2500.
 
 (* This seems to exhibit linear time complexity.
-   Speed is roughly 60,000 iterations per second. *)
+   Speed is roughly 40,000 iterations per second. *)
 
-Time Eval cbv in left_leaning_sequence_of_binds 40000.
+Time Eval cbv in left_leaning_sequence_of_binds 20000.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -42,14 +44,14 @@ Fixpoint right_leaning_sequence_of_binds (n : nat) (v : val) : free val :=
 (* This seems to exhibit super-linear time complexity.
    The time spent appears to triple when [n] doubles. *)
 
-(*  800 iterations take roughly 1 second. *)
-(* 1600 iterations take roughly 2.8 seconds. *)
+(* 1500 iterations take roughly 1 second. *)
+(* 3000 iterations take roughly 4 seconds. *)
 
-Time Eval cbn in right_leaning_sequence_of_binds 800 VUnit.
-Time Eval cbn in right_leaning_sequence_of_binds 1600 VUnit.
+Time Eval cbn in right_leaning_sequence_of_binds 1500 VUnit.
+Time Eval cbn in right_leaning_sequence_of_binds 3000 VUnit.
 
 (* This seems to exhibit linear time complexity.
-   Speed is roughly 65,000 iterations per second. *)
+   Speed is roughly 100,000 iterations per second. *)
 
-Time Eval cbv in right_leaning_sequence_of_binds 65000 VUnit.
-Time Eval cbv in right_leaning_sequence_of_binds 130000 VUnit.
+Time Eval cbv in right_leaning_sequence_of_binds 100000 VUnit.
+Time Eval cbv in right_leaning_sequence_of_binds 200000 VUnit.

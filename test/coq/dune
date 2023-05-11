@@ -1,7 +1,6 @@
 (coq.theory
   (package osiris)
   (theories osiris)
-  (modules :standard \ efficiency)
   (name test))
 
 (rule
@@ -10,7 +9,7 @@
   (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/incr.ml))
   (action
-    (ignore-stderr 
+    (ignore-stderr
       (with-stdout-to
         %{targets}
         (progn
