@@ -1,6 +1,9 @@
 open Ast
 open Typedtree
 
+type value_binding =
+  string option * expr (* TODO *)
+
 let string_of_longident (i: Longident.t): string =
   Longident.flatten i
   |> List.map (fun s -> "\"" ^ s ^ "\"")
@@ -229,7 +232,7 @@ and trans_tl_expr (e: expression) =
 
 (* TODO: Other patterns should be supported once the type of [AnnonFun] changes.
    For example, tuples should be allowed. *)
-and trans_tl_value_binding (vb: Typedtree.value_binding): string option * expr =
+and trans_tl_value_binding (vb: Typedtree.value_binding): value_binding =
   match vb.vb_pat.pat_desc with
   | Tpat_any -> None, trans_tl_expr vb.vb_expr
   | Tpat_var (i, _) -> Some (Ident.name i), trans_tl_expr vb.vb_expr
@@ -245,7 +248,7 @@ and trans_tl_value_binding (vb: Typedtree.value_binding): string option * expr =
    Note: if need be, it is possible to query the environment at the
    ````` [structure_item] at hand, which might be useful if the translation tool
    ever need to generate environment in the Coq development. *)
-let trans_tl_structure (si: Typedtree.structure_item) =
+let trans_tl_structure (si: Typedtree.structure_item) : value_binding list =
   match si.str_desc with
   (* Non-recursive top-level bindings. *)
   | Tstr_value (Nonrecursive, vbl) ->
