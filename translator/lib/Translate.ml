@@ -259,19 +259,20 @@ let trans_tl_structure (si: Typedtree.structure_item) : value_binding list =
      assert false
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
-  | Tstr_type _ -> assert false (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_typext _ -> assert false (* of type_extension *)
   | Tstr_exception _ -> assert false (* of type_exception *)
   | Tstr_module _ -> assert false (* of module_binding *)
   | Tstr_recmodule _ -> assert false (* of module_binding list *)
-  | Tstr_modtype _ -> assert false (* of module_type_declaration *)
   | Tstr_open _ -> assert false (* of open_declaration *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
-  | Tstr_class_type _ -> assert false
-  (* of
-     (Ident.t * string Location.loc * class_type_declaration) list *)
   | Tstr_include _ -> assert false (* of include_declaration *)
   | Tstr_attribute _ -> assert false (*of attribute*)
+  | Tstr_type _
+  | Tstr_modtype _
+  | Tstr_class_type _
+      (* Type definitions, module type definitions, and class type definitions
+         have no runtime effect and are ignored. *)
+      -> []
 
 let translate (t: Typedtree.structure): ast =
   List.flatten (List.map trans_tl_structure t.str_items)
