@@ -67,6 +67,24 @@ Proof.
   constructor.
 Qed.
 
+(* Simplification is compatible with [bind]. *)
+
+Lemma simplify_bind {A B} (m1 m2 : free A) (f : A → free B) :
+  simplify m1 m2 →
+  simplify (bind m1 f) (bind m2 f).
+Proof.
+  induction 1; simpl; rewrite ?bind_bind; econstructor; eauto.
+Qed.
+
+Local Hint Constructors rtc : rtc.
+
+Local Lemma rtc_simplify_bind {A B} (m1 m2 : free A) (f : A → free B) :
+  rtc simplify m1 m2 →
+  rtc simplify (bind m1 f) (bind m2 f).
+Proof.
+  induction 1; eauto using simplify_bind with rtc.
+Qed.
+
 (* A destruction tactic. *)
 
 Ltac destruct_simplify :=
@@ -235,4 +253,100 @@ Proof.
      these terms cannot appear on the left-hand side of [simplify], so the
      proof is trivial. *)
   induction 1; eauto with step.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The parallel simplification relation is inductively defined as follows. *)
+
+(* We prove that parallel simplification is the reflexive transitive closure
+   of simplification. Parallel simplification is intended to allow a maximum
+   amount of simplification in just one step. *)
+
+Inductive psimplify {A : Type} : free A → free A → Prop :=
+| PSimplifyReflexive:
+    ∀ m,
+    psimplify m m
+| PSimplifyEval:
+    ∀ η e k m',
+    psimplify (bind (eval η e) k) m' →
+    psimplify (Stop CEval (η, e) k) m'
+| PSimplifyLoop:
+    ∀ η x i1 i2 e k m',
+    psimplify (bind (loop η x i1 i2 e) k) m' →
+    psimplify (Stop CLoop (η, x, i1, i2, e) k) m'
+| PSimplifyParRetRet:
+    ∀ {A1 A2} (a1 : A1) (a2 : A2) k m',
+    psimplify (k (a1, a2)) m' →
+    psimplify (Par (Ret a1) (Ret a2) k next) m'
+| PSimplifyParRetLeft:
+    ∀ {A1 A2} (a1 : A1) (m2 m'2 : free A2) k m',
+    psimplify m2 m'2 →
+    psimplify (v2 ← m'2 ; k (a1, v2)) m' →
+    psimplify (Par (Ret a1) m2 k next) m'
+| PSimplifyParRetRight:
+    ∀ {A1 A2} (m1 m'1 : free A1) (a2 : A2) k m',
+    psimplify m1 m'1 →
+    psimplify (v1 ← m'1 ; k (v1, a2)) m' →
+    psimplify (Par m1 (Ret a2) k next) m'
+| SimplifyPar:
+    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko m',
+    psimplify m1 m'1 →
+    psimplify m2 m'2 →
+    psimplify (Par m'1 m'2 k ko) m' →
+    psimplify (Par m1 m2 k ko) m'
+.
+
+Global Hint Constructors psimplify : psimplify.
+
+(* Parallel simplification contains simplification. *)
+
+Lemma simplify_psimplify {A} (m1 m2 : free A) :
+  simplify m1 m2 →
+  psimplify m1 m2.
+Proof.
+  induction 1; eauto with psimplify.
+Qed.
+
+(* Parallel simplification is transitive. *)
+
+Lemma psimplify_transitive {A} (m1 m2 : free A) :
+  psimplify m1 m2 →
+  ∀ m3,
+  psimplify m2 m3 →
+  psimplify m1 m3.
+Proof.
+  induction 1; intros ? Hsimp; eauto with psimplify.
+Qed.
+
+(* Parallel simplification is the reflexive transitive closure of
+   simplification. *)
+
+Local Lemma rtc_simplify_par_left :
+  ∀ {A1 A2 A} m1 m'1 m2 (k : A1 * A2 → free A) ko,
+  rtc simplify m1 m'1 →
+  rtc simplify (Par m1 m2 k ko) (Par m'1 m2 k ko).
+Proof.
+  induction 1; eauto with rtc simplify.
+Qed.
+
+Local Lemma rtc_simplify_par_right :
+  ∀ {A1 A2 A} m1 m2 m'2 (k : A1 * A2 → free A) ko,
+  rtc simplify m2 m'2 →
+  rtc simplify (Par m1 m2 k ko) (Par m1 m'2 k ko).
+Proof.
+  induction 1; eauto with rtc simplify.
+Qed.
+
+Lemma psimplify_rtc_simplify {A} (m1 m2 : free A) :
+  psimplify m1 m2 →
+  rtc simplify m1 m2.
+Proof.
+  induction 1;
+  eauto using
+    rtc_transitive,
+    rtc_simplify_par_left,
+    rtc_simplify_par_right,
+    rtc_simplify_bind
+  with rtc simplify.
 Qed.
