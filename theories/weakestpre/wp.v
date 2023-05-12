@@ -785,7 +785,7 @@ Qed.
    holds then the safety of the simplified program [m'] implies the safety
    of the more complex original program [m]. *)
 
-Lemma wp_simplify {A} (m m' : free A) s E φ :
+Local Lemma wp_simplify {A} (m m' : free A) s E φ :
   WP m' @ s ; E {{ φ }} -∗
   ⌜ simplify m m' ⌝ -∗
   WP m  @ s ; E {{ φ }}.
@@ -827,6 +827,42 @@ Proof.
   (* Then, the result follows from the induction hypothesis. *)
   iApply ("IH" with "Hwp [//]").
 Qed. (* yes! *)
+
+(* Technical corollaries. *)
+
+Local Lemma wp_simplify' {A} (m m' : free A) s E φ :
+  simplify m m' →
+  WP m' @ s ; E {{ φ }} -∗
+  WP m  @ s ; E {{ φ }}.
+Proof.
+  iIntros (Hsimp) "Hwp".
+  iApply (wp_simplify with "Hwp [//]").
+Qed.
+
+Local Lemma wp_rtc_simplify {A} (m m' : free A) s E φ :
+  rtc simplify m m' →
+  WP m' @ s ; E {{ φ }} -∗
+  WP m  @ s ; E {{ φ }}.
+Proof.
+  induction 1; iIntros "Hwp"; [ iAssumption |].
+  iApply (wp_simplify' with "[Hwp]"); [ eauto |].
+  iApply IHrtc.
+  iAssumption.
+Qed.
+
+(* A final corollary, intended for public use: parallel simplification
+   is sound. *)
+
+Lemma wp_psimplify {A} (m m' : free A) s E φ :
+  psimplify m m' →
+  WP m' @ s ; E {{ φ }} -∗
+  WP m  @ s ; E {{ φ }}.
+Proof.
+  iIntros (Hpsimp) "Hwp".
+  apply psimplify_rtc_simplify in Hpsimp.
+  iApply wp_rtc_simplify; [ eauto |].
+  iAssumption.
+Qed.
 
 End rules.
 
