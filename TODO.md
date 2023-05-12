@@ -4,6 +4,7 @@
 
 * Rename `free` to `micro`.
 * Rename `osirisGS_gen` to something less ugly.
+* In `steps.v`, we could use `nsteps` from `stdpp`.
 
 ## Iris machinery
 
