@@ -23,13 +23,14 @@
   `wp_eval`
   in the tactics.
 
-* Remove also the use of `wp_eval_ret`.
+* Remove also the use of `wp_eval_ret`,
+  which is `wp_eval` plus tail call optimisation.
   This may require revisiting the definitions of `simplify`
   and `psimplify`.
 
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
-  as as many as one per AST node.
+  and as many as one per AST node.
   In between, we could use one per OCaml definition,
   and/or make sure that we use enough to ensure that
   every Coq definition has bounded size.
@@ -41,18 +42,6 @@
   + One binding per line.
   + By default, display complex values (such as closures)
     in an abbreviated form.
-
-* When we have a tree of nested `Par` and some of the leaves in the middle
-  are of the form `Ret _`, one should in principle be able to permute the
-  leaves so as to then be able to use `prove_safe_Par_ret_left`. Can this
-  be implemented? Is it worth the trouble?
-  Minimal example: suppose we have `par m1 (par (ret a2) (ret a3))`
-  where `m1` is a complex computation. Currently we are forced to
-  apply the general reasoning rule `prove_safe_par` but if we could
-  permute and/or reassociate the leaves then we could apply
-  `prove_safe_Par_ret_left` or `prove_safe_Par_ret_right` (twice)
-  and we would end up *not* needing to reason about a parallel
-  composition.
 
 * The judgement `safe m φ` has just one postcondition
   and forbids the answer `Next`.
