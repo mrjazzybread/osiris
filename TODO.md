@@ -13,6 +13,20 @@
 
 ## Engineering and proof mode
 
+* Take advantage of `wp_psimplify` in the simplification tactics.
+
+* Once the above is done,
+  remove the use of
+  `wp_par_ret_ret`,
+  `wp_par_ret_left`,
+  `wp_par_ret_right`,
+  `wp_eval`
+  in the tactics.
+
+* Remove also the use of `wp_eval_ret`.
+  This may require revisiting the definitions of `simplify`
+  and `psimplify`.
+
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
   as as many as one per AST node.
