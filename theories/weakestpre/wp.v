@@ -777,6 +777,57 @@ Proof.
   iApply ("Hwp" with "Hl").
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
+(* Simplification is sound. *)
+
+(* That is, as announced in semantics/simplification.v, if [simplify m m']
+   holds then the safety of the simplified program [m'] implies the safety
+   of the more complex original program [m]. *)
+
+Lemma wp_simplify {A} (m m' : free A) s E φ :
+  WP m' @ s ; E {{ φ }} -∗
+  ⌜ simplify m m' ⌝ -∗
+  WP m  @ s ; E {{ φ }}.
+Proof.
+  (* Proceed by Löb induction. *)
+  iLöb as "IH" forall (m m').
+  iIntros "Hwp" (Hsimp).
+  (* [m] cannot be [ret a], as [ret a] cannot be simplified. *)
+  wp_case_is_ret m Hret; [ exfalso; destruct_simplify |].
+  wp_unfold_head; rewrite Hret. intro_state.
+  (* Now examine [m']. *)
+  wp_case_is_ret m' Hret'.
+  (* Case: [m'] is [ret a']. *)
+  { construct_wp_nonret; [ eauto using invert_simplify_ret |].
+    pose proof (simplify_ret_step_diagram Hsimp Hstep) as (? & ?); subst.
+    tick_wp. iAssumption. }
+  (* Case: [m'] can take a step. *)
+  rename m' into ms. rename Hret' into Hretms.
+  (* Then, [m] can step, too. *)
+  iAssert (⌜ can_step (σ, m) ⌝)%I as "%".
+  { wp_unfold ms. spec_state "Hwp"; rewrite Hretms. destruct_wp_nonret.
+    eauto using invert_simplify_can_step. }
+  (* Now examine an arbitrary step out of [m]. *)
+  construct_wp_nonret.
+  (* Exploit the main simulation diagram. *)
+  pose proof (simplify_step_diagram Hsimp Hstep)
+    as [ (? & ?) | (ms' & Hstep' & Hsimp') ]; [ subst |].
+  (* Case: the simplification step and the semantic step coincide. *)
+  { tick_wp. iAssumption. }
+  (* Case: the two steps commute. *)
+  (* We can now commit to stepping [ms] -- a commitment which we have
+     carefully avoided up to this point. *)
+  wp_unfold ms; rewrite Hretms. spec_state "Hwp". destruct_wp_nonret.
+  step_wp. tick_wp. (* The induction hypothesis becomes usable! *)
+  (* We have [simplify? m' ms']. If in fact [m'] and [ms'] coincide,
+     then the result is immediate, *)
+  destruct Hsimp' as [|]; [ subst; iAssumption |].
+  (* so we focus on the case [simplify m' ms']. *)
+  (* Then, the result follows from the induction hypothesis. *)
+  iApply ("IH" with "Hwp [//]").
+Qed. (* yes! *)
+
 End rules.
 
 (* --------------------------------------------------------------------------*)

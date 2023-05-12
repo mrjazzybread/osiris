@@ -6,4 +6,5 @@ Require Export
   eval
   step
   steps
+  simplification
 .
