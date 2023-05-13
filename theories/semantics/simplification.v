@@ -34,6 +34,13 @@ Inductive simplify {A : Type} : free A → free A → Prop :=
     simplify
       (Stop CLoop (η, x, i1, i2, e) k)
       (bind (loop η x i1 i2 e) k)
+| SimplifyFlip :
+    ∀ x k m,
+    k false = m →
+    k true = m →
+    simplify
+      (Stop CFlip x k)
+      m
 | SimplifyParRetLeft:
     ∀ {A1 A2} (a1 : A1) (m2 : free A2) k,
     simplify
@@ -73,7 +80,7 @@ Lemma simplify_bind {A B} (m1 m2 : free A) (f : A → free B) :
   simplify m1 m2 →
   simplify (bind m1 f) (bind m2 f).
 Proof.
-  induction 1; simpl; rewrite ?bind_bind; econstructor; eauto.
+  induction 1; simpl; rewrite ?bind_bind; econstructor; eauto with congruence.
 Qed.
 
 Local Hint Constructors rtc : rtc.
@@ -156,6 +163,9 @@ Proof.
   { destruct_step. left; eauto. }
   (* SimplifyLoop *)
   { destruct_step. left; eauto. }
+  (* SimplifyFlip *)
+  (* This is where [k false = k true] is exploited. *)
+  { destruct_step. left; destruct b; eauto. }
   (* SimplifyParRetLeft *)
   { destruct_step; try solve [
       exfalso; destruct_step
@@ -219,6 +229,7 @@ Lemma simplify_ret_implies_step {A} (m1 m2 : free A) :
   step (σ, m1) (σ, m2).
 Proof.
   induction 1; intros σ ? Hm2; try solve [ congruence | eauto with step ].
+  { subst. eauto with step. }
   { destruct m2; simpl in *; solve [ congruence | eauto with step ]. }
   { destruct m1; simpl in *; solve [ congruence | eauto with step ]. }
 Qed.
@@ -275,6 +286,12 @@ Inductive psimplify {A : Type} : free A → free A → Prop :=
     ∀ η x i1 i2 e k m',
     psimplify (bind (loop η x i1 i2 e) k) m' →
     psimplify (Stop CLoop (η, x, i1, i2, e) k) m'
+| PSimplifyFlip :
+    ∀ x k m m',
+    k false = m →
+    k true = m →
+    psimplify m m' →
+    psimplify (Stop CFlip x k) m'
 | PSimplifyParRetRet:
     ∀ {A1 A2} (a1 : A1) (a2 : A2) k m',
     psimplify (k (a1, a2)) m' →
