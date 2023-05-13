@@ -3,25 +3,44 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
 
-(* This file defines a simplification relation whose aim is to simplify
-   reasoning about programs. That is, [simplify m m'] means that [m] can
-   be simplified to [m']. When this relation holds, we expect [WP m' φ]
-   to imply [WP m φ], that is, one can safely reason about the simpler
-   program [m'] and to transport the safety guarantee offered by Iris
-   from [m'] back to [m]. *)
+(* This file defines a simplification relation: [simplify m m'] means that
+   [m] can be simplified to [m'].
+
+   When this relation holds, we expect [WP m' φ] to imply [WP m φ]. This
+   means that one can prove a safety property of the simpler program [m']
+   and transport this property back to [m].
+
+   The simplification relation can serve two slightly distinct purposes:
+
+   - It can be used to simplify a program while proving that this program
+     satisfies a specification of the form of [WP m φ]. This simplification
+     process can be transparently performed by the tactics that we define.
+
+   - It can be used to write specifications for pure programs. Indeed, if a
+     program is pure (that is, does not involve divergence, non-determinism,
+     or mutable state) then it should admit a specification of the form
+     [∃ a, simplify m (ret a) ∧ P a].
+
+     Such a specification implies [WP m (λa, ⌜ P a ⌝)], so a pure program
+     is a special case of a possibly-impure program. *)
 
 (* -------------------------------------------------------------------------- *)
 
 (* The simplification relation is inductively defined as follows. *)
 
-(* The constructors [SimplifyEval] and [SimplifyLoop] allow certain [Stop]
-   events to be replaced with their meaning. The existence of these two
-   constructors is not essential. Two more interesting constructors are
-   [SimplifyParRetLeft] and [SimplifyParRetRight], which simplify a [par]
-   construct when at least one side is [ret _]. It is worth noting that these
-   simplification steps are not reduction steps: that is, [simplify] is not a
-   subrelation of [step]. The last two constructors allow simplification to
-   take place under a [Par] constructor. *)
+(* The constructors [SimplifyEval], [SimplifyLoop], [SimplifyFlip] allow
+   certain [Stop] events to be replaced with their meaning. [SimplifyFlip]
+   requires [k false = k true], which means that it is applicable only in
+   the special case where the final outcome of the computation is
+   independent of the coin flip. (This is useful; e.g., it allows OCaml's
+   [assert] construct to be regarded pure.)
+
+   Two constructors [SimplifyParRetLeft] and [SimplifyParRetRight] simplify
+   a [par] construct where at least one side is [ret _]. These steps are not
+   reduction steps: that is, [simplify] is not a subrelation of [step].
+
+   The constructors [SimplifyParLeft] and [SimplifyParRetRight] allow
+   simplification to take place under a [Par] constructor. *)
 
 Inductive simplify {A : Type} : free A → free A → Prop :=
 | SimplifyEval:
