@@ -16,7 +16,7 @@
 * Develop a set of tactics specifically for reasoning about pure
   programs using `psimplify`.
 
-* Take advantage of the lemma `wp_psimplify` in the simplification
+* Better take advantage of the lemma `wp_psimplify` in the simplification
   tactics.
 
 * Once the above is done,
@@ -107,6 +107,16 @@
 
  * Use more hint databases for typeclasses, not to mix simplifications with
    reasoning.
+
+ * Find a good way to rewrite `VInt _` and others using the Encode typeclass.
+   Currently, special instances are written when applying specifications.
+   Two ideas would be to:
+   - either rewrite `VInt i` and others as `#i` after each step (might cost a
+     lot)
+   - either write generic typeclass instances which know about Encode (for the
+     lemmas applying specifications). This was not added yet as the
+     specification mechanism will probably change soon.
+
 
 ## Semantics
 
