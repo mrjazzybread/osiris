@@ -13,7 +13,11 @@
 
 ## Engineering and proof mode
 
-* Take advantage of `wp_psimplify` in the simplification tactics.
+* Develop a set of tactics specifically for reasoning about pure
+  programs using `psimplify`.
+
+* Take advantage of the lemma `wp_psimplify` in the simplification
+  tactics.
 
 * Once the above is done,
   remove the use of
@@ -190,6 +194,10 @@
 * Exceptions
   + Exception names must be treated like variables,
     *not* like data constructors
+  + Asynchronous exceptions (`Out_of_memory`, `Stack_overflow`...)
+    are not modelled in our semantics, so must not be caught;
+    catch-all handlers are therefore problematic;
+    `Fun.protect` seems OK because it is effect-polymorphic
 * Effect handlers
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
