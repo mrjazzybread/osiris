@@ -102,6 +102,12 @@
    only one TC and add a trivial typeclass to request an automatic treatment of
    partial applications.
 
+ * Get tactics to fail: currently, tactics usually do not fail and might not
+   make progress. Thus, it is difficult to debug them.
+
+ * Use more hint databases for typeclasses, not to mix simplifications with
+   reasoning.
+
 ## Semantics
 
 * At closure construction time, should the semantics trim the environment η

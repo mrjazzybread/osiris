@@ -3,7 +3,7 @@ From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics specifications.
+From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
 
 
 

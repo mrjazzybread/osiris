@@ -5,4 +5,5 @@ From osiris.weakestpre Require Export
      wp_tactics tactics
      specifications
      notations
+     tc_simplifications
 .
