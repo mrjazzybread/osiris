@@ -115,6 +115,6 @@ let print fmt module_name headers (a: ast) : unit =
                   (* Generated code: *)@.\
                   Definition %s : mexpr :=
                     MkStruct [ %a ].@.\
-                  @.(* END. *)"
+                  @.(* END. *)%!"
                  headers module_name
                  print_ast a

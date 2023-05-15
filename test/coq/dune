@@ -9,11 +9,9 @@
   (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/incr.ml))
   (action
-    (with-stdout-to
-      %{targets}
-      (progn
-        (run %{ocamlc} -bin-annot %{src})
-        (run %{gen} -ml %{src} -verbose)))))
+    (progn
+      (run %{ocamlc} -bin-annot %{src})
+      (run %{gen} -ml %{src} -out %{targets} -verbose))))
 
 (rule
   (targets arith.v)
@@ -21,11 +19,9 @@
   (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/arith.ml))
   (action
-    (with-stdout-to
-      %{targets}
-      (progn
-        (run %{ocamlc} -bin-annot %{src})
-        (run %{gen} -ml %{src} -verbose)))))
+    (progn
+      (run %{ocamlc} -bin-annot %{src})
+      (run %{gen} -ml %{src} -out %{targets} -verbose))))
 
 (rule
   (targets records.v)
@@ -33,8 +29,6 @@
   (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/records.ml))
   (action
-    (with-stdout-to
-      %{targets}
-      (progn
-        (run %{ocamlc} -bin-annot %{src})
-        (run %{gen} -ml %{src} -verbose)))))
+    (progn
+      (run %{ocamlc} -bin-annot %{src})
+      (run %{gen} -ml %{src} -out %{targets} -verbose))))

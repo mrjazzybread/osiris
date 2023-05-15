@@ -164,4 +164,10 @@ let () =
   then run_dune ()
   else if input_ml = "/dev/null"
   then run_cmt Format.std_formatter input_cmt
-  else run_ml Format.std_formatter input_ml
+  else if output_coq <> "/dev/null"
+  then (* [output_coq] is not "/dev/null", use it. *)
+    let output = open_out output_coq in
+    let fmt = Format.formatter_of_out_channel output in
+    run_ml fmt input_ml;
+    close_out output
+  else run_ml Format.std_formatter input_ml;
