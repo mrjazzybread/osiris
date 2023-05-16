@@ -26,6 +26,11 @@ Implicit Type σ : store.
 Definition config (A : Type) : Type :=
   store * free A.
 
+(* This tactic explodes a configuration [c] into a pair [(σ, m)]. *)
+
+Ltac destruct_config :=
+  repeat match goal with c: config _ |- _ => destruct c end.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The relation [step] is defined as follows. *)
