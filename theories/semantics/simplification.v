@@ -510,10 +510,10 @@ Qed.
 
 (* [maxsimp_aux _ m] computes a simplification of [m] as well as a proof that
    its result [r] is such that [simp m r].
-   The tratement of [ko] in [Par _ _ _ ko] requires the Functional
+   The treatment of [ko] in [Par _ _ _ ko] requires the Functional
    Extentionality axiom.
 
-   This fixpoint is defined as a match.
+   This fixpoint is defined as a match over the term to simplify.
    It could have been defined in an interactive way, but the result was very
    hard to understand. Providing the term of the function directly helps
    understand what the function does.
@@ -539,18 +539,18 @@ Fixpoint maxsimp_aux {A} (m: free A):
   (* In order to simplify [Par m1 m2 k ko], one should first simplify [m1]
      (resp. [m2]) into [m'1] (resp. [m'2]). Then:
      1. either [ko () <> Next],
-        in which case one can only use the aforementioned simplificatins of [m1]
-        and [m2] ;
+        in which case one can only use the aforementioned simplifications of
+        [m1] and [m2] ;
      2. either [ko () = Next], but [m'1 <> Ret _] and [m'2 <> Ret _],
-        in which case one can only use the aforementioned simplificatins of [m1]
-        and [m2] ;
+        in which case one can only use the aforementioned simplifications of
+        [m1] and [m2] ;
      3. either [ko () = Next] and
         a. [m'1 = Ret _] and [m'2 = Ret _],
-           in which case, one shoule use [simp_par_ret_ret] ;
+           in which case, one should use [simp_par_ret_ret] ;
         b. [m'1 = Ret _] and [m'2 <> Ret _],
-           in which case, one shoule use [SimpParRetLeft] ;
+           in which case, one should use [SimpParRetLeft] ;
         c. [m'1 <> Ret _] and [m'2 = Ret _],
-           in which case, one shoule use [SimpParRetRight]. *)
+           in which case, one should use [SimpParRetRight]. *)
   | @Par _ A1 A2 m1 m2 k ko =>
       λ (_ : m = Par m1 m2 k ko),
 

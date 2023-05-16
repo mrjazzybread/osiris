@@ -13,6 +13,11 @@
 
 ## Engineering and proof mode
 
+* Finish [maxsimp] (case [Stop _ _ _] and a TODO to remove).
+
+* Add an instance of [TC_change_goal] that uses [maxsimp] or create a tactic
+  [wp_simp] to perform the simplification.
+
 * Develop a set of tactics specifically for reasoning about pure
   programs using `psimplify`.
 
