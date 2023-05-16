@@ -781,87 +781,86 @@ Qed.
 
 (* Simplification is sound. *)
 
-(* That is, as announced in semantics/simplification.v, if [simplify m m']
-   holds then the safety of the simplified program [m'] implies the safety
-   of the more complex original program [m]. *)
+(* That is, as announced in semantics/simplification.v, if [simplify n m ms]
+   holds then the safety of the simplified program [ms] implies the safety
+   of the more complex original program [ms]. *)
 
-Local Lemma wp_simplify {A} (m m' : free A) s E φ :
-  WP m' @ s ; E {{ φ }} -∗
-  ⌜ simplify m m' ⌝ -∗
+Local Lemma wp_simplify {A} n (m ms : free A) s E φ :
+  WP ms @ s ; E {{ φ }} -∗
+  ⌜ simplify n m ms ⌝ -∗
   WP m  @ s ; E {{ φ }}.
 Proof.
   (* Proceed by Löb induction. *)
-  iLöb as "IH" forall (m m').
+  iLöb as "IH" forall (n m ms).
+  (* Then, perform well-founded induction over [n]. *)
+  iInduction n as (? & ?) "IHn"
+    using (well_founded_induction lt_wf)
+    forall (m ms).
+  (* Introduce the hypotheses. *)
   iIntros "Hwp" (Hsimp).
-  (* [m] cannot be [ret a], as [ret a] cannot be simplified. *)
-  wp_case_is_ret m Hret; [ exfalso; destruct_simplify |].
-  wp_unfold_head; rewrite Hret. intro_state.
-  (* Now examine [m']. *)
-  wp_case_is_ret m' Hret'.
-  (* Case: [m'] is [ret a']. *)
-  { construct_wp_nonret; [ eauto using invert_simplify_ret |].
-    pose proof (simplify_ret_step_diagram Hsimp Hstep) as (? & ?); subst.
-    tick_wp. iAssumption. }
-  (* Case: [m'] can take a step. *)
-  rename m' into ms. rename Hret' into Hretms.
-  (* Then, [m] can step, too. *)
+
+  (* Examine [m]. *)
+  wp_case_is_ret m Hretm.
+  (* If [m] is [ret a], then [ms] is also [ret a], so we are done. *)
+  { clarify_simplify. iAssumption. }
+  (* Thus, in the following, we assume [m] is not [ret _]. *)
+
+  (* Begin unfolding the definition of [WP m ...]. *)
+  wp_unfold m; rewrite Hretm. intro_state.
+
+  (* Examine [ms]. *)
+  wp_case_is_ret ms Hretms.
+  (* Case: [ms] is [ret _]. *)
+  { (* Prove that [m] is able to step. *)
+    construct_wp_nonret; [ eauto using invert_simplify_ret |].
+    (* Examine one step of [m] to [m']. The simulation diagram in this case
+       tells us that this reduction step takes us closer to [ret a].
+       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
+    pose proof (simplify_ret_step_diagram Hsimp Hstep)
+      as (n' & ? & ? & ?); subst.
+    (* We are then able to use the inner induction hypothesis. *)
+    tick_wp.
+    iApply ("IHn" with "[//] Hwp [//]"). }
+  (* Thus, in the following, we assume [ms] is not [ret _]. *)
+
+  (* Then, [WP ms ...] implies than [ms] can step.
+     This implies that [m], too, can step. *)
   iAssert (⌜ can_step (σ, m) ⌝)%I as "%".
   { wp_unfold ms. spec_state "Hwp"; rewrite Hretms. destruct_wp_nonret.
     eauto using invert_simplify_can_step. }
-  (* Now examine an arbitrary step out of [m]. *)
   construct_wp_nonret.
+
+  (* We now examine an arbitrary step of [m] to [m']. *)
   (* Exploit the main simulation diagram. *)
   pose proof (simplify_step_diagram Hsimp Hstep)
-    as [ (? & ?) | (ms' & Hstep' & Hsimp') ]; [ subst |].
-  (* Case: the simplification step and the semantic step coincide. *)
-  { tick_wp. iAssumption. }
-  (* Case: the two steps commute. *)
+    as (ms' & n' & i & Hstep' & Hsimp' & Hcases);
+  clear Hsimp Hstep.
+  destruct_simplify_step_diagram.
+
+  (* Case: the reduction step disappears through the diagram. *)
+  { tick_wp. iApply ("IHn" with "[//] Hwp [//]"). }
+
+  (* Case: the reduction step is preserved through the diagram. *)
   (* We can now commit to stepping [ms] -- a commitment which we have
      carefully avoided up to this point. *)
+  iClear "IHn".
   wp_unfold ms; rewrite Hretms. spec_state "Hwp". destruct_wp_nonret.
   step_wp. tick_wp. (* The induction hypothesis becomes usable! *)
-  (* We have [simplify? m' ms']. If in fact [m'] and [ms'] coincide,
-     then the result is immediate, *)
-  destruct Hsimp' as [|]; [ subst; iAssumption |].
-  (* so we focus on the case [simplify m' ms']. *)
   (* Then, the result follows from the induction hypothesis. *)
   iApply ("IH" with "Hwp [//]").
 Qed. (* yes! *)
 
-(* Technical corollaries. *)
+(* A corollary, for public use: [simp] is sound. *)
 
-Local Lemma wp_simplify' {A} (m m' : free A) s E φ :
-  simplify m m' →
+Lemma wp_simp {A} (m m' : free A) s E φ :
+  simp m m' →
   WP m' @ s ; E {{ φ }} -∗
   WP m  @ s ; E {{ φ }}.
 Proof.
   iIntros (Hsimp) "Hwp".
+  apply simp_simplify in Hsimp.
+  destruct Hsimp as (n & Hsimp).
   iApply (wp_simplify with "Hwp [//]").
-Qed.
-
-Local Lemma wp_rtc_simplify {A} (m m' : free A) s E φ :
-  rtc simplify m m' →
-  WP m' @ s ; E {{ φ }} -∗
-  WP m  @ s ; E {{ φ }}.
-Proof.
-  induction 1; iIntros "Hwp"; [ iAssumption |].
-  iApply (wp_simplify' with "[Hwp]"); [ eauto |].
-  iApply IHrtc.
-  iAssumption.
-Qed.
-
-(* A final corollary, intended for public use: parallel simplification
-   is sound. *)
-
-Lemma wp_psimplify {A} (m m' : free A) s E φ :
-  psimplify m m' →
-  WP m' @ s ; E {{ φ }} -∗
-  WP m  @ s ; E {{ φ }}.
-Proof.
-  iIntros (Hpsimp) "Hwp".
-  apply psimplify_rtc_simplify in Hpsimp.
-  iApply wp_rtc_simplify; [ eauto |].
-  iAssumption.
 Qed.
 
 End rules.
