@@ -24,48 +24,52 @@ From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)
-Definition Arith : mexpr :=
-                    MkStruct [ ILet (Binding1
-(PVar "add") $
-  EFun1Var "x" $
-  EFun1Var "y" $
-  ELet
-    (BiCons
-      (Binding (PVar "z") (EVar "y")) $
-    BiNil) $
-  ELet
-    (BiCons
-      (Binding (PTuple (PCons (PVar "t") (PCons (PVar "v") PNil))) (ELet
+Definition Arith : mexpr := 
+  MkStruct [ 
+ILet (
+  BiCons
+    (Binding (PVar "add")
+      (EFun1Var "x" $
+      EFun1Var "y" $
+      ELet
         (BiCons
-          (Binding (PVar "t") (EVar "z")) $
+          (Binding (PVar "z") (EVar "y")) $
         BiNil) $
       ELet
         (BiCons
-          (Binding (PVar "z") (EVar "t")) $
+          (Binding (PTuple (PCons (PVar "t") (PCons (PVar "v") PNil))) (ELet
+            (BiCons
+              (Binding (PVar "t") (EVar "z")) $
+            BiNil) $
+          ELet
+            (BiCons
+              (Binding (PVar "z") (EVar "t")) $
+            BiNil) $
+          ELet
+            (BiCons
+              (Binding (PVar "t") (EApp (EApp (EMkPath ["Stdlib";"*"]) (EInt
+0)) (EVar "z"))) $
+            BiNil) $
+          ETuple (ECons (EVar "x") (ECons (EVar "t") ENil)))) $
         BiNil) $
-      ELet
-        (BiCons
-          (Binding (PVar "t") (EApp (EApp (EMkPath ["Stdlib";"*"]) (EInt 0))
-(EVar "z"))) $
-        BiNil) $
-      ETuple (ECons (EVar "x") (ECons (EVar "t") ENil)))) $
-    BiNil) $
-  EApp (EApp (EMkPath ["Stdlib";"+"]) (EVar "t")) (EApp (EApp (EMkPath
-["Stdlib";"+"]) (EVar "v")) (EVar "z")))
-
-  ;
-ILetRec (RecBinding1 "mult" "x" $
-  EFun1Var "y" $
-  EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 0))
+      EApp (EApp (EMkPath ["Stdlib";"+"]) (EVar "t")) (EApp (EApp (EMkPath
+["Stdlib";"+"]) (EVar "v")) (EVar "z")))) $
+    BiNil)
+;
+ILetRec (
+  RecBiCons
+    (RecBinding "mult" $
+      AnonFun "x"
+      (EFun1Var "y" $
+      EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 0))
 (EInt 0) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"<"]) (EVar "y")) (EInt
 0)) (EApp (EMkPath ["Stdlib";"~-"]) (EApp (EApp (EVar "mult") (EVar "x"))
 (EApp (EMkPath ["Stdlib";"~-"]) (EVar "y")))) (ESeq (EAssert (EApp (EApp
 (EMkPath ["Stdlib";"<"]) (EInt 0)) (EVar "y"))) (EApp (EApp (EMkPath
 ["Stdlib";"+"]) (EVar "x")) (EApp (EApp (EVar "mult") (EVar "x")) (EApp (EApp
-(EMkPath ["Stdlib";"-"]) (EVar "y")) (EInt
-1)))))))
-
-
+(EMkPath ["Stdlib";"-"]) (EVar "y")) (EInt 1)))))))) $
+   
+RecBiNil)
  ].
 
 (* END. *)

@@ -58,63 +58,122 @@ let rec document_of_expr (b: bool) e =
            maybeparens (flow space (string c ::
                                       List.map (document_of_expr true) l))
 
-let definition = function
-  | (None, false, h) ->
-     (nest 2 (flow space [
-            string "ILet (Binding1 PAny $"; hardline;
-            (align (document_of_expr false h ^^ char ')'));
-            repeat 2 hardline;
-          ]))
-  | (Some n, false, h) ->
-     (nest 2 (concat [
-         string "ILet (Binding1 (PVar \"";
-         string n;
-         string "\") $"; hardline;
-         (align (document_of_expr false h ^^ char ')'));
-         repeat 2 hardline;
-     ]))
-  | (Some n, true, EConstr ("EFun1Var", [EPlain var; body])) ->
-     (nest 2 (concat [
-                  string "ILetRec (RecBinding1 \"";
-                  string n; string "\""; space;
-                  string var; space; dollar; hardline;
-                  (align (document_of_expr false body ^^ char ')'));
-                  repeat 2 hardline
-     ]))
-  | Some n, true, (EConstr ("EFun1Pat", [pat; body])) ->
-     let v = "__osiris_reserved_arg_name" in
+let definitions lets =
+  let (recflag, symbols) = lets in
 
-     (* [body] is gradually replaced by a match over [pat] *)
-     let branch = EConstr ("Branch", [ pat ; body ]) in
-     let branches = EConstr ("BrCons", [ branch ; EPlain "BrNil" ]) in
-     let match_expr = EConstr ("EMatch", [ EConstr ("EVar", [EPlain v]);
-                                           branches ]) in
+  (* Generic pretty-printer for bindings. *)
+  let ilet ilet cons nil f =
+    let bindings: document =
+      List.fold_right
+        (fun (name, expr) res ->
+          let binding: document = f (name, expr) in
+          concat [ string cons ; hardline;
+                   parens binding; space; dollar; hardline;
+                   res ]
+          |> nest 2)
+        symbols (string nil)
+    in
+    nest 2 (concat [
+                string ilet ; space; lparen ; hardline ;
+                bindings;
+                rparen ])
+  in
 
-     (nest 2 (concat [
-                  string "ILetRec (RecBinding1 \"";
-                  string n; string "\" \""; string v ; string "\"";
-                  space; dollar; hardline;
-                  (align (document_of_expr false match_expr ^^ rparen));
-                  repeat 2 hardline
-     ]))
-  | _ -> assert false
+  (* Each element of [lets] is a top-level [let].
+     (The elements of [lets] are linked with [and] in the source file.) *)
+  if recflag
+  then
+    (* Recursive definitions. *)
+    (fun (name, expr) ->
+      match name with
+      | None -> assert false (* recursive functions have names. *)
+      | Some name ->
+         let (v, expr) =
+           begin
+             match expr with
+             | EConstr ("EFun1Var", [EPlain var; body]) -> (var, body)
+             | EConstr ("EFun1Pat", [pat; body]) ->
+                (* [body] is gradually replaced by a match over [pat] *)
+                let v = "__osiris_reserved_arg_name" in
+                let branch = EConstr ("Branch", [ pat ; body ]) in
+                let branches = EConstr ("BrCons", [ branch ; EPlain "BrNil" ]) in
+                let match_expr = EConstr ("EMatch", [ EConstr ("EVar", [EPlain v]);
+                                                      branches ]) in
+                (v, match_expr)
+             | _ -> assert false
+           end
+         in
+         concat [
+             string "RecBinding"; space;
+             string ("\""^name^"\""); space; dollar; hardline;
+             string "AnonFun" ; space; string v; hardline;
+             document_of_expr true expr ]
+         |> nest 2
 
-let rec document_of_ast = function
+    )
+    |> ilet "ILetRec" "RecBiCons" "RecBiNil"
+  else
+    (* Non-recursive definitions. *)
+    (fun (name, expr) ->
+      let patt: document =
+        match name with
+        | Some n -> string ("PVar \""^n^"\"")
+        | None -> string "PAny"
+      in
+      concat [
+          string "Binding"; space;
+          parens patt; hardline;
+          document_of_expr true expr ]
+      |> nest 2)
+
+    |> ilet "ILet" "BiCons" "BiNil"
+
+let rec document_of_tast = function
   | [] -> empty
   | h :: h' :: t ->
-     concat [definition h ; semi; hardline; document_of_ast (h' :: t)]
+     concat [definitions h ;
+             hardline; semi; hardline;
+             document_of_tast (h' :: t)]
   | h :: [] ->
-     concat [definition h ; hardline]
+     concat [definitions h ; hardline]
 
-let print_ast fmt ast =
-  (PPrint.ToFormatter.pretty 0.5 100) fmt (document_of_ast ast)
+
+(* An element of type [ast] is a list of lists [l] of top-level definitions,
+   where the elements of [l] are defined within the same [let ... and ...]
+   construct.
+   Each top-level definition is represented by an element of type
+   [ string option * (* Name of the symbol. *)
+     bool          * (* Is the symbol recursive? *)
+     expr            (* Expression *)
+   ].
+
+   [transform_ast] groups the top-level symbols by [let ... and ...]
+   constructs. *)
+let transform_ast (ast: (string option * bool * expr) list list)
+    : (bool * ((string option * expr) list)) list =
+  let facto (l: (string option * bool * expr) list) :
+            bool * (string option * expr) list =
+    match l with
+    | [] -> (false, [])
+    | (_, b, _) :: _ ->
+       (b, List.map (fun (n, _, e) -> (n, e)) l)
+  in
+  List.map facto ast
+
+let print_ast fmt (ast: ast) =
+  ast
+  |> List.filter (fun l -> l <> [])
+  |> transform_ast
+  |> document_of_tast
+  |> align |> nest 2
+  |> (PPrint.ToFormatter.pretty 0.5 100) fmt
 
 let print fmt module_name headers (a: ast) : unit =
   Format.fprintf fmt
                  "%s@.@.\
                   (* Generated code: *)@.\
-                  Definition %s : mexpr :=
-                    MkStruct [ %a ].@.\
+                  Definition %s : mexpr := @.\
+                  \  MkStruct [ @.%a ].@.\
                   @.(* END. *)"
                  headers module_name
                  print_ast a
