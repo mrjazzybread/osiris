@@ -6,6 +6,94 @@ From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import wp wp_tactics specifications.
 
 
+(* -------------------------------------------------------------------------- *)
+
+(* Simplification tactics. *)
+
+
+(* [simp] proves a goal of the form [simp _ _]. *)
+Ltac simp :=
+  lazymatch goal with
+  | |- simp ?m _ =>
+      lazymatch m with
+      (* [Par]-related cases. *)
+      | Par ?m1 ?m2 ?k ?ko =>
+          (* Choose the simplification lemma depending on the presence of
+             [Ret]s in the branches of [Par]. *)
+          lazymatch m1 with
+          | Ret ?v1 =>
+              match m2 with
+              | Ret ?v2 =>
+                  exact (simp_par_ret_ret v1 v2 k)
+              | _ =>
+                  simple notypeclasses refine
+                         (SimpTransitive (Par (Ret v1) m2 k ko) _ _ _ _) ;
+                  [ (* ?m2 *) | (* ?m3 *)
+                  | (* [simp m1 m2] *) exact (SimpParRetLeft v1 m2 k)
+                  | (* [simp m2 m3] *)
+                    cbn; (* Simplify the bind. *)
+                    by simp (* Try to simplify the result. *) ]
+              end
+          | _ =>
+              lazymatch m2 with
+              | Ret ?v2 =>
+                  simple notypeclasses refine
+                         (SimpTransitive (Par m1 (Ret v2) k ko) _ _ _ _) ;
+                  [ (* ?m2 *) | (* ?m3 *)
+                  | (* [simp m1 m2] *) exact (SimpParRetLeft m1 v2 k)
+                  | (* [simp m2 m3] *)
+                    cbn; (* Simplify the bind. *)
+                    by simp (* Try to simplify the result. *) ]
+              | _ =>
+                  (* [simp (Par m1 m2 k ko) (Par m1' m2' k ko)]
+                     The simplification of a [Par] cannot go any further using
+                     the transitivity of [simp], as one cannot check for
+                     progress. *)
+                  by simple notypeclasses refine (SimpPar m1 _ m2 _ k ko _ _) ;
+                  [ (* m1' *) | (* m2' *)
+                  | (* [simp m1 m1'] *) by simp
+                  | (* [simp m2 m2'] *) by simp ]
+              end
+          end
+
+      (* [Stop]-related cases. *)
+      | Stop CFlip ?x ?k =>
+          (* Either : apply [SimpFlip] works and ends the proof search,
+               or stop simplifying the term. *)
+          first [ simple notypeclasses refine (SimpFlip x k _ _ _);
+                  [ (* [m'] *)
+                  | (* [simp (k true) m'] *) by simp
+                  | (* [simp (k false) m'] *) by simp ]
+                | exact (SimpReflexive m) ]
+      | Stop CEval (pair ?η ?e) ?k =>
+          simple notypeclasses refine (SimpEval η e k);
+          cbn; (* Simplify the bind. *)
+          simp (* Try to simplify the result. *)
+
+      | Stop CLoop (pair (pair (pair (pair ?η ?x) ?i1) ?i2) ?e) ?k =>
+          simple notypeclasses refine (SimpLoop η x i1 i2 e k)
+
+      | _ => exact (SimpReflexive m)
+      end
+  | |- _ => fail "The goal is not of the form [simp _ _]"
+  end.
+
+
+
+(* [wp_simp] simplifies [m] in a goal of the form [WP m @ _; _ {{ _ }}]. *)
+Ltac wp_simp :=
+  lazymatch goal with
+  | |- environments.envs_entails
+         _ (wp ?s ?E ?m ?φ) =>
+      tac_change_goal (wp_simp m _ s E φ _);
+      [ | simp | ]
+  end.
+
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Tactics to move forward in the proof. *)
 
 (* NOTE:
  * - The performance of the calls to [cbn] made by the functions below
@@ -21,7 +109,7 @@ From osiris.weakestpre Require Import wp wp_tactics specifications.
        hypotheses!
  *)
 
-Ltac wp_step' :=
+Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
@@ -39,9 +127,7 @@ Ltac wp_step' :=
             | tac_change_goal (wp_eval _ _ _ _ _ _) ]
   | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _) _) =>
       tac_change_goal (wp_flip _ _ _ _ _)
-  end.
-
-Ltac wp_step := (wp_step' + cbn).
+  end; repeat wp_simp.
 
 Ltac wp :=
   iStartProof;
@@ -49,7 +135,7 @@ Ltac wp :=
   (repeat
      (lazymatch goal with
         | |- environments.envs_entails _ (bi_later _) => iNext
-        | _ => wp_step
+        | _ => wp_step; try progress cbn
         end || apply tc_change_goal)).
 
 Ltac wp_par :=

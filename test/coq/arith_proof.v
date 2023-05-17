@@ -107,7 +107,9 @@ Proof.
           { (* Prove that -y is reprensentable *) admit. }
           iApply (wp_covariant with "H").
           iIntros (?->).
-          wp. iPureIntro. do 2 f_equal. lia. } }
+          wp. iPureIntro.
+          replace (VInt (int.repr (x * y))) with #(x * y)%Z; last reflexivity.
+          do 2 f_equal. lia. } }
       { (* y >= 0 *)
         apply Z.ltb_nlt in n; rewrite n. wp.
         iIntros ([]); wp.

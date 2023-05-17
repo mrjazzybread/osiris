@@ -86,10 +86,8 @@ Proof.
   iIntros (flip) "#Hflip". wp_continue.
 
   (* [flip] is applied to [r_elt]. *)
-  wp_par; [ by wp_use "Hflip"
-          | by wp_set_postcondition
-          | ].
-  iIntros (?? <- ->). wp.
+  wp_use "Hflip"; first done.
+  iIntros (? <-). wp.
 
   (* [lily] has the expected value. *)
   wp_specify "lily" (is_equal enc_lily).
