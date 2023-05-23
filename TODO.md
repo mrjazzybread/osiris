@@ -29,6 +29,7 @@
   `wp_par_ret_left`,
   `wp_par_ret_right`
   in the tactics.
+  (Then, remove these lemmas or make them local.)
 
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
