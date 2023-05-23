@@ -115,6 +115,8 @@ Ltac wp_step :=
       tac_change_goal (wp_ret _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
       tac_change_goal (wp_bind _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
+      tac_change_goal (wp_try _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
       tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
