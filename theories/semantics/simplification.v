@@ -105,17 +105,6 @@ Inductive simplify {A : Type} : nat → free A → free A → Prop :=
 
 Global Hint Constructors simplify : simplify.
 
-(* If both sides of a [par] combinator are of the form [ret _],
-   then it can be simplified. *)
-
-Lemma simplify_par_ret_ret {A1 A2 A} n a1 a2 (k : A1 * A2 → free A) ko :
-  simplify (S n)
-    (Par (Ret a1) (Ret a2) k ko)
-    (k (a1, a2)).
-Proof.
-  constructor.
-Qed.
-
 (* Simplification is compatible with [try]. *)
 
 Lemma simplify_try {A B} n (m1 m2 : free A) (f : A → free B) ko :
@@ -463,17 +452,6 @@ Inductive simp {A : Type} : free A → free A → Prop :=
 .
 
 Global Hint Constructors simp : simp.
-
-(* If both sides of a [par] combinator are of the form [ret _],
-   then it can be simplified. *)
-
-Lemma simp_par_ret_ret {A1 A2 A} a1 a2 (k : A1 * A2 → free A) :
-  simp
-    (Par (Ret a1) (Ret a2) k next)
-    (k (a1, a2)).
-Proof.
-  constructor.
-Qed.
 
 (* Simplification is compatible with [bind]. *)
 

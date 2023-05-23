@@ -26,10 +26,6 @@ Ltac simp :=
              [Ret]s in the branches of [Par]. *)
           lazymatch m1 with
           | Ret ?v1 =>
-              match m2 with
-              | Ret ?v2 =>
-                  exact (simp_par_ret_ret v1 v2 k)
-              | _ =>
                   simple notypeclasses refine
                          (SimpTransitive (Par (Ret v1) m2 k ko) _ _ _ _) ;
                   [ (* ?m2 *) | (* ?m3 *)
@@ -37,7 +33,6 @@ Ltac simp :=
                   | (* [simp m2 m3] *)
                     cbn; (* Simplify the bind. *)
                     by simp (* Try to simplify the result. *) ]
-              end
           | _ =>
               lazymatch m2 with
               | Ret ?v2 =>
