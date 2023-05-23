@@ -106,6 +106,7 @@ Ltac wp_simp :=
  *   + we reduce under continuations;
  *   + because we reduce the whole Coq context, we reduce all the Iris
        hypotheses!
+ * TODO: just apply [wp_simp] and reduce in the subgoal [simp m ?m'].
  *)
 
 Ltac wp_step :=
