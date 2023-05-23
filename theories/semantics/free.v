@@ -320,6 +320,7 @@ Lemma bind_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 End Make.
