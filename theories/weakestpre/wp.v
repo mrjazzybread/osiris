@@ -215,7 +215,7 @@ Local Ltac destruct_wp_ret :=
 Local Ltac construct_wp_nonret :=
   iSplitR; [
     (* Prove [can_step]: *)
-    iPureIntro; eauto using can_step_bind with step
+    iPureIntro; eauto with step can_step
   | (* Introduce a hypothetical step: *)
     iIntros (σ' m') "%Hstep"
   ].
@@ -361,13 +361,17 @@ Proof.
   destruct_wp_nonret. eauto with invert_can_step.
 Qed.
 
-(* The Bind rule of Separation Logic. *)
+(* A reasoning rule for [try]. *)
 
-Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
+(* Our definition of [WP] forbids [m1] from reducing to [Next], so the
+   failure continuation [ko] is dead. Therefore, no proof obligation
+   bears on [ko]. *)
+
+Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ :
   WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
-  WP (bind m1 m2) @ s; E {{ φ }}.
+  WP (try m1 m2 ko) @ s; E {{ φ }}.
 Proof.
-  iLöb as "IH" forall (m1 m2 φ).
+  iLöb as "IH" forall (m1 m2 ko φ).
   iIntros "Hwp".
   wp_unfold m1.
   wp_case_is_ret m1 Hret.
@@ -378,25 +382,32 @@ Proof.
 
   (* Case: [m1] is not [ret _]. *)
   {
-    assert (Hnotanswer: ¬ is_answer m1) by rewrite -is_ret_None //.
-    (* Unfold and simplify the goal. *)
-    wp_unfold_all. intro_state. spec_state "Hwp".
-    (* [bind m1 m2] cannot be [ret _]. *)
-    eapply (is_ret_bind_None _ m2) in Hret.
-    rewrite Hret; clear Hret.
-    (* Simplify and destruct the hypothesis. *)
+    (* Unfold and simplify the goal and hypothesis. *)
+    wp_unfold_all.
+    intro_state.
+    spec_state "Hwp".
     destruct_wp_nonret.
+    (* [try m1 m2 ko] cannot be [ret _]. *)
+    pose proof (is_not_ret_try m1 m2 ko Hcanstep) as ->.
     construct_wp_nonret.
-    clear Hcanstep.
-    (* We must prove that every reduct of [bind m1 m2] is safe. *)
-    (* Because [m1] is not an answer, a reduct of [bind m1 m2] must be
-       of the form [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
-    destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
-    subst. clear Hstep. rename Hstep' into Hstep.
+    (* We must prove that every reduct of [try m1 m2 ko] is safe. *)
+    (* Because [m1] can step, a reduct of [try m1 m2 ko] must be
+       of the form [try m'1 m2 ko], where [m'1] is a reduct of [m1]. *)
+    destruct (invert_step_try Hstep Hcanstep) as (m'1 & Hstep' & ->).
+    clear Hstep. rename Hstep' into Hstep.
     (* The hypothesis can then be further exploited. *)
     step_wp. tick_wp. iApply "IH". iApply "Hwp".
   }
 
+Qed.
+
+(* The Bind rule of Separation Logic. *)
+
+Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
+  WP (bind m1 m2) @ s; E {{ φ }}.
+Proof.
+  rewrite bind_as_try. eauto using wp_try.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -417,7 +428,7 @@ Proof.
   intro Hstep.
   iIntros "Hsi Hwp".
   wp_unfold m. spec_state "Hwp".
-  assert (is_ret m = None) as -> by eauto with is_ret step.
+  assert (is_not_ret m) as -> by eauto using can_step_is_not_ret with step.
   destruct_wp_nonret.
   step_wp.
   tick_wp.
@@ -438,7 +449,7 @@ Proof.
   wp_case_is_ret m Hret; [| destruct_wp_nonret ]; iPureIntro.
   (* Case: [m] is [ret a]. *)
   (* [ret a] is not stuck. *)
-  { eauto using invert_stuck_answer with is_answer. }
+  { eauto using invert_stuck_ret. }
   (* Case: [m] can step. *)
   (* A configuration that can step is not stuck. *)
   { eauto using can_step_not_stuck. }
@@ -525,8 +536,7 @@ Proof.
   triplicity σ m Hm.
 
   (* Case: [m] is [ret a]. *)
-  { destruct m; simpl in Hm; try tauto.
-    eapply initially_safe_ret.
+  { eapply initially_safe_ret.
     (* The goal is now [φ a]. *)
     eapply (H 0 σ (ret a)); eauto with lia steps. }
 
@@ -660,9 +670,9 @@ Qed.
 
 (* [CEval]. *)
 
-Lemma wp_eval {A} s E η e (k : val → free A) φ :
+Lemma wp_eval {A} s E η e (k : val → free A) ko φ :
   ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
-  WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
+  WP (Stop CEval (η, e) k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
   wp_unfold_head.
@@ -670,14 +680,14 @@ Proof.
   construct_wp_nonret.
   destruct_step.
   tick_wp.
-  by iApply wp_bind.
+  by iApply wp_try.
 Qed.
 
 (* A special case of the previous lemma for the continuation [ret]. *)
 
-Lemma wp_eval_ret s E η e φ :
+Lemma wp_eval_ret s E η e ko φ :
   ▷ WP (eval η e) @ s; E {{ φ }} -∗
-  WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
+  WP (Stop CEval (η, e) ret ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
   iApply wp_eval.
@@ -692,9 +702,9 @@ Qed.
    value [b], so the computation [k b] must be proved safe for every
    possible value of [b]. *)
 
-Lemma wp_flip {A} s E x (k: bool → free A) φ :
+Lemma wp_flip {A} s E x (k: bool → free A) ko φ :
   ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
-  WP (Stop CFlip x k) @ s; E {{ φ }}.
+  WP (Stop CFlip x k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   wp_unfold_head.
@@ -709,13 +719,13 @@ Qed.
 
 (* The standard memory allocation rule of Separation Logic. *)
 
-Lemma wp_alloc {A} s E v (k : loc → free A) φ :
+Lemma wp_alloc {A} s E v (k : loc → free A) ko φ :
   ▷ (
     ∀ l,
     mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
      WP (k l) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CAlloc v k) @ s; E {{ φ }}.
+  WP (Stop CAlloc v k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   wp_unfold_head.
@@ -733,13 +743,13 @@ Qed.
 
 (* The standard memory write rule of Separation Logic. *)
 
-Lemma wp_store {A} s E l v v' (k : unit → free A) φ :
+Lemma wp_store {A} s E l v v' (k : unit → free A) ko φ :
   mapsto l (DfracOwn 1) v -∗
   ▷ (
     mapsto l (DfracOwn 1) v' -∗
     WP (k tt) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CStore (l, v') k) @ s; E {{ φ }}.
+  WP (Stop CStore (l, v') k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hl Hwp".
   wp_unfold_head.
@@ -757,13 +767,13 @@ Qed.
 
 (* The standard memory load rule of Separation Logic. *)
 
-Lemma wp_load {A} s E l v dq (k: val → free A) φ :
+Lemma wp_load {A} s E l v dq (k: val → free A) ko φ :
   mapsto l dq v -∗
   ▷ (
     mapsto l dq v -∗
     WP (k v) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CLoad l k) @ s; E {{ φ }}.
+  WP (Stop CLoad l k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hl Hwp".
   wp_unfold_head.

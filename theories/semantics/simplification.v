@@ -60,21 +60,21 @@ From osiris.semantics Require Import code eval step.
 
 Inductive simplify {A : Type} : nat → free A → free A → Prop :=
 | SimplifyEval:
-    ∀ n η e k,
+    ∀ n η e k ko,
     simplify (S n)
-      (Stop CEval (η, e) k)
-      (bind (eval η e) k)
+      (Stop CEval (η, e) k ko)
+      (try (eval η e) k ko)
 | SimplifyLoop :
-    ∀ n η x i1 i2 e k,
+    ∀ n η x i1 i2 e k ko,
     simplify (S n)
-      (Stop CLoop (η, x, i1, i2, e) k)
-      (bind (loop η x i1 i2 e) k)
+      (Stop CLoop (η, x, i1, i2, e) k ko)
+      (try (loop η x i1 i2 e) k ko)
 | SimplifyFlip :
-    ∀ n x k m,
+    ∀ n x k ko m,
     simplify n (k false) m →
     simplify n (k true) m →
     simplify (S n)
-      (Stop CFlip x k)
+      (Stop CFlip x k ko)
       m
 | SimplifyParRetLeft:
     ∀ {A1 A2} n (a1 : A1) (m2 : free A2) k,
@@ -122,8 +122,11 @@ Lemma simplify_bind {A B} n (m1 m2 : free A) (f : A → free B) :
   simplify n m1 m2 →
   simplify n (bind m1 f) (bind m2 f).
 Proof.
-  induction 1; simpl; rewrite ?bind_bind; econstructor; eauto with congruence.
+  induction 1; simpl;
+  rewrite ?bind_bind, ?bind_try; econstructor; eauto with congruence.
 Qed.
+
+(* TODO prove [simplify_try] *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -411,21 +414,21 @@ Qed.
 
 Inductive simp {A : Type} : free A → free A → Prop :=
 | SimpEval:
-    ∀ η e k,
+    ∀ η e k ko,
     simp
-      (Stop CEval (η, e) k)
-      (bind (eval η e) k)
+      (Stop CEval (η, e) k ko)
+      (try (eval η e) k ko)
 | SimpLoop :
-    ∀ η x i1 i2 e k,
+    ∀ η x i1 i2 e k ko,
     simp
-      (Stop CLoop (η, x, i1, i2, e) k)
-      (bind (loop η x i1 i2 e) k)
+      (Stop CLoop (η, x, i1, i2, e) k ko)
+      (try (loop η x i1 i2 e) k ko)
 | SimpFlip :
-    ∀ x k m,
+    ∀ x k ko m,
     simp (k false) m →
     simp (k true) m →
     simp
-      (Stop CFlip x k)
+      (Stop CFlip x k ko)
       m
 | SimpParRetLeft:
     ∀ {A1 A2} (a1 : A1) (m2 : free A2) k,
@@ -471,7 +474,8 @@ Lemma simp_bind {A B} (m1 m2 : free A) (f : A → free B) :
   simp m1 m2 →
   simp (bind m1 f) (bind m2 f).
 Proof.
-  induction 1; simpl; rewrite ?bind_bind; econstructor; eauto with congruence.
+  induction 1; simpl; rewrite ?bind_bind, ?bind_try;
+  econstructor; eauto with congruence.
 Qed.
 
 (* [simplify n m1 m2] implies [simp m1 m2]. *)

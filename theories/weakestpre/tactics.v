@@ -61,7 +61,7 @@ Ltac simp :=
           end
 
       (* [Stop]-related cases. *)
-      | Stop CFlip ?x ?k =>
+      | Stop CFlip ?x ?k ?ko =>
           (* Either : apply [SimpFlip] works and ends the proof search,
                or stop simplifying the term. *)
           first [ simple notypeclasses refine (SimpFlip x k _ _ _);
@@ -69,12 +69,12 @@ Ltac simp :=
                   | (* [simp (k true) m'] *) by simp
                   | (* [simp (k false) m'] *) by simp ]
                 | exact (SimpReflexive m) ]
-      | Stop CEval (pair ?η ?e) ?k =>
+      | Stop CEval (pair ?η ?e) ?k ?ko =>
           simple notypeclasses refine (SimpEval η e k);
           cbn; (* Simplify the bind. *)
           simp (* Try to simplify the result. *)
 
-      | Stop CLoop (pair (pair (pair (pair ?η ?x) ?i1) ?i2) ?e) ?k =>
+      | Stop CLoop (pair (pair (pair (pair ?η ?x) ?i1) ?i2) ?e) ?k ?ko =>
           simple notypeclasses refine (SimpLoop η x i1 i2 e k)
 
       | _ => exact (SimpReflexive m)
@@ -127,10 +127,10 @@ Ltac wp_step :=
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
       tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
-      first [ tac_change_goal (wp_eval_ret _ _ _ _ _)
-            | tac_change_goal (wp_eval _ _ _ _ _ _) ]
-  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _) _) =>
-      tac_change_goal (wp_flip _ _ _ _ _)
+      first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
+            | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
+  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _ _) _) =>
+      tac_change_goal (wp_flip _ _ _ _ _ _)
   end; repeat wp_simp.
 
 Ltac wp :=

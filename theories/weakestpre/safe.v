@@ -149,21 +149,11 @@ Qed.
 (* The following lemmas are inversion lemmas. They extract information out
    of the judgement [initially_safe (S n) c φ] under a hypothesis about the
    observable behavior of the configuration [c]. They correspond to the three
-   cases of the triplicity principle (with two subcases for answers). *)
+   cases of the triplicity principle. *)
 
 Lemma invert_initially_safe_result {A n σ a} (φ : store → A → Prop) :
   initially_safe (S n) (σ, Ret a) φ →
   φ σ a.
-Proof.
-  simpl.
-  intros [ H | H ].
-  { destruct H as (v & ? & ? & ?). congruence. }
-  { destruct H as (H & _). exfalso. eauto with invert_can_step. }
-Qed.
-
-Lemma invert_initially_safe_next {A n σ} (φ : store → A → Prop) :
-  initially_safe (S n) (σ, Next) φ →
-  False.
 Proof.
   simpl.
   intros [ H | H ].
@@ -193,7 +183,7 @@ Proof.
 
   (* Case: [m] is a result. *)
   (* A result is not stuck: contradiction. *)
-  { subst. eauto using invert_stuck_answer with is_answer. }
+  { eauto using invert_stuck_ret. }
 
   (* Case: [m] can step. *)
   (* A term that can step is not stuck. Contradiction. *)
@@ -247,14 +237,6 @@ Proof.
   eauto using (invert_initially_safe_result φ).
 Qed.
 
-Lemma invert_safe_next {A σ} (φ : store → A → Prop) :
-  safe (σ, Next) φ →
-  False.
-Proof.
-  unfold safe. intros Hsafe. specialize (Hsafe 1).
-  eauto using invert_initially_safe_next.
-Qed.
-
 Lemma invert_safe_step {A c c'} (φ : store → A → Prop) :
   safe c φ →
   step c c' →
@@ -292,15 +274,6 @@ Lemma safe_ret {A σ a} (φ : store → A → Prop) :
   φ σ a.
 Proof.
   split; eauto using (invert_safe_result φ), prove_safe_ret.
-Qed.
-
-(* [(σ, Next)] is not safe. *)
-
-Lemma safe_next {A σ} (φ : store → A → Prop) :
-  safe (σ, Next) φ ↔
-  False.
-Proof.
-  split; [ eauto using invert_safe_next | tauto ].
 Qed.
 
 (* Provided [c] is not stuck,
@@ -367,7 +340,7 @@ Proof.
     intros [σ' m'] Hstep.
     (* Because [m1] can step, a reduct of [bind m1 m2] must be of the form
        [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
-    assert (Hnoret: ¬ is_answer m1) by eauto using can_step_not_answer.
+    assert (Hnoret: is_not_ret m1) by eauto using can_step_is_not_ret.
     specialize (invert_step_bind' Hstep Hnoret).
     clear Hstep Hcanstep Hnoret.
     intros (m'1 & Hstep & ?). subst.
@@ -399,9 +372,8 @@ Proof.
   (* Proceed by cases on [m1]. Three cases arise. *)
   triplicity σ m1 Hm1; [ clear IHn1 | | clear IHn1 ].
 
-  (* Case: [m1] is an answer [ret a]. *)
-  { destruct_answer.
-    left. eauto using initially_safe_monotonic with lia. }
+  (* Case: [m1] is [ret a]. *)
+  { left. eauto using initially_safe_monotonic with lia. }
   (* Case: [m1] can step. *)
   { right. split; [ eauto |].
     intros [σ'1 m'1] Hstep.
@@ -431,8 +403,7 @@ Proof.
   triplicity σ m Hm; [ clear IHn | | clear IHn ].
 
   (* Case: [m] is an answer [ret a]. *)
-  { destruct_answer.
-    left. eexists _, _. split; [ eauto |].
+  { left. eexists _, _. split; [ eauto |].
     intros x. specialize (Hsafe x).
     destruct_initially_safe_S Hsafe.
     congruence. }

@@ -35,7 +35,7 @@ Ltac destruct_config :=
 
 (* The relation [step] is defined as follows. *)
 
-(* [Ret a] cannot step. It is an answer. *)
+(* [Ret a] cannot step. It is a result. *)
 
 (* [Next] and [Crash] cannot step. *)
 
@@ -46,72 +46,72 @@ Ltac destruct_config :=
 
 Inductive step {A} : config A → config A → Prop :=
 
-  (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] followed
-     with the continuation [k]. Thus, from the user's perspective, the
-     computation [stop CEval (η, e)] behaves just like [eval η e]. *)
+  (* [Stop CEval (η, e) k ko] steps to an invocation of [eval η e] under
+     [try _ k ko]. Thus, from the user's perspective, the computation
+     [stop CEval (η, e)] behaves just like [eval η e]. *)
   | StepEval :
-      ∀ σ η e k,
+      ∀ σ η e k ko,
       step
-        (σ, Stop CEval (η, e) k)
-        (σ, bind (eval η e) k)
+        (σ, Stop CEval (η, e) k ko)
+        (σ, try (eval η e) k ko)
 
-  (* [stop (η, x, i1, i2, e) k] behaves like [loop η x i1 i2 e]. *)
+  (* [stop (η, x, i1, i2, e)] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
-      ∀ σ η x i1 i2 e k,
+      ∀ σ η x i1 i2 e k ko,
       step
-        (σ, Stop CLoop (η, x, i1, i2, e) k)
-        (σ, bind (loop η x i1 i2 e) k)
+        (σ, Stop CLoop (η, x, i1, i2, e) k ko)
+        (σ, try (loop η x i1 i2 e) k ko)
 
   (* [stop CFlip ()] returns either [false] or [true]. *)
   | StepFlip :
-      ∀ b σ x k,
+      ∀ b σ x k ko,
       step
-        (σ, Stop CFlip x k)
+        (σ, Stop CFlip x k ko)
         (σ, k b)
 
   (* [stop CAlloc v] allocates a fresh location in the heap,
      initializes it with [v], and returns this location. *)
   | StepAlloc :
-      ∀ σ v l k,
+      ∀ σ v l k ko,
       σ !! l = None →
       step
-        (σ, Stop CAlloc v k)
+        (σ, Stop CAlloc v k ko)
         (<[l := v]>σ, k l)
 
   (* If the location [l] exists, then [stop CLoad l] looks up its content
      in the heap and returns it. *)
   | StepLoadSuccess :
-      ∀ σ l k v,
+      ∀ σ l v k ko,
       σ !! l = Some v →
       step
-        (σ, Stop CLoad l k)
+        (σ, Stop CLoad l k ko)
         (σ, k v)
 
   (* If the location [l] does not exist, then [stop CLoad l] fails. This
      ensures that [Crash] is the only stuck term. *)
   | StepLoadFailure :
-      ∀ σ l k,
+      ∀ σ l k ko,
       σ !! l = None →
       step
-        (σ, Stop CLoad l k)
+        (σ, Stop CLoad l k ko)
         (σ, Crash)
 
   (* If the location [l] exists, then [stop CStore (l, v')] overwrites
      its content with [v'] and returns a unit value. *)
   | StepStoreSuccess :
-      ∀ σ l v' v k,
+      ∀ σ l v' v k ko,
       σ !! l = Some v →
       step
-        (σ, Stop CStore (l, v') k)
+        (σ, Stop CStore (l, v') k ko)
         (<[ l := v' ]> σ, k tt)
 
   (* If the location [l] does not exist, then [stop CStore (l, v')] fails.
      This ensures that [Crash] is the only stuck term. *)
   | StepStoreFailure :
-      ∀ σ l v' k,
+      ∀ σ l v' k ko,
       σ !! l = None →
       step
-        (σ, Stop CStore (l, v') k)
+        (σ, Stop CStore (l, v') k ko)
         (σ, Crash)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -168,7 +168,7 @@ Inductive step {A} : config A → config A → Prop :=
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
-  try match goal with h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
+  try match goal with h: step (?σ, Stop ?c ?x ?k ?ko) ?m' |- _ =>
     remember x
   end;
   match goal with h: step ?m ?m' |- _ =>
@@ -188,26 +188,32 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A term [m] is an answer iff it is of the form [Ret a]. *)
+(* [is_ret m] is [Some a] if and only if [m] is [Ret a]. *)
 
-Definition is_answer {A} (m : free A) :=
+(* [is_ret] offers an executable way of testing whether a computation is
+   [Ret _]. *)
+
+Definition is_ret {A} (m : free A) : option A :=
   match m with
-  | Ret a => True
-  | _     => False
+  | Ret a => Some a
+  | _     => None
   end.
 
-Lemma is_answer_ret {A} (a : A) :
-  is_answer (Ret a).
+(* Basic properties of [is_ret]. *)
+
+Lemma invert_is_ret_Some {A} {m : free A} {a} :
+  is_ret m = Some a →
+  m = Ret a.
 Proof.
-  simpl. eauto.
+  destruct m; inversion 1; reflexivity.
 Qed.
 
-Global Hint Resolve is_answer_ret : is_answer.
+(* -------------------------------------------------------------------------- *)
 
-Ltac destruct_answer :=
-  match goal with h: is_answer ?m |- _ =>
-    destruct m; try solve [ exfalso; tauto ]; clear h
-  end.
+(* [is_not_ret m] holds if [m] is not [ret _]. *)
+
+Notation is_not_ret m :=
+  (is_ret m = None).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -226,22 +232,88 @@ Ltac destruct_can_step :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* A configuration that is not an answer and that is unable to step is
-   stuck. *)
+(* A configuration that is not [ret _] and that is unable to step is stuck. *)
 
 Definition stuck {A} (c : config A) :=
   let '(σ, m) := c in
-  ¬ is_answer m ∧
+  is_not_ret m ∧
   ∀ σ' m', ¬ step (σ, m) (σ', m').
 
 (* -------------------------------------------------------------------------- *)
 
 (* Basic lemmas about [step] and [can_step]. *)
 
+(* [Ret a] cannot step. *)
+
+Lemma invert_can_step_Ret {A} σ (a : A) :
+  can_step (σ, Ret a) →
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+(* [Crash] cannot step. *)
+
+Lemma invert_can_step_Crash {A} σ :
+  can_step (σ, Crash : free A) →
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+(* [Next] cannot step. *)
+
+Lemma invert_can_step_Next {A} σ :
+  can_step (σ, Next : free A) →
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+Global Hint Resolve
+  invert_can_step_Ret
+  invert_can_step_Crash
+  invert_can_step_Next
+: invert_can_step.
+
+(* If the location [l] exists in the store, then [stop CStore (l, v')]
+   can step in only one way. *)
+
+Lemma invert_step_store {A} σ l v' v k ko σ' (m' : free A) :
+  σ !! l = Some v →
+  step (σ, Stop CStore (l, v') k ko) (σ', m') →
+  σ' = <[ l := v' ]> σ ∧
+  m' = k ().
+Proof.
+  intros. destruct_step; split; congruence.
+Qed.
+
+(* If the location [l] exists in the store, then [stop CLoad l]
+   can step in only one way. *)
+
+Lemma invert_step_load {A} σ σ' l v k ko (m' : free A) :
+  σ !! l = Some v →
+  step (σ, Stop CLoad l k ko) (σ', m') →
+  σ' = σ ∧
+  m' = k v.
+Proof.
+  intros. destruct_step; split; congruence.
+Qed.
+
+(* A term that can step is not [ret _]. *)
+
+Lemma can_step_is_not_ret {A} σ (m : free A) :
+  can_step (σ, m) →
+  is_not_ret m.
+Proof.
+  intros.
+  destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
+Qed.
+
 (* [Stop] can step. *)
 
-Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → free A) :
-  can_step (σ, Stop c x k).
+Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → free A) ko :
+  can_step (σ, Stop c x k ko).
 Proof.
   destruct c; repeat destruct x as (x & ?);
   (* For reading and writing, we must reason by cases, according to
@@ -288,17 +360,65 @@ Qed.
 
 Global Hint Resolve can_step_par : step.
 
-(* Stepping in the left-hand side of [bind] is permitted. *)
+(* Stepping in the left-hand side of [try] is permitted. *)
 
 (* This corresponds to reduction under an evaluation context. *)
+
+Lemma step_try {A B} σ σ' (m m' : free A) (f : A → free B) ko :
+  step (σ, m) (σ', m') →
+  step (σ, try m f ko) (σ', try m' f ko).
+Proof.
+  inversion 1; subst;
+  rewrite ?try_stop ?try_par ?try_crash ?try_try;
+  eauto using step_up_to_eq with step.
+Qed.
+
+(* As a special case, stepping under [bind] is also permitted. *)
 
 Lemma step_bind {A B} σ σ' (m m' : free A) (f : A → free B) :
   step (σ, m) (σ', m') →
   step (σ, bind m f) (σ', bind m' f).
 Proof.
-  inversion 1; subst;
-  rewrite ?bind_stop ?bind_par ?bind_crash ?bind_bind;
-  eauto using step_up_to_eq with step.
+  rewrite !bind_as_try. eauto using step_try.
+Qed.
+
+(* Corollaries. *)
+
+Lemma can_step_try {A B} σ (m : free A) (f : A → free B) ko :
+  can_step (σ, m) →
+  can_step (σ, try m f ko).
+Proof.
+  unfold can_step. intros ([] & Hstep). eauto using step_try.
+Qed.
+
+Lemma can_step_bind {A B} σ (m : free A) (f : A → free B) :
+  can_step (σ, m) →
+  can_step (σ, bind m f).
+Proof.
+  rewrite bind_as_try. eauto using can_step_try.
+Qed.
+
+Global Hint Resolve can_step_try can_step_bind : can_step.
+
+(* If [try m f ko] takes a step, and if [m] can step, then the step taken by
+   [try m f ko] must a step of [m] under the context [try _ f ko]. *)
+
+Local Hint Extern 1 (_ = _) => rewrite try_try : try_try.
+
+Lemma invert_step_try {A B σ} {m : free A} {f : A → free B} {ko σ' mm} :
+  step (σ, try m f ko) (σ', mm) →
+  can_step (σ, m) →
+  (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f ko).
+Proof.
+  destruct m;
+  rewrite ?try_ret ?try_stop ?try_par ?try_crash;
+  intros;
+  try solve [
+    (* Case: [Ret] *)
+    exfalso; eauto with invert_can_step
+  | (* Every other case: *)
+    destruct_step; eauto with step try_try
+  ].
 Qed.
 
 (* Conversely, if [bind m f] takes a step, then this must be either because
@@ -307,7 +427,7 @@ Qed.
 
 (* See also [invert_step_bind'] further on. *)
 
-Local Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
+Local Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
 
 Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) σ' mm :
   step (σ, bind m f) (σ', mm) →
@@ -321,130 +441,80 @@ Proof.
     (* Case: [Ret] *)
     right; eauto
   | (* Every other case: *)
-    left; destruct_step; eauto with step bind_bind
+    left; destruct_step; eauto with step bind_try
   ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic lemmas about [is_answer]. *)
+(* TODO clarify this *)
 
-Lemma is_answer_bind {A B} (m : free A) (f : A → free B) :
-  ¬ is_answer m →
-  ¬ is_answer (bind m f).
-Proof.
-  destruct m; simpl; tauto.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Basic lemmas about [can_step]. *)
-
-(* [Ret a] cannot step. *)
-
-Lemma invert_can_step_Ret {A} σ (a : A) :
-  can_step (σ, Ret a) →
-  False.
-Proof.
-  intros. destruct_can_step. destruct_step.
-Qed.
-
-(* [Crash] cannot step. *)
-
-Lemma invert_can_step_Crash {A} σ :
-  can_step (σ, Crash : free A) →
-  False.
-Proof.
-  intros. destruct_can_step. destruct_step.
-Qed.
-
-(* [Next] cannot step. *)
-
-Lemma invert_can_step_Next {A} σ :
-  can_step (σ, Next : free A) →
-  False.
-Proof.
-  intros. destruct_can_step. destruct_step.
-Qed.
-
-Global Hint Resolve
-  invert_can_step_Ret
-  invert_can_step_Crash
-  invert_can_step_Next
-: invert_can_step.
-
-(* If the location [l] exists in the store, then [stop CStore (l, v')]
-   can step in only one way. *)
-
-Lemma invert_step_store {A} σ l v' v k σ' (m' : free A) :
-  σ !! l = Some v →
-  step (σ, Stop CStore (l, v') k) (σ', m') →
-  σ' = <[ l := v' ]> σ ∧
-  m' = k ().
-Proof.
-  intros. destruct_step; split; congruence.
-Qed.
-
-(* If the location [l] exists in the store, then [stop CLoad l]
-   can step in only one way. *)
-
-Lemma invert_step_load {A} σ σ' l v k (m' : free A) :
-  σ !! l = Some v →
-  step (σ, Stop CLoad l k) (σ', m') →
-  σ' = σ ∧
-  m' = k v.
-Proof.
-  intros. destruct_step; split; congruence.
-Qed.
-
-(* Stepping in the left-hand side of [bind] is permitted. *)
-
-Lemma can_step_bind {A B} σ (m : free A) (f : A → free B) :
-  can_step (σ, m) →
-  can_step (σ, bind m f).
-Proof.
-  unfold can_step. intros ([] & Hstep). eauto using step_bind.
-Qed.
-
-(* A term that can step is not an answer. *)
-
-Lemma can_step_not_answer {A} σ (m : free A) :
-  can_step (σ, m) →
-  ¬ is_answer m.
-Proof.
-  intros.
-  destruct m; try solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
-Qed.
-
-(* As a special case of [invert_step_bind], if it is known that [m] is not an
-   answer, and if [bind m f] takes a step, then this must be because [m] takes
-   a step (under a context). In other words, reduction under a context is
-   mandatory: no other reduction is possible. *)
+(* As a special case of [invert_step_bind], if it is known that [m] is not
+   [ret _], and if [bind m f] takes a step, then this must be because [m]
+   takes a step (under a context). In other words, reduction under a context
+   is mandatory: no other reduction is possible. *)
 
 Lemma invert_step_bind' {A B σ m} {f : A → free B} {σ' mm} :
   step (σ, bind m f) (σ', mm) →
-  ¬ is_answer m →
+  is_not_ret m →
   (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
 Proof.
   intros Hstep Hnoret.
   apply invert_step_bind in Hstep.
   destruct Hstep as [ (? & Hstep & ->) | ( ? & -> & ? )].
   { eauto. }
-  { exfalso. by apply Hnoret. }
+  { exfalso. simpl in Hnoret. congruence. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Basic properties of [is_not_ret]. *)
+
+Lemma is_not_ret_ret {A} (a : A) :
+  is_not_ret (ret a) →
+  False.
+Proof.
+  simpl. congruence.
+Qed.
+
+Lemma is_not_ret_bind {A B} (m : free A) (f : A → free B) :
+  is_not_ret m →
+  is_not_ret (bind m f).
+Proof.
+  destruct m; simpl; congruence.
+Qed.
+
+Lemma is_not_ret_try {A B σ} (m : free A) (f : A → free B) ko :
+  can_step (σ, m) →
+  is_not_ret (try m f ko).
+Proof.
+  destruct m; simpl; intros;
+  solve [ eauto | exfalso; eauto with invert_can_step ].
+Qed.
+
+Lemma is_not_ret_crash {A} :
+  is_not_ret (Crash : free A).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma is_not_ret_next {A} :
+  is_not_ret (Next : free A).
+Proof.
+  reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Basic lemmas about [stuck]. *)
 
-(* An answer is not stuck. *)
+(* [ret _] is not stuck. *)
 
-Lemma invert_stuck_answer {A} (m : free A) σ :
-  is_answer m →
-  stuck (σ, m) →
+Lemma invert_stuck_ret {A} (a : A) σ :
+  stuck (σ, ret a) →
   False.
 Proof.
-  unfold stuck. tauto.
+  unfold stuck. intuition eauto using is_not_ret_ret.
 Qed.
 
 (* A configuration that can step is not stuck. *)
@@ -467,7 +537,7 @@ Lemma stuck_Crash {A} σ :
   stuck (σ, Crash : free A).
 Proof.
   unfold stuck. split.
-  { eauto. }
+  { eauto using is_not_ret_crash. }
   { inversion 1. }
 Qed.
 
@@ -477,7 +547,7 @@ Lemma stuck_Next {A} σ :
   stuck (σ, Next : free A).
 Proof.
   unfold stuck. split.
-  { eauto. }
+  { eauto using is_not_ret_next. }
   { inversion 1. }
 Qed.
 
@@ -490,7 +560,7 @@ Proof.
   intros.
   destruct m; try solve [
     eauto
-  | exfalso; eauto using invert_stuck_answer with is_answer
+  | exfalso; eauto using invert_stuck_ret
   | exfalso; eauto using can_step_not_stuck with step
   ].
 Qed.
@@ -514,55 +584,13 @@ Qed.
    either [m] is a result, or [m] can step, or [m] is stuck. *)
 
 Lemma triplicity {A} σ (m : free A) :
-  is_answer m ∨
+  (∃ a, m = ret a) ∨
   can_step (σ, m) ∨
   stuck (σ, m).
 Proof.
-  destruct m; eauto using stuck_Crash, stuck_Next with step is_answer.
+  destruct m; eauto using stuck_Crash, stuck_Next with step.
 Qed.
 
 Ltac triplicity σ m H :=
-  destruct (triplicity σ m) as [ H | [ H | H ]].
-
-(* -------------------------------------------------------------------------- *)
-
-(* [is_ret m] is [Some a] if and only if [m] is [Ret a]. *)
-
-(* [is_ret] offers an executable way of testing whether a computation is
-   [Ret _]. *)
-
-Definition is_ret {A} (m : free A) : option A :=
-  match m with
-  | Ret a => Some a
-  | _     => None
-  end.
-
-Lemma is_ret_None {A} (m : free A) :
-  is_ret m = None ↔
-  ¬ is_answer m.
-Proof.
-  destruct m; simpl; split; first [ congruence | tauto ].
-Qed.
-
-Lemma invert_is_ret_Some {A} {m : free A} {a} :
-  is_ret m = Some a →
-  m = Ret a.
-Proof.
-  destruct m; inversion 1; reflexivity.
-Qed.
-
-Lemma is_ret_bind_None {A B} m (f : A → free B):
-  is_ret m = None →
-  is_ret (bind m f) = None.
-Proof.
-  destruct m; simpl; congruence.
-Qed.
-
-Lemma can_step_is_not_ret {A} (m : free A) σ :
-  can_step (σ, m) →
-  is_ret m = None.
-Proof.
-  intro. rewrite is_ret_None. eauto using can_step_not_answer.
-Qed.
-
-Global Hint Resolve can_step_is_not_ret : is_ret.
+  let a := fresh "a" in
+  destruct (triplicity σ m) as [ (a & ->) | [ H | H ]].
