@@ -77,15 +77,15 @@ Inductive simplify {A : Type} : nat → free A → free A → Prop :=
       (Stop CFlip x k ko)
       m
 | SimplifyParRetLeft:
-    ∀ {A1 A2} n (a1 : A1) (m2 : free A2) k,
+    ∀ {A1 A2} n (a1 : A1) (m2 : free A2) k ko,
     simplify (S n)
-      (Par (Ret a1) m2 k next)
-      (v2 ← m2 ; k (a1, v2))
+      (Par (Ret a1) m2 k ko)
+      (try m2 (λ v2, k (a1, v2)) ko)
 | SimplifyParRetRight:
-    ∀ {A1 A2} n (m1 : free A1) (a2 : A2) k,
+    ∀ {A1 A2} n (m1 : free A1) (a2 : A2) k ko,
     simplify (S n)
-      (Par m1 (Ret a2) k next)
-      (v1 ← m1 ; k (v1, a2))
+      (Par m1 (Ret a2) k ko)
+      (try m1 (λ v1, k (v1, a2)) ko)
 | SimplifyPar:
     ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko,
     simplify n1 m1 m'1 →
@@ -108,12 +108,22 @@ Global Hint Constructors simplify : simplify.
 (* If both sides of a [par] combinator are of the form [ret _],
    then it can be simplified. *)
 
-Lemma simplify_par_ret_ret {A1 A2 A} n a1 a2 (k : A1 * A2 → free A) :
+Lemma simplify_par_ret_ret {A1 A2 A} n a1 a2 (k : A1 * A2 → free A) ko :
   simplify (S n)
-    (Par (Ret a1) (Ret a2) k next)
+    (Par (Ret a1) (Ret a2) k ko)
     (k (a1, a2)).
 Proof.
   constructor.
+Qed.
+
+(* Simplification is compatible with [try]. *)
+
+Lemma simplify_try {A B} n (m1 m2 : free A) (f : A → free B) ko :
+  simplify n m1 m2 →
+  simplify n (try m1 f ko) (try m2 f ko).
+Proof.
+  induction 1; simpl;
+  rewrite ?try_try; econstructor; eauto with congruence.
 Qed.
 
 (* Simplification is compatible with [bind]. *)
@@ -122,11 +132,8 @@ Lemma simplify_bind {A B} n (m1 m2 : free A) (f : A → free B) :
   simplify n m1 m2 →
   simplify n (bind m1 f) (bind m2 f).
 Proof.
-  induction 1; simpl;
-  rewrite ?bind_bind, ?bind_try; econstructor; eauto with congruence.
+  rewrite !bind_as_try. eauto using simplify_try.
 Qed.
-
-(* TODO prove [simplify_try] *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -279,7 +286,7 @@ Lemma simplify_step_diagram {A} {n} {m1 m2 : free A} :
   (i = 0 ∧ n' < n  ∨  i = 1 ∧ n' ≤ n).
 Local Ltac search :=
   do 3 eexists;
-  eauto 7 using step_bind with nsteps step simplify lia.
+  eauto 7 using step_try with nsteps step simplify lia.
 Local Ltac use_ih :=
   match goal with
   Hstep: step (_, ?m) _,
@@ -431,15 +438,15 @@ Inductive simp {A : Type} : free A → free A → Prop :=
       (Stop CFlip x k ko)
       m
 | SimpParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : free A2) k,
+    ∀ {A1 A2} (a1 : A1) (m2 : free A2) k ko,
     simp
-      (Par (Ret a1) m2 k next)
-      (v2 ← m2 ; k (a1, v2))
+      (Par (Ret a1) m2 k ko)
+      (try m2 (λ v2, k (a1, v2)) ko)
 | SimpParRetRight:
-    ∀ {A1 A2} (m1 : free A1) (a2 : A2) k,
+    ∀ {A1 A2} (m1 : free A1) (a2 : A2) k ko,
     simp
-      (Par m1 (Ret a2) k next)
-      (v1 ← m1 ; k (v1, a2))
+      (Par m1 (Ret a2) k ko)
+      (try m1 (λ v1, k (v1, a2)) ko)
 | SimpPar:
     ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko,
     simp m1 m'1 →

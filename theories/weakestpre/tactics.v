@@ -33,7 +33,7 @@ Ltac simp :=
                   simple notypeclasses refine
                          (SimpTransitive (Par (Ret v1) m2 k ko) _ _ _ _) ;
                   [ (* ?m2 *) | (* ?m3 *)
-                  | (* [simp m1 m2] *) exact (SimpParRetLeft v1 m2 k)
+                  | (* [simp m1 m2] *) eapply SimpParRetLeft
                   | (* [simp m2 m3] *)
                     cbn; (* Simplify the bind. *)
                     by simp (* Try to simplify the result. *) ]
@@ -44,7 +44,7 @@ Ltac simp :=
                   simple notypeclasses refine
                          (SimpTransitive (Par m1 (Ret v2) k ko) _ _ _ _) ;
                   [ (* ?m2 *) | (* ?m3 *)
-                  | (* [simp m1 m2] *) exact (SimpParRetLeft m1 v2 k)
+                  | (* [simp m1 m2] *) eapply SimpParRetRight
                   | (* [simp m2 m3] *)
                     cbn; (* Simplify the bind. *)
                     by simp (* Try to simplify the result. *) ]
