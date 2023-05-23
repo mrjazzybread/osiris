@@ -626,48 +626,6 @@ Proof.
     iApply ("IH" with "H1 H2 Hjoin"). }
 Qed.
 
-(* The following three lemmas are special cases of the previous rule. *)
-
-Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
-  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
-  WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a1, WP (k (a1, a2)) @ s; E {{ φ }})
-      (λ a', ⌜a' = a2⌝)
-    with "H []")%I.
-  { by iApply wp_ret. }
-  { by iIntros (??) "? ->". }
-Qed.
-
-Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
-  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
-  WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a', ⌜a' = a1⌝)
-      (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
-    with "[] H")%I.
-  { by iApply wp_ret. }
-  { by iIntros (??) "-> ?". }
-Qed.
-
-Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
-  WP (k (a1, a2)) @ s; E {{ φ }} -∗
-  WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a', ⌜a' = a1⌝)
-      (λ a', ⌜a' = a2⌝)
-    with "[] []")%I.
-  { by iApply wp_ret. }
-  { by iApply wp_ret. }
-  { by iIntros (??) "-> ->". }
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas offer reasoning rules for each of the system calls,
@@ -877,6 +835,43 @@ Proof.
   apply simp_simplify in Hsimp.
   destruct Hsimp as (n & Hsimp).
   iApply (wp_simplify with "Hwp [//]").
+Qed.
+
+(* --------------------------------------------------------------------------*)
+
+(* The following three lemmas are special cases of [wp_simp]. *)
+
+(* For this reason, they should not be used. TODO *)
+
+Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
+  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
+  WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetLeft. }
+  by iApply wp_try.
+Qed.
+
+Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
+  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
+  WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetRight. }
+  by iApply wp_try.
+Qed.
+
+Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
+  WP (k (a1, a2)) @ s; E {{ φ }} -∗
+  WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetRight. }
+  rewrite try_ret.
+  iAssumption.
 Qed.
 
 End rules.
