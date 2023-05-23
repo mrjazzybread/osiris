@@ -217,6 +217,36 @@ Notation is_not_ret m :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* Basic properties of [is_not_ret]. *)
+
+Lemma is_not_ret_ret {A} (a : A) :
+  is_not_ret (ret a) →
+  False.
+Proof.
+  simpl. congruence.
+Qed.
+
+Lemma is_not_ret_bind {A B} (m : free A) (f : A → free B) :
+  is_not_ret m →
+  is_not_ret (bind m f).
+Proof.
+  destruct m; simpl; congruence.
+Qed.
+
+Lemma is_not_ret_crash {A} :
+  is_not_ret (Crash : free A).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma is_not_ret_next {A} :
+  is_not_ret (Next : free A).
+Proof.
+  reflexivity.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [c] can step if there exists [c'] such that [c] steps to [c']. *)
 
 Definition can_step {A} (c : config A) :=
@@ -403,6 +433,9 @@ Global Hint Resolve can_step_try can_step_bind : can_step.
 (* If [try m f ko] takes a step, and if [m] can step, then the step taken by
    [try m f ko] must a step of [m] under the context [try _ f ko]. *)
 
+(* In other words, reduction under a context is mandatory: no other reduction
+   is possible. *)
+
 Local Hint Extern 1 (_ = _) => rewrite try_try : try_try.
 
 Lemma invert_step_try {A B σ} {m : free A} {f : A → free B} {ko σ' mm} :
@@ -421,68 +454,31 @@ Proof.
   ].
 Qed.
 
-(* Conversely, if [bind m f] takes a step, then this must be either because
-   [m] itself takes a step (under a context) or because [m] is [ret a] and
-   the computation [f a] takes a step. *)
-
-(* See also [invert_step_bind'] further on. *)
+(* The following lemma looks like a special case of [invert_step_try], but
+   is in fact stronger, as it requires just [is_not_ret m] instead of the
+   stronger hypothesis [can_step (_, m)]. *)
 
 Local Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
 
-Lemma invert_step_bind {A B} σ (m : free A) (f : A → free B) σ' mm :
+Lemma invert_step_bind {A B σ m} {f : A → free B} {σ' mm} :
   step (σ, bind m f) (σ', mm) →
-  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f) ∨
-  (∃ a, m = Ret a ∧ step (σ, f a) (σ', mm)).
+  is_not_ret m →
+  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
 Proof.
   destruct m;
-  rewrite ?bind_ret ?bind_stop ?bind_par ?bind_crash;
-  intro;
+  rewrite ?try_ret ?try_stop ?try_par ?try_crash;
+  intros;
   try solve [
     (* Case: [Ret] *)
-    right; eauto
+    exfalso; eauto using is_not_ret_ret
   | (* Every other case: *)
-    left; destruct_step; eauto with step bind_try
+    destruct_step; eauto with step bind_try
   ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO clarify this *)
-
-(* As a special case of [invert_step_bind], if it is known that [m] is not
-   [ret _], and if [bind m f] takes a step, then this must be because [m]
-   takes a step (under a context). In other words, reduction under a context
-   is mandatory: no other reduction is possible. *)
-
-Lemma invert_step_bind' {A B σ m} {f : A → free B} {σ' mm} :
-  step (σ, bind m f) (σ', mm) →
-  is_not_ret m →
-  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
-Proof.
-  intros Hstep Hnoret.
-  apply invert_step_bind in Hstep.
-  destruct Hstep as [ (? & Hstep & ->) | ( ? & -> & ? )].
-  { eauto. }
-  { exfalso. simpl in Hnoret. congruence. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Basic properties of [is_not_ret]. *)
-
-Lemma is_not_ret_ret {A} (a : A) :
-  is_not_ret (ret a) →
-  False.
-Proof.
-  simpl. congruence.
-Qed.
-
-Lemma is_not_ret_bind {A B} (m : free A) (f : A → free B) :
-  is_not_ret m →
-  is_not_ret (bind m f).
-Proof.
-  destruct m; simpl; congruence.
-Qed.
+(* More properties of [is_not_ret]. *)
 
 Lemma is_not_ret_try {A B σ} (m : free A) (f : A → free B) ko :
   can_step (σ, m) →
@@ -490,18 +486,6 @@ Lemma is_not_ret_try {A B σ} (m : free A) (f : A → free B) ko :
 Proof.
   destruct m; simpl; intros;
   solve [ eauto | exfalso; eauto with invert_can_step ].
-Qed.
-
-Lemma is_not_ret_crash {A} :
-  is_not_ret (Crash : free A).
-Proof.
-  reflexivity.
-Qed.
-
-Lemma is_not_ret_next {A} :
-  is_not_ret (Next : free A).
-Proof.
-  reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
