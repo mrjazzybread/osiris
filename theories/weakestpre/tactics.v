@@ -202,7 +202,7 @@ Proof.
 Qed.
 
 (* One should avoid [context] in the following tactic, as it might match an
-   occurence that is in the postcondition. *)
+   occurrence that is in the postcondition. *)
 Ltac wp_continue :=
   lazymatch goal with
   | |- environments.envs_entails
