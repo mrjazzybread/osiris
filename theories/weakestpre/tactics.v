@@ -10,6 +10,10 @@ From osiris.weakestpre Require Import wp wp_tactics specifications.
 
 (* Simplification tactics. *)
 
+(* TODO in all of the tactics below, avoid using repeated underscores
+        _ _ _ _
+   This style is fragile and will silently break when a constructor or
+   lemma receives one more argument. *)
 
 (* [simp] proves a goal of the form [simp _ _]. *)
 Ltac simp :=
