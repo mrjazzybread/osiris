@@ -26,20 +26,18 @@ Ltac simp :=
              [Ret]s in the branches of [Par]. *)
           lazymatch m1 with
           | Ret ?v1 =>
-                  simple notypeclasses refine
-                         (SimpTransitive (Par (Ret v1) m2 k ko) _ _ _ _) ;
-                  [ (* ?m2 *) | (* ?m3 *)
-                  | (* [simp m1 m2] *) eapply SimpParRetLeft
+                  eapply SimpTransitive ;
+                  [ (* [simp m1 m2] *)
+                    first [ eapply SimpParRetLeftNext | eapply SimpParRetLeft ]
                   | (* [simp m2 m3] *)
                     cbn; (* Simplify the bind. *)
                     by simp (* Try to simplify the result. *) ]
           | _ =>
               lazymatch m2 with
               | Ret ?v2 =>
-                  simple notypeclasses refine
-                         (SimpTransitive (Par m1 (Ret v2) k ko) _ _ _ _) ;
-                  [ (* ?m2 *) | (* ?m3 *)
-                  | (* [simp m1 m2] *) eapply SimpParRetRight
+                  eapply SimpTransitive ;
+                  [ (* [simp m1 m2] *)
+                    first [ eapply SimpParRetRightNext | eapply SimpParRetRight ]
                   | (* [simp m2 m3] *)
                     cbn; (* Simplify the bind. *)
                     by simp (* Try to simplify the result. *) ]
@@ -48,9 +46,8 @@ Ltac simp :=
                      The simplification of a [Par] cannot go any further using
                      the transitivity of [simp], as one cannot check for
                      progress. *)
-                  by simple notypeclasses refine (SimpPar m1 _ m2 _ k ko _ _) ;
-                  [ (* m1' *) | (* m2' *)
-                  | (* [simp m1 m1'] *) by simp
+                  eapply SimpPar ;
+                  [ (* [simp m1 m1'] *) by simp
                   | (* [simp m2 m2'] *) by simp ]
               end
           end

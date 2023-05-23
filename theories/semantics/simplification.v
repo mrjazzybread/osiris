@@ -511,3 +511,26 @@ Proof.
     (SimplifyReflexive 0)
     with simplify.
 Qed.
+
+(* Special cases of [SimpParRetLeft] and [SimpParRetRight] that introduce
+   [bind _ _] instead of [try _ _ next]. *)
+
+Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → free A) :
+  simp
+    (Par (Ret a1) m2 k next)
+    (v2 ← m2 ; k (a1, v2)).
+Proof.
+  eapply simp_up_to_eq.
+  + econstructor.
+  + rewrite bind_as_try. eauto.
+Qed.
+
+Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) :
+  simp
+    (Par m1 (Ret a2) k next)
+    (v1 ← m1 ; k (v1, a2)).
+Proof.
+  eapply simp_up_to_eq.
+  + econstructor.
+  + rewrite bind_as_try. eauto.
+Qed.
