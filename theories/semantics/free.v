@@ -166,13 +166,6 @@ Definition orelse {A} (m1 m2 : free A) : free A :=
 
 (* This is a monad. *)
 
-(* Global Instance free_mret : MRet free :=
-  { mret := @Ret }.
-
-Global Instance free_mbind : MBind free :=
-   { mbind := λ {A B} (f : A → free B) (m : free A), bind m f }. *)
-
-
 (* [bind] is in fact a special case of [try]. We prefer to give a direct
    definition of [bind] anyway, so as to prevent Coq from expanding uses
    of [bind] into more complex expressions that seem to involve [try]. *)
