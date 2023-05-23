@@ -314,6 +314,12 @@ Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
+Lemma bind_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
+  bind (try m f ko) g =
+  try m (λ a, bind (f a) g) (λ tt, bind (ko()) g).
+Proof.
+  induction m; simpl; eauto with eq.
+Qed.
 (* ------------------------------------------------------------------------ *)
 
 End Make.
