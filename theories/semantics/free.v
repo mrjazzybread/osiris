@@ -225,6 +225,43 @@ Proof.
   reflexivity.
 Qed.
 
+(* Analogous laws for [try]. *)
+
+Lemma try_ret {A B} (a : A) (f : A → free B) (ko : unit → free B) :
+  try (Ret a) f ko =
+  f a.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_crash {A B} (f : A → free B) (ko : unit → free B) :
+  try Crash f ko =
+  Crash.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_next {A B} (f : A → free B) (ko : unit → free B) :
+  try Next f ko =
+  ko().
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_stop {A B X Y} (c : code X Y) x k (f : A → free B) ko :
+  try (Stop c x k) f ko =
+  Stop c x (λ v, try (k v) f ko).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) ko' :
+  try (Par m1 m2 k ko) f ko' =
+  Par m1 m2 (λ v, try (k v) f ko') (λ tt, try (ko()) f ko').
+Proof.
+  reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
