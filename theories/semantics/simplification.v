@@ -453,6 +453,17 @@ Inductive simp {A : Type} : free A → free A → Prop :=
 
 Global Hint Constructors simp : simp.
 
+(* This auxiliary lemma is useful when a constructor of the relation [simp]
+   cannot be applied directly. *)
+
+Lemma simp_up_to_eq {A} {m1 m2 m2' : free A} :
+  simp m1 m2 →
+  m2 = m2' →
+  simp m1 m2'.
+Proof.
+  congruence.
+Qed.
+
 (* Simplification is compatible with [try]. *)
 
 Lemma simp_try {A B} (m1 m2 : free A) (f : A → free B) ko :
