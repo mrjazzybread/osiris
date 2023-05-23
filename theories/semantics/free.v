@@ -225,23 +225,6 @@ Proof.
   reflexivity.
 Qed.
 
-(* Special cases that involve the [par] combinator. *)
-
-Lemma try_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2)
-  (f : A1 * A2 → free A) (g : unit → free A) :
-  try (par m1 m2) f g =
-  Par m1 m2 f g.
-Proof.
-  simpl. f_equal. extensionality tt. destruct tt. reflexivity.
-Qed.
-
-Lemma bind_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2) (f : A1 * A2 → free A) :
-  bind (par m1 m2) f =
-  Par m1 m2 f next.
-Proof.
-  rewrite bind_as_try, try_par_comb. reflexivity.
-Qed.
-
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
