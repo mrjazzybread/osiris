@@ -573,12 +573,18 @@ Qed.
    - [m1] satisfies [φ1]
    - [m2] satisfies [φ2]
    - for all results [a1] and [a2] that satisfy [φ1] and [φ2],
-     the pair [(a1, a2)] satisfies [φ]. *)
+     the application of the the continuation [k]
+     to the pair [(a1, a2)] satisfies [φ]. *)
+
+(* The lemma could be strengthened by placing a ▷ modality in front of the
+   third premise, but I doubt that this would be useful, so I remove it.
+   We do not want the user to rely on the fact that a join point counts
+   as a step. *)
 
 Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
   WP m1 @ s ; E {{ φ1 }} -∗
   WP m2 @ s ; E {{ φ2 }} -∗
-  ▷ (
+  (
     ∀ a1 a2,
     φ1 a1 -∗ φ2 a2 -∗
     WP (k (a1, a2)) @ s; E {{ φ }}
@@ -632,7 +638,7 @@ Proof.
       (λ a', ⌜a' = a2⌝)
     with "H []")%I.
   { by iApply wp_ret. }
-  { iNext. by iIntros (??) "? ->". }
+  { by iIntros (??) "? ->". }
 Qed.
 
 Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
@@ -645,11 +651,11 @@ Proof.
       (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
     with "[] H")%I.
   { by iApply wp_ret. }
-  { iNext. by iIntros (??) "-> ?". }
+  { by iIntros (??) "-> ?". }
 Qed.
 
 Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
-  ▷ WP (k (a1, a2)) @ s; E {{ φ }} -∗
+  WP (k (a1, a2)) @ s; E {{ φ }} -∗
   WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
 Proof.
   iIntros "H".
@@ -659,7 +665,7 @@ Proof.
     with "[] []")%I.
   { by iApply wp_ret. }
   { by iApply wp_ret. }
-  { iNext. by iIntros (??) "-> ->". }
+  { by iIntros (??) "-> ->". }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

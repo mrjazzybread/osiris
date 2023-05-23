@@ -49,7 +49,7 @@ Proof.
     wp_par; [ by iIntros
             | by wp_set_postcondition
             | ].
-    iNext. iIntros (v1 v2) "H1 ->".
+    iIntros (v1 v2) "H1 ->".
     wp_use "H1". }
   iIntros (v) "#add_spec"; wp_continue.
 
@@ -98,7 +98,7 @@ Proof.
         wp.
         wp_par.
         2: { wp. by wp_set_postcondition. }
-        2: { iNext. iIntros (? ?) "Hpartial' ->".
+        2: { iIntros (? ?) "Hpartial' ->".
              wp. iExact "Hpartial'". }
         { iSpecialize ("IH" $! x).
           iApply (wp_covariant with "IH").
@@ -148,14 +148,14 @@ Proof.
             instantiate (1 := λ v, ⌜v = encode (y-1)%Z⌝%I ).
             by wp. }
           { (* spec of [mult x (y-1)] *)
-            iNext. iIntros (v1 v2) "H1 ->".
+            iIntros (v1 v2) "H1 ->".
             wp.
             instantiate (1 := λ (v: val), ⌜ v = encode (x * (y - 1))%Z ⌝%I ).
             iApply "H1"; try done.
 
             (* Proof that y-1 is representable. *) admit. }
 
-          { iNext. iIntros (v1 v2) "H1 ->". wp.
+          { iIntros (v1 v2) "H1 ->". wp.
             (* I no longer understand where [H1] comes from, admitting this
                sub-proof. *)
             admit.
