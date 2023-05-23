@@ -453,14 +453,23 @@ Inductive simp {A : Type} : free A → free A → Prop :=
 
 Global Hint Constructors simp : simp.
 
+(* Simplification is compatible with [try]. *)
+
+Lemma simp_try {A B} (m1 m2 : free A) (f : A → free B) ko :
+  simp m1 m2 →
+  simp (try m1 f ko) (try m2 f ko).
+Proof.
+  induction 1; simpl; rewrite ?try_try;
+  econstructor; eauto with congruence.
+Qed.
+
 (* Simplification is compatible with [bind]. *)
 
 Lemma simp_bind {A B} (m1 m2 : free A) (f : A → free B) :
   simp m1 m2 →
   simp (bind m1 f) (bind m2 f).
 Proof.
-  induction 1; simpl; rewrite ?bind_bind, ?bind_try;
-  econstructor; eauto with congruence.
+  rewrite !bind_as_try. eauto using simp_try.
 Qed.
 
 (* [simplify n m1 m2] implies [simp m1 m2]. *)
