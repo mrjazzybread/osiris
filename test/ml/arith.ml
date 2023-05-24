@@ -1,19 +1,20 @@
-let add x y=
-  let z = y in
-  let (t, v) =
-    let t = z in
-    let z = t in
-    let t = 0 * z in
-    (x, t) in
-  t + (v + z)
+(* Redefinition of addition and multiplication, which should be used on small
+   positive integers. *)
 
-let rec mult x y =
+let rec add x y =
+  if y = 0
+  then mult x 1
+  else 1 + (add x (y - 1))
+
+and mult x y =
   if y = 0
   then 0
-  else if y < 0
-  then - (mult x (-y))
-  else
-    begin
-      assert (0 < y);
-      x + (mult x (y -1))
-    end
+  else if y = 1
+  then x
+  else add x (mult x (y - 1))
+
+
+(* Tests *)
+let i3 = add 1 (add 2 0)
+
+let i17 = add (mult 2 2) (add 1 (mult 2 (add 4 2)))

@@ -23,72 +23,77 @@ From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)
-Definition Incr : mexpr :=
-                    MkStruct [ ILet (Binding1
-(PVar "new_counter") $
-  EFun1Pat PAny (ELet
-    (BiCons
-      (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
-    BiNil) $
-  ELet
-    (BiCons
-      (Binding (PVar "upd") (EFun1Var "i" $
-      EApp (EApp (EMkPath ["Stdlib";":="]) (EVar "c")) (EVar "i"))) $
-    BiNil) $
-  ELet
-    (BiCons
-      (Binding (PVar "get") (EFun1Pat PAny (EApp (EMkPath ["Stdlib";"!"])
+Definition Incr : mexpr := 
+  MkStruct [ 
+ILet (
+  BiCons
+    (Binding (PVar "new_counter")
+      (EFun1Pat PAny (ELet
+        (BiCons
+          (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "upd") (EFun1Var "i" $
+          EApp (EApp (EMkPath ["Stdlib";":="]) (EVar "c")) (EVar "i"))) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "get") (EFun1Pat PAny (EApp (EMkPath ["Stdlib";"!"])
 (EVar "c")))) $
-    BiNil) $
-  ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil))))
-
-  ;
-ILet (Binding1 PAny $
-   ELet
-     (BiCons
-       (Binding (PVar "res") (EApp (EVar "new_counter") EUnit)) $
-     BiNil) $
-   ELet
-     (BiCons
-       (Binding (PVar "get") (EApp (EMkPath ["Stdlib";"fst"]) (EVar "res")))
-$
-     BiNil) $
-   ELet
-     (BiCons
-       (Binding (PVar "upd") (EApp (EMkPath ["Stdlib";"snd"]) (EVar "res")))
-$
-     BiNil) $
-   ELet
-     (BiCons
-       (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
-     BiNil) $
-   EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
-     (BiCons
-       (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EVar
-"get") EUnit)) (EVar "c"))) $
-     BiNil) $
-   EVar "res")) BrNil))
-
-  ;
-ILet (Binding1 (PVar "_test") $
-  ELet
-    (BiCons
-      (Binding (PTuple (PCons (PVar "get") (PCons (PVar "upd") PNil))) (EApp
-(EVar "new_counter") EUnit)) $
-    BiNil) $
-  ELet
-    (BiCons
-      (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
-    BiNil) $
-  EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
-    (BiCons
-      (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EVar
-"get") EUnit)) (EVar "c"))) $
-    BiNil) $
-  EVar "res"))
-BrNil))
-
-
+        BiNil) $
+      ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil))))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PAny)
+      (ELet
+        (BiCons
+          (Binding (PVar "res") (EApp (EVar "new_counter") EUnit)) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "get") (EApp (EMkPath ["Stdlib";"fst"]) (EVar
+"res"))) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "upd") (EApp (EMkPath ["Stdlib";"snd"]) (EVar
+"res"))) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
+        BiNil) $
+      EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
+        (BiCons
+          (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp
+(EVar "get") EUnit)) (EVar "c"))) $
+        BiNil) $
+      EVar "res")) BrNil))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "_test")
+      (ELet
+        (BiCons
+          (Binding (PTuple (PCons (PVar "get") (PCons (PVar "upd") PNil)))
+(EApp (EVar "new_counter") EUnit)) $
+        BiNil) $
+      ELet
+        (BiCons
+          (Binding (PVar "c") (EApp (EVar "get") EUnit)) $
+        BiNil) $
+      EMatch (EApp (EVar "upd") (EInt 13)) (BrCons (Branch PUnit (ELet
+        (BiCons
+          (Binding (PVar "res") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp
+(EVar "get") EUnit)) (EVar "c"))) $
+        BiNil) $
+      EVar "res")) BrNil))) $
+   
+BiNil)
  ].
 
 (* END. *)

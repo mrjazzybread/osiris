@@ -25,55 +25,69 @@ From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)
-Definition Records : mexpr :=
-                    MkStruct [ ILet (Binding1
-(PVar "r_elt") $
-  ERecord (FECons "i" (EInt 10) (FECons "b" (EData "true" (ETuple ENil))
-FENil)))
-
-  ;
-ILet (Binding1 (PVar "flip") $
-  EFun1Var "r" $
-  ERecordUpdate (EVar "r") (FECons "b" (EApp (EMkPath ["Stdlib";"not"])
-(ERecordAccess (EVar "r") "b")) FENil))
-
-  ;
-ILet (Binding1 (PVar "lily") $
-  EData "::" (ETuple (ECons (EVar "r_elt") (ECons (EData "::" (ETuple (ECons
-(EApp (EVar "flip") (EVar "r_elt")) (ECons (EData "[]" (ETuple ENil))
-ENil)))) ENil))))
-
-  ;
-ILet (Binding1 (PVar "r_val") $
-  EFun1Var "r" $
-  EMatch (ERecordAccess (EVar "r") "b") (BrCons (Branch (PBool true) (EApp
-(EApp (EMkPath ["Stdlib";"-"]) (EApp (EApp (EMkPath ["Stdlib";"*"])
+Definition Records : mexpr := 
+  MkStruct [ 
+ILet (
+  BiCons
+    (Binding (PVar "r_elt")
+      (ERecord (FECons "i" (EInt 10) (FECons "b" (EData "true" (ETuple ENil))
+FENil)))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "flip")
+      (EFun1Var "r" $
+      ERecordUpdate (EVar "r") (FECons "b" (EApp (EMkPath ["Stdlib";"not"])
+(ERecordAccess (EVar "r") "b")) FENil))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "lily")
+      (EData "::" (ETuple (ECons (EVar "r_elt") (ECons (EData "::" (ETuple
+(ECons (EApp (EVar "flip") (EVar "r_elt")) (ECons (EData "[]" (ETuple ENil))
+ENil)))) ENil))))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "r_val")
+      (EFun1Var "r" $
+      EMatch (ERecordAccess (EVar "r") "b") (BrCons (Branch (PBool true)
+(EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EApp (EMkPath ["Stdlib";"*"])
 (ERecordAccess (EVar "r") "i")) (EInt 2))) (EInt 1))) (BrCons (Branch (PBool
-false) (ERecordAccess (EVar "r") "i")) BrNil)))
-
-  ;
-ILet (Binding1 (PVar "sum") $
-  EFun1Var "r1" $
-  EFun1Var "r2" $
-  EApp (EApp (EMkPath ["Stdlib";"+"]) (EApp (EVar "r_val") (EVar "r1")))
-(EApp (EVar "r_val") (EVar "r2")))
-
-  ;
-ILetRec (RecBinding1 "is_odd_naive" "n" $
-  ESeq (EAssert (EApp (EApp (EMkPath ["Stdlib";">="]) (EVar "n")) (EInt 0)))
-(EIfThenElse (EApp (EApp (EMkPath ["Stdlib";">"]) (EVar "n")) (EInt 1)) (EApp
-(EVar "is_odd_naive") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EVar "n")) (EInt
-2))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "n")) (EInt 0))
-(EData "false" (ETuple ENil)) (EData "true" (ETuple ENil)))))
-
-  ;
-ILet (Binding1 (PVar "is_odd") $
-  EFun1Var "n" $
-  EApp (EApp (EMkPath ["Stdlib";"="]) (EApp (EApp (EMkPath ["Stdlib";"mod"])
-(EVar "n")) (EInt 2))) (EInt
-0))
-
-
+false) (ERecordAccess (EVar "r") "i")) BrNil)))) $
+    BiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "sum")
+      (EFun1Var "r1" $
+      EFun1Var "r2" $
+      EApp (EApp (EMkPath ["Stdlib";"+"]) (EApp (EVar "r_val") (EVar "r1")))
+(EApp (EVar "r_val") (EVar "r2")))) $
+    BiNil)
+;
+ILetRec (
+  RecBiCons
+    (RecBinding "is_odd_naive" $
+      AnonFun "n"
+      (ESeq (EAssert (EApp (EApp (EMkPath ["Stdlib";">="]) (EVar "n")) (EInt
+0))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";">"]) (EVar "n")) (EInt 1))
+(EApp (EVar "is_odd_naive") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EVar "n"))
+(EInt 2))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "n"))
+(EInt 0)) (EData "false" (ETuple ENil)) (EData "true" (ETuple ENil)))))) $
+    RecBiNil)
+;
+ILet (
+  BiCons
+    (Binding (PVar "is_odd")
+      (EFun1Var "n" $
+      EApp (EApp (EMkPath ["Stdlib";"="]) (EApp (EApp (EMkPath
+["Stdlib";"mod"]) (EVar "n")) (EInt 2))) (EInt 0))) $
+   
+BiNil)
  ].
 
 (* END. *)
