@@ -127,7 +127,7 @@
   distinguishing the program and the environment in which the program
   is executed). This means that Osiris with time credits is sound!
 
-## Tests
+## Tests and Examples
 
 * Once the translation of OCaml to our AST works, develop a more serious
   test suite of the semantics.
@@ -141,6 +141,7 @@
   - Check that we are able to reason about terminating loops using induction
   - Check that we are able to frame out an assertion during
     the execution of the rest of the loop
+  - Port Arthur's imperative pairing heaps and compare with CFML.
 
 ## References
 
@@ -163,6 +164,7 @@
 * chappe-al-23
 * Look at Krebbers's dissertation to see how he handles unspecified evaluation
   order in C.
+* Goose and GooseLang (Tej Chajed).
 
 ## Features of OCaml that we want to support (at some point)
 
@@ -175,6 +177,9 @@
 * `for` loops ✓
 * Unspecified evaluation order of `let/and` definitions and function applications ✓
 * Unspecified evaluation of `assert` statements ✓
+* `Obj.magic` can be supported (just erase it);
+  I think that we will be able to verify programs that make "dynamically well-typed"
+  use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
 * Arrays
 * Characters and strings
 * Records with mutable fields
