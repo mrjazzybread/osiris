@@ -2,6 +2,11 @@
 
 ## Cleanup
 
+* The commands that control reduction (`Arguments`, `Opaque`, etc.)
+  should not be placed in `eval.v`. They should move into `proofmode/`.
+* The proof tactics in `weakestpre/tactics.v` and `weakestpre/wp_tactics.v`
+  should move into `proofmode/`.
+
 * Rename `free` to `micro`.
 * Rename `osirisGS_gen` to something less ugly.
 * In `steps.v`, we could use `nsteps` from `stdpp`.
