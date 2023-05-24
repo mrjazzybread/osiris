@@ -512,17 +512,22 @@ Proof.
     with simplify.
 Qed.
 
-(* Special cases of [SimpParRetLeft] and [SimpParRetRight] that introduce
-   [bind _ _] instead of [try _ _ next]. *)
+(* Special cases. *)
+
+Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko :
+  simp
+    (Par (Ret a1) (Ret a2) k ko)
+    (k (a1, a2)).
+Proof.
+  eauto using simp_up_to_eq with simp try_ret.
+Qed.
 
 Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → free A) :
   simp
     (Par (Ret a1) m2 k next)
     (v2 ← m2 ; k (a1, v2)).
 Proof.
-  eapply simp_up_to_eq.
-  + econstructor.
-  + rewrite bind_as_try. eauto.
+  eauto using simp_up_to_eq with simp bind_as_try.
 Qed.
 
 Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) :
@@ -530,7 +535,5 @@ Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) :
     (Par m1 (Ret a2) k next)
     (v1 ← m1 ; k (v1, a2)).
 Proof.
-  eapply simp_up_to_eq.
-  + econstructor.
-  + rewrite bind_as_try. eauto.
+  eauto using simp_up_to_eq with simp bind_as_try.
 Qed.
