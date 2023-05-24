@@ -3,88 +3,7 @@ From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import wp wp_tactics specifications.
-
-
-(* -------------------------------------------------------------------------- *)
-
-(* Simplification tactics. *)
-
-(* TODO in all of the tactics below, avoid using repeated underscores
-        _ _ _ _
-   This style is fragile and will silently break when a constructor or
-   lemma receives one more argument. *)
-
-(* [simp] proves a goal of the form [simp _ _]. *)
-Ltac simp :=
-  lazymatch goal with
-  | |- simp ?m _ =>
-      lazymatch m with
-      (* [Par]-related cases. *)
-      | Par ?m1 ?m2 ?k ?ko =>
-          (* Choose the simplification lemma depending on the presence of
-             [Ret]s in the branches of [Par]. *)
-          lazymatch m1 with
-          | Ret ?v1 =>
-                  eapply SimpTransitive ;
-                  [ (* [simp m1 m2] *)
-                    first [ eapply SimpParRetLeftNext | eapply SimpParRetLeft ]
-                  | (* [simp m2 m3] *)
-                    cbn; (* Simplify the bind. *)
-                    by simp (* Try to simplify the result. *) ]
-          | _ =>
-              lazymatch m2 with
-              | Ret ?v2 =>
-                  eapply SimpTransitive ;
-                  [ (* [simp m1 m2] *)
-                    first [ eapply SimpParRetRightNext | eapply SimpParRetRight ]
-                  | (* [simp m2 m3] *)
-                    cbn; (* Simplify the bind. *)
-                    by simp (* Try to simplify the result. *) ]
-              | _ =>
-                  (* [simp (Par m1 m2 k ko) (Par m1' m2' k ko)]
-                     The simplification of a [Par] cannot go any further using
-                     the transitivity of [simp], as one cannot check for
-                     progress. *)
-                  eapply SimpPar ;
-                  [ (* [simp m1 m1'] *) by simp
-                  | (* [simp m2 m2'] *) by simp ]
-              end
-          end
-
-      (* [Stop]-related cases. *)
-      | Stop CFlip ?x ?k ?ko =>
-          (* Either : apply [SimpFlip] works and ends the proof search,
-               or stop simplifying the term. *)
-          first [ simple notypeclasses refine (SimpFlip x k _ _ _);
-                  [ (* [m'] *)
-                  | (* [simp (k true) m'] *) by simp
-                  | (* [simp (k false) m'] *) by simp ]
-                | exact (SimpReflexive m) ]
-      | Stop CEval (pair ?η ?e) ?k ?ko =>
-          simple notypeclasses refine (SimpEval η e k);
-          cbn; (* Simplify the bind. *)
-          simp (* Try to simplify the result. *)
-
-      | Stop CLoop (pair (pair (pair (pair ?η ?x) ?i1) ?i2) ?e) ?k ?ko =>
-          simple notypeclasses refine (SimpLoop η x i1 i2 e k)
-
-      | _ => exact (SimpReflexive m)
-      end
-  | |- _ => fail "The goal is not of the form [simp _ _]"
-  end.
-
-
-
-(* [wp_simp] simplifies [m] in a goal of the form [WP m @ _; _ {{ _ }}]. *)
-Ltac wp_simp :=
-  lazymatch goal with
-  | |- environments.envs_entails
-         _ (wp ?s ?E ?m ?φ) =>
-      tac_change_goal (wp_simp m _ s E φ _);
-      [ | simp | ]
-  end.
-
+From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -126,7 +45,7 @@ Ltac wp_step :=
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
   | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _ _) _) =>
       tac_change_goal (wp_flip _ _ _ _ _ _)
-  end; repeat wp_simp.
+  end.
 
 Ltac wp :=
   iStartProof;

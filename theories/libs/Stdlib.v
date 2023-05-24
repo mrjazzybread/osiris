@@ -340,6 +340,14 @@ Section Stdlib__specs.
     by rewrite int.add_repr_repr.
   Qed.
 
+  Global Instance Stdlib__mul__TCspec_1:
+    pure_binary_partial_spec Stdlib__mul Z.mul.
+  Proof.
+    iIntros (????)"H"; wp_call.
+    iApply "H". iIntros; wp.
+    by rewrite int.mul_repr_repr.
+  Qed.
+
 End Stdlib__specs.
 
 Global Opaque Stdlib__not.

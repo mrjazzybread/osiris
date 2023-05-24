@@ -119,13 +119,15 @@ Proof.
         { (* [add x (y - 1)]. *)
           wp_par.
           { wp_use "Hadd"; iPureIntro; exact H1. }
-          - by wp_set_postcondition.
+          - wp_call.
+            instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
+            by rewrite int.sub_repr_repr.
           - iIntros (vpadd ?) "Hadd_partial ->".
             wp_use "Hadd_partial".
-            wp. iPureIntro. lia. }
+            iPureIntro. lia. }
         { iIntros (vadd1 ?) "Hadd1 ->".
           wp.
-          iSpecialize ("Hadd1" $! (i1 + (i2 - 1))%Z NotStuck top).
+          iSpecialize ("Hadd1" $! (i1 + (i2 - 1))%Z NotStuck top). wp.
           iApply (wp_covariant with "Hadd1").
           iIntros (?->).
           iPureIntro. do 2 f_equal. lia. } } }
@@ -167,8 +169,9 @@ Proof.
             wp_par.
             { (* [λ y, mult x y]. *)
               wp_use "Hmult"; iPureIntro; exact H1. }
-            { (* [y - 1]. *)
-              by wp_set_postcondition. }
+            { (* [y - 1]. *) wp_call.
+              instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
+              by rewrite int.sub_repr_repr. }
             { iIntros (vmult_part ?) "Hmult_part ->".
               wp. wp_use "Hmult_part".
               iPureIntro. lia. } }
