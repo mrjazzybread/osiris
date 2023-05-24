@@ -176,6 +176,8 @@ Proof.
   | simpl; f_equal; extensionality v; eauto ].
 Qed.
 
+Global Hint Extern 1 (_ = _) => rewrite bind_as_try : bind_as_try.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Paraphrase lemmas. *)
@@ -252,6 +254,8 @@ Proof.
   reflexivity.
 Qed.
 
+Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Equality of monadic computations. *)
@@ -326,6 +330,11 @@ Lemma try_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko ko' 
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
+
+Global Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
+Global Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
+Global Hint Extern 1 (_ = _) => rewrite try_bind : try_bind.
+Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
 
 (* ------------------------------------------------------------------------ *)
 

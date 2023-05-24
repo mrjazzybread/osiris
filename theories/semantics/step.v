@@ -436,8 +436,6 @@ Global Hint Resolve can_step_try can_step_bind : can_step.
 (* In other words, reduction under a context is mandatory: no other reduction
    is possible. *)
 
-Local Hint Extern 1 (_ = _) => rewrite try_try : try_try.
-
 Lemma invert_step_try {A B σ} {m : free A} {f : A → free B} {ko σ' mm} :
   step (σ, try m f ko) (σ', mm) →
   can_step (σ, m) →
@@ -457,8 +455,6 @@ Qed.
 (* The following lemma looks like a special case of [invert_step_try], but
    is in fact stronger, as it requires just [is_not_ret m] instead of the
    stronger hypothesis [can_step (_, m)]. *)
-
-Local Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
 
 Lemma invert_step_bind {A B σ m} {f : A → free B} {σ' mm} :
   step (σ, bind m f) (σ', mm) →
