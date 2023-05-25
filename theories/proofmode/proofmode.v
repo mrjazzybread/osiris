@@ -1,1 +1,1 @@
-From osiris.proofmode Require Export simp.
+From osiris.proofmode Require Export equality simp.
