@@ -130,6 +130,8 @@ Proof.
   simp.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
 (* TODO *)
 
 (* The tactic [simp_specify x φ] should be used when the term begins with
@@ -154,6 +156,8 @@ Ltac simp_specify x φ :=
       assert (φ v) as H; [| revert h; generalize v ]
     end
   end.
+
+(* -------------------------------------------------------------------------- *)
 
 (* let id = identity in
    (id (A()), id (A())) *)
@@ -183,4 +187,20 @@ Proof.
     { simp. }
   }
   simp.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* An example that involves an assertion. *)
+
+Goal let e :=
+  ESeq (EAssert ETrue) EFalse
+  in simp (eval ε e) (ret VFalse).
+Proof.
+  simp.
+  eapply prove_simp_bind.
+  (* Subgoal: prove that [assert true] succeeds. *)
+  { simp. }
+  (* Remainder: prove that [false] returns [false], as promised. *)
+  { simp. }
 Qed.
