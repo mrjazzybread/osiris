@@ -120,33 +120,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO *)
-
-(* The tactic [simp_specify x φ] should be used when the term begins with
-   [concatenating eval η e δ], that is, when the environment is about to be
-   extended with the environment fragment [δ].
-
-   The tactic looks up the variable [x] in the environment fragment [δ]
-   so as to find the value [v] of this variable. Then, it produces two
-   subgoals:
-   - the subgoal [φ v],
-     letting the user prove that [v] satisfies the specification [φ];
-   - the original goal,
-     generalized under the form [∀ v, φ v → ...],
-     which means that [v] becomes an opaque value
-     about which nothing is known except that [φ v] holds. *)
-
-Ltac simp_specify x φ :=
-  lazymatch goal with |- simp (concatenating eval _ _ ?δ) _ =>
-    let o := eval cbn in (lookup_name δ x) in
-    lazymatch o with ret ?v =>
-      let h := fresh in
-      assert (φ v) as H; [| revert h; generalize v ]
-    end
-  end.
-
-(* -------------------------------------------------------------------------- *)
-
 (* let id = identity in
    (id (A()), id (A())) *)
 
@@ -251,8 +224,8 @@ Definition walk : rec_bindings :=
     ].
 
 Definition spec_walk (walk : val) :=
-  ∀ (bs : list bool),
-  simp (call walk (encode bs)) ok.
+  ∀ X `(_ : Encode X) (xs : list X),
+  simp (call walk (encode xs)) ok.
 
 Definition walk_example e :=
   ELetRec walk $
@@ -278,8 +251,8 @@ Qed.
    then we make this closure opaque. *)
 
 Lemma spec_walk_example_abstract :
-  forall (bs : list bool),
-  let η := EnvCons "xs" (encode bs) ε in
+  forall `{Encode X} (xs : list X),
+  let η := EnvCons "xs" (encode xs) ε in
   simp (eval η (walk_example (EVar "xs"))) ok.
 Proof.
   intros. simp.
@@ -290,10 +263,10 @@ Proof.
   (* Subgoal: prove that the closure satisfies [spec_walk]. *)
   { (* The environment [η] is irrelevant, since the code is in fact closed.
        Abstract it away. *)
-    generalize η. clear bs η. intros η.
+    generalize η. clear xs η. intros η.
     unfold spec_walk.
     (* Prove the spec by induction on the list [bs]. *)
-    induction bs as [| b bs ]; simp_enter.
+    induction xs as [| x xs ]; simp_enter.
     (* The [nil] branch has been automatically solved. *)
     (* This is the [cons] branch. *)
     simp_continue.
@@ -301,3 +274,37 @@ Proof.
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   intros walk Hwalk. simp_continue.
 Qed.
+
+(* ------------------------------------------------------------------------- *)
+
+(* A recursive function that computes the length of a list. *)
+
+(* let rec length xs =
+     match xs with
+     | [] -> 0
+     | x :: xs -> 1 + length xs *)
+
+Definition length : rec_bindings :=
+  RecBinding1 "length" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil (EInt 0);
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
+    ].
+
+Definition spec_length (length : val) :=
+  ∀ X `(_ : Encode X) (xs : list X),
+  simp (call length (encode xs)) (ret (encode (List.length xs))).
+
+Goal
+  ∀ η,
+  spec_length (VCloRec η length "length").
+Proof.
+  unfold spec_length.
+  induction xs as [| x xs ]; simp_enter.
+  (* The [nil] branch has been automatically solved. *)
+  (* This is the [cons] branch. *)
+  simp_continue. simp_ret.
+Qed.
+
+(* ------------------------------------------------------------------------- *)

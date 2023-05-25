@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics evalprime. (* TODO *)
+From osiris.proofmode Require Import equality.
 Global Opaque eval. (* TODO *)
 
 (* This file offers lemmas and tactics that help simplify computations,
@@ -187,6 +188,15 @@ with simp1 :=
          further steps. *)
       rewrite eval_eval'; cbn;
       simp0
+  (* Same as above. *)
+  | as_int (eval ?η ?e) =>
+      rewrite eval_eval'; cbn; simp0
+  | as_bool (eval ?η ?e) =>
+      rewrite eval_eval'; cbn; simp0
+  | as_loc (eval ?η ?e) =>
+      rewrite eval_eval'; cbn; simp0
+  | as_record (eval ?η ?e) =>
+      rewrite eval_eval'; cbn; simp0
   | call ?v1 ?v2 =>
       (* We allow ourselves to reason about function calls using whatever
          hypotheses may be present in the context and in the hint database
@@ -311,8 +321,36 @@ Ltac simp_continue :=
 Ltac simp_enter :=
   with_strategy transparent [call] unfold call; simp.
 
-(* TODO do something about [Stop CFlip _ _] *)
-(* TODO simplify [eval η e] even when it is not at the head,
-        e.g. [simp (x ← eval η e ; _) _]. *)
+(* [simp_ret] expects of the goal of the form [simp (ret ?a1) (ret ?a2)].
+   It reduces this goal to the equality [a1 = a2], and attempts to prove
+   this equality. *)
+
+Ltac simp_ret :=
+  eapply prove_simp_ret; [ equality ].
+
+(* -------------------------------------------------------------------------- *)
+
+(* The tactic [simp_specify x φ] should be used when the term begins with
+   [concatenating eval η e δ], that is, when the environment is about to be
+   extended with the environment fragment [δ].
+
+   The tactic looks up the variable [x] in the environment fragment [δ]
+   so as to find the value [v] of this variable. Then, it produces two
+   subgoals:
+   - the subgoal [φ v],
+     letting the user prove that [v] satisfies the specification [φ];
+   - the original goal,
+     generalized under the form [∀ v, φ v → ...],
+     which means that [v] becomes an opaque value
+     about which nothing is known except that [φ v] holds. *)
+
+Ltac simp_specify x φ :=
+  lazymatch goal with |- simp (concatenating eval _ _ ?δ) _ =>
+    let o := eval cbn in (lookup_name δ x) in
+    lazymatch o with ret ?v =>
+      let h := fresh in
+      assert (φ v) as h; [| revert h; generalize v ]
+    end
+  end.
 
 (* -------------------------------------------------------------------------- *)
