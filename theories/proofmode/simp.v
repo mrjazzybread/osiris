@@ -255,6 +255,15 @@ Ltac simp_continue :=
     fail "[simp_continue] expects a goal of the form [simp (concatenating ...) _]"
   end.
 
+(* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
+   into the call. It is normally used at the beginning of the proof of a
+   function, that is, when reasoning about a callee. At a call site, it
+   is normally not used, unless the user wants to logically inline the
+   called function. *)
+
+Ltac simp_enter :=
+  with_strategy transparent [call] unfold call; simp.
+
 (* TODO do something about [Stop CFlip _ _] *)
 (* TODO simplify [eval η e] even when it is not at the head,
         e.g. [simp (x ← eval η e ; _) _]. *)
