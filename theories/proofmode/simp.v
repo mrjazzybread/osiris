@@ -285,7 +285,7 @@ with simp1_par :=
 with close :=
   solve [ eapply SimpReflexive | eapply simp_reflexive; [ eauto ]].
 
-(* [simp] is the public entry point into the above tactics. *)
+(* [simp] is the main public entry point into the above tactics. *)
 
 (* [simp] proves or advances a goal of the form [simp m1 m2], where [m2] may
    be a metavariable. If [m2] is a metavariable then it is instantiated with
@@ -297,6 +297,20 @@ Ltac simp :=
     simp0; try close
   | _ =>
     fail "[simp] expects a goal of the form [simp _ _]"
+  end.
+
+(* [simp_really] is another public entry point into the above tactics. *)
+
+(* [simp_really] proves a goal of the form [simp m1 m2], where [m2]
+   must be a metavariable. [m2] is instantiated with a [cbn]-normal
+   term. [simp_really] performs at least one step of simplification.   *)
+
+Ltac simp_really :=
+  cbn;
+  lazymatch goal with |- simp ?m1 _ =>
+    simp1; close
+  | _ =>
+    fail "[simp_really] expects a goal of the form [simp _ _]"
   end.
 
 (* [simp_continue] unfolds [concatenating] in a goal of the form
