@@ -46,6 +46,13 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma simp_tail_call {A} (m : free A) m' :
+  simp m m' →
+  simp (bind m ret) m'.
+Proof.
+  rewrite bind_ret_right. eauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas are used by the [simp] tactic. *)
@@ -185,6 +192,9 @@ with simp1 :=
          hypotheses may be present in the context and in the hint database
          [simp_specs]. *)
       solve [ eauto with simp_specs ]
+  | bind ?m ret =>
+      (* A tail call can be simplified. *)
+      eapply simp_tail_call; simp0
   | bind ?m ?f =>
       (* We apply the reasoning rule Bind only if we are able to solve
          its first premise. This guarantees that we leave only one
