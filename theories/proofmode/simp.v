@@ -46,8 +46,6 @@ Proof.
   eauto with simp.
 Qed.
 
-(* TODO decide which reasoning rules should be automatically applied *)
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas are used by the [simp] tactic. *)
@@ -208,6 +206,8 @@ with simp1 :=
   | Stop CFlip _ _ _ =>
       eapply advance_SimpFlipOK; cbn;
       simp0
+  (* We do not exploit the lemma [prove_simp_par] because we deal with [Par]
+     directly, as follows. *)
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
