@@ -91,6 +91,14 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
+Lemma advance_SimpFlipOK x k ko :
+  simp (k false) ok →
+  simp (k true) ok →
+  simp (Stop CFlip x k ko) ok.
+Proof.
+  eauto with simp.
+Qed.
+
 Lemma advance_SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko m' :
   simp (k (a1, a2)) m' →
   simp (Par (Ret a1) (Ret a2) k ko) m'.
@@ -177,6 +185,9 @@ with simp1 :=
       simp0
   | Stop CLoop _ _ _ =>
       first [ eapply advance_SimpLoopNext | eapply advance_SimpLoop ]; cbn;
+      simp0
+  | Stop CFlip _ _ _ =>
+      eapply advance_SimpFlipOK; cbn;
       simp0
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
