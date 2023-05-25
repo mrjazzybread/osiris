@@ -296,7 +296,7 @@ Local Hint Resolve eq_stop_stop eq_par_par : eq.
 
 (* [bind_ret] has been proved already. *)
 
-Goal (* currently unused *)
+Lemma bind_ret_right :
   ∀ {A} (m : free A),
   bind m Ret = m.
 Proof.
