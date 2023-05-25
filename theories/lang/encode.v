@@ -41,3 +41,10 @@ Fixpoint encode_list `{Encode A} (xs : list A) :=
 
 Global Instance Encode_list `{Encode A} : Encode (list A) :=
   { encode := encode_list }.
+
+Lemma encode_list_is_encode `{Encode A} :
+  ∀ (xs : list A),
+  encode_list xs = encode xs.
+Proof.
+  reflexivity.
+Qed.
