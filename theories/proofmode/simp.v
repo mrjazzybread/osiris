@@ -196,6 +196,9 @@ with simp1 :=
          of the sequence needs an existentially quantified postcondition. *)
       eapply prove_simp_bind; [ cbn; simp0; close |];
       cbn; simp0
+  | try ?m ?f ?ko =>
+      eapply prove_simp_try; [ cbn; simp0; close |];
+      cbn; simp0
   | Stop CEval _ _ _ =>
       first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; cbn;
       simp0
