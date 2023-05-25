@@ -232,3 +232,72 @@ Goal let e :=
 Proof.
   simp.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A recursive function that walks a list. *)
+
+(* let rec walk xs =
+     match xs with
+     | [] -> ()
+     | x :: xs -> walk xs *)
+
+Definition walk : rec_bindings :=
+  RecBinding1 "walk" "xs" $
+  EMatchMkBranches (EVar "xs") [
+    Branch pNil EUnit;
+    Branch (pCons (PVar "x") (PVar "xs"))
+           (EApp (EVar "walk") (EVar "xs"))
+    ].
+
+Definition spec_walk (walk : val) :=
+  ∀ (bs : list bool),
+  simp (call walk (encode bs)) ok.
+
+Definition walk_example e :=
+  ELetRec walk $
+  EApp (EVar "walk") e.
+
+Lemma spec_walk_example_concrete :
+  let e := eCons ETrue (eCons EFalse eNil) in
+  simp (eval ε (walk_example e)) ok.
+Proof.
+  (* The code is pure and terminating and can be fully evaluated,
+     if we accept to step into each call to [walk]. *)
+  intros.
+  simp.
+  simp_continue.
+  simp_enter. simp_continue.
+  simp_enter. simp_continue.
+  simp_enter.
+Qed.
+
+(* The following example illustrates how to reason about a local function.
+   When the environment is about to be extended with a binding of the
+   variable "walk" to a closure, we prove a specification for this closure,
+   then we make this closure opaque. *)
+
+Lemma spec_walk_example_abstract :
+  forall (bs : list bool),
+  let η := EnvCons "xs" (encode bs) ε in
+  simp (eval η (walk_example (EVar "xs"))) ok.
+Proof.
+  intros. simp.
+  (* The environment is about to be extended with a binding of the variable
+     "walk" to a certain closure. Now is the time to prove a specification
+     for this closure; then, we can make this closure opaque. *)
+  simp_specify "walk" spec_walk.
+  (* Subgoal: prove that the closure satisfies [spec_walk]. *)
+  { (* The environment [η] is irrelevant, since the code is in fact closed.
+       Abstract it away. *)
+    generalize η. clear bs η. intros η.
+    unfold spec_walk.
+    (* Prove the spec by induction on the list [bs]. *)
+    induction bs as [| b bs ]; simp_enter.
+    (* The [nil] branch has been automatically solved. *)
+    (* This is the [cons] branch. *)
+    simp_continue.
+  }
+  (* The variable "walk" is now bound to an abstract closure [walk]. *)
+  intros walk Hwalk. simp_continue.
+Qed.
