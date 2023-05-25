@@ -191,6 +191,84 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* let id = identity in
+   (id id) () *)
+
+Goal let e :=
+  ELet1Var "id" identity $
+  let id := EVar "id" in
+  EApp (EApp id id) EUnit
+  in simp (eval ε e) ok.
+Proof.
+  simp.
+  (* Deal with the local binding of [id]. *)
+  simp_specify "id" spec_id.
+  { unfold spec_id. intros. simp_enter. }
+  intros id Hid.
+  simp_continue.
+  (* We are looking at [id id]. *)
+  eapply prove_simp_bind.
+  { eapply Hid. }
+  { eapply Hid. }
+Qed.
+
+(* let id = identity in
+   id (id ()) *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* let id = identity in
+   id (id ()) *)
+
+Goal let e :=
+  ELet1Var "id" identity $
+  let id := EVar "id" in
+  EApp id (EApp id EUnit)
+  in simp (eval ε e) ok.
+Proof.
+  simp.
+  (* Deal with the local binding of [id]. *)
+  simp_specify "id" spec_id.
+  { unfold spec_id. intros. simp_enter. }
+  intros id Hid.
+  simp_continue.
+  (* We are looking at the nested applications [id (id())]. *)
+  eapply prove_simp_bind.
+  { eapply Hid. }
+  { eapply Hid. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* let id = identity in
+   (id id) (id ()) *)
+
+Goal let e :=
+  ELet1Var "id" identity $
+  let id := EVar "id" in
+  EApp (EApp id id) (EApp id EUnit)
+  in simp (eval ε e) ok.
+Proof.
+  simp.
+  (* Deal with the local binding of [id]. *)
+  simp_specify "id" spec_id.
+  { unfold spec_id. intros. simp_enter. }
+  intros id Hid.
+  simp_continue.
+
+  (* Here, [simp] is unable to make progress because we are looking at two
+     function calls in parallel. *)
+  eapply prove_simp_par; [| | cbn ].
+  (* id id *)
+  { eapply Hid. }
+  (* id () *)
+  { eapply Hid. }
+
+  eapply Hid.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* An example that involves an assertion. *)
 
 Goal let e :=
