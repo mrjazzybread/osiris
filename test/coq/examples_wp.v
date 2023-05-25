@@ -276,6 +276,7 @@ Definition walk : rec_bindings :=
 Definition spec_walk (walk : val): iProp Σ :=
   ∀ (bs : list bool),
   WP call walk (encode_list bs) {{ λ v, ⌜v = VUnit⌝ }}.
+  (* TODO should always use [encode], not [encode_list] *)
 
 (* This is a subgoal that appears in the proof of
    [spec_walk_example_abstract] below. *)
