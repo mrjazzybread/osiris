@@ -159,7 +159,7 @@ Proof.
 Qed.
 
 (* let id = identity in
-   (id id) id *)
+   (id id) () *)
 
 Definition example4b :=
   ELet1Var "id" identity $
