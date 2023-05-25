@@ -374,10 +374,13 @@ Proof.
     do 2 f_equal. lia. }
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
 (* let l = ref "A" in
    l := "B";
    !l
  *)
+
 Definition ref_store_load: expr :=
   ELet1Var "l" (ERef (EConstant "A")) $
   ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
@@ -396,6 +399,7 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+
 (* On verifying modules. *)
 
 (* [simple_module] defines stand alone module expression.
