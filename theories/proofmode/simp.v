@@ -191,7 +191,14 @@ with simp1 :=
       (* We allow ourselves to reason about function calls using whatever
          hypotheses may be present in the context and in the hint database
          [simp_specs]. *)
-      solve [ eauto with simp_specs ]
+      solve [
+        (* This [rewrite] command is ad hoc, maybe slow; TODO.
+           The problem is that [cbn] expands [encode] into [encode_list].
+           This prevents the application of specification lemmas whose
+           statement uses [encode]. *)
+        repeat rewrite encode_list_is_encode;
+        eauto with simp_specs typeclass_instances
+      ]
   | bind ?m ret =>
       (* A tail call can be simplified. *)
       eapply simp_tail_call; simp0
