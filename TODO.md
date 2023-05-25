@@ -14,23 +14,17 @@
 ## Engineering and proof mode
 
 * Develop a set of tactics specifically for reasoning about pure
-  programs using `psimplify`.
+  programs using `simp`.
 
-* Better take advantage of the lemma `wp_psimplify` in the simplification
-  tactics.
+* Take advantage of the lemma `wp_simp` in the simplification tactics.
 
 * Once the above is done,
   remove the use of
   `wp_par_ret_ret`,
   `wp_par_ret_left`,
-  `wp_par_ret_right`,
-  `wp_eval`
+  `wp_par_ret_right`
   in the tactics.
-
-* Remove also the use of `wp_eval_ret`,
-  which is `wp_eval` plus tail call optimisation.
-  This may require revisiting the definitions of `simplify`
-  and `psimplify`.
+  (Then, remove these lemmas or make them local.)
 
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file

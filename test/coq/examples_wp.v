@@ -87,7 +87,7 @@ Proof.
     iIntros (v->).
     wp. wp_set_postcondition.
     iPureIntro. reflexivity. }
-  { iNext. iIntros (??) "->->".
+  { iIntros (??) "->->".
     wp. iPureIntro. reflexivity. }
 Qed.
 

@@ -1,6 +1,7 @@
 From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
 From osiris.semantics Require Import semantics.
+From osiris.lang Require Import lang.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -32,4 +33,8 @@ Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  'be'
   Notation "'The'  'following'  (  δ  ':='  v  )
 'is'  'about'  'to'  'be'  'added'  'to'  'the'  'environment.'" :=
     (wp _ _ (concatenating _ _ δ v) _)
+    (only printing).
+
+  Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
+    (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
     (only printing).

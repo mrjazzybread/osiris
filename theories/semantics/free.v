@@ -30,9 +30,10 @@ Import C. (* We write [code] for [C.code]. *)
    - [Next], a soft failure, which can be caught by a [try]
      combinator;
 
-   - [Stop c x k], a request to evaluate a computation whose code is
-     [c], with argument [x], producing a result which the continuation
-     [k] consumes;
+   - [Stop c x k ko], a request to evaluate a computation whose code is
+     [c], with argument [x], producing either a normal result, which the
+     success continuation [k] consumes, or [Next], in which case the
+     failure continuation [ko] is invoked;
 
    - [Par m1 m2 k ko], a parallel evaluation construct, which
      evaluates [m1] and [m2] independently. If both computations
@@ -42,17 +43,12 @@ Import C. (* We write [code] for [C.code]. *)
      transmitted upwards. If either computation causes a soft failure,
      then the failure continuation [ko] is invoked.
 
-   The code [c] carried in [Stop c x k] has type [code X Y], for some
+   The code [c] carried in [Stop c x k ko] has type [code X Y], for some
    types [X] and [Y]. The parameter [x] has type [X], and the
    continuation [k] expects a value of type [Y]. Throughout this file,
    the type family [code] is a parameter. The constructor [Stop] is
    similar to the constructor [Vis] of interaction trees, and the type
    code is similar to an effect signature [E].
-
-   The fact that [Stop] does not carry a second continuation
-   (which would be a soft failure continuation) reflects
-   a convention that the computation denoted by a code
-   is not allowed to raise a soft failure.
 
    The type [free A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must
@@ -62,10 +58,12 @@ Inductive free A :=
   | Ret (a : A)
   | Crash
   | Next
-  | Stop {X Y} (c : code X Y) (x : X) (k : Y → free A)
-  | Par {A1 A2} (m1 : free A1) (m2 : free A2)
-                (k : A1 * A2 → free A)
-                (ko : unit → free A)
+  | Stop {X Y}
+      (c : code X Y) (x : X) (k : Y → free A) (ko : unit → free A)
+  | Par {A1 A2}
+      (m1 : free A1) (m2 : free A2)
+      (k : A1 * A2 → free A)
+      (ko : unit → free A)
 .
 
 (* Make [A] an implicit argument of the constructors. *)
@@ -73,7 +71,7 @@ Inductive free A :=
 Arguments Ret  {A}.
 Arguments Crash {A}.
 Arguments Next {A}.
-Arguments Stop {A X Y} c x k.
+Arguments Stop {A X Y} c x k ko.
 Arguments Par  {A A1 A2} m1 m2 k ko.
 
 (* ------------------------------------------------------------------------ *)
@@ -95,7 +93,7 @@ Notation next :=
    posteriori (step.v). *)
 
 Definition stop {X Y} (c : code X Y) (x : X) : free Y :=
-  Stop c x ret.
+  Stop c x ret next.
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
@@ -119,13 +117,13 @@ Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
   | Next =>
       (* A soft failure is transmitted. *)
       Next
-  | Stop c x k =>
+  | Stop c x k ko =>
       (* A [Stop] effect is transmitted. The handler [bind _ f] remains
-         installed on top of the continuation. *)
-      Stop c x (λ v, bind (k v) f)
+         installed on top of the continuations. *)
+      Stop c x (λ y, bind (k y) f) (λ y, bind (ko y) f)
   | Par m1 m2 k ko =>
       (* Same here. *)
-      Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f)
+      Par m1 m2 (λ y, bind (k y) f) (λ y, bind (ko y) f)
   end.
 
 Global Arguments bind A B !m f : simpl nomatch.
@@ -147,15 +145,14 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
   | Next =>
       (* A soft failure is handled by [g]. *)
       g()
-  | Stop c x k =>
+  | Stop c x k ko =>
       (* A [Stop] effect is transmitted. The handler [try _ f g] remains
-         installed on top of the continuation. Because [eval η e] cannot
-         cause a soft failure, there is only one continuation. TODO fix *)
-      Stop c x (λ v, try (k v) f g)
+         installed on top of the continuations. *)
+      Stop c x (λ y, try (k y) f g) (λ y, try (ko y) f g)
   | Par m1 m2 k ko =>
       (* Same here. The handler [try _ f g] remains installed on top of
          both continuations. *)
-      Par m1 m2 (λ v, try (k v) f g) (λ tt, try (ko()) f g)
+      Par m1 m2 (λ y, try (k y) f g) (λ y, try (ko y) f g)
   end.
 
 (* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
@@ -165,13 +162,6 @@ Definition orelse {A} (m1 m2 : free A) : free A :=
   try m1 ret (λ tt, m2).
 
 (* This is a monad. *)
-
-(* Global Instance free_mret : MRet free :=
-  { mret := @Ret }.
-
-Global Instance free_mbind : MBind free :=
-   { mbind := λ {A B} (f : A → free B) (m : free A), bind m f }. *)
-
 
 (* [bind] is in fact a special case of [try]. We prefer to give a direct
    definition of [bind] anyway, so as to prevent Coq from expanding uses
@@ -211,35 +201,55 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_stop {A B X Y} (c : code X Y) x k (f : A → free B) :
-  bind (Stop c x k) f =
-  Stop c x (λ v, bind (k v) f).
+Lemma bind_stop {A B X Y} (c : code X Y) x k ko (f : A → free B) :
+  bind (Stop c x k ko) f =
+  Stop c x (λ y, bind (k y) f) (λ y, bind (ko y) f).
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) :
   bind (Par m1 m2 k ko) f =
-  Par m1 m2 (λ v, bind (k v) f) (λ tt, bind (ko()) f).
+  Par m1 m2 (λ v, bind (k v) f) (λ y, bind (ko y) f).
 Proof.
   reflexivity.
 Qed.
 
-(* Special cases that involve the [par] combinator. *)
+(* Analogous laws for [try]. *)
 
-Lemma try_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2)
-  (f : A1 * A2 → free A) (g : unit → free A) :
-  try (par m1 m2) f g =
-  Par m1 m2 f g.
+Lemma try_ret {A B} (a : A) (f : A → free B) (ko : unit → free B) :
+  try (Ret a) f ko =
+  f a.
 Proof.
-  simpl. f_equal. extensionality tt. destruct tt. reflexivity.
+  reflexivity.
 Qed.
 
-Lemma bind_par_comb {A1 A2 A} (m1 : free A1) (m2 : free A2) (f : A1 * A2 → free A) :
-  bind (par m1 m2) f =
-  Par m1 m2 f next.
+Lemma try_crash {A B} (f : A → free B) (ko : unit → free B) :
+  try Crash f ko =
+  Crash.
 Proof.
-  rewrite bind_as_try, try_par_comb. reflexivity.
+  reflexivity.
+Qed.
+
+Lemma try_next {A B} (f : A → free B) (ko : unit → free B) :
+  try Next f ko =
+  ko().
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_stop {A B X Y} (c : code X Y) x k ko (f : A → free B) ko' :
+  try (Stop c x k ko) f ko' =
+  Stop c x (λ y, try (k y) f ko') (λ y, try (ko y) f ko').
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) ko' :
+  try (Par m1 m2 k ko) f ko' =
+  Par m1 m2 (λ v, try (k v) f ko') (λ y, try (ko y) f ko').
+Proof.
+  reflexivity.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -255,11 +265,12 @@ Qed.
    accept the law of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
-Lemma eq_stop_stop A X Y (k1 k2 : Y → free A) (c : code X Y) x :
+Lemma eq_stop_stop A X Y (k1 k2 : Y → free A) (c : code X Y) x ko1 ko2 :
   (∀ v, k1 v = k2 v) →
-  Stop c x k1 = Stop c x k2.
+  (∀ y, ko1 y = ko2 y) →
+  Stop c x k1 ko1 = Stop c x k2 ko2.
 Proof.
-  intros. f_equal. extensionality v. eauto.
+  intros. f_equal; extensionality v; eauto.
 Qed.
 
 Lemma eq_par_par {A A1 A2} (m1 : free A1) (m2 : free A2)
@@ -281,7 +292,8 @@ Local Hint Resolve eq_stop_stop eq_par_par : eq.
 
 (* [bind_ret] has been proved already. *)
 
-Lemma ret_bind {A} (m : free A) :
+Goal (* currently unused *)
+  ∀ {A} (m : free A),
   bind m Ret = m.
 Proof.
   induction m; simpl; eauto with eq.
@@ -290,6 +302,27 @@ Qed.
 Lemma bind_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) :
   bind (bind m f) g =
   bind m (λ a, bind (f a) g).
+Proof.
+  induction m; simpl; eauto with eq.
+Qed.
+
+Lemma bind_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
+  bind (try m f ko) g =
+  try m (λ a, bind (f a) g) (λ y, bind (ko y) g).
+Proof.
+  induction m; simpl; eauto with eq.
+Qed.
+
+Lemma try_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
+  bind (try m f ko) g =
+  try m (λ y, bind (f y) g) (λ y, bind (ko y) g).
+Proof.
+  induction m; simpl; eauto with eq.
+Qed.
+
+Lemma try_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko ko' :
+  try (try m f ko) g ko' =
+  try m (λ y, try (f y) g ko') (λ y, try (ko y) g ko').
 Proof.
   induction m; simpl; eauto with eq.
 Qed.

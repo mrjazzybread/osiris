@@ -408,4 +408,4 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   | Tstr_attribute _ -> assert false (*of attribute*)
 
 let translate (t: Typedtree.structure): ast =
-  List.flatten (List.map trans_tl_structure t.str_items)
+  List.map trans_tl_structure t.str_items

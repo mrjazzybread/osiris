@@ -4,6 +4,7 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
+From osiris.weakestpre Require Import weakestpre.
 From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import arith.
@@ -11,24 +12,46 @@ From test Require Import arith.
 Context `{!osirisGS_gen hlc Σ}.
 
 Definition add_spec vadd : iProp Σ :=
-  ∀ (x y: Z) (vx vy: val),
-    ⌜ vx = encode x ⌝ -∗
-    ⌜ vy = encode y ⌝ -∗
-    WP call vadd vx
-    {{ λ v, WP call v vy {{ λ res, ⌜res = encode (x + y)%Z⌝ }} }}.
+  ∀ (x : Z),
+    ⌜0 <= x⌝%Z →
+    WP call vadd #x
+    {{ λ v,
+        ∀ (y: Z),
+          ⌜0 <= y⌝%Z →
+        WP call v #y {{ λ res, ⌜res = #(x + y)%Z⌝ }} }}.
 
 Definition mult_spec vmult : iProp Σ :=
   ∀ (x: Z),
-    WP call vmult (encode x)
-    {{ λ v, ∀ (y: Z),
-        ⌜ (int.min_signed ≤ x ≤ int.max_signed)%Z⌝ -∗
-        ⌜ (int.min_signed ≤ y ≤ int.max_signed)%Z⌝ -∗
-        WP call v (encode y) {{ λ res, ⌜res = encode (x * y)%Z⌝ }} }}.
+    ⌜0 <= x⌝%Z →
+    WP call vmult #x
+       {{ λ v, ∀ (y: Z),
+             ⌜0 <= y⌝%Z →
+             WP call v #y {{ λ res, ⌜res = #(x * y)%Z⌝ }} }}.
+
+Local Notation "'Spec'  'of'  'the'  'addition.'" :=
+  (add_spec _)
+  (only printing).
+
+Local Notation "'Spec'  'of'  'the'  'multiplication.'" :=
+  (mult_spec _)
+  (only printing).
+
+Definition trivial_spec: val → iProp Σ := λ v, ⌜ True ⌝%I.
+Definition is_equal e : val → iProp Σ := λ v, ⌜v = #e⌝%I.
+
+(* Integer representations do not matter for now. *)
+Axiom int_representable:
+  forall (i: Z), (int.min_signed ≤ i ≤ int.max_signed)%Z.
+
+
+(* The specification of [Add] will be proven several times. *)
 
 Lemma Add_spec :
     let Λ :=
     [
-      ("add", add_spec)
+      ("add", add_spec);
+      ("mult", mult_spec);
+      ("i3", is_equal #3)
     ]
   in
   let η := EnvCons "Stdlib" Stdlib $
@@ -38,132 +61,183 @@ Proof.
   intros.
   wp.
 
-  wp_specify "add" add_spec.
-  { iIntros (x y ??->->).
-    wp_call.
-    do 3 wp_continue.
+  (* [add] and [mult] are recursively defined.
+     Intuitively, one wants:
+     1. to provide the required specs for the environment;
+     2. to prove each spec one by one using Löb Induction.
 
-    wp.
-    do 2 wp_continue.
+     Although it is not the case here, it might also be necessary to provide
+     external hypotheses to prove the specs.
 
-    wp_par; [ by iIntros
-            | by wp_set_postcondition
-            | ].
-    iNext. iIntros (v1 v2) "H1 ->".
-    wp_use "H1". }
-  iIntros (v) "#add_spec"; wp_continue.
+     The following does *not* work as expected. As the [RecBinding]s take
+     functions as argument and we only generalize values in the current process,
+     the specs hidden behind the [▷] are unusable (and useless).
+     Therefore, one should abstract the bodies of the function, and prove a spec
+     for them. *)
 
-  wp_specify "mult" mult_spec.
+  lazymatch goal with
+  | |- environments.envs_entails
+         ?Δ (wp ?s ?E
+                (dconcatenating
+                   (EnvCons "add" ?vadd $
+                            EnvCons "mult" ?vmult $
+                            EnvNil)
+                   ?δη ?k)
+                ?φ) =>
+      iAssert (add_spec vadd ∗ mult_spec vmult ∗ emp)%I as "H"
+  end.
+  (* [_ ∗ emp] allows to better understand how the process would work with more
+     functions. *)
   { iLöb as "IH".
-    iIntros (x).
-    wp_call.
-    iIntros (y Hx Hy).
-    wp.
-    iApply wp_covariant.
-    { iPoseProof (Stdlib__eq__spec
-                    NotStuck top
-                    (encode y))
-        as "H".
-      4: instantiate (2 := 0%Z).
-      1, 2: exact eq_refl.
-      1: assumption.
-      1: { apply int.prove_representable_30.
-           by vm_compute. }
-      replace (VInt (int.repr y)) with (encode y); last reflexivity.
-      iExact "H". }
-    iIntros (vpartial) "Hpartial". wp.
-    iApply (wp_covariant with "Hpartial").
-    iIntros (vres->).
-    destruct (decide (y = 0)) as [-> | Hneq%Z.eqb_neq].
-    { (* y = 0 *)
-      simpl; wp.
-      iPureIntro.
-      do 2 f_equal. lia. }
-    { (* y <> 0 *)
-      rewrite Hneq. wp.
-      iPoseProof Stdlib__lt__spec as "Hpartial".
-      2 : instantiate (2 := encode 0%Z).
-      1: instantiate (2 := encode y).
-      1,2 : exact eq_refl.
-      2: { apply int.prove_representable_30.
-           by vm_compute. }
-      1: assumption.
-      iApply (wp_covariant with "Hpartial").
-      iIntros (vpartial') "Hpartial'".
-      wp. iApply (wp_covariant with "Hpartial'").
-      iIntros(?->).
-
-      destruct (decide (y < 0)%Z) as [ ->%Z.ltb_lt | n ].
-      { (* y < 0 *)
-        wp.
+    iSplitL "".
+    (* ---------------------------------------------------------------------- *)
+    (* Proof of [add]. *)
+    { iRevert "IH" (* ;
+        lazymatch goal with
+        | |- context [VCloRec η ?rbds "mult"] =>
+            generalize (VCloRec η rbds "mult")
+        end *) .
+      iIntros (* vmult *) "(#Hadd&#Hmult&_)".
+      iIntros(i1 H1). wp_call. iIntros(i2 H2). wp.
+      wp_use Stdlib__eq__spec; try done; try apply int_representable.
+      iIntros (veq_part) "Hspec_eq".
+      wp.
+      iApply (wp_covariant with "Hspec_eq"). (* TODO: fix [wp_use]. *)
+      iIntros (? ->).
+      destruct (i2 =? 0)%Z eqn:E; wp.
+      { (* [i2 = 0%Z] *)
+        apply Z.eqb_eq in E as ->.
+        wp_use "Hmult"; first done.
+        iIntros (Hmult_part) "Hmult_part".
+        iApply (wp_covariant with "[Hmult_part]").
+        { iApply "Hmult_part"; done. }
+        iIntros(?->).
+        iPureIntro. do 2 f_equal. lia. }
+      { (* [i2 != 0%Z], goal: [1 + (add x (y - 1)) == x + y] *)
         wp_par.
-        2: { wp. by wp_set_postcondition. }
-        2: { iNext. iIntros (? ?) "Hpartial' ->".
-             wp. iExact "Hpartial'". }
-        { iSpecialize ("IH" $! x).
-          iApply (wp_covariant with "IH").
-          iIntros (?) "H".
-          iSpecialize ("H" $! (-y)%Z with "[//][]").
-          { (* Prove that -y is reprensentable *) admit. }
-          iApply (wp_covariant with "H").
+        { (* [λ y, 1 + y] *) iIntros (vpartial) "H". iExact "H". }
+        { (* [add x (y - 1)]. *)
+          wp_par.
+          { wp_use "Hadd"; iPureIntro; exact H1. }
+          - wp_call.
+            instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
+            by rewrite int.sub_repr_repr.
+          - iIntros (vpadd ?) "Hadd_partial ->".
+            wp_use "Hadd_partial".
+            iPureIntro. lia. }
+        { iIntros (vadd1 ?) "Hadd1 ->".
+          wp.
+          iSpecialize ("Hadd1" $! (i1 + (i2 - 1))%Z NotStuck top). wp.
+          iApply (wp_covariant with "Hadd1").
           iIntros (?->).
-          wp. iPureIntro. do 2 f_equal. lia. } }
-      { (* y >= 0 *)
-        apply Z.ltb_nlt in n; rewrite n. wp.
-        iIntros ([]); wp.
-        { (* version without the assertion. *)
-          (* Code: [x + x * (mult x (y -1))]
-             The tree of [Par] is as follows :
-             Par
-               (λ y, x + y) as [ Par [ret _] [ret _] ]
-               (Par
-                  (λ y, x * y) as [ Par [ret _] [ret _] ]
-                  (Par
-                     (λ y, mult x y)
-                     (y - 1))) *)
+          iPureIntro. do 2 f_equal. lia. } } }
 
-          wp_par;
-            [ (* [Stdlib__add__spec] is enough to prove the spec of  λ y, x + y *)
-              by iIntros
-            | wp_par;
-              [ (*1: spec of [λ y, mult x y] *)
-              | (*2: spec of [y - 1] *)
-              | (* ... *)]
-            | (*3: proof of [ x * y = x + x * (y - 1)] *)].
-          { wp. (* spec of [mult #x] *)
-            instantiate
-              (1 :=
-                 λ (v: val),
-                 (∀ (y: Z),
-                     ⌜ (int.min_signed ≤ x ≤ int.max_signed)%Z⌝ -∗
-                     ⌜ (int.min_signed ≤ y ≤ int.max_signed)%Z⌝ -∗
-                     WP call v (encode y)
-                        {{ λ res, ⌜res = encode (x * y)%Z⌝ }} )%I).
-            iSpecialize ("IH" $! x).
-            iApply (wp_covariant with "IH").
-            iIntros (?) "?". iAssumption. }
-          { (* spec of [y - 1] *)
-            instantiate (1 := λ v, ⌜v = encode (y-1)%Z⌝%I ).
-            by wp. }
-          { (* spec of [mult x (y-1)] *)
-            iNext. iIntros (v1 v2) "H1 ->".
+    iSplitL "".
+    (* ------------------------------------------------------------------ *)
+    (* Proof of [mult]. *)
+    { iRevert "IH"(* ;
+        lazymatch goal with
+        | |- context [VCloRec η ?rbds "add"] =>
+             generalize (VCloRec η rbds "add")
+        end *) .
+      iIntros (* vadd *) "(#Hadd&#Hmult&_)".
+      iIntros (i1 H1). wp_call.
+      iIntros(i2 H2). wp.
+      wp_use Stdlib__eq__spec; try done; try apply int_representable.
+      iIntros (veq_part) "Heq_part".
+      wp. iApply (wp_covariant with "Heq_part").
+      iIntros (?->).
+      destruct (i2 =? 0)%Z eqn:E.
+      { (* [i2 = 0%Z]. *) wp.
+        apply Z.eqb_eq in E as ->. iPureIntro. do 2 f_equal. lia. }
+      { (* [i2 != 0%Z]. *) wp.
+        wp_use Stdlib__eq__spec; try done; try apply int_representable.
+        clear veq_part.
+        iIntros (veq_part) "Heq_part".
+        wp. iApply (wp_covariant with "Heq_part").
+        iIntros (?->).
+        destruct (i2 =? 1)%Z eqn:E1.
+        { (* [i2 = 1%Z]. *) wp.
+          apply Z.eqb_eq in E1 as ->. iPureIntro. do 2 f_equal. lia. }
+        { (* [i2 <> 1%Z]. *) wp.
+          (* Proof that [add x (mult x (y - 1)) == x * y]. *)
+          wp_par.
+          { (* [λ y, add x y]. *)
+            iSpecialize ("Hadd" $! i1 H1).
+            wp_use "Hadd". }
+          { (* [mult x (y - 1)] *)
+            wp_par.
+            { (* [λ y, mult x y]. *)
+              wp_use "Hmult"; iPureIntro; exact H1. }
+            { (* [y - 1]. *) wp_call.
+              instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
+              by rewrite int.sub_repr_repr. }
+            { iIntros (vmult_part ?) "Hmult_part ->".
+              wp. wp_use "Hmult_part".
+              iPureIntro. lia. } }
+          { (* Finish the application of [add]. *)
+            iIntros (vadd_part ?) "Hadd_part ->".
             wp.
-            instantiate (1 := λ (v: val), ⌜ v = encode (x * (y - 1))%Z ⌝%I ).
-            iApply "H1"; try done.
-
-            (* Proof that y-1 is representable. *) admit. }
-
-          { iNext. iIntros (v1 v2) "H1 ->". wp.
-            (* I no longer understand where [H1] comes from, admitting this
-               sub-proof. *)
-            admit.
-            (* iApply (wp_covariant with "H1").
+            unshelve iSpecialize ("Hadd_part" $! (i1 * (i2 - 1))%Z _).
+            { apply Ztac.mul_le; lia. }
+            iApply (wp_covariant with "Hadd_part").
             iIntros (?->).
-            iPureIntro; do 2 f_equal. lia.*) } }
+            iPureIntro. do 2 f_equal.
+            lia. } } } }
+    done. }
+  lazymatch goal with
+  | |- context [VCloRec η ?rbds "add"] =>
+      generalize (VCloRec η rbds "add")
+  end; intros vadd.
+  lazymatch goal with
+  | |- context [VCloRec η ?rbds "mult"] =>
+      generalize (VCloRec η rbds "mult")
+  end; intros vmult.
+  iDestruct "H" as "(#Hadd & #Hmult & _)".
+  wp_continue.
 
-        { (* version with the assertion *) admit. } } } }
-  iIntros (vmult) "#mult_spec"; wp_continue.
+  wp_par;
+    [ wp_use "Hadd"; done
+    | wp_use "Hadd";
+      [ done | iIntros (vadd_part) "Hadd_part"; wp; by iApply "Hadd_part" ]
+    | ].
+  iIntros (vadd_part ?) "Hadd_part ->". wp.
+  iSpecialize("Hadd_part" $! _ _).
+  iApply (wp_covariant with "Hadd_part").
+  Unshelve. 2: lia.
+  iIntros (?->). wp.
+  wp_specify "i3" (is_equal #3); first done.
+  iIntros (i3) "#Hi3". wp_continue.
 
-  (* All expected specifications have already been proven. *)
-  wp_module_spec.
-Admitted.
+  repeat wp_par.
+  { wp_use "Hmult"; first done.
+    iIntros (vmult_part) "Hmult_part".
+    iSpecialize ("Hmult_part" $! _ _). wp.
+    iApply (wp_covariant with "Hmult_part").
+    iIntros (?->).
+    wp_use "Hadd"; first done. }
+  { wp_use "Hadd"; first done. }
+  { wp_use "Hmult"; first done. }
+  { wp_use "Hadd"; first done.
+    iIntros (vadd_part') "Hadd_part'".
+    iSpecialize ("Hadd_part'" $! _ _).
+    iApply (wp_covariant with "Hadd_part'").
+    iIntros(?->). by wp_set_postcondition. }
+  { iIntros (v1 ?) "H1 ->". wp.
+    iSpecialize ("H1" $! _ _).
+    iApply (wp_covariant with "H1").
+    iIntros (?->). by wp_set_postcondition. }
+  { iIntros (v1 ?) "H1 ->". wp.
+    iSpecialize ("H1" $! _ _).
+    iApply (wp_covariant with "H1").
+    iIntros (?->). by wp_set_postcondition. }
+  { iIntros (v1 ?) "H1 ->". wp.
+    iSpecialize ("H1" $! _ _).
+    iApply (wp_covariant with "H1").
+    iIntros (?->). wp. wp_continue.
+
+    wp_module_spec. }
+
+  Unshelve.
+  all: done.
+Time Qed.

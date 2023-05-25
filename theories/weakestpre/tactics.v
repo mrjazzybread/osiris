@@ -6,6 +6,9 @@ From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
 
 
+(* -------------------------------------------------------------------------- *)
+
+(* Tactics to move forward in the proof. *)
 
 (* NOTE:
  * - The performance of the calls to [cbn] made by the functions below
@@ -19,15 +22,18 @@ From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
  *   + we reduce under continuations;
  *   + because we reduce the whole Coq context, we reduce all the Iris
        hypotheses!
+ * TODO: just apply [wp_simp] and reduce in the subgoal [simp m ?m'].
  *)
 
-Ltac wp_step' :=
+Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
       tac_change_goal (wp_ret _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
       tac_change_goal (wp_bind _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
+      tac_change_goal (wp_try _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
       tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
@@ -35,13 +41,11 @@ Ltac wp_step' :=
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
       tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
-      first [ tac_change_goal (wp_eval_ret _ _ _ _ _)
-            | tac_change_goal (wp_eval _ _ _ _ _ _) ]
-  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _) _) =>
-      tac_change_goal (wp_flip _ _ _ _ _)
+      first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
+            | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
+  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _ _) _) =>
+      tac_change_goal (wp_flip _ _ _ _ _ _)
   end.
-
-Ltac wp_step := (wp_step' + cbn).
 
 Ltac wp :=
   iStartProof;
@@ -49,7 +53,7 @@ Ltac wp :=
   (repeat
      (lazymatch goal with
         | |- environments.envs_entails _ (bi_later _) => iNext
-        | _ => wp_step
+        | _ => wp_step; try progress cbn
         end || apply tc_change_goal)).
 
 Ltac wp_par :=
@@ -117,7 +121,7 @@ Proof.
 Qed.
 
 (* One should avoid [context] in the following tactic, as it might match an
-   occurence that is in the postcondition. *)
+   occurrence that is in the postcondition. *)
 Ltac wp_continue :=
   lazymatch goal with
   | |- environments.envs_entails

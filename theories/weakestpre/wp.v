@@ -215,7 +215,7 @@ Local Ltac destruct_wp_ret :=
 Local Ltac construct_wp_nonret :=
   iSplitR; [
     (* Prove [can_step]: *)
-    iPureIntro; eauto using can_step_bind with step
+    iPureIntro; eauto with step can_step
   | (* Introduce a hypothetical step: *)
     iIntros (σ' m') "%Hstep"
   ].
@@ -361,13 +361,17 @@ Proof.
   destruct_wp_nonret. eauto with invert_can_step.
 Qed.
 
-(* The Bind rule of Separation Logic. *)
+(* A reasoning rule for [try]. *)
 
-Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
+(* Our definition of [WP] forbids [m1] from reducing to [Next], so the
+   failure continuation [ko] is dead. Therefore, no proof obligation
+   bears on [ko]. *)
+
+Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ :
   WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
-  WP (bind m1 m2) @ s; E {{ φ }}.
+  WP (try m1 m2 ko) @ s; E {{ φ }}.
 Proof.
-  iLöb as "IH" forall (m1 m2 φ).
+  iLöb as "IH" forall (m1 m2 ko φ).
   iIntros "Hwp".
   wp_unfold m1.
   wp_case_is_ret m1 Hret.
@@ -378,25 +382,32 @@ Proof.
 
   (* Case: [m1] is not [ret _]. *)
   {
-    assert (Hnotanswer: ¬ is_answer m1) by rewrite -is_ret_None //.
-    (* Unfold and simplify the goal. *)
-    wp_unfold_all. intro_state. spec_state "Hwp".
-    (* [bind m1 m2] cannot be [ret _]. *)
-    eapply (is_ret_bind_None _ m2) in Hret.
-    rewrite Hret; clear Hret.
-    (* Simplify and destruct the hypothesis. *)
+    (* Unfold and simplify the goal and hypothesis. *)
+    wp_unfold_all.
+    intro_state.
+    spec_state "Hwp".
     destruct_wp_nonret.
+    (* [try m1 m2 ko] cannot be [ret _]. *)
+    pose proof (is_not_ret_try m1 m2 ko Hcanstep) as ->.
     construct_wp_nonret.
-    clear Hcanstep.
-    (* We must prove that every reduct of [bind m1 m2] is safe. *)
-    (* Because [m1] is not an answer, a reduct of [bind m1 m2] must be
-       of the form [bind m'1 m2], where [m'1] is a reduct of [m1]. *)
-    destruct (invert_step_bind' Hstep Hnotanswer) as (m'1 & Hstep' & ?).
-    subst. clear Hstep. rename Hstep' into Hstep.
+    (* We must prove that every reduct of [try m1 m2 ko] is safe. *)
+    (* Because [m1] can step, a reduct of [try m1 m2 ko] must be
+       of the form [try m'1 m2 ko], where [m'1] is a reduct of [m1]. *)
+    destruct (invert_step_try Hstep Hcanstep) as (m'1 & Hstep' & ->).
+    clear Hstep. rename Hstep' into Hstep.
     (* The hypothesis can then be further exploited. *)
     step_wp. tick_wp. iApply "IH". iApply "Hwp".
   }
 
+Qed.
+
+(* The Bind rule of Separation Logic. *)
+
+Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
+  WP (bind m1 m2) @ s; E {{ φ }}.
+Proof.
+  rewrite bind_as_try. eauto using wp_try.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -417,7 +428,7 @@ Proof.
   intro Hstep.
   iIntros "Hsi Hwp".
   wp_unfold m. spec_state "Hwp".
-  assert (is_ret m = None) as -> by eauto with is_ret step.
+  assert (is_not_ret m) as -> by eauto using can_step_is_not_ret with step.
   destruct_wp_nonret.
   step_wp.
   tick_wp.
@@ -438,7 +449,7 @@ Proof.
   wp_case_is_ret m Hret; [| destruct_wp_nonret ]; iPureIntro.
   (* Case: [m] is [ret a]. *)
   (* [ret a] is not stuck. *)
-  { eauto using invert_stuck_answer with is_answer. }
+  { eauto using invert_stuck_ret. }
   (* Case: [m] can step. *)
   (* A configuration that can step is not stuck. *)
   { eauto using can_step_not_stuck. }
@@ -525,8 +536,7 @@ Proof.
   triplicity σ m Hm.
 
   (* Case: [m] is [ret a]. *)
-  { destruct m; simpl in Hm; try tauto.
-    eapply initially_safe_ret.
+  { eapply initially_safe_ret.
     (* The goal is now [φ a]. *)
     eapply (H 0 σ (ret a)); eauto with lia steps. }
 
@@ -563,12 +573,18 @@ Qed.
    - [m1] satisfies [φ1]
    - [m2] satisfies [φ2]
    - for all results [a1] and [a2] that satisfy [φ1] and [φ2],
-     the pair [(a1, a2)] satisfies [φ]. *)
+     the application of the the continuation [k]
+     to the pair [(a1, a2)] satisfies [φ]. *)
+
+(* The lemma could be strengthened by placing a ▷ modality in front of the
+   third premise, but I doubt that this would be useful, so I remove it.
+   We do not want the user to rely on the fact that a join point counts
+   as a step. *)
 
 Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
   WP m1 @ s ; E {{ φ1 }} -∗
   WP m2 @ s ; E {{ φ2 }} -∗
-  ▷ (
+  (
     ∀ a1 a2,
     φ1 a1 -∗ φ2 a2 -∗
     WP (k (a1, a2)) @ s; E {{ φ }}
@@ -610,48 +626,6 @@ Proof.
     iApply ("IH" with "H1 H2 Hjoin"). }
 Qed.
 
-(* The following three lemmas are special cases of the previous rule. *)
-
-Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
-  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
-  WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a1, WP (k (a1, a2)) @ s; E {{ φ }})
-      (λ a', ⌜a' = a2⌝)
-    with "H []")%I.
-  { by iApply wp_ret. }
-  { iNext. by iIntros (??) "? ->". }
-Qed.
-
-Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
-  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
-  WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a', ⌜a' = a1⌝)
-      (λ a2, WP (k (a1, a2)) @ s; E {{ φ }})
-    with "[] H")%I.
-  { by iApply wp_ret. }
-  { iNext. by iIntros (??) "-> ?". }
-Qed.
-
-Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
-  ▷ WP (k (a1, a2)) @ s; E {{ φ }} -∗
-  WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_par
-      (λ a', ⌜a' = a1⌝)
-      (λ a', ⌜a' = a2⌝)
-    with "[] []")%I.
-  { by iApply wp_ret. }
-  { by iApply wp_ret. }
-  { iNext. by iIntros (??) "-> ->". }
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas offer reasoning rules for each of the system calls,
@@ -660,9 +634,9 @@ Qed.
 
 (* [CEval]. *)
 
-Lemma wp_eval {A} s E η e (k : val → free A) φ :
+Lemma wp_eval {A} s E η e (k : val → free A) ko φ :
   ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
-  WP (Stop CEval (η, e) k) @ s; E {{ φ }}.
+  WP (Stop CEval (η, e) k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
   wp_unfold_head.
@@ -670,14 +644,14 @@ Proof.
   construct_wp_nonret.
   destruct_step.
   tick_wp.
-  by iApply wp_bind.
+  by iApply wp_try.
 Qed.
 
 (* A special case of the previous lemma for the continuation [ret]. *)
 
-Lemma wp_eval_ret s E η e φ :
+Lemma wp_eval_ret s E η e ko φ :
   ▷ WP (eval η e) @ s; E {{ φ }} -∗
-  WP (Stop CEval (η, e) ret) @ s; E {{ φ }}.
+  WP (Stop CEval (η, e) ret ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
   iApply wp_eval.
@@ -692,9 +666,9 @@ Qed.
    value [b], so the computation [k b] must be proved safe for every
    possible value of [b]. *)
 
-Lemma wp_flip {A} s E x (k: bool → free A) φ :
+Lemma wp_flip {A} s E x (k: bool → free A) ko φ :
   ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
-  WP (Stop CFlip x k) @ s; E {{ φ }}.
+  WP (Stop CFlip x k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   wp_unfold_head.
@@ -709,13 +683,13 @@ Qed.
 
 (* The standard memory allocation rule of Separation Logic. *)
 
-Lemma wp_alloc {A} s E v (k : loc → free A) φ :
+Lemma wp_alloc {A} s E v (k : loc → free A) ko φ :
   ▷ (
     ∀ l,
     mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
      WP (k l) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CAlloc v k) @ s; E {{ φ }}.
+  WP (Stop CAlloc v k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   wp_unfold_head.
@@ -733,13 +707,13 @@ Qed.
 
 (* The standard memory write rule of Separation Logic. *)
 
-Lemma wp_store {A} s E l v v' (k : unit → free A) φ :
+Lemma wp_store {A} s E l v v' (k : unit → free A) ko φ :
   mapsto l (DfracOwn 1) v -∗
   ▷ (
     mapsto l (DfracOwn 1) v' -∗
     WP (k tt) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CStore (l, v') k) @ s; E {{ φ }}.
+  WP (Stop CStore (l, v') k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hl Hwp".
   wp_unfold_head.
@@ -757,13 +731,13 @@ Qed.
 
 (* The standard memory load rule of Separation Logic. *)
 
-Lemma wp_load {A} s E l v dq (k: val → free A) φ :
+Lemma wp_load {A} s E l v dq (k: val → free A) ko φ :
   mapsto l dq v -∗
   ▷ (
     mapsto l dq v -∗
     WP (k v) @ s; E {{ φ }}
   ) -∗
-  WP (Stop CLoad l k) @ s; E {{ φ }}.
+  WP (Stop CLoad l k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hl Hwp".
   wp_unfold_head.
@@ -781,86 +755,122 @@ Qed.
 
 (* Simplification is sound. *)
 
-(* That is, as announced in semantics/simplification.v, if [simplify m m']
-   holds then the safety of the simplified program [m'] implies the safety
-   of the more complex original program [m]. *)
+(* That is, as announced in semantics/simplification.v, if [simplify n m ms]
+   holds then the safety of the simplified program [ms] implies the safety
+   of the more complex original program [ms]. *)
 
-Local Lemma wp_simplify {A} (m m' : free A) s E φ :
-  WP m' @ s ; E {{ φ }} -∗
-  ⌜ simplify m m' ⌝ -∗
+Local Lemma wp_simplify {A} n (m ms : free A) s E φ :
+  WP ms @ s ; E {{ φ }} -∗
+  ⌜ simplify n m ms ⌝ -∗
   WP m  @ s ; E {{ φ }}.
 Proof.
   (* Proceed by Löb induction. *)
-  iLöb as "IH" forall (m m').
+  iLöb as "IH" forall (n m ms).
+  (* Then, perform well-founded induction over [n]. *)
+  iInduction n as (? & ?) "IHn"
+    using (well_founded_induction lt_wf)
+    forall (m ms).
+  (* Introduce the hypotheses. *)
   iIntros "Hwp" (Hsimp).
-  (* [m] cannot be [ret a], as [ret a] cannot be simplified. *)
-  wp_case_is_ret m Hret; [ exfalso; destruct_simplify |].
-  wp_unfold_head; rewrite Hret. intro_state.
-  (* Now examine [m']. *)
-  wp_case_is_ret m' Hret'.
-  (* Case: [m'] is [ret a']. *)
-  { construct_wp_nonret; [ eauto using invert_simplify_ret |].
-    pose proof (simplify_ret_step_diagram Hsimp Hstep) as (? & ?); subst.
-    tick_wp. iAssumption. }
-  (* Case: [m'] can take a step. *)
-  rename m' into ms. rename Hret' into Hretms.
-  (* Then, [m] can step, too. *)
+
+  (* Examine [m]. *)
+  wp_case_is_ret m Hretm.
+  (* If [m] is [ret a], then [ms] is also [ret a], so we are done. *)
+  { clarify_simplify. iAssumption. }
+  (* Thus, in the following, we assume [m] is not [ret _]. *)
+
+  (* Begin unfolding the definition of [WP m ...]. *)
+  wp_unfold m; rewrite Hretm. intro_state.
+
+  (* Examine [ms]. *)
+  wp_case_is_ret ms Hretms.
+  (* Case: [ms] is [ret _]. *)
+  { (* Prove that [m] is able to step. *)
+    construct_wp_nonret; [ eauto using invert_simplify_ret |].
+    (* Examine one step of [m] to [m']. The simulation diagram in this case
+       tells us that this reduction step takes us closer to [ret a].
+       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
+    pose proof (simplify_ret_step_diagram Hsimp Hstep)
+      as (n' & ? & ? & ?); subst.
+    (* We are then able to use the inner induction hypothesis. *)
+    tick_wp.
+    iApply ("IHn" with "[//] Hwp [//]"). }
+  (* Thus, in the following, we assume [ms] is not [ret _]. *)
+
+  (* Then, [WP ms ...] implies than [ms] can step.
+     This implies that [m], too, can step. *)
   iAssert (⌜ can_step (σ, m) ⌝)%I as "%".
   { wp_unfold ms. spec_state "Hwp"; rewrite Hretms. destruct_wp_nonret.
     eauto using invert_simplify_can_step. }
-  (* Now examine an arbitrary step out of [m]. *)
   construct_wp_nonret.
+
+  (* We now examine an arbitrary step of [m] to [m']. *)
   (* Exploit the main simulation diagram. *)
   pose proof (simplify_step_diagram Hsimp Hstep)
-    as [ (? & ?) | (ms' & Hstep' & Hsimp') ]; [ subst |].
-  (* Case: the simplification step and the semantic step coincide. *)
-  { tick_wp. iAssumption. }
-  (* Case: the two steps commute. *)
+    as (ms' & n' & i & Hstep' & Hsimp' & Hcases);
+  clear Hsimp Hstep.
+  destruct_simplify_step_diagram.
+
+  (* Case: the reduction step disappears through the diagram. *)
+  { tick_wp. iApply ("IHn" with "[//] Hwp [//]"). }
+
+  (* Case: the reduction step is preserved through the diagram. *)
   (* We can now commit to stepping [ms] -- a commitment which we have
      carefully avoided up to this point. *)
+  iClear "IHn".
   wp_unfold ms; rewrite Hretms. spec_state "Hwp". destruct_wp_nonret.
   step_wp. tick_wp. (* The induction hypothesis becomes usable! *)
-  (* We have [simplify? m' ms']. If in fact [m'] and [ms'] coincide,
-     then the result is immediate, *)
-  destruct Hsimp' as [|]; [ subst; iAssumption |].
-  (* so we focus on the case [simplify m' ms']. *)
   (* Then, the result follows from the induction hypothesis. *)
   iApply ("IH" with "Hwp [//]").
 Qed. (* yes! *)
 
-(* Technical corollaries. *)
+(* A corollary, for public use: [simp] is sound. *)
 
-Local Lemma wp_simplify' {A} (m m' : free A) s E φ :
-  simplify m m' →
+Lemma wp_simp {A} (m m' : free A) s E φ :
+  simp m m' →
   WP m' @ s ; E {{ φ }} -∗
   WP m  @ s ; E {{ φ }}.
 Proof.
   iIntros (Hsimp) "Hwp".
+  apply simp_simplify in Hsimp.
+  destruct Hsimp as (n & Hsimp).
   iApply (wp_simplify with "Hwp [//]").
 Qed.
 
-Local Lemma wp_rtc_simplify {A} (m m' : free A) s E φ :
-  rtc simplify m m' →
-  WP m' @ s ; E {{ φ }} -∗
-  WP m  @ s ; E {{ φ }}.
+(* --------------------------------------------------------------------------*)
+
+(* The following three lemmas are special cases of [wp_simp]. *)
+
+(* For this reason, they should not be used. TODO *)
+
+Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
+  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
+  WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
 Proof.
-  induction 1; iIntros "Hwp"; [ iAssumption |].
-  iApply (wp_simplify' with "[Hwp]"); [ eauto |].
-  iApply IHrtc.
-  iAssumption.
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetLeft. }
+  by iApply wp_try.
 Qed.
 
-(* A final corollary, intended for public use: parallel simplification
-   is sound. *)
-
-Lemma wp_psimplify {A} (m m' : free A) s E φ :
-  psimplify m m' →
-  WP m' @ s ; E {{ φ }} -∗
-  WP m  @ s ; E {{ φ }}.
+Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
+  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
+  WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
 Proof.
-  iIntros (Hpsimp) "Hwp".
-  apply psimplify_rtc_simplify in Hpsimp.
-  iApply wp_rtc_simplify; [ eauto |].
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetRight. }
+  by iApply wp_try.
+Qed.
+
+Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
+  WP (k (a1, a2)) @ s; E {{ φ }} -∗
+  WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
+Proof.
+  iIntros "H".
+  iApply (wp_simp with "[H]").
+  { eapply SimpParRetRight. }
+  rewrite try_ret.
   iAssumption.
 Qed.
 
