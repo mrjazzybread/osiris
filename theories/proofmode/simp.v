@@ -147,6 +147,8 @@ Qed.
 
 (* Tactics. *)
 
+Create HintDb simp_specs.
+
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
    They advance this goal by performing simplification steps that lead from
@@ -180,6 +182,20 @@ with simp1 :=
          further steps. *)
       rewrite eval_eval'; cbn;
       simp0
+  | call ?v1 ?v2 =>
+      (* We allow ourselves to reason about function calls using whatever
+         hypotheses may be present in the context and in the hint database
+         [simp_specs]. *)
+      solve [ eauto with simp_specs ]
+  | bind ?m ?f =>
+      (* We apply the reasoning rule Bind only if we are able to solve
+         its first premise. This guarantees that we leave only one
+         subgoal (not two), as dictated by the specification of this
+         tactic. Furthermore, this guarantees that we do not create
+         an unsolvable subgoal in situations where the left-hand side
+         of the sequence needs an existentially quantified postcondition. *)
+      eapply prove_simp_bind; [ cbn; simp0; close |];
+      cbn; simp0
   | Stop CEval _ _ _ =>
       first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; cbn;
       simp0

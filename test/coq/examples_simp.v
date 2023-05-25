@@ -115,19 +115,7 @@ Goal
   let env := EnvCons "id" id ε in
   simp (eval env e) (ret (VPair (VConstant "A") (VConstant "A"))).
 Proof.
-  intros ? ? id Hid ?.
-  simp.
-  (* The two components of the pair are evaluated in parallel, and
-     each of them is a function application, which is itself evaluated
-     in parallel. So we have a tree of nested [Par], which fortunately
-     is automatically simplified by [simp]. Only one [Par] remains. *)
-  eapply prove_simp_par.
-  { eapply Hid. }
-  { eapply prove_simp_bind.
-    { eapply Hid. }
-    { simp. }
-  }
-  simp.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -177,16 +165,7 @@ Proof.
   (* Subgoal: prove that the closure satisfies [spec_id]. *)
   { unfold spec_id. intros. simp_enter. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
-  intros id Hid.
-  simp_continue.
-  (* Continue the proof as in the previous example. *)
-  eapply prove_simp_par.
-  { eapply Hid. }
-  { eapply prove_simp_bind.
-    { eapply Hid. }
-    { simp. }
-  }
-  simp.
+  intros. simp_continue.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -204,16 +183,8 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp_enter. }
-  intros id Hid.
-  simp_continue.
-  (* We are looking at [id id]. *)
-  eapply prove_simp_bind.
-  { eapply Hid. }
-  { eapply Hid. }
+  intros. simp_continue.
 Qed.
-
-(* let id = identity in
-   id (id ()) *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -230,12 +201,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp_enter. }
-  intros id Hid.
-  simp_continue.
-  (* We are looking at the nested applications [id (id())]. *)
-  eapply prove_simp_bind.
-  { eapply Hid. }
-  { eapply Hid. }
+  intros. simp_continue.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -253,18 +219,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp_enter. }
-  intros id Hid.
-  simp_continue.
-
-  (* Here, [simp] is unable to make progress because we are looking at two
-     function calls in parallel. *)
-  eapply prove_simp_par; [| | cbn ].
-  (* id id *)
-  { eapply Hid. }
-  (* id () *)
-  { eapply Hid. }
-
-  eapply Hid.
+  intros. simp_continue.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -276,9 +231,4 @@ Goal let e :=
   in simp (eval ε e) (ret VFalse).
 Proof.
   simp.
-  eapply prove_simp_bind.
-  (* Subgoal: prove that [assert true] succeeds. *)
-  { simp. }
-  (* Remainder: prove that [false] returns [false], as promised. *)
-  { simp. }
 Qed.
