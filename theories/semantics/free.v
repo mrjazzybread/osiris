@@ -92,8 +92,8 @@ Notation next :=
    codes to computations is not defined here; it must be supplied a
    posteriori (step.v). *)
 
-Definition stop {X Y} (c : code X Y) (x : X) : free Y :=
-  Stop c x ret next.
+Notation stop c x :=
+  (Stop c x ret next).
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
