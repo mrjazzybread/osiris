@@ -159,10 +159,10 @@ Qed.
 
 Ltac clarify_simplify :=
   repeat match goal with
-  | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h; subst m
-  | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h; subst m
-  | h: simplify _ Next ?m |- _ => apply destruct_simplify_next in h; subst m
-  end.
+  | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
+  | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
+  | h: simplify _ Next ?m |- _ => apply destruct_simplify_next in h
+  end; simplify_eq.
 
 (* -------------------------------------------------------------------------- *)
 
