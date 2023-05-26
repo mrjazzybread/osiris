@@ -328,32 +328,75 @@ Proof.
   eauto.
 Qed.
 
-(* One might wish to prove that if there is a simplification step from [m1]
-   to [ret a2], then there must be a reduction path from [m1] to [ret a2].
-   By the previous lemma, it is then the only possible reduction path. *)
+(* If there is a simplification path from [m1] to [ret a2], then there
+   must be a reduction path from [m1] to [ret a2]. *)
 
-(* This result is not needed, so I stop short of it. *)
+(* This lemma is currently not used. *)
 
-Lemma simplify_ret_implies_step {A} n (m1 m2 : free A) :
-  simplify n m1 m2 →
-  ∀ σ a2,
-  rtc step (σ, m2) (σ, ret a2) →
-  rtc step (σ, m1) (σ, ret a2).
 Local Hint Constructors rtc : rtc.
+
+Lemma simplify_ret_implies_step :
+  ∀ n {A} σ (m1 : free A) (a2 : A),
+  simplify n m1 (ret a2) →
+  rtc step (σ, m1) (σ, ret a2).
 Proof.
-  induction 1; intros; try solve [ eauto with rtc step ].
-  (* SimplifyFlip *)
-  { eauto using (StepFlip false) with rtc. }
-  (* COMMENTED OUT
-  (* SimplifyParRetLeft *)
-  { assert (∃ a'2, rtc step (σ, m2) (σ, ret a'2)) as (a'2 & ?). }
-  (* SimplifyParRetRight *)
-  { assert (∃ a'1, rtc step (σ, m1) (σ, ret a'1)) as (a'1 & ?). }
-  (* SimplifyPar *)
-  { assert (∃ a'1, rtc step (σ, m'1) (σ, ret a'1)) as (a'1 & ?).
-    assert (∃ a'2, rtc step (σ, m'2) (σ, ret a'2)) as (a'1 & ?). }
-   *)
-Abort. (* normal *)
+  induction n using (well_founded_induction lt_wf).
+  (* Reformulate the induction hypothesis. *)
+  assert (IH:
+    ∀ n' {A} σ (m1 : free A) (a2 : A),
+    simplify n' m1 (ret a2) →
+    n' < n →
+    rtc step (σ, m1) (σ, ret a2)
+  ) by eauto; clear H.
+  intros ? ? ? ? Hsimp.
+  (* Reason by cases on [m1]. *)
+  triplicity σ m1 Hm1.
+  (* Case: [m1] is [ret _]. *)
+  { clarify_simplify. eauto with rtc. }
+  (* Case: [m1] can step. *)
+  { destruct Hm1 as ((σ' & m'1) & Hstep).
+    pose proof (simplify_ret_step_diagram Hsimp Hstep)
+      as (n' & -> & Hsimp' & ?).
+    specialize (IH _ _ σ _ _ Hsimp').
+    eauto with rtc. }
+  (* Case: [m1] is stuck. Impossible. *)
+  { apply only_crash_and_next_are_stuck in Hm1.
+    destruct Hm1 as [|]; subst m1; clarify_simplify. }
+Qed.
+
+(* If there is a simplification step of [m1] to [ret a2]
+   and a reduction path of [m1] to [ret b2],
+   then the two paths must lead to the same end result. *)
+
+(* This lemma is currently not used. *)
+
+Lemma simplify_ret_rtc_step_diagram {A} {n} {m1 : free A} {a2 b2 σ σ'} :
+  simplify n m1 (ret a2) →
+  rtc step (σ, m1) (σ', ret b2) →
+  σ' = σ ∧ a2 = b2.
+Proof.
+  (* Reformulate the statement. *)
+  cut (
+    ∀ c1 c2,
+    rtc step c1 c2 →
+    ∀ σ σ' m1 b2 n (a2 : A),
+    simplify n m1 (ret a2) →
+    c1 = (σ, m1) →
+    c2 = (σ', ret b2) →
+    σ' = σ ∧ a2 = b2
+  ). eauto. clear n m1 a2 b2 σ σ'.
+  (* Reason by induction on the reduction path. *)
+  induction 1; intros; simplify_eq; clarify_simplify; destruct_config.
+  (* The base case is immediate. *)
+  { eauto. }
+  { (* Exploit the fact that each reduction step must take us closer to
+       [ret a2]. *)
+    match goal with Hsimp: simplify _ _ _, Hstep: step _ _ |- _ =>
+      pose proof (simplify_ret_step_diagram Hsimp Hstep)
+        as (n' & -> & Hsimp' & ?)
+    end.
+    eauto. }
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
