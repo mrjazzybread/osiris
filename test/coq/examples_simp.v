@@ -309,12 +309,15 @@ Qed.
 
 (* ------------------------------------------------------------------------- *)
 
-(* Now let us try to specify that [length] returns an integer value. *)
+(* Now let us try to specify that [length] returns a nonnegative integer
+   value. *)
+
+Global Opaque int.signed int.repr int.add int.mul. (* TODO *)
 
 Definition weak_spec_length (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
   ∃ (n : Z),
-  simp (call length (encode xs)) (ret (encode n)).
+  simp (call length (encode xs)) (ret (encode n)) ∧ (0 ≤ n)%Z.
 
 Goal
   ∀ η,
@@ -322,10 +325,122 @@ Goal
 Proof.
   unfold weak_spec_length.
   induction xs as [| x xs ].
-  { eexists. simp_enter. simp_continue. }
+  { eexists; split.
+    + simp_enter. simp_continue.
+    + lia. }
   { (* The proof goes through, but it is necessary to destruct the
        induction hypothesis and name the result of the recursive
        call *before* we reach the point where this call takes place.
        This is unpleasant. *)
-    destruct IHxs as (n & ?). eexists; simp_enter; simp_continue. }
+    destruct IHxs as (n & ? & ?).
+    eexists; split.
+    + simp_enter. simp_continue. simp_ret.
+    + lia. }
+Qed.
+
+(* ------------------------------------------------------------------------- *)
+
+(* TODO *)
+
+Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
+  ∃ x, simp m (ret (encode x)) ∧ φ x.
+
+Lemma SIMP_det `{Encode X} m (φ : X → Prop) v x :
+  simp m (ret v) →
+  v = encode x →
+  φ x →
+  SIMP m φ.
+Proof.
+  unfold SIMP. intros. subst. eauto.
+Qed.
+
+Ltac SIMP_det :=
+  eapply SIMP_det; [ simp | eauto | eauto ].
+
+Lemma SIMP_ret `{Encode X} (φ : X → Prop) v x :
+  v = encode x →
+  φ x →
+  SIMP (ret v) φ.
+Proof.
+  eauto using SIMP_det with simp.
+Qed.
+
+Lemma SIMP_simp `{Encode X} m m' φ :
+  simp m m' →
+  SIMP m' φ →
+  SIMP m φ.
+Proof.
+  unfold SIMP.
+  intros ? (x & ? & ?).
+  eauto with simp.
+Qed.
+
+Lemma SIMP_bind X Y (_ : Encode X) (_ : Encode Y)
+   m f (φ : X → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → SIMP (f (encode x)) ψ) →
+  SIMP (bind m f) ψ.
+  (* This is [@bind val val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_bind.
+Qed.
+
+Ltac encode :=
+  eauto.
+
+Ltac SIMP_ret :=
+  eapply SIMP_ret; [ encode |].
+
+Ltac SIMP_simp :=
+  eapply SIMP_simp; [ simp_really |].
+
+Ltac SIMP_bind :=
+  eapply @SIMP_bind.
+
+Ltac SIMP :=
+  try SIMP_simp;
+  repeat rewrite bind_bind;
+  first [
+    SIMP_ret
+  | SIMP_bind; [ solve [ SIMP ] | SIMP ]
+  | idtac
+  ].
+
+Ltac SIMP_enter :=
+  with_strategy transparent [call] unfold call; SIMP.
+
+Ltac SIMP_continue :=
+  cbn;
+  lazymatch goal with |- SIMP (concatenating _ _ _ _) _ =>
+    unfold concatenating; (* TODO restrict to head occurrence *)
+    SIMP
+  | _ =>
+    fail "[SIMP_continue] expects a goal of the form [simp (concatenating ...) _]"
+  end.
+
+Opaque SIMP.
+
+(* ------------------------------------------------------------------------- *)
+
+Definition weak_spec_length' (length : val) :=
+  ∀ X `(_ : Encode X) (xs : list X),
+  SIMP (call length (encode xs)) (λ n : Z, 0 ≤ n)%Z.
+
+Goal
+  ∀ η,
+  weak_spec_length' (VCloRec η length "length").
+Proof.
+  unfold weak_spec_length'.
+  induction xs as [| x xs ].
+  { SIMP_enter. SIMP_continue. lia. }
+  { SIMP_enter. SIMP_continue.
+    (* TODO We must explicitly give the type of the left-hand side of
+            the sequence, otherwise Coq automatically makes an incorrect
+            choice. Painful! *)
+    eapply (@SIMP_bind Z).
+    + rewrite encode_list_is_encode. eauto.
+    + cbn. intros n ?. SIMP_ret. equality. lia. }
 Qed.
