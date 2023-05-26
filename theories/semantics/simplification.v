@@ -60,14 +60,16 @@ From osiris.semantics Require Import code eval step.
 
 Inductive simplify {A : Type} : nat → free A → free A → Prop :=
 | SimplifyEval:
-    ∀ n η e k ko,
+    ∀ n p η e k ko,
+    p = (η, e) →
     simplify (S n)
-      (Stop CEval (η, e) k ko)
+      (Stop CEval p k ko)
       (try (eval η e) k ko)
 | SimplifyLoop :
-    ∀ n η x i1 i2 e k ko,
+    ∀ n p η x i1 i2 e k ko,
+    p = (η, x, i1, i2, e) →
     simplify (S n)
-      (Stop CLoop (η, x, i1, i2, e) k ko)
+      (Stop CLoop p k ko)
       (try (loop η x i1 i2 e) k ko)
 | SimplifyFlip :
     ∀ n x k ko m,
@@ -90,7 +92,7 @@ Inductive simplify {A : Type} : nat → free A → free A → Prop :=
     ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko,
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
-    n1 + n2 ≤ n →
+    S (n1 + n2) ≤ n →
     simplify n (Par m1 m2 k ko) (Par m'1 m'2 k ko)
 | SimplifyReflexive:
     ∀ n m,
@@ -99,7 +101,7 @@ Inductive simplify {A : Type} : nat → free A → free A → Prop :=
     ∀ n1 n2 n m1 m2 m3,
     simplify n1 m1 m2 →
     simplify n2 m2 m3 →
-    n1 + n2 ≤ n →
+    S (n1 + n2) ≤ n →
     simplify n m1 m3
 .
 
@@ -331,13 +333,12 @@ Qed.
 (* If there is a simplification path from [m1] to [ret a2], then there
    must be a reduction path from [m1] to [ret a2]. *)
 
-(* This lemma is currently not used. *)
-
 Local Hint Constructors rtc : rtc.
 
 Lemma simplify_ret_implies_step :
-  ∀ n {A} σ (m1 : free A) (a2 : A),
+  ∀ {n A} {m1 : free A} {a2},
   simplify n m1 (ret a2) →
+  ∀ σ,
   rtc step (σ, m1) (σ, ret a2).
 Proof.
   induction n using (well_founded_induction lt_wf).
@@ -348,7 +349,7 @@ Proof.
     n' < n →
     rtc step (σ, m1) (σ, ret a2)
   ) by eauto; clear H.
-  intros ? ? ? ? Hsimp.
+  intros ? ? ? Hsimp σ.
   (* Reason by cases on [m1]. *)
   triplicity σ m1 Hm1.
   (* Case: [m1] is [ret _]. *)
@@ -367,8 +368,6 @@ Qed.
 (* If there is a simplification step of [m1] to [ret a2]
    and a reduction path of [m1] to [ret b2],
    then the two paths must lead to the same end result. *)
-
-(* This lemma is currently not used. *)
 
 Lemma simplify_ret_rtc_step_diagram {A} {n} {m1 : free A} {a2 b2 σ σ'} :
   simplify n m1 (ret a2) →
@@ -396,6 +395,20 @@ Proof.
         as (n' & -> & Hsimp' & ?)
     end.
     eauto. }
+Qed.
+
+(* The relation [simplify _ ?m (ret ?a)] is confluent. That is,
+   simplification cannot lead to two distinct results. *)
+
+Lemma simplify_ret_confluent {A} (m : free A) n1 n2 a1 a2 :
+  simplify n1 m (ret a1) →
+  simplify n2 m (ret a2) →
+  a1 = a2.
+Proof.
+  intros Hsimp1 Hsimp2.
+  pose proof (simplify_ret_implies_step Hsimp1 ∅) as Hpath.
+  pose proof (simplify_ret_rtc_step_diagram Hsimp2 Hpath) as (_ & ?).
+  congruence.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -443,6 +456,87 @@ Proof.
   (* Case: [m2] is not [ret _]. *)
   { specialize (IHh2 Hm2).
     eauto using invert_simplify_can_step. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The relation [simplify] is confluent. *)
+
+(* This result is stronger than [simplify_ret_confluent], because not
+   every computation can be simplified to [ret _]. *)
+
+(* This lemma is currently unused. Nevertheless, I have spent a couple
+   hours proving it, mostly as a challenge for myself, so I am keeping
+   it. *)
+
+Lemma simplify_confluent :
+  ∀ {n i2 j' A} {m1 m2 m'1 : free A},
+  simplify i2 m1 m2 →
+  simplify j' m1 m'1 →
+  i2 + j' = n →
+  ∃ m'2 j2 i',
+  simplify j2 m'1 m'2 ∧
+  simplify i' m2 m'2 ∧
+  i' ≤ j' ∧ j2 ≤ i2.
+Local Ltac search ::=
+  do 3 eexists;
+  eauto using simplify_try with simplify lia.
+Proof.
+  induction n using (well_founded_induction lt_wf).
+  (* Reformulate the induction hypothesis for easier application. *)
+  assert (IH:
+    ∀ i2 j' A (m1 m2 m'1 : free A),
+    simplify i2 m1 m2 →
+    simplify j' m1 m'1 →
+    i2 + j' < n →
+    ∃ m'2 j2 i',
+    simplify j2 m'1 m'2 ∧
+    simplify i' m2 m'2 ∧
+    i' ≤ j' ∧ j2 ≤ i2
+  ) by eauto; clear H.
+  (* The tactic [diagram__ h v] expects two [simplify] edges,
+     a horizontal one [h] and a vertical one [v],
+     and applies the induction hypothesis to them.
+     This yields two new [simplify] edges,
+     which we also name [h] and [v]. *)
+  Local Ltac diagram__ h v :=
+    (* Recognize the induction hypothesis. *)
+    match goal with IH: ∀ (i2 j' : nat), _ |- _ =>
+      let IH' := fresh in
+      (* Apply it to [h] and [v]. *)
+      generalize (IH _ _ _ _ _ _ h v); intro IH';
+      (* Discharge the proof obligation [i2 + j' < n]. *)
+      match type of IH' with ?check → _ =>
+        let fact := fresh in
+        assert (fact: check) by lia;
+        specialize (IH' fact);
+        clear fact
+      end;
+      (* Clear old edges and introduce new edges under the same names. *)
+      clear h v;
+      destruct IH' as (? & ? & ? & h & v & ? & ?)
+    end.
+  (* The tactic [diagram] identifies two [simplify] edges
+     and applies the induction hypothesis to them. *)
+  Local Ltac diagram :=
+    match goal with h: simplify _ ?m _, v: simplify _ ?m _ |- _ =>
+      diagram__ h v
+    end.
+  (* We are now ready. *)
+  intros i2 j' A m1 m2 m'1 vertical' horizontal ?.
+  (* Analyze the vertical edge, while keeping a copy of it. *)
+  generalize vertical'; intro vertical.
+  dependent destruction vertical';
+  try solve [
+    (* SimplifyTransitive *)
+    repeat diagram; search
+  |
+    (* All other cases: *)
+    (* Analyze the horizontal edge. *)
+    dependent destruction horizontal; subst;
+    try clarify_simplify;
+    repeat diagram; search
+  ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -534,7 +628,7 @@ Lemma simplify_simp {A} n (m1 m2 : free A) :
   simplify n m1 m2 →
   simp m1 m2.
 Proof.
-  induction 1; eauto with simp.
+  induction 1; intros; subst; eauto with simp.
 Qed.
 
 (* [simp m1 m2] implies [simplify n m1 m2] for some [n]. *)
@@ -553,6 +647,36 @@ Proof.
     (SimplifyParRetRight 0),
     (SimplifyReflexive 0)
     with simplify.
+Qed.
+
+(* The relation [simp _ (ret _)] is confluent. *)
+
+Lemma simp_ret_confluent {A} (m : free A) a1 a2 :
+  simp m (ret a1) →
+  simp m (ret a2) →
+  a1 = a2.
+Proof.
+  intros Hsimp1 Hsimp2.
+  apply simp_simplify in Hsimp1 as (n1 & H1).
+  apply simp_simplify in Hsimp2 as (n2 & H2).
+  eauto using simplify_ret_confluent.
+Qed.
+
+(* The relation [simp] is confluent. *)
+
+Lemma simp_confluent {A} (m1 m2 m'1 : free A) :
+  simp m1 m2 →
+  simp m1 m'1 →
+  ∃ m'2,
+  simp m'1 m'2 ∧
+  simp m2 m'2.
+Proof.
+  intros Hsimp1 Hsimp2.
+  apply simp_simplify in Hsimp1 as (n1 & H1).
+  apply simp_simplify in Hsimp2 as (n2 & H2).
+  pose proof (simplify_confluent H1 H2 eq_refl)
+    as (m'2 & ? & ? & ? & ? & _ & _).
+  eauto using simplify_simp.
 Qed.
 
 (* Special cases. *)
