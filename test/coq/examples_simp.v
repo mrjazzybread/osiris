@@ -308,3 +308,24 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
+
+(* Now let us try to specify that [length] returns an integer value. *)
+
+Definition weak_spec_length (length : val) :=
+  ∀ X `(_ : Encode X) (xs : list X),
+  ∃ (n : Z),
+  simp (call length (encode xs)) (ret (encode n)).
+
+Goal
+  ∀ η,
+  weak_spec_length (VCloRec η length "length").
+Proof.
+  unfold weak_spec_length.
+  induction xs as [| x xs ].
+  { eexists. simp_enter. simp_continue. }
+  { (* The proof goes through, but it is necessary to destruct the
+       induction hypothesis and name the result of the recursive
+       call *before* we reach the point where this call takes place.
+       This is unpleasant. *)
+    destruct IHxs as (n & ?). eexists; simp_enter; simp_continue. }
+Qed.
