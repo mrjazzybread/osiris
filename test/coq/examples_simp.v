@@ -375,7 +375,7 @@ Proof.
   eauto with simp.
 Qed.
 
-Lemma SIMP_bind X Y (_ : Encode X) (_ : Encode Y)
+Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
    m f (φ : X → Prop) (ψ : Y → Prop) :
   SIMP m φ →
   (∀ x, φ x → SIMP (f (encode x)) ψ) →
@@ -398,7 +398,11 @@ Ltac SIMP_simp :=
   eapply SIMP_simp; [ simp_really |].
 
 Ltac SIMP_bind :=
-  eapply @SIMP_bind.
+  (* We cannot just use [simple eapply @SIMP_bind] because this causes Coq to
+     infer an incorrect type X for the logical model of the left-hand side of
+     the [bind] construct. We prevent this by using [notypeclasses refine]
+     instead. *)
+  notypeclasses refine (@SIMP_bind _ _ _ _ _ _ _ _ _ _).
 
 Ltac SIMP :=
   try SIMP_simp;
@@ -436,11 +440,7 @@ Proof.
   unfold weak_spec_length'.
   induction xs as [| x xs ].
   { SIMP_enter. SIMP_continue. lia. }
-  { SIMP_enter. SIMP_continue.
-    (* TODO We must explicitly give the type of the left-hand side of
-            the sequence, otherwise Coq automatically makes an incorrect
-            choice. Painful! *)
-    eapply (@SIMP_bind Z).
+  { SIMP_enter. SIMP_continue. SIMP_bind.
     + rewrite encode_list_is_encode. eauto.
     + cbn. intros n ?. SIMP_ret. equality. lia. }
 Qed.
