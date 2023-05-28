@@ -82,7 +82,7 @@ Proof.
   wp_specify "flip" flip_spec.
   { iIntros (v'). wp.
     iIntros (b i <-); wp_call.
-    wp. simpl (build _ _). wp. done. }
+    wp_continue. simpl (build _ _). wp. done. }
   iIntros (flip) "#Hflip". wp_continue.
 
   (* [flip] is applied to [r_elt]. *)
@@ -102,7 +102,7 @@ Proof.
   { iIntros (r i [|] ->).
     (* Case: [b] is true. *)
     { wp_call. wp_continue. admit. (* TODO FIXME *) }
-    { wp_call. wp_continue. eauto. }
+    { wp_call. wp_continue. wp_continue. done. }
   }
   iIntros (r_val) "#Hr_val". wp_continue.
 

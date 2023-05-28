@@ -98,7 +98,8 @@ Proof.
             generalize (VCloRec η rbds "mult")
         end *) .
       iIntros (* vmult *) "(#Hadd&#Hmult&_)".
-      iIntros(i1 H1). wp_call. iIntros(i2 H2). wp.
+      iIntros(i1 H1). wp_call. wp_continue.
+      iIntros(i2 H2). wp. wp_continue.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       iIntros (veq_part) "Hspec_eq".
       wp.
@@ -141,8 +142,8 @@ Proof.
              generalize (VCloRec η rbds "add")
         end *) .
       iIntros (* vadd *) "(#Hadd&#Hmult&_)".
-      iIntros (i1 H1). wp_call.
-      iIntros(i2 H2). wp.
+      iIntros (i1 H1). wp_call. wp_continue.
+      iIntros(i2 H2). wp. wp_continue.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       iIntros (veq_part) "Heq_part".
       wp. iApply (wp_covariant with "Heq_part").

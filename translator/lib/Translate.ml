@@ -193,43 +193,13 @@ and trans_tl_expr (e: expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
 
-  (* The translation of functions needs to know what kind of pattern is
-     used to decide what syntactic sugar to use. It might be interesting to
-     partition the OCaml constructs according to their translations and use
-     [trans_pat] defined above + transformation functions for each case. *)
   | Texp_function {cases = [{c_lhs=p; c_guard=None; c_rhs=e}]; _} ->
-     (* param: Ident.t
-        cases: value case list *)
-     (* f: x => e *)
-     let body: expr =
-         match p.pat_desc with
-         | Tpat_var (i, _) ->
-            EConstr ("AnonFun1Var", [EPlain (string_of_ident i);
-                                  trans_tl_expr e])
-         | Tpat_any ->
-            EConstr ("AnonFun1Pat", [EPlain "PAny";
-                                  trans_tl_expr e])
-
-         | Tpat_construct (i, desc, _, _) ->
-            (* This construction should only be used for [()].
-               Here, [()] is translated to [EPlain "()"], not
-               [EConstr ("EData", [EPlain "()"])]. *)
-            if desc.cstr_arity = 0 && (string_of_longident i.txt = "\"()\"")
-            then EConstr ("AnonFun1Pat", [EPlain ("PAny");
-                                   trans_tl_expr e])
-            else assert false
-
-         | Tpat_tuple l ->
-            let arg = translate_tuple ptuple trans_pat l in
-            EConstr ("AnonFun1Pat", [arg; trans_tl_expr e])
-
-         | Tpat_alias _ -> assert false
-         | Tpat_constant _ -> assert false
-         | Tpat_variant _ -> assert false
-         | Tpat_record _ -> assert false
-         | Tpat_array _ | Tpat_lazy _ | Tpat_or _ -> assert false
-       in
-       EConstr ("EAnonFun", [body])
+      EConstr ("EAnonFun", [
+        EConstr ("AnonFun1Pat", [
+          trans_pat p;
+          trans_tl_expr e
+        ])
+      ])
 
   | Texp_function _ -> assert false
 

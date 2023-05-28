@@ -28,18 +28,18 @@ Definition Incr : mexpr :=
 ILet (
   BiCons
     (Binding (PVar "new_counter")
-      (EAnonFun (AnonFun1Pat PAny (ELet
+      (EAnonFun (AnonFun1Pat PUnit (ELet
         (BiCons
           (Binding (PVar "c") (EApp (EMkPath ["Stdlib";"ref"]) (EInt 0))) $
         BiNil) $
       ELet
         (BiCons
-          (Binding (PVar "upd") (EAnonFun (AnonFun1Var "i" (EApp (EApp
+          (Binding (PVar "upd") (EAnonFun (AnonFun1Pat (PVar "i") (EApp (EApp
 (EMkPath ["Stdlib";":="]) (EVar "c")) (EVar "i"))))) $
         BiNil) $
       ELet
         (BiCons
-          (Binding (PVar "get") (EAnonFun (AnonFun1Pat PAny (EApp (EMkPath
+          (Binding (PVar "get") (EAnonFun (AnonFun1Pat PUnit (EApp (EMkPath
 ["Stdlib";"!"]) (EVar "c"))))) $
         BiNil) $
       ETuple (ECons (EVar "get") (ECons (EVar "upd") ENil)))))) $

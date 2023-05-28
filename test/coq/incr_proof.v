@@ -89,7 +89,7 @@ Proof.
     { (* Proof of the specification of [upd]. *)
       unfold upd_spec. iIntros.
       iIntros (φ) "!>(%&->&Hl) Hφ".
-      wp_call.
+      wp_call. wp_continue.
       iApply (Stdlib__store__spec_tac with "Hl[Hφ]").
       iNext. iIntros "Hl".
       iApply "Hφ".
