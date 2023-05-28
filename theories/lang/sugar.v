@@ -4,8 +4,7 @@ From osiris.lang Require Import syntax.
 
 (* The sugar in this file can help construct ASTs by hand in Coq. *)
 
-(* It may also be used by the Osiris translator. The definitions that
-   the translator relies upon are marked REQUIRED. *)
+(* The definitions in this file may be used by the Osiris translator. *)
 
 (* ------------------------------------------------------------------------ *)
 
