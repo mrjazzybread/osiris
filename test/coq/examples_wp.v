@@ -240,7 +240,7 @@ Qed.
 (* let rec diverge x = diverge x in diverge() *)
 
 Definition divergence :=
-  ELetRec1 "diverge" "x" (EApp (EVar "diverge") (EVar "x")) $
+  ELetRec1Var "diverge" "x" (EApp (EVar "diverge") (EVar "x")) $
   EApp (EVar "diverge") EUnit.
 
 Lemma spec_divergence:

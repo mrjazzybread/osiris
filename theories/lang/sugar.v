@@ -199,7 +199,7 @@ Definition RecBinding1Var (f x : var) (e1 : expr) : rec_bindings :=
 
 (* [let rec f x = e1 in e2]. *)
 
-Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
   ELetRec (RecBinding1Var f x e1) e2.
 
 (* ------------------------------------------------------------------------ *)
