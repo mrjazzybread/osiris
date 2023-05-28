@@ -117,17 +117,6 @@ Definition ELet1 (p : pat) (e1 e2 : expr) :=
 Definition ELet1Var (x : var) (e1 e2 : expr) :=
   ELet1 (PVar x) e1 e2.
 
-(* [rec f x = e1]. *)
-
-Definition RecBinding1 (f x : var) (e1 : expr) : rec_bindings :=
-  let rb := RecBinding f (AnonFun x e1) in
-  RecBiCons rb RecBiNil.
-
-(* [let rec f x = e1 in e2]. *)
-
-Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
-  ELetRec (RecBinding1 f x e1) e2.
-
 (* [fun x -> e]. *)
 
 Definition EFun1Var (x : var) (e : expr) :=
@@ -181,6 +170,17 @@ Fixpoint EMultiApp (e0 : expr) (es : list expr) :=
   | e1 :: es =>
       EMultiApp (EApp e0 e1) es
   end.
+
+(* [rec f x = e1]. *)
+
+Definition RecBinding1 (f x : var) (e1 : expr) : rec_bindings :=
+  let rb := RecBinding f (AnonFun x e1) in
+  RecBiCons rb RecBiNil.
+
+(* [let rec f x = e1 in e2]. *)
+
+Definition ELetRec1 (f x : var) (e1 e2 : expr) :=
+  ELetRec (RecBinding1 f x e1) e2.
 
 (* ------------------------------------------------------------------------ *)
 
