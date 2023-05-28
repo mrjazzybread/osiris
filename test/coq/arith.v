@@ -23,21 +23,18 @@ Definition Arith : mexpr :=
 ILetRec (
   RecBiCons
     (RecBinding "add" $
-      AnonFun "x"
-      (EFun1Var "y" $
-      EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 0))
-(EApp (EApp (EVar "mult") (EVar "x")) (EInt 1)) (EApp (EApp (EMkPath
-["Stdlib";"+"]) (EInt 1)) (EApp (EApp (EVar "add") (EVar "x")) (EApp (EApp
-(EMkPath ["Stdlib";"-"]) (EVar "y")) (EInt 1)))))) $
+      (AnonFun1Var "x" (EAnonFun (AnonFun1Var "y" (EIfThenElse (EApp (EApp
+(EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 0)) (EApp (EApp (EVar "mult")
+(EVar "x")) (EInt 1)) (EApp (EApp (EMkPath ["Stdlib";"+"]) (EInt 1)) (EApp
+(EApp (EVar "add") (EVar "x")) (EApp (EApp (EMkPath ["Stdlib";"-"]) (EVar
+"y")) (EInt 1))))))))) $
     RecBiCons
       (RecBinding "mult" $
-        AnonFun "x"
-        (EFun1Var "y" $
-        EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "y")) (EInt
-0)) (EInt 0) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "y"))
-(EInt 1)) (EVar "x") (EApp (EApp (EVar "add") (EVar "x")) (EApp (EApp (EVar
-"mult") (EVar "x")) (EApp (EApp (EMkPath ["Stdlib";"-"]) (EVar "y")) (EInt
-1))))))) $
+        (AnonFun1Var "x" (EAnonFun (AnonFun1Var "y" (EIfThenElse (EApp (EApp
+(EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 0)) (EInt 0) (EIfThenElse (EApp
+(EApp (EMkPath ["Stdlib";"="]) (EVar "y")) (EInt 1)) (EVar "x") (EApp (EApp
+(EVar "add") (EVar "x")) (EApp (EApp (EVar "mult") (EVar "x")) (EApp (EApp
+(EMkPath ["Stdlib";"-"]) (EVar "y")) (EInt 1)))))))))) $
       RecBiNil)
 ;
 ILet (

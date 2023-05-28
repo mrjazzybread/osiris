@@ -88,27 +88,22 @@ let definitions lets =
       match name with
       | None -> assert false (* recursive functions have names. *)
       | Some name ->
-         let (v, expr) =
-           begin
-             match expr with
-             | EConstr ("EFun1Var", [EPlain var; body]) -> (var, body)
-             | EConstr ("EFun1Pat", [pat; body]) ->
-                (* [body] is gradually replaced by a match over [pat] *)
-                let v = "__osiris_reserved_arg_name" in
-                let branch = EConstr ("Branch", [ pat ; body ]) in
-                let branches = EConstr ("BrCons", [ branch ; EPlain "BrNil" ]) in
-                let match_expr = EConstr ("EMatch", [ EConstr ("EVar", [EPlain v]);
-                                                      branches ]) in
-                (v, match_expr)
-             | _ -> assert false
-           end
-         in
-         concat [
-             string "RecBinding"; space;
-             string ("\""^name^"\""); space; dollar; hardline;
-             string "AnonFun" ; space; string v; hardline;
-             document_of_expr true expr ]
-         |> nest 2
+          let anonfun : expr =
+            match expr with
+             | EConstr ("EAnonFun", [anonfun]) ->
+                 anonfun
+             | _ ->
+                 (* The right-hand side of a [let rec] definition must
+                    be a function. We do not allow recursive values of
+                    other types. *)
+                 assert false
+          in
+          concat [
+            string "RecBinding"; space;
+            string ("\""^name^"\""); space; dollar; hardline;
+            document_of_expr true anonfun
+          ]
+          |> nest 2
 
     )
     |> ilet "ILetRec" "RecBiCons" "RecBiNil"

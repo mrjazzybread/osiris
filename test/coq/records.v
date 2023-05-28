@@ -37,9 +37,8 @@ FENil)))) $
 ILet (
   BiCons
     (Binding (PVar "flip")
-      (EFun1Var "r" $
-      ERecordUpdate (EVar "r") (FECons "b" (EApp (EMkPath ["Stdlib";"not"])
-(ERecordAccess (EVar "r") "b")) FENil))) $
+      (EAnonFun (AnonFun1Var "r" (ERecordUpdate (EVar "r") (FECons "b" (EApp
+(EMkPath ["Stdlib";"not"]) (ERecordAccess (EVar "r") "b")) FENil))))) $
     BiNil)
 ;
 ILet (
@@ -53,39 +52,37 @@ ENil)))) ENil))))) $
 ILet (
   BiCons
     (Binding (PVar "r_val")
-      (EFun1Var "r" $
-      EMatch (ERecordAccess (EVar "r") "b") (BrCons (Branch (PBool true)
-(EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EApp (EMkPath ["Stdlib";"*"])
-(ERecordAccess (EVar "r") "i")) (EInt 2))) (EInt 1))) (BrCons (Branch (PBool
-false) (ERecordAccess (EVar "r") "i")) BrNil)))) $
+      (EAnonFun (AnonFun1Var "r" (EMatch (ERecordAccess (EVar "r") "b")
+(BrCons (Branch (PBool true) (EApp (EApp (EMkPath ["Stdlib";"-"]) (EApp (EApp
+(EMkPath ["Stdlib";"*"]) (ERecordAccess (EVar "r") "i")) (EInt 2))) (EInt
+1))) (BrCons (Branch (PBool false) (ERecordAccess (EVar "r") "i"))
+BrNil)))))) $
     BiNil)
 ;
 ILet (
   BiCons
     (Binding (PVar "sum")
-      (EFun1Var "r1" $
-      EFun1Var "r2" $
-      EApp (EApp (EMkPath ["Stdlib";"+"]) (EApp (EVar "r_val") (EVar "r1")))
-(EApp (EVar "r_val") (EVar "r2")))) $
+      (EAnonFun (AnonFun1Var "r1" (EAnonFun (AnonFun1Var "r2" (EApp (EApp
+(EMkPath ["Stdlib";"+"]) (EApp (EVar "r_val") (EVar "r1"))) (EApp (EVar
+"r_val") (EVar "r2")))))))) $
     BiNil)
 ;
 ILetRec (
   RecBiCons
     (RecBinding "is_odd_naive" $
-      AnonFun "n"
-      (ESeq (EAssert (EApp (EApp (EMkPath ["Stdlib";">="]) (EVar "n")) (EInt
-0))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";">"]) (EVar "n")) (EInt 1))
-(EApp (EVar "is_odd_naive") (EApp (EApp (EMkPath ["Stdlib";"-"]) (EVar "n"))
-(EInt 2))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";"="]) (EVar "n"))
-(EInt 0)) (EData "false" (ETuple ENil)) (EData "true" (ETuple ENil)))))) $
+      (AnonFun1Var "n" (ESeq (EAssert (EApp (EApp (EMkPath ["Stdlib";">="])
+(EVar "n")) (EInt 0))) (EIfThenElse (EApp (EApp (EMkPath ["Stdlib";">"])
+(EVar "n")) (EInt 1)) (EApp (EVar "is_odd_naive") (EApp (EApp (EMkPath
+["Stdlib";"-"]) (EVar "n")) (EInt 2))) (EIfThenElse (EApp (EApp (EMkPath
+["Stdlib";"="]) (EVar "n")) (EInt 0)) (EData "false" (ETuple ENil)) (EData
+"true" (ETuple ENil))))))) $
     RecBiNil)
 ;
 ILet (
   BiCons
     (Binding (PVar "is_odd")
-      (EFun1Var "n" $
-      EApp (EApp (EMkPath ["Stdlib";"="]) (EApp (EApp (EMkPath
-["Stdlib";"mod"]) (EVar "n")) (EInt 2))) (EInt 0))) $
+      (EAnonFun (AnonFun1Var "n" (EApp (EApp (EMkPath ["Stdlib";"="]) (EApp
+(EApp (EMkPath ["Stdlib";"mod"]) (EVar "n")) (EInt 2))) (EInt 0))))) $
    
 BiNil)
  ].

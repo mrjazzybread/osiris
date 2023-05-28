@@ -204,10 +204,10 @@ and trans_tl_expr (e: expression) =
      let body: expr =
          match p.pat_desc with
          | Tpat_var (i, _) ->
-            EConstr ("EFun1Var", [EPlain (string_of_ident i);
+            EConstr ("AnonFun1Var", [EPlain (string_of_ident i);
                                   trans_tl_expr e])
          | Tpat_any ->
-            EConstr ("EFun1Pat", [EPlain "PAny";
+            EConstr ("AnonFun1Pat", [EPlain "PAny";
                                   trans_tl_expr e])
 
          | Tpat_construct (i, desc, _, _) ->
@@ -215,13 +215,13 @@ and trans_tl_expr (e: expression) =
                Here, [()] is translated to [EPlain "()"], not
                [EConstr ("EData", [EPlain "()"])]. *)
             if desc.cstr_arity = 0 && (string_of_longident i.txt = "\"()\"")
-            then EConstr ("EFun1Pat", [EPlain ("PAny");
+            then EConstr ("AnonFun1Pat", [EPlain ("PAny");
                                    trans_tl_expr e])
             else assert false
 
          | Tpat_tuple l ->
             let arg = translate_tuple ptuple trans_pat l in
-            EConstr ("EFun1Pat", [arg; trans_tl_expr e])
+            EConstr ("AnonFun1Pat", [arg; trans_tl_expr e])
 
          | Tpat_alias _ -> assert false
          | Tpat_constant _ -> assert false
@@ -229,7 +229,7 @@ and trans_tl_expr (e: expression) =
          | Tpat_record _ -> assert false
          | Tpat_array _ | Tpat_lazy _ | Tpat_or _ -> assert false
        in
-       body
+       EConstr ("EAnonFun", [body])
 
   | Texp_function _ -> assert false
 
