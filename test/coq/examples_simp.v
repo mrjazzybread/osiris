@@ -216,7 +216,7 @@ Qed.
      | x :: xs -> walk xs *)
 
 Definition walk : rec_bindings :=
-  RecBinding1 "walk" "xs" $
+  RecBinding1Var "walk" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil EUnit;
     Branch (pCons (PVar "x") (PVar "xs"))
@@ -285,7 +285,7 @@ Qed.
      | x :: xs -> 1 + length xs *)
 
 Definition length : rec_bindings :=
-  RecBinding1 "length" "xs" $
+  RecBinding1Var "length" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil (EInt 0);
     Branch (pCons (PVar "x") (PVar "xs"))
