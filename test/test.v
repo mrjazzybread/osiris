@@ -197,7 +197,7 @@ Proof. reduces. Qed.
 Lemma test_EFun :
   let e :=
     ELet1Var "f" (
-      EFun [
+      EFunMultiPat [
         PPair (PVar "x1") (PVar "x2");
         PPair (PVar "y1") (PVar "y2")
       ] $

@@ -261,7 +261,7 @@ with rec_bindings :=
    this form as a primitive construct, because this simplifies the
    evaluator. The constructs [function bs], where [bs] is a list of
    branches, and [fun ps -> e], where [ps] is a list of patterns, are
-   regarded as sugar: see [EFunction] and [EFun]. *)
+   regarded as sugar: see [EFunction] and [EFunMultiPat]. *)
 
 with anonfun :=
   | AnonFun (x : var) (e : expr)

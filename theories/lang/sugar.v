@@ -119,8 +119,11 @@ Definition ELet1Var (x : var) (e1 e2 : expr) :=
 
 (* [fun x -> e]. *)
 
+Definition AnonFun1Var : var → expr → anonfun :=
+  AnonFun.
+
 Definition EFun1Var (x : var) (e : expr) :=
-  EAnonFun (AnonFun x e).
+  EAnonFun (AnonFun1Var x e).
 
 (* [function bs] is sugar for [fun x -> match x with bs]. *)
 
@@ -130,10 +133,13 @@ Definition EFun1Var (x : var) (e : expr) :=
    reserved name in their OCaml source code, we can be assured that [x]
    does not occur free in [bs]. *)
 
-Definition EFunction (bs : branches) :=
+Definition AnonFunction (bs : branches) : anonfun :=
   let x := "__osiris_anonymous_arg" in
-  EFun1Var x $
+  AnonFun1Var x $
   EMatch (EVar x) bs.
+
+Definition EFunction (bs : branches) :=
+  EAnonFun (AnonFunction bs).
 
 (* [match e with bs]. *)
 
@@ -146,20 +152,34 @@ Definition EMatchMkBranches (e : expr) (bs : list branch) :=
 
 (* It is a special case of the previous sugar. *)
 
+Definition AnonFun1Pat (p : pat) (e : expr) : anonfun :=
+  AnonFunction (MkBranches [Branch p e]).
+
 Definition EFun1Pat (p : pat) (e : expr) :=
-  EFunction (MkBranches [Branch p e]).
+  EAnonFun (AnonFun1Pat p e).
 
 (* [fun ps -> e]. *)
 
 (* [fun p1 p2 ... pn -> e] is [fun p1 -> fun p2 -> ... fun pn -> e]. *)
 
-Fixpoint EFun (ps : list pat) (e : expr) :=
+Fixpoint EFunMultiPat (ps : list pat) (e : expr) :=
   match ps with
   | [] =>
       e
   | p :: ps =>
-      EFun1Pat p (EFun ps e)
+      EFun1Pat p (EFunMultiPat ps e)
   end.
+
+Definition AnonFunMultiPat (p : pat) (ps : list pat) (e : expr) : anonfun :=
+  AnonFun1Pat p (EFunMultiPat ps e).
+
+Goal
+  ∀ p ps e,
+  EFunMultiPat (p :: ps) e =
+  EAnonFun (AnonFunMultiPat p ps e).
+Proof.
+  reflexivity.
+Qed.
 
 (* [e0 e1 ... en] is sugar for [((e0 e1) ... en)]. *)
 
