@@ -26,46 +26,36 @@ From osiris.libs Require Import Stdlib.
 
 (* Generated code: *)
 Definition Records : mexpr := 
-  MkStruct [ 
-(ILet (BiCons (Binding (PVar "r_elt") (ERecord (FECons "i" (EInt 10) (FECons
-"b" (EData "true" (ETuple ENil)) FENil)))) (BiNil)))
-;
+  
+(MStruct (ICons (ILet (BiCons (Binding (PVar "r_elt") (ERecord (FECons "i"
+(EInt 10) (FECons "b" (EData "true" (ETuple ENil)) FENil)))) (BiNil))) (ICons
 (ILet (BiCons (Binding (PVar "flip") (EAnonFun (AnonFun1Pat (PVar "r")
 (ERecordUpdate (EPath (PathBase "r")) (FECons "b" (EApp (EPath (PathDot
 (PathBase "Stdlib") "not")) (ERecordAccess (EPath (PathBase "r")) "b"))
-FENil))))) (BiNil)))
-;
-(ILet (BiCons (Binding (PVar "lily") (EData "::" (ETuple (ECons (EPath
-(PathBase "r_elt")) (ECons (EData "::" (ETuple (ECons (EApp (EPath (PathBase
-"flip")) (EPath (PathBase "r_elt"))) (ECons (EData "[]" (ETuple ENil))
-ENil)))) ENil))))) (BiNil)))
-;
-(ILet (BiCons (Binding (PVar "r_val") (EAnonFun (AnonFun1Pat (PVar "r")
-(EMatch (ERecordAccess (EPath (PathBase "r")) "b") (BrCons (Branch (PBool
-true) (EApp (EApp (EPath (PathDot (PathBase "Stdlib") "-")) (EApp (EApp
-(EPath (PathDot (PathBase "Stdlib") "*")) (ERecordAccess (EPath (PathBase
-"r")) "i")) (EInt 2))) (EInt 1))) (BrCons (Branch (PBool false)
-(ERecordAccess (EPath (PathBase "r")) "i")) BrNil)))))) (BiNil)))
-;
-(ILet (BiCons (Binding (PVar "sum") (EAnonFun (AnonFun1Pat (PVar "r1")
-(EAnonFun (AnonFun1Pat (PVar "r2") (EApp (EApp (EPath (PathDot (PathBase
-"Stdlib") "+")) (EApp (EPath (PathBase "r_val")) (EPath (PathBase "r1"))))
-(EApp (EPath (PathBase "r_val")) (EPath (PathBase "r2")))))))))
-(BiNil)))
-;
-(ILetRec (RecBiCons (RecBinding "is_odd_naive" (AnonFun1Pat (PVar "n") (ESeq
-(EAssert (EApp (EApp (EPath (PathDot (PathBase "Stdlib") ">=")) (EPath
-(PathBase "n"))) (EInt 0))) (EIfThenElse (EApp (EApp (EPath (PathDot
-(PathBase "Stdlib") ">")) (EPath (PathBase "n"))) (EInt 1)) (EApp (EPath
-(PathBase "is_odd_naive")) (EApp (EApp (EPath (PathDot (PathBase "Stdlib")
-"-")) (EPath (PathBase "n"))) (EInt 2))) (EIfThenElse (EApp (EApp (EPath
-(PathDot (PathBase "Stdlib") "=")) (EPath (PathBase "n"))) (EInt 0)) (EData
-"false" (ETuple ENil)) (EData "true" (ETuple ENil))))))) (RecBiNil)))
-;
-(ILet (BiCons (Binding (PVar "is_odd") (EAnonFun (AnonFun1Pat (PVar "n")
-(EApp (EApp (EPath (PathDot (PathBase "Stdlib") "=")) (EApp (EApp (EPath
-(PathDot (PathBase "Stdlib") "mod")) (EPath (PathBase "n"))) (EInt 2))) (EInt
-0)))))
-(BiNil)))
- ].
+FENil))))) (BiNil))) (ICons (ILet (BiCons (Binding (PVar "lily") (EData "::"
+(ETuple (ECons (EPath (PathBase "r_elt")) (ECons (EData "::" (ETuple (ECons
+(EApp (EPath (PathBase "flip")) (EPath (PathBase "r_elt"))) (ECons (EData
+"[]" (ETuple ENil)) ENil)))) ENil))))) (BiNil))) (ICons (ILet (BiCons
+(Binding (PVar "r_val") (EAnonFun (AnonFun1Pat (PVar "r") (EMatch
+(ERecordAccess (EPath (PathBase "r")) "b") (BrCons (Branch (PBool true) (EApp
+(EApp (EPath (PathDot (PathBase "Stdlib") "-")) (EApp (EApp (EPath (PathDot
+(PathBase "Stdlib") "*")) (ERecordAccess (EPath (PathBase "r")) "i")) (EInt
+2))) (EInt 1))) (BrCons (Branch (PBool false) (ERecordAccess (EPath (PathBase
+"r")) "i")) BrNil)))))) (BiNil))) (ICons (ILet (BiCons (Binding (PVar "sum")
+(EAnonFun (AnonFun1Pat (PVar "r1") (EAnonFun (AnonFun1Pat (PVar "r2") (EApp
+(EApp (EPath (PathDot (PathBase "Stdlib") "+")) (EApp (EPath (PathBase
+"r_val")) (EPath (PathBase "r1")))) (EApp (EPath (PathBase "r_val")) (EPath
+(PathBase "r2"))))))))) (BiNil))) (ICons (ILetRec (RecBiCons (RecBinding
+"is_odd_naive" (AnonFun1Pat (PVar "n") (ESeq (EAssert (EApp (EApp (EPath
+(PathDot (PathBase "Stdlib") ">=")) (EPath (PathBase "n"))) (EInt 0)))
+(EIfThenElse (EApp (EApp (EPath (PathDot (PathBase "Stdlib") ">")) (EPath
+(PathBase "n"))) (EInt 1)) (EApp (EPath (PathBase "is_odd_naive")) (EApp
+(EApp (EPath (PathDot (PathBase "Stdlib") "-")) (EPath (PathBase "n"))) (EInt
+2))) (EIfThenElse (EApp (EApp (EPath (PathDot (PathBase "Stdlib") "="))
+(EPath (PathBase "n"))) (EInt 0)) (EData "false" (ETuple ENil)) (EData "true"
+(ETuple ENil))))))) (RecBiNil))) (ICons (ILet (BiCons (Binding (PVar
+"is_odd") (EAnonFun (AnonFun1Pat (PVar "n") (EApp (EApp (EPath (PathDot
+(PathBase "Stdlib") "=")) (EApp (EApp (EPath (PathDot (PathBase "Stdlib")
+"mod")) (EPath (PathBase "n"))) (EInt 2))) (EInt 0))))) (BiNil)))
+(INil))))))))).
 

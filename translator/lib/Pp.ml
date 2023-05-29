@@ -9,94 +9,15 @@ let rec document_of_expr e =
   | EConstr (c, es) ->
       parens (flow space (string c :: List.map document_of_expr es))
 
-(* Recursive definitions. *)
-let print_rec_def (name, e) =
-  match name with
-  | None -> assert false (* recursive functions have names. *)
-  | Some name ->
-      let anonfun : expr =
-        match e with
-         | EConstr ("EAnonFun", [anonfun]) ->
-             anonfun
-         | _ ->
-             (* The right-hand side of a [let rec] definition must
-                be a function. We do not allow recursive values of
-                other types. *)
-             assert false
-      in
-      EConstr ("RecBinding", [ string_literal name; anonfun ])
+let print fmt (e: expr) =
+  PPrint.ToFormatter.pretty 0.5 100 fmt (document_of_expr e)
 
-(* Non-recursive definitions. *)
-let print_nonrec_def (name, e) =
-  let p =
-    match name with
-    | Some x -> EConstr ("PVar", [ string_literal x ])
-    | None -> EConstr ("PAny", [])
-  in
-  EConstr ("Binding", [p; e])
-
-let definitions lets : expr =
-  let (recflag, symbols) = lets in
-
-  (* Generic pretty-printer for bindings. *)
-  let ilet ilet cons nil f =
-    EConstr (ilet, [list nil cons (List.map f symbols)])
-  in
-
-  (* Each element of [lets] is a top-level [let].
-     (The elements of [lets] are linked with [and] in the source file.) *)
-  if recflag
-  then
-    ilet "ILetRec" "RecBiCons" "RecBiNil" print_rec_def
-  else
-    ilet "ILet" "BiCons" "BiNil" print_nonrec_def
-
-let rec document_of_tast = function
-  | [] -> empty
-  | h :: h' :: t ->
-     concat [document_of_expr (definitions h) ;
-             hardline; semi; hardline;
-             document_of_tast (h' :: t)]
-  | h :: [] ->
-     concat [document_of_expr (definitions h) ; hardline]
-
-
-(* An element of type [ast] is a list of lists [l] of top-level definitions,
-   where the elements of [l] are defined within the same [let ... and ...]
-   construct.
-   Each top-level definition is represented by an element of type
-   [ string option * (* Name of the symbol. *)
-     bool          * (* Is the symbol recursive? *)
-     expr            (* Expression *)
-   ].
-
-   [transform_ast] groups the top-level symbols by [let ... and ...]
-   constructs. *)
-let transform_ast (ast: (string option * bool * expr) list list)
-    : (bool * ((string option * expr) list)) list =
-  let facto (l: (string option * bool * expr) list) :
-            bool * (string option * expr) list =
-    match l with
-    | [] -> (false, [])
-    | (_, b, _) :: _ ->
-       (b, List.map (fun (n, _, e) -> (n, e)) l)
-  in
-  List.map facto ast
-
-let print_ast fmt (ast: ast) =
-  ast
-  |> List.filter (fun l -> l <> [])
-  |> transform_ast
-  |> document_of_tast
-  |> align |> nest 2
-  |> (PPrint.ToFormatter.pretty 0.5 100) fmt
-
-let print fmt module_name headers (a: ast) : unit =
+let print fmt module_name headers (a: expr) : unit =
   Format.fprintf fmt
                  "%s@.@.\
                   (* Generated code: *)@.\
                   Definition %s : mexpr := @.\
-                  \  MkStruct [ @.%a ].@.\
+                  \  @.%a.@.\
                   @.(* END. *)"
                  headers module_name
-                 print_ast a
+                 print a

@@ -131,7 +131,21 @@ let translate_record
      end
   | _ -> assert false
 
+let unvarpat (p : value general_pattern) : string =
+  match p.pat_desc with
+  | Tpat_var (_, x) ->
+      x.txt
+  | _ ->
+      (* A variable pattern was expected. *)
+      assert false
 
+let unlambda (e : expression) : value general_pattern * expression =
+  match e.exp_desc with
+  | Texp_function {cases = [{c_lhs=p; c_guard=None; c_rhs=e}]; _} ->
+      p, e
+  | _ ->
+      (* An anonymous function was expected. *)
+      assert false
 
 let rec trans_computation_pat (p: computation general_pattern): expr =
   (* p.pat_desc => Tpat_value v, with v of type tpat_value_argument.
@@ -172,34 +186,22 @@ and trans_pat (p: value general_pattern): expr =
 
 
 
-let rec trans_value_bindings vbs =
-  List.fold_right
-    (fun vb e ->
-      EConstr
-        ("BiCons",
-         [EConstr
-            ("Binding",
-             [ trans_pat vb.vb_pat;
-               trans_tl_expr vb.vb_expr]); e]))
-    vbs (EPlain "BiNil")
-
-
-
 (* -------------------------------------------------------------------------- *)
 
 (* Main translation function for expressions.
    This function relies on all of the above.*)
+let rec translate_lambda (p, e) =
+  EConstr ("AnonFun1Pat", [
+    trans_pat p;
+    trans_tl_expr e
+  ])
+
 and trans_tl_expr (e: expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
 
   | Texp_function {cases = [{c_lhs=p; c_guard=None; c_rhs=e}]; _} ->
-      EConstr ("EAnonFun", [
-        EConstr ("AnonFun1Pat", [
-          trans_pat p;
-          trans_tl_expr e
-        ])
-      ])
+      EConstr ("EAnonFun", [ translate_lambda (p, e) ])
 
   | Texp_function _ -> assert false
 
@@ -215,8 +217,8 @@ and trans_tl_expr (e: expression) =
   | Texp_ident (path, _, _) ->
       EConstr ("EPath", [translate_path path])
 
-  | Texp_let (_, vbl, e) ->
-     EConstr ("ELet", [trans_value_bindings vbl; trans_tl_expr e])
+  | Texp_let (_, vbs, e) ->
+     EConstr ("ELet", [translate_bindings vbs; trans_tl_expr e])
 
   | Texp_tuple el -> translate_tuple etuple trans_tl_expr el
 
@@ -308,29 +310,24 @@ and trans_tl_expr (e: expression) =
 
 
 (* -------------------------------------------------------------------------- *)
-(* [trans_tl_value_binding] translates a top-level binding into an element of
-   type [string option * bool * expr], where :
-   - the [string] element represents the name of the OCaml declaration if it
-     exists.
-   - the [bool] element is a recursivity flag : [true] means that the function is
-     recursive, [false] that it is not
-   - the [expr] element represents the body of the declaration. *)
 
+and translate_binding (vb: Typedtree.value_binding) : expr =
+  EConstr ("Binding", [
+    trans_pat vb.vb_pat;
+    trans_tl_expr vb.vb_expr
+  ])
 
-(* TODO: Other patterns should be supported. *)
-and trans_tl_value_binding (recursive: bool) (vb: Typedtree.value_binding):
-      string option * bool * expr =
-  match vb.vb_pat.pat_desc with
-  | Tpat_any -> None, recursive, trans_tl_expr vb.vb_expr
-  | Tpat_var (i, _) -> Some (Ident.name i), recursive, trans_tl_expr vb.vb_expr
-  | Tpat_construct (_, i, _, _) ->
-     (* [let () = e] bahaves as [let _ = e] at top-level. *)
-     if i.cstr_name = "()"
-     then None, recursive, trans_tl_expr vb.vb_expr
-     else assert false
-  | _ -> assert false
+and translate_rec_binding vb : expr =
+  EConstr ("RecBinding", [
+    string_literal (unvarpat vb.vb_pat);
+    translate_lambda (unlambda vb.vb_expr)
+  ])
 
+and translate_bindings vbs : expr =
+  list "BiNil" "BiCons" (List.map translate_binding vbs)
 
+and translate_rec_bindings vbs : expr =
+  list "RecBiNil" "RecBiCons" (List.map translate_rec_binding vbs)
 
 (* -------------------------------------------------------------------------- *)
 (* The OCaml Typedtree is a list of structures. Each structure either represents
@@ -351,21 +348,20 @@ and trans_tl_value_binding (recursive: bool) (vb: Typedtree.value_binding):
    Note: if need be, it is possible to query the environment at the
    ````` [structure_item] at hand, which might be useful if the translation tool
    ever need to generate environment in the Coq development. *)
-let trans_tl_structure (si: Typedtree.structure_item) =
+let translate_sitem (si: Typedtree.structure_item) : expr option =
   match si.str_desc with
   (* Non-recursive top-level bindings. *)
-  | Tstr_value (Nonrecursive, vbl) ->
-     List.map (trans_tl_value_binding false) vbl
+  | Tstr_value (Nonrecursive, vbs) ->
+      Some (EConstr ("ILet", [translate_bindings vbs]))
   (* Recursive top-level bindings. *)
-  | Tstr_value (Recursive, vbl) ->
-  (* List.map trans_tl_value_binding vbl *)
-     List.map (trans_tl_value_binding true) vbl
+  | Tstr_value (Recursive, vbs) ->
+      Some (EConstr ("ILetRec", [translate_rec_bindings vbs]))
 
   (* Ignoring the type-related definitions. *)
   | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
-      -> []
+      -> None
 
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
@@ -378,5 +374,8 @@ let trans_tl_structure (si: Typedtree.structure_item) =
   | Tstr_include _ -> assert false (* of include_declaration *)
   | Tstr_attribute _ -> assert false (*of attribute*)
 
-let translate (t: Typedtree.structure): ast =
-  List.map trans_tl_structure t.str_items
+let translate_sitems items =
+  list "INil" "ICons" (List.filter_map translate_sitem items)
+
+let translate (t: Typedtree.structure) : expr =
+  EConstr ("MStruct", [translate_sitems t.str_items])
