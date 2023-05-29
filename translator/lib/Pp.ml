@@ -35,13 +35,12 @@ let print_nonrec_def (name, e) =
   in
   EConstr ("Binding", [p; e])
 
-let definitions lets : document =
+let definitions lets : expr =
   let (recflag, symbols) = lets in
 
   (* Generic pretty-printer for bindings. *)
   let ilet ilet cons nil f =
     EConstr (ilet, [list nil cons (List.map f symbols)])
-    |> document_of_expr
   in
 
   (* Each element of [lets] is a top-level [let].
@@ -55,11 +54,11 @@ let definitions lets : document =
 let rec document_of_tast = function
   | [] -> empty
   | h :: h' :: t ->
-     concat [definitions h ;
+     concat [document_of_expr (definitions h) ;
              hardline; semi; hardline;
              document_of_tast (h' :: t)]
   | h :: [] ->
-     concat [definitions h ; hardline]
+     concat [document_of_expr (definitions h) ; hardline]
 
 
 (* An element of type [ast] is a list of lists [l] of top-level definitions,
