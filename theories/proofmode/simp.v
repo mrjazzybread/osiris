@@ -368,3 +368,93 @@ Ltac simp_specify x φ :=
   end.
 
 (* -------------------------------------------------------------------------- *)
+(* -------------------------------------------------------------------------- *)
+
+(* TODO *)
+
+(* The tactic [encode] expects a goal of the form [v = encode x]. *)
+
+Ltac encode :=
+  eauto.
+
+Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
+  ∃ x, simp m (ret (encode x)) ∧ φ x.
+
+Lemma SIMP_det `{Encode X} m (φ : X → Prop) v x :
+  simp m (ret v) →
+  v = encode x →
+  φ x →
+  SIMP m φ.
+Proof.
+  unfold SIMP. intros. subst. eauto.
+Qed.
+
+Ltac SIMP_det :=
+  eapply SIMP_det; [ simp | encode | eauto ].
+
+Lemma SIMP_ret `{Encode X} (φ : X → Prop) v x :
+  v = encode x →
+  φ x →
+  SIMP (ret v) φ.
+Proof.
+  eauto using SIMP_det with simp.
+Qed.
+
+Lemma SIMP_simp `{Encode X} m m' φ :
+  simp m m' →
+  SIMP m' φ →
+  SIMP m φ.
+Proof.
+  unfold SIMP.
+  intros ? (x & ? & ?).
+  eauto with simp.
+Qed.
+
+Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
+   m f (φ : X → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → SIMP (f (encode x)) ψ) →
+  SIMP (bind m f) ψ.
+  (* This is [@bind val val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_bind.
+Qed.
+
+Ltac SIMP_ret :=
+  eapply SIMP_ret; [ encode |].
+
+Ltac SIMP_simp :=
+  eapply SIMP_simp; [ simp_really |].
+
+Ltac SIMP_bind :=
+  (* We cannot just use [simple eapply @SIMP_bind] because this causes Coq to
+     infer an incorrect type X for the logical model of the left-hand side of
+     the [bind] construct. We prevent this by using [notypeclasses refine]
+     instead. *)
+  notypeclasses refine (@SIMP_bind _ _ _ _ _ _ _ _ _ _).
+
+Ltac SIMP :=
+  try SIMP_simp;
+  repeat rewrite bind_bind;
+  first [
+    SIMP_ret
+  | SIMP_bind; [ solve [ SIMP ] | SIMP ]
+  | idtac
+  ].
+
+Ltac SIMP_enter :=
+  with_strategy transparent [call] unfold call; SIMP.
+
+Ltac SIMP_continue :=
+  cbn;
+  lazymatch goal with |- SIMP (concatenating _ _ _ _) _ =>
+    unfold concatenating; (* TODO restrict to head occurrence *)
+    SIMP
+  | _ =>
+    fail "[SIMP_continue] expects a goal of the form [simp (concatenating ...) _]"
+  end.
+
+Opaque SIMP.
