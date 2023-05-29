@@ -28,10 +28,35 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode := encode_tree }.
 
+Ltac SIMP_specify x φ :=
+  lazymatch goal with |- SIMP (dconcatenating ?δ _) =>
+    let o := eval cbn in (lookup_name δ x) in
+    lazymatch o with ret ?v =>
+      let h := fresh in
+      assert (φ v) as h; [| revert h; generalize v ]
+    end
+  end.
+
+Lemma SIMP_simp_bind X Y (_ : Encode Y)
+   m f (x : X) (ψ : Y → Prop) :
+  simp m (ret x) →
+  SIMP (f x) ψ →
+  SIMP (bind m f) ψ.
+  (* This is [@bind X val]. *)
+Proof.
+  intros Hm Hf.
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_bind.
+Qed.
+
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
-  SIMP (eval_mexpr η Splay) (λ _, True).
+  SIMP (eval_mexpr η Splay) (λ (_ : val), True).
 Proof.
   intros.
   SIMP.
+  (* eapply SIMP_simp_bind. *)
+  (* Unset Printing Notations. *)
+  (* SIMP_bind. *)
+  (* SIMP_specify "splay" (λ (splay : val), True). *)
 Abort.
