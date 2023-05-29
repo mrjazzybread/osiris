@@ -463,4 +463,4 @@ Ltac SIMP_continue :=
     fail "[SIMP_continue] expects a goal of the form [simp (concatenating ...) _]"
   end.
 
-Opaque SIMP.
+Global Opaque SIMP.
