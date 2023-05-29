@@ -155,6 +155,13 @@ Qed.
 
 Create HintDb simp_specs.
 
+(* The tactic [normalize] attempts to reduce and normalize the goal before
+   applying any reasoning rule. It is used by the tactics that follow. *)
+
+Ltac normalize :=
+  cbn;
+  repeat rewrite bind_bind. (* TODO may wish to rewrite at the root only. *)
+
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
    They advance this goal by performing simplification steps that lead from
@@ -163,10 +170,10 @@ Create HintDb simp_specs.
    Whereas [simp0] may find zero or more simplification steps, [simp1] must
    find at least one simplification step; otherwise, it fails.
 
-   The term [m1] is expected to be [cbn]-normal already.
+   The term [m1] is expected to be normalized already.
 
    If the goal is changed to [simp m'1 m2] then the term [m'1] is guaranteed
-   to be [cbn]-normal. *)
+   to be normalized. *)
 
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
@@ -176,27 +183,26 @@ Ltac simp0 :=
 with simp1 :=
   (* We must perform at least one step. *)
   (* We examine the syntax of [m1], which is why we require [m1] to be
-     [cbn]-normal already. *)
+     normalized already. *)
   lazymatch goal with |- simp ?m1 _ =>
   lazymatch m1 with
   | ret ?a1 =>
       fail
   | eval ?η ?e =>
-      (* Rewrite [eval η e] to [eval' η e] and simplify the latter form
-         using [cbn]. This counts as a simplification step, so our duty is
-         fulfilled. We are then free to use [simp0] to find zero or more
-         further steps. *)
-      rewrite eval_eval'; cbn;
+      (* Rewrite [eval η e] to [eval' η e] and normalize the latter form.
+         This counts as a simplification step, so our duty is fulfilled.
+         We are then free to use [simp0] to find zero or more further steps. *)
+      rewrite eval_eval'; normalize;
       simp0
   (* Same as above. *)
   | as_int (eval ?η ?e) =>
-      rewrite eval_eval'; cbn; simp0
+      rewrite eval_eval'; normalize; simp0
   | as_bool (eval ?η ?e) =>
-      rewrite eval_eval'; cbn; simp0
+      rewrite eval_eval'; normalize; simp0
   | as_loc (eval ?η ?e) =>
-      rewrite eval_eval'; cbn; simp0
+      rewrite eval_eval'; normalize; simp0
   | as_record (eval ?η ?e) =>
-      rewrite eval_eval'; cbn; simp0
+      rewrite eval_eval'; normalize; simp0
   | call ?v1 ?v2 =>
       (* We allow ourselves to reason about function calls using whatever
          hypotheses may be present in the context and in the hint database
@@ -219,19 +225,19 @@ with simp1 :=
          tactic. Furthermore, this guarantees that we do not create
          an unsolvable subgoal in situations where the left-hand side
          of the sequence needs an existentially quantified postcondition. *)
-      eapply prove_simp_bind; [ cbn; simp0; close |];
-      cbn; simp0
+      eapply prove_simp_bind; [ normalize; simp0; close |];
+      normalize; simp0
   | try ?m ?f ?ko =>
-      eapply prove_simp_try; [ cbn; simp0; close |];
-      cbn; simp0
+      eapply prove_simp_try; [ normalize; simp0; close |];
+      normalize; simp0
   | Stop CEval _ _ _ =>
-      first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; cbn;
+      first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; normalize;
       simp0
   | Stop CLoop _ _ _ =>
-      first [ eapply advance_SimpLoopNext | eapply advance_SimpLoop ]; cbn;
+      first [ eapply advance_SimpLoopNext | eapply advance_SimpLoop ]; normalize;
       simp0
   | Stop CFlip _ _ _ =>
-      eapply advance_SimpFlipOK; cbn;
+      eapply advance_SimpFlipOK; normalize;
       simp0
   (* We do not exploit the lemma [prove_simp_par] because we deal with [Par]
      directly, as follows. *)
@@ -259,7 +265,7 @@ with simp1 :=
 (* [simp0_par] and [simp1_par] are special cases of [simp0] and [simp1].
 
    They assume that the goal is of the form [simp (Par m1 m2 _ _) _],
-   where [m1] and [m2] are [cbn]-normal and cannot be simplified. *)
+   where [m1] and [m2] are normalized and cannot be simplified. *)
 
 with simp0_par :=
   first [ simp1_par | idtac ]
@@ -274,11 +280,11 @@ with simp1_par :=
   | eapply advance_SimpParRetRightNext
   | eapply advance_SimpParRetRight
   ];
-  cbn; simp0
+  normalize; simp0
 
 (* [close] solves a goal of the form [simp m1 m2] using reflexivity.
 
-   The term [m1] must be [cbn]-normal.
+   The term [m1] must be normalized.
 
    If reflexivity cannot solve the goal, then [close] fails. *)
 
@@ -289,10 +295,10 @@ with close :=
 
 (* [simp] proves or advances a goal of the form [simp m1 m2], where [m2] may
    be a metavariable. If [m2] is a metavariable then it is instantiated with
-   a [cbn]-normal term. *)
+   a normalized term. *)
 
 Ltac simp :=
-  cbn;
+  normalize;
   lazymatch goal with |- simp ?m1 _ =>
     simp0; try close
   | _ =>
@@ -302,11 +308,11 @@ Ltac simp :=
 (* [simp_really] is another public entry point into the above tactics. *)
 
 (* [simp_really] proves a goal of the form [simp m1 m2], where [m2]
-   must be a metavariable. [m2] is instantiated with a [cbn]-normal
+   must be a metavariable. [m2] is instantiated with a normalized
    term. [simp_really] performs at least one step of simplification.   *)
 
 Ltac simp_really :=
-  cbn;
+  normalize;
   lazymatch goal with |- simp ?m1 _ =>
     simp1; close
   | _ =>
@@ -317,10 +323,10 @@ Ltac simp_really :=
    [simp (concatenating ...) _], and continues simplifying via [simp]. *)
 
 Ltac simp_continue :=
-  cbn;
+  normalize;
   lazymatch goal with |- simp (concatenating _ _ _ _) _ =>
     unfold concatenating; (* TODO restrict to head occurrence *)
-    cbn;
+    normalize;
     simp
   | _ =>
     fail "[simp_continue] expects a goal of the form [simp (concatenating ...) _]"
@@ -437,8 +443,8 @@ Ltac SIMP_bind :=
   notypeclasses refine (@SIMP_bind _ _ _ _ _ _ _ _ _ _).
 
 Ltac SIMP :=
+  normalize;
   try SIMP_simp;
-  repeat rewrite bind_bind;
   first [
     SIMP_ret
   | SIMP_bind; [ solve [ SIMP ] | SIMP ]
@@ -449,7 +455,7 @@ Ltac SIMP_enter :=
   with_strategy transparent [call] unfold call; SIMP.
 
 Ltac SIMP_continue :=
-  cbn;
+  normalize;
   lazymatch goal with |- SIMP (concatenating _ _ _ _) _ =>
     unfold concatenating; (* TODO restrict to head occurrence *)
     SIMP
