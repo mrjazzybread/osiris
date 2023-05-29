@@ -19,27 +19,159 @@ From osiris.libs Require Import Stdlib.
 
 (* Generated code: *)
 Definition Arith : mexpr := 
-  
-(MStruct (ICons (ILetRec (RecBiCons (RecBinding "add" (AnonFun1Pat (PVar "x")
-(EAnonFun (AnonFun1Pat (PVar "y") (EIfThenElse (EApp (EApp (EPath (PathDot
-(PathBase "Stdlib") "=")) (EPath (PathBase "y"))) (EInt 0)) (EApp (EApp
-(EPath (PathBase "mult")) (EPath (PathBase "x"))) (EInt 1)) (EApp (EApp
-(EPath (PathDot (PathBase "Stdlib") "+")) (EInt 1)) (EApp (EApp (EPath
-(PathBase "add")) (EPath (PathBase "x"))) (EApp (EApp (EPath (PathDot
-(PathBase "Stdlib") "-")) (EPath (PathBase "y"))) (EInt 1))))))))) (RecBiCons
-(RecBinding "mult" (AnonFun1Pat (PVar "x") (EAnonFun (AnonFun1Pat (PVar "y")
-(EIfThenElse (EApp (EApp (EPath (PathDot (PathBase "Stdlib") "=")) (EPath
-(PathBase "y"))) (EInt 0)) (EInt 0) (EIfThenElse (EApp (EApp (EPath (PathDot
-(PathBase "Stdlib") "=")) (EPath (PathBase "y"))) (EInt 1)) (EPath (PathBase
-"x")) (EApp (EApp (EPath (PathBase "add")) (EPath (PathBase "x"))) (EApp
-(EApp (EPath (PathBase "mult")) (EPath (PathBase "x"))) (EApp (EApp (EPath
-(PathDot (PathBase "Stdlib") "-")) (EPath (PathBase "y"))) (EInt 1))))))))))
-(RecBiNil)))) (ICons (ILet (BiCons (Binding (PVar "i3") (EApp (EApp (EPath
-(PathBase "add")) (EInt 1)) (EApp (EApp (EPath (PathBase "add")) (EInt 2))
-(EInt 0)))) (BiNil))) (ICons (ILet (BiCons (Binding (PVar "i17") (EApp (EApp
-(EPath (PathBase "add")) (EApp (EApp (EPath (PathBase "mult")) (EInt 2))
-(EInt 2))) (EApp (EApp (EPath (PathBase "add")) (EInt 1)) (EApp (EApp (EPath
-(PathBase "mult")) (EInt 2)) (EApp (EApp (EPath (PathBase "add")) (EInt 4))
-(EInt 2)))))) (BiNil)))
-(INil))))).
+(
+  MStruct (
+    ICons (
+      ILetRec (
+        RecBiCons (
+          RecBinding "add"
+          (
+            AnonFun1Pat (PVar "x")
+            (
+              EAnonFun (
+                AnonFun1Pat (PVar "y")
+                (
+                  EIfThenElse (
+                    EApp (
+                      EApp (EPath (PathDot (PathBase "Stdlib") "="))
+                      (EPath (PathBase "y"))
+                    )
+                    (EInt 0)
+                  )
+                  (
+                    EApp (
+                      EApp (EPath (PathBase "mult"))
+                      (EPath (PathBase "x"))
+                    )
+                    (EInt 1)
+                  )
+                  (
+                    EApp (
+                      EApp (EPath (PathDot (PathBase "Stdlib") "+"))
+                      (EInt 1)
+                    )
+                    (
+                      EApp (
+                        EApp (EPath (PathBase "add"))
+                        (EPath (PathBase "x"))
+                      )
+                      (
+                        EApp (
+                          EApp (EPath (PathDot (PathBase "Stdlib") "-"))
+                          (EPath (PathBase "y"))
+                        )
+                        (EInt 1)
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        (
+          RecBiCons (
+            RecBinding "mult"
+            (
+              AnonFun1Pat (PVar "x")
+              (
+                EAnonFun (
+                  AnonFun1Pat (PVar "y")
+                  (
+                    EIfThenElse (
+                      EApp (
+                        EApp (EPath (PathDot (PathBase "Stdlib") "="))
+                        (EPath (PathBase "y"))
+                      )
+                      (EInt 0)
+                    )
+                    (EInt 0)
+                    (
+                      EIfThenElse (
+                        EApp (
+                          EApp (EPath (PathDot (PathBase "Stdlib") "="))
+                          (EPath (PathBase "y"))
+                        )
+                        (EInt 1)
+                      )
+                      (EPath (PathBase "x"))
+                      (
+                        EApp (
+                          EApp (EPath (PathBase "add"))
+                          (EPath (PathBase "x"))
+                        )
+                        (
+                          EApp (
+                            EApp (EPath (PathBase "mult"))
+                            (EPath (PathBase "x"))
+                          )
+                          (
+                            EApp (
+                              EApp (EPath (PathDot (PathBase "Stdlib") "-"))
+                              (EPath (PathBase "y"))
+                            )
+                            (EInt 1)
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+          RecBiNil
+        )
+      )
+    )
+    (
+      ICons (
+        ILet (
+          BiCons (
+            Binding (PVar "i3")
+            (
+              EApp (EApp (EPath (PathBase "add")) (EInt 1))
+              (
+                EApp (EApp (EPath (PathBase "add")) (EInt 2))
+                (EInt 0)
+              )
+            )
+          )
+          BiNil
+        )
+      )
+      (
+        ICons (
+          ILet (
+            BiCons (
+              Binding (PVar "i17")
+              (
+                EApp (
+                  EApp (EPath (PathBase "add"))
+                  (
+                    EApp (EApp (EPath (PathBase "mult")) (EInt 2))
+                    (EInt 2)
+                  )
+                )
+                (
+                  EApp (EApp (EPath (PathBase "add")) (EInt 1))
+                  (
+                    EApp (EApp (EPath (PathBase "mult")) (EInt 2))
+                    (
+                      EApp (EApp (EPath (PathBase "add")) (EInt 4))
+                      (EInt 2)
+                    )
+                  )
+                )
+              )
+            )
+            BiNil
+          )
+        )
+        INil
+      )
+    )
+ 
+)
+).
 
