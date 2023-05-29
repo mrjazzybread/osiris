@@ -21,6 +21,13 @@
 * Prove adequacy.
 * Add support for Iris invariants.
 
+## Translator
+
+* Extend the type `Ast.expr` with a new case for Coq lists
+  (printed using square brackets and semicolons).
+  Redefine the translator to take advantage of it.
+  This will require adding a few more functions in `sugar.v`.
+
 ## Engineering and proof mode
 
 * Develop a set of tactics specifically for reasoning about pure
