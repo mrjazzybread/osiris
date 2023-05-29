@@ -36,17 +36,14 @@ Definition Arith : mexpr :=
 (PathDot (PathBase "Stdlib") "-")) (EPath (PathBase "y"))) (EInt 1))))))))))
 (RecBiNil))))
 ;
-(ILet (BiCons
-  (Binding (PVar "i3") (EApp (EApp (EPath (PathBase "add")) (EInt 1)) (EApp
-(EApp (EPath (PathBase "add")) (EInt 2)) (EInt 0)))) $
-BiNil))
+(ILet (BiCons (Binding (PVar "i3") (EApp (EApp (EPath (PathBase "add")) (EInt
+1)) (EApp (EApp (EPath (PathBase "add")) (EInt 2)) (EInt 0))))
+(BiNil)))
 ;
-(ILet (BiCons
-  (Binding (PVar "i17") (EApp (EApp (EPath (PathBase "add")) (EApp (EApp
-(EPath (PathBase "mult")) (EInt 2)) (EInt 2))) (EApp (EApp (EPath (PathBase
-"add")) (EInt 1)) (EApp (EApp (EPath (PathBase "mult")) (EInt 2)) (EApp (EApp
-(EPath (PathBase "add")) (EInt 4)) (EInt 2))))))
-$
-BiNil))
+(ILet (BiCons (Binding (PVar "i17") (EApp (EApp (EPath (PathBase "add"))
+(EApp (EApp (EPath (PathBase "mult")) (EInt 2)) (EInt 2))) (EApp (EApp (EPath
+(PathBase "add")) (EInt 1)) (EApp (EApp (EPath (PathBase "mult")) (EInt 2))
+(EApp (EApp (EPath (PathBase "add")) (EInt 4)) (EInt 2))))))
+(BiNil)))
  ].
 

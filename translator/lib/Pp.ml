@@ -1,44 +1,13 @@
 open Ast
 open PPrint
 
-
-let newline_construct_k (c: string) =
-  let l1 = ["ELet"; "BiCons"] in
-  if List.mem c l1 then (true, true)
-  else if c = "EFun1Var" then (true, false)
-  else (false, false)
-
-
-(* [document_of_expr b] translates an expression into a document.
-   The boolean [b] indicates whether parenthesis are needed around the
-   expression. *)
-let rec document_of_expr (b: bool) e =
-  let maybeparens =
-    match b with
-    | true -> parens
-    | false -> fun i -> i
-  in
+(* [document_of_expr] translates an expression into a document. *)
+let rec document_of_expr e =
   match e with
-  | EPlain s -> string s
-  | EConstr (c, l) ->
-        match newline_construct_k c with
-        | true, b ->
-           begin
-             let hl = if b then hardline else space in
-             match l with
-             | [e1; e2] ->
-                let d1 = document_of_expr true e1 in
-                let d2 = document_of_expr false e2 in
-                [string c;
-                 nest 2 (hl ^^ d1);
-                 space; dollar; hardline;
-                 d2]
-                |> concat |> maybeparens
-             | _ -> assert false
-           end
-        | false, _ ->
-           maybeparens (flow space (string c ::
-                                      List.map (document_of_expr true) l))
+  | EPlain s ->
+      string s
+  | EConstr (c, es) ->
+      parens (flow space (string c :: List.map document_of_expr es))
 
 (* Recursive definitions. *)
 let print_rec_def (name, e) =
@@ -79,7 +48,7 @@ let definitions lets : document =
   (* Generic pretty-printer for bindings. *)
   let ilet ilet cons nil f =
     EConstr (ilet, [list nil cons (List.map f symbols)])
-    |> document_of_expr true
+    |> document_of_expr
   in
 
   (* Each element of [lets] is a top-level [let].
