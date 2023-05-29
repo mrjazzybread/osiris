@@ -33,4 +33,5 @@ Lemma Splay__spec:
   SIMP (eval_mexpr η Splay) (λ _, True).
 Proof.
   intros.
+  SIMP.
 Abort.
