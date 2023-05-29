@@ -58,6 +58,41 @@ let rec document_of_expr (b: bool) e =
            maybeparens (flow space (string c ::
                                       List.map (document_of_expr true) l))
 
+(* Recursive definitions. *)
+let print_rec_def (name, expr) =
+  match name with
+  | None -> assert false (* recursive functions have names. *)
+  | Some name ->
+      let anonfun : expr =
+        match expr with
+         | EConstr ("EAnonFun", [anonfun]) ->
+             anonfun
+         | _ ->
+             (* The right-hand side of a [let rec] definition must
+                be a function. We do not allow recursive values of
+                other types. *)
+             assert false
+      in
+      concat [
+        string "RecBinding"; space;
+        string ("\""^name^"\""); space; dollar; hardline;
+        document_of_expr true anonfun
+      ]
+      |> nest 2
+
+(* Non-recursive definitions. *)
+let print_nonrec_def (name, expr) =
+  let patt: document =
+    match name with
+    | Some n -> string ("PVar \""^n^"\"")
+    | None -> string "PAny"
+  in
+  concat [
+      string "Binding"; space;
+      parens patt; hardline;
+      document_of_expr true expr ]
+  |> nest 2
+
 let definitions lets =
   let (recflag, symbols) = lets in
 
@@ -83,45 +118,9 @@ let definitions lets =
      (The elements of [lets] are linked with [and] in the source file.) *)
   if recflag
   then
-    (* Recursive definitions. *)
-    (fun (name, expr) ->
-      match name with
-      | None -> assert false (* recursive functions have names. *)
-      | Some name ->
-          let anonfun : expr =
-            match expr with
-             | EConstr ("EAnonFun", [anonfun]) ->
-                 anonfun
-             | _ ->
-                 (* The right-hand side of a [let rec] definition must
-                    be a function. We do not allow recursive values of
-                    other types. *)
-                 assert false
-          in
-          concat [
-            string "RecBinding"; space;
-            string ("\""^name^"\""); space; dollar; hardline;
-            document_of_expr true anonfun
-          ]
-          |> nest 2
-
-    )
-    |> ilet "ILetRec" "RecBiCons" "RecBiNil"
+    ilet "ILetRec" "RecBiCons" "RecBiNil" print_rec_def
   else
-    (* Non-recursive definitions. *)
-    (fun (name, expr) ->
-      let patt: document =
-        match name with
-        | Some n -> string ("PVar \""^n^"\"")
-        | None -> string "PAny"
-      in
-      concat [
-          string "Binding"; space;
-          parens patt; hardline;
-          document_of_expr true expr ]
-      |> nest 2)
-
-    |> ilet "ILet" "BiCons" "BiNil"
+    ilet "ILet" "BiCons" "BiNil" print_nonrec_def
 
 let rec document_of_tast = function
   | [] -> empty
