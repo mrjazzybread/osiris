@@ -9,18 +9,6 @@ let newline_construct_k (c: string) =
   else (false, false)
 
 
-let string_of_var c (v: string) : string =
-  if String.contains v '.' && c = "EVar"
-  then
-    begin
-      v
-      |> String.split_on_char '.'
-      |> List.map (fun s -> "\"" ^ s ^ "\"")
-      |> String.concat ";"
-      |> fun s -> "EMkPath [" ^ s ^"]"
-    end
-  else c ^ " \"" ^ v ^ "\""
-
 (* [document_of_expr b] translates an expression into a document.
    The boolean [b] indicates whether parenthesis are needed around the
    expression. *)
@@ -33,12 +21,6 @@ let rec document_of_expr (b: bool) e =
   match e with
   | EPlain s -> string s
   | EConstr (c, l) ->
-     match l with
-     | [ EPlain v ] ->
-        if c = "EVar" || c = "PVar"
-        then maybeparens (string (string_of_var c v))
-        else maybeparens (flow space (string c :: List.map (document_of_expr true) l))
-     | _ ->
         match newline_construct_k c with
         | true, b ->
            begin
@@ -59,12 +41,12 @@ let rec document_of_expr (b: bool) e =
                                       List.map (document_of_expr true) l))
 
 (* Recursive definitions. *)
-let print_rec_def (name, expr) =
+let print_rec_def (name, e) =
   match name with
   | None -> assert false (* recursive functions have names. *)
   | Some name ->
       let anonfun : expr =
-        match expr with
+        match e with
          | EConstr ("EAnonFun", [anonfun]) ->
              anonfun
          | _ ->
@@ -73,45 +55,31 @@ let print_rec_def (name, expr) =
                 other types. *)
              assert false
       in
-      concat [
-        string "RecBinding"; space;
-        string ("\""^name^"\""); space; dollar; hardline;
-        document_of_expr true anonfun
-      ]
-      |> nest 2
+      EConstr ("RecBinding", [ string_literal name; anonfun ])
 
 (* Non-recursive definitions. *)
-let print_nonrec_def (name, expr) =
-  let patt: document =
+let print_nonrec_def (name, e) =
+  let p =
     match name with
-    | Some n -> string ("PVar \""^n^"\"")
-    | None -> string "PAny"
+    | Some x -> EConstr ("PVar", [ string_literal x ])
+    | None -> EConstr ("PAny", [])
   in
-  concat [
-      string "Binding"; space;
-      parens patt; hardline;
-      document_of_expr true expr ]
-  |> nest 2
+  EConstr ("Binding", [p; e])
 
-let definitions lets =
+let rec list nil cons (xs : expr list) : expr =
+  match xs with
+  | [] ->
+      EConstr (nil, [])
+  | x :: xs ->
+      EConstr (cons, [x; list nil cons xs])
+
+let definitions lets : document =
   let (recflag, symbols) = lets in
 
   (* Generic pretty-printer for bindings. *)
   let ilet ilet cons nil f =
-    let bindings: document =
-      List.fold_right
-        (fun (name, expr) res ->
-          let binding: document = f (name, expr) in
-          concat [ string cons ; hardline;
-                   parens binding; space; dollar; hardline;
-                   res ]
-          |> nest 2)
-        symbols (string nil)
-    in
-    nest 2 (concat [
-                string ilet ; space; lparen ; hardline ;
-                bindings;
-                rparen ])
+    EConstr (ilet, [list nil cons (List.map f symbols)])
+    |> document_of_expr true
   in
 
   (* Each element of [lets] is a top-level [let].

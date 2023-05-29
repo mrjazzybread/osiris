@@ -35,16 +35,16 @@ let ptuple = { cons = "PCons" ;
 let string_of_longident (i: Longident.t): string =
   Longident.flatten i
   |> List.map (fun s -> "\"" ^ s ^ "\"")
-  |> String.concat "."
+  |> String.concat "." (* TODO what does this mean? *)
 
-let rec string_of_path : Path.t -> string = function
-  | Pident i -> Ident.name i
-  | Pdot (p, s) -> (string_of_path p) ^ "." ^ s
-  | _ -> assert false
-
-let string_of_ident (i: Ident.t) : string =
-  "\"" ^ Ident.name i ^ "\""
-
+let rec translate_path (path : Path.t) : expr =
+  match path with
+  | Pident i ->
+      EConstr ("PathBase", [string_literal (Ident.name i)])
+  | Pdot (path, s) ->
+      EConstr ("PathDot", [translate_path path; string_literal s])
+  | _ ->
+      assert false (* TODO *)
 
 (* Unified translation of tuples represented by ad-hoc lists in the Coq
    files. *)
@@ -88,7 +88,7 @@ let translate_record
       trans_expr : expr =
   match extended_expression, representation with
   | None, Record_regular ->
-     (* This explicitely defines the whole record in the expected way. *)
+     (* This explicitly defines the whole record in the expected way. *)
      begin
        let body =
          (* Each element of the array defines a new field of the record. *)
@@ -145,7 +145,7 @@ let rec trans_computation_pat (p: computation general_pattern): expr =
 and trans_pat (p: value general_pattern): expr =
   match p.pat_desc with
   | Tpat_any -> EPlain "PAny"
-  | Tpat_var (_, v) -> EConstr ("PVar", [EPlain v.txt])
+  | Tpat_var (_, v) -> EConstr ("PVar", [string_literal v.txt])
   | Tpat_tuple pl -> translate_tuple ptuple trans_pat pl
 
   | Tpat_construct (i, _, args, _) ->
@@ -212,7 +212,8 @@ and trans_tl_expr (e: expression) =
 
   | Texp_assert e -> EConstr ("EAssert", [trans_tl_expr e])
 
-  | Texp_ident (p, _, _) -> EConstr ("EVar", [EPlain (string_of_path p)])
+  | Texp_ident (path, _, _) ->
+      EConstr ("EPath", [translate_path path])
 
   | Texp_let (_, vbl, e) ->
      EConstr ("ELet", [trans_value_bindings vbl; trans_tl_expr e])
@@ -280,7 +281,7 @@ and trans_tl_expr (e: expression) =
   | Texp_field (e, _, label) ->
      EConstr ("ERecordAccess",
               [ trans_tl_expr e ;
-                EPlain ("\"" ^ label.lbl_name ^ "\"")
+                string_literal label.lbl_name
        ])
 
   | Texp_try (_, _) -> assert false
