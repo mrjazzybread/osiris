@@ -82,7 +82,7 @@ Proof.
                    (EnvCons "add" ?vadd $
                             EnvCons "mult" ?vmult $
                             EnvNil)
-                   ?δη ?k)
+                   ?δη)
                 ?φ) =>
       iAssert (add_spec vadd ∗ mult_spec vmult ∗ emp)%I as "H"
   end.

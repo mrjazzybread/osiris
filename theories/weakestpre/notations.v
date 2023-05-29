@@ -27,7 +27,7 @@ Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
   (only printing).
 
 Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  'be'  'added.'" :=
-  (wp _ _ (dconcatenating η _ _) _)
+  (wp _ _ (dconcatenating η _) _)
   (only printing).
 
   Notation "'The'  'following'  (  δ  ':='  v  )

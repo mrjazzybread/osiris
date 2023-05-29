@@ -106,16 +106,11 @@ Global Opaque dconcatenating.
 (* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
    to continue simplifying the goal. *)
 
+(* TODO why rewrite using a paraphrase lemma? why not just unfold? *)
+
 Lemma concatenating_def eval η e δ :
   concatenating eval η e δ =
   let η := concat δ η in eval η e.
-Proof.
-  reflexivity.
-Qed.
-
-Lemma dconcatenating_def {A} δ ηδ (k: envs → A) :
-  dconcatenating δ ηδ k =
-  k (dconcat δ ηδ).
 Proof.
   reflexivity.
 Qed.
@@ -129,7 +124,9 @@ Ltac wp_continue :=
          wp _ _ (concatenating eval _ _ ?δ) _ => rewrite concatenating_def
   | |- environments.envs_entails
          _ $
-         wp _ _ (dconcatenating ?δ _ _) _ => rewrite dconcatenating_def
+         wp _ _ (dconcatenating ?δ _) _ =>
+      with_strategy transparent [dconcatenating] unfold dconcatenating at 1
+        (* We wish to unfold just the root occurrence. *)
   end; wp.
 
 Ltac wp_autocontinue :=
@@ -164,7 +161,7 @@ Ltac wp_specify x φ :=
         end
   | |- environments.envs_entails
          _ $
-         wp _ _ (dconcatenating ?δ _ _) _ =>
+         wp _ _ (dconcatenating ?δ _) _ =>
       let o := eval cbn in (lookup_name δ x) in
         match o with
         | ret ?v => let H := iFresh in
