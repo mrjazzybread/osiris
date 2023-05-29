@@ -35,13 +35,6 @@ let print_nonrec_def (name, e) =
   in
   EConstr ("Binding", [p; e])
 
-let rec list nil cons (xs : expr list) : expr =
-  match xs with
-  | [] ->
-      EConstr (nil, [])
-  | x :: xs ->
-      EConstr (cons, [x; list nil cons xs])
-
 let definitions lets : document =
   let (recflag, symbols) = lets in
 

@@ -9,3 +9,10 @@ type ast = (string option * bool * expr) list list
 
 let string_literal x =
   EPlain (Printf.sprintf "\"%s\"" x)
+
+let rec list nil cons (xs : expr list) : expr =
+  match xs with
+  | [] ->
+      EConstr (nil, [])
+  | x :: xs ->
+      EConstr (cons, [x; list nil cons xs])
