@@ -16,10 +16,10 @@ let rec splay (l, x, r, ctx) =
       Node (l, x, r)
   | NodeL (Root, y, ry) ->
       Node (l, x, Node (r, y, ry))
-  | NodeL (NodeR (lz, z, up), y, ry) ->
-      splay (Node (lz, z, l), x, Node(r, y, ry), up)
   | NodeL (NodeL (up, z, rz), y, ry) ->
       splay (l, x, Node (r, y, Node (ry, z, rz)), up)
+  | NodeL (NodeR (lz, z, up), y, ry) ->
+      splay (Node (lz, z, l), x, Node(r, y, ry), up)
   | NodeR (ly, y, Root) ->
       Node (Node (ly, y, l), x, r)
   | NodeR (ly, y, NodeL (up, z, rz)) ->
