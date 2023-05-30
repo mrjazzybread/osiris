@@ -107,15 +107,13 @@ Proof.
   iNext. iIntros (?)"[->Hl]".
   wp_continue.
 
-  wp.
   wp_use ("Hupd" with "Hl").
   iNext. iIntros "Hl".
   wp_continue.
 
-  wp.
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
-  wp; wp_continue. wp.
+  wp. wp_continue.
 
 
   iClear "Hget Hupd Hl". clear l.
