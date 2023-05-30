@@ -318,8 +318,8 @@ Proof.
 Qed.
 
 Lemma try_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
-  bind (try m f ko) g =
-  try m (λ y, bind (f y) g) (λ y, bind (ko y) g).
+  try (bind m f) g ko =
+  try m (λ y, try (f y) g ko) ko.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
