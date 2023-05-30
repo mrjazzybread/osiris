@@ -23,6 +23,14 @@ From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
  *   + because we reduce the whole Coq context, we reduce all the Iris
        hypotheses!
  * TODO: just apply [wp_simp] and reduce in the subgoal [simp m ?m'].
+
+ * TODO: blindly applying [wp_bind] is dangerous, as it will duplicate
+         the continuation (therefore the entire rest of the proof!)
+         if the left-hand side of the sequence involves a conditional
+         construct. A more cautious approach is to use a binary
+         formulation of [wp-bind] and silently apply this lemma
+         only if we are able to silently solve the first premise.
+         See SIMP_bind.
  *)
 
 Ltac wp_step :=
