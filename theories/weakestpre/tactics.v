@@ -27,11 +27,9 @@ From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
  * TODO: blindly applying [wp_bind] is dangerous, as it will duplicate
          the continuation (therefore the entire rest of the proof!)
          if the left-hand side of the sequence involves a conditional
-         construct. A more cautious approach is to use a binary
-         formulation of [wp-bind] and silently apply this lemma
-         only if we are able to silently solve the first premise.
-         See SIMP_bind.
- *)
+         construct. A more cautious approach is to use
+         [wp_bind_binary] and silently apply this lemma
+         only if we are able to silently solve its first premise. *)
 
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
