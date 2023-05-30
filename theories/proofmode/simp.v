@@ -472,12 +472,15 @@ Ltac SIMP_enter :=
 
 Ltac SIMP_continue :=
   normalize;
-  lazymatch goal with |- SIMP (concatenating _ _ _ _) _ =>
-    with_strategy transparent [concatenating]
-      unfold concatenating at 1;
-    SIMP
+  lazymatch goal with
+  |  |- SIMP (concatenating _ _ _ _) _ =>
+      with_strategy transparent [concatenating] unfold concatenating at 1;
+      SIMP
+  |  |- SIMP (bind (dconcatenating _ _) _) _ =>
+      with_strategy transparent [dconcatenating] unfold dconcatenating at 1;
+      SIMP
   | _ =>
-    fail "[SIMP_continue] expects a goal of the form [SIMP (concatenating ...) _]"
+    fail "[SIMP_continue]: unexpected goal."
   end.
 
 Global Opaque SIMP.
