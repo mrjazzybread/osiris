@@ -22,12 +22,13 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 
 (* -------------------------------------------------------------------------- *)
 (* Notations to hide some continuations. *)
-Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
+(*Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
   (wp s E (Par m m' _ _) φ)
   (only printing).
 
-Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  'be'  'added.'" :=
-  (wp _ _ (dconcatenating η _) _)
+Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  
+ *  'be'  'added.'" :=
+  (wp _ _ (dconcatenating η _ _) _)
   (only printing).
 
   Notation "'The'  'following'  (  δ  ':='  v  )
@@ -37,4 +38,4 @@ Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  'be'
 
   Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
     (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
-    (only printing).
+   (only printing).*)

@@ -7,4 +7,5 @@ From osiris.lang Require Export
      sugar
      encode
      notations
+     typeclasses
 .
