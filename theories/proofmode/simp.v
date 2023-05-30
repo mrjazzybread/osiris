@@ -325,7 +325,8 @@ Ltac simp_really :=
 Ltac simp_continue :=
   normalize;
   lazymatch goal with |- simp (concatenating _ _ _ _) _ =>
-    unfold concatenating; (* TODO restrict to head occurrence *)
+    with_strategy transparent [concatenating]
+      unfold concatenating at 1;
     normalize;
     simp
   | _ =>
@@ -381,8 +382,10 @@ Ltac simp_specify x φ :=
 
 (* The tactic [encode] expects a goal of the form [v = encode x]. *)
 
+Create HintDb encode.
+
 Ltac encode :=
-  eauto.
+  eauto with encode.
 
 Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
   ∃ x, simp m (ret (encode x)) ∧ φ x.
@@ -470,10 +473,11 @@ Ltac SIMP_enter :=
 Ltac SIMP_continue :=
   normalize;
   lazymatch goal with |- SIMP (concatenating _ _ _ _) _ =>
-    unfold concatenating; (* TODO restrict to head occurrence *)
+    with_strategy transparent [concatenating]
+      unfold concatenating at 1;
     SIMP
   | _ =>
-    fail "[SIMP_continue] expects a goal of the form [simp (concatenating ...) _]"
+    fail "[SIMP_continue] expects a goal of the form [SIMP (concatenating ...) _]"
   end.
 
 Global Opaque SIMP.
