@@ -365,12 +365,13 @@ Ltac simp_ret :=
      about which nothing is known except that [φ v] holds. *)
 
 Ltac simp_specify x φ :=
-  lazymatch goal with |- simp (concatenating eval _ _ ?δ) _ =>
-    let o := eval cbn in (lookup_name δ x) in
-    lazymatch o with ret ?v =>
-      let h := fresh in
-      assert (φ v) as h; [| revert h; generalize v ]
-    end
+  lazymatch goal with
+    |- simp (concatenating eval _ _ ?δ) _ =>
+      let o := eval cbn in (lookup_name δ x) in
+      lazymatch o with ret ?v =>
+        let h := fresh in
+        assert (φ v) as h; [| revert h; generalize v ]
+      end
   end.
 
 (* -------------------------------------------------------------------------- *)
