@@ -367,11 +367,11 @@ Qed.
    failure continuation [ko] is dead. Therefore, no proof obligation
    bears on [ko]. *)
 
-Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
-  WP (try m1 m2 ko) @ s; E {{ φ }}.
+Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko ψ :
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} -∗
+  WP (try m1 m2 ko) @ s; E {{ ψ }}.
 Proof.
-  iLöb as "IH" forall (m1 m2 ko φ).
+  iLöb as "IH" forall (m1 m2 ko ψ).
   iIntros "Hwp".
   wp_unfold m1.
   wp_case_is_ret m1 Hret.
@@ -401,13 +401,45 @@ Proof.
 
 Qed.
 
+(* A binary version of the previous lemma. *)
+
+(* This version must be preferred when the proof of [m1] requires a case
+   analysis. The scope of the case analysis is then limited to the first
+   premise, so the proof of [m2] is not duplicated. *)
+
+Lemma wp_try_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ ψ :
+  WP m1 @ s; E {{ φ }} -∗
+  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
+  WP (try m1 m2 ko) @ s; E {{ ψ }}.
+Proof.
+  iIntros "Hm1 Hm2".
+  iApply wp_try.
+  iApply (wp_covariant with "Hm1 Hm2").
+Qed.
+
 (* The Bind rule of Separation Logic. *)
 
-Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ φ }} }} -∗
-  WP (bind m1 m2) @ s; E {{ φ }}.
+Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ψ :
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} -∗
+  WP (bind m1 m2) @ s; E {{ ψ }}.
 Proof.
   rewrite bind_as_try. eauto using wp_try.
+Qed.
+
+(* A binary version of the previous lemma. *)
+
+(* This version must be preferred when the proof of [m1] requires a case
+   analysis. The scope of the case analysis is then limited to the first
+   premise, so the proof of [m2] is not duplicated. *)
+
+Lemma wp_bind_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ ψ :
+  WP m1 @ s; E {{ φ }} -∗
+  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
+  WP (bind m1 m2) @ s; E {{ ψ }}.
+Proof.
+  iIntros "Hm1 Hm2".
+  iApply wp_bind.
+  iApply (wp_covariant with "Hm1 Hm2").
 Qed.
 
 (* -------------------------------------------------------------------------- *)
