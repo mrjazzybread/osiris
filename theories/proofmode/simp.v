@@ -416,8 +416,9 @@ Proof.
   eauto with simp.
 Qed.
 
+(* A Hoare-style Bind rule with two premises. *)
 Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
-   m f (φ : X → Prop) (ψ : Y → Prop) :
+  m f (φ : X → Prop) (ψ : Y → Prop) :
   SIMP m φ →
   (∀ x, φ x → SIMP (f (encode x)) ψ) →
   SIMP (bind m f) ψ.
@@ -427,6 +428,17 @@ Proof.
   specialize (Hf x Hx).
   destruct Hf as (y & ? & ?).
   eexists; split; eauto using prove_simp_bind.
+Qed.
+
+(* An Iris-style Bind rule with one premise,
+   obtained by choosing the least precise φ in the above lemma. *)
+Lemma SIMP_bind_cps X (_ : Encode X) Y (_ : Encode Y)
+  m f (ψ : Y → Prop) :
+  SIMP m (λ x, SIMP (f (encode x)) ψ) →
+  SIMP (bind m f) ψ.
+  (* This is [@bind val val]. *)
+Proof.
+  eauto using SIMP_bind.
 Qed.
 
 Ltac SIMP_ret :=
