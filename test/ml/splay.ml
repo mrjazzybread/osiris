@@ -19,13 +19,13 @@ let rec splay (l, x, r, ctx) =
   | NodeL (NodeL (up, z, rz), y, ry) ->
       splay (l, x, Node (r, y, Node (ry, z, rz)), up)
   | NodeL (NodeR (lz, z, up), y, ry) ->
-      splay (Node (lz, z, l), x, Node(r, y, ry), up)
+      splay (Node (lz, z, l), x, Node (r, y, ry), up)
   | NodeR (ly, y, Root) ->
       Node (Node (ly, y, l), x, r)
   | NodeR (ly, y, NodeL (up, z, rz)) ->
       splay (Node (ly, y, l), x, Node (r, z, rz), up)
   | NodeR (ly, y, NodeR (lz, z, up)) ->
-      splay (Node(Node(lz, z, ly), y, l), x, r, up)
+      splay (Node (Node (lz, z, ly), y, l), x, r, up)
 
 let splay_leaf ctx =
   match ctx with
@@ -33,7 +33,7 @@ let splay_leaf ctx =
       Leaf
   | NodeL (up, x, r) ->
       splay (Leaf, x, r, up)
-  | NodeR(l, x, up) ->
+  | NodeR (l, x, up) ->
       splay (l, x, Leaf, up)
 
 let rec zlookup (t, x, ctx) : bool * 'a tree =
