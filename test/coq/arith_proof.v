@@ -116,7 +116,7 @@ Tactic Notation "oSpecify"
       let v2 := eval cbn in (δ !!! n2) in
       let hyps := eval cbn in (foldr String.append "" [H1; H2]) in
       iApply
-        (prove_specify [
+        (assumming_list [
               spec1 v1;
               spec2 v2
         ]);
