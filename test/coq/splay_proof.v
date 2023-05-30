@@ -183,6 +183,7 @@ Qed.
 
 Local Hint Resolve encode_zipper_is_encode : encode.
 
+(* -------------------------------------------------------------------------- *)
 (* The depth of a zipper. *)
 
 Fixpoint depth {A} (z : zipper A) : nat :=
@@ -205,6 +206,71 @@ Proof.
 Qed.
 
 Local Hint Extern 1 (depth _ < depth _) => (simpl; lia) : SIMP_specs.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The binary-search-tree property. *)
+
+Fixpoint forall_tree {A} (t : tree A) (P : A → Prop) :=
+  match t with
+  | Leaf =>
+      True
+  | Node t1 x t2 =>
+      forall_tree t1 P ∧
+      P x ∧
+      forall_tree t2 P
+  end.
+
+Section BST.
+
+  Context {A : Type}.
+  Context {lt : A → A → Prop}.
+  Context {Slt : StrictOrder lt}.
+
+  Local Notation "x '<' y" := (lt x y).
+
+  Definition ltL (t1 : tree A) (x2 : A) :=
+    forall_tree t1 (λ x1, x1 < x2).
+
+  Definition ltR (x1 : A) (t2 : tree A) :=
+    forall_tree t2 (λ x2, x1 < x2).
+
+  Inductive bst : tree A → Prop :=
+  | bst_Leaf:
+      bst Leaf
+  | bst_Node t1 x t2:
+      ltL t1 x →
+      ltR x t2 →
+      bst (Node t1 x t2).
+
+  Hint Constructors bst : bst.
+
+  Ltac destruct_bst :=
+    match goal with h: bst _ |- _ =>
+      dependent destruction h
+    end.
+
+  Lemma foo l x r y ry :
+    bst (Node l x r) →
+    bst (Node l x (Node r y ry)).
+  Proof.
+  Admitted.
+
+  Lemma oof l x r y ly :
+    bst (Node l x r) →
+    bst (Node (Node ly y l) x r).
+  Proof.
+  Admitted.
+
+  Lemma bar l x r lz z y ry :
+    bst (Node l x r) →
+    bst (Node (Node lz z l) x (Node r y ry)).
+  Proof.
+  Admitted.
+
+End BST.
+
+Local Hint Resolve foo oof bar : SIMP_specs.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -270,10 +336,16 @@ Hint Extern 1 (_ = _) =>
 (* Specification of [splay]. *)
 
 Definition splay_spec (splay : val) : Prop :=
-  ∀ `{Encode A} (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
+  ∀ `{Encode A}
+    {lt : A → A → Prop} {Slt : StrictOrder lt}
+    (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
+  let bst := @bst A lt in
+  bst (Node l x r) →
   SIMP
     (call splay (encode (l, x, r, ctx)))
-    (λ (t' : tree A), True).
+    (λ (t' : tree A), bst t').
+
+Hint Resolve foo : SIMP_specs.
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -292,8 +364,8 @@ Proof.
     (* Enter the closure. *)
     SIMP_enter. SIMP_continue.
     (* Optional: abstract away the closure; make it an abstract value [c]. *)
-    match type of IH with ∀ _ _ _ _ _, SIMP (call ?closure _) _ =>
-      revert IH; generalize closure; intros c IH
+    match goal with |- context[VCloRec ?η ?rbs ?f] =>
+      revert IH; generalize (VCloRec η rbs f); intros c IH
     end.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| ctx y ry | ly y ctx ]; SIMP.
@@ -307,17 +379,17 @@ Proof.
       (* Subcase: [Root]. *)
       { SIMP_continue.
         (* Establish the postcondition. *)
-        tauto. }
+        eauto using foo. }
       (* Subcase: [NodeL]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t'.
+        SIMP_call.
         (* Establish the postcondition. *)
         tauto. }
       (* Subcase: [NodeR]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t'.
+        SIMP_call.
         (* Establish the postcondition. *)
         tauto. }
     }
@@ -327,17 +399,17 @@ Proof.
       (* Subcase: [Root]. *)
       { SIMP_continue.
         (* Establish the postcondition. *)
-        tauto. }
+        eauto using oof. }
       (* Subcase: [NodeL]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t'.
+        SIMP_call.
         (* Establish the postcondition. *)
         tauto. }
       (* Subcase: [NodeR]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t'.
+        SIMP_call.
         (* Establish the postcondition. *)
         tauto. }
     }
