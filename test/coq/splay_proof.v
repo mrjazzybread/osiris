@@ -32,6 +32,40 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode := encode_tree }.
 
+Lemma solve_encode_Leaf `{Encode A} t :
+  Leaf = t →
+  VConstant "Leaf" = encode t.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+Lemma solve_encode_Node `{Encode A} t1 x t2 t et1 ex et2 :
+  Node t1 x t2 = t →
+  et1 = encode t1 →
+  ex = encode x →
+  et2 = encode t2 →
+  VData "Node" (VTuple $
+    VCons et1 $
+    VCons ex $
+    VCons et2 $
+    VNil
+  ) = encode t.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode.
+
+Lemma encode_tree_is_encode `{Encode A} :
+  ∀ (xs : tree A),
+  encode_tree xs = encode xs.
+Proof.
+  reflexivity.
+Qed.
+
+Local Hint Extern 1 (_ = _) =>
+  repeat rewrite encode_tree_is_encode : encode.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Boilerplate: reflect the algebraic data type ['a zipper]. *)
@@ -74,6 +108,38 @@ Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
 
 (* WIP *)
 
+Instance Encode_tuple4
+  `{Encode A}
+  `{Encode B}
+  `{Encode C}
+  `{Encode D}
+  : Encode (A * B * C * D)
+  | 0 (* TODO higher priority than the rule for binary tuples *)
+  :=
+  { encode := λ '(a, b, c, d),
+      VTuple (
+        VCons (encode a) $
+        VCons (encode b) $
+        VCons (encode c) $
+        VCons (encode d) $
+        VNil
+      )
+  }.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Specification of [splay]. *)
+
+Definition splay_spec (splay : val) : Prop :=
+  ∀ `{Encode A} (l : tree A) (x : A) (r : tree A) (ctx : zipper A),
+  SIMP
+    (call splay (encode (l, x, r, ctx)))
+    (λ (t' : tree A), True).
+
+(* -------------------------------------------------------------------------- *)
+
+(* WIP *)
+
 Ltac SIMP_specify x φ :=
   lazymatch goal with
   | |- SIMP (bind (dconcatenating ?δ _) _) _ =>
@@ -102,5 +168,30 @@ Lemma Splay__spec:
 Proof.
   intros.
   SIMP.
-  SIMP_specify "splay" (λ (splay : val), True).
+  SIMP_specify "splay" splay_spec.
+  (* Subgoal: prove that [splay] satisfies its specification. *)
+  { unfold splay_spec. intros.
+    SIMP_enter. SIMP_continue.
+    (* Perform case analysis on the zipper [ctx]. *)
+    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP.
+    (* Case: [Root]. *)
+    { SIMP_continue.
+      (* For now, the postcondition is True. *)
+      tauto. }
+    (* Case: [NodeL]. *)
+    { (* Perform case analysis on the second level of the zipper. *)
+      destruct ctx as [| lz z up | up z rz ]; SIMP; SIMP_continue.
+      (* Subcase: [Root]. *)
+      { (* For now, the postcondition is True. *)
+        tauto. }
+      (* Subcase: [NodeL]. *)
+      { admit. }
+      (* Subcase: [NodeR]. *)
+      { admit. }
+    }
+    (* Case: [NodeR]. *)
+    { destruct ctx; admit.
+    }
+  }
+  intros splay Hsplay. (* SIMP_continue. *)
 Abort.
