@@ -27,7 +27,7 @@ let rec splay (l, x, r, ctx) =
   | NodeR (ly, y, NodeR (lz, z, up)) ->
       splay (Node(Node(lz, z, ly), y, l), x, r, up)
 
-and splay_leaf ctx =
+let splay_leaf ctx =
   match ctx with
   | Root ->
       Leaf
