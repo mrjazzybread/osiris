@@ -95,9 +95,11 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 Create HintDb SIMP_specs.
 
 Ltac SIMP_call :=
-  eapply SIMP_covariant; [
-    eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
-  | cbn
+  first [
+    eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
+  | eapply SIMP_covariant; [
+      eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+    | cbn ]
   ].
 
 Ltac SIMP_call_reversed :=
@@ -128,13 +130,7 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   | Leaf =>
       VConstant "Leaf"
   | Node t1 x t2 =>
-      let vs :=
-        VCons (encode_tree t1) $
-        VCons (encode x) $
-        VCons (encode_tree t2) $
-        VNil
-      in
-      VData "Node" (VTuple vs)
+      VData "Node" (VTuple3 (encode_tree t1) #x (encode_tree t2))
   end.
 
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
@@ -142,7 +138,7 @@ Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
 
 Lemma encode_tree_is_encode `{Encode A} :
   ∀ (t : tree A),
-  encode_tree t = encode t.
+  encode_tree t = #t.
 Proof.
   eauto.
 Qed.
@@ -151,22 +147,17 @@ Local Hint Resolve encode_tree_is_encode : encode.
 
 Lemma solve_encode_Leaf `{Encode A} (t : tree A) :
   Leaf = t →
-  VConstant "Leaf" = encode t.
+  VConstant "Leaf" = #t.
 Proof.
   intros. subst. eauto.
 Qed.
 
-Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) et1 ex et2 :
+Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
   Node t1 x t2 = t →
-  et1 = encode t1 →
-  ex = encode x →
-  et2 = encode t2 →
-  VData "Node" (VTuple $
-    VCons et1 $
-    VCons ex $
-    VCons et2 $
-    VNil
-  ) = encode t.
+  vt1 = #t1 →
+  vx = #x →
+  vt2 = #t2 →
+  VData "Node" (VTuple3 vt1 vx vt2) = #t.
 Proof.
   intros. subst. eauto.
 Qed.
@@ -191,21 +182,9 @@ Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   | Root =>
       VConstant "Root"
   | NodeL z1 x t2 =>
-      let vs :=
-        VCons (encode_zipper z1) $
-        VCons (encode x) $
-        VCons (encode_tree t2) $
-        VNil
-      in
-      VData "NodeL" (VTuple vs)
+      VData "NodeL" (VTuple3 (encode_zipper z1) #x #t2)
   | NodeR t1 x z2 =>
-      let vs :=
-        VCons (encode_tree t1) $
-        VCons (encode x) $
-        VCons (encode_zipper z2) $
-        VNil
-      in
-      VData "NodeR" (VTuple vs)
+      VData "NodeR" (VTuple3 #t1 #x (encode_zipper z2))
   end.
 
 Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
@@ -213,12 +192,43 @@ Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
 
 Lemma encode_zipper_is_encode `{Encode A} :
   ∀ (z : zipper A),
-  encode_zipper z = encode z.
+  encode_zipper z = #z.
 Proof.
   eauto.
 Qed.
 
 Local Hint Resolve encode_zipper_is_encode : encode.
+
+Lemma solve_encode_Root `{Encode A} (z : zipper A) :
+  Root = z →
+  VConstant "Root" = #z.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+Lemma solve_encode_NodeL `{Encode A} z1 x t2 (z : zipper A) vz1 vx vt2 :
+  NodeL z1 x t2 = z →
+  vz1 = #z1 →
+  vx = #x →
+  vt2 = #t2 →
+  VData "NodeL" (VTuple3 vz1 vx vt2) = #z.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+Lemma solve_encode_NodeR `{Encode A} t1 x z2 (z : zipper A) vt1 vx vz2 :
+  NodeR t1 x z2 = z →
+  vt1 = #t1 →
+  vx = #x →
+  vz2 = #z2 →
+  VData "NodeR" (VTuple3 vt1 vx vz2) = #z.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+Local Hint Resolve
+  solve_encode_Root solve_encode_NodeL solve_encode_NodeR
+: encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -421,6 +431,29 @@ End BST.
 
 (* WIP *)
 
+Lemma simp_as_bool (x : bool) (m : free val) :
+  simp m (ret #x) →
+  simp (as_bool m) (ret x).
+Proof.
+  intros. unfold as_bool.
+  eapply prove_simp_bind.
+  + eauto.
+  + destruct x; simpl; eauto with simp.
+Qed.
+
+Lemma SIMP_bind_as_bool Y (_ : Encode Y)
+  m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ (x : bool), φ x → SIMP (f x) ψ) →
+  SIMP (bind (as_bool m) f) ψ.
+  (* This is [@bind bool val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_bind, simp_as_bool.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Specification of [splay]. *)
@@ -438,13 +471,15 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
     (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (t : tree A) (x : A) (ctx : zipper A),
+  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : StrictOrder A)
+    (t : tree A) (x : A) (ctx : zipper A),
   SIMP
     (call zlookup #(t, x, ctx))
     (λ '((b, t') : bool * tree A), fringe t' = fringe (fill ctx t)).
     (* TODO incomplete spec *)
 
 Axiom skip : False. (* TODO *)
+Ltac skip := exfalso; apply skip.
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -528,11 +563,62 @@ Proof.
     (* Case: [Root]. *)
     { prove_same_fringe. }
     (* Case: [NodeL]. *)
-    { SIMP_call. prove_same_fringe. }
+    { SIMP_call. }
     (* Case: [NodeR]. *)
-    { SIMP_call. prove_same_fringe. }
+    { SIMP_call. }
   }
   intros splay_leaf Hsplay_leaf. SIMP_continue.
 
-  exfalso. apply skip.
+  SIMP_specify "zlookup" zlookup_spec.
+  (* Subgoal: prove that [zlookup] satisfies its specification. *)
+  { unfold zlookup_spec. intros ?????.
+    (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
+    assert (
+      forall (x y : A),
+      SIMP ('v ← call Stdlib__lt #x; call v #y)
+           (λ (b : bool), if b then lt x y else ¬ lt x y)
+    ) as lt_spec by skip.
+    (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
+    assert (
+      forall (x y : A),
+      SIMP ('v ← call Stdlib__gt #x; call v #y)
+           (λ (b : bool), if b then ¬ lt y x else lt y x)
+    ) as gt_spec by skip.
+    (* Reason by induction on the tree [t]. *)
+    induction t as [| l IHl y r IHr ];
+    intros;
+    SIMP_enter; SIMP_continue; SIMP_continue.
+    (* Case: [Leaf]. *)
+    { (* TODO clean up *)
+      SIMP_bind; [ SIMP_call | cbn ]. intros t' Ht'.
+      SIMP. cbn.
+      assumption. }
+    (* Case: [Node]. *)
+    { (* Examine the comparison [x < y]. Reason by cases on its outcome. *)
+      eapply SIMP_bind_as_bool.
+      { SIMP. eapply lt_spec. }
+      cbn. intros [|] Hlt; SIMP.
+      (* Subcase: [x < y]. *)
+      { SIMP_call. intros [b t'] ?.
+        assumption. }
+      (* Examine the comparison [x > y]. Reason by cases on its outcome. *)
+      eapply SIMP_bind_as_bool.
+      { SIMP. eapply gt_spec. }
+      cbn. intros [|] Hgt; SIMP.
+      (* Subcase: [x > y]. *)
+      { SIMP_call. intros [b t'] ?.
+        assumption. }
+      (* Subcase: neither comparison succeeded, so [x = y]. *)
+      { eapply SIMP_bind.
+        { SIMP_call. }
+        cbn. intros t' Ht'.
+        SIMP. cbn.
+        assumption. }
+    }
+  }
+  intros zlookup zlookup_spec. SIMP_continue.
+
+  (* Conclude. *)
+  tauto.
+
 Time Qed.
