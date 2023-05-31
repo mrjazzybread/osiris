@@ -9,7 +9,6 @@ Global Opaque
        concatenating
        dconcatenating
        stuck
-       loc
        eval
        SIMP
        stuck
