@@ -64,19 +64,6 @@ Definition structural_ordering_error {A} (msg : string) : free A :=
 Definition type_mismatch {A} (msg : string) : free A :=
   crash.
 
-Global Opaque
-  assertion_failure
-  division_by_zero
-  length_mismatch
-  match_failure
-  missing_field
-  missing_variable
-  missing_variable_or_field
-  structural_equality_error
-  structural_ordering_error
-  type_mismatch
-.
-
 (* ------------------------------------------------------------------------ *)
 
 (* Local notations. *)

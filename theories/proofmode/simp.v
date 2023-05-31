@@ -2,7 +2,6 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics evalprime. (* TODO *)
 From osiris.proofmode Require Import equality.
-Global Opaque eval. (* TODO *)
 
 (* This file offers lemmas and tactics that help simplify computations,
    that is, solve goals of the form [simp m1 ?m2]. *)

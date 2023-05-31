@@ -40,7 +40,3 @@ Proof.
   specialize (le_max_loc _ _ H); clear H; intro H.
   lia.
 Qed.
-
-(* The type of locations can now be made opaque. *)
-
-Global Opaque loc.

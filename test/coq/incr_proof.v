@@ -10,6 +10,8 @@ From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import incr.
 
+Local Transparent eval. (* TODO. *)
+
 
 Context `{!osirisGS_gen hlc Σ}.
 

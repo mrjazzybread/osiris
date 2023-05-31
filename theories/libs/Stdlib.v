@@ -8,6 +8,8 @@ From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
 
+Local Transparent eval. (* TODO. *)
+
 (* The symbols of the OCaml standard library are translated as
    [Stdlib.<symbol>].
    This file defines:

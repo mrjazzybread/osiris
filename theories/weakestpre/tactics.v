@@ -75,7 +75,6 @@ Ltac wp_use H :=
   ];
   cbn.
 
-Global Opaque call.
 Ltac wp_call :=
   with_strategy transparent [call] unfold call; wp.
 
@@ -115,9 +114,6 @@ Ltac wp_store H :=
    to stop at [concatenating], that is, when the environment is extended
    with new bindings. This gives the user a chance to prove specifications
    about these bindings using [wp_specify]. *)
-
-Global Opaque concatenating.
-Global Opaque dconcatenating.
 
 (* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
    to continue simplifying the goal. *)

@@ -4,10 +4,11 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-From osiris.weakestpre Require Import weakestpre.
 From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import arith.
+
+Local Transparent eval. (* TODO. *)
 
 (* -------------------------------------------------------------------------- *)
 

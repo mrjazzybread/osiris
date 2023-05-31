@@ -4,7 +4,6 @@ From osiris.semantics Require Import semantics evalprime. (* TODO *)
 From osiris.proofmode Require Import proofmode.
 
 Local Notation ε := EnvNil. (* TODO move *)
-Global Opaque call. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -311,8 +310,6 @@ Qed.
 
 (* Now let us try to specify that [length] returns a nonnegative integer
    value. *)
-
-Global Opaque int.signed int.repr int.add int.mul. (* TODO *)
 
 Definition weak_spec_length (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
