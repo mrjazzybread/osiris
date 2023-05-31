@@ -82,12 +82,22 @@ Ltac wp_call :=
 
 (* TODO not great *)
 Ltac wp_set_postcondition :=
-  match goal with
-    |- @environments.envs_entails _ _
-        (?φ ?v) =>
-      is_evar φ;
-      instantiate (1 := (λ w, ⌜w = v⌝)%I)
-  end.
+    by
+    lazymatch goal with
+    | |- environments.envs_entails ?Δ (?φ ?v) =>
+        is_evar φ;
+        let hyps :=
+          eval cbn in (
+                     environments.env_to_list $
+                     environments.env_spatial Δ
+                   ) in
+          let H := eval cbn in (
+                              match hyps with
+                              | [] => λ res, ⌜ res = v ⌝%I
+                              | _ => (λ res, ⌜ res = v ⌝ ∗ [∗ list] p ∈ hyps, p)%I
+                              end)%I in
+            instantiate (1 := H)
+    end.
 
 
 Ltac wp_alloc l H:=

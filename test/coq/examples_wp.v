@@ -85,8 +85,7 @@ Proof.
   { wp_use "Hid". }
   { wp_use "Hid".
     iIntros (v->).
-    wp. wp_set_postcondition.
-    iPureIntro. reflexivity. }
+    wp. wp_set_postcondition. }
   { iIntros (??) "->->".
     wp. iPureIntro. reflexivity. }
 Qed.
