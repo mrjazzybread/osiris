@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import syntax sugar.
+From osiris.lang Require Import locations syntax sugar.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
@@ -31,6 +31,33 @@ Ltac encode :=
 
 Local Ltac solve_encode :=
   intros; subst; eauto.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Values. *)
+
+(* Sometimes a value is reflected as itself at the logical level. *)
+
+(* This may be used, for instance, for functions, or for modules. *)
+(* TODO clarify when/why this instance is used *)
+
+(* This instance has low priority because it should be used only
+   when there is no other choice. *)
+
+Global Instance Encode_val : Encode val :=
+  { encode := λ v, v }.
+
+Lemma solve_encode_val v :
+  v = #v.
+Proof. solve_encode. Qed.
+
+(* This hint is disabled because it creates problems. It can indeed create
+   confusion and lead the tactic [encode] to constructing terms that involve
+   nested applications of the function [encode] -- something that should
+   never happen.
+
+Global Hint Resolve solve_encode_val | 1000 : encode.
+ *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -131,18 +158,18 @@ Global Hint Resolve solve_encode_None solve_encode_Some : encode.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Values. *)
+(* Memory locations. *)
 
 (* This instance is needed, for instance, for memory locations. *)
 
-Global Instance Encode_val : Encode val :=
-  { encode := λ v, v }.
+Global Instance Encode_loc : Encode loc :=
+  { encode := λ l, VLoc l }.
 
-Lemma solve_encode_val v :
-  v = #v.
+Lemma solve_encode_loc l :
+  VLoc l = #l.
 Proof. solve_encode. Qed.
 
-Global Hint Resolve solve_encode_val : encode.
+Global Hint Resolve solve_encode_loc : encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -166,6 +193,10 @@ Lemma solve_encode_Nil `{Encode A} (xs : list A) :
   [] = xs →
   vNil = #xs.
 Proof. solve_encode. Qed.
+  (* TODO If [xs] and [A] are metavariables then Coq will refuse
+          to apply this lemma because it cannot guess [A].
+          A work-around is to explicitly add [@solve_encode_Nil A]
+          in the context for a specific type [A] of interest. *)
 
 Lemma solve_encode_Cons `{Encode A} (xs : list A) x xs' v1 v2 :
   x :: xs' = xs →
@@ -201,9 +232,9 @@ Lemma solve_encode_tuple2
   VPair va vb = #t.
 Proof. solve_encode. Qed.
 
-(* The lemma [solve_encode_tuple2] has 12 arguments. *)
-
-Global Hint Resolve solve_encode_tuple2 : encode.
+Global Hint Resolve solve_encode_tuple2
+| 10 (* lower priority than tuple3 and tuple4 below *)
+ : encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -228,7 +259,9 @@ Lemma solve_encode_tuple3
   VTuple3 va vb vc = #t.
 Proof. solve_encode. Qed.
 
-Global Hint Resolve solve_encode_tuple3 : encode.
+Global Hint Resolve solve_encode_tuple3
+| 5 (* higher priority than tuple2; lower priority than tuple3 *)
+: encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -254,4 +287,6 @@ Lemma solve_encode_tuple4
   VTuple4 va vb vc vd = #t.
 Proof. solve_encode. Qed.
 
-Global Hint Resolve solve_encode_tuple4 : encode.
+Global Hint Resolve solve_encode_tuple4
+| 0 (* higher priority than tuple2 and tuple3 above *)
+: encode.

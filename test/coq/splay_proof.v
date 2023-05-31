@@ -48,13 +48,38 @@ Proof.
   intros. subst. eauto.
 Qed.
 
+(* It is debatable in which order the two premises of the lemma
+   [SIMP_call] should be listed. The premise [v'2 = #x] may seem easy
+   to solve (this is the job of the tactic [encode]) so one may wish
+   to solve it first. This offers the advantage of instantiating [x]
+   immediately, so [x] is known when we try to prove that the call is
+   permitted -- which may involve proving that a precondition holds.
+
+   However, solving [v'2 = #x] can involve guessing some types (e.g.,
+   the type of an empty list), and we have used [Hint Mode] in
+   encode.v to forbid this. So, it can also be preferable to first
+   solve the premise [SIMP (call v1 #x) φ]. Doing so can allow us to
+   instantiate these types in a correct way.
+
+   One might wish to try both approaches, but waiting until [encode]
+   fails is very slow (several seconds). *)
+
 Lemma SIMP_call `{Encode X} `{Encode Y}
   (φ : Y → Prop) v1 v'2 (x : X) :
-  v'2 = encode x →
-  SIMP (call v1 (encode x)) φ →
+  v'2 = #x →
+  SIMP (call v1 #x) φ →
   SIMP (call v1 v'2) φ.
 Proof.
   intros. subst. eauto.
+Qed.
+
+Lemma SIMP_call_reversed `{Encode X} `{Encode Y}
+  (φ : Y → Prop) v1 v'2 (x : X) :
+  SIMP (call v1 #x) φ →
+  v'2 = #x →
+  SIMP (call v1 v'2) φ.
+Proof.
+  eauto using SIMP_call.
 Qed.
 
 Arguments String.eqb !s1 !s2 : simpl nomatch. (* TODO *)
@@ -71,8 +96,19 @@ Create HintDb SIMP_specs.
 
 Ltac SIMP_call :=
   eapply SIMP_covariant; [
-    notypeclasses refine (@SIMP_call _ _ _ _ _ _ _ _ _ _);
-      [ encode | eauto with SIMP_specs ]
+    eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+  | cbn
+  ].
+
+Ltac SIMP_call_reversed :=
+  eapply SIMP_covariant; [
+    eapply SIMP_call_reversed; [ eauto with SIMP_specs | encode ]
+  | cbn
+  ].
+
+Ltac SIMP_use H :=
+  eapply SIMP_covariant; [
+    eapply SIMP_call_reversed; [ eapply H | encode ]
   | cbn
   ].
 
@@ -412,7 +448,8 @@ Axiom skip : False. (* TODO *)
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
-  SIMP (eval_mexpr η Splay) (λ (_ : val), True).
+  SIMP (eval_mexpr η Splay)
+       (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.
   intros.
   SIMP.
@@ -446,12 +483,12 @@ Proof.
         prove_same_fringe. }
       (* Subcase: [NodeL]. *)
       { (* Apply the induction hypothesis. *)
-        SIMP_call; intros t' Ht'.
+        SIMP_call. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { (* Apply the induction hypothesis. *)
-        SIMP_call; intros t' Ht'.
+        SIMP_call. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
     }
@@ -465,13 +502,13 @@ Proof.
       (* Subcase: [NodeL]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t' Ht'.
+        SIMP_call. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call; intros t' Ht'.
+        SIMP_call. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
     }
@@ -481,6 +518,10 @@ Proof.
   SIMP_specify "splay_leaf" splay_leaf_spec.
   (* Subgoal: prove that [splay_leaf] satisfies its specification. *)
   { unfold splay_leaf_spec. intros.
+    (* This helps Coq recognize the encoding of [Leaf] at type [A]. *)
+    (* Without this, the tactic [encode] fails to solve [Leaf = #?t]. TODO *)
+    pose proof (@solve_encode_Leaf A _).
+    (* Step into the function. *)
     SIMP_enter. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| up x r | r x up ]; SIMP; SIMP_continue.
