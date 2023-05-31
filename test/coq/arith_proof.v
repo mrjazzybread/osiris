@@ -42,7 +42,7 @@ Definition mult_spec vmult : iProp Σ :=
              WP call v #y {{ λ res, ⌜res = #(x * y)%Z⌝ }} }}).
 
 Definition trivial_spec: val → iProp Σ := λ v, ⌜ True ⌝%I.
-Definition is_equal e : val → iProp Σ := λ v, ⌜v = #e⌝%I.
+Definition is_equal `{Encode X} (e: X) : val → iProp Σ := λ v, ⌜v = #e⌝%I.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -62,77 +62,6 @@ Local Notation "'Spec'  'of'  'the'  'multiplication.'" :=
 (* Whether or not integers are representable does not matter for now. *)
 Axiom int_representable:
   forall (i: Z), (int.min_signed ≤ i ≤ int.max_signed)%Z.
-
-(* -------------------------------------------------------------------------- *)
-
-(* [Ltac] helpers to deal with value abstraction. *)
-
-Tactic Notation "oAbstract" constr(s1) ident(i1):=
-  lazymatch goal with
-  | |- context [VCloRec ?η ?bds s1] =>
-      generalize (VCloRec η bds s1); intro i1
-  end.
-Tactic Notation "oAbstract"
-       constr(s1) ident(i1)
-       constr(s2) ident(i2) :=
-  oAbstract s1 i1;
-  oAbstract s2 i2.
-
-(* [oCall] behaves in the same way that wp_call does, except that it abstracts
-   the required closures.
-   It is defined as a notation so that it is easy to ask for more idents (Ltac
-   cannot take a list of idents as argument for a tactic). *)
-Tactic Notation "oCall" constr(s1) ident(i1):=
-  with_strategy transparent [call] unfold call; simpl (bind _ _);
-  lazymatch goal with
-  | |- context [VCloRec ?η ?bds s1] =>
-      generalize (VCloRec η bds s1); intro i1
-  end;
-  wp.
-Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
-  with_strategy transparent [call] unfold call; wp;
-  lazymatch goal with
-  | |- context [VCloRec ?η ?bds s1] =>
-      generalize (VCloRec η bds s1); intro i1
-  end;
-  lazymatch goal with
-  | |- context [VCloRec ?η ?bds s2] =>
-      generalize (VCloRec η bds s2); intro i2
-  end.
-
-(* [oSpecify] is used to provide the user the possibility to provide
-   specifications for variables which are about to be added to the environment
-   through [dconcatenating].
-   The tactic notation only works for two arguments, as it is what is required
-   here. If it works, it should be moved to [proofmode/specifications.v].
-   Note: [dconcatenating] only takes two arguments now (the continuation is
-         always ret). *)
-Tactic Notation "oSpecify"
-       constr(n1) constr(spec1) constr(H1) ident(i1)
-       constr(n2) constr(spec2) constr(H2) ident(i2) :=
-  lazymatch goal with
-  | |- environments.envs_entails
-         _ (wp _ _ (dconcatenating ?δ _) _) =>
-      let v1 := eval cbn in (δ !!! n1) in
-      let v2 := eval cbn in (δ !!! n2) in
-      let hyps := eval cbn in (foldr String.append "" [H1; H2]) in
-      iApply
-        (assumming_list [
-              spec1 v1;
-              spec2 v2
-        ]);
-      [ by eauto using intuitionistically_persistent
-      | (* A Specification is persistent. *) iModIntro;
-          (* Upon proving the addition, one can have access to Löb-like IH. *)
-          iIntros hyps
-      | iModIntro; iIntros hyps
-      | iIntros H1;
-        iIntros H2;
-        oAbstract n1 vadd
-                  n2 vmult;
-        wp_continue]
-  end.
-
 
 (* The specification of [Add] will be proven several times. Each attempt should
    improve the proof --- especially the way to handle mutually recursive
@@ -174,8 +103,8 @@ Proof.
   intros.
   wp.
 
-  oSpecify "add" add_spec "#Hadd" vadd
-           "mult" mult_spec "#Hmult" vmult.
+  oSpecify "add" add_spec vadd "#Hadd"
+           "mult" mult_spec mult "#Hmult".
 
   (* Specification of the addition. *)
   { (* The rest of the proof is unchanged. *) admit. }

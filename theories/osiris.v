@@ -7,4 +7,4 @@ From osiris.weakestpre Require Export weakestpre.
   (* TODO should do this, but this breaks some proofs
           because it makes [eval] opaque
           and introduces [eval']. *)
-From osiris.proofmode Require Export opacity.
+From osiris.proofmode Require Export opacity tactics.

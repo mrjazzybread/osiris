@@ -15,8 +15,6 @@ Local Transparent eval. (* TODO. *)
 
 Context `{!osirisGS_gen hlc Σ}.
 
-
-
 (* --------------------------------------------------------------------------- *)
 (* Definition of the specifications of the [get] and [upd] functions returned by
    [new_counter ()]. *)
@@ -65,7 +63,7 @@ Proof.
   wp.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
-  wp_specify "new_counter" new_counter_spec.
+  oSpecify "new_counter" new_counter_spec new_counter "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     wp_call. wp_continue.
     iApply wp_covariant; first by iApply Stdlib__ref__spec.
@@ -97,7 +95,6 @@ Proof.
       iApply "Hφ".
       iExists _. by iFrame. }
   }
-  iIntros(new_counter) "#Hnew_counter". wp_continue.
 
   (* The interpreter stops at the first call of [new_couter]. This call can be
      found in the [let () = ...] of the OCaml file. *)
