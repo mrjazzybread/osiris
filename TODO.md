@@ -30,6 +30,10 @@
 
 ## Engineering and proof mode
 
+* Most of the file `tc_simplifications.v` should go away, I think (?).
+  The tactic `encode` should be used to solve goals of the form `v = #x`.
+  Function arguments and function results should always be encoded.
+
 * Develop a set of tactics specifically for reasoning about pure
   programs using `simp`.
 
