@@ -52,6 +52,31 @@ Definition EPair e1 e2 :=
 Definition VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
+(* Tuples of arity 3. *)
+
+Notation VTuple3 v1 v2 v3 :=
+  (
+    VTuple (
+      VCons v1 $
+      VCons v2 $
+      VCons v3 $
+      VNil
+    )
+  ).
+
+(* Tuples of arity 4. *)
+
+Notation VTuple4 v1 v2 v3 v4 :=
+  (
+    VTuple (
+      VCons v1 $
+      VCons v2 $
+      VCons v3 $
+      VCons v4 $
+      VNil
+    )
+  ).
+
 (* ------------------------------------------------------------------------ *)
 
 (* Options: values. *)
