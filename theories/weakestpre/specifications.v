@@ -20,6 +20,7 @@ Section FunctionSpecifications.
 
   (* [pure_unary_spec] is used to tell osiris that [f] represents a closure
      whose behaviour is that of [ff], a unary Gallina function. *)
+  (* TODO for pure functions, use [v = #a → simp (call f v) (ret #(ff a))]. *)
   Class pure_unary_spec
         {A B: Type} `{!Encode A} `{!Encode B}
         (f: val) (ff: A → B) :=
