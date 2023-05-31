@@ -450,6 +450,12 @@ Definition splay_spec (splay : val) : Prop :=
     (call splay (encode (l, x, r, ctx)))
     (λ t', fringe t' = fringe (fill ctx (Node l x r))).
 
+Definition splay_leaf_spec (splay_leaf : val) : Prop :=
+  ∀ A `(_ : Encode A) (ctx : zipper A),
+  SIMP
+    (call splay_leaf (encode ctx))
+    (λ t', fringe t' = fringe (fill ctx Leaf)).
+
 Axiom skip : False. (* TODO *)
 
 Lemma Splay__spec:
@@ -461,7 +467,7 @@ Proof.
 
   SIMP_specify "splay" splay_spec.
   (* Subgoal: prove that [splay] satisfies its specification. *)
-  { generalize η; clear η; intro η.
+  { generalize η; clear η; intro η. (* optional *)
     unfold splay_spec. intros ??.
     (* Reason by well-founded induction on the depth of the zipper [ctx]. *)
     induction ctx as [ctx IH] using (well_founded_induction zlt_wf);
@@ -519,6 +525,21 @@ Proof.
     }
   }
   intros splay Hsplay. SIMP_continue.
+
+  SIMP_specify "splay_leaf" splay_leaf_spec.
+  (* Subgoal: prove that [splay_leaf] satisfies its specification. *)
+  { unfold splay_leaf_spec. intros.
+    SIMP_enter. SIMP_continue.
+    (* Perform case analysis over the zipper [ctx]. *)
+    destruct ctx as [| up x r | r x up ]; SIMP; SIMP_continue.
+    (* Case: [Root]. *)
+    { prove_same_fringe. }
+    (* Case: [NodeL]. *)
+    { SIMP_call. prove_same_fringe. }
+    (* Case: [NodeR]. *)
+    { SIMP_call. prove_same_fringe. }
+  }
+  intros splay_leaf Hsplay_leaf. SIMP_continue.
 
   exfalso. apply skip.
 Time Qed.
