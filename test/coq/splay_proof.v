@@ -501,14 +501,21 @@ Global Hint Extern 1 (_ = _) =>
 Definition splay_spec (splay : val) : Prop :=
   ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
   SIMP
-    (call splay (encode (l, x, r, ctx)))
+    (call splay #(l, x, r, ctx))
     (λ t', fringe t' = fringe (fill ctx (Node l x r))).
 
 Definition splay_leaf_spec (splay_leaf : val) : Prop :=
   ∀ A `(_ : Encode A) (ctx : zipper A),
   SIMP
-    (call splay_leaf (encode ctx))
+    (call splay_leaf #ctx)
     (λ t', fringe t' = fringe (fill ctx Leaf)).
+
+Definition zlookup_spec (zlookup : val) : Prop :=
+  ∀ A `(_ : Encode A) (t : tree A) (x : A) (ctx : zipper A),
+  SIMP
+    (call zlookup #(t, x, ctx))
+    (λ '(b, t'), fringe t' = fringe (fill ctx t)).
+    (* TODO incomplete spec *)
 
 Axiom skip : False. (* TODO *)
 
