@@ -203,15 +203,7 @@ Proof. solve_encode. Qed.
 
 (* The lemma [solve_encode_tuple2] has 12 arguments. *)
 
-(* We cannot let [eapply] apply this lemma, as Coq would make
-   incorrect choices of the types A, B. *)
-
-Global Hint Extern 1 (_ = _) =>
-  notypeclasses refine (@solve_encode_tuple2
-    _ _ _ _ _ _ _ _
-    _ _ _ _
-  )
-  : encode.
+Global Hint Resolve solve_encode_tuple2 : encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -236,15 +228,7 @@ Lemma solve_encode_tuple3
   VTuple3 va vb vc = #t.
 Proof. solve_encode. Qed.
 
-(* The lemma [solve_encode_tuple3] has 17 arguments. *)
-
-Global Hint Extern 1 (_ = _) =>
-  notypeclasses refine (@solve_encode_tuple3
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _
-    _
-  )
-  : encode.
+Global Hint Resolve solve_encode_tuple3 : encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -270,12 +254,4 @@ Lemma solve_encode_tuple4
   VTuple4 va vb vc vd = #t.
 Proof. solve_encode. Qed.
 
-(* The lemma [solve_encode_tuple4] has 22 arguments. *)
-
-Global Hint Extern 1 (_ = _) =>
-  notypeclasses refine (@solve_encode_tuple4
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _
-  )
-  : encode.
+Global Hint Resolve solve_encode_tuple4 : encode.
