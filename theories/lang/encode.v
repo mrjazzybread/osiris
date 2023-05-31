@@ -8,6 +8,10 @@ From osiris.lang Require Import syntax sugar.
 Class Encode (A : Type) :=
   { encode: A → val }.
 
+(* A notation. *)
+
+Notation "# v" := (encode v) (at level 8, format "# v").
+
 (* A few typical instances. *)
 
 Global Instance Encode_unit : Encode unit :=
