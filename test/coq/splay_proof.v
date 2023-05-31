@@ -1,4 +1,5 @@
 Require Import Coq.Wellfounded.Inverse_Image.
+Require Import Coq.Sorting.Sorted.
 From osiris Require Import osiris.
 From osiris.semantics Require Export evalprime.
 From osiris.proofmode Require Export proofmode. (* TODO *)
@@ -184,6 +185,7 @@ Qed.
 Local Hint Resolve encode_zipper_is_encode : encode.
 
 (* -------------------------------------------------------------------------- *)
+
 (* The depth of a zipper. *)
 
 Fixpoint depth {A} (z : zipper A) : nat :=
@@ -209,74 +211,181 @@ Local Hint Extern 1 (depth _ < depth _) => (simpl; lia) : SIMP_specs.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The binary-search-tree property. *)
+(* Filling a zipper with a tree. *)
 
-Fixpoint forall_tree {A} (t : tree A) (P : A → Prop) :=
+Fixpoint fill {A} (z : zipper A) (t : tree A) :=
+  match z with
+  | Root =>
+      t
+  | NodeL z1 x t2 =>
+      fill z1 (Node t x t2)
+  | NodeR t1 x z2 =>
+      fill z2 (Node t1 x t)
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* An opaque list singleton. *)
+
+Local Definition sing {A} (x : A) : list A :=
+  [x].
+
+Local Opaque sing.
+
+(* The fringe of a tree. *)
+
+Fixpoint fringe {A} (t : tree A) : list A :=
   match t with
   | Leaf =>
-      True
-  | Node t1 x t2 =>
-      forall_tree t1 P ∧
-      P x ∧
-      forall_tree t2 P
+      []
+  | Node l x r =>
+      fringe l ++ sing x ++ fringe r
   end.
+
+(* The left and right fringes of a zipper. *)
+
+Fixpoint lfringe {A} (z : zipper A) : list A :=
+  match z with
+  | Root =>
+      []
+  | NodeL z1 x t2 =>
+      lfringe z1
+  | NodeR t1 x z2 =>
+      lfringe z2 ++ fringe t1 ++ sing x
+  end.
+
+Fixpoint rfringe {A} (z : zipper A) : list A :=
+  match z with
+  | Root =>
+      []
+  | NodeL z1 x t2 =>
+      sing x ++ fringe t2 ++ rfringe z1
+  | NodeR t1 x z2 =>
+      rfringe z2
+  end.
+
+(* The fringe of [fill z t] can be characterized as follows. *)
+
+Lemma fringe_fill {A} : ∀ (z : zipper A) (t : tree A),
+  fringe (fill z t) = lfringe z ++ fringe t ++ rfringe z.
+Proof.
+  induction z; simpl; intros.
+  + rewrite app_nil_r. eauto.
+  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
+  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
+Qed.
+
+(* This tactic proves an equality between two fringes. *)
+
+Local Ltac prove_same_fringe :=
+  repeat rewrite fringe_fill in *;
+  simpl fringe in *;
+  repeat rewrite <- app_assoc in *;
+  eauto.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Properties of sorted lists. *)
+
+(* TODO not year clear which results are useful in this section *)
+Section Sortedness.
+
+Context {A : Type}.
+Context {lt : A → A → Prop}.
+Context {Slt : StrictOrder lt}.
+Notation "x '<' y" := (lt x y).
+
+Definition lllt (xs ys : list A) :=
+  Forall (λ x, Forall (λ y, x < y) ys) xs.
+
+Notation "xs '≺' ys" := (lllt xs ys) (at level 80).
+
+Lemma Sorted_empty :
+  Sorted lt [].
+Proof.
+  econstructor.
+Qed.
+
+Lemma Sorted_singleton (x : A) :
+  Sorted lt [x].
+Proof.
+  econstructor.
+  + eauto using Sorted_empty.
+  + econstructor.
+Qed.
+
+Lemma lllt_Singleton_left x ys :
+  [x] ≺ ys ↔
+  Forall (λ y, x < y) ys.
+Proof.
+  unfold lllt. rewrite Forall_singleton. tauto.
+Qed.
+
+Lemma lllt_Singleton_right xs y :
+  xs ≺ [y] ↔
+  Forall (λ x, x < y) xs.
+Proof.
+  unfold lllt. split; intro.
+  + eapply Forall_impl; [ eauto |].
+    intro. simpl. rewrite Forall_singleton. tauto.
+  + eapply Forall_impl; [ eauto |].
+    intro. simpl. rewrite Forall_singleton. tauto.
+Qed.
+
+Lemma Sorted_append (xs ys : list A) :
+  Sorted lt (xs ++ ys) ↔
+  Sorted lt xs ∧ Sorted lt ys ∧ xs ≺ ys.
+Proof.
+Admitted.
+
+Lemma cons_is_append x (ys : list A) :
+  x :: ys = [x] ++ ys.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma Sorted_cons x (ys : list A) :
+  Sorted lt (x :: ys) ↔
+  Sorted lt ys ∧ [x] ≺ ys.
+Proof.
+  change (x :: ys) with ([x] ++ ys).
+  rewrite Sorted_append.
+  generalize (Sorted_singleton x).
+  tauto.
+Qed.
+
+End Sortedness.
+
+(* Notation "xs '≺' ys" := (lllt xs ys) (at level 80). TODO *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* The binary-search-tree property. *)
+
+(* Quite strikingly, the binary-search-tree (BST) property can be defined
+   not as a property of a tree, but as a property of its fringe: a tree is
+   a BST if and only if its fringe is sorted. *)
+
+(* This definition makes it extremely easy to recognize that rotations
+   preserve the BST property: in fact, they preserve the fringe of the
+   tree. The function [splay], for instance, does not even require that
+   the tree be a BST; it simply promises to preserve its fringe. *)
 
 Section BST.
 
-  Context {A : Type}.
-  Context {lt : A → A → Prop}.
-  Context {Slt : StrictOrder lt}.
+Context {A : Type}.
+Context {lt : A → A → Prop}.
 
-  Local Notation "x '<' y" := (lt x y).
-
-  Definition ltL (t1 : tree A) (x2 : A) :=
-    forall_tree t1 (λ x1, x1 < x2).
-
-  Definition ltR (x1 : A) (t2 : tree A) :=
-    forall_tree t2 (λ x2, x1 < x2).
-
-  Inductive bst : tree A → Prop :=
-  | bst_Leaf:
-      bst Leaf
-  | bst_Node t1 x t2:
-      ltL t1 x →
-      ltR x t2 →
-      bst (Node t1 x t2).
-
-  Hint Constructors bst : bst.
-
-  Ltac destruct_bst :=
-    match goal with h: bst _ |- _ =>
-      dependent destruction h
-    end.
-
-  Lemma foo l x r y ry :
-    bst (Node l x r) →
-    bst (Node l x (Node r y ry)).
-  Proof.
-  Admitted.
-
-  Lemma oof l x r y ly :
-    bst (Node l x r) →
-    bst (Node (Node ly y l) x r).
-  Proof.
-  Admitted.
-
-  Lemma bar l x r lz z y ry :
-    bst (Node l x r) →
-    bst (Node (Node lz z l) x (Node r y ry)).
-  Proof.
-  Admitted.
+Definition bst (t : tree A) :=
+  Sorted lt (fringe t).
 
 End BST.
-
-Local Hint Resolve foo oof bar : SIMP_specs.
 
 (* -------------------------------------------------------------------------- *)
 
 (* WIP *)
 
-Instance Encode_tuple4
+Global Instance Encode_tuple4
   `{Encode A}
   `{Encode B}
   `{Encode C}
@@ -323,7 +432,7 @@ Qed.
 (* We cannot let [eapply] apply this lemma, as Coq would again make
    incorrect choices of the types A, B, C, D. *)
 
-Hint Extern 1 (_ = _) =>
+Global Hint Extern 1 (_ = _) =>
   notypeclasses refine (@solve_encode_tuple4
     _ _ _ _ _ _ _ _
     _ _ _ _ _ _ _ _
@@ -336,16 +445,12 @@ Hint Extern 1 (_ = _) =>
 (* Specification of [splay]. *)
 
 Definition splay_spec (splay : val) : Prop :=
-  ∀ `{Encode A}
-    {lt : A → A → Prop} {Slt : StrictOrder lt}
-    (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-  let bst := @bst A lt in
-  bst (Node l x r) →
+  ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
   SIMP
     (call splay (encode (l, x, r, ctx)))
-    (λ (t' : tree A), bst t').
+    (λ t', fringe t' = fringe (fill ctx (Node l x r))).
 
-Hint Resolve foo : SIMP_specs.
+Axiom skip : False. (* TODO *)
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -356,9 +461,10 @@ Proof.
 
   SIMP_specify "splay" splay_spec.
   (* Subgoal: prove that [splay] satisfies its specification. *)
-  { unfold splay_spec. intros ??.
+  { generalize η; clear η; intro η.
+    unfold splay_spec. intros ??.
     (* Reason by well-founded induction on the depth of the zipper [ctx]. *)
-    induction ctx as [ctx IH] using (well_founded_induction zlt_wf).
+    induction ctx as [ctx IH] using (well_founded_induction zlt_wf);
     unfold zlt in IH.
     intros.
     (* Enter the closure. *)
@@ -372,26 +478,24 @@ Proof.
     (* Case: [Root]. *)
     { SIMP_continue.
       (* Establish the postcondition. *)
-      tauto. }
+      prove_same_fringe. }
     (* Case: [NodeL]. *)
     { (* Perform case analysis on the second level of the zipper. *)
-      destruct ctx as [| up z rz | lz z up ]; SIMP.
+      destruct ctx as [| up z rz | lz z up ];
+      SIMP; SIMP_continue.
       (* Subcase: [Root]. *)
-      { SIMP_continue.
-        (* Establish the postcondition. *)
-        eauto using foo. }
+      { (* Establish the postcondition. *)
+        prove_same_fringe. }
       (* Subcase: [NodeL]. *)
-      { SIMP_continue.
-        (* Apply the induction hypothesis. *)
-        SIMP_call.
+      { (* Apply the induction hypothesis. *)
+        SIMP_call; intros t' Ht'.
         (* Establish the postcondition. *)
-        tauto. }
+        prove_same_fringe. }
       (* Subcase: [NodeR]. *)
-      { SIMP_continue.
-        (* Apply the induction hypothesis. *)
-        SIMP_call.
+      { (* Apply the induction hypothesis. *)
+        SIMP_call; intros t' Ht'.
         (* Establish the postcondition. *)
-        tauto. }
+        prove_same_fringe. }
     }
     (* Case: [NodeR]. *)
     { (* Perform case analysis on the second level of the zipper. *)
@@ -399,21 +503,22 @@ Proof.
       (* Subcase: [Root]. *)
       { SIMP_continue.
         (* Establish the postcondition. *)
-        eauto using oof. }
+        prove_same_fringe. }
       (* Subcase: [NodeL]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call.
+        SIMP_call; intros t' Ht'.
         (* Establish the postcondition. *)
-        tauto. }
+        prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call.
+        SIMP_call; intros t' Ht'.
         (* Establish the postcondition. *)
-        tauto. }
+        prove_same_fringe. }
     }
   }
   intros splay Hsplay. SIMP_continue.
 
-Abort. (* unfinished; TODO *)
+  exfalso. apply skip.
+Time Qed.
