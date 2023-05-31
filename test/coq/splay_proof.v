@@ -385,6 +385,60 @@ End BST.
 
 (* WIP *)
 
+Global Instance Encode_tuple3
+  `{Encode A}
+  `{Encode B}
+  `{Encode C}
+  : Encode (A * B * C)
+  | 0 (* TODO higher priority than the rule for binary tuples *)
+  :=
+  { encode := λ '(a, b, c),
+      VTuple (
+        VCons (encode a) $
+        VCons (encode b) $
+        VCons (encode c) $
+        VNil
+      )
+  }.
+
+Lemma solve_encode_tuple3
+  `{Encode A}
+  `{Encode B}
+  `{Encode C}
+  (a : A) (b : B) (c : C)
+  ea eb ec
+  t :
+  (a, b, c) = t →
+  ea = encode a →
+  eb = encode b →
+  ec = encode c →
+  VTuple (
+    VCons ea $
+    VCons eb $
+    VCons ec $
+    VNil
+  ) = encode t.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+(* The lemma [solve_encode_tuple4] has 17 arguments. *)
+
+(* We cannot let [eapply] apply this lemma, as Coq would again make
+   incorrect choices of the types A, B, C. *)
+
+Global Hint Extern 1 (_ = _) =>
+  notypeclasses refine (@solve_encode_tuple3
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _
+    _
+  )
+  : encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* WIP *)
+
 Global Instance Encode_tuple4
   `{Encode A}
   `{Encode B}
