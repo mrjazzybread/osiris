@@ -113,14 +113,14 @@ Qed.
 
 Local Hint Resolve encode_tree_is_encode : encode.
 
-Lemma solve_encode_Leaf `{Encode A} t :
+Lemma solve_encode_Leaf `{Encode A} (t : tree A) :
   Leaf = t →
   VConstant "Leaf" = encode t.
 Proof.
   intros. subst. eauto.
 Qed.
 
-Lemma solve_encode_Node `{Encode A} t1 x t2 t et1 ex et2 :
+Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) et1 ex et2 :
   Node t1 x t2 = t →
   et1 = encode t1 →
   ex = encode x →
@@ -405,7 +405,7 @@ Definition zlookup_spec (zlookup : val) : Prop :=
   ∀ A `(_ : Encode A) (t : tree A) (x : A) (ctx : zipper A),
   SIMP
     (call zlookup #(t, x, ctx))
-    (λ '(b, t'), fringe t' = fringe (fill ctx t)).
+    (λ '((b, t') : bool * tree A), fringe t' = fringe (fill ctx t)).
     (* TODO incomplete spec *)
 
 Axiom skip : False. (* TODO *)

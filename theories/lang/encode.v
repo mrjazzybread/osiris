@@ -8,6 +8,11 @@ From osiris.lang Require Import syntax sugar.
 Class Encode (A : Type) :=
   { encode: A → val }.
 
+(* This declaration is supposed to tell Coq that a goal of the form [Encode ?A]
+   should *not* be solved by instantiating [?A] in an arbitrary way. *)
+
+Global Hint Mode Encode + : typeclass_instances.
+
 (* A notation. *)
 
 Notation "# v" := (encode v) (at level 8, format "# v").

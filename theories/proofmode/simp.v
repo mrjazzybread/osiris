@@ -402,7 +402,7 @@ Proof.
   eauto using SIMP_det with simp.
 Qed.
 
-Lemma SIMP_simp `{Encode X} m m' φ :
+Lemma SIMP_simp `{Encode X} m m' (φ : X → Prop) :
   simp m m' →
   SIMP m' φ →
   SIMP m φ.
@@ -430,7 +430,7 @@ Qed.
    obtained by choosing the least precise φ in the above lemma. *)
 Lemma SIMP_bind_cps X (_ : Encode X) Y (_ : Encode Y)
   m f (ψ : Y → Prop) :
-  SIMP m (λ x, SIMP (f (encode x)) ψ) →
+  SIMP m (λ (x : X), SIMP (f (encode x)) ψ) →
   SIMP (bind m f) ψ.
   (* This is [@bind val val]. *)
 Proof.

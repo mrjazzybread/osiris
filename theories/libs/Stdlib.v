@@ -302,12 +302,14 @@ Section Stdlib__specs.
     iIntros (i s E φ); iIntros "H"; wp_call; rewrite int.neg_repr; iAssumption.
   Qed.
 
-  Global Instance Stdlib__fst__TCspec : pure_unary_spec Stdlib__fst fst.
+  Global Instance Stdlib__fst__TCspec `{Encode A} `{Encode B} :
+    pure_unary_spec Stdlib__fst (@fst A B).
   Proof.
     iIntros([??]???); iIntros "?"; wp_call; wp_continue; iAssumption.
   Qed.
 
-  Global Instance Stdlib__snd__TCspec : pure_unary_spec Stdlib__snd snd.
+  Global Instance Stdlib__snd__TCspec `{Encode A} `{Encode B} :
+    pure_unary_spec Stdlib__snd (@snd A B).
   Proof.
     iIntros([??]???); iIntros "?"; wp_call; wp_continue; iAssumption.
   Qed.
