@@ -380,13 +380,6 @@ Ltac simp_specify x φ :=
 
 (* TODO *)
 
-(* The tactic [encode] expects a goal of the form [v = encode x]. *)
-
-Create HintDb encode.
-
-Ltac encode :=
-  eauto with encode.
-
 Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
   ∃ x, simp m (ret (encode x)) ∧ φ x.
 
