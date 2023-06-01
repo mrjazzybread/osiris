@@ -435,10 +435,16 @@ Lemma simp_as_bool (x : bool) (m : free val) :
   simp m (ret #x) →
   simp (as_bool m) (ret x).
 Proof.
-  intros. unfold as_bool.
-  eapply prove_simp_bind.
-  + eauto.
-  + destruct x; simpl; eauto with simp.
+  destruct x; eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma simp_bind_as_bool Y m x f (m' : free Y) :
+  simp m (ret #x) →
+  simp (f x) m' →
+  simp (bind (as_bool m) f) m'.
+  (* This is [@bind bool Y]. *)
+Proof.
+  eauto using prove_simp_bind, simp_as_bool.
 Qed.
 
 Lemma SIMP_bind_as_bool Y (_ : Encode Y)
@@ -451,7 +457,36 @@ Proof.
   intros (x & ? & Hx) Hf.
   specialize (Hf x Hx).
   destruct Hf as (y & ? & ?).
-  eexists; split; eauto using prove_simp_bind, simp_as_bool.
+  exists y; eauto using simp_bind_as_bool.
+Qed.
+
+Lemma simp_as_int (x : Z) (m : free val) :
+  simp m (ret #x) →
+  simp (as_int m) (ret (int.repr x)).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma simp_bind_as_int Y m (x : Z) f (m' : free Y) :
+  simp m (ret #x) →
+  simp (f (int.repr x)) m' →
+  simp (bind (as_int m) f) m'.
+  (* This is [@bind int Y]. *)
+Proof.
+  eauto using prove_simp_bind, simp_as_int.
+Qed.
+
+Lemma SIMP_bind_as_int Y (_ : Encode Y)
+  m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ (x : Z), φ x → SIMP (f (int.repr x)) ψ) →
+  SIMP (bind (as_int m) f) ψ.
+  (* This is [@bind int val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  exists y; eauto using simp_bind_as_int.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
