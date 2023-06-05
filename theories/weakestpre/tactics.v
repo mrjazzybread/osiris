@@ -24,6 +24,11 @@ From osiris.weakestpre Require Import wp wp_tactics tc_simplifications.
        hypotheses!
  * TODO: just apply [wp_simp] and reduce in the subgoal [simp m ?m'].
 
+ * TODO: letting [simp] reduce [Stop CEval _ _] is not satisfactory,
+         as it deprives us from the opportunity of applying the lemma
+         [wp_eval] and eliminating a [later] modality. So, the lemma
+         [wp_eval] should be applied first, when applicable.
+
  * TODO: blindly applying [wp_bind] is dangerous, as it will duplicate
          the continuation (therefore the entire rest of the proof!)
          if the left-hand side of the sequence involves a conditional
