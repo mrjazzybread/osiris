@@ -19,33 +19,33 @@ Context `{!osirisGS_gen hlc Σ}.
 (* Definition of the specifications of the [get] and [upd] functions returned by
    [new_counter ()]. *)
 
-Definition is_counter l i : iProp Σ :=
-  ∃ v, ⌜ v = VInt (int.repr i) ⌝ ∗ l ↦ v.
+Definition is_counter l (i: Z) : iProp Σ :=
+  ∃ v, ⌜ v = #i ⌝ ∗ l ↦ v.
 
 Definition get_spec l get : iProp Σ :=
   ∀ i s E,
   {{{ is_counter l i }}}
     call get VUnit @ s; E
-  {{{ v, RET v; ⌜ v = VInt (int.repr i) ⌝ ∗ is_counter l i }}}.
+  {{{ v, RET v; ⌜ v = #i ⌝ ∗ is_counter l i }}}.
 
 Definition upd_spec l upd : iProp Σ :=
   ∀ s E i i',
     {{{ is_counter l i }}}
-      call upd (VInt (int.repr i')) @ s; E
+      call upd #i' @ s; E
     {{{ RET VUnit; is_counter l i' }}}.
 
 Definition new_counter_spec v : iProp Σ :=
   {{{ ⌜ True ⌝ }}}
     call v VUnit
   {{{ vget vupd,
-      RET (VTuple (VCons vget (VCons vupd VNil)));
+      RET #(vget, vupd);
       ∃ l,
         is_counter l 0 ∗
         get_spec l vget ∗
         upd_spec l vupd }}}.
 
 Definition thirteen_spec v : iProp Σ :=
-  ⌜ v = encode 13 ⌝.
+  ⌜ v = #13 ⌝.
 
 
 Lemma Incr__spec:
