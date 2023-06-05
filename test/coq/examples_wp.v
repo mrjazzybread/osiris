@@ -5,12 +5,10 @@ From iris.prelude Require Import options.
 Import uPred.
 
 From osiris Require Import osiris.
-Local Transparent eval. (* TODO. *)
+Local Transparent eval.
 
 
 Context `{!osirisGS_gen hlc Σ}.
-
-
 
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
@@ -40,7 +38,7 @@ Definition example :=
 Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
   wp.
-  wp_continue. wp_continue.
+  wp_continue. wp. wp_continue. wp.
   iPureIntro. reflexivity.
 Qed.
 
@@ -447,11 +445,82 @@ Proof.
   wp_module_spec.
 Qed.
 
-From osiris.libs Require Import Stdlib.
+(* -------------------------------------------------------------------------- *)
 
-Goal
-  ⊢ WP call Stdlib__add #3 {{ λ v,
-       WP call v #3 {{ λ res, ⌜res = #6⌝ }} }}.
+(* Test : specify the body of a function instead of the function itself. *)
+
+From osiris.proofmode Require Import proofmode.
+
+(* ( (x * z) + (y * t) ) + v*)
+Definition test_innerbody x y z t v  : expr :=
+  EIntAdd
+    (EIntAdd (EIntMul (EVar x) (EVar z)) (EIntMul (EVar y) (EVar t)))
+    (EVar v).
+Opaque test_innerbody.
+
+Definition test_body : expr :=
+  EAnonFun $ AnonFun "x" $
+           EAnonFun $ AnonFun "y" $
+           EAnonFun $ AnonFun "z" $
+           EAnonFun $ AnonFun "t" $
+           EAnonFun $ AnonFun "v" $
+           test_innerbody "x" "y" "z" "t" "v".
+
+
+Lemma test_body_simp (i j k l m : Z) :
+  ∀ (η: env) x y z t v,
+    lookup_name η x = ret #i →
+    lookup_name η y = ret #j →
+    lookup_name η z = ret #k →
+    lookup_name η t = ret #l →
+    lookup_name η v = ret #m →
+    simp (eval η (test_innerbody x y z t v))
+         (ret #( ((i * k) + (j * l) ) + m)%Z).
 Proof.
-  wp. iPureIntro. reflexivity.
+  intros η x y z t v Hx Hy Hz Ht Hv.
+  with_strategy transparent [test_innerbody] unfold test_innerbody.
+  cbn. rewrite Hx Hy Hz Ht Hv.
+  simp.
+  rewrite (int.mul_repr_repr i k)
+          (int.mul_repr_repr j l)
+          (int.add_repr_repr (i * k) (j * l))
+          (int.add_repr_repr ((i * k) + (j * l)) m)
+  .
+  simp.
+Qed.
+
+
+(* The presence of [apply tc_change_goal] in [wp] makes it too strong for the
+   test below. *)
+Ltac wp :=
+  iStartProof; cbn;
+   repeat
+    lazymatch goal with
+    | |- environments.envs_entails _ (▷ _) => iNext
+    | _ => wp_step; try progress cbn
+    end.
+
+Definition add_uc : expr :=
+  ELet (Binding1 (PVar "x") (EInt 1)) $
+  EApp
+    (EApp
+       (EApp
+          (EApp
+             (EApp test_body (EVar "x")) (EInt 2)) (EInt 3)) (EInt 4)) (EInt 5).
+
+Lemma add_test (i j: Z) :
+  ⊢ WP eval (EnvCons "bloup" #0 EnvNil) add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
+Proof.
+  wp. wp_continue.
+
+  (* Nested function calls. *)
+  with_strategy transparent [ call ] (unfold call); wp.
+
+  (* As the body of the function ([test_innerbody]) is opaque, the evaluation
+     stops. *)
+  iApply wp_simp.
+  { by apply test_body_simp. }
+
+  (* The proof is over. *)
+  by wp.
 Qed.
