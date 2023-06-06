@@ -704,3 +704,17 @@ Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) :
 Proof.
   eauto using simp_up_to_eq with simp bind_as_try.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Useful typeclass instances. *)
+
+(* Instantiating [Reflexive] allows to use [reflexivity] to prove
+   [simp ?m ?m]. *)
+Global Instance TC_reflexivity_simp {A} : Reflexive (@simp A) :=
+  SimpReflexive.
+
+(* Instantiating [Transitive] allows to use [transitivity] (as well as
+   [etransitivity] to prove [simp ?m ?m']. *)
+Global Instance TC_transitivity_simp {A} : Transitive (@simp A) :=
+  SimpTransitive.
