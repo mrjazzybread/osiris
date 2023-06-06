@@ -385,13 +385,33 @@ Proof.
   simp.
 Qed.
 
+Global Instance simp_reflexive {A} : Reflexive (@simp A) :=
+  SimpReflexive.
+Global Instance simp_transitive {A} : Transitive (@simp A) :=
+  SimpTransitive.
+
 Lemma sum_body_spec η (r1 r2: R):
+  lookup_name η "r1" = ret #r1 →
+  lookup_name η "r2" = ret #r2 →
   lookup_name η "Stdlib" = ret Stdlib →
+  lookup_name η "r_val" = (eval η (EAnonFun $ AnonFun "r" (r_val_body "r"))) →
   simp (eval η sum_body) (ret #(sum_pure r1 r2)).
 Proof.
-  intros?.
-  rew sum_body.
-  simp. Admitted.
+  intros H1 H2 H3 H4.
+  rew sum_body. simp. rewrite H1 H2 H4. rew call.
+  cbn.
+  etransitivity; first (apply SimpPar; simp).
+  etransitivity;
+    first (apply SimpPar;
+           [ apply simp_bind; by apply r_val_body_spec
+           | solve [simp] ]).
+  simp.
+  etransitivity; first (apply simp_bind; by apply r_val_body_spec).
+  simp.
+  unfold sum_pure.
+  rewrite int.add_repr_repr.
+  reflexivity.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
