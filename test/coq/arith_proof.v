@@ -204,8 +204,7 @@ Proof.
           wp_par.
           { wp_use "Hadd"; iPureIntro; exact H1. }
           - wp_call.
-            instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
-            by rewrite int.sub_repr_repr.
+            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
           - iIntros (vpadd ?) "Hadd_partial ->".
             wp_use "Hadd_partial".
             iPureIntro. lia. }
@@ -253,8 +252,7 @@ Proof.
             { (* [λ y, mult x y]. *)
               wp_use "Hmult"; iPureIntro; exact H1. }
             { (* [y - 1]. *) wp_call.
-              instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
-              by rewrite int.sub_repr_repr. }
+              by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I). }
             { iIntros (vmult_part ?) "Hmult_part ->".
               wp. wp_use "Hmult_part".
               iPureIntro. lia. } }
@@ -394,8 +392,7 @@ Proof.
           wp_par.
           { wp_use "Hadd"; iPureIntro; exact H1. }
           - wp_call.
-            instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
-            by rewrite int.sub_repr_repr.
+            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
           - iIntros (vpadd ?) "Hadd_partial ->".
             wp_use "Hadd_partial".
             iPureIntro. lia. }
@@ -444,8 +441,7 @@ Proof.
             { (* [λ y, mult x y]. *)
               wp_use "Hmult"; iPureIntro; exact H1. }
             { (* [y - 1]. *) wp_call.
-              instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
-              by rewrite int.sub_repr_repr. }
+              by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I). }
             { iIntros (vmult_part ?) "Hmult_part ->".
               wp. wp_use "Hmult_part".
               iPureIntro. lia. } }

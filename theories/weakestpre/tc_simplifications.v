@@ -25,90 +25,11 @@ Section TypeclassesDefinitions.
     tc_change_goal : environments.envs_entails Δ P →
                      environments.envs_entails Δ Q.
 
-  Class TCsimp {A} (m m': free A) :=
-    tc_simp: simp m m'.
-
 End TypeclassesDefinitions.
 
 
 
 (* -------------------------------------------------------------------------- *)
-
-(* Instances of the above typeclasses are defined. They are grouped in sections
-   depending on their meaning. *)
-
-
-(* The following instances are about simplifying the goal using [simp]. *)
-Section Simp.
-  Context `{!osirisGS_gen hlc Σ}.
-
-  Global Instance inst_TCsimp_change_goal {A} s E (m m': free A) φ Δ
-         `{p: TCsimp A m m'}
-    : TC_change_goal (WP m' @ s; E {{ v, φ v }}) (WP m @ s; E {{ v, φ v }}) Δ
-  | 200 :=
-    tac_change_goal Δ _ _ (wp_simp m m' s E φ p).
-  Global Hint Mode inst_TCsimp_change_goal + + + + - + + +
-    : typeclass_instances.
-
-  Global Instance inst_TCsimp_eval {A}
-         (η : env) (e : expr) (k : val → free A) (ko : () → free A)
-    : TCsimp (Stop CEval (η, e) k ko) (try (eval η e) k ko).
-  Proof. apply SimpEval. Qed.
-  Global Hint Mode inst_TCsimp_eval + + + + + : typeclass_instances.
-
-  Global Instance inst_TCsimp_loop {A}
-         (η : env) (x : var) (i1 i2 : int) (e : expr)
-         (k : val → free A) (ko : () → free A)
-    : TCsimp (Stop CLoop (η, x, i1, i2, e) k ko) (try (loop η x i1 i2 e) k ko).
-  Proof. apply SimpLoop. Qed.
-  Global Hint Mode inst_TCsimp_loop + + + + + + + + : typeclass_instances.
-
-  Global Instance inst_TCsimp_flip {A}
-         (x : ()) (k : bool → free A) (ko : () → free A) (m : free A)
-         (p: TCsimp (k false) m) (p': TCsimp (k true) m)
-    : TCsimp (Stop CFlip x k ko) m.
-  Proof. by apply SimpFlip. Qed.
-  Global Hint Mode inst_TCsimp_loop + + + + + + - - : typeclass_instances.
-
-
-  Global Instance inst_TCsimp_par_ret_ret {A A1 A2: Type}
-         (a1 : A1) (a2 : A2) (k : A1 * A2 → free A)
-    : TCsimp (Par (ret a1) (ret a2) k (λ _ : (), Next)) (k (a1, a2)).
-  Proof. eapply SimpTransitive; eauto with simp. Qed.
-  Global Hint Mode inst_TCsimp_par_ret_ret + + + + + +
-    : typeclass_instances.
-
-  Global Instance inst_TCsimp_par_ret_left {A A1 A2 : Type}
-         (a1 : A1) (m2 : free A2) (k : A1 * A2 → free A) (ko : () → free A)
-    : TCsimp (Par (ret a1) m2 k ko) (try m2 (λ v2 : A2, k (a1, v2)) ko).
-  Proof. apply SimpParRetLeft. Qed.
-  Global Hint Mode inst_TCsimp_par_ret_left + + + + + + +
-    : typeclass_instances.
-
-  Global Instance inst_TCsimp_par_ret_right {A A1 A2 : Type}
-         (m1 : free A1) (a2 : A2) (k : A1 * A2 → free A) (ko : () → free A)
-    : TCsimp (Par m1 (ret a2) k ko) (try m1 (λ v1 : A1, k (v1, a2)) ko).
-  Proof. apply SimpParRetRight. Qed.
-  Global Hint Mode inst_TCsimp_par_ret_left + + + + + + +
-    : typeclass_instances.
-
-  Global Instance inst_TCsimp_par {A A1 A2 : Type}
-         (m1 m'1 : free A1) (m2 m'2 : free A2)
-         (k : A1 * A2 → free A) (ko : () → free A)
-         (p: TCsimp m1 m'1) (p': TCsimp m2 m'2)
-    : TCsimp (Par m1 m2 k ko) (Par m'1 m'2 k ko).
-  Proof. by apply SimpPar. Qed.
-  Global Hint Mode inst_TCsimp_par + + + + - + - + + - -
-    : typeclass_instances.
-
-  Global Instance inst_TCsimp_reflexive {A} (m: free A)
-    : TCsimp m m | 1000.
-  Proof. apply SimpReflexive. Qed.
-  Global Hint Mode inst_TCsimp_reflexive + +: typeclass_instances.
-
-End Simp.
-
-
 
 (* The following section defines useful instances of typeclasses defined above
    in order top take into account function specifications.
