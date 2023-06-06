@@ -31,8 +31,12 @@
 ## Engineering and proof mode
 
 * Most of the file `tc_simplifications.v` should go away, I think (?).
+  => simplication typeclasses have been removed,
+     specifications of pure functions should use simp/SIMP.
   The tactic `encode` should be used to solve goals of the form `v = #x`.
   Function arguments and function results should always be encoded.
+
+* [wp] should not unfold encoded values into their native representation.
 
 * Develop a set of tactics specifically for reasoning about pure
   programs using `simp`.
@@ -102,36 +106,38 @@
   indicate where we want a sub-AST to be isolated in a toplevel (Coq)
   definition.
 
- * Find a way to declare a function n-ary so that proving specifications of its
-   partial applications is not required.
+* Find a way to declare a function n-ary so that proving specifications of its
+  partial applications is not required.
 
- * Find a way to declare functions "pure" so that their applications can move
-   out of Par-trees.
+* Find a way to declare functions "pure" so that their applications can move out
+  of Par-trees.
 
- * Define a better [wp] tactic so that it automatically calls user-defined
-   specification lemmas and those about the standard library.
+* Define a better [wp] tactic so that it automatically calls user-defined
+  specification lemmas and those about the standard library.
 
- * Using distinct typeclasses for partially and totally applied binary functions
-   allows to decide which functions are allowed to be partially applied. On the
-   other hand, it duplicates all the proofs.  It might be interesting to use
-   only one TC and add a trivial typeclass to request an automatic treatment of
-   partial applications.
+* Using distinct typeclasses for partially and totally applied binary functions
+  allows to decide which functions are allowed to be partially applied. On the
+  other hand, it duplicates all the proofs.  It might be interesting to use only
+  one TC and add a trivial typeclass to request an automatic treatment of
+  partial applications.
 
- * Get tactics to fail: currently, tactics usually do not fail and might not
-   make progress. Thus, it is difficult to debug them.
+* Get tactics to fail: currently, tactics usually do not fail and might not make
+  progress. Thus, it is difficult to debug them.
 
- * Use more hint databases for typeclasses, not to mix simplifications with
-   reasoning.
+* Use more hint databases for typeclasses, not to mix simplifications with
+  reasoning.
 
- * Find a good way to rewrite `VInt _` and others using the Encode typeclass.
-   Currently, special instances are written when applying specifications.
-   Two ideas would be to:
-   - either rewrite `VInt i` and others as `#i` after each step (might cost a
-     lot)
-   - either write generic typeclass instances which know about Encode (for the
-     lemmas applying specifications). This was not added yet as the
-     specification mechanism will probably change soon.
+* Find a good way to rewrite `VInt _` and others using the Encode typeclass.
+  Currently, special instances are written when applying specifications.
+  Two ideas would be to:
+  - either rewrite `VInt i` and others as `#i` after each step (might cost a
+    lot)
+  - either write generic typeclass instances which know about Encode (for the
+    lemmas applying specifications). This was not added yet as the specification
+    mechanism will probably change soon.
 
+* Write an equivalent of [inG] for environments to declare what should initially
+  be in environments in which module-expressions are evaluated.
 
 ## Semantics
 
