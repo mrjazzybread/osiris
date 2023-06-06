@@ -353,14 +353,3 @@ Section Stdlib__specs.
   Qed.
 
 End Stdlib__specs.
-
-Global Opaque Stdlib__not.
-Global Opaque Stdlib__neg.
-Global Opaque Stdlib__mul.
-Global Opaque Stdlib__add.
-Global Opaque Stdlib__add.
-Global Opaque Stdlib__ref.
-Global Opaque Stdlib__load.
-Global Opaque Stdlib__store.
-Global Opaque Stdlib__fst.
-Global Opaque Stdlib__snd.
