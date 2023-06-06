@@ -1,8 +1,8 @@
 (rule
   (targets records.v)
   (mode promote)
-  (deps    (:gen ../../translator/bin/main.exe)
-           (:src ../ml/records.ml))
+  (deps    (:gen ../../../translator/bin/main.exe)
+           (:src ../../ml/records.ml))
   (action
     (progn
       (run %{ocamlc} -bin-annot %{src})
