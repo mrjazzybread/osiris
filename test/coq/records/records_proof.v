@@ -86,6 +86,9 @@ Definition sum_spec (vsum: val) : iProp Σ :=
 (* Proof of the module [Records] in which the function bodies have not been
    turned opaque. *)
 
+Ltac wp_simp :=
+  progress (iApply wp_simp; first by simp); wp.
+
 Lemma Records_spec :
     let Λ :=
       [
@@ -117,6 +120,7 @@ Proof.
   iIntros (flip) "#Hflip". wp_continue.
 
   (* [flip] is applied to [r_elt]. *)
+  wp_simp.
   replace
     (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
     with #{| b := true; i := 10 |}; last reflexivity.

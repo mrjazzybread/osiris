@@ -24,16 +24,6 @@
       (run %{gen} -ml %{src} -out %{targets} -verbose))))
 
 (rule
-  (targets records.v)
-  (mode promote)
-  (deps    (:gen ../../translator/bin/main.exe)
-           (:src ../ml/records.ml))
-  (action
-    (progn
-      (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -ml %{src} -out %{targets} -verbose))))
-
-(rule
   (targets splay.v)
   (mode promote)
   (deps    (:gen ../../translator/bin/main.exe)
