@@ -103,6 +103,38 @@ Definition sum_function : expr :=
            Branch1 (PVar "r2") $
            sum_body "r1" "r2".
 
+Definition is_odd_function : expr :=
+  EAnonFun (
+                                 AnonFun1Pat (PVar "n")
+                                             (
+                                               EApp (
+                                                   EApp (EPath (PathDot (PathBase "Stdlib") "="))
+                                                        (
+                                                          EApp (
+                                                              EApp (EPath (PathDot (PathBase "Stdlib")
+                                                                                   "mod"))
+                                                                   (EPath (PathBase "n"))
+                                                            )
+                                                               (EInt 2)
+                                                        )
+                                                 )
+                                                    (EInt 0)
+                                             )
+                               ).
+
+Definition is_odd'_body r : expr :=
+  EMatch (EVar r) $
+         BrCons (Branch (PConstant "O") (EConstant "true")) $
+         BrCons
+         (Branch (PData "S" (PTuple (PCons (PVar "n") PNil))) $
+                 EApp (EPath (PathDot (PathBase "Stdlib") "not")) $
+                 EApp (EPath (PathBase "is_odd'")) $
+                 EPath (PathBase "n"))
+         BrNil.
+
+Definition is_odd'_function : anonfun :=
+  AnonFun "__osiris_anonymous_arg" $ is_odd'_body "__osiris_anonymous_arg".
+
 Definition opacified_Records : mexpr :=
   MStruct $
           ICons (ILet (Binding1 (PVar "r_elt") r_elt_expr)) $
@@ -112,7 +144,7 @@ Definition opacified_Records : mexpr :=
           ICons (ILet (Binding1 (PVar "sum") sum_function)) $
           ICons (
             ILetRec $
-                    RecBinding1 "is_odd_naive" (PVar "n") $
+                    RecBinding1Pat "is_odd_naive" (PVar "n") $
                     ESeq (
                       EAssert $
                               EApp (
@@ -150,64 +182,8 @@ Definition opacified_Records : mexpr :=
                     (EData "false" (ETuple ENil))
                     (EData "true" (ETuple ENil))
           ) $
-          ICons (
-            ILet (Binding1 (PVar "is_odd")
-                           (
-                             EAnonFun (
-                                 AnonFun1Pat (PVar "n")
-                                             (
-                                               EApp (
-                                                   EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                                                        (
-                                                          EApp (
-                                                              EApp (EPath (PathDot (PathBase "Stdlib")
-                                                                                   "mod"))
-                                                                   (EPath (PathBase "n"))
-                                                            )
-                                                               (EInt 2)
-                                                        )
-                                                 )
-                                                    (EInt 0)
-                                             )
-                               )
-                           )
-                 )
-          ) $
-          ICons (
-            ILetRec (
-                RecBiCons (
-                    RecBinding "is_odd'"
-                               (
-                                 AnonFunction (
-                                     (
-                                       BrCons (
-                                           Branch (PData "O" (PTuple PNil))
-                                                  (EData "true" (ETuple ENil))
-                                         )
-                                              (
-                                                BrCons (
-                                                    Branch (
-                                                        PData "S"
-                                                              (PTuple (PCons (PVar "n") PNil))
-                                                      )
-                                                           (
-                                                             EApp (EPath (PathDot (PathBase "Stdlib")
-                                                                                  "not"))
-                                                                  (
-                                                                    EApp (EPath (PathBase "is_odd'"))
-                                                                         (EPath (PathBase "n"))
-                                                                  )
-                                                           )
-                                                  )
-                                                       BrNil
-                                              )
-                                     )
-                                   )
-                               )
-                  )
-                          RecBiNil
-              )
-          )
-
+          ICons (ILet (Binding1 (PVar "is_odd") is_odd_function))
+          $
+          ICons (ILetRec (RecBinding1 "is_odd'" is_odd'_function))
           INil
 .

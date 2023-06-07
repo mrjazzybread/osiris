@@ -59,6 +59,15 @@ Local Instance r_encode : Encode R :=
               EnvCons "i" #( r.(i)) $
               EnvNil }.
 
+Fixpoint nat_encode_f (n : nat) : val :=
+  match n with
+  | O => VData "O" $ VTuple VNil
+  | S n => VData "S" $ VTuple $ VCons (nat_encode_f n) VNil
+  end.
+
+Local Instance nat_encode : Encode nat :=
+  { encode := nat_encode_f }.
+
 (* -------------------------------------------------------------------------- *)
 
 (* (2) Definition of some values; useful to write the specs below. *)
@@ -107,6 +116,31 @@ Definition sum_spec (vsum: val) : iProp Σ :=
                 λ res,
                 is_equal res # (sum_pure r1 r2) }} }}.
 
+Fixpoint is_odd_pure (n: nat) :bool :=
+  match n with
+  | O => true
+  | S n => negb (is_odd_pure n)
+  end.
+
+Definition is_odd_spec (vis_odd: val) : iProp Σ:=
+  ∀ (n : nat),
+  WP call vis_odd #n {{ is_equal #(is_odd_pure n) }}.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Specification of the module. *)
+Definition Λ :=
+  [
+    ("is_odd", trivial_spec) ;
+    ("is_odd_naive", trivial_spec) ;
+    ("sum", sum_spec) ;
+    ("r_val", r_val_spec) ;
+    ("lily", is_equal enc_lily) ;
+    ("flip", flip_spec) ;
+    ("r_elt", is_equal enc_r_elt) ;
+    ("is_odd'", is_odd_spec)
+  ].
+
 (* -------------------------------------------------------------------------- *)
 
 (* Staging area. *)
@@ -117,6 +151,7 @@ Opaque
   lily_expr
   r_val_body r_val_function
   sum_body sum_function
+  is_odd'_body is_odd'_function
 .
 
 (* [explicit name] unfolds [name], even if transparent. *)
@@ -128,6 +163,12 @@ Ltac wp_simp :=
   progress (iApply wp_simp; first by simp).
 
 Arguments String.eqb !s1 !s2 : simpl nomatch. (* TODO *)
+
+Ltac wp_simp_using H :=
+  iApply wp_simp; [ by apply H; try done | wp ].
+
+Ltac wp_simp_eusing H :=
+  iApply wp_simp; [ by eapply H; try done | wp ].
 
 (* -------------------------------------------------------------------------- *)
 
@@ -278,13 +319,87 @@ Proof.
   iPureIntro. rewrite int.add_repr_repr. reflexivity.
 Qed.
 
+Lemma is_odd'_body_spec η η' r n :
+  lookup_name η "Stdlib" = Ret Stdlib →
+  lookup_name η' "Stdlib" = Ret Stdlib →
+  lookup_name η "is_odd'" =
+    Ret (VCloRec η' (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
+  lookup_name η r = Ret #n →
+  simp (eval η (is_odd'_body r)) (Ret #(is_odd_pure n)).
+Proof.
+  generalize η r; clear η r;
+  induction n as [ | n' IH ];
+    intros η r H1 H2 H3 H4;
+    explicit is_odd'_body.
+  { simp. }
+  { (* [n = S n'] *)
+    destruct (is_odd_pure n') eqn:E;
+    remember (nat_encode_f n') as enc_n.
+    - (* [n'] is even. *)
+      simp. simp_continue.
+      eapply prove_simp_bind.
+      + explicit call.
+        etransitivity.
+        { eapply prove_simp_bind.
+          { simp. }
+          { apply SimpEval. } }
+        etransitivity.
+        { eapply prove_simp_try.
+          { by apply IH. }
+          done. }
+        done.
+      + explicit call; explicit Stdlib__not. cbn.
+        etransitivity; first apply SimpEval.
+        etransitivity; first (eapply prove_simp_try; simp).
+        rewrite E.
+        simp.
+    - (* [n'] is odd. *)
+      explicit is_odd'_body; simp. simp_continue.
+      eapply prove_simp_bind.
+      + explicit call.
+        etransitivity.
+        { eapply prove_simp_bind.
+          { simp. }
+          { unfold acall.
+            cbn.
+            apply SimpEval. } }
+        etransitivity.
+        { eapply prove_simp_try.
+          { apply IH; done. }
+          done. }
+        done.
+      + explicit call; explicit Stdlib__not. cbn.
+        etransitivity; first apply SimpEval.
+        etransitivity; first (eapply prove_simp_try; simp).
+        rewrite E.
+        simp. }
+Qed.
+
+Lemma Onis_odd'_function:
+  is_odd'_function =
+    AnonFun "__osiris_anonymous_arg" $ is_odd'_body "__osiris_anonymous_arg".
+Proof.
+  reflexivity.
+Qed.
+Lemma is_odd'_function_spec η :
+  lookup_name η "Stdlib" = Ret Stdlib →
+  lookup_name η "is_odd'" =
+    Ret (VCloRec η (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
+  ⊢ ∃ vis_odd',
+      ⌜simp (eval η (EAnonFun is_odd'_function)) (Ret vis_odd')⌝ ∗ is_odd_spec vis_odd'.
+Proof.
+  rewrite Onis_odd'_function.
+  intros H1 H2.
+  iExists _.
+  iSplit; first (iPureIntro; by simp).
+  iIntros (n); wp_call.
+  by wp_simp_eusing is_odd'_body_spec.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* (6) The following proof is written in caller-reasoning style. It exploits the
    above proofs on the function bodies. *)
-
-Ltac wp_simp_using H :=
-  iApply wp_simp; [ by apply H | wp ].
 
 Transparent
   flip_function
@@ -293,23 +408,12 @@ Transparent
 .
 
 Goal
-    let Λ :=
-      [
-        ("is_odd", trivial_spec) ;
-        ("is_odd_naive", trivial_spec) ;
-        ("sum", sum_spec) ;
-        ("r_val", r_val_spec) ;
-        ("lily", is_equal enc_lily) ;
-        ("flip", flip_spec) ;
-        ("r_elt", is_equal enc_r_elt)
-    ]
-  in
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
   ⊢ WP eval_mexpr η opacified_Records {{ module_spec Λ }}.
 Proof.
   (* Proof using [simp]. *)
-  intros ??. wp.
+  intros η. unfold η; clear η. wp.
   simpl (build _ _). wp.
 
   wp_simp_using r_elt_spec.
@@ -342,8 +446,13 @@ Proof.
   wp_specify "is_odd" trivial_spec; first done.
   iIntros (is_odd) "#His_odd". wp_continue.
 
-
-  repeat wp_continue.
+  Opaque eval.
+  wp_specify "is_odd'" is_odd_spec.
+  { iIntros(n). explicit is_odd'_function.
+    wp_call.
+    by wp_simp_eusing is_odd'_body_spec. }
+  iIntros (vis_odd') "#His_odd'"; wp_continue.
+  Transparent eval.
 
   lazymatch goal with
   | |- environments.envs_entails _ (?φ (VStruct ?η)) =>
@@ -381,22 +490,11 @@ Opaque
    above proofs on the function expressions. *)
 
 Goal
-    let Λ :=
-      [
-        ("is_odd", trivial_spec) ;
-        ("is_odd_naive", trivial_spec) ;
-        ("sum", sum_spec) ;
-        ("r_val", r_val_spec) ;
-        ("lily", is_equal enc_lily) ;
-        ("flip", flip_spec) ;
-        ("r_elt", is_equal enc_r_elt)
-    ]
-  in
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
   ⊢ WP eval_mexpr η opacified_Records {{ module_spec Λ }}.
 Proof.
-  intros??.
+  intros?.
   wp.
 
   wp_simp_using r_elt_spec.
@@ -440,10 +538,20 @@ Proof.
   wp_specify "is_odd" trivial_spec; first done.
   iIntros (?) "?". wp_continue.
 
+  wp_specify "is_odd'" is_odd_spec.
+  (* FIXME: the prof of the function [is_odd'_function] assumes the existence of
+            [is_odd'] in the environment. This is wrong as the environment is
+            only enriched upon function call. *)
+  { admit. }
+  iIntros (?) "#?". wp_continue.
+
+  wp_module_spec.
+Admitted.
+  (* ... proof of is_odd' ...
   repeat wp_continue.
 
   wp_module_spec.
-Time Qed.
+Time Qed. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -451,22 +559,11 @@ Time Qed.
    turned opaque. *)
 
 Lemma Records_spec :
-    let Λ :=
-      [
-        ("is_odd", trivial_spec) ;
-        ("is_odd_naive", trivial_spec) ;
-        ("sum", sum_spec) ;
-        ("r_val", r_val_spec) ;
-        ("lily", is_equal enc_lily) ;
-        ("flip", flip_spec) ;
-        ("r_elt", is_equal enc_r_elt)
-    ]
-  in
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
   ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
 Proof.
-  intros Λ η. wp.
+  intros η. wp.
   simpl (build _ _). wp.
 
   (* [r_elt] is a known value. *)
@@ -532,8 +629,15 @@ Proof.
   wp_specify "is_odd" trivial_spec; first done.
   iIntros (is_odd) "#His_odd". wp_continue.
 
-  (* TODO: uncomment the calls to [sum] and [List.fold_left] *)
-  repeat wp_continue.
+  wp_specify "is_odd'" is_odd_spec.
+  { iLöb as "IH". iIntros([|]); wp_call; wp_continue.
+    { done. }
+    { replace (nat_encode_f n) with #n; last reflexivity.
+      iApply (wp_covariant with "IH").
+      iIntros (?->).
+      destruct (is_odd_pure n) eqn:E;
+      by wp_call. } }
+  iIntros (vis_odd') "#His_odd'". wp_continue.
 
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.
