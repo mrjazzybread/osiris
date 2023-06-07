@@ -23,6 +23,9 @@ let ptuple = { cons = "PCons" ;
                nil = "PNil" ;
                wrapper = "PTuple" }
 
+let btuple = { cons = "BrCons" ;
+               nil = "BrNil" ;
+               wrapper = "" }
 
 
 (* -------------------------------------------------------------------------- *)
@@ -139,10 +142,13 @@ let unvarpat (p : value general_pattern) : string =
       (* A variable pattern was expected. *)
       assert false
 
-let unlambda (e : expression) : value general_pattern * expression =
+let unlambda (e : expression) : (value general_pattern * expression) list =
   match e.exp_desc with
-  | Texp_function {cases = [{c_lhs=p; c_guard=None; c_rhs=e}]; _} ->
-      p, e
+  | Texp_function {cases; _} ->
+     List.fold_right
+       (fun {c_lhs; c_rhs; _} res ->
+         (c_lhs, c_rhs) :: res)
+       cases []
   | _ ->
       (* An anonymous function was expected. *)
       assert false
@@ -190,21 +196,31 @@ and trans_pat (p: value general_pattern): expr =
 
 (* Main translation function for expressions.
    This function relies on all of the above.*)
-let rec translate_lambda (p, e) =
-  EConstr ("AnonFun1Pat", [
-    trans_pat p;
-    trans_tl_expr e
+let rec translate_lambda branches =
+  EConstr ("AnonFunction", [
+    translate_branches branches
   ])
+
+and translate_branch (p, e) =
+  EConstr ("Branch", [trans_pat p; trans_tl_expr e])
+
+and translate_branches branches =
+  translate_tuple btuple translate_branch branches
 
 and trans_tl_expr (e: expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
 
-  | Texp_function {cases = [{c_lhs=p; c_guard=None; c_rhs=e}]; _} ->
-      EConstr ("EAnonFun", [ translate_lambda (p, e) ])
-
+  | Texp_function {cases = [case]; _} ->
+     let cases = [case] in
+     let branches =
+       List.fold_right
+         (fun {c_lhs;c_rhs;_} res ->
+           (c_lhs, c_rhs) :: res)
+         cases []
+     in
+     EConstr ("EAnonFun", [translate_lambda branches])
   | Texp_function _ -> assert false
-
   | Texp_apply (f, el) ->
      List.fold_left
        ( fun f a -> match a with

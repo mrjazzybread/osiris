@@ -32,60 +32,83 @@ Definition Incr : mexpr :=
           Binding (PVar "new_counter")
           (
             EAnonFun (
-              AnonFun1Pat PUnit
-              (
-                ELet (
-                  BiCons (
-                    Binding (PVar "c")
+              AnonFunction (
+                 (
+                  BrCons (
+                    Branch PUnit
                     (
-                      EApp (EPath (PathDot (PathBase "Stdlib") "ref"))
-                      (EInt 0)
-                    )
-                  )
-                  BiNil
-                )
-                (
-                  ELet (
-                    BiCons (
-                      Binding (PVar "upd")
-                      (
-                        EAnonFun (
-                          AnonFun1Pat (PVar "i")
+                      ELet (
+                        BiCons (
+                          Binding (PVar "c")
                           (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") ":="))
-                              (EPath (PathBase "c"))
-                            )
-                            (EPath (PathBase "i"))
+                            EApp (EPath (PathDot (PathBase "Stdlib") "ref"))
+                            (EInt 0)
                           )
                         )
+                        BiNil
                       )
-                    )
-                    BiNil
-                  )
-                  (
-                    ELet (
-                      BiCons (
-                        Binding (PVar "get")
-                        (
-                          EAnonFun (
-                            AnonFun1Pat PUnit
+                      (
+                        ELet (
+                          BiCons (
+                            Binding (PVar "upd")
                             (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "!"))
-                              (EPath (PathBase "c"))
+                              EAnonFun (
+                                AnonFunction (
+                                   (
+                                    BrCons (
+                                      Branch (PVar "i")
+                                      (
+                                        EApp (
+                                          EApp (EPath (PathDot (PathBase
+"Stdlib") ":="))
+                                          (EPath (PathBase "c"))
+                                        )
+                                        (EPath (PathBase "i"))
+                                      )
+                                    )
+                                    BrNil
+                                  )
+                                )
+                              )
+                            )
+                          )
+                          BiNil
+                        )
+                        (
+                          ELet (
+                            BiCons (
+                              Binding (PVar "get")
+                              (
+                                EAnonFun (
+                                  AnonFunction (
+                                     (
+                                      BrCons (
+                                        Branch PUnit
+                                        (
+                                          EApp (EPath (PathDot (PathBase
+"Stdlib") "!"))
+                                          (EPath (PathBase "c"))
+                                        )
+                                      )
+                                      BrNil
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                            BiNil
+                          )
+                          (
+                            ETuple (
+                              ECons (EPath (PathBase "get"))
+                              (ECons (EPath (PathBase "upd")) ENil)
                             )
                           )
                         )
                       )
-                      BiNil
-                    )
-                    (
-                      ETuple (
-                        ECons (EPath (PathBase "get"))
-                        (ECons (EPath (PathBase "upd")) ENil)
-                      )
                     )
                   )
+                  BrNil
                 )
               )
             )

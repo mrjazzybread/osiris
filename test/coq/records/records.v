@@ -10,7 +10,11 @@ let sum r1 r2 = (r_val r1) + (r_val r2)
 let rec is_odd_naive n =
   assert (n >= 0);
   if n > 1 then is_odd_naive (n - 2) else if n = 0 then false else true
-let is_odd n = (n mod 2) = 0 *)
+let is_odd n = (n mod 2) = 0
+type nat =
+  | O 
+  | S of nat 
+let rec is_odd' = function | O -> true | S n -> not (is_odd' n) *)
 
 (* Converting a single CMT file for [Records]. *)
 
@@ -50,16 +54,23 @@ Definition Records : mexpr :=
             Binding (PVar "flip")
             (
               EAnonFun (
-                AnonFun1Pat (PVar "r")
-                (
-                  ERecordUpdate (EPath (PathBase "r"))
-                  (
-                    FECons "b"
-                    (
-                      EApp (EPath (PathDot (PathBase "Stdlib") "not"))
-                      (ERecordAccess (EPath (PathBase "r")) "b")
+                AnonFunction (
+                   (
+                    BrCons (
+                      Branch (PVar "r")
+                      (
+                        ERecordUpdate (EPath (PathBase "r"))
+                        (
+                          FECons "b"
+                          (
+                            EApp (EPath (PathDot (PathBase "Stdlib") "not"))
+                            (ERecordAccess (EPath (PathBase "r")) "b")
+                          )
+                          FENil
+                        )
+                      )
                     )
-                    FENil
+                    BrNil
                   )
                 )
               )
@@ -107,34 +118,43 @@ Definition Records : mexpr :=
                 Binding (PVar "r_val")
                 (
                   EAnonFun (
-                    AnonFun1Pat (PVar "r")
-                    (
-                      EMatch (ERecordAccess (EPath (PathBase "r")) "b")
-                      (
+                    AnonFunction (
+                       (
                         BrCons (
-                          Branch (PBool true)
+                          Branch (PVar "r")
                           (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "-"))
+                            EMatch (ERecordAccess (EPath (PathBase "r")) "b")
+                            (
+                              BrCons (
+                                Branch (PBool true)
+                                (
+                                  EApp (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+"-"))
+                                    (
+                                      EApp (
+                                        EApp (EPath (PathDot (PathBase
+"Stdlib") "*"))
+                                        (ERecordAccess (EPath (PathBase "r"))
+"i")
+                                      )
+                                      (EInt 2)
+                                    )
+                                  )
+                                  (EInt 1)
+                                )
+                              )
                               (
-                                EApp (
-                                  EApp (EPath (PathDot (PathBase "Stdlib")
-"*"))
+                                BrCons (
+                                  Branch (PBool false)
                                   (ERecordAccess (EPath (PathBase "r")) "i")
                                 )
-                                (EInt 2)
+                                BrNil
                               )
                             )
-                            (EInt 1)
                           )
                         )
-                        (
-                          BrCons (
-                            Branch (PBool false)
-                            (ERecordAccess (EPath (PathBase "r")) "i")
-                          )
-                          BrNil
-                        )
+                        BrNil
                       )
                     )
                   )
@@ -150,23 +170,38 @@ Definition Records : mexpr :=
                   Binding (PVar "sum")
                   (
                     EAnonFun (
-                      AnonFun1Pat (PVar "r1")
-                      (
-                        EAnonFun (
-                          AnonFun1Pat (PVar "r2")
-                          (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "+"))
-                              (
-                                EApp (EPath (PathBase "r_val"))
-                                (EPath (PathBase "r1"))
+                      AnonFunction (
+                         (
+                          BrCons (
+                            Branch (PVar "r1")
+                            (
+                              EAnonFun (
+                                AnonFunction (
+                                   (
+                                    BrCons (
+                                      Branch (PVar "r2")
+                                      (
+                                        EApp (
+                                          EApp (EPath (PathDot (PathBase
+"Stdlib") "+"))
+                                          (
+                                            EApp (EPath (PathBase "r_val"))
+                                            (EPath (PathBase "r1"))
+                                          )
+                                        )
+                                        (
+                                          EApp (EPath (PathBase "r_val"))
+                                          (EPath (PathBase "r2"))
+                                        )
+                                      )
+                                    )
+                                    BrNil
+                                  )
+                                )
                               )
                             )
-                            (
-                              EApp (EPath (PathBase "r_val"))
-                              (EPath (PathBase "r2"))
-                            )
                           )
+                          BrNil
                         )
                       )
                     )
@@ -181,48 +216,57 @@ Definition Records : mexpr :=
                   RecBiCons (
                     RecBinding "is_odd_naive"
                     (
-                      AnonFun1Pat (PVar "n")
-                      (
-                        ESeq (
-                          EAssert (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") ">="))
-                              (EPath (PathBase "n"))
-                            )
-                            (EInt 0)
-                          )
-                        )
-                        (
-                          EIfThenElse (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") ">"))
-                              (EPath (PathBase "n"))
-                            )
-                            (EInt 1)
-                          )
-                          (
-                            EApp (EPath (PathBase "is_odd_naive"))
+                      AnonFunction (
+                         (
+                          BrCons (
+                            Branch (PVar "n")
                             (
-                              EApp (
-                                EApp (EPath (PathDot (PathBase "Stdlib")
-"-"))
-                                (EPath (PathBase "n"))
+                              ESeq (
+                                EAssert (
+                                  EApp (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+">="))
+                                    (EPath (PathBase "n"))
+                                  )
+                                  (EInt 0)
+                                )
                               )
-                              (EInt 2)
+                              (
+                                EIfThenElse (
+                                  EApp (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+">"))
+                                    (EPath (PathBase "n"))
+                                  )
+                                  (EInt 1)
+                                )
+                                (
+                                  EApp (EPath (PathBase "is_odd_naive"))
+                                  (
+                                    EApp (
+                                      EApp (EPath (PathDot (PathBase
+"Stdlib") "-"))
+                                      (EPath (PathBase "n"))
+                                    )
+                                    (EInt 2)
+                                  )
+                                )
+                                (
+                                  EIfThenElse (
+                                    EApp (
+                                      EApp (EPath (PathDot (PathBase
+"Stdlib") "="))
+                                      (EPath (PathBase "n"))
+                                    )
+                                    (EInt 0)
+                                  )
+                                  (EData "false" (ETuple ENil))
+                                  (EData "true" (ETuple ENil))
+                                )
+                              )
                             )
                           )
-                          (
-                            EIfThenElse (
-                              EApp (
-                                EApp (EPath (PathDot (PathBase "Stdlib")
-"="))
-                                (EPath (PathBase "n"))
-                              )
-                              (EInt 0)
-                            )
-                            (EData "false" (ETuple ENil))
-                            (EData "true" (ETuple ENil))
-                          )
+                          BrNil
                         )
                       )
                     )
@@ -237,20 +281,28 @@ Definition Records : mexpr :=
                       Binding (PVar "is_odd")
                       (
                         EAnonFun (
-                          AnonFun1Pat (PVar "n")
-                          (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                              (
-                                EApp (
-                                  EApp (EPath (PathDot (PathBase "Stdlib")
-"mod"))
-                                  (EPath (PathBase "n"))
+                          AnonFunction (
+                             (
+                              BrCons (
+                                Branch (PVar "n")
+                                (
+                                  EApp (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+"="))
+                                    (
+                                      EApp (
+                                        EApp (EPath (PathDot (PathBase
+"Stdlib") "mod"))
+                                        (EPath (PathBase "n"))
+                                      )
+                                      (EInt 2)
+                                    )
+                                  )
+                                  (EInt 0)
                                 )
-                                (EInt 2)
                               )
+                              BrNil
                             )
-                            (EInt 0)
                           )
                         )
                       )
@@ -258,7 +310,44 @@ Definition Records : mexpr :=
                     BiNil
                   )
                 )
-                INil
+                (
+                  ICons (
+                    ILetRec (
+                      RecBiCons (
+                        RecBinding "is_odd'"
+                        (
+                          AnonFunction (
+                             (
+                              BrCons (
+                                Branch (PData "O" (PTuple PNil))
+                                (EData "true" (ETuple ENil))
+                              )
+                              (
+                                BrCons (
+                                  Branch (
+                                    PData "S"
+                                    (PTuple (PCons (PVar "n") PNil))
+                                  )
+                                  (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+"not"))
+                                    (
+                                      EApp (EPath (PathBase "is_odd'"))
+                                      (EPath (PathBase "n"))
+                                    )
+                                  )
+                                )
+                                BrNil
+                              )
+                            )
+                          )
+                        )
+                      )
+                      RecBiNil
+                    )
+                  )
+                  INil
+                )
               )
             )
           )

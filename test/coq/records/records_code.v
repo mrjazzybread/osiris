@@ -32,7 +32,10 @@ Definition flip_body (r: var) : expr :=
 
 Definition flip_function : expr :=
   EAnonFun $
-           AnonFun1Pat (PVar "r") (flip_body "r").
+           AnonFunction $
+           Branch1 (PVar "r") $
+           flip_body "r"
+.
 
 Definition lily_expr : expr :=
   EData "::" $
@@ -74,7 +77,8 @@ Definition r_val_body (r: var) : expr :=
 
 Definition r_val_function : expr :=
   EAnonFun $
-           AnonFun1Pat (PVar "r") $
+           AnonFunction $
+           Branch1 (PVar "r") $
            r_val_body "r".
 
 Definition sum_body (r1 r2: var) : expr :=
@@ -92,9 +96,11 @@ Definition sum_body (r1 r2: var) : expr :=
 
 Definition sum_function : expr :=
   EAnonFun $
-           AnonFun1Pat (PVar "r1") $
+           AnonFunction $
+           Branch1 (PVar "r1") $
            EAnonFun $
-           AnonFun1Pat (PVar "r2") $
+           AnonFunction $
+           Branch1 (PVar "r2") $
            sum_body "r1" "r2".
 
 Definition opacified_Records : mexpr :=
@@ -105,87 +111,103 @@ Definition opacified_Records : mexpr :=
           ICons (ILet (Binding1 (PVar "r_val") r_val_function)) $
           ICons (ILet (Binding1 (PVar "sum") sum_function)) $
           ICons (
-            ILetRec (
-                RecBiCons (
-                    RecBinding "is_odd_naive"
-                    (
-                      AnonFun1Pat (PVar "n")
-                      (
-                        ESeq (
-                          EAssert (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") ">="))
-                              (EPath (PathBase "n"))
-                            )
-                            (EInt 0)
-                          )
-                        )
-                        (
-                          EIfThenElse (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") ">"))
-                              (EPath (PathBase "n"))
-                            )
-                            (EInt 1)
-                          )
-                          (
-                            EApp (EPath (PathBase "is_odd_naive"))
-                            (
+            ILetRec $
+                    RecBinding1 "is_odd_naive" (PVar "n") $
+                    ESeq (
+                      EAssert $
                               EApp (
-                                EApp (EPath (PathDot (PathBase "Stdlib")
-"-"))
-                                (EPath (PathBase "n"))
-                              )
-                              (EInt 2)
-                            )
-                          )
-                          (
-                            EIfThenElse (
-                              EApp (
-                                EApp (EPath (PathDot (PathBase "Stdlib")
-"="))
-                                (EPath (PathBase "n"))
+                                EApp (EPath (PathDot (PathBase "Stdlib") ">="))
+                                     (EPath (PathBase "n"))
                               )
                               (EInt 0)
-                            )
-                            (EData "false" (ETuple ENil))
-                            (EData "true" (ETuple ENil))
-                          )
+                    ) $
+                    EIfThenElse (
+                      EApp (
+                          EApp (EPath (PathDot (PathBase "Stdlib") ">"))
+                               (EPath (PathBase "n"))
                         )
-                      )
+                           (EInt 1)
                     )
-                  )
-                  RecBiNil
-                )
-              )
-              (
-                ICons (
-                  ILet (
-                    BiCons (
-                      Binding (PVar "is_odd")
-                      (
-                        EAnonFun (
-                          AnonFun1Pat (PVar "n")
-                          (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                              (
-                                EApp (
-                                  EApp (EPath (PathDot (PathBase "Stdlib")
-"mod"))
-                                  (EPath (PathBase "n"))
-                                )
-                                (EInt 2)
-                              )
-                            )
-                            (EInt 0)
-                          )
+                    (
+                      EApp (EPath (PathBase "is_odd_naive"))
+                           (
+                             EApp (
+                                 EApp (EPath (PathDot (PathBase "Stdlib")
+                                                      "-"))
+                                      (EPath (PathBase "n"))
+                               )
+                                  (EInt 2)
+                           )
+                    ) $
+                    EIfThenElse (
+                      EApp (
+                          EApp (EPath (PathDot (PathBase "Stdlib")
+                                               "="))
+                               (EPath (PathBase "n"))
                         )
-                      )
+                           (EInt 0)
                     )
-                    BiNil
+                    (EData "false" (ETuple ENil))
+                    (EData "true" (ETuple ENil))
+          ) $
+          ICons (
+            ILet (Binding1 (PVar "is_odd")
+                           (
+                             EAnonFun (
+                                 AnonFun1Pat (PVar "n")
+                                             (
+                                               EApp (
+                                                   EApp (EPath (PathDot (PathBase "Stdlib") "="))
+                                                        (
+                                                          EApp (
+                                                              EApp (EPath (PathDot (PathBase "Stdlib")
+                                                                                   "mod"))
+                                                                   (EPath (PathBase "n"))
+                                                            )
+                                                               (EInt 2)
+                                                        )
+                                                 )
+                                                    (EInt 0)
+                                             )
+                               )
+                           )
+                 )
+          ) $
+          ICons (
+            ILetRec (
+                RecBiCons (
+                    RecBinding "is_odd'"
+                               (
+                                 AnonFunction (
+                                     (
+                                       BrCons (
+                                           Branch (PData "O" (PTuple PNil))
+                                                  (EData "true" (ETuple ENil))
+                                         )
+                                              (
+                                                BrCons (
+                                                    Branch (
+                                                        PData "S"
+                                                              (PTuple (PCons (PVar "n") PNil))
+                                                      )
+                                                           (
+                                                             EApp (EPath (PathDot (PathBase "Stdlib")
+                                                                                  "not"))
+                                                                  (
+                                                                    EApp (EPath (PathBase "is_odd'"))
+                                                                         (EPath (PathBase "n"))
+                                                                  )
+                                                           )
+                                                  )
+                                                       BrNil
+                                              )
+                                     )
+                                   )
+                               )
                   )
-                )
-                INil
+                          RecBiNil
               )
+          )
+
+          INil
 .

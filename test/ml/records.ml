@@ -36,6 +36,14 @@ let rec is_odd_naive n =
 
 let is_odd n = n mod 2 = 0
 
+type nat =
+  | O
+  | S of nat
+
+let rec is_odd' = function
+  | O -> true
+  | S n -> not (is_odd' n)
+
 (*
 let res =
   match lily with

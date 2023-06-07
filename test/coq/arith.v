@@ -26,45 +26,62 @@ Definition Arith : mexpr :=
         RecBiCons (
           RecBinding "add"
           (
-            AnonFun1Pat (PVar "x")
-            (
-              EAnonFun (
-                AnonFun1Pat (PVar "y")
-                (
-                  EIfThenElse (
-                    EApp (
-                      EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                      (EPath (PathBase "y"))
-                    )
-                    (EInt 0)
-                  )
+            AnonFunction (
+               (
+                BrCons (
+                  Branch (PVar "x")
                   (
-                    EApp (
-                      EApp (EPath (PathBase "mult"))
-                      (EPath (PathBase "x"))
-                    )
-                    (EInt 1)
-                  )
-                  (
-                    EApp (
-                      EApp (EPath (PathDot (PathBase "Stdlib") "+"))
-                      (EInt 1)
-                    )
-                    (
-                      EApp (
-                        EApp (EPath (PathBase "add"))
-                        (EPath (PathBase "x"))
-                      )
-                      (
-                        EApp (
-                          EApp (EPath (PathDot (PathBase "Stdlib") "-"))
-                          (EPath (PathBase "y"))
+                    EAnonFun (
+                      AnonFunction (
+                         (
+                          BrCons (
+                            Branch (PVar "y")
+                            (
+                              EIfThenElse (
+                                EApp (
+                                  EApp (EPath (PathDot (PathBase "Stdlib")
+"="))
+                                  (EPath (PathBase "y"))
+                                )
+                                (EInt 0)
+                              )
+                              (
+                                EApp (
+                                  EApp (EPath (PathBase "mult"))
+                                  (EPath (PathBase "x"))
+                                )
+                                (EInt 1)
+                              )
+                              (
+                                EApp (
+                                  EApp (EPath (PathDot (PathBase "Stdlib")
+"+"))
+                                  (EInt 1)
+                                )
+                                (
+                                  EApp (
+                                    EApp (EPath (PathBase "add"))
+                                    (EPath (PathBase "x"))
+                                  )
+                                  (
+                                    EApp (
+                                      EApp (EPath (PathDot (PathBase
+"Stdlib") "-"))
+                                      (EPath (PathBase "y"))
+                                    )
+                                    (EInt 1)
+                                  )
+                                )
+                              )
+                            )
+                          )
+                          BrNil
                         )
-                        (EInt 1)
                       )
                     )
                   )
                 )
+                BrNil
               )
             )
           )
@@ -73,49 +90,66 @@ Definition Arith : mexpr :=
           RecBiCons (
             RecBinding "mult"
             (
-              AnonFun1Pat (PVar "x")
-              (
-                EAnonFun (
-                  AnonFun1Pat (PVar "y")
-                  (
-                    EIfThenElse (
-                      EApp (
-                        EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                        (EPath (PathBase "y"))
-                      )
-                      (EInt 0)
-                    )
-                    (EInt 0)
+              AnonFunction (
+                 (
+                  BrCons (
+                    Branch (PVar "x")
                     (
-                      EIfThenElse (
-                        EApp (
-                          EApp (EPath (PathDot (PathBase "Stdlib") "="))
-                          (EPath (PathBase "y"))
-                        )
-                        (EInt 1)
-                      )
-                      (EPath (PathBase "x"))
-                      (
-                        EApp (
-                          EApp (EPath (PathBase "add"))
-                          (EPath (PathBase "x"))
-                        )
-                        (
-                          EApp (
-                            EApp (EPath (PathBase "mult"))
-                            (EPath (PathBase "x"))
-                          )
-                          (
-                            EApp (
-                              EApp (EPath (PathDot (PathBase "Stdlib") "-"))
-                              (EPath (PathBase "y"))
+                      EAnonFun (
+                        AnonFunction (
+                           (
+                            BrCons (
+                              Branch (PVar "y")
+                              (
+                                EIfThenElse (
+                                  EApp (
+                                    EApp (EPath (PathDot (PathBase "Stdlib")
+"="))
+                                    (EPath (PathBase "y"))
+                                  )
+                                  (EInt 0)
+                                )
+                                (EInt 0)
+                                (
+                                  EIfThenElse (
+                                    EApp (
+                                      EApp (EPath (PathDot (PathBase
+"Stdlib") "="))
+                                      (EPath (PathBase "y"))
+                                    )
+                                    (EInt 1)
+                                  )
+                                  (EPath (PathBase "x"))
+                                  (
+                                    EApp (
+                                      EApp (EPath (PathBase "add"))
+                                      (EPath (PathBase "x"))
+                                    )
+                                    (
+                                      EApp (
+                                        EApp (EPath (PathBase "mult"))
+                                        (EPath (PathBase "x"))
+                                      )
+                                      (
+                                        EApp (
+                                          EApp (EPath (PathDot (PathBase
+"Stdlib") "-"))
+                                          (EPath (PathBase "y"))
+                                        )
+                                        (EInt 1)
+                                      )
+                                    )
+                                  )
+                                )
+                              )
                             )
-                            (EInt 1)
+                            BrNil
                           )
                         )
                       )
                     )
                   )
+                  BrNil
                 )
               )
             )

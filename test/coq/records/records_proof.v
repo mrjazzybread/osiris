@@ -343,6 +343,8 @@ Proof.
   iIntros (is_odd) "#His_odd". wp_continue.
 
 
+  repeat wp_continue.
+
   lazymatch goal with
   | |- environments.envs_entails _ (?φ (VStruct ?η)) =>
       iExists _; iSplit ; first (iPureIntro; reflexivity)
@@ -438,6 +440,8 @@ Proof.
   wp_specify "is_odd" trivial_spec; first done.
   iIntros (?) "?". wp_continue.
 
+  repeat wp_continue.
+
   wp_module_spec.
 Time Qed.
 
@@ -529,6 +533,7 @@ Proof.
   iIntros (is_odd) "#His_odd". wp_continue.
 
   (* TODO: uncomment the calls to [sum] and [List.fold_left] *)
+  repeat wp_continue.
 
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.
