@@ -223,8 +223,13 @@ Definition RecBinding1Var (f x : var) (e1 : expr) : rec_bindings :=
 
 (* [rec f 'p = e] *)
 
-Definition RecBinding1 f p e :=
+Definition RecBinding1Pat f p e :=
   RecBiCons (RecBinding f $ AnonFun1Pat p e) RecBiNil.
+
+(* [rec f = a] *)
+
+Definition RecBinding1 f a :=
+  RecBiCons (RecBinding f a) RecBiNil.
 
 (* [let rec f x = e1 in e2]. *)
 
