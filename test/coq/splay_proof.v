@@ -11,6 +11,9 @@ Local Opaque app. (* Prevent undesired simplification. *)
 
 (* WIP *)
 
+Local Ltac unpack :=
+  repeat lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
+
 Ltac SIMP_specify x φ :=
   lazymatch goal with
   | |- SIMP (bind (dconcatenating ?δ _) _) _ =>
@@ -486,9 +489,6 @@ Proof.
     eauto. }
 Qed.
 
-Local Ltac unpack :=
-  lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
-
 Lemma Sorted_app xs ys :
   Sorted lt xs →
   Sorted lt ys →
@@ -543,11 +543,12 @@ Section BST.
 
 Context {A : Type}.
 Context {lt : A → A → Prop}.
-Context {Tlt : Transitive lt}.
+Context {Tlt : StrictOrder lt}.
 
 Definition bst (t : tree A) :=
   Sorted lt (fringe t).
 
+Notation "x '<' y" := (lt x y).
 Notation "xs '≺' ys" := (@lllt A lt xs ys) (at level 80).
 
 Lemma bst_Leaf_iff :
@@ -562,8 +563,76 @@ Lemma bst_Node_iff l x r :
 Proof.
   unfold bst. simpl fringe.
   rewrite !Sorted_app_iff, !Sorted_singleton_iff, lllt_app_right_iff.
+  assert (Transitive lt) by typeclasses eauto.
   pose proof (lllt_transitive (fringe l) x (fringe r)).
   tauto.
+Qed.
+
+Lemma lt_contradiction x :
+  x < x → False.
+Proof.
+  pose proof (irreflexivity lt). unfold Reflexive, complement in *. eauto.
+Qed.
+
+Lemma lllt_contradiction_left x ys :
+  [x] ≺ ys →
+  x ∈ ys →
+  False.
+Proof.
+  unfold lllt. intros Hlt Hmember.
+  specialize (Hlt x x). rewrite elem_of_list_singleton in Hlt.
+  eauto using lt_contradiction.
+Qed.
+
+Lemma lllt_contradiction_right xs y :
+  xs ≺ [y] →
+  y ∈ xs →
+  False.
+Proof.
+  unfold lllt. intros Hlt Hmember.
+  specialize (Hlt y y). rewrite elem_of_list_singleton in Hlt.
+  eauto using lt_contradiction.
+Qed.
+
+Lemma lt_lllt x y :
+  x < y →
+  [x] ≺ [y].
+Proof.
+  unfold lllt. intros ? x' y'.
+  rewrite !elem_of_list_singleton. intros; subst.
+  assumption.
+Qed.
+
+Lemma bst_search_left x xs y zs :
+  x < y →
+  [y] ≺ zs →
+  x ∈ xs ++ [y] ++ zs ↔ x ∈ xs.
+Proof.
+  (* TODO make this a lemma? *)
+  assert (Transitive lt) by typeclasses eauto.
+  intros.
+  rewrite !elem_of_app, elem_of_list_singleton.
+  split; [| eauto ].
+  intros [|[|]].
+  { eauto. }
+  { subst y. exfalso. eauto using lt_contradiction. }
+  { exfalso. eauto using lt_lllt, lllt_transitive, lllt_contradiction_left. }
+Qed.
+
+Lemma bst_search_right x xs y zs :
+  y < x →
+  xs ≺ [y] →
+  x ∈ xs ++ [y] ++ zs ↔ x ∈ zs.
+Proof.
+  (* TODO make this a lemma? *)
+  assert (Transitive lt) by typeclasses eauto.
+  intros.
+  rewrite !elem_of_app, elem_of_list_singleton.
+  split; [| eauto ].
+  intros [|[|]].
+  { exfalso. eauto using lt_lllt, lllt_transitive, lllt_contradiction_right. }
+  { subst y. exfalso. eauto using lt_contradiction. }
+  { eauto. }
 Qed.
 
 Lemma bst_inv_l l x r :
@@ -646,6 +715,68 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* WIP *)
+
+(* Propositions. *)
+
+Require Import Epsilon.
+
+Definition inh_bool : inhabited bool.
+Proof. constructor. constructor. Qed.
+
+Definition switch P (b : bool) :=
+  if b then P else ¬ P.
+
+Definition Prop2bool (P : Prop) : bool :=
+  epsilon inh_bool (switch P).
+
+Lemma Prop2bool_False (P : Prop) :
+  ¬ P →
+  Prop2bool P = false.
+Proof.
+  intros H.
+  unfold Prop2bool.
+  assert (existence: exists b, switch P b).
+  { exists false. unfold switch. assumption. }
+  generalize (epsilon_spec inh_bool _ existence). clear existence.
+  generalize (epsilon inh_bool (switch P)).
+  unfold switch. intros [|]; tauto.
+Qed.
+
+Lemma Prop2bool_True (P : Prop) :
+  P →
+  Prop2bool P = true.
+Proof.
+  intros H.
+  unfold Prop2bool.
+  assert (existence: exists b, switch P b).
+  { exists true. unfold switch. assumption. }
+  generalize (epsilon_spec inh_bool _ existence). clear existence.
+  generalize (epsilon inh_bool (switch P)).
+  unfold switch. intros [|]; tauto.
+Qed.
+
+Global Instance Encode_Prop : Encode Prop :=
+  { encode := λ P, VBool (Prop2bool P) }.
+
+Lemma solve_encode_False (P : Prop) :
+  ¬ P →
+  VFalse = #P.
+Proof.
+  intros H. apply Prop2bool_False in H. simpl. rewrite H. reflexivity.
+Qed.
+
+Lemma solve_encode_True (P : Prop) :
+  P →
+  VTrue = #P.
+Proof.
+  intros H. apply Prop2bool_True in H. simpl. rewrite H. reflexivity.
+Qed.
+
+Global Hint Resolve solve_encode_False solve_encode_True : encode.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Specification of [splay]. *)
 
 Definition splay_spec (splay : val) : Prop :=
@@ -661,16 +792,30 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
     (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : Transitive A lt)
+  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : StrictOrder _ lt)
     (t : tree A) (x : A) (ctx : zipper A),
   @bst _ lt t →
   SIMP
     (call zlookup #(t, x, ctx))
-    (λ '((b, t') : bool * tree A), fringe t' = fringe (fill ctx t)).
-    (* TODO incomplete spec *)
+    (λ '((b, t') : bool * tree A),
+      (b ↔ x ∈ fringe t) ∧
+      fringe t' = fringe (fill ctx t)
+    ).
 
 Axiom skip : False. (* TODO *)
 Ltac skip := exfalso; apply skip.
+
+Lemma true_iff (P : Prop) :
+  (true ↔ P) ↔ P.
+Proof.
+  simpl. tauto.
+Qed.
+
+Lemma false_iff (P : Prop) :
+  (false ↔ P) ↔ ¬P.
+Proof.
+  simpl. tauto.
+Qed.
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -767,13 +912,13 @@ Proof.
     assert (
       forall (x y : A),
       SIMP ('v ← call Stdlib__lt #x; call v #y)
-           (λ (b : bool), if b then lt x y else ¬ lt x y)
+           (λ (b : bool), b ↔ lt x y)
     ) as lt_spec by skip.
     (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
     assert (
       forall (x y : A),
       SIMP ('v ← call Stdlib__gt #x; call v #y)
-           (λ (b : bool), if b then ¬ lt y x else lt y x)
+           (λ (b : bool), b ↔ lt y x)
     ) as gt_spec by skip.
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
@@ -782,30 +927,44 @@ Proof.
     (* Case: [Leaf]. *)
     { (* TODO clean up *)
       SIMP_bind; [ SIMP_call | cbn ]. intros t' Ht'.
-      SIMP. cbn.
-      assumption. }
+      SIMP. cbn. split.
+      (* Establish the postcondition: *)
+      - rewrite elem_of_nil. tauto.
+      - assumption. }
     (* Case: [Node]. *)
-    { rewrite bst_Node_iff in Hbst; destruct Hbst as (? & ? & ? & ?).
+    { rewrite bst_Node_iff in Hbst. unpack.
       (* Examine the comparison [x < y]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
       { SIMP. eapply lt_spec. }
-      cbn. intros [|] Hlt; SIMP.
+      cbn. intros [|] Hlt; SIMP;
+      rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x < y]. *)
-      { SIMP_call. intros [b t'] ?.
-        assumption. }
+      { SIMP_call. intros [b t'] (? & ?).
+        (* Establish the postcondition: *)
+        split.
+        - rewrite bst_search_left by assumption. assumption.
+        - assumption. }
       (* Examine the comparison [x > y]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
       { SIMP. eapply gt_spec. }
-      cbn. intros [|] Hgt; SIMP.
+      cbn. intros [|] Hgt; SIMP;
+      rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x > y]. *)
-      { SIMP_call. intros [b t'] ?.
-        assumption. }
+      { SIMP_call. intros [b t'] (? & ?).
+        (* Establish the postcondition: *)
+        split.
+        - rewrite bst_search_right by assumption. assumption.
+        - assumption. }
       (* Subcase: neither comparison succeeded, so [x = y]. *)
       { eapply SIMP_bind.
         { SIMP_call. }
         cbn. intros t' Ht'.
         SIMP. cbn.
-        assumption. }
+        (* Establish the postcondition: *)
+        assert (x = y) by skip.
+        split.
+        - rewrite !elem_of_app, elem_of_list_singleton. tauto.
+        - assumption. }
     }
   }
   intros zlookup zlookup_spec. SIMP_continue.
