@@ -34,11 +34,22 @@ let btuple = { cons = "BrCons" ;
 (* In the Typedtree, OCaml identifiers and symbols are addressed in several
    formats. The following functions translates these representations to
    strings. Note that the result of these functions contains quotes, which can
-   be confusing sometimes, but avoids adding them at every call site. *)
+   be confusing sometimes, but avoids adding them at every call site.
+   Note : This is currently used for constructors only.
+          [A.B.constructor] represents the constructor [constructor] defined in 
+          the module [A.B].
+          The translation currently forgets about [A.B] and only keeps
+          [constructor]. This should not be a problem as long as this function
+          is only used on constructors. *)
 let string_of_longident (i: Longident.t): string =
+  let rec last = function
+    | [] -> assert false
+    | [e] -> e
+    | _ :: h :: l -> last (h :: l)
+  in
   Longident.flatten i
-  |> List.map (fun s -> "\"" ^ s ^ "\"")
-  |> String.concat "." (* TODO what does this mean? *)
+  |> last
+  |> fun s -> "\"" ^ s ^ "\""
 
 let rec translate_path (path : Path.t) : expr =
   match path with
@@ -68,7 +79,12 @@ let translate_tuple ({cons; nil; wrapper}: adhoc_list)
    type [expr]. *)
 
 let translate_constant = function
-  | Asttypes.Const_int i -> EConstr ("EInt", [EPlain (string_of_int i)])
+  | Asttypes.Const_int i ->
+      if 0 <= i
+      then EConstr ("EInt", [EPlain (string_of_int i)])
+      else EConstr ("EInt", [EPlain ("("^string_of_int i^")%Z")])
+  | Asttypes.Const_string (s, _, _) ->
+     EConstr ("EString", [EPlain ("\"" ^ s ^ "\"")])
 
   (* Not yet translated: integers.
      Do we want several instantiations of the CompCert integers library, or
@@ -79,7 +95,6 @@ let translate_constant = function
 
   (* Not yet supported by the semantics: *)
   | Asttypes.Const_char _ -> assert false
-  | Asttypes.Const_string (_, _, _) -> assert false
   | Asttypes.Const_float _ -> assert false
 
 
@@ -182,13 +197,17 @@ and trans_pat (p: value general_pattern): expr =
        let args = translate_tuple ptuple trans_pat args in
        EConstr ("PData", [ EPlain name; args ])
 
-  | Tpat_alias (_, _, _) -> assert false
+  | Tpat_alias (pat, var, _) ->
+     EConstr ("PAlias", [ trans_pat pat; EPlain("\"" ^ Ident.name var ^ "\"") ])
+
+  | Tpat_or (p1, p2, _) ->
+     EConstr ("POr", [ trans_pat p1; trans_pat p2 ])
+
   | Tpat_constant _ -> assert false
   | Tpat_variant (_, _, _) -> assert false
   | Tpat_record (_, _) -> assert false
   | Tpat_array _ -> assert false
   | Tpat_lazy _ -> assert false
-  | Tpat_or (_, _, _) -> assert false
 
 
 
@@ -362,34 +381,45 @@ and translate_rec_bindings vbs : expr =
    Note: if need be, it is possible to query the environment at the
    ````` [structure_item] at hand, which might be useful if the translation tool
    ever need to generate environment in the Coq development. *)
-let translate_sitem (si: Typedtree.structure_item) : expr option =
+let rec translate_sitem (si: Typedtree.structure_item) : expr option =
   match si.str_desc with
   (* Non-recursive top-level bindings. *)
   | Tstr_value (Nonrecursive, vbs) ->
-      Some (EConstr ("ILet", [translate_bindings vbs]))
+     Some (EConstr ("ILet", [translate_bindings vbs]))
   (* Recursive top-level bindings. *)
   | Tstr_value (Recursive, vbs) ->
-      Some (EConstr ("ILetRec", [translate_rec_bindings vbs]))
+     Some (EConstr ("ILetRec", [translate_rec_bindings vbs]))
+
+  | Tstr_exception {tyexn_constructor = {ext_id; _}; _} -> (* of type_exception *)
+     Some (
+         EPlain ("(ILet (Binding1 (PVar \""^(Ident.name ext_id)^"\")\
+                                (ERef EUnit)))"))
+
+  | Tstr_module {mb_id = Some mb_id;
+                 mb_expr = {mod_desc = Tmod_structure module_structure ;
+                            _}; _} ->
+     Some (EConstr ("IModule",
+                    [ EPlain ("\"" ^ Ident.name mb_id ^ "\"");
+                      translate module_structure]))
 
   (* Ignoring the type-related definitions. *)
   | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
-      -> None
+    -> None
 
+  | Tstr_module _ -> assert false (* of module_binding *)
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_primitive _ -> assert false (* of value_description *)
   | Tstr_typext _ -> assert false (* of type_extension *)
-  | Tstr_exception _ -> assert false (* of type_exception *)
-  | Tstr_module _ -> assert false (* of module_binding *)
   | Tstr_recmodule _ -> assert false (* of module_binding list *)
   | Tstr_open _ -> assert false (* of open_declaration *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
   | Tstr_include _ -> assert false (* of include_declaration *)
   | Tstr_attribute _ -> assert false (*of attribute*)
 
-let translate_sitems items =
+and translate_sitems items =
   list "INil" "ICons" (List.filter_map translate_sitem items)
 
-let translate (t: Typedtree.structure) : expr =
+and translate (t: Typedtree.structure) : expr =
   EConstr ("MStruct", [translate_sitems t.str_items])
