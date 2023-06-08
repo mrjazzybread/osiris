@@ -8,13 +8,10 @@ let i17 = add (mult 2 2) (add 1 (mult 2 (add 4 2))) *)
 (* Converting a single CMT file for [Arith]. *)
 
 (* Auto generated headers. They import the required Coq modules:
-   - either translations of the dependencies of the present file
-   - or static dependencies defining the language
-   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
-From osiris Require Import base.
+   - static dependencies defining the language
+.*)From osiris Require Import base.
 From osiris.lang Require Import lang.
 
-From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)

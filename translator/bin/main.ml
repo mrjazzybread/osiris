@@ -34,17 +34,10 @@ let comment_and_print fmt p =
 
 (* [header] takes a cmt file and returns a string containing a list of
    [Require Import] needed by the produced Coq file.
-   For now, it assumes that the dependencies live in a directory called [libs]
-   at the root of the project. *)
+   Note that it is not necessary to fetch the OCaml dependencies as the modules
+   are represented by variables.
+ *)
 let header (ci: Cmt_format.cmt_infos) =
-  let rec ocaml_deps fmt = function
-    | [] -> ()
-    | (h, _) :: t ->
-       if not (List.mem h [ci.cmt_modname; "CamlinternalFormatBasics"])
-       then Format.fprintf fmt "From osiris.libs Require Import %s.@.%a"
-              h ocaml_deps t
-       else ocaml_deps fmt t
-  in
   let rec coq_deps fmt (l: (string * string list) list) =
     let rec print_line fmt = function
       | [] -> ()
@@ -59,13 +52,10 @@ let header (ci: Cmt_format.cmt_infos) =
   in
   Format.asprintf "(* Converting a single CMT file for [%s]. *)@.@.\
                    (* Auto generated headers. They import the required Coq modules:@.\
-                   \   - either translations of the dependencies of the present file@.\
-                   \   - or static dependencies defining the language@.\
-                   \   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)@.\
-                   %a@.%a"
+                   \   - static dependencies defining the language@ .*)\
+                   %a@."
                   ci.cmt_modname
                   coq_deps require_imports
-                  ocaml_deps ci.cmt_imports
 
 
 (* -------------------------------------------------------------------------- *)

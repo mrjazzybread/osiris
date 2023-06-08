@@ -13,13 +13,10 @@ let _test =
 (* Converting a single CMT file for [Incr]. *)
 
 (* Auto generated headers. They import the required Coq modules:
-   - either translations of the dependencies of the present file
-   - or static dependencies defining the language
-   - or part of the verification of the [StdLib] (or maybe other verified libraries). *)
-From osiris Require Import base.
+   - static dependencies defining the language
+.*)From osiris Require Import base.
 From osiris.lang Require Import lang.
 
-From osiris.libs Require Import Stdlib.
 
 
 (* Generated code: *)
