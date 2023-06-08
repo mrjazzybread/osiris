@@ -154,6 +154,9 @@ Inductive expr :=
   | EBoolDisj (e1 e2 : expr)
   | EBoolNeg (e : expr)
 
+  (* Strings *)
+  | EString (s: string)
+
   (* Integer literals. *)
   | EInt (i : Z)
   | EMaxInt
@@ -328,6 +331,8 @@ Inductive val :=
   (* The recursive bindings [rbs] are those of the closure creation site. *)
   (* The name [f] is the closure's entry point. *)
   | VCloRec (η : env) (rbs : rec_bindings) (f : var)
+  (* A string. *)
+  | VString (s: string)
   (* A machine integer. *)
   | VInt (i : int)
   (* A tuple. *)
