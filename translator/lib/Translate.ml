@@ -211,8 +211,7 @@ and trans_tl_expr (e: expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
 
-  | Texp_function {cases = [case]; _} ->
-     let cases = [case] in
+  | Texp_function {cases; _} ->
      let branches =
        List.fold_right
          (fun {c_lhs;c_rhs;_} res ->
@@ -220,7 +219,6 @@ and trans_tl_expr (e: expression) =
          cases []
      in
      EConstr ("EAnonFun", [translate_lambda branches])
-  | Texp_function _ -> assert false
   | Texp_apply (f, el) ->
      List.fold_left
        ( fun f a -> match a with
