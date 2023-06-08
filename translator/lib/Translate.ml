@@ -183,6 +183,11 @@ and trans_pat (p: value general_pattern): expr =
   | Tpat_var (_, v) -> EConstr ("PVar", [string_literal v.txt])
   | Tpat_tuple pl -> translate_tuple ptuple trans_pat pl
 
+  | Tpat_constant (Const_int i) ->
+      if 0 <= i
+      then EConstr ("PInt", [EPlain (string_of_int i)])
+      else EConstr ("PInt", [EPlain ("("^string_of_int i^")%Z")])
+
   | Tpat_construct (i, _, args, _) ->
      (* Note that by the definition of [string_of_longident], [name] will
         contain quotes. *)
@@ -406,6 +411,7 @@ let rec translate_sitem (si: Typedtree.structure_item) : expr option =
   | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
+  | Tstr_attribute _ (*of attribute*)
     -> None
 
   | Tstr_module _ -> assert false (* of module_binding *)
@@ -416,7 +422,6 @@ let rec translate_sitem (si: Typedtree.structure_item) : expr option =
   | Tstr_open _ -> assert false (* of open_declaration *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
   | Tstr_include _ -> assert false (* of include_declaration *)
-  | Tstr_attribute _ -> assert false (*of attribute*)
 
 and translate_sitems items =
   list "INil" "ICons" (List.filter_map translate_sitem items)
