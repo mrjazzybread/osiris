@@ -1,10 +1,11 @@
 Require Import Coq.Wellfounded.Inverse_Image.
-Require Import Coq.Sorting.Sorted.
+Require Import Coq.Sorting.Sorted stdpp.sorting.
 From osiris Require Import osiris.
 From osiris.semantics Require Export evalprime.
 From osiris.proofmode Require Export proofmode. (* TODO *)
 From osiris.libs Require Import Stdlib.
 From test Require Import splay.
+Local Opaque app. (* Prevent undesired simplification. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -271,13 +272,6 @@ Fixpoint fill {A} (z : zipper A) (t : tree A) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* An opaque list singleton. *)
-
-Local Definition sing {A} (x : A) : list A :=
-  [x].
-
-Local Opaque sing.
-
 (* The fringe of a tree. *)
 
 Fixpoint fringe {A} (t : tree A) : list A :=
@@ -285,7 +279,7 @@ Fixpoint fringe {A} (t : tree A) : list A :=
   | Leaf =>
       []
   | Node l x r =>
-      fringe l ++ sing x ++ fringe r
+      fringe l ++ [x] ++ fringe r
   end.
 
 (* The left and right fringes of a zipper. *)
@@ -297,7 +291,7 @@ Fixpoint lfringe {A} (z : zipper A) : list A :=
   | NodeL z1 x t2 =>
       lfringe z1
   | NodeR t1 x z2 =>
-      lfringe z2 ++ fringe t1 ++ sing x
+      lfringe z2 ++ fringe t1 ++ [x]
   end.
 
 Fixpoint rfringe {A} (z : zipper A) : list A :=
@@ -305,7 +299,7 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
   | Root =>
       []
   | NodeL z1 x t2 =>
-      sing x ++ fringe t2 ++ rfringe z1
+      [x] ++ fringe t2 ++ rfringe z1
   | NodeR t1 x z2 =>
       rfringe z2
   end.
@@ -333,23 +327,74 @@ Local Ltac prove_same_fringe :=
 
 (* Properties of sorted lists. *)
 
-(* TODO not year clear which results are useful in this section *)
+(* TODO not yet clear which results are useful in this section *)
 Section Sortedness.
 
 Context {A : Type}.
 Context {lt : A → A → Prop}.
-Context {Slt : StrictOrder lt}.
+Context {Tlt : Transitive lt}. (* or: StrictOrder lt *)
 Notation "x '<' y" := (lt x y).
+Implicit Types xs ys : list A.
 
-Definition lllt (xs ys : list A) :=
-  Forall (λ x, Forall (λ y, x < y) ys) xs.
+Lemma Sorted_iff_StronglySorted xs :
+  Sorted lt xs ↔ StronglySorted lt xs.
+Proof.
+  split; eauto using Sorted_StronglySorted, StronglySorted_Sorted.
+Qed.
+
+Definition lllt xs ys :=
+  ∀ x y, x ∈ xs → y ∈ ys → x < y.
+  (* Forall (λ x, Forall (λ y, x < y) ys) xs. *)
 
 Notation "xs '≺' ys" := (lllt xs ys) (at level 80).
+
+Lemma lllt_transitive xs y zs :
+  xs ≺ [y] → [y] ≺ zs → xs ≺ zs.
+Proof.
+  unfold lllt. intros Hl Hr x z.
+  specialize (Hl x y).
+  specialize (Hr y z).
+  rewrite elem_of_list_singleton in *.
+  eauto.
+Qed.
+
+(*
+Definition lllt_alt xs ys :=
+  Forall (λ y, Forall (λ x, x < y) xs) ys.
+
+Lemma lllt_iff_lllt_alt xs ys :
+  xs ≺ ys ↔ lllt_alt xs ys.
+Proof.
+  unfold lllt, lllt_alt.
+  revert xs ys. induction xs; simpl.
+  { induction ys; simpl.
+    + rewrite !Forall_nil_iff. tauto.
+    + rewrite !Forall_nil_iff, !Forall_cons_iff in *.
+      rewrite !Forall_nil_iff. tauto. }
+ *)
+
+(* TODO
+Lemma lllt_nil_left ys :
+  [] ≺ ys.
+Proof.
+Abort.
+
+Lemma lllt_nil_right xs :
+  xs ≺ [].
+Proof.
+Abort.
+ *)
 
 Lemma Sorted_empty :
   Sorted lt [].
 Proof.
   econstructor.
+Qed.
+
+Lemma Sorted_empty_iff :
+  Sorted lt [] ↔ True.
+Proof.
+  split; eauto using Sorted_empty.
 Qed.
 
 Lemma Sorted_singleton (x : A) :
@@ -360,6 +405,13 @@ Proof.
   + econstructor.
 Qed.
 
+Lemma Sorted_singleton_iff (x : A) :
+  Sorted lt [x] ↔ True.
+Proof.
+  split; eauto using Sorted_singleton.
+Qed.
+
+(* TODO
 Lemma lllt_Singleton_left x ys :
   [x] ≺ ys ↔
   Forall (λ y, x < y) ys.
@@ -376,13 +428,30 @@ Proof.
     intro. simpl. rewrite Forall_singleton. tauto.
   + eapply Forall_impl; [ eauto |].
     intro. simpl. rewrite Forall_singleton. tauto.
+Qed. *)
+
+Lemma Sorted_app_inv_l xs ys :
+  Sorted lt (xs ++ ys) →
+  Sorted lt xs.
+Proof.
+  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_l.
 Qed.
 
-Lemma Sorted_append (xs ys : list A) :
-  Sorted lt (xs ++ ys) ↔
-  Sorted lt xs ∧ Sorted lt ys ∧ xs ≺ ys.
+Lemma Sorted_app_inv_r xs ys :
+  Sorted lt (xs ++ ys) →
+  Sorted lt ys.
 Proof.
-Admitted.
+  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_r.
+Qed.
+
+Lemma Sorted_app_inv_c xs ys :
+  Sorted lt (xs ++ ys) →
+  xs ≺ ys.
+Proof.
+  rewrite !Sorted_iff_StronglySorted. intros.
+  unfold lllt. intros.
+  eapply elem_of_StronglySorted_app; eauto.
+Qed.
 
 Lemma cons_is_append x (ys : list A) :
   x :: ys = [x] ++ ys.
@@ -390,15 +459,68 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma Sorted_cons x (ys : list A) :
-  Sorted lt (x :: ys) ↔
-  Sorted lt ys ∧ [x] ≺ ys.
+Lemma lllt_app_left_iff xs ys zs :
+  xs ++ ys ≺ zs ↔ xs ≺ zs ∧ ys ≺ zs.
 Proof.
-  change (x :: ys) with ([x] ++ ys).
-  rewrite Sorted_append.
-  generalize (Sorted_singleton x).
-  tauto.
+  unfold lllt. split; intros H.
+  { split; intros x y ? ?; specialize (H x y);
+    rewrite elem_of_app in H; tauto. }
+  { intros x y. rewrite elem_of_app. firstorder. }
 Qed.
+
+Lemma lllt_app_right_iff xs ys zs :
+  xs ≺ ys ++ zs ↔ xs ≺ ys ∧ xs ≺ zs.
+Proof.
+  unfold lllt. split; intros H.
+  { split; intros x y ? ?; specialize (H x y);
+    rewrite elem_of_app in H; tauto. }
+  { intros x y. rewrite elem_of_app. firstorder. }
+Qed.
+
+Lemma Forall_lt x ys :
+  Forall (lt x) ys ↔ [x] ≺ ys.
+Proof.
+  rewrite Forall_forall. unfold lllt. split; intros H.
+  { intros x' y. rewrite elem_of_list_singleton. intros ->. eauto. }
+  { intros y ?. specialize (H x y). rewrite elem_of_list_singleton in H.
+    eauto. }
+Qed.
+
+Local Ltac unpack :=
+  lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
+
+Lemma Sorted_app xs ys :
+  Sorted lt xs →
+  Sorted lt ys →
+  xs ≺ ys →
+  Sorted lt (xs ++ ys).
+Proof.
+  rewrite !Sorted_iff_StronglySorted. revert xs ys.
+  induction xs as [| x xs ]; intros ys Hxs Hys Hlt.
+  { rewrite app_nil_l.
+    assumption. }
+  { rewrite <- app_comm_cons.
+    dependent destruction Hxs. rewrite Forall_lt in *.
+    rewrite cons_is_append in Hlt.
+    rewrite lllt_app_left_iff in Hlt. unpack.
+    econstructor; rewrite ?Forall_lt.
+    + eauto.
+    + rewrite lllt_app_right_iff. eauto. }
+Qed.
+
+Lemma Sorted_app_iff xs ys :
+  Sorted lt (xs ++ ys) ↔
+  Sorted lt xs ∧ Sorted lt ys ∧ xs ≺ ys.
+Proof.
+  intuition eauto
+    using Sorted_app_inv_l, Sorted_app_inv_c, Sorted_app_inv_r, Sorted_app.
+Qed.
+
+Hint Rewrite
+  Sorted_empty_iff
+  Sorted_singleton_iff
+  Sorted_app_iff
+: sorted.
 
 End Sortedness.
 
@@ -421,9 +543,42 @@ Section BST.
 
 Context {A : Type}.
 Context {lt : A → A → Prop}.
+Context {Tlt : Transitive lt}.
 
 Definition bst (t : tree A) :=
   Sorted lt (fringe t).
+
+Notation "xs '≺' ys" := (@lllt A lt xs ys) (at level 80).
+
+Lemma bst_Leaf_iff :
+  bst Leaf ↔ True.
+Proof.
+  unfold bst. simpl fringe. rewrite Sorted_empty_iff. tauto.
+Qed.
+
+Lemma bst_Node_iff l x r :
+  bst (Node l x r) ↔
+  bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
+Proof.
+  unfold bst. simpl fringe.
+  rewrite !Sorted_app_iff, !Sorted_singleton_iff, lllt_app_right_iff.
+  pose proof (lllt_transitive (fringe l) x (fringe r)).
+  tauto.
+Qed.
+
+Lemma bst_inv_l l x r :
+  bst (Node l x r) →
+  bst l.
+Proof.
+  rewrite bst_Node_iff. tauto.
+Qed.
+
+Lemma bst_inv_r l x r :
+  bst (Node l x r) →
+  bst r.
+Proof.
+  rewrite bst_Node_iff. tauto.
+Qed.
 
 End BST.
 
@@ -506,8 +661,9 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
     (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : StrictOrder A)
+  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : Transitive A lt)
     (t : tree A) (x : A) (ctx : zipper A),
+  @bst _ lt t →
   SIMP
     (call zlookup #(t, x, ctx))
     (λ '((b, t') : bool * tree A), fringe t' = fringe (fill ctx t)).
@@ -621,7 +777,7 @@ Proof.
     ) as gt_spec by skip.
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
-    intros;
+    intros ? ? Hbst;
     SIMP_enter; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
     { (* TODO clean up *)
@@ -629,7 +785,8 @@ Proof.
       SIMP. cbn.
       assumption. }
     (* Case: [Node]. *)
-    { (* Examine the comparison [x < y]. Reason by cases on its outcome. *)
+    { rewrite bst_Node_iff in Hbst; destruct Hbst as (? & ? & ? & ?).
+      (* Examine the comparison [x < y]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
       { SIMP. eapply lt_spec. }
       cbn. intros [|] Hlt; SIMP.
