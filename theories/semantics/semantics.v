@@ -1,6 +1,6 @@
 (* This file summarizes the content of the semantics/ directory. *)
 
-Require Export
+From osiris.semantics Require Export
   free
   code
   eval

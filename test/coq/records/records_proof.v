@@ -259,6 +259,62 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma is_odd'_body_spec η η' r n :
+  lookup_name η "Stdlib" = Ret Stdlib →
+  lookup_name η' "Stdlib" = Ret Stdlib →
+  lookup_name η "is_odd'" =
+    Ret (VCloRec η' (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
+  lookup_name η r = Ret #n →
+  simp (eval η (is_odd'_body r)) (Ret #(is_odd_pure n)).
+Proof.
+  generalize η r; clear η r;
+  induction n as [ | n' IH ];
+    intros η r H1 H2 H3 H4;
+    explicit is_odd'_body.
+  { simp. }
+  { (* [n = S n'] *)
+    destruct (is_odd_pure n') eqn:E;
+    remember (nat_encode_f n') as enc_n.
+    - (* [n'] is even. *)
+      simp. simp_continue.
+      eapply prove_simp_bind.
+      + explicit call.
+        etransitivity.
+        { eapply prove_simp_bind.
+          { simp. }
+          { apply SimpEval. } }
+        etransitivity.
+        { eapply prove_simp_try.
+          { by apply IH. }
+          done. }
+        done.
+      + explicit call; explicit Stdlib__not. cbn.
+        etransitivity; first apply SimpEval.
+        etransitivity; first (eapply prove_simp_try; simp).
+        rewrite E.
+        simp.
+    - (* [n'] is odd. *)
+      explicit is_odd'_body; simp. simp_continue.
+      eapply prove_simp_bind.
+      + explicit call.
+        etransitivity.
+        { eapply prove_simp_bind.
+          { simp. }
+          { unfold acall.
+            cbn.
+            apply SimpEval. } }
+        etransitivity.
+        { eapply prove_simp_try.
+          { apply IH; done. }
+          done. }
+        done.
+      + explicit call; explicit Stdlib__not. cbn.
+        etransitivity; first apply SimpEval.
+        etransitivity; first (eapply prove_simp_try; simp).
+        rewrite E.
+        simp. }
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* (5) Specifications of functions. *)
@@ -319,79 +375,13 @@ Proof.
   iPureIntro. rewrite int.add_repr_repr. reflexivity.
 Qed.
 
-Lemma is_odd'_body_spec η η' r n :
-  lookup_name η "Stdlib" = Ret Stdlib →
-  lookup_name η' "Stdlib" = Ret Stdlib →
-  lookup_name η "is_odd'" =
-    Ret (VCloRec η' (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
-  lookup_name η r = Ret #n →
-  simp (eval η (is_odd'_body r)) (Ret #(is_odd_pure n)).
-Proof.
-  generalize η r; clear η r;
-  induction n as [ | n' IH ];
-    intros η r H1 H2 H3 H4;
-    explicit is_odd'_body.
-  { simp. }
-  { (* [n = S n'] *)
-    destruct (is_odd_pure n') eqn:E;
-    remember (nat_encode_f n') as enc_n.
-    - (* [n'] is even. *)
-      simp. simp_continue.
-      eapply prove_simp_bind.
-      + explicit call.
-        etransitivity.
-        { eapply prove_simp_bind.
-          { simp. }
-          { apply SimpEval. } }
-        etransitivity.
-        { eapply prove_simp_try.
-          { by apply IH. }
-          done. }
-        done.
-      + explicit call; explicit Stdlib__not. cbn.
-        etransitivity; first apply SimpEval.
-        etransitivity; first (eapply prove_simp_try; simp).
-        rewrite E.
-        simp.
-    - (* [n'] is odd. *)
-      explicit is_odd'_body; simp. simp_continue.
-      eapply prove_simp_bind.
-      + explicit call.
-        etransitivity.
-        { eapply prove_simp_bind.
-          { simp. }
-          { unfold acall.
-            cbn.
-            apply SimpEval. } }
-        etransitivity.
-        { eapply prove_simp_try.
-          { apply IH; done. }
-          done. }
-        done.
-      + explicit call; explicit Stdlib__not. cbn.
-        etransitivity; first apply SimpEval.
-        etransitivity; first (eapply prove_simp_try; simp).
-        rewrite E.
-        simp. }
-Qed.
-
-Lemma Onis_odd'_function:
-  is_odd'_function =
-    AnonFun "__osiris_anonymous_arg" $ is_odd'_body "__osiris_anonymous_arg".
-Proof.
-  reflexivity.
-Qed.
 Lemma is_odd'_function_spec η :
+  let vis_odd' :=
+    VCloRec η (RecBinding1 "is_odd'" is_odd'_function) "is_odd'" in
   lookup_name η "Stdlib" = Ret Stdlib →
-  lookup_name η "is_odd'" =
-    Ret (VCloRec η (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
-  ⊢ ∃ vis_odd',
-      ⌜simp (eval η (EAnonFun is_odd'_function)) (Ret vis_odd')⌝ ∗ is_odd_spec vis_odd'.
+  ⊢ is_odd_spec vis_odd'.
 Proof.
-  rewrite Onis_odd'_function.
-  intros H1 H2.
-  iExists _.
-  iSplit; first (iPureIntro; by simp).
+  intros a H1; subst a. explicit is_odd'_function.
   iIntros (n); wp_call.
   by wp_simp_eusing is_odd'_body_spec.
 Qed.
@@ -539,19 +529,11 @@ Proof.
   iIntros (?) "?". wp_continue.
 
   wp_specify "is_odd'" is_odd_spec.
-  (* FIXME: the prof of the function [is_odd'_function] assumes the existence of
-            [is_odd'] in the environment. This is wrong as the environment is
-            only enriched upon function call. *)
-  { admit. }
+  { by iApply is_odd'_function_spec. }
   iIntros (?) "#?". wp_continue.
 
   wp_module_spec.
-Admitted.
-  (* ... proof of is_odd' ...
-  repeat wp_continue.
-
-  wp_module_spec.
-Time Qed. *)
+Time Qed.
 
 (* -------------------------------------------------------------------------- *)
 
