@@ -487,11 +487,7 @@ Ltac SIMP_simp :=
   eapply SIMP_simp; [ simp_really |].
 
 Ltac SIMP_bind :=
-  (* We cannot just use [simple eapply @SIMP_bind] because this causes Coq to
-     infer an incorrect type X for the logical model of the left-hand side of
-     the [bind] construct. We prevent this by using [notypeclasses refine]
-     instead. *)
-  notypeclasses refine (@SIMP_bind _ _ _ _ _ _ _ _ _ _).
+  eapply SIMP_bind.
 
 Ltac SIMP :=
   normalize;
