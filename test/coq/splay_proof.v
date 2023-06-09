@@ -232,7 +232,6 @@ Local Ltac prove_same_fringe :=
 
 (* Properties of sorted lists. *)
 
-(* TODO not yet clear which results are useful in this section *)
 Section Sortedness.
 
 Context {A : Type}.
@@ -263,33 +262,6 @@ Proof.
   eauto.
 Qed.
 
-(*
-Definition lllt_alt xs ys :=
-  Forall (λ y, Forall (λ x, x < y) xs) ys.
-
-Lemma lllt_iff_lllt_alt xs ys :
-  xs ≺ ys ↔ lllt_alt xs ys.
-Proof.
-  unfold lllt, lllt_alt.
-  revert xs ys. induction xs; simpl.
-  { induction ys; simpl.
-    + rewrite !Forall_nil_iff. tauto.
-    + rewrite !Forall_nil_iff, !Forall_cons_iff in *.
-      rewrite !Forall_nil_iff. tauto. }
- *)
-
-(* TODO
-Lemma lllt_nil_left ys :
-  [] ≺ ys.
-Proof.
-Abort.
-
-Lemma lllt_nil_right xs :
-  xs ≺ [].
-Proof.
-Abort.
- *)
-
 Lemma Sorted_empty :
   Sorted lt [].
 Proof.
@@ -315,25 +287,6 @@ Lemma Sorted_singleton_iff (x : A) :
 Proof.
   split; eauto using Sorted_singleton.
 Qed.
-
-(* TODO
-Lemma lllt_Singleton_left x ys :
-  [x] ≺ ys ↔
-  Forall (λ y, x < y) ys.
-Proof.
-  unfold lllt. rewrite Forall_singleton. tauto.
-Qed.
-
-Lemma lllt_Singleton_right xs y :
-  xs ≺ [y] ↔
-  Forall (λ x, x < y) xs.
-Proof.
-  unfold lllt. split; intro.
-  + eapply Forall_impl; [ eauto |].
-    intro. simpl. rewrite Forall_singleton. tauto.
-  + eapply Forall_impl; [ eauto |].
-    intro. simpl. rewrite Forall_singleton. tauto.
-Qed. *)
 
 Lemma Sorted_app_inv_l xs ys :
   Sorted lt (xs ++ ys) →
