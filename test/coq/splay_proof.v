@@ -39,15 +39,6 @@ Proof.
   intros. subst. eauto.
 Qed.
 
-Lemma SIMP_call_reversed `{Encode X} `{Encode Y}
-  (φ : Y → Prop) v1 v'2 (x : X) :
-  SIMP (call v1 #x) φ →
-  v'2 = #x →
-  SIMP (call v1 v'2) φ.
-Proof.
-  eauto using SIMP_call.
-Qed.
-
 Notation "'<closure>'" := (VCloRec _ _ _) (only printing).
 Notation "'<closure>'" := (VClo _ _) (only printing).
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
@@ -64,18 +55,6 @@ Ltac SIMP_call :=
   | eapply SIMP_covariant; [
       eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
     | cbn ]
-  ].
-
-Ltac SIMP_call_reversed :=
-  eapply SIMP_covariant; [
-    eapply SIMP_call_reversed; [ eauto with SIMP_specs | encode ]
-  | cbn
-  ].
-
-Ltac SIMP_use H :=
-  eapply SIMP_covariant; [
-    eapply SIMP_call_reversed; [ eapply H | encode ]
-  | cbn
   ].
 
 (* -------------------------------------------------------------------------- *)
