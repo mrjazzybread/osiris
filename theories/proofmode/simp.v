@@ -386,30 +386,77 @@ Ltac simp_specify x φ :=
 (* -------------------------------------------------------------------------- *)
 (* -------------------------------------------------------------------------- *)
 
-(* TODO *)
+(* The judgement [SIMP m φ] asserts that the computation [m] can be simplified
+   to [ret #x], where [x] is a (logical) value so that [φ x] holds. *)
+
+(* Because the relation [simp] is inductively defined, this judgement implies
+   that [m] terminates. This is a Hoare logic of total correctness. *)
 
 Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
-  ∃ x, simp m (ret (encode x)) ∧ φ x.
+  ∃ x, simp m (ret #x) ∧ φ x.
 
-Lemma SIMP_det `{Encode X} m (φ : X → Prop) v x :
-  simp m (ret v) →
-  v = encode x →
-  φ x →
-  SIMP m φ.
-Proof.
-  unfold SIMP. intros. subst. eauto.
-Qed.
+(* -------------------------------------------------------------------------- *)
 
-Ltac SIMP_det :=
-  eapply SIMP_det; [ simp | encode | eauto ].
+(* Basic reasoning rules for [ret], [bind], [try]. *)
 
 Lemma SIMP_ret `{Encode X} (φ : X → Prop) v x :
-  v = encode x →
+  v = #x →
   φ x →
   SIMP (ret v) φ.
 Proof.
-  eauto using SIMP_det with simp.
+  unfold SIMP. intros. subst. eauto with simp.
 Qed.
+
+(* This variant of the Bind rule has two premises. *)
+
+(* This is [@bind val val]. *)
+
+Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
+  m f (φ : X → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → SIMP (f #x) ψ) →
+  SIMP (bind m f) ψ.
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_bind.
+Qed.
+
+(* This Iris-style variant of the Bind rule has just one premise. It is
+   obtained by choosing the least precise φ in the above lemma. *)
+
+(* This is [@bind val val]. *)
+
+Lemma SIMP_bind_unary X (_ : Encode X) Y (_ : Encode Y)
+  m f (ψ : Y → Prop) :
+  SIMP m (λ (x : X), SIMP (f #x) ψ) →
+  SIMP (bind m f) ψ.
+Proof.
+  eauto using SIMP_bind.
+Qed.
+
+(* A reasoning rule for [try]. *)
+
+(* The rule is degenerate; [m] is not allowed to reduce to [Next],
+   so the handler [g] is dead and no proof obligation bears on it. *)
+
+Lemma SIMP_try X (_ : Encode X) Y (_ : Encode Y)
+  m f g (φ : X → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → SIMP (f #x) ψ) →
+  SIMP (try m f g) ψ.
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  eexists; split; eauto using prove_simp_try.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* This lemma allows simplifying a goal of the form [SIMP m φ] by first
+   simplifying [m] into [m'], then reasoning about [m']. *)
 
 Lemma SIMP_simp `{Encode X} m m' (φ : X → Prop) :
   simp m m' →
@@ -421,30 +468,17 @@ Proof.
   eauto with simp.
 Qed.
 
-(* A Hoare-style Bind rule with two premises. *)
-Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
-  m f (φ : X → Prop) (ψ : Y → Prop) :
-  SIMP m φ →
-  (∀ x, φ x → SIMP (f (encode x)) ψ) →
-  SIMP (bind m f) ψ.
-  (* This is [@bind val val]. *)
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  eexists; split; eauto using prove_simp_bind.
-Qed.
+(* -------------------------------------------------------------------------- *)
 
-(* An Iris-style Bind rule with one premise,
-   obtained by choosing the least precise φ in the above lemma. *)
-Lemma SIMP_bind_cps X (_ : Encode X) Y (_ : Encode Y)
-  m f (ψ : Y → Prop) :
-  SIMP m (λ (x : X), SIMP (f (encode x)) ψ) →
-  SIMP (bind m f) ψ.
-  (* This is [@bind val val]. *)
-Proof.
-  eauto using SIMP_bind.
-Qed.
+(* Opacity. *)
+
+Global Opaque SIMP.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Tactics. *)
+
+(* TODO Polish and document. *)
 
 Ltac SIMP_ret :=
   eapply SIMP_ret; [ encode |].
@@ -483,5 +517,3 @@ Ltac SIMP_continue :=
   | _ =>
     fail "[SIMP_continue]: unexpected goal."
   end.
-
-Global Opaque SIMP.
