@@ -1,14 +1,23 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics evalprime. (* TODO *)
+From osiris.semantics Require Import semantics evalprime.
+  (* TODO evalprime should be loaded by semantics *)
 From osiris.proofmode Require Import equality.
+
+(* A pure computation is terminating, deterministic, and does not use
+   mutable state. *)
 
 (* This file offers lemmas and tactics that help simplify computations,
    that is, solve goals of the form [simp m1 ?m2]. *)
 
-(* Together, these tactics constitute a simple "proof mode" (in other
-   words, a Hoare logic) for pure computations, that is, computations
-   that are terminating, deterministic, and do not use mutable state. *)
+(* This file also defines the judgement [SIMP m φ], which asserts that the
+   computation [m] is pure and eventually produces a result that satisfies
+   the postcondition [φ]. This judgement and its reasoning rules for a
+   simple Hoare logic (of total correctness) for pure computations. *)
+
+(* This file offers lemmas and tactics that help work with [SIMP] goals.
+   These lemmas and tactics form a simple "proof mode" for pure
+   computations. *)
 
 (* -------------------------------------------------------------------------- *)
 
