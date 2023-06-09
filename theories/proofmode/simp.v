@@ -530,6 +530,23 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* This trivial lemma gives the user a chance to prove that the actual
+   argument [v'2] is in fact the encoding of some value [x]. The subgoal
+   [v'2 = #x] is typically solved by the tactic [encode]. Solving this
+   subgoal instantiates both the metavariable [x] and the metavariable [X],
+   which is the type of [x]. *)
+
+Lemma SIMP_call `{Encode X} `{Encode Y}
+  (φ : Y → Prop) v1 v'2 (x : X) :
+  v'2 = #x →
+  SIMP (call v1 #x) φ →
+  SIMP (call v1 v'2) φ.
+Proof.
+  intros. subst. eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Opacity. *)
 
 Global Opaque SIMP.
@@ -586,3 +603,33 @@ Ltac SIMP_specify x φ :=
         assert (φ v) as h; [| revert h; generalize v ]
       end
   end.
+
+(* It is debatable in which order the two premises of the lemma [SIMP_call]
+   should be attacked. The premise [v'2 = #x] may seem easy to solve (this
+   is the job of the tactic [encode]) so one may wish to solve it first.
+   This offers the advantage of instantiating [x] immediately, so [x] is
+   known when we try to prove that the call is permitted -- which may
+   involve proving that a precondition holds.
+
+   However, solving [v'2 = #x] can involve guessing some types (e.g., the
+   type of an empty list), and we have used [Hint Mode] in encode.v to
+   forbid this. So, it can also be preferable to first solve the premise
+   [SIMP (call v1 #x) φ]. Doing so can allow us to instantiate these types
+   in a correct way.
+
+   One might wish to try both approaches in sequence, but waiting until
+   [encode] fails is very slow (several seconds).
+
+   One might also wish to do a bit of both: that is, first apply some lemma
+   [L] to the subgoal [SIMP (call v1 #x) φ], then solve [v'2 = #x], then
+   attack the proof obligations created by applying the lemma [L]. *)
+
+Create HintDb SIMP_specs.
+
+Ltac SIMP_call :=
+  first [
+    eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
+  | eapply SIMP_covariant; [
+      eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+    | cbn ]
+  ].

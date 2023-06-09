@@ -14,48 +14,11 @@ Local Opaque app. (* Prevent undesired simplification. *)
 Local Ltac unpack :=
   repeat lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
 
-(* It is debatable in which order the two premises of the lemma
-   [SIMP_call] should be listed. The premise [v'2 = #x] may seem easy
-   to solve (this is the job of the tactic [encode]) so one may wish
-   to solve it first. This offers the advantage of instantiating [x]
-   immediately, so [x] is known when we try to prove that the call is
-   permitted -- which may involve proving that a precondition holds.
-
-   However, solving [v'2 = #x] can involve guessing some types (e.g.,
-   the type of an empty list), and we have used [Hint Mode] in
-   encode.v to forbid this. So, it can also be preferable to first
-   solve the premise [SIMP (call v1 #x) φ]. Doing so can allow us to
-   instantiate these types in a correct way.
-
-   One might wish to try both approaches, but waiting until [encode]
-   fails is very slow (several seconds). *)
-
-Lemma SIMP_call `{Encode X} `{Encode Y}
-  (φ : Y → Prop) v1 v'2 (x : X) :
-  v'2 = #x →
-  SIMP (call v1 #x) φ →
-  SIMP (call v1 v'2) φ.
-Proof.
-  intros. subst. eauto.
-Qed.
-
 Notation "'<closure>'" := (VCloRec _ _ _) (only printing).
 Notation "'<closure>'" := (VClo _ _) (only printing).
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
   (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
  (only printing).
-
-(* WIP *)
-
-Create HintDb SIMP_specs.
-
-Ltac SIMP_call :=
-  first [
-    eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
-  | eapply SIMP_covariant; [
-      eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
-    | cbn ]
-  ].
 
 (* -------------------------------------------------------------------------- *)
 
