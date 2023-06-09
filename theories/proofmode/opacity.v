@@ -4,6 +4,9 @@ From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import weakestpre.
 From osiris.proofmode Require Import simp.
 
+(* Prevent simplifying string comparisons unless both arguments are known. *)
+Arguments String.eqb !s1 !s2 : simpl nomatch.
+
 Global Opaque
        call
        concatenating

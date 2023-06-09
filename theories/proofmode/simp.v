@@ -468,6 +468,66 @@ Proof.
   eauto with simp.
 Qed.
 
+(* The Consequence rule. *)
+
+Lemma SIMP_covariant `{Encode X} m (φ ψ : X → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → ψ x) →
+  SIMP m ψ.
+Proof.
+  intros (x & Hm & Hx) ?. exists x. eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Variants of the Bind rule. *)
+
+(* [bind] composed with [as_bool]. *)
+
+Local Lemma simp_as_bool (x : bool) (m : free val) :
+  simp m (ret #x) →
+  simp (as_bool m) (ret x).
+Proof.
+  destruct x; eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma SIMP_bind_as_bool Y (_ : Encode Y)
+  m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ (x : bool), φ x → SIMP (f x) ψ) →
+  SIMP (bind (as_bool m) f) ψ.
+  (* This is [@bind bool val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  exists y; eauto using prove_simp_bind, simp_as_bool.
+Qed.
+
+(* [bind] composed with [as_bool]. *)
+
+Lemma simp_as_int (x : Z) (m : free val) :
+  simp m (ret #x) →
+  simp (as_int m) (ret (int.repr x)).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma SIMP_bind_as_int Y (_ : Encode Y)
+  m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ (x : Z), φ x → SIMP (f (int.repr x)) ψ) →
+  SIMP (bind (as_int m) f) ψ.
+  (* This is [@bind int val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  exists y; eauto using prove_simp_bind, simp_as_int.
+Qed.
+
+(* TODO add similar lemmas for [as_loc] and possibly others *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* Opacity. *)
@@ -488,6 +548,9 @@ Ltac SIMP_simp :=
 
 Ltac SIMP_bind :=
   eapply SIMP_bind.
+
+(* TODO automatically apply SIMP_bind_as_bool when possible *)
+(* TODO automatically apply SIMP_bind_as_int when possible *)
 
 Ltac SIMP :=
   normalize;
@@ -512,4 +575,14 @@ Ltac SIMP_continue :=
       SIMP
   | _ =>
     fail "[SIMP_continue]: unexpected goal."
+  end.
+
+Ltac SIMP_specify x φ :=
+  lazymatch goal with
+  | |- SIMP (bind (dconcatenating ?δ _) _) _ =>
+      let o := eval cbn in (lookup_name δ x) in
+      lazymatch o with ret ?v =>
+        let h := fresh in
+        assert (φ v) as h; [| revert h; generalize v ]
+      end
   end.

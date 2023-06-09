@@ -162,8 +162,6 @@ Ltac explicit name :=
 Ltac wp_simp :=
   progress (iApply wp_simp; first by simp).
 
-Arguments String.eqb !s1 !s2 : simpl nomatch. (* TODO *)
-
 Ltac wp_simp_using H :=
   iApply wp_simp; [ by apply H; try done | wp ].
 

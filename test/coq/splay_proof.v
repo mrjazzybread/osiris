@@ -14,44 +14,6 @@ Local Opaque app. (* Prevent undesired simplification. *)
 Local Ltac unpack :=
   repeat lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
 
-Ltac SIMP_specify x φ :=
-  lazymatch goal with
-  | |- SIMP (bind (dconcatenating ?δ _) _) _ =>
-      let o := eval cbn in (lookup_name δ x) in
-      lazymatch o with ret ?v =>
-        let h := fresh in
-        assert (φ v) as h; [| revert h; generalize v ]
-      end
-  end.
-
-Lemma SIMP_simp_bind X Y (_ : Encode Y)
-   m f (x : X) (ψ : Y → Prop) :
-  simp m (ret x) →
-  SIMP (f x) ψ →
-  SIMP (bind m f) ψ.
-  (* This is [@bind X val]. *)
-Proof.
-  intros Hm Hf.
-  destruct Hf as (y & ? & ?).
-  eexists; split; eauto using prove_simp_bind.
-Qed.
-
-Lemma SIMP_covariant `{Encode X} m (φ ψ : X → Prop) :
-  SIMP m φ →
-  (∀ x, φ x → ψ x) →
-  SIMP m ψ.
-Proof.
-  intros (x & Hm & Hx) ?. exists x. eauto.
-Qed.
-
-Lemma SIMP_call_up_to_eq `{Encode X} (φ : X → Prop) v1 v2 v'2 :
-  SIMP (call v1 v2) φ →
-  v2 = v'2 →
-  SIMP (call v1 v'2) φ.
-Proof.
-  intros. subst. eauto.
-Qed.
-
 (* It is debatable in which order the two premises of the lemma
    [SIMP_call] should be listed. The premise [v'2 = #x] may seem easy
    to solve (this is the job of the tactic [encode]) so one may wish
@@ -85,8 +47,6 @@ Lemma SIMP_call_reversed `{Encode X} `{Encode Y}
 Proof.
   eauto using SIMP_call.
 Qed.
-
-Arguments String.eqb !s1 !s2 : simpl nomatch. (* TODO *)
 
 Notation "'<closure>'" := (VCloRec _ _ _) (only printing).
 Notation "'<closure>'" := (VClo _ _) (only printing).
@@ -650,130 +610,6 @@ Proof.
 Qed.
 
 End BST.
-
-(* -------------------------------------------------------------------------- *)
-
-(* WIP *)
-
-Lemma simp_as_bool (x : bool) (m : free val) :
-  simp m (ret #x) →
-  simp (as_bool m) (ret x).
-Proof.
-  destruct x; eauto using prove_simp_bind with simp.
-Qed.
-
-Lemma simp_bind_as_bool Y m x f (m' : free Y) :
-  simp m (ret #x) →
-  simp (f x) m' →
-  simp (bind (as_bool m) f) m'.
-  (* This is [@bind bool Y]. *)
-Proof.
-  eauto using prove_simp_bind, simp_as_bool.
-Qed.
-
-Lemma SIMP_bind_as_bool Y (_ : Encode Y)
-  m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
-  SIMP m φ →
-  (∀ (x : bool), φ x → SIMP (f x) ψ) →
-  SIMP (bind (as_bool m) f) ψ.
-  (* This is [@bind bool val]. *)
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  exists y; eauto using simp_bind_as_bool.
-Qed.
-
-Lemma simp_as_int (x : Z) (m : free val) :
-  simp m (ret #x) →
-  simp (as_int m) (ret (int.repr x)).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
-
-Lemma simp_bind_as_int Y m (x : Z) f (m' : free Y) :
-  simp m (ret #x) →
-  simp (f (int.repr x)) m' →
-  simp (bind (as_int m) f) m'.
-  (* This is [@bind int Y]. *)
-Proof.
-  eauto using prove_simp_bind, simp_as_int.
-Qed.
-
-Lemma SIMP_bind_as_int Y (_ : Encode Y)
-  m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
-  SIMP m φ →
-  (∀ (x : Z), φ x → SIMP (f (int.repr x)) ψ) →
-  SIMP (bind (as_int m) f) ψ.
-  (* This is [@bind int val]. *)
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  exists y; eauto using simp_bind_as_int.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* WIP *)
-
-(* Propositions. *)
-
-Require Import Epsilon.
-
-Definition inh_bool : inhabited bool.
-Proof. constructor. constructor. Qed.
-
-Definition switch P (b : bool) :=
-  if b then P else ¬ P.
-
-Definition Prop2bool (P : Prop) : bool :=
-  epsilon inh_bool (switch P).
-
-Lemma Prop2bool_False (P : Prop) :
-  ¬ P →
-  Prop2bool P = false.
-Proof.
-  intros H.
-  unfold Prop2bool.
-  assert (existence: exists b, switch P b).
-  { exists false. unfold switch. assumption. }
-  generalize (epsilon_spec inh_bool _ existence). clear existence.
-  generalize (epsilon inh_bool (switch P)).
-  unfold switch. intros [|]; tauto.
-Qed.
-
-Lemma Prop2bool_True (P : Prop) :
-  P →
-  Prop2bool P = true.
-Proof.
-  intros H.
-  unfold Prop2bool.
-  assert (existence: exists b, switch P b).
-  { exists true. unfold switch. assumption. }
-  generalize (epsilon_spec inh_bool _ existence). clear existence.
-  generalize (epsilon inh_bool (switch P)).
-  unfold switch. intros [|]; tauto.
-Qed.
-
-Global Instance Encode_Prop : Encode Prop :=
-  { encode := λ P, VBool (Prop2bool P) }.
-
-Lemma solve_encode_False (P : Prop) :
-  ¬ P →
-  VFalse = #P.
-Proof.
-  intros H. apply Prop2bool_False in H. simpl. rewrite H. reflexivity.
-Qed.
-
-Lemma solve_encode_True (P : Prop) :
-  P →
-  VTrue = #P.
-Proof.
-  intros H. apply Prop2bool_True in H. simpl. rewrite H. reflexivity.
-Qed.
-
-Global Hint Resolve solve_encode_False solve_encode_True : encode.
 
 (* -------------------------------------------------------------------------- *)
 
