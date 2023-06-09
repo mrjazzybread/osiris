@@ -1,0 +1,306 @@
+Require Export Coq.Sorting.Sorted.
+Require Import stdpp.sorting.
+From osiris Require Import base.
+
+(* This file establishes several properties of sorted lists. *)
+
+(* It complements the libraries Coq.Sorting.Sorted and stdpp.sorting,
+   which seem quite poor. *)
+
+Section JustTransitive.
+
+(* -------------------------------------------------------------------------- *)
+
+(* We assume a type [A] and a relation [lt] on this type. *)
+
+(* We assume that this relation is transitive. We do not assume anything
+   else; e.g., [lt] could be irreflexive, or it could be reflexive. *)
+
+Context {A : Type}.
+Context {lt : A → A → Prop}.
+Context {Tlt : Transitive lt}.
+
+(* Here, we write [x < y] when [x] is less than [y]. *)
+
+Notation "x '<' y" := (lt x y).
+
+Implicit Types x y z : A.
+Implicit Types xs ys zs : list A.
+
+(* Coq defines [Sorted] and [StronglySorted]; these notions are equivalent. *)
+
+Lemma Sorted_iff_StronglySorted xs :
+  Sorted lt xs ↔ StronglySorted lt xs.
+Proof.
+  split; eauto using Sorted_StronglySorted, StronglySorted_Sorted.
+Qed.
+
+(* Here, we write just [sorted]. *)
+
+Notation sorted xs :=
+  (Sorted lt xs).
+
+(* -------------------------------------------------------------------------- *)
+
+(* We write [xs ≺ ys] when every element of the list [xs] is less than
+   every element of the list [ys]. This notion is used in the statement
+   of the lemma [Sorted_app_iff], which is as follows:
+
+     sorted (xs ++ ys) ↔
+     sorted xs ∧ sorted ys ∧ xs ≺ ys
+
+   The notation [xs ≺ ys] looks nice inside this section. Unfortunately,
+   outside this section, one must write [pairwise lt xs ys]; it seems
+   difficult to come with a generic infix notation. *)
+
+Definition pairwise xs ys :=
+  ∀ x y, x ∈ xs → y ∈ ys → x < y.
+
+Notation "xs '≺' ys" := (pairwise xs ys) (at level 80).
+
+(* -------------------------------------------------------------------------- *)
+
+(* [pairwise] is transitive in the following restricted sense: transitivity
+   requires the middle list to be nonempty. *)
+
+Lemma pairwise_transitive_singleton xs y zs :
+  xs ≺ [y] → [y] ≺ zs → xs ≺ zs.
+Proof.
+  unfold pairwise. intros Hl Hr x z.
+  specialize (Hl x y).
+  specialize (Hr y z).
+  rewrite elem_of_list_singleton in *.
+  eauto.
+Qed.
+
+Lemma pairwise_transitive_nonempty xs ys zs :
+  ys ≠ [] →
+  xs ≺ ys → ys ≺ zs → xs ≺ zs.
+Proof.
+  unfold pairwise. intros Hys Hl Hr x z.
+  destruct ys as [| y ys]; [ congruence | clear Hys ].
+  specialize (Hl x y).
+  specialize (Hr y z).
+  rewrite elem_of_cons in *.
+  intuition eauto.
+Qed.
+
+(* [pairwise] interacts with list concatenation in a simple way. *)
+
+Lemma pairwise_app_left_iff xs ys zs :
+  xs ++ ys ≺ zs ↔ xs ≺ zs ∧ ys ≺ zs.
+Proof.
+  unfold pairwise. split; intros H.
+  { split; intros x y ? ?; specialize (H x y);
+    rewrite elem_of_app in H; tauto. }
+  { intros x y. rewrite elem_of_app. firstorder. }
+Qed.
+
+Lemma pairwise_app_right_iff xs ys zs :
+  xs ≺ ys ++ zs ↔ xs ≺ ys ∧ xs ≺ zs.
+Proof.
+  unfold pairwise. split; intros H.
+  { split; intros x y ? ?; specialize (H x y);
+    rewrite elem_of_app in H; tauto. }
+  { intros x y. rewrite elem_of_app. firstorder. }
+Qed.
+
+(* [Forall (lt x) ys] can be reformulated in terms of [pairwise]. *)
+
+(* This technical lemma is used below. *)
+
+Local Lemma Forall_lt_iff x ys :
+  Forall (lt x) ys ↔ [x] ≺ ys.
+Proof.
+  rewrite Forall_forall. unfold pairwise. split; intros H.
+  { intros x' y. rewrite elem_of_list_singleton. intros ->. eauto. }
+  { intros y ?. specialize (H x y). rewrite elem_of_list_singleton in H.
+    eauto. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The empty list is sorted. *)
+
+Lemma Sorted_empty :
+  sorted [].
+Proof.
+  econstructor.
+Qed.
+
+Lemma Sorted_empty_iff :
+  sorted [] ↔ True.
+Proof.
+  split; eauto using Sorted_empty.
+Qed.
+
+(* A singleton list is sorted. *)
+
+Lemma Sorted_singleton x :
+  sorted [x].
+Proof.
+  econstructor.
+  + eauto using Sorted_empty.
+  + econstructor.
+Qed.
+
+Lemma Sorted_singleton_iff x :
+  sorted [x] ↔ True.
+Proof.
+  split; eauto using Sorted_singleton.
+Qed.
+
+(* The concatenation [xs ++ ys] is sorted if and only if [xs] is sorted
+   and [ys] is sorted and [xs ≺ ys] holds. *)
+
+Lemma Sorted_app_inv_l xs ys :
+  sorted (xs ++ ys) →
+  sorted xs.
+Proof.
+  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_l.
+Qed.
+
+Lemma Sorted_app_inv_r xs ys :
+  sorted (xs ++ ys) →
+  sorted ys.
+Proof.
+  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_r.
+Qed.
+
+Lemma Sorted_app_inv_c xs ys :
+  sorted (xs ++ ys) →
+  xs ≺ ys.
+Proof.
+  rewrite !Sorted_iff_StronglySorted. intros.
+  unfold pairwise. intros.
+  eapply elem_of_StronglySorted_app; eauto.
+Qed.
+
+Lemma Sorted_app xs ys :
+  sorted xs →
+  sorted ys →
+  xs ≺ ys →
+  sorted (xs ++ ys).
+Proof.
+  rewrite !Sorted_iff_StronglySorted. revert xs ys.
+  induction xs as [| x xs ]; intros ys Hxs Hys Hlt.
+  { rewrite app_nil_l. assumption. }
+  { rewrite <- app_comm_cons.
+    dependent destruction Hxs. rewrite Forall_lt_iff in *.
+    change (x :: xs) with ([x] ++ xs) in Hlt.
+    rewrite pairwise_app_left_iff in Hlt. destruct Hlt.
+    econstructor; rewrite ?Forall_lt_iff, ?pairwise_app_right_iff; eauto. }
+Qed.
+
+Lemma Sorted_app_iff xs ys :
+  sorted (xs ++ ys) ↔
+  sorted xs ∧ sorted ys ∧ xs ≺ ys.
+Proof.
+  intuition eauto
+    using Sorted_app_inv_l, Sorted_app_inv_c, Sorted_app_inv_r, Sorted_app.
+Qed.
+
+End JustTransitive.
+
+Arguments pairwise {A} lt xs ys.
+
+(* -------------------------------------------------------------------------- *)
+
+(* We now assume that [lt] is a strict order, that is, both transitive and
+   irreflexive. *)
+
+Section AlsoIrreflexive.
+
+Context {A : Type}.
+Context {lt : A → A → Prop}.
+Context {Olt : StrictOrder lt}.
+Notation "x '<' y" := (lt x y).
+Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
+Implicit Types x y z : A.
+Implicit Types xs ys zs : list A.
+
+(* Thus, [x < x] is a contradiction. *)
+
+Local Lemma lt_contradiction x :
+  x < x → False.
+Proof.
+  pose proof (irreflexivity lt). unfold Reflexive, complement in *. eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* If [[x] ≺ ys] holds then [x] cannot be an element of the list [ys]. *)
+
+Lemma pairwise_contradiction_left x ys :
+  [x] ≺ ys →
+  x ∈ ys →
+  False.
+Proof.
+  unfold pairwise. intros Hlt Hmember.
+  specialize (Hlt x x). rewrite elem_of_list_singleton in Hlt.
+  eauto using lt_contradiction.
+Qed.
+
+(* A symmetric statement. *)
+
+Lemma pairwise_contradiction_right xs y :
+  xs ≺ [y] →
+  y ∈ xs →
+  False.
+Proof.
+  unfold pairwise. intros Hlt Hmember.
+  specialize (Hlt y y). rewrite elem_of_list_singleton in Hlt.
+  eauto using lt_contradiction.
+Qed.
+
+(*[x < y] implies [[x] ≺ [y]]. *)
+
+Lemma lt_pairwise x y :
+  x < y →
+  [x] ≺ [y].
+Proof.
+  unfold pairwise. intros ? x' y'.
+  rewrite !elem_of_list_singleton. intros; subst.
+  assumption.
+Qed.
+
+(* A characteristic property of sorted lists, which is exploited in binary
+   search trees: if [x] is less than [y], and if the elements of [zs] are
+   greater than [y], then searching for [x] in the list [xs ++ [y] ++ zs]
+   boils down to searching for [x] in the list [xs]. *)
+
+Lemma bst_search_left x xs y zs :
+  x < y →
+  [y] ≺ zs →
+  x ∈ xs ++ [y] ++ zs ↔ x ∈ xs.
+Proof.
+  assert (Transitive lt) by typeclasses eauto.
+  intros.
+  rewrite !elem_of_app, elem_of_list_singleton.
+  split; [| eauto ].
+  intros [|[|]]; [| subst y; exfalso | exfalso ].
+  { eauto. }
+  { eauto using lt_contradiction. }
+  { eauto using lt_pairwise, pairwise_transitive_singleton,
+                pairwise_contradiction_left. }
+Qed.
+
+(* A symmetric statement. *)
+
+Lemma bst_search_right x xs y zs :
+  y < x →
+  xs ≺ [y] →
+  x ∈ xs ++ [y] ++ zs ↔ x ∈ zs.
+Proof.
+  assert (Transitive lt) by typeclasses eauto.
+  intros.
+  rewrite !elem_of_app, elem_of_list_singleton.
+  split; [| eauto ].
+  intros [|[|]]; [ exfalso | subst y; exfalso |].
+  { eauto using lt_pairwise, pairwise_transitive_singleton,
+                pairwise_contradiction_right. }
+  { eauto using lt_contradiction. }
+  { eauto. }
+Qed.
+
+End AlsoIrreflexive.

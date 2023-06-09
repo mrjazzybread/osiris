@@ -1,5 +1,5 @@
 Require Import Coq.Wellfounded.Inverse_Image.
-Require Import Coq.Sorting.Sorted stdpp.sorting.
+From test Require Import sorting.
 From osiris Require Import osiris.
 From osiris.semantics Require Export evalprime.
 From osiris.proofmode Require Export proofmode. (* TODO *)
@@ -230,159 +230,6 @@ Local Ltac prove_same_fringe :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Properties of sorted lists. *)
-
-Section Sortedness.
-
-Context {A : Type}.
-Context {lt : A → A → Prop}.
-Context {Tlt : Transitive lt}. (* or: StrictOrder lt *)
-Notation "x '<' y" := (lt x y).
-Implicit Types xs ys : list A.
-
-Lemma Sorted_iff_StronglySorted xs :
-  Sorted lt xs ↔ StronglySorted lt xs.
-Proof.
-  split; eauto using Sorted_StronglySorted, StronglySorted_Sorted.
-Qed.
-
-Definition lllt xs ys :=
-  ∀ x y, x ∈ xs → y ∈ ys → x < y.
-  (* Forall (λ x, Forall (λ y, x < y) ys) xs. *)
-
-Notation "xs '≺' ys" := (lllt xs ys) (at level 80).
-
-Lemma lllt_transitive xs y zs :
-  xs ≺ [y] → [y] ≺ zs → xs ≺ zs.
-Proof.
-  unfold lllt. intros Hl Hr x z.
-  specialize (Hl x y).
-  specialize (Hr y z).
-  rewrite elem_of_list_singleton in *.
-  eauto.
-Qed.
-
-Lemma Sorted_empty :
-  Sorted lt [].
-Proof.
-  econstructor.
-Qed.
-
-Lemma Sorted_empty_iff :
-  Sorted lt [] ↔ True.
-Proof.
-  split; eauto using Sorted_empty.
-Qed.
-
-Lemma Sorted_singleton (x : A) :
-  Sorted lt [x].
-Proof.
-  econstructor.
-  + eauto using Sorted_empty.
-  + econstructor.
-Qed.
-
-Lemma Sorted_singleton_iff (x : A) :
-  Sorted lt [x] ↔ True.
-Proof.
-  split; eauto using Sorted_singleton.
-Qed.
-
-Lemma Sorted_app_inv_l xs ys :
-  Sorted lt (xs ++ ys) →
-  Sorted lt xs.
-Proof.
-  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_l.
-Qed.
-
-Lemma Sorted_app_inv_r xs ys :
-  Sorted lt (xs ++ ys) →
-  Sorted lt ys.
-Proof.
-  rewrite !Sorted_iff_StronglySorted. eauto using StronglySorted_app_inv_r.
-Qed.
-
-Lemma Sorted_app_inv_c xs ys :
-  Sorted lt (xs ++ ys) →
-  xs ≺ ys.
-Proof.
-  rewrite !Sorted_iff_StronglySorted. intros.
-  unfold lllt. intros.
-  eapply elem_of_StronglySorted_app; eauto.
-Qed.
-
-Lemma cons_is_append x (ys : list A) :
-  x :: ys = [x] ++ ys.
-Proof.
-  reflexivity.
-Qed.
-
-Lemma lllt_app_left_iff xs ys zs :
-  xs ++ ys ≺ zs ↔ xs ≺ zs ∧ ys ≺ zs.
-Proof.
-  unfold lllt. split; intros H.
-  { split; intros x y ? ?; specialize (H x y);
-    rewrite elem_of_app in H; tauto. }
-  { intros x y. rewrite elem_of_app. firstorder. }
-Qed.
-
-Lemma lllt_app_right_iff xs ys zs :
-  xs ≺ ys ++ zs ↔ xs ≺ ys ∧ xs ≺ zs.
-Proof.
-  unfold lllt. split; intros H.
-  { split; intros x y ? ?; specialize (H x y);
-    rewrite elem_of_app in H; tauto. }
-  { intros x y. rewrite elem_of_app. firstorder. }
-Qed.
-
-Lemma Forall_lt x ys :
-  Forall (lt x) ys ↔ [x] ≺ ys.
-Proof.
-  rewrite Forall_forall. unfold lllt. split; intros H.
-  { intros x' y. rewrite elem_of_list_singleton. intros ->. eauto. }
-  { intros y ?. specialize (H x y). rewrite elem_of_list_singleton in H.
-    eauto. }
-Qed.
-
-Lemma Sorted_app xs ys :
-  Sorted lt xs →
-  Sorted lt ys →
-  xs ≺ ys →
-  Sorted lt (xs ++ ys).
-Proof.
-  rewrite !Sorted_iff_StronglySorted. revert xs ys.
-  induction xs as [| x xs ]; intros ys Hxs Hys Hlt.
-  { rewrite app_nil_l.
-    assumption. }
-  { rewrite <- app_comm_cons.
-    dependent destruction Hxs. rewrite Forall_lt in *.
-    rewrite cons_is_append in Hlt.
-    rewrite lllt_app_left_iff in Hlt. unpack.
-    econstructor; rewrite ?Forall_lt.
-    + eauto.
-    + rewrite lllt_app_right_iff. eauto. }
-Qed.
-
-Lemma Sorted_app_iff xs ys :
-  Sorted lt (xs ++ ys) ↔
-  Sorted lt xs ∧ Sorted lt ys ∧ xs ≺ ys.
-Proof.
-  intuition eauto
-    using Sorted_app_inv_l, Sorted_app_inv_c, Sorted_app_inv_r, Sorted_app.
-Qed.
-
-Hint Rewrite
-  Sorted_empty_iff
-  Sorted_singleton_iff
-  Sorted_app_iff
-: sorted.
-
-End Sortedness.
-
-(* Notation "xs '≺' ys" := (lllt xs ys) (at level 80). TODO *)
-
-(* -------------------------------------------------------------------------- *)
-
 (* The binary-search-tree property. *)
 
 (* Quite strikingly, the binary-search-tree (BST) property can be defined
@@ -398,13 +245,13 @@ Section BST.
 
 Context {A : Type}.
 Context {lt : A → A → Prop}.
-Context {Tlt : StrictOrder lt}.
+Context {Tlt : Transitive lt}.
 
 Definition bst (t : tree A) :=
   Sorted lt (fringe t).
 
 Notation "x '<' y" := (lt x y).
-Notation "xs '≺' ys" := (@lllt A lt xs ys) (at level 80).
+Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 
 Lemma bst_Leaf_iff :
   bst Leaf ↔ True.
@@ -417,91 +264,9 @@ Lemma bst_Node_iff l x r :
   bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
 Proof.
   unfold bst. simpl fringe.
-  rewrite !Sorted_app_iff, !Sorted_singleton_iff, lllt_app_right_iff.
-  assert (Transitive lt) by typeclasses eauto.
-  pose proof (lllt_transitive (fringe l) x (fringe r)).
+  rewrite !Sorted_app_iff, !Sorted_singleton_iff, pairwise_app_right_iff.
+  pose proof (@pairwise_transitive_singleton _ lt _ (fringe l) x (fringe r)).
   tauto.
-Qed.
-
-Lemma lt_contradiction x :
-  x < x → False.
-Proof.
-  pose proof (irreflexivity lt). unfold Reflexive, complement in *. eauto.
-Qed.
-
-Lemma lllt_contradiction_left x ys :
-  [x] ≺ ys →
-  x ∈ ys →
-  False.
-Proof.
-  unfold lllt. intros Hlt Hmember.
-  specialize (Hlt x x). rewrite elem_of_list_singleton in Hlt.
-  eauto using lt_contradiction.
-Qed.
-
-Lemma lllt_contradiction_right xs y :
-  xs ≺ [y] →
-  y ∈ xs →
-  False.
-Proof.
-  unfold lllt. intros Hlt Hmember.
-  specialize (Hlt y y). rewrite elem_of_list_singleton in Hlt.
-  eauto using lt_contradiction.
-Qed.
-
-Lemma lt_lllt x y :
-  x < y →
-  [x] ≺ [y].
-Proof.
-  unfold lllt. intros ? x' y'.
-  rewrite !elem_of_list_singleton. intros; subst.
-  assumption.
-Qed.
-
-Lemma bst_search_left x xs y zs :
-  x < y →
-  [y] ≺ zs →
-  x ∈ xs ++ [y] ++ zs ↔ x ∈ xs.
-Proof.
-  (* TODO make this a lemma? *)
-  assert (Transitive lt) by typeclasses eauto.
-  intros.
-  rewrite !elem_of_app, elem_of_list_singleton.
-  split; [| eauto ].
-  intros [|[|]].
-  { eauto. }
-  { subst y. exfalso. eauto using lt_contradiction. }
-  { exfalso. eauto using lt_lllt, lllt_transitive, lllt_contradiction_left. }
-Qed.
-
-Lemma bst_search_right x xs y zs :
-  y < x →
-  xs ≺ [y] →
-  x ∈ xs ++ [y] ++ zs ↔ x ∈ zs.
-Proof.
-  (* TODO make this a lemma? *)
-  assert (Transitive lt) by typeclasses eauto.
-  intros.
-  rewrite !elem_of_app, elem_of_list_singleton.
-  split; [| eauto ].
-  intros [|[|]].
-  { exfalso. eauto using lt_lllt, lllt_transitive, lllt_contradiction_right. }
-  { subst y. exfalso. eauto using lt_contradiction. }
-  { eauto. }
-Qed.
-
-Lemma bst_inv_l l x r :
-  bst (Node l x r) →
-  bst l.
-Proof.
-  rewrite bst_Node_iff. tauto.
-Qed.
-
-Lemma bst_inv_r l x r :
-  bst (Node l x r) →
-  bst r.
-Proof.
-  rewrite bst_Node_iff. tauto.
 Qed.
 
 End BST.
@@ -638,7 +403,7 @@ Proof.
 
   SIMP_specify "zlookup" zlookup_spec.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
-  { unfold zlookup_spec. intros ?????.
+  { unfold zlookup_spec. intros ????.
     (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
     assert (
       forall (x y : A),
