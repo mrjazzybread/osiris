@@ -245,6 +245,8 @@
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
 * `when` clauses
+* `let rec` over mutable values could conceivably be supported
+* Recursive modules? (Used in Sek, for example.)
 
 ## Features of OCaml that we do not want to support
 
