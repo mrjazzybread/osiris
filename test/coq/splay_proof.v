@@ -1,5 +1,5 @@
 Require Import Coq.Wellfounded.Inverse_Image.
-From test Require Import sorting.
+From test Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.semantics Require Export evalprime.
 From osiris.proofmode Require Export proofmode. (* TODO *)
@@ -293,8 +293,9 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
     (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (lt : A → A → Prop) `(_ : StrictOrder _ lt)
+  ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le)
     (t : tree A) (x : A) (ctx : zipper A),
+  let lt := strict le in
   @bst _ lt t →
   SIMP
     (call zlookup #(t, x, ctx))
@@ -316,6 +317,14 @@ Lemma false_iff (P : Prop) :
   (false ↔ P) ↔ ¬P.
 Proof.
   simpl. tauto.
+Qed.
+
+Lemma lt_spec (x y : Z) :
+  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
+Proof.
+  rewrite Zlt_is_lt_bool.
+  rewrite Is_true_true.
+  tauto.
 Qed.
 
 Lemma Splay__spec:
@@ -409,18 +418,16 @@ Proof.
   SIMP_specify "zlookup" zlookup_spec.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
   { unfold zlookup_spec. intros ????.
-    (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
     assert (
       forall (x y : A),
-      SIMP ('v ← call Stdlib__lt #x; call v #y)
-           (λ (b : bool), b ↔ lt x y)
-    ) as lt_spec by skip.
-    (* TODO cheat and assuming that [Stdlib.(<)] decides [lt] on [A]. *)
-    assert (
-      forall (x y : A),
-      SIMP ('v ← call Stdlib__gt #x; call v #y)
-           (λ (b : bool), b ↔ lt y x)
-    ) as gt_spec by skip.
+      SIMP ('v ← call Stdlib__compare #x; call v #y)
+           (λ (c : Z),
+             int.representable c ∧
+             (c < 0 ↔ strict le x y) ∧
+             (c = 0 ↔ le x y ∧ le y x) ∧
+             (0 < c ↔ strict le y x)
+           )
+    )%Z as compare_spec by skip. (* TODO *)
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
     intros ? ? Hbst;
@@ -434,9 +441,22 @@ Proof.
       - assumption. }
     (* Case: [Node]. *)
     { rewrite bst_Node_iff in Hbst. unpack.
-      (* Examine the comparison [x < y]. Reason by cases on its outcome. *)
+      (* Examine the call [compare x y]. *)
+      (* TODO automate SIMP_try *)
+      eapply SIMP_try.
+      { (* TODO SIMP_call does not work here *)
+        eapply compare_spec. }
+      intros c Hc. cbn in Hc. SIMP_continue.
+      (* TODO painful to be stopped by [concatenating]
+              when there is no interesting spec to provide *)
+      (* Examine the comparison [c < 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
-      { SIMP. eapply lt_spec. }
+      { SIMP.
+        (* TODO need a Hoare spec for [lt] *)
+        instantiate (1 := (λ (b : bool), b ↔ strict le x y)).
+        SIMP_enter.
+        rewrite int.lt_repr_repr by first [ tauto | int.prove_representable_30 ].
+        rewrite lt_spec. tauto. }
       cbn. intros [|] Hlt; SIMP;
       rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x < y]. *)
@@ -445,9 +465,14 @@ Proof.
         split.
         - rewrite bst_search_left by assumption. assumption.
         - assumption. }
-      (* Examine the comparison [x > y]. Reason by cases on its outcome. *)
+      (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
-      { SIMP. eapply gt_spec. }
+      { SIMP.
+        (* TODO need a Hoare spec for [gt] *)
+        instantiate (1 := (λ (b : bool), b ↔ strict le y x)).
+        SIMP_enter.
+        rewrite int.lt_repr_repr by first [ tauto | int.prove_representable_30 ].
+        rewrite lt_spec. tauto. }
       cbn. intros [|] Hgt; SIMP;
       rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x > y]. *)
@@ -456,13 +481,13 @@ Proof.
         split.
         - rewrite bst_search_right by assumption. assumption.
         - assumption. }
-      (* Subcase: neither comparison succeeded, so [x = y]. *)
+      (* Subcase: neither comparison succeeded, so [x ≡ y] holds. *)
       { eapply SIMP_bind.
         { SIMP_call. }
         cbn. intros t' Ht'.
         SIMP. cbn.
         (* Establish the postcondition: *)
-        assert (x = y) by skip.
+        assert (x = y) by skip. (* TODO *)
         split.
         - rewrite !elem_of_app, elem_of_list_singleton. tauto.
         - assumption. }

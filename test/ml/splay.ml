@@ -41,9 +41,10 @@ let rec zlookup (t, x, ctx) : bool * 'a tree =
   | Leaf ->
       (false, splay_leaf ctx) (* not found, but splay anyway *)
   | Node (l, y, r) ->
-      if x < y then
+      let c = compare x y in
+      if c < 0 then
         zlookup (l, x, NodeL (ctx, y, r)) (* go down left *)
-      else if x > y then
+      else if c > 0 then
         zlookup (r, x, NodeR (l, y, ctx)) (* go down right *)
       else
         (true, splay (l, y, r, ctx))
