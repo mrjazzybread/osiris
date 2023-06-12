@@ -69,6 +69,7 @@ Section StdLib__code.
       VClo2 EOpGt.
     Definition Stdlib__ge : val :=
       VClo2 EOpGe.
+    Axiom Stdlib__compare : val.
   End Arithmetic_comparison.
 
   Section Stdlib__store.
@@ -113,6 +114,7 @@ Section StdLib__code.
       EnvCons "<=" Stdlib__le $
       EnvCons ">" Stdlib__gt $
       EnvCons ">=" Stdlib__ge $
+      EnvCons "compare" Stdlib__compare $
       EnvCons "ref" Stdlib__ref $
       EnvCons "!" Stdlib__load $
       EnvCons ":=" Stdlib__store $
