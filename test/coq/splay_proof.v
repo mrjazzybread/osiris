@@ -247,11 +247,16 @@ Context {A : Type}.
 Context {lt : A → A → Prop}.
 Context {Tlt : Transitive lt}.
 
+(* A tree is a BST if and only if its fringe is sorted. *)
+
 Definition bst (t : tree A) :=
   Sorted lt (fringe t).
 
-Notation "x '<' y" := (lt x y).
 Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
+
+(* The following lemmas provide an alternative characterization of binary
+   search trees. If the predicate [bst t] was inductively defined, then
+   these two statements would be the two constructors. *)
 
 Lemma bst_Leaf_iff :
   bst Leaf ↔ True.
