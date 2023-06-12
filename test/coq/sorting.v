@@ -1,6 +1,7 @@
 Require Export Coq.Sorting.Sorted.
 Require Import stdpp.sorting.
 From osiris Require Import base.
+Require Import orders.
 
 (* This file establishes several properties of sorted lists. *)
 
@@ -219,14 +220,6 @@ Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 Implicit Types x y z : A.
 Implicit Types xs ys zs : list A.
 
-(* Thus, [x < x] is a contradiction. *)
-
-Local Lemma lt_contradiction x :
-  x < x → False.
-Proof.
-  pose proof (irreflexivity lt). unfold Reflexive, complement in *. eauto.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* If [[x] ≺ ys] holds then [x] cannot be an element of the list [ys]. *)
@@ -238,7 +231,7 @@ Lemma pairwise_contradiction_left x ys :
 Proof.
   unfold pairwise. intros Hlt Hmember.
   specialize (Hlt x x). rewrite elem_of_list_singleton in Hlt.
-  eauto using lt_contradiction.
+  eauto using strict_order_irreflexive.
 Qed.
 
 (* A symmetric statement. *)
@@ -250,7 +243,7 @@ Lemma pairwise_contradiction_right xs y :
 Proof.
   unfold pairwise. intros Hlt Hmember.
   specialize (Hlt y y). rewrite elem_of_list_singleton in Hlt.
-  eauto using lt_contradiction.
+  eauto using strict_order_irreflexive.
 Qed.
 
 (*[x < y] implies [[x] ≺ [y]]. *)
@@ -280,7 +273,7 @@ Proof.
   split; [| eauto ].
   intros [|[|]]; [| subst y; exfalso | exfalso ].
   { eauto. }
-  { eauto using lt_contradiction. }
+  { eauto using strict_order_irreflexive. }
   { eauto using lt_pairwise, pairwise_transitive_singleton,
                 pairwise_contradiction_left. }
 Qed.
@@ -299,7 +292,7 @@ Proof.
   intros [|[|]]; [ exfalso | subst y; exfalso |].
   { eauto using lt_pairwise, pairwise_transitive_singleton,
                 pairwise_contradiction_right. }
-  { eauto using lt_contradiction. }
+  { eauto using strict_order_irreflexive. }
   { eauto. }
 Qed.
 
