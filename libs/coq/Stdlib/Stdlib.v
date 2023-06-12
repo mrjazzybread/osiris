@@ -68,21 +68,31 @@ Section StdLib__code.
            AnonFun "x" $
            EAnonFun $ AnonFun "y" $
            EOpEq (EVar "x") (EVar "y").
+    Definition Stdlib__ne : val :=
+      VClo EnvNil $
+           AnonFun "x" $
+           EAnonFun $ AnonFun "y" $
+           EOpNe (EVar "x") (EVar "y").
     Definition Stdlib__lt : val :=
       VClo EnvNil $
            AnonFun "x" $
            EAnonFun $ AnonFun "y" $
            EOpLt (EVar "x") (EVar "y").
-    Definition Stdlib__ge : val :=
+    Definition Stdlib__le : val :=
       VClo EnvNil $
            AnonFun "x" $
            EAnonFun $ AnonFun "y" $
-           EOpGe (EVar "x") (EVar "y").
+           EOpLe (EVar "x") (EVar "y").
     Definition Stdlib__gt : val :=
       VClo EnvNil $
            AnonFun "x" $
            EAnonFun $ AnonFun "y" $
            EOpGt (EVar "x") (EVar "y").
+    Definition Stdlib__ge : val :=
+      VClo EnvNil $
+           AnonFun "x" $
+           EAnonFun $ AnonFun "y" $
+           EOpGe (EVar "x") (EVar "y").
   End Arithmetic_comparison.
 
 
@@ -153,9 +163,11 @@ Section StdLib__code.
       EnvCons "*" Stdlib__mul $
       EnvCons "~-" Stdlib__neg $
       EnvCons "=" Stdlib__eq $
+      EnvCons "<>" Stdlib__ne $
       EnvCons "<" Stdlib__lt $
-      EnvCons ">=" Stdlib__ge $
+      EnvCons "<=" Stdlib__le $
       EnvCons ">" Stdlib__gt $
+      EnvCons ">=" Stdlib__ge $
       EnvCons "ref" Stdlib__ref $
       EnvCons "!" Stdlib__load $
       EnvCons ":=" Stdlib__store $
