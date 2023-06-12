@@ -23,137 +23,82 @@ Local Transparent eval. (* TODO. *)
    avoid it to be unfolded: some unfolding would lead to several duplications of
    continuations (ie. the rest of the code). *)
 
+Local Notation VClo1 body :=
+  (
+    VClo EnvNil $
+      AnonFun "x" $
+      (body (EVar "x"))
+  ).
+
+Local Notation VClo2 body :=
+  (
+    VClo EnvNil $
+      AnonFun "x" $
+      EFun1Var "y" $
+      (body (EVar "x") (EVar "y"))
+  ).
+
 Section StdLib__code.
   Context `{!osirisGS_gen hlc Σ}.
 
   Section Arithmetic_operations.
     Definition Stdlib__add : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EIntAdd (EVar "x") (EVar "y").
+      VClo2 EIntAdd.
     Definition Stdlib__sub : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EIntSub (EVar "x") (EVar "y").
+      VClo2 EIntSub.
     Definition Stdlib__mul : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EIntMul (EVar "x") (EVar "y").
+      VClo2 EIntMul.
     Definition Stdlib__div : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EIntDiv (EVar "x") (EVar "y").
+      VClo2 EIntDiv.
     Definition Stdlib__mod : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EIntMod (EVar "x") (EVar "y").
-
-
+      VClo2 EIntMod.
     Definition Stdlib__neg : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EIntNeg (EVar "x").
+      VClo1 EIntNeg.
   End Arithmetic_operations.
-
-
 
   Section Arithmetic_comparison.
     Definition Stdlib__eq : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpEq (EVar "x") (EVar "y").
+      VClo2 EOpEq.
     Definition Stdlib__ne : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpNe (EVar "x") (EVar "y").
+      VClo2 EOpNe.
     Definition Stdlib__lt : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpLt (EVar "x") (EVar "y").
+      VClo2 EOpLt.
     Definition Stdlib__le : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpLe (EVar "x") (EVar "y").
+      VClo2 EOpLe.
     Definition Stdlib__gt : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpGt (EVar "x") (EVar "y").
+      VClo2 EOpGt.
     Definition Stdlib__ge : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "y" $
-           EOpGe (EVar "x") (EVar "y").
+      VClo2 EOpGe.
   End Arithmetic_comparison.
-
-
 
   Section Stdlib__store.
     Definition Stdlib__ref : val :=
-      VClo EnvNil $
-           AnonFun "e" $
-           ERef (EVar "e").
-
+      VClo1 ERef.
     Definition Stdlib__load : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           ELoad (EVar "x").
-
+      VClo1 ELoad.
     Definition Stdlib__store : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EAnonFun $ AnonFun "i" $
-           EStore (EVar "x") (EVar "i").
+      VClo2 EStore.
   End Stdlib__store.
-
-
 
   Section Stdlib__tuples.
     Definition Stdlib__fst : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EMatch
-           (EVar "x")
-           (BrCons
-              (Branch
-                 (PTuple (PCons (PVar "l") (PCons (PVar "r") PNil)))
-                 (EVar "l"))
-              BrNil).
-
+      VClo1 (λ (e : expr),
+        ELet1 (PPair (PVar "x") PAny) e $
+        EVar "x"
+      ).
     Definition Stdlib__snd : val :=
-      VClo EnvNil $
-           AnonFun "x" $
-           EMatch
-           (EVar "x")
-           (BrCons
-              (Branch
-                 (PTuple (PCons (PVar "l") (PCons (PVar "r") PNil)))
-                 (EVar "r"))
-              BrNil).
+      VClo1 (λ (e : expr),
+        ELet1 (PPair PAny (PVar "y")) e $
+        EVar "y"
+      ).
   End Stdlib__tuples.
-
-
 
   Section Stdlib__bool.
     Definition Stdlib__not : val :=
-      VClo EnvNil $
-           AnonFun "b" $
-           EIfThenElse
-           (EVar "b")
-           (EBool false)
-           (EBool true).
+      VClo1 (λ (e : expr),
+        EIfThenElse e EFalse ETrue
+      ).
   End Stdlib__bool.
-
-
 
   (* Putting everything together. *)
   Definition Stdlib :=
