@@ -104,27 +104,27 @@ Section StrictConstruction.
   (* Let us write [x ≡ y] when [x] are [y] are related in both directions
      by the preorder [≤]. (This is an equivalence relation.) *)
 
-  Definition equiv : A → A → Prop :=
+  Definition equivalent : A → A → Prop :=
     λ x y, (x ≤ y ∧ y ≤ x).
 
-  Notation "x '≡' y" := (equiv x y).
+  Notation "x '≡' y" := (equivalent x y).
 
-  Global Instance : Reflexive equiv.
+  Global Instance : Reflexive equivalent.
   Proof.
     intros x. split; apply reflexivity.
   Qed.
 
-  Global Instance : Symmetric equiv.
+  Global Instance : Symmetric equivalent.
   Proof.
-    intros x y. unfold equiv. tauto.
+    intros x y. unfold equivalent. tauto.
   Qed.
 
-  Global Instance : Transitive equiv.
+  Global Instance : Transitive equivalent.
   Proof.
     intros x y z. do 2 intros (? & ?). split; transitivity y; eauto.
   Qed.
 
-  Global Instance : Equivalence equiv.
+  Global Instance : Equivalence equivalent.
   Proof.
     constructor; typeclasses eauto.
   Qed.
@@ -138,11 +138,11 @@ Section StrictConstruction.
     split.
     + intros Hxy.
       destruct (Hdec y x).
-      - unfold equiv. tauto.
+      - unfold equivalent. tauto.
       - unfold strict. tauto.
     + intros [|].
       - eauto using strict_include.
-      - unfold equiv in *. tauto.
+      - unfold equivalent in *. tauto.
   Qed.
 
   (* If the preorder [≤] is total then the strict order [<] enjoys a
@@ -155,7 +155,7 @@ Section StrictConstruction.
   Lemma lt_total {Hdec : RelDecision le} {Htotal : Total le} x y :
     x < y ∨ x ≡ y ∨ y < x.
   Proof.
-    unfold strict, equiv.
+    unfold strict, equivalent.
     destruct (Hdec x y); destruct (Hdec y x).
     + tauto.
     + tauto.
@@ -186,10 +186,10 @@ Section LargeConstruction.
 
   (* Caveat: this relation is not necessarily transitive; see below. *)
 
-  Definition equiv' : A → A → Prop :=
+  Definition equivalent' : A → A → Prop :=
     λ x y, ¬ x < y ∧ ¬ y < x.
 
-  Notation "x '≡' y" := (equiv' x y).
+  Notation "x '≡' y" := (equivalent' x y).
 
   (* Then, let us define the preorder [x ≤ y] as the union of the
      strict order [x < y] and the equivalence relation [x ≡ y]. *)
@@ -211,45 +211,45 @@ Section LargeConstruction.
     split.
     + intros ([|] & ?).
       - tauto.
-      - exfalso. unfold equiv' in *. tauto. (* symmetry of [≡] *)
+      - exfalso. unfold equivalent' in *. tauto. (* symmetry of [≡] *)
     + intros. split.
       - tauto.
       - intros [|].
         { assert (x < x) by (transitivity y; eauto).
           eauto using strict_order_irreflexive. }
-        { unfold equiv' in *. tauto. }
+        { unfold equivalent' in *. tauto. }
   Qed.
 
-  (* [equiv'] is reflexive and symmetric. *)
+  (* [equivalent'] is reflexive and symmetric. *)
 
-  Global Instance : Reflexive equiv'.
+  Global Instance : Reflexive equivalent'.
   Proof.
     intros x. split; eauto using strict_order_irreflexive.
   Qed.
 
-  Global Instance : Symmetric equiv'.
+  Global Instance : Symmetric equivalent'.
   Proof.
-    intros x y. unfold equiv'. tauto.
+    intros x y. unfold equivalent'. tauto.
   Qed.
 
-  (* [equiv'] is in general NOT transitive. E.g., if we have three elements
+  (* [equivalent'] is in general NOT transitive. E.g., if we have three elements
      [a], [b], [c] with [a < b] and no other strict ordering relation [<]
      between them, then we get [a ≡ c] and [c ≡ b] but not [a ≡ b]. *)
 
   (* However, if we require the following compatibility properties between
      [≡] and [<], then we can prove that [≡] and [large] are transitive. *)
 
-  Variable equiv'_lt_compat : ∀ x y z,
+  Variable equivalent'_lt_compat : ∀ x y z,
     x ≡ y → y < z → x < z.
 
-  Variable lt_equiv'_compat : ∀ x y z,
+  Variable lt_equivalent'_compat : ∀ x y z,
     x < y → y ≡ z → x < z.
 
-  Global Instance : Transitive equiv'.
+  Global Instance : Transitive equivalent'.
   Proof.
     intros x y z ? ?.
     split; intro;
-    eauto 6 using strict_order_irreflexive, equiv'_lt_compat, symmetry.
+    eauto 6 using strict_order_irreflexive, equivalent'_lt_compat, symmetry.
   Qed.
 
   Global Instance : Reflexive large.
@@ -263,8 +263,8 @@ Section LargeConstruction.
     intros x y z. unfold large.
     intros [|] [|].
     + left. transitivity y; eauto.
-    + eauto using lt_equiv'_compat.
-    + eauto using equiv'_lt_compat.
+    + eauto using lt_equivalent'_compat.
+    + eauto using equivalent'_lt_compat.
     + right. transitivity y; eauto.
   Qed.
 
