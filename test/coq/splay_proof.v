@@ -278,6 +278,29 @@ End BST.
 
 (* -------------------------------------------------------------------------- *)
 
+(* A generic specification for [compare] functions. *)
+
+(* The double application [compare x y] returns a (representable) integer
+   code [c] such that the sign of [c] encodes the three possible outcomes
+   of the comparison between [x] and [y]. *)
+
+Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
+  let lt := strict le in
+  let eq := equivalent le in
+  (
+    ∀ (x y : A),
+    SIMP
+      (bind (call compare #x) (λ v, call v #y))
+      (λ (c : Z),
+        int.representable c ∧
+        (c < 0 ↔ lt x y) ∧
+        (c = 0 ↔ eq x y) ∧
+        (0 < c ↔ lt y x)
+      )
+  )%Z.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Specification of [splay]. *)
 
 Definition splay_spec (splay : val) : Prop :=
