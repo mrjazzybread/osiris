@@ -1,5 +1,5 @@
 Require Import Coq.Wellfounded.Inverse_Image.
-From test Require Import orders sorting.
+From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.semantics Require Export evalprime.
 From osiris.proofmode Require Export proofmode. (* TODO *)
@@ -275,32 +275,6 @@ Proof.
 Qed.
 
 End BST.
-
-(* -------------------------------------------------------------------------- *)
-
-(* WIP *)
-
-(* A specification for a [compare] function that decides a preorder [le],
-   producing an integer code that encodes a three-way outcome. *)
-
-(* The double application [compare x y] returns a (representable) integer
-   code [c] such that the sign of [c] encodes the three possible outcomes
-   of the comparison between [x] and [y]. *)
-
-Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
-  let lt := strict le in
-  let eq := equivalent le in
-  (
-    ∀ (x y : A),
-    SIMP
-      (bind (call compare #x) (λ v, call v #y))
-      (λ (c : Z),
-        representable c ∧
-        (c < 0 ↔ lt x y) ∧
-        (c = 0 ↔ eq x y) ∧
-        (0 < c ↔ lt y x)
-      )
-  )%Z.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -9,6 +9,7 @@ Import uPred.
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
+From osiris.logic Require Import orders.
 
 Local Transparent eval. (* TODO. *)
 
@@ -147,7 +148,30 @@ Definition decide_spec `{Encode A}
       b ↔ R x y
     ).
 
+(* A specification for a [compare] function that decides a preorder [le],
+   producing an integer code that encodes a three-way outcome. *)
+
+(* The double application [compare x y] returns a (representable) integer
+   code [c] such that the sign of [c] encodes the three possible outcomes
+   of the comparison between [x] and [y]. *)
+
+Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
+  let lt := strict le in
+  let eq := equivalent le in
+  (
+    ∀ (x y : A),
+    SIMP
+      (bind (call compare #x) (λ v, call v #y))
+      (λ (c : Z),
+        representable c ∧
+        (c < 0 ↔ lt x y) ∧
+        (c = 0 ↔ eq x y) ∧
+        (0 < c ↔ lt y x)
+      )
+  ).
+
 (* -------------------------------------------------------------------------- *)
+
 (* Some properties of integers that are needed below. *)
 
 Local Lemma Zeq_spec (x y : Z) :
