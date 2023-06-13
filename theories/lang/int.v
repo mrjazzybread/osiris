@@ -69,10 +69,18 @@ Module Intsize.
   Proof. exact int_size_not_zero. Qed.
 End Intsize.
 
-Include Make(Intsize).
+(* We do not include [M] because we prefer to control what we export. *)
+Module M := Make(Intsize).
+
+Definition wordsize := M.wordsize.
+
+Definition zero       := M.zero.
+Definition one        := M.one.
+Definition min_signed := M.min_signed.
+Definition max_signed := M.max_signed.
 
 Lemma wordsize_is_int_size :
-  wordsize = int_size.
+  M.wordsize = int_size.
 Proof. reflexivity. Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -82,38 +90,41 @@ Proof. reflexivity. Qed.
 (* The representable integers are comprised between [min_signed] and
    [max_signed], inclusive. *)
 
-Global Notation representable i :=
+Definition representable i :=
   (min_signed <= i <= max_signed).
 
 (* The function [signed : int -> Z] maps a machine integer to the
    ideal integer that it represents. *)
+Definition signed := M.signed.
 
 (* The function [repr : Z -> int] maps an ideal integer to the machine
    integer that represents it, if there is one. *)
+Definition repr := M.repr.
 
 (* The type [int] is internally defined as a subset of Z, which
    corresponds to the interval of the unsigned integers, from 0
    to [2^wordsize-1]. This can be confusing, so it is preferable
    not to think about it, as far as possible. Just view [int] as
    an abstract type. *)
+Definition int := M.int.
 
 (* The following properties hold: *)
 
-Goal forall i : int, representable (signed i).
-Proof. apply signed_range. Qed.
+Lemma signed_range : forall i : int, representable (signed i).
+Proof. apply M.signed_range. Qed.
 
-Goal forall i : int, repr (signed i) = i.
-Proof. apply repr_signed. Qed.
+Lemma repr_signed : forall i : int, repr (signed i) = i.
+Proof. apply M.repr_signed. Qed.
 
-Goal forall z : Z, representable z -> signed (repr z) = z.
-Proof. apply signed_repr. Qed.
+Lemma signed_repr : forall z : Z, representable z -> signed (repr z) = z.
+Proof. apply M.signed_repr. Qed.
 
 (* [min_signed] is [-2^w]. *)
 
 Lemma min_signed_eq :
   min_signed = -(two_power_nat w).
 Proof.
-  unfold min_signed, half_modulus, modulus.
+  unfold min_signed, M.min_signed, M.half_modulus, M.modulus.
   rewrite wordsize_is_int_size.
   rewrite int_size_eq_succ_w.
   rewrite (two_power_nat_S w).
@@ -126,7 +137,7 @@ Qed.
 Lemma max_signed_eq :
   max_signed = two_power_nat w - 1.
 Proof.
-  unfold max_signed, half_modulus, modulus.
+  unfold max_signed, M.max_signed, M.half_modulus, M.modulus.
   rewrite wordsize_is_int_size.
   rewrite int_size_eq_succ_w.
   rewrite (two_power_nat_S w).
@@ -143,41 +154,50 @@ Qed.
    have no proof obligation. There is no need to prove that the arguments
    or result of the operation are representable. *)
 
-Goal forall z, neg (repr z) = repr (-z).
-Proof. apply neg_repr. Qed.
+Definition neg  := M.neg.
+Definition add  := M.add.
+Definition sub  := M.sub.
+Definition mul  := M.mul.
+Definition divs := M.divs.
+Definition mods := M.mods.
+Definition eq   := M.eq.
+Definition lt   := M.lt.
 
-Goal forall z1 z2, add (repr z1) (repr z2) = repr (z1 + z2).
-Proof. apply add_repr_repr. Qed.
+Lemma neg_repr : forall z, neg (repr z) = repr (-z).
+Proof. apply M.neg_repr. Qed.
 
-Goal forall z1 z2, sub (repr z1) (repr z2) = repr (z1 - z2).
-Proof. apply sub_repr_repr. Qed.
+Lemma add_repr_repr : forall z1 z2, add (repr z1) (repr z2) = repr (z1 + z2).
+Proof. apply M.add_repr_repr. Qed.
 
-Goal forall z1 z2, mul (repr z1) (repr z2) = repr (z1 * z2).
-Proof. apply mul_repr_repr. Qed.
+Lemma sub_repr_repr : forall z1 z2, sub (repr z1) (repr z2) = repr (z1 - z2).
+Proof. apply M.sub_repr_repr. Qed.
 
-Goal
+Lemma mul_repr_repr : forall z1 z2, mul (repr z1) (repr z2) = repr (z1 * z2).
+Proof. apply M.mul_repr_repr. Qed.
+
+Lemma divs_repr_repr:
   forall z1 z2,
   representable z1 -> representable z2 ->
   divs (repr z1) (repr z2) = repr (z1 ÷ z2).
-Proof. apply divs_repr_repr. Qed.
+Proof. apply M.divs_repr_repr. Qed.
 
-Goal
+Lemma mods_repr_repr :
   forall z1 z2,
   representable z1 -> representable z2 ->
   mods (repr z1) (repr z2) = repr (Z.rem z1 z2).
-Proof. apply mods_repr_repr. Qed.
+Proof. apply M.mods_repr_repr. Qed.
 
-Goal
+Lemma eq_repr_repr :
   forall z1 z2,
   representable z1 -> representable z2 ->
   eq (repr z1) (repr z2) = (z1 =? z2).
-Proof. apply eq_repr_repr. Qed.
+Proof. apply M.eq_repr_repr. Qed.
 
-Goal
+Lemma lt_repr_repr :
   forall z1 z2,
   representable z1 -> representable z2 ->
   lt (repr z1) (repr z2) = (z1 <? z2).
-Proof. apply lt_repr_repr. Qed.
+Proof. apply M.lt_repr_repr. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -188,6 +208,7 @@ Lemma prove_representable_30 i :
   -(two_power_nat 30) <= i < two_power_nat 30 ->
   representable i.
 Proof.
+  unfold representable.
   rewrite min_signed_eq, max_signed_eq.
   assert (two_power_nat 30 <= two_power_nat w)
     by auto using two_power_nat_mono, w_ge_30.
@@ -206,3 +227,6 @@ Goal representable (-512348).
 Proof.
   prove_representable_30.
 Qed.
+
+Ltac representable :=
+  try solve [ tauto | prove_representable_30 ].
