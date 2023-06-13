@@ -2,6 +2,7 @@ From stdpp Require Import gmap.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
+Local Open Scope nat_scope.
 
 (* This file defines what it means for a configuration to be safe. The
    structure of configurations does not matter; the definition of safety

@@ -503,6 +503,8 @@ Proof.
   { iPureIntro. intros ? ->. simpl in *. congruence. }
 Qed.
 
+Local Open Scope nat_scope. (* TODO *)
+
 (* TODO this iterated modality should exist somewhere in the Iris library? *)
 
 Fixpoint tonight n (P : iProp Σ) :=

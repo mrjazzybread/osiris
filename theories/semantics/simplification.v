@@ -2,6 +2,7 @@ From stdpp Require Import gmap.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
+Local Open Scope nat_scope.
 
 (* This file defines a simplification relation: [simplify _ m m'] means that
    [m] can be simplified to [m'].

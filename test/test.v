@@ -56,7 +56,7 @@ Local Ltac steps :=
   | eapply (StepsZero 0)
   | eapply StepsSucc; [ step | cbn ]
   | rewrite int.add_repr_repr
-  | rewrite int.eq_repr_repr by int.prove_representable_30
+  | rewrite int.eq_repr_repr by int.representable
   ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
@@ -237,7 +237,7 @@ Proof.
   (* Unroll this iteration. *)
   unfold loop.
   (* Simplify the comparison. *)
-  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  rewrite int.lt_repr_repr by int.representable. cbn.
   (* Simplify the incrementation. *)
   unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
   (* Step. *)
@@ -245,13 +245,13 @@ Proof.
 
   (* Iteration 1. *)
   unfold loop.
-  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  rewrite int.lt_repr_repr by int.representable. cbn.
   unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
   steps.
 
   (* Iteration 2. *)
   unfold loop.
-  rewrite int.lt_repr_repr by int.prove_representable_30. cbn.
+  rewrite int.lt_repr_repr by int.representable. cbn.
   steps.
 
 Qed.
