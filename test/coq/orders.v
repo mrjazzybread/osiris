@@ -286,3 +286,12 @@ Section LargeConstruction.
   Qed.
 
 End LargeConstruction.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Tactics. *)
+
+Ltac destruct_equivalent :=
+  lazymatch goal with h: equivalent _ _ _ |- _ =>
+    unfold equivalent in h; destruct h
+  end.
