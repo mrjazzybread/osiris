@@ -52,6 +52,18 @@ Definition EPair e1 e2 :=
 Definition VPair v1 v2 :=
   (VTuple (VCons v1 (VCons v2 VNil))).
 
+(* Tuples of arity 1. *)
+
+(* Used only in the encoding of data constructors; see e.g. [VSome]. *)
+
+Notation VTuple1 v1 :=
+  (
+    VTuple (
+      VCons v1 $
+      VNil
+    )
+  ).
+
 (* Tuples of arity 3. *)
 
 Notation VTuple3 v1 v2 v3 :=
@@ -85,7 +97,7 @@ Definition VNone :=
   (VConstant "None").
 
 Definition VSome v :=
-  (VData "Some" v).
+  (VData "Some" (VTuple1 v)).
 
 (* ------------------------------------------------------------------------ *)
 
