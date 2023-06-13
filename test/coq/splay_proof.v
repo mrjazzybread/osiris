@@ -280,47 +280,6 @@ End BST.
 
 (* WIP *)
 
-Lemma Zlt_spec (x y : Z) :
-  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
-Proof.
-  rewrite Zlt_is_lt_bool.
-  rewrite Is_true_true.
-  tauto.
-Qed.
-
-(* A specification for a function [decide] that decides a relation [R],
-   subject to a precondition [P], producing a Boolean outcome. *)
-
-Definition decide_spec `{Encode A}
-  (decide : val) (P : A → Prop) (R : A → A → Prop)
-:=
-  ∀ (x y : A), P x → P y →
-  SIMP
-    (bind (call decide #x) (λ v, call v #y))
-    (λ (b : bool),
-      b ↔ R x y
-    ).
-
-Lemma Stdlib__lt_spec :
-  decide_spec Stdlib__lt representable Z.lt.
-Proof.
-  intros x y ? ?.
-  SIMP_enter.
-  rewrite lt_repr_repr by assumption.
-  rewrite Zlt_spec.
-  tauto.
-Qed.
-
-Lemma Stdlib__gt_spec :
-  decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
-Proof.
-  intros x y ? ?.
-  SIMP_enter.
-  rewrite lt_repr_repr by assumption.
-  rewrite Zlt_spec.
-  tauto.
-Qed.
-
 (* A specification for a [compare] function that decides a preorder [le],
    producing an integer code that encodes a three-way outcome. *)
 

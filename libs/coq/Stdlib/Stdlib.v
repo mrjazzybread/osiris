@@ -4,6 +4,8 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
+(* TODO avoid needless sections and indentation *)
+
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
@@ -124,14 +126,55 @@ Section StdLib__code.
       EnvNil.
 End StdLib__code.
 
+(* -------------------------------------------------------------------------- *)
 
+(* Specification templates. *)
+
+(* A specification for a pure function [decide] that decides a relation [R],
+   subject to a precondition [P], producing a Boolean outcome. *)
+
+(* This specification is nondeterministic: it uses [SIMP] and a relation [R]
+   of type [A → A → Prop]. One could prefer a deterministic specification
+   that uses [simp] and a function of type [A → A → bool]. TODO: try it. *)
+
+Definition decide_spec `{Encode A}
+  (decide : val) (P : A → Prop) (R : A → A → Prop)
+:=
+  ∀ (x y : A), P x → P y →
+  SIMP
+    (bind (call decide #x) (λ v, call v #y))
+    (λ (b : bool),
+      b ↔ R x y
+    ).
+
+(* -------------------------------------------------------------------------- *)
+(* Some properties of integers that are needed below. *)
+
+Local Lemma Zeq_spec (x y : Z) :
+  (* Is_true *) (x =? y)%Z ↔ (x = y)%Z.
+Proof.
+  rewrite Is_true_true.
+  rewrite Z.eqb_eq.
+  tauto.
+Qed.
+
+Local Lemma Zlt_spec (x y : Z) :
+  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
+Proof.
+  rewrite Zlt_is_lt_bool.
+  rewrite Is_true_true.
+  tauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* TODO specify every pure function using [SIMP], not [WP]. *)
 
 Section Stdlib__specs.
   Context `{!osirisGS_gen hlc Σ}.
 
-
-
   Section Stdlib__spec__arith_comp.
+
     Lemma Stdlib__eq__spec s E :
       ∀ v1 v2 (i1 i2: Z),
         v1 = encode i1 →
@@ -161,6 +204,72 @@ Section Stdlib__specs.
       wp_call.
       by rewrite lt_repr_repr.
     Qed.
+
+    Lemma Stdlib__eq_spec :
+      decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->eq_repr_repr by assumption.
+      rewrite Zeq_spec.
+      tauto.
+    Qed.
+
+    Lemma Stdlib__ne_spec :
+      decide_spec Stdlib__ne representable (λ x y, x ≠ y).
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->eq_repr_repr by assumption.
+      rewrite <-Zeq_spec.
+      rewrite Is_true_true negb_true -Is_true_false.
+      tauto.
+    Qed.
+
+    Lemma Stdlib__lt_spec :
+      decide_spec Stdlib__lt representable Z.lt.
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->lt_repr_repr by assumption.
+      rewrite Zlt_spec.
+      tauto.
+    Qed.
+
+    Lemma Stdlib__le_spec :
+      decide_spec Stdlib__le representable Z.le.
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->lt_repr_repr by assumption.
+      rewrite Is_true_true negb_true -Is_true_false.
+      rewrite Zlt_spec.
+      lia.
+    Qed.
+
+    Lemma Stdlib__gt_spec :
+      decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
+                                           (* avoid [Z.gt] *)
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->lt_repr_repr by assumption.
+      rewrite Zlt_spec.
+      tauto.
+    Qed.
+
+    Lemma Stdlib__ge_spec :
+      decide_spec Stdlib__ge representable (λ x y, Z.le y x).
+                                           (* avoid [Z.ge] *)
+    Proof.
+      intros x y ? ?.
+      SIMP_enter.
+      rewrite ->lt_repr_repr by assumption.
+      rewrite Is_true_true negb_true -Is_true_false.
+      rewrite Zlt_spec.
+      lia.
+    Qed.
+
   End Stdlib__spec__arith_comp.
 
 
