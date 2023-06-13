@@ -129,6 +129,18 @@ Section StrictConstruction.
     constructor; typeclasses eauto.
   Qed.
 
+  Lemma equivalent_include x y :
+    x ≡ y → x ≤ y.
+  Proof.
+    unfold equivalent. tauto.
+  Qed.
+
+  Lemma equivalent_include_reverse x y :
+    x ≡ y → y ≤ x.
+  Proof.
+    unfold equivalent. tauto.
+  Qed.
+
   (* The preorder [≤] is the union of the strict order [<] and of the
      equivalence relation [≡]. *)
 
