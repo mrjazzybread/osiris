@@ -192,6 +192,8 @@
 * Look at Krebbers's dissertation to see how he handles unspecified evaluation
   order in C.
 * Goose and GooseLang (Tej Chajed).
+* WasmRef-Isabelle (https://dl.acm.org/doi/pdf/10.1145/3591224).
+  Testing or fuzzing techniques that we could re-use?
 
 ## Features of OCaml that we want to support (at some point)
 
