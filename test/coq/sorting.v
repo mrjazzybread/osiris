@@ -2,6 +2,7 @@ Require Export Coq.Sorting.Sorted.
 Require Import stdpp.sorting.
 From osiris Require Import base.
 Require Import orders.
+Local Opaque app. (* Prevent undesired simplification. *)
 
 (* This file establishes several properties of sorted lists. *)
 
@@ -210,7 +211,7 @@ Arguments pairwise {A} lt xs ys.
 (* We now assume that [lt] is a strict order, that is, both transitive and
    irreflexive. *)
 
-Section AlsoIrreflexive.
+Section TransitiveAndIrreflexive.
 
 Context {A : Type}.
 Context {lt : A → A → Prop}.
@@ -296,4 +297,114 @@ Proof.
   { eauto. }
 Qed.
 
-End AlsoIrreflexive.
+End TransitiveAndIrreflexive.
+
+(* -------------------------------------------------------------------------- *)
+
+(* We now assume not only that [lt] is a strict preorder, but also that [lt]
+   is [strict le], where [le] is a preorder. *)
+
+(* We define a notion of membership in a list modulo the preorder [le] and
+   we establish a few key properties of this notion. These properties help
+   reason about binary search trees in a setting where [le] is not
+   necessarily antisymmetric. *)
+
+Section PreOrder.
+
+Context {A : Type}.
+Context (le : A → A → Prop).
+Context {Ple : PreOrder le}.
+Local Set Warnings "-notation-overridden".
+Notation "x '≤' y" := (le x y).
+
+Notation lt := (strict le).
+Notation "x '<' y" := (lt x y).
+Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
+
+Notation eq := (equivalent le).
+Notation "x '≡' y" := (eq x y).
+
+Implicit Types x y z : A.
+Implicit Types xs ys zs : list A.
+Implicit Type ox : option A.
+
+(* We define membership in a list, up to the preorder [le], as a 3-place
+   relation [member x xs ox'], where [x] is the desired element, [xs] is
+   the list of interest, and [ox'] is the result of searching for [x] in
+   the list: it is an element of the list that is equivalent to [x], if
+   there is one. *)
+
+(* Outside this section, one must write [member le x xs ox']. *)
+
+Definition member x xs ox' :=
+  match ox' with
+  | None =>
+      (* If [ox'] is [None] then no element that is equivalent to [x]
+         appears in the list. *)
+      ∀ x', x ≡ x' → x' ∉ xs
+  | Some x' =>
+      (* If [ox'] is [Some x'] then [x'] is equivalent to [x] and
+         appears in the list. *)
+      x ≡ x' ∧ x' ∈ xs
+  end.
+
+(* No element is a member of the empty list. *)
+
+Lemma member_empty x ox' :
+  member x [] ox' ↔
+  ox' = None.
+Proof.
+  destruct ox' as [x'|]; simpl member.
+  (* Case: [Some]. *)
+  { rewrite elem_of_nil. split; [ tauto | congruence ]. }
+  (* Case: [None]. *)
+  { split; [ tauto | intros ]. rewrite elem_of_nil. tauto. }
+Qed.
+
+(* A characteristic property of sorted lists, which is exploited in binary
+   search trees: if [x] is less than [y], and if the elements of [zs] are
+   greater than [y], then searching for [x] in the list [xs ++ [y] ++ zs]
+   boils down to searching for [x] in the list [xs]. *)
+
+(* This lemma is analogous to [bst_search_left], but uses [member x xs]
+   instead of [x ∈ xs]. *)
+
+Lemma bst_member_left x xs y zs ox' :
+  x < y →
+  [y] ≺ zs →
+  member x (xs ++ [y] ++ zs) ox' ↔
+  member x xs ox'.
+Proof.
+  intros. destruct ox' as [x'|]; simpl member.
+  (* Case: [Some]. *)
+  { apply share_common_conjunct; intro. destruct_equivalent.
+    rewrite bst_search_left by eauto using strict_transitive_r.
+    tauto. }
+  (* Case: [None]. *)
+  { apply share_common_hypothesis; intro x'.
+    apply share_common_hypothesis; intro. destruct_equivalent.
+    rewrite bst_search_left by eauto using strict_transitive_r.
+    tauto. }
+Qed.
+
+(* A symmetric statement. *)
+
+Lemma bst_member_right x xs y zs ox' :
+  y < x →
+  xs ≺ [y] →
+  member x (xs ++ [y] ++ zs) ox' ↔
+  member x zs ox'.
+Proof.
+  intros. destruct ox' as [x'|]; simpl member.
+  (* Case: [Some]. *)
+  { apply share_common_conjunct; intro. destruct_equivalent.
+    rewrite bst_search_right by eauto using strict_transitive_l.
+    tauto. }
+  (* Case: [None]. *)
+  { apply share_common_hypothesis; intro x'.
+    apply share_common_hypothesis; intro. destruct_equivalent.
+    rewrite bst_search_right by eauto using strict_transitive_l.
+    tauto. }
+Qed.
+
+End PreOrder.
