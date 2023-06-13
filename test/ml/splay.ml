@@ -36,10 +36,10 @@ let splay_leaf ctx =
   | NodeR (l, x, up) ->
       splay (l, x, Leaf, up)
 
-let rec zlookup (t, x, ctx) : bool * 'a tree =
+let rec zlookup (t, x, ctx) : 'a option * 'a tree =
   match t with
   | Leaf ->
-      (false, splay_leaf ctx) (* not found, but splay anyway *)
+      (None, splay_leaf ctx) (* not found, but splay anyway *)
   | Node (l, y, r) ->
       let c = compare x y in
       if c < 0 then
@@ -47,7 +47,7 @@ let rec zlookup (t, x, ctx) : bool * 'a tree =
       else if c > 0 then
         zlookup (r, x, NodeR (l, y, ctx)) (* go down right *)
       else
-        (true, splay (l, y, r, ctx))
+        (Some y, splay (l, y, r, ctx))
 
 let lookup t x =
   zlookup (t, x, Root)

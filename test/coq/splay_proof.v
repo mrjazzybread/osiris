@@ -361,14 +361,13 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
 
 Definition zlookup_spec (zlookup : val) : Prop :=
   ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
-  let lt := strict le in
   compare_spec Stdlib__compare le →
   ∀ (t : tree A) (x : A) (ctx : zipper A),
-  bst lt t →
+  bst (strict le) t →
   SIMP
     (call zlookup #(t, x, ctx))
-    (λ '((b, t') : bool * tree A),
-      (b ↔ x ∈ fringe t) ∧
+    (λ '((oy, t') : option A * tree A),
+      member le x (fringe t) oy ∧
       fringe t' = fringe (fill ctx t)
     ).
 
@@ -386,6 +385,16 @@ Lemma false_iff (P : Prop) :
 Proof.
   simpl. tauto.
 Qed.
+
+Lemma not_positive_and_not_negative (c : Z) :
+  ¬ c < 0 →
+  ¬ 0 < c →
+  c = 0.
+Proof.
+  lia.
+Qed.
+
+Global Hint Resolve not_positive_and_not_negative : equality.
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -486,9 +495,10 @@ Proof.
     (* Case: [Leaf]. *)
     { (* TODO clean up *)
       SIMP_bind; [ SIMP_call | cbn ]. intros t' Ht'.
+      (* TODO guarantee that SIMP always leaves a single subgoal. *)
       SIMP. cbn. split.
       (* Establish the postcondition: *)
-      - rewrite elem_of_nil. tauto.
+      - intros. rewrite elem_of_nil. tauto. (* TODO use [set_solver]? *)
       - assumption. }
     (* Case: [Node]. *)
     { rewrite bst_Node_iff in Hbst by typeclasses eauto. unpack.
@@ -507,10 +517,10 @@ Proof.
       cbn. intros [|] Hlt; SIMP;
       rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x < y]. *)
-      { SIMP_call. intros [b t'] (? & ?).
+      { SIMP_call. intros [ox' t'] (? & ?).
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_search_left by representable. assumption.
+        - rewrite bst_member_left by representable. assumption.
         - assumption. }
       (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
@@ -521,7 +531,7 @@ Proof.
       { SIMP_call. intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_search_right by representable. assumption.
+        - rewrite bst_member_right by representable. assumption.
         - assumption. }
       (* Subcase: neither comparison succeeded, so [x] and [y] are
          equivalent with respect to the preorder [le]. *)
@@ -530,8 +540,10 @@ Proof.
         cbn. intros t' Ht'.
         SIMP. cbn.
         (* Establish the postcondition: *)
-        assert (x = y) by skip. (* TODO *)
-        split.
+        assert (c = 0) by equality.
+        assert (equivalent le x y) by tauto.
+        split; [ split |].
+        - assumption.
         - rewrite !elem_of_app, elem_of_list_singleton. tauto.
         - assumption. }
     }
