@@ -316,10 +316,11 @@ Definition splay_leaf_spec (splay_leaf : val) : Prop :=
     (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le)
-    (t : tree A) (x : A) (ctx : zipper A),
+  ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
   let lt := strict le in
-  @bst _ lt t →
+  compare_spec Stdlib__compare le →
+  ∀ (t : tree A) (x : A) (ctx : zipper A),
+  bst lt t →
   SIMP
     (call zlookup #(t, x, ctx))
     (λ '((b, t') : bool * tree A),
@@ -440,17 +441,8 @@ Proof.
 
   SIMP_specify "zlookup" zlookup_spec.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
-  { unfold zlookup_spec. intros ????.
-    assert (
-      forall (x y : A),
-      SIMP ('v ← call Stdlib__compare #x; call v #y)
-           (λ (c : Z),
-             int.representable c ∧
-             (c < 0 ↔ strict le x y) ∧
-             (c = 0 ↔ le x y ∧ le y x) ∧
-             (0 < c ↔ strict le y x)
-           )
-    )%Z as compare_spec by skip. (* TODO *)
+  { unfold zlookup_spec. do 4 intro.
+    intro Hcompare.
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
     intros ? ? Hbst;
@@ -463,12 +455,12 @@ Proof.
       - rewrite elem_of_nil. tauto.
       - assumption. }
     (* Case: [Node]. *)
-    { rewrite bst_Node_iff in Hbst. unpack.
+    { rewrite bst_Node_iff in Hbst by typeclasses eauto. unpack.
       (* Examine the call [compare x y]. *)
       (* TODO automate SIMP_try *)
       eapply SIMP_try.
       { (* TODO SIMP_call does not work here *)
-        eapply compare_spec. }
+        eapply Hcompare. }
       intros c Hc. cbn in Hc. SIMP_continue.
       (* TODO painful to be stopped by [concatenating]
               when there is no interesting spec to provide *)
@@ -504,7 +496,8 @@ Proof.
         split.
         - rewrite bst_search_right by assumption. assumption.
         - assumption. }
-      (* Subcase: neither comparison succeeded, so [x ≡ y] holds. *)
+      (* Subcase: neither comparison succeeded, so [x] and [y] are
+         equivalent with respect to the preorder [le]. *)
       { eapply SIMP_bind.
         { SIMP_call. }
         cbn. intros t' Ht'.
