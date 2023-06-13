@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import locations syntax sugar.
+From osiris.lang Require Import int locations syntax sugar.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
@@ -97,10 +97,10 @@ Global Hint Resolve solve_encode_false solve_encode_true : encode.
 (* Natural numbers. *)
 
 Global Instance Encode_nat : Encode nat :=
-  { encode := λ n, VInt (int.repr (Z.of_nat n)) }.
+  { encode := λ n, VInt (repr (Z.of_nat n)) }.
 
 Lemma solve_encode_nat i n :
-  i = int.repr (Z.of_nat n) →
+  i = repr (Z.of_nat n) →
   VInt i = #n.
 Proof. solve_encode. Qed.
 
@@ -111,10 +111,10 @@ Global Hint Resolve solve_encode_nat : encode.
 (* Integer numbers. *)
 
 Global Instance Encode_Z : Encode Z :=
-  { encode := λ n, VInt (int.repr n) }.
+  { encode := λ n, VInt (repr n) }.
 
 Lemma solve_encode_int i z :
-  i = int.repr z →
+  i = repr z →
   VInt i = #z.
 Proof. solve_encode. Qed.
 
@@ -123,14 +123,14 @@ Global Hint Resolve solve_encode_int : encode.
 (* This should help: *)
 
 Global Hint Resolve
-   int.neg_repr
-   int.add_repr_repr
-   int.sub_repr_repr
-   int.mul_repr_repr
-   int.divs_repr_repr
-   int.mods_repr_repr
-   int.eq_repr_repr
-   int.lt_repr_repr
+   neg_repr
+   add_repr_repr
+   sub_repr_repr
+   mul_repr_repr
+   divs_repr_repr
+   mods_repr_repr
+   eq_repr_repr
+   lt_repr_repr
 : encode.
 
 (* TODO add hints that help prove [representable z]. *)

@@ -508,7 +508,7 @@ Qed.
 
 Lemma simp_as_int (x : Z) (m : free val) :
   simp m (ret #x) →
-  simp (as_int m) (ret (int.repr x)).
+  simp (as_int m) (ret (repr x)).
 Proof.
   eauto using prove_simp_bind with simp.
 Qed.
@@ -516,7 +516,7 @@ Qed.
 Lemma SIMP_bind_as_int Y (_ : Encode Y)
   m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
   SIMP m φ →
-  (∀ (x : Z), φ x → SIMP (f (int.repr x)) ψ) →
+  (∀ (x : Z), φ x → SIMP (f (repr x)) ψ) →
   SIMP (bind (as_int m) f) ψ.
   (* This is [@bind int val]. *)
 Proof.
