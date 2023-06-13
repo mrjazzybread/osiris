@@ -35,7 +35,7 @@ Section StrictConstruction.
   (* Assume that [≤] is a preorder, that is, that the relation [≤]
      is reflexive and transitive. *)
 
-  Variable A : Type.
+  Context {A : Type}.
   Variable le : A → A → Prop.
   Context `{Ple : PreOrder A le}.
 
@@ -175,7 +175,7 @@ End StrictConstruction.
 
 Section LargeConstruction.
 
-  Variable A : Type.
+  Context {A : Type}.
   Variable lt : A → A → Prop.
   Context `{Slt : StrictOrder A lt}.
   Notation "x '<' y" := (lt x y).
