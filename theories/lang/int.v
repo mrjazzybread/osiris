@@ -74,14 +74,12 @@ Module M := Make(Intsize).
 
 Definition wordsize := M.wordsize.
 
-Definition zero       := M.zero.
-Definition one        := M.one.
-Definition min_signed := M.min_signed.
-Definition max_signed := M.max_signed.
-
 Lemma wordsize_is_int_size :
   M.wordsize = int_size.
 Proof. reflexivity. Qed.
+
+Definition min_signed := M.min_signed.
+Definition max_signed := M.max_signed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -100,6 +98,8 @@ Definition signed := M.signed.
 (* The function [repr : Z -> int] maps an ideal integer to the machine
    integer that represents it, if there is one. *)
 Definition repr := M.repr.
+Definition zero := repr 0.
+Definition one  := repr 1.
 
 (* The type [int] is internally defined as a subset of Z, which
    corresponds to the interval of the unsigned integers, from 0

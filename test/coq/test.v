@@ -23,10 +23,10 @@ From osiris.semantics Require Import semantics.
 Local Notation reduces e v :=
   (∃ n, steps n (∅, eval EnvNil e) (∅, ret v)).
 
-(* [fails e] means that the expression [e] can fail. *)
+(* [crashes e] means that the expression [e] can crash. *)
 
-Local Notation fails e :=
-  (∃ n, steps n (∅, eval EnvNil e) (∅, fail)).
+Local Notation crashes e :=
+  (∃ n, steps n (∅, eval EnvNil e) (∅, crash)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -39,9 +39,9 @@ Local Notation fails e :=
 
 Local Ltac step :=
   first [
-    eapply StepEval; [ reflexivity ]
-  | eapply StepLoop; [ reflexivity ]
-  | eapply (@StepFlip val _ false)
+    eapply StepEval
+  | eapply StepLoop
+  | eapply (@StepFlip val false)
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]
@@ -53,10 +53,10 @@ Local Ltac steps :=
   cbn;
   repeat first [
     rewrite bind_ret (* not sure why this is needed; [cbn] not enough *)
-  | eapply (StepsZero 0)
+  | eapply (StepsZero 0%nat)
   | eapply StepsSucc; [ step | cbn ]
-  | rewrite int.add_repr_repr
-  | rewrite int.eq_repr_repr by int.representable
+  | rewrite add_repr_repr
+  | rewrite eq_repr_repr by representable
   ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
@@ -70,7 +70,7 @@ Local Ltac reduces :=
 
 Lemma test_assert_false :
   let e := EAssert EFalse in
-  fails e.
+  crashes e.
 Proof. reduces. Qed.
 
 Lemma test_assert_true :
@@ -97,14 +97,14 @@ Proof. reduces. Qed.
 
 Lemma test_record_construction_with_sorting_1 :
   let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
-  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (int.repr 0)) EnvNil) in
+  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (repr 0)) EnvNil) in
   let v := VRecord fvs in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_with_sorting_2 :
   let e := ERecord (FECons "bar" ETrue (FECons "foo" (EInt 0) FENil)) in
-  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (int.repr 0)) EnvNil) in
+  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (repr 0)) EnvNil) in
   let v := VRecord fvs in
   reduces e v.
 Proof. reduces. Qed.
@@ -119,7 +119,7 @@ Proof. reduces. Qed.
 Lemma test_record_construction_and_access_2 :
   let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
   let e := ERecordAccess e "foo" in
-  let v := VInt (int.repr 0) in
+  let v := VInt (repr 0) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -127,7 +127,7 @@ Lemma test_record_construction_and_deconstruction :
   let e := ERecord (FECons "foo" (EInt 10) (FECons "bar" (EInt 32) FENil)) in
   let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
   let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
-  let v := VInt (int.repr 42) in
+  let v := VInt (repr 42) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -136,7 +136,7 @@ Lemma test_record_construction_update_and_deconstruction :
   let e := ERecordUpdate e (FECons "bar" (EInt 14) FENil) in
   let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
   let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
-  let v := VInt (int.repr 24) in
+  let v := VInt (repr 24) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -146,7 +146,7 @@ Lemma test_match_integer :
     Branch (PInt 0) (EInt 0);
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
   ] in
-  let v := VInt (int.repr 13) in
+  let v := VInt (repr 13) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -156,7 +156,7 @@ Lemma test_match_integer_and_alias_pattern :
     Branch (PAlias (PInt 0) "x") (EVar "x");
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
   ] in
-  let v := VInt (int.repr 0) in
+  let v := VInt (repr 0) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -166,7 +166,7 @@ Lemma test_match_integer_and_disjunction_pattern :
     Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x"));
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
 ] in
-  let v := VInt (int.repr 2) in
+  let v := VInt (repr 2) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -190,7 +190,7 @@ Lemma test_EFunction :
     ]) $
     EApp (EVar "f") (EInt 1)
   in
-  let v := VInt (int.repr 34) in
+  let v := VInt (repr 34) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -208,7 +208,7 @@ Lemma test_EFun :
       EPair (EInt 30) (EInt 40)
     ]
   in
-  let v := VInt (int.repr 50) in
+  let v := VInt (repr 50) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -237,21 +237,21 @@ Proof.
   (* Unroll this iteration. *)
   unfold loop.
   (* Simplify the comparison. *)
-  rewrite int.lt_repr_repr by int.representable. cbn.
+  rewrite lt_repr_repr by representable. cbn.
   (* Simplify the incrementation. *)
-  unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
+  unfold one. rewrite add_repr_repr. unfold Z.add. simpl.
   (* Step. *)
   steps.
 
   (* Iteration 1. *)
   unfold loop.
-  rewrite int.lt_repr_repr by int.representable. cbn.
-  unfold int.one. rewrite int.add_repr_repr. unfold Z.add. simpl.
+  rewrite lt_repr_repr by representable. cbn.
+  unfold one. rewrite add_repr_repr. unfold Z.add. simpl.
   steps.
 
   (* Iteration 2. *)
   unfold loop.
-  rewrite int.lt_repr_repr by int.representable. cbn.
+  rewrite lt_repr_repr by representable. cbn.
   steps.
 
 Qed.
@@ -280,7 +280,7 @@ Lemma test_struct_access :
     ) $
     EMkPath ["A"; "z"]
   in
-  let v := VInt (int.repr 1) in
+  let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -310,7 +310,7 @@ Lemma test_open :
     ) $
     EMkPath ["A"; "z"]
   in
-  let v := VInt (int.repr 1) in
+  let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -340,7 +340,7 @@ Lemma test_include :
     ) $
     EIntAdd (EMkPath ["A"; "x"]) (EMkPath ["A"; "z"])
   in
-  let v := VInt (int.repr 1) in
+  let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.
 
@@ -370,6 +370,6 @@ Lemma test_let_open :
     ELetOpen (MkPath ["B"]) $
     EVar "y"
   in
-  let v := VInt (int.repr 1) in
+  let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.

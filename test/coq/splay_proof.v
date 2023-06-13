@@ -302,21 +302,21 @@ Definition decide_spec `{Encode A}
     ).
 
 Lemma Stdlib__lt_spec :
-  decide_spec Stdlib__lt int.representable Z.lt.
+  decide_spec Stdlib__lt representable Z.lt.
 Proof.
   intros x y ? ?.
   SIMP_enter.
-  rewrite int.lt_repr_repr by assumption.
+  rewrite lt_repr_repr by assumption.
   rewrite Zlt_spec.
   tauto.
 Qed.
 
 Lemma Stdlib__gt_spec :
-  decide_spec Stdlib__gt int.representable (λ x y, Z.lt y x).
+  decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
 Proof.
   intros x y ? ?.
   SIMP_enter.
-  rewrite int.lt_repr_repr by assumption.
+  rewrite lt_repr_repr by assumption.
   rewrite Zlt_spec.
   tauto.
 Qed.
@@ -336,7 +336,7 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
     SIMP
       (bind (call compare #x) (λ v, call v #y))
       (λ (c : Z),
-        int.representable c ∧
+        representable c ∧
         (c < 0 ↔ lt x y) ∧
         (c = 0 ↔ eq x y) ∧
         (0 < c ↔ lt y x)

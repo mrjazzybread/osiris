@@ -136,30 +136,30 @@ Section Stdlib__specs.
       ∀ v1 v2 (i1 i2: Z),
         v1 = encode i1 →
         v2 = encode i2 →
-        (int.min_signed ≤ i1 ≤ int.max_signed)%Z →
-        (int.min_signed ≤ i2 ≤ int.max_signed)%Z →
+        representable i1 →
+        representable i2 →
         ⊢ WP call Stdlib__eq v1 @s; E
              {{ λ v, WP call v v2 @s; E
                         {{ λ v, ⌜v = encode (i1 =? i2)%Z⌝ }} }}.
     Proof.
       intros. subst. wp.
       wp_call.
-      by rewrite int.eq_repr_repr.
+      by rewrite eq_repr_repr.
     Qed.
 
     Lemma Stdlib__lt__spec s E :
       ∀ v1 v2 (i1 i2: Z),
         v1 = encode i1 →
         v2 = encode i2 →
-        (int.min_signed ≤ i1 ≤ int.max_signed)%Z →
-        (int.min_signed ≤ i2 ≤ int.max_signed)%Z →
+        representable i1 →
+        representable i2 →
         ⊢ WP call Stdlib__lt v1 @s; E
              {{ λ v, WP call v v2 @s; E
                         {{ λ v, ⌜v = encode (i1 <? i2)%Z⌝ }} }}.
     Proof.
       intros. subst. wp.
       wp_call.
-      by rewrite int.lt_repr_repr.
+      by rewrite lt_repr_repr.
     Qed.
   End Stdlib__spec__arith_comp.
 
@@ -258,7 +258,7 @@ Section Stdlib__specs.
 
   Global Instance Stdlib__neg__TCspec : pure_unary_spec Stdlib__neg Z.opp.
   Proof.
-    iIntros (i s E φ); iIntros "H"; wp_call; rewrite int.neg_repr; iAssumption.
+    iIntros (i s E φ); iIntros "H"; wp_call; rewrite neg_repr; iAssumption.
   Qed.
 
   Global Instance Stdlib__fst__TCspec `{Encode A} `{Encode B} :
@@ -280,15 +280,15 @@ Section Stdlib__specs.
 
   Global Instance Stdlib__add__TCspec :
     forall (i j : Z), pure_binary_spec Stdlib__add Z.add i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite int.add_repr_repr. Qed.
+  Proof. iIntros (?????)"H"; wp_call. by rewrite add_repr_repr. Qed.
 
   Global Instance Stdlib__sub__TCspec :
     forall (i j : Z), pure_binary_spec Stdlib__sub Z.sub i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite int.sub_repr_repr. Qed.
+  Proof. iIntros (?????)"H"; wp_call. by rewrite sub_repr_repr. Qed.
 
   Global Instance Stdlib__mul__TCspec :
     forall (i j : Z), pure_binary_spec Stdlib__mul Z.mul i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite int.mul_repr_repr. Qed.
+  Proof. iIntros (?????)"H"; wp_call. by rewrite mul_repr_repr. Qed.
 
 
 
@@ -300,7 +300,7 @@ Section Stdlib__specs.
   Proof.
     iIntros (????)"H"; wp_call.
     iApply "H". iIntros; wp.
-    by rewrite int.add_repr_repr.
+    by rewrite add_repr_repr.
   Qed.
 
   Global Instance Stdlib__mul__TCspec_1:
@@ -308,7 +308,7 @@ Section Stdlib__specs.
   Proof.
     iIntros (????)"H"; wp_call.
     iApply "H". iIntros; wp.
-    by rewrite int.mul_repr_repr.
+    by rewrite mul_repr_repr.
   Qed.
 
 End Stdlib__specs.
