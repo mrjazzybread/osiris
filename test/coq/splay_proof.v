@@ -151,7 +151,7 @@ Fixpoint depth {A} (z : zipper A) : nat :=
   end.
 
 Definition zlt {A} (z1 z2 : zipper A) :=
-  depth z1 < depth z2.
+  (depth z1 < depth z2)%nat.
 
 Lemma zlt_wf {A} :
   well_founded (@zlt A).
@@ -159,7 +159,7 @@ Proof.
   unfold zlt. eapply wf_inverse_image. eapply lt_wf.
 Qed.
 
-Local Hint Extern 1 (depth _ < depth _) => (simpl; lia) : SIMP_specs.
+Local Hint Extern 1 (depth _ < depth _)%nat => (simpl; lia) : SIMP_specs.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -278,7 +278,51 @@ End BST.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A generic specification for [compare] functions. *)
+(* WIP *)
+
+Lemma Zlt_spec (x y : Z) :
+  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
+Proof.
+  rewrite Zlt_is_lt_bool.
+  rewrite Is_true_true.
+  tauto.
+Qed.
+
+(* A specification for a function [decide] that decides a relation [R],
+   subject to a precondition [P], producing a Boolean outcome. *)
+
+Definition decide_spec `{Encode A}
+  (decide : val) (P : A → Prop) (R : A → A → Prop)
+:=
+  ∀ (x y : A), P x → P y →
+  SIMP
+    (bind (call decide #x) (λ v, call v #y))
+    (λ (b : bool),
+      b ↔ R x y
+    ).
+
+Lemma Stdlib__lt_spec :
+  decide_spec Stdlib__lt int.representable Z.lt.
+Proof.
+  intros x y ? ?.
+  SIMP_enter.
+  rewrite int.lt_repr_repr by assumption.
+  rewrite Zlt_spec.
+  tauto.
+Qed.
+
+Lemma Stdlib__gt_spec :
+  decide_spec Stdlib__gt int.representable (λ x y, Z.lt y x).
+Proof.
+  intros x y ? ?.
+  SIMP_enter.
+  rewrite int.lt_repr_repr by assumption.
+  rewrite Zlt_spec.
+  tauto.
+Qed.
+
+(* A specification for a [compare] function that decides a preorder [le],
+   producing an integer code that encodes a three-way outcome. *)
 
 (* The double application [compare x y] returns a (representable) integer
    code [c] such that the sign of [c] encodes the three possible outcomes
@@ -341,14 +385,6 @@ Lemma false_iff (P : Prop) :
   (false ↔ P) ↔ ¬P.
 Proof.
   simpl. tauto.
-Qed.
-
-Lemma lt_spec (x y : Z) :
-  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
-Proof.
-  rewrite Zlt_is_lt_bool.
-  rewrite Is_true_true.
-  tauto.
 Qed.
 
 Lemma Splay__spec:
@@ -466,35 +502,26 @@ Proof.
               when there is no interesting spec to provide *)
       (* Examine the comparison [c < 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
-      { SIMP.
-        (* TODO need a Hoare spec for [lt] *)
-        instantiate (1 := (λ (b : bool), b ↔ strict le x y)).
-        SIMP_enter.
-        rewrite int.lt_repr_repr by first [ tauto | int.prove_representable_30 ].
-        rewrite lt_spec. tauto. }
+      { SIMP. (* TODO SIMP_call *)
+        eapply Stdlib__lt_spec; representable. }
       cbn. intros [|] Hlt; SIMP;
       rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x < y]. *)
       { SIMP_call. intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_search_left by assumption. assumption.
+        - rewrite bst_search_left by representable. assumption.
         - assumption. }
       (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
-      { SIMP.
-        (* TODO need a Hoare spec for [gt] *)
-        instantiate (1 := (λ (b : bool), b ↔ strict le y x)).
-        SIMP_enter.
-        rewrite int.lt_repr_repr by first [ tauto | int.prove_representable_30 ].
-        rewrite lt_spec. tauto. }
+      { SIMP. eapply Stdlib__gt_spec; representable. }
       cbn. intros [|] Hgt; SIMP;
       rewrite ?true_iff, ?false_iff in *.
       (* Subcase: [x > y]. *)
       { SIMP_call. intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_search_right by assumption. assumption.
+        - rewrite bst_search_right by representable. assumption.
         - assumption. }
       (* Subcase: neither comparison succeeded, so [x] and [y] are
          equivalent with respect to the preorder [le]. *)
