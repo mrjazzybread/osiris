@@ -244,7 +244,7 @@ Local Ltac prove_same_fringe :=
 Section BST.
 
 Context {A : Type}.
-Context {lt : A → A → Prop}.
+Context (lt : A → A → Prop).
 Context {Tlt : Transitive lt}.
 
 (* A tree is a BST if and only if its fringe is sorted. *)
