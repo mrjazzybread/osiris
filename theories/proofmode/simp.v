@@ -168,7 +168,8 @@ Create HintDb simp_specs.
 
 Ltac normalize :=
   cbn;
-  repeat rewrite bind_bind. (* TODO may wish to rewrite at the root only. *)
+  rewrite ?true_iff, ?false_iff in *; (* TODO expensive? *)
+  rewrite ?bind_bind. (* TODO may wish to rewrite at the root only. *)
 
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
@@ -407,35 +408,6 @@ Proof.
   unfold SIMP. intros. subst. eauto with simp.
 Qed.
 
-(* This variant of the Bind rule has two premises. *)
-
-(* This is [@bind val val]. *)
-
-Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
-  m f (φ : X → Prop) (ψ : Y → Prop) :
-  SIMP m φ →
-  (∀ x, φ x → SIMP (f #x) ψ) →
-  SIMP (bind m f) ψ.
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  eexists; split; eauto using prove_simp_bind.
-Qed.
-
-(* This Iris-style variant of the Bind rule has just one premise. It is
-   obtained by choosing the least precise φ in the above lemma. *)
-
-(* This is [@bind val val]. *)
-
-Lemma SIMP_bind_unary X (_ : Encode X) Y (_ : Encode Y)
-  m f (ψ : Y → Prop) :
-  SIMP m (λ (x : X), SIMP (f #x) ψ) →
-  SIMP (bind m f) ψ.
-Proof.
-  eauto using SIMP_bind.
-Qed.
-
 (* A reasoning rule for [try]. *)
 
 (* The rule is degenerate; [m] is not allowed to reduce to [Next],
@@ -451,6 +423,32 @@ Proof.
   specialize (Hf x Hx).
   destruct Hf as (y & ? & ?).
   eexists; split; eauto using prove_simp_try.
+Qed.
+
+(* This variant of the Bind rule has two premises. *)
+
+(* This is [@bind val val]. *)
+
+Lemma SIMP_bind X (_ : Encode X) Y (_ : Encode Y)
+  m f (φ : X → Prop) (ψ : Y → Prop) :
+  SIMP m φ →
+  (∀ x, φ x → SIMP (f #x) ψ) →
+  SIMP (bind m f) ψ.
+Proof.
+  rewrite bind_as_try. eauto using SIMP_try.
+Qed.
+
+(* This Iris-style variant of the Bind rule has just one premise. It is
+   obtained by choosing the least precise φ in the above lemma. *)
+
+(* This is [@bind val val]. *)
+
+Lemma SIMP_bind_unary X (_ : Encode X) Y (_ : Encode Y)
+  m f (ψ : Y → Prop) :
+  SIMP m (λ (x : X), SIMP (f #x) ψ) →
+  SIMP (bind m f) ψ.
+Proof.
+  eauto using SIMP_bind.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -545,6 +543,18 @@ Proof.
   intros. subst. eauto.
 Qed.
 
+(* This lemma combines [SIMP_covariant] and [SIMP_call]. *)
+
+Lemma SIMP_call_covariant `{Encode X} `{Encode Y}
+  (φ ψ : Y → Prop) v1 v'2 (x : X) :
+  v'2 = #x →
+  SIMP (call v1 #x) φ →
+  (∀ y, φ y → ψ y) →
+  SIMP (call v1 v'2) ψ.
+Proof.
+  eauto using SIMP_covariant, SIMP_call.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Opacity. *)
@@ -555,41 +565,104 @@ Global Opaque SIMP.
 
 (* Tactics. *)
 
-(* TODO Polish and document. *)
+(* [SIMP_ret] expects a goal of the form [SIMP (ret v) φ]. It applies
+   the lemma [SIMP_ret], solves the subgoal [v = #x], and leaves just
+   the subgoal [φ x], which it simplifies. *)
 
 Ltac SIMP_ret :=
-  eapply SIMP_ret; [ encode |].
+  eapply SIMP_ret; [ solve [ encode ] | normalize ].
+
+(* [SIMP_simp] expects a goal of the form [SIMP m φ]. It simplifies
+   [m] into [m'], if possible, and leaves the goal [SIMP m' φ]. *)
 
 Ltac SIMP_simp :=
   eapply SIMP_simp; [ simp_really |].
 
-Ltac SIMP_bind :=
-  eapply SIMP_bind.
+(* SIMP0 leaves zero subgoal. *)
+(* SIMP1 leaves one subgoal, which may have an arbitrary shape. *)
 
-(* TODO automatically apply SIMP_bind_as_bool when possible *)
-(* TODO automatically apply SIMP_bind_as_int when possible *)
-
-Ltac SIMP :=
+Ltac SIMP0 :=
   normalize;
   try SIMP_simp;
   first [
-    SIMP_ret
-  | SIMP_bind; [ solve [ SIMP ] | SIMP ]
-  | idtac
-  ].
+
+    SIMP_ret; [
+      (* goal: [φ x] *)
+      SIMP_close
+    ]
+
+  | eapply SIMP_call; [
+      (* goal: [v = #x] *)
+      solve [encode]
+    | (* goal: [SIMP (call #x) φ] *)
+      SIMP_close
+    ]
+
+  | eapply SIMP_call_covariant; [
+      (* goal: [v = #x] *)
+      solve [encode]
+      (* goal: [SIMP (call #x) φ] *)
+    | solve [eauto with SIMP_specs]
+      (* goal: [∀ x, φ x → φ' x] *)
+    | SIMP_close
+    ]
+
+  | eapply SIMP_bind_as_bool; [ SIMP0 | normalize; intros; SIMP0 ]
+  | eapply SIMP_bind_as_int ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | eapply SIMP_bind        ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | eapply SIMP_try         ; [ SIMP0 | normalize; intros; SIMP0 ]
+
+  | SIMP_close
+
+  ]
+
+with SIMP1 :=
+  normalize;
+  try SIMP_simp;
+  first [
+
+    SIMP_ret (* residual goal: [φ x] *)
+
+  | eapply SIMP_call_covariant; [
+      (* goal: [v = #x] *)
+      solve [encode]
+      (* goal: [SIMP (call #x) φ] *)
+    | solve [eauto with SIMP_specs]
+      (* residual goal: [∀ x, φ x → φ' x] *)
+    | normalize
+    ]
+
+  | eapply SIMP_call; [
+      (* goal: [v = #x] *)
+      solve [encode]
+    | (* residual goal: [SIMP (call #x) φ] *)
+      idtac
+    ]
+
+  | eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) normalize ]
+  | eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) normalize ]
+  | eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) normalize ]
+  | eapply SIMP_try         ; [ SIMP0 | (* residual goal *) normalize ]
+
+  | idtac (* residual goal *)
+
+  ]
+
+with SIMP_close :=
+  solve [ eauto with SIMP_specs representable ].
 
 Ltac SIMP_enter :=
-  with_strategy transparent [call] unfold call; SIMP.
+  with_strategy transparent [call] unfold call; SIMP1.
 
 Ltac SIMP_continue :=
   normalize;
   lazymatch goal with
   |  |- SIMP (concatenating _ _ _ _) _ =>
       with_strategy transparent [concatenating] unfold concatenating at 1;
-      SIMP
+      SIMP1
   |  |- SIMP (bind (dconcatenating _ _) _) _ =>
       with_strategy transparent [dconcatenating] unfold dconcatenating at 1;
-      SIMP
+      SIMP1
   | _ =>
     fail "[SIMP_continue]: unexpected goal."
   end.
@@ -626,6 +699,7 @@ Ltac SIMP_specify x φ :=
 
 Create HintDb SIMP_specs.
 
+(* TODO may be unused *)
 Ltac SIMP_call :=
   first [
     eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
