@@ -119,7 +119,7 @@ and translate_expression (e: expr) : expression =
   (* Every data constructor is considered unary *)
   | EData (a, e) -> (* of data * expr *)
      EConstr ("EData", [ string_literal a ;
-                         translate_expression (ETuple [e]) ])
+                         translate_expression e ])
 
   (* Record construction: [{ fs = es }] *)
   | ERecord fs -> (* of fexprs *)
@@ -203,6 +203,9 @@ and translate_expression (e: expr) : expression =
   | EAssert (e) ->
      EConstr ("EAssert", [translate_expression e])
 
+  | ERef e -> (* of expr *)
+     EConstr ("ERef", [translate_expression e])
+
   (* The following does not exist in OCaml. Therefore, it will not show up
      here. *)
   | EBoolConj _ (* of expr * expr *)
@@ -223,7 +226,6 @@ and translate_expression (e: expr) : expression =
   | EOpGt _ (* of expr * expr *)
   | EOpGe _ (* of expr * expr *)
   | EAssertFalse
-  | ERef _ (* of expr *)
   | ELoad _ (* of expr *)
   | EStore _ (* of expr * expr *)
     -> assert false

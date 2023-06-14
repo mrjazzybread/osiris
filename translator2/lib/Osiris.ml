@@ -13,7 +13,6 @@ let string_of_longident (i: Longident.t) : string =
   Longident.flatten i
   |> last
 
-
 (* -------------------------------------------------------------------------- *)
 
 let translate_constant = function
@@ -31,6 +30,16 @@ let translate_constant = function
   | Asttypes.Const_char _ -> assert false
   | Asttypes.Const_float _ -> assert false
 
+(* -------------------------------------------------------------------------- *)
+
+let anonfun_of_expr : expr -> anonfun = function
+  | EAnonFun f -> f
+  | _ -> assert false
+
+let unvarpat (p : value general_pattern) : string =
+  match p.pat_desc with
+  | Tpat_var (_, v) -> v.txt
+  | _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -78,7 +87,6 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
   | Tpat_array _ -> assert false
   | Tpat_lazy _ -> assert false
 
-
 (* -------------------------------------------------------------------------- *)
 
 let translate_branch translate_expression (p, e) =
@@ -110,8 +118,6 @@ let translate_computation_pattern p =
   match split_pattern p with
   | Some p, None -> translate_pattern p
   | _ -> assert false
-
-
 
 let translate_record
       (fields: (Types.label_description * record_label_definition) array)
@@ -155,7 +161,6 @@ let translate_record
      end
   | _ -> assert false
 
-
 (* -------------------------------------------------------------------------- *)
 
 let rec translate_expression (e: Typedtree.expression) =
@@ -188,6 +193,9 @@ let rec translate_expression (e: Typedtree.expression) =
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expression e)
+
+  | Texp_let (Recursive, vbs, e) ->
+     ELetRec (translate_rec_bindings vbs, translate_expression e)
 
   | Texp_tuple el -> ETuple (List.map translate_expression el)
 
@@ -277,7 +285,6 @@ let rec translate_expression (e: Typedtree.expression) =
   | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
   | Texp_open (_, _) -> assert false
-  | _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -293,25 +300,12 @@ and translate_bindings vbs =
       v :: rv(*, t @ rt*))
     vbs ([](*, []*))
 
-
-
-(* -------------------------------------------------------------------------- *)
-
-let anonfun_of_expr : expr -> anonfun = function
-  | EAnonFun f -> f
-  | _ -> assert false
-
-let unvarpat (p : value general_pattern) : string =
-  match p.pat_desc with
-  | Tpat_var (_, v) -> v.txt
-  | _ -> assert false
-
-let translate_rec_binding (vb: Typedtree.value_binding): rec_binding (* * types*) =
+and translate_rec_binding (vb: Typedtree.value_binding): rec_binding (* * types*) =
   let name = unvarpat vb.vb_pat in
   let expression(* , types*) = translate_expression vb.vb_expr in
   RecBinding (name, anonfun_of_expr expression)(*, types*)
 
-let translate_rec_bindings vbs =
+and translate_rec_bindings vbs =
   List.fold_right
     (fun vb (rv(*,rt*)) ->
       let (v(*, t*)) = translate_rec_binding vb in
@@ -339,17 +333,17 @@ let translate_structure_item
      let m = translate_module module_structure in
      Some (IModule (Ident.name mb_id, m))
 
-  (*| Tstr_exception {tyexn_constructor = {ext_id; _}; _} -> (* of type_exception *)
-     Some (
-         EPlain ("(ILet (Binding1 (PVar \""^(Ident.name ext_id)^"\")\
-                                (ERef EUnit)))")) *)
-
   (* Ignoring the type-related definitions. *)
   | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
   | Tstr_attribute _ (*of attribute*)
     -> None
+
+  (* TODO: update me once the semantics has become exception-aware. *)
+  | Tstr_exception {tyexn_constructor = {ext_id; _}; _} ->
+     (* of type_exception *)
+     Some (ILet [Binding (PVar (Ident.name ext_id), ERef EUnit)])
 
   | Tstr_module _ -> assert false (* of module_binding *)
   | Tstr_eval _ -> assert false (* of expression * attributes *)
@@ -359,8 +353,6 @@ let translate_structure_item
   | Tstr_open _ -> assert false (* of open_declaration *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
   | Tstr_include _ -> assert false (* of include_declaration *)
-  | _ -> assert false
-
 
 (* -------------------------------------------------------------------------- *)
 

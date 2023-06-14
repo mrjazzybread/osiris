@@ -1,9 +1,9 @@
 (rule
   (targets code.v)
   ; Do not promote for now. (mode promote)
-  (deps    (:gen ../../../../translator/bin/main.exe)
+  (deps    (:gen ../../../../translator2/bin/main.exe)
            (:src ../../../ml/Stdlib/list.ml))
   (action
     (progn
       (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -ml %{src} -out %{targets} -verbose))))
+      (run %{gen} -mode cmt -cmt ../../../ml/Stdlib/list.cmt -out %{targets}))))
