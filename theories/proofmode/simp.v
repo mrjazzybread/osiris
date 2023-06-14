@@ -1,7 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics evalprime.
-  (* TODO evalprime should be loaded by semantics *)
+From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality.
 
 (* A pure computation is terminating, deterministic, and does not use

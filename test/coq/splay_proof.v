@@ -1,8 +1,6 @@
 Require Import Coq.Wellfounded.Inverse_Image.
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
-From osiris.semantics Require Export evalprime.
-From osiris.proofmode Require Export proofmode. (* TODO *)
 From osiris.libs Require Import Stdlib.
 From test Require Import splay.
 Local Opaque app. (* Prevent undesired simplification. *)
