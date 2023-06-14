@@ -158,6 +158,8 @@ Definition Λ :=
 
 (* Staging area. *)
 
+(* TODO making definitions opaque blocks the [simp] tactics
+        and seems counter-productive. *)
 Opaque
   r_elt_expr
   flip_body flip_function
@@ -421,7 +423,7 @@ Proof.
   wp_specify "is_odd" trivial_spec; first done.
   iIntros (is_odd) "#His_odd". wp_continue.
 
-  Opaque eval.
+  Opaque eval. (* TODO? *)
   wp_specify "is_odd'" is_odd_spec.
   { iIntros(n). explicit is_odd'_function.
     wp_call.
@@ -454,6 +456,8 @@ Proof.
     by wp. }
 Time Qed.
 
+(* TODO making definitions opaque blocks the [simp] tactics
+        and seems counter-productive. *)
 Opaque
   flip_function
   r_val_function
