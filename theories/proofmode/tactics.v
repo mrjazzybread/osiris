@@ -67,10 +67,10 @@ Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
 
 (* [oSpecify] is used to provide the user the possibility to provide
    specifications for variables which are about to be added to the environment
-   through [dconcatenating].
+   through [ret_dconcat].
    The tactic notation only works for two arguments, as it is what is required
    here. If it works, it should be moved to [proofmode/specifications.v].
-   Note: [dconcatenating] only takes two arguments now (the continuation is
+   Note: [ret_dconcat] only takes two arguments now (the continuation is
          always ret). *)
 Local Ltac oSpecify_intros lnames :=
   let hyps := eval cbn in (foldr String.append "" lnames) in
@@ -95,7 +95,7 @@ Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1) :=
   lazymatch goal with
   | |- environments.envs_entails
-         _ (wp _ _ (dconcatenating ?δ _) _) =>
+         _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1] [n1] [H1] δ;
       last ( oAbstract n1 i1 ;
              wp_continue)
@@ -105,7 +105,7 @@ Tactic Notation "oSpecify"
        constr(n2) constr(spec2) ident(i2) constr(H2) :=
   lazymatch goal with
   | |- environments.envs_entails
-         _ (wp _ _ (dconcatenating ?δ _) _) =>
+         _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2] [n1; n2] [H1; H2] δ;
       last ( oAbstract n1 i1
                        n2 i2;
@@ -117,7 +117,7 @@ Tactic Notation "oSpecify"
        constr(n3) constr(spec3) ident(i3) constr(H3) :=
   lazymatch goal with
   | |- environments.envs_entails
-         _ (wp _ _ (dconcatenating ?δ _) _) =>
+         _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
       last ( oAbstract n1 i1
                        n2 i2
@@ -131,7 +131,7 @@ Tactic Notation "oSpecify"
        constr(n4) constr(spec4) ident(i4) constr(H4) :=
   lazymatch goal with
   | |- environments.envs_entails
-         _ (wp _ _ (dconcatenating ?δ _) _) =>
+         _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3; spec4]
                       [n1; n2; n3; n4]
                       [H1; H2; H3; H4]

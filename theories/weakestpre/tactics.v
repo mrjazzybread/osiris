@@ -134,8 +134,8 @@ Ltac wp_continue :=
         (* We wish to unfold just the root occurrence. *)
   | |- environments.envs_entails
          _ $
-         wp _ _ (dconcatenating ?δ _) _ =>
-      with_strategy transparent [dconcatenating] unfold dconcatenating at 1
+         wp _ _ (ret_dconcat ?δ _) _ =>
+      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1
         (* We wish to unfold just the root occurrence. *)
   end; wp.
 
@@ -171,7 +171,7 @@ Ltac wp_specify x φ :=
         end
   | |- environments.envs_entails
          _ $
-         wp _ _ (dconcatenating ?δ _) _ =>
+         wp _ _ (ret_dconcat ?δ _) _ =>
       let o := eval cbn in (lookup_name δ x) in
         match o with
         | ret ?v => let H := iFresh in

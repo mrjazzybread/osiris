@@ -10,7 +10,7 @@ Arguments String.eqb !s1 !s2 : simpl nomatch.
 Global Opaque
        call
        concatenating
-       dconcatenating
+       ret_dconcat
        stuck
        eval
        SIMP

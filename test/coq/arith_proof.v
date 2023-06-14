@@ -152,7 +152,7 @@ Proof.
   lazymatch goal with
   | |- environments.envs_entails
          ?Δ (wp ?s ?E
-                (dconcatenating
+                (ret_dconcat
                    (EnvCons "add" ?vadd $
                             EnvCons "mult" ?vmult $
                             EnvNil)
@@ -350,7 +350,7 @@ Proof.
   lazymatch goal with
   | |- environments.envs_entails
          ?Δ (wp ?s ?E
-                (dconcatenating
+                (ret_dconcat
                    (EnvCons "add" ?vadd $
                             EnvCons "mult" ?vmult $
                             EnvNil)

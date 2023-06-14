@@ -617,7 +617,7 @@ Definition dconcat δ' ηδ : envs :=
 
 (* TODO comment *)
 
-Definition dconcatenating δ' ηδ :=
+Definition ret_dconcat δ' ηδ :=
   ret (dconcat δ' ηδ).
 
 (* ------------------------------------------------------------------------ *)
@@ -985,10 +985,10 @@ with eval_sitem (ηδ : envs) item : free envs :=
   match item with
   | ILet bs =>
       δ' ← eval_bindings η bs;
-      dconcatenating δ' ηδ
+      ret_dconcat δ' ηδ
   | ILetRec rbs =>
       let δ' := eval_rec_bindings η rbs in
-      dconcatenating δ' ηδ
+      ret_dconcat δ' ηδ
   | IModule m me =>
       v ← eval_mexpr η me ;
       let δ' := EnvCons m v EnvNil in

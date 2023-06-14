@@ -693,8 +693,8 @@ Ltac SIMP_continue :=
   |  |- SIMP (concatenating _ _ _ _) _ =>
       with_strategy transparent [concatenating] unfold concatenating at 1;
       SIMP1
-  |  |- SIMP (bind (dconcatenating _ _) _) _ =>
-      with_strategy transparent [dconcatenating] unfold dconcatenating at 1;
+  |  |- SIMP (bind (ret_dconcat _ _) _) _ =>
+      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1;
       SIMP1
   | _ =>
     fail "[SIMP_continue]: unexpected goal."
@@ -702,7 +702,7 @@ Ltac SIMP_continue :=
 
 Ltac SIMP_specify x φ :=
   lazymatch goal with
-  | |- SIMP (bind (dconcatenating ?δ _) _) _ =>
+  | |- SIMP (bind (ret_dconcat ?δ _) _) _ =>
       let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in

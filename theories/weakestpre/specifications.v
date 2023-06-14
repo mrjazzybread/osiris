@@ -71,7 +71,7 @@ Section MutuallyRecursive.
   (* ------------------------------------------------------------------------ *)
 
   (* The idea of this section is to allow to prove goals of the form
-     [wp s E (concatenating ...) φ] and [wp s E (dconcatenating ...) φ] by
+     [wp s E (concatenating ...) φ] and [wp s E (ret_dconcat ...) φ] by
      proving that it is enough to prove:
      [ ▷ spec1 v1 -∗ ... -∗ ▷ specn vn -∗ spec1 v1 ],
       ... ,
