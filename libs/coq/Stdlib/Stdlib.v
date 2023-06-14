@@ -473,3 +473,33 @@ Global Hint Resolve
   Stdlib__gt_spec
   Stdlib__ge_spec
 : SIMP_specs.
+
+(* -------------------------------------------------------------------------- *)
+
+(* TODO WIP *)
+
+(* Some pure functions in the standard library (e.g., the arithmetic operators
+   and the comparison operators) can be given deterministic specifications in
+   terms of [simp]. So, we seem to have three choices:
+   - prove a spec in terms of [SIMP] and make it a lemma in a database;
+   - prove a spec in terms of [simp] and make it a lemma in a database;
+     (this approach does not work well for curried binary functions,
+      as the intermediate value [v] must be existentially quantified)
+   - let the user exploit the tactic [simp] at the call site,
+     without stating/proving a lemma. *)
+
+Local Lemma experiment_add :
+  ∀ (x y : Z),
+  simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(x + y)).
+Proof.
+  (* [simp_enter] is just [simp] under a transparent [call]. *)
+  (* It is able to prove this goal. *)
+  intros. simp_enter.
+Qed.
+
+Local Lemma experiment_eq :
+  ∀ (x y : Z), representable x → representable y →
+  simp (bind (call Stdlib__eq #x) (λ v, call v #y)) (ret #(Z.eqb x y)).
+Proof.
+  intros. simp_enter.
+Qed.
