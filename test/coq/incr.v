@@ -1,258 +1,272 @@
-(* Original file:
-let new_counter () =
-  let c = ref 0 in let upd i = c := i in let get () = !c in (get, upd)
-let _ =
-  let res = new_counter () in
-  let get = fst res in
-  let upd = snd res in
-  let c = get () in match upd 13 with | () -> let res = (get ()) - c in res
-let _test =
-  let (get, upd) = new_counter () in
-  let c = get () in match upd 13 with | () -> let res = (get ()) - c in res *)
-
-(* Converting a single CMT file for [Incr]. *)
-
-(* Auto generated headers. They import the required Coq modules:
-   - static dependencies defining the language
-.*)From osiris Require Import base.
-From osiris.lang Require Import lang.
+From osiris Require Import osiris.
 
 
 
-(* Generated code: *)
-Definition Incr : mexpr := 
-(
-  MStruct (
-    ICons (
-      ILet (
-        BiCons (
-          Binding (PVar "new_counter")
-          (
-            EAnonFun (
-              AnonFunction (
-                 (
-                  BrCons (
-                    Branch PUnit
-                    (
-                      ELet (
-                        BiCons (
-                          Binding (PVar "c")
-                          (
-                            EApp (EPath (PathDot (PathBase "Stdlib") "ref"))
-                            (EInt 0)
-                          )
-                        )
-                        BiNil
-                      )
-                      (
-                        ELet (
-                          BiCons (
-                            Binding (PVar "upd")
-                            (
-                              EAnonFun (
-                                AnonFunction (
+Definition Incr : mexpr := (
+                             MkStruct [(
+                               ILet (
+                                 BiCons (
+                                   Binding (PVar "new_counter")
                                    (
-                                    BrCons (
-                                      Branch (PVar "i")
-                                      (
-                                        EApp (
-                                          EApp (EPath (PathDot (PathBase
-"Stdlib") ":="))
-                                          (EPath (PathBase "c"))
-                                        )
-                                        (EPath (PathBase "i"))
-                                      )
-                                    )
-                                    BrNil
-                                  )
-                                )
-                              )
-                            )
-                          )
-                          BiNil
-                        )
-                        (
-                          ELet (
-                            BiCons (
-                              Binding (PVar "get")
-                              (
-                                EAnonFun (
-                                  AnonFunction (
+                                     EAnonFun (
+                                       AnonFun "__osiris_anonymous_arg"
+                                       (
+                                         EMatch (EPath (PathBase
+"__osiris_anonymous_arg"))
+                                         (
+                                           MkBranches [(
+                                             Branch PUnit
+                                             (
+                                               ELet (
+                                                 BiCons (
+                                                   Binding (PVar "c")
+                                                   (
+                                                     EApp (
+                                                       EPath (PathDot
+(PathBase "Stdlib") "ref")
+                                                     )
+                                                     (EInt 0)
+                                                   )
+                                                 )
+                                                 BiNil
+                                               )
+                                               (
+                                                 ELet (
+                                                   BiCons (
+                                                     Binding (PVar "upd")
+                                                     (
+                                                       EAnonFun (
+                                                         AnonFun
+"__osiris_anonymous_arg"
+                                                         (
+                                                           EMatch (
+                                                             EPath (
+                                                               PathBase
+"__osiris_anonymous_arg"
+                                                             )
+                                                           )
+                                                           (
+                                                             MkBranches [(
+                                                               Branch (PVar
+"i")
+                                                               (
+                                                                 EApp (
+                                                                   EApp (
+                                                                     EPath (
+                                                                      
+PathDot (PathBase "Stdlib")
+                                                                       ":="
+                                                                     )
+                                                                   )
+                                                                   (EPath
+(PathBase "c"))
+                                                                 )
+                                                                 (EPath
+(PathBase "i"))
+                                                               )
+                                                             )]
+                                                           )
+                                                         )
+                                                       )
+                                                     )
+                                                   )
+                                                   BiNil
+                                                 )
+                                                 (
+                                                   ELet (
+                                                     BiCons (
+                                                       Binding (PVar "get")
+                                                       (
+                                                         EAnonFun (
+                                                           AnonFun
+"__osiris_anonymous_arg"
+                                                           (
+                                                             EMatch (
+                                                               EPath (
+                                                                 PathBase
+"__osiris_anonymous_arg"
+                                                               )
+                                                             )
+                                                             (
+                                                               MkBranches [(
+                                                                 Branch PUnit
+                                                                 (
+                                                                   EApp (
+                                                                     EPath (
+                                                                      
+PathDot (PathBase "Stdlib")
+                                                                       "!"
+                                                                     )
+                                                                   )
+                                                                   (EPath
+(PathBase "c"))
+                                                                 )
+                                                               )]
+                                                             )
+                                                           )
+                                                         )
+                                                       )
+                                                     )
+                                                     BiNil
+                                                   )
+                                                   (
+                                                     EMkTuple [(EPath
+(PathBase "get"));(
+                                                       EPath (PathBase "upd")
+                                                     )]
+                                                   )
+                                                 )
+                                               )
+                                             )
+                                           )]
+                                         )
+                                       )
+                                     )
+                                   )
+                                 )
+                                 BiNil
+                               )
+                             );(
+                               ILet (
+                                 BiCons (
+                                   Binding PAny
+                                   (
+                                     ELet (
+                                       BiCons (
+                                         Binding (PVar "res")
+                                         (EApp (EPath (PathBase
+"new_counter")) EUnit)
+                                       )
+                                       BiNil
+                                     )
                                      (
-                                      BrCons (
-                                        Branch PUnit
-                                        (
-                                          EApp (EPath (PathDot (PathBase
-"Stdlib") "!"))
-                                          (EPath (PathBase "c"))
-                                        )
-                                      )
-                                      BrNil
-                                    )
-                                  )
-                                )
-                              )
-                            )
-                            BiNil
-                          )
-                          (
-                            ETuple (
-                              ECons (EPath (PathBase "get"))
-                              (ECons (EPath (PathBase "upd")) ENil)
-                            )
-                          )
-                        )
-                      )
-                    )
-                  )
-                  BrNil
-                )
-              )
-            )
-          )
-        )
-        BiNil
-      )
-    )
-    (
-      ICons (
-        ILet (
-          BiCons (
-            Binding PAny
-            (
-              ELet (
-                BiCons (
-                  Binding (PVar "res")
-                  (EApp (EPath (PathBase "new_counter")) EUnit)
-                )
-                BiNil
-              )
-              (
-                ELet (
-                  BiCons (
-                    Binding (PVar "get")
-                    (
-                      EApp (EPath (PathDot (PathBase "Stdlib") "fst"))
-                      (EPath (PathBase "res"))
-                    )
-                  )
-                  BiNil
-                )
-                (
-                  ELet (
-                    BiCons (
-                      Binding (PVar "upd")
-                      (
-                        EApp (EPath (PathDot (PathBase "Stdlib") "snd"))
-                        (EPath (PathBase "res"))
-                      )
-                    )
-                    BiNil
-                  )
-                  (
-                    ELet (
-                      BiCons (
-                        Binding (PVar "c")
-                        (EApp (EPath (PathBase "get")) EUnit)
-                      )
-                      BiNil
-                    )
-                    (
-                      EMatch (EApp (EPath (PathBase "upd")) (EInt 13))
-                      (
-                        BrCons (
-                          Branch PUnit
-                          (
-                            ELet (
-                              BiCons (
-                                Binding (PVar "res")
-                                (
-                                  EApp (
-                                    EApp (EPath (PathDot (PathBase "Stdlib")
-"-"))
-                                    (EApp (EPath (PathBase "get")) EUnit)
-                                  )
-                                  (EPath (PathBase "c"))
-                                )
-                              )
-                              BiNil
-                            )
-                            (EPath (PathBase "res"))
-                          )
-                        )
-                        BrNil
-                      )
-                    )
-                  )
-                )
-              )
-            )
-          )
-          BiNil
-        )
-      )
-      (
-        ICons (
-          ILet (
-            BiCons (
-              Binding (PVar "_test")
-              (
-                ELet (
-                  BiCons (
-                    Binding (
-                      PTuple (
-                        PCons (PVar "get")
-                        (PCons (PVar "upd") PNil)
-                      )
-                    )
-                    (EApp (EPath (PathBase "new_counter")) EUnit)
-                  )
-                  BiNil
-                )
-                (
-                  ELet (
-                    BiCons (
-                      Binding (PVar "c")
-                      (EApp (EPath (PathBase "get")) EUnit)
-                    )
-                    BiNil
-                  )
-                  (
-                    EMatch (EApp (EPath (PathBase "upd")) (EInt 13))
-                    (
-                      BrCons (
-                        Branch PUnit
-                        (
-                          ELet (
-                            BiCons (
-                              Binding (PVar "res")
-                              (
-                                EApp (
-                                  EApp (EPath (PathDot (PathBase "Stdlib")
-"-"))
-                                  (EApp (EPath (PathBase "get")) EUnit)
-                                )
-                                (EPath (PathBase "c"))
-                              )
-                            )
-                            BiNil
-                          )
-                          (EPath (PathBase "res"))
-                        )
-                      )
-                      BrNil
-                    )
-                  )
-                )
-              )
-            )
-            BiNil
-          )
-        )
-        INil
-      )
-    )
- 
-)
+                                       ELet (
+                                         BiCons (
+                                           Binding (PVar "get")
+                                           (
+                                             EApp (EPath (PathDot (PathBase
+"Stdlib") "fst"))
+                                             (EPath (PathBase "res"))
+                                           )
+                                         )
+                                         BiNil
+                                       )
+                                       (
+                                         ELet (
+                                           BiCons (
+                                             Binding (PVar "upd")
+                                             (
+                                               EApp (EPath (PathDot (PathBase
+"Stdlib") "snd"))
+                                               (EPath (PathBase "res"))
+                                             )
+                                           )
+                                           BiNil
+                                         )
+                                         (
+                                           ELet (
+                                             BiCons (
+                                               Binding (PVar "c")
+                                               (EApp (EPath (PathBase "get"))
+EUnit)
+                                             )
+                                             BiNil
+                                           )
+                                           (
+                                             EMatch (EApp (EPath (PathBase
+"upd")) (EInt 13))
+                                             (
+                                               MkBranches [(
+                                                 Branch PUnit
+                                                 (
+                                                   ELet (
+                                                     BiCons (
+                                                       Binding (PVar "res")
+                                                       (
+                                                         EApp (
+                                                           EApp (
+                                                             EPath (PathDot
+(PathBase "Stdlib") "-")
+                                                           )
+                                                           (EApp (EPath
+(PathBase "get")) EUnit)
+                                                         )
+                                                         (EPath (PathBase
+"c"))
+                                                       )
+                                                     )
+                                                     BiNil
+                                                   )
+                                                   (EPath (PathBase "res"))
+                                                 )
+                                               )]
+                                             )
+                                           )
+                                         )
+                                       )
+                                     )
+                                   )
+                                 )
+                                 BiNil
+                               )
+                             );(
+                               ILet (
+                                 BiCons (
+                                   Binding (PVar "_test")
+                                   (
+                                     ELet (
+                                       BiCons (
+                                         Binding (PMkTuple [(PVar
+"get");(PVar "upd")])
+                                         (EApp (EPath (PathBase
+"new_counter")) EUnit)
+                                       )
+                                       BiNil
+                                     )
+                                     (
+                                       ELet (
+                                         BiCons (
+                                           Binding (PVar "c")
+                                           (EApp (EPath (PathBase "get"))
+EUnit)
+                                         )
+                                         BiNil
+                                       )
+                                       (
+                                         EMatch (EApp (EPath (PathBase
+"upd")) (EInt 13))
+                                         (
+                                           MkBranches [(
+                                             Branch PUnit
+                                             (
+                                               ELet (
+                                                 BiCons (
+                                                   Binding (PVar "res")
+                                                   (
+                                                     EApp (
+                                                       EApp (
+                                                         EPath (PathDot
+(PathBase "Stdlib") "-")
+                                                       )
+                                                       (EApp (EPath (PathBase
+"get")) EUnit)
+                                                     )
+                                                     (EPath (PathBase "c"))
+                                                   )
+                                                 )
+                                                 BiNil
+                                               )
+                                               (EPath (PathBase "res"))
+                                             )
+                                           )]
+                                         )
+                                       )
+                                     )
+                                   )
+                                 )
+                                 BiNil
+                               )
+                             )]
+                          
 ).
-
+(* Done. *)

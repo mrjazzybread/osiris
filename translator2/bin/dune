@@ -1,0 +1,5 @@
+(executable
+ (package osiris)
+ (public_name translator2)
+ (name main)
+ (libraries ocaml-compiler-libs.common pprint translator2))
