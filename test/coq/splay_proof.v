@@ -277,6 +277,12 @@ Qed.
 
 End BST.
 
+Ltac destruct_bst_Node :=
+  lazymatch goal with h: bst _ (Node _ _ _) |- _ =>
+    rewrite bst_Node_iff in h by typeclasses eauto;
+    destruct h as (?&?&?&?)
+  end.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Specification of [splay]. *)
@@ -305,16 +311,12 @@ Definition zlookup_spec (zlookup : val) : Prop :=
       fringe t' = fringe (fill ctx t)
     ).
 
-Ltac kaboom :=
-  rewrite ?true_iff, ?false_iff in *.
-
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
   SIMP (eval_mexpr η Splay)
        (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.
-  intros.
-  SIMP.
+  intros. SIMP1.
 
   SIMP_specify "splay" splay_spec.
   (* Subgoal: prove that [splay] satisfies its specification. *)
@@ -331,7 +333,7 @@ Proof.
       revert IH; generalize (VCloRec η rbs f); intros c IH
     end.
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP.
+    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
     (* Case: [Root]. *)
     { SIMP_continue.
       (* Establish the postcondition. *)
@@ -339,24 +341,24 @@ Proof.
     (* Case: [NodeL]. *)
     { (* Perform case analysis on the second level of the zipper. *)
       destruct ctx as [| up z rz | lz z up ];
-      SIMP; SIMP_continue.
+      SIMP1; SIMP_continue.
       (* Subcase: [Root]. *)
       { (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeL]. *)
       { (* Apply the induction hypothesis. *)
-        SIMP_call. intros t' Ht'.
+        SIMP1. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { (* Apply the induction hypothesis. *)
-        SIMP_call. intros t' Ht'.
+        SIMP1. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
     }
     (* Case: [NodeR]. *)
     { (* Perform case analysis on the second level of the zipper. *)
-      destruct ctx as [| up z rz | lz z up ]; SIMP.
+      destruct ctx as [| up z rz | lz z up ]; SIMP1.
       (* Subcase: [Root]. *)
       { SIMP_continue.
         (* Establish the postcondition. *)
@@ -364,13 +366,13 @@ Proof.
       (* Subcase: [NodeL]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call. intros t' Ht'.
+        SIMP1. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { SIMP_continue.
         (* Apply the induction hypothesis. *)
-        SIMP_call. intros t' Ht'.
+        SIMP1. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
     }
@@ -386,13 +388,13 @@ Proof.
     (* Step into the function. *)
     SIMP_enter. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| up x r | r x up ]; SIMP; SIMP_continue.
+    destruct ctx as [| up x r | r x up ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)
     { prove_same_fringe. }
     (* Case: [NodeL]. *)
-    { SIMP_call. }
+    { SIMP0. }
     (* Case: [NodeR]. *)
-    { SIMP_call. }
+    { SIMP0. }
   }
   intros splay_leaf Hsplay_leaf. SIMP_continue.
 
@@ -405,50 +407,34 @@ Proof.
     intros ? ? Hbst;
     SIMP_enter; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
-    { (* TODO clean up *)
-      SIMP_bind; [ SIMP_call | cbn ]. intros t' Ht'.
-      (* TODO guarantee that SIMP always leaves a single subgoal. *)
-      SIMP. cbn. split.
+    { SIMP1. intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)
+      split.
       - intros. rewrite elem_of_nil. tauto. (* TODO use [set_solver]? *)
       - assumption. }
     (* Case: [Node]. *)
-    { rewrite bst_Node_iff in Hbst by typeclasses eauto. unpack.
+    { destruct_bst_Node.
       (* Examine the call [compare x y]. *)
-      (* TODO automate SIMP_try *)
-      eapply SIMP_try.
-      { (* TODO SIMP_call does not work here *)
-        eapply Hcompare. }
-      intros c Hc. cbn in Hc. SIMP_continue.
-      (* TODO painful to be stopped by [concatenating]
-              when there is no interesting spec to provide *)
+      SIMP1. intros c Hc. SIMP_continue.
       (* Examine the comparison [c < 0]. Reason by cases on its outcome. *)
-      eapply SIMP_bind_as_bool.
-      { SIMP. (* TODO SIMP_call *)
-        eapply Stdlib__lt_spec; representable. }
-      cbn. intros [|] Hlt; SIMP. kaboom.
+      SIMP1. intros [|] Hlt; SIMP1.
       (* Subcase: [x < y]. *)
-      { SIMP_call. intros [ox' t'] (? & ?).
+      { SIMP1. intros [ox' t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_left by representable. assumption.
         - assumption. }
       (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
-      eapply SIMP_bind_as_bool.
-      { SIMP. eapply Stdlib__gt_spec; representable. }
-      cbn. intros [|] Hgt; SIMP; kaboom.
+      SIMP1. intros [|] Hgt; SIMP1.
       (* Subcase: [x > y]. *)
-      { SIMP_call. intros [b t'] (? & ?).
+      { SIMP1. intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_right by representable. assumption.
         - assumption. }
       (* Subcase: neither comparison succeeded, so [x] and [y] are
          equivalent with respect to the preorder [le]. *)
-      { eapply SIMP_bind.
-        { SIMP_call. }
-        cbn. intros t' Ht'.
-        SIMP. cbn.
+      { SIMP1. intros t' Ht'. SIMP1.
         (* Establish the postcondition: *)
         assert (c = 0) by lia.
         assert (equivalent le x y) by tauto.
