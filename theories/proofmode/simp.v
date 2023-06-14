@@ -29,6 +29,14 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
+Lemma prove_simp_downto_ret {A} m1 (a2 : A) :
+  m1 = ret a2 →
+  simp (ret a2) (ret a2) → (* artificial residual subgoal *)
+  simp m1 (ret a2).
+Proof.
+  intros. subst. eauto with simp.
+Qed.
+
 Lemma prove_simp_bind {A B m m' a} {f : A → free B} :
   simp m (ret a) →
   simp (f a) m' →
@@ -156,6 +164,20 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma simp_as_bool (x : bool) (m : free val) :
+  simp m (ret #x) →
+  simp (as_bool m) (ret x).
+Proof.
+  destruct x; eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma simp_as_int (x : Z) (m : free val) :
+  simp m (ret #x) →
+  simp (as_int m) (ret (repr x)).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Tactics. *)
@@ -186,10 +208,13 @@ Ltac normalize :=
 Ltac simp_close :=
   solve [
     eapply SimpReflexive
-  | eapply simp_reflexive; [ eauto with simp_specs ]
+  | eapply simp_reflexive; [ eauto with simp_specs encode ]
       (* This can solve [simp m (ret v)] when there is a hypothesis
-         [m = ret v] in the context or in the hint database. This is
-         particularly useful when [m] is [lookup η x]. *)
+         [m = ret v] in the context or in the hint database. This may
+         be useful when [m] is [lookup η x]. *)
+      (* This can solve [simp (ret v) (ret #x)], where [x] is a metavariable,
+         by reducing this goal to [v = #x], which is solved by [encode]. *)
+      (* TODO check whether it is really useful; if not, remove it *)
   | simp_ret
   ].
 
@@ -219,6 +244,17 @@ with simp1 :=
   lazymatch m1 with
   | ret ?a1 =>
       fail
+  | lookup_name ?η ?x =>
+      (* We may be able to prove [lookup_name η x = ret v], for some [v],
+         by exploiting a hypothesis or a hint database. If so, we have
+         made progress; we view this as a simplification step. *)
+      (* The tactic is formulated so as to leave a subgoal, which in this
+         case is trivial; it is of the form [simp (ret v) (ret v)]. *)
+      eapply prove_simp_downto_ret; [
+        (* subgoal: [m1 = ret v] *)
+        solve [ eauto with simp_specs ]
+      | (* residual goal: [simp (ret v) (ret v)] *)
+      ]
   | eval ?η ?e =>
       (* Rewrite [eval η e] to [eval' η e] and normalize the latter form.
          This counts as a simplification step, so our duty is fulfilled.
@@ -226,9 +262,14 @@ with simp1 :=
       rewrite eval_eval'; normalize;
       simp0
   (* Same as above. *)
-  | as_int (eval ?η ?e) =>
-      rewrite eval_eval'; normalize; simp0
+  | as_bool (ret ?v) =>
+      eapply simp_as_bool; simp0
+  | as_int (ret ?v) =>
+      eapply simp_as_int; simp0
+  (* TODO simp_as_loc, simp_as_record, etc. *)
   | as_bool (eval ?η ?e) =>
+      rewrite eval_eval'; normalize; simp0
+  | as_int (eval ?η ?e) =>
       rewrite eval_eval'; normalize; simp0
   | as_loc (eval ?η ?e) =>
       rewrite eval_eval'; normalize; simp0
@@ -488,13 +529,6 @@ Qed.
 
 (* [bind] composed with [as_bool]. *)
 
-Local Lemma simp_as_bool (x : bool) (m : free val) :
-  simp m (ret #x) →
-  simp (as_bool m) (ret x).
-Proof.
-  destruct x; eauto using prove_simp_bind with simp.
-Qed.
-
 Lemma SIMP_bind_as_bool Y (_ : Encode Y)
   m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
   SIMP m φ →
@@ -508,14 +542,7 @@ Proof.
   exists y; eauto using prove_simp_bind, simp_as_bool.
 Qed.
 
-(* [bind] composed with [as_bool]. *)
-
-Lemma simp_as_int (x : Z) (m : free val) :
-  simp m (ret #x) →
-  simp (as_int m) (ret (repr x)).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
+(* [bind] composed with [as_int]. *)
 
 Lemma SIMP_bind_as_int Y (_ : Encode Y)
   m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :

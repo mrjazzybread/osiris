@@ -59,6 +59,19 @@ Local Instance r_encode : Encode R :=
               EnvCons "i" #( r.(i)) $
               EnvNil }.
 
+Lemma solve_encode_R b i vb vi :
+  vb = #b →
+  vi = #i →
+  VRecord $
+    EnvCons "b" vb $
+    EnvCons "i" vi $
+    EnvNil
+  = #{| b := b; i := i |}.
+Proof. intros. subst. reflexivity. Qed.
+
+Local Hint Resolve solve_encode_R : encode.
+
+(* TODO FIXME there is already an instance of [Encode nat] in encode.v *)
 Fixpoint nat_encode_f (n : nat) : val :=
   match n with
   | O => VData "O" $ VTuple VNil
@@ -180,19 +193,19 @@ Proof.
 Qed.
 
 Lemma flip_body_spec :
-  ∀ (r: var) (b: bool) (i: Z) η,
+  ∀ (b: bool) (r: var) (i: Z) η v,
     lookup_name η "Stdlib" = ret Stdlib →
-    lookup_name η r = ret #{| b := b; i := i |} →
+    lookup_name η r = ret v →
+    v = #{| b := b; i := i |} →
     simp (eval η (flip_body r))
          (ret #{| b := negb b; i := i |}).
 Proof.
   explicit flip_body.
-  (* TODO cleanup needed here *)
-  intros r [] i η Hstdlib Hr; simp;
-    (eapply prove_simp_bind;
-     [ explicit call; simp
-     | simp ]).
+  intros b. destruct b; intros; subst; simp; simp_enter.
+    (* [simp_enter] steps into the call to [Stdlib.not]. *)
 Qed.
+
+Local Hint Resolve flip_body_spec : simp_specs.
 
 Lemma lily_body_spec η η' :
   let clo_flip := VClo η' (AnonFun1Pat (PVar "r") (flip_body "r")) in
@@ -208,15 +221,13 @@ Proof.
   intros ? ? Hrelt Hflip Hstdlib.
   explicit lily_expr.
   simp.
-  rewrite Hrelt; simp.
+  simp_enter.
+  (* TODO more cleanup needed here *)
   eapply prove_simp_bind.
-  { explicit call.
-    simpl. simp.
-    explicit concatenating.
-    eapply flip_body_spec; try done.
-    (* FIXME. *)
-    instantiate (1 := 10). instantiate (1 := true).
-    done. }
+  { simp_continue. eapply flip_body_spec.
+    + eauto with simp_specs.
+    + eauto with simp_specs.
+    + encode.  }
   simp.
 Qed.
 
@@ -240,9 +251,10 @@ Lemma sum_body_spec η (r1 r2: R):
   simp (eval η (sum_body "r1" "r2")) (ret #(sum_pure r1 r2)).
 Proof.
   intros H1 H2 H3 H4.
-  explicit sum_body. simp. rewrite H1 H2 H4. explicit call.
-  cbn.
-  etransitivity; first (apply SimpPar; simp).
+  explicit sum_body. simp.
+  explicit call. (* TODO weird *)
+  simp.
+  (* TODO more cleanup needed here *)
   etransitivity;
     first (apply SimpPar;
            [ apply simp_bind; by apply r_val_body_spec
@@ -271,39 +283,19 @@ Proof.
     - (* [n'] is even. *)
       simp. simp_continue.
       eapply prove_simp_bind.
-      + explicit call.
-        etransitivity.
-        { eapply prove_simp_bind.
-          { simp. }
-          { apply SimpEval. } }
-        etransitivity.
-        { eapply prove_simp_try.
-          { by apply IH. }
-          done. }
-        done.
-      + explicit call; explicit Stdlib__not. cbn.
-        etransitivity; first apply SimpEval.
-        etransitivity; first (eapply prove_simp_try; simp).
+      + explicit is_odd'_function. (* TODO why is it opaque? *)
+        simp_enter.
+        eapply IH; eauto.
+      + simp_enter.
         rewrite E.
         simp.
     - (* [n'] is odd. *)
-      explicit is_odd'_body; simp. simp_continue.
+      simp. simp_continue.
       eapply prove_simp_bind.
-      + explicit call.
-        etransitivity.
-        { eapply prove_simp_bind.
-          { simp. }
-          { unfold acall.
-            cbn.
-            apply SimpEval. } }
-        etransitivity.
-        { eapply prove_simp_try.
-          { apply IH; done. }
-          done. }
-        done.
-      + explicit call; explicit Stdlib__not. cbn.
-        etransitivity; first apply SimpEval.
-        etransitivity; first (eapply prove_simp_try; simp).
+      + explicit is_odd'_function. (* TODO why is it opaque? *)
+        simp_enter.
+        eapply IH; eauto.
+      + simp_enter.
         rewrite E.
         simp. }
 Qed.
@@ -457,7 +449,9 @@ Proof.
         by rewrite int.add_repr_repr. }
   { (* Proof of the [flip] function. *)
     iIntros(??); wp_call. wp_continue.
-    by wp_simp_using flip_body_spec. }
+    iApply wp_simp.
+    { eapply flip_body_spec; eauto with simp_specs. }
+    by wp. }
 Time Qed.
 
 Opaque
