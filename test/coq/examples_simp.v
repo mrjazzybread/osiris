@@ -346,9 +346,7 @@ Goal
   weak_spec_length' (VCloRec η length "length").
 Proof.
   unfold weak_spec_length'.
-  induction xs as [| x xs ].
-  { SIMP_enter. SIMP_continue. lia. }
-  { SIMP_enter. SIMP_continue. SIMP_bind.
-    + rewrite encode_list_is_encode. eauto.
-    + cbn. intros n ?. SIMP_ret. equality. lia. }
+  induction xs as [| x xs ]; SIMP_enter; SIMP_continue.
+  { lia. }
+  { intros n ?. SIMP1. lia. }
 Qed.
