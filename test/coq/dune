@@ -7,22 +7,22 @@
 (rule
   (targets incr.v)
   (mode promote)
-  (deps    (:gen ../../translator/bin/main.exe)
+  (deps    (:gen ../../translator2/bin/main.exe)
            (:src ../ml/incr.ml))
   (action
     (progn
-      (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -ml %{src} -out %{targets} -verbose))))
+       (run %{ocamlc} -bin-annot %{src})
+       (run %{gen} -mode cmt -cmt ../ml/incr.cmt -out %{targets}))))
 
 (rule
   (targets arith.v)
   (mode promote)
-  (deps    (:gen ../../translator/bin/main.exe)
+  (deps    (:gen ../../translator2/bin/main.exe)
            (:src ../ml/arith.ml))
   (action
     (progn
       (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -ml %{src} -out %{targets} -verbose))))
+      (run %{gen} -mode cmt -cmt ../ml/arith.cmt -out %{targets}))))
 
 (rule
   (targets splay.v)
