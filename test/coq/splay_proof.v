@@ -256,7 +256,8 @@ Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 
 (* The following lemmas provide an alternative characterization of binary
    search trees. If the predicate [bst t] was inductively defined, then
-   these two statements would be the two constructors. *)
+   these two statements would correspond the two constructors (and their
+   inversion principle). *)
 
 Lemma bst_Leaf_iff :
   bst Leaf ↔ True.
@@ -304,30 +305,8 @@ Definition zlookup_spec (zlookup : val) : Prop :=
       fringe t' = fringe (fill ctx t)
     ).
 
-Axiom skip : False. (* TODO *)
-Ltac skip := exfalso; apply skip.
-
-Lemma true_iff (P : Prop) :
-  (true ↔ P) ↔ P.
-Proof.
-  simpl. tauto.
-Qed.
-
-Lemma false_iff (P : Prop) :
-  (false ↔ P) ↔ ¬P.
-Proof.
-  simpl. tauto.
-Qed.
-
-Lemma not_positive_and_not_negative (c : Z) :
-  ¬ c < 0 →
-  ¬ 0 < c →
-  c = 0.
-Proof.
-  lia.
-Qed.
-
-Global Hint Resolve not_positive_and_not_negative : equality.
+Ltac kaboom :=
+  rewrite ?true_iff, ?false_iff in *.
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
@@ -447,8 +426,7 @@ Proof.
       eapply SIMP_bind_as_bool.
       { SIMP. (* TODO SIMP_call *)
         eapply Stdlib__lt_spec; representable. }
-      cbn. intros [|] Hlt; SIMP;
-      rewrite ?true_iff, ?false_iff in *.
+      cbn. intros [|] Hlt; SIMP. kaboom.
       (* Subcase: [x < y]. *)
       { SIMP_call. intros [ox' t'] (? & ?).
         (* Establish the postcondition: *)
@@ -458,8 +436,7 @@ Proof.
       (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
       eapply SIMP_bind_as_bool.
       { SIMP. eapply Stdlib__gt_spec; representable. }
-      cbn. intros [|] Hgt; SIMP;
-      rewrite ?true_iff, ?false_iff in *.
+      cbn. intros [|] Hgt; SIMP; kaboom.
       (* Subcase: [x > y]. *)
       { SIMP_call. intros [b t'] (? & ?).
         (* Establish the postcondition: *)
@@ -473,7 +450,7 @@ Proof.
         cbn. intros t' Ht'.
         SIMP. cbn.
         (* Establish the postcondition: *)
-        assert (c = 0) by equality.
+        assert (c = 0) by lia.
         assert (equivalent le x y) by tauto.
         split; [ split |].
         - assumption.
