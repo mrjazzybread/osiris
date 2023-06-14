@@ -382,18 +382,19 @@ Ltac simp_really :=
     fail "[simp_really] expects a goal of the form [simp _ _]"
   end.
 
-(* [simp_continue] unfolds [concatenating] in a goal of the form
-   [simp (concatenating ...) _], and continues simplifying via [simp]. *)
+(* [simp_continue] unfolds [ret_concat] in a goal of the form
+   [simp (bind (ret_concat _ _) _) _],
+   and continues simplifying via [simp]. *)
 
 Ltac simp_continue :=
   normalize;
-  lazymatch goal with |- simp (concatenating _ _ _ _) _ =>
-    with_strategy transparent [concatenating]
-      unfold concatenating at 1;
+  lazymatch goal with |- simp (bind (ret_concat _ _) _) _ =>
+    with_strategy transparent [ret_concat]
+      unfold ret_concat at 1;
     normalize;
     simp
   | _ =>
-    fail "[simp_continue] expects a goal of the form [simp (concatenating ...) _]"
+    fail "[simp_continue] expects a goal of the form [simp (bind (ret_concat _ _) _) _]"
   end.
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
@@ -408,7 +409,7 @@ Ltac simp_enter :=
 (* -------------------------------------------------------------------------- *)
 
 (* The tactic [simp_specify x φ] should be used when the term begins with
-   [concatenating eval η e δ], that is, when the environment is about to be
+   [bind (ret_concat δ η) _], that is, when the environment is about to be
    extended with the environment fragment [δ].
 
    The tactic looks up the variable [x] in the environment fragment [δ]
@@ -423,7 +424,7 @@ Ltac simp_enter :=
 
 Ltac simp_specify x φ :=
   lazymatch goal with
-    |- simp (concatenating eval _ _ ?δ) _ =>
+    |- simp (bind (ret_concat ?δ _) _) _ =>
       let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in
@@ -690,8 +691,8 @@ Ltac SIMP_enter :=
 Ltac SIMP_continue :=
   normalize;
   lazymatch goal with
-  |  |- SIMP (concatenating _ _ _ _) _ =>
-      with_strategy transparent [concatenating] unfold concatenating at 1;
+  |  |- SIMP (bind (ret_concat _ _) _) _ =>
+      with_strategy transparent [ret_concat] unfold ret_concat at 1;
       SIMP1
   |  |- SIMP (bind (ret_dconcat _ _) _) _ =>
       with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1;

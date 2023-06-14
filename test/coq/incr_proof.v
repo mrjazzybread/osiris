@@ -100,6 +100,9 @@ Proof.
      found in the [let () = ...] of the OCaml file. *)
   wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
+  (* TODO what is this notation [@bind env val ...]?
+          where is it defined?
+          it is a pain; remove it *)
   wp_continue. wp. do 2 wp_continue.
 
   wp_use ("Hget" with "Hl").

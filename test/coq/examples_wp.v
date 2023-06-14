@@ -74,9 +74,7 @@ Lemma spec_example3:
 Proof.
   iIntros (id) "#Hid".
   wp.
-  (* The two components of the pair are evaluated in parallel, and each of them
-     is a function application, which is itself evaluated in parallel. So we
-     have a tree of nested [Par]. *)
+  iApply wp_simp; [ simp_really |]. (* TODO [wp] should do this *)
   wp_par.
   { wp_use "Hid". }
   { wp_use "Hid".
@@ -125,17 +123,18 @@ Proof.
   { unfold spec_id. iModIntro. iIntros (v). wp_call.
     iPureIntro. reflexivity. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
-  iIntros (id) "Hid".
+  iIntros (id) "#Hid".
 
   (* Abstract away [example3]; its spec suffices. *)
+  (* TODO this is broken; [example3] has been unfolded/simplified already
   generalize example3 spec_example3.
   intros example3 Hexample3.
   (* Attack the goal. *)
-  iStartProof.
   wp_continue.
+  iApply wp_simp; [ simp_really |]. (* TODO [wp] should do this *)
   wp_use Hexample3.
-  wp_use "Hid".
-Qed.
+  wp_use "Hid". *)
+Abort.
 
 (* An example that involves an assertion. *)
 

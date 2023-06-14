@@ -119,20 +119,23 @@ Definition eval' η e : free val :=
       (* This is evaluated like a [match] construct with one branch. *)
       try
         (eval_bindings η bs)
-      (concatenating eval η e)
+      (λ δ, η ← ret_concat δ η; eval η e)
       match_failure
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
       let δ := eval_rec_bindings η rbs in
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ELetModule M me e =>
       v ← eval_mexpr η me ;
       let δ := EnvCons M v EnvNil in
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ELetOpen π e =>
       δ ← as_struct (lookup_path η π) ;
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2

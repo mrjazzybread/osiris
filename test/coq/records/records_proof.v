@@ -225,8 +225,9 @@ Proof.
   simp.
   simp_enter.
   (* TODO more cleanup needed here *)
+  simp_continue.
   eapply prove_simp_bind.
-  { simp_continue. eapply flip_body_spec.
+  { eapply flip_body_spec.
     + eauto with simp_specs.
     + eauto with simp_specs.
     + encode.  }

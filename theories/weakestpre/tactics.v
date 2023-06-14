@@ -115,22 +115,31 @@ Ltac wp_store H :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Do not allow [concatenating] to be unfolded. We want symbolic execution
-   to stop at [concatenating], that is, when the environment is extended
-   with new bindings. This gives the user a chance to prove specifications
-   about these bindings using [wp_specify]. *)
+(* We want symbolic execution to stop at [ret_concat], that is, when the
+   environment is extended with new bindings. This gives the user a chance
+   to prove specifications about these bindings using [wp_specify]. *)
 
-(* The tactic [wp_continue] expands away [concatenating] and invokes [wp]
+(* The tactic [wp_continue] expands away [ret_concat] and invokes [wp]
    to continue simplifying the goal. *)
 
 (* One should avoid [context] in the following tactic, as it might match an
    occurrence that is in the postcondition. *)
+(* TODO [ret_concat] is usually under a [bind], not at the root *)
+(* TODO unless [wp_bind] has been automatically applied,
+        which is undesirable, as noted elsewhere! *)
+(* TODO [rewrite ?bind_bind] to make sure it is not buried under
+        several binds *)
 Ltac wp_continue :=
   lazymatch goal with
   | |- environments.envs_entails
          _ $
-         wp _ _ (concatenating eval _ _ ?δ) _ =>
-      with_strategy transparent [concatenating] unfold concatenating at 1
+         wp _ _ (ret_concat ?δ _) _ =>
+      with_strategy transparent [ret_concat] unfold ret_concat at 1
+        (* We wish to unfold just the root occurrence. *)
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (bind (ret_concat ?δ _) _) _ =>
+      with_strategy transparent [ret_concat] unfold ret_concat at 1
         (* We wish to unfold just the root occurrence. *)
   | |- environments.envs_entails
          _ $
@@ -144,7 +153,7 @@ Ltac wp_autocontinue :=
 
 
 (* The tactic [wp_specify x φ H] should be used when the goal begins with
-   [concatenating eval η e δ], that is, when the environment is about to
+   [bind (ret_concat δ η) _], that is, when the environment is about to
    be extended with the environment fragment [δ].
 
    The tactic looks up the variable [x] in the environment fragment [δ]
@@ -163,7 +172,7 @@ Ltac wp_specify x φ :=
   lazymatch goal with
   | |- environments.envs_entails
          _ $
-         wp _ _ (concatenating eval _ _ ?δ) _ =>
+         wp _ _ (ret_concat ?δ _) _ => (* TODO missing [bind] *)
       let o := eval cbn in (lookup_name δ x) in
         match o with
         | ret ?v => let H := iFresh in
@@ -171,7 +180,7 @@ Ltac wp_specify x φ :=
         end
   | |- environments.envs_entails
          _ $
-         wp _ _ (ret_dconcat ?δ _) _ =>
+         wp _ _ (ret_dconcat ?δ _) _ => (* TODO missing [bind] *)
       let o := eval cbn in (lookup_name δ x) in
         match o with
         | ret ?v => let H := iFresh in

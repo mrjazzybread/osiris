@@ -13,10 +13,8 @@
 * Rename `osirisGS_gen` to something less ugly.
 * In `steps.v`, we could use `nsteps` from `stdpp`.
 
-* `ret_dconcat` is not built on the same model as `concatenating`
-  and does not appear at the root (it appear under `bind`). Fix?
-* `concatenating`, `ret_dconcat` and other hacks
-  should appear in `evalprime`, not `eval`.
+* `ret_concat`, `ret_dconcat` and other hacks
+  could (should?) appear in `evalprime`, not `eval`.
 
 ## Iris machinery
 

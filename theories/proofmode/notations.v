@@ -26,15 +26,10 @@ Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
   (wp s E (Par m m' _ _) φ)
   (only printing).
 
-Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'  
+Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'
  *  'be'  'added.'" :=
   (wp _ _ (ret_dconcat η _ _) _)
   (only printing).
-
-  Notation "'The'  'following'  (  δ  ':='  v  )
-'is'  'about'  'to'  'be'  'added'  'to'  'the'  'environment.'" :=
-    (wp _ _ (concatenating _ _ δ v) _)
-    (only printing).
 
   Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
     (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))

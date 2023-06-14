@@ -9,7 +9,7 @@ Arguments String.eqb !s1 !s2 : simpl nomatch.
 
 Global Opaque
        call
-       concatenating
+       ret_concat
        ret_dconcat
        stuck
        eval

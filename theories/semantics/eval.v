@@ -575,22 +575,21 @@ Definition ge_val v1 v2 :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [concatenating eval η e δ] first extends the environment [η] with the
-   environment fragment [δ], then evaluates the expression [e]. *)
+(* [ret_concat δ η] is [ret (concat δ η)]. *)
 
-(* The auxiliary function [concatenating] is used when the environment is
-   extended with potentially "interesting" bindings, including [let], [let
-   rec], and [match] constructs. This allows the user to get a chance to
-   inspect the new bindings, possibly prove something about them, such as a
-   function specification, and possibly abstract them away. *)
+(* The auxiliary function [ret_concat] is used when the environment is
+   extended with potentially "interesting" bindings, including [let],
+   [let rec], and [match] constructs. It is later made opaque. This
+   allows the user to get a chance to inspect the new bindings, possibly
+   prove something about them, such as a function specification, and
+   possibly abstract them away. *)
 
-(* [concatenating] is not used when the environment is extended with
-   uninteresting bindings, e.g., when a function is invoked (see [acall])
-   and when the body of a loop is executed (see [loop]). *)
+(* [ret_concat] is not used when the environment is extended with
+   uninteresting bindings, e.g., when a function is invoked (see
+   [acall]) and when the body of a loop is executed (see [loop]). *)
 
-Definition concatenating eval η e δ : free val :=
-  let η := concat δ η in
-  eval η e.
+Definition ret_concat δ η : free env :=
+  ret (concat δ η).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -792,20 +791,23 @@ Fixpoint eval η e : free val :=
       (* This is evaluated like a [match] construct with one branch. *)
       try
         (eval_bindings η bs)
-      (concatenating eval η e)
+      (λ δ, η ← ret_concat δ η; eval η e)
       match_failure
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
       let δ := eval_rec_bindings η rbs in
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ELetModule M me e =>
       v ← eval_mexpr η me ;
       let δ := EnvCons M v EnvNil in
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ELetOpen π e =>
       δ ← as_struct (lookup_path η π) ;
-      concatenating eval η e δ
+      η ← ret_concat δ η;
+      eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
@@ -936,7 +938,7 @@ with eval_match η v bs : free val :=
       try
         (extend EnvNil p v)
       (* Success: commit to this branch. Evaluate its body. *)
-      (concatenating eval η e)
+      (λ δ, η ← ret_concat δ η; eval η e)
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end
