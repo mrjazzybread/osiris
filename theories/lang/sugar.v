@@ -262,3 +262,20 @@ Definition IOpenMkPath xs :=
 
 Definition IIncludeMkPath xs :=
   (IInclude (MPath (MkPath xs))).
+
+
+Definition PMkTuple l :=
+  let mk_tpl := fix mk_tpl pl :=
+      match pl with
+      | nil => PNil
+      | cons h pl => PCons h $ mk_tpl pl
+      end in
+  PTuple (mk_tpl l).
+
+Definition EMkTuple l :=
+  let mk_tpl := fix mk_tpl pl :=
+      match pl with
+      | nil => ENil
+      | cons h pl => ECons h $ mk_tpl pl
+      end in
+  ETuple (mk_tpl l).
