@@ -1,7 +1,4 @@
-From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics evalprime. (* TODO *)
-From osiris.proofmode Require Import proofmode.
+From osiris Require Import osiris.
 
 Local Notation ε := EnvNil. (* TODO move *)
 

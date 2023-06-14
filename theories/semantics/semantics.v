@@ -7,4 +7,5 @@ From osiris.semantics Require Export
   step
   steps
   simplification
+  evalprime
 .
