@@ -141,12 +141,36 @@ End StdLib__code.
 Definition decide_spec `{Encode A}
   (decide : val) (P : A → Prop) (R : A → A → Prop)
 :=
+  ∀ (x : A),
+    P x →
+    SIMP (call decide #x) (λ v,
+      ∀ (y : A),
+      P y →
+      SIMP (call v #y) (λ (b : bool),
+        b ↔ R x y
+      )
+    ).
+
+(* The above specification states that an application of [decide] to just
+   one argument returns a closure. As a sanity check, we verify that this
+   is stronger than the following statement, which describes an application
+   of [decide] to two arguments. *)
+
+Local Lemma decide_spec' `{Encode A}
+  (decide : val) (P : A → Prop) (R : A → A → Prop)
+:
+  decide_spec decide P R →
   ∀ (x y : A), P x → P y →
   SIMP
     (bind (call decide #x) (λ v, call v #y))
     (λ (b : bool),
       b ↔ R x y
     ).
+Proof.
+  intros Hspec x y Hx Hy.
+  eapply SIMP_bind; [ eauto | intros v; cbn; intros Hv ].
+  eauto.
+Qed.
 
 (* A specification for a [compare] function that decides a preorder [le],
    producing an integer code that encodes a three-way outcome. *)
@@ -155,19 +179,20 @@ Definition decide_spec `{Encode A}
    code [c] such that the sign of [c] encodes the three possible outcomes
    of the comparison between [x] and [y]. *)
 
+(* TODO contrary to [decide], we do not allow a precondition [P]. *)
+
 Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
-  (
-    ∀ (x y : A),
-    SIMP
-      (bind (call compare #x) (λ v, call v #y))
-      (λ (c : Z),
-        representable c ∧
-        (c < 0 ↔ lt x y) ∧
-        (c = 0 ↔ eq x y) ∧
-        (0 < c ↔ lt y x)
-      )
+  ∀ (x : A),
+  SIMP (call compare #x) (λ v,
+    ∀ (y : A),
+    SIMP (call v #y) (λ (c : Z),
+      representable c ∧
+      (c < 0 ↔ lt x y) ∧
+      (c = 0 ↔ eq x y) ∧
+      (0 < c ↔ lt y x)
+    )
   ).
 
 (* -------------------------------------------------------------------------- *)
@@ -232,8 +257,7 @@ Section Stdlib__specs.
     Lemma Stdlib__eq_spec :
       decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->eq_repr_repr by assumption.
       rewrite Zeq_spec.
       tauto.
@@ -242,8 +266,7 @@ Section Stdlib__specs.
     Lemma Stdlib__ne_spec :
       decide_spec Stdlib__ne representable (λ x y, x ≠ y).
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->eq_repr_repr by assumption.
       rewrite <-Zeq_spec.
       rewrite Is_true_true negb_true -Is_true_false.
@@ -253,8 +276,7 @@ Section Stdlib__specs.
     Lemma Stdlib__lt_spec :
       decide_spec Stdlib__lt representable Z.lt.
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->lt_repr_repr by assumption.
       rewrite Zlt_spec.
       tauto.
@@ -263,8 +285,7 @@ Section Stdlib__specs.
     Lemma Stdlib__le_spec :
       decide_spec Stdlib__le representable Z.le.
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->lt_repr_repr by assumption.
       rewrite Is_true_true negb_true -Is_true_false.
       rewrite Zlt_spec.
@@ -275,8 +296,7 @@ Section Stdlib__specs.
       decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
                                            (* avoid [Z.gt] *)
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->lt_repr_repr by assumption.
       rewrite Zlt_spec.
       tauto.
@@ -286,8 +306,7 @@ Section Stdlib__specs.
       decide_spec Stdlib__ge representable (λ x y, Z.le y x).
                                            (* avoid [Z.ge] *)
     Proof.
-      intros x y ? ?.
-      SIMP_enter.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
       rewrite ->lt_repr_repr by assumption.
       rewrite Is_true_true negb_true -Is_true_false.
       rewrite Zlt_spec.
@@ -445,3 +464,12 @@ Section Stdlib__specs.
   Qed.
 
 End Stdlib__specs.
+
+Global Hint Resolve
+  Stdlib__eq_spec
+  Stdlib__ne_spec
+  Stdlib__lt_spec
+  Stdlib__le_spec
+  Stdlib__gt_spec
+  Stdlib__ge_spec
+: SIMP_specs.
