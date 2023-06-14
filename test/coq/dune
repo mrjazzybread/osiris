@@ -7,7 +7,7 @@
 (rule
   (targets incr.v)
   (mode promote)
-  (deps    (:gen ../../translator2/bin/main.exe)
+  (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/incr.ml))
   (action
     (progn
@@ -17,7 +17,7 @@
 (rule
   (targets arith.v)
   (mode promote)
-  (deps    (:gen ../../translator2/bin/main.exe)
+  (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/arith.ml))
   (action
     (progn
@@ -27,7 +27,7 @@
 (rule
   (targets splay.v)
   (mode promote)
-  (deps    (:gen ../../translator2/bin/main.exe)
+  (deps    (:gen ../../translator/bin/main.exe)
            (:src ../ml/splay.ml))
   (action
     (progn

@@ -1,7 +1,7 @@
 (rule
   (targets code.v)
   ; Do not promote for now. (mode promote)
-  (deps    (:gen ../../../../translator2/bin/main.exe)
+  (deps    (:gen ../../../../translator/bin/main.exe)
            (:src ../../../ml/Stdlib/seq.ml))
   (action
     (progn

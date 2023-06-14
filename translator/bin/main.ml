@@ -1,163 +1,123 @@
-(* [Translator.Options] parses the command line and performs sanity checks
-   on its arguments. *)
-include Translator.Options
+open Translator
+open Misc
 
-let require_imports =
-  [
-    ("osiris", ["base"]);
-    ("osiris.lang", [ "lang" ]);
-  ]
-
+(* [Options] is a module defined in [lib/Option.ml].
+   It parses the command line and defines several useful variables such as the
+   name of the OCaml file to translate, verbose functions, ... *)
+include Options
 
 (* -------------------------------------------------------------------------- *)
-(* Miscellaneous functions. *)
 
-let use_and_return f e = f e; e
-let maybe b e i = if b then use_and_return e i else i
-let rec remove_last (l: string list) : string list * string =
-  match l with
-  | [] -> [], ""
-  | h :: [] -> ([], h)
-  | h :: t -> let (t, l) = remove_last t in
-                 h :: t, l
+  (* [typedtree_of_cmt] takes the content of a [cmt] file as input. If the [cmt]
+     contains an OCaml typed tree, it shall return it.
+     Otherwise, the function causes a hard failure. *)
+let typedtree_of_cmt ({cmt_annots;_}: Cmt_format.cmt_infos) =
+  match cmt_annots with
+  | Cmt_format.Implementation s -> s
+  | _ -> verbose_msg "The cmt does not contain the typed-tree."; assert false
 
-(* [verbose_msg] can be used to print a message of the form:
-   « [verbose] [message] » to [stderr]. *)
-let verbose_msg s = if verbose then (Format.fprintf Format.err_formatter "[verbose] %s@." s)
-let verbose_do = maybe verbose
-let debug_do = maybe debug
+(* -------------------------------------------------------------------------- *)
 
-(* [comment_and_print] prints an untyped version of the AST using
-   [compiler-libs]. *)
-let comment_and_print fmt p =
-  Format.fprintf fmt "(* Original file:@.%a *)@.@." Pprintast.structure p
+let print _verbose _debug doc_graph fmt =
+  let fmt = Format.formatter_of_out_channel fmt in
+  Format.fprintf fmt "From osiris Require Import osiris.@.@.@.@.";
+  DAG.to_list doc_graph
+  |> List.iter (PPrint.ToFormatter.pretty 0.5 100 fmt);
+  Format.fprintf fmt "@.(* Done. *)@?"
 
-(* [header] takes a cmt file and returns a string containing a list of
-   [Require Import] needed by the produced Coq file.
-   Note that it is not necessary to fetch the OCaml dependencies as the modules
-   are represented by variables.
+let unit = fun _ -> ()
+
+(* -------------------------------------------------------------------------- *)
+
+(* Main code of the translator.
+   Each line either:
+   - retrieves the typed-tree,
+   - provides feedback to users,
+   - is a translation pass,
+   - breaks the initial program down to several definitions-to-be,
+   - prepares the different parts for printing,
+   - prints them in the required Coq file.
  *)
-let header (ci: Cmt_format.cmt_infos) =
-  let rec coq_deps fmt (l: (string * string list) list) =
-    let rec print_line fmt = function
-      | [] -> ()
-      | h :: t -> Format.fprintf fmt " %s%a" h print_line t
-    in
-    match l with
-    | [] -> ()
-    | (prefix, l) :: t ->
-       Format.fprintf fmt"From %s Require Import%a.@.%a"
-         prefix print_line l
-         coq_deps t
-  in
-  Format.asprintf "(* Converting a single CMT file for [%s]. *)@.@.\
-                   (* Auto generated headers. They import the required Coq modules:@.\
-                   \   - static dependencies defining the language@ .*)\
-                   %a@."
-                  ci.cmt_modname
-                  coq_deps require_imports
-
-
-(* -------------------------------------------------------------------------- *)
-(* Actual main Conversion functions... *)
-
-
-(* ...for a single [cmt] file.
-
-   The function [run_cmt]:
-   1. reads the cmt file to know what Coq modules to require,
-   Note: The header of the Coq file is not printed right away so that
-   ````` verbose messages can be printed without interrupting the
-   translation.
-   2. opens the ml file to get an untyped AST,
-   3. computes the typed AST.
-
-   Note: [run_cmt] prints to a formatter. This way, it is posisble for [run_ml]
-   ````` and [run_dune] to decide where the output should be and for the user to
-   ask the translation tool either to print the result in a Coq file or to
-   dump it in the terminal. *)
-let run_cmt fmt input_cmt =
-  verbose_msg "Starting the conversion of a single file.";
-  let cmt_infos = Cmt_format.read_cmt input_cmt in
-  let typedtree =
-    match cmt_infos.cmt_annots with
-    | Cmt_format.Packed _ -> assert false
-    | Cmt_format.Implementation s -> s
-    | Cmt_format.Interface _ -> assert false
-    | Cmt_format.Partial_implementation _ -> assert false
-    | Cmt_format.Partial_interface _ -> assert false
-  in
-  let headers = header cmt_infos in
-  typedtree
-  (* Print the untyped AST if verbose is enabled. *)
-  |> verbose_do
-       (fun p -> comment_and_print fmt (Untypeast.untype_structure p))
-  (* Print the typed AST if verbose is enabled.
-     (An option -debug should be added to print this AST on [stderr].) *)
-  |> debug_do (fun p -> Printtyped.implementation Format.err_formatter p)
-  (* Translate the AST. *)
-  |> Translator.Translate.translate
-  (* Print the final result. *)
-  |> Translator.Pp.print fmt cmt_infos.cmt_modname headers
-
-
-
-(* ...for a single [ml] file.
-   The function [run_ml]:
-   1. locates the [ml] file,
-   2. looks for a corresponding [cmt] file in the same directory,
-   3.a. if a [cmt] file is found, use it
-   3.b. otherwise, try to find a dune project in parent directories to get
-   the [cmt] file,
-   4. calls [run_cmt]. *)
-let run_ml fmt input_ml =
-  (* 1. *)
-  verbose_msg "run_ml: locating the ml file.";
-  let (base_directory, file_name) =
-    match String.split_on_char '/' input_ml with
-    | [] -> assert false
-    | _ :: [] ->
-       (".", List.hd (String.split_on_char '.' input_ml))
-    | l ->
-       begin
-         let dir, last = remove_last l in
-         let dir = String.concat "/" dir in
-         let last = List.hd (String.split_on_char '.' last) in
-         (dir, last)
-       end
-  in
-
-  (* 2. *)
-  let cmt = base_directory ^ "/" ^ file_name ^ ".cmt" in
-  if Sys.file_exists cmt
-  then begin (* 3.a. *)
-      verbose_msg ("run_ml: some cmt lives with the ml file, using this file.");
-      run_cmt fmt cmt
-    end
-  else begin (* 3.b. *)
-      verbose_msg "run_ml: the cmt does not live with the ml file, looking for a cmt created by dune.";
-      run_cmt fmt
-        (match Translator.Dune.cmt_of_ml verbose_msg base_directory file_name with
-         | None -> assert false
-         | Some cmt -> cmt)
-    end
-
-
-(* ...for a whole dune project *)
-let run_dune () =
-  assert false
 
 let () =
-  (* Decide what operations to perform depending on the flags passed to the
-     translation tool. *)
-  if input_dir <> "/dev/null"
-  then run_dune ()
-  else if input_ml = "/dev/null"
-  then run_cmt Format.std_formatter input_cmt
-  else if output_coq <> "/dev/null"
-  then (* [output_coq] is not "/dev/null", use it. *)
-    let output = open_out output_coq in
-    let fmt = Format.formatter_of_out_channel output in
-    run_ml fmt input_ml;
-    close_out output
-  else run_ml Format.std_formatter input_ml;
+  begin
+    match mode with
+    | Mdune ->
+       in_file
+       |> verbose_say_with "Beginning the translation pipeline for the file [%s].@."
+     |> in_dir dune_root locate_cmt
+    | Mcmt -> cmt_file
+  end
+  |> Cmt_format.read_cmt
+  |> typedtree_of_cmt
+  (* If [-debug] is passed to the command line, dump the typed-tree to
+     [stderr]. *)
+  |> debug_do (Printtyped.implementation Format.err_formatter)
+
+  (* Convert the typedtree into an Osiris AST. The structure of the program is
+     unchanged. The only two differences between the Coq and OCaml versions of
+     the Osiris ASTs are:
+     - the OCaml AST contains an additional constructor for module-expressions,
+       expressions, etc. to represent parts of the AST which will be put in
+       different top-level Coq edfinitions.
+     - while the Coq AST contains several ad-hoc lists, the OCaml AST does not:
+       native lists are used every time.
+       This will also help with the translation: one can then use the syntactic
+       sugar defined in [theories/lang/sugar.v]. *)
+  |> Osiris.of_typedtree verbose_msg debug_msg
+
+  (* Break down the AST into pieces according to the user-specified
+     splitting-strategy.
+     Current supported strategies are:
+     - NoSplit
+     Soon to be added strategies are:
+     - SplitTopLevelBindings
+     - SplitSubModules
+     - ...
+     It should be possible to apply several splitting strategies in a row:
+     to pass [-split-top-level -split-sub-modules] to the command line should:
+     1. split on top-level bindings
+     2. in every pieces, split on sub-modules
+
+     Note: the order in which the arguments are provided might influence the
+           end-result (eg. the final definitions might appear in a different
+           order).
+           Therefore, once a strategy is chosen for a file which git tracks, it
+           should not be changed unless necessary as it might produce large
+           unnecessary diffs.
+
+     It is the function [split] that will choose names for the auxiliary
+     definitions. *)
+  |> OsirisSplit.split verbose_msg debug_msg
+       splitting_strategy module_name
+
+  (* [Preprint.definition_of_ast] provides a translation that works in a similar
+     manner than the first translator:
+     converts the AST into:
+     - [EPlain s], which should be seen as a plain string [s] to print in the
+       final document
+     - [EConstr (c, [e1; ...; en])], which should be printed as
+       [c (e1) ... (en)] in the final document.
+     - [EList (c; [e1; ...; en])], which did not exist in the first translator.
+       It should be printed as [c [e1; ...; en]], which is useful to use
+       syntactic sugar. *)
+  |> DAG.map
+       (fun (s, m) ->
+         let (t, m) = Preprint.definition_of_ast verbose_msg debug_msg m in
+         s, t, m)
+
+  |> Pp.pretty_printer verbose_msg debug_msg
+
+  (* Finally, pretty-print the generated definitions into the output file
+     provided on the command line.
+     This pretty-printer is similar of that of the first translator, except that
+     it should also print [EList _].
+     [do_with e f g] is equivalent to:
+     [let x = e in
+      let _ = g x in
+      f x]
+   *)
+  |> Misc.do_with (open_out out_file) close_out
+       (print verbose_msg debug_msg)
+
+  |> unit

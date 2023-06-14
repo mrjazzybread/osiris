@@ -1,5 +1,16 @@
-open Ast
 open PPrint
+
+(* -------------------------------------------------------------------------- *)
+
+(* Upon breaking down an AST, one might generate unnamed expressions.
+   [fresh_name] below generates fresh names. The names are of the form:
+   [prefix][type of the term][unique number]. *)
+
+let prefix = "__osiris__reserved"
+
+let fresh_name =
+  let c = ref 0 in
+  fun s -> prefix ^ s ^ (string_of_int !c)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -23,27 +34,32 @@ let parens d =
 
 (* -------------------------------------------------------------------------- *)
 
-let rec document_of_expr e =
-  match e with
-  | EPlain s ->
-      string s
-  | EConstr (c, []) ->
-      string c
+let rec pretty_printer (expr : Preprint.expression) =
+  match expr with
+  | EPlain s -> string s
+  | EConstr (c, []) -> string c
   | EConstr (c, es) ->
-      parens (
-        string c ^^ space ^^
-        separate_map (break 1) document_of_expr es
-      )
+     parens (
+         string c ^^ space ^^
+           separate_map (break 1) pretty_printer es
+       )
+  | EList (c, []) -> parens (string c ^^ string "[]")
+  | EList (c, es) ->
+     parens (
+         string c ^^ space ^^
+           brackets (
+               separate_map semi pretty_printer es
+             )
+       )
 
-let print fmt (e: expr) =
-  PPrint.ToFormatter.pretty 0.5 100 fmt (document_of_expr e)
+let pretty_printer (name, ty, expr) : document =
+  let name =
+    match name with
+    | None -> fresh_name ty
+    | Some name -> name
+  in
+  flow space [ string "Definition"; string name; colon ; string ty; string ":=" ;
+               align (group (pretty_printer expr)) ^^ dot]
 
-let print fmt module_name headers (a: expr) : unit =
-  Format.fprintf fmt
-                 "%s@.@.\
-                  (* Generated code: *)@.\
-                  Definition %s : mexpr := @.\
-                  %a.@.\
-                  @.(* END. *)"
-                 headers module_name
-                 print a
+let pretty_printer _verbose _debug graph =
+  DAG.map pretty_printer graph

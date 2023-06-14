@@ -1,7 +1,7 @@
 (rule
   (targets records.v)
   (mode promote)
-  (deps    (:gen ../../../translator2/bin/main.exe)
+  (deps    (:gen ../../../translator/bin/main.exe)
            (:src ../../ml/records.ml))
   (action
     (progn
