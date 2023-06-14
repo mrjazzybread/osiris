@@ -2,6 +2,8 @@
 
 ## Cleanup
 
+* Remove all uses of `Transparent eval`.
+
 * The commands that control reduction (`Arguments`, `Opaque`, etc.)
   should not be placed in `eval.v`. They should move into `proofmode/`.
 * The proof tactics in `weakestpre/tactics.v` and `weakestpre/wp_tactics.v`
