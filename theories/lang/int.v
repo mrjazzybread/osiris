@@ -230,3 +230,5 @@ Qed.
 
 Ltac representable :=
   try solve [ tauto | prove_representable_30 ].
+
+Global Hint Extern 1 (representable _) => representable : representable.
