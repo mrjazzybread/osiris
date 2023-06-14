@@ -24,6 +24,9 @@ Notation "# v" := (encode v) (at level 8, format "# v").
    Finding a suitable instantiation of [x] amounts to inverting
    the function [encode]. *)
 
+(* The tactic [encode] either succeeds or leaves the goal intact.
+   Use [solve[encode]] if you wish to require success. *)
+
 Create HintDb encode.
 
 Ltac encode :=
