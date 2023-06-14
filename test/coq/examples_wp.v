@@ -479,13 +479,6 @@ Lemma test_body_simp (i j k l m : Z) :
 Proof.
   intros η x y z t v Hx Hy Hz Ht Hv.
   with_strategy transparent [test_innerbody] unfold test_innerbody.
-  cbn. rewrite Hx Hy Hz Ht Hv.
-  simp.
-  rewrite (int.mul_repr_repr i k)
-          (int.mul_repr_repr j l)
-          (int.add_repr_repr (i * k) (j * l))
-          (int.add_repr_repr ((i * k) + (j * l)) m)
-  .
   simp.
 Qed.
 

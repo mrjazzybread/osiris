@@ -187,6 +187,7 @@ Lemma flip_body_spec :
          (ret #{| b := negb b; i := i |}).
 Proof.
   explicit flip_body.
+  (* TODO cleanup needed here *)
   intros r [] i η Hstdlib Hr; simp;
     (eapply prove_simp_bind;
      [ explicit call; simp
@@ -229,9 +230,6 @@ Proof.
     simp; rewrite E; simp; simp_continue;
     rewrite /r_val_pure E; simp. explicit call.
   simp.
-  rewrite int.mul_repr_repr
-          int.sub_repr_repr.
-  simp.
 Qed.
 
 Lemma sum_body_spec η (r1 r2: R):
@@ -252,9 +250,6 @@ Proof.
   simp.
   etransitivity; first (apply simp_bind; by apply r_val_body_spec).
   simp.
-  unfold sum_pure.
-  rewrite int.add_repr_repr.
-  reflexivity.
 Qed.
 
 Lemma is_odd'_body_spec η η' r n :

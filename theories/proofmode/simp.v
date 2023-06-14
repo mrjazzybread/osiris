@@ -162,6 +162,13 @@ Qed.
 
 Create HintDb simp_specs.
 
+(* [simp_ret] expects of the goal of the form [simp (ret ?a1) (ret ?a2)].
+   It reduces this goal to the equality [a1 = a2], and attempts to prove
+   this equality. *)
+
+Ltac simp_ret :=
+  eapply prove_simp_ret; [ equality ].
+
 (* The tactic [normalize] attempts to reduce and normalize the goal before
    applying any reasoning rule. It is used by the tactics that follow. *)
 
@@ -169,6 +176,22 @@ Ltac normalize :=
   cbn;
   rewrite ?true_iff, ?false_iff in *; (* TODO expensive? *)
   rewrite ?bind_bind. (* TODO may wish to rewrite at the root only. *)
+
+(* [close] solves a goal of the form [simp m1 m2] using reflexivity.
+
+   The term [m1] must be normalized.
+
+   If reflexivity cannot solve the goal, then [close] fails. *)
+
+Local Ltac close :=
+  solve [
+    eapply SimpReflexive
+  | eapply simp_reflexive; [ eauto with simp_specs ]
+      (* This can solve [simp m (ret v)] when there is a hypothesis
+         [m = ret v] in the context or in the hint database. This is
+         particularly useful when [m] is [lookup η x]. *)
+  | simp_ret
+  ].
 
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
@@ -288,16 +311,7 @@ with simp1_par :=
   | eapply advance_SimpParRetRightNext
   | eapply advance_SimpParRetRight
   ];
-  normalize; simp0
-
-(* [close] solves a goal of the form [simp m1 m2] using reflexivity.
-
-   The term [m1] must be normalized.
-
-   If reflexivity cannot solve the goal, then [close] fails. *)
-
-with close :=
-  solve [ eapply SimpReflexive | eapply simp_reflexive; [ eauto ]].
+  normalize; simp0.
 
 (* [simp] is the main public entry point into the above tactics. *)
 
@@ -349,13 +363,6 @@ Ltac simp_continue :=
 
 Ltac simp_enter :=
   with_strategy transparent [call] unfold call; simp.
-
-(* [simp_ret] expects of the goal of the form [simp (ret ?a1) (ret ?a2)].
-   It reduces this goal to the equality [a1 = a2], and attempts to prove
-   this equality. *)
-
-Ltac simp_ret :=
-  eapply prove_simp_ret; [ equality ].
 
 (* -------------------------------------------------------------------------- *)
 

@@ -300,7 +300,7 @@ Proof.
   induction xs as [| x xs ]; simp_enter.
   (* The [nil] branch has been automatically solved. *)
   (* This is the [cons] branch. *)
-  simp_continue. simp_ret.
+  simp_continue.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -328,7 +328,7 @@ Proof.
        This is unpleasant. *)
     destruct IHxs as (n & ? & ?).
     eexists; split.
-    + simp_enter. simp_continue. simp_ret.
+    + simp_enter. simp_continue.
     + lia. }
 Qed.
 
