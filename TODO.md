@@ -30,6 +30,10 @@
 
 ## Engineering and proof mode
 
+* It is painful to be stopped by `concatenating`
+  when there is no interesting specification to provide
+  and one just wishes to continue.
+
 * Most of the file `tc_simplifications.v` should go away, I think (?).
   => simplication typeclasses have been removed,
      specifications of pure functions should use simp/SIMP.
