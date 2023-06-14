@@ -183,7 +183,7 @@ Ltac normalize :=
 
    If reflexivity cannot solve the goal, then [close] fails. *)
 
-Local Ltac close :=
+Ltac simp_close :=
   solve [
     eapply SimpReflexive
   | eapply simp_reflexive; [ eauto with simp_specs ]
@@ -256,10 +256,10 @@ with simp1 :=
          tactic. Furthermore, this guarantees that we do not create
          an unsolvable subgoal in situations where the left-hand side
          of the sequence needs an existentially quantified postcondition. *)
-      eapply prove_simp_bind; [ normalize; simp0; close |];
+      eapply prove_simp_bind; [ normalize; simp0; simp_close |];
       normalize; simp0
   | try ?m ?f ?ko =>
-      eapply prove_simp_try; [ normalize; simp0; close |];
+      eapply prove_simp_try; [ normalize; simp0; simp_close |];
       normalize; simp0
   | Stop CEval _ _ _ =>
       first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; normalize;
@@ -281,11 +281,11 @@ with simp1 :=
       first [
         (* Attempt 1. Make progress on the left-hand side,
            and possibly more progress elsewhere. *)
-        eapply advance_SimpPar; [ simp1; close | simp0; close | simp0_par ]
+        eapply advance_SimpPar; [ simp1; simp_close | simp0; simp_close | simp0_par ]
       |
         (* Attempt 2. Make progress on the right-hand side,
            and possibly more progress elsewhere. *)
-        eapply advance_SimpPar; [ close | simp1; close | simp0_par ]
+        eapply advance_SimpPar; [ simp_close | simp1; simp_close | simp0_par ]
       |
         (* Attempt 3. Make progress by eliminating this [Par],
            and possibly more progress thereafter. *)
@@ -322,7 +322,7 @@ with simp1_par :=
 Ltac simp :=
   normalize;
   lazymatch goal with |- simp ?m1 _ =>
-    simp0; try close
+    simp0; try simp_close
   | _ =>
     fail "[simp] expects a goal of the form [simp _ _]"
   end.
@@ -336,7 +336,7 @@ Ltac simp :=
 Ltac simp_really :=
   normalize;
   lazymatch goal with |- simp ?m1 _ =>
-    simp1; close
+    simp1; simp_close
   | _ =>
     fail "[simp_really] expects a goal of the form [simp _ _]"
   end.
