@@ -158,8 +158,14 @@ Definition Λ :=
 
 (* Staging area. *)
 
-(* TODO making definitions opaque blocks the [simp] tactics
-        and seems counter-productive. *)
+(* TODO clarify whether we are doing caller-side reaasoning (with
+        opaque function bodies) or callee-side reasoning (with opaque
+        function definitions). It is perhaps not necessary/useful to
+        make both the body and the definition opaque. Furthermore, it
+        make may sense to make a function definition transparent in
+        the beginning (when we reason about it callee-side) and only
+        then make it opaque (once we move to the call sites and reason
+        caller-side). *)
 Opaque
   r_elt_expr
   flip_body flip_function
@@ -176,7 +182,12 @@ Ltac explicit name :=
 (* [wp_simp] simplifies the element of type [free A] we are working on. *)
 Ltac wp_simp :=
   progress (iApply wp_simp; first by simp).
+    (* TODO should use [simp_really] to ensure at least one step of
+            simplification. This could be more efficient (?) than
+            using [progress] to check after the fact. *)
 
+(* TODO [wp_simp_using] should be unnecessary provided H is added to the
+   hint database [simp_specs]. *)
 Ltac wp_simp_using H :=
   iApply wp_simp; [ by apply H; try done | wp ].
 
@@ -224,14 +235,7 @@ Proof.
   explicit lily_expr.
   simp.
   simp_enter.
-  (* TODO more cleanup needed here *)
   simp_continue.
-  eapply prove_simp_bind.
-  { eapply flip_body_spec.
-    + eauto with simp_specs.
-    + eauto with simp_specs.
-    + encode.  }
-  simp.
 Qed.
 
 Lemma r_val_body_spec η (r: R) (rvar: var) :
@@ -240,11 +244,14 @@ Lemma r_val_body_spec η (r: R) (rvar: var) :
   simp (eval η (r_val_body rvar)) (ret #(r_val_pure r)).
 Proof.
   explicit r_val_body.
+  (* TODO this seems obscure; maybe it can be simplified. *)
   intros??. destruct (r.(b)) eqn:E;
     simp; rewrite E; simp; simp_continue;
-    rewrite /r_val_pure E; simp. explicit call.
-  simp.
+    rewrite /r_val_pure E; simp.
+  simp_enter.
 Qed.
+
+Local Hint Resolve r_val_body_spec : simp_specs.
 
 Lemma sum_body_spec η (r1 r2: R):
   lookup_name η "r1" = ret #r1 →
@@ -254,16 +261,9 @@ Lemma sum_body_spec η (r1 r2: R):
   simp (eval η (sum_body "r1" "r2")) (ret #(sum_pure r1 r2)).
 Proof.
   intros H1 H2 H3 H4.
-  explicit sum_body. simp.
-  explicit call. (* TODO weird *)
+  explicit sum_body.
   simp.
-  (* TODO more cleanup needed here *)
-  etransitivity;
-    first (apply SimpPar;
-           [ apply simp_bind; by apply r_val_body_spec
-           | solve [simp] ]).
-  simp.
-  etransitivity; first (apply simp_bind; by apply r_val_body_spec).
+  explicit call. (* TODO all three calls at once? *)
   simp.
 Qed.
 
@@ -275,32 +275,22 @@ Lemma is_odd'_body_spec η η' r n :
   lookup_name η r = Ret #n →
   simp (eval η (is_odd'_body r)) (Ret #(is_odd_pure n)).
 Proof.
+  Transparent is_odd'_function. (* TODO why is it opaque? *)
   generalize η r; clear η r;
   induction n as [ | n' IH ];
     intros η r H1 H2 H3 H4;
-    explicit is_odd'_body.
+  explicit is_odd'_body.
   { simp. }
   { (* [n = S n'] *)
     destruct (is_odd_pure n') eqn:E;
     remember (nat_encode_f n') as enc_n.
     - (* [n'] is even. *)
-      simp. simp_continue.
-      eapply prove_simp_bind.
-      + explicit is_odd'_function. (* TODO why is it opaque? *)
-        simp_enter.
-        eapply IH; eauto.
-      + simp_enter.
-        rewrite E.
-        simp.
+      simp. simp_continue. simp_enter.
+      rewrite E. simp.
     - (* [n'] is odd. *)
-      simp. simp_continue.
-      eapply prove_simp_bind.
-      + explicit is_odd'_function. (* TODO why is it opaque? *)
-        simp_enter.
-        eapply IH; eauto.
-      + simp_enter.
-        rewrite E.
-        simp. }
+      simp. simp_continue. simp_enter.
+      rewrite E. simp. }
+  Opaque is_odd'_function.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -407,8 +397,7 @@ Proof.
   (* [r_val] has the expected value. *)
   wp_specify "r_val" r_val_spec.
   { iIntros (r). explicit r_val_pure; destruct (b r) eqn:E;
-      wp_call; wp_continue;
-      (iApply wp_simp; first eapply r_val_body_spec); try done;
+      wp_call; wp_continue; wp_simp; try done;
       explicit r_val_pure; rewrite E; by wp. }
   iIntros (r_val) "#Hr_val". wp_continue.
 
@@ -451,10 +440,7 @@ Proof.
         destruct (b r1), (b r2); cbn;
         by rewrite int.add_repr_repr. }
   { (* Proof of the [flip] function. *)
-    iIntros(??); wp_call. wp_continue.
-    iApply wp_simp.
-    { eapply flip_body_spec; eauto with simp_specs. }
-    by wp. }
+    iIntros(??); wp_call. wp_continue. wp_simp. by wp. }
 Time Qed.
 
 (* TODO making definitions opaque blocks the [simp] tactics
@@ -553,6 +539,9 @@ Proof.
 
   (* [flip] is applied to [r_elt]. *)
   wp_simp. wp.
+  (* TODO this kind of replacement should be done by letting the tactic
+          [encode] solve a goal of the form [v = #?x]. *)
+  (* TODO and this should be done automatically by the [wp_] tactics *)
   replace
     (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
     with #{| b := true; i := 10 |}; last reflexivity.
