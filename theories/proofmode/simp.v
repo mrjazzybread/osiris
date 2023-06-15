@@ -259,7 +259,7 @@ Ltac fail_if_goal_contains_eval' :=
   lazymatch goal with |- context[eval'] => fail | _ => idtac end.
 
 (* [simp_eval] rewrites [eval] to [eval'], then normalizes the goal,
-   hopefully expanding [eval'] away. it checks that [eval'] has indeed
+   hopefully expanding [eval'] away. It checks that [eval'] has indeed
    been eliminated, and fails otherwise. *)
 
 Ltac simp_eval :=
