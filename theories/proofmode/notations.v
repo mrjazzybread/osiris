@@ -26,9 +26,13 @@ Notation "'WP'  'Par' m m' '...' @ s ; E {{ φ }}" :=
   (wp s E (Par m m' _ _) φ)
   (only printing).
 
-Notation "'The'  'following'  'environment'  (  η  )  'is'  'about'  'to'
+Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
  *  'be'  'added.'" :=
-  (wp _ _ (ret_dconcat η _ _) _)
+  (wp _ _ (ret_concat δ _) _)
+  (only printing).
+Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
+ *  'be'  'added.'" :=
+  (wp _ _ (ret_dconcat δ _) _)
   (only printing).
 
   Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
