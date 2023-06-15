@@ -413,6 +413,7 @@ Proof.
       - assumption. }
     (* Case: [Node]. *)
     { (* The call [compare x y] has already been stepped over. *)
+      (* TODO why doesn't it stop at the partial application? *)
       intros c Hc.
       destruct_bst_Node.
       SIMP_continue.
