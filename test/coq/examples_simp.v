@@ -16,6 +16,16 @@ Global Instance encode_data : Encode data := {
   end
 }.
 
+Lemma solve_encode_A :
+  VData "A" VUnit = #A.
+Proof. reflexivity. Qed.
+
+Lemma solve_encode_B :
+  VData "B" VUnit = #B.
+Proof. reflexivity. Qed.
+
+Local Hint Resolve solve_encode_A solve_encode_B : encode.
+
 (* -------------------------------------------------------------------------- *)
 
 (* let x = A() in let A() = x in () *)
