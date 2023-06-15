@@ -327,6 +327,7 @@ Proof.
     (* Enter the closure. *)
     SIMP_enter. SIMP_continue.
     (* Optional: abstract away the closure; make it an abstract value [c]. *)
+    (* TODO generalize this idea? *)
     match goal with |- context[VCloRec ?η ?rbs ?f] =>
       revert IH; generalize (VCloRec η rbs f); intros c IH
     end.
@@ -405,34 +406,39 @@ Proof.
     intros ? ? Hbst;
     SIMP_enter; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
-    { SIMP1. intros t' Ht'. SIMP1.
+    { intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)
       split.
       - intros. rewrite elem_of_nil. tauto. (* TODO use [set_solver]? *)
       - assumption. }
     (* Case: [Node]. *)
-    { destruct_bst_Node.
-      (* Examine the call [compare x y]. *)
-      SIMP1. intros c Hc. SIMP_continue.
-      (* Examine the comparison [c < 0]. Reason by cases on its outcome. *)
-      SIMP1. intros [|] Hlt; SIMP1.
+    { (* The call [compare x y] has already been stepped over. *)
+      intros c Hc.
+      destruct_bst_Node.
+      SIMP_continue.
+      intros v Hv. (* TODO partial application of [(<)] *)
+      SIMP1. clear v Hv.
+      (* Reason by cases on the outcome of the comparison [c < 0]. *)
+      intros [|] Hlt; SIMP1.
       (* Subcase: [x < y]. *)
       { SIMP1. intros [ox' t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_left by representable. assumption.
         - assumption. }
-      (* Examine the comparison [c > 0]. Reason by cases on its outcome. *)
-      SIMP1. intros [|] Hgt; SIMP1.
+      intros v Hv. (* TODO partial application of [(>)] *)
+      SIMP1. clear v Hv.
+      (* Reason by cases on the outcome of the comparison [c > 0]. *)
+      intros [|] Hgt; SIMP1.
       (* Subcase: [x > y]. *)
-      { SIMP1. intros [b t'] (? & ?).
+      { intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_right by representable. assumption.
         - assumption. }
       (* Subcase: neither comparison succeeded, so [x] and [y] are
          equivalent with respect to the preorder [le]. *)
-      { SIMP1. intros t' Ht'. SIMP1.
+      { intros t' Ht'. SIMP1.
         (* Establish the postcondition: *)
         assert (c = 0) by lia.
         assert (equivalent le x y) by tauto.
