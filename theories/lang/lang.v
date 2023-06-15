@@ -6,5 +6,4 @@ From osiris.lang Require Export
      syntax
      sugar
      encode
-     typeclasses
 .

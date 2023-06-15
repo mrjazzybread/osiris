@@ -81,7 +81,11 @@ Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
     eval cbn in (
                foldr
                  (λ '(spec, name) (res: list (iProp _)),
-                   let value := δ !!! name in
+                   let value :=
+                     match lookup_name δ name with
+                     | Ret v => v
+                     | _ => VUnit
+                     end in
                    spec value :: res)
                  [] (combine lspecs lnames)
              )
