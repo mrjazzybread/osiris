@@ -225,7 +225,7 @@ Ltac simp_close :=
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
   (* Either perform at least one step, or perform zero step. *)
-  first [ simp1; simp0 | idtac ]
+  try (simp1; simp0)
 
 with simp1 :=
   (* We must perform at least one step. *)
@@ -329,7 +329,7 @@ with simp1 :=
    where [m1] and [m2] are normalized and cannot be simplified. *)
 
 with simp0_par :=
-  first [ simp1_par | idtac ]
+  try simp1_par
 
 with simp1_par :=
   (* Performing at least one simplification step, when the term is a [Par]
