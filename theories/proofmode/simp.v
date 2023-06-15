@@ -111,6 +111,21 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma advance_SimpBindRet {A B} v (f : A → free B) m' :
+  simp (f v) m' →
+  simp (bind (ret v) f) m'.
+Proof.
+  eauto.
+Qed.
+
+Lemma advance_SimpBind {A B} m1 m2 (f : A → free B) m' :
+  simp m1 m2 →
+  simp (bind m2 f) m' →
+  simp (bind m1 f) m'.
+Proof.
+  eauto using simp_bind with simp.
+Qed.
+
 Lemma advance_SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko m' :
   simp (k (a1, a2)) m' →
   simp (Par (Ret a1) (Ret a2) k ko) m'.
@@ -169,6 +184,20 @@ Proof.
   eauto using prove_simp_bind with simp.
 Qed.
 
+(* This lemma gives the user a chance to prove that the actual argument
+   [v'2] is in fact the encoding of some value [x]. The subgoal [v'2 = #x]
+   is typically solved by the tactic [encode]. Solving this subgoal
+   instantiates both the metavariable [x] and the metavariable [X], which is
+   the type of [x]. *)
+
+Lemma simp_call `{Encode X} v1 v'2 (x : X) m' :
+  v'2 = #x →
+  simp (call v1 #x) m' →
+  simp (call v1 v'2) m'.
+Proof.
+  intros. subst. eauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Tactics. *)
@@ -210,6 +239,34 @@ Ltac simp_close :=
   | simp_ret
   ].
 
+(* [simp_solve_eauto] solves a goal of the form [simp m _].
+
+   The term [m] must be normalized.
+
+   The tactic exploits whatever hypotheses are present in the context and in
+   the hint database [simp_specs]. Of course the lemma [SimpReflexive] must
+   not appear in this database; we want to make real progress.
+
+   [m] is typically of the form [call v #x] or perhaps [eval η e]. *)
+
+Ltac simp_solve_eauto :=
+  solve [ eauto with simp_specs encode typeclass_instances ].
+
+(* [fail_if_goal_contains_eval'] fails if the goal contains an occurrence
+   of [eval']. It does nothing otherwise. *)
+
+Ltac fail_if_goal_contains_eval' :=
+  lazymatch goal with |- context[eval'] => fail | _ => idtac end.
+
+(* [simp_eval] rewrites [eval] to [eval'], then normalizes the goal,
+   hopefully expanding [eval'] away. it checks that [eval'] has indeed
+   been eliminated, and fails otherwise. *)
+
+Ltac simp_eval :=
+  rewrite eval_eval';
+  normalize;
+  fail_if_goal_contains_eval'.
+
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
    They advance this goal by performing simplification steps that lead from
@@ -248,11 +305,20 @@ with simp1 :=
       | (* residual goal: [simp (ret v) (ret v)] *)
       ]
   | eval ?η ?e =>
-      (* Rewrite [eval η e] to [eval' η e] and normalize the latter form.
-         This counts as a simplification step, so our duty is fulfilled.
-         We are then free to use [simp0] to find zero or more further steps. *)
-      rewrite eval_eval'; normalize;
-      simp0
+      first [
+        (* Attempt 1. Solve the goal by exploiting the hint database
+           [simp_specs]. This can be necessary if the user chooses to
+           populate the hint database with specifications about terms
+           of the form [eval η e], as opposed to [call v1 v2]. *)
+        simp_solve_eauto
+      |
+        (* Attempt 2. Rewrite [eval η e] to [eval' η e] and normalize the
+           latter form, expanding [eval'] away. We count this as a
+           simplification step, so our duty is fulfilled. We are then free
+           to use [simp0] to find zero or more further steps. *)
+        simp_eval;
+        simp0
+      ]
   (* Same as above. *)
   | as_bool (ret ?v) =>
       eapply simp_as_bool; simp0
@@ -260,6 +326,9 @@ with simp1 :=
       eapply simp_as_int; simp0
   (* TODO simp_as_loc, simp_as_record, etc. *)
   | as_bool (eval ?η ?e) =>
+      (* TODO should probably use [simp_eval]
+              instead of rewriting without precaution *)
+      (* TODO or just unfold [as_bool] *)
       rewrite eval_eval'; normalize; simp0
   | as_int (eval ?η ?e) =>
       rewrite eval_eval'; normalize; simp0
@@ -268,32 +337,21 @@ with simp1 :=
   | as_record (eval ?η ?e) =>
       rewrite eval_eval'; normalize; simp0
   | call ?v1 ?v2 =>
-      (* We allow ourselves to reason about function calls using whatever
-         hypotheses may be present in the context and in the hint database
-         [simp_specs]. *)
-      solve [
-        (* This [rewrite] command is ad hoc, maybe slow; TODO.
-           The problem is that [cbn] expands [encode] into [encode_list].
-           This prevents the application of specification lemmas whose
-           statement uses [encode]. *)
-        repeat rewrite encode_list_is_encode;
-        eauto with simp_specs typeclass_instances
-      ]
-  | bind ?m ret =>
-      (* A tail call can be simplified. *)
-      eapply simp_tail_call; simp0
-  | bind ?m ?f =>
-      (* We apply the reasoning rule Bind only if we are able to solve
-         its first premise. This guarantees that we leave only one
-         subgoal (not two), as dictated by the specification of this
-         tactic. Furthermore, this guarantees that we do not create
-         an unsolvable subgoal in situations where the left-hand side
-         of the sequence needs an existentially quantified postcondition. *)
-      eapply prove_simp_bind; [ normalize; simp0; simp_close |];
-      normalize; simp0
-  | try ?m ?f ?ko =>
-      eapply prove_simp_try; [ normalize; simp0; simp_close |];
-      normalize; simp0
+      lazymatch v2 with
+      | #(?x2) =>
+          (* The actual argument is already encoded. Fine. *)
+          (* We reason about function calls using whatever hypotheses may be
+             present in the context and in the hint database [simp_specs]. *)
+          simp_solve_eauto
+      | _ =>
+          (* The actual argument is not yet encoded. It may or may not be
+             necessary to encode it, depending on the specification on the
+             function that is called. *)
+          first [
+            simp_solve_eauto
+          | simple eapply simp_call; [ solve [ encode ] | simp_solve_eauto ]
+          ]
+      end
   | Stop CEval _ _ _ =>
       first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; normalize;
       simp0
@@ -303,6 +361,28 @@ with simp1 :=
   | Stop CFlip _ _ _ =>
       eapply advance_SimpFlipOK; normalize;
       simp0
+  | bind ?m ret =>
+      (* A tail call can be simplified. *)
+      eapply simp_tail_call; simp0
+  | bind ?m ?f =>
+      (* We want to first simplify the left-hand side of [bind], as far as
+         possible; then, if possible, simplify the [bind] combinator away
+         and further simplify the result. Two attempts are needed to ensure
+         that we make one step of progress in at least one of the two
+         subgoals. This should nevertheless be reasonably efficient. *)
+      first [
+        (* Attempt 1. Make progress on the left-hand side,
+           and possibly more progress thereafter. *)
+        eapply advance_SimpBind; [ simp1; simp_close | simp0_bind ]
+      |
+        (* Attempt 2. Make progress by eliminating this [bind],
+           and possibly more progress thereafter. *)
+        simp1_bind
+      ]
+  | try ?m ?f ?ko =>
+      (* TODO treat [try] in the same way as [bind] *)
+      eapply prove_simp_try; [ simp0; simp_close |];
+      normalize; simp0
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
@@ -323,6 +403,30 @@ with simp1 :=
         simp1_par
       ]
   end end
+
+(* [simp0_bind] and [simp1_bind] are special cases of [simp0] and [simp1].
+
+   They assume that the goal is of the form [simp (bind m _) _],
+   where [m] is normalized and cannot be simplified. *)
+
+with simp0_bind :=
+  first [
+    (* Try to make progress. *)
+    simp1_bind
+  |
+    (* If we cannot make progress, stop. Use [normalize] to ensure that
+       the result is normalized; e.g., [rewrite bind_bind] can be useful
+       here. *)
+    normalize
+  ]
+
+with simp1_bind :=
+  (* Performing at least one simplification step, when the term is a [bind]
+     construct, requires rewriting [bind (ret _) _]. To do so, we explicitly
+     apply a lemma; this ensures that we fail if the goal is not of the form
+     [bind (ret _) _]. *)
+  simple eapply advance_SimpBindRet;
+  normalize; simp0
 
 (* [simp0_par] and [simp1_par] are special cases of [simp0] and [simp1].
 
