@@ -30,9 +30,6 @@
 
 ## Engineering and proof mode
 
-* `as_bool`, `as_int`, etc., complicate our tactics.
-  Unfold them instead of treating them specially?
-
 * Review every use of `with_strategy transparent [call]` and
   make sure that we understand which occurrences of `call`
   we are making transparent and for how long.

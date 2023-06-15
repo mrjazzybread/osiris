@@ -319,23 +319,6 @@ with simp1 :=
         simp_eval;
         simp0
       ]
-  (* Same as above. *)
-  | as_bool (ret ?v) =>
-      eapply simp_as_bool; simp0
-  | as_int (ret ?v) =>
-      eapply simp_as_int; simp0
-  (* TODO simp_as_loc, simp_as_record, etc. *)
-  | as_bool (eval ?η ?e) =>
-      (* TODO should probably use [simp_eval]
-              instead of rewriting without precaution *)
-      (* TODO or just unfold [as_bool] *)
-      rewrite eval_eval'; normalize; simp0
-  | as_int (eval ?η ?e) =>
-      rewrite eval_eval'; normalize; simp0
-  | as_loc (eval ?η ?e) =>
-      rewrite eval_eval'; normalize; simp0
-  | as_record (eval ?η ?e) =>
-      rewrite eval_eval'; normalize; simp0
   | call ?v1 ?v2 =>
       lazymatch v2 with
       | #(?x2) =>

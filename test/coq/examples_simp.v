@@ -4,6 +4,16 @@ Local Notation ε := EnvNil. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
+(* A test involving [as_bool]. *)
+
+Goal
+  simp (as_bool (ret #true)) (ret true).
+Proof.
+  simp.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* An example algebraic data type. *)
 
 Inductive data := A | B.

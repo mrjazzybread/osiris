@@ -7,6 +7,14 @@ From osiris.proofmode Require Import simp.
 (* Prevent simplifying string comparisons unless both arguments are known. *)
 Arguments String.eqb !s1 !s2 : simpl nomatch.
 
+(* Unfold [as_bool] and friends as soon as they are applied to an argument.
+   This exposes a [bind] combinator and enables further simplifications. *)
+Arguments as_bool m /.
+Arguments as_int m /.
+Arguments as_loc m /.
+Arguments as_record m /.
+Arguments as_struct m /.
+
 Global Opaque
        call
        ret_concat
