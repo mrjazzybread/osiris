@@ -22,7 +22,7 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 
 (* -------------------------------------------------------------------------- *)
 (* Notations to hide some continuations. *)
-Notation "'WP' Par m m' '...' @ s ; E {{ φ }}" :=
+Notation "'WP'  'Par' m m' '...' @ s ; E {{ φ }}" :=
   (wp s E (Par m m' _ _) φ)
   (only printing).
 
