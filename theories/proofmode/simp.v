@@ -180,7 +180,8 @@ Create HintDb simp_specs.
    this equality. *)
 
 Ltac simp_ret :=
-  eapply prove_simp_ret; [ equality ].
+  eapply prove_simp_ret; [ eauto with encode equality ].
+    (* TODO limit search depth? *)
 
 (* The tactic [normalize] attempts to reduce and normalize the goal before
    applying any reasoning rule. It is used by the tactics that follow. *)
