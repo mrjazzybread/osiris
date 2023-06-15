@@ -35,6 +35,22 @@ Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
   (wp _ _ (ret_dconcat δ _) _)
   (only printing).
 
-  Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
-    (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
-   (only printing).
+(* -------------------------------------------------------------------------- *)
+
+(* Notations for ad-hoc lists: they are all printed as normal lists. *)
+
+Notation "'[ x ; .. ; z ]" :=
+  (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
+  (only printing).
+
+Notation "[ x ; .. ; z ]" :=
+  (RecBiCons x (.. (RecBiCons z RecBiNil) ..))
+  (only printing).
+
+Notation "[ x ; .. ; z ]" :=
+  (BiCons x (.. (BiCons z BiNil) ..))
+  (only printing).
+
+Notation "[ x ; .. ; z ]" :=
+  (ICons x (.. (ICons z INil) ..))
+  (only printing).
