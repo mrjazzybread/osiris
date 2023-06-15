@@ -30,7 +30,18 @@
 
 ## Engineering and proof mode
 
-* It is painful to be stopped by `concatenating`
+* `as_bool`, `as_int`, etc., complicate our tactics.
+  Unfold them instead of treating them specially?
+
+* Review every use of `with_strategy transparent [call]` and
+  make sure that we understand which occurrences of `call`
+  we are making transparent and for how long.
+  Multiple applications of curried functions are difficult to deal with.
+
+* In fact, instead of making `call` opaque, perhaps we could make it
+  transparent and control whether each closure is transparent or opaque.
+
+* It is painful to be stopped by `ret_concat` or `ret_dconcat`
   when there is no interesting specification to provide
   and one just wishes to continue.
 
