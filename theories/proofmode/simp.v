@@ -53,15 +53,6 @@ Proof.
   eauto using simp_try with simp try_ret.
 Qed.
 
-Lemma prove_simp_par {A1 A2 A} m1 m2 a1 a2 (k : A1 * A2 → free A) m' ko :
-  simp m1 (ret a1) →
-  simp m2 (ret a2) →
-  simp (k (a1, a2)) m' →
-  simp (Par m1 m2 k ko) m'.
-Proof.
-  eauto with simp.
-Qed.
-
 Lemma simp_tail_call {A} (m : free A) m' :
   simp m m' →
   simp (bind m ret) m'.
@@ -311,8 +302,6 @@ with simp1 :=
   | Stop CFlip _ _ _ =>
       eapply advance_SimpFlipOK; normalize;
       simp0
-  (* We do not exploit the lemma [prove_simp_par] because we deal with [Par]
-     directly, as follows. *)
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
