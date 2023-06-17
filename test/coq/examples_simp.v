@@ -213,12 +213,29 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* An example that involves an assertion. *)
+(* Examples that involve assertions. *)
 
 Goal let e :=
   ESeq (EAssert ETrue) EFalse
   in simp (eval ε e) (ret VFalse).
 Proof.
+  simp.
+Qed.
+
+Goal let e :=
+  ELet1Var "x" (EInt 0) $
+  ESeq (EAssert (EOpEq (EIntAdd (EVar "x") (EInt 1)) (EInt 1))) $
+  ESeq (EAssert (EOpEq (EIntAdd (EVar "x") (EInt 2)) (EInt 2))) $
+  EUnit
+  in simp (eval ε e) ok.
+Proof.
+  simp.
+  simp_continue.
+  eapply prove_simp_bind.
+  { simp. rewrite add_repr_repr, eq_repr_repr by representable. simp. }
+  simp.
+  eapply prove_simp_bind.
+  { simp. rewrite add_repr_repr, eq_repr_repr by representable. simp. }
   simp.
 Qed.
 
