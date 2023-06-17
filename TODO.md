@@ -30,6 +30,13 @@
 
 ## Engineering and proof mode
 
+* Develop variants of the tactics `simp` and/or `SIMP` that
+  advance step by step (whatever that means...) instead of
+  performing as many steps as possible. Perhaps also offer
+  a variant that stops at `ret_concat` and `ret_dconcat`
+  and one that does not. Organize these tactics in a way
+  that is easy to understand and remember.
+
 * Should `simp` (or a tactic above it)
   perform rewriting using `add_repr_repr`
   and related lemmas?
@@ -41,6 +48,8 @@
 
 * In fact, instead of making `call` opaque, perhaps we could make it
   transparent and control whether each closure is transparent or opaque.
+  We should also decide whether each definition in `Stdlib` is opaque
+  or transparent, and document these decisions.
 
 * It is painful to be stopped by `ret_concat` or `ret_dconcat`
   when there is no interesting specification to provide
