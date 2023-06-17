@@ -30,6 +30,10 @@
 
 ## Engineering and proof mode
 
+* Should `simp` (or a tactic above it)
+  perform rewriting using `add_repr_repr`
+  and related lemmas?
+
 * Review every use of `with_strategy transparent [call]` and
   make sure that we understand which occurrences of `call`
   we are making transparent and for how long.
@@ -47,11 +51,6 @@
      specifications of pure functions should use simp/SIMP.
   The tactic `encode` should be used to solve goals of the form `v = #x`.
   Function arguments and function results should always be encoded.
-
-* [wp] should not unfold encoded values into their native representation.
-
-* Develop a set of tactics specifically for reasoning about pure
-  programs using `simp`.
 
 * Take advantage of the lemma `wp_simp` in the simplification tactics.
 
