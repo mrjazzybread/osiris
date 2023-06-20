@@ -144,8 +144,6 @@ Definition is_odd_spec (vis_odd: val) : iProp Σ:=
 (* Specification of the module. *)
 Definition Λ :=
   [
-    ("is_odd", trivial_spec) ;
-    ("is_odd_naive", trivial_spec) ;
     ("sum", sum_spec) ;
     ("r_val", r_val_spec) ;
     ("lily", is_equal enc_lily) ;
@@ -514,12 +512,14 @@ Time Qed.
 (* (8) Proof of the module [Records] in which the function bodies have not been
    turned opaque. *)
 
+
 Lemma Records_spec :
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
   ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
 Proof.
-  intros η. wp. wp_bind.
+  intros η.
+  wp. wp_bind.
   wp. do 2 wp_bind.
 
   (* [r_elt] is a known value. *)
@@ -573,12 +573,7 @@ Proof.
     { iIntros (v1 v2) "Hadd <-".
       wp. iApply (wp_covariant with "Hadd").
       iIntros (?->). iPureIntro. reflexivity. } }
-  wp_bind.
-
-
-  (* [is_odd_naive] is given the trivial spec for now. *)
-  o_specify "is_odd_naive" trivial_spec "#?"; first done.
-  wp_bind.
+  wp_bind. wp. wp_bind.
 
   (* [is_odd] is given the trivial spec for now. *)
   o_specify "is_odd" trivial_spec "#?"; first done.

@@ -13,6 +13,136 @@ From osiris.proofmode Require Import simp.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Auxiliary definitions *)
+
+Fixpoint environment_support η : list string :=
+  match η with
+  | EnvNil => []
+  | EnvCons s _ η => s :: environment_support η
+  end.
+
+Definition spec_support `{!osirisGS_gen hlc Σ} : list (string * (val → iProp Σ)) → list string :=
+  List.map fst.
+
+Fixpoint in_bool' (s : string) (l : list string) : bool * list string :=
+  match l with
+  | [] => (false, [])
+  | h :: l =>
+      if (s =? h)%string
+      then (true, l)
+      else match in_bool' s l with
+           | (true, l) => (true, h :: l)
+           | (false, _) => (false, h :: l)
+           end
+  end.
+
+Fixpoint in_bool (s : string) (l : list string) : bool :=
+  match l with
+  | [] => false
+  | h :: l =>
+      if (s =? h)%string
+      then true
+      else in_bool s l
+  end.
+
+Global Instance string_list_intersection : Intersection (list string) :=
+  fix go l l' :=
+    match l with
+    | [] => []
+    | h :: l =>
+        match in_bool' h l' with
+        | (false, l') => go l l'
+        | (true, l') => h :: go l l'
+        end
+    end.
+
+Global Instance string_list_difference : Difference (list string) :=
+  fix go l l' :=
+    match l with
+    | [] => []
+    | h :: l =>
+        match in_bool h l' with
+        | false => h :: go l l'
+        | true => go l l'
+        end
+    end.
+
+Definition has_specs `{!osirisGS_gen hlc Σ} (η: env) (Λ: list (string * (val → iProp Σ))) :=
+  match intersection (environment_support η)
+                     (spec_support Λ) with
+  | [] => false
+  | _ => true
+  end.
+
+Fixpoint from_pattern (p: pat) : list string :=
+  match p with
+  | PAny => []
+  | PVar v => [v]
+  | PAlias p v => v :: from_pattern p
+  | PTuple ps => from_patterns ps
+  | POr p1 p2 => (* Over approximation. *)
+      from_pattern p1 ++ from_pattern p2
+  | PData _ p => from_pattern p
+  | PRecord fps => from_fpatterns fps
+  | _ => [] (* Constants. *)
+  end
+with from_fpatterns fps :=
+       match fps with
+       | FPNil => []
+       | FPCons _ p fps => from_pattern p ++ from_fpatterns fps
+       end
+with from_patterns (ps: pats) : list string :=
+       match ps with
+       | PNil => []
+       | PCons p ps => from_pattern p ++ from_patterns ps
+       end.
+
+Definition module_defines (m: mexpr) : list string :=
+  let from_bindings : bindings → list string :=
+    fix go bds :=
+      match bds with
+      | BiNil => []
+      | BiCons (Binding p _) bds =>
+          from_pattern p ++ go bds
+      end
+  in
+  let from_rec_bindings : rec_bindings → list string :=
+    fix go bds :=
+      match bds with
+      | RecBiNil => []
+      | RecBiCons (RecBinding v _) bds =>
+          v :: go bds
+      end
+  in
+  let from_item : sitem → list string :=
+    fun item =>
+      match item with
+      | ILet bds => from_bindings bds
+      | ILetRec bds => from_rec_bindings bds
+      | _ => [] (* TODO. *)
+      end
+  in
+  let from_items : sitems → list string :=
+    fix go items :=
+      match items with
+      | INil => []
+      | ICons item items =>
+          from_item item ++ go items
+      end
+  in
+  match m with
+  | MStruct items => from_items items
+  | _ => [] (* TODO. *)
+  end.
+
+Definition id_spec {A} (a: A) := a.
+Global Opaque id_spec.
+
+Definition id_continue {A} (a: A) := a.
+Global Opaque id_continue.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Tactics to move forward in the proof. *)
 
 (* NOTE:
@@ -80,8 +210,52 @@ Local Ltac wp_progress :=
       cbn (* TODO: better control the reduction strategy. *)
     ).
 
-Ltac wp :=
+Local Ltac wp_concat :=
+  lazymatch goal with
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (ret_concat ?δ _) _ =>
+      with_strategy transparent [ret_concat] unfold ret_concat at 1
+        (* We wish to unfold just the root occurrence. *)
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (bind (ret_concat ?δ _) _) _ =>
+      with_strategy transparent [ret_concat] unfold ret_concat at 1
+        (* We wish to unfold just the root occurrence. *)
+  | |- environments.envs_entails
+         _ $
+         wp _ _ (ret_dconcat ?δ _) _ =>
+      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1
+        (* We wish to unfold just the root occurrence. *)
+  end.
+
+Local Ltac wp_startproof :=
   iStartProof;
+  lazymatch goal with
+  | _ := id_continue _ |- _=> idtac
+  | |- environments.envs_entails _ $ wp _ _ (eval_mexpr _ ?m) (module_spec ?Λ) =>
+      let from_module := eval cbn in (module_defines m) in
+      let from_spec := eval cbn in (List.map fst Λ) in
+      let diff := eval cbn in (difference from_module from_spec) in
+      pose (__osiris_continue := id_continue diff);
+      pose (__osiris_specs := id_spec Λ)
+  | |- _ => idtac
+  end.
+
+Local Ltac wp_continue_if_nospec :=
+  lazymatch goal with
+  | _ := id_continue ?l |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ _) _ =>
+    let δ := eval cbn in (environment_support δ) in
+    let ret := eval cbn in (forallb (fun s => in_bool s l) δ) in
+      lazymatch constr:(ret) with
+      | true => wp_concat
+      | false => idtac
+      end
+                      | _ => fail "Cannot continue."
+  end.
+
+Ltac wp :=
+  wp_startproof;
   (try wp_progress);
   repeat
     (first [
@@ -90,53 +264,10 @@ Ltac wp :=
           | _ => wp_step; try progress cbn
           end
         | apply tc_change_goal
-        | try progress wp_simp
-        | idtac "Nothing to do."
+        | progress wp_simp
+        | wp_continue_if_nospec
+        | idtac
     ]).
-
-Ltac wp_par :=
-  iApply wp_par; [wp | wp | ].
-
-Ltac wp_par_with H :=
-  iApply (wp_par with H); [wp | wp | ].
-
-Ltac wp_use H :=
-  first [
-    iApply H
-  | iApply wp_covariant; [ iApply H |]
-  ];
-  cbn.
-
-Ltac wp_call :=
-  with_strategy transparent [call] unfold call; wp.
-
-
-(* TODO not great *)
-Ltac wp_set_postcondition :=
-    by
-    lazymatch goal with
-    | |- environments.envs_entails ?Δ (?φ ?v) =>
-        is_evar φ;
-        let hyps :=
-          eval cbn in (
-                     environments.env_to_list $
-                     environments.env_spatial Δ
-                   ) in
-          let H := eval cbn in (
-                              match hyps with
-                              | [] => λ res, ⌜ res = v ⌝%I
-                              | _ => (λ res, ⌜ res = v ⌝ ∗ [∗ list] p ∈ hyps, p)%I
-                              end)%I in
-            instantiate (1 := H)
-    end.
-
-
-Ltac wp_alloc l H:=
-  iApply wp_alloc; iNext; iIntros (l) H; wp.
-Ltac wp_load H :=
-  iApply (wp_load with H); iNext; iIntros H; wp.
-Ltac wp_store H :=
-  iApply (wp_store with H); iNext; iIntros H; wp.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -173,6 +304,7 @@ Ltac wp_continue :=
         (* We wish to unfold just the root occurrence. *)
   end; wp.
 
+(* TODO: get rid of wp_autocontinue. *)
 Ltac wp_autocontinue :=
   repeat (wp || wp_continue).
 
@@ -212,6 +344,55 @@ Ltac wp_specify x φ :=
                     iAssert (φ v) as H; [  | iRevert H; generalize v ]
         end
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+Ltac wp_par :=
+  iApply wp_par; [wp | wp | ].
+
+Ltac wp_par_with H :=
+  iApply (wp_par with H); [wp | wp | ].
+
+Ltac wp_use H :=
+  first [
+    iApply H
+  | iApply wp_covariant; [ iApply H |]
+  ];
+  cbn.
+
+Ltac wp_call :=
+  with_strategy transparent [call] unfold call; wp.
+
+
+(* TODO: not great *)
+Ltac wp_set_postcondition :=
+    by
+    lazymatch goal with
+    | |- environments.envs_entails ?Δ (?φ ?v) =>
+        is_evar φ;
+        let hyps :=
+          eval cbn in (
+                     environments.env_to_list $
+                     environments.env_spatial Δ
+                   ) in
+          let H := eval cbn in (
+                              match hyps with
+                              | [] => λ res, ⌜ res = v ⌝%I
+                              | _ => (λ res, ⌜ res = v ⌝ ∗ [∗ list] p ∈ hyps, p)%I
+                              end)%I in
+            instantiate (1 := H)
+    end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Store-related tactics. *)
+
+Ltac wp_alloc l H:=
+  iApply wp_alloc; iNext; iIntros (l) H; wp.
+Ltac wp_load H :=
+  iApply (wp_load with H); iNext; iIntros H; wp.
+Ltac wp_store H :=
+  iApply (wp_store with H); iNext; iIntros H; wp.
 
 (* -------------------------------------------------------------------------- *)
 (* Tactics used to prove the specification of a module expression. *)
