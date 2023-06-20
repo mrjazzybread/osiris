@@ -93,16 +93,16 @@ Definition enc_lily : val := # [enc_r_elt; enc_r_elt'].
 (* (3) Definition of specifications. *)
 
 (* [is_equal] asserts the equality of two values. *)
-Definition is_equal v : val → iProp Σ :=
-  λ res, ⌜ res = v ⌝%I.
+Definition is_equal (v res: val) : iProp Σ :=
+  □ ⌜ res = v ⌝.
 
 (* [trivial_spec] is a dummy specification. *)
 Definition trivial_spec (v: val) : iProp Σ :=
-  ⌜ True ⌝.
+  □ emp.
 
 (* [flip] negates [b] in records of type [{ b: bool; i: int}]. *)
 Definition flip_spec (v : val) : iProp Σ :=
-  ∀ (b: bool) (i: Z),
+  □ ∀ (b: bool) (i: Z),
     WP call v #{| b := b; i := i |}
     {{ λ r, is_equal r #{| b := negb b; i := i |} }}.
 
@@ -115,14 +115,14 @@ Definition r_val_pure (r: R) : Z :=
   end.
 
 Definition r_val_spec (r_val: val): iProp Σ :=
-  ∀ (r: R),
-    WP call r_val #r
-       {{ λ result, is_equal result #(r_val_pure r) }}.
+  □ ∀ (r: R),
+  WP call r_val #r
+     {{ λ result, is_equal result #(r_val_pure r) }}.
 
 Definition sum_pure (r1 r2: R) : Z :=
   r_val_pure r1 + r_val_pure r2.
 Definition sum_spec (vsum: val) : iProp Σ :=
-  ∀ (r1 r2 : R),
+  □ ∀ (r1 r2 : R),
     WP call vsum #r1 {{
           λ vpart,
           WP call vpart #r2 {{
@@ -136,7 +136,7 @@ Fixpoint is_odd_pure (n: nat) :bool :=
   end.
 
 Definition is_odd_spec (vis_odd: val) : iProp Σ:=
-  ∀ (n : nat),
+  □ ∀ (n : nat),
   WP call vis_odd #n {{ is_equal #(is_odd_pure n) }}.
 
 (* -------------------------------------------------------------------------- *)
@@ -308,7 +308,7 @@ Proof.
   iExists _.
   iSplit; first (iPureIntro; by simp).
   explicit flip_body.
-  iIntros (b i).
+  iIntros "!>" (b i).
   wp_call. wp_continue.
   rewrite H1. wp.
   simpl (build _ _). wp.
@@ -324,7 +324,7 @@ Proof.
   intros H1.
   iExists _.
   iSplit; first (iPureIntro; by simp).
-  by iIntros (r); explicit r_val_body; explicit r_val_pure;
+  by iIntros "!>" (r); explicit r_val_body; explicit r_val_pure;
   wp_call; destruct (b r); do 2 wp_continue; [ rewrite H1; wp | ].
 Qed.
 
@@ -336,10 +336,10 @@ Lemma sum_function_spec η vr_val :
     ∃ vsum,
       ⌜simp (eval η sum_function) (Ret vsum)⌝ ∗ sum_spec vsum.
 Proof.
-  iIntros(??) "#Hr_val".
+  iIntros (??) "#Hr_val".
   iExists _.
   iSplit; first (iPureIntro; by simp).
-  iIntros (r1 r2).
+  iIntros "!>" (r1 r2).
   explicit sum_body.
   wp_call; do 2 wp_continue.
   wp_simp.
@@ -360,7 +360,7 @@ Lemma is_odd'_function_spec η :
   ⊢ is_odd_spec vis_odd'.
 Proof.
   intros a H1; subst a. explicit is_odd'_function.
-  iIntros (n); wp_call.
+  iIntros "!>" (n); wp_call.
   by wp_simp_eusing is_odd'_body_spec.
 Qed.
 
@@ -385,9 +385,8 @@ Proof.
   simpl (build _ _). wp.
 
   wp_simp_using r_elt_spec.
-  wp_specify "r_elt" (is_equal enc_r_elt); first done.
-  iIntros(?->). wp_continue.
 
+  wp_continue.
   wp_continue.
   iApply wp_simp.
   { by eapply lily_body_spec; try done. }
@@ -395,30 +394,26 @@ Proof.
   wp. wp_continue.
 
   (* [r_val] has the expected value. *)
-  wp_specify "r_val" r_val_spec.
-  { iIntros (r). explicit r_val_pure; destruct (b r) eqn:E;
+  o_specify "r_val" r_val_spec "#Hr_val".
+  { iIntros "!>" (r). explicit r_val_pure; destruct (b r) eqn:E;
       wp_call; wp_continue; wp_simp; try done;
       explicit r_val_pure; rewrite E; by wp. }
-  iIntros (r_val) "#Hr_val". wp_continue.
 
 
   (* [sum] is given the trivial spec for now. *)
   wp_continue.
 
   (* [is_odd_naive] is given the trivial spec for now. *)
-  wp_specify "is_odd_naive" trivial_spec; first done.
-  iIntros (is_odd_naive) "#His_odd_naive". wp_continue.
+  o_specify "is_odd_naive" trivial_spec "#His_odd_naive"; first done.
 
   (* [is_odd] is given the trivial spec for now. *)
-  wp_specify "is_odd" trivial_spec; first done.
-  iIntros (is_odd) "#His_odd". wp_continue.
+  o_specify "is_odd" trivial_spec "#His_odd"; first done.
 
   Opaque eval. (* TODO? *)
-  wp_specify "is_odd'" is_odd_spec.
-  { iIntros(n). explicit is_odd'_function.
+  o_specify "is_odd'" is_odd_spec "#His_odd'".
+  { iIntros "!>"(n). explicit is_odd'_function.
     wp_call.
     by wp_simp_eusing is_odd'_body_spec. }
-  iIntros (vis_odd') "#His_odd'"; wp_continue.
   Transparent eval.
 
   lazymatch goal with
@@ -427,7 +422,7 @@ Proof.
   end.
   cbn; repeat iSplitL; try (iExists _; iSplit; first done); try done.
   { (* Proof of the [sum] function.*)
-    iIntros(r1 r2).
+    iIntros "!>"(r1 r2).
     wp_call. wp_continue. wp_continue.
     wp_par.
     - wp_use "Hr_val".
@@ -440,7 +435,7 @@ Proof.
         destruct (b r1), (b r2); cbn;
         by rewrite int.add_repr_repr. }
   { (* Proof of the [flip] function. *)
-    iIntros(??); wp_call. wp_continue. wp_simp. by wp. }
+    iIntros "!>" (??); wp_call. wp_continue. wp_simp. by wp. }
 Time Qed.
 
 (* TODO making definitions opaque blocks the [simp] tactics
@@ -465,9 +460,7 @@ Proof.
   intros?.
   wp.
 
-  wp_simp_using r_elt_spec.
-  wp_specify "r_elt" (is_equal enc_r_elt); first done.
-  iIntros (?->). wp_continue.
+  wp_simp_using r_elt_spec. wp_continue.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η flip_function) _) =>
@@ -501,14 +494,11 @@ Proof.
   end.
   wp_simp_using Hsum_simp. wp_continue.
 
-  wp_specify "is_odd_naive" trivial_spec; first done.
-  iIntros (?) "?". wp_continue.
-  wp_specify "is_odd" trivial_spec; first done.
-  iIntros (?) "?". wp_continue.
+  o_specify "is_odd_naive" trivial_spec "?"; first done.
+  o_specify "is_odd" trivial_spec "?"; first done.
 
-  wp_specify "is_odd'" is_odd_spec.
+  o_specify "is_odd'" is_odd_spec "#?".
   { by iApply is_odd'_function_spec. }
-  iIntros (?) "#?". wp_continue.
 
   wp_module_spec.
 Time Qed.
@@ -527,15 +517,12 @@ Proof.
   simpl (build _ _). wp.
 
   (* [r_elt] is a known value. *)
-  wp_specify "r_elt" (is_equal enc_r_elt); first done.
-  (* There is no need to keep the "spec" of [r_elt] around.*)
-  iIntros (r_elt) "->". wp_continue.
+  wp_continue.
 
   (* [flip] has the expected spec. *)
-  wp_specify "flip" flip_spec.
-  { iIntros (b i); wp_call.
+  o_specify "flip" flip_spec "#Hflip".
+  { iIntros "!>" (b i); wp_call.
     wp_continue. simpl (build _ _). wp. done. }
-  iIntros (flip) "#Hflip". wp_continue.
 
   (* [flip] is applied to [r_elt]. *)
   wp_simp. wp.
@@ -549,25 +536,21 @@ Proof.
   iIntros (? <-). wp.
 
   (* [lily] has the expected value. *)
-  wp_specify "lily" (is_equal enc_lily).
-  { iPureIntro. reflexivity. }
-  iIntros (lily) "#Hlily". wp_continue.
+  wp_continue.
 
 
   (* TODO: uncomment the call to [List.rev]. *)
 
   (* [r_val] has the expected value. *)
-  wp_specify "r_val" r_val_spec.
-  { iIntros ([[|] i]).
+  o_specify "r_val" r_val_spec "#Hr_val".
+  { iIntros "!>" ([[|] i]).
     (* Case: [b] is true. *)
     { wp_call. by do 2 wp_continue. }
     { wp_call. by do 2 wp_continue. } }
-  iIntros (r_val) "#Hr_val". wp_continue.
-
 
   (* [sum] is given the trivial spec for now. *)
-  wp_specify "sum" sum_spec.
-  { iIntros([b1 i1] [b2 i2]). wp_call. do 2 wp_continue.
+  o_specify "sum" sum_spec "#Hsum".
+  { iIntros "!>" ([b1 i1] [b2 i2]). wp_call. do 2 wp_continue.
     wp.
     wp_simp.
     wp_par;
@@ -582,25 +565,21 @@ Proof.
     { iIntros (v1 v2) "Hadd <-".
       wp. iApply (wp_covariant with "Hadd").
       iIntros (?->). iPureIntro. reflexivity. } }
-  iIntros (sum) "#Hsum". wp_continue.
 
   (* [is_odd_naive] is given the trivial spec for now. *)
-  wp_specify "is_odd_naive" trivial_spec; first done.
-  iIntros (is_odd_naive) "#His_odd_naive". wp_continue.
+  o_specify "is_odd_naive" trivial_spec "#?"; first done.
 
   (* [is_odd] is given the trivial spec for now. *)
-  wp_specify "is_odd" trivial_spec; first done.
-  iIntros (is_odd) "#His_odd". wp_continue.
+  o_specify "is_odd" trivial_spec "#?"; first done.
 
-  wp_specify "is_odd'" is_odd_spec.
-  { iLöb as "IH". iIntros([|]); wp_call; wp_continue.
+  o_specify "is_odd'" is_odd_spec "#?".
+  { iLöb as "IH". iIntros "!>" ([|]); wp_call; wp_continue.
     { done. }
     { replace (nat_encode_f n) with #n; last reflexivity.
       iApply (wp_covariant with "IH").
       iIntros (?->).
       destruct (is_odd_pure n) eqn:E;
       by wp_call. } }
-  iIntros (vis_odd') "#His_odd'". wp_continue.
 
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.

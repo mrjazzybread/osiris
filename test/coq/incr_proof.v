@@ -63,7 +63,7 @@ Proof.
   wp.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
-  oSpecify "new_counter" new_counter_spec new_counter "#Hnew_counter".
+  o_specify "new_counter" new_counter_spec "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     wp_call. wp_continue.
     iApply wp_covariant; first by iApply Stdlib__ref__spec.
@@ -137,8 +137,7 @@ Proof.
 
   wp. wp_continue.
 
-  wp_specify "_test" thirteen_spec; first trivial.
-  iIntros(_test)"#H_test". wp_continue.
+  wp_continue.
 
 
   (* As all the required specifications have already been proven,

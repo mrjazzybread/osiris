@@ -241,6 +241,8 @@ Tactic Notation "oAbstract"
   oAbstract s3 i3
             s4 i4.
 
+(* -------------------------------------------------------------------------- *)
+
 (* [oCall] behaves in the same way that wp_call does, except that it abstracts
    the required closures.
    It is defined as a notation so that it is easy to ask for more idents (Ltac
@@ -262,6 +264,10 @@ Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
   | |- context [VCloRec ?η ?bds s2] =>
       generalize (VCloRec η bds s2); intro i2
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Below are defined local tactics which are used to define [oSpecify]. *)
 
 (* [oSpecify] is used to provide the user the possibility to provide
    specifications for variables which are about to be added to the environment
@@ -293,14 +299,54 @@ Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
       (try iModIntro);
       oSpecify_intros lhyps.
 
+Tactic Notation "oSpecify_abstract" constr(δ) constr(n1) ident(i1) :=
+  let value :=
+    eval cbn in (match lookup_name δ n1 with
+                           | Ret v => v
+                           | _ => VUnit
+                           end) in
+    generalize value; intros i1.
+
+Tactic Notation "oSpecify_abstract" constr(δ)
+       constr(n1) ident(i1)
+       constr(n2) ident(i2) :=
+  oSpecify_abstract δ n1 i1;
+  oSpecify_abstract δ n2 i2.
+
+Tactic Notation "oSpecify_abstract" constr(δ)
+       constr(n1) ident(i1)
+       constr(n2) ident(i2)
+       constr(n3) ident(i3) :=
+  oSpecify_abstract δ n1 i1 n2 i2;
+  oSpecify_abstract δ n3 i3.
+
+Tactic Notation "oSpecify_abstract" constr(δ)
+       constr(n1) ident(i1)
+       constr(n2) ident(i2)
+       constr(n3) ident(i3)
+       constr(n4) ident(i4) :=
+  oSpecify_abstract δ n1 i1 n2 i2;
+  oSpecify_abstract δ n3 i3 n4 i4.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Definition of [oSpecify], used to specify and abstract away values when the
+   evaluation stops on en environment concatenation. *)
+
 Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1) :=
   lazymatch goal with
   | |- environments.envs_entails
+         _ (wp _ _ (ret_concat ?δ _) _) =>
+      oSpecify_assume [spec1] [n1] [H1] δ;
+      last ( oSpecify_abstract δ n1 i1 ;
+             wp_continue)
+  | |- environments.envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1] [n1] [H1] δ;
-      last ( oAbstract n1 i1 ;
+      last ( oSpecify_abstract δ n1 i1 ;
              wp_continue)
+  | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1)
@@ -308,10 +354,21 @@ Tactic Notation "oSpecify"
   lazymatch goal with
   | |- environments.envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
-      oSpecify_assume [spec1; spec2] [n1; n2] [H1; H2] δ;
-      last ( oAbstract n1 i1
-                       n2 i2;
+      oSpecify_assume [spec1; spec2]
+                      [n1; n2]
+                      [H1; H2]
+                      δ;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 ;
              wp_continue)
+  | |- environments.envs_entails
+         _ (wp _ _ (ret_concat ?δ _) _) =>
+      oSpecify_assume [spec1; spec2]
+                      [n1; n2]
+                      [H1; H2]
+                      δ;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 ;
+             wp_continue)
+  | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1)
@@ -319,12 +376,16 @@ Tactic Notation "oSpecify"
        constr(n3) constr(spec3) ident(i3) constr(H3) :=
   lazymatch goal with
   | |- environments.envs_entails
+         _ (wp _ _ (ret_concat ?δ _) _) =>
+      oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
+             wp_continue)
+  | |- environments.envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
-      last ( oAbstract n1 i1
-                       n2 i2
-                       n3 i3;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
              wp_continue)
+  | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1)
@@ -333,14 +394,60 @@ Tactic Notation "oSpecify"
        constr(n4) constr(spec4) ident(i4) constr(H4) :=
   lazymatch goal with
   | |- environments.envs_entails
+         _ (wp _ _ (ret_concat ?δ _) _) =>
+      oSpecify_assume [spec1; spec2; spec3; spec4]
+                      [n1; n2; n3; n4]
+                      [H1; H2; H3; H4]
+                      δ;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
+             wp_continue)
+  | |- environments.envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3; spec4]
                       [n1; n2; n3; n4]
                       [H1; H2; H3; H4]
                       δ;
-      last ( oAbstract n1 i1
-                       n2 i2
-                       n3 i3
-                       n4 i4;
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
              wp_continue)
+  | _ => fail "[oSpecify] only works on environment extension."
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Wrapers around the above [Tactic Notation]s to autoname idents.
+   For some (unknown) reason, it is not possible to overload [oSpecify] with
+   four new notations, even if the arities differ from the previous notations.
+ *)
+
+From iris.proofmode Require Import string_ident.
+
+Tactic Notation "o_specify"
+       constr(n1) constr(spec1) constr(H1) :=
+  let i1 := string_to_ident n1 in
+  let i1 := fresh i1 in
+  oSpecify n1 spec1 i1 H1.
+Tactic Notation "o_specify"
+       constr(n1) constr(spec1) constr(H1)
+       constr(n2) constr(spec2) constr(H2) :=
+  let i1 := string_to_ident n1 in let i1 := fresh i1 in
+  let i2 := string_to_ident n2 in let i2 := fresh i2 in
+  oSpecify n1 spec1 i1 H1
+           n2 spec2 i2 H2.
+Tactic Notation "o_specify"
+       constr(n1) constr(spec1) constr(H1)
+       constr(n2) constr(spec2) constr(H2)
+       constr(n3) constr(spec3) constr(H3) :=
+  let i1 := string_to_ident n1 in let i1 := fresh i1 in
+  let i2 := string_to_ident n2 in let i2 := fresh i2 in
+  let i3 := string_to_ident n3 in let i3 := fresh i3 in
+  oSpecify n1 spec1 i1 H1 n2 spec2 i2 H2 n3 spec3 i3 H3.
+Tactic Notation "o_specify"
+       constr(n1) constr(spec1) constr(H1)
+       constr(n2) constr(spec2) constr(H2)
+       constr(n3) constr(spec3) constr(H3)
+       constr(n4) constr(spec4) constr(H4) :=
+  let i1 := string_to_ident n1 in let i1 := fresh i1 in
+  let i2 := string_to_ident n2 in let i2 := fresh i2 in
+  let i3 := string_to_ident n3 in let i3 := fresh i3 in
+  let i4 := string_to_ident n4 in let i4 := fresh i4 in
+  oSpecify n1 spec1 i1 H1 n2 spec2 i2 H2 n3 spec3 i3 H3 n4 spec4 i4 H4.

@@ -118,12 +118,11 @@ Proof.
   (* The environment is about to be extended with a binding of the variable
      "id" to a certain closure. Now is the time to prove a specification
      for this closure; then, we can make this closure opaque. *)
-  wp_specify "id" spec_id.
+  o_specify "id" spec_id "#Hid".
   (* Subgoal: prove that [fun x -> x] satisfies [spec_id]. *)
   { unfold spec_id. iModIntro. iIntros (v). wp_call.
     iPureIntro. reflexivity. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
-  iIntros (id) "#Hid".
 
   (* Abstract away [example3]; its spec suffices. *)
   (* TODO this is broken; [example3] has been unfolded/simplified already
@@ -165,11 +164,10 @@ Lemma spec_example4b:
 Proof.
   unfold example4b. wp.
   (* Deal with the local binding of [id]. *)
-  wp_specify "id" spec_id.
+  o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp_call.
     iPureIntro. reflexivity. }
-  iIntros (id) "#Hid". wp_continue.
   (* We are looking at [id id]. *)
   wp_use "Hid". iIntros(?->).
   wp_use "Hid".
@@ -188,11 +186,10 @@ Lemma spec_example4c:
 Proof.
   unfold example4c. wp.
   (* Deal with the local binding of [id]. *)
-  wp_specify "id" spec_id.
+  o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp_call.
     iPureIntro. reflexivity. }
-  iIntros (id) "#Hid". wp_continue.
   (* We are looking at [id()]. *)
   wp_use "Hid". iIntros(?->).
   (* We are again looking at [id()]. *)
@@ -212,11 +209,10 @@ Lemma spec_example4d:
 Proof.
   unfold example4d. wp.
   (* Deal with the local binding of [id]. *)
-  wp_specify "id" spec_id.
+  o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp_call.
     iPureIntro; reflexivity. }
-  iIntros (id) "#Hid". wp_continue.
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
   wp_par.
@@ -425,16 +421,14 @@ Proof.
   wp.
 
   (* [f] is about to be added to the environment *)
-  wp_specify "f" spec_id.
+  o_specify "f" spec_id "#Hid".
   { iIntros(v). iModIntro.
     wp_call. iPureIntro. reflexivity. }
-  iIntros (id) "#Hid". wp_continue.
 
   (* [g] is about to be added to the environment *)
-  wp_specify "g" spec_id.
+  o_specify "g" spec_id "#Hid'".
   { iIntros(v). iModIntro.
     wp_use "Hid". }
-  iIntros (id') "#Hid'". wp_continue.
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
   wp_use "Hid". iIntros (?->). wp.
