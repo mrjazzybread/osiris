@@ -309,8 +309,7 @@ Proof.
   iSplit; first (iPureIntro; by simp).
   explicit flip_body.
   iIntros "!>" (b i).
-  wp_call. wp_continue.
-  rewrite H1. wp.
+  wp_call. wp_continue. wp.
   simpl (build _ _). wp.
   iPureIntro. reflexivity.
 Qed.
@@ -324,8 +323,10 @@ Proof.
   intros H1.
   iExists _.
   iSplit; first (iPureIntro; by simp).
-  by iIntros "!>" (r); explicit r_val_body; explicit r_val_pure;
-  wp_call; destruct (b r); do 2 wp_continue; [ rewrite H1; wp | ].
+  by iIntros "!>" (r);
+  explicit r_val_body; explicit r_val_pure;
+  wp_call; destruct (b r); do 2 wp_continue;
+  [ rewrite -bind_bind; wp | ].
 Qed.
 
 Lemma sum_function_spec η vr_val :

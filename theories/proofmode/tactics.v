@@ -9,6 +9,7 @@ From iris Require Import base_logic.lib.gen_heap.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import weakestpre.
+From osiris.proofmode Require Import simp.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -62,6 +63,9 @@ Ltac wp_step :=
       tac_change_goal (wp_flip _ _ _ _ _ _)
   end.
 
+Ltac wp_simp :=
+  iApply wp_simp; first by simp_really.
+
 Ltac wp :=
   iStartProof;
   cbn; (* TODO: better control the reduction strategy. *)
@@ -69,7 +73,8 @@ Ltac wp :=
      (lazymatch goal with
         | |- environments.envs_entails _ (bi_later _) => iNext
         | _ => wp_step; try progress cbn
-        end || apply tc_change_goal)).
+        end || apply tc_change_goal));
+  try wp_simp.
 
 Ltac wp_par :=
   iApply wp_par; [wp | wp | ].

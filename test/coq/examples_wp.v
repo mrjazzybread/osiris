@@ -74,7 +74,6 @@ Lemma spec_example3:
 Proof.
   iIntros (id) "#Hid".
   wp.
-  iApply wp_simp; [ simp_really |]. (* TODO [wp] should do this *)
   wp_par.
   { wp_use "Hid". }
   { wp_use "Hid".
