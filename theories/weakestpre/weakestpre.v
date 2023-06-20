@@ -2,7 +2,7 @@
 
 From osiris.weakestpre Require Export
      wp
-     wp_tactics tactics
+     wp_tactics
      specifications
      tc_simplifications
 .
