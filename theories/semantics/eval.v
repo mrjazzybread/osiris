@@ -194,8 +194,6 @@ Fixpoint lookup_name η x : free val :=
       missing_variable_or_field x
   end.
 
-Global Arguments lookup_name !η !x : simpl nomatch.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [lookup_path η π] looks up the path [π] in the environment [η]. *)
@@ -224,8 +222,6 @@ Fixpoint concat δ η : env :=
       EnvCons x v (concat δ η)
   end.
 
-Global Arguments concat !δ η : simpl nomatch.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
@@ -242,8 +238,6 @@ Fixpoint remove f fvs : free env :=
       missing_field f
   end.
 
-Global Arguments remove !f !fvs : simpl nomatch.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [update fvs fvs'] updates the existing record fields [fvs] with the new
@@ -258,8 +252,6 @@ Fixpoint update fvs fvs' : free env :=
       let fvs := EnvCons f v' fvs in
       update fvs fvs'
   end.
-
-Global Arguments update !fvs !fvs' : simpl nomatch.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -448,10 +440,6 @@ with extendfs δ fps fvs : free env :=
       δ ← extendfs δ fps fvs ;
       ret δ
   end.
-
-Global Arguments extend δ !p v.
-Global Arguments extends δ !ps !vs.
-Global Arguments extendfs δ !fps !fvs.
 
 (* ------------------------------------------------------------------------ *)
 

@@ -1,1 +1,1 @@
-From osiris.proofmode Require Export equality simp opacity notations tactics.
+From osiris.proofmode Require Export equality simp setup notations tactics.

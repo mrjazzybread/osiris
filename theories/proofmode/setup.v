@@ -15,6 +15,17 @@ Arguments as_loc m /.
 Arguments as_record m /.
 Arguments as_struct m /.
 
+(* semantics/eval.v *)
+Global Arguments lookup_name !η !x : simpl nomatch.
+Global Arguments concat !δ η : simpl nomatch.
+Global Arguments remove !f !fvs : simpl nomatch.
+Global Arguments update !fvs !fvs' : simpl nomatch.
+Global Arguments extend δ !p v.
+Global Arguments extends δ !ps !vs.
+Global Arguments extendfs δ !fps !fvs.
+
+
+
 Global Opaque
        call
        ret_concat
@@ -34,4 +45,5 @@ Global Opaque
        structural_equality_error
        structural_ordering_error
        type_mismatch
+       SIMP
 .
