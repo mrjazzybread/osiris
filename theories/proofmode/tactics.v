@@ -53,8 +53,6 @@ Ltac wp_step :=
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
       tac_change_goal (wp_ret _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
-      idtac
   | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
       tac_change_goal (wp_try _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
@@ -68,6 +66,10 @@ Ltac wp_step :=
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
   | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _ _) _) =>
       tac_change_goal (wp_flip _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+      fail "[bind] is no longer simplified by [wp_step]."
+  | _ =>
+      fail "The goal must be a wp to apply [wp_step]."
   end.
 
 Ltac wp_simp :=
@@ -88,7 +90,8 @@ Ltac wp :=
           | _ => wp_step; try progress cbn
           end
         | apply tc_change_goal
-        | try wp_simp
+        | try progress wp_simp
+        | idtac "Nothing to do."
     ]).
 
 Ltac wp_par :=

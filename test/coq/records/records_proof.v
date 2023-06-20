@@ -311,10 +311,7 @@ Proof.
   iIntros "!>" (b i).
   wp_call. wp_continue. wp.
   wp. do 2 wp_bind.
-  wp. wp_bind.
-  simpl (build _ _).
-  wp.
-  iPureIntro. reflexivity.
+  wp. iPureIntro. reflexivity.
 Qed.
 
 Lemma r_val_function_spec η :
