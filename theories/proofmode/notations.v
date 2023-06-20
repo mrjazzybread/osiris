@@ -68,3 +68,10 @@ Notation "[
  * z ]" :=
   (ICons x (.. (ICons z INil) ..))
   (only printing).
+
+Notation "[
+ * x ;
+ * .. ;
+ * z ]" :=
+  (BrCons x (.. (BrCons z BrNil) ..))
+  (only printing).
