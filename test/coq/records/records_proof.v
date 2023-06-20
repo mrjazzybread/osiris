@@ -523,15 +523,15 @@ Lemma Records_spec :
   ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
 Proof.
   intros η. wp. wp_bind.
-  simpl (build _ _). wp. do 2 wp_bind.
+  wp. do 2 wp_bind.
 
   (* [r_elt] is a known value. *)
   wp_continue. wp_bind.
 
   (* [flip] has the expected spec. *)
   o_specify "flip" flip_spec "#Hflip".
-  { iIntros "!>" (b i); wp_call.
-    wp_continue. simpl (build _ _). wp. done. }
+  { iIntros "!>" (b i); wp_call. wp_bind.
+    wp_continue. wp. wp_bind. wp. done. }
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)

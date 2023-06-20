@@ -73,9 +73,14 @@ Ltac wp_step :=
 Ltac wp_simp :=
   iApply wp_simp; first by simp_really.
 
+Local Ltac wp_progress :=
+  progress (
+      cbn (* TODO: better control the reduction strategy. *)
+    ).
+
 Ltac wp :=
   iStartProof;
-  cbn; (* TODO: better control the reduction strategy. *)
+  (try wp_progress);
   repeat
     (first [
           lazymatch goal with
