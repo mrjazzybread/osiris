@@ -373,7 +373,9 @@ let rec translate_module (ast: Typedtree.structure) : mexpr (* * types*) =
 (* -------------------------------------------------------------------------- *)
 
 let of_typedtree (verbose_msg: (string -> unit))
-                 (_debug_msg: (string -> unit))
-                 (ast: Typedtree.structure) =
+      (_debug_msg: (string -> unit))
+      name
+      (ast: Typedtree.structure):
+      OsirisAst.ast =
   let () = verbose_msg "Translation « Typed-tree => Osiris »: begin." in
-  OModule (translate_module ast)
+  Some name, OModule (translate_module ast)

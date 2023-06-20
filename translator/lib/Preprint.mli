@@ -5,4 +5,4 @@ type expression =
 
 val definition_of_ast : (string -> unit) ->
                         (string -> unit) ->
-                        OsirisAst.ast -> (string * expression)
+                        OsirisAst.ast_body -> (string * expression)

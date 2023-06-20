@@ -4,6 +4,8 @@
 
 type variable = string
 
+type coqdef = string
+
 (* Module names: use [name] *)
 
 (* We place variables and module names in the same namespace (This creates
@@ -197,6 +199,8 @@ type expr =
   | ELoad of expr
   | EStore of expr * expr
 
+  | EDef of coqdef
+
 (* Lists of expressions *)
 
 and exprs = expr list
@@ -218,6 +222,7 @@ and branches = branch list
 
 and binding =
   | Binding of pat * expr
+  | BDef of coqdef
 
 (* Lists of bindings *)
 
@@ -227,6 +232,7 @@ and bindings = binding list
 
 and rec_binding =
   | RecBinding of variable * anonfun
+  | RecBDef of coqdef
 
 (* Lists of recursive bindings *)
 
@@ -259,6 +265,8 @@ and mexpr =
      where [S] is the expected shape of the argument of the functor [F] *)
   | MCoercion of mexpr * coercion
 
+  | MDef of coqdef
+
 (* Lists of structure items *)
 
 and sitems = sitem list
@@ -282,7 +290,8 @@ and sitem =
   (* An [include] directive [include me] *)
   | IInclude of mexpr
 
-
+  (* A topèlevel Coq definition *)
+  | CDef of coqdef
 
 (* ------------------------------------------------------------------------ *)
 
@@ -339,8 +348,12 @@ type types = tytype list
 
 (* ------------------------------------------------------------------------- *)
 
-type ast =
+type ast_body =
   | OModule of mexpr
   | OExpr of expr
-  | ORecBindings of rec_bindings
-  | OBindings of bindings
+  | ORecBinding of rec_binding
+  | OBinding of binding
+  | OSItem of sitem
+
+type ast =
+  string option * ast_body

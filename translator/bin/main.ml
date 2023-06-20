@@ -64,7 +64,7 @@ let () =
        native lists are used every time.
        This will also help with the translation: one can then use the syntactic
        sugar defined in [theories/lang/sugar.v]. *)
-  |> Osiris.of_typedtree verbose_msg debug_msg
+  |> Osiris.of_typedtree verbose_msg debug_msg module_name
 
   (* Break down the AST into pieces according to the user-specified
      splitting-strategy.
@@ -88,8 +88,8 @@ let () =
 
      It is the function [split] that will choose names for the auxiliary
      definitions. *)
-  |> OsirisSplit.split verbose_msg debug_msg
-       splitting_strategy module_name
+  |> Split.split verbose_msg debug_msg
+       splitting_strategy
 
   (* [Preprint.definition_of_ast] provides a translation that works in a similar
      manner than the first translator:

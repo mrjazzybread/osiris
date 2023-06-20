@@ -6,6 +6,7 @@ let usage = "transiris -ml <ml file to convert>@.\
              Note: You should either use -dune or -cmt.@."
 
 type splitting_strategy =
+  | Split
   | NoSplit
 
 type mode =
@@ -38,7 +39,8 @@ let verbose = ref false
    [stderr]. *)
 let debug = ref false
 
-let splitting_strategy = ref NoSplit
+(* TODO: reset to the empty list by default. *)
+let splitting_strategy = ref [Split]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -57,6 +59,10 @@ let speclist = [
                                        (mandatory of -cmt is not used)");
     ("-verbose", Arg.Set verbose, "(optional)");
     ("-debug", Arg.Set debug, "(optional)");
+    ("-no-split", Arg.Unit
+                 (fun () ->
+                   splitting_strategy := [NoSplit]),
+     "Do not split the output Coq definition. (optional)");
   ]
 
 let () = Arg.parse speclist

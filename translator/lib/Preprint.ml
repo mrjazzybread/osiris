@@ -94,6 +94,7 @@ and translate_fexprs (fs: fexprs) : expression =
 
 and translate_expression (e: expr) : expression =
   match e with
+  | EDef e -> EPlain e
   | EUnit -> EPlain "EUnit"
   | EConstant s -> EConstr ("EConstant", [string_literal  s])
 
@@ -234,17 +235,21 @@ and translate_expression (e: expr) : expression =
 
 (* On bindings translation. *)
 
-and translate_binding (Binding (p, e)) : expression =
-  EConstr ("Binding", [
-    translate_pattern p;
-    translate_expression e
-  ])
+and translate_binding  = function
+  | BDef s -> EPlain s
+  | Binding (p, e) ->
+     EConstr ("Binding", [
+           translate_pattern p;
+           translate_expression e
+       ])
 
-and translate_rec_binding (RecBinding (v, a)) : expression =
-  EConstr ("RecBinding", [
-    string_literal v ;
-    translate_lambda a
-  ])
+and translate_rec_binding = function
+  | RecBDef s -> EPlain s
+  | RecBinding (v, a) ->
+     EConstr ("RecBinding", [
+           string_literal v ;
+           translate_lambda a
+       ])
 
 and translate_bindings (bds: bindings) : expression =
   list "BiNil" "BiCons" translate_binding bds
@@ -257,6 +262,10 @@ and translate_rec_bindings (rbds: rec_bindings) : expression =
 (* On module translation. *)
 
 and translate_sitem : sitem -> expression option = function
+  (* An auxiliary Coq top-level definition *)
+  | CDef name ->
+     Some (EPlain name)
+
   (* A non-recursive toplevel definition [let bs] *)
   | ILet (bindings) ->
      Some (EConstr ("ILet", [translate_bindings bindings]))
@@ -282,14 +291,24 @@ and translate_sitems l = Misc.filtermap translate_sitem l
 and translate_module = function
   | MStruct sitems ->
      EList ("MkStruct", translate_sitems sitems)
+
+  (* Auxiliary top-level Coq definition. *)
+  | MDef s -> EPlain s
+
   | MPath _ -> assert false
   | MCoercion _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
-let definition_of_ast _verbose _debug : OsirisAst.ast -> string * expression =
+let translate_sitem sitem =
+  match translate_sitem sitem with
+  | Some e -> e
+  | None -> assert false
+
+let definition_of_ast _verbose _debug : OsirisAst.ast_body -> string * expression =
   function
   | OModule m -> "mexpr", translate_module m
   | OExpr e -> "expr", translate_expression e
-  | ORecBindings rbds -> "rec_bindings", translate_rec_bindings rbds
-  | OBindings bds -> "bindings", translate_bindings bds
+  | ORecBinding rbd -> "rec_binding", translate_rec_binding rbd
+  | OBinding bd -> "binding", translate_binding bd
+  | OSItem sitem -> "sitem", translate_sitem sitem
