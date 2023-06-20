@@ -5,7 +5,7 @@ open Fresh
 
 (* This section of the OCaml file defines functions to split the term at every
    node. One function by type of node is defined.
-   TODO: try to factorize the code using a single GADT to represent every parts
+   TODO: try to factorize the code using a single GADT to represent every part
    of the AST. *)
 
 let rec split_all_binding _verbose _debug name binding : ast DAG.t =
