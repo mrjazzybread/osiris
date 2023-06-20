@@ -30,23 +30,27 @@ Notation "'WP'  'focus'  m  {{ φ }}" :=
   (wp _ _ (bind m _) φ)
   (only printing).
 
-Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'  'be'  'added.'" :=
-  (wp _ _ (ret_concat δ _) _)
+Notation "'The'  'following'  'environment'  (
+ * x ;
+ * .. ;
+ * z )  'is'  'about'  'to'  'be'  'added.'" :=
+  (wp _ _ (ret_concat (EnvCons x _ (.. (EnvCons z _ EnvNil) ..)) _) _)
   (only printing).
-Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'  'be'  'added.'" :=
-  (wp _ _ (ret_dconcat δ _) _)
+
+Notation "'The'  'following'  '(d)environment'   (
+ * x ;
+ * .. ;
+ * z )  'is'  'about'  'to'  'be'  'added.'" :=
+  (wp _ _ (ret_dconcat (EnvCons x _ (.. (EnvCons z _ EnvNil) ..)) _) _)
   (only printing).
 
 (* -------------------------------------------------------------------------- *)
 
 (* Notations for ad-hoc lists: they are all printed as normal lists. *)
 
-Notation "'[
- * x ;
- * .. ;
- * z ]" :=
-  (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
-  (only printing).
+(* Notation "'[ x : v ; .. ; z : w ]" :=
+  (EnvCons x v (.. (EnvCons z w EnvNil) ..))
+    (only printing). *)
 
 Notation "[
  * x ;
