@@ -79,7 +79,7 @@ Lemma Add_spec :
            EnvNil in
   ⊢ WP eval_mexpr η Arith {{ module_spec Λ }}.
 Proof.
-  intros. wp.
+  intros. wp. do 2 wp_bind.
 
   o_specify "add" add_spec "#Hadd"
             "mult" mult_spec "#Hmult".
@@ -95,7 +95,7 @@ Proof.
       iIntros(i2 H2). wp. wp_continue.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       iIntros (veq_part) "Hspec_eq".
-      wp.
+      wp. do 2 wp_bind.
       iApply (wp_covariant with "Hspec_eq"). (* TODO: fix [wp_use]. *)
       iIntros (? ->).
       destruct (i2 =? 0)%Z eqn:E; wp.
@@ -114,7 +114,7 @@ Proof.
           wp_par.
           { wp_use "Hadd"; iPureIntro; exact H1. }
           - wp_call.
-            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I).
+            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I); encode.
           - iIntros (vpadd ?) "Hadd_partial ->".
             wp_use "Hadd_partial".
             iPureIntro. lia. }
@@ -137,7 +137,7 @@ Proof.
     iIntros(i2 H2). wp. wp_continue.
     wp_use Stdlib__eq__spec; try done; try apply int_representable.
     iIntros (veq_part) "Heq_part".
-    wp. iApply (wp_covariant with "Heq_part").
+    wp. do 2 wp_bind. iApply (wp_covariant with "Heq_part").
     iIntros (?->).
     destruct (i2 =? 0)%Z eqn:E.
     { (* [i2 = 0%Z]. *) wp.
@@ -146,7 +146,7 @@ Proof.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       clear veq_part.
       iIntros (veq_part) "Heq_part".
-      wp. iApply (wp_covariant with "Heq_part").
+      wp. do 2 wp_bind. iApply (wp_covariant with "Heq_part").
       iIntros (?->).
       destruct (i2 =? 1)%Z eqn:E1.
       { (* [i2 = 1%Z]. *) wp.
@@ -162,7 +162,7 @@ Proof.
           { (* [λ y, mult x y]. *)
             wp_use "Hmult"; iPureIntro; exact H1. }
           { (* [y - 1]. *) wp_call.
-            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I). }
+            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I); encode. }
           { iIntros (vmult_part ?) "Hmult_part ->".
             wp. wp_use "Hmult_part".
             iPureIntro. lia. } }
@@ -176,28 +176,27 @@ Proof.
           iPureIntro. do 2 f_equal.
           lia. } } } }
 
-  wp_par;
-    [ wp_use "Hadd"; done
-    | wp_use "Hadd";
-      [ done | iIntros (vadd_part) "Hadd_part"; wp; by iApply "Hadd_part" ]
-    | ].
+  wp_par.
+  { by wp_use "Hadd". }
+  { wp_bind. wp_use "Hadd"; first done.
+    iIntros (vadd_part) "Hadd_part"; wp; by iApply "Hadd_part". }
   iIntros (vadd_part ?) "Hadd_part ->". wp.
   iSpecialize("Hadd_part" $! _ _).
   iApply (wp_covariant with "Hadd_part").
   Unshelve. 2: lia.
-  iIntros (?->). wp.
+  iIntros (?->). wp. wp_bind.
   wp_continue.
 
   repeat wp_par.
-  { wp_use "Hmult"; first done.
+  { wp_bind; wp_use "Hmult"; first done.
     iIntros (vmult_part) "Hmult_part".
-    iSpecialize ("Hmult_part" $! _ _). wp.
+    iSpecialize ("Hmult_part" $! _ _). wp. wp_bind.
     iApply (wp_covariant with "Hmult_part").
     iIntros (?->).
     wp_use "Hadd"; first done. }
   { wp_use "Hadd"; first done. }
   { wp_use "Hmult"; first done. }
-  { wp_use "Hadd"; first done.
+  { wp_bind. wp_use "Hadd"; first done.
     iIntros (vadd_part') "Hadd_part'".
     iSpecialize ("Hadd_part'" $! _ _).
     iApply (wp_covariant with "Hadd_part'").
@@ -213,7 +212,7 @@ Proof.
   { iIntros (v1 ?) "H1 ->". wp.
     iSpecialize ("H1" $! _ _).
     iApply (wp_covariant with "H1").
-    iIntros (?->). wp. wp_continue.
+    iIntros (?->). wp. wp_bind. wp_continue.
 
     wp_module_spec. }
 

@@ -76,7 +76,7 @@ Proof.
   wp.
   wp_par.
   { wp_use "Hid". }
-  { wp_use "Hid".
+  { wp_bind; wp_use "Hid".
     iIntros (v->).
     wp. wp_set_postcondition. }
   { iIntros (??) "->->".
@@ -113,7 +113,7 @@ Lemma spec_example4:
     {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
-  wp.
+  wp. wp_bind.
   (* The environment is about to be extended with a binding of the variable
      "id" to a certain closure. Now is the time to prove a specification
      for this closure; then, we can make this closure opaque. *)
@@ -143,7 +143,7 @@ Lemma spec_example5:
   ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
   wp.
-  iIntros ([|]).
+  iIntros ([|]); do 2 wp_bind.
   (* Subgoal: prove that [assert true] succeeds. *)
   { by wp. }
   (* Remainder: prove that [false] returns [false], as promised. *)
@@ -161,7 +161,7 @@ Definition example4b :=
 Lemma spec_example4b:
   ⊢ WP eval EnvNil example4b {{λ v, ⌜v = VUnit⌝ }}.
 Proof.
-  unfold example4b. wp.
+  unfold example4b. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
@@ -183,7 +183,7 @@ Definition example4c :=
 Lemma spec_example4c:
   ⊢ WP eval EnvNil example4c {{λ v, ⌜v = VUnit⌝}}.
 Proof.
-  unfold example4c. wp.
+  unfold example4c. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
@@ -206,7 +206,7 @@ Definition example4d :=
 Lemma spec_example4d:
   ⊢ WP eval EnvNil example4d {{λ v, ⌜v = VUnit⌝}}.
 Proof.
-  unfold example4d. wp.
+  unfold example4d. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
@@ -240,7 +240,7 @@ Proof.
      reached in this way.
      TODO: reduce the gap between the tactics in [safe_*] and those in [wp_*] in
      order to use [wp_step] below. *)
-  wp.
+  wp. wp_bind.
   Time do 100 wp_call.
 
 Abort. (* TODO now that we have Löb induction, prove this goal *)
@@ -263,7 +263,7 @@ Definition walk : rec_bindings :=
     ].
 
 Definition spec_walk (walk : val): iProp Σ :=
-  ∀ (bs : list bool),
+  □ ∀ (bs : list bool),
   WP call walk (encode_list bs) {{ λ v, ⌜v = VUnit⌝ }}.
   (* TODO should always use [encode], not [encode_list] *)
 
@@ -274,7 +274,7 @@ Goal
   ⊢ spec_walk (VCloRec η walk "walk").
 Proof.
   unfold spec_walk.
-  iIntros (η bs).
+  iIntros (η) "!>%bs".
   iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
   { iPureIntro. reflexivity. }
   { wp_use "IHbs". }
@@ -307,24 +307,23 @@ Lemma spec_walk_example_abstract :
   let η := EnvCons "xs" (encode bs) EnvNil in
   ⊢ WP (eval η (walk_example (EVar "xs"))) {{ λ v, ⌜v = encode tt⌝ }}.
 Proof.
-  intros. wp.
+  intros. wp. wp_bind.
   (* The environment is about to be extended with a binding of the variable
      "walk" to a certain closure. Now is the time to prove a specification
      for this closure; then, we can make this closure opaque. *)
-  wp_specify "walk" spec_walk.
+  o_specify "walk" spec_walk "#Hwalk".
   (* Subgoal: prove that the closure satisfies [spec_walk]. *)
   { (* The environment [η] is irrelevant, since the code is in fact closed.
        Abstract it away. *)
     generalize η. clear bs η. intros η.
     unfold spec_walk.
     (* Prove the spec by induction on the list [bs]. *)
-    iIntros(bs).
+    iIntros "!>"(bs).
     iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
     { iPureIntro. reflexivity. }
     { wp_use "IHbs". }
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
-  iIntros (walk) "Hwalk". wp_continue.
   (* The remains to exploit the hypothesis [Hwalk]. *)
   wp_use "Hwalk".
 Qed.
@@ -358,7 +357,7 @@ Proof.
   unfold spec_length. intros η ?? xs.
   iInduction (xs) as [| x xs ] "IHxs"; wp_call; wp_continue.
   { iPureIntro. reflexivity. }
-  { wp_use "IHxs". wp. iIntros(?->).
+  { wp_bind. wp_use "IHxs". wp. iIntros(?->).
     rewrite Nat2Z.inj_succ. wp. iPureIntro.
     rewrite int.add_repr_repr.
     do 2 f_equal. lia. }
@@ -417,12 +416,14 @@ Definition simple_module_spec: val → iProp Σ :=
 Goal
   ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
 Proof.
-  wp.
+  wp. do 2 wp_bind.
 
   (* [f] is about to be added to the environment *)
   o_specify "f" spec_id "#Hid".
   { iIntros(v). iModIntro.
     wp_call. iPureIntro. reflexivity. }
+
+  wp_bind.
 
   (* [g] is about to be added to the environment *)
   o_specify "g" spec_id "#Hid'".
@@ -430,7 +431,7 @@ Proof.
     wp_use "Hid". }
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_use "Hid". iIntros (?->). wp.
+  wp_use "Hid". iIntros (?->). wp. wp_bind.
   wp_continue.
 
   (* Proving the trivial post condition using the aforementioned specs. *)

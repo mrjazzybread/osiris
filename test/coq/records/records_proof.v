@@ -310,7 +310,10 @@ Proof.
   explicit flip_body.
   iIntros "!>" (b i).
   wp_call. wp_continue. wp.
-  simpl (build _ _). wp.
+  wp. do 2 wp_bind.
+  wp. wp_bind.
+  simpl (build _ _).
+  wp.
   iPureIntro. reflexivity.
 Qed.
 
@@ -326,7 +329,7 @@ Proof.
   by iIntros "!>" (r);
   explicit r_val_body; explicit r_val_pure;
   wp_call; destruct (b r); do 2 wp_continue;
-  [ rewrite -bind_bind; wp | ].
+  [ rewrite -bind_bind; repeat wp || wp_bind | ].
 Qed.
 
 Lemma sum_function_spec η vr_val :
@@ -345,7 +348,7 @@ Proof.
   wp_call; do 2 wp_continue.
   wp_simp.
   wp_par.
-  { wp_use "Hr_val". iIntros (?<-). wp_call. wp_set_postcondition. }
+  { wp_bind. wp_use "Hr_val". iIntros (?<-). wp_call. wp_set_postcondition. }
   { wp_use "Hr_val". }
   iIntros (??-><-). wp.
   wp_call.
@@ -383,32 +386,34 @@ Goal
 Proof.
   (* Proof using [simp]. *)
   intros η. unfold η; clear η. wp.
-  simpl (build _ _). wp.
 
   wp_simp_using r_elt_spec.
+  do 2 wp_bind.
 
-  wp_continue.
+  wp_continue. wp_bind.
   wp_continue.
   iApply wp_simp.
   { by eapply lily_body_spec; try done. }
 
-  wp. wp_continue.
+  wp. wp_bind. wp_continue. wp_bind.
 
   (* [r_val] has the expected value. *)
   o_specify "r_val" r_val_spec "#Hr_val".
   { iIntros "!>" (r). explicit r_val_pure; destruct (b r) eqn:E;
-      wp_call; wp_continue; wp_simp; try done;
+      wp_call; wp_continue; try done;
       explicit r_val_pure; rewrite E; by wp. }
-
+  wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
-  wp_continue.
+  wp_continue. wp_bind.
 
   (* [is_odd_naive] is given the trivial spec for now. *)
   o_specify "is_odd_naive" trivial_spec "#His_odd_naive"; first done.
+  wp_bind.
 
   (* [is_odd] is given the trivial spec for now. *)
   o_specify "is_odd" trivial_spec "#His_odd"; first done.
+  wp_bind.
 
   Opaque eval. (* TODO? *)
   o_specify "is_odd'" is_odd_spec "#His_odd'".
@@ -436,7 +441,7 @@ Proof.
         destruct (b r1), (b r2); cbn;
         by rewrite int.add_repr_repr. }
   { (* Proof of the [flip] function. *)
-    iIntros "!>" (??); wp_call. wp_continue. wp_simp. by wp. }
+    iIntros "!>" (??); wp_call. wp_continue. by wp. }
 Time Qed.
 
 (* TODO making definitions opaque blocks the [simp] tactics
@@ -461,7 +466,7 @@ Proof.
   intros?.
   wp.
 
-  wp_simp_using r_elt_spec. wp_continue.
+  wp_simp_using r_elt_spec. do 2 wp_bind. wp_continue.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η flip_function) _) =>
@@ -469,13 +474,13 @@ Proof.
       as "[%vflip [%Hflip_simp #Hflip_spec]]";
       first reflexivity
   end.
-  wp_simp_using Hflip_simp. wp_continue.
+  wp_simp_using Hflip_simp. wp_bind. wp_continue.
 
   explicit lily_expr.
   wp. wp_simp. wp.
 
   replace (VRecord _) with #{| b := true ;i := 10|}; last reflexivity.
-  wp_use "Hflip_spec". iIntros(?<-). wp.
+  wp_bind. wp_use "Hflip_spec". iIntros(?<-). wp. wp_bind.
   wp_continue.
 
 
@@ -485,7 +490,7 @@ Proof.
       as "[%vr_val [%Hr_val_simp #Hr_val_spec]]";
       first reflexivity
   end.
-  wp_simp_using Hr_val_simp. wp_continue.
+  wp_simp_using Hr_val_simp. wp_bind. wp_continue.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η sum_function) _) =>
@@ -493,10 +498,13 @@ Proof.
       as "[%vsum [%Hsum_simp #Hsum_spec]]";
       try reflexivity
   end.
-  wp_simp_using Hsum_simp. wp_continue.
+  wp_simp_using Hsum_simp. wp_bind. wp_continue. wp_bind.
 
   o_specify "is_odd_naive" trivial_spec "?"; first done.
+  wp_bind.
+
   o_specify "is_odd" trivial_spec "?"; first done.
+  wp_bind.
 
   o_specify "is_odd'" is_odd_spec "#?".
   { by iApply is_odd'_function_spec. }
@@ -514,16 +522,17 @@ Lemma Records_spec :
            EnvNil in
   ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
 Proof.
-  intros η. wp.
-  simpl (build _ _). wp.
+  intros η. wp. wp_bind.
+  simpl (build _ _). wp. do 2 wp_bind.
 
   (* [r_elt] is a known value. *)
-  wp_continue.
+  wp_continue. wp_bind.
 
   (* [flip] has the expected spec. *)
   o_specify "flip" flip_spec "#Hflip".
   { iIntros "!>" (b i); wp_call.
     wp_continue. simpl (build _ _). wp. done. }
+  wp_bind.
 
   (* [flip] is applied to [r_elt]. *)
   wp_simp. wp.
@@ -534,10 +543,10 @@ Proof.
     (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
     with #{| b := true; i := 10 |}; last reflexivity.
   wp_use "Hflip".
-  iIntros (? <-). wp.
+  iIntros (? <-). wp. wp_bind.
 
   (* [lily] has the expected value. *)
-  wp_continue.
+  wp_continue. wp_bind.
 
 
   (* TODO: uncomment the call to [List.rev]. *)
@@ -548,6 +557,7 @@ Proof.
     (* Case: [b] is true. *)
     { wp_call. by do 2 wp_continue. }
     { wp_call. by do 2 wp_continue. } }
+  wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
   o_specify "sum" sum_spec "#Hsum".
@@ -560,18 +570,22 @@ Proof.
     (replace (VRecord (EnvCons "b" (VBool b2) $ EnvCons "i" (VInt (int.repr i2)) EnvNil))
       with (#{| b:=b2; i:= i2|}); last reflexivity).
     2: by wp_use "Hr_val".
-    { wp_use "Hr_val". iIntros(?<-).
+    { wp_bind. wp_use "Hr_val". iIntros(?<-).
       wp. iIntros (vpartial).
       iIntros "H"; iExact "H". }
     { iIntros (v1 v2) "Hadd <-".
       wp. iApply (wp_covariant with "Hadd").
       iIntros (?->). iPureIntro. reflexivity. } }
+  wp_bind.
+
 
   (* [is_odd_naive] is given the trivial spec for now. *)
   o_specify "is_odd_naive" trivial_spec "#?"; first done.
+  wp_bind.
 
   (* [is_odd] is given the trivial spec for now. *)
   o_specify "is_odd" trivial_spec "#?"; first done.
+  wp_bind.
 
   o_specify "is_odd'" is_odd_spec "#?".
   { iLöb as "IH". iIntros "!>" ([|]); wp_call; wp_continue.

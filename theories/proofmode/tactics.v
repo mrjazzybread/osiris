@@ -41,13 +41,20 @@ From osiris.proofmode Require Import simp.
          [wp_bind_binary] and silently apply this lemma
          only if we are able to silently solve its first premise. *)
 
+Ltac wp_bind :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+      tac_change_goal (wp_bind _ _ _ _ _)
+  | _ => fail "[wp_bind]"
+  end.
+
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
       tac_change_goal (wp_ret _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
-      tac_change_goal (wp_bind _ _ _ _ _)
+      idtac
   | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
       tac_change_goal (wp_try _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
@@ -69,12 +76,15 @@ Ltac wp_simp :=
 Ltac wp :=
   iStartProof;
   cbn; (* TODO: better control the reduction strategy. *)
-  (repeat
-     (lazymatch goal with
-        | |- environments.envs_entails _ (bi_later _) => iNext
-        | _ => wp_step; try progress cbn
-        end || apply tc_change_goal));
-  try wp_simp.
+  repeat
+    (first [
+          lazymatch goal with
+          | |- environments.envs_entails _ (bi_later _) => iNext
+          | _ => wp_step; try progress cbn
+          end
+        | apply tc_change_goal
+        | try wp_simp
+    ]).
 
 Ltac wp_par :=
   iApply wp_par; [wp | wp | ].
