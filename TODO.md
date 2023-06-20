@@ -66,8 +66,6 @@
   The tactic `encode` should be used to solve goals of the form `v = #x`.
   Function arguments and function results should always be encoded.
 
-* Take advantage of the lemma `wp_simp` in the simplification tactics.
-
 * Once the above is done,
   remove the use of
   `wp_par_ret_ret`,
