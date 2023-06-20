@@ -4,6 +4,10 @@ From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import weakestpre.
 From osiris.proofmode Require Import simp.
 
+(* -------------------------------------------------------------------------- *)
+
+(* On reduction. *)
+
 (* Prevent simplifying string comparisons unless both arguments are known. *)
 Arguments String.eqb !s1 !s2 : simpl nomatch.
 
@@ -24,7 +28,18 @@ Global Arguments extend δ !p v.
 Global Arguments extends δ !ps !vs.
 Global Arguments extendfs δ !fps !fvs.
 
+(* -------------------------------------------------------------------------- *)
 
+(* Fix integers. *)
+
+Global Notation "'EInt' z" :=
+  (EInt (z)%Z) (at level 0, only parsing).
+Global Notation "'PInt' z" :=
+  (PInt (z)%Z) (at level 0, only parsing).
+
+(* -------------------------------------------------------------------------- *)
+
+(* Opacity. *)
 
 Global Opaque
        call

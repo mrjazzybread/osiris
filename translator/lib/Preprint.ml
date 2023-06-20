@@ -61,9 +61,7 @@ let rec translate_pattern (p: pat) : expression =
      assert false
   (* A literal integer pattern *)
   | PInt i -> (* of int *)
-     if 0 <= i
-     then EConstr ("PInt", [EPlain (string_of_int i)])
-     else EConstr ("PInt", [EPlain ("("^string_of_int i^")%Z")])
+     EConstr ("PInt", [EPlain (string_of_int i)])
 
 let translate_path (x: path) : expression =
   let rec translate_path x =
@@ -143,9 +141,7 @@ and translate_expression (e: expr) : expression =
 
   (* Integer literals *)
   | EInt i -> (* of int *)
-     if 0 <= i
-     then EConstr ("EInt", [EPlain (string_of_int i)])
-     else EConstr ("EInt", [EPlain ("("^string_of_int i^")%Z")])
+     EConstr ("EInt", [EPlain (string_of_int i)])
 
   (* Polymorphic comparison operators *)
 
