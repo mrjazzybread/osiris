@@ -24,14 +24,16 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 (* Notations to hide some continuations. *)
 Notation "'WP'  'Par' m m' '...' @ s ; E {{ φ }}" :=
   (wp s E (Par m m' _ _) φ)
+    (only printing).
+
+Notation "'WP'  'focus'  m  {{ φ }}" :=
+  (wp _ _ (bind m _) φ)
   (only printing).
 
-Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
- *  'be'  'added.'" :=
+Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'  'be'  'added.'" :=
   (wp _ _ (ret_concat δ _) _)
   (only printing).
-Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
- *  'be'  'added.'" :=
+Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'  'be'  'added.'" :=
   (wp _ _ (ret_dconcat δ _) _)
   (only printing).
 
@@ -39,18 +41,30 @@ Notation "'The'  'following'  'environment'  (  δ  )  'is'  'about'  'to'
 
 (* Notations for ad-hoc lists: they are all printed as normal lists. *)
 
-Notation "'[ x ; .. ; z ]" :=
+Notation "'[
+ * x ;
+ * .. ;
+ * z ]" :=
   (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
   (only printing).
 
-Notation "[ x ; .. ; z ]" :=
+Notation "[
+ * x ;
+ * .. ;
+ * z ]" :=
   (RecBiCons x (.. (RecBiCons z RecBiNil) ..))
   (only printing).
 
-Notation "[ x ; .. ; z ]" :=
+Notation "[
+ * x ;
+ * .. ;
+ * z ]" :=
   (BiCons x (.. (BiCons z BiNil) ..))
   (only printing).
 
-Notation "[ x ; .. ; z ]" :=
+Notation "[
+ * x ;
+ * .. ;
+ * z ]" :=
   (ICons x (.. (ICons z INil) ..))
   (only printing).
