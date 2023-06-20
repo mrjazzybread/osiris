@@ -19,6 +19,7 @@ Arguments as_loc m /.
 Arguments as_record m /.
 Arguments as_struct m /.
 Arguments build η xs/.
+Arguments lookup_name _ _/.
 
 (* semantics/eval.v *)
 Global Arguments lookup_name !η !x : simpl nomatch.
