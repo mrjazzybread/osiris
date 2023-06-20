@@ -23,10 +23,15 @@
 
 ## Translator
 
-* Extend the type `Ast.expr` with a new case for Coq lists
-  (printed using square brackets and semicolons).
-  Redefine the translator to take advantage of it.
-  This will require adding a few more functions in `sugar.v`.
+* Split the let-bindings in [split_all].
+* Add an option [-split-every k] to split every [k] nodes instead of every node.
+* Remove the initial splitting option.
+* Remove [NoSplit]
+* Add mode control over the names of auxiliary definitions
+
+* Get the translation tool to write Coq types equivalent to of from the OCaml
+  files (and maybe try to write encode instances and hints automatically in most
+  cases).
 
 ## Engineering and proof mode
 
@@ -74,6 +79,7 @@
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
   and as many as one per AST node.
+      => Partially done ; it really improved the build time.
   In between, we could use one per OCaml definition,
   and/or make sure that we use enough to ensure that
   every Coq definition has bounded size.
@@ -115,7 +121,7 @@
 * Write a `help` tactic that analyzes the goal, explains its shape,
   explains why we are here and what likely is the next thing to do.
 
-* Allowing the user to place labels in the OCaml code, disguished as comments
+* Allowing the user to place labels in the OCaml code, disguised as comments
   `(* label: *)`, could be useful. (Agree with Mario and the Gospel people on
   a standard syntax.) These comments could be preserved in the AST and could
   serve multiple purposes, e.g.: they could be printed in a special way (print
@@ -141,7 +147,7 @@
   one TC and add a trivial typeclass to request an automatic treatment of
   partial applications.
 
-* Get tactics to fail: currently, tactics usually do not fail and might not make
+* Get tactics to fail: currently, most tactics do not fail and might not make
   progress. Thus, it is difficult to debug them.
 
 * Use more hint databases for typeclasses, not to mix simplifications with
@@ -156,8 +162,11 @@
     lemmas applying specifications). This was not added yet as the specification
     mechanism will probably change soon.
 
-* Write an equivalent of [inG] for environments to declare what should initially
+* [Tested and Removed]
+  Write an equivalent of [inG] for environments to declare what should initially
   be in environments in which module-expressions are evaluated.
+  It was not better that having an environment variable in the context together
+  with axioms about it.
 
 ## Semantics
 
@@ -259,7 +268,7 @@
   + Exception names must be treated like variables,
     *not* like data constructors
   + Asynchronous exceptions (`Out_of_memory`, `Stack_overflow`...)
-    are not modelled in our semantics, so must not be caught;
+    are not modeled in our semantics, so must not be caught;
     catch-all handlers are therefore problematic;
     `Fun.protect` seems OK because it is effect-polymorphic
 * Effect handlers
