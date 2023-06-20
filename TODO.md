@@ -164,6 +164,16 @@
 
 * Use the hypothesis [__osiris_specs].
 
+* Get [oSpecify] and friends to be efficient (ie. write a wrapper around
+  [assumming_list]).
+
+* Fix the notation for environments:
+  - values should be explicit in records:
+    [ VRecord (EnvCons x v (.. (EnvCons z w EnvNil) ..)) ]
+    should be printed as
+    [ {[ x := v ; ... ; z := w ]} ] ;
+  - values should be hidden in other environments.
+
 * [Tested and Removed]
   Write an equivalent of [inG] for environments to declare what should initially
   be in environments in which module-expressions are evaluated.
