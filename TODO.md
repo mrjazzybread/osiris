@@ -160,6 +160,10 @@
     lemmas applying specifications). This was not added yet as the specification
     mechanism will probably change soon.
 
+* Get [wp_bind] to apply [wp] automtically.
+
+* Use the hypothesis [__osiris_specs].
+
 * [Tested and Removed]
   Write an equivalent of [inG] for environments to declare what should initially
   be in environments in which module-expressions are evaluated.
