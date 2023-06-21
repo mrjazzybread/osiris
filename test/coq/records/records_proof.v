@@ -348,8 +348,7 @@ Proof.
   iIntros (??-><-). wp.
   wp_call.
 
-  explicit sum_pure.
-  iPureIntro. rewrite int.add_repr_repr. reflexivity.
+  explicit sum_pure. equality.
 Qed.
 
 Lemma is_odd'_function_spec η :
