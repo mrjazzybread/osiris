@@ -3,6 +3,8 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality.
 
+(* TODO split this file into more files? *)
+
 (* A pure computation is terminating, deterministic, and does not use
    mutable state. *)
 
@@ -22,12 +24,18 @@ From osiris.proofmode Require Import equality.
 
 (* Opacity control. *)
 
-(* TODO split this file into more files? *)
-
-
+(* [force_unfold_at_1 x] unfolds the first occurrence of [x]
+   and works even if [x] is opaque. *)
 
 Ltac force_unfold_at_1 x :=
   with_strategy transparent [x] unfold x at 1.
+
+(* [unfold_breakpoint m] determines whether the computation [m] is stopped
+   at a "breakpoint" and if so, performs an unfolding so as to move the
+   goal past the breakpoint.
+
+   Currently, a breakpoint is a computation that is blocked because of an
+   invocation of [ret_concat] or [ret_dconcat]. *)
 
 Ltac unfold_breakpoint m :=
   lazymatch m with
