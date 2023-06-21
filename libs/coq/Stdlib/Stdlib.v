@@ -99,9 +99,11 @@ Section StdLib__code.
 
   Section Stdlib__bool.
     Definition Stdlib__not : val :=
-      VClo1 (λ (e : expr),
-        EIfThenElse e EFalse ETrue
-      ).
+      VClo1 EBoolNeg.
+    Definition Stdlib__andb : val :=
+      VClo2 EBoolConj.
+    Definition Stdlib__orb : val :=
+      VClo2 EBoolDisj.
   End Stdlib__bool.
 
   (* Putting everything together. *)
@@ -124,6 +126,8 @@ Section StdLib__code.
       EnvCons "fst" Stdlib__fst $
       EnvCons "snd" Stdlib__snd $
       EnvCons "not" Stdlib__not $
+      EnvCons "&&" Stdlib__andb $
+      EnvCons "||" Stdlib__orb $
       EnvNil.
 End StdLib__code.
 
@@ -379,8 +383,7 @@ Section Stdlib__specs.
     WP call Stdlib__ref v {{ λ (vl: val), WP k @s; E {{ φ }} }}.
   Proof.
     iIntros "H".
-    iApply wp_covariant.
-    { iApply Stdlib__ref__spec. }
+    wp_use Stdlib__ref__spec.
     iIntros (vl)"(%l & Hl & ->)".
     by iApply "H".
   Qed.
@@ -395,7 +398,7 @@ Section Stdlib__specs.
     iApply (Stdlib__store__spec with "[$Hl //]").
     iNext.
     iIntros (vstore) "Hstore".
-    iApply (wp_covariant with "Hstore").
+    wp_use "Hstore".
     iIntros(?)"[-> Hl]".
     iApply ("Hccl" with "Hl").
   Qed.
