@@ -23,6 +23,9 @@
 
 ## Translator
 
+* Translate the OCaml stdlib.
+
+* Reshape the splitting process
 * Split the let-bindings in [split_all].
 * Add an option [-split-every k] to split every [k] nodes instead of every node.
 * Remove the initial splitting option.
@@ -34,6 +37,12 @@
   cases).
 
 ## Engineering and proof mode
+
+* Fix [wp_use]: look at the lemma and apply different tactics depending on its
+  body.
+
+* Improve [wp_bind] : if [simp] simplifies [m1] into [ret v1], let Coq compute,
+  otherwise, use the lemma [wp_simp].
 
 * Automatically unfold `call` if the closure is transparent.
 
