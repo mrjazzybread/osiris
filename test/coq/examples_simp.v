@@ -1,4 +1,5 @@
 From osiris Require Import osiris.
+From osiris.libs Require Import Stdlib.
 
 Local Notation ε := EnvNil. (* TODO move *)
 
@@ -10,6 +11,20 @@ Goal
   simp (as_bool (ret #true)) (ret true).
 Proof.
   simp.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Examples involving operations on Booleans. *)
+
+Goal ∀ η,
+  lookup_name η "Stdlib" = ret Stdlib →
+  let e := EMultiApp (EMkPath ["Stdlib"; "not"]) [ EFalse ] in
+  simp (eval η e) (ret VTrue).
+Proof.
+  intros. simp.
+  (* We are blocked at the call, so we must explicitly enter it. *)
+  simp_enter.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
