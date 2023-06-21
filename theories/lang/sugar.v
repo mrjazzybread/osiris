@@ -294,3 +294,18 @@ Definition EMkTuple l :=
       | cons h pl => ECons h $ mk_tpl pl
       end in
   ETuple (mk_tpl l).
+
+(* ------------------------------------------------------------------------ *)
+
+(* Temporary sugar for exceptions. *)
+
+(* We translate [raise e] to [assert false], so the user will have to prove
+   that no exception can be raised. *)
+
+Definition ERaise (e : expr) :=
+  EAssertFalse.
+
+(* We translate [try e with ...] to just [e]. *)
+
+Definition ETry (e : expr) (bs : branches) :=
+  e.
