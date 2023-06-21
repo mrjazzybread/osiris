@@ -5,5 +5,4 @@
            (:src ../../ml/records.ml))
   (action
     (progn
-      (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -mode cmt -cmt ../../ml/records.cmt -out %{targets}))))
+      (run %{gen} -mode ml -ml %{src} -root ../../../../.. -out %{targets}))))

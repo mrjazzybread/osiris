@@ -100,6 +100,21 @@ let exec_one_line cmd =
                    indeed enough, as there are no more spaces (grep) and '('
                    (format of the output of "dune describe"). *)
 let locate_cmt (file: string) =
-  (* Do not break the following line; it breaks the system call. *)
-  ("dune describe | grep -A 4 " ^ file ^ " | awk '/cmt/ { print $NF }' | grep cmt | tail -n1 | tr -d ' ()'")
-  |> exec_one_line
+  try
+    (* Do not break the following line; it breaks the system call. *)
+    ("dune describe | grep -A 4 " ^ file ^ " | awk '/cmt/ { print $NF }' | grep cmt | tail -n1 | tr -d ' ()'")
+    |> exec_one_line
+  with
+  | _ ->
+     try
+       (* If the previous command does not work, try to find the cmt file by hand
+          in [_build]. The command should be updated to be more robust. *)
+       let module_name =
+         file |> String.split_on_char '/' |> last |> String.split_on_char '.'
+         |> List.hd |> String.capitalize_ascii in
+       (Format.sprintf
+          "realpath \"$(find . -name '*%s.cmt' | grep 'byte')\""
+          module_name)
+       |> exec_one_line
+     with _ ->
+       failwith "[locate_cmt] failed."

@@ -11,8 +11,7 @@
            (:src ../ml/incr.ml))
   (action
     (progn
-       (run %{ocamlc} -bin-annot %{src})
-       (run %{gen} -mode cmt -cmt ../ml/incr.cmt -out %{targets}))))
+       (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))
 
 (rule
   (targets arith.v)
@@ -21,8 +20,7 @@
            (:src ../ml/arith.ml))
   (action
     (progn
-      (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -mode cmt -cmt ../ml/arith.cmt -out %{targets}))))
+      (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))
 
 (rule
   (targets splay.v)
@@ -31,5 +29,4 @@
            (:src ../ml/splay.ml))
   (action
     (progn
-      (run %{ocamlc} -bin-annot %{src})
-      (run %{gen} -mode cmt -cmt ../ml/splay.cmt -out %{targets}))))
+      (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))

@@ -3,6 +3,8 @@ export OCAMLRUNPARAM=
 
 .PHONY: all
 all:
+	@ dune build test/ml --
+	@ dune build libs/ml --
 	@ dune build
 
 .PHONY: clean
