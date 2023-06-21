@@ -20,6 +20,27 @@ From osiris.proofmode Require Import equality.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Opacity control. *)
+
+(* TODO split this file into more files? *)
+
+
+
+Ltac force_unfold_at_1 x :=
+  with_strategy transparent [x] unfold x at 1.
+
+Ltac unfold_breakpoint m :=
+  lazymatch m with
+  | bind (ret_concat _ _) _ =>
+      force_unfold_at_1 ret_concat
+  | bind (ret_dconcat _ _) _ =>
+      force_unfold_at_1 ret_dconcat
+  | _ =>
+      fail "Not at a breakpoint." (* TODO improve message *)
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The following lemmas are reasoning rules for goals of the form [simp _ _]. *)
 
 Lemma prove_simp_ret {A} (a1 a2 : A) :
@@ -468,21 +489,17 @@ Ltac simp_really :=
     fail "[simp_really] expects a goal of the form [simp _ _]"
   end.
 
-(* [simp_continue] unfolds [ret_concat] in a goal of the form
-   [simp (bind (ret_concat _ _) _) _],
-   and continues simplifying via [simp]. *)
-
-(* TODO unfold [red_dconcat] too; share with [SIMP] *)
+(* [simp_continue] unfolds an opaque definition and continues simplifying
+   via [simp]. *)
 
 Ltac simp_continue :=
   normalize;
-  lazymatch goal with |- simp (bind (ret_concat _ _) _) _ =>
-    with_strategy transparent [ret_concat]
-      unfold ret_concat at 1;
-    normalize;
-    simp
+  lazymatch goal with
+  | |- simp ?m _ =>
+      unfold_breakpoint m;
+      simp
   | _ =>
-    fail "[simp_continue] expects a goal of the form [simp (bind (ret_concat _ _) _) _]"
+      fail "[simp_continue] expects a goal of the form [simp _ _]"
   end.
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
@@ -773,14 +790,11 @@ Ltac SIMP_enter :=
 Ltac SIMP_continue :=
   normalize;
   lazymatch goal with
-  |  |- SIMP (bind (ret_concat _ _) _) _ =>
-      with_strategy transparent [ret_concat] unfold ret_concat at 1;
-      SIMP1
-  |  |- SIMP (bind (ret_dconcat _ _) _) _ =>
-      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1;
+  | |- SIMP ?m _ =>
+      unfold_breakpoint m;
       SIMP1
   | _ =>
-    fail "[SIMP_continue]: unexpected goal."
+      fail "[SIMP_continue] expects a goal of the form [SIMP _ _]."
   end.
 
 Ltac SIMP_specify x φ :=
