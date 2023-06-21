@@ -210,23 +210,10 @@ Local Ltac wp_progress :=
       cbn (* TODO: better control the reduction strategy. *)
     ).
 
-Local Ltac wp_concat :=
+Ltac wp_concat :=
   lazymatch goal with
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_concat ?δ _) _ =>
-      with_strategy transparent [ret_concat] unfold ret_concat at 1
-        (* We wish to unfold just the root occurrence. *)
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (bind (ret_concat ?δ _) _) _ =>
-      with_strategy transparent [ret_concat] unfold ret_concat at 1
-        (* We wish to unfold just the root occurrence. *)
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_dconcat ?δ _) _ =>
-      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1
-        (* We wish to unfold just the root occurrence. *)
+  | |- environments.envs_entails _ (wp _ _ ?m _) =>
+      unfold_breakpoint m
   end.
 
 Local Ltac wp_startproof :=

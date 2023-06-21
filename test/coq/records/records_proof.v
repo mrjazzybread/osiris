@@ -571,7 +571,8 @@ Proof.
     { iIntros (v1 v2) "Hadd <-".
       wp. iApply (wp_covariant with "Hadd").
       iIntros (?->). iPureIntro. reflexivity. } }
-  wp_bind. wp. wp_bind.
+
+  wp_concat. wp. wp_bind. (* TODO this line may need fixing *)
 
   (* [is_odd] is given the trivial spec for now. *)
   o_specify "is_odd" trivial_spec "#?"; first done.
