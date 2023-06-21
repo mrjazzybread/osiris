@@ -41,11 +41,16 @@ Ltac force_unfold x :=
    goal past the breakpoint.
 
    Currently, a breakpoint is a computation that is blocked because of an
-   invocation of [ret_concat] or [ret_dconcat] in the left-hand side of a
-   [bind]. *)
+   invocation of [ret_concat] or [ret_dconcat]. *)
+
+(* TODO clarify whether/why we need to allow for zero or one [bind]s *)
 
 Ltac unfold_breakpoint m :=
   lazymatch m with
+  | ret_concat _ _ =>
+      force_unfold_at_1 ret_concat
+  | ret_dconcat _ _ =>
+      force_unfold_at_1 ret_dconcat
   | bind (ret_concat _ _) _ =>
       force_unfold_at_1 ret_concat
   | bind (ret_dconcat _ _) _ =>

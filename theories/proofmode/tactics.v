@@ -258,38 +258,22 @@ Ltac wp :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* We want symbolic execution to stop at [ret_concat], that is, when the
+(* We want symbolic execution to stop at breakpoints, that is, when the
    environment is extended with new bindings. This gives the user a chance
    to prove specifications about these bindings using [wp_specify]. *)
 
-(* The tactic [wp_continue] expands away [ret_concat] and invokes [wp]
+(* The tactic [wp_continue] moves past a breakpoint and invokes [wp]
    to continue simplifying the goal. *)
 
-(* One should avoid [context] in the following tactic, as it might match an
-   occurrence that is in the postcondition. *)
-(* TODO [ret_concat] is usually under a [bind], not at the root *)
-(* TODO unless [wp_bind] has been automatically applied,
-        which is undesirable, as noted elsewhere! *)
-(* TODO [rewrite ?bind_bind] to make sure it is not buried under
-        several binds *)
+(* The tactic [simp] applies [rewrite ?bind_bind], which ensures that
+   the breakpoint of interest cannot be buried under several [bind]s. *)
+
 Ltac wp_continue :=
   lazymatch goal with
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_concat ?δ _) _ =>
-      with_strategy transparent [ret_concat] unfold ret_concat at 1
-        (* We wish to unfold just the root occurrence. *)
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (bind (ret_concat ?δ _) _) _ =>
-      with_strategy transparent [ret_concat] unfold ret_concat at 1
-        (* We wish to unfold just the root occurrence. *)
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_dconcat ?δ _) _ =>
-      with_strategy transparent [ret_dconcat] unfold ret_dconcat at 1
-        (* We wish to unfold just the root occurrence. *)
-  end; wp.
+  | |- environments.envs_entails _ (wp _ _ ?m _) =>
+      unfold_breakpoint m
+  end;
+  wp.
 
 (* TODO: get rid of wp_autocontinue. *)
 Ltac wp_autocontinue :=
