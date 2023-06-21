@@ -184,9 +184,6 @@
 
 ## Semantics
 
-* Add a dummy implementation of exceptions: `raise` is `assert false`,
-  `try e1 with e2` is just `e1`.
-
 * At closure construction time, should the semantics trim the environment η
   so as to keep only the variables that occur free in the code?
   + Cons: this makes the semantics more complex.
