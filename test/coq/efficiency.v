@@ -2,6 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 Local Open Scope nat_scope.
+Local Set Warnings "-abstract-large-number".
 
 Definition do_something (v : val) : free val :=
   let η := EnvCons "v" v EnvNil in
