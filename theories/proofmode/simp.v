@@ -30,12 +30,19 @@ From osiris.proofmode Require Import equality.
 Ltac force_unfold_at_1 x :=
   with_strategy transparent [x] unfold x at 1.
 
+(* [force_unfold x] unfolds all occurrences of [x]
+   and works even if [x] is opaque. *)
+
+Ltac force_unfold x :=
+  with_strategy transparent [x] unfold x.
+
 (* [unfold_breakpoint m] determines whether the computation [m] is stopped
    at a "breakpoint" and if so, performs an unfolding so as to move the
    goal past the breakpoint.
 
    Currently, a breakpoint is a computation that is blocked because of an
-   invocation of [ret_concat] or [ret_dconcat]. *)
+   invocation of [ret_concat] or [ret_dconcat] in the left-hand side of a
+   [bind]. *)
 
 Ltac unfold_breakpoint m :=
   lazymatch m with
@@ -44,7 +51,21 @@ Ltac unfold_breakpoint m :=
   | bind (ret_dconcat _ _) _ =>
       force_unfold_at_1 ret_dconcat
   | _ =>
-      fail "Not at a breakpoint." (* TODO improve message *)
+      fail "Not at a breakpoint" (* TODO improve message *)
+  end.
+
+(* [unfold_call m] determines whether the computation [m] is stopped at a
+   call and if so, performs an unfolding so as to move the goal past the
+   call. *)
+
+Ltac unfold_call m :=
+  lazymatch m with
+  | call _ _ =>
+      force_unfold_at_1 call
+  | bind (call _ _) _ =>
+      force_unfold_at_1 call
+  | _ =>
+      fail "Not at a call" (* TODO improve message *)
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -517,7 +538,14 @@ Ltac simp_continue :=
    called function. *)
 
 Ltac simp_enter :=
-  with_strategy transparent [call] unfold call; simp.
+  normalize;
+  lazymatch goal with
+  | |- simp ?m _ =>
+      unfold_call m;
+      simp
+  | _ =>
+      fail "[simp_enter] expects a goal of the form [simp _ _]"
+  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -793,7 +821,14 @@ with SIMP_close :=
   solve [ eauto with SIMP_specs representable ].
 
 Ltac SIMP_enter :=
-  with_strategy transparent [call] unfold call; SIMP1.
+  normalize;
+  lazymatch goal with
+  | |- SIMP ?m _ =>
+      unfold_call m;
+      SIMP1
+  | _ =>
+      fail "[SIMP_enter] expects a goal of the form [SIMP _ _]"
+  end.
 
 Ltac SIMP_continue :=
   normalize;
@@ -802,7 +837,7 @@ Ltac SIMP_continue :=
       unfold_breakpoint m;
       SIMP1
   | _ =>
-      fail "[SIMP_continue] expects a goal of the form [SIMP _ _]."
+      fail "[SIMP_continue] expects a goal of the form [SIMP _ _]"
   end.
 
 Ltac SIMP_specify x φ :=

@@ -471,7 +471,7 @@ Lemma test_body_simp (i j k l m : Z) :
          (ret #( ((i * k) + (j * l) ) + m)%Z).
 Proof.
   intros η x y z t v Hx Hy Hz Ht Hv.
-  with_strategy transparent [test_innerbody] unfold test_innerbody.
+  force_unfold_at_1 test_innerbody.
   simp.
 Qed.
 
@@ -500,7 +500,8 @@ Proof.
   wp. wp_continue.
 
   (* Nested function calls. *)
-  with_strategy transparent [ call ] (unfold call); wp.
+  force_unfold call. (* TODO should not do this *)
+  wp.
 
   (* As the body of the function ([test_innerbody]) is opaque, the evaluation
      stops. *)

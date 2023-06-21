@@ -173,10 +173,6 @@ Opaque
   is_odd'_body is_odd'_function
 .
 
-(* [explicit name] unfolds [name], even if transparent. *)
-Ltac explicit name :=
-  with_strategy transparent [ name ] unfold name.
-
 (* [wp_simp] simplifies the element of type [free A] we are working on. *)
 Ltac wp_simp :=
   progress (iApply wp_simp; first by simp).
@@ -199,7 +195,7 @@ Ltac wp_simp_eusing H :=
 Lemma r_elt_spec η :
   simp (eval η r_elt_expr) (ret enc_r_elt).
 Proof.
-  explicit r_elt_expr.
+  force_unfold_at_1 r_elt_expr.
   simp.
 Qed.
 
@@ -211,7 +207,7 @@ Lemma flip_body_spec :
     simp (eval η (flip_body r))
          (ret #{| b := negb b; i := i |}).
 Proof.
-  explicit flip_body.
+  force_unfold_at_1 flip_body.
   intros b. destruct b; intros; subst; simp; simp_enter.
     (* [simp_enter] steps into the call to [Stdlib.not]. *)
 Qed.
@@ -230,7 +226,7 @@ Lemma lily_body_spec η η' :
   simp (eval η lily_expr) (ret enc_lily).
 Proof.
   intros ? ? Hrelt Hflip Hstdlib.
-  explicit lily_expr.
+  force_unfold_at_1 lily_expr.
   simp.
   simp_enter.
   simp_continue.
@@ -241,12 +237,12 @@ Lemma r_val_body_spec η (r: R) (rvar: var) :
   lookup_name η rvar = ret #r →
   simp (eval η (r_val_body rvar)) (ret #(r_val_pure r)).
 Proof.
-  explicit r_val_body.
+  force_unfold_at_1 r_val_body.
   (* TODO this seems obscure; maybe it can be simplified. *)
   intros??. destruct (r.(b)) eqn:E;
     simp; rewrite E; simp; simp_continue;
     rewrite /r_val_pure E; simp.
-  simp_enter.
+  simp_enter. simp_enter. simp_enter. simp_enter.
 Qed.
 
 Local Hint Resolve r_val_body_spec : simp_specs.
@@ -259,9 +255,9 @@ Lemma sum_body_spec η (r1 r2: R):
   simp (eval η (sum_body "r1" "r2")) (ret #(sum_pure r1 r2)).
 Proof.
   intros H1 H2 H3 H4.
-  explicit sum_body.
+  force_unfold_at_1 sum_body.
   simp.
-  explicit call. (* TODO all three calls at once? *)
+  force_unfold call. (* TODO all three calls at once? *)
   simp.
 Qed.
 
@@ -277,16 +273,16 @@ Proof.
   generalize η r; clear η r;
   induction n as [ | n' IH ];
     intros η r H1 H2 H3 H4;
-  explicit is_odd'_body.
+  force_unfold_at_1 is_odd'_body.
   { simp. simp_continue. }
   { (* [n = S n'] *)
     destruct (is_odd_pure n') eqn:E;
     remember (nat_encode_f n') as enc_n.
     - (* [n'] is even. *)
       simp. simp_continue. simp_enter.
-      rewrite E. simp.
+      rewrite E. simp. simp_enter.
     - (* [n'] is odd. *)
-      simp. simp_continue. simp_enter.
+      simp. simp_continue. simp_enter. simp_enter.
       rewrite E. simp. }
   Opaque is_odd'_function.
 Qed.
@@ -305,10 +301,8 @@ Proof.
   intros? H1.
   iExists _.
   iSplit.
-  { iPureIntro.
-    with_strategy transparent [flip_function] unfold flip_function.
-    simp. }
-  explicit flip_body.
+  { iPureIntro. force_unfold_at_1 flip_function. simp. }
+  force_unfold_at_1 flip_body.
   iIntros "!>" (b i).
   wp_call. wp_continue. wp.
   wp. do 2 wp_bind.
@@ -324,11 +318,9 @@ Proof.
   intros H1.
   iExists _.
   iSplit.
-  { iPureIntro.
-    with_strategy transparent [r_val_function] unfold r_val_function.
-    simp. }
+  { iPureIntro. force_unfold_at_1 r_val_function. simp. }
   by iIntros "!>" (r);
-  explicit r_val_body; explicit r_val_pure;
+  force_unfold_at_1 r_val_body; force_unfold_at_1 r_val_pure;
   wp_call; destruct (b r); do 2 wp_continue;
   [ rewrite -bind_bind; repeat wp || wp_bind | ].
 Qed.
@@ -344,11 +336,9 @@ Proof.
   iIntros (??) "#Hr_val".
   iExists _.
   iSplit.
-  { iPureIntro.
-    with_strategy transparent [sum_function] unfold sum_function.
-    simp. }
+  { iPureIntro. force_unfold_at_1 sum_function. simp. }
   iIntros "!>" (r1 r2).
-  explicit sum_body.
+  force_unfold_at_1 sum_body.
   wp_call; do 2 wp_continue.
   wp_simp.
   wp_par.
@@ -357,7 +347,7 @@ Proof.
   iIntros (??-><-). wp.
   wp_call.
 
-  explicit sum_pure. equality.
+  force_unfold_at_1 sum_pure. equality.
 Qed.
 
 Lemma is_odd'_function_spec η :
@@ -366,7 +356,7 @@ Lemma is_odd'_function_spec η :
   lookup_name η "Stdlib" = Ret Stdlib →
   ⊢ is_odd_spec vis_odd'.
 Proof.
-  intros a H1; subst a. explicit is_odd'_function.
+  intros a H1; subst a. force_unfold_at_1 is_odd'_function.
   iIntros "!>" (n); wp_call.
   by wp_simp_eusing is_odd'_body_spec.
 Qed.
@@ -402,9 +392,9 @@ Proof.
 
   (* [r_val] has the expected value. *)
   o_specify "r_val" r_val_spec "#Hr_val".
-  { iIntros "!>" (r). explicit r_val_pure; destruct (b r) eqn:E;
+  { iIntros "!>" (r). force_unfold_at_1 r_val_pure; destruct (b r) eqn:E;
       wp_call; wp_continue; try done;
-      explicit r_val_pure; rewrite E; by wp. }
+      force_unfold_at_1 r_val_pure; rewrite E; by wp. }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
@@ -420,7 +410,7 @@ Proof.
 
   Opaque eval. (* TODO? *)
   o_specify "is_odd'" is_odd_spec "#His_odd'".
-  { iIntros "!>"(n). explicit is_odd'_function.
+  { iIntros "!>"(n). force_unfold is_odd'_function.
     wp_call.
     by wp_simp_eusing is_odd'_body_spec. }
   Transparent eval.
@@ -479,7 +469,7 @@ Proof.
   end.
   wp_simp_using Hflip_simp. wp_bind. wp_continue.
 
-  explicit lily_expr.
+  force_unfold_at_1 lily_expr.
   wp. wp_simp. wp.
 
   replace (VRecord _) with #{| b := true ;i := 10|}; last reflexivity.

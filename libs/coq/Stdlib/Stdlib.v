@@ -257,7 +257,7 @@ Section Stdlib__specs.
     Lemma Stdlib__eq_spec :
       decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->eq_repr_repr by assumption.
       rewrite Zeq_spec.
       tauto.
@@ -266,7 +266,7 @@ Section Stdlib__specs.
     Lemma Stdlib__ne_spec :
       decide_spec Stdlib__ne representable (λ x y, x ≠ y).
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->eq_repr_repr by assumption.
       rewrite <-Zeq_spec.
       rewrite Is_true_true negb_true -Is_true_false.
@@ -276,7 +276,7 @@ Section Stdlib__specs.
     Lemma Stdlib__lt_spec :
       decide_spec Stdlib__lt representable Z.lt.
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->lt_repr_repr by assumption.
       rewrite Zlt_spec.
       tauto.
@@ -285,7 +285,7 @@ Section Stdlib__specs.
     Lemma Stdlib__le_spec :
       decide_spec Stdlib__le representable Z.le.
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->lt_repr_repr by assumption.
       rewrite Is_true_true negb_true -Is_true_false.
       rewrite Zlt_spec.
@@ -296,7 +296,7 @@ Section Stdlib__specs.
       decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
                                            (* avoid [Z.gt] *)
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->lt_repr_repr by assumption.
       rewrite Zlt_spec.
       tauto.
@@ -306,7 +306,7 @@ Section Stdlib__specs.
       decide_spec Stdlib__ge representable (λ x y, Z.le y x).
                                            (* avoid [Z.ge] *)
     Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP1.
+      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
       rewrite ->lt_repr_repr by assumption.
       rewrite Is_true_true negb_true -Is_true_false.
       rewrite Zlt_spec.
@@ -492,14 +492,12 @@ Local Lemma experiment_add :
   ∀ (x y : Z),
   simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(x + y)).
 Proof.
-  (* [simp_enter] is just [simp] under a transparent [call]. *)
-  (* It is able to prove this goal. *)
-  intros. simp_enter.
+  intros. simp_enter. simp_enter.
 Qed.
 
 Local Lemma experiment_eq :
   ∀ (x y : Z), representable x → representable y →
   simp (bind (call Stdlib__eq #x) (λ v, call v #y)) (ret #(Z.eqb x y)).
 Proof.
-  intros. simp_enter.
+  intros. simp_enter. simp_enter.
 Qed.
