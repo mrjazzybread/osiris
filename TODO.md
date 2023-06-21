@@ -184,8 +184,6 @@
 
 ## Semantics
 
-* Add `assert false`, which does *not* use `flip`.
-
 * Add a dummy implementation of exceptions: `raise` is `assert false`,
   `try e1 with e2` is just `e1`.
 
