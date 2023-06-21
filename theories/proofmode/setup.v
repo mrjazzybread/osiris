@@ -22,21 +22,21 @@ Arguments build η xs/.
 Arguments lookup_name _ _/.
 
 (* semantics/eval.v *)
-Global Arguments lookup_name !η !x : simpl nomatch.
-Global Arguments concat !δ η : simpl nomatch.
-Global Arguments remove !f !fvs : simpl nomatch.
-Global Arguments update !fvs !fvs' : simpl nomatch.
-Global Arguments extend δ !p v.
-Global Arguments extends δ !ps !vs.
-Global Arguments extendfs δ !fps !fvs.
+Arguments lookup_name !η !x : simpl nomatch.
+Arguments concat !δ η : simpl nomatch.
+Arguments remove !f !fvs : simpl nomatch.
+Arguments update !fvs !fvs' : simpl nomatch.
+Arguments extend δ !p v.
+Arguments extends δ !ps !vs.
+Arguments extendfs δ !fps !fvs.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Fix integers. *)
 
-Global Notation "'EInt' z" :=
+Notation "'EInt' z" :=
   (EInt (z)%Z) (at level 0, only parsing).
-Global Notation "'PInt' z" :=
+Notation "'PInt' z" :=
   (PInt (z)%Z) (at level 0, only parsing).
 
 (* -------------------------------------------------------------------------- *)
