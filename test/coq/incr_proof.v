@@ -98,8 +98,9 @@ Proof.
 
   (* The interpreter stops at the first call of [new_couter]. This call can be
      found in the [let () = ...] of the OCaml file. *)
-  wp_use ("Hnew_counter" with "[//][]"). iNext.
+  wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
+  wp_bind.
   wp_continue. wp. do 2 wp_continue.
 
   wp_use ("Hget" with "Hl").
@@ -121,7 +122,7 @@ Proof.
   (* The interpreter stops at the second call of [new_counter], which occurs in
      the definition of [_test]. *)
   wp_continue.
-  wp_use ("Hnew_counter" with "[//][]"). iNext.
+  wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)". wp_continue.
 
   wp_use ("Hget" with "Hl").

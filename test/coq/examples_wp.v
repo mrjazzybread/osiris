@@ -168,7 +168,7 @@ Proof.
     iModIntro. wp_call.
     iPureIntro. reflexivity. }
   (* We are looking at [id id]. *)
-  wp_use "Hid". iIntros(?->).
+  wp_bind. wp_use "Hid". iIntros(?->).
   wp_use "Hid".
 Qed.
 
@@ -190,7 +190,7 @@ Proof.
     iModIntro. wp_call.
     iPureIntro. reflexivity. }
   (* We are looking at [id()]. *)
-  wp_use "Hid". iIntros(?->).
+  wp_bind. wp_use "Hid". iIntros(?->).
   (* We are again looking at [id()]. *)
   wp_use "Hid".
 Qed.
@@ -431,7 +431,7 @@ Proof.
     wp_use "Hid". }
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_use "Hid". iIntros (?->). wp. wp_bind.
+  wp_bind. wp_use "Hid". iIntros (?->). wp. wp_bind.
   wp_continue.
 
   (* Proving the trivial post condition using the aforementioned specs. *)

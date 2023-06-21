@@ -384,7 +384,7 @@ Proof.
   do 2 wp_bind.
 
   wp_continue. wp_bind.
-  wp_continue.
+  wp_continue. wp_bind.
   iApply wp_simp.
   { by eapply lily_body_spec; try done. }
 
@@ -459,7 +459,7 @@ Proof.
   intros?.
   wp.
 
-  wp_simp_using r_elt_spec. do 2 wp_bind. wp_continue.
+  wp_simp_using r_elt_spec. do 2 wp_bind. wp_continue. wp_bind.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η flip_function) _) =>
@@ -474,7 +474,7 @@ Proof.
 
   replace (VRecord _) with #{| b := true ;i := 10|}; last reflexivity.
   wp_bind. wp_use "Hflip_spec". iIntros(?<-). wp. wp_bind.
-  wp_continue.
+  wp_continue. wp_bind.
 
 
   lazymatch goal with
@@ -483,7 +483,7 @@ Proof.
       as "[%vr_val [%Hr_val_simp #Hr_val_spec]]";
       first reflexivity
   end.
-  wp_simp_using Hr_val_simp. wp_bind. wp_continue.
+  wp_simp_using Hr_val_simp. wp_bind. wp_continue. wp_bind.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η sum_function) _) =>
@@ -526,7 +526,7 @@ Proof.
   (* [flip] has the expected spec. *)
   o_specify "flip" flip_spec "#Hflip".
   { iIntros "!>" (b i); wp_call. wp_bind.
-    wp_continue. wp. wp_bind. wp. done. }
+    wp_continue. wp. wp_bind. wp. wp_bind. wp. done. }
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)

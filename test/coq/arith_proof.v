@@ -96,12 +96,12 @@ Proof.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       iIntros (veq_part) "Hspec_eq".
       wp. do 2 wp_bind.
-      iApply (wp_covariant with "Hspec_eq"). (* TODO: fix [wp_use]. *)
+      wp_use "Hspec_eq".
       iIntros (? ->).
       destruct (i2 =? 0)%Z eqn:E; wp.
       { (* [i2 = 0%Z] *)
         apply Z.eqb_eq in E as ->.
-        wp_use "Hmult"; first done.
+        wp_bind. wp_use "Hmult"; first done.
         iIntros (Hmult_part) "Hmult_part".
         iApply (wp_covariant with "[Hmult_part]").
         { iApply "Hmult_part"; done. }
@@ -121,7 +121,7 @@ Proof.
         { iIntros (vadd1 ?) "Hadd1 ->".
           wp.
           iSpecialize ("Hadd1" $! (i1 + (i2 - 1))%Z NotStuck top). wp.
-          iApply (wp_covariant with "Hadd1").
+          wp_use "Hadd1".
           iIntros (?->).
           iPureIntro. do 2 f_equal. lia. } } }
 
@@ -143,10 +143,11 @@ Proof.
     { (* [i2 = 0%Z]. *) wp.
       apply Z.eqb_eq in E as ->. iPureIntro. do 2 f_equal. lia. }
     { (* [i2 != 0%Z]. *) wp.
+      wp_bind.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       clear veq_part.
       iIntros (veq_part) "Heq_part".
-      wp. do 2 wp_bind. iApply (wp_covariant with "Heq_part").
+      wp. do 2 wp_bind. wp_use "Heq_part".
       iIntros (?->).
       destruct (i2 =? 1)%Z eqn:E1.
       { (* [i2 = 1%Z]. *) wp.
@@ -171,7 +172,7 @@ Proof.
           wp.
           unshelve iSpecialize ("Hadd_part" $! (i1 * (i2 - 1))%Z _).
           { apply Ztac.mul_le; lia. }
-          iApply (wp_covariant with "Hadd_part").
+          wp_use "Hadd_part".
           iIntros (?->).
           iPureIntro. do 2 f_equal.
           lia. } } } }
@@ -179,10 +180,11 @@ Proof.
   wp_par.
   { by wp_use "Hadd". }
   { wp_bind. wp_use "Hadd"; first done.
-    iIntros (vadd_part) "Hadd_part"; wp; by iApply "Hadd_part". }
+    iIntros (vadd_part) "Hadd_part"; wp; by wp_use "Hadd_part". }
   iIntros (vadd_part ?) "Hadd_part ->". wp.
   iSpecialize("Hadd_part" $! _ _).
-  iApply (wp_covariant with "Hadd_part").
+  wp_bind.
+  wp_use "Hadd_part".
   Unshelve. 2: lia.
   iIntros (?->). wp. wp_bind.
   wp_continue.
@@ -191,7 +193,7 @@ Proof.
   { wp_bind; wp_use "Hmult"; first done.
     iIntros (vmult_part) "Hmult_part".
     iSpecialize ("Hmult_part" $! _ _). wp. wp_bind.
-    iApply (wp_covariant with "Hmult_part").
+    wp_use "Hmult_part".
     iIntros (?->).
     wp_use "Hadd"; first done. }
   { wp_use "Hadd"; first done. }
@@ -199,19 +201,19 @@ Proof.
   { wp_bind. wp_use "Hadd"; first done.
     iIntros (vadd_part') "Hadd_part'".
     iSpecialize ("Hadd_part'" $! _ _).
-    iApply (wp_covariant with "Hadd_part'").
+    iApply (wp_covariant with "Hadd_part'"). (*TODO: fix [wp_use]. *)
     iIntros(?->). by wp_set_postcondition. }
   { iIntros (v1 ?) "H1 ->". wp.
     iSpecialize ("H1" $! _ _).
-    iApply (wp_covariant with "H1").
+    iApply (wp_covariant with "H1"). (* ditto. *)
     iIntros (?->). by wp_set_postcondition. }
   { iIntros (v1 ?) "H1 ->". wp.
     iSpecialize ("H1" $! _ _).
-    iApply (wp_covariant with "H1").
+    iApply (wp_covariant with "H1"). (* ditto. *)
     iIntros (?->). by wp_set_postcondition. }
   { iIntros (v1 ?) "H1 ->". wp.
     iSpecialize ("H1" $! _ _).
-    iApply (wp_covariant with "H1").
+    wp_bind. iApply (wp_covariant with "H1"). (* ditto. *)
     iIntros (?->). wp. wp_bind. wp_continue.
 
     wp_module_spec. }

@@ -206,9 +206,13 @@ Ltac wp_simp :=
   iApply wp_simp; first by simp_really.
 
 Local Ltac wp_progress :=
-  progress (
-      cbn (* TODO: better control the reduction strategy. *)
-    ).
+  first [
+      lazymatch goal with
+      | |- environments.envs_entails _ $ wp _ _ (eval _ _) _ =>
+          rewrite eval_eval'; try progress cbn
+      end
+    | cbn (* TODO: better control the reduction strategy. *)
+    ].
 
 Ltac wp_concat :=
   lazymatch goal with
@@ -238,22 +242,30 @@ Local Ltac wp_continue_if_nospec :=
       | true => wp_concat
       | false => idtac
       end
-                      | _ => fail "Cannot continue."
+  | _ => fail "Cannot continue."
   end.
 
 Ltac wp :=
   wp_startproof;
-  (try wp_progress);
+  try progress wp_progress;
   repeat
     (first [
+          (* 1. Try to eliminate a later or take a step. *)
           lazymatch goal with
           | |- environments.envs_entails _ (bi_later _) => iNext
-          | _ => wp_step; try progress cbn
+          | _ => wp_step
           end
-        | apply tc_change_goal
-        | progress wp_simp
-        | wp_continue_if_nospec
-        | idtac
+        | (* 2. Try to simplify the proof goal.*)
+          progress wp_simp
+        | (* 3. Try to apply an instance of TC_change_goal. *)
+          apply tc_change_goal
+        | (* 4. *)
+          progress cbn
+        | (* 5. Experimental: try to automatically mimic [wp_continue]
+                sometimes. *)
+          wp_continue_if_nospec
+        | (* Otherwise, do nothing ([repeat] will stop). *)
+          idtac
     ]).
 
 (* -------------------------------------------------------------------------- *)
@@ -328,6 +340,7 @@ Ltac wp_use H :=
   first [
     iApply H
   | iApply wp_covariant; [ iApply H |]
+  | iApply (wp_covariant with H)
   ];
   cbn.
 
