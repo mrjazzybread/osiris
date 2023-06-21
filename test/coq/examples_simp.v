@@ -48,8 +48,7 @@ Goal let e :=
 Proof.
   simp.
   simp_continue.
-  (* TODO why is [simp_continue] needed just once and not twice? *)
-  (* TODO same question elsewhere *)
+  simp_continue.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -63,6 +62,7 @@ Goal let e :=
   in simp (eval ε e) (ret (encode A)).
 Proof.
   simp.
+  simp_continue.
   simp_continue.
 Qed.
 
@@ -93,6 +93,7 @@ Goal let e :=
 Proof.
   intros.
   simp.
+  simp_continue.
   simp_continue.
 Qed.
 
@@ -275,7 +276,7 @@ Proof.
   simp_continue.
   simp_enter. simp_continue.
   simp_enter. simp_continue.
-  simp_enter.
+  simp_enter. simp_continue.
 Qed.
 
 (* The following example illustrates how to reason about a local function.
@@ -302,7 +303,7 @@ Proof.
     induction xs as [| x xs ]; simp_enter.
     (* The [nil] branch has been automatically solved. *)
     (* This is the [cons] branch. *)
-    simp_continue.
+    simp_continue. simp_continue.
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   intros walk Hwalk. simp_continue.
@@ -337,7 +338,7 @@ Proof.
   induction xs as [| x xs ]; simp_enter.
   (* The [nil] branch has been automatically solved. *)
   (* This is the [cons] branch. *)
-  simp_continue.
+  simp_continue. simp_continue.
 Qed.
 
 (* ------------------------------------------------------------------------- *)

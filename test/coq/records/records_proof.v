@@ -278,7 +278,7 @@ Proof.
   induction n as [ | n' IH ];
     intros η r H1 H2 H3 H4;
   explicit is_odd'_body.
-  { simp. }
+  { simp. simp_continue. }
   { (* [n = S n'] *)
     destruct (is_odd_pure n') eqn:E;
     remember (nat_encode_f n') as enc_n.
@@ -304,7 +304,10 @@ Lemma flip_function_spec :
 Proof.
   intros? H1.
   iExists _.
-  iSplit; first (iPureIntro; by simp).
+  iSplit.
+  { iPureIntro.
+    with_strategy transparent [flip_function] unfold flip_function.
+    simp. }
   explicit flip_body.
   iIntros "!>" (b i).
   wp_call. wp_continue. wp.
@@ -320,7 +323,10 @@ Lemma r_val_function_spec η :
 Proof.
   intros H1.
   iExists _.
-  iSplit; first (iPureIntro; by simp).
+  iSplit.
+  { iPureIntro.
+    with_strategy transparent [r_val_function] unfold r_val_function.
+    simp. }
   by iIntros "!>" (r);
   explicit r_val_body; explicit r_val_pure;
   wp_call; destruct (b r); do 2 wp_continue;
@@ -337,7 +343,10 @@ Lemma sum_function_spec η vr_val :
 Proof.
   iIntros (??) "#Hr_val".
   iExists _.
-  iSplit; first (iPureIntro; by simp).
+  iSplit.
+  { iPureIntro.
+    with_strategy transparent [sum_function] unfold sum_function.
+    simp. }
   iIntros "!>" (r1 r2).
   explicit sum_body.
   wp_call; do 2 wp_continue.

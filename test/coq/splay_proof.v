@@ -449,7 +449,7 @@ Proof.
         - assumption. }
     }
   }
-  intros zlookup zlookup_spec. SIMP_continue.
+  intros zlookup zlookup_spec. SIMP_continue. SIMP_continue.
 
   (* Conclude. *)
   tauto.

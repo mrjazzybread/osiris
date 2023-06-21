@@ -29,6 +29,13 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
+Lemma prove_simp_ret_encode `{Encode A} v (x : A) :
+  v = #x →
+  simp (ret v) (ret #x).
+Proof.
+  intros. subst. eauto with simp.
+Qed.
+
 Lemma prove_simp_downto_ret {A} m1 (a2 : A) :
   m1 = ret a2 →
   simp (ret a2) (ret a2) → (* artificial residual subgoal *)
@@ -202,6 +209,9 @@ Qed.
 
 (* Tactics. *)
 
+(* We systematically use [simply eapply] as opposed to [eapply], because
+   the latter does not respect opacity. (It is stronger than we wish.) *)
+
 Create HintDb simp_specs.
 
 (* [simp_ret] expects of the goal of the form [simp (ret ?a1) (ret ?a2)].
@@ -209,7 +219,7 @@ Create HintDb simp_specs.
    this equality. *)
 
 Ltac simp_ret :=
-  eapply prove_simp_ret; [ eauto with encode equality ].
+  simple eapply prove_simp_ret; [ eauto with encode equality ].
     (* TODO limit search depth? *)
 
 (* The tactic [normalize] attempts to reduce and normalize the goal before
@@ -228,14 +238,13 @@ Ltac normalize :=
 
 Ltac simp_close :=
   solve [
-    eapply SimpReflexive
-  | eapply simp_reflexive; [ eauto with simp_specs encode ]
-      (* This can solve [simp m (ret v)] when there is a hypothesis
-         [m = ret v] in the context or in the hint database. This may
-         be useful when [m] is [lookup η x]. *)
-      (* This can solve [simp (ret v) (ret #x)], where [x] is a metavariable,
-         by reducing this goal to [v = #x], which is solved by [encode]. *)
-      (* TODO check whether it is really useful; if not, remove it *)
+    simple eapply SimpReflexive
+  | simple eapply prove_simp_ret_encode; [ encode ]
+(* TODO the following line is too powerful; because [eauto] ignores
+   opacity, this can have the surprising
+         behavior of skipping [ret_concat].
+  | simple eapply simp_reflexive; [ eauto with simp_specs encode ]
+ *)
   | simp_ret
   ].
 
@@ -299,7 +308,7 @@ with simp1 :=
          made progress; we view this as a simplification step. *)
       (* The tactic is formulated so as to leave a subgoal, which in this
          case is trivial; it is of the form [simp (ret v) (ret v)]. *)
-      eapply prove_simp_downto_ret; [
+      simple eapply prove_simp_downto_ret; [
         (* subgoal: [m1 = ret v] *)
         solve [ eauto with simp_specs ]
       | (* residual goal: [simp (ret v) (ret v)] *)
@@ -336,17 +345,17 @@ with simp1 :=
           ]
       end
   | Stop CEval _ _ _ =>
-      first [ eapply advance_SimpEvalNext | eapply advance_SimpEval ]; normalize;
+      first [ simple eapply advance_SimpEvalNext | simple eapply advance_SimpEval ]; normalize;
       simp0
   | Stop CLoop _ _ _ =>
-      first [ eapply advance_SimpLoopNext | eapply advance_SimpLoop ]; normalize;
+      first [ simple eapply advance_SimpLoopNext | simple eapply advance_SimpLoop ]; normalize;
       simp0
   | Stop CFlip _ _ _ =>
-      eapply advance_SimpFlipOK; normalize;
+      simple eapply advance_SimpFlipOK; normalize;
       simp0
   | bind ?m ret =>
       (* A tail call can be simplified. *)
-      eapply simp_tail_call; simp0
+      simple eapply simp_tail_call; simp0
   | bind ?m ?f =>
       (* We want to first simplify the left-hand side of [bind], as far as
          possible; then, if possible, simplify the [bind] combinator away
@@ -356,7 +365,7 @@ with simp1 :=
       first [
         (* Attempt 1. Make progress on the left-hand side,
            and possibly more progress thereafter. *)
-        eapply advance_SimpBind; [ simp1; simp_close | simp0_bind ]
+        simple eapply advance_SimpBind; [ simp1; simp_close | simp0_bind ]
       |
         (* Attempt 2. Make progress by eliminating this [bind],
            and possibly more progress thereafter. *)
@@ -364,7 +373,7 @@ with simp1 :=
       ]
   | try ?m ?f ?ko =>
       (* TODO treat [try] in the same way as [bind] *)
-      eapply prove_simp_try; [ simp0; simp_close |];
+      simple eapply prove_simp_try; [ simp0; simp_close |];
       normalize; simp0
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
@@ -375,11 +384,11 @@ with simp1 :=
       first [
         (* Attempt 1. Make progress on the left-hand side,
            and possibly more progress elsewhere. *)
-        eapply advance_SimpPar; [ simp1; simp_close | simp0; simp_close | simp0_par ]
+        simple eapply advance_SimpPar; [ simp1; simp_close | simp0; simp_close | simp0_par ]
       |
         (* Attempt 2. Make progress on the right-hand side,
            and possibly more progress elsewhere. *)
-        eapply advance_SimpPar; [ simp_close | simp1; simp_close | simp0_par ]
+        simple eapply advance_SimpPar; [ simp_close | simp1; simp_close | simp0_par ]
       |
         (* Attempt 3. Make progress by eliminating this [Par],
            and possibly more progress thereafter. *)
@@ -423,11 +432,11 @@ with simp1_par :=
   (* Performing at least one simplification step, when the term is a [Par]
      construct, requires applying one of the following rules. *)
   first [
-    eapply advance_SimpParRetRet (* maybe a special case of the following *)
-  | eapply advance_SimpParRetLeftNext
-  | eapply advance_SimpParRetLeft
-  | eapply advance_SimpParRetRightNext
-  | eapply advance_SimpParRetRight
+    simple eapply advance_SimpParRetRet (* maybe a special case of the following *)
+  | simple eapply advance_SimpParRetLeftNext
+  | simple eapply advance_SimpParRetLeft
+  | simple eapply advance_SimpParRetRightNext
+  | simple eapply advance_SimpParRetRight
   ];
   normalize; simp0.
 
@@ -462,6 +471,8 @@ Ltac simp_really :=
 (* [simp_continue] unfolds [ret_concat] in a goal of the form
    [simp (bind (ret_concat _ _) _) _],
    and continues simplifying via [simp]. *)
+
+(* TODO unfold [red_dconcat] too; share with [SIMP] *)
 
 Ltac simp_continue :=
   normalize;
@@ -675,13 +686,13 @@ Qed.
    the subgoal [φ x], which it simplifies. *)
 
 Ltac SIMP_ret :=
-  eapply SIMP_ret; [ solve [ encode ] | normalize ].
+  simple eapply SIMP_ret; [ solve [ encode ] | normalize ].
 
 (* [SIMP_simp] expects a goal of the form [SIMP m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [SIMP m' φ]. *)
 
 Ltac SIMP_simp :=
-  eapply SIMP_simp; [ simp_really |].
+  simple eapply SIMP_simp; [ simp_really |].
 
 (* SIMP0 leaves zero subgoal. *)
 (* SIMP1 leaves one subgoal, which may have an arbitrary shape. *)
@@ -696,14 +707,14 @@ Ltac SIMP0 :=
       SIMP_close
     ]
 
-  | eapply SIMP_call; [
+  | simple eapply SIMP_call; [
       (* goal: [v = #x] *)
       solve [encode]
     | (* goal: [SIMP (call #x) φ] *)
       SIMP_close
     ]
 
-  | eapply SIMP_call_covariant; [
+  | simple eapply SIMP_call_covariant; [
       (* goal: [v = #x] *)
       solve [encode]
       (* goal: [SIMP (call #x) φ] *)
@@ -712,10 +723,10 @@ Ltac SIMP0 :=
     | SIMP_close
     ]
 
-  | eapply SIMP_bind_as_bool; [ SIMP0 | normalize; intros; SIMP0 ]
-  | eapply SIMP_bind_as_int ; [ SIMP0 | normalize; intros; SIMP0 ]
-  | eapply SIMP_bind        ; [ SIMP0 | normalize; intros; SIMP0 ]
-  | eapply SIMP_try         ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | normalize; intros; SIMP0 ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | simple eapply SIMP_try         ; [ SIMP0 | normalize; intros; SIMP0 ]
 
   | SIMP_close
 
@@ -728,7 +739,7 @@ with SIMP1 :=
 
     SIMP_ret (* residual goal: [φ x] *)
 
-  | eapply SIMP_call_covariant; [
+  | simple eapply SIMP_call_covariant; [
       (* goal: [v = #x] *)
       solve [encode]
       (* goal: [SIMP (call #x) φ] *)
@@ -737,17 +748,17 @@ with SIMP1 :=
     | normalize
     ]
 
-  | eapply SIMP_call; [
+  | simple eapply SIMP_call; [
       (* goal: [v = #x] *)
       solve [encode]
     | (* residual goal: [SIMP (call #x) φ] *)
       idtac
     ]
 
-  | eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) normalize ]
-  | eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) normalize ]
-  | eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) normalize ]
-  | eapply SIMP_try         ; [ SIMP0 | (* residual goal *) normalize ]
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) normalize ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) normalize ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) normalize ]
+  | simple eapply SIMP_try         ; [ SIMP0 | (* residual goal *) normalize ]
 
   | idtac (* residual goal *)
 
@@ -807,8 +818,8 @@ Create HintDb SIMP_specs.
 (* TODO may be unused *)
 Ltac SIMP_call :=
   first [
-    eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
-  | eapply SIMP_covariant; [
-      eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+    simple eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
+  | simple eapply SIMP_covariant; [
+      simple eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
     | cbn ]
   ].
