@@ -1,1 +1,7 @@
-From osiris.proofmode Require Export equality simp setup notations tactics.
+From osiris.proofmode Require Export
+  equality
+  simp
+  setup
+  notations
+  tactics
+.
