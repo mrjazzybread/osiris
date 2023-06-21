@@ -44,23 +44,23 @@ Notation "'PInt' z" :=
 (* Opacity. *)
 
 Global Opaque
-       call
-       ret_concat
-       ret_dconcat
-       stuck
-       eval
-       SIMP
-       stuck
-       int.signed int.repr int.add int.mul
-       assertion_failure
-       division_by_zero
-       length_mismatch
-       match_failure
-       missing_field
-       missing_variable
-       missing_variable_or_field
-       structural_equality_error
-       structural_ordering_error
-       type_mismatch
-       SIMP
+  call
+  ret_concat
+  ret_dconcat
+  stuck
+  eval
+  SIMP
+  stuck
+  int.signed int.repr int.add int.mul
+  assertion_failure
+  division_by_zero
+  length_mismatch
+  match_failure
+  missing_field
+  missing_variable
+  missing_variable_or_field
+  structural_equality_error
+  structural_ordering_error
+  type_mismatch
+  SIMP
 .
