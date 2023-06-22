@@ -325,7 +325,7 @@ Proof.
     unfold spec_walk.
     (* Prove the spec by induction on the list [bs]. *)
     induction xs as [| x xs ];
-    simp_call_enter_and_abstract; intros walk; [| intros Hwalk ].
+    simp_enter_and_abstract; intros walk; [| intros Hwalk ].
     (* The [nil] branch. *)
     + simp. simp_continue.
     (* The [cons] branch. *)
@@ -362,7 +362,7 @@ Goal
 Proof.
   unfold spec_length.
   induction xs as [| x xs ];
-  simp_call_enter_and_abstract; intros length; [| intros Hlength ].
+  simp_enter_and_abstract; intros length; [| intros Hlength ].
   (* The [nil] branch. *)
   { simp. simp_continue. }
   (* The [cons] branch. *)
@@ -394,7 +394,7 @@ Proof.
        This is unpleasant. *)
     destruct IHxs as (n & ? & ?).
     eexists; split.
-    + simp_call_enter_and_abstract. intros length Hlength.
+    + simp_enter_and_abstract. intros length Hlength.
       simp. simp_continue.
     + lia. }
 Qed.
@@ -411,7 +411,7 @@ Goal
 Proof.
   unfold weak_spec_length'.
   induction xs as [| x xs ];
-  SIMP_call_enter_and_abstract; intros length; [| intros Hlength ];
+  SIMP_enter_and_abstract; intros length; [| intros Hlength ];
   SIMP1; SIMP_continue.
   { lia. }
   { intros n ?. SIMP1. lia. }

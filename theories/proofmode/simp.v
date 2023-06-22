@@ -589,7 +589,7 @@ Ltac simp_continue :=
    into the call, then abstracts away the closure [v], so as to make it
    opaque. *)
 
-Ltac simp_call_enter_and_abstract :=
+Ltac simp_enter_and_abstract :=
   lazymatch goal with |- simp (call ?v _) _ =>
     (* First, expand [call] away. *)
     simp_enter;

@@ -276,7 +276,7 @@ Proof.
   unfold spec_walk.
   iIntros (η) "!>%bs".
   iInduction bs as [| b bs ] "IHbs";
-  wp_call_enter_and_abstract; iIntros (walk); wp.
+  wp_enter_and_abstract; iIntros (walk); wp.
   { wp_continue. equality. }
   { wp_continue. wp_use "IHbs". }
 Qed.
@@ -321,7 +321,7 @@ Proof.
     (* Prove the spec by induction on the list [bs]. *)
     iIntros "!>"(bs).
     iInduction bs as [| b bs ] "IHbs";
-    wp_call_enter_and_abstract; iIntros (walk); wp; wp_continue.
+    wp_enter_and_abstract; iIntros (walk); wp; wp_continue.
     { equality. }
     { wp_use "IHbs". }
   }
@@ -358,7 +358,7 @@ Goal
 Proof.
   unfold spec_length. intros η ?? xs.
   iInduction (xs) as [| x xs ] "IHxs";
-  wp_call_enter_and_abstract; iIntros (length);
+  wp_enter_and_abstract; iIntros (length);
   wp; wp_continue.
   { equality. }
   { wp_bind. wp_use "IHxs". wp. iIntros(?->).

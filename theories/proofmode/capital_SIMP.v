@@ -344,7 +344,7 @@ Ltac SIMP_call :=
     | cbn ]
   ].
 
-Ltac SIMP_call_enter_and_abstract :=
+Ltac SIMP_enter_and_abstract :=
   lazymatch goal with |- SIMP (call ?v _) _ =>
     (* First, expand [call] away. *)
     SIMP1_call_step;

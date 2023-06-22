@@ -589,7 +589,7 @@ Proof.
   wp_bind.
 
   o_specify "is_odd'" is_odd_spec "#?".
-  { iLöb as "IH". iIntros "!>" ([|]); wp_call_enter_and_abstract;
+  { iLöb as "IH". iIntros "!>" ([|]); wp_enter_and_abstract;
     iIntros (is_odd'); wp.
     { wp_continue. equality. }
     { wp_continue.

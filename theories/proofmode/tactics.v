@@ -347,7 +347,7 @@ Ltac wp_use H :=
 Ltac wp_call :=
   with_strategy transparent [call] unfold call; wp.
 
-Ltac wp_call_enter_and_abstract :=
+Ltac wp_enter_and_abstract :=
   lazymatch goal with |- environments.envs_entails _ (wp _ _ (call ?v _) _) =>
     (* First, expand [call] away. *)
     iApply wp_simp; [

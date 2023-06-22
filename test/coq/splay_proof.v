@@ -341,7 +341,7 @@ Proof.
     unfold zlt in IH.
     intros.
     (* Enter the closure. *)
-    SIMP_call_enter_and_abstract. intros splay IH.
+    SIMP_enter_and_abstract. intros splay IH.
     SIMP1. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
@@ -416,7 +416,7 @@ Proof.
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
     intros ? ? Hbst;
-    SIMP_call_enter_and_abstract;
+    SIMP_enter_and_abstract;
     intros zlookup; [| intros IHl IHr ];
     SIMP1; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
