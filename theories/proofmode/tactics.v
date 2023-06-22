@@ -266,7 +266,10 @@ Ltac wp :=
           wp_continue_if_nospec
         | (* Otherwise, do nothing ([repeat] will stop). *)
           idtac
-    ]).
+    ]);
+  normalize.
+    (* TODO [wp] should produce a normalized residual goal *)
+    (* TODO clarify where normalized goals are expected/produced *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -346,7 +349,7 @@ Ltac wp_use H :=
 
 Ltac wp_enter :=
   iApply wp_simp; [
-    simp_enter; [ eapply SimpReflexive ]
+    simp_enter; [ normalize; eapply SimpReflexive ]
   | (* residual goal *)
   ].
 

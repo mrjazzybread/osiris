@@ -97,8 +97,7 @@ Definition spec_id (c: val) : iProp Σ :=
 Goal
   ⊢ WP (eval EnvNil identity) {{ spec_id }}.
 Proof.
-  wp. iModIntro. iIntros.
-  wp_enter. wp. equality.
+  wp. iModIntro. iIntros. wp. equality.
 Qed.
 
 (* let id = identity in
@@ -119,8 +118,7 @@ Proof.
      for this closure; then, we can make this closure opaque. *)
   o_specify "id" spec_id "#Hid".
   (* Subgoal: prove that [fun x -> x] satisfies [spec_id]. *)
-  { unfold spec_id. iModIntro. iIntros (v). wp_call.
-    iPureIntro. reflexivity. }
+  { unfold spec_id. iModIntro. iIntros (v). wp. equality. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
 
   (* Abstract away [example3]; its spec suffices. *)
@@ -165,8 +163,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
-    iModIntro. wp_call.
-    iPureIntro. reflexivity. }
+    iModIntro. wp. equality. }
   (* We are looking at [id id]. *)
   wp_bind. wp_use "Hid". iIntros(?->).
   wp_use "Hid".
@@ -187,8 +184,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
-    iModIntro. wp_call.
-    iPureIntro. reflexivity. }
+    iModIntro. wp. equality. }
   (* We are looking at [id()]. *)
   wp_bind. wp_use "Hid". iIntros(?->).
   (* We are again looking at [id()]. *)
@@ -210,8 +206,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   o_specify "id" spec_id "#Hid".
   { unfold spec_id. iIntros (v).
-    iModIntro. wp_call.
-    iPureIntro; reflexivity. }
+    iModIntro. wp. equality. }
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
   wp_par.
@@ -405,12 +400,11 @@ Definition simple_module_spec: val → iProp Σ :=
 Goal
   ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
 Proof.
-  wp. do 2 wp_bind.
+  wp. wp_bind.
 
   (* [f] is about to be added to the environment *)
   o_specify "f" spec_id "#Hid".
-  { iIntros(v). iModIntro.
-    wp_call. iPureIntro. reflexivity. }
+  { iIntros(v). iModIntro. wp. equality. }
 
   wp_bind.
 
@@ -464,16 +458,7 @@ Proof.
   simp.
 Qed.
 
-
-(* The presence of [apply tc_change_goal] in [wp] makes it too strong for the
-   test below. *)
-Ltac wp :=
-  iStartProof; cbn;
-   repeat
-    lazymatch goal with
-    | |- environments.envs_entails _ (▷ _) => iNext
-    | _ => wp_step; try progress cbn
-    end.
+Local Hint Resolve test_body_simp : simp_specs.
 
 Definition add_uc : expr :=
   ELet (Binding1 (PVar "x") (EInt 1)) $
@@ -486,17 +471,5 @@ Definition add_uc : expr :=
 Lemma add_test (i j: Z) :
   ⊢ WP eval (EnvCons "bloup" #0 EnvNil) add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
 Proof.
-  wp. wp_continue.
-
-  (* Nested function calls. *)
-  force_unfold call. (* TODO should not do this *)
-  wp.
-
-  (* As the body of the function ([test_innerbody]) is opaque, the evaluation
-     stops. *)
-  iApply wp_simp.
-  { by apply test_body_simp. }
-
-  (* The proof is over. *)
-  by wp.
+  wp. wp_continue. equality.
 Qed.

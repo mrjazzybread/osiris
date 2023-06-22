@@ -80,7 +80,7 @@ Lemma Add_spec :
            EnvNil in
   ⊢ WP eval_mexpr η Arith {{ module_spec Λ }}.
 Proof.
-  intros. wp. do 2 wp_bind.
+  intros. wp. wp_bind.
 
   o_specify "add" add_spec "#Hadd"
             "mult" mult_spec "#Hmult".
@@ -169,7 +169,7 @@ Proof.
   iSpecialize("Hadd_part" $! _ _).
   wp_bind.
   wp_use "Hadd_part".
-  Unshelve. 2: lia.
+  Unshelve. 2: lia. (* TODO avoid this *)
   iIntros (?->). wp. wp_bind.
   wp_continue.
 
@@ -202,7 +202,7 @@ Proof.
 
     wp_module_spec. }
 
-  Unshelve.
+  Unshelve. (* TODO avoid this *)
   all: done.
 Time Qed.
 (* This [Qed.] is about 2.8s, while it was 2.0s with a manual iAssert.

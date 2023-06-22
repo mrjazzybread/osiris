@@ -232,6 +232,8 @@ Proof.
   simp_continue.
 Qed.
 
+Local Hint Resolve lily_body_spec : simp_specs.
+
 Lemma r_val_body_spec η (r: R) (rvar: var) :
   lookup_name η "Stdlib" = ret Stdlib →
   lookup_name η rvar = ret #r →
@@ -378,10 +380,10 @@ Proof.
   intros η. unfold η; clear η. wp.
 
   wp_simp_using r_elt_spec.
-  do 2 wp_bind.
+  wp_bind.
 
-  wp_continue. wp_bind.
-  wp_continue. wp_bind.
+  wp_continue.
+  wp_continue.
   iApply wp_simp.
   { by eapply lily_body_spec; try done. }
 
@@ -452,7 +454,7 @@ Proof.
   intros?.
   wp.
 
-  wp_simp_using r_elt_spec. do 2 wp_bind. wp_continue. wp_bind.
+  wp_simp_using r_elt_spec. wp_bind. wp_continue. wp_bind.
 
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (eval ?η flip_function) _) =>
@@ -513,7 +515,7 @@ Proof.
   wp.
   simpl build. (* TODO *)
   wp_bind.
-  wp. do 2 wp_bind.
+  wp. wp_bind.
 
   (* [r_elt] is a known value. *)
   wp_continue. wp_bind.

@@ -60,14 +60,15 @@ Lemma Incr__spec:
   ⊢ WP eval_mexpr η Incr {{ module_spec Λ }}.
 Proof.
   iIntros.
-  wp. wp_bind. wp_bind.
+  wp. wp_bind.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
   o_specify "new_counter" new_counter_spec "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
-    wp_call. wp_continue.
+    wp. wp_continue.
     wp_alloc l "[Hl _]".
-    wp_autocontinue. wp_use "Hφ". clear φ.
+    wp_continue. wp_continue. wp_continue.
+    wp_use "Hφ". clear φ.
     iExists l.
     iSplitL; last iSplit.
     { (* Proof of the [is_counter] predicate. *)
@@ -76,7 +77,7 @@ Proof.
     { (* Proving the specification of [get]. *)
       unfold get_spec. iIntros.
       iIntros(φ)"!>(%&->&Hl) Hφ".
-      wp_call. wp_autocontinue.
+      wp. wp_continue.
 
       wp_load "Hl".
       iApply "Hφ".
@@ -86,7 +87,7 @@ Proof.
     { (* Proof of the specification of [upd]. *)
       unfold upd_spec. iIntros.
       iIntros (φ) "!>(%&->&Hl) Hφ".
-      wp_call. wp_continue.
+      wp. wp_continue.
       wp_store "Hl".
       iApply "Hφ".
       iExists _. by iFrame. }
@@ -97,8 +98,7 @@ Proof.
   wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
   wp_bind.
-  wp_continue. wp.
-  do 4 wp_continue.
+  do 5 wp_continue.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
