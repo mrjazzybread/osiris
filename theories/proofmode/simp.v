@@ -232,6 +232,24 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma val_as_bool_VTrue :
+  val_as_bool VTrue = ret true.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma val_as_bool_VFalse :
+  val_as_bool VFalse = ret false.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma val_as_bool_VBool b :
+  val_as_bool (VBool b) = ret b.
+Proof.
+  destruct b; reflexivity.
+Qed.
+
 Lemma simp_as_bool (x : bool) (m : free val) :
   simp m (ret #x) →
   simp (as_bool m) (ret x).
@@ -372,6 +390,13 @@ with simp1 :=
         solve [ eauto with simp_specs ]
       | (* residual goal: [simp (ret v) (ret v)] *)
       ]
+  | val_as_bool ?v =>
+      (* [val_as_bool] is opaque, so we treat it specially. *)
+      first [
+        rewrite val_as_bool_VTrue
+      | rewrite val_as_bool_VFalse
+      | rewrite val_as_bool_VBool
+      ]; simp0
   | eval ?η ?e =>
       first [
         (* Attempt 1. Solve the goal by exploiting the hint database

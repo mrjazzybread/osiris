@@ -93,18 +93,7 @@ Definition val_as_bool (v : val) : free bool :=
 Definition as_bool (m : free val) : free bool :=
   bind m val_as_bool.
 
-(* This lemma is likely to be useful when reasoning about unknown Boolean
-   values. *)
-(* TODO move this lemma elsewhere, and integrate it with our automated
-   simplification tactics *)
 
-Lemma val_as_bool_VBool b :
-  val_as_bool (VBool b) = ret b.
-Proof.
-  destruct b; reflexivity.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
 
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
