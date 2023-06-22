@@ -307,7 +307,7 @@ Ltac normalize :=
   rewrite ?true_iff, ?false_iff in *; (* TODO expensive? *)
   rewrite ?bind_bind. (* TODO may wish to rewrite at the root only. *)
 
-(* [close] solves a goal of the form [simp m1 m2] using reflexivity.
+(* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
    The term [m1] must be normalized.
 
