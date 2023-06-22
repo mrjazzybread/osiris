@@ -317,11 +317,6 @@ Ltac simp_close :=
   solve [
     simple eapply SimpReflexive
   | simple eapply prove_simp_ret_encode; [ encode ]
-(* TODO the following line is too powerful; because [eauto] ignores
-   opacity, this can have the surprising
-         behavior of skipping [ret_concat].
-  | simple eapply simp_reflexive; [ eauto with simp_specs encode ]
- *)
   | simp_ret
   ].
 
