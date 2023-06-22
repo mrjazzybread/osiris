@@ -230,113 +230,108 @@ Qed.
         If they are not then our tactics need improvements. *)
 
 Section Stdlib__specs.
-  Context `{!osirisGS_gen hlc Σ}.
 
-  Section Stdlib__spec__arith_comp.
+Context `{!osirisGS_gen hlc Σ}.
 
-    Lemma Stdlib__eq_spec :
-      decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->eq_repr_repr by assumption.
-      rewrite Zeq_spec.
-      tauto.
-    Qed.
+Lemma Stdlib__eq_spec :
+  decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->eq_repr_repr by assumption.
+  rewrite Zeq_spec.
+  tauto.
+Qed.
 
-    Lemma Stdlib__ne_spec :
-      decide_spec Stdlib__ne representable (λ x y, x ≠ y).
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->eq_repr_repr by assumption.
-      rewrite <-Zeq_spec.
-      rewrite Is_true_true negb_true -Is_true_false.
-      tauto.
-    Qed.
+Lemma Stdlib__ne_spec :
+  decide_spec Stdlib__ne representable (λ x y, x ≠ y).
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->eq_repr_repr by assumption.
+  rewrite <-Zeq_spec.
+  rewrite Is_true_true negb_true -Is_true_false.
+  tauto.
+Qed.
 
-    Lemma Stdlib__lt_spec :
-      decide_spec Stdlib__lt representable Z.lt.
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->lt_repr_repr by assumption.
-      rewrite Zlt_spec.
-      tauto.
-    Qed.
+Lemma Stdlib__lt_spec :
+  decide_spec Stdlib__lt representable Z.lt.
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->lt_repr_repr by assumption.
+  rewrite Zlt_spec.
+  tauto.
+Qed.
 
-    Lemma Stdlib__le_spec :
-      decide_spec Stdlib__le representable Z.le.
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->lt_repr_repr by assumption.
-      rewrite Is_true_true negb_true -Is_true_false.
-      rewrite Zlt_spec.
-      lia.
-    Qed.
+Lemma Stdlib__le_spec :
+  decide_spec Stdlib__le representable Z.le.
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->lt_repr_repr by assumption.
+  rewrite Is_true_true negb_true -Is_true_false.
+  rewrite Zlt_spec.
+  lia.
+Qed.
 
-    Lemma Stdlib__gt_spec :
-      decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
-                                           (* avoid [Z.gt] *)
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->lt_repr_repr by assumption.
-      rewrite Zlt_spec.
-      tauto.
-    Qed.
+Lemma Stdlib__gt_spec :
+  decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
+                                       (* avoid [Z.gt] *)
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->lt_repr_repr by assumption.
+  rewrite Zlt_spec.
+  tauto.
+Qed.
 
-    Lemma Stdlib__ge_spec :
-      decide_spec Stdlib__ge representable (λ x y, Z.le y x).
-                                           (* avoid [Z.ge] *)
-    Proof.
-      intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-      rewrite ->lt_repr_repr by assumption.
-      rewrite Is_true_true negb_true -Is_true_false.
-      rewrite Zlt_spec.
-      lia.
-    Qed.
+Lemma Stdlib__ge_spec :
+  decide_spec Stdlib__ge representable (λ x y, Z.le y x).
+                                       (* avoid [Z.ge] *)
+Proof.
+  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  rewrite ->lt_repr_repr by assumption.
+  rewrite Is_true_true negb_true -Is_true_false.
+  rewrite Zlt_spec.
+  lia.
+Qed.
 
-  End Stdlib__spec__arith_comp.
+Lemma Stdlib__ref__spec v s E :
+  {{{ True }}}
+    call Stdlib__ref v @ s; E
+  {{{ l, RET #l ; l ↦ v }}}.
+Proof.
+  iIntros (φ) "_ Hpost".
+  wp_enter. wp_simp.
+  wp_alloc l "[Hl _]".
+  iApply "Hpost". iFrame.
+Qed.
 
+Lemma Stdlib__load__spec l v s E :
+  {{{ l ↦ v }}}
+    call Stdlib__load #l @ s; E
+  {{{ RET v ; l ↦ v }}}.
+Proof.
+  iIntros (φ) "Hl Hpost".
+  wp_enter. wp_simp.
+  wp_load "Hl".
+  iApply "Hpost". iFrame.
+Qed.
 
+(* [Stdlib__store] is a curried binary function. The application to the
+   first argument is pure, so its specification is expressed using SIMP. *)
 
-  Lemma Stdlib__ref__spec v s E :
-    {{{ True }}}
-      call Stdlib__ref v @ s; E
-    {{{ l, RET #l ; l ↦ v }}}.
-  Proof.
-    iIntros (φ) "_ Hpost".
-    wp_enter. wp_simp.
-    wp_alloc l "[Hl _]".
-    iApply "Hpost". iFrame.
-  Qed.
-
-  Lemma Stdlib__load__spec l v s E :
-    {{{ l ↦ v }}}
-      call Stdlib__load #l @ s; E
-    {{{ RET v ; l ↦ v }}}.
-  Proof.
-    iIntros (φ) "Hl Hpost".
-    wp_enter. wp_simp.
-    wp_load "Hl".
-    iApply "Hpost". iFrame.
-  Qed.
-
-  (* [Stdlib__store] is a curried binary function. The application to the
-     first argument is pure, so its specification is expressed using SIMP. *)
-
-  Lemma Stdlib__store__spec l v v' s E :
-    SIMP
-      (call Stdlib__store #l)
-      (λ c,
-        {{{ l ↦ v }}}
-          call c v' @ s; E
-        {{{ RET #() ; l ↦ v' }}}
-      ).
-  Proof.
-    SIMP1.
-    iIntros (φ) "Hl Hpost".
-    wp_enter. wp_simp.
-    wp_store "Hl".
-    iApply "Hpost". iFrame.
-  Qed.
+Lemma Stdlib__store__spec l v v' s E :
+  SIMP
+    (call Stdlib__store #l)
+    (λ c,
+      {{{ l ↦ v }}}
+        call c v' @ s; E
+      {{{ RET #() ; l ↦ v' }}}
+    ).
+Proof.
+  SIMP1.
+  iIntros (φ) "Hl Hpost".
+  wp_enter. wp_simp.
+  wp_store "Hl".
+  iApply "Hpost". iFrame.
+Qed.
 
 End Stdlib__specs.
 
