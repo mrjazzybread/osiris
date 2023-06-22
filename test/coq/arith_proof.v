@@ -47,6 +47,9 @@ Definition is_equal `{Encode X} (e: X) : val → iProp Σ := λ v, ⌜v = #e⌝%
 (* As there is no proper notation for specifications of closures yet, I added
    the following for the goal to remain readable. *)
 
+(* TODO if we abstract the closure away as soon as we have stepped into it,
+   then we do not need these notations. See [wp_call_enter_and_abstract]. *)
+
 Local Notation "'Spec'  'of'  'the'  'addition.'" :=
   (add_spec _)
   (only printing).
