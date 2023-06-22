@@ -92,10 +92,8 @@ Section StdLib__code.
   Section Stdlib__bool.
     Definition Stdlib__not : val :=
       VClo1 EBoolNeg.
-    Definition Stdlib__andb : val :=
-      VClo2 EBoolConj.
-    Definition Stdlib__orb : val :=
-      VClo2 EBoolDisj.
+    (* Boolean conjunction and disjunction are not functions;
+       they are primitive operations. *)
   End Stdlib__bool.
 
   (* Putting everything together. *)
@@ -118,8 +116,6 @@ Section StdLib__code.
       EnvCons "fst" Stdlib__fst $
       EnvCons "snd" Stdlib__snd $
       EnvCons "not" Stdlib__not $
-      EnvCons "&&" Stdlib__andb $
-      EnvCons "||" Stdlib__orb $
       EnvNil.
 End StdLib__code.
 
