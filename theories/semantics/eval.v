@@ -712,7 +712,7 @@ Fixpoint eval η e : free val :=
       lookup_name fvs f
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
-     if (b1 : bool) then eval η e2 else ret VFalse
+      if (b1 : bool) then eval η e2 else ret VFalse
   | EString s => Ret (VString s)
   | EInt i =>
       (* An integer literal is interpreted as a machine integer. *)
