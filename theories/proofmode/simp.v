@@ -289,7 +289,7 @@ Create HintDb simp_specs.
 
 (* [simp_ret] expects of the goal of the form [simp (ret ?a1) (ret ?a2)].
    It reduces this goal to the equality [a1 = a2], and attempts to prove
-   this equality. *)
+   this equality. It leaves zero or one subgoal. *)
 
 Ltac simp_ret :=
   simple eapply prove_simp_ret; [ eauto with encode equality ].
