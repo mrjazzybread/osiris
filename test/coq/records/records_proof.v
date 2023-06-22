@@ -379,21 +379,19 @@ Proof.
   intros η. unfold η; clear η. wp.
 
   wp_simp_using r_elt_spec.
-  wp_bind.
 
   wp_continue.
   wp_continue.
   iApply wp_simp.
   { by eapply lily_body_spec; try done. }
 
-  wp. wp_bind. wp_continue. wp_bind.
+  wp. wp_continue. wp_bind.
 
   (* [r_val] has the expected value. *)
   o_specify "r_val" r_val_spec "#Hr_val".
   { iIntros "!>" (r). force_unfold_at_1 r_val_pure; destruct (b r) eqn:E;
       wp; wp_continue; try done;
       force_unfold_at_1 r_val_pure; rewrite E; by wp. }
-  wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
   wp_continue. wp_bind.
@@ -406,12 +404,10 @@ Proof.
   o_specify "is_odd" trivial_spec "#His_odd"; first done.
   wp_bind.
 
-  Opaque eval. (* TODO? *)
   o_specify "is_odd'" is_odd_spec "#His_odd'".
   { iIntros "!>"(n). force_unfold is_odd'_function.
     wp.
     by wp_simp_eusing is_odd'_body_spec. }
-  Transparent eval.
 
   lazymatch goal with
   | |- environments.envs_entails _ (?φ (VStruct ?η)) =>
@@ -461,7 +457,7 @@ Proof.
       as "[%vflip [%Hflip_simp #Hflip_spec]]";
       first reflexivity
   end.
-  wp_simp_using Hflip_simp. wp_bind. wp_continue.
+  wp_simp_using Hflip_simp. wp_continue.
 
   force_unfold_at_1 lily_expr.
   wp. wp_simp. wp.
@@ -514,7 +510,7 @@ Proof.
   wp.
   simpl build. (* TODO *)
   wp_bind.
-  wp. wp_bind.
+  wp.
 
   (* [r_elt] is a known value. *)
   wp_continue. wp_bind.
@@ -536,7 +532,7 @@ Proof.
     (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
     with #{| b := true; i := 10 |}; last reflexivity.
   wp_use "Hflip".
-  iIntros (? <-). wp. wp_bind.
+  iIntros (? <-). wp.
 
   (* [lily] has the expected value. *)
   wp_continue. wp_bind.
@@ -574,7 +570,6 @@ Proof.
       wp. equality. }
   }
 
-  wp_bind.
   wp_continue.
   wp_bind.
 
