@@ -69,7 +69,6 @@ Qed.
 
 Lemma prove_simp_downto_ret {A} m1 (a2 : A) :
   m1 = ret a2 →
-  simp (ret a2) (ret a2) → (* artificial residual subgoal *)
   simp m1 (ret a2).
 Proof.
   intros. subst. eauto with simp.
@@ -359,7 +358,12 @@ Ltac simp_eval :=
    The term [m1] is expected to be normalized already.
 
    If the goal is changed to [simp m'1 m2] then the term [m'1] is guaranteed
-   to be normalized. *)
+   to be normalized.
+
+   In some cases, the tactics are allowed to solve the goal. Of course this
+   must be done only in situations where we are certain (or have reasonable
+   grounds to believe) that the term has been simplified as far as possible
+   and cannot be further simplified. *)
 
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
@@ -378,12 +382,9 @@ with simp1 :=
       (* We may be able to prove [lookup_name η x = ret v], for some [v],
          by exploiting a hypothesis or a hint database. If so, we have
          made progress; we view this as a simplification step. *)
-      (* The tactic is formulated so as to leave a subgoal, which in this
-         case is trivial; it is of the form [simp (ret v) (ret v)]. *)
       simple eapply prove_simp_downto_ret; [
         (* subgoal: [m1 = ret v] *)
         solve [ eauto with simp_specs ]
-      | (* residual goal: [simp (ret v) (ret v)] *)
       ]
   | val_as_bool ?v =>
       (* [val_as_bool] is opaque, so we treat it specially. *)
