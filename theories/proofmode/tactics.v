@@ -344,8 +344,15 @@ Ltac wp_use H :=
   ];
   cbn.
 
+Ltac wp_enter :=
+  iApply wp_simp; [
+    simp_enter; [ eapply SimpReflexive ]
+  | (* residual goal *)
+  ].
+
+(* TODO remove this tactic *)
 Ltac wp_call :=
-  with_strategy transparent [call] unfold call; wp.
+  wp_enter; wp.
 
 Ltac wp_enter_and_abstract :=
   lazymatch goal with |- environments.envs_entails _ (wp _ _ (call ?v _) _) =>
@@ -449,6 +456,7 @@ Tactic Notation "oAbstract"
    It is defined as a notation so that it is easy to ask for more idents (Ltac
    cannot take a list of idents as argument for a tactic). *)
 Tactic Notation "oCall" constr(s1) ident(i1):=
+  (* TODO if possible, use [wp_enter] instead of [unfold call] *)
   with_strategy transparent [call] unfold call; simpl (bind _ _);
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>

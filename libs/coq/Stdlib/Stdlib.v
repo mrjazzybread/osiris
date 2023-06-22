@@ -238,9 +238,7 @@ Section Stdlib__specs.
              {{ λ v, WP call v v2 @s; E
                         {{ λ v, ⌜v = encode (i1 =? i2)%Z⌝ }} }}.
     Proof.
-      intros. subst. wp.
-      wp_call.
-      by rewrite eq_repr_repr.
+      intros. subst. wp. equality.
     Qed.
 
     Lemma Stdlib__lt__spec s E :
@@ -253,9 +251,7 @@ Section Stdlib__specs.
              {{ λ v, WP call v v2 @s; E
                         {{ λ v, ⌜v = encode (i1 <? i2)%Z⌝ }} }}.
     Proof.
-      intros. subst. wp.
-      wp_call.
-      by rewrite lt_repr_repr.
+      intros. subst. wp. equality.
     Qed.
 
     Lemma Stdlib__eq_spec :

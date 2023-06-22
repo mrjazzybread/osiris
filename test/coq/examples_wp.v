@@ -98,7 +98,7 @@ Goal
   ⊢ WP (eval EnvNil identity) {{ spec_id }}.
 Proof.
   wp. iModIntro. iIntros.
-  wp_call. iPureIntro. reflexivity.
+  wp_enter. wp. equality.
 Qed.
 
 (* let id = identity in
@@ -235,14 +235,6 @@ Definition divergence :=
 Lemma spec_divergence:
   ⊢ WP eval EnvNil divergence {{ λ _, ⌜False⌝ }}.
 Proof.
-  (* The tactic [wp_call] can be applied as many times as one wishes,
-     since this term does not terminate, but the goal can never be
-     reached in this way.
-     TODO: reduce the gap between the tactics in [safe_*] and those in [wp_*] in
-     order to use [wp_step] below. *)
-  wp. wp_bind.
-  Time do 100 wp_call.
-
 Abort. (* TODO now that we have Löb induction, prove this goal *)
 
 (* -------------------------------------------------------------------------- *)
@@ -290,13 +282,7 @@ Lemma spec_walk_example_concrete :
   ⊢ WP eval EnvNil (walk_example e) {{ λ v, ⌜v = encode tt⌝ }}.
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
-  iIntros.
-  wp.
-  wp_continue.
-  wp_call. wp_continue.
-  wp_call. wp_continue.
-  wp_call. wp_continue.
-  iPureIntro. reflexivity.
+  iIntros. wp. do 4 wp_continue. equality.
 Qed.
 
 (* The following example illustrates how to reason about a local function.

@@ -344,10 +344,7 @@ Proof.
   wp_par.
   { wp_bind. wp_use "Hr_val". iIntros (?<-). wp_call. wp_set_postcondition. }
   { wp_use "Hr_val". }
-  iIntros (??-><-). wp.
-  wp_call.
-
-  force_unfold_at_1 sum_pure. equality.
+  iIntros (??-><-). wp. equality.
 Qed.
 
 Lemma is_odd'_function_spec η :
@@ -428,11 +425,7 @@ Proof.
       iIntros(?<-).
       wp_call. wp_set_postcondition.
     - wp_use "Hr_val".
-    - iIntros (v1 v2 -> <-). wp.
-      wp_call.
-      iPureIntro. unfold sum_pure;
-        destruct (b r1), (b r2); cbn;
-        by rewrite int.add_repr_repr. }
+    - iIntros (v1 v2 -> <-). wp. equality. }
   { (* Proof of the [flip] function. *)
     iIntros "!>" (??); wp_call. wp_continue. by wp. }
 Time Qed.
