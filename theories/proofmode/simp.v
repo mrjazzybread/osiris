@@ -48,20 +48,6 @@ Ltac unfold_breakpoint m :=
       fail "Not at a breakpoint" (* TODO improve message *)
   end.
 
-(* [unfold_call m] determines whether the computation [m] is stopped at a
-   call and if so, performs an unfolding so as to move the goal past the
-   call. *)
-
-Ltac unfold_call m :=
-  lazymatch m with
-  | call _ _ =>
-      force_unfold_at_1 call
-  | bind (call _ _) _ =>
-      force_unfold_at_1 call
-  | _ =>
-      fail "Not at a call" (* TODO improve message *)
-  end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas are reasoning rules for goals of the form [simp _ _]. *)
