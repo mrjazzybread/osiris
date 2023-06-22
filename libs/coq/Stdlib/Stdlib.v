@@ -223,36 +223,16 @@ Qed.
 
 (* TODO specify every pure function using [SIMP], not [WP]. *)
 
+(* The following specification lemmas are no longer used,
+   since [simp] now steps into calls to concrete closures. *)
+
+(* TODO The proofs of these lemmas should be one-liners.
+        If they are not then our tactics need improvements. *)
+
 Section Stdlib__specs.
   Context `{!osirisGS_gen hlc Σ}.
 
   Section Stdlib__spec__arith_comp.
-
-    Lemma Stdlib__eq__spec s E :
-      ∀ v1 v2 (i1 i2: Z),
-        v1 = encode i1 →
-        v2 = encode i2 →
-        representable i1 →
-        representable i2 →
-        ⊢ WP call Stdlib__eq v1 @s; E
-             {{ λ v, WP call v v2 @s; E
-                        {{ λ v, ⌜v = encode (i1 =? i2)%Z⌝ }} }}.
-    Proof.
-      intros. subst. wp. equality.
-    Qed.
-
-    Lemma Stdlib__lt__spec s E :
-      ∀ v1 v2 (i1 i2: Z),
-        v1 = encode i1 →
-        v2 = encode i2 →
-        representable i1 →
-        representable i2 →
-        ⊢ WP call Stdlib__lt v1 @s; E
-             {{ λ v, WP call v v2 @s; E
-                        {{ λ v, ⌜v = encode (i1 <? i2)%Z⌝ }} }}.
-    Proof.
-      intros. subst. wp. equality.
-    Qed.
 
     Lemma Stdlib__eq_spec :
       decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
