@@ -427,7 +427,7 @@ with simp1 :=
       ]
   | call ?v1 ?v2 =>
       first [
-        simp1_call_step; normalize; simp0
+        simp_enter; simp0
       | simp1_call_reason v2
       ]
   | Stop CEval _ _ _ =>
@@ -482,16 +482,18 @@ with simp1 :=
       ]
   end end
 
-(* TODO comment *)
+(* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
+   into the call. It leaves one (normalized) subgoal. *)
 
-with simp1_call_step :=
+with simp_enter :=
   (* We intentionally use [eapply], not [simple eapply], so that [v1] can be
      unfolded on the fly if necessary. This is useful, e.g., when [v1] is a
      function in the standard library, such as [Stdlib__not]. *)
   first [
     eapply simp_enter_call_VClo
   | eapply simp_enter_call_VCloRec
-  ]
+  ];
+  normalize
 
 (* TODO comment *)
 (* TODO this tactic leaves zero subgoal,
@@ -599,22 +601,6 @@ Ltac simp_continue :=
       fail "[simp_continue] expects a goal of the form [simp _ _]"
   end.
 
-(* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
-   into the call. It is normally used at the beginning of the proof of a
-   function, that is, when reasoning about a callee. At a call site, it
-   is normally not used, unless the user wants to logically inline the
-   called function. *)
-
-Ltac simp_enter :=
-  normalize;
-  lazymatch goal with
-  | |- simp ?m _ =>
-      unfold_call m;
-      simp
-  | _ =>
-      fail "[simp_enter] expects a goal of the form [simp _ _]"
-  end.
-
 (* [simp_enter_and_abstract] expects a goal of the form [simp (call v _) _],
    where [v] is a concrete closure (typically a recursive closure). It steps
    into the call, then abstracts away the closure [v], so as to make it
@@ -623,8 +609,7 @@ Ltac simp_enter :=
 Ltac simp_call_enter_and_abstract :=
   lazymatch goal with |- simp (call ?v _) _ =>
     (* First, expand [call] away. *)
-    simp1_call_step;
-    normalize;
+    simp_enter;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
        with an abstract values. This ensures that we cannot step into
