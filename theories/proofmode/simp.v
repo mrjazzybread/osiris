@@ -280,6 +280,10 @@ Ltac simp_ret :=
 (* The tactic [normalize] attempts to reduce and normalize the goal before
    applying any reasoning rule. It is used by the tactics that follow. *)
 
+(* This tactic has the property that if a term is normalized then its
+   subterms are normalized as well. This property is exploited below;
+   when a term is decomposed, it is not necessary to normalize again. *)
+
 Ltac normalize :=
   cbn;
   rewrite ?true_iff, ?false_iff in *; (* TODO expensive? *)
