@@ -353,10 +353,6 @@ Ltac wp_enter :=
   | (* residual goal *)
   ].
 
-(* TODO remove this tactic *)
-Ltac wp_call :=
-  wp_enter; wp.
-
 Ltac wp_enter_and_abstract :=
   lazymatch goal with |- environments.envs_entails _ (wp _ _ (call ?v _) _) =>
     (* First, expand [call] away. *)

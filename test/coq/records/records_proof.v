@@ -303,7 +303,7 @@ Proof.
   { iPureIntro. force_unfold_at_1 flip_function. simp. }
   force_unfold_at_1 flip_body.
   iIntros "!>" (b i).
-  wp_call.
+  wp.
   Arguments build : simpl nomatch. (* TODO move *)
   wp_continue.
   wp_bind.
@@ -323,7 +323,7 @@ Proof.
   { iPureIntro. force_unfold_at_1 r_val_function. simp. }
   iIntros "!>" (r).
   force_unfold_at_1 r_val_body. force_unfold_at_1 r_val_pure.
-  wp_call.
+  wp.
   destruct (b r); do 2 wp_continue; equality.
 Qed.
 
@@ -341,10 +341,9 @@ Proof.
   { iPureIntro. force_unfold_at_1 sum_function. simp. }
   iIntros "!>" (r1 r2).
   force_unfold_at_1 sum_body.
-  wp_call; do 2 wp_continue.
-  wp_simp.
+  wp. do 2 wp_continue.
   wp_par.
-  { wp_bind. wp_use "Hr_val". iIntros (?<-). wp_call. wp_set_postcondition. }
+  { wp_bind. wp_use "Hr_val". iIntros (?<-). wp. wp_set_postcondition. }
   { wp_use "Hr_val". }
   iIntros (??-><-). wp. equality.
 Qed.
@@ -356,7 +355,7 @@ Lemma is_odd'_function_spec η :
   ⊢ is_odd_spec vis_odd'.
 Proof.
   intros a H1; subst a. force_unfold_at_1 is_odd'_function.
-  iIntros "!>" (n); wp_call.
+  iIntros "!>" (n). wp.
   by wp_simp_eusing is_odd'_body_spec.
 Qed.
 
@@ -392,7 +391,7 @@ Proof.
   (* [r_val] has the expected value. *)
   o_specify "r_val" r_val_spec "#Hr_val".
   { iIntros "!>" (r). force_unfold_at_1 r_val_pure; destruct (b r) eqn:E;
-      wp_call; wp_continue; try done;
+      wp; wp_continue; try done;
       force_unfold_at_1 r_val_pure; rewrite E; by wp. }
   wp_bind.
 
@@ -410,7 +409,7 @@ Proof.
   Opaque eval. (* TODO? *)
   o_specify "is_odd'" is_odd_spec "#His_odd'".
   { iIntros "!>"(n). force_unfold is_odd'_function.
-    wp_call.
+    wp.
     by wp_simp_eusing is_odd'_body_spec. }
   Transparent eval.
 
@@ -421,15 +420,15 @@ Proof.
   cbn; repeat iSplitL; try (iExists _; iSplit; first done); try done.
   { (* Proof of the [sum] function.*)
     iIntros "!>"(r1 r2).
-    wp_call. wp_continue. wp_continue.
+    wp. wp_continue. wp_continue.
     wp_par.
     - wp_use "Hr_val".
       iIntros(?<-).
-      wp_call. wp_set_postcondition.
+      wp. wp_set_postcondition.
     - wp_use "Hr_val".
     - iIntros (v1 v2 -> <-). wp. equality. }
   { (* Proof of the [flip] function. *)
-    iIntros "!>" (??); wp_call. wp_continue. by wp. }
+    iIntros "!>" (??); wp. wp_continue. equality. }
 Time Qed.
 
 (* TODO making definitions opaque blocks the [simp] tactics
@@ -522,7 +521,7 @@ Proof.
 
   (* [flip] has the expected spec. *)
   o_specify "flip" flip_spec "#Hflip".
-  { iIntros "!>" (b i); wp_call. wp_bind.
+  { iIntros "!>" (b i); wp.
     wp_continue.
     unfold sort. simpl build. (* TODO *)
     wp. equality. }
@@ -549,8 +548,8 @@ Proof.
   o_specify "r_val" r_val_spec "#Hr_val".
   { iIntros "!>" ([[|] i]).
     (* Case: [b] is true. *)
-    { wp_call. do 2 wp_continue. equality. }
-    { wp_call. do 2 wp_continue. equality. } }
+    { wp. do 2 wp_continue. equality. }
+    { wp. do 2 wp_continue. equality. } }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
