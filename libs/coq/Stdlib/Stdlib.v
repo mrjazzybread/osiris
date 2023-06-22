@@ -317,86 +317,45 @@ Section Stdlib__specs.
 
 
 
-  Section Stdlib__spec__store.
-    Lemma Stdlib__ref__spec v (s: stuckness) (E: coPset) :
-      ⊢ WP call Stdlib__ref v @ s; E
-           {{ λ vl, ∃ (l: loc), l ↦ v ∗ ⌜vl = VLoc l ⌝ }}.
-    Proof.
-      wp_call. wp_alloc l "[Hl _]".
-      iExists l.
-      iFrame.
-      iPureIntro. reflexivity.
-    Qed.
-
-    Lemma Stdlib__load__spec vl l v s E :
-      {{{ ⌜vl = VLoc l⌝ ∗ l ↦ v }}}
-        call Stdlib__load vl @ s; E
-      {{{ r, RET r; ⌜r = v⌝ ∗ l ↦ v }}}.
-    Proof.
-      iIntros (φ) "[->Hpre] Hφ".
-      wp_call.
-      wp_load "Hpre".
-      wp_use "Hφ".
-      iFrame.
-      iPureIntro. reflexivity.
-    Qed.
-
-    Lemma Stdlib__store__spec vl l v v' s E :
-      {{{ ⌜vl = VLoc l⌝ ∗ l ↦ v }}}
-        call Stdlib__store vl @ s; E
-      {{{ vstore, RET vstore;
-                  WP call vstore v' @ s; E
-                     {{ λ v, ⌜ v = VUnit ⌝ ∗
-                             l ↦ v' }} }}}.
-    Proof.
-      iIntros (φ) "[-> Hl] Hφ".
-      wp_call. iApply "Hφ". clear φ.
-      wp_call.
-      wp_store "Hl". by iSplit.
-    Qed.
-  End Stdlib__spec__store.
-
-
-  (* Lemmas to better handle fully-applied functions of the standart library. *)
-  Lemma Stdlib__load__spec_tac vl l v s E :
-    ⊢ ∀ φ, ⌜ vl = VLoc l ⌝ -∗
-    l ↦ v -∗
-    (l ↦ v -∗ φ v) -∗ (* TODO: add a later to this premice (will require to change
-              [wp_covariant]. *)
-    WP call Stdlib__load vl @ s; E {{ λ v, φ v }}.
+  Lemma Stdlib__ref__spec v s E :
+    {{{ True }}}
+      call Stdlib__ref v @ s; E
+    {{{ l, RET #l ; l ↦ v }}}.
   Proof.
-    iIntros(φ) "-> Hl Hv".
-    iApply (wp_covariant with "[Hl]").
-    { iApply (Stdlib__load__spec with "[$Hl]"); first done.
-      iNext. iIntros. iAssumption. }
-    iIntros (?) "[-> Hl]".
-    iApply ("Hv" with "Hl").
+    iIntros (φ) "_ Hpost".
+    wp_enter. wp_simp.
+    wp_alloc l "[Hl _]".
+    iApply "Hpost". iFrame.
   Qed.
 
-  (* TODO: same as above: get a later in the premice. *)
-  Lemma Stdlib__ref__spec_tac {A} v s E φ (k: free A) :
-    ⊢ (∀ l vl, ⌜vl = VLoc l⌝ -∗ l ↦ v -∗ WP k @ s; E {{ φ }}) -∗
-    WP call Stdlib__ref v {{ λ (vl: val), WP k @s; E {{ φ }} }}.
+  Lemma Stdlib__load__spec l v s E :
+    {{{ l ↦ v }}}
+      call Stdlib__load #l @ s; E
+    {{{ RET v ; l ↦ v }}}.
   Proof.
-    iIntros "H".
-    wp_use Stdlib__ref__spec.
-    iIntros (vl)"(%l & Hl & ->)".
-    by iApply "H".
+    iIntros (φ) "Hl Hpost".
+    wp_enter. wp_simp.
+    wp_load "Hl".
+    iApply "Hpost". iFrame.
   Qed.
 
-  Lemma Stdlib__store__spec_tac l v v' φ s E :
-    l ↦ v -∗
-    ▷ (l ↦ v' -∗ φ VUnit) -∗
-    WP call Stdlib__store (VLoc l) @ s; E
-         {{ vpartial, WP call vpartial v' @ s; E {{ v, φ v }} }}.
+  (* [Stdlib__store] is a curried binary function. The application to the
+     first argument is pure, so its specification is expressed using SIMP. *)
+
+  Lemma Stdlib__store__spec l v v' s E :
+    SIMP
+      (call Stdlib__store #l)
+      (λ c,
+        {{{ l ↦ v }}}
+          call c v' @ s; E
+        {{{ RET #() ; l ↦ v' }}}
+      ).
   Proof.
-    iIntros "Hl Hccl".
-    iApply (Stdlib__store__spec with "[$Hl //]").
-    iNext.
-    iIntros (vstore) "Hstore".
-    wp_use "Hstore".
-    iIntros(?)"[-> Hl]".
-    iApply ("Hccl" with "Hl").
+    SIMP1.
+    iIntros (φ) "Hl Hpost".
+    wp_enter. wp_simp.
+    wp_store "Hl".
+    iApply "Hpost". iFrame.
   Qed.
 
 End Stdlib__specs.
