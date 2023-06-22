@@ -122,6 +122,30 @@ Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
+(* The following two lemmas paraphrase the definition of [call] in eval.v.
+   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
+   a concrete closure (as opposed to a rigid metavariable), they step into
+   the call. *)
+
+Lemma simp_enter_call_VClo η a v2 m :
+  simp (acall η a v2) m →
+  simp (call (VClo η a) v2) m.
+Proof.
+  tauto.
+Qed.
+
+Lemma simp_enter_call_VCloRec η rbs g v2 m :
+  simp (
+    let δ := eval_rec_bindings η rbs in
+    let η := concat δ η in
+    a ← lookup_rec_bindings rbs g ;
+    acall η a v2
+  ) m →
+  simp (call (VCloRec η rbs g) v2) m.
+Proof.
+  tauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas are used by the [simp] tactic. *)
@@ -762,6 +786,30 @@ Lemma SIMP_call_covariant `{Encode X} `{Encode Y}
   SIMP (call v1 v'2) ψ.
 Proof.
   eauto using SIMP_covariant, SIMP_call.
+Qed.
+
+(* The following two lemmas paraphrase the definition of [call] in eval.v.
+   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
+   a concrete closure (as opposed to a rigid metavariable), they step into
+   the call. *)
+
+Lemma SIMP_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) :
+  SIMP (acall η a v2) φ →
+  SIMP (call (VClo η a) v2) φ.
+Proof.
+  tauto.
+Qed.
+
+Lemma SIMP_enter_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
+  SIMP (
+    let δ := eval_rec_bindings η rbs in
+    let η := concat δ η in
+    a ← lookup_rec_bindings rbs g ;
+    acall η a v2
+  ) φ →
+  SIMP (call (VCloRec η rbs g) v2) φ.
+Proof.
+  tauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
