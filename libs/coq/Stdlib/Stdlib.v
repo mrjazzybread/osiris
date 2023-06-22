@@ -360,16 +360,6 @@ Section Stdlib__specs.
 
 End Stdlib__specs.
 
-Global Hint Resolve
-  Stdlib__eq_spec
-  Stdlib__ne_spec
-  Stdlib__lt_spec
-  Stdlib__le_spec
-  Stdlib__gt_spec
-  Stdlib__ge_spec
-: SIMP_specs.
-(* TODO these specs are now unused, I think *)
-
 (* -------------------------------------------------------------------------- *)
 
 (* TODO WIP *)
