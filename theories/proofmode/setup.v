@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import weakestpre.
-From osiris.proofmode Require Import simp.
+From osiris.proofmode Require Import simp capital_SIMP.
 
 (* -------------------------------------------------------------------------- *)
 
