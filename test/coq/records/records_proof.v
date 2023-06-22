@@ -95,6 +95,8 @@ Definition enc_lily : val := # [enc_r_elt; enc_r_elt'].
 (* [is_equal] asserts the equality of two values. *)
 Definition is_equal (v res: val) : iProp Σ :=
   □ ⌜ res = v ⌝.
+  (* TODO persistence is redundant here *)
+  (* TODO use Iris's RET notation instead of [is_equal] *)
 
 (* [trivial_spec] is a dummy specification. *)
 Definition trivial_spec (v: val) : iProp Σ :=
@@ -228,7 +230,6 @@ Proof.
   intros ? ? Hrelt Hflip Hstdlib.
   force_unfold_at_1 lily_expr.
   simp.
-  simp_enter.
   simp_continue.
 Qed.
 
@@ -242,7 +243,6 @@ Proof.
   intros??. destruct (r.(b)) eqn:E;
     simp; rewrite E; simp; simp_continue;
     rewrite /r_val_pure E; simp.
-  simp_enter. simp_enter. simp_enter. simp_enter.
 Qed.
 
 Local Hint Resolve r_val_body_spec : simp_specs.
@@ -256,8 +256,6 @@ Lemma sum_body_spec η (r1 r2: R):
 Proof.
   intros H1 H2 H3 H4.
   force_unfold_at_1 sum_body.
-  simp.
-  force_unfold call. (* TODO all three calls at once? *)
   simp.
 Qed.
 
@@ -279,10 +277,10 @@ Proof.
     destruct (is_odd_pure n') eqn:E;
     remember (nat_encode_f n') as enc_n.
     - (* [n'] is even. *)
-      simp. simp_continue. simp_enter.
-      rewrite E. simp. simp_enter.
+      simp. simp_continue.
+      rewrite E. simp.
     - (* [n'] is odd. *)
-      simp. simp_continue. simp_enter. simp_enter.
+      simp. simp_continue.
       rewrite E. simp. }
   Opaque is_odd'_function.
 Qed.
@@ -304,9 +302,12 @@ Proof.
   { iPureIntro. force_unfold_at_1 flip_function. simp. }
   force_unfold_at_1 flip_body.
   iIntros "!>" (b i).
-  wp_call. wp_continue. wp.
-  wp. do 2 wp_bind.
-  wp. iPureIntro. reflexivity.
+  wp_call.
+  Arguments build : simpl nomatch. (* TODO move *)
+  wp_continue.
+  wp_bind.
+  unfold sort. simpl build. (* TODO *)
+  wp. equality.
 Qed.
 
 Lemma r_val_function_spec η :
@@ -319,10 +320,10 @@ Proof.
   iExists _.
   iSplit.
   { iPureIntro. force_unfold_at_1 r_val_function. simp. }
-  by iIntros "!>" (r);
-  force_unfold_at_1 r_val_body; force_unfold_at_1 r_val_pure;
-  wp_call; destruct (b r); do 2 wp_continue;
-  [ rewrite -bind_bind; repeat wp || wp_bind | ].
+  iIntros "!>" (r).
+  force_unfold_at_1 r_val_body. force_unfold_at_1 r_val_pure.
+  wp_call.
+  destruct (b r); do 2 wp_continue; equality.
 Qed.
 
 Lemma sum_function_spec η vr_val :
@@ -517,7 +518,9 @@ Lemma Records_spec :
   ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
 Proof.
   intros η.
-  wp. wp_bind.
+  wp.
+  simpl build. (* TODO *)
+  wp_bind.
   wp. do 2 wp_bind.
 
   (* [r_elt] is a known value. *)
@@ -526,7 +529,9 @@ Proof.
   (* [flip] has the expected spec. *)
   o_specify "flip" flip_spec "#Hflip".
   { iIntros "!>" (b i); wp_call. wp_bind.
-    wp_continue. wp. wp_bind. wp. wp_bind. wp. done. }
+    wp_continue.
+    unfold sort. simpl build. (* TODO *)
+    wp. equality. }
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)
@@ -550,42 +555,50 @@ Proof.
   o_specify "r_val" r_val_spec "#Hr_val".
   { iIntros "!>" ([[|] i]).
     (* Case: [b] is true. *)
-    { wp_call. by do 2 wp_continue. }
-    { wp_call. by do 2 wp_continue. } }
+    { wp_call. do 2 wp_continue. equality. }
+    { wp_call. do 2 wp_continue. equality. } }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
   o_specify "sum" sum_spec "#Hsum".
-  { iIntros "!>" ([b1 i1] [b2 i2]). wp_call. do 2 wp_continue.
+  { iIntros "!>" ([b1 i1] [b2 i2]).
     wp.
-    wp_simp.
-    wp_par;
-    (replace (VRecord (EnvCons "b" (VBool b1) $ EnvCons "i" (VInt (int.repr i1)) EnvNil))
-      with (#{| b:=b1; i:= i1|}); last reflexivity);
-    (replace (VRecord (EnvCons "b" (VBool b2) $ EnvCons "i" (VInt (int.repr i2)) EnvNil))
-      with (#{| b:=b2; i:= i2|}); last reflexivity).
-    2: by wp_use "Hr_val".
-    { wp_bind. wp_use "Hr_val". iIntros(?<-).
-      wp. iIntros (vpartial).
-      iIntros "H"; iExact "H". }
-    { iIntros (v1 v2) "Hadd <-".
-      wp. iApply (wp_covariant with "Hadd").
-      iIntros (?->). iPureIntro. reflexivity. } }
+    do 2 wp_continue.
+    wp_par.
+    { wp_bind.
+      (* TODO avoid manual encoding *)
+      change (VRecord (EnvCons "b" (VBool b1) $ EnvCons "i" (VInt (int.repr i1)) EnvNil))
+      with (#{| b:=b1; i:= i1|}).
+      wp_use "Hr_val". iIntros(?<-).
+      wp_simp.
+      iApply wp_ret.
+      wp_set_postcondition. }
+    { (* TODO avoid manual encoding *)
+      change (VRecord (EnvCons "b" (VBool b2) $ EnvCons "i" (VInt (int.repr i2)) EnvNil))
+      with (#{| b:=b2; i:= i2|}).
+      wp_use "Hr_val". }
+    { iIntros (v1 v2) "%Hadd <-". subst v1.
+      wp. equality. }
+  }
 
-  wp_concat. wp. wp_bind. (* TODO this line may need fixing *)
+  wp_bind.
+  wp_continue.
+  wp_bind.
 
   (* [is_odd] is given the trivial spec for now. *)
   o_specify "is_odd" trivial_spec "#?"; first done.
   wp_bind.
 
   o_specify "is_odd'" is_odd_spec "#?".
-  { iLöb as "IH". iIntros "!>" ([|]); wp_call; wp_continue.
-    { done. }
-    { replace (nat_encode_f n) with #n; last reflexivity.
+  { iLöb as "IH". iIntros "!>" ([|]); wp_call_enter_and_abstract;
+    iIntros (is_odd'); wp.
+    { wp_continue. equality. }
+    { wp_continue.
+      (* TODO manual encoding *)
+      replace (nat_encode_f n) with #n; last reflexivity.
       iApply (wp_covariant with "IH").
       iIntros (?->).
-      destruct (is_odd_pure n) eqn:E;
-      by wp_call. } }
+      destruct (is_odd_pure n) eqn:E; wp; equality. } }
 
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.

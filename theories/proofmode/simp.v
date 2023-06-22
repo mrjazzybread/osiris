@@ -437,21 +437,10 @@ with simp1 :=
         simp0
       ]
   | call ?v1 ?v2 =>
-      lazymatch v2 with
-      | #(?x2) =>
-          (* The actual argument is already encoded. Fine. *)
-          (* We reason about function calls using whatever hypotheses may be
-             present in the context and in the hint database [simp_specs]. *)
-          simp_solve_eauto
-      | _ =>
-          (* The actual argument is not yet encoded. It may or may not be
-             necessary to encode it, depending on the specification on the
-             function that is called. *)
-          first [
-            simp_solve_eauto
-          | simple eapply simp_call; [ solve [ encode ] | simp_solve_eauto ]
-          ]
-      end
+      first [
+        simp1_call_step; normalize; simp0
+      | simp1_call_reason v2
+      ]
   | Stop CEval _ _ _ =>
       first [ simple eapply advance_SimpEvalNext | simple eapply advance_SimpEval ]; normalize;
       simp0
@@ -503,6 +492,38 @@ with simp1 :=
         simp1_par
       ]
   end end
+
+(* TODO comment *)
+
+with simp1_call_step :=
+  (* We intentionally use [eapply], not [simple eapply], so that [v1] can be
+     unfolded on the fly if necessary. This is useful, e.g., when [v1] is a
+     function in the standard library, such as [Stdlib__not]. *)
+  first [
+    eapply simp_enter_call_VClo
+  | eapply simp_enter_call_VCloRec
+  ]
+
+(* TODO comment *)
+(* TODO this tactic leaves zero subgoal,
+        but the comments say that it should leave one subgoal *)
+
+with simp1_call_reason v2 :=
+  lazymatch v2 with
+  | #(?x2) =>
+      (* The actual argument is already encoded. Fine. *)
+      (* We reason about function calls using whatever hypotheses may be
+         present in the context and in the hint database [simp_specs]. *)
+      simp_solve_eauto
+  | _ =>
+      (* The actual argument is not yet encoded. It may or may not be
+         necessary to encode it, depending on the specification on the
+         function that is called. *)
+      first [
+        simp_solve_eauto
+      | simple eapply simp_call; [ solve [ encode ] | simp_solve_eauto ]
+      ]
+  end
 
 (* [simp0_bind] and [simp1_bind] are special cases of [simp0] and [simp1].
 
@@ -603,6 +624,23 @@ Ltac simp_enter :=
       simp
   | _ =>
       fail "[simp_enter] expects a goal of the form [simp _ _]"
+  end.
+
+(* [simp_enter_and_abstract] expects a goal of the form [simp (call v _) _],
+   where [v] is a concrete closure (typically a recursive closure). It steps
+   into the call, then abstracts away the closure [v], so as to make it
+   opaque. *)
+
+Ltac simp_call_enter_and_abstract :=
+  lazymatch goal with |- simp (call ?v _) _ =>
+    (* First, expand [call] away. *)
+    simp1_call_step;
+    normalize;
+    (* Second, abstract away the closure (of which there are typically
+       several occurrences in the hypotheses and goal), replacing it
+       with an abstract values. This ensures that we cannot step into
+       recursive calls. *)
+    generalize dependent v
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -902,15 +940,16 @@ with SIMP1 :=
 with SIMP_close :=
   solve [ eauto with SIMP_specs representable ].
 
+Ltac SIMP1_call_step :=
+  first [
+    eapply SIMP_enter_call_VClo
+  | eapply SIMP_enter_call_VCloRec
+  ].
+
 Ltac SIMP_enter :=
+  SIMP1_call_step;
   normalize;
-  lazymatch goal with
-  | |- SIMP ?m _ =>
-      unfold_call m;
-      SIMP1
-  | _ =>
-      fail "[SIMP_enter] expects a goal of the form [SIMP _ _]"
-  end.
+  SIMP1.
 
 Ltac SIMP_continue :=
   normalize;
@@ -962,3 +1001,15 @@ Ltac SIMP_call :=
       simple eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
     | cbn ]
   ].
+
+Ltac SIMP_call_enter_and_abstract :=
+  lazymatch goal with |- SIMP (call ?v _) _ =>
+    (* First, expand [call] away. *)
+    SIMP1_call_step;
+    normalize;
+    (* Second, abstract away the closure (of which there are typically
+       several occurrences in the hypotheses and goal), replacing it
+       with an abstract values. This ensures that we cannot step into
+       recursive calls. *)
+    generalize dependent v
+  end.

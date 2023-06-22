@@ -5,10 +5,19 @@ Local Notation ε := EnvNil. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
-(* A test involving [as_bool]. *)
+(* Tests involving [as_bool]. *)
 
 Goal
   simp (as_bool (ret #true)) (ret true).
+Proof.
+  simp.
+Qed.
+
+Goal
+  let e :=
+    EBoolDisj EFalse (EBoolConj ETrue (EBoolNeg EFalse))
+  in
+  simp (eval ε e) (ret VTrue).
 Proof.
   simp.
 Qed.
@@ -22,9 +31,9 @@ Goal ∀ η,
   let e := EMultiApp (EMkPath ["Stdlib"; "not"]) [ EFalse ] in
   simp (eval η e) (ret VTrue).
 Proof.
+  (* [Stdlib.not] is a concrete closure, so the interpreter automatically
+     enters it. *)
   intros. simp.
-  (* We are blocked at the call, so we must explicitly enter it. *)
-  simp_enter.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -132,7 +141,7 @@ Proof.
   eexists.
   split.
   + simp.
-  + unfold spec_id. intros. simp_enter.
+  + unfold spec_id. intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -168,7 +177,7 @@ Proof.
      for this closure; then, we can make this closure opaque. *)
   simp_specify "id" spec_id.
   (* Subgoal: prove that the closure satisfies [spec_id]. *)
-  { unfold spec_id. intros. simp_enter. }
+  { unfold spec_id. intros. simp. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
   intros. simp_continue.
 Qed.
@@ -187,7 +196,7 @@ Proof.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
-  { unfold spec_id. intros. simp_enter. }
+  { unfold spec_id. intros. simp. }
   intros. simp_continue.
 Qed.
 
@@ -205,7 +214,7 @@ Proof.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
-  { unfold spec_id. intros. simp_enter. }
+  { unfold spec_id. intros. simp. }
   intros. simp_continue.
 Qed.
 
@@ -223,7 +232,7 @@ Proof.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
-  { unfold spec_id. intros. simp_enter. }
+  { unfold spec_id. intros. simp. }
   intros. simp_continue.
 Qed.
 
@@ -289,9 +298,9 @@ Proof.
   intros.
   simp.
   simp_continue.
-  simp_enter. simp_continue.
-  simp_enter. simp_continue.
-  simp_enter. simp_continue.
+  simp_continue.
+  simp_continue.
+  simp_continue.
 Qed.
 
 (* The following example illustrates how to reason about a local function.
@@ -315,10 +324,12 @@ Proof.
     generalize η. clear xs η. intros η.
     unfold spec_walk.
     (* Prove the spec by induction on the list [bs]. *)
-    induction xs as [| x xs ]; simp_enter.
-    (* The [nil] branch has been automatically solved. *)
-    (* This is the [cons] branch. *)
-    simp_continue. simp_continue.
+    induction xs as [| x xs ];
+    simp_call_enter_and_abstract; intros walk; [| intros Hwalk ].
+    (* The [nil] branch. *)
+    + simp. simp_continue.
+    (* The [cons] branch. *)
+    + simp. simp_continue.
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   intros walk Hwalk. simp_continue.
@@ -350,10 +361,12 @@ Goal
   spec_length (VCloRec η length "length").
 Proof.
   unfold spec_length.
-  induction xs as [| x xs ]; simp_enter.
-  (* The [nil] branch has been automatically solved. *)
-  (* This is the [cons] branch. *)
-  simp_continue. simp_continue.
+  induction xs as [| x xs ];
+  simp_call_enter_and_abstract; intros length; [| intros Hlength ].
+  (* The [nil] branch. *)
+  { simp. simp_continue. }
+  (* The [cons] branch. *)
+  { simp. simp_continue. }
 Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -373,7 +386,7 @@ Proof.
   unfold weak_spec_length.
   induction xs as [| x xs ].
   { eexists; split.
-    + simp_enter. simp_continue.
+    + simp. simp_continue.
     + lia. }
   { (* The proof goes through, but it is necessary to destruct the
        induction hypothesis and name the result of the recursive
@@ -381,7 +394,8 @@ Proof.
        This is unpleasant. *)
     destruct IHxs as (n & ? & ?).
     eexists; split.
-    + simp_enter. simp_continue.
+    + simp_call_enter_and_abstract. intros length Hlength.
+      simp. simp_continue.
     + lia. }
 Qed.
 
@@ -396,7 +410,9 @@ Goal
   weak_spec_length' (VCloRec η length "length").
 Proof.
   unfold weak_spec_length'.
-  induction xs as [| x xs ]; SIMP_enter; SIMP_continue.
+  induction xs as [| x xs ];
+  SIMP_call_enter_and_abstract; intros length; [| intros Hlength ];
+  SIMP1; SIMP_continue.
   { lia. }
   { intros n ?. SIMP1. lia. }
 Qed.

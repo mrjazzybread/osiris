@@ -91,38 +91,33 @@ Proof.
 
       (* The proof can now continue as expected. *)
       iIntros(i2 H2). wp. wp_continue.
-      wp_bind.
-      wp_use Stdlib__eq__spec; try done; try apply int_representable.
-      iIntros (veq_part) "Hspec_eq".
-      wp_bind.
-      wp_use "Hspec_eq".
-      iIntros (? ->).
+      assert (representable i2) by apply int_representable. (* TODO *)
+      rewrite ->eq_repr_repr by representable.
       destruct (i2 =? 0)%Z eqn:E; wp.
       { (* [i2 = 0%Z] *)
         apply Z.eqb_eq in E as ->.
-        wp_bind. wp_use "Hmult"; first done.
+        wp_bind.
+        wp_use "Hmult"; first done.
         iIntros (Hmult_part) "Hmult_part".
         iApply (wp_covariant with "[Hmult_part]").
         { iApply "Hmult_part"; done. }
         iIntros(?->).
-        iPureIntro. do 2 f_equal. lia. }
+        equality. }
       { (* [i2 != 0%Z], goal: [1 + (add x (y - 1)) == x + y] *)
-        wp_par.
-        { (* [λ y, 1 + y] *) iIntros (vpartial) "H". iExact "H". }
-        { (* [add x (y - 1)]. *)
-          wp_par.
-          { wp_use "Hadd"; iPureIntro; exact H1. }
-          - wp_call.
-            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I); encode.
-          - iIntros (vpadd ?) "Hadd_partial ->".
-            wp_use "Hadd_partial".
-            iPureIntro. lia. }
-        { iIntros (vadd1 ?) "Hadd1 ->".
-          wp.
-          iSpecialize ("Hadd1" $! (i1 + (i2 - 1))%Z NotStuck top). wp.
-          wp_use "Hadd1".
-          iIntros (?->).
-          iPureIntro. do 2 f_equal. lia. } } }
+        wp_bind.
+        wp_use "Hadd".
+        { iPureIntro. lia. }
+        iIntros (vpadd) "Hvpadd".
+        rewrite sub_repr_repr.
+        wp_bind.
+        iApply (wp_covariant with "[Hvpadd]").
+        { wp_use "Hvpadd".
+          iPureIntro. lia. }
+        iIntros (?) "->".
+        wp.
+        equality.
+     }
+  }
 
   (* ------------------------------------------------------------------ *)
   (* Specification of the multiplication. *)
@@ -134,48 +129,34 @@ Proof.
 
     (* The proof can now continue as expected. *)
     iIntros(i2 H2). wp. wp_continue.
-    wp_bind.
-    wp_use Stdlib__eq__spec; try done; try apply int_representable.
-    iIntros (veq_part) "Heq_part".
-    wp_bind. wp_use "Heq_part".
-    iIntros (?->).
-    destruct (i2 =? 0)%Z eqn:E.
-    { (* [i2 = 0%Z]. *) wp.
-      apply Z.eqb_eq in E as ->. iPureIntro. do 2 f_equal. lia. }
-    { (* [i2 != 0%Z]. *) wp.
-      wp_bind.
-      wp_use Stdlib__eq__spec; try done; try apply int_representable.
-      clear veq_part.
-      iIntros (veq_part) "Heq_part".
-      wp_bind. wp_use "Heq_part".
-      iIntros (?->).
-      destruct (i2 =? 1)%Z eqn:E1.
-      { (* [i2 = 1%Z]. *) wp.
-        apply Z.eqb_eq in E1 as ->. iPureIntro. do 2 f_equal. lia. }
-      { (* [i2 <> 1%Z]. *) wp.
+    assert (representable i2) by apply int_representable.
+    rewrite -> eq_repr_repr by representable.
+    destruct (i2 =? 0)%Z eqn:E; wp.
+    { (* [i2 = 0%Z]. *) equality. }
+    { (* [i2 != 0%Z]. *)
+      rewrite -> eq_repr_repr by representable.
+      destruct (i2 =? 1)%Z eqn:E1; wp.
+      { (* [i2 = 1%Z]. *) equality. }
+      { (* [i2 <> 1%Z]. *)
         (* Proof that [add x (mult x (y - 1)) == x * y]. *)
         wp_par.
         { (* [λ y, add x y]. *)
           iSpecialize ("Hadd" $! i1 H1).
           wp_use "Hadd". }
-        { (* [mult x (y - 1)] *)
-          wp_par.
-          { (* [λ y, mult x y]. *)
-            wp_use "Hmult"; iPureIntro; exact H1. }
-          { (* [y - 1]. *) wp_call.
-            by instantiate (1 := λ v, ⌜ v = # (i2 - 1)%Z ⌝%I); encode. }
-          { iIntros (vmult_part ?) "Hmult_part ->".
-            wp. wp_use "Hmult_part".
-            iPureIntro. lia. } }
-        { (* Finish the application of [add]. *)
-          iIntros (vadd_part ?) "Hadd_part ->".
+        { wp_bind.
+          rewrite sub_repr_repr.
+          (* [mult x (y - 1)] *)
+          wp_use "Hmult".
+          { iPureIntro. lia. }
+          iIntros (vmult_part) "Hvmult_part".
+          wp_use "Hvmult_part".
+          iPureIntro. lia. }
+        { iIntros (v1 v2) "Hv1 ->".
           wp.
-          unshelve iSpecialize ("Hadd_part" $! (i1 * (i2 - 1))%Z _).
-          { apply Ztac.mul_le; lia. }
-          wp_use "Hadd_part".
+          iApply (wp_covariant with "[Hv1]").
+          { iApply "Hv1". iPureIntro. apply Ztac.mul_le; lia. }
           iIntros (?->).
-          iPureIntro. do 2 f_equal.
-          lia. } } } }
+          equality. } } } }
 
   wp_par.
   { by wp_use "Hadd". }

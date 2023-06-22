@@ -66,8 +66,7 @@ Proof.
   o_specify "new_counter" new_counter_spec "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     wp_call. wp_continue.
-    iApply wp_covariant; first by iApply Stdlib__ref__spec.
-    iIntros (?) "(%l&Hl&->)".
+    wp_alloc l "[Hl _]".
     wp_autocontinue. wp_use "Hφ". clear φ.
     iExists l.
     iSplitL; last iSplit.
@@ -79,9 +78,7 @@ Proof.
       iIntros(φ)"!>(%&->&Hl) Hφ".
       wp_call. wp_autocontinue.
 
-      iApply (Stdlib__load__spec_tac $! φ with "[//]Hl").
-
-      iIntros "Hl".
+      wp_load "Hl".
       iApply "Hφ".
       iSplit; first done.
       iExists _; by iFrame. }
@@ -90,8 +87,7 @@ Proof.
       unfold upd_spec. iIntros.
       iIntros (φ) "!>(%&->&Hl) Hφ".
       wp_call. wp_continue.
-      iApply (Stdlib__store__spec_tac with "Hl[Hφ]").
-      iNext. iIntros "Hl".
+      wp_store "Hl".
       iApply "Hφ".
       iExists _. by iFrame. }
   }
@@ -101,7 +97,8 @@ Proof.
   wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
   wp_bind.
-  wp_continue. wp. do 2 wp_continue.
+  wp_continue. wp.
+  do 4 wp_continue.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
@@ -136,7 +133,9 @@ Proof.
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
 
-  wp. wp_continue. wp_bind.
+  wp.
+  rewrite -> sub_repr_repr. (* TODO *)
+  wp_continue. wp_bind.
 
   wp_continue.
 

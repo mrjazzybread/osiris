@@ -275,9 +275,10 @@ Goal
 Proof.
   unfold spec_walk.
   iIntros (η) "!>%bs".
-  iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
-  { iPureIntro. reflexivity. }
-  { wp_use "IHbs". }
+  iInduction bs as [| b bs ] "IHbs";
+  wp_call_enter_and_abstract; iIntros (walk); wp.
+  { wp_continue. equality. }
+  { wp_continue. wp_use "IHbs". }
 Qed.
 
 Definition walk_example e :=
@@ -319,8 +320,9 @@ Proof.
     unfold spec_walk.
     (* Prove the spec by induction on the list [bs]. *)
     iIntros "!>"(bs).
-    iInduction bs as [| b bs ] "IHbs"; wp_call; wp_continue.
-    { iPureIntro. reflexivity. }
+    iInduction bs as [| b bs ] "IHbs";
+    wp_call_enter_and_abstract; iIntros (walk); wp; wp_continue.
+    { equality. }
     { wp_use "IHbs". }
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
@@ -355,12 +357,13 @@ Goal
   spec_length (VCloRec η length "length").
 Proof.
   unfold spec_length. intros η ?? xs.
-  iInduction (xs) as [| x xs ] "IHxs"; wp_call; wp_continue.
-  { iPureIntro. reflexivity. }
+  iInduction (xs) as [| x xs ] "IHxs";
+  wp_call_enter_and_abstract; iIntros (length);
+  wp; wp_continue.
+  { equality. }
   { wp_bind. wp_use "IHxs". wp. iIntros(?->).
     rewrite Nat2Z.inj_succ. wp. iPureIntro.
-    rewrite int.add_repr_repr.
-    do 2 f_equal. lia. }
+    rewrite add_repr_repr. equality. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

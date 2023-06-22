@@ -347,6 +347,19 @@ Ltac wp_use H :=
 Ltac wp_call :=
   with_strategy transparent [call] unfold call; wp.
 
+Ltac wp_call_enter_and_abstract :=
+  lazymatch goal with |- environments.envs_entails _ (wp _ _ (call ?v _) _) =>
+    (* First, expand [call] away. *)
+    iApply wp_simp; [
+      simp1_call_step; eapply SimpReflexive
+    | normalize
+    ];
+    (* Second, abstract away the closure (of which there are typically
+       several occurrences in the hypotheses and goal), replacing it
+       with an abstract values. This ensures that we cannot step into
+       recursive calls. *)
+    generalize dependent v
+  end.
 
 (* TODO: not great *)
 Ltac wp_set_postcondition :=

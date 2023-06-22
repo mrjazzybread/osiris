@@ -309,12 +309,28 @@ Definition zlookup_spec (zlookup : val) : Prop :=
       fringe t' = fringe (fill ctx t)
     ).
 
+(* TODO move these lemmas *)
+Lemma ltb_true (n m : Z) :
+  n < m →
+  (n <? m) = true.
+Proof.
+  intros. rewrite Z.ltb_lt. assumption.
+Qed.
+
+Lemma ltb_false (n m : Z) :
+  m ≤ n →
+  (n <? m) = false.
+Proof.
+  intros. rewrite Z.ltb_ge. lia.
+Qed.
+
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
   SIMP (eval_mexpr η Splay)
        (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.
-  intros. SIMP1.
+  intros.
+  SIMP1.
 
   SIMP_specify "splay" splay_spec.
   (* Subgoal: prove that [splay] satisfies its specification. *)
@@ -325,12 +341,8 @@ Proof.
     unfold zlt in IH.
     intros.
     (* Enter the closure. *)
-    SIMP_enter. SIMP_continue.
-    (* Optional: abstract away the closure; make it an abstract value [c]. *)
-    (* TODO generalize this idea? *)
-    match goal with |- context[VCloRec ?η ?rbs ?f] =>
-      revert IH; generalize (VCloRec η rbs f); intros c IH
-    end.
+    SIMP_call_enter_and_abstract. intros splay IH.
+    SIMP1. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
     (* Case: [Root]. *)
@@ -404,7 +416,9 @@ Proof.
     (* Reason by induction on the tree [t]. *)
     induction t as [| l IHl y r IHr ];
     intros ? ? Hbst;
-    SIMP_enter; SIMP_continue; SIMP_continue.
+    SIMP_call_enter_and_abstract;
+    intros zlookup; [| intros IHl IHr ];
+    SIMP1; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
     { intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)
@@ -413,35 +427,39 @@ Proof.
       - assumption. }
     (* Case: [Node]. *)
     { (* The call [compare x y] has already been stepped over. *)
-      (* TODO why doesn't it stop at the partial application? *)
       intros c Hc.
       destruct_bst_Node.
       SIMP_continue.
-      intros v Hv. (* TODO partial application of [(<)] *)
-      SIMP1. clear v Hv.
-      (* Reason by cases on the outcome of the comparison [c < 0]. *)
-      intros [|] Hlt; SIMP1.
-      (* Subcase: [x < y]. *)
-      { SIMP1. intros [ox' t'] (? & ?).
+      rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
+      assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
+      (* Case: [c < 0], that is, [x < y]. *)
+      { rewrite ltb_true by lia.
+        SIMP1.
+        intros [ox' t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_left by representable. assumption.
         - assumption. }
-      intros v Hv. (* TODO partial application of [(>)] *)
-      SIMP1. clear v Hv.
-      (* Reason by cases on the outcome of the comparison [c > 0]. *)
-      intros [|] Hgt; SIMP1.
-      (* Subcase: [x > y]. *)
-      { intros [b t'] (? & ?).
+      (* Case: [c > 0], that is, [x > y]. *)
+      { rewrite ltb_false by lia.
+        SIMP1.
+        rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
+        rewrite ltb_true by lia.
+        SIMP1.
+        intros [b t'] (? & ?).
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_right by representable. assumption.
         - assumption. }
-      (* Subcase: neither comparison succeeded, so [x] and [y] are
-         equivalent with respect to the preorder [le]. *)
-      { intros t' Ht'. SIMP1.
+      (* Subcase: [c = 0], so [x] and [y] are equivalent with respect to
+         the preorder [le]. *)
+      { rewrite ltb_false by lia.
+        SIMP1.
+        rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
+        rewrite ltb_false by lia.
+        SIMP1.
+        intros t' Ht'. SIMP1.
         (* Establish the postcondition: *)
-        assert (c = 0) by lia.
         assert (equivalent le x y) by tauto.
         split; [ split |].
         - assumption.

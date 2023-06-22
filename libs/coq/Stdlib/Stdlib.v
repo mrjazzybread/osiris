@@ -403,69 +403,6 @@ Section Stdlib__specs.
     iApply ("Hccl" with "Hl").
   Qed.
 
-
-
-  (* ------------------------------------------------------------------------ *)
-  (* Pure unary functions. *)
-
-  Global Instance Stdlib__not__TCspec : pure_unary_spec Stdlib__not negb.
-  Proof. iIntros ([] s E φ); iIntros "H"; wp_call; iAssumption. Qed.
-
-  Global Instance Stdlib__neg__TCspec : pure_unary_spec Stdlib__neg Z.opp.
-  Proof.
-    iIntros (i s E φ); iIntros "H"; wp_call; rewrite neg_repr; iAssumption.
-  Qed.
-
-  Global Instance Stdlib__fst__TCspec `{Encode A} `{Encode B} :
-    pure_unary_spec Stdlib__fst (@fst A B).
-  Proof.
-    iIntros([??]???); iIntros "?"; wp_call; wp_continue; iAssumption.
-  Qed.
-
-  Global Instance Stdlib__snd__TCspec `{Encode A} `{Encode B} :
-    pure_unary_spec Stdlib__snd (@snd A B).
-  Proof.
-    iIntros([??]???); iIntros "?"; wp_call; wp_continue; iAssumption.
-  Qed.
-
-
-
-  (* ------------------------------------------------------------------------ *)
-  (* Pure binary fully-applied functions. *)
-
-  Global Instance Stdlib__add__TCspec :
-    forall (i j : Z), pure_binary_spec Stdlib__add Z.add i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite add_repr_repr. Qed.
-
-  Global Instance Stdlib__sub__TCspec :
-    forall (i j : Z), pure_binary_spec Stdlib__sub Z.sub i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite sub_repr_repr. Qed.
-
-  Global Instance Stdlib__mul__TCspec :
-    forall (i j : Z), pure_binary_spec Stdlib__mul Z.mul i j.
-  Proof. iIntros (?????)"H"; wp_call. by rewrite mul_repr_repr. Qed.
-
-
-
-  (* ------------------------------------------------------------------------ *)
-  (* Pure binary partially-applied functions. *)
-
-  Global Instance Stdlib__add__TCspec_1:
-    pure_binary_partial_spec Stdlib__add Z.add.
-  Proof.
-    iIntros (????)"H"; wp_call.
-    iApply "H". iIntros; wp.
-    by rewrite add_repr_repr.
-  Qed.
-
-  Global Instance Stdlib__mul__TCspec_1:
-    pure_binary_partial_spec Stdlib__mul Z.mul.
-  Proof.
-    iIntros (????)"H"; wp_call.
-    iApply "H". iIntros; wp.
-    by rewrite mul_repr_repr.
-  Qed.
-
 End Stdlib__specs.
 
 Global Hint Resolve
@@ -476,6 +413,7 @@ Global Hint Resolve
   Stdlib__gt_spec
   Stdlib__ge_spec
 : SIMP_specs.
+(* TODO these specs are now unused, I think *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -495,12 +433,15 @@ Local Lemma experiment_add :
   ∀ (x y : Z),
   simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(x + y)).
 Proof.
-  intros. simp_enter. simp_enter.
+  intros. simp.
+    (* Even though [call] is opaque, the tactic [simp] is able to step
+       into a call to a concrete closure. Here, it automatically steps
+       into the two calls in succession. *)
 Qed.
 
 Local Lemma experiment_eq :
   ∀ (x y : Z), representable x → representable y →
   simp (bind (call Stdlib__eq #x) (λ v, call v #y)) (ret #(Z.eqb x y)).
 Proof.
-  intros. simp_enter. simp_enter.
+  intros. simp.
 Qed.
