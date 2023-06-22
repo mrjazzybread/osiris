@@ -210,8 +210,7 @@ Lemma flip_body_spec :
          (ret #{| b := negb b; i := i |}).
 Proof.
   force_unfold_at_1 flip_body.
-  intros b. destruct b; intros; subst; simp; simp_enter.
-    (* [simp_enter] steps into the call to [Stdlib.not]. *)
+  intros b. destruct b; intros; subst; simp.
 Qed.
 
 Local Hint Resolve flip_body_spec : simp_specs.
