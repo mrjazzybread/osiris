@@ -296,6 +296,7 @@
     are not modeled in our semantics, so must not be caught;
     catch-all handlers are therefore problematic;
     `Fun.protect` seems OK because it is effect-polymorphic
+* The module `Lazy`
 * Effect handlers
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
