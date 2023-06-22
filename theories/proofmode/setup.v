@@ -50,14 +50,13 @@ Notation "'PInt' z" :=
 (* Opacity. *)
 
 Global Opaque
+
+  (* Evaluator functions. *)
   call
   ret_concat
   ret_dconcat
-  stuck
   eval
-  SIMP
-  stuck
-  int.signed int.repr int.add int.mul
+
   assertion_failure
   division_by_zero
   length_mismatch
@@ -68,5 +67,8 @@ Global Opaque
   structural_equality_error
   structural_ordering_error
   type_mismatch
+
+  (* Judgements. *)
   SIMP
+
 .
