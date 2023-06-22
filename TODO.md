@@ -246,6 +246,8 @@
 * Goose and GooseLang (Tej Chajed).
 * WasmRef-Isabelle (https://dl.acm.org/doi/pdf/10.1145/3591224).
   Testing or fuzzing techniques that we could re-use?
+* Reynald Affeldt, monadic equational reasoning;
+  also Hinze & Gibbons.
 
 ## Features of OCaml that we want to support (at some point)
 
