@@ -8,8 +8,6 @@ From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import arith.
 
-Local Transparent eval. (* TODO. *)
-
 (* -------------------------------------------------------------------------- *)
 
 (* The current file is a sandbox to develop tactics on the specification of
@@ -93,9 +91,10 @@ Proof.
 
       (* The proof can now continue as expected. *)
       iIntros(i2 H2). wp. wp_continue.
+      wp_bind.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       iIntros (veq_part) "Hspec_eq".
-      wp. do 2 wp_bind.
+      wp_bind.
       wp_use "Hspec_eq".
       iIntros (? ->).
       destruct (i2 =? 0)%Z eqn:E; wp.
@@ -135,9 +134,10 @@ Proof.
 
     (* The proof can now continue as expected. *)
     iIntros(i2 H2). wp. wp_continue.
+    wp_bind.
     wp_use Stdlib__eq__spec; try done; try apply int_representable.
     iIntros (veq_part) "Heq_part".
-    wp. do 2 wp_bind. iApply (wp_covariant with "Heq_part").
+    wp_bind. wp_use "Heq_part".
     iIntros (?->).
     destruct (i2 =? 0)%Z eqn:E.
     { (* [i2 = 0%Z]. *) wp.
@@ -147,7 +147,7 @@ Proof.
       wp_use Stdlib__eq__spec; try done; try apply int_representable.
       clear veq_part.
       iIntros (veq_part) "Heq_part".
-      wp. do 2 wp_bind. wp_use "Heq_part".
+      wp_bind. wp_use "Heq_part".
       iIntros (?->).
       destruct (i2 =? 1)%Z eqn:E1.
       { (* [i2 = 1%Z]. *) wp.
