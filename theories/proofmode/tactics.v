@@ -257,11 +257,9 @@ Ltac wp :=
           end
         | (* 2. Try to simplify the proof goal.*)
           progress wp_simp
-        | (* 3. Try to apply an instance of TC_change_goal. *)
-          apply tc_change_goal
-        | (* 4. *)
+        | (* 3. *)
           progress cbn
-        | (* 5. Experimental: try to automatically mimic [wp_continue]
+        | (* 4. Experimental: try to automatically mimic [wp_continue]
                 sometimes. *)
           wp_continue_if_nospec
         | (* Otherwise, do nothing ([repeat] will stop). *)
