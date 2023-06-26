@@ -407,7 +407,12 @@ with simp1 :=
       ]
   | call ?v1 ?v2 =>
       first [
+        (* Attempt 1. Step into the call. This is possible only if [v1]
+           is a concrete closure. *)
         simp_enter; simp0
+        (* Attempt 2. Reason about this call. This is possible only if a
+           specification for this call exists in the current context or
+           in a hint database. *)
       | simp1_call_reason v2
       ]
   | Stop CEval _ _ _ =>
@@ -463,21 +468,27 @@ with simp1 :=
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
-   into the call. It leaves one (normalized) subgoal. *)
+   into the call (if possible). It leaves one (normalized) subgoal. *)
 
 with simp_enter :=
   (* We intentionally use [eapply], not [simple eapply], so that [v1] can be
      unfolded on the fly if necessary. This is useful, e.g., when [v1] is a
-     function in the standard library, such as [Stdlib__not]. *)
+     function in the standard library, such as [Stdlib__not]. This works
+     only if [v1] is a concrete closure, that is, either [VClo ...] or
+     [VCloRec ...] or a transparent definition that unfolds to one of these
+     forms. *)
   first [
     eapply simp_enter_call_VClo
   | eapply simp_enter_call_VCloRec
   ];
   normalize
 
-(* TODO comment *)
-(* TODO this tactic leaves zero subgoal,
-        but the comments say that it should leave one subgoal *)
+(* [simp_call] expects a goal of the form [simp (call _ _) _] and solves
+   this goal using a specification that must exist in the current context or
+   in the hint database [simp_specs].
+
+   This tactic leaves zero subgoals. If the goal cannot be solved, then
+   this tactic fails. *)
 
 with simp1_call_reason v2 :=
   lazymatch v2 with
