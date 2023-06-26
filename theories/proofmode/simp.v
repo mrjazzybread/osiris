@@ -228,19 +228,9 @@ Proof.
   destruct b; reflexivity.
 Qed.
 
-Lemma simp_as_bool (x : bool) (m : free val) :
-  simp m (ret #x) →
-  simp (as_bool m) (ret x).
-Proof.
-  destruct x; eauto using prove_simp_bind with simp.
-Qed.
+(* -------------------------------------------------------------------------- *)
 
-Lemma simp_as_int (x : Z) (m : free val) :
-  simp m (ret #x) →
-  simp (as_int m) (ret (repr x)).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
+(* More lemmas for use by the tactics that follow. *)
 
 (* This lemma gives the user a chance to prove that the actual argument
    [v'2] is in fact the encoding of some value [x]. The subgoal [v'2 = #x]
@@ -257,10 +247,14 @@ Proof.
 Qed.
 
 (* The following two lemmas paraphrase the definition of [call] in eval.v.
-   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
-   a concrete closure (as opposed to a rigid metavariable), they step into
-   the call. If [eapply] is used, as opposed to [simple eapply], then a
-   definition can be unfolded on the fly. *)
+   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is a
+   concrete closure (as opposed to a rigid metavariable), they step into the
+   call.
+
+   If [eapply] is used, as opposed to [simple eapply], then a transparent
+   definition can be unfolded on the fly: that is, the lemma can be applied
+   to a goal of the form [simp (call c v2) m] where [c] is the name of a
+   transparent toplevel definition. *)
 
 Lemma simp_enter_call_VClo η a v2 m :
   simp (acall η a v2) m →

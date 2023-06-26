@@ -109,6 +109,13 @@ Qed.
 
 (* [bind] composed with [as_bool]. *)
 
+Lemma simp_as_bool (x : bool) (m : free val) :
+  simp m (ret #x) →
+  simp (as_bool m) (ret x).
+Proof.
+  destruct x; eauto using prove_simp_bind with simp.
+Qed.
+
 Lemma SIMP_bind_as_bool Y (_ : Encode Y)
   m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
   SIMP m φ →
@@ -123,6 +130,13 @@ Proof.
 Qed.
 
 (* [bind] composed with [as_int]. *)
+
+Lemma simp_as_int (x : Z) (m : free val) :
+  simp m (ret #x) →
+  simp (as_int m) (ret (repr x)).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
 
 Lemma SIMP_bind_as_int Y (_ : Encode Y)
   m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
