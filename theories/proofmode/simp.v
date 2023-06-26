@@ -308,7 +308,7 @@ Ltac normalize :=
 
    The term [m1] must be normalized.
 
-   If reflexivity cannot solve the goal, then [close] fails. *)
+   If reflexivity cannot solve the goal, then [simp_close] fails. *)
 
 Ltac simp_close :=
   solve [
