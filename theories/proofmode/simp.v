@@ -60,13 +60,6 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
-Lemma prove_simp_ret_encode `{Encode A} v (x : A) :
-  v = #x →
-  simp (ret v) (ret #x).
-Proof.
-  intros. subst. eauto with simp.
-Qed.
-
 Lemma prove_simp_downto_ret {A} m1 (a2 : A) :
   m1 = ret a2 →
   simp m1 (ret a2).
@@ -315,7 +308,6 @@ Ltac normalize :=
 Ltac simp_close :=
   solve [
     simple eapply SimpReflexive
-  | simple eapply prove_simp_ret_encode; [ encode ]
   | simp_ret
   ].
 
