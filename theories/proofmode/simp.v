@@ -62,13 +62,6 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
-Lemma prove_simp_downto_ret {A} m1 (a2 : A) :
-  m1 = ret a2 →
-  simp m1 (ret a2).
-Proof.
-  intros. subst. eauto with simp.
-Qed.
-
 Lemma prove_simp_bind {A B m m' a} {f : A → free B} :
   simp m (ret a) →
   simp (f a) m' →
@@ -376,7 +369,7 @@ with simp1 :=
       (* We may be able to prove [lookup_name η x = ret v], for some [v],
          by exploiting a hypothesis or a hint database. If so, we have
          made progress; we view this as a simplification step. *)
-      simple eapply prove_simp_downto_ret; [
+      simple eapply simp_reflexive; [
         (* subgoal: [m1 = ret v] *)
         solve [ eauto with simp_specs ]
       ]
