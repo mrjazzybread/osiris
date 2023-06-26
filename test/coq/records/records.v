@@ -11,8 +11,8 @@ Definition __osiris__reservedsplit_all_sitem2 : binding := (
                                                                  (EInt 10)
                                                                  (
                                                                    FECons "b"
-                                                                   (EConstant
-"true")
+                                                                   (EData
+"true" (EMkTuple[]))
                                                                    FENil
                                                                  )
                                                                )
@@ -35,8 +35,8 @@ Definition __osiris__reservedsplit_all_sitem4 : binding := (
                                                                  (
                                                                    EMatch (
                                                                      EPath (
-                                                                      
-PathBase "__osiris_anonymous_arg"
+                                                                       MkPath
+["__osiris_anonymous_arg"]
                                                                      )
                                                                    )
                                                                    (
@@ -48,7 +48,7 @@ MkBranches [(
                                                                         
 ERecordUpdate (
                                                                           
-EPath (PathBase "r")
+EPath (MkPath ["r"])
                                                                          )
                                                                          (
                                                                           
@@ -59,13 +59,7 @@ EApp (
                                                                              
  EPath (
                                                                              
-   PathDot (
-                                                                             
-     PathBase "Stdlib"
-                                                                             
-   )
-                                                                             
-   "not"
+   MkPath ["Stdlib";"not"]
                                                                              
  )
                                                                             
@@ -77,7 +71,7 @@ EApp (
                                                                              
    EPath (
                                                                              
-     PathBase "r"
+     MkPath ["r"]
                                                                              
    )
                                                                              
@@ -112,7 +106,7 @@ Definition __osiris__reservedsplit_all_sitem6 : binding := (
                                                                (
                                                                  EMkTuple [(
                                                                    EPath
-(PathBase "r_elt")
+(MkPath ["r_elt"])
                                                                  );(
                                                                    EData "::"
                                                                    (
@@ -120,10 +114,10 @@ Definition __osiris__reservedsplit_all_sitem6 : binding := (
 [(
                                                                        EApp (
                                                                         
-EPath (PathBase "flip")
+EPath (MkPath ["flip"])
                                                                        )
                                                                        (EPath
-(PathBase "r_elt"))
+(MkPath ["r_elt"]))
                                                                      );(EData
 "[]" (EMkTuple[]))]
                                                                    )
@@ -148,8 +142,8 @@ Definition __osiris__reservedsplit_all_sitem8 : binding := (
                                                                  (
                                                                    EMatch (
                                                                      EPath (
-                                                                      
-PathBase "__osiris_anonymous_arg"
+                                                                       MkPath
+["__osiris_anonymous_arg"]
                                                                      )
                                                                    )
                                                                    (
@@ -163,7 +157,7 @@ EMatch (
                                                                           
 ERecordAccess (
                                                                             
-EPath (PathBase "r")
+EPath (MkPath ["r"])
                                                                            )
                                                                           
 "b"
@@ -188,13 +182,7 @@ Branch (
                                                                              
      EPath (
                                                                              
-       PathDot (
-                                                                             
-         PathBase "Stdlib"
-                                                                             
-       )
-                                                                             
-       "-"
+       MkPath ["Stdlib";"-"]
                                                                              
      )
                                                                              
@@ -208,13 +196,7 @@ Branch (
                                                                              
          EPath (
                                                                              
-           PathDot (
-                                                                             
-             PathBase "Stdlib"
-                                                                             
-           )
-                                                                             
-           "*"
+           MkPath ["Stdlib";"*"]
                                                                              
          )
                                                                              
@@ -226,7 +208,7 @@ Branch (
                                                                              
            EPath (
                                                                              
-             PathBase "r"
+             MkPath ["r"]
                                                                              
            )
                                                                              
@@ -264,7 +246,7 @@ Branch (
                                                                              
    EPath (
                                                                              
-     PathBase "r"
+     MkPath ["r"]
                                                                              
    )
                                                                              
@@ -300,7 +282,7 @@ Definition __osiris__reservedsplit_all_sitem10 : binding := (
                                                                     EMatch (
                                                                       EPath (
                                                                        
-PathBase "__osiris_anonymous_arg"
+MkPath ["__osiris_anonymous_arg"]
                                                                       )
                                                                     )
                                                                     (
@@ -319,7 +301,7 @@ EMatch (
                                                                              
   EPath (
                                                                              
-    PathBase "__osiris_anonymous_arg"
+    MkPath ["__osiris_anonymous_arg"]
                                                                              
   )
                                                                              
@@ -339,13 +321,7 @@ EMatch (
                                                                              
           EPath (
                                                                              
-            PathDot (
-                                                                             
-              PathBase "Stdlib"
-                                                                             
-            )
-                                                                             
-            "+"
+            MkPath ["Stdlib";"+"]
                                                                              
           )
                                                                              
@@ -357,7 +333,7 @@ EMatch (
                                                                              
             EPath (
                                                                              
-              PathBase "r_val"
+              MkPath ["r_val"]
                                                                              
             )
                                                                              
@@ -367,7 +343,7 @@ EMatch (
                                                                              
             EPath (
                                                                              
-              PathBase "r1"
+              MkPath ["r1"]
                                                                              
             )
                                                                              
@@ -383,7 +359,7 @@ EMatch (
                                                                              
           EPath (
                                                                              
-            PathBase "r_val"
+            MkPath ["r_val"]
                                                                              
           )
                                                                              
@@ -393,7 +369,7 @@ EMatch (
                                                                              
           EPath (
                                                                              
-            PathBase "r2"
+            MkPath ["r2"]
                                                                              
           )
                                                                              
@@ -425,8 +401,8 @@ __osiris__reservedsplit_all_sitem10
 Definition __osiris__reservedsplit_all_rec_binding13 : expr := (
                                                                  EMatch (
                                                                    EPath (
-                                                                     PathBase
-"__osiris_anonymous_arg"
+                                                                     MkPath
+["__osiris_anonymous_arg"]
                                                                    )
                                                                  )
                                                                  (
@@ -445,19 +421,13 @@ EApp (
                                                                              
  EPath (
                                                                              
-   PathDot (
-                                                                             
-     PathBase "Stdlib"
-                                                                             
-   )
-                                                                             
-   ">="
+   MkPath ["Stdlib";">="]
                                                                              
  )
                                                                             
 )
                                                                             
-(EPath (PathBase "n"))
+(EPath (MkPath ["n"]))
                                                                            )
                                                                           
 (EInt 0)
@@ -473,19 +443,13 @@ EApp (
                                                                              
  EPath (
                                                                              
-   PathDot (
-                                                                             
-     PathBase "Stdlib"
-                                                                             
-   )
-                                                                             
-   ">"
+   MkPath ["Stdlib";">"]
                                                                              
  )
                                                                             
 )
                                                                             
-(EPath (PathBase "n"))
+(EPath (MkPath ["n"]))
                                                                            )
                                                                           
 (EInt 1)
@@ -496,7 +460,7 @@ EApp (
                                                                             
 EPath (
                                                                              
- PathBase "is_odd_naive"
+ MkPath ["is_odd_naive"]
                                                                             
 )
                                                                            )
@@ -508,13 +472,7 @@ EApp (
                                                                              
    EPath (
                                                                              
-     PathDot (
-                                                                             
-       PathBase "Stdlib"
-                                                                             
-     )
-                                                                             
-     "-"
+     MkPath ["Stdlib";"-"]
                                                                              
    )
                                                                              
@@ -524,7 +482,7 @@ EApp (
                                                                              
    EPath (
                                                                              
-     PathBase "n"
+     MkPath ["n"]
                                                                              
    )
                                                                              
@@ -545,13 +503,7 @@ EApp (
                                                                              
    EPath (
                                                                              
-     PathDot (
-                                                                             
-       PathBase "Stdlib"
-                                                                             
-     )
-                                                                             
-     "="
+     MkPath ["Stdlib";"="]
                                                                              
    )
                                                                              
@@ -561,7 +513,7 @@ EApp (
                                                                              
    EPath (
                                                                              
-     PathBase "n"
+     MkPath ["n"]
                                                                              
    )
                                                                              
@@ -571,10 +523,18 @@ EApp (
                                                                             
 (EInt 0)
                                                                            )
-                                                                          
-(EConstant "false")
-                                                                          
-(EConstant "true")
+                                                                           (
+                                                                            
+EData "false"
+                                                                            
+(EMkTuple[])
+                                                                           )
+                                                                           (
+                                                                            
+EData "true"
+                                                                            
+(EMkTuple[])
+                                                                           )
                                                                          )
                                                                        )
                                                                      )
@@ -609,7 +569,7 @@ Definition __osiris__reservedsplit_all_sitem15 : binding := (
                                                                     EMatch (
                                                                       EPath (
                                                                        
-PathBase "__osiris_anonymous_arg"
+MkPath ["__osiris_anonymous_arg"]
                                                                       )
                                                                     )
                                                                     (
@@ -625,13 +585,7 @@ EApp (
                                                                              
 EPath (
                                                                              
-  PathDot (
-                                                                             
-    PathBase "Stdlib"
-                                                                             
-  )
-                                                                             
-  "="
+  MkPath ["Stdlib";"="]
                                                                              
 )
                                                                             )
@@ -643,13 +597,7 @@ EApp (
                                                                              
     EPath (
                                                                              
-      PathDot (
-                                                                             
-        PathBase "Stdlib"
-                                                                             
-      )
-                                                                             
-      "mod"
+      MkPath ["Stdlib";"mod"]
                                                                              
     )
                                                                              
@@ -659,7 +607,7 @@ EApp (
                                                                              
     EPath (
                                                                              
-      PathBase "n"
+      MkPath ["n"]
                                                                              
     )
                                                                              
@@ -689,8 +637,8 @@ __osiris__reservedsplit_all_sitem15
 Definition __osiris__reservedsplit_all_rec_binding18 : expr := (
                                                                  EMatch (
                                                                    EPath (
-                                                                     PathBase
-"__osiris_anonymous_arg"
+                                                                     MkPath
+["__osiris_anonymous_arg"]
                                                                    )
                                                                  )
                                                                  (
@@ -702,8 +650,8 @@ Definition __osiris__reservedsplit_all_rec_binding18 : expr := (
                                                                       
 (PTuple PNil)
                                                                      )
-                                                                    
-(EConstant "true")
+                                                                     (EData
+"true" (EMkTuple[]))
                                                                    );(
                                                                      Branch (
                                                                        PData
@@ -716,12 +664,7 @@ Definition __osiris__reservedsplit_all_rec_binding18 : expr := (
                                                                         
 EPath (
                                                                           
-PathDot (
-                                                                            
-PathBase "Stdlib"
-                                                                           )
-                                                                          
-"not"
+MkPath ["Stdlib";"not"]
                                                                          )
                                                                        )
                                                                        (
@@ -730,11 +673,11 @@ PathBase "Stdlib"
                                                                           
 EPath (
                                                                             
-PathBase "is_odd'"
+MkPath ["is_odd'"]
                                                                            )
                                                                          )
                                                                         
-(EPath (PathBase "n"))
+(EPath (MkPath ["n"]))
                                                                        )
                                                                      )
                                                                    )]
@@ -757,10 +700,10 @@ __osiris__reservedsplit_all_sitem17
                                                                RecBiNil
                                                              )
                                                            ).
-Definition Records : mexpr := (
-                                MkStruct
+Definition _Records : mexpr := (
+                                 MkStruct
 [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5;__osiris__reservedsplit_all_module7;__osiris__reservedsplit_all_module9;__osiris__reservedsplit_all_module11;__osiris__reservedsplit_all_module14;__osiris__reservedsplit_all_module16]
-                             
+                              
 ).
 
 (* Done. *)

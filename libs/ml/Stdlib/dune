@@ -1,4 +1,4 @@
 (library
-  (flags (:standard -bin-annot))
+  (flags (:standard -w -9 -bin-annot))
  (name OsirisStdlib))
 

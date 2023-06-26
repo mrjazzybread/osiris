@@ -1,5 +1,8 @@
+val map_option : ('a -> 'b option) -> 'a list -> 'b list
 val filtermap : ('a -> 'b option) -> 'a list -> 'b list
 val last : 'a list -> 'a
+
+val guess_module_name : string -> string
 
 val mkmsg : bool -> Format.formatter -> string -> unit
 val mksay : bool -> Format.formatter -> string -> 'a -> 'a
@@ -12,3 +15,5 @@ val do_with : 'b -> ('b -> 'c) -> ('a -> 'b -> 'd) -> 'a -> ('d * 'c)
 
 val in_dir : string -> ('a -> 'b) -> 'a -> 'b
 val locate_cmt : string -> string
+
+val list_mls : string -> string -> string list * string list * string list

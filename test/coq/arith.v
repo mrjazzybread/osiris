@@ -5,8 +5,8 @@ From osiris Require Import osiris.
 Definition __osiris__reservedsplit_all_rec_binding3 : expr := (
                                                                 EMatch (
                                                                   EPath (
-                                                                    PathBase
-"__osiris_anonymous_arg"
+                                                                    MkPath
+["__osiris_anonymous_arg"]
                                                                   )
                                                                 )
                                                                 (
@@ -25,7 +25,7 @@ EMatch (
                                                                            
 EPath (
                                                                              
-PathBase "__osiris_anonymous_arg"
+MkPath ["__osiris_anonymous_arg"]
                                                                             )
                                                                           )
                                                                           (
@@ -44,13 +44,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathDot (
-                                                                             
-            PathBase "Stdlib"
-                                                                             
-          )
-                                                                             
-          "="
+          MkPath ["Stdlib";"="]
                                                                              
         )
                                                                              
@@ -60,7 +54,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathBase "y"
+          MkPath ["y"]
                                                                              
         )
                                                                              
@@ -80,7 +74,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathBase "mult"
+          MkPath ["mult"]
                                                                              
         )
                                                                              
@@ -90,7 +84,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathBase "x"
+          MkPath ["x"]
                                                                              
         )
                                                                              
@@ -110,13 +104,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathDot (
-                                                                             
-            PathBase "Stdlib"
-                                                                             
-          )
-                                                                             
-          "+"
+          MkPath ["Stdlib";"+"]
                                                                              
         )
                                                                              
@@ -134,7 +122,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathBase "add"
+            MkPath ["add"]
                                                                              
           )
                                                                              
@@ -144,7 +132,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathBase "x"
+            MkPath ["x"]
                                                                              
           )
                                                                              
@@ -160,13 +148,7 @@ Branch (PVar "y")
                                                                              
             EPath (
                                                                              
-              PathDot (
-                                                                             
-                PathBase "Stdlib"
-                                                                             
-              )
-                                                                             
-              "-"
+              MkPath ["Stdlib";"-"]
                                                                              
             )
                                                                              
@@ -176,7 +158,7 @@ Branch (PVar "y")
                                                                              
             EPath (
                                                                              
-              PathBase "y"
+              MkPath ["y"]
                                                                              
             )
                                                                              
@@ -215,8 +197,8 @@ __osiris__reservedsplit_all_rec_binding3
 Definition __osiris__reservedsplit_all_rec_binding5 : expr := (
                                                                 EMatch (
                                                                   EPath (
-                                                                    PathBase
-"__osiris_anonymous_arg"
+                                                                    MkPath
+["__osiris_anonymous_arg"]
                                                                   )
                                                                 )
                                                                 (
@@ -235,7 +217,7 @@ EMatch (
                                                                            
 EPath (
                                                                              
-PathBase "__osiris_anonymous_arg"
+MkPath ["__osiris_anonymous_arg"]
                                                                             )
                                                                           )
                                                                           (
@@ -254,13 +236,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathDot (
-                                                                             
-            PathBase "Stdlib"
-                                                                             
-          )
-                                                                             
-          "="
+          MkPath ["Stdlib";"="]
                                                                              
         )
                                                                              
@@ -270,7 +246,7 @@ Branch (PVar "y")
                                                                              
         EPath (
                                                                              
-          PathBase "y"
+          MkPath ["y"]
                                                                              
         )
                                                                              
@@ -294,13 +270,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathDot (
-                                                                             
-              PathBase "Stdlib"
-                                                                             
-            )
-                                                                             
-            "="
+            MkPath ["Stdlib";"="]
                                                                              
           )
                                                                              
@@ -310,7 +280,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathBase "y"
+            MkPath ["y"]
                                                                              
           )
                                                                              
@@ -326,7 +296,7 @@ Branch (PVar "y")
                                                                              
       EPath (
                                                                              
-        PathBase "x"
+        MkPath ["x"]
                                                                              
       )
                                                                              
@@ -340,7 +310,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathBase "add"
+            MkPath ["add"]
                                                                              
           )
                                                                              
@@ -350,7 +320,7 @@ Branch (PVar "y")
                                                                              
           EPath (
                                                                              
-            PathBase "x"
+            MkPath ["x"]
                                                                              
           )
                                                                              
@@ -366,7 +336,7 @@ Branch (PVar "y")
                                                                              
             EPath (
                                                                              
-              PathBase "mult"
+              MkPath ["mult"]
                                                                              
             )
                                                                              
@@ -376,7 +346,7 @@ Branch (PVar "y")
                                                                              
             EPath (
                                                                              
-              PathBase "x"
+              MkPath ["x"]
                                                                              
             )
                                                                              
@@ -392,13 +362,7 @@ Branch (PVar "y")
                                                                              
               EPath (
                                                                              
-                PathDot (
-                                                                             
-                  PathBase "Stdlib"
-                                                                             
-                )
-                                                                             
-                "-"
+                MkPath ["Stdlib";"-"]
                                                                              
               )
                                                                              
@@ -408,7 +372,7 @@ Branch (PVar "y")
                                                                              
               EPath (
                                                                              
-                PathBase "y"
+                MkPath ["y"]
                                                                              
               )
                                                                              
@@ -463,13 +427,13 @@ Definition __osiris__reservedsplit_all_sitem7 : binding := (
                                                              (
                                                                EApp (
                                                                  EApp (EPath
-(PathBase "add"))
+(MkPath ["add"]))
                                                                  (EInt 1)
                                                                )
                                                                (
                                                                  EApp (
                                                                    EApp
-(EPath (PathBase "add"))
+(EPath (MkPath ["add"]))
                                                                    (EInt 2)
                                                                  )
                                                                  (EInt 0)
@@ -489,11 +453,11 @@ Definition __osiris__reservedsplit_all_sitem9 : binding := (
                                                              (
                                                                EApp (
                                                                  EApp (EPath
-(PathBase "add"))
+(MkPath ["add"]))
                                                                  (
                                                                    EApp (
                                                                      EApp
-(EPath (PathBase "mult"))
+(EPath (MkPath ["mult"]))
                                                                      (EInt 2)
                                                                    )
                                                                    (EInt 2)
@@ -502,19 +466,19 @@ Definition __osiris__reservedsplit_all_sitem9 : binding := (
                                                                (
                                                                  EApp (
                                                                    EApp
-(EPath (PathBase "add"))
+(EPath (MkPath ["add"]))
                                                                    (EInt 1)
                                                                  )
                                                                  (
                                                                    EApp (
                                                                      EApp
-(EPath (PathBase "mult"))
+(EPath (MkPath ["mult"]))
                                                                      (EInt 2)
                                                                    )
                                                                    (
                                                                      EApp (
                                                                        EApp
-(EPath (PathBase "add"))
+(EPath (MkPath ["add"]))
                                                                        (EInt
 4)
                                                                      )
@@ -531,10 +495,10 @@ __osiris__reservedsplit_all_sitem9
                                                               BiNil
                                                             )
                                                           ).
-Definition Arith : mexpr := (
-                              MkStruct
+Definition _Arith : mexpr := (
+                               MkStruct
 [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module6;__osiris__reservedsplit_all_module8]
-                           
+                            
 ).
 
 (* Done. *)

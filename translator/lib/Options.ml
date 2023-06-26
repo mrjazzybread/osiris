@@ -10,7 +10,8 @@ type splitting_strategy =
   | NoSplit
 
 type mode =
-  | Mcmt
+  | Mcmt of string
+  | Mml of string
   | Mdune
 
 (* -------------------------------------------------------------------------- *)
@@ -47,21 +48,19 @@ let splitting_strategy = ref [Split]
 (* Definition of the command-line options and parsing. *)
 
 let speclist = [
-    ("-mode", Arg.Set_string mode, "cmt or ml");
-    ("-ml", Arg.Set_string in_file, "Input OCaml file to read. \
-                                     (should be used iff -root is)");
-    ("-out", Arg.Set_string out_file, "Output Coq file to produce. \
-                                       (mandatory)");
-    ("-root", Arg.Set_string dune_root, "Root of the dune repository to use \
-                                         (mandatory of -cmt is not used)");
+    ("-mode", Arg.Set_string mode, "cmt, ml or dune");
+    ("-in-dir", Arg.Set_string in_file, "Directory to translate.");
+    ("-ml", Arg.Set_string in_file, "Input OCaml file to read.");
+    ("-out", Arg.Set_string out_file, "Output Coq file or directory to produce.\
+                                       \ (mandatory)");
+    ("-root", Arg.Set_string dune_root, "Root of the dune repository to use.");
     ("-cmt", Arg.Set_string cmt_file, "cmt file to use when retrieving the\
-                                       \ typed-tree \
-                                       (mandatory of -cmt is not used)");
+                                       \ typed-tree.");
     ("-verbose", Arg.Set verbose, "(optional)");
     ("-debug", Arg.Set debug, "(optional)");
     ("-no-split", Arg.Unit
                  (fun () ->
-                   splitting_strategy := [NoSplit]),
+                   splitting_strategy := []),
      "Do not split the output Coq definition. (optional)");
   ]
 
@@ -77,16 +76,19 @@ let () = Arg.parse speclist
 let (dune_root, in_file, out_file, splitting_strategy, cmt_file, mode) =
   !dune_root, !in_file, !out_file, !splitting_strategy, !cmt_file,
   if !mode = "cmt"
-  then Mcmt
+  then Mcmt (Misc.guess_module_name !cmt_file)
   else if !mode = "ml"
+  then Mml (Misc.guess_module_name !in_file)
+  else if !mode = "dune"
   then Mdune
   else assert false
 
 let () = assert (out_file <> "")
 let () =
   match mode with
-  | Mcmt -> assert (cmt_file <> "")
-  | Mdune -> assert (in_file <> "" && dune_root <> "")
+  | Mcmt _ -> assert (cmt_file <> "")
+  | Mml _ -> assert (in_file <> "" && dune_root <> "")
+  | Mdune -> assert (dune_root <> "")
 
 let verbose = !verbose
 let debug = !debug
@@ -104,21 +106,3 @@ let debug_do f = Misc.mkdo debug f
 
 let verbose_say_with s a = Misc.mksay_with verbose Format.err_formatter s a
 let debug_say_with s a = Misc.mksay_with verbose Format.err_formatter s a
-
-(* -------------------------------------------------------------------------- *)
-
-(* The module name can be deduced from the filename of the input OCaml file: *)
-let module_name =
-  begin
-    match mode with
-    | Mdune ->
-       in_file
-    | Mcmt ->
-     cmt_file
-  end
-  |> String.split_on_char '/' |> Misc.last (* Only keep the filename, not its
-                                              path. *)
-  |> String.split_on_char '.' |> List.hd (* Strip away the extension
-                                            (assuming there is only one '.' in
-                                            the  filename). *)
-  |> String.capitalize_ascii (* Capitalize the first letter. *)

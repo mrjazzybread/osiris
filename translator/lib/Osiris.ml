@@ -15,6 +15,15 @@ let string_of_longident (i: Longident.t) : string =
 
 (* -------------------------------------------------------------------------- *)
 
+let rec translate_path : Path.t -> path = function
+  | Pident i ->
+     [Ident.name i]
+  | Pdot (path, i) ->
+     translate_path path @ [i]
+  | _ -> assert false
+
+(* -------------------------------------------------------------------------- *)
+
 let translate_constant = function
   | Asttypes.Const_int i -> EInt i
   | Asttypes.Const_string (s, _, _) -> EString s
@@ -22,13 +31,24 @@ let translate_constant = function
   (* Not yet translated: integers.
      Do we want several instantiations of the CompCert integers library, or
      should we simply define modules [Int32], [Int64] and [NativeInt] ? *)
-  | Asttypes.Const_int32 _ -> assert false
-  | Asttypes.Const_int64 _ -> assert false
-  | Asttypes.Const_nativeint _ -> assert false
+  | Asttypes.Const_int32 i -> EInt (Int32.to_int i) (* TODO? *)
+  | Asttypes.Const_int64 i -> EInt (Int64.to_int i) (* TODO? *)
+  | Asttypes.Const_nativeint i -> EInt (Nativeint.to_int i) (* TODO? *)
 
   (* Not yet supported by the semantics: *)
-  | Asttypes.Const_char _ -> assert false
-  | Asttypes.Const_float _ -> assert false
+  | Asttypes.Const_char c -> EChar c
+
+  (* It is necessary to translate floats.
+     As they are not supported by the semantics (yet?), I simply keep their
+     string representation.
+     If floats are to be added t the semantics, this should convert the string
+     into a proper float. *)
+  | Asttypes.Const_float s -> EString s
+
+(* -------------------------------------------------------------------------- *)
+
+let translate_primitive (_name: string) : sitem option =
+  None
 
 (* -------------------------------------------------------------------------- *)
 
@@ -45,24 +65,37 @@ let unvarpat (p : value general_pattern) : string =
 
   (* [tanslate_pattern pat] translate the [Typedtree] pattern [pat] into an
      Osiris one.
-     The only interesting case if [Tpat_construct], which needs to
- *)
+     The only interesting case if [Tpat_construct] in which some constructors
+     are to be recognized as primitive. *)
 let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat =
   match pat.pat_desc with
   | Tpat_any -> PAny
   | Tpat_var (v, _) -> PVar (Ident.name v)
   | Tpat_tuple pl -> PTuple (List.map translate_pattern pl)
-  | Tpat_constant (Const_int i) -> PInt i
+
+  | Tpat_constant c ->
+     begin match c with
+      | Asttypes.Const_int i -> PInt i
+      | Asttypes.Const_char c -> PChar c
+      | Asttypes.Const_string (s, _, _) -> PString s
+      | Asttypes.Const_float s ->
+         (* Once again, as floats are not supported by the semantics, I do not
+            convert the string to a proper float here. *)
+         PString s
+      | Asttypes.Const_int32 _ -> assert false
+      | Asttypes.Const_int64 _ -> assert false
+      | Asttypes.Const_nativeint _ ->
+         (* [Nativeint] is not currently supported. Once it is, should we
+            rather translate this directly, or see it as
+            [Tpat_or (Tpat_constant (int32 _), Tpat_constant (int64 _))] ? *)
+         assert false
+     end
+
   | Tpat_construct ({txt = i;_}, _, args, _) ->
-      if Longident.flatten i = ["()"]
-      then PUnit
-      else if Longident.flatten i = ["true"]
-      then PData ("true", PTuple [])
-      else if Longident.flatten i = ["false"]
-      then PData ("false", PTuple [])
-      else
-        PData ( string_of_longident i,
-                PTuple (List.map translate_pattern args))
+     (* Careful: It is possible to overload [()], [true], ... Therefore, they
+        should be treated as any other constructor. *)
+     PData ( string_of_longident i,
+             PTuple (List.map translate_pattern args))
   | Tpat_alias (pat, var, _) ->
       PAlias (translate_pattern pat, Ident.name var)
   | Tpat_or (p1, p2, _) ->
@@ -80,12 +113,21 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
            rl
        )
 
-  (* Only interger constants are supported for now. *)
-  | Tpat_constant _ -> assert false
-
   | Tpat_variant (_, _, _) -> assert false
   | Tpat_array _ -> assert false
   | Tpat_lazy _ -> assert false
+
+
+let translate_computation_pattern p =
+  match split_pattern p with
+  | Some p, None -> translate_pattern p
+  | None, Some p ->
+     (* TODO?  The pattern [p] is an exception pattern.  For now, I treat it as
+        any pattern. *)
+     translate_pattern p
+  | _ ->
+     (* It should not be allowed to match on both expressions and exceptions. *)
+     assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -93,31 +135,17 @@ let translate_branch translate_expression (p, e) =
   Branch (translate_pattern p, translate_expression e)
 
 let translate_branches translate_expression branches =
-  List.map (translate_branch
-              translate_expression)
-    branches
+  List.map (translate_branch translate_expression) branches
 
 (* -------------------------------------------------------------------------- *)
 
 let translate_lambda translate_expression branches =
   AnonFun ("__osiris_anonymous_arg",
            EMatch
-             (EPath (PathBase "__osiris_anonymous_arg"),
+             (EPath ["__osiris_anonymous_arg"],
               (translate_branches translate_expression) branches))
 
 (* -------------------------------------------------------------------------- *)
-
-let rec translate_path : Path.t -> path = function
-  | Pident i ->
-     PathBase (Ident.name i)
-  | Pdot (path, i) ->
-     PathDot (translate_path path, i)
-  | _ -> assert false
-
-let translate_computation_pattern p =
-  match split_pattern p with
-  | Some p, None -> translate_pattern p
-  | _ -> assert false
 
 let translate_record
       (fields: (Types.label_description * record_label_definition) array)
@@ -159,28 +187,65 @@ let translate_record
        in
        ERecordUpdate (trans_expr e, body)
      end
-  | _ -> assert false
+  | _, r ->
+     (match r with
+      | Record_regular -> assert false
+      | Record_float -> assert false
+      | Record_unboxed _ -> assert false
+      | Record_inlined _ ->
+         (* Inlined records are not supported yet. *)
+         EString "TODO: inlined record are not supported yet."
+      | Record_extension _ -> assert false)
 
 (* -------------------------------------------------------------------------- *)
 
-let rec translate_expression (e: Typedtree.expression) =
+let list_of_cases cases =
+  List.fold_right
+    (fun {c_lhs;c_rhs;_} res ->
+      (c_lhs, c_rhs) :: res)
+    cases []
+
+let rec branches_of_cases cases =
+  List.fold_right
+    (fun (case: value case) (cases: branches) ->
+      match case with
+      | { c_lhs=pat; c_guard=None; c_rhs=e } ->
+         Branch (translate_pattern pat,
+                 translate_expression e)
+         :: cases
+      | _ -> cases (* TODO. *))
+    cases []
+
+and branches_of_computation_cases (cases : computation case list) : branches =
+  List.fold_right
+    (fun (case: computation case) (cases: branches) ->
+      begin match case with
+      | { c_lhs=pat; c_guard=None; c_rhs=e } ->
+         Branch (translate_computation_pattern pat,
+                 translate_expression e)
+      | { c_lhs=pat; c_guard=Some cond; c_rhs=e } ->
+         BranchWhen (translate_computation_pattern pat,
+                   translate_expression cond,
+                   translate_expression e)
+      end :: cases)
+    cases []
+
+(* -------------------------------------------------------------------------- *)
+
+and translate_expression (e: Typedtree.expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
 
   | Texp_function {cases;_} ->
-     let branches =
-       List.fold_right
-         (fun {c_lhs;c_rhs;_} res ->
-           (c_lhs, c_rhs) :: res)
-         cases []
-     in
+     let branches = list_of_cases cases in
      EAnonFun (translate_lambda translate_expression branches)
 
   | Texp_apply (f, el) ->
      List.fold_left
        (fun f a ->
+         (* Labels are completely ignored here. *)
          match a with
-         | _, None -> f
+         | _, None -> assert false
          | _, Some e ->
             let e = translate_expression e in
             EApp (f, e))
@@ -189,6 +254,7 @@ let rec translate_expression (e: Typedtree.expression) =
   | Texp_assert e -> EAssert (translate_expression e)
 
   | Texp_ident (path, _, _) ->
+     (* It is not clear to me what these fields represent. *)
       EPath (translate_path path)
 
   | Texp_let (Nonrecursive, vbs, e) ->
@@ -199,20 +265,8 @@ let rec translate_expression (e: Typedtree.expression) =
 
   | Texp_tuple el -> ETuple (List.map translate_expression el)
 
-  | Texp_match (e, cl, _) ->
-     (* [e]  : expression
-        [cl] : computation case list *)
-     let cases =
-       List.fold_right
-         (fun (case: computation case) (cases: branches) ->
-           match case with
-           | { c_lhs=pat; c_guard=None; c_rhs=e } ->
-              Branch (translate_computation_pattern pat,
-                      translate_expression e)
-              :: cases
-           | _ -> assert false)
-         cl [] in
-     EMatch (translate_expression e, cases)
+  | Texp_match (e, cases, _) ->
+     EMatch (translate_expression e, branches_of_computation_cases cases)
 
   | Texp_sequence (e1, e2) ->
      ESeq (translate_expression e1,
@@ -232,27 +286,10 @@ let rec translate_expression (e: Typedtree.expression) =
        translate_expression
 
   | Texp_construct (c, _, el) ->
-     (* Some OCaml constructors directly have counterpart in the syntax, as :
-        - Unit: ["()"]
-      *)
      let name = string_of_longident c.txt in
-     if name = "()" && el = []
-     then EUnit
-     else if name = "true" && el = []
-     then EConstant "true"
-     else if name = "false" && el = []
-     then EConstant "false"
-     else
-       begin
-         let args =
-           List.fold_right
-             (fun e res ->
-               translate_expression e :: res)
-             el []
-         in
-         EData (name,
-                ETuple args)
-       end
+     let args =
+       List.fold_right (fun e res -> translate_expression e :: res) el [] in
+     EData (name, ETuple args)
 
   | Texp_field (e, _, label) ->
      ERecordAccess (translate_expression e,
@@ -267,24 +304,38 @@ let rec translate_expression (e: Typedtree.expression) =
            translate_expression e2,
            translate_expression e3)
 
-  | Texp_try (_, _) -> assert false
+  | Texp_try (e, cases) ->
+     ETry (translate_expression e, branches_of_cases cases)
+
+  | Texp_array el ->
+     EArray (List.map translate_expression el)
+
   | Texp_variant (_, _) -> assert false
-  | Texp_setfield (_, _, _, _) -> assert false
-  | Texp_array _ -> assert false
+  | Texp_setfield (_, _, _, _) ->
+     EString "Mutable records and arrays are not supported yet."
+
+
+  | Texp_pack _ ->
+     EString "TODO: Texp_pack."
+  (* TODO. *)
+
+  | Texp_letmodule (_, _, _, _, _) ->
+     EString "TODO: ELetModule."
+  | Texp_open (_, _) ->
+     (* TODO. *)
+     EString "TODO: local module open statement."
+
   | Texp_send (_, _) -> assert false
   | Texp_new (_, _, _) -> assert false
   | Texp_instvar (_, _, _) -> assert false
   | Texp_setinstvar (_, _, _, _) -> assert false
   | Texp_override (_, _) -> assert false
-  | Texp_letmodule (_, _, _, _, _) -> assert false
   | Texp_letexception (_, _) -> assert false
   | Texp_lazy _ -> assert false
   | Texp_object (_, _) -> assert false
-  | Texp_pack _ -> assert false
   | Texp_letop _ -> assert false
   | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
-  | Texp_open (_, _) -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -300,7 +351,7 @@ and translate_bindings vbs =
       v :: rv(*, t @ rt*))
     vbs ([](*, []*))
 
-and translate_rec_binding (vb: Typedtree.value_binding): rec_binding (* * types*) =
+and translate_rec_binding (vb: Typedtree.value_binding) (* * types*) =
   let name = unvarpat vb.vb_pat in
   let expression(* , types*) = translate_expression vb.vb_expr in
   RecBinding (name, anonfun_of_expr expression)(*, types*)
@@ -328,15 +379,15 @@ let translate_structure_item
      Some (ILetRec r)
 
   | Tstr_module {mb_id = Some mb_id;
-                 mb_expr = {mod_desc = Tmod_structure module_structure ;
-                            _}; _} ->
-     let m = translate_module module_structure in
+                 mb_expr = {mod_desc; _}; _} ->
+     let m = translate_module mod_desc in
      Some (IModule (Ident.name mb_id, m))
 
   (* Ignoring the type-related definitions. *)
   | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
-  | Tstr_class_type _ (* of (Ident.t * string Location.loc * class_type_declaration) list *)
+  | Tstr_class_type _
+  (* of (Ident.t * string Location.loc * class_type_declaration) list *)
   | Tstr_attribute _ (*of attribute*)
     -> None
 
@@ -345,30 +396,49 @@ let translate_structure_item
      (* of type_exception *)
      Some (ILet [Binding (PVar (Ident.name ext_id), ERef EUnit)])
 
-  | Tstr_module _ -> assert false (* of module_binding *)
+  | Tstr_module {mb_id; mb_expr; _} -> (* of module_binding *)
+     let name =
+       match mb_id with
+       | None -> Fresh.fresh_name "let_module"
+       | Some name -> Ident.name name
+     in
+     let e = mb_expr.mod_desc in
+     Some (IModule (name, translate_module e))
+
+  | Tstr_include {incl_mod = {mod_desc;_}; _} ->
+     (* of include_declaration *)
+     Some (IInclude (translate_module mod_desc))
+
+  | Tstr_open {open_expr={mod_desc;_};_} -> (* of open_declaration *)
+     (match mod_desc with
+     | Tmod_ident (p, _) -> Some (IOpen (translate_path p))
+     | _ -> assert false)
+
+  | Tstr_primitive {val_id; _} -> (* of value_description *)
+     (* Primitives are [external] statements.
+        They are dealt with in [translate_primitive]. *)
+     translate_primitive (Ident.name val_id)
+
   | Tstr_eval _ -> assert false (* of expression * attributes *)
-  | Tstr_primitive _ -> assert false (* of value_description *)
   | Tstr_typext _ -> assert false (* of type_extension *)
   | Tstr_recmodule _ -> assert false (* of module_binding list *)
-  | Tstr_open _ -> assert false (* of open_declaration *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
-  | Tstr_include _ -> assert false (* of include_declaration *)
 
 (* -------------------------------------------------------------------------- *)
 
-let rec map_option f l =
-  match l with
-  | [] -> []
-  | h :: t ->
-     match f h with
-     | Some r -> r :: map_option f t
-     | None -> map_option f t
-
-let rec translate_module (ast: Typedtree.structure) : mexpr (* * types*) =
-  let (itms(*, types*)) =
-    map_option (translate_structure_item translate_module) ast.str_items
-  (*    |> List.split *) in
-  MStruct (itms)(*, List.flatten types*)
+let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
+  match ast with
+  | Tmod_ident (p, _) ->
+     MPath (translate_path p)
+  | Tmod_structure ast -> (* of structure *)
+     let (itms(*, types*)) =
+       Misc.map_option (translate_structure_item translate_module) ast.str_items
+     (*    |> List.split *) in
+     MStruct (itms)(*, List.flatten types*)
+  | Tmod_functor (_, _) -> MStruct [] (* TODO. *)
+  | Tmod_apply (_, _, _) -> assert false
+  | Tmod_constraint (_, _, _, _) -> MStruct [] (* TODO. *)
+  | Tmod_unpack (_, _) -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -378,4 +448,5 @@ let of_typedtree (verbose_msg: (string -> unit))
       (ast: Typedtree.structure):
       OsirisAst.ast =
   let () = verbose_msg "Translation « Typed-tree => Osiris »: begin." in
-  Some name, OModule (translate_module ast)
+  (Some name, OModule (translate_module (Tmod_structure ast)))
+  |> (* TODO: do better. *)Options.verbose_say "Translation « Typed-tree => Osiris »: begin."

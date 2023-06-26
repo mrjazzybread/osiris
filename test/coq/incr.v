@@ -12,15 +12,20 @@ Definition __osiris__reservedsplit_all_sitem2 : binding := (
                                                                  (
                                                                    EMatch (
                                                                      EPath (
-                                                                      
-PathBase "__osiris_anonymous_arg"
+                                                                       MkPath
+["__osiris_anonymous_arg"]
                                                                      )
                                                                    )
                                                                    (
                                                                     
 MkBranches [(
                                                                        Branch
-PUnit
+(
+                                                                        
+PData "()"
+                                                                        
+(PTuple PNil)
+                                                                       )
                                                                        (
                                                                          ELet
 (
@@ -35,13 +40,7 @@ Binding (PVar "c")
                                                                              
    EPath (
                                                                              
-     PathDot (
-                                                                             
-       PathBase "Stdlib"
-                                                                             
-     )
-                                                                             
-     "ref"
+     MkPath ["Stdlib";"ref"]
                                                                              
    )
                                                                              
@@ -74,7 +73,7 @@ BiCons (
                                                                              
          EPath (
                                                                              
-           PathBase "__osiris_anonymous_arg"
+           MkPath ["__osiris_anonymous_arg"]
                                                                              
          )
                                                                              
@@ -98,13 +97,7 @@ BiCons (
                                                                              
                  EPath (
                                                                              
-                   PathDot (
-                                                                             
-                     PathBase "Stdlib"
-                                                                             
-                   )
-                                                                             
-                   ":="
+                   MkPath ["Stdlib";":="]
                                                                              
                  )
                                                                              
@@ -114,7 +107,7 @@ BiCons (
                                                                              
                  EPath (
                                                                              
-                   PathBase "c"
+                   MkPath ["c"]
                                                                              
                  )
                                                                              
@@ -126,7 +119,7 @@ BiCons (
                                                                              
                EPath (
                                                                              
-                 PathBase "i"
+                 MkPath ["i"]
                                                                              
                )
                                                                              
@@ -172,7 +165,7 @@ ELet (
                                                                              
            EPath (
                                                                              
-             PathBase "__osiris_anonymous_arg"
+             MkPath ["__osiris_anonymous_arg"]
                                                                              
            )
                                                                              
@@ -182,7 +175,13 @@ ELet (
                                                                              
            MkBranches [(
                                                                              
-             Branch PUnit
+             Branch (
+                                                                             
+               PData "()"
+                                                                             
+               (PTuple PNil)
+                                                                             
+             )
                                                                              
              (
                                                                              
@@ -190,13 +189,7 @@ ELet (
                                                                              
                  EPath (
                                                                              
-                   PathDot (
-                                                                             
-                     PathBase "Stdlib"
-                                                                             
-                   )
-                                                                             
-                   "!"
+                   MkPath ["Stdlib";"!"]
                                                                              
                  )
                                                                              
@@ -206,7 +199,7 @@ ELet (
                                                                              
                  EPath (
                                                                              
-                   PathBase "c"
+                   MkPath ["c"]
                                                                              
                  )
                                                                              
@@ -236,7 +229,7 @@ ELet (
                                                                              
    EPath (
                                                                              
-     PathBase "get"
+     MkPath ["get"]
                                                                              
    )
                                                                              
@@ -244,7 +237,7 @@ ELet (
                                                                              
    EPath (
                                                                              
-     PathBase "upd"
+     MkPath ["upd"]
                                                                              
    )
                                                                              
@@ -279,10 +272,11 @@ Definition __osiris__reservedsplit_all_sitem4 : binding := (
                                                                        EPath
 (
                                                                         
-PathBase "new_counter"
+MkPath ["new_counter"]
                                                                        )
                                                                      )
-                                                                     EUnit
+                                                                     (EData
+"()" (EMkTuple[]))
                                                                    )
                                                                  )
                                                                  BiNil
@@ -297,16 +291,11 @@ PathBase "new_counter"
                                                                         
 EPath (
                                                                           
-PathDot (
-                                                                            
-PathBase "Stdlib"
-                                                                           )
-                                                                          
-"fst"
+MkPath ["Stdlib";"fst"]
                                                                          )
                                                                        )
                                                                        (EPath
-(PathBase "res"))
+(MkPath ["res"]))
                                                                      )
                                                                    )
                                                                    BiNil
@@ -322,17 +311,11 @@ Binding (PVar "upd")
                                                                           
 EPath (
                                                                             
-PathDot (
-                                                                             
- PathBase "Stdlib"
-                                                                            
-)
-                                                                            
-"snd"
+MkPath ["Stdlib";"snd"]
                                                                            )
                                                                          )
                                                                         
-(EPath (PathBase "res"))
+(EPath (MkPath ["res"]))
                                                                        )
                                                                      )
                                                                      BiNil
@@ -347,10 +330,10 @@ Binding (PVar "c")
                                                                           
 EApp (
                                                                             
-EPath (PathBase "get")
+EPath (MkPath ["get"])
                                                                            )
                                                                           
-EUnit
+(EData "()" (EMkTuple[]))
                                                                          )
                                                                        )
                                                                        BiNil
@@ -361,7 +344,7 @@ EUnit
                                                                          EApp
 (
                                                                           
-EPath (PathBase "upd")
+EPath (MkPath ["upd"])
                                                                          )
                                                                         
 (EInt 13)
@@ -370,7 +353,12 @@ EPath (PathBase "upd")
                                                                         
 MkBranches [(
                                                                           
-Branch PUnit
+Branch (
+                                                                            
+PData "()"
+                                                                            
+(PTuple PNil)
+                                                                           )
                                                                            (
                                                                             
 ELet (
@@ -391,13 +379,7 @@ ELet (
                                                                              
          EPath (
                                                                              
-           PathDot (
-                                                                             
-             PathBase "Stdlib"
-                                                                             
-           )
-                                                                             
-           "-"
+           MkPath ["Stdlib";"-"]
                                                                              
          )
                                                                              
@@ -409,13 +391,23 @@ ELet (
                                                                              
            EPath (
                                                                              
-             PathBase "get"
+             MkPath ["get"]
                                                                              
            )
                                                                              
          )
                                                                              
-         EUnit
+         (
+                                                                             
+           EData "()"
+                                                                             
+           (
+                                                                             
+             EMkTuple[]
+                                                                             
+           )
+                                                                             
+         )
                                                                              
        )
                                                                              
@@ -425,7 +417,7 @@ ELet (
                                                                              
        EPath (
                                                                              
-         PathBase "c"
+         MkPath ["c"]
                                                                              
        )
                                                                              
@@ -443,7 +435,7 @@ ELet (
                                                                              
  EPath (
                                                                              
-   PathBase "res"
+   MkPath ["res"]
                                                                              
  )
                                                                             
@@ -482,10 +474,11 @@ Definition __osiris__reservedsplit_all_sitem6 : binding := (
                                                                        EPath
 (
                                                                         
-PathBase "new_counter"
+MkPath ["new_counter"]
                                                                        )
                                                                      )
-                                                                     EUnit
+                                                                     (EData
+"()" (EMkTuple[]))
                                                                    )
                                                                  )
                                                                  BiNil
@@ -497,8 +490,9 @@ PathBase "new_counter"
 (PVar "c")
                                                                      (
                                                                        EApp
-(EPath (PathBase "get"))
-                                                                       EUnit
+(EPath (MkPath ["get"]))
+                                                                       (EData
+"()" (EMkTuple[]))
                                                                      )
                                                                    )
                                                                    BiNil
@@ -506,7 +500,7 @@ PathBase "new_counter"
                                                                  (
                                                                    EMatch (
                                                                      EApp
-(EPath (PathBase "upd"))
+(EPath (MkPath ["upd"]))
                                                                      (EInt
 13)
                                                                    )
@@ -514,7 +508,12 @@ PathBase "new_counter"
                                                                     
 MkBranches [(
                                                                        Branch
-PUnit
+(
+                                                                        
+PData "()"
+                                                                        
+(PTuple PNil)
+                                                                       )
                                                                        (
                                                                          ELet
 (
@@ -531,13 +530,7 @@ Binding (PVar "res")
                                                                              
      EPath (
                                                                              
-       PathDot (
-                                                                             
-         PathBase "Stdlib"
-                                                                             
-       )
-                                                                             
-       "-"
+       MkPath ["Stdlib";"-"]
                                                                              
      )
                                                                              
@@ -549,13 +542,19 @@ Binding (PVar "res")
                                                                              
        EPath (
                                                                              
-         PathBase "get"
+         MkPath ["get"]
                                                                              
        )
                                                                              
      )
                                                                              
-     EUnit
+     (
+                                                                             
+       EData "()"
+                                                                             
+       (EMkTuple[])
+                                                                             
+     )
                                                                              
    )
                                                                              
@@ -565,7 +564,7 @@ Binding (PVar "res")
                                                                              
    EPath (
                                                                              
-     PathBase "c"
+     MkPath ["c"]
                                                                              
    )
                                                                              
@@ -577,7 +576,7 @@ Binding (PVar "res")
 BiNil
                                                                          )
                                                                         
-(EPath (PathBase "res"))
+(EPath (MkPath ["res"]))
                                                                        )
                                                                      )]
                                                                    )
@@ -592,10 +591,10 @@ __osiris__reservedsplit_all_sitem6
                                                               BiNil
                                                             )
                                                           ).
-Definition Incr : mexpr := (
-                             MkStruct
+Definition _Incr : mexpr := (
+                              MkStruct
 [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5]
-                          
+                           
 ).
 
 (* Done. *)

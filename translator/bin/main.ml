@@ -12,9 +12,11 @@ include Options
      contains an OCaml typed tree, it shall return it.
      Otherwise, the function causes a hard failure. *)
 let typedtree_of_cmt ({cmt_annots;_}: Cmt_format.cmt_infos) =
-  match cmt_annots with
-  | Cmt_format.Implementation s -> s
-  | _ -> verbose_msg "The cmt does not contain the typed-tree."; assert false
+  try
+    match cmt_annots with
+    | Cmt_format.Implementation s -> s
+    | _ -> failwith "The cmt does not contain the typed-tree."
+  with _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -25,30 +27,39 @@ let print _verbose _debug doc_graph fmt =
   |> List.iter (PPrint.ToFormatter.pretty 0.5 100 fmt);
   Format.fprintf fmt "@.(* Done. *)@?"
 
-let unit = fun _ -> ()
-
 (* -------------------------------------------------------------------------- *)
 
-(* Main code of the translator.
-   Each line either:
-   - retrieves the typed-tree,
-   - provides feedback to users,
-   - is a translation pass,
-   - breaks the initial program down to several definitions-to-be,
-   - prepares the different parts for printing,
-   - prints them in the required Coq file.
- *)
+(* Main code of the translator. *)
 
-let () =
-  begin
-    match mode with
-    | Mdune ->
-       in_file
-       |> verbose_say_with "Beginning the translation pipeline for the file [%s].@."
-     |> in_dir dune_root locate_cmt
-    | Mcmt -> cmt_file
-  end
-  |> Cmt_format.read_cmt
+exception Skip_file
+
+let translate_one_file module_name out_file (input_cmt : string) =
+  let module_name = "_" ^ module_name in
+  input_cmt
+  |> verbose_do
+       (fun _ ->
+         Format.printf "Translation process started for %s.@.@." module_name)
+  |> verbose_say_with "Cmt file: %s@."
+  |> fun s ->
+     begin
+       try
+         Cmt_format.read_cmt s
+       with
+       | Cmi_format.Error err ->
+          match err with
+          | Cmi_format.Not_an_interface filename ->
+             let _ =
+               verbose_say "'%s' is not an interface; skipping." filename in
+             raise Skip_file
+          | Cmi_format.Wrong_version_interface (filename, _) ->
+             Printf.sprintf
+               "'%s' was compile with the wrong version of OCaml." filename
+             |> failwith
+          | Cmi_format.Corrupted_interface filename ->
+             Printf.sprintf
+               "The interface '%s' is corrupted." filename
+             |> failwith
+     end
   |> typedtree_of_cmt
   (* If [-debug] is passed to the command line, dump the typed-tree to
      [stderr]. *)
@@ -120,4 +131,62 @@ let () =
   |> Misc.do_with (open_out out_file) close_out
        (print verbose_msg debug_msg)
 
-  |> unit
+  |> fun ((), ()) -> ()
+
+(* -------------------------------------------------------------------------- *)
+
+(* Start the translation depending on the mode:
+   - "ml"
+      In this mode, the user is expected to provide paths to
+      + the "ml" file to translate,
+      + the root of the dune project,
+      + the output to produce.
+      This mode assumes that the files have already been compiled by dune.
+   - "cmt"
+     In this mode, the user is expected to provide paths to
+     + the "cmt" file from which the typed-tree shall be retrieved,
+     + the output to produce.
+     This mode assumes that the cmt contains the typed-tree.
+   - "dune"
+     In this mode, the user is expected to provide paths to
+     + the directory to translate,
+     + the output directory to produce.
+     This mode expects the output directory to either be absent or have the same
+     structure as the input directory. *)
+
+let () =
+  match mode with
+  | Mml s ->
+     in_file
+     |> verbose_say_with
+          "Beginning the translation pipeline for the file [%s].@."
+     |> in_dir dune_root locate_cmt
+     |> (* Never catch [Skip_file]. *)
+       translate_one_file s out_file
+  | Mcmt s ->
+     (* Never catch [Skip_file]. *)
+     translate_one_file s out_file cmt_file
+  | Mdune ->
+     (* 1. parse the input directory. *)
+     let mls, vs, dirs = Misc.list_mls in_file out_file in
+     (* 2. test if the output directory exists. *)
+     List.iter
+       (fun dir ->
+         try
+           Sys.mkdir dir 0o700
+         with
+         | Sys_error s ->
+            let _ =
+              debug_say_with "Directory already exists: %s ; skipping.@." s in
+            ())
+       dirs;
+     (* 3. translate all the files, one by one. *)
+     List.iter
+       (fun (ml, v) ->
+         let name = Misc.guess_module_name ml in
+         in_dir dune_root locate_cmt ml
+         |> verbose_say_with "The cmt: '%s'.@."
+         |> fun s ->
+            try translate_one_file name v s
+            with Skip_file -> ())
+       (List.combine mls vs)

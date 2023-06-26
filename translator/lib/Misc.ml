@@ -8,10 +8,31 @@ let rec filtermap f = function
               | None -> filtermap f t
               | Some h -> h :: filtermap f t
 
+let rec map_option f l =
+  match l with
+  | [] -> []
+  | h :: t ->
+     match f h with
+     | Some r -> r :: map_option f t
+     | None -> map_option f t
+
 let rec last = function
   | [] -> assert false
   | h :: [] -> h
   | _ :: t -> last t
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* The module name can be deduced from the filename of the input OCaml file: *)
+let guess_module_name s =
+  s
+  |> String.split_on_char '/' |> last (* Only keep the filename, not its
+                                              path. *)
+  |> String.split_on_char '.' |> List.hd (* Strip away the extension
+                                            (assuming there is only one '.' in
+                                            the  filename). *)
+  |> String.capitalize_ascii (* Capitalize the first letter. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -66,6 +87,19 @@ let exec_one_line cmd =
   let _ = Unix.close_process_in process in
   line
 
+let exec_lines cmd =
+  let rec readlines chan =
+    try
+      let line = input_line chan in
+      line :: readlines chan
+    with End_of_file ->
+      []
+  in
+  let process = Unix.open_process_in cmd in
+  let res = readlines process in
+  let _ = Unix.close_process_in process in
+  res
+
   (* [locate_cmt f] finds the [cmt] corresponding to the [ml] file [f].
      Note: The function assumes:
            - that the [ml] file is part of a dune project,
@@ -112,9 +146,42 @@ let locate_cmt (file: string) =
        let module_name =
          file |> String.split_on_char '/' |> last |> String.split_on_char '.'
          |> List.hd |> String.capitalize_ascii in
-       (Format.sprintf
-          "realpath \"$(find . -name '*%s.cmt' | grep 'byte')\""
-          module_name)
-       |> exec_one_line
+       begin try
+           (Format.sprintf
+              "realpath \"$(find . -name '*%s.cmt' | grep 'byte')\""
+              module_name)
+           |> exec_one_line
+         with _ ->
+           (Format.sprintf
+              "realpath \"$(find . -name '*__%s.cmt' | head -n1)\""
+              module_name)
+           |> exec_one_line
+       end
      with _ ->
-       failwith "[locate_cmt] failed."
+       Printf.sprintf "[locate_cmt] failed for %s in %s." file (Sys.getcwd ())
+       |> failwith
+
+(* -------------------------------------------------------------------------- *)
+
+(* Recursively read a directory and list its [ml] files components. *)
+
+(* The function returns two trees: one storing the sub-directories and one
+   storing the files. *)
+let list_mls din dout =
+  let din =
+    exec_one_line (Printf.sprintf "realpath '%s'" din)
+  in
+  let mls =
+    Printf.sprintf "find %s -iname '*.ml' -exec realpath {} \\;" din
+    |> exec_lines
+  and outs =
+    Printf.sprintf "find %s -iname '*.ml' -exec realpath {} \\; | \
+                    sed 's~ml$~v~' | \
+                    sed 's|%s|%s|'" din din dout
+    |> exec_lines
+  and dirs =
+    Printf.sprintf "find %s -type d | \
+                    sed 's~%s~%s~' | \
+                    sort" din din dout
+    |> exec_lines in
+  mls, outs, dirs

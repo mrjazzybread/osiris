@@ -22,11 +22,7 @@ type name = string (* A variable or module name *)
 (* A module path is a possibly-empty list of module names [M], followed and
    a final name, which can be a variable [x] or a module name [M] *)
 
-type path =
-  (* An unqualified name *)
-  | PathBase of name
-  (* A qualified name *)
-  | PathDot of path * name
+type path = name list
 
 (* ------------------------------------------------------------------------ *)
 
@@ -69,8 +65,10 @@ type pat =
   | PData of data * pat
   (* A record pattern *)
   | PRecord of fpats
-  (* A literal integer pattern *)
+  (* Constant patterns *)
   | PInt of int
+  | PChar of char
+  | PString of string
   (* Punit is added to simplify the translator. *)
   | PUnit
 
@@ -108,6 +106,10 @@ type coercion =
 type expr =
   | EUnit
   | EConstant of string
+
+  | ETry of expr * branches
+
+  | EChar of char
 
   (* Path: [x] or [πx] *)
   | EPath of path
@@ -164,6 +166,9 @@ type expr =
   (* Non-recursive local definition: [let bs in e] *)
   | ELet of bindings * expr
 
+  (* Arrays. *)
+  | EArray of expr list
+
   (* Recursive local definition: [let rbs in e] *)
   | ELetRec of rec_bindings * expr
 
@@ -213,6 +218,7 @@ and fexprs = (field * expr) list
 
 and branch =
   | Branch of pat * expr
+  | BranchWhen of pat * expr (* guard *) * expr (* body *)
 
 (* Lists of branches *)
 
@@ -292,50 +298,6 @@ and sitem =
 
   (* A topèlevel Coq definition *)
   | CDef of coqdef
-
-(* ------------------------------------------------------------------------ *)
-
-(* Values *)
-
-(* These values serve as values both for expressions and for module
-   expressions Similarly, environments map both variables to values
-   and modules to values *)
-
-type value =
-  (* A simple (non-recursive) closure *)
-  | VClo of environment * anonfun
-  (* A recursive closure *)
-  (* [η] is the environment at the closure creation site It does not include
-     entries for the functions defined by the recursive bindings [rbs] *)
-  (* The recursive bindings [rbs] are those of the closure creation site *)
-  (* The name [f] is the closure's entry point *)
-  | VCloRec of environment * rec_bindings * variable
-  (* A string *)
-  | VString of string
-  (* A machine integer *)
-  | VInt of int
-  (* A tuple *)
-  | VTuple of values
-  (* A data constructor value *)
-  | VData of data * value
-  (* A record *)
-  (* A list of field-value pairs is the same thing as an environment,
-     so, for the moment at least, we identify these concepts *)
-  (* The fields in a record are always pairwise distinct (this is checked
-     by OCaml, not by us) and alphabetically sorted *)
-  | VRecord of environment
-  (* A location will never appear in the translation of a non evaluated program.
-  | VLoc of loc *)
-  (* A module *)
-  | VStruct of environment
-
-(* Lists of values *)
-
-and values = value list
-
-(* Environments are association lists *)
-
-and environment = (variable * value) list
 
 (* ------------------------------------------------------------------------- *)
 

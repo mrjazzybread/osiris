@@ -78,7 +78,7 @@ Lemma Add_spec :
   in
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
-  ⊢ WP eval_mexpr η Arith {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η _Arith {{ module_spec Λ }}.
 Proof.
   intros. wp. wp_bind.
 

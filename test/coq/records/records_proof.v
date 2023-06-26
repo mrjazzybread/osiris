@@ -32,7 +32,7 @@ Efficiency of 6--8: TODO. *)
 
 (* Make sure that the modules [Record] (defined in [records.v]) and
    [opacified_Records] (defined in [records_code.v]) coincide. *)
-Goal opacified_Records = Records.
+Goal opacified_Records = _Records.
 Proof. reflexivity. Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -504,7 +504,7 @@ Time Qed.
 Lemma Records_spec :
   let η := EnvCons "Stdlib" Stdlib $
            EnvNil in
-  ⊢ WP eval_mexpr η Records {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η _Records {{ module_spec Λ }}.
 Proof.
   intros η.
   wp.

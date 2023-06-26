@@ -31,6 +31,24 @@ let string_literal s = EPlain (Printf.sprintf "\"%s\"" s)
 
 (* -------------------------------------------------------------------------- *)
 
+let translate_bool b =
+  if b then EPlain "true" else EPlain "false"
+
+let translate_char (c: char) : expression =
+  let i = int_of_char c in
+  let d0 = i land 1 <> 0
+  and d1 = i land 2 <> 0
+  and d2 = i land 4 <> 0
+  and d3 = i land 8 <> 0
+  and d4 = i land 16 <> 0
+  and d5 = i land 32 <> 0
+  and d6 = i land 64 <> 0
+  and d7 = i land 128 <> 0
+  in
+  (* In Coq, a [char] is represented by the type [ascii]. Each character is
+     represented by eight booleans. *)
+  EConstr ("Ascii", List.map translate_bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
+
 let rec translate_pattern (p: pat) : expression =
   match p with
   | PUnit -> EPlain "PUnit"
@@ -57,29 +75,39 @@ let rec translate_pattern (p: pat) : expression =
      EConstr ("PData", [ string_literal d ;
                          translate_pattern p ])
   (* A record pattern *)
-  | PRecord _fps -> (* of fpats *)
-     assert false
-  (* A literal integer pattern *)
+  | PRecord fps -> (* of fpats *)
+     EConstr ("PRecord", [translate_fpats fps])
+  (* Constant patterns *)
   | PInt i -> (* of int *)
      EConstr ("PInt", [EPlain (string_of_int i)])
+  | PChar c -> (* of char *)
+     EConstr ("PChar", [translate_char c])
+  | PString s -> (* of string *)
+     EConstr ("PString", [EPlain ("\""^s^"\"")])
+
+and translate_fpats fpats =
+  match fpats with
+  | [] -> EPlain "FPNil"
+  | (f, pat) :: fpats ->
+     EConstr ("FPCons", [ string_literal f ;
+                          translate_pattern pat ;
+                          translate_fpats fpats ])
 
 let translate_path (x: path) : expression =
-  let rec translate_path x =
-    match x with
-    | PathBase name ->
-       EConstr ("PathBase", [string_literal name])
-    | PathDot (x, name) ->
-       EConstr ("PathDot", [translate_path x; string_literal name])
-  in
-  EConstr ("EPath", [translate_path x])
+  EList ("MkPath", List.map string_literal x)
 
 let rec translate_lambda (AnonFun (v, e)) : expression =
   EConstr ("AnonFun", [ string_literal v ;
                         translate_expression e ])
 
-and translate_branch (Branch (p, e)) : expression =
-  EConstr ("Branch", [ translate_pattern p ;
-                       translate_expression e ])
+and translate_branch : branch -> expression = function
+  | Branch (p, e) ->
+     EConstr ("Branch", [ translate_pattern p ;
+                          translate_expression e ])
+  | BranchWhen (p, c, e) ->
+     EConstr ("BranchWhen", [ translate_pattern p ;
+                            translate_expression c ;
+                            translate_expression e ])
 
 and translate_branches (bs: branches) : expression =
   EList ("MkBranches", List.map translate_branch bs)
@@ -92,13 +120,19 @@ and translate_fexprs (fs: fexprs) : expression =
 
 and translate_expression (e: expr) : expression =
   match e with
+  | EArray el -> EList ("MkArray", List.map translate_expression el)
+
   | EDef e -> EPlain e
   | EUnit -> EPlain "EUnit"
   | EConstant s -> EConstr ("EConstant", [string_literal  s])
+  | EChar c -> EConstr ("EChar", [translate_char c])
+
+  | ETry (e, brs) -> EConstr ("ETry", [ translate_expression e ;
+                                        translate_branches brs ])
 
   (* Path: [x] or [πx] *)
   | EPath x -> (* of path *)
-     translate_path x
+     EConstr ("EPath", [translate_path x])
 
   (* An anonymous function *)
   | EAnonFun a -> (* of anonfun *)
@@ -203,6 +237,9 @@ and translate_expression (e: expr) : expression =
   | ERef e -> (* of expr *)
      EConstr ("ERef", [translate_expression e])
 
+  | EAssertFalse
+    -> EPlain "EAssertFalse"
+
   (* The following does not exist in OCaml. Therefore, it will not show up
      here. *)
   | EBoolConj _ (* of expr * expr *)
@@ -222,7 +259,6 @@ and translate_expression (e: expr) : expression =
   | EOpLe _ (* of expr * expr *)
   | EOpGt _ (* of expr * expr *)
   | EOpGe _ (* of expr * expr *)
-  | EAssertFalse
   | ELoad _ (* of expr *)
   | EStore _ (* of expr * expr *)
     -> assert false
@@ -277,10 +313,12 @@ and translate_sitem : sitem -> expression option = function
                       translate_module mexpr]))
 
   (* An [open] directive [open π] *)
-  | IOpen (_path) -> assert false
+  | IOpen (path) ->
+     Some (EConstr ("IOpen", [translate_path path]))
 
   (* An [include] directive [include me] *)
-  | IInclude (_mexpr) -> assert false
+  | IInclude (mexpr) ->
+     Some (EConstr ("IInclude", [translate_module mexpr]))
 
 and translate_sitems l = Misc.filtermap translate_sitem l
 
@@ -291,7 +329,7 @@ and translate_module = function
   (* Auxiliary top-level Coq definition. *)
   | MDef s -> EPlain s
 
-  | MPath _ -> assert false
+  | MPath p -> EConstr ("MPath", [translate_path p])
   | MCoercion _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
