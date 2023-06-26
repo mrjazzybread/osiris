@@ -141,7 +141,7 @@ Lemma spec_example5:
   ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
   wp.
-  iIntros ([|]); do 2 wp_bind.
+  iIntros ([|]); wp_bind.
   (* Subgoal: prove that [assert true] succeeds. *)
   { by wp. }
   (* Remainder: prove that [false] returns [false], as promised. *)

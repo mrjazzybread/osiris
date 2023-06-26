@@ -171,11 +171,21 @@ Global Opaque id_continue.
          [wp_bind_binary] and silently apply this lemma
          only if we are able to silently solve its first premise. *)
 
+Ltac wp_simp :=
+  iApply wp_simp; first by simp_really.
+
+(* [wp_bind] can be applied when the goal is of the form [WP bind m m' {{ _ }}].
+   It bahaves differently depending on the term [m]:
+   - if [m] can be simplified into [ret v], then [bind] can reduce: do it;
+   - otherwise, apply the lemma [wp_bind]. *)
 Ltac wp_bind :=
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
-      tac_change_goal (wp_bind _ _ _ _ _)
-  | _ => fail "[wp_bind]"
+      first [
+          (* [wp_simp] will reduce the bind if it can. *)
+          progress wp_simp; try once wp_bind
+        | tac_change_goal (wp_bind _ _ _ _ _) ]
+  | _ => fail "[wp_bind] should only be applied to goals of the form [WP bind _ _ {{ _ }}]."
   end.
 
 Ltac wp_step :=
@@ -202,9 +212,6 @@ Ltac wp_step :=
       fail "The goal must be a wp to apply [wp_step]."
   end.
 
-Ltac wp_simp :=
-  iApply wp_simp; first by simp_really.
-
 Local Ltac wp_progress :=
   first [
       lazymatch goal with
@@ -218,6 +225,7 @@ Ltac wp_concat :=
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ ?m _) =>
       unfold_breakpoint m
+  | _ => fail "There is no concatenation here."
   end.
 
 Local Ltac wp_startproof :=
@@ -287,47 +295,6 @@ Ltac wp_continue :=
       unfold_breakpoint m
   end;
   wp.
-
-(* TODO: get rid of wp_autocontinue. *)
-Ltac wp_autocontinue :=
-  repeat (wp || wp_continue).
-
-
-(* The tactic [wp_specify x φ H] should be used when the goal begins with
-   [bind (ret_concat δ η) _], that is, when the environment is about to
-   be extended with the environment fragment [δ].
-
-   The tactic looks up the variable [x] in the environment fragment [δ]
-   so as to find the value [v] of this variable. Then, it produces two
-   subgoals:
-   - the subgoal [φ v],
-     letting the user prove that [v] satisfies the specification [φ];
-   - the original goal,
-     generalized under the form [∀ v, φ v → ...],
-     which means that [v] becomes an opaque value
-     about which nothing is known except that [φ v] holds. *)
-
-(* One should avoid [context] in the following tactic, as it might match an
-   occurence that is in the postcondition. *)
-Ltac wp_specify x φ :=
-  lazymatch goal with
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_concat ?δ _) _ => (* TODO missing [bind] *)
-      let o := eval cbn in (lookup_name δ x) in
-        match o with
-        | ret ?v => let H := iFresh in
-                    iAssert (φ v) as H; [  | iRevert H; generalize v ]
-        end
-  | |- environments.envs_entails
-         _ $
-         wp _ _ (ret_dconcat ?δ _) _ => (* TODO missing [bind] *)
-      let o := eval cbn in (lookup_name δ x) in
-        match o with
-        | ret ?v => let H := iFresh in
-                    iAssert (φ v) as H; [  | iRevert H; generalize v ]
-        end
-  end.
 
 (* -------------------------------------------------------------------------- *)
 
