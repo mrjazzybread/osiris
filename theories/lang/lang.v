@@ -7,3 +7,4 @@ From osiris.lang Require Export
      sugar
      encode
 .
+Require Export Ascii.

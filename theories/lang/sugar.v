@@ -279,21 +279,18 @@ Definition IIncludeMkPath xs :=
 
 (* Sugar for tuples. *)
 
+Definition tuple_of_list {A B} (c : B -> A -> A) (n: A) :=
+  fix tuple_of_list l :=
+    match l with
+    | nil => n
+    | cons h l => c h $ tuple_of_list l
+    end.
+
 Definition PMkTuple l :=
-  let mk_tpl := fix mk_tpl pl :=
-      match pl with
-      | nil => PNil
-      | cons h pl => PCons h $ mk_tpl pl
-      end in
-  PTuple (mk_tpl l).
+  PTuple $ tuple_of_list PCons PNil l.
 
 Definition EMkTuple l :=
-  let mk_tpl := fix mk_tpl pl :=
-      match pl with
-      | nil => ENil
-      | cons h pl => ECons h $ mk_tpl pl
-      end in
-  ETuple (mk_tpl l).
+  ETuple $ tuple_of_list ECons ENil l.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -309,3 +306,6 @@ Definition ERaise (e : expr) :=
 
 Definition ETry (e : expr) (bs : branches) :=
   e.
+
+Definition MkArray (el: list expr) :=
+  EArray $ tuple_of_list ECons ENil el.

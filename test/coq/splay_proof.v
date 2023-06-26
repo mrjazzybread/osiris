@@ -324,6 +324,9 @@ Proof.
   intros. rewrite Z.ltb_ge. lia.
 Qed.
 
+Local Ltac fixme :=
+  with_strategy transparent [app] simpl (MkPathRev _); SIMP1.
+
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib EnvNil in
   SIMP (eval_mexpr η Splay)
@@ -331,7 +334,6 @@ Lemma Splay__spec:
 Proof.
   intros.
   SIMP1.
-
   SIMP_specify "splay" splay_spec.
   (* Subgoal: prove that [splay] satisfies its specification. *)
   { generalize η; clear η; intro η. (* optional *)
@@ -342,7 +344,7 @@ Proof.
     intros.
     (* Enter the closure. *)
     SIMP_enter_and_abstract. intros splay IH.
-    SIMP1. SIMP_continue.
+    SIMP1. fixme. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
     (* Case: [Root]. *)
@@ -397,7 +399,7 @@ Proof.
     (* Without this, the tactic [encode] fails to solve [Leaf = #?t]. TODO *)
     pose proof (@solve_encode_Leaf A _).
     (* Step into the function. *)
-    SIMP_enter. SIMP_continue.
+    SIMP_enter. fixme. SIMP_continue.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| up x r | r x up ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)
@@ -418,7 +420,7 @@ Proof.
     intros ? ? Hbst;
     SIMP_enter_and_abstract;
     intros zlookup; [| intros IHl IHr ];
-    SIMP1; SIMP_continue; SIMP_continue.
+    SIMP1; fixme; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
     { intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)

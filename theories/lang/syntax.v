@@ -21,6 +21,8 @@ Definition module :=
 Definition name :=
   string. (* A variable or module name. *)
 
+Definition char := Ascii.ascii.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Module paths. *)
@@ -78,6 +80,7 @@ Inductive pat :=
   | PRecord (fps : fpats)
   (* A literal integer pattern. *)
   | PInt (i : Z)
+  | PChar (c: char)
 
 (* Lists of patterns. *)
 
@@ -124,6 +127,11 @@ with coercions :=
 (* Expressions. *)
 
 Inductive expr :=
+  (* Char. *)
+  | EChar (c: char)
+
+  (* An array is represented by the list of its values. *)
+  | EArray (el: exprs)
 
   (* Path: [x] or [π.x]. *)
   | EPath (x : path)
@@ -231,6 +239,7 @@ with fexprs :=
 
 with branch :=
   | Branch (p : pat) (e : expr)
+  | BranchWhen (p : pat) (c : expr) (e : expr)
 
 (* Lists of branches. *)
 
@@ -349,6 +358,8 @@ Inductive val :=
   | VLoc (l: loc)
   (* A module. *)
   | VStruct (xvs : env)
+  | VChar (c: char)
+  | VArray (c: vals)
 
 (* Lists of values. *)
 
@@ -371,24 +382,24 @@ with env :=
 (* Unit. *)
 
 Notation PUnit :=
-  (PTuple PNil).
+  (PData "()" $ PTuple PNil).
 
 Notation EUnit :=
-  (ETuple ENil).
+  (EData "()" $ ETuple ENil).
 
 Notation VUnit :=
-  (VTuple VNil).
+  (VData "()" $ VTuple VNil).
 
 (* Constant constructors, that is, constructors of arity 0. *)
 
 Notation PConstant c :=
-  (PData c PUnit).
+  (PData c $ PTuple PNil).
 
 Notation EConstant c :=
-  (EData c EUnit).
+  (EData c $ ETuple ENil).
 
 Notation VConstant c :=
-  (VData c VUnit).
+  (VData c $ VTuple VNil).
 
 (* The Boolean constants. *)
 

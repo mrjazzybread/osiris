@@ -49,7 +49,7 @@ let rec translate_pattern (p: pat) : expression =
      EConstr ("POr", [ translate_pattern p1 ;
                        translate_pattern p2 ])
   (* A tuple pattern *)
-  | PTuple [] -> EPlain "PUnit"
+  | PTuple [] -> EPlain "(PTuple PNil)"
   | PTuple ps -> (* of pats *)
      EList ("PMkTuple", List.map translate_pattern ps)
   (* A data constructor pattern *)

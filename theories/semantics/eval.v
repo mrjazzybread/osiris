@@ -72,7 +72,7 @@ Definition type_mismatch {A} (msg : string) : free A :=
 (* [ok] is an inert computation. It produces the value [VUnit]. *)
 
 Notation ok :=
-  (ret VUnit).
+  (ret (VData "()" $ VTuple VNil)).
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -377,6 +377,8 @@ Fixpoint extend δ p v : free env :=
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then ret δ else next()
+  | PChar c', VChar c =>
+      if Ascii.eqb c c' then ret δ else next()
   | PTuple _, _ =>
       type_mismatch "tuple expected"
   | PData _ _, _ =>
@@ -385,7 +387,9 @@ Fixpoint extend δ p v : free env :=
       type_mismatch "record expected"
   | PInt _, _ =>
       type_mismatch "integer expected"
-  end
+  | PChar _, _ =>
+      type_mismatch "char expected"
+end
 
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
 
@@ -666,6 +670,7 @@ with coerces (xcs : coercions) (xvs : env) : free env :=
 
 Fixpoint eval η e : free val :=
   match e with
+  | EChar c => ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
       lookup_path η π
@@ -676,6 +681,10 @@ Fixpoint eval η e : free val :=
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       call v1 v2
+  | EArray es =>
+      (* The tuple components are evaluated in parallel. *)
+      vs ← evals η es ;
+      ret (VArray vs)
   | ETuple es =>
       (* The tuple components are evaluated in parallel. *)
       vs ← evals η es ;
@@ -916,6 +925,22 @@ with eval_match η v bs : free val :=
         (extend EnvNil p v)
       (* Success: commit to this branch. Evaluate its body. *)
       (λ δ, η ← ret_concat δ η; eval η e)
+      (* Soft failure: abandon this branch. Try the following branches. *)
+      (λ tt, eval_match η v bs)
+  | BrCons (BranchWhen p c e) bs =>
+      (* Match the value [v] against the pattern [p]. *)
+      try
+        (extend EnvNil p v)
+      (* Success: commit to this branch. Evaluate its body. *)
+      (λ δ, η ← ret_concat δ η;
+            try (eval η c)
+            (λ b,
+               match b with
+               | VData "true" (VTuple VNil) => eval η e
+               | VData "false" (VTuple VNil) => Next
+               | _ => type_mismatch "The guard consition of a branch should be boolean."
+               end)
+            (λ tt, eval_match η v bs))
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end

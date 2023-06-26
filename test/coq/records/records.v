@@ -176,7 +176,7 @@ Branch (
                                                                              
  PData "true"
                                                                              
- PUnit
+ (PTuple PNil)
                                                                             
 )
                                                                             
@@ -254,7 +254,7 @@ Branch (
                                                                              
  PData "false"
                                                                              
- PUnit
+ (PTuple PNil)
                                                                             
 )
                                                                             
@@ -696,8 +696,12 @@ Definition __osiris__reservedsplit_all_rec_binding18 : expr := (
                                                                  (
                                                                    MkBranches
 [(
-                                                                     Branch
-(PData "O" PUnit)
+                                                                     Branch (
+                                                                       PData
+"O"
+                                                                      
+(PTuple PNil)
+                                                                     )
                                                                     
 (EConstant "true")
                                                                    );(

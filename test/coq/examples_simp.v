@@ -45,17 +45,17 @@ Inductive data := A | B.
 Global Instance encode_data : Encode data := {
   encode := λ data,
   match data with
-  | A => VData "A" VUnit
-  | B => VData "B" VUnit
+  | A => VConstant "A"
+  | B => VConstant "B"
   end
 }.
 
 Lemma solve_encode_A :
-  VData "A" VUnit = #A.
+  VConstant "A" = #A.
 Proof. reflexivity. Qed.
 
 Lemma solve_encode_B :
-  VData "B" VUnit = #B.
+  VConstant "B" = #B.
 Proof. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_A solve_encode_B : encode.

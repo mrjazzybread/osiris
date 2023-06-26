@@ -239,14 +239,14 @@ Proof.
   (* Simplify the comparison. *)
   rewrite lt_repr_repr by representable. cbn.
   (* Simplify the incrementation. *)
-  unfold one. rewrite add_repr_repr. unfold Z.add. simpl.
+  unfold int.one. rewrite add_repr_repr. unfold Z.add. simpl.
   (* Step. *)
   steps.
 
   (* Iteration 1. *)
   unfold loop.
   rewrite lt_repr_repr by representable. cbn.
-  unfold one. rewrite add_repr_repr. unfold Z.add. simpl.
+  unfold int.one. rewrite add_repr_repr. unfold Z.add. simpl.
   steps.
 
   (* Iteration 2. *)
