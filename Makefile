@@ -5,7 +5,7 @@ export OCAMLRUNPARAM=
 all:
 	@ dune build test/ml --
 	@ dune build libs/ml --
-	@ dune exec translator/bin/main.exe -- -in-dir libs/ml/Stdlib -out libs/coq/Stdlib -root . -mode dune -verbose
+	@ dune exec translator/bin/main.exe -- -in-dir libs/ml/Stdlib -out libs/coq/Stdlib -root . -mode dune
 	@ dune build
 
 .PHONY: clean
