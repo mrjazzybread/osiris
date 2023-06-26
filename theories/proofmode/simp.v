@@ -53,6 +53,8 @@ Ltac unfold_breakpoint m :=
 
 (* The following lemmas are reasoning rules for goals of the form [simp _ _]. *)
 
+(* They are used by the tactics that follow. *)
+
 (* [prove_simp_ret] reduces the goal to an equality between values [a1 = a2]. *)
 
 Lemma prove_simp_ret {A} (a1 a2 : A) :
@@ -62,6 +64,8 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
+(* The Bind rule. *)
+
 Lemma prove_simp_bind {A B m m' a} {f : A → free B} :
   simp m (ret a) →
   simp (f a) m' →
@@ -69,6 +73,8 @@ Lemma prove_simp_bind {A B m m' a} {f : A → free B} :
 Proof.
   eauto using simp_bind with simp.
 Qed.
+
+(* The Try rule. *)
 
 Lemma prove_simp_try {A B m m' a} {f : A → free B} ko :
   simp m (ret a) →
@@ -78,6 +84,9 @@ Proof.
   eauto using simp_try with simp try_ret.
 Qed.
 
+(* A reasoning rule for tail calls. This rule is not essential, but allows
+   cleaning up the goal, when it is applicable. *)
+
 Lemma simp_tail_call {A} (m : free A) m' :
   simp m m' →
   simp (bind m ret) m'.
@@ -85,37 +94,13 @@ Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
-(* The following two lemmas paraphrase the definition of [call] in eval.v.
-   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
-   a concrete closure (as opposed to a rigid metavariable), they step into
-   the call. *)
-
-Lemma simp_enter_call_VClo η a v2 m :
-  simp (acall η a v2) m →
-  simp (call (VClo η a) v2) m.
-Proof.
-  tauto.
-Qed.
-
-Lemma simp_enter_call_VCloRec η rbs g v2 m :
-  simp (
-    let δ := eval_rec_bindings η rbs in
-    let η := concat δ η in
-    a ← lookup_rec_bindings rbs g ;
-    acall η a v2
-  ) m →
-  simp (call (VCloRec η rbs g) v2) m.
-Proof.
-  tauto.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
-(* The following lemmas are used by the [simp] tactic. *)
+(* More lemmas for use by the tactics that follow. *)
 
-(* They are trivial. They could be replaced by nested applications of
-   constructors, possibly complemented with [rewrite] steps. Using lemmas
-   is somewhat more robust and should give rise to smaller proof terms. *)
+(* These lemmas are trivial. They could be replaced by nested applications of
+   constructors, possibly complemented with [rewrite] steps. Using lemmas is
+   somewhat more robust and should give rise to smaller proof terms. *)
 
 Lemma simp_reflexive {A} (m1 m2 : free A) :
   m1 = m2 →
@@ -219,6 +204,12 @@ Proof.
   eauto with simp.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
+(* More lemmas for use by the tactics that follow. *)
+
+(* [val_as_bool] is opaque. to deal with it, we use the following lemmas. *)
+
 Lemma val_as_bool_VTrue :
   val_as_bool VTrue = ret true.
 Proof.
@@ -263,6 +254,31 @@ Lemma simp_call `{Encode X} v1 v'2 (x : X) m' :
   simp (call v1 v'2) m'.
 Proof.
   intros. subst. eauto.
+Qed.
+
+(* The following two lemmas paraphrase the definition of [call] in eval.v.
+   When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
+   a concrete closure (as opposed to a rigid metavariable), they step into
+   the call. If [eapply] is used, as opposed to [simple eapply], then a
+   definition can be unfolded on the fly. *)
+
+Lemma simp_enter_call_VClo η a v2 m :
+  simp (acall η a v2) m →
+  simp (call (VClo η a) v2) m.
+Proof.
+  tauto.
+Qed.
+
+Lemma simp_enter_call_VCloRec η rbs g v2 m :
+  simp (
+    let δ := eval_rec_bindings η rbs in
+    let η := concat δ η in
+    a ← lookup_rec_bindings rbs g ;
+    acall η a v2
+  ) m →
+  simp (call (VCloRec η rbs g) v2) m.
+Proof.
+  tauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
