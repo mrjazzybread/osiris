@@ -53,6 +53,8 @@ Ltac unfold_breakpoint m :=
 
 (* The following lemmas are reasoning rules for goals of the form [simp _ _]. *)
 
+(* [prove_simp_ret] reduces the goal to an equality between values [a1 = a2]. *)
+
 Lemma prove_simp_ret {A} (a1 a2 : A) :
   a1 = a2 →
   simp (ret a1) (ret a2).
