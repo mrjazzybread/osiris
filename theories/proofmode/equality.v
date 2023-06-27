@@ -12,10 +12,38 @@ Global Hint Extern 1 (_ = _) => rewrite neg_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite add_repr_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite sub_repr_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite mul_repr_repr : equality.
-Global Hint Extern 1 (_ = _) => rewrite divs_repr_repr : equality.
-Global Hint Extern 1 (_ = _) => rewrite mods_repr_repr : equality.
-Global Hint Extern 1 (_ = _) => rewrite eq_repr_repr : equality.
-Global Hint Extern 1 (_ = _) => rewrite lt_repr_repr : equality.
+Global Hint Extern 1 (_ = _) => rewrite divs_repr_repr by representable : equality.
+Global Hint Extern 1 (_ = _) => rewrite mods_repr_repr by representable : equality.
+Global Hint Extern 1 (_ = _) => rewrite eq_repr_repr by representable : equality.
+Global Hint Extern 1 (_ = _) => rewrite lt_repr_repr by representable : equality.
+
+Lemma prove_VBool_true_eq_VTrue b :
+  b = true →
+  VBool b = VTrue.
+Proof.
+  intros. subst. reflexivity.
+Qed.
+
+Lemma prove_VBool_false_eq_VFalse b :
+  b = false →
+  VBool b = VFalse.
+Proof.
+  intros. subst. reflexivity.
+Qed.
+
+Global Hint Resolve
+  prove_VBool_true_eq_VTrue
+  prove_VBool_false_eq_VFalse
+: equality.
 
 Ltac equality :=
-  eauto with equality.
+  eauto 3 with equality.
+
+(* --------------------------------------------------------------------------*)
+
+(* Unit tests. *)
+
+(* TODO add more tests; ensure some form of test coverage *)
+
+Goal   VBool (eq (add (repr 0) (repr 1)) (repr 1)) = VTrue.
+Proof. equality. Qed.
