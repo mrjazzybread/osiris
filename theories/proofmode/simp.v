@@ -292,6 +292,15 @@ Proof.
   tauto.
 Qed.
 
+(* This lemma replaces [eval] with [eval'] at the root of the goal. *)
+
+Lemma advance_simp_eval η e m' :
+  simp (eval' η e) m' →
+  simp (eval  η e) m'.
+Proof.
+  rewrite eval_eval'. tauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -426,7 +435,7 @@ Ltac fail_if_goal_contains_eval' :=
    been eliminated, and fails otherwise. *)
 
 Ltac simp_eval :=
-  rewrite eval_eval';
+  simple eapply advance_simp_eval;
   normalize;
   fail_if_goal_contains_eval'.
 
