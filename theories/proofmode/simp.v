@@ -84,16 +84,6 @@ Proof.
   eauto using simp_try with simp try_ret.
 Qed.
 
-(* A reasoning rule for tail calls. This rule is not essential, but allows
-   cleaning up the goal, when it is applicable. *)
-
-Lemma simp_tail_call {A} (m : free A) m' :
-  simp m m' →
-  simp (bind m ret) m'.
-Proof.
-  rewrite bind_ret_right. eauto.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -145,19 +135,20 @@ Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpBindRet {A B} v (f : A → free B) m' :
-  simp (f v) m' →
-  simp (bind (ret v) f) m'.
-Proof.
-  eauto.
-Qed.
-
 Lemma advance_SimpBind {A B} m1 m2 (f : A → free B) m' :
   simp m1 m2 →
   simp (bind m2 f) m' →
   simp (bind m1 f) m'.
 Proof.
   eauto using simp_bind with simp.
+Qed.
+
+Lemma advance_SimpTry {A B} m1 m2 (f : A → free B) ko m' :
+  simp m1 m2 →
+  simp (try m2 f ko) m' →
+  simp (try m1 f ko) m'.
+Proof.
+  eauto using simp_try with simp.
 Qed.
 
 Lemma advance_SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko m' :
@@ -228,6 +219,27 @@ Proof.
   destruct b; reflexivity.
 Qed.
 
+Lemma advance_simp_val_as_bool_VTrue m' :
+  simp (ret true) m' →
+  simp (val_as_bool VTrue) m'.
+Proof.
+  rewrite val_as_bool_VTrue. tauto.
+Qed.
+
+Lemma advance_simp_val_as_bool_VFalse m' :
+  simp (ret false) m' →
+  simp (val_as_bool VFalse) m'.
+Proof.
+  rewrite val_as_bool_VFalse. tauto.
+Qed.
+
+Lemma advance_simp_val_as_bool_VBool b m' :
+  simp (ret b) m' →
+  simp (val_as_bool (VBool b)) m'.
+Proof.
+  rewrite val_as_bool_VBool. tauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -278,6 +290,75 @@ Lemma simp_enter_call_VCloRec η rbs g v2 m :
   simp (call (VCloRec η rbs g) v2) m.
 Proof.
   tauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* More lemmas for use by the tactics that follow. *)
+
+(* The following lemmas paraphrase the rewrite rules [ret_bind], [bind_ret],
+   etc., and force the rule to be applied at the root of the goal. This is
+   both safe and efficient (there is no need to scan the whole term). *)
+
+Lemma advance_simp_bind_ret {A B} (a : A) (f : A → free B) m' :
+  simp (f a) m' →
+  simp (bind (ret a) f) m'.
+Proof.
+  rewrite bind_ret. tauto.
+Qed.
+
+Lemma advance_simp_bind_ret_right {A} (m : free A) m' :
+  simp m m' →
+  simp (bind m ret) m'.
+Proof.
+  rewrite bind_ret_right. eauto.
+Qed.
+
+Lemma advance_simp_try_ret {A B} (a : A) (f : A → free B) ko m' :
+  simp (f a) m' →
+  simp (try (ret a) f ko) m'.
+Proof.
+  rewrite try_ret. tauto.
+Qed.
+
+Lemma advance_simp_bind_as_try {A B} m (f : A → free B) m' :
+  simp (bind m f) m' →
+  simp (try m f next) m'.
+Proof.
+  rewrite bind_as_try. tauto.
+Qed.
+
+Lemma advance_simp_bind_bind
+  {A B C} (m : free A) (f : A → free B) (g : B → free C) m' :
+  simp (bind m (λ a, bind (f a) g)) m' →
+  simp (bind (bind m f) g) m'.
+Proof.
+  rewrite bind_bind. tauto.
+Qed.
+
+Lemma advance_simp_bind_try
+  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko m' :
+  simp (try m (λ a, bind (f a) g) (λ y, bind (ko y) g)) m' →
+  simp (bind (try m f ko) g) m'.
+Proof.
+  rewrite bind_try. tauto.
+Qed.
+
+Lemma advance_simp_try_bind
+  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko m'
+:
+  simp (try m (λ y, try (f y) g ko) ko) m' →
+  simp (try (bind m f) g ko) m'.
+Proof.
+  rewrite try_bind. tauto.
+Qed.
+
+Lemma advance_simp_try_try
+  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko ko' m' :
+  simp (try m (λ y, try (f y) g ko') (λ y, try (ko y) g ko')) m' →
+  simp (try (try m f ko) g ko') m'.
+Proof.
+  rewrite try_try. tauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -431,7 +512,7 @@ with simp1 :=
       simp0
   | bind ?m ret =>
       (* A tail call can be simplified. *)
-      simple eapply simp_tail_call; simp0
+      simple eapply advance_simp_bind_ret_right; simp0
   | bind ?m ?f =>
       (* We want to first simplify the left-hand side of [bind], as far as
          possible; then, if possible, simplify the [bind] combinator away
@@ -536,7 +617,7 @@ with simp1_bind :=
      construct, requires rewriting [bind (ret _) _]. To do so, we explicitly
      apply a lemma; this ensures that we fail if the goal is not of the form
      [bind (ret _) _]. *)
-  simple eapply advance_SimpBindRet;
+  simple eapply advance_simp_bind_ret;
   normalize; simp0
 
 (* [simp0_par] and [simp1_par] are special cases of [simp0] and [simp1].
