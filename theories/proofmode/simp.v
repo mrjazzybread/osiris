@@ -251,10 +251,15 @@ Qed.
    concrete closure (as opposed to a rigid metavariable), they step into the
    call.
 
-   If [eapply] is used, as opposed to [simple eapply], then a transparent
-   definition can be unfolded on the fly: that is, the lemma can be applied
-   to a goal of the form [simp (call c v2) m] where [c] is the name of a
-   transparent toplevel definition. *)
+   If [eapply] is used, as opposed to [simple eapply], then a definition can
+   be unfolded on the fly: that is, the lemma can be applied to a goal of
+   the form [simp (call c v2) m] where [c] is the name of a Coq toplevel
+   definition.
+
+   The trouble with [eapply], though, is that it does not respect opacity
+   (i.e., it can unfold both transparent and opaque definitions).
+   Furthermore, somewhat surprisingly, it can unfold and simplify further
+   than is strictly necessary for the lemma to be applicable. *)
 
 Lemma simp_enter_call_VClo η a v2 m :
   simp (acall η a v2) m →
@@ -473,10 +478,13 @@ with simp1 :=
 with simp_enter :=
   (* We intentionally use [eapply], not [simple eapply], so that [v1] can be
      unfolded on the fly if necessary. This is useful, e.g., when [v1] is a
-     function in the standard library, such as [Stdlib__not]. This works
-     only if [v1] is a concrete closure, that is, either [VClo ...] or
-     [VCloRec ...] or a transparent definition that unfolds to one of these
-     forms. *)
+     function in the standard library, such as [Stdlib__not].
+
+     We expect [eapply] to succeed only if [v1] is a concrete closure, that
+     is, either [VClo ...] or [VCloRec ...] or a transparent definition that
+     unfolds to one of these forms. If [v1] is an opaque definition then we
+     expect [eapply] to fail. (These expectations may be wrong. I have
+     observed situations where [eapply] violates opacity.) *)
   first [
     eapply simp_enter_call_VClo
   | eapply simp_enter_call_VCloRec
