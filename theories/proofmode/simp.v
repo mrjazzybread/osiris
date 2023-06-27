@@ -438,6 +438,11 @@ Ltac simp_eval :=
   simple eapply advance_simp_eval;
   normalize;
   fail_if_goal_contains_eval'.
+    (* TODO The goal could still contain [eval'] at this point if [eval']
+       is applied to an opaque expression. There is currently an example
+       of this in records_proof.v, where we do caller-side reasoning.
+       We may abandon this style in the future. This expensive test
+       could then become unnecessary. *)
 
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
