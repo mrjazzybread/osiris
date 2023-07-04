@@ -996,7 +996,7 @@ with eval_sitem (ηδ : envs) item : free envs :=
   | IModule m me =>
       v ← eval_mexpr η me ;
       let δ' := EnvCons m v EnvNil in
-      ret (dconcat δ' ηδ)
+      ret_dconcat δ' ηδ
   | IOpen π =>
       (* The bindings contained in the structure denoted by the path [π]
          are used to extend [η] but not [δ]. This reflects the fact that
