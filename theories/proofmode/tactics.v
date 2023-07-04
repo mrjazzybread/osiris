@@ -163,6 +163,60 @@ Ltac wp :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* TODO: get [wp until check _] to use [idtac_or_do]. *)
+Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
+  let is_in := eval cbn in (lookup_name δ name) in
+  lazymatch is_in with
+  | Ret _ => idtac
+  | _ => t
+  end.
+
+Local Tactic Notation "@wp" "until" "check" constr(name) :=
+  lazymatch goal with
+  | |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+      let is_in := eval cbn in (lookup_name δ name) in
+        lazymatch is_in with
+        | Ret _ => idtac
+        | _ => fail "[wp until] cannot find the requested bindings"
+        end
+  | |- environments.envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+      let is_in := eval cbn in (lookup_name δ name) in
+        lazymatch is_in with
+        | Ret _ => idtac
+        | _ => fail "[wp until] cannot find the requested bindings"
+        end
+  | _ => fail "[wp until] cannot find the requested bindings."
+  end.
+
+Tactic Notation "@wp" "until" constr(name) :=
+  repeat (
+      first
+        [
+          lazymatch goal with
+          | |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+              idtac_or_do
+                name δ
+                (unfold_breakpoint (ret_dconcat δ η); fail)
+          | |- environments.envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+              idtac_or_do
+                name δ
+                (unfold_breakpoint (ret_concat δ η); fail)
+          end
+        | wp
+    ]).
+
+Tactic Notation "wp" "until" constr(name) :=
+  @wp until name;
+  first [ @wp until check name
+        | idtac "The requested binding was not found."
+    ].
+
+Tactic Notation "wp" "until" constr(name) "!" :=
+  repeat (@wp until name; try wp_bind);
+  @wp until check name.
+
+(* -------------------------------------------------------------------------- *)
+
 (* We want symbolic execution to stop at breakpoints, that is, when the
    environment is extended with new bindings. This gives the user a chance
    to prove specifications about these bindings using [wp_specify]. *)

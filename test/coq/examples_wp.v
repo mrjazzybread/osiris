@@ -37,7 +37,7 @@ Definition example :=
 
 Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  wp. wp_continue. wp. wp_continue. wp.
+  wp. wp_bind. wp_continue. wp_bind. wp_continue.
   iPureIntro. reflexivity.
 Qed.
 

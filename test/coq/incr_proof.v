@@ -47,7 +47,6 @@ Definition new_counter_spec v : iProp Σ :=
 Definition thirteen_spec v : iProp Σ :=
   ⌜ v = #13 ⌝.
 
-
 Lemma Incr__spec:
   let Λ :=
     [
@@ -60,7 +59,7 @@ Lemma Incr__spec:
   ⊢ WP eval_mexpr η _Incr {{ module_spec Λ }}.
 Proof.
   iIntros.
-  wp. wp_bind. wp_bind.
+  wp until "new_counter" !.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
   o_specify "new_counter" new_counter_spec "#Hnew_counter".

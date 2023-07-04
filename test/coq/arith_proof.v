@@ -68,6 +68,8 @@ Axiom int_representable:
    improve the proof --- especially the way to handle mutually recursive
    functions. *)
 
+
+
 Lemma Add_spec :
     let Λ :=
     [
@@ -80,8 +82,9 @@ Lemma Add_spec :
            EnvNil in
   ⊢ WP eval_mexpr η _Arith {{ module_spec Λ }}.
 Proof.
-  intros. wp. wp_bind. wp_bind.
+  intros.
 
+  wp until "add"!.
   o_specify "add" add_spec "#Hadd"
             "mult" mult_spec "#Hmult".
 
@@ -205,5 +208,3 @@ Proof.
   Unshelve. (* TODO avoid this *)
   all: done.
 Time Qed.
-(* This [Qed.] is about 2.8s, while it was 2.0s with a manual iAssert.
-   TODO: improve the lemma applied by [oSpecify] to get better results! *)
