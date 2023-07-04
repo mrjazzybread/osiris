@@ -365,7 +365,7 @@ Ltac SIMP_enter_and_abstract :=
     normalize;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
-       with an abstract values. This ensures that we cannot step into
+       with an abstract value. This ensures that we cannot step into
        recursive calls. *)
     generalize dependent v
   end.
