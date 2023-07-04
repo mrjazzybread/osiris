@@ -60,13 +60,13 @@ Lemma Incr__spec:
   ⊢ WP eval_mexpr η _Incr {{ module_spec Λ }}.
 Proof.
   iIntros.
-  wp. wp_bind.
+  wp. wp_bind. wp_bind.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
   o_specify "new_counter" new_counter_spec "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     wp. wp_continue.
-    wp_alloc l "[Hl _]".
+    wp_alloc l "[Hl _]". do 2 wp_bind.
     wp_continue. wp_continue. wp_continue.
     wp_use "Hφ". clear φ.
     iExists l.

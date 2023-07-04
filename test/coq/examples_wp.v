@@ -37,8 +37,7 @@ Definition example :=
 
 Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  wp.
-  wp_continue. wp. wp_continue. wp.
+  wp. wp_continue. wp. wp_continue. wp.
   iPureIntro. reflexivity.
 Qed.
 
@@ -400,7 +399,7 @@ Definition simple_module_spec: val → iProp Σ :=
 Goal
   ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
 Proof.
-  wp. wp_bind.
+  wp. do 2 wp_bind.
 
   (* [f] is about to be added to the environment *)
   o_specify "f" spec_id "#Hid".

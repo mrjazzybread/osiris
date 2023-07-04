@@ -241,17 +241,17 @@ Proof.
   o_specify "is_odd" trivial_spec "#?"; first done.
   wp_bind.
 
-  o_specify "is_odd'" is_odd_spec "#?".
-  { iLöb as "IH". iIntros "!>" ([|]); wp_enter_and_abstract;
-    iIntros (is_odd'); wp.
+  o_specify "is_odd'" is_odd_spec "#His_odd'".
+  { iIntros "!>" ([|]); wp_enter_and_abstract;
+      iIntros (is_odd');
+    wp_step; iNext; wp. (* FIXME: [wp] uses [wp_simp], thus eating laters. *)
     { wp_continue. equality. }
     { wp_continue.
       (* TODO manual encoding *)
       replace (nat_encode_f n) with #n; last reflexivity.
-      iApply (wp_covariant with "IH").
+      iApply (wp_covariant with "His_odd'").
       iIntros (?->).
       destruct (is_odd_pure n) eqn:E; wp; equality. } }
-
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.
 Time Qed.

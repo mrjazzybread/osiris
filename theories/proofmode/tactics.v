@@ -101,13 +101,36 @@ Ltac wp_step :=
       fail "The goal must be a wp to apply [wp_step]."
   end.
 
+Ltac wp_cbn_term m :=
+  lazymatch m with
+  | Par ?m1 ?m2 ?k ?ko =>
+      let m'1 := wp_cbn_term m1 in
+      let m'2 := wp_cbn_term m2 in
+      uconstr:(Par m'1 m'2 k ko)
+  | Stop ?c ?x ?k ?ko =>
+      let x' := eval cbn in x in uconstr:(Stop c x' k ko)
+  | _ => let m' := eval cbn -[encode] in m in uconstr:(m')
+  end.
+
+Ltac wp_cbn :=
+  lazymatch goal with
+  | |- environments.envs_entails _ $ wp _ _ ?m _ =>
+      let m' := wp_cbn_term m in
+      first [
+          progress change m with m'
+        | fail "[wp_cbn] No progress to be made." ]
+  | _ => fail "[wp_cbn] WP goal expected."
+  end.
+
 Local Ltac wp_progress :=
   first [
       lazymatch goal with
       | |- environments.envs_entails _ $ wp _ _ (eval _ _) _ =>
-          rewrite eval_eval'; try progress cbn
+          rewrite eval_eval'; try progress wp_cbn
       end
-    | cbn (* TODO: better control the reduction strategy. *)
+    | wp_cbn (* TODO: better control the reduction strategy. *)
+    | progress wp_simp
+    | cbn beta
     ].
 
 Ltac wp_concat :=
@@ -130,14 +153,11 @@ Ltac wp :=
           | |- environments.envs_entails _ (bi_later _) => iNext
           | _ => wp_step
           end
-        | (* 2. Try to simplify the proof goal.*)
-          progress wp_simp
-        | (* 3. *)
-          progress cbn
+        | (* 2. Try to simplify the proof goal using [wp_progress].*)
+          wp_progress
         | (* Otherwise, do nothing ([repeat] will stop). *)
           idtac
-    ]);
-  normalize.
+    ]).
     (* TODO [wp] should produce a normalized residual goal *)
     (* TODO clarify where normalized goals are expected/produced *)
 

@@ -80,7 +80,7 @@ Lemma Add_spec :
            EnvNil in
   ⊢ WP eval_mexpr η _Arith {{ module_spec Λ }}.
 Proof.
-  intros. wp. wp_bind.
+  intros. wp. wp_bind. wp_bind.
 
   o_specify "add" add_spec "#Hadd"
             "mult" mult_spec "#Hmult".
@@ -135,11 +135,11 @@ Proof.
     assert (representable i2) by apply int_representable.
     rewrite -> eq_repr_repr by representable.
     destruct (i2 =? 0)%Z eqn:E; wp.
-    { (* [i2 = 0%Z]. *) iPureIntro; equality. }
+    { (* [i2 = 0%Z]. *) iPureIntro; simpl; equality. }
     { (* [i2 != 0%Z]. *)
       rewrite -> eq_repr_repr by representable.
       destruct (i2 =? 1)%Z eqn:E1; wp.
-      { (* [i2 = 1%Z]. *) iPureIntro; equality. }
+      { (* [i2 = 1%Z]. *) iPureIntro; simpl; equality. }
       { (* [i2 <> 1%Z]. *)
         (* Proof that [add x (mult x (y - 1)) == x * y]. *)
         wp_par.
