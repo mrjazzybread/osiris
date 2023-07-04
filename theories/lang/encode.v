@@ -42,7 +42,10 @@ Local Ltac solve_encode :=
 (* Sometimes a value is reflected as itself at the logical level. *)
 
 (* This may be used, for instance, for functions, or for modules. *)
-(* TODO clarify when/why this instance is used *)
+(* TODO clarify when/why this instance is used;
+        e.g. because SIMP builds in [encode],
+             this instance is needed when writing a [SIMP] judgement
+             about an expression that returns a function. *)
 
 (* This instance has low priority because it should be used only
    when there is no other choice. *)
