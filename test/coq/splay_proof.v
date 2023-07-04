@@ -222,9 +222,13 @@ Qed.
 (* This tactic proves an equality between two fringes. *)
 
 Local Ltac prove_same_fringe :=
-  repeat rewrite fringe_fill in *;
+  rewrite -> ?fringe_fill in *;
   simpl fringe in *;
-  repeat rewrite <- app_assoc in *;
+  simpl lfringe in *;
+  simpl rfringe in *;
+  rewrite ?app_nil_l in *;
+  rewrite ?app_nil_r in *;
+  rewrite <- ?app_assoc in *;
   eauto.
 
 (* -------------------------------------------------------------------------- *)
