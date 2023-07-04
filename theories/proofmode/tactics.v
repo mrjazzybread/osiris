@@ -157,9 +157,9 @@ Ltac wp :=
           wp_progress
         | (* Otherwise, do nothing ([repeat] will stop). *)
           idtac
-    ]).
-    (* TODO [wp] should produce a normalized residual goal *)
-    (* TODO clarify where normalized goals are expected/produced *)
+    ]);
+  normalize.
+    (* TODO [wp] should NOT normalize the entire goal *)
 
 (* -------------------------------------------------------------------------- *)
 
