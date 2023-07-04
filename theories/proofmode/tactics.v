@@ -357,16 +357,26 @@ Tactic Notation "oAbstract"
    the required closures.
    It is defined as a notation so that it is easy to ask for more idents (Ltac
    cannot take a list of idents as argument for a tactic). *)
-Tactic Notation "oCall" constr(s1) ident(i1):=
+Tactic Notation "@oCall" "unfold" constr(s1) :=
+  with_strategy
+    transparent [call]
+    ( lazymatch goal with
+      | |- environments.envs_entails ?Δ $ wp ?s ?E (call ?f ?a) ?φ =>
+          let m := eval unfold call in (call f a) in
+            change (environments.envs_entails Δ $ wp s E (call f a) φ)
+              with (environments.envs_entails Δ $ wp s E m φ)
+      | _ => fail "[oCall] The goal is not a call"
+      end); wp.
+
+Tactic Notation "oCall" constr(s1) ident(i1) :=
   (* TODO if possible, use [wp_enter] instead of [unfold call] *)
-  with_strategy transparent [call] unfold call; simpl (bind _ _);
+  @oCall unfold s1; wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
-  end;
-  wp.
+  end; wp.
 Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
-  with_strategy transparent [call] unfold call; wp;
+  @oCall unfold s1; wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
@@ -374,7 +384,7 @@ Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s2] =>
       generalize (VCloRec η bds s2); intro i2
-  end.
+  end; wp.
 
 (* -------------------------------------------------------------------------- *)
 
