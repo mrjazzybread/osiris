@@ -173,8 +173,8 @@ Lemma Records_spec :
 Proof.
   intros η.
   wp.
-  simpl build. (* TODO *)
-  wp_bind.
+  (* TODO something is wrong here: we already have [fix build] in the goal *)
+  simpl.
   wp.
 
   (* [r_elt] is a known value. *)
@@ -185,8 +185,8 @@ Proof.
   oSpecify "flip" flip_spec vflip "#Hflip".
   { iIntros "!>" (b i); wp.
     wp_continue.
-    unfold sort. simpl build. (* TODO *)
-    do 2 wp_bind. wp. equality. }
+    simpl. (* TODO *)
+    wp. equality. }
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)
