@@ -32,7 +32,7 @@ Ltac force_unfold x :=
    Currently, a breakpoint is a computation that is blocked because of an
    invocation of [ret_concat] or [ret_dconcat]. We allow this invocation
    to appear either at the root or in the left-hand side of [bind]. We do
-   not need to look under multiple [bind]s because a normalized goal does
+   not need to look under multiple [bind]s because a simplified goal does
    not contain left-nested [bind]s. *)
 
 Ltac unfold_breakpoint m :=
@@ -99,6 +99,13 @@ Proof.
   intros. subst. eauto with simp.
 Qed.
 
+Lemma simp_reflexive_ret {A} (m1 : free A) a2 :
+  m1 = ret a2 →
+  simp m1 (ret a2).
+Proof.
+  intros. subst. eauto with simp.
+Qed.
+
 Lemma advance_SimpEval {A} η e (k : val → free A) ko m' :
   simp (try (eval η e) k ko) m' →
   simp (Stop CEval (η, e) k ko) m'.
@@ -127,12 +134,20 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpFlipOK x k ko :
-  simp (k false) ok →
-  simp (k true) ok →
-  simp (Stop CFlip x k ko) ok.
+Lemma advance_SimpFlip {A} x k ko (m' : free A) :
+  simp (k false) m' →
+  simp (k true) m' →
+  simp (Stop CFlip x k ko) m'.
 Proof.
   eauto with simp.
+Qed.
+
+Lemma advance_simp_choose {A} (m1 m2 : free A) m' :
+  simp m1 m' →
+  simp m2 m' →
+  simp (choose m1 m2) m'.
+Proof.
+  intros. eapply advance_SimpFlip; assumption.
 Qed.
 
 Lemma advance_SimpBind {A B} m1 m2 (f : A → free B) m' :
@@ -301,6 +316,24 @@ Proof.
   rewrite eval_eval'. tauto.
 Qed.
 
+Lemma advance_SimpEvalEAssert η e :
+  simp (eval η e) (ret #true) →
+  simp (eval η (EAssert e)) ok.
+Proof.
+  intros.
+  eapply advance_simp_eval. simpl eval'.
+  (* Because of [choose], the runtime test may be skipped or executed.
+     If it is skipped, then the result is immediate. If it is executed,
+     then the assumption that [e] evaluates to [true] is exploited. *)
+  eapply advance_simp_choose.
+  { eapply SimpReflexive. }
+  unfold as_bool.
+  rewrite bind_bind.
+  eapply prove_simp_bind.
+  { eauto. }
+  eapply SimpReflexive.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -328,6 +361,13 @@ Lemma advance_simp_try_ret {A B} (a : A) (f : A → free B) ko m' :
   simp (try (ret a) f ko) m'.
 Proof.
   rewrite try_ret. tauto.
+Qed.
+
+Lemma advance_simp_try_next {A B} (f : A → free B) ko m' :
+  simp (ko()) m' →
+  simp (try Next f ko) m'.
+Proof.
+  rewrite try_next. tauto.
 Qed.
 
 Lemma advance_simp_bind_as_try {A B} m (f : A → free B) m' :
@@ -372,6 +412,36 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Some properties of integer arithmetic. *)
+
+(* [Is_true] is implicit in these statements. Its type is [bool → Prop]. *)
+
+Lemma Zeq_spec (x y : Z) :
+  (x =? y) ↔ (x = y).
+Proof.
+  rewrite Is_true_true, Z.eqb_eq. tauto.
+Qed.
+
+Lemma Zne_spec (x y : Z) :
+  negb (x =? y) ↔ x ≠ y.
+Proof.
+  rewrite negb_True, Zeq_spec. tauto.
+Qed.
+
+Lemma Zlt_spec (x y : Z) :
+  (x <? y) ↔ (x < y).
+Proof.
+  rewrite Is_true_true, Zlt_is_lt_bool. tauto.
+Qed.
+
+Lemma Zle_spec (x y : Z) :
+  negb (y <? x) ↔ x ≤ y.
+Proof.
+  rewrite negb_True, Zlt_spec. lia.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Tactics. *)
 
 (* We systematically use [simply eapply] as opposed to [eapply], because
@@ -387,21 +457,25 @@ Ltac simp_ret :=
   simple eapply prove_simp_ret; [ eauto with encode equality ].
     (* TODO limit search depth? *)
 
-(* The tactic [normalize] attempts to reduce and normalize the goal before
-   applying any reasoning rule. It is used by the tactics that follow. *)
-
-(* This tactic has the property that if a term is normalized then its
-   subterms are normalized as well. This property is exploited below;
-   when a term is decomposed, it is not necessary to normalize again. *)
+(* The tactic [normalize] attempts to reduce and normalize the goal.
+   It is used (as sparingly as possible) by the tactics that follow. *)
 
 Ltac normalize :=
   cbn;
-  rewrite ?true_iff, ?false_iff in *; (* TODO expensive? *)
-  rewrite ?bind_bind. (* TODO may wish to rewrite at the root only. *)
+  (* Simplify integer arithmetic. *)
+  repeat first [
+    rewrite -> neg_repr
+  | rewrite -> add_repr_repr
+  | rewrite -> sub_repr_repr
+  | rewrite -> mul_repr_repr
+  | rewrite -> divs_repr_repr by representable
+  | rewrite -> mods_repr_repr by representable
+  | rewrite -> eq_repr_repr by representable
+  | rewrite -> lt_repr_repr by representable
+  ];
+  rewrite ?true_iff, ?false_iff in *. (* TODO useful? expensive? *)
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
-
-   The term [m1] must be normalized.
 
    If reflexivity cannot solve the goal, then [simp_close] fails. *)
 
@@ -412,8 +486,6 @@ Ltac simp_close :=
   ].
 
 (* [simp_solve_eauto] solves a goal of the form [simp m _].
-
-   The term [m] must be normalized.
 
    The tactic exploits whatever hypotheses are present in the context and in
    the hint database [simp_specs]. Of course the lemma [SimpReflexive] must
@@ -430,13 +502,14 @@ Ltac simp_solve_eauto :=
 Ltac fail_if_goal_contains_eval' :=
   lazymatch goal with |- context[eval'] => fail | _ => idtac end.
 
-(* [simp_eval] rewrites [eval] to [eval'], then normalizes the goal,
-   hopefully expanding [eval'] away. It checks that [eval'] has indeed
-   been eliminated, and fails otherwise. *)
+(* [simp_eval] rewrites [eval] to [eval'], then reduces the goal, hopefully
+   expanding [eval'] away. It checks that [eval'] has indeed been
+   eliminated, and fails otherwise. *)
 
 Ltac simp_eval :=
   simple eapply advance_simp_eval;
-  normalize;
+  cbn; (* TODO or: [simpl eval']? *)
+    (* TODO decide how much reduction must be done here, and how *)
   fail_if_goal_contains_eval'.
     (* TODO The goal could still contain [eval'] at this point if [eval']
        is applied to an opaque expression. There is currently an example
@@ -452,10 +525,10 @@ Ltac simp_eval :=
    Whereas [simp0] may find zero or more simplification steps, [simp1] must
    find at least one simplification step; otherwise, it fails.
 
-   The term [m1] is expected to be normalized already.
-
-   If the goal is changed to [simp m'1 m2] then the term [m'1] is guaranteed
-   to be normalized.
+   The term [m1] has *not* necessarily been reduced (by [cbn], [simpl] or
+   other means). If the tactics find that [m1] can be reduced, then they
+   do so, and they are careful to perform reduction only where necessary:
+   e.g. in the left-hand side of a [bind] but not in its right-hand side.
 
    In some cases, the tactics are allowed to solve the goal. Of course this
    must be done only in situations where we are certain (or have reasonable
@@ -465,31 +538,82 @@ Ltac simp_eval :=
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
   (* Either perform at least one step, or perform zero step. *)
-  try (simp1; simp0)
+  try simp1
 
 with simp1 :=
   (* We must perform at least one step. *)
-  (* We examine the syntax of [m1], which is why we require [m1] to be
-     normalized already. *)
+  (* We do not invoke Coq's reduction tactics ([cbn], [simpl], etc.) up front
+     because they are not selective; they perform reduction everywhere in the
+     goal. Instead, we first try to apply one of the following rewriting rules
+     at the root of the goal: *)
+  first [
+    (* Transform [try] into [bind]. *)
+    simple eapply advance_simp_bind_as_try; simp0
+    (* Perform tail call optimisation. (Not essential.) *)
+  |  simple eapply advance_simp_bind_ret_right; simp0
+    (* Hoist left-nested [bind]s and [try]s. *)
+  | simple eapply advance_simp_bind_bind; simp0
+  | simple eapply advance_simp_bind_try; simp0
+  | simple eapply advance_simp_try_bind; simp0
+  | simple eapply advance_simp_try_try; simp0
+    (* Handle [Stop] effects. *)
+  | simple eapply advance_SimpEvalNext; simp0
+  | simple eapply advance_SimpEval; simp0
+  | simple eapply advance_SimpLoopNext; simp0
+  | simple eapply advance_SimpLoop; simp0
+  | simple eapply advance_SimpEvalEAssert; simp0
+      (* We do not deal with [Flip] in its full generality. Instead,
+         we provide ad hoc support for [EAssert] expressions, which
+         currently are the only place where [flip] is used. *)
+    (* Handle [val_as_bool], which is opaque. *)
+  | simple eapply advance_simp_val_as_bool_VTrue; simp0
+  | simple eapply advance_simp_val_as_bool_VFalse; simp0
+  | simple eapply advance_simp_val_as_bool_VBool; simp0
+  (* TODO the following 4 rules are useful only in pre/postconditions,
+     not in [simp] goals *)
+  (*
+  | rewrite -> Zeq_spec; simp0 (* x =? y ↔ x = y *)
+  | rewrite -> Zne_spec; simp0 (* negb (x =? y) ↔ x ≠ y *)
+  | rewrite -> Zlt_spec; simp0 (* x <? y ↔ x < y *)
+  | rewrite -> Zle_spec; simp0 (* negb (y <? x) ↔ x ≤ y *)
+   *)
+    (* If none of the above rules can be applied, then we inspect the syntax
+       of the goal and, based on it, we try to do something smart. *)
+  | simp1_inspect
+    (* As a last resort, if none of the above cases fire, it may be the case
+       that we are facing a term that needs to be reduced by Coq. This could
+       be, for instance, a pair deconstruction [let '(a, b) := t1 in t2], or
+       an application of one the interpreter's auxiliary functions. We
+       perform this reduction step only if it is nontrivial. *)
+    (* One might wish to perform this reduction step only if it is nontrivial
+       AND it enables at least one further simplification step. That would be
+       expressed by using [simp1] instead of [simp0] below. However, that
+       would be too restrictive. Indeed, this reduction step can lead us to a
+       situation where a breakpoint is visible and no further simplification
+       is possible. *)
+    (* TODO is this a good idea? could this be very expensive? *)
+  | progress normalize; simp0
+  ]
+
+(* Like [simp1], [simp1_inspect] expects a goal of the form [simp m1 _],
+   and additionally expects that the term [m1] cannot be rewritten using
+   any of the rewriting rules listed above. *)
+
+with simp1_inspect :=
+  (* Examine the syntax of [m1]. *)
+  (* Note that we do *not* reduce [m1] before inspecting it. *)
   lazymatch goal with |- simp ?m1 _ =>
   lazymatch m1 with
   | ret ?a1 =>
       fail
   | lookup_name ?η ?x =>
       (* We may be able to prove [lookup_name η x = ret v], for some [v],
-         by exploiting a hypothesis or a hint database. If so, we have
-         made progress; we view this as a simplification step. *)
-      simple eapply simp_reflexive; [
+         either simply by reducing this lookup, or by exploiting a hypothesis
+         or a hint database. *)
+      simple eapply simp_reflexive_ret; [
         (* subgoal: [m1 = ret v] *)
         solve [ eauto with simp_specs ]
       ]
-  | val_as_bool ?v =>
-      (* [val_as_bool] is opaque, so we treat it specially. *)
-      first [
-        rewrite val_as_bool_VTrue
-      | rewrite val_as_bool_VFalse
-      | rewrite val_as_bool_VBool
-      ]; simp0
   | eval ?η ?e =>
       first [
         (* Attempt 1. Solve the goal by exploiting the hint database
@@ -498,12 +622,8 @@ with simp1 :=
            of the form [eval η e], as opposed to [call v1 v2]. *)
         simp_solve_eauto
       |
-        (* Attempt 2. Rewrite [eval η e] to [eval' η e] and normalize the
-           latter form, expanding [eval'] away. We count this as a
-           simplification step, so our duty is fulfilled. We are then free
-           to use [simp0] to find zero or more further steps. *)
-        simp_eval;
-        simp0
+        (* Attempt 2. Unfold the definition of [eval] once in [eval η e]. *)
+        simp_eval; simp0
       ]
   | call ?v1 ?v2 =>
       first [
@@ -515,18 +635,6 @@ with simp1 :=
            in a hint database. *)
       | simp1_call_reason v2
       ]
-  | Stop CEval _ _ _ =>
-      first [ simple eapply advance_SimpEvalNext | simple eapply advance_SimpEval ]; normalize;
-      simp0
-  | Stop CLoop _ _ _ =>
-      first [ simple eapply advance_SimpLoopNext | simple eapply advance_SimpLoop ]; normalize;
-      simp0
-  | Stop CFlip _ _ _ =>
-      simple eapply advance_SimpFlipOK; normalize;
-      simp0
-  | bind ?m ret =>
-      (* A tail call can be simplified. *)
-      simple eapply advance_simp_bind_ret_right; simp0
   | bind ?m ?f =>
       (* We want to first simplify the left-hand side of [bind], as far as
          possible; then, if possible, simplify the [bind] combinator away
@@ -543,9 +651,11 @@ with simp1 :=
         simp1_bind
       ]
   | try ?m ?f ?ko =>
-      (* TODO treat [try] in the same way as [bind] *)
-      simple eapply prove_simp_try; [ simp0; simp_close |];
-      normalize; simp0
+      (* [try] is treated in the same way as [bind]. *)
+      first [
+        simple eapply advance_SimpTry; [ simp1; simp_close | simp0_try ]
+      | simp1_try
+      ]
   | Par ?m1l ?m1r ?k ?ko =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
@@ -568,7 +678,7 @@ with simp1 :=
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
-   into the call (if possible). It leaves one (normalized) subgoal. *)
+   into the call (if possible). It leaves one subgoal. *)
 
 with simp_enter :=
   (* We intentionally use [eapply], not [simple eapply], so that [v1] can be
@@ -581,10 +691,9 @@ with simp_enter :=
      expect [eapply] to fail. (These expectations may be wrong. I have
      observed situations where [eapply] violates opacity.) *)
   first [
-    eapply simp_enter_call_VClo
-  | eapply simp_enter_call_VCloRec
-  ];
-  normalize
+    (* strong *) eapply simp_enter_call_VClo
+  | (* strong *) eapply simp_enter_call_VCloRec
+  ]
 
 (* [simp_call] expects a goal of the form [simp (call _ _) _] and solves
    this goal using a specification that must exist in the current context or
@@ -613,31 +722,52 @@ with simp1_call_reason v2 :=
 (* [simp0_bind] and [simp1_bind] are special cases of [simp0] and [simp1].
 
    They assume that the goal is of the form [simp (bind m _) _],
-   where [m] is normalized and cannot be simplified. *)
+   where [m] has been simplified already. *)
 
 with simp0_bind :=
-  first [
-    (* Try to make progress. *)
-    simp1_bind
-  |
-    (* If we cannot make progress, stop. Use [normalize] to ensure that
-       the result is normalized; e.g., [rewrite bind_bind] can be useful
-       here. *)
-    normalize
-  ]
+  try simp1_bind
 
 with simp1_bind :=
   (* Performing at least one simplification step, when the term is a [bind]
      construct, requires rewriting [bind (ret _) _]. To do so, we explicitly
      apply a lemma; this ensures that we fail if the goal is not of the form
      [bind (ret _) _]. *)
-  simple eapply advance_simp_bind_ret;
-  normalize; simp0
+  (* TODO explain that we wish to allow [m] to reduce to [ret _],
+          without violating opacity *)
+  first [
+    simple eapply advance_simp_bind_ret
+  | lazymatch goal with
+    |- simp (bind ?m _) _ =>
+      let o := eval cbn in m in
+      lazymatch o with ret _ =>
+        (* strong *) eapply advance_simp_bind_ret
+      end
+    end
+  ];
+  simp0
+
+(* [simp0_try] and [simp1_try] are special cases of [simp0] and [simp1].
+
+   They assume that the goal is of the form [simp (try m _ _) _],
+   where [m] has been simplified already. *)
+
+with simp0_try :=
+  try simp1_try
+
+with simp1_try :=
+  (* TODO we cut corners and use strong [eapply] here; this is simpler;
+          we need not worry about opacity because breakpoints do not
+          appear under [try] *)
+  first [
+    (* strong *) eapply advance_simp_try_ret
+  | (* strong *) eapply advance_simp_try_next
+  ];
+  simp0
 
 (* [simp0_par] and [simp1_par] are special cases of [simp0] and [simp1].
 
    They assume that the goal is of the form [simp (Par m1 m2 _ _) _],
-   where [m1] and [m2] are normalized and cannot be simplified. *)
+   where [m1] and [m2] have been simplified already. *)
 
 with simp0_par :=
   try simp1_par
@@ -645,23 +775,25 @@ with simp0_par :=
 with simp1_par :=
   (* Performing at least one simplification step, when the term is a [Par]
      construct, requires applying one of the following rules. *)
+  (* TODO we cut corners and use strong [eapply] here; this is simpler;
+          we need not worry about opacity because breakpoints do not
+          appear under [par] *)
   first [
-    simple eapply advance_SimpParRetRet (* maybe a special case of the following *)
-  | simple eapply advance_SimpParRetLeftNext
-  | simple eapply advance_SimpParRetLeft
-  | simple eapply advance_SimpParRetRightNext
-  | simple eapply advance_SimpParRetRight
+    (* strong *) eapply advance_SimpParRetRet (* maybe a special case of the following *)
+  | (* strong *) eapply advance_SimpParRetLeftNext
+  | (* strong *) eapply advance_SimpParRetLeft
+  | (* strong *) eapply advance_SimpParRetRightNext
+  | (* strong *) eapply advance_SimpParRetRight
   ];
-  normalize; simp0.
+  simp0.
 
 (* [simp] is the main public entry point into the above tactics. *)
 
 (* [simp] proves or advances a goal of the form [simp m1 m2], where [m2] may
    be a metavariable. If [m2] is a metavariable then it is instantiated with
-   a normalized term. *)
+   a term that has been simplified as far as possible. *)
 
 Ltac simp :=
-  normalize;
   lazymatch goal with |- simp ?m1 _ =>
     simp0; try simp_close
   | _ =>
@@ -670,12 +802,12 @@ Ltac simp :=
 
 (* [simp_really] is another public entry point into the above tactics. *)
 
-(* [simp_really] proves a goal of the form [simp m1 m2], where [m2]
-   must be a metavariable. [m2] is instantiated with a normalized
-   term. [simp_really] performs at least one step of simplification.   *)
+(* [simp_really] proves a goal of the form [simp m1 m2], where [m2] must be
+   a metavariable. [m2] is instantiated with a term that has been simplified
+   as far as possible. [simp_really] performs at least one step of
+   simplification. *)
 
 Ltac simp_really :=
-  normalize;
   lazymatch goal with |- simp ?m1 _ =>
     simp1; simp_close
   | _ =>
@@ -686,9 +818,9 @@ Ltac simp_really :=
    via [simp]. *)
 
 Ltac simp_continue :=
-  normalize;
   lazymatch goal with
   | |- simp ?m _ =>
+      (* TODO should use [simple eapply] to enforce rewriting at the root *)
       unfold_breakpoint m;
       simp
   | _ =>
@@ -704,9 +836,10 @@ Ltac simp_enter_and_abstract :=
   lazymatch goal with |- simp (call ?v _) _ =>
     (* First, expand [call] away. *)
     simp_enter;
+    normalize;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
-       with an abstract values. This ensures that we cannot step into
+       with an abstract value. This ensures that we cannot step into
        recursive calls. *)
     generalize dependent v
   end.
