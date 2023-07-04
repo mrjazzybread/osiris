@@ -343,7 +343,7 @@ Proof.
   { equality. }
   { wp_bind. wp_use "IHxs". wp. iIntros(?->).
     rewrite Nat2Z.inj_succ. wp. iPureIntro.
-    rewrite add_repr_repr. equality. }
+    equality. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -399,7 +399,7 @@ Definition simple_module_spec: val → iProp Σ :=
 Goal
   ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
 Proof.
-  wp. do 2 wp_bind.
+  wp. wp_bind.
 
   (* [f] is about to be added to the environment *)
   oSpecify "f" spec_id vf "#Hid".
