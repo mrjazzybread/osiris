@@ -4,6 +4,7 @@ From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
 From test Require Import splay.
 Local Opaque app. (* Prevent undesired simplification. *)
+  (* TODO clash between ++ in fringes and ++ in paths *)
 
 (* -------------------------------------------------------------------------- *)
 
