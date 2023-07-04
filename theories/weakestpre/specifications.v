@@ -183,6 +183,15 @@ Section MutuallyRecursive.
      ].
    *)
 
+
+  Lemma assumming_list_nonrec (pl: list (iProp Σ)) (P: iProp Σ) :
+    ⊢ wandn pl ((wandn pl P) -∗ P).
+  Proof.
+    iApply wandn_sepn_wand_2.
+    iIntros "??".
+    iApply (wandn_sepn_wand_1 with "[$][$]").
+  Qed.
+
   Lemma assumming_list (pl: list (iProp Σ)) (P: iProp Σ) :
     Forall Persistent pl → ⊢
     (wandn

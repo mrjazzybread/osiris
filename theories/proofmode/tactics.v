@@ -391,6 +391,32 @@ Local Ltac oSpecify_intros lnames :=
   let hyps := eval cbn in (foldr String.append "" lnames) in
   iIntros hyps.
 
+(* [oSpecify_assume_nonrec specs names hyps δ] assumes specifications of
+   elements of a let-binding. *)
+Local Ltac oSpecify_assume_nonrec lspecs lnames lhyps δ :=
+  let specs :=
+    eval cbn in (
+               foldr
+                 (λ '(spec, name) (res: list (iProp _)),
+                   let value :=
+                     match lookup_name δ name with
+                     | Ret v => v
+                     | _ => VUnit
+                     end in
+                   spec value :: res)
+                 [] (combine lspecs lnames)
+             )
+    in
+    iApply (assumming_list_nonrec specs);
+    last oSpecify_intros lhyps.
+
+(* [oSpecify_assume specs names hyps δ] assumes specifications of elements of a
+   letrec-binding. The difference with a let-binding is that
+   Löb-induction-related hypotheses are provided: when proving the spec of
+   mutually recursive functions [f] and [g], the specifications are available
+   under a later modality. This only works for persistent specifications.
+   Cf. [assumming_list] in [theories/weakestpre/specifications.v] for more
+   details. *)
 Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
   let specs :=
     eval cbn in (
@@ -449,7 +475,7 @@ Tactic Notation "oSpecify"
   lazymatch goal with
   | |- environments.envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
-      oSpecify_assume [spec1] [n1] [H1] δ;
+      oSpecify_assume_nonrec [spec1] [n1] [H1] δ;
       last ( oSpecify_abstract δ n1 i1 ;
              wp_continue)
   | |- environments.envs_entails
@@ -466,14 +492,14 @@ Tactic Notation "oSpecify"
   | |- environments.envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2]
-                      [n1; n2]
-                      [H1; H2]
-                      δ;
+                             [n1; n2]
+                             [H1; H2]
+                             δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 ;
              wp_continue)
   | |- environments.envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
-      oSpecify_assume [spec1; spec2]
+      oSpecify_assume_nonrec [spec1; spec2]
                       [n1; n2]
                       [H1; H2]
                       δ;
@@ -488,7 +514,7 @@ Tactic Notation "oSpecify"
   lazymatch goal with
   | |- environments.envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
-      oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
+      oSpecify_assume_nonrec [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
              wp_continue)
   | |- environments.envs_entails
@@ -506,10 +532,10 @@ Tactic Notation "oSpecify"
   lazymatch goal with
   | |- environments.envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
-      oSpecify_assume [spec1; spec2; spec3; spec4]
-                      [n1; n2; n3; n4]
-                      [H1; H2; H3; H4]
-                      δ;
+      oSpecify_assume_nonrec [spec1; spec2; spec3; spec4]
+                             [n1; n2; n3; n4]
+                             [H1; H2; H3; H4]
+                             δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
              wp_continue)
   | |- environments.envs_entails
