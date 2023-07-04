@@ -1,10 +1,8 @@
 From iris.proofmode Require Import base proofmode classes.
-From iris.base_logic.lib Require Import fancy_updates.
+From iris.base_logic.lib Require Import fancy_updates gen_heap.
 From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
-
-From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
@@ -64,8 +62,9 @@ Proof.
   (* Prove that [new_counter] matches its specification (defined above). *)
   oSpecify "new_counter" new_counter_spec vnew_counter "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
+    iClear "Hnew_counter". (* TODO [new_counter] is not recursive! *)
     wp. wp_continue.
-    wp_alloc l "[Hl _]". do 2 wp_bind.
+    wp_alloc l "[Hl _]". wp_bind.
     wp_continue. wp_continue. wp_continue.
     wp_use "Hφ". clear φ.
     iExists l.
@@ -92,19 +91,21 @@ Proof.
       iExists _. by iFrame. }
   }
 
-  (* The interpreter stops at the first call of [new_couter]. This call can be
-     found in the [let () = ...] of the OCaml file. *)
-  wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
+  (* The interpreter stops at the first call of [new_counter]. *)
+  wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
-  wp_bind.
-  do 5 wp_continue.
+  wp_bind. (* TODO seems slow *)
+  do 4 wp_continue. (* TODO also slow *)
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
-  wp_continue. wp_bind.
+  wp_bind.
+  wp_continue.
+  wp_bind.
 
   wp_use ("Hupd" with "Hl").
   iNext. iIntros "Hl".
+  wp_bind.
   wp_continue.
 
   wp_use ("Hget" with "Hl").
@@ -118,22 +119,25 @@ Proof.
   (* The interpreter stops at the second call of [new_counter], which occurs in
      the definition of [_test]. *)
   wp_continue.
-  wp_bind. wp. wp_use ("Hnew_counter" with "[//][]"). iNext.
-  iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)". wp_continue.
+  wp_use ("Hnew_counter" with "[//][]"). iNext.
+  iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)".
+  wp_bind.
+  wp_continue.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
+  wp_bind.
   wp_continue. wp_bind.
 
   wp_use ("Hupd" with "Hl").
   iNext. iIntros "Hl".
+  wp_bind.
   wp_continue.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
 
   wp.
-  rewrite -> sub_repr_repr. (* TODO *)
   wp_continue. wp_bind.
 
   wp_continue.
