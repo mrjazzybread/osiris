@@ -210,12 +210,22 @@ Qed.
 
 (* Tactics. *)
 
+(* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
+
+Ltac beta :=
+  cbn beta.
+
+Goal (λ (x : bool), negb x = ((λ (x : bool), x) false)) true.
+Proof.
+  beta. reflexivity.
+Qed.
+
 (* [SIMP_ret] expects a goal of the form [SIMP (ret v) φ]. It applies
    the lemma [SIMP_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
 Ltac SIMP_ret :=
-  simple eapply SIMP_ret; [ solve [ encode ] | normalize ].
+  simple eapply SIMP_ret; [ solve [ encode ] | beta ].
 
 (* [SIMP_simp] expects a goal of the form [SIMP m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [SIMP m' φ]. *)
@@ -227,7 +237,6 @@ Ltac SIMP_simp :=
 (* SIMP1 leaves one subgoal, which may have an arbitrary shape. *)
 
 Ltac SIMP0 :=
-  normalize;
   try SIMP_simp;
   first [
 
@@ -252,17 +261,16 @@ Ltac SIMP0 :=
     | SIMP_close
     ]
 
-  | simple eapply SIMP_bind_as_bool; [ SIMP0 | normalize; intros; SIMP0 ]
-  | simple eapply SIMP_bind_as_int ; [ SIMP0 | normalize; intros; SIMP0 ]
-  | simple eapply SIMP_bind        ; [ SIMP0 | normalize; intros; SIMP0 ]
-  | simple eapply SIMP_try         ; [ SIMP0 | normalize; intros; SIMP0 ]
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_try         ; [ SIMP0 | beta; intros; SIMP0 ]
 
   | SIMP_close
 
   ]
 
 with SIMP1 :=
-  normalize;
   try SIMP_simp;
   first [
 
@@ -274,7 +282,7 @@ with SIMP1 :=
       (* goal: [SIMP (call #x) φ] *)
     | solve [eauto with SIMP_specs]
       (* residual goal: [∀ x, φ x → φ' x] *)
-    | normalize
+    | beta
     ]
 
   | simple eapply SIMP_call; [
@@ -284,10 +292,10 @@ with SIMP1 :=
       idtac
     ]
 
-  | simple eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) normalize ]
-  | simple eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) normalize ]
-  | simple eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) normalize ]
-  | simple eapply SIMP_try         ; [ SIMP0 | (* residual goal *) normalize ]
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_try         ; [ SIMP0 | (* residual goal *) beta ]
 
   | idtac (* residual goal *)
 
@@ -304,11 +312,9 @@ Ltac SIMP1_call_step :=
 
 Ltac SIMP_enter :=
   SIMP1_call_step;
-  normalize;
   SIMP1.
 
 Ltac SIMP_continue :=
-  normalize;
   lazymatch goal with
   | |- SIMP ?m _ =>
       unfold_breakpoint m;
