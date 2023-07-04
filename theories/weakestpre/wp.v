@@ -258,7 +258,7 @@ Local Ltac step_wp :=
 
 (* The following are the reasoning rules of our program logic. *)
 
-(* These rules are applied by the tactics in [wp_tactics.v]. *)
+(* These rules are applied by the tactics in [tactics.v]. *)
 
 Section rules.
 
