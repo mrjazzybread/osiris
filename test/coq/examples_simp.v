@@ -5,6 +5,25 @@ Local Notation ε := EnvNil. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
+(* Some tests that involve [let] constructs. *)
+
+Goal
+  let e := ELet1Var "x" (EInt 0) (EMkPath ["x"]) in
+  simp (eval ε e) (ret (#0)).
+Proof.
+  intros. simp. simp_continue.
+Qed.
+
+Goal
+  let e := ELet1Var "x" (EInt 0) (EMkPath ["x"]) in
+  let e := ELet1Var "y" e (EMkPath ["y"]) in
+  simp (eval ε e) (ret (#0)).
+Proof.
+  intros. simp. simp_continue.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Tests involving [as_bool]. *)
 
 Goal
@@ -19,7 +38,7 @@ Goal
   in
   simp (eval ε e) (ret VTrue).
 Proof.
-  simp.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -70,6 +89,7 @@ Goal let e :=
   EUnit
   in simp (eval ε e) (ret (encode tt)).
 Proof.
+  intros.
   simp.
   simp_continue.
   simp_continue.
@@ -85,6 +105,7 @@ Goal let e :=
   EVar "x1"
   in simp (eval ε e) (ret (encode A)).
 Proof.
+  intros.
   simp.
   simp_continue.
   simp_continue.
@@ -98,9 +119,11 @@ Goal let e :=
   ELet1Var "x" (EConstant "A") $ EVar "y"
   in simp (eval ε e) (ret (VConstant "A")).
 Proof.
+  intros.
   (* This goal is false: the variable [y] is unbound. *)
   simp.
   simp_continue.
+  match goal with |- simp (missing_variable_or_field _) _ => idtac end.
 Abort. (* expected *)
 
 (* -------------------------------------------------------------------------- *)
@@ -171,6 +194,7 @@ Goal
     EPair idA idA
   in simp (eval ε e) (ret (VPair (VConstant "A") (VConstant "A"))).
 Proof.
+  intros.
   simp.
   (* The environment is about to be extended with a binding of the variable
      "id" to a certain closure. Now is the time to prove a specification
@@ -193,6 +217,7 @@ Goal let e :=
   EApp (EApp id id) EUnit
   in simp (eval ε e) ok.
 Proof.
+  intros.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
@@ -211,6 +236,7 @@ Goal let e :=
   EApp id (EApp id EUnit)
   in simp (eval ε e) ok.
 Proof.
+  intros.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
@@ -229,6 +255,7 @@ Goal let e :=
   EApp (EApp id id) (EApp id EUnit)
   in simp (eval ε e) ok.
 Proof.
+  intros.
   simp.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
@@ -244,7 +271,7 @@ Goal let e :=
   ESeq (EAssert ETrue) EFalse
   in simp (eval ε e) (ret VFalse).
 Proof.
-  simp.
+  intros. simp.
 Qed.
 
 Goal let e :=
@@ -254,14 +281,10 @@ Goal let e :=
   EUnit
   in simp (eval ε e) ok.
 Proof.
+  intros.
   simp.
   simp_continue.
-  eapply prove_simp_bind.
-  { simp. rewrite add_repr_repr, eq_repr_repr by representable. simp. }
-  simp.
-  eapply prove_simp_bind.
-  { simp. rewrite add_repr_repr, eq_repr_repr by representable. simp. }
-  simp.
+    (* Look Ma, the assertions are automatically verified! *)
 Qed.
 
 (* -------------------------------------------------------------------------- *)
