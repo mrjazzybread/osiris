@@ -430,14 +430,18 @@ Proof.
     { intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)
       split.
-      - intros. rewrite elem_of_nil. tauto. (* TODO use [set_solver]? *)
+      - simpl member. intros. rewrite elem_of_nil. tauto. (* TODO use [set_solver]? *)
       - assumption. }
     (* Case: [Node]. *)
-    { (* The call [compare x y] has already been stepped over. *)
-      intros c Hc.
+    { (* The call [compare x y] is curried. *)
+      intros v Hv.
+      eapply SIMP_try. (* TODO try to automate this *)
+      { eapply Hv. }
+      clear v Hv.
+      intros c Hc. cbn in Hc.
+      (* The call [compare x y] is now complete. *)
       destruct_bst_Node.
       SIMP_continue.
-      rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
       assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
       (* Case: [c < 0], that is, [x < y]. *)
       { rewrite ltb_true by lia.
@@ -450,7 +454,6 @@ Proof.
       (* Case: [c > 0], that is, [x > y]. *)
       { rewrite ltb_false by lia.
         SIMP1.
-        rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
         rewrite ltb_true by lia.
         SIMP1.
         intros [b t'] (? & ?).
@@ -462,7 +465,6 @@ Proof.
          the preorder [le]. *)
       { rewrite ltb_false by lia.
         SIMP1.
-        rewrite lt_repr_repr by representable. (* TODO part of normalize? *)
         rewrite ltb_false by lia.
         SIMP1.
         intros t' Ht'. SIMP1.
