@@ -319,7 +319,7 @@ Qed.
 (* The return rule. *)
 
 Lemma wp_ret {A} s E (a : A) φ :
-  φ a -∗
+  φ a ⊢
   WP (Ret a) @ s; E {{ φ }}.
 Proof.
   wp_unfold_all. iIntros. iFrame.
@@ -368,7 +368,7 @@ Qed.
    bears on [ko]. *)
 
 Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko ψ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} -∗
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
   WP (try m1 m2 ko) @ s; E {{ ψ }}.
 Proof.
   iLöb as "IH" forall (m1 m2 ko ψ).
@@ -408,8 +408,8 @@ Qed.
    premise, so the proof of [m2] is not duplicated. *)
 
 Lemma wp_try_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ ψ :
-  WP m1 @ s; E {{ φ }} -∗
-  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
+  WP m1 @ s; E {{ φ }} ⊢
+  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }})-∗
   WP (try m1 m2 ko) @ s; E {{ ψ }}.
 Proof.
   iIntros "Hm1 Hm2".
@@ -420,7 +420,7 @@ Qed.
 (* The Bind rule of Separation Logic. *)
 
 Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ψ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} -∗
+  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
   WP (bind m1 m2) @ s; E {{ ψ }}.
 Proof.
   rewrite bind_as_try. eauto using wp_try.
@@ -433,7 +433,7 @@ Qed.
    premise, so the proof of [m2] is not duplicated. *)
 
 Lemma wp_bind_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ ψ :
-  WP m1 @ s; E {{ φ }} -∗
+  WP m1 @ s; E {{ φ }} ⊢
   (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
   WP (bind m1 m2) @ s; E {{ ψ }}.
 Proof.
@@ -616,7 +616,7 @@ Qed.
    as a step. *)
 
 Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
-  WP m1 @ s ; E {{ φ1 }} -∗
+  WP m1 @ s ; E {{ φ1 }} ⊢
   WP m2 @ s ; E {{ φ2 }} -∗
   (
     ∀ a1 a2,
@@ -669,7 +669,7 @@ Qed.
 (* [CEval]. *)
 
 Lemma wp_eval {A} s E η e (k : val → free A) ko φ :
-  ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} -∗
+  ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} ⊢
   WP (Stop CEval (η, e) k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
@@ -684,7 +684,7 @@ Qed.
 (* A special case of the previous lemma for the continuation [ret]. *)
 
 Lemma wp_eval_ret s E η e ko φ :
-  ▷ WP (eval η e) @ s; E {{ φ }} -∗
+  ▷ WP (eval η e) @ s; E {{ φ }} ⊢
   WP (Stop CEval (η, e) ret ko) @ s; E {{ φ }}.
 Proof.
   iIntros "Hwp".
@@ -701,7 +701,7 @@ Qed.
    possible value of [b]. *)
 
 Lemma wp_flip {A} s E x (k: bool → free A) ko φ :
-  ▷ (∀ b, WP (k b) @ s; E {{ φ }}) -∗
+  ▷ (∀ b, WP (k b) @ s; E {{ φ }}) ⊢
   WP (Stop CFlip x k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
@@ -722,7 +722,7 @@ Lemma wp_alloc {A} s E v (k : loc → free A) ko φ :
     ∀ l,
     mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
      WP (k l) @ s; E {{ φ }}
-  ) -∗
+  ) ⊢
   WP (Stop CAlloc v k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
@@ -742,7 +742,7 @@ Qed.
 (* The standard memory write rule of Separation Logic. *)
 
 Lemma wp_store {A} s E l v v' (k : unit → free A) ko φ :
-  mapsto l (DfracOwn 1) v -∗
+  mapsto l (DfracOwn 1) v ⊢
   ▷ (
     mapsto l (DfracOwn 1) v' -∗
     WP (k tt) @ s; E {{ φ }}
@@ -766,7 +766,7 @@ Qed.
 (* The standard memory load rule of Separation Logic. *)
 
 Lemma wp_load {A} s E l v dq (k: val → free A) ko φ :
-  mapsto l dq v -∗
+  mapsto l dq v ⊢
   ▷ (
     mapsto l dq v -∗
     WP (k v) @ s; E {{ φ }}
@@ -862,7 +862,7 @@ Qed. (* yes! *)
 
 Lemma wp_simp {A} (m m' : free A) s E φ :
   simp m m' →
-  WP m' @ s ; E {{ φ }} -∗
+  WP m' @ s ; E {{ φ }} ⊢
   WP m  @ s ; E {{ φ }}.
 Proof.
   iIntros (Hsimp) "Hwp".
@@ -878,7 +878,7 @@ Qed.
 (* For this reason, they should not be used. TODO *)
 
 Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
-  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} -∗
+  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} ⊢
   WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
@@ -888,7 +888,7 @@ Proof.
 Qed.
 
 Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
-  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} -∗
+  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} ⊢
   WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
@@ -898,7 +898,7 @@ Proof.
 Qed.
 
 Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
-  WP (k (a1, a2)) @ s; E {{ φ }} -∗
+  WP (k (a1, a2)) @ s; E {{ φ }} ⊢
   WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
 Proof.
   iIntros "H".

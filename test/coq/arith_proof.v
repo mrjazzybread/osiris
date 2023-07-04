@@ -105,7 +105,7 @@ Proof.
         iApply (wp_covariant with "[Hmult_part]").
         { iApply "Hmult_part"; done. }
         iIntros(?->).
-        equality. }
+        iPureIntro. equality. }
       { (* [i2 != 0%Z], goal: [1 + (add x (y - 1)) == x + y] *)
         wp_bind.
         wp_use "Hadd".
@@ -118,7 +118,7 @@ Proof.
           iPureIntro. lia. }
         iIntros (?) "->".
         wp.
-        equality.
+        iPureIntro. rewrite int.add_repr_repr. equality.
      }
   }
 
@@ -135,11 +135,11 @@ Proof.
     assert (representable i2) by apply int_representable.
     rewrite -> eq_repr_repr by representable.
     destruct (i2 =? 0)%Z eqn:E; wp.
-    { (* [i2 = 0%Z]. *) equality. }
+    { (* [i2 = 0%Z]. *) iPureIntro; equality. }
     { (* [i2 != 0%Z]. *)
       rewrite -> eq_repr_repr by representable.
       destruct (i2 =? 1)%Z eqn:E1; wp.
-      { (* [i2 = 1%Z]. *) equality. }
+      { (* [i2 = 1%Z]. *) iPureIntro; equality. }
       { (* [i2 <> 1%Z]. *)
         (* Proof that [add x (mult x (y - 1)) == x * y]. *)
         wp_par.
@@ -159,7 +159,7 @@ Proof.
           iApply (wp_covariant with "[Hv1]").
           { iApply "Hv1". iPureIntro. apply Ztac.mul_le; lia. }
           iIntros (?->).
-          equality. } } } }
+          iPureIntro; equality. } } } }
 
   wp_par.
   { by wp_use "Hadd". }

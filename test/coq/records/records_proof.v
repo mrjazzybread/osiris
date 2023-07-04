@@ -156,32 +156,6 @@ Definition Λ :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Staging area. *)
-
-(* TODO clarify whether we are doing caller-side reaasoning (with
-        opaque function bodies) or callee-side reasoning (with opaque
-        function definitions). It is perhaps not necessary/useful to
-        make both the body and the definition opaque. Furthermore, it
-        make may sense to make a function definition transparent in
-        the beginning (when we reason about it callee-side) and only
-        then make it opaque (once we move to the call sites and reason
-        caller-side). *)
-Opaque
-  r_elt_expr
-  flip_body flip_function
-  lily_expr
-  r_val_body r_val_function
-  sum_body sum_function
-  is_odd'_body is_odd'_function
-.
-
-(* [wp_simp] simplifies the element of type [free A] we are working on. *)
-Ltac wp_simp :=
-  progress (iApply wp_simp; first by simp).
-    (* TODO should use [simp_really] to ensure at least one step of
-            simplification. This could be more efficient (?) than
-            using [progress] to check after the fact. *)
-
 (* TODO [wp_simp_using] should be unnecessary provided H is added to the
    hint database [simp_specs]. *)
 Ltac wp_simp_using H :=
@@ -190,315 +164,6 @@ Ltac wp_simp_using H :=
 Ltac wp_simp_eusing H :=
   iApply wp_simp; [ by eapply H; try done | wp ].
 
-(* -------------------------------------------------------------------------- *)
-
-(* (4) Specifications of function bodies. *)
-
-Lemma r_elt_spec η :
-  simp (eval η r_elt_expr) (ret enc_r_elt).
-Proof.
-  force_unfold_at_1 r_elt_expr.
-  simp.
-Qed.
-
-Lemma flip_body_spec :
-  ∀ (b: bool) (r: var) (i: Z) η v,
-    lookup_name η "Stdlib" = ret Stdlib →
-    lookup_name η r = ret v →
-    v = #{| b := b; i := i |} →
-    simp (eval η (flip_body r))
-         (ret #{| b := negb b; i := i |}).
-Proof.
-  force_unfold_at_1 flip_body.
-  intros b. destruct b; intros; subst; simp.
-Qed.
-
-Local Hint Resolve flip_body_spec : simp_specs.
-
-Lemma lily_body_spec η η' :
-  let clo_flip := VClo η' (AnonFun1Pat (PVar "r") (flip_body "r")) in
-  (* Requirements of [flip_body_spec]. *)
-  lookup_name η' "Stdlib" = ret Stdlib →
-  (* Requirements of [lily_body_spec] *)
-  lookup_name η "r_elt" = ret enc_r_elt →
-  lookup_name η "flip" = ret clo_flip →
-  lookup_name η "Stdlib" = ret Stdlib →
-  (* Actual spec. *)
-  simp (eval η lily_expr) (ret enc_lily).
-Proof.
-  intros ? ? Hrelt Hflip Hstdlib.
-  force_unfold_at_1 lily_expr.
-  simp.
-  simp_continue.
-Qed.
-
-Local Hint Resolve lily_body_spec : simp_specs.
-
-Lemma r_val_body_spec η (r: R) (rvar: var) :
-  lookup_name η "Stdlib" = ret Stdlib →
-  lookup_name η rvar = ret #r →
-  simp (eval η (r_val_body rvar)) (ret #(r_val_pure r)).
-Proof.
-  force_unfold_at_1 r_val_body.
-  (* TODO this seems obscure; maybe it can be simplified. *)
-  intros??. destruct (r.(b)) eqn:E;
-    simp; rewrite E; simp; simp_continue;
-    rewrite /r_val_pure E; simp.
-Qed.
-
-Local Hint Resolve r_val_body_spec : simp_specs.
-
-Lemma sum_body_spec η (r1 r2: R):
-  lookup_name η "r1" = ret #r1 →
-  lookup_name η "r2" = ret #r2 →
-  lookup_name η "Stdlib" = ret Stdlib →
-  lookup_name η "r_val" = (eval η (EAnonFun $ AnonFun "r" (r_val_body "r"))) →
-  simp (eval η (sum_body "r1" "r2")) (ret #(sum_pure r1 r2)).
-Proof.
-  intros H1 H2 H3 H4.
-  force_unfold_at_1 sum_body.
-  simp.
-Qed.
-
-Lemma is_odd'_body_spec η η' r n :
-  lookup_name η "Stdlib" = Ret Stdlib →
-  lookup_name η' "Stdlib" = Ret Stdlib →
-  lookup_name η "is_odd'" =
-    Ret (VCloRec η' (RecBinding1 "is_odd'" is_odd'_function) "is_odd'") →
-  lookup_name η r = Ret #n →
-  simp (eval η (is_odd'_body r)) (Ret #(is_odd_pure n)).
-Proof.
-  Transparent is_odd'_function. (* TODO why is it opaque? *)
-  generalize η r; clear η r;
-  induction n as [ | n' IH ];
-    intros η r H1 H2 H3 H4;
-  force_unfold_at_1 is_odd'_body.
-  { simp. simp_continue. }
-  { (* [n = S n'] *)
-    destruct (is_odd_pure n') eqn:E;
-    remember (nat_encode_f n') as enc_n.
-    - (* [n'] is even. *)
-      simp. simp_continue.
-      rewrite E. simp.
-    - (* [n'] is odd. *)
-      simp. simp_continue.
-      rewrite E. simp. }
-  Opaque is_odd'_function.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* (5) Specifications of functions. *)
-
-Lemma flip_function_spec :
-  ∀ η,
-    lookup_name η "Stdlib" = Ret Stdlib →
-    ⊢ ∃ vflip,
-    ⌜simp (eval η flip_function) (Ret vflip)⌝
-          ∗ flip_spec vflip.
-Proof.
-  intros? H1.
-  iExists _.
-  iSplit.
-  { iPureIntro. force_unfold_at_1 flip_function. simp. }
-  force_unfold_at_1 flip_body.
-  iIntros "!>" (b i).
-  wp.
-  Arguments build : simpl nomatch. (* TODO move *)
-  wp_continue.
-  wp_bind.
-  unfold sort. simpl build. (* TODO *)
-  wp. equality.
-Qed.
-
-Lemma r_val_function_spec η :
-  lookup_name η "Stdlib" = Ret Stdlib →
-  ⊢ ∃ vr_val,
-    ⌜simp (eval η r_val_function) (Ret vr_val)⌝
-          ∗ r_val_spec vr_val.
-Proof.
-  intros H1.
-  iExists _.
-  iSplit.
-  { iPureIntro. force_unfold_at_1 r_val_function. simp. }
-  iIntros "!>" (r).
-  force_unfold_at_1 r_val_body. force_unfold_at_1 r_val_pure.
-  wp.
-  destruct (b r); do 2 wp_continue; equality.
-Qed.
-
-Lemma sum_function_spec η vr_val :
-  lookup_name η "Stdlib" = Ret Stdlib →
-  lookup_name η "r_val" = Ret vr_val →
-  (* TODO: add the requirements of [sum_function]. *)
-  ⊢ □ r_val_spec vr_val -∗
-    ∃ vsum,
-      ⌜simp (eval η sum_function) (Ret vsum)⌝ ∗ sum_spec vsum.
-Proof.
-  iIntros (??) "#Hr_val".
-  iExists _.
-  iSplit.
-  { iPureIntro. force_unfold_at_1 sum_function. simp. }
-  iIntros "!>" (r1 r2).
-  force_unfold_at_1 sum_body.
-  wp. do 2 wp_continue.
-  wp_par.
-  { wp_bind. wp_use "Hr_val". iIntros (?<-). wp. wp_set_postcondition. }
-  { wp_use "Hr_val". }
-  iIntros (??-><-). wp. equality.
-Qed.
-
-Lemma is_odd'_function_spec η :
-  let vis_odd' :=
-    VCloRec η (RecBinding1 "is_odd'" is_odd'_function) "is_odd'" in
-  lookup_name η "Stdlib" = Ret Stdlib →
-  ⊢ is_odd_spec vis_odd'.
-Proof.
-  intros a H1; subst a. force_unfold_at_1 is_odd'_function.
-  iIntros "!>" (n). wp.
-  by wp_simp_eusing is_odd'_body_spec.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* (6) The following proof is written in caller-reasoning style. It exploits the
-   above proofs on the function bodies. *)
-
-Transparent
-  flip_function
-  r_val_function
-  sum_function
-.
-
-Goal
-  let η := EnvCons "Stdlib" Stdlib $
-           EnvNil in
-  ⊢ WP eval_mexpr η opacified_Records {{ module_spec Λ }}.
-Proof.
-  (* Proof using [simp]. *)
-  intros η. unfold η; clear η. wp.
-
-  wp_simp_using r_elt_spec.
-
-  wp_continue.
-  wp_continue.
-  iApply wp_simp.
-  { by eapply lily_body_spec; try done. }
-
-  wp. wp_continue. wp_bind.
-
-  (* [r_val] has the expected value. *)
-  o_specify "r_val" r_val_spec "#Hr_val".
-  { iIntros "!>" (r). force_unfold_at_1 r_val_pure; destruct (b r) eqn:E;
-      wp; wp_continue; try done;
-      force_unfold_at_1 r_val_pure; rewrite E; by wp. }
-
-  (* [sum] is given the trivial spec for now. *)
-  wp_continue. wp_bind.
-
-  (* [is_odd_naive] is given the trivial spec for now. *)
-  o_specify "is_odd_naive" trivial_spec "#His_odd_naive"; first done.
-  wp_bind.
-
-  (* [is_odd] is given the trivial spec for now. *)
-  o_specify "is_odd" trivial_spec "#His_odd"; first done.
-  wp_bind.
-
-  o_specify "is_odd'" is_odd_spec "#His_odd'".
-  { iIntros "!>"(n). force_unfold is_odd'_function.
-    wp.
-    by wp_simp_eusing is_odd'_body_spec. }
-
-  lazymatch goal with
-  | |- environments.envs_entails _ (?φ (VStruct ?η)) =>
-      iExists _; iSplit ; first (iPureIntro; reflexivity)
-  end.
-  cbn; repeat iSplitL; try (iExists _; iSplit; first done); try done.
-  { (* Proof of the [sum] function.*)
-    iIntros "!>"(r1 r2).
-    wp. wp_continue. wp_continue.
-    wp_par.
-    - wp_use "Hr_val".
-      iIntros(?<-).
-      wp. wp_set_postcondition.
-    - wp_use "Hr_val".
-    - iIntros (v1 v2 -> <-). wp. equality. }
-  { (* Proof of the [flip] function. *)
-    iIntros "!>" (??); wp. wp_continue. equality. }
-Time Qed.
-
-(* TODO making definitions opaque blocks the [simp] tactics
-        and seems counter-productive. *)
-Opaque
-  flip_function
-  r_val_function
-  sum_function
-.
-
-(* -------------------------------------------------------------------------- *)
-
-
-(* (7) The following proof is written in callee-reasoning style. It exploits the
-   above proofs on the function expressions. *)
-
-Goal
-  let η := EnvCons "Stdlib" Stdlib $
-           EnvNil in
-  ⊢ WP eval_mexpr η opacified_Records {{ module_spec Λ }}.
-Proof.
-  intros?.
-  wp.
-
-  wp_simp_using r_elt_spec. wp_bind. wp_continue. wp_bind.
-
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (eval ?η flip_function) _) =>
-      iPoseProof (flip_function_spec η)
-      as "[%vflip [%Hflip_simp #Hflip_spec]]";
-      first reflexivity
-  end.
-  wp_simp_using Hflip_simp. wp_continue.
-
-  force_unfold_at_1 lily_expr.
-  wp. wp_simp. wp.
-
-  replace (VRecord _) with #{| b := true ;i := 10|}; last reflexivity.
-  wp_bind. wp_use "Hflip_spec". iIntros(?<-). wp. wp_bind.
-  wp_continue. wp_bind.
-
-
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (eval ?η r_val_function) _) =>
-      iPoseProof (r_val_function_spec η)
-      as "[%vr_val [%Hr_val_simp #Hr_val_spec]]";
-      first reflexivity
-  end.
-  wp_simp_using Hr_val_simp. wp_bind. wp_continue. wp_bind.
-
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (eval ?η sum_function) _) =>
-      iPoseProof ((sum_function_spec η) with "Hr_val_spec")
-      as "[%vsum [%Hsum_simp #Hsum_spec]]";
-      try reflexivity
-  end.
-  wp_simp_using Hsum_simp. wp_bind. wp_continue. wp_bind.
-
-  o_specify "is_odd_naive" trivial_spec "?"; first done.
-  wp_bind.
-
-  o_specify "is_odd" trivial_spec "?"; first done.
-  wp_bind.
-
-  o_specify "is_odd'" is_odd_spec "#?".
-  { by iApply is_odd'_function_spec. }
-
-  wp_module_spec.
-Time Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* (8) Proof of the module [Records] in which the function bodies have not been
-   turned opaque. *)
 
 
 Lemma Records_spec :
@@ -513,6 +178,7 @@ Proof.
   wp.
 
   (* [r_elt] is a known value. *)
+  wp_bind.
   wp_continue. wp_bind.
 
   (* [flip] has the expected spec. *)
@@ -520,11 +186,11 @@ Proof.
   { iIntros "!>" (b i); wp.
     wp_continue.
     unfold sort. simpl build. (* TODO *)
-    wp. equality. }
+    do 2 wp_bind. wp. equality. }
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)
-  wp_simp. wp.
+  wp.
   (* TODO this kind of replacement should be done by letting the tactic
           [encode] solve a goal of the form [v = #?x]. *)
   (* TODO and this should be done automatically by the [wp_] tactics *)
@@ -532,7 +198,7 @@ Proof.
     (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
     with #{| b := true; i := 10 |}; last reflexivity.
   wp_use "Hflip".
-  iIntros (? <-). wp.
+  iIntros (? <-). wp_bind.
 
   (* [lily] has the expected value. *)
   wp_continue. wp_bind.
@@ -542,10 +208,8 @@ Proof.
 
   (* [r_val] has the expected value. *)
   o_specify "r_val" r_val_spec "#Hr_val".
-  { iIntros "!>" ([[|] i]).
-    (* Case: [b] is true. *)
-    { wp. do 2 wp_continue. equality. }
-    { wp. do 2 wp_continue. equality. } }
+  { iIntros "!>" ([[|] i]);
+      wp; wp_bind; wp_continue; wp_bind; wp_continue; iPureIntro; equality. }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)

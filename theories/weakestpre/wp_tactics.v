@@ -10,7 +10,7 @@ From osiris.weakestpre Require Import wp.
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)
 
 Lemma tac_change_goal {Σ: gFunctors} Δ (P Q : iProp Σ) :
-  (P -∗ Q) →
+  (P ⊢ Q) →
   environments.envs_entails Δ P →
   environments.envs_entails Δ Q.
 Proof.

@@ -596,31 +596,38 @@ From iris.proofmode Require Import string_ident.
 
 Tactic Notation "o_specify"
        constr(n1) constr(spec1) constr(H1) :=
-  let i1 := string_to_ident n1 in
+  string_to_ident_cps n1 ltac:(fun i1 =>
   let i1 := fresh i1 in
-  oSpecify n1 spec1 i1 H1.
+  oSpecify n1 spec1 i1 H1).
 Tactic Notation "o_specify"
        constr(n1) constr(spec1) constr(H1)
        constr(n2) constr(spec2) constr(H2) :=
-  let i1 := string_to_ident n1 in let i1 := fresh i1 in
-  let i2 := string_to_ident n2 in let i2 := fresh i2 in
-  oSpecify n1 spec1 i1 H1
-           n2 spec2 i2 H2.
+  string_to_ident_cps
+    n1
+    ltac:(fun i1 =>
+            let i1 := fresh i1 in
+            string_to_ident_cps
+              n2
+              ltac:(fun i2 =>
+                      let i2 := fresh i2 in
+                      oSpecify n1 spec1 i1 H1
+                               n2 spec2 i2 H2)).
 Tactic Notation "o_specify"
        constr(n1) constr(spec1) constr(H1)
        constr(n2) constr(spec2) constr(H2)
        constr(n3) constr(spec3) constr(H3) :=
-  let i1 := string_to_ident n1 in let i1 := fresh i1 in
-  let i2 := string_to_ident n2 in let i2 := fresh i2 in
-  let i3 := string_to_ident n3 in let i3 := fresh i3 in
-  oSpecify n1 spec1 i1 H1 n2 spec2 i2 H2 n3 spec3 i3 H3.
-Tactic Notation "o_specify"
-       constr(n1) constr(spec1) constr(H1)
-       constr(n2) constr(spec2) constr(H2)
-       constr(n3) constr(spec3) constr(H3)
-       constr(n4) constr(spec4) constr(H4) :=
-  let i1 := string_to_ident n1 in let i1 := fresh i1 in
-  let i2 := string_to_ident n2 in let i2 := fresh i2 in
-  let i3 := string_to_ident n3 in let i3 := fresh i3 in
-  let i4 := string_to_ident n4 in let i4 := fresh i4 in
-  oSpecify n1 spec1 i1 H1 n2 spec2 i2 H2 n3 spec3 i3 H3 n4 spec4 i4 H4.
+  string_to_ident_cps
+    n1
+    ltac:(fun i1 =>
+            let i1 := fresh i1 in
+            string_to_ident_cps
+              n2
+              ltac:(fun i2 =>
+                      let i2 := fresh i2 in
+                      string_to_ident_cps
+                        n3
+                        ltac:(fun i3 =>
+                                let i3:= fresh i3 in
+                                oSpecify n1 spec1 i1 H1
+                                         n2 spec2 i2 H2
+                                         n3 spec3 i3 H3))).
