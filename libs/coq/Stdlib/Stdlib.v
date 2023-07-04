@@ -189,26 +189,6 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Some properties of integers that are needed below. *)
-
-Local Lemma Zeq_spec (x y : Z) :
-  (* Is_true *) (x =? y)%Z ↔ (x = y)%Z.
-Proof.
-  rewrite Is_true_true.
-  rewrite Z.eqb_eq.
-  tauto.
-Qed.
-
-Local Lemma Zlt_spec (x y : Z) :
-  (* Is_true *) (x <? y)%Z ↔ (x < y)%Z.
-Proof.
-  rewrite Zlt_is_lt_bool.
-  rewrite Is_true_true.
-  tauto.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
 (* TODO specify every pure function using [SIMP], not [WP]. *)
 
 (* The following specification lemmas are no longer used,
@@ -225,7 +205,6 @@ Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->eq_repr_repr by assumption.
   rewrite Zeq_spec.
   tauto.
 Qed.
@@ -234,9 +213,7 @@ Lemma Stdlib__ne_spec :
   decide_spec Stdlib__ne representable (λ x y, x ≠ y).
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->eq_repr_repr by assumption.
-  rewrite <-Zeq_spec.
-  rewrite Is_true_true negb_true -Is_true_false.
+  rewrite Zne_spec.
   tauto.
 Qed.
 
@@ -244,7 +221,6 @@ Lemma Stdlib__lt_spec :
   decide_spec Stdlib__lt representable Z.lt.
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->lt_repr_repr by assumption.
   rewrite Zlt_spec.
   tauto.
 Qed.
@@ -253,10 +229,8 @@ Lemma Stdlib__le_spec :
   decide_spec Stdlib__le representable Z.le.
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->lt_repr_repr by assumption.
-  rewrite Is_true_true negb_true -Is_true_false.
-  rewrite Zlt_spec.
-  lia.
+  rewrite Zle_spec.
+  tauto.
 Qed.
 
 Lemma Stdlib__gt_spec :
@@ -264,7 +238,6 @@ Lemma Stdlib__gt_spec :
                                        (* avoid [Z.gt] *)
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->lt_repr_repr by assumption.
   rewrite Zlt_spec.
   tauto.
 Qed.
@@ -274,10 +247,8 @@ Lemma Stdlib__ge_spec :
                                        (* avoid [Z.ge] *)
 Proof.
   intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
-  rewrite ->lt_repr_repr by assumption.
-  rewrite Is_true_true negb_true -Is_true_false.
-  rewrite Zlt_spec.
-  lia.
+  rewrite Zle_spec.
+  tauto.
 Qed.
 
 Lemma Stdlib__ref__spec v s E :
