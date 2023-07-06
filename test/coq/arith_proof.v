@@ -85,8 +85,8 @@ Proof.
   intros.
 
   wp until "add"!.
-  o_specify "add" add_spec "#Hadd"
-            "mult" mult_spec "#Hmult".
+  oSpecify "add" add_spec vadd "#Hadd"
+           "mult" mult_spec vmult "#Hmult".
 
   (* Specification of the addition. *)
   { iModIntro. iIntros(i1 H1).

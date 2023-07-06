@@ -182,7 +182,7 @@ Proof.
   wp_continue. wp_bind.
 
   (* [flip] has the expected spec. *)
-  o_specify "flip" flip_spec "#Hflip".
+  oSpecify "flip" flip_spec vflip "#Hflip".
   { iIntros "!>" (b i); wp.
     wp_continue.
     unfold sort. simpl build. (* TODO *)
@@ -207,13 +207,13 @@ Proof.
   (* TODO: uncomment the call to [List.rev]. *)
 
   (* [r_val] has the expected value. *)
-  o_specify "r_val" r_val_spec "#Hr_val".
+  oSpecify "r_val" r_val_spec vr_val "#Hr_val".
   { iIntros "!>" ([[|] i]);
       wp; wp_bind; wp_continue; wp_bind; wp_continue; iPureIntro; equality. }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
-  o_specify "sum" sum_spec "#Hsum".
+  oSpecify "sum" sum_spec vsum "#Hsum".
   { iIntros "!>" ([b1 i1] [b2 i2]).
     wp.
     do 2 wp_continue.
@@ -238,10 +238,10 @@ Proof.
   wp_bind.
 
   (* [is_odd] is given the trivial spec for now. *)
-  o_specify "is_odd" trivial_spec "#?"; first done.
+  oSpecify "is_odd" trivial_spec vis_odd "#?"; first done.
   wp_bind.
 
-  o_specify "is_odd'" is_odd_spec "#His_odd'".
+  oSpecify "is_odd'" is_odd_spec vis_odd' "#His_odd'".
   { iIntros "!>" ([|]); wp_enter_and_abstract;
       iIntros (is_odd');
     wp_step; iNext; wp. (* FIXME: [wp] uses [wp_simp], thus eating laters. *)

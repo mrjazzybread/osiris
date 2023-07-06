@@ -115,7 +115,7 @@ Proof.
   (* The environment is about to be extended with a binding of the variable
      "id" to a certain closure. Now is the time to prove a specification
      for this closure; then, we can make this closure opaque. *)
-  o_specify "id" spec_id "#Hid".
+  oSpecify "id" spec_id vid "#Hid".
   (* Subgoal: prove that [fun x -> x] satisfies [spec_id]. *)
   { unfold spec_id. iModIntro. iIntros (v). wp. equality. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
@@ -160,7 +160,7 @@ Lemma spec_example4b:
 Proof.
   unfold example4b. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
-  o_specify "id" spec_id "#Hid".
+  oSpecify "id" spec_id vid "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp. equality. }
   (* We are looking at [id id]. *)
@@ -181,7 +181,7 @@ Lemma spec_example4c:
 Proof.
   unfold example4c. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
-  o_specify "id" spec_id "#Hid".
+  oSpecify "id" spec_id vid "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp. equality. }
   (* We are looking at [id()]. *)
@@ -203,7 +203,7 @@ Lemma spec_example4d:
 Proof.
   unfold example4d. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
-  o_specify "id" spec_id "#Hid".
+  oSpecify "id" spec_id vid "#Hid".
   { unfold spec_id. iIntros (v).
     iModIntro. wp. equality. }
   (* Here, [wp] is unable to make progress because we are looking at two
@@ -292,7 +292,7 @@ Proof.
   (* The environment is about to be extended with a binding of the variable
      "walk" to a certain closure. Now is the time to prove a specification
      for this closure; then, we can make this closure opaque. *)
-  o_specify "walk" spec_walk "#Hwalk".
+  oSpecify "walk" spec_walk vid "#Hwalk".
   (* Subgoal: prove that the closure satisfies [spec_walk]. *)
   { (* The environment [η] is irrelevant, since the code is in fact closed.
        Abstract it away. *)
@@ -402,13 +402,13 @@ Proof.
   wp. do 2 wp_bind.
 
   (* [f] is about to be added to the environment *)
-  o_specify "f" spec_id "#Hid".
+  oSpecify "f" spec_id vf "#Hid".
   { iIntros(v). iModIntro. wp. equality. }
 
   wp_bind.
 
   (* [g] is about to be added to the environment *)
-  o_specify "g" spec_id "#Hid'".
+  oSpecify "g" spec_id vg "#Hid'".
   { iIntros(v). iModIntro.
     wp_use "Hid". }
 

@@ -565,7 +565,7 @@ Tactic Notation "oSpecify"
    For some (unknown) reason, it is not possible to overload [oSpecify] with
    four new notations, even if the arities differ from the previous notations.
  *)
-
+(*
 From iris.proofmode Require Import string_ident.
 
 Tactic Notation "o_specify"
@@ -605,3 +605,4 @@ Tactic Notation "o_specify"
                                 oSpecify n1 spec1 i1 H1
                                          n2 spec2 i2 H2
                                          n3 spec3 i3 H3))).
+ *)

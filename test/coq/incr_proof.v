@@ -62,7 +62,7 @@ Proof.
   wp until "new_counter" !.
 
   (* Prove that [new_counter] matches its specification (defined above). *)
-  o_specify "new_counter" new_counter_spec "#Hnew_counter".
+  oSpecify "new_counter" new_counter_spec vnew_counter "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     wp. wp_continue.
     wp_alloc l "[Hl _]". do 2 wp_bind.
