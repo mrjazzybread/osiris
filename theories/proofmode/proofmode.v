@@ -5,4 +5,5 @@ From osiris.proofmode Require Export
   setup
   notations
   tactics
+  specifications
 .

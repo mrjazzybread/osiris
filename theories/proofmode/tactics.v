@@ -9,7 +9,7 @@ From iris Require Import base_logic.lib.gen_heap.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.weakestpre Require Import weakestpre.
-From osiris.proofmode Require Import simp.
+From osiris.proofmode Require Import simp specifications.
 
 (* ---------------------------------------------------------------------- *)
 (* Tactics to work on WPs. They mimic those on [is_safe]. *)

@@ -2,5 +2,5 @@
 
 From osiris.weakestpre Require Export
      wp
-     specifications
+     rules
 .

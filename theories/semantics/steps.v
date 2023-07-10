@@ -1,6 +1,7 @@
 From osiris.lang Require Import lang.
 From osiris Require Import base.
 From osiris.semantics Require Import code eval step.
+From stdpp Require Import relations.
 
 (* This file defines the relations [steps] and [produces]
    and establishes some of their properties. *)
@@ -88,3 +89,11 @@ Proof.
 Qed.
 
 Global Hint Resolve step_produces : steps.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Inversion lemma. *)
+
+Lemma nsteps_S_inv {T} R n (e e' : T) :
+  nsteps R (S n) e e' → ∃ e'', R e e'' ∧ nsteps R n e'' e'.
+Proof. inversion_clear 1. eauto. Qed.
