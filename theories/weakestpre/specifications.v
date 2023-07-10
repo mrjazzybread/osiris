@@ -17,7 +17,7 @@ From osiris.weakestpre Require Import wp.
    functions ([let rec ... and ...] and [let ... = ...] constructs). *)
 Section MutuallyRecursive.
 
-  Context `{!osirisGS_gen hlc Σ}.
+  Context `{!osirisGS_gen Σ}.
 
   (* ------------------------------------------------------------------------ *)
 

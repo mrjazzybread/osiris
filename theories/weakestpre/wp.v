@@ -16,13 +16,12 @@ From osiris.weakestpre Require Import safe.
 
 (* For details about these incantations, see
    [iris.base_logic.lib.fancy_updates] and
-   [iris.base_logic.lib.gen_heap].
-   [hlc] stands for "has later credits". *)
+   [iris.base_logic.lib.gen_heap]. *)
 
-Class osirisGS_gen (hlc: has_lc) (Σ: gFunctors) := OsirisG {
+Class osirisGS_gen (Σ: gFunctors) := OsirisG {
 
-  (* This gives us fancy updates. *)
-  osiris_invGS :> invGS_gen hlc Σ;
+  (* This gives us fancy updates (without allowing Later Credits). *)
+  osiris_invGS :> invGS_gen HasNoLc Σ;
 
   (* This gives us a heap, which maps locations to values. *)
   osiris_heapGS :> gen_heapGS loc val Σ;
@@ -36,7 +35,7 @@ Class osirisGS_gen (hlc: has_lc) (Σ: gFunctors) := OsirisG {
 Section definition.
 
 Context (A: Type).
-Context `{!osirisGS_gen hlc Σ}.
+Context `{!osirisGS_gen Σ}.
 
 (* This is our state interpretation predicate. *)
 
@@ -87,7 +86,7 @@ Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
 
 Local Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
 Definition wp' := wp_aux.(unseal).
-Global Arguments wp' {hlc Σ _ _}.
+Global Arguments wp' {Σ _ _}.
 Global Existing Instance wp'.
 Local Lemma wp_unseal: wp = wp_def.
 Proof. rewrite -wp_aux.(seal_eq) //. Qed.
@@ -102,7 +101,7 @@ End definition.
 Section boilerplate.
 
 Context {A : Type}.
-Context `{!osirisGS_gen hlc Σ}.
+Context `{!osirisGS_gen Σ}.
 Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.
@@ -262,7 +261,7 @@ Local Ltac step_wp :=
 
 Section rules.
 
-Context `{!osirisGS_gen hlc Σ}.
+Context `{!osirisGS_gen Σ}.
 
 (* This technical lemma allows grabbing the state invariant when the
    goal is a [WP] assertion. *)

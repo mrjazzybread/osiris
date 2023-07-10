@@ -34,7 +34,7 @@ Local Notation VClo2 body :=
   ).
 
 Section StdLib__code.
-  Context `{!osirisGS_gen hlc Σ}.
+  Context `{!osirisGS_gen Σ}.
 
   Section Arithmetic_operations.
     Definition Stdlib__add : val :=
@@ -199,7 +199,7 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
 
 Section Stdlib__specs.
 
-Context `{!osirisGS_gen hlc Σ}.
+Context `{!osirisGS_gen Σ}.
 
 Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)

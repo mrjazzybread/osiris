@@ -9,7 +9,7 @@ Fixpoint environment_support η : list string :=
   | EnvCons s _ η => s :: environment_support η
   end.
 
-Definition spec_support `{!osirisGS_gen hlc Σ} : list (string * (val → iProp Σ)) → list string :=
+Definition spec_support `{!osirisGS_gen Σ} : list (string * (val → iProp Σ)) → list string :=
   List.map fst.
 
 Fixpoint in_bool' (s : string) (l : list string) : bool * list string :=
@@ -55,7 +55,7 @@ Global Instance string_list_difference : Difference (list string) :=
         end
     end.
 
-Definition has_specs `{!osirisGS_gen hlc Σ} (η: env) (Λ: list (string * (val → iProp Σ))) :=
+Definition has_specs `{!osirisGS_gen Σ} (η: env) (Λ: list (string * (val → iProp Σ))) :=
   match intersection (environment_support η)
                      (spec_support Λ) with
   | [] => false

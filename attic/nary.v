@@ -171,7 +171,7 @@ Section PureEncoder.
      means. *)
 
   (* TODO: replace the body of the [Fipoint] by a proper [match] *)
-  Fixpoint specification_meaning  `{!osirisGS_gen hlc Σ} {n} ty
+  Fixpoint specification_meaning  `{!osirisGS_gen Σ} {n} ty
            (f: val) ff (P: nfun n ty ff) : iProp Σ.
   Proof.
     destruct ty as [T e | T n' ty' e ] eqn:E.

@@ -46,7 +46,7 @@ Proof. eauto with typeclass_instances. Qed.
 
 Lemma preliminary_adequacy_open
   {A} Σ `{!osirisPre Σ} s (m : free A) (φ : A → Prop) :
-  (∀ `{!osirisGS_gen hlc Σ}, ⊢ WP m @ s; ⊤ {{ a, ⌜ φ a ⌝ }}) ->
+  (∀ `{!osirisGS_gen Σ}, ⊢ WP m @ s; ⊤ {{ a, ⌜ φ a ⌝ }}) ->
   safe (∅, m) (λ _ a, φ a).
 Proof.
   intros Hwp.
