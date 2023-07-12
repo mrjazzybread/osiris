@@ -6,7 +6,7 @@ From iris.proofmode Require Import base proofmode classes.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import safe wp helpers.
+From osiris.program_logic Require Import safe wp helpers.
 
 
 Local Ltac wp_unfold_all :=

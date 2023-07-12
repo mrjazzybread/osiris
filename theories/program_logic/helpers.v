@@ -5,7 +5,7 @@ From iris.proofmode Require Import proofmode.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import safe wp.
+From osiris.program_logic Require Import safe wp.
 
 (* This tactic is supposed to unfold all occurrences of [wp]. *)
 
