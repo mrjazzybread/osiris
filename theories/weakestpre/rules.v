@@ -99,7 +99,7 @@ Local Ltac step_wp :=
 
 Section Rules.
 
-  Context `{!osirisGS_gen Σ}.
+  Context `{!osirisGS Σ}.
 
   (* The return rule. *)
 

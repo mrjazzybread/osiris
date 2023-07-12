@@ -9,7 +9,7 @@ From osiris.weakestpre Require Import safe wp helpers.
 
 
 Section Adequacy.
-  Context `{!osirisGS_gen Σ}.
+  Context `{!osirisGS Σ}.
 
   (* [wp_progress] is an iterated version of [wp_step]. *)
   Lemma wp_progress n :
@@ -105,7 +105,7 @@ Section Adequacy.
     nsteps step n (∅, m1) (σ2, m2) →
     (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
          (Hinv : invGS_gen HasNoLc Σ),
-       let _ : osirisGS_gen Σ := OsirisG Σ Hinv Hstore in
+       let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
        |={⊤}=> ∃ (φ' : A → iProp Σ),
        wp s ⊤ m1 φ' ∗
        ( state_interp σ2 -∗
@@ -155,7 +155,7 @@ Section Adequacy.
     (* [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
     (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
          (Hinv : invGS_gen HasNoLc Σ),
-       let _ : osirisGS_gen Σ := OsirisG Σ Hinv Hstore in
+       let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
        (wp s ⊤ m1 (λ a, ⌜ φ a ⌝))) →
 
     (* Then, the resulting configuration is not stuck and should [mn] represent
@@ -186,7 +186,7 @@ Section Adequacy.
     iExists (λ v, ⌜φ v⌝)%I.
     iPoseProof (H $! _ _) as "$". iModIntro.
 
-    (* We now have access to the wtate interp and [wp] of the final
+    (* We now have access to the state interp and [wp] of the final
        configuration, which is enough to prove non-stuckness and the
        postcondition. *)
     iIntros "?Hwp".

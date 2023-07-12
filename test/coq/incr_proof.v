@@ -11,7 +11,7 @@ From test Require Import incr.
 Local Transparent eval. (* TODO. *)
 
 
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 
 (* --------------------------------------------------------------------------- *)
 (* Definition of the specifications of the [get] and [upd] functions returned by

@@ -16,7 +16,7 @@ From osiris.weakestpre Require Import wp wp_tactics specifications.
 (* This Section defines classes to simplify the goal. *)
 
 Section TypeclassesDefinitions.
-  Context `{!osirisGS_gen Σ}.
+  Context `{!osirisGS Σ}.
 
   (* [TC_change_goal] can either be used to simplify the goal
      (Cf. [inst_TCsimp_change_goal]) or to help with automation (Cf. the section

@@ -8,7 +8,7 @@ From osiris Require Import osiris.
 Local Transparent eval.
 
 
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)

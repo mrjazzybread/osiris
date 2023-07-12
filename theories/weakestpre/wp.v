@@ -18,7 +18,7 @@ From osiris.weakestpre Require Import safe.
    [iris.base_logic.lib.fancy_updates] and
    [iris.base_logic.lib.gen_heap]. *)
 
-Class osirisGS_gen (Σ: gFunctors) := OsirisG {
+Class osirisGS (Σ: gFunctors) := OsirisG {
 
   (* This gives us fancy updates (without allowing Later Credits). *)
   osiris_invGS :> invGS_gen HasNoLc Σ;
@@ -43,7 +43,7 @@ Definition state_interp {Σ H} (σ : store) :=
 Section definition.
 
 Context (A: Type).
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 
 (* The (open) recursive definition of [wp]. *)
 
@@ -101,7 +101,7 @@ End definition.
 Section boilerplate.
 
 Context {A : Type}.
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.

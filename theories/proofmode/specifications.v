@@ -32,7 +32,7 @@ Definition module_spec {Σ} (Λ : spec_env) (v: val) : iProp Σ :=
    functions ([let rec ... and ...] and [let ... = ...] constructs). *)
 Section MutuallyRecursive.
 
-  Context `{!osirisGS_gen Σ}.
+  Context `{!osirisGS Σ}.
 
   (* ------------------------------------------------------------------------ *)
 

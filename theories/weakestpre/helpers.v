@@ -25,7 +25,7 @@ Ltac wp_unfold m :=
 Section boilerplate.
 
 Context {A : Type}.
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.
@@ -188,7 +188,7 @@ Ltac step_wp :=
 
 Section rules.
 
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 
 (* This technical lemma allows grabbing the state invariant when the
    goal is a [WP] assertion. *)

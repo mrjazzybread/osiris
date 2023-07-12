@@ -10,7 +10,7 @@
   should move into `proofmode/`.
 
 * Rename `free` to `micro`.
-* Rename `osirisGS_gen` to something less ugly.
+* Rename `osirisGS` to something less ugly.
 * In `steps.v`, we could use `nsteps` from `stdpp`.
 
 * `ret_concat`, `ret_dconcat` and other hacks
