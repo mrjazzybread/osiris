@@ -50,6 +50,11 @@ Section Adequacy.
       by iMod (step_fupdN_S_fupd with "H") as "H".
   Qed.
 
+  (* ------------------------------------------------------------------------ *)
+
+  (* [required_cmras] describes requirements on [Σ] (what should be in Σ?), in
+     order to define an instance of [osirisGS _] later. *)
+
   Class required_cmras Σ :=
     {
       heap : inG Σ (reservation_map.reservation_mapR (agreeR positiveO)) ;
@@ -70,13 +75,17 @@ Section Adequacy.
     required_cmras Σ → invGpreS Σ.
   Proof. intros []; by repeat constructor. Qed.
 
+  (* ------------------------------------------------------------------------ *)
+
+  (* [wp_pre_adequacy] is a lemma used to start the adequacy proof. *)
+
   Let wp_pre_adequacy :
     ∀ {Σ : gFunctors},
-    required_cmras Σ →
     ∀ {P : iProp Σ} {_: Plain P},
+    required_cmras Σ →
     ∀ n : nat,
-    (⊢ ∀ `{Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable}
-         `{Hinv : invGS_gen HasNoLc Σ},
+    (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
+         (Hinv : invGS_gen HasNoLc Σ),
        state_interp ∅
        ={⊤,∅}=∗ |={∅}▷=>^n P)%I →
     ⊢ P.
@@ -100,8 +109,10 @@ Section Adequacy.
     Unshelve. all: by eauto.
   Qed.
 
+  (* Main result: the adequacy lemma. *)
+
   Lemma wp_adequacy {A} `{!required_cmras Σ}
-        (s: stuckness) {m1 n σ2 m2} (φ: Prop) :
+        {m1 n σ2 m2} (s: stuckness) (φ: Prop) :
     nsteps step n (∅, m1) (σ2, m2) →
     (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
          (Hinv : invGS_gen HasNoLc Σ),
@@ -148,7 +159,7 @@ Section Adequacy.
      then [mn] is not stuck, and if it represents a value [v], then [φ v] holds.
    *)
   Lemma wp_adequacy' {A} `{!required_cmras Σ}
-        s {m1 n σn mn} (φ : A → Prop) :
+        {m1 n σn mn} s(φ : A → Prop) :
     (* [(∅, m1)] reduces to ([σn, mn)] in n steps. *)
     nsteps step n (∅, m1) (σn, mn) →
 
@@ -199,48 +210,29 @@ Section Adequacy.
     all: iMod ("Hwp" with "[$]") as "[%?]"; done.
   Qed.
 
-(* TODO is this lemma useful? If so, move it to safe.v where it belongs. *)
+  (* ------------------------------------------------------------------------ *)
 
-Lemma prove_initially_safe {A} :
-  ∀ (n: nat) σ {m : free A} {φ : A → Prop},
-  (
-    ∀ (j : nat) σ' m',
-    j ≤ n →
-    steps j (σ, m) (σ', m') →
-    ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
-  ) →
-  initially_safe n (σ, m) (λ _ a, φ a).
-Proof.
-  induction n; intros σ m φ H.
-  { eauto using initially_safe_zero. }
-  triplicity σ m Hm.
+  (* [wp_safe] states that if [wp _ _ m (λ a, ⌜ φ a ⌝)] holds, [(∅, m)] is a
+     safe configuration that satisfies [φ]. *)
+  Lemma wp_safe {A} `{!required_cmras Σ}
+        {m1} (φ : A → Prop) :
+    (* [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
+    (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
+         (Hinv : invGS_gen HasNoLc Σ),
+       let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
+       (wp NotStuck ⊤ m1 (λ a, ⌜ φ a ⌝))) →
+    safe (∅, m1) (λ _ a, φ a).
+  Proof.
+    intro H.
+    apply prove_safe.
+    intros n σn mn Hsteps.
+    pose proof (steps_nsteps Hsteps) as [n' Hn'steps]; clear n Hsteps.
 
-  (* Case: [m] is [ret a]. *)
-  { eapply initially_safe_ret.
-    (* The goal is now [φ a]. *)
-    eapply (H O σ (ret a)); eauto with lia steps. }
-
-  (* Case: [(σ, m)] can step. *)
-  { right. split; [ eauto |]. intros (σ', m') Hstep.
-    eapply IHn.
-    intros j σ'' m'' ? Hsteps.
-    eapply (H (S j)); eauto with lia steps. }
-
-  (* Case: [(σ, m)] is stuck. *)
-  { exfalso. eapply (H O); eauto with lia steps. }
-
-Qed.
-
-Lemma prove_safe {A} σ {m : free A} {φ : A → Prop} :
-  (
-    ∀ j σ' m',
-    steps j (σ, m) (σ', m') →
-    ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
-  ) →
-  safe (σ, m) (λ _ a, φ a).
-Proof.
-  unfold safe. eauto using prove_initially_safe.
-Qed.
+    (* Apply the corollary of the adequacy lemma stated and poven above. *)
+    apply (wp_adequacy' NotStuck _ Hn'steps).
+    iIntros (??).
+    iApply H.
+  Qed.
 
 (* TODO where do we go from here? *)
 End Adequacy.

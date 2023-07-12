@@ -465,3 +465,46 @@ Qed.
 (* The natural next step would be to prove a rule for parallel composition,
    but it is not easy to provide such a rule for a Hoare logic where the
    state is monolithic. So, this exercise stops here. *)
+
+(* -------------------------------------------------------------------------- *)
+
+Lemma prove_initially_safe {A} :
+  ∀ (n: nat) σ {m : free A} {φ : A → Prop},
+  (
+    ∀ (j : nat) σ' m',
+      j ≤ n →
+      steps j (σ, m) (σ', m') →
+      ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
+  ) →
+  initially_safe n (σ, m) (λ _ a, φ a).
+Proof.
+  induction n; intros σ m φ H.
+  { eauto using initially_safe_zero. }
+  triplicity σ m Hm.
+
+  (* Case: [m] is [ret a]. *)
+  { eapply initially_safe_ret.
+    (* The goal is now [φ a]. *)
+    eapply (H O σ (ret a)); eauto with lia steps. }
+
+  (* Case: [(σ, m)] can step. *)
+  { right. split; [ eauto |]. intros (σ', m') Hstep.
+    eapply IHn.
+    intros j σ'' m'' ? Hsteps.
+    eapply (H (S j)); eauto with lia steps. }
+
+  (* Case: [(σ, m)] is stuck. *)
+  { exfalso. eapply (H O); eauto with lia steps. }
+
+Qed.
+
+Lemma prove_safe {A} σ {m : free A} {φ : A → Prop} :
+  (
+    ∀ j σ' m',
+      steps j (σ, m) (σ', m') →
+      ¬ stuck (σ', m') ∧ ∀ a, m' = Ret a → φ a
+  ) →
+  safe (σ, m) (λ _ a, φ a).
+Proof.
+  unfold safe. eauto using prove_initially_safe.
+Qed.

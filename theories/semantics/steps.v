@@ -97,3 +97,29 @@ Global Hint Resolve step_produces : steps.
 Lemma nsteps_S_inv {T} R n (e e' : T) :
   nsteps R (S n) e e' → ∃ e'', R e e'' ∧ nsteps R n e'' e'.
 Proof. inversion_clear 1. eauto. Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Relation between [steps] and its stdpp version ([nsteps]). *)
+
+Lemma steps_nsteps {A n} :
+  forall {σ1 σn} {m1 mn : free A},
+  steps n (σ1, m1) (σn, mn) → ∃ n', nsteps step n' (σ1, m1) (σn, mn).
+Proof.
+  induction n as [|n IHn] => σ1 σn m1 mn Hsteps.
+
+  (* Base case. *)
+  { inversion Hsteps. eexists; apply nsteps_O. }
+
+  (* Inductive case. *)
+  { inversion Hsteps; simplify_eq/=.
+
+    (* No step has been taken. *)
+    { eexists; apply nsteps_O. }
+
+    (* At least one step has been taken. *)
+    { destruct m2 as [σn' mn'].
+      pose proof (IHn _ _ _ _ H1) as [n' Hn'].
+      exists (S n').
+      by apply nsteps_l with (σn', mn'). } }
+Qed.
