@@ -6,7 +6,7 @@ From iris.proofmode Require Import base proofmode classes.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.weakestpre Require Import safe wp.
+From osiris.weakestpre Require Import safe wp helpers.
 
 
 Local Ltac wp_unfold_all :=
@@ -146,6 +146,30 @@ Section Rules.
     wp_unfold_all. spec_state "Hwp".
     destruct_wp_nonret. exfalso; eauto with invert_can_step.
   Qed.
+
+(* The consequence rule of Separation Logic. *)
+
+Lemma wp_covariant {A} s E (m : free A) φ φ' :
+  WP m @ s; E {{ φ }} -∗
+  (∀ a, φ a -∗ φ' a) -∗
+  WP m @ s; E {{ φ' }}.
+Proof.
+  iLöb as "IH" forall (φ φ' m).
+  iIntros "Hwp Himplication".
+  wp_unfold_all.
+  intro_state. spec_state "Hwp".
+  destruct (is_ret m); [ destruct_wp_ret | destruct_wp_nonret ].
+  (* Case: [m] is [ret _]. *)
+  { release_state.
+    iApply ("Himplication" with "Hwp"). }
+  (* Case: [m] is not [ret _]. *)
+  { iModIntro.
+    construct_wp_nonret.
+    step_wp.
+    tick_wp.
+    iApply ("IH" with "Hwp Himplication"). }
+
+Qed.
 
   (* A reasoning rule for [try]. *)
 
