@@ -442,6 +442,7 @@ Proof.
       (* The call [compare x y] is now complete. *)
       destruct_bst_Node.
       SIMP_continue.
+      rewrite lt_repr_repr by representable.
       assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
       (* Case: [c < 0], that is, [x < y]. *)
       { rewrite ltb_true by lia.
@@ -454,6 +455,7 @@ Proof.
       (* Case: [c > 0], that is, [x > y]. *)
       { rewrite ltb_false by lia.
         SIMP1.
+        rewrite lt_repr_repr by representable.
         rewrite ltb_true by lia.
         SIMP1.
         intros [b t'] (? & ?).
@@ -465,6 +467,7 @@ Proof.
          the preorder [le]. *)
       { rewrite ltb_false by lia.
         SIMP1.
+        rewrite lt_repr_repr by representable.
         rewrite ltb_false by lia.
         SIMP1.
         intros t' Ht'. SIMP1.

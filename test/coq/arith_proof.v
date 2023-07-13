@@ -15,7 +15,7 @@ From test Require Import arith.
 
 (* -------------------------------------------------------------------------- *)
 
-Context `{!osirisGS_gen Σ}.
+Context `{!osirisGS Σ}.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -68,7 +68,7 @@ Axiom int_representable:
    improve the proof --- especially the way to handle mutually recursive
    functions. *)
 
-
+(* Set Ltac Profiling. *)
 
 Lemma Add_spec :
     let Λ :=
@@ -115,14 +115,13 @@ Proof.
         wp_use "Hadd".
         { iPureIntro. lia. }
         iIntros (vpadd) "Hvpadd".
-        rewrite sub_repr_repr.
         wp_bind.
         iApply (wp_covariant with "[Hvpadd]").
         { wp_use "Hvpadd".
           iPureIntro. lia. }
         iIntros (?) "->".
         wp.
-        iPureIntro. rewrite int.add_repr_repr. equality.
+        iPureIntro. equality.
      }
   }
 
@@ -151,7 +150,6 @@ Proof.
           iSpecialize ("Hadd" $! i1 H1).
           wp_use "Hadd". }
         { wp_bind.
-          rewrite sub_repr_repr.
           (* [mult x (y - 1)] *)
           wp_use "Hmult".
           { iPureIntro. lia. }
@@ -209,3 +207,5 @@ Proof.
   Unshelve. (* TODO avoid this *)
   all: done.
 Time Qed.
+
+(* Show Ltac Profile. *)

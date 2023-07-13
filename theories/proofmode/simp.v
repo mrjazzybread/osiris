@@ -467,13 +467,13 @@ Ltac normalize :=
     rewrite -> neg_repr
   | rewrite -> add_repr_repr
   | rewrite -> sub_repr_repr
-  | rewrite -> mul_repr_repr
-  | rewrite -> divs_repr_repr by representable
-  | rewrite -> mods_repr_repr by representable
-  | rewrite -> eq_repr_repr by representable
-  | rewrite -> lt_repr_repr by representable
-  ];
-  rewrite ?true_iff, ?false_iff in *. (* TODO useful? expensive? *)
+  | rewrite -> mul_repr_repr (*
+  | rewrite -> divs_repr_repr; eauto with representable
+  | rewrite -> mods_repr_repr; eauto with representable
+  | rewrite -> eq_repr_repr; eauto with representable
+  | rewrite -> lt_repr_repr; eauto with representable *)
+      ](* ;
+     rewrite ?true_iff, ?false_iff in *). (* TODO useful? expensive? *)
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
