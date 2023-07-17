@@ -171,7 +171,8 @@
     lemmas applying specifications). This was not added yet as the specification
     mechanism will probably change soon.
 
-* Get [wp_bind] to apply [wp] automtically.
+* Make [module_spec_fetch] to return a list of specs instead of a single one.
+* Get [oSpec] to try every (or choose wisely the) specification available.
 
 * Use the hypothesis [__osiris_specs].
 
