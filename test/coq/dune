@@ -30,3 +30,12 @@
   (action
     (progn
       (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))
+
+(rule
+  (targets simple_examples.v)
+  (mode promote)
+  (deps    (:gen ../../translator/bin/main.exe)
+           (:src ../ml/examples.ml))
+  (action
+    (progn
+       (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))
