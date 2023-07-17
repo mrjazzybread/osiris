@@ -217,6 +217,8 @@ Qed.
 
 Ltac prove_representable_30 :=
   apply prove_representable_30; cbv; split; congruence.
+Ltac prove_representable_30' :=
+  apply prove_representable_30; rewrite two_power_nat_equiv; lia.
 
 Goal representable 1673.
 Proof.
@@ -229,7 +231,7 @@ Proof.
 Qed.
 
 Ltac representable :=
-  try solve [ tauto | prove_representable_30 ].
+  try solve [ tauto | prove_representable_30' | prove_representable_30 ].
 
 Global Hint Extern 1 (representable _) => representable : representable.
 
