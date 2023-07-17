@@ -2,6 +2,7 @@ From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
 From osiris.semantics Require Import semantics.
 From osiris.lang Require Import lang.
+From osiris.proofmode Require Import specifications.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -79,3 +80,20 @@ Notation "[
  * z ]" :=
   (BrCons x (.. (BrCons z BrNil) ..))
   (only printing).
+
+(* -------------------------------------------------------------------------- *)
+
+(* On modules. *)
+
+(* [val_as_struct_total] is introduced by Osiris tactics when the evaluation
+   function wants to extract the underlying environment of a value which we know
+   define a module. Thus, it can be saftely hidden. *)
+Notation "v" :=
+  (val_as_struct_total _ v)
+  (only printing, at level 101).
+
+(* The following notation represents paths: [M :$: f] is the osiris equivalent
+   to the OCaml [M.f] *)
+Notation "v  ':$:'  n" :=
+  (lookup_name_total (val_as_struct_total v) n)
+  (only printing, at level 100).

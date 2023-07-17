@@ -16,15 +16,215 @@ From osiris.program_logic Require Import program_logic.
 
 From iris.base_logic Require Import iprop.
 
-Definition spec_env {Σ} : Type :=
-  list (var * (val → iProp Σ)).
+Section Modules.
+ Context {Σ : gFunctors}.
 
-Definition module_spec_list {Σ} (Λ : spec_env) (η: env) : iProp Σ :=
-  [∗ list] '(x, φx) ∈ Λ,
-    ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
+ (* [spec_env] is the type of module specifications. *)
+ Definition spec_env : Type :=
+   list (var * (val → iProp Σ)).
 
-Definition module_spec {Σ} (Λ : spec_env) (v: val) : iProp Σ :=
-  ∃ η, ⌜ v = VStruct η ⌝ ∗ module_spec_list Λ η.
+ (* Last two points of the description of [module_spec] below. *)
+ Let module_spec_list (Λ : spec_env) (η: env) : iProp Σ :=
+   [∗ list] '(x, φx) ∈ Λ,
+     ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
+
+ (* [module_spec Λ] is a predicate over values which asserts that:
+    1. the value represents a module
+    2. the module contains least the elements present in [Λ]
+    3. every field present in [Λ] satisfy its spec. *)
+ Definition module_spec (Λ : spec_env) (v: val) : iProp Σ :=
+   ∃ η, ⌜ v = VStruct η ⌝ ∗ module_spec_list Λ η.
+
+ (* [is_module] is the pure counterpart of [module_spec]. It asserts the first
+    two points listed above. *)
+ Definition is_module (Λ : list name) (v : val) : Prop :=
+   ∃ (η : env),
+     v = VStruct η ∧
+     foldr (λ n P, (∃ (vn : val), lookup_name η n = Ret vn) ∧ P) True Λ.
+
+ (* -------------------------------------------------------------------------- *)
+
+ (* [spec_env_erase] takes a module specification and only keeps the
+    under-approximation of its domain. *)
+ Fixpoint spec_env_erase  (Λ : spec_env) : list name :=
+   match Λ with
+   | (n, _) :: Λ => n :: (spec_env_erase Λ)
+   | [] => []
+   end.
+
+ (* ------------------------------------------------------------------------- *)
+
+ (* If a module satisfies some specification [Λ], it at least defines the domain
+    specified in [Λ]. *)
+ Lemma module_spec_is_module vmod  (Λ : spec_env) :
+   module_spec Λ vmod ⊢
+   ⌜is_module (spec_env_erase Λ) vmod⌝.
+ Proof.
+   iInduction Λ as [|[h ?] t] "IHΛ".
+   { iDestruct 1 as "(% & -> & _)". by iExists _. }
+
+   { iDestruct 1 as "(% & -> & H)".
+     iExists _.
+     iSplit; first (iPureIntro; reflexivity).
+     rewrite/module_spec_list/=.
+     iDestruct "H" as "[(%vname&%Hvname&_) Ht]".
+     iSplit; first by iExists vname.
+
+     iAssert (module_spec t (VStruct η)) with "[Ht]" as "Ht".
+     { iExists _; iSplit; [ iPureIntro; reflexivity | iExact "Ht" ]. }
+
+     iPoseProof ("IHΛ" with "Ht") as "[% [%Heq H]]".
+     simplify_eq/=.
+     iExact "H". }
+ Qed.
+
+ (* ------------------------------------------------------------------------- *)
+ (* This part of the section defines total applications to convert a value seen
+    as a module-value into its environment and to fetch a value in an
+    environment. *)
+
+ Let totalify {A B} (f: A → free B) (dummy : B) : A → B :=
+   λ (a : A), match f a with
+              | Ret b => b
+              | _ => dummy
+              end.
+
+ Definition val_as_struct_total := totalify val_as_struct EnvNil.
+ Definition lookup_name_total η := totalify (lookup_name η) VUnit.
+
+ (* Inversion lemma on a lookup: *)
+ Local Lemma lookup_name_inv η n v :
+   (* If [η !! n = Some v], *)
+   lookup_name η n = ret v →
+   (* Then, the environment is not empty, ie. it is an [EnvCons _ _ _] *)
+   ∃ n' v' η',
+     η = EnvCons n' v' η'
+     ∧ (* And either: *) (
+         ( (* - the lookup returned on the first cons ; *)
+           v = v' ∧ n = n')
+         ∨ ( (* - or not. *)
+             n <> n' ∧ lookup_name η' n = ret v)).
+ Proof.
+   induction η as [ | n' v' η' ];
+     first (* Impossible case. *)
+       inversion 1.
+
+   destruct (n =? n')%string eqn:E.
+   { unfold lookup_name at 1; rewrite E.
+     inversion 1; simplify_eq/=.
+     eexists _, _, _.
+     split;[ | left ]; split; first reflexivity.
+     by apply String.eqb_eq. }
+   { unfold lookup_name at 1; rewrite E.
+     fold lookup_name.
+     intros Hη'.
+     eexists _, _, _; split; [ reflexivity | right ].
+     split.
+     - by apply String.eqb_neq.
+     - assumption. }
+ Qed.
+
+ (* This lemma is equivalent as the one above. The difference is that we do not
+    existentially quantify over the arguments to [EnvCons]. *)
+ Local Lemma lookup_name_inv' η n n' v v' :
+   lookup_name (EnvCons n v η) n' = ret v' →
+   (v = v' ∧ n = n')
+   ∨ (n' <> n ∧ lookup_name η n' = ret v').
+ Proof.
+   intros (n0&v0&η0&Heq&[ [->->] | H ])%lookup_name_inv;
+     inversion Heq; simplify_eq/=; [ by left | by right ].
+ Qed.
+
+ (* If [is_module _ v] holds, then [val_as_struct v] should succeed. *)
+ Lemma is_module_val_of_struct (v : val) (Λ : list name) :
+   is_module Λ v →
+   val_as_struct v = Ret (val_as_struct_total v).
+ Proof. intros (?&->&?); reflexivity. Qed.
+
+ (* If [is_module Λ v] holds,
+    any lookup of an element of [Λ] into the module represented by [v]
+    must succeed. *)
+ Lemma is_module_lookup_name (v : val) n Λ :
+   is_module Λ v →
+   In n Λ →
+   ∃ velt, lookup_name (val_as_struct_total v) n = Ret velt.
+ Proof.
+   induction Λ as [ | h t];
+     first (* Impossible case. *)
+       by inversion 2.
+
+   intros (η&->&(vh&Hh)&Ht) [-> |Hin]%in_inv;
+     first (exists vh; exact Hh).
+   refine (IHt _ Hin).
+   exists η; split; [ reflexivity | exact Ht ].
+ Qed.
+
+ (* Ditto, except that the value returned by [lookup_name] is known: it is
+    the result of the total lookup function. *)
+ Lemma is_module_lookup_name_total (v : val) (Λ : list name) (n : name) :
+   is_module Λ v →
+   In n Λ →
+   lookup_name (val_as_struct_total v) n =
+   Ret (lookup_name_total (val_as_struct_total v) n).
+ Proof.
+   induction Λ as [ | h t ];
+     first (* Impossible case. *)
+       inversion 2.
+
+   intros (η & -> & (vh&Hh) & Ht) [Heq | Hin]%in_inv; last first.
+   { apply IHt; last assumption.
+     eexists _; split; [ reflexivity | assumption ]. }
+   cbn.
+   unfold lookup_name_total, totalify.
+   rewrite -Heq Hh; f_equal.
+ Qed.
+
+ (* If one known that [lookup_name] succeeds, then its result coincides with
+    that of [lookup_name_total]. This follows from the definition of
+    [totalify]. *)
+ Lemma lookup_name_total_ret η n v :
+   lookup_name η n = Ret v →
+   lookup_name_total η n = v.
+ Proof.
+   unfold lookup_name_total, totalify.
+   intros ->. reflexivity.
+ Qed.
+
+ (* ------------------------------------------------------------------------- *)
+
+ (* [module_spec_fetch] retrieves a spec of a given symbol from a [spec_env]. *)
+ Fixpoint module_spec_fetch (Λ : spec_env) (n : name) : val → iProp Σ :=
+   match Λ with
+   | (h, φ) :: Λ =>
+       if (n =? h)%string
+       then φ
+       else module_spec_fetch Λ n
+   | [] => λ _, emp%I
+   end.
+
+ (* Should a module specification be available, one can fetch the specification
+    of any symbol described by the spec.
+    A dummy value is returned if none is found. *)
+ Lemma module_spec_spec (Λ : spec_env) (v : val) (n: name) :
+   module_spec Λ v ⊢
+   (module_spec_fetch Λ n) (lookup_name_total (val_as_struct_total v) n).
+ Proof.
+   iInduction Λ as [ | [n' φ] Λ' ] "IH"; first by iIntros"_".
+   iIntros "(%η&->&H)".
+   change (module_spec_list ((n', φ) :: Λ') η)
+     with ((∃ v : val, ⌜lookup_name η n' = ret v⌝ ∗ φ v) ∗
+           module_spec_list Λ' η)%I.
+   iDestruct "H" as "[(%v0&%Hv0&H0)H]".
+   destruct (decide (n = n')) as [-> | Hneq].
+   { cbn. rewrite String.eqb_refl.
+     by rewrite (lookup_name_total_ret _ _ _ Hv0). }
+   { replace (module_spec_fetch ((n', φ) :: Λ') n (lookup_name_total (val_as_struct_total (VStruct η)) n))
+       with (module_spec_fetch Λ' n (lookup_name_total (val_as_struct_total (VStruct η)) n));
+       last (cbn; by apply String.eqb_neq in Hneq as ->).
+     iApply "IH".
+     iExists _; iSplit; [ done | iAssumption ]. }
+ Qed.
+End Modules.
 
 (* -------------------------------------------------------------------------- *)
 

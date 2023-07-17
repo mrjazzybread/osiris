@@ -63,20 +63,6 @@ Tactic Notation "tac_change_goal" uconstr(lem) := (tac_change_goal lem).
 Ltac wp_simp :=
   iApply wp_simp; first by simp_really.
 
-(* [wp_bind] can be applied when the goal is of the form [WP bind m m' {{ _ }}].
-   It bahaves differently depending on the term [m]:
-   - if [m] can be simplified into [ret v], then [bind] can reduce: do it;
-   - otherwise, apply the lemma [wp_bind]. *)
-Ltac wp_bind :=
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
-      first [
-          (* [wp_simp] will reduce the bind if it can. *)
-          progress wp_simp; try once wp_bind
-        | tac_change_goal (wp_bind _ _ _ _ _) ]
-  | _ => fail "[wp_bind] should only be applied to goals of the form [WP bind _ _ {{ _ }}]."
-  end.
-
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
@@ -127,6 +113,15 @@ Local Ltac wp_progress :=
       lazymatch goal with
       | |- environments.envs_entails _ $ wp _ _ (eval _ _) _ =>
           rewrite eval_eval'; try progress wp_cbn
+      (* Should become [simp] hints...   *   *   *   *   *   *   *   *   *    *)
+      | H : is_module _ ?v
+        |- context [val_as_struct ?v] =>
+          rewrite !(is_module_val_of_struct v _ H)
+      | H : is_module _ ?v
+        |- context  [lookup_name (val_as_struct_total ?v) ?n] =>
+          rewrite !(is_module_lookup_name_total _ _ n H);
+          last by eauto using in_eq, in_cons
+     (*   *   *   *   *   *   *   *   *   *   ... should become [simp] hints. *)
       end
     | wp_cbn (* TODO: better control the reduction strategy. *)
     | progress wp_simp
@@ -145,7 +140,6 @@ Local Ltac wp_startproof :=
 
 Ltac wp :=
   wp_startproof;
-  try progress wp_progress;
   repeat
     (first [
           (* 1. Try to eliminate a later or take a step. *)
@@ -154,12 +148,26 @@ Ltac wp :=
           | _ => wp_step
           end
         | (* 2. Try to simplify the proof goal using [wp_progress].*)
-          wp_progress
+          progress wp_progress
         | (* Otherwise, do nothing ([repeat] will stop). *)
           idtac
-    ]);
-  normalize.
-    (* TODO [wp] should NOT normalize the entire goal *)
+    ]).
+  (* ;normalize.
+    (* TODO [wp] should NOT normalize the entire goal *) *)
+
+(* [wp_bind] can be applied when the goal is of the form [WP bind m m' {{ _ }}].
+   It bahaves differently depending on the term [m]:
+   - if [m] can be simplified into [ret v], then [bind] can reduce: do it;
+   - otherwise, apply the lemma [wp_bind]. *)
+Ltac wp_bind :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+      first [
+          (* [wp_simp] will reduce the bind if it can. *)
+          progress wp_simp; try once wp_bind
+        | tac_change_goal (wp_bind _ _ _ _ _) ]
+  | _ => fail "[wp_bind] should only be applied to goals of the form [WP bind _ _ {{ _ }}]."
+  end; wp.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -558,6 +566,36 @@ Tactic Notation "oSpecify"
              wp_continue)
   | _ => fail "[oSpecify] only works on environment extension."
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+Tactic Notation "oSpec" constr(n) constr(Hyps) :=
+  match goal with
+  (* Most specifications will take a precondition... *)
+  | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
+      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#Hspec";
+      iSpecialize ("Hspec" $! varg with Hyps);
+      last iApply (wp_covariant with "Hspec");
+      last iClear "Hspec"
+
+  (* ... but some do not. *)
+  | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
+      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#Hspec";
+      iSpecialize ("Hspec" $! varg);
+      last iApply (wp_covariant with "Hspec");
+      last iClear "Hspec"
+  end.
+
+(* Preconditions are often pure and might not need any hypothesis. *)
+Tactic Notation "oSpec" constr(n) := oSpec n "[]"; try done.
+
+(* -------------------------------------------------------------------------- *)
+
+(* In order for lookups and evaluation of module-values to be evaluated, one
+   needs to declare the value the representation of a module. *)
+Tactic Notation "oModule" ident(v) :=
+  iPoseProof ((module_spec_is_module v) with "[$]") as "%";
+  simpl (spec_env_erase _) in *.
 
 (* -------------------------------------------------------------------------- *)
 
