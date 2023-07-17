@@ -255,7 +255,7 @@ Section ProofExamples.
        One can use the tactic notation [oSpec] to fetch the Iris specification
        from ["HRec"] of the function and apply it. *)
     change (VInt (repr 12)) with #12%nat; wp_bind.
-    oSpec "int_to_nat".
+    oSpec "int_to_nat" "HRec".
     { (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
       iPureIntro. split; [ lia | representable ]. }
 
@@ -269,7 +269,7 @@ Section ProofExamples.
     end.
 
     (* Ditto. *)
-    oSpec "nat_to_int".
+    oSpec "nat_to_int" "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
     lazymatch goal with
@@ -280,7 +280,7 @@ Section ProofExamples.
     end.
 
     (* Ditto. *)
-    oSpec "nat_to_int".
+    oSpec "nat_to_int" "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind. wp_continue.
 

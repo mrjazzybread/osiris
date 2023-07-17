@@ -569,25 +569,25 @@ Tactic Notation "oSpecify"
 
 (* -------------------------------------------------------------------------- *)
 
-Tactic Notation "oSpec" constr(n) constr(Hyps) :=
+Tactic Notation "oSpec" constr(n) constr(Hyps) constr(Hyp) :=
   match goal with
   (* Most specifications will take a precondition... *)
   | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
-      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#Hspec";
-      iSpecialize ("Hspec" $! varg with Hyps);
-      last iApply (wp_covariant with "Hspec");
-      last iClear "Hspec"
+      iPoseProof ((module_spec_spec _ _ n) with Hyp) as "#osiris_reserved__Hspec";
+      iSpecialize ("osiris_reserved__Hspec" $! varg with Hyps);
+      last iApply (wp_covariant with "osiris_reserved__Hspec");
+      last iClear "osiris_reserved__Hspec"
 
   (* ... but some do not. *)
   | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
-      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#Hspec";
-      iSpecialize ("Hspec" $! varg);
-      last iApply (wp_covariant with "Hspec");
-      last iClear "Hspec"
+      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#osiris_reserved__Hspec";
+      iSpecialize ("osiris_reserved__Hspec" $! varg);
+      last iApply (wp_covariant with "osiris_reserved__Hspec");
+      last iClear "osiris_reserved__Hspec"
   end.
 
 (* Preconditions are often pure and might not need any hypothesis. *)
-Tactic Notation "oSpec" constr(n) := oSpec n "[]"; try done.
+Tactic Notation "oSpec" constr(n) constr(H) := oSpec n "[]" H; try done.
 
 (* -------------------------------------------------------------------------- *)
 
