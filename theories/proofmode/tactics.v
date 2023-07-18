@@ -171,6 +171,25 @@ Ltac wp_bind :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* We want symbolic execution to stop at breakpoints, that is, when the
+   environment is extended with new bindings. This gives the user a chance
+   to prove specifications about these bindings using [wp_specify]. *)
+
+(* The tactic [wp_continue] moves past a breakpoint and invokes [wp]
+   to continue simplifying the goal. *)
+
+(* The tactic [simp] applies [rewrite ?bind_bind], which ensures that
+   the breakpoint of interest cannot be buried under several [bind]s. *)
+
+Ltac wp_continue :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (wp _ _ ?m _) =>
+      unfold_breakpoint m
+  end;
+  wp.
+
+(* -------------------------------------------------------------------------- *)
+
 (* TODO: get [wp until check _] to use [idtac_or_do]. *)
 Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
   let is_in := eval cbn in (lookup_name δ name) in
@@ -222,25 +241,6 @@ Tactic Notation "wp" "until" constr(name) :=
 Tactic Notation "wp" "until" constr(name) "!" :=
   repeat (@wp until name; try wp_bind);
   @wp until check name.
-
-(* -------------------------------------------------------------------------- *)
-
-(* We want symbolic execution to stop at breakpoints, that is, when the
-   environment is extended with new bindings. This gives the user a chance
-   to prove specifications about these bindings using [wp_specify]. *)
-
-(* The tactic [wp_continue] moves past a breakpoint and invokes [wp]
-   to continue simplifying the goal. *)
-
-(* The tactic [simp] applies [rewrite ?bind_bind], which ensures that
-   the breakpoint of interest cannot be buried under several [bind]s. *)
-
-Ltac wp_continue :=
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ ?m _) =>
-      unfold_breakpoint m
-  end;
-  wp.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -365,7 +365,7 @@ Tactic Notation "oAbstract"
    the required closures.
    It is defined as a notation so that it is easy to ask for more idents (Ltac
    cannot take a list of idents as argument for a tactic). *)
-Tactic Notation "@oCall" "unfold" constr(s1) :=
+Tactic Notation "@oCall" "unfold" :=
   with_strategy
     transparent [call]
     ( lazymatch goal with
@@ -378,13 +378,13 @@ Tactic Notation "@oCall" "unfold" constr(s1) :=
 
 Tactic Notation "oCall" constr(s1) ident(i1) :=
   (* TODO if possible, use [wp_enter] instead of [unfold call] *)
-  @oCall unfold s1; wp;
+  @oCall unfold; wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
   end; wp.
 Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
-  @oCall unfold s1; wp;
+  @oCall unfold; wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
@@ -644,3 +644,21 @@ Tactic Notation "o_specify"
                                          n2 spec2 i2 H2
                                          n3 spec3 i3 H3))).
  *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* When using the above tactics in real-life examples, some patterns have
+   emerged. The following tactic notations are shortcuts one may find useful in
+   proofs. *)
+
+Tactic Notation "oSpecify"
+       constr(n1) constr(spec1) ident(i1) constr(H1) "!" :=
+  wp until n1 ! ;
+  oSpecify n1 spec1 i1 H1.
+
+Tactic Notation "wp" "skip" constr(n1) := wp until n1 ! ; wp_continue.
+Tactic Notation "wp" "skip" constr(n1) constr(n2) := wp skip n1 ; wp skip n2.
+Tactic Notation "wp" "skip" constr(n1) constr(n2) constr(n3) :=
+  wp skip n1 ; wp skip n2 n3.
+Tactic Notation "wp" "skip" constr(n1) constr(n2) constr(n3) constr(n4) :=
+  wp skip n1 n2 ; wp skip n3 n4.
