@@ -27,14 +27,14 @@ module Recursion = struct
     else S (int_to_nat (i-1))
 end
 
-(* module Counter
-  = struct
-  let r = ref 0
+module Counter = struct
+  type counter = int ref
 
-  let get () = !r
-  let incr () = incr r
-  let set i = r := i
-end *)
+  let init () = ref 0
+  let get r = !r
+  let incr r = r := !r + 1
+  let set r i = r := i
+end
 
 let twelve = 12
 (* let twelve' =

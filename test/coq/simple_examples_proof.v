@@ -78,10 +78,47 @@ Section SpecsExample.
     λ v, (□ (module_spec Recursion_specs) v)%I.
 
   (* ------------------------------------------------------------------------ *)
+  (* Specifications for the module [Counter]. *)
+
+  Definition is_counter (n : nat) (v : val) : iProp Σ :=
+    ∃ (ℓ : loc), ⌜v = #ℓ⌝ ∗ ℓ ↦ #n.
+
+  Definition init_spec (vinit : val) : iProp Σ :=
+    □ WP call vinit #() {{ λ res, is_counter O res }}.
+
+  Definition get_spec (vget : val) : iProp Σ :=
+    □ ∀ (v : val) (n : nat),
+    is_counter n v -∗ WP call vget v {{ λ res, ⌜res = #n⌝ ∗ is_counter n v }}.
+
+  Definition incr_spec (vincr : val) : iProp Σ :=
+    □ ∀ (v : val) (n : nat),
+    is_counter n v -∗
+    WP call vincr v {{ λ res, ⌜res = VUnit⌝ ∗ is_counter (S n) v }}.
+  Definition set_spec (vset : val) : iProp Σ :=
+    □ ∀ (v : val),
+    WP call vset v {{
+          λ res,
+            ∀ (n m : nat),
+            is_counter n v -∗
+            WP call res #m {{ λ res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
+
+  Definition Counter_specs : @spec_env Σ :=
+    [
+      ("init", init_spec) ;
+      ("get", get_spec) ;
+      ("incr", incr_spec) ;
+      ("set", set_spec)
+    ].
+
+  Definition Counter_spec : val → iProp Σ :=
+    λ v, (□ module_spec Counter_specs v)%I.
+
+  (* ------------------------------------------------------------------------ *)
 
   Definition Examples_spec :=
     [
-      ("Recursion", Recursion_spec)
+      ("Recursion", Recursion_spec) ;
+      ("Counter", Counter_spec)
     ].
 End SpecsExample.
 
@@ -105,6 +142,15 @@ Local Hint Resolve
       solve_encode_S : encode.
 
 (* -------------------------------------------------------------------------- *)
+(* Staging area: Ltac and Notations. *)
+
+(* Useful Ltac tactics. *)
+Ltac prove_counter := iSplit;
+                      [ by equality
+                      | iExists _; iSplit ; [ equality | iFrame ] ].
+Ltac call := @oCall unfold; wp_bind; wp_continue.
+
+
 (* -------------------------------------------------------------------------- *)
 
 Section ProofExamples.
@@ -135,26 +181,24 @@ Section ProofExamples.
     { (* As the function is recursive, there is a Löb-induction-related
          hypothesis already available in the context. *)
       iIntros "!>" ([|n]);
-        oCall "infinite" vinfinite;
-        do 2 (wp_bind; wp_continue);
+        oCall "infinite" vinfinite; do 2 (wp_bind; wp_continue);
         first equality.
-        change (VData _ _) with #(S' n). (* TODO: get rid of this line. *)
-        wp_use "Hinfinite". }
+      change (VData _ _) with #(S' n). (* TODO: get rid of this line. *)
+      wp_use "Hinfinite". }
 
     (* [infinite] is followed by [nat_to_int] in OCaml. *)
-    wp until "nat_to_int"!.
-    oSpecify "nat_to_int" nat_to_int_spec vnat_to_int "#Hnat_to_int".
+    (* One can add '!' after [oSpecify] to fast-forward to the targeted
+       bindings (it uses [wp until _ !] under the hood). *)
+    oSpecify "nat_to_int" nat_to_int_spec vnat_to_int "#Hnat_to_int" !.
     { iIntros "!>"([|n]);
-        oCall "nat_to_int" f;
-        do 2 (wp_bind; wp_continue);
+        oCall "nat_to_int" f; do 2 (wp_bind; wp_continue);
         first done.
       wp_bind. wp_use "Hnat_to_int".
       iIntros(?->). wp_bind. wp.
       equality. }
 
     (* Finally, [nat_to_int] is followed by [int_to_nat] in OCaml. *)
-    wp until "int_to_nat"!.
-    oSpecify "int_to_nat" int_to_nat_spec vint_to_nat "#Hint_to_nat".
+    oSpecify "int_to_nat" int_to_nat_spec vint_to_nat "#Hint_to_nat" !.
     { iIntros (i) "!> [%Hle %Hrepresentable]".
       oCall "int_to_nat" vint_to_nat;
         do 2 (wp_bind; wp_continue);
@@ -165,13 +209,11 @@ Section ProofExamples.
         replace (i =? 0) with false by lia.
         wp; wp_bind.
         destruct i as [|j] eqn:Ei;
-          wp_use "[Hint_to_nat]".
-        { exfalso ; by apply n. }
+          wp_use "[Hint_to_nat]"; first by destruct n.
         2: {
           unshelve iPoseProof ("Hint_to_nat" $! j _) as "#h".
           { (* j is positive and representable. *)
-            unfold representable in *.
-            split; lia. }
+            unfold representable in *. split; lia. }
           replace (VInt (repr (S j - 1))) with #j; last first.
           { unfold encode, Encode_nat. do 2 f_equal. lia. }
           iClear "Hinfinite Hnat_to_int Hint_to_nat".
@@ -187,13 +229,42 @@ Section ProofExamples.
 
     (* Every binding of the module [Recursion] has been proven.  Therefore,
        [wp_module_spec] is enough to prove the spec of [Recursion]. *)
-    wp until "Recursion"!.
-    oSpecify "Recursion" Recursion_spec vRecursion "#HRec".
+    oSpecify "Recursion" Recursion_spec vRecursion "#HRec" !.
     { iModIntro; wp_module_spec. }
-
     (* Now that the module has been proven, these specs can be forgotten. *)
     iClear "Hnat_to_int Hint_to_nat Hinfinite".
     clear vinfinite vint_to_nat vnat_to_int.
+
+    (* ---------------------------------------------------------------------- *)
+    (* Specification of the module [Counter]. *)
+
+    oSpecify "init" init_spec vinit "#Hinit" !.
+    { iIntros "!>".
+      @oCall unfold; wp_bind; wp_continue.
+      wp_alloc ℓ "[Hℓ _]".
+      iExists ℓ.
+      iSplit; first equality.
+      by cbn. }
+
+    oSpecify "get" get_spec vget "#Hget" !.
+    { iIntros "!>"(? nc) "(%ℓ&->&Hℓ)".
+      call. wp_load "Hℓ". prove_counter. }
+
+    oSpecify "incr" incr_spec vincr "#Hincr" !.
+    { iIntros "!>" (? n) "(%ℓ&->&Hℓ)".
+      call. wp_load "Hℓ". wp_store "Hℓ".
+      replace (VInt (repr (n + 1))) with (#(S n)); last first.
+      { simpl. do 2 f_equal; lia. }
+      prove_counter. }
+
+    oSpecify "set" set_spec vset "#Hset" !.
+    { iIntros "!>" (vc). call.
+      iIntros (n m) "(%ℓ&->&Hℓ)". call.
+      wp_store "Hℓ". prove_counter. }
+
+    oSpecify "Counter" Counter_spec vCounter "#HCounter"!.
+    { iModIntro; wp_module_spec. }
+    iClear "Hinit Hincr Hget Hset"; clear vinit vget vset vincr.
 
     (* ---------------------------------------------------------------------- *)
     (* Tests using the above-defined modules. *)
@@ -224,7 +295,7 @@ Section ProofExamples.
        [Counter] can be proven again.
 
 
-       (* Destruction of ["HRec]". *)
+       (* Destruction of ["HRec"]. *)
        iPoseProof "HRec" as "HRec'".
        unfold Recursion_specs at 1;
        unfold module_spec,module_spec_list at 1; simpl.
@@ -245,9 +316,7 @@ Section ProofExamples.
     oModule vRecursion.
 
     (* Constants are declared. *)
-    wp until "twelve"!; wp_continue.
-    wp until "twelve'"!; wp_continue.
-    wp until "twelve_nat"!; wp_continue.
+    wp skip "twelve" "twelve'" "twelve_nat".
 
     (* Before the environment gets extended with [twelve_nat'], its body needs
        to be evaluated. It is a function call.
@@ -256,8 +325,8 @@ Section ProofExamples.
        from ["HRec"] of the function and apply it. *)
     change (VInt (repr 12)) with #12%nat; wp_bind.
     oSpec "int_to_nat" "HRec".
-    { (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
-      iPureIntro. split; [ lia | representable ]. }
+    (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
+    {  iPureIntro. split; [ lia | representable ]. }
 
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
@@ -267,7 +336,6 @@ Section ProofExamples.
                                    S' $ S' $ S' $ S' $
                                    S' $ S' $ S' $ S' $ O'))
     end.
-
     (* Ditto. *)
     oSpec "nat_to_int" "HRec".
     iIntros (?->).
@@ -278,12 +346,11 @@ Section ProofExamples.
                            S' $ S' $ S' $ S' $
                            S' $ S' $ S' $ S' $ O')
     end.
-
     (* Ditto. *)
     oSpec "nat_to_int" "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind. wp_continue.
-
     wp_module_spec.
   Qed.
+
 End ProofExamples.
