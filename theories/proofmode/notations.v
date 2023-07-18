@@ -81,6 +81,22 @@ Notation "[
   (BrCons x (.. (BrCons z BrNil) ..))
   (only printing).
 
+Notation "'<v' v1 ; .. ; vn 'v>'" :=
+  (VTuple (VCons v1 (.. (VCons vn VNil) ..))).
+
+(* -------------------------------------------------------------------------- *)
+
+(* Notation for iterated unary constructors. *)
+
+(* Unfortunately, adding parentheses does not work. *)
+Notation "'data:(' C1  $  ..  $  Cn  $  i ')'" :=
+  (VData C1 <v .. (VData Cn (<v VConstant i v>)) .. v>).
+
+(* With the above notation,
+     [VData "S" (VTuple1 (VData "S" (VTuple1 (VData "S" (VTuple1 (
+      VData "S" (VTuple1 (VConstant "O"))))))))]
+   can simply be written [data:( "S" $ "S" $ "S" $ "S" $ "O")]. *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* On modules. *)
