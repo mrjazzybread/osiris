@@ -559,8 +559,8 @@ with simp1 :=
     (* Handle [Stop] effects. *)
   | simple eapply advance_SimpEvalNext; simp0
   | simple eapply advance_SimpEval; simp0
-  | simple eapply advance_SimpLoopNext; simp0
-  | simple eapply advance_SimpLoop; simp0
+      (*| simple eapply advance_SimpLoopNext; simp0 *)
+      (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0
       (* We do not deal with [Flip] in its full generality. Instead,
          we provide ad hoc support for [EAssert] expressions, which
