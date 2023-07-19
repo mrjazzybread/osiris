@@ -640,6 +640,12 @@ Tactic Notation "oSpec" constr(name) "from" constr(spec) :=
 Tactic Notation "oModule" ident(v) :=
   iPoseProof ((module_spec_is_module v) with "[$]") as "%";
   simpl (spec_env_erase _) in *.
+Tactic Notation "oModule" ident(v1) ident(v2) :=
+  oModule v1; oModule v2.
+Tactic Notation "oModule" ident(v1) ident(v2) ident(v3) :=
+  oModule v1; oModule v2 v3.
+Tactic Notation "oModule" ident(v1) ident(v2) ident(v3) ident(v4) :=
+  oModule v1 v2; oModule v3 v4.
 
 (* -------------------------------------------------------------------------- *)
 
