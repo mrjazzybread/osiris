@@ -569,25 +569,69 @@ Tactic Notation "oSpecify"
 
 (* -------------------------------------------------------------------------- *)
 
-Tactic Notation "oSpec" constr(n) constr(Hyps) constr(Hyp) :=
-  match goal with
-  (* Most specifications will take a precondition... *)
-  | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
-      iPoseProof ((module_spec_spec _ _ n) with Hyp) as "#osiris_reserved__Hspec";
-      iSpecialize ("osiris_reserved__Hspec" $! varg with Hyps);
-      last iApply (wp_covariant with "osiris_reserved__Hspec");
-      last iClear "osiris_reserved__Hspec"
+  (* [list_specifications] returns a list of specifications for a given symbol
+     of a given module specification. *)
+  Definition list_specifications `{Σ: gFunctors}
+           (Λ : @spec_env Σ) (name : name)
+    : list (val → iProp Σ) :=
+    List.map snd $
+             List.filter (fun '(n, _) => n =? name)%string Λ.
 
-  (* ... but some do not. *)
-  | |- environments.envs_entails ?Δ $ wp _ _ (call ?v #?varg) _ =>
-      iPoseProof ((module_spec_spec _ _ n) with "HRec") as "#osiris_reserved__Hspec";
-      iSpecialize ("osiris_reserved__Hspec" $! varg);
-      last iApply (wp_covariant with "osiris_reserved__Hspec");
-      last iClear "osiris_reserved__Hspec"
+Tactic Notation "oSpecOf" constr(name) "from" constr(hyp) "as" constr(hyp_dest) :=
+  lazymatch goal with
+  | |- environments.envs_entails
+         ?Δ $ wp _ _
+         (call ((lookup_name_total (val_as_struct_total ?v) ?n)) _) _ =>
+      (* - [v] stores the value of the module,
+         - [n] stores the name of the symbol (depth 1).
+         The first step is to find the Iris hypothesis discussing the module
+         [v]. *)
+      let env := eval cbn in
+      (environments.env_lookup
+         (INamed hyp) $ environments.env_intuitionistic Δ) in
+      let φs :=
+        lazymatch constr:(env) with
+        | None => fail "Unknown hypothesis"
+        | Some (module_spec ?Λ v) =>
+            eval cbn in (list_specifications Λ name)
+        | _ => fail "The target hypothesis is not a module specification"
+        end in
+      lazymatch constr:(φs) with
+      | [] => fail "There is no specification for" name
+      | [ ?φ ] =>
+          iPoseProof ((module_spec_spec _ _ name) with hyp) as hyp_dest
+      | _ => fail "There are too many specifications to choose from"
+      end
+  | _ => fail "[oSpecOf] could not fild the required specification."
   end.
 
+Ltac oSpecError name spec :=
+  fail "[oSpec] failed to apply the specification of" name
+       "; Please consider using [oSpecOf " name "from" spec
+       "as ...] to retrieve the spec yourself".
+
+Tactic Notation "oSpec" constr(name) "from" constr(spec) "with" constr(Hyp) :=
+  let H := iFresh in
+  oSpecOf name from spec as H;
+  first [
+      iSpecialize (H with Hyp);
+      last (iApply (wp_covariant with H) ; try iClear H)
+    | oSpecError name spec
+    ]; wp.
+
 (* Preconditions are often pure and might not need any hypothesis. *)
-Tactic Notation "oSpec" constr(n) constr(H) := oSpec n "[]" H; try done.
+Tactic Notation "oSpec" constr(name) "from" constr(spec) :=
+  first [
+      oSpec name from spec with "[//]"
+    | let H := iFresh in
+      oSpecOf name from spec as H;
+      first [
+          iApply (wp_covariant with H);
+          last try iClear H
+        | oSpecError name spec
+        ]; wp
+    | oSpec name from spec with "[]"
+    ].
 
 (* -------------------------------------------------------------------------- *)
 
