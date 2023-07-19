@@ -1,3 +1,4 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From iris.prelude Require Import options.
 From iris.bi Require Import weakestpre.
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
@@ -381,6 +382,218 @@ Qed.
     iIntros "Hmod"; iMod "Hmod" as "_"; iModIntro.
     by iApply "H".
   Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* [CLoop] *)
+
+  (* The following lemmas help reason on loops. *)
+
+  (* The following lemma is inspired by the corresponding CFML rule. *)
+  Lemma wp_loop {A} s E
+        (η : env) (x : var) (i1 i2 : int) (e : expr)
+        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ) :
+    (* If *)
+    (▷ (* Either: *)
+       if int.lt i2 i1
+       then
+         (* - i2 < i1,
+              and the rest of the program satisfies the postcondition. *)
+         wp s E (k #()) φ
+       else
+         (* - i1 <= i2,
+              and the evaluation of the body succeeds and the remaining
+              iterations satisfy the postcondition. *)
+         wp s E (eval (EnvCons x (VInt i1) η) e)
+               (λ _,
+                  wp s E (
+                       Stop CLoop
+                            (η, x, int.add i1 int.one, i2, e)
+                            k ko) φ)) ⊢
+    (* Then the loop (with the rest of the program as continuation) satisfies
+       the postcondition. *)
+    wp s E (Stop CLoop (η, x, i1, i2, e) k ko) φ.
+  Proof.
+    iIntros "H".
+
+    (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
+    destruct (lt i2 i1) eqn:Hlt; (* In each case: *)
+      (* we enter into the WP of the goal, eliminate modalities, use the fact
+         that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
+         state interp. *)
+      wp_unfold (Stop CLoop (η, x, i1, i2, e) k ko);
+      intro_state; (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
+                    [ set_solver | iModIntro ]);
+      construct_wp_nonret; destruct_step;
+      do 3 iModIntro; iMod "Hmod" as "_"; iModIntro; iFrame;
+
+      (* Finally, expand the definition of the helper function [loop]. *)
+      rewrite/loop Hlt.
+
+    { (* In the base case, the loop is over. One can use the hypothesis to end
+         the proof. *)
+      iApply wp_try; iApply wp_ret; iApply "H". }
+
+    { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _].
+         In order to be able to use the hypothesis, it is important to replace
+         the [Stop _ _ ret next] by [Stop _ _ k ko] by pushing the try in the
+         bind, and the stop. *)
+      rewrite try_bind. (* <- push the [try] in the [bind]. *)
+
+      (* use the hypothesis about the behavior of the body of the loop. *)
+      iApply (wp_try_binary with "H").
+      iIntros(_) "H".
+
+      rewrite try_stop. (* <- push the [try] in the [Stop]. *)
+      change (λ y : val, try (ret y) k ko) with k.
+      change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
+      assert ((λ _ : (), ko ()) = ko) as ->; last iExact "H".
+      (* Is it possible to get a proof without functional extentionality?  *)
+      extensionality v; destruct v; reflexivity. }
+  Qed.
+
+  (* [wp_loop_inv_pos_aux] is a helper lemma to prove that:
+     for any predicate [P : nat → iProp Σ],
+     If - [P n1],
+        - [P] is preserved by the body [e] of the loop
+          (ie. [P i -∗ WP (eval (η with i) e) {{ P (S i) }}]),
+        - [P (S nn) -∗ rest of the program satisfies φ]
+     Then, [for i = n1 to nn do e done; rest of the program] satisfies [φ].
+
+     Additionally, the lemma requires that [n1] and [S nn] are representable.
+     Note that [P] is quantified after every other variables, so the invariant
+     might depend on [η], [n1], ...
+
+     This helper lemma takes an argument [n = S (i2 - i1)] explicitly to ease
+     the induction. Another lemma [wp_loop_inv_pos] is defined below. It is
+     essentially the same lemma, except that [n] is no longer present in the
+     statement. *)
+  Local Lemma wp_loop_inv_pos_aux {A} s E
+        (η : env) (x : var) (n i1 i2 : nat) (e : expr)
+        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    n = S (i2 - i1)%nat →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                   ⌜le i i2⌝ →
+                   Hinv i -∗ wp s E
+                                (eval (EnvCons x (VInt $ repr i) η) e)
+                                (λ _, Hinv (S i))) -∗
+    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k ko) φ.
+  Proof.
+    generalize dependent i1 ; generalize dependent i2.
+    induction n;
+      iIntros(i2 i1 Hrepr1 Hrepr2 Hle Hn) "Hinit #Hpreservation Hccl";
+
+      (* Three cases: either the loop is over, or the loop is entered one last
+         time, or it is entered. *)
+      last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
+
+      (* First, we take a step in the WP and frame the state interp. *)
+      wp_unfold_head; intro_state;
+      (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
+       [set_solver | iModIntro ]);
+      construct_wp_nonret;
+      do 3 iModIntro; iMod "Hmod" as "_"; iModIntro;
+      destruct_step; iFrame.
+
+    { (* The loop is over. *)
+      assert (i1 = S i2) as -> by lia.
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try representable.
+      replace (i2 <? S i2) with true by lia.
+      iApply wp_ret.
+      iApply ("Hccl" with "Hinit"). }
+
+
+    { (* The body of the loop will be executed (not for the last time). *)
+      assert (Hlt: lt (repr i2) (repr i1) = false).
+      { rewrite lt_repr_repr; try assumption.
+        - lia.
+        - unfold representable in *; lia. }
+
+      (* The loop is really a try... *)
+      rewrite/loop Hlt.
+      rewrite try_bind.
+
+      (* ...which leads to a bind.
+         The first element of the bind is the evaluation of the body of the
+         loop. The assumption ["Hpreservation"] prove that this evaluation
+         preserves the loop invariant predicate. It takes the invariant at i1
+         and gives back the invariant at [S i1]. *)
+      iApply (wp_try_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" $! i1 with "[//][//]Hinit").
+      iIntros(_)"Hinit".
+
+      (* The goal is the proof of a WP for [for x = S i1 to i2 do e done]. The
+         induction hypothesis can take care of it.
+         Note: it is to use ["Hpreservation"] a second time that it needs to be
+               persistent.  *)
+      iPoseProof (IHn i2 (S i1)) as "IH".
+      { unfold representable in *. lia. }
+      { assumption. }
+      { lia. }
+      { lia. }
+      { iSpecialize ("IH" with "Hinit[]Hccl").
+        { iIntros "!>" (i Hi Hi').
+          iApply ("Hpreservation"); iPureIntro; lia. }
+
+        replace (add (repr i1) int.one) with (repr (S i1)); last first.
+        { rewrite add_repr_repr. f_equal. lia. }
+
+        rewrite try_stop.
+        change (λ y : val, try (ret y) k ko) with k.
+        change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
+        assert ((λ _ : (), ko ()) = ko) as ->; last iExact "IH".
+        extensionality v; destruct v; reflexivity. } }
+
+    { (* Last run of the loop. *)
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try assumption.
+      rewrite Z.ltb_irrefl.
+      iApply (wp_bind_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" with "[//][//]Hinit").
+      iIntros(_)"Hinit".
+      iSpecialize ("Hccl" with "Hinit").
+      clear σ'.
+
+      assert (Hlt: lt (repr i2) (add (repr i2) int.one) = true).
+      { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
+
+      wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret next).
+      intro_state.
+      iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; [ set_solver | iModIntro ].
+      construct_wp_nonret; destruct_step.
+      do 3 iModIntro. iMod "Hmod" as "_"; iModIntro.
+      iFrame.
+      iApply wp_try.
+      rewrite/loop Hlt.
+      do 2 iApply wp_ret.
+      iExact "Hccl". }
+  Qed.
+  Definition wp_loop_inv_pos {A} s E
+        (η : env) (x : var) (i1 i2 : nat) (e : expr)
+        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                 ⌜le i i2⌝ →
+                 Hinv i -∗ wp s E
+                              (eval (EnvCons x (VInt $ repr i) η) e)
+                              (λ _, Hinv (S i))) -∗
+    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k ko) φ :=
+    let n := S (i2 - i1)%nat in
+    fun repr1 repr2 Hle =>
+      wp_loop_inv_pos_aux s E η x n i1 i2 e k ko φ Hinv
+                          repr1 repr2 Hle eq_refl.
 
   (* [CAlloc]. *)
 

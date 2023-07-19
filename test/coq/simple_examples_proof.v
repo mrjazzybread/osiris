@@ -316,7 +316,7 @@ Section ProofExamples.
                                iIntros(?)"[->Hc]"; wp.
     Local Ltac counter_get := oSpec "get" from "HCounter" with "[$]";
                               iIntros (?)"[->Hc]"; wp;
-                              wp_bind; wp_continue; wp_bind.
+                              wp_bind; wp_continue.
 
     (* Instead of opening existentials corresponding to [Recursion], we use
        [is_module], which is a trick introduced in
@@ -338,12 +338,24 @@ Section ProofExamples.
     (* Initialize the counter and eliminate the first call to [Counter.get]. *)
     counter_init. counter_get.
 
-    (* Small loop: we unfold all the loop calls. This is to be replaced once
-       [wp_loop] is defined and proven. *)
-    do 12 (rewrite/loop ?add_repr_repr/= lt_repr_repr; simpl; try representable;
-           wp; wp_bind; counter_incr).
-    (* Final step of the loop. *)
-    rewrite/loop ?add_repr_repr/= lt_repr_repr; try representable; simpl.
+    (* Small loop.  In order to prove the loop with the rest of the program as
+       continuation, one can define an invariant in the form of a predicate over
+       the loop index, and prove the preservation of said predicate by the body
+       of the loop. *)
+
+    oLoopPos (λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I with "[Hc]" "[]".
+
+    (* Proof that the invariant holds before the execution of the loop. *)
+    { iExists O. iSplit; [ equality | iExact "Hc" ]. }
+
+    (* Proof that the invariant is indeed preserved by the loop. *)
+    { iIntros "!>" (i Hi1 Hi2) "(%ni&->&Hc)".
+      wp. counter_incr.
+      iExists _; iSplit; [ equality | iExact "Hc" ]. }
+
+    (* retrive the invariant after the loop and continue the proof. *)
+    iIntros "(%n&%Heq&Hc)".
+    assert (n = 12%nat) as -> by lia; clear Heq.
     wp. wp_bind.
 
     (* Final call to [Counter.get]. *)

@@ -328,6 +328,22 @@ Ltac wp_module_spec :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* Help reason on loops of the form [for i = x to y], whth [0 <= x <= y]. *)
+Tactic Notation "oLoopPos" constr(Hinv) "with" constr(Hini) constr(Hend) :=
+  let H := eval cbn in (Hini +:+ Hend) in
+    lazymatch goal with
+    | |- environments.envs_entails
+           _ $
+           wp _ _ (Stop CLoop (?η, ?x, repr ?i1, repr ?i2, ?e) ?k ?ko) ?φ =>
+        iApply
+          ((wp_loop_inv_pos NotStuck ⊤ η x 1%nat 12%nat e k ko φ Hinv)
+            with H);
+        try lia; try representable
+    | _ => fail "[oLoop] can only be applied to terms of the form [WP (Stop CLoop _ _ _) {{ _ }}]"
+    end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [Ltac] helpers to deal with value abstraction. *)
 
 Tactic Notation "oAbstract" constr(s1) ident(i1):=
