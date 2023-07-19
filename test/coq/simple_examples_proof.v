@@ -267,6 +267,7 @@ Section ProofExamples.
     iClear "Hinit Hincr Hget Hset"; clear vinit vget vset vincr.
 
     (* ---------------------------------------------------------------------- *)
+    (* ---------------------------------------------------------------------- *)
     (* Tests using the above-defined modules. *)
 
     (* Justification for [val_as_struct_total] and [lookup_name_total]: what
@@ -309,56 +310,67 @@ Section ProofExamples.
        able to move up at the beginning of the file. It is not currently the
        case at it breaks the tactic [equality].  *)
     Local Arguments encode _ : simpl never.
+    Local Ltac counter_init := oSpec "init" from "HCounter"; iIntros (vc) "Hc";
+                               wp_bind; wp_continue.
+    Local Ltac counter_incr := oSpec "incr" from "HCounter" with "[$]";
+                               iIntros(?)"[->Hc]"; wp.
+    Local Ltac counter_get := oSpec "get" from "HCounter" with "[$]";
+                              iIntros (?)"[->Hc]"; wp;
+                              wp_bind; wp_continue; wp_bind.
 
     (* Instead of opening existentials corresponding to [Recursion], we use
        [is_module], which is a trick introduced in
        [theories/proofmode/tactics.v] *)
-    oModule vRecursion. oModule vCounter.
+    oModule vRecursion vCounter.
 
-    (* Constants are declared. *)
-    wp skip "twelve" "twelve'" "twelve_nat".
+    (* ---------------------------------------------------------------------- *)
 
-    (* [three] is defined here. *)
-    change VUnit with #tt.
-    oSpec "init" from "HCounter".
-    iIntros (vc) "Hc".
-    wp_bind. wp_continue. wp_bind.
+    (* The constant [twelve] is defined. *)
+    wp skip "twelve".
 
-    oSpec "incr" from "HCounter" with "Hc".
-    iIntros (?)"[->Hc]".
-    wp_bind. wp_continue. wp_bind.
+    (* ---------------------------------------------------------------------- *)
 
-    (* TODO: uncomment the assertion in the source file. *)
+    (* The constant [twelve] is defined.  In this let-binding, a counter is
+       instantiated.  Then, a loop is run to increase the counter twelve times.
+       Note : two calls to [Counter.get] are also performed. *)
+    change VUnit with #tt. (* TODO: get rid of me. *)
 
-    oSpec "set" from "HCounter".
-    iIntros (?)"H"; wp_bind.
-    iApply (wp_covariant with "[Hc H]").
-    { iPoseProof ("H" with "Hc") as "H".
-      change (VInt _) with #3.
-      instantiate (2 := 3%nat).
-      by instantiate (1 := λ res, (⌜res = VUnit⌝ ∗ is_counter 3 vc)%I). }
-    iIntros (?) "[-> Hc]".
-    wp_bind. wp_continue. wp_bind.
+    (* Initialize the counter and eliminate the first call to [Counter.get]. *)
+    counter_init. counter_get.
 
-    oSpec "get" from "HCounter" with "Hc".
-    iIntros (?)"[->Hc]".
-    wp_bind; wp_continue. wp_bind.
+    (* Small loop: we unfold all the loop calls. This is to be replaced once
+       [wp_loop] is defined and proven. *)
+    do 12 (rewrite/loop ?add_repr_repr/= lt_repr_repr; simpl; try representable;
+           wp; wp_bind; counter_incr).
+    (* Final step of the loop. *)
+    rewrite/loop ?add_repr_repr/= lt_repr_repr; try representable; simpl.
+    wp. wp_bind.
+
+    (* Final call to [Counter.get]. *)
+    counter_get.
+
+    (* ---------------------------------------------------------------------- *)
+
+    (* The constant [twelve_nat] is defined. *)
+    wp skip "twelve_nat". wp_bind.
+
+    (* ---------------------------------------------------------------------- *)
+    (* Now, some conversion functions of [Recursion] are called. *)
 
     (* Before the environment gets extended with [twelve_nat'], its body needs
        to be evaluated. It is a function call.
        The function is present in the module [Recursion].
        One can use the tactic notation [oSpec] to fetch the Iris specification
        from ["HRec"] of the function and apply it. *)
-    change (VInt (repr 12)) with #12%nat.
+    change (VInt (repr 12)) with #12%nat. (* TODO: erase me. *)
     oSpec "int_to_nat" from "HRec" with "[]".
     (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
     {  iPureIntro. split; [ lia | representable ]. }
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
 
-
     lazymatch goal with
-    | |- context [call _ ?v] =>
+    | |- context [call _ ?v] => (* TODO: erase me. *)
         repeat (change v with #(S' $ S' $ S' $ S' $
                                    S' $ S' $ S' $ S' $
                                    S' $ S' $ S' $ S' $ O'))
@@ -367,8 +379,9 @@ Section ProofExamples.
     oSpec "nat_to_int" from "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
+
     lazymatch goal with
-    | |- context [call _ ?v] =>
+    | |- context [call _ ?v] => (* TODO: erase me. *)
         change v with #(S' $ S' $ S' $ S' $
                            S' $ S' $ S' $ S' $
                            S' $ S' $ S' $ S' $ O')
@@ -377,6 +390,11 @@ Section ProofExamples.
     oSpec "nat_to_int" from "HRec".
     iIntros (?->).
     wp_bind. wp_continue.
+
+    (* The evaluation of the module-expressions is over. One now needs to prove
+       that the obtained value satisfies its specification. As the only required
+       proofs are about [Counter] and [Recursion], and as they have been
+       verified above, [wp_module_spec] can finish the proof. *)
     wp_module_spec.
   Qed.
 

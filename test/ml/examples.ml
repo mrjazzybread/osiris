@@ -2,7 +2,6 @@ type nat =
   | O
   | S of nat
 
-
 (* ------------------------------------------------------------------------- *)
 
 module Recursion = struct
@@ -27,6 +26,8 @@ module Recursion = struct
     else S (int_to_nat (i-1))
 end
 
+(* ------------------------------------------------------------------------- *)
+
 module Counter = struct
   type counter = int ref
 
@@ -36,26 +37,24 @@ module Counter = struct
   let set r i = r := i
 end
 
+(* ------------------------------------------------------------------------- *)
+
 let twelve = 12
-(* let twelve' =
+
+let twelve' = (* Use the functions of [Counter] and use a for-loop. *)
+  let c = Counter.init () in
+  let _ = Counter.get c in
   for _i = 1 to 12 do
-    Counter.incr ()
+    Counter.incr c
   done;
-  Counter.get () *)
-let twelve' = twelve
+  Counter.get c
 
 let twelve_nat = S (S (S
                 (S (S (S
                 (S (S (S
                 (S (S (S O)))))))))))
 
-let three =
-  let c = Counter.init () in
-  let () = Counter.incr c in
-  (* let () = assert (Counter.get c = 1) in *)
-  let () = Counter.set c 3 in
-  Counter.get c
-
+(* Use functions from [Recursion] to convert 12 in different formats. *)
 let twelve_nat' = Recursion.int_to_nat twelve'
 let twelve_int = Recursion.nat_to_int twelve_nat
 let twelve_int' = Recursion.nat_to_int twelve_nat'
