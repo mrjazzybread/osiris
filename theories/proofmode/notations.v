@@ -47,11 +47,25 @@ Notation "'The'  'following'  '(d)environment'   (
 
 (* -------------------------------------------------------------------------- *)
 
-(* Notations for ad-hoc lists: they are all printed as normal lists. *)
+(* Notations for ad-hoc lists. *)
 
 (* Notation "'[ x : v ; .. ; z : w ]" :=
   (EnvCons x v (.. (EnvCons z w EnvNil) ..))
     (only printing). *)
+
+(* Values often contain lists. *)
+
+(* Only the name of the symbols are important in module-values. *)
+Notation "struct:( i1 ; .. ; im )" :=
+  (VStruct (EnvCons i1 _ ( .. ( EnvCons im _ EnvNil ) .. ) ))
+  (only printing).
+
+(* TODO: find better delimiters. *)
+Notation "'<v' v1 ; .. ; vn 'v>'" :=
+  (VTuple (VCons v1 (.. (VCons vn VNil) ..))).
+
+
+(* Other ad-hoc lists. *)
 
 Notation "[
  * x ;
@@ -81,10 +95,7 @@ Notation "[
   (BrCons x (.. (BrCons z BrNil) ..))
   (only printing).
 
-Notation "'<v' v1 ; .. ; vn 'v>'" :=
-  (VTuple (VCons v1 (.. (VCons vn VNil) ..))).
-
-(* -------------------------------------------------------------------------- *)
+(* ------------------------------------------------------------------------- *)
 
 (* Notation for iterated unary constructors. *)
 
@@ -97,14 +108,14 @@ Notation "'data:(' C1  $  ..  $  Cn  $  i ')'" :=
       VData "S" (VTuple1 (VConstant "O"))))))))]
    can simply be written [data:( "S" $ "S" $ "S" $ "S" $ "O")]. *)
 
-(* -------------------------------------------------------------------------- *)
+(* ------------------------------------------------------------------------- *)
 
 (* On modules. *)
 
 (* [val_as_struct_total] is introduced by Osiris tactics when the evaluation
    function wants to extract the underlying environment of a value which we know
    define a module. Thus, it can be saftely hidden. *)
-Notation "v" :=
+Notation "« v »" :=
   (val_as_struct_total _ v)
   (only printing, at level 101).
 
@@ -113,3 +124,11 @@ Notation "v" :=
 Notation "v  ':$:'  n" :=
   (lookup_name_total (val_as_struct_total v) n)
   (only printing, at level 100).
+
+(* ------------------------------------------------------------------------- *)
+
+(* On loops *)
+
+Notation "'for' x = i1 'to' i2 'do' e 'done' ; ..." :=
+  (Stop CLoop (_, x, i1,i2, e) _ _)
+  (only printing).
