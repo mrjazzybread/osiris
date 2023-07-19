@@ -150,11 +150,11 @@ Ltac prove_counter := iSplit;
                       | iExists _; iSplit ; [ equality | iFrame ] ].
 Ltac call := @oCall unfold; wp_bind; wp_continue.
 
-
 (* -------------------------------------------------------------------------- *)
 
 Section ProofExamples.
   Context `{!osirisGS Σ}.
+
 
   (* This proof uses variables in the context instead of an explicit environment
      [η] to the goal below. This is thought to be easier to use in the proof of
@@ -313,23 +313,50 @@ Section ProofExamples.
     (* Instead of opening existentials corresponding to [Recursion], we use
        [is_module], which is a trick introduced in
        [theories/proofmode/tactics.v] *)
-    oModule vRecursion.
+    oModule vRecursion. oModule vCounter.
 
     (* Constants are declared. *)
     wp skip "twelve" "twelve'" "twelve_nat".
+
+    (* [three] is defined here. *)
+    change VUnit with #tt.
+    oSpec "init" from "HCounter".
+    iIntros (vc) "Hc".
+    wp_bind. wp_continue. wp_bind.
+
+    oSpec "incr" from "HCounter" with "Hc".
+    iIntros (?)"[->Hc]".
+    wp_bind. wp_continue. wp_bind.
+
+    (* TODO: uncomment the assertion in the source file. *)
+
+    oSpec "set" from "HCounter".
+    iIntros (?)"H"; wp_bind.
+    iApply (wp_covariant with "[Hc H]").
+    { iPoseProof ("H" with "Hc") as "H".
+      change (VInt _) with #3.
+      instantiate (2 := 3%nat).
+      by instantiate (1 := λ res, (⌜res = VUnit⌝ ∗ is_counter 3 vc)%I). }
+    iIntros (?) "[-> Hc]".
+    wp_bind. wp_continue. wp_bind.
+
+    oSpec "get" from "HCounter" with "Hc".
+    iIntros (?)"[->Hc]".
+    wp_bind; wp_continue. wp_bind.
 
     (* Before the environment gets extended with [twelve_nat'], its body needs
        to be evaluated. It is a function call.
        The function is present in the module [Recursion].
        One can use the tactic notation [oSpec] to fetch the Iris specification
        from ["HRec"] of the function and apply it. *)
-    change (VInt (repr 12)) with #12%nat; wp_bind.
-    oSpec "int_to_nat" "HRec".
+    change (VInt (repr 12)) with #12%nat.
+    oSpec "int_to_nat" from "HRec" with "[]".
     (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
     {  iPureIntro. split; [ lia | representable ]. }
-
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
+
+
     lazymatch goal with
     | |- context [call _ ?v] =>
         repeat (change v with #(S' $ S' $ S' $ S' $
@@ -337,7 +364,7 @@ Section ProofExamples.
                                    S' $ S' $ S' $ S' $ O'))
     end.
     (* Ditto. *)
-    oSpec "nat_to_int" "HRec".
+    oSpec "nat_to_int" from "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
     lazymatch goal with
@@ -347,9 +374,9 @@ Section ProofExamples.
                            S' $ S' $ S' $ S' $ O')
     end.
     (* Ditto. *)
-    oSpec "nat_to_int" "HRec".
+    oSpec "nat_to_int" from "HRec".
     iIntros (?->).
-    wp_bind. wp_continue. wp_bind. wp_continue.
+    wp_bind. wp_continue.
     wp_module_spec.
   Qed.
 

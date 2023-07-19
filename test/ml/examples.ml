@@ -48,8 +48,15 @@ let twelve_nat = S (S (S
                 (S (S (S
                 (S (S (S
                 (S (S (S O)))))))))))
-let twelve_nat' = Recursion.int_to_nat twelve'
 
+let three =
+  let c = Counter.init () in
+  let () = Counter.incr c in
+  (* let () = assert (Counter.get c = 1) in *)
+  let () = Counter.set c 3 in
+  Counter.get c
+
+let twelve_nat' = Recursion.int_to_nat twelve'
 let twelve_int = Recursion.nat_to_int twelve_nat
 let twelve_int' = Recursion.nat_to_int twelve_nat'
 
@@ -58,5 +65,5 @@ let twelve_int' = Recursion.nat_to_int twelve_nat'
 let () = assert (Recursion.infinite O = 0
                  && twelve_int' = twelve_int
                  && twelve_nat' = twelve_nat
-                 && twelve' = 12) *)
-let () = assert true
+                 && twelve' = 12) 
+let () = assert (three = Recursion.nat_to_int (Recursion.int_to_nat 3)) *)
