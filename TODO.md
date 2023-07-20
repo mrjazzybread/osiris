@@ -249,6 +249,8 @@
   Testing or fuzzing techniques that we could re-use?
 * Reynald Affeldt, monadic equational reasoning;
   also Hinze & Gibbons.
+* Frumin/Timany/Birkedal, [Modular Denotational Semantics for Effects with Guarded
+  Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
 
 ## Features of OCaml that we want to support (at some point)
 
