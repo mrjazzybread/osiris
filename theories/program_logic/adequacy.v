@@ -11,8 +11,8 @@ From osiris.program_logic Require Import safe wp helpers.
 Section Adequacy.
   Context `{!osirisGS Σ}.
 
-  (* [wp_progress] is an iterated version of [wp_step]. *)
-  Lemma wp_progress n :
+  (* [wp_preservation] is an iterated version of [wp_step]. *)
+  Lemma wp_preservation n :
     forall {A σ1 σn} {m1 mn : free A} {s E φ},
     nsteps step n (σ1, m1) (σn, mn) →
     state_interp σ1 -∗
@@ -136,7 +136,7 @@ Section Adequacy.
     iMod (H $! Hstore Hinv)  as "(%φ' & ? & Hφ)".
 
     (* Use preservation of the [wp] and [state_interp] by [n] steps. *)
-    iMod ((wp_progress _ Hsteps) with "[Hsi][$]") as "H".
+    iMod ((wp_preservation _ Hsteps) with "[Hsi][$]") as "H".
     { done. } (* FIXME: replacing [Hsi] by [$] above should work. *)
 
     (* Inverse some modalities. *)
