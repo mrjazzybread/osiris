@@ -261,7 +261,7 @@ Section int_spec.
       (* TODO: Shifts. *)
       (* TODO: Comparison. *)
 
-      (* Will not be specified (at least yet):
+      (* Will not be specified (at least not yet):
          [to_float], [of_float], [format_int], [seeded_hash_param] *)
     ]
   .
