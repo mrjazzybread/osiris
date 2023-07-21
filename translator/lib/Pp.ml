@@ -47,8 +47,9 @@ let pretty_printer (name, ty, expr) : document =
     | None -> fresh_name ty
     | Some name -> name
   in
-  flow space [ string "Definition"; string name; colon ; string ty; string ":=" ;
-               align (group (pretty_printer expr)) ^^ dot]
+  flow space [string "Definition"; string name; colon; string ty; string ":="]
+  ^^ hardline
+  ^^ align (group (pretty_printer expr)) ^^ dot
   ^^ hardline
 
 let pretty_printer _verbose _debug graph =
