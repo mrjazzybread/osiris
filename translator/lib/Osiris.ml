@@ -47,8 +47,14 @@ let translate_constant = function
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_primitive (_name: string) : sitem option =
-  None
+let translate_primitive (name: string) (v : variable) : sitem option =
+  Some (
+      ILet (
+          [
+            Binding (PVar name, EPath ["Externals"; v])
+          ]
+        )
+    )
 
 (* -------------------------------------------------------------------------- *)
 
@@ -414,10 +420,12 @@ let translate_structure_item
      | Tmod_ident (p, _) -> Some (IOpen (translate_path p))
      | _ -> assert false)
 
-  | Tstr_primitive {val_id; _} -> (* of value_description *)
+  | Tstr_primitive {val_id; val_prim = v :: _; _} -> (* of value_description *)
      (* Primitives are [external] statements.
         They are dealt with in [translate_primitive]. *)
-     translate_primitive (Ident.name val_id)
+     translate_primitive (Ident.name val_id) v
+
+  |  Tstr_primitive _ -> assert false
 
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_typext _ -> assert false (* of type_extension *)
