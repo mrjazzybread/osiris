@@ -1,8 +1,0 @@
-(rule
-  (targets code.v)
-  ; Do not promote for now. (mode promote)
-  (deps    (:gen ../../../../translator/bin/main.exe)
-           (:src ../../../ml/Stdlib/either.ml))
-  (action
-    (progn
-      (run %{gen} -mode ml -root ../../../../../ -ml %{src} -out %{targets}))))
