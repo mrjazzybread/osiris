@@ -38,6 +38,9 @@
 
 ## Engineering and proof mode
 
+* Module paths whose specification is known are currently simplified by [simp].  
+  However, it required to alter [simp1_inspect]. Replace this hack by hints.
+
 * Fix [wp_use]: look at the lemma and apply different tactics depending on its
   body.
 
