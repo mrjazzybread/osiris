@@ -3,10 +3,15 @@ export OCAMLRUNPARAM=
 
 .PHONY: all
 all:
+	@printf "\r%-80s\n" "Build test/ml"
 	@ dune build test/ml --
+	@printf "\r%-80s\n" "Build libs/ml"
 	@ dune build libs/ml --
+	@printf "\r%-80s\n" "Translating Stdlib."
 	@ dune exec translator/bin/main.exe -- -in-dir libs/ml/Stdlib -out libs/coq/Stdlib -root . -mode dune
+	@printf "\r%-80s\n" "Building Osiris"
 	@ dune build
+	@printf "\r%-80s\n" "Done."
 
 .PHONY: clean
 clean:
