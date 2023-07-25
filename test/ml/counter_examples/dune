@@ -1,0 +1,4 @@
+(library
+  (flags (:standard -bin-annot))
+  (name CounterExamples))
+
