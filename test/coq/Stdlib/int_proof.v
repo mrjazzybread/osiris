@@ -33,8 +33,6 @@ Local Fixpoint EnvAppend η η' :=
   | EnvCons x v η =>
       EnvAppend η $ EnvCons x v η'
   end.
-Local Infix ":::" := (EnvAppend).
-
 
 Section ExternalsDef.
   (* This section describes the supported and yet to be supported external

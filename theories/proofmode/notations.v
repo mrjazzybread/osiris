@@ -45,6 +45,8 @@ Notation "'The'  'following'  '(d)environment'   (
   (wp _ _ (ret_dconcat (EnvCons x _ (.. (EnvCons z _ EnvNil) ..)) _) _)
   (only printing).
 
+Infix ":::" := (concat).
+
 (* -------------------------------------------------------------------------- *)
 
 (* Notations for ad-hoc lists. *)

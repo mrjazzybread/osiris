@@ -4,6 +4,7 @@ From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
 From osiris.logic Require Import orders.
+From osiris.libs Require Import Externals.
 
 (* The symbols of the OCaml standard library are translated as
    [Stdlib.<symbol>].
@@ -20,14 +21,14 @@ From osiris.logic Require Import orders.
 
 Local Notation VClo1 body :=
   (
-    VClo EnvNil $
+    VClo (EnvCons "Externals" Externals EnvNil) $
       AnonFun "x" $
       (body (EVar "x"))
   ).
 
 Local Notation VClo2 body :=
   (
-    VClo EnvNil $
+    VClo (EnvCons "Externals" Externals EnvNil) $
       AnonFun "x" $
       EFun1Var "y" $
       (body (EVar "x") (EVar "y"))
@@ -36,87 +37,93 @@ Local Notation VClo2 body :=
 Section StdLib__code.
   Context `{!osirisGS Σ}.
 
-  Section Arithmetic_operations.
-    Definition Stdlib__add : val :=
-      VClo2 EIntAdd.
-    Definition Stdlib__sub : val :=
-      VClo2 EIntSub.
-    Definition Stdlib__mul : val :=
-      VClo2 EIntMul.
-    Definition Stdlib__div : val :=
-      VClo2 EIntDiv.
-    Definition Stdlib__mod : val :=
-      VClo2 EIntMod.
-    Definition Stdlib__neg : val :=
-      VClo1 EIntNeg.
-  End Arithmetic_operations.
+  (* ------------------------------------------------------------------------ *)
 
-  Section Arithmetic_comparison.
-    Definition Stdlib__eq : val :=
-      VClo2 EOpEq.
-    Definition Stdlib__ne : val :=
-      VClo2 EOpNe.
-    Definition Stdlib__lt : val :=
-      VClo2 EOpLt.
-    Definition Stdlib__le : val :=
-      VClo2 EOpLe.
-    Definition Stdlib__gt : val :=
-      VClo2 EOpGt.
-    Definition Stdlib__ge : val :=
-      VClo2 EOpGe.
-    Axiom Stdlib__compare : val.
-  End Arithmetic_comparison.
+  (* Arithmetic Operations. *)
 
-  Section Stdlib__store.
-    Definition Stdlib__ref : val :=
-      VClo1 ERef.
-    Definition Stdlib__load : val :=
-      VClo1 ELoad.
-    Definition Stdlib__store : val :=
-      VClo2 EStore.
-  End Stdlib__store.
+  Definition Stdlib__add := VClo2 EIntAdd.
+  Definition Stdlib__sub := VClo2 EIntSub.
+  Definition Stdlib__mul := VClo2 EIntMul.
+  Definition Stdlib__div := VClo2 EIntDiv.
+  Definition Stdlib__neg := VClo1 EIntNeg.
 
-  Section Stdlib__tuples.
-    Definition Stdlib__fst : val :=
+  (* Arithmetic Comparisons. *)
+  Definition Stdlib__lt : val := VClo2 EOpLt.
+  Definition Stdlib__le : val := VClo2 EOpLe.
+  Definition Stdlib__gt : val := VClo2 EOpGt.
+  Definition Stdlib__ge : val := VClo2 EOpGe.
+
+  (* Arithmetic part of the module. *)
+  Definition Stdlib_arith_env : env :=
+    EnvCons "+" Stdlib__add $
+            EnvCons "-" Stdlib__sub $
+            EnvCons "*" Stdlib__mul $
+            EnvCons "/" Stdlib__div $
+            EnvCons "~-" Stdlib__neg $
+            EnvCons "<" Stdlib__lt $
+            EnvCons "<=" Stdlib__le $
+            EnvCons ">=" Stdlib__ge $
+            EnvCons ">" Stdlib__gt $
+            EnvNil.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* Store-related functions. *)
+  Definition Stdlib__ref : val := VClo1 ERef.
+  Definition Stdlib__load : val := VClo1 ELoad.
+  Definition Stdlib__store : val := VClo2 EStore.
+
+  Definition Stdlib_store_env : env :=
+    EnvCons "!" Stdlib__load $
+            EnvCons ":=" Stdlib__store $
+            EnvCons "ref" Stdlib__ref $
+            EnvNil.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* Polymorphic Comparisons. *)
+  Definition Stdlib__eq : val := VClo2 EOpEq.
+  Definition Stdlib__ne : val := VClo2 EOpNe.
+  Axiom Stdlib__compare : val.
+
+  (* On Pairs. *)
+  Definition Stdlib__fst : val :=
       VClo1 (λ (e : expr),
         ELet1 (PPair (PVar "x") PAny) e $
         EVar "x"
       ).
-    Definition Stdlib__snd : val :=
-      VClo1 (λ (e : expr),
-        ELet1 (PPair PAny (PVar "y")) e $
-        EVar "y"
+  Definition Stdlib__snd : val :=
+    VClo1 (λ (e : expr),
+       ELet1 (PPair PAny (PVar "y")) e $
+       EVar "y"
       ).
-  End Stdlib__tuples.
 
-  Section Stdlib__bool.
-    Definition Stdlib__not : val :=
-      VClo1 EBoolNeg.
+  Definition Stdlib_misc_env : env :=
+    EnvCons "=" Stdlib__eq $
+            EnvCons "<>" Stdlib__ne $
+            EnvCons "compare" Stdlib__compare $
+            EnvCons "fst" Stdlib__fst $
+            EnvCons "snd" Stdlib__snd $
+            EnvNil.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* Boolean Operations. *)
+  Definition Stdlib__not : val := VClo1 EBoolNeg.
     (* Boolean conjunction and disjunction are not functions;
        they are primitive operations. *)
-  End Stdlib__bool.
+
+  Definition Stdlib_bool_env : env :=
+    EnvCons "not" Stdlib__not $
+            EnvNil.
 
   (* Putting everything together. *)
   Definition Stdlib :=
     VStruct $
-      EnvCons "-" Stdlib__sub $
-      EnvCons "+" Stdlib__add $
-      EnvCons "*" Stdlib__mul $
-      EnvCons "~-" Stdlib__neg $
-      EnvCons "=" Stdlib__eq $
-      EnvCons "<>" Stdlib__ne $
-      EnvCons "<" Stdlib__lt $
-      EnvCons "<=" Stdlib__le $
-      EnvCons ">" Stdlib__gt $
-      EnvCons ">=" Stdlib__ge $
-      EnvCons "compare" Stdlib__compare $
-      EnvCons "ref" Stdlib__ref $
-      EnvCons "!" Stdlib__load $
-      EnvCons ":=" Stdlib__store $
-      EnvCons "fst" Stdlib__fst $
-      EnvCons "snd" Stdlib__snd $
-      EnvCons "not" Stdlib__not $
-      EnvNil.
+            Stdlib_arith_env :::
+            Stdlib_store_env :::
+            Stdlib_misc_env :::
+            Stdlib_bool_env.
 End StdLib__code.
 
 (* -------------------------------------------------------------------------- *)
