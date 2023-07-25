@@ -1,5 +1,6 @@
 From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
+From osiris Require Import base.
 From osiris.semantics Require Import semantics.
 From osiris.lang Require Import lang.
 From osiris.proofmode Require Import specifications.
@@ -96,6 +97,49 @@ Notation "[
  * z ]" :=
   (BrCons x (.. (BrCons z BrNil) ..))
   (only printing).
+
+(* ------------------------------------------------------------------------- *)
+Notation "'path:(' x ')'" :=
+  (EPath (PathBase x))
+  (only printing).
+Notation "'path:(' x . y . .. . z ')'" :=
+  (EPath (PathDot .. (PathDot (PathBase x) y) .. z))
+  (only printing).
+Notation "( e1 ) ; ( e2 )" :=
+  (ESeq e1 e2)
+  (only printing).
+Notation "app:( e1 e2 )" :=
+  (EApp e1 e2)
+  (only printing).
+Notation "'for:(' i : e1 '→' en ,  'do' e 'done)'" :=
+  (EFor i e1 en e)
+  (only printing).
+Notation "'assert:(' e ')'" :=
+  (EAssert e)
+  (only printing).
+Notation "'efun:(' v => e )" :=
+  (EAnonFun (AnonFun v e)).
+Notation "'fun:(' v => e )" :=
+  (AnonFun v e).
+Notation "'function:(' | b1  | ..  | bn )" :=
+  (fun:( "__osiris_anonymous_arg" =>
+           EMatch path:("__osiris_anonymous_arg")
+                         (BrCons b1 .. (BrCons bn BrNil) ..)))
+  (only printing, at level 90).
+Notation "'efunction:(' | b1  | ..  | bn )" :=
+  (efun:( "__osiris_anonymous_arg" =>
+            EMatch path:("__osiris_anonymous_arg")
+                          (BrCons b1 .. (BrCons bn BrNil) .. )))
+  (only printing, at level 90).
+Notation "mktpl:( x1 ,  .. ,  xn )" :=
+  (EMkTuple (cons x1 ( .. (cons xn nil) ..)))
+  (only printing).
+Notation "'match' e 'with:(' | b1 | .. | bn )" :=
+  (EMatch e (BrCons b1 (.. (BrCons bn BrNil) ..)))
+  (only printing, at level 91).
+Notation "p => e" :=
+  (Branch p e)
+  (at level 100, only printing).
 
 (* ------------------------------------------------------------------------- *)
 
