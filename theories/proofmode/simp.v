@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import equality.
+From osiris.proofmode Require Import equality specifications.
 
 (* A pure computation is terminating, deterministic, and does not use
    mutable state. *)
@@ -534,7 +534,6 @@ Ltac simp_eval :=
    must be done only in situations where we are certain (or have reasonable
    grounds to believe) that the term has been simplified as far as possible
    and cannot be further simplified. *)
-
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
   (* Either perform at least one step, or perform zero step. *)
@@ -604,6 +603,10 @@ with simp1_inspect :=
   (* Note that we do *not* reduce [m1] before inspecting it. *)
   lazymatch goal with |- simp ?m1 _ =>
   lazymatch m1 with
+  | lookup_name (val_as_struct_total ?v) ?n =>
+      erewrite (is_module_lookup_name_total v _ n); (try done) ; simp0 ; eauto
+  | val_as_struct ?v =>
+      erewrite (is_module_val_of_struct v); (try done) ; simp0 ; eauto
   | ret ?a1 =>
       fail
   | lookup_name ?η ?x =>

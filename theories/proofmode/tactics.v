@@ -113,15 +113,6 @@ Local Ltac wp_progress :=
       lazymatch goal with
       | |- environments.envs_entails _ $ wp _ _ (eval _ _) _ =>
           rewrite eval_eval'; try progress wp_cbn
-      (* Should become [simp] hints...   *   *   *   *   *   *   *   *   *    *)
-      | H : is_module _ ?v
-        |- context [val_as_struct ?v] =>
-          rewrite !(is_module_val_of_struct v _ H)
-      | H : is_module _ ?v
-        |- context  [lookup_name (val_as_struct_total ?v) ?n] =>
-          rewrite !(is_module_lookup_name_total _ _ n H);
-          last by eauto using in_eq, in_cons
-     (*   *   *   *   *   *   *   *   *   *   ... should become [simp] hints. *)
       end
     | wp_cbn (* TODO: better control the reduction strategy. *)
     | progress wp_simp
