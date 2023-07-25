@@ -1,7 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import equality specifications.
+From osiris.proofmode Require Import equality.
+From osiris.proofmode Require Import specifications.
 
 (* A pure computation is terminating, deterministic, and does not use
    mutable state. *)
@@ -255,6 +256,40 @@ Proof.
   rewrite val_as_bool_VBool. tauto.
 Qed.
 
+Lemma advance_simp_pure_spec_val_as_struct `{Σ: iprop.gFunctors} v a l P :
+  @pure_spec Σ val (SpecModule a l P) v →
+  simp (val_as_struct v) (Ret (val_as_struct_total v)).
+Proof.
+  intros H. pose proof H as (?&->&_).
+  by erewrite pure_spec_val_as_struct.
+Qed.
+
+Lemma advance_simp_is_module_val_as_struct v Λ :
+  is_module Λ v →
+  simp (val_as_struct v) (Ret (val_as_struct_total v)).
+Proof. intros?. by erewrite is_module_val_of_struct. Qed.
+
+
+Lemma advance_simp_is_module_lookup_name v Λ n :
+  is_module Λ v →
+  In n Λ →
+  simp (lookup_name (val_as_struct_total v) n)
+       (Ret (lookup_name_total (val_as_struct_total v) n)).
+Proof.
+  intros??.
+  by erewrite is_module_lookup_name_total.
+Qed.
+
+Lemma advance_simp_pure_spec_lookup_name `{Σ : iprop.gFunctors} v a l P n :
+  @pure_spec Σ val (SpecModule a l P) v →
+  In n (List.map fst l) →
+  simp (lookup_name (val_as_struct_total v) n)
+       (Ret (lookup_name_total (val_as_struct_total v) n)).
+Proof.
+  intros H?. pose proof H as (?&->&_).
+  by erewrite pure_spec_lookup_total.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -478,6 +513,7 @@ Ltac normalize :=
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
    If reflexivity cannot solve the goal, then [simp_close] fails. *)
+Global Hint Extern 1 (_ = _) => normalize : equality.
 
 Ltac simp_close :=
   solve [
@@ -568,6 +604,15 @@ with simp1 :=
   | simple eapply advance_simp_val_as_bool_VTrue; simp0
   | simple eapply advance_simp_val_as_bool_VFalse; simp0
   | simple eapply advance_simp_val_as_bool_VBool; simp0
+
+  | simple eapply advance_simp_is_module_val_as_struct; done
+  | simple eapply advance_simp_is_module_lookup_name;
+    [ done | by eauto using in_eq, in_cons ]
+
+  | simple eapply advance_simp_pure_spec_val_as_struct; done
+  | simple eapply advance_simp_pure_spec_lookup_name;
+    [ done | by eauto using in_eq, in_cons ]
+
   (* TODO the following 4 rules are useful only in pre/postconditions,
      not in [simp] goals *)
   (*
@@ -603,10 +648,6 @@ with simp1_inspect :=
   (* Note that we do *not* reduce [m1] before inspecting it. *)
   lazymatch goal with |- simp ?m1 _ =>
   lazymatch m1 with
-  | lookup_name (val_as_struct_total ?v) ?n =>
-      erewrite (is_module_lookup_name_total v _ n); (try done) ; simp0 ; eauto
-  | val_as_struct ?v =>
-      erewrite (is_module_val_of_struct v); (try done) ; simp0 ; eauto
   | ret ?a1 =>
       fail
   | lookup_name ?η ?x =>

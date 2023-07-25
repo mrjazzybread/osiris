@@ -29,6 +29,12 @@ Section TypesExamples.
 End TypesExamples.
 
 (* -------------------------------------------------------------------------- *)
+
+Ltac wp_prove_spec :=
+  iExists _;
+  by (iSplit;
+      [ done | repeat (iSplit; first (iExists _; iSplit; done))] ).
+
 (* -------------------------------------------------------------------------- *)
 
 Section SpecsExample.
@@ -102,16 +108,19 @@ Section SpecsExample.
             is_counter n v -∗
             WP call res #m {{ λ res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
 
-  Definition Counter_specs : @spec_env Σ :=
-    [
-      ("init", init_spec) ;
-      ("get", get_spec) ;
-      ("incr", incr_spec) ;
-      ("set", set_spec)
-    ].
+  Definition Counter_specs : spec val :=
+    SpecModule
+      Auto
+      [
+        ("init", SpecImpure NoAuto init_spec) ;
+        ("get", SpecImpure NoAuto get_spec) ;
+        ("incr", SpecImpure NoAuto incr_spec) ;
+        ("set", SpecImpure NoAuto set_spec)
+      ]
+      emp%I.
 
   Definition Counter_spec : val → iProp Σ :=
-    λ v, (□ module_spec Counter_specs v)%I.
+    λ v, (□ satisfies_spec Counter_specs v)%I.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -155,7 +164,6 @@ Ltac call := @oCall unfold; wp_bind; wp_continue.
 Section ProofExamples.
   Context `{!osirisGS Σ}.
 
-
   (* This proof uses variables in the context instead of an explicit environment
      [η] to the goal below. This is thought to be easier to use in the proof of
      foreign modules. *)
@@ -194,8 +202,7 @@ Section ProofExamples.
         oCall "nat_to_int" f; do 2 (wp_bind; wp_continue);
         first done.
       wp_bind. wp_use "Hnat_to_int".
-      iIntros(?->). wp_bind. wp.
-      equality. }
+      iIntros(?->). wp; equality. }
 
     (* Finally, [nat_to_int] is followed by [int_to_nat] in OCaml. *)
     oSpecify "int_to_nat" int_to_nat_spec vint_to_nat "#Hint_to_nat" !.
@@ -263,7 +270,7 @@ Section ProofExamples.
       wp_store "Hℓ". prove_counter. }
 
     oSpecify "Counter" Counter_spec vCounter "#HCounter"!.
-    { iModIntro; wp_module_spec. }
+    { iModIntro; wp_prove_spec. }
     iClear "Hinit Hincr Hget Hset"; clear vinit vget vset vincr.
 
     (* ---------------------------------------------------------------------- *)
@@ -310,18 +317,17 @@ Section ProofExamples.
        able to move up at the beginning of the file. It is not currently the
        case at it breaks the tactic [equality].  *)
     Local Arguments encode _ : simpl never.
-    Local Ltac counter_init := oSpec "init" from "HCounter"; iIntros (vc) "Hc";
-                               wp_bind; wp_continue.
-    Local Ltac counter_incr := oSpec "incr" from "HCounter" with "[$]";
-                               iIntros(?)"[->Hc]"; wp.
-    Local Ltac counter_get := oSpec "get" from "HCounter" with "[$]";
-                              iIntros (?)"[->Hc]"; wp;
-                              wp_bind; wp_continue.
+    Local Ltac counter_init := oSpec' "init" from "HCounter"; iIntros (vc) "Hc";
+                               wp; wp_continue.
+    Local Ltac counter_incr := oSpec' "incr" from "HCounter" with "[$]";
+                               iIntros(?)"[->Hc]".
+    Local Ltac counter_get := oSpec' "get" from "HCounter" with "[$]";
+                              iIntros (?)"[->Hc]"; wp; wp_continue.
 
     (* Instead of opening existentials corresponding to [Recursion], we use
        [is_module], which is a trick introduced in
        [theories/proofmode/tactics.v] *)
-    oModule vRecursion vCounter.
+    oModule vRecursion.
 
     (* ---------------------------------------------------------------------- *)
 
@@ -343,7 +349,7 @@ Section ProofExamples.
        the loop index, and prove the preservation of said predicate by the body
        of the loop. *)
 
-    oLoopPos (λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I with "[Hc]" "[]".
+    oLoopPos 1%nat 12%nat (λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I with "[Hc]" "[]".
 
     (* Proof that the invariant holds before the execution of the loop. *)
     { iExists O. iSplit; [ equality | iExact "Hc" ]. }

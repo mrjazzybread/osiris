@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import simp capital_SIMP.
+From osiris.proofmode Require Import simp capital_SIMP specifications.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -10,6 +10,8 @@ From osiris.proofmode Require Import simp capital_SIMP.
 
 (* Prevent simplifying string comparisons unless both arguments are known. *)
 Arguments String.eqb !s1 !s2 : simpl nomatch.
+Arguments satisfies_spec : simpl never.
+
 
 (* Unfold [as_bool] and friends as soon as they are applied to an argument.
    This exposes a [bind] combinator and enables further simplifications. *)

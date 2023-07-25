@@ -122,15 +122,56 @@ Local Ltac wp_progress :=
 Ltac wp_concat :=
   lazymatch goal with
   | |- environments.envs_entails _ (wp _ _ ?m _) =>
-      unfold_breakpoint m
+      lazymatch m with
+      | bind (ret_concat ?η ?δ) ?k =>
+          with_strategy transparent [ret_concat]
+                        (change (bind (ret_concat η δ) k) with (k (concat η δ)))
+      | ret_concat ?η ?δ =>
+          with_strategy transparent [ret_concat]
+                        (change (ret_concat η δ) with (ret (concat η δ)))
+
+      | bind (ret_dconcat ?δ' ?ηδ) ?k =>
+          with_strategy transparent [ret_dconcat]
+                        (change (bind (ret_dconcat δ' ηδ) k) with (k (dconcat δ' ηδ)))
+      | ret_dconcat ?δ' ?ηδ =>
+          with_strategy transparent [ret_dconcat]
+                        (change (ret_dconcat δ' ηδ) with (ret (dconcat δ' ηδ)))
+      | _ => fail "There is no concatenation here."
+      end
   | _ => fail "There is no concatenation here."
   end.
 
-Local Ltac wp_startproof :=
-  iStartProof.
+Local Ltac wp_setup :=
+  iStartProof;
+  lazymatch goal with
+  | |- environments.envs_entails ?Δ $ wp _ _ _ _ =>
+      let Δ :=
+        eval cbn in (environments.env_to_list
+                       (environments.env_intuitionistic Δ)) in
+      let rec lookforme l :=
+        lazymatch constr:(l) with
+        | [] => idtac
+        | (satisfies_spec ?Λ0 ?v) :: ?t =>
+            let Λ := eval hnf in Λ0 in
+            lazymatch constr:(Λ) with
+            | SpecModule Auto ?l ?P =>
+                lazymatch goal with
+                | _ : pure_spec Λ0 v |- _ => idtac
+                | _ =>
+                    iPoseProof ((satisfies_pure_spec Λ v) with "[$]")
+                    as "%";
+                    change Λ with Λ0 in *
+                end
+            | _ => idtac
+            end ; lookforme t
+        | _ :: ?t => lookforme t
+        end in
+      lookforme Δ
+  end
+.
 
 Ltac wp :=
-  wp_startproof;
+  wp_setup;
   repeat
     (first [
           (* 1. Try to eliminate a later or take a step. *)
@@ -173,10 +214,7 @@ Ltac wp_bind :=
    the breakpoint of interest cannot be buried under several [bind]s. *)
 
 Ltac wp_continue :=
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ ?m _) =>
-      unfold_breakpoint m
-  end;
+  wp_concat;
   wp.
 
 (* -------------------------------------------------------------------------- *)
@@ -320,14 +358,14 @@ Ltac wp_module_spec :=
 (* -------------------------------------------------------------------------- *)
 
 (* Help reason on loops of the form [for i = x to y], whth [0 <= x <= y]. *)
-Tactic Notation "oLoopPos" constr(Hinv) "with" constr(Hini) constr(Hend) :=
+Tactic Notation "oLoopPos" constr(v1) constr(v2) constr(Hinv) "with" constr(Hini) constr(Hend) :=
   let H := eval cbn in (Hini +:+ Hend) in
     lazymatch goal with
     | |- environments.envs_entails
            _ $
            wp _ _ (Stop CLoop (?η, ?x, repr ?i1, repr ?i2, ?e) ?k ?ko) ?φ =>
         iApply
-          ((wp_loop_inv_pos NotStuck ⊤ η x 1%nat 12%nat e k ko φ Hinv)
+          ((wp_loop_inv_pos NotStuck ⊤ η x v1 v2 e k ko φ Hinv)
             with H);
         try lia; try representable
     | _ => fail "[oLoop] can only be applied to terms of the form [WP (Stop CLoop _ _ _) {{ _ }}]"
@@ -624,7 +662,7 @@ Tactic Notation "oSpec" constr(name) "from" constr(spec) "with" constr(Hyp) :=
       iSpecialize (H with Hyp);
       last (iApply (wp_covariant with H) ; try iClear H)
     | oSpecError name spec
-    ]; wp.
+    ]; try wp.
 
 (* Preconditions are often pure and might not need any hypothesis. *)
 Tactic Notation "oSpec" constr(name) "from" constr(spec) :=
@@ -636,8 +674,35 @@ Tactic Notation "oSpec" constr(name) "from" constr(spec) :=
           iApply (wp_covariant with H);
           last try iClear H
         | oSpecError name spec
-        ]; wp
+        ]
     | oSpec name from spec with "[]"
+    ].
+
+(* Ditto for [satisfies_spec]... *)
+
+Tactic Notation "oSpecOf'" constr(name) "from" constr(hyp) "as" constr(H) :=
+  iPoseProof ((bloupyfetcher _ _ _ _ name) with hyp) as H
+.
+Tactic Notation "oSpec'" constr(name) "from" constr(spec) "with" constr(Hyp) :=
+  let H := iFresh in
+  oSpecOf' name from spec as H;
+  first [
+      iSpecialize (H with Hyp);
+      last (iApply (wp_covariant with H) ; try iClear H)
+    | oSpecError name spec
+    ]; try wp.
+
+Tactic Notation "oSpec'" constr(name) "from" constr(spec) :=
+  first [
+      oSpec' name from spec with "[//]"
+    | let H := iFresh in
+      oSpecOf' name from spec as H;
+      first [
+          iApply (wp_covariant with H);
+          last try iClear H
+        | oSpecError name spec
+        ]
+    | oSpec' name from spec with "[]"
     ].
 
 (* -------------------------------------------------------------------------- *)

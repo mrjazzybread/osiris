@@ -37,7 +37,7 @@ Definition example :=
 
 Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
 Proof.
-  wp. wp_bind. wp_continue. wp_bind. wp_continue.
+  wp. do 2 wp_continue.
   iPureIntro. reflexivity.
 Qed.
 
@@ -54,8 +54,7 @@ Goal
   ⊢ WP (eval env example2) {{ λ v, ⌜v = v1⌝ }}.
 Proof.
   iIntros. wp.
-  wp_continue.
-  wp_continue.
+  do 2 wp_continue.
   iPureIntro. reflexivity.
 Qed.
 
@@ -140,11 +139,7 @@ Lemma spec_example5:
   ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
   wp.
-  iIntros ([|]); wp_bind.
-  (* Subgoal: prove that [assert true] succeeds. *)
-  { by wp. }
-  (* Remainder: prove that [false] returns [false], as promised. *)
-  by wp.
+  iIntros ([|]); wp; equality.
 Qed.
 
 (* let id = identity in
@@ -262,9 +257,9 @@ Proof.
   unfold spec_walk.
   iIntros (η) "!>%bs".
   iInduction bs as [| b bs ] "IHbs";
-  wp_enter_and_abstract; iIntros (walk); wp.
-  { wp_continue. equality. }
-  { wp_continue. wp_use "IHbs". }
+  wp_enter_and_abstract; iIntros (walk); wp; wp_continue.
+  { equality. }
+  { wp_use "IHbs". }
 Qed.
 
 Definition walk_example e :=
@@ -341,7 +336,7 @@ Proof.
   wp_enter_and_abstract; iIntros (length);
   wp; wp_continue.
   { equality. }
-  { wp_bind. wp_use "IHxs". wp. iIntros(?->).
+  { iApply wp_bind_binary; first by wp_use "IHxs". iIntros(?->).
     rewrite Nat2Z.inj_succ. wp. iPureIntro.
     equality. }
 Qed.
@@ -413,8 +408,7 @@ Proof.
     wp_use "Hid". }
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_bind. wp_use "Hid". iIntros (?->). wp. wp_bind.
-  wp_continue.
+  wp_bind. wp_use "Hid". iIntros (?->). wp_continue.
 
   (* Proving the trivial post condition using the aforementioned specs. *)
   wp_module_spec.

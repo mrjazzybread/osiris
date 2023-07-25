@@ -200,7 +200,7 @@ Proof.
   { iIntros (v1 ?) "H1 ->". wp.
     iSpecialize ("H1" $! _ _).
     wp_bind. iApply (wp_covariant with "H1"). (* ditto. *)
-    iIntros (?->). wp. wp_bind. wp_continue.
+    iIntros (?->). wp. wp_continue.
 
     wp_module_spec. }
 
