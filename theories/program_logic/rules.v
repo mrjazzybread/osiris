@@ -280,53 +280,73 @@ Qed.
     )
     -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
   Proof.
-    iLöb as "IH" forall (m1 m2).
-    iIntros "H1 H2 Hjoin".
-    wp_unfold_head.
-    intro_state.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
+    (* We proceed by Löb-Induction after generalizing [m1] and [m2]. *)
+    iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hjoin".
+
+    (* As for the other rules, proof starts by stepping in the WP:
+       (1) unfold the wp, (2) introduce a valid state, (3) introduce the head
+       modality and (4) enter in the second branch of the WP. *)
+    wp_unfold_head; intro_state;
+      iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
+      [ set_solver | iModIntro; construct_wp_nonret ].
+
+    (* Make a case study over the possible step. In each case, use FupTrans to
+       add the modality [ |={E,∅}=> ] in front of the goal. *)
     destruct_step; iMod "Hmod" as "_".
+
     (* We now examine each of the ways in which [Par m1 m2 k ko] can step. *)
-    { (* Case: [StepParRetRet] *)
+
+    { (* Case: [StepParRetRet].
+         Both [m1] and [m2] represent values [v1] and [v2]. One can consume [H1]
+         and [H2] to learn that the values respect their postconditions.
+         The inversion does not consume the state-interpretation, which can be
+         framed behind the modalities. *)
       iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
       iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
-      iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-      iModIntro; iNext; iModIntro; iMod "Hmod" as "_"; iModIntro.
+
+      (* Introduce the modality [ |={E,∅}=> ]. *)
+      iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
+        [ set_solver | iModIntro ].
+      (* The later is not exposed in this rule. Hence, it can simply be
+         introduced together with the remaining modalities. *)
+      do 2 iModIntro; iMod "Hmod" as "_"; iModIntro.
+
+      (* Finally, use the hypothesis on [k] to finish the proof. *)
       iApply ("Hjoin" with "H1 H2"). }
-    { (* Case: [StepParCrashLeft] *)
-      iMod (invert_wp_crash with "Hsi H1") as "%".
-      tauto. }
-    { (* Case: [StepCrashRight] *)
-      iMod (invert_wp_crash with "Hsi H2") as "%".
-      tauto. }
-    { (* Case: [StepNextLeft] *)
-      iMod (invert_wp_next with "Hsi H1") as "%".
-      tauto. }
-    { (* Case: [StepNextRight] *)
-      iMod (invert_wp_next with "Hsi H2") as "%".
-      tauto. }
+
+    (* In the four following cases, one of the branches of the [Par] is either a
+       [Crash] or a [Next]. Hence, one can consume the corresponding [WP]
+       hypothesis to get [ |={E}=> False ]. As the goal is of the form
+       [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
+       Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
+       the proof. *)
+    1,2 : by iMod (invert_wp_crash with "Hsi [$]") as "%".
+    1,2 : by iMod (invert_wp_next with "Hsi [$]") as "%".
+
     { (* Case: [StepParLeft] *)
-      (* [m1] steps to [m'1]. *)
+      (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
+         state interpretation. Some modalities need to be stripped from the
+         result. *)
       iMod (wp_step Hstep with "Hsi H1") as ">H1".
-      do 2 iModIntro.
-      iMod "H1"; iModIntro.
-      iMod "H1" as "[$?]"; iModIntro.
+      do 2 iModIntro. iMod "H1"; iModIntro;
+      iMod "H1" as "[$?]"; iModIntro. (* After stripping modalities, one can
+                                         frame the state interpretation. *)
+
+      (* The induction hypothesis ends the proof. *)
       iApply ("IH" with "[$]H2 Hjoin"). }
-    { (* Case: [StepParRight] *)
+
+    { (* Case: [StepParRight]
+         This case is similar to the previous one. *)
       iMod (wp_step Hstep with "Hsi H2") as ">H2".
-      do 2 iModIntro.
-      iMod "H2"; iModIntro.
-      iMod "H2" as "[$?]"; iModIntro.
+      do 2 iModIntro. iMod "H2"; iModIntro. iMod "H2" as "[$?]"; iModIntro.
       iApply ("IH" with "H1 [$] Hjoin"). }
   Qed.
 
   (* ------------------------------------------------------------------------ *)
 
   (* The following lemmas offer reasoning rules for each of the system calls,
-   that is, for computations of the form [Stop c x y]. They are simple
-   consequences of the operational behavior of these system calls. *)
+     that is, for computations of the form [Stop c x y]. They are simple
+     consequences of the operational behavior of these system calls. *)
 
   (* [CEval]. *)
 

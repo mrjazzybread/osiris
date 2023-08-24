@@ -40,6 +40,7 @@ End Adequacy.
 Section Adequacy.
   Import uPred.
 
+  (* This technical lemma is used in the adequacy proof. *)
   Let inverse_modalities {Σ} `(!invGS_gen HasNoLc Σ) (P : iProp Σ) n :
     (|={∅}▷=>^n |={∅}=> P) ⊢
     |={∅}=> |={∅}▷=>^n P.
@@ -57,16 +58,36 @@ Section Adequacy.
 
   Class required_cmras Σ :=
     {
-      heap : inG Σ (reservation_map.reservation_mapR (agreeR positiveO)) ;
-      heap' : inG Σ (gmap_view.gmap_viewR loc (leibnizO val)) ;
-      heap'' : inG Σ (gmap_view.gmap_viewR loc (leibnizO gname)) ;
+      (* -------------------------------------------------------------------- *)
+      (* Heap-related cmras. *)
+
+      (* Detailed explanations on the heap are provided in the first two
+         comments of the file [iris/base_logic/lib/gen_heap.v] of the Iris
+         repository.  *)
+      heap_map : inG Σ (reservation_map.reservation_mapR (agreeR positiveO)) ;
+      heap_vals : inG Σ (gmap_view.gmap_viewR loc (leibnizO val)) ;
+      heap_gnames : inG Σ (gmap_view.gmap_viewR loc (leibnizO gname)) ;
+
+      (* -------------------------------------------------------------------- *)
+      (* Invariant-related cmras. *)
+
+      (* [wsat_inv] is used to define the mapping from names to assertions one
+         can see in the definition of the world satisfaction [W] and the
+         definitions of invariants. *)
       wsat_inv : inG Σ (gmap_view.gmap_viewR positive (laterO (iPropO Σ)));
+      (* [wsat_enabled] is used to remember the name of invariants that hold. *)
       wsat_enabled : inG Σ coPset.coPset_disjR;
+      (* [wsat_disabled] is used to remember the name of invariants which are
+         not satisfied. *)
       wsat_disabled : inG Σ (gset.gset_disjR positive) ;
+
+      (* Used for later credits. Despite our choice not to support them, this
+         algebra is required to define an instance of [invGS_gen] used below.
+         TODO : redo the proofs with a specialized instance of [invGS_gen]. *)
       lc : inG Σ (authR natUR)
     }.
 
-  (* These two local lemmas are required in order to recover the requirements of
+  (* These two lemmas are required in order to recover the requirements of
      [gen_heap_init] and [step_fupdN_soundness_no_lc]. *)
   Let required_camras_heap {Σ} :
     required_cmras Σ → gen_heapGpreS loc val Σ.
@@ -77,9 +98,12 @@ Section Adequacy.
 
   (* ------------------------------------------------------------------------ *)
 
-  (* [wp_pre_adequacy] is a lemma used to start the adequacy proof. *)
+  (* [wp_pre_adequacy] is a lemma used to start the adequacy proof. It provides
+     the required resources to use the heap and invariants. It also puts the
+     goal behind the right iterated modality, i.e. the one that will appear in
+     [wp_adequacy]. *)
 
-  Let wp_pre_adequacy :
+  Local Lemma wp_pre_adequacy :
     ∀ {Σ : gFunctors},
     ∀ {P : iProp Σ} {_: Plain P},
     required_cmras Σ →
@@ -128,8 +152,7 @@ Section Adequacy.
 
     (* First: setup the iterated later/fupd modalities using the previous local
               lemma and enter the Iris Proof Mode. *)
-    eapply pure_soundness.
-    eapply (wp_pre_adequacy _ n).
+    eapply pure_soundness, (wp_pre_adequacy _ n).
     iIntros (Hstore Hinv) "Hsi".
 
     (* Use our hypothesis on the provability of the [wp] and its consequence. *)
@@ -137,16 +160,29 @@ Section Adequacy.
 
     (* Use preservation of the [wp] and [state_interp] by [n] steps. *)
     iMod ((wp_preservation _ Hsteps) with "[Hsi][$]") as "H".
-    { done. } (* FIXME: replacing [Hsi] by [$] above should work. *)
+    (*{ Set Printing Implicit. simpl. iFrame. } *)
+    { done. } (* FIXME: replacing [Hsi] by [$] above should work.  It does not
+                        because it needs to reduce the body of [Hsi] first. Use
+                        [Set Printing Implicit] for more details. *)
 
-    (* Inverse some modalities. *)
+    (* Inverse some modalities: push [ |={∅}=> ] behind the iterated
+       modality. *)
     iApply (inverse_modalities Hinv ⌜φ⌝ n).
 
-    (* Use our preservation hypothesis to retrieve the state and [wp]. *)
+    (* It is possible to strip the iterated modality from both [H] and the
+       goal. This is done in two steps: (1) apply a lemma stating the
+       possibility of stripping the iterated modality. This consumes [H]. *)
     iApply (step_fupdN_wand with "H").
+    (* (2) Introduce the hypothesis [H] without its modalities, i.e. an
+       assertion of the form [ |={∅,⊤}=> X ∗ Y ].
+       After the introduction, the goal is of the form [ |={∅}=> G ], it is
+       possible to tacitly use FupTrans to prove [ |={∅,⊤}=> |={⊤,∅}=> G ]
+       instead. Therefore, by monotony of [ |={∅, ⊤}=> ], it suffices to prove
+       [ |={⊤,∅}=> G ] after introducing [ X ∗ Y ]. *)
     iMod 1 as "[? Hwp]".
 
-    (* We have [wp _ _ m2 _] and [state_interm σ2]. Hence, [Hφ] gives us [φ]. *)
+    (* We have [wp _ _ m2 _] and [state_interm σ2]. Hence, [Hφ] gives us the
+       result. *)
     iApply ("Hφ" with "[$][$]").
   Qed.
 
@@ -155,28 +191,32 @@ Section Adequacy.
   (* The following lemma is a corollary of the adequacy lemma:
      Let [φ] be a predicate over some type [A].
      If [wp _ _ m1 (λ v, ⌜φ v⌝)] holds in the Iris logic, and if [(∅, m1)] steps
-        to [(σn, mn)],
-     then [mn] is not stuck, and if it represents a value [v], then [φ v] holds.
-   *)
+        to [(σn, mn)] in n steps,
+     then [mn] is not stuck, and if it represents a value [v], then [φ v]
+          holds. *)
   Lemma wp_adequacy' {A} `{!required_cmras Σ}
-        {m1 n σn mn} s(φ : A → Prop) :
+        {m1 n σn mn} s (φ : A → Prop) :
     (* [(∅, m1)] reduces to ([σn, mn)] in n steps. *)
     nsteps step n (∅, m1) (σn, mn) →
 
-    (* [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
-    (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
-         (Hinv : invGS_gen HasNoLc Σ),
+    (* If [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
+    (⊢ (* given the required cmras, *)
+     ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
+       (Hinv : invGS_gen HasNoLc Σ),
        let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
        (wp s ⊤ m1 (λ a, ⌜ φ a ⌝))) →
 
-    (* Then, the resulting configuration is not stuck and should [mn] represent
-       a value [v], [φ v] holds. *)
+    (* Then,
+        - the resulting configuration is not stuck, and
+        - should [mn] represent a value [v], [φ v] holds. *)
     (¬ stuck (σn, mn)) ∧ ∀ a, mn = Ret a → φ a.
   Proof.
     intros Hsteps H.
 
-    (* First, we define an new pure proposition [φ']. It is equivalent to the
-       conclusion of the lemma. *)
+    (* First, we define an new pure proposition [φ']. It implies the conclusion
+       of the lemma and is easier to work with.
+       Note: [φ'] is equivalent to the goal, but the proof only requires one
+             way. *)
     let φ' := constr:(match mn with
               | ret v => φ v
               | _ => can_step (σn, mn)
@@ -192,10 +232,9 @@ Section Adequacy.
        It provides us with the store- and invariants-related hypotheses to use
        the provability of [wp _ _ m1 (λ v, ⌜φ v⌝)]. *)
     eapply (wp_adequacy s _ Hsteps).
-    iIntros (Hstore Hinv).
-
-    iExists (λ v, ⌜φ v⌝)%I.
-    iPoseProof (H $! _ _) as "$". iModIntro.
+    iIntros (Hstore Hinv); iExists _.
+    iPoseProof (H $! _ _) as "$". (* Frame the [WP m1 _] hypothesis. *)
+    iModIntro.
 
     (* We now have access to the state interp and [wp] of the final
        configuration, which is enough to prove non-stuckness and the
@@ -204,9 +243,15 @@ Section Adequacy.
 
     (* We proceed by case-analysis on [mn]. *)
     destruct mn; wp_unfold_all.
-    { (* Case: [mn = Ret _]. *)
+    { (* Case: [mn = Ret _].
+               One only needs to prove that the post-condition is satisfied,
+               which follows from the definition of [WP].
+               As [∅ ⊆ ⊤], the modality can be removed. *)
       iMod ("Hwp" with "[$]") as ">[_$]".
       iApply fupd_mask_intro; [ done | by iIntros "_" ]. }
+
+    (* In all of the other cases, the goal cannot be stuck (due to [can_step] in
+       the definition of [WP]). *)
     all: iMod ("Hwp" with "[$]") as "[%?]"; done.
   Qed.
 
@@ -234,5 +279,4 @@ Section Adequacy.
     iApply H.
   Qed.
 
-(* TODO where do we go from here? *)
 End Adequacy.

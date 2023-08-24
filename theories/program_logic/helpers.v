@@ -54,10 +54,10 @@ Proof.
 Qed.
 
 Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
-  s1 ⊑ s2 → E1 ⊆ E2 →
+  E1 ⊆ E2 →
   WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
 Proof.
-  iIntros (_ HE).
+  iIntros (HE).
   iLöb as "IH" forall (m).
   iIntros "H1 Himpl".
   wp_unfold_all.

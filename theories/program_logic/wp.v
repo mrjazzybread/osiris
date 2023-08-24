@@ -28,10 +28,10 @@ Class osirisGS (Σ: gFunctors) := OsirisG {
 
 }.
 
-(* This is our state interpretation predicate. *)
+(* Definition of the state interpretation predicate. *)
 
-(* For the moment, it contains just [gen_heap_interp σ], which connects
-   the physical heap with the ghost heap. *)
+(* For the moment, it is set to [gen_heap_interp σ], which is the standard state
+   interpretation of Iris. *)
 
 Definition state_interp {Σ H} (σ : store) :=
   @gen_heap_interp loc _ _ val Σ H σ.
@@ -51,20 +51,31 @@ Definition wp_pre
   (s : stuckness)
   (wp: coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
        coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ
-:=
-  λ E m φ, (
-    ∀ σ,
-      state_interp σ ={E,∅}=∗
-      match is_ret m with
-      | Some v =>
-          |={∅,E}=> state_interp σ ∗ φ v
-      | None =>
-          ⌜can_step (σ, m)⌝ ∗
-          ∀ σ' m',
-          ⌜step (σ, m) (σ', m')⌝ ={∅}▷=∗
-          |={∅,E}=> (state_interp σ' ∗ wp E m' φ)
-      end
-  )%I.
+  :=
+  λ E m φ,
+    (∀ σ,
+       (* Give, the state of the heap [σ] and under the modality [|={E,∅}=>], *)
+       state_interp σ ={E,∅}=∗
+       match is_ret m with
+       | Some v =>
+           (* If the term is a value, it satisfies the postcondition and the
+              state interpretation can be returned after giving back the
+              invariants in [E]. *)
+           |={∅,E}=> state_interp σ ∗ φ v
+       | None =>
+           (* Otherwise, the term [m] is not a value. The [wp] states that:
+              (1) the configuration [σ, m] is not stuck, and *)
+           ⌜can_step (σ, m)⌝ ∗
+           (* (2) for any step this configuration can take, the state
+                  interpretation can be given back and the [wp] holds.
+              Using [ ={∅}▷=∗ ] allows the adequacy theorem to hold. The
+              proofs of [theories/program_logic/adequacy.v] use this modality.
+              Using [ |={∅, E}=> ] ask invariants in [E] to hold in the
+              conclusion. *)
+           ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ={∅}▷=∗
+                    |={∅,E}=> (state_interp σ' ∗ wp E m' φ)
+     end
+    )%I.
 
 Local Instance wp_pre_contractive s : Contractive (wp_pre s).
 Proof.
@@ -77,12 +88,13 @@ Qed.
    notation is available, e.g.:
      [WP _ @ _ {{ _ }}]
      [WP _ @ _ ?{{ _ }}]).
- *)
+
+  The stuckness bit is not used at the moment. *)
 
 Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
   λ (s : stuckness), fixpoint (wp_pre s).
 
-(* Standard boilerplate. *)
+(* Standard boilerplate to seal the definition of [wp]. *)
 
 Local Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
 Definition wp' := wp_aux.(unseal).
