@@ -128,8 +128,8 @@ Instead, the interpreter must be a *monadic* interpreter:
 Check eval. (* .unfold *)
 
 (*|
-The term `eval η e` has type `free val`,
-where `free` is a *monad*.
+The term `eval η e` has type `micro val`,
+where `micro` is a *monad*.
 This means that `eval η e` is
 an effectful *computation* which may diverge,
 may behave in a non-deterministic manner, and
@@ -313,7 +313,7 @@ The monad that is used to write the interpreter
 is defined as follows:
 |*)
 
-Print free. (* .unfold *)
+Print micro. (* .unfold *)
 
 (*|
 This is an inductive type: every computation must eventually
@@ -338,7 +338,7 @@ following five forms:
   the system call. This code has type `code X Y`, where `X` is the type
   of the argument of the system call, and `Y` is the type of its result.
   Accordingly, the *argument* `x` has type `X` and the *continuation* `k`
-  has type `Y → free A`.
+  has type `Y → micro A`.
 
 * `Par m1 m2 k ko` represents a request by the interpreter to execute
   the computations `m1` and `m2` in parallel. The *success continuation*
@@ -406,7 +406,7 @@ much smaller and simpler language (namely, the monad).
 
 It is well-known that a compiler can be in principle obtained
 by specializing an interpreter, but this is usually a difficult
-task. Here, this happens essentially for free, thanks to the fact
+task. Here, this happens essentially for micro, thanks to the fact
 that Coq's β-reduction engine can simplify the application `eval η e`.
 |*)
 
@@ -437,7 +437,7 @@ The Scheduler
 
 (*|
 There remains to somehow give meaning to monadic computations
-of type `free A`. As explained earlier, these computations are
+of type `micro A`. As explained earlier, these computations are
 effectful: in particular, they can diverge, and they are
 nondeterministic. Thus, we cannot expect to give them a
 computational behavior inside Coq. However, there are other

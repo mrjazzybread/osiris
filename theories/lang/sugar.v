@@ -163,11 +163,11 @@ Definition EFun1Var (x : var) (e : expr) :=
 
 (* [function bs] is sugar for [fun x -> match x with bs]. *)
 
-(* The variable [x] must not occur free in [bs]. *)
+(* The variable [x] must not occur micro in [bs]. *)
 
 (* We use a reserved name for [x]. Provided end users do not use such a
    reserved name in their OCaml source code, we can be assured that [x]
-   does not occur free in [bs]. *)
+   does not occur micro in [bs]. *)
 
 Definition AnonFunction (bs : branches) : anonfun :=
   let x := "__osiris_anonymous_arg" in

@@ -59,7 +59,7 @@ Local Open Scope nat_scope.
    in which [n] decreases or is preserved. This is necessary for the proof of
    the lemma [wp_simplify] to go through. *)
 
-Inductive simplify {A : Type} : nat → free A → free A → Prop :=
+Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
 | SimplifyEval:
     ∀ n p η e k ko,
     p = (η, e) →
@@ -80,17 +80,17 @@ Inductive simplify {A : Type} : nat → free A → free A → Prop :=
       (Stop CFlip x k ko)
       m
 | SimplifyParRetLeft:
-    ∀ {A1 A2} n (a1 : A1) (m2 : free A2) k ko,
+    ∀ {A1 A2} n (a1 : A1) (m2 : micro A2) k ko,
     simplify (S n)
       (Par (Ret a1) m2 k ko)
       (try m2 (λ v2, k (a1, v2)) ko)
 | SimplifyParRetRight:
-    ∀ {A1 A2} n (m1 : free A1) (a2 : A2) k ko,
+    ∀ {A1 A2} n (m1 : micro A1) (a2 : A2) k ko,
     simplify (S n)
       (Par m1 (Ret a2) k ko)
       (try m1 (λ v1, k (v1, a2)) ko)
 | SimplifyPar:
-    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko,
+    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko,
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
     S (n1 + n2) ≤ n →
@@ -110,7 +110,7 @@ Global Hint Constructors simplify : simplify.
 
 (* Simplification is compatible with [try]. *)
 
-Lemma simplify_try {A B} n (m1 m2 : free A) (f : A → free B) ko :
+Lemma simplify_try {A B} n (m1 m2 : micro A) (f : A → micro B) ko :
   simplify n m1 m2 →
   simplify n (try m1 f ko) (try m2 f ko).
 Proof.
@@ -120,7 +120,7 @@ Qed.
 
 (* Simplification is compatible with [bind]. *)
 
-Lemma simplify_bind {A B} n (m1 m2 : free A) (f : A → free B) :
+Lemma simplify_bind {A B} n (m1 m2 : micro A) (f : A → micro B) :
   simplify n m1 m2 →
   simplify n (bind m1 f) (bind m2 f).
 Proof.
@@ -133,7 +133,7 @@ Qed.
 
 (* [ret _] cannot be simplified. *)
 
-Lemma destruct_simplify_ret {A} n a1 (m2 : free A) :
+Lemma destruct_simplify_ret {A} n a1 (m2 : micro A) :
   simplify n (ret a1) m2 →
   m2 = ret a1.
 Proof.
@@ -142,7 +142,7 @@ Qed.
 
 (* [crash] cannot be simplified. *)
 
-Lemma destruct_simplify_crash {A} n (m2 : free A) :
+Lemma destruct_simplify_crash {A} n (m2 : micro A) :
   simplify n crash m2 →
   m2 = crash.
 Proof.
@@ -151,7 +151,7 @@ Qed.
 
 (* [Next] cannot be simplified. *)
 
-Lemma destruct_simplify_next {A} n (m2 : free A) :
+Lemma destruct_simplify_next {A} n (m2 : micro A) :
   simplify n Next m2 →
   m2 = Next.
 Proof.
@@ -208,7 +208,7 @@ Local Ltac destruct_nsteps :=
 (* [nsteps step n] is compatible with a [Par] context. *)
 
 Local Lemma nsteps_step_par_left
-  {A1 A2 A} n σ σ' m1 m'1 m2 (k : A1 * A2 → free A) ko :
+  {A1 A2 A} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A) ko :
   nsteps step n (σ, m1) (σ', m'1) →
   nsteps step n (σ, Par m1 m2 k ko) (σ', Par m'1 m2 k ko).
 Proof.
@@ -221,7 +221,7 @@ Proof.
 Qed.
 
 Local Lemma nsteps_step_par_right
-  {A1 A2 A} n σ σ' m1 m2 m'2 (k : A1 * A2 → free A) ko :
+  {A1 A2 A} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A) ko :
   nsteps step n (σ, m2) (σ', m'2) →
   nsteps step n (σ, Par m1 m2 k ko) (σ', Par m1 m'2 k ko).
 Proof.
@@ -262,7 +262,7 @@ Local Hint Resolve
    never causes the loss of a reduction step. In other words, applying a
    simplification step does not eliminate any permitted behavior. *)
 
-Lemma simplify_step_diagram {A} {n} {m1 m2 : free A} :
+Lemma simplify_step_diagram {A} {n} {m1 m2 : micro A} :
   (* If there is a simplification step of size [n]: *)
   simplify n m1 m2 →
   ∀ {m'1 σ σ'},
@@ -314,7 +314,7 @@ Qed.
 (* In the special case where [m2] is of the form [ret a2], the previous
    diagram can be simplified, because [ret a2] cannot step. *)
 
-Lemma simplify_ret_step_diagram {A} {n} {m1 : free A} {a2 σ σ' m'1} :
+Lemma simplify_ret_step_diagram {A} {n} {m1 : micro A} {a2 σ σ' m'1} :
   (* If there is a simplification step of [m1] to [ret a2]: *)
   simplify n m1 (ret a2) →
   (* and a reduction step: *)
@@ -337,7 +337,7 @@ Qed.
 Local Hint Constructors rtc : rtc.
 
 Lemma simplify_ret_implies_step :
-  ∀ {n A} {m1 : free A} {a2},
+  ∀ {n A} {m1 : micro A} {a2},
   simplify n m1 (ret a2) →
   ∀ σ,
   rtc step (σ, m1) (σ, ret a2).
@@ -345,7 +345,7 @@ Proof.
   induction n using (well_founded_induction lt_wf).
   (* Reformulate the induction hypothesis. *)
   assert (IH:
-    ∀ n' {A} σ (m1 : free A) (a2 : A),
+    ∀ n' {A} σ (m1 : micro A) (a2 : A),
     simplify n' m1 (ret a2) →
     n' < n →
     rtc step (σ, m1) (σ, ret a2)
@@ -370,7 +370,7 @@ Qed.
    and a reduction path of [m1] to [ret b2],
    then the two paths must lead to the same end result. *)
 
-Lemma simplify_ret_rtc_step_diagram {A} {n} {m1 : free A} {a2 b2 σ σ'} :
+Lemma simplify_ret_rtc_step_diagram {A} {n} {m1 : micro A} {a2 b2 σ σ'} :
   simplify n m1 (ret a2) →
   rtc step (σ, m1) (σ', ret b2) →
   σ' = σ ∧ a2 = b2.
@@ -401,7 +401,7 @@ Qed.
 (* The relation [simplify _ ?m (ret ?a)] is confluent. That is,
    simplification cannot lead to two distinct results. *)
 
-Lemma simplify_ret_confluent {A} (m : free A) n1 n2 a1 a2 :
+Lemma simplify_ret_confluent {A} (m : micro A) n1 n2 a1 a2 :
   simplify n1 m (ret a1) →
   simplify n2 m (ret a2) →
   a1 = a2.
@@ -422,7 +422,7 @@ Qed.
    and if [m2] can step,
    then [m1] can step. *)
 
-Lemma invert_simplify_can_step {A} n (m1 m2 : free A) σ :
+Lemma invert_simplify_can_step {A} n (m1 m2 : micro A) σ :
   simplify n m1 m2 →
   can_step (σ, m2) →
   can_step (σ, m1).
@@ -437,7 +437,7 @@ Qed.
    either [m1] is [ret _]
    or [m1] can step. *)
 
-Lemma invert_simplify_ret {A} n (m1 : free A) a2 σ :
+Lemma invert_simplify_ret {A} n (m1 : micro A) a2 σ :
   simplify n m1 (ret a2) →
   is_ret m1 = None →
   can_step (σ, m1).
@@ -471,7 +471,7 @@ Qed.
    it. *)
 
 Lemma simplify_confluent :
-  ∀ {n i2 j' A} {m1 m2 m'1 : free A},
+  ∀ {n i2 j' A} {m1 m2 m'1 : micro A},
   simplify i2 m1 m2 →
   simplify j' m1 m'1 →
   i2 + j' = n →
@@ -486,7 +486,7 @@ Proof.
   induction n using (well_founded_induction lt_wf).
   (* Reformulate the induction hypothesis for easier application. *)
   assert (IH:
-    ∀ i2 j' A (m1 m2 m'1 : free A),
+    ∀ i2 j' A (m1 m2 m'1 : micro A),
     simplify i2 m1 m2 →
     simplify j' m1 m'1 →
     i2 + j' < n →
@@ -546,7 +546,7 @@ Qed.
 
 (* This version is intended for use by end users. *)
 
-Inductive simp {A : Type} : free A → free A → Prop :=
+Inductive simp {A : Type} : micro A → micro A → Prop :=
 | SimpEval:
     ∀ η e k ko,
     simp
@@ -565,17 +565,17 @@ Inductive simp {A : Type} : free A → free A → Prop :=
       (Stop CFlip x k ko)
       m
 | SimpParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : free A2) k ko,
+    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k ko,
     simp
       (Par (Ret a1) m2 k ko)
       (try m2 (λ v2, k (a1, v2)) ko)
 | SimpParRetRight:
-    ∀ {A1 A2} (m1 : free A1) (a2 : A2) k ko,
+    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k ko,
     simp
       (Par m1 (Ret a2) k ko)
       (try m1 (λ v1, k (v1, a2)) ko)
 | SimpPar:
-    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko,
+    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko,
     simp m1 m'1 →
     simp m2 m'2 →
     simp (Par m1 m2 k ko) (Par m'1 m'2 k ko)
@@ -594,7 +594,7 @@ Global Hint Constructors simp : simp.
 (* This auxiliary lemma is useful when a constructor of the relation [simp]
    cannot be applied directly. *)
 
-Lemma simp_up_to_eq {A} {m1 m2 m2' : free A} :
+Lemma simp_up_to_eq {A} {m1 m2 m2' : micro A} :
   simp m1 m2 →
   m2 = m2' →
   simp m1 m2'.
@@ -604,7 +604,7 @@ Qed.
 
 (* Simplification is compatible with [try]. *)
 
-Lemma simp_try {A B} (m1 m2 : free A) (f : A → free B) ko :
+Lemma simp_try {A B} (m1 m2 : micro A) (f : A → micro B) ko :
   simp m1 m2 →
   simp (try m1 f ko) (try m2 f ko).
 Proof.
@@ -614,7 +614,7 @@ Qed.
 
 (* Simplification is compatible with [bind]. *)
 
-Lemma simp_bind {A B} (m1 m2 : free A) (f : A → free B) :
+Lemma simp_bind {A B} (m1 m2 : micro A) (f : A → micro B) :
   simp m1 m2 →
   simp (bind m1 f) (bind m2 f).
 Proof.
@@ -625,7 +625,7 @@ Qed.
 
 (* This property should not be needed, but is a sanity check. *)
 
-Lemma simplify_simp {A} n (m1 m2 : free A) :
+Lemma simplify_simp {A} n (m1 m2 : micro A) :
   simplify n m1 m2 →
   simp m1 m2.
 Proof.
@@ -634,7 +634,7 @@ Qed.
 
 (* [simp m1 m2] implies [simplify n m1 m2] for some [n]. *)
 
-Lemma simp_simplify {A} {m1 m2 : free A} :
+Lemma simp_simplify {A} {m1 m2 : micro A} :
   simp m1 m2 →
   ∃ n,
   simplify n m1 m2.
@@ -652,7 +652,7 @@ Qed.
 
 (* The relation [simp _ (ret _)] is confluent. *)
 
-Lemma simp_ret_confluent {A} (m : free A) a1 a2 :
+Lemma simp_ret_confluent {A} (m : micro A) a1 a2 :
   simp m (ret a1) →
   simp m (ret a2) →
   a1 = a2.
@@ -665,7 +665,7 @@ Qed.
 
 (* The relation [simp] is confluent. *)
 
-Lemma simp_confluent {A} (m1 m2 m'1 : free A) :
+Lemma simp_confluent {A} (m1 m2 m'1 : micro A) :
   simp m1 m2 →
   simp m1 m'1 →
   ∃ m'2,
@@ -682,7 +682,7 @@ Qed.
 
 (* Special cases. *)
 
-Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko :
+Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → micro A) ko :
   simp
     (Par (Ret a1) (Ret a2) k ko)
     (k (a1, a2)).
@@ -690,7 +690,7 @@ Proof.
   eauto using simp_up_to_eq with simp try_ret.
 Qed.
 
-Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → free A) :
+Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) :
   simp
     (Par (Ret a1) m2 k next)
     (v2 ← m2 ; k (a1, v2)).
@@ -698,7 +698,7 @@ Proof.
   eauto using simp_up_to_eq with simp bind_as_try.
 Qed.
 
-Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) :
+Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) :
   simp
     (Par m1 (Ret a2) k next)
     (v1 ← m1 ; k (v1, a2)).

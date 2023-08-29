@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import free.
+From osiris.semantics Require Import micro.
 
 (* This module fixes the specific set of codes that we need to write an
    interpreter for OCaml. *)
@@ -50,12 +50,12 @@ Notation "' x ← y ; z" :=
 
 (* [flip] flips a coin. *)
 
-Definition flip : free bool :=
+Definition flip : micro bool :=
   stop CFlip ().
 
 (* [choose m1 m2] is a non-deterministic choice between the
    computations [m1] and [m2]. *)
 
-Definition choose {A} (m1 m2 : free A) : free A :=
+Definition choose {A} (m1 m2 : micro A) : micro A :=
   b ← flip ;
   if (b : bool) then m1 else m2.

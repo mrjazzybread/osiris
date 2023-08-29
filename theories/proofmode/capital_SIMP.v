@@ -20,7 +20,7 @@ From osiris.proofmode Require Import equality simp.
 (* Because the relation [simp] is inductively defined, this judgement implies
    that [m] terminates. This is a Hoare logic of total correctness. *)
 
-Definition SIMP `{Encode X} (m : free val) (φ : X → Prop) :=
+Definition SIMP `{Encode X} (m : micro val) (φ : X → Prop) :=
   ∃ x, simp m (ret #x) ∧ φ x.
 
 (* -------------------------------------------------------------------------- *)
@@ -109,7 +109,7 @@ Qed.
 
 (* [bind] composed with [as_bool]. *)
 
-Lemma simp_as_bool (x : bool) (m : free val) :
+Lemma simp_as_bool (x : bool) (m : micro val) :
   simp m (ret #x) →
   simp (as_bool m) (ret x).
 Proof.
@@ -117,7 +117,7 @@ Proof.
 Qed.
 
 Lemma SIMP_bind_as_bool Y (_ : Encode Y)
-  m (f : bool → free val) (φ : bool → Prop) (ψ : Y → Prop) :
+  m (f : bool → micro val) (φ : bool → Prop) (ψ : Y → Prop) :
   SIMP m φ →
   (∀ (x : bool), φ x → SIMP (f x) ψ) →
   SIMP (bind (as_bool m) f) ψ.
@@ -131,7 +131,7 @@ Qed.
 
 (* [bind] composed with [as_int]. *)
 
-Lemma simp_as_int (x : Z) (m : free val) :
+Lemma simp_as_int (x : Z) (m : micro val) :
   simp m (ret #x) →
   simp (as_int m) (ret (repr x)).
 Proof.
@@ -139,7 +139,7 @@ Proof.
 Qed.
 
 Lemma SIMP_bind_as_int Y (_ : Encode Y)
-  m (f : int → free val) (φ : Z → Prop) (ψ : Y → Prop) :
+  m (f : int → micro val) (φ : Z → Prop) (ψ : Y → Prop) :
   SIMP m φ →
   (∀ (x : Z), φ x → SIMP (f (repr x)) ψ) →
   SIMP (bind (as_int m) f) ψ.

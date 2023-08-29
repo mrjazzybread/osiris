@@ -22,14 +22,14 @@ From orisis.semantics Require Import semantics.
 Axiom TODO: forall A, A.
 Require Import FunctionalExtensionality.
 
-Fixpoint maxsimp_aux {A} (m: free A):
-  { m': free A | simp m m' } :=
+Fixpoint maxsimp_aux {A} (m: micro A):
+  { m': micro A | simp m m' } :=
   match m as m0
-        return (m = m0 → {m' : free A | simp m0 m'}) with
+        return (m = m0 → {m' : micro A | simp m0 m'}) with
   | @Stop _ X Y c x k => (* TODO! *)
       λ (Heq: m = Stop c x k),
       eq_rect m
-              (λ m, { m': free A | simp m m' })
+              (λ m, { m': micro A | simp m m' })
               (exist _ m (SimpReflexive m))
               (Stop c x k) Heq
 
@@ -61,7 +61,7 @@ Fixpoint maxsimp_aux {A} (m: free A):
 
         (* Check whether or not [ko = λ (), Next]. *)
         match ko_val as kov
-              return (ko tt = kov → {m' : free A | simp (Par m1 m2 k ko) m'})
+              return (ko tt = kov → {m' : micro A | simp (Par m1 m2 k ko) m'})
         with
         | Next => (* [ko = λ tt, Next]. *)
             λ (Eq_ko: ko tt = Next),
@@ -86,7 +86,7 @@ Fixpoint maxsimp_aux {A} (m: free A):
                   let '(o1, o2) := o in
                   is_ret (`m'1) = o1 →
                   is_ret (`m'2) = o2 →
-                  {m': free A | simp (Par m1 m2 k ko) m'}
+                  {m': micro A | simp (Par m1 m2 k ko) m'}
             with
             | (None, None) => (* Case (2.) *)
                 fun _ => fun _ =>
@@ -188,14 +188,14 @@ Fixpoint maxsimp_aux {A} (m: free A):
   (* Matches [Ret _], [Next] and [Crash] *)
   | m0 =>
       λ (Heq: m = m0),
-      eq_rect m (λ m, { m': free A | simp m m' }) (m ↾ SimpReflexive m) m0 Heq
+      eq_rect m (λ m, { m': micro A | simp m m' }) (m ↾ SimpReflexive m) m0 Heq
   end eq_refl.
 
 (* [maxsimp m] returns a simplified term [r] such that [simp m r]. *)
-Definition maxsimp {A} (m: free A) : free A :=
+Definition maxsimp {A} (m: micro A) : micro A :=
   proj1_sig (maxsimp_aux m).
 
-Lemma maxsimp_correct {A} (m: free A):
+Lemma maxsimp_correct {A} (m: micro A):
     simp m (maxsimp m).
 Proof. exact (proj2_sig (maxsimp_aux m)). Qed.
 

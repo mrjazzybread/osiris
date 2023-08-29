@@ -321,8 +321,8 @@ Qed.
    about [m1], one would have to prove that [m2 a] is safe for [n2]
    steps. *)
 
-Lemma initially_safe_try_aux_1 {A B} (m2 : A → free B) ko :
-  ∀ n (m1 : free A) σ (φ : store → B → Prop),
+Lemma initially_safe_try_aux_1 {A B} (m2 : A → micro B) ko :
+  ∀ n (m1 : micro A) σ (φ : store → B → Prop),
   initially_safe n (σ, m1) (λ σ' a, initially_safe n (σ', m2 a) φ) →
   initially_safe n (σ, try m1 m2 ko) φ.
 Proof.
@@ -356,8 +356,8 @@ Proof.
 
 Qed.
 
-Lemma initially_safe_bind_aux_1 {A B} (m2 : A → free B) :
-  ∀ n (m1 : free A) σ (φ : store → B → Prop),
+Lemma initially_safe_bind_aux_1 {A B} (m2 : A → micro B) :
+  ∀ n (m1 : micro A) σ (φ : store → B → Prop),
   initially_safe n (σ, m1) (λ σ' a, initially_safe n (σ', m2 a) φ) →
   initially_safe n (σ, bind m1 m2) φ.
 Proof.
@@ -368,8 +368,8 @@ Qed.
    then [m1] is safe for [n1] steps and (then, for every result [a])
         [m2 a] is safe for [n2] steps. *)
 
-Lemma initially_safe_bind_aux_2 {A B} (m2 : A → free B) :
-  ∀ n1 n2 (m1 : free A) σ (φ : store → B → Prop),
+Lemma initially_safe_bind_aux_2 {A B} (m2 : A → micro B) :
+  ∀ n1 n2 (m1 : micro A) σ (φ : store → B → Prop),
   initially_safe (n1 + n2) (σ, bind m1 m2) φ →
   initially_safe n1 (σ, m1) (λ σ' a, initially_safe n2 (σ', m2 a) φ).
 Proof.
@@ -434,7 +434,7 @@ Qed.
    [m1] is safe and (then, for every result [a])
    [m2 a] is safe. *)
 
-Lemma safe_bind {A B} m1 σ (m2 : A → free B) (φ : store → B → Prop) :
+Lemma safe_bind {A B} m1 σ (m2 : A → micro B) (φ : store → B → Prop) :
   safe (σ, bind m1 m2) φ ↔
   safe (σ, m1) (λ σ' a, safe (σ', m2 a) φ).
 Proof.
@@ -453,7 +453,7 @@ Proof.
     eapply Hm2a. }
 Qed.
 
-Lemma prove_safe_bind {A B} m1 σ (m2 : A → free B) (φ : store → B → Prop) :
+Lemma prove_safe_bind {A B} m1 σ (m2 : A → micro B) (φ : store → B → Prop) :
   safe (σ, m1) (λ σ' a, safe (σ', m2 a) φ) →
   safe (σ, bind m1 m2) φ.
 Proof.
@@ -469,7 +469,7 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 Lemma prove_initially_safe {A} :
-  ∀ (n: nat) σ {m : free A} {φ : A → Prop},
+  ∀ (n: nat) σ {m : micro A} {φ : A → Prop},
   (
     ∀ (j : nat) σ' m',
       j ≤ n →
@@ -498,7 +498,7 @@ Proof.
 
 Qed.
 
-Lemma prove_safe {A} σ {m : free A} {φ : A → Prop} :
+Lemma prove_safe {A} σ {m : micro A} {φ : A → Prop} :
   (
     ∀ j σ' m',
       steps j (σ, m) (σ', m') →

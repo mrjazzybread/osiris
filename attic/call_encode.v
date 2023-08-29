@@ -1,4 +1,4 @@
-Definition call_encode `{Encode A} v (x : A) : free val :=
+Definition call_encode `{Encode A} v (x : A) : micro val :=
   call v #x.
 
 Lemma call_encode_def `{Encode A} v1 v2 (x : A) :

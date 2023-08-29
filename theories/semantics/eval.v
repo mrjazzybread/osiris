@@ -35,34 +35,34 @@ Implicit Type items : sitems.
    namely, pattern matching failures (caused by nonexhaustive case analyses)
    and assertion failures. *)
 
-Definition assertion_failure {A} : free A :=
+Definition assertion_failure {A} : micro A :=
   crash.
 
-Definition division_by_zero {A} : free A :=
+Definition division_by_zero {A} : micro A :=
   crash.
 
-Definition length_mismatch {A} (msg : string) : free A :=
+Definition length_mismatch {A} (msg : string) : micro A :=
   crash.
 
-Definition match_failure {A} (tt : unit) : free A :=
+Definition match_failure {A} (tt : unit) : micro A :=
   crash.
 
-Definition missing_field {A} (x : var) : free A :=
+Definition missing_field {A} (x : var) : micro A :=
   crash.
 
-Definition missing_variable {A} (x : var) : free A :=
+Definition missing_variable {A} (x : var) : micro A :=
   crash.
 
-Definition missing_variable_or_field {A} (x : var) : free A :=
+Definition missing_variable_or_field {A} (x : var) : micro A :=
   crash.
 
-Definition structural_equality_error {A} (msg : string) : free A :=
+Definition structural_equality_error {A} (msg : string) : micro A :=
   crash.
 
-Definition structural_ordering_error {A} (msg : string) : free A :=
+Definition structural_ordering_error {A} (msg : string) : micro A :=
   crash.
 
-Definition type_mismatch {A} (msg : string) : free A :=
+Definition type_mismatch {A} (msg : string) : micro A :=
   crash.
 
 (* ------------------------------------------------------------------------ *)
@@ -80,7 +80,7 @@ Notation ok :=
 (* [val_as_bool v] checks that the value [v] is a language-level Boolean
    value and returns its meta-level Boolean value. *)
 
-Definition val_as_bool (v : val) : free bool :=
+Definition val_as_bool (v : val) : micro bool :=
   match v with
   | VFalse =>
       ret false
@@ -90,7 +90,7 @@ Definition val_as_bool (v : val) : free bool :=
       type_mismatch "Boolean value expected"
   end.
 
-Definition as_bool (m : free val) : free bool :=
+Definition as_bool (m : micro val) : micro bool :=
   bind m val_as_bool.
 
 
@@ -98,7 +98,7 @@ Definition as_bool (m : free val) : free bool :=
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
 
-Definition val_as_loc (v: val) : free loc :=
+Definition val_as_loc (v: val) : micro loc :=
   match v with
   | VLoc l =>
       ret l
@@ -106,7 +106,7 @@ Definition val_as_loc (v: val) : free loc :=
       type_mismatch "location value expected"
   end.
 
-Definition as_loc (m : free val) : free loc :=
+Definition as_loc (m : micro val) : micro loc :=
   bind m val_as_loc.
 
 (* ------------------------------------------------------------------------ *)
@@ -114,7 +114,7 @@ Definition as_loc (m : free val) : free loc :=
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
-Definition val_as_int (v : val) : free int :=
+Definition val_as_int (v : val) : micro int :=
   match v with
   | VInt i =>
       ret i
@@ -122,12 +122,12 @@ Definition val_as_int (v : val) : free int :=
       type_mismatch "integer value expected"
   end.
 
-Definition as_int (m : free val) : free int :=
+Definition as_int (m : micro val) : micro int :=
   bind m val_as_int.
 
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
-Definition check_div_by_zero i : free unit :=
+Definition check_div_by_zero i : micro unit :=
   if int.eq i int.zero then
     division_by_zero (* TODO raise an exception *)
   else
@@ -139,7 +139,7 @@ Definition check_div_by_zero i : free unit :=
    value and returns its content, a list of field-value pairs, which can
    also be viewed as an environment fragment. *)
 
-Definition val_as_record (v : val) : free env :=
+Definition val_as_record (v : val) : micro env :=
   match v with
   | VRecord fvs =>
       ret fvs
@@ -147,7 +147,7 @@ Definition val_as_record (v : val) : free env :=
       type_mismatch "record value expected"
   end.
 
-Definition as_record (m : free val) : free env :=
+Definition as_record (m : micro val) : micro env :=
   bind m val_as_record.
 
 (* ------------------------------------------------------------------------ *)
@@ -155,7 +155,7 @@ Definition as_record (m : free val) : free env :=
 (* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
    xvs] and returns its content [xvs]. *)
 
-Definition val_as_struct (v : val) : free env :=
+Definition val_as_struct (v : val) : micro env :=
   match v with
   | VStruct xvs =>
       ret xvs
@@ -163,7 +163,7 @@ Definition val_as_struct (v : val) : free env :=
       type_mismatch "structure expected"
   end.
 
-Definition as_struct (m : free val) : free env :=
+Definition as_struct (m : micro val) : micro env :=
   bind m val_as_struct.
 
 (* ------------------------------------------------------------------------ *)
@@ -175,7 +175,7 @@ Definition as_struct (m : free val) : free env :=
 (* This function is used also to look up fields in records and module
    components in modules. *)
 
-Fixpoint lookup_name η x : free val :=
+Fixpoint lookup_name η x : micro val :=
   match η with
   | EnvCons x' v η =>
       if x =? x' then ret v else lookup_name η x
@@ -187,7 +187,7 @@ Fixpoint lookup_name η x : free val :=
 
 (* [lookup_path η π] looks up the path [π] in the environment [η]. *)
 
-Fixpoint lookup_path η π : free val :=
+Fixpoint lookup_path η π : micro val :=
   match π with
   | PathBase x =>
       lookup_name η x
@@ -215,7 +215,7 @@ Fixpoint concat δ η : env :=
 
 (* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
 
-Fixpoint remove f fvs : free env :=
+Fixpoint remove f fvs : micro env :=
   match fvs with
   | EnvCons f' v fvs =>
       if f =? f' then
@@ -232,7 +232,7 @@ Fixpoint remove f fvs : free env :=
 (* [update fvs fvs'] updates the existing record fields [fvs] with the new
    record fields [fvs']. *)
 
-Fixpoint update fvs fvs' : free env :=
+Fixpoint update fvs fvs' : micro env :=
   match fvs' with
   | EnvNil =>
       ret fvs
@@ -272,7 +272,7 @@ Fixpoint domain (η : env) : list string :=
       x :: domain η
   end.
 
-Fixpoint build (η : env) (xs : list string) : free env :=
+Fixpoint build (η : env) (xs : list string) : micro env :=
   match xs with
   | [] =>
       ret EnvNil
@@ -282,7 +282,7 @@ Fixpoint build (η : env) (xs : list string) : free env :=
       ret (EnvCons x v xs)
   end.
 
-Definition sort (η : env) : free env :=
+Definition sort (η : env) : micro env :=
   build η (StringSort.sort (domain η)).
 
 (* ------------------------------------------------------------------------ *)
@@ -315,7 +315,7 @@ Definition eval_rec_bindings η rbs : env :=
 (* [lookup_rec_bindings rbs g] looks up the function [g] in the recursive
    bindings [rbs]. The right-hand side is an anonymous function [a]. *)
 
-Fixpoint lookup_rec_bindings rbs g : free anonfun :=
+Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
   match rbs with
   | RecBiCons (RecBinding g' a) rbs =>
       if g =? g' then ret a else lookup_rec_bindings rbs g
@@ -341,7 +341,7 @@ Fixpoint lookup_rec_bindings rbs g : free anonfun :=
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Fixpoint extend δ p v : free env :=
+Fixpoint extend δ p v : micro env :=
   match p, v with
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
@@ -401,7 +401,7 @@ end
 (* For now, pattern matching is sequential. Parallel evaluation would
    make sense once we enable pattern matching on mutable state. *)
 
-with extends δ ps vs : free env :=
+with extends δ ps vs : micro env :=
   match ps, vs with
   | PNil, VNil =>
       ret δ
@@ -423,7 +423,7 @@ with extends δ ps vs : free env :=
 
    A hard failure occurs if a field is present in [fps] but absent in [fvs]. *)
 
-with extendfs δ fps fvs : free env :=
+with extendfs δ fps fvs : micro env :=
   match fps with
   | FPNil =>
       ret δ
@@ -439,7 +439,7 @@ with extendfs δ fps fvs : free env :=
 (* [acall η a v] evaluates the application of the anonymous function [a]
    to the value [v] in the environment [η]. *)
 
-Definition acall η a v : free val :=
+Definition acall η a v : micro val :=
   (* An anonymous function [a] is of the form [fun x -> e]. *)
   let '(AnonFun x e) := a in
   (* Extend the environment [η] with a binding of the variable [x]
@@ -454,7 +454,7 @@ Definition acall η a v : free val :=
 (* The value [v1] is expected to be either a non-recursive closure [VClo η a]
    or a recursive closure [VCloRec η rbs g]. *)
 
-Definition call v1 v2 : free val :=
+Definition call v1 v2 : micro val :=
   (* The value [v1] must be a closure. *)
   match v1 with
   | VClo η a =>
@@ -481,7 +481,7 @@ Definition call v1 v2 : free val :=
    applied to values of base type (e.g., integers) and to composite immutable
    data structures (tuples, algebraic data, etc.). *)
 
-Fixpoint eq_val v1 v2 : free bool :=
+Fixpoint eq_val v1 v2 : micro bool :=
   match v1, v2 with
   | VInt i1, VInt i2 =>
       ret (int.eq i1 i2)
@@ -495,7 +495,7 @@ Fixpoint eq_val v1 v2 : free bool :=
       structural_equality_error "invalid or unsupported arguments"
   end
 
-with eq_vals vs1 vs2 : free bool :=
+with eq_vals vs1 vs2 : micro bool :=
   match vs1, vs2 with
   | VNil, VNil =>
       ret true
@@ -527,7 +527,7 @@ Definition ne_val v1 v2 :=
    of the comparison between two data constructors A and B depends on their
    type; but, in our model of values, type information is absent. *)
 
-Definition lt_val v1 v2 : free bool :=
+Definition lt_val v1 v2 : micro bool :=
   match v1, v2 with
   | VInt i1, VInt i2 =>
       (* A signed integer comparison. *)
@@ -569,7 +569,7 @@ Definition ge_val v1 v2 :=
    uninteresting bindings, e.g., when a function is invoked (see
    [acall]) and when the body of a loop is executed (see [loop]). *)
 
-Definition ret_concat δ η : free env :=
+Definition ret_concat δ η : micro env :=
   ret (concat δ η).
 
 (* ------------------------------------------------------------------------ *)
@@ -605,7 +605,7 @@ Definition ret_dconcat δ' ηδ :=
 
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
-Fixpoint coerce (c : coercion) (v : val) : free val :=
+Fixpoint coerce (c : coercion) (v : val) : micro val :=
   match c with
   | CIdentity =>
       ret v
@@ -622,7 +622,7 @@ Fixpoint coerce (c : coercion) (v : val) : free val :=
 (* [coerces xcs xvs] applies the name-coercion list [xcs] to the
    name-value list [xvs], producing a new name-value list. *)
 
-with coerces (xcs : coercions) (xvs : env) : free env :=
+with coerces (xcs : coercions) (xvs : env) : micro env :=
   match xcs with
   | CNil =>
       ret EnvNil
@@ -668,7 +668,7 @@ with coerces (xcs : coercions) (xvs : env) : free env :=
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Fixpoint eval η e : free val :=
+Fixpoint eval η e : micro val :=
   match e with
   | EChar c => ret (VChar c)
   | EPath π =>
@@ -826,7 +826,7 @@ Fixpoint eval η e : free val :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : free val :=
+      let test : micro val :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in
@@ -851,7 +851,7 @@ Fixpoint eval η e : free val :=
 
 (* [evals] is used to evaluate tuples. *)
 
-with evals η es : free vals :=
+with evals η es : micro vals :=
   match es with
   | ENil =>
       ret VNil
@@ -870,7 +870,7 @@ with evals η es : free vals :=
 
 (* [evalfs] is used to evaluate record construction expressions. *)
 
-with evalfs η fes : free env :=
+with evalfs η fes : micro env :=
   match fes with
   | FENil =>
       ret EnvNil
@@ -895,7 +895,7 @@ with evalfs η fes : free env :=
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
    then [eval_bindings] would disappear. We prefer to avoid encodings. *)
 
-with eval_bindings η (bs : bindings) : free env :=
+with eval_bindings η (bs : bindings) : micro env :=
   match bs with
   | BiNil =>
       ret EnvNil
@@ -911,7 +911,7 @@ with eval_bindings η (bs : bindings) : free env :=
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
-with eval_match η v bs : free val :=
+with eval_match η v bs : micro val :=
   match bs with
   | BrNil =>
       (* A nonexhaustive [match] construct causes a hard failure. *)
@@ -950,7 +950,7 @@ with eval_match η v bs : free val :=
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
-with eval_mexpr η me : free val :=
+with eval_mexpr η me : micro val :=
   match me with
   | MPath π =>
       (* A path is looked up in the environment [η]. *)
@@ -970,7 +970,7 @@ with eval_mexpr η me : free val :=
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-with eval_sitems ηδ items : free envs :=
+with eval_sitems ηδ items : micro envs :=
   match items with
   | INil =>
       ret ηδ
@@ -984,7 +984,7 @@ with eval_sitems ηδ items : free envs :=
 (* [eval_sitem ηδ item] evaluates the structure item [item] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-with eval_sitem (ηδ : envs) item : free envs :=
+with eval_sitem (ηδ : envs) item : micro envs :=
   let '(η, δ) := ηδ in
   match item with
   | ILet bs =>
@@ -1018,7 +1018,7 @@ with eval_sitem (ηδ : envs) item : free envs :=
 (* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
    in the environment [η]. *)
 
-Definition loop η x i1 i2 e : free val :=
+Definition loop η x i1 i2 e : micro val :=
   if int.lt i2 i1 then
     (* If [i2 < i1] holds, then there is nothing to do. *)
     ok

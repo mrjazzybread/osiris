@@ -24,7 +24,7 @@ Section Modules.
     as a module-value into its environment and to fetch a value in an
     environment. *)
 
-  Let totalify {A B} (f: A → free B) (dummy : B) : A → B :=
+  Let totalify {A B} (f: A → micro B) (dummy : B) : A → B :=
         λ (a : A), match f a with
                    | Ret b => b
                    | _ => dummy

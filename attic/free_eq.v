@@ -1,4 +1,4 @@
-(* Equality on computations in the free monad. *)
+(* Equality on computations in the micro monad. *)
 
 Inductive eq {A} : mon A → mon A → Prop :=
 | EqRet a :

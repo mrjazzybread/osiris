@@ -69,7 +69,7 @@ Qed.
 
 (* [produces n m a] means that [m] reduces to [Ret a] in at most [n] steps. *)
 
-Definition produces {A} n (m : free A) σ (a : A) :=
+Definition produces {A} n (m : micro A) σ (a : A) :=
   steps n (σ, m) (σ, Ret a).
 
 Global Hint Unfold produces : steps.
@@ -80,7 +80,7 @@ Global Hint Unfold produces : steps.
 
 (* [step] and [produces] can be composed. *)
 
-Lemma step_produces {A} n (m m' : free A) σ a :
+Lemma step_produces {A} n (m m' : micro A) σ a :
   step (σ, m) (σ, m') →
   produces n m' σ a →
   produces (S n) m σ a.
@@ -103,7 +103,7 @@ Proof. inversion_clear 1. eauto. Qed.
 (* Relation between [steps] and its stdpp version ([nsteps]). *)
 
 Lemma steps_nsteps {A n} :
-  forall {σ1 σn} {m1 mn : free A},
+  forall {σ1 σn} {m1 mn : micro A},
   steps n (σ1, m1) (σn, mn) → ∃ n', nsteps step n' (σ1, m1) (σn, mn).
 Proof.
   induction n as [|n IHn] => σ1 σn m1 mn Hsteps.

@@ -15,7 +15,7 @@ From osiris.semantics Require Import code eval.
 
 (* The definition of [eval']. *)
 
-Definition eval' η e : free val :=
+Definition eval' η e : micro val :=
   match e with
   | EChar c => ret $ VChar c
   | EPath π =>
@@ -173,7 +173,7 @@ Definition eval' η e : free val :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : free val :=
+      let test : micro val :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in

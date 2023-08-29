@@ -4,7 +4,7 @@ From osiris.semantics Require Import semantics.
 Local Open Scope nat_scope.
 Local Set Warnings "-abstract-large-number".
 
-Definition do_something (v : val) : free val :=
+Definition do_something (v : val) : micro val :=
   let η := EnvCons "v" v EnvNil in
   v ← lookup_name η "v" ;
   let η := EnvCons "x" v EnvNil in
@@ -13,7 +13,7 @@ Definition do_something (v : val) : free val :=
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint left_leaning_sequence_of_binds (n : nat) : free val :=
+Fixpoint left_leaning_sequence_of_binds (n : nat) : micro val :=
   match n with
   | 0 =>
       ok
@@ -34,7 +34,7 @@ Time Eval cbv in left_leaning_sequence_of_binds 20000.
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint right_leaning_sequence_of_binds (n : nat) (v : val) : free val :=
+Fixpoint right_leaning_sequence_of_binds (n : nat) (v : val) : micro val :=
   match n with
   | 0 =>
       ok

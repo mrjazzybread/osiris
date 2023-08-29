@@ -22,7 +22,7 @@ Import C. (* We write [code] for [C.code]. *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* The custom constructors of this free monad are:
+(* The custom constructors of this micro monad are:
 
    - [Crash], a hard failure, which represents a crash and cannot be
      caught;
@@ -50,20 +50,20 @@ Import C. (* We write [code] for [C.code]. *)
    similar to the constructor [Vis] of interaction trees, and the type
    code is similar to an effect signature [E].
 
-   The type [free A] is inductive: every computation terminates.
+   The type [micro A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must
    (infinitely often) pause by performing a [Stop] effect. *)
 
-Inductive free A :=
+Inductive micro A :=
   | Ret (a : A)
   | Crash
   | Next
   | Stop {X Y}
-      (c : code X Y) (x : X) (k : Y → free A) (ko : unit → free A)
+      (c : code X Y) (x : X) (k : Y → micro A) (ko : unit → micro A)
   | Par {A1 A2}
-      (m1 : free A1) (m2 : free A2)
-      (k : A1 * A2 → free A)
-      (ko : unit → free A)
+      (m1 : micro A1) (m2 : micro A2)
+      (k : A1 * A2 → micro A)
+      (ko : unit → micro A)
 .
 
 (* Make [A] an implicit argument of the constructors. *)
@@ -98,7 +98,7 @@ Notation stop c x :=
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
 
-Definition par {A1 A2} (m1 : free A1) (m2 : free A2) : free (A1 * A2) :=
+Definition par {A1 A2} (m1 : micro A1) (m2 : micro A2) : micro (A1 * A2) :=
   Par m1 m2 ret next.
 
 (* ------------------------------------------------------------------------ *)
@@ -107,7 +107,7 @@ Definition par {A1 A2} (m1 : free A1) (m2 : free A2) : free (A1 * A2) :=
 
 (* [bind m f] sequences the computations [m] and [f]. *)
 
-Fixpoint bind {A B} (m : free A) (f : A → free B) : free B :=
+Fixpoint bind {A B} (m : micro A) (f : A → micro B) : micro B :=
   match m with
   | Ret a =>
       f a
@@ -136,7 +136,7 @@ Global Arguments bind A B !m f : simpl nomatch.
    we execute monadic computations (in Coq) using call-by-value evaluation
    and we do not want to evaluate ALL branches in a [match] construct. *)
 
-Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free B :=
+Fixpoint try {A B} (m : micro A) (f : A → micro B) (g : unit → micro B) : micro B :=
   match m with
   | Ret a =>
       f a
@@ -158,7 +158,7 @@ Fixpoint try {A B} (m : free A) (f : A → free B) (g : unit → free B) : free 
 (* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
    transmitted. If [m1] fails, then [m2] is run. *)
 
-Definition orelse {A} (m1 m2 : free A) : free A :=
+Definition orelse {A} (m1 m2 : micro A) : micro A :=
   try m1 ret (λ tt, m2).
 
 (* This is a monad. *)
@@ -167,7 +167,7 @@ Definition orelse {A} (m1 m2 : free A) : free A :=
    definition of [bind] anyway, so as to prevent Coq from expanding uses
    of [bind] into more complex expressions that seem to involve [try]. *)
 
-Lemma bind_as_try {A B} (m : free A) (f : A → free B) :
+Lemma bind_as_try {A B} (m : micro A) (f : A → micro B) :
   bind m f =
   try m f next.
 Proof.
@@ -182,35 +182,35 @@ Global Hint Extern 1 (_ = _) => rewrite bind_as_try : bind_as_try.
 
 (* Paraphrase lemmas. *)
 
-Lemma bind_ret {A B} (a : A) (f : A → free B) :
+Lemma bind_ret {A B} (a : A) (f : A → micro B) :
   bind (Ret a) f =
   f a.
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_crash {A B} (f : A → free B) :
+Lemma bind_crash {A B} (f : A → micro B) :
   bind Crash f =
   Crash.
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_next {A B} (f : A → free B) :
+Lemma bind_next {A B} (f : A → micro B) :
   bind Next f =
   Next.
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_stop {A B X Y} (c : code X Y) x k ko (f : A → free B) :
+Lemma bind_stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) :
   bind (Stop c x k ko) f =
   Stop c x (λ y, bind (k y) f) (λ y, bind (ko y) f).
 Proof.
   reflexivity.
 Qed.
 
-Lemma bind_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) :
+Lemma bind_par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) :
   bind (Par m1 m2 k ko) f =
   Par m1 m2 (λ v, bind (k v) f) (λ y, bind (ko y) f).
 Proof.
@@ -219,35 +219,35 @@ Qed.
 
 (* Analogous laws for [try]. *)
 
-Lemma try_ret {A B} (a : A) (f : A → free B) (ko : unit → free B) :
+Lemma try_ret {A B} (a : A) (f : A → micro B) (ko : unit → micro B) :
   try (Ret a) f ko =
   f a.
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_crash {A B} (f : A → free B) (ko : unit → free B) :
+Lemma try_crash {A B} (f : A → micro B) (ko : unit → micro B) :
   try Crash f ko =
   Crash.
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_next {A B} (f : A → free B) (ko : unit → free B) :
+Lemma try_next {A B} (f : A → micro B) (ko : unit → micro B) :
   try Next f ko =
   ko().
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_stop {A B X Y} (c : code X Y) x k ko (f : A → free B) ko' :
+Lemma try_stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) ko' :
   try (Stop c x k ko) f ko' =
   Stop c x (λ y, try (k y) f ko') (λ y, try (ko y) f ko').
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → free A) ko (f : A → free B) ko' :
+Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) ko' :
   try (Par m1 m2 k ko) f ko' =
   Par m1 m2 (λ v, try (k v) f ko') (λ y, try (ko y) f ko').
 Proof.
@@ -269,7 +269,7 @@ Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
    accept the law of functional extensionality, which implies that
    the desired equality coincides with Coq's ordinary equality. *)
 
-Lemma eq_stop_stop A X Y (k1 k2 : Y → free A) (c : code X Y) x ko1 ko2 :
+Lemma eq_stop_stop A X Y (k1 k2 : Y → micro A) (c : code X Y) x ko1 ko2 :
   (∀ v, k1 v = k2 v) →
   (∀ y, ko1 y = ko2 y) →
   Stop c x k1 ko1 = Stop c x k2 ko2.
@@ -277,8 +277,8 @@ Proof.
   intros. f_equal; extensionality v; eauto.
 Qed.
 
-Lemma eq_par_par {A A1 A2} (m1 : free A1) (m2 : free A2)
-  (k k' : A1 * A2 → free A) (ko ko' : unit → free A) :
+Lemma eq_par_par {A A1 A2} (m1 : micro A1) (m2 : micro A2)
+  (k k' : A1 * A2 → micro A) (ko ko' : unit → micro A) :
   (∀ v, k v = k' v) →
   ko() = ko'() →
   Par m1 m2 k ko = Par m1 m2 k' ko'.
@@ -297,34 +297,34 @@ Local Hint Resolve eq_stop_stop eq_par_par : eq.
 (* [bind_ret] has been proved already. *)
 
 Lemma bind_ret_right :
-  ∀ {A} (m : free A),
+  ∀ {A} (m : micro A),
   bind m Ret = m.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma bind_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) :
+Lemma bind_bind {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) :
   bind (bind m f) g =
   bind m (λ a, bind (f a) g).
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma bind_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
+Lemma bind_try {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko :
   bind (try m f ko) g =
   try m (λ a, bind (f a) g) (λ y, bind (ko y) g).
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma try_bind {A B C} (m : free A) (f : A → free B) (g : B → free C) ko :
+Lemma try_bind {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko :
   try (bind m f) g ko =
   try m (λ y, try (f y) g ko) ko.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma try_try {A B C} (m : free A) (f : A → free B) (g : B → free C) ko ko' :
+Lemma try_try {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko ko' :
   try (try m f ko) g ko' =
   try m (λ y, try (f y) g ko') (λ y, try (ko y) g ko').
 Proof.

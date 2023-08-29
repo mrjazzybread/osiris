@@ -6,7 +6,7 @@ From iris.prelude Require Import prelude options.
 
 (* This file defines an ample-step semantics, that is, a reduction semantics
    of the form [step c c'] where [c] and [c'] are pairs of a computation in
-   the [free] monad and a store. *)
+   the [micro] monad and a store. *)
 
 (* The definition of the relation [step] provides an interpretation of system
    calls, that is, of [Stop] events. For example, a [Stop CEval] event is
@@ -24,7 +24,7 @@ Implicit Type σ : store.
 (* A configuration is a pair of a computation and a store. *)
 
 Definition config (A : Type) : Type :=
-  store * free A.
+  store * micro A.
 
 (* This tactic explodes a configuration [c] into a pair [(σ, m)]. *)
 
@@ -124,13 +124,13 @@ Inductive step {A} : config A → config A → Prop :=
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2} σ m2 (k : A1 * A2 → free A) ko,
+      ∀ {A1 A2} σ m2 (k : A1 * A2 → micro A) ko,
       step
         (σ, Par Crash m2 k ko)
         (σ, Crash)
 
   | StepParCrashRight :
-      ∀ {A1 A2} σ m1 (k : A1 * A2 → free A) ko,
+      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) ko,
       step
         (σ, Par m1 Crash k ko)
         (σ, Crash)
@@ -138,27 +138,27 @@ Inductive step {A} : config A → config A → Prop :=
   (* If a soft failure on either side is detected, then
      the failure continuation [n] can be invoked. *)
   | StepParNextLeft :
-      ∀ {A1 A2} σ m2(k : A1 * A2 → free A) ko,
+      ∀ {A1 A2} σ m2(k : A1 * A2 → micro A) ko,
       step
         (σ, Par Next m2 k ko)
         (σ, ko())
 
   | StepParNextRight :
-      ∀ {A1 A2} σ m1 (k : A1 * A2 → free A) ko,
+      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) ko,
       step
         (σ, Par m1 Next k ko)
         (σ, ko())
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
-      ∀ {A1 A2} σ σ' (m1 m'1 : free A1) (m2 : free A2) k ko,
+      ∀ {A1 A2} σ σ' (m1 m'1 : micro A1) (m2 : micro A2) k ko,
       step (σ, m1) (σ', m'1) →
       step
         (σ, Par m1 m2 k ko)
         (σ', Par m'1 m2 k ko)
 
   | StepParRight :
-      ∀ {A1 A2} σ σ' (m1 : free A1) {m2 m'2 : free A2} k ko,
+      ∀ {A1 A2} σ σ' (m1 : micro A1) {m2 m'2 : micro A2} k ko,
       step (σ, m2) (σ', m'2) →
       step
         (σ, Par m1 m2 k ko)
@@ -193,7 +193,7 @@ Qed.
 (* [is_ret] offers an executable way of testing whether a computation is
    [Ret _]. *)
 
-Definition is_ret {A} (m : free A) : option A :=
+Definition is_ret {A} (m : micro A) : option A :=
   match m with
   | Ret a => Some a
   | _     => None
@@ -201,7 +201,7 @@ Definition is_ret {A} (m : free A) : option A :=
 
 (* Basic properties of [is_ret]. *)
 
-Lemma invert_is_ret_Some {A} {m : free A} {a} :
+Lemma invert_is_ret_Some {A} {m : micro A} {a} :
   is_ret m = Some a →
   m = Ret a.
 Proof.
@@ -226,7 +226,7 @@ Proof.
   simpl. congruence.
 Qed.
 
-Lemma is_not_ret_bind {A B} (m : free A) (f : A → free B) :
+Lemma is_not_ret_bind {A B} (m : micro A) (f : A → micro B) :
   is_not_ret m →
   is_not_ret (bind m f).
 Proof.
@@ -234,13 +234,13 @@ Proof.
 Qed.
 
 Lemma is_not_ret_crash {A} :
-  is_not_ret (Crash : free A).
+  is_not_ret (Crash : micro A).
 Proof.
   reflexivity.
 Qed.
 
 Lemma is_not_ret_next {A} :
-  is_not_ret (Next : free A).
+  is_not_ret (Next : micro A).
 Proof.
   reflexivity.
 Qed.
@@ -285,7 +285,7 @@ Qed.
 (* [Crash] cannot step. *)
 
 Lemma invert_can_step_Crash {A} σ :
-  can_step (σ, Crash : free A) →
+  can_step (σ, Crash : micro A) →
   False.
 Proof.
   intros. destruct_can_step. destruct_step.
@@ -294,7 +294,7 @@ Qed.
 (* [Next] cannot step. *)
 
 Lemma invert_can_step_Next {A} σ :
-  can_step (σ, Next : free A) →
+  can_step (σ, Next : micro A) →
   False.
 Proof.
   intros. destruct_can_step. destruct_step.
@@ -309,7 +309,7 @@ Global Hint Resolve
 (* If the location [l] exists in the store, then [stop CStore (l, v')]
    can step in only one way. *)
 
-Lemma invert_step_store {A} σ l v' v k ko σ' (m' : free A) :
+Lemma invert_step_store {A} σ l v' v k ko σ' (m' : micro A) :
   σ !! l = Some v →
   step (σ, Stop CStore (l, v') k ko) (σ', m') →
   σ' = <[ l := v' ]> σ ∧
@@ -321,7 +321,7 @@ Qed.
 (* If the location [l] exists in the store, then [stop CLoad l]
    can step in only one way. *)
 
-Lemma invert_step_load {A} σ σ' l v k ko (m' : free A) :
+Lemma invert_step_load {A} σ σ' l v k ko (m' : micro A) :
   σ !! l = Some v →
   step (σ, Stop CLoad l k ko) (σ', m') →
   σ' = σ ∧
@@ -332,7 +332,7 @@ Qed.
 
 (* A term that can step is not [ret _]. *)
 
-Lemma can_step_is_not_ret {A} σ (m : free A) :
+Lemma can_step_is_not_ret {A} σ (m : micro A) :
   can_step (σ, m) →
   is_not_ret m.
 Proof.
@@ -342,7 +342,7 @@ Qed.
 
 (* [Stop] can step. *)
 
-Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → free A) ko :
+Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → micro A) ko :
   can_step (σ, Stop c x k ko).
 Proof.
   destruct c; repeat destruct x as (x & ?);
@@ -364,7 +364,7 @@ Global Hint Resolve can_step_stop : step.
 (* The following auxiliary lemma is used in the proof of [can_step_par],
    which establishes a stronger result. *)
 
-Local Lemma can_step_under_par {A1 A2 A} σ m1 m2 (k : A1 * A2 → free A) ko :
+Local Lemma can_step_under_par {A1 A2 A} σ m1 m2 (k : A1 * A2 → micro A) ko :
   can_step (σ, m1) ∨ can_step (σ, m2) →
   can_step (σ, Par m1 m2 k ko).
 Proof.
@@ -374,7 +374,7 @@ Qed.
 (* [Par] can step. *)
 
 Lemma can_step_par :
-  ∀ {A} (m : free A) {A1 A2} σ m1 m2 (k : A1 * A2 → free A) ko,
+  ∀ {A} (m : micro A) {A1 A2} σ m1 m2 (k : A1 * A2 → micro A) ko,
   m = Par m1 m2 k ko →
   can_step (σ, m).
 Proof.
@@ -394,7 +394,7 @@ Global Hint Resolve can_step_par : step.
 
 (* This corresponds to reduction under an evaluation context. *)
 
-Lemma step_try {A B} σ σ' (m m' : free A) (f : A → free B) ko :
+Lemma step_try {A B} σ σ' (m m' : micro A) (f : A → micro B) ko :
   step (σ, m) (σ', m') →
   step (σ, try m f ko) (σ', try m' f ko).
 Proof.
@@ -405,7 +405,7 @@ Qed.
 
 (* As a special case, stepping under [bind] is also permitted. *)
 
-Lemma step_bind {A B} σ σ' (m m' : free A) (f : A → free B) :
+Lemma step_bind {A B} σ σ' (m m' : micro A) (f : A → micro B) :
   step (σ, m) (σ', m') →
   step (σ, bind m f) (σ', bind m' f).
 Proof.
@@ -414,14 +414,14 @@ Qed.
 
 (* Corollaries. *)
 
-Lemma can_step_try {A B} σ (m : free A) (f : A → free B) ko :
+Lemma can_step_try {A B} σ (m : micro A) (f : A → micro B) ko :
   can_step (σ, m) →
   can_step (σ, try m f ko).
 Proof.
   unfold can_step. intros ([] & Hstep). eauto using step_try.
 Qed.
 
-Lemma can_step_bind {A B} σ (m : free A) (f : A → free B) :
+Lemma can_step_bind {A B} σ (m : micro A) (f : A → micro B) :
   can_step (σ, m) →
   can_step (σ, bind m f).
 Proof.
@@ -436,7 +436,7 @@ Global Hint Resolve can_step_try can_step_bind : can_step.
 (* In other words, reduction under a context is mandatory: no other reduction
    is possible. *)
 
-Lemma invert_step_try {A B σ} {m : free A} {f : A → free B} {ko σ' mm} :
+Lemma invert_step_try {A B σ} {m : micro A} {f : A → micro B} {ko σ' mm} :
   step (σ, try m f ko) (σ', mm) →
   can_step (σ, m) →
   (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f ko).
@@ -456,7 +456,7 @@ Qed.
    is in fact stronger, as it requires just [is_not_ret m] instead of the
    stronger hypothesis [can_step (_, m)]. *)
 
-Lemma invert_step_bind {A B σ m} {f : A → free B} {σ' mm} :
+Lemma invert_step_bind {A B σ m} {f : A → micro B} {σ' mm} :
   step (σ, bind m f) (σ', mm) →
   is_not_ret m →
   (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
@@ -476,7 +476,7 @@ Qed.
 
 (* More properties of [is_not_ret]. *)
 
-Lemma is_not_ret_try {A B σ} (m : free A) (f : A → free B) ko :
+Lemma is_not_ret_try {A B σ} (m : micro A) (f : A → micro B) ko :
   can_step (σ, m) →
   is_not_ret (try m f ko).
 Proof.
@@ -514,7 +514,7 @@ Qed.
 (* [Crash] is stuck. *)
 
 Lemma stuck_Crash {A} σ :
-  stuck (σ, Crash : free A).
+  stuck (σ, Crash : micro A).
 Proof.
   unfold stuck. split.
   { eauto using is_not_ret_crash. }
@@ -524,7 +524,7 @@ Qed.
 (* [Next] is stuck. *)
 
 Lemma stuck_Next {A} σ :
-  stuck (σ, Next : free A).
+  stuck (σ, Next : micro A).
 Proof.
   unfold stuck. split.
   { eauto using is_not_ret_next. }
@@ -533,7 +533,7 @@ Qed.
 
 (* The only stuck terms are [Crash] and [Next]. *)
 
-Lemma only_crash_and_next_are_stuck {A} σ (m : free A) :
+Lemma only_crash_and_next_are_stuck {A} σ (m : micro A) :
   stuck (σ, m) →
   m = Crash ∨ m = Next.
 Proof.
@@ -547,7 +547,7 @@ Qed.
 
 (* If [m] is stuck then [bind m f] is also stuck. *)
 
-Lemma stuck_bind {A B} σ (m : free A) (f : A → free B) :
+Lemma stuck_bind {A B} σ (m : micro A) (f : A → micro B) :
   stuck (σ, m) →
   stuck (σ, bind m f).
 Proof.
@@ -563,7 +563,7 @@ Qed.
 (* This principle allows case analyses with three cases, as follows:
    either [m] is a result, or [m] can step, or [m] is stuck. *)
 
-Lemma triplicity {A} σ (m : free A) :
+Lemma triplicity {A} σ (m : micro A) :
   (∃ a, m = ret a) ∨
   can_step (σ, m) ∨
   stuck (σ, m).

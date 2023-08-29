@@ -67,7 +67,7 @@ Qed.
 
 (* The Bind rule. *)
 
-Lemma prove_simp_bind {A B m m' a} {f : A → free B} :
+Lemma prove_simp_bind {A B m m' a} {f : A → micro B} :
   simp m (ret a) →
   simp (f a) m' →
   simp (bind m f) m'.
@@ -77,7 +77,7 @@ Qed.
 
 (* The Try rule. *)
 
-Lemma prove_simp_try {A B m m' a} {f : A → free B} ko :
+Lemma prove_simp_try {A B m m' a} {f : A → micro B} ko :
   simp m (ret a) →
   simp (f a) m' →
   simp (try m f ko) m'.
@@ -93,49 +93,49 @@ Qed.
    constructors, possibly complemented with [rewrite] steps. Using lemmas is
    somewhat more robust and should give rise to smaller proof terms. *)
 
-Lemma simp_reflexive {A} (m1 m2 : free A) :
+Lemma simp_reflexive {A} (m1 m2 : micro A) :
   m1 = m2 →
   simp m1 m2.
 Proof.
   intros. subst. eauto with simp.
 Qed.
 
-Lemma simp_reflexive_ret {A} (m1 : free A) a2 :
+Lemma simp_reflexive_ret {A} (m1 : micro A) a2 :
   m1 = ret a2 →
   simp m1 (ret a2).
 Proof.
   intros. subst. eauto with simp.
 Qed.
 
-Lemma advance_SimpEval {A} η e (k : val → free A) ko m' :
+Lemma advance_SimpEval {A} η e (k : val → micro A) ko m' :
   simp (try (eval η e) k ko) m' →
   simp (Stop CEval (η, e) k ko) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpEvalNext {A} η e (k : val → free A) m' :
+Lemma advance_SimpEvalNext {A} η e (k : val → micro A) m' :
   simp (bind (eval η e) k) m' →
   simp (Stop CEval (η, e) k next) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpLoop {A} η x i1 i2 e (k : val → free A) ko m' :
+Lemma advance_SimpLoop {A} η x i1 i2 e (k : val → micro A) ko m' :
   simp (try (loop η x i1 i2 e) k ko) m' →
   simp (Stop CLoop (η, x, i1, i2, e) k ko) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpLoopNext {A} η x i1 i2 e (k : val → free A) m' :
+Lemma advance_SimpLoopNext {A} η x i1 i2 e (k : val → micro A) m' :
   simp (bind (loop η x i1 i2 e) k) m' →
   simp (Stop CLoop (η, x, i1, i2, e) k next) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpFlip {A} x k ko (m' : free A) :
+Lemma advance_SimpFlip {A} x k ko (m' : micro A) :
   simp (k false) m' →
   simp (k true) m' →
   simp (Stop CFlip x k ko) m'.
@@ -143,7 +143,7 @@ Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_simp_choose {A} (m1 m2 : free A) m' :
+Lemma advance_simp_choose {A} (m1 m2 : micro A) m' :
   simp m1 m' →
   simp m2 m' →
   simp (choose m1 m2) m'.
@@ -151,7 +151,7 @@ Proof.
   intros. eapply advance_SimpFlip; assumption.
 Qed.
 
-Lemma advance_SimpBind {A B} m1 m2 (f : A → free B) m' :
+Lemma advance_SimpBind {A B} m1 m2 (f : A → micro B) m' :
   simp m1 m2 →
   simp (bind m2 f) m' →
   simp (bind m1 f) m'.
@@ -159,7 +159,7 @@ Proof.
   eauto using simp_bind with simp.
 Qed.
 
-Lemma advance_SimpTry {A B} m1 m2 (f : A → free B) ko m' :
+Lemma advance_SimpTry {A B} m1 m2 (f : A → micro B) ko m' :
   simp m1 m2 →
   simp (try m2 f ko) m' →
   simp (try m1 f ko) m'.
@@ -167,42 +167,42 @@ Proof.
   eauto using simp_try with simp.
 Qed.
 
-Lemma advance_SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → free A) ko m' :
+Lemma advance_SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → micro A) ko m' :
   simp (k (a1, a2)) m' →
   simp (Par (Ret a1) (Ret a2) k ko) m'.
 Proof.
   eauto using SimpParRetRet with simp.
 Qed.
 
-Lemma advance_SimpParRetLeft {A1 A2 A} a1 m2 (k : A1 * A2 → free A) ko m' :
+Lemma advance_SimpParRetLeft {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) ko m' :
   simp (try m2 (λ v2, k (a1, v2)) ko) m' →
   simp (Par (Ret a1) m2 k ko) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpParRetRight {A1 A2 A} m1 a2 (k : A1 * A2 → free A) ko m' :
+Lemma advance_SimpParRetRight {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) ko m' :
   simp (try m1 (λ v1, k (v1, a2)) ko) m' →
   simp (Par m1 (Ret a2) k ko) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → free A) m' :
+Lemma advance_SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) m' :
   simp (v2 ← m2 ; k (a1, v2)) m' →
   simp (Par (Ret a1) m2 k next) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetLeft.
 Qed.
 
-Lemma advance_SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → free A) m' :
+Lemma advance_SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) m' :
   simp (v1 ← m1 ; k (v1, a2)) m' →
   simp (Par m1 (Ret a2) k next) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetRight.
 Qed.
 
-Lemma advance_SimpPar {A1 A2 A} m1 m'1 m2 m'2 (k : A1 * A2 → free A) ko m' :
+Lemma advance_SimpPar {A1 A2 A} m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko m' :
   simp m1 m'1 →
   simp m2 m'2 →
   simp (Par m'1 m'2 k ko) m' →
@@ -377,35 +377,35 @@ Qed.
    etc., and force the rule to be applied at the root of the goal. This is
    both safe and efficient (there is no need to scan the whole term). *)
 
-Lemma advance_simp_bind_ret {A B} (a : A) (f : A → free B) m' :
+Lemma advance_simp_bind_ret {A B} (a : A) (f : A → micro B) m' :
   simp (f a) m' →
   simp (bind (ret a) f) m'.
 Proof.
   rewrite bind_ret. tauto.
 Qed.
 
-Lemma advance_simp_bind_ret_right {A} (m : free A) m' :
+Lemma advance_simp_bind_ret_right {A} (m : micro A) m' :
   simp m m' →
   simp (bind m ret) m'.
 Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
-Lemma advance_simp_try_ret {A B} (a : A) (f : A → free B) ko m' :
+Lemma advance_simp_try_ret {A B} (a : A) (f : A → micro B) ko m' :
   simp (f a) m' →
   simp (try (ret a) f ko) m'.
 Proof.
   rewrite try_ret. tauto.
 Qed.
 
-Lemma advance_simp_try_next {A B} (f : A → free B) ko m' :
+Lemma advance_simp_try_next {A B} (f : A → micro B) ko m' :
   simp (ko()) m' →
   simp (try Next f ko) m'.
 Proof.
   rewrite try_next. tauto.
 Qed.
 
-Lemma advance_simp_bind_as_try {A B} m (f : A → free B) m' :
+Lemma advance_simp_bind_as_try {A B} m (f : A → micro B) m' :
   simp (bind m f) m' →
   simp (try m f next) m'.
 Proof.
@@ -413,7 +413,7 @@ Proof.
 Qed.
 
 Lemma advance_simp_bind_bind
-  {A B C} (m : free A) (f : A → free B) (g : B → free C) m' :
+  {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) m' :
   simp (bind m (λ a, bind (f a) g)) m' →
   simp (bind (bind m f) g) m'.
 Proof.
@@ -421,7 +421,7 @@ Proof.
 Qed.
 
 Lemma advance_simp_bind_try
-  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko m' :
+  {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko m' :
   simp (try m (λ a, bind (f a) g) (λ y, bind (ko y) g)) m' →
   simp (bind (try m f ko) g) m'.
 Proof.
@@ -429,7 +429,7 @@ Proof.
 Qed.
 
 Lemma advance_simp_try_bind
-  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko m'
+  {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko m'
 :
   simp (try m (λ y, try (f y) g ko) ko) m' →
   simp (try (bind m f) g ko) m'.
@@ -438,7 +438,7 @@ Proof.
 Qed.
 
 Lemma advance_simp_try_try
-  {A B C} (m : free A) (f : A → free B) (g : B → free C) ko ko' m' :
+  {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko ko' m' :
   simp (try m (λ y, try (f y) g ko') (λ y, try (ko y) g ko')) m' →
   simp (try (try m f ko) g ko') m'.
 Proof.

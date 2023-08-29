@@ -150,7 +150,7 @@ Section Rules.
 
 (* The consequence rule of Separation Logic. *)
 
-Lemma wp_covariant {A} s E (m : free A) φ φ' :
+Lemma wp_covariant {A} s E (m : micro A) φ φ' :
   WP m @ s; E {{ φ }} -∗
   (∀ a, φ a -∗ φ' a) -∗
   WP m @ s; E {{ φ' }}.
@@ -178,7 +178,7 @@ Qed.
    failure continuation [ko] is dead. Therefore, no proof obligation
    bears on [ko]. *)
 
-  Lemma wp_try {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko ψ :
+  Lemma wp_try {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ko ψ :
     WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
     WP (try m1 m2 ko) @ s; E {{ ψ }}.
   Proof.
@@ -218,7 +218,7 @@ Qed.
    analysis. The scope of the case analysis is then limited to the first
    premise, so the proof of [m2] is not duplicated. *)
 
-  Lemma wp_try_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ko φ ψ :
+  Lemma wp_try_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ko φ ψ :
     WP m1 @ s; E {{ φ }} ⊢
     (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }})-∗
     WP (try m1 m2 ko) @ s; E {{ ψ }}.
@@ -230,7 +230,7 @@ Qed.
 
   (* The Bind rule of Separation Logic. *)
 
-  Lemma wp_bind {A1 A2} s E (m1: free A1) (m2: A1 → free A2) ψ :
+  Lemma wp_bind {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ψ :
     WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
                WP (bind m1 m2) @ s; E {{ ψ }}.
   Proof.
@@ -243,7 +243,7 @@ Qed.
    analysis. The scope of the case analysis is then limited to the first
    premise, so the proof of [m2] is not duplicated. *)
 
-  Lemma wp_bind_binary {A1 A2} s E (m1: free A1) (m2: A1 → free A2) φ ψ :
+  Lemma wp_bind_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) φ ψ :
     WP m1 @ s; E {{ φ }} ⊢
     (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
     WP (bind m1 m2) @ s; E {{ ψ }}.
@@ -270,7 +270,7 @@ Qed.
      We do not want the user to rely on the fact that a join point counts as a
      step. *)
 
-  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → free A3} {ko φ} φ1 φ2:
+  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → micro A3} {ko φ} φ1 φ2:
     WP m1 @ s ; E {{ φ1 }} ⊢
     WP m2 @ s ; E {{ φ2 }} -∗
     (
@@ -350,7 +350,7 @@ Qed.
 
   (* [CEval]. *)
 
-  Lemma wp_eval {A} s E η e (k : val → free A) ko φ :
+  Lemma wp_eval {A} s E η e (k : val → micro A) ko φ :
     ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} ⊢
     WP (Stop CEval (η, e) k ko) @ s; E {{ φ }}.
   Proof.
@@ -385,7 +385,7 @@ Qed.
    value [b], so the computation [k b] must be proved safe for every
    possible value of [b]. *)
 
-  Lemma wp_flip {A} s E x (k: bool → free A) ko φ :
+  Lemma wp_flip {A} s E x (k: bool → micro A) ko φ :
     ▷ (∀ b, WP (k b) @ s; E {{ φ }}) ⊢
     WP (Stop CFlip x k ko) @ s; E {{ φ }}.
   Proof.
@@ -412,7 +412,7 @@ Qed.
   (* The following lemma is inspired by the corresponding CFML rule. *)
   Lemma wp_loop {A} s E
         (η : env) (x : var) (i1 i2 : int) (e : expr)
-        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ) :
+        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ) :
     (* If *)
     (▷ (* Either: *)
        if int.lt i2 i1
@@ -490,7 +490,7 @@ Qed.
      statement. *)
   Local Lemma wp_loop_inv_pos_aux {A} s E
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
-        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ)
+        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -597,7 +597,7 @@ Qed.
   Qed.
   Definition wp_loop_inv_pos {A} s E
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
-        (k : val → free A) (ko : unit → free A) (φ : A → iProp Σ)
+        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -619,7 +619,7 @@ Qed.
 
   (* The standard memory allocation rule of Separation Logic. *)
 
-  Lemma wp_alloc {A} s E v (k : loc → free A) ko φ :
+  Lemma wp_alloc {A} s E v (k : loc → micro A) ko φ :
     ▷ (
         ∀ l,
           mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
@@ -648,7 +648,7 @@ Qed.
 
   (* The standard memory write rule of Separation Logic. *)
 
-  Lemma wp_store {A} s E l v v' (k : unit → free A) ko φ :
+  Lemma wp_store {A} s E l v v' (k : unit → micro A) ko φ :
     mapsto l (DfracOwn 1) v ⊢
     ▷ (
         mapsto l (DfracOwn 1) v' -∗
@@ -677,7 +677,7 @@ Qed.
 
   (* The standard memory load rule of Separation Logic. *)
 
-  Lemma wp_load {A} s E l v dq (k: val → free A) ko φ :
+  Lemma wp_load {A} s E l v dq (k: val → micro A) ko φ :
     mapsto l dq v ⊢
     ▷ (
         mapsto l dq v -∗
@@ -710,7 +710,7 @@ Qed.
    holds then the safety of the simplified program [ms] implies the safety
    of the more complex original program [ms]. *)
 
-  Local Lemma wp_simplify {A} n (m ms : free A) s E φ :
+  Local Lemma wp_simplify {A} n (m ms : micro A) s E φ :
     WP ms @ s ; E {{ φ }} -∗
     ⌜ simplify n m ms ⌝ -∗
     WP m  @ s ; E {{ φ }}.
@@ -802,7 +802,7 @@ Qed.
 
   (* A corollary, for public use: [simp] is sound. *)
 
-  Lemma wp_simp {A} (m m' : free A) s E φ :
+  Lemma wp_simp {A} (m m' : micro A) s E φ :
     simp m m' →
     WP m' @ s ; E {{ φ }} ⊢
     WP m  @ s ; E {{ φ }}.
@@ -819,7 +819,7 @@ Qed.
 
   (* For this reason, they should not be used. TODO *)
 
-  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → free A) ko φ :
+  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → micro A) ko φ :
     WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} ⊢
     WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
   Proof.
@@ -829,7 +829,7 @@ Qed.
     by iApply wp_try.
   Qed.
 
-  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → free A) ko φ :
+  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → micro A) ko φ :
     WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} ⊢
     WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
   Proof.
@@ -839,7 +839,7 @@ Qed.
     by iApply wp_try.
   Qed.
 
-  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → free A3) ko φ:
+  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → micro A3) ko φ:
     WP (k (a1, a2)) @ s; E {{ φ }} ⊢
     WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
   Proof.

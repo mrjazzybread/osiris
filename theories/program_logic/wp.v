@@ -49,8 +49,8 @@ Context `{!osirisGS Σ}.
 
 Definition wp_pre
   (s : stuckness)
-  (wp: coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
-       coPset -d> free A -d> (A -d> iPropO Σ) -d> iPropO Σ
+  (wp: coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
+       coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ
   :=
   λ E m φ,
     (∀ σ,
@@ -91,7 +91,7 @@ Qed.
 
   The stuckness bit is not used at the moment. *)
 
-Definition wp_def : Wp (iProp Σ) (free A) A stuckness :=
+Definition wp_def : Wp (iProp Σ) (micro A) A stuckness :=
   λ (s : stuckness), fixpoint (wp_pre s).
 
 (* Standard boilerplate to seal the definition of [wp]. *)
@@ -118,7 +118,7 @@ Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.
 Implicit Type a : A.
-Implicit Type m : free A.
+Implicit Type m : micro A.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 

@@ -30,7 +30,7 @@ Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.
 Implicit Type a : A.
-Implicit Type m : free A.
+Implicit Type m : micro A.
 
 Lemma wp_value_fupd' s E (φ: A -> iProp Σ) m v :
   (|={E}=> φ v)%I ⊢ WP (Ret v) @ s; E {{ φ }}.
@@ -193,7 +193,7 @@ Context `{!osirisGS Σ}.
 (* This technical lemma allows grabbing the state invariant when the
    goal is a [WP] assertion. *)
 
-Lemma wp_grab {A} (m : free A) s E φ :
+Lemma wp_grab {A} (m : micro A) s E φ :
   (∀ σ, state_interp σ -∗
         |={E,∅}=> |={∅,E}=> state_interp σ ∗ WP m @ s; E {{ φ }}
   ) -∗
@@ -211,7 +211,7 @@ Qed.
 
 (* The assertion [WP m @ s; E {{ φ }}] is preserved by a reduction step. *)
 
-Lemma wp_step {A σ σ'} {m m' : free A} {s E φ} :
+Lemma wp_step {A σ σ'} {m m' : micro A} {s E φ} :
   step (σ, m) (σ', m') →
   state_interp σ -∗
   WP m @ s; E {{ φ }} ={E,∅}=∗
@@ -233,7 +233,7 @@ Qed.
 
 Opaque stuck. (* TODO *)
 
-Lemma wp_not_stuck {A} {σ} {m : free A} s E {φ} :
+Lemma wp_not_stuck {A} {σ} {m : micro A} s E {φ} :
   state_interp σ -∗
   WP m @ s; E {{ φ }} -∗
   |={E,∅}=> ⌜ ¬ stuck (σ, m) ⌝.
@@ -252,7 +252,7 @@ Qed.
 
 (* The following lemma state that given [wp _ m _] and a state interpretation of
    [σ], the configuration [(σ, m)] can take a step. *)
-Lemma wp_can_step {A σ φ} {m: free A} {s E}:
+Lemma wp_can_step {A σ φ} {m: micro A} {s E}:
   state_interp σ -∗
   wp s E m φ ={E,∅}=∗ ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
 Proof.
@@ -267,7 +267,7 @@ Proof.
 Qed.
 
 (* Ditto for a different mask. *)
-Lemma wp_can_step' {A σ φ} {m: free A} {s E}:
+Lemma wp_can_step' {A σ φ} {m: micro A} {s E}:
   state_interp σ -∗
   wp s E m φ ={E}=∗ ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
 Proof.

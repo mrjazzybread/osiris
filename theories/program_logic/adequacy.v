@@ -13,7 +13,7 @@ Section Adequacy.
 
   (* [wp_preservation] is an iterated version of [wp_step]. *)
   Lemma wp_preservation n :
-    forall {A σ1 σn} {m1 mn : free A} {s E φ},
+    forall {A σ1 σn} {m1 mn : micro A} {s E φ},
     nsteps step n (σ1, m1) (σn, mn) →
     state_interp σ1 -∗
     wp s E m1 φ ={E,∅}=∗
