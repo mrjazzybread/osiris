@@ -297,7 +297,7 @@ Section Adequacy.
     pose proof (steps_nsteps Hsteps) as [n' Hn'steps]; clear n Hsteps.
 
     (* Apply the corollary of the adequacy lemma stated and poven above. *)
-    apply (wp_adequacy' NotStuck _ Hn'steps).
+    apply (adequacy_corollary NotStuck _ Hn'steps).
     iIntros (??).
     iApply H.
   Qed.

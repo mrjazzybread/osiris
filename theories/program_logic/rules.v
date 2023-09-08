@@ -112,6 +112,16 @@ Section Rules.
     iMod (@fupd_mask_subseteq _ _ E ∅); [set_solver | eauto].
   Qed.
 
+  Lemma wp_ret_fupd {A} s E (a : A) φ :
+    (|={E}=> φ a) ⊢
+    WP (Ret a) @ s; E {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply fupd_wp.
+    iMod "H"; iModIntro.
+    iApply (wp_ret with "H").
+  Qed.
+
   (* The inverse return rule. *)
 
   Lemma invert_wp_ret {A} s E (a : A) φ :

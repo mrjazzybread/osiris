@@ -32,17 +32,8 @@ Implicit Type φ : A → iProp Σ.
 Implicit Type a : A.
 Implicit Type m : micro A.
 
-Lemma wp_value_fupd' s E (φ: A -> iProp Σ) m v :
-  (|={E}=> φ v)%I ⊢ WP (Ret v) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  wp_unfold_all.
-  iIntros (?)"$".
-  iMod "H".
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro; iMod "Hmod"; iModIntro; iFrame.
-Qed.
-
+(* [fupd_wp] states that to prove a WP behind a modality is enough to prove the
+   WP without modality. This is particularly useful when using invariants. *)
 Lemma fupd_wp s E m (φ: A -> iProp Σ) :
   (|={E}=> WP m @ s; E {{ φ }}) ⊢ WP m @ s; E {{ φ }}.
 Proof.
@@ -257,6 +248,8 @@ Qed.
 
 Opaque stuck. (* TODO *)
 
+(* [wp_not_stuck] states that: The "Weakest Precondition" ensures the progress
+   of computations.  *)
 Lemma wp_not_stuck {A} {σ} {m : micro A} s E {φ} :
   state_interp σ -∗
   WP m @ s; E {{ φ }} -∗
