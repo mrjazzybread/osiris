@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" class="alectryon-standalone" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <title>A Program Logic for OCaml</title>
 <link rel="stylesheet" href="alectryon.css" type="text/css" />
 <link rel="stylesheet" href="docutils_basic.css" type="text/css" />
@@ -38,6 +38,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | PData : data → pat → pat
   | PRecord : fpats → pat
   | PInt : Z → pat
+  | PChar : char → pat
   <span class="kr">with</span> pats : <span class="kt">Set</span> :=
     PNil : pats | PCons : pat → pats → pats
   <span class="kr">with</span> fpats : <span class="kt">Set</span> :=
@@ -51,10 +52,13 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> PData c p
 <span class="kn">Arguments</span> PRecord fps
 <span class="kn">Arguments</span> PInt i%Z_scope
+<span class="kn">Arguments</span> PChar c
 <span class="kn">Arguments</span> PCons p ps
 <span class="kn">Arguments</span> FPCons f p fps</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=
-    EPath : path → expr
+    EChar : char → expr
+  | EArray : exprs → expr
+  | EPath : path → expr
   | EAnonFun : anonfun → expr
   | EApp : expr → expr → expr
   | ETuple : exprs → expr
@@ -103,6 +107,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | FECons : <span class="bp">field</span> → expr → fexprs → fexprs
   <span class="kr">with</span> branch : <span class="kt">Set</span> :=
     Branch : pat → expr → branch
+  | BranchWhen : pat → expr → expr → branch
   <span class="kr">with</span> branches : <span class="kt">Set</span> :=
     BrNil : branches
   | BrCons : branch → branches → branches
@@ -132,6 +137,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | IOpen : path → sitem
   | IInclude : mexpr → sitem.
 
+<span class="kn">Arguments</span> EChar c
+<span class="kn">Arguments</span> EArray el
 <span class="kn">Arguments</span> EPath x
 <span class="kn">Arguments</span> EAnonFun a
 <span class="kn">Arguments</span> EApp e1 e2
@@ -174,6 +181,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> ECons e es
 <span class="kn">Arguments</span> FECons f e fes
 <span class="kn">Arguments</span> Branch p e
+<span class="kn">Arguments</span> BranchWhen p c e
 <span class="kn">Arguments</span> BrCons b bs
 <span class="kn">Arguments</span> Binding p e
 <span class="kn">Arguments</span> BiCons b bs
@@ -222,6 +230,8 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VRecord : env → val
   | VLoc : loc → val
   | VStruct : env → val
+  | VChar : char → val
+  | VArray : vals → val
   <span class="kr">with</span> vals : <span class="kt">Set</span> :=
     VNil : vals | VCons : val → vals → vals
   <span class="kr">with</span> env : <span class="kt">Set</span> :=
@@ -236,6 +246,8 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VRecord fvs
 <span class="kn">Arguments</span> VLoc l
 <span class="kn">Arguments</span> VStruct xvs
+<span class="kn">Arguments</span> VChar c
+<span class="kn">Arguments</span> VArray c
 <span class="kn">Arguments</span> VCons v vs
 <span class="kn">Arguments</span> EnvCons x v η</blockquote></div></div></small></span></pre><p>An <em>environment</em> is a mapping of variables to values. It is represented
 in Coq as an association list. Because a closure captures an environment,
@@ -250,6 +262,8 @@ the syntactic categories of values and environments are mutually recursive.</p>
   | VRecord : env → val
   | VLoc : loc → val
   | VStruct : env → val
+  | VChar : char → val
+  | VArray : vals → val
   <span class="kr">with</span> vals : <span class="kt">Set</span> :=
     VNil : vals | VCons : val → vals → vals
   <span class="kr">with</span> env : <span class="kt">Set</span> :=
@@ -264,6 +278,8 @@ the syntactic categories of values and environments are mutually recursive.</p>
 <span class="kn">Arguments</span> VRecord fvs
 <span class="kn">Arguments</span> VLoc l
 <span class="kn">Arguments</span> VStruct xvs
+<span class="kn">Arguments</span> VChar c
+<span class="kn">Arguments</span> VArray c
 <span class="kn">Arguments</span> VCons v vs
 <span class="kn">Arguments</span> EnvCons x v η</blockquote></div></div></small></span></pre></div>
 <div class="section" id="a-monadic-interpreter">
@@ -281,8 +297,8 @@ function of type <code class="highlight coq"><span class="n">env</span> <span cl
 interpretation is deterministic and always terminates.
 Instead, the interpreter must be a <em>monadic</em> interpreter:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk4" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk4"><span class="kn">Check</span> <span class="kp">eval</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">eval</span>
-     : env → expr → free val</blockquote></div></div></small></span></pre><p>The term <code class="highlight coq"><span class="kp">eval</span> <span class="n">η</span> <span class="n">e</span></code> has type <code class="highlight coq"><span class="n">free</span> <span class="n">val</span></code>,
-where <code class="highlight coq"><span class="n">free</span></code> is a <em>monad</em>.
+     : env → expr → micro val</blockquote></div></div></small></span></pre><p>The term <code class="highlight coq"><span class="kp">eval</span> <span class="n">η</span> <span class="n">e</span></code> has type <code class="highlight coq"><span class="n">micro</span> <span class="n">val</span></code>,
+where <code class="highlight coq"><span class="n">micro</span></code> is a <em>monad</em>.
 This means that <code class="highlight coq"><span class="kp">eval</span> <span class="n">η</span> <span class="n">e</span></code> is
 an effectful <em>computation</em> which may diverge,
 may behave in a non-deterministic manner, and
@@ -291,14 +307,14 @@ may eventually produce a value.</p>
 in the empty environment <code class="highlight coq"><span class="n">ε</span></code>
 yields the OCaml value <code>42</code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε (EInt <span class="mi">42</span>)
-: free val</blockquote></div></div></small></span></pre><p>Coq finds that this computation is equal to
+: micro val</blockquote></div></div></small></span></pre><p>Coq finds that this computation is equal to
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span><span class="o">))</span></code>.</p>
 <p>The data constructor <code class="highlight coq"><span class="n">ret</span></code> is the <code class="highlight coq"><span class="kr">return</span></code> combinator
 of the monad. Its presence means that Coq has been able
 to fully evaluate this computation, whose final result
 is the value <code class="highlight coq"><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span><span class="o">)</span></code>.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk6" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk6"><span class="kn">Check</span> @ret.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@ret
-     : <span class="kr">∀</span> <span class="nv">A</span>, A → free A</blockquote></div></div></small></span></pre><p>The tag <code class="highlight coq"><span class="n">VInt</span></code> identifies an integer value. Its payload,
+     : <span class="kr">∀</span> <span class="nv">A</span>, A → micro A</blockquote></div></div></small></span></pre><p>The tag <code class="highlight coq"><span class="n">VInt</span></code> identifies an integer value. Its payload,
 <code class="highlight coq"><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span></code>, is a machine integer.
 OCaml has integers of a limited bit width.
 The projection <code class="highlight coq"><span class="n">int</span><span class="o">.</span><span class="n">repr</span></code> maps the type <code class="highlight coq"><span class="n">Z</span></code> of ideal integers
@@ -387,7 +403,7 @@ and to resume the interpreter.</p>
 <p>This can be observed by asking Coq to evaluate the OCaml expression
 <code class="highlight coq"><span class="mi">24</span> <span class="o">+</span> <span class="mi">18</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk8" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk8"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε add_24_plus_18).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε add_24_plus_18
-: free val</blockquote></div></div></small></span></pre><p>The interpreter hits a <code class="highlight coq"><span class="n">Par</span></code> combinator whose branches are
+: micro val</blockquote></div></div></small></span></pre><p>The interpreter hits a <code class="highlight coq"><span class="n">Par</span></code> combinator whose branches are
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">24</span><span class="o">)</span></code> and <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">18</span><span class="o">)</span></code>
 and whose continuation is
 <code class="highlight coq"><span class="o">(</span><span class="kr">λ</span> <span class="o">'(</span><span class="n">i1</span><span class="o">,</span> <span class="n">i2</span><span class="o">),</span> <span class="n">ret</span> <span class="o">(</span><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">add</span> <span class="n">i1</span> <span class="n">i2</span><span class="o">)))</span></code>.</p>
@@ -400,21 +416,22 @@ We do so in the next two sections.</p>
 <h1>The Monad</h1>
 <p>The monad that is used to write the interpreter
 is defined as follows:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk9" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk9"><span class="kn">Print</span> free.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">free</span> <span class="nv">A</span> : <span class="kt">Type</span> :=
-    Ret : A → free A
-  | Crash : free A
-  | Next : free A
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk9" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk9"><span class="kn">Print</span> micro.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">micro</span> <span class="nv">A</span> : <span class="kt">Type</span> :=
+    Ret : A → micro A
+  | Crash : micro A
+  | Next : micro A
   | Stop : <span class="kr">∀</span> <span class="nv">X</span> <span class="nv">Y</span>,
              C.code X Y
              → X
-               → (Y → free A) → (() → free A) → free A
+               → (Y → micro A)
+                 → (() → micro A) → micro A
   | Par : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span>,
-            free A1
-            → free A2
-              → (A1 * A2 → free A)
-                → (() → free A) → free A.
+            micro A1
+            → micro A2
+              → (A1 * A2 → micro A)
+                → (() → micro A) → micro A.
 
-<span class="kn">Arguments</span> free A%type_scope
+<span class="kn">Arguments</span> micro A%type_scope
 <span class="kn">Arguments</span> Ret {A}%type_scope a
 <span class="kn">Arguments</span> Crash {A}%type_scope
 <span class="kn">Arguments</span> Next {A}%type_scope
@@ -440,7 +457,7 @@ It can be thought of as a system call. The <em>code</em> <code class="highlight 
 the system call. This code has type <code class="highlight coq"><span class="n">code</span> <span class="n">X</span> <span class="n">Y</span></code>, where <code class="highlight coq"><span class="n">X</span></code> is the type
 of the argument of the system call, and <code class="highlight coq"><span class="n">Y</span></code> is the type of its result.
 Accordingly, the <em>argument</em> <code class="highlight coq"><span class="n">x</span></code> has type <code class="highlight coq"><span class="n">X</span></code> and the <em>continuation</em> <code class="highlight coq"><span class="n">k</span></code>
-has type <code class="highlight coq"><span class="n">Y</span> <span class="o">→</span> <span class="n">free</span> <span class="n">A</span></code>.</li>
+has type <code class="highlight coq"><span class="n">Y</span> <span class="o">→</span> <span class="n">micro</span> <span class="n">A</span></code>.</li>
 <li><code class="highlight coq"><span class="n">Par</span> <span class="n">m1</span> <span class="n">m2</span> <span class="n">k</span> <span class="n">ko</span></code> represents a request by the interpreter to execute
 the computations <code class="highlight coq"><span class="n">m1</span></code> and <code class="highlight coq"><span class="n">m2</span></code> in parallel. The <em>success continuation</em>
 <code class="highlight coq"><span class="n">k</span></code> is invoked if both computations produce a result. The <em>failure
@@ -455,21 +472,21 @@ constructor <code class="highlight coq"><span class="n">Par</span></code>.</p>
 are sugar for <code class="highlight coq"><span class="n">Stop</span></code> and <code class="highlight coq"><span class="n">Par</span></code> with trivial continuations.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chka" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chka"><span class="kn">Print</span> stop.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Notation</span> <span class="nf">stop</span> c x := (Stop c x ret next)</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Print</span> <span class="kp">par</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">par</span> = 
-<span class="kr">λ</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">m1</span> : free A1) (<span class="nv">m2</span> : free A2),
+<span class="kr">λ</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">m1</span> : micro A1) (<span class="nv">m2</span> : micro A2),
   Par m1 m2 ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
-     : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span>, free A1 → free A2 → free (A1 * A2)
+     : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span>, micro A1 → micro A2 → micro (A1 * A2)
 
 <span class="kn">Arguments</span> <span class="kp">par</span> {A1 A2}%type_scope m1 m2</blockquote></div></div></small></span></pre><p>As in every monad, a <code class="highlight coq"><span class="n">bind</span></code> combinator is used to construct the
 sequential composition of two computations:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chkc" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkc"><span class="kn">Check</span> @bind.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@bind
-     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">B</span>, free A → (A → free B) → free B</blockquote></div></div></small></span></pre><p>The <code class="highlight coq"><span class="kp">try</span></code> combinator, a generalization of <code class="highlight coq"><span class="n">bind</span></code>,
+     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">B</span>, micro A → (A → micro B) → micro B</blockquote></div></div></small></span></pre><p>The <code class="highlight coq"><span class="kp">try</span></code> combinator, a generalization of <code class="highlight coq"><span class="n">bind</span></code>,
 also composes two computations,
 and can catch the exception <code class="highlight coq"><span class="n">Next</span></code>
 if it raised by the first computation.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chkd" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkd"><span class="kn">Check</span> @<span class="kp">try</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@<span class="kp">try</span>
      : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">B</span>,
-         free A
-         → (A → free B) → (() → free B) → free B</blockquote></div></div></small></span></pre><p>There are several ways of thinking about this monad. On the one hand,
+         micro A
+         → (A → micro B) → (() → micro B) → micro B</blockquote></div></div></small></span></pre><p>There are several ways of thinking about this monad. On the one hand,
 from an abstract point of view, it can be regarded as <em>an abstract type
 of computations</em>, equipped with the facilities that are needed to write
 the interpreter in a natural style. On the other hand, from a concrete
@@ -481,7 +498,7 @@ the constructor <code class="highlight coq"><span class="n">Stop</span></code> r
 to continue.</p>
 <p>There are also several ways of thinking about the function <code class="highlight coq"><span class="kp">eval</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chke" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chke"><span class="kn">Check</span> <span class="kp">eval</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">eval</span>
-     : env → expr → free val</blockquote></div></div></small></span></pre><p>On the one hand, one can think of it as an interpreter:
+     : env → expr → micro val</blockquote></div></div></small></span></pre><p>On the one hand, one can think of it as an interpreter:
 the computation <code class="highlight coq"><span class="kp">eval</span> <span class="n">η</span> <span class="n">e</span></code> executes the expression <code class="highlight coq"><span class="n">e</span></code>.
 On the other hand, one can also think of it as a compiler:
 whereas the syntactic object <code class="highlight coq"><span class="n">e</span></code> inhabits a large language
@@ -489,7 +506,7 @@ whereas the syntactic object <code class="highlight coq"><span class="n">e</span
 much smaller and simpler language (namely, the monad).</p>
 <p>It is well-known that a compiler can be in principle obtained
 by specializing an interpreter, but this is usually a difficult
-task. Here, this happens essentially for free, thanks to the fact
+task. Here, this happens essentially for micro, thanks to the fact
 that Coq's β-reduction engine can simplify the application <code class="highlight coq"><span class="kp">eval</span> <span class="n">η</span> <span class="n">e</span></code>.</p>
 <p>The monad is parametric in the type <code class="highlight coq"><span class="n">code</span></code>: it does not care what
 the system calls are or what is their meaning. Our interpreter
@@ -511,17 +528,17 @@ code <code class="highlight coq"><span class="n">Flip</span></code> is used to r
 used to encode a binary non-deterministic choice combinator, <code class="highlight coq"><span class="n">choose</span></code>.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk10" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk10"><span class="kn">Print</span> flip.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">flip = 
 Stop CFlip () ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
-     : free bool</blockquote></div></div></small><span class="alectryon-wsp">
+     : micro bool</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk11" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk11"><span class="kn">Print</span> choose.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">choose = 
-<span class="kr">λ</span> <span class="nv">A</span> (<span class="nv">m1</span> <span class="nv">m2</span> : free A),
+<span class="kr">λ</span> <span class="nv">A</span> (<span class="nv">m1</span> <span class="nv">m2</span> : micro A),
   &#39; b ← flip; <span class="kr">if</span> b : bool <span class="kr">then</span> m1 <span class="kr">else</span> m2
-     : <span class="kr">∀</span> <span class="nv">A</span>, free A → free A → free A
+     : <span class="kr">∀</span> <span class="nv">A</span>, micro A → micro A → micro A
 
 <span class="kn">Arguments</span> choose {A}%type_scope m1 m2</blockquote></div></div></small></span></pre></div>
 <div class="section" id="the-scheduler">
 <h1>The Scheduler</h1>
 <p>There remains to somehow give meaning to monadic computations
-of type <code class="highlight coq"><span class="n">free</span> <span class="n">A</span></code>. As explained earlier, these computations are
+of type <code class="highlight coq"><span class="n">micro</span> <span class="n">A</span></code>. As explained earlier, these computations are
 effectful: in particular, they can diverge, and they are
 nondeterministic. Thus, we cannot expect to give them a
 computational behavior inside Coq. However, there are other
@@ -540,114 +557,114 @@ The interpreter pauses itself from time to time, and each step
 takes us from one pause to the next pause.</p>
 <p>The relation <code class="highlight coq"><span class="n">step</span></code> is inductively defined.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk13" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk13"><span class="kn">Print</span> step.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">step</span> <span class="nv">A</span> : config A → config A → <span class="kt">Prop</span> :=
-    StepEval : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : val → free A) 
-                 (<span class="nv">ko</span> : () → free A),
+    StepEval : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : val → micro A) 
+                 (<span class="nv">ko</span> : () → micro A),
                  step (σ, Stop CEval (η, e) k ko)
                    (σ, <span class="kp">try</span> (<span class="kp">eval</span> η e) k ko)
   | StepLoop : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">x</span> <span class="nv">i1</span> <span class="nv">i2</span> <span class="nv">e</span> (<span class="nv">k</span> : val
-                                              → free A) 
-                 (<span class="nv">ko</span> : () → free A),
+                                              → micro
+                                                 A) 
+                 (<span class="nv">ko</span> : () → micro A),
                  step
                    (σ,
-                    Stop CLoop (η, x, i1, i2, e) k ko)
+                    <span class="kr">for</span> x = i1 to i2 <span class="kp">do</span> e <span class="bp">done</span> ; ...)
                    (σ, <span class="kp">try</span> (loop η x i1 i2 e) k ko)
   | StepFlip : <span class="kr">∀</span> <span class="nv">b</span> (<span class="nv">σ</span> : store) (<span class="nv">x</span> : ()) (<span class="nv">k</span> : bool
-                                             → free A) 
-                 (<span class="nv">ko</span> : () → free A),
+                                             → micro A) 
+                 (<span class="nv">ko</span> : () → micro A),
                  step (σ, Stop CFlip x k ko) (σ, k b)
   | StepAlloc : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">v</span> (<span class="nv">l</span> : loc) (<span class="nv">k</span> : loc
-                                               → free
+                                               → micro
                                                  A) 
-                  (<span class="nv">ko</span> : () → free A),
+                  (<span class="nv">ko</span> : () → micro A),
                   σ !! l = None
                   → step (σ, Stop CAlloc v k ko)
                       (&lt;[l:=v]&gt; σ, k l)
   | StepLoadSuccess : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v</span> (<span class="nv">k</span> : 
                                                  val
                                                  → 
-                                                 free
+                                                 micro
                                                  A) 
-                        (<span class="nv">ko</span> : () → free A),
+                        (<span class="nv">ko</span> : () → micro A),
                         σ !! l = Some v
                         → step (σ, Stop CLoad l k ko)
                             (σ, k v)
   | StepLoadFailure : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : 
                                                val
-                                               → free
+                                               → micro
                                                  A) 
-                        (<span class="nv">ko</span> : () → free A),
+                        (<span class="nv">ko</span> : () → micro A),
                         σ !! l = None
                         → step (σ, Stop CLoad l k ko)
                             (σ, crash)
   | StepStoreSuccess : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v&#39;</span> <span class="nv">v</span> 
-                         (<span class="nv">k</span> <span class="nv">ko</span> : () → free A),
+                         (<span class="nv">k</span> <span class="nv">ko</span> : () → micro A),
                          σ !! l = Some v
                          → step
                              (σ,
                               Stop CStore (l, v&#39;) k ko)
                              (&lt;[l:=v&#39;]&gt; σ, k ())
   | StepStoreFailure : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v&#39;</span> 
-                         (<span class="nv">k</span> <span class="nv">ko</span> : () → free A),
+                         (<span class="nv">k</span> <span class="nv">ko</span> : () → micro A),
                          σ !! l = None
                          → step
                              (σ,
                               Stop CStore (l, v&#39;) k ko)
                              (σ, crash)
   | StepParRetRet : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) 
-                      (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : A1 * A2 → free A) 
-                      (<span class="nv">ko</span> : () → free A),
+                      (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : A1 * A2 → micro A) 
+                      (<span class="nv">ko</span> : () → micro A),
                       step
                         (σ, Par (ret v1) (ret v2) k ko)
                         (σ, k (v1, v2))
-  | StepParCrashLeft : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : free
+  | StepParCrashLeft : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : micro
                                                  A2) 
-                         (<span class="nv">k</span> : A1 * A2 → free A) (<span class="nv">ko</span> : 
+                         (<span class="nv">k</span> : A1 * A2 → micro A) (<span class="nv">ko</span> : 
                                                  ()
                                                  → 
-                                                 free
+                                                 micro
                                                  A),
                          step (σ, Par crash m2 k ko)
                            (σ, crash)
   | StepParCrashRight : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m1</span> : 
-                                             free A1) 
-                          (<span class="nv">k</span> : A1 * A2 → free A) (<span class="nv">ko</span> : 
-                                                 ()
-                                                 → 
-                                                 free
-                                                 A),
+                                             micro A1) 
+                          (<span class="nv">k</span> : A1 * A2 → micro A) 
+                          (<span class="nv">ko</span> : () → micro A),
                           step (σ, Par m1 crash k ko)
                             (σ, crash)
-  | StepParNextLeft : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : free
+  | StepParNextLeft : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : micro
                                                  A2) 
-                        (<span class="nv">k</span> : A1 * A2 → free A) (<span class="nv">ko</span> : 
-                                                ()
-                                                → 
-                                                free A),
-                        step (σ, Par Next m2 k ko)
-                          (σ, ko ())
-  | StepParNextRight : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m1</span> : free
-                                                 A1) 
-                         (<span class="nv">k</span> : A1 * A2 → free A) (<span class="nv">ko</span> : 
+                        (<span class="nv">k</span> : A1 * A2 → micro A) (<span class="nv">ko</span> : 
                                                  ()
                                                  → 
-                                                 free
+                                                 micro
+                                                 A),
+                        step (σ, Par Next m2 k ko)
+                          (σ, ko ())
+  | StepParNextRight : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> : store) (<span class="nv">m1</span> : micro
+                                                 A1) 
+                         (<span class="nv">k</span> : A1 * A2 → micro A) (<span class="nv">ko</span> : 
+                                                 ()
+                                                 → 
+                                                 micro
                                                  A),
                          step (σ, Par m1 Next k ko)
                            (σ, ko ())
   | StepParLeft : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span>
-                                          <span class="nv">m&#39;1</span> : free
+                                          <span class="nv">m&#39;1</span> : micro
                                                  A1) 
-                    (<span class="nv">m2</span> : free A2) (<span class="nv">k</span> : A1 * A2
-                                        → free A) 
-                    (<span class="nv">ko</span> : () → free A),
+                    (<span class="nv">m2</span> : micro A2) (<span class="nv">k</span> : A1 * A2
+                                         → micro A) 
+                    (<span class="nv">ko</span> : () → micro A),
                     step (σ, m1) (σ&#39;, m&#39;1)
                     → step (σ, Par m1 m2 k ko)
                         (σ&#39;, Par m&#39;1 m2 k ko)
-  | StepParRight : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> : free
+  | StepParRight : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> : micro
                                                  A1) 
-                     (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : free A2) (<span class="nv">k</span> : A1 * A2
-                                             → free A) 
-                     (<span class="nv">ko</span> : () → free A),
+                     (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2) (<span class="nv">k</span> : A1 * A2
+                                              → micro
+                                                 A) 
+                     (<span class="nv">ko</span> : () → micro A),
                      step (σ, m2) (σ&#39;, m&#39;2)
                      → step (σ, Par m1 m2 k ko)
                          (σ&#39;, Par m1 m&#39;2 k ko).
@@ -685,27 +702,29 @@ takes us from one pause to the next pause.</p>
   {m2 m&#39;2} (k ko)%function_scope _</blockquote></div></div></small></span></pre><p>Let us look at some of the cases in this definition.
 An <code class="highlight coq"><span class="n">CEval</span></code> request steps to an invocation of <code class="highlight coq"><span class="kp">eval</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk14" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk14"><span class="kn">Check</span> @StepEval.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepEval
-     : <span class="kr">∀</span> <span class="nv">A</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : val → free A) (<span class="nv">ko</span> : 
-                                               ()
-                                               → free
+     : <span class="kr">∀</span> <span class="nv">A</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : val → micro A) (<span class="nv">ko</span> : 
+                                                ()
+                                                → 
+                                                micro
                                                  A),
          step (σ, Stop CEval (η, e) k ko)
            (σ, <span class="kp">try</span> (<span class="kp">eval</span> η e) k ko)</blockquote></div></div></small></span></pre><p>A <code class="highlight coq"><span class="n">Flip</span></code> request returns a Boolean result <code class="highlight coq"><span class="n">b</span></code>,
 which may either <code class="highlight coq"><span class="n">true</span></code> or <code class="highlight coq"><span class="n">false</span></code>.
 This makes the relation <code class="highlight coq"><span class="n">step</span></code> non-deterministic:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk15" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk15"><span class="kn">Check</span> @StepFlip.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepFlip
-     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">b</span> (<span class="nv">σ</span> : store) (<span class="nv">x</span> : ()) (<span class="nv">k</span> : bool → free A) 
-         (<span class="nv">ko</span> : () → free A),
+     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">b</span> (<span class="nv">σ</span> : store) (<span class="nv">x</span> : ()) (<span class="nv">k</span> : bool → micro A) 
+         (<span class="nv">ko</span> : () → micro A),
          step (σ, Stop CFlip x k ko) (σ, k b)</blockquote></div></div></small></span></pre><p>Under a parallel composition constructor <code class="highlight coq"><span class="n">Par</span></code>,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
 may take a step:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk16" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk16"><span class="kn">Check</span> @StepParLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParLeft
-     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : free A1) 
-         (<span class="nv">m2</span> : free A2) (<span class="nv">k</span> : A1 * A2 → free A) (<span class="nv">ko</span> : 
-                                                ()
-                                                → 
-                                                free A),
+     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1) 
+         (<span class="nv">m2</span> : micro A2) (<span class="nv">k</span> : A1 * A2 → micro A) (<span class="nv">ko</span> : 
+                                                 ()
+                                                 → 
+                                                 micro
+                                                 A),
          step (σ, m1) (σ&#39;, m&#39;1)
          → step (σ, Par m1 m2 k ko)
              (σ&#39;, Par m&#39;1 m2 k ko)</blockquote></div></div></small></span></pre><p>If both threads have reached a result, then
@@ -717,9 +736,9 @@ of the results:</p>
                                                  A1 *
                                                  A2
                                                  → 
-                                                 free
+                                                 micro
                                                  A) 
-         (<span class="nv">ko</span> : () → free A),
+         (<span class="nv">ko</span> : () → micro A),
          step (σ, Par (ret v1) (ret v2) k ko)
            (σ, k (v1, v2))</blockquote></div></div></small></span></pre><p>There are more reduction rules, not shown.</p>
 <p>We sometimes refer to this semantics as the «scheduler»,
@@ -768,8 +787,9 @@ yet it is a full-fledged logic!</p>
          safe (σ, ret a) φ ↔ φ σ a</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-wsp">
 </span><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1b" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1b"><span class="kn">Check</span> @safe_bind.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@safe_bind
-     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">B</span> (<span class="nv">m1</span> : free A) (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : A
-                                             → free B) 
+     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">B</span> (<span class="nv">m1</span> : micro A) (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : A
+                                              → micro
+                                                 B) 
          (<span class="nv">φ</span> : store → B → <span class="kt">Prop</span>),
          safe (σ, &#39; x ← m1; m2 x) φ
          ↔ safe (σ, m1)

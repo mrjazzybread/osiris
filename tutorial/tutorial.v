@@ -1,6 +1,6 @@
 Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import osiris. (* .none *)
-From osiris.weakestpre Require Import safe. (* .none *)
+From osiris.program_logic Require Import safe. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
 Implicit Type p : pat. (* .none *)
