@@ -7,35 +7,41 @@ From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import safe wp helpers.
 
+(* This file contains the adequacy theorem (i.e. correction of the WP).
+   The main result is provided by [adequacy_corollary]:
+     For any type [A],
+             computation [m1 : micro A],
+             natural integer [n],
+             physical heap [σn],
+             computation[mn : micro A],
+             postcondition [φ : A → iProp Σ],
 
-Section Adequacy.
-  Context `{!osirisGS Σ}.
+         if [(∅, m1)] reduces to [(σn, mn)] in [n] steps,
+         and if (wp s ⊤ m1 (λ a, ⌜ φ a ⌝)) holds in Iris (given the required
+                cmras),
+         then
+          - the configuration [(σn, mn)] is not stuck,
+          - should [mn] represent a value [v], [φ v] holds.
 
-  (* [wp_preservation] is an iterated version of [wp_step]. *)
-  Lemma wp_preservation n :
-    forall {A σ1 σn} {m1 mn : micro A} {s E φ},
-    nsteps step n (σ1, m1) (σn, mn) →
-    state_interp σ1 -∗
-    wp s E m1 φ ={E,∅}=∗
-    |={∅}▷=>^n |={∅,E}=> state_interp σn ∗ wp s E mn φ.
-  Proof.
-    induction n as [ | n IHn] => A σ1 σn m1 mn s E φ /=.
-    { iIntros ([->->]%invert_nsteps_0%pair_equal_spec) "$$".
-      iApply fupd_mask_subseteq; by apply empty_subseteq. }
-    { iIntros (([σm mm]&Hstep&Hsteps)%nsteps_S_inv) "??".
-      iPoseProof ((wp_step Hstep) with "[$][$]") as ">Hstep".
-      iModIntro.
-      iApply ((step_fupdN_wand _ _ 1) with "Hstep").
-      iIntros "H".
-      destruct n.
-      { apply invert_nsteps_0 in Hsteps.
-        simplify_eq/=. done. }
-      { simpl. iMod "H" as "[??]".
-        iPoseProof (IHn _ _ _ _ _ _ _ _ Hsteps) as "IH".
-        by iMod ("IH" with "[$][$]"). } }
-  Qed.
+   This result is slightly different from the adequacy theorem of Iris. The main
+   difference is the empty initial heap: in Iris an additional assertion
+   [state_interp σ1] is requested. This allows their result to hold for any
+   (potentially non-empty) initial heap.
+   In Osiris, we assume that the heap is initially empty. This is justified by
+   the form of closed proofs of programs and the bind rule.
+   Indeed, upon proving a program [P] depending on a libraries [L1], ..., [Ln],
+   the closed  proof of [P] is of the form:
+         [WP (v1 ← eval EnvNil L1 ;
+              ...
+              vn ← eval (EnvCons "L(n-1)" v(n-1) ...) Ln ;
+              eval (EnvCons "Ln" vn ...) P) {{ φ }}].
+   In other words, we re-evaluate all dependencies of a program needs before
+   starting  the proof of the program. Hence, having a non-empty initial state
+   [σ1] is unnecessary.
+   Rule WP-bind2 ensures that given a proof of [P] that assumes those of [L1],
+   ..., [Ln] is enough to prove this statement. *)
 
-End Adequacy.
+
 
 Section Adequacy.
   Import uPred.
@@ -69,7 +75,10 @@ Section Adequacy.
       heap_gnames : inG Σ (gmap_view.gmap_viewR loc (leibnizO gname)) ;
 
       (* -------------------------------------------------------------------- *)
-      (* Invariant-related cmras. *)
+      (* Invariant-related cmras.
+         Iris From the Ground Up
+         (https://people.mpi-sws.org/~dreyer/papers/iris-ground-up/paper.pdf)
+         provides more details on invariants and their definition in Iris. *)
 
       (* [wsat_inv] is used to define the mapping from names to assertions one
          can see in the definition of the world satisfaction [W] and the
@@ -83,7 +92,7 @@ Section Adequacy.
 
       (* Used for later credits. Despite our choice not to support them, this
          algebra is required to define an instance of [invGS_gen] used below.
-         TODO : redo the proofs with a specialized instance of [invGS_gen]. *)
+         TODO : remove the following constraint on [Σ] and repair the proofs. *)
       lc : inG Σ (authR natUR)
     }.
 
@@ -98,10 +107,13 @@ Section Adequacy.
 
   (* ------------------------------------------------------------------------ *)
 
-  (* [wp_pre_adequacy] is a lemma used to start the adequacy proof. It provides
-     the required resources to use the heap and invariants. It also puts the
-     goal behind the right iterated modality, i.e. the one that will appear in
-     [wp_adequacy]. *)
+  (* [wp_pre_adequacy] is a lemma used to start the adequacy proof.
+     The lemma:
+     - provides:
+       + the required resources to use the heap and invariants,
+       + an empty heap
+     - puts the goal behind the right iterated modality, i.e. the one that will
+       appear in [wp_adequacy]. *)
 
   Local Lemma wp_pre_adequacy :
     ∀ {Σ : gFunctors},
@@ -136,16 +148,27 @@ Section Adequacy.
   (* Main result: the adequacy lemma. *)
 
   Lemma wp_adequacy {A} `{!required_cmras Σ}
-        {m1 n σ2 m2} (s: stuckness) (φ: Prop) :
-    nsteps step n (∅, m1) (σ2, m2) →
-    (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
-         (Hinv : invGS_gen HasNoLc Σ),
+        {m1 n σn mn} (s: stuckness) (φ: Prop) :
+    (* Assuming [(∅, m1)] steps to [(σn, mn)] in [n] steps. *)
+    nsteps step n (∅, m1) (σn, mn) →
+
+    (⊢ (* If the logical heap and invariants can be used, *)
+     ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
+       (Hinv : invGS_gen HasNoLc Σ),
        let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
-       |={⊤}=> ∃ (φ' : A → iProp Σ),
-       wp s ⊤ m1 φ' ∗
-       ( state_interp σ2 -∗
-         wp s ⊤ m2 φ' -∗
-         |={⊤,∅}=> ⌜φ⌝)) →
+
+       (* and the following holds, *)
+       |={⊤}=> (* There exists a post-condition [φ'] s.t. *)
+               ∃ (φ' : A → iProp Σ),
+               (* [m1] is correct wrt. [φ'], *)
+               wp s ⊤ m1 φ' ∗
+               ( (* and if the proof of [mn] and state of [σn] are sufficient to
+                    prove [φ]. *)
+                 state_interp σn -∗
+                 wp s ⊤ mn φ' -∗
+                 |={⊤,∅}=> ⌜φ⌝)) →
+
+    (* Then [φ] holds outside of Iris. *)
     φ.
   Proof.
     intros Hsteps H.
@@ -194,7 +217,7 @@ Section Adequacy.
         to [(σn, mn)] in n steps,
      then [mn] is not stuck, and if it represents a value [v], then [φ v]
           holds. *)
-  Lemma wp_adequacy' {A} `{!required_cmras Σ}
+  Lemma adequacy_corollary {A} `{!required_cmras Σ}
         {m1 n σn mn} s (φ : A → Prop) :
     (* [(∅, m1)] reduces to ([σn, mn)] in n steps. *)
     nsteps step n (∅, m1) (σn, mn) →

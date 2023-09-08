@@ -229,6 +229,30 @@ Proof.
   eauto.
 Qed.
 
+(* [wp_preservation] is an iterated version of [wp_step]. *)
+Lemma wp_preservation n :
+  forall {A σ1 σn} {m1 mn : micro A} {s E φ},
+  nsteps step n (σ1, m1) (σn, mn) →
+  state_interp σ1 -∗
+  wp s E m1 φ ={E,∅}=∗
+  |={∅}▷=>^n |={∅,E}=> state_interp σn ∗ wp s E mn φ.
+Proof.
+  induction n as [ | n IHn] => A σ1 σn m1 mn s E φ /=.
+  { iIntros ([->->]%invert_nsteps_0%pair_equal_spec) "$$".
+    iApply fupd_mask_subseteq; by apply empty_subseteq. }
+  { iIntros (([σm mm]&Hstep&Hsteps)%nsteps_S_inv) "??".
+    iPoseProof ((wp_step Hstep) with "[$][$]") as ">Hstep".
+    iModIntro.
+    iApply ((step_fupdN_wand _ _ 1) with "Hstep").
+    iIntros "H".
+    destruct n.
+    { apply invert_nsteps_0 in Hsteps.
+      simplify_eq/=. done. }
+    { simpl. iMod "H" as "[??]".
+      iPoseProof (IHn _ _ _ _ _ _ _ _ Hsteps) as "IH".
+      by iMod ("IH" with "[$][$]"). } }
+Qed.
+
 (* Progress. *)
 
 Opaque stuck. (* TODO *)
