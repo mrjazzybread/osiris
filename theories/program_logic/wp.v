@@ -48,7 +48,6 @@ Context `{!osirisGS Σ}.
 (* The (open) recursive definition of [wp]. *)
 
 Definition wp_pre
-  (s : stuckness)
   (wp: coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
        coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ
   :=
@@ -77,7 +76,7 @@ Definition wp_pre
      end
     )%I.
 
-Local Instance wp_pre_contractive s : Contractive (wp_pre s).
+Local Instance wp_pre_contractive : Contractive wp_pre.
 Proof.
   rewrite /wp_pre /= => n wp wp' Hwp E m Φ.
   repeat (f_contractive || f_equiv).
@@ -89,10 +88,18 @@ Qed.
      [WP _ @ _ {{ _ }}]
      [WP _ @ _ ?{{ _ }}]).
 
-  The stuckness bit is not used at the moment. *)
+  The stuckness bit is not used at the moment. It is still provided as argument
+  to [wp_def] so that we can use the typeclass [Wp] and the rest of the Iris
+  boilerplate to define our program-logic.  As it is unused, we could change its
+  type to [unit]. However, this would not allow us to use the above notations,
+  hence our choice to keep it this way.
+
+  If we were to remove this from the definition of Weakest Precondition, we
+  would have to overwrite all useful wp-related notations, as well as Hoare,
+  texan triples, etc. *)
 
 Definition wp_def : Wp (iProp Σ) (micro A) A stuckness :=
-  λ (s : stuckness), fixpoint (wp_pre s).
+  λ (_ : stuckness), fixpoint wp_pre.
 
 (* Standard boilerplate to seal the definition of [wp]. *)
 
@@ -123,10 +130,10 @@ Implicit Type m : micro A.
 Notation wp := (wp (PROP:=iProp Σ)).
 
 Lemma wp_unfold {s E} m {φ} :
-  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A s (wp s) E m φ.
+  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A (wp s) E m φ.
 Proof.
   rewrite wp_unseal.
-  apply (@fixpoint_unfold _ _ _ (wp_pre A s)).
+  apply (@fixpoint_unfold _ _ _ (wp_pre A)).
 Qed.
 
 Local Ltac wp_unfold_all :=

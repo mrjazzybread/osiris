@@ -283,12 +283,12 @@ Section Adequacy.
   (* [wp_safe] states that if [wp _ _ m (λ a, ⌜ φ a ⌝)] holds, [(∅, m)] is a
      safe configuration that satisfies [φ]. *)
   Lemma wp_safe {A} `{!required_cmras Σ}
-        {m1} (φ : A → Prop) :
+    {m1} s (φ : A → Prop) :
     (* [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
     (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
          (Hinv : invGS_gen HasNoLc Σ),
        let _ : osirisGS Σ := OsirisG Σ Hinv Hstore in
-       (wp NotStuck ⊤ m1 (λ a, ⌜ φ a ⌝))) →
+       (wp s ⊤ m1 (λ a, ⌜ φ a ⌝))) →
     safe (∅, m1) (λ _ a, φ a).
   Proof.
     intro H.
@@ -297,7 +297,7 @@ Section Adequacy.
     pose proof (steps_nsteps Hsteps) as [n' Hn'steps]; clear n Hsteps.
 
     (* Apply the corollary of the adequacy lemma stated and poven above. *)
-    apply (adequacy_corollary NotStuck _ Hn'steps).
+    apply (adequacy_corollary s _ Hn'steps).
     iIntros (??).
     iApply H.
   Qed.
