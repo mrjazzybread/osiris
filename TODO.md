@@ -18,8 +18,9 @@
 
 ## Iris machinery
 
-* Prove adequacy.
-* Add support for Iris invariants.
+* Make sure the adequacy statement and proof are clean and well-understood.
+* Offer both partial correctness and total correctness WPs,
+  with bridges between them?
 
 ## Translator
 
@@ -38,7 +39,7 @@
 
 ## Engineering and proof mode
 
-* Module paths whose specification is known are currently simplified by [simp].  
+* Module paths whose specification is known are currently simplified by [simp].
   However, it required to alter [simp1_inspect]. Replace this hack by hints.
 
 * Fix [wp_use]: look at the lemma and apply different tactics depending on its
@@ -224,6 +225,7 @@
   - Check that we are able to reason about terminating loops using induction
   - Check that we are able to frame out an assertion during
     the execution of the rest of the loop
+  - Check that we are able to use Iris invariants
   - Port Arthur's imperative pairing heaps and compare with CFML.
 
 ## References
