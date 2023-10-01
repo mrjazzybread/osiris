@@ -1,5 +1,5 @@
-(lang dune 3.6)
-(using coq 0.6)
+(lang dune 3.7)
+(using coq 0.7)
 
 (name osiris)
 

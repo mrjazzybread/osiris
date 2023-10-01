@@ -21,10 +21,10 @@ From osiris.program_logic Require Import safe.
 Class osirisGS (Σ: gFunctors) := OsirisG {
 
   (* This gives us fancy updates (without allowing Later Credits). *)
-  osiris_invGS :> invGS_gen HasNoLc Σ;
+  osiris_invGS :: invGS_gen HasNoLc Σ;
 
   (* This gives us a heap, which maps locations to values. *)
-  osiris_heapGS :> gen_heapGS loc val Σ;
+  osiris_heapGS :: gen_heapGS loc val Σ;
 
 }.
 

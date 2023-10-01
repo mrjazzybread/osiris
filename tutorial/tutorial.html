@@ -14,7 +14,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.16.0+0.16.3. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
+<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.17.0+0.17.1. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
 <h1 class="title">A Program Logic for OCaml</h1>
 
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-wsp">
@@ -471,7 +471,7 @@ constructor <code class="highlight coq"><span class="n">Par</span></code>.</p>
 <p>The combinators <code class="highlight coq"><span class="n">stop</span></code> and <code class="highlight coq"><span class="kp">par</span></code>, which have been mentioned earlier,
 are sugar for <code class="highlight coq"><span class="n">Stop</span></code> and <code class="highlight coq"><span class="n">Par</span></code> with trivial continuations.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chka" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chka"><span class="kn">Print</span> stop.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Notation</span> <span class="nf">stop</span> c x := (Stop c x ret next)</blockquote></div></div></small><span class="alectryon-wsp">
-</span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Print</span> <span class="kp">par</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">par</span> = 
+</span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Print</span> <span class="kp">par</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">par</span> =
 <span class="kr">λ</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">m1</span> : micro A1) (<span class="nv">m2</span> : micro A2),
   Par m1 m2 ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
      : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span>, micro A1 → micro A2 → micro (A1 * A2)
@@ -526,10 +526,10 @@ a recursive invocation of the function <code class="highlight coq"><span class="
 similar role, but is used in the interpretation of <code class="highlight coq"><span class="kr">for</span></code> loops. The
 code <code class="highlight coq"><span class="n">Flip</span></code> is used to request a Boolean value from the system: it is
 used to encode a binary non-deterministic choice combinator, <code class="highlight coq"><span class="n">choose</span></code>.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk10" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk10"><span class="kn">Print</span> flip.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">flip = 
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk10" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk10"><span class="kn">Print</span> flip.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">flip =
 Stop CFlip () ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
      : micro bool</blockquote></div></div></small><span class="alectryon-wsp">
-</span></span><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk11" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk11"><span class="kn">Print</span> choose.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">choose = 
+</span></span><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk11" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk11"><span class="kn">Print</span> choose.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">choose =
 <span class="kr">λ</span> <span class="nv">A</span> (<span class="nv">m1</span> <span class="nv">m2</span> : micro A),
   &#39; b ← flip; <span class="kr">if</span> b : bool <span class="kr">then</span> m1 <span class="kr">else</span> m2
      : <span class="kr">∀</span> <span class="nv">A</span>, micro A → micro A → micro A
@@ -756,7 +756,7 @@ reduce (in zero, one, or more steps) to <code class="highlight coq"><span class=
 if it cannot reduce in at most <code class="highlight coq"><span class="n">n</span></code> steps to <code class="highlight coq"><span class="n">Crash</span></code>.
 We say that a program is safe
 if, for every <code class="highlight coq"><span class="n">n</span></code>, this program is initially safe for <code class="highlight coq"><span class="n">n</span></code> steps.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk18" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk18"><span class="kn">Print</span> initially_safe.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">initially_safe = 
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk18" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk18"><span class="kn">Print</span> initially_safe.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">initially_safe =
 <span class="kr">fix</span> initially_safe
   A (n : nat) (c : config A) (φ : store → A → <span class="kt">Prop</span>)
   {<span class="kr">struct</span> n} : <span class="kt">Prop</span> :=
@@ -772,7 +772,7 @@ if, for every <code class="highlight coq"><span class="n">n</span></code>, this 
 
 <span class="kn">Arguments</span> initially_safe {A}%type_scope n%nat_scope 
   c φ%function_scope</blockquote></div></div></small><span class="alectryon-wsp">
-</span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk19" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk19"><span class="kn">Print</span> safe.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">safe = 
+</span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk19" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk19"><span class="kn">Print</span> safe.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">safe =
 <span class="kr">λ</span> <span class="nv">A</span> (<span class="nv">c</span> : config A) (<span class="nv">φ</span> : store → A → <span class="kt">Prop</span>),
   <span class="kr">∀</span> <span class="nv">n</span> : nat, initially_safe n c φ
      : <span class="kr">∀</span> <span class="nv">A</span>, config A → (store → A → <span class="kt">Prop</span>) → <span class="kt">Prop</span>
