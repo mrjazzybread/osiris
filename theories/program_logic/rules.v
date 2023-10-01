@@ -84,9 +84,11 @@ Local Ltac release_state :=
    [|==> ▷ (state_interp σ' ∗ wp E m' φ)]. *)
 
 Local Ltac tick_wp :=
+  iModIntro; iNext;
+  iMod "Hwp" as "[$Hwp]"; iModIntro. (*
   iModIntro; iNext; iMod "Hwp"; iModIntro;
   iMod "Hwp" as "[$ Hwp]";
-  iModIntro.
+  iModIntro.*)
 
 (* [step_wp] is used when the hypothesis "Hwp" has the form
      ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ==∗ ...
@@ -179,7 +181,6 @@ Proof.
     step_wp.
     tick_wp.
     iApply ("IH" with "Hwp Himplication"). }
-
 Qed.
 
   (* A reasoning rule for [try]. *)
@@ -319,7 +320,7 @@ Qed.
         [ set_solver | iModIntro ].
       (* The later is not exposed in this rule. Hence, it can simply be
          introduced together with the remaining modalities. *)
-      do 2 iModIntro; iMod "Hmod" as "_"; iModIntro.
+      iModIntro; iMod "Hmod"; iModIntro.
 
       (* Finally, use the hypothesis on [k] to finish the proof. *)
       iApply ("Hjoin" with "H1 H2"). }
@@ -330,15 +331,16 @@ Qed.
        [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
        Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
        the proof. *)
-    1,2 : by iMod (invert_wp_crash with "Hsi [$]") as "%".
-    1,2 : by iMod (invert_wp_next with "Hsi [$]") as "%".
+    1,2: by iMod (invert_wp_crash with "Hsi [$]") as "%".
+    1,2:  by iMod (invert_wp_next with "Hsi [$]") as "%".
 
     { (* Case: [StepParLeft] *)
       (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
          state interpretation. Some modalities need to be stripped from the
          result. *)
       iMod (wp_step Hstep with "Hsi H1") as ">H1".
-      do 2 iModIntro. iMod "H1"; iModIntro;
+      do 2 iModIntro.
+      iMod "H1";
       iMod "H1" as "[$?]"; iModIntro. (* After stripping modalities, one can
                                          frame the state interpretation. *)
 
@@ -348,7 +350,7 @@ Qed.
     { (* Case: [StepParRight]
          This case is similar to the previous one. *)
       iMod (wp_step Hstep with "Hsi H2") as ">H2".
-      do 2 iModIntro. iMod "H2"; iModIntro. iMod "H2" as "[$?]"; iModIntro.
+      do 2 iModIntro. iMod "H2". iMod "H2" as "[$?]"; iModIntro.
       iApply ("IH" with "H1 [$] Hjoin"). }
   Qed.
 
@@ -371,7 +373,7 @@ Qed.
     iModIntro.
     construct_wp_nonret.
     destruct_step.
-    iModIntro; iNext; iModIntro; iMod "Hmod" as "_"; iModIntro.
+    iModIntro; iNext; iMod "Hmod" as "_"; iModIntro.
     iFrame.
     by iApply wp_try.
   Qed.
@@ -407,9 +409,7 @@ Qed.
     construct_wp_nonret.
     destruct_step.
     iModIntro; iNext; iMod "Hmod" as "_".
-    iFrame.
-    iApply fupd_mask_intro; first set_solver.
-    iIntros "Hmod"; iMod "Hmod" as "_"; iModIntro.
+    iFrame. iModIntro.
     by iApply "H".
   Qed.
 
@@ -455,7 +455,7 @@ Qed.
       intro_state; (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
                     [ set_solver | iModIntro ]);
       construct_wp_nonret; destruct_step;
-      do 3 iModIntro; iMod "Hmod" as "_"; iModIntro; iFrame;
+      do 2 iModIntro; iMod "Hmod" as "_"; iModIntro; iFrame;
 
       (* Finally, expand the definition of the helper function [loop]. *)
       rewrite/loop Hlt.
@@ -528,7 +528,7 @@ Qed.
       (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
        [set_solver | iModIntro ]);
       construct_wp_nonret;
-      do 3 iModIntro; iMod "Hmod" as "_"; iModIntro;
+      do 2 iModIntro; iMod "Hmod" as "_"; iModIntro;
       destruct_step; iFrame.
 
     { (* The loop is over. *)
@@ -598,7 +598,7 @@ Qed.
       intro_state.
       iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; [ set_solver | iModIntro ].
       construct_wp_nonret; destruct_step.
-      do 3 iModIntro. iMod "Hmod" as "_"; iModIntro.
+      do 2 iModIntro. iMod "Hmod" as "_"; iModIntro.
       iFrame.
       iApply wp_try.
       rewrite/loop Hlt.
@@ -649,7 +649,7 @@ Qed.
     { eassumption. }
     iModIntro; iNext; iMod "Hmod" as "_".
     iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro; iMod "Hmod" as "_"; iModIntro.
+    iMod "Hmod" as "_"; iModIntro.
     iFrame.
     iApply ("H" with "HH").
   Qed.
@@ -680,7 +680,7 @@ Qed.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     iModIntro; iNext; iMod "Hmod" as "_".
     iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro; iMod "Hmod" as "_"; iModIntro.
+    iMod "Hmod" as "_"; iModIntro.
     iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
@@ -707,7 +707,7 @@ Qed.
     eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
     iModIntro; iNext; iMod "Hmod" as "_".
     iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro; iMod "Hmod" as "_"; iModIntro.
+    iMod "Hmod" as "_"; iModIntro.
     iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
@@ -761,7 +761,7 @@ Qed.
       (* We are then able to use the inner induction hypothesis. *)
       iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
       iModIntro.
-      do 2 iModIntro.
+      iModIntro.
       iMod "Hmod"; iModIntro.
       iFrame.
       iApply ("IHn" with "[//] Hwp [//]"). }
@@ -796,7 +796,7 @@ Qed.
 
     (* Case: the reduction step disappears through the diagram. *)
     { iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-      do 3 iModIntro.
+      do 2 iModIntro.
       iMod "Hmod"; iModIntro.
       iFrame. iApply ("IHn" with "[//] Hwp [//]"). }
 

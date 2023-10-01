@@ -65,12 +65,11 @@ Proof.
     iSpecialize ("H1" with "[//]").
     (iMod "H1"; iModIntro).
     iModIntro.
-    (iMod "H1"; iModIntro).
-    iApply (fupd_trans _ E1).
-    iMod "H1" as "[$H1]".
+    iMod "H1".
+    iDestruct "H1" as "[$H1]".
     iMod "H" as "_".
     iPoseProof (@fupd_mask_subseteq _ _ E2 E1) as "H"; first assumption.
-    do 2 (iMod "H"; iModIntro).
+    do 2 iMod "H".
     iApply ("IH" $! m' with "H1 Himpl"). }
 Qed.
 
@@ -90,7 +89,7 @@ Proof.
     iSpecialize ("Hwp" with "[//]").
     iMod "Hwp".
     do 2 iModIntro.
-    do 2 (iMod "Hwp"; iModIntro).
+    iMod "Hwp"; iModIntro.
     iDestruct "Hwp" as "[$Hwp]".
     iApply ("IH" with "Hwp"). }
 Qed.

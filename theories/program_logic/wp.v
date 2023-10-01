@@ -71,7 +71,7 @@ Definition wp_pre
               proofs of [theories/program_logic/adequacy.v] use this modality.
               Using [ |={∅, E}=> ] ask invariants in [E] to hold in the
               conclusion. *)
-           ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ={∅}▷=∗
+           ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ={∅}=∗ ▷
                     |={∅,E}=> (state_interp σ' ∗ wp E m' φ)
      end
     )%I.
