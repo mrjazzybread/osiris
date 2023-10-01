@@ -13,6 +13,9 @@ let string_of_longident (i: Longident.t) : string =
   Longident.flatten i
   |> last
 
+let translate_longident (i: Longident.t) : path =
+  Longident.flatten i
+
 (* -------------------------------------------------------------------------- *)
 
 let rec translate_path : Path.t -> path = function
@@ -259,9 +262,12 @@ and translate_expression (e: Typedtree.expression) =
 
   | Texp_assert e -> EAssert (translate_expression e)
 
-  | Texp_ident (path, _, _) ->
-     (* It is not clear to me what these fields represent. *)
-      EPath (translate_path path)
+  | Texp_ident (_path, id, _) ->
+     (* [_path] contains the fully-resolved path of the ident.
+        => EPath (translate_path path) could be used to represent such a path.
+        [id] contains the local path of the ident (the one that appears in the
+        source code). *)
+     EPath (translate_longident id.txt)
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expression e)
