@@ -5,6 +5,15 @@
   (name test))
 
 (rule
+  (targets records.v)
+  (mode promote)
+  (deps    (:gen ../../translator/bin/main.exe)
+           (:src ../ml/records.ml))
+  (action
+    (progn
+       (run %{gen} -mode ml -ml %{src} -root ../../../.. -out %{targets}))))
+
+(rule
   (targets incr.v)
   (mode promote)
   (deps    (:gen ../../translator/bin/main.exe)

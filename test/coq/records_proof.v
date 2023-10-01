@@ -6,7 +6,7 @@ Import uPred.
 
 From osiris Require Import osiris.
 From osiris.libs Require Import Stdlib.
-From test.records Require Import records records_code.
+From test Require Import records.
 
 (* -------------------------------------------------------------------------- *)
 
