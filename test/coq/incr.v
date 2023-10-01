@@ -17,7 +17,7 @@ Definition __osiris__reservedsplit_all_sitem2 : binding :=
               ELet (
                 BiCons (
                   Binding (PVar "c")
-                  (EApp (EPath (MkPath ["Stdlib";"ref"])) (EInt 0))
+                  (EApp (EPath (MkPath ["ref"])) (EInt 0))
                 )
                 BiNil
               )
@@ -35,7 +35,7 @@ Definition __osiris__reservedsplit_all_sitem2 : binding :=
                               Branch (PVar "i")
                               (
                                 EApp (
-                                  EApp (EPath (MkPath ["Stdlib";":="]))
+                                  EApp (EPath (MkPath [":="]))
                                   (EPath (MkPath ["c"]))
                                 )
                                 (EPath (MkPath ["i"]))
@@ -62,7 +62,7 @@ Definition __osiris__reservedsplit_all_sitem2 : binding :=
                               MkBranches [(
                                 Branch (PData "()" (PTuple PNil))
                                 (
-                                  EApp (EPath (MkPath ["Stdlib";"!"]))
+                                  EApp (EPath (MkPath ["!"]))
                                   (EPath (MkPath ["c"]))
                                 )
                               )]
@@ -113,7 +113,7 @@ Definition __osiris__reservedsplit_all_sitem4 : binding :=
         BiCons (
           Binding (PVar "get")
           (
-            EApp (EPath (MkPath ["Stdlib";"fst"]))
+            EApp (EPath (MkPath ["fst"]))
             (EPath (MkPath ["res"]))
           )
         )
@@ -124,7 +124,7 @@ Definition __osiris__reservedsplit_all_sitem4 : binding :=
           BiCons (
             Binding (PVar "upd")
             (
-              EApp (EPath (MkPath ["Stdlib";"snd"]))
+              EApp (EPath (MkPath ["snd"]))
               (EPath (MkPath ["res"]))
             )
           )
@@ -152,7 +152,7 @@ Definition __osiris__reservedsplit_all_sitem4 : binding :=
                       Binding (PVar "res")
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"-"]))
+                          EApp (EPath (MkPath ["-"]))
                           (
                             EApp (EPath (MkPath ["get"]))
                             (EData "()" (EMkTuple[]))
@@ -216,7 +216,7 @@ Definition __osiris__reservedsplit_all_sitem6 : binding :=
                   Binding (PVar "res")
                   (
                     EApp (
-                      EApp (EPath (MkPath ["Stdlib";"-"]))
+                      EApp (EPath (MkPath ["-"]))
                       (
                         EApp (EPath (MkPath ["get"]))
                         (EData "()" (EMkTuple[]))

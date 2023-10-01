@@ -168,12 +168,19 @@ Section ProofExamples.
      [η] to the goal below. This is thought to be easier to use in the proof of
      foreign modules. *)
   Variables (η : env)
-            (Hη: lookup_name η "Stdlib" = Ret Stdlib)
+            (Hη_eq: lookup_name η "=" = Ret Stdlib__eq)
+            (Hη_add: lookup_name η "+" = Ret Stdlib__add)
+            (Hη_sub: lookup_name η "-" = Ret Stdlib__sub)
+            (Hη_le: lookup_name η "<=" = Ret Stdlib__le)
+            (Hη_ref: lookup_name η "ref" = Ret Stdlib__ref)
+            (Hη_load: lookup_name η "!" = Ret Stdlib__load)
+            (Hη_store: lookup_name η ":=" = Ret Stdlib__store)
             (representable_0 : representable 0).
 
   Goal
     ⊢ WP eval_mexpr η _Examples {{ module_spec Examples_spec }}.
-  Proof using Hη osirisGS0 representable_0 Σ η.
+  Proof using Hη_sub Hη_store Hη_ref Hη_load Hη_le Hη_eq Hη_add
+    osirisGS0 representable_0 Σ η.
 
     (* ---------------------------------------------------------------------- *)
     (* The OCaml program begins with the [Recursion] module.  The elements of

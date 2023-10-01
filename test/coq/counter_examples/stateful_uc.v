@@ -22,14 +22,9 @@ Definition _Stateful_uc : mexpr :=
                     ESeq (
                       EAssert (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"="]))
+                          EApp (EPath (MkPath ["="]))
                           (
-                            EApp (
-                              EPath (
-                                MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                              )
-                            )
+                            EApp (EPath (MkPath ["Counter";"get"]))
                             (EData "()" (EMkTuple[]))
                           )
                         )
@@ -42,22 +37,12 @@ Definition _Stateful_uc : mexpr :=
                         (EInt 1)
                         (EPath (MkPath ["n"]))
                         (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateful";"Counter";"incr"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"incr"]))
                           (EData "()" (EMkTuple[]))
                         )
                       )
                       (
-                        EApp (
-                          EPath (
-                            MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                          )
-                        )
+                        EApp (EPath (MkPath ["Counter";"get"]))
                         (EData "()" (EMkTuple[]))
                       )
                     )
@@ -87,12 +72,7 @@ Definition _Stateful_uc : mexpr :=
                       BiCons (
                         Binding (PVar "i")
                         (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"get"]))
                           (EData "()" (EMkTuple[]))
                         )
                       )
@@ -104,25 +84,15 @@ Definition _Stateful_uc : mexpr :=
                         (EInt 1)
                         (EPath (MkPath ["n"]))
                         (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateful";"Counter";"incr"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"incr"]))
                           (EData "()" (EMkTuple[]))
                         )
                       )
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"-"]))
+                          EApp (EPath (MkPath ["-"]))
                           (
-                            EApp (
-                              EPath (
-                                MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                              )
-                            )
+                            EApp (EPath (MkPath ["Counter";"get"]))
                             (EData "()" (EMkTuple[]))
                           )
                         )
@@ -155,12 +125,7 @@ Definition _Stateful_uc : mexpr :=
                       BiCons (
                         Binding (PVar "i")
                         (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"get"]))
                           (EData "()" (EMkTuple[]))
                         )
                       )
@@ -181,11 +146,8 @@ Definition _Stateful_uc : mexpr :=
                                   (
                                     EMatch (
                                       EAssert (
-                                        EApp (
-                                          EApp (EPath (MkPath
-["Stdlib";"<="]))
-                                          (EInt 0)
-                                        )
+                                        EApp (EApp (EPath (MkPath ["<="]))
+(EInt 0))
                                         (EPath (MkPath ["j"]))
                                       )
                                     )
@@ -199,15 +161,10 @@ Definition _Stateful_uc : mexpr :=
                                               Branch (PInt 0)
                                               (
                                                 EApp (
-                                                  EApp (EPath (MkPath
-["Stdlib";"-"]))
+                                                  EApp (EPath (MkPath ["-"]))
                                                   (
-                                                    EApp (
-                                                      EPath (
-                                                        MkPath
-["CounterExamples";"Stateful";"Counter";"get"]
-                                                      )
-                                                    )
+                                                    EApp (EPath (MkPath
+["Counter";"get"]))
                                                     (EData "()" (EMkTuple[]))
                                                   )
                                                 )
@@ -217,12 +174,8 @@ Definition _Stateful_uc : mexpr :=
                                               Branch PAny
                                               (
                                                 ESeq (
-                                                  EApp (
-                                                    EPath (
-                                                      MkPath
-["CounterExamples";"Stateful";"Counter";"incr"]
-                                                    )
-                                                  )
+                                                  EApp (EPath (MkPath
+["Counter";"incr"]))
                                                   (EData "()" (EMkTuple[]))
                                                 )
                                                 (
@@ -231,7 +184,7 @@ Definition _Stateful_uc : mexpr :=
                                                   (
                                                     EApp (
                                                       EApp (EPath (MkPath
-["Stdlib";"-"]))
+["-"]))
                                                       (EPath (MkPath ["j"]))
                                                     )
                                                     (EInt 1)
@@ -271,10 +224,7 @@ Definition _Stateful_uc : mexpr :=
         Binding (PData "()" (PTuple PNil))
         (
           EAssert (
-            EApp (
-              EApp (EPath (MkPath ["Stdlib";"="]))
-              (EInt 2)
-            )
+            EApp (EApp (EPath (MkPath ["="])) (EInt 2))
             (EApp (EPath (MkPath ["count_for"])) (EInt 2))
           )
         )
@@ -287,10 +237,7 @@ Definition _Stateful_uc : mexpr :=
         Binding (PData "()" (PTuple PNil))
         (
           EAssert (
-            EApp (
-              EApp (EPath (MkPath ["Stdlib";"="]))
-              (EInt 2)
-            )
+            EApp (EApp (EPath (MkPath ["="])) (EInt 2))
             (EApp (EPath (MkPath ["count_for'"])) (EInt 2))
           )
         )
@@ -303,10 +250,7 @@ Definition _Stateful_uc : mexpr :=
         Binding (PData "()" (PTuple PNil))
         (
           EAssert (
-            EApp (
-              EApp (EPath (MkPath ["Stdlib";"="]))
-              (EInt 2)
-            )
+            EApp (EApp (EPath (MkPath ["="])) (EInt 2))
             (EApp (EPath (MkPath ["count_rec"])) (EInt 2))
           )
         )

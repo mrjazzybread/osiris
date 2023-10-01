@@ -36,7 +36,7 @@ Definition __osiris__reservedsplit_all_sitem4 : binding :=
               (
                 FECons "b"
                 (
-                  EApp (EPath (MkPath ["Stdlib";"not"]))
+                  EApp (EPath (MkPath ["not"]))
                   (ERecordAccess (EPath (MkPath ["r"])) "b")
                 )
                 FENil
@@ -98,10 +98,10 @@ Definition __osiris__reservedsplit_all_sitem8 : binding :=
                   Branch (PData "true" (PTuple PNil))
                   (
                     EApp (
-                      EApp (EPath (MkPath ["Stdlib";"-"]))
+                      EApp (EPath (MkPath ["-"]))
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"*"]))
+                          EApp (EPath (MkPath ["*"]))
                           (ERecordAccess (EPath (MkPath ["r"])) "i")
                         )
                         (EInt 2)
@@ -149,7 +149,7 @@ Definition __osiris__reservedsplit_all_sitem10 : binding :=
                       Branch (PVar "r2")
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"+"]))
+                          EApp (EPath (MkPath ["+"]))
                           (
                             EApp (EPath (MkPath ["r_val"]))
                             (EPath (MkPath ["r1"]))
@@ -188,7 +188,7 @@ Definition __osiris__reservedsplit_all_rec_binding13 : expr :=
         ESeq (
           EAssert (
             EApp (
-              EApp (EPath (MkPath ["Stdlib";">="]))
+              EApp (EPath (MkPath [">="]))
               (EPath (MkPath ["n"]))
             )
             (EInt 0)
@@ -197,7 +197,7 @@ Definition __osiris__reservedsplit_all_rec_binding13 : expr :=
         (
           EIfThenElse (
             EApp (
-              EApp (EPath (MkPath ["Stdlib";">"]))
+              EApp (EPath (MkPath [">"]))
               (EPath (MkPath ["n"]))
             )
             (EInt 1)
@@ -206,7 +206,7 @@ Definition __osiris__reservedsplit_all_rec_binding13 : expr :=
             EApp (EPath (MkPath ["is_odd_naive"]))
             (
               EApp (
-                EApp (EPath (MkPath ["Stdlib";"-"]))
+                EApp (EPath (MkPath ["-"]))
                 (EPath (MkPath ["n"]))
               )
               (EInt 2)
@@ -215,7 +215,7 @@ Definition __osiris__reservedsplit_all_rec_binding13 : expr :=
           (
             EIfThenElse (
               EApp (
-                EApp (EPath (MkPath ["Stdlib";"="]))
+                EApp (EPath (MkPath ["="]))
                 (EPath (MkPath ["n"]))
               )
               (EInt 0)
@@ -256,10 +256,10 @@ Definition __osiris__reservedsplit_all_sitem15 : binding :=
             Branch (PVar "n")
             (
               EApp (
-                EApp (EPath (MkPath ["Stdlib";"="]))
+                EApp (EPath (MkPath ["="]))
                 (
                   EApp (
-                    EApp (EPath (MkPath ["Stdlib";"mod"]))
+                    EApp (EPath (MkPath ["mod"]))
                     (EPath (MkPath ["n"]))
                   )
                   (EInt 2)
@@ -290,7 +290,7 @@ Definition __osiris__reservedsplit_all_rec_binding18 : expr :=
     );(
       Branch (PData "S" (PMkTuple [(PVar "n")]))
       (
-        EApp (EPath (MkPath ["Stdlib";"not"]))
+        EApp (EPath (MkPath ["not"]))
         (
           EApp (EPath (MkPath ["is_odd'"]))
           (EPath (MkPath ["n"]))

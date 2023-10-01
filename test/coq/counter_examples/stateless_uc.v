@@ -67,12 +67,7 @@ Definition _Stateless_uc : mexpr :=
                         (
                           EApp (
                             EApp (EPath (MkPath ["do2"]))
-                            (
-                              EPath (
-                                MkPath
-["CounterExamples";"Stateless";"Counter";"make"]
-                              )
-                            )
+                            (EPath (MkPath ["Counter";"make"]))
                           )
                           (EData "()" (EMkTuple[]))
                         )
@@ -82,12 +77,7 @@ Definition _Stateless_uc : mexpr :=
                     (
                       ESeq (
                         EApp (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateless";"Counter";"set"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"set"]))
                           (EPath (MkPath ["c'"]))
                         )
                         (EPath (MkPath ["n"]))
@@ -99,27 +89,17 @@ Definition _Stateless_uc : mexpr :=
                           (EPath (MkPath ["n"]))
                           (
                             ESeq (
-                              EApp (
-                                EPath (
-                                  MkPath
-["CounterExamples";"Stateless";"Counter";"incr"]
-                                )
-                              )
+                              EApp (EPath (MkPath ["Counter";"incr"]))
                               (EPath (MkPath ["c"]))
                             )
                             (
                               EApp (
-                                EApp (
-                                  EPath (
-                                    MkPath
-["CounterExamples";"Stateless";"Counter";"set"]
-                                  )
-                                )
+                                EApp (EPath (MkPath ["Counter";"set"]))
                                 (EPath (MkPath ["c'"]))
                               )
                               (
                                 EApp (
-                                  EApp (EPath (MkPath ["Stdlib";"+"]))
+                                  EApp (EPath (MkPath ["+"]))
                                   (EPath (MkPath ["n"]))
                                 )
                                 (EPath (MkPath ["i"]))
@@ -131,27 +111,17 @@ Definition _Stateless_uc : mexpr :=
                           ESeq (
                             EAssert (
                               EApp (
-                                EApp (EPath (MkPath ["Stdlib";"="]))
+                                EApp (EPath (MkPath ["="]))
                                 (
                                   EApp (
-                                    EApp (EPath (MkPath ["Stdlib";"-"]))
+                                    EApp (EPath (MkPath ["-"]))
                                     (
-                                      EApp (
-                                        EPath (
-                                          MkPath
-["CounterExamples";"Stateless";"Counter";"get"]
-                                        )
-                                      )
+                                      EApp (EPath (MkPath ["Counter";"get"]))
                                       (EPath (MkPath ["c'"]))
                                     )
                                   )
                                   (
-                                    EApp (
-                                      EPath (
-                                        MkPath
-["CounterExamples";"Stateless";"Counter";"get"]
-                                      )
-                                    )
+                                    EApp (EPath (MkPath ["Counter";"get"]))
                                     (EPath (MkPath ["c"]))
                                   )
                                 )
@@ -160,12 +130,7 @@ Definition _Stateless_uc : mexpr :=
                             )
                           )
                           (
-                            EApp (
-                              EPath (
-                                MkPath
-["CounterExamples";"Stateless";"Counter";"get"]
-                              )
-                            )
+                            EApp (EPath (MkPath ["Counter";"get"]))
                             (EPath (MkPath ["c"]))
                           )
                         )
@@ -197,12 +162,7 @@ Definition _Stateless_uc : mexpr :=
                       BiCons (
                         Binding (PVar "c")
                         (
-                          EApp (
-                            EPath (
-                              MkPath
-["CounterExamples";"Stateless";"Counter";"make"]
-                            )
-                          )
+                          EApp (EPath (MkPath ["Counter";"make"]))
                           (EData "()" (EMkTuple[]))
                         )
                       )
@@ -223,11 +183,8 @@ Definition _Stateless_uc : mexpr :=
                                   (
                                     EMatch (
                                       EAssert (
-                                        EApp (
-                                          EApp (EPath (MkPath
-["Stdlib";"<="]))
-                                          (EInt 0)
-                                        )
+                                        EApp (EApp (EPath (MkPath ["<="]))
+(EInt 0))
                                         (EPath (MkPath ["i"]))
                                       )
                                     )
@@ -240,24 +197,16 @@ Definition _Stateless_uc : mexpr :=
                                             MkBranches [(
                                               Branch (PInt 0)
                                               (
-                                                EApp (
-                                                  EPath (
-                                                    MkPath
-["CounterExamples";"Stateless";"Counter";"get"]
-                                                  )
-                                                )
+                                                EApp (EPath (MkPath
+["Counter";"get"]))
                                                 (EPath (MkPath ["c"]))
                                               )
                                             );(
                                               Branch PAny
                                               (
                                                 ESeq (
-                                                  EApp (
-                                                    EPath (
-                                                      MkPath
-["CounterExamples";"Stateless";"Counter";"incr"]
-                                                    )
-                                                  )
+                                                  EApp (EPath (MkPath
+["Counter";"incr"]))
                                                   (EPath (MkPath ["c"]))
                                                 )
                                                 (
@@ -266,7 +215,7 @@ Definition _Stateless_uc : mexpr :=
                                                   (
                                                     EApp (
                                                       EApp (EPath (MkPath
-["Stdlib";"-"]))
+["-"]))
                                                       (EPath (MkPath ["i"]))
                                                     )
                                                     (EInt 1)
@@ -306,10 +255,7 @@ Definition _Stateless_uc : mexpr :=
         Binding (PData "()" (PTuple PNil))
         (
           EAssert (
-            EApp (
-              EApp (EPath (MkPath ["Stdlib";"="]))
-              (EInt 2)
-            )
+            EApp (EApp (EPath (MkPath ["="])) (EInt 2))
             (EApp (EPath (MkPath ["count_for"])) (EInt 2))
           )
         )
@@ -322,10 +268,7 @@ Definition _Stateless_uc : mexpr :=
         Binding (PData "()" (PTuple PNil))
         (
           EAssert (
-            EApp (
-              EApp (EPath (MkPath ["Stdlib";"="]))
-              (EInt 2)
-            )
+            EApp (EApp (EPath (MkPath ["="])) (EInt 2))
             (EApp (EPath (MkPath ["count_rec"])) (EInt 2))
           )
         )

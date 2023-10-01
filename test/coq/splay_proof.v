@@ -333,7 +333,7 @@ Local Ltac fixme :=
   with_strategy transparent [app] simpl (MkPathRev _); SIMP1.
 
 Lemma Splay__spec:
-  let η := EnvCons "Stdlib" Stdlib EnvNil in
+  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   SIMP (eval_mexpr η _Splay)
        (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.

@@ -11,7 +11,7 @@ Definition _Stateful : mexpr :=
         ILet (
           BiCons (
             Binding (PVar "c")
-            (EApp (EPath (MkPath ["Stdlib";"ref"])) (EInt 0))
+            (EApp (EPath (MkPath ["ref"])) (EInt 0))
           )
           BiNil
         )
@@ -29,14 +29,14 @@ Definition _Stateful : mexpr :=
                       Branch (PData "()" (PTuple PNil))
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";":="]))
+                          EApp (EPath (MkPath [":="]))
                           (EPath (MkPath ["c"]))
                         )
                         (
                           EApp (
-                            EApp (EPath (MkPath ["Stdlib";"+"]))
+                            EApp (EPath (MkPath ["+"]))
                             (
-                              EApp (EPath (MkPath ["Stdlib";"!"]))
+                              EApp (EPath (MkPath ["!"]))
                               (EPath (MkPath ["c"]))
                             )
                           )
@@ -67,9 +67,9 @@ Definition _Stateful : mexpr :=
                         ESeq (
                           EAssert (
                             EApp (
-                              EApp (EPath (MkPath ["Stdlib";"<="]))
+                              EApp (EPath (MkPath ["<="]))
                               (
-                                EApp (EPath (MkPath ["Stdlib";"!"]))
+                                EApp (EPath (MkPath ["!"]))
                                 (EPath (MkPath ["c"]))
                               )
                             )
@@ -78,7 +78,7 @@ Definition _Stateful : mexpr :=
                         )
                         (
                           EApp (
-                            EApp (EPath (MkPath ["Stdlib";":="]))
+                            EApp (EPath (MkPath [":="]))
                             (EPath (MkPath ["c"]))
                           )
                           (EPath (MkPath ["v"]))
@@ -105,7 +105,7 @@ Definition _Stateful : mexpr :=
                     MkBranches [(
                       Branch (PData "()" (PTuple PNil))
                       (
-                        EApp (EPath (MkPath ["Stdlib";"!"]))
+                        EApp (EPath (MkPath ["!"]))
                         (EPath (MkPath ["c"]))
                       )
                     )]

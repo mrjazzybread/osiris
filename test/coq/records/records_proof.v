@@ -10,37 +10,6 @@ From test.records Require Import records records_code.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Table of content of the file:
-   1. Definition of an instance of [Encode] for the a Coq-type representing
-      OCaml records of type [{ b: bool; i: int }].
-   2. Definitions of values (of type [val]) representing OCaml values appearing
-      in the proofs.
-   3. Definitions of specifications for elements of the module.
-   4. Proofs that each function body respects its specification
-      (These are used in the caller-side-reasoning style proof below.)
-   5. Proofs that each function respects its specification
-      (These are used in the callee-side-reasoning style proof below.)
-   6. Proof of the module (Caller-side reasoning).
-   7. Proof of the module (Callee-side reasoning).
-   8. Direct proof of the module (in one lemma).
-
-Efficiency of 4--5: TODO.
-
-Efficiency of 6--8: TODO. *)
-
-(* -------------------------------------------------------------------------- *)
-
-(* Make sure that the modules [Record] (defined in [records.v]) and
-   [opacified_Records] (defined in [records_code.v]) coincide. *)
-Goal opacified_Records = _Records.
-Proof. reflexivity. Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-Local Transparent eval. (* TODO. *)
-
-(* -------------------------------------------------------------------------- *)
-
 Context `{!osirisGS Σ}.
 
 (* -------------------------------------------------------------------------- *)
@@ -165,10 +134,8 @@ Ltac wp_simp_eusing H :=
   iApply wp_simp; [ by eapply H; try done | wp ].
 
 
-
 Lemma Records_spec :
-  let η := EnvCons "Stdlib" Stdlib $
-           EnvNil in
+  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   ⊢ WP eval_mexpr η _Records {{ module_spec Λ }}.
 Proof.
   intros η.
@@ -249,6 +216,7 @@ Proof.
     { wp_continue.
       (* TODO manual encoding *)
       replace (nat_encode_f n) with #n; last reflexivity.
+      wp_bind.
       iApply (wp_covariant with "His_odd'").
       iIntros (?->).
       destruct (is_odd_pure n) eqn:E; wp; equality. } }

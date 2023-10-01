@@ -19,7 +19,7 @@ Definition __osiris__reservedsplit_all_rec_binding3 : expr :=
                 (
                   EIfThenElse (
                     EApp (
-                      EApp (EPath (MkPath ["Stdlib";"="]))
+                      EApp (EPath (MkPath ["="]))
                       (EPath (MkPath ["y"]))
                     )
                     (EInt 0)
@@ -32,10 +32,7 @@ Definition __osiris__reservedsplit_all_rec_binding3 : expr :=
                     (EInt 1)
                   )
                   (
-                    EApp (
-                      EApp (EPath (MkPath ["Stdlib";"+"]))
-                      (EInt 1)
-                    )
+                    EApp (EApp (EPath (MkPath ["+"])) (EInt 1))
                     (
                       EApp (
                         EApp (EPath (MkPath ["add"]))
@@ -43,7 +40,7 @@ Definition __osiris__reservedsplit_all_rec_binding3 : expr :=
                       )
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";"-"]))
+                          EApp (EPath (MkPath ["-"]))
                           (EPath (MkPath ["y"]))
                         )
                         (EInt 1)
@@ -84,7 +81,7 @@ Definition __osiris__reservedsplit_all_rec_binding5 : expr :=
                 (
                   EIfThenElse (
                     EApp (
-                      EApp (EPath (MkPath ["Stdlib";"="]))
+                      EApp (EPath (MkPath ["="]))
                       (EPath (MkPath ["y"]))
                     )
                     (EInt 0)
@@ -93,7 +90,7 @@ Definition __osiris__reservedsplit_all_rec_binding5 : expr :=
                   (
                     EIfThenElse (
                       EApp (
-                        EApp (EPath (MkPath ["Stdlib";"="]))
+                        EApp (EPath (MkPath ["="]))
                         (EPath (MkPath ["y"]))
                       )
                       (EInt 1)
@@ -111,7 +108,7 @@ Definition __osiris__reservedsplit_all_rec_binding5 : expr :=
                         )
                         (
                           EApp (
-                            EApp (EPath (MkPath ["Stdlib";"-"]))
+                            EApp (EPath (MkPath ["-"]))
                             (EPath (MkPath ["y"]))
                           )
                           (EInt 1)

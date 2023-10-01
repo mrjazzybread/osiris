@@ -78,11 +78,15 @@ Section ProofExamples.
      [η] to the goal below. This is thought to be easier to use in the proof of
      foreign modules. *)
   Variables (η : env)
-            (Hη: lookup_name η "Stdlib" = Ret Stdlib).
+            (Hη_ref: lookup_name η "ref" = Ret Stdlib__ref)
+            (Hη_load: lookup_name η "!" = Ret Stdlib__load)
+            (Hη_store: lookup_name η ":=" = Ret Stdlib__store)
+            (Hη_add: lookup_name η "+" = Ret Stdlib__add)
+            (Hη_le: lookup_name η "<=" = Ret Stdlib__le).
 
   Lemma Stateless_correct :
     ⊢ WP eval_mexpr η _Stateless {{ Stateless_spec }}.
-  Proof using Hη osirisGS0 Σ η.
+  Proof using Hη_add Hη_le Hη_load Hη_ref Hη_store osirisGS0 Σ η.
     oSpecify "make" make_spec vmake "#Hmake" !.
     { iIntros "!>".
       @oCall unfold; wp_bind; wp_continue.

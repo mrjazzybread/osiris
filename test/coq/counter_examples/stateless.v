@@ -19,7 +19,7 @@ Definition _Stateless : mexpr :=
                   (
                     MkBranches [(
                       Branch (PData "()" (PTuple PNil))
-                      (EApp (EPath (MkPath ["Stdlib";"ref"])) (EInt 0))
+                      (EApp (EPath (MkPath ["ref"])) (EInt 0))
                     )]
                   )
                 )
@@ -42,14 +42,14 @@ Definition _Stateless : mexpr :=
                       Branch (PVar "c")
                       (
                         EApp (
-                          EApp (EPath (MkPath ["Stdlib";":="]))
+                          EApp (EPath (MkPath [":="]))
                           (EPath (MkPath ["c"]))
                         )
                         (
                           EApp (
-                            EApp (EPath (MkPath ["Stdlib";"+"]))
+                            EApp (EPath (MkPath ["+"]))
                             (
-                              EApp (EPath (MkPath ["Stdlib";"!"]))
+                              EApp (EPath (MkPath ["!"]))
                               (EPath (MkPath ["c"]))
                             )
                           )
@@ -89,10 +89,9 @@ Definition _Stateless : mexpr :=
                                   ESeq (
                                     EAssert (
                                       EApp (
-                                        EApp (EPath (MkPath ["Stdlib";"<="]))
+                                        EApp (EPath (MkPath ["<="]))
                                         (
-                                          EApp (EPath (MkPath
-["Stdlib";"!"]))
+                                          EApp (EPath (MkPath ["!"]))
                                           (EPath (MkPath ["c"]))
                                         )
                                       )
@@ -101,7 +100,7 @@ Definition _Stateless : mexpr :=
                                   )
                                   (
                                     EApp (
-                                      EApp (EPath (MkPath ["Stdlib";":="]))
+                                      EApp (EPath (MkPath [":="]))
                                       (EPath (MkPath ["c"]))
                                     )
                                     (EPath (MkPath ["v"]))
@@ -133,7 +132,7 @@ Definition _Stateless : mexpr :=
                     MkBranches [(
                       Branch (PVar "c")
                       (
-                        EApp (EPath (MkPath ["Stdlib";"!"]))
+                        EApp (EPath (MkPath ["!"]))
                         (EPath (MkPath ["c"]))
                       )
                     )]

@@ -78,8 +78,7 @@ Lemma Add_spec :
       ("i3", is_equal #3)
     ]
   in
-  let η := EnvCons "Stdlib" Stdlib $
-           EnvNil in
+  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   ⊢ WP eval_mexpr η _Arith {{ module_spec Λ }}.
 Proof.
   intros.

@@ -118,12 +118,12 @@ Section StdLib__code.
             EnvNil.
 
   (* Putting everything together. *)
-  Definition Stdlib :=
-    VStruct $
+  Definition Stdlib_env :=
             Stdlib_arith_env :::
             Stdlib_store_env :::
             Stdlib_misc_env :::
             Stdlib_bool_env.
+  Definition Stdlib := VStruct Stdlib_env.
 End StdLib__code.
 
 (* -------------------------------------------------------------------------- *)
