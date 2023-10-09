@@ -36,7 +36,7 @@ init:
 	eval $(opam env --switch=osiris)
 	opam repository add coq-released https://coq.inria.fr/opam/released
 	opam repository add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin dune 3.10.0 --yes
+	opam pin dune 3.11.0 --yes
 	opam pin coq 8.17.1 --yes
 	opam pin coq-stdpp --dev-repo --yes
 	opam pin coq-iris --dev-repo --yes
