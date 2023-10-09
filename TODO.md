@@ -298,7 +298,6 @@
 * Unspecified evaluation order of toplevel modules
 * First-class modules
 * Extensible algebraic data types
-* Recursive values of a mutable type
 * Exceptions
   + Exception names must be treated like variables,
     *not* like data constructors
@@ -311,7 +310,7 @@
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
-* `when` clauses
+* `when` clauses (may be easy to handle just by raising `Next`)
 * `let rec` over mutable values could conceivably be supported
 * Recursive modules? (Used in Sek, for example.)
 
