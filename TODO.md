@@ -247,6 +247,8 @@
 * chappe-al-23
 * Look at Krebbers's dissertation to see how he handles unspecified evaluation
   order in C.
+* [Semi-automated Reasoning About Non-determinism in C Expressions](https://iris-project.org/pdfs/2019-esop-c.pdf),
+  by D. Frumin, L. Gondelman et R. Krebbers (2019);
 * Goose and GooseLang (Tej Chajed).
 * WasmRef-Isabelle (https://dl.acm.org/doi/pdf/10.1145/3591224).
   Testing or fuzzing techniques that we could re-use?
