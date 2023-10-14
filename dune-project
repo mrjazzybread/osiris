@@ -3,7 +3,7 @@
 
 (name osiris)
 
-(generate_opam_files false)
+(generate_opam_files true)
 
 (authors "François Pottier" "Armaël Guéneau" "Arnaud Daby-Seesaram")
 
@@ -11,4 +11,7 @@
 
 (package
   (name osiris)
-  (depends ocaml dune))
+  (depends ocaml dune
+  pprint compiler-libs
+  coq-stdpp coq-iris
+  coq-serapi))
