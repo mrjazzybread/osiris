@@ -232,6 +232,7 @@
 
 * Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
 * Scott Owens
+* Functional big-step semantics, ESOP 2016.
 * Malfunction
 * audebaud-zucca-99 (spec monad)
 * claessen-99, harrison-06, pirog-gibbons-14 (resumption monad)
