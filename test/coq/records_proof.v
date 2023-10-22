@@ -40,7 +40,6 @@ Proof. intros. subst. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_R : encode.
 
-(* TODO FIXME there is already an instance of [Encode nat] in encode.v *)
 Fixpoint nat_encode_f (n : nat) : val :=
   match n with
   | O => VData "O" $ VTuple VNil
@@ -100,16 +99,6 @@ Definition sum_spec (vsum: val) : iProp Σ :=
                 λ res,
                 is_equal res # (sum_pure r1 r2) }} }}.
 
-Fixpoint is_odd_pure (n: nat) :bool :=
-  match n with
-  | O => true
-  | S n => negb (is_odd_pure n)
-  end.
-
-Definition is_odd_spec (vis_odd: val) : iProp Σ:=
-  □ ∀ (n : nat),
-  WP call vis_odd #n {{ is_equal #(is_odd_pure n) }}.
-
 (* -------------------------------------------------------------------------- *)
 
 (* Specification of the module. *)
@@ -119,8 +108,7 @@ Definition Λ :=
     ("r_val", r_val_spec) ;
     ("lily", is_equal enc_lily) ;
     ("flip", flip_spec) ;
-    ("r_elt", is_equal enc_r_elt) ;
-    ("is_odd'", is_odd_spec)
+    ("r_elt", is_equal enc_r_elt)
   ].
 
 (* -------------------------------------------------------------------------- *)
@@ -133,7 +121,6 @@ Ltac wp_simp_using H :=
 Ltac wp_simp_eusing H :=
   iApply wp_simp; [ by eapply H; try done | wp ].
 
-
 Lemma Records_spec :
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   ⊢ WP eval_mexpr η _Records {{ module_spec Λ }}.
@@ -145,7 +132,6 @@ Proof.
   wp.
 
   (* [r_elt] is a known value. *)
-  wp_bind.
   wp_continue. wp_bind.
 
   (* [flip] has the expected spec. *)
@@ -201,25 +187,6 @@ Proof.
       wp. equality. }
   }
 
-  wp_continue.
-  wp_bind.
-
-  (* [is_odd] is given the trivial spec for now. *)
-  oSpecify "is_odd" trivial_spec vis_odd "#?"; first done.
-  wp_bind.
-
-  oSpecify "is_odd'" is_odd_spec vis_odd' "#His_odd'".
-  { iIntros "!>" ([|]); wp_enter_and_abstract;
-      iIntros (is_odd');
-    wp_step; iNext; wp. (* FIXME: [wp] uses [wp_simp], thus eating laters. *)
-    { wp_continue. equality. }
-    { wp_continue.
-      (* TODO manual encoding *)
-      replace (nat_encode_f n) with #n; last reflexivity.
-      wp_bind.
-      iApply (wp_covariant with "His_odd'").
-      iIntros (?->).
-      destruct (is_odd_pure n) eqn:E; wp; equality. } }
   (* Every spec has been proven: [wp_module_spec] can finish the proof. *)
   wp_module_spec.
 Time Qed.
