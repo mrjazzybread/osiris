@@ -40,11 +40,13 @@ Include Make(C).
 (* The left-arrow notation, analogous to Haskell's do notation. *)
 
 Notation "x ← y ; z" :=
-  (bind y (λ x, z)).
+  (bind y (λ x, z))
+  (format "'[v' x  '←'  y ';' '/' z ']'").
 
 Notation "' x ← y ; z" :=
   (bind y (λ x : _, z))
-  (at level 20, x pattern, y at level 100, z at level 200).
+  (at level 20, x pattern, y at level 100, z at level 200,
+  format "'[v' ' x  '←'  y ';' '/' z ']'").
 
 (* ------------------------------------------------------------------------ *)
 
