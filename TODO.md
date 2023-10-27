@@ -259,6 +259,7 @@
   also Hinze & Gibbons.
 * Frumin/Timany/Birkedal, [Modular Denotational Semantics for Effects with Guarded
   Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
+* [Program Adverbs and Tlön embeddings](https://www.cis.upenn.edu/~sweirich/papers/icfp22.pdf)
 
 ## Features of OCaml that we want to support (at some point)
 
