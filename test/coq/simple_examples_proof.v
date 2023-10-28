@@ -194,52 +194,101 @@ Section ProofExamples.
     (* Now, let us prove that "infinite" satisfies its specification. *)
     oSpecify "infinite" infinite_spec vinfinite "#Hinfinite".
     { (* As the function is recursive, there is a Löb-induction-related
-         hypothesis already available in the context. *)
-      iIntros "!>" ([|n]);
-        oCall "infinite" vinfinite; do 2 (wp_bind; wp_continue);
-        first equality.
-      change (VData _ _) with #(S' n). (* TODO: get rid of this line. *)
-      wp_use "Hinfinite". }
+         hypothesis already available in the context.
+
+         We first perform a case analysis on [n]. In each case, we perform the
+         function call and opacify the actual value of the function. *)
+      iIntros "!>" ([|m]); oCall "infinite" vinfinite.
+
+      - (* Case [n = O]. *)
+        (* We are entering the function. The environment gets extended with the
+           binding [n ~> O]. *)
+        wp_continue.
+
+        (* The pattern matching on [O] does not bind any new symbol, so the
+           environment gets extended with the empty environment. *)
+        wp_continue.
+
+        (* [equality can take care of the rest. *)
+        equality.
+
+      - (* Case [n = S m] *)
+        (* The environment is about to be extended with [n ~> S m]. *)
+        wp_continue.
+
+        (* The inner [match] will deconstruct [S m] and will bind [n] to [m].
+           Note: This shadows the previous value of [n]: even if it still
+                 appears in the environment, it will be unreachable. *)
+        wp_continue.
+
+        (* FIXME: get rid of this line! *)
+        change (VData _ _) with #(S' m).
+
+        (* We use the IH and get back the postcondition of the function.
+           Note: The IH is no longer behind a later because we have taken at
+                 least a step since we got it. *)
+        wp_use "Hinfinite". }
+
 
     (* [infinite] is followed by [nat_to_int] in OCaml. *)
     (* One can add '!' after [oSpecify] to fast-forward to the targeted
        bindings (it uses [wp until _ !] under the hood). *)
     oSpecify "nat_to_int" nat_to_int_spec vnat_to_int "#Hnat_to_int" !.
-    { iIntros "!>"([|n]);
-        oCall "nat_to_int" f; do 2 (wp_bind; wp_continue);
-        first done.
-      wp_bind. wp_use "Hnat_to_int".
-      iIntros(?->). wp; equality. }
+    { (* The proof is very similar to that of [infinite]. Therefore, we go
+         faster here. *)
+      iIntros "!>"([|m]);
+        oCall "nat_to_int" vnat_to_int; do 2 wp_continue; first (by equality);
+        change (encode_my_nat_aux m) with #m (* FIXME! *);
+        iApply wp_bind_binary; first  wp_use "Hnat_to_int".
+      iIntros(?->). wp.
+      simpl;(* FIXME *) equality. }
+
 
     (* Finally, [nat_to_int] is followed by [int_to_nat] in OCaml. *)
     oSpecify "int_to_nat" int_to_nat_spec vint_to_nat "#Hint_to_nat" !.
-    { iIntros (i) "!> [%Hle %Hrepresentable]".
+    { (* The following proof is a bit more tedious, so we will provide some more
+         details. *)
+      iIntros (i) "!> [%Hle %Hrepresentable]".
+
+      (* First, we perform the function call and check whether or not [i] is
+         equal to 0. *)
       oCall "int_to_nat" vint_to_nat;
         do 2 (wp_bind; wp_continue);
         destruct (decide (i = O)) as [-> | n].
-      { change (Z.of_nat O) with 0%Z.
-        rewrite eq_repr_repr; [ by wp | done | done ]. }
-      { rewrite eq_repr_repr; [ | done | done ].
-        replace (i =? 0) with false by lia.
-        wp; wp_bind.
-        destruct i as [|j] eqn:Ei;
-          wp_use "[Hint_to_nat]"; first by destruct n.
-        2: {
-          unshelve iPoseProof ("Hint_to_nat" $! j _) as "#h".
-          { (* j is positive and representable. *)
-            unfold representable in *. split; lia. }
-          replace (VInt (repr (S j - 1))) with #j; last first.
-          { unfold encode, Encode_nat. do 2 f_equal. lia. }
-          iClear "Hinfinite Hnat_to_int Hint_to_nat".
-          iApply "h". }
-        { exfalso; by apply n. }
-        { iIntros (?->).
-          wp. iPureIntro; reflexivity. }
 
-        (* The goal resolved with [exfalso] contained an unresolved
-           post-condition. We provide a dummy one below. *)
-        Unshelve.
-        1: exact (λ _, emp%I). } }
+      { (* Case [i = 0]. *)
+        change (Z.of_nat O) with 0%Z.
+        rewrite eq_repr_repr; [ by wp | done | done ]. }
+
+      { (* Case [i <> 0].
+           We know that there exists a [j : nat] such that [i = S j]. *)
+        pose proof (iffLR (Nat.neq_0_r i) n) as [j ->].
+
+        (* First, reduce the condition. *)
+        rewrite eq_repr_repr; [ | done | done ];
+          change ((S j) =? 0) with false.
+
+        (* Then, take a few steps. *)
+        wp; wp_bind.
+
+        (* The symbolic execution stops on a function call. *)
+
+        (* FIXME!*)
+        replace (VInt (repr (S j - 1))) with #j; last first.
+          { unfold encode, Encode_nat. do 2 f_equal. lia. }
+
+        (* Now that the goal matches the IH, we can use it. *)
+        wp_use "Hint_to_nat".
+          { (* It asks us to prove the precondition: [j] is positive and
+               representable. *)
+          iPureIntro.
+          unfold representable in *. split; lia. }
+
+        (* Introduce the result of the computation. *)
+        iIntros (?->).
+
+        (* Symboloc execution is over, we are done. *)
+        wp. equality. } }
 
     (* Every binding of the module [Recursion] has been proven.  Therefore,
        [wp_module_spec] is enough to prove the spec of [Recursion]. *)
@@ -254,7 +303,7 @@ Section ProofExamples.
 
     oSpecify "init" init_spec vinit "#Hinit" !.
     { iIntros "!>".
-      @oCall unfold; wp_bind; wp_continue.
+      @oCall unfold; wp_continue.
       wp_alloc ℓ "[Hℓ _]".
       iExists ℓ.
       iSplit; first equality.
@@ -284,31 +333,34 @@ Section ProofExamples.
     (* ---------------------------------------------------------------------- *)
     (* Tests using the above-defined modules. *)
 
-    (* Justification for [val_as_struct_total] and [lookup_name_total]: what
-       should we do it they did not.
+    (* The following paragraphs justify our use of [val_as_struct_total] and
+       [lookup_name_total].
 
-       The specifications cannot stay as is for seeral reasons: [simp] assumes
-       that every goal of the form [lookup_path _ = Ret _] can be solved, while
+       The specifications cannot stay as is for several reasons: [simp] assumes
+       that every goal of the form [lookup_path _ = Ret _] can be solved, and
        the elements of the modules are not available to the outside world. Thus,
-       one needs to logically open the modules tobe able to use them. This means
-       destructing the modules specifications.
+       one needs to open the abstract modules to be able to use them, i.e. to
+       destruct the modules specifications.
        The reason why the specifications should be destroyed is mainly to unpack
        existential values corresponding to the above paths. Note that
        [simp] could not perform these destructions on-the-fly as it does not
        have access to the Iris context in which the specs live.
 
-       However, the specifications should be reformed afterwards... as the
-       specification of the file (seen as a module) requries those.
+       However,
+         1. the specifications should be reformed afterwards... as the
+            specification of the file (seen as a module) requries those.
+         2. this would flood users with twice as many hypothesis as they are
+            functions within the modules (its specification and a pure equality:
+            [lookup_path _ = Ret _]).
 
-       In this example, the specifcation of [Recursive] is
-       persistent. Therefore, it is possible to duplicate it and destruct one of
-       the copies. The specification of [Counter] is not entirely persistent,
-       but part of it is. Therefore, it is possible to split the persistent part
+       In this example, the specifcation of [Recursive] is persistent.
+       Therefore, it is possible to duplicate it and destruct one of the
+       copies. The specification of [Counter] is not entirely persistent, but
+       part of it is. Therefore, it is possible to split the persistent part
        from the rest and copy it. The non-persistent part should not disappear
        (each time it is used by a function of [Counter], it will be given back
-       to the user). At the end of the module (ie. file), the sepcification of
+       to the user). At the end of the module (i.e. file), the sepcification of
        [Counter] can be proven again.
-
 
        (* Destruction of ["HRec"]. *)
        iPoseProof "HRec" as "HRec'".
@@ -318,7 +370,9 @@ Section ProofExamples.
                             (%vinfinite&%Hlookup_infinite&#Hinifinite)&
                             (%vnat_to_int&%Hlookup_nat_to_int&#Hnat_to_int)&
                             (%vint_to_nat&%Hlookup_int_to_nat&#Hint_to_nat)&_)".
-     *)
+
+       As we do not want to manually do this for any module that we want to use,
+       we will use the aforementioned total functions instead. *)
 
     (* The following line avoids to unfold [encode] with [cbn]. It should be
        able to move up at the beginning of the file. It is not currently the
@@ -332,7 +386,7 @@ Section ProofExamples.
                               iIntros (?)"[->Hc]"; wp; wp_continue.
 
     (* Instead of opening existentials corresponding to [Recursion], we use
-       [is_module], which is a trick introduced in
+       [oModule], which is a trick introduced in
        [theories/proofmode/tactics.v] *)
     oModule vRecursion.
 
@@ -346,7 +400,7 @@ Section ProofExamples.
     (* The constant [twelve] is defined.  In this let-binding, a counter is
        instantiated.  Then, a loop is run to increase the counter twelve times.
        Note : two calls to [Counter.get] are also performed. *)
-    change VUnit with #tt. (* TODO: get rid of me. *)
+    change VUnit with #tt. (* FIXME! *)
 
     (* Initialize the counter and eliminate the first call to [Counter.get]. *)
     counter_init. counter_get.
@@ -356,7 +410,8 @@ Section ProofExamples.
        the loop index, and prove the preservation of said predicate by the body
        of the loop. *)
 
-    oLoopPos 1%nat 12%nat (λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I with "[Hc]" "[]".
+    oLoopPos 1%nat 12%nat(λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I
+      with "[Hc]" "[]".
 
     (* Proof that the invariant holds before the execution of the loop. *)
     { iExists O. iSplit; [ equality | iExact "Hc" ]. }
@@ -400,7 +455,7 @@ Section ProofExamples.
                                    S' $ S' $ S' $ S' $
                                    S' $ S' $ S' $ S' $ O'))
     end.
-    (* Ditto. *)
+
     oSpec "nat_to_int" from "HRec".
     iIntros (?->).
     wp_bind. wp_continue. wp_bind.
@@ -411,7 +466,7 @@ Section ProofExamples.
                            S' $ S' $ S' $ S' $
                            S' $ S' $ S' $ S' $ O')
     end.
-    (* Ditto. *)
+
     oSpec "nat_to_int" from "HRec".
     iIntros (?->).
     wp_bind. wp_continue.
@@ -422,5 +477,4 @@ Section ProofExamples.
        verified above, [wp_module_spec] can finish the proof. *)
     wp_module_spec.
   Qed.
-
 End ProofExamples.
