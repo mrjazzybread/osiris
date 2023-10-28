@@ -9,6 +9,18 @@ From osiris.proofmode Require Import specifications.
    https://coq.inria.fr/doc/V8.10.2/refman/user-extensions/syntax-extensions.html#displaying-symbolic-notations
    for information on notation formatting. *)
 
+(* ------------------------------------------------------------------------ *)
+
+Declare Scope expr_scope.
+Delimit Scope expr_scope with expr.
+Bind Scope expr_scope with expr.
+
+Notation "- e" := (EIntNeg e) : expr_scope.
+Infix "+" := EIntAdd : expr_scope.
+Infix "-" := EIntSub : expr_scope.
+Infix "*" := EIntMul : expr_scope.
+Infix "&&" := EBoolConj : expr_scope.
+Infix "||" := EBoolDisj : expr_scope.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -40,7 +52,7 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 Notation "'WP' 'Par' '(' m1 ')' '(' m2 ')' '...continuations' '@' s ';' E '{{' φ '}}'" :=
   (wp s E (Par m1 m2 _ _) φ)
     (only printing, format
-    "'[v    ' 'WP'  'Par' '/' '(' m1 ')' '/' '(' m2 ')' '/'  '...continuations'  '@' s ';'  E '/'  '{{'  φ  '}}' ']'").
+    "'[hv    ' 'WP'  'Par' '/' '(' m1 ')' '/' '(' m2 ')' '/'  '...continuations'  '@' s ';'  E '/'  '{{'  φ  '}}' ']'").
 
 
 (* [WP (bind m k) @s; E {{ φ }}] is printed as follows (if breaking lines is
@@ -81,7 +93,7 @@ Notation "n1 ~> v1 ; η" :=
 Notation "[ x ; .. ; z ]" :=
   (RecBiCons x (.. (RecBiCons z RecBiNil) ..))
     (only printing,
-       format "[  '[v' x ;  '/' .. ;  '/' z ']' ]").
+       format "[  '[hv' x ;  '/' .. ;  '/' z ']' ]").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)
@@ -97,6 +109,57 @@ Notation "'An' 'environment' 'containing' n1 , .. , nn 'will' 'be' 'added' 'to' 
 Infix ":::" := (concat).
 
 (* -------------------------------------------------------------------------- *)
+(* Paths, tuples and ADTs. *)
+
+
+Notation "'path:(' x1 ')'" :=
+  (PathBase x1)
+    (format "'path:(' x1 ')'").
+Notation "'path:(' x1 '.' .. '.' xn '.' xm ')'" :=
+  (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
+    (x1, xn, xm at level 200,
+       format "'path:(' x1 '/' '.' .. '/' '.' xn '.' '/' xm )").
+
+Notation "'epath:(' x1 ')'" :=
+  (EPath (PathBase x1))
+    (format "'epath:(' x1 ')'").
+Notation "'epath:(' x1 '.' .. '.' xn '.' xm ')'" :=
+  (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
+    (format "'epath:(' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
+
+
+Notation "'<e' e1 , .. , en 'e>'" :=
+  (ETuple (ECons e1 .. (ECons en ENil) ..))
+    (format "'<e'  e1 ,  '/' .. ,  '/' en  'e>'").
+
+Notation "'<v' v1 , .. , vn 'v>'" :=
+  (VTuple (VCons v1 .. (VCons vn VNil) ..))
+    (format "'<v'  v1 ,  '/' .. ,  '/' vn  'v>'").
+
+Notation "'<p' p1 , .. , pn 'p>'" :=
+  (PTuple (PCons p1 .. (PCons pn PNil) ..))
+    (format "'<p'  p1 ,  '/' .. ,  '/' pn  'p>'").
+
+
+Notation "'edata:(' C1 $ .. $ Cn $ argn ')'" :=
+  (EData C1 <e .. (EData  Cn <e argn e>) .. e>).
+Notation "C ( e1 , .. , en )" :=
+  (EData C (ETuple (ECons e1 (.. (ECons en ENil) ..))))
+    (only printing, at level 20).
+
+Notation "'vdata:(' C1 $ .. $ Cn $ argn ')'" :=
+  (VData C1 <v .. (VData  Cn <v argn v>) .. v>).
+Notation "C ( v1 , .. , vn )" :=
+  (VData C (VTuple (VCons v1 (.. (VCons vn VNil) ..))))
+    (only printing, at level 20).
+
+Notation "'pdata:(' C1 $ .. $ Cn $ argn ')'" :=
+  (PData C1 <p .. (PData  Cn <p argn p>) .. p>).
+Notation "C ( p1 , .. , pn )" :=
+  (PData C (PTuple (PCons p1 (.. (PCons pn PNil) ..))))
+    (only printing, at level 20).
+
+(* -------------------------------------------------------------------------- *)
 (* Closures. *)
 
 (* Closures capture an environment. We rely on the above pretty-printing rules
@@ -107,37 +170,94 @@ Infix ":::" := (concat).
         f )]. *)
 Notation "'closure:(' {: η :} f ')'" :=
   (VClo η f)
-  (format "'[v    ' 'closure:(' '/' '[v   ' '{:'  η  ':}' ']'  '/' f  ')' ']'").
+  (format "'[v    ' 'closure:(' '/' '[hv   ' '{:'  η  ':}' ']'  '/' f  ')' ']'").
 
 
 Notation "'rec-closure:(' {: η :} rbds x ')'" :=
   (VCloRec η rbds x)
     (format
-       "'[v    ' 'rec-closure:(' '/' '[v   ' {:  η  :} ']' '/' rbds '/'  x  ')' ']'").
+       "'[v    ' 'rec-closure:(' '/' '[hv   ' {:  η  :} ']' '/' rbds '/'  x  ')' ']'").
 
 Notation "'λ:(' x , e )" :=
   (AnonFun x e)
-    (format "'λ:(' x ',' '//'    '[v' e ']' ')'").
+    (format "'λ:(' x ',' '//'    '[hv' e ']' ')'").
 
-Notation "'λ:(' '()' , e )" :=
+Notation "'λ:(' '_' , e )" :=
   (AnonFun "__osiris_anonymous_arg" e)
-    (format "'λ:('  '()'  ',' '//'    '[v' e ']' ')'").
+    (format "'λ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+
+Notation "'eλ:(' x , e )" :=
+  (EAnonFun (AnonFun x e))
+    (format "'eλ:(' x ',' '//'    '[hv' e ']' ')'").
+
+Notation "'eλ:(' '_' , e )" :=
+  (EAnonFun (AnonFun "__osiris_anonymous_arg" e))
+    (format "'eλ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+
+Notation "'_'" := (epath:("__osiris_anonymous_arg")) (only printing).
+
+Notation "( e1 )  ( e2 )" := (EApp e1 e2) (only printing).
 
 (* -------------------------------------------------------------------------- *)
-(* -------------------------------------------------------------------------- *)
-(* OCaml Expressions. *)
-
-
+(* Loops and conditionals. *)
 
 Notation "'begin' 'if' econd 'then' ethen 'else' eelse 'end' " :=
   (EIfThenElse econd ethen eelse)
-    (format "'[v' '[v  ' 'begin' '//' '[v' 'if'  '[v  ' econd ']'  '/' 'then'  '[v  ' ethen ']' '/' 'else'  '[v  ' eelse ']' ']' ']' '/' 'end' ']'",
+    (format "'[v' '[v  ' 'begin' '//' '[v' 'if'  '[hv  ' econd ']'  '/' 'then'  '[hv  ' ethen ']' '/' 'else'  '[v  ' eelse ']' ']' ']' '/' 'end' ']'",
        only printing).
 
-Notation "( e1 e2 )" := (EApp e1 e2) (only printing).
 
 
+Notation "'for' i '=' lo 'to' hi 'with' {: η :} 'do' e 'done;' '...'" :=
+  (Stop CLoop (η, i, lo, hi, e) _ _)
+     (only printing,
+        format "'[v' 'for'  i  '='  lo  'to'  hi '//' 'with'  '[hv   ' {:  η  :} ']' '//' 'do' '[hv' '//' e ']' '//' 'done;'  '...' ']'").
 
+Notation "e1 ; e2" :=
+  (ESeq e1 e2)
+    (only printing, format "e1 ;  '/' e2", at level 20, e1, e2 at level 200).
+
+(* Check (Stop CLoop (("n" ~> #0; "k" ~> VData "S" <v VConstant "O" v> ; ε),
+                      "x", repr 1, repr 50,
+                      ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x"))
+                        (EApp (EVar "f") (EVar "x"))) ret next).
+   =>
+for "x" = repr 1 to repr 50
+with {: "n" ~> #0;
+        "k" ~> "S" (VConstant "O");
+        ε :}
+do
+  (EVar "f") (EVar "x"); (EVar "f") (EVar "x"); (EVar "f") (EVar "x"); (EVar "f") (EVar "x")
+done; ...
+     : micro val *)
+(* Check (Stop CLoop (("n" ~> #0; "k" ~> VData "S" <v VConstant "O" v> ; ε),
+                      "x", repr 1, repr 50,
+                      ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x")) $ ESeq
+                        (EApp (EVar "f") (EVar "x"))
+                        (EApp (EVar "f") (EVar "x"))) ret next).
+   =>
+for "x" = repr 1 to repr 50
+with {: "n" ~> #0;
+        "k" ~> "S" (VConstant "O");
+        ε :}
+do
+  (EVar "f") (EVar "x");
+  (EVar "f") (EVar "x");
+  (EVar "f") (EVar "x");
+  (EVar "f") (EVar "x");
+  (EVar "f") (EVar "x");
+  (EVar "f") (EVar "x")
+done; ...
+  : micro val *)
+
+(* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
 Notation "'match:(' x 'with' pats )" :=
@@ -155,57 +275,7 @@ Notation "'|' pat '=>' e others" :=
 
 Notation "'end'" := (BrNil) (only printing).
 
-
-(* Paths. *)
-Notation "'path:(' x1 ')'" := (PathBase x1).
-Notation "'path:(' x1 '.' .. '.' xn '.' xm ')'" :=
-  (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
-    (x1, xn, xm at level 200,
-       format "'path:(' x1 '/' '.' .. '/' '.' xn '.' '/' xm )").
-
-Notation "'epath:(' x1 '.' .. '.' xn '.' xm ')'" :=
-  (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
-    (format "'epath:(' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
-Notation "'epath:(' x1 ')'" := (EPath (PathBase x1)).
-
-(* ADTs. *)
-Notation "'emktpl:(' e1 ',' .. ',' en ')'" :=
-  (EMkTuple (cons e1 (.. (cons en nil) .. )))
-    (format "'emktpl:(' e1 ','  '/' .. ','  '/' en ')'").
-
-Notation "'edata:(' n '(...)' ')'" :=
-  (EData n _)
-    (only printing).
-
 (* -------------------------------------------------------------------------- *)
-
-(* Values often contain lists. *)
-
-(* Only the name of the symbols are important in module-values.
-Notation "struct:( i1 ; .. ; im )" :=
-  (VStruct (EnvCons i1 _ ( .. ( EnvCons im _ EnvNil ) .. ) ))
-  (only printing, format
-   "'[v     ' 'struct:(' i1 ';' '/' .. ';' '/' im ')' ']'"). *)
-(* Tuples. *)
-Notation "'<v' v1 ; .. ; vn 'v>'" :=
-  (VTuple (VCons v1 (.. (VCons vn VNil) ..))).
-
-(* ------------------------------------------------------------------------- *)
-
-(* ------------------------------------------------------------------------- *)
-
-(* Notation for iterated unary constructors. *)
-
-(* Unfortunately, adding parentheses does not work. *)
-Notation "'data:(' C1  $  ..  $  Cn  $  i ')'" :=
-  (VData C1 <v .. (VData Cn (<v VConstant i v>)) .. v>).
-
-(* With the above notation,
-     [VData "S" (VTuple1 (VData "S" (VTuple1 (VData "S" (VTuple1 (
-      VData "S" (VTuple1 (VConstant "O"))))))))]
-   can simply be written [data:( "S" $ "S" $ "S" $ "S" $ "O")]. *)
-
-(* ------------------------------------------------------------------------- *)
 
 (* On modules. *)
 
@@ -222,6 +292,41 @@ Notation "v  ':$:'  n" :=
   (lookup_name_total (val_as_struct_total v) n)
   (only printing, at level 100).
 
-(* ------------------------------------------------------------------------- *)
+(* -------------------------------------------------------------------------- *)
+(* [Stop]-related notations. *)
 
-(* On loops *)
+Notation "'ref' v ';' '...continuations'" := (Stop CAlloc v _ _) (only printing).
+Notation "'!' v ';' '...continuations'" := (Stop CLoad v _ _) (only printing).
+Notation "ℓ ':=' v ';' '...continuations'" := (Stop CStore (ℓ, v) _ _) (at level 70, only printing).
+
+(* -------------------------------------------------------------------------- *)
+(* Records *)
+
+Notation "'(' n1 := v1 ')'" :=
+  (FECons n1 v1 FENil)
+    (only printing,
+     at level 80,
+     right associativity,
+     format "'(' n1  ':='   v1 ')'").
+
+Notation "'(' n1 := v1 ')' ; tail" :=
+  (FECons n1 v1 tail)
+    (only printing,
+     at level 80,
+     right associativity,
+     format "'(' n1  ':='   v1 ')' ;  '/' tail").
+
+Notation "{ fds }" :=
+  (ERecord fds)
+    (only printing,
+     format "{  '[hv' fds ']'  }").
+
+Notation "r . f" :=
+  (ERecordAccess r f)
+    (only printing,
+     at level 80, format "r . f").
+
+Notation "{ r 'with' fds }" :=
+  (ERecordUpdate r fds)
+    (only printing,
+       format "{  r  'with'  fds  }").
