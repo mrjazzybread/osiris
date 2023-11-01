@@ -18,7 +18,7 @@ let typedtree_of_cmt ({cmt_annots;_}: Cmt_format.cmt_infos) =
 
 (* -------------------------------------------------------------------------- *)
 
-let print _verbose _debug out_file doc_graph =
+let print out_file doc_graph =
   let channel = open_out out_file in
   let fmt = Format.formatter_of_out_channel channel in
   Format.fprintf fmt "From osiris Require Import osiris.@.@.@.@.";
@@ -69,7 +69,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
        native lists are used every time.
        This will also help with the translation: one can then use the syntactic
        sugar defined in [theories/lang/sugar.v]. *)
-  |> Osiris.of_typedtree verbose_msg debug_msg module_name
+  |> Osiris.of_typedtree module_name
 
   (* Break down the AST into pieces according to the user-specified
      splitting-strategy.
@@ -93,8 +93,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
 
      It is the function [split] that will choose names for the auxiliary
      definitions. *)
-  |> Split.split verbose_msg debug_msg
-       splitting_strategy
+  |> Split.split splitting_strategy
 
   (* [Preprint.definition_of_ast] provides a translation that works in a similar
      manner than the first translator:
@@ -108,17 +107,17 @@ let translate_one_file module_name out_file (input_cmt : string) =
        syntactic sugar. *)
   |> DAG.map
        (fun (s, m) ->
-         let (t, m) = Preprint.definition_of_ast verbose_msg debug_msg m in
+         let (t, m) = Preprint.definition_of_ast m in
          s, t, m)
 
-  |> Pp.pretty_printer verbose_msg debug_msg
+  |> Pp.pretty_printer
 
   (* Finally, pretty-print the generated definitions into the output file
      provided on the command line.
      This pretty-printer is similar of that of the first translator, except that
      it should also print [EList _].
    *)
-  |> print verbose_msg debug_msg out_file
+  |> print out_file
 
 (* -------------------------------------------------------------------------- *)
 

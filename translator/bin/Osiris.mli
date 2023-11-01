@@ -1,5 +1,3 @@
-val of_typedtree : (string -> unit) ->
-                   (string -> unit) ->
-                   string ->
+val of_typedtree : string ->
                    Typedtree.structure ->
                    OsirisAst.ast

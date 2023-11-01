@@ -456,10 +456,9 @@ let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
 
 (* -------------------------------------------------------------------------- *)
 
-let of_typedtree (verbose_msg: (string -> unit))
-      (_debug_msg: (string -> unit))
+let of_typedtree
       name
       (ast: Typedtree.structure):
       OsirisAst.ast =
-  let () = verbose_msg "Translation « Typed-tree => Osiris »: begin." in
+  let () = Options.verbose_msg "Translation « Typed-tree => Osiris »: begin." in
   (Some name, OModule (translate_module (Tmod_structure ast)))

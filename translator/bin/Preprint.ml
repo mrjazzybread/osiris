@@ -339,7 +339,7 @@ let translate_sitem sitem =
   | Some e -> e
   | None -> assert false
 
-let definition_of_ast _verbose _debug : OsirisAst.ast_body -> string * expression =
+let definition_of_ast : OsirisAst.ast_body -> string * expression =
   function
   | OModule m -> "mexpr", translate_module m
   | OExpr e -> "expr", translate_expression e

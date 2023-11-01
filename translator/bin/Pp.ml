@@ -52,5 +52,5 @@ let pretty_printer (name, ty, expr) : document =
   ^^ align (group (pretty_printer expr)) ^^ dot
   ^^ hardline
 
-let pretty_printer _verbose _debug graph =
+let pretty_printer graph =
   DAG.map pretty_printer graph
