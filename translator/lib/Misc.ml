@@ -7,14 +7,6 @@ let mkmsg b f s = if b
                   then Format.fprintf f "%s@." s
                   else ()
 
-let mksay b f s a = if b
-                    then (Format.fprintf f "%s@!," s; a)
-                    else a
-
-let mksay_with b f s sa = if b
-                            then (Format.fprintf f s sa ; sa)
-                            else sa
-
 (* -------------------------------------------------------------------------- *)
 
 (* [in_dir d f a] changes directory to [d], executes [f a] and goes back to the
