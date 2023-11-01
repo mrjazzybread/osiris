@@ -1,7 +1,5 @@
+open Printf
 open Misc
-
-(* [Options] parses the command line and defines several useful variables
-   such as the name of the OCaml file to translate. *)
 open Options
 
 (* -------------------------------------------------------------------------- *)
@@ -19,13 +17,12 @@ let typedtree_of_cmt ({cmt_annots;_}: Cmt_format.cmt_infos) =
 (* -------------------------------------------------------------------------- *)
 
 let print out_file doc_graph =
-  let channel = open_out out_file in
-  let fmt = Format.formatter_of_out_channel channel in
-  Format.fprintf fmt "From osiris Require Import osiris.@.@.@.@.";
+  let f = open_out out_file in
+  fprintf f "From osiris Require Import osiris.\n\n\n\n";
   DAG.to_list doc_graph
-  |> List.iter (PPrint.ToFormatter.pretty 0.5 100 fmt);
-  Format.fprintf fmt "@.(* Done. *)@?";
-  close_out channel
+  |> List.iter (PPrint.ToChannel.pretty 0.5 100 f);
+  fprintf f "\n(* Done. *)%!";
+  close_out f
 
 (* -------------------------------------------------------------------------- *)
 
@@ -35,8 +32,8 @@ exception Skip_file
 
 let translate_one_file module_name out_file (input_cmt : string) =
   let module_name = "_" ^ module_name in
-  if verbose then Format.eprintf "Translation process started for %s.@.@." module_name;
-  if verbose then Format.eprintf "Cmt file: %s@." input_cmt;
+  if verbose then eprintf "Translation process started for %s.\n\n" module_name;
+  if verbose then eprintf "Cmt file: %s\n" input_cmt;
   input_cmt
   |> fun s ->
      begin
@@ -46,7 +43,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
        | Cmi_format.Error err ->
           match err with
           | Cmi_format.Not_an_interface filename ->
-              if verbose then Format.eprintf "'%s' is not an interface; skipping." filename;
+              if verbose then eprintf "'%s' is not an interface; skipping." filename;
               raise Skip_file
           | Cmi_format.Wrong_version_interface (filename, _) ->
              Printf.sprintf
@@ -143,7 +140,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
 let () =
   match mode with
   | Mml s ->
-      if verbose then Format.eprintf "Beginning the translation pipeline for the file [%s].@." in_file;
+      if verbose then eprintf "Beginning the translation pipeline for the file [%s].\n" in_file;
      in_file
      |> in_dir dune_root locate_cmt
      |> (* Never catch [Skip_file]. *)
@@ -161,7 +158,7 @@ let () =
            Sys.mkdir dir 0o700
          with
          | Sys_error s ->
-             if debug then Format.eprintf "Directory already exists: %s ; skipping.@." s
+             if debug then eprintf "Directory already exists: %s ; skipping.\n" s
        )
        dirs;
      (* 3. translate all the files, one by one. *)
@@ -169,7 +166,7 @@ let () =
        (fun (ml, v) ->
          let name = module_name ml in
          let s = in_dir dune_root locate_cmt ml in
-         if verbose then Format.eprintf  "The cmt: '%s'.@." s;
+         if verbose then eprintf  "The cmt: '%s'.\n" s;
          try translate_one_file name v s
          with Skip_file -> ())
        (List.combine mls vs)
