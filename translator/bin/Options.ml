@@ -96,8 +96,6 @@ let debug = !debug
 let verbose_msg = Misc.mkmsg verbose Format.err_formatter
 let debug_msg = Misc.mkmsg debug Format.err_formatter
 
-let verbose_say s = Misc.mksay verbose Format.err_formatter s
 let debug_say s = Misc.mksay debug Format.err_formatter s
 
-let verbose_say_with s a = Misc.mksay_with verbose Format.err_formatter s a
 let debug_say_with s a = Misc.mksay_with verbose Format.err_formatter s a

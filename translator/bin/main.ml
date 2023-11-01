@@ -37,8 +37,8 @@ exception Skip_file
 let translate_one_file module_name out_file (input_cmt : string) =
   let module_name = "_" ^ module_name in
   if verbose then Format.printf "Translation process started for %s.@.@." module_name;
+  if verbose then Format.printf "Cmt file: %s@." input_cmt;
   input_cmt
-  |> verbose_say_with "Cmt file: %s@."
   |> fun s ->
      begin
        try
@@ -47,9 +47,8 @@ let translate_one_file module_name out_file (input_cmt : string) =
        | Cmi_format.Error err ->
           match err with
           | Cmi_format.Not_an_interface filename ->
-             let _ =
-               verbose_say "'%s' is not an interface; skipping." filename in
-             raise Skip_file
+              if verbose then Format.printf "'%s' is not an interface; skipping." filename;
+              raise Skip_file
           | Cmi_format.Wrong_version_interface (filename, _) ->
              Printf.sprintf
                "'%s' was compiled with the wrong version of OCaml." filename
@@ -146,9 +145,8 @@ let translate_one_file module_name out_file (input_cmt : string) =
 let () =
   match mode with
   | Mml s ->
+      if verbose then Format.printf "Beginning the translation pipeline for the file [%s].@." in_file;
      in_file
-     |> verbose_say_with
-          "Beginning the translation pipeline for the file [%s].@."
      |> in_dir dune_root locate_cmt
      |> (* Never catch [Skip_file]. *)
        translate_one_file s out_file
@@ -173,9 +171,8 @@ let () =
      List.iter
        (fun (ml, v) ->
          let name = module_name ml in
-         in_dir dune_root locate_cmt ml
-         |> verbose_say_with "The cmt: '%s'.@."
-         |> fun s ->
-            try translate_one_file name v s
-            with Skip_file -> ())
+         let s = in_dir dune_root locate_cmt ml in
+         if verbose then Format.printf  "The cmt: '%s'.@." s;
+         try translate_one_file name v s
+         with Skip_file -> ())
        (List.combine mls vs)
