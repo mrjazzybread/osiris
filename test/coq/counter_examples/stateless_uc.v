@@ -175,16 +175,14 @@ Definition _Stateless_uc : mexpr :=
                           (
                             AnonFun "__osiris_anonymous_arg"
                             (
-                              EMatch (EPath (MkPath
-["__osiris_anonymous_arg"]))
+                              EMatch (EPath (MkPath ["__osiris_anonymous_arg"]))
                               (
                                 MkBranches [(
                                   Branch (PVar "i")
                                   (
                                     EMatch (
                                       EAssert (
-                                        EApp (EApp (EPath (MkPath ["<="]))
-(EInt 0))
+                                        EApp (EApp (EPath (MkPath ["<="])) (EInt 0))
                                         (EPath (MkPath ["i"]))
                                       )
                                     )
@@ -197,25 +195,21 @@ Definition _Stateless_uc : mexpr :=
                                             MkBranches [(
                                               Branch (PInt 0)
                                               (
-                                                EApp (EPath (MkPath
-["Counter";"get"]))
+                                                EApp (EPath (MkPath ["Counter";"get"]))
                                                 (EPath (MkPath ["c"]))
                                               )
                                             );(
                                               Branch PAny
                                               (
                                                 ESeq (
-                                                  EApp (EPath (MkPath
-["Counter";"incr"]))
+                                                  EApp (EPath (MkPath ["Counter";"incr"]))
                                                   (EPath (MkPath ["c"]))
                                                 )
                                                 (
-                                                  EApp (EPath (MkPath
-["aux"]))
+                                                  EApp (EPath (MkPath ["aux"]))
                                                   (
                                                     EApp (
-                                                      EApp (EPath (MkPath
-["-"]))
+                                                      EApp (EPath (MkPath ["-"]))
                                                       (EPath (MkPath ["i"]))
                                                     )
                                                     (EInt 1)
@@ -275,8 +269,7 @@ Definition _Stateless_uc : mexpr :=
       )
       BiNil
     )
- 
-)]
+  )]
 ).
 
 (* Done. *)

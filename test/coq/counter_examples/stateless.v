@@ -80,8 +80,7 @@ Definition _Stateless : mexpr :=
                         EAnonFun (
                           AnonFun "__osiris_anonymous_arg"
                           (
-                            EMatch (EPath (MkPath
-["__osiris_anonymous_arg"]))
+                            EMatch (EPath (MkPath ["__osiris_anonymous_arg"]))
                             (
                               MkBranches [(
                                 Branch (PVar "v")
@@ -145,8 +144,7 @@ Definition _Stateless : mexpr :=
         )
       )]
     )
- 
-)]
+  )]
 ).
 
 (* Done. *)

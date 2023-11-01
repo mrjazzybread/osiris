@@ -193,8 +193,7 @@ Definition __osiris__reservedsplit_all_module8 : sitem :=
 ).
 Definition _Arith : mexpr :=
 (
-  MkStruct
-[__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module6;__osiris__reservedsplit_all_module8]
+  MkStruct [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module6;__osiris__reservedsplit_all_module8]
 ).
 
 (* Done. *)

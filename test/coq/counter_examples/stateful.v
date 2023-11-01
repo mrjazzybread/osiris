@@ -118,8 +118,7 @@ Definition _Stateful : mexpr :=
         )
       )]
     )
- 
-)]
+  )]
 ).
 
 (* Done. *)

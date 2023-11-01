@@ -56,8 +56,7 @@ Definition __osiris__reservedsplit_all_sitem2 : binding :=
                         EAnonFun (
                           AnonFun "__osiris_anonymous_arg"
                           (
-                            EMatch (EPath (MkPath
-["__osiris_anonymous_arg"]))
+                            EMatch (EPath (MkPath ["__osiris_anonymous_arg"]))
                             (
                               MkBranches [(
                                 Branch (PData "()" (PTuple PNil))
@@ -244,8 +243,7 @@ Definition __osiris__reservedsplit_all_module5 : sitem :=
 ).
 Definition _Incr : mexpr :=
 (
-  MkStruct
-[__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5]
+  MkStruct [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5]
 ).
 
 (* Done. *)

@@ -180,8 +180,7 @@ Definition __osiris__reservedsplit_all_module9 : sitem :=
 ).
 Definition _Records : mexpr :=
 (
-  MkStruct
-[__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5;__osiris__reservedsplit_all_module7;__osiris__reservedsplit_all_module9]
+  MkStruct [__osiris__reservedsplit_all_module1;__osiris__reservedsplit_all_module3;__osiris__reservedsplit_all_module5;__osiris__reservedsplit_all_module7;__osiris__reservedsplit_all_module9]
 ).
 
 (* Done. *)
