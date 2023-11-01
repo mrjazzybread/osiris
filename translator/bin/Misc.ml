@@ -88,12 +88,12 @@ let locate_cmt (file: string) =
        (* If the previous command does not work, try to find the cmt file by hand
           in [_build]. The command should be updated to be more robust. *)
        begin try
-           (Format.sprintf
+           (Printf.sprintf
               "realpath \"$(find . -name '*%s.cmt' | grep 'byte')\""
               (module_name file))
            |> exec_one_line
          with _ ->
-           (Format.sprintf
+           (Printf.sprintf
               "realpath \"$(find . -name '*__%s.cmt' | head -n1)\""
               (module_name file))
            |> exec_one_line
