@@ -8,31 +8,11 @@ let rec filtermap f = function
               | None -> filtermap f t
               | Some h -> h :: filtermap f t
 
-let rec map_option f l =
-  match l with
-  | [] -> []
-  | h :: t ->
-     match f h with
-     | Some r -> r :: map_option f t
-     | None -> map_option f t
-
 let rec last = function
   | [] -> assert false
   | h :: [] -> h
   | _ :: t -> last t
 
-
-(* -------------------------------------------------------------------------- *)
-
-(* The module name can be deduced from the filename of the input OCaml file: *)
-let guess_module_name s =
-  s
-  |> String.split_on_char '/' |> last (* Only keep the filename, not its
-                                              path. *)
-  |> String.split_on_char '.' |> List.hd (* Strip away the extension
-                                            (assuming there is only one '.' in
-                                            the  filename). *)
-  |> String.capitalize_ascii (* Capitalize the first letter. *)
 
 (* -------------------------------------------------------------------------- *)
 

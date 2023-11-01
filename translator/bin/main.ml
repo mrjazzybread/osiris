@@ -1,10 +1,9 @@
 open Translator
 open Misc
 
-(* [Options] is a module defined in [lib/Option.ml].
-   It parses the command line and defines several useful variables such as the
-   name of the OCaml file to translate, verbose functions, ... *)
-include Options
+(* [Options] parses the command line and defines several useful variables
+   such as the name of the OCaml file to translate. *)
+open Options
 
 (* -------------------------------------------------------------------------- *)
 
@@ -183,7 +182,7 @@ let () =
      (* 3. translate all the files, one by one. *)
      List.iter
        (fun (ml, v) ->
-         let name = Misc.guess_module_name ml in
+         let name = module_name ml in
          in_dir dune_root locate_cmt ml
          |> verbose_say_with "The cmt: '%s'.@."
          |> fun s ->

@@ -446,7 +446,7 @@ let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
      MPath (translate_path p)
   | Tmod_structure ast -> (* of structure *)
      let (itms(*, types*)) =
-       Misc.map_option (translate_structure_item translate_module) ast.str_items
+       List.filter_map (translate_structure_item translate_module) ast.str_items
      (*    |> List.split *) in
      MStruct (itms)(*, List.flatten types*)
   | Tmod_functor (_, _) -> MStruct [] (* TODO. *)
@@ -463,4 +463,3 @@ let of_typedtree (verbose_msg: (string -> unit))
       OsirisAst.ast =
   let () = verbose_msg "Translation « Typed-tree => Osiris »: begin." in
   (Some name, OModule (translate_module (Tmod_structure ast)))
-  |> (* TODO: do better. *)Options.verbose_say "Translation « Typed-tree => Osiris »: begin."

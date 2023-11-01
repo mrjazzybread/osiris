@@ -1,5 +1,5 @@
 val split : (string -> unit) ->
             (string -> unit) ->
-	    Options.splitting_strategy list ->
+	    [`Split | `NoSplit] list ->
             OsirisAst.ast ->
             OsirisAst.ast DAG.t

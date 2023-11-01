@@ -5,10 +5,6 @@ let usage = "transiris -ml <ml file to convert>@.\
              \t-out <path to the output Coq file to write>@.\
              Note: You should either use -dune or -cmt.@."
 
-type splitting_strategy =
-  | Split
-  | NoSplit
-
 type mode =
   | Mcmt of string
   | Mml of string
@@ -41,7 +37,7 @@ let verbose = ref false
 let debug = ref false
 
 (* TODO: reset to the empty list by default. *)
-let splitting_strategy = ref [Split]
+let splitting_strategy : [`Split | `NoSplit] list ref = ref [`Split]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -71,14 +67,24 @@ let () = Arg.parse speclist
 
 (* -------------------------------------------------------------------------- *)
 
+(* Transforming an OCaml file name to an OCaml module name. *)
+
+let module_name (filename : string) : string =
+  filename
+  |> Filename.basename         (* Keep just the base name. *)
+  |> Filename.remove_extension (* Remove the extension. *)
+  |> String.capitalize_ascii   (* Capitalize the first letter. *)
+
+(* -------------------------------------------------------------------------- *)
+
 (* Forget the references of the above variables. *)
 
 let (dune_root, in_file, out_file, splitting_strategy, cmt_file, mode) =
   !dune_root, !in_file, !out_file, !splitting_strategy, !cmt_file,
   if !mode = "cmt"
-  then Mcmt (Misc.guess_module_name !cmt_file)
+  then Mcmt (module_name !cmt_file)
   else if !mode = "ml"
-  then Mml (Misc.guess_module_name !in_file)
+  then Mml (module_name !in_file)
   else if !mode = "dune"
   then Mdune
   else assert false
@@ -94,6 +100,8 @@ let verbose = !verbose
 let debug = !debug
 
 (* -------------------------------------------------------------------------- *)
+
+module Misc = Translator.Misc
 
 let verbose_msg = Misc.mkmsg verbose Format.err_formatter
 let debug_msg = Misc.mkmsg debug Format.err_formatter

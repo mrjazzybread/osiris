@@ -104,11 +104,11 @@ let split_all verbose debug ast =
 let one_strategy verbose debug strategy ast : ast DAG.t =
   let split_all = split_all verbose debug in
   match strategy with
-  | Options.Split -> split_all ast
-  | Options.NoSplit -> ast
+  |   `Split -> split_all ast
+  | `NoSplit -> ast
 
 (* [split] splits an AST into a graph of ASTs. *)
-let split verbose debug (splitting_strategy: Options.splitting_strategy list)
+let split verbose debug (splitting_strategy: [`Split | ` NoSplit] list)
       osiris_ast: ast DAG.t =
   (* First create a first graph containing a single node: the Osiris AST
      annotated by the name of the module.*)
