@@ -163,9 +163,8 @@ let () =
            Sys.mkdir dir 0o700
          with
          | Sys_error s ->
-            let _ =
-              debug_say_with "Directory already exists: %s ; skipping.@." s in
-            ())
+             if debug then Format.printf "Directory already exists: %s ; skipping.@." s
+       )
        dirs;
      (* 3. translate all the files, one by one. *)
      List.iter
