@@ -1,21 +1,5 @@
 (* -------------------------------------------------------------------------- *)
 
-(* Additional functions on lists. *)
-
-let rec filtermap f = function
-  | [] -> []
-  | h :: t -> match f h with
-              | None -> filtermap f t
-              | Some h -> h :: filtermap f t
-
-let rec last = function
-  | [] -> assert false
-  | h :: [] -> h
-  | _ :: t -> last t
-
-
-(* -------------------------------------------------------------------------- *)
-
 (* Helpers to define verbose/debugging functions. *)
 
 
@@ -54,6 +38,16 @@ let in_dir new_dir f a =
   let res = f a in
   Unix.chdir old_dir;
   res
+
+(* -------------------------------------------------------------------------- *)
+
+(* Transforming an OCaml file name to an OCaml module name. *)
+
+let module_name (filename : string) : string =
+  filename
+  |> Filename.basename         (* Keep just the base name. *)
+  |> Filename.remove_extension (* Remove the extension. *)
+  |> String.capitalize_ascii   (* Capitalize the first letter. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -123,18 +117,15 @@ let locate_cmt (file: string) =
      try
        (* If the previous command does not work, try to find the cmt file by hand
           in [_build]. The command should be updated to be more robust. *)
-       let module_name =
-         file |> String.split_on_char '/' |> last |> String.split_on_char '.'
-         |> List.hd |> String.capitalize_ascii in
        begin try
            (Format.sprintf
               "realpath \"$(find . -name '*%s.cmt' | grep 'byte')\""
-              module_name)
+              (module_name file))
            |> exec_one_line
          with _ ->
            (Format.sprintf
               "realpath \"$(find . -name '*__%s.cmt' | head -n1)\""
-              module_name)
+              (module_name file))
            |> exec_one_line
        end
      with _ ->

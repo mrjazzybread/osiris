@@ -320,7 +320,7 @@ and translate_sitem : sitem -> expression option = function
   | IInclude (mexpr) ->
      Some (EConstr ("IInclude", [translate_module mexpr]))
 
-and translate_sitems l = Misc.filtermap translate_sitem l
+and translate_sitems l = List.filter_map translate_sitem l
 
 and translate_module = function
   | MStruct sitems ->

@@ -1,5 +1,4 @@
-val filtermap : ('a -> 'b option) -> 'a list -> 'b list
-val last : 'a list -> 'a
+val module_name : string -> string
 
 val mkmsg : bool -> Format.formatter -> string -> unit
 val mksay : bool -> Format.formatter -> string -> 'a -> 'a
