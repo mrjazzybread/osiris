@@ -2,5 +2,6 @@
   (package osiris)
   (public_name translator)
   (name main)
-  (libraries unix ocaml-compiler-libs.common pprint)
+  (libraries unix ocaml-compiler-libs.common pprint base csexp)
+  (preprocess (pps ppx_sexp_conv))
 )
