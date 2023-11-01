@@ -1,5 +1,3 @@
-module Misc = Translator.Misc (* TODO *)
-
 (* Misc. *)
 let usage = "transiris -ml <ml file to convert>@.\
              \t-dune <root of the dune directory>@.\

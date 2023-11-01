@@ -1,4 +1,3 @@
-open Translator
 open Misc
 
 (* [Options] parses the command line and defines several useful variables
