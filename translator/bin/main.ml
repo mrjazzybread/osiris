@@ -35,8 +35,8 @@ exception Skip_file
 
 let translate_one_file module_name out_file (input_cmt : string) =
   let module_name = "_" ^ module_name in
-  if verbose then Format.printf "Translation process started for %s.@.@." module_name;
-  if verbose then Format.printf "Cmt file: %s@." input_cmt;
+  if verbose then Format.eprintf "Translation process started for %s.@.@." module_name;
+  if verbose then Format.eprintf "Cmt file: %s@." input_cmt;
   input_cmt
   |> fun s ->
      begin
@@ -46,7 +46,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
        | Cmi_format.Error err ->
           match err with
           | Cmi_format.Not_an_interface filename ->
-              if verbose then Format.printf "'%s' is not an interface; skipping." filename;
+              if verbose then Format.eprintf "'%s' is not an interface; skipping." filename;
               raise Skip_file
           | Cmi_format.Wrong_version_interface (filename, _) ->
              Printf.sprintf
@@ -144,7 +144,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
 let () =
   match mode with
   | Mml s ->
-      if verbose then Format.printf "Beginning the translation pipeline for the file [%s].@." in_file;
+      if verbose then Format.eprintf "Beginning the translation pipeline for the file [%s].@." in_file;
      in_file
      |> in_dir dune_root locate_cmt
      |> (* Never catch [Skip_file]. *)
@@ -162,7 +162,7 @@ let () =
            Sys.mkdir dir 0o700
          with
          | Sys_error s ->
-             if debug then Format.printf "Directory already exists: %s ; skipping.@." s
+             if debug then Format.eprintf "Directory already exists: %s ; skipping.@." s
        )
        dirs;
      (* 3. translate all the files, one by one. *)
@@ -170,7 +170,7 @@ let () =
        (fun (ml, v) ->
          let name = module_name ml in
          let s = in_dir dune_root locate_cmt ml in
-         if verbose then Format.printf  "The cmt: '%s'.@." s;
+         if verbose then Format.eprintf  "The cmt: '%s'.@." s;
          try translate_one_file name v s
          with Skip_file -> ())
        (List.combine mls vs)
