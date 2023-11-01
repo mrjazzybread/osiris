@@ -36,10 +36,8 @@ exception Skip_file
 
 let translate_one_file module_name out_file (input_cmt : string) =
   let module_name = "_" ^ module_name in
+  if verbose then Format.printf "Translation process started for %s.@.@." module_name;
   input_cmt
-  |> verbose_do
-       (fun _ ->
-         Format.printf "Translation process started for %s.@.@." module_name)
   |> verbose_say_with "Cmt file: %s@."
   |> fun s ->
      begin
@@ -54,7 +52,7 @@ let translate_one_file module_name out_file (input_cmt : string) =
              raise Skip_file
           | Cmi_format.Wrong_version_interface (filename, _) ->
              Printf.sprintf
-               "'%s' was compile with the wrong version of OCaml." filename
+               "'%s' was compiled with the wrong version of OCaml." filename
              |> failwith
           | Cmi_format.Corrupted_interface filename ->
              Printf.sprintf
@@ -62,9 +60,6 @@ let translate_one_file module_name out_file (input_cmt : string) =
              |> failwith
      end
   |> typedtree_of_cmt
-  (* If [-debug] is passed to the command line, dump the typed-tree to
-     [stderr]. *)
-  |> debug_do (Printtyped.implementation Format.err_formatter)
 
   (* Convert the typedtree into an Osiris AST. The structure of the program is
      unchanged. The only two differences between the Coq and OCaml versions of

@@ -15,10 +15,6 @@ let mksay_with b f s sa = if b
                             then (Format.fprintf f s sa ; sa)
                             else sa
 
-let mkdo b f a = if b
-                 then (f a; a)
-                 else a
-
 (* -------------------------------------------------------------------------- *)
 
 (* [in_dir d f a] changes directory to [d], executes [f a] and goes back to the
