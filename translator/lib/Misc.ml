@@ -21,15 +21,6 @@ let mkdo b f a = if b
 
 (* -------------------------------------------------------------------------- *)
 
-let do_with (b: 'b) (f: 'b -> 'c) (g: 'a -> 'b -> 'd) (a: 'a) : ('d * 'c) =
-  let a = a
-  and b = b in
-  let left = g a b in
-  let right = f b in
-  (left, right)
-
-(* -------------------------------------------------------------------------- *)
-
 (* [in_dir d f a] changes directory to [d], executes [f a] and goes back to the
    initial working directory. *)
 let in_dir new_dir f a =

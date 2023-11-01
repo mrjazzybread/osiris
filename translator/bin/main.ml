@@ -19,12 +19,14 @@ let typedtree_of_cmt ({cmt_annots;_}: Cmt_format.cmt_infos) =
 
 (* -------------------------------------------------------------------------- *)
 
-let print _verbose _debug doc_graph fmt =
-  let fmt = Format.formatter_of_out_channel fmt in
+let print _verbose _debug out_file doc_graph =
+  let channel = open_out out_file in
+  let fmt = Format.formatter_of_out_channel channel in
   Format.fprintf fmt "From osiris Require Import osiris.@.@.@.@.";
   DAG.to_list doc_graph
   |> List.iter (PPrint.ToFormatter.pretty 0.5 100 fmt);
-  Format.fprintf fmt "@.(* Done. *)@?"
+  Format.fprintf fmt "@.(* Done. *)@?";
+  close_out channel
 
 (* -------------------------------------------------------------------------- *)
 
@@ -122,15 +124,8 @@ let translate_one_file module_name out_file (input_cmt : string) =
      provided on the command line.
      This pretty-printer is similar of that of the first translator, except that
      it should also print [EList _].
-     [do_with e f g] is equivalent to:
-     [let x = e in
-      let _ = g x in
-      f x]
    *)
-  |> Misc.do_with (open_out out_file) close_out
-       (print verbose_msg debug_msg)
-
-  |> fun ((), ()) -> ()
+  |> print verbose_msg debug_msg out_file
 
 (* -------------------------------------------------------------------------- *)
 

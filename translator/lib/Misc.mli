@@ -7,8 +7,6 @@ val mksay_with : bool ->
                  ('a -> unit, Format.formatter, unit) format -> 'a -> 'a
 val mkdo : bool -> ('a -> unit) -> 'a -> 'a
 
-val do_with : 'b -> ('b -> 'c) -> ('a -> 'b -> 'd) -> 'a -> ('d * 'c)
-
 val in_dir : string -> ('a -> 'b) -> 'a -> 'b
 val locate_cmt : string -> string
 
