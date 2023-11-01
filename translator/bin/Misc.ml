@@ -1,14 +1,5 @@
 (* -------------------------------------------------------------------------- *)
 
-(* Helpers to define verbose/debugging functions. *)
-
-
-let mkmsg b f s = if b
-                  then Format.fprintf f "%s@." s
-                  else ()
-
-(* -------------------------------------------------------------------------- *)
-
 (* [in_dir d f a] changes directory to [d], executes [f a] and goes back to the
    initial working directory. *)
 let in_dir new_dir f a =
