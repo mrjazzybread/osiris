@@ -24,12 +24,7 @@ let mode = ref ""
    process:
    - progress (ie. what are the current and previous steps),
    - number of definitions in the Coq file.
-   Each function used to define a translation step will be provided with two
-   functions:
-   + [verbose_msg: string -> unit], which will either do nothing or print a
-     message on [stderr],
-   + [verbose_out: string -> unit], which will append to the header of the
-     produced Coq file. *)
+ *)
 let verbose = ref false
 
 (* If [debug] is set, the typedtree and intermediate versions are printed to
@@ -88,8 +83,3 @@ let () =
 
 let verbose = !verbose
 let debug = !debug
-
-(* -------------------------------------------------------------------------- *)
-
-let verbose_msg = Misc.mkmsg verbose Format.err_formatter
-let debug_msg = Misc.mkmsg debug Format.err_formatter

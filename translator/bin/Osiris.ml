@@ -460,5 +460,4 @@ let of_typedtree
       name
       (ast: Typedtree.structure):
       OsirisAst.ast =
-  let () = Options.verbose_msg "Translation « Typed-tree => Osiris »: begin." in
   (Some name, OModule (translate_module (Tmod_structure ast)))
