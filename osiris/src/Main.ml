@@ -1,9 +1,10 @@
 open Printf
 open Fail
 let say = Settings.say
-
-let is_absolute filename =
-  not (Filename.is_relative filename)
+let concat, is_relative, remove_extension =
+  Filename.(concat, is_relative, remove_extension)
+open FilenameExtra
+open SysExtra
 
 (* -------------------------------------------------------------------------- *)
 
@@ -22,21 +23,6 @@ let read_cmt cmt_file : Typedtree.structure =
           t
       | _ ->
           fail "This .cmt file does not contain a typed tree: %s\n" cmt_file
-
-(* -------------------------------------------------------------------------- *)
-
-let rec ensure_directory_exists dirname =
-  match Sys.is_directory dirname with
-  | true ->
-      ()
-  | false ->
-      fail "Not a directory: %s.\n" dirname
-  | exception Sys_error _ ->
-      ensure_parent_directory_exists dirname;
-      Sys.mkdir dirname 0o700
-
-and ensure_parent_directory_exists filename =
-  ensure_directory_exists (Filename.dirname filename)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -124,48 +110,18 @@ let translate_one_file module_name out_file cmt_file =
 
 (* -------------------------------------------------------------------------- *)
 
-(* Little utilities. *)
-
-let _chop_suffix suffix name =
-  try
-    Filename.chop_suffix name suffix
-  with Invalid_argument _ ->
-    fail "Error: %s does not end with %s\n" name suffix
-
-let add_prefix prefix base =
-  prefix ^ base
-
-let add_suffix suffix base =
-  base ^ suffix
-
-let dir_sep : char =
-  assert (String.length Filename.dir_sep = 1);
-  String.get Filename.dir_sep 0
-
-let rec drop k xs =
-  if k = 0 then xs else match xs with [] -> [] | _ :: xs -> drop (k-1) xs
-
-let map_basename f filename =
-  Filename.(concat (dirname filename) (f (basename filename)))
-
-(* -------------------------------------------------------------------------- *)
-
 (* The path of the output file (.v) is computed based on the path of the
    source file (.ml). The latter is relative to the dune root directory.
    It typically begins with something like [_build/default/], so we chop
    the first two segments of it. *)
 
-(* The basename is capitalized *)
-
 let output_file_path ml_file =
-  assert (Filename.is_relative ml_file);
+  assert (is_relative ml_file);
   ml_file
-  |> Filename.remove_extension              (* remove [.ml] or [.ml-gen] *)
-  |> add_suffix ".v"                        (* add [.v] *)
-  |> String.split_on_char dir_sep           (* drop [_build/default/] *)
+  |> remove_extension                        (* remove [.ml] or [.ml-gen] *)
+  |> add_suffix ".v"                         (* add [.v] *)
   |> drop 2
-  |> String.concat Filename.dir_sep
-  |> Filename.concat Settings.out            (* make this an absolute path *)
+  |> concat Settings.out                     (* make this an absolute path *)
   |> map_basename (add_prefix Settings.mark) (* add mark to file name *)
 
 (* -------------------------------------------------------------------------- *)
@@ -183,7 +139,7 @@ let process m =
   let cmt_file = Dune.cmt m table in
   say "    .cmt file: %s\n" cmt_file;
   (* Construct the absolute path of the input (.cmt) file. *)
-  let cmt_file = Filename.concat Settings.root cmt_file in
+  let cmt_file = concat Settings.root cmt_file in
   (* Construct the absolute path of the output (.v) file. *)
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
