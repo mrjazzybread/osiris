@@ -419,17 +419,17 @@ Tactic Notation "@oCall" "unfold" :=
             change (environments.envs_entails Δ $ wp s E (call f a) φ)
               with (environments.envs_entails Δ $ wp s E m φ)
       | _ => fail "[oCall] The goal is not a call"
-      end); wp.
+      end); try wp.
 
 Tactic Notation "oCall" constr(s1) ident(i1) :=
   (* TODO if possible, use [wp_enter] instead of [unfold call] *)
-  @oCall unfold; wp;
+  @oCall unfold; try wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
-  end; wp.
+  end; try wp.
 Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
-  @oCall unfold; wp;
+  @oCall unfold; try wp;
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
@@ -437,7 +437,7 @@ Tactic Notation "oCall" constr(s1) ident(i1) constr(s2) ident(i2) :=
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s2] =>
       generalize (VCloRec η bds s2); intro i2
-  end; wp.
+  end; try wp.
 
 (* -------------------------------------------------------------------------- *)
 

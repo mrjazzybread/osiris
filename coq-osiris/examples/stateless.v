@@ -64,7 +64,7 @@ End Specifications.
 Section ProofExamples.
   Context `{!osirisGS Σ}.
 
-  Ltac call := @oCall unfold; wp_continue.
+  Ltac call := @oCall unfold.
   Ltac prove_counter := iSplit;
                       [ by equality
                       | iExists _; iSplit ; [ equality | iFrame ] ].

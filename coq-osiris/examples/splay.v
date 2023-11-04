@@ -404,7 +404,7 @@ Proof.
     (* Without this, the tactic [encode] fails to solve [Leaf = #?t]. TODO *)
     pose proof (@solve_encode_Leaf A _).
     (* Step into the function. *)
-    SIMP_enter. fixme. SIMP_continue.
+    SIMP_enter. fixme.
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| up x r | r x up ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)

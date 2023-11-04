@@ -157,7 +157,7 @@ Local Hint Resolve
 Ltac prove_counter := iSplit;
                       [ by equality
                       | iExists _; iSplit ; [ equality | iFrame ] ].
-Ltac call := @oCall unfold; wp_bind; wp_continue.
+Ltac call := @oCall unfold.
 
 (* -------------------------------------------------------------------------- *)
 

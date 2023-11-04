@@ -137,7 +137,6 @@ Proof.
   (* [flip] has the expected spec. *)
   oSpecify "flip" flip_spec vflip "#Hflip".
   { iIntros "!>" (b i); wp.
-    wp_continue.
     simpl. (* TODO *)
     wp. equality. }
   wp_bind.
@@ -162,14 +161,13 @@ Proof.
   (* [r_val] has the expected value. *)
   oSpecify "r_val" r_val_spec vr_val "#Hr_val".
   { iIntros "!>" ([[|] i]);
-      wp; wp_bind; wp_continue; wp_bind; wp_continue; iPureIntro; equality. }
+      wp; wp_bind; wp_continue; iPureIntro; equality. }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
   oSpecify "sum" sum_spec vsum "#Hsum".
   { iIntros "!>" ([b1 i1] [b2 i2]).
     wp.
-    do 2 wp_continue.
     wp_par.
     { wp_bind.
       (* TODO avoid manual encoding *)

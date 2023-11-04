@@ -321,11 +321,20 @@ and translate_expression (e: Typedtree.expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_exp_constant loc c
 
-  | Texp_function { arg_label = Nolabel; param; cases; partial } ->
-      debug "Texp_function param = %s\n" (Ident.name param); (* TODO *)
-      (* TODO recognize special case of [fun x -> e] *)
-      ignore partial;
-      EAnonFun (AnonFunction (translate_cases cases))
+  | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
+      (* [param] is apparently meaningless. *)
+      (* [partial] tells whether the case analysis is partial or exhaustive. *)
+      begin match cases with
+      | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ }; c_guard = None; c_rhs = e }] ->
+          (* We recognize the special case of [fun x -> e]. In this case
+             we can use [AnonFun], a primitive form in the Osiris AST. *)
+          assert (partial = Total);
+          EAnonFun (AnonFun (txt x, translate_expression e))
+      | _ ->
+          (* In the general case, this function has the form [function bs].
+             Then we use [AnonFunction], a derived form in Osiris. *)
+          EAnonFun (AnonFunction (translate_cases cases))
+      end
 
   | Texp_function { arg_label = Labelled _; _ } ->
       eunsupported loc "labeled argument"

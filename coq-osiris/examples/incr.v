@@ -84,7 +84,7 @@ Proof.
     { (* Proof of the specification of [upd]. *)
       unfold upd_spec. iIntros.
       iIntros (φ) "!>(%&->&Hl) Hφ".
-      wp. wp_continue.
+      wp.
       wp_store "Hl".
       iApply "Hφ".
       iExists _. by iFrame. }

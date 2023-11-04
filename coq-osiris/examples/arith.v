@@ -92,11 +92,10 @@ Proof.
 
       (* It is during the function call to add that the environment is extended
          to include the definition of [mult].*)
-      oCall "add" vadd "mult" vmult. wp. wp_continue.
+      oCall "add" vadd "mult" vmult.
 
       (* The proof can now continue as expected. *)
       iIntros(i2 H2). wp.
-      wp_continue.
       assert (representable i2) by apply int_representable. (* TODO *)
       rewrite ->eq_repr_repr by representable.
       destruct (i2 =? 0)%Z eqn:E; wp.
@@ -130,10 +129,10 @@ Proof.
 
     (* It is during the function call to add that the environment is extended
          to include the definition of [mult].*)
-    oCall "add" vadd "mult" vmult. wp_continue.
+    oCall "add" vadd "mult" vmult.
 
     (* The proof can now continue as expected. *)
-    iIntros(i2 H2). wp. wp_continue.
+    iIntros(i2 H2). wp.
     assert (representable i2) by apply int_representable.
     rewrite -> eq_repr_repr by representable.
     destruct (i2 =? 0)%Z eqn:E; wp.
