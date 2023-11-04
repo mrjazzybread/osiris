@@ -1,4 +1,4 @@
-open OsirisAst
+open Syntax
 open Typedtree
 open Types
 
@@ -50,7 +50,7 @@ let translate_constant = function
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_primitive (name: string) (v : variable) : sitem option =
+let translate_primitive (name: string) (v : var) : sitem option =
   Some (
       ILet (
           [
@@ -86,11 +86,10 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
      begin match c with
       | Asttypes.Const_int i -> PInt i
       | Asttypes.Const_char c -> PChar c
-      | Asttypes.Const_string (s, _, _) -> PString s
-      | Asttypes.Const_float s ->
-         (* Once again, as floats are not supported by the semantics, I do not
-            convert the string to a proper float here. *)
-         PString s
+      | Asttypes.Const_string (_s, _, _) ->
+          assert false (* TODO unsupported *)
+      | Asttypes.Const_float _f ->
+          assert false (* TODO unsupported *)
       | Asttypes.Const_int32 _ -> assert false
       | Asttypes.Const_int64 _ -> assert false
       | Asttypes.Const_nativeint _ ->
@@ -456,6 +455,6 @@ let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
 
 (* -------------------------------------------------------------------------- *)
 
-let of_typedtree m (ast: Typedtree.structure) : OsirisAst.ast =
+let of_typedtree m (ast: Typedtree.structure) : Syntax.ast =
   Some m,
   OModule (translate_module (Tmod_structure ast))

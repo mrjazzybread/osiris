@@ -1,4 +1,4 @@
-open OsirisAst
+open Syntax
 
 (* -------------------------------------------------------------------------- *)
 
@@ -82,8 +82,6 @@ let rec translate_pattern (p: pat) : expression =
      EConstr ("PInt", [EPlain (string_of_int i)])
   | PChar c -> (* of char *)
      EConstr ("PChar", [translate_char c])
-  | PString s -> (* of string *)
-     EConstr ("PString", [EPlain ("\""^s^"\"")])
 
 and translate_fpats fpats =
   match fpats with
@@ -339,7 +337,7 @@ let translate_sitem sitem =
   | Some e -> e
   | None -> assert false
 
-let definition_of_ast : OsirisAst.ast_body -> string * expression =
+let definition_of_ast : Syntax.ast_body -> string * expression =
   function
   | OModule m -> "mexpr", translate_module m
   | OExpr e -> "expr", translate_expression e

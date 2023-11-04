@@ -1,1 +1,1 @@
-val of_typedtree : string -> Typedtree.structure -> OsirisAst.ast
+val of_typedtree : string -> Typedtree.structure -> Syntax.ast

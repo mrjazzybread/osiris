@@ -1,107 +1,104 @@
-(* ------------------------------------------------------------------------ *)
-
-(* Variables *)
-
-type variable = string
-
-type coqdef = string
-
-(* Module names: use [name] *)
-
-(* We place variables and module names in the same namespace (This creates
-   no conflicts because OCaml variables begin and a lowercase letter while
-   OCaml module names begin and an uppercase letter) Thus, variables and
-   module names appear together in environments, structures, etc *)
-
-type name = string (* A variable or module name *)
+(* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* Module paths *)
+(* Meta-level references to Coq toplevel definitions. *)
 
-(* A module path is a possibly-empty list of module names [M], followed and
-   a final name, which can be a variable [x] or a module name [M] *)
-
-type path = name list
+type coq_id =
+  string
 
 (* ------------------------------------------------------------------------ *)
 
-(* Data constructors *)
+(* Variables. *)
+
+type var =
+  string
+
+(* Variables and module names. *)
+
+type name =
+  string
+
+(* ------------------------------------------------------------------------ *)
+
+(* Module paths. *)
+
+(* A module path is a possibly-empty list of module names [M], followed with
+   a final name, which can be a variable [x] or a module name [M]. *)
+
+type path =
+  name list (* must be nonempty *)
+
+(* ------------------------------------------------------------------------ *)
+
+(* Data constructors. *)
 
 type data =
   string
 
-(* Record fields *)
+(* Record fields. *)
 
 type field =
   string
 
-(* Data constructors and record fields are not treated like variables and
-   module names They are never considered "bound" and never looked up in
-   an environment They are regarded as constants *)
-
 (* ------------------------------------------------------------------------ *)
 
-(* Machine integers are... well machine integers.
-type int = int
-*)
-
-(* ------------------------------------------------------------------------ *)
-
-(* Patterns *)
+(* Patterns. *)
 
 type pat =
-  (* The wildcard pattern *)
+  (* The wildcard pattern. *)
   | PAny
-  (* A variable *)
-  | PVar of variable
-  (* An alias pattern [p as x] *)
-  | PAlias of pat * variable
-  (* A disjunction pattern [p1 | p2] *)
+  (* A variable. *)
+  | PVar of var
+  (* An alias pattern [p as x]. *)
+  | PAlias of pat * var
+  (* A disjunction pattern [p1 | p2]. *)
   | POr of pat * pat
-  (* A tuple pattern *)
+  (* A tuple pattern. *)
   | PTuple of pats
-  (* A data constructor pattern *)
+  (* A data constructor pattern. *)
   | PData of data * pat
-  (* A record pattern *)
+  (* A record pattern. *)
   | PRecord of fpats
-  (* Constant patterns *)
+  (* A literal integer pattern. *)
   | PInt of int
+  (* A literal character pattern. *)
   | PChar of char
-  | PString of string
-  (* Punit is added to simplify the translator. *)
+  (* The unit pattern. (On the Coq side, a notation.) *)
   | PUnit
 
-(* Lists of patterns *)
+(* Lists of patterns. *)
 
-and pats = pat list
+and pats =
+  pat list
 
-(* Lists of field-pattern pairs *)
+(* Lists of field-pattern pairs. *)
 
-and fpats = (field * pat) list
+and fpats =
+  (field * pat) list
 
 (* ------------------------------------------------------------------------ *)
 
-(* Module coercions *)
-
-(* Module coercions can be understood as a very impoverished form of module
-   types They play a role in the dynamic semantics of the shape restriction
-   operation on modules *)
+(* Module coercions. *)
 
 type coercion =
 
-  (* The coercion [CIdentity] has no effect *)
+  (* The coercion [CIdentity] has no effect. *)
   | CIdentity
 
-  (* The coercion [CStruct cs] expects to be applied to a structure The
+  (* The coercion [CStruct cs] expects to be applied to a structure. The
      fields named in the list [xcs] are retained, and the corresponding
-     coercions in the list [xcs] are applied to them All other fields are
-     dropped *)
-  | CStruct of coercion list
+     coercions in the list [xcs] are applied to them. All other fields are
+     dropped. *)
+  | CStruct of fcoercions
+
+and fcoercions =
+  (field * coercion) list
+      (* A field-coercion list [xcs] must have no duplicate names. *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* Expressions *)
+(* Expressions. *)
 
 type expr =
   | EUnit
@@ -191,7 +188,7 @@ type expr =
   (* Loop: [while e do body done] *)
   | EWhile of expr * expr
   (* Loop: [for x = e1 to e2 do e done] *)
-  | EFor of variable * expr * expr * expr
+  | EFor of var * expr * expr * expr
 
   (* Fatal error: [assert false] *)
   | EAssertFalse
@@ -204,7 +201,7 @@ type expr =
   | ELoad of expr
   | EStore of expr * expr
 
-  | EDef of coqdef
+  | EDef of coq_id
 
 (* Lists of expressions *)
 
@@ -228,7 +225,7 @@ and branches = branch list
 
 and binding =
   | Binding of pat * expr
-  | BDef of coqdef
+  | BDef of coq_id
 
 (* Lists of bindings *)
 
@@ -237,8 +234,8 @@ and bindings = binding list
 (* A recursive binding is of the form [f = a] *)
 
 and rec_binding =
-  | RecBinding of variable * anonfun
-  | RecBDef of coqdef
+  | RecBinding of var * anonfun
+  | RecBDef of coq_id
 
 (* Lists of recursive bindings *)
 
@@ -251,7 +248,7 @@ and rec_bindings = rec_binding list
    regarded as sugar: see [EFunction] and [EFunMultiPat] *)
 
 and anonfun =
-  | AnonFun of variable * expr
+  | AnonFun of var * expr
 
 (* ------------------------------------------------------------------------ *)
 
@@ -271,7 +268,7 @@ and mexpr =
      where [S] is the expected shape of the argument of the functor [F] *)
   | MCoercion of mexpr * coercion
 
-  | MDef of coqdef
+  | MDef of coq_id
 
 (* Lists of structure items *)
 
@@ -297,7 +294,7 @@ and sitem =
   | IInclude of mexpr
 
   (* A topèlevel Coq definition *)
-  | CDef of coqdef
+  | CDef of coq_id
 
 (* ------------------------------------------------------------------------- *)
 

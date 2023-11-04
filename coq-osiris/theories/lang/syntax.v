@@ -1,6 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import int locations.
 
+(* This file should be in sync with osiris/src/Syntax.ml. *)
+
 (* ------------------------------------------------------------------------ *)
 
 (* Variables. *)
@@ -20,8 +22,6 @@ Definition module :=
 
 Definition name :=
   string. (* A variable or module name. *)
-
-Definition char := Ascii.ascii.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -59,6 +59,11 @@ Definition field :=
 Definition int :=
   int.
 
+(* Characters. *)
+
+Definition char :=
+  Ascii.ascii.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Patterns. *)
@@ -80,6 +85,7 @@ Inductive pat :=
   | PRecord (fps : fpats)
   (* A literal integer pattern. *)
   | PInt (i : Z)
+  (* A literal character pattern. *)
   | PChar (c: char)
 
 (* Lists of patterns. *)
@@ -108,18 +114,18 @@ Inductive coercion :=
   | CIdentity
 
   (* The coercion [CStruct cs] expects to be applied to a structure. The
-     fields named in the list [xcs] are retained, and the corresponding
-     coercions in the list [xcs] are applied to them. All other fields are
+     fields named in the list [fcs] are retained, and the corresponding
+     coercions in the list [fcs] are applied to them. All other fields are
      dropped. *)
-  | CStruct (xcs : coercions)
+  | CStruct (fcs : fcoercions)
 
-with coercions :=
+with fcoercions :=
   | CNil
-  | CCons (x : var) (c : coercion) (xcs : coercions).
-      (* In [CCons x c xcs], the name [x] refers to a structure component,
+  | CCons (x : var) (c : coercion) (fcs : fcoercions).
+      (* In [CCons f c fcs], the name [f] refers to a structure component,
          which can be a value or a substructure. The coercion [c] is applied
          to this component. *)
-      (* A name-coercion list [xcs] is expected to have no duplicate names.
+      (* A name-coercion list [fcs] is expected to have no duplicate names.
          At the moment, this property is not checked by us. *)
 
 (* ------------------------------------------------------------------------ *)
