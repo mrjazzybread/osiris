@@ -52,6 +52,9 @@ Definition field :=
    module names. They are never considered "bound" and never looked up in
    an environment. They are regarded as constants. *)
 
+(* In OCaml, a data constructor or field can be a qualified name. Here, only
+   a short (unqualified) name is retained; the rest is irrelevant. *)
+
 (* ------------------------------------------------------------------------ *)
 
 (* Machine integers. *)

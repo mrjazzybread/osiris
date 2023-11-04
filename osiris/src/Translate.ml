@@ -1,17 +1,19 @@
-open Syntax
+(* ocaml-compiler-libs: *)
 open Typedtree
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.ml *)
 open Types
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/types.ml *)
+
+(* Osiris: *)
+open Syntax
 
 (* -------------------------------------------------------------------------- *)
 
-let string_of_longident (i: Longident.t) : string =
-  let rec last = function
-    | [] -> assert false
-    | h :: [] -> h
-    | _ :: t -> last t
-  in
-  Longident.flatten i
-  |> last
+(* In OCaml, a data constructor or field can be a qualified name. Here, only
+   a short (unqualified) name is retained; the rest is irrelevant. *)
+
+let unqualify : Longident.t -> data =
+  Longident.last
 
 let translate_longident (i: Longident.t) : path =
   Longident.flatten i
@@ -102,7 +104,7 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
   | Tpat_construct ({txt = i;_}, _, args, _) ->
      (* Careful: It is possible to overload [()], [true], ... Therefore, they
         should be treated as any other constructor. *)
-     PData ( string_of_longident i,
+     PData ( unqualify i,
              PTuple (List.map translate_pattern args))
   | Tpat_alias (pat, var, _) ->
       PAlias (translate_pattern pat, Ident.name var)
@@ -115,7 +117,7 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
          List.map
            (fun (i, _, pat) ->
              (*FIXME*)let i: Longident.t Location.loc = i in
-             let field = string_of_longident i.txt in
+             let field = unqualify i.txt in
              let pat = translate_pattern pat in
              (field, pat))
            rl
@@ -189,7 +191,7 @@ let translate_record
              match e with
              | Kept _ -> expr
              | Overridden (li, e) ->
-                let name : string = string_of_longident li.txt in
+                let name : string = unqualify li.txt in
                 let body : expr = trans_expr e in
                 (name, body) :: expr)
            fields []
@@ -297,7 +299,7 @@ and translate_expression (e: Typedtree.expression) =
        translate_expression
 
   | Texp_construct (c, _, el) ->
-     let name = string_of_longident c.txt in
+     let name = unqualify c.txt in
      let args =
        List.fold_right (fun e res -> translate_expression e :: res) el [] in
      EData (name, ETuple args)

@@ -309,7 +309,10 @@
 * Extensible algebraic data types
 * Exceptions
   + Exception names must be treated like variables,
-    *not* like data constructors
+    *not* like data constructors;
+    so, in data constructor applications and data constructor patterns,
+    the translator must treat exceptions (and extensible data types)
+    in a special way
   + Asynchronous exceptions (`Out_of_memory`, `Stack_overflow`...)
     are not modeled in our semantics, so must not be caught;
     catch-all handlers are therefore problematic;
