@@ -29,6 +29,9 @@ let debug =
 let verbose =
   ref false
 
+let warnings =
+  ref true
+
 (* -------------------------------------------------------------------------- *)
 
 (* Definition of the command-line options and parsing. *)
@@ -42,9 +45,11 @@ let no_split () =
 let spec = [
     "--debug", Arg.Set debug, " (undocumented)";
     "--mark", Arg.Set_string mark, " A prefix that is added to every file name (default: empty)";
+    "--no-warnings", Arg.Clear warnings, " Disable warnings (default: warnings enabled)";
     "--out", Arg.String (set_opt out), " Output directory (mandatory)";
     "--root", Arg.String (set_opt root), " Dune root directory (mandatory)";
     "--verbose", Arg.Set verbose, " (undocumented)";
+    "--warnings", Arg.Set warnings, " Enable warnings (default: warnings enabled)";
     "-no-split", Arg.Unit no_split, " Do not split Coq definitions"; (* TODO clean up *)
   ]
 
@@ -112,8 +117,14 @@ let debug =
 let verbose =
   !verbose
 
+let warnings =
+  !warnings
+
 let debug format =
   if debug then fprintf stderr format else ifprintf stderr format
 
 let say format =
   if verbose then fprintf stderr format else ifprintf stderr format
+
+let warn format =
+  if warnings then fprintf stderr format else ifprintf stderr format

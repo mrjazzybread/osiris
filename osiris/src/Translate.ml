@@ -46,10 +46,12 @@ let prerr_loc (loc : Location.t) =
   Format.pp_print_flush Format.err_formatter ()
 
 let unsupported loc construct v =
-  prerr_loc loc;
-  eprintf ":\n";
-  eprintf "Warning: unsupported construct (%s).\n" construct;
-  flush stderr;
+  if warnings then begin
+    prerr_loc loc;
+    eprintf ":\n";
+    eprintf "Warning: unsupported construct (%s).\n" construct;
+    flush stderr
+  end;
   v
 
 let eunsupported loc construct =

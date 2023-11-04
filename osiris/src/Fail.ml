@@ -3,6 +3,3 @@ let die _c =
 
 let fail format =
   Printf.kfprintf die stderr format
-
-let warn format =
-  Printf.fprintf stderr format

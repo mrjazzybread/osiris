@@ -25,8 +25,14 @@ val mark: string
 type strategy = [`Split|`NoSplit]
 val splitting_strategy : strategy list
 
-(* This function sends output to [stderr] if [--debug] is set. *)
+(* [debug format ...] sends output to [stderr] only if [--debug] is set. *)
 val debug: ('a, out_channel, unit) format -> 'a
 
-(* This function sends output to [stderr] if [--verbose] is set. *)
+(* [say format ...] sends output to [stderr] only if [--verbose] is set. *)
 val say: ('a, out_channel, unit) format -> 'a
+
+(**[warn format ...] sends output to [stderr] only if [--warnings] is set. *)
+val warn : ('a, out_channel, unit) format -> 'a
+
+(**[warnings] indicates whether [--warnings] is set. *)
+val warnings: bool
