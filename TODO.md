@@ -24,7 +24,8 @@
 
 ## Translator
 
-* Translate the OCaml stdlib.
+* What version of OCaml do we depend upon?
+  Can we protect ourselves from minor changes in the parse tree?
 
 * Reshape the splitting process
 * Split the let-bindings in [split_all].
@@ -36,6 +37,12 @@
 * Get the translation tool to write Coq types equivalent to of from the OCaml
   files (and maybe try to write encode instances and hints automatically in most
   cases).
+
+## OCaml standard library
+
+* What version of the OCaml standard library do we embark?
+* Do we apply the translator to all of it?
+  What about unsupported constructs, external primitives, etc.?
 
 ## Engineering and proof mode
 

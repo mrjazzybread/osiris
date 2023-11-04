@@ -1,45 +1,45 @@
-# This prevents Coq from producing stack backtraces.
-export OCAMLRUNPARAM=
+PWD := $(shell pwd)
 
 .PHONY: all
 all:
-	@printf "\r%-80s\n" "Build test/ml"
-	@ dune build test/ml --
-	@printf "\r%-80s\n" "Build libs/ml"
-	@ dune build libs/ml --
-	@printf "\r%-80s\n" "Translating Stdlib."
-	@ dune exec translator/bin/main.exe -- -in-dir libs/ml/Stdlib -out libs/coq/Stdlib -root . -mode dune
-	@printf "\r%-80s\n" "Building Osiris"
-	@ dune build
-	@printf "\r%-80s\n" "Done."
+# Build the Osiris translator.
+	@ make --no-print-directory -C osiris
+# Compile the OCaml source code of the OCaml standard library.
+	@ cd coq-osiris/theories/stdlib/src && dune build .
+# Compile the OCaml source code of our examples.
+	@ cd coq-osiris/examples/src && dune build .
+# Apply the Osiris translator to all of the above OCaml source code.
+# The mark [og_] stands for "Osiris-generated".
+	@ (cd osiris && dune exec src/main.exe -- \
+	     --root $(PWD)/coq-osiris \
+             --out $(PWD)/coq-osiris \
+	     --mark og_ \
+	     all \
+	  )
+# Copy the translated files to a place where dune and Coq will see them.
+#	@ cd coq-osiris/theories/stdlib && mv src/*.v .  # TODO these files are not yet used
+	@ cd coq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
+	@ cd coq-osiris/examples && mv src/*.v .
+# Now compile all of the Coq code.
+	@ make --no-print-directory -C coq-osiris
 
 .PHONY: clean
 clean:
-	@ git clean -fdX
-
-.PHONY: axioms
-axioms:
-	@ for word in Axiom Abort Admitted ; do \
-	    git grep $${word} '*.v' || true ; \
-	  done
-
-.PHONY: tutorial
-tutorial: all
-	@ dune build tutorial/tutorial.html
+	@ git clean -fdX .
 
 # [make init] creates an opam switch named [osiris]
-# with the necessary libraries and tools.
+# and installs the necessary libraries and tools in it.
+# It also installs Alectryon.
 
 .PHONY: init
 init:
 	opam switch create osiris 4.14.1
-	eval $(opam env --switch=osiris)
-	opam repository add coq-released https://coq.inria.fr/opam/released
-	opam repository add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin dune 3.11.0 --yes
-	opam pin coq 8.17.1 --yes
-	opam pin coq-stdpp --dev-repo --yes
-	opam pin coq-iris --dev-repo --yes
-	opam install pprint ocaml-compiler-libs --yes
-	opam install "coq-serapi>=8.10.0+0.7.0" --yes
+	opam repo --switch=osiris add coq-released https://coq.inria.fr/opam/released
+	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	opam pin --switch=osiris --yes dune 3.11.0
+	opam pin --switch=osiris --yes coq 8.17.1
+	opam pin --switch=osiris --yes coq-stdpp --dev-repo
+	opam pin --switch=osiris --yes coq-iris --dev-repo
+	opam install --switch=osiris --yes pprint ocaml-compiler-libs
+	opam install --switch=osiris --yes "coq-serapi>=8.10.0+0.7.0"
 	python3 -m pip install alectryon

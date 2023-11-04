@@ -1,0 +1,8 @@
+;; Do not include this directory as part of this Coq project.
+(include_subdirs no)
+
+;; Compile these OCaml source files.
+(library
+  (flags (:standard -bin-annot))
+  (name CoqOsirisExamples)
+)

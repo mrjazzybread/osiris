@@ -1,0 +1,45 @@
+(lang dune 3.8)
+(using coq 0.8)
+
+(generate_opam_files true)
+
+(package
+  (name coq-osiris)
+  (authors
+     "François Pottier"
+     "Armaël Guéneau"
+     "Arnaud Daby-Seesaram"
+   )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "An instance of the Iris verification framework for OCaml")
+  (depends
+     dune
+     coq-stdpp
+     coq-iris
+  )
+)
+
+(package
+  (name coq-osiris-examples)
+  (authors
+     "François Pottier"
+     "Armaël Guéneau"
+     "Arnaud Daby-Seesaram"
+   )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "Examples of use of Osiris")
+  (depends
+     dune
+     coq-stdpp
+     coq-iris
+     coq-osiris
+  )
+)

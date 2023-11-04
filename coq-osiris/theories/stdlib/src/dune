@@ -1,0 +1,10 @@
+;; Do not include this directory as part of this Coq project.
+(include_subdirs no)
+
+;; Compile this copy of the OCaml standard library.
+(library
+  (name dummy_stdlib)
+  (flags (:standard -w -9 -bin-annot))
+)
+;; warning 9 [missing-record-field-pattern] is disabled because it triggers
+;; many errors in map.ml.

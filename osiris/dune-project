@@ -1,0 +1,23 @@
+(lang dune 3.8)
+(generate_opam_files true)
+(package
+  (name osiris)
+  (authors
+    "François Pottier"
+    "Arnaud Daby-Seesaram"
+  )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "An instance of the Iris verification framework for OCaml")
+  (depends
+    ocaml
+    dune
+    ocaml-compiler-libs
+    pprint
+    base
+    csexp
+  )
+)
