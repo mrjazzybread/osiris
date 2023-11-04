@@ -96,7 +96,7 @@ Proof.
 
       (* The proof can now continue as expected. *)
       iIntros(i2 H2). wp.
-      wp_continue. (* TODO FIXME this does not terminate! *)
+      wp_continue.
       assert (representable i2) by apply int_representable. (* TODO *)
       rewrite ->eq_repr_repr by representable.
       destruct (i2 =? 0)%Z eqn:E; wp.
