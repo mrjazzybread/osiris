@@ -72,6 +72,8 @@ Definition char :=
 (* Patterns. *)
 
 Inductive pat :=
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | PUnsupported
   (* The wildcard pattern. *)
   | PAny
   (* A variable. *)
@@ -90,6 +92,8 @@ Inductive pat :=
   | PInt (i : Z)
   (* A literal character pattern. *)
   | PChar (c: char)
+  (* A literal string pattern. *)
+  | PString (s : string)
 
 (* Lists of patterns. *)
 

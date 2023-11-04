@@ -46,6 +46,8 @@ type field =
 (* Patterns. *)
 
 type pat =
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | PUnsupported
   (* The wildcard pattern. *)
   | PAny
   (* A variable. *)
@@ -64,6 +66,8 @@ type pat =
   | PInt of int
   (* A literal character pattern. *)
   | PChar of char
+  (* A literal string pattern. *)
+  | PString of string
 
 (* Lists of patterns. *)
 

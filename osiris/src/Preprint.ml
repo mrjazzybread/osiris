@@ -52,6 +52,8 @@ let translate_char (c: char) : expression =
 let rec translate_pattern (p: pat) : expression =
   match p with
 
+  | PUnsupported ->
+      EPlain "PUnsupported"
   (* The wildcard pattern *)
   | PAny -> EPlain "PAny"
   (* A variable *)
@@ -79,8 +81,10 @@ let rec translate_pattern (p: pat) : expression =
   (* Constant patterns *)
   | PInt i -> (* of int *)
      EConstr ("PInt", [EPlain (string_of_int i)])
-  | PChar c -> (* of char *)
+  | PChar c ->
      EConstr ("PChar", [translate_char c])
+  | PString s ->
+     EConstr ("PString", [string_literal (String.escaped s)])
 
 and translate_fpats fpats =
   match fpats with
@@ -162,7 +166,7 @@ and translate_expression (e: expr) : expression =
 
   (* Strings *)
   | EString s -> (* of string *)
-     EConstr ("EString", [string_literal s])
+     EConstr ("EString", [string_literal (String.escaped s)])
 
   (* Integer literals *)
   | EInt i -> (* of int *)

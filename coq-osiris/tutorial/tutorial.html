@@ -30,7 +30,8 @@ Coq.</p>
 <p>Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk0" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk0"><span class="kn">Print</span> pat.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">pat</span> : <span class="kt">Set</span> :=
-    PAny : pat
+    PUnsupported : pat
+  | PAny : pat
   | PVar : var → pat
   | PAlias : pat → var → pat
   | POr : pat → pat → pat
@@ -39,6 +40,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | PRecord : fpats → pat
   | PInt : Z → pat
   | PChar : char → pat
+  | PString : string → pat
   <span class="kr">with</span> pats : <span class="kt">Set</span> :=
     PNil : pats | PCons : pat → pats → pats
   <span class="kr">with</span> fpats : <span class="kt">Set</span> :=
@@ -53,6 +55,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> PRecord fps
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
+<span class="kn">Arguments</span> PString s%string_scope
 <span class="kn">Arguments</span> PCons p ps
 <span class="kn">Arguments</span> FPCons f p fps</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=

@@ -346,6 +346,8 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
 
 Fixpoint extend δ p v : micro env :=
   match p, v with
+  | PUnsupported, _ =>
+      unsupported_construct
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
       ret δ
@@ -382,6 +384,8 @@ Fixpoint extend δ p v : micro env :=
       if int.eq i i' then ret δ else next()
   | PChar c', VChar c =>
       if Ascii.eqb c c' then ret δ else next()
+  | PString s', VString s =>
+      if String.eqb s s' then ret δ else next()
   | PTuple _, _ =>
       type_mismatch "tuple expected"
   | PData _ _, _ =>
@@ -392,6 +396,8 @@ Fixpoint extend δ p v : micro env :=
       type_mismatch "integer expected"
   | PChar _, _ =>
       type_mismatch "char expected"
+  | PString _, _ =>
+      type_mismatch "string expected"
 end
 
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
@@ -675,7 +681,8 @@ Fixpoint eval η e : micro val :=
   match e with
   | EUnsupported =>
       unsupported_construct
-  | EChar c => ret (VChar c)
+  | EChar c =>
+      ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
       lookup_path η π
@@ -712,7 +719,8 @@ Fixpoint eval η e : micro val :=
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse
-  | EString s => Ret (VString s)
+  | EString s =>
+      ret (VString s)
   | EInt i =>
       (* An integer literal is interpreted as a machine integer. *)
       (* We do not require this integer literal to lie within a certain

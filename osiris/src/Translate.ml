@@ -67,7 +67,9 @@ let unqualify : Longident.t -> data =
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_constant = function
+(* Constants. *)
+
+let translate_exp_constant = function
   | Const_int i ->
       (* We may wish to check that this integer constant is definitely
          representable (i.e., it fits in 31 bits). Otherwise, this code
@@ -83,16 +85,21 @@ let translate_constant = function
   | Const_nativeint _ ->
       EUnsupported
 
-(* -------------------------------------------------------------------------- *)
-
-let anonfun_of_expr : expr -> anonfun = function
-  | EAnonFun f -> f
-  | _ -> assert false
-
-let unvarpat (p : value general_pattern) : string =
-  match p.pat_desc with
-  | Tpat_var (_, v) -> txt v
-  | _ -> assert false
+let translate_pat_constant = function
+  | Const_int i ->
+      (* We may wish to check that this integer constant is definitely
+         representable (i.e., it fits in 31 bits). Otherwise, this code
+         would be non-portable and non-verifiable. TODO *)
+      PInt i
+  | Const_char c ->
+      PChar c
+  | Const_string (s, _, _) ->
+      PString s
+  | Const_float _
+  | Const_int32 _
+  | Const_int64 _
+  | Const_nativeint _ ->
+      PUnsupported
 
 (* -------------------------------------------------------------------------- *)
 
@@ -107,21 +114,7 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
   | Tpat_tuple pl -> PTuple (List.map translate_pattern pl)
 
   | Tpat_constant c ->
-     begin match c with
-      | Const_int i -> PInt i
-      | Const_char c -> PChar c
-      | Const_string (_s, _, _) ->
-          assert false (* TODO unsupported *)
-      | Const_float _f ->
-          assert false (* TODO unsupported *)
-      | Const_int32 _ -> assert false
-      | Const_int64 _ -> assert false
-      | Const_nativeint _ ->
-         (* [Nativeint] is not currently supported. Once it is, should we
-            rather translate this directly, or see it as
-            [Tpat_or (Tpat_constant (int32 _), Tpat_constant (int64 _))] ? *)
-         assert false
-     end
+      translate_pat_constant c
 
   | Tpat_construct (i, _, args, _) ->
      (* Careful: It is possible to overload [()], [true], ... Therefore, they
@@ -176,6 +169,17 @@ let translate_lambda translate_expression branches =
            EMatch
              (EPath ["__osiris_anonymous_arg"],
               (translate_branches translate_expression) branches))
+
+(* -------------------------------------------------------------------------- *)
+
+let anonfun_of_expr : expr -> anonfun = function
+  | EAnonFun f -> f
+  | _ -> assert false
+
+let unvarpat (p : value general_pattern) : string =
+  match p.pat_desc with
+  | Tpat_var (_, v) -> txt v
+  | _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -287,7 +291,7 @@ and translate_mod_ident path id : path =
 
 and translate_expression (e: Typedtree.expression) =
   match e.exp_desc with
-  | Texp_constant c -> translate_constant c
+  | Texp_constant c -> translate_exp_constant c
 
   | Texp_function {cases;_} ->
      let branches = list_of_cases cases in
