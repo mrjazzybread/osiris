@@ -67,15 +67,6 @@ let unqualify : Longident.t -> data =
 
 (* -------------------------------------------------------------------------- *)
 
-let rec translate_path : Path.t -> path = function
-  | Pident i ->
-     [Ident.name i]
-  | Pdot (path, i) ->
-     translate_path path @ [i]
-  | _ -> assert false
-
-(* -------------------------------------------------------------------------- *)
-
 let translate_constant = function
   | Asttypes.Const_int i -> EInt i
   | Asttypes.Const_string (s, _, _) -> EString s
@@ -288,6 +279,28 @@ and branches_of_computation_cases (cases : computation case list) : branches =
 
 (* -------------------------------------------------------------------------- *)
 
+and translate_exp_ident path id : path =
+  let id = txt id in
+  (* [id] is the long identifier that appears in the source code.
+     [path] is the corresponding resolved path. *)
+  debug "    Texp_ident\n";
+  debug "      id = %s\n" (show_longident id);
+  debug "      path = %s\n" (show_path path);
+  (* For the moment, we ignore [path] and keep [id]. However, [path]
+     could be used to identify references to the OCaml standard library. *)
+  translate_longident id
+
+and translate_mod_ident path id : path =
+  let id = txt id in
+  (* [id] is the long identifier that appears in the source code.
+     [path] is the corresponding resolved path. *)
+  debug "    Tmod_ident\n";
+  debug "      id = %s\n" (show_longident id);
+  debug "      path = %s\n" (show_path path);
+  (* For the moment, we ignore [path] and keep [id]. However, [path]
+     could be used to identify references to the OCaml standard library. *)
+  translate_longident id
+
 and translate_expression (e: Typedtree.expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_constant c
@@ -310,15 +323,7 @@ and translate_expression (e: Typedtree.expression) =
   | Texp_assert e -> EAssert (translate_expression e)
 
   | Texp_ident (path, id, _) ->
-      let id = txt id in
-      (* [id] is the long identifier that appears in the source code.
-         [path] is the corresponding resolved path. *)
-      debug "    Texp_ident\n";
-      debug "      id = %s\n" (show_longident id);
-      debug "      path = %s\n" (show_path path);
-      (* For the moment, we ignore [path] and keep [id]. However, [path]
-         could be used to identify references to the OCaml standard library. *)
-      EPath (translate_longident id)
+      EPath (translate_exp_ident path id)
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expression e)
@@ -474,7 +479,7 @@ let translate_structure_item
 
   | Tstr_open {open_expr={mod_desc;_};_} -> (* of open_declaration *)
      (match mod_desc with
-     | Tmod_ident (p, _) -> Some (IOpen (translate_path p))
+     | Tmod_ident (path, id) -> Some (IOpen (translate_mod_ident path id))
      | _ -> assert false)
 
   | Tstr_primitive {val_id; val_prim = v :: _; _} -> (* of value_description *)
@@ -493,8 +498,9 @@ let translate_structure_item
 
 let rec translate_module (ast: module_expr_desc) : mexpr =
   match ast with
-  | Tmod_ident (p, _) ->
-     MPath (translate_path p)
+  | Tmod_ident (path, id) ->
+      MPath (translate_mod_ident path id)
+
   | Tmod_structure ast -> (* of structure *)
      let (itms) =
        List.filter_map (translate_structure_item translate_module) ast.str_items
