@@ -182,16 +182,19 @@ and translate_field_pattern (i, _label_desc, pat) : field * pat =
   unqualify (txt i),
   translate_pattern pat
 
-let translate_computation_pattern p =
-  match split_pattern p with
-  | Some p, None -> translate_pattern p
-  | None, Some p ->
-     (* TODO?  The pattern [p] is an exception pattern.  For now, I treat it as
-        any pattern. *)
-     translate_pattern p
+(* Computation patterns distinguish normal termination and exceptions. *)
+
+let translate_computation_pattern pat : pat =
+  let loc = pat.pat_loc in
+  match split_pattern pat with
+  | Some pat, None ->
+      (* A normal termination pattern. *)
+      translate_pattern pat
+  | None, Some _ ->
+      (* An exception pattern. *)
+      punsupported loc "exception pattern"
   | _ ->
-     (* It should not be allowed to match on both expressions and exceptions. *)
-     assert false
+      assert false
 
 (* -------------------------------------------------------------------------- *)
 
