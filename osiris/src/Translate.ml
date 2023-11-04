@@ -69,11 +69,12 @@ let unqualify : Longident.t -> data =
 
 (* Constants. *)
 
+(* We may wish to check that integer constants are definitely representable
+   (i.e., fit in 31 bits). Otherwise, the code would be non-portable and
+   non-verifiable. TODO *)
+
 let translate_exp_constant = function
   | Const_int i ->
-      (* We may wish to check that this integer constant is definitely
-         representable (i.e., it fits in 31 bits). Otherwise, this code
-         would be non-portable and non-verifiable. TODO *)
       EInt i
   | Const_char c ->
       EChar c
@@ -87,9 +88,6 @@ let translate_exp_constant = function
 
 let translate_pat_constant = function
   | Const_int i ->
-      (* We may wish to check that this integer constant is definitely
-         representable (i.e., it fits in 31 bits). Otherwise, this code
-         would be non-portable and non-verifiable. TODO *)
       PInt i
   | Const_char c ->
       PChar c
@@ -103,44 +101,56 @@ let translate_pat_constant = function
 
 (* -------------------------------------------------------------------------- *)
 
-  (* [tanslate_pattern pat] translate the [Typedtree] pattern [pat] into an
-     Osiris one.
-     The only interesting case if [Tpat_construct] in which some constructors
-     are to be recognized as primitive. *)
-let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat =
+(* Patterns. *)
+
+let rec translate_pattern (pat: Typedtree.pattern) : pat =
   match pat.pat_desc with
-  | Tpat_any -> PAny
-  | Tpat_var (v, _) -> PVar (Ident.name v)
-  | Tpat_tuple pl -> PTuple (List.map translate_pattern pl)
+
+  | Tpat_any ->
+      PAny
+
+  | Tpat_var (_, x) ->
+      PVar (txt x)
+
+  | Tpat_alias (pat, _, x) ->
+      PAlias (translate_pattern pat, txt x)
 
   | Tpat_constant c ->
       translate_pat_constant c
 
-  | Tpat_construct (i, _, args, _) ->
-     (* Careful: It is possible to overload [()], [true], ... Therefore, they
-        should be treated as any other constructor. *)
-     PData ( unqualify (txt i),
-             PTuple (List.map translate_pattern args))
-  | Tpat_alias (pat, var, _) ->
-      PAlias (translate_pattern pat, Ident.name var)
-  | Tpat_or (p1, p2, _) ->
-      POr ( translate_pattern p1,
-            translate_pattern p2 )
+  | Tpat_tuple pats ->
+      PTuple (translate_patterns pats)
 
-  | Tpat_record (rl, _) ->
-     PRecord (
-         List.map
-           (fun (i, _, pat) ->
-             let field = unqualify (txt i) in
-             let pat = translate_pattern pat in
-             (field, pat))
-           rl
-       )
+  | Tpat_construct (i, _constructor_desc, pats, _optional_type_annotation) ->
+      (* An OCaml data constructor application is always translated as an
+         application of the data constructor to a tuple of its arguments. *)
+      let data = unqualify (txt i) in
+     PData (data, PTuple (translate_patterns pats))
 
-  | Tpat_variant (_, _, _) -> assert false
-  | Tpat_array _ -> assert false
-  | Tpat_lazy _ -> assert false
+  | Tpat_variant _ ->
+      PUnsupported
 
+  | Tpat_record (fields, _closed_flag) ->
+      PRecord (translate_field_patterns fields)
+
+  | Tpat_array _ ->
+      PUnsupported
+
+  | Tpat_lazy _ ->
+      PUnsupported
+
+  | Tpat_or (pat1, pat2, _) ->
+      POr (translate_pattern pat1, translate_pattern pat2)
+
+and translate_patterns pats : pats =
+  List.map translate_pattern pats
+
+and translate_field_patterns fields : fpats =
+  List.map translate_field_pattern fields
+
+and translate_field_pattern (i, _label_desc, pat) : field * pat =
+  unqualify (txt i),
+  translate_pattern pat
 
 let translate_computation_pattern p =
   match split_pattern p with
