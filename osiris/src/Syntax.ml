@@ -113,7 +113,7 @@ type expr =
   (* Path: [x] or [π.x]. *)
   | EPath of path
 
-  (* An anonymous function. *)
+  (* An anonymous function [fun x -> e]. *)
   | EAnonFun of anonfun
 
   (* Function application: [e1 e2]. *)
@@ -247,14 +247,12 @@ and rec_binding =
 and rec_bindings =
   rec_binding list
 
-(* An anonymous function is of the form [fun x -> e]. We allow only
-   this form as a primitive construct, because this simplifies the
-   evaluator. The constructs [function bs], where [bs] is a list of
-   branches, and [fun ps -> e], where [ps] is a list of patterns, are
-   regarded as sugar: see [EFunction] and [EFunMultiPat]. *)
+(* An anonymous function is of the form [fun x -> e] or [function bs].
+   The first form is primitive; the second form is sugar. *)
 
 and anonfun =
   | AnonFun of var * expr
+  | AnonFunction of branches
 
 (* ------------------------------------------------------------------------ *)
 

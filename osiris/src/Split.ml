@@ -21,6 +21,7 @@ and split_all_rec_binding name rec_binding : def DAG.t =
        RecBinding (n, AnonFun (v, ELink gname)) in
      DAG.init { lhs = name; rhs = ORecBinding rec_binding }
      |> DAG.add [g]
+  | RecBinding (_, AnonFunction _) (* TODO *)
   | RecBLink _ ->
       DAG.init { lhs = name; rhs = ORecBinding rec_binding }
 

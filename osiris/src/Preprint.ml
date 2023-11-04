@@ -97,9 +97,13 @@ and translate_fpats fpats =
 let translate_path (x: path) : expression =
   EList ("MkPath", List.map string_literal x)
 
-let rec translate_lambda (AnonFun (v, e)) : expression =
-  EConstr ("AnonFun", [ string_literal v ;
-                        translate_expression e ])
+let rec translate_anonfun (a : anonfun) : expression =
+  match a with
+  | AnonFun (x, e) ->
+      EConstr ("AnonFun", [ string_literal x ;
+                          translate_expression e ])
+  | AnonFunction bs ->
+      EConstr ("AnonFunction", [translate_branches bs])
 
 and translate_branch : branch -> expression = function
   | Branch (p, e) ->
@@ -131,7 +135,7 @@ and translate_expression (e: expr) : expression =
 
   (* An anonymous function *)
   | EAnonFun a -> (* of anonfun *)
-     EConstr ("EAnonFun", [translate_lambda a])
+     EConstr ("EAnonFun", [translate_anonfun a])
 
   (* Function application: [e1 e2] *)
   (* Every function is considered unary *)
@@ -275,7 +279,7 @@ and translate_rec_binding = function
   | RecBinding (v, a) ->
      EConstr ("RecBinding", [
            string_literal v ;
-           translate_lambda a
+           translate_anonfun a
        ])
 
 and translate_bindings (bds: bindings) : expression =

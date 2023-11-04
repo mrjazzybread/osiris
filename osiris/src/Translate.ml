@@ -198,25 +198,9 @@ let translate_computation_pattern pat : pat =
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_branch translate_expression (p, e) =
-  Branch (translate_pattern p, translate_expression e)
-
-let translate_branches translate_expression branches =
-  List.map (translate_branch translate_expression) branches
-
-(* -------------------------------------------------------------------------- *)
-
-(* TODO use [EFunction] and/or [EFunMultiPat] *)
-let translate_lambda translate_expression branches =
-  AnonFun ("__osiris_anonymous_arg",
-           EMatch
-             (EPath ["__osiris_anonymous_arg"],
-              (translate_branches translate_expression) branches))
-
-(* -------------------------------------------------------------------------- *)
-
 let anonfun_of_expr : expr -> anonfun = function
-  | EAnonFun f -> f
+  | EAnonFun a ->
+      a
   | _ -> assert false
 
 let unvarpat (p : value general_pattern) : string =
@@ -278,22 +262,21 @@ let translate_record
 
 (* -------------------------------------------------------------------------- *)
 
-let list_of_cases cases =
-  List.fold_right
-    (fun {c_lhs;c_rhs;_} res ->
-      (c_lhs, c_rhs) :: res)
-    cases []
+let rec translate_case (case : value case) : branch =
+  let pat = case.c_lhs
+  and e = case.c_rhs in
+  Branch (
+    translate_pattern pat,
+    match case.c_guard with
+    | None ->
+        translate_expression e
+    | Some guard ->
+        let loc = guard.exp_loc in
+        eunsupported loc "when clause"
+  )
 
-let rec branches_of_cases cases =
-  List.fold_right
-    (fun (case: value case) (cases: branches) ->
-      match case with
-      | { c_lhs=pat; c_guard=None; c_rhs=e } ->
-         Branch (translate_pattern pat,
-                 translate_expression e)
-         :: cases
-      | _ -> cases (* TODO. *))
-    cases []
+and translate_cases cases =
+  List.map translate_case cases
 
 and branches_of_computation_cases (cases : computation case list) : branches =
   List.fold_right
@@ -338,9 +321,17 @@ and translate_expression (e: Typedtree.expression) =
   match e.exp_desc with
   | Texp_constant c -> translate_exp_constant loc c
 
-  | Texp_function {cases;_} ->
-     let branches = list_of_cases cases in
-     EAnonFun (translate_lambda translate_expression branches)
+  | Texp_function { arg_label = Nolabel; param; cases; partial } ->
+      debug "Texp_function param = %s\n" (Ident.name param); (* TODO *)
+      (* TODO recognize special case of [fun x -> e] *)
+      ignore partial;
+      EAnonFun (AnonFunction (translate_cases cases))
+
+  | Texp_function { arg_label = Labelled _; _ } ->
+      eunsupported loc "labeled argument"
+
+  | Texp_function { arg_label = Optional _; _ } ->
+      eunsupported loc "optional argument"
 
   | Texp_apply (f, el) ->
      List.fold_left
@@ -406,7 +397,6 @@ and translate_expression (e: Typedtree.expression) =
            translate_expression e3)
 
   | Texp_try (_e, _cases) ->
-      ignore branches_of_cases;
       eunsupported loc "try/with"
 
   | Texp_array _ ->
@@ -549,3 +539,5 @@ let rec translate_module (ast: module_expr_desc) : mexpr =
 let typedtree m (ast: Typedtree.structure) : Syntax.def =
   { lhs = m ;
     rhs = OModule (translate_module (Tmod_structure ast)) }
+
+(* TODO do something about && and || *)
