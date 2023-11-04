@@ -1,3 +1,3 @@
 val split : [`Split | `NoSplit] list ->
-            Syntax.ast ->
-            Syntax.ast DAG.t
+            Syntax.def ->
+            Syntax.def DAG.t

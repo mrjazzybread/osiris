@@ -8,25 +8,25 @@ open Fresh
    TODO: try to factorize the code using a single GADT to represent every part
    of the AST. *)
 
-let rec split_all_binding name binding : ast DAG.t =
+let rec split_all_binding name binding : def DAG.t =
   (* TODO. *)
   DAG.init (name, OBinding binding)
 
-and split_all_rec_binding name rec_binding : ast DAG.t =
+and split_all_rec_binding name rec_binding : def DAG.t =
   match rec_binding with
   | RecBinding (n, AnonFun (v, e)) ->
      let gname = fresh_name "split_all_rec_binding" in
-     let g : ast DAG.t = DAG.init (Some gname, OExpr e) in
+     let g : def DAG.t = DAG.init (Some gname, OExpr e) in
      let rec_binding : rec_binding =
        RecBinding (n, AnonFun (v, ELink gname)) in
      DAG.init (name, ORecBinding rec_binding)
      |> DAG.add [g]
   | RecBLink _ -> DAG.init (name, ORecBinding rec_binding)
 
-and split_all_sitem name sitem : ast DAG.t =
+and split_all_sitem name sitem : def DAG.t =
   match sitem with
   | ILet bindings ->
-     let deps : (string * ast DAG.t) list =
+     let deps : (string * def DAG.t) list =
        List.map
          (fun (binding: binding) ->
            let name = fresh_name "split_all_sitem" in
@@ -38,7 +38,7 @@ and split_all_sitem name sitem : ast DAG.t =
 
 
   | ILetRec rec_bindings ->
-     let deps : (string * ast DAG.t) list =
+     let deps : (string * def DAG.t) list =
        List.map
          (fun (rec_binding: rec_binding) ->
            let name = fresh_name "split_all_sitem" in
@@ -58,14 +58,14 @@ and split_all_sitem name sitem : ast DAG.t =
      (* Leaves of the AST. *)
      DAG.init (name, OSItem sitem)
 
-and split_all_module name (m: mexpr) : ast DAG.t =
+and split_all_module name (m: mexpr) : def DAG.t =
   match m with
   | MPath _ | MLink _ ->
      (* Leaves of the AST. *)
      DAG.init (name, OModule m)
 
   | MStruct sitems ->
-     let deps : (string * ast DAG.t) list =
+     let deps : (string * def DAG.t) list =
        List.map
          (fun (sitem: sitem) ->
            let name = fresh_name "split_all_module" in
@@ -82,30 +82,30 @@ and split_all_module name (m: mexpr) : ast DAG.t =
      |> DAG.add [g]
 
 (* Main function. *)
-let split_all (ast : ast) : ast DAG.t =
-  match snd ast with
-  | OModule m -> split_all_module (fst ast) m
-  |  _ -> DAG.init ast
+let split_all (def : def) : def DAG.t =
+  match snd def with
+  | OModule m -> split_all_module (fst def) m
+  |  _ -> DAG.init def
 
 (* [split_all] is shadowed by a wrapper hiding the [reset] integer. *)
-let split_all ast =
-  DAG.flat_map split_all ast
+let split_all def =
+  DAG.flat_map split_all def
 
 (* -------------------------------------------------------------------------- *)
 
 (* Main splitting functions.
    [one_strategy] applies one splitting strategy. *)
-let one_strategy strategy ast : ast DAG.t =
+let one_strategy strategy def : def DAG.t =
   match strategy with
-  |   `Split -> split_all ast
-  | `NoSplit -> ast
+  |   `Split -> split_all def
+  | `NoSplit -> def
 
 (* [split] splits an AST into a graph of ASTs. *)
 let split (splitting_strategy: [`Split | ` NoSplit] list)
-      osiris_ast: ast DAG.t =
+      osiris_ast: def DAG.t =
   (* First create a first graph containing a single node: the Osiris AST
      annotated by the name of the module.*)
-  let init : ast DAG.t = DAG.init osiris_ast in
+  let init : def DAG.t = DAG.init osiris_ast in
 
   (* Then iterate over the list of strategies provided on the command line,
      each transforming the AST. *)

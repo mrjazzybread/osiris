@@ -330,8 +330,7 @@ let translate_sitem sitem =
   | Some e -> e
   | None -> assert false
 
-let definition_of_ast : Syntax.ast_body -> string * expression =
-  function
+let definition_of_ast = function
   | OModule m -> "mexpr", translate_module m
   | OExpr e -> "expr", translate_expression e
   | ORecBinding rbd -> "rec_binding", translate_rec_binding rbd

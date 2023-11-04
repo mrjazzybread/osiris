@@ -301,13 +301,17 @@ and sitem =
   | IInclude of mexpr
 
 (* ------------------------------------------------------------------------- *)
+(* ------------------------------------------------------------------------- *)
 
-type ast_body =
-  | OModule of mexpr
+(* We are capable of emitting Coq toplevel definitions for expressions,
+   bindings, recursive bindings, module expressions, and structure items. *)
+
+type rhs =
   | OExpr of expr
-  | ORecBinding of rec_binding
   | OBinding of binding
+  | ORecBinding of rec_binding
+  | OModule of mexpr
   | OSItem of sitem
 
-type ast =
-  string option * ast_body
+type def =
+  string option * rhs
