@@ -306,6 +306,8 @@ and sitem =
 (* We are capable of emitting Coq toplevel definitions for expressions,
    bindings, recursive bindings, module expressions, and structure items. *)
 
+(* The right-hand side of a definition. *)
+
 type rhs =
   | OExpr of expr
   | OBinding of binding
@@ -313,5 +315,7 @@ type rhs =
   | OModule of mexpr
   | OSItem of sitem
 
+(* A definition. *)
+
 type def =
-  string option * rhs
+  { lhs : coq_id; rhs : rhs }

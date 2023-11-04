@@ -5,5 +5,5 @@
    - The leaves of [graph] are printed first: if [A] precedes [B] in [graph],
      [A] depends on [B].
  *)
-val pretty_printer : (string option * string * Preprint.expression) DAG.t ->
+val pretty_printer : (string * string * Preprint.expression) DAG.t ->
                      PPrint.document DAG.t

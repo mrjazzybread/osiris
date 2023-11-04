@@ -1,5 +1,4 @@
 open PPrint
-open Fresh
 
 (* -------------------------------------------------------------------------- *)
 
@@ -42,11 +41,6 @@ let rec pretty_printer (expr : Preprint.expression) =
        )
 
 let pretty_printer (name, ty, expr) : document =
-  let name =
-    match name with
-    | None -> fresh_name ty
-    | Some name -> name
-  in
   flow space [string "Definition"; string name; colon; string ty; string ":="]
   ^^ hardline
   ^^ align (group (pretty_printer expr)) ^^ dot

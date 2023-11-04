@@ -97,9 +97,10 @@ let translate_one_file module_name out_file cmt_file =
        It should be printed as [c [e1; ...; en]], which is useful to use
        syntactic sugar. *)
   let dag =
-    DAG.map (fun (s, m) ->
-      let (t, m) = Preprint.definition_of_ast m in
-      s, t, m
+    let open Syntax in
+    DAG.map (fun def ->
+      let (t, m) = Preprint.definition_of_ast def.rhs in
+      def.lhs, t, m
     ) dag
   in
 
