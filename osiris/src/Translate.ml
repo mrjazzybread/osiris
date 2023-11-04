@@ -455,6 +455,6 @@ let rec translate_module (ast: module_expr_desc) : mexpr =
 
 (* -------------------------------------------------------------------------- *)
 
-let of_typedtree m (ast: Typedtree.structure) : Syntax.def =
+let typedtree m (ast: Typedtree.structure) : Syntax.def =
   { lhs = m ;
     rhs = OModule (translate_module (Tmod_structure ast)) }

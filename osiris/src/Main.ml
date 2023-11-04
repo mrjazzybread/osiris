@@ -60,7 +60,7 @@ let translate_one_file module_name out_file cmt_file =
        native lists are used every time.
        This will also help with the translation: one can then use the syntactic
        sugar defined in [theories/lang/sugar.v]. *)
-  let oast = Osiris.of_typedtree ("_" ^ module_name) typedtree in
+  let oast = Translate.typedtree ("_" ^ module_name) typedtree in
 
   (* Break down the AST into pieces according to the user-specified
      splitting-strategy.
