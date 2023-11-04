@@ -85,17 +85,6 @@ let translate_constant = function
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_primitive (name: string) (v : var) : sitem option =
-  Some (
-      ILet (
-          [
-            Binding (PVar name, EPath ["Externals"; v])
-          ]
-        )
-    )
-
-(* -------------------------------------------------------------------------- *)
-
 let anonfun_of_expr : expr -> anonfun = function
   | EAnonFun f -> f
   | _ -> assert false
@@ -477,12 +466,12 @@ let translate_structure_item
      | Tmod_ident (path, id) -> Some (IOpen (translate_mod_ident path id))
      | _ -> assert false)
 
-  | Tstr_primitive {val_id; val_prim = v :: _; _} -> (* of value_description *)
-     (* Primitives are [external] statements.
-        They are dealt with in [translate_primitive]. *)
-     translate_primitive (Ident.name val_id) v
-
-  |  Tstr_primitive _ -> assert false
+  | Tstr_primitive _ ->
+     (* Declarations of external primitive operations are skipped. We do not
+        expect ordinary programs to contain such declarations. The OCaml
+        standard library does contain many such declarations; we give it
+        special treatment. *)
+     None
 
   | Tstr_eval _ -> assert false (* of expression * attributes *)
   | Tstr_typext _ -> assert false (* of type_extension *)
