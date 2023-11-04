@@ -39,6 +39,27 @@ let rec show_path = function
 
 (* -------------------------------------------------------------------------- *)
 
+(* Warnings. *)
+
+let prerr_loc (loc : Location.t) =
+  Location.print_loc Format.err_formatter loc;
+  Format.pp_print_flush Format.err_formatter ()
+
+let unsupported loc construct v =
+  prerr_loc loc;
+  eprintf ":\n";
+  eprintf "Warning: unsupported construct (%s).\n" construct;
+  flush stderr;
+  v
+
+let eunsupported loc construct =
+  unsupported loc construct EUnsupported
+
+let punsupported loc construct =
+  unsupported loc construct PUnsupported
+
+(* -------------------------------------------------------------------------- *)
+
 (* Stripping off a location. *)
 
 let txt (x : 'a loc) : 'a =
@@ -73,37 +94,44 @@ let unqualify : Longident.t -> data =
    (i.e., fit in 31 bits). Otherwise, the code would be non-portable and
    non-verifiable. TODO *)
 
-let translate_exp_constant = function
+let translate_exp_constant loc = function
   | Const_int i ->
       EInt i
   | Const_char c ->
       EChar c
   | Const_string (s, _, _) ->
       EString s
-  | Const_float _
-  | Const_int32 _
-  | Const_int64 _
+  | Const_float _ ->
+      eunsupported loc "floating-point literal"
+  | Const_int32 _ ->
+      eunsupported loc "32-bit integer literal"
+  | Const_int64 _ ->
+      eunsupported loc "64-bit integer literal"
   | Const_nativeint _ ->
-      EUnsupported
+      eunsupported loc "native integer literal"
 
-let translate_pat_constant = function
+let translate_pat_constant loc = function
   | Const_int i ->
       PInt i
   | Const_char c ->
       PChar c
   | Const_string (s, _, _) ->
       PString s
-  | Const_float _
-  | Const_int32 _
-  | Const_int64 _
+  | Const_float _ ->
+      punsupported loc "floating-point literal"
+  | Const_int32 _ ->
+      punsupported loc "32-bit integer literal"
+  | Const_int64 _ ->
+      punsupported loc "64-bit integer literal"
   | Const_nativeint _ ->
-      PUnsupported
+      punsupported loc "native integer literal"
 
 (* -------------------------------------------------------------------------- *)
 
 (* Patterns. *)
 
 let rec translate_pattern (pat: Typedtree.pattern) : pat =
+  let loc = pat.pat_loc in
   match pat.pat_desc with
 
   | Tpat_any ->
@@ -116,7 +144,7 @@ let rec translate_pattern (pat: Typedtree.pattern) : pat =
       PAlias (translate_pattern pat, txt x)
 
   | Tpat_constant c ->
-      translate_pat_constant c
+      translate_pat_constant loc c
 
   | Tpat_tuple pats ->
       PTuple (translate_patterns pats)
@@ -128,16 +156,16 @@ let rec translate_pattern (pat: Typedtree.pattern) : pat =
      PData (data, PTuple (translate_patterns pats))
 
   | Tpat_variant _ ->
-      PUnsupported
+      punsupported loc "polymorphic variant pattern"
 
   | Tpat_record (fields, _closed_flag) ->
       PRecord (translate_field_patterns fields)
 
   | Tpat_array _ ->
-      PUnsupported
+      punsupported loc "array pattern"
 
   | Tpat_lazy _ ->
-      PUnsupported
+      punsupported loc "lazy pattern"
 
   | Tpat_or (pat1, pat2, _) ->
       POr (translate_pattern pat1, translate_pattern pat2)
@@ -269,9 +297,10 @@ and branches_of_computation_cases (cases : computation case list) : branches =
       | { c_lhs=pat; c_guard=None; c_rhs=e } ->
          Branch (translate_computation_pattern pat,
                  translate_expression e)
-      | { c_lhs=pat; c_guard=Some _; c_rhs=_e } ->
+      | { c_lhs=pat; c_guard=Some guard; c_rhs=_e } ->
+          let loc = guard.exp_loc in
          Branch (translate_computation_pattern pat,
-                   EUnsupported)
+                   eunsupported loc "when clause")
       end :: cases)
     cases []
 
@@ -300,8 +329,9 @@ and translate_mod_ident path id : path =
   translate_longident id
 
 and translate_expression (e: Typedtree.expression) =
+  let loc = e.exp_loc in
   match e.exp_desc with
-  | Texp_constant c -> translate_exp_constant c
+  | Texp_constant c -> translate_exp_constant loc c
 
   | Texp_function {cases;_} ->
      let branches = list_of_cases cases in
@@ -372,10 +402,10 @@ and translate_expression (e: Typedtree.expression) =
 
   | Texp_try (_e, _cases) ->
       ignore branches_of_cases;
-      EUnsupported
+      eunsupported loc "try/with"
 
   | Texp_array _ ->
-      EUnsupported
+      eunsupported loc "array expression"
 
   | Texp_variant (_, _) -> assert false
   | Texp_setfield (_, _, _, _) ->
