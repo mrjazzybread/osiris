@@ -105,6 +105,40 @@ Section Modules.
     spec val
   .
 
+  (* Induction principle on [spec {A}]. *)
+  Fixpoint spec_ind (P : forall A, spec A -> Prop)
+    (HPure :
+      forall A usage Pred, P A (SpecPure usage Pred))
+    (HImpure :
+      forall A usage Pred, P A (SpecImpure usage Pred))
+    (HEquality :
+      forall A usage v, P A (SpecEquality usage v))
+    (HModule :
+      forall usage l Pred,
+       Forall (P val) (map snd l) ->
+       P val (SpecModule usage l Pred))
+    {A} (φ : spec A)
+    : P A φ :=
+    let spec_ind := spec_ind P HPure HImpure HEquality HModule in
+    match φ with
+    | @SpecPure A u Pred => HPure A u Pred
+    | @SpecImpure A u Pred => HImpure A u Pred
+    | @SpecEquality A u v => HEquality A u v
+    | SpecModule usage φl Pred =>
+        let fix inner_ind φl : Forall (P val) (map snd φl) :=
+          match φl with
+          | [] => List.Forall_nil (P val)
+          | (n, φn) :: φtl =>
+              let Pn : P val φn := spec_ind φn in
+              let Ptl : Forall (P val) (map snd φtl) := inner_ind φtl in
+              List.Forall_cons
+                (P val) φn (map snd φtl)
+                Pn (inner_ind φtl)
+          end
+        in
+        HModule usage φl Pred (inner_ind φl)
+    end.
+
   (* [spec] has no concrete meaning. It is merely descriptive. The two following
      functions interprete specifications and return predicates over monadic
      values. *)
