@@ -13,6 +13,7 @@ open Typedtree
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.ml *)
 
 (* Osiris: *)
+open Fail
 open Settings
 open Syntax
 
@@ -45,14 +46,24 @@ let txt (x : 'a loc) : 'a =
 
 (* -------------------------------------------------------------------------- *)
 
-(* In OCaml, a data constructor or field can be a qualified name. Here, only
-   a short (unqualified) name is retained; the rest is irrelevant. *)
+(* Long identifiers are preserved when they designate a value or module. *)
+
+let rec translate_longident (i : Longident.t) : path =
+  match i with
+  | Lident x ->
+      [x]
+  | Ldot (i, x) ->
+      translate_longident i @ [x]
+  | Lapply _ ->
+      (* I believe that a functor application inside a path that designates
+         a *value* are not permitted by OCaml. *)
+      fail "Error: functor application inside a path: %s\n" (show_longident i)
+
+(* Long identifiers are unqualified (turned into short identifiers) when
+   they designate data constructors or record fields. *)
 
 let unqualify : Longident.t -> data =
   Longident.last
-
-let translate_longident (i: Longident.t) : path =
-  Longident.flatten i
 
 (* -------------------------------------------------------------------------- *)
 
