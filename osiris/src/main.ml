@@ -1,6 +1,6 @@
 open Printf
 open Fail
-let say = Options.say
+let say = Settings.say
 
 let is_absolute filename =
   not (Filename.is_relative filename)
@@ -94,7 +94,7 @@ let translate_one_file module_name out_file cmt_file =
 
      It is the function [split] that will choose names for the auxiliary
      definitions. *)
-  let dag = Split.split Options.splitting_strategy oast in
+  let dag = Split.split Settings.splitting_strategy oast in
 
   (* [Preprint.definition_of_ast] provides a translation that works in a similar
      manner than the first translator:
@@ -165,15 +165,15 @@ let output_file_path ml_file =
   |> String.split_on_char dir_sep           (* drop [_build/default/] *)
   |> drop 2
   |> String.concat Filename.dir_sep
-  |> Filename.concat Options.out            (* make this an absolute path *)
-  |> map_basename (add_prefix Options.mark) (* add mark to file name *)
+  |> Filename.concat Settings.out            (* make this an absolute path *)
+  |> map_basename (add_prefix Settings.mark) (* add mark to file name *)
 
 (* -------------------------------------------------------------------------- *)
 
 (* Obtain a table of the modules in this project. *)
 
 let table =
-  Dune.describe Options.dune_root
+  Dune.describe Settings.root
 
 let process m =
   say "Processing module: %s\n" m;
@@ -183,7 +183,7 @@ let process m =
   let cmt_file = Dune.cmt m table in
   say "    .cmt file: %s\n" cmt_file;
   (* Construct the absolute path of the input (.cmt) file. *)
-  let cmt_file = Filename.concat Options.dune_root cmt_file in
+  let cmt_file = Filename.concat Settings.root cmt_file in
   (* Construct the absolute path of the output (.v) file. *)
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
@@ -192,7 +192,7 @@ let process m =
 
 let () =
   (* Check the list of modules that was passed on the command line. *)
-  match Options.modules with
+  match Settings.modules with
   | `All ->
       (* Process all modules. *)
       Dune.M.iter (fun m _ -> process m) table

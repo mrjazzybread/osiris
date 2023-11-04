@@ -5,11 +5,8 @@ open Fail
 
 (* Settings. *)
 
-let dune_root =
+let root =
   ref None
-
-let mark =
-  ref ""
 
 let out =
   ref None
@@ -17,17 +14,20 @@ let out =
 let modules =
   ref []
 
-let debug =
-  ref false
-
-let verbose =
-  ref false
+let mark =
+  ref ""
 
 type strategy = [`Split|`NoSplit]
 
 (* TODO: reset to the empty list by default. *)
 let splitting_strategy : strategy list ref =
   ref [`Split]
+
+let debug =
+  ref false
+
+let verbose =
+  ref false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -43,9 +43,9 @@ let spec = [
     "--debug", Arg.Set debug, " (undocumented)";
     "--mark", Arg.Set_string mark, " A prefix that is added to every file name (default: empty)";
     "--out", Arg.String (set_opt out), " Output directory (mandatory)";
-    "--root", Arg.String (set_opt dune_root), " Dune root directory (mandatory)";
+    "--root", Arg.String (set_opt root), " Dune root directory (mandatory)";
     "--verbose", Arg.Set verbose, " (undocumented)";
-    "-no-split", Arg.Unit no_split, " Do not split Coq definitions";
+    "-no-split", Arg.Unit no_split, " Do not split Coq definitions"; (* TODO clean up *)
   ]
 
 let anonymous m =
@@ -61,21 +61,21 @@ let () =
 
 (* Forget the references of the above variables. *)
 
-let dune_root =
-  match !dune_root with
+let root =
+  match !root with
   | None ->
       fail "Missing command line argument: --root <dune root directory>\n"
-  | Some dune_root ->
-      dune_root
+  | Some root ->
+      root
 
 let () =
-  match Sys.is_directory dune_root with
+  match Sys.is_directory root with
   | true ->
       ()
   | false ->
-      fail "Not a directory: %s\n" dune_root
+      fail "Not a directory: %s\n" root
   | exception Sys_error _ ->
-      fail "Directory does not exist: %s\n" dune_root
+      fail "Directory does not exist: %s\n" root
 
 let out =
   match !out with
@@ -103,16 +103,14 @@ let modules =
 let mark =
   !mark
 
+let splitting_strategy =
+  !splitting_strategy
+
 let debug =
   !debug
 
 let verbose =
   !verbose
-
-let splitting_strategy =
-  !splitting_strategy
-
-(* -------------------------------------------------------------------------- *)
 
 let debug format =
   if debug then fprintf stderr format else ifprintf stderr format
