@@ -68,25 +68,20 @@ let unqualify : Longident.t -> data =
 (* -------------------------------------------------------------------------- *)
 
 let translate_constant = function
-  | Const_int i -> EInt i
-  | Const_string (s, _, _) -> EString s
-
-  (* Not yet translated: integers.
-     Do we want several instantiations of the CompCert integers library, or
-     should we simply define modules [Int32], [Int64] and [NativeInt] ? *)
-  | Const_int32 i -> EInt (Int32.to_int i) (* TODO? *)
-  | Const_int64 i -> EInt (Int64.to_int i) (* TODO? *)
-  | Const_nativeint i -> EInt (Nativeint.to_int i) (* TODO? *)
-
-  (* Not yet supported by the semantics: *)
-  | Const_char c -> EChar c
-
-  (* It is necessary to translate floats.
-     As they are not supported by the semantics (yet?), I simply keep their
-     string representation.
-     If floats are to be added t the semantics, this should convert the string
-     into a proper float. *)
-  | Const_float s -> EString s
+  | Const_int i ->
+      (* We may wish to check that this integer constant is definitely
+         representable (i.e., it fits in 31 bits). Otherwise, this code
+         would be non-portable and non-verifiable. TODO *)
+      EInt i
+  | Const_char c ->
+      EChar c
+  | Const_string (s, _, _) ->
+      EString s
+  | Const_float _
+  | Const_int32 _
+  | Const_int64 _
+  | Const_nativeint _ ->
+      EUnsupported
 
 (* -------------------------------------------------------------------------- *)
 
