@@ -1,11 +1,47 @@
+open Printf
+
 (* ocaml-compiler-libs: *)
-open Typedtree
-  (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.ml *)
+open Longident
+  (* https://github.com/ocaml/ocaml/blob/trunk/parsing/longident.mli *)
+open Asttypes
+  (* https://github.com/ocaml/ocaml/blob/trunk/parsing/asttypes.mli *)
 open Types
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/types.ml *)
+open Path
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/path.mli *)
+open Typedtree
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.ml *)
 
 (* Osiris: *)
+open Settings
 open Syntax
+
+(* -------------------------------------------------------------------------- *)
+
+(* Printers (for debugging only). *)
+
+let rec show_longident = function
+  | Lident x ->
+      x
+  | Ldot (i, x) ->
+      sprintf "%s.%s" (show_longident i) x
+  | Lapply (i1, i2) ->
+      sprintf "%s(%s)" (show_longident i1) (show_longident i2)
+
+let rec show_path = function
+  | Pident i ->
+      Ident.name i
+  | Pdot (p, x) ->
+      sprintf "%s.%s" (show_path p) x
+  | Papply (p1, p2) ->
+      sprintf "%s(%s)" (show_path p1) (show_path p2)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Stripping off a location. *)
+
+let txt (x : 'a loc) : 'a =
+  x.txt
 
 (* -------------------------------------------------------------------------- *)
 
@@ -69,7 +105,7 @@ let anonfun_of_expr : expr -> anonfun = function
 
 let unvarpat (p : value general_pattern) : string =
   match p.pat_desc with
-  | Tpat_var (_, v) -> v.txt
+  | Tpat_var (_, v) -> txt v
   | _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
@@ -101,10 +137,10 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
          assert false
      end
 
-  | Tpat_construct ({txt = i;_}, _, args, _) ->
+  | Tpat_construct (i, _, args, _) ->
      (* Careful: It is possible to overload [()], [true], ... Therefore, they
         should be treated as any other constructor. *)
-     PData ( unqualify i,
+     PData ( unqualify (txt i),
              PTuple (List.map translate_pattern args))
   | Tpat_alias (pat, var, _) ->
       PAlias (translate_pattern pat, Ident.name var)
@@ -116,8 +152,7 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
      PRecord (
          List.map
            (fun (i, _, pat) ->
-             (*FIXME*)let i: Longident.t Location.loc = i in
-             let field = unqualify i.txt in
+             let field = unqualify (txt i) in
              let pat = translate_pattern pat in
              (field, pat))
            rl
@@ -191,7 +226,7 @@ let translate_record
              match e with
              | Kept _ -> expr
              | Overridden (li, e) ->
-                let name : string = unqualify li.txt in
+                let name : string = unqualify (txt li) in
                 let body : expr = trans_expr e in
                 (name, body) :: expr)
            fields []
@@ -263,12 +298,16 @@ and translate_expression (e: Typedtree.expression) =
 
   | Texp_assert e -> EAssert (translate_expression e)
 
-  | Texp_ident (_path, id, _) ->
-     (* [_path] contains the fully-resolved path of the ident.
-        => EPath (translate_path path) could be used to represent such a path.
-        [id] contains the local path of the ident (the one that appears in the
-        source code). *)
-     EPath (translate_longident id.txt)
+  | Texp_ident (path, id, _) ->
+      let id = txt id in
+      (* [id] is the long identifier that appears in the source code.
+         [path] is the corresponding resolved path. *)
+      debug "    Texp_ident\n";
+      debug "      id = %s\n" (show_longident id);
+      debug "      path = %s\n" (show_path path);
+      (* For the moment, we ignore [path] and keep [id]. However, [path]
+         could be used to identify references to the OCaml standard library. *)
+      EPath (translate_longident id)
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expression e)
@@ -299,7 +338,7 @@ and translate_expression (e: Typedtree.expression) =
        translate_expression
 
   | Texp_construct (c, _, el) ->
-     let name = unqualify c.txt in
+     let name = unqualify (txt c) in
      let args =
        List.fold_right (fun e res -> translate_expression e :: res) el [] in
      EData (name, ETuple args)
