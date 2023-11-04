@@ -68,25 +68,25 @@ let unqualify : Longident.t -> data =
 (* -------------------------------------------------------------------------- *)
 
 let translate_constant = function
-  | Asttypes.Const_int i -> EInt i
-  | Asttypes.Const_string (s, _, _) -> EString s
+  | Const_int i -> EInt i
+  | Const_string (s, _, _) -> EString s
 
   (* Not yet translated: integers.
      Do we want several instantiations of the CompCert integers library, or
      should we simply define modules [Int32], [Int64] and [NativeInt] ? *)
-  | Asttypes.Const_int32 i -> EInt (Int32.to_int i) (* TODO? *)
-  | Asttypes.Const_int64 i -> EInt (Int64.to_int i) (* TODO? *)
-  | Asttypes.Const_nativeint i -> EInt (Nativeint.to_int i) (* TODO? *)
+  | Const_int32 i -> EInt (Int32.to_int i) (* TODO? *)
+  | Const_int64 i -> EInt (Int64.to_int i) (* TODO? *)
+  | Const_nativeint i -> EInt (Nativeint.to_int i) (* TODO? *)
 
   (* Not yet supported by the semantics: *)
-  | Asttypes.Const_char c -> EChar c
+  | Const_char c -> EChar c
 
   (* It is necessary to translate floats.
      As they are not supported by the semantics (yet?), I simply keep their
      string representation.
      If floats are to be added t the semantics, this should convert the string
      into a proper float. *)
-  | Asttypes.Const_float s -> EString s
+  | Const_float s -> EString s
 
 (* -------------------------------------------------------------------------- *)
 
@@ -124,15 +124,15 @@ let rec translate_pattern (pat: Typedtree.value Typedtree.general_pattern) : pat
 
   | Tpat_constant c ->
      begin match c with
-      | Asttypes.Const_int i -> PInt i
-      | Asttypes.Const_char c -> PChar c
-      | Asttypes.Const_string (_s, _, _) ->
+      | Const_int i -> PInt i
+      | Const_char c -> PChar c
+      | Const_string (_s, _, _) ->
           assert false (* TODO unsupported *)
-      | Asttypes.Const_float _f ->
+      | Const_float _f ->
           assert false (* TODO unsupported *)
-      | Asttypes.Const_int32 _ -> assert false
-      | Asttypes.Const_int64 _ -> assert false
-      | Asttypes.Const_nativeint _ ->
+      | Const_int32 _ -> assert false
+      | Const_int64 _ -> assert false
+      | Const_nativeint _ ->
          (* [Nativeint] is not currently supported. Once it is, should we
             rather translate this directly, or see it as
             [Tpat_or (Tpat_constant (int32 _), Tpat_constant (int64 _))] ? *)
@@ -453,7 +453,7 @@ let translate_structure_item
      Some (IModule (Ident.name mb_id, m))
 
   (* Ignoring the type-related definitions. *)
-  | Tstr_type _ (* of Asttypes.rec_flag * type_declaration list *)
+  | Tstr_type _ (* of rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _
   (* of (Ident.t * string Location.loc * class_type_declaration) list *)
