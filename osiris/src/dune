@@ -1,7 +1,7 @@
 (executable
   (package osiris)
   (public_name osiris)
-  (name main)
+  (name Main)
   (libraries
     unix
     ocaml-compiler-libs.common
