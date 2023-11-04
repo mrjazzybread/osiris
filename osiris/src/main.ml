@@ -1,5 +1,6 @@
 open Printf
-open Options (* TODO *)
+open Fail
+let say = Options.say
 
 let is_absolute filename =
   not (Filename.is_relative filename)
@@ -56,9 +57,8 @@ let print out_file doc_graph =
 let translate_one_file module_name out_file cmt_file =
   assert (is_absolute cmt_file);
   assert (is_absolute out_file);
-  let module_name = "_" ^ module_name in
-  cmt_file
-  |> read_cmt
+
+  let typedtree = read_cmt cmt_file in
 
   (* Convert the typedtree into an Osiris AST. The structure of the program is
      unchanged. The only two differences between the Coq and OCaml versions of
@@ -70,7 +70,7 @@ let translate_one_file module_name out_file cmt_file =
        native lists are used every time.
        This will also help with the translation: one can then use the syntactic
        sugar defined in [theories/lang/sugar.v]. *)
-  |> Osiris.of_typedtree module_name
+  let oast = Osiris.of_typedtree ("_" ^ module_name) typedtree in
 
   (* Break down the AST into pieces according to the user-specified
      splitting-strategy.
@@ -94,7 +94,7 @@ let translate_one_file module_name out_file cmt_file =
 
      It is the function [split] that will choose names for the auxiliary
      definitions. *)
-  |> Split.split splitting_strategy
+  let dag = Split.split Options.splitting_strategy oast in
 
   (* [Preprint.definition_of_ast] provides a translation that works in a similar
      manner than the first translator:
@@ -106,19 +106,21 @@ let translate_one_file module_name out_file cmt_file =
      - [EList (c; [e1; ...; en])], which did not exist in the first translator.
        It should be printed as [c [e1; ...; en]], which is useful to use
        syntactic sugar. *)
-  |> DAG.map
-       (fun (s, m) ->
-         let (t, m) = Preprint.definition_of_ast m in
-         s, t, m)
+  let dag =
+    DAG.map (fun (s, m) ->
+      let (t, m) = Preprint.definition_of_ast m in
+      s, t, m
+    ) dag
+  in
 
-  |> Pp.pretty_printer
+  let dag = Pp.pretty_printer dag in
 
   (* Finally, pretty-print the generated definitions into the output file
      provided on the command line.
      This pretty-printer is similar of that of the first translator, except that
      it should also print [EList _].
    *)
-  |> print out_file
+  print out_file dag
 
 (* -------------------------------------------------------------------------- *)
 
@@ -171,7 +173,7 @@ let output_file_path ml_file =
 (* Obtain a table of the modules in this project. *)
 
 let table =
-  Dune.describe dune_root
+  Dune.describe Options.dune_root
 
 let process m =
   say "Processing module: %s\n" m;
@@ -181,7 +183,7 @@ let process m =
   let cmt_file = Dune.cmt m table in
   say "    .cmt file: %s\n" cmt_file;
   (* Construct the absolute path of the input (.cmt) file. *)
-  let cmt_file = Filename.concat dune_root cmt_file in
+  let cmt_file = Filename.concat Options.dune_root cmt_file in
   (* Construct the absolute path of the output (.v) file. *)
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;

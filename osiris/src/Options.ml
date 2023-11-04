@@ -1,14 +1,5 @@
 open Printf
-
-(* -------------------------------------------------------------------------- *)
-
-(* Quick-and-dirty error reporting. *)
-
-let die _c =
-  exit 1
-
-let fail format =
-  kfprintf die stderr format
+open Fail
 
 (* -------------------------------------------------------------------------- *)
 

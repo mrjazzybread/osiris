@@ -1,4 +1,3 @@
-val fail : ('a, out_channel, unit, 'b) format4 -> 'a
 val dune_root : string
 val mark: string
 val out : string

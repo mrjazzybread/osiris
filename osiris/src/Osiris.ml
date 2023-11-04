@@ -456,8 +456,6 @@ let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
 
 (* -------------------------------------------------------------------------- *)
 
-let of_typedtree
-      name
-      (ast: Typedtree.structure):
-      OsirisAst.ast =
-  (Some name, OModule (translate_module (Tmod_structure ast)))
+let of_typedtree m (ast: Typedtree.structure) : OsirisAst.ast =
+  Some m,
+  OModule (translate_module (Tmod_structure ast))
