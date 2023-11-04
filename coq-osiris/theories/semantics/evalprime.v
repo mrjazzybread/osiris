@@ -17,6 +17,8 @@ From osiris.semantics Require Import code eval.
 
 Definition eval' η e : micro val :=
   match e with
+  | EUnsupported =>
+      unsupported_construct
   | EChar c => ret $ VChar c
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
@@ -28,10 +30,6 @@ Definition eval' η e : micro val :=
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       call v1 v2
-  | EArray es =>
-      (* The tuple components are evaluated in parallel. *)
-      vs ← evals η es ;
-      ret (VArray vs)
   | ETuple es =>
       (* The tuple components are evaluated in parallel. *)
       vs ← evals η es ;

@@ -35,6 +35,9 @@ Implicit Type items : sitems.
    namely, pattern matching failures (caused by nonexhaustive case analyses)
    and assertion failures. *)
 
+Definition unsupported_construct {A} : micro A :=
+  crash.
+
 Definition assertion_failure {A} : micro A :=
   crash.
 
@@ -622,7 +625,7 @@ Fixpoint coerce (c : coercion) (v : val) : micro val :=
 (* [coerces xcs xvs] applies the name-coercion list [xcs] to the
    name-value list [xvs], producing a new name-value list. *)
 
-with coerces (xcs : coercions) (xvs : env) : micro env :=
+with coerces (xcs : fcoercions) (xvs : env) : micro env :=
   match xcs with
   | CNil =>
       ret EnvNil
@@ -670,6 +673,8 @@ with coerces (xcs : coercions) (xvs : env) : micro env :=
 
 Fixpoint eval η e : micro val :=
   match e with
+  | EUnsupported =>
+      unsupported_construct
   | EChar c => ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
@@ -681,10 +686,6 @@ Fixpoint eval η e : micro val :=
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       call v1 v2
-  | EArray es =>
-      (* The tuple components are evaluated in parallel. *)
-      vs ← evals η es ;
-      ret (VArray vs)
   | ETuple es =>
       (* The tuple components are evaluated in parallel. *)
       vs ← evals η es ;
@@ -925,22 +926,6 @@ with eval_match η v bs : micro val :=
         (extend EnvNil p v)
       (* Success: commit to this branch. Evaluate its body. *)
       (λ δ, η ← ret_concat δ η; eval η e)
-      (* Soft failure: abandon this branch. Try the following branches. *)
-      (λ tt, eval_match η v bs)
-  | BrCons (BranchWhen p c e) bs =>
-      (* Match the value [v] against the pattern [p]. *)
-      try
-        (extend EnvNil p v)
-      (* Success: commit to this branch. Evaluate its body. *)
-      (λ δ, η ← ret_concat δ η;
-            try (eval η c)
-            (λ b,
-               match b with
-               | VData "true" (VTuple VNil) => eval η e
-               | VData "false" (VTuple VNil) => Next
-               | _ => type_mismatch "The guard consition of a branch should be boolean."
-               end)
-            (λ tt, eval_match η v bs))
       (* Soft failure: abandon this branch. Try the following branches. *)
       (λ tt, eval_match η v bs)
   end

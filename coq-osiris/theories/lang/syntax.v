@@ -114,18 +114,18 @@ Inductive coercion :=
   | CIdentity
 
   (* The coercion [CStruct cs] expects to be applied to a structure. The
-     fields named in the list [fcs] are retained, and the corresponding
-     coercions in the list [fcs] are applied to them. All other fields are
+     fields named in the list [xcs] are retained, and the corresponding
+     coercions in the list [xcs] are applied to them. All other fields are
      dropped. *)
-  | CStruct (fcs : fcoercions)
+  | CStruct (xcs : fcoercions)
 
 with fcoercions :=
   | CNil
-  | CCons (x : var) (c : coercion) (fcs : fcoercions).
-      (* In [CCons f c fcs], the name [f] refers to a structure component,
+  | CCons (x : var) (c : coercion) (xcs : fcoercions).
+      (* In [CCons f c xcs], the name [f] refers to a structure component,
          which can be a value or a substructure. The coercion [c] is applied
          to this component. *)
-      (* A name-coercion list [fcs] is expected to have no duplicate names.
+      (* A name-coercion list [xcs] is expected to have no duplicate names.
          At the moment, this property is not checked by us. *)
 
 (* ------------------------------------------------------------------------ *)
@@ -133,11 +133,9 @@ with fcoercions :=
 (* Expressions. *)
 
 Inductive expr :=
-  (* Char. *)
-  | EChar (c: char)
 
-  (* An array is represented by the list of its values. *)
-  | EArray (el: exprs)
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | EUnsupported
 
   (* Path: [x] or [π.x]. *)
   | EPath (x : path)
@@ -168,9 +166,6 @@ Inductive expr :=
   | EBoolDisj (e1 e2 : expr)
   | EBoolNeg (e : expr)
 
-  (* Strings *)
-  | EString (s: string)
-
   (* Integer literals. *)
   | EInt (i : Z)
   | EMaxInt
@@ -182,6 +177,12 @@ Inductive expr :=
   | EIntMul (e1 e2 : expr)
   | EIntDiv (e1 e2 : expr)
   | EIntMod (e1 e2 : expr)
+
+  (* Character literals. *)
+  | EChar (c: char)
+
+  (* String literals. *)
+  | EString (s: string)
 
   (* Polymorphic comparison operators. *)
   | EOpEq (e1 e2 : expr)
@@ -224,9 +225,11 @@ Inductive expr :=
   (* Runtime assertion: [assert(e)]. *)
   | EAssert (e : expr)
 
-  (* store-related constructors. *)
+  (* Reference allocation: [ref e]. *)
   | ERef (e: expr)
+  (* Reference lookup: [!e]. *)
   | ELoad (e: expr)
+  (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
 
 (* Lists of expressions. *)
@@ -245,7 +248,6 @@ with fexprs :=
 
 with branch :=
   | Branch (p : pat) (e : expr)
-  | BranchWhen (p : pat) (c : expr) (e : expr)
 
 (* Lists of branches. *)
 

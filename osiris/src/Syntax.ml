@@ -64,8 +64,6 @@ type pat =
   | PInt of int
   (* A literal character pattern. *)
   | PChar of char
-  (* The unit pattern. (On the Coq side, a notation.) *)
-  | PUnit
 
 (* Lists of patterns. *)
 
@@ -101,50 +99,47 @@ and fcoercions =
 (* Expressions. *)
 
 type expr =
-  | EUnit
-  | EConstant of string
 
-  | ETry of expr * branches
+  (* A meta-level reference. *)
+  | ELink of coq_id
 
-  | EChar of char
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | EUnsupported
 
-  (* Path: [x] or [πx] *)
+  (* Path: [x] or [π.x]. *)
   | EPath of path
 
-  (* An anonymous function *)
+  (* An anonymous function. *)
   | EAnonFun of anonfun
 
-  (* Function application: [e1 e2] *)
-  (* Every function is considered unary *)
+  (* Function application: [e1 e2]. *)
+  (* Every function is considered unary. *)
   | EApp of expr * expr
 
-  (* Tuple construction: [(e1, e2, )] *)
+  (* Tuple construction: [(e1, e2, ...)]. *)
   | ETuple of exprs
 
-  (* Data constructor application: [A (e)] *)
-  (* Every data constructor is considered unary *)
+  (* Data constructor application: [A (e)]. *)
+  (* Every data constructor is considered unary. *)
   | EData of data * expr
 
-  (* Record construction: [{ fs = es }] *)
+  (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs
-  (* Record update: [{ e and fs = es }] *)
+  (* Record update: [{ e and fs = es }]. *)
   | ERecordUpdate of expr * fexprs
-  (* Record access: [ef] *)
+  (* Record access: [ef]. *)
   | ERecordAccess of expr * field
 
-  (* Boolean conjunction, disjunction, and negation *)
+  (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj of expr * expr
   | EBoolDisj of expr * expr
   | EBoolNeg of expr
 
-  (* Strings *)
-  | EString of string
-
-  (* Integer literals *)
-  | EInt of int
+  (* Integer literals. *)
+  | EInt of int (* TODO is this integer representable? *)
   | EMaxInt
   | EMinInt
-  (* Integer arithmetic *)
+  (* Integer arithmetic. *)
   | EIntNeg of expr
   | EIntAdd of expr * expr
   | EIntSub of expr * expr
@@ -152,7 +147,13 @@ type expr =
   | EIntDiv of expr * expr
   | EIntMod of expr * expr
 
-  (* Polymorphic comparison operators *)
+  (* Character literals. *)
+  | EChar of char
+
+  (* String literals. *)
+  | EString of string
+
+  (* Polymorphic comparison operators. *)
   | EOpEq of expr * expr
   | EOpNe of expr * expr
   | EOpLt of expr * expr
@@ -160,150 +161,144 @@ type expr =
   | EOpGt of expr * expr
   | EOpGe of expr * expr
 
-  (* Non-recursive local definition: [let bs in e] *)
+  (* Non-recursive local definition: [let bs in e]. *)
   | ELet of bindings * expr
 
-  (* Arrays. *)
-  | EArray of expr list
-
-  (* Recursive local definition: [let rbs in e] *)
+  (* Recursive local definition: [let rbs in e]. *)
   | ELetRec of rec_bindings * expr
 
-  (* Local module definition: [let module M = me in e] *)
+  (* Local module definition: [let module M = me in e]. *)
   | ELetModule of name * mexpr * expr
 
-  (* Local [open] directive: [let open π in e] *)
+  (* Local [open] directive: [let open π in e]. *)
   | ELetOpen of path * expr
 
-  (* Sequence: [e1; e2] *)
+  (* Sequence: [e1; e2]. *)
   | ESeq of expr * expr
 
-  (* Conditional: [if e then e1] and [if e then e1 else e2] *)
+  (* Conditional: [if e then e1] and [if e then e1 else e2]. *)
   | EIfThen of expr * expr
   | EIfThenElse of expr * expr * expr
 
-  (* Pattern matching: [match e and bs] *)
+  (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
-  (* Loop: [while e do body done] *)
+  (* Loop: [while e do body done] .*)
   | EWhile of expr * expr
-  (* Loop: [for x = e1 to e2 do e done] *)
+  (* Loop: [for x = e1 to e2 do e done]. *)
   | EFor of var * expr * expr * expr
 
-  (* Fatal error: [assert false] *)
+  (* Fatal error: [assert false]. *)
   | EAssertFalse
 
-  (* Runtime assertion: [assert(e)] *)
+  (* Runtime assertion: [assert(e)]. *)
   | EAssert of expr
 
-  (* store-related constructors *)
+  (* Reference allocation: [ref e]. *)
   | ERef of expr
+  (* Reference lookup: [!e]. *)
   | ELoad of expr
+  (* Reference assignment: [e1 := e2]. *)
   | EStore of expr * expr
 
-  | EDef of coq_id
+(* Lists of expressions. *)
 
-(* Lists of expressions *)
+and exprs =
+  expr list
 
-and exprs = expr list
+(* Lists of field-expression pairs. *)
 
-(* Lists of field-expression pairs *)
+and fexprs =
+  (field * expr) list
 
-and fexprs = (field * expr) list
-
-(* A branch is of the form [p -> e] *)
+(* A branch is of the form [p -> e]. *)
 
 and branch =
   | Branch of pat * expr
-  | BranchWhen of pat * expr (* guard *) * expr (* body *)
 
-(* Lists of branches *)
+(* Lists of branches. *)
 
-and branches = branch list
+and branches =
+  branch list
 
-(* A binding is of the form [p = e] *)
+(* A binding is of the form [p = e], or a meta-level reference. *)
 
 and binding =
+  | BLink of coq_id
   | Binding of pat * expr
-  | BDef of coq_id
 
-(* Lists of bindings *)
+(* Lists of bindings. *)
 
-and bindings = binding list
+and bindings =
+  binding list
 
-(* A recursive binding is of the form [f = a] *)
+(* A recursive binding is of the form [f = a], or a meta-level reference. *)
 
 and rec_binding =
+  | RecBLink of coq_id
   | RecBinding of var * anonfun
-  | RecBDef of coq_id
 
 (* Lists of recursive bindings *)
 
-and rec_bindings = rec_binding list
+and rec_bindings =
+  rec_binding list
 
-(* An anonymous function is of the form [fun x -> e] We allow only
+(* An anonymous function is of the form [fun x -> e]. We allow only
    this form as a primitive construct, because this simplifies the
-   evaluator The constructs [function bs], where [bs] is a list of
+   evaluator. The constructs [function bs], where [bs] is a list of
    branches, and [fun ps -> e], where [ps] is a list of patterns, are
-   regarded as sugar: see [EFunction] and [EFunMultiPat] *)
+   regarded as sugar: see [EFunction] and [EFunMultiPat]. *)
 
 and anonfun =
   | AnonFun of var * expr
 
 (* ------------------------------------------------------------------------ *)
 
-(* Module expressions *)
+(* Module expressions. *)
 
 and mexpr =
 
-  (* A module path *)
+  (* A meta-level reference. *)
+  | MLink of coq_id
+
+  (* A module path. *)
   | MPath of path
 
-  (* A structure [struct  end] *)
+  (* A structure [struct ... end]. *)
   | MStruct of sitems
 
-  (* A coercion, that is, a shape restriction operation This operation is
+  (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for
      example, a functor application [F(M)] must be understood as [F(M : S)]
-     where [S] is the expected shape of the argument of the functor [F] *)
+     where [S] is the expected shape of the argument of the functor [F]. *)
   | MCoercion of mexpr * coercion
 
-  | MDef of coq_id
+(* Lists of structure items. *)
 
-(* Lists of structure items *)
+and sitems =
+  sitem list
 
-and sitems = sitem list
-
-(* Structure items *)
+(* Structure items. *)
 
 and sitem =
 
-  (* A non-recursive toplevel definition [let bs] *)
+  (* A meta-level reference. *)
+  | ILink of coq_id
+
+  (* A non-recursive toplevel definition [let bs]. *)
   | ILet of bindings
 
-  (* A recursive toplevel definition [let rec rbs] *)
+  (* A recursive toplevel definition [let rec rbs]. *)
   | ILetRec of rec_bindings
 
-  (* A module definition [M = me] *)
+  (* A module definition [M = me]. *)
   | IModule of name * mexpr
 
-  (* An [open] directive [open π] *)
+  (* An [open] directive [open π]. *)
   | IOpen of path
 
-  (* An [include] directive [include me] *)
+  (* An [include] directive [include me]. *)
   | IInclude of mexpr
-
-  (* A topèlevel Coq definition *)
-  | CDef of coq_id
-
-(* ------------------------------------------------------------------------- *)
-
-type tyname = string
-
-type tytype =
-  | TRecord of (name * tyname) list
-
-type types = tytype list
 
 (* ------------------------------------------------------------------------- *)
 

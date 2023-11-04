@@ -51,7 +51,6 @@ let translate_char (c: char) : expression =
 
 let rec translate_pattern (p: pat) : expression =
   match p with
-  | PUnit -> EPlain "PUnit"
 
   (* The wildcard pattern *)
   | PAny -> EPlain "PAny"
@@ -102,10 +101,6 @@ and translate_branch : branch -> expression = function
   | Branch (p, e) ->
      EConstr ("Branch", [ translate_pattern p ;
                           translate_expression e ])
-  | BranchWhen (p, c, e) ->
-     EConstr ("BranchWhen", [ translate_pattern p ;
-                            translate_expression c ;
-                            translate_expression e ])
 
 and translate_branches (bs: branches) : expression =
   EList ("MkBranches", List.map translate_branch bs)
@@ -118,15 +113,13 @@ and translate_fexprs (fs: fexprs) : expression =
 
 and translate_expression (e: expr) : expression =
   match e with
-  | EArray el -> EList ("MkArray", List.map translate_expression el)
 
-  | EDef e -> EPlain e
-  | EUnit -> EPlain "EUnit"
-  | EConstant s -> EConstr ("EConstant", [string_literal  s])
+  | EUnsupported ->
+      EPlain "EUnsupported"
+
+  | ELink e -> EPlain e
+
   | EChar c -> EConstr ("EChar", [translate_char c])
-
-  | ETry (e, brs) -> EConstr ("ETry", [ translate_expression e ;
-                                        translate_branches brs ])
 
   (* Path: [x] or [πx] *)
   | EPath x -> (* of path *)
@@ -266,7 +259,7 @@ and translate_expression (e: expr) : expression =
 (* On bindings translation. *)
 
 and translate_binding  = function
-  | BDef s -> EPlain s
+  | BLink s -> EPlain s
   | Binding (p, e) ->
      EConstr ("Binding", [
            translate_pattern p;
@@ -274,7 +267,7 @@ and translate_binding  = function
        ])
 
 and translate_rec_binding = function
-  | RecBDef s -> EPlain s
+  | RecBLink s -> EPlain s
   | RecBinding (v, a) ->
      EConstr ("RecBinding", [
            string_literal v ;
@@ -293,7 +286,7 @@ and translate_rec_bindings (rbds: rec_bindings) : expression =
 
 and translate_sitem : sitem -> expression option = function
   (* An auxiliary Coq top-level definition *)
-  | CDef name ->
+  | ILink name ->
      Some (EPlain name)
 
   (* A non-recursive toplevel definition [let bs] *)
@@ -325,7 +318,7 @@ and translate_module = function
      EList ("MkStruct", translate_sitems sitems)
 
   (* Auxiliary top-level Coq definition. *)
-  | MDef s -> EPlain s
+  | MLink s -> EPlain s
 
   | MPath p -> EConstr ("MPath", [translate_path p])
   | MCoercion _ -> assert false

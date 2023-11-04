@@ -147,6 +147,7 @@ let translate_branches translate_expression branches =
 
 (* -------------------------------------------------------------------------- *)
 
+(* TODO use [EFunction] and/or [EFunMultiPat] *)
 let translate_lambda translate_expression branches =
   AnonFun ("__osiris_anonymous_arg",
            EMatch
@@ -231,10 +232,9 @@ and branches_of_computation_cases (cases : computation case list) : branches =
       | { c_lhs=pat; c_guard=None; c_rhs=e } ->
          Branch (translate_computation_pattern pat,
                  translate_expression e)
-      | { c_lhs=pat; c_guard=Some cond; c_rhs=e } ->
-         BranchWhen (translate_computation_pattern pat,
-                   translate_expression cond,
-                   translate_expression e)
+      | { c_lhs=pat; c_guard=Some _; c_rhs=_e } ->
+         Branch (translate_computation_pattern pat,
+                   EUnsupported)
       end :: cases)
     cases []
 
@@ -315,11 +315,12 @@ and translate_expression (e: Typedtree.expression) =
            translate_expression e2,
            translate_expression e3)
 
-  | Texp_try (e, cases) ->
-     ETry (translate_expression e, branches_of_cases cases)
+  | Texp_try (_e, _cases) ->
+      ignore branches_of_cases;
+      EUnsupported
 
-  | Texp_array el ->
-     EArray (List.map translate_expression el)
+  | Texp_array _ ->
+      EUnsupported
 
   | Texp_variant (_, _) -> assert false
   | Texp_setfield (_, _, _, _) ->
@@ -350,10 +351,10 @@ and translate_expression (e: Typedtree.expression) =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_binding (vb: Typedtree.value_binding): binding (* * types*) =
+and translate_binding (vb: Typedtree.value_binding): binding =
   let pattern = translate_pattern vb.vb_pat in
-  let expression(*, types*) = translate_expression vb.vb_expr in
-  Binding (pattern, expression)(*, types*)
+  let expression = translate_expression vb.vb_expr in
+  Binding (pattern, expression)
 
 and translate_bindings vbs =
   List.fold_right
@@ -362,10 +363,10 @@ and translate_bindings vbs =
       v :: rv(*, t @ rt*))
     vbs ([](*, []*))
 
-and translate_rec_binding (vb: Typedtree.value_binding) (* * types*) =
+and translate_rec_binding (vb: Typedtree.value_binding) =
   let name = unvarpat vb.vb_pat in
-  let expression(* , types*) = translate_expression vb.vb_expr in
-  RecBinding (name, anonfun_of_expr expression)(*, types*)
+  let expression = translate_expression vb.vb_expr in
+  RecBinding (name, anonfun_of_expr expression)
 
 and translate_rec_bindings vbs =
   List.fold_right
@@ -403,9 +404,8 @@ let translate_structure_item
     -> None
 
   (* TODO: update me once the semantics has become exception-aware. *)
-  | Tstr_exception {tyexn_constructor = {ext_id; _}; _} ->
-     (* of type_exception *)
-     Some (ILet [Binding (PVar (Ident.name ext_id), ERef EUnit)])
+  | Tstr_exception _ ->
+      None
 
   | Tstr_module {mb_id; mb_expr; _} -> (* of module_binding *)
      let name =
@@ -439,15 +439,15 @@ let translate_structure_item
 
 (* -------------------------------------------------------------------------- *)
 
-let rec translate_module (ast: module_expr_desc) : mexpr (* * types*) =
+let rec translate_module (ast: module_expr_desc) : mexpr =
   match ast with
   | Tmod_ident (p, _) ->
      MPath (translate_path p)
   | Tmod_structure ast -> (* of structure *)
-     let (itms(*, types*)) =
+     let (itms) =
        List.filter_map (translate_structure_item translate_module) ast.str_items
-     (*    |> List.split *) in
-     MStruct (itms)(*, List.flatten types*)
+     in
+     MStruct (itms)
   | Tmod_functor (_, _) -> MStruct [] (* TODO. *)
   | Tmod_apply (_, _, _) -> assert false
   | Tmod_constraint (_, _, _, _) -> MStruct [] (* TODO. *)

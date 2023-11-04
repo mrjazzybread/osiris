@@ -18,10 +18,10 @@ and split_all_rec_binding name rec_binding : ast DAG.t =
      let gname = fresh_name "split_all_rec_binding" in
      let g : ast DAG.t = DAG.init (Some gname, OExpr e) in
      let rec_binding : rec_binding =
-       RecBinding (n, AnonFun (v, EDef gname)) in
+       RecBinding (n, AnonFun (v, ELink gname)) in
      DAG.init (name, ORecBinding rec_binding)
      |> DAG.add [g]
-  | RecBDef _ -> DAG.init (name, ORecBinding rec_binding)
+  | RecBLink _ -> DAG.init (name, ORecBinding rec_binding)
 
 and split_all_sitem name sitem : ast DAG.t =
   match sitem with
@@ -32,7 +32,7 @@ and split_all_sitem name sitem : ast DAG.t =
            let name = fresh_name "split_all_sitem" in
            name, split_all_binding (Some name) binding)
          bindings in
-     let bindings = List.map (fun (s, _) -> BDef s) deps in
+     let bindings = List.map (fun (s, _) -> BLink s) deps in
      DAG.init (name, OSItem (ILet bindings))
      |> DAG.add (List.map snd deps)
 
@@ -44,23 +44,23 @@ and split_all_sitem name sitem : ast DAG.t =
            let name = fresh_name "split_all_sitem" in
            name, split_all_rec_binding (Some name) rec_binding)
          rec_bindings in
-     let rec_bindings = List.map (fun (s, _) -> RecBDef s) deps in
+     let rec_bindings = List.map (fun (s, _) -> RecBLink s) deps in
      DAG.init (name, OSItem (ILetRec rec_bindings))
      |> DAG.add (List.map snd deps)
 
   | IModule (n, m) ->
      let gname = fresh_name "split_all_sitem" in
      let g = split_all_module (Some gname) m in
-     DAG.init (name, OSItem (IModule (n, MDef gname)))
+     DAG.init (name, OSItem (IModule (n, MLink gname)))
      |> DAG.add [g]
 
-  | CDef _ | IOpen _ | IInclude _ ->
+  | ILink _ | IOpen _ | IInclude _ ->
      (* Leaves of the AST. *)
      DAG.init (name, OSItem sitem)
 
 and split_all_module name (m: mexpr) : ast DAG.t =
   match m with
-  | MPath _ | MDef _ ->
+  | MPath _ | MLink _ ->
      (* Leaves of the AST. *)
      DAG.init (name, OModule m)
 
@@ -71,14 +71,14 @@ and split_all_module name (m: mexpr) : ast DAG.t =
            let name = fresh_name "split_all_module" in
            name, split_all_sitem (Some name) sitem)
          sitems in
-     let sitems = List.map (fun (s, _) -> CDef s) deps in
+     let sitems = List.map (fun (s, _) -> ILink s) deps in
      DAG.init (name, OModule (MStruct sitems))
   |> DAG.add (List.map snd deps)
 
   | MCoercion (m, c) ->
      let gname = fresh_name "split_all_module" in
      let g = split_all_module (Some gname) m in
-     DAG.init (name, OModule (MCoercion (MDef gname, c)))
+     DAG.init (name, OModule (MCoercion (MLink gname, c)))
      |> DAG.add [g]
 
 (* Main function. *)

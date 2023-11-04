@@ -319,7 +319,8 @@
 * Shared-memory concurrency (SC)
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
-* `when` clauses (may be easy to handle just by raising `Next`)
+* `when` clauses (may be easy to handle just by viewing `when e1 e2`
+    as an expression that raises `Next` if `e1` evaluates to `false`)
 * `let rec` over mutable values could conceivably be supported
 * Recursive modules? (Used in Sek, for example.)
 

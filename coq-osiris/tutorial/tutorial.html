@@ -56,8 +56,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> PCons p ps
 <span class="kn">Arguments</span> FPCons f p fps</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=
-    EChar : char → expr
-  | EArray : exprs → expr
+    EUnsupported : expr
   | EPath : path → expr
   | EAnonFun : anonfun → expr
   | EApp : expr → expr → expr
@@ -69,7 +68,6 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EBoolConj : expr → expr → expr
   | EBoolDisj : expr → expr → expr
   | EBoolNeg : expr → expr
-  | EString : string → expr
   | EInt : Z → expr
   | EMaxInt : expr
   | EMinInt : expr
@@ -79,6 +77,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIntMul : expr → expr → expr
   | EIntDiv : expr → expr → expr
   | EIntMod : expr → expr → expr
+  | EChar : char → expr
+  | EString : string → expr
   | EOpEq : expr → expr → expr
   | EOpNe : expr → expr → expr
   | EOpLt : expr → expr → expr
@@ -107,7 +107,6 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | FECons : <span class="bp">field</span> → expr → fexprs → fexprs
   <span class="kr">with</span> branch : <span class="kt">Set</span> :=
     Branch : pat → expr → branch
-  | BranchWhen : pat → expr → expr → branch
   <span class="kr">with</span> branches : <span class="kt">Set</span> :=
     BrNil : branches
   | BrCons : branch → branches → branches
@@ -137,8 +136,6 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | IOpen : path → sitem
   | IInclude : mexpr → sitem.
 
-<span class="kn">Arguments</span> EChar c
-<span class="kn">Arguments</span> EArray el
 <span class="kn">Arguments</span> EPath x
 <span class="kn">Arguments</span> EAnonFun a
 <span class="kn">Arguments</span> EApp (e1 e2)%expr_scope
@@ -150,7 +147,6 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EBoolConj (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EBoolDisj (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EBoolNeg e%expr_scope
-<span class="kn">Arguments</span> EString s%string_scope
 <span class="kn">Arguments</span> EInt i%Z_scope
 <span class="kn">Arguments</span> EIntNeg e%expr_scope
 <span class="kn">Arguments</span> EIntAdd (e1 e2)%expr_scope
@@ -158,6 +154,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIntMul (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntDiv (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EChar c
+<span class="kn">Arguments</span> EString s%string_scope
 <span class="kn">Arguments</span> EOpEq (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpNe (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpLt (e1 e2)%expr_scope
@@ -181,7 +179,6 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> ECons e%expr_scope es
 <span class="kn">Arguments</span> FECons f e%expr_scope fes
 <span class="kn">Arguments</span> Branch p e%expr_scope
-<span class="kn">Arguments</span> BranchWhen p (c e)%expr_scope
 <span class="kn">Arguments</span> BrCons b bs
 <span class="kn">Arguments</span> Binding p e%expr_scope
 <span class="kn">Arguments</span> BiCons b bs
