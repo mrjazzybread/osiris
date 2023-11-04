@@ -95,7 +95,11 @@ and translate_fpats fpats =
                           translate_fpats fpats ])
 
 let translate_path (x: path) : expression =
-  EList ("MkPath", List.map string_literal x)
+  (* We could use [MkPath], but its definition in Coq involves [rev].
+     This is very bad, because using [rev] is bad in the first place
+     and because [rev] is itself defined in an inefficient way.
+     So, better use [MkPathRev]. *)
+  EList ("MkPathRev", List.rev (List.map string_literal x))
 
 let rec translate_anonfun (a : anonfun) : expression =
   match a with
