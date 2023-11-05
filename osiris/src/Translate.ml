@@ -276,6 +276,19 @@ let rec translate_expression (e: expression) : expr =
   | Texp_apply (e, args) ->
       apply (translate_expression e) (translate_labeled_arguments loc args)
 
+  | Texp_match (e, cases, _partial) ->
+      EMatch (translate_expression e, translate_computation_cases cases)
+
+  | Texp_try (_e, _cases) ->
+      eunsupported loc "try/with"
+
+  | Texp_tuple es ->
+      ETuple (translate_expressions es)
+
+  | Texp_construct (c, _constructor_desc, es) ->
+     let data = unqualify (txt c) in
+     EData (data, ETuple (translate_expressions es))
+
   | Texp_assert e -> EAssert (translate_expression e)
 
   | Texp_let (Nonrecursive, vbs, e) ->
@@ -283,11 +296,6 @@ let rec translate_expression (e: expression) : expr =
 
   | Texp_let (Recursive, vbs, e) ->
      ELetRec (translate_rec_bindings vbs, translate_expression e)
-
-  | Texp_tuple el -> ETuple (List.map translate_expression el)
-
-  | Texp_match (e, cases, _) ->
-     EMatch (translate_expression e, translate_computation_cases cases)
 
   | Texp_sequence (e1, e2) ->
      ESeq (translate_expression e1,
@@ -305,12 +313,6 @@ let rec translate_expression (e: expression) : expr =
      translate_record
        fields representation extended_expression
 
-  | Texp_construct (c, _, el) ->
-     let name = unqualify (txt c) in
-     let args =
-       List.fold_right (fun e res -> translate_expression e :: res) el [] in
-     EData (name, ETuple args)
-
   | Texp_field (e, _, label) ->
      ERecordAccess (translate_expression e,
                     label.lbl_name)
@@ -323,9 +325,6 @@ let rec translate_expression (e: expression) : expr =
            translate_expression e1,
            translate_expression e2,
            translate_expression e3)
-
-  | Texp_try (_e, _cases) ->
-      eunsupported loc "try/with"
 
   | Texp_array _ ->
       eunsupported loc "array expression"
@@ -356,6 +355,9 @@ let rec translate_expression (e: expression) : expr =
   | Texp_letop _ -> assert false
   | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
+
+and translate_expressions es : exprs =
+  List.map translate_expression es
 
 and translate_labeled_arguments loc args =
   List.map (translate_labeled_argument loc) args
