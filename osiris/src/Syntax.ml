@@ -1,13 +1,24 @@
+(* The Osiris AST. *)
+
 (* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
-(* ------------------------------------------------------------------------ *)
+(* There are a few minor differences between the Coq Osiris AST (syntax.v)
+   and this OCaml Osiris AST:
+
+   - This AST allows meta-level references: [ELink], etc. These are references
+     to earlier Coq toplevel definitions. They allow splitting up a large AST
+     into several Coq toplevel definitions.
+
+   - While the Coq AST uses ad hoc lists, this AST uses ordinary lists. *)
+
+(* -------------------------------------------------------------------------- *)
 
 (* Meta-level references to Coq toplevel definitions. *)
 
 type coq_id =
   string
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Variables. *)
 
@@ -19,7 +30,7 @@ type var =
 type name =
   string
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Module paths. *)
 
@@ -29,7 +40,7 @@ type name =
 type path =
   name list (* must be nonempty *)
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Data constructors. *)
 
@@ -41,7 +52,7 @@ type data =
 type field =
   string
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Patterns. *)
 
@@ -79,7 +90,7 @@ and pats =
 and fpats =
   (field * pat) list
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Module coercions. *)
 
@@ -98,7 +109,7 @@ and fcoercions =
   (field * coercion) list
       (* A field-coercion list [xcs] must have no duplicate names. *)
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Expressions. *)
 
@@ -257,7 +268,7 @@ and anonfun =
   | AnonFun of var * expr
   | AnonFunction of branches
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Module expressions. *)
 

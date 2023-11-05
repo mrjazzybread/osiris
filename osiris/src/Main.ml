@@ -48,19 +48,12 @@ let translate_one_file module_name out_file cmt_file =
   assert (is_absolute cmt_file);
   assert (is_absolute out_file);
 
-  let typedtree = read_cmt cmt_file in
+  (* Read the .cmt file, which contains a typed OCaml AST. *)
+  let u : Typedtree.structure = read_cmt cmt_file in
 
-  (* Convert the typedtree into an Osiris AST. The structure of the program is
-     unchanged. The only two differences between the Coq and OCaml versions of
-     the Osiris ASTs are:
-     - the OCaml AST contains an additional constructor for module-expressions,
-       expressions, etc. to represent parts of the AST which will be put in
-       different top-level Coq edfinitions.
-     - while the Coq AST contains several ad-hoc lists, the OCaml AST does not:
-       native lists are used every time.
-       This will also help with the translation: one can then use the syntactic
-       sugar defined in [theories/lang/sugar.v]. *)
-  let oast = Translate.unit ("_" ^ module_name) typedtree in
+  (* Convert this typed OCaml AST to an Osiris AST. *)
+  let m = "_" ^ module_name in (* TODO revisit or document this convention *)
+  let oast = Translate.unit m u in
 
   (* Break down the AST into pieces according to the user-specified
      splitting-strategy.
