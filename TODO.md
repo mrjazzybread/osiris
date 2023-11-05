@@ -291,15 +291,15 @@
   + give lemmas to help establish that the result of an operation
     is representable
   + bitwise operations
-  + comparison operators: `=`, `<>`, `<`, `>`, `<=`, `>=`, `compare`, `min`, `max`
 * Booleans:
   + We would like to have all of the comparison operators,
     but because our model views Booleans as data constructors,
     we cannot have the ordering operators.
 * Polymorphic comparison operators
-  + Equality can be supported at immutable data types
-  + Ordering can be supported at base types and tuples
-    (ordering at algebraic data types cannot be supported)
+  + `eq_val` should be extended to records
+  + `lt_val` should be extended to chars, strings, tuples, records
+  + define `compare`, `min`, `max` as library functions,
+    based on other primitive operations
 * Polymorphic variants
 * Modules, functors, signature ascription, `open` and `include` directives
   - Note that `open` and `include` break the lexical scoping discipline
