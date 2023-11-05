@@ -192,6 +192,7 @@ Inductive expr :=
   | EString (s: string)
 
   (* Polymorphic comparison operators. *)
+  | EOpPhysEq (e1 e2 : expr)
   | EOpEq (e1 e2 : expr)
   | EOpNe (e1 e2 : expr)
   | EOpLt (e1 e2 : expr)

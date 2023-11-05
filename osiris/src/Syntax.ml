@@ -169,6 +169,7 @@ type expr =
   | EString of string
 
   (* Polymorphic comparison operators. *)
+  | EOpPhysEq of expr * expr
   | EOpEq of expr * expr
   | EOpNe of expr * expr
   | EOpLt of expr * expr

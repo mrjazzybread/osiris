@@ -287,6 +287,8 @@ and translate_expression (e: expr) : expression =
   | EMinInt ->
       EConstr ("EMinInt", [])
 
+  | EOpPhysEq (e1, e2) ->
+      cexprs "EOpPhysEq" [e1; e2]
   | EOpEq (e1, e2) ->
       cexprs "EOpEq" [e1; e2]
   | EOpNe (e1, e2) ->

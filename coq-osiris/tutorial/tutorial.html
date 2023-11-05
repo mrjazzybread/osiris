@@ -82,6 +82,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIntMod : expr → expr → expr
   | EChar : char → expr
   | EString : string → expr
+  | EOpPhysEq : expr → expr → expr
   | EOpEq : expr → expr → expr
   | EOpNe : expr → expr → expr
   | EOpLt : expr → expr → expr
@@ -160,6 +161,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EChar c
 <span class="kn">Arguments</span> EString s%string_scope
+<span class="kn">Arguments</span> EOpPhysEq (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpEq (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpNe (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpLt (e1 e2)%expr_scope

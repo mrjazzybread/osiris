@@ -11,6 +11,11 @@ Local Open Scope Z_scope.
 Record loc :=
   Loc { address : Z }.
 
+(* Equality. *)
+
+Definition eqb (l1 l2 : loc) :=
+  Z.eqb (address l1) (address l2).
+
 (* These instances allow using locations as keys in sets and maps. *)
 
 Global Instance loc_eq_decision : EqDecision loc.

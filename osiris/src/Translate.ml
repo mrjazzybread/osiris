@@ -305,6 +305,8 @@ let translate_stdlib_call (f : var) (es : exprs) =
   | "mod", [e1; e2] ->
       EIntMod (e1, e2)
 
+  | "==", [e1; e2] ->
+      EOpPhysEq (e1, e2)
   | "=", [e1; e2] ->
       EOpEq (e1, e2)
   | "<>", [e1; e2] ->

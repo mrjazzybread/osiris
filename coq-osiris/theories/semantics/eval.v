@@ -59,6 +59,9 @@ Definition missing_variable {A} (x : var) : micro A :=
 Definition missing_variable_or_field {A} (x : var) : micro A :=
   crash.
 
+Definition physical_equality_error {A} (msg : string) : micro A :=
+  crash.
+
 Definition structural_equality_error {A} (msg : string) : micro A :=
   crash.
 
@@ -484,6 +487,20 @@ Definition call v1 v2 : micro val :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [phys_eq_val v1 v2] implements OCaml's physical equality operator [==]. *)
+
+(* This operator can be applied to memory locations. *)
+
+Definition phys_eq_val v1 v2 : micro bool :=
+  match v1, v2 with
+  | VLoc l1, VLoc l2 =>
+      ret (locations.eqb l1 l2)
+  | _, _ =>
+      physical_equality_error "invalid or unsupported arguments"
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eq_val v1 v2] implements OCaml's structural equality operator [=]. *)
 
 (* This operator cannot be applied to closures or to mutable data, but can be
@@ -756,6 +773,10 @@ Fixpoint eval η e : micro val :=
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
+  | EOpPhysEq e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← phys_eq_val v1 v2 ;
+      ret (VBool b)
   | EOpEq e1 e2 =>
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       b ← eq_val v1 v2 ;
