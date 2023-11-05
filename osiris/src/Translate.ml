@@ -166,7 +166,7 @@ let translate_pat_constant loc (c : constant) : pat =
 
 (* The type [pattern] is a synonym for [value general_pattern]. *)
 
-let rec translate_pattern (pat: pattern) : pat =
+let rec translate_pat (pat: pattern) : pat =
   let loc = pat.pat_loc in
   match pat.pat_desc with
 
@@ -177,19 +177,19 @@ let rec translate_pattern (pat: pattern) : pat =
       PVar (txt x)
 
   | Tpat_alias (pat, _, x) ->
-      PAlias (translate_pattern pat, txt x)
+      PAlias (translate_pat pat, txt x)
 
   | Tpat_constant c ->
       translate_pat_constant loc c
 
   | Tpat_tuple pats ->
-      PTuple (translate_patterns pats)
+      PTuple (translate_pats pats)
 
   | Tpat_construct (i, _constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
       let data = unqualify (txt i) in
-     PData (data, PTuple (translate_patterns pats))
+     PData (data, PTuple (translate_pats pats))
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -204,17 +204,17 @@ let rec translate_pattern (pat: pattern) : pat =
       punsupported loc "lazy pattern"
 
   | Tpat_or (pat1, pat2, _) ->
-      POr (translate_pattern pat1, translate_pattern pat2)
+      POr (translate_pat pat1, translate_pat pat2)
 
-and translate_patterns pats : pats =
-  List.map translate_pattern pats
+and translate_pats pats : pats =
+  List.map translate_pat pats
 
 and translate_field_patterns fields : fpats =
   List.map translate_field_pattern fields
 
 and translate_field_pattern (i, label_desc, pat) : field * pat =
   translate_record_field i label_desc,
-  translate_pattern pat
+  translate_pat pat
 
 (* -------------------------------------------------------------------------- *)
 
@@ -225,7 +225,7 @@ let translate_computation_pattern (pat : computation general_pattern) : pat =
   match split_pattern pat with
   | Some pat, None ->
       (* A normal termination pattern. *)
-      translate_pattern pat
+      translate_pat pat
   | None, Some _ ->
       (* An exception pattern. *)
       punsupported loc "exception pattern"
@@ -247,7 +247,7 @@ let apply e1 e2s =
 
 (* Expressions. *)
 
-let rec translate_expression (e: expression) : expr =
+let rec translate_expr (e: expression) : expr =
   let loc = e.exp_loc in
   match e.exp_desc with
 
@@ -268,20 +268,20 @@ let rec translate_expression (e: expression) : expr =
       eunsupported loc "optional argument"
 
   | Texp_apply (e, args) ->
-      apply (translate_expression e) (translate_labeled_arguments loc args)
+      apply (translate_expr e) (translate_labeled_arguments loc args)
 
   | Texp_match (e, cases, _partial) ->
-      EMatch (translate_expression e, translate_computation_cases cases)
+      EMatch (translate_expr e, translate_computation_cases cases)
 
   | Texp_try (_e, _cases) ->
       eunsupported loc "try/with"
 
   | Texp_tuple es ->
-      ETuple (translate_expressions es)
+      ETuple (translate_exprs es)
 
   | Texp_construct (c, _constructor_desc, es) ->
       let data = unqualify (txt c) in
-      EData (data, ETuple (translate_expressions es))
+      EData (data, ETuple (translate_exprs es))
 
   | Texp_variant (_, _) ->
       eunsupported loc "polymorphic variant"
@@ -291,62 +291,65 @@ let rec translate_expression (e: expression) : expr =
 
   | Texp_field (e, id, label_desc) ->
       let field = translate_record_field id label_desc in
-      ERecordAccess (translate_expression e, field)
+      ERecordAccess (translate_expr e, field)
 
-  (* ICI *)
-
-  | Texp_assert e -> EAssert (translate_expression e)
-
-  | Texp_let (Nonrecursive, vbs, e) ->
-     ELet (translate_bindings vbs, translate_expression e)
-
-  | Texp_let (Recursive, vbs, e) ->
-     ELetRec (translate_rec_bindings vbs, translate_expression e)
-
-  | Texp_sequence (e1, e2) ->
-     ESeq (translate_expression e1,
-           translate_expression e2)
-
-  | Texp_ifthenelse (e1, e2, Some e3) ->
-     EIfThenElse (translate_expression e1,
-                  translate_expression e2,
-                  translate_expression e3)
-
-  | Texp_ifthenelse (e1, e2, None) ->
-     EIfThen (translate_expression e1,
-              translate_expression e2)
-
-  | Texp_while (e, body) -> EWhile (translate_expression e,
-                                    translate_expression body)
-
-  | Texp_for (i, _, e1, e2, _, e3) ->
-     EFor (Ident.name i,
-           translate_expression e1,
-           translate_expression e2,
-           translate_expression e3)
+  | Texp_setfield (_e1, _id, _label_desc, _e2) ->
+      eunsupported loc "mutable record"
 
   | Texp_array _ ->
       eunsupported loc "array expression"
 
-  | Texp_setfield (_, _, _, _) ->
-     EString "Mutable records and arrays are not supported yet."
+  | Texp_ifthenelse (e1, e2, Some e3) ->
+      EIfThenElse (translate_expr e1, translate_expr e2, translate_expr e3)
 
+  | Texp_ifthenelse (e1, e2, None) ->
+      EIfThen (translate_expr e1, translate_expr e2)
+
+  | Texp_sequence (e1, e2) ->
+      ESeq (translate_expr e1, translate_expr e2)
+
+  | Texp_while (e, body) ->
+      EWhile (translate_expr e, translate_expr body)
+
+  | Texp_for (i, _, e1, e2, Upto, e3) ->
+      let i = Ident.name i in
+      EFor (i, translate_expr e1, translate_expr e2, translate_expr e3)
+
+  | Texp_for (_i, _, _e1, _e2, Downto, _e3) ->
+      eunsupported loc "downto"
+
+  | Texp_send (_, _)
+  | Texp_new (_, _, _)
+  | Texp_instvar (_, _, _)
+  | Texp_setinstvar (_, _, _, _)
+  | Texp_override (_, _) ->
+      eunsupported loc "objects"
+
+  | Texp_letmodule (Some id, _, _, me, e) ->
+      let m = Ident.name id in
+      ELetModule (m, translate_mod_expr me, translate_expr e)
+
+  | Texp_letmodule (None, _, _, _, _) ->
+      eunsupported loc "let module _"
+
+  (* ICI *)
+
+  | Texp_assert e -> EAssert (translate_expr e)
+
+  | Texp_let (Nonrecursive, vbs, e) ->
+     ELet (translate_bindings vbs, translate_expr e)
+
+  | Texp_let (Recursive, vbs, e) ->
+     ELetRec (translate_rec_bindings vbs, translate_expr e)
 
   | Texp_pack _ ->
      EString "TODO: Texp_pack."
   (* TODO. *)
 
-  | Texp_letmodule (_, _, _, _, _) ->
-     EString "TODO: ELetModule."
   | Texp_open (_, _) ->
      (* TODO. *)
      EString "TODO: local module open statement."
 
-  | Texp_send (_, _) -> assert false
-  | Texp_new (_, _, _) -> assert false
-  | Texp_instvar (_, _, _) -> assert false
-  | Texp_setinstvar (_, _, _, _) -> assert false
-  | Texp_override (_, _) -> assert false
   | Texp_letexception (_, _) -> assert false
   | Texp_lazy _ -> assert false
   | Texp_object (_, _) -> assert false
@@ -354,8 +357,8 @@ let rec translate_expression (e: expression) : expr =
   | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
 
-and translate_expressions es : exprs =
-  List.map translate_expression es
+and translate_exprs es : exprs =
+  List.map translate_expr es
 
 and translate_function cases partial : expr =
   match cases with
@@ -366,7 +369,7 @@ and translate_function cases partial : expr =
       (* We recognize the special case of [fun x -> e]. In this case
          we can use [AnonFun], a primitive form in the Osiris AST. *)
       assert (partial = Total);
-      EAnonFun (AnonFun (txt x, translate_expression e))
+      EAnonFun (AnonFun (txt x, translate_expr e))
   | _ ->
       (* In the general case, this function has the form [function bs].
          Then we use [AnonFunction], a derived form in Osiris. *)
@@ -379,7 +382,7 @@ and translate_labeled_argument loc arg : expr =
   match arg with
   | Nolabel, Some e ->
       (* An ordinary unlabeled argument. *)
-      translate_expression e
+      translate_expr e
   | _, _ ->
       (* A labeled argument, or an unlabeled argument that participates
          in a labeled function application. *)
@@ -388,21 +391,21 @@ and translate_labeled_argument loc arg : expr =
 (* -------------------------------------------------------------------------- *)
 
 and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
-  fun translate_pattern case ->
+  fun translate_pat case ->
   let pat = case.c_lhs
   and e = case.c_rhs in
   Branch (
-    translate_pattern pat,
+    translate_pat pat,
     match case.c_guard with
     | None ->
-        translate_expression e
+        translate_expr e
     | Some guard ->
         let loc = guard.exp_loc in
         eunsupported loc "when clause"
   )
 
 and translate_value_case (case : value case) : branch =
-  translate_case translate_pattern case
+  translate_case translate_pat case
 
 and translate_value_cases cases =
   List.map translate_value_case cases
@@ -416,8 +419,8 @@ and translate_computation_cases cases =
 (* -------------------------------------------------------------------------- *)
 
 and translate_binding (vb: value_binding): binding =
-  let pattern = translate_pattern vb.vb_pat in
-  let expression = translate_expression vb.vb_expr in
+  let pattern = translate_pat vb.vb_pat in
+  let expression = translate_expr vb.vb_expr in
   Binding (pattern, expression)
 
 and translate_bindings vbs =
@@ -439,7 +442,7 @@ and project_Tpat_var (pat : value general_pattern) : var =
 
 and translate_rec_binding (vb: value_binding) =
   let name = project_Tpat_var vb.vb_pat in
-  let expression = translate_expression vb.vb_expr in
+  let expression = translate_expr vb.vb_expr in
   RecBinding (name, project_EAnonFun expression)
 
 and translate_rec_bindings vbs =
@@ -468,7 +471,7 @@ and translate_record
              | Kept _ -> assert false
              | Overridden (_, e) ->
                 let name : string = elt.lbl_name in
-                let body : expr = translate_expression e in
+                let body : expr = translate_expr e in
                 (name, body) :: expr)
            fields []
        in
@@ -485,11 +488,11 @@ and translate_record
              | Kept _ -> expr
              | Overridden (li, e) ->
                 let name : string = unqualify (txt li) in
-                let body : expr = translate_expression e in
+                let body : expr = translate_expr e in
                 (name, body) :: expr)
            fields []
        in
-       ERecordUpdate (translate_expression e, body)
+       ERecordUpdate (translate_expr e, body)
      end
   | _, r ->
      (match r with
@@ -503,8 +506,7 @@ and translate_record
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_structure_item
-      translate_module
+and translate_structure_item
       (sitm: structure_item) : sitem option =
   match sitm.str_desc with
   (* Non-recursive top-level bindings. *)
@@ -517,8 +519,8 @@ let translate_structure_item
      Some (ILetRec r)
 
   | Tstr_module {mb_id = Some mb_id;
-                 mb_expr = {mod_desc; _}; _} ->
-     let m = translate_module mod_desc in
+                 mb_expr = me; _} ->
+     let m = translate_mod_expr me in
      Some (IModule (Ident.name mb_id, m))
 
   (* Ignoring the type-related definitions. *)
@@ -539,12 +541,11 @@ let translate_structure_item
        | None -> Fresh.fresh_name "let_module"
        | Some name -> Ident.name name
      in
-     let e = mb_expr.mod_desc in
-     Some (IModule (name, translate_module e))
+     Some (IModule (name, translate_mod_expr mb_expr))
 
-  | Tstr_include {incl_mod = {mod_desc;_}; _} ->
+  | Tstr_include {incl_mod = me; _} ->
      (* of include_declaration *)
-     Some (IInclude (translate_module mod_desc))
+     Some (IInclude (translate_mod_expr me))
 
   | Tstr_open {open_expr={mod_desc;_};_} -> (* of open_declaration *)
      (match mod_desc with
@@ -565,14 +566,17 @@ let translate_structure_item
 
 (* -------------------------------------------------------------------------- *)
 
-let rec translate_module (ast: module_expr_desc) : mexpr =
+and translate_mod_expr (me : module_expr) : mexpr =
+  translate_module me.mod_desc
+
+and translate_module (ast: module_expr_desc) : mexpr =
   match ast with
   | Tmod_ident (path, id) ->
       MPath (translate_mod_ident path id)
 
   | Tmod_structure ast -> (* of structure *)
      let (itms) =
-       List.filter_map (translate_structure_item translate_module) ast.str_items
+       List.filter_map translate_structure_item ast.str_items
      in
      MStruct (itms)
   | Tmod_functor (_, _) -> MStruct [] (* TODO. *)
