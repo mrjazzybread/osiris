@@ -118,7 +118,7 @@ let unqualify : Longident.t -> data =
    (i.e., fit in 31 bits). Otherwise, the code would be non-portable and
    non-verifiable. TODO *)
 
-let translate_exp_constant loc (c : constant) =
+let translate_exp_constant loc (c : constant) : expr =
   match c with
   | Const_int i ->
       EInt i
@@ -135,7 +135,7 @@ let translate_exp_constant loc (c : constant) =
   | Const_nativeint _ ->
       eunsupported loc "native integer literal"
 
-let translate_pat_constant loc (c : constant) =
+let translate_pat_constant loc (c : constant) : pat =
   match c with
   | Const_int i ->
       PInt i
@@ -226,7 +226,9 @@ let translate_computation_pattern (pat : computation general_pattern) : pat =
 
 (* -------------------------------------------------------------------------- *)
 
-let rec translate_expression (e: Typedtree.expression) =
+(* Expressions. *)
+
+let rec translate_expression (e: expression) : expr =
   let loc = e.exp_loc in
   match e.exp_desc with
   | Texp_constant c -> translate_exp_constant loc c
@@ -377,7 +379,7 @@ and translate_computation_cases cases =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_binding (vb: Typedtree.value_binding): binding =
+and translate_binding (vb: value_binding): binding =
   let pattern = translate_pattern vb.vb_pat in
   let expression = translate_expression vb.vb_expr in
   Binding (pattern, expression)
@@ -399,7 +401,7 @@ and project_Tpat_var (pat : value general_pattern) : var =
   | Tpat_var (_, v) -> txt v
   | _ -> assert false
 
-and translate_rec_binding (vb: Typedtree.value_binding) =
+and translate_rec_binding (vb: value_binding) =
   let name = project_Tpat_var vb.vb_pat in
   let expression = translate_expression vb.vb_expr in
   RecBinding (name, project_EAnonFun expression)
@@ -467,7 +469,7 @@ and translate_record
 
 let translate_structure_item
       translate_module
-      (sitm: Typedtree.structure_item) : sitem option =
+      (sitm: structure_item) : sitem option =
   match sitm.str_desc with
   (* Non-recursive top-level bindings. *)
   | Tstr_value (Nonrecursive, vbs) ->
@@ -544,7 +546,7 @@ let rec translate_module (ast: module_expr_desc) : mexpr =
 
 (* -------------------------------------------------------------------------- *)
 
-let typedtree m (ast: Typedtree.structure) : Syntax.def =
+let typedtree m (ast: structure) : def =
   { lhs = m ;
     rhs = OModule (translate_module (Tmod_structure ast)) }
 
