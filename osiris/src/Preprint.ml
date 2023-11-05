@@ -133,10 +133,10 @@ let rec expr (e : expr) =
       c "EAnonFun" [ anonfun a ]
 
   | EApp (e1, e2) ->
-      cexprs "EApp" [ e1; e2 ]
+      c "EApp" [ expr e1; expr e2 ]
 
   | ETuple es ->
-      clist "EMkTuple" (map expr es)
+      clist "EMkTuple" (exprs es)
 
   | EData (d, e) ->
       c "EData" [ data d; expr e ]
@@ -151,16 +151,16 @@ let rec expr (e : expr) =
       c "ERecordAccess" [ expr e; field f ]
 
   | EBoolConj (e1, e2) ->
-      cexprs "EBoolConj" [ e1; e2 ]
+      c "EBoolConj" [ expr e1; expr e2 ]
 
   | EBoolDisj (e1, e2) ->
-      cexprs "EBoolDisj" [ e1; e2 ]
+      c "EBoolDisj" [ expr e1; expr e2 ]
 
   | EBoolNeg e ->
-      cexprs "EBoolNeg" [ e ]
+      c "EBoolNeg" [ expr e ]
 
   | EInt i ->
-      c "EInt" [int i]
+      c "EInt" [ int i ]
 
   | EMaxInt ->
       c "EMaxInt" []
@@ -169,22 +169,22 @@ let rec expr (e : expr) =
       c "EMinInt" []
 
   | EIntNeg e ->
-      cexprs "EIntNeg" [e]
+      c "EIntNeg" [ expr e ]
 
   | EIntAdd (e1, e2) ->
-      cexprs "EIntAdd" [e1; e2]
+      c "EIntAdd" [ expr e1; expr e2 ]
 
   | EIntSub (e1, e2) ->
-      cexprs "EIntSub" [e1; e2]
+      c "EIntSub" [ expr e1; expr e2 ]
 
   | EIntMul (e1, e2) ->
-      cexprs "EIntMul" [e1; e2]
+      c "EIntMul" [ expr e1; expr e2 ]
 
   | EIntDiv (e1, e2) ->
-      cexprs "EIntDiv" [e1; e2]
+      c "EIntDiv" [ expr e1; expr e2 ]
 
   | EIntMod (e1, e2) ->
-      cexprs "EIntMod" [e1; e2]
+      c "EIntMod" [ expr e1; expr e2 ]
 
   | EChar cc ->
       c "EChar" [char cc]
@@ -193,25 +193,25 @@ let rec expr (e : expr) =
       c "EString" [string s]
 
   | EOpPhysEq (e1, e2) ->
-      cexprs "EOpPhysEq" [e1; e2]
+      c "EOpPhysEq" [ expr e1; expr e2 ]
 
   | EOpEq (e1, e2) ->
-      cexprs "EOpEq" [e1; e2]
+      c "EOpEq" [ expr e1; expr e2 ]
 
   | EOpNe (e1, e2) ->
-      cexprs "EOpNe" [e1; e2]
+      c "EOpNe" [ expr e1; expr e2 ]
 
   | EOpLt (e1, e2) ->
-      cexprs "EOpLt" [e1; e2]
+      c "EOpLt" [ expr e1; expr e2 ]
 
   | EOpLe (e1, e2) ->
-      cexprs "EOpLe" [e1; e2]
+      c "EOpLe" [ expr e1; expr e2 ]
 
   | EOpGt (e1, e2) ->
-      cexprs "EOpGt" [e1; e2]
+      c "EOpGt" [ expr e1; expr e2 ]
 
   | EOpGe (e1, e2) ->
-      cexprs "EOpGe" [e1; e2]
+      c "EOpGe" [ expr e1; expr e2 ]
 
   | ELet (bs, e) ->
       c "ELet" [ bindings bs; expr e ]
@@ -226,19 +226,19 @@ let rec expr (e : expr) =
       c "ELetOpen" [ mexpr me; expr e ]
 
   | ESeq (e1, e2) ->
-      cexprs "ESeq" [ e1; e2 ]
+      c "ESeq" [ expr e1; expr e2 ]
 
   | EIfThen (e, e1) ->
-      cexprs "EIfThen" [ e; e1 ]
+      c "EIfThen" [ expr e; expr e1 ]
 
   | EIfThenElse (e, e1, e2) ->
-      cexprs "EIfThenElse" [ e; e1; e2 ]
+      c "EIfThenElse" [ expr e; expr e1; expr e2 ]
 
   | EMatch (e, bs) ->
       c "EMatch" [ expr e; branches bs ]
 
   | EWhile (e1, e2) ->
-      cexprs "EWhile" [ e1; e2 ]
+      c "EWhile" [ expr e1; expr e2 ]
 
   | EFor (x, e1, e2, e3) ->
       c "EFor" [ var x; expr e1; expr e2; expr e3 ]
@@ -247,44 +247,38 @@ let rec expr (e : expr) =
       c "EAssertFalse" []
 
   | EAssert e ->
-      cexprs "EAssert" [ e ]
+      c "EAssert" [ expr e ]
 
   | ERef e ->
-      cexprs "ERef" [ e ]
+      c "ERef" [ expr e ]
 
   | ELoad e ->
-      cexprs "ELoad" [ e ]
+      c "ELoad" [ expr e ]
 
   | EStore (e1, e2) ->
-      cexprs "EStore" [ e1; e2 ]
+      c "EStore" [ expr e1; expr e2 ]
 
-and anonfun (a : anonfun) =
-  match a with
+and anonfun = function
   | AnonFun (x, e) ->
-      c "AnonFun" [ var x ;
-                          expr e ]
+      c "AnonFun" [ var x; expr e ]
   | AnonFunction bs ->
-      c "AnonFunction" [branches bs]
+      c "AnonFunction" [ branches bs ]
 
 and branch = function
   | Branch (p, e) ->
-      c "Branch" [ pat p ;
-                          expr e ]
+      c "Branch" [ pat p; expr e ]
 
-and branches (bs: branches) =
+and branches (bs : branches) =
   clist "MkBranches" (map branch bs)
 
-and fexprs (fs: fexprs) =
-  clist "MkFexprs" (map fexpr fs)
+and fexprs (fes : fexprs) =
+  clist "MkFexprs" (map fexpr fes)
 
 and fexpr (f, e) =
   pair (field f) (expr e)
 
 and exprs es =
   map expr es
-
-and cexprs s es =
-  c s (exprs es)
 
 (* -------------------------------------------------------------------------- *)
 
