@@ -182,6 +182,8 @@ and translate_field_pattern (i, _label_desc, pat) : field * pat =
   unqualify (txt i),
   translate_pattern pat
 
+(* -------------------------------------------------------------------------- *)
+
 (* Computation patterns distinguish normal termination and exceptions. *)
 
 let translate_computation_pattern pat : pat =
@@ -198,71 +200,19 @@ let translate_computation_pattern pat : pat =
 
 (* -------------------------------------------------------------------------- *)
 
-let anonfun_of_expr : expr -> anonfun = function
-  | EAnonFun a ->
-      a
+let project_EAnonFun (e : expr) : anonfun =
+  match e with
+  | EAnonFun a -> a
   | _ -> assert false
 
-let unvarpat (p : value general_pattern) : string =
-  match p.pat_desc with
+let project_Tpat_var (pat : value general_pattern) : var =
+  match pat.pat_desc with
   | Tpat_var (_, v) -> txt v
   | _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_record
-      (fields: (Types.label_description * record_label_definition) array)
-      (representation : Types.record_representation)
-      (extended_expression : expression option)
-      trans_expr : expr =
-  match extended_expression, representation with
-  | None, Record_regular ->
-     (* This explicitly defines the whole record in the expected way. *)
-     begin
-       let body =
-         (* Each element of the array defines a new field of the record. *)
-         Array.fold_right
-           (fun (elt, e) expr ->
-             match e with
-             | Kept _ -> assert false
-             | Overridden (_, e) ->
-                let name : string = elt.lbl_name in
-                let body : expr = trans_expr e in
-                (name, body) :: expr)
-           fields []
-       in
-       ERecord (body)
-     end
-  | Some e, Record_regular ->
-     (* This defines a modification to an existing record *)
-     begin
-       let body =
-         (* Each element of the array defines a new field of the record. *)
-         Array.fold_right
-           (fun (_elt, e) expr ->
-             match e with
-             | Kept _ -> expr
-             | Overridden (li, e) ->
-                let name : string = unqualify (txt li) in
-                let body : expr = trans_expr e in
-                (name, body) :: expr)
-           fields []
-       in
-       ERecordUpdate (trans_expr e, body)
-     end
-  | _, r ->
-     (match r with
-      | Record_regular -> assert false
-      | Record_float -> assert false
-      | Record_unboxed _ -> assert false
-      | Record_inlined _ ->
-         (* Inlined records are not supported yet. *)
-         EString "TODO: inlined record are not supported yet."
-      | Record_extension _ -> assert false)
-
-(* -------------------------------------------------------------------------- *)
-
-let rec translate_case (case : value case) : branch =
+let rec translate_value_case (case : value case) : branch =
   let pat = case.c_lhs
   and e = case.c_rhs in
   Branch (
@@ -275,22 +225,21 @@ let rec translate_case (case : value case) : branch =
         eunsupported loc "when clause"
   )
 
-and translate_cases cases =
-  List.map translate_case cases
+and translate_value_cases cases =
+  List.map translate_value_case cases
 
-and branches_of_computation_cases (cases : computation case list) : branches =
-  List.fold_right
-    (fun (case: computation case) (cases: branches) ->
-      begin match case with
-      | { c_lhs=pat; c_guard=None; c_rhs=e } ->
-         Branch (translate_computation_pattern pat,
-                 translate_expression e)
-      | { c_lhs=pat; c_guard=Some guard; c_rhs=_e } ->
-          let loc = guard.exp_loc in
-         Branch (translate_computation_pattern pat,
-                   eunsupported loc "when clause")
-      end :: cases)
-    cases []
+and translate_computation_case (case : computation case) : branch =
+  match case with
+  | { c_lhs=pat; c_guard=None; c_rhs=e } ->
+     Branch (translate_computation_pattern pat,
+             translate_expression e)
+  | { c_lhs=pat; c_guard=Some guard; c_rhs=_e } ->
+      let loc = guard.exp_loc in
+     Branch (translate_computation_pattern pat,
+               eunsupported loc "when clause")
+
+and translate_computation_cases cases =
+  List.map translate_computation_case cases
 
 (* -------------------------------------------------------------------------- *)
 
@@ -333,7 +282,7 @@ and translate_expression (e: Typedtree.expression) =
       | _ ->
           (* In the general case, this function has the form [function bs].
              Then we use [AnonFunction], a derived form in Osiris. *)
-          EAnonFun (AnonFunction (translate_cases cases))
+          EAnonFun (AnonFunction (translate_value_cases cases))
       end
 
   | Texp_function { arg_label = Labelled _; _ } ->
@@ -367,7 +316,7 @@ and translate_expression (e: Typedtree.expression) =
   | Texp_tuple el -> ETuple (List.map translate_expression el)
 
   | Texp_match (e, cases, _) ->
-     EMatch (translate_expression e, branches_of_computation_cases cases)
+     EMatch (translate_expression e, translate_computation_cases cases)
 
   | Texp_sequence (e1, e2) ->
      ESeq (translate_expression e1,
@@ -384,7 +333,6 @@ and translate_expression (e: Typedtree.expression) =
   | Texp_record { fields; representation; extended_expression } ->
      translate_record
        fields representation extended_expression
-       translate_expression
 
   | Texp_construct (c, _, el) ->
      let name = unqualify (txt c) in
@@ -453,9 +401,9 @@ and translate_bindings vbs =
     vbs ([](*, []*))
 
 and translate_rec_binding (vb: Typedtree.value_binding) =
-  let name = unvarpat vb.vb_pat in
+  let name = project_Tpat_var vb.vb_pat in
   let expression = translate_expression vb.vb_expr in
-  RecBinding (name, anonfun_of_expr expression)
+  RecBinding (name, project_EAnonFun expression)
 
 and translate_rec_bindings vbs =
   List.fold_right
@@ -463,6 +411,58 @@ and translate_rec_bindings vbs =
       let (v(*, t*)) = translate_rec_binding vb in
               v :: rv(*, t @ rt*))
     vbs ([](*, []*))
+
+(* -------------------------------------------------------------------------- *)
+
+and translate_record
+      (fields: (Types.label_description * record_label_definition) array)
+      (representation : Types.record_representation)
+      (extended_expression : expression option)
+      : expr =
+  match extended_expression, representation with
+  | None, Record_regular ->
+     (* This explicitly defines the whole record in the expected way. *)
+     begin
+       let body =
+         (* Each element of the array defines a new field of the record. *)
+         Array.fold_right
+           (fun (elt, e) expr ->
+             match e with
+             | Kept _ -> assert false
+             | Overridden (_, e) ->
+                let name : string = elt.lbl_name in
+                let body : expr = translate_expression e in
+                (name, body) :: expr)
+           fields []
+       in
+       ERecord (body)
+     end
+  | Some e, Record_regular ->
+     (* This defines a modification to an existing record *)
+     begin
+       let body =
+         (* Each element of the array defines a new field of the record. *)
+         Array.fold_right
+           (fun (_elt, e) expr ->
+             match e with
+             | Kept _ -> expr
+             | Overridden (li, e) ->
+                let name : string = unqualify (txt li) in
+                let body : expr = translate_expression e in
+                (name, body) :: expr)
+           fields []
+       in
+       ERecordUpdate (translate_expression e, body)
+     end
+  | _, r ->
+     (match r with
+      | Record_regular -> assert false
+      | Record_float -> assert false
+      | Record_unboxed _ -> assert false
+      | Record_inlined _ ->
+         (* Inlined records are not supported yet. *)
+         EString "TODO: inlined record are not supported yet."
+      | Record_extension _ -> assert false)
 
 (* -------------------------------------------------------------------------- *)
 
