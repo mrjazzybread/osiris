@@ -226,18 +226,37 @@ let translate_computation_pattern (pat : computation general_pattern) : pat =
 
 (* -------------------------------------------------------------------------- *)
 
+(* N-ary function applications are encoded in terms of nested binary function
+   applications. *)
+
+let apply e1 e2 =
+  EApp (e1, e2)
+
+let apply e1 e2s =
+  List.fold_left apply e1 e2s
+
+(* -------------------------------------------------------------------------- *)
+
 (* Expressions. *)
 
 let rec translate_expression (e: expression) : expr =
   let loc = e.exp_loc in
   match e.exp_desc with
-  | Texp_constant c -> translate_exp_constant loc c
+
+  | Texp_ident (path, id, _) ->
+      EPath (translate_exp_ident path id)
+
+  | Texp_constant c ->
+      translate_exp_constant loc c
 
   | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
       (* [param] is apparently meaningless. *)
       (* [partial] tells whether the case analysis is partial or exhaustive. *)
       begin match cases with
-      | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ }; c_guard = None; c_rhs = e }] ->
+      | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ };
+           c_guard = None;
+           c_rhs = e
+         }] ->
           (* We recognize the special case of [fun x -> e]. In this case
              we can use [AnonFun], a primitive form in the Osiris AST. *)
           assert (partial = Total);
@@ -254,21 +273,10 @@ let rec translate_expression (e: expression) : expr =
   | Texp_function { arg_label = Optional _; _ } ->
       eunsupported loc "optional argument"
 
-  | Texp_apply (f, el) ->
-     List.fold_left
-       (fun f a ->
-         (* Labels are completely ignored here. *)
-         match a with
-         | _, None -> assert false
-         | _, Some e ->
-            let e = translate_expression e in
-            EApp (f, e))
-       (translate_expression f) el
+  | Texp_apply (e, args) ->
+      apply (translate_expression e) (translate_labeled_arguments loc args)
 
   | Texp_assert e -> EAssert (translate_expression e)
-
-  | Texp_ident (path, id, _) ->
-      EPath (translate_exp_ident path id)
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expression e)
@@ -348,6 +356,19 @@ let rec translate_expression (e: expression) : expr =
   | Texp_letop _ -> assert false
   | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
+
+and translate_labeled_arguments loc args =
+  List.map (translate_labeled_argument loc) args
+
+and translate_labeled_argument loc arg : expr =
+  match arg with
+  | Nolabel, Some e ->
+      (* An ordinary unlabeled argument. *)
+      translate_expression e
+  | _, _ ->
+      (* A labeled argument, or an unlabeled argument that participates
+         in a labeled function application. *)
+      eunsupported loc "labeled arguments"
 
 (* -------------------------------------------------------------------------- *)
 
