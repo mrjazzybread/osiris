@@ -1,14 +1,47 @@
+open Printf
+let map = List.map
 open Syntax
 open Coq
 
-let string_literal s = plain (Printf.sprintf "\"%s\"" s)
+(* -------------------------------------------------------------------------- *)
+
+(* Variables, module names, data constructors, and field names are
+   represented in Coq as strings. *)
+
+let quote s =
+  plain (sprintf "\"%s\"" s)
+
+let var =
+  quote
+
+let data =
+  quote
+
+let field =
+  quote
 
 (* -------------------------------------------------------------------------- *)
 
-let translate_bool b =
+(* Integer literals. *)
+
+let int i =
+  plain (string_of_int i)
+
+(* -------------------------------------------------------------------------- *)
+
+(* String literals. *)
+
+let string s =
+  quote (String.escaped s)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Character literals. *)
+
+let bool b =
   if b then plain "true" else plain "false"
 
-let translate_char (cc : char) : expression =
+let char (cc : char) =
   let i = int_of_char cc in
   let d0 = i land 1 <> 0
   and d1 = i land 2 <> 0
@@ -20,335 +53,316 @@ let translate_char (cc : char) : expression =
   and d7 = i land 128 <> 0
   in
   (* In Coq, a [char] is represented by the type [ascii]. Each character is
-     represented by eight booleans. *)
-  c "Ascii" (List.map translate_bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
+     represented by eight Booleans. *)
+  c "Ascii" (map bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
 
-let rec translate_pattern (p: pat) : expression =
-  match p with
+(* -------------------------------------------------------------------------- *)
 
-  | PUnsupported ->
-      plain "PUnsupported"
-  (* The wildcard pattern *)
-  | PAny ->
-      plain "PAny"
-  (* A variable *)
-  | PVar  v ->
-      c "PVar" [string_literal v]
-  (* An alias pattern [p as x] *)
-  | PAlias (p, v) ->
-      c "PAlias" [ translate_pattern p; string_literal v ]
-  (* A disjunction pattern [p1 | p2] *)
-  | POr (p1, p2) -> (* of pat * pat *)
-     c "POr" [ translate_pattern p1; translate_pattern p2 ]
-  (* A tuple pattern *)
-  | PTuple [] ->
-      plain "(PTuple PNil)"
-  | PTuple ps -> (* of pats *)
-      clist "PMkTuple" (List.map translate_pattern ps)
-  (* A data constructor pattern *)
-  | PData (d, p) ->
-      c "PData" [ string_literal d; translate_pattern p ]
-  (* A record pattern *)
-  | PRecord fps ->
-      c "PRecord" [translate_fpats fps]
-  (* Constant patterns *)
-  | PInt i ->
-      c "PInt" [plain (string_of_int i)]
-  | PChar c' ->
-      c "PChar" [translate_char c']
-  | PString s ->
-     c "PString" [string_literal (String.escaped s)]
+(* Paths. *)
 
-and translate_fpats fpats =
-  match fpats with
-  | [] ->
-      plain "FPNil"
-  | (f, pat) :: fpats ->
-      c "FPCons" [ string_literal f ;
-                          translate_pattern pat ;
-                          translate_fpats fpats ]
-
-let translate_path (x: path) : expression =
+let path (pi : path) =
   (* We could use [MkPath], but its definition in Coq involves [rev].
      This is very bad, because using [rev] is bad in the first place
      and because [rev] is itself defined in an inefficient way.
      So, better use [MkPathRev]. *)
-  clist "MkPathRev" (List.rev (List.map string_literal x))
+  clist "MkPathRev" (List.rev (map var pi))
 
-let rec translate_anonfun (a : anonfun) : expression =
-  match a with
-  | AnonFun (x, e) ->
-      c "AnonFun" [ string_literal x ;
-                          translate_expression e ]
-  | AnonFunction bs ->
-      c "AnonFunction" [translate_branches bs]
+(* -------------------------------------------------------------------------- *)
 
-and translate_branch : branch -> expression = function
-  | Branch (p, e) ->
-      c "Branch" [ translate_pattern p ;
-                          translate_expression e ]
+(* Patterns. *)
 
-and translate_branches (bs: branches) : expression =
-  clist "MkBranches" (List.map translate_branch bs)
+let rec pat (p : pat) =
+  match p with
 
-and translate_fexprs (fs: fexprs) : expression =
-  clist "MkFexprs" (List.map translate_fexpr fs)
+  | PUnsupported ->
+      c "PUnsupported" []
 
-and translate_fexpr (f, e) =
-  pair (string_literal f) (translate_expression e)
+  | PAny ->
+      c "PAny" []
 
-and exprs es =
-  List.map translate_expression es
+  | PVar  x ->
+      c "PVar" [ var x ]
 
-and cexprs s es =
-  c s (exprs es)
+  | PAlias (p, x) ->
+      c "PAlias" [ pat p; var x ]
 
-and translate_expression (e: expr) : expression =
+  | POr (p1, p2) ->
+      c "POr" [ pat p1; pat p2 ]
+
+  | PTuple ps ->
+      clist "PMkTuple" (map pat ps)
+
+  | PData (d, p) ->
+      c "PData" [ data d; pat p ]
+
+  | PRecord fps ->
+      c "PRecord" [ fpats fps ]
+
+  | PInt i ->
+      c "PInt" [ int i ]
+
+  | PChar cc ->
+      c "PChar" [ char cc ]
+
+  | PString s ->
+      c "PString" [ string s ]
+
+and fpats fps =
+  clist "MkFpats" (map fpat fps)
+
+and fpat (f, p) =
+  pair (field f) (pat p)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions. *)
+
+let rec expr (e : expr) =
   match e with
 
+  | ELink x ->
+      plain x
+
   | EUnsupported ->
-      plain "EUnsupported"
+      c "EUnsupported" []
 
-  | ELink e -> plain e
-
-  | EChar c' ->
-      c "EChar" [translate_char c']
-
-  (* Path: [x] or [πx] *)
   | EPath x ->
-      c "EPath" [translate_path x]
+      c "EPath" [ path x ]
 
-  (* An anonymous function *)
   | EAnonFun a ->
-      c "EAnonFun" [translate_anonfun a]
+      c "EAnonFun" [ anonfun a ]
 
-  (* Function application: [e1 e2] *)
-  (* Every function is considered unary *)
   | EApp (e1, e2) ->
-      c "EApp" [ translate_expression e1 ;
-                        translate_expression e2 ]
+      cexprs "EApp" [ e1; e2 ]
 
-  (* Tuple construction: [(e1, e2, )] *)
-  | ETuple el ->
-      clist "EMkTuple" (List.map translate_expression el)
+  | ETuple es ->
+      clist "EMkTuple" (map expr es)
 
-  (* Data constructor application: [A (e)] *)
-  (* Every data constructor is considered unary *)
-  | EData (a, e) ->
-      c "EData" [ string_literal a ;
-                         translate_expression e ]
+  | EData (d, e) ->
+      c "EData" [ data d; expr e ]
 
-  (* Record construction: [{ fs = es }] *)
   | ERecord fs ->
-      c "ERecord" [translate_fexprs fs]
+      c "ERecord" [ fexprs fs ]
 
-  (* Record update: [{ e and fs = es }] *)
-  | ERecordUpdate (er, fs) ->
-     c "ERecordUpdate"
-              [ translate_expression er ;
-                translate_fexprs fs ]
+  | ERecordUpdate (e, fes) ->
+      c "ERecordUpdate" [ expr e; fexprs fes ]
 
-  (* Record access: [ef] *)
-  | ERecordAccess (er, field) ->
-      c "ERecordAccess" [ translate_expression er ;
-                                 string_literal field ]
+  | ERecordAccess (e, f) ->
+      c "ERecordAccess" [ expr e; field f ]
 
-  (* Strings *)
-  | EString s ->
-     c "EString" [string_literal (String.escaped s)]
+  | EBoolConj (e1, e2) ->
+      cexprs "EBoolConj" [ e1; e2 ]
 
-  (* Integer literals *)
+  | EBoolDisj (e1, e2) ->
+      cexprs "EBoolDisj" [ e1; e2 ]
+
+  | EBoolNeg e ->
+      cexprs "EBoolNeg" [ e ]
+
   | EInt i ->
-     c "EInt" [plain (string_of_int i)]
+      c "EInt" [int i]
 
-  (* Polymorphic comparison operators *)
+  | EMaxInt ->
+      c "EMaxInt" []
 
-  (* Non-recursive local definition: [let bs in e] *)
-  | ELet (bds, e) ->
-      c "ELet" [ translate_bindings bds ;
-                        translate_expression e ]
+  | EMinInt ->
+      c "EMinInt" []
 
-  (* Recursive local definition: [let rbs in e] *)
-  | ELetRec (rbds, e) ->
-      c "ELetRec" [ translate_rec_bindings rbds ;
-                    translate_expression e ]
+  | EIntNeg e ->
+      cexprs "EIntNeg" [e]
 
-  (* Local module definition: [let module M = me in e] *)
-  | ELetModule (name, m, e) ->
-      c "ELetModule" [ string_literal name ;
-                              translate_module m ;
-                              translate_expression e ]
+  | EIntAdd (e1, e2) ->
+      cexprs "EIntAdd" [e1; e2]
 
-  (* Local [open] directive: [let open me in e] *)
+  | EIntSub (e1, e2) ->
+      cexprs "EIntSub" [e1; e2]
+
+  | EIntMul (e1, e2) ->
+      cexprs "EIntMul" [e1; e2]
+
+  | EIntDiv (e1, e2) ->
+      cexprs "EIntDiv" [e1; e2]
+
+  | EIntMod (e1, e2) ->
+      cexprs "EIntMod" [e1; e2]
+
+  | EChar cc ->
+      c "EChar" [char cc]
+
+  | EString s ->
+      c "EString" [string s]
+
+  | EOpPhysEq (e1, e2) ->
+      cexprs "EOpPhysEq" [e1; e2]
+
+  | EOpEq (e1, e2) ->
+      cexprs "EOpEq" [e1; e2]
+
+  | EOpNe (e1, e2) ->
+      cexprs "EOpNe" [e1; e2]
+
+  | EOpLt (e1, e2) ->
+      cexprs "EOpLt" [e1; e2]
+
+  | EOpLe (e1, e2) ->
+      cexprs "EOpLe" [e1; e2]
+
+  | EOpGt (e1, e2) ->
+      cexprs "EOpGt" [e1; e2]
+
+  | EOpGe (e1, e2) ->
+      cexprs "EOpGe" [e1; e2]
+
+  | ELet (bs, e) ->
+      c "ELet" [ bindings bs; expr e ]
+
+  | ELetRec (rbs, e) ->
+      c "ELetRec" [ rec_bindings rbs; expr e ]
+
+  | ELetModule (m, me, e) ->
+      c "ELetModule" [ var m; mexpr me; expr e ]
+
   | ELetOpen (me, e) ->
-     c "ELetOpen" [ translate_module me ;
-                            translate_expression e ]
+      c "ELetOpen" [ mexpr me; expr e ]
 
-  (* Sequence: [e1; e2] *)
   | ESeq (e1, e2) ->
-     c "ESeq" [ translate_expression e1 ;
-                translate_expression e2 ]
+      cexprs "ESeq" [ e1; e2 ]
 
-  (* Conditional: [if e then e1] and [if e then e1 else e2] *)
   | EIfThen (e, e1) ->
-      c "EIfThen" [ translate_expression e ;
-                    translate_expression e1 ]
+      cexprs "EIfThen" [ e; e1 ]
+
   | EIfThenElse (e, e1, e2) ->
-     c "EIfThenElse" [ translate_expression e ;
-                       translate_expression e1 ;
-                       translate_expression e2 ]
+      cexprs "EIfThenElse" [ e; e1; e2 ]
 
-  (* Pattern matching: [match e and bs] *)
   | EMatch (e, bs) ->
-      c "EMatch" [ translate_expression e ;
-                   translate_branches bs ]
+      c "EMatch" [ expr e; branches bs ]
 
-  (* Loop: [while e do body done] *)
   | EWhile (e1, e2) ->
-      c "EWhile" [ translate_expression e1 ;
-                   translate_expression e2 ]
-  (* Loop: [for x = e1 to e2 do e done] *)
+      cexprs "EWhile" [ e1; e2 ]
+
   | EFor (x, e1, e2, e3) ->
-      c "EFor" [ string_literal x ;
-                 translate_expression e1 ;
-                 translate_expression e2 ;
-                 translate_expression e3 ]
-
-  (* Runtime assertion: [assert(e)] *)
-  | EAssert e ->
-      c "EAssert" [translate_expression e]
-
-  | ERef e -> (* of expr *)
-      c "ERef" [translate_expression e]
+      c "EFor" [ var x; expr e1; expr e2; expr e3 ]
 
   | EAssertFalse ->
       c "EAssertFalse" []
 
-  | EBoolConj (e1, e2) ->
-      cexprs "EBoolConj" [e1; e2]
+  | EAssert e ->
+      cexprs "EAssert" [ e ]
 
-  | EBoolDisj (e1, e2) ->
-      cexprs "EBoolDisj" [e1; e2]
-
-  | EBoolNeg e ->
-      cexprs "EBoolNeg" [e]
+  | ERef e ->
+      cexprs "ERef" [ e ]
 
   | ELoad e ->
-      cexprs "ELoad" [e]
+      cexprs "ELoad" [ e ]
 
   | EStore (e1, e2) ->
-      cexprs "EStore" [e1; e2]
+      cexprs "EStore" [ e1; e2 ]
 
-  | EIntNeg e ->
-      cexprs "EIntNeg" [e]
-  | EIntAdd (e1, e2) ->
-      cexprs "EIntAdd" [e1; e2]
-  | EIntSub (e1, e2) ->
-      cexprs "EIntSub" [e1; e2]
-  | EIntMul (e1, e2) ->
-      cexprs "EIntMul" [e1; e2]
-  | EIntDiv (e1, e2) ->
-      cexprs "EIntDiv" [e1; e2]
-  | EIntMod (e1, e2) ->
-      cexprs "EIntMod" [e1; e2]
+and anonfun (a : anonfun) =
+  match a with
+  | AnonFun (x, e) ->
+      c "AnonFun" [ var x ;
+                          expr e ]
+  | AnonFunction bs ->
+      c "AnonFunction" [branches bs]
 
-  | EMaxInt ->
-      c "EMaxInt" []
-  | EMinInt ->
-      c "EMinInt" []
+and branch = function
+  | Branch (p, e) ->
+      c "Branch" [ pat p ;
+                          expr e ]
 
-  | EOpPhysEq (e1, e2) ->
-      cexprs "EOpPhysEq" [e1; e2]
-  | EOpEq (e1, e2) ->
-      cexprs "EOpEq" [e1; e2]
-  | EOpNe (e1, e2) ->
-      cexprs "EOpNe" [e1; e2]
-  | EOpLt (e1, e2) ->
-      cexprs "EOpLt" [e1; e2]
-  | EOpLe (e1, e2) ->
-      cexprs "EOpLe" [e1; e2]
-  | EOpGt (e1, e2) ->
-      cexprs "EOpGt" [e1; e2]
-  | EOpGe (e1, e2) ->
-      cexprs "EOpGe" [e1; e2]
+and branches (bs: branches) =
+  clist "MkBranches" (map branch bs)
+
+and fexprs (fs: fexprs) =
+  clist "MkFexprs" (map fexpr fs)
+
+and fexpr (f, e) =
+  pair (field f) (expr e)
+
+and exprs es =
+  map expr es
+
+and cexprs s es =
+  c s (exprs es)
 
 (* -------------------------------------------------------------------------- *)
 
 (* On bindings translation. *)
 
-and translate_binding  = function
+and binding  = function
   | BLink s -> plain s
   | Binding (p, e) ->
       c "Binding" [
-           translate_pattern p;
-           translate_expression e
+           pat p;
+           expr e
        ]
 
-and translate_rec_binding = function
+and rec_binding = function
   | RecBLink s -> plain s
-  | RecBinding (v, a) ->
+  | RecBinding (x, a) ->
       c "RecBinding" [
-           string_literal v ;
-           translate_anonfun a
+           var x ;
+           anonfun a
        ]
 
-and translate_bindings (bs: bindings) : expression =
-  clist "MkBindings" (List.map translate_binding bs)
+and bindings (bs : bindings) =
+  clist "MkBindings" (map binding bs)
 
-and translate_rec_bindings (rbs: rec_bindings) : expression =
-  clist "MkRecBindings" (List.map translate_rec_binding rbs)
+and rec_bindings (rbs : rec_bindings) =
+  clist "MkRecBindings" (map rec_binding rbs)
 
 (* -------------------------------------------------------------------------- *)
 
 (* On module translation. *)
 
-and translate_sitem : sitem -> expression = function
+and structure_item = function
   (* An auxiliary Coq top-level definition *)
   | ILink name ->
      plain name
 
   (* A non-recursive toplevel definition [let bs] *)
-  | ILet (bindings) ->
-     c "ILet" [translate_bindings bindings]
+  | ILet bs ->
+     c "ILet" [bindings bs]
 
   (* A recursive toplevel definition [let rec rbs] *)
-  | ILetRec (rec_bindings) ->
-     c "ILetRec" [translate_rec_bindings rec_bindings]
+  | ILetRec rbs ->
+     c "ILetRec" [rec_bindings rbs]
 
   (* A module definition [M = me] *)
-  | IModule (name, mexpr) ->
+  | IModule (name, me) ->
       c "IModule"
                     [ plain ("\"" ^ name ^ "\"");
-                      translate_module mexpr]
+                      mexpr me]
 
   (* An [open] directive [open me] *)
   | IOpen me ->
-      c "IOpen" [translate_module me]
+      c "IOpen" [mexpr me]
 
   (* An [include] directive [include me] *)
-  | IInclude mexpr ->
-      c "IInclude" [translate_module mexpr]
+  | IInclude me ->
+      c "IInclude" [mexpr me]
 
-and translate_sitems l =
-  List.map translate_sitem l
+and structure_items l =
+  map structure_item l
 
-and translate_module = function
+and mexpr = function
   | MUnsupported ->
       plain "MUnsupported"
-  | MStruct sitems ->
-     clist "MkStruct" (translate_sitems sitems)
+  | MStruct is ->
+     clist "MkStruct" (structure_items is)
 
   (* Auxiliary top-level Coq definition. *)
   | MLink s -> plain s
 
-  | MPath p -> c "MPath" [translate_path p]
+  | MPath p -> c "MPath" [path p]
   | MCoercion _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
 
 let definition_of_ast = function
-  | OModule m -> "mexpr", translate_module m
-  | OExpr e -> "expr", translate_expression e
-  | ORecBinding rbd -> "rec_binding", translate_rec_binding rbd
-  | OBinding bd -> "binding", translate_binding bd
-  | OSItem sitem -> "sitem", translate_sitem sitem
+  | OModule m -> "mexpr", mexpr m
+  | OExpr e -> "expr", expr e
+  | ORecBinding rbd -> "rec_binding", rec_binding rbd
+  | OBinding bd -> "binding", binding bd
+  | OSItem sitem -> "sitem", structure_item sitem

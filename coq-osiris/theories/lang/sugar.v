@@ -41,6 +41,16 @@ Definition Branch1 p e : branches :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Lists of field-pattern pairs. *)
+
+Fixpoint MkFpats (fps : list (field * pat)) : fpats :=
+  match fps with
+  | [] =>
+      FPNil
+  | (f, p) :: fps =>
+      FPCons f p (MkFpats fps)
+  end.
+
 (* Lists of field-expression pairs. *)
 
 Fixpoint MkFexprs (fes : list (field * expr)) : fexprs :=
