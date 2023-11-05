@@ -110,15 +110,20 @@ let translate_mod_ident path id : path =
 (* Long identifiers are unqualified (turned into short identifiers) when
    they designate data constructors or record fields. *)
 
-let unqualify : Longident.t -> data =
-  Longident.last
+let translate_data_constructor id constructor_desc : data =
+  (* [id] is the record field that appears in the source code, possibly
+     a long identifier. *)
+  (* [constructor_desc] is the constructor description constructed by
+     the OCaml type-checker. *)
+  assert (Longident.last (txt id) = constructor_desc.cstr_name);
+  constructor_desc.cstr_name
 
 let translate_record_field id label_desc : field =
   (* [id] is the record field that appears in the source code, possibly
      a long identifier. *)
   (* [label_desc] is the field description constructed by the OCaml
      type-checker. *)
-  assert (unqualify (txt id) = label_desc.lbl_name);
+  assert (Longident.last (txt id) = label_desc.lbl_name);
   label_desc.lbl_name
 
 (* -------------------------------------------------------------------------- *)
@@ -188,11 +193,11 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_tuple pats ->
       PTuple (translate_pats pats)
 
-  | Tpat_construct (i, _constructor_desc, pats, _optional_type_annotation) ->
+  | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-      let data = unqualify (txt i) in
-     PData (data, PTuple (translate_pats pats))
+      let data = translate_data_constructor id constructor_desc in
+      PData (data, PTuple (translate_pats pats))
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -292,8 +297,8 @@ let rec translate_expr (e: expression) : expr =
   | Texp_tuple es ->
       ETuple (translate_exprs es)
 
-  | Texp_construct (c, _constructor_desc, es) ->
-      let data = unqualify (txt c) in
+  | Texp_construct (id, constructor_desc, es) ->
+      let data = translate_data_constructor id constructor_desc in
       EData (data, ETuple (translate_exprs es))
 
   | Texp_variant _ ->
@@ -492,40 +497,29 @@ and translate_rec_bindings vbs =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_record_construction
-  (fields: (label_description * record_label_definition) array)
-: expr =
-       let body =
-         (* Each element of the array defines a new field of the record. *)
-         Array.fold_right
-           (fun (label_desc, e) expr ->
-             match e with
-             | Kept _ -> assert false
-             | Overridden (_, e) ->
-                let name : string = label_desc.lbl_name in
-                let body : expr = translate_expr e in
-                (name, body) :: expr)
-           fields []
-       in
-       ERecord (body)
+(* Records. *)
 
-and translate_record_update
-  (e : expression)
-  (fields: (label_description * record_label_definition) array)
-: expr =
-       let body =
-         (* Each element of the array defines a new field of the record. *)
-         Array.fold_right
-           (fun (_elt, e) expr ->
-             match e with
-             | Kept _ -> expr
-             | Overridden (li, e) ->
-                let name : string = unqualify (txt li) in
-                let body : expr = translate_expr e in
-                (name, body) :: expr)
-           fields []
-       in
-       ERecordUpdate (translate_expr e, body)
+and translate_record_construction fields : expr =
+  ERecord (translate_record_field_defs fields)
+
+and translate_record_update e fields : expr =
+  ERecordUpdate (translate_expr e, translate_record_field_defs fields)
+
+and translate_record_field_defs fields : fexprs =
+  List.filter_map translate_record_field_def (Array.to_list fields)
+
+and translate_record_field_def (label_desc, label_def) : fexpr option =
+  match label_def with
+  | Kept _ ->
+      (* This field is omitted. This can occur only in a record update
+          expression. *)
+      None
+  | Overridden (id, e) ->
+      (* This field is defined. *)
+      Some (
+        translate_record_field id label_desc,
+        translate_expr e
+      )
 
 (* -------------------------------------------------------------------------- *)
 
