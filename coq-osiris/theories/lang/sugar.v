@@ -61,6 +61,16 @@ Fixpoint MkFexprs (fes : list (field * expr)) : fexprs :=
       FECons f e (MkFexprs fes)
   end.
 
+(* Lists of field-coercion pairs. *)
+
+Fixpoint MkFCoercions (fcs : list (field * coercion)) : fcoercions :=
+  match fcs with
+  | [] =>
+      CNil
+  | (f, c) :: fcs =>
+      CCons f c (MkFCoercions fcs)
+  end.
+
 (* Bindings. *)
 
 Fixpoint MkBindings (bs : list binding) : bindings :=

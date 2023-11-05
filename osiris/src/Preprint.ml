@@ -115,6 +115,22 @@ and fpat (f, p) =
 
 (* -------------------------------------------------------------------------- *)
 
+(* Coercions. *)
+
+let rec coercion = function
+  | CIdentity ->
+      c "CIdentity" []
+  | CStruct fcs ->
+      c "CStruct" [ fcoercions fcs ]
+
+and fcoercions fcs =
+  clist "MkFCoercions" (map fcoercion fcs)
+
+and fcoercion (f, co) =
+  pair (field f) (coercion co)
+
+(* -------------------------------------------------------------------------- *)
+
 (* Expressions. *)
 
 let rec expr (e : expr) =
@@ -258,6 +274,9 @@ let rec expr (e : expr) =
   | EStore (e1, e2) ->
       c "EStore" [ expr e1; expr e2 ]
 
+and exprs es =
+  map expr es
+
 and anonfun = function
   | AnonFun (x, e) ->
       c "AnonFun" [ var x; expr e ]
@@ -277,28 +296,21 @@ and fexprs (fes : fexprs) =
 and fexpr (f, e) =
   pair (field f) (expr e)
 
-and exprs es =
-  map expr es
-
 (* -------------------------------------------------------------------------- *)
 
-(* On bindings translation. *)
+(* Bindings. *)
 
-and binding  = function
-  | BLink s -> plain s
+and binding = function
+  | BLink x ->
+      plain x
   | Binding (p, e) ->
-      c "Binding" [
-           pat p;
-           expr e
-       ]
+      c "Binding" [ pat p; expr e ]
 
 and rec_binding = function
-  | RecBLink s -> plain s
+  | RecBLink x ->
+      plain x
   | RecBinding (x, a) ->
-      c "RecBinding" [
-           var x ;
-           anonfun a
-       ]
+      c "RecBinding" [ var x; anonfun a ]
 
 and bindings (bs : bindings) =
   clist "MkBindings" (map binding bs)
@@ -308,49 +320,53 @@ and rec_bindings (rbs : rec_bindings) =
 
 (* -------------------------------------------------------------------------- *)
 
-(* On module translation. *)
+(* Structure items. *)
 
-and structure_item = function
-  (* An auxiliary Coq top-level definition *)
-  | ILink name ->
-     plain name
+and structure_item (item : sitem) =
+  match item with
 
-  (* A non-recursive toplevel definition [let bs] *)
+  | ILink x ->
+      plain x
+
   | ILet bs ->
-     c "ILet" [bindings bs]
+     c "ILet" [ bindings bs ]
 
-  (* A recursive toplevel definition [let rec rbs] *)
   | ILetRec rbs ->
-     c "ILetRec" [rec_bindings rbs]
+     c "ILetRec" [ rec_bindings rbs ]
 
-  (* A module definition [M = me] *)
-  | IModule (name, me) ->
-      c "IModule"
-                    [ plain ("\"" ^ name ^ "\"");
-                      mexpr me]
+  | IModule (m, me) ->
+      c "IModule" [ var m; mexpr me]
 
-  (* An [open] directive [open me] *)
   | IOpen me ->
-      c "IOpen" [mexpr me]
+      c "IOpen" [ mexpr me ]
 
-  (* An [include] directive [include me] *)
   | IInclude me ->
-      c "IInclude" [mexpr me]
+      c "IInclude" [ mexpr me ]
 
-and structure_items l =
-  map structure_item l
+and structure_items items =
+  map structure_item items
 
-and mexpr = function
+(* -------------------------------------------------------------------------- *)
+
+(* Module expressions. *)
+
+and mexpr (me : mexpr) =
+  match me with
+
+  | MLink x ->
+      plain x
+
   | MUnsupported ->
-      plain "MUnsupported"
-  | MStruct is ->
-     clist "MkStruct" (structure_items is)
+      c "MUnsupported" []
 
-  (* Auxiliary top-level Coq definition. *)
-  | MLink s -> plain s
+  | MPath p ->
+      c "MPath" [ path p ]
 
-  | MPath p -> c "MPath" [path p]
-  | MCoercion _ -> assert false
+  | MStruct items ->
+      clist "MkStruct" (structure_items items)
+
+  | MCoercion (me, co) ->
+      c "MCoercion" [ mexpr me; coercion co ]
 
 (* -------------------------------------------------------------------------- *)
 
