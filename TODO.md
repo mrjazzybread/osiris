@@ -304,11 +304,9 @@
   + define `compare`, `min`, `max` as library functions,
     based on other primitive operations
 * Polymorphic variants
-* Modules, functors, signature ascription, `open` and `include` directives
-  - Note that `open` and `include` break the lexical scoping discipline
-    (and require keeping track of module signatures at runtime)
-    unless we ask the OCaml compiler to perform disambiguation and annotate
-    these constructs with a (fully expanded) signature.
+* Modules, functors, signature ascription
+  + Functor application contains an implicit signature ascription
+  + An `.mli` file imposes an implicit signature ascription
 * Unspecified evaluation order of toplevel modules
 * First-class modules
 * Extensible algebraic data types
