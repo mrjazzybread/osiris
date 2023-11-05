@@ -245,9 +245,15 @@ and translate_expression (e: expr) : expression =
 
   (* The following does not exist in OCaml. Therefore, it will not show up
      here. *)
-  | EBoolConj _ (* of expr * expr *)
-  | EBoolDisj _ (* of expr * expr *)
-  | EBoolNeg _ (* of expr *)
+  | EBoolConj (e1, e2) ->
+      EConstr ("EBoolConj", [ translate_expression e1; translate_expression e2 ])
+
+  | EBoolDisj (e1, e2) ->
+      EConstr ("EBoolDisj", [ translate_expression e1; translate_expression e2 ])
+
+  | EBoolNeg e ->
+      EConstr ("EBoolNeg", [ translate_expression e ])
+
   | EMaxInt
   | EMinInt
   | EIntNeg _ (* of expr *)
