@@ -385,7 +385,7 @@ Fixpoint extend δ p v : micro env :=
   | PChar c', VChar c =>
       if Ascii.eqb c c' then ret δ else next()
   | PString s', VString s =>
-      if String.eqb s s' then ret δ else next()
+      if s =? s' then ret δ else next()
   | PTuple _, _ =>
       type_mismatch "tuple expected"
   | PData _ _, _ =>
@@ -494,6 +494,10 @@ Fixpoint eq_val v1 v2 : micro bool :=
   match v1, v2 with
   | VInt i1, VInt i2 =>
       ret (int.eq i1 i2)
+  | VChar c1, VChar c2 =>
+      ret (Ascii.eqb c1 c2)
+  | VString s1, VString s2 =>
+      ret (s1 =? s2)
   | VTuple vs1, VTuple vs2 =>
       eq_vals vs1 vs2
   | VData c1 v1, VData c2 v2 =>

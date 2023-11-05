@@ -7,6 +7,9 @@ type expression =
   | EConstr of string * expression list
   | EList of string * expression list
 
+let c s es =
+  EConstr (s, es)
+
 (* -------------------------------------------------------------------------- *)
 
 (* Miscellaneous functions. *)
@@ -122,6 +125,12 @@ and translate_fexprs (fs: fexprs) : expression =
     string_literal
     translate_expression
     fs
+
+and exprs es =
+  List.map translate_expression es
+
+and cexprs s es =
+  c s (exprs es)
 
 and translate_expression (e: expr) : expression =
   match e with
@@ -273,15 +282,23 @@ and translate_expression (e: expr) : expression =
   | EIntMod (e1, e2) -> (* of expr * expr *)
      EConstr ("EIntMod", [translate_expression e1; translate_expression e2])
 
-  | EMaxInt
-  | EMinInt
-  | EOpEq _ (* of expr * expr *)
-  | EOpNe _ (* of expr * expr *)
-  | EOpLt _ (* of expr * expr *)
-  | EOpLe _ (* of expr * expr *)
-  | EOpGt _ (* of expr * expr *)
-  | EOpGe _ (* of expr * expr *)
-    -> assert false
+  | EMaxInt ->
+      EConstr ("EMaxInt", [])
+  | EMinInt ->
+      EConstr ("EMinInt", [])
+
+  | EOpEq (e1, e2) ->
+      cexprs "EOpEq" [e1; e2]
+  | EOpNe (e1, e2) ->
+      cexprs "EOpNe" [e1; e2]
+  | EOpLt (e1, e2) ->
+      cexprs "EOpLt" [e1; e2]
+  | EOpLe (e1, e2) ->
+      cexprs "EOpLe" [e1; e2]
+  | EOpGt (e1, e2) ->
+      cexprs "EOpGt" [e1; e2]
+  | EOpGe (e1, e2) ->
+      cexprs "EOpGe" [e1; e2]
 
 (* -------------------------------------------------------------------------- *)
 

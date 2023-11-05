@@ -284,12 +284,14 @@ let project_stdlib_path (e : expression) : var =
 
 let translate_stdlib_call (f : var) (es : exprs) =
   match f, es with
+
   | "not", [e] ->
       EBoolNeg e
   | "&&", [e1; e2] ->
       EBoolConj (e1, e2)
   | "||", [e1; e2] ->
       EBoolDisj (e1, e2)
+
   | "~-", [e] ->
       EIntNeg e
   | "+", [e1; e2] ->
@@ -302,6 +304,20 @@ let translate_stdlib_call (f : var) (es : exprs) =
       EIntDiv (e1, e2)
   | "mod", [e1; e2] ->
       EIntMod (e1, e2)
+
+  | "=", [e1; e2] ->
+      EOpEq (e1, e2)
+  | "<>", [e1; e2] ->
+      EOpNe (e1, e2)
+  | "<", [e1; e2] ->
+      EOpLt (e1, e2)
+  | "<=", [e1; e2] ->
+      EOpLe (e1, e2)
+  | ">", [e1; e2] ->
+      EOpGt (e1, e2)
+  | ">=", [e1; e2] ->
+      EOpGe (e1, e2)
+
   | "!", [e] ->
       ELoad e
   | ":=", [e1; e2] ->
