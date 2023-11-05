@@ -9,6 +9,10 @@ depends: [
   "ocaml"
   "dune" {>= "3.8"}
   "ocaml-compiler-libs"
+  "{"
+  "="
+  "4.14.1"
+  "}"
   "pprint"
   "base"
   "csexp"
