@@ -370,9 +370,15 @@ and mexpr (me : mexpr) =
 
 (* -------------------------------------------------------------------------- *)
 
-let definition_of_ast = function
-  | OModule m -> "mexpr", mexpr m
-  | OExpr e -> "expr", expr e
-  | ORecBinding rbd -> "rec_binding", rec_binding rbd
-  | OBinding bd -> "binding", binding bd
-  | OSItem sitem -> "sitem", structure_item sitem
+let definition def =
+  match def.rhs with
+  | OExpr e ->
+      def.lhs, "expr", expr e
+  | OBinding b ->
+      def.lhs, "binding", binding b
+  | ORecBinding rb ->
+      def.lhs, "rec_binding", rec_binding rb
+  | OModule me ->
+      def.lhs, "mexpr", mexpr me
+  | OSItem item ->
+      def.lhs, "sitem", structure_item item
