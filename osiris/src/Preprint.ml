@@ -1,11 +1,7 @@
 open Syntax
+open Coq
 
 (* -------------------------------------------------------------------------- *)
-
-type expression =
-  | EPlain of string
-  | EConstr of string * expression list
-  | EList of string * expression list
 
 let c s es =
   EConstr (s, es)

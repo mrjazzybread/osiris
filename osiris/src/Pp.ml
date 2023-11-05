@@ -22,7 +22,7 @@ let parens d =
 
 (* -------------------------------------------------------------------------- *)
 
-let rec pretty_printer (expr : Preprint.expression) =
+let rec pretty_printer (expr : Coq.expression) =
   match expr with
   | EPlain s -> string s
   | EConstr (c, []) -> string c

@@ -1,6 +1,1 @@
-type expression =
-  | EPlain of string
-  | EConstr of string * expression list
-  | EList of string * expression list
-
-val definition_of_ast : Syntax.rhs -> (string * expression)
+val definition_of_ast : Syntax.rhs -> string * Coq.expression
