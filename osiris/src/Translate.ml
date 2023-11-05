@@ -251,21 +251,7 @@ let rec translate_expression (e: expression) : expr =
 
   | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
       (* [param] is apparently meaningless. *)
-      (* [partial] tells whether the case analysis is partial or exhaustive. *)
-      begin match cases with
-      | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ };
-           c_guard = None;
-           c_rhs = e
-         }] ->
-          (* We recognize the special case of [fun x -> e]. In this case
-             we can use [AnonFun], a primitive form in the Osiris AST. *)
-          assert (partial = Total);
-          EAnonFun (AnonFun (txt x, translate_expression e))
-      | _ ->
-          (* In the general case, this function has the form [function bs].
-             Then we use [AnonFunction], a derived form in Osiris. *)
-          EAnonFun (AnonFunction (translate_value_cases cases))
-      end
+      translate_function cases partial
 
   | Texp_function { arg_label = Labelled _; _ } ->
       eunsupported loc "labeled argument"
@@ -286,8 +272,14 @@ let rec translate_expression (e: expression) : expr =
       ETuple (translate_expressions es)
 
   | Texp_construct (c, _constructor_desc, es) ->
-     let data = unqualify (txt c) in
-     EData (data, ETuple (translate_expressions es))
+      let data = unqualify (txt c) in
+      EData (data, ETuple (translate_expressions es))
+
+  | Texp_variant (_, _) ->
+      eunsupported loc "polymorphic variant"
+
+  | Texp_record { fields; representation; extended_expression } ->
+      translate_record fields representation extended_expression
 
   | Texp_assert e -> EAssert (translate_expression e)
 
@@ -309,9 +301,6 @@ let rec translate_expression (e: expression) : expr =
   | Texp_ifthenelse (e1, e2, None) ->
      EIfThen (translate_expression e1,
               translate_expression e2)
-  | Texp_record { fields; representation; extended_expression } ->
-     translate_record
-       fields representation extended_expression
 
   | Texp_field (e, _, label) ->
      ERecordAccess (translate_expression e,
@@ -329,7 +318,6 @@ let rec translate_expression (e: expression) : expr =
   | Texp_array _ ->
       eunsupported loc "array expression"
 
-  | Texp_variant (_, _) -> assert false
   | Texp_setfield (_, _, _, _) ->
      EString "Mutable records and arrays are not supported yet."
 
@@ -358,6 +346,21 @@ let rec translate_expression (e: expression) : expr =
 
 and translate_expressions es : exprs =
   List.map translate_expression es
+
+and translate_function cases partial : expr =
+  match cases with
+  | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ };
+       c_guard = None;
+       c_rhs = e
+     }] ->
+      (* We recognize the special case of [fun x -> e]. In this case
+         we can use [AnonFun], a primitive form in the Osiris AST. *)
+      assert (partial = Total);
+      EAnonFun (AnonFun (txt x, translate_expression e))
+  | _ ->
+      (* In the general case, this function has the form [function bs].
+         Then we use [AnonFunction], a derived form in Osiris. *)
+      EAnonFun (AnonFunction (translate_value_cases cases))
 
 and translate_labeled_arguments loc args =
   List.map (translate_labeled_argument loc) args
