@@ -286,6 +286,26 @@ let translate_stdlib_call (f : var) (es : exprs) =
   match f, es with
   | "not", [e] ->
       EBoolNeg e
+  | "&&", [e1; e2] ->
+      EBoolConj (e1, e2)
+  | "||", [e1; e2] ->
+      EBoolDisj (e1, e2)
+  | "~-", [e] ->
+      EIntNeg e
+  | "+", [e1; e2] ->
+      EIntAdd (e1, e2)
+  | "-", [e1; e2] ->
+      EIntSub (e1, e2)
+  | "*", [e1; e2] ->
+      EIntMul (e1, e2)
+  | "/", [e1; e2] ->
+      EIntDiv (e1, e2)
+  | "mod", [e1; e2] ->
+      EIntMod (e1, e2)
+  | "!", [e] ->
+      ELoad e
+  | ":=", [e1; e2] ->
+      EStore (e1, e2)
   | _, _ ->
       raise NotStdlib
 

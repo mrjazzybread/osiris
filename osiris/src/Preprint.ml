@@ -243,8 +243,6 @@ and translate_expression (e: expr) : expression =
   | EAssertFalse
     -> EPlain "EAssertFalse"
 
-  (* The following does not exist in OCaml. Therefore, it will not show up
-     here. *)
   | EBoolConj (e1, e2) ->
       EConstr ("EBoolConj", [ translate_expression e1; translate_expression e2 ])
 
@@ -254,22 +252,35 @@ and translate_expression (e: expr) : expression =
   | EBoolNeg e ->
       EConstr ("EBoolNeg", [ translate_expression e ])
 
+  (* Reference: dereference. *)
+  | ELoad e -> (* of expr *)
+     EConstr ("ELoad", [translate_expression e])
+
+  (* Reference: update *)
+  | EStore (e1, e2) -> (* of expr * expr *)
+     EConstr ("EStore", [translate_expression e1; translate_expression e2])
+
+  | EIntNeg e -> (* of expr *)
+     EConstr ("EIntNeg", [translate_expression e])
+  | EIntAdd (e1, e2) -> (* of expr * expr *)
+     EConstr ("EIntAdd", [translate_expression e1; translate_expression e2])
+  | EIntSub (e1, e2) -> (* of expr * expr *)
+     EConstr ("EIntSub", [translate_expression e1; translate_expression e2])
+  | EIntMul (e1, e2) -> (* of expr * expr *)
+     EConstr ("EIntMul", [translate_expression e1; translate_expression e2])
+  | EIntDiv (e1, e2) -> (* of expr * expr *)
+     EConstr ("EIntDiv", [translate_expression e1; translate_expression e2])
+  | EIntMod (e1, e2) -> (* of expr * expr *)
+     EConstr ("EIntMod", [translate_expression e1; translate_expression e2])
+
   | EMaxInt
   | EMinInt
-  | EIntNeg _ (* of expr *)
-  | EIntAdd _ (* of expr * expr *)
-  | EIntSub _ (* of expr * expr *)
-  | EIntMul _ (* of expr * expr *)
-  | EIntDiv _ (* of expr * expr *)
-  | EIntMod _ (* of expr * expr *)
   | EOpEq _ (* of expr * expr *)
   | EOpNe _ (* of expr * expr *)
   | EOpLt _ (* of expr * expr *)
   | EOpLe _ (* of expr * expr *)
   | EOpGt _ (* of expr * expr *)
   | EOpGe _ (* of expr * expr *)
-  | ELoad _ (* of expr *)
-  | EStore _ (* of expr * expr *)
     -> assert false
 
 (* -------------------------------------------------------------------------- *)

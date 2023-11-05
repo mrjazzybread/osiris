@@ -177,11 +177,16 @@ Proof.
       wp_simp.
       iApply wp_ret.
       wp_set_postcondition. }
-    { (* TODO avoid manual encoding *)
+    { wp_bind.
+      (* TODO avoid manual encoding *)
       change (VRecord (EnvCons "b" (VBool b2) $ EnvCons "i" (VInt (int.repr i2)) EnvNil))
       with (#{| b:=b2; i:= i2|}).
-      wp_use "Hr_val". }
-    { iIntros (v1 v2) "%Hadd <-". subst v1.
+      wp_use "Hr_val".
+      (* TODO ugly... *)
+      iIntros (a) "%Ha". subst a. simpl val_as_int.
+      iApply wp_ret. wp_set_postcondition.
+    }
+    { iIntros (v1 v2) "%Hv1 %Hv2". subst v1 v2.
       wp. equality. }
   }
 

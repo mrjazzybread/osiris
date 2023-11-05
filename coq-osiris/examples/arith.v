@@ -119,7 +119,9 @@ Proof.
           iPureIntro. lia. }
         iIntros (?) "->".
         wp.
-        iPureIntro. equality.
+        iPureIntro.
+        rewrite add_repr_repr.
+        equality.
      }
   }
 
