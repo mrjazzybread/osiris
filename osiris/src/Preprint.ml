@@ -302,34 +302,35 @@ and translate_rec_bindings (rbs: rec_bindings) : expression =
 
 (* On module translation. *)
 
-and translate_sitem : sitem -> expression option = function
+and translate_sitem : sitem -> expression = function
   (* An auxiliary Coq top-level definition *)
   | ILink name ->
-     Some (plain name)
+     plain name
 
   (* A non-recursive toplevel definition [let bs] *)
   | ILet (bindings) ->
-     Some (c "ILet" [translate_bindings bindings])
+     c "ILet" [translate_bindings bindings]
 
   (* A recursive toplevel definition [let rec rbs] *)
   | ILetRec (rec_bindings) ->
-     Some (c "ILetRec" [translate_rec_bindings rec_bindings])
+     c "ILetRec" [translate_rec_bindings rec_bindings]
 
   (* A module definition [M = me] *)
   | IModule (name, mexpr) ->
-     Some (c "IModule"
+      c "IModule"
                     [ plain ("\"" ^ name ^ "\"");
-                      translate_module mexpr])
+                      translate_module mexpr]
 
   (* An [open] directive [open me] *)
   | IOpen me ->
-     Some (c "IOpen" [translate_module me])
+      c "IOpen" [translate_module me]
 
   (* An [include] directive [include me] *)
   | IInclude mexpr ->
-     Some (c "IInclude" [translate_module mexpr])
+      c "IInclude" [translate_module mexpr]
 
-and translate_sitems l = List.filter_map translate_sitem l
+and translate_sitems l =
+  List.map translate_sitem l
 
 and translate_module = function
   | MUnsupported ->
@@ -344,11 +345,6 @@ and translate_module = function
   | MCoercion _ -> assert false
 
 (* -------------------------------------------------------------------------- *)
-
-let translate_sitem sitem =
-  match translate_sitem sitem with
-  | Some e -> e
-  | None -> assert false
 
 let definition_of_ast = function
   | OModule m -> "mexpr", translate_module m
