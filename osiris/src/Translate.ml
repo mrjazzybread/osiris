@@ -1,4 +1,5 @@
 open Printf
+let map = List.map
 
 (* ocaml-compiler-libs: *)
 open Longident
@@ -209,10 +210,10 @@ let rec translate_pat (pat: pattern) : pat =
       POr (translate_pat pat1, translate_pat pat2)
 
 and translate_pats pats : pats =
-  List.map translate_pat pats
+  map translate_pat pats
 
 and translate_field_patterns fields : fpats =
-  List.map translate_field_pattern fields
+  map translate_field_pattern fields
 
 and translate_field_pattern (i, label_desc, pat) : field * pat =
   translate_record_field i label_desc,
@@ -260,10 +261,14 @@ let rec translate_expr (e: expression) : expr =
       translate_exp_constant loc c
 
   | Texp_let (Nonrecursive, vbs, e) ->
-     ELet (translate_bindings vbs, translate_expr e)
+      ELet (translate_bindings vbs, translate_expr e)
 
   | Texp_let (Recursive, vbs, e) ->
-     ELetRec (translate_rec_bindings vbs, translate_expr e)
+      begin try
+        ELetRec (translate_rec_bindings vbs, translate_expr e)
+      with Unsupported ->
+        eunsupported loc "recursive definition of values"
+      end
 
   | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
       (* [param] is apparently meaningless. *)
@@ -377,7 +382,7 @@ let rec translate_expr (e: expression) : expr =
       end
 
 and translate_exprs es : exprs =
-  List.map translate_expr es
+  map translate_expr es
 
 (* -------------------------------------------------------------------------- *)
 
@@ -403,7 +408,7 @@ and translate_function cases partial : expr =
 (* Expressions: actual arguments in applications. *)
 
 and translate_labeled_arguments loc args =
-  List.map (translate_labeled_argument loc) args
+  map (translate_labeled_argument loc) args
 
 and translate_labeled_argument loc arg : expr =
   match arg with
@@ -437,13 +442,13 @@ and translate_value_case (case : value case) : branch =
   translate_case translate_pat case
 
 and translate_value_cases cases =
-  List.map translate_value_case cases
+  map translate_value_case cases
 
 and translate_computation_case (case : computation case) : branch =
   translate_case translate_computation_pattern case
 
 and translate_computation_cases cases =
-  List.map translate_computation_case cases
+  map translate_computation_case cases
 
 (* -------------------------------------------------------------------------- *)
 
@@ -453,33 +458,34 @@ and translate_binding (vb : value_binding) : binding =
   Binding (translate_pat vb.vb_pat, translate_expr vb.vb_expr)
 
 and translate_bindings vbs =
-  List.map translate_binding vbs
+  map translate_binding vbs
 
 (* -------------------------------------------------------------------------- *)
 
 (* Recursive bindings. *)
 
+(* In a recursive binding [p = e], the pattern [p] must be a variable,
+   and the right-hand side [e] must be an anonymous function.
+   OCaml enforces the first restriction.
+   We impose the second restriction. *)
+
 and project_EAnonFun (e : expr) : anonfun =
   match e with
   | EAnonFun a -> a
-  | _ -> assert false
+  | _ -> raise Unsupported
 
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
   | Tpat_var (_, v) -> txt v
   | _ -> assert false
 
-and translate_rec_binding (vb: value_binding) =
-  let name = project_Tpat_var vb.vb_pat in
-  let expression = translate_expr vb.vb_expr in
-  RecBinding (name, project_EAnonFun expression)
+and translate_rec_binding (vb : value_binding) : rec_binding =
+  let x = project_Tpat_var vb.vb_pat
+  and e = project_EAnonFun (translate_expr vb.vb_expr) in
+  RecBinding (x, e)
 
 and translate_rec_bindings vbs =
-  List.fold_right
-    (fun vb (rv(*,rt*)) ->
-      let (v(*, t*)) = translate_rec_binding vb in
-              v :: rv(*, t @ rt*))
-    vbs ([](*, []*))
+  map translate_rec_binding vbs
 
 (* -------------------------------------------------------------------------- *)
 
