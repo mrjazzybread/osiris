@@ -299,8 +299,11 @@ let rec translate_expr (e: expression) : expr =
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
 
-  | Texp_record { fields; representation; extended_expression } ->
-      translate_record fields representation extended_expression
+  | Texp_record { fields; representation = _; extended_expression = None } ->
+      translate_record_construction fields
+
+  | Texp_record { fields; representation = _; extended_expression = Some e } ->
+      translate_record_update e fields
 
   | Texp_field (e, id, label_desc) ->
       let field = translate_record_field id label_desc in
@@ -489,32 +492,27 @@ and translate_rec_bindings vbs =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_record
-      (fields: (Types.label_description * record_label_definition) array)
-      (representation : Types.record_representation)
-      (extended_expression : expression option)
-      : expr =
-  match extended_expression, representation with
-  | None, Record_regular ->
-     (* This explicitly defines the whole record in the expected way. *)
-     begin
+and translate_record_construction
+  (fields: (label_description * record_label_definition) array)
+: expr =
        let body =
          (* Each element of the array defines a new field of the record. *)
          Array.fold_right
-           (fun (elt, e) expr ->
+           (fun (label_desc, e) expr ->
              match e with
              | Kept _ -> assert false
              | Overridden (_, e) ->
-                let name : string = elt.lbl_name in
+                let name : string = label_desc.lbl_name in
                 let body : expr = translate_expr e in
                 (name, body) :: expr)
            fields []
        in
        ERecord (body)
-     end
-  | Some e, Record_regular ->
-     (* This defines a modification to an existing record *)
-     begin
+
+and translate_record_update
+  (e : expression)
+  (fields: (label_description * record_label_definition) array)
+: expr =
        let body =
          (* Each element of the array defines a new field of the record. *)
          Array.fold_right
@@ -528,16 +526,6 @@ and translate_record
            fields []
        in
        ERecordUpdate (translate_expr e, body)
-     end
-  | _, r ->
-     (match r with
-      | Record_regular -> assert false
-      | Record_float -> assert false
-      | Record_unboxed _ -> assert false
-      | Record_inlined _ ->
-         (* Inlined records are not supported yet. *)
-         EString "TODO: inlined record are not supported yet."
-      | Record_extension _ -> assert false)
 
 (* -------------------------------------------------------------------------- *)
 
