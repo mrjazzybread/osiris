@@ -63,6 +63,9 @@ let eunsupported loc construct =
 let punsupported loc construct =
   unsupported loc construct PUnsupported
 
+let ounsupported loc construct =
+  unsupported loc construct None
+
 exception Unsupported
 
 (* -------------------------------------------------------------------------- *)
@@ -523,42 +526,57 @@ and translate_record_field_def (label_desc, label_def) : fexpr option =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_structure_item
-      (sitm: structure_item) : sitem option =
-  match sitm.str_desc with
-  (* Non-recursive top-level bindings. *)
+(* Structure items. *)
+
+and translate_structure_item (item : structure_item) : sitem option =
+  let loc = item.str_loc in
+  match item.str_desc with
+
+  | Tstr_eval _ ->
+      ounsupported loc "toplevel expression"
+
   | Tstr_value (Nonrecursive, vbs) ->
-     let (r(*, t*)) = translate_bindings vbs in
-     Some (ILet r)
+      Some (ILet (translate_bindings vbs))
+
+  | Tstr_primitive _ ->
+      (* Declarations of external primitive operations are skipped. We do not
+         expect ordinary programs to contain such declarations. The OCaml
+         standard library does contain many such declarations; we give it
+         special treatment. *)
+     ounsupported loc "declaration of primitive operation"
+
+  | Tstr_type _ ->
+      (* A type definition is silently ignored. *)
+      None
+
+  | Tstr_typext _ ->
+      ounsupported loc "extending an extensible algebraic data type"
+
+  | Tstr_exception _ ->
+      ounsupported loc "exception declaration"
+
+  | Tstr_module { mb_id = Some id; mb_expr = me; _} ->
+      let m = Ident.name id in
+      Some (IModule (m, translate_mod_expr me))
+
+  | Tstr_module { mb_id = None; _} ->
+      ounsupported loc "module _"
+
   (* Recursive top-level bindings. *)
   | Tstr_value (Recursive, vbs) ->
      let (r(*, t*)) = translate_rec_bindings vbs in
      Some (ILetRec r)
 
-  | Tstr_module {mb_id = Some mb_id;
-                 mb_expr = me; _} ->
-     let m = translate_mod_expr me in
-     Some (IModule (Ident.name mb_id, m))
+
+
 
   (* Ignoring the type-related definitions. *)
-  | Tstr_type _ (* of rec_flag * type_declaration list *)
   | Tstr_modtype _ (* of module_type_declaration *)
   | Tstr_class_type _
   (* of (Ident.t * string Location.loc * class_type_declaration) list *)
   | Tstr_attribute _ (*of attribute*)
     -> None
 
-  (* TODO: update me once the semantics has become exception-aware. *)
-  | Tstr_exception _ ->
-      None
-
-  | Tstr_module {mb_id; mb_expr; _} -> (* of module_binding *)
-     let name =
-       match mb_id with
-       | None -> Fresh.fresh_name "let_module"
-       | Some name -> Ident.name name
-     in
-     Some (IModule (name, translate_mod_expr mb_expr))
 
   | Tstr_include {incl_mod = me; _} ->
      (* of include_declaration *)
@@ -569,15 +587,6 @@ and translate_structure_item
      | Tmod_ident (path, id) -> Some (IOpen (translate_mod_ident path id))
      | _ -> assert false)
 
-  | Tstr_primitive _ ->
-     (* Declarations of external primitive operations are skipped. We do not
-        expect ordinary programs to contain such declarations. The OCaml
-        standard library does contain many such declarations; we give it
-        special treatment. *)
-     None
-
-  | Tstr_eval _ -> assert false (* of expression * attributes *)
-  | Tstr_typext _ -> assert false (* of type_extension *)
   | Tstr_recmodule _ -> assert false (* of module_binding list *)
   | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
 
