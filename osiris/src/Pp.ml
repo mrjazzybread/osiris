@@ -31,14 +31,12 @@ let rec pretty_printer (expr : Coq.expression) =
          string c ^^ space ^^
            separate_map (break 1) pretty_printer es
        )
-  | EList (c, []) -> parens (string c ^^ string "[]")
-  | EList (c, es) ->
-     parens (
-         string c ^^ space ^^
-           brackets (
-               separate_map semi pretty_printer es
-             )
-       )
+  | EList [] ->
+      string "[]"
+  | EList es ->
+      brackets (
+        separate_map semi pretty_printer es
+      )
 
 let pretty_printer (name, ty, expr) : document =
   flow space [string "Definition"; string name; colon; string ty; string ":="]

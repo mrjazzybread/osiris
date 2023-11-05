@@ -9,7 +9,7 @@ type expression =
   | EConstr of string * expression list
 
   (* A Coq list; printed with square brackets and semicolons. *)
-  | EList of string * expression list
+  | EList of expression list
 
 (* Abbreviations for the constructors. *)
 
@@ -18,3 +18,9 @@ let plain s =
 
 let c s es =
   EConstr (s, es)
+
+let list es =
+  EList es
+
+let clist s es =
+  c s [list es]

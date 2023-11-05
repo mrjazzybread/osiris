@@ -64,7 +64,7 @@ let rec translate_pattern (p: pat) : expression =
   | PTuple [] ->
       plain "(PTuple PNil)"
   | PTuple ps -> (* of pats *)
-      EList ("PMkTuple", List.map translate_pattern ps)
+      clist "PMkTuple" (List.map translate_pattern ps)
   (* A data constructor pattern *)
   | PData (d, p) ->
       c "PData" [ string_literal d; translate_pattern p ]
@@ -93,7 +93,7 @@ let translate_path (x: path) : expression =
      This is very bad, because using [rev] is bad in the first place
      and because [rev] is itself defined in an inefficient way.
      So, better use [MkPathRev]. *)
-  EList ("MkPathRev", List.rev (List.map string_literal x))
+  clist "MkPathRev" (List.rev (List.map string_literal x))
 
 let rec translate_anonfun (a : anonfun) : expression =
   match a with
@@ -109,7 +109,7 @@ and translate_branch : branch -> expression = function
                           translate_expression e ]
 
 and translate_branches (bs: branches) : expression =
-  EList ("MkBranches", List.map translate_branch bs)
+  clist "MkBranches" (List.map translate_branch bs)
 
 and translate_fexprs (fs: fexprs) : expression =
   alist "FENil" "FECons"
@@ -150,7 +150,7 @@ and translate_expression (e: expr) : expression =
 
   (* Tuple construction: [(e1, e2, )] *)
   | ETuple el ->
-      EList ("EMkTuple", List.map translate_expression el)
+      clist "EMkTuple" (List.map translate_expression el)
 
   (* Data constructor application: [A (e)] *)
   (* Every data constructor is considered unary *)
@@ -355,7 +355,7 @@ and translate_module = function
   | MUnsupported ->
       plain "MUnsupported"
   | MStruct sitems ->
-     EList ("MkStruct", translate_sitems sitems)
+     clist "MkStruct" (translate_sitems sitems)
 
   (* Auxiliary top-level Coq definition. *)
   | MLink s -> plain s

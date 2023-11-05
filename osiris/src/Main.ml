@@ -79,16 +79,6 @@ let translate_one_file module_name out_file cmt_file =
      definitions. *)
   let dag = Split.split Settings.splitting_strategy oast in
 
-  (* [Preprint.definition_of_ast] provides a translation that works in a similar
-     manner than the first translator:
-     converts the AST into:
-     - [EPlain s], which should be seen as a plain string [s] to print in the
-       final document
-     - [EConstr (c, [e1; ...; en])], which should be printed as
-       [c (e1) ... (en)] in the final document.
-     - [EList (c; [e1; ...; en])], which did not exist in the first translator.
-       It should be printed as [c [e1; ...; en]], which is useful to use
-       syntactic sugar. *)
   let dag =
     let open Syntax in
     DAG.map (fun def ->
@@ -100,10 +90,7 @@ let translate_one_file module_name out_file cmt_file =
   let dag = Pp.pretty_printer dag in
 
   (* Finally, pretty-print the generated definitions into the output file
-     provided on the command line.
-     This pretty-printer is similar of that of the first translator, except that
-     it should also print [EList _].
-   *)
+     provided on the command line. *)
   print out_file dag
 
 (* -------------------------------------------------------------------------- *)
