@@ -326,6 +326,8 @@ and translate_sitem : sitem -> expression option = function
 and translate_sitems l = List.filter_map translate_sitem l
 
 and translate_module = function
+  | MUnsupported ->
+      EPlain "MUnsupported"
   | MStruct sitems ->
      EList ("MkStruct", translate_sitems sitems)
 

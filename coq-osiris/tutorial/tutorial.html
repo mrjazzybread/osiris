@@ -127,7 +127,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=
     AnonFun : var → expr → anonfun
   <span class="kr">with</span> mexpr : <span class="kt">Set</span> :=
-    MPath : path → mexpr
+    MUnsupported : mexpr
+  | MPath : path → mexpr
   | MStruct : sitems → mexpr
   | MCoercion : mexpr → coercion → mexpr
   <span class="kr">with</span> sitems : <span class="kt">Set</span> :=

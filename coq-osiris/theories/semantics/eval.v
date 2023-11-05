@@ -945,6 +945,8 @@ with eval_match η v bs : micro val :=
 
 with eval_mexpr η me : micro val :=
   match me with
+  | MUnsupported =>
+      unsupported_construct
   | MPath π =>
       (* A path is looked up in the environment [η]. *)
       lookup_path η π

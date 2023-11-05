@@ -266,6 +266,9 @@ and mexpr =
   (* A meta-level reference. *)
   | MLink of coq_id
 
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | MUnsupported
+
   (* A module path. *)
   | MPath of path
 

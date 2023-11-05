@@ -1,1 +1,1 @@
-val typedtree : string -> Typedtree.structure -> Syntax.def
+val unit : Syntax.coq_id -> Typedtree.structure -> Syntax.def

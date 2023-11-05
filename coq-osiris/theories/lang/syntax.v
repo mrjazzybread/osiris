@@ -300,6 +300,9 @@ with anonfun :=
 
 with mexpr :=
 
+  (* A placeholder for as-yet-unsupported constructs. *)
+  | MUnsupported
+
   (* A module path. *)
   | MPath (π : path)
 

@@ -66,6 +66,9 @@ let punsupported loc construct =
 let ounsupported loc construct =
   unsupported loc construct None
 
+let munsupported loc construct =
+  unsupported loc construct MUnsupported
+
 exception Unsupported
 
 (* -------------------------------------------------------------------------- *)
@@ -583,30 +586,43 @@ and translate_structure_item (item : structure_item) : sitem option =
       (* An attribute is silently ignored. *)
       None
 
+and translate_structure_items items =
+  List.filter_map translate_structure_item items
+
 (* -------------------------------------------------------------------------- *)
 
-and translate_mod_expr (me : module_expr) : mexpr =
-  translate_module me.mod_desc
+(* Module expressions. *)
 
-and translate_module (ast: module_expr_desc) : mexpr =
-  match ast with
+and translate_structure (str : structure) : mexpr =
+  MStruct (translate_structure_items str.str_items)
+
+and translate_mod_expr (me : module_expr) : mexpr =
+  let loc = me.mod_loc in
+  match me.mod_desc with
+
   | Tmod_ident (path, id) ->
       MPath (translate_mod_ident path id)
 
-  | Tmod_structure ast -> (* of structure *)
-     let (itms) =
-       List.filter_map translate_structure_item ast.str_items
-     in
-     MStruct (itms)
-  | Tmod_functor (_, _) -> MStruct [] (* TODO. *)
-  | Tmod_apply (_, _, _) -> assert false
-  | Tmod_constraint (_, _, _, _) -> MStruct [] (* TODO. *)
-  | Tmod_unpack (_, _) -> assert false
+  | Tmod_structure str ->
+      translate_structure str
+
+  | Tmod_functor _ ->
+      munsupported loc "functor"
+
+  | Tmod_apply _ ->
+      munsupported loc "functor application"
+
+  | Tmod_constraint _ ->
+      munsupported loc "signature ascription"
+
+  | Tmod_unpack _ ->
+      munsupported loc "first-class modules"
 
 (* -------------------------------------------------------------------------- *)
 
-let typedtree m (ast: structure) : def =
-  { lhs = m ;
-    rhs = OModule (translate_module (Tmod_structure ast)) }
+(* Compilation units. *)
+
+let unit (m : coq_id) (str : structure) : def =
+  { lhs = m ; rhs = OModule (translate_structure str) }
 
 (* TODO do something about && and || *)

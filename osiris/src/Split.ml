@@ -62,7 +62,7 @@ and split_all_sitem name sitem : def DAG.t =
 
 and split_all_module name (m: mexpr) : def DAG.t =
   match m with
-  | MPath _ | MLink _ ->
+  | MUnsupported | MPath _ | MLink _ ->
      (* Leaves of the AST. *)
      DAG.init { lhs = name; rhs = OModule m }
 
