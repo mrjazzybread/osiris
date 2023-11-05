@@ -21,7 +21,8 @@ open Syntax
 
 (* Printers (for debugging only). *)
 
-let rec show_longident = function
+let rec show_longident (i : Longident.t) =
+  match i with
   | Lident x ->
       x
   | Ldot (i, x) ->
@@ -29,7 +30,8 @@ let rec show_longident = function
   | Lapply (i1, i2) ->
       sprintf "%s(%s)" (show_longident i1) (show_longident i2)
 
-let rec show_path = function
+let rec show_path (p : Path.t) =
+  match p with
   | Pident i ->
       Ident.name i
   | Pdot (p, x) ->
@@ -79,8 +81,28 @@ let rec translate_longident (i : Longident.t) : path =
       translate_longident i @ [x]
   | Lapply _ ->
       (* I believe that a functor application inside a path that designates
-         a *value* are not permitted by OCaml. *)
+         a *value* or *module* are not permitted by OCaml. It is permitted
+         inside a path that designates a *type* or *module type*. *)
       fail "Error: functor application inside a path: %s\n" (show_longident i)
+
+let debug_ident kind path id =
+  (* [id] is the long identifier that appears in the source code.
+     [path] is the corresponding resolved path. *)
+  debug "    %s\n" kind;
+  debug "      id = %s\n" (show_longident id);
+  debug "      path = %s\n" (show_path path)
+
+let translate_exp_ident path id : path =
+  let id = txt id in
+  debug_ident "Texp_ident" path id;
+  (* For the moment, we ignore [path] and keep [id]. However, [path]
+     could be used to identify references to the OCaml standard library. *)
+  translate_longident id
+
+let translate_mod_ident path id : path =
+  let id = txt id in
+  debug_ident "Tmod_ident" path id;
+  translate_longident id
 
 (* Long identifiers are unqualified (turned into short identifiers) when
    they designate data constructors or record fields. *)
@@ -96,7 +118,8 @@ let unqualify : Longident.t -> data =
    (i.e., fit in 31 bits). Otherwise, the code would be non-portable and
    non-verifiable. TODO *)
 
-let translate_exp_constant loc = function
+let translate_exp_constant loc (c : constant) =
+  match c with
   | Const_int i ->
       EInt i
   | Const_char c ->
@@ -112,7 +135,8 @@ let translate_exp_constant loc = function
   | Const_nativeint _ ->
       eunsupported loc "native integer literal"
 
-let translate_pat_constant loc = function
+let translate_pat_constant loc (c : constant) =
+  match c with
   | Const_int i ->
       PInt i
   | Const_char c ->
@@ -130,9 +154,11 @@ let translate_pat_constant loc = function
 
 (* -------------------------------------------------------------------------- *)
 
-(* Patterns. *)
+(* Patterns, also known as value patterns. *)
 
-let rec translate_pattern (pat: Typedtree.pattern) : pat =
+(* The type [pattern] is a synonym for [value general_pattern]. *)
+
+let rec translate_pattern (pat: pattern) : pat =
   let loc = pat.pat_loc in
   match pat.pat_desc with
 
@@ -186,7 +212,7 @@ and translate_field_pattern (i, _label_desc, pat) : field * pat =
 
 (* Computation patterns distinguish normal termination and exceptions. *)
 
-let translate_computation_pattern pat : pat =
+let translate_computation_pattern (pat : computation general_pattern) : pat =
   let loc = pat.pat_loc in
   match split_pattern pat with
   | Some pat, None ->
@@ -200,72 +226,7 @@ let translate_computation_pattern pat : pat =
 
 (* -------------------------------------------------------------------------- *)
 
-let project_EAnonFun (e : expr) : anonfun =
-  match e with
-  | EAnonFun a -> a
-  | _ -> assert false
-
-let project_Tpat_var (pat : value general_pattern) : var =
-  match pat.pat_desc with
-  | Tpat_var (_, v) -> txt v
-  | _ -> assert false
-
-(* -------------------------------------------------------------------------- *)
-
-let rec translate_value_case (case : value case) : branch =
-  let pat = case.c_lhs
-  and e = case.c_rhs in
-  Branch (
-    translate_pattern pat,
-    match case.c_guard with
-    | None ->
-        translate_expression e
-    | Some guard ->
-        let loc = guard.exp_loc in
-        eunsupported loc "when clause"
-  )
-
-and translate_value_cases cases =
-  List.map translate_value_case cases
-
-and translate_computation_case (case : computation case) : branch =
-  match case with
-  | { c_lhs=pat; c_guard=None; c_rhs=e } ->
-     Branch (translate_computation_pattern pat,
-             translate_expression e)
-  | { c_lhs=pat; c_guard=Some guard; c_rhs=_e } ->
-      let loc = guard.exp_loc in
-     Branch (translate_computation_pattern pat,
-               eunsupported loc "when clause")
-
-and translate_computation_cases cases =
-  List.map translate_computation_case cases
-
-(* -------------------------------------------------------------------------- *)
-
-and translate_exp_ident path id : path =
-  let id = txt id in
-  (* [id] is the long identifier that appears in the source code.
-     [path] is the corresponding resolved path. *)
-  debug "    Texp_ident\n";
-  debug "      id = %s\n" (show_longident id);
-  debug "      path = %s\n" (show_path path);
-  (* For the moment, we ignore [path] and keep [id]. However, [path]
-     could be used to identify references to the OCaml standard library. *)
-  translate_longident id
-
-and translate_mod_ident path id : path =
-  let id = txt id in
-  (* [id] is the long identifier that appears in the source code.
-     [path] is the corresponding resolved path. *)
-  debug "    Tmod_ident\n";
-  debug "      id = %s\n" (show_longident id);
-  debug "      path = %s\n" (show_path path);
-  (* For the moment, we ignore [path] and keep [id]. However, [path]
-     could be used to identify references to the OCaml standard library. *)
-  translate_longident id
-
-and translate_expression (e: Typedtree.expression) =
+let rec translate_expression (e: Typedtree.expression) =
   let loc = e.exp_loc in
   match e.exp_desc with
   | Texp_constant c -> translate_exp_constant loc c
@@ -388,6 +349,34 @@ and translate_expression (e: Typedtree.expression) =
 
 (* -------------------------------------------------------------------------- *)
 
+and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
+  fun translate_pattern case ->
+  let pat = case.c_lhs
+  and e = case.c_rhs in
+  Branch (
+    translate_pattern pat,
+    match case.c_guard with
+    | None ->
+        translate_expression e
+    | Some guard ->
+        let loc = guard.exp_loc in
+        eunsupported loc "when clause"
+  )
+
+and translate_value_case (case : value case) : branch =
+  translate_case translate_pattern case
+
+and translate_value_cases cases =
+  List.map translate_value_case cases
+
+and translate_computation_case (case : computation case) : branch =
+  translate_case translate_computation_pattern case
+
+and translate_computation_cases cases =
+  List.map translate_computation_case cases
+
+(* -------------------------------------------------------------------------- *)
+
 and translate_binding (vb: Typedtree.value_binding): binding =
   let pattern = translate_pattern vb.vb_pat in
   let expression = translate_expression vb.vb_expr in
@@ -399,6 +388,16 @@ and translate_bindings vbs =
       let (v(*, t*)) = translate_binding vb in
       v :: rv(*, t @ rt*))
     vbs ([](*, []*))
+
+and project_EAnonFun (e : expr) : anonfun =
+  match e with
+  | EAnonFun a -> a
+  | _ -> assert false
+
+and project_Tpat_var (pat : value general_pattern) : var =
+  match pat.pat_desc with
+  | Tpat_var (_, v) -> txt v
+  | _ -> assert false
 
 and translate_rec_binding (vb: Typedtree.value_binding) =
   let name = project_Tpat_var vb.vb_pat in
