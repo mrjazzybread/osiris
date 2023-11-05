@@ -91,7 +91,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ELet : bindings → expr → expr
   | ELetRec : rec_bindings → expr → expr
   | ELetModule : module → mexpr → expr → expr
-  | ELetOpen : path → expr → expr
+  | ELetOpen : mexpr → expr → expr
   | ESeq : expr → expr → expr
   | EIfThen : expr → expr → expr
   | EIfThenElse : expr → expr → expr → expr
@@ -136,7 +136,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
     ILet : bindings → sitem
   | ILetRec : rec_bindings → sitem
   | IModule : module → mexpr → sitem
-  | IOpen : path → sitem
+  | IOpen : mexpr → sitem
   | IInclude : mexpr → sitem.
 
 <span class="kn">Arguments</span> EPath x
@@ -168,7 +168,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> ELet bs e%expr_scope
 <span class="kn">Arguments</span> ELetRec rbs e%expr_scope
 <span class="kn">Arguments</span> ELetModule M me e%expr_scope
-<span class="kn">Arguments</span> ELetOpen π e%expr_scope
+<span class="kn">Arguments</span> ELetOpen me e%expr_scope
 <span class="kn">Arguments</span> ESeq (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIfThen (e e1)%expr_scope
 <span class="kn">Arguments</span> EIfThenElse (e e1 e2)%expr_scope
@@ -195,7 +195,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> ILet bs
 <span class="kn">Arguments</span> ILetRec rbs
 <span class="kn">Arguments</span> IModule m me
-<span class="kn">Arguments</span> IOpen π
+<span class="kn">Arguments</span> IOpen me
 <span class="kn">Arguments</span> IInclude me</blockquote></div></div></small></span></pre><p>At this time, expressions include:</p>
 <ul class="simple">
 <li>Variables;</li>

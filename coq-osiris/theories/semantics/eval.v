@@ -799,8 +799,8 @@ Fixpoint eval η e : micro val :=
       let δ := EnvCons M v EnvNil in
       η ← ret_concat δ η;
       eval η e
-  | ELetOpen π e =>
-      δ ← as_struct (lookup_path η π) ;
+  | ELetOpen me e =>
+      δ ← as_struct (eval_mexpr η me) ;
       η ← ret_concat δ η;
       eval η e
   | ESeq e1 e2 =>
@@ -990,12 +990,12 @@ with eval_sitem (ηδ : envs) item : micro envs :=
       v ← eval_mexpr η me ;
       let δ' := EnvCons m v EnvNil in
       ret_dconcat δ' ηδ
-  | IOpen π =>
-      (* The bindings contained in the structure denoted by the path [π]
-         are used to extend [η] but not [δ]. This reflects the fact that
-         these bindings become visible, but do not extend the current
-         structure. *)
-      δ' ← as_struct (lookup_path η π) ;
+  | IOpen me =>
+      (* The bindings contained in the structure denoted by the module
+         expression [me] are used to extend [η] but not [δ]. This reflects
+         the fact that these bindings become visible, but do not extend the
+         current structure. *)
+      δ' ← as_struct (eval_mexpr η me) ;
       ret (concat δ' η, δ)
   | IInclude me =>
       δ' ← as_struct (eval_mexpr η me) ;

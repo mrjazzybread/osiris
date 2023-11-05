@@ -268,7 +268,7 @@ Definition MkStruct (items : list sitem) : mexpr :=
 (* [open π]. *)
 
 Definition IOpenMkPath xs :=
-  (IOpen (MkPath xs)).
+  (IOpen (MPath (MkPath xs))).
 
 (* [include π]. *)
 

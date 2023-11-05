@@ -174,8 +174,8 @@ type expr =
   (* Local module definition: [let module M = me in e]. *)
   | ELetModule of name * mexpr * expr
 
-  (* Local [open] directive: [let open π in e]. *)
-  | ELetOpen of path * expr
+  (* Local [open] directive: [let open me in e]. *)
+  | ELetOpen of mexpr * expr
 
   (* Sequence: [e1; e2]. *)
   | ESeq of expr * expr
@@ -299,8 +299,8 @@ and sitem =
   (* A module definition [M = me]. *)
   | IModule of name * mexpr
 
-  (* An [open] directive [open π]. *)
-  | IOpen of path
+  (* An [open] directive [open me]. *)
+  | IOpen of mexpr
 
   (* An [include] directive [include me]. *)
   | IInclude of mexpr

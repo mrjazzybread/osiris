@@ -208,8 +208,8 @@ Inductive expr :=
   (* Local module definition: [let module M = me in e]. *)
   | ELetModule (M : module) (me : mexpr) (e : expr)
 
-  (* Local [open] directive: [let open π in e]. *)
-  | ELetOpen (π : path) (e : expr)
+  (* Local [open] directive: [let open me in e]. *)
+  | ELetOpen (me : mexpr) (e : expr)
 
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
@@ -331,8 +331,8 @@ with sitem :=
   (* A module definition [M = me]. *)
   | IModule (m : module) (me : mexpr)
 
-  (* An [open] directive [open π]. *)
-  | IOpen (π : path)
+  (* An [open] directive [open me]. *)
+  | IOpen (me : mexpr)
 
   (* An [include] directive [include me]. *)
   | IInclude (me : mexpr)

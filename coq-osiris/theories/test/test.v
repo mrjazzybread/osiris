@@ -366,8 +366,8 @@ Lemma test_let_open :
         ]
       ]
     ) $
-    ELetOpen (MkPath ["A"]) $
-    ELetOpen (MkPath ["B"]) $
+    ELetOpen (MPath (MkPath ["A"])) $
+    ELetOpen (MPath (MkPath ["B"])) $
     EVar "y"
   in
   let v := VInt (repr 1) in

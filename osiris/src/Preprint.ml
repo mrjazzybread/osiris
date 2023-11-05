@@ -198,9 +198,9 @@ and translate_expression (e: expr) : expression =
                               translate_module m ;
                               translate_expression e ])
 
-  (* Local [open] directive: [let open π in e] *)
-  | ELetOpen (p, e) -> (* of path * expr *)
-     EConstr ("ELetOpen", [ translate_path p ;
+  (* Local [open] directive: [let open me in e] *)
+  | ELetOpen (me, e) ->
+     EConstr ("ELetOpen", [ translate_module me ;
                             translate_expression e ])
 
   (* Sequence: [e1; e2] *)
@@ -315,9 +315,9 @@ and translate_sitem : sitem -> expression option = function
                     [ EPlain ("\"" ^ name ^ "\"");
                       translate_module mexpr]))
 
-  (* An [open] directive [open π] *)
-  | IOpen (path) ->
-     Some (EConstr ("IOpen", [translate_path path]))
+  (* An [open] directive [open me] *)
+  | IOpen me ->
+     Some (EConstr ("IOpen", [translate_module me]))
 
   (* An [include] directive [include me] *)
   | IInclude (mexpr) ->

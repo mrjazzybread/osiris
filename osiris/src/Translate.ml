@@ -384,13 +384,7 @@ let rec translate_expr (e: expression) : expr =
       eunsupported loc "extension constructors"
 
   | Texp_open ({ open_expr = me; _ }, e) ->
-      (* We support [open] followed with a path, not followed with an
-         arbitrary module expression. *)
-      begin try
-        ELetOpen (translate_mod_path me, translate_expr e)
-      with Unsupported ->
-        eunsupported loc "open module expression"
-      end
+      ELetOpen (translate_mod_expr me, translate_expr e)
 
 and translate_exprs es : exprs =
   map translate_expr es
@@ -573,13 +567,7 @@ and translate_structure_item (item : structure_item) : sitem option =
       None
 
   | Tstr_open { open_expr = me; _ } ->
-      (* We support [open] followed with a path, not followed with an
-         arbitrary module expression. *)
-      begin try
-        Some (IOpen (translate_mod_path me))
-      with Unsupported ->
-        ounsupported loc "open module expression"
-      end
+      Some (IOpen (translate_mod_expr me))
 
   | Tstr_class _ ->
       ounsupported loc "class definition"
@@ -614,13 +602,6 @@ and translate_module (ast: module_expr_desc) : mexpr =
   | Tmod_apply (_, _, _) -> assert false
   | Tmod_constraint (_, _, _, _) -> MStruct [] (* TODO. *)
   | Tmod_unpack (_, _) -> assert false
-
-and translate_mod_path (me : module_expr) : path =
-  match me.mod_desc with
-  | Tmod_ident (path, id) ->
-      translate_mod_ident path id
-  | _ ->
-      raise Unsupported
 
 (* -------------------------------------------------------------------------- *)
 

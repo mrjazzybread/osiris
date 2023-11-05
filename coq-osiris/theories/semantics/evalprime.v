@@ -137,8 +137,8 @@ Definition eval' η e : micro val :=
       let δ := EnvCons M v EnvNil in
       η ← ret_concat δ η;
       eval η e
-  | ELetOpen π e =>
-      δ ← as_struct (lookup_path η π) ;
+  | ELetOpen me e =>
+      δ ← as_struct (eval_mexpr η me) ;
       η ← ret_concat δ η;
       eval η e
   | ESeq e1 e2 =>
