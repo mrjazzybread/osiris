@@ -4,9 +4,17 @@ type expression =
   (* A plain string; printed literally (without quotes). *)
   | EPlain of string
 
-  (* An application of a data constructor to a list of arguments;
+  (* An application of a data constructor to several arguments;
      printed by preceding each argument with a space. *)
   | EConstr of string * expression list
 
   (* A Coq list; printed with square brackets and semicolons. *)
   | EList of string * expression list
+
+(* Abbreviations for the constructors. *)
+
+let plain s =
+  EPlain s
+
+let c s es =
+  EConstr (s, es)
