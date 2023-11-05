@@ -12,15 +12,6 @@ let list nil cons translate lily =
                        res ])
     lily (plain nil)
 
-let alist nil cons translate_key translate_elt lily =
-  let nil = plain nil in
-  List.fold_right
-    (fun (k, e) res ->
-      c cons [ translate_key k ;
-                       translate_elt e ;
-                       res ])
-    lily nil
-
 let string_literal s = plain (Printf.sprintf "\"%s\"" s)
 
 (* -------------------------------------------------------------------------- *)
@@ -112,10 +103,10 @@ and translate_branches (bs: branches) : expression =
   clist "MkBranches" (List.map translate_branch bs)
 
 and translate_fexprs (fs: fexprs) : expression =
-  alist "FENil" "FECons"
-    string_literal
-    translate_expression
-    fs
+  clist "MkFexprs" (List.map translate_fexpr fs)
+
+and translate_fexpr (f, e) =
+  pair (string_literal f) (translate_expression e)
 
 and exprs es =
   List.map translate_expression es

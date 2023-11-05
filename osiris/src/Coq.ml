@@ -11,6 +11,9 @@ type expression =
   (* A Coq list; printed with square brackets and semicolons. *)
   | EList of expression list
 
+  (* A Coq tuple; printed with parentheses and commas. *)
+  | ETuple of expression list
+
 (* Abbreviations for the constructors. *)
 
 let plain s =
@@ -24,3 +27,9 @@ let list es =
 
 let clist s es =
   c s [list es]
+
+let tuple es =
+  ETuple es
+
+let pair e1 e2 =
+  ETuple [e1; e2]

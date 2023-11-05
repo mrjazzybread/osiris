@@ -41,6 +41,18 @@ Definition Branch1 p e : branches :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Lists of field-expression pairs. *)
+
+Fixpoint MkFexprs (fes : list (field * expr)) : fexprs :=
+  match fes with
+  | [] =>
+      FENil
+  | (f, e) :: fes =>
+      FECons f e (MkFexprs fes)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Pairs: pattern, expression, value. *)
 
 Definition PPair p1 p2 :=

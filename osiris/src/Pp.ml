@@ -37,6 +37,12 @@ let rec pretty_printer (expr : Coq.expression) =
       brackets (
         separate_map semi pretty_printer es
       )
+  | ETuple [] ->
+      string "()"
+  | ETuple es ->
+      parens (
+        separate_map comma pretty_printer es
+      )
 
 let pretty_printer (name, ty, expr) : document =
   flow space [string "Definition"; string name; colon; string ty; string ":="]
