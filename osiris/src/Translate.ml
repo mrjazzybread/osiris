@@ -110,6 +110,14 @@ let translate_mod_ident path id : path =
 let unqualify : Longident.t -> data =
   Longident.last
 
+let translate_record_field id label_desc : field =
+  (* [id] is the record field that appears in the source code, possibly
+     a long identifier. *)
+  (* [label_desc] is the field description constructed by the OCaml
+     type-checker. *)
+  assert (unqualify (txt id) = label_desc.lbl_name);
+  label_desc.lbl_name
+
 (* -------------------------------------------------------------------------- *)
 
 (* Constants. *)
@@ -204,8 +212,8 @@ and translate_patterns pats : pats =
 and translate_field_patterns fields : fpats =
   List.map translate_field_pattern fields
 
-and translate_field_pattern (i, _label_desc, pat) : field * pat =
-  unqualify (txt i),
+and translate_field_pattern (i, label_desc, pat) : field * pat =
+  translate_record_field i label_desc,
   translate_pattern pat
 
 (* -------------------------------------------------------------------------- *)
@@ -281,6 +289,12 @@ let rec translate_expression (e: expression) : expr =
   | Texp_record { fields; representation; extended_expression } ->
       translate_record fields representation extended_expression
 
+  | Texp_field (e, id, label_desc) ->
+      let field = translate_record_field id label_desc in
+      ERecordAccess (translate_expression e, field)
+
+  (* ICI *)
+
   | Texp_assert e -> EAssert (translate_expression e)
 
   | Texp_let (Nonrecursive, vbs, e) ->
@@ -301,10 +315,6 @@ let rec translate_expression (e: expression) : expr =
   | Texp_ifthenelse (e1, e2, None) ->
      EIfThen (translate_expression e1,
               translate_expression e2)
-
-  | Texp_field (e, _, label) ->
-     ERecordAccess (translate_expression e,
-                    label.lbl_name)
 
   | Texp_while (e, body) -> EWhile (translate_expression e,
                                     translate_expression body)
