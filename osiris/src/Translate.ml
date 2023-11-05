@@ -332,9 +332,19 @@ let rec translate_expr (e: expression) : expr =
   | Texp_letmodule (None, _, _, _, _) ->
       eunsupported loc "let module _"
 
-  (* ICI *)
+  | Texp_letexception (_, _) ->
+      eunsupported loc "let exception"
 
-  | Texp_assert e -> EAssert (translate_expr e)
+  | Texp_assert
+      { exp_desc = Texp_construct ({ txt = Lident "false"; _}, _, []); _ }
+  | Texp_unreachable ->
+      (* [assert false] and [.] are both translated to [EAssertFalse]. *)
+      EAssertFalse
+
+  | Texp_assert e ->
+      EAssert (translate_expr e)
+
+  (* ICI *)
 
   | Texp_let (Nonrecursive, vbs, e) ->
      ELet (translate_bindings vbs, translate_expr e)
@@ -350,11 +360,9 @@ let rec translate_expr (e: expression) : expr =
      (* TODO. *)
      EString "TODO: local module open statement."
 
-  | Texp_letexception (_, _) -> assert false
   | Texp_lazy _ -> assert false
   | Texp_object (_, _) -> assert false
   | Texp_letop _ -> assert false
-  | Texp_unreachable -> assert false
   | Texp_extension_constructor (_, _) -> assert false
 
 and translate_exprs es : exprs =

@@ -227,6 +227,7 @@ Inductive expr :=
   | EFor (x : var) (e1 e2 e : expr)
 
   (* Fatal error: [assert false]. *)
+  (* We model OCaml's unreachable construct [.] in this way, too. *)
   | EAssertFalse
 
   (* Runtime assertion: [assert(e)]. *)
