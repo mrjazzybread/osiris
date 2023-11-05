@@ -286,6 +286,9 @@
   use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
 * Arrays
 * Characters and strings
+  + decide how they should be represented in Coq;
+    Coq's `char` type seems needlessly inefficient,
+    and the model of a string should be a list of characters.
 * Records with mutable fields
 * Integers:
   + give lemmas to help establish that the result of an operation
