@@ -538,6 +538,9 @@ and translate_structure_item (item : structure_item) : sitem option =
   | Tstr_value (Nonrecursive, vbs) ->
       Some (ILet (translate_bindings vbs))
 
+  | Tstr_value (Recursive, vbs) ->
+      Some (ILetRec (translate_rec_bindings vbs))
+
   | Tstr_primitive _ ->
       (* Declarations of external primitive operations are skipped. We do not
          expect ordinary programs to contain such declarations. The OCaml
@@ -562,33 +565,35 @@ and translate_structure_item (item : structure_item) : sitem option =
   | Tstr_module { mb_id = None; _} ->
       ounsupported loc "module _"
 
-  (* Recursive top-level bindings. *)
-  | Tstr_value (Recursive, vbs) ->
-     let (r(*, t*)) = translate_rec_bindings vbs in
-     Some (ILetRec r)
+  | Tstr_recmodule _ ->
+      ounsupported loc "recursive module"
 
+  | Tstr_modtype _ ->
+      (* A module type definition is silently ignored. *)
+      None
 
+  | Tstr_open { open_expr = me; _ } ->
+      (* We support [open] followed with a path, not followed with an
+         arbitrary module expression. *)
+      begin try
+        Some (IOpen (translate_mod_path me))
+      with Unsupported ->
+        ounsupported loc "open module expression"
+      end
 
+  | Tstr_class _ ->
+      ounsupported loc "class definition"
 
-  (* Ignoring the type-related definitions. *)
-  | Tstr_modtype _ (* of module_type_declaration *)
-  | Tstr_class_type _
-  (* of (Ident.t * string Location.loc * class_type_declaration) list *)
-  | Tstr_attribute _ (*of attribute*)
-    -> None
+  | Tstr_class_type _ ->
+      (* A class type definition is silently ignored. *)
+      None
 
-
-  | Tstr_include {incl_mod = me; _} ->
-     (* of include_declaration *)
+  | Tstr_include { incl_mod = me; _ } ->
      Some (IInclude (translate_mod_expr me))
 
-  | Tstr_open {open_expr={mod_desc;_};_} -> (* of open_declaration *)
-     (match mod_desc with
-     | Tmod_ident (path, id) -> Some (IOpen (translate_mod_ident path id))
-     | _ -> assert false)
-
-  | Tstr_recmodule _ -> assert false (* of module_binding list *)
-  | Tstr_class _ -> assert false (* of (class_declaration * string list) list *)
+  | Tstr_attribute _ ->
+      (* An attribute is silently ignored. *)
+      None
 
 (* -------------------------------------------------------------------------- *)
 
