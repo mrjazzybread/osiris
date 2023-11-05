@@ -1,17 +1,6 @@
 open Syntax
 open Coq
 
-(* -------------------------------------------------------------------------- *)
-
-(* Miscellaneous functions. *)
-
-let list nil cons translate lily =
-  List.fold_right
-    (fun elt res ->
-      c cons [ translate elt ;
-                       res ])
-    lily (plain nil)
-
 let string_literal s = plain (Printf.sprintf "\"%s\"" s)
 
 (* -------------------------------------------------------------------------- *)
@@ -303,11 +292,11 @@ and translate_rec_binding = function
            translate_anonfun a
        ]
 
-and translate_bindings (bds: bindings) : expression =
-  list "BiNil" "BiCons" translate_binding bds
+and translate_bindings (bs: bindings) : expression =
+  clist "MkBindings" (List.map translate_binding bs)
 
-and translate_rec_bindings (rbds: rec_bindings) : expression =
-  list "RecBiNil" "RecBiCons" translate_rec_binding rbds
+and translate_rec_bindings (rbs: rec_bindings) : expression =
+  clist "MkRecBindings" (List.map translate_rec_binding rbs)
 
 (* -------------------------------------------------------------------------- *)
 

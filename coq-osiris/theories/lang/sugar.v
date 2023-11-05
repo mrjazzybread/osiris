@@ -51,6 +51,26 @@ Fixpoint MkFexprs (fes : list (field * expr)) : fexprs :=
       FECons f e (MkFexprs fes)
   end.
 
+(* Bindings. *)
+
+Fixpoint MkBindings (bs : list binding) : bindings :=
+  match bs with
+  | [] =>
+      BiNil
+  | b :: bs =>
+      BiCons b (MkBindings bs)
+  end.
+
+(* Recursive bindings. *)
+
+Fixpoint MkRecBindings (rbs : list rec_binding) : rec_bindings :=
+  match rbs with
+  | [] =>
+      RecBiNil
+  | rb :: rbs =>
+      RecBiCons rb (MkRecBindings rbs)
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Pairs: pattern, expression, value. *)
