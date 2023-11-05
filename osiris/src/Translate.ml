@@ -62,6 +62,8 @@ let eunsupported loc construct =
 let punsupported loc construct =
   unsupported loc construct PUnsupported
 
+exception Unsupported
+
 (* -------------------------------------------------------------------------- *)
 
 (* Stripping off a location. *)
@@ -257,6 +259,12 @@ let rec translate_expr (e: expression) : expr =
   | Texp_constant c ->
       translate_exp_constant loc c
 
+  | Texp_let (Nonrecursive, vbs, e) ->
+     ELet (translate_bindings vbs, translate_expr e)
+
+  | Texp_let (Recursive, vbs, e) ->
+     ELetRec (translate_rec_bindings vbs, translate_expr e)
+
   | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
       (* [param] is apparently meaningless. *)
       translate_function cases partial
@@ -273,7 +281,7 @@ let rec translate_expr (e: expression) : expr =
   | Texp_match (e, cases, _partial) ->
       EMatch (translate_expr e, translate_computation_cases cases)
 
-  | Texp_try (_e, _cases) ->
+  | Texp_try _ ->
       eunsupported loc "try/with"
 
   | Texp_tuple es ->
@@ -283,7 +291,7 @@ let rec translate_expr (e: expression) : expr =
       let data = unqualify (txt c) in
       EData (data, ETuple (translate_exprs es))
 
-  | Texp_variant (_, _) ->
+  | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
 
   | Texp_record { fields; representation; extended_expression } ->
@@ -318,11 +326,11 @@ let rec translate_expr (e: expression) : expr =
   | Texp_for (_i, _, _e1, _e2, Downto, _e3) ->
       eunsupported loc "downto"
 
-  | Texp_send (_, _)
-  | Texp_new (_, _, _)
-  | Texp_instvar (_, _, _)
-  | Texp_setinstvar (_, _, _, _)
-  | Texp_override (_, _) ->
+  | Texp_send _
+  | Texp_new _
+  | Texp_instvar _
+  | Texp_setinstvar _
+  | Texp_override _ ->
       eunsupported loc "objects"
 
   | Texp_letmodule (Some id, _, _, me, e) ->
@@ -332,7 +340,7 @@ let rec translate_expr (e: expression) : expr =
   | Texp_letmodule (None, _, _, _, _) ->
       eunsupported loc "let module _"
 
-  | Texp_letexception (_, _) ->
+  | Texp_letexception _ ->
       eunsupported loc "let exception"
 
   | Texp_assert
@@ -344,29 +352,36 @@ let rec translate_expr (e: expression) : expr =
   | Texp_assert e ->
       EAssert (translate_expr e)
 
-  (* ICI *)
+  | Texp_lazy _ ->
+      eunsupported loc "lazy"
 
-  | Texp_let (Nonrecursive, vbs, e) ->
-     ELet (translate_bindings vbs, translate_expr e)
-
-  | Texp_let (Recursive, vbs, e) ->
-     ELetRec (translate_rec_bindings vbs, translate_expr e)
+  | Texp_object _ ->
+      eunsupported loc "objects"
 
   | Texp_pack _ ->
-     EString "TODO: Texp_pack."
-  (* TODO. *)
+      eunsupported loc "first-class modules"
 
-  | Texp_open (_, _) ->
-     (* TODO. *)
-     EString "TODO: local module open statement."
+  | Texp_letop _ ->
+      eunsupported loc "let operators"
 
-  | Texp_lazy _ -> assert false
-  | Texp_object (_, _) -> assert false
-  | Texp_letop _ -> assert false
-  | Texp_extension_constructor (_, _) -> assert false
+  | Texp_extension_constructor _ ->
+      eunsupported loc "extension constructors"
+
+  | Texp_open ({ open_expr = me; _ }, e) ->
+      (* We support [open] followed with a path, not followed with an
+         arbitrary module expression. *)
+      begin try
+        ELetOpen (translate_mod_path me, translate_expr e)
+      with Unsupported ->
+        eunsupported loc "open module expression"
+      end
 
 and translate_exprs es : exprs =
   List.map translate_expr es
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: anonymous functions. *)
 
 and translate_function cases partial : expr =
   match cases with
@@ -383,6 +398,10 @@ and translate_function cases partial : expr =
          Then we use [AnonFunction], a derived form in Osiris. *)
       EAnonFun (AnonFunction (translate_value_cases cases))
 
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: actual arguments in applications. *)
+
 and translate_labeled_arguments loc args =
   List.map (translate_labeled_argument loc) args
 
@@ -397,6 +416,8 @@ and translate_labeled_argument loc arg : expr =
       eunsupported loc "labeled arguments"
 
 (* -------------------------------------------------------------------------- *)
+
+(* Cases in [fun], [match], [try] constructs. *)
 
 and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
   fun translate_pat case ->
@@ -426,17 +447,17 @@ and translate_computation_cases cases =
 
 (* -------------------------------------------------------------------------- *)
 
-and translate_binding (vb: value_binding): binding =
-  let pattern = translate_pat vb.vb_pat in
-  let expression = translate_expr vb.vb_expr in
-  Binding (pattern, expression)
+(* Non-recursive bindings. *)
+
+and translate_binding (vb : value_binding) : binding =
+  Binding (translate_pat vb.vb_pat, translate_expr vb.vb_expr)
 
 and translate_bindings vbs =
-  List.fold_right
-    (fun vb (rv(*,rt*)) ->
-      let (v(*, t*)) = translate_binding vb in
-      v :: rv(*, t @ rt*))
-    vbs ([](*, []*))
+  List.map translate_binding vbs
+
+(* -------------------------------------------------------------------------- *)
+
+(* Recursive bindings. *)
 
 and project_EAnonFun (e : expr) : anonfun =
   match e with
@@ -591,6 +612,13 @@ and translate_module (ast: module_expr_desc) : mexpr =
   | Tmod_apply (_, _, _) -> assert false
   | Tmod_constraint (_, _, _, _) -> MStruct [] (* TODO. *)
   | Tmod_unpack (_, _) -> assert false
+
+and translate_mod_path (me : module_expr) : path =
+  match me.mod_desc with
+  | Tmod_ident (path, id) ->
+      translate_mod_ident path id
+  | _ ->
+      raise Unsupported
 
 (* -------------------------------------------------------------------------- *)
 

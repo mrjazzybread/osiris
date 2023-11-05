@@ -277,8 +277,10 @@
 * Conditionals ✓
 * `while` loops ✓
 * `for` loops ✓
+  + still missing support for `downto`
 * Unspecified evaluation order of `let/and` definitions and function applications ✓
 * Unspecified evaluation of `assert` statements ✓
+* `let` operators
 * `Obj.magic` can be supported (just erase it);
   I think that we will be able to verify programs that make "dynamically well-typed"
   use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
