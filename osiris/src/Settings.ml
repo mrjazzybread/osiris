@@ -17,12 +17,6 @@ let modules =
 let mark =
   ref ""
 
-type strategy = [`Split|`NoSplit]
-
-(* TODO: reset to the empty list by default. *)
-let splitting_strategy : strategy list ref =
-  ref [`Split]
-
 let debug =
   ref false
 
@@ -39,9 +33,6 @@ let warnings =
 let set_opt setting value =
   setting := Some value
 
-let no_split () =
-  splitting_strategy := []
-
 let spec = [
     "--debug", Arg.Set debug, " (undocumented)";
     "--mark", Arg.Set_string mark, " A prefix that is added to every file name (default: empty)";
@@ -50,7 +41,6 @@ let spec = [
     "--root", Arg.String (set_opt root), " Dune root directory (mandatory)";
     "--verbose", Arg.Set verbose, " (undocumented)";
     "--warnings", Arg.Set warnings, " Enable warnings (default: warnings enabled)";
-    "-no-split", Arg.Unit no_split, " Do not split Coq definitions"; (* TODO clean up *)
   ]
 
 let anonymous m =
@@ -107,9 +97,6 @@ let modules =
 
 let mark =
   !mark
-
-let splitting_strategy =
-  !splitting_strategy
 
 let debug =
   !debug

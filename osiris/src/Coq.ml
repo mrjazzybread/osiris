@@ -1,3 +1,5 @@
+(* -------------------------------------------------------------------------- *)
+
 (**A highly minimalistic abstract syntax of Coq expressions. *)
 type expression =
 
@@ -13,6 +15,18 @@ type expression =
 
   (* A Coq tuple; printed with parentheses and commas. *)
   | ETuple of expression list
+
+  (* A mark that suggests that this node should be isolated in a Coq
+     toplevel definition. This mark is otherwise meaningless. *)
+  | EMark of expression
+
+(**Coq toplevel definitions. *)
+type def = {
+  lhs : string;
+  rhs : expression;
+}
+
+(* -------------------------------------------------------------------------- *)
 
 (* Abbreviations for the constructors. *)
 
@@ -33,3 +47,6 @@ let tuple es =
 
 let pair e1 e2 =
   ETuple [e1; e2]
+
+let mark e =
+  EMark e

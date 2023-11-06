@@ -1,2 +1,2 @@
 (* TODO comment *)
-val definition : Syntax.def -> Syntax.coq_id * string * Coq.expression
+val module_expression : Syntax.mexpr -> Coq.expression

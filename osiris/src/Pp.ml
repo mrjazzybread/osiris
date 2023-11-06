@@ -1,4 +1,5 @@
 open PPrint
+open Coq
 
 (* -------------------------------------------------------------------------- *)
 
@@ -22,7 +23,8 @@ let parens d =
 
 (* -------------------------------------------------------------------------- *)
 
-let rec pretty_printer (expr : Coq.expression) =
+(* TODO enable all warnings *)
+let rec pretty_printer (expr : expression) =
   match expr with
   | EPlain s -> string s
   | EConstr (c, []) -> string c
@@ -43,12 +45,17 @@ let rec pretty_printer (expr : Coq.expression) =
       parens (
         separate_map comma pretty_printer es
       )
+  | EMark e ->
+      (* A remaining mark is ignored. *)
+      pretty_printer e
 
-let pretty_printer (name, ty, expr) : document =
-  flow space [string "Definition"; string name; colon; string ty; string ":="]
+let print_def def =
+  string "Definition " ^^ string def.lhs ^^ string " :="
   ^^ hardline
-  ^^ align (group (pretty_printer expr)) ^^ dot
+  ^^ group (pretty_printer def.rhs)
+  ^^ dot
+  ^^ hardline
   ^^ hardline
 
-let pretty_printer graph =
-  DAG.map pretty_printer graph
+let print_defs defs =
+  concat_map print_def defs

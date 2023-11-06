@@ -3,20 +3,8 @@
 (* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
 (* There are a few minor differences between the Coq Osiris AST (syntax.v)
-   and this OCaml Osiris AST:
-
-   - This AST allows meta-level references: [ELink], etc. These are references
-     to earlier Coq toplevel definitions. They allow splitting up a large AST
-     into several Coq toplevel definitions.
-
-   - While the Coq AST uses ad hoc lists, this AST uses ordinary lists. *)
-
-(* -------------------------------------------------------------------------- *)
-
-(* Meta-level references to Coq toplevel definitions. *)
-
-type coq_id =
-  string
+   and this OCaml Osiris AST. In particular, while the Coq AST uses ad hoc
+   lists, this AST uses ordinary lists. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -114,9 +102,6 @@ and fcoercions =
 (* Expressions. *)
 
 type expr =
-
-  (* A meta-level reference. *)
-  | ELink of coq_id
 
   (* A placeholder for as-yet-unsupported constructs. *)
   | EUnsupported
@@ -243,7 +228,6 @@ and branches =
 (* A binding is of the form [p = e], or a meta-level reference. *)
 
 and binding =
-  | BLink of coq_id
   | Binding of pat * expr
 
 (* Lists of bindings. *)
@@ -254,7 +238,6 @@ and bindings =
 (* A recursive binding is of the form [f = a], or a meta-level reference. *)
 
 and rec_binding =
-  | RecBLink of coq_id
   | RecBinding of var * anonfun
 
 (* Lists of recursive bindings *)
@@ -274,9 +257,6 @@ and anonfun =
 (* Module expressions. *)
 
 and mexpr =
-
-  (* A meta-level reference. *)
-  | MLink of coq_id
 
   (* A placeholder for as-yet-unsupported constructs. *)
   | MUnsupported
@@ -302,9 +282,6 @@ and sitems =
 
 and sitem =
 
-  (* A meta-level reference. *)
-  | ILink of coq_id
-
   (* A non-recursive toplevel definition [let bs]. *)
   | ILet of bindings
 
@@ -319,23 +296,3 @@ and sitem =
 
   (* An [include] directive [include me]. *)
   | IInclude of mexpr
-
-(* ------------------------------------------------------------------------- *)
-(* ------------------------------------------------------------------------- *)
-
-(* We are capable of emitting Coq toplevel definitions for expressions,
-   bindings, recursive bindings, module expressions, and structure items. *)
-
-(* The right-hand side of a definition. *)
-
-type rhs =
-  | OExpr of expr
-  | OBinding of binding
-  | ORecBinding of rec_binding
-  | OModule of mexpr
-  | OSItem of sitem
-
-(* A definition. *)
-
-type def =
-  { lhs : coq_id; rhs : rhs }

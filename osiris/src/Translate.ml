@@ -695,7 +695,7 @@ and translate_mod_expr (me : module_expr) : mexpr =
 
 (* -------------------------------------------------------------------------- *)
 
-(* Compilation units. *)
+(* The main function. *)
 
-let unit (m : coq_id) (str : structure) : def =
-  { lhs = m ; rhs = OModule (translate_structure str) }
+let unit =
+  translate_structure

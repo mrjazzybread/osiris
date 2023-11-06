@@ -19,12 +19,6 @@ val modules : [ `All | `Modules of string list ]
    destination directory. It is set by [--mark]. *)
 val mark: string
 
-(**A splitting strategy is a technique that is used to decompose a large Coq
-   definition (typically a large Osiris AST) into smaller Coq definitions.
-   TODO clean up *)
-type strategy = [`Split|`NoSplit]
-val splitting_strategy : strategy list
-
 (* [debug format ...] sends output to [stderr] only if [--debug] is set. *)
 val debug: ('a, out_channel, unit) format -> 'a
 

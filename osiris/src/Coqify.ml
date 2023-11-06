@@ -136,9 +136,6 @@ and fcoercion (f, co) =
 let rec expr (e : expr) =
   match e with
 
-  | ELink x ->
-      plain x
-
   | EUnsupported ->
       c "EUnsupported" []
 
@@ -146,7 +143,8 @@ let rec expr (e : expr) =
       c "EPath" [ path x ]
 
   | EAnonFun a ->
-      c "EAnonFun" [ anonfun a ]
+      (* Every anonymous function is isolated in a toplevel definition. *)
+      c "EAnonFun" [ mark (anonfun a) ]
 
   | EApp (e1, e2) ->
       c "EApp" [ expr e1; expr e2 ]
@@ -301,14 +299,10 @@ and fexpr (f, e) =
 (* Bindings. *)
 
 and binding = function
-  | BLink x ->
-      plain x
   | Binding (p, e) ->
       c "Binding" [ pat p; expr e ]
 
 and rec_binding = function
-  | RecBLink x ->
-      plain x
   | RecBinding (x, a) ->
       c "RecBinding" [ var x; anonfun a ]
 
@@ -316,7 +310,8 @@ and bindings (bs : bindings) =
   clist "MkBindings" (map binding bs)
 
 and rec_bindings (rbs : rec_bindings) =
-  clist "MkRecBindings" (map rec_binding rbs)
+  (* Every group of recursive bindings is isolated in a toplevel definition. *)
+  mark (clist "MkRecBindings" (map rec_binding rbs))
 
 (* -------------------------------------------------------------------------- *)
 
@@ -324,9 +319,6 @@ and rec_bindings (rbs : rec_bindings) =
 
 and structure_item (item : sitem) =
   match item with
-
-  | ILink x ->
-      plain x
 
   | ILet bs ->
      c "ILet" [ bindings bs ]
@@ -353,9 +345,6 @@ and structure_items items =
 and mexpr (me : mexpr) =
   match me with
 
-  | MLink x ->
-      plain x
-
   | MUnsupported ->
       c "MUnsupported" []
 
@@ -370,15 +359,7 @@ and mexpr (me : mexpr) =
 
 (* -------------------------------------------------------------------------- *)
 
-let definition def =
-  match def.rhs with
-  | OExpr e ->
-      def.lhs, "expr", expr e
-  | OBinding b ->
-      def.lhs, "binding", binding b
-  | ORecBinding rb ->
-      def.lhs, "rec_binding", rec_binding rb
-  | OModule me ->
-      def.lhs, "mexpr", mexpr me
-  | OSItem item ->
-      def.lhs, "sitem", structure_item item
+(* The main function. *)
+
+let module_expression =
+  mexpr
