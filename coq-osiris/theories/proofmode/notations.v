@@ -112,21 +112,27 @@ Infix ":::" := (concat).
 (* Paths, tuples and ADTs. *)
 
 
-Notation "'path:(' x1 ')'" :=
+Notation "'Path' x1" :=
   (PathBase x1)
-    (format "'path:(' x1 ')'").
-Notation "'path:(' x1 '.' .. '.' xn '.' xm ')'" :=
+    (at level 90,
+      format "'Path' x1").
+
+Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
   (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
-    (x1, xn, xm at level 200,
-       format "'path:(' x1 '/' '.' .. '/' '.' xn '.' '/' xm )").
+    (at level 200,
+       format "'Path' x1 '/' '.' .. '/' '.' xn '.' '/' xm").
 
-Notation "'epath:(' x1 ')'" :=
+Notation "'EPath' x1" :=
   (EPath (PathBase x1))
-    (format "'epath:(' x1 ')'").
-Notation "'epath:(' x1 '.' .. '.' xn '.' xm ')'" :=
-  (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
-    (format "'epath:(' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
+    (at level 90,
+      only printing,
+        format "'EPath' x1").
 
+Notation "'EPath' x1 '.' .. '.' xn '.' xm ')'" :=
+  (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
+    (x1, xn, xm at level 200,
+      only printing,
+        format "'EPath' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
 
 Notation "'<e' e1 , .. , en 'e>'" :=
   (ETuple (ECons e1 .. (ECons en ENil) ..))
@@ -194,7 +200,7 @@ Notation "'eλ:(' '_' , e )" :=
   (EAnonFun (AnonFun "__osiris_anonymous_arg" e))
     (format "'eλ:('  '_'  ',' '//'    '[hv' e ']' ')'").
 
-Notation "'_'" := (epath:("__osiris_anonymous_arg")) (only printing).
+Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 
 Notation "( e1 )  ( e2 )" := (EApp e1 e2) (only printing).
 
@@ -260,11 +266,12 @@ done; ...
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
-Notation "'match:(' x 'with' pats )" :=
+Notation "'Ematch' x 'with' pats " :=
   (EMatch x pats)
-    (only printing,
-       no associativity,
-         format "'[v' 'match:('  x  'with' '//' pats ']' ')'").
+    (at level 90,
+      only printing,
+        no associativity,
+          format "'[v' 'Ematch'  x  'with' '//' pats ']'").
 
 Notation "'|' pat '=>' e others" :=
   (BrCons (Branch pat e) others)
