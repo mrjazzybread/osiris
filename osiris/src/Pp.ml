@@ -36,37 +36,44 @@ let lbracket, rbracket =
 let brackets doc =
   nest 2 (lbracket ^^ doc) ^^ rbracket
 
-let rec pretty_printer (expr : expression) =
-  group @@ match expr with
+let rec expr0 (e : expression) =
+  group @@ match e with
   | CAtom s ->
       string s
   | CCon (c, []) ->
       string c
-  | CCon (c, es) ->
-      parens (
-        string c ^^ space ^^
-        separate_map (break 1) pretty_printer es
-      )
+  | CCon (_, _) ->
+      parens (expr1 e)
   | CList [] ->
       string "[]"
   | CList es ->
       brackets (
-        separate_map semibreak pretty_printer es
+        separate_map semibreak expr1 es
       )
   | CTuple [] ->
       string "()"
   | CTuple es ->
       parens (
-        separate_map commabreak pretty_printer es
+        separate_map commabreak expr1 es
       )
   | CMark e ->
-      (* A remaining mark is ignored. *)
-      pretty_printer e
+      expr0 e
+
+and expr1 e =
+  match e with
+  | CCon (c, []) ->
+      string c
+  | CCon (c, es) ->
+      string c ^^ space ^^ separate_map (break 1) expr0 es
+  | CMark e ->
+      expr1 e
+  | _ ->
+      expr0 e
 
 let print_def def =
   string "Definition " ^^ string def.lhs ^^ string " :=" ^^ nest 2 (group (
     break 1 ^^
-    pretty_printer def.rhs ^^
+    expr1 def.rhs ^^
     dot
   )) ^^
   hardline ^^
