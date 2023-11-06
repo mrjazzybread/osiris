@@ -70,7 +70,7 @@ and expr1 e =
   | _ ->
       expr0 e
 
-let print_def def =
+let def def =
   string "Definition " ^^ string def.lhs ^^ string " :=" ^^ nest 2 (group (
     break 1 ^^
     expr1 def.rhs ^^
@@ -79,5 +79,5 @@ let print_def def =
   hardline ^^
   hardline
 
-let print_defs defs =
-  concat_map print_def defs
+let defs defs =
+  concat_map def defs
