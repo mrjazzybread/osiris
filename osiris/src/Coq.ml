@@ -4,21 +4,21 @@
 type expression =
 
   (* A plain string; printed literally (without quotes). *)
-  | EPlain of string
+  | CAtom of string
 
   (* An application of a data constructor to several arguments;
      printed by preceding each argument with a space. *)
-  | EConstr of string * expression list
+  | CCon of string * expression list
 
   (* A Coq list; printed with square brackets and semicolons. *)
-  | EList of expression list
+  | CList of expression list
 
   (* A Coq tuple; printed with parentheses and commas. *)
-  | ETuple of expression list
+  | CTuple of expression list
 
   (* A mark that suggests that this node should be isolated in a Coq
      toplevel definition. This mark is otherwise meaningless. *)
-  | EMark of expression
+  | CMark of expression
 
 (**Coq toplevel definitions. *)
 type def = {
@@ -31,22 +31,22 @@ type def = {
 (* Abbreviations for the constructors. *)
 
 let plain s =
-  EPlain s
+  CAtom s
 
 let c s es =
-  EConstr (s, es)
+  CCon (s, es)
 
 let list es =
-  EList es
+  CList es
 
 let clist s es =
   c s [list es]
 
 let tuple es =
-  ETuple es
+  CTuple es
 
 let pair e1 e2 =
-  ETuple [e1; e2]
+  CTuple [e1; e2]
 
 let mark e =
-  EMark e
+  CMark e

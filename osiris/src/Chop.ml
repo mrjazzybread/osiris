@@ -37,15 +37,15 @@ let emitted () : def list =
 
 let rec chop_expr e =
   match e with
-  | EPlain s ->
-      EPlain s
-  | EConstr (c, es) ->
-      EConstr (c, chop_exprs es)
-  | EList es ->
-      EList (chop_exprs es)
-  | ETuple es ->
-      ETuple (chop_exprs es)
-  | EMark e ->
+  | CAtom s ->
+      CAtom s
+  | CCon (c, es) ->
+      CCon (c, chop_exprs es)
+  | CList es ->
+      CList (chop_exprs es)
+  | CTuple es ->
+      CTuple (chop_exprs es)
+  | CMark e ->
       let e = chop_expr e in
       (* Obey the mark: cut off this subterm. *)
       (* Pick a name. *)
@@ -53,7 +53,7 @@ let rec chop_expr e =
       (* Emit a definition of [x]. *)
       emit { lhs = x; rhs = e };
       (* Return a reference to [x]. *)
-      EPlain x
+      CAtom x
 
 and chop_exprs es =
   List.map chop_expr es

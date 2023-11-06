@@ -23,29 +23,28 @@ let parens d =
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO enable all warnings *)
 let rec pretty_printer (expr : expression) =
   match expr with
-  | EPlain s -> string s
-  | EConstr (c, []) -> string c
-  | EConstr (c, es) ->
+  | CAtom s -> string s
+  | CCon (c, []) -> string c
+  | CCon (c, es) ->
      parens (
          string c ^^ space ^^
            separate_map (break 1) pretty_printer es
        )
-  | EList [] ->
+  | CList [] ->
       string "[]"
-  | EList es ->
+  | CList es ->
       brackets (
         separate_map semi pretty_printer es
       )
-  | ETuple [] ->
+  | CTuple [] ->
       string "()"
-  | ETuple es ->
+  | CTuple es ->
       parens (
         separate_map comma pretty_printer es
       )
-  | EMark e ->
+  | CMark e ->
       (* A remaining mark is ignored. *)
       pretty_printer e
 
