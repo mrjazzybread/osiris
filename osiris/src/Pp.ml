@@ -64,7 +64,7 @@ and expr1 e =
   | CCon (c, []) ->
       string c
   | CCon (c, es) ->
-      string c ^^ space ^^ separate_map (break 1) expr0 es
+      string c ^^ space ^^ separate_map space expr0 es
   | CMark e ->
       expr1 e
   | _ ->
