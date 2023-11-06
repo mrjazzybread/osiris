@@ -14,14 +14,14 @@ open SysExtra
 
 let read_cmt cmt_file : Typedtree.structure =
   assert (is_absolute cmt_file);
-  match Cmt_format.read_cmt cmt_file with
+  let open Cmt_format in
+  match read_cmt cmt_file with
   | exception Cmt_format.(Error (Not_a_typedtree _))
   | exception Cmi_format.(Error (Not_an_interface _)) ->
       fail "Invalid .cmt file: %s\n" cmt_file
-  | infos ->
-      let { cmt_annots; _ } : Cmt_format.cmt_infos = infos in
+  | { cmt_annots; _ } ->
       match cmt_annots with
-      | Cmt_format.Implementation t ->
+      | Implementation t ->
           t
       | _ ->
           fail "This .cmt file does not contain a typed tree: %s\n" cmt_file
@@ -55,7 +55,7 @@ let translate_one_file module_name out_file cmt_file =
   let u : Syntax.mexpr = Translate.unit u in
 
   let u : Coq.expression = Coqify.module_expression u in
-  let def : Coq.def = { lhs = m; rhs = u } in
+  let def : Coq.def = Coq.{ lhs = m; rhs = u } in
   let defs = Chop.chop def in
   let doc = Pp.print_defs defs in
 
