@@ -16,7 +16,7 @@ let next () =
   this
 
 let fresh base =
-  sprintf "%s%d" base (next())
+  sprintf "__%s%d" base (next())
 
 (* -------------------------------------------------------------------------- *)
 

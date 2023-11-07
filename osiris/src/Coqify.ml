@@ -3,6 +3,14 @@ let map = List.map
 open Syntax
 open Coq
 
+(* This module transforms the Osiris AST into the Coq AST. *)
+
+(* Cut marks are inserted by invoking [cut] in several places: anonymous
+   functions, recursive let bindings, branches of conditional constructs,
+   right-hand sides of [let] expressions and sequences. This may help
+   improve the readability of the generated definitions and reduce the
+   size of the goals that appear while verifying the code in Coq. *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* Variables, module names, data constructors, and field names are
@@ -143,7 +151,6 @@ let rec expr (e : expr) =
       c "EPath" [ path x ]
 
   | EAnonFun a ->
-      (* Every anonymous function is isolated in a toplevel definition. *)
       c "EAnonFun" [ cut "fun" (anonfun a) ]
 
   | EApp (e1, e2) ->
@@ -228,34 +235,34 @@ let rec expr (e : expr) =
       c "EOpGe" [ expr e1; expr e2 ]
 
   | ELet (bs, e) ->
-      c "ELet" [ bindings bs; expr e ]
+      c "ELet" [ bindings bs; cut_expr e ]
 
   | ELetRec (rbs, e) ->
-      c "ELetRec" [ rec_bindings rbs; expr e ]
+      c "ELetRec" [ rec_bindings rbs; cut_expr e ]
 
   | ELetModule (m, me, e) ->
-      c "ELetModule" [ var m; mexpr me; expr e ]
+      c "ELetModule" [ var m; mexpr me; cut_expr e ]
 
   | ELetOpen (me, e) ->
-      c "ELetOpen" [ mexpr me; expr e ]
+      c "ELetOpen" [ mexpr me; cut_expr e ]
 
   | ESeq (e1, e2) ->
-      c "ESeq" [ expr e1; expr e2 ]
+      c "ESeq" [ expr e1; cut_expr e2 ]
 
   | EIfThen (e, e1) ->
-      c "EIfThen" [ expr e; expr e1 ]
+      c "EIfThen" [ expr e; cut_expr e1 ]
 
   | EIfThenElse (e, e1, e2) ->
-      c "EIfThenElse" [ expr e; expr e1; expr e2 ]
+      c "EIfThenElse" [ expr e; cut_expr e1; cut_expr e2 ]
 
   | EMatch (e, bs) ->
       c "EMatch" [ expr e; branches bs ]
 
   | EWhile (e1, e2) ->
-      c "EWhile" [ expr e1; expr e2 ]
+      c "EWhile" [ expr e1; cut_expr e2 ]
 
   | EFor (x, e1, e2, e3) ->
-      c "EFor" [ var x; expr e1; expr e2; expr e3 ]
+      c "EFor" [ var x; expr e1; expr e2; cut_expr e3 ]
 
   | EAssertFalse ->
       c "EAssertFalse" []
@@ -272,6 +279,9 @@ let rec expr (e : expr) =
   | EStore (e1, e2) ->
       c "EStore" [ expr e1; expr e2 ]
 
+and cut_expr e =
+  cut "exp" (expr e)
+
 and exprs es =
   map expr es
 
@@ -286,7 +296,7 @@ and branch = function
       c "Branch" [ pat p; expr e ]
 
 and branches (bs : branches) =
-  clist "MkBranches" (map branch bs)
+  cut "branches" (clist "MkBranches" (map branch bs))
 
 and fexprs (fes : fexprs) =
   clist "MkFexprs" (map fexpr fes)
@@ -310,8 +320,7 @@ and bindings (bs : bindings) =
   clist "MkBindings" (map binding bs)
 
 and rec_bindings (rbs : rec_bindings) =
-  (* Every group of recursive bindings is isolated in a toplevel definition. *)
-  cut "rbs" (clist "MkRecBindings" (map rec_binding rbs))
+  cut "bindings" (clist "MkRecBindings" (map rec_binding rbs))
 
 (* -------------------------------------------------------------------------- *)
 
