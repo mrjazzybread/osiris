@@ -1,6 +1,8 @@
 open PPrint
 open Coq
 
+(* This is a pretty-printer for Coq terms and definitions. *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* A block with indentation. *)
@@ -37,7 +39,7 @@ let brackets doc =
   nest 2 (lbracket ^^ doc) ^^ rbracket
 
 let rec expr0 (e : expression) =
-  group @@ match e with
+  match e with
   | CAtom s ->
       string s
   | CCon (c, []) ->
