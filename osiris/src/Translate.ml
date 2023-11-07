@@ -604,8 +604,10 @@ and translate_structure_item (item : structure_item) : sitem option =
   let loc = item.str_loc in
   match item.str_desc with
 
-  | Tstr_eval _ ->
-      ounsupported loc "toplevel expression"
+  | Tstr_eval (e, _) ->
+      (* An expression [e] at the toplevel is translated in the same way
+         as the toplevel binding [let _ = e]. *)
+      Some (ILet [Binding (PAny, translate_expr e)])
 
   | Tstr_value (Nonrecursive, vbs) ->
       Some (ILet (translate_bindings vbs))
