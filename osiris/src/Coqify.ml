@@ -144,7 +144,7 @@ let rec expr (e : expr) =
 
   | EAnonFun a ->
       (* Every anonymous function is isolated in a toplevel definition. *)
-      c "EAnonFun" [ mark (anonfun a) ]
+      c "EAnonFun" [ cut "fun" (anonfun a) ]
 
   | EApp (e1, e2) ->
       c "EApp" [ expr e1; expr e2 ]
@@ -311,7 +311,7 @@ and bindings (bs : bindings) =
 
 and rec_bindings (rbs : rec_bindings) =
   (* Every group of recursive bindings is isolated in a toplevel definition. *)
-  mark (clist "MkRecBindings" (map rec_binding rbs))
+  cut "rbs" (clist "MkRecBindings" (map rec_binding rbs))
 
 (* -------------------------------------------------------------------------- *)
 

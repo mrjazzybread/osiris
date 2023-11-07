@@ -15,8 +15,8 @@ let next () =
   c := this + 1;
   this
 
-let fresh () =
-  sprintf "aux%d" (next())
+let fresh base =
+  sprintf "%s%d" base (next())
 
 (* -------------------------------------------------------------------------- *)
 
@@ -45,11 +45,11 @@ let rec chop_expr e =
       CList (chop_exprs es)
   | CTuple es ->
       CTuple (chop_exprs es)
-  | CMark e ->
+  | CCut (base, e) ->
       let e = chop_expr e in
       (* Obey the mark: cut off this subterm. *)
       (* Pick a name. *)
-      let x = fresh() in
+      let x = fresh base in
       (* Emit a definition of [x]. *)
       emit { lhs = x; rhs = e };
       (* Return a reference to [x]. *)

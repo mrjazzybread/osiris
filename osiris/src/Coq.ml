@@ -17,8 +17,9 @@ type expression =
   | CTuple of expression list
 
   (* A mark that suggests that this node should be isolated in a Coq
-     toplevel definition. This mark is otherwise meaningless. *)
-  | CMark of expression
+     toplevel definition. This mark is otherwise meaningless. The mark
+     carries a string that is used as a base name for this definition. *)
+  | CCut of string * expression
 
 (**Coq toplevel definitions. *)
 type def = {
@@ -48,5 +49,5 @@ let tuple es =
 let pair e1 e2 =
   CTuple [e1; e2]
 
-let mark e =
-  CMark e
+let cut base e =
+  CCut (base, e)

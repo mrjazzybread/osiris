@@ -56,7 +56,7 @@ let rec expr0 (e : expression) =
       parens (
         separate_map commabreak expr1 es
       )
-  | CMark e ->
+  | CCut (_, e) ->
       expr0 e
 
 and expr1 e =
@@ -65,7 +65,7 @@ and expr1 e =
       string c
   | CCon (c, es) ->
       string c ^^ space ^^ separate_map space expr0 es
-  | CMark e ->
+  | CCut (_, e) ->
       expr1 e
   | _ ->
       expr0 e
