@@ -22,13 +22,13 @@ let fresh base =
 
 (* Emitting a list of definitions. *)
 
-let defs : def list ref =
+let defs : defs ref =
   ref []
 
 let emit def =
   defs := def :: !defs
 
-let emitted () : def list =
+let emitted () : defs =
   List.rev !defs
 
 (* -------------------------------------------------------------------------- *)
@@ -62,7 +62,7 @@ and cut_exprs es =
 
 (* Transforming a definition. *)
 
-let cut_def def : def list =
+let cut_def def : defs =
   let def = { def with rhs = cut_expr def.rhs } in
   emit def;
   emitted()
@@ -73,6 +73,6 @@ end
 
 (* The main transformation function. *)
 
-let cut (def : def) : def list =
+let cut (def : def) : defs =
   let module M = Make() in
   M.cut_def def

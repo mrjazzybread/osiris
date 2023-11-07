@@ -27,6 +27,9 @@ type def = {
   rhs : expression;
 }
 
+type defs =
+  def list
+
 (* -------------------------------------------------------------------------- *)
 
 (* Abbreviations for the constructors. *)
