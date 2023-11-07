@@ -35,18 +35,18 @@ let emitted () : def list =
 
 (* Transforming an expression. *)
 
-let rec chop_expr e =
+let rec cut_expr e =
   match e with
   | CAtom s ->
       CAtom s
   | CCon (c, es) ->
-      CCon (c, chop_exprs es)
+      CCon (c, cut_exprs es)
   | CList es ->
-      CList (chop_exprs es)
+      CList (cut_exprs es)
   | CTuple es ->
-      CTuple (chop_exprs es)
+      CTuple (cut_exprs es)
   | CCut (base, e) ->
-      let e = chop_expr e in
+      let e = cut_expr e in
       (* Obey the mark: cut off this subterm. *)
       (* Pick a name. *)
       let x = fresh base in
@@ -55,15 +55,15 @@ let rec chop_expr e =
       (* Return a reference to [x]. *)
       CAtom x
 
-and chop_exprs es =
-  List.map chop_expr es
+and cut_exprs es =
+  List.map cut_expr es
 
 (* -------------------------------------------------------------------------- *)
 
 (* Transforming a definition. *)
 
-let chop_def def : def list =
-  let def = { def with rhs = chop_expr def.rhs } in
+let cut_def def : def list =
+  let def = { def with rhs = cut_expr def.rhs } in
   emit def;
   emitted()
 
@@ -73,6 +73,6 @@ end
 
 (* The main transformation function. *)
 
-let chop (def : def) : def list =
+let cut (def : def) : def list =
   let module M = Make() in
-  M.chop_def def
+  M.cut_def def

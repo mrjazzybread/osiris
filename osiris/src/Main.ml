@@ -56,7 +56,7 @@ let translate_one_file module_name out_file cmt_file =
 
   let u : Coq.expression = Coqify.module_expression u in
   let def : Coq.def = Coq.{ lhs = m; rhs = u } in
-  let defs = Chop.chop def in
+  let defs = Cut.cut def in
   let doc = Print.defs defs in
 
   (* Finally, pretty-print the generated definitions into the output file
