@@ -123,7 +123,7 @@ Ltac wp_simp_eusing H :=
 
 Lemma Records_spec :
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  ⊢ WP eval_mexpr η _Records {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   intros η.
   wp.

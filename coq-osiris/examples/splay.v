@@ -334,7 +334,7 @@ Local Ltac fixme :=
 
 Lemma Splay__spec:
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  SIMP (eval_mexpr η _Splay)
+  SIMP (eval_mexpr η __main)
        (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.
   intros.

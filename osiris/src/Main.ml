@@ -12,7 +12,7 @@ open SysExtra
 
 (* https://github.com/ocaml/ocaml/blob/trunk/file_formats/cmt_format.mli *)
 
-let read_cmt (cmt_file : filename) : Typedtree.structure =
+let read (cmt_file : filename) : Typedtree.structure =
   assert (is_absolute cmt_file);
   let open Cmt_format in
   match read_cmt cmt_file with
@@ -43,21 +43,20 @@ let print (out_file : filename) (defs : Coq.defs) =
 
 (* -------------------------------------------------------------------------- *)
 
-(* Main code of the translator. *)
+(* Translating one file. *)
 
-let translate_one_file module_name out_file cmt_file =
+let translate out_file cmt_file =
   assert (is_absolute cmt_file);
   assert (is_absolute out_file);
 
   (* Read the .cmt file, which contains a typed OCaml AST. *)
-  let u : Typedtree.structure = read_cmt cmt_file in
+  let u : Typedtree.structure = read cmt_file in
 
   (* Convert this typed OCaml AST to an Osiris AST. *)
-  let m = "_" ^ module_name in (* TODO revisit or document this convention *)
   let u : Syntax.mexpr = Translate.unit u in
 
   let u : Coq.expression = Coqify.module_expression u in
-  let def : Coq.def = Coq.{ lhs = m; rhs = u } in
+  let def : Coq.def = Coq.{ lhs = "__main"; rhs = u } in
   let defs = Cut.cut def in
 
   (* Finally, pretty-print the generated definitions into the output file
@@ -100,7 +99,7 @@ let process m =
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
   (* Translate this file. *)
-  translate_one_file m v_file cmt_file
+  translate v_file cmt_file
 
 let () =
   (* Check the list of modules that was passed on the command line. *)

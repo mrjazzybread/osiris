@@ -79,7 +79,7 @@ Lemma Add_spec :
     ]
   in
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  ⊢ WP eval_mexpr η _Arith {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   intros.
 

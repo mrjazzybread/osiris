@@ -178,7 +178,7 @@ Section ProofExamples.
             (representable_0 : representable 0).
 
   Goal
-    ⊢ WP eval_mexpr η _Examples {{ module_spec Examples_spec }}.
+    ⊢ WP eval_mexpr η __main {{ module_spec Examples_spec }}.
   Proof using Hη_sub Hη_store Hη_ref Hη_load Hη_le Hη_eq Hη_add
     osirisGS0 representable_0 Σ η.
 

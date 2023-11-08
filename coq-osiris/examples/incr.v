@@ -53,7 +53,7 @@ Lemma Incr__spec:
     ]
   in
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  ⊢ WP eval_mexpr η _Incr {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   iIntros.
   wp until "new_counter" !.

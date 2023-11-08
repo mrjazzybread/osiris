@@ -85,7 +85,7 @@ Section ProofExamples.
             (Hη_le: lookup_name η "<=" = Ret Stdlib__le).
 
   Lemma Stateless_correct :
-    ⊢ WP eval_mexpr η _Stateless {{ Stateless_spec }}.
+    ⊢ WP eval_mexpr η __main {{ Stateless_spec }}.
   Proof using Hη_add Hη_le Hη_load Hη_ref Hη_store osirisGS0 Σ η.
     oSpecify "make" make_spec vmake "#Hmake" !.
     { iIntros "!>".
