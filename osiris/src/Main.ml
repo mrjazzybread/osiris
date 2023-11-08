@@ -67,15 +67,15 @@ let translate out_file cmt_file =
 
 (* The path of the output file (.v) is computed based on the path of the
    source file (.ml). The latter is relative to the dune root directory.
-   It typically begins with something like [_build/default/], so we chop
-   the first two segments of it. *)
+   It typically begins with something like [_build/default/], so we drop
+   its first two segments. *)
 
 let output_file_path ml_file =
   assert (is_relative ml_file);
   ml_file
   |> remove_extension                        (* remove [.ml] or [.ml-gen] *)
   |> add_suffix ".v"                         (* add [.v] *)
-  |> drop 2
+  |> drop 2                                  (* drop first two segments *)
   |> concat Settings.out                     (* make this an absolute path *)
   |> map_basename (add_prefix Settings.mark) (* add mark to file name *)
 
@@ -86,20 +86,28 @@ let output_file_path ml_file =
 let table =
   Dune.describe Settings.root
 
+(* -------------------------------------------------------------------------- *)
+
+(* Processing one module. *)
+
 let process m =
   say "Processing module: %s\n" m;
-  (* Find its .ml file, relative to the dune root directory. *)
+  (* Find the [.ml] file, relative to the dune root directory. *)
   let ml_file = Dune.impl m table in
-  (* Find its .cmt file, relative to the dune root directory. *)
+  (* Find the [.cmt] file, relative to the dune root directory. *)
   let cmt_file = Dune.cmt m table in
   say "    .cmt file: %s\n" cmt_file;
-  (* Construct the absolute path of the input (.cmt) file. *)
+  (* Construct the absolute path of the input [.cmt] file. *)
   let cmt_file = concat Settings.root cmt_file in
-  (* Construct the absolute path of the output (.v) file. *)
+  (* Construct the absolute path of the output [.v] file. *)
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
   (* Translate this file. *)
   translate v_file cmt_file
+
+(* -------------------------------------------------------------------------- *)
+
+(* Main. *)
 
 let () =
   (* Check the list of modules that was passed on the command line. *)
