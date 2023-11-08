@@ -33,7 +33,7 @@ let warnings =
 let set_opt setting value =
   setting := Some value
 
-let spec = [
+let spec = Arg.align [
     "--debug", Arg.Set debug, " (undocumented)";
     "--mark", Arg.Set_string mark, " A prefix that is added to every file name (default: empty)";
     "--no-warnings", Arg.Clear warnings, " Disable warnings (default: warnings enabled)";
