@@ -2,26 +2,71 @@
 
 ## Purpose
 
+This tool translates [OCaml](https://ocaml.org/) source code
+(an `. ml` file)
+into an Osiris abstract syntax tree
+that can be read by
+the [Coq](https://coq.inria.fr/) proof assistant
+(a `.v` file).
+
+This allows using Coq
+and
+[Iris](https://iris-project.org/)
+to specify and verify this OCaml source code.
+
+## Assumptions
+
+We assume that the OCaml code has been compiled using the
+[dune](https://dune.build/) build system.
+
+The flag `-bin-annot` must be passed to the OCaml compiler.
+To this end, the `dune` file should contain a line that resembles this:
+
+```
+  (flags (:standard -bin-annot))
+```
+
+This flag causes the OCaml compiler to create `.cmt` files,
+which the Osiris translator reads.
+
+We assume that `dune` is in the PATH. The translator invokes `dune describe`
+to obtain a description of the project.
+
 ## Usage
 
 The basic usage is
 
 ```
-  osiris --root <project directory> --out <output directory> all
-  osiris --root <project directory> --out <output directory> <OCaml module names>
+  osiris \
+    --root <project directory> \
+    --out <output directory> \
+    <OCaml module names>
 ```
 
-Osiris assumes that `dune build` has been executed already, so the OCaml code
-has been compiled and the required `.cmt` files can be found somewhere inside
-the `_build` subdirectory.
+Passing `--root <project directory>` and `--out <output directory>` is mandatory.
 
-For each module `A` whose name is passed on the command line,
-the source file (say `A.ml`) is located somewhere inside
-the project directory. Then, a corresponding Coq file (`A.v`) is created, at
-the same relative path, inside the output directory.
+The project directory is the root of the OCaml project;
+this is where the `dune-project` file resides.
 
-If the list of module names consists of just the word `all`
-then all modules found in the project are processed.
+The output directory is where the translated files should be produced.
+An OCaml file whose path relative to the project directory is `foo/bar/baz.ml`
+is translated to
+a Coq file whose path relative to the output directory is `foo/bar/baz.v`.
+This file contains the definition of an abstract syntax tree, named `__main`,
+for this OCaml module. (It usually also contains auxiliary definitions
+whose names are not predictable.)
 
-If the command line option `--mark <mark>` is passed then the prefix `<mark>`
-is prepended to the name of every generated file.
+If a list of OCaml module names is passed on the command line,
+as shown above,
+then only these modules are translated.
+
+If instead, the word `all` is passed on the command line,
+as follows,
+then all OCaml modules found in the project are processed:
+
+```
+  osiris \
+    --root <project directory> \
+    --out <output directory> \
+    all
+```
