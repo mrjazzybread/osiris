@@ -72,13 +72,11 @@ Proof.
   eexists x; auto.
 Qed.
 
-From osiris.proofmode Require Import verbose_simp.
-
 Ltac SimpRet :=
   (apply SimpParRetLeft || apply SimpParRetRight).
 
-Lemma Sorted_Hd_cmp A x (l : list A) (cmp : A -> A -> Prop) :
-  Transitive cmp -> Sorted cmp l -> HdRel cmp x l <-> Forall (cmp x) l.
+Lemma Sorted_Hd_cmp A x (l : list A) (cmp : A -> A -> Prop) `{Transitive A cmp}:
+  Sorted cmp l -> HdRel cmp x l <-> Forall (cmp x) l.
 Proof.
   split; intros.
   { induction l; first done.
@@ -90,27 +88,6 @@ Proof.
   { induction l; first done.
     apply HdRel_cons.
     by inversion H1. }
-Qed.
-
-Lemma Forall_Permutation_app A l (P : A -> Prop) :
-  forall l1 l2, Permutation (l1 ++ l2) l -> Forall P l1 -> Forall P l2 -> Forall P l. 
-Proof.
-  induction l; first done.
-  intros.
-  apply Forall_cons.
-  assert (In a (l1 ++ l2)).
-  { eapply Permutation_in. apply Permutation_sym. apply H. by left. }
-  apply in_app_or in H2.
-  split.
-  destruct H2; [eapply (List.Forall_forall _ l1) | eapply (List.Forall_forall _ l2)]; eauto.
-  assert (incl l (l1++l2)).
-  { eapply incl_tran.
-    { apply incl_tl with (a:=a); apply incl_refl. }
-    unfold incl; intros a0 ?.
-    apply Permutation_sym in H.
-    apply Permutation_in with (x:=a0) in H; assumption. }
-  eapply incl_Forall. apply H3.
-  apply Forall_app; auto.
 Qed.
 
 Lemma Zle_Transitive : Transitive Z.le.
@@ -167,7 +144,6 @@ Proof.
     SimpRet.
     repeat (eapply advance_SimpBind; simpl; first SimpRet).
     eapply advance_SimpBind; simpl.
-
     (* Use induction hypothesis *)
     eapply prove_simp_try. { apply IH2. }
     all: try apply SimpReflexive; simpl.
@@ -177,7 +153,8 @@ Proof.
       apply Sorted_cons; first assumption.
       apply Sorted_Hd_cmp; try auto.
       (* Goal: Forall (le h2) l1t2 *)
-      eapply Forall_Permutation_app; [apply H9| |]; apply Sorted_Hd_cmp; auto.
+      rewrite <- H9; apply Forall_app.
+      split; apply Sorted_Hd_cmp; auto.
       constructor.
       rewrite lt_repr_repr in branch; only 2-3: auto.
       apply Z.ltb_lt in branch.
@@ -187,6 +164,7 @@ Proof.
       rewrite <- app_comm_cons.
       apply Permutation_skip.
       by rewrite Permutation_app_comm. }}
+
   { unfold __exp0. fixme.
     (* Advance to call merge *)
     eapply SIMP_simp.
@@ -208,7 +186,8 @@ Proof.
       apply Sorted_cons; first assumption.
       apply Sorted_Hd_cmp; try auto.
       (* Goal: Forall (le h1) h1l2 *)
-      eapply Forall_Permutation_app; [apply H5| |]; apply Sorted_Hd_cmp; auto.
+      rewrite <- H5; apply Forall_app.
+      split; apply Sorted_Hd_cmp; auto.
       apply HdRel_cons.
       (* Goal: h1 <= h2 *)
       rewrite lt_repr_repr in branch; only 2-3: auto.

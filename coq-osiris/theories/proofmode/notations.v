@@ -266,12 +266,12 @@ done; ...
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
-Notation "'Ematch' x 'with' pats " :=
+Notation "'EMatch' x 'with' pats " :=
   (EMatch x pats)
     (at level 90,
       only printing,
         no associativity,
-          format "'[v' 'Ematch'  x  'with' '//' pats ']'").
+          format "'[v' 'EMatch'  x  'with' '//' pats ']'").
 
 Notation "'|' pat '=>' e others" :=
   (BrCons (Branch pat e) others)
