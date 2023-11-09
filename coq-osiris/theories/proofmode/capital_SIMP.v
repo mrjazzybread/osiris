@@ -326,7 +326,8 @@ Ltac SIMP_continue :=
 Ltac SIMP_specify x φ :=
   lazymatch goal with
   | |- SIMP (bind (ret_dconcat ?δ _) _) _ =>
-      let o := eval cbn in (lookup_name δ x) in
+      (* hnf to avoid unnecessary reductions *)
+      let o := eval hnf in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in
         assert (φ v) as h; [| revert h; generalize v ]
@@ -368,7 +369,7 @@ Ltac SIMP_enter_and_abstract :=
   lazymatch goal with |- SIMP (call ?v _) _ =>
     (* First, expand [call] away. *)
     SIMP1_call_step;
-    normalize;
+    cbn zeta;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
        with an abstract value. This ensures that we cannot step into

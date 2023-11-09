@@ -115,24 +115,24 @@ Infix ":::" := (concat).
 Notation "'Path' x1" :=
   (PathBase x1)
     (at level 90,
-      format "'Path' x1").
+      format "'Path'  x1").
 
 Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
   (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
     (at level 200,
-       format "'Path' x1 '/' '.' .. '/' '.' xn '.' '/' xm").
+       format "'Path'  x1 '/' '.' .. '/' '.' xn '.' '/' xm").
 
 Notation "'EPath' x1" :=
   (EPath (PathBase x1))
     (at level 90,
       only printing,
-        format "'EPath' x1").
+        format "'EPath'  x1").
 
 Notation "'EPath' x1 '.' .. '.' xn '.' xm ')'" :=
   (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
     (x1, xn, xm at level 200,
       only printing,
-        format "'EPath' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
+        format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
 
 Notation "'<e' e1 , .. , en 'e>'" :=
   (ETuple (ECons e1 .. (ECons en ENil) ..))
