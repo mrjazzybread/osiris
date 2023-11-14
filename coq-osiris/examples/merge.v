@@ -230,9 +230,48 @@ Proof.
 
 
     (* Use induction hypothesis *)
-    apply advance_simp_bind_as_try.
-    simpl in IH2.
-    Admitted.
+    rewrite <- try_bind. eapply prove_simp_try.
+    apply IH2.
+    all: try apply SimpReflexive; simpl.
+    SIMP_ret.
+    split.
+    { eapply Sorted_decomp; eauto.
+      apply Z.ltb_lt in branch.
+      by apply Z.lt_le_incl. }
+    { (* (h1 :: t1) ++ h2 :: t2 =p h2 :: l1t2 *)
+      rewrite Permutation_app_comm.
+      rewrite <- app_comm_cons.
+      apply Permutation_skip.
+      by rewrite Permutation_app_comm. }}
+
+   { unfold __exp5. fixme.
+    (* Advance to call merge *)
+    eapply SIMP_simp.
+    simp_eval. eapply advance_SimpBind.
+    apply advance_simp_eval. cbn [eval'].
+    eapply advance_SimpBind. cbn [evals].
+    eapply advance_SimpBind. simpl.
+    repeat (rewrite eval_eval'; simpl).
+    SimpRet.
+    repeat (eapply advance_SimpBind; simpl; first SimpRet).
+    eapply advance_SimpBind; simpl.
+
+
+    (* Use induction hypothesis *)
+    rewrite <- try_bind. eapply prove_simp_try.
+    apply IH1.
+    all: try apply SimpReflexive; simpl.
+    SIMP_ret.
+    split.
+    { (* Goal: Sorted le (h1 :: h1l2) *)
+      rewrite Permutation_app_comm in H5.
+      eapply Sorted_decomp; eauto.
+      (* Goal: h1 <= h2 *)
+      by apply Z.ltb_ge in branch. }
+    { (* (h1  :: t1) ++ h2 :: t2 =p h1 :: h1l2 *)
+      rewrite <- app_comm_cons.
+      by apply Permutation_skip. }}
+Qed.
 
 Definition is_env_with_spec name (spec : val -> Prop) :=
   fun v =>
@@ -278,8 +317,8 @@ Proof.
   { apply Merge_spec. } intros merge _spec.
   SIMP_continue.
   SIMP_specify "merge2" merge2_spec.
-  { admit. } intros merge2 _spec2.
+  { apply Merge2_spec. } intros merge2 _spec2.
   repeat SIMP_continue.
   (* Postcondition *)
   simpl. auto.
-Admitted.
+Qed.
