@@ -16,3 +16,11 @@ let rec merge2 l1 l2 =
      else
        h2 :: (merge2 l1 t2)
 
+let rec split l =
+  match l with
+  | [] -> [], []
+  | [x] -> [x], []
+  | x1::x2::t ->
+     let (l1, l2) = split t in
+                 x1::l1, x2::l2
+

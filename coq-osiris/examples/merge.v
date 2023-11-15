@@ -73,7 +73,7 @@ Proof.
 Qed.
 
 Ltac SimpRet :=
-  (apply SimpParRetLeft || apply SimpParRetRight).
+  (apply SimpParRetLeftNext || apply SimpParRetRightNext).
 
 Lemma Sorted_Hd_cmp A x (l : list A) (cmp : A -> A -> Prop) `{Transitive A cmp}:
   Sorted cmp l -> HdRel cmp x l <-> Forall (cmp x) l.
@@ -129,9 +129,10 @@ Proof.
   inversion H0; inversion H1; inversion H2; inversion H3; subst.
   destruct IHt1 as (h1l2&IH1&?&?); auto.
   destruct IHt2 as (l1t2&IH2&?&?); auto.
+  (* SIMP_enter_and_abstract *)
   SIMP1. SIMP_continue. SIMP_continue.
-  destruct (lt _) eqn:branch; simpl;
-    rewrite lt_repr_repr in branch; try auto.
+  rewrite lt_repr_repr by representable.
+  destruct (h2 <? h1) eqn:branch; simpl.
   { unfold __exp1. fixme.
     (* Advance to call merge *)
     eapply SIMP_simp.
@@ -145,7 +146,7 @@ Proof.
     eapply advance_SimpBind; simpl.
 
     (* Use induction hypothesis *)
-    eapply prove_simp_try. { apply IH2. }
+    eapply prove_simp_bind. { apply IH2. }
     all: try apply SimpReflexive; simpl.
     SIMP_ret.
     split.
@@ -171,7 +172,7 @@ Proof.
     eapply advance_SimpBind; simpl.
 
     (* Use Induction hypothesis *)
-    eapply prove_simp_try.  { apply IH1. }
+    eapply prove_simp_bind.  { apply IH1. }
     all: try apply SimpReflexive. simpl.
     SIMP_ret.
     split.
@@ -228,10 +229,11 @@ Proof.
     repeat (eapply advance_SimpBind; simpl; first SimpRet).
     eapply advance_SimpBind; simpl.
 
-
     (* Use induction hypothesis *)
-    rewrite <- try_bind. eapply prove_simp_try.
-    apply IH2.
+    
+    eapply prove_simp_bind in IH2.
+    rewrite bind_bind in IH2.
+    apply IH2. simpl.
     all: try apply SimpReflexive; simpl.
     SIMP_ret.
     split.
@@ -258,8 +260,9 @@ Proof.
 
 
     (* Use induction hypothesis *)
-    rewrite <- try_bind. eapply prove_simp_try.
-    apply IH1.
+    eapply prove_simp_bind in IH1.
+    rewrite bind_bind in IH1.
+    apply IH1. simpl.
     all: try apply SimpReflexive; simpl.
     SIMP_ret.
     split.
@@ -271,6 +274,75 @@ Proof.
     { (* (h1  :: t1) ++ h2 :: t2 =p h1 :: h1l2 *)
       rewrite <- app_comm_cons.
       by apply Permutation_skip. }}
+Qed.
+
+Lemma list_ind2 A (P : list A -> Prop) :
+  P [] ->
+  (forall (a : A), P [a]) ->
+             (forall (a b : A) (l : list A), P l -> P (a::b::l)) ->
+                                       forall l : list A, P l.
+Proof.
+  intros.
+  induction l using (well_founded_induction
+                     (wf_inverse_image _ nat _ (@length _)
+                        PeanoNat.Nat.lt_wf_0)).
+  destruct l; first done.
+  destruct l; first done.
+  apply H1.
+  apply H2.
+  auto with arith.
+Qed.
+
+Definition split_spec (_split : val) : Prop :=
+  ∀ A `(_ : Encode A) (l : list A),
+    SIMP
+      (call _split #l)
+      (λ p, (if Nat.even (length l)
+                then length p.1 = Nat.div (length l) 2
+                else length p.1 = S (Nat.div (length l) 2)) /\
+              length p.2 = Nat.div (length l) 2 /\
+              Permutation (p.1 ++ p.2) l).
+
+Lemma Split_spec η :
+  split_spec (VCloRec η __bindings12 "split").
+Proof.
+  unfold split_spec.  
+  intros.
+  induction l using list_ind2.
+  { SIMP1. SIMP_continue. by simpl. }
+  { SIMP1. SIMP_continue. by simpl. }
+  SIMP1.
+  eapply SIMP_simp. fixme.
+  match goal with
+  | |- simp ?m _ => unfold_breakpoint m
+  | _ => fail ""
+  end.
+  simpl. simp_eval.
+  apply SimpParRetRight.
+  eapply SIMP_simp. eapply simp_try.
+  repeat (rewrite eval_eval'; simpl).
+  apply SimpParRetRet.
+  simpl bind.
+  eapply SIMP_try. { apply IHl. }
+  intros [l1 l2] (H0&H1&H2).
+  SIMP1. SIMP_continue.
+  assert (forall n, S (n `div` 2) = (S (S n) `div` 2)%nat).
+  { intro n; rewrite <- !Nat.div2_div; reflexivity. }
+  split.
+  { simpl length; simpl fst in H0.
+    generalize dependent (length l); intros.
+    simpl Nat.even.
+    destruct (Nat.even n); rewrite H0.
+    { apply H3. }
+    rewrite <- !Nat.div2_div. reflexivity. }
+  { split.
+    { simpl length. simpl snd in H1.
+      rewrite H1. generalize dependent (length l); intros.
+      apply H3. }
+    { clear - H2. simpl in *.
+      rewrite <- app_comm_cons; apply Permutation_skip.
+      rewrite <- Permutation_middle; apply Permutation_skip.
+      assumption. }}
 Qed.
 
 Definition is_env_with_spec name (spec : val -> Prop) :=
@@ -309,7 +381,8 @@ Lemma Merge__spec:
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   SIMP (eval_mexpr η __main)
     (is_env_with_specs [("merge", merge_spec);
-                        ("merge2", merge2_spec)]).
+                        ("merge2", merge2_spec);
+                        ("split", split_spec)]).
 Proof.
   intros.
   SIMP1.
@@ -318,6 +391,9 @@ Proof.
   SIMP_continue.
   SIMP_specify "merge2" merge2_spec.
   { apply Merge2_spec. } intros merge2 _spec2.
+  SIMP_continue.
+  SIMP_specify "split" split_spec.
+  { apply Split_spec. } intros split _spec3.
   repeat SIMP_continue.
   (* Postcondition *)
   simpl. auto.
