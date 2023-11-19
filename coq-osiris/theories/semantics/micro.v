@@ -331,10 +331,27 @@ Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
+
 Global Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
 Global Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
 Global Hint Extern 1 (_ = _) => rewrite try_bind : try_bind.
 Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [bind m f] is equal to [ret x] iff there exists v such that [m = ret v] *)
+
+Lemma destruct_eq_bind_ret {A B} (m : micro A) (f : A -> micro B) x :
+  bind m f = ret x <-> exists v, f v = ret x /\ m = ret v.
+Proof.
+  split.
+  { induction m; intros; destruct (bind _ f) eqn:bnd; try discriminate.
+    rewrite bind_ret in bnd.
+    rewrite <- bnd in *.
+    eauto. }
+  { intros (v & <- & ->); done. }
+Qed.
+
 
 (* ------------------------------------------------------------------------ *)
 

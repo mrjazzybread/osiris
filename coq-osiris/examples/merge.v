@@ -100,6 +100,10 @@ Proof.
       eapply HdRel_trans; eauto. }
 Qed.
 
+(* Let l be a sorted list, let l1 and l2 be two sorted lists partinioning l.
+   An arbitrary x is smaller that the head of l if it is smaller than the head
+   of l1 and the head of l2 *)
+
 Lemma HdRel_Sorted_Permutation {A} (cmp : A -> A -> Prop) `{Transitive A cmp} l l1 l2 x :
   Sorted cmp l ->
   l1 ++ l2 ≡ₚ l ->
@@ -147,47 +151,9 @@ Definition merge_spec (merge : val) : Prop :=
     Sorted (Z.le) l1 ->
     Sorted (Z.le) l2 ->
     SIMP
-      (call merge #(l1, l2))
-      (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l).
-
-Definition merge2_spec (merge2 : val) : Prop :=
-  ∀ A `(_ : Encode A) (l1 l2 : list Z),
-    Forall (fun n => representable n) l1 ->
-    Forall (fun n => representable n) l2 ->
-    Sorted (Z.le) l1 ->
-    Sorted (Z.le) l2 ->
-    SIMP
-      (c ← call merge2 #l1;
+      (c ← call merge #l1;
        call c #l2)
       (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l).
-
-Definition merge2_spec_alt (merge2 : val) : Prop :=
-  ∀ A `(_ : Encode A) (l1 l2 : list Z),
-    Forall (fun n => representable n) l1 ->
-    Forall (fun n => representable n) l2 ->
-    Sorted (Z.le) l1 ->
-    Sorted (Z.le) l2 ->
-    SIMP
-      (call merge2 #l1)
-      (λ clo,
-        SIMP
-          (call clo #l2)
-          (fun l => Sorted (Z.le) l /\ Permutation (l1 ++ l2) l)).    
-    
-Lemma merge2_spec_equiv (merge : val) :
-  merge2_spec merge <-> merge2_spec_alt merge.
-Proof.
-  unfold merge2_spec. unfold merge2_spec_alt.
-  split; first last.
-  { intros.
-    destruct H with (l1:=l1) (l2:=l2) (A:=A); try auto.
-    destruct_hyp.
-    destruct H6.
-    repeat destruct_hyp.
-    exists x0. split; last auto.
-    eapply prove_simp_bind; eauto. }    
-  { admit. }
-Admitted.
 
 Definition split_spec (_split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
@@ -266,66 +232,10 @@ Qed.
 
 (* Specification proofs. *)
 
-Lemma Merge_spec:
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  merge_spec (VCloRec η __bindings4 "merge").
+Lemma Merge_spec η:
+  merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
-  intros.
-  generalize η; clear η; intro η.
   unfold merge_spec.
-  induction l1 as [|h1 t1]; intros.
-  { rewrite app_nil_l.
-    SIMP1. repeat SIMP_continue. auto. }
-  induction l2 as [|h2 t2].
-  { rewrite app_nil_r.
-    SIMP1; repeat SIMP_continue. auto. }
-  specialize (IHt1 (h2::t2)).
-  inversion H0; inversion H1; inversion H2; inversion H3; subst.
-  destruct IHt1 as (h1l2&IH1&?&?); auto.
-  destruct IHt2 as (l1t2&IH2&?&?); auto.
-  (* SIMP_enter_and_abstract *)
-  SIMP1. SIMP_continue. SIMP_continue.
-  rewrite lt_repr_repr by representable.
-  destruct (h2 <? h1) eqn:branch; simpl.
-  { unfold __exp1. simpl.
-    (* Advance to call merge *)
-    SIMP_evaluate. SIMP_Par_Ret.
-    eapply SIMP_simp. eapply prove_simp_bind; [|apply SimpReflexive].
-    (* Apply Induction Hypothesis *)
-    { apply IH2. }
-    SIMP_ret.
-    split.
-    { apply Sorted_cons; first assumption.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
-    { (* (h1 :: t1) ++ h2 :: t2 =p h2 :: l1t2 *)
-      rewrite Permutation_app_comm.
-      rewrite <- app_comm_cons.
-      apply Permutation_skip.
-      by rewrite Permutation_app_comm. }}
-
-  { unfold __exp0. simpl.
-    (* Advance to call merge *)
-    SIMP_evaluate. SIMP_Par_Ret.
-    eapply SIMP_simp. eapply prove_simp_bind; [|apply SimpReflexive].
-    (* Use induction hypothesis *)
-    { apply IH1. }
-    SIMP_ret.
-    split.
-    { (* Goal: Sorted le (h1 :: h1l2) *)
-      apply Sorted_cons; first assumption.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
-    { (* (h1  :: t1) ++ h2 :: t2 =p h1 :: h1l2 *)
-      rewrite <- app_comm_cons.
-      by apply Permutation_skip. }}
-Qed.
-
-Lemma Merge2_spec η:
-  merge2_spec (VCloRec η
-                 (RecBiCons
-                    (RecBinding "merge2" (AnonFun "l1" (EAnonFun __fun8))) RecBiNil)
-                 "merge2").
-Proof.
-  unfold merge2_spec.
   induction l1 as [|h1 t1]; intros.
   { rewrite app_nil_l.
     SIMP1; repeat SIMP_continue. auto. }
@@ -339,7 +249,7 @@ Proof.
   SIMP1. SIMP_continue.
   destruct (lt _) eqn:branch; simpl;
     rewrite lt_repr_repr in branch; try auto.
-  { unfold __exp6. simpl.
+  { unfold __exp1. simpl.
     (* Advance to call merge *)
     SIMP_evaluate. SIMP_Par_Ret.
     (* Use induction hypothesis on merge (h1::t1) *)
@@ -375,7 +285,7 @@ Proof.
 Qed.
 
 Lemma Split_spec η :
-  split_spec (VCloRec η __bindings12 "split").
+  split_spec (VCloRec η __bindings7 "split").
 Proof.
   unfold split_spec.  
   intros.
@@ -406,8 +316,8 @@ Qed.
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
-  (exists merge, lookup_name η "merge2" = ret merge /\ merge2_spec merge) ->
-  mergesort_spec (VCloRec η __bindings17 "merge_sort").
+  (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->
+  mergesort_spec (VCloRec η __bindings12 "merge_sort").
 Proof.
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
@@ -509,23 +419,19 @@ Lemma Merge__spec:
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   SIMP (eval_mexpr η __main)
     (is_env_with_specs [("merge", merge_spec);
-                        ("merge2", merge2_spec);
                         ("split", split_spec);
                         ("merge_sort", mergesort_spec)]).
 Proof.
   intros.
   SIMP1.
   SIMP_specify "merge" merge_spec.
-  { apply Merge_spec. } intros merge _spec.
-  SIMP_continue.
-  SIMP_specify "merge2" merge2_spec.
-  { apply Merge2_spec. } intros merge2 _spec2.
+  { apply Merge_spec. } intros merge _spec1.
   SIMP_continue.
   SIMP_specify "split" split_spec.
-  { apply Split_spec. } intros split _spec3.
+  { apply Split_spec. } intros split _spec2.
   SIMP_continue.
   SIMP_specify "merge_sort" mergesort_spec.
-  { apply MergeSort_spec; eauto. } intros mergesort _spec4.
+  { apply MergeSort_spec; eauto. } intros mergesort _spec3.
   repeat SIMP_continue.
   (* Postcondition *)
   simpl. auto.

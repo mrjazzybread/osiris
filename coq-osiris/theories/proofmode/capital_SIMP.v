@@ -103,6 +103,19 @@ Proof.
   intros (x & Hm & Hx) ?. exists x. eauto.
 Qed.
 
+(* A goal of the form [SIMP (bind m f) φ] can be proved if [m] simplifies to a
+   value [v] when satisifes [SIMP (f v) φ]. This lemma can be used to switch
+   from a bind specification style to a nested postcondition style. *)
+
+Lemma SIMP_curry `{Encode X} m f (φ : X -> Prop) :
+SIMP m (fun v => SIMP (f v) φ) -> SIMP (bind m f) φ.
+Proof.
+  intros (v1 & Hsimp & v2 & Hsimp2 & Hφ).
+  eapply SIMP_simp. { eapply prove_simp_bind; eauto. }
+  eapply SIMP_ret; first reflexivity.
+  apply Hφ.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Variants of the Bind rule. *)
