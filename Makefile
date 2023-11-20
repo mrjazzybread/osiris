@@ -31,6 +31,8 @@ clean:
 # [make init] creates an opam switch named [osiris]
 # and installs the necessary libraries and tools in it.
 # It also installs Alectryon.
+# This command can take about 12 minutes of real time
+# on a multi-core desktop machine.
 
 .PHONY: init
 init:
