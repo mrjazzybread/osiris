@@ -196,7 +196,7 @@ Lemma list_ind_split
   `{Encode A} (P : list A -> Prop) (split : val) (_split_spec : split_spec split) :
   P [] ->
   (forall (a : A), P [a]) ->
-  (forall (l1 l2 : list A) (l : list A) (a b : A),
+  (forall (l1 l2 l : list A) (a b : A),
       l1 ++ l2 ≡ₚ (a::b::l) ->
       SIMP (call split #(a::b::l)) (fun p => p = (l1, l2)) ->
       P l1 ->
@@ -236,12 +236,35 @@ Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec.
+  intros.
+  
+  eapply SIMP_bind_unary.
+  SIMP1.
+  eapply SIMP_ret. { rewrite <- solve_encode_val. reflexivity. }
+  rewrite <- solve_encode_val.
+  eapply SIMP_rec_call with (v:=l2) (ψ:=fun (l2 :list Z) => fun (l : list Z) => Sorted Z.le l /\ (Permutation (l1 ++ l2) l)).
+  Unset Printing Notations. unfold __fun3. simpl.
+  unfold __fun3. simpl.
+  eapply SIMP_covariant.
+  eapply SIMP_rec_call with (v:=l2).
+  {  admit. }
+  { admit. }
+  { intros merge l ? ?.
+    eapply SIMP_enter_call_VCloRec.
+    simpl. unfold acall. destruct merge.
+    SIMP1.
+    admit. }
+  intros.
+  eapply SIMP_covariant.
+
+
   induction l1 as [|h1 t1]; intros.
   { rewrite app_nil_l.
     SIMP1; repeat SIMP_continue. auto. }
   induction l2 as [|h2 t2].
   { rewrite app_nil_r.
     SIMP1; repeat SIMP_continue. auto. }
+
   specialize (IHt1 (h2::t2)).
   inversion H0; inversion H1; inversion H2; inversion H3; subst.
   destruct IHt1 as (h1l2&IH1&?&?); auto.

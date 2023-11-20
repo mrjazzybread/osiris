@@ -103,19 +103,6 @@ Proof.
   intros (x & Hm & Hx) ?. exists x. eauto.
 Qed.
 
-(* A goal of the form [SIMP (bind m f) φ] can be proved if [m] simplifies to a
-   value [v] when satisifes [SIMP (f v) φ]. This lemma can be used to switch
-   from a bind specification style to a nested postcondition style. *)
-
-Lemma SIMP_curry `{Encode X} m f (φ : X -> Prop) :
-SIMP m (fun v => SIMP (f v) φ) -> SIMP (bind m f) φ.
-Proof.
-  intros (v1 & Hsimp & v2 & Hsimp2 & Hφ).
-  eapply SIMP_simp. { eapply prove_simp_bind; eauto. }
-  eapply SIMP_ret; first reflexivity.
-  apply Hφ.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* Variants of the Bind rule. *)
@@ -217,6 +204,95 @@ Lemma SIMP_enter_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
   SIMP (call (VCloRec η rbs g) v2) φ.
 Proof.
   tauto.
+Qed.
+
+Lemma invert_SIMP_crash `{Encode Y} (φ : Y -> Prop) :
+  SIMP Crash φ -> False.
+Proof.
+  intros (? & Hsimp & _).
+  by apply simp_crash_ret in Hsimp.
+Qed.
+
+Lemma invert_SIMP_call `{Encode Y} f v (φ : Y -> Prop) : 
+  SIMP (call f v) φ ->
+  (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g. 
+Proof.
+  intros Hcall.
+  unfold call in Hcall.
+  destruct f; simpl in Hcall;
+    ((exfalso; by eapply invert_SIMP_crash) || eauto).
+Qed.
+
+Fixpoint replace_rec_bindings rbs fname a {struct rbs} :=
+  match rbs with
+  | RecBiNil => RecBiNil
+  | RecBiCons (RecBinding gname a') rbs' =>
+      if (fname =? gname)%string then
+        RecBiCons (RecBinding fname a) rbs'
+      else
+        RecBiCons (RecBinding gname a') (replace_rec_bindings rbs' fname a)
+  end.
+
+Lemma destruct_lookup_rec_bindings rbs g :
+  lookup_rec_bindings rbs g = missing_variable g \/ exists a, lookup_rec_bindings rbs g = ret a.
+Proof.
+  induction rbs as [|[f a] ? IH]; first auto.
+  simpl.
+  destruct (g =? f)%string; first eauto.
+  apply IH.
+Qed.
+
+Lemma replace_rec_bindings_not_in rbs g :
+  lookup_rec_bindings rbs g = missing_variable g ->
+  forall a, replace_rec_bindings rbs g a = rbs.
+Proof.
+  intros H a.
+  induction rbs as [|[f a'] ? IH]; first done.
+  simpl in *.
+  destruct (g =? f)%string; first discriminate.
+  by rewrite IH.
+Qed.
+
+Lemma replace_rec_bindings_in rbs g a :
+  lookup_rec_bindings rbs g = ret a ->
+  forall a', lookup_rec_bindings (replace_rec_bindings rbs g a') g = ret a'.
+Proof.
+  intros H.
+  induction rbs as [|[f ?] ? IH]; first discriminate.
+  simpl in *.
+  destruct (g =? f)%string eqn:Hcmp; simpl.
+  { simpl. rewrite String.eqb_refl. reflexivity. }
+  rewrite Hcmp.
+  by apply IH.
+Qed.
+
+Notation "'RecBnd' recbnd " := (RecBiCons recbnd RecBiNil) (at level 90).
+
+Lemma SIMP_rec_call `{Encode X} `{Encode Y} (fname : var) (v : X)
+  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
+  well_founded R ->
+  P v ->
+  (forall x y, ψ x y -> φ y) ->
+  (forall (vf : val) v, P v ->
+      (forall v', R v' v ->
+             P v' ->
+             match vf with
+             | VCloRec η rbs f =>
+                 let δ := eval_rec_bindings η rbs in
+                 let η := concat δ η in
+                   SIMP (
+                       a ← lookup_rec_bindings rbs f ;
+                      acall η a #v'
+                    ) (ψ v')
+              | _ => False
+             end) ->
+      SIMP (call vf #v) (ψ v)) ->
+  (forall η rbs f, SIMP (call (VCloRec η rbs f) #v) φ).
+Proof.
+  intros Hwf HP Hcov Hrec. intros ???.
+  eapply SIMP_covariant; last apply Hcov.
+  induction v as [v IH] using (well_founded_induction Hwf).
+  apply Hrec; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
