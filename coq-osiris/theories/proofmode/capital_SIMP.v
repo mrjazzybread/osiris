@@ -188,7 +188,7 @@ Qed.
    the call. *)
 
 Lemma SIMP_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) :
-  SIMP (acall η a v2) φ →
+  SIMP (acall η a v2) φ ->
   SIMP (call (VClo η a) v2) φ.
 Proof.
   tauto.
@@ -200,7 +200,19 @@ Lemma SIMP_enter_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
     let η := concat δ η in
     a ← lookup_rec_bindings rbs g ;
     acall η a v2
-  ) φ →
+  ) φ ->
+  SIMP (call (VCloRec η rbs g) v2) φ.
+Proof.
+  tauto.
+Qed.
+
+Lemma SIMP_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
+  SIMP (
+    let δ := eval_rec_bindings η rbs in
+    let η := concat δ η in
+    a ← lookup_rec_bindings rbs g ;
+    acall η a v2
+  ) φ =
   SIMP (call (VCloRec η rbs g) v2) φ.
 Proof.
   tauto.
@@ -233,13 +245,11 @@ Fixpoint replace_rec_bindings rbs fname a {struct rbs} :=
         RecBiCons (RecBinding gname a') (replace_rec_bindings rbs' fname a)
   end.
 
-Lemma destruct_lookup_rec_bindings rbs g :
+Lemma lookup_rec_bindings_cases rbs g :
   lookup_rec_bindings rbs g = missing_variable g \/ exists a, lookup_rec_bindings rbs g = ret a.
 Proof.
   induction rbs as [|[f a] ? IH]; first auto.
-  simpl.
-  destruct (g =? f)%string; first eauto.
-  apply IH.
+  simpl. destruct (g =? f)%string; eauto.
 Qed.
 
 Lemma replace_rec_bindings_not_in rbs g :
@@ -249,51 +259,73 @@ Proof.
   intros H a.
   induction rbs as [|[f a'] ? IH]; first done.
   simpl in *.
-  destruct (g =? f)%string; first discriminate.
-  by rewrite IH.
+  destruct (g =? f)%string; [discriminate|by rewrite IH].
 Qed.
 
 Lemma replace_rec_bindings_in rbs g a :
   lookup_rec_bindings rbs g = ret a ->
   forall a', lookup_rec_bindings (replace_rec_bindings rbs g a') g = ret a'.
 Proof.
-  intros H.
+  intros.
   induction rbs as [|[f ?] ? IH]; first discriminate.
   simpl in *.
-  destruct (g =? f)%string eqn:Hcmp; simpl.
-  { simpl. rewrite String.eqb_refl. reflexivity. }
-  rewrite Hcmp.
-  by apply IH.
+  destruct (g =? f)%string eqn:Hcmp; simpl;
+    first by rewrite String.eqb_refl.
+  rewrite Hcmp; auto.
 Qed.
 
 Notation "'RecBnd' recbnd " := (RecBiCons recbnd RecBiNil) (at level 90).
 
-Lemma SIMP_rec_call `{Encode X} `{Encode Y} (fname : var) (v : X)
+Lemma SIMP_rec_call `{Encode X} `{Encode Y}
+  (η : env) (afun : anonfun) (fname : var) (v : X)
   (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P v ->
   (forall x y, ψ x y -> φ y) ->
-  (forall (vf : val) v, P v ->
-      (forall v', R v' v ->
-             P v' ->
-             match vf with
-             | VCloRec η rbs f =>
-                 let δ := eval_rec_bindings η rbs in
-                 let η := concat δ η in
-                   SIMP (
-                       a ← lookup_rec_bindings rbs f ;
-                      acall η a #v'
-                    ) (ψ v')
-              | _ => False
-             end) ->
-      SIMP (call vf #v) (ψ v)) ->
-  (forall η rbs f, SIMP (call (VCloRec η rbs f) #v) φ).
+  (forall (vf : val) v',
+      P v' ->
+      (forall v'',
+          R v'' v' ->
+          P v'' ->
+          SIMP (call vf #v'') (ψ v'')) ->
+      SIMP (acall (concat (EnvCons fname vf EnvNil) η) afun #v') (ψ v')) ->
+  SIMP (call (VCloRec η (RecBnd (RecBinding fname afun)) fname) #v) φ.
 Proof.
-  intros Hwf HP Hcov Hrec. intros ???.
+  intros Hwf HP Hcov Hrec.
   eapply SIMP_covariant; last apply Hcov.
   induction v as [v IH] using (well_founded_induction Hwf).
-  apply Hrec; eauto.
+  apply SIMP_enter_call_VCloRec.
+  simpl; rewrite String.eqb_refl; simpl.
+  eapply Hrec; eauto.
 Qed.
+
+
+Lemma SIMP_rec_calls `{Encode X} `{Encode Y}
+  (η : env) rbs (afun : anonfun) (fname : var) (v : X)
+  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
+  well_founded R ->
+  P v ->
+  (forall x y, ψ x y -> φ y) ->
+  (forall (vf : val) v',
+      P v' ->
+      (forall v'',
+          R v'' v' ->
+          P v'' ->
+          SIMP (call vf #v'') (ψ v'')) ->
+      SIMP (
+          let δ := concat (eval_rec_bindings η rbs) η in
+          'afun ← lookup_rec_bindings rbs fname ;
+          acall δ afun #v') (ψ v')) ->
+  SIMP (call (VCloRec η rbs fname) #v) φ.
+Proof.
+  intros Hwf HP Hcov Hrec.
+  eapply SIMP_covariant; last apply Hcov.
+  induction v as [v IH] using (well_founded_induction Hwf).
+  apply SIMP_enter_call_VCloRec; simpl in *.
+  eapply Hrec with (vf:=VCloRec η rbs fname); first assumption.
+  intros. apply SIMP_enter_call_VCloRec; eauto.
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 
