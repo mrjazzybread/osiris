@@ -245,6 +245,16 @@ Fixpoint replace_rec_bindings rbs fname a {struct rbs} :=
         RecBiCons (RecBinding gname a') (replace_rec_bindings rbs' fname a)
   end.
 
+(* Replace the first occurence of a var in an environment *)
+
+Fixpoint replace_env_binding η name val {struct η} :=
+  match η with
+  | EnvNil => EnvNil
+  | EnvCons name0 val0 η0 =>
+      if (name =? name0)%string then EnvCons name val η0 else
+        EnvCons name0 val0 (replace_env_binding η0 name val)
+  end.
+
 Lemma lookup_rec_bindings_cases rbs g :
   lookup_rec_bindings rbs g = missing_variable g \/ exists a, lookup_rec_bindings rbs g = ret a.
 Proof.
@@ -276,32 +286,94 @@ Qed.
 
 Notation "'RecBnd' recbnd " := (RecBiCons recbnd RecBiNil) (at level 90).
 
-Lemma SIMP_rec_call `{Encode X} `{Encode Y}
-  (η : env) (afun : anonfun) (fname : var) (v : X)
-  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
-  well_founded R ->
-  P v ->
-  (forall x y, ψ x y -> φ y) ->
-  (forall (vf : val) v',
-      P v' ->
-      (forall v'',
-          R v'' v' ->
-          P v'' ->
-          SIMP (call vf #v'') (ψ v'')) ->
-      SIMP (acall (concat (EnvCons fname vf EnvNil) η) afun #v') (ψ v')) ->
-  SIMP (call (VCloRec η (RecBnd (RecBinding fname afun)) fname) #v) φ.
+
+Lemma replace_env_concat_cases η1 η2 name v :
+  replace_env_binding (concat η1 η2) name v = concat (replace_env_binding η1 name v) η2 \/
+  replace_env_binding (concat η1 η2) name v = concat η1 (replace_env_binding η2 name v).
 Proof.
-  intros Hwf HP Hcov Hrec.
-  eapply SIMP_covariant; last apply Hcov.
-  induction v as [v IH] using (well_founded_induction Hwf).
-  apply SIMP_enter_call_VCloRec.
-  simpl; rewrite String.eqb_refl; simpl.
-  eapply Hrec; eauto.
+  induction η1; first eauto.
+  destruct IHη1.
+  { left; simpl.
+    destruct (name =? x)%string; [eauto | by rewrite H]. }
+  { simpl.
+    destruct (name =? x)%string; last rewrite H; eauto. }
 Qed.
 
+Lemma in_bindings_in_eval_bindings rbs fname η :
+  (∃ afun, lookup_rec_bindings rbs fname = ret afun) ->
+  exists vf, lookup_name (eval_rec_bindings η rbs) fname = ret vf.
+Proof.
+  intros [afun Hlkp].
+  unfold eval_rec_bindings. generalize rbs at 1.
+  induction rbs as [|[??] rbs IHrbs]; first discriminate; intros.
+  simpl in *. destruct (fname =? f)%string; eauto.
+Qed.
+
+Lemma replace_env_idempotent η fname vf :
+  lookup_name η fname = ret vf -> replace_env_binding η fname vf = η.
+Proof.
+  intros Hlkp.
+  induction η as [|fname' ? η IHη]; first discriminate.
+  simpl in *. destruct (fname =? fname')%string eqn:name_eq.
+  { apply String.eqb_eq in name_eq as ->. injection Hlkp as ->. reflexivity. }
+  by rewrite IHη.
+Qed.
+
+Lemma replace_env_binding_concat1 η1 η2 fname v :
+  (exists vf, lookup_name η1 fname = ret vf) ->
+  replace_env_binding (concat η1 η2) fname v = concat (replace_env_binding η1 fname v) η2.
+Proof.
+  intros [vf Hlkp].
+  induction η1 as [|fname' ? η1 IHη1]; first discriminate.
+  simpl in *. destruct (fname =? fname')%string eqn:name_eq; first reflexivity.
+  by rewrite IHη1.
+Qed.
+
+Lemma eval_bindings_produces_eq η rbs rbs' fname : 
+  lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs' fname) -> rbs = rbs'.
+Proof.
+  unfold eval_rec_bindings. generalize rbs at 2; intros rbs''.
+  induction rbs'' as [|[??] ??]; first discriminate; simpl.
+  by destruct (_ =? _)%string; [injection 1|].
+Qed.
+
+Lemma lookup_eval_bindings_aux rbs η fname afun :
+  lookup_rec_bindings rbs fname = ret afun ->
+  exists rbs', lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs' fname).
+Proof.
+  intros Hlkp. unfold eval_rec_bindings. generalize rbs at 1.
+  induction rbs as [|[fname' ?] rbs IHrbs]; first discriminate; intros.
+  simpl in *. destruct (fname =? fname')%string eqn:name_eq.
+  { apply String.eqb_eq in name_eq as ->. eauto. }
+  eauto.
+Qed.
+
+Corollary lookup_eval_bindings rbs η fname afun :
+  lookup_rec_bindings rbs fname = ret afun ->
+  lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs fname).
+Proof.
+  intros Hlkp. eapply lookup_eval_bindings_aux in Hlkp as [rbs' Hlkp].
+  replace rbs' with rbs in Hlkp by (eapply eval_bindings_produces_eq; eauto).
+  apply Hlkp.
+Qed.
+
+Lemma replace_binding_idempotent η rbs fname afun :
+  lookup_rec_bindings rbs fname = ret afun ->
+  (replace_env_binding
+     (concat (eval_rec_bindings η rbs) η)
+     fname
+     (VCloRec η rbs fname) =
+     concat (eval_rec_bindings η rbs) η).
+Proof.
+  intros Hlkp.
+  apply lookup_eval_bindings with (η:=η) in Hlkp.
+  rewrite replace_env_binding_concat1 by eauto.
+  rewrite replace_env_idempotent by eauto.
+  done.
+Qed.
 
 Lemma SIMP_rec_calls `{Encode X} `{Encode Y}
-  (η : env) rbs (afun : anonfun) (fname : var) (v : X)
+  (η : env) (rbs : rec_bindings) (fname : var) (v : X)
   (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P v ->
@@ -309,21 +381,28 @@ Lemma SIMP_rec_calls `{Encode X} `{Encode Y}
   (forall (vf : val) v',
       P v' ->
       (forall v'',
-          R v'' v' ->
           P v'' ->
+          R v'' v' ->
           SIMP (call vf #v'') (ψ v'')) ->
-      SIMP (
-          let δ := concat (eval_rec_bindings η rbs) η in
-          'afun ← lookup_rec_bindings rbs fname ;
-          acall δ afun #v') (ψ v')) ->
+      SIMP (let δ := concat (eval_rec_bindings η rbs) η in
+            let η := replace_env_binding δ fname vf in
+            'afun ← lookup_rec_bindings rbs fname ;
+            acall η afun #v'
+        ) (ψ v')) ->
   SIMP (call (VCloRec η rbs fname) #v) φ.
 Proof.
   intros Hwf HP Hcov Hrec.
   eapply SIMP_covariant; last apply Hcov.
-  induction v as [v IH] using (well_founded_induction Hwf).
+  induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl in *.
-  eapply Hrec with (vf:=VCloRec η rbs fname); first assumption.
-  intros. apply SIMP_enter_call_VCloRec; eauto.
+  destruct (lookup_rec_bindings_cases rbs fname) as [Hlkp|[afun Hlkp]].
+  { rewrite Hlkp in *; simpl in *.
+    eapply Hrec with (vf:=VInt int.zero); eauto. }
+  { specialize (Hrec (VCloRec η rbs fname) v HP).
+    rewrite Hlkp in *; simpl in *.
+    erewrite replace_binding_idempotent in Hrec by apply Hlkp.
+    eapply Hrec; auto.
+    intros. rewrite Hlkp. simpl. by apply IH. }
 Qed.
 
 
