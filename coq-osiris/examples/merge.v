@@ -46,7 +46,17 @@ Ltac simp_evaluate :=
   simpl; repeat (rewrite eval_eval'; simpl).
 
 Ltac SIMP_evaluate :=
+  (match goal with
+   | |- SIMP (Stop CEval _ _ _) _ =>
+       eapply SIMP_simp; first ((apply advance_SimpEvalRetNext ||
+                                   (apply advance_SimpEvalNext ||
+                                      apply advance_SimpEval)); apply SimpReflexive)
+   | _ => idtac
+   end);
   eapply SIMP_simp; [simp_evaluate; apply SimpReflexive|].
+
+Ltac SIMP_execute :=
+  repeat (simpl; (SIMP_evaluate || SIMP_continue)); try SIMP_Par_Ret.       
 
 Ltac Sorted_inversion :=
   match goal with
@@ -173,6 +183,20 @@ Proof.
     [by apply negb_true_iff   | by apply negb_false_iff].
 Qed.
 
+Lemma div2_lt_succ n m :
+  (if Nat.even m
+  then n = S (Nat.div2 m)
+  else n = S (S (Nat.div2 m))) ->
+       (n < S (S m))%nat.
+Proof.
+  intros Hn.
+  destruct (Nat.even m) eqn:Hm; rewrite Hn.
+  { apply suc_div2_lt_suc. }
+  apply even_false_odd_true in Hm.
+  rewrite Nat.Odd_div2; last by apply Nat.odd_spec.
+  auto with arith.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Specifications for [merge_sort]. *)
@@ -251,17 +275,40 @@ Proof.
   eapply IHsplit; [eassumption | | |]; clear IHsplit.
   { exists (l1, l2).
     split; [assumption | reflexivity]. }
-  { apply IHwf.
-    destruct (Nat.even n) eqn:Hn; rewrite IHn1.
-    { apply suc_div2_lt_suc. }
-    { apply even_false_odd_true in Hn.
-      rewrite Nat.Odd_div2; last by apply Nat.odd_spec.
-      auto with arith. }}
-  { apply IHwf.
-    rewrite IHn2. apply suc_div2_lt_suc. }
+  { apply IHwf. by apply div2_lt_succ. }
+  { apply IHwf. rewrite IHn2. apply suc_div2_lt_suc. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+
+Lemma simp_prove_bind_bind {A B C : Type} m m' a (f : A -> micro B) (g : B -> micro C) :
+  simp ('a ← m;
+        f a) (ret a) ->
+  simp (g a) m' ->
+  simp ('a ← m;
+        'x ← f a;
+        g x) m'.
+Proof.
+  intros Hsimp HH.
+  eapply prove_simp_bind in Hsimp.
+  rewrite bind_bind in Hsimp.
+  apply Hsimp.
+  by simpl.
+Qed.
+
+Lemma SIMP_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
+  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
+  simp ('c ← m;
+        f c) (ret #a) ->
+  SIMP (g #a) φ ->
+  SIMP ('v1 ← m;
+        'v2 ← f v1;
+        g v2) φ.
+Proof.
+  intros Hsimp HSIMP.
+  by eapply SIMP_simp;
+  first eapply simp_prove_bind_bind; eauto using SimpReflexive.
+Qed.
 
 (* Specification proofs. *)
 
@@ -271,10 +318,10 @@ Proof.
   unfold merge_spec.    
   induction l1 as [|h1 t1]; intros.
   { rewrite app_nil_l.
-    SIMP1; repeat SIMP_continue. auto. }
+    SIMP1; SIMP_execute. auto. }
   induction l2 as [|h2 t2].
   { rewrite app_nil_r.
-    SIMP1; repeat SIMP_continue. auto. }
+    SIMP1; SIMP_execute. auto. }
   specialize (IHt1 (h2::t2)).
   all_inversions.
   destruct IHt1 as (h1l2&IH1&?&?); auto.
@@ -283,12 +330,9 @@ Proof.
   rewrite lt_repr_repr by auto.
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Advance to call merge *)
-    SIMP_evaluate; SIMP_Par_Ret.
+    SIMP_execute.
     (* Use induction hypothesis on merge (h1::t1) *)
-      eapply SIMP_simp.
-    { eapply prove_simp_bind in IH2.
-      rewrite bind_bind in IH2.
-      apply IH2. apply SimpReflexive. }
+    eapply SIMP_prove_bind_bind. { apply IH2. }
     SIMP_ret.
     split.
     { apply Sorted_cons; first assumption.
@@ -298,12 +342,9 @@ Proof.
       apply Permutation_sym.
       apply Permutation_middle. }}
    { (* Advance to call merge *)
-     SIMP_evaluate; SIMP_Par_Ret.
+     SIMP_execute.
      (* Use induction hypothesis on merge (h2::t2) *)
-     eapply SIMP_simp.
-     { eapply prove_simp_bind in IH1.
-       rewrite bind_bind in IH1.
-       apply IH1. apply SimpReflexive. }
+     eapply SIMP_prove_bind_bind. { apply IH1. }
     SIMP_ret.
     split.
     { (* Goal: Sorted le (h1 :: h1l2) *)
@@ -335,13 +376,13 @@ Proof.
   { intros ?? ψ. apply ψ. }
   clear l; intros split l _ IH; simpl.
   destruct l as [| a l].
-  { SIMP1. SIMP_continue. by simpl. }
+  { SIMP_execute. by simpl. }
   destruct l as [|b l].
-  { SIMP1. SIMP_continue. by simpl. }
-  SIMP1. SIMP_continue. simpl.
+  { SIMP_execute. by simpl. }
+  SIMP_execute.
   eapply SIMP_try. { apply IH; auto with arith. }
   intros [l1 l2] (Hl1&Hl2&Hperm).
-  SIMP1. SIMP_continue.
+  SIMP_execute.
   simpl in *; split; last split.
   { destruct (Nat.even _); eauto with arith. }
   { eauto with arith. }
@@ -351,7 +392,7 @@ Proof.
     apply Permutation_sym.
     apply Permutation_middle. }}
 Qed.
-
+  
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
   (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->
@@ -359,57 +400,43 @@ Lemma MergeSort_spec η :
 Proof.
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
-  unfold mergesort_spec; intros ?? l.
-  (* Custom induction principle based on sublist splitting *)
-  apply list_ind_split with (l:=l) (split:=split); clear dependent l.
-  { apply _split_spec. }
-  { intros _. SIMP1. SIMP_continue. auto. }
-  { intros ??. SIMP1. SIMP_continue. auto. }
-  intros l1 l2 l a b.
-  intros ? SIMP_split IH1 IH2 Hrepr.
-  assert (Forall (fun n : Z => representable n) l1) as repr_l1.
-  { apply proj1 with (B:= Forall (fun n : Z => representable n) l2).
-    apply Forall_app.
-    by rewrite_permutation (l1 ++ l2). }
-  specialize (IH1 repr_l1).
-  assert (Forall (fun n : Z => representable n) l2) as repr_l2.
-  { apply proj2 with (A:= Forall (fun n : Z => representable n) l1).
-    apply Forall_app.
-    by rewrite_permutation (l1 ++ l2). }
-  specialize (IH2 repr_l2).
-  clear Hrepr.
-  (* Would like to use SIMP_enter here, but it leaves a goal on the shelf *)
-  SIMP1_call_step. simpl.
-  eapply SIMP_simp.
-  { apply advance_SimpEvalNext. rewrite bind_ret_right.
-    simp_evaluate. unfold_breakpoint1. simp_evaluate.
-    SimpParRet. }
-  simpl. rewrite Hsplit.
-  SIMP_Par_Ret.
-  eapply SIMP_try. { apply SIMP_split. } clear SIMP_split.
-  intros [l1' l2'] paireq. simpl.
-  apply pair_eq in paireq as [??].
-  subst l1'; subst l2'.
-  eapply SIMP_simp.
-  { unfold_breakpoint1. simp_evaluate. SimpParRet. }
-  simpl. SIMP_Par_Ret.
-  (* Apply induction hypothesis on merge_sort l1 *)
-  eapply SIMP_try. { apply IH1. } intro l1'; simpl; intros (?&?).
-  eapply SIMP_simp.
-  { unfold_breakpoint1. simp_evaluate. SimpParRet. }
-  simpl. SIMP_Par_Ret.
-  (* Apply induction hypothesis on merge_sort l2 *)
-  eapply SIMP_try. { apply IH2. } intros l2'; simpl; intros (?&?).
+  unfold mergesort_spec; intros ?? l Hrep.
+  eapply SIMP_rec_call with
+    (φ:=fun l l' => Sorted Z.le l' /\ l' ≡ₚ l).
+  { apply wf_list_length. }
+  { apply Hrep. }
+  { intros ?? ψ. apply ψ. }
+  clear dependent l; intros mergesort l Hrep IH.
+  destruct l as [|a l].
+  { SIMP_execute. auto. }
+  destruct l as [| b l].
+  { SIMP_execute. auto. }
+  (* We would like to use SIMP1 here but it leaves a goal on the shelf *)
+  (* unshelve SIMP1. { by constructor. } *)
+  SIMP_execute.
+  intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
+  assert (Forall (fun n => representable n) l1) as Hrep1 by
+      (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
+  assert (Forall (fun n => representable n) l2) as Hrep2 by
+      (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
+  SIMP_continue.
+  eapply SIMP_try.
+  { apply IH; [apply Hrep1 | by apply div2_lt_succ]. }
+  simpl; intros sl1 (Hsl1 & Hpsl1).
+  SIMP_continue.
+  eapply SIMP_try.
+  { apply IH; [apply Hrep2 | by rewrite Hl2; apply suc_div2_lt_suc]. }
+  simpl; intros sl2 (Hsl2 & Hpsl2).
   SIMP_continue.
   eapply SIMP_covariant.
-  { apply _merge_spec with (A:=A) (l1:=l1') (l2:=l2'); try auto.
-    { by rewrite_permutation l1'. }
-    { by rewrite_permutation l2'. }}
+  { apply _merge_spec with (A:=A) (l1:=sl1) (l2:=sl2); try auto.
+    { by rewrite_permutation sl1. }
+    { by rewrite_permutation sl2. }}
   { intros l'; simpl; intros [??].
     split; first assumption.
     rewrite_permutation l'.
-    rewrite_permutation l1'.
-    by rewrite_permutation l2'. } 
+    rewrite_permutation sl1.
+    by rewrite_permutation sl2. } 
 Qed.
 
 (* -------------------------------------------------------------------------- *)
