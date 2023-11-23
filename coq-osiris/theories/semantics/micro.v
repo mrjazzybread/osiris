@@ -338,4 +338,95 @@ Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
 
 (* ------------------------------------------------------------------------ *)
 
+(* A 3-way case analysis principle: a computation [m] is either [ret a]
+   or [Next] or something else. *)
+
+Lemma ret_or_next_or_else {A} (m : micro A) :
+  (∃ a, m = ret a) ∨
+  (m = Next) ∨
+  ((∀ a, m = ret a → False) ∧ (m = Next → False)).
+Proof.
+  destruct m; try solve [ eauto | right; right; split; congruence ].
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The following inversion lemmas extract information out of an equality
+   of the form [try m _ _ = ret _], [try m _ _ = Stop _ _ _ _], and
+   [try m _ _ = Par _ _ _ _]. They provide information about [m]. *)
+
+(* These lemmas are written in a form where one assumes that [m] is
+   not [ret _] or [Next]. This allows the conclusion to be simple.
+   Without this hypothesis, the conclusion of the lemma would have
+   to be a 3-way disjunction. *)
+
+Lemma invert_try_eq_ret {A B m} {k : A → micro B} {ko b} :
+  try m k ko = ret b →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  False.
+Proof.
+  destruct m; simpl; congruence.
+Qed.
+
+Lemma invert_try_eq_stop
+  {A B m} {f : A → micro B} {g}
+  {X Y} {c : code X Y} {x k ko} :
+  try m f g = Stop c x k ko →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  ∃ k' ko',
+  m = Stop c x k' ko' ∧
+  k = (λ y, try (k' y) f g) ∧
+  ko = (λ y, try (ko' y) f g).
+Proof.
+  destruct m; simpl; try congruence.
+  intros h. dependent destruction h.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try_eq_stop :=
+  match goal with
+  | h: try _ _ _ = Stop _ _ ?k ?ko |- _ =>
+      apply invert_try_eq_stop in h; [| eauto | eauto ];
+      let k' := fresh k in
+      let ko' := fresh ko in
+      destruct h as (k' & ko' & ? & ? & ?);
+      subst k; subst ko; rename k' into k; rename ko' into ko
+  | h: Stop _ _ _ _ = try _ _ _ |- _ =>
+      symmetry in h;
+      invert_try_eq_stop
+  end.
+
+Lemma invert_try_eq_par {A A1 A2 B}
+  {m} {f : A → micro B} {g m1 m2} {k : A1 * A2 → micro B} {ko}
+:
+  try m f g = Par m1 m2 k ko →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  ∃ k' ko',
+  m = Par m1 m2 k' ko' ∧
+  k = (λ y, try (k' y) f g) ∧
+  ko = (λ y, try (ko' y) f g).
+Proof.
+  destruct m; simpl; try congruence.
+  intros h. dependent destruction h.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try_eq_par :=
+  match goal with
+  | h: try _ _ _ = Par _ _ ?k ?ko |- _ =>
+      apply invert_try_eq_par in h; [| eauto | eauto ];
+      let k' := fresh k in
+      let ko' := fresh ko in
+      destruct h as (k' & ko' & ? & ? & ?);
+      subst k; subst ko; rename k' into k; rename ko' into ko
+  | h: Par _ _ _ _ = try _ _ _ |- _ =>
+      symmetry in h;
+      invert_try_eq_par
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 End Make.
