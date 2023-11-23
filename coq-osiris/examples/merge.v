@@ -161,20 +161,23 @@ Proof.
   split; apply Sorted_Hd_cmp; auto.
 Qed.
 
+(* We implicitly use the following lemma when we prove that 
+   the list returnted by [split l] are smallet than l *)
+
 Lemma suc_div2_lt_suc n :
-    (S (Nat.div2 n) < S (S n))%nat.
+    (Nat.div2 n < S n)%nat.
 Proof.
  destruct (Nat.even n) eqn:Hn.
  { rewrite Nat.Even_div2; last by apply Nat.even_spec.
-   apply -> Nat.succ_lt_mono.
    apply Nat.lt_div2; lia. }
- { rewrite <- Nat.negb_odd in Hn.
+ { apply Nat.succ_lt_mono.
+   rewrite <- Nat.negb_odd in Hn.
    apply negb_false_iff in Hn.
    rewrite Nat.Odd_div2; last by apply Nat.odd_spec.
-   apply Nat.lt_succ_r.
-   eapply Nat.le_trans. { apply Nat.le_div2. }
-   apply Nat.le_succ_diag_r. }
+   auto with arith. }
 Qed.
+
+Local Hint Resolve suc_div2_lt_suc : arith.
 
 Lemma even_false_odd_true n : Nat.even n = false <-> Nat.odd n = true.
 Proof.
@@ -185,17 +188,57 @@ Qed.
 
 Lemma div2_lt_succ n m :
   (if Nat.even m
-  then n = S (Nat.div2 m)
-  else n = S (S (Nat.div2 m))) ->
-       (n < S (S m))%nat.
+   then n = S (Nat.div2 m)
+   else n = S (S (Nat.div2 m))) ->
+  (n < S (S m))%nat.
 Proof.
   intros Hn.
   destruct (Nat.even m) eqn:Hm; rewrite Hn.
-  { apply suc_div2_lt_suc. }
+  { auto with arith. }
   apply even_false_odd_true in Hm.
   rewrite Nat.Odd_div2; last by apply Nat.odd_spec.
   auto with arith.
 Qed.
+
+(* Make a library of commonly used well founded relations? *) 
+
+Lemma wf_list_length {A : Type} :
+  well_founded (fun (l1 l2 : list A) => (length l1 < length l2)%nat).
+Proof.
+  apply wf_inverse_image. apply lt_wf.
+Qed.
+
+(* TODO : move next two lemmas *)
+
+Lemma simp_prove_bind_bind {A B C : Type} m m' a (f : A -> micro B) (g : B -> micro C) :
+  simp ('a ← m;
+        f a) (ret a) ->
+  simp (g a) m' ->
+  simp ('a ← m;
+        'x ← f a;
+        g x) m'.
+Proof.
+  intros Hsimp HH.
+  eapply prove_simp_bind in Hsimp.
+  rewrite bind_bind in Hsimp.
+  apply Hsimp.
+  by simpl.
+Qed.
+
+Lemma SIMP_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
+  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
+  simp ('c ← m;
+        f c) (ret #a) ->
+  SIMP (g #a) φ ->
+  SIMP ('v1 ← m;
+        'v2 ← f v1;
+        g v2) φ.
+Proof.
+  intros Hsimp HSIMP.
+  by eapply SIMP_simp;
+  first eapply simp_prove_bind_bind; eauto using SimpReflexive.
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -230,85 +273,6 @@ Definition mergesort_spec (mergesort : val) : Prop :=
       (λ l', Sorted (Z.le) l' /\ Permutation l' l).
 
 (* -------------------------------------------------------------------------- *)
-
-(* Custom induction principles. *)
-
-Lemma list_ind2 A (P : list A -> Prop) :
-  P [] ->
-  (forall (a : A), P [a]) ->
-  (forall (a b : A) (l : list A), P l -> P (a::b::l)) ->
-  forall l : list A, P l.
-Proof.
-  intros.
-  induction l using (well_founded_induction
-                     (wf_inverse_image _ nat _ (@length _)
-                        PeanoNat.Nat.lt_wf_0)).
-  destruct l; first done.
-  destruct l; first done.
-  apply H1.
-  apply H2. auto with arith.
-Qed.
-
-Lemma list_ind_split
-  `{Encode A} (P : list A -> Prop) (split : val) (_split_spec : split_spec split) :
-  P [] ->
-  (forall (a : A), P [a]) ->
-  (forall (l1 l2 l : list A) (a b : A),
-      l1 ++ l2 ≡ₚ (a::b::l) ->
-      SIMP (call split #(a::b::l)) (fun p => p = (l1, l2)) ->
-      P l1 ->
-      P l2 ->
-      P (a::b::l)) ->
-  forall l, P l.
-Proof.
-  intros ?? IHsplit l.
-  induction l as [l IHwf] using (well_founded_induction
-                     (wf_inverse_image _ nat _ (@length _)
-                        PeanoNat.Nat.lt_wf_0)).
-  destruct l; first done.
-  destruct l; first done.
-  unfold split_spec in _split_spec.
-  specialize _split_spec with (l:=a::a0::l) (H:=H).
-  destruct _split_spec as ([l1 l2]&simp_split&IHn1&IHn2&l1l2_perm).
-  simpl in *.
-  generalize dependent (length l); intros n???.
-  eapply IHsplit; [eassumption | | |]; clear IHsplit.
-  { exists (l1, l2).
-    split; [assumption | reflexivity]. }
-  { apply IHwf. by apply div2_lt_succ. }
-  { apply IHwf. rewrite IHn2. apply suc_div2_lt_suc. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-Lemma simp_prove_bind_bind {A B C : Type} m m' a (f : A -> micro B) (g : B -> micro C) :
-  simp ('a ← m;
-        f a) (ret a) ->
-  simp (g a) m' ->
-  simp ('a ← m;
-        'x ← f a;
-        g x) m'.
-Proof.
-  intros Hsimp HH.
-  eapply prove_simp_bind in Hsimp.
-  rewrite bind_bind in Hsimp.
-  apply Hsimp.
-  by simpl.
-Qed.
-
-Lemma SIMP_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
-  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
-  simp ('c ← m;
-        f c) (ret #a) ->
-  SIMP (g #a) φ ->
-  SIMP ('v1 ← m;
-        'v2 ← f v1;
-        g v2) φ.
-Proof.
-  intros Hsimp HSIMP.
-  by eapply SIMP_simp;
-  first eapply simp_prove_bind_bind; eauto using SimpReflexive.
-Qed.
 
 (* Specification proofs. *)
 
@@ -354,12 +318,6 @@ Proof.
       by rewrite_permutation h1l2. }} 
 Qed.
 
-Lemma wf_list_length {A : Type} :
-  well_founded (fun (l1 l2 : list A) => (length l1 < length l2)%nat).
-Proof.
-  apply wf_inverse_image. apply lt_wf.
-Qed.
-
 Lemma Split_spec η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -371,26 +329,36 @@ Proof.
            then length p.1 = Nat.div2 (length l)
            else length p.1 = S (Nat.div2 (length l)))
           /\ length p.2 = Nat.div2 (length l) /\ p.1 ++ p.2 ≡ₚ l).
+  (* We reason by well-founded induction on the length of the list *)
   { apply wf_list_length. }
+  (* Precondition: we have none *)
   { apply I. }
+  (* Postcondition: no need to strengthen it *)
   { intros ?? ψ. apply ψ. }
+  
   clear l; intros split l _ IH; simpl.
-  destruct l as [| a l].
-  { SIMP_execute. by simpl. }
-  destruct l as [|b l].
-  { SIMP_execute. by simpl. }
-  SIMP_execute.
-  eapply SIMP_try. { apply IH; auto with arith. }
-  intros [l1 l2] (Hl1&Hl2&Hperm).
-  SIMP_execute.
-  simpl in *; split; last split.
-  { destruct (Nat.even _); eauto with arith. }
-  { eauto with arith. }
-  { rewrite_permutation l.
-    change ((a::l1)++b::l2) with (a::l1++b::l2).
-    apply Permutation_skip.
-    apply Permutation_sym.
-    apply Permutation_middle. }}
+  destruct l as [| a l]; last destruct l as [| b l]; SIMP_execute.
+  (* Case: [] *)
+  { by simpl. }
+  (* Case: [a] *)
+  { by simpl. }
+  (* Case: a::b::l *)
+  { (* Apply the induction hypothesis *)
+    eapply SIMP_try; first apply IH; auto with arith.
+    intros [l1 l2] (Hl1&Hl2&Hperm).
+    SIMP_execute.
+    (* Establish the three conjuncts of the postcondition *)
+    simpl in *; split; last split.
+    { (* Subgoal: the length of l1 is half the length of l *)
+      destruct (Nat.even _); eauto with arith. }
+    { (* Subgoal: the length of l2 is hald the length of l *)
+      eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of l *)
+      rewrite_permutation l.
+      change ((a::l1)++b::l2) with (a::l1++b::l2).
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. }}
 Qed.
   
 Lemma MergeSort_spec η :
@@ -398,45 +366,66 @@ Lemma MergeSort_spec η :
   (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->
   mergesort_spec (VCloRec η __bindings12 "merge_sort").
 Proof.
+  (* Destruct the hypotheses on split and merge *)
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
+  
   unfold mergesort_spec; intros ?? l Hrep.
   eapply SIMP_rec_call with
     (φ:=fun l l' => Sorted Z.le l' /\ l' ≡ₚ l).
+  (* We reason by well founded induction on the length of the list *)
   { apply wf_list_length. }
+  (* Precondition: all items must be representable *)
   { apply Hrep. }
+  (* Postcondition: no need to strengthen it *)
   { intros ?? ψ. apply ψ. }
+  
   clear dependent l; intros mergesort l Hrep IH.
-  destruct l as [|a l].
-  { SIMP_execute. auto. }
-  destruct l as [| b l].
-  { SIMP_execute. auto. }
-  (* We would like to use SIMP1 here but it leaves a goal on the shelf *)
-  (* unshelve SIMP1. { by constructor. } *)
-  SIMP_execute.
+  destruct l as [|a l]; last destruct l as [|b l]; SIMP_execute.
+  (* Case: [] *)
+  { auto. }
+  (* Case: [a] *)
+  { auto. }
+  (* Case: a::b::l *)
   intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
+  (* Assert that the sublists l1 and l2 satisfy the precondition *)
   assert (Forall (fun n => representable n) l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall (fun n => representable n) l2) as Hrep2 by
-      (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
+        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
   SIMP_continue.
-  eapply SIMP_try.
-  { apply IH; [apply Hrep1 | by apply div2_lt_succ]. }
+  (* Apply the induction hypothesis on l1 *)
+  eapply SIMP_try; first apply IH.
+  { (* Subgoal: show the precondition holds for l1 *)
+    apply Hrep1. }
+  { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
+    by apply div2_lt_succ. }
   simpl; intros sl1 (Hsl1 & Hpsl1).
   SIMP_continue.
-  eapply SIMP_try.
-  { apply IH; [apply Hrep2 | by rewrite Hl2; apply suc_div2_lt_suc]. }
+  (* Apply the induction hypothesis on l2*)
+  eapply SIMP_try; first apply IH.
+  { (* Subgoal: show the precondition holds for l2 *)
+    apply Hrep2. }
+  { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
+    rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
   SIMP_continue.
   eapply SIMP_covariant.
-  { apply _merge_spec with (A:=A) (l1:=sl1) (l2:=sl2); try auto.
-    { by rewrite_permutation sl1. }
-    { by rewrite_permutation sl2. }}
-  { intros l'; simpl; intros [??].
-    split; first assumption.
+  { (* Use the fact that [merge] satisfies its specification *)
+    apply _merge_spec with (A:=A) (l1:=sl1) (l2:=sl2); try auto.
+    { (* Subgoal: show merge's precondition that l1 is representable *)
+      by rewrite_permutation sl1. }
+    { (* Subgoal: show merge's precondition that l2 is representable *)
+      by rewrite_permutation sl2. }}
+  intros l'; simpl; intros [??].
+  (* Establish the postcondition *) 
+  split.
+  { (* Subgoal: the output is sorted *)
+    assumption. }
+  { (* Subgoal: the output is a permutation of the input *)
     rewrite_permutation l'.
     rewrite_permutation sl1.
-    by rewrite_permutation sl2. } 
+    by rewrite_permutation sl2. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
