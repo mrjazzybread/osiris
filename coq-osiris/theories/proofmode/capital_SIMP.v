@@ -372,12 +372,12 @@ Proof.
   done.
 Qed.
 
-Lemma SIMP_rec_calls `{Encode X} `{Encode Y}
+Lemma SIMP_rec_call `{Encode X} `{Encode Y}
   (η : env) (rbs : rec_bindings) (fname : var) (v : X)
-  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : Y -> Prop) (R : X -> X -> Prop) :
+  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P v ->
-  (forall x y, ψ x y -> φ y) ->
+  (forall x y, ψ x y -> φ x y) ->
   (forall (vf : val) v',
       P v' ->
       (forall v'',
@@ -389,7 +389,7 @@ Lemma SIMP_rec_calls `{Encode X} `{Encode Y}
             'afun ← lookup_rec_bindings rbs fname ;
             acall η afun #v'
         ) (ψ v')) ->
-  SIMP (call (VCloRec η rbs fname) #v) φ.
+  SIMP (call (VCloRec η rbs fname) #v) (φ v).
 Proof.
   intros Hwf HP Hcov Hrec.
   eapply SIMP_covariant; last apply Hcov.

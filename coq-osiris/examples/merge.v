@@ -69,6 +69,39 @@ Ltac Forall_inversion :=
 Ltac all_inversions :=
   repeat (Sorted_inversion || (HdRel_inversion || Forall_inversion)).
 
+Ltac conj_upto g b :=
+  match goal with
+  | |- g => idtac
+  | |- _ -> g =>
+      match b with
+      | true => idtac
+      | false => intros ?
+      end
+  | |- ?A -> ?B -> _ =>
+      let H1 := fresh in
+      let H2 := fresh in
+      let H3 := fresh in
+      intros H1 H2; assert (H3 := conj H2 H1);
+      generalize dependent H3;
+      match b with
+      | true => clear H1; conj_upto g true
+      | false => conj_upto g true
+      end
+  end.
+
+Ltac capture_hypotheses l :=
+  match goal with
+  | |- ?g =>
+      generalize dependent l; intro l; conj_upto g false
+  end.
+
+Tactic Notation "capture_hypotheses" constr(l) :=
+  capture_hypotheses l.
+
+Tactic Notation "capture_hypotheses" constr(l) "as" simple_intropattern(x) :=
+  capture_hypotheses l; intros x.
+
+
 (* -------------------------------------------------------------------------- *)
 
 (* Helper Lemmas. *)
@@ -235,48 +268,24 @@ Qed.
 Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
-  unfold merge_spec.
-  intros.
-  
-  eapply SIMP_bind_unary.
-  SIMP1.
-  eapply SIMP_ret. { rewrite <- solve_encode_val. reflexivity. }
-  rewrite <- solve_encode_val.
-  eapply SIMP_rec_call with (v:=l2) (ψ:=fun (l2 :list Z) => fun (l : list Z) => Sorted Z.le l /\ (Permutation (l1 ++ l2) l)).
-  Unset Printing Notations. unfold __fun3. simpl.
-  unfold __fun3. simpl.
-  eapply SIMP_covariant.
-  eapply SIMP_rec_call with (v:=l2).
-  {  admit. }
-  { admit. }
-  { intros merge l ? ?.
-    eapply SIMP_enter_call_VCloRec.
-    simpl. unfold acall. destruct merge.
-    SIMP1.
-    admit. }
-  intros.
-  eapply SIMP_covariant.
-
-
+  unfold merge_spec.    
   induction l1 as [|h1 t1]; intros.
   { rewrite app_nil_l.
     SIMP1; repeat SIMP_continue. auto. }
   induction l2 as [|h2 t2].
   { rewrite app_nil_r.
     SIMP1; repeat SIMP_continue. auto. }
-
   specialize (IHt1 (h2::t2)).
-  inversion H0; inversion H1; inversion H2; inversion H3; subst.
+  all_inversions.
   destruct IHt1 as (h1l2&IH1&?&?); auto.
   destruct IHt2 as (l1t2&IH2&?&?); auto.
   SIMP1. SIMP_continue.
-  destruct (lt _) eqn:branch; simpl;
-    rewrite lt_repr_repr in branch; try auto.
-  { unfold __exp1. simpl.
-    (* Advance to call merge *)
-    SIMP_evaluate. SIMP_Par_Ret.
+  rewrite lt_repr_repr by auto.
+  destruct (h2 <? h1) eqn:branch; simpl.
+  { (* Advance to call merge *)
+    SIMP_evaluate; SIMP_Par_Ret.
     (* Use induction hypothesis on merge (h1::t1) *)
-    eapply SIMP_simp.
+      eapply SIMP_simp.
     { eapply prove_simp_bind in IH2.
       rewrite bind_bind in IH2.
       apply IH2. apply SimpReflexive. }
@@ -285,13 +294,11 @@ Proof.
     { apply Sorted_cons; first assumption.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* (h1 :: t1) ++ h2 :: t2 =p h2 :: l1t2 *)
-      rewrite Permutation_app_comm.
-      rewrite <- app_comm_cons.
-      apply Permutation_skip.
-      by rewrite Permutation_app_comm. }}
-   { unfold __exp5. simpl.
-     (* Advance to call merge *)
-     SIMP_evaluate. SIMP_Par_Ret.
+      rewrite_permutation l1t2.
+      apply Permutation_sym.
+      apply Permutation_middle. }}
+   { (* Advance to call merge *)
+     SIMP_evaluate; SIMP_Par_Ret.
      (* Use induction hypothesis on merge (h2::t2) *)
      eapply SIMP_simp.
      { eapply prove_simp_bind in IH1.
@@ -303,8 +310,13 @@ Proof.
       apply Sorted_cons; first assumption.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* (h1  :: t1) ++ h2 :: t2 =p h1 :: h1l2 *)
-      rewrite <- app_comm_cons.
-      by apply Permutation_skip. }}
+      by rewrite_permutation h1l2. }} 
+Qed.
+
+Lemma wf_list_length {A : Type} :
+  well_founded (fun (l1 l2 : list A) => (length l1 < length l2)%nat).
+Proof.
+  apply wf_inverse_image. apply lt_wf.
 Qed.
 
 Lemma Split_spec η :
@@ -312,29 +324,32 @@ Lemma Split_spec η :
 Proof.
   unfold split_spec.  
   intros.
-  induction l using list_ind2.
+  eapply SIMP_rec_call with
+    (φ:=fun l p =>
+          (if Nat.even (length l)
+           then length p.1 = Nat.div2 (length l)
+           else length p.1 = S (Nat.div2 (length l)))
+          /\ length p.2 = Nat.div2 (length l) /\ p.1 ++ p.2 ≡ₚ l).
+  { apply wf_list_length. }
+  { apply I. }
+  { intros ?? ψ. apply ψ. }
+  clear l; intros split l _ IH; simpl.
+  destruct l as [| a l].
   { SIMP1. SIMP_continue. by simpl. }
+  destruct l as [|b l].
   { SIMP1. SIMP_continue. by simpl. }
-  SIMP_enter.
-  eapply SIMP_simp.
-  { unfold_breakpoint1. simpl. simp_evaluate. SimpParRet. }
-  simpl. SIMP_Par_Ret.
-  eapply SIMP_try. { apply IHl. } clear IHl.
-  intros [l1 l2] (H0&H1&H2).
+  SIMP1. SIMP_continue. simpl.
+  eapply SIMP_try. { apply IH; auto with arith. }
+  intros [l1 l2] (Hl1&Hl2&Hperm).
   SIMP1. SIMP_continue.
-  split.
-  { simpl length; simpl fst in H0.
-    generalize dependent (length l); intros.
-    destruct (Nat.even n); rewrite H0.
-    { reflexivity. }
-    reflexivity. }
-  { split.
-    { simpl length. simpl snd in H1.
-      rewrite H1. reflexivity. }
-    { clear - H2. simpl in *.
-      rewrite <- app_comm_cons; apply Permutation_skip.
-      rewrite <- Permutation_middle; apply Permutation_skip.
-      assumption. }}
+  simpl in *; split; last split.
+  { destruct (Nat.even _); eauto with arith. }
+  { eauto with arith. }
+  { rewrite_permutation l.
+    change ((a::l1)++b::l2) with (a::l1++b::l2).
+    apply Permutation_skip.
+    apply Permutation_sym.
+    apply Permutation_middle. }}
 Qed.
 
 Lemma MergeSort_spec η :
