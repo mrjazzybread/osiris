@@ -36,11 +36,11 @@ Local Open Scope nat_scope.
 (* The constructors [SimpEval] and [SimpLoop] allow certain [Stop] events to
    be replaced with their meaning.
 
-   [SimpFlip] requires that the computations [k false] and [k true] can both
-   be simplified to a common computation [m]. Thus, [SimpFlip] is applicable
+   [SimpChooseAgree] requires that the computations [m1] and [m2] can both
+   be simplified to a common computation [m]. Thus, this rule is applicable
    only in the special case where the final outcome of the computation is
    independent of the coin flip. This is useful; e.g., it allows OCaml's
-   [assert] construct to be regarded pure.
+   [assert] construct to be regarded as pure.
 
    Two constructors [SimpParRetLeft] and [SimpParRetRight] simplify a [par]
    construct where at least one side is [ret _].
@@ -65,13 +65,13 @@ Inductive simp {A : Type} : micro A → micro A → Prop :=
     simp
       (Stop CLoop (η, x, i1, i2, e) k ko)
       (try (loop η x i1 i2 e) k ko)
-| SimpFlip :
-    ∀ x k ko m,
-    simp (k false) m →
-    simp (k true) m →
+| SimpChooseAgree :
+    ∀ {B} m m1 m2 (k : B → micro A) z,
+    simp m1 m →
+    simp m2 m →
     simp
-      (Stop CFlip x k ko)
-      m
+      (Choose m1 m2 k z)
+      (try m k z)
 | SimpParRetLeft:
     ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k ko,
     simp
@@ -171,13 +171,13 @@ Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
     simplify (S n)
       (Stop CLoop p k ko)
       (try (loop η x i1 i2 e) k ko)
-| SimplifyFlip :
-    ∀ n x k ko m,
-    simplify n (k false) m →
-    simplify n (k true) m →
+| SimplifyChooseAgree :
+    ∀ {B} n m m1 m2 (k : B → micro A) z,
+    simplify n m1 m →
+    simplify n m2 m →
     simplify (S n)
-      (Stop CFlip x k ko)
-      m
+      (Choose m1 m2 k z)
+      (try m k z)
 | SimplifyParRetLeft:
     ∀ {A1 A2} n (a1 : A1) (m2 : micro A2) k ko,
     simplify (S n)
@@ -232,6 +232,7 @@ Proof.
   eauto using
     (SimplifyEval 0),
     (SimplifyLoop 0),
+    (SimplifyChooseAgree 0),
     (SimplifyParRetLeft 0),
     (SimplifyParRetRight 0),
     (SimplifyReflexive 0)
@@ -453,7 +454,7 @@ Lemma simplify_step_diagram {A} {n} {m1 m2 : micro A} :
   (i = 0 ∧ n' < n  ∨  i = 1 ∧ n' ≤ n).
 Local Ltac search :=
   do 3 eexists;
-  eauto 7 using step_try with nsteps step simplify lia.
+  eauto 7 using step_try, simplify_try with nsteps step simplify lia.
 Local Ltac use_ih :=
   match goal with
   Hstep: step (_, ?m) _,
@@ -471,9 +472,8 @@ Proof.
   { destruct_step. search. }
   (* SimplifyLoop *)
   { destruct_step. search. }
-  (* SimplifyFlip *)
-  (* The fact [k false] and [k true] both simplify to [m] is exploited. *)
-  { destruct_step. destruct b; search. }
+  (* SimplifyChooseAgree *)
+  { destruct_step; search. }
   (* SimplifyParRetLeft *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
   (* SimplifyParRetRight *)
@@ -893,25 +893,42 @@ Lemma total_par {A1 A2} m1 m2
   (∀ a1 a2, φ1 a1 ∧ φ2 a2 → φ (a1, a2)) →
   total (par m1 m2) φ ψ.
 Proof.
-  intros. repeat destruct_total.
-  { eapply total_simp.
-    eapply SimpPar; eassumption.
-    eapply total_simp; [ eapply SimpParRetRet |].
-    eapply total_ret.
-    eauto. }
-  { eapply total_simp.
-    eapply SimpPar; eassumption.
-    eapply total_simp; [ eapply SimpParRetRight |].
-    rewrite try_next.
-    eapply total_Next.
-    eauto. }
-  { eapply total_simp.
-    eapply SimpPar; eassumption.
-    eapply total_simp; [ eapply SimpParRetLeft |].
-    rewrite try_next.
-    eapply total_Next.
-    eauto. }
-  { exfalso. tauto. }
+  intros. repeat destruct_total; try solve [ exfalso; tauto ].
+  eapply total_simp.
+  eapply SimpPar; eassumption.
+  eapply total_simp; [ eapply SimpParRetRet |].
+  eapply total_ret.
+  eauto.
+Qed.
+
+(* A reasoning rule for [choose]. *)
+
+(* This rule is limited to the case where [φ] is deterministic because we
+   must ensure that [m1] and [m2] produce the same result. Indeed, unlike
+   [step], the relation [simp] can simplify [choose m1 m2] only if both
+   sides produce the same result. *)
+
+(* This rule is limited to the case where [ψ] is [False] because we cannot
+   allow [m1] to raise an exception while [m2] terminates, or vice-versa. *)
+
+Definition deterministic {A} (φ : A → Prop) :=
+  ∀ a1 a2, φ a1 → φ a2 → a1 = a2.
+
+Lemma total_choose {A} m1 m2 (φ : A → Prop) :
+  let ψ := False in
+  total m1 φ ψ →
+  total m2 φ ψ →
+  deterministic φ →
+  total (choose m1 m2) φ ψ.
+Proof.
+  intros. repeat destruct_total; try solve [ exfalso; tauto ].
+  match goal with h1: simp m1 (ret ?a1), h2: simp m2 (ret ?a2) |- _ =>
+    assert (a1 = a2); [ eauto | subst ]
+  end.
+  eapply total_simp.
+  eapply SimpChooseAgree; eassumption.
+  eapply total_ret.
+  eauto.
 Qed.
 
 (* The infinitary intersection rule. *)
@@ -991,6 +1008,13 @@ Inductive sss {A : Type} : nat → micro A → micro A → Prop :=
     sss 1
       (Stop CLoop p k ko)
       (try (loop η x i1 i2 e) k ko)
+| SssChooseAgree :
+    ∀ {B} n1 n2 m m1 m2 (k : B → micro A) z,
+    sss n1 m1 m →
+    sss n2 m2 m →
+    sss (n1 + n2 + 1)
+      (Choose m1 m2 k z)
+      (try m k z)
 | SssParRetLeft:
     ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k ko,
     sss 1
@@ -1038,9 +1062,7 @@ Local Ltac baz :=
   match goal with h: ∃ n, sss n _ _ |- _ => destruct h end.
 Proof.
   induction 1; try solve [ repeat baz; eauto with lia sss ].
-  (* The case of [CFlip] does not work. *)
-  admit.
-Admitted.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1131,6 +1153,19 @@ Qed.
      via a stack of weight [n].
  *)
 
+(* This lemma is the reason why the coin flip effect, which would just flip
+   a Boolean coin, has been removed and replaced with a primitive [Choose]
+   construct in the [micro] monad. In the earlier approach, [choose m1 m2]
+   was encoded as [b ← flip; if b then m1 else m2], and the relation [simp]
+   included a rule stating that if [k false] and [k true] can both be
+   simplified to [m] then [bind flip k] can be simplified to [m]. However,
+   this rule invalidates the reciprocal bind rule: indeed, it states that
+   [bind flip k] can be simplified even though [flip] itself cannot be
+   simplified. In other words, the computation [flip] was viewed as impure
+   (not simplifiable), yet the more complex computation [bind flip k] could
+   be viewed as pure (simplifiable). This was not really a problem in
+   practice, but we prefer to have a better-behaved language if we can. *)
+
 Lemma invert_stack_try_ret :
   ∀ n {A B} m (k : A → micro B) ko b,
   stack n (try m k ko) (ret b) →
@@ -1180,7 +1215,7 @@ Proof.
     (* [m] is [Stop CEval _ _ _]. *)
     invert_try_eq_stop. subst m. clear Hret HNext.
     (* Perform one step forward in the goal. *)
-    eapply total_simp; [eapply SimpEval |].
+    eapply total_simp; [ eapply SimpEval |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
     rewrite <- try_try in Hstack.
     (* Abstract away the inner [try _ _ _]. (Optional.) *)
@@ -1196,7 +1231,7 @@ Proof.
     (* [m] is [Stop Loop _ _ _]. *)
     invert_try_eq_stop. subst m. clear Hret HNext.
     (* Perform one step forward in the goal. *)
-    eapply total_simp; [eapply SimpLoop |].
+    eapply total_simp; [ eapply SimpLoop |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
     rewrite <- try_try in Hstack.
     (* Abstract away the inner [try _ _ _]. (Optional.) *)
@@ -1207,12 +1242,24 @@ Proof.
     eauto with lia.
   }
 
+  (* Subcase: [SssChoose]. *)
+  {
+    (* [m] is [Choose m1 m2 _ _]. *)
+    invert_try_eq_choose. subst m. clear Hret HNext.
+    (* Perform one step forward in the goal. *)
+    eapply total_simp; [ eapply SimpChooseAgree; eauto using sss_simp |].
+    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
+    rewrite <- try_try in Hstack.
+    (* Apply the induction hypothesis. *)
+    eauto with lia.
+  }
+
   (* Subcase: [SssParRetLeft]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
     invert_try_eq_par. subst m. clear Hret HNext.
     (* Perform one step forward in the goal. *)
-    eapply total_simp; [eapply SimpParRetLeft |].
+    eapply total_simp; [ eapply SimpParRetLeft |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
     rewrite <- try_try in Hstack.
     (* Apply the induction hypothesis. *)
@@ -1224,7 +1271,7 @@ Proof.
     (* [m] is [Par m1 m2 _ _]. *)
     invert_try_eq_par. subst m. clear Hret HNext.
     (* Perform one step forward in the goal. *)
-    eapply total_simp; [eapply SimpParRetRight |].
+    eapply total_simp; [ eapply SimpParRetRight |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
     rewrite <- try_try in Hstack.
     (* Apply the induction hypothesis. *)

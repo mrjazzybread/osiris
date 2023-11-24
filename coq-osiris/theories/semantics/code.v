@@ -12,15 +12,17 @@ From osiris.semantics Require Import micro.
 (* [Loop (η, x, i1, i2, e)] is a request for the computation
    [loop η x v1 v2 e]. *)
 
-(* [Flip] is a request to flip a Boolean coin. *)
-
 (* [Alloc], [Load], [Store] are requests to allocate, read, write a memory
    location in the heap. *)
+
+(* We used to have a [Flip] effect that would flip a Boolean coin. This has
+   been removed and replaced with a primitive [Choose] construct in the
+   [micro] monad. See [invert_stack_try_ret] in simplification.v for an
+   explanation. *)
 
 Inductive code : Type → Type → Type :=
 | CEval  : code (env * expr) val
 | CLoop  : code (env * var * int * int * expr) val
-| CFlip  : code unit bool
 | CAlloc : code val loc
 | CLoad  : code loc val
 | CStore : code (loc * val) unit
@@ -47,17 +49,3 @@ Notation "' x ← y ; z" :=
   (bind y (λ x : _, z))
   (at level 20, x pattern, y at level 100, z at level 200,
   format "'[v' ' x  '←'  y ';' '/' z ']'").
-
-(* ------------------------------------------------------------------------ *)
-
-(* [flip] flips a coin. *)
-
-Definition flip : micro bool :=
-  stop CFlip ().
-
-(* [choose m1 m2] is a non-deterministic choice between the
-   computations [m1] and [m2]. *)
-
-Definition choose {A} (m1 m2 : micro A) : micro A :=
-  b ← flip ;
-  if (b : bool) then m1 else m2.

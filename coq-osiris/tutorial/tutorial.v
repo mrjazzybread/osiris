@@ -345,6 +345,11 @@ following five forms:
   `k` is invoked if both computations produce a result. The *failure
   continuation* `ko` is invoked if either computation raises `Next`.
 
+* `Choose m1 m2 k ko` represents a non-deterministic choice between
+  the computations `m1` and `m2`. One of them is executed; the other
+  is discarded. The success and failure continuations `k` and `ko`
+  indicate how to continue after executing `m1` or `m2`.
+
 |*)
 
 (*|
@@ -352,14 +357,16 @@ Expert readers may note that the definition of this monad is
 reminiscent of *interaction trees*. However, interaction trees are
 potentially infinite trees, whereas our computations are finite.
 Furthermore, interaction trees do not have the parallel composition
-constructor `Par`.
+constructor `Par` or the non-deterministic choice constructor `Choose`.
 
-The combinators `stop` and `par`, which have been mentioned earlier,
-are sugar for `Stop` and `Par` with trivial continuations.
+The combinators `stop`, `par`, and `choose`
+are sugar for `Stop`, `Par`, and `Choose`
+with trivial continuations.
 |*)
 
 Print stop. (* .fold *)
 Print par.  (* .fold *)
+Print choose.  (* .fold *)
 
 (*|
 As in every monad, a `bind` combinator is used to construct the
@@ -420,14 +427,11 @@ Print code. (* .unfold *)
 
 (*|
 The code `CEval`, which we have encountered earlier, is used to request
-a recursive invocation of the function `eval`. The code `Loop` plays a
-similar role, but is used in the interpretation of `for` loops. The
-code `Flip` is used to request a Boolean value from the system: it is
-used to encode a binary non-deterministic choice combinator, `choose`.
+a recursive invocation of the function `eval`. The code `CLoop` plays a
+similar role, but is used in the interpretation of `for` loops.
+The codes `CAlloc`, `CLoad`, and `CStore` allow allocating, reading,
+and writing memory blocks in the heap.
 |*)
-
-Print flip. (* .unfold *)
-Print choose. (* .unfold *)
 
 (*|
 -------------
@@ -473,14 +477,6 @@ An `CEval` request steps to an invocation of `eval`:
 Check @StepEval. (* .unfold *)
 
 (*|
-A `Flip` request returns a Boolean result `b`,
-which may either `true` or `false`.
-This makes the relation `step` non-deterministic:
-|*)
-
-Check @StepFlip. (* .unfold *)
-
-(*|
 Under a parallel composition constructor `Par`,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
@@ -497,6 +493,15 @@ of the results:
 |*)
 
 Check @StepParRetRet. (* .unfold *)
+
+(*|
+The constructor `Choose`
+makes a non-deterministic choice
+among its two branches:
+|*)
+
+Check @StepChooseLeft. (* .unfold *)
+Check @StepChooseRight. (* .unfold *)
 
 (*|
 There are more reduction rules, not shown.

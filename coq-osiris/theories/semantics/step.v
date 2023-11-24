@@ -62,13 +62,6 @@ Inductive step {A} : config A → config A → Prop :=
         (σ, Stop CLoop (η, x, i1, i2, e) k ko)
         (σ, try (loop η x i1 i2 e) k ko)
 
-  (* [stop CFlip ()] returns either [false] or [true]. *)
-  | StepFlip :
-      ∀ b σ x k ko,
-      step
-        (σ, Stop CFlip x k ko)
-        (σ, k b)
-
   (* [stop CAlloc v] allocates a fresh location in the heap,
      initializes it with [v], and returns this location. *)
   | StepAlloc :
@@ -163,6 +156,20 @@ Inductive step {A} : config A → config A → Prop :=
       step
         (σ, Par m1 m2 k ko)
         (σ', Par m1 m'2 k ko)
+
+  (* [choose] steps to either side. *)
+  | StepChooseLeft :
+      ∀ {B} σ m1 m2 (k : B → micro A) z,
+      step
+        (σ, Choose m1 m2 k z)
+        (σ, try m1 k z)
+
+  | StepChooseRight :
+      ∀ {B} σ m1 m2 (k : B → micro A) z,
+      step
+        (σ, Choose m1 m2 k z)
+        (σ, try m2 k z)
+
 .
 
 Global Hint Constructors step : step.
@@ -350,7 +357,7 @@ Proof.
      whether the location [l] is or is not in the domain of [σ]. *)
   try match goal with σ: store, l: loc |- _ => case_eq (σ !! l) end;
   (* All cases except allocation are handled here: *)
-  eauto using (StepFlip false), step_up_to_eq with step.
+  eauto using step_up_to_eq with step.
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
   { set (l := fresh_loc (dom σ)).
@@ -388,7 +395,15 @@ Proof.
   destruct m'2; eauto using can_step_under_par with step.
 Qed.
 
-Global Hint Resolve can_step_par : step.
+Lemma can_step_choose :
+  ∀ {A B} σ m m1 m2 (k : A → micro B) z,
+  m = Choose m1 m2 k z →
+  can_step (σ, m).
+Proof.
+  intros. subst. unfold can_step. eauto with step.
+Qed.
+
+Global Hint Resolve can_step_par can_step_choose : step.
 
 (* Stepping in the left-hand side of [try] is permitted. *)
 
@@ -399,7 +414,7 @@ Lemma step_try {A B} σ σ' (m m' : micro A) (f : A → micro B) ko :
   step (σ, try m f ko) (σ', try m' f ko).
 Proof.
   inversion 1; subst;
-  rewrite ?try_stop ?try_par ?try_crash ?try_try;
+  rewrite ?try_stop ?try_par ?try_choose ?try_crash ?try_try;
   eauto using step_up_to_eq with step.
 Qed.
 

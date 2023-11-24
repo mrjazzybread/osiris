@@ -135,10 +135,11 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpFlip {A} x k ko (m' : micro A) :
-  simp (k false) m' →
-  simp (k true) m' →
-  simp (Stop CFlip x k ko) m'.
+Lemma advance_SimpChooseAgree {A B} m1 m2 m (k : A → micro B) z m' :
+  simp m1 m →
+  simp m2 m →
+  simp (try m k z) m' →
+  simp (Choose m1 m2 k z) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -148,7 +149,8 @@ Lemma advance_simp_choose {A} (m1 m2 : micro A) m' :
   simp m2 m' →
   simp (choose m1 m2) m'.
 Proof.
-  intros. eapply advance_SimpFlip; assumption.
+  intros. eapply advance_SimpChooseAgree; eauto.
+  rewrite try_ret_right. eauto with simp.
 Qed.
 
 Lemma advance_SimpBind {A B} m1 m2 (f : A → micro B) m' :
@@ -597,9 +599,9 @@ with simp1 :=
       (*| simple eapply advance_SimpLoopNext; simp0 *)
       (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0
-      (* We do not deal with [Flip] in its full generality. Instead,
+      (* We do not deal with [choose] in its full generality. Instead,
          we provide ad hoc support for [EAssert] expressions, which
-         currently are the only place where [flip] is used. *)
+         currently are the only place where [choose] is used. *)
     (* Handle [val_as_bool], which is opaque. *)
   | simple eapply advance_simp_val_as_bool_VTrue; simp0
   | simple eapply advance_simp_val_as_bool_VFalse; simp0

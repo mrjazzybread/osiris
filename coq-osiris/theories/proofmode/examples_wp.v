@@ -138,8 +138,19 @@ Definition example5 :=
 Lemma spec_example5:
   ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
+  (* TODO make [choose] opaque somewhere else *)
+  (* TODO and prove a [wp] rule for [eval (EAssert _)]
+          so we do not need to descend to the level of [choose] *)
+  Opaque choose.
   wp.
-  iIntros ([|]); wp; equality.
+  (* Applying [wp_bind] (unary) followed with [wp_choose_ok]
+     duplicates the proof of the continuation. We must use
+     [wp_bind_binary] to introduce a cut and avoid duplication. *)
+  iApply wp_bind_binary.
+  + iApply (wp_choose_ok _ _ _ (True)%I).
+    - auto.
+    - iModIntro. iIntros "_". wp. auto.
+  + iIntros "_ _". wp. equality.
 Qed.
 
 (* let id = identity in

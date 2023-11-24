@@ -391,15 +391,16 @@ Qed.
     iIntros. by iApply wp_ret.
   Qed.
 
-  (* [CFlip]. *)
+  (* A reasoning rule for [choose]. *)
 
-  (* This is the Hoare rule for a coin flip. The result can be any Boolean
-   value [b], so the computation [k b] must be proved safe for every
-   possible value of [b]. *)
+  (* A non-separating conjunction is used to express the idea that
+     either [m1] or [m2] is executed, but not both. Thus, there is
+     no need to split the current resource. It suffices to prove
+     that both [m1] and [m2] are safe under the current resource. *)
 
-  Lemma wp_flip {A} s E x (k: bool → micro A) ko φ :
-    ▷ (∀ b, WP (k b) @ s; E {{ φ }}) ⊢
-    WP (Stop CFlip x k ko) @ s; E {{ φ }}.
+  Lemma wp_choose {A} s E (m1 m2 : micro A) φ :
+    ▷ (WP m1 @ s; E {{ φ }} ∧ WP m2 @ s; E {{ φ }}) ⊢
+    WP (choose m1 m2) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     wp_unfold_head.
@@ -408,9 +409,30 @@ Qed.
     iModIntro.
     construct_wp_nonret.
     destruct_step.
-    iModIntro; iNext; iMod "Hmod" as "_".
-    iFrame. iModIntro.
-    by iApply "H".
+    { iDestruct "H" as "[H _]".
+      iModIntro; iNext; iMod "Hmod" as "_".
+      iFrame. iModIntro.
+      rewrite try_ret_right. by iApply "H". }
+    { iDestruct "H" as "[_ H]".
+      iModIntro; iNext; iMod "Hmod" as "_".
+      iFrame. iModIntro.
+      rewrite try_ret_right. by iApply "H". }
+  Qed.
+
+  (* This is a special case of the previous rule, where the left-hand side if
+     [ok]. The rule reads as follows: if [φ] holds now, and if the right-hand
+     side [m] preserves [φ], then after executing [choose ok m] the assertion
+     [φ] still holds. *)
+
+  Lemma wp_choose_ok s E (m : micro val) (φ : iProp Σ) :
+    φ -∗
+    ▷ (φ -∗ WP m @ s; E {{ λ _, φ }}) -∗
+    WP (choose ok m) @ s; E {{ λ _, φ }}.
+  Proof.
+    iIntros "Hφ Hm".
+    iApply wp_choose. iModIntro. iSplit.
+    { iClear "Hm". iApply wp_ret. iAssumption. }
+    { by iApply "Hm". }
   Qed.
 
   (* ------------------------------------------------------------------------ *)
