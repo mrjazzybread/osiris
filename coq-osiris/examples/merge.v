@@ -289,40 +289,55 @@ Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2.
+  (* Generalize l1 and l2 into a pair *)
   remember (l1, l2) as p.
   replace (l1) with (p.1); last by rewrite Heqp.
   replace (l2) with (p.2); last by rewrite Heqp.
   clear dependent l1 l2.
+  (* Reason by induction well founded induction on [length l1 + length l2] *)
   induction p as [[l1 l2] IH] using (well_founded_induction wf_double_list_length).
   simpl in *; destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
+  (* Case: l1 = [] *)
   { SIMP1; SIMP1; SIMP_continue. auto. }
+  (* Case: l2 = [] *)
   { rewrite app_nil_r.
     SIMP1; SIMP1; SIMP_continue. auto. }
+  (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions.
   SIMP1. SIMP1. SIMP_continue.
   rewrite lt_repr_repr by auto.
+  (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
-  { (* Advance to call merge *)
+  { (* Case: h2 < h1 *)
     SIMP_execute.
+    (* Apply induction hypothesis on [call merge (h1::t1) t2] *)
     eapply SIMP_bind_unary. { eapply (IH (h1::t1, t2)); simpl; auto with arith. }
     intros c; simpl; intros IHc.
     eapply SIMP_bind_unary. { apply IHc. }
-    intros l1t2; simpl; intros (?&?).
-    change (VData "::" <v VInt (repr h2), encode_list l1t2 v>) with #(h2::l1t2).
+    intros l'; simpl; intros (?&?).
+    (* Establish the postcondition *)
+    change (VData "::" <v VInt (repr h2), encode_list l' v>) with #(h2::l').
     eapply SIMP_ret; first reflexivity.
     split.
-    { constructor; eauto using HdRel_Sorted_Permutation with zarith. }
-    { rewrite_permutation l1t2. apply Permutation_sym. apply Permutation_middle. }}
-  { SIMP_execute.
+    { (* Subgoal: the output is sorted *)
+      constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
+      rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
+  { (* Case: h1 < h2 *)
+    SIMP_execute.
+    (* Apply induction hypothesis on [call merge t1 (h2::t2)] *)
     eapply SIMP_bind_unary. { eapply (IH (t1, h2::t2)); simpl; auto. }
     intros c; simpl; intros IHc.
     eapply SIMP_bind_unary. { apply IHc. }
     intros t1l2; simpl; intros (?&?).
+    (* Establish the postcondition *)
     change (VData "::" <v VInt (repr h1), encode_list t1l2 v>) with #(h1::t1l2).
     eapply SIMP_ret; first reflexivity.
     split.
-    { constructor; eauto using HdRel_Sorted_Permutation with zarith. }
-    { by rewrite_permutation t1l2. }}
+    { (* Subgoal: the output is sorted *)
+      constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
+      by rewrite_permutation t1l2. }}
 Qed.
 
 Lemma Split_spec η :
