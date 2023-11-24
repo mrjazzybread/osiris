@@ -1,7 +1,8 @@
 Require Export Coq.Sorting.Sorted.
 Require Import stdpp.sorting.
-From osiris Require Import base.
 Require Import orders.
+From osiris Require Import base.
+
 Local Opaque app. (* Prevent undesired simplification. *)
 
 (* This file establishes several properties of sorted lists. *)
@@ -201,6 +202,52 @@ Proof.
   intuition eauto
     using Sorted_app_inv_l, Sorted_app_inv_c, Sorted_app_inv_r, Sorted_app.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Lemma HdRel_trans l x y :
+  lt x y -> HdRel lt y l -> HdRel lt x l.
+Proof.
+  intros. destruct l; constructor.
+  transitivity y;  [ done | by eapply HdRel_inv].
+Qed.
+
+(* If a list is sorted, then being smaller than the head is equivalent to 
+   being smaller than all elements of the list. *)
+
+Lemma Sorted_HdRel_iff x l :
+  Sorted lt l ->
+  HdRel lt x l <-> Forall (lt x) l.
+Proof.
+  intros Hsort. induction l.
+  { split; constructor. }
+  { split.
+    - intros Hhdrel.
+      apply Sorted_inv in Hsort as [??].
+      apply HdRel_inv in Hhdrel.
+      constructor; auto.
+      apply IHl; eauto using HdRel_trans.
+    - intros Hforall. apply Forall_inv in Hforall; auto. }
+Qed.
+
+(* Let l be a sorted list, let l1 and l2 be two sorted lists partitioning l.
+   An arbitrary x is smaller that the head of l if it is smaller than the head
+   of l1 and the head of l2 *)
+
+Lemma HdRel_Sorted_Permutation l l1 l2 x :
+  Sorted lt l ->
+  l1 ++ l2 ≡ₚ l ->
+  Sorted lt l1 -> Sorted lt l2 ->
+  HdRel lt x l1 -> HdRel lt x l2 ->
+  HdRel lt x l.
+Proof.
+  intros ? Hperm ????.
+  apply Sorted_HdRel_iff; try auto.
+  rewrite <- Hperm.
+  apply Forall_app.
+  split; apply Sorted_HdRel_iff; auto.
+Qed.
+
 
 End JustTransitive.
 

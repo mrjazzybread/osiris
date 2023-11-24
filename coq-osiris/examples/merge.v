@@ -117,53 +117,8 @@ Tactic Notation "capture_hypotheses" constr(l) "as" simple_intropattern(x) :=
 
 (* Helper Lemmas. *)
 
-Lemma HdRel_trans A (cmp : A -> A -> Prop) `{Transitive A cmp} l x y :
-  cmp x y -> HdRel cmp y l -> HdRel cmp x l.
-Proof.
-  intros.
-  destruct l; first done.
-  apply HdRel_cons. HdRel_inversion.
-  by transitivity y.
-Qed.
-
-(* If a list is sorted, then being smaller than the head is equivalent to 
-   being smaller than all elements of the list. *)
-
-Lemma Sorted_Hd_cmp A x (l : list A) (cmp : A -> A -> Prop) `{Transitive A cmp}:
-  Sorted cmp l ->
-  HdRel cmp x l <-> Forall (cmp x) l.
-Proof.
-  intros.
-  induction l.
-  { split; constructor. }
-  { split; first last.
-    - constructor; by Forall_inversion.
-    - intros; all_inversions.
-      constructor; first assumption.
-      apply IHl; first assumption.
-      eapply HdRel_trans; eauto. }
-Qed.
-
-(* Let l be a sorted list, let l1 and l2 be two sorted lists partinioning l.
-   An arbitrary x is smaller that the head of l if it is smaller than the head
-   of l1 and the head of l2 *)
-
-Lemma HdRel_Sorted_Permutation {A} (cmp : A -> A -> Prop) `{Transitive A cmp} l l1 l2 x :
-  Sorted cmp l ->
-  l1 ++ l2 ≡ₚ l ->
-  Sorted cmp l1 -> Sorted cmp l2 ->
-  HdRel cmp x l1 -> HdRel cmp x l2 ->
-  HdRel cmp x l.
-Proof.
-  intros.
-  apply Sorted_Hd_cmp; try auto.
-  rewrite_permutation l.
-  apply Forall_app.
-  split; apply Sorted_Hd_cmp; auto.
-Qed.
-
-(* We implicitly use the following lemma when we prove that 
-   the list returnted by [split l] are smallet than l *)
+(* We implicitly use the following lemma when we prove that the list returned
+   by [split l] are smaller than l *)
 
 Lemma suc_div2_lt_suc n :
     (Nat.div2 n < S n)%nat.
@@ -186,6 +141,8 @@ Proof.
     [rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd];
     [by apply negb_true_iff   | by apply negb_false_iff].
 Qed.
+
+Local Hint Resolve even_false_odd_true : arith.
 
 Lemma div2_lt_succ n m :
   (if Nat.even m
@@ -257,15 +214,14 @@ Definition merge_spec (merge : val) : Prop :=
          SIMP (call c #l2)
            (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l)).
 
-Definition split_spec (_split : val) : Prop :=
+Definition split_spec (split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
     SIMP
-      (call _split #l)
+      (call split #l)
       (λ p, (if Nat.even (length l)
-                then length p.1 = Nat.div2 (length l)
-                else length p.1 = S (Nat.div2 (length l))) /\
-              length p.2 = Nat.div2 (length l) /\
-              Permutation (p.1 ++ p.2) l).
+             then length p.1 = Nat.div2 (length l)
+             else length p.1 = S (Nat.div2 (length l)))
+            /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l).
 
 Definition mergesort_spec (mergesort : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list Z),
@@ -285,15 +241,25 @@ Qed.
 
 (* Specification proofs. *)
 
+Ltac generalize_pair_aux x y p :=
+  remember (x, y) as p eqn:Heqp;
+  replace x with (p.1); [| by rewrite Heqp];
+  replace y with (p.2); [| by rewrite Heqp];
+  clear dependent x y.
+
+Tactic Notation "generalize_pair" constr(x) constr(y) :=
+  let p := fresh "p" in
+  generalize_pair_aux x y p.
+
+Tactic Notation "generalize_pair" constr(x) constr(y) "as" ident(p) :=
+  generalize_pair_aux x y p.
+
 Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2.
-  (* Generalize l1 and l2 into a pair *)
-  remember (l1, l2) as p.
-  replace (l1) with (p.1); last by rewrite Heqp.
-  replace (l2) with (p.2); last by rewrite Heqp.
-  clear dependent l1 l2.
+  (* Generalize l1 and l2 into a pair p *)
+  generalize_pair l1 l2 as p.
   (* Reason by induction well founded induction on [length l1 + length l2] *)
   induction p as [[l1 l2] IH] using (well_founded_induction wf_double_list_length).
   simpl in *; destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
@@ -320,7 +286,8 @@ Proof.
     eapply SIMP_ret; first reflexivity.
     split.
     { (* Subgoal: the output is sorted *)
-      constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+      constructor; first done.
+      eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
       rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
@@ -335,7 +302,8 @@ Proof.
     eapply SIMP_ret; first reflexivity.
     split.
     { (* Subgoal: the output is sorted *)
-      constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+      constructor; first done.
+      eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
       by rewrite_permutation t1l2. }}
 Qed.
