@@ -2,6 +2,7 @@ Require Import Coq.Wellfounded.Inverse_Image.
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
+From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
 Local Opaque app. (* Prevent undesired simplification. *)
 
@@ -56,7 +57,7 @@ Ltac SIMP_evaluate :=
   eapply SIMP_simp; [simp_evaluate; apply SimpReflexive|].
 
 Ltac SIMP_execute :=
-  repeat (simpl; (SIMP_evaluate || SIMP_continue)); try SIMP_Par_Ret.       
+  repeat (simpl; (SIMP_evaluate || SIMP_continue)); try SIMP_Par_Ret.
 
 Ltac Sorted_inversion :=
   match goal with
@@ -251,9 +252,10 @@ Definition merge_spec (merge : val) : Prop :=
     Sorted (Z.le) l1 ->
     Sorted (Z.le) l2 ->
     SIMP
-      (c ← call merge #l1;
-       call c #l2)
-      (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l).
+      (call merge #l1)
+      (fun c =>
+         SIMP (call c #l2)
+           (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l)).
 
 Definition split_spec (_split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
@@ -274,48 +276,53 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 (* -------------------------------------------------------------------------- *)
 
+Lemma wf_double_list_length {A B} :
+  well_founded (fun (p1 p2 : list A * list B) =>
+                  (length p1.1 + length p1.2 < length p2.1 + length p2.2)%nat).
+Proof.
+  apply wf_inverse_image. apply lt_wf.
+Qed.
+
 (* Specification proofs. *)
 
 Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
-  unfold merge_spec.    
-  induction l1 as [|h1 t1]; intros.
-  { rewrite app_nil_l.
-    SIMP1; SIMP_execute. auto. }
-  induction l2 as [|h2 t2].
+  unfold merge_spec. intros ?? l1 l2.
+  remember (l1, l2) as p.
+  replace (l1) with (p.1); last by rewrite Heqp.
+  replace (l2) with (p.2); last by rewrite Heqp.
+  clear dependent l1 l2.
+  induction p as [[l1 l2] IH] using (well_founded_induction wf_double_list_length).
+  simpl in *; destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
+  { SIMP1; SIMP1; SIMP_continue. auto. }
   { rewrite app_nil_r.
-    SIMP1; SIMP_execute. auto. }
-  specialize (IHt1 (h2::t2)).
+    SIMP1; SIMP1; SIMP_continue. auto. }
   all_inversions.
-  destruct IHt1 as (h1l2&IH1&?&?); auto.
-  destruct IHt2 as (l1t2&IH2&?&?); auto.
-  SIMP1. SIMP_continue.
+  SIMP1. SIMP1. SIMP_continue.
   rewrite lt_repr_repr by auto.
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Advance to call merge *)
     SIMP_execute.
-    (* Use induction hypothesis on merge (h1::t1) *)
-    eapply SIMP_prove_bind_bind. { apply IH2. }
-    SIMP_ret.
+    eapply SIMP_bind_unary. { eapply (IH (h1::t1, t2)); simpl; auto with arith. }
+    intros c; simpl; intros IHc.
+    eapply SIMP_bind_unary. { apply IHc. }
+    intros l1t2; simpl; intros (?&?).
+    change (VData "::" <v VInt (repr h2), encode_list l1t2 v>) with #(h2::l1t2).
+    eapply SIMP_ret; first reflexivity.
     split.
-    { apply Sorted_cons; first assumption.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
-    { (* (h1 :: t1) ++ h2 :: t2 =p h2 :: l1t2 *)
-      rewrite_permutation l1t2.
-      apply Permutation_sym.
-      apply Permutation_middle. }}
-   { (* Advance to call merge *)
-     SIMP_execute.
-     (* Use induction hypothesis on merge (h2::t2) *)
-     eapply SIMP_prove_bind_bind. { apply IH1. }
-    SIMP_ret.
+    { constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+    { rewrite_permutation l1t2. apply Permutation_sym. apply Permutation_middle. }}
+  { SIMP_execute.
+    eapply SIMP_bind_unary. { eapply (IH (t1, h2::t2)); simpl; auto. }
+    intros c; simpl; intros IHc.
+    eapply SIMP_bind_unary. { apply IHc. }
+    intros t1l2; simpl; intros (?&?).
+    change (VData "::" <v VInt (repr h1), encode_list t1l2 v>) with #(h1::t1l2).
+    eapply SIMP_ret; first reflexivity.
     split.
-    { (* Goal: Sorted le (h1 :: h1l2) *)
-      apply Sorted_cons; first assumption.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
-    { (* (h1  :: t1) ++ h2 :: t2 =p h1 :: h1l2 *)
-      by rewrite_permutation h1l2. }} 
+    { constructor; eauto using HdRel_Sorted_Permutation with zarith. }
+    { by rewrite_permutation t1l2. }}
 Qed.
 
 Lemma Split_spec η :
@@ -410,14 +417,16 @@ Proof.
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
   SIMP_continue.
-  eapply SIMP_covariant.
-  { (* Use the fact that [merge] satisfies its specification *)
-    apply _merge_spec with (A:=A) (l1:=sl1) (l2:=sl2); try auto.
+  eapply SIMP_bind_unary.
+  (* Use the fact that [merge] satisfies its specification *)
+  { eapply _merge_spec with (l2:=sl2); eauto. 
     { (* Subgoal: show merge's precondition that l1 is representable *)
       by rewrite_permutation sl1. }
     { (* Subgoal: show merge's precondition that l2 is representable *)
       by rewrite_permutation sl2. }}
-  intros l'; simpl; intros [??].
+  intros c; simpl; intros Hc.
+  eapply SIMP_covariant; first apply Hc.
+  intros l' [??].
   (* Establish the postcondition *) 
   split.
   { (* Subgoal: the output is sorted *)

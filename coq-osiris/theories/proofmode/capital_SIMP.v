@@ -71,9 +71,10 @@ Qed.
 (* This is [@bind val val]. *)
 
 Lemma SIMP_bind_unary X (_ : Encode X) Y (_ : Encode Y)
-  m f (ψ : Y → Prop) :
-  SIMP m (λ (x : X), SIMP (f #x) ψ) →
-  SIMP (bind m f) ψ.
+  m f (φ : X -> Prop) (ψ : Y → Prop) :
+  SIMP m ψ ->
+  (forall x : Y, ψ x -> SIMP (f #x) φ) ->
+  SIMP (bind m f) φ.
 Proof.
   eauto using SIMP_bind.
 Qed.
