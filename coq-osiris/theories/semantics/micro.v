@@ -390,6 +390,30 @@ Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
 
 (* ------------------------------------------------------------------------ *)
 
+(* The constructors [Stop], [Par], and [Choose] can be viewed as
+   applications of [stop], [par], and [choose],
+   wrapped in a [try] construct. *)
+
+Lemma try_stop {A X Y} c (x : X) (k : Y → micro A) z :
+  try (stop c x) k z = Stop c x k z.
+Proof.
+  unfold stop. rewrite try_Stop. eauto using eq_stop_stop.
+Qed.
+
+Lemma try_par {A1 A2 A} m1 m2 (k : A1 * A2 → micro A) z :
+  try (par m1 m2) k z = Par m1 m2 k z.
+Proof.
+  unfold par. rewrite try_Par. eauto using eq_par_par.
+Qed.
+
+Lemma try_choose {A B} m1 m2 (k : A → micro B) z :
+  try (choose m1 m2) k z = Choose m1 m2 k z.
+Proof.
+  unfold choose. rewrite try_Choose. eauto using eq_choose_choose.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* A 3-way case analysis principle: a computation [m] is either [ret a]
    or [Next] or something else. *)
 
