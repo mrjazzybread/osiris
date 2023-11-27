@@ -1,4 +1,4 @@
-From stdpp Require Import gmap.
+From stdpp Require Import relations. (* nsteps *)
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
