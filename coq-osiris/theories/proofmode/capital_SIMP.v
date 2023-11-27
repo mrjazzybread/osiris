@@ -236,16 +236,6 @@ Proof.
     ((exfalso; by eapply invert_SIMP_crash) || eauto).
 Qed.
 
-Fixpoint replace_rec_bindings rbs fname a {struct rbs} :=
-  match rbs with
-  | RecBiNil => RecBiNil
-  | RecBiCons (RecBinding gname a') rbs' =>
-      if (fname =? gname)%string then
-        RecBiCons (RecBinding fname a) rbs'
-      else
-        RecBiCons (RecBinding gname a') (replace_rec_bindings rbs' fname a)
-  end.
-
 (* Replace the first occurence of a var in an environment *)
 
 Fixpoint replace_env_binding η name val {struct η} :=
@@ -261,43 +251,6 @@ Lemma lookup_rec_bindings_cases rbs g :
 Proof.
   induction rbs as [|[f a] ? IH]; first auto.
   simpl. destruct (g =? f)%string; eauto.
-Qed.
-
-Lemma replace_rec_bindings_not_in rbs g :
-  lookup_rec_bindings rbs g = missing_variable g ->
-  forall a, replace_rec_bindings rbs g a = rbs.
-Proof.
-  intros H a.
-  induction rbs as [|[f a'] ? IH]; first done.
-  simpl in *.
-  destruct (g =? f)%string; [discriminate|by rewrite IH].
-Qed.
-
-Lemma replace_rec_bindings_in rbs g a :
-  lookup_rec_bindings rbs g = ret a ->
-  forall a', lookup_rec_bindings (replace_rec_bindings rbs g a') g = ret a'.
-Proof.
-  intros.
-  induction rbs as [|[f ?] ? IH]; first discriminate.
-  simpl in *.
-  destruct (g =? f)%string eqn:Hcmp; simpl;
-    first by rewrite String.eqb_refl.
-  rewrite Hcmp; auto.
-Qed.
-
-Notation "'RecBnd' recbnd " := (RecBiCons recbnd RecBiNil) (at level 90).
-
-
-Lemma replace_env_concat_cases η1 η2 name v :
-  replace_env_binding (concat η1 η2) name v = concat (replace_env_binding η1 name v) η2 \/
-  replace_env_binding (concat η1 η2) name v = concat η1 (replace_env_binding η2 name v).
-Proof.
-  induction η1; first eauto.
-  destruct IHη1.
-  { left; simpl.
-    destruct (name =? x)%string; [eauto | by rewrite H]. }
-  { simpl.
-    destruct (name =? x)%string; last rewrite H; eauto. }
 Qed.
 
 Lemma in_bindings_in_eval_bindings rbs fname η :
@@ -330,7 +283,7 @@ Proof.
   by rewrite IHη1.
 Qed.
 
-Lemma eval_bindings_produces_eq η rbs rbs' fname : 
+Lemma eval_bindings_produces_eq η rbs rbs' fname :
   lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs' fname) -> rbs = rbs'.
 Proof.
   unfold eval_rec_bindings. generalize rbs at 2; intros rbs''.
@@ -352,7 +305,7 @@ Qed.
 Corollary lookup_eval_bindings rbs η fname afun :
   lookup_rec_bindings rbs fname = ret afun ->
   lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs fname).
-Proof.
+Proof.  
   intros Hlkp. eapply lookup_eval_bindings_aux in Hlkp as [rbs' Hlkp].
   replace rbs' with rbs in Hlkp by (eapply eval_bindings_produces_eq; eauto).
   apply Hlkp.
@@ -373,27 +326,27 @@ Proof.
   done.
 Qed.
 
+(* Todo: write comment *)
+
 Lemma SIMP_rec_call `{Encode X} `{Encode Y}
   (η : env) (rbs : rec_bindings) (fname : var) (v : X)
-  (P : X -> Prop) (ψ : X -> Y -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
+  (P : X -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P v ->
-  (forall x y, ψ x y -> φ x y) ->
   (forall (vf : val) v',
       P v' ->
       (forall v'',
           P v'' ->
           R v'' v' ->
-          SIMP (call vf #v'') (ψ v'')) ->
+          SIMP (call vf #v'') (φ v'')) ->
       SIMP (let δ := concat (eval_rec_bindings η rbs) η in
             let η := replace_env_binding δ fname vf in
             'afun ← lookup_rec_bindings rbs fname ;
             acall η afun #v'
-        ) (ψ v')) ->
+        ) (φ v')) ->
   SIMP (call (VCloRec η rbs fname) #v) (φ v).
 Proof.
-  intros Hwf HP Hcov Hrec.
-  eapply SIMP_covariant; last apply Hcov.
+  intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl in *.
   destruct (lookup_rec_bindings_cases rbs fname) as [Hlkp|[afun Hlkp]].
@@ -403,7 +356,7 @@ Proof.
     rewrite Hlkp in *; simpl in *.
     erewrite replace_binding_idempotent in Hrec by apply Hlkp.
     eapply Hrec; auto.
-    intros. rewrite Hlkp. simpl. by apply IH. }
+    intros. rewrite Hlkp. by apply IH. }
 Qed.
 
 
@@ -527,8 +480,8 @@ Ltac SIMP_continue :=
 Ltac SIMP_specify x φ :=
   lazymatch goal with
   | |- SIMP (bind (ret_dconcat ?δ _) _) _ =>
-      (* hnf to avoid unnecessary reductions *)
-      let o := eval hnf in (lookup_name δ x) in
+      (* is this reduction too strong? *)
+      let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in
         assert (φ v) as h; [| revert h; generalize v ]
@@ -570,7 +523,7 @@ Ltac SIMP_enter_and_abstract :=
   lazymatch goal with |- SIMP (call ?v _) _ =>
     (* First, expand [call] away. *)
     SIMP1_call_step;
-    cbn zeta;
+    normalize;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
        with an abstract value. This ensures that we cannot step into

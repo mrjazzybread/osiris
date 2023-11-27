@@ -59,6 +59,8 @@ Proof.
   apply wf_inverse_image. apply tlt_wf.
 Qed.
 
+Local Hint Extern 1 (tree_depth _ < tree_depth _)%nat => (simpl; lia) : SIMP_specs.
+
 Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
@@ -472,7 +474,7 @@ Proof.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
   { unfold zlookup_spec. do 4 intro.
     intros Hcompare ??? Hbst.
-    eapply SIMP_rec_call with
+    eapply SIMP_rec_call with 
       (v:=(t,x,ctx))
       (P:=fun '(t, _, _) => bst (strict le) t)
       (φ:=fun tuple =>
@@ -509,7 +511,7 @@ Proof.
       { rewrite ltb_true by lia.
         SIMP1. eapply SIMP_covariant.
         { eapply IH; first assumption.
-          { unfold tlt. simpl. lia. } }
+          { unfold tlt. simpl; lia. }}
         intros [ox t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.
@@ -522,7 +524,7 @@ Proof.
         rewrite ltb_true by lia.
         SIMP1. eapply SIMP_covariant.
         { eapply IH; first assumption.
-          { unfold tlt. simpl. lia. } }
+          { unfold tlt. simpl; lia. }}
         intros [b t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.

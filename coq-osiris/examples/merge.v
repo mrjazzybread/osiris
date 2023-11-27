@@ -282,8 +282,7 @@ Proof.
     eapply SIMP_bind_unary. { apply IHc. }
     intros l'; simpl; intros (?&?).
     (* Establish the postcondition *)
-    change (VData "::" <v VInt (repr h2), encode_list l' v>) with #(h2::l').
-    eapply SIMP_ret; first reflexivity.
+    eapply SIMP_ret with (x:=(h2::l')); first solve [encode].
     split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
@@ -298,8 +297,7 @@ Proof.
     eapply SIMP_bind_unary. { apply IHc. }
     intros t1l2; simpl; intros (?&?).
     (* Establish the postcondition *)
-    change (VData "::" <v VInt (repr h1), encode_list t1l2 v>) with #(h1::t1l2).
-    eapply SIMP_ret; first reflexivity.
+    eapply SIMP_ret with (x:=(h1::t1l2)); first solve [encode].
     split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
@@ -323,8 +321,6 @@ Proof.
   { apply wf_list_length. }
   (* Precondition: we have none *)
   { apply I. }
-  (* Postcondition: no need to strengthen it *)
-  { intros ?? ψ. apply ψ. }
   
   clear l; intros split l _ IH; simpl.
   destruct l as [| a l]; last destruct l as [| b l]; SIMP_execute.
@@ -350,7 +346,12 @@ Proof.
       apply Permutation_sym.
       apply Permutation_middle. }}
 Qed.
-  
+
+
+Lemma Permutation_iff_multiplicity l l' :
+  l ≡ₚ l' <-> forall x, 
+          
+
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
   (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->
@@ -367,8 +368,6 @@ Proof.
   { apply wf_list_length. }
   (* Precondition: all items must be representable *)
   { apply Hrep. }
-  (* Postcondition: no need to strengthen it *)
-  { intros ?? ψ. apply ψ. }
   
   clear dependent l; intros mergesort l Hrep IH.
   destruct l as [|a l]; last destruct l as [|b l]; SIMP_execute.
@@ -481,4 +480,5 @@ Proof.
   repeat SIMP_continue.
   (* Postcondition *)
   simpl. auto.
+
 Qed.
