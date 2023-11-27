@@ -12,6 +12,20 @@ Definition pure `{Encode A} (m : micro val) (φ : A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* Inversion tactics. *)
+
+Ltac destruct_pure a :=
+  match goal with h: pure _ _ |- _ =>
+    destruct h as (a & ? & ?)
+  end.
+
+Ltac destruct_encode_image a :=
+  match goal with h: ∃ _, ?v = #_ ∧ _ |- _ =>
+    destruct h as (a & ? & ?); try subst v
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [pure] can also be defined in terms of [totalv]. *)
 
 Lemma pure_totalv `{Encode A} (m : micro val) (φ : A → Prop) :
@@ -19,10 +33,8 @@ Lemma pure_totalv `{Encode A} (m : micro val) (φ : A → Prop) :
   totalv m (λ v, ∃ a, v = #a ∧ φ a).
 Proof.
   split.
-  { intros (a & ? & ?). eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total v.
-    match goal with h: ∃ _, _ |- _ => destruct h as (a & ? & ?) end. subst v.
-    unfold pure. eauto. }
+  { intros. destruct_pure a. eauto using totalv_simp, totalv_ret. }
+  { intros. destruct_total v. destruct_encode_image a. unfold pure. eauto. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -50,7 +62,7 @@ Lemma pure_consequence `{Encode A} m (φ ψ : A → Prop) :
 Proof.
   (* We could give a direct proof. We go through [totalv]. *)
   rewrite !pure_totalv. intros. eapply totalv_consequence; [ eauto |].
-  simpl. intros v (a & ? & ?). subst v. eauto.
+  simpl. intros v Hv. destruct_encode_image a. eauto.
 Qed.
 
 (* The simplification rule. *)
@@ -78,7 +90,7 @@ Lemma pure_try A (_ : Encode A) B (_ : Encode B)
 Proof.
   (* We could give a direct proof. We go through [totalv]. *)
   rewrite !pure_totalv. intros. eapply totalv_try; [ eauto |].
-  simpl. intros v (a & ? & ?). subst v.
+  simpl. intros v Hv. destruct_encode_image a.
   rewrite <- pure_totalv. eauto.
 Qed.
 
@@ -126,7 +138,9 @@ Proof.
   rewrite !pure_totalv. intros Hm1 Hm2 Hentail. rewrite <- try_par.
   eapply totalv_try.
   { eapply totalv_par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
-    intros v1 v2 (a1 & ? & Ha1) (a2 & ? & Ha2). subst v1 v2. eauto. }
+    simpl. intros v1 v2 ? ?.
+    destruct_encode_image a2. destruct_encode_image a1.
+    eauto. }
   { intros v. rewrite <- pure_totalv. tauto. }
 Qed.
 
@@ -141,7 +155,7 @@ Proof.
   rewrite !pure_totalv.
   intros. eapply totalv_choose; [ eauto | eauto |].
   unfold deterministic.
-  intros v1 v2 (a1 & ? & ?) (a2 & ? & ?). subst v1 v2.
+  intros v1 v2 ? ?. destruct_encode_image a2. destruct_encode_image a1.
   assert (a1 = a2) by eauto.
   congruence.
 Qed.
@@ -157,7 +171,7 @@ Lemma exploit_injectivity `{Inhabited X} `{EncodeInjective A}
   ∃ a, v = #a ∧ (∀ x, φ x a).
 Proof.
   intros Hxa.
-  destruct (Hxa inhabitant) as (a & ? & ?). subst v.
+  generalize (Hxa inhabitant); intros. destruct_encode_image a.
   exists a. split; [ eauto |].
   intros x. destruct (Hxa x) as (a' & Heq & ?).
   apply encode_injective in Heq. congruence.
@@ -192,4 +206,51 @@ Proof.
   { intros a Hpost. split.
     + apply (Hpost true).
     + apply (Hpost false). }
+Qed.
+
+(* This is the reciprocal bind rule for [pure]. *)
+
+(* Because [pure m _] requires the result of [m] to lie in the image of the
+   function [encode], and because this image cannot include every inhabitant
+   of the type [val], we cannot expect that [pure (bind m k) φ] implies
+   [pure m _]. Thus, we can establish the reciprocal bind rule only under
+   the side condition [pure m (λ a, True)], which means that the result of
+   the computation [m] lies in the image of the function [encode] at type
+   [A]. *)
+
+Lemma invert_pure_bind `{Encode A, Encode B} m k (φ : B → Prop) :
+  pure (bind m k) φ →
+  pure m (λ (a : A), True) →
+  pure m (λ (a : A), pure (k #a) φ).
+Proof.
+  intros Hmk Hm.
+  rewrite pure_totalv in Hmk.
+  apply invert_totalv_bind in Hmk.
+  destruct_total v.
+
+  (* The problem that we now face is to prove that the value [v] produced
+     by [m] must be of the form [#a]. The hypothesis [Hm] is necessary for
+     this purpose. *)
+  destruct_pure a. simp_ret_confluent. subst v.
+
+  (* We can then conclude. *)
+  unfold pure. exists a. split; [ eauto |].
+  destruct_total v. destruct_encode_image b. eauto.
+Qed.
+
+(* That said, if we take the type [A] to be [val], then -- because [encode]
+   at type [val] is the identity function -- this side condition becomes
+   trivial, and we can prove a version of the rule that does not have this
+   side condition. *)
+
+Lemma invert_pure_bind' `{Encode B} m k (φ : B → Prop) :
+  pure (bind m k) φ →
+  pure m (λ (v : val), pure (k v) φ).
+Proof.
+  intros Hmk.
+  rewrite pure_totalv in Hmk.
+  apply invert_totalv_bind in Hmk.
+  destruct_total v.
+  unfold pure. exists v. split; [ eauto |].
+  destruct_total v'. destruct_encode_image b. eauto.
 Qed.

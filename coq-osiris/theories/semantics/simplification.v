@@ -805,7 +805,7 @@ Ltac destruct_total a :=
   | h: total _ _ _ |- _ =>
       destruct h as [ (a & ? & ?) | (? & ?) ]
   | h: totalv _ _ |- _ =>
-      unfold totalv in h;
+      unfold totalv in h at 1;
       destruct h as [ (a & ? & ?) | (? & ?) ]; [| tauto ]
   end.
 
