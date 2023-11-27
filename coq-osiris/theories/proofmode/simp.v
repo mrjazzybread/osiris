@@ -121,6 +121,20 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
+Lemma advance_SimpEvalRetNext η e m' :
+  simp (eval η e) m' →
+  simp (Stop CEval (η, e) ret next) m'.
+Proof.
+  intros. eapply advance_SimpEvalNext. rewrite bind_ret_right. eauto.
+Qed.
+
+Lemma advance_SimpEvalRetNext' η e m' :
+  simp (eval η e) m' →
+  simp (stop CEval (η, e)) m'.
+Proof.
+  unfold stop. eauto using advance_SimpEvalRetNext.
+Qed.
+
 Lemma advance_SimpLoop {A} η x i1 i2 e (k : val → micro A) ko m' :
   simp (try (loop η x i1 i2 e) k ko) m' →
   simp (Stop CLoop (η, x, i1, i2, e) k ko) m'.
@@ -594,6 +608,9 @@ with simp1 :=
   | simple eapply advance_simp_try_bind; simp0
   | simple eapply advance_simp_try_try; simp0
     (* Handle [Stop] effects. *)
+    (* TODO do we need these four attempts? *)
+  | simple eapply advance_SimpEvalRetNext'; simp0
+  | simple eapply advance_SimpEvalRetNext; simp0
   | simple eapply advance_SimpEvalNext; simp0
   | simple eapply advance_SimpEval; simp0
       (*| simple eapply advance_SimpLoopNext; simp0 *)

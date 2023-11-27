@@ -99,7 +99,7 @@ Notation next :=
    codes to computations is not defined here; it must be supplied a
    posteriori (step.v). *)
 
-Notation stop c x :=
+Definition stop {X Y} (c : code X Y) x : micro Y :=
   (Stop c x ret next).
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
