@@ -485,7 +485,12 @@ constructor <code class="highlight coq"><span class="n">Par</span></code> or the
 <p>The combinators <code class="highlight coq"><span class="n">stop</span></code>, <code class="highlight coq"><span class="kp">par</span></code>, and <code class="highlight coq"><span class="n">choose</span></code>
 are sugar for <code class="highlight coq"><span class="n">Stop</span></code>, <code class="highlight coq"><span class="n">Par</span></code>, and <code class="highlight coq"><span class="n">Choose</span></code>
 with trivial continuations.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chka" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chka"><span class="kn">Print</span> stop.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Notation</span> <span class="nf">stop</span> c x := (Stop c x ret next)</blockquote></div></div></small><span class="alectryon-wsp">
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chka" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chka"><span class="kn">Print</span> stop.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">stop =
+<span class="kr">λ</span> <span class="nv">X</span> <span class="nv">Y</span> (<span class="nv">c</span> : C.code X Y) (<span class="nv">x</span> : X),
+  Stop c x ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
+     : <span class="kr">∀</span> <span class="nv">X</span> <span class="nv">Y</span>, C.code X Y → X → micro Y
+
+<span class="kn">Arguments</span> stop {X Y}%type_scope c x</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Print</span> <span class="kp">par</span>.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kp">par</span> =
 <span class="kr">λ</span> <span class="nv">A1</span> <span class="nv">A2</span> (<span class="nv">m1</span> : micro A1) (<span class="nv">m2</span> : micro A2),
   Par m1 m2 ret (<span class="kr">λ</span> <span class="nv">_</span> : (), Next)
