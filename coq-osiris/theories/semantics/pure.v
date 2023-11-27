@@ -150,9 +150,6 @@ Qed.
 
 (* This rule requires the encoding function [# : A → val] to be injective]. *)
 
-Class EncodeInjective `{Encode A} :=
-  { encode_injective : ∀ a1 a2 : A, #a1 = #a2 → a1 = a2 }.
-
 Lemma exploit_injectivity `{Inhabited X} `{EncodeInjective A}
   v (φ : X → A → Prop)
 :

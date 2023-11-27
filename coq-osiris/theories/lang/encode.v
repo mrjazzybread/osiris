@@ -19,6 +19,14 @@ Notation "# v" := (encode v) (at level 8, format "# v").
 
 (* -------------------------------------------------------------------------- *)
 
+(* The function [encode] is sometimes, but not always, required to be
+   injective. *)
+
+Class EncodeInjective `{Encode A} :=
+  { encode_injective : ∀ a1 a2 : A, #a1 = #a2 → a1 = a2 }.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The tactic [encode] expects a goal of the form [v = encode x],
    where typically [v] is a known value and [x] is a metavariable.
    Finding a suitable instantiation of [x] amounts to inverting
