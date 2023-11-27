@@ -782,17 +782,31 @@ Global Instance TC_transitivity_simp {A} : Transitive (@simp A) :=
    and about expressions that raise the exception [Next]. *)
 
 (* The judgement [total m φ ψ] means that either [m] terminates and produces
-   a value [a] that satisfies the postcondition [φ], or [m] raises [Next],
+   a result [a] that satisfies the postcondition [φ], or [m] raises [Next],
    in which case [ψ] is satisfied. *)
 
 Definition total {A} m (φ : A → Prop) ψ :=
   (∃ a, simp m (ret a) ∧ φ a) ∨
   (simp m Next ∧ ψ).
 
-Ltac destruct_total :=
+(* The judgement [totalv m φ] is the special case where [ψ] is [False]. It
+   means that [m] must terminate and produce a result [a] such that [φ a]
+   holds. *)
+
+Definition totalv {A} m (φ : A → Prop) :=
+  total m φ False.
+
+(* The tactic [destruct_total a] destructs a hypothesis of the form
+   [total m φ ψ] or [totalv m φ]. The result of [m], if there is one,
+   is named [a]. *)
+
+Ltac destruct_total a :=
   match goal with
   | h: total _ _ _ |- _ =>
-      destruct h as [ (? & ? & ?) | (? & ?) ]
+      destruct h as [ (a & ? & ?) | (? & ?) ]
+  | h: totalv _ _ |- _ =>
+      unfold totalv in h;
+      destruct h as [ (a & ? & ?) | (? & ?) ]; [| tauto ]
   end.
 
 (* The reasoning rule for [ret _]. *)
@@ -821,7 +835,7 @@ Lemma total_consequence {A} m (φ φ' : A → Prop) (ψ ψ' : Prop) :
   (ψ → ψ') →
   total m φ' ψ'.
 Proof.
-  intros. destruct_total.
+  intros. destruct_total a.
   { left. eauto. }
   { right. eauto. }
 Qed.
@@ -839,7 +853,7 @@ Lemma total_simp {A} m m' (φ : A → Prop) (ψ : Prop) :
   total m' φ ψ →
   total m φ ψ.
 Proof.
-  intros. destruct_total.
+  intros. destruct_total a.
   { left. eauto with simp. }
   { right. eauto with simp. }
 Qed.
@@ -852,7 +866,7 @@ Lemma total_try {A B} m f g (φ : B → Prop) (φ' : A → Prop) (ψ ψ' : Prop)
   (ψ' → total (g ()) φ ψ) →
   total (try m f g) φ ψ.
 Proof.
-  intros. destruct_total.
+  intros. destruct_total a.
   { eapply total_simp; [ eapply simp_try; eauto |].
     rewrite try_ret.
     eauto. }
@@ -884,16 +898,14 @@ Qed.
    arbitrary [ψ] would require the ability to simplify [Par Next Next _ _]
    into [Next]. The relation [simp] currently does not allow this. *)
 
-Lemma total_par {A1 A2} m1 m2
-  (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
-:
+Lemma total_par {A1 A2} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
   let ψ := False in
   total m1 φ1 ψ →
   total m2 φ2 ψ →
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   total (par m1 m2) φ ψ.
 Proof.
-  intros. repeat destruct_total; try solve [ exfalso; tauto ].
+  intros. destruct_total a2; destruct_total a1; try solve [ exfalso; tauto ].
   eapply total_simp.
   eapply SimpPar; eassumption.
   eapply total_simp; [ eapply SimpParRetRet |].
@@ -921,10 +933,8 @@ Lemma total_choose {A} m1 m2 (φ : A → Prop) :
   deterministic φ →
   total (choose m1 m2) φ ψ.
 Proof.
-  intros. repeat destruct_total; try solve [ exfalso; tauto ].
-  match goal with h1: simp m1 (ret ?a1), h2: simp m2 (ret ?a2) |- _ =>
-    assert (a1 = a2); [ eauto | subst ]
-  end.
+  intros. destruct_total a2; destruct_total a1; try solve [ exfalso; tauto ].
+  assert (a1 = a2); [ eauto | subst ].
   eapply total_simp.
   eapply SimpChooseAgree; eassumption.
   eapply total_ret.
@@ -978,6 +988,114 @@ Proof.
     + apply (Hpost true).
     + apply (Hpost false). }
   { tauto. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Special cases of the above rules for [totalv]. *)
+
+(* These rules may seem a bit trivial, but it is probably preferable to state
+   them explicitly and have them at hand, rather than attempt to reconstruct
+   them on the fly every time they are needed. *)
+
+(* The reasoning rule for [ret _]. *)
+
+Lemma totalv_ret {A} a (φ : A → Prop):
+  φ a →
+  totalv (ret a) φ.
+Proof.
+  unfold totalv. eauto using total_ret.
+Qed.
+
+(* The consequence rule. *)
+
+Lemma totalv_consequence {A} m (φ φ' : A → Prop) :
+  totalv m φ →
+  (∀ a, φ a → φ' a) →
+  totalv m φ'.
+Proof.
+  unfold totalv. eauto using total_consequence.
+Qed.
+
+(* The simplification rule. *)
+
+Lemma totalv_simp {A} m m' (φ : A → Prop) :
+  simp m m' →
+  totalv m' φ →
+  totalv m φ.
+Proof.
+  unfold totalv. eauto using total_simp.
+Qed.
+
+(* A reasoning rule for [try]. *)
+
+(* The rule is degenerate; [m] is not allowed to reduce to [Next],
+   so the handler [g] is dead and no proof obligation bears on it. *)
+
+Lemma totalv_try {A B} m f g (φ : B → Prop) (φ' : A → Prop) :
+  totalv m φ' →
+  (∀ a, φ' a → totalv (f a) φ) →
+  totalv (try m f g) φ.
+Proof.
+  unfold totalv. intros. eapply total_try; solve [ eauto | tauto ].
+Qed.
+
+(* A reasoning rule for [bind]. *)
+
+Lemma totalv_bind {A B} m f (φ : B → Prop) (φ' : A → Prop) :
+  totalv m φ' →
+  (∀ a, φ' a → totalv (f a) φ) →
+  totalv (bind m f) φ.
+Proof.
+  unfold totalv. eauto using total_bind.
+Qed.
+
+Lemma totalv_bind_unary {A B} m f (φ : B → Prop) :
+  totalv m (λ (a : A), totalv (f a) φ) →
+  totalv (bind m f) φ.
+Proof.
+  eauto using totalv_bind.
+Qed.
+
+(* A reasoning rule for [par]. *)
+
+Lemma totalv_par {A1 A2} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
+  totalv m1 φ1 →
+  totalv m2 φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
+  totalv (par m1 m2) φ.
+Proof.
+  unfold totalv. eauto using total_par.
+Qed.
+
+(* A reasoning rule for [choose]. *)
+
+Lemma totalv_choose {A} m1 m2 (φ : A → Prop) :
+  totalv m1 φ →
+  totalv m2 φ →
+  deterministic φ →
+  totalv (choose m1 m2) φ.
+Proof.
+  unfold totalv. eauto using total_choose.
+Qed.
+
+(* The infinitary intersection rule. *)
+
+Lemma totalv_intersection {A} `{Inhabited X} m (φ : X → A → Prop) :
+  (∀ x, totalv m (φ x)) →
+  totalv m (λ a, ∀ x, φ x a).
+Proof.
+  unfold totalv. eauto using total_intersection.
+Qed.
+
+(* The binary intersection rule. *)
+
+Lemma totalv_binary_intersection {A} m (φ1 φ2 : A → Prop) :
+  totalv m φ1 →
+  totalv m φ2 →
+  totalv m (λ a, φ1 a ∧ φ2 a).
+Proof.
+  unfold totalv. eauto using total_binary_intersection.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1328,14 +1446,13 @@ Qed.
 
 (* The previous lemma can be specialized to obtain a result about [bind]. *)
 
-Lemma invert_simp_bind_ret_total {A B} m (k : A → micro B) b :
+Lemma invert_simp_bind_ret_totalv {A B} m (k : A → micro B) b :
   simp (bind m k) (ret b) →
-  total m
-    (λ a, simp (k a) (ret b))
-    False.
+  totalv m (λ a, simp (k a) (ret b)).
 Proof.
   rewrite bind_as_try.
   intros h.
+  unfold totalv.
   eapply total_consequence.
   { eauto using invert_simp_try_ret. }
   { eauto. }
@@ -1343,14 +1460,29 @@ Proof.
   { simpl. intros. clarify_simp. }
 Qed.
 
-(* Unfolding [total] in the previous result yields this perhaps more
-   readable statement. *)
+(* Reformulating the previous result yields this statement. *)
 
-(* This is the reciprocal bind rule. *)
+(* This is the reciprocal bind rule for [totalv]. *)
+
+Lemma invert_totalv_bind {A B} m (k : A → micro B) (φ : B → Prop) :
+  totalv (bind m k) φ →
+  totalv m (λ a, totalv (k a) φ).
+Proof.
+  intros.
+  destruct_total b.
+  apply invert_simp_bind_ret_totalv in H.
+  destruct_total a.
+  eauto using totalv_simp, totalv_ret.
+Qed.
+
+(* Another reformulation yields this alternative statement. *)
+
+(* This is the reciprocal bind rule for [simp]. *)
 
 Lemma invert_simp_bind_ret {A B} m (k : A → micro B) b :
   simp (bind m k) (ret b) →
   ∃ a, simp m (ret a) ∧ simp (k a) (ret b).
 Proof.
-  intros h. apply invert_simp_bind_ret_total in h. unfold total in h. tauto.
+  intros h. apply invert_simp_bind_ret_totalv in h.
+  unfold totalv, total in h. tauto.
 Qed.
