@@ -890,7 +890,7 @@ Lemma total_par {A1 A2} m1 m2
   let ψ := False in
   total m1 φ1 ψ →
   total m2 φ2 ψ →
-  (∀ a1 a2, φ1 a1 ∧ φ2 a2 → φ (a1, a2)) →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   total (par m1 m2) φ ψ.
 Proof.
   intros. repeat destruct_total; try solve [ exfalso; tauto ].
