@@ -265,21 +265,21 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma try_stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) ko' :
+Lemma try_Stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) ko' :
   try (Stop c x k ko) f ko' =
   Stop c x (λ y, try (k y) f ko') (λ y, try (ko y) f ko').
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) ko' :
+Lemma try_Par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) ko' :
   try (Par m1 m2 k ko) f ko' =
   Par m1 m2 (λ v, try (k v) f ko') (λ y, try (ko y) f ko').
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_choose {A B C} m1 m2 (k : A → micro B) z (k' : B → micro C) z' :
+Lemma try_Choose {A B C} m1 m2 (k : A → micro B) z (k' : B → micro C) z' :
   try (Choose m1 m2 k z) k' z' =
   Choose m1 m2 (λ a, try (k a) k' z') (λ a, try (z a) k' z').
 Proof.

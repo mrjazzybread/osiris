@@ -1286,7 +1286,7 @@ Proof.
     eapply total_simp.
     { eapply SimpPar; eapply sss_simp; eauto. }
     (* Recognize [try (Par _ _ _ _) _ _] in the stack. *)
-    rewrite <- try_par in Hstack.
+    rewrite <- try_Par in Hstack.
     (* Apply the induction hypothesis. *)
     sss_positive. eauto with lia.
   }

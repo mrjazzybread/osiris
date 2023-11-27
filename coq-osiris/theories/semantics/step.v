@@ -414,7 +414,7 @@ Lemma step_try {A B} σ σ' (m m' : micro A) (f : A → micro B) ko :
   step (σ, try m f ko) (σ', try m' f ko).
 Proof.
   inversion 1; subst;
-  rewrite ?try_stop ?try_par ?try_choose ?try_crash ?try_try;
+  rewrite ?try_Stop ?try_Par ?try_Choose ?try_crash ?try_try;
   eauto using step_up_to_eq with step.
 Qed.
 
@@ -457,7 +457,7 @@ Lemma invert_step_try {A B σ} {m : micro A} {f : A → micro B} {ko σ' mm} :
   (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f ko).
 Proof.
   destruct m;
-  rewrite ?try_ret ?try_stop ?try_par ?try_crash;
+  rewrite ?try_ret ?try_Stop ?try_Par ?try_crash;
   intros;
   try solve [
     (* Case: [Ret] *)
@@ -477,7 +477,7 @@ Lemma invert_step_bind {A B σ m} {f : A → micro B} {σ' mm} :
   (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
 Proof.
   destruct m;
-  rewrite ?try_ret ?try_stop ?try_par ?try_crash;
+  rewrite ?try_ret ?try_Stop ?try_Par ?try_crash;
   intros;
   try solve [
     (* Case: [Ret] *)

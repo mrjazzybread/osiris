@@ -496,7 +496,7 @@ Qed.
       iApply (wp_try_binary with "H").
       iIntros(_) "H".
 
-      rewrite try_stop. (* <- push the [try] in the [Stop]. *)
+      rewrite try_Stop. (* <- push the [try] in the [Stop]. *)
       change (λ y : val, try (ret y) k ko) with k.
       change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
       assert ((λ _ : (), ko ()) = ko) as ->; last iExact "H".
@@ -597,7 +597,7 @@ Qed.
         replace (add (repr i1) int.one) with (repr (S i1)); last first.
         { rewrite add_repr_repr. f_equal. lia. }
 
-        rewrite try_stop.
+        rewrite try_Stop.
         change (λ y : val, try (ret y) k ko) with k.
         change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
         assert ((λ _ : (), ko ()) = ko) as ->; last iExact "IH".
