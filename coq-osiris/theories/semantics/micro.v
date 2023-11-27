@@ -303,10 +303,12 @@ Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
 
 Lemma eq_stop_stop A X Y (k1 k2 : Y → micro A) (c : code X Y) x ko1 ko2 :
   (∀ v, k1 v = k2 v) →
-  (∀ y, ko1 y = ko2 y) →
+  ko1() = ko2() →
   Stop c x k1 ko1 = Stop c x k2 ko2.
 Proof.
-  intros. f_equal; extensionality v; eauto.
+  intros. f_equal.
+  { extensionality v. eauto. }
+  { extensionality tt. destruct tt. eauto. }
 Qed.
 
 Lemma eq_par_par {A A1 A2} (m1 : micro A1) (m2 : micro A2)
