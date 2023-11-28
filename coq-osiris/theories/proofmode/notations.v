@@ -174,31 +174,31 @@ Notation "C ( p1 , .. , pn )" :=
    [closure:(
         {: η :}
         f )]. *)
-Notation "'closure:(' {: η :} f ')'" :=
+Notation "'closure:(' η f ')'" :=
   (VClo η f)
-  (format "'[v    ' 'closure:(' '/' '[hv   ' '{:'  η  ':}' ']'  '/' f  ')' ']'").
+  (format "'[v    ' 'closure:(' '/' '[hv   '  η  ']'  '/' f  ')' ']'").
 
 
-Notation "'rec-closure:(' {: η :} rbds x ')'" :=
+Notation "'rec-closure:(' η rbds x ')'" :=
   (VCloRec η rbds x)
     (format
-       "'[v    ' 'rec-closure:(' '/' '[hv   ' {:  η  :} ']' '/' rbds '/'  x  ')' ']'").
+       "'[v    ' 'rec-closure:(' '/' '[hv'     η   ']' '/' rbds '/'  x  ')' ']'").
 
 Notation "'λ:(' x , e )" :=
   (AnonFun x e)
-    (format "'λ:(' x ',' '//'    '[hv' e ']' ')'").
+    (format "'λ:(' x ',' '/'    '[hv' e ']' ')'").
 
 Notation "'λ:(' '_' , e )" :=
   (AnonFun "__osiris_anonymous_arg" e)
-    (format "'λ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+    (format "'λ:('  '_'  ',' '/'    '[hv' e ']' ')'").
 
 Notation "'eλ:(' x , e )" :=
   (EAnonFun (AnonFun x e))
-    (format "'eλ:(' x ',' '//'    '[hv' e ']' ')'").
+    (format "'eλ:(' x ',' '/'    '[hv' e ']' ')'").
 
 Notation "'eλ:(' '_' , e )" :=
   (EAnonFun (AnonFun "__osiris_anonymous_arg" e))
-    (format "'eλ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+    (format "'eλ:('  '_'  ',' '/'    '[hv' e ']' ')'").
 
 Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 

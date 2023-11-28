@@ -221,6 +221,9 @@ Definition EFun1Var (x : var) (e : expr) :=
    reserved name in their OCaml source code, we can be assured that [x]
    does not occur micro in [bs]. *)
 
+(* TODO: consider replacing AnonFunction by a Hoare-style reasoning rule
+   allowing us to discard the anonymous argument's name *)
+
 Definition AnonFunction (bs : branches) : anonfun :=
   let x := "__osiris_anonymous_arg" in
   AnonFun1Var x $

@@ -258,11 +258,21 @@ Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2.
-  (* Generalize l1 and l2 into a pair p *)
-  generalize_pair l1 l2 as p.
-  (* Reason by induction well founded induction on [length l1 + length l2] *)
-  induction p as [[l1 l2] IH] using (well_founded_induction wf_double_list_length).
-  simpl in *; destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
+  intros.
+  eapply SIMP_nested_rec_call with
+    (v1:=l1)
+    (v2:=l2)
+    (P:=(fun l1 l2 =>
+           Forall representable l1 /\ Forall representable l2 /\
+             Sorted Z.le l1 /\ Sorted Z.le l2))
+    (φ:=(fun l1 l2 l => Sorted Z.le l /\ Permutation (l1++l2) l)).
+  { apply wf_double_list_length. }
+  { auto. }
+  { rewrite eval_eval'; reflexivity. }
+  clear dependent l1 l2.
+  intros vf l1 l2 HP IH.
+  repeat destruct_hyp.
+  destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
   (* Case: l1 = [] *)
   { SIMP1; SIMP1; SIMP_continue. auto. }
   (* Case: l2 = [] *)
@@ -270,19 +280,18 @@ Proof.
     SIMP1; SIMP1; SIMP_continue. auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions.
-  SIMP1. SIMP1. SIMP_continue.
+  SIMP1. SIMP_continue.
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *)
     SIMP_execute.
-    (* Apply induction hypothesis on [call merge (h1::t1) t2] *)
-    eapply SIMP_bind_unary. { eapply (IH (h1::t1, t2)); simpl; auto with arith. }
-    intros c; simpl; intros IHc.
-    eapply SIMP_bind_unary. { apply IHc. }
-    intros l'; simpl; intros (?&?).
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
+    destruct (IH (h1::t1) t2) as (c & Hc & l' & ? & ? & ?); auto with arith.
+    exists (h2::l'). split.
+    { (* Todo: Make this process easier *)
+      repeat (eapply prove_simp_bind; eauto). apply SimpReflexive. }
     (* Establish the postcondition *)
-    eapply SIMP_ret with (x:=(h2::l')); first solve [encode].
     split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
@@ -291,19 +300,18 @@ Proof.
       rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
     SIMP_execute.
-    (* Apply induction hypothesis on [call merge t1 (h2::t2)] *)
-    eapply SIMP_bind_unary. { eapply (IH (t1, h2::t2)); simpl; auto. }
-    intros c; simpl; intros IHc.
-    eapply SIMP_bind_unary. { apply IHc. }
-    intros t1l2; simpl; intros (?&?).
+    (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
+    destruct (IH t1 (h2::t2)) as (c & Hc & l' & ? & ? & ?); auto with arith.
+    exists (h1::l'). split.
+    { (* Todo: Make this process easier *)
+      repeat (eapply prove_simp_bind; eauto). apply SimpReflexive. }
     (* Establish the postcondition *)
-    eapply SIMP_ret with (x:=(h1::t1l2)); first solve [encode].
     split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      by rewrite_permutation t1l2. }}
+      by rewrite_permutation l'. }}
 Qed.
 
 Lemma Split_spec η :
@@ -346,11 +354,6 @@ Proof.
       apply Permutation_sym.
       apply Permutation_middle. }}
 Qed.
-
-
-Lemma Permutation_iff_multiplicity l l' :
-  l ≡ₚ l' <-> forall x, 
-          
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
