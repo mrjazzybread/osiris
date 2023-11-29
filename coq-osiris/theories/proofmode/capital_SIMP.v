@@ -72,12 +72,56 @@ Qed.
 (* This is [@bind val val]. *)
 
 Lemma SIMP_bind_unary X (_ : Encode X) Y (_ : Encode Y)
-  m f (φ : X -> Prop) (ψ : Y → Prop) :
-  SIMP m ψ ->
-  (forall x : Y, ψ x -> SIMP (f #x) φ) ->
-  SIMP (bind m f) φ.
+  m f (ψ : Y → Prop) :
+  SIMP m (λ (x : X), SIMP (f #x) ψ) ->
+  SIMP (bind m f) ψ.
 Proof.
   eauto using SIMP_bind.
+Qed.
+
+Lemma SIMP_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
+  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
+  simp ('c ← m;
+        f c) (ret #a) ->
+  SIMP (g #a) φ ->
+  SIMP ('v1 ← m;
+        'v2 ← f v1;
+        g v2) φ.
+Proof.
+  intros Hsimp (x & ? & ?).
+  exists x. split; last done.
+  eapply prove_simp_bind in Hsimp.
+  { rewrite bind_bind in Hsimp.
+    apply Hsimp. }
+  done.
+Qed.
+  
+Lemma SIMP_bind_bind `{Encode X} `{Encode Y} (m : micro val) f g
+  (φ : X -> Prop) (ψ : Y -> Prop) :
+  SIMP ('x ← m;
+        f x) ψ ->
+  (forall y, ψ y -> SIMP (g #y) φ) ->
+  SIMP ('x ← m;
+        y ← f x;
+        g y) φ.
+Proof.
+  intros (x & Hsimp & ?) ?.
+  eapply SIMP_prove_bind_bind; first apply Hsimp.
+  rewrite <- solve_encode_val.
+  auto.
+Qed.
+
+Lemma SIMP_bind_binary `{Encode X} `{Encode Y} (m : micro val) f g
+  (φ : X -> Prop) (ψ : Y -> Prop) :
+  SIMP m (fun x => SIMP (f x) ψ) ->
+  (forall y, ψ y -> SIMP (g #y) φ) ->
+  SIMP ('x ← m;
+        y ← f x;
+        g y) φ.
+Proof.
+  intros.
+  eapply SIMP_bind_bind; first eapply SIMP_bind; eauto.
+  intros; auto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

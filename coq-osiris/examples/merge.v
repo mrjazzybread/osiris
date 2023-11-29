@@ -112,6 +112,18 @@ Tactic Notation "capture_hypotheses" constr(l) :=
 Tactic Notation "capture_hypotheses" constr(l) "as" simple_intropattern(x) :=
   capture_hypotheses l; intros x.
 
+Ltac generalize_pair_aux x y p :=
+  remember (x, y) as p eqn:Heqp;
+  replace x with (p.1); [| by rewrite Heqp];
+  replace y with (p.2); [| by rewrite Heqp];
+  clear dependent x y.
+
+Tactic Notation "generalize_pair" constr(x) constr(y) :=
+  let p := fresh "p" in
+  generalize_pair_aux x y p.
+
+Tactic Notation "generalize_pair" constr(x) constr(y) "as" ident(p) :=
+  generalize_pair_aux x y p.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -166,71 +178,58 @@ Proof.
   apply wf_inverse_image. apply lt_wf.
 Qed.
 
-(* TODO : move next two lemmas *)
-
-Lemma simp_prove_bind_bind {A B C : Type} m m' a (f : A -> micro B) (g : B -> micro C) :
-  simp ('a ← m;
-        f a) (ret a) ->
-  simp (g a) m' ->
-  simp ('a ← m;
-        'x ← f a;
-        g x) m'.
-Proof.
-  intros Hsimp HH.
-  eapply prove_simp_bind in Hsimp.
-  rewrite bind_bind in Hsimp.
-  apply Hsimp.
-  by simpl.
-Qed.
-
-Lemma SIMP_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
-  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
-  simp ('c ← m;
-        f c) (ret #a) ->
-  SIMP (g #a) φ ->
-  SIMP ('v1 ← m;
-        'v2 ← f v1;
-        g v2) φ.
-Proof.
-  intros Hsimp HSIMP.
-  by eapply SIMP_simp;
-  first eapply simp_prove_bind_bind; eauto using SimpReflexive.
-Qed.
-
-
 (* -------------------------------------------------------------------------- *)
 
-(* Specifications for [merge_sort]. *)
+(* Specification for [merge l1 l2]. *)
+
+Local Definition merge_pre :=
+  (fun l1 l2 => Forall representable l1 /\ Forall representable l2
+             /\ Sorted Z.le l1 /\ Sorted Z.le l2).
+Local Definition merge_post := (fun l1 l2 l => Sorted Z.le l /\ Permutation (l1++l2) l).
+Local Hint Unfold merge_post : core.
+Local Hint Unfold merge_pre : core.
 
 Definition merge_spec (merge : val) : Prop :=
   ∀ A `(_ : Encode A) (l1 l2 : list Z),
-    Forall (fun n => representable n) l1 ->
-    Forall (fun n => representable n) l2 ->
-    Sorted (Z.le) l1 ->
-    Sorted (Z.le) l2 ->
+    merge_pre l1 l2 ->
     SIMP
       (call merge #l1)
       (fun c =>
-         SIMP (call c #l2)
-           (λ l, Sorted (Z.le) l /\ Permutation (l1 ++ l2) l)).
+         SIMP (call c #l2) (merge_post l1 l2)).
+
+
+(* Specification for [split l]. *)
+
+Local Definition split_post {A} :=
+  (fun (l : list A) p => (if Nat.even (length l)
+            then length p.1 = Nat.div2 (length l)
+            else length p.1 = S (Nat.div2 (length l)))
+           /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l).
 
 Definition split_spec (split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
     SIMP
       (call split #l)
-      (λ p, (if Nat.even (length l)
-             then length p.1 = Nat.div2 (length l)
-             else length p.1 = S (Nat.div2 (length l)))
-            /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l).
+      (split_post l).
+
+
+(* Specification for [mergesort l]. *)
+
+Local Definition mergesort_pre := (fun l => Forall representable l).
+Local Definition mergesort_post := (fun l l' => Sorted Z.le l' /\ Permutation l' l).
+Local Hint Unfold mergesort_post : core.
+Local Hint Unfold mergesort_pre : core.
 
 Definition mergesort_spec (mergesort : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list Z),
-    Forall (fun n => representable n) l ->
+    mergesort_pre l ->
     SIMP
       (call mergesort #l)
-      (λ l', Sorted (Z.le) l' /\ Permutation l' l).
+      (mergesort_post l).
 
 (* -------------------------------------------------------------------------- *)
+
+(* Specification proofs. *)
 
 Lemma wf_double_list_length {A B} :
   well_founded (fun (p1 p2 : list A * list B) =>
@@ -239,60 +238,43 @@ Proof.
   apply wf_inverse_image. apply lt_wf.
 Qed.
 
-(* Specification proofs. *)
-
-Ltac generalize_pair_aux x y p :=
-  remember (x, y) as p eqn:Heqp;
-  replace x with (p.1); [| by rewrite Heqp];
-  replace y with (p.2); [| by rewrite Heqp];
-  clear dependent x y.
-
-Tactic Notation "generalize_pair" constr(x) constr(y) :=
-  let p := fresh "p" in
-  generalize_pair_aux x y p.
-
-Tactic Notation "generalize_pair" constr(x) constr(y) "as" ident(p) :=
-  generalize_pair_aux x y p.
-
 Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2.
   intros.
-  eapply SIMP_nested_rec_call with
-    (v1:=l1)
-    (v2:=l2)
-    (P:=(fun l1 l2 =>
-           Forall representable l1 /\ Forall representable l2 /\
-             Sorted Z.le l1 /\ Sorted Z.le l2))
-    (φ:=(fun l1 l2 l => Sorted Z.le l /\ Permutation (l1++l2) l)).
+  eapply SIMP_nested_rec_call with (P:=merge_pre) (φ:=merge_post).
   { apply wf_double_list_length. }
   { auto. }
   { rewrite eval_eval'; reflexivity. }
   clear dependent l1 l2.
   intros vf l1 l2 HP IH.
-  repeat destruct_hyp.
+  unfold merge_pre in HP; repeat destruct_hyp.
   destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
   (* Case: l1 = [] *)
   { SIMP1; SIMP1; SIMP_continue. auto. }
   (* Case: l2 = [] *)
-  { rewrite app_nil_r.
-    SIMP1; SIMP1; SIMP_continue. auto. }
+  { SIMP1; SIMP1; SIMP_continue.
+    unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions.
-  SIMP1. SIMP_continue.
+  all_inversions. SIMP1. SIMP_continue.
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *)
     SIMP_execute.
     (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
-    destruct (IH (h1::t1) t2) as (c & Hc & l' & ? & ? & ?); auto with arith.
-    exists (h2::l'). split.
-    { (* Todo: Make this process easier *)
-      repeat (eapply prove_simp_bind; eauto). apply SimpReflexive. }
+    eapply SIMP_bind_binary.
+    { apply (IH (h1::t1) t2).
+      (* Subgoal: the partial application of merge returns a closure *)
+      { rewrite eval_eval'; reflexivity. }
+      (* Subgoal: (h1::t1) and t2 satisfy the merge's precondition *)
+      { unfold merge_pre; auto. }
+      (* Subgoal: justify the induction: show [(h1::t1, t2) < (h1::t1, h2::t2)] *)
+      { simpl; auto with arith. } }
+    unfold merge_post; cbn; intros l' (? & ?).
     (* Establish the postcondition *)
-    split.
+    eapply SIMP_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
@@ -301,12 +283,17 @@ Proof.
   { (* Case: h1 < h2 *)
     SIMP_execute.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
-    destruct (IH t1 (h2::t2)) as (c & Hc & l' & ? & ? & ?); auto with arith.
-    exists (h1::l'). split.
-    { (* Todo: Make this process easier *)
-      repeat (eapply prove_simp_bind; eauto). apply SimpReflexive. }
+    eapply SIMP_bind_binary.
+    { apply (IH t1 (h2::t2)).
+      (* Subgoal: the partial application of merge returns a closure *)
+      { rewrite eval_eval'; reflexivity. }
+      (* Subgoal: t1 and (h2::t2) satisfy the merge's precondition *)
+      { unfold merge_pre; auto. }
+      (* Subgoal: justify the induction: show [(t1, h2::t2) < (h1::t1, h2::t2)] *)
+      { simpl; auto with arith. } }
+    unfold merge_post; cbn; intros l' (? & ?).
     (* Establish the postcondition *)
-    split.
+    eapply SIMP_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
@@ -319,12 +306,7 @@ Lemma Split_spec η :
 Proof.
   unfold split_spec.  
   intros.
-  eapply SIMP_rec_call with
-    (φ:=fun l p =>
-          (if Nat.even (length l)
-           then length p.1 = Nat.div2 (length l)
-           else length p.1 = S (Nat.div2 (length l)))
-          /\ length p.2 = Nat.div2 (length l) /\ p.1 ++ p.2 ≡ₚ l).
+  eapply SIMP_rec_call with (φ:=split_post).
   (* We reason by well-founded induction on the length of the list *)
   { apply wf_list_length. }
   (* Precondition: we have none *)
@@ -342,7 +324,7 @@ Proof.
     intros [l1 l2] (Hl1&Hl2&Hperm).
     SIMP_execute.
     (* Establish the three conjuncts of the postcondition *)
-    simpl in *; split; last split.
+    unfold split_post; simpl in *; split; last split.
     { (* Subgoal: the length of l1 is half the length of l *)
       destruct (Nat.even _); eauto with arith. }
     { (* Subgoal: the length of l2 is hald the length of l *)
@@ -365,12 +347,11 @@ Proof.
   destruct 1 as (merge&Hmerge&_merge_spec).
   
   unfold mergesort_spec; intros ?? l Hrep.
-  eapply SIMP_rec_call with
-    (φ:=fun l l' => Sorted Z.le l' /\ l' ≡ₚ l).
+  eapply SIMP_rec_call with (P:=mergesort_pre) (φ:=mergesort_post).
   (* We reason by well founded induction on the length of the list *)
   { apply wf_list_length. }
   (* Precondition: all items must be representable *)
-  { apply Hrep. }
+  { auto. }
   
   clear dependent l; intros mergesort l Hrep IH.
   destruct l as [|a l]; last destruct l as [|b l]; SIMP_execute.
@@ -379,11 +360,11 @@ Proof.
   (* Case: [a] *)
   { auto. }
   (* Case: a::b::l *)
-  intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
+  unfold split_post; intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
   (* Assert that the sublists l1 and l2 satisfy the precondition *)
-  assert (Forall (fun n => representable n) l1) as Hrep1 by
+  assert (Forall representable l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
-  assert (Forall (fun n => representable n) l2) as Hrep2 by
+  assert (Forall representable l2) as Hrep2 by
         (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
   SIMP_continue.
   (* Apply the induction hypothesis on l1 *)
@@ -402,9 +383,10 @@ Proof.
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
   SIMP_continue.
-  eapply SIMP_bind_unary.
+  eapply SIMP_bind.
   (* Use the fact that [merge] satisfies its specification *)
-  { eapply _merge_spec with (l2:=sl2); eauto. 
+  { eapply _merge_spec with (l2:=sl2); unfold merge_pre; eauto.
+    split; last split; auto.
     { (* Subgoal: show merge's precondition that l1 is representable *)
       by rewrite_permutation sl1. }
     { (* Subgoal: show merge's precondition that l2 is representable *)
@@ -424,8 +406,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [TO-DO: move] Higher level specification definitions. *)
-
+(* [TO-DO: move to specifications.v] 
+   Higher level specification definitions. *)
 
 Definition is_env_with_spec name (spec : val -> Prop) :=
   fun v =>
@@ -483,5 +465,4 @@ Proof.
   repeat SIMP_continue.
   (* Postcondition *)
   simpl. auto.
-
 Qed.
