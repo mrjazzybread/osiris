@@ -350,7 +350,7 @@ Qed.
 Corollary lookup_eval_bindings rbs η fname afun :
   lookup_rec_bindings rbs fname = ret afun ->
   lookup_name (eval_rec_bindings η rbs) fname = ret (VCloRec η rbs fname).
-Proof.  
+Proof.
   intros Hlkp. eapply lookup_eval_bindings_aux in Hlkp as [rbs' Hlkp].
   replace rbs' with rbs in Hlkp by (eapply eval_bindings_produces_eq; eauto).
   apply Hlkp.
@@ -371,6 +371,16 @@ Proof.
   done.
 Qed.
 
+Lemma replace_binding η rbs fname afun :
+  lookup_rec_bindings rbs fname = ret afun ->
+  replace_env_binding (eval_rec_bindings η rbs) fname (VCloRec η rbs fname) =
+    eval_rec_bindings η rbs.
+Proof.
+  intros Hlkp.
+  apply lookup_eval_bindings with (η:=η) in Hlkp.
+  rewrite replace_env_idempotent; auto.
+Qed.
+
 Lemma SIMP_Eval `{Encode X} η e k ko (φ : X -> Prop) :
   SIMP (try (eval η e) k ko) φ ->
   SIMP (Stop CEval (η, e) k ko) φ.
@@ -387,7 +397,7 @@ Proof.
   by eapply SIMP_simp; [apply advance_SimpEvalRetNext; apply SimpReflexive|].
 Qed.
 
-(* Todo: write comment *)
+(* (* Todo: write comment *) *)
 
 Lemma SIMP_rec_call `{Encode X} `{Encode Y}
   (η : env) (rbs : rec_bindings) (fname : var) (v : X)
@@ -400,27 +410,24 @@ Lemma SIMP_rec_call `{Encode X} `{Encode Y}
           P v'' ->
           R v'' v' ->
           SIMP (call vf #v'') (φ v'')) ->
-      SIMP (let δ := concat (eval_rec_bindings η rbs) η in
-            let η := replace_env_binding δ fname vf in
-            'afun ← lookup_rec_bindings rbs fname ;
+      SIMP ('afun ← lookup_rec_bindings rbs fname ;
+            let δ := replace_env_binding (eval_rec_bindings η rbs) fname vf in
             let 'AnonFun x e := afun in
-            let η0 := EnvCons x #v' η in
-            eval η0 e
+            eval (EnvCons x #v' (concat δ η)) e
         ) (φ v')) ->
   SIMP (call (VCloRec η rbs fname) #v) (φ v).
 Proof.
-  intros Hwf HP Hrec. 
+  intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl in *.
   destruct (lookup_rec_bindings_cases rbs fname) as [Hlkp|[afun Hlkp]].
   { rewrite Hlkp in *; simpl in *.
     eapply Hrec with (vf:=VInt int.zero); eauto. }
   { specialize (Hrec (VCloRec η rbs fname) v HP).
-    rewrite Hlkp in *; simpl in *.
-    erewrite replace_binding_idempotent in Hrec by apply Hlkp.
+    erewrite replace_binding in Hrec by eauto.
+    simpl in *; rewrite !Hlkp in *; simpl in *.
     unfold acall; destruct afun; apply SIMP_EvalRetNext.
-    eapply Hrec; auto.
-    intros. rewrite Hlkp. by apply IH. }
+    eapply Hrec; auto. }
 Qed.
 
 Notation "fname 'to' afun" :=
@@ -448,6 +455,12 @@ Lemma SIMP_rec_call_unary `{Encode X} `{Encode Y}
             eval (EnvCons x #v' (EnvCons fname vf η)) e) (φ v')) ->
   SIMP (call (VCloRec η (RecBind fname to afun) fname) #v) (φ v).
 Proof.
+(*   intros Hwf HP Hrec. *)
+(*   eapply SIMP_rec_call. *)
+(*   { apply Hwf. } *)
+(*   { apply HP. } *)
+(*   simpl; rewrite String.eqb_refl. apply Hrec. *)
+(* Qed. *)
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
@@ -473,6 +486,12 @@ Lemma SIMP_rec_call_binary_mutual `{Encode X} `{Encode Y}
                   η) e) (φ v')) ->
   SIMP (call (VCloRec η (RecBinds fname to afun; gname to agun) fname) #v) (φ v).
 Proof.
+(*   intros Hwf HP Hrec. *)
+(*   eapply SIMP_rec_call. *)
+(*   { apply Hwf. } *)
+(*   { apply HP. } *)
+(*   simpl; rewrite String.eqb_refl. apply Hrec. *)
+(* Qed. *)
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
@@ -501,10 +520,24 @@ Lemma SIMP_rec_call_binary_mutual_aliasing `{Encode X} `{Encode Y}
                                gname to (AnonFun garg eg);
                              fname to (AnonFun farg ef))
                             gname);
-                  fname ~> vf;
+                  fname ~>
+                    if (fname =? gname)%string
+                    then (VCloRec η
+                            (RecBinds
+                               gname to (AnonFun garg eg); fname to (AnonFun farg ef))
+                            fname)
+                    else vf;
                   η) (if (fname =? gname)%string then eg else ef)) (φ v')) ->
   SIMP (call (VCloRec η (RecBinds gname to (AnonFun garg eg); fname to (AnonFun farg ef)) fname) #v) (φ v).
 Proof.
+(*   intros Hwf HP Hrec. *)
+(*   eapply SIMP_rec_call. *)
+(*   { apply Hwf. } *)
+(*   { apply HP. } *)
+(*   simpl; destruct (fname =? gname)%string eqn:name_eq; simpl. *)
+(*   { apply String.eqb_eq in name_eq. rewrite name_eq in *. apply Hrec. } *)
+(*   rewrite String.eqb_refl. apply Hrec. *)
+(* Qed. *)
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
@@ -532,6 +565,13 @@ Lemma SIMP_rec_call_binary_mutual2 `{Encode X} `{Encode Y}
                   η) ef) (φ v')) ->
   SIMP (call (VCloRec η (RecBinds gname to agun; fname to (AnonFun farg ef)) fname) #v) (φ v).
 Proof.
+(*   intros Hwf HP Hname Hrec. *)
+(*   eapply SIMP_rec_call. *)
+(*   { apply Hwf. } *)
+(*   { apply HP. } *)
+(*   simpl. rewrite Hname. rewrite String.eqb_refl. simpl. *)
+(*   apply Hrec. *)
+  (* Qed. *)
   intros Hwf HP Hname Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply SIMP_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
@@ -580,12 +620,44 @@ Proof.
   apply (IH (v1'', v2'')); auto.
 Qed.
 
+Lemma SIMP_nested_call `{Encode A} `{Encode B} `{Encode C}
+  (η : env) rbs (fname : var) (v1 : A) (v2 : B) x y e1 e2
+  (P : A -> B -> Prop) (φ : A -> B -> C -> Prop) (R : (A * B) -> (A * B) -> Prop) :
+  let δ := eval_rec_bindings η rbs in
+  lookup_rec_bindings rbs fname = ret (AnonFun x e1) ->
+  well_founded R ->
+  P v1 v2 ->
+  (let η0 := (x ~> #v1; concat δ η) in
+   eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
+  (forall vf v1' v2',
+      P v1' v2' ->
+      (forall v1'' v2'',
+          (let η0 := (x ~> #v1''; concat δ η) in
+           eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
+          P v1'' v2'' ->
+          R (v1'', v2'') (v1', v2') ->
+          nested_SIMP vf #v1'' #v2'' (φ v1'' v2'')) ->
+      let δ := replace_env_binding δ fname vf in
+      SIMP (eval (y ~> #v2'; x ~> #v1'; concat δ η) e2) (φ v1' v2')) ->
+  nested_SIMP (VCloRec η rbs fname) #v1 #v2 (φ v1 v2).
+Proof.
+  cbn zeta.
+  intros Hlkp Hwf HP Heval Hrec.
+  remember (v1, v2) as p eqn:Hpeq.
+  replace v1 with (p.1) in * by (rewrite Hpeq; reflexivity).
+  replace v2 with (p.2) in * by (rewrite Hpeq; reflexivity).
+  clear v1 v2 Hpeq.
+  induction p as [p IH] using (well_founded_induction Hwf); intros.
+  destruct p as [v1 v2]; simpl in *.
+  apply SIMP_enter_call_VCloRec; rewrite Hlkp; simpl.
+  apply SIMP_EvalRetNext. rewrite Heval.
+  eapply SIMP_ret; first solve [encode].
+  apply SIMP_enter_call_VClo; apply SIMP_EvalRetNext.
+  rewrite <- (replace_binding _ _ _ _ Hlkp). 
+  eapply Hrec; auto; intros.
+  apply (IH (v1'', v2'')); auto.
+Qed.
 
-
-
-
-
-  
 (* -------------------------------------------------------------------------- *)
 
 (* Tactics. *)
