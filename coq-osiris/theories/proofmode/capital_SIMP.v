@@ -625,10 +625,10 @@ Lemma SIMP_nested_call `{Encode A} `{Encode B} `{Encode C}
   (P : A -> B -> Prop) (φ : A -> B -> C -> Prop) (R : (A * B) -> (A * B) -> Prop) :
   let δ := eval_rec_bindings η rbs in
   lookup_rec_bindings rbs fname = ret (AnonFun x e1) ->
-  well_founded R ->
-  P v1 v2 ->
   (let η0 := (x ~> #v1; concat δ η) in
    eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
+  well_founded R ->
+  P v1 v2 ->
   (forall vf v1' v2',
       P v1' v2' ->
       (forall v1'' v2'',
@@ -642,7 +642,7 @@ Lemma SIMP_nested_call `{Encode A} `{Encode B} `{Encode C}
   nested_SIMP (VCloRec η rbs fname) #v1 #v2 (φ v1 v2).
 Proof.
   cbn zeta.
-  intros Hlkp Hwf HP Heval Hrec.
+  intros Hlkp Heval Hwf HP Hrec.
   remember (v1, v2) as p eqn:Hpeq.
   replace v1 with (p.1) in * by (rewrite Hpeq; reflexivity).
   replace v2 with (p.2) in * by (rewrite Hpeq; reflexivity).
