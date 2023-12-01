@@ -219,6 +219,10 @@ Ltac prove_representable_30 :=
   apply prove_representable_30; cbv; split; congruence.
 Ltac prove_representable_30' :=
   apply prove_representable_30; rewrite two_power_nat_equiv; lia.
+(* TODO should we use [two_power_nat_equiv] and write (2^30)%Z ? *)
+(* TODO eliminate the redundancy between these tactics;
+        use a single tactic and make it more robust;
+        it should either succeed or fail quickly. *)
 
 Goal representable 1673.
 Proof.
@@ -231,7 +235,7 @@ Proof.
 Qed.
 
 Ltac representable :=
-  try solve [ tauto | prove_representable_30' | prove_representable_30 ].
+  try solve [ tauto | eauto 2 | prove_representable_30'| prove_representable_30 ].
 
 Global Hint Extern 1 (representable _) => representable : representable.
 
