@@ -266,29 +266,35 @@ Proof.
   { eauto using can_step_not_stuck. }
 Qed.
 
-(* The following lemma state that given [wp _ m _] and a state interpretation of
-   [σ], the configuration [(σ, m)] can take a step. *)
+(* The following lemma states that [wp _ m φ ∗ state_interp σ] together
+   imply that the machine configuration [(σ, m)] either can take a step
+   or is finished. *)
+
 Lemma wp_can_step {A σ φ} {m: micro A} {s E}:
   state_interp σ -∗
-  wp s E m φ ={E,∅}=∗ ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
+  wp s E m φ ={E,∅}=∗
+  ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
 Proof.
   iIntros "? Hwp".
   wp_unfold_all.
   iMod ("Hwp" with "[$]") as "Hwp".
   destruct (is_ret m).
   { iMod "Hwp". iApply fupd_mask_intro; [ set_solver | iIntros "_" ].
-    iPureIntro. right; by inversion 1. }
-  { iDestruct "Hwp" as "[[%x %Hstep] _]". destruct x as [σ' m'].
-    iModIntro.  eauto with step. }
+    iPureIntro. right. congruence. }
+  { iDestruct "Hwp" as "[[%c' %Hstep] _]". iModIntro.
+    iPureIntro. left. eauto with step. }
 Qed.
 
-(* Ditto for a different mask. *)
+(* Ditto, with a different mask. *)
+
 Lemma wp_can_step' {A σ φ} {m: micro A} {s E}:
   state_interp σ -∗
-  wp s E m φ ={E}=∗ ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
+  wp s E m φ ={E}=∗
+  ⌜can_step (σ, m) ∨ is_ret m <> None ⌝.
 Proof.
-  iIntros "??";
-    iPoseProof (wp_can_step with "[$][$]") as "?".
+  iIntros.
+  iPoseProof (wp_can_step with "[$][$]") as "?".
   iApply (fupd_plain_mask_empty with "[$]").
 Qed.
+
 End rules.
