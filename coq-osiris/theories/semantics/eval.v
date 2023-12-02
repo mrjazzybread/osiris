@@ -99,16 +99,7 @@ Definition val_as_bool (v : val) : micro bool :=
 Definition as_bool (m : micro val) : micro bool :=
   bind m val_as_bool.
 
-(* Due to the way [VBool] is defined, the following trivial lemma requires
-   a case analysis. *)
 
-Lemma val_as_bool_VBool b :
-  val_as_bool (VBool b) = ret b.
-Proof.
-  destruct b; reflexivity.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
 
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
