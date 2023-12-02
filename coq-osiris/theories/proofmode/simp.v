@@ -12,6 +12,17 @@ From osiris.proofmode Require Import specifications.
 
 (* -------------------------------------------------------------------------- *)
 
+(* We do not want to unfold [val_as_bool] into a case analysis; that would be
+   counter-productive, and could cause the tactics below to diverge.
+
+   Note that [val_as_bool] is more problematic than [val_as_int] because
+   integer values have their own tag [VInt], whereas Boolean values do not.
+   [VBool] is just sugar, not a genuine tag. *)
+
+Global Opaque val_as_bool.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Opacity control. *)
 
 (* [force_unfold_at_1 x] unfolds the first occurrence of [x]
