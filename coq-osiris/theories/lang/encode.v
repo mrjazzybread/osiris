@@ -191,6 +191,17 @@ Proof.
   intros [|]; simpl; tauto.
 Qed.
 
+(* The truth of [¬P] is the negation of the truth of [P]. *)
+
+Lemma truth_neg P :
+  truth (¬P) = negb (truth P).
+Proof.
+  generalize (truth_elim P). generalize (truth P).
+  intros [|]; simpl; intros.
+  { eapply truth_false. tauto. }
+  { eapply truth_true. tauto. }
+Qed.
+
 (* A Coq proposition can be encoded as an OCaml Boolean value. *)
 
 (* In other words, the logical model of an OCaml Boolean value
