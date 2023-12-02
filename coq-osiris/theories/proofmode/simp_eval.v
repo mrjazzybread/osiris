@@ -109,6 +109,25 @@ Proof.
   simp.
 Qed.
 
+(* Primitive operations on Booleans. *)
+
+(* The logical model of an OCaml Boolean value can be a Coq Boolean or
+   a Coq proposition, so we give two specifications to each operation. *)
+
+Lemma simp_eval_neg η e (b : bool) :
+  simp (eval η e) (ret #b) →
+  simp (eval η (EBoolNeg e)) (ret #(negb b)).
+Proof.
+  intros. simpl. unfold as_bool. simp.
+Qed.
+
+Lemma simp_eval_not η e (P : Prop) :
+  simp (eval η e) (ret #P) →
+  simp (eval η (EBoolNeg e)) (ret #(¬P)).
+Proof.
+  intros. simpl. unfold as_bool. rewrite truth_neg. simp.
+Qed.
+
 (* Conditionals. *)
 
 (* This statement uses the encoding of Coq propositions as Booleans. *)
