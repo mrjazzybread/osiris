@@ -598,8 +598,10 @@ with simp1 :=
      goal. Instead, we first try to apply one of the following rewriting rules
      at the root of the goal: *)
   first [
+    (* Exploit an assumption, if we have one. *)
+    eassumption
     (* Transform [try] into [bind]. *)
-    simple eapply advance_simp_bind_as_try; simp0
+  | simple eapply advance_simp_bind_as_try; simp0
     (* Perform tail call optimisation. (Not essential.) *)
   |  simple eapply advance_simp_bind_ret_right; simp0
     (* Hoist left-nested [bind]s and [try]s. *)
