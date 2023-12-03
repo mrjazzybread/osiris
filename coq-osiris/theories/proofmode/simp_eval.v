@@ -194,6 +194,20 @@ Local Opaque eval as_bool.
 
 Local Hint Unfold pure : core.
 
+(* Function applications. *)
+
+Lemma pure_eval_app `{Encode A, Encode B} η e1 e2
+  (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop)
+:
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call v1 #v2) ψ) →
+  pure (eval η (EApp e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a2. destruct_pure v1.
+  eapply pure_simp; [ simp | eauto ].
+Qed.
+
 (* Primitive arithmetic operations. *)
 
 Lemma pure_eval_add η e1 e2 (φ1 φ2 φ : Z → Prop) :
