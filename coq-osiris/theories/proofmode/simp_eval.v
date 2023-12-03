@@ -81,6 +81,26 @@ Proof.
   intros. subst. eauto.
 Qed.
 
+(* Integer literals. *)
+
+Lemma simp_eval_int η (z : Z) :
+  simp (eval η (EInt z)) (ret #z).
+Proof.
+  simp.
+Qed.
+
+Lemma simp_eval_max_int η :
+  simp (eval η EMaxInt) (ret #max_signed).
+Proof.
+  simp.
+Qed.
+
+Lemma simp_eval_min_int η :
+  simp (eval η EMinInt) (ret #min_signed).
+Proof.
+  simp.
+Qed.
+
 (* Primitive arithmetic operations. *)
 
 Lemma simp_eval_add η e1 e2 (z1 z2 : Z) :
