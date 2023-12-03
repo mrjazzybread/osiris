@@ -171,6 +171,15 @@ Proof.
   intros [|] ? ?; solve [ eapply pure_simp; [ simp | eauto ]].
 Qed.
 
+(* Runtime assertions. *)
+
+Lemma simp_eval_assert η e :
+  simp (eval η e) (ret #True) →
+  simp (eval η (EAssert e)) (ret #()).
+Proof.
+  simpl encode. rewrite truth_True. eauto using advance_SimpEvalEAssert.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Reasoning rules for [pure (eval _ _) _], that is,
@@ -257,4 +266,13 @@ Proof.
   + simpl encode in *. rewrite truth_Is_true. assumption.
   + intros hb. destruct b; simpl in hb; tauto.
   + intros hb. destruct b; simpl in hb; tauto.
+Qed.
+
+(* Runtime assertions. *)
+
+Lemma pure_eval_assert η e :
+  simp (eval η e) (ret #True) →
+  pure (eval η (EAssert e)) (λ (_ : unit), True).
+Proof.
+  eauto using simp_eval_assert.
 Qed.
