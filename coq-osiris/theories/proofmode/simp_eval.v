@@ -70,6 +70,17 @@ Qed.
 (* Reasoning rules for [simp (eval _ _) (ret _)], that is,
    for pure expressions with a deterministic postcondition. *)
 
+(* A consequence rule. *)
+
+(* TODO unused, for now *)
+Lemma simp_consequence A (m : micro A) a' a :
+  simp m (ret a') →
+  a = a' →
+  simp m (ret a).
+Proof.
+  intros. subst. eauto.
+Qed.
+
 (* Primitive arithmetic operations. *)
 
 Lemma simp_eval_add η e1 e2 (z1 z2 : Z) :
