@@ -159,6 +159,18 @@ Proof.
   intros. simpl. unfold as_bool. rewrite truth_neg. simp.
 Qed.
 
+(* Local definitions. *)
+
+(* TODO one binding only, for now *)
+
+Lemma simp_eval_let η x e1 e2 v1 m :
+  simp (eval η e1) (ret v1) →
+  simp (eval (EnvCons x v1 η) e2) m →
+  simp (eval η (ELet1Var x e1 e2)) m.
+Proof.
+  intros. simp.
+Qed.
+
 (* Conditionals. *)
 
 (* This statement uses the encoding of Coq propositions as Booleans. *)
@@ -285,6 +297,30 @@ Lemma pure_eval_not η e (φ ψ : Prop → Prop) :
   pure (eval η (EBoolNeg e)) ψ.
 Proof.
   intros. destruct_pure b. eauto 8 using simp_eval_not.
+Qed.
+
+(* Local definitions. *)
+
+(* TODO one binding only, for now *)
+
+Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
+  (a1 : A1) (ψ : B → Prop)
+:
+  simp (eval η e1) (ret #a1) →
+  pure (eval (EnvCons x #a1 η) e) ψ →
+  pure (eval η (ELet1Var x e1 e)) ψ.
+Proof.
+  intros. destruct_pure b. eauto using simp_eval_let.
+Qed.
+
+Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
+  (φ1 : A1 → Prop) (ψ : B → Prop)
+:
+  pure (eval η e1) φ1 →
+  (∀ a1, φ1 a1 → pure (eval (EnvCons x #a1 η) e) ψ) →
+  pure (eval η (ELet1Var x e1 e)) ψ.
+Proof.
+  intros. destruct_pure a1. eauto using pure_eval_let'.
 Qed.
 
 (* Conditionals. *)
