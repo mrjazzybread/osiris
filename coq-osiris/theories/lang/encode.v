@@ -78,11 +78,12 @@ Global Hint Resolve solve_encode_val | 1000 : encode.
 (* Unit. *)
 
 Global Instance Encode_unit : Encode unit :=
-  { encode := λ tt, VUnit }.
+  { encode := λ x, let '() := x in VUnit }.
+  (* We deconstruct [x] because we want an equation [VUnit = #?x] to
+     force an instantiation of [x] with [()]. *)
 
-Lemma solve_encode_unit x :
-  () = x →
-  VUnit = #x.
+Lemma solve_encode_unit :
+  VUnit = #().
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_unit : encode.
