@@ -114,7 +114,7 @@ Qed.
 (* The logical model of an OCaml Boolean value can be a Coq Boolean or
    a Coq proposition, so we give two specifications to each operation. *)
 
-Lemma simp_eval_neg η e (b : bool) :
+Lemma simp_eval_negb η e (b : bool) :
   simp (eval η e) (ret #b) →
   simp (eval η (EBoolNeg e)) (ret #(negb b)).
 Proof.
@@ -165,6 +165,15 @@ Qed.
 (* Reasoning rules for [pure (eval _ _) _], that is,
    for pure expressions with an arbitrary postcondition. *)
 
+(* The following lemmas are obtained as consequences of the previous
+   lemmas, so [eval] and its auxiliary functions can be made opaque. *)
+
+Local Opaque eval as_bool.
+
+(* This hint is used in the proofs that follow. *)
+
+Local Hint Unfold pure : core.
+
 (* Primitive arithmetic operations. *)
 
 Lemma pure_eval_add η e1 e2 (φ1 φ2 φ : Z → Prop) :
@@ -173,8 +182,7 @@ Lemma pure_eval_add η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 + z2)) →
   pure (eval η (EIntAdd e1 e2)) φ.
 Proof.
-  intros. destruct_pure z2. destruct_pure z1.
-  eauto using pure_simp, pure_ret, simp_eval_add.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_add.
 Qed.
 
 Lemma pure_eval_sub η e1 e2 (φ1 φ2 φ : Z → Prop) :
@@ -183,8 +191,7 @@ Lemma pure_eval_sub η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 - z2)) →
   pure (eval η (EIntSub e1 e2)) φ.
 Proof.
-  intros. destruct_pure z2. destruct_pure z1.
-  eauto using pure_simp, pure_ret, simp_eval_sub.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_sub.
 Qed.
 
 Lemma pure_eval_mul η e1 e2 (φ1 φ2 φ : Z → Prop) :
@@ -193,8 +200,7 @@ Lemma pure_eval_mul η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 * z2)) →
   pure (eval η (EIntMul e1 e2)) φ.
 Proof.
-  intros. destruct_pure z2. destruct_pure z1.
-  eauto using pure_simp, pure_ret, simp_eval_mul.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_mul.
 Qed.
 
 Lemma pure_eval_div η e1 e2 (φ1 φ2 φ : Z → Prop) :
@@ -206,8 +212,25 @@ Lemma pure_eval_div η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 ÷ z2)) →
   pure (eval η (EIntDiv e1 e2)) φ.
 Proof.
-  intros. destruct_pure z2. destruct_pure z1.
-  eauto 8 using pure_simp, pure_ret, simp_eval_div.
+  intros. destruct_pure z2. destruct_pure z1. eauto 10 using simp_eval_div.
+Qed.
+
+(* Primitive operations on Booleans. *)
+
+Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
+  pure (eval η e) φ →
+  (∀ b, φ b → ψ (negb b)) →
+  pure (eval η (EBoolNeg e)) ψ.
+Proof.
+  intros. destruct_pure b. eauto 8 using simp_eval_negb.
+Qed.
+
+Lemma pure_eval_not η e (φ ψ : Prop → Prop) :
+  pure (eval η e) φ →
+  (∀ P, φ P → ψ (¬P)) →
+  pure (eval η (EBoolNeg e)) ψ.
+Proof.
+  intros. destruct_pure b. eauto 8 using simp_eval_not.
 Qed.
 
 (* Conditionals. *)
@@ -218,9 +241,9 @@ Lemma pure_eval_ifthenelse `{Encode A} η e e1 e2 φ (ψ : A → Prop) :
   (φ false → pure (eval η e2) ψ) →
   pure (eval η (EIfThenElse e e1 e2)) ψ.
 Proof.
-  intros. destruct_pure b. destruct b.
-  { eapply simp_eval_ifthenelse_pure with (P := True); [ | tauto | tauto ].
-    simpl. rewrite truth_True. assumption. }
-  { eapply simp_eval_ifthenelse_pure with (P := False); [ | tauto | tauto ].
-    simpl. rewrite truth_False. assumption. }
+  intros. destruct_pure b.
+  eapply simp_eval_ifthenelse_pure with (P := Is_true b).
+  + simpl encode in *. rewrite truth_Is_true. assumption.
+  + intros hb. destruct b; simpl in hb; tauto.
+  + intros hb. destruct b; simpl in hb; tauto.
 Qed.
