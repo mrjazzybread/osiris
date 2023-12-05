@@ -103,6 +103,10 @@ and fcoercions =
 
 type expr =
 
+  (* This pseudo-node carries a decoration, a piece of text extracted
+     from the OCaml source code. *)
+  | EDecorate of string * expr
+
   (* A placeholder for as-yet-unsupported constructs. *)
   | EUnsupported
 

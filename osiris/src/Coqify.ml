@@ -144,6 +144,9 @@ and fcoercion (f, co) =
 let rec expr (e : expr) =
   match e with
 
+  | EDecorate (snippet, e) ->
+      c "deco" [ string snippet; expr e ]
+
   | EUnsupported ->
       c "EUnsupported" []
 

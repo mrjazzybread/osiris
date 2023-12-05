@@ -73,6 +73,46 @@ exception Unsupported
 
 (* -------------------------------------------------------------------------- *)
 
+(* If the source file is available, then we insert decorations into the
+   generated AST. *)
+
+module Run (X : sig val source : string option end) = struct
+
+(* A source code location (a pair of positions) is converted to a string.
+   This can fail if [source] is [None], which means that [--decorate] is
+   off or that the soure file could not be found. It can also fail if
+   [extract] fails, which can happen if the source code positions are
+   out of range. *)
+
+(* [2k+3] is the maximum length of a snippet. *)
+
+let k =
+  15
+
+let return =
+  Option.some
+
+let (let*) =
+  Option.bind
+
+let convert (loc : Location.t) : string option =
+  let* source = X.source in
+  let startp, endp = Location.(loc.loc_start, loc.loc_end) in
+  let* snippet = ErrorReports.(extract source (startp, endp)) in
+  return ErrorReports.(snippet |> sanitize |> compress |> shorten k)
+
+(* Decorating an expression with a location. *)
+
+let decorate (loc : Location.t) (e : expr) : expr =
+  match convert loc with
+  | Some snippet ->
+      EDecorate (snippet, e)
+  | None ->
+      (* If we are unable to produce a decoration, forget about it. *)
+      e
+
+(* -------------------------------------------------------------------------- *)
+
 (* Stripping off a location. *)
 
 let txt (x : 'a loc) : 'a =
@@ -341,6 +381,7 @@ let translate_stdlib_call (f : var) (es : exprs) =
 
 let rec translate_expr (e: expression) : expr =
   let loc = e.exp_loc in
+  decorate loc @@
   match e.exp_desc with
 
   | Texp_ident (path, id, _) ->
@@ -562,6 +603,8 @@ and translate_bindings vbs =
 
 and project_EAnonFun (e : expr) : anonfun =
   match e with
+  | EDecorate (_, e) ->
+      project_EAnonFun e
   | EAnonFun a -> a
   | _ -> raise Unsupported
 
@@ -705,7 +748,10 @@ and translate_mod_expr (me : module_expr) : mexpr =
 
 (* -------------------------------------------------------------------------- *)
 
+end (* Run *)
+
 (* The main function. *)
 
-let unit =
-  translate_structure
+let unit source str =
+  let open Run(struct let source = source end) in
+  translate_structure str

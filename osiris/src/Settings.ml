@@ -20,6 +20,9 @@ let mark =
 let debug =
   ref false
 
+let decorate =
+  ref false
+
 let verbose =
   ref false
 
@@ -35,6 +38,7 @@ let set_opt setting value =
 
 let spec = Arg.align [
     "--debug", Arg.Set debug, " (undocumented)";
+    "--decorate", Arg.Set decorate, " (undocumented)";
     "--mark", Arg.Set_string mark, " A prefix that is added to every file name (default: empty)";
     "--no-warnings", Arg.Clear warnings, " Disable warnings (default: warnings enabled)";
     "--out", Arg.String (set_opt out), " Output directory (mandatory)";
@@ -100,6 +104,9 @@ let mark =
 
 let debug =
   !debug
+
+let decorate =
+  !decorate
 
 let verbose =
   !verbose
