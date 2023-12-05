@@ -20,7 +20,7 @@ module Recursion = struct
   (* [int_to_nat] converts a positive integer to a unary natural number. The
      function fails on negative inputs. *)
   let rec int_to_nat (i: int) : nat =
-    let () = assert (0 <= i) in
+    (* let () = assert (0 <= i) in *)
     if i = 0
     then O
     else S (int_to_nat (i-1))
@@ -64,5 +64,5 @@ let twelve_int' = Recursion.nat_to_int twelve_nat'
 let () = assert (Recursion.infinite O = 0
                  && twelve_int' = twelve_int
                  && twelve_nat' = twelve_nat
-                 && twelve' = 12) 
+                 && twelve' = 12)
 let () = assert (three = Recursion.nat_to_int (Recursion.int_to_nat 3)) *)

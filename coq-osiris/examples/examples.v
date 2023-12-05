@@ -252,9 +252,9 @@ Section ProofExamples.
 
       (* First, we perform the function call and check whether or not [i] is
          equal to 0. *)
-      oCall "int_to_nat" vint_to_nat;
-        do 2 (wp_bind; wp_continue);
-        destruct (decide (i = O)) as [-> | n].
+      oCall "int_to_nat" vint_to_nat.
+      wp_bind; wp_continue.
+      destruct (decide (i = O)) as [-> | n].
 
       { (* Case [i = 0]. *)
         change (Z.of_nat O) with 0%Z.
