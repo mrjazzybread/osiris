@@ -9,6 +9,16 @@ From osiris.proofmode Require Import specifications.
    https://coq.inria.fr/doc/V8.10.2/refman/user-extensions/syntax-extensions.html#displaying-symbolic-notations
    for information on notation formatting. *)
 
+(* TODO Most of the notation in this file should go away.
+   The rest should be cleaned up and documented. *)
+
+(* ------------------------------------------------------------------------ *)
+
+(* When a decoration is present, the underlying AST is not shown. *)
+
+Notation "'ocaml' decoration" := (deco decoration _)
+  (at level 8, only printing).
+
 (* ------------------------------------------------------------------------ *)
 
 Declare Scope expr_scope.
