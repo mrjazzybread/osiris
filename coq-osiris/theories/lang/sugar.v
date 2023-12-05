@@ -8,6 +8,16 @@ From osiris.lang Require Import syntax.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Decorations. *)
+
+(* A decoration is a string (typically, a snippet extracted out of the
+   OCaml source file) that has no semantic meaning. *)
+
+Definition deco {A} (decoration : string) (a : A) :=
+  a.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Paths. *)
 
 Fixpoint MkPathRev (xs : list name) : path :=
