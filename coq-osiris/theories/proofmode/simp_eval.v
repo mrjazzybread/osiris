@@ -165,7 +165,7 @@ Qed.
 
 Lemma simp_eval_let η x e1 e2 v1 m :
   simp (eval η e1) (ret v1) →
-  simp (eval (EnvCons x v1 η) e2) m →
+  (let η' := EnvCons x v1 η in simp (eval η' e2) m) →
   simp (eval η (ELet1Var x e1 e2)) m.
 Proof.
   intros. simp.
