@@ -3,7 +3,7 @@ export OCAMLRUNPARAM=
 
 .PHONY: all
 all:
-	@ dune build
+	@ dune build --display=short
 
 .PHONY: clean
 clean:

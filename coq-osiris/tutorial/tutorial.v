@@ -42,12 +42,6 @@ Definition add_24_plus_18 : expr :=
   EIntAdd (EInt 24) (EInt 18).
 
 (*|
-For now, we write these expressions by hand. In the future, of course,
-we plan to offer an automated translation from OCaml source code into
-Coq.
-|*)
-
-(*|
 Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, *patterns* and *expressions*.
 |*)
@@ -60,7 +54,7 @@ At this time, expressions include:
 
 * Variables;
 * Functions and function calls;
-* Local definitions, including definitions of recursive functions;
+* Local definitions, including definitions of (mutually) recursive functions;
 * Tuples;
 * Data constructors;
 * Boolean operators;
@@ -71,6 +65,7 @@ At this time, expressions include:
 * Loops (:code:`while`, :code:`for`);
 * Runtime assertions (:code:`assert`).
 
+These expressions are automatically generated from an OCaml untyped parse tree.
 |*)
 
 (*|
@@ -81,7 +76,7 @@ Values
 
 (*|
 We define the semantics of OCaml by implementing an *interpreter* of
-OCaml programs inside Coq. We want this interpreter to be a classic
+OCaml programs inside Coq. We want this interpreter to be an
 environment-based interpreter: when given an environment `η` and an
 expression `e`, it should compute a value `v`.
 |*)
@@ -94,9 +89,9 @@ expressions. For instance, a closure is a value, not an expression.
 Print val.
 
 (*|
-An *environment* is a mapping of variables to values. It is represented
-in Coq as an association list. Because a closure captures an environment,
-the syntactic categories of values and environments are mutually recursive.
+An *environment* is a mapping of variables to values. Because a closure captures
+an environment, the syntactic categories of values and environments are mutually
+recursive.
 |*)
 
 Print env.
@@ -114,14 +109,14 @@ that is, run forever. A program can have observable side effects, such
 as mutating heap-allocated objects or performing input/output actions.
 A program can behave in a non-deterministic manner, either because of
 its interaction with the operating system, or due to intrinsic
-non-determinism (some OCaml constructs have unspecified evaluation
-order).
+non-determinism (such as unspecified evaluation order).
 |*)
 
 (*|
 For these reasons, the interpreter cannot be expected to be a
-function of type `env → expr → val`. That would imply that
-interpretation is deterministic and always terminates.
+function of type `env → expr → val`. Because of Coq's strongly
+normalizing specification language, such a function type would imply
+that interpretation is deterministic and always terminates.
 Instead, the interpreter must be a *monadic* interpreter:
 |*)
 
@@ -130,7 +125,7 @@ Check eval. (* .unfold *)
 (*|
 The term `eval η e` has type `micro val`,
 where `micro` is a *monad*.
-This means that `eval η e` is
+This means that `eval η e` is a step of
 an effectful *computation* which may diverge,
 may behave in a non-deterministic manner, and
 may eventually produce a value.
@@ -170,9 +165,9 @@ The interpreter is defined in a straightforward way.
 It could be taught in an introductory course on
 programming language implementation.
 Yet, this interpreter plays an important role for us:
-it serves as our definition of the semantics of OCaml
-and as a basis for the program verification system
-that we wish to set up.
+it serves as our definition of the semantics of OCaml (i.e. it is a
+definitional interpreter) and as a basis for the program verification
+system that we wish to set up.
 |*)
 
 (*|
@@ -196,8 +191,7 @@ Qed. (* .none *)
 
 (*|
 That said, there are places in the definition of `eval`
-where we would like to recursively invoke `eval`
-but that is not permitted by Coq.
+where Coq disallows us to recursively invoke `eval` as we would like.
 An example appears in the case of `while` loops:
 |*)
 
@@ -262,18 +256,7 @@ must prove that there is no interference
 between `e1` and `e2`. This is done by applying
 the parallel composition rule
 of concurrent separation logic.
-
-Interpreting an addition expression :code:`e1 + e2`
-also involves a parallel composition:
 |*)
-
-Goal ∀ η e1 e2,
-  eval η (EIntAdd e1 e2) =
-    '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
-    ret (VInt (int.add i1 i2)). (* .no-goals *)
-Proof. (* .none *)
-  reflexivity. (* .none *)
-Qed. (* .none *)
 
 (*|
 The reader may wonder how Coq can execute a parallel composition.
@@ -319,7 +302,7 @@ Print micro. (* .unfold *)
 This is an inductive type: every computation must eventually
 produce a result or stop. Up to β-reduction (which Coq can
 perform for us), every computation must exhibit one of the
-following five forms:
+following six forms:
 
 * `Ret a` represents a computation that is finished
   and has produced a result `a`.
@@ -345,6 +328,11 @@ following five forms:
   `k` is invoked if both computations produce a result. The *failure
   continuation* `ko` is invoked if either computation raises `Next`.
 
+* `Choose m1 m2 k ko` represents a non-deterministic choice between
+  the computations `m1` and `m2`. One of them is executed; the other
+  is discarded. The success and failure continuations `k` and `ko`
+  indicate how to continue after executing `m1` or `m2`.
+
 |*)
 
 (*|
@@ -352,18 +340,32 @@ Expert readers may note that the definition of this monad is
 reminiscent of *interaction trees*. However, interaction trees are
 potentially infinite trees, whereas our computations are finite.
 Furthermore, interaction trees do not have the parallel composition
-constructor `Par`.
+constructor `Par` or the non-deterministic choice constructor `Choose`.
 
-The combinators `stop` and `par`, which have been mentioned earlier,
-are sugar for `Stop` and `Par` with trivial continuations.
+The combinators `stop`, `par`, and `choose`
+are sugar for `Stop`, `Par`, and `Choose`
+with trivial continuations.
 |*)
 
 Print stop. (* .fold *)
 Print par.  (* .fold *)
+Print choose.  (* .fold *)
 
 (*|
-As in every monad, a `bind` combinator is used to construct the
-sequential composition of two computations:
+The so-far-unmentioned `Choose` is used to defined the `choose`
+combinator, which performs a nondeterministic choice between two
+computations and runs it, producing a single result.
+This combinator is used to represent nondeterministic erasure when
+evaluating an `EAssert` expression. Indeed, OCaml assertions may be
+erased at compile-time and so programs with assertions have
+nondeterministic semantics if those assertions contain effects.
+|*)
+
+Print choose. (* .fold *)
+
+(*|
+As in every monad, a `bind` combinator (denoted by ←) is used to
+construct the sequential composition of two computations:
 |*)
 
 Check @bind. (* .unfold *)
@@ -373,6 +375,8 @@ The `try` combinator, a generalization of `bind`,
 also composes two computations,
 and can catch the exception `Next`
 if it raised by the first computation.
+This combinator is necessary for catching the potential failure of a
+pattern match.
 |*)
 
 Check @try. (* .unfold *)
@@ -420,14 +424,12 @@ Print code. (* .unfold *)
 
 (*|
 The code `CEval`, which we have encountered earlier, is used to request
-a recursive invocation of the function `eval`. The code `Loop` plays a
-similar role, but is used in the interpretation of `for` loops. The
-code `Flip` is used to request a Boolean value from the system: it is
-used to encode a binary non-deterministic choice combinator, `choose`.
-|*)
+a recursive invocation of the function `eval`. The code `CLoop` plays a
+similar role, but is used in the interpretation of `for` loops.
+The codes `CAlloc`, `CLoad`, and `CStore` allow allocating, reading,
+and writing memory blocks in the heap.
 
-Print flip. (* .unfold *)
-Print choose. (* .unfold *)
+|*)
 
 (*|
 -------------
@@ -473,14 +475,6 @@ An `CEval` request steps to an invocation of `eval`:
 Check @StepEval. (* .unfold *)
 
 (*|
-A `Flip` request returns a Boolean result `b`,
-which may either `true` or `false`.
-This makes the relation `step` non-deterministic:
-|*)
-
-Check @StepFlip. (* .unfold *)
-
-(*|
 Under a parallel composition constructor `Par`,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
@@ -497,6 +491,15 @@ of the results:
 |*)
 
 Check @StepParRetRet. (* .unfold *)
+
+(*|
+The constructor `Choose`
+makes a non-deterministic choice
+among its two branches:
+|*)
+
+Check @StepChooseLeft. (* .unfold *)
+Check @StepChooseRight. (* .unfold *)
 
 (*|
 There are more reduction rules, not shown.

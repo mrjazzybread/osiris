@@ -79,8 +79,8 @@ Ltac wp_step :=
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
-  | |- environments.envs_entails _ (wp _ _ (Stop CFlip _ _ _) _) =>
-      tac_change_goal (wp_flip _ _ _ _ _ _)
+  | |- environments.envs_entails _ (wp _ _ (choose ok ?m2) _) =>
+      tac_change_goal (wp_choose_ok _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
       fail "[bind] is no longer simplified by [wp_step]."
   | _ =>

@@ -35,13 +35,13 @@ Local Notation crashes e :=
 (* The construct [EAssert e] is evaluated as a choice between skipping the
    dynamic test and performing the dynamic test (eval.v). Here, we want the
    dynamic tests to be performed, so we choose the right-hand side. This is
-   done by using [StepFlip false]. It is brittle, but should do for now. *)
+   done by using [StepChooseRight]. It is brittle, but should do for now. *)
 
 Local Ltac step :=
   first [
     eapply StepEval
   | eapply StepLoop
-  | eapply (@StepFlip val false)
+  | eapply StepChooseRight
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]

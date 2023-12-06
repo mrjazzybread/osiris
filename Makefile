@@ -30,7 +30,14 @@ clean:
 
 # [make init] creates an opam switch named [osiris]
 # and installs the necessary libraries and tools in it.
+
 # It also installs Alectryon.
+
+# This command can take about 12 minutes of real time
+# on a multi-core desktop machine.
+
+# The version numbers listed below should be kept in sync
+# with those found in the file coq-osiris/dune-project.
 
 .PHONY: init
 init:
@@ -39,8 +46,8 @@ init:
 	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
 	opam pin --switch=osiris --yes dune 3.11.0
 	opam pin --switch=osiris --yes coq 8.17.1
-	opam pin --switch=osiris --yes coq-stdpp --dev-repo
-	opam pin --switch=osiris --yes coq-iris --dev-repo
+	opam pin --switch=osiris --yes coq-stdpp --dev-repo 1.9.0
+	opam pin --switch=osiris --yes coq-iris --dev-repo 4.1.0
 	opam install --switch=osiris --yes pprint ocaml-compiler-libs
 	opam install --switch=osiris --yes "coq-serapi>=8.10.0+0.7.0"
 	python3 -m pip install alectryon

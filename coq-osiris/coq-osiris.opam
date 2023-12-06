@@ -8,7 +8,15 @@ bug-reports: "francois.pottier@inria.fr"
 depends: [
   "dune" {>= "3.8"}
   "coq-stdpp"
+  "{"
+  "="
+  "1.9.0"
+  "}"
   "coq-iris"
+  "{"
+  "="
+  "4.1.0"
+  "}"
   "odoc" {with-doc}
 ]
 build: [

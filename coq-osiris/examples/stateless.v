@@ -106,14 +106,23 @@ Section ProofExamples.
     oSpecify "set" set_spec vset "#Hset" !.
     { iIntros "!>" (vc). call.
       iIntros (n m Hle ??) "(%ℓ&->&Hℓ)". call.
-      wp_bind.
-      - iIntros ([|]); wp.
-        + wp_store "Hℓ". prove_counter.
-        + wp_load "Hℓ".
+      (* TODO deal with [EAssert] properly *)
+      iApply (wp_bind_binary with "[Hℓ]").
+      { wp.
+        iApply (wp_choose_ok _ _ _ (ℓ ↦ #n)%I with "[Hℓ]").
+        + iFrame.
+        + iModIntro. iIntros "Hℓ".
+          wp.
+          wp_load "Hℓ".
           rewrite lt_repr_repr; try representable.
+          (* TODO deal with comparisons in a more automated way *)
           replace (m <? n) with false; last first.
           { symmetry; rewrite Z.ltb_ge; lia. }
-          wp. wp_store "Hℓ". prove_counter. }
+          wp. iFrame.
+      } iIntros "_ Hℓ".
+      (* Done dealing with [EAssert]... *)
+      wp.
+      wp_store "Hℓ". prove_counter. }
 
     oSpecify "get" get_spec vget "#Hget" !.
     { iIntros "!>"(? nc) "(%ℓ&->&Hℓ)".

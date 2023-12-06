@@ -1,2 +1,3 @@
+-arg -set -arg Debug=-backtrace
 -Q _build/default/theories osiris
 -Q _build/default/examples osiris.examples

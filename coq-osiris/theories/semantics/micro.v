@@ -43,6 +43,11 @@ Import C. (* We write [code] for [C.code]. *)
      transmitted upwards. If either computation causes a soft failure,
      then the failure continuation [ko] is invoked.
 
+   - [Choose m1 m2 k ko], a non-deterministic choice between
+     the computations `m1` and `m2`. One of them is executed; the other
+     is discarded. The success and failure continuations `k` and `ko`
+     indicate how to continue after executing `m1` or `m2`.
+
    The code [c] carried in [Stop c x k ko] has type [code X Y], for some
    types [X] and [Y]. The parameter [x] has type [X], and the
    continuation [k] expects a value of type [Y]. Throughout this file,
@@ -64,6 +69,7 @@ Inductive micro A :=
       (m1 : micro A1) (m2 : micro A2)
       (k : A1 * A2 → micro A)
       (ko : unit → micro A)
+  | Choose {B} (m1 m2 : micro B) (k : B → micro A) (z : unit → micro A)
 .
 
 (* Make [A] an implicit argument of the constructors. *)
@@ -73,6 +79,7 @@ Arguments Crash {A}.
 Arguments Next {A}.
 Arguments Stop {A X Y} c x k ko.
 Arguments Par  {A A1 A2} m1 m2 k ko.
+Arguments Choose {A B} m1 m2 k z.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -92,7 +99,7 @@ Notation next :=
    codes to computations is not defined here; it must be supplied a
    posteriori (step.v). *)
 
-Notation stop c x :=
+Definition stop {X Y} (c : code X Y) x : micro Y :=
   (Stop c x ret next).
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
@@ -100,6 +107,12 @@ Notation stop c x :=
 
 Definition par {A1 A2} (m1 : micro A1) (m2 : micro A2) : micro (A1 * A2) :=
   Par m1 m2 ret next.
+
+(* [choose m1 m2] performs a non-deterministic choice between [m1] and
+   [m2] and runs the chosen computation, producing a single result. *)
+
+Definition choose {A} (m1 m2 : micro A) : micro A :=
+  Choose m1 m2 ret next.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -124,6 +137,9 @@ Fixpoint bind {A B} (m : micro A) (f : A → micro B) : micro B :=
   | Par m1 m2 k ko =>
       (* Same here. *)
       Par m1 m2 (λ y, bind (k y) f) (λ y, bind (ko y) f)
+  | Choose m1 m2 k z =>
+      (* Same here. *)
+      Choose m1 m2 (λ y, bind (k y) f) (λ y, bind (z y) f)
   end.
 
 Global Arguments bind A B !m f : simpl nomatch.
@@ -153,6 +169,8 @@ Fixpoint try {A B} (m : micro A) (f : A → micro B) (g : unit → micro B) : mi
       (* Same here. The handler [try _ f g] remains installed on top of
          both continuations. *)
       Par m1 m2 (λ y, try (k y) f g) (λ y, try (ko y) f g)
+  | Choose m1 m2 k z =>
+      Choose m1 m2 (λ y, try (k y) f g) (λ y, try (z y) f g)
   end.
 
 (* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
@@ -217,6 +235,13 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma bind_choose {A B C} m1 m2 (k : A → micro B) z (k' : B → micro C) :
+  bind (Choose m1 m2 k z) k' =
+  Choose m1 m2 (λ a, bind (k a) k') (λ a, bind (z a) k').
+Proof.
+  reflexivity.
+Qed.
+
 (* Analogous laws for [try]. *)
 
 Lemma try_ret {A B} (a : A) (f : A → micro B) (ko : unit → micro B) :
@@ -240,16 +265,23 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma try_stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) ko' :
+Lemma try_Stop {A B X Y} (c : code X Y) x k ko (f : A → micro B) ko' :
   try (Stop c x k ko) f ko' =
   Stop c x (λ y, try (k y) f ko') (λ y, try (ko y) f ko').
 Proof.
   reflexivity.
 Qed.
 
-Lemma try_par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) ko' :
+Lemma try_Par {A1 A2 A B} m1 m2 (k : A1 * A2 → micro A) ko (f : A → micro B) ko' :
   try (Par m1 m2 k ko) f ko' =
   Par m1 m2 (λ v, try (k v) f ko') (λ y, try (ko y) f ko').
+Proof.
+  reflexivity.
+Qed.
+
+Lemma try_Choose {A B C} m1 m2 (k : A → micro B) z (k' : B → micro C) z' :
+  try (Choose m1 m2 k z) k' z' =
+  Choose m1 m2 (λ a, try (k a) k' z') (λ a, try (z a) k' z').
 Proof.
   reflexivity.
 Qed.
@@ -271,10 +303,12 @@ Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
 
 Lemma eq_stop_stop A X Y (k1 k2 : Y → micro A) (c : code X Y) x ko1 ko2 :
   (∀ v, k1 v = k2 v) →
-  (∀ y, ko1 y = ko2 y) →
+  ko1() = ko2() →
   Stop c x k1 ko1 = Stop c x k2 ko2.
 Proof.
-  intros. f_equal; extensionality v; eauto.
+  intros. f_equal.
+  { extensionality v. eauto. }
+  { extensionality tt. destruct tt. eauto. }
 Qed.
 
 Lemma eq_par_par {A A1 A2} (m1 : micro A1) (m2 : micro A2)
@@ -288,7 +322,18 @@ Proof.
   { extensionality tt. destruct tt. eauto. }
 Qed.
 
-Local Hint Resolve eq_stop_stop eq_par_par : eq.
+Lemma eq_choose_choose {A B} (m1 : micro B) (m2 : micro B)
+  (k k' : B → micro A) (z z' : unit → micro A) :
+  (∀ v, k v = k' v) →
+  z() = z'() →
+  Choose m1 m2 k z = Choose m1 m2 k' z'.
+Proof.
+  intros. f_equal.
+  { extensionality v. eauto. }
+  { extensionality tt. destruct tt. eauto. }
+Qed.
+
+Local Hint Resolve eq_stop_stop eq_par_par eq_choose_choose : eq.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -299,6 +344,13 @@ Local Hint Resolve eq_stop_stop eq_par_par : eq.
 Lemma bind_ret_right :
   ∀ {A} (m : micro A),
   bind m Ret = m.
+Proof.
+  induction m; simpl; eauto with eq.
+Qed.
+
+Lemma try_ret_right :
+  ∀ {A} (m : micro A),
+  try m Ret next = m.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
@@ -339,19 +391,147 @@ Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
 
 (* ------------------------------------------------------------------------ *)
 
-(* [bind m f] is equal to [ret x] iff there exists v such that [m = ret v] *)
+(* The constructors [Stop], [Par], and [Choose] can be viewed as
+   applications of [stop], [par], and [choose],
+   wrapped in a [try] construct. *)
 
-Lemma destruct_eq_bind_ret {A B} (m : micro A) (f : A -> micro B) x :
-  bind m f = ret x <-> exists v, f v = ret x /\ m = ret v.
+Lemma try_stop {A X Y} c (x : X) (k : Y → micro A) z :
+  try (stop c x) k z = Stop c x k z.
 Proof.
-  split.
-  { induction m; intros; destruct (bind _ f) eqn:bnd; try discriminate.
-    rewrite bind_ret in bnd.
-    rewrite <- bnd in *.
-    eauto. }
-  { intros (v & <- & ->); done. }
+  unfold stop. rewrite try_Stop. eauto using eq_stop_stop.
 Qed.
 
+Lemma try_par {A1 A2 A} m1 m2 (k : A1 * A2 → micro A) z :
+  try (par m1 m2) k z = Par m1 m2 k z.
+Proof.
+  unfold par. rewrite try_Par. eauto using eq_par_par.
+Qed.
+
+Lemma try_choose {A B} m1 m2 (k : A → micro B) z :
+  try (choose m1 m2) k z = Choose m1 m2 k z.
+Proof.
+  unfold choose. rewrite try_Choose. eauto using eq_choose_choose.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* A 3-way case analysis principle: a computation [m] is either [ret a]
+   or [Next] or something else. *)
+
+Lemma ret_or_next_or_else {A} (m : micro A) :
+  (∃ a, m = ret a) ∨
+  (m = Next) ∨
+  ((∀ a, m = ret a → False) ∧ (m = Next → False)).
+Proof.
+  destruct m; try solve [ eauto | right; right; split; congruence ].
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The following inversion lemmas extract information out of an equality
+   of the form [try m _ _ = ret _], [try m _ _ = Stop _ _ _ _], and
+   [try m _ _ = Par _ _ _ _]. They provide information about [m]. *)
+
+(* These lemmas are written in a form where one assumes that [m] is
+   not [ret _] or [Next]. This allows the conclusion to be simple.
+   Without this hypothesis, the conclusion of the lemma would have
+   to be a 3-way disjunction. *)
+
+Lemma invert_try_eq_ret {A B m} {k : A → micro B} {ko b} :
+  try m k ko = ret b →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  False.
+Proof.
+  destruct m; simpl; congruence.
+Qed.
+
+Lemma invert_try_eq_stop
+  {A B m} {f : A → micro B} {g}
+  {X Y} {c : code X Y} {x k ko} :
+  try m f g = Stop c x k ko →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  ∃ k' ko',
+  m = Stop c x k' ko' ∧
+  k = (λ y, try (k' y) f g) ∧
+  ko = (λ y, try (ko' y) f g).
+Proof.
+  destruct m; simpl; try congruence.
+  intros h. dependent destruction h.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try_eq_stop :=
+  match goal with
+  | h: try _ _ _ = Stop _ _ ?k ?ko |- _ =>
+      apply invert_try_eq_stop in h; [| eauto | eauto ];
+      let k' := fresh k in
+      let ko' := fresh ko in
+      destruct h as (k' & ko' & ? & ? & ?);
+      subst k; subst ko; rename k' into k; rename ko' into ko
+  | h: Stop _ _ _ _ = try _ _ _ |- _ =>
+      symmetry in h;
+      invert_try_eq_stop
+  end.
+
+Lemma invert_try_eq_par {A A1 A2 B}
+  {m} {f : A → micro B} {g m1 m2} {k : A1 * A2 → micro B} {ko}
+:
+  try m f g = Par m1 m2 k ko →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  ∃ k' ko',
+  m = Par m1 m2 k' ko' ∧
+  k = (λ y, try (k' y) f g) ∧
+  ko = (λ y, try (ko' y) f g).
+Proof.
+  destruct m; simpl; try congruence.
+  intros h. dependent destruction h.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try_eq_par :=
+  match goal with
+  | h: try _ _ _ = Par _ _ ?k ?ko |- _ =>
+      apply invert_try_eq_par in h; [| eauto | eauto ];
+      let k' := fresh k in
+      let ko' := fresh ko in
+      destruct h as (k' & ko' & ? & ? & ?);
+      subst k; subst ko; rename k' into k; rename ko' into ko
+  | h: Par _ _ _ _ = try _ _ _ |- _ =>
+      symmetry in h;
+      invert_try_eq_par
+  end.
+
+Lemma invert_try_eq_choose {A B C}
+  {m} {f : A → micro B} {g m1 m2} {k : C → micro B} {ko}
+:
+  try m f g = Choose m1 m2 k ko →
+  (∀ a, m = ret a → False) →
+  (m = Next → False) →
+  ∃ k' ko',
+  m = Choose m1 m2 k' ko' ∧
+  k = (λ y, try (k' y) f g) ∧
+  ko = (λ y, try (ko' y) f g).
+Proof.
+  destruct m; simpl; try congruence.
+  intros h. dependent destruction h.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try_eq_choose :=
+  match goal with
+  | h: try _ _ _ = Choose _ _ ?k ?ko |- _ =>
+      apply invert_try_eq_choose in h; [| eauto | eauto ];
+      let k' := fresh k in
+      let ko' := fresh ko in
+      destruct h as (k' & ko' & ? & ? & ?);
+      subst k; subst ko; rename k' into k; rename ko' into ko
+  | h: Choose _ _ _ _ = try _ _ _ |- _ =>
+      symmetry in h;
+      invert_try_eq_choose
+  end.
 
 (* ------------------------------------------------------------------------ *)
 

@@ -12,6 +12,17 @@ From osiris.proofmode Require Import specifications.
 
 (* -------------------------------------------------------------------------- *)
 
+(* We do not want to unfold [val_as_bool] into a case analysis; that would be
+   counter-productive, and could cause the tactics below to diverge.
+
+   Note that [val_as_bool] is more problematic than [val_as_int] because
+   integer values have their own tag [VInt], whereas Boolean values do not.
+   [VBool] is just sugar, not a genuine tag. *)
+
+Global Opaque val_as_bool.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Opacity control. *)
 
 (* [force_unfold_at_1 x] unfolds the first occurrence of [x]
@@ -143,10 +154,11 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpFlip {A} x k ko (m' : micro A) :
-  simp (k false) m' →
-  simp (k true) m' →
-  simp (Stop CFlip x k ko) m'.
+Lemma advance_SimpChooseAgree {A B} m1 m2 m (k : A → micro B) z m' :
+  simp m1 m →
+  simp m2 m →
+  simp (try m k z) m' →
+  simp (Choose m1 m2 k z) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -156,7 +168,8 @@ Lemma advance_simp_choose {A} (m1 m2 : micro A) m' :
   simp m2 m' →
   simp (choose m1 m2) m'.
 Proof.
-  intros. eapply advance_SimpFlip; assumption.
+  intros. eapply advance_SimpChooseAgree; eauto.
+  rewrite try_ret_right. eauto with simp.
 Qed.
 
 Lemma advance_SimpBind {A B} m1 m2 (f : A → micro B) m' :
@@ -590,8 +603,10 @@ with simp1 :=
      goal. Instead, we first try to apply one of the following rewriting rules
      at the root of the goal: *)
   first [
+    (* Exploit an assumption, if we have one. *)
+    eassumption
     (* Transform [try] into [bind]. *)
-    simple eapply advance_simp_bind_as_try; simp0
+  | simple eapply advance_simp_bind_as_try; simp0
     (* Perform tail call optimisation. (Not essential.) *)
   |  simple eapply advance_simp_bind_ret_right; simp0
     (* Hoist left-nested [bind]s and [try]s. *)
@@ -600,15 +615,20 @@ with simp1 :=
   | simple eapply advance_simp_try_bind; simp0
   | simple eapply advance_simp_try_try; simp0
     (* Handle [Stop] effects. *)
+<<<<<<< HEAD
+=======
+    (* TODO do we need these four attempts? *)
+  | simple eapply advance_SimpEvalRetNext'; simp0
+>>>>>>> origin
   | simple eapply advance_SimpEvalRetNext; simp0
   | simple eapply advance_SimpEvalNext; simp0
   | simple eapply advance_SimpEval; simp0
       (*| simple eapply advance_SimpLoopNext; simp0 *)
       (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0
-      (* We do not deal with [Flip] in its full generality. Instead,
+      (* We do not deal with [choose] in its full generality. Instead,
          we provide ad hoc support for [EAssert] expressions, which
-         currently are the only place where [flip] is used. *)
+         currently are the only place where [choose] is used. *)
     (* Handle [val_as_bool], which is opaque. *)
   | simple eapply advance_simp_val_as_bool_VTrue; simp0
   | simple eapply advance_simp_val_as_bool_VFalse; simp0

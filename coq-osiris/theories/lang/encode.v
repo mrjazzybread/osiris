@@ -19,6 +19,14 @@ Notation "# v" := (encode v) (at level 8, format "# v").
 
 (* -------------------------------------------------------------------------- *)
 
+(* The function [encode] is sometimes, but not always, required to be
+   injective. *)
+
+Class EncodeInjective `{Encode A} :=
+  { encode_injective : ∀ a1 a2 : A, #a1 = #a2 → a1 = a2 }.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The tactic [encode] expects a goal of the form [v = encode x],
    where typically [v] is a known value and [x] is a metavariable.
    Finding a suitable instantiation of [x] amounts to inverting
@@ -70,11 +78,12 @@ Global Hint Resolve solve_encode_val | 1000 : encode.
 (* Unit. *)
 
 Global Instance Encode_unit : Encode unit :=
-  { encode := λ tt, VUnit }.
+  { encode := λ x, let '() := x in VUnit }.
+  (* We deconstruct [x] because we want an equation [VUnit = #?x] to
+     force an instantiation of [x] with [()]. *)
 
-Lemma solve_encode_unit x :
-  () = x →
-  VUnit = #x.
+Lemma solve_encode_unit :
+  VUnit = #().
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_unit : encode.
@@ -97,6 +106,134 @@ Lemma solve_encode_true b :
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_false solve_encode_true : encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Booleans, reflected as Coq propositions. *)
+
+(* The function [truth : Prop → bool] maps a Coq proposition
+   to the corresponding Boolean value. Defining this function
+   requires Hilbert's [ε] operator. *)
+
+Require Import Classical Epsilon.
+
+Definition inh_bool : inhabited bool.
+Proof. constructor. constructor. Qed.
+
+Definition truth (P : Prop) : bool :=
+  epsilon inh_bool (λ (b : bool), if b then P else ¬P).
+
+(* If [P] is false then [truth P] is [false]. *)
+
+Lemma truth_false (P : Prop) :
+  ¬ P →
+  truth P = false.
+Proof.
+  intros H.
+  unfold truth.
+  assert (existence: exists (b : bool), if b then P else ¬P).
+  { exists false. assumption. }
+  generalize (epsilon_spec inh_bool _ existence). clear existence.
+  match goal with |- context[epsilon ?w ?P] => generalize (epsilon w P) end.
+  intros [|]; tauto.
+Qed.
+
+Lemma truth_False :
+  truth False = false.
+Proof.
+  eauto using truth_false.
+Qed.
+
+(* If [P] is true then [truth P] is [true]. *)
+
+Lemma truth_true (P : Prop) :
+  P →
+  truth P = true.
+Proof.
+  intros H.
+  unfold truth.
+  assert (existence: exists (b : bool), if b then P else ¬P).
+  { exists true. assumption. }
+  generalize (epsilon_spec inh_bool _ existence). clear existence.
+  match goal with |- context[epsilon ?w ?P] => generalize (epsilon w P) end.
+  intros [|]; tauto.
+Qed.
+
+Lemma truth_True :
+  truth True = true.
+Proof.
+  eauto using truth_true.
+Qed.
+
+(* [truth P] determines which of [P] and [¬P] holds. *)
+
+Lemma truth_elim (P : Prop) :
+  if truth P then P else ¬P.
+Proof.
+  case_eq (truth P); intro Heq.
+  (* [NNPP] is Peirce's law. *)
+  { eapply NNPP. intro H. eapply truth_false in H. congruence. }
+  { intro H. eapply truth_true in H. congruence. }
+Qed.
+
+(* [truth : Prop → bool] is the inverse of [Is_true : bool → Prop]. *)
+
+Lemma truth_Is_true b :
+  truth (Is_true b) = b.
+Proof.
+  destruct b; simpl; [ rewrite truth_True | rewrite truth_False ]; eauto.
+Qed.
+
+Lemma Is_true_truth P :
+  Is_true (truth P) ↔ P.
+Proof.
+  generalize (truth_elim P).
+  generalize (truth P).
+  intros [|]; simpl; tauto.
+Qed.
+
+(* The truth of [¬P] is the negation of the truth of [P]. *)
+
+Lemma truth_neg P :
+  truth (¬P) = negb (truth P).
+Proof.
+  generalize (truth_elim P). generalize (truth P).
+  intros [|]; simpl; intros.
+  { eapply truth_false. tauto. }
+  { eapply truth_true. tauto. }
+Qed.
+
+(* A Coq proposition can be encoded as an OCaml Boolean value. *)
+
+(* In other words, the logical model of an OCaml Boolean value
+   can be a Coq proposition. *)
+
+Global Instance Encode_Prop : Encode Prop :=
+  { encode := λ P, VBool (truth P) }.
+
+(* Allowing the tactic [encode] to use [solve_encode_False] and
+   [solve_encode_True], where [P] is a metavariable, leads Coq to
+   instantiate [P] with an arbitrary proposition that happens to be
+   provably false or provably true. *)
+
+(* So, the following two lemmas are currently *not* added to the
+   hint database [encode]. *)
+
+Lemma solve_encode_False (P : Prop) :
+  ¬ P →
+  VFalse = #P.
+Proof.
+  intros H. apply truth_false in H. simpl. rewrite H. reflexivity.
+Qed.
+
+Lemma solve_encode_True (P : Prop) :
+  P →
+  VTrue = #P.
+Proof.
+  intros H. apply truth_true in H. simpl. rewrite H. reflexivity.
+Qed.
+
+(* Global Hint Resolve solve_encode_False solve_encode_True : encode. *)
 
 (* -------------------------------------------------------------------------- *)
 

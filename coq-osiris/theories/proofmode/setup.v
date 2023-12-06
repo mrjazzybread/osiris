@@ -23,12 +23,6 @@ Arguments as_struct m /.
 Arguments build η xs/.
 Arguments lookup_name _ _/.
 
-(* We do not want to unfold [val_as_bool] into a case analysis; that would
-   be counter-productive. Note that [val_as_bool] is more problematic than
-   [val_as_int] because integer values have their own tag [VInt], whereas
-   Boolean values do not. [VBool] is just sugar, not a genuine tag. *)
-Global Opaque val_as_bool.
-
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
 Arguments concat !δ η : simpl nomatch.

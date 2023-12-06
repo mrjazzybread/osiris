@@ -18,8 +18,8 @@
   (synopsis "An instance of the Iris verification framework for OCaml")
   (depends
      dune
-     coq-stdpp
-     coq-iris
+     coq-stdpp { = "1.9.0" }
+     coq-iris  { = "4.1.0" }
   )
 )
 
