@@ -1,7 +1,7 @@
 Require Export Coq.Sorting.Sorted.
 Require Import stdpp.sorting.
 From osiris Require Import base.
-Require Import orders.
+From osiris.logic Require Import orders.
 Local Opaque app. (* Prevent undesired simplification. *)
 
 (* This file establishes several properties of sorted lists. *)
