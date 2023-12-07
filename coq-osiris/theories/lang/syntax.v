@@ -59,8 +59,8 @@ Definition field :=
 
 (* Machine integers. *)
 
-Definition int :=
-  int.
+Notation int :=
+  int.int.
 
 (* Characters. *)
 
