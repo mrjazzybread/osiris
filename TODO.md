@@ -206,6 +206,19 @@
 
 ## Semantics
 
+* Armaël notes that we must eliminate the ambiguity between
+  unary-constructor-applied-to-a-pair `A (x, y)`
+  and binary-constructor `A (x, y)`.
+  We want to ensure the property that "if two values have different
+  runtime representations in OCaml then they have different
+  representations in our semantics". Indeed, without this property,
+  a program that uses `Obj.magic` could be correct in our semantics
+  and incorrect in reality.
+  This point is one reason why we need the typed tree (where the
+  arity of `A` is explicit).
+  The easiest way of eliminating the above ambiguity is to have
+  native n-ary data constructors.
+
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
 
