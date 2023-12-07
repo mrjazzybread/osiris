@@ -46,116 +46,116 @@ Ltac destruct_config :=
 
 Inductive step {A} : config A → config A → Prop :=
 
-  (* [Stop CEval (η, e) k ko] steps to an invocation of [eval η e] under
-     [try _ k ko]. Thus, from the user's perspective, the computation
+  (* [Stop CEval (η, e) k z] steps to an invocation of [eval η e] under
+     [try _ k z]. Thus, from the user's perspective, the computation
      [stop CEval (η, e)] behaves just like [eval η e]. *)
   | StepEval :
-      ∀ σ η e k ko,
+      ∀ σ η e k z,
       step
-        (σ, Stop CEval (η, e) k ko)
-        (σ, try (eval η e) k ko)
+        (σ, Stop CEval (η, e) k z)
+        (σ, try (eval η e) k z)
 
   (* [stop (η, x, i1, i2, e)] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
-      ∀ σ η x i1 i2 e k ko,
+      ∀ σ η x i1 i2 e k z,
       step
-        (σ, Stop CLoop (η, x, i1, i2, e) k ko)
-        (σ, try (loop η x i1 i2 e) k ko)
+        (σ, Stop CLoop (η, x, i1, i2, e) k z)
+        (σ, try (loop η x i1 i2 e) k z)
 
   (* [stop CAlloc v] allocates a fresh location in the heap,
      initializes it with [v], and returns this location. *)
   | StepAlloc :
-      ∀ σ v l k ko,
+      ∀ σ v l k z,
       σ !! l = None →
       step
-        (σ, Stop CAlloc v k ko)
+        (σ, Stop CAlloc v k z)
         (<[l := v]>σ, k l)
 
   (* If the location [l] exists, then [stop CLoad l] looks up its content
      in the heap and returns it. *)
   | StepLoadSuccess :
-      ∀ σ l v k ko,
+      ∀ σ l v k z,
       σ !! l = Some v →
       step
-        (σ, Stop CLoad l k ko)
+        (σ, Stop CLoad l k z)
         (σ, k v)
 
   (* If the location [l] does not exist, then [stop CLoad l] fails. This
      ensures that [Crash] is the only stuck term. *)
   | StepLoadFailure :
-      ∀ σ l k ko,
+      ∀ σ l k z,
       σ !! l = None →
       step
-        (σ, Stop CLoad l k ko)
+        (σ, Stop CLoad l k z)
         (σ, Crash)
 
   (* If the location [l] exists, then [stop CStore (l, v')] overwrites
      its content with [v'] and returns a unit value. *)
   | StepStoreSuccess :
-      ∀ σ l v' v k ko,
+      ∀ σ l v' v k z,
       σ !! l = Some v →
       step
-        (σ, Stop CStore (l, v') k ko)
+        (σ, Stop CStore (l, v') k z)
         (<[ l := v' ]> σ, k tt)
 
   (* If the location [l] does not exist, then [stop CStore (l, v')] fails.
      This ensures that [Crash] is the only stuck term. *)
   | StepStoreFailure :
-      ∀ σ l v' k ko,
+      ∀ σ l v' k z,
       σ !! l = None →
       step
-        (σ, Stop CStore (l, v') k ko)
+        (σ, Stop CStore (l, v') k z)
         (σ, Crash)
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
      then the continuation [k] is applied to the pair [(v1, v2)]. *)
   | StepParRetRet :
-      ∀ {A1 A2} σ (v1 : A1) (v2 : A2) k ko,
+      ∀ {A1 A2} σ (v1 : A1) (v2 : A2) k z,
       step
-        (σ, Par (Ret v1) (Ret v2) k ko)
+        (σ, Par (Ret v1) (Ret v2) k z)
         (σ, k (v1, v2))
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2} σ m2 (k : A1 * A2 → micro A) ko,
+      ∀ {A1 A2} σ m2 (k : A1 * A2 → micro A) z,
       step
-        (σ, Par Crash m2 k ko)
+        (σ, Par Crash m2 k z)
         (σ, Crash)
 
   | StepParCrashRight :
-      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) ko,
+      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) z,
       step
-        (σ, Par m1 Crash k ko)
+        (σ, Par m1 Crash k z)
         (σ, Crash)
 
   (* If a soft failure on either side is detected, then
      the failure continuation [n] can be invoked. *)
   | StepParNextLeft :
-      ∀ {A1 A2} σ m2(k : A1 * A2 → micro A) ko,
+      ∀ {A1 A2} σ m2(k : A1 * A2 → micro A) z,
       step
-        (σ, Par Next m2 k ko)
-        (σ, ko())
+        (σ, Par Next m2 k z)
+        (σ, z())
 
   | StepParNextRight :
-      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) ko,
+      ∀ {A1 A2} σ m1 (k : A1 * A2 → micro A) z,
       step
-        (σ, Par m1 Next k ko)
-        (σ, ko())
+        (σ, Par m1 Next k z)
+        (σ, z())
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
-      ∀ {A1 A2} σ σ' (m1 m'1 : micro A1) (m2 : micro A2) k ko,
+      ∀ {A1 A2} σ σ' (m1 m'1 : micro A1) (m2 : micro A2) k z,
       step (σ, m1) (σ', m'1) →
       step
-        (σ, Par m1 m2 k ko)
-        (σ', Par m'1 m2 k ko)
+        (σ, Par m1 m2 k z)
+        (σ', Par m'1 m2 k z)
 
   | StepParRight :
-      ∀ {A1 A2} σ σ' (m1 : micro A1) {m2 m'2 : micro A2} k ko,
+      ∀ {A1 A2} σ σ' (m1 : micro A1) {m2 m'2 : micro A2} k z,
       step (σ, m2) (σ', m'2) →
       step
-        (σ, Par m1 m2 k ko)
-        (σ', Par m1 m'2 k ko)
+        (σ, Par m1 m2 k z)
+        (σ', Par m1 m'2 k z)
 
   (* [choose] steps to either side. *)
   | StepChooseLeft :
@@ -175,7 +175,7 @@ Inductive step {A} : config A → config A → Prop :=
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
-  try match goal with h: step (?σ, Stop ?c ?x ?k ?ko) ?m' |- _ =>
+  try match goal with h: step (?σ, Stop ?c ?x ?k ?z) ?m' |- _ =>
     remember x
   end;
   match goal with h: step ?m ?m' |- _ =>
@@ -316,9 +316,9 @@ Global Hint Resolve
 (* If the location [l] exists in the store, then [stop CStore (l, v')]
    can step in only one way. *)
 
-Lemma invert_step_store {A} σ l v' v k ko σ' (m' : micro A) :
+Lemma invert_step_store {A} σ l v' v k z σ' (m' : micro A) :
   σ !! l = Some v →
-  step (σ, Stop CStore (l, v') k ko) (σ', m') →
+  step (σ, Stop CStore (l, v') k z) (σ', m') →
   σ' = <[ l := v' ]> σ ∧
   m' = k ().
 Proof.
@@ -328,9 +328,9 @@ Qed.
 (* If the location [l] exists in the store, then [stop CLoad l]
    can step in only one way. *)
 
-Lemma invert_step_load {A} σ σ' l v k ko (m' : micro A) :
+Lemma invert_step_load {A} σ σ' l v k z (m' : micro A) :
   σ !! l = Some v →
-  step (σ, Stop CLoad l k ko) (σ', m') →
+  step (σ, Stop CLoad l k z) (σ', m') →
   σ' = σ ∧
   m' = k v.
 Proof.
@@ -349,8 +349,8 @@ Qed.
 
 (* [Stop] can step. *)
 
-Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → micro A) ko :
-  can_step (σ, Stop c x k ko).
+Lemma can_step_stop {A X Y} σ (c : code X Y) x (k : Y → micro A) z :
+  can_step (σ, Stop c x k z).
 Proof.
   destruct c; repeat destruct x as (x & ?);
   (* For reading and writing, we must reason by cases, according to
@@ -371,9 +371,9 @@ Global Hint Resolve can_step_stop : step.
 (* The following auxiliary lemma is used in the proof of [can_step_par],
    which establishes a stronger result. *)
 
-Local Lemma can_step_under_par {A1 A2 A} σ m1 m2 (k : A1 * A2 → micro A) ko :
+Local Lemma can_step_under_par {A1 A2 A} σ m1 m2 (k : A1 * A2 → micro A) z :
   can_step (σ, m1) ∨ can_step (σ, m2) →
-  can_step (σ, Par m1 m2 k ko).
+  can_step (σ, Par m1 m2 k z).
 Proof.
   intros [|]; destruct_can_step; eauto using step_up_to_eq with step.
 Qed.
@@ -381,12 +381,12 @@ Qed.
 (* [Par] can step. *)
 
 Lemma can_step_par :
-  ∀ {A} (m : micro A) {A1 A2} σ m1 m2 (k : A1 * A2 → micro A) ko,
-  m = Par m1 m2 k ko →
+  ∀ {A} (m : micro A) {A1 A2} σ m1 m2 (k : A1 * A2 → micro A) z,
+  m = Par m1 m2 k z →
   can_step (σ, m).
 Proof.
   induction m; try solve [ congruence ].
-  intros A'1 A'2 σ' m'1 m'2 k' ko' Heq.
+  intros A'1 A'2 σ' m'1 m'2 k' z' Heq.
   (* The hypothesis [Heq] is tricky because it involves different types
      on either side. Fortunately, [dependent destruction] is capable
      of deconstructing it for us. Phew! *)
@@ -409,9 +409,9 @@ Global Hint Resolve can_step_par can_step_choose : step.
 
 (* This corresponds to reduction under an evaluation context. *)
 
-Lemma step_try {A B} σ σ' (m m' : micro A) (f : A → micro B) ko :
+Lemma step_try {A B} σ σ' (m m' : micro A) (f : A → micro B) h :
   step (σ, m) (σ', m') →
-  step (σ, try m f ko) (σ', try m' f ko).
+  step (σ, try m f h) (σ', try m' f h).
 Proof.
   inversion 1; subst;
   rewrite ?try_Stop ?try_Par ?try_Choose ?try_crash ?try_try;
@@ -429,9 +429,9 @@ Qed.
 
 (* Corollaries. *)
 
-Lemma can_step_try {A B} σ (m : micro A) (f : A → micro B) ko :
+Lemma can_step_try {A B} σ (m : micro A) (f : A → micro B) h :
   can_step (σ, m) →
-  can_step (σ, try m f ko).
+  can_step (σ, try m f h).
 Proof.
   unfold can_step. intros ([] & Hstep). eauto using step_try.
 Qed.
@@ -445,16 +445,16 @@ Qed.
 
 Global Hint Resolve can_step_try can_step_bind : can_step.
 
-(* If [try m f ko] takes a step, and if [m] can step, then the step taken by
-   [try m f ko] must a step of [m] under the context [try _ f ko]. *)
+(* If [try m f h] takes a step, and if [m] can step, then the step taken by
+   [try m f h] must a step of [m] under the context [try _ f h]. *)
 
 (* In other words, reduction under a context is mandatory: no other reduction
    is possible. *)
 
-Lemma invert_step_try {A B σ} {m : micro A} {f : A → micro B} {ko σ' mm} :
-  step (σ, try m f ko) (σ', mm) →
+Lemma invert_step_try {A B σ} {m : micro A} {f : A → micro B} {h σ' mm} :
+  step (σ, try m f h) (σ', mm) →
   can_step (σ, m) →
-  (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f ko).
+  (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f h).
 Proof.
   destruct m;
   rewrite ?try_ret ?try_Stop ?try_Par ?try_crash;
@@ -491,9 +491,9 @@ Qed.
 
 (* More properties of [is_not_ret]. *)
 
-Lemma is_not_ret_try {A B σ} (m : micro A) (f : A → micro B) ko :
+Lemma is_not_ret_try {A B σ} (m : micro A) (f : A → micro B) h :
   can_step (σ, m) →
-  is_not_ret (try m f ko).
+  is_not_ret (try m f h).
 Proof.
   destruct m; simpl; intros;
   solve [ eauto | exfalso; eauto with invert_can_step ].

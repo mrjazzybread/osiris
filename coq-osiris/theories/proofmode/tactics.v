@@ -72,9 +72,9 @@ Ltac wp_step :=
       tac_change_goal (wp_try _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
       tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) ?k ?ko) _) =>
+  | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) _ _) _) =>
       tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ ?k ?ko) _) =>
+  | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) =>
       tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
@@ -89,12 +89,12 @@ Ltac wp_step :=
 
 Ltac wp_cbn_term m :=
   lazymatch m with
-  | Par ?m1 ?m2 ?k ?ko =>
+  | Par ?m1 ?m2 ?k ?z =>
       let m'1 := wp_cbn_term m1 in
       let m'2 := wp_cbn_term m2 in
-      uconstr:(Par m'1 m'2 k ko)
-  | Stop ?c ?x ?k ?ko =>
-      let x' := eval cbn in x in uconstr:(Stop c x' k ko)
+      uconstr:(Par m'1 m'2 k z)
+  | Stop ?c ?x ?k ?z =>
+      let x' := eval cbn in x in uconstr:(Stop c x' k z)
   | _ => let m' := eval cbn -[encode] in m in uconstr:(m')
   end.
 
@@ -363,9 +363,9 @@ Tactic Notation "oLoopPos" constr(v1) constr(v2) constr(Hinv) "with" constr(Hini
     lazymatch goal with
     | |- environments.envs_entails
            _ $
-           wp _ _ (Stop CLoop (?η, ?x, repr ?i1, repr ?i2, ?e) ?k ?ko) ?φ =>
+           wp _ _ (Stop CLoop (?η, ?x, repr ?i1, repr ?i2, ?e) ?k ?z) ?φ =>
         iApply
-          ((wp_loop_inv_pos NotStuck ⊤ η x v1 v2 e k ko φ Hinv)
+          ((wp_loop_inv_pos NotStuck ⊤ η x v1 v2 e k z φ Hinv)
             with H);
         try lia; try representable
     | _ => fail "[oLoop] can only be applied to terms of the form [WP (Stop CLoop _ _ _) {{ _ }}]"

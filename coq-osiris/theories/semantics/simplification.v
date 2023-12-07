@@ -56,15 +56,15 @@ Local Open Scope nat_scope.
 
 Inductive simp {A : Type} : micro A → micro A → Prop :=
 | SimpEval:
-    ∀ η e k ko,
+    ∀ η e k z,
     simp
-      (Stop CEval (η, e) k ko)
-      (try (eval η e) k ko)
+      (Stop CEval (η, e) k z)
+      (try (eval η e) k z)
 | SimpLoop :
-    ∀ η x i1 i2 e k ko,
+    ∀ η x i1 i2 e k z,
     simp
-      (Stop CLoop (η, x, i1, i2, e) k ko)
-      (try (loop η x i1 i2 e) k ko)
+      (Stop CLoop (η, x, i1, i2, e) k z)
+      (try (loop η x i1 i2 e) k z)
 | SimpChooseAgree :
     ∀ {B} m m1 m2 (k : B → micro A) z,
     simp m1 m →
@@ -73,20 +73,20 @@ Inductive simp {A : Type} : micro A → micro A → Prop :=
       (Choose m1 m2 k z)
       (try m k z)
 | SimpParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k ko,
+    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k z,
     simp
-      (Par (Ret a1) m2 k ko)
-      (try m2 (λ v2, k (a1, v2)) ko)
+      (Par (Ret a1) m2 k z)
+      (try m2 (λ v2, k (a1, v2)) z)
 | SimpParRetRight:
-    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k ko,
+    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k z,
     simp
-      (Par m1 (Ret a2) k ko)
-      (try m1 (λ v1, k (v1, a2)) ko)
+      (Par m1 (Ret a2) k z)
+      (try m1 (λ v1, k (v1, a2)) z)
 | SimpPar:
-    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko,
+    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
     simp m1 m'1 →
     simp m2 m'2 →
-    simp (Par m1 m2 k ko) (Par m'1 m'2 k ko)
+    simp (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SimpReflexive:
     ∀ m,
     simp m m
@@ -124,9 +124,9 @@ Qed.
 
 (* Derived constructors. *)
 
-Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → micro A) ko :
+Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → micro A) z :
   simp
-    (Par (Ret a1) (Ret a2) k ko)
+    (Par (Ret a1) (Ret a2) k z)
     (k (a1, a2)).
 Proof.
   eauto using simp_up_to_eq_right with simp try_ret.
@@ -160,17 +160,17 @@ Qed.
 
 Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
 | SimplifyEval:
-    ∀ n p η e k ko,
+    ∀ n p η e k z,
     p = (η, e) →
     simplify (S n)
-      (Stop CEval p k ko)
-      (try (eval η e) k ko)
+      (Stop CEval p k z)
+      (try (eval η e) k z)
 | SimplifyLoop :
-    ∀ n p η x i1 i2 e k ko,
+    ∀ n p η x i1 i2 e k z,
     p = (η, x, i1, i2, e) →
     simplify (S n)
-      (Stop CLoop p k ko)
-      (try (loop η x i1 i2 e) k ko)
+      (Stop CLoop p k z)
+      (try (loop η x i1 i2 e) k z)
 | SimplifyChooseAgree :
     ∀ {B} n m m1 m2 (k : B → micro A) z,
     simplify n m1 m →
@@ -179,21 +179,21 @@ Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
       (Choose m1 m2 k z)
       (try m k z)
 | SimplifyParRetLeft:
-    ∀ {A1 A2} n (a1 : A1) (m2 : micro A2) k ko,
+    ∀ {A1 A2} n (a1 : A1) (m2 : micro A2) k z,
     simplify (S n)
-      (Par (Ret a1) m2 k ko)
-      (try m2 (λ v2, k (a1, v2)) ko)
+      (Par (Ret a1) m2 k z)
+      (try m2 (λ v2, k (a1, v2)) z)
 | SimplifyParRetRight:
-    ∀ {A1 A2} n (m1 : micro A1) (a2 : A2) k ko,
+    ∀ {A1 A2} n (m1 : micro A1) (a2 : A2) k z,
     simplify (S n)
-      (Par m1 (Ret a2) k ko)
-      (try m1 (λ v1, k (v1, a2)) ko)
+      (Par m1 (Ret a2) k z)
+      (try m1 (λ v1, k (v1, a2)) z)
 | SimplifyPar:
-    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko,
+    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
     S (n1 + n2) ≤ n →
-    simplify n (Par m1 m2 k ko) (Par m'1 m'2 k ko)
+    simplify n (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SimplifyReflexive:
     ∀ n m,
     simplify n m m
@@ -243,17 +243,17 @@ Qed.
 
 (* Simplification is compatible with [try]. *)
 
-Lemma simplify_try {A B} n (m1 m2 : micro A) (f : A → micro B) ko :
+Lemma simplify_try {A B} n (m1 m2 : micro A) (f : A → micro B) h :
   simplify n m1 m2 →
-  simplify n (try m1 f ko) (try m2 f ko).
+  simplify n (try m1 f h) (try m2 f h).
 Proof.
   induction 1; simpl;
   rewrite ?try_try; econstructor; eauto with congruence.
 Qed.
 
-Lemma simp_try {A B} (m1 m2 : micro A) (f : A → micro B) ko :
+Lemma simp_try {A B} (m1 m2 : micro A) (f : A → micro B) h :
   simp m1 m2 →
-  simp (try m1 f ko) (try m2 f ko).
+  simp (try m1 f h) (try m2 f h).
 Proof.
   induction 1; simpl; rewrite ?try_try;
   econstructor; eauto with congruence.
@@ -384,9 +384,9 @@ Local Ltac destruct_nsteps :=
 (* [nsteps step n] is compatible with a [Par] context. *)
 
 Local Lemma nsteps_step_par_left
-  {A1 A2 A} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A) ko :
+  {A1 A2 A} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A) z :
   nsteps step n (σ, m1) (σ', m'1) →
-  nsteps step n (σ, Par m1 m2 k ko) (σ', Par m'1 m2 k ko).
+  nsteps step n (σ, Par m1 m2 k z) (σ', Par m'1 m2 k z).
 Proof.
   (* Massage the goal: *)
   remember (σ, m1) as c. remember (σ', m'1) as c'. intro h.
@@ -397,9 +397,9 @@ Proof.
 Qed.
 
 Local Lemma nsteps_step_par_right
-  {A1 A2 A} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A) ko :
+  {A1 A2 A} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A) z :
   nsteps step n (σ, m2) (σ', m'2) →
-  nsteps step n (σ, Par m1 m2 k ko) (σ', Par m1 m'2 k ko).
+  nsteps step n (σ, Par m1 m2 k z) (σ', Par m1 m'2 k z).
 Proof.
   (* Massage the goal: *)
   remember (σ, m2) as c. remember (σ', m'2) as c'. intro h.
@@ -1115,17 +1115,17 @@ Qed.
 
 Inductive sss {A : Type} : nat → micro A → micro A → Prop :=
 | SssEval:
-    ∀ p η e k ko,
+    ∀ p η e k z,
     p = (η, e) →
     sss 1
-      (Stop CEval p k ko)
-      (try (eval η e) k ko)
+      (Stop CEval p k z)
+      (try (eval η e) k z)
 | SssLoop :
-    ∀ p η x i1 i2 e k ko,
+    ∀ p η x i1 i2 e k z,
     p = (η, x, i1, i2, e) →
     sss 1
-      (Stop CLoop p k ko)
-      (try (loop η x i1 i2 e) k ko)
+      (Stop CLoop p k z)
+      (try (loop η x i1 i2 e) k z)
 | SssChooseAgree :
     ∀ {B} n1 n2 m m1 m2 (k : B → micro A) z,
     sss n1 m1 m →
@@ -1134,21 +1134,21 @@ Inductive sss {A : Type} : nat → micro A → micro A → Prop :=
       (Choose m1 m2 k z)
       (try m k z)
 | SssParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k ko,
+    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k z,
     sss 1
-      (Par (Ret a1) m2 k ko)
-      (try m2 (λ v2, k (a1, v2)) ko)
+      (Par (Ret a1) m2 k z)
+      (try m2 (λ v2, k (a1, v2)) z)
 | SssParRetRight:
-    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k ko,
+    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k z,
     sss 1
-      (Par m1 (Ret a2) k ko)
-      (try m1 (λ v1, k (v1, a2)) ko)
+      (Par m1 (Ret a2) k z)
+      (try m1 (λ v1, k (v1, a2)) z)
 | SssPar:
-    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) ko,
+    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
     sss n1 m1 m'1 →
     sss n2 m2 m'2 →
     n1 + n2 ≤ n →
-    sss n (Par m1 m2 k ko) (Par m'1 m'2 k ko)
+    sss n (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SssReflexive:
     ∀ m,
     sss 1 m m
@@ -1259,7 +1259,7 @@ Qed.
 
 (* The main lemma. *)
 
-(* If [try m m ko] can be simplified to [ret b]
+(* If [try m m h] can be simplified to [ret b]
    via a stack of weight [n],
    then:
    - either [m] can be simplified to [ret a]
@@ -1267,7 +1267,7 @@ Qed.
      [k a] can be simplified to [ret b]
      via a stack of weight [n],
    - or [m] can be simplified to [next]
-     and [ko()] can be simplified to [ret b]
+     and [h()] can be simplified to [ret b]
      via a stack of weight [n].
  *)
 
@@ -1285,11 +1285,11 @@ Qed.
    practice, but we prefer to have a better-behaved language if we can. *)
 
 Lemma invert_stack_try_ret :
-  ∀ n {A B} m (k : A → micro B) ko b,
-  stack n (try m k ko) (ret b) →
+  ∀ n {A B} m (k : A → micro B) h b,
+  stack n (try m k h) (ret b) →
   total m
     (λ a, stack n (k a) (ret b))
-    (stack n (ko()) (ret b)).
+    (stack n (h()) (ret b)).
 Proof.
   induction n as [n IH] using (well_founded_induction lt_wf).
 
@@ -1297,18 +1297,18 @@ Proof.
      conclusion mentions [n] instead of [i]. Also, place the side
      condition [i < n] in the last position. *)
   assert (IHw :
-    ∀ i {A B} m (k : A → micro B) ko b,
-    stack i (try m k ko) (ret b) →
+    ∀ i {A B} m (k : A → micro B) h b,
+    stack i (try m k h) (ret b) →
     i < n →
     total m
       (λ a, stack n (k a) (ret b))
-      (stack n (ko()) (ret b))
+      (stack n (h()) (ret b))
   ).
   { intros. eapply total_consequence; intuition eauto using stack_monotone. }
   clear IH.
 
   (* Now begin the proof. *)
-  intros A B m k ko b.
+  intros A B m k h b.
   intros Hstack.
 
   (* If [m] is [ret a] or [next], then the result is immediate. Treat
@@ -1424,11 +1424,11 @@ Qed.
 
 (* This yields the reciprocal try rule. *)
 
-Lemma invert_simp_try_ret {A B} m (k : A → micro B) ko b :
-  simp (try m k ko) (ret b) →
+Lemma invert_simp_try_ret {A B} m (k : A → micro B) h b :
+  simp (try m k h) (ret b) →
   total m
     (λ a, simp (k a) (ret b))
-    (simp (ko()) (ret b)).
+    (simp (h()) (ret b)).
 Proof.
   intros Hsimp.
   (* Transform [simp _ _] into [sss n _ _] for some unknown [n]. *)

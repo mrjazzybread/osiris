@@ -185,14 +185,13 @@ Qed.
   (* A reasoning rule for [try]. *)
 
   (* Our definition of [WP] forbids [m1] from reducing to [next], so the
-   failure continuation [ko] is dead. Therefore, no proof obligation
-   bears on [ko]. *)
+     handler [h] is dead. Therefore, no proof obligation bears on [h]. *)
 
-  Lemma wp_try {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ko ψ :
+  Lemma wp_try {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) h ψ :
     WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
-    WP (try m1 m2 ko) @ s; E {{ ψ }}.
+    WP (try m1 m2 h) @ s; E {{ ψ }}.
   Proof.
-    iLöb as "IH" forall (m1 m2 ko ψ).
+    iLöb as "IH" forall (m1 m2 h ψ).
     iIntros "Hwp".
     wp_unfold m1.
     wp_case_is_ret m1 Hret.
@@ -208,12 +207,12 @@ Qed.
       intro_state.
       spec_state "Hwp".
       destruct_wp_nonret.
-      (* [try m1 m2 ko] cannot be [ret _]. *)
-      pose proof (is_not_ret_try m1 m2 ko Hcanstep) as ->.
+      (* [try m1 m2 h] cannot be [ret _]. *)
+      pose proof (is_not_ret_try m1 m2 h Hcanstep) as ->.
       iModIntro; construct_wp_nonret.
-      (* We must prove that every reduct of [try m1 m2 ko] is safe. *)
-      (* Because [m1] can step, a reduct of [try m1 m2 ko] must be
-       of the form [try m'1 m2 ko], where [m'1] is a reduct of [m1]. *)
+      (* We must prove that every reduct of [try m1 m2 h] is safe. *)
+      (* Because [m1] can step, a reduct of [try m1 m2 h] must be
+       of the form [try m'1 m2 h], where [m'1] is a reduct of [m1]. *)
       destruct (invert_step_try Hstep Hcanstep) as (m'1 & Hstep' & ->).
       clear Hstep. rename Hstep' into Hstep.
       (* The hypothesis can then be further exploited. *)
@@ -228,10 +227,10 @@ Qed.
    analysis. The scope of the case analysis is then limited to the first
    premise, so the proof of [m2] is not duplicated. *)
 
-  Lemma wp_try_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ko φ ψ :
+  Lemma wp_try_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) h φ ψ :
     WP m1 @ s; E {{ φ }} ⊢
     (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }})-∗
-    WP (try m1 m2 ko) @ s; E {{ ψ }}.
+    WP (try m1 m2 h) @ s; E {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
     iApply wp_try.
@@ -267,7 +266,7 @@ Qed.
 
   (* The parallel composition rule of Separation Logic. *)
 
-  (* To prove that [Par m1 m2 k ko] satisfies [φ], one must provide
+  (* To prove that [Par m1 m2 k z] satisfies [φ], one must provide
      two postconditions [φ1] and [φ2] and *separately* prove that:
      - [m1] satisfies [φ1]
      - [m2] satisfies [φ2]
@@ -280,7 +279,7 @@ Qed.
      We do not want the user to rely on the fact that a join point counts as a
      step. *)
 
-  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → micro A3} {ko φ} φ1 φ2:
+  Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → micro A3} {z φ} φ1 φ2:
     WP m1 @ s ; E {{ φ1 }} ⊢
     WP m2 @ s ; E {{ φ2 }} -∗
     (
@@ -288,7 +287,7 @@ Qed.
         φ1 a1 -∗ φ2 a2 -∗
         WP (k (a1, a2)) @ s; E {{ φ }}
     )
-    -∗ WP (Par m1 m2 k ko) @ s ; E {{ φ }}.
+    -∗ WP (Par m1 m2 k z) @ s ; E {{ φ }}.
   Proof.
     (* We proceed by Löb-Induction after generalizing [m1] and [m2]. *)
     iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hjoin".
@@ -304,7 +303,7 @@ Qed.
        add the modality [ |={E,∅}=> ] in front of the goal. *)
     destruct_step; iMod "Hmod" as "_".
 
-    (* We now examine each of the ways in which [Par m1 m2 k ko] can step. *)
+    (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
 
     { (* Case: [StepParRetRet].
          Both [m1] and [m2] represent values [v1] and [v2]. One can consume [H1]
@@ -361,9 +360,9 @@ Qed.
 
   (* [CEval]. *)
 
-  Lemma wp_eval {A} s E η e (k : val → micro A) ko φ :
+  Lemma wp_eval {A} s E η e (k : val → micro A) z φ :
     ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} ⊢
-    WP (Stop CEval (η, e) k ko) @ s; E {{ φ }}.
+    WP (Stop CEval (η, e) k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
     wp_unfold_head.
@@ -379,9 +378,9 @@ Qed.
 
   (* A special case of the previous lemma for the continuation [ret]. *)
 
-  Lemma wp_eval_ret s E η e ko φ :
+  Lemma wp_eval_ret s E η e z φ :
     ▷ WP (eval η e) @ s; E {{ φ }} ⊢
-    WP (Stop CEval (η, e) ret ko) @ s; E {{ φ }}.
+    WP (Stop CEval (η, e) ret z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
@@ -445,7 +444,7 @@ Qed.
   (* The following lemma is inspired by the corresponding CFML rule. *)
   Lemma wp_loop {A} s E
         (η : env) (x : var) (i1 i2 : int) (e : expr)
-        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ) :
+        (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ) :
     (* If *)
     (▷ (* Either: *)
        if int.lt i2 i1
@@ -462,10 +461,10 @@ Qed.
                   wp s E (
                        Stop CLoop
                             (η, x, int.add i1 int.one, i2, e)
-                            k ko) φ)) ⊢
+                            k z) φ)) ⊢
     (* Then the loop (with the rest of the program as continuation) satisfies
        the postcondition. *)
-    wp s E (Stop CLoop (η, x, i1, i2, e) k ko) φ.
+    wp s E (Stop CLoop (η, x, i1, i2, e) k z) φ.
   Proof.
     iIntros "H".
 
@@ -474,7 +473,7 @@ Qed.
       (* we enter into the WP of the goal, eliminate modalities, use the fact
          that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
          state interp. *)
-      wp_unfold (Stop CLoop (η, x, i1, i2, e) k ko);
+      wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
       intro_state; (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
                     [ set_solver | iModIntro ]);
       construct_wp_nonret; destruct_step;
@@ -515,7 +514,7 @@ Qed.
      statement. *)
   Local Lemma wp_loop_inv_pos_aux {A} s E
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
-        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ)
+        (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -528,7 +527,7 @@ Qed.
                                 (eval (EnvCons x (VInt $ repr i) η) e)
                                 (λ _, Hinv (S i))) -∗
     (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k ko) φ.
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
   Proof.
     generalize dependent i1 ; generalize dependent i2.
     induction n;
@@ -620,7 +619,7 @@ Qed.
   (* TODO unused definition? *)
   Definition wp_loop_inv_pos {A} s E
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
-        (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ)
+        (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -632,23 +631,23 @@ Qed.
                               (eval (EnvCons x (VInt $ repr i) η) e)
                               (λ _, Hinv (S i))) -∗
     (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k ko) φ :=
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
     let n := S (i2 - i1)%nat in
     fun repr1 repr2 Hle =>
-      wp_loop_inv_pos_aux s E η x n i1 i2 e k ko φ Hinv
+      wp_loop_inv_pos_aux s E η x n i1 i2 e k z φ Hinv
                           repr1 repr2 Hle eq_refl.
 
   (* [CAlloc]. *)
 
   (* The standard memory allocation rule of Separation Logic. *)
 
-  Lemma wp_alloc {A} s E v (k : loc → micro A) ko φ :
+  Lemma wp_alloc {A} s E v (k : loc → micro A) z φ :
     ▷ (
         ∀ l,
           mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
           WP (k l) @ s; E {{ φ }}
       ) ⊢
-    WP (Stop CAlloc v k ko) @ s; E {{ φ }}.
+    WP (Stop CAlloc v k z) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     wp_unfold_head.
@@ -671,13 +670,13 @@ Qed.
 
   (* The standard memory write rule of Separation Logic. *)
 
-  Lemma wp_store {A} s E l v v' (k : unit → micro A) ko φ :
+  Lemma wp_store {A} s E l v v' (k : unit → micro A) z φ :
     mapsto l (DfracOwn 1) v ⊢
     ▷ (
         mapsto l (DfracOwn 1) v' -∗
         WP (k tt) @ s; E {{ φ }}
       ) -∗
-    WP (Stop CStore (l, v') k ko) @ s; E {{ φ }}.
+    WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     wp_unfold_head.
@@ -700,13 +699,13 @@ Qed.
 
   (* The standard memory load rule of Separation Logic. *)
 
-  Lemma wp_load {A} s E l v dq (k: val → micro A) ko φ :
+  Lemma wp_load {A} s E l v dq (k: val → micro A) z φ :
     mapsto l dq v ⊢
     ▷ (
         mapsto l dq v -∗
         WP (k v) @ s; E {{ φ }}
       ) -∗
-    WP (Stop CLoad l k ko) @ s; E {{ φ }}.
+    WP (Stop CLoad l k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     wp_unfold_head.
@@ -842,9 +841,9 @@ Qed.
 
   (* For this reason, they should not be used. TODO *)
 
-  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → micro A) ko φ :
+  Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → micro A) z φ :
     WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} ⊢
-    WP (Par (Ret a1) m2 k ko) @ s; E {{ φ }}.
+    WP (Par (Ret a1) m2 k z) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply (wp_simp with "[H]").
@@ -852,9 +851,9 @@ Qed.
     by iApply wp_try.
   Qed.
 
-  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → micro A) ko φ :
+  Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → micro A) z φ :
     WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} ⊢
-    WP (Par m1 (Ret a2) k ko) @ s; E {{ φ }}.
+    WP (Par m1 (Ret a2) k z) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply (wp_simp with "[H]").
@@ -862,9 +861,9 @@ Qed.
     by iApply wp_try.
   Qed.
 
-  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → micro A3) ko φ:
+  Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → micro A3) z φ:
     WP (k (a1, a2)) @ s; E {{ φ }} ⊢
-    WP (Par (ret a1) (ret a2) k ko) @s; E {{ φ }}.
+    WP (Par (ret a1) (ret a2) k z) @s; E {{ φ }}.
   Proof.
     iIntros "H".
     iApply (wp_simp with "[H]").

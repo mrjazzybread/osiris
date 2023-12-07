@@ -42,7 +42,7 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 (* -------------------------------------------------------------------------- *)
 (* Specific cases of the weakest precondition assertions. *)
 
-(* [WP Par m1 m2 k ko @s; E {{ φ }}] is printed as follows (if breaking lines is
+(* [WP Par m1 m2 k z @s; E {{ φ }}] is printed as follows (if breaking lines is
    required):
    [ WP Par
          ( m1 )

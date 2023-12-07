@@ -309,22 +309,22 @@ Qed.
 
 (* If [m1] is safe for [n1] steps and (then, for every result [a])
       [m2 a] is safe for [n2] steps
-   then [try m1 m2 ko] is safe for [min n1 n2] steps.
+   then [try m1 m2 h] is safe for [min n1 n2] steps.
 
    In other words,
    if [m1] is safe for [n] steps and (then, for every result [a])
       [m2 a] is safe for [n] steps
-   then [try m1 m2 ko] is safe for [n] steps.
+   then [try m1 m2 h] is safe for [n] steps.
 
    One cannot expect to obtain safety for [n1+n2] steps. To see this,
    consider the case where [n1] is zero. With no hypothesis at all
    about [m1], one would have to prove that [m2 a] is safe for [n2]
    steps. *)
 
-Lemma initially_safe_try_aux_1 {A B} (m2 : A → micro B) ko :
+Lemma initially_safe_try_aux_1 {A B} (m2 : A → micro B) h :
   ∀ n (m1 : micro A) σ (φ : store → B → Prop),
   initially_safe n (σ, m1) (λ σ' a, initially_safe n (σ', m2 a) φ) →
-  initially_safe n (σ, try m1 m2 ko) φ.
+  initially_safe n (σ, try m1 m2 h) φ.
 Proof.
   induction n; [tauto |].
   intros m1 σ φ Hsafe.
@@ -335,12 +335,12 @@ Proof.
 
   (* Case: [m1] can step. *)
   { rewrite unfold_initially_safe_S. right. split.
-    (* Subgoal: [try m1 m2 ko] can step as well. *)
+    (* Subgoal: [try m1 m2 h] can step as well. *)
     { eauto using can_step_try. }
-    (* Subgoal: every reduct of [try m1 m2 ko] is safe for [n] steps. *)
+    (* Subgoal: every reduct of [try m1 m2 h] is safe for [n] steps. *)
     intros [σ' m'] Hstep.
-    (* Because [m1] can step, a reduct of [try m1 m2 ko] must be of the form
-       [try m'1 m2 ko], where [m'1] is a reduct of [m1]. *)
+    (* Because [m1] can step, a reduct of [try m1 m2 h] must be of the form
+       [try m'1 m2 h], where [m'1] is a reduct of [m1]. *)
     pose proof (invert_step_try Hstep Hcanstep) as (m'1 & Hstep' & ->).
     clear Hstep Hcanstep. rename Hstep' into Hstep.
     specialize (Hsafe _ Hstep). clear Hstep.
