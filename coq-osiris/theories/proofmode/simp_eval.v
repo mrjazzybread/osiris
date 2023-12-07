@@ -72,13 +72,21 @@ Qed.
 
 (* A consequence rule. *)
 
-(* TODO unused, for now *)
 Lemma simp_consequence A (m : micro A) a' a :
   simp m (ret a') →
   a = a' →
   simp m (ret a).
 Proof.
   intros. subst. eauto.
+Qed.
+
+(* Paths. *)
+
+Lemma simp_eval_path η π v :
+  lookup_path η π = ret v →
+  simp (eval η (EPath π)) (ret v).
+Proof.
+  intros Hlookup. simpl. rewrite Hlookup. simp.
 Qed.
 
 (* Integer literals. *)
