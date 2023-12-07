@@ -709,6 +709,10 @@ Fixpoint eval η e : micro val :=
       lookup_path η π
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
+      (* This environment is *not* trimmed so as to keep only the variables
+         that occur free in [a]. Indeed, in OCaml, due to [open], [include]
+         and other constructs, it is not easy to statically compute the set
+         of free variables of an expression. *)
       ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
