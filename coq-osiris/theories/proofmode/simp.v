@@ -127,14 +127,14 @@ Qed.
 
 Lemma advance_SimpEvalNext {A} η e (k : val → micro A) m' :
   simp (bind (eval η e) k) m' →
-  simp (Stop CEval (η, e) k next) m'.
+  simp (Stop CEval (η, e) k propagate) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
 Lemma advance_SimpEvalRetNext η e m' :
   simp (eval η e) m' →
-  simp (Stop CEval (η, e) ret next) m'.
+  simp (Stop CEval (η, e) ret propagate) m'.
 Proof.
   intros. eapply advance_SimpEvalNext. rewrite bind_ret_right. eauto.
 Qed.
@@ -155,7 +155,7 @@ Qed.
 
 Lemma advance_SimpLoopNext {A} η x i1 i2 e (k : val → micro A) m' :
   simp (bind (loop η x i1 i2 e) k) m' →
-  simp (Stop CLoop (η, x, i1, i2, e) k next) m'.
+  simp (Stop CLoop (η, x, i1, i2, e) k propagate) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
@@ -217,14 +217,14 @@ Qed.
 
 Lemma advance_SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) m' :
   simp (v2 ← m2 ; k (a1, v2)) m' →
-  simp (Par (Ret a1) m2 k next) m'.
+  simp (Par (Ret a1) m2 k propagate) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetLeft.
 Qed.
 
 Lemma advance_SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) m' :
   simp (v1 ← m1 ; k (v1, a2)) m' →
-  simp (Par m1 (Ret a2) k next) m'.
+  simp (Par m1 (Ret a2) k propagate) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetRight.
 Qed.
@@ -427,14 +427,14 @@ Qed.
 
 Lemma advance_simp_try_next {A B} (f : A → micro B) ko m' :
   simp (ko()) m' →
-  simp (try Next f ko) m'.
+  simp (try next f ko) m'.
 Proof.
   rewrite try_next. tauto.
 Qed.
 
 Lemma advance_simp_bind_as_try {A B} m (f : A → micro B) m' :
   simp (bind m f) m' →
-  simp (try m f next) m'.
+  simp (try m f propagate) m'.
 Proof.
   rewrite bind_as_try. tauto.
 Qed.

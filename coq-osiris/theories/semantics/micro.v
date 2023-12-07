@@ -105,6 +105,9 @@ Notation crash :=
   (Crash).
 
 Notation next :=
+  (Next).
+
+Notation propagate :=
   (λ tt, Next).
 
 (* [stop c x] stops, and, once restarted, behaves like the computation
@@ -113,19 +116,19 @@ Notation next :=
    posteriori (step.v). *)
 
 Definition stop {X Y} (c : code X Y) x : micro Y :=
-  (Stop c x ret next).
+  (Stop c x ret propagate).
 
 (* [par m1 m2] runs the computations [m1] and [m2] in parallel,
    producing a pair of results. *)
 
 Definition par {A1 A2} (m1 : micro A1) (m2 : micro A2) : micro (A1 * A2) :=
-  Par m1 m2 ret next.
+  Par m1 m2 ret propagate.
 
 (* [choose m1 m2] performs a non-deterministic choice between [m1] and
    [m2] and runs the chosen computation, producing a single result. *)
 
 Definition choose {A} (m1 m2 : micro A) : micro A :=
-  Choose m1 m2 ret next.
+  Choose m1 m2 ret propagate.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -200,7 +203,7 @@ Definition orelse {A} (m1 m2 : micro A) : micro A :=
 
 Lemma bind_as_try {A B} (m : micro A) (f : A → micro B) :
   bind m f =
-  try m f next.
+  try m f propagate.
 Proof.
   induction m; try solve [
     reflexivity
@@ -363,7 +366,7 @@ Qed.
 
 Lemma try_ret_right :
   ∀ {A} (m : micro A),
-  try m Ret next = m.
+  try m Ret propagate = m.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.

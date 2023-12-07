@@ -134,7 +134,7 @@ Qed.
 
 Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) :
   simp
-    (Par (Ret a1) m2 k next)
+    (Par (Ret a1) m2 k propagate)
     (v2 ← m2 ; k (a1, v2)).
 Proof.
   eauto using simp_up_to_eq_right with simp bind_as_try.
@@ -142,7 +142,7 @@ Qed.
 
 Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) :
   simp
-    (Par m1 (Ret a2) k next)
+    (Par m1 (Ret a2) k propagate)
     (v1 ← m1 ; k (v1, a2)).
 Proof.
   eauto using simp_up_to_eq_right with simp bind_as_try.
@@ -314,15 +314,15 @@ Qed.
 (* [Next] cannot be simplified. *)
 
 Lemma destruct_simplify_next {A} n (m2 : micro A) :
-  simplify n Next m2 →
-  m2 = Next.
+  simplify n next m2 →
+  m2 = next.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
 Lemma destruct_simp_next {A} (m2 : micro A) :
-  simp Next m2 →
-  m2 = Next.
+  simp next m2 →
+  m2 = next.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
@@ -333,14 +333,14 @@ Ltac clarify_simplify :=
   repeat match goal with
   | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
   | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
-  | h: simplify _ Next ?m |- _ => apply destruct_simplify_next in h
+  | h: simplify _ next ?m |- _ => apply destruct_simplify_next in h
   end; simplify_eq.
 
 Ltac clarify_simp :=
   repeat match goal with
   | h: simp (ret _) ?m |- _ => apply destruct_simp_ret in h
   | h: simp crash ?m |- _ => apply destruct_simp_crash in h
-  | h: simp Next ?m |- _ => apply destruct_simp_next in h
+  | h: simp next ?m |- _ => apply destruct_simp_next in h
   end; simplify_eq.
 
 (* -------------------------------------------------------------------------- *)
@@ -602,7 +602,7 @@ Lemma invert_simplify_can_step {A} n (m1 m2 : micro A) σ :
   can_step (σ, m2) →
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [Ret] and [Crash] and [Next], and
+  (* The only terms that cannot step are [ret] and [crash] and [next], and
      these terms cannot appear on the left-hand side of [simplify], so the
      proof is trivial. *)
   induction 1; eauto with step.
@@ -617,7 +617,7 @@ Lemma invert_simplify_ret {A} n (m1 : micro A) a2 σ :
   is_ret m1 = None →
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [Ret] and [Crash] and [Next], and
+  (* The only terms that cannot step are [ret] and [crash] and [next], and
      these terms cannot appear on the left-hand side of [simplify], so the
      proof is almost trivial. Only [SimplifyTransitive] requires work. *)
   intro h; dependent induction h; intros; simpl in *;
@@ -779,15 +779,15 @@ Global Instance TC_transitivity_simp {A} : Transitive (@simp A) :=
    about terminating expressions only; it is a logic of total correctness. *)
 
 (* This Hoare logic can reason both about expressions that terminate normally
-   and about expressions that raise the exception [Next]. *)
+   and about expressions that raise the exception [next]. *)
 
 (* The judgement [total m φ ψ] means that either [m] terminates and produces
-   a result [a] that satisfies the postcondition [φ], or [m] raises [Next],
+   a result [a] that satisfies the postcondition [φ], or [m] raises [next],
    in which case [ψ] is satisfied. *)
 
 Definition total {A} m (φ : A → Prop) ψ :=
   (∃ a, simp m (ret a) ∧ φ a) ∨
-  (simp m Next ∧ ψ).
+  (simp m next ∧ ψ).
 
 (* The judgement [totalv m φ] is the special case where [ψ] is [False]. It
    means that [m] must terminate and produce a result [a] such that [φ a]
@@ -818,11 +818,11 @@ Proof.
   intros. left. eauto with simp.
 Qed.
 
-(* The reasoning rule for [Next]. *)
+(* The reasoning rule for [next]. *)
 
-Lemma total_Next {A} (φ : A → Prop) (ψ : Prop) :
+Lemma total_next {A} (φ : A → Prop) (ψ : Prop) :
   ψ →
-  total Next φ ψ.
+  total next φ ψ.
 Proof.
   intros. right. eauto with simp.
 Qed.
@@ -882,7 +882,7 @@ Lemma total_bind {A B} m f (φ : B → Prop) (φ' : A → Prop) (ψ : Prop) :
   (∀ a, φ' a → total (f a) φ ψ) →
   total (bind m f) φ ψ.
 Proof.
-  rewrite bind_as_try. eauto using total_try, total_Next.
+  rewrite bind_as_try. eauto using total_try, total_next.
 Qed.
 
 Lemma total_bind_unary {A B} m f (φ : B → Prop) (ψ : Prop) :
@@ -895,8 +895,8 @@ Qed.
 (* A reasoning rule for [par]. *)
 
 (* This rule is limited to the case where [ψ] is [False] because dealing with
-   arbitrary [ψ] would require the ability to simplify [Par Next Next _ _]
-   into [Next]. The relation [simp] currently does not allow this. *)
+   arbitrary [ψ] would require the ability to simplify [Par next next _ _]
+   into [next]. The relation [simp] currently does not allow this. *)
 
 Lemma total_par {A1 A2} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
   let ψ := False in
@@ -960,10 +960,10 @@ Proof.
     (* Because [simp _ (ret _)] is confluent, [a] and [a'] must be equal. *)
     { simp_ret_confluent. congruence. }
     (* Because [simp _ _] is confluent, [m] cannot be simplified both to
-       [ret _] and [Next]. So, this subcase is impossible. *)
+       [ret _] and [next]. So, this subcase is impossible. *)
     { exfalso. simp_confluent; intros (m' & h1 & h2). clarify_simp. }
   }
-  (* Case: [m] can be simplified to [Next]. *)
+  (* Case: [m] can be simplified to [next]. *)
   { right. eauto. }
 Qed.
 
@@ -1029,7 +1029,7 @@ Qed.
 
 (* A reasoning rule for [try]. *)
 
-(* The rule is degenerate; [m] is not allowed to reduce to [Next],
+(* The rule is degenerate; [m] is not allowed to reduce to [next],
    so the handler [g] is dead and no proof obligation bears on it. *)
 
 Lemma totalv_try {A B} m f g (φ : B → Prop) (φ' : A → Prop) :
@@ -1266,7 +1266,7 @@ Qed.
      for some [a] such that
      [k a] can be simplified to [ret b]
      via a stack of weight [n],
-   - or [m] can be simplified to [Next]
+   - or [m] can be simplified to [next]
      and [ko()] can be simplified to [ret b]
      via a stack of weight [n].
  *)
@@ -1311,15 +1311,15 @@ Proof.
   intros A B m k ko b.
   intros Hstack.
 
-  (* If [m] is [ret a] or [Next], then the result is immediate. Treat
+  (* If [m] is [ret a] or [next], then the result is immediate. Treat
      these two cases now, so as to avoid treating them several times
      later on. *)
-  destruct (ret_or_next_or_else m) as [ (a & ?) | [ ? | (Hret & HNext) ]].
+  destruct (ret_or_next_or_else m) as [ (a & ?) | [ ? | (Hret & Hnext) ]].
   (* Case: [m] is [ret a]. *)
   { subst m. rewrite try_ret in Hstack. eapply total_ret. eauto. }
-  (* Case: [m] is [Next]. *)
-  { subst m. rewrite try_next in Hstack. eapply total_Next. eauto. }
-  (* We can now assume that [m] is neither [ret _] nor [Next]. *)
+  (* Case: [m] is [next]. *)
+  { subst m. rewrite try_next in Hstack. eapply total_next. eauto. }
+  (* We can now assume that [m] is neither [ret _] nor [next]. *)
 
   (* Is the stack empty? *)
   dependent destruction Hstack.
@@ -1331,7 +1331,7 @@ Proof.
   (* Subcase: [SssEval]. *)
   { subst p.
     (* [m] is [Stop CEval _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret HNext.
+    invert_try_eq_stop. subst m. clear Hret Hnext.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpEval |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1347,7 +1347,7 @@ Proof.
   (* Subcase: [SssLoop]. *)
   { subst p.
     (* [m] is [Stop Loop _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret HNext.
+    invert_try_eq_stop. subst m. clear Hret Hnext.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpLoop |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1363,7 +1363,7 @@ Proof.
   (* Subcase: [SssChoose]. *)
   {
     (* [m] is [Choose m1 m2 _ _]. *)
-    invert_try_eq_choose. subst m. clear Hret HNext.
+    invert_try_eq_choose. subst m. clear Hret Hnext.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpChooseAgree; eauto using sss_simp |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1375,7 +1375,7 @@ Proof.
   (* Subcase: [SssParRetLeft]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret HNext.
+    invert_try_eq_par. subst m. clear Hret Hnext.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetLeft |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1387,7 +1387,7 @@ Proof.
   (* Subcase: [SssParRetRight]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret HNext.
+    invert_try_eq_par. subst m. clear Hret Hnext.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetRight |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1399,7 +1399,7 @@ Proof.
   (* Subcase: [SssPar]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret HNext.
+    invert_try_eq_par. subst m. clear Hret Hnext.
     (* Change [m1] to [m'1] and [m2] to [m'2] in the goal. *)
     eapply total_simp.
     { eapply SimpPar; eapply sss_simp; eauto. }
@@ -1456,7 +1456,7 @@ Proof.
   eapply total_consequence.
   { eauto using invert_simp_try_ret. }
   { eauto. }
-  (* There remains to argue that [Next] cannot reduce to [ret _]. *)
+  (* There remains to argue that [next] cannot reduce to [ret _]. *)
   { simpl. intros. clarify_simp. }
 Qed.
 

@@ -1,4 +1,3 @@
-From Coq.Logic Require Import FunctionalExtensionality.
 From iris.prelude Require Import options.
 From iris.bi Require Import weakestpre.
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
@@ -152,7 +151,7 @@ Section Rules.
 
   Lemma invert_wp_next {A s E φ} :
     ∀ σ, state_interp σ -∗
-         WP (@Next A) @ s; E {{ φ }} -∗
+         WP (@next A) @ s; E {{ φ }} -∗
          |={E}=> False.
   Proof.
     intro_state. iIntros "Hwp".
@@ -185,7 +184,7 @@ Qed.
 
   (* A reasoning rule for [try]. *)
 
-  (* Our definition of [WP] forbids [m1] from reducing to [Next], so the
+  (* Our definition of [WP] forbids [m1] from reducing to [next], so the
    failure continuation [ko] is dead. Therefore, no proof obligation
    bears on [ko]. *)
 
@@ -326,7 +325,7 @@ Qed.
       iApply ("Hjoin" with "H1 H2"). }
 
     (* In the four following cases, one of the branches of the [Par] is either a
-       [Crash] or a [Next]. Hence, one can consume the corresponding [WP]
+       [crash] or a [next]. Hence, one can consume the corresponding [WP]
        hypothesis to get [ |={E}=> False ]. As the goal is of the form
        [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
        Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
@@ -441,6 +440,8 @@ Qed.
 
   (* The following lemmas help reason on loops. *)
 
+  (* TODO these proofs need cleaning up *)
+
   (* The following lemma is inspired by the corresponding CFML rule. *)
   Lemma wp_loop {A} s E
         (η : env) (x : var) (i1 i2 : int) (e : expr)
@@ -486,22 +487,14 @@ Qed.
          the proof. *)
       iApply wp_try; iApply wp_ret; iApply "H". }
 
-    { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _].
-         In order to be able to use the hypothesis, it is important to replace
-         the [Stop _ _ ret next] by [Stop _ _ k ko] by pushing the try in the
-         bind, and the stop. *)
+    { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _]. *)
       rewrite try_bind. (* <- push the [try] in the [bind]. *)
 
       (* use the hypothesis about the behavior of the body of the loop. *)
       iApply (wp_try_binary with "H").
       iIntros(_) "H".
 
-      rewrite try_Stop. (* <- push the [try] in the [Stop]. *)
-      change (λ y : val, try (ret y) k ko) with k.
-      change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
-      assert ((λ _ : (), ko ()) = ko) as ->; last iExact "H".
-      (* Is it possible to get a proof without functional extentionality?  *)
-      extensionality v; destruct v; reflexivity. }
+      rewrite try_stop. iAssumption. }
   Qed.
 
   (* [wp_loop_inv_pos_aux] is a helper lemma to prove that:
@@ -597,11 +590,7 @@ Qed.
         replace (add (repr i1) int.one) with (repr (S i1)); last first.
         { rewrite add_repr_repr. f_equal. lia. }
 
-        rewrite try_Stop.
-        change (λ y : val, try (ret y) k ko) with k.
-        change (λ _ : (), try Next k ko) with (λ _ : (), ko ()).
-        assert ((λ _ : (), ko ()) = ko) as ->; last iExact "IH".
-        extensionality v; destruct v; reflexivity. } }
+        rewrite try_stop. iAssumption. } }
 
     { (* Last run of the loop. *)
       iApply wp_try.
@@ -616,7 +605,7 @@ Qed.
       assert (Hlt: lt (repr i2) (add (repr i2) int.one) = true).
       { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
 
-      wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret next).
+      wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret propagate).
       intro_state.
       iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; [ set_solver | iModIntro ].
       construct_wp_nonret; destruct_step.
@@ -627,6 +616,8 @@ Qed.
       do 2 iApply wp_ret.
       iExact "Hccl". }
   Qed.
+
+  (* TODO unused definition? *)
   Definition wp_loop_inv_pos {A} s E
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
         (k : val → micro A) (ko : unit → micro A) (φ : A → iProp Σ)
