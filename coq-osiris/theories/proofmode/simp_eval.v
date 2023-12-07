@@ -89,6 +89,43 @@ Proof.
   intros Hlookup. simpl. rewrite Hlookup. simp.
 Qed.
 
+(* Tuples. *)
+
+(* This lemma is general. *)
+
+Lemma simp_evals η :
+  ∀ es vs,
+  ForallEV (λ e v, simp (eval η e) (ret v)) es vs →
+  simp (evals η es) (ret vs).
+Proof.
+  induction 1; simpl; simp. (* nice and sweet! *)
+Qed.
+
+(* This lemma is general but does not mention the encoding function,
+   because we do not currently have a general definition of the
+   encoding of n-tuples. *)
+
+(* TODO can we give a generic definition of the encoding of n-tuples? *)
+
+Lemma simp_eval_tuple η es vs :
+  ForallEV (λ e v, simp (eval η e) (ret v)) es vs →
+  simp (eval η (ETuple es)) (ret (VTuple vs)).
+Proof.
+  intros H. apply simp_evals in H. simp.
+Qed.
+
+(* This special case at arity 2 does mention the encoding function. *)
+
+(* TODO can we give a similar lemma at arity [n]? *)
+
+Lemma simp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
+  simp (eval η e1) (ret #a1) →
+  simp (eval η e2) (ret #a2) →
+  simp (eval η (EPair e1 e2)) (ret #(a1, a2)).
+Proof.
+  intros. simp. (* wow *)
+Qed.
+
 (* Integer literals. *)
 
 Lemma simp_eval_int η (z : Z) :
@@ -233,6 +270,25 @@ Local Opaque eval as_bool.
 (* This hint is used in the proofs that follow. *)
 
 Local Hint Unfold pure : core.
+
+(* Tuples. *)
+
+(* A special case at arity 2. *)
+
+(* TODO can we give a similar lemma at arity [n]? *)
+
+Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2
+  (φ1 : A1 → Prop) (φ2 : A2 → Prop) (ψ : A1 * A2 → Prop)
+:
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → ψ (a1, a2)) →
+  pure (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a2. destruct_pure a1.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
 
 (* Function applications. *)
 

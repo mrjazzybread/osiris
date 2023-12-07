@@ -446,3 +446,15 @@ Notation VFalse :=
 
 Notation VTrue :=
   (VConstant "true").
+
+(* ------------------------------------------------------------------------ *)
+
+(* Some ad hoc predicates on ad hoc lists. *)
+
+Inductive ForallEV (P : expr → val → Prop) : exprs → vals → Prop :=
+| ForallEVNil :
+    ForallEV P ENil VNil
+| ForallEVCons e v es vs :
+    P e v →
+    ForallEV P es vs →
+    ForallEV P (ECons e es) (VCons v vs).
