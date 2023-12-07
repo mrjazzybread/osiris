@@ -204,12 +204,6 @@
     [ {[ x := v ; ... ; z := w ]} ] ;
   - values should be hidden in other environments.
 
-* [Tested and Removed]
-  Write an equivalent of [inG] for environments to declare what should initially
-  be in environments in which module-expressions are evaluated.
-  It was not better that having an environment variable in the context together
-  with axioms about it.
-
 ## Semantics
 
 * Can we (and should we) prove that our formulation of the semantics
