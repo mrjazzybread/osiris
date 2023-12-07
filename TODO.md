@@ -46,6 +46,13 @@
 
 ## Engineering and proof mode
 
+* Probably we should use `set` every time we extend the environment,
+  so the environment in the goal is always a name and never an explicit list.
+
+* If we decide to keep decorations, then the tactic `simp` should be
+  modified to unfold a decoration at the root if it can make progress
+  afterwards.
+
 * Module paths whose specification is known are currently simplified by [simp].
   However, it required to alter [simp1_inspect]. Replace this hack by hints.
 
