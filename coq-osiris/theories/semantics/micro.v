@@ -72,21 +72,26 @@ Inductive micro A :=
   | Crash
   | Next
   | Stop {X Y}
-      (c : code X Y) (x : X) (k : Y → micro A) (ko : unit → micro A)
+      (c : code X Y) (x : X)
+      (k : Y → micro A)
+      (ko : unit → micro A)
   | Par {A1 A2}
       (m1 : micro A1) (m2 : micro A2)
       (k : A1 * A2 → micro A)
       (ko : unit → micro A)
-  | Choose {B} (m1 m2 : micro B) (k : B → micro A) (z : unit → micro A)
+  | Choose {B}
+      (m1 m2 : micro B)
+      (k : B → micro A)
+      (z : unit → micro A)
 .
 
 (* Make [A] an implicit argument of the constructors. *)
 
-Arguments Ret  {A}.
-Arguments Crash {A}.
-Arguments Next {A}.
-Arguments Stop {A X Y} c x k ko.
-Arguments Par  {A A1 A2} m1 m2 k ko.
+Arguments Ret    {A}.
+Arguments Crash  {A}.
+Arguments Next   {A}.
+Arguments Stop   {A X Y} c x k ko.
+Arguments Par    {A A1 A2} m1 m2 k ko.
 Arguments Choose {A B} m1 m2 k z.
 
 (* ------------------------------------------------------------------------ *)
