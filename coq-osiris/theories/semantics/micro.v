@@ -26,9 +26,9 @@ Import C. (* We write [code] for [C.code]. *)
 
    [return] and [bind] have their usual meaning.
 
-   [try m f g] runs the computation [m]. If [m] returns a result [v], then the
-   computation [f v] is executed. If [m] ends with a soft failure [next], then
-   the computation [g()] is executed.
+   [try m f h] runs the computation [m]. If [m] returns a result [a] then the
+   computation [f a] is executed. If [m] ends with a soft failure [next], then
+   the computation [h()] is executed.
 
    [crash] is a hard failure. It represents a crash and cannot be caught.
 
@@ -160,33 +160,34 @@ Fixpoint bind {A B} (m : micro A) (f : A → micro B) : micro B :=
 
 Global Arguments bind A B !m f : simpl nomatch.
 
-(* [try m f g] runs the computation [m]. If [m] returns a result [v], then
-   [f v] is executed. If [m] ends with a soft failure [Next], then [g()] is
-   executed. *)
+(* [try m h g] runs the computation [m]. If [m] returns a result [a] then the
+   computation [f a] is executed. If [m] ends with a soft failure [next] then
+   the computation [h()] is executed. *)
 
-(* [g] must have type [unit → mon B], as opposed to just [mon B], because
-   we execute monadic computations (in Coq) using call-by-value evaluation
-   and we do not want to evaluate ALL branches in a [match] construct. *)
+(* [h] must have type [unit → micro B], as opposed to just [micro B], because
+   we may wish to execute monadic computations (in Coq) using call-by-value
+   evaluation and we do not want to evaluate *both* branches in a [try]
+   construct. *)
 
-Fixpoint try {A B} (m : micro A) (f : A → micro B) (g : unit → micro B) : micro B :=
+Fixpoint try {A B} (m : micro A) (f : A → micro B) (h : unit → micro B) : micro B :=
   match m with
   | Ret a =>
       f a
   | Crash =>
       Crash
   | Next =>
-      (* A soft failure is handled by [g]. *)
-      g()
+      (* A soft failure is handled by [h]. *)
+      h()
   | Stop c x k ko =>
-      (* A [Stop] effect is transmitted. The handler [try _ f g] remains
+      (* A [Stop] effect is transmitted. The handler [try _ f h] remains
          installed on top of the continuations. *)
-      Stop c x (λ y, try (k y) f g) (λ y, try (ko y) f g)
+      Stop c x (λ y, try (k y) f h) (λ y, try (ko y) f h)
   | Par m1 m2 k ko =>
-      (* Same here. The handler [try _ f g] remains installed on top of
+      (* Same here. The handler [try _ f h] remains installed on top of
          both continuations. *)
-      Par m1 m2 (λ y, try (k y) f g) (λ y, try (ko y) f g)
+      Par m1 m2 (λ y, try (k y) f h) (λ y, try (ko y) f h)
   | Choose m1 m2 k z =>
-      Choose m1 m2 (λ y, try (k y) f g) (λ y, try (z y) f g)
+      Choose m1 m2 (λ y, try (k y) f h) (λ y, try (z y) f h)
   end.
 
 (* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
@@ -217,22 +218,22 @@ Global Hint Extern 1 (_ = _) => rewrite bind_as_try : bind_as_try.
 (* Paraphrase lemmas. *)
 
 Lemma bind_ret {A B} (a : A) (f : A → micro B) :
-  bind (Ret a) f =
+  bind (ret a) f =
   f a.
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_crash {A B} (f : A → micro B) :
-  bind Crash f =
-  Crash.
+  bind crash f =
+  crash.
 Proof.
   reflexivity.
 Qed.
 
 Lemma bind_next {A B} (f : A → micro B) :
-  bind Next f =
-  Next.
+  bind next f =
+  next.
 Proof.
   reflexivity.
 Qed.
@@ -261,21 +262,21 @@ Qed.
 (* Analogous laws for [try]. *)
 
 Lemma try_ret {A B} (a : A) (f : A → micro B) (ko : unit → micro B) :
-  try (Ret a) f ko =
+  try (ret a) f ko =
   f a.
 Proof.
   reflexivity.
 Qed.
 
 Lemma try_crash {A B} (f : A → micro B) (ko : unit → micro B) :
-  try Crash f ko =
-  Crash.
+  try crash f ko =
+  crash.
 Proof.
   reflexivity.
 Qed.
 
 Lemma try_next {A B} (f : A → micro B) (ko : unit → micro B) :
-  try Next f ko =
+  try next f ko =
   ko().
 Proof.
   reflexivity.
@@ -359,14 +360,14 @@ Local Hint Resolve eq_stop_stop eq_par_par eq_choose_choose : eq.
 
 Lemma bind_ret_right :
   ∀ {A} (m : micro A),
-  bind m Ret = m.
+  bind m ret = m.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
 Lemma try_ret_right :
   ∀ {A} (m : micro A),
-  try m Ret propagate = m.
+  try m ret propagate = m.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
@@ -378,23 +379,23 @@ Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma bind_try {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko :
-  bind (try m f ko) g =
-  try m (λ a, bind (f a) g) (λ y, bind (ko y) g).
+Lemma bind_try {A B C} (m : micro A) (f : A → micro B) (h : B → micro C) ko :
+  bind (try m f ko) h =
+  try m (λ a, bind (f a) h) (λ y, bind (ko y) h).
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma try_bind {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko :
-  try (bind m f) g ko =
-  try m (λ y, try (f y) g ko) ko.
+Lemma try_bind {A B C} (m : micro A) (f : A → micro B) (k : B → micro C) ko :
+  try (bind m f) k ko =
+  try m (λ y, try (f y) k ko) ko.
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma try_try {A B C} (m : micro A) (f : A → micro B) (g : B → micro C) ko ko' :
-  try (try m f ko) g ko' =
-  try m (λ y, try (f y) g ko') (λ y, try (ko y) g ko').
+Lemma try_try {A B C} (m : micro A) (f : A → micro B) (k : B → micro C) h z :
+  try (try m f h) k z =
+  try m (λ y, try (f y) k z) (λ y, try (h y) k z).
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
@@ -435,8 +436,8 @@ Qed.
 
 Lemma ret_or_next_or_else {A} (m : micro A) :
   (∃ a, m = ret a) ∨
-  (m = Next) ∨
-  ((∀ a, m = ret a → False) ∧ (m = Next → False)).
+  (m = next) ∨
+  ((∀ a, m = ret a → False) ∧ (m = next → False)).
 Proof.
   destruct m; try solve [ eauto | right; right; split; congruence ].
 Qed.
@@ -455,7 +456,7 @@ Qed.
 Lemma invert_try_eq_ret {A B m} {k : A → micro B} {ko b} :
   try m k ko = ret b →
   (∀ a, m = ret a → False) →
-  (m = Next → False) →
+  (m = next → False) →
   False.
 Proof.
   destruct m; simpl; congruence.
@@ -466,7 +467,7 @@ Lemma invert_try_eq_stop
   {X Y} {c : code X Y} {x k ko} :
   try m f g = Stop c x k ko →
   (∀ a, m = ret a → False) →
-  (m = Next → False) →
+  (m = next → False) →
   ∃ k' ko',
   m = Stop c x k' ko' ∧
   k = (λ y, try (k' y) f g) ∧
@@ -495,7 +496,7 @@ Lemma invert_try_eq_par {A A1 A2 B}
 :
   try m f g = Par m1 m2 k ko →
   (∀ a, m = ret a → False) →
-  (m = Next → False) →
+  (m = next → False) →
   ∃ k' ko',
   m = Par m1 m2 k' ko' ∧
   k = (λ y, try (k' y) f g) ∧
@@ -524,7 +525,7 @@ Lemma invert_try_eq_choose {A B C}
 :
   try m f g = Choose m1 m2 k ko →
   (∀ a, m = ret a → False) →
-  (m = Next → False) →
+  (m = next → False) →
   ∃ k' ko',
   m = Choose m1 m2 k' ko' ∧
   k = (λ y, try (k' y) f g) ∧
