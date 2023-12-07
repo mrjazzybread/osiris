@@ -214,6 +214,13 @@
 
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
+
+  We certainly cannot easily prove an equivalence with a substitution
+  semantics, because we cannot define a substitution semantics in the
+  first place. Due to `open` and `include`, we cannot define sensible
+  notions of "free variables" or "capture-avoiding substitution". So,
+  we must use delayed substitutions, or equivalently, environments.
+
   We should also prove that each ample step corresponds to a bounded
   number of small steps (where the bound may depend on the source
   code of the program) (giving formal meaning to this claim requires
