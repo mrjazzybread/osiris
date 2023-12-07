@@ -22,42 +22,50 @@ Import C. (* We write [code] for [C.code]. *)
 
 (* ------------------------------------------------------------------------ *)
 
-(* The custom constructors of this micro monad are:
+(* The abstract API of this micro monad is as follows:
 
-   - [Crash], a hard failure, which represents a crash and cannot be
-     caught;
+   [return] and [bind] have their usual meaning.
 
-   - [Next], a soft failure, which can be caught by a [try]
-     combinator;
+   [try m f g] runs the computation [m]. If [m] returns a result [v], then the
+   computation [f v] is executed. If [m] ends with a soft failure [next], then
+   the computation [g()] is executed.
 
-   - [Stop c x k ko], a request to evaluate a computation whose code is
-     [c], with argument [x], producing either a normal result, which the
-     success continuation [k] consumes, or [Next], in which case the
-     failure continuation [ko] is invoked;
+   [crash] is a hard failure. It represents a crash and cannot be caught.
 
-   - [Par m1 m2 k ko], a parallel evaluation construct, which
-     evaluates [m1] and [m2] independently. If both computations
-     succeed and return two results [v1] and [v2], then the
-     continuation [k] is applied to the pair [(v1, v2)]. If either
-     computation causes a hard failure, this hard failure is
-     transmitted upwards. If either computation causes a soft failure,
-     then the failure continuation [ko] is invoked.
+   [next] is a soft failure. One can think of it as an exception. It can be
+   caught and handled using [try].
 
-   - [Choose m1 m2 k ko], a non-deterministic choice between
-     the computations `m1` and `m2`. One of them is executed; the other
-     is discarded. The success and failure continuations `k` and `ko`
-     indicate how to continue after executing `m1` or `m2`.
+   [stop c x] is a "system call", that is, a request for an external service.
+   The code (i.e., the name) of the system call is [c] and its argument is
+   [x]. The code [c] has type [code X Y], for some types [X] and [Y]. The
+   parameter [x] has type [X], and the result of the system call has type [Y].
+   Throughout this file, the type family [code] is a parameter.
 
-   The code [c] carried in [Stop c x k ko] has type [code X Y], for some
-   types [X] and [Y]. The parameter [x] has type [X], and the
-   continuation [k] expects a value of type [Y]. Throughout this file,
-   the type family [code] is a parameter. The constructor [Stop] is
-   similar to the constructor [Vis] of interaction trees, and the type
-   code is similar to an effect signature [E].
+   [par m1 m2] is a parallel evaluation construct. It evaluates [m1] and [m2]
+   independently and in parallel. If the two computations have side effects
+   (via system calls) then these effects are interleaved in a nondeterministic
+   manner. If both computations succeed and return two results [v1] and [v2],
+   then [par m1 m2] returns the pair [(v1, v2)]. If either computation
+   crashes, then [par m1 m2] crashes. transmitted upwards. If either
+   computation raises an exception, then [par m1 m2] raises an exception as
+   well.
 
-   The type [micro A] is inductive: every computation terminates.
-   Non-terminating computations can be represented, but must
-   (infinitely often) pause by performing a [Stop] effect. *)
+   [choose m1 m2] is a non-deterministic choice between the computations [m1]
+   and [m2]. One of them is executed; the other is discarded. *)
+
+(* The type [micro A] is inductive: every computation terminates.
+   Non-terminating computations can be represented, but must (infinitely
+   often) pause by performing a [stop] effect. *)
+
+(* Internally, [bind] is just a special case of [try], and [try] itself is not
+   a constructor; instead, the constructors [Stop], [Par] and [Choose] contain
+   a built-in [try], with two continuations: a normal continuation [k] and an
+   exceptional continuation [ko]. This can be viewed as an implementation
+   detail, but this information does leak if one lets Coq reduce computations
+   to a normal form. *)
+
+(* The constructor [Stop] is similar to the constructor [Vis] of interaction
+   trees. The type code is similar to an effect signature [E]. *)
 
 Inductive micro A :=
   | Ret (a : A)
