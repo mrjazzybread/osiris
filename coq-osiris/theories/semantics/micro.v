@@ -46,9 +46,9 @@ Import C. (* We write [code] for [C.code]. *)
    (via system calls) then these effects are interleaved in a nondeterministic
    manner. If both computations succeed and return two results [v1] and [v2],
    then [par m1 m2] returns the pair [(v1, v2)]. If either computation
-   crashes, then [par m1 m2] crashes. transmitted upwards. If either
-   computation raises an exception, then [par m1 m2] raises an exception as
-   well.
+   crashes, then [par m1 m2] crashes. If either computation raises an
+   exception, then [par m1 m2] raises this exception is transmitted
+   upwards.
 
    [choose m1 m2] is a non-deterministic choice between the computations [m1]
    and [m2]. One of them is executed; the other is discarded. *)
