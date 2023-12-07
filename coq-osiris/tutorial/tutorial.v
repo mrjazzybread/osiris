@@ -65,7 +65,7 @@ At this time, expressions include:
 * Loops (:code:`while`, :code:`for`);
 * Runtime assertions (:code:`assert`).
 
-These expressions are automatically generated from an OCaml untyped parse tree.
+These expressions are automatically generated from an OCaml parse tree.
 |*)
 
 (*|
@@ -269,13 +269,15 @@ This can be observed by asking Coq to evaluate the OCaml expression
 `24 + 18`:
 |*)
 
+Transparent eval. (* .none *)
 Eval cbn in (eval ε add_24_plus_18). (* .unfold *)
+Opaque eval. (* .none *)
 
 (*|
 The interpreter hits a `Par` combinator whose branches are
-`ret (int.repr 24)` and `ret (int.repr 18)`
+`ret (repr 24)` and `ret (repr 18)`
 and whose continuation is
-`(λ '(i1, i2), ret (VInt (int.add i1 i2)))`.
+`(λ '(i1, i2), ret (VInt (add i1 i2)))`.
 |*)
 
 (*|
