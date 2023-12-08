@@ -24,19 +24,13 @@
 
 ## Translator
 
-* What version of OCaml do we depend upon?
-  Can we protect ourselves from minor changes in the parse tree?
+* Document which version of OCaml we depend upon (4.14).
 
-* Reshape the splitting process
-* Split the let-bindings in [split_all].
-* Add an option [-split-every k] to split every [k] nodes instead of every node.
-* Remove the initial splitting option.
-* Remove [NoSplit]
-* Add mode control over the names of auxiliary definitions
+* Find a more robust way of recognizing primitive operations.
+  Steal code from Benoît Montagu.
 
-* Get the translation tool to write Coq types equivalent to of from the OCaml
-  files (and maybe try to write encode instances and hints automatically in most
-  cases).
+* Generates Coq encoding boilerplate for algebraic data types.
+  See if Arthur's code can be re-used.
 
 ## OCaml standard library
 
@@ -206,18 +200,39 @@
 
 ## Semantics
 
-* Armaël notes that we must eliminate the ambiguity between
-  unary-constructor-applied-to-a-pair `A (x, y)`
-  and binary-constructor `A (x, y)`.
-  We want to ensure the property that "if two values have different
-  runtime representations in OCaml then they have different
-  representations in our semantics". Indeed, without this property,
-  a program that uses `Obj.magic` could be correct in our semantics
-  and incorrect in reality.
-  This point is one reason why we need the typed tree (where the
-  arity of `A` is explicit).
-  The easiest way of eliminating the above ambiguity is to have
-  native n-ary data constructors.
+* Write down an informal argument of why translating `Obj.magic` to the
+  identity is sound. First, this relies on the assumption that OCaml has a
+  universal representation of values (i.e., every value fits in one word).
+  Therefore it is incompatible with OCaml's special treatment of float arrays.
+  Second, this relies on the property that "if two values have different
+  runtime representations in OCaml then they have different representations in
+  our semantics". Indeed, without this property, a program that uses
+  `Obj.magic` could be correct in our semantics and incorrect in reality. In
+  other words, the runtime representation in OCaml must be a *function* of the
+  Osiris representation. Therefore, we should be able to write a text that
+  describes, for each Osiris value, how it is represented in memory in OCaml.
+
+  The apparent ambiguity between a unary constructor applied to a
+  pair `A (x, y)` and a binary constructor `A (x, y)` is not a problem,
+  because they have different representations in Osiris. The Osiris encoding
+  of data constructors involves a tuple whose arity is the constructor's
+  arity.
+
+  The combination of `Obj.magic` and polymorphic equality `=` may be
+  particularly troublesome. It implies that we are giving a semantics to
+  comparisons which in OCaml are forbidden. If the comparison crashes in our
+  semantics, then all is well. If the comparison returns `true` or `false` in
+  our semantics, then we must ascertain that it does the same (and does not
+  crash) in OCaml+magic. And **this is false** for data constructors: e.g.
+  comparing `A 3` with `A 3` returns `true` in our semantics, but can return
+  `false` in OCaml+magic if these two values originate in two distinct
+  algebraic data types. To fix this, we could:
+  + remove `Obj.magic`,
+  + abandon polymorphic equality at algebraic data types, or
+  + change our encoding of algebraic data types,
+    and use integer tags that faithfully reflect OCaml's
+    runtime representation.
+    This would be feasible if we generate the encoding boilerplate.
 
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
