@@ -132,9 +132,9 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Corollary advance_SimpEvalRetNext η e m' :
+Lemma advance_SimpEvalRetNext η e m' :
   simp (eval η e) m' ->
-  simp (Stop CEval (η, e) ret next) m'.
+  simp (Stop CEval (η, e) ret propagate) m'.
 Proof.
   intros.
   by apply advance_SimpEvalNext; rewrite bind_ret_right.
@@ -946,4 +946,3 @@ Ltac simp_specify x φ :=
       end
   end.
 
-(* -------------------------------------------------------------------------- *)
