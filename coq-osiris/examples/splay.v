@@ -389,6 +389,7 @@ Proof.
   { generalize η; clear η; intro η. (* optional *)
     unfold splay_spec. intros ??.
     intros.
+
     eapply SIMP_rec_call with
       (v:=(l, x, r, ctx))
       (P:=fun _ => True)
@@ -402,10 +403,13 @@ Proof.
     intros splay [[[l x] r] ctx] _ IH.
     unfold zlt in IH.
     intros.
+    simpl.
     (* Enter the closure. *)
-    SIMP1. fixme. SIMP_continue.
+
+    (* SIMP_rec p (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A). *)
+    (* unfold zlt in IH. clear l x r ctx. *)
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
+    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)
     { SIMP_continue.
       (* Establish the postcondition. *)
@@ -474,7 +478,7 @@ Proof.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
   { unfold zlookup_spec. do 4 intro.
     intros Hcompare ??? Hbst.
-    eapply SIMP_rec_call with 
+    eapply SIMP_rec_call_unary with 
       (v:=(t,x,ctx))
       (P:=fun '(t, _, _) => bst (strict le) t)
       (φ:=fun tuple =>

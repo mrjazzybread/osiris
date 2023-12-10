@@ -16,15 +16,6 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 (* -------------------------------------------------------------------------- *)
 
 (* WIP: Tactics used in local proof scripts. *)
-
-Ltac SimpParRetNext :=
-  (apply SimpParRetLeftNext || apply SimpParRetRightNext).
-
-Ltac SimpParRet :=
-  (SimpParRetNext || (apply SimpParRetLeft || apply SimpParRetRight)).
-
-Ltac SIMP_Par_Ret :=
-  repeat (eapply SIMP_simp; [SimpParRet|]; simpl).
   
 Ltac destruct_hyp :=
   match goal with
@@ -36,28 +27,6 @@ Ltac rewrite_permutation t :=
   | H : t ≡ₚ _ |- _ => rewrite H || (revert H; rewrite_permutation t)
   | H : _ ≡ₚ t |- _ => rewrite <- H || (revert H; rewrite_permutation t)
   end.
-
-Ltac unfold_breakpoint1 :=
-  match goal with
-  | |- simp ?m _ => unfold_breakpoint m
-  | _ => fail "Not at breakpoint"
-  end.
-
-Ltac simp_evaluate :=
-  simpl; repeat (rewrite eval_eval'; simpl).
-
-Ltac SIMP_evaluate :=
-  (match goal with
-   | |- SIMP (Stop CEval _ _ _) _ =>
-       eapply SIMP_simp; first ((apply advance_SimpEvalRetNext ||
-                                   (apply advance_SimpEvalNext ||
-                                      apply advance_SimpEval)); apply SimpReflexive)
-   | _ => idtac
-   end);
-  eapply SIMP_simp; [simp_evaluate; apply SimpReflexive|].
-
-Ltac SIMP_execute :=
-  repeat (simpl; (SIMP_evaluate || SIMP_continue)); try SIMP_Par_Ret.
 
 Ltac Sorted_inversion :=
   match goal with
@@ -79,133 +48,6 @@ Ltac Forall_inversion :=
 
 Ltac all_inversions :=
   repeat (Sorted_inversion || (HdRel_inversion || Forall_inversion)).
-
-Ltac generalize_pair_aux x y p :=
-  remember (x, y) as p eqn:Heqp;
-  replace x with (p.1); [| by rewrite Heqp];
-  replace y with (p.2); [| by rewrite Heqp];
-  clear dependent x y.
-
-Tactic Notation "generalize_pair" constr(x) constr(y) :=
-  let p := fresh "p" in
-  generalize_pair_aux x y p.
-
-Tactic Notation "generalize_pair" constr(x) constr(y) "as" ident(p) :=
-  generalize_pair_aux x y p.
-
-Definition BLOCK := True.
-Opaque BLOCK.
-
-Ltac conj_until_BLOCK b :=
-  lazymatch goal with
-  | |- BLOCK -> _ =>
-      intros _; let H := fresh in
-               pose proof (H := I); revert H
-  | |- _ -> BLOCK -> _ =>
-      let H1 := fresh in
-      intros H1 _; revert H1
-  | |- ?A -> ?B -> _ =>
-      let H1 := fresh in
-      let H2 := fresh in
-      let H3 := fresh in
-      intros H1 H2; pose proof (H3 := conj H2 H1);
-      revert H3;
-      match b with
-      | true => clear H1; conj_until_BLOCK true
-      | false => conj_until_BLOCK true
-      end
-  end.
-
-Ltac capture_hypotheses_aux arg1 arg2 :=
-  generalize (I : BLOCK);
-  generalize dependent arg1; intro arg1;
-  lazymatch arg2 with
-  | tt => idtac
-  | _ => generalize dependent arg2; intro arg2
-  end; conj_until_BLOCK false.
-  
-Tactic Notation "capture_hypotheses" constr(arg1) :=
-  capture_hypotheses_aux arg1 tt.
-
-Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) :=
-  capture_hypotheses_aux arg1 arg2.
-
-Tactic Notation "capture_hypotheses" constr(arg1) "as" simple_intropattern(x) :=
-  capture_hypotheses_aux arg1 tt; intros x.
-
-Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intropattern(x) :=
-  capture_hypotheses_aux arg1 arg2; intros x.
-
-Ltac SIMP_nested_aux arg1 arg2 pre Hwf :=
-  match goal with
-  | |- SIMP _ (fun c => SIMP _ ?H) =>
-      let post := fresh in
-      set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
-      lazymatch pre with
-      | tt =>
-          eapply SIMP_nested_call with (v1:=arg1) (v2:=arg2)
-      | _ =>
-          eapply SIMP_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
-      end;
-      [ reflexivity
-      | simpl; rewrite eval_eval'; reflexivity
-      | apply Hwf
-      | lazymatch pre with
-          tt =>
-            capture_hypotheses arg1 arg2;
-            let HPre := fresh in intros HPre;
-            pattern arg1, arg2 in HPre;
-            exact HPre
-        | _ =>
-            auto
-        end
-      | ];
-      let HP := fresh "HP" in
-      let IH := fresh "IH" in
-      clear dependent arg1 arg2;
-      simpl; intros vf arg1 arg2 HP IH
-  end.
-
-Tactic Notation "SIMP_nested" constr(arg1) constr(arg2) constr(Hwf) :=
-  SIMP_nested_aux arg1 arg2 tt Hwf.
-
-Tactic Notation "SIMP_nested" constr(arg1) constr(arg2) constr(pre) constr(Hwf) :=
-  SIMP_nested_aux arg1 arg2 pre Hwf.
-
-Ltac SIMP_rec_aux arg pre Hwf :=
-  match goal with
-  | |- SIMP _ ?H =>
-      let post := fresh in
-      set (post := H); pattern arg in post; cbv delta [post]; clear post
-  end;
-  match pre with
-  | tt =>
-      eapply SIMP_rec_call with (v:=arg)
-  | _ =>
-      eapply SIMP_rec_call with (v:=arg) (P:=pre)
-  end;
-  [ apply Hwf
-  | lazymatch pre with
-    | tt =>
-        capture_hypotheses arg;
-        let HPre := fresh in intros HPre;
-        pattern arg in HPre;
-        exact HPre
-    | _ =>
-        auto
-    end
-  | ];
-  clear dependent arg;
-  let HP := fresh "HP" in
-  let IH := fresh "IH" in
-  simpl; intros vf arg HP IH.
-
-Tactic Notation "SIMP_rec" constr(arg) constr(Hwf) :=
-  SIMP_rec_aux arg tt Hwf.
-
-Tactic Notation "SIMP_rec" constr(arg) constr(pre) constr(Hwf) :=
-  SIMP_rec_aux arg pre Hwf.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -324,7 +166,7 @@ Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2 ?.
-  SIMP_nested l1 l2 (@wf_double_list_length Z).
+  SIMP_nested l1 l2  (@wf_double_list_length Z).
   unfold merge_pre in HP; repeat destruct_hyp.
   destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
   (* Case: l1 = [] *)

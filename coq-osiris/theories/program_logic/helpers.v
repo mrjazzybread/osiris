@@ -44,6 +44,8 @@ Proof.
   iMod ("H" with "[$]") as "H".
 Qed.
 
+(* Todo 30/11/23: intersects with wp_covariant *)
+
 Lemma wp_strong_mono s1 s2 E1 E2 m Φ Ψ :
   E1 ⊆ E2 →
   WP m @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ Ψ v) -∗ WP m @ s2; E2 {{ Ψ }}.
