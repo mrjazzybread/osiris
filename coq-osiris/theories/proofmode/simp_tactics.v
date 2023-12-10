@@ -1,4 +1,5 @@
 From osiris Require Import base.
+From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import simp capital_SIMP.
 From Ltac2 Require Ltac2.

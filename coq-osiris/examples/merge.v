@@ -311,49 +311,12 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [TO-DO: move to specifications.v] 
-   Higher level specification definitions. *)
-
-Definition is_env_with_spec name (spec : val -> Prop) :=
-  fun v =>
-    match v with
-    | VStruct env =>
-        match (lookup_name env name) with
-        | ret v' => spec v'
-        | _ => False
-        end
-    | _ => False
-    end.
-
-Fixpoint env_has_specs env (l : list (string * (val -> Prop))) :=
-  match l with
-  | [] => True
-  | [x] => let (name, spec) := x in
-          match (lookup_name env name) with
-          | ret v' => spec v'
-          | _ => False
-          end
-  | h::t => let (name, spec) := h in
-          match (lookup_name env name) with
-          | ret v' => spec v' /\ env_has_specs env t
-          | _ => False
-          end
-  end.
-
-Definition is_env_with_specs (l : list (string * (val -> Prop))) :=
-  fun v => match v with
-        | VStruct env => env_has_specs env l
-        | _ => False
-        end.
-
-(* -------------------------------------------------------------------------- *)
-
 (* Main module specification. *)
 
 Lemma Merge__spec:
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
   SIMP (eval_mexpr η __main)
-    (is_env_with_specs [("merge", merge_spec);
+    (is_module_with_pspecs [("merge", merge_spec);
                         ("split", split_spec);
                         ("merge_sort", mergesort_spec)]).
 Proof.
