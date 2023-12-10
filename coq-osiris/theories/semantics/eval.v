@@ -375,7 +375,7 @@ Fixpoint extend δ p v : micro env :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a soft failure takes
          place. *)
-      if c =? c' then extend δ p v else next()
+      if c =? c' then extend δ p v else next
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -384,11 +384,11 @@ Fixpoint extend δ p v : micro env :=
       extendfs δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
-      if int.eq i i' then ret δ else next()
+      if int.eq i i' then ret δ else next
   | PChar c', VChar c =>
-      if Ascii.eqb c c' then ret δ else next()
+      if Ascii.eqb c c' then ret δ else next
   | PString s', VString s =>
-      if s =? s' then ret δ else next()
+      if s =? s' then ret δ else next
   | PTuple _, _ =>
       type_mismatch "tuple expected"
   | PData _ _, _ =>
@@ -709,6 +709,10 @@ Fixpoint eval η e : micro val :=
       lookup_path η π
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
+      (* This environment is *not* trimmed so as to keep only the variables
+         that occur free in [a]. Indeed, in OCaml, due to [open], [include]
+         and other constructs, it is not easy to statically compute the set
+         of free variables of an expression. *)
       ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)

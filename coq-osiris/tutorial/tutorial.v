@@ -65,7 +65,7 @@ At this time, expressions include:
 * Loops (:code:`while`, :code:`for`);
 * Runtime assertions (:code:`assert`).
 
-These expressions are automatically generated from an OCaml untyped parse tree.
+These expressions are automatically generated from an OCaml parse tree.
 |*)
 
 (*|
@@ -269,13 +269,15 @@ This can be observed by asking Coq to evaluate the OCaml expression
 `24 + 18`:
 |*)
 
+Transparent eval. (* .none *)
 Eval cbn in (eval ε add_24_plus_18). (* .unfold *)
+Opaque eval. (* .none *)
 
 (*|
 The interpreter hits a `Par` combinator whose branches are
-`ret (int.repr 24)` and `ret (int.repr 18)`
+`ret (repr 24)` and `ret (repr 18)`
 and whose continuation is
-`(λ '(i1, i2), ret (VInt (int.add i1 i2)))`.
+`(λ '(i1, i2), ret (VInt (add i1 i2)))`.
 |*)
 
 (*|
@@ -286,53 +288,140 @@ We do so in the next two sections.
 |*)
 
 (*|
----------
-The Monad
----------
+---------------
+The Micro Monad
+---------------
 |*)
 
 (*|
 The monad that is used to write the interpreter
-is defined as follows:
+is named `micro`.
+The name is reminiscent of microcode;
+it is chosen because this monad offers
+a very simple API.
 |*)
 
-Print micro. (* .unfold *)
+(*|
+As usual,
+the `ret` combinator represents
+an empty sequence of instructions,
+and the `bind` combinator constructs
+the concatenation of two sequences of instructions:
+|*)
+
+Check @ret. (* .unfold *)
+Check @bind. (* .unfold *)
 
 (*|
-This is an inductive type: every computation must eventually
-produce a result or stop. Up to β-reduction (which Coq can
-perform for us), every computation must exhibit one of the
-following six forms:
+In other words, `ret a` represents a computation that is finished
+and has produced a result `a`; and `bind m1 (λ x, m2)`, also written
+`x ← m1 ; m2`, represents the sequential composition of the computations
+`m1` and `m2`.
+|*)
 
-* `Ret a` represents a computation that is finished
-  and has produced a result `a`.
+(*|
+The `crash` combinator represents a computation that has
+encountered a serious problem and crashed. It is a fatal
+error: it cannot be caught and handled.
+It is a situation that we want to avoid: proving that a
+program cannot crash is the
+purpose of the program logics that we wish to set up.
+|*)
 
-* `Crash` represents a computation that has encountered a serious problem
-  and crashed. This is a situation that we want to avoid, and this is the
-  purpose of the program logic that we wish to set up.
+Check @crash. (* .unfold *)
 
-* `Next` represents an exception that the interpreter raises and catches
-  as part of its normal execution. It is typically used to indicate that
-  a pattern does not match a value and to request moving on to the next
-  branch in a `match` construct.
+(*|
+In our interpreter, `crash`
+is typically used when a primitive operation is applied
+to an argument of an invalid nature.
+|*)
 
-* `Stop c x k` represents a request by the interpreter for some service.
-  It can be thought of as a system call. The *code* `c` is the name of
-  the system call. This code has type `code X Y`, where `X` is the type
-  of the argument of the system call, and `Y` is the type of its result.
-  Accordingly, the *argument* `x` has type `X` and the *continuation* `k`
-  has type `Y → micro A`.
+(*|
+The `next` combinator can be thought of as an exception.
+This exception can be caught and handled by the `try` combinator.
+|*)
 
-* `Par m1 m2 k ko` represents a request by the interpreter to execute
-  the computations `m1` and `m2` in parallel. The *success continuation*
-  `k` is invoked if both computations produce a result. The *failure
-  continuation* `ko` is invoked if either computation raises `Next`.
+Check @next. (* .unfold *)
+Check @try. (* .unfold *)
 
-* `Choose m1 m2 k ko` represents a non-deterministic choice between
-  the computations `m1` and `m2`. One of them is executed; the other
-  is discarded. The success and failure continuations `k` and `ko`
-  indicate how to continue after executing `m1` or `m2`.
+(*|
+Our interpreter raises and catches this exception
+as part of its normal execution.
+For instance, `next` is used during the
+evaluation of a pattern matching construct.
+Somewhere, deep down in an auxilliary function, this exception
+is raised to indicate that a pattern does *not* match
+a value. Somewhere higher up,
+the interpreter catches this exception
+and moves on to the next branch.
+|*)
 
+(*|
+The `stop` combinator allows a computation to request a service
+from an external supervisor. The computation `stop c x`
+can be thought of as a system call. The *code* `c` is the name of
+the system call. This code has type `code X Y`, where `X` is the type
+of the argument of the system call, and `Y` is the type of its result.
+Accordingly, the *argument* `x` has type `X`,
+and the computation `stop c x` has type `micro Y`.
+|*)
+
+Check @stop. (* .unfold *)
+
+(*|
+The codes, or system calls, that we use are presented a bit further on.
+|*)
+
+(*|
+The `par` combinator is a parallel evaluation combinator.
+The computation `par m1 m2` evaluates `m1` and `m2`
+independently and in parallel. If the two computations have side effects
+(via system calls) then these effects are interleaved in a nondeterministic
+manner. If both computations succeed and return two results `a1` and `a2`
+then `par m1 m2` returns the pair `(a1, a2)`.
+|*)
+
+Check @par. (* .unfold *)
+
+(*|
+In our interpreter, `par` is used to model OCaml's unspecified
+order of evaluation. When OCaml evaluates two subexpressions in
+an unspecified order, we consider that they are evaluated in
+parallel.
+|*)
+
+(*|
+`choose m1 m2` is a non-deterministic choice between the computations `m1`
+and `m2`. One of them is executed; the other is discarded.
+|*)
+
+Check @choose. (* .unfold *)
+
+(*|
+In our interpreter, `choose` is used to model OCaml's runtime
+assertion construct, `assert`. Depending on a command line
+switch, the OCaml compiler can be instructed to either keep
+this dynamic test or erase it. We want our semantics to be
+independent of this command line switch, so we consider that
+the compiler is free to choose between these two alternatives.
+|*)
+
+
+(*|
+Internally, the type `micro A` is defined as an inductive type.
+Thus, every computation must eventually produce a result, crash, raise
+an exception, or stop on a system call, and Coq's execution engine can
+(in principle) be used to compute this normal form.
+|*)
+
+Print micro.
+
+(*|
+The `try` combinator is not a constructor;
+it is a function. This is made possible by building `try` into the
+constructors `Stop`, `Par`, and `Choose`. Indeed, the continuations `k`
+and `z` carried by these constructors correspond to two arms of a `try`
+construct.
 |*)
 
 (*|
@@ -340,46 +429,8 @@ Expert readers may note that the definition of this monad is
 reminiscent of *interaction trees*. However, interaction trees are
 potentially infinite trees, whereas our computations are finite.
 Furthermore, interaction trees do not have the parallel composition
-constructor `Par` or the non-deterministic choice constructor `Choose`.
-
-The combinators `stop`, `par`, and `choose`
-are sugar for `Stop`, `Par`, and `Choose`
-with trivial continuations.
+combinator `par` or the non-deterministic choice combinator `choose`.
 |*)
-
-Print stop. (* .fold *)
-Print par.  (* .fold *)
-Print choose.  (* .fold *)
-
-(*|
-The so-far-unmentioned `Choose` is used to defined the `choose`
-combinator, which performs a nondeterministic choice between two
-computations and runs it, producing a single result.
-This combinator is used to represent nondeterministic erasure when
-evaluating an `EAssert` expression. Indeed, OCaml assertions may be
-erased at compile-time and so programs with assertions have
-nondeterministic semantics if those assertions contain effects.
-|*)
-
-Print choose. (* .fold *)
-
-(*|
-As in every monad, a `bind` combinator (denoted by ←) is used to
-construct the sequential composition of two computations:
-|*)
-
-Check @bind. (* .unfold *)
-
-(*|
-The `try` combinator, a generalization of `bind`,
-also composes two computations,
-and can catch the exception `Next`
-if it raised by the first computation.
-This combinator is necessary for catching the potential failure of a
-pattern match.
-|*)
-
-Check @try. (* .unfold *)
 
 (*|
 There are several ways of thinking about this monad. On the one hand,
@@ -387,7 +438,7 @@ from an abstract point of view, it can be regarded as *an abstract type
 of computations*, equipped with the facilities that are needed to write
 the interpreter in a natural style. On the other hand, from a concrete
 point of view, it offers *a syntactic representation of a collection of
-threads*. The constructor `Par`  allows describing a binary tree of
+threads*. The constructor `Par` allows describing a binary tree of
 threads. At the leaves, the constructors `Ret`, `Crash`, and `Next`
 represent threads that have finished (in one way or another), while
 the constructor `Stop` represents a thread that is paused and needs

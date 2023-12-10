@@ -24,19 +24,13 @@
 
 ## Translator
 
-* What version of OCaml do we depend upon?
-  Can we protect ourselves from minor changes in the parse tree?
+* Document which version of OCaml we depend upon (4.14).
 
-* Reshape the splitting process
-* Split the let-bindings in [split_all].
-* Add an option [-split-every k] to split every [k] nodes instead of every node.
-* Remove the initial splitting option.
-* Remove [NoSplit]
-* Add mode control over the names of auxiliary definitions
+* Find a more robust way of recognizing primitive operations.
+  Steal code from Benoît Montagu.
 
-* Get the translation tool to write Coq types equivalent to of from the OCaml
-  files (and maybe try to write encode instances and hints automatically in most
-  cases).
+* Generates Coq encoding boilerplate for algebraic data types.
+  See if Arthur's code can be re-used.
 
 ## OCaml standard library
 
@@ -45,6 +39,13 @@
   What about unsupported constructs, external primitives, etc.?
 
 ## Engineering and proof mode
+
+* Probably we should use `set` every time we extend the environment,
+  so the environment in the goal is always a name and never an explicit list.
+
+* If we decide to keep decorations, then the tactic `simp` should be
+  modified to unfold a decoration at the root if it can make progress
+  afterwards.
 
 * Module paths whose specification is known are currently simplified by [simp].
   However, it required to alter [simp1_inspect]. Replace this hack by hints.
@@ -197,21 +198,51 @@
     [ {[ x := v ; ... ; z := w ]} ] ;
   - values should be hidden in other environments.
 
-* [Tested and Removed]
-  Write an equivalent of [inG] for environments to declare what should initially
-  be in environments in which module-expressions are evaluated.
-  It was not better that having an environment variable in the context together
-  with axioms about it.
-
 ## Semantics
 
-* At closure construction time, should the semantics trim the environment η
-  so as to keep only the variables that occur free in the code?
-  + Cons: this makes the semantics more complex.
-  + Pros: this should lead to simpler and more natural goals.
+* Write down an informal argument of why translating `Obj.magic` to the
+  identity is sound. First, this relies on the assumption that OCaml has a
+  universal representation of values (i.e., every value fits in one word).
+  Therefore it is incompatible with OCaml's special treatment of float arrays.
+  Second, this relies on the property that "if two values have different
+  runtime representations in OCaml then they have different representations in
+  our semantics". Indeed, without this property, a program that uses
+  `Obj.magic` could be correct in our semantics and incorrect in reality. In
+  other words, the runtime representation in OCaml must be a *function* of the
+  Osiris representation. Therefore, we should be able to write a text that
+  describes, for each Osiris value, how it is represented in memory in OCaml.
+
+  The apparent ambiguity between a unary constructor applied to a
+  pair `A (x, y)` and a binary constructor `A (x, y)` is not a problem,
+  because they have different representations in Osiris. The Osiris encoding
+  of data constructors involves a tuple whose arity is the constructor's
+  arity.
+
+  The combination of `Obj.magic` and polymorphic equality `=` may be
+  particularly troublesome. It implies that we are giving a semantics to
+  comparisons which in OCaml are forbidden. If the comparison crashes in our
+  semantics, then all is well. If the comparison returns `true` or `false` in
+  our semantics, then we must ascertain that it does the same (and does not
+  crash) in OCaml+magic. And **this is false** for data constructors: e.g.
+  comparing `A 3` with `A 3` returns `true` in our semantics, but can return
+  `false` in OCaml+magic if these two values originate in two distinct
+  algebraic data types. To fix this, we could:
+  + remove `Obj.magic`,
+  + abandon polymorphic equality at algebraic data types, or
+  + change our encoding of algebraic data types,
+    and use integer tags that faithfully reflect OCaml's
+    runtime representation.
+    This would be feasible if we generate the encoding boilerplate.
 
 * Can we (and should we) prove that our formulation of the semantics
   is equivalent to a standard small-step presentation?
+
+  We certainly cannot easily prove an equivalence with a substitution
+  semantics, because we cannot define a substitution semantics in the
+  first place. Due to `open` and `include`, we cannot define sensible
+  notions of "free variables" or "capture-avoiding substitution". So,
+  we must use delayed substitutions, or equivalently, environments.
+
   We should also prove that each ample step corresponds to a bounded
   number of small steps (where the bound may depend on the source
   code of the program) (giving formal meaning to this claim requires

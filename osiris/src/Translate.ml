@@ -272,13 +272,14 @@ exception NotStdlib
 
 let project_stdlib_path (e : expression) : var =
   match e.exp_desc with
-  | Texp_ident (Pdot (Pident stdlib, field), _, _)
-    when Ident.name stdlib = "Stdlib" ->
-      (* A standard library function is identified by its resolved path.
-         This path is reliable; even if the user declares a local module
-         named [Stdlib], an identifier whose resolved path begins with
-         [Stdlib] is a reference to the official standard library. *)
+  | Texp_ident (Pdot (Pident parent, field), _, _)
+    when Ident.name parent = "Stdlib" ->
+      (* A standard library function is identified by its resolved path. *)
+      (* This is probably not reliable, and must be improved in the future. *)
       field
+  | Texp_ident (Pdot (Pdot (Pident parent, _module), field), _, _)
+    when Ident.name parent = "Stdlib" ->
+      sprintf "%s.%s" _module field
   | _ ->
       raise NotStdlib
 
@@ -324,6 +325,13 @@ let translate_stdlib_call (f : var) (es : exprs) =
       ELoad e
   | ":=", [e1; e2] ->
       EStore (e1, e2)
+
+  | "Obj.magic", [e] ->
+      (* Applications of [Obj.magic] are erased. This is experimental:
+         it takes careful consideration and arguments to ascertain that
+         this is sound. *)
+      e
+
   | _, _ ->
       raise NotStdlib
 
