@@ -389,7 +389,14 @@ Proof.
   { generalize η; clear η; intro η. (* optional *)
     unfold splay_spec. intros ??.
     intros.
-
+    (* TODO: Add the following pattern into SIMP_rec_call *)
+    (* remember (l, x, r, ctx) as t. *)
+    (* replace ctx with t.2 by (rewrite Heqt; reflexivity). *)
+    (* replace l with (t.1.1.1) by (rewrite Heqt; reflexivity). *)
+    (* replace x with (t.1.1.2) by (rewrite Heqt; reflexivity). *)
+    (* replace r with (t.1.2) by (rewrite Heqt; reflexivity). *)
+    (* SIMP_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A). *)
+    (* do 3 destruct t as [t ?]. *)
     eapply SIMP_rec_call with
       (v:=(l, x, r, ctx))
       (P:=fun _ => True)
@@ -402,12 +409,6 @@ Proof.
     clear l x r ctx.
     intros splay [[[l x] r] ctx] _ IH.
     unfold zlt in IH.
-    intros.
-    simpl.
-    (* Enter the closure. *)
-
-    (* SIMP_rec p (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A). *)
-    (* unfold zlt in IH. clear l x r ctx. *)
     (* Perform case analysis over the zipper [ctx]. *)
     destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)

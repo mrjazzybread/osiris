@@ -11,6 +11,177 @@ From Ltac2 Require Ltac2.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Tactics. *)
+
+(* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
+
+Ltac beta :=
+  cbn beta.
+
+Goal (λ (x : bool), negb x = ((λ (x : bool), x) false)) true.
+Proof.
+  beta. reflexivity.
+Qed.
+
+(* [SIMP_ret] expects a goal of the form [SIMP (ret v) φ]. It applies
+   the lemma [SIMP_ret], solves the subgoal [v = #x], and leaves just
+   the subgoal [φ x], which it simplifies. *)
+
+Ltac SIMP_ret :=
+  simple eapply SIMP_ret; [ solve [ encode ] | beta ].
+
+(* [SIMP_simp] expects a goal of the form [SIMP m φ]. It simplifies
+   [m] into [m'], if possible, and leaves the goal [SIMP m' φ]. *)
+
+Ltac SIMP_simp :=
+  simple eapply SIMP_simp; [ simp_really |].
+
+(* SIMP0 leaves zero subgoal. *)
+(* SIMP1 leaves one subgoal, which may have an arbitrary shape. *)
+
+Ltac SIMP0 :=
+  try SIMP_simp;
+  first [
+
+    SIMP_ret; [
+      (* goal: [φ x] *)
+      SIMP_close
+    ]
+
+  | simple eapply SIMP_call; [
+      (* goal: [v = #x] *)
+      solve [encode]
+    | (* goal: [SIMP (call #x) φ] *)
+      SIMP_close
+    ]
+
+  | simple eapply SIMP_call_covariant; [
+      (* goal: [v = #x] *)
+      solve [encode]
+      (* goal: [SIMP (call #x) φ] *)
+    | solve [eauto with SIMP_specs]
+      (* goal: [∀ x, φ x → φ' x] *)
+    | SIMP_close
+    ]
+
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply SIMP_try         ; [ SIMP0 | beta; intros; SIMP0 ]
+
+  | SIMP_close
+
+  ]
+
+with SIMP1 :=
+  try SIMP_simp;
+  first [
+
+    SIMP_ret (* residual goal: [φ x] *)
+
+  | simple eapply SIMP_call_covariant; [
+      (* goal: [v = #x] *)
+      solve [encode]
+      (* goal: [SIMP (call #x) φ] *)
+    | solve [eauto with SIMP_specs]
+      (* residual goal: [∀ x, φ x → φ' x] *)
+    | beta
+    ]
+
+  | simple eapply SIMP_call; [
+      (* goal: [v = #x] *)
+      solve [encode]
+    | (* residual goal: [SIMP (call #x) φ] *)
+      idtac
+    ]
+
+  | simple eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply SIMP_try         ; [ SIMP0 | (* residual goal *) beta ]
+
+  | idtac (* residual goal *)
+
+  ]
+
+with SIMP_close :=
+  solve [ eauto with SIMP_specs representable ].
+
+Ltac SIMP1_call_step :=
+  first [
+    eapply SIMP_enter_call_VClo
+  | eapply SIMP_enter_call_VCloRec
+  ].
+
+Ltac SIMP_enter :=
+  SIMP1_call_step;
+  SIMP1.
+
+Ltac SIMP_continue :=
+  lazymatch goal with
+  | |- SIMP ?m _ =>
+      unfold_breakpoint m;
+      SIMP1
+  | _ =>
+      fail "[SIMP_continue] expects a goal of the form [SIMP _ _]"
+  end.
+
+Ltac SIMP_specify x φ :=
+  lazymatch goal with
+  | |- SIMP (bind (ret_dconcat ?δ _) _) _ =>
+      (* is this reduction too strong? *)
+      let o := eval cbn in (lookup_name δ x) in
+      lazymatch o with ret ?v =>
+        let h := fresh in
+        assert (φ v) as h; [| revert h; generalize v ]
+      end
+  end.
+
+(* It is debatable in which order the two premises of the lemma [SIMP_call]
+   should be attacked. The premise [v'2 = #x] may seem easy to solve (this
+   is the job of the tactic [encode]) so one may wish to solve it first.
+   This offers the advantage of instantiating [x] immediately, so [x] is
+   known when we try to prove that the call is permitted -- which may
+   involve proving that a precondition holds.
+
+   However, solving [v'2 = #x] can involve guessing some types (e.g., the
+   type of an empty list), and we have used [Hint Mode] in encode.v to
+   forbid this. So, it can also be preferable to first solve the premise
+   [SIMP (call v1 #x) φ]. Doing so can allow us to instantiate these types
+   in a correct way.
+
+   One might wish to try both approaches in sequence, but waiting until
+   [encode] fails is very slow (several seconds).
+
+   One might also wish to do a bit of both: that is, first apply some lemma
+   [L] to the subgoal [SIMP (call v1 #x) φ], then solve [v'2 = #x], then
+   attack the proof obligations created by applying the lemma [L]. *)
+
+Create HintDb SIMP_specs.
+
+(* TODO may be unused *)
+Ltac SIMP_call :=
+  first [
+    simple eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
+  | simple eapply SIMP_covariant; [
+      simple eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+    | cbn ]
+  ].
+
+Ltac SIMP_enter_and_abstract :=
+  lazymatch goal with |- SIMP (call ?v _) _ =>
+    (* First, expand [call] away. *)
+    SIMP1_call_step;
+    normalize;
+    (* Second, abstract away the closure (of which there are typically
+       several occurrences in the hypotheses and goal), replacing it
+       with an abstract value. This ensures that we cannot step into
+       recursive calls. *)
+    generalize dependent v
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Evaluate an [eval] by repeatedly changing [eval] into [eval'] *)
 Ltac simp_evaluate :=
   simpl; repeat (rewrite eval_eval'; simpl).
@@ -235,3 +406,4 @@ Module Tac.
     f arg.
     
 End Tac.
+
