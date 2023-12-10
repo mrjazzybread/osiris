@@ -65,6 +65,6 @@ Global Opaque
   type_mismatch
 
   (* Judgements. *)
-  SIMP
+  pure
 
 .

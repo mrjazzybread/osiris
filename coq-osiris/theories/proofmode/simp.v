@@ -389,7 +389,7 @@ Proof.
      If it is skipped, then the result is immediate. If it is executed,
      then the assumption that [e] evaluates to [true] is exploited. *)
   eapply advance_simp_choose.
-  { eapply SimpReflexive. }
+  { apply SimpReflexive. }
   unfold as_bool.
   rewrite bind_bind.
   eapply prove_simp_bind.
