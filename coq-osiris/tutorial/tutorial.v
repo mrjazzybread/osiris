@@ -477,9 +477,8 @@ Print code. (* .unfold *)
 The code `CEval`, which we have encountered earlier, is used to request
 a recursive invocation of the function `eval`. The code `CLoop` plays a
 similar role, but is used in the interpretation of `for` loops.
-The codes `CAlloc`, `CLoad`, and `CStore` allow allocating, reading,
-and writing memory blocks in the heap.
-
+The codes `CAlloc`, `CLoad`, and `CStore` are requests to allocate, read,
+write a memory location in the heap.
 |*)
 
 (*|

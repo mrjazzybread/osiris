@@ -320,6 +320,14 @@ Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
+Lemma destruct_simplify_null {A} (m1 m2 : micro A) :
+  simplify 0 m1 m2 -> m1 = m2.
+Proof.
+  assert (forall n, (S n <= 0)%nat -> False) as F by lia.
+  inversion 1; (reflexivity || exfalso; eauto using F).
+Qed.
+
+(* This tactic applies the above lemmas if possible. *)
 Lemma destruct_simp_next {A} (m2 : micro A) :
   simp next m2 →
   m2 = next.
@@ -755,6 +763,42 @@ Ltac simp_confluent :=
   | h1: simp ?m ?m'1, h2: simp ?m ?m'2 |- _ =>
       generalize (simp_confluent h1 h2)
   end.
+
+(* Extra reasoning on simp and ret *)
+
+Lemma invert_simp_ret {A} (a : A) m :
+  simp (ret a) m -> m = ret a.
+Proof.
+  intros Hsimp.
+  apply simp_simplify in Hsimp as (n & H).
+  eauto using destruct_simplify_ret.
+Qed.
+
+Lemma simp_ret_ret {A} (a b : A) :
+  simp (ret a) (ret b) -> a = b.
+Proof.
+  intros.
+  assert (ret b = ret a) as Heq by (apply invert_simp_ret; assumption).
+  by injection Heq.
+Qed.
+
+Lemma simp_crash_ret {A} (x : A) :
+  simp Crash (ret x) -> False.
+Proof.
+  intro F.
+  apply simp_simplify in F as (? & F).
+  apply destruct_simplify_crash in F.
+  discriminate.
+Qed.
+
+Lemma simp_next_ret {A} (x : A) :
+  simp Next (ret x) -> False.
+Proof.
+  intro F.
+  apply simp_simplify in F as (? & F).
+  apply destruct_simplify_next in F.
+  discriminate.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 

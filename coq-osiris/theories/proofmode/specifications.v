@@ -9,8 +9,6 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
-(* This file should move to the [proofmode] directory. *)
-
 (* --------------------------------------------------------------------------*)
 (* The following part defines module specifications. *)
 
@@ -400,6 +398,41 @@ Section Modules.
      iExists _; iSplit; [ done | iAssumption ]. }
  Qed.
 End Modules.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Simple specifications for modules in pure proofs *)
+Section PureModules.
+
+  (* Type of pure specifications *)
+  Definition pspec : Type := val -> Prop.
+  (* Type of association lists from names to pure specifications *)
+  Definition pspec_assoc := list (var * pspec).
+
+  Fixpoint env_has_pspecs (η : env) (Λ : pspec_assoc) :=
+    match Λ with
+    | [] => True
+    | [x] => let (name, spec) := x in
+            match (lookup_name η name) with
+            | ret v' => spec v'
+            | _ => False
+            end
+    | h::t => let (name, spec) := h in
+            match (lookup_name η name) with
+            | ret v' => spec v' /\ env_has_pspecs η t
+            | _ => False
+            end
+    end.
+
+  (* Postcondition which establishes that a value is a module containing all the
+     vars in [Λ], such that these vars satisfy their spec in the module *)
+  Definition is_module_with_pspecs (Λ : pspec_assoc) : (val -> Prop) :=
+    fun v => match v with
+          | VStruct env => env_has_pspecs env Λ
+          | _ => False
+          end.
+
+End PureModules.
 
 (* -------------------------------------------------------------------------- *)
 

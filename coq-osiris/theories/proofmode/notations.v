@@ -115,24 +115,24 @@ Infix ":::" := (concat).
 Notation "'Path' x1" :=
   (PathBase x1)
     (at level 90,
-      format "'Path' x1").
+      format "'Path'  x1").
 
 Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
   (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
     (at level 200,
-       format "'Path' x1 '/' '.' .. '/' '.' xn '.' '/' xm").
+       format "'Path'  x1 '/' '.' .. '/' '.' xn '.' '/' xm").
 
 Notation "'EPath' x1" :=
   (EPath (PathBase x1))
     (at level 90,
       only printing,
-        format "'EPath' x1").
+        format "'EPath'  x1").
 
 Notation "'EPath' x1 '.' .. '.' xn '.' xm ')'" :=
   (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
     (x1, xn, xm at level 200,
       only printing,
-        format "'EPath' x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
+        format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
 
 Notation "'<e' e1 , .. , en 'e>'" :=
   (ETuple (ECons e1 .. (ECons en ENil) ..))
@@ -174,31 +174,31 @@ Notation "C ( p1 , .. , pn )" :=
    [closure:(
         {: η :}
         f )]. *)
-Notation "'closure:(' {: η :} f ')'" :=
+Notation "'closure:(' η f ')'" :=
   (VClo η f)
-  (format "'[v    ' 'closure:(' '/' '[hv   ' '{:'  η  ':}' ']'  '/' f  ')' ']'").
+  (format "'[v    ' 'closure:(' '/' '[hv   '  η  ']'  '/' f  ')' ']'").
 
 
-Notation "'rec-closure:(' {: η :} rbds x ')'" :=
+Notation "'rec-closure:(' η rbds x ')'" :=
   (VCloRec η rbds x)
     (format
-       "'[v    ' 'rec-closure:(' '/' '[hv   ' {:  η  :} ']' '/' rbds '/'  x  ')' ']'").
+       "'[v    ' 'rec-closure:(' '/' '[hv'     η   ']' '/' rbds '/'  x  ')' ']'").
 
 Notation "'λ:(' x , e )" :=
   (AnonFun x e)
-    (format "'λ:(' x ',' '//'    '[hv' e ']' ')'").
+    (format "'λ:(' x ',' '/'    '[hv' e ']' ')'").
 
 Notation "'λ:(' '_' , e )" :=
   (AnonFun "__osiris_anonymous_arg" e)
-    (format "'λ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+    (format "'λ:('  '_'  ',' '/'    '[hv' e ']' ')'").
 
 Notation "'eλ:(' x , e )" :=
   (EAnonFun (AnonFun x e))
-    (format "'eλ:(' x ',' '//'    '[hv' e ']' ')'").
+    (format "'eλ:(' x ',' '/'    '[hv' e ']' ')'").
 
 Notation "'eλ:(' '_' , e )" :=
   (EAnonFun (AnonFun "__osiris_anonymous_arg" e))
-    (format "'eλ:('  '_'  ',' '//'    '[hv' e ']' ')'").
+    (format "'eλ:('  '_'  ',' '/'    '[hv' e ']' ')'").
 
 Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 
@@ -266,12 +266,12 @@ done; ...
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
-Notation "'Ematch' x 'with' pats " :=
+Notation "'EMatch' x 'with' pats " :=
   (EMatch x pats)
     (at level 90,
       only printing,
         no associativity,
-          format "'[v' 'Ematch'  x  'with' '//' pats ']'").
+          format "'[v' 'EMatch'  x  'with' '//' pats ']'").
 
 Notation "'|' pat '=>' e others" :=
   (BrCons (Branch pat e) others)

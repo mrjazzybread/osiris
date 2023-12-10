@@ -221,6 +221,9 @@ Definition EFun1Var (x : var) (e : expr) :=
    reserved name in their OCaml source code, we can be assured that [x]
    does not occur micro in [bs]. *)
 
+(* TODO: consider replacing AnonFunction by a Hoare-style reasoning rule
+   allowing us to discard the anonymous argument's name *)
+
 Definition AnonFunction (bs : branches) : anonfun :=
   let x := "__osiris_anonymous_arg" in
   AnonFun1Var x $
@@ -316,6 +319,7 @@ Fixpoint MkSItems (items : list sitem) : sitems :=
 
 Definition MkStruct (items : list sitem) : mexpr :=
   MStruct (MkSItems items).
+Arguments MkStruct / items.
 
 (* [open π]. *)
 
@@ -331,15 +335,22 @@ Definition IIncludeMkPath xs :=
 
 (* Sugar for tuples. *)
 
-Definition tuple_of_list {A B} (c : B -> A -> A) (n: A) :=
-  fix tuple_of_list l :=
-    match l with
-    | nil => n
-    | cons h l => c h $ tuple_of_list l
-    end.
+Fixpoint PMkList (l : list pat) :=
+  match l with
+  | nil => PNil
+  | cons h t => PCons h (PMkList t)
+  end.
 
 Definition PMkTuple l :=
-  PTuple $ tuple_of_list PCons PNil l.
+  PTuple (PMkList l).
+Arguments PMkTuple / l.
+
+Fixpoint EMkList (l : list expr) :=
+  match l with
+  | nil => ENil
+  | cons h t => ECons h (EMkList t)
+  end.
 
 Definition EMkTuple l :=
-  ETuple $ tuple_of_list ECons ENil l.
+  ETuple (EMkList l).
+Arguments EMkTuple / l.

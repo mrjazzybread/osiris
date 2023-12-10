@@ -406,6 +406,7 @@ Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
+
 Global Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
 Global Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
 Global Hint Extern 1 (_ = _) => rewrite try_bind : try_bind.

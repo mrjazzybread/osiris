@@ -30,6 +30,37 @@ Inductive tree (A : Type) : Type :=
 Arguments Leaf {A}.
 Arguments Node {A} t1 x t2.
 
+Fixpoint tree_depth {A} (t : tree A) : nat :=
+  match t with
+  | Leaf => 0
+  | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
+  end.
+
+Definition tlt {A} (t1 t2 : tree A) :=
+  (tree_depth t1 < tree_depth t2)%nat.
+
+Lemma tlt_wf {A} :
+  well_founded (@tlt A).
+Proof.
+  unfold tlt. eapply wf_inverse_image. eapply lt_wf.
+Qed.
+
+Lemma zlookup_wf {A B C} :
+  well_founded (
+      fun (t1 t2 : tree A * B * C) =>
+        @tlt A
+          (match t1 with
+           | (tree1,_,_) => tree1
+           end)
+          (match t2 with
+           | (tree2,_,_) => tree2
+           end)).
+Proof.
+  apply wf_inverse_image. apply tlt_wf.
+Qed.
+
+Local Hint Extern 1 (tree_depth _ < tree_depth _)%nat => (simpl; lia) : SIMP_specs.
+
 Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
@@ -139,18 +170,18 @@ Local Hint Resolve
 
 (* The depth of a zipper. *)
 
-Fixpoint depth {A} (z : zipper A) : nat :=
+Fixpoint zipper_depth {A} (z : zipper A) : nat :=
   match z with
   | Root =>
       0
   | NodeL z1 x t2 =>
-      1 + depth z1
+      1 + zipper_depth z1
   | NodeR t1 x z2 =>
-      1 + depth z2
+      1 + zipper_depth z2
   end.
 
 Definition zlt {A} (z1 z2 : zipper A) :=
-  (depth z1 < depth z2)%nat.
+  (zipper_depth z1 < zipper_depth z2)%nat.
 
 Lemma zlt_wf {A} :
   well_founded (@zlt A).
@@ -158,7 +189,21 @@ Proof.
   unfold zlt. eapply wf_inverse_image. eapply lt_wf.
 Qed.
 
-Local Hint Extern 1 (depth _ < depth _)%nat => (simpl; lia) : SIMP_specs.
+Lemma splay_wf {A B C D} :
+  well_founded (
+      fun (t1 t2 : B * C * D * zipper A) =>
+        @zlt A
+          (match t1 with
+           | (_,_,_,ctx1) => ctx1
+           end)
+          (match t2 with
+           | (_,_,_,ctx2) => ctx2
+           end)).
+Proof.
+  apply wf_inverse_image. apply zlt_wf.
+Qed.
+
+Local Hint Extern 1 (zipper_depth _ < zipper_depth _)%nat => (simpl; lia) : SIMP_specs.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -343,15 +388,29 @@ Proof.
   (* Subgoal: prove that [splay] satisfies its specification. *)
   { generalize η; clear η; intro η. (* optional *)
     unfold splay_spec. intros ??.
-    (* Reason by well-founded induction on the depth of the zipper [ctx]. *)
-    induction ctx as [ctx IH] using (well_founded_induction zlt_wf);
-    unfold zlt in IH.
     intros.
-    (* Enter the closure. *)
-    SIMP_enter_and_abstract. intros splay IH.
-    SIMP1. fixme. SIMP_continue.
+    (* TODO: Add the following pattern into SIMP_rec_call *)
+    (* remember (l, x, r, ctx) as t. *)
+    (* replace ctx with t.2 by (rewrite Heqt; reflexivity). *)
+    (* replace l with (t.1.1.1) by (rewrite Heqt; reflexivity). *)
+    (* replace x with (t.1.1.2) by (rewrite Heqt; reflexivity). *)
+    (* replace r with (t.1.2) by (rewrite Heqt; reflexivity). *)
+    (* SIMP_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A). *)
+    (* do 3 destruct t as [t ?]. *)
+    eapply SIMP_rec_call with
+      (v:=(l, x, r, ctx))
+      (P:=fun _ => True)
+      (φ:= fun tuple =>
+             match tuple with
+             | (l, x, r, ctx) =>
+                 (fun t' => fringe t' = fringe (fill ctx (Node l x r))) end).
+    { apply splay_wf. }
+    { done. }
+    clear l x r ctx.
+    intros splay [[[l x] r] ctx] _ IH.
+    unfold zlt in IH.
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1.
+    destruct ctx as [| ctx y ry | ly y ctx ]; SIMP1; SIMP_continue.
     (* Case: [Root]. *)
     { SIMP_continue.
       (* Establish the postcondition. *)
@@ -419,13 +478,22 @@ Proof.
   SIMP_specify "zlookup" zlookup_spec.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
   { unfold zlookup_spec. do 4 intro.
-    intro Hcompare.
+    intros Hcompare ??? Hbst.
+    eapply SIMP_rec_call_unary with 
+      (v:=(t,x,ctx))
+      (P:=fun '(t, _, _) => bst (strict le) t)
+      (φ:=fun tuple =>
+            match tuple with
+            | (t, x, ctx) =>
+                λ '(oy, t'),
+                member le x (fringe t) oy ∧ fringe t' = fringe (fill ctx t)
+            end).
+    { apply zlookup_wf. }
+    { apply Hbst. }
+    clear dependent t x ctx.
+    intros vf [[t x] ctx] Hbst IH.
     (* Reason by induction on the tree [t]. *)
-    induction t as [| l IHl y r IHr ];
-    intros ? ? Hbst;
-    SIMP_enter_and_abstract;
-    intros zlookup; [| intros IHl IHr ];
-    SIMP1; fixme; SIMP_continue; SIMP_continue.
+    destruct t as [|l y r]; SIMP1; SIMP_continue; SIMP_continue.
     (* Case: [Leaf]. *)
     { intros t' Ht'. SIMP1.
       (* Establish the postcondition: *)
@@ -446,8 +514,10 @@ Proof.
       assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
       (* Case: [c < 0], that is, [x < y]. *)
       { rewrite ltb_true by lia.
-        SIMP1.
-        intros [ox' t'] (? & ?).
+        SIMP1. eapply SIMP_covariant.
+        { eapply IH; first assumption.
+          { unfold tlt. simpl; lia. }}
+        intros [ox t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_left by representable. assumption.
@@ -457,8 +527,10 @@ Proof.
         SIMP1.
         rewrite lt_repr_repr by representable.
         rewrite ltb_true by lia.
-        SIMP1.
-        intros [b t'] (? & ?).
+        SIMP1. eapply SIMP_covariant.
+        { eapply IH; first assumption.
+          { unfold tlt. simpl; lia. }}
+        intros [b t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.
         - rewrite bst_member_right by representable. assumption.
@@ -473,7 +545,7 @@ Proof.
         intros t' Ht'. SIMP1.
         (* Establish the postcondition: *)
         assert (equivalent le x y) by tauto.
-        split; [ split |].
+        split; [ split |]; simpl.
         - assumption.
         - rewrite !elem_of_app, elem_of_list_singleton. tauto.
         - assumption. }
