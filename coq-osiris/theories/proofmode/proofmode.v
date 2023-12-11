@@ -1,7 +1,7 @@
 From osiris.proofmode Require Export
   equality
   simp
-  capital_SIMP
+  pure_hoare
   simp_tactics
   setup
   notations
