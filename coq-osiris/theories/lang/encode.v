@@ -51,8 +51,8 @@ Local Ltac solve_encode :=
 
 (* This may be used, for instance, for functions, or for modules. *)
 (* TODO clarify when/why this instance is used;
-        e.g. because SIMP builds in [encode],
-             this instance is needed when writing a [SIMP] judgement
+        e.g. because pure builds in [encode],
+             this instance is needed when writing a [pure] judgement
              about an expression that returns a function. *)
 
 (* This instance has low priority because it should be used only

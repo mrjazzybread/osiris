@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import simp capital_SIMP specifications.
+From osiris.proofmode Require Import simp pure_hoare specifications.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -65,6 +65,6 @@ Global Opaque
   type_mismatch
 
   (* Judgements. *)
-  SIMP
+  pure
 
 .

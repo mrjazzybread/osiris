@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp capital_SIMP.
+From osiris.proofmode Require Import simp pure_hoare.
 From Ltac2 Require Ltac2.
 
 (* This file contains tactics intended for use during hoare-style proofs of pure
@@ -24,112 +24,112 @@ Proof.
   beta. reflexivity.
 Qed.
 
-(* [SIMP_ret] expects a goal of the form [SIMP (ret v) φ]. It applies
-   the lemma [SIMP_ret], solves the subgoal [v = #x], and leaves just
+(* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
+   the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
-Ltac SIMP_ret :=
-  simple eapply SIMP_ret; [ solve [ encode ] | beta ].
+Ltac pure_ret :=
+  simple eapply pure_ret; [ solve [ encode ] | beta ].
 
-(* [SIMP_simp] expects a goal of the form [SIMP m φ]. It simplifies
-   [m] into [m'], if possible, and leaves the goal [SIMP m' φ]. *)
+(* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
+   [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
-Ltac SIMP_simp :=
-  simple eapply SIMP_simp; [ simp_really |].
+Ltac pure_simp :=
+  simple eapply pure_simp; [ simp_really |].
 
-(* SIMP0 leaves zero subgoal. *)
-(* SIMP1 leaves one subgoal, which may have an arbitrary shape. *)
+(* pure0 leaves zero subgoal. *)
+(* pure1 leaves one subgoal, which may have an arbitrary shape. *)
 
-Ltac SIMP0 :=
-  try SIMP_simp;
+Ltac pure0 :=
+  try pure_simp;
   first [
 
-    SIMP_ret; [
+    pure_ret; [
       (* goal: [φ x] *)
-      SIMP_close
+      pure_close
     ]
 
-  | simple eapply SIMP_call; [
+  | simple eapply pure_call; [
       (* goal: [v = #x] *)
       solve [encode]
-    | (* goal: [SIMP (call #x) φ] *)
-      SIMP_close
+    | (* goal: [pure (call #x) φ] *)
+      pure_close
     ]
 
-  | simple eapply SIMP_call_covariant; [
+  | simple eapply pure_call_consequence; [
       (* goal: [v = #x] *)
       solve [encode]
-      (* goal: [SIMP (call #x) φ] *)
-    | solve [eauto with SIMP_specs]
+      (* goal: [pure (call #x) φ] *)
+    | solve [eauto with pure_specs]
       (* goal: [∀ x, φ x → φ' x] *)
-    | SIMP_close
+    | pure_close
     ]
 
-  | simple eapply SIMP_bind_as_bool; [ SIMP0 | beta; intros; SIMP0 ]
-  | simple eapply SIMP_bind_as_int ; [ SIMP0 | beta; intros; SIMP0 ]
-  | simple eapply SIMP_bind        ; [ SIMP0 | beta; intros; SIMP0 ]
-  | simple eapply SIMP_try         ; [ SIMP0 | beta; intros; SIMP0 ]
+  | simple eapply pure_bind_as_bool; [ pure0 | beta; intros; pure0 ]
+  | simple eapply pure_bind_as_int ; [ pure0 | beta; intros; pure0 ]
+  | simple eapply pure_bind        ; [ pure0 | beta; intros; pure0 ]
+  | simple eapply pure_try         ; [ pure0 | beta; intros; pure0 ]
 
-  | SIMP_close
+  | pure_close
 
   ]
 
-with SIMP1 :=
-  try SIMP_simp;
+with pure1 :=
+  try pure_simp;
   first [
 
-    SIMP_ret (* residual goal: [φ x] *)
+    pure_ret (* residual goal: [φ x] *)
 
-  | simple eapply SIMP_call_covariant; [
+  | simple eapply pure_call_consequence; [
       (* goal: [v = #x] *)
       solve [encode]
-      (* goal: [SIMP (call #x) φ] *)
-    | solve [eauto with SIMP_specs]
+      (* goal: [pure (call #x) φ] *)
+    | solve [eauto with pure_specs]
       (* residual goal: [∀ x, φ x → φ' x] *)
     | beta
     ]
 
-  | simple eapply SIMP_call; [
+  | simple eapply pure_call; [
       (* goal: [v = #x] *)
       solve [encode]
-    | (* residual goal: [SIMP (call #x) φ] *)
+    | (* residual goal: [pure (call #x) φ] *)
       idtac
     ]
 
-  | simple eapply SIMP_bind_as_bool; [ SIMP0 | (* residual goal *) beta ]
-  | simple eapply SIMP_bind_as_int ; [ SIMP0 | (* residual goal *) beta ]
-  | simple eapply SIMP_bind        ; [ SIMP0 | (* residual goal *) beta ]
-  | simple eapply SIMP_try         ; [ SIMP0 | (* residual goal *) beta ]
+  | simple eapply pure_bind_as_bool; [ pure0 | (* residual goal *) beta ]
+  | simple eapply pure_bind_as_int ; [ pure0 | (* residual goal *) beta ]
+  | simple eapply pure_bind        ; [ pure0 | (* residual goal *) beta ]
+  | simple eapply pure_try         ; [ pure0 | (* residual goal *) beta ]
 
   | idtac (* residual goal *)
 
   ]
 
-with SIMP_close :=
-  solve [ eauto with SIMP_specs representable ].
+with pure_close :=
+  solve [ eauto with pure_specs representable ].
 
-Ltac SIMP1_call_step :=
+Ltac pure1_call_step :=
   first [
-    eapply SIMP_enter_call_VClo
-  | eapply SIMP_enter_call_VCloRec
+    eapply pure_enter_call_VClo
+  | eapply pure_enter_call_VCloRec
   ].
 
-Ltac SIMP_enter :=
-  SIMP1_call_step;
-  SIMP1.
+Ltac pure_enter :=
+  pure1_call_step;
+  pure1.
 
-Ltac SIMP_continue :=
+Ltac pure_continue :=
   lazymatch goal with
-  | |- SIMP ?m _ =>
+  | |- pure ?m _ =>
       unfold_breakpoint m;
-      SIMP1
+      pure1
   | _ =>
-      fail "[SIMP_continue] expects a goal of the form [SIMP _ _]"
+      fail "[pure_continue] expects a goal of the form [pure _ _]"
   end.
 
-Ltac SIMP_specify x φ :=
+Ltac pure_specify x φ :=
   lazymatch goal with
-  | |- SIMP (bind (ret_dconcat ?δ _) _) _ =>
+  | |- pure (bind (ret_dconcat ?δ _) _) _ =>
       (* is this reduction too strong? *)
       let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
@@ -138,7 +138,7 @@ Ltac SIMP_specify x φ :=
       end
   end.
 
-(* It is debatable in which order the two premises of the lemma [SIMP_call]
+(* It is debatable in which order the two premises of the lemma [pure_call]
    should be attacked. The premise [v'2 = #x] may seem easy to solve (this
    is the job of the tactic [encode]) so one may wish to solve it first.
    This offers the advantage of instantiating [x] immediately, so [x] is
@@ -148,31 +148,31 @@ Ltac SIMP_specify x φ :=
    However, solving [v'2 = #x] can involve guessing some types (e.g., the
    type of an empty list), and we have used [Hint Mode] in encode.v to
    forbid this. So, it can also be preferable to first solve the premise
-   [SIMP (call v1 #x) φ]. Doing so can allow us to instantiate these types
+   [pure (call v1 #x) φ]. Doing so can allow us to instantiate these types
    in a correct way.
 
    One might wish to try both approaches in sequence, but waiting until
    [encode] fails is very slow (several seconds).
 
    One might also wish to do a bit of both: that is, first apply some lemma
-   [L] to the subgoal [SIMP (call v1 #x) φ], then solve [v'2 = #x], then
+   [L] to the subgoal [pure (call v1 #x) φ], then solve [v'2 = #x], then
    attack the proof obligations created by applying the lemma [L]. *)
 
-Create HintDb SIMP_specs.
+Create HintDb pure_specs.
 
 (* TODO may be unused *)
-Ltac SIMP_call :=
+Ltac pure_call :=
   first [
-    simple eapply SIMP_call; [ solve [encode] | solve [eauto with SIMP_specs] ]
-  | simple eapply SIMP_covariant; [
-      simple eapply SIMP_call; [ solve [encode] | eauto with SIMP_specs ]
+    simple eapply pure_call; [ solve [encode] | solve [eauto with pure_specs] ]
+  | simple eapply pure_consequence; [
+      simple eapply pure_call; [ solve [encode] | eauto with pure_specs ]
     | cbn ]
   ].
 
-Ltac SIMP_enter_and_abstract :=
-  lazymatch goal with |- SIMP (call ?v _) _ =>
+Ltac pure_enter_and_abstract :=
+  lazymatch goal with |- pure (call ?v _) _ =>
     (* First, expand [call] away. *)
-    SIMP1_call_step;
+    pure1_call_step;
     normalize;
     (* Second, abstract away the closure (of which there are typically
        several occurrences in the hypotheses and goal), replacing it
@@ -187,20 +187,20 @@ Ltac SIMP_enter_and_abstract :=
 Ltac simp_evaluate :=
   simpl; repeat (rewrite eval_eval'; simpl).
 
-(* On a goal of the form [SIMP (Stop CEval x k ko) φ], evaluate the call by:
+(* On a goal of the form [pure (Stop CEval x k ko) φ], evaluate the call by:
    stepping through the [Stop] with the appropriate advance_SimpEval lemma,
-   using [simp_evaluate] under the resulting SIMP *)
-Ltac SIMP_evaluate :=
+   using [simp_evaluate] under the resulting pure *)
+Ltac pure_evaluate :=
   (lazymatch goal with
-   | |- SIMP (Stop CEval _ ret (λ _ : (), Next)) _ =>
-       eapply SIMP_simp; [apply advance_SimpEvalRetNext | apply SimpReflexive]
-   | |- SIMP (Stop CEval _ _ (λ _ : (), Next)) _ =>
-       eapply SIMP_simp; [apply advance_SimpEvalNext | apply SimpReflexive]
-   | |- SIMP (Stop CEval _ _ _) _ =>
-       eapply SIMP_simp; [apply advance_SimpEval | apply SimpReflexive]
+   | |- pure (Stop CEval _ ret (λ _ : (), Next)) _ =>
+       eapply pure_simp; [apply advance_SimpEvalRetNext | apply SimpReflexive]
+   | |- pure (Stop CEval _ _ (λ _ : (), Next)) _ =>
+       eapply pure_simp; [apply advance_SimpEvalNext | apply SimpReflexive]
+   | |- pure (Stop CEval _ _ _) _ =>
+       eapply pure_simp; [apply advance_SimpEval | apply SimpReflexive]
    | _ => idtac
    end);
-  eapply SIMP_simp; [simp_evaluate; apply SimpReflexive|].
+  eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
 
 Ltac SimpParRet :=
   lazymatch goal with
@@ -216,11 +216,11 @@ Ltac SimpParRet :=
       apply SimpParRetRight
   end.
 
-Ltac SIMPParRet :=
-  eapply SIMP_simp; first SimpParRet; simpl.
+Ltac pureParRet :=
+  eapply pure_simp; first SimpParRet; simpl.
 
-Ltac SIMP_execute :=
-  repeat (simpl; (SIMP_evaluate || SIMP_continue)); repeat SIMPParRet.
+Ltac pure_execute :=
+  repeat (simpl; (pure_evaluate || pure_continue)); repeat pureParRet.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -278,22 +278,22 @@ Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) :=
 Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intropattern(x) :=
   capture_hypotheses_aux (arg1, arg2); intros x.
 
-(* Automatically apply [SIMP_rec_call] on a goal of the form [SIMP m φ] *)
-Ltac SIMP_rec_tac arg pre Hwf :=
+(* Automatically apply [pure_rec_call] on a goal of the form [pure m φ] *)
+Ltac pure_rec_tac arg pre Hwf :=
   (* Eta-expand the postcondition *)
   match goal with
-  | |- SIMP _ ?H =>
+  | |- pure _ ?H =>
       let post := fresh in
       set (post := H); pattern arg in post; cbv delta [post]; clear post
   end;
-  (* Apply [SIMP_rec_call], possibly with an explicit precondition *)
+  (* Apply [pure_rec_call], possibly with an explicit precondition *)
   match pre with
   | None =>
-      eapply SIMP_rec_call with (v:=arg)
+      eapply pure_rec_call with (v:=arg)
   | Some ?pre =>
-      eapply SIMP_rec_call with (v:=arg) (P:=pre)
+      eapply pure_rec_call with (v:=arg) (P:=pre)
   end;
-  (* Try and solve subgoals generated by [SIMP_rec_call] *)
+  (* Try and solve subgoals generated by [pure_rec_call] *)
   [ apply Hwf
   | lazymatch pre with
     | None =>
@@ -305,28 +305,28 @@ Ltac SIMP_rec_tac arg pre Hwf :=
         auto
     end
   | ];
-  clear dependent arg; (* [SIMP_rec_call] deprecates the original argument *)
+  clear dependent arg; (* [pure_rec_call] deprecates the original argument *)
   let HP := fresh "HP" in
   let IH := fresh "IH" in
   simpl; intros vf arg HP IH.
 
-Tactic Notation "SIMP_rec" constr(arg) constr(Hwf) :=
-  SIMP_rec_tac arg constr:(@None False) Hwf.
+Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
+  pure_rec_tac arg constr:(@None False) Hwf.
 
-Tactic Notation "SIMP_rec" constr(arg) constr(pre) constr(Hwf) :=
-  SIMP_rec_tac arg constr:(Some pre) Hwf.
+Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
+  pure_rec_tac arg constr:(Some pre) Hwf.
 
-(* Automatically apply [SIMP_nested_call] on a goal of the form [SIMP m φ] *)
-Ltac SIMP_nested_tac arg1 arg2 pre Hwf :=
+(* Automatically apply [pure_nested_call] on a goal of the form [pure m φ] *)
+Ltac pure_nested_tac arg1 arg2 pre Hwf :=
   match goal with
-  | |- SIMP _ (fun c => SIMP _ ?H) =>
+  | |- pure _ (fun c => pure _ ?H) =>
       let post := fresh in
       set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
       lazymatch pre with
       | None =>
-          eapply SIMP_nested_call with (v1:=arg1) (v2:=arg2)
+          eapply pure_nested_call with (v1:=arg1) (v2:=arg2)
       | Some ?pre =>
-          eapply SIMP_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
+          eapply pure_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
       end;
       [ reflexivity
       | simpl; rewrite eval_eval'; reflexivity
@@ -347,12 +347,12 @@ Ltac SIMP_nested_tac arg1 arg2 pre Hwf :=
       simpl; intros vf arg1 arg2 HP IH
   end.
 
-Tactic Notation "SIMP_nested" constr(arg1) constr(arg2) constr(Hwf) :=
-  SIMP_nested_tac arg1 arg2 constr:(@None False) Hwf.
+Tactic Notation "pure_nested" constr(arg1) constr(arg2) constr(Hwf) :=
+  pure_nested_tac arg1 arg2 constr:(@None False) Hwf.
 
-Tactic Notation "SIMP_nested" constr(arg1) constr(arg2)
+Tactic Notation "pure_nested" constr(arg1) constr(arg2)
   constr(pre) constr(Hwf) :=
-  SIMP_nested_tac arg1 arg2 constr:(Some pre) Hwf.
+  pure_nested_tac arg1 arg2 constr:(Some pre) Hwf.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -361,7 +361,7 @@ Module Tac.
   
   Ltac2 eta_post' (arg : constr list) :=
     lazy_match! goal with
-    | [ |- SIMP _ ?φ ] =>
+    | [ |- pure _ ?φ ] =>
         let post := Fresh.in_goal @post in
         set ($post := $φ);         
         Std.pattern (List.map (fun x => (x, Std.AllOccurrences)) arg)

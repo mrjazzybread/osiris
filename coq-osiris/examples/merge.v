@@ -116,10 +116,10 @@ Local Hint Unfold merge_pre : core.
 Definition merge_spec (merge : val) : Prop :=
   ∀ A `(_ : Encode A) (l1 l2 : list Z),
     merge_pre l1 l2 ->
-    SIMP
+    pure
       (call merge #l1)
       (fun c =>
-         SIMP (call c #l2) (merge_post l1 l2)).
+         pure (call c #l2) (merge_post l1 l2)).
 
 
 (* Specification for [split l]. *)
@@ -132,7 +132,7 @@ Local Definition split_post {A} :=
 
 Definition split_spec (split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
-    SIMP
+    pure
       (call split #l)
       (split_post l).
 
@@ -147,7 +147,7 @@ Local Hint Unfold mergesort_pre : core.
 Definition mergesort_spec (mergesort : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list Z),
     mergesort_pre l ->
-    SIMP
+    pure
       (call mergesort #l)
       (mergesort_post l).
 
@@ -166,24 +166,24 @@ Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros ?? l1 l2 ?.
-  SIMP_nested l1 l2  (@wf_double_list_length Z).
+  pure_nested l1 l2  (@wf_double_list_length Z).
   unfold merge_pre in HP; repeat destruct_hyp.
   destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
   (* Case: l1 = [] *)
-  { SIMP1; SIMP1; SIMP_continue.
+  { pure1; pure1; pure_continue.
     unfold merge_post; rewrite app_nil_l; auto. }
   (* Case: l2 = [] *)
-  { SIMP1; SIMP1; SIMP_continue.
+  { pure1; pure1; pure_continue.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions. SIMP1. SIMP_continue.
+  all_inversions. pure1. pure_continue.
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *)
-    SIMP_execute.
+    pure_execute.
     (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
-    eapply SIMP_bind_binary.
+    eapply pure_bind_binary.
     { apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -193,16 +193,16 @@ Proof.
       { simpl; auto with arith. } }
     unfold merge_post; cbn; intros l' (? & ?).
     (* Establish the postcondition *)
-    eapply SIMP_ret; first solve [encode]. split.
+    eapply pure_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
       rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
-    SIMP_execute.
+    pure_execute.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
-    eapply SIMP_bind_binary.
+    eapply pure_bind_binary.
     { apply (IH t1 (h2::t2)).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -212,7 +212,7 @@ Proof.
       { simpl; auto with arith. } }
     unfold merge_post; cbn; intros l' (? & ?).
     (* Establish the postcondition *)
-    eapply SIMP_ret; first solve [encode]. split.
+    eapply pure_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
@@ -224,17 +224,17 @@ Lemma Split_spec η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
   unfold split_spec. intros.
-  SIMP_rec l (@wf_list_length A).
-  destruct l as [| a l]; last destruct l as [| b l]; SIMP_execute.
+  pure_rec l (@wf_list_length A).
+  destruct l as [| a l]; last destruct l as [| b l]; pure_execute.
   (* Case: [] *)
   { by simpl. }
   (* Case: [a] *)
   { by simpl. }
   (* Case: a::b::l *)
   { (* Apply the induction hypothesis *)
-    eapply SIMP_try; first apply IH; auto with arith.
+    eapply pure_try; first apply IH; auto with arith.
     intros [l1 l2] (Hl1&Hl2&Hperm).
-    SIMP_execute.
+    pure_execute.
     (* Establish the three conjuncts of the postcondition *)
     unfold split_post; simpl in *; split; last split.
     { (* Subgoal: the length of l1 is half the length of l *)
@@ -258,8 +258,8 @@ Proof.
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
   unfold mergesort_spec; intros ?? l ?.
-  SIMP_rec l (@wf_list_length Z).
-  destruct l as [|a l]; last destruct l as [|b l]; SIMP_execute.
+  pure_rec l (@wf_list_length Z).
+  destruct l as [|a l]; last destruct l as [|b l]; pure_execute.
   (* Case: [] *)
   { auto. }
   (* Case: [a] *)
@@ -271,24 +271,24 @@ Proof.
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall representable l2) as Hrep2 by
         (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
-  SIMP_continue.
+  pure_continue.
   (* Apply the induction hypothesis on l1 *)
-  eapply SIMP_try; first apply IH.
+  eapply pure_try; first apply IH.
   { (* Subgoal: show the precondition holds for l1 *)
     apply Hrep1. }
   { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
     by apply div2_lt_succ. }
   simpl; intros sl1 (Hsl1 & Hpsl1).
-  SIMP_continue.
+  pure_continue.
   (* Apply the induction hypothesis on l2*)
-  eapply SIMP_try; first apply IH.
+  eapply pure_try; first apply IH.
   { (* Subgoal: show the precondition holds for l2 *)
     apply Hrep2. }
   { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
-  SIMP_continue.
-  eapply SIMP_bind.
+  pure_continue.
+  eapply pure_bind.
   (* Use the fact that [merge] satisfies its specification *)
   { eapply _merge_spec with (l2:=sl2); unfold merge_pre; eauto.
     split; last split; auto.
@@ -297,7 +297,7 @@ Proof.
     { (* Subgoal: show merge's precondition that l2 is representable *)
       by rewrite_permutation sl2. }}
   intros c; simpl; intros Hc.
-  eapply SIMP_covariant; first apply Hc.
+  eapply pure_consequence; first apply Hc.
   intros l' [??].
   (* Establish the postcondition *) 
   split.
@@ -315,22 +315,22 @@ Qed.
 
 Lemma Merge__spec:
   let η := EnvCons "Stdlib" Stdlib Stdlib_env in
-  SIMP (eval_mexpr η __main)
+  pure (eval_mexpr η __main)
     (is_module_with_pspecs [("merge", merge_spec);
                         ("split", split_spec);
                         ("merge_sort", mergesort_spec)]).
 Proof.
   intros.
-  SIMP1.
-  SIMP_specify "merge" merge_spec.
+  pure1.
+  pure_specify "merge" merge_spec.
   { apply Merge_spec. } intros merge _spec1.
-  SIMP_continue.
-  SIMP_specify "split" split_spec.
+  pure_continue.
+  pure_specify "split" split_spec.
   { apply Split_spec. } intros split _spec2.
-  SIMP_continue.
-  SIMP_specify "merge_sort" mergesort_spec.
+  pure_continue.
+  pure_specify "merge_sort" mergesort_spec.
   { apply MergeSort_spec; eauto. } intros mergesort _spec3.
-  repeat SIMP_continue.
+  repeat pure_continue.
   (* Postcondition *)
   simpl. auto.
 Qed.

@@ -133,7 +133,7 @@ End StdLib__code.
 (* A specification for a pure function [decide] that decides a relation [R],
    subject to a precondition [P], producing a Boolean outcome. *)
 
-(* This specification is nondeterministic: it uses [SIMP] and a relation [R]
+(* This specification is nondeterministic: it uses [pure] and a relation [R]
    of type [A → A → Prop]. One could prefer a deterministic specification
    that uses [simp] and a function of type [A → A → bool]. TODO: try it. *)
 
@@ -142,10 +142,10 @@ Definition decide_spec `{Encode A}
 :=
   ∀ (x : A),
     P x →
-    SIMP (call decide #x) (λ v,
+    pure (call decide #x) (λ v,
       ∀ (y : A),
       P y →
-      SIMP (call v #y) (λ (b : bool),
+      pure (call v #y) (λ (b : bool),
         b ↔ R x y
       )
     ).
@@ -160,14 +160,14 @@ Local Lemma decide_spec' `{Encode A}
 :
   decide_spec decide P R →
   ∀ (x y : A), P x → P y →
-  SIMP
+  pure
     (bind (call decide #x) (λ v, call v #y))
     (λ (b : bool),
       b ↔ R x y
     ).
 Proof.
   intros Hspec x y Hx Hy.
-  eapply SIMP_bind; [ eauto | intros v; cbn; intros Hv ].
+  eapply pure_bind; [ eauto | intros v; cbn; intros Hv ].
   eauto.
 Qed.
 
@@ -184,9 +184,9 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
   ∀ (x : A),
-  SIMP (call compare #x) (λ v,
+  pure (call compare #x) (λ v,
     ∀ (y : A),
-    SIMP (call v #y) (λ (c : Z),
+    pure (call v #y) (λ (c : Z),
       representable c ∧
       (c < 0 ↔ lt x y) ∧
       (c = 0 ↔ eq x y) ∧
@@ -196,7 +196,7 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO specify every pure function using [SIMP], not [WP]. *)
+(* TODO specify every pure function using [pure], not [WP]. *)
 
 (* The following specification lemmas are no longer used,
    since [simp] now steps into calls to concrete closures. *)
@@ -211,7 +211,7 @@ Context `{!osirisGS Σ}.
 Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite eq_repr_repr; try assumption.
   rewrite Zeq_spec.
   tauto.
@@ -220,7 +220,7 @@ Qed.
 Lemma Stdlib__ne_spec :
   decide_spec Stdlib__ne representable (λ x y, x ≠ y).
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite eq_repr_repr; try assumption.
   rewrite Zne_spec.
   tauto.
@@ -229,7 +229,7 @@ Qed.
 Lemma Stdlib__lt_spec :
   decide_spec Stdlib__lt representable Z.lt.
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite lt_repr_repr; try assumption.
   rewrite Zlt_spec.
   tauto.
@@ -238,7 +238,7 @@ Qed.
 Lemma Stdlib__le_spec :
   decide_spec Stdlib__le representable Z.le.
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite lt_repr_repr; try assumption.
   rewrite Zle_spec.
   tauto.
@@ -248,7 +248,7 @@ Lemma Stdlib__gt_spec :
   decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
                                        (* avoid [Z.gt] *)
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite lt_repr_repr; try assumption.
   rewrite Zlt_spec.
   tauto.
@@ -258,7 +258,7 @@ Lemma Stdlib__ge_spec :
   decide_spec Stdlib__ge representable (λ x y, Z.le y x).
                                        (* avoid [Z.ge] *)
 Proof.
-  intros x Hx. SIMP_enter. intros y Hy. SIMP_enter.
+  intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite lt_repr_repr; try assumption.
   rewrite Zle_spec.
   tauto.
@@ -287,10 +287,10 @@ Proof.
 Qed.
 
 (* [Stdlib__store] is a curried binary function. The application to the
-   first argument is pure, so its specification is expressed using SIMP. *)
+   first argument is pure, so its specification is expressed using pure. *)
 
 Lemma Stdlib__store__spec l v v' s E :
-  SIMP
+  pure
     (call Stdlib__store #l)
     (λ c,
       {{{ l ↦ v }}}
@@ -298,7 +298,7 @@ Lemma Stdlib__store__spec l v v' s E :
       {{{ RET #() ; l ↦ v' }}}
     ).
 Proof.
-  SIMP1.
+  pure1.
   iIntros (φ) "Hl Hpost".
   wp_enter. wp_simp.
   wp_store "Hl".
@@ -314,7 +314,7 @@ End Stdlib__specs.
 (* Some pure functions in the standard library (e.g., the arithmetic operators
    and the comparison operators) can be given deterministic specifications in
    terms of [simp]. So, we seem to have three choices:
-   - prove a spec in terms of [SIMP] and make it a lemma in a database;
+   - prove a spec in terms of [pure] and make it a lemma in a database;
    - prove a spec in terms of [simp] and make it a lemma in a database;
      (this approach does not work well for curried binary functions,
       as the intermediate value [v] must be existentially quantified)

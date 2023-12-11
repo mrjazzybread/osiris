@@ -427,7 +427,7 @@ Qed.
 
 Definition weak_spec_length' (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
-  SIMP (call length (encode xs)) (λ n : Z, 0 ≤ n)%Z.
+  pure (call length (encode xs)) (λ n : Z, 0 ≤ n)%Z.
 
 Goal
   ∀ η,
@@ -435,8 +435,8 @@ Goal
 Proof.
   unfold weak_spec_length'.
   induction xs as [| x xs ];
-  SIMP_enter_and_abstract; intros length; [| intros Hlength ];
-  SIMP1; SIMP_continue.
+  pure_enter_and_abstract; intros length; [| intros Hlength ];
+  pure1; pure_continue.
   { lia. }
-  { intros n ?. SIMP1. lia. }
+  { intros n ?. pure1. lia. }
 Qed.
