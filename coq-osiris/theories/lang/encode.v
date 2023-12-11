@@ -433,3 +433,77 @@ Proof. solve_encode. Qed.
 Global Hint Resolve solve_encode_tuple4
 | 0 (* higher priority than tuple2 and tuple3 above *)
 : encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Strings. *)
+
+Definition encode_string (s : string) :=
+  VString s.
+
+Global Instance Encode_string : Encode string :=
+  {encode := λ s, VString s }.
+
+Lemma encode_string_is_encode s :
+  VString s = #s.
+Proof. solve_encode. Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Structs. *)
+
+Definition encode_struct (η : env) :=
+  VStruct η.
+
+Global Instance Encode_struct : Encode env :=
+  { encode := encode_struct }.
+
+Lemma encode_struct_is_encode η :
+  encode_struct η = #η.
+Proof. solve_encode. Qed.
+
+Lemma solve_encode_StructNil (η : env) :
+  EnvNil = η →
+  VStruct EnvNil = #η.
+Proof. solve_encode. Qed.
+
+Lemma solve_encode_StructCons (η : env) x v η' :
+  EnvCons x v η' = η →
+  VStruct ((EnvCons x v) η') = #η.
+Proof. solve_encode. Qed.
+
+Global Hint Resolve
+  encode_struct_is_encode
+  solve_encode_StructNil solve_encode_StructCons
+| 0 (* higher priority than record below *)
+: encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Records. *)
+
+Definition encode_record (η : env) :=
+  VRecord η.
+
+Global Instance Encode_record : Encode env :=
+  { encode := encode_record }.
+
+Lemma encode_record_is_encode η :
+  encode_record η = #η.
+Proof. solve_encode. Qed.
+
+Lemma solve_encode_RecordNil (η : env) :
+  EnvNil = η →
+  VRecord EnvNil = #η.
+Proof. solve_encode. Qed.
+
+Lemma solve_encode_RecordCons (η : env) x v η' :
+  EnvCons x v η' = η →
+  VRecord ((EnvCons x v) η') = #η.
+Proof. solve_encode. Qed.
+
+Global Hint Resolve
+  encode_record_is_encode
+  solve_encode_RecordNil solve_encode_RecordCons
+| 10 (* lower priority than struct above *)
+: encode.
