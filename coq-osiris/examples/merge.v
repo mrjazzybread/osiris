@@ -297,7 +297,7 @@ Proof.
     { (* Subgoal: show merge's precondition that l2 is representable *)
       by rewrite_permutation sl2. }}
   intros c; simpl; intros Hc.
-  eapply pure_covariant; first apply Hc.
+  eapply pure_consequence; first apply Hc.
   intros l' [??].
   (* Establish the postcondition *) 
   split.

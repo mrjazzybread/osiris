@@ -514,7 +514,7 @@ Proof.
       assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
       (* Case: [c < 0], that is, [x < y]. *)
       { rewrite ltb_true by lia.
-        pure1. eapply pure_covariant.
+        pure1. eapply pure_consequence.
         { eapply IH; first assumption.
           { unfold tlt. simpl; lia. }}
         intros [ox t'] (? & ?); simpl.
@@ -527,7 +527,7 @@ Proof.
         pure1.
         rewrite lt_repr_repr by representable.
         rewrite ltb_true by lia.
-        pure1. eapply pure_covariant.
+        pure1. eapply pure_consequence.
         { eapply IH; first assumption.
           { unfold tlt. simpl; lia. }}
         intros [b t'] (? & ?); simpl.

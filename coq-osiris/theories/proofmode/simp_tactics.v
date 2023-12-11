@@ -56,7 +56,7 @@ Ltac pure0 :=
       pure_close
     ]
 
-  | simple eapply pure_call_covariant; [
+  | simple eapply pure_call_consequence; [
       (* goal: [v = #x] *)
       solve [encode]
       (* goal: [pure (call #x) φ] *)
@@ -80,7 +80,7 @@ with pure1 :=
 
     pure_ret (* residual goal: [φ x] *)
 
-  | simple eapply pure_call_covariant; [
+  | simple eapply pure_call_consequence; [
       (* goal: [v = #x] *)
       solve [encode]
       (* goal: [pure (call #x) φ] *)
@@ -164,7 +164,7 @@ Create HintDb pure_specs.
 Ltac pure_call :=
   first [
     simple eapply pure_call; [ solve [encode] | solve [eauto with pure_specs] ]
-  | simple eapply pure_covariant; [
+  | simple eapply pure_consequence; [
       simple eapply pure_call; [ solve [encode] | eauto with pure_specs ]
     | cbn ]
   ].

@@ -23,59 +23,6 @@ From osiris.proofmode Require Import notations.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic reasoning rules for [ret], [bind], [try]. *)
-
-Lemma pure_ret `{Encode X} (φ : X → Prop) v x :
-  v = #x →
-  φ x →
-  pure (ret v) φ.
-Proof.
-  unfold pure. intros. subst. eauto with simp.
-Qed.
-
-(* A reasoning rule for [try]. *)
-
-(* The rule is degenerate; [m] is not allowed to reduce to [Next],
-   so the handler [g] is dead and no proof obligation bears on it. *)
-
-Lemma pure_try X (_ : Encode X) Y (_ : Encode Y)
-  m f g (φ : X → Prop) (ψ : Y → Prop) :
-  pure m φ →
-  (∀ x, φ x → pure (f #x) ψ) →
-  pure (try m f g) ψ.
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  eexists; split; eauto using prove_simp_try.
-Qed.
-
-(* This variant of the Bind rule has two premises. *)
-
-(* This is [@bind val val]. *)
-
-Lemma pure_bind X (_ : Encode X) Y (_ : Encode Y)
-  m f (φ : X → Prop) (ψ : Y → Prop) :
-  pure m φ →
-  (∀ x, φ x → pure (f #x) ψ) →
-  pure (bind m f) ψ.
-Proof.
-  rewrite bind_as_try. eauto using pure_try.
-Qed.
-
-(* This Iris-style variant of the Bind rule has just one premise. It is
-   obtained by choosing the least precise φ in the above lemma. *)
-
-(* This is [@bind val val]. *)
-
-Lemma pure_bind_unary X (_ : Encode X) Y (_ : Encode Y)
-  m f (ψ : Y → Prop) :
-  pure m (λ (x : X), pure (f #x) ψ) ->
-  pure (bind m f) ψ.
-Proof.
-  eauto using pure_bind.
-Qed.
-
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
   (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
   simp ('c ← m;
@@ -121,30 +68,6 @@ Proof.
   intros; auto.
 Qed.
 
-(* -------------------------------------------------------------------------- *)
-
-(* This lemma allows simplifying a goal of the form [pure m φ] by first
-   simplifying [m] into [m'], then reasoning about [m']. *)
-
-Lemma pure_simp `{Encode X} m m' (φ : X → Prop) :
-  simp m m' →
-  pure m' φ →
-  pure m φ.
-Proof.
-  unfold pure.
-  intros ? (x & ? & ?).
-  eauto with simp.
-Qed.
-
-(* The Consequence rule. *)
-
-Lemma pure_covariant `{Encode X} m (φ ψ : X → Prop) :
-  pure m φ →
-  (∀ x, φ x → ψ x) →
-  pure m ψ.
-Proof.
-  intros (x & Hm & Hx) ?. exists x. eauto.
-Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -213,16 +136,16 @@ Proof.
   intros. subst. eauto.
 Qed.
 
-(* This lemma combines [pure_covariant] and [pure_call]. *)
+(* This lemma combines [pure_consequence] and [pure_call]. *)
 
-Lemma pure_call_covariant `{Encode X} `{Encode Y}
+Lemma pure_call_consequence `{Encode X} `{Encode Y}
   (φ ψ : Y → Prop) v1 v'2 (x : X) :
   v'2 = #x →
   pure (call v1 #x) φ →
   (∀ y, φ y → ψ y) →
   pure (call v1 v'2) ψ.
 Proof.
-  eauto using pure_covariant, pure_call.
+  eauto using pure_consequence, pure_call.
 Qed.
 
 (* The following two lemmas paraphrase the definition of [call] in eval.v.
