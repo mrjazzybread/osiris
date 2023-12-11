@@ -4,22 +4,13 @@ From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality simp.
 From osiris.proofmode Require Import notations.
 
-(* This file also defines the judgement [SIMP m φ], which asserts that the
-   computation [m] is pure and eventually produces a result that satisfies
-   the postcondition [φ]. This judgement and its reasoning rules for a
-   simple Hoare logic (of total correctness) for pure computations. *)
+(* Because the relation [simp] is inductively defined, the [pure] judgement
+   implies that [m] terminates. This forms a Hoare logic of total correctness
+   for pure compuations. *)
 
-(* This file offers lemmas and tactics that help work with [SIMP] goals.
+(* This file offers lemmas and tactics that help work with [pure] goals.
    These lemmas and tactics form a simple "proof mode" for pure
    computations. *)
-
-(* -------------------------------------------------------------------------- *)
-
-(* The judgement [pure m φ] asserts that the computation [m] can be simplified
-   to [ret #x], where [x] is a (logical) value so that [φ x] holds. *)
-
-(* Because the relation [simp] is inductively defined, this judgement implies
-   that [m] terminates. This is a Hoare logic of total correctness. *)
 
 (* -------------------------------------------------------------------------- *)
 

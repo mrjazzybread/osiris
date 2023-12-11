@@ -58,7 +58,7 @@
 
 * Automatically unfold `call` if the closure is transparent.
 
-* Develop variants of the tactics `simp` and/or `SIMP` that
+* Develop variants of the tactics `simp` and/or `pure` that
   advance step by step (whatever that means...) instead of
   performing as many steps as possible. Perhaps also offer
   a variant that stops at `ret_concat` and `ret_dconcat`
@@ -85,7 +85,7 @@
 
 * Most of the file `tc_simplifications.v` should go away, I think (?).
   => simplication typeclasses have been removed,
-     specifications of pure functions should use simp/SIMP.
+     specifications of pure functions should use simp/pure.
   The tactic `encode` should be used to solve goals of the form `v = #x`.
   Function arguments and function results should always be encoded.
 
