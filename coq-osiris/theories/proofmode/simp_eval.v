@@ -126,6 +126,13 @@ Proof.
   intros. simp. (* wow *)
 Qed.
 
+Lemma simp_eval_tuple' η es vs :
+  simp (evals η es) (ret vs) →
+  simp (eval η (ETuple es)) (ret (VTuple vs)).
+Proof.
+  intros. simp.
+Qed.
+
 (* Integer literals. *)
 
 Lemma simp_eval_int η (z : Z) :
@@ -257,6 +264,17 @@ Proof.
   simpl encode. rewrite truth_True. eauto using advance_SimpEvalEAssert.
 Qed.
 
+(* Sequence *)
+
+Lemma simp_eval_seq η e1 e2 v :
+  (exists a, simp (eval η e1) (ret a)) ->
+  simp (eval η e2) (ret v) ->
+  simp (eval η (ESeq e1 e2)) (ret v).
+Proof.
+  intros [??] ?.
+  eauto using prove_simp_bind.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Reasoning rules for [pure (eval _ _) _], that is,
@@ -288,6 +306,16 @@ Proof.
   intros. destruct_pure a2. destruct_pure a1.
   eapply pure_simp; [ simp |].
   eauto using pure_ret with encode.
+Qed.
+
+Lemma pure_eval_tuple η es vs (ψ : val -> Prop) :
+  simp (evals η es) (ret vs) ->
+  ψ (VTuple vs) ->
+  pure (eval η (ETuple es)) ψ.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
 Qed.
 
 (* Function applications. *)
@@ -366,20 +394,55 @@ Qed.
 (* Local definitions. *)
 
 (* TODO one binding only, for now *)
+  
+Lemma simp_eval_let_pair' p1 p2 e1 e2 m v1 v2 η θ :
+  simp (eval η e1) (ret (VPair v1 v2)) ->
+  simp (δ ← extend EnvNil p1 v1;
+        extend δ p2 v2) (ret θ) ->
+  simp (eval (concat θ η) e2) m ->
+  simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
+Proof.
+  intros. simp.
+  eapply prove_simp_try; last eassumption.
+  apply invert_simp_bind_ret in H0 as (δ & Hnil & Hext).
+  eapply prove_simp_bind; first eassumption.
+  rewrite bind_bind.
+  simpl. by rewrite bind_ret_right.
+Qed.  
 
+Lemma pure_eval_let_pair' `{Encode X} p1 p2 e1 e2 v1 v2 η θ (ψ : X -> Prop) :
+  simp (eval η e1) (ret (VPair v1 v2)) ->
+  simp (δ ← extend EnvNil p1 v1;
+        extend δ p2 v2) (ret θ) ->
+  pure (eval (concat θ η) e2) ψ ->
+  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
+Proof.
+  intros. destruct_pure y. eauto using simp_eval_let_pair'.
+Qed.
+
+Lemma pure_eval_let_pair `{Encode X, Encode B} p1 p2 e1 e2 v1 v2 η θ (ψ : X -> Prop) :
+  @pure B _ (eval η e1) (λ y', #y' = VPair v1 v2) ->
+  simp (δ ← extend EnvNil p1 v1;
+        extend δ p2 v2) (ret θ) ->
+  pure (eval (concat θ η) e2) ψ ->
+  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
+Proof.
+  intros (y & Hsimp & Heq) ??.
+  rewrite Heq in Hsimp.
+  eauto using pure_eval_let_pair'.
+Qed.
+  
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
-  (a1 : A1) (ψ : B → Prop)
-:
-  simp (eval η e1) (ret #a1) →
-  pure (eval (EnvCons x #a1 η) e) ψ →
+  (a1 : A1) (ψ : B → Prop) :
+  simp (eval η e1) (ret #a1) ->
+  pure (eval (EnvCons x #a1 η) e) ψ ->
   pure (eval η (ELet1Var x e1 e)) ψ.
 Proof.
   intros. destruct_pure b. eauto using simp_eval_let.
 Qed.
 
 Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
-  (φ1 : A1 → Prop) (ψ : B → Prop)
-:
+  (φ1 : A1 → Prop) (ψ : B → Prop) :
   pure (eval η e1) φ1 →
   (∀ a1, φ1 a1 → pure (eval (EnvCons x #a1 η) e) ψ) →
   pure (eval η (ELet1Var x e1 e)) ψ.
@@ -410,3 +473,121 @@ Lemma pure_eval_assert η e :
 Proof.
   eauto using simp_eval_assert.
 Qed.
+
+(* Sequencing of pure computations. *)
+
+Lemma pure_eval_seq' `{Encode A} η e1 e2 a (ψ : A -> Prop) :
+  simp (eval η e1) (ret a) ->
+  pure (eval η e2) ψ ->
+  pure (eval η (ESeq e1 e2)) ψ.
+Proof.
+  intros.
+  destruct_pure b.
+  eapply pure_simp. { apply simp_eval_seq; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_seq `{Encode A} `{Encode B} η e1 e2 (ψ : A -> Prop) :
+  pure (eval η e1) (λ _ : B, True) ->
+  pure (eval η e2) ψ ->
+  pure (eval η (ESeq e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a. destruct_pure b.
+  eapply pure_simp. { apply simp_eval_seq; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_match `{Encode A} `{Encode X} η e v bs (ψ : A -> Prop) :
+  pure (eval η e) (λ v' : val, v' = v) ->
+  pure (eval_match η v bs) ψ ->
+  pure (eval η (EMatch e bs)) ψ.
+Proof.
+  intros.
+  destruct_pure a. destruct_pure b.
+  subst b.
+  eapply pure_simp.
+  { rewrite eval_eval'; simpl.
+    eapply prove_simp_bind; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
+  simp (eval_sitems (η, EnvNil) items) (ret (whatenv, δ)) ->
+  ψ (VStruct δ) ->
+  pure (eval_mexpr η (MStruct items)) ψ.
+Proof.
+  intros.  
+  eapply pure_simp.
+  { eapply prove_simp_bind; [eauto | apply SimpReflexive]. } 
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop):
+  simp (eval_mexpr η me) (ret v) ->
+  pure (coerce c v) ψ ->
+  pure (eval_mexpr η (MCoercion me c)) ψ.
+Proof.
+  intros.
+  destruct_pure cv.
+  eapply pure_simp.
+  { eapply prove_simp_bind; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_path η π (ψ : val -> Prop) :
+  pure (lookup_path η π) ψ ->
+  pure (eval η (EPath π)) ψ.
+Proof.
+  intros. destruct_pure v.
+  eapply pure_simp.
+  rewrite eval_eval'; eauto.
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) :
+  pure (eval (concat δ η) e) ψ ->
+  pure (θ ← ret_concat δ η;
+        eval θ e) ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma simp_eval_const η c :
+  simp (eval η (EConstant c)) (ret (VConstant c)).
+Proof.
+  do 2 (rewrite eval_eval'; simpl).
+  done.
+Qed.
+
+Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) :
+  VConstant c = #x ->
+  ψ x ->
+  pure (eval η (EConstant c)) ψ.
+Proof.
+  intros.
+  eapply pure_simp; first apply simp_eval_const.
+  eauto using pure_ret.
+Qed.
+
+Lemma simp_eval_data η c e v :
+  simp (eval η e) (ret v) ->
+  simp (eval η (EData c e)) (ret (VData c v)).
+Proof.
+  intros.
+  rewrite eval_eval'; simpl.
+  eapply prove_simp_bind; first eassumption.
+  apply SimpReflexive.
+Qed.
+
+Lemma pure_eval_data `{Encode X} `{Encode Y} η c e (y : Y) x (ψ : X -> Prop) :
+  pure (eval η e) (λ v', v' = y) ->
+  VData c #y = #x ->
+  ψ x ->
+  pure (eval η (EData c e)) ψ.
+Proof.
+  intros. destruct_pure v'. subst v'.
+  eapply pure_simp.
+  eauto using simp_eval_data.
+  eapply pure_ret; eauto.
+Qed.
+

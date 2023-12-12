@@ -249,6 +249,124 @@ Proof.
       apply Permutation_middle. }}
 Qed.
 
+Lemma Split_spec' η :
+  split_spec (VCloRec η __bindings7 "split").
+Proof.
+  unfold split_spec. intros.
+  pure_rec l (@wf_list_length A).
+  destruct l as [| a l]; last destruct l as [| b l].
+  (* Case: l = [] *)
+  { eapply pure_eval_match.
+    { apply pure_eval_path.
+      eapply pure_ret; first solve [encode].
+      reflexivity. }
+    simpl.
+    apply pure_eval_ret_concat.
+    eapply pure_eval_pair.
+    { eapply pure_eval_const; first solve [encode].
+      apply eq_refl. }
+    { eapply pure_eval_const; first solve [encode].
+      apply eq_refl. }
+    intros a1 a2 ??; subst a1; subst a2.
+    by simpl. }
+  (* Case: l = [a] *)
+  { eapply pure_eval_match.
+    { apply pure_eval_path; simpl.
+      eapply pure_ret; first solve [encode].
+      reflexivity. }
+    simpl.
+    apply pure_eval_ret_concat.
+    eapply pure_eval_pair.
+    { eapply pure_eval_data.
+      { eapply pure_eval_pair.
+        { apply pure_eval_path; simpl.
+          eapply pure_ret; first reflexivity.
+          apply eq_refl. }
+        { eapply pure_eval_const.
+          { eapply solve_encode_Nil; reflexivity. }
+          apply eq_refl. }
+        intros a1 a2 ??; subst a1; subst a2.
+        reflexivity. }
+      eapply solve_encode_Cons; reflexivity.
+      apply eq_refl. }
+    { eapply pure_eval_const; first solve [encode].
+      apply eq_refl. }
+    intros a1 a2 ??; subst a1; subst a2.
+    by simpl. }
+  (* Case: l = a :: b :: l *)
+  specialize (IH l).
+  destruct IH as ([l1 l2] & IH & Hpost); auto with arith.
+  eapply pure_eval_match.
+  { apply pure_eval_path; simpl.
+    eapply pure_ret; first solve [encode].
+    reflexivity. }
+  simpl.
+  apply pure_eval_ret_concat.
+  eapply pure_eval_let_pair.
+  { eapply pure_eval_app.
+    { apply pure_eval_path; simpl.
+      eapply pure_ret; first solve [encode].
+      apply eq_refl. }
+    { apply pure_eval_path; simpl.
+      eapply pure_ret; first solve [encode].
+      apply eq_refl. }
+    intros v1 v2 ??.
+    subst v1. subst v2.
+    eapply pure_simp.
+    apply IH.
+    eapply pure_ret; first solve [encode].
+    reflexivity. }
+  { apply SimpReflexive. }
+  unfold __exp5; simpl.
+  eapply pure_eval_pair.
+  { eapply pure_eval_data.
+    { eapply pure_eval_pair.
+      { apply pure_eval_path; simpl.
+        eapply pure_ret; first solve [encode].
+        apply eq_refl. }
+      { apply pure_eval_path; simpl.
+        eapply pure_ret; first solve [encode].
+        apply eq_refl. }
+      intros a1 a2 ??; subst a1; subst a2.
+      reflexivity. }
+    eapply solve_encode_Cons. reflexivity. reflexivity. reflexivity.
+    apply eq_refl. }
+  eapply pure_eval_data.
+  { eapply pure_eval_pair.
+    { apply pure_eval_path; simpl.
+      eapply pure_ret; first solve [encode].
+      apply eq_refl. }
+    { apply pure_eval_path; simpl.
+      eapply pure_ret; first solve [encode].
+      apply eq_refl. }
+    intros a1 a2 ??; subst a1; subst a2.
+    reflexivity. }
+  eapply solve_encode_Cons. reflexivity. reflexivity. reflexivity.
+  apply eq_refl.
+  intros al1 bl2 ??; subst al1; subst bl2.
+  unfold split_post in *; simpl in *.
+  repeat destruct_hyp.
+  split; last split.
+  { (* Subgoal: the length of l1 is half the length of l *)
+      destruct (Nat.even _); eauto with arith. }
+  { (* Subgoal: the length of l2 is hald the length of l *)
+    eauto with arith. }
+  { (* Subgoal: l1++l2 is a permutation of l *)
+    rewrite_permutation l.
+    change ((a::l1)++b::l2) with (a::l1++b::l2).
+    apply Permutation_skip.
+    apply Permutation_sym.
+    apply Permutation_middle. }
+  Unshelve.
+  - apply A.
+  - apply H.
+  - apply A.
+  - apply H.
+  - apply A.
+  - apply H.
+Qed.
+
+
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
   (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->

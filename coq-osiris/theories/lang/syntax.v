@@ -458,3 +458,19 @@ Inductive ForallEV (P : expr → val → Prop) : exprs → vals → Prop :=
     P e v →
     ForallEV P es vs →
     ForallEV P (ECons e es) (VCons v vs).
+
+Inductive ForallV (P : val → Prop) : vals → Prop :=
+| ForallVNil :
+    ForallV P VNil
+| ForallVCons v vs :
+    P v →
+    ForallV P vs →
+    ForallV P (VCons v vs).
+
+Inductive ForallEnv (P : var → val → Prop) : env → Prop :=
+| ForallEnvNil :
+    ForallEnv P EnvNil
+| ForallEnvCons x v es :
+    P x v →
+    ForallEnv P es →
+    ForallEnv P (EnvCons x v es).

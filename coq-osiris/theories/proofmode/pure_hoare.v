@@ -133,44 +133,48 @@ Qed.
 (* [bind] composed with [as_struct]. *)
 
 Lemma simp_as_struct (x : env) (m : micro val) :
-  simp m (ret (@encode _ Encode_struct x)) ->
+  simp m (ret (VStruct x)) ->
   simp (as_struct m) (ret x).
 Proof.
   eauto using prove_simp_bind with simp.
 Qed.
 
 Lemma pure_bind_as_struct Y (_ : Encode Y)
-  m (f : env → micro val) (φ : env → Prop) (ψ : Y → Prop) :
-  @pure _ Encode_struct m φ →
-  (∀ (x : env), φ x → pure (f x) ψ) →
+  m (f : env → micro val) (φ : val → Prop) (ψ : Y → Prop) :
+  pure m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
+  (∀ (x : env), φ (VStruct x) → pure (f x) ψ) →
   pure (bind (as_struct m) f) ψ.
   (* This is [@bind env val]. *)
 Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
+  intros (x & H & Hx) Hf.
+  destruct Hx as (x' & ? & Hx').
+  subst x. rewrite <- solve_encode_val in H.
+  specialize (Hf x' Hx').
+  destruct_pure y.
   exists y; eauto using prove_simp_bind, simp_as_struct.
 Qed.
 
 (* [bind] composed with [as_record]. *)
 
 Lemma simp_as_record (x : env) (m : micro val) :
-  simp m (ret (@encode _ Encode_record x)) ->
+  simp m (ret (VRecord x)) ->
   simp (as_record m) (ret x).
 Proof.
   eauto using prove_simp_bind with simp.
 Qed.
 
 Lemma pure_bind_as_record Y (_ : Encode Y)
-  m (f : env → micro val) (φ : env → Prop) (ψ : Y → Prop) :
-  @pure _ Encode_record m φ →
-  (∀ (x : env), φ x → pure (f x) ψ) →
+  m (f : env → micro val) (φ : val → Prop) (ψ : Y → Prop) :
+  pure m (λ y : val, exists y', y = VRecord y' /\ φ y) →
+  (∀ (x : env), φ (VRecord x) → pure (f x) ψ) →
   pure (bind (as_record m) f) ψ.
   (* This is also [@bind env val]. *)
 Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
+  intros (x & H & Hx) Hf.
+  destruct Hx as (x' & ? & Hx').
+  subst x. rewrite <- solve_encode_val in H.
+  specialize (Hf x' Hx').
+  destruct_pure y.
   exists y; eauto using prove_simp_bind, simp_as_record.
 Qed.
 
