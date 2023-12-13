@@ -420,21 +420,39 @@ Qed.
    the environment in a way that is described by the relation [ρ]
    or fails (by raising [Next]) and guarantees [ψ]. *)
 
+(* The definition of this judgement involves a universal quantification
+   [∀ η, ...]. This reflects the fact that (in OCaml) a pattern never
+   reads the value of a variable. TODO: this will become false in the
+   future once we add exception patterns and extensible data types. *)
+
 Implicit Type ρ : env → env → Prop.
 
 Definition pat p v ρ ψ :=
   ∀ η, total (extend η p v) (ρ η) ψ.
 
+(* The following are standard notions on relations: the equality
+   relation, composition of relations, and inclusion of relations. *)
+
+(* TODO check if already defined somewhere in stdpp or Coq stdlib *)
+
 Definition equality : env → env → Prop :=
   λ η η', η' = η.
-
-Definition bind x v : env → env → Prop :=
-  λ η η', η'= EnvCons x v η.
 
 Definition seq ρ1 ρ2 : env → env → Prop :=
   λ η η', ∃ ηx, ρ1 η ηx ∧ ρ2 ηx η'.
 
+Global Instance subseteq_rho : SubsetEq (env → env → Prop) :=
+  { subseteq := λ ρ ρ', ∀ η η', ρ η η' → ρ' η η' }.
+
+(* [bind x v η η'] means that the environment [η'] extends
+   the environment [η] with a binding of [x] to [v]. *)
+
+Definition bind x v : env → env → Prop :=
+  λ η η', η'= EnvCons x v η.
+
 Implicit Type ψ : Prop.
+
+(* A consequence rule. *)
 
 Lemma pat_consequence p v ρ ρ' ψ ψ' :
   pat p v ρ ψ →
@@ -444,6 +462,8 @@ Lemma pat_consequence p v ρ ρ' ψ ψ' :
 Proof.
   unfold pat. eauto using total_consequence.
 Qed.
+
+(* Syntax-directed reasoning rules. *)
 
 Lemma pat_PAny v ψ :
   pat PAny v equality ψ.
