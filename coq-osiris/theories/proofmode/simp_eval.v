@@ -295,7 +295,26 @@ Local Hint Unfold pure : core.
 
 (* TODO can we give a similar lemma at arity [n]? *)
 
-Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2
+Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2 (ψ : A1 * A2 → Prop) :
+  pure (eval η e1) (λ a1 : A1, pure (eval η e2) (λ a2 : A2, ψ (a1, a2))) →
+  pure (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a1. destruct_pure a2.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
+
+Lemma pure_eval_pair_val η e1 e2 (ψ : val → Prop) :
+  pure (eval η e1) (λ a1 : val, pure (eval η e2) (λ a2 : val, ψ (VPair a1 a2))) →
+  pure (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a1. destruct_pure a2.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
+
+
+Lemma pure_eval_pair_conseq `{Encode A1, Encode A2} η e1 e2
   (φ1 : A1 → Prop) (φ2 : A2 → Prop) (ψ : A1 * A2 → Prop)
 :
   pure (eval η e1) φ1 →
@@ -579,15 +598,13 @@ Proof.
   apply SimpReflexive.
 Qed.
 
-Lemma pure_eval_data `{Encode X} `{Encode Y} η c e (y : Y) x (ψ : X -> Prop) :
-  pure (eval η e) (λ v', v' = y) ->
-  VData c #y = #x ->
+Lemma pure_eval_data `{Encode X} η c e x (ψ : X -> Prop) :
+  pure (eval η e) (λ y : val, (VData c y) = #x) ->
   ψ x ->
   pure (eval η (EData c e)) ψ.
 Proof.
-  intros. destruct_pure v'. subst v'.
-  eapply pure_simp.
-  eauto using simp_eval_data.
+  intros. destruct_pure v.
+  eapply pure_simp; [eauto using simp_eval_data |].
   eapply pure_ret; eauto.
 Qed.
 
