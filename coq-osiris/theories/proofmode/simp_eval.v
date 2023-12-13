@@ -475,9 +475,9 @@ Proof.
 Qed.
 
 Lemma pat_PUnit ψ :
-  pat PUnit #() (λ η η', η' = η) ψ.
+  pat PUnit #() equality ψ.
 Proof.
-  unfold pat; intro η. simpl. eauto using total_ret.
+  unfold pat, equality; intro η. simpl. eauto using total_ret.
 Qed.
 
 Lemma pat_PPair p1 p2 v1 v2 ρ1 ρ2 ψ :
