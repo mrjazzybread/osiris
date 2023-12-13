@@ -249,6 +249,8 @@ Proof.
       apply Permutation_middle. }}
 Qed.
 
+Transparent ret_concat.
+
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -256,40 +258,44 @@ Proof.
   pure_rec l (@wf_list_length A).
   destruct l as [| a l]; last destruct l as [| b l].
   (* Case: l = [] *)
-  { apply pure_eval_match. pure_path.
+  { apply pure_eval_match. pure_path. (* Enter [match l ...], lookup l in env *)
     simpl.
-    apply pure_eval_ret_concat.
+    (* apply pure_eval_ret_concat. necessary if ret_concat is opaque *)
     apply pure_eval_pair. pure_const. pure_const.
+    (* Establish (trivial) postcondition *)
     by simpl. }
   (* Case: l = [a] *)
-  { apply pure_eval_match. pure_path.
+  { apply pure_eval_match. pure_path. (* Enter [match l ...], lookup l in env *)
     simpl.
-    apply pure_eval_ret_concat.
-    apply pure_eval_pair.
-    eapply pure_eval_data.
+    (* apply pure_eval_ret_concat. necessary if ret_concat is opaque *)
+    apply pure_eval_pair. (* pair: (a :: [], []) *)
+    eapply pure_eval_data. (* constructor: "::" a [] *)
     { apply pure_eval_pair_val. pure_path. pure_const.
       eapply solve_encode_Cons; try reflexivity.
       apply solve_encode_Nil; reflexivity. }
-    pure_const.
+    pure_const. (* constant: "[]" *)
+    (* Establish (trivial) postcondition: *)
     by simpl. }
   (* Case: l = a :: b :: l *)
   { specialize (IH l).
     destruct IH as ([l1 l2] & Hsimp & Hpost); auto with arith. 
-    apply pure_eval_match. pure_path.
+    apply pure_eval_match. pure_path. (* Enter [match l ...], lookup l in env *)
     simpl.
-    apply pure_eval_ret_concat.
-    apply pure_eval_let_pair.
-    apply pure_eval_app. pure_path. pure_path.
-    eapply pure_simp; first eassumption.
+    (* apply pure_eval_ret_concat. necessary if ret_concat is opaque *)
+    apply pure_eval_let_pair. (* let (l1, l2) = split t *)
+    apply pure_eval_app. pure_path. pure_path. (* function application: split t *)
+    (* Use induction hypothesis on l *)
+    eapply pure_simp; first apply Hsimp.
     pure_ret. simpl.
     unfold __exp5; simpl.
-    apply pure_eval_pair.
-    eapply pure_eval_data.
+    apply pure_eval_pair. (* pair: (x1::l1, x2::l2) *)
+    eapply pure_eval_data. (* constructor: "::" x1 l1 *)
     { apply pure_eval_pair_val. pure_path. pure_path.
       eapply solve_encode_Cons; reflexivity. }
-  eapply pure_eval_data.
+  eapply pure_eval_data. (* constructor: "::" x2 l2 *)
   { apply pure_eval_pair_val. pure_path. pure_path.
     eapply solve_encode_Cons; reflexivity. }
+  (* Establish postcondition *)
   unfold split_post in *; simpl in *.
   repeat destruct_hyp.
   split; last split.
@@ -305,6 +311,7 @@ Proof.
     apply Permutation_middle. } }
 Qed.
 
+Opaque ret_concat.
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
