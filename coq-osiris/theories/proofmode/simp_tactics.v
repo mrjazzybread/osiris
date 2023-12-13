@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp pure_hoare.
+From osiris.proofmode Require Import simp pure_hoare simp_eval.
 From Ltac2 Require Ltac2.
 
 (* This file contains tactics intended for use during hoare-style proofs of pure
@@ -30,6 +30,22 @@ Qed.
 
 Ltac pure_ret :=
   simple eapply pure_ret; [ solve [ encode ] | beta ].
+
+
+(* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
+   the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
+   and, assuming that the lookup succeeds, calls pure_ret on the result. *)
+
+Ltac pure_path :=
+  simple apply pure_eval_path; simpl lookup_path; pure_ret.
+
+(* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
+   It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
+   and leaves the subgoal [φ x]. *)
+
+Ltac pure_const :=
+  simple eapply pure_eval_const; [ solve [ encode ] | ].
+
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)

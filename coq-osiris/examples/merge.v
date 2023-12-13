@@ -256,72 +256,39 @@ Proof.
   pure_rec l (@wf_list_length A).
   destruct l as [| a l]; last destruct l as [| b l].
   (* Case: l = [] *)
-  { eapply pure_eval_match.
-    { apply pure_eval_path; simpl.
-      pure_ret.
-      reflexivity. }
+  { apply pure_eval_match. pure_path.
+    simpl.
+    apply pure_eval_ret_concat.
+    apply pure_eval_pair. pure_const. pure_const.
+    by simpl. }
+  (* Case: l = [a] *)
+  { apply pure_eval_match. pure_path.
     simpl.
     apply pure_eval_ret_concat.
     apply pure_eval_pair.
-    eapply pure_eval_const; first solve [encode].
-    eapply pure_eval_const; first solve [encode].
-    by simpl. }
-  (* Case: l = [a] *)
-  { eapply pure_eval_match.
-    { apply pure_eval_path; simpl.
-      pure_ret.
-      reflexivity. }
-    simpl.
-    apply pure_eval_ret_concat.
-    eapply pure_eval_pair.
     eapply pure_eval_data.
-    { apply pure_eval_pair_val.
-      apply pure_eval_path; simpl.
-      pure_ret.
-      eapply pure_eval_const; first solve [encode].
-      eapply solve_encode_Cons.
-      - reflexivity.
-      - reflexivity.
-      - apply solve_encode_Nil; reflexivity. }
-    eapply pure_eval_const; first solve [encode].
+    { apply pure_eval_pair_val. pure_path. pure_const.
+      eapply solve_encode_Cons; try reflexivity.
+      apply solve_encode_Nil; reflexivity. }
+    pure_const.
     by simpl. }
   (* Case: l = a :: b :: l *)
   { specialize (IH l).
-    destruct IH as ([l1 l2] & IH & Hpost); auto with arith.
-    eapply pure_eval_match.
-    { apply pure_eval_path; simpl.
-      pure_ret.
-      reflexivity. }
+    destruct IH as ([l1 l2] & Hsimp & Hpost); auto with arith. 
+    apply pure_eval_match. pure_path.
     simpl.
     apply pure_eval_ret_concat.
-    eapply pure_eval_let_pair.
-    { eapply pure_eval_app. (* Should not be so hard to use this lemma *)
-      { apply pure_eval_path; simpl.
-        pure_ret. apply eq_refl. }
-      { apply pure_eval_path; simpl.
-        pure_ret. apply eq_refl. }
-      intros v1 v2 ??.
-      subst v1. subst v2.
-      eapply pure_simp.
-      apply IH.
-      pure_ret.
-      reflexivity. }
-    { simpl. apply SimpReflexive. }
+    apply pure_eval_let_pair.
+    apply pure_eval_app. pure_path. pure_path.
+    eapply pure_simp; first eassumption.
+    pure_ret. simpl.
     unfold __exp5; simpl.
     apply pure_eval_pair.
     eapply pure_eval_data.
-    { apply pure_eval_pair_val.
-      apply pure_eval_path; simpl.
-      pure_ret.
-      apply pure_eval_path; simpl.
-      pure_ret.
+    { apply pure_eval_pair_val. pure_path. pure_path.
       eapply solve_encode_Cons; reflexivity. }
   eapply pure_eval_data.
-  { apply pure_eval_pair_val.
-    apply pure_eval_path; simpl.
-    pure_ret.
-    apply pure_eval_path; simpl.
-    pure_ret.
+  { apply pure_eval_pair_val. pure_path. pure_path.
     eapply solve_encode_Cons; reflexivity. }
   unfold split_post in *; simpl in *.
   repeat destruct_hyp.
@@ -336,13 +303,6 @@ Proof.
     apply Permutation_skip.
     apply Permutation_sym.
     apply Permutation_middle. } }
-  Unshelve.
-  - apply A.
-  - apply H.
-  - apply A.
-  - apply H.
-  - apply A.
-  - apply H.
 Qed.
 
 

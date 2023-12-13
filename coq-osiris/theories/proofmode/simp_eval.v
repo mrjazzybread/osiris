@@ -339,7 +339,15 @@ Qed.
 
 (* Function applications. *)
 
-Lemma pure_eval_app `{Encode A, Encode B} η e1 e2
+Lemma pure_eval_app `{Encode A} η e1 e2 (ψ : A → Prop) :
+  pure (eval η e1) (λ f : val, pure (eval η e2) (λ e : val, pure (call f e) ψ)) →
+  pure (eval η (EApp e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a2. destruct_pure v1.
+  eapply pure_simp; [ simp | eauto ].
+Qed.
+
+Lemma pure_eval_app_conseq `{Encode A, Encode B} η e1 e2
   (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop)
 :
   pure (eval η e1) φ1 →
@@ -439,16 +447,26 @@ Proof.
   intros. destruct_pure y. eauto using simp_eval_let_pair'.
 Qed.
 
-Lemma pure_eval_let_pair `{Encode X, Encode B} p1 p2 e1 e2 v1 v2 η θ (ψ : X -> Prop) :
-  @pure B _ (eval η e1) (λ y', #y' = VPair v1 v2) ->
-  simp (δ ← extend EnvNil p1 v1;
-        extend δ p2 v2) (ret θ) ->
-  pure (eval (concat θ η) e2) ψ ->
+Lemma pure_eval_let_pair `{Encode X} p1 p2 e1 e2 η (ψ : X -> Prop) :
+  pure (eval η e1) (λ v : val,
+        match v with
+        | VTuple (VCons v1 (VCons v2 VNil)) =>
+            pure (
+                δ ← extend EnvNil p1 v1;
+                θ ← extend δ p2 v2;
+                eval (concat θ η) e2) ψ
+        | _ => False
+        end) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
 Proof.
-  intros (y & Hsimp & Heq) ??.
-  rewrite Heq in Hsimp.
-  eauto using pure_eval_let_pair'.
+  intros (v & Hv & Hpure).
+  destruct v; try done.
+  do 3 (destruct vs; try done). simpl in Hv.
+  destruct Hpure as (x & Hsimp & Hpost).
+  eapply invert_simp_bind_ret in Hsimp as (δ & Hv1 & Hsimp).
+  eapply invert_simp_bind_ret in Hsimp as (θ & Hv2 & Hx).
+  eapply pure_eval_let_pair'; eauto.
+  eapply prove_simp_bind; eauto.
 Qed.
   
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
@@ -516,14 +534,12 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma pure_eval_match `{Encode A} `{Encode X} η e v bs (ψ : A -> Prop) :
-  pure (eval η e) (λ v' : val, v' = v) ->
-  pure (eval_match η v bs) ψ ->
+Lemma pure_eval_match `{Encode A} η e bs (ψ : A -> Prop) :
+  pure (eval η e) (λ v, pure (eval_match η v bs) ψ) ->
   pure (eval η (EMatch e bs)) ψ.
 Proof.
   intros.
-  destruct_pure a. destruct_pure b.
-  subst b.
+  destruct_pure v. destruct_pure x.
   eapply pure_simp.
   { rewrite eval_eval'; simpl.
     eapply prove_simp_bind; eauto. }
