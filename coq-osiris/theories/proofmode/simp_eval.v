@@ -511,3 +511,58 @@ Proof.
   eapply total_bind; [ eapply Hp2 |]. intros η2 ?.
   rewrite bind_ret. eauto using total_ret.
 Qed.
+
+Lemma pat_PData c p c' v ρ ψ :
+  (c = c' → pat p v ρ ψ) →
+  (c ≠ c' → ψ) →
+  pat (PData c p) (VData c' v) ρ ψ.
+Proof.
+  unfold pat; intros ? ? η. simpl.
+  destruct_string_eqb; eauto using total_next.
+Qed.
+
+Lemma pat_pNil `{Encode A} (xs : list A) ρ ψ :
+  match xs with
+  | [] =>
+      equality ⊆ ρ
+  | _ :: _ =>
+      ψ
+  end →
+  pat pNil #xs ρ ψ.
+Proof.
+  (* I was expecting the proof to use [pat_PData] and [pat_PUnit],
+     but this is a direct proof. Perhaps we could / should rewrite
+     it to use these lemmas. *)
+  destruct xs as [| x xs ];
+    unfold pat, equality, subseteq, subseteq_rho;
+    intros ? η;
+    simpl.
+  { eauto using total_ret. }
+  { eauto using total_next. }
+Qed.
+
+Lemma pat_pCons `{Encode A} p1 p2 (xs : list A) ρ1 ρ2 ψ :
+  match xs with
+  | [] =>
+      ψ
+  | x :: xs =>
+      pat p1 #x ρ1 ψ ∧
+      pat p2 #xs ρ2 ψ
+  end →
+  pat (pCons p1 p2) #xs (seq ρ1 ρ2) ψ.
+Proof.
+  (* I was expecting the proof to use [pat_PData] and [pat_PPair],
+     but this is a direct proof. Perhaps we could / should rewrite
+     it to use these lemmas. *)
+  destruct xs as [| x xs ];
+    unfold pat, seq;
+    simpl;
+    rewrite ?encode_list_is_encode.
+  { intros ? η. eauto using total_next. }
+  { intros (Hp1 & Hp2) η.
+    eapply total_bind; [ eapply Hp1 | intros η1 ? ].
+    rewrite bind_bind.
+    eapply total_bind; [ eapply Hp2 | intros η2 ? ].
+    rewrite bind_ret.
+    eauto using total_ret. }
+Qed.
