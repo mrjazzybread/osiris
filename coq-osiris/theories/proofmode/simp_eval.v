@@ -415,154 +415,120 @@ Qed.
 
 (* A judgement and a set of reasoning rules for pattern matching. *)
 
-(* The judgement [pat p v ρ ψ] means that matching the pattern [p]
-   against the value [v] is safe and either results in extending
-   the environment in a way that is described by the relation [ρ]
+Implicit Type φ : env → Prop.
+Implicit Type ψ : Prop.
+
+(* The judgement [pat η p v φ ψ] means that, in the environment [η],
+   matching the pattern [p] against the value [v] is safe and either
+   results in an extended environment that satisfies [φ]
    or fails (by raising [Next]) and guarantees [ψ]. *)
 
-(* The definition of this judgement involves a universal quantification
-   [∀ η, ...]. This reflects the fact that (in OCaml) a pattern never
-   reads the value of a variable. TODO: this will become false in the
-   future once we add exception patterns and extensible data types. *)
-
-Implicit Type ρ : env → env → Prop.
-
-Definition pat p v ρ ψ :=
-  ∀ η, total (extend η p v) (ρ η) ψ.
-
-(* The following are standard notions on relations: the equality
-   relation, composition of relations, and inclusion of relations. *)
-
-(* TODO check if already defined somewhere in stdpp or Coq stdlib *)
-
-Definition equality : env → env → Prop :=
-  λ η η', η' = η.
-
-Definition seq ρ1 ρ2 : env → env → Prop :=
-  λ η η', ∃ ηx, ρ1 η ηx ∧ ρ2 ηx η'.
-
-Global Instance subseteq_rho : SubsetEq (env → env → Prop) :=
-  { subseteq := λ ρ ρ', ∀ η η', ρ η η' → ρ' η η' }.
-
-(* [bind x v η η'] means that the environment [η'] extends
-   the environment [η] with a binding of [x] to [v]. *)
-
-Definition bind x v : env → env → Prop :=
-  λ η η', η'= EnvCons x v η.
-
-Implicit Type ψ : Prop.
+Definition pat η p v φ ψ :=
+  total (extend η p v) φ ψ.
 
 (* A consequence rule. *)
 
-Lemma pat_consequence p v ρ ρ' ψ ψ' :
-  pat p v ρ ψ →
-  (∀ η η', ρ η η' → ρ' η η') →
+Lemma pat_consequence η p v φ φ' ψ ψ' :
+  pat η p v φ ψ →
+  (∀ η, φ η → φ' η) →
   (ψ → ψ') →
-  pat p v ρ' ψ'.
+  pat η p v φ' ψ'.
 Proof.
   unfold pat. eauto using total_consequence.
 Qed.
 
 (* Syntax-directed reasoning rules. *)
 
-Lemma pat_PAny v ψ :
-  pat PAny v equality ψ.
+Lemma pat_PAny η v φ ψ :
+  φ η →
+  pat η PAny v φ ψ.
 Proof.
-  unfold pat, equality; intro η. simpl. eauto using total_ret.
+  unfold pat. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PVar x v ψ :
-  pat (PVar x) v (bind x v) ψ.
+Lemma pat_PVar η x v φ ψ :
+  (let η := EnvCons x v η in φ η) →
+  pat η (PVar x) v φ ψ.
 Proof.
-  unfold pat, bind; intro η. simpl. eauto using total_ret.
+  unfold pat. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PAlias p x v ρ ψ :
-  pat p v ρ ψ →
-  pat (PAlias p x) v (seq ρ (bind x v)) ψ.
+Lemma pat_PAlias η p x v φ ψ :
+  pat η p v (λ η, let η := EnvCons x v η in φ η) ψ →
+  pat η (PAlias p x) v φ ψ.
 Proof.
-  unfold pat, seq, bind; intros Hp η. simpl.
-  eapply total_bind; [ eapply Hp | simpl ]. intros η1 ?.
+  unfold pat. simpl. intros Hp.
+  eapply total_bind; [ eapply Hp | simpl ]. intros η' ?.
   eauto using total_ret.
 Qed.
 
-Lemma pat_POr p1 p2 v ρ ψ :
-  pat p1 v ρ ψ →
-  pat p2 v ρ ψ →
-  pat (POr p1 p2) v ρ ψ.
+Lemma pat_POr η p1 p2 v φ ψ :
+  pat η p1 v φ ψ →
+  pat η p2 v φ ψ →
+  pat η (POr p1 p2) v φ ψ.
 Proof.
-  unfold pat; intros Hp1 Hp2 η. simpl. eauto using total_orelse.
+  unfold pat; intros Hp1 Hp2. simpl. eauto using total_orelse.
 Qed.
 
-Lemma pat_PUnit ψ :
-  pat PUnit #() equality ψ.
+Lemma pat_PUnit η φ ψ :
+  φ η →
+  pat η PUnit #() φ ψ.
 Proof.
-  unfold pat, equality; intro η. simpl. eauto using total_ret.
+  unfold pat. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PPair p1 p2 v1 v2 ρ1 ρ2 ψ :
-  pat p1 v1 ρ1 ψ →
-  pat p2 v2 ρ2 ψ →
-  pat (PPair p1 p2) #(v1, v2) (seq ρ1 ρ2) ψ.
+Lemma pat_PTuple0 η φ ψ :
+  φ η →
+  pat η (PTuple PNil) (VTuple VNil) φ ψ.
 Proof.
-  unfold pat, seq; intros Hp1 Hp2 η. simpl.
-  eapply total_bind; [ eapply Hp1 |]. intros η1 ?.
-  rewrite bind_bind.
-  eapply total_bind; [ eapply Hp2 |]. intros η2 ?.
-  rewrite bind_ret. eauto using total_ret.
+  unfold pat. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PData c p c' v ρ ψ :
-  (c = c' → pat p v ρ ψ) →
+Lemma pat_PPair η p1 p2 v1 v2 φ ψ :
+  pat η p1 v1 (λ η, pat η p2 v2 φ ψ) ψ →
+  pat η (PPair p1 p2) (VPair v1 v2) φ ψ.
+Proof.
+  unfold pat; intros Hp1. simpl.
+  eapply total_bind; [ eapply Hp1 | simpl ]. intros η1 Hp2.
+  rewrite bind_bind. simpl.
+  eapply total_bind; [ eapply Hp2 | ].
+  eauto using total_ret.
+Qed.
+
+Lemma pat_PData η c p c' v φ ψ :
+  (c = c' → pat η p v φ ψ) →
   (c ≠ c' → ψ) →
-  pat (PData c p) (VData c' v) ρ ψ.
+  pat η (PData c p) (VData c' v) φ ψ.
 Proof.
-  unfold pat; intros ? ? η. simpl.
+  unfold pat; intros. simpl.
   destruct_string_eqb; eauto using total_next.
 Qed.
 
-Lemma pat_pNil `{Encode A} (xs : list A) ρ ψ :
-  match xs with
-  | [] =>
-      equality ⊆ ρ
-  | _ :: _ =>
-      ψ
-  end →
-  pat pNil #xs ρ ψ.
+Lemma pat_pNil `{Encode A} η (xs : list A) φ ψ :
+  (xs = [] → φ η) →
+  (xs ≠ [] → ψ) →
+  pat η pNil #xs φ ψ.
 Proof.
-  (* I was expecting the proof to use [pat_PData] and [pat_PUnit],
-     but this is a direct proof. Perhaps we could / should rewrite
-     it to use these lemmas. *)
+  intros.
   destruct xs as [| x xs ];
-    unfold pat, equality, subseteq, subseteq_rho;
-    intros ? η;
-    simpl.
-  { eauto using total_ret. }
-  { eauto using total_next. }
+  eapply pat_PData;
+  try congruence; intros _.
+  { eapply pat_PTuple0. eauto. }
+  { eauto. }
 Qed.
 
-Lemma pat_pCons `{Encode A} p1 p2 (xs : list A) ρ1 ρ2 ψ :
-  match xs with
-  | [] =>
-      ψ
-  | x :: xs =>
-      pat p1 #x ρ1 ψ ∧
-      pat p2 #xs ρ2 ψ
-  end →
-  pat (pCons p1 p2) #xs (seq ρ1 ρ2) ψ.
+Lemma pat_pCons `{Encode A} η p1 p2 (xs : list A) φ ψ :
+  (xs = [] → ψ) →
+  (∀ x xs',
+     xs = x :: xs' →
+     pat η p1 #x (λ η, pat η p2 #xs' φ ψ) ψ
+  ) →
+  pat η (pCons p1 p2) #xs φ ψ.
 Proof.
-  (* I was expecting the proof to use [pat_PData] and [pat_PPair],
-     but this is a direct proof. Perhaps we could / should rewrite
-     it to use these lemmas. *)
+  intros.
   destruct xs as [| x xs ];
-    unfold pat, seq;
-    simpl;
-    rewrite ?encode_list_is_encode.
-  { intros ? η. eauto using total_next. }
-  { intros (Hp1 & Hp2) η.
-    eapply total_bind; [ eapply Hp1 | intros η1 ? ].
-    rewrite bind_bind.
-    eapply total_bind; [ eapply Hp2 | intros η2 ? ].
-    rewrite bind_ret.
-    eauto using total_ret. }
+  eapply pat_PData;
+  try congruence; intros _.
+  { eauto. }
+  { eapply pat_PPair. eauto. }
 Qed.
