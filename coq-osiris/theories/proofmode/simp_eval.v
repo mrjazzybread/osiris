@@ -410,3 +410,84 @@ Lemma pure_eval_assert η e :
 Proof.
   eauto using simp_eval_assert.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A judgement and a set of reasoning rules for pattern matching. *)
+
+(* The judgement [pat p v ρ ψ] means that matching the pattern [p]
+   against the value [v] is safe and either results in extending
+   the environment in a way that is described by the relation [ρ]
+   or fails (by raising [Next]) and guarantees [ψ]. *)
+
+Implicit Type ρ : env → env → Prop.
+
+Definition pat p v ρ ψ :=
+  ∀ η, total (extend η p v) (ρ η) ψ.
+
+Definition equality : env → env → Prop :=
+  λ η η', η' = η.
+
+Definition bind x v : env → env → Prop :=
+  λ η η', η'= EnvCons x v η.
+
+Definition seq ρ1 ρ2 : env → env → Prop :=
+  λ η η', ∃ ηx, ρ1 η ηx ∧ ρ2 ηx η'.
+
+Implicit Type ψ : Prop.
+
+Lemma pat_consequence p v ρ ρ' ψ ψ' :
+  pat p v ρ ψ →
+  (∀ η η', ρ η η' → ρ' η η') →
+  (ψ → ψ') →
+  pat p v ρ' ψ'.
+Proof.
+  unfold pat. eauto using total_consequence.
+Qed.
+
+Lemma pat_PAny v ψ :
+  pat PAny v equality ψ.
+Proof.
+  unfold pat, equality; intro η. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PVar x v ψ :
+  pat (PVar x) v (bind x v) ψ.
+Proof.
+  unfold pat, bind; intro η. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PAlias p x v ρ ψ :
+  pat p v ρ ψ →
+  pat (PAlias p x) v (seq ρ (bind x v)) ψ.
+Proof.
+  unfold pat, seq, bind; intros Hp η. simpl.
+  eapply total_bind; [ eapply Hp | simpl ]. intros η1 ?.
+  eauto using total_ret.
+Qed.
+
+Lemma pat_POr p1 p2 v ρ ψ :
+  pat p1 v ρ ψ →
+  pat p2 v ρ ψ →
+  pat (POr p1 p2) v ρ ψ.
+Proof.
+  unfold pat; intros Hp1 Hp2 η. simpl. eauto using total_orelse.
+Qed.
+
+Lemma pat_PUnit ψ :
+  pat PUnit #() (λ η η', η' = η) ψ.
+Proof.
+  unfold pat; intro η. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PPair p1 p2 v1 v2 ρ1 ρ2 ψ :
+  pat p1 v1 ρ1 ψ →
+  pat p2 v2 ρ2 ψ →
+  pat (PPair p1 p2) #(v1, v2) (seq ρ1 ρ2) ψ.
+Proof.
+  unfold pat, seq; intros Hp1 Hp2 η. simpl.
+  eapply total_bind; [ eapply Hp1 |]. intros η1 ?.
+  rewrite bind_bind.
+  eapply total_bind; [ eapply Hp2 |]. intros η2 ?.
+  rewrite bind_ret. eauto using total_ret.
+Qed.
