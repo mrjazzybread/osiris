@@ -30,3 +30,18 @@ Lemma false_iff (P : Prop) :
 Proof.
   simpl. tauto.
 Qed.
+
+(* Various commonly useful tactics. *)
+
+(* [destruct_string_eqb] looks for a string equality test [String.eqb c c'] in
+   the goal and reasons by cases on the outcome of this test. This produces
+   the hypothesis [c = c'] in the first subgoal and the hypothesis [c ≠ c'] in
+   the second subgoal. *)
+
+Ltac destruct_string_eqb :=
+  match goal with |- context[String.eqb ?c ?c'] =>
+    let Heq := fresh "Heq" in
+    destruct (String.eqb c c') eqn:Heq;
+    [ rewrite String.eqb_eq in Heq
+    | rewrite String.eqb_neq in Heq ]
+  end.
