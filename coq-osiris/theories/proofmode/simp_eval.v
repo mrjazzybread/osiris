@@ -506,12 +506,13 @@ Proof.
   eauto using total_ret.
 Qed.
 
-Lemma pat_POr η p1 p2 v φ ψ :
-  pat η p1 v φ ψ →
-  pat η p2 v φ ψ →
-  pat η (POr p1 p2) v φ ψ.
+Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
+  pat η p1 v φ ψ1 →
+  pat η p2 v φ ψ2 →
+  pat η (POr p1 p2) v φ (ψ1 ∧ ψ2).
 Proof.
-  unfold pat; intros Hp1 Hp2. simpl. eauto using total_orelse.
+  unfold pat; intros Hp1 Hp2. simpl.
+  eauto using total_orelse, total_consequence.
 Qed.
 
 Lemma pat_PUnit η v φ ψ :
