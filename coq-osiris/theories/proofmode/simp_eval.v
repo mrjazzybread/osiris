@@ -93,6 +93,9 @@ Qed.
 
 (* This lemma is general. *)
 
+(* TODO avoid [ForallEV] just by showing nil and cons lemmas;
+   offer tactic analogous to [pats]. *)
+
 Lemma simp_evals η :
   ∀ es vs,
   ForallEV (λ e v, simp (eval η e) (ret v)) es vs →
