@@ -410,8 +410,10 @@ end
 
    A hard failure occurs when [length ps ≠ length vs]. *)
 
-(* For now, pattern matching is sequential. Parallel evaluation would
-   make sense once we enable pattern matching on mutable state. *)
+(* Pattern matching is sequential and obeys a left-to-right strategy. This
+   is important in the presence of GADTs, as the success of a test in the
+   left-hand side of a pair can guarantee the safety of a test in the
+   right-hand side of this pair. *)
 
 with extends δ ps vs : micro env :=
   match ps, vs with
