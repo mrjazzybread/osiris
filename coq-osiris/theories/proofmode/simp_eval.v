@@ -470,11 +470,12 @@ Proof.
   unfold pat; intros Hp1 Hp2. simpl. eauto using total_orelse.
 Qed.
 
-Lemma pat_PUnit η φ ψ :
+Lemma pat_PUnit η v φ ψ :
   φ η →
-  pat η PUnit #() φ ψ.
+  v = #() →
+  pat η PUnit v φ ψ.
 Proof.
-  unfold pat. simpl. eauto using total_ret.
+  unfold pat. intros. subst. simpl. eauto using total_ret.
 Qed.
 
 Lemma pat_PTuple0 η φ ψ :
@@ -504,12 +505,13 @@ Proof.
   destruct_string_eqb; eauto using total_next.
 Qed.
 
-Lemma pat_pNil `{Encode A} η (xs : list A) φ ψ :
+Lemma pat_pNil `{Encode A} η v (xs : list A) φ ψ :
+  v = #xs →
   (xs = [] → φ η) →
   (xs ≠ [] → ψ) →
-  pat η pNil #xs φ ψ.
+  pat η pNil v φ ψ.
 Proof.
-  intros.
+  intros; subst.
   destruct xs as [| x xs ];
   eapply pat_PData;
   try congruence; intros _.
@@ -517,15 +519,16 @@ Proof.
   { eauto. }
 Qed.
 
-Lemma pat_pCons `{Encode A} η p1 p2 (xs : list A) φ ψ :
+Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
+  v = #xs →
   (xs = [] → ψ) →
   (∀ x xs',
      xs = x :: xs' →
      pat η p1 #x (λ η, pat η p2 #xs' φ ψ) ψ
   ) →
-  pat η (pCons p1 p2) #xs φ ψ.
+  pat η (pCons p1 p2) v φ ψ.
 Proof.
-  intros.
+  intros; subst.
   destruct xs as [| x xs ];
   eapply pat_PData;
   try congruence; intros _.
