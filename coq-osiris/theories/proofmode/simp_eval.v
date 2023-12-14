@@ -474,6 +474,15 @@ Ltac pats :=
 
 (* Syntax-directed reasoning rules for the judgement [pat]. *)
 
+(* From an operational point of view, the repeated application of these
+   lemmas to a pattern [p] and a value [v] have the effect of translating
+   the pattern matching operation [p = v] into a positive formula and a
+   negative formula. The positive formula, the postcondition [φ],
+   accumulates a sequence of universal quantifiers and equations that
+   describe what is learnt when pattern matching succeeds. The negative
+   formula, the postcondition [ψ], describes what is learnt when pattern
+   matching fails. *)
+
 Lemma pat_PAny η v φ ψ :
   φ η →
   pat η PAny v φ ψ.
