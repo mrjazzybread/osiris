@@ -1011,13 +1011,14 @@ Proof.
   apply SimpReflexive.
 Qed.
 
-Lemma pure_eval_data `{Encode X} η c e x (ψ : X -> Prop) :
-  pure (eval η e) (λ y : val, (VData c y) = #x) ->
-  ψ x ->
+Lemma pure_eval_data `{Encode X} η c e (ψ : X -> Prop) :
+  pure (eval η e) (λ y : val, pure (ret (VData c y)) ψ) ->
   pure (eval η (EData c e)) ψ.
 Proof.
-  intros. destruct_pure v.
+  intros. destruct_pure v. destruct_pure x.
   eapply pure_simp; [eauto using simp_eval_data |].
   eapply pure_ret; eauto.
+  rewrite <- solve_encode_val.
+  by apply simp_ret_ret.
 Qed.
 

@@ -269,11 +269,10 @@ Proof.
   { apply pure_eval_match. pure_path. (* Enter [match l ...], lookup l in env *)
     simpl.
     (* apply pure_eval_ret_concat. necessary if ret_concat is opaque *)
-    apply pure_eval_pair. (* pair: (a :: [], []) *)
-    eapply pure_eval_data. (* constructor: "::" a [] *)
-    { apply pure_eval_pair_val. pure_path. pure_const.
-      eapply solve_encode_Cons; try reflexivity.
-      apply solve_encode_Nil; reflexivity. }
+    apply pure_eval_pair.
+    apply pure_eval_data. (* constructor: "::" (x, []) *)
+    apply pure_eval_pair_val. pure_path. pure_const. (* pair: (x, []) *)
+    pure_ret.
     pure_const. (* constant: "[]" *)
     (* Establish (trivial) postcondition: *)
     by simpl. }
@@ -290,26 +289,26 @@ Proof.
     pure_ret. simpl.
     unfold __exp5; simpl.
     apply pure_eval_pair. (* pair: (x1::l1, x2::l2) *)
-    eapply pure_eval_data. (* constructor: "::" x1 l1 *)
-    { apply pure_eval_pair_val. pure_path. pure_path.
-      eapply solve_encode_Cons; reflexivity. }
-  eapply pure_eval_data. (* constructor: "::" x2 l2 *)
-  { apply pure_eval_pair_val. pure_path. pure_path.
-    eapply solve_encode_Cons; reflexivity. }
-  (* Establish postcondition *)
-  unfold split_post in *; simpl in *.
-  repeat destruct_hyp.
-  split; last split.
-  { (* Subgoal: the length of l1 is half the length of l *)
-    destruct (Nat.even _); eauto with arith. }
-  { (* Subgoal: the length of l2 is hald the length of l *)
-    eauto with arith. }
-  { (* Subgoal: l1++l2 is a permutation of l *)
-    rewrite_permutation l.
-    change ((a::l1)++b::l2) with (a::l1++b::l2).
-    apply Permutation_skip.
-    apply Permutation_sym.
-    apply Permutation_middle. } }
+    apply pure_eval_data. (* constructor: "::" x1 l1 *)
+    apply pure_eval_pair_val. pure_path. pure_path. (* pair: (x1, l1) *)
+    pure_ret.
+    apply pure_eval_data. (* constructor: "::" x2 l2 *)
+    apply pure_eval_pair_val. pure_path. pure_path. (* pair: (x2, l2) *)
+    pure_ret.
+    (* Establish postcondition *)
+    unfold split_post in *; simpl in *.
+    repeat destruct_hyp.
+    split; last split.
+    { (* Subgoal: the length of l1 is half the length of l *)
+      destruct (Nat.even _); eauto with arith. }
+    { (* Subgoal: the length of l2 is hald the length of l *)
+      eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of l *)
+      rewrite_permutation l.
+      change ((a::l1)++b::l2) with (a::l1++b::l2).
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. } }
 Qed.
 
 Opaque ret_concat.
