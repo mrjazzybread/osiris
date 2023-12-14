@@ -426,6 +426,9 @@ Implicit Type ψ : Prop.
 Definition pat η p v φ ψ :=
   total (extend η p v) φ ψ.
 
+Definition pats η ps vs φ ψ :=
+  total (extends η ps vs) φ ψ.
+
 (* A consequence rule. *)
 
 Lemma pat_consequence η p v φ φ' ψ ψ' :
@@ -437,7 +440,39 @@ Proof.
   unfold pat. eauto using total_consequence.
 Qed.
 
-(* Syntax-directed reasoning rules. *)
+(* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
+
+Lemma pats_PNil η φ ψ :
+  φ η →
+  pats η PNil VNil φ ψ.
+Proof.
+  unfold pats. simpl. eauto using total_ret.
+Qed.
+
+Lemma pats_PCons η p ps v vs φ ψ :
+  pat η p v (λ η, pats η ps vs φ ψ) ψ →
+  pats η (PCons p ps) (VCons v vs) φ ψ.
+Proof.
+  unfold pats, pat. intro Hp. simpl.
+  eapply total_bind; [ eapply Hp | simpl ]. intros η' Hps.
+  rewrite bind_ret_right. eauto.
+Qed.
+
+Lemma pats_PCons' η p ps v vs φ' φ ψ :
+  pat η p v φ' ψ →
+  (∀ η, φ' η → pats η ps vs φ ψ) →
+  pats η (PCons p ps) (VCons v vs) φ ψ.
+Proof.
+  eauto using pats_PCons, pat_consequence.
+Qed.
+
+Ltac pats :=
+  repeat first [
+    eapply pats_PNil; [ eauto ]
+  | eapply pats_PCons'; [ eauto | simpl; intros ]
+  ].
+
+(* Syntax-directed reasoning rules for the judgement [pat]. *)
 
 Lemma pat_PAny η v φ ψ :
   φ η →
@@ -478,22 +513,11 @@ Proof.
   unfold pat. intros. subst. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PTuple0 η φ ψ :
-  φ η →
-  pat η (PTuple PNil) (VTuple VNil) φ ψ.
+Lemma pat_PTuple η ps vs φ ψ :
+  pats η ps vs φ ψ →
+  pat η (PTuple ps) (VTuple vs) φ ψ.
 Proof.
-  unfold pat. simpl. eauto using total_ret.
-Qed.
-
-Lemma pat_PPair η p1 p2 v1 v2 φ ψ :
-  pat η p1 v1 (λ η, pat η p2 v2 φ ψ) ψ →
-  pat η (PPair p1 p2) (VPair v1 v2) φ ψ.
-Proof.
-  unfold pat; intros Hp1. simpl.
-  eapply total_bind; [ eapply Hp1 | simpl ]. intros η1 Hp2.
-  rewrite bind_bind. simpl.
-  eapply total_bind; [ eapply Hp2 | ].
-  eauto using total_ret.
+  unfold pats, pat. simpl. eauto.
 Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
@@ -515,7 +539,7 @@ Proof.
   destruct xs as [| x xs ];
   eapply pat_PData;
   try congruence; intros _.
-  { eapply pat_PTuple0. eauto. }
+  { eapply pat_PTuple. pats. }
   { eauto. }
 Qed.
 
@@ -533,5 +557,5 @@ Proof.
   eapply pat_PData;
   try congruence; intros _.
   { eauto. }
-  { eapply pat_PPair. eauto. }
+  { eapply pat_PTuple. pats. }
 Qed.
