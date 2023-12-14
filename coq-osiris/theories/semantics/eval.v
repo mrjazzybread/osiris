@@ -99,7 +99,7 @@ Definition val_as_bool (v : val) : micro bool :=
 Definition as_bool (m : micro val) : micro bool :=
   bind m val_as_bool.
 
-
+(* ------------------------------------------------------------------------ *)
 
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
