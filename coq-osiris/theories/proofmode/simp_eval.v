@@ -443,36 +443,51 @@ Proof.
   unfold pat. eauto using total_consequence.
 Qed.
 
+Lemma pat_consequence_psi η p v φ ψ ψ' :
+  pat η p v φ ψ →
+  (ψ → ψ') →
+  pat η p v φ ψ'.
+Proof.
+  unfold pat. eauto using total_consequence.
+Qed.
+
 (* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
 
-Lemma pats_PNil η φ ψ :
+Lemma pats_PNil η φ :
   φ η →
-  pats η PNil VNil φ ψ.
+  pats η PNil VNil φ False.
 Proof.
   unfold pats. simpl. eauto using total_ret.
 Qed.
 
-Lemma pats_PCons η p ps v vs φ ψ :
+Lemma pats_PCons_unary η p ps v vs φ ψ :
   pat η p v (λ η, pats η ps vs φ ψ) ψ →
   pats η (PCons p ps) (VCons v vs) φ ψ.
+    (* a simple statement (unused) *)
 Proof.
   unfold pats, pat. intro Hp. simpl.
   eapply total_bind; [ eapply Hp | simpl ]. intros η' Hps.
   rewrite bind_ret_right. eauto.
 Qed.
 
-Lemma pats_PCons' η p ps v vs φ' φ ψ :
-  pat η p v φ' ψ →
-  (∀ η, φ' η → pats η ps vs φ ψ) →
-  pats η (PCons p ps) (VCons v vs) φ ψ.
+Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
+  pat η p v φ' ψ1 →
+  (∀ η, φ' η → pats η ps vs φ ψ2) →
+  pats η (PCons p ps) (VCons v vs) φ (ψ1 ∨ ψ2).
+    (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
+       and where a disjunction is explicitly constructed -- see below. *)
 Proof.
-  eauto using pats_PCons, pat_consequence.
+  unfold pats, pat. intros. simpl.
+  eapply total_bind; [ eauto using total_consequence | simpl ].
+  intros η' ?.
+  rewrite bind_ret_right.
+  eauto using total_consequence.
 Qed.
 
 Ltac pats :=
   repeat first [
     eapply pats_PNil; [ eauto ]
-  | eapply pats_PCons'; [ eauto | simpl; intros ]
+  | eapply pats_PCons; [ eauto | simpl; intros ]
   ].
 
 (* Syntax-directed reasoning rules for the judgement [pat]. *)
@@ -483,19 +498,29 @@ Ltac pats :=
    negative formula. The positive formula, the postcondition [φ],
    accumulates a sequence of universal quantifiers and equations that
    describe what is learnt when pattern matching succeeds. The negative
-   formula, the postcondition [ψ], describes what is learnt when pattern
-   matching fails. *)
+   formula, the failure postcondition [ψ], describes what is learnt when
+   pattern matching fails. *)
 
-Lemma pat_PAny η v φ ψ :
+(* When a pattern cannot fail or can fail due to several distinct causes,
+   a naive statement of its reasoning rule would have one occurrence of
+   [ψ] in its conclusion and no occurrence or multiple occurrences of [ψ]
+   in its premises. From an operational point of view, this is
+   undesirable, because [ψ] is then unconstrained or duplicated. We avoid
+   this phenomenon by using [False] or a disjunction in the conclusion of
+   the reasoning rule. Thus, from an operational point of view, applying
+   the reasoning rule instantiates the failure postcondition with a
+   logical connective. *)
+
+Lemma pat_PAny η v φ :
   φ η →
-  pat η PAny v φ ψ.
+  pat η PAny v φ False.
 Proof.
   unfold pat. simpl. eauto using total_ret.
 Qed.
 
-Lemma pat_PVar η x v φ ψ :
+Lemma pat_PVar η x v φ :
   (let η := EnvCons x v η in φ η) →
-  pat η (PVar x) v φ ψ.
+  pat η (PVar x) v φ False.
 Proof.
   unfold pat. simpl. eauto using total_ret.
 Qed.
@@ -513,15 +538,17 @@ Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
   pat η p1 v φ ψ1 →
   pat η p2 v φ ψ2 →
   pat η (POr p1 p2) v φ (ψ1 ∧ ψ2).
+    (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
+       disjunction pattern to fail, both sides must fail. *)
 Proof.
   unfold pat; intros Hp1 Hp2. simpl.
   eauto using total_orelse, total_consequence.
 Qed.
 
-Lemma pat_PUnit η v φ ψ :
+Lemma pat_PUnit η v φ :
   φ η →
   v = #() →
-  pat η PUnit v φ ψ.
+  pat η PUnit v φ False.
 Proof.
   unfold pat. intros. subst. simpl. eauto using total_ret.
 Qed.
@@ -535,40 +562,60 @@ Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
   (c = c' → pat η p v φ ψ) →
-  (c ≠ c' → ψ) →
-  pat η (PData c p) (VData c' v) φ ψ.
+  pat η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; eauto using total_next.
+  destruct_string_eqb; eauto using total_next, total_consequence.
 Qed.
 
-Lemma pat_pNil `{Encode A} η v (xs : list A) φ ψ :
+Lemma pat_PData_eq η c p v φ ψ :
+  pat η p v φ ψ →
+  pat η (PData c p) (VData c v) φ ψ.
+    (* This form is useful when [c = c'] is statically known. *)
+Proof.
+  unfold pat; intros. simpl.
+  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+Qed.
+
+Lemma pat_PData_neq η c p c' v φ :
+  c ≠ c' →
+  pat η (PData c p) (VData c' v) φ True.
+    (* This form is useful when [c ≠ c'] is statically known. *)
+Proof.
+  unfold pat; intros. simpl.
+  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+Qed.
+
+Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
   v = #xs →
   (xs = [] → φ η) →
-  (xs ≠ [] → ψ) →
-  pat η pNil v φ ψ.
+  pat η pNil v φ (xs ≠ []).
 Proof.
   intros; subst.
-  destruct xs as [| x xs ];
-  eapply pat_PData;
-  try congruence; intros _.
-  { eapply pat_PTuple. pats. }
+  destruct xs as [| x xs ]; eapply pat_consequence_psi.
+  { eapply pat_PData_eq. eapply pat_PTuple. pats. }
+  { eauto. }
+  { eapply pat_PData_neq. eauto. }
   { eauto. }
 Qed.
 
 Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
   v = #xs →
-  (xs = [] → ψ) →
   (∀ x xs',
      xs = x :: xs' →
-     pat η p1 #x (λ η, pat η p2 #xs' φ ψ) ψ
+     pats η (PCons p1 (PCons p2 PNil)) (VCons #x (VCons #xs' VNil)) φ ψ
   ) →
-  pat η (pCons p1 p2) v φ ψ.
+  pat η (pCons p1 p2) v φ (xs = [] ∨ ψ).
 Proof.
-  intros; subst.
-  destruct xs as [| x xs ];
-  eapply pat_PData;
-  try congruence; intros _.
+  intros ? Hpp; subst.
+  destruct xs as [| x xs ]; eapply pat_consequence_psi.
+  { eapply pat_PData_neq. eauto. }
+  { tauto. }
+  { specialize (Hpp x xs eq_refl).
+    eapply pat_PData_eq.
+    rewrite ?encode_list_is_encode. (* optional, but helpful *)
+    eapply pat_PTuple. eauto. }
   { eauto. }
-  { eapply pat_PTuple. pats. }
 Qed.
