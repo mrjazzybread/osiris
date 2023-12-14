@@ -919,6 +919,16 @@ Proof.
     eauto. }
 Qed.
 
+(* A reasoning rule for [orelse]. *)
+
+Lemma total_orelse {A} (m1 m2 : micro A) φ ψ1 ψ :
+  total m1 φ ψ1 →
+  (ψ1 → total m2 φ ψ) →
+  total (orelse m1 m2) φ ψ.
+Proof.
+  intros Hm1 H2. unfold orelse. eauto using total_try, total_ret.
+Qed.
+
 (* A reasoning rule for [bind]. *)
 
 Lemma total_bind {A B} m f (φ : B → Prop) (φ' : A → Prop) (ψ : Prop) :
