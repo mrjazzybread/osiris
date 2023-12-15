@@ -931,18 +931,6 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma pure_eval_match `{Encode A} η e bs (ψ : A -> Prop) :
-  pure (eval η e) (λ v, pure (eval_match η v bs) ψ) ->
-  pure (eval η (EMatch e bs)) ψ.
-Proof.
-  intros.
-  destruct_pure v. destruct_pure x.
-  eapply pure_simp.
-  { rewrite eval_eval'; simpl.
-    eapply prove_simp_bind; eauto. }
-  eapply pure_ret; eauto.
-Qed.
-
 Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
   simp (eval_sitems (η, EnvNil) items) (ret (whatenv, δ)) ->
   ψ (VStruct δ) ->
@@ -1022,3 +1010,628 @@ Proof.
   by apply simp_ret_ret.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
+(* A judgement and a set of reasoning rules for pattern matching. *)
+
+Section Pattern.
+Implicit Type φ : env → Prop.
+Implicit Type ψ : Prop.
+
+(* The judgement [pat η p v φ ψ] means that, in the environment [η],
+   matching the pattern [p] against the value [v] is safe and either
+   results in an extended environment that satisfies [φ]
+   or fails (by raising [Next]) and guarantees [ψ]. *)
+
+Definition pat η p v φ ψ :=
+  total (extend η p v) φ ψ.
+
+Definition pats η ps vs φ ψ :=
+  total (extends η ps vs) φ ψ.
+
+(* A consequence rule. *)
+
+Lemma pat_consequence η p v φ φ' ψ ψ' :
+  pat η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  (ψ → ψ') →
+  pat η p v φ' ψ'.
+Proof.
+  unfold pat. eauto using total_consequence.
+Qed.
+
+Lemma pat_consequence_psi η p v φ ψ ψ' :
+  pat η p v φ ψ →
+  (ψ → ψ') →
+  pat η p v φ ψ'.
+Proof.
+  unfold pat. eauto using total_consequence.
+Qed.
+
+(* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
+
+Lemma pats_PNil η φ :
+  φ η →
+  pats η PNil VNil φ False.
+Proof.
+  unfold pats. simpl. eauto using total_ret.
+Qed.
+
+Lemma pats_PCons_unary η p ps v vs φ ψ :
+  pat η p v (λ η, pats η ps vs φ ψ) ψ →
+  pats η (PCons p ps) (VCons v vs) φ ψ.
+    (* a simple statement (unused) *)
+Proof.
+  unfold pats, pat. intro Hp. simpl.
+  eapply total_bind; [ eapply Hp | simpl ]. intros η' Hps.
+  rewrite bind_ret_right. eauto.
+Qed.
+
+Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
+  pat η p v φ' ψ1 →
+  (∀ η, φ' η → pats η ps vs φ ψ2) →
+  pats η (PCons p ps) (VCons v vs) φ (ψ1 ∨ ψ2).
+    (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
+       and where a disjunction is explicitly constructed -- see below. *)
+Proof.
+  unfold pats, pat. intros. simpl.
+  eapply total_bind; [ eauto using total_consequence | simpl ].
+  intros η' ?.
+  rewrite bind_ret_right.
+  eauto using total_consequence.
+Qed.
+
+Ltac pats :=
+  repeat first [
+    eapply pats_PNil; [ eauto ]
+  | eapply pats_PCons; [ eauto | simpl; intros ]
+  ].
+
+(* Syntax-directed reasoning rules for the judgement [pat]. *)
+
+(* From an operational point of view, the repeated application of these
+   lemmas to a pattern [p] and a value [v] have the effect of translating
+   the pattern matching operation [p = v] into a positive formula and a
+   negative formula. The positive formula, the postcondition [φ],
+   accumulates a sequence of universal quantifiers and equations that
+   describe what is learnt when pattern matching succeeds. The negative
+   formula, the failure postcondition [ψ], describes what is learnt when
+   pattern matching fails. *)
+
+(* When a pattern cannot fail or can fail due to several distinct causes,
+   a naive statement of its reasoning rule would have one occurrence of
+   [ψ] in its conclusion and no occurrence or multiple occurrences of [ψ]
+   in its premises. From an operational point of view, this is
+   undesirable, because [ψ] is then unconstrained or duplicated. We avoid
+   this phenomenon by using [False] or a disjunction in the conclusion of
+   the reasoning rule. Thus, from an operational point of view, applying
+   the reasoning rule instantiates the failure postcondition with a
+   logical connective. *)
+
+Lemma pat_PAny η v φ :
+  φ η →
+  pat η PAny v φ False.
+Proof.
+  unfold pat. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PVar η x v φ :
+  (let η := EnvCons x v η in φ η) →
+  pat η (PVar x) v φ False.
+Proof.
+  unfold pat. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PAlias η p x v φ ψ :
+  pat η p v (λ η, let η := EnvCons x v η in φ η) ψ →
+  pat η (PAlias p x) v φ ψ.
+Proof.
+  unfold pat. simpl. intros Hp.
+  eapply total_bind; [ eapply Hp | simpl ]. intros η' ?.
+  eauto using total_ret.
+Qed.
+
+Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
+  pat η p1 v φ ψ1 →
+  pat η p2 v φ ψ2 →
+  pat η (POr p1 p2) v φ (ψ1 ∧ ψ2).
+    (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
+       disjunction pattern to fail, both sides must fail. *)
+Proof.
+  unfold pat; intros Hp1 Hp2. simpl.
+  eauto using total_orelse, total_consequence.
+Qed.
+
+Lemma pat_PUnit η v φ :
+  φ η →
+  v = #() →
+  pat η PUnit v φ False.
+Proof.
+  unfold pat. intros. subst. simpl. eauto using total_ret.
+Qed.
+
+Lemma pat_PTuple η ps vs φ ψ :
+  pats η ps vs φ ψ →
+  pat η (PTuple ps) (VTuple vs) φ ψ.
+Proof.
+  unfold pats, pat. simpl. eauto.
+Qed.
+
+Lemma pat_PData η c p c' v φ ψ :
+  (c = c' → pat η p v φ ψ) →
+  pat η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pat; intros. simpl.
+  destruct_string_eqb; eauto using total_next, total_consequence.
+Qed.
+
+Lemma pat_PData_eq η c p v φ ψ :
+  pat η p v φ ψ →
+  pat η (PData c p) (VData c v) φ ψ.
+    (* This form is useful when [c = c'] is statically known. *)
+Proof.
+  unfold pat; intros. simpl.
+  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+Qed.
+
+Lemma pat_PData_neq η c p c' v φ :
+  c ≠ c' →
+  pat η (PData c p) (VData c' v) φ True.
+    (* This form is useful when [c ≠ c'] is statically known. *)
+Proof.
+  unfold pat; intros. simpl.
+  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+Qed.
+
+Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
+  v = #xs →
+  (xs = [] → φ η) →
+  pat η pNil v φ (xs ≠ []).
+Proof.
+  intros; subst.
+  destruct xs as [| x xs ]; eapply pat_consequence_psi.
+  { eapply pat_PData_eq. eapply pat_PTuple. pats. }
+  { eauto. }
+  { eapply pat_PData_neq. eauto. }
+  { eauto. }
+Qed.
+
+Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
+  v = #xs →
+  (∀ x xs',
+     xs = x :: xs' →
+     pats η (PCons p1 (PCons p2 PNil)) (VCons #x (VCons #xs' VNil)) φ ψ
+  ) →
+  pat η (pCons p1 p2) v φ (xs = [] ∨ ψ).
+Proof.
+  intros ? Hpp; subst.
+  destruct xs as [| x xs ]; eapply pat_consequence_psi.
+  { eapply pat_PData_neq. eauto. }
+  { tauto. }
+  { specialize (Hpp x xs eq_refl).
+    eapply pat_PData_eq.
+    rewrite ?encode_list_is_encode. (* optional, but helpful *)
+    eapply pat_PTuple. eauto. }
+  { eauto. }
+Qed.
+
+End Pattern.
+
+Definition pure_match `{Encode A} (η : env) (v : val) bs (ψ : A -> Prop) :=
+  pure (eval_match η v bs) ψ.
+Arguments pure_match {A} {H} _ _ _ _.
+
+Lemma pure_eval_match' `{Encode A} η e bs (ψ : A -> Prop) :
+  pure (eval η e) (λ v : A, pure_match η #v bs ψ) ->
+  pure (eval η (EMatch e bs)) ψ.
+Proof.
+  intros. unfold pure_match in *.
+  destruct_pure v. destruct_pure x.
+  eapply pure_simp.
+  { rewrite eval_eval'; simpl.
+    eapply prove_simp_bind; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_match `{Encode A} η e bs (ψ φ : A -> Prop) :
+  pure (eval η e) φ ->
+  (forall a, φ a -> pure_match η #a bs ψ) ->
+  pure (eval η (EMatch e bs)) ψ.
+Proof.
+  intros.
+  apply pure_eval_match'.
+  eapply pure_consequence; eauto.
+Qed.
+
+(* Lemma destruct_extends η ps vs : *)
+(*   (∃ δ : env, extends η ps vs = ret δ) *)
+(*   ∨ extends η ps vs = next ∨ extends η ps vs = crash. *)
+(* Proof. *)
+(*   induction vs; simpl. *)
+(*   { destruct ps; eauto. } *)
+(*   destruct ps; simpl; first eauto. *)
+(*   destruct IHvs as [[δ IH] | [IH|IH]]. *)
+(*   - simpl in IH. destruct vs; first discriminate. *)
+(*     destruct (extend η p v); simpl. *)
+(*     destruct (extend η p v0); try discriminate. *)
+(*     simpl in IH. *)
+
+(*   destruct vs; simpl in *. *)
+(*   { right; right. *)
+(*     destruct IHvs as [[? F] | [F | F]]; try discriminate F. *)
+(*     destruct ps; simpl. *)
+
+
+(* Lemma destruct_extend η p v : *)
+(*   (exists δ, extend η p v = ret δ) \/ extend η p v = Next \/ extend η p v = Crash. *)
+(* Proof. *)
+(*   induction p; simpl; eauto. *)
+(*   - destruct IHp as [[δ IH] | [IH|IH]]; rewrite IH; eauto. *)
+(*   - destruct IHp1 as [[δ IH1] | [IH1|IH1]]; rewrite IH1; eauto. *)
+(*   - destruct v; eauto. *)
+
+(*   - eauto. *)
+(*   - *)
+
+Lemma destruct_bind_ret {A B} (m : micro A) (f : A -> micro B) b :
+  bind m f = ret b ->
+  exists c, m = ret c /\ f c = ret b.
+Proof.
+  destruct m; simpl; try discriminate 1.
+  eauto.
+Qed.
+
+Lemma destruct_bind_next {A B} (m : micro A) (f : A -> micro B) :
+  bind m f = next ->
+  m = next \/ exists c, m = ret c /\ f c = next.
+Proof.
+  destruct m; simpl; try discriminate 1.
+  right; eauto.
+  left; done.
+Qed.
+
+Lemma destruct_bind_stop {A X Y} (m : micro A) (f : A -> micro A)
+  c (x : X) (k : Y -> micro A) ko :
+  bind m f = Stop c x k ko ->
+  (exists k ko, m = Stop c x k ko) \/
+  exists a, m = ret a /\ f a = Stop c x k ko.
+Proof.
+  destruct m; simpl; try discriminate 1.
+  eauto.
+  intro. left.
+  injection H. intros.
+  subst Y0. subst X0. simpl in *.
+  apply Eqdep.EqdepTheory.inj_pair2 in H2.
+  subst x0.
+  apply Eqdep.EqdepTheory.inj_pair2 in H3.
+  apply Eqdep.EqdepTheory.inj_pair2 in H3.
+  subst c0.
+  eauto.
+Qed.
+
+Lemma destruct_orelse_ret {A : Type} (m1 m2 : micro A) a :
+  orelse m1 m2 = ret a ->
+  m1 = ret a \/ m1 = next /\ m2 = ret a.
+Proof.
+  destruct m1; try discriminate; eauto.
+Qed.
+
+Ltac inject H x := injection H; intros; subst x.
+
+Ltac discriminate_simp :=
+  match goal with
+  | H : simp (ret _) _ |- _ =>
+      apply invert_simp_ret in H; discriminate H
+  | H : simp crash _ |- _ =>
+      apply destruct_simp_crash in H; discriminate H
+  | H : simp next _ |- _ =>
+      apply destruct_simp_next in H; discriminate H
+  end.
+
+Lemma concat_assoc e1 e2 e3 :
+  concat e1 (concat e2 e3) = concat (concat e1 e2) e3.
+Proof.
+  induction e1 as [|??? IH]; first reflexivity.
+  simpl. by rewrite IH.
+Qed.
+
+Lemma extend_next η δ p v :
+  extend η p v = next ->
+  extend δ p v = next
+  with
+  extends_next η δ ps vs :
+    extends η ps vs = next ->
+    extends δ ps vs = next
+  with
+  extendfs_next η δ fps fvs :
+    extendfs η fps fvs = next ->
+    extendfs δ fps fvs = next
+  with
+  extend_ret η p v δ :
+    extend η p v = ret δ ->
+    exists ε, forall δ0, extend δ0 p v = ret (concat ε δ0)
+  with
+  extends_ret η δ ps vs :
+    extends η ps vs = ret δ ->
+    exists ε, forall δ0, extends δ0 ps vs = ret (concat ε δ0)
+  with
+  extendfs_ret η δ fps fvs :
+    extendfs η fps fvs = ret δ ->
+    ∃ ε : env, ∀ δ0 : env, extendfs δ0 fps fvs = ret (concat ε δ0).
+Proof.
+  { clear extend_next.
+    generalize dependent v.
+    induction p; intros v; eauto; try discriminate; simpl; try discriminate 1.
+    - specialize (IHp v).
+      destruct (extend η p v); simpl in *; try discriminate 1.
+      rewrite IHp by reflexivity; done.
+    - specialize (IHp1 v). specialize (IHp2 v).
+      destruct (extend η p1 v); simpl; try discriminate 1.
+      rewrite IHp1 by reflexivity.
+      unfold orelse; simpl; tauto.
+    - destruct v; auto. apply extends_next.
+    - destruct v; auto. destruct (_ =? _)%string; auto.
+    - destruct v; auto. apply extendfs_next; auto.
+    - destruct v; auto. destruct (eq (repr _) _); [discriminate 1 | auto].
+    - destruct v; auto. destruct (_ =? _)%char; [discriminate 1 | auto].
+    - destruct v; auto. destruct (_ =? _)%string; [discriminate 1 | auto]. }
+  { clear extends_next.
+    generalize dependent η.
+    generalize dependent δ.
+    generalize dependent ps.
+    induction vs; destruct ps; try discriminate; simpl.
+    intros δ η Hb.
+    apply destruct_bind_next in Hb as [Hb| (? & ? & Hb)].
+    - eapply extend_next in Hb. by rewrite Hb.
+    - apply destruct_bind_next in Hb as [Hb|(? & ? & F)].
+      + specialize (extend_ret _ _ _ _ H) as (? & extend_envnil).
+        rewrite extend_envnil. simpl.
+        erewrite IHvs; eauto.
+      + discriminate F. }
+  { clear extendfs_next.
+    generalize dependent η.
+    generalize dependent δ.
+    generalize dependent fvs.
+    induction fps; destruct fvs; try discriminate; simpl.
+    intros δ η Hb.
+    destruct (if (f =? x)%string then _ else lookup_name fvs _);
+      try discriminate Hb; [simpl in Hb|-* |done].
+    apply destruct_bind_next in Hb as [Hb|(ηe & Hb & Hb2)].
+    { eapply extend_next in Hb; by rewrite Hb. }
+    apply extend_ret in Hb as [ε Hb].
+    rewrite Hb; simpl.
+    apply destruct_bind_next in Hb2 as [Hb2 | (? & ? & F)].
+    { eapply IHfps in Hb2; by rewrite Hb2. }
+    discriminate F. }
+  { clear extend_ret.
+    generalize dependent η.
+    generalize dependent δ.
+    generalize dependent v.
+    induction p; intros v δ η Hη; try discriminate; simpl in *.
+    - exists EnvNil; by simpl.
+    - exists (EnvCons x v EnvNil). by simpl.
+    - apply destruct_bind_ret in Hη as (ε & Hε & Hδ).
+      apply IHp in Hε as (ι & Hι).
+      exists (EnvCons x v ι). intros θ.
+      by rewrite Hι; simpl.
+    - eapply destruct_orelse_ret in Hη as [Hη|[Hη1 Hη2] ].
+      + apply IHp1 in Hη as (ε & Hall).
+        exists ε. intros ?. by rewrite Hall.
+      + apply IHp2 in Hη2 as (ε & Hall).
+        exists ε. intros ?.
+        eapply extend_next in Hη1; rewrite Hη1.
+        by apply Hall.
+    - destruct v; try discriminate.
+      eapply extends_ret; eassumption.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; last discriminate.
+      apply IHp in Hη as (ε & Hall).
+      exists ε. intros ?. by apply Hall.
+    - destruct v; try discriminate.
+      eapply extendfs_ret; eassumption.
+    - destruct v; try discriminate.
+      destruct (eq (repr _) _); last discriminate. 
+      inject Hη η. by exists EnvNil.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%char; last discriminate.
+      inject Hη η. by exists EnvNil.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; last discriminate.
+      inject Hη η. by exists EnvNil. }
+  { clear extends_ret.
+    generalize dependent η.
+    generalize dependent δ.
+    generalize dependent ps.
+    induction vs; destruct ps; try discriminate; simpl.
+    { intros δ η Heq. inject Heq η. exists EnvNil. eauto. }
+    intros δ η Hb.
+    apply destruct_bind_ret in Hb as (ηe & Hη & Hb).
+    apply extend_ret in Hη as (ε & Hall).
+    apply destruct_bind_ret in Hb as (ηee & Hηe & Hδ).
+    apply IHvs in Hηe as (ε2 & Hall2).
+    exists (concat ε2 ε). intros ?. rewrite Hall. simpl. rewrite Hall2. simpl.
+    rewrite concat_assoc. reflexivity. }
+  { clear extendfs_ret.
+    generalize dependent η.
+    generalize dependent δ.
+    generalize dependent fvs.
+    induction fps; destruct fvs; try discriminate; simpl.
+    { intros δ η Heq. inject Heq η. exists EnvNil. eauto. }
+    { intros δ η Heq. inject Heq η. exists EnvNil. eauto. }
+    intros δ η Hb.
+    destruct (if (f =? x)%string then _ else lookup_name fvs _);
+      try discriminate Hb; simpl in Hb|-*.
+    apply destruct_bind_ret in Hb as (ηe & Hη & Hb).
+    apply extend_ret in Hη as (ε & Hall).
+    apply destruct_bind_ret in Hb as (ηee & Hηe & ?).
+    apply IHfps in Hηe as (ε2 & Hall2).
+    exists (concat ε2 ε). intros ?.
+    rewrite Hall. simpl. rewrite Hall2. simpl.
+    rewrite concat_assoc. reflexivity. }
+Admitted.
+
+Lemma pure_total {B} `{Encode A} (m : micro B) k ko (ψ : A -> Prop) :
+  total m (fun a => pure (k a) ψ) (pure (ko ()) ψ) <->
+  pure (try m k ko) ψ.
+Proof.
+  unfold pure; unfold total.
+  split; [intros Ht | intros (a & Hsimp & Hψ)].
+  { destruct Ht as [Hterm | Hcont].
+    { destruct Hterm as (b & Hsimp & a & Ha & Hψ).
+      exists a. split; last assumption.
+      eapply prove_simp_try; eauto. }
+    { destruct Hcont as (Hnext & a & Hcont & Hψ).
+      exists a. split; last assumption.
+      eapply prove_simp_try_next; eauto. } }
+  { apply invert_simp_try_ret in Hsimp as [(? & ? & ?) | (? & ?)].
+    - left; eauto.
+    - right; eauto. }
+Qed.
+
+Lemma destruct_extend_stop η p v :
+  forall X Y c (x :X) (k : Y -> micro env) z,
+    extend η p v = Stop c x k z -> False
+with
+destruct_extends_stop η ps vs :
+  forall X Y c (x : X) (k : Y -> micro env) z,
+    extends η ps vs = Stop c x k z -> False
+with
+destruct_extendfs_stop η fps fvs :
+  forall X Y c (x : X) (k : Y -> micro env) z,
+  extendfs η fps fvs = Stop c x k z -> False.
+Proof.
+  { clear destruct_extend_stop.
+    generalize dependent v.
+    induction p; try discriminate; simpl; intros.
+    - specialize (IHp v).
+      destruct (extend η p v); try discriminate.
+      eapply IHp. reflexivity. 
+    - specialize (IHp1 v).
+      specialize (IHp2 v).
+      destruct (extend η p1 v); try discriminate.
+      + unfold orelse in H; simpl in H.
+        eapply IHp2; eassumption.
+      + eapply IHp1. reflexivity.
+    - destruct v; try discriminate.
+      by apply destruct_extends_stop in H.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; last discriminate.
+      eapply IHp; eassumption.
+    - destruct v; try discriminate.
+      by apply destruct_extendfs_stop in H.
+    - destruct v; try discriminate.
+      destruct (eq (repr _) _); discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%char; discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; discriminate. }
+  { clear destruct_extends_stop.
+    generalize dependent η.
+    generalize dependent vs.
+    induction ps; simpl; destruct vs; try discriminate.
+    intros.
+    apply destruct_bind_stop in H as [|].
+    { destruct H as (?&?&F).
+      by apply destruct_extend_stop in F. }
+    destruct H as (ηe & Hext & Hb).
+    apply destruct_bind_stop in Hb as [Hb|(?&?&?)]; last discriminate.
+    destruct Hb as (? & ? & F).
+    by apply IHps in F. }
+  { clear destruct_extendfs_stop.
+    generalize dependent η.
+    generalize dependent fvs.
+    induction fps; destruct fvs; try discriminate; simpl.
+    intros.
+Admitted.
+
+Lemma destruct_extend_par η p v :
+  forall A1 A2 (m1 : micro A1) (m2 : micro A2) k ko,
+    extend η p v = Par m1 m2 k ko -> False.
+Proof.
+  generalize dependent v.
+  induction p; try discriminate; simpl; intros.
+  - specialize (IHp v).
+    destruct (extend η p v); try discriminate.
+    eapply IHp. reflexivity. 
+  - specialize (IHp1 v).
+    specialize (IHp2 v).
+    destruct (extend η p1 v); try discriminate.
+    + unfold orelse in H; simpl in H.
+      eapply IHp2; eassumption.
+    + eapply IHp1. reflexivity.
+  - destruct v; try discriminate.
+    admit.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%string; last discriminate.
+    eapply IHp; eassumption.
+  - destruct v; try discriminate.
+    admit.
+  - destruct v; try discriminate.
+    destruct (eq (repr _) _); discriminate.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%char; discriminate.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%string; discriminate.
+Admitted.
+
+Lemma destruct_extend_choose η p v :
+  forall A (m1 m2 : micro A) k ko,
+    extend η p v = Choose m1 m2 k ko -> False.
+Proof.
+  generalize dependent v.
+  induction p; try discriminate; simpl; intros.
+  - specialize (IHp v).
+    destruct (extend η p v); try discriminate.
+    eapply IHp. reflexivity. 
+  - specialize (IHp1 v).
+    specialize (IHp2 v).
+    destruct (extend η p1 v); try discriminate.
+    + unfold orelse in H; simpl in H.
+      eapply IHp2; eassumption.
+    + eapply IHp1. reflexivity.
+  - destruct v; try discriminate.
+    admit.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%string; last discriminate.
+    eapply IHp; eassumption.
+  - destruct v; try discriminate.
+    admit.
+  - destruct v; try discriminate.
+    destruct (eq (repr _) _); discriminate.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%char; discriminate.
+  - destruct v; try discriminate.
+    destruct (_ =? _)%string; discriminate.
+Admitted.
+
+
+Lemma pure_match_cons `{Encode A} η v p e bs (ψ : A -> Prop) :
+  pat η p v
+    (λ η', pure (eval η' e) ψ)
+    (pure_match η v bs ψ) ->
+  pure_match η v (BrCons (Branch p e) bs) ψ.
+Proof.
+  unfold pure_match; unfold pat.
+  intros Hpat.
+  simpl.
+  apply pure_total.
+  destruct Hpat as [(ηe & Hsimp & Hpure)|(Hsimp & Hpure)].
+  { left. destruct (extend η p v) eqn:ext; try discriminate_simp.
+    - apply simp_ret_ret in Hsimp. subst a.
+      pose proof (temp := ext). apply extend_ret in temp as (ε & Hall).
+      exists ε. rewrite Hall. split.
+      { apply prove_simp_ret.
+        clear. induction ε; first done.
+        simpl. by rewrite IHε. }
+      rewrite Hall in ext. by inject ext ηe.
+    - by apply destruct_extend_stop in ext. 
+    - by apply destruct_extend_par in ext.
+    - by apply destruct_extend_choose in ext. }
+  { right. destruct (extend η p v) eqn:ext; try discriminate_simp.
+    - eapply extend_next in ext. rewrite ext. eauto.
+    - by apply destruct_extend_stop in ext.
+    - by apply destruct_extend_par in ext.
+    - by apply destruct_extend_choose in ext. }
+Qed.
