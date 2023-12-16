@@ -449,6 +449,24 @@ Notation VTrue :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Lemmas about the auxiliary function [BoolConstructor]. *)
+
+Lemma BoolConstructor_injective b1 b2 :
+  BoolConstructor b1 = BoolConstructor b2 →
+  b1 = b2.
+Proof.
+  destruct b1, b2; simpl; congruence.
+Qed.
+
+Lemma BoolConstructor_congruent_contrapositive b1 b2 :
+  BoolConstructor b1 ≠ BoolConstructor b2 →
+  b1 ≠ b2.
+Proof.
+  congruence.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Some ad hoc predicates on ad hoc lists. *)
 
 Inductive ForallEV (P : expr → val → Prop) : exprs → vals → Prop :=
