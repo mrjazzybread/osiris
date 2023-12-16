@@ -31,6 +31,26 @@ Proof.
   simpl. tauto.
 Qed.
 
+(* Trivial facts about Booleans. *)
+
+Lemma bool_neq b1 b2 :
+  b1 ≠ b2 → b1 = negb b2.
+Proof.
+  destruct b1, b2; simpl; congruence.
+Qed.
+
+Lemma bool_neq_false b :
+  b ≠ false → b = true.
+Proof.
+  destruct b; congruence.
+Qed.
+
+Lemma bool_neq_true b :
+  b ≠ true → b = false.
+Proof.
+  destruct b; congruence.
+Qed.
+
 (* Various commonly useful tactics. *)
 
 (* [destruct_string_eqb] looks for a string equality test [String.eqb c c'] in
