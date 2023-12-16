@@ -176,6 +176,24 @@ Proof.
   { intro H. eapply truth_true in H. congruence. }
 Qed.
 
+(* If [truth P] is [false] then  [P] is false. *)
+
+Lemma truth_false_elim (P : Prop) :
+  truth P = false →
+  ¬ P.
+Proof.
+  intros H. generalize (truth_elim P). rewrite H. tauto.
+Qed.
+
+(* If [truth P] is [true] then  [P] is true. *)
+
+Lemma truth_true_elim (P : Prop) :
+  truth P = true →
+  P.
+Proof.
+  intros H. generalize (truth_elim P). rewrite H. tauto.
+Qed.
+
 (* [truth : Prop → bool] is the inverse of [Is_true : bool → Prop]. *)
 
 Lemma truth_Is_true b :
