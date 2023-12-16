@@ -619,3 +619,43 @@ Proof.
     eapply pat_PTuple. eauto. }
   { eauto. }
 Qed.
+
+Lemma pat_false η v (P : Prop) φ :
+  v = #P →
+  (¬P → φ η) →
+  pat η (PConstant "false") v φ P.
+Proof.
+  intros; subst.
+  eapply pat_consequence_psi.
+  { (* The definition of [#] at type [Prop] involves [VBool], which
+       itself involves [BoolConstructor]. *)
+    change "false" with (BoolConstructor false).
+    eapply pat_PData.
+    intro Heq. symmetry in Heq.
+    apply BoolConstructor_injective, truth_false_elim in Heq.
+    pats. }
+  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
+    apply BoolConstructor_congruent_contrapositive in Hneq.
+    apply bool_neq in Hneq.
+    apply truth_true_elim in Hneq.
+    tauto. }
+Qed.
+
+Lemma pat_true η v (P : Prop) φ :
+  v = #P →
+  (P → φ η) →
+  pat η (PConstant "true") v φ (¬P).
+Proof.
+  intros; subst.
+  eapply pat_consequence_psi.
+  { change "true" with (BoolConstructor true).
+    eapply pat_PData.
+    intro Heq. symmetry in Heq.
+    apply BoolConstructor_injective, truth_true_elim in Heq.
+    pats. }
+  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
+    apply BoolConstructor_congruent_contrapositive in Hneq.
+    apply bool_neq in Hneq.
+    apply truth_false_elim in Hneq.
+    tauto. }
+Qed.
