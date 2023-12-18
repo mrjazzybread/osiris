@@ -1245,36 +1245,6 @@ Proof.
   eapply pure_consequence; eauto.
 Qed.
 
-(* Lemma destruct_extends η ps vs : *)
-(*   (∃ δ : env, extends η ps vs = ret δ) *)
-(*   ∨ extends η ps vs = next ∨ extends η ps vs = crash. *)
-(* Proof. *)
-(*   induction vs; simpl. *)
-(*   { destruct ps; eauto. } *)
-(*   destruct ps; simpl; first eauto. *)
-(*   destruct IHvs as [[δ IH] | [IH|IH]]. *)
-(*   - simpl in IH. destruct vs; first discriminate. *)
-(*     destruct (extend η p v); simpl. *)
-(*     destruct (extend η p v0); try discriminate. *)
-(*     simpl in IH. *)
-
-(*   destruct vs; simpl in *. *)
-(*   { right; right. *)
-(*     destruct IHvs as [[? F] | [F | F]]; try discriminate F. *)
-(*     destruct ps; simpl. *)
-
-
-(* Lemma destruct_extend η p v : *)
-(*   (exists δ, extend η p v = ret δ) \/ extend η p v = Next \/ extend η p v = Crash. *)
-(* Proof. *)
-(*   induction p; simpl; eauto. *)
-(*   - destruct IHp as [[δ IH] | [IH|IH]]; rewrite IH; eauto. *)
-(*   - destruct IHp1 as [[δ IH1] | [IH1|IH1]]; rewrite IH1; eauto. *)
-(*   - destruct v; eauto. *)
-
-(*   - eauto. *)
-(*   - *)
-
 Lemma destruct_bind_ret {A B} (m : micro A) (f : A -> micro B) b :
   bind m f = ret b ->
   exists c, m = ret c /\ f c = ret b.
@@ -1292,22 +1262,47 @@ Proof.
   left; done.
 Qed.
 
+Ltac elim_existT :=
+  match goal with
+  | H : existT _ _ = existT _ _ |- _ =>
+      apply Eqdep.EqdepTheory.inj_pair2 in H
+  end.
+
 Lemma destruct_bind_stop {A X Y} (m : micro A) (f : A -> micro A)
   c (x : X) (k : Y -> micro A) ko :
   bind m f = Stop c x k ko ->
   (exists k ko, m = Stop c x k ko) \/
   exists a, m = ret a /\ f a = Stop c x k ko.
 Proof.
-  destruct m; simpl; try discriminate 1.
+  destruct m; simpl; try discriminate 1. { eauto.}
+  intros H. injection H; intros.
+  left.
+  subst Y0; subst X0. repeat (elim_existT). subst c0; subst x0.
   eauto.
-  intro. left.
-  injection H. intros.
-  subst Y0. subst X0. simpl in *.
-  apply Eqdep.EqdepTheory.inj_pair2 in H2.
-  subst x0.
-  apply Eqdep.EqdepTheory.inj_pair2 in H3.
-  apply Eqdep.EqdepTheory.inj_pair2 in H3.
-  subst c0.
+Qed.
+
+Lemma destruct_bind_par {A A1 A2} m (m1 : micro A1) (m2 : micro A2) (f : A -> micro A)
+   (k : A1 * A2 -> micro A) ko :
+  bind m f = Par m1 m2 k ko ->
+  (exists k ko, m = Par m1 m2 k ko) \/
+  exists a, m = ret a /\ f a = Par m1 m2 k ko.
+Proof.
+  destruct m; simpl; try discriminate 1. { eauto. }
+  intros H. injection H; intros.
+  left.
+  subst A1; subst A2. repeat (elim_existT). subst m1; subst m2.
+  eauto.
+Qed.
+
+Lemma destruct_bind_choose {A B} m (m1 m2 : micro B) (f : A -> micro A) k ko :
+  bind m f = Choose m1 m2 k ko ->
+  (exists k ko, m = Choose m1 m2 k ko) \/
+    exists a, m = ret a /\ f a = Choose m1 m2 k ko.
+Proof.
+  destruct m; simpl; try discriminate 1. { eauto. }
+  intros H. injection H; intros.
+  left.
+  subst B. repeat (elim_existT). subst m1; subst m2.
   eauto.
 Qed.
 
@@ -1490,6 +1485,18 @@ Proof.
     - right; eauto. }
 Qed.
 
+Lemma destruct_lookup_name η v :
+  lookup_name η v = missing_variable_or_field v \/
+    exists v', lookup_name η v = ret v'.
+Proof.
+  induction η; first eauto.
+  simpl.
+  destruct (_ =? _)%string; first eauto.
+  destruct IHη as [|[v' Hv']].
+  - eauto.
+  - eauto.
+Qed.
+
 Lemma destruct_extend_stop η p v :
   forall X Y c (x :X) (k : Y -> micro env) z,
     extend η p v = Stop c x k z -> False
@@ -1544,66 +1551,160 @@ Proof.
     generalize dependent fvs.
     induction fps; destruct fvs; try discriminate; simpl.
     intros.
+    destruct (_ =? _)%string. simpl in H.
+    { apply destruct_bind_stop in H as [(?&?&F)|(ηe&Hη&Hb)].
+      { by apply destruct_extend_stop in F. }
+      apply destruct_bind_stop in Hb as [(?&?&F)|(?&?&F)].
+      { by apply IHfps in F. }
+      discriminate F. }
+    destruct (destruct_lookup_name fvs f) as [Hl|[v' Hv']].
+    { rewrite Hl in H. discriminate H. }
+    rewrite Hv' in H. simpl in H.
+    apply destruct_bind_stop in H as [(?&?&F)|(ηe&Hη&Hb)].
+      { by apply destruct_extend_stop in F. }
+      apply destruct_bind_stop in Hb as [(?&?&F)|(?&?&F)].
+      { by apply IHfps in F. }
+      discriminate F. }
 Admitted.
 
 Lemma destruct_extend_par η p v :
   forall A1 A2 (m1 : micro A1) (m2 : micro A2) k ko,
-    extend η p v = Par m1 m2 k ko -> False.
+    extend η p v = Par m1 m2 k ko -> False
+with
+destruct_extends_par η ps vs :
+  forall A1 A2 (m1 : micro A1) (m2 : micro A2) k ko,
+    extends η ps vs = Par m1 m2 k ko -> False
+with
+destruct_extendfs_par η fps fvs :
+  forall A1 A2 (m1 : micro A1) (m2 : micro A2) k ko,
+    extendfs η fps fvs = Par m1 m2 k ko -> False.
 Proof.
-  generalize dependent v.
-  induction p; try discriminate; simpl; intros.
-  - specialize (IHp v).
-    destruct (extend η p v); try discriminate.
-    eapply IHp. reflexivity. 
-  - specialize (IHp1 v).
-    specialize (IHp2 v).
-    destruct (extend η p1 v); try discriminate.
-    + unfold orelse in H; simpl in H.
-      eapply IHp2; eassumption.
-    + eapply IHp1. reflexivity.
-  - destruct v; try discriminate.
-    admit.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%string; last discriminate.
-    eapply IHp; eassumption.
-  - destruct v; try discriminate.
-    admit.
-  - destruct v; try discriminate.
-    destruct (eq (repr _) _); discriminate.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%char; discriminate.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%string; discriminate.
+  { clear destruct_extend_par.
+    generalize dependent v.
+    induction p; try discriminate; simpl; intros.
+    - specialize (IHp v).
+      destruct (extend η p v); try discriminate.
+      eapply IHp. reflexivity. 
+    - specialize (IHp1 v).
+      specialize (IHp2 v).
+      destruct (extend η p1 v); try discriminate.
+      + unfold orelse in H; simpl in H.
+        eapply IHp2; eassumption.
+      + eapply IHp1. reflexivity.
+    - destruct v; try discriminate.
+      by apply destruct_extends_par in H.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; last discriminate.
+      eapply IHp; eassumption.
+    - destruct v; try discriminate.
+      by apply destruct_extendfs_par in H.
+    - destruct v; try discriminate.
+      destruct (eq (repr _) _); discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%char; discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; discriminate. }
+  { clear destruct_extends_par.
+    generalize dependent η.
+    generalize dependent vs.
+    induction ps; simpl; destruct vs; try discriminate.
+    intros.
+    apply destruct_bind_par in H as [|].
+    { destruct H as (?&?&F).
+      by apply destruct_extend_par in F. }
+    destruct H as (ηe & Hext & Hb).
+    apply destruct_bind_par in Hb as [Hb|(?&?&?)]; last discriminate.
+    destruct Hb as (? & ? & F).
+    by apply IHps in F. }
+  { clear destruct_extendfs_par.
+    generalize dependent η.
+    generalize dependent fvs.
+    induction fps; destruct fvs; try discriminate; simpl.
+    intros.
+    destruct (_ =? _)%string. simpl in H.
+    { apply destruct_bind_par in H as [(?&?&F)|(ηe&Hη&Hb)].
+      { by apply destruct_extend_par in F. }
+      apply destruct_bind_par in Hb as [(?&?&F)|(?&?&F)].
+      { by apply IHfps in F. }
+      discriminate F. }
+    destruct (destruct_lookup_name fvs f) as [Hl|[v' Hv']].
+    { rewrite Hl in H. discriminate H. }
+    rewrite Hv' in H. simpl in H.
+    apply destruct_bind_par in H as [(?&?&F)|(ηe&Hη&Hb)].
+    { by apply destruct_extend_par in F. }
+    apply destruct_bind_par in Hb as [(?&?&F)|(?&?&F)].
+    { by apply IHfps in F. }
+    discriminate F. }
 Admitted.
 
 Lemma destruct_extend_choose η p v :
   forall A (m1 m2 : micro A) k ko,
-    extend η p v = Choose m1 m2 k ko -> False.
+    extend η p v = Choose m1 m2 k ko -> False
+with
+destruct_extends_choose η ps vs :
+  forall A (m1 m2 : micro A) k ko,
+    extends η ps vs = Choose m1 m2 k ko -> False
+with
+destruct_extendfs_choose η fps fvs :
+  forall A (m1 m2 : micro A) k ko,
+    extendfs η fps fvs = Choose m1 m2 k ko -> False.
 Proof.
-  generalize dependent v.
-  induction p; try discriminate; simpl; intros.
-  - specialize (IHp v).
-    destruct (extend η p v); try discriminate.
-    eapply IHp. reflexivity. 
-  - specialize (IHp1 v).
-    specialize (IHp2 v).
-    destruct (extend η p1 v); try discriminate.
-    + unfold orelse in H; simpl in H.
-      eapply IHp2; eassumption.
-    + eapply IHp1. reflexivity.
-  - destruct v; try discriminate.
-    admit.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%string; last discriminate.
-    eapply IHp; eassumption.
-  - destruct v; try discriminate.
-    admit.
-  - destruct v; try discriminate.
-    destruct (eq (repr _) _); discriminate.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%char; discriminate.
-  - destruct v; try discriminate.
-    destruct (_ =? _)%string; discriminate.
+  { clear destruct_extend_choose.
+    generalize dependent v.
+    induction p; try discriminate; simpl; intros.
+    - specialize (IHp v).
+      destruct (extend η p v); try discriminate.
+      eapply IHp. reflexivity. 
+    - specialize (IHp1 v).
+      specialize (IHp2 v).
+      destruct (extend η p1 v); try discriminate.
+      + unfold orelse in H; simpl in H.
+        eapply IHp2; eassumption.
+      + eapply IHp1. reflexivity.
+    - destruct v; try discriminate.
+      by apply destruct_extends_choose in H.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; last discriminate.
+      eapply IHp; eassumption.
+    - destruct v; try discriminate.
+      by apply destruct_extendfs_choose in H.
+    - destruct v; try discriminate.
+      destruct (eq (repr _) _); discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%char; discriminate.
+    - destruct v; try discriminate.
+      destruct (_ =? _)%string; discriminate. }
+  { clear destruct_extends_choose.
+    generalize dependent η.
+    generalize dependent vs.
+    induction ps; simpl; destruct vs; try discriminate.
+    intros.
+    apply destruct_bind_choose in H as [|].
+    { destruct H as (?&?&F).
+      by apply destruct_extend_choose in F. }
+    destruct H as (ηe & Hext & Hb).
+    apply destruct_bind_choose in Hb as [Hb|(?&?&?)]; last discriminate.
+    destruct Hb as (? & ? & F).
+    by apply IHps in F. }
+  { clear destruct_extendfs_choose.
+    generalize dependent η.
+    generalize dependent fvs.
+    induction fps; destruct fvs; try discriminate; simpl.
+    intros.
+    destruct (_ =? _)%string. simpl in H.
+    { apply destruct_bind_choose in H as [(?&?&F)|(ηe&Hη&Hb)].
+      { by apply destruct_extend_choose in F. }
+      apply destruct_bind_choose in Hb as [(?&?&F)|(?&?&F)].
+      { by apply IHfps in F. }
+      discriminate F. }
+    destruct (destruct_lookup_name fvs f) as [Hl|[v' Hv']].
+    { rewrite Hl in H. discriminate H. }
+    rewrite Hv' in H. simpl in H.
+    apply destruct_bind_choose in H as [(?&?&F)|(ηe&Hη&Hb)].
+    { by apply destruct_extend_choose in F. }
+    apply destruct_bind_choose in Hb as [(?&?&F)|(?&?&F)].
+    { by apply IHfps in F. }
+    discriminate F. }
 Admitted.
 
 
