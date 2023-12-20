@@ -560,7 +560,7 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma pure_eval_path η π (ψ : val -> Prop) :
+Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
   pure (lookup_path η π) ψ ->
   pure (eval η (EPath π)) ψ.
 Proof.
@@ -656,6 +656,14 @@ Qed.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
 
+Lemma pats_consequence_psi η p v φ ψ ψ' :
+  pats η p v φ ψ →
+  (ψ → ψ') →
+  pats η p v φ ψ'.
+Proof.
+  unfold pats. eauto using total_consequence.
+Qed.
+
 Lemma pats_PNil η φ :
   φ η →
   pats η PNil VNil φ False.
@@ -673,10 +681,11 @@ Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
-Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
+Lemma pats_PCons η p ps v vs φ' φ ψ ψ1 ψ2 :
   pat η p v φ' ψ1 →
   (∀ η, φ' η → pats η ps vs φ ψ2) →
-  pats η (PCons p ps) (VCons v vs) φ (ψ1 ∨ ψ2).
+  (ψ1 \/ ψ2 -> ψ) ->
+  pats η (PCons p ps) (VCons v vs) φ ψ.
     (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
        and where a disjunction is explicitly constructed -- see below. *)
 Proof.
@@ -810,7 +819,7 @@ Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
      xs = x :: xs' →
      pats η (PCons p1 (PCons p2 PNil)) (VCons #x (VCons #xs' VNil)) φ ψ
   ) →
-  pat η (pCons p1 p2) v φ (xs = [] ∨ ψ).
+  pat η (pCons p1 p2) v φ (xs = [] \/ ψ).
 Proof.
   intros ? Hpp; subst.
   destruct xs as [| x xs ]; eapply pat_consequence_psi.
@@ -829,8 +838,8 @@ Definition pure_match `{Encode A} (η : env) (v : val) bs (ψ : A -> Prop) :=
   pure (eval_match η v bs) ψ.
 Arguments pure_match {A} {H} _ _ _ _.
 
-Lemma pure_eval_match' `{Encode A} η e bs (ψ : A -> Prop) :
-  pure (eval η e) (λ v : A, pure_match η #v bs ψ) ->
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (ψ : A -> Prop) :
+  pure (eval η e) (λ v : B, pure_match η #v bs ψ) ->
   pure (eval η (EMatch e bs)) ψ.
 Proof.
   intros. unfold pure_match in *.
@@ -841,13 +850,13 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma pure_eval_match `{Encode A} η e bs (ψ φ : A -> Prop) :
+Lemma pure_eval_match `{Encode A, Encode B} η e bs (φ : A -> Prop) (ψ : B -> Prop) :
   pure (eval η e) φ ->
   (forall a, φ a -> pure_match η #a bs ψ) ->
   pure (eval η (EMatch e bs)) ψ.
 Proof.
   intros.
-  apply pure_eval_match'.
+  eapply pure_eval_match'.
   eapply pure_consequence; eauto.
 Qed.
 
@@ -877,10 +886,10 @@ Ltac elim_existT :=
 Lemma destruct_bind_stop {A X Y} (m : micro A) (f : A -> micro A)
   c (x : X) (k : Y -> micro A) ko :
   bind m f = Stop c x k ko ->
-  (exists k ko, m = Stop c x k ko) \/
+  (exists km kom, m = Stop c x km kom) \/
   exists a, m = ret a /\ f a = Stop c x k ko.
 Proof.
-  destruct m; simpl; try discriminate 1. { eauto.}
+  destruct m; simpl; try discriminate 1. { eauto. }
   intros H. injection H; intros.
   left.
   subst Y0; subst X0. repeat (elim_existT). subst c0; subst x0.
@@ -1313,16 +1322,12 @@ Proof.
     discriminate F. }
 Admitted.
 
-
-Lemma pure_match_cons `{Encode A} η v p e bs (ψ : A -> Prop) :
-  pat η p v
-    (λ η', pure (eval η' e) ψ)
-    (pure_match η v bs ψ) ->
-  pure_match η v (BrCons (Branch p e) bs) ψ.
+Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
+  pat η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
+  pure_match η v (BrCons (Branch p e) bs) φ.
 Proof.
   unfold pure_match; unfold pat.
-  intros Hpat.
-  simpl.
+  intros Hpat. simpl.
   apply pure_total.
   destruct Hpat as [(ηe & Hsimp & Hpure)|(Hsimp & Hpure)].
   { left. destruct (extend η p v) eqn:ext; try discriminate_simp.
@@ -1341,4 +1346,14 @@ Proof.
     - by apply destruct_extend_stop in ext.
     - by apply destruct_extend_par in ext.
     - by apply destruct_extend_choose in ext. }
+Qed.
+
+Lemma pure_match_cons `{Encode A} η v p e bs (ψ : A -> Prop) (φ : Prop) :
+  pat η p v (λ η', pure (eval η' e) ψ) φ ->
+  (φ -> (pure_match η v bs ψ)) ->
+  pure_match η v (BrCons (Branch p e) bs) ψ.
+Proof.
+  intros.
+  apply pure_match_cons_unary.
+  eauto using pat_consequence.
 Qed.
