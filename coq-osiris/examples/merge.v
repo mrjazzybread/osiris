@@ -269,95 +269,89 @@ Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
   unfold split_spec. intros.
-  Opaque encode.
   pure_rec l (@wf_list_length A).
-  (* destruct l as [| a l]; last destruct l as [| b l]. *)
-  eapply pure_eval_match.
-  { eapply pure_eval_path; simpl lookup_path.
-    eapply pure_ret. f_equal.
-    apply eq_refl. }
-  intros a?; subst a. unfold __branches6; simpl.
-  (* Match l with [] *)
-  eapply pure_match_cons; simpl.
+  eapply pure_eval_match. { pure_path. apply eq_refl. }
+  intros ??; subst. unfold __branches6; simpl.
+  (* Match l with | [] | ... *)
+  eapply pure_match_cons.
   { (* Pattern [] l *)
-    eapply pat_pNil. reflexivity.
+    eapply pat_pNil; first solve [encode].
     (* Substitute l with [] *)
-    intros; subst l.
+    intros ->.
     (* Eval ([], []) *)
     apply pure_eval_pair. pure_const. pure_const.
     (* Establish postcondition *)
     by simpl. }
   intros l_neq_nil.
-  (* Match l with [x] *)
+  (* Match l with | [x] | ... *)
   eapply pure_match_cons_unary.
-  (* Pattern (x :: _) l *)
+  (* Pattern (x :: []) l *)
   eapply pat_pCons_under; eauto.
   (* Substitute l with h :: t *)
-  intros h t ?; subst l; clear l_neq_nil.
+  intros h t ?; subst; clear l_neq_nil.
+  (* Patterns (x :: []) (#h :: #t) *)
   eapply pats_PCons.
   { (* Pattern x h *)
     apply pat_PVar. apply eq_refl. }
-  { (* Pattern [] t *)
+  { (* Patterns [] t *)
     intros ??; subst.
     apply pats_PCons_unary.
-    eapply pat_pNil; first reflexivity.
+    (* Pattern [] #t *)
+    eapply pat_pNil; first solve [encode].
     (* Substitute t with [] *)
     intros ?; subst.
-    eapply pats_consequence_psi; [eapply pats_PNil | done].
+    (* Patterns PNil VNil *)
+    eapply pats_consequence_psi; [apply pats_PNil | done].
     (* Eval ([x], []) *)
     apply pure_eval_pair.
-    apply pure_eval_data. (* Eval [x] *)
-    apply pure_eval_pair_val.
-    apply pure_eval_path. simpl lookup_path.
-    eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-    eapply pure_eval_const. { rewrite <- solve_encode_val. reflexivity. }
-    pure_ret.
-    pure_const. (* Eval [] *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_const.
+    pure_ret.   
+    pure_const.
     (* Establish postcondition *)
     by simpl. }
   intros [|t_neq_nil]; first contradiction.
-  (* Match l with x1 :: x2 :: t *)
-  apply pure_match_cons_unary.
+  (* Match l with | x1 :: x2 :: t *)
+  apply pure_match_cons_unary. (* TODO: tactic for last branch of match ? *)
+  (* Pattern (x1 :: x2 :: t) #(h :: t) *)
   eapply pat_pCons_under; eauto.
   intros x1 tmp eq; injection eq; intros -> ->; clear eq.
+  (* Patterns (x1 :: (x2 :: t)) (#x1 :: #tmp) *)
   eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
   { intros ??; subst.
+    (* Patterns [(x2::t)] #tmp *)
     apply pats_PCons_unary.
+    (* Pattern (x2 :: t) #tmp *)
     eapply pat_pCons_under; eauto.
+    (* Substitute tmp with (x2 :: t) *)
     intros x2 t ->.
+    (* Patterns (x2 :: t) (#x2 :: #t) *)
     eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
     { intros ??; subst.
+      (* Patterns t #t *)
       eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
       { intros ??; subst.
         apply pats_PNil.
         apply pats_PNil.
-        apply pure_eval_let_pair. (* let (l1, l2) = split t *)
-        apply pure_eval_app.
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
+        (* Eval let (l1, l2) = split t *)
+        apply pure_eval_let_pair. (* TODO: Reformulate this lemma *)
+        (* Eval split t *)
+        apply pure_eval_app. pure_path. pure_path. 
+        (* Call vf t *)
         destruct (IH t) as ([l1 l2] & Hsimp & Hpost) ; eauto with arith.
         (* Use induction hypothesis on l *)
+        (* TODO: Reformulate using pure_consequence *)
         eapply pure_simp; first apply Hsimp.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        Transparent encode. simpl.
+        pure_ret. simpl.
         unfold __exp5; simpl.
-        apply pure_eval_pair. (* pair: (x1::l1, x2::l2) *)
-        apply pure_eval_data. (* constructor: "::" x1 l1 *)
-        apply pure_eval_pair_val.
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        pure_ret.
-        apply pure_eval_data. (* constructor: "::" x2 l2 *)
-        apply pure_eval_pair_val. (* pair: (x2, l2) *)
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        eapply pure_eval_path. simpl lookup_path.
-        eapply pure_ret. { rewrite <- solve_encode_val. reflexivity. }
-        pure_ret.
+        (* Eval (x1::l1, x2::l2) *)
+        apply pure_eval_pair.
+        (* Eval x1::l1 *)
+        apply pure_eval_data.
+        apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+        (* Eval x2::l2 *)
+        apply pure_eval_data. 
+        apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
         (* Establish postcondition *)
         unfold split_post in *; simpl in *.
         repeat destruct_hyp.
