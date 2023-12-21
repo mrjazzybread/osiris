@@ -289,13 +289,13 @@ Proof.
   (* Pattern (x :: []) l *)
   eapply pat_pCons_under; eauto.
   (* Substitute l with h :: t *)
-  intros h t ?; subst; clear l_neq_nil.
+  intros h t ->; clear l_neq_nil.
   (* Patterns (x :: []) (#h :: #t) *)
-  eapply pats_PCons.
-  { (* Pattern x h *)
-    apply pat_PVar. apply eq_refl. }
-  { (* Patterns [] #t *)
-    intros ??; subst.
+  eapply pats_consequence_psi.
+  { apply pats_PCons.
+    (* Pattern x h *)
+    apply pat_PVar.
+    (* Patterns [] #t *)
     apply pats_PCons_single.
     (* Pattern [] #t *)
     eapply pat_pNil; first solve [encode].
@@ -316,10 +316,12 @@ Proof.
   apply pure_match_single.
   (* Pattern (x1 :: x2 :: t) #(h :: t) *)
   eapply pat_pCons_under; eauto.
-  intros x1 tmp eq; injection eq; intros -> ->; clear eq.
+  intros x1 tmp eq; injection eq; intros -> ->.
   (* Patterns (x1 :: (x2 :: t)) (#x1 :: #tmp) *)
-  eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
-  { intros ??; subst.
+  eapply pats_consequence_psi.
+  eapply pats_PCons.
+  { (* Pattern x1 #x1 *)
+    apply pat_PVar.
     (* Patterns [(x2::t)] #tmp *)
     apply pats_PCons_single. eapply pat_pCons_under; eauto.
     (* Substitute tmp with (x2 :: t) *)
@@ -327,20 +329,17 @@ Proof.
     (* Patterns (x2 :: t) (#x2 :: #t) *)
     eapply pats_PCons.
     { (* Pattern x2 #x2 *)
-      apply pat_PVar. apply eq_refl. }
-    { (* Patterns t #t *)
-      intros ? <-.
+      apply pat_PVar.
+      (* Patterns t #t *)      
       apply pats_PCons_single. apply pat_PVar.
       (* Eval let (l1, l2) = split t *)
-      apply pure_eval_let_pair. (* TODO: Reformulate this lemma *)
-      (* Eval split t *)
-      apply pure_eval_app. pure_path. pure_path.
-      (* Call vf t *)
-      destruct (IH t) as ([l1 l2] & Hsimp & Hpost) ; eauto with arith.
-      (* Use induction hypothesis on l *)
-      (* TODO: Reformulate using pure_consequence *)
-      eapply pure_simp; first apply Hsimp.
-      pure_ret. simpl.
+      eapply pure_eval_let_pair.
+      eapply pure_eval_app. pure_path. pure_path.
+      (* Call vf #t *)
+      eapply pure_consequence.
+      { (* Use induction hypothesis *)
+        apply IH; eauto with arith. }
+      intros [l1 l2] Hpost; clear IH t_neq_nil eq; simpl.
       unfold __exp5; simpl.
       (* Eval (x1::l1, x2::l2) *)
       apply pure_eval_pair.
@@ -363,9 +362,8 @@ Proof.
         change ((x1::l1)++x2::l2) with (x1::l1++x2::l2).
         apply Permutation_skip.
         apply Permutation_sym.
-        apply Permutation_middle. } }
-    intros [F|F]; exact F. }
-  intros [|]; tauto.
+        apply Permutation_middle. } } }
+  tauto.
 Qed.
 
 Opaque ret_concat.

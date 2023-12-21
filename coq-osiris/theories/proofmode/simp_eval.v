@@ -572,53 +572,41 @@ Qed.
 
 (* Local definitions. *)
 
-(* TODO one binding only, for now *)
+(* TODO only one or two bindings, for now *)
   
-Lemma simp_eval_let_pair' p1 p2 e1 e2 m v1 v2 η θ :
-  simp (eval η e1) (ret (VPair v1 v2)) ->
-  simp (δ ← extend EnvNil p1 v1;
-        extend δ p2 v2) (ret θ) ->
+Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
+  (v1 : A1) (v2 : A2) η θ :
+  simp (eval η e1) (ret #(v1, v2)) ->
+  simp (δ ← extend EnvNil p1 #v1;
+        extend δ p2 #v2) (ret θ) ->
   simp (eval (concat θ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
   intros. simp.
   eapply prove_simp_try; last eassumption.
-  apply invert_simp_bind_ret in H0 as (δ & Hnil & Hext).
+  apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
   eapply prove_simp_bind; first eassumption.
   rewrite bind_bind.
   simpl. by rewrite bind_ret_right.
-Qed.  
-
-Lemma pure_eval_let_pair' `{Encode X} p1 p2 e1 e2 v1 v2 η θ (ψ : X -> Prop) :
-  simp (eval η e1) (ret (VPair v1 v2)) ->
-  simp (δ ← extend EnvNil p1 v1;
-        extend δ p2 v2) (ret θ) ->
-  pure (eval (concat θ η) e2) ψ ->
-  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
-Proof.
-  intros. destruct_pure y. eauto using simp_eval_let_pair'.
 Qed.
 
-Lemma pure_eval_let_pair `{Encode X} p1 p2 e1 e2 η (ψ : X -> Prop) :
-  pure (eval η e1) (λ v : val,
-        match v with
-        | VTuple (VCons v1 (VCons v2 VNil)) =>
-            pure (
-                δ ← extend EnvNil p1 v1;
-                θ ← extend δ p2 v2;
-                eval (concat θ η) e2) ψ
-        | _ => False
-        end) ->
+Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
+  p1 p2 e1 e2 η (ψ : X -> Prop) :
+  pure (eval η e1) (λ '((v1, v2) : A1 * A2),
+      pure (
+          δ ← extend EnvNil p1 #v1;
+          θ ← extend δ p2 #v2;
+          eval (concat θ η) e2
+        ) ψ) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
 Proof.
-  intros (v & Hv & Hpure).
-  destruct v; try done.
-  do 3 (destruct vs; try done). simpl in Hv.
-  destruct Hpure as (x & Hsimp & Hpost).
+  intros ([v1 v2] & Hv & Hpure).
+  destruct Hpure as (x & Hsimp & Hψ).
   eapply invert_simp_bind_ret in Hsimp as (δ & Hv1 & Hsimp).
   eapply invert_simp_bind_ret in Hsimp as (θ & Hv2 & Hx).
-  eapply pure_eval_let_pair'; eauto.
-  eapply prove_simp_bind; eauto.
+  eapply pure_simp.
+  { eapply simp_eval_let_pair; eauto using prove_simp_bind. }
+  eapply pure_ret; eauto.
 Qed.
   
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
@@ -1075,11 +1063,9 @@ Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
-Lemma pats_PCons η p ps v vs φ' φ ψ ψ1 ψ2 :
-  pat η p v φ' ψ1 →
-  (∀ η, φ' η → pats η ps vs φ ψ2) →
-  (ψ1 \/ ψ2 -> ψ) ->
-  pats η (PCons p ps) (VCons v vs) φ ψ.
+Lemma pats_PCons η p ps v vs φ ψ1 ψ2 :
+  pat η p v (λ η0, pats η0 ps vs φ ψ2) ψ1 →
+  pats η (PCons p ps) (VCons v vs) φ (ψ1 \/ ψ2).
     (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
        and where a disjunction is explicitly constructed -- see below. *)
 Proof.
@@ -1094,10 +1080,14 @@ Lemma pats_PCons_single η p v φ ψ :
   pat η p v φ ψ ->
   pats η (PCons p PNil) (VCons v VNil) φ ψ.
 Proof.
-  intros.
-  eapply pats_PCons; first eauto.
-  intros. apply pats_PNil. eauto.
-  intros [|]; [tauto | contradiction].
+  intros Hpat.
+  eapply pats_consequence_psi.
+  eapply pats_PCons.
+  { eapply total_consequence.
+    { apply Hpat. }
+    { intros η' ?. eapply pats_PNil; assumption. }
+    { intros Hψ; apply Hψ. } }
+  { intros [|]; [ tauto | contradiction ]. }
 Qed.
   
 Ltac pats :=
