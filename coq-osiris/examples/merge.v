@@ -271,7 +271,7 @@ Proof.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
   eapply pure_eval_match. { pure_path. apply eq_refl. }
-  intros ??; subst. unfold __branches6; simpl.
+  intros ? <-. unfold __branches6; simpl.
   (* Match l with | [] | ... *)
   eapply pure_match_cons.
   { (* Pattern [] l *)
@@ -293,26 +293,26 @@ Proof.
   eapply pats_PCons.
   { (* Pattern x h *)
     apply pat_PVar. apply eq_refl. }
-  { (* Patterns [] t *)
+  { (* Patterns [] #t *)
     intros ??; subst.
-    apply pats_PCons_unary.
+    apply pats_PCons_single.
     (* Pattern [] #t *)
     eapply pat_pNil; first solve [encode].
     (* Substitute t with [] *)
     intros ?; subst.
-    (* Patterns PNil VNil *)
-    eapply pats_consequence_psi; [apply pats_PNil | done].
     (* Eval ([x], []) *)
     apply pure_eval_pair.
+    (* Eval [x] *)
     apply pure_eval_data.
     apply pure_eval_pair_val. pure_path. pure_const.
-    pure_ret.   
+    pure_ret.
+    (* Eval [] *)
     pure_const.
     (* Establish postcondition *)
     by simpl. }
-  intros [|t_neq_nil]; first contradiction.
+  intros [|t_neq_nil]; try contradiction.
   (* Match l with | x1 :: x2 :: t *)
-  apply pure_match_cons_unary. (* TODO: tactic for last branch of match ? *)
+  apply pure_match_single.
   (* Pattern (x1 :: x2 :: t) #(h :: t) *)
   eapply pat_pCons_under; eauto.
   intros x1 tmp eq; injection eq; intros -> ->; clear eq.
@@ -320,55 +320,51 @@ Proof.
   eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
   { intros ??; subst.
     (* Patterns [(x2::t)] #tmp *)
-    apply pats_PCons_unary.
-    (* Pattern (x2 :: t) #tmp *)
-    eapply pat_pCons_under; eauto.
+    apply pats_PCons_single. eapply pat_pCons_under; eauto.
     (* Substitute tmp with (x2 :: t) *)
     intros x2 t ->.
     (* Patterns (x2 :: t) (#x2 :: #t) *)
-    eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
-    { intros ??; subst.
-      (* Patterns t #t *)
-      eapply pats_PCons. { apply pat_PVar. apply eq_refl. }
-      { intros ??; subst.
-        apply pats_PNil.
-        apply pats_PNil.
-        (* Eval let (l1, l2) = split t *)
-        apply pure_eval_let_pair. (* TODO: Reformulate this lemma *)
-        (* Eval split t *)
-        apply pure_eval_app. pure_path. pure_path. 
-        (* Call vf t *)
-        destruct (IH t) as ([l1 l2] & Hsimp & Hpost) ; eauto with arith.
-        (* Use induction hypothesis on l *)
-        (* TODO: Reformulate using pure_consequence *)
-        eapply pure_simp; first apply Hsimp.
-        pure_ret. simpl.
-        unfold __exp5; simpl.
-        (* Eval (x1::l1, x2::l2) *)
-        apply pure_eval_pair.
-        (* Eval x1::l1 *)
-        apply pure_eval_data.
-        apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-        (* Eval x2::l2 *)
-        apply pure_eval_data. 
-        apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-        (* Establish postcondition *)
-        unfold split_post in *; simpl in *.
-        repeat destruct_hyp.
-        split; last split.
-        { (* Subgoal: the length of l1 is half the length of l *)
-          destruct (Nat.even _); eauto with arith. }
-        { (* Subgoal: the length of l2 is hald the length of l *)
-          eauto with arith. }
-        { (* Subgoal: l1++l2 is a permutation of l *)
-          rewrite_permutation l.
-          change ((x1::l1)++x2::l2) with (x1::l1++x2::l2).
-          apply Permutation_skip.
-          apply Permutation_sym.
-          apply Permutation_middle. } }
-      intros [F|F]; exact F. }
-    intros [|]; contradiction. }
-  intros [|]; contradiction.
+    eapply pats_PCons.
+    { (* Pattern x2 #x2 *)
+      apply pat_PVar. apply eq_refl. }
+    { (* Patterns t #t *)
+      intros ? <-.
+      apply pats_PCons_single. apply pat_PVar.
+      (* Eval let (l1, l2) = split t *)
+      apply pure_eval_let_pair. (* TODO: Reformulate this lemma *)
+      (* Eval split t *)
+      apply pure_eval_app. pure_path. pure_path.
+      (* Call vf t *)
+      destruct (IH t) as ([l1 l2] & Hsimp & Hpost) ; eauto with arith.
+      (* Use induction hypothesis on l *)
+      (* TODO: Reformulate using pure_consequence *)
+      eapply pure_simp; first apply Hsimp.
+      pure_ret. simpl.
+      unfold __exp5; simpl.
+      (* Eval (x1::l1, x2::l2) *)
+      apply pure_eval_pair.
+      (* Eval x1::l1 *)
+      apply pure_eval_data.
+      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+      (* Eval x2::l2 *)
+      apply pure_eval_data.
+      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+      (* Establish postcondition *)
+      unfold split_post in *; simpl in *.
+      repeat destruct_hyp.
+      split; last split.
+      { (* Subgoal: the length of l1 is half the length of l *)
+        destruct (Nat.even _); eauto with arith. }
+      { (* Subgoal: the length of l2 is hald the length of l *)
+        eauto with arith. }
+      { (* Subgoal: l1++l2 is a permutation of l *)
+        rewrite_permutation l.
+        change ((x1::l1)++x2::l2) with (x1::l1++x2::l2).
+        apply Permutation_skip.
+        apply Permutation_sym.
+        apply Permutation_middle. } }
+    intros [F|F]; exact F. }
+  intros [|]; tauto.
 Qed.
 
 Opaque ret_concat.

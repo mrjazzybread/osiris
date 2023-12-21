@@ -696,6 +696,16 @@ Proof.
   eauto using total_consequence.
 Qed.
 
+Lemma pats_PCons_single η p v φ ψ :
+  pat η p v φ ψ ->
+  pats η (PCons p PNil) (VCons v VNil) φ ψ.
+Proof.
+  intros.
+  eapply pats_PCons; first eauto.
+  intros. apply pats_PNil. eauto.
+  intros [|]; [tauto | contradiction].
+Qed.
+  
 Ltac pats :=
   repeat first [
     eapply pats_PNil; [ eauto ]
@@ -1356,4 +1366,12 @@ Proof.
   intros.
   apply pure_match_cons_unary.
   eauto using pat_consequence.
+Qed.
+
+Lemma pure_match_single `{Encode A} η v p e (ψ : A -> Prop) :
+  pat η p v (λ η', pure (eval η' e) ψ) False ->
+  pure_match η v (BrCons (Branch p e) BrNil) ψ.
+Proof.
+  intros.
+  eapply pure_match_cons; [eassumption | contradiction]. 
 Qed.
