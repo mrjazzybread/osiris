@@ -29,22 +29,37 @@ Qed.
    the subgoal [φ x], which it simplifies. *)
 
 Ltac pure_ret :=
-  simple eapply pure_ret; [ solve [ encode ] | beta ].
-
+  match goal with
+  | |- pure (ret ?v) ?φ =>
+      match type of φ with
+      | val -> Prop =>
+          simple eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | beta]
+      | _ =>
+          simple eapply pure_ret; [ solve [ encode ] | beta ]
+      end
+  end.
 
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
 Ltac pure_path :=
-  simple apply pure_eval_path; simpl lookup_path; pure_ret.
+  simple eapply pure_eval_path; simpl lookup_path; pure_ret.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
 Ltac pure_const :=
-  simple eapply pure_eval_const; [ solve [ encode ] | ].
+  match goal with
+  | |- pure (eval ?η (EConstant ?c)) ?ψ =>
+      match type of ψ with
+      | val -> Prop =>
+          simple eapply pure_eval_const; [ rewrite <- solve_encode_val; reflexivity | ]
+      | _ =>
+          simple eapply pure_eval_const; [ solve [ encode ] | ]
+      end
+  end.
 
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
