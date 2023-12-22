@@ -321,6 +321,7 @@
     Coq's `char` type seems needlessly inefficient,
     and the model of a string should be a list of characters.
 * Records with mutable fields
+  + `let rec` over mutable records could conceivably be supported
 * Integers:
   + give lemmas to help establish that the result of an operation
     is representable
@@ -358,7 +359,6 @@
 * Pattern matching on mutable data
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
     as an expression that raises `Next` if `e1` evaluates to `false`)
-* `let rec` over mutable values could conceivably be supported
 * Recursive modules? (Used in Sek, for example.)
 
 ## Features of OCaml that we do not want to support
