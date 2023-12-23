@@ -664,7 +664,11 @@ and translate_structure_item (item : structure_item) : sitem option =
       Some (ILet (translate_bindings vbs))
 
   | Tstr_value (Recursive, vbs) ->
-      Some (ILetRec (translate_rec_bindings vbs))
+      begin try
+        Some (ILetRec (translate_rec_bindings vbs))
+      with Unsupported ->
+        ounsupported loc "recursive definition of values"
+      end
 
   | Tstr_primitive _ ->
       (* Declarations of external primitive operations are skipped. We do not
