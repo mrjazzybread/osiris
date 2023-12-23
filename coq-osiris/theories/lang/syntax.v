@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations.
+From osiris.lang Require Import float int char locations.
 
 (* This file should be in sync with osiris/src/Syntax.ml. *)
 
