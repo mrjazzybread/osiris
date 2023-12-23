@@ -185,6 +185,9 @@ Inductive expr :=
   | EIntDiv (e1 e2 : expr)
   | EIntMod (e1 e2 : expr)
 
+  (* Floating-point literals. *)
+  | EFloat (f : float)
+
   (* Character literals. *)
   | EChar (c: char)
 
@@ -364,6 +367,8 @@ Inductive val :=
   | VString (s: string)
   (* A machine integer. *)
   | VInt (i : int)
+  (* A floating-point number. *)
+  | VFloat (f : float)
   (* A tuple. *)
   | VTuple (vs : vals)
   (* A data constructor value. *)

@@ -210,6 +210,9 @@ let rec expr (e : expr) =
   | EIntMod (e1, e2) ->
       c "EIntMod" [ expr e1; expr e2 ]
 
+  | EFloat f ->
+      c "EFloat" [ plain (sprintf "(%s)%%float" f)]
+
   | EChar cc ->
       c "EChar" [char cc]
 

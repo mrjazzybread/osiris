@@ -779,6 +779,8 @@ Fixpoint eval η e : micro val :=
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
+  | EFloat f =>
+      ret (VFloat f)
   | EOpPhysEq e1 e2 =>
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       b ← phys_eq_val v1 v2 ;

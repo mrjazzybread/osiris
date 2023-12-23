@@ -188,8 +188,8 @@ let translate_exp_constant loc (c : constant) : expr =
       EChar c
   | Const_string (s, _, _) ->
       EString s
-  | Const_float _ ->
-      eunsupported loc "floating-point literal"
+  | Const_float f ->
+      EFloat f
   | Const_int32 _ ->
       eunsupported loc "32-bit integer literal"
   | Const_int64 _ ->
