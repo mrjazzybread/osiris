@@ -57,16 +57,16 @@ let unsupported loc construct v =
   end;
   v
 
-let eunsupported loc construct =
+let eunsupported loc construct : expr =
   unsupported loc construct EUnsupported
 
-let punsupported loc construct =
+let punsupported loc construct : pat =
   unsupported loc construct PUnsupported
 
-let ounsupported loc construct =
+let ounsupported loc construct : _ option =
   unsupported loc construct None
 
-let munsupported loc construct =
+let munsupported loc construct : mexpr =
   unsupported loc construct MUnsupported
 
 exception Unsupported
