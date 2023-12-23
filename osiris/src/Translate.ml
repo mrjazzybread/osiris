@@ -615,8 +615,8 @@ and project_Tpat_var (pat : value general_pattern) : var =
 
 and translate_rec_binding (vb : value_binding) : rec_binding =
   let x = project_Tpat_var vb.vb_pat
-  and e = project_EAnonFun (translate_expr vb.vb_expr) in
-  RecBinding (x, e)
+  and a = project_EAnonFun (translate_expr vb.vb_expr) in
+  RecBinding (x, a)
 
 and translate_rec_bindings vbs =
   map translate_rec_binding vbs
