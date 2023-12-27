@@ -802,18 +802,18 @@ Proof.
   apply Nat.lt_wf_0.
 Qed.
 
-Program Fixpoint eval_mexpr eval η me : micro val :=
+Fixpoint eval_mexpr' eval η me : micro val :=
   (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
      yielding a value. *)
-  (match me as r return me = r -> micro val with
-  | MUnsupported => fun _ => unsupported_construct
-  | MPath π => fun _ =>
+  match me with
+  | MUnsupported => unsupported_construct
+  | MPath π =>
       (* A path is looked up in the environment [η]. *)
       lookup_path η π
-  | MCoercion me c => fun _ =>
-      'v ← eval_mexpr eval η me ;
+  | MCoercion me c =>
+      'v ← eval_mexpr' eval η me ;
        coerce c v
-  | MStruct items => fun Heq =>
+  | MStruct items =>
       (* evaluate the structure items, yielding an environment [δ], *)
       bind
         (let eval_sitem :=
@@ -821,99 +821,50 @@ Program Fixpoint eval_mexpr eval η me : micro val :=
              match acc with
              | ret ηδ =>
                  let '(η, δ) := ηδ in
-                 match item as r' return item = r' -> micro envs with
-                 | ILet bs => fun Heq =>
+                 match item with
+                 | ILet bs =>
                      δ' ← eval_bindings eval η bs;
                      ret_dconcat δ' (η, δ)
-                 | ILetRec rbs => fun Heq =>
+                 | ILetRec rbs =>
                      let δ' := eval_rec_bindings η rbs in
                      ret_dconcat δ' (η, δ)
-                 | IModule m me' => fun Heq =>
-                     v ← eval_mexpr eval η me' ;
+                 | IModule m me' =>
+                     v ← eval_mexpr' eval η me' ;
                      ret_dconcat [(m, v)] (η, δ)
-                 | IOpen me' => fun Heq =>
-                     δ' ← as_struct (eval_mexpr eval η me') ;
+                 | IOpen me' =>
+                     δ' ← as_struct (eval_mexpr' eval η me') ;
                      ret (δ' ++ η, δ)
-                 | IInclude me' => fun Heq =>
-                     δ' ← as_struct (eval_mexpr eval η me') ;
+                 | IInclude me' =>
+                     δ' ← as_struct (eval_mexpr' eval η me') ;
                      ret (dconcat δ' (η, δ))
-                 end eq_refl
+                 end
              | _ => acc
              end
          in
          fold_left eval_sitem items (ret (η, [])))
         (fun '(_, δ) => ret (VStruct δ))
-   end) eq_refl.
+   end.
 
-Next Obligation.
-  admit.
-Admitted.
-
-Next Obligation.
-  admit.
-Admitted.
-
-Next Obligation.
-admit.
-Admitted.
-
-
-
-with eval_sitems eval ηδ items : micro envs :=
-  match items with
-  | [] => ret ηδ
-  | item :: items =>
-      let '(η, δ) := ηδ in
-      bind
-        ((fix eval_sitem η δ item :=
-            match item with
-            | ILet bs =>
-                δ' ← eval_bindings eval η bs;
-                ret_dconcat δ' (η, δ)
-            | ILetRec rbs =>
-                let δ' := eval_rec_bindings η rbs in
-                ret_dconcat δ' (η, δ)
-            | IModule m me =>
-                'v ← eval_mexpr eval η me ;
-                ret_dconcat [(m, v)] (η, δ)
-            | IOpen me =>
-                δ' ← as_struct (eval_mexpr eval η me) ;
-                ret (δ' ++ η, δ)
-            | IInclude me =>
-                δ' ← as_struct (eval_mexpr eval η me) ;
-                ret (dconcat δ' (η, δ))
-            end) η δ item)
-        (fun ηδ => eval_sitems eval ηδ items)
-  end
-.
-
-with eval_sitem eval (η δ : env) item : micro envs :=
-  match item with
-  | ILet bs =>
-      δ' ← eval_bindings eval η bs;
-      ret_dconcat δ' (η, δ)
-  | ILetRec rbs =>
-      let δ' := eval_rec_bindings η rbs in
-      ret_dconcat δ' (η, δ)
-  | IModule m me =>
-      'v ← eval_mexpr eval η me ;
-       ret_dconcat [(m, v)] (η, δ)
-  | IOpen me =>
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend [η] but not [δ]. This reflects
-         the fact that these bindings become visible, but do not extend the
-         current structure. *)
-      'δ' ← as_struct (eval_mexpr eval η me) ;
-       ret (δ' ++ η, δ)
-  | IInclude me =>
-      δ' ← as_struct (eval_mexpr eval η me) ;
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend both [η] and [δ]. *)
-      ret (dconcat δ' (η, δ))
-  end
-.
-
-Program Fixpoint eval η e {measure (length_expr e)} : micro val :=
+Fixpoint eval η e : micro val :=
+  let evals η es :=
+    let f :=
+      fun e acc =>
+        '(v, vs) ← par (eval η e) acc ;
+         ret (v :: vs)
+    in
+    fold_right f (ret []) es
+  in
+  let evalfs η fes :=
+    let f :=
+      fun fe acc =>
+        match fe with
+        | Fexpr f e =>
+            '(v, fvs) ← par (eval η e) acc ;
+             ret ((f, v) :: fvs)
+        end
+    in
+    fold_right f (ret []) fes
+  in
   match e with
   | EUnsupported => unsupported_construct
   | EChar c => ret (VChar c)
@@ -934,62 +885,29 @@ Program Fixpoint eval η e {measure (length_expr e)} : micro val :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
 
-      (* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
-         producing values [fvs]. The expressions are evaluated in parallel. *)
+      (* [evalfs η fes] evaluates the expressions [fes] in the environment [η], *)
+  (*        producing values [fvs]. The expressions are evaluated in parallel. *)
 
-      (* Each expression in the list [fes] and each value in the list [fvs]
-         is indexed with a record field. *)
+      (* Each expression in the list [fes] and each value in the list [fvs] *)
+  (*        is indexed with a record field. *)
       'fvs ← evalfs η fes ;
       'fvs ← sort fvs ;
        ret (VRecord fvs)
-  | ELet bs e =>
-      (* This is evaluated like a [match] construct with one branch. *)
-      try
-        (eval_bindings η bs)
-        (λ δ, η ← ret_concat δ η; eval η e)
-        match_failure
-  | EMatch e bs =>
-      'v ← eval η e ;
-       eval_match η v bs
-  | ELetModule M me e =>
-      'v ← eval_mexpr η me ;
-      'η ← ret_concat [(M, v)] η;
-       eval η e
+  (* | ELet bs e => *)
+  (*     (* This is evaluated like a [match] construct with one branch. *) *)
+  (*     try *)
+  (*       (eval_bindings eval η bs) *)
+  (*       (λ δ, η ← ret_concat δ η; eval η e) *)
+  (*       match_failure *)
+  (* (* | EMatch e bs => *) *)
+  (* (*     'v ← eval η e ; *) *)
+  (* (*      eval_match η v bs *) *)
+  (* | ELetModule M me e => *)
+  (*     'v ← eval_mexpr' eval η me ; *)
+  (*     'η ← ret_concat [(M, v)] η; *)
+  (*      eval η e *)
   | _ => unsupported_construct
-end
-
-with evals η es :=
-       let f :=
-         fun e acc =>
-           '(v, vs) ← par (eval η e) acc ;
-            ret (v :: vs)
-       in
-       fold_right f (ret []) es
-       (* match es with *)
-       (* | [] => *)
-       (*     ret [] *)
-       (* | e :: es => *)
-       (*     '(v, vs) ← par (eval η e) (evals η es) ; *)
-       (*      ret (v :: vs) *)
-       (* end *)
-
-with evalfs η fes :=
-       let f :=
-         fun fe acc =>
-           match fe with
-           | Fexpr f e =>
-               '(v, fvs) ← par (eval η e) (evalfs η fes) ;
-               ret ((f, v) :: fvs)
-           end
-       in
-       fold_right f (ret []) fes
-       (* match fes with *)
-       (* | [] => *)
-       (*     ret [] *)
-       (* | (Fexpr f e) :: fes => *)
-       (*     '(v, fvs) ← par (eval η e) (evalfs η fes) ; *)
-       (*      ret ((f, v) :: fvs) *)
-       (* end *)
+end.
 
 with eval_bindings eval η bs :=
   let f :=
@@ -1010,7 +928,8 @@ with eval_bindings eval η bs :=
   (*       '(v, δ) ← par (eval η e) (eval_bindings η bs) ; *)
   (*        (* Match the value [v] against the pattern [p], extending [δ]. *) *)
   (*        extend δ p v *)
-  (* end *)
+(* end *)
+.
 
 with eval_match η v (bs : list branch) {struct bs} : micro val :=
   (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
@@ -1029,61 +948,6 @@ with eval_match η v (bs : list branch) {struct bs} : micro val :=
         (λ δ, η ← ret_concat δ η; eval η e)
         (* Soft failure: abandon this branch. Try the following branches. *)
         (λ tt, eval_match η v bs)
-  end
-
-with eval_mexpr η me {struct me} : micro val :=
-  (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
-     yielding a value. *)
-  match me with
-  | MUnsupported => unsupported_construct
-  | MPath π =>
-      (* A path is looked up in the environment [η]. *)
-      lookup_path η π
-  | MStruct items =>
-      (* Beginning with an empty current structure, *)
-      let δ := [] in
-      (* evaluate the structure items, yielding an environment [δ], *)
-      '(_, δ) ← eval_sitems (η, δ) items ;
-       (* and wrap it in a [VStruct] value. *)
-       ret (VStruct δ)
-  | MCoercion me c =>
-      'v ← eval_mexpr η me ;
-       coerce c v
-  end
-
-with eval_sitems ηδ items : micro envs :=
-  match items with
-  | [] => ret ηδ
-  | item :: items =>
-      let '(η, δ) := ηδ in
-      ηδ ← eval_sitem η δ item ;
-      (* Evaluate the remaining items. *)
-      eval_sitems ηδ items
-  end
-
-with eval_sitem (η δ : env) item : micro envs :=
-  match item with
-  | ILet bs =>
-      δ' ← eval_bindings η bs;
-      ret_dconcat δ' (η, δ)
-  | ILetRec rbs =>
-      let δ' := eval_rec_bindings η rbs in
-      ret_dconcat δ' (η, δ)
-  | IModule m me =>
-      'v ← eval_mexpr η me ;
-       ret_dconcat [(m, v)] (η, δ)
-  | IOpen me =>
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend [η] but not [δ]. This reflects
-         the fact that these bindings become visible, but do not extend the
-         current structure. *)
-      'δ' ← as_struct (eval_mexpr η me) ;
-       ret (δ' ++ η, δ)
-  | IInclude me =>
-      δ' ← as_struct (eval_mexpr η me) ;
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend both [η] and [δ]. *)
-      ret (dconcat δ' (η, δ))
   end
 .
 
