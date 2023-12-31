@@ -77,6 +77,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIntMul : expr → expr → expr
   | EIntDiv : expr → expr → expr
   | EIntMod : expr → expr → expr
+  | EFloat : float → expr
   | EChar : char → expr
   | EString : string → expr
   | EOpPhysEq : expr → expr → expr
@@ -156,6 +157,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIntMul (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntDiv (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EFloat f%float_scope
 <span class="kn">Arguments</span> EChar c
 <span class="kn">Arguments</span> EString s%string_scope
 <span class="kn">Arguments</span> EOpPhysEq (e1 e2)%expr_scope
@@ -226,6 +228,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VCloRec : env → rec_bindings → var → val
   | VString : string → val
   | VInt : int → val
+  | VFloat : float → val
   | VTuple : vals → val
   | VData : data → val → val
   | VRecord : env → val
@@ -242,6 +245,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VCloRec η rbs f
 <span class="kn">Arguments</span> VString s%string_scope
 <span class="kn">Arguments</span> VInt i
+<span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VTuple vs
 <span class="kn">Arguments</span> VData c v
 <span class="kn">Arguments</span> VRecord fvs
@@ -258,6 +262,7 @@ recursive.</p>
   | VCloRec : env → rec_bindings → var → val
   | VString : string → val
   | VInt : int → val
+  | VFloat : float → val
   | VTuple : vals → val
   | VData : data → val → val
   | VRecord : env → val
@@ -274,6 +279,7 @@ recursive.</p>
 <span class="kn">Arguments</span> VCloRec η rbs f
 <span class="kn">Arguments</span> VString s%string_scope
 <span class="kn">Arguments</span> VInt i
+<span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VTuple vs
 <span class="kn">Arguments</span> VData c v
 <span class="kn">Arguments</span> VRecord fvs
