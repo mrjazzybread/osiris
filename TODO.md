@@ -356,6 +356,9 @@
 * The module `Lazy`
 * Effect handlers
 * Shared-memory concurrency (SC)
+  + Must allow spurious CAS failures
+    or restrict CAS to simple values (VBool, VInt, VLoc);
+    what does HeapLang do?
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
