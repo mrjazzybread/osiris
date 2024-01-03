@@ -372,7 +372,9 @@ Qed.
 
 (** Relative positions, from greatest to smallest:
 <<
+      modulus
       max_unsigned
+      half_modulus
       max_signed
       2*wordsize-1
       wordsize
@@ -413,6 +415,32 @@ Proof.
   unfold max_signed, max_unsigned. rewrite half_modulus_modulus.
   generalize half_modulus_pos. lia.
 Qed.
+
+(* fpottier *)
+Remark max_signed_half_modulus: max_signed < half_modulus.
+Proof. unfold max_signed. lia. Qed.
+
+(* fpottier *)
+Remark half_modulus_le_modulus: half_modulus <= modulus.
+Proof. generalize modulus_pos. rewrite !half_modulus_modulus. lia. Qed.
+
+(* fpottier *)
+Remark max_signed_modulus: max_signed < modulus.
+Proof. generalize max_signed_half_modulus, half_modulus_le_modulus. lia. Qed.
+
+(* fpottier *)
+Remark half_modulus_max_unsigned:
+  half_modulus <= max_unsigned.
+Proof.
+  unfold half_modulus, max_unsigned.
+  generalize modulus_pos; intro.
+  generalize (div2_lt_self modulus); intro.
+  lia.
+Qed.
+
+(* fpottier *)
+Remark max_unsigned_modulus: max_unsigned < modulus.
+Proof. unfold max_unsigned. lia. Qed.
 
 Lemma unsigned_repr_eq:
   forall x, unsigned (repr x) = Z.modulo x modulus.
