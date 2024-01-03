@@ -1884,6 +1884,31 @@ Proof.
   lia.
 Qed.
 
+(* fpottier *)
+Lemma shr_repr_repr' x y :
+  min_signed <= x <= max_signed ->
+  0 <= y <= max_unsigned ->
+  shr (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shr.
+  rewrite (unsigned_repr y) by assumption.
+  rewrite !testbit_repr by eauto.
+  rewrite !Z.shiftr_spec by lia.
+  rewrite signed_repr by assumption.
+  reflexivity.
+Qed.
+
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
+Lemma shr_repr_repr x y :
+  min_signed <= x <= max_signed ->
+  0 <= y <= zwordsize ->
+  shr (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  eauto using shr_repr_repr', a_fortiori.
+Qed.
+
 #[global]
 Hint Rewrite bits_shl bits_shru bits_shr: ints.
 

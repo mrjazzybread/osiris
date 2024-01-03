@@ -186,6 +186,7 @@ Definition lor  := M.or.
 Definition lxor := M.xor.
 Definition lsl  := M.shl.
 Definition lsr  := M.shru. (* inserts zeroes *)
+Definition asr  := M.shr.  (* inserts the sign bit of its first operand *)
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
@@ -255,6 +256,13 @@ Lemma lsr_repr_repr :
   0 <= z2 <= zintsize ->
   lsr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
 Proof. apply M.shru_repr_repr. Qed.
+
+Lemma asr_repr_repr :
+  forall z1 z2,
+  min_signed <= z1 <= max_signed ->
+  0 <= z2 <= zintsize ->
+  asr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
+Proof. apply M.shr_repr_repr. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
