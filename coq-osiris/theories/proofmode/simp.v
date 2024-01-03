@@ -361,7 +361,7 @@ Qed.
 Lemma simp_enter_call_VCloRec η rbs g v2 m :
   simp (
     let δ := eval_rec_bindings η rbs in
-    let η := concat δ η in
+    let η := δ ++ η in
     a ← lookup_rec_bindings rbs g ;
     acall η a v2
   ) m →

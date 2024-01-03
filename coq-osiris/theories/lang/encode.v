@@ -338,8 +338,8 @@ Global Hint Resolve solve_encode_loc : encode.
 
 Fixpoint encode_list `{Encode A} (xs : list A) :=
   match xs with
-  | []      => vNil
-  | x :: xs => vCons #x (encode_list xs)
+  | []      => VNil
+  | x :: xs => VCons #x (encode_list xs)
   end.
 
 Global Instance Encode_list `{Encode A} : Encode (list A) :=
@@ -352,7 +352,7 @@ Proof. solve_encode. Qed.
 
 Lemma solve_encode_Nil `{Encode A} (xs : list A) :
   [] = xs →
-  vNil = #xs.
+  VNil = #xs.
 Proof. solve_encode. Qed.
   (* TODO If [xs] and [A] are metavariables then Coq will refuse
           to apply this lemma because it cannot guess [A].
@@ -363,7 +363,7 @@ Lemma solve_encode_Cons `{Encode A} (xs : list A) x xs' v1 v2 :
   x :: xs' = xs →
   v1 = #x →
   v2 = #xs' →
-  vCons v1 v2 = #xs.
+  VCons v1 v2 = #xs.
 Proof. solve_encode. Qed.
 
 Global Hint Resolve

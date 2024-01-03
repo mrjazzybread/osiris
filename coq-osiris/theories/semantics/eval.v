@@ -1,7 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import code.
-From Equations Require Import Equations.
 Local Infix "=?" := String.eqb.
 
 (* Conventional metavariables. *)
@@ -274,7 +273,6 @@ Definition sort (η : env) : micro env :=
   build η (StringSort.sort (domain η)).
 
 (* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
 
 (* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
    environment fragment. Each name [g] is mapped to a recursive closure that
@@ -285,8 +283,7 @@ Definition sort (η : env) : micro env :=
 
 Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
-  | [] =>
-      []
+  | [] => []
   | (RecBinding g _a) :: rbs' =>
       (g, (VCloRec η rbs g)) :: (eval_rec_bindings_aux η rbs rbs')
   end.
@@ -313,6 +310,53 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [extends δ ps vs] matches the values [vs] against the patterns [ps].
+   In case of success, the result is an extension of the environment
+   fragment [δ] with bindings for the bound variables of the patterns [ps].
+
+   A hard failure occurs when [length ps ≠ length vs]. *)
+
+(* Pattern matching is sequential and obeys a left-to-right strategy. This
+   is important in the presence of GADTs, as the success of a test in the
+   left-hand side of a pair can guarantee the safety of a test in the
+   right-hand side of this pair. *)
+
+Definition extends' extend : env -> list pat -> list val -> micro env :=
+  fix extends (δ : env) ps vs : micro env :=
+    match ps, vs with
+    | [], [] =>
+        ret δ
+    | p::ps, v::vs =>
+        δ ← extend δ p v ;
+        δ ← extends δ ps vs ;
+        ret δ
+    | _::_, [] =>
+        length_mismatch "longer tuple expected"
+    | [], _::_ =>
+        length_mismatch "shorter tuple expected"
+   end.
+
+(* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
+   field-indexed patterns [fps].
+
+   In case of success, the result is an extension of the environment
+   fragment [δ] with bindings for the bound variables of
+   the patterns [fps].
+
+   A hard failure occurs if a field is present in [fps]
+   but absent in [fvs]. *)
+
+Definition extendfs' extend : env -> list (var * pat) -> env -> micro env :=
+  fix extendfs (δ : env) fps fvs : micro env :=
+    match fps with
+    | [] => ret δ
+    | (f, p) :: fps =>
+        v ← lookup_name fvs f ;
+        δ ← extend δ p v ;
+        δ ← extendfs δ fps fvs ;
+        ret δ
+    end.
+
 (* [extend δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
@@ -330,6 +374,8 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
    bound twice. This property is enforced by the OCaml type-checker. *)
 
 Fixpoint extend δ p v : micro env :=
+  let extends := extends' extend in
+  let extendfs := extendfs' extend in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -351,30 +397,7 @@ Fixpoint extend δ p v : micro env :=
       orelse (extend δ p1 v) (extend δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
-
-      (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
-         In case of success, the result is an extension of the environment
-         fragment [δ] with bindings for the bound variables of the patterns [ps].
-
-         A hard failure occurs when [length ps ≠ length vs]. *)
-
-      (* Pattern matching is sequential and obeys a left-to-right strategy. This
-         is important in the presence of GADTs, as the success of a test in the
-         left-hand side of a pair can guarantee the safety of a test in the
-         right-hand side of this pair. *)
-      ((fix extends (δ : env) ps vs : micro env :=
-        match ps, vs with
-        | [], [] =>
-            ret δ
-        | p::ps, v::vs =>
-            δ ← extend δ p v ;
-            δ ← extends δ ps vs ;
-            ret δ
-        | _::_, [] =>
-            length_mismatch "longer tuple expected"
-        | [], _::_ =>
-            length_mismatch "shorter tuple expected"
-        end) δ ps vs)
+      extends δ ps vs
   | PData c p, VData c' v =>
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a soft failure takes
@@ -383,26 +406,7 @@ Fixpoint extend δ p v : micro env :=
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
-
-      (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
-         field-indexed patterns [fps].
-
-         In case of success, the result is an extension of the environment
-         fragment [δ] with bindings for the bound variables of
-         the patterns [fps].
-
-         A hard failure occurs if a field is present in [fps]
-         but absent in [fvs]. *)
-      ((fix extendfs (δ : env) fps fvs : micro env :=
-          match fps with
-          | [] =>
-              ret δ
-          | (f, p)::fps =>
-              v ← lookup_name fvs f ;
-              δ ← extend δ p v ;
-              δ ← extendfs δ fps fvs ;
-              ret δ
-        end) δ fps fvs)
+      extendfs δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then ret δ else next
@@ -423,6 +427,9 @@ Fixpoint extend δ p v : micro env :=
   | PString _, _ =>
       type_mismatch "string expected"
 end.
+
+Definition extends := extends' extend.
+Definition extendfs := extendfs' extend.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -607,11 +614,30 @@ Definition ret_dconcat δ' ηδ :=
   ret (dconcat δ' ηδ).
 
 (* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
+
+Definition coerces' coerce : list fcoercion -> env -> micro env :=
+  fix coerces (xcs : list fcoercion ) xvs : micro env :=
+    match xcs with
+    | [] => ret []
+    | (x, c) :: xcs =>
+        (* Fetch the component [x] from [xvs]. *)
+        v ← lookup_name xvs x ;
+        (* Apply the coercion [c] to it. *)
+        v ← coerce c v ;
+        (* Fetch the rest. *)
+        xvs ← coerces xcs xvs ;
+        (* Combine the results. Whether we place [x] in front of [xvs] or
+           behind [xvs] should not make any difference, because the field
+           names that appear in the coercion should be pairwise distinct,
+           so the order in which these fields appear in the new structure
+           should be irrelevant. *)
+        ret ((x, v) :: xvs)
+    end.
 
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
 Fixpoint coerce (c : coercion) (v : val) : micro val :=
+  let coerces := coerces' coerce in
   match c with
   | CIdentity =>
       ret v
@@ -620,28 +646,10 @@ Fixpoint coerce (c : coercion) (v : val) : micro val :=
       xvs ← val_as_struct v ;
       (* From [xvs], fetch the components named in the list [xcs], and
          apply the corresponding coercions to them. *)
-      bind ((fix coerces (xcs : list fcoercion ) xvs : micro env :=
-             match xcs with
-             | [] =>
-                 ret []
-             | (x, c) :: xcs =>
-                 (* Fetch the component [x] from [xvs]. *)
-                 v ← lookup_name xvs x ;
-                 (* Apply the coercion [c] to it. *)
-                 v ← coerce c v ;
-                 (* Fetch the rest. *)
-                 xvs ← coerces xcs xvs ;
-                 (* Combine the results. Whether we place [x] in front of [xvs] or
-                    behind [xvs] should not make any difference, because the field
-                    names that appear in the coercion should be pairwise distinct,
-                    so the order in which these fields appear in the new structure
-                    should be irrelevant. *)
-                 ret ((x, v) :: xvs)
-             end) xcs xvs)
-      (λ xvs : env, ret (VStruct xvs))
+      xvs ← coerces xcs xvs ;
+      ret (VStruct xvs)
   end.
 
-(* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -668,271 +676,347 @@ Fixpoint coerce (c : coercion) (v : val) : micro val :=
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Open Scope nat.
-Fixpoint length_expr (e : expr) : nat :=
-  match e with
-  | EUnsupported => 1
-  | EPath _ => 1
-  | EAnonFun afun =>
-      match afun with
-      | AnonFun _ e => 1 + length_expr e end
-  | EApp e1 e2 => 1 + length_expr e1 + length_expr e2
-  | ETuple es => fold_left (fun acc e => (length_expr e) + acc) es 1
-  | EData _ e => 1 + length_expr e
-  | ERecord fexprs =>
-      fold_left (fun acc fe =>
-                   match fe with
-                   | Fexpr _ e =>
-                       (length_expr e) + acc
-                   end) fexprs 1
-  | ERecordUpdate e fexprs =>
-      fold_left (fun acc fe =>
-                   match fe with
-                   | Fexpr _ e =>
-                       (length_expr e) + acc
-                   end) fexprs (1 + length_expr e)
-  | ERecordAccess e _ => 1 + length_expr e
-  | EBoolConj e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EBoolDisj e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EBoolNeg e => 1 + length_expr e
-  | EInt _ => 1
-  | EMaxInt => 1
-  | EMinInt => 1
-  | EIntNeg e => 1 + length_expr e
-  | EIntAdd e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIntSub e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIntMul e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIntDiv e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIntMod e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EChar _ => 1
-  | EString _ => 1
-  | EOpPhysEq e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpEq e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpNe e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpLt e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpLe e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpGt e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EOpGe e1 e2 => 1 + length_expr e1 + length_expr e2
-  | ELet bs e =>
-      fold_left (fun acc b =>
-                   match b with
-                   | Binding _ e =>
-                       acc + length_expr e
-                   end) bs (1 + length_expr e)
-  | ELetRec rbs e =>
-      fold_left (fun acc rb =>
-                   match rb with
-                   | RecBinding _ afun =>
-                       match afun with
-                       | AnonFun _ e =>
-                           acc + length_expr e
-                       end
-                   end) rbs (1 + length_expr e)
-  | ELetModule _ _ e => 1 + length_expr e
-  | ELetOpen _ e => 1 + length_expr e
-  | ESeq e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIfThen e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EIfThenElse e1 e2 e3 => 1 + length_expr e1 + length_expr e2 + length_expr e3
-  | EMatch e bs =>
-      fold_left (fun acc b =>
-                   match b with
-                   | Branch _ e =>
-                       acc + length_expr e
-                   end) bs (1 + length_expr e)
-  | EWhile e1 e2 => 1 + length_expr e1 + length_expr e2
-  | EFor _ e1 e2 e3 => 1 + length_expr e1 + length_expr e2 + length_expr e3
-  | EAssertFalse => 1
-  | EAssert e => 1 + length_expr e
-  | ERef e => 1 + length_expr e
-  | ELoad e => 1 + length_expr e
-  | EStore e1 e2 => 1 + length_expr e1 + length_expr e2
-  end.
 
-Definition lt_expr e1 e2 :=
-  length_expr e1 < length_expr e2.
+(* [eval_sitem ηδ item] evaluates the structure item [item] in the
+   double environment [ηδ], yielding an updated double environment. *)
 
-Lemma wf_length_expr :
-  well_founded lt_expr.
-Proof.
-  unfold lt_expr.
-  apply Inverse_Image.wf_inverse_image.
-  exact Nat.lt_wf_0.
-Qed.
+Definition eval_sitem' eval_mexpr eval_bindings (acc : micro envs) item :=
+  bind acc (fun ηδ =>
+              let '(η, δ) := ηδ in
+              match item with
+              | ILet bs =>
+                  δ' ← eval_bindings η bs;
+                  ret_dconcat δ' (η, δ)
+              | ILetRec rbs =>
+                  let δ' := eval_rec_bindings η rbs in
+                  ret_dconcat δ' (η, δ)
+              | IModule m me' =>
+                  v ← eval_mexpr η me' ;
+                  ret_dconcat [(m, v)] (η, δ)
+              | IOpen me' =>
+                  δ' ← as_struct (eval_mexpr η me') ;
+                  ret (δ' ++ η, δ)
+              | IInclude me' =>
+                  δ' ← as_struct (eval_mexpr η me') ;
+                  ret (dconcat δ' (η, δ))
+              end).
 
-Fixpoint length_mexpr me : nat :=
-  match me with
-  | MUnsupported => 1
-  | MPath _ => 1
-  | MCoercion me _ => 1 + length_mexpr me
-  | MStruct items =>
-      let f :=
-        fun acc item =>
-          acc +
-          match item with
-          | ILet bs => 0
-          | ILetRec rbs => 0
-          | IModule _ me => length_mexpr me
-          | IOpen me => length_mexpr me
-          | IInclude me => length_mexpr me
-          end
-      in
-      fold_left f items 1
-  end.
+(* [eval_sitems ηδ items] evaluates the structure items [items] in the
+   double environment [ηδ], yielding an updated double environment. *)
 
-Definition lt_mexpr me1 me2 :=
-  length_mexpr me1 < length_mexpr me2.
+Definition eval_sitems' eval_mexpr eval_bindings : list sitem -> envs -> micro envs :=
+  λ (items : list sitem) (ηδ : envs),
+    let eval_sitem := eval_sitem' eval_mexpr eval_bindings in
+    fold_left eval_sitem items (ret ηδ).
 
-Lemma wf_length_mexpr :
-  well_founded lt_mexpr.
-Proof.
-  unfold lt_mexpr.
-  apply Inverse_Image.wf_inverse_image.
-  apply Nat.lt_wf_0.
-Qed.
+(* ------------------------------------------------------------------------ *)
 
-Definition eval_bindings' eval η bs :=
-  let f :=
-    fun b acc =>
-      match b with
-      | Binding p e =>
-          '(v, δ) ← par (eval η e) acc ;
-          extend δ p v
-      end
-  in
-  fold_right f (ret []) bs.
+(* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
+   yielding a value. *)
 
-Fixpoint eval_mexpr' eval_bindings η me : micro val :=
-  (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
-     yielding a value. *)
-  match me with
-  | MUnsupported => unsupported_construct
-  | MPath π =>
-      (* A path is looked up in the environment [η]. *)
-      lookup_path η π
-  | MCoercion me c =>
-      'v ← eval_mexpr' eval_bindings η me ;
-       coerce c v
-  | MStruct items =>
-      (* evaluate the structure items, yielding an environment [δ], *)
-      bind
-        (let eval_sitem :=
-           fun (acc : micro envs) item =>
-             match acc with
-             | ret ηδ =>
-                 let '(η, δ) := ηδ in
-                 match item with
-                 | ILet bs =>
-                     δ' ← eval_bindings η bs;
-                     ret_dconcat δ' (η, δ)
-                 | ILetRec rbs =>
-                     let δ' := eval_rec_bindings η rbs in
-                     ret_dconcat δ' (η, δ)
-                 | IModule m me' =>
-                     v ← eval_mexpr' eval_bindings η me' ;
-                     ret_dconcat [(m, v)] (η, δ)
-                 | IOpen me' =>
-                     δ' ← as_struct (eval_mexpr' eval_bindings η me') ;
-                     ret (δ' ++ η, δ)
-                 | IInclude me' =>
-                     δ' ← as_struct (eval_mexpr' eval_bindings η me') ;
-                     ret (dconcat δ' (η, δ))
-                 end
-             | _ => acc
-             end
-         in
-         fold_left eval_sitem items (ret (η, [])))
-        (fun '(_, δ) => ret (VStruct δ))
-   end.
+Definition eval_mexpr' eval_bindings : env -> mexpr -> micro val :=
+  fix eval_mexpr (η : env) (me : mexpr) :=
+    let eval_sitems := eval_sitems' eval_mexpr eval_bindings in
+    match me with
+    | MUnsupported => unsupported_construct
+    | MPath π =>
+        (* A path is looked up in the environment [η]. *)
+        lookup_path η π
+    | MCoercion me c =>
+        v ← eval_mexpr η me ;
+        coerce c v
+    | MStruct items =>
+        (* evaluate the structure items, yielding an environment [δ], *)
+        '(_, δ) ← eval_sitems items (η, []) ;
+        (* and wrap it in a [VStruct] value. *)
+        ret (VStruct δ)
+    end.
 
-Definition evals' (eval : env -> expr -> micro val) η es :=
-  let f :=
-    fun e acc =>
-      '(v, vs) ← par (eval η e) acc ;
-       ret (v :: vs)
-  in
-  fold_right f (ret []) es.
+(* ------------------------------------------------------------------------ *)
 
-Definition evalfs' (eval : env -> expr -> micro val) η fes :=
-  let f :=
-    fun fe acc =>
-      match fe with
-      | Fexpr f e =>
-          '(v, fvs) ← par (eval η e) acc ;
-           ret ((f, v) :: fvs)
-      end
-  in
-  fold_right f (ret []) fes.
+(* [eval_bindings η bs] evaluates the bindings [bs] in the environment [η],
+   producing an environment fragment. *)
 
-Definition eval_match' eval η v (bs : list branch) : micro val :=
-  (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
-  let f :=
-    fun b acc =>
-      (* Match the value [v] against the pattern [p]. *)
-      match b with
-      | Branch p e =>
-          try
-            (extend [] p v)
-            (* Success: commit to this branch. Evaluate its body. *)
-            (λ δ, η ← ret_concat δ η; eval η e)
-            (* Soft failure: abandon this branch. Try the following branches. *)
-            (λ tt, acc)
-      end
-  in
-  (* A nonexhaustive [match] construct causes a hard failure. *)
-  (* Because the proof system forbids hard failures, the user of
-     the system will have to prove that this cannot happen, i.e.,
-     every case analysis is exhaustive. *)
-  fold_right f (match_failure()) bs.
+(* [eval_bindings] is used to evaluate the [let/and] construct. *)
+
+(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
+   bindings [bs] are evaluated in parallel. The values thus obtained are then
+   matched against the patterns in the left-hand sides. The pattern matching
+   process is sequential. *)
+
+(* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
+   as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
+   then [eval_bindings] would disappear. We prefer to avoid encodings. *)
+
+Definition eval_bindings' eval : env -> list binding -> micro env :=
+  λ (η : env) (bs : list binding),
+    let f :=
+      fun b acc =>
+        match b with
+        | Binding p e0 =>
+            '(v, δ) ← par (eval η e0) acc ;
+            extend δ p v
+        end
+    in
+    fold_right f (ret []) bs.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [evals η es] evaluates the expressions [es] in the environment [η],
+   producing values [vs]. The expressions are evaluated in parallel. *)
+
+(* [evals] is used to evaluate tuples. *)
+
+Definition evals' eval : env -> list expr -> micro (list val) :=
+  λ (η : env) (es : list expr),
+    let f :=
+      fun e acc =>
+        '(v, vs) ← par (eval η e) acc ;
+        ret (v :: vs)
+    in
+    fold_right f (ret []) es.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
+   producing values [fvs]. The expressions are evaluated in parallel.
+
+   Each expression in the list [fes] and each value in the list [fvs]
+   is indexed with a record field. *)
+
+(* [evalfs] is used to evaluate record construction expressions. *)
+
+Definition evalfs' eval : env -> list fexpr -> micro (list (field * val)) :=
+  λ (η : env) (fes : list fexpr),
+    let f :=
+      fun fe acc =>
+        match fe with
+        | Fexpr f e =>
+            '(v, fvs) ← par (eval η e) acc ;
+            ret ((f, v) :: fvs)
+        end
+    in
+    fold_right f (ret []) fes.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
+
+Definition eval_match' eval : env -> val -> list branch -> micro val :=
+  λ (η : env) (v : val) (bs : list branch),
+    let f :=
+      fun b acc =>
+        match b with
+        | Branch p e =>
+            (* Match the value [v] against the pattern [p]. *)
+            try
+              (extend [] p v)
+              (* Success: commit to this branch. Evaluate its body. *)
+              (λ δ, η ← ret_concat δ η; eval η e)
+              (* Soft failure: abandon this branch. Try the following branches. *)
+              (λ tt, acc)
+        end
+    in
+    (* A nonexhaustive [match] construct causes a hard failure. *)
+    (* Because the proof system forbids hard failures, the user of
+       the system will have to prove that this cannot happen, i.e.,
+       every case analysis is exhaustive. *)
+    fold_right f (match_failure()) bs.
 
 Fixpoint eval η e : micro val :=
   let evals := evals' eval in
   let evalfs := evalfs' eval in
+  let eval_match := eval_match' eval in
   let eval_bindings := eval_bindings' eval in
   let eval_mexpr := eval_mexpr' eval_bindings in
-  let eval_match := eval_match' eval in
   match e with
-  | EUnsupported => unsupported_construct
-  | EChar c => ret (VChar c)
+  | EUnsupported =>
+      unsupported_construct
+  | EChar c =>
+      ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
       lookup_path η π
+  | EAnonFun a =>
+      (* The creation of a closure captures the environment [η]. *)
+      (* This environment is *not* trimmed so as to keep only the variables
+         that occur free in [a]. Indeed, in OCaml, due to [open], [include]
+         and other constructs, it is not easy to statically compute the set
+         of free variables of an expression. *)
+      ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
-       call v1 v2
+      call v1 v2
   | ETuple es =>
       (* The tuple components are evaluated in parallel. *)
-
-      (* [evals η es] evaluates the expressions [es] in the environment [η],
-         producing values [vs]. The expressions are evaluated in parallel. *)
-      'vs ← evals η es ;
-       ret (VTuple vs)
+      vs ← evals η es ;
+      ret (VTuple vs)
+  | EData c e =>
+      v ← eval η e ;
+      ret (VData c v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
-
-      (* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
-         producing values [fvs]. The expressions are evaluated in parallel. *)
-
-      (* Each expression in the list [fes] and each value in the list [fvs]
-         is indexed with a record field. *)
-      'fvs ← evalfs η fes ;
-      'fvs ← sort fvs ;
-       ret (VRecord fvs)
+      fvs ← evalfs η fes ;
+      fvs ← sort fvs ;
+      ret (VRecord fvs)
+  | ERecordUpdate e fes =>
+      (* The existing record and the new record components are evaluated in
+         parallel. *)
+      '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      (* The new components override existing components by the same name. *)
+      fvs ← update fvs fvs' ;
+      fvs ← sort fvs ;
+      ret (VRecord fvs)
+  | ERecordAccess e f =>
+      fvs ← as_record (eval η e) ;
+      lookup_name fvs f
+  | EBoolConj e1 e2 =>
+      b1 ← as_bool (eval η e1) ;
+      if (b1 : bool) then eval η e2 else ret VFalse
+  | EString s =>
+      ret (VString s)
+  | EInt i =>
+      (* An integer literal is interpreted as a machine integer. *)
+      (* We do not require this integer literal to lie within a certain
+         range; we project it into the range of machine integers. *)
+      ret (VInt (int.repr i))
+  | EMaxInt =>
+      ret (VInt (int.repr int.max_signed))
+  | EMinInt =>
+      ret (VInt (int.repr int.min_signed))
+  | EIntNeg e =>
+      i ← as_int (eval η e) ;
+      ret (VInt (int.neg i))
+  | EIntAdd e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.add i1 i2))
+  | EIntSub e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.sub i1 i2))
+  | EIntMul e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.mul i1 i2))
+  | EIntDiv e1 e2 =>
+      (* Signed division is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.divs i1 i2))
+  | EIntMod e1 e2 =>
+      (* Signed remainder is used. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '() ← check_div_by_zero i2 ;
+      ret (VInt (int.mods i1 i2))
+  | EOpPhysEq e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← phys_eq_val v1 v2 ;
+      ret (VBool b)
+  | EOpEq e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← eq_val v1 v2 ;
+      ret (VBool b)
+  | EOpNe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← ne_val v1 v2 ;
+      ret (VBool b)
+  | EOpLt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← lt_val v1 v2 ;
+      ret (VBool b)
+  | EOpLe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← le_val v1 v2 ;
+      ret (VBool b)
+  | EOpGt e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← gt_val v1 v2 ;
+      ret (VBool b)
+  | EOpGe e1 e2 =>
+      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      b ← ge_val v1 v2 ;
+      ret (VBool b)
+  | EBoolDisj e1 e2 =>
+      b1 ← as_bool (eval η e1) ;
+      if (b1 : bool) then ret VTrue else eval η e2
+  | EBoolNeg e =>
+      b ← as_bool (eval η e) ;
+      ret (VBool (negb b))
   | ELet bs e =>
       (* This is evaluated like a [match] construct with one branch. *)
       try
         (eval_bindings η bs)
-        (λ δ, η ← ret_concat δ η; eval η e)
-        match_failure
+      (λ δ, η ← ret_concat δ η; eval η e)
+      match_failure
+  | ELetRec rbs e =>
+      (* Extend the environment with a mapping of each function name in [rbs]
+         to a suitable recursive closure; then, evaluate [e]. *)
+      let δ := eval_rec_bindings η rbs in
+      η ← ret_concat δ η;
+      eval η e
+  | ELetModule M me e =>
+      v ← eval_mexpr η me ;
+      let δ := [(M, v)] in
+      η ← ret_concat δ η;
+      eval η e
+  | ELetOpen me e =>
+      δ ← as_struct (eval_mexpr η me) ;
+      η ← ret_concat δ η;
+      eval η e
+  | ESeq e1 e2 =>
+      _ ← eval η e1 ;
+      eval η e2
+  | EIfThen e e1 =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then eval η e1 else ok
+  | EIfThenElse e e1 e2 =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      'v ← eval η e ;
-       eval_match η v bs
-  (* | ELetModule M me e => *)
-  (*     'v ← eval_mexpr η me ; *)
-  (*     'η ← ret_concat [(M, v)] η; *)
-  (*      eval η e *)
-  | _ => unsupported_construct
-end.
+      v ← eval η e ;
+      eval_match η v bs
+  | EWhile e body =>
+      b ← as_bool (eval η e) ;
+      if (b : bool) then
+        _ ← eval η body ;
+        stop CEval (η, EWhile e body)
+      else
+        ok
+  | EFor x e1 e2 e =>
+      (* The bounds are evaluated first. *)
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      (* Then, the loop is executed. *)
+      stop CLoop (η, x, i1, i2, e)
+  | EAssertFalse =>
+      assertion_failure
+  | EAssert e =>
+      (* OCaml runtime assertions are erased when a module is compiled with
+         the compiler flag [-noassert]; they are retained otherwise. We do not
+         wish to depend on this flag, so we make a non-deterministic choice:
+         either the runtime test is executed, or it is skipped. This forces
+         the user to prove that the program is safe in both scenarios. *)
+      let test : micro val :=
+        success ← as_bool (eval η e) ;
+        if (success : bool) then ok else assertion_failure
+      in
+      choose ok test
+  | ERef e =>
+      v ← eval η e ;
+      l ← stop CAlloc v ;
+      ret (VLoc l)
+  | ELoad e =>
+      l ← as_loc (eval η e) ;
+      stop CLoad l
+  | EStore e1 e2 =>
+      '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
+      _ ← stop CStore (l, v) ;
+      ok
+  end.
+
+Definition evals := evals' eval.
+Definition evalfs := evalfs' eval.
+Definition eval_match := eval_match' eval.
+Definition eval_bindings := eval_bindings' eval.
+Definition eval_mexpr := eval_mexpr' eval_bindings.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -946,7 +1030,7 @@ Definition loop η x i1 i2 e : micro val :=
   else
     (* Otherwise, the loop body [e] must be executed with a binding of [x]
        to [i1]. The value of [e] is ignored. Then, the loop continues. *)
-    let η' := EnvCons x (VInt i1) η in
+    let η' := (x, (VInt i1)) :: η in
     _v ← eval η' e ;
     (* Every [for] loop terminates, so we could in principle arrange to
        use a recursive call to [loop], but using a [stop] effect is much

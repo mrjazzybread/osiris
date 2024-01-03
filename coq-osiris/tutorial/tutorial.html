@@ -32,38 +32,31 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | PVar : var → pat
   | PAlias : pat → var → pat
   | POr : pat → pat → pat
-  | PTuple : pats → pat
+  | PTuple : list pat → pat
   | PData : data → pat → pat
-  | PRecord : fpats → pat
+  | PRecord : list (<span class="bp">field</span> * pat) → pat
   | PInt : Z → pat
   | PChar : char → pat
-  | PString : string → pat
-  <span class="kr">with</span> pats : <span class="kt">Set</span> :=
-    PNil : pats | PCons : pat → pats → pats
-  <span class="kr">with</span> fpats : <span class="kt">Set</span> :=
-    FPNil : fpats
-  | FPCons : <span class="bp">field</span> → pat → fpats → fpats.
+  | PString : string → pat.
 
 <span class="kn">Arguments</span> PVar x
 <span class="kn">Arguments</span> PAlias p x
 <span class="kn">Arguments</span> POr p1 p2
-<span class="kn">Arguments</span> PTuple ps
+<span class="kn">Arguments</span> PTuple ps%list_scope
 <span class="kn">Arguments</span> PData c p
-<span class="kn">Arguments</span> PRecord fps
+<span class="kn">Arguments</span> PRecord fps%list_scope
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
-<span class="kn">Arguments</span> PString s%string_scope
-<span class="kn">Arguments</span> PCons p ps
-<span class="kn">Arguments</span> FPCons f p fps</blockquote></div></div></small><span class="alectryon-wsp">
+<span class="kn">Arguments</span> PString s%string_scope</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=
     EUnsupported : expr
   | EPath : path → expr
   | EAnonFun : anonfun → expr
   | EApp : expr → expr → expr
-  | ETuple : exprs → expr
+  | ETuple : list expr → expr
   | EData : data → expr → expr
-  | ERecord : fexprs → expr
-  | ERecordUpdate : expr → fexprs → expr
+  | ERecord : list fexpr → expr
+  | ERecordUpdate : expr → list fexpr → expr
   | ERecordAccess : expr → <span class="bp">field</span> → expr
   | EBoolConj : expr → expr → expr
   | EBoolDisj : expr → expr → expr
@@ -86,14 +79,14 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EOpLe : expr → expr → expr
   | EOpGt : expr → expr → expr
   | EOpGe : expr → expr → expr
-  | ELet : bindings → expr → expr
-  | ELetRec : rec_bindings → expr → expr
+  | ELet : list binding → expr → expr
+  | ELetRec : list rec_binding → expr → expr
   | ELetModule : module → mexpr → expr → expr
   | ELetOpen : mexpr → expr → expr
   | ESeq : expr → expr → expr
   | EIfThen : expr → expr → expr
   | EIfThenElse : expr → expr → expr → expr
-  | EMatch : expr → branches → expr
+  | EMatch : expr → list branch → expr
   | EWhile : expr → expr → expr
   | EFor : var → expr → expr → expr → expr
   | EAssertFalse : expr
@@ -101,39 +94,24 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ERef : expr → expr
   | ELoad : expr → expr
   | EStore : expr → expr → expr
-  <span class="kr">with</span> exprs : <span class="kt">Set</span> :=
-    ENil : exprs | ECons : expr → exprs → exprs
-  <span class="kr">with</span> fexprs : <span class="kt">Set</span> :=
-    FENil : fexprs
-  | FECons : <span class="bp">field</span> → expr → fexprs → fexprs
+  <span class="kr">with</span> fexpr : <span class="kt">Set</span> :=
+    Fexpr : <span class="bp">field</span> → expr → fexpr
   <span class="kr">with</span> branch : <span class="kt">Set</span> :=
     Branch : pat → expr → branch
-  <span class="kr">with</span> branches : <span class="kt">Set</span> :=
-    BrNil : branches
-  | BrCons : branch → branches → branches
   <span class="kr">with</span> binding : <span class="kt">Set</span> :=
     Binding : pat → expr → binding
-  <span class="kr">with</span> bindings : <span class="kt">Set</span> :=
-    BiNil : bindings
-  | BiCons : binding → bindings → bindings
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=
     RecBinding : var → anonfun → rec_binding
-  <span class="kr">with</span> rec_bindings : <span class="kt">Set</span> :=
-    RecBiNil : rec_bindings
-  | RecBiCons : rec_binding
-                → rec_bindings → rec_bindings
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=
     AnonFun : var → expr → anonfun
   <span class="kr">with</span> mexpr : <span class="kt">Set</span> :=
     MUnsupported : mexpr
   | MPath : path → mexpr
-  | MStruct : sitems → mexpr
+  | MStruct : list sitem → mexpr
   | MCoercion : mexpr → coercion → mexpr
-  <span class="kr">with</span> sitems : <span class="kt">Set</span> :=
-    INil : sitems | ICons : sitem → sitems → sitems
   <span class="kr">with</span> sitem : <span class="kt">Set</span> :=
-    ILet : bindings → sitem
-  | ILetRec : rec_bindings → sitem
+    ILet : list binding → sitem
+  | ILetRec : list rec_binding → sitem
   | IModule : module → mexpr → sitem
   | IOpen : mexpr → sitem
   | IInclude : mexpr → sitem.
@@ -141,10 +119,10 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EPath x
 <span class="kn">Arguments</span> EAnonFun a
 <span class="kn">Arguments</span> EApp (e1 e2)%expr_scope
-<span class="kn">Arguments</span> ETuple es
+<span class="kn">Arguments</span> ETuple es%list_scope
 <span class="kn">Arguments</span> EData c e%expr_scope
-<span class="kn">Arguments</span> ERecord fes
-<span class="kn">Arguments</span> ERecordUpdate e%expr_scope fes
+<span class="kn">Arguments</span> ERecord fes%list_scope
+<span class="kn">Arguments</span> ERecordUpdate e%expr_scope fes%list_scope
 <span class="kn">Arguments</span> ERecordAccess e%expr_scope f
 <span class="kn">Arguments</span> EBoolConj (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EBoolDisj (e1 e2)%expr_scope
@@ -165,35 +143,30 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EOpLe (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpGt (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EOpGe (e1 e2)%expr_scope
-<span class="kn">Arguments</span> ELet bs e%expr_scope
-<span class="kn">Arguments</span> ELetRec rbs e%expr_scope
+<span class="kn">Arguments</span> ELet bs%list_scope e%expr_scope
+<span class="kn">Arguments</span> ELetRec rbs%list_scope e%expr_scope
 <span class="kn">Arguments</span> ELetModule M me e%expr_scope
 <span class="kn">Arguments</span> ELetOpen me e%expr_scope
 <span class="kn">Arguments</span> ESeq (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIfThen (e e1)%expr_scope
 <span class="kn">Arguments</span> EIfThenElse (e e1 e2)%expr_scope
-<span class="kn">Arguments</span> EMatch e%expr_scope bs
+<span class="kn">Arguments</span> EMatch e%expr_scope bs%list_scope
 <span class="kn">Arguments</span> EWhile (e body)%expr_scope
 <span class="kn">Arguments</span> EFor x (e1 e2 e)%expr_scope
 <span class="kn">Arguments</span> EAssert e%expr_scope
 <span class="kn">Arguments</span> ERef e%expr_scope
 <span class="kn">Arguments</span> ELoad e%expr_scope
 <span class="kn">Arguments</span> EStore (e1 e2)%expr_scope
-<span class="kn">Arguments</span> ECons e%expr_scope es
-<span class="kn">Arguments</span> FECons f e%expr_scope fes
+<span class="kn">Arguments</span> Fexpr f e%expr_scope
 <span class="kn">Arguments</span> Branch p e%expr_scope
-<span class="kn">Arguments</span> BrCons b bs
 <span class="kn">Arguments</span> Binding p e%expr_scope
-<span class="kn">Arguments</span> BiCons b bs
 <span class="kn">Arguments</span> RecBinding f a
-<span class="kn">Arguments</span> RecBiCons rb rbs
 <span class="kn">Arguments</span> AnonFun x e%expr_scope
 <span class="kn">Arguments</span> MPath π
-<span class="kn">Arguments</span> MStruct items
+<span class="kn">Arguments</span> MStruct items%list_scope
 <span class="kn">Arguments</span> MCoercion me c
-<span class="kn">Arguments</span> ICons item items
-<span class="kn">Arguments</span> ILet bs
-<span class="kn">Arguments</span> ILetRec rbs
+<span class="kn">Arguments</span> ILet bs%list_scope
+<span class="kn">Arguments</span> ILetRec rbs%list_scope
 <span class="kn">Arguments</span> IModule m me
 <span class="kn">Arguments</span> IOpen me
 <span class="kn">Arguments</span> IInclude me</blockquote></div></div></small></span></pre><p>At this time, expressions include:</p>
@@ -222,67 +195,34 @@ expression <code class="highlight coq"><span class="n">e</span></code>, it shoul
 <p><em>Values</em> have their own syntactic category: they are not a subset of
 expressions. For instance, a closure is a value, not an expression.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk2" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk2"><span class="kn">Print</span> val.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">val</span> : <span class="kt">Set</span> :=
-    VClo : env → anonfun → val
-  | VCloRec : env → rec_bindings → var → val
+    VClo : list (var * val) → anonfun → val
+  | VCloRec : list (var * val)
+              → list rec_binding → var → val
   | VString : string → val
   | VInt : int → val
-  | VTuple : vals → val
+  | VTuple : list val → val
   | VData : data → val → val
-  | VRecord : env → val
+  | VRecord : list (var * val) → val
   | VLoc : loc → val
-  | VStruct : env → val
+  | VStruct : list (var * val) → val
   | VChar : char → val
-  | VArray : vals → val
-  <span class="kr">with</span> vals : <span class="kt">Set</span> :=
-    VNil : vals | VCons : val → vals → vals
-  <span class="kr">with</span> env : <span class="kt">Set</span> :=
-    EnvNil : env | EnvCons : var → val → env → env.
+  | VArray : list val → val.
 
-<span class="kn">Arguments</span> VClo η a
-<span class="kn">Arguments</span> VCloRec η rbs f
+<span class="kn">Arguments</span> VClo η%list_scope a
+<span class="kn">Arguments</span> VCloRec (η rbs)%list_scope f
 <span class="kn">Arguments</span> VString s%string_scope
 <span class="kn">Arguments</span> VInt i
-<span class="kn">Arguments</span> VTuple vs
+<span class="kn">Arguments</span> VTuple vs%list_scope
 <span class="kn">Arguments</span> VData c v
-<span class="kn">Arguments</span> VRecord fvs
+<span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
-<span class="kn">Arguments</span> VStruct xvs
+<span class="kn">Arguments</span> VStruct xvs%list_scope
 <span class="kn">Arguments</span> VChar c
-<span class="kn">Arguments</span> VArray c
-<span class="kn">Arguments</span> VCons v vs
-<span class="kn">Arguments</span> EnvCons x v η</blockquote></div></div></small></span></pre><p>An <em>environment</em> is a mapping of variables to values. Because a closure captures
+<span class="kn">Arguments</span> VArray c%list_scope</blockquote></div></div></small></span></pre><p>An <em>environment</em> is a mapping of variables to values. Because a closure captures
 an environment, the syntactic categories of values and environments are mutually
 recursive.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">val</span> : <span class="kt">Set</span> :=
-    VClo : env → anonfun → val
-  | VCloRec : env → rec_bindings → var → val
-  | VString : string → val
-  | VInt : int → val
-  | VTuple : vals → val
-  | VData : data → val → val
-  | VRecord : env → val
-  | VLoc : loc → val
-  | VStruct : env → val
-  | VChar : char → val
-  | VArray : vals → val
-  <span class="kr">with</span> vals : <span class="kt">Set</span> :=
-    VNil : vals | VCons : val → vals → vals
-  <span class="kr">with</span> env : <span class="kt">Set</span> :=
-    EnvNil : env | EnvCons : var → val → env → env.
-
-<span class="kn">Arguments</span> VClo η a
-<span class="kn">Arguments</span> VCloRec η rbs f
-<span class="kn">Arguments</span> VString s%string_scope
-<span class="kn">Arguments</span> VInt i
-<span class="kn">Arguments</span> VTuple vs
-<span class="kn">Arguments</span> VData c v
-<span class="kn">Arguments</span> VRecord fvs
-<span class="kn">Arguments</span> VLoc l
-<span class="kn">Arguments</span> VStruct xvs
-<span class="kn">Arguments</span> VChar c
-<span class="kn">Arguments</span> VArray c
-<span class="kn">Arguments</span> VCons v vs
-<span class="kn">Arguments</span> EnvCons x v η</blockquote></div></div></small></span></pre></div>
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">env = list (var * val)
+     : <span class="kt">Set</span></blockquote></div></div></small></span></pre></div>
 <div class="section" id="a-monadic-interpreter">
 <h1>A Monadic Interpreter</h1>
 <p>OCaml is an effectful programming language: an OCaml program can

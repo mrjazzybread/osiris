@@ -642,9 +642,10 @@ and translate_record_field_def (label_desc, label_def) : fexpr option =
       None
   | Overridden (id, e) ->
       (* This field is defined. *)
-      Some (
-        translate_record_field id label_desc,
-        translate_expr e
+      Some ( 
+        Fexpr (
+          translate_record_field id label_desc,
+          translate_expr e)
       )
 
 (* -------------------------------------------------------------------------- *)

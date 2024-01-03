@@ -23,27 +23,20 @@ Record R :=
 Local Instance r_encode : Encode R :=
   { encode :=
     fun (r: R) =>
-      VRecord $
-              EnvCons "b" #(r.(b)) $
-              EnvCons "i" #( r.(i)) $
-              EnvNil }.
+      VRecord [ ("b", #(r.(b))); ("i", #( r.(i))) ] }.
 
 Lemma solve_encode_R b i vb vi :
   vb = #b →
   vi = #i →
-  VRecord $
-    EnvCons "b" vb $
-    EnvCons "i" vi $
-    EnvNil
-  = #{| b := b; i := i |}.
+  VRecord [("b", vb); ("i", vi)] = #{| b := b; i := i |}.
 Proof. intros. subst. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_R : encode.
 
 Fixpoint nat_encode_f (n : nat) : val :=
   match n with
-  | O => VData "O" $ VTuple VNil
-  | S n => VData "S" $ VTuple $ VCons (nat_encode_f n) VNil
+  | O => VData "O" $ VTuple []
+  | S n => VData "S" $ VTuple [(nat_encode_f n)]
   end.
 
 Local Instance nat_encode : Encode nat :=
@@ -122,7 +115,7 @@ Ltac wp_simp_eusing H :=
   iApply wp_simp; [ by eapply H; try done | wp ].
 
 Lemma Records_spec :
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   intros η.
@@ -147,7 +140,7 @@ Proof.
           [encode] solve a goal of the form [v = #?x]. *)
   (* TODO and this should be done automatically by the [wp_] tactics *)
   replace
-    (VRecord (EnvCons "b" VTrue (EnvCons "i" (VInt (int.repr 10)) EnvNil)))
+    (VRecord [("b", VTrue); ("i", (VInt (int.repr 10)))])
     with #{| b := true; i := 10 |}; last reflexivity.
   wp_use "Hflip".
   iIntros (? <-). wp_bind.

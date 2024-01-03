@@ -213,11 +213,11 @@ and exprs =
 
 (* Lists of field-expression pairs. *)
 
+and fexpr =
+  | Fexpr of field * expr
+
 and fexprs =
   fexpr list
-
-and fexpr =
-  field * expr
 
 (* A branch is of the form [p -> e]. *)
 

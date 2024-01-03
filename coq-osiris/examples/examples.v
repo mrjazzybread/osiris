@@ -21,7 +21,7 @@ Section TypesExamples.
       match m with
       | O' => VConstant "O"
       | S' n =>
-          VData "S" (VTuple (VCons (go n) VNil))
+          VData "S" (VTuple [(go n)])
       end.
 
   Global Instance encode_my_nat : Encode my_nat :=

@@ -8,18 +8,18 @@ From osiris Require Import osiris.
 
 Local Notation VClo1 body :=
   (
-    VClo EnvNil $
+    VClo [] $
          AnonFun "x" $
          body (EVar "x")
   ).
 Local Notation VClo2 body :=
   (
-    VClo EnvNil $
+    VClo [] $
          AnonFun "x" $
          EFun1Var "y" $
          (body (EVar "x") (EVar "y"))
   ).
-Local Notation dummy := (VClo EnvNil $ AnonFun "_" EUnit).
+Local Notation dummy := (VClo [] $ AnonFun "_" EUnit).
 
 Local Infix ":::" := (concat).
 
@@ -32,9 +32,9 @@ Section ExternalsDef.
   (* Real external functions; they are all dummies for now. *)
   Local Fixpoint mkdummy (l : list string) : env :=
     match l with
-    | [] => EnvNil
+    | [] => []
     | h :: l =>
-        EnvCons h dummy $ mkdummy l
+        (h, dummy) :: (mkdummy l)
     end.
 
   (* None of them are supported yet. They are replaced by dummy values. *)
@@ -90,27 +90,26 @@ Section ExternalsDef.
   Definition Externals__intoffloat : val := dummy.
 
   Definition externals_int : env :=
-        EnvCons "%negint" Externals__negint $
-                EnvCons "%addint" Externals__addint $
-                EnvCons "%subint" Externals__subint $
-                EnvCons "%mulint" Externals__mulint $
-                EnvCons "%divint" Externals__divint $
-                EnvCons "%modint" Externals__modint $
-                EnvCons "%succint" Externals__succint $
-                EnvCons "%predint" Externals__predint $
-                EnvCons "%lessthan" Externals__lessthan $
-                EnvCons "%greaterthan" Externals__greaterthan $
-                EnvCons "%lessequal" Externals__lessequal $
-                EnvCons "%greaterequal" Externals__greaterequal $
-                EnvCons "%andint" Externals__andint $
-                EnvCons "%orint" Externals__orint $
-                EnvCons "%xorint" Externals__xorint $
-                EnvCons "%lslint" Externals__lslint $
-                EnvCons "%asrint" Externals__asrint $
-                EnvCons "%lsrint" Externals__lsrint $
-                EnvCons "%floatofint" Externals__floatofint $
-                EnvCons "%intoffloat" Externals__intoffloat $
-                EnvNil.
+    [("%negint", Externals__negint);
+     ("%addint", Externals__addint);
+     ("%subint", Externals__subint);
+     ("%mulint", Externals__mulint);
+     ("%divint", Externals__divint);
+     ("%modint", Externals__modint);
+     ("%succint", Externals__succint);
+     ("%predint", Externals__predint);
+     ("%lessthan", Externals__lessthan);
+     ("%greaterthan", Externals__greaterthan);
+     ("%lessequal", Externals__lessequal);
+     ("%greaterequal", Externals__greaterequal);
+     ("%andint", Externals__andint);
+     ("%orint", Externals__orint);
+     ("%xorint", Externals__xorint);
+     ("%lslint", Externals__lslint);
+     ("%asrint", Externals__asrint);
+     ("%lsrint", Externals__lsrint);
+     ("%floatofint", Externals__floatofint);
+     ("%intoffloat", Externals__intoffloat)].
 
   (* ------------------------------------------------------------------------ *)
 
@@ -119,38 +118,35 @@ Section ExternalsDef.
   Definition Externals__boolnot : val := VClo1 EBoolNeg.
 
   Definition externals_bool : env :=
-    EnvCons "%boolnot" Externals__boolnot $
+    [("%boolnot", Externals__boolnot);
+     (* [%seqand], and [%seqor] are *not* real functions!
+        These are dummy values, which will never be used. *)
 
-            (* [%seqand], and [%seqor] are *not* real functions!
-               These are dummy values, which will never be used, as the
-               translator should replace any calls to [Stdlib!.&&]
-               (resp. [Stdlib!.||]) by the correct AST construct, namely
-               [EBoolConj] (resp. [EBoolDisj]). *)
-            EnvCons "%sequand" dummy $
-            EnvCons "%sequor" dummy $
-
-            EnvNil.
+     (* The translator should replace any calls to [Stdlib!.&&] and [Stdlib!.||]
+        by the correct AST construct, [EBoolConj] (resp. [EBoolDisj]). *)
+     ("%sequand", dummy);
+     ("%sequor", dummy)].
 
   (* ------------------------------------------------------------------------ *)
 
   Definition Externals__revapply : val :=
-    VClo EnvNil $
+    VClo [] $
          AnonFun "x" $
          EFun1Var "y" $
          EApp (EVar "y") (EVar "x").
 
   Definition Externals__apply : val :=
-    VClo EnvNil $
+    VClo [] $
          AnonFun "x" $
          EFun1Var "y" $
          EApp (EVar "x") (EVar "y").
 
   Definition Externals__identity : val :=
-    VClo EnvNil $
+    VClo [] $
          AnonFun "x" $ EVar "x".
 
   Definition Externals__ignore : val :=
-    VClo EnvNil $ AnonFun "_" $ EUnit.
+    VClo [] $ AnonFun "_" $ EUnit.
 
   (* Comparison. *)
   Definition Externals__eq : val := VClo2 EOpEq.
@@ -158,20 +154,16 @@ Section ExternalsDef.
   Axiom Externals__compare : val.
 
   Definition externals_misc : env :=
-    EnvCons "%revapply" Externals__revapply $
-            EnvCons "%apply" Externals__apply $
-            EnvCons "%ignore" Externals__ignore $
-            EnvCons "%identity" Externals__identity $
-
-
-            (* FIXME (important): « = » and « == » should have very different
-                                  behaviour. *)
-            EnvCons "%equal" Externals__eq $
-            EnvCons "%notequal" Externals__ne $
-            EnvCons "%eq" Externals__eq $
-            EnvCons "%noteq" Externals__ne $
-            EnvCons "%compare" Externals__compare $
-            EnvNil.
+    [("%revapply", Externals__revapply);
+     ("%apply", Externals__apply);
+     ("%ignore", Externals__ignore);
+     ("%identity", Externals__identity);
+     (* FIXME (important): [_ = _] and [_ == _] should differ. *)
+     ("%equal", Externals__eq);
+     ("%notequal", Externals__ne);
+     ("%eq", Externals__eq);
+     ("%noteq", Externals__ne);
+     ("%compare", Externals__compare)].
 
   (* ------------------------------------------------------------------------ *)
 
@@ -188,20 +180,18 @@ Section ExternalsDef.
                    EVar "x").
 
   Definition externals_pairs :=
-    EnvCons "%field0" Externals__field0 $
-            EnvCons "%field1" Externals__field1 $
-            EnvNil.
+    [("%field0", Externals__field0); ("%field1", Externals__field1)].
 
   (* ------------------------------------------------------------------------ *)
 
   Definition Externals :=
-    VStruct $
-            externals_real :::
-            externals_int :::
-            externals_bool :::
-            externals_misc :::
-            externals_pairs
-  .
+    VStruct
+      (concat
+         [externals_real;
+          externals_int;
+          externals_bool;
+          externals_misc;
+          externals_pairs]).
 
   Definition HasExternals (η : env) : Prop :=
     lookup_name η "Externals" = Ret Externals.

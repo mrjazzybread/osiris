@@ -18,7 +18,7 @@ Context `{!osirisGS Σ}.
 
 Goal
   let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
-  ⊢ WP (eval EnvNil e) {{ λ v, ⌜v = VConstant "A"⌝ }}.
+  ⊢ WP (eval [] e) {{ λ v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   iIntros.
@@ -35,7 +35,7 @@ Definition example :=
 
 (* An example of reasoning about straight-line code. *)
 
-Goal ⊢ WP (eval EnvNil example) {{ λ v, ⌜v = VData "A" (VTuple VNil)⌝ }}.
+Goal ⊢ WP (eval [] example) {{ λ v, ⌜v = VData "A" (VTuple [])⌝ }}.
 Proof.
   wp. do 2 wp_continue.
   iPureIntro. reflexivity.
@@ -50,7 +50,7 @@ Definition example2 :=
 
 Goal
   ∀ v1 v2,
-  let env := EnvCons "z1" v1 (EnvCons "z2" v2 EnvNil) in
+  let env := [("z1", v1); ("z2", v2)] in
   ⊢ WP (eval env example2) {{ λ v, ⌜v = v1⌝ }}.
 Proof.
   iIntros. wp.
@@ -67,7 +67,7 @@ Definition example3 :=
 Lemma spec_example3:
   ∀ (id : val),
   ⊢ □ (∀ v, WP (call id v) {{ λ v', ⌜ v' = v⌝ }} ) -∗
-  let env := EnvCons "id" id EnvNil in
+  let env := [("id", id)] in
   WP (eval env example3) {{ λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   iIntros (id) "#Hid".
@@ -93,7 +93,7 @@ Definition spec_id (c: val) : iProp Σ :=
   □ ∀ v, WP call c v {{ λ v', ⌜ v' = v ⌝ }}.
 
 Goal
-  ⊢ WP (eval EnvNil identity) {{ spec_id }}.
+  ⊢ WP (eval [] identity) {{ spec_id }}.
 Proof.
   wp. iModIntro. iIntros. wp. equality.
 Qed.
@@ -106,7 +106,7 @@ Definition example4 :=
   example3.
 
 Lemma spec_example4:
-  ⊢ WP (eval EnvNil example4)
+  ⊢ WP (eval [] example4)
     {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
@@ -136,7 +136,7 @@ Definition example5 :=
   ESeq (EAssert ETrue) EFalse.
 
 Lemma spec_example5:
-  ⊢ WP (eval EnvNil example5) {{ λ v, ⌜v = VFalse⌝ }}.
+  ⊢ WP (eval [] example5) {{ λ v, ⌜v = VFalse⌝ }}.
 Proof.
   (* TODO make [choose] opaque somewhere else *)
   (* TODO and prove a [wp] rule for [eval (EAssert _)]
@@ -162,7 +162,7 @@ Definition example4b :=
   EApp (EApp id id) EUnit.
 
 Lemma spec_example4b:
-  ⊢ WP eval EnvNil example4b {{λ v, ⌜v = VUnit⌝ }}.
+  ⊢ WP eval [] example4b {{λ v, ⌜v = VUnit⌝ }}.
 Proof.
   unfold example4b. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -183,7 +183,7 @@ Definition example4c :=
   EApp id (EApp id EUnit).
 
 Lemma spec_example4c:
-  ⊢ WP eval EnvNil example4c {{λ v, ⌜v = VUnit⌝}}.
+  ⊢ WP eval [] example4c {{λ v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4c. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -205,7 +205,7 @@ Definition example4d :=
   EApp (EApp id id) (EApp id EUnit).
 
 Lemma spec_example4d:
-  ⊢ WP eval EnvNil example4d {{λ v, ⌜v = VUnit⌝}}.
+  ⊢ WP eval [] example4d {{λ v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4d. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -233,7 +233,7 @@ Definition divergence :=
   EApp (EVar "diverge") EUnit.
 
 Lemma spec_divergence:
-  ⊢ WP eval EnvNil divergence {{ λ _, ⌜False⌝ }}.
+  ⊢ WP eval [] divergence {{ λ _, ⌜False⌝ }}.
 Proof.
 Abort. (* TODO now that we have Löb induction, prove this goal *)
 
@@ -246,7 +246,7 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
      | [] -> ()
      | x :: xs -> walk xs *)
 
-Definition walk : rec_bindings :=
+Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil EUnit;
@@ -279,7 +279,7 @@ Definition walk_example e :=
 
 Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
-  ⊢ WP eval EnvNil (walk_example e) {{ λ v, ⌜v = encode tt⌝ }}.
+  ⊢ WP eval [] (walk_example e) {{ λ v, ⌜v = encode tt⌝ }}.
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. wp. do 4 wp_continue. equality.
@@ -291,7 +291,7 @@ Qed.
    then we make this closure opaque. *)
 Lemma spec_walk_example_abstract :
   forall (bs : list bool),
-  let η := EnvCons "xs" (encode bs) EnvNil in
+  let η := [("xs", (encode bs))] in
   ⊢ WP (eval η (walk_example (EVar "xs"))) {{ λ v, ⌜v = encode tt⌝ }}.
 Proof.
   intros. wp. wp_bind.
@@ -325,7 +325,7 @@ Qed.
      | [] -> 0
      | x :: xs -> 1 + length xs *)
 
-Definition length : rec_bindings :=
+Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil (EInt 0);
@@ -365,7 +365,7 @@ Definition ref_store_load: expr :=
   ELoad (EVar "l").
 
 Goal forall s E,
-  ⊢ WP (eval EnvNil ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.
+  ⊢ WP (eval [] ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.
 Proof.
   unfold ref_store_load.
   iIntros(??).
@@ -403,7 +403,7 @@ Definition simple_module_spec: val → iProp Σ :=
 
 
 Goal
-  ⊢ WP eval_mexpr EnvNil simple_module {{ simple_module_spec }}.
+  ⊢ WP eval_mexpr [] simple_module {{ simple_module_spec }}.
 Proof.
   wp. wp_bind.
 
@@ -473,7 +473,7 @@ Definition add_uc : expr :=
              (EApp test_body (EVar "x")) (EInt 2)) (EInt 3)) (EInt 4)) (EInt 5).
 
 Lemma add_test (i j: Z) :
-  ⊢ WP eval (EnvCons "bloup" #0 EnvNil) add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
+  ⊢ WP eval [("bloup", #0)] add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
 Proof.
   wp. wp_continue. equality.
 Qed.
