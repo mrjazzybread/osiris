@@ -1808,6 +1808,8 @@ Proof.
     eapply eqm_unsigned_repr. }
 Qed.
 
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
 Lemma shl_repr_repr x y :
   0 <= y <= zwordsize ->
   shl (repr x) (repr y) = repr (Z.shiftl x y).
