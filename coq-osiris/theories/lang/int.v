@@ -164,6 +164,13 @@ Proof. reflexivity. (* ah! *) Qed.
    or result of the operation are representable. The same is true of the
    logical operations [lnot], [land], [lor], [lxor]. *)
 
+(* In OCaml, the logical operations [lsl], [lsr], and [asr] require their
+   second operand [y] to satisfy [0 <= y <= zintsize]. *)
+
+(* [lsl] places no constraint on its first argument. However, [lsr]
+   requires the logical model [z1] of its first argument to satisfy
+   the constraint [0 <= z1 <= max_unsigned]. *)
+
 Definition neg  := M.neg.
 Definition add  := M.add.
 Definition sub  := M.sub.
@@ -178,6 +185,7 @@ Definition land := M.and.
 Definition lor  := M.or.
 Definition lxor := M.xor.
 Definition lsl  := M.shl.
+Definition lsr  := M.shru. (* inserts zeroes *)
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
@@ -240,6 +248,13 @@ Lemma lsl_repr_repr :
   0 <= z2 <= zintsize ->
   lsl (repr z1) (repr z2) = repr (Z.shiftl z1 z2).
 Proof. apply M.shl_repr_repr. Qed.
+
+Lemma lsr_repr_repr :
+  forall z1 z2,
+  0 <= z1 <= max_unsigned ->
+  0 <= z2 <= zintsize ->
+  lsr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
+Proof. apply M.shru_repr_repr. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
