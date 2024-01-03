@@ -6,6 +6,8 @@ open Longident
   (* https://github.com/ocaml/ocaml/blob/trunk/parsing/longident.mli *)
 open Asttypes
   (* https://github.com/ocaml/ocaml/blob/trunk/parsing/asttypes.mli *)
+open Primitive
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/primitive.mli *)
 open Types
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/types.ml *)
 open Path
@@ -70,6 +72,26 @@ let munsupported loc construct : mexpr =
   unsupported loc construct MUnsupported
 
 exception Unsupported
+
+(* -------------------------------------------------------------------------- *)
+
+(* Auxiliary exceptions and functions. *)
+
+exception NotExactKnownPrimitive
+
+let is_Stdlib path =
+  match path with
+  | Pident m when Ident.name m = "Stdlib" ->
+      true
+  | _ ->
+      false
+
+let is_Obj path =
+  match path with
+  | Pdot (parent, "Obj") when is_Stdlib parent ->
+      true
+  | _ ->
+      false
 
 (* -------------------------------------------------------------------------- *)
 
@@ -299,84 +321,6 @@ let apply e1 e2s =
 
 (* -------------------------------------------------------------------------- *)
 
-(* A full application of a standard library function can be recognized as a
-   primitive operation. *)
-
-(* In the case of Boolean conjunction (&&) and disjunction (||), this is
-   crucial in order to obtain the correct (short-circuit) semantics. *)
-
-(* This is otherwise not crucial for soundness, but this should help us by
-   producing simpler code. *)
-
-exception NotStdlib
-
-let project_stdlib_path (e : expression) : var =
-  match e.exp_desc with
-  | Texp_ident (Pdot (Pident parent, field), _, _)
-    when Ident.name parent = "Stdlib" ->
-      (* A standard library function is identified by its resolved path. *)
-      (* This is probably not reliable, and must be improved in the future. *)
-      field
-  | Texp_ident (Pdot (Pdot (Pident parent, _module), field), _, _)
-    when Ident.name parent = "Stdlib" ->
-      sprintf "%s.%s" _module field
-  | _ ->
-      raise NotStdlib
-
-let translate_stdlib_call (f : var) (es : exprs) =
-  match f, es with
-
-  | "not", [e] ->
-      EBoolNeg e
-  | "&&", [e1; e2] ->
-      EBoolConj (e1, e2)
-  | "||", [e1; e2] ->
-      EBoolDisj (e1, e2)
-
-  | "~-", [e] ->
-      EIntNeg e
-  | "+", [e1; e2] ->
-      EIntAdd (e1, e2)
-  | "-", [e1; e2] ->
-      EIntSub (e1, e2)
-  | "*", [e1; e2] ->
-      EIntMul (e1, e2)
-  | "/", [e1; e2] ->
-      EIntDiv (e1, e2)
-  | "mod", [e1; e2] ->
-      EIntMod (e1, e2)
-
-  | "==", [e1; e2] ->
-      EOpPhysEq (e1, e2)
-  | "=", [e1; e2] ->
-      EOpEq (e1, e2)
-  | "<>", [e1; e2] ->
-      EOpNe (e1, e2)
-  | "<", [e1; e2] ->
-      EOpLt (e1, e2)
-  | "<=", [e1; e2] ->
-      EOpLe (e1, e2)
-  | ">", [e1; e2] ->
-      EOpGt (e1, e2)
-  | ">=", [e1; e2] ->
-      EOpGe (e1, e2)
-
-  | "!", [e] ->
-      ELoad e
-  | ":=", [e1; e2] ->
-      EStore (e1, e2)
-
-  | "Obj.magic", [e] ->
-      (* Applications of [Obj.magic] are erased. This is experimental:
-         it takes careful consideration and arguments to ascertain that
-         this is sound. *)
-      e
-
-  | _, _ ->
-      raise NotStdlib
-
-(* -------------------------------------------------------------------------- *)
-
 (* Expressions. *)
 
 let rec translate_expr (e: expression) : expr =
@@ -515,12 +459,137 @@ and translate_exprs es : exprs =
 
 (* Expressions: function applications. *)
 
+(* We first check whether this is an exact application of a known primitive
+   operation. If so, it is given special treatment. Otherwise, it is viewed
+   as a normal application. *)
+
+(* Thus, an under- or over-application of a primitive operation, or an exact
+   application of an unknown primitive operation, is naturally considered as a
+   call to an external library function. No special treatment is required. *)
+
 and translate_application loc e args =
   try
-    let f = project_stdlib_path e in
-    translate_stdlib_call f  (translate_labeled_arguments loc args)
-  with NotStdlib ->
+    translate_primitive_application loc e args
+  with NotExactKnownPrimitive ->
     apply (translate_expr e) (translate_labeled_arguments loc args)
+
+and translate_primitive_application loc e args =
+  match e.exp_desc with
+  | Texp_ident (path, _, { val_kind = Val_prim p; _ })
+    when List.length args = p.prim_arity ->
+      (* This is an exact application of a primitive operation. *)
+      translate_exact_primitive_application loc path p args
+  | _ ->
+      (* This is either not a primitive operation,
+         or not an exact application. *)
+      raise NotExactKnownPrimitive
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: exact applications of primitive operations. *)
+
+(* An exact application of a primitive operation is recognized as such. *)
+
+(* In the case of Boolean conjunction (&&) and disjunction (||), this is
+   crucial in order to obtain the correct (short-circuit) semantics. *)
+
+(* This is otherwise not crucial for soundness, but this should help us by
+   allowing us to produce simpler code. *)
+
+(* Some primitive operations are intentionally not recognized as such. They
+   are treated as standard library functions. These include %ignore, %incr,
+   %decr, %field0 (fst), %field1 (snd). *)
+
+(* Some primitive operations have multiple distinct meanings. For instance,
+   [%identity] can represent [Obj.magic], [Char.code], or unary integer [+].
+   As another example, [%field0] can represents [fst] on pairs or [!] on
+   references. We must distinguish between these meanings. To do so, we use
+   both the OCaml identifier and the primitive operation. This is not 100%
+   bulletproof. *)
+
+and translate_exact_primitive_application loc path p args =
+  assert (List.length args = p.prim_arity);
+  match path, p.prim_name, translate_labeled_arguments loc args with
+
+  (* Erasing applications of [Obj.magic] is an experimental feature. It takes
+     careful consideration and arguments to ascertain that this is sound. *)
+  | Pdot (parent, "magic"), "%identity", [e]
+    when is_Obj parent ->
+      e
+
+  (* Integers. *)
+
+  | _, "%negint", [e] ->
+      EIntNeg e
+  | _, "%addint", [e1; e2] ->
+      EIntAdd (e1, e2)
+  | _, "%subint", [e1; e2] ->
+      EIntSub (e1, e2)
+  | _, "%mulint", [e1; e2] ->
+      EIntMul (e1, e2)
+  | _, "%divint", [e1; e2] ->
+      EIntDiv (e1, e2)
+  | _, "%modint", [e1; e2] ->
+      EIntMod (e1, e2)
+  | _, "%predint", [e] ->
+      EIntSub (e, EInt 1)
+  | _, "%succint", [e] ->
+      EIntAdd (e, EInt 1)
+
+  (* Structural equality and comparison. *)
+
+  | _, "%equal", [e1; e2] ->
+      EOpEq (e1, e2)
+  | _, "%notequal", [e1; e2] ->
+      EOpNe (e1, e2)
+  | _, "%lessthan", [e1; e2] ->
+      EOpLt (e1, e2)
+  | _, "%greaterthan", [e1; e2] ->
+      EOpGt (e1, e2)
+  | _, "%lessequal", [e1; e2] ->
+      EOpLe (e1, e2)
+  | _, "%greaterequal", [e1; e2] ->
+      EOpGe (e1, e2)
+
+  (* Physical equality. *)
+
+  | _, "%eq", [e1; e2] ->
+      EOpPhysEq (e1, e2)
+  | _, "%noteq", [e1; e2] ->
+      EBoolNeg (EOpPhysEq (e1, e2))
+
+  (* Booleans. *)
+
+  | _, "%boolnot", [e] ->
+      EBoolNeg e
+  | _, "%sequand", [e1; e2] ->
+      EBoolConj (e1, e2)
+  | _, "%sequor", [e1; e2] ->
+      EBoolDisj (e1, e2)
+
+  (* Functions. *)
+
+  | _, "%apply", [e1; e2] ->
+      (* We assume that [e1] is not itself a primitive operation. *)
+      apply e1 [e2]
+  | _, "%revapply", [e1; e2] ->
+      (* We assume that [e2] is not itself a primitive operation. *)
+      apply e2 [e1]
+
+  (* References. *)
+
+  | Pdot (parent, "ref"), "%makemutable", [e]
+    when is_Stdlib parent ->
+      ERef e
+  | Pdot (parent, "!"), "%field0", [e]
+    when is_Stdlib parent ->
+      ELoad e
+  | Pdot (parent, ":="), "%setfield0", [e1; e2]
+    when is_Stdlib parent ->
+      EStore (e1, e2)
+
+  | _, _, _ ->
+      raise NotExactKnownPrimitive
 
 (* -------------------------------------------------------------------------- *)
 
