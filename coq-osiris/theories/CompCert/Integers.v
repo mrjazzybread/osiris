@@ -1796,7 +1796,7 @@ Lemma shl_repr_repr' x y :
 Proof.
   intros.
   eapply same_bits_eq. intros. unfold shl.
-  rewrite (unsigned_repr y) by eauto.
+  rewrite (unsigned_repr y) by assumption.
   rewrite !testbit_repr by eauto.
   destruct (zlt i y); [
     rewrite !Z.shiftl_spec_low by lia
@@ -1809,14 +1809,20 @@ Proof.
 Qed.
 
 (* fpottier *)
+Local Lemma a_fortiori y :
+  0 <= y <= zwordsize ->
+  0 <= y <= max_unsigned.
+Proof.
+  generalize zwordsize_le_max_unsigned; intro. lia.
+Qed.
+
+(* fpottier *)
 (* Same lemma as above, with a stronger assumption about [y]. *)
 Lemma shl_repr_repr x y :
   0 <= y <= zwordsize ->
   shl (repr x) (repr y) = repr (Z.shiftl x y).
 Proof.
-  intros (? & ?).
-  generalize zwordsize_le_max_unsigned; intro.
-  eapply shl_repr_repr'. lia.
+  eauto using shl_repr_repr', a_fortiori.
 Qed.
 
 Lemma bits_shru:
@@ -1844,7 +1850,7 @@ Lemma shru_repr_repr' x y :
 Proof.
   intros.
   eapply same_bits_eq. intros. unfold shru.
-  rewrite (unsigned_repr y) by eauto.
+  rewrite (unsigned_repr y) by assumption.
   rewrite !testbit_repr by eauto.
   rewrite !Z.shiftr_spec by lia.
   rewrite unsigned_repr_eq. rewrite modulus_power.
@@ -1863,9 +1869,7 @@ Lemma shru_repr_repr x y :
   0 <= y <= zwordsize ->
   shru (repr x) (repr y) = repr (Z.shiftr x y).
 Proof.
-  intros ? (? & ?).
-  generalize zwordsize_le_max_unsigned; intro.
-  eapply shru_repr_repr'; lia.
+  eauto using shru_repr_repr', a_fortiori.
 Qed.
 
 Lemma bits_shr:
