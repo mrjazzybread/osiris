@@ -80,6 +80,7 @@ Proof. reflexivity. Qed.
 
 Definition min_signed := M.min_signed.
 Definition max_signed := M.max_signed.
+Definition max_unsigned := M.max_unsigned.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -144,6 +145,12 @@ Proof.
   rewrite half_of_double.
   reflexivity.
 Qed.
+
+(* [max_unsigned] is [2^int_size-1]. *)
+
+Lemma max_unsigned_eq :
+  max_unsigned = two_power_nat int_size - 1.
+Proof. reflexivity. (* ah! *) Qed.
 
 (* -------------------------------------------------------------------------- *)
 
