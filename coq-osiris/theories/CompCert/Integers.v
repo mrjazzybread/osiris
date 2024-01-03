@@ -78,9 +78,27 @@ Proof.
   unfold zwordsize, wordsize. generalize WS.wordsize_not_zero. lia.
 Qed.
 
+Remark wordsize_nonneg: zwordsize >= 0.
+Proof.
+  generalize wordsize_pos. lia.
+Qed.
+
 Remark modulus_power: modulus = two_p zwordsize.
 Proof.
   unfold modulus. apply two_power_nat_two_p.
+Qed.
+
+Remark zwordsize_lt_modulus: zwordsize < modulus.
+Proof.
+  rewrite modulus_power.
+  apply two_p_strict.
+  apply wordsize_nonneg.
+Qed.
+
+Remark zwordsize_le_max_unsigned :
+  zwordsize <= max_unsigned.
+Proof.
+  unfold max_unsigned. generalize zwordsize_lt_modulus. lia.
 Qed.
 
 Remark modulus_gt_one: modulus > 1.
@@ -1728,6 +1746,34 @@ Proof.
   destruct (zlt i (unsigned y)).
   apply Z.shiftl_spec_low. auto.
   apply Z.shiftl_spec_high. lia. lia.
+Qed.
+
+(* fpottier *)
+Lemma shl_repr_repr' x y :
+  0 <= y <= max_unsigned ->
+  shl (repr x) (repr y) = repr (Z.shiftl x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shl.
+  rewrite (unsigned_repr y) by eauto.
+  rewrite !testbit_repr by eauto.
+  destruct (zlt i y); [
+    rewrite !Z.shiftl_spec_low by lia
+  | rewrite !Z.shiftl_spec_high by lia
+  ].
+  { reflexivity. }
+  { eapply same_bits_eqm; [| lia ].
+    eapply eqm_sym.
+    eapply eqm_unsigned_repr. }
+Qed.
+
+Lemma shl_repr_repr x y :
+  0 <= y <= zwordsize ->
+  shl (repr x) (repr y) = repr (Z.shiftl x y).
+Proof.
+  intros (? & ?).
+  generalize zwordsize_le_max_unsigned; intro.
+  eapply shl_repr_repr'. lia.
 Qed.
 
 Lemma bits_shru:

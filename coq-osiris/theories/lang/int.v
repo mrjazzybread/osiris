@@ -168,6 +168,7 @@ Definition lnot := M.not.
 Definition land := M.and.
 Definition lor  := M.or.
 Definition lxor := M.xor.
+Definition lsl  := M.shl.
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
@@ -224,6 +225,18 @@ Lemma xor_repr_repr :
   forall z1 z2,
   lxor (repr z1) (repr z2) = repr (Z.lxor z1 z2).
 Proof. apply M.xor_repr_repr. Qed.
+
+Lemma lsl_repr_repr :
+  forall z1 z2,
+  0 <= z2 <= Z.of_nat int_size ->
+  lsl (repr z1) (repr z2) = repr (Z.shiftl z1 z2).
+Proof.
+  intros.
+  apply M.shl_repr_repr.
+  rewrite <- wordsize_is_int_size in *.
+  unfold M.zwordsize.
+  assumption.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
