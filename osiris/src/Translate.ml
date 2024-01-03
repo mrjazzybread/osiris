@@ -411,12 +411,7 @@ let rec translate_expr (e: expression) : expr =
       eunsupported loc "optional argument"
 
   | Texp_apply (e, args) ->
-      begin try
-        let f = project_stdlib_path e in
-        translate_stdlib_call f  (translate_labeled_arguments loc args)
-      with NotStdlib ->
-        apply (translate_expr e) (translate_labeled_arguments loc args)
-      end
+      translate_application loc e args
 
   | Texp_match (e, cases, _partial) ->
       EMatch (translate_expr e, translate_computation_cases cases)
@@ -515,6 +510,17 @@ let rec translate_expr (e: expression) : expr =
 
 and translate_exprs es : exprs =
   map translate_expr es
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: function applications. *)
+
+and translate_application loc e args =
+  try
+    let f = project_stdlib_path e in
+    translate_stdlib_call f  (translate_labeled_arguments loc args)
+  with NotStdlib ->
+    apply (translate_expr e) (translate_labeled_arguments loc args)
 
 (* -------------------------------------------------------------------------- *)
 
