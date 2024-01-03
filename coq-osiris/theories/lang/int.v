@@ -34,6 +34,8 @@ Qed.
 
 Parameter int_size : nat.
 
+Definition zintsize := Z.of_nat int_size.
+
 Parameter int_size_ge_31 :
   (31 <= int_size)%nat.
 
