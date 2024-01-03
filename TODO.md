@@ -28,7 +28,6 @@
 
 * Primitive operations that still need to be recognized:
   + `%compare`
-  + `%field0`, `%field1` for pairs (type-directed!)
   + `%loc_LOC` and friends (type-directed!)
   + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
   + `%raise`, `%raise_notrace`
