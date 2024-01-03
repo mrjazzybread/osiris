@@ -1833,6 +1833,41 @@ Proof.
   lia.
 Qed.
 
+(* fpottier *)
+(* This lemma requires [x] to be nonnegative. Indeed, if [x] is negative
+   then the lemma is false. [shru] introduces zeroes on the left, whereas
+   [Z.shiftr x] inserts ones if [x] is negative. *)
+Lemma shru_repr_repr' x y :
+  0 <= x <= max_unsigned ->
+  0 <= y <= max_unsigned ->
+  shru (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shru.
+  rewrite (unsigned_repr y) by eauto.
+  rewrite !testbit_repr by eauto.
+  rewrite !Z.shiftr_spec by lia.
+  rewrite unsigned_repr_eq. rewrite modulus_power.
+  rewrite Ztestbit_mod_two_p by lia.
+  destruct (zlt (i + y) zwordsize).
+  { reflexivity. }
+  { symmetry.
+    eapply (Ztestbit_above wordsize); [| assumption ].
+    fold modulus. generalize max_unsigned_modulus; intro. lia. }
+Qed.
+
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
+Lemma shru_repr_repr x y :
+  0 <= x <= max_unsigned ->
+  0 <= y <= zwordsize ->
+  shru (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  intros ? (? & ?).
+  generalize zwordsize_le_max_unsigned; intro.
+  eapply shru_repr_repr'; lia.
+Qed.
+
 Lemma bits_shr:
   forall x y i,
   0 <= i < zwordsize ->
