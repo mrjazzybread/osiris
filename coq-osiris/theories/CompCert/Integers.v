@@ -1286,11 +1286,31 @@ Proof.
   intros. unfold and. rewrite testbit_repr; auto. rewrite Z.land_spec; intuition.
 Qed.
 
+(* fpottier *)
+Lemma and_repr_repr x y :
+  and (repr x) (repr y) = repr (Z.land x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_and by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.land_spec.
+Qed.
+
 Lemma bits_or:
   forall x y i, 0 <= i < zwordsize ->
   testbit (or x y) i = testbit x i || testbit y i.
 Proof.
   intros. unfold or. rewrite testbit_repr; auto. rewrite Z.lor_spec; intuition.
+Qed.
+
+(* fpottier *)
+Lemma or_repr_repr x y :
+  or (repr x) (repr y) = repr (Z.lor x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_or by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.lor_spec.
 Qed.
 
 Lemma bits_xor:
@@ -1300,11 +1320,31 @@ Proof.
   intros. unfold xor. rewrite testbit_repr; auto. rewrite Z.lxor_spec; intuition.
 Qed.
 
+(* fpottier *)
+Lemma xor_repr_repr x y :
+  xor (repr x) (repr y) = repr (Z.lxor x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_xor by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.lxor_spec.
+Qed.
+
 Lemma bits_not:
   forall x i, 0 <= i < zwordsize ->
   testbit (not x) i = negb (testbit x i).
 Proof.
   intros. unfold not. rewrite bits_xor; auto. rewrite bits_mone; auto.
+Qed.
+
+(* fpottier *)
+Lemma not_repr x :
+  not (repr x) = repr (Z.lnot x).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_not by eauto.
+  rewrite !testbit_repr by eauto.
+  rewrite Z.lnot_spec by tauto. eauto.
 Qed.
 
 #[global]

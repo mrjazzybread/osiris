@@ -152,7 +152,8 @@ Qed.
 
 (* It is worth noting that negation, addition, subtraction, multiplication
    have no proof obligation. There is no need to prove that the arguments
-   or result of the operation are representable. *)
+   or result of the operation are representable. The same is true of the
+   logical operations [lnot], [land], [lor], [lxor]. *)
 
 Definition neg  := M.neg.
 Definition add  := M.add.
@@ -162,6 +163,11 @@ Definition divs := M.divs.
 Definition mods := M.mods.
 Definition eq   := M.eq.
 Definition lt   := M.lt.
+
+Definition lnot := M.not.
+Definition land := M.and.
+Definition lor  := M.or.
+Definition lxor := M.xor.
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
@@ -198,6 +204,26 @@ Lemma lt_repr_repr :
   representable z1 -> representable z2 ->
   lt (repr z1) (repr z2) = (z1 <? z2).
 Proof. apply M.lt_repr_repr. Qed.
+
+Lemma not_repr :
+  forall z,
+  lnot (repr z) = repr (Z.lnot z).
+Proof. apply M.not_repr. Qed.
+
+Lemma and_repr_repr :
+  forall z1 z2,
+  land (repr z1) (repr z2) = repr (Z.land z1 z2).
+Proof. apply M.and_repr_repr. Qed.
+
+Lemma or_repr_repr :
+  forall z1 z2,
+  lor (repr z1) (repr z2) = repr (Z.lor z1 z2).
+Proof. apply M.or_repr_repr. Qed.
+
+Lemma xor_repr_repr :
+  forall z1 z2,
+  lxor (repr z1) (repr z2) = repr (Z.lxor z1 z2).
+Proof. apply M.xor_repr_repr. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -254,4 +280,8 @@ Global Opaque
   mods
   eq
   lt
+  lnot
+  land
+  lor
+  lxor
 .
