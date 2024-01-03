@@ -165,11 +165,13 @@ Proof. reflexivity. (* ah! *) Qed.
    logical operations [lnot], [land], [lor], [lxor]. *)
 
 (* In OCaml, the logical operations [lsl], [lsr], and [asr] require their
-   second operand [y] to satisfy [0 <= y <= zintsize]. *)
+   second operand [z2] to satisfy [0 <= z2 <= zintsize]. *)
 
-(* [lsl] places no constraint on its first argument. However, [lsr]
-   requires the logical model [z1] of its first argument to satisfy
-   the constraint [0 <= z1 <= max_unsigned]. *)
+(* [lsl] places no constraint on its first argument. [lsr] requires its
+   first argument [z1] to inhabit the interval of the representable unsigned
+   integers, that is, to satisfy the constraint [0 <= z1 <= max_unsigned].
+   [asr] requires [z1] to inhabit the interval of the representable signed
+   integers, that is, to satisfy the constraint [representable z1]. *)
 
 Definition neg  := M.neg.
 Definition add  := M.add.
