@@ -382,10 +382,7 @@ Qed.
 
 Remark wordsize_max_unsigned: zwordsize <= max_unsigned.
 Proof.
-  assert (zwordsize < modulus).
-    rewrite modulus_power. apply two_p_strict.
-    generalize wordsize_pos. lia.
-  unfold max_unsigned. lia.
+  exact zwordsize_le_max_unsigned.
 Qed.
 
 Remark two_wordsize_max_unsigned: 2 * zwordsize - 1 <= max_unsigned.
