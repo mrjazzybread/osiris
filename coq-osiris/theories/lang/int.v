@@ -237,15 +237,9 @@ Proof. apply M.xor_repr_repr. Qed.
 
 Lemma lsl_repr_repr :
   forall z1 z2,
-  0 <= z2 <= Z.of_nat int_size ->
+  0 <= z2 <= zintsize ->
   lsl (repr z1) (repr z2) = repr (Z.shiftl z1 z2).
-Proof.
-  intros.
-  apply M.shl_repr_repr.
-  rewrite <- wordsize_is_int_size in *.
-  unfold M.zwordsize.
-  assumption.
-Qed.
+Proof. apply M.shl_repr_repr. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
