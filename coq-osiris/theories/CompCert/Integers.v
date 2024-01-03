@@ -354,6 +354,22 @@ Proof.
   generalize wordsize_pos; lia.
 Qed.
 
+(* fpottier *)
+Lemma div2_le_self x :
+  0 <= x ->
+  x / 2 <= x.
+Proof.
+  intros. generalize (Z.mul_div_le x 2). lia.
+Qed.
+
+(* fpottier *)
+Lemma div2_lt_self x :
+  0 < x ->
+  x / 2 < x.
+Proof.
+  intros. generalize (Z.mul_div_le x 2). lia.
+Qed.
+
 (** Relative positions, from greatest to smallest:
 <<
       max_unsigned
