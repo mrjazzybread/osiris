@@ -26,8 +26,14 @@
 
 * Document which version of OCaml we depend upon (4.14).
 
-* Find a more robust way of recognizing primitive operations.
-  Steal code from Benoît Montagu.
+* Primitive operations that still need to be recognized:
+  + `%compare`
+  + `%field0`, `%field1` for pairs (type-directed!)
+  + `%loc_LOC` and friends (type-directed!)
+  + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
+  + `%raise`, `%raise_notrace`
+  + `%negfloat`, `%addfloat`, `%subfloat`, `%mulfloat`, `%divfloat`, `%absfloat`, `%floatofint`, `%intoffloat`, and more
+  + operations on arrays (`array.mli`)
 
 * Generates Coq encoding boilerplate for algebraic data types.
   See if Arthur's code can be re-used.
@@ -321,6 +327,11 @@
   + decide how they should be represented in Coq;
     Coq's `char` type seems needlessly inefficient,
     and the model of a string should be a list of characters.
+  + do UTF-8 characters in string literals create difficulties?
+    do Coq and OCaml read them in the same way?
+* `bigarray`
+* `bytes`
+* `int32`, `int64`, `nativeint`
 * Records with mutable fields
   + `let rec` over mutable records could conceivably be supported
 * Integers:
