@@ -348,8 +348,8 @@ Proof.
   wp; wp_continue.
   { equality. }
   { iApply wp_bind_binary; first by wp_use "IHxs". iIntros(?->).
-    rewrite Nat2Z.inj_succ. wp. iPureIntro.
-    equality. }
+    wp. iPureIntro.
+    rewrite add_repr_repr. equality. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

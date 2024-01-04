@@ -524,19 +524,7 @@ Ltac simp_ret :=
    It is used (as sparingly as possible) by the tactics that follow. *)
 
 Ltac normalize :=
-  cbn;
-  (* Simplify integer arithmetic. *)
-  repeat first [
-    rewrite -> neg_repr
-  | rewrite -> add_repr_repr
-  | rewrite -> sub_repr_repr
-  | rewrite -> mul_repr_repr (*
-  | rewrite -> divs_repr_repr; eauto with representable
-  | rewrite -> mods_repr_repr; eauto with representable
-  | rewrite -> eq_repr_repr; eauto with representable
-  | rewrite -> lt_repr_repr; eauto with representable *)
-      ](* ;
-     rewrite ?true_iff, ?false_iff in *). (* TODO useful? expensive? *)
+  cbn.
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
@@ -945,4 +933,3 @@ Ltac simp_specify x φ :=
         assert (φ v) as h; [| revert h; generalize v ]
       end
   end.
-

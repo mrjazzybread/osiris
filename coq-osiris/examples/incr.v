@@ -137,6 +137,7 @@ Proof.
   iNext. iIntros (?)"[->Hl]".
 
   wp.
+  rewrite sub_repr_repr.
   wp_continue. wp_bind.
 
   wp_continue.
@@ -145,4 +146,4 @@ Proof.
   (* As all the required specifications have already been proven,
      [wp_module_spec] will finish the proof. *)
   wp_module_spec.
-Time Qed.
+Time Qed. (* 13 seconds on M2 Max! pretty bad TODO *)
