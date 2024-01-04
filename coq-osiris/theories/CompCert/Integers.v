@@ -88,6 +88,13 @@ Proof.
   unfold modulus. apply two_power_nat_two_p.
 Qed.
 
+Remark zwordsize_lt_half_modulus: zwordsize < half_modulus.
+Proof.
+  unfold half_modulus.
+  rewrite modulus_power.
+  assert (zwordsize > 1). admit. (* TODO *)
+Admitted. (* TODO *)
+
 Remark zwordsize_lt_modulus: zwordsize < modulus.
 Proof.
   rewrite modulus_power.
@@ -395,6 +402,12 @@ Qed.
 Remark max_signed_pos: max_signed >= 0.
 Proof.
   unfold max_signed. generalize half_modulus_pos. lia.
+Qed.
+
+(* fpottier *)
+Remark wordsize_max_signed: zwordsize <= max_signed.
+Proof.
+  unfold max_signed. generalize zwordsize_lt_half_modulus. lia.
 Qed.
 
 Remark wordsize_max_unsigned: zwordsize <= max_unsigned.
