@@ -427,6 +427,76 @@ Proof.
   intros. destruct_pure z2. destruct_pure z1. eauto 10 using simp_eval_div.
 Qed.
 
+(* Primitive logical operations on machine integers. *)
+
+Lemma pure_eval_lnot η e1 (φ1 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  (∀ z1, φ1 z1 → φ (Z.lnot z1)) →
+  pure (eval η (EIntLnot e1)) φ.
+Proof.
+  intros. destruct_pure z1. eauto 6 using simp_eval_lnot.
+Qed.
+
+Lemma pure_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) →
+  pure (eval η (EIntLand e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_land.
+Qed.
+
+Lemma pure_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) →
+  pure (eval η (EIntLor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lor.
+Qed.
+
+Lemma pure_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) →
+  pure (eval η (EIntLxor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lxor.
+Qed.
+
+Lemma pure_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) →
+  pure (eval η (EIntLsl e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 7 using simp_eval_lsl.
+Qed.
+
+Lemma pure_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → urepresentable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntLsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_lsr.
+Qed.
+
+Lemma pure_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntAsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_asr.
+Qed.
+
 (* Primitive operations on Booleans. *)
 
 Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
