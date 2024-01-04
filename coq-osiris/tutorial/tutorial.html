@@ -70,6 +70,14 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIntMul : expr → expr → expr
   | EIntDiv : expr → expr → expr
   | EIntMod : expr → expr → expr
+  | EIntLand : expr → expr → expr
+  | EIntLor : expr → expr → expr
+  | EIntLxor : expr → expr → expr
+  | EIntLnot : expr → expr
+  | EIntLsl : expr → expr → expr
+  | EIntLsr : expr → expr → expr
+  | EIntAsr : expr → expr → expr
+  | EFloat : float → expr
   | EChar : char → expr
   | EString : string → expr
   | EOpPhysEq : expr → expr → expr
@@ -134,6 +142,14 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIntMul (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntDiv (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLand (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLor (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLxor (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLnot e%expr_scope
+<span class="kn">Arguments</span> EIntLsl (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLsr (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntAsr (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EFloat f%float_scope
 <span class="kn">Arguments</span> EChar c
 <span class="kn">Arguments</span> EString s%string_scope
 <span class="kn">Arguments</span> EOpPhysEq (e1 e2)%expr_scope
@@ -201,6 +217,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VString : string → val
   | VInt : int → val
   | VTuple : list val → val
+  | VFloat : float → val
   | VData : data → val → val
   | VRecord : list (var * val) → val
   | VLoc : loc → val
@@ -213,6 +230,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VString s%string_scope
 <span class="kn">Arguments</span> VInt i
 <span class="kn">Arguments</span> VTuple vs%list_scope
+<span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VData c v
 <span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
@@ -223,6 +241,38 @@ an environment, the syntactic categories of values and environments are mutually
 recursive.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">env = list (var * val)
      : <span class="kt">Set</span></blockquote></div></div></small></span></pre></div>
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">val</span> : <span class="kt">Set</span> :=
+    VClo : env → anonfun → val
+  | VCloRec : env → rec_bindings → var → val
+  | VString : string → val
+  | VInt : int → val
+  | VFloat : float → val
+  | VTuple : vals → val
+  | VData : data → val → val
+  | VRecord : env → val
+  | VLoc : loc → val
+  | VStruct : env → val
+  | VChar : char → val
+  | VArray : vals → val
+  <span class="kr">with</span> vals : <span class="kt">Set</span> :=
+    VNil : vals | VCons : val → vals → vals
+  <span class="kr">with</span> env : <span class="kt">Set</span> :=
+    EnvNil : env | EnvCons : var → val → env → env.
+
+<span class="kn">Arguments</span> VClo η a
+<span class="kn">Arguments</span> VCloRec η rbs f
+<span class="kn">Arguments</span> VString s%string_scope
+<span class="kn">Arguments</span> VInt i
+<span class="kn">Arguments</span> VFloat f%float_scope
+<span class="kn">Arguments</span> VTuple vs
+<span class="kn">Arguments</span> VData c v
+<span class="kn">Arguments</span> VRecord fvs
+<span class="kn">Arguments</span> VLoc l
+<span class="kn">Arguments</span> VStruct xvs
+<span class="kn">Arguments</span> VChar c
+<span class="kn">Arguments</span> VArray c
+<span class="kn">Arguments</span> VCons v vs
+<span class="kn">Arguments</span> EnvCons x v η</blockquote></div></div></small></span></pre></div>
 <div class="section" id="a-monadic-interpreter">
 <h1>A Monadic Interpreter</h1>
 <p>OCaml is an effectful programming language: an OCaml program can

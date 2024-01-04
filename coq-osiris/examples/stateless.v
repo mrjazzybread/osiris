@@ -98,7 +98,10 @@ Section ProofExamples.
 
     oSpecify "incr" incr_spec vincr "#Hincr" !.
     { iIntros "!>" (? n) "(%ℓ&->&Hℓ)".
-      call. wp_load "Hℓ". wp_store "Hℓ".
+      call.
+      wp_load "Hℓ".
+      rewrite add_repr_repr.
+      wp_store "Hℓ".
       replace (VInt (repr (n + 1))) with (#(S n)); last first.
       { simpl. do 2 f_equal; lia. }
       prove_counter. }

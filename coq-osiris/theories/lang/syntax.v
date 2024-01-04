@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations.
+From osiris.lang Require Import float int char locations.
 
 (* This file should be in sync with osiris/src/Syntax.ml. *)
 
@@ -166,6 +166,17 @@ Inductive expr :=
   | EIntMul (e1 e2 : expr)
   | EIntDiv (e1 e2 : expr)
   | EIntMod (e1 e2 : expr)
+  (* Integer logical operations. *)
+  | EIntLand (e1 e2 : expr)
+  | EIntLor  (e1 e2 : expr)
+  | EIntLxor (e1 e2 : expr)
+  | EIntLnot (e : expr)
+  | EIntLsl  (e1 e2 : expr)
+  | EIntLsr  (e1 e2 : expr)
+  | EIntAsr  (e1 e2 : expr)
+
+  (* Floating-point literals. *)
+  | EFloat (f : float)
 
   (* Character literals. *)
   | EChar (c: char)
@@ -315,6 +326,8 @@ Inductive val :=
   | VString (s: string)
   (* A machine integer. *)
   | VInt (i : int)
+  (* A floating-point number. *)
+  | VFloat (f : float)
   (* A tuple. *)
   | VTuple (vs : list val)
   (* A data constructor value. *)

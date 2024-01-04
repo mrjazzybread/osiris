@@ -38,7 +38,6 @@ let print (out_file : filename) (defs : Coq.defs) =
   let ribbon = 1.0
   and width = 80 in
   PPrint.ToChannel.pretty ribbon width f (Print.defs defs);
-  fprintf f "\n(* Done. *)%!";
   close_out f
 
 (* -------------------------------------------------------------------------- *)

@@ -26,8 +26,13 @@
 
 * Document which version of OCaml we depend upon (4.14).
 
-* Find a more robust way of recognizing primitive operations.
-  Steal code from Benoît Montagu.
+* Primitive operations that still need to be recognized:
+  + `%compare`
+  + `%loc_LOC` and friends (type-directed!)
+  + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
+  + `%raise`, `%raise_notrace`
+  + `%negfloat`, `%addfloat`, `%subfloat`, `%mulfloat`, `%divfloat`, `%absfloat`, `%floatofint`, `%intoffloat`, and more
+  + operations on arrays (`array.mli`)
 
 * Generates Coq encoding boilerplate for algebraic data types.
   See if Arthur's code can be re-used.
@@ -298,6 +303,7 @@
 * Frumin/Timany/Birkedal, [Modular Denotational Semantics for Effects with Guarded
   Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
 * [Program Adverbs and Tlön embeddings](https://www.cis.upenn.edu/~sweirich/papers/icfp22.pdf)
+* [Spoq](https://www.usenix.org/system/files/osdi23-li-xupeng.pdf)
 
 ## Features of OCaml that we want to support (at some point)
 
@@ -320,7 +326,13 @@
   + decide how they should be represented in Coq;
     Coq's `char` type seems needlessly inefficient,
     and the model of a string should be a list of characters.
+  + do UTF-8 characters in string literals create difficulties?
+    do Coq and OCaml read them in the same way?
+* `bigarray`
+* `bytes`
+* `int32`, `int64`, `nativeint`
 * Records with mutable fields
+  + `let rec` over mutable records could conceivably be supported
 * Integers:
   + give lemmas to help establish that the result of an operation
     is representable
@@ -354,11 +366,13 @@
 * The module `Lazy`
 * Effect handlers
 * Shared-memory concurrency (SC)
+  + Must allow spurious CAS failures
+    or restrict CAS to simple values (VBool, VInt, VLoc);
+    what does HeapLang do?
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
     as an expression that raises `Next` if `e1` evaluates to `false`)
-* `let rec` over mutable values could conceivably be supported
 * Recursive modules? (Used in Sek, for example.)
 
 ## Features of OCaml that we do not want to support

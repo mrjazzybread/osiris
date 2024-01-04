@@ -240,8 +240,8 @@ Section ProofExamples.
         oCall "nat_to_int" vnat_to_int; do 2 wp_continue; first (by equality);
         change (encode_my_nat_aux m) with #m (* FIXME! *);
         iApply wp_bind_binary; first  wp_use "Hnat_to_int".
-      iIntros(?->). wp.
-      simpl;(* FIXME *) equality. }
+      iIntros(?->). wp. iPureIntro.
+      rewrite add_repr_repr. equality. }
 
 
     (* Finally, [nat_to_int] is followed by [int_to_nat] in OCaml. *)
@@ -274,6 +274,7 @@ Section ProofExamples.
         (* The symbolic execution stops on a function call. *)
 
         (* FIXME!*)
+        rewrite sub_repr_repr.
         replace (VInt (repr (S j - 1))) with #j; last first.
           { unfold encode, Encode_nat. do 2 f_equal. lia. }
 
@@ -315,7 +316,10 @@ Section ProofExamples.
 
     oSpecify "incr" incr_spec vincr "#Hincr" !.
     { iIntros "!>" (? n) "(%ℓ&->&Hℓ)".
-      call. wp_load "Hℓ". wp_store "Hℓ".
+      call.
+      wp_load "Hℓ".
+      rewrite add_repr_repr.
+      wp_store "Hℓ".
       replace (VInt (repr (n + 1))) with (#(S n)); last first.
       { simpl. do 2 f_equal; lia. }
       prove_counter. }

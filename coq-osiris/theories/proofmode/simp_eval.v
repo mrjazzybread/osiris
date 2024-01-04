@@ -188,6 +188,85 @@ Proof.
   simp.
 Qed.
 
+(* Primitive logical operations on machine integers. *)
+
+Lemma simp_eval_lnot η e (z : Z) :
+  simp (eval η e) (ret #z) →
+  simp (eval η (EIntLnot e)) (ret #(Z.lnot z)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLand e1 e2)) (ret #(Z.land z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLor e1 e2)) (ret #(Z.lor z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_lxor η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLxor e1 e2)) (ret #(Z.lxor z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_if_in_shift_range {A} z (m : micro A) :
+  in_shift_range z →
+  simp (if_in_shift_range (repr z) m) m.
+Proof.
+  intros.
+  unfold if_in_shift_range, in_shift_range_b.
+  rewrite signed_repr by eauto using in_shift_range_representable.
+  rewrite in_shift_range_b_spec by assumption.
+  simp.
+Qed.
+
+Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  in_shift_range z2 →
+  simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite lsl_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
+Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  urepresentable z1 →
+  in_shift_range z2 →
+  simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite lsr_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
+Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  representable z1 →
+  in_shift_range z2 →
+  simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite asr_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
 (* Primitive operations on Booleans. *)
 
 (* The logical model of an OCaml Boolean value can be a Coq Boolean or
@@ -346,6 +425,76 @@ Lemma pure_eval_div η e1 e2 (φ1 φ2 φ : Z → Prop) :
   pure (eval η (EIntDiv e1 e2)) φ.
 Proof.
   intros. destruct_pure z2. destruct_pure z1. eauto 10 using simp_eval_div.
+Qed.
+
+(* Primitive logical operations on machine integers. *)
+
+Lemma pure_eval_lnot η e1 (φ1 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  (∀ z1, φ1 z1 → φ (Z.lnot z1)) →
+  pure (eval η (EIntLnot e1)) φ.
+Proof.
+  intros. destruct_pure z1. eauto 6 using simp_eval_lnot.
+Qed.
+
+Lemma pure_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) →
+  pure (eval η (EIntLand e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_land.
+Qed.
+
+Lemma pure_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) →
+  pure (eval η (EIntLor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lor.
+Qed.
+
+Lemma pure_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) →
+  pure (eval η (EIntLxor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lxor.
+Qed.
+
+Lemma pure_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) →
+  pure (eval η (EIntLsl e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 7 using simp_eval_lsl.
+Qed.
+
+Lemma pure_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → urepresentable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntLsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_lsr.
+Qed.
+
+Lemma pure_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntAsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_asr.
 Qed.
 
 (* Primitive operations on Booleans. *)

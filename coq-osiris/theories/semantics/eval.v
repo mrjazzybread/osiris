@@ -71,6 +71,25 @@ Definition structural_ordering_error {A} (msg : string) : micro A :=
 Definition type_mismatch {A} (msg : string) : micro A :=
   crash.
 
+(* The logical operations [lsl], [lsr], and [asr] require their second
+   operand [i2] to satisfy [0 <= i2 <= zintsize]. This is perhaps more
+   restrictive than necessary, but this requirement appears in the OCaml
+   reference manual. If this condition is not met then, according to the
+   manual, the result is an unspecified integer value. In this semantics,
+   we adopt a more pessimistic (more permissive) specification and allow
+   the result in that case to be a crash. This removes the need for an
+   effectful operation that produces an arbitrary integer result. We may
+   revisit this in the future. TODO *)
+
+Definition in_shift_range_b (i : int) : bool :=
+  (0 <=? signed i) && (signed i <=? int.zintsize).
+
+Definition out_of_shift_range {A} : micro A :=
+  crash.
+
+Definition if_in_shift_range {A} (i : int) (m : micro A) :=
+  if in_shift_range_b i then m else out_of_shift_range.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Local notations. *)
@@ -907,6 +926,29 @@ Fixpoint eval η e : micro val :=
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
+  | EIntLand e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.land i1 i2))
+  | EIntLor e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.lor i1 i2))
+  | EIntLxor e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.lxor i1 i2))
+  | EIntLnot e =>
+      i ← as_int (eval η e) ;
+      ret (VInt (int.lnot i))
+  | EIntLsl e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.lsl i1 i2)))
+  | EIntLsr e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.lsr i1 i2)))
+  | EIntAsr e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.asr i1 i2)))
+  | EFloat f =>
+      ret (VFloat f)
   | EOpPhysEq e1 e2 =>
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       b ← phys_eq_val v1 v2 ;

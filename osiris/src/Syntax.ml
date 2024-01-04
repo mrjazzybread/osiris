@@ -151,6 +151,9 @@ type expr =
   | EIntDiv of expr * expr
   | EIntMod of expr * expr
 
+  (* Floating-point literals. *)
+  | EFloat of string
+
   (* Character literals. *)
   | EChar of char
 

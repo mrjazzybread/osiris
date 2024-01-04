@@ -284,14 +284,21 @@ Global Hint Resolve solve_encode_int : encode.
 (* This should help: *)
 
 Global Hint Resolve
-   neg_repr
-   add_repr_repr
-   sub_repr_repr
-   mul_repr_repr
-   divs_repr_repr
-   mods_repr_repr
-   eq_repr_repr
-   lt_repr_repr
+  neg_repr
+  add_repr_repr
+  sub_repr_repr
+  mul_repr_repr
+  divs_repr_repr
+  mods_repr_repr
+  eq_repr_repr
+  lt_repr_repr
+  lnot_repr
+  land_repr_repr
+  lor_repr_repr
+  lxor_repr_repr
+  lsl_repr_repr
+  lsr_repr_repr
+  asr_repr_repr
 : encode.
 
 (* TODO add hints that help prove [representable z]. *)
