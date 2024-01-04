@@ -266,22 +266,22 @@ Lemma lt_repr_repr :
   lt (repr z1) (repr z2) = (z1 <? z2).
 Proof. apply M.lt_repr_repr. Qed.
 
-Lemma not_repr :
+Lemma lnot_repr :
   forall z,
   lnot (repr z) = repr (Z.lnot z).
 Proof. apply M.not_repr. Qed.
 
-Lemma and_repr_repr :
+Lemma land_repr_repr :
   forall z1 z2,
   land (repr z1) (repr z2) = repr (Z.land z1 z2).
 Proof. apply M.and_repr_repr. Qed.
 
-Lemma or_repr_repr :
+Lemma lor_repr_repr :
   forall z1 z2,
   lor (repr z1) (repr z2) = repr (Z.lor z1 z2).
 Proof. apply M.or_repr_repr. Qed.
 
-Lemma xor_repr_repr :
+Lemma lxor_repr_repr :
   forall z1 z2,
   lxor (repr z1) (repr z2) = repr (Z.lxor z1 z2).
 Proof. apply M.xor_repr_repr. Qed.
