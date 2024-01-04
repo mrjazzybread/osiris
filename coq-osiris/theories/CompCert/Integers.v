@@ -376,7 +376,6 @@ Qed.
       max_unsigned
       half_modulus
       max_signed
-      2*wordsize-1
       wordsize
       0
       min_signed
