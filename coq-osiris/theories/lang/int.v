@@ -80,6 +80,10 @@ Lemma wordsize_is_int_size :
   M.wordsize = int_size.
 Proof. reflexivity. Qed.
 
+Lemma zwordsize_is_zintsize:
+  M.zwordsize = zintsize.
+Proof. reflexivity. Qed.
+
 Definition min_signed := M.min_signed.
 Definition max_signed := M.max_signed.
 Definition max_unsigned := M.max_unsigned.
@@ -316,6 +320,28 @@ Proof. apply M.shr_repr_repr. Qed.
 
 (* The following lemmas and tactics are intended to help prove that certain
    numbers are representable. *)
+
+Lemma in_shift_range_representable z :
+  in_shift_range z ->
+  representable z.
+Proof.
+  unfold in_shift_range, representable.
+  assert (min_signed < 0).
+  { unfold min_signed. apply M.min_signed_neg. }
+  assert (zintsize <= max_signed).
+  { rewrite <- zwordsize_is_zintsize. unfold max_signed.
+    apply M.wordsize_max_signed. }
+  lia.
+Qed.
+
+Lemma in_shift_range_b_spec z :
+  in_shift_range z ->
+  (0 <=? z) && (z <=? zintsize) = true.
+Proof.
+  unfold in_shift_range. intros.
+  repeat rewrite Zle_imp_le_bool by lia.
+  reflexivity.
+Qed.
 
 Lemma prove_representable_30 i :
   -(two_power_nat 30) <= i < two_power_nat 30 ->
