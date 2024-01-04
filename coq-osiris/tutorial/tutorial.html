@@ -77,6 +77,13 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIntMul : expr → expr → expr
   | EIntDiv : expr → expr → expr
   | EIntMod : expr → expr → expr
+  | EIntLand : expr → expr → expr
+  | EIntLor : expr → expr → expr
+  | EIntLxor : expr → expr → expr
+  | EIntLnot : expr → expr
+  | EIntLsl : expr → expr → expr
+  | EIntLsr : expr → expr → expr
+  | EIntAsr : expr → expr → expr
   | EFloat : float → expr
   | EChar : char → expr
   | EString : string → expr
@@ -157,6 +164,13 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIntMul (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntDiv (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLand (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLor (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLxor (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLnot e%expr_scope
+<span class="kn">Arguments</span> EIntLsl (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntLsr (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntAsr (e1 e2)%expr_scope
 <span class="kn">Arguments</span> EFloat f%float_scope
 <span class="kn">Arguments</span> EChar c
 <span class="kn">Arguments</span> EString s%string_scope
