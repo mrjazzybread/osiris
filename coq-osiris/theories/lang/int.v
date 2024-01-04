@@ -325,4 +325,7 @@ Global Opaque
   land
   lor
   lxor
+  lsl
+  lsr
+  asr
 .
