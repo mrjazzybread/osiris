@@ -24,8 +24,6 @@ Global Hint Extern 1 (_ = _) => rewrite Nat2Z.inj_succ : equality.
 
 (* Reasoning about machine integers. *)
 
-(* TODO do we really want/need this? *)
-
 Global Hint Extern 1 (_ = _) => rewrite neg_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite add_repr_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite sub_repr_repr : equality.
@@ -34,6 +32,14 @@ Global Hint Extern 1 (_ = _) => rewrite divs_repr_repr by representable : equali
 Global Hint Extern 1 (_ = _) => rewrite mods_repr_repr by representable : equality.
 Global Hint Extern 1 (_ = _) => rewrite eq_repr_repr by representable : equality.
 Global Hint Extern 1 (_ = _) => rewrite lt_repr_repr by representable : equality.
+
+Global Hint Extern 1 (_ = _) => rewrite lnot_repr : equality.
+Global Hint Extern 1 (_ = _) => rewrite land_repr_repr : equality.
+Global Hint Extern 1 (_ = _) => rewrite lor_repr_repr : equality.
+Global Hint Extern 1 (_ = _) => rewrite lxor_repr_repr : equality.
+Global Hint Extern 1 (_ = _) => rewrite lsl_repr_repr by representable : equality.
+Global Hint Extern 1 (_ = _) => rewrite lsr_repr_repr by representable : equality.
+Global Hint Extern 1 (_ = _) => rewrite asr_repr_repr by representable : equality.
 
 (* -------------------------------------------------------------------------- *)
 
