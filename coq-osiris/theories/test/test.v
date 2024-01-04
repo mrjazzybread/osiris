@@ -21,12 +21,12 @@ From osiris.semantics Require Import semantics.
 (* [reduces e v] means that the expression [e] can reduce to the value [v]. *)
 
 Local Notation reduces e v :=
-  (∃ n, steps n (∅, eval EnvNil e) (∅, ret v)).
+  (∃ n, steps n (∅, eval [] e) (∅, ret v)).
 
 (* [crashes e] means that the expression [e] can crash. *)
 
 Local Notation crashes e :=
-  (∃ n, steps n (∅, eval EnvNil e) (∅, crash)).
+  (∃ n, steps n (∅, eval [] e) (∅, crash)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -96,45 +96,45 @@ Proof. reduces. Qed.
    in the record construction expression. *)
 
 Lemma test_record_construction_with_sorting_1 :
-  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
-  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (repr 0)) EnvNil) in
+  let e := ERecord [Fexpr "foo" (EInt 0); Fexpr "bar" ETrue] in
+  let fvs := [("bar", VTrue); ("foo", (VInt (repr 0)))] in
   let v := VRecord fvs in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_with_sorting_2 :
-  let e := ERecord (FECons "bar" ETrue (FECons "foo" (EInt 0) FENil)) in
-  let fvs := EnvCons "bar" VTrue (EnvCons "foo" (VInt (repr 0)) EnvNil) in
+  let e := ERecord [Fexpr "bar" ETrue; Fexpr "foo" (EInt 0)] in
+  let fvs := [("bar", VTrue); ("foo", (VInt (repr 0)))] in
   let v := VRecord fvs in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_and_access_1 :
-  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
+  let e := ERecord [Fexpr "foo" (EInt 0); Fexpr "bar" ETrue] in
   let e := ERecordAccess e "bar" in
   let v := VTrue in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_and_access_2 :
-  let e := ERecord (FECons "foo" (EInt 0) (FECons "bar" ETrue FENil)) in
+  let e := ERecord [Fexpr "foo" (EInt 0); Fexpr "bar" ETrue] in
   let e := ERecordAccess e "foo" in
   let v := VInt (repr 0) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_and_deconstruction :
-  let e := ERecord (FECons "foo" (EInt 10) (FECons "bar" (EInt 32) FENil)) in
-  let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
+  let e := ERecord [Fexpr "foo" (EInt 10); Fexpr "bar" (EInt 32)] in
+  let p := PRecord [("foo", (PVar "x")); ("bar", (PVar "y"))] in
   let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
   let v := VInt (repr 42) in
   reduces e v.
 Proof. reduces. Qed.
 
 Lemma test_record_construction_update_and_deconstruction :
-  let e := ERecord (FECons "foo" (EInt 10) (FECons "bar" (EInt 32) FENil)) in
-  let e := ERecordUpdate e (FECons "bar" (EInt 14) FENil) in
-  let p := PRecord (FPCons "foo" (PVar "x") (FPCons "bar" (PVar "y") FPNil)) in
+  let e := ERecord [Fexpr "foo" (EInt 10); Fexpr "bar" (EInt 32)] in
+  let e := ERecordUpdate e [Fexpr "bar" (EInt 14)] in
+  let p := PRecord [("foo", (PVar "x")); ("bar", (PVar "y"))] in
   let e := ELet1 p e (EIntAdd (EVar "x") (EVar "y")) in
   let v := VInt (repr 24) in
   reduces e v.
@@ -184,7 +184,7 @@ Proof. reduces. Qed.
 
 Lemma test_EFunction :
   let e :=
-    ELet1Var "f" (EFunction $ MkBranches [
+    ELet1Var "f" (EFunction $ [
       Branch (PInt 0) (EInt 32);
       Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
     ]) $
@@ -214,7 +214,7 @@ Proof. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
-  ∃ e', steps 10 (∅, eval EnvNil e) e'.
+  ∃ e', steps 10 (∅, eval [] e) e'.
 Proof. reduces. Qed.
 
 Lemma test_trivial_while_loop :

@@ -1,6 +1,6 @@
 From osiris Require Import osiris.
 
-Local Notation ε := EnvNil. (* TODO move *)
+Local Notation ε := []. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -136,7 +136,7 @@ Goal let e :=
   ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1"
   in ∀ v1 v2,
-  let env := EnvCons "z1" v1 (EnvCons "z2" v2 ε) in
+  let env := [("z1", v1); ("z2", v2)] in
   simp (eval env e) (ret v1).
 Proof.
   intros.
@@ -177,7 +177,7 @@ Goal
   let e := EPair idA idA in
   ∀ (id : val),
   spec_id id →
-  let env := EnvCons "id" id ε in
+  let env := [("id", id)] in
   simp (eval env e) (ret (VPair (VConstant "A") (VConstant "A"))).
 Proof.
   intros. simp.
@@ -297,7 +297,7 @@ Qed.
      | [] -> ()
      | x :: xs -> walk xs *)
 
-Definition walk : rec_bindings :=
+Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil EUnit;
@@ -334,7 +334,7 @@ Qed.
 
 Lemma spec_walk_example_abstract :
   forall `{Encode X} (xs : list X),
-  let η := EnvCons "xs" (encode xs) ε in
+  let η := [("xs", (encode xs))] in
   simp (eval η (walk_example (EVar "xs"))) ok.
 Proof.
   intros. simp.
@@ -368,7 +368,7 @@ Qed.
      | [] -> 0
      | x :: xs -> 1 + length xs *)
 
-Definition length : rec_bindings :=
+Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
   EMatchMkBranches (EVar "xs") [
     Branch pNil (EInt 0);

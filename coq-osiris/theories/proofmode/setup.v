@@ -25,7 +25,6 @@ Arguments lookup_name _ _/.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
-Arguments concat !δ η : simpl nomatch.
 Arguments remove !f !fvs : simpl nomatch.
 Arguments update !fvs !fvs' : simpl nomatch.
 Arguments extend δ !p v.
@@ -68,3 +67,4 @@ Global Opaque
   pure
 
 .
+

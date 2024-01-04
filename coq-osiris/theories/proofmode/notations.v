@@ -96,14 +96,7 @@ Notation "'WP' e {{ v , ... } }" :=
    - [name1 ~> value1; ...; namen ~> valuen] otherwise. *)
 
 Notation "n1 ~> v1 ; η" :=
-  (EnvCons n1 v1 η) (at level 80, right associativity, format "n1  ~>  v1 ;  '/' η").
-
-(* Recursive bindings are not exactly printed as environments. Thay are a
-   list. Hints are provided to break lines between two elements. *)
-Notation "[ x ; .. ; z ]" :=
-  (RecBiCons x (.. (RecBiCons z RecBiNil) ..))
-    (only printing,
-       format "[  '[hv' x ;  '/' .. ;  '/' z ']' ]").
+  ((n1, v1) :: η) (at level 80, right associativity, format "n1  ~>  v1 ;  '/' η").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)
@@ -111,7 +104,7 @@ Notation "x  '≈>'  f" :=
 
 Notation "'An' 'environment' 'containing' n1 , .. , nn 'will' 'be' 'added' 'to' 'the' 'current' 'environment.'" :=
   (ret_dconcat
-     (n1 ~> _ ; (.. (nn ~> _ ; EnvNil) ..))
+     (n1 ~> _ ; (.. (nn ~> _ ; []) ..))
      (_, _))
     (only printing, format
 "'[v    ' 'An'  'environment'  'containing'  '/' n1 ,  '/' .. ,  '/' nn  '/' 'will'  'be'  'added'  'to'  'the'  'current'  'environment.' ']'").
@@ -145,7 +138,7 @@ Notation "'EPath' x1 '.' .. '.' xn '.' xm ')'" :=
         format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
 
 Notation "'<e' e1 , .. , en 'e>'" :=
-  (ETuple (ECons e1 .. (ECons en ENil) ..))
+  (ETuple (cons e1 .. (cons en nil) ..))
     (format "'<e'  e1 ,  '/' .. ,  '/' en  'e>'").
 
 Notation "'<v' v1 , .. , vn 'v>'" :=
@@ -153,14 +146,14 @@ Notation "'<v' v1 , .. , vn 'v>'" :=
     (format "'<v'  v1 ,  '/' .. ,  '/' vn  'v>'").
 
 Notation "'<p' p1 , .. , pn 'p>'" :=
-  (PTuple (PCons p1 .. (PCons pn PNil) ..))
+  (PTuple (cons p1 .. (cons pn nil) ..))
     (format "'<p'  p1 ,  '/' .. ,  '/' pn  'p>'").
 
 
 Notation "'edata:(' C1 $ .. $ Cn $ argn ')'" :=
   (EData C1 <e .. (EData  Cn <e argn e>) .. e>).
 Notation "C ( e1 , .. , en )" :=
-  (EData C (ETuple (ECons e1 (.. (ECons en ENil) ..))))
+  (EData C (ETuple (cons e1 (.. (cons en nil) ..))))
     (only printing, at level 20).
 
 Notation "'vdata:(' C1 $ .. $ Cn $ argn ')'" :=
@@ -172,7 +165,7 @@ Notation "C ( v1 , .. , vn )" :=
 Notation "'pdata:(' C1 $ .. $ Cn $ argn ')'" :=
   (PData C1 <p .. (PData  Cn <p argn p>) .. p>).
 Notation "C ( p1 , .. , pn )" :=
-  (PData C (PTuple (PCons p1 (.. (PCons pn PNil) ..))))
+  (PData C (PTuple (cons p1 (.. (cons pn nil) ..))))
     (only printing, at level 20).
 
 (* -------------------------------------------------------------------------- *)
@@ -284,13 +277,13 @@ Notation "'EMatch' x 'with' pats " :=
           format "'[v' 'EMatch'  x  'with' '//' pats ']'").
 
 Notation "'|' pat '=>' e others" :=
-  (BrCons (Branch pat e) others)
+  (cons (Branch pat e) others)
     (at level 80,
        others at level 81,
          only printing,
            format "'[hv' '|'  '[v  ' pat  '=>' '//' e ']' '//' others ']'").
 
-Notation "'end'" := (BrNil) (only printing).
+Notation "'end'" := (@nil branch) (only printing).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -320,14 +313,14 @@ Notation "ℓ ':=' v ';' '...continuations'" := (Stop CStore (ℓ, v) _ _) (at l
 (* Records *)
 
 Notation "'(' n1 := v1 ')'" :=
-  (FECons n1 v1 FENil)
+  ([Fexpr n1 v1])
     (only printing,
      at level 80,
      right associativity,
      format "'(' n1  ':='   v1 ')'").
 
 Notation "'(' n1 := v1 ')' ; tail" :=
-  (FECons n1 v1 tail)
+  ((Fexpr n1 v1) :: tail)
     (only printing,
      at level 80,
      right associativity,

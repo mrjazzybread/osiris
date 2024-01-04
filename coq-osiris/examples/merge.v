@@ -4,13 +4,11 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
-Local Opaque app. (* Prevent undesired simplification. *)
-
 
 Notation "'<(' f ')>'" := (VCloRec _ _ f) (only printing).
 Notation "'<' f '>'" := (VClo _ f) (only printing).
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
-  (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
+  (cons x _ (.. (cons z _ nil) ..))
  (only printing).
 
 (* -------------------------------------------------------------------------- *)
@@ -176,13 +174,13 @@ Proof.
   { pure1; pure1; pure_continue.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions. pure1. pure_continue.
+  all_inversions. pure1. pure_continue. 
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
-  { (* Case: h2 < h1 *)
+  { (* Case: h2 < h1 *) Transparent app. simpl.
     pure_execute.
-    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *) 
     eapply pure_bind_binary.
     { apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
@@ -196,9 +194,12 @@ Proof.
     eapply pure_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
+      eapply (HdRel_Sorted_Permutation l' (h1 :: t1) t2); eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
+      rewrite_permutation l'.
+      apply Permutation_sym.
+      change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
+      apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
     pure_execute.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
@@ -314,7 +315,7 @@ Qed.
 (* Main module specification. *)
 
 Lemma Merge__spec:
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   pure (eval_mexpr η __main)
     (is_module_with_pspecs [("merge", merge_spec);
                         ("split", split_spec);

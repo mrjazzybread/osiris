@@ -21,14 +21,14 @@ From osiris.stdlib Require Import Externals.
 
 Local Notation VClo1 body :=
   (
-    VClo (EnvCons "Externals" Externals EnvNil) $
+    VClo [("Externals", Externals)] $
       AnonFun "x" $
       (body (EVar "x"))
   ).
 
 Local Notation VClo2 body :=
   (
-    VClo (EnvCons "Externals" Externals EnvNil) $
+    VClo [("Externals", Externals)] $
       AnonFun "x" $
       EFun1Var "y" $
       (body (EVar "x") (EVar "y"))
@@ -55,16 +55,15 @@ Section StdLib__code.
 
   (* Arithmetic part of the module. *)
   Definition Stdlib_arith_env : env :=
-    EnvCons "+" Stdlib__add $
-            EnvCons "-" Stdlib__sub $
-            EnvCons "*" Stdlib__mul $
-            EnvCons "/" Stdlib__div $
-            EnvCons "~-" Stdlib__neg $
-            EnvCons "<" Stdlib__lt $
-            EnvCons "<=" Stdlib__le $
-            EnvCons ">=" Stdlib__ge $
-            EnvCons ">" Stdlib__gt $
-            EnvNil.
+    [("+", Stdlib__add);
+     ("-", Stdlib__sub);
+     ("*", Stdlib__mul);
+     ("/", Stdlib__div);
+     ("~-", Stdlib__neg);
+     ("<", Stdlib__lt);
+     ("<=", Stdlib__le);
+     (">=", Stdlib__ge);
+     (">", Stdlib__gt)].
 
   (* ------------------------------------------------------------------------ *)
 
@@ -74,10 +73,9 @@ Section StdLib__code.
   Definition Stdlib__store : val := VClo2 EStore.
 
   Definition Stdlib_store_env : env :=
-    EnvCons "!" Stdlib__load $
-            EnvCons ":=" Stdlib__store $
-            EnvCons "ref" Stdlib__ref $
-            EnvNil.
+    [("!", Stdlib__load);
+     (":=", Stdlib__store);
+     ("ref", Stdlib__ref)].
 
   (* ------------------------------------------------------------------------ *)
 
@@ -99,12 +97,11 @@ Section StdLib__code.
       ).
 
   Definition Stdlib_misc_env : env :=
-    EnvCons "=" Stdlib__eq $
-            EnvCons "<>" Stdlib__ne $
-            EnvCons "compare" Stdlib__compare $
-            EnvCons "fst" Stdlib__fst $
-            EnvCons "snd" Stdlib__snd $
-            EnvNil.
+    [("=", Stdlib__eq);
+     ("<>", Stdlib__ne);
+     ("compare", Stdlib__compare);
+     ("fst", Stdlib__fst);
+     ("snd", Stdlib__snd)].
 
   (* ------------------------------------------------------------------------ *)
 
@@ -114,15 +111,15 @@ Section StdLib__code.
        they are primitive operations. *)
 
   Definition Stdlib_bool_env : env :=
-    EnvCons "not" Stdlib__not $
-            EnvNil.
+    [("not", Stdlib__not)].
 
   (* Putting everything together. *)
   Definition Stdlib_env :=
-            Stdlib_arith_env :::
-            Stdlib_store_env :::
-            Stdlib_misc_env :::
-            Stdlib_bool_env.
+    concat [Stdlib_arith_env;
+            Stdlib_store_env;
+            Stdlib_misc_env;
+            Stdlib_bool_env].
+  
   Definition Stdlib := VStruct Stdlib_env.
 End StdLib__code.
 

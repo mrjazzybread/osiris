@@ -36,120 +36,40 @@ Definition MkPath (xs : list name) : path :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Branches. *)
+(* Branches *)
 
-Fixpoint MkBranches (bs : list branch) : branches :=
-  match bs with
-  | [] =>
-      BrNil
-  | b :: bs =>
-      BrCons b (MkBranches bs)
-  end.
-
-Definition Branch1 p e : branches :=
-  BrCons (Branch p e) BrNil.
-
-(* ------------------------------------------------------------------------ *)
-
-(* Lists of field-pattern pairs. *)
-
-Fixpoint MkFpats (fps : list (field * pat)) : fpats :=
-  match fps with
-  | [] =>
-      FPNil
-  | (f, p) :: fps =>
-      FPCons f p (MkFpats fps)
-  end.
-
-(* Lists of field-expression pairs. *)
-
-Fixpoint MkFexprs (fes : list (field * expr)) : fexprs :=
-  match fes with
-  | [] =>
-      FENil
-  | (f, e) :: fes =>
-      FECons f e (MkFexprs fes)
-  end.
-
-(* Lists of field-coercion pairs. *)
-
-Fixpoint MkFCoercions (fcs : list (field * coercion)) : fcoercions :=
-  match fcs with
-  | [] =>
-      CNil
-  | (f, c) :: fcs =>
-      CCons f c (MkFCoercions fcs)
-  end.
-
-(* Bindings. *)
-
-Fixpoint MkBindings (bs : list binding) : bindings :=
-  match bs with
-  | [] =>
-      BiNil
-  | b :: bs =>
-      BiCons b (MkBindings bs)
-  end.
-
-(* Recursive bindings. *)
-
-Fixpoint MkRecBindings (rbs : list rec_binding) : rec_bindings :=
-  match rbs with
-  | [] =>
-      RecBiNil
-  | rb :: rbs =>
-      RecBiCons rb (MkRecBindings rbs)
-  end.
+Definition Branch1 p e : list branch :=
+  [Branch p e].
 
 (* ------------------------------------------------------------------------ *)
 
 (* Pairs: pattern, expression, value. *)
 
 Definition PPair p1 p2 :=
-  (PTuple (PCons p1 (PCons p2 PNil))).
+  PTuple [p1; p2].
 
 Definition EPair e1 e2 :=
-  (ETuple (ECons e1 (ECons e2 ENil))).
+  ETuple [e1; e2].
 
 Definition VPair v1 v2 :=
-  (VTuple (VCons v1 (VCons v2 VNil))).
+  VTuple [v1; v2].
 
 (* Tuples of arity 1. *)
 
 (* Used only in the encoding of data constructors; see e.g. [VSome]. *)
 
 Notation VTuple1 v1 :=
-  (
-    VTuple (
-      VCons v1 $
-      VNil
-    )
-  ).
+  (VTuple [v1]).
 
 (* Tuples of arity 3. *)
 
 Notation VTuple3 v1 v2 v3 :=
-  (
-    VTuple (
-      VCons v1 $
-      VCons v2 $
-      VCons v3 $
-      VNil
-    )
-  ).
+  (VTuple [v1; v2; v3]).
 
 (* Tuples of arity 4. *)
 
 Notation VTuple4 v1 v2 v3 v4 :=
-  (
-    VTuple (
-      VCons v1 $
-      VCons v2 $
-      VCons v3 $
-      VCons v4 $
-      VNil
-    )
-  ).
+  (VTuple [v1; v2; v3; v4]).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -165,8 +85,6 @@ Definition VSome v :=
 
 (* Lists: patterns, expressions, values. *)
 
-(* TODO would like to use VNil and VCons, but this causes a name clash *)
-
 Definition pNil :=
   (PConstant "[]").
 
@@ -179,10 +97,10 @@ Definition eNil :=
 Definition eCons e1 e2 :=
   (EData "::" (EPair e1 e2)).
 
-Definition vNil :=
+Definition VNil :=
   (VConstant "[]").
 
-Definition vCons v1 v2 :=
+Definition VCons v1 v2 :=
   (VData "::" (VPair v1 v2)).
 
 (* ------------------------------------------------------------------------ *)
@@ -201,9 +119,8 @@ Definition EMkPath xs :=
 
 (* [p = e]. *)
 
-Definition Binding1 (p : pat) (e : expr) : bindings :=
-  let binding := Binding p e in
-  BiCons binding BiNil.
+Definition Binding1 (p : pat) (e : expr) : list binding :=
+  [Binding p e].
 
 (* [let p = e1 in e2]. *)
 
@@ -234,18 +151,18 @@ Definition EFun1Var (x : var) (e : expr) :=
 (* TODO: consider replacing AnonFunction by a Hoare-style reasoning rule
    allowing us to discard the anonymous argument's name *)
 
-Definition AnonFunction (bs : branches) : anonfun :=
+Definition AnonFunction (bs : list branch) : anonfun :=
   let x := "__osiris_anonymous_arg" in
   AnonFun1Var x $
   EMatch (EVar x) bs.
 
-Definition EFunction (bs : branches) :=
+Definition EFunction (bs : list branch) :=
   EAnonFun (AnonFunction bs).
 
 (* [match e with bs]. *)
 
 Definition EMatchMkBranches (e : expr) (bs : list branch) :=
-  EMatch e (MkBranches bs).
+  EMatch e bs.
 
 (* [fun p -> e] is sugar for [fun x -> match x with p -> e]. *)
 
@@ -254,7 +171,7 @@ Definition EMatchMkBranches (e : expr) (bs : list branch) :=
 (* It is a special case of the previous sugar. *)
 
 Definition AnonFun1Pat (p : pat) (e : expr) : anonfun :=
-  AnonFunction (MkBranches [Branch p e]).
+  AnonFunction [Branch p e].
 
 Definition EFun1Pat (p : pat) (e : expr) :=
   EAnonFun (AnonFun1Pat p e).
@@ -294,19 +211,18 @@ Fixpoint EMultiApp (e0 : expr) (es : list expr) :=
 
 (* [rec f x = e1]. *)
 
-Definition RecBinding1Var (f x : var) (e1 : expr) : rec_bindings :=
-  let rb := RecBinding f (AnonFun1Var x e1) in
-  RecBiCons rb RecBiNil.
+Definition RecBinding1Var (f x : var) (e1 : expr) : list rec_binding :=
+  [RecBinding f (AnonFun1Var x e1)].
 
 (* [rec f 'p = e] *)
 
 Definition RecBinding1Pat f p e :=
-  RecBiCons (RecBinding f $ AnonFun1Pat p e) RecBiNil.
+  [RecBinding f $ AnonFun1Pat p e].
 
 (* [rec f = a] *)
 
 Definition RecBinding1 f a :=
-  RecBiCons (RecBinding f a) RecBiNil.
+  [RecBinding f a].
 
 (* [let rec f x = e1 in e2]. *)
 
@@ -319,16 +235,8 @@ Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
 
 (* [MkStruct items] allows the use of standard list syntax. *)
 
-Fixpoint MkSItems (items : list sitem) : sitems :=
-  match items with
-  | [] =>
-      INil
-  | item :: items =>
-      ICons item (MkSItems items)
-  end.
-
 Definition MkStruct (items : list sitem) : mexpr :=
-  MStruct (MkSItems items).
+  MStruct (items).
 Arguments MkStruct / items.
 
 (* [open π]. *)
@@ -343,24 +251,10 @@ Definition IIncludeMkPath xs :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Sugar for tuples. *)
-
-Fixpoint PMkList (l : list pat) :=
-  match l with
-  | nil => PNil
-  | cons h t => PCons h (PMkList t)
-  end.
-
 Definition PMkTuple l :=
-  PTuple (PMkList l).
+  PTuple l.
 Arguments PMkTuple / l.
 
-Fixpoint EMkList (l : list expr) :=
-  match l with
-  | nil => ENil
-  | cons h t => ECons h (EMkList t)
-  end.
-
 Definition EMkTuple l :=
-  ETuple (EMkList l).
+  ETuple l.
 Arguments EMkTuple / l.
