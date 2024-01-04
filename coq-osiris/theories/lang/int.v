@@ -165,22 +165,11 @@ Proof. reflexivity. (* ah! *) Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The following facts are the specifications of the operations on machine
-   integers that are of interest to us. *)
+(* Definitions of the operations on machine integers that exist in OCaml. *)
 
-(* It is worth noting that negation, addition, subtraction, multiplication
-   have no proof obligation. There is no need to prove that the arguments
-   or result of the operation are representable. The same is true of the
-   logical operations [lnot], [land], [lor], [lxor]. *)
+(* [ne] is not needed, because it is defined in terms of [eq]. *)
 
-(* In OCaml, the logical operations [lsl], [lsr], and [asr] require their
-   second operand [z2] to satisfy [0 <= z2 <= zintsize]. *)
-
-(* [lsl] places no constraint on its first argument. [lsr] requires its
-   first argument [z1] to inhabit the interval of the representable unsigned
-   integers, that is, to satisfy the constraint [0 <= z1 <= max_unsigned].
-   [asr] requires [z1] to inhabit the interval of the representable signed
-   integers, that is, to satisfy the constraint [representable z1]. *)
+(* Similarly, [gt], [le], [ge] are defined in terms of [lt]. *)
 
 Definition neg  := M.neg.
 Definition add  := M.add.
@@ -198,6 +187,42 @@ Definition lxor := M.xor.
 Definition lsl  := M.shl.
 Definition lsr  := M.shru. (* inserts zeroes *)
 Definition asr  := M.shr.  (* inserts the sign bit of its first operand *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following facts are the specifications of the operations on machine
+   integers that are of interest to us. *)
+
+(* In OCaml, machine integers are usually understood as signed integers. In
+   accordance with this convention, several operations require their
+   operand(s) to be representable, that is, to inhabit the interval of the
+   signed integers. However, some operations require their operand(s) to be
+   representable as an unsigned integer. Some operations require one or the
+   other. Finally, some operations have no requirement at all. *)
+
+(* [neg], [add], [sub], [mul], [lnot], [land], [lor], [lxor] have no
+   precondition. There is no need to prove that the arguments or result of
+   the operation are representable. This is convenient, and implies that
+   these operations work both with signed and unsigned integers. *)
+
+(* [divs] and [mods] require (signed) representable integers. *)
+
+(* The logical operations [lsl], [lsr], and [asr] require their second
+   operand [z2] to satisfy [0 <= z2 <= zintsize]. This is perhaps more
+   restrictive than necessary, but this requirement appears in the OCaml
+   reference manual. *)
+
+(* [lsl] places no constraint on its first argument. [lsr] requires its
+   first argument [z1] to be representable as an unsigned integer. [asr]
+   requires [z1] to be representable in the usual sense, that is, as a
+   signed integer. *)
+
+(* [eq] requires its arguments to be either both representable as signed
+   integers or both representable as unsigned integers. Thus, it works both
+   with signed and with unsigned integers, but one must know which. *)
+
+(* [lt] requires its arguments to be representable as signed integers.
+   OCaml does not offer unsigned integer comparison operators. *)
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
