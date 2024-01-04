@@ -757,6 +757,19 @@ Proof.
   try reflexivity; lia.
 Qed.
 
+(* fpottier *)
+Lemma eq_repr_repr_unsigned z1 z2 :
+  0 <= z1 <= max_unsigned ->
+  0 <= z2 <= max_unsigned ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof.
+  intros.
+  unfold eq. (* same as [rewrite eq_unsigned], which does not exist *)
+  rewrite !unsigned_repr by assumption.
+  destruct (zeq z1 z2); destruct (Z.eqb_spec z1 z2);
+  try reflexivity; lia.
+Qed.
+
 (** ** Properties of addition *)
 
 Theorem add_unsigned: forall x y, add x y = repr (unsigned x + unsigned y).

@@ -94,6 +94,15 @@ Definition max_unsigned := M.max_unsigned.
 Definition representable i :=
   (min_signed <= i <= max_signed).
 
+(* Should someone wish to work with unsigned integers, then the
+   representable integers would be those comprised between [0]
+   and [max_unsigned], inclusive. Working with unsigned integers
+   is not encouraged in OCaml, but is possible in principle,
+   with much care. *)
+
+Definition urepresentable i :=
+  (0 <= i <= max_unsigned).
+
 (* The function [signed : int -> Z] maps a machine integer to the
    ideal integer that it represents. *)
 Definition signed := M.signed.
@@ -219,6 +228,12 @@ Lemma eq_repr_repr :
   representable z1 -> representable z2 ->
   eq (repr z1) (repr z2) = (z1 =? z2).
 Proof. apply M.eq_repr_repr. Qed.
+
+Lemma eq_repr_repr_unsigned :
+  forall z1 z2,
+  urepresentable z1 -> urepresentable z2 ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof. apply M.eq_repr_repr_unsigned. Qed.
 
 Lemma lt_repr_repr :
   forall z1 z2,
