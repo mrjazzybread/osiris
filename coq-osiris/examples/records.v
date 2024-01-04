@@ -135,13 +135,13 @@ Proof.
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)
-  wp.
+  (* wp. *)
   (* TODO this kind of replacement should be done by letting the tactic
           [encode] solve a goal of the form [v = #?x]. *)
   (* TODO and this should be done automatically by the [wp_] tactics *)
-  replace
+  change
     (VRecord [("b", VTrue); ("i", (VInt (int.repr 10)))])
-    with #{| b := true; i := 10 |}; last reflexivity.
+    with #{| b := true; i := 10 |}. 
   wp_use "Hflip".
   iIntros (? <-). wp_bind.
 
@@ -164,7 +164,7 @@ Proof.
     wp_par.
     { wp_bind.
       (* TODO avoid manual encoding *)
-      change (VRecord (EnvCons "b" (VBool b1) $ EnvCons "i" (VInt (int.repr i1)) EnvNil))
+      change (VRecord [("b", VBool b1); ("i", VInt (int.repr i1))])
       with (#{| b:=b1; i:= i1|}).
       wp_use "Hr_val". iIntros(?<-).
       wp_simp.
@@ -172,7 +172,7 @@ Proof.
       wp_set_postcondition. }
     { wp_bind.
       (* TODO avoid manual encoding *)
-      change (VRecord (EnvCons "b" (VBool b2) $ EnvCons "i" (VInt (int.repr i2)) EnvNil))
+      change (VRecord [("b", VBool b2); ("i", VInt (int.repr i2))])
       with (#{| b:=b2; i:= i2|}).
       wp_use "Hr_val".
       (* TODO ugly... *)
