@@ -81,14 +81,14 @@ Definition type_mismatch {A} (msg : string) : micro A :=
    effectful operation that produces an arbitrary integer result. We may
    revisit this in the future. TODO *)
 
-Definition in_shift_range (i : int) : bool :=
+Definition in_shift_range_b (i : int) : bool :=
   (0 <=? signed i) && (signed i <=? int.zintsize).
 
 Definition out_of_shift_range {A} : micro A :=
   crash.
 
 Definition if_in_shift_range {A} (i : int) (m : micro A) :=
-  if in_shift_range i then m else out_of_shift_range.
+  if in_shift_range_b i then m else out_of_shift_range.
 
 (* ------------------------------------------------------------------------ *)
 

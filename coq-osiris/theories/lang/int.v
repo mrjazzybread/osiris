@@ -103,6 +103,12 @@ Definition representable i :=
 Definition urepresentable i :=
   (0 <= i <= max_unsigned).
 
+(* [in_shift_range i] means that the integer [i] is an acceptable
+   second operand to the shift operators [lsl], [lsr], and [asr]. *)
+
+Definition in_shift_range i :=
+  0 <= i <= zintsize.
+
 (* The function [signed : int -> Z] maps a machine integer to the
    ideal integer that it represents. *)
 Definition signed := M.signed.
@@ -288,21 +294,21 @@ Proof. apply M.xor_repr_repr. Qed.
 
 Lemma lsl_repr_repr :
   forall z1 z2,
-  0 <= z2 <= zintsize ->
+  in_shift_range z2 ->
   lsl (repr z1) (repr z2) = repr (Z.shiftl z1 z2).
 Proof. apply M.shl_repr_repr. Qed.
 
 Lemma lsr_repr_repr :
   forall z1 z2,
-  0 <= z1 <= max_unsigned ->
-  0 <= z2 <= zintsize ->
+  urepresentable z1 ->
+  in_shift_range z2 ->
   lsr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
 Proof. apply M.shru_repr_repr. Qed.
 
 Lemma asr_repr_repr :
   forall z1 z2,
-  min_signed <= z1 <= max_signed ->
-  0 <= z2 <= zintsize ->
+  representable z1 ->
+  in_shift_range z2 ->
   asr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
 Proof. apply M.shr_repr_repr. Qed.
 
@@ -330,6 +336,10 @@ Ltac prove_representable_30' :=
 (* TODO eliminate the redundancy between these tactics;
         use a single tactic and make it more robust;
         it should either succeed or fail quickly. *)
+
+(* TODO extend the tactic [representable] to also prove goals
+   of the form [urepresentable z] and [in_shift_range z].
+   Rename the tactic, if desired. *)
 
 Goal representable 1673.
 Proof.
