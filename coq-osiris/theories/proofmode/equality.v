@@ -24,6 +24,8 @@ Global Hint Extern 1 (_ = _) => rewrite Nat2Z.inj_succ : equality.
 
 (* Reasoning about machine integers. *)
 
+(* TODO do we really want/need this? *)
+
 Global Hint Extern 1 (_ = _) => rewrite neg_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite add_repr_repr : equality.
 Global Hint Extern 1 (_ = _) => rewrite sub_repr_repr : equality.
