@@ -161,7 +161,7 @@ Definition eval' η e : micro val :=
       eval η e
   | ELetModule M me e =>
       v ← eval_mexpr η me ;
-      let δ := EnvCons M v EnvNil in
+      let δ := [(M, v)] in
       η ← ret_concat δ η;
       eval η e
   | ELetOpen me e =>

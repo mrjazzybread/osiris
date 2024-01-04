@@ -98,7 +98,7 @@ Qed.
 
 Lemma simp_evals η :
   ∀ es vs,
-  ForallEV (λ e v, simp (eval η e) (ret v)) es vs →
+  Forall2 (λ e v, simp (eval η e) (ret v)) es vs →
   simp (evals η es) (ret vs).
 Proof.
   induction 1; simpl; simp. (* nice and sweet! *)
@@ -111,7 +111,7 @@ Qed.
 (* TODO can we give a generic definition of the encoding of n-tuples? *)
 
 Lemma simp_eval_tuple η es vs :
-  ForallEV (λ e v, simp (eval η e) (ret v)) es vs →
+  Forall2 (λ e v, simp (eval η e) (ret v)) es vs →
   simp (eval η (ETuple es)) (ret (VTuple vs)).
 Proof.
   intros H. apply simp_evals in H. simp.
@@ -188,6 +188,85 @@ Proof.
   simp.
 Qed.
 
+(* Primitive logical operations on machine integers. *)
+
+Lemma simp_eval_lnot η e (z : Z) :
+  simp (eval η e) (ret #z) →
+  simp (eval η (EIntLnot e)) (ret #(Z.lnot z)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLand e1 e2)) (ret #(Z.land z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLor e1 e2)) (ret #(Z.lor z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_eval_lxor η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  simp (eval η (EIntLxor e1 e2)) (ret #(Z.lxor z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+Qed.
+
+Lemma simp_if_in_shift_range {A} z (m : micro A) :
+  in_shift_range z →
+  simp (if_in_shift_range (repr z) m) m.
+Proof.
+  intros.
+  unfold if_in_shift_range, in_shift_range_b.
+  rewrite signed_repr by eauto using in_shift_range_representable.
+  rewrite in_shift_range_b_spec by assumption.
+  simp.
+Qed.
+
+Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  in_shift_range z2 →
+  simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite lsl_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
+Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  urepresentable z1 →
+  in_shift_range z2 →
+  simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite lsr_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
+Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
+  simp (eval η e1) (ret #z1) →
+  simp (eval η e2) (ret #z2) →
+  representable z1 →
+  in_shift_range z2 →
+  simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
+Proof.
+  intros. simpl. unfold as_int. simp.
+  rewrite asr_repr_repr by assumption.
+  eauto using simp_if_in_shift_range.
+Qed.
+
 (* Primitive operations on Booleans. *)
 
 (* The logical model of an OCaml Boolean value can be a Coq Boolean or
@@ -213,7 +292,7 @@ Qed.
 
 Lemma simp_eval_let η x e1 e2 v1 m :
   simp (eval η e1) (ret v1) →
-  (let η' := EnvCons x v1 η in simp (eval η' e2) m) →
+  (let η' := (x, v1) :: η in simp (eval η' e2) m) →
   simp (eval η (ELet1Var x e1 e2)) m.
 Proof.
   intros. simp.
@@ -348,6 +427,76 @@ Proof.
   intros. destruct_pure z2. destruct_pure z1. eauto 10 using simp_eval_div.
 Qed.
 
+(* Primitive logical operations on machine integers. *)
+
+Lemma pure_eval_lnot η e1 (φ1 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  (∀ z1, φ1 z1 → φ (Z.lnot z1)) →
+  pure (eval η (EIntLnot e1)) φ.
+Proof.
+  intros. destruct_pure z1. eauto 6 using simp_eval_lnot.
+Qed.
+
+Lemma pure_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) →
+  pure (eval η (EIntLand e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_land.
+Qed.
+
+Lemma pure_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) →
+  pure (eval η (EIntLor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lor.
+Qed.
+
+Lemma pure_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) →
+  pure (eval η (EIntLxor e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 6 using simp_eval_lxor.
+Qed.
+
+Lemma pure_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) →
+  pure (eval η (EIntLsl e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 7 using simp_eval_lsl.
+Qed.
+
+Lemma pure_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → urepresentable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntLsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_lsr.
+Qed.
+
+Lemma pure_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  pure (eval η e1) φ1 →
+  pure (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  pure (eval η (EIntAsr e1 e2)) φ.
+Proof.
+  intros. destruct_pure z2. destruct_pure z1. eauto 8 using simp_eval_asr.
+Qed.
+
 (* Primitive operations on Booleans. *)
 
 Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
@@ -374,7 +523,7 @@ Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
   (a1 : A1) (ψ : B → Prop)
 :
   simp (eval η e1) (ret #a1) →
-  pure (eval (EnvCons x #a1 η) e) ψ →
+  pure (eval ((x, #a1) :: η) e) ψ →
   pure (eval η (ELet1Var x e1 e)) ψ.
 Proof.
   intros. destruct_pure b. eauto using simp_eval_let.
@@ -384,7 +533,7 @@ Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
   (φ1 : A1 → Prop) (ψ : B → Prop)
 :
   pure (eval η e1) φ1 →
-  (∀ a1, φ1 a1 → pure (eval (EnvCons x #a1 η) e) ψ) →
+  (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ) →
   pure (eval η (ELet1Var x e1 e)) ψ.
 Proof.
   intros. destruct_pure a1. eauto using pure_eval_let'.
@@ -455,14 +604,14 @@ Qed.
 
 Lemma pats_PNil η φ :
   φ η →
-  pats η PNil VNil φ False.
+  pats η [] [] φ False.
 Proof.
   unfold pats. simpl. eauto using total_ret.
 Qed.
 
 Lemma pats_PCons_unary η p ps v vs φ ψ :
   pat η p v (λ η, pats η ps vs φ ψ) ψ →
-  pats η (PCons p ps) (VCons v vs) φ ψ.
+  pats η (p :: ps) (v :: vs) φ ψ.
     (* a simple statement (unused) *)
 Proof.
   unfold pats, pat. intro Hp. simpl.
@@ -473,7 +622,7 @@ Qed.
 Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
   pat η p v φ' ψ1 →
   (∀ η, φ' η → pats η ps vs φ ψ2) →
-  pats η (PCons p ps) (VCons v vs) φ (ψ1 ∨ ψ2).
+  pats η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
     (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
        and where a disjunction is explicitly constructed -- see below. *)
 Proof.
@@ -519,14 +668,14 @@ Proof.
 Qed.
 
 Lemma pat_PVar η x v φ :
-  (let η := EnvCons x v η in φ η) →
+  (let η := (x, v) :: η in φ η) →
   pat η (PVar x) v φ False.
 Proof.
   unfold pat. simpl. eauto using total_ret.
 Qed.
 
 Lemma pat_PAlias η p x v φ ψ :
-  pat η p v (λ η, let η := EnvCons x v η in φ η) ψ →
+  pat η p v (λ η, let η := (x, v) :: η in φ η) ψ →
   pat η (PAlias p x) v φ ψ.
 Proof.
   unfold pat. simpl. intros Hp.
@@ -605,7 +754,7 @@ Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
   v = #xs →
   (∀ x xs',
      xs = x :: xs' →
-     pats η (PCons p1 (PCons p2 PNil)) (VCons #x (VCons #xs' VNil)) φ ψ
+     pats η [p1; p2] [#x; #xs'] φ ψ
   ) →
   pat η (pCons p1 p2) v φ (xs = [] ∨ ψ).
 Proof.
@@ -659,3 +808,4 @@ Proof.
     apply truth_false_elim in Hneq.
     tauto. }
 Qed.
+

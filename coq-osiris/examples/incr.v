@@ -52,7 +52,7 @@ Lemma Incr__spec:
       ("_test", thirteen_spec)
     ]
   in
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   iIntros.

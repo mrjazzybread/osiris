@@ -16,7 +16,7 @@ Local Ltac unpack :=
 Notation "'<closure>'" := (VCloRec _ _ _) (only printing).
 Notation "'<closure>'" := (VClo _ _) (only printing).
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
-  (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
+  (cons x _ (.. (cons z _ nil) ..))
  (only printing).
 
 (* -------------------------------------------------------------------------- *)
@@ -378,7 +378,7 @@ Local Ltac fixme :=
   with_strategy transparent [app] simpl (MkPathRev _); pure1.
 
 Lemma Splay__spec:
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   pure (eval_mexpr η __main)
        (λ (_ : val), True). (* TODO missing postcondition *)
 Proof.

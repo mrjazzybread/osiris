@@ -5,9 +5,9 @@ Local Open Scope nat_scope.
 Local Set Warnings "-abstract-large-number".
 
 Definition do_something (v : val) : micro val :=
-  let η := EnvCons "v" v EnvNil in
+  let η := [("v", v)] in
   v ← lookup_name η "v" ;
-  let η := EnvCons "x" v EnvNil in
+  let η := [("x", v)] in
   v ← lookup_name η "x" ;
   ret v.
 
