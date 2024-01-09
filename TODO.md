@@ -37,6 +37,16 @@
 * Generates Coq encoding boilerplate for algebraic data types.
   See if Arthur's code can be re-used.
 
+## Tutorial
+
+* Make the tutorial easily readable online, e.g. via GitLab Pages,
+  or by copying it to a separate server.
+
+* Use CSS to enlarge the text width (the margins are currently too wide)
+  and increase the font size.
+
+* Try to improve the suboptimal rendering of Coq's `Check` commands.
+
 ## OCaml standard library
 
 * What version of the OCaml standard library do we embark?
