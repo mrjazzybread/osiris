@@ -103,6 +103,10 @@ and fcoercions =
 
 type expr =
 
+  (* This pseudo-node carries a decoration, a piece of text extracted
+     from the OCaml source code. *)
+  | EDecorate of string * expr
+
   (* A placeholder for as-yet-unsupported constructs. *)
   | EUnsupported
 
@@ -146,6 +150,9 @@ type expr =
   | EIntMul of expr * expr
   | EIntDiv of expr * expr
   | EIntMod of expr * expr
+
+  (* Floating-point literals. *)
+  | EFloat of string
 
   (* Character literals. *)
   | EChar of char
@@ -209,11 +216,11 @@ and exprs =
 
 (* Lists of field-expression pairs. *)
 
+and fexpr =
+  | Fexpr of field * expr
+
 and fexprs =
   fexpr list
-
-and fexpr =
-  field * expr
 
 (* A branch is of the form [p -> e]. *)
 

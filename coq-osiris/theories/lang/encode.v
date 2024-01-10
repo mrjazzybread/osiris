@@ -176,6 +176,24 @@ Proof.
   { intro H. eapply truth_true in H. congruence. }
 Qed.
 
+(* If [truth P] is [false] then  [P] is false. *)
+
+Lemma truth_false_elim (P : Prop) :
+  truth P = false →
+  ¬ P.
+Proof.
+  intros H. generalize (truth_elim P). rewrite H. tauto.
+Qed.
+
+(* If [truth P] is [true] then  [P] is true. *)
+
+Lemma truth_true_elim (P : Prop) :
+  truth P = true →
+  P.
+Proof.
+  intros H. generalize (truth_elim P). rewrite H. tauto.
+Qed.
+
 (* [truth : Prop → bool] is the inverse of [Is_true : bool → Prop]. *)
 
 Lemma truth_Is_true b :
@@ -266,14 +284,21 @@ Global Hint Resolve solve_encode_int : encode.
 (* This should help: *)
 
 Global Hint Resolve
-   neg_repr
-   add_repr_repr
-   sub_repr_repr
-   mul_repr_repr
-   divs_repr_repr
-   mods_repr_repr
-   eq_repr_repr
-   lt_repr_repr
+  neg_repr
+  add_repr_repr
+  sub_repr_repr
+  mul_repr_repr
+  divs_repr_repr
+  mods_repr_repr
+  eq_repr_repr
+  lt_repr_repr
+  lnot_repr
+  land_repr_repr
+  lor_repr_repr
+  lxor_repr_repr
+  lsl_repr_repr
+  lsr_repr_repr
+  asr_repr_repr
 : encode.
 
 (* TODO add hints that help prove [representable z]. *)
@@ -320,8 +345,8 @@ Global Hint Resolve solve_encode_loc : encode.
 
 Fixpoint encode_list `{Encode A} (xs : list A) :=
   match xs with
-  | []      => vNil
-  | x :: xs => vCons #x (encode_list xs)
+  | []      => VNil
+  | x :: xs => VCons #x (encode_list xs)
   end.
 
 Global Instance Encode_list `{Encode A} : Encode (list A) :=
@@ -334,7 +359,7 @@ Proof. solve_encode. Qed.
 
 Lemma solve_encode_Nil `{Encode A} (xs : list A) :
   [] = xs →
-  vNil = #xs.
+  VNil = #xs.
 Proof. solve_encode. Qed.
   (* TODO If [xs] and [A] are metavariables then Coq will refuse
           to apply this lemma because it cannot guess [A].
@@ -345,7 +370,7 @@ Lemma solve_encode_Cons `{Encode A} (xs : list A) x xs' v1 v2 :
   x :: xs' = xs →
   v1 = #x →
   v2 = #xs' →
-  vCons v1 v2 = #xs.
+  VCons v1 v2 = #xs.
 Proof. solve_encode. Qed.
 
 Global Hint Resolve

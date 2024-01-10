@@ -38,22 +38,29 @@ let print (out_file : filename) (defs : Coq.defs) =
   let ribbon = 1.0
   and width = 80 in
   PPrint.ToChannel.pretty ribbon width f (Print.defs defs);
-  fprintf f "\n(* Done. *)%!";
   close_out f
 
 (* -------------------------------------------------------------------------- *)
 
 (* Translating one file. *)
 
-let translate out_file cmt_file =
+let translate ml_file cmt_file out_file =
+  assert (is_absolute ml_file);
   assert (is_absolute cmt_file);
   assert (is_absolute out_file);
+
+  (* Read the .ml file, which contains the OCaml source code.
+     This is used only for decorations, which carry substrings
+     extracted out of the source code.  *)
+  let osource : string option =
+    if Settings.decorate then Some (IO.read_whole_file ml_file) else None
+  in
 
   (* Read the .cmt file, which contains a typed OCaml AST. *)
   let u : Typedtree.structure = read cmt_file in
 
   (* Convert this typed OCaml AST to an Osiris AST. *)
-  let u : Syntax.mexpr = Translate.unit u in
+  let u : Syntax.mexpr = Translate.unit osource u in
 
   let u : Coq.expression = Coqify.module_expression u in
   let def : Coq.def = Coq.{ lhs = "__main"; rhs = u } in
@@ -97,13 +104,15 @@ let process m =
   (* Find the [.cmt] file, relative to the dune root directory. *)
   let cmt_file = Dune.cmt m table in
   say "    .cmt file: %s\n" cmt_file;
-  (* Construct the absolute path of the input [.cmt] file. *)
-  let cmt_file = concat Settings.root cmt_file in
   (* Construct the absolute path of the output [.v] file. *)
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
+  (* Construct the absolute path of the input [.ml] file. *)
+  let ml_file = concat Settings.root ml_file in
+  (* Construct the absolute path of the input [.cmt] file. *)
+  let cmt_file = concat Settings.root cmt_file in
   (* Translate this file. *)
-  translate v_file cmt_file
+  translate ml_file cmt_file v_file
 
 (* -------------------------------------------------------------------------- *)
 

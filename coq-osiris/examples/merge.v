@@ -4,13 +4,11 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
-Local Opaque app. (* Prevent undesired simplification. *)
-
 
 Notation "'<(' f ')>'" := (VCloRec _ _ f) (only printing).
 Notation "'<' f '>'" := (VClo _ f) (only printing).
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
-  (EnvCons x _ (.. (EnvCons z _ EnvNil) ..))
+  (cons x _ (.. (cons z _ nil) ..))
  (only printing).
 
 (* -------------------------------------------------------------------------- *)
@@ -177,12 +175,13 @@ Proof.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions. pure1. pure_continue.
+  (* TODO: Environments are too present in the goal *)
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
-  { (* Case: h2 < h1 *)
+  { (* Case: h2 < h1 *) Transparent app. simpl.
     pure_execute.
-    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *) 
     eapply pure_bind_binary.
     { apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
@@ -196,9 +195,12 @@ Proof.
     eapply pure_ret; first solve [encode]. split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
+      eapply (HdRel_Sorted_Permutation l' (h1 :: t1) t2); eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      rewrite_permutation l'. apply Permutation_sym; apply Permutation_middle. }}
+      rewrite_permutation l'.
+      apply Permutation_sym.
+      change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
+      apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
     pure_execute.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
@@ -254,16 +256,47 @@ Lemma pat_pCons_under `{Encode A} η p1 p2 v (xs : list A) φ ψ :
   xs <> [] ->
   (∀ x xs',
      xs = x :: xs' →
-     pats η (PCons p1 (PCons p2 PNil)) (VCons #x (VCons #xs' VNil)) φ ψ
+     pats η [p1; p2] [#x; #xs'] φ ψ
   ) →
   pat η (pCons p1 p2) v φ ψ.
 Proof.
   intros ?? Hpp.
-  eapply pat_consequence_psi. eapply pat_pCons; eauto.
-  intros [|]; [contradiction | tauto].
+  eapply pat_pCons with (θ:=fun x xs => ψ); eauto.
+  intros [(_ & _ & _ & ?)|]; [ tauto | contradiction ].
 Qed.
 
 Transparent ret_concat.
+
+Lemma pat_pNil2`{Encode A} η v (xs : list A) (φ : env -> Prop) :
+  v = #xs →
+  φ η →
+  pat η pNil v (λ η', xs = [] /\ φ η') (xs ≠ []).
+Proof.
+  intros; subst.
+  eapply pat_consequence with (φ:=fun η' => xs = [] /\ φ η');
+    eauto using pat_pNil.
+Qed.
+
+Lemma pats_PCons2 η p ps v vs φ' φ ψ1 ψ2 :
+  pat η p v φ' ψ1 →
+  (forall η', φ' η' -> pats η' ps vs φ ψ2) →
+  pats η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
+Proof.
+  intros. eapply pats_PCons; eauto.
+Qed.
+
+
+Lemma pats_PCons_var η x ps vs v φ ψ :
+  pats ((x, v) :: η) ps vs φ ψ →
+  pats η (PVar x :: ps) (v :: vs) φ (ψ).
+Proof.
+  intros.
+  eapply pats_consequence_psi.
+  eapply pats_PCons.
+  - apply pat_PVar. apply eq_refl.
+  - by intros ? <-.
+  - tauto.
+Qed.
 
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
@@ -272,7 +305,7 @@ Proof.
   pure_rec l (@wf_list_length A).
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   intros ? <-. unfold __branches6; simpl.
-  (* Match l with | [] | ... *)
+  (* First branch of match: l = [] *)
   eapply pure_match_cons.
   { (* Pattern [] l *)
     eapply pat_pNil; first solve [encode].
@@ -283,23 +316,21 @@ Proof.
     (* Establish postcondition *)
     by simpl. }
   intros l_neq_nil.
-  (* Match l with | [x] | ... *)
-  eapply pure_match_cons_unary.
-  (* Pattern (x :: []) l *)
-  eapply pat_pCons_under; eauto.
-  (* Substitute l with h :: t *)
-  intros h t ->; clear l_neq_nil.
-  (* Patterns (x :: []) (#h :: #t) *)
-  eapply pats_consequence_psi.
-  { apply pats_PCons.
-    (* Pattern x h *)
-    apply pat_PVar.
+  (* Second branch of match, l = [x] *)
+  eapply pure_match_cons.
+  { (* Pattern (x :: []) l *)
+    eapply pat_pCons; eauto.
+    (* Substitute l with h :: t *)
+    intros h t Heql; clear l_neq_nil.
+    (* Patterns (x :: []) (#h :: #t) *)
+    eapply pats_PCons_var.
     (* Patterns [] #t *)
-    apply pats_PCons_single.
+    eapply pats_PCons.
     (* Pattern [] #t *)
-    eapply pat_pNil; first solve [encode].
+    eapply pat_pNil2; first solve [encode]. apply eq_refl.
     (* Substitute t with [] *)
-    intros ?; subst.
+    intros ?; simpl; intros [Heqt <-].
+    apply pats_PNil.
     (* Eval ([x], []) *)
     apply pure_eval_pair.
     (* Eval [x] *)
@@ -309,60 +340,78 @@ Proof.
     (* Eval [] *)
     pure_const.
     (* Establish postcondition *)
-    by simpl. }
-  intros [|t_neq_nil]; try contradiction.
+    by rewrite Heql, Heqt. }
+  intros [(h & t & Heql & tneq) |t_neq_nil]; last contradiction.
+  repeat (destruct tneq as [? | tneq]; try contradiction).
   (* Match l with | x1 :: x2 :: t *)
-  apply pure_match_single.
-  (* Pattern (x1 :: x2 :: t) #(h :: t) *)
-  eapply pat_pCons_under; eauto.
-  intros x1 tmp eq; injection eq; intros -> ->.
-  (* Patterns (x1 :: (x2 :: t)) (#x1 :: #tmp) *)
-  eapply pats_consequence_psi.
-  eapply pats_PCons.
-  { (* Pattern x1 #x1 *)
-    apply pat_PVar.
+  rewrite Heql.
+  eapply pure_match_cons.
+  { (* Pattern (x1 :: x2 :: t) #(h :: t) *)
+    eapply pat_pCons; eauto.
+    intros x1 ? Heqht.
+    (* Patterns (x1 :: (x2 :: t)) (#x1 :: #tmp) *)
+    apply pats_PCons_var.
     (* Patterns [(x2::t)] #tmp *)
-    apply pats_PCons_single. eapply pat_pCons_under; eauto.
-    (* Substitute tmp with (x2 :: t) *)
-    intros x2 t ->.
-    (* Patterns (x2 :: t) (#x2 :: #t) *)
-    eapply pats_PCons.
-    { (* Pattern x2 #x2 *)
-      apply pat_PVar.
-      (* Patterns t #t *)      
-      apply pats_PCons_single. apply pat_PVar.
-      (* Eval let (l1, l2) = split t *)
-      eapply pure_eval_let_pair.
-      eapply pure_eval_app. pure_path. pure_path.
-      (* Call vf #t *)
-      eapply pure_consequence.
-      { (* Use induction hypothesis *)
-        apply IH; eauto with arith. }
-      intros [l1 l2] Hpost; clear IH t_neq_nil eq; simpl.
-      unfold __exp5; simpl.
-      (* Eval (x1::l1, x2::l2) *)
-      apply pure_eval_pair.
+    eapply pats_PCons2 with
+      (φ':= fun η' => exists x2 xs, xs' = x2 :: xs /\
+                              η' = [("t", #xs);
+                                    ("x2", #x2);
+                                    ("x1", #x1);
+                                    ("l", encode_list (h :: t));
+                                    ("split", vf)] ++ η).
+    {
+      eapply pat_pCons; eauto.
+      intros x2 xs Heqxs.
+      (* Patterns (x2 :: t) (#x2 :: #t) *)
+      apply pats_PCons_var.
+      (* Patterns t #t *)
+      apply pats_PCons_var.
+      apply pats_PNil.
+      eauto. }
+    (* clean assumptions to just have [l = x1 :: x2 :: xs] *)
+    intros ? (x2 & xs & -> & ->). simpl.
+    injection Heqht; clear Heqht. intros -> ->.
+    clear l_neq_nil H0.
+    apply pats_PNil.
+    (* Eval let (l1, l2) = split t *)
+    eapply pure_eval_let_pair.
+    eapply pure_eval_app. pure_path. pure_path.
+    (* Call vf #t *)
+    eapply pure_consequence.
+    { (* Use induction hypothesis *)
+      apply IH; first done.
+      rewrite Heql; eauto with arith. }
+    intros [l1 l2] Hpost; clear IH; simpl.
+    unfold __exp5; simpl.
+    (* Eval (x1::l1, x2::l2) *)
+    apply pure_eval_pair.
       (* Eval x1::l1 *)
-      apply pure_eval_data.
-      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-      (* Eval x2::l2 *)
-      apply pure_eval_data.
-      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-      (* Establish postcondition *)
-      unfold split_post in *; simpl in *.
-      repeat destruct_hyp.
-      split; last split.
-      { (* Subgoal: the length of l1 is half the length of l *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Eval x2::l2 *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Establish postcondition *)
+    unfold split_post in *; simpl in *.
+    repeat destruct_hyp.
+    split; last split.
+    { (* Subgoal: the length of l1 is half the length of l *)
         destruct (Nat.even _); eauto with arith. }
-      { (* Subgoal: the length of l2 is hald the length of l *)
-        eauto with arith. }
-      { (* Subgoal: l1++l2 is a permutation of l *)
-        rewrite_permutation l.
-        change ((x1::l1)++x2::l2) with (x1::l1++x2::l2).
-        apply Permutation_skip.
-        apply Permutation_sym.
-        apply Permutation_middle. } } }
-  tauto.
+    { (* Subgoal: the length of l2 is hald the length of l *)
+      eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of l *)
+      rewrite_permutation xs.
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. } }
+  (* Show that going past the last branch of the match is impossible *)
+  intros [ Hf | F]; last discriminate.
+  destruct Hf as (x1 & xs' & Heqht & Hf).
+  destruct Hf as [Hf | F]; last contradiction.
+  destruct Hf as [(? & ? & ? & F) | Heqxs']; first contradiction.
+  exfalso.
+  injection Heqht; intros -> ->.
+  contradiction.
 Qed.
 
 Opaque ret_concat.
@@ -432,7 +481,7 @@ Qed.
 (* Main module specification. *)
 
 Lemma Merge__spec:
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   pure (eval_mexpr η __main)
     (is_module_with_pspecs [("merge", merge_spec);
                         ("split", split_spec);

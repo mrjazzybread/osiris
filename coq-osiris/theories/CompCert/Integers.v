@@ -78,9 +78,34 @@ Proof.
   unfold zwordsize, wordsize. generalize WS.wordsize_not_zero. lia.
 Qed.
 
+Remark wordsize_nonneg: zwordsize >= 0.
+Proof.
+  generalize wordsize_pos. lia.
+Qed.
+
 Remark modulus_power: modulus = two_p zwordsize.
 Proof.
   unfold modulus. apply two_power_nat_two_p.
+Qed.
+
+Remark zwordsize_lt_half_modulus: zwordsize < half_modulus.
+Proof.
+  unfold half_modulus.
+  rewrite modulus_power.
+  assert (zwordsize > 1). admit. (* TODO *)
+Admitted. (* TODO *)
+
+Remark zwordsize_lt_modulus: zwordsize < modulus.
+Proof.
+  rewrite modulus_power.
+  apply two_p_strict.
+  apply wordsize_nonneg.
+Qed.
+
+Remark zwordsize_le_max_unsigned :
+  zwordsize <= max_unsigned.
+Proof.
+  unfold max_unsigned. generalize zwordsize_lt_modulus. lia.
 Qed.
 
 Remark modulus_gt_one: modulus > 1.
@@ -336,11 +361,28 @@ Proof.
   generalize wordsize_pos; lia.
 Qed.
 
+(* fpottier *)
+Lemma div2_le_self x :
+  0 <= x ->
+  x / 2 <= x.
+Proof.
+  intros. generalize (Z.mul_div_le x 2). lia.
+Qed.
+
+(* fpottier *)
+Lemma div2_lt_self x :
+  0 < x ->
+  x / 2 < x.
+Proof.
+  intros. generalize (Z.mul_div_le x 2). lia.
+Qed.
+
 (** Relative positions, from greatest to smallest:
 <<
+      modulus
       max_unsigned
+      half_modulus
       max_signed
-      2*wordsize-1
       wordsize
       0
       min_signed
@@ -362,12 +404,15 @@ Proof.
   unfold max_signed. generalize half_modulus_pos. lia.
 Qed.
 
+(* fpottier *)
+Remark wordsize_max_signed: zwordsize <= max_signed.
+Proof.
+  unfold max_signed. generalize zwordsize_lt_half_modulus. lia.
+Qed.
+
 Remark wordsize_max_unsigned: zwordsize <= max_unsigned.
 Proof.
-  assert (zwordsize < modulus).
-    rewrite modulus_power. apply two_p_strict.
-    generalize wordsize_pos. lia.
-  unfold max_unsigned. lia.
+  exact zwordsize_le_max_unsigned.
 Qed.
 
 Remark two_wordsize_max_unsigned: 2 * zwordsize - 1 <= max_unsigned.
@@ -382,6 +427,32 @@ Proof.
   unfold max_signed, max_unsigned. rewrite half_modulus_modulus.
   generalize half_modulus_pos. lia.
 Qed.
+
+(* fpottier *)
+Remark max_signed_half_modulus: max_signed < half_modulus.
+Proof. unfold max_signed. lia. Qed.
+
+(* fpottier *)
+Remark half_modulus_le_modulus: half_modulus <= modulus.
+Proof. generalize modulus_pos. rewrite !half_modulus_modulus. lia. Qed.
+
+(* fpottier *)
+Remark max_signed_modulus: max_signed < modulus.
+Proof. generalize max_signed_half_modulus, half_modulus_le_modulus. lia. Qed.
+
+(* fpottier *)
+Remark half_modulus_max_unsigned:
+  half_modulus <= max_unsigned.
+Proof.
+  unfold half_modulus, max_unsigned.
+  generalize modulus_pos; intro.
+  generalize (div2_lt_self modulus); intro.
+  lia.
+Qed.
+
+(* fpottier *)
+Remark max_unsigned_modulus: max_unsigned < modulus.
+Proof. unfold max_unsigned. lia. Qed.
 
 Lemma unsigned_repr_eq:
   forall x, unsigned (repr x) = Z.modulo x modulus.
@@ -694,6 +765,19 @@ Proof.
   intros.
   rewrite eq_signed.
   rewrite !signed_repr by assumption.
+  destruct (zeq z1 z2); destruct (Z.eqb_spec z1 z2);
+  try reflexivity; lia.
+Qed.
+
+(* fpottier *)
+Lemma eq_repr_repr_unsigned z1 z2 :
+  0 <= z1 <= max_unsigned ->
+  0 <= z2 <= max_unsigned ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof.
+  intros.
+  unfold eq. (* same as [rewrite eq_unsigned], which does not exist *)
+  rewrite !unsigned_repr by assumption.
   destruct (zeq z1 z2); destruct (Z.eqb_spec z1 z2);
   try reflexivity; lia.
 Qed.
@@ -1286,11 +1370,31 @@ Proof.
   intros. unfold and. rewrite testbit_repr; auto. rewrite Z.land_spec; intuition.
 Qed.
 
+(* fpottier *)
+Lemma and_repr_repr x y :
+  and (repr x) (repr y) = repr (Z.land x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_and by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.land_spec.
+Qed.
+
 Lemma bits_or:
   forall x y i, 0 <= i < zwordsize ->
   testbit (or x y) i = testbit x i || testbit y i.
 Proof.
   intros. unfold or. rewrite testbit_repr; auto. rewrite Z.lor_spec; intuition.
+Qed.
+
+(* fpottier *)
+Lemma or_repr_repr x y :
+  or (repr x) (repr y) = repr (Z.lor x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_or by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.lor_spec.
 Qed.
 
 Lemma bits_xor:
@@ -1300,11 +1404,31 @@ Proof.
   intros. unfold xor. rewrite testbit_repr; auto. rewrite Z.lxor_spec; intuition.
 Qed.
 
+(* fpottier *)
+Lemma xor_repr_repr x y :
+  xor (repr x) (repr y) = repr (Z.lxor x y).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_xor by eauto.
+  rewrite !testbit_repr by eauto.
+  eauto using Z.lxor_spec.
+Qed.
+
 Lemma bits_not:
   forall x i, 0 <= i < zwordsize ->
   testbit (not x) i = negb (testbit x i).
 Proof.
   intros. unfold not. rewrite bits_xor; auto. rewrite bits_mone; auto.
+Qed.
+
+(* fpottier *)
+Lemma not_repr x :
+  not (repr x) = repr (Z.lnot x).
+Proof.
+  eapply same_bits_eq. intros.
+  rewrite bits_not by eauto.
+  rewrite !testbit_repr by eauto.
+  rewrite Z.lnot_spec by tauto. eauto.
 Qed.
 
 #[global]
@@ -1690,6 +1814,42 @@ Proof.
   apply Z.shiftl_spec_high. lia. lia.
 Qed.
 
+(* fpottier *)
+Lemma shl_repr_repr' x y :
+  0 <= y <= max_unsigned ->
+  shl (repr x) (repr y) = repr (Z.shiftl x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shl.
+  rewrite (unsigned_repr y) by assumption.
+  rewrite !testbit_repr by eauto.
+  destruct (zlt i y); [
+    rewrite !Z.shiftl_spec_low by lia
+  | rewrite !Z.shiftl_spec_high by lia
+  ].
+  { reflexivity. }
+  { eapply same_bits_eqm; [| lia ].
+    eapply eqm_sym.
+    eapply eqm_unsigned_repr. }
+Qed.
+
+(* fpottier *)
+Local Lemma a_fortiori y :
+  0 <= y <= zwordsize ->
+  0 <= y <= max_unsigned.
+Proof.
+  generalize zwordsize_le_max_unsigned; intro. lia.
+Qed.
+
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
+Lemma shl_repr_repr x y :
+  0 <= y <= zwordsize ->
+  shl (repr x) (repr y) = repr (Z.shiftl x y).
+Proof.
+  eauto using shl_repr_repr', a_fortiori.
+Qed.
+
 Lemma bits_shru:
   forall x y i,
   0 <= i < zwordsize ->
@@ -1704,6 +1864,39 @@ Proof.
   lia.
 Qed.
 
+(* fpottier *)
+(* This lemma requires [x] to be nonnegative. Indeed, if [x] is negative
+   then the lemma is false. [shru] introduces zeroes on the left, whereas
+   [Z.shiftr x] inserts ones if [x] is negative. *)
+Lemma shru_repr_repr' x y :
+  0 <= x <= max_unsigned ->
+  0 <= y <= max_unsigned ->
+  shru (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shru.
+  rewrite (unsigned_repr y) by assumption.
+  rewrite !testbit_repr by eauto.
+  rewrite !Z.shiftr_spec by lia.
+  rewrite unsigned_repr_eq. rewrite modulus_power.
+  rewrite Ztestbit_mod_two_p by lia.
+  destruct (zlt (i + y) zwordsize).
+  { reflexivity. }
+  { symmetry.
+    eapply (Ztestbit_above wordsize); [| assumption ].
+    fold modulus. generalize max_unsigned_modulus; intro. lia. }
+Qed.
+
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
+Lemma shru_repr_repr x y :
+  0 <= x <= max_unsigned ->
+  0 <= y <= zwordsize ->
+  shru (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  eauto using shru_repr_repr', a_fortiori.
+Qed.
+
 Lemma bits_shr:
   forall x y i,
   0 <= i < zwordsize ->
@@ -1714,6 +1907,31 @@ Proof.
   rewrite Z.shiftr_spec. apply bits_signed.
   generalize (unsigned_range y); lia.
   lia.
+Qed.
+
+(* fpottier *)
+Lemma shr_repr_repr' x y :
+  min_signed <= x <= max_signed ->
+  0 <= y <= max_unsigned ->
+  shr (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  intros.
+  eapply same_bits_eq. intros. unfold shr.
+  rewrite (unsigned_repr y) by assumption.
+  rewrite !testbit_repr by eauto.
+  rewrite !Z.shiftr_spec by lia.
+  rewrite signed_repr by assumption.
+  reflexivity.
+Qed.
+
+(* fpottier *)
+(* Same lemma as above, with a stronger assumption about [y]. *)
+Lemma shr_repr_repr x y :
+  min_signed <= x <= max_signed ->
+  0 <= y <= zwordsize ->
+  shr (repr x) (repr y) = repr (Z.shiftr x y).
+Proof.
+  eauto using shr_repr_repr', a_fortiori.
 Qed.
 
 #[global]

@@ -1,17 +1,18 @@
+
 Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import osiris. (* .none *)
 From osiris.program_logic Require Import safe. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
-Implicit Type p : pat. (* .none *)
-Implicit Type ps : pats. (* .none *)
+Implicit Type p : syntax.pat. (* .none *)
+Implicit Type ps : list syntax.pat. (* .none *)
 Implicit Type e : expr. (* .none *)
-Implicit Type es : exprs. (* .none *)
+Implicit Type es : list expr. (* .none *)
 Implicit Type a : anonfun. (* .none *)
 Implicit Type v : val. (* .none *)
-Implicit Type vs : vals. (* .none *)
+Implicit Type vs : list val. (* .none *)
 Implicit Type η δ : env. (* .none *)
-Implicit Type rbs : rec_bindings. (* .none *)
+Implicit Type rbs : list rec_binding. (* .none *)
 Implicit Type i : int. (* .none *)
 Implicit Type b : bool. (* .none *)
 
@@ -23,7 +24,7 @@ A Program Logic for OCaml
 =========================
 |*)
 
-Notation ε := EnvNil. (* .none *)
+Notation ε := []. (* .none *)
 Notation int := int.int. (* .none *)
 
 (*|

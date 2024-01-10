@@ -224,10 +224,22 @@ Qed.
 Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
   pure (
     let δ := eval_rec_bindings η rbs in
-    let η := concat δ η in
+    let η := δ ++ η in
     a ← lookup_rec_bindings rbs g ;
     acall η a v2
   ) φ ->
+  pure (call (VCloRec η rbs g) v2) φ.
+Proof.
+  tauto.
+Qed.
+
+Lemma pure_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
+  pure (
+    let δ := eval_rec_bindings η rbs in
+    let η := δ ++ η in
+    a ← lookup_rec_bindings rbs g ;
+    acall η a v2
+  ) φ =
   pure (call (VCloRec η rbs g) v2) φ.
 Proof.
   tauto.
@@ -252,12 +264,12 @@ Qed.
 
 (* Replace the first occurence of a var in an environment *)
 
-Fixpoint replace_env_binding η name val {struct η} :=
+Fixpoint replace_env_binding η (name : var) (x : val) {struct η} :=
   match η with
-  | EnvNil => EnvNil
-  | EnvCons name0 val0 η0 =>
-      if (name =? name0)%string then EnvCons name val η0 else
-        EnvCons name0 val0 (replace_env_binding η0 name val)
+  | [] => []
+  | (name0, val0) :: η0 =>
+      if (name =? name0)%string then (name, x) :: η0 else
+        (name0, val0) :: (replace_env_binding η0 name x)
   end.
 
 Lemma lookup_rec_bindings_cases rbs g :
@@ -281,7 +293,7 @@ Lemma replace_env_idempotent η fname vf :
   lookup_name η fname = ret vf -> replace_env_binding η fname vf = η.
 Proof.
   intros Hlkp.
-  induction η as [|fname' ? η IHη]; first discriminate.
+  induction η as [| [fname' ?] η IHη]; first discriminate.
   simpl in *. destruct (fname =? fname')%string eqn:name_eq.
   { apply String.eqb_eq in name_eq as ->. injection Hlkp as ->. reflexivity. }
   by rewrite IHη.
@@ -289,10 +301,10 @@ Qed.
 
 Lemma replace_env_binding_concat1 η1 η2 fname v :
   (exists vf, lookup_name η1 fname = ret vf) ->
-  replace_env_binding (concat η1 η2) fname v = concat (replace_env_binding η1 fname v) η2.
+  replace_env_binding (η1 ++ η2) fname v = (replace_env_binding η1 fname v) ++ η2.
 Proof.
   intros [vf Hlkp].
-  induction η1 as [|fname' ? η1 IHη1]; first discriminate.
+  induction η1 as [| [fname' ?] η1 IHη1]; first discriminate.
   simpl in *. destruct (fname =? fname')%string eqn:name_eq; first reflexivity.
   by rewrite IHη1.
 Qed.
@@ -328,10 +340,10 @@ Qed.
 Lemma replace_binding_idempotent η rbs fname afun :
   lookup_rec_bindings rbs fname = ret afun ->
   (replace_env_binding
-     (concat (eval_rec_bindings η rbs) η)
+     ((eval_rec_bindings η rbs) ++ η)
      fname
      (VCloRec η rbs fname) =
-     concat (eval_rec_bindings η rbs) η).
+     (eval_rec_bindings η rbs) ++ η).
 Proof.
   intros Hlkp.
   apply lookup_eval_bindings with (η:=η) in Hlkp.
@@ -369,7 +381,7 @@ Qed.
 (* (* Todo: write comment *) *)
 
 Lemma pure_rec_call `{Encode X} `{Encode Y}
-  (η : env) (rbs : rec_bindings) (fname : var) (v : X)
+  (η : env) (rbs : list rec_binding) (fname : var) (v : X)
   (P : X -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P v ->
@@ -382,7 +394,7 @@ Lemma pure_rec_call `{Encode X} `{Encode Y}
       pure ('afun ← lookup_rec_bindings rbs fname ;
             let δ := replace_env_binding (eval_rec_bindings η rbs) fname vf in
             let 'AnonFun x e := afun in
-            eval (EnvCons x #v' (concat δ η)) e
+            eval ((x, #v') :: δ ++ η) e
         ) (φ v')) ->
   pure (call (VCloRec η rbs fname) #v) (φ v).
 Proof.
@@ -402,13 +414,6 @@ Qed.
 Notation "fname 'to' afun" :=
   (RecBinding fname afun) (at level 50).
 
-Notation "'RecBind' x" := (RecBiCons x RecBiNil) (at level 70). 
-
-Notation "'RecBinds' x ; y ; .. ; z" :=
-  (RecBiCons x (RecBiCons y .. (RecBiCons z RecBiNil) ..))
-    (at level 60,
-      format "'RecBinds'  x ;  '/' y ; '/' .. ; '/' z").
-
 Lemma pure_rec_call_unary `{Encode X} `{Encode Y}
   (η : env) afun (fname : var) (v : X)
   (P : X -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
@@ -421,8 +426,8 @@ Lemma pure_rec_call_unary `{Encode X} `{Encode Y}
           R v'' v' ->
           pure (call vf #v'') (φ v'')) -> 
       pure (let 'AnonFun x e := afun in
-            eval (EnvCons x #v' (EnvCons fname vf η)) e) (φ v')) ->
-  pure (call (VCloRec η (RecBind fname to afun) fname) #v) (φ v).
+            eval ((x, #v') :: (fname, vf) :: η) e) (φ v')) ->
+  pure (call (VCloRec η [RecBinding fname afun] fname) #v) (φ v).
 Proof.
 (*   intros Hwf HP Hrec. *)
 (*   eapply pure_rec_call. *)
@@ -451,9 +456,9 @@ Lemma pure_rec_call_binary_mutual `{Encode X} `{Encode Y}
       pure (let 'AnonFun x e := afun in
             eval (x ~> #v';
                   fname ~> vf;
-                  gname ~> (VCloRec η (RecBinds fname to afun; gname to agun) gname);
+                  gname ~> (VCloRec η [RecBinding fname afun; RecBinding gname agun] gname);
                   η) e) (φ v')) ->
-  pure (call (VCloRec η (RecBinds fname to afun; gname to agun) fname) #v) (φ v).
+  pure (call (VCloRec η [RecBinding fname afun; RecBinding gname agun] fname) #v) (φ v).
 Proof.
 (*   intros Hwf HP Hrec. *)
 (*   eapply pure_rec_call. *)
@@ -485,19 +490,19 @@ Lemma pure_rec_call_binary_mutual_aliasing `{Encode X} `{Encode Y}
                     then vf
                     else (VCloRec
                             η
-                            (RecBinds
-                               gname to (AnonFun garg eg);
-                             fname to (AnonFun farg ef))
+                            [RecBinding gname (AnonFun garg eg);
+                             RecBinding fname (AnonFun farg ef)]
                             gname);
                   fname ~>
                     if (fname =? gname)%string
                     then (VCloRec η
-                            (RecBinds
-                               gname to (AnonFun garg eg); fname to (AnonFun farg ef))
+                            [RecBinding gname (AnonFun garg eg);
+                             RecBinding fname (AnonFun farg ef)]
                             fname)
                     else vf;
                   η) (if (fname =? gname)%string then eg else ef)) (φ v')) ->
-  pure (call (VCloRec η (RecBinds gname to (AnonFun garg eg); fname to (AnonFun farg ef)) fname) #v) (φ v).
+  pure (call (VCloRec η [RecBinding gname (AnonFun garg eg);
+                         RecBinding fname (AnonFun farg ef)] fname) #v) (φ v).
 Proof.
 (*   intros Hwf HP Hrec. *)
 (*   eapply pure_rec_call. *)
@@ -529,10 +534,12 @@ Lemma pure_rec_call_binary_mutual2 `{Encode X} `{Encode Y}
           pure (call vf #v'') (φ v'')) -> 
       pure (eval (farg ~> #v';
                   gname ~>
-                    (VCloRec η (RecBinds gname to agun; fname to (AnonFun farg ef)) gname);
+                    (VCloRec η [RecBinding gname agun;
+                                RecBinding fname (AnonFun farg ef)] gname);
                   fname ~> vf;
                   η) ef) (φ v')) ->
-  pure (call (VCloRec η (RecBinds gname to agun; fname to (AnonFun farg ef)) fname) #v) (φ v).
+  pure (call (VCloRec η [RecBinding gname agun;
+                         RecBinding fname (AnonFun farg ef)] fname) #v) (φ v).
 Proof.
 (*   intros Hwf HP Hname Hrec. *)
 (*   eapply pure_rec_call. *)
@@ -555,7 +562,7 @@ Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
 Lemma pure_nested_rec_call `{Encode A} `{Encode B} `{Encode C}
   (η : env) farg farg2 ef ef2 (fname : var) (v1 : A) (v2 : B)
   (P : A -> B -> Prop) (φ : A -> B -> C -> Prop) (R : (A * B) -> (A * B) -> Prop) :
-  let vclo := (VCloRec η (RecBind fname to (AnonFun farg ef)) fname) in
+  let vclo := (VCloRec η [RecBinding fname (AnonFun farg ef)] fname) in
   well_founded R ->
   P v1 v2 ->
   let η1 := (farg ~> #v1; fname ~> vclo; η) in
@@ -594,20 +601,20 @@ Lemma pure_nested_call `{Encode A} `{Encode B} `{Encode C}
   (P : A -> B -> Prop) (φ : A -> B -> C -> Prop) (R : (A * B) -> (A * B) -> Prop) :
   let δ := eval_rec_bindings η rbs in
   lookup_rec_bindings rbs fname = ret (AnonFun x e1) ->
-  (let η0 := (x ~> #v1; concat δ η) in
+  (let η0 := (x ~> #v1; δ ++ η) in
    eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
   well_founded R ->
   P v1 v2 ->
   (forall vf v1' v2',
       P v1' v2' ->
       (forall v1'' v2'',
-          (let η0 := (x ~> #v1''; concat δ η) in
+          (let η0 := (x ~> #v1''; δ ++ η) in
            eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
           P v1'' v2'' ->
           R (v1'', v2'') (v1', v2') ->
           pure_call2 vf #v1'' #v2'' (φ v1'' v2'')) ->
       let δ := replace_env_binding δ fname vf in
-      pure (eval (y ~> #v2'; x ~> #v1'; concat δ η) e2) (φ v1' v2')) ->
+      pure (eval (y ~> #v2'; x ~> #v1'; δ ++ η) e2) (φ v1' v2')) ->
   pure_call2 (VCloRec η rbs fname) #v1 #v2 (φ v1 v2).
 Proof.
   cbn zeta.

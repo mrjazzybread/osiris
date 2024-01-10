@@ -456,7 +456,7 @@ Lemma wp_loop {A} s E
        (* - i1 <= i2,
             and the evaluation of the body succeeds and the remaining
             iterations satisfy the postcondition. *)
-       wp s E (eval (EnvCons x (VInt i1) η) e)
+       wp s E (eval ((x, (VInt i1)) :: η) e)
              (λ _,
                 wp s E (
                      Stop CLoop
@@ -524,7 +524,7 @@ Local Lemma wp_loop_inv_pos_aux {A} s E
   (□ ∀ (i: nat), ⌜le i1 i⌝ →
                  ⌜le i i2⌝ →
                  Hinv i -∗ wp s E
-                              (eval (EnvCons x (VInt $ repr i) η) e)
+                              (eval ((x, (VInt $ repr i)) :: η) e)
                               (λ _, Hinv (S i))) -∗
   (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
   wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
@@ -628,7 +628,7 @@ Definition wp_loop_inv_pos {A} s E
   (□ ∀ (i: nat), ⌜le i1 i⌝ →
                ⌜le i i2⌝ →
                Hinv i -∗ wp s E
-                            (eval (EnvCons x (VInt $ repr i) η) e)
+                            (eval ((x, (VInt $ repr i)) :: η) e)
                             (λ _, Hinv (S i))) -∗
   (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
   wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=

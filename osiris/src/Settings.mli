@@ -19,6 +19,10 @@ val modules : [ `All | `Modules of string list ]
    destination directory. It is set by [--mark]. *)
 val mark: string
 
+(**[decorate] determines whether expressions in the output [.v] file should
+   be decorated with location information. *)
+val decorate: bool
+
 (* [debug format ...] sends output to [stderr] only if [--debug] is set. *)
 val debug: ('a, out_channel, unit) format -> 'a
 

@@ -28,7 +28,7 @@ Section Modules.
                    | _ => dummy
                    end.
 
-  Definition val_as_struct_total := totalify val_as_struct EnvNil.
+  Definition val_as_struct_total := totalify val_as_struct [].
   Definition lookup_name_total η := totalify (lookup_name η) VUnit.
 
   (* Inversion lemma on a lookup: *)
@@ -37,14 +37,14 @@ Section Modules.
     lookup_name η n = ret v →
     (* Then, the environment is not empty, ie. it is an [EnvCons _ _ _] *)
     ∃ n' v' η',
-      η = EnvCons n' v' η'
+      η = (n', v') :: η'
       ∧ (* And either: *) (
           ( (* - the lookup returned on the first cons ; *)
             v = v' ∧ n = n')
           ∨ ( (* - or not. *)
               n <> n' ∧ lookup_name η' n = ret v)).
   Proof.
-    induction η as [ | n' v' η' ];
+    induction η as [ | [n' v'] η' ];
       first (* Impossible case. *)
         inversion 1.
 
@@ -66,7 +66,7 @@ Section Modules.
   (* This lemma is equivalent as the one above. The difference is that we do not
     existentially quantify over the arguments to [EnvCons]. *)
   Local Lemma lookup_name_inv' η n n' v v' :
-    lookup_name (EnvCons n v η) n' = ret v' →
+    lookup_name ((n, v) :: η) n' = ret v' →
     (v = v' ∧ n = n')
     ∨ (n' <> n ∧ lookup_name η n' = ret v').
   Proof.

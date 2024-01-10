@@ -24,11 +24,18 @@ Proof.
   beta. reflexivity.
 Qed.
 
+Ltac remove_deco :=
+  lazymatch goal with
+  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1
+  | _ => idtac
+  end.
+
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
 Ltac pure_ret :=
+  remove_deco;
   match goal with
   | |- pure (ret ?v) ?φ =>
       match type of φ with
@@ -44,6 +51,7 @@ Ltac pure_ret :=
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
 Ltac pure_path :=
+  remove_deco;
   simple eapply pure_eval_path; simpl lookup_path; pure_ret.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
@@ -51,6 +59,7 @@ Ltac pure_path :=
    and leaves the subgoal [φ x]. *)
 
 Ltac pure_const :=
+  remove_deco;
   match goal with
   | |- pure (eval ?η (EConstant ?c)) ?ψ =>
       match type of ψ with
@@ -66,7 +75,7 @@ Ltac pure_const :=
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
 Ltac pure_simp :=
-  simple eapply pure_simp; [ simp_really |].
+  eapply pure_simp; [ simp_really |].
 
 (* pure0 leaves zero subgoal. *)
 (* pure1 leaves one subgoal, which may have an arbitrary shape. *)

@@ -98,7 +98,10 @@ Section ProofExamples.
 
     oSpecify "incr" incr_spec vincr "#Hincr" !.
     { iIntros "!>" (? n) "(%ℓ&->&Hℓ)".
-      call. wp_load "Hℓ". wp_store "Hℓ".
+      call.
+      wp_load "Hℓ".
+      rewrite add_repr_repr.
+      wp_store "Hℓ".
       replace (VInt (repr (n + 1))) with (#(S n)); last first.
       { simpl. do 2 f_equal; lia. }
       prove_counter. }
@@ -107,6 +110,8 @@ Section ProofExamples.
     { iIntros "!>" (vc). call.
       iIntros (n m Hle ??) "(%ℓ&->&Hℓ)". call.
       (* TODO deal with [EAssert] properly *)
+      rewrite eval_eval'. simpl.
+      rewrite <- try_choose. rewrite <- bind_as_try.
       iApply (wp_bind_binary with "[Hℓ]").
       { wp.
         iApply (wp_choose_ok _ _ _ (ℓ ↦ #n)%I with "[Hℓ]").

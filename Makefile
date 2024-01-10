@@ -15,6 +15,7 @@ all:
              --out $(PWD)/coq-osiris \
 	     --mark og_ \
 	     --no-warnings \
+	     --decorate \
 	     all \
 	  )
 # Copy the translated files to a place where dune and Coq will see them.

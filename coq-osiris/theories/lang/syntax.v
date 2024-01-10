@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations.
+From osiris.lang Require Import float int char locations.
 
 (* This file should be in sync with osiris/src/Syntax.ml. *)
 
@@ -83,29 +83,19 @@ Inductive pat :=
   (* A disjunction pattern [p1 | p2]. *)
   | POr (p1 p2 : pat)
   (* A tuple pattern. *)
-  | PTuple (ps : pats)
+  | PTuple (ps : list pat)
   (* A data constructor pattern. *)
   | PData (c : data) (p : pat)
   (* A record pattern. *)
-  | PRecord (fps : fpats)
+  | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
   | PInt (i : Z)
   (* A literal character pattern. *)
   | PChar (c: char)
   (* A literal string pattern. *)
-  | PString (s : string)
+  | PString (s : string).
 
-(* Lists of patterns. *)
 
-with pats :=
-  | PNil
-  | PCons (p : pat) (ps : pats)
-
-(* Lists of field-pattern pairs. *)
-
-with fpats :=
-  | FPNil
-  | FPCons (f : field) (p : pat) (fps : fpats).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -116,7 +106,6 @@ with fpats :=
    operation on modules. *)
 
 Inductive coercion :=
-
   (* The coercion [CIdentity] has no effect. *)
   | CIdentity
 
@@ -124,16 +113,9 @@ Inductive coercion :=
      fields named in the list [xcs] are retained, and the corresponding
      coercions in the list [xcs] are applied to them. All other fields are
      dropped. *)
-  | CStruct (xcs : fcoercions)
+| CStruct (xcs : list (var * coercion)).
 
-with fcoercions :=
-  | CNil
-  | CCons (x : var) (c : coercion) (xcs : fcoercions).
-      (* In [CCons f c xcs], the name [f] refers to a structure component,
-         which can be a value or a substructure. The coercion [c] is applied
-         to this component. *)
-      (* A name-coercion list [xcs] is expected to have no duplicate names.
-         At the moment, this property is not checked by us. *)
+Definition fcoercion : Set := (var * coercion).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -155,16 +137,16 @@ Inductive expr :=
   | EApp (e1 e2 : expr)
 
   (* Tuple construction: [(e1, e2, ...)]. *)
-  | ETuple (es : exprs)
+  | ETuple (es : list expr)
 
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
 
   (* Record construction: [{ fs = es }]. *)
-  | ERecord (fes : fexprs)
+  | ERecord (fes : list fexpr)
   (* Record update: [{ e with fs = es }]. *)
-  | ERecordUpdate (e : expr) (fes : fexprs)
+  | ERecordUpdate (e : expr) (fes : list fexpr)
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
 
@@ -184,6 +166,17 @@ Inductive expr :=
   | EIntMul (e1 e2 : expr)
   | EIntDiv (e1 e2 : expr)
   | EIntMod (e1 e2 : expr)
+  (* Integer logical operations. *)
+  | EIntLand (e1 e2 : expr)
+  | EIntLor  (e1 e2 : expr)
+  | EIntLxor (e1 e2 : expr)
+  | EIntLnot (e : expr)
+  | EIntLsl  (e1 e2 : expr)
+  | EIntLsr  (e1 e2 : expr)
+  | EIntAsr  (e1 e2 : expr)
+
+  (* Floating-point literals. *)
+  | EFloat (f : float)
 
   (* Character literals. *)
   | EChar (c: char)
@@ -201,10 +194,10 @@ Inductive expr :=
   | EOpGe (e1 e2 : expr)
 
   (* Non-recursive local definition: [let bs in e]. *)
-  | ELet (bs : bindings) (e : expr)
+  | ELet (bs : list binding) (e : expr)
 
   (* Recursive local definition: [let rbs in e]. *)
-  | ELetRec (rbs : rec_bindings) (e : expr)
+  | ELetRec (rbs : list rec_binding) (e : expr)
 
   (* Local module definition: [let module M = me in e]. *)
   | ELetModule (M : module) (me : mexpr) (e : expr)
@@ -220,7 +213,7 @@ Inductive expr :=
   | EIfThenElse (e e1 e2 : expr)
 
   (* Pattern matching: [match e with bs]. *)
-  | EMatch (e : expr) (bs : branches)
+  | EMatch (e : expr) (bs : list branch)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
@@ -241,50 +234,25 @@ Inductive expr :=
   (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
 
-(* Lists of expressions. *)
+(* Field-expression pairs. *)
 
-with exprs :=
-  | ENil
-  | ECons (e : expr) (es : exprs)
-
-(* Lists of field-expression pairs. *)
-
-with fexprs :=
-  | FENil
-  | FECons (f : field) (e : expr) (fes : fexprs)
+with fexpr :=
+  | Fexpr (f : field)  (e : expr)
 
 (* A branch is of the form [p -> e]. *)
 
 with branch :=
   | Branch (p : pat) (e : expr)
 
-(* Lists of branches. *)
-
-with branches :=
-  | BrNil
-  | BrCons (b : branch) (bs : branches)
-
 (* A binding is of the form [p = e]. *)
 
 with binding :=
   | Binding (p : pat) (e : expr)
 
-(* Lists of bindings. *)
-
-with bindings :=
-  | BiNil
-  | BiCons (b : binding) (bs : bindings)
-
 (* A recursive binding is of the form [f = a]. *)
 
 with rec_binding :=
   | RecBinding (f : var) (a : anonfun)
-
-(* Lists of recursive bindings. *)
-
-with rec_bindings :=
-  | RecBiNil
-  | RecBiCons (rb : rec_binding) (rbs : rec_bindings)
 
 (* An anonymous function is of the form [fun x -> e]. We allow only
    this form as a primitive construct, because this simplifies the
@@ -308,7 +276,7 @@ with mexpr :=
   | MPath (π : path)
 
   (* A structure [struct ... end]. *)
-  | MStruct (items : sitems)
+  | MStruct (items : list sitem)
 
   (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for
@@ -316,21 +284,15 @@ with mexpr :=
      where [S] is the expected shape of the argument of the functor [F]. *)
   | MCoercion (me : mexpr) (c : coercion)
 
-(* Lists of structure items. *)
-
-with sitems :=
-  | INil
-  | ICons (item : sitem) (items : sitems)
-
 (* Structure items. *)
 
 with sitem :=
 
   (* A non-recursive toplevel definition [let bs]. *)
-  | ILet (bs : bindings)
+  | ILet (bs : list binding)
 
   (* A recursive toplevel definition [let rec rbs]. *)
-  | ILetRec (rbs : rec_bindings)
+  | ILetRec (rbs : list rec_binding)
 
   (* A module definition [M = me]. *)
   | IModule (m : module) (me : mexpr)
@@ -353,19 +315,21 @@ with sitem :=
 
 Inductive val :=
   (* A simple (non-recursive) closure. *)
-  | VClo (η : env) (a : anonfun)
+  | VClo (η : list (var * val)) (a : anonfun)
   (* A recursive closure. *)
   (* [η] is the environment at the closure creation site. It does not include
      entries for the functions defined by the recursive bindings [rbs]. *)
   (* The recursive bindings [rbs] are those of the closure creation site. *)
   (* The name [f] is the closure's entry point. *)
-  | VCloRec (η : env) (rbs : rec_bindings) (f : var)
+  | VCloRec (η : list (var * val)) (rbs : list rec_binding) (f : var)
   (* A string. *)
   | VString (s: string)
   (* A machine integer. *)
   | VInt (i : int)
+  (* A floating-point number. *)
+  | VFloat (f : float)
   (* A tuple. *)
-  | VTuple (vs : vals)
+  | VTuple (vs : list val)
   (* A data constructor value. *)
   | VData (c : data) (v : val)
   (* A record. *)
@@ -373,25 +337,17 @@ Inductive val :=
      so, for the moment at least, we identify these concepts. *)
   (* The fields in a record are always pairwise distinct (this is checked
      by OCaml, not by us) and alphabetically sorted. *)
-  | VRecord (fvs : env)
+  | VRecord (fvs : list (var * val))
   (* A location. *)
   | VLoc (l: loc)
   (* A module. *)
-  | VStruct (xvs : env)
+  | VStruct (xvs : list (var * val))
   | VChar (c: char)
-  | VArray (c: vals)
+  | VArray (c: list val)
+.
 
-(* Lists of values. *)
+Definition env := list (var * val).
 
-with vals :=
-  | VNil
-  | VCons (v : val) (vs : vals)
-
-(* Environments are association lists. *)
-
-with env :=
-  | EnvNil
-  | EnvCons (x : var) (v : val) (η : env).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -402,24 +358,24 @@ with env :=
 (* Unit. *)
 
 Notation PUnit :=
-  (PData "()" $ PTuple PNil).
+  (PData "()" $ PTuple []).
 
 Notation EUnit :=
-  (EData "()" $ ETuple ENil).
+  (EData "()" $ ETuple []).
 
 Notation VUnit :=
-  (VData "()" $ VTuple VNil).
+  (VData "()" $ VTuple []).
 
 (* Constant constructors, that is, constructors of arity 0. *)
 
 Notation PConstant c :=
-  (PData c $ PTuple PNil).
+  (PData c $ PTuple []).
 
 Notation EConstant c :=
-  (EData c $ ETuple ENil).
+  (EData c $ ETuple []).
 
 Notation VConstant c :=
-  (VData c $ VTuple VNil).
+  (VData c $ VTuple []).
 
 (* The Boolean constants. *)
 
@@ -449,28 +405,19 @@ Notation VTrue :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Some ad hoc predicates on ad hoc lists. *)
+(* Lemmas about the auxiliary function [BoolConstructor]. *)
 
-Inductive ForallEV (P : expr → val → Prop) : exprs → vals → Prop :=
-| ForallEVNil :
-    ForallEV P ENil VNil
-| ForallEVCons e v es vs :
-    P e v →
-    ForallEV P es vs →
-    ForallEV P (ECons e es) (VCons v vs).
+Lemma BoolConstructor_injective b1 b2 :
+  BoolConstructor b1 = BoolConstructor b2 →
+  b1 = b2.
+Proof.
+  destruct b1, b2; simpl; congruence.
+Qed.
 
-Inductive ForallV (P : val → Prop) : vals → Prop :=
-| ForallVNil :
-    ForallV P VNil
-| ForallVCons v vs :
-    P v →
-    ForallV P vs →
-    ForallV P (VCons v vs).
+Lemma BoolConstructor_congruent_contrapositive b1 b2 :
+  BoolConstructor b1 ≠ BoolConstructor b2 →
+  b1 ≠ b2.
+Proof.
+  congruence.
+Qed.
 
-Inductive ForallEnv (P : var → val → Prop) : env → Prop :=
-| ForallEnvNil :
-    ForallEnv P EnvNil
-| ForallEnvCons x v es :
-    P x v →
-    ForallEnv P es →
-    ForallEnv P (EnvCons x v es).

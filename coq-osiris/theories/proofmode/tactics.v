@@ -125,10 +125,10 @@ Ltac wp_concat :=
       lazymatch m with
       | bind (ret_concat ?η ?δ) ?k =>
           with_strategy transparent [ret_concat]
-                        (change (bind (ret_concat η δ) k) with (k (concat η δ)))
+                        (change (bind (ret_concat η δ) k) with (k (η ++ δ)))
       | ret_concat ?η ?δ =>
           with_strategy transparent [ret_concat]
-                        (change (ret_concat η δ) with (ret (concat η δ)))
+                        (change (ret_concat η δ) with (ret (η ++ δ)))
 
       | bind (ret_dconcat ?δ' ?ηδ) ?k =>
           with_strategy transparent [ret_dconcat]
@@ -379,7 +379,7 @@ Tactic Notation "oAbstract" constr(s1) ident(i1):=
   lazymatch goal with
   | |- context [VCloRec ?η ?bds s1] =>
       generalize (VCloRec η bds s1); intro i1
-  | |- context [EnvCons s1 (VClo ?η ?e) _] =>
+  | |- context [(s1, (VClo ?η ?e)) :: _] =>
       generalize (VClo η e); intro i1
   end.
 Tactic Notation "oAbstract"

@@ -9,22 +9,22 @@ Implicit Type g x : var.
 Implicit Type c : data. (* or coercion; TODO *)
 Implicit Type f : field.
 Implicit Type p : pat.
-Implicit Type ps : pats.
+Implicit Type ps : list pat.
 Implicit Type e : expr.
-Implicit Type es : exprs.
-Implicit Type fes : fexprs.
+Implicit Type es : list expr.
+Implicit Type fes : list fexpr.
 Implicit Type a : anonfun.
 Implicit Type v : val.
-Implicit Type vs : vals.
+Implicit Type vs : list val.
 Implicit Type fvs xvs : env.
 Implicit Type η δ : env.
-Implicit Type rbs : rec_bindings.
+Implicit Type rbs : list rec_binding.
 Implicit Type i : int.
 Implicit Type M : module.
 Implicit Type π : path.
 Implicit Type me : mexpr.
 Implicit Type item : sitem.
-Implicit Type items : sitems.
+Implicit Type items : list sitem.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -71,6 +71,25 @@ Definition structural_ordering_error {A} (msg : string) : micro A :=
 Definition type_mismatch {A} (msg : string) : micro A :=
   crash.
 
+(* The logical operations [lsl], [lsr], and [asr] require their second
+   operand [i2] to satisfy [0 <= i2 <= zintsize]. This is perhaps more
+   restrictive than necessary, but this requirement appears in the OCaml
+   reference manual. If this condition is not met then, according to the
+   manual, the result is an unspecified integer value. In this semantics,
+   we adopt a more pessimistic (more permissive) specification and allow
+   the result in that case to be a crash. This removes the need for an
+   effectful operation that produces an arbitrary integer result. We may
+   revisit this in the future. TODO *)
+
+Definition in_shift_range_b (i : int) : bool :=
+  (0 <=? signed i) && (signed i <=? int.zintsize).
+
+Definition out_of_shift_range {A} : micro A :=
+  crash.
+
+Definition if_in_shift_range {A} (i : int) (m : micro A) :=
+  if in_shift_range_b i then m else out_of_shift_range.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Local notations. *)
@@ -78,7 +97,7 @@ Definition type_mismatch {A} (msg : string) : micro A :=
 (* [ok] is an inert computation. It produces the value [VUnit]. *)
 
 Notation ok :=
-  (ret (VData "()" $ VTuple VNil)).
+  (ret (VData "()" $ VTuple [])).
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -183,9 +202,9 @@ Definition as_struct (m : micro val) : micro env :=
 
 Fixpoint lookup_name η x : micro val :=
   match η with
-  | EnvCons x' v η =>
+  | (x', v) :: η =>
       if x =? x' then ret v else lookup_name η x
-  | EnvNil =>
+  | [] =>
       missing_variable_or_field x
   end.
 
@@ -206,30 +225,17 @@ Fixpoint lookup_path η π : micro val :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [concat δ η] concatenates the environment fragment [δ] in front of the
-   environment [η], yielding an extended environment. *)
-
-Fixpoint concat δ η : env :=
-  match δ with
-  | EnvNil =>
-      η
-  | EnvCons x v δ =>
-      EnvCons x v (concat δ η)
-  end.
-
-(* ------------------------------------------------------------------------ *)
-
 (* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
 
 Fixpoint remove f fvs : micro env :=
   match fvs with
-  | EnvCons f' v fvs =>
+  | (f', v) :: fvs =>
       if f =? f' then
         ret fvs
       else
         fvs ← remove f fvs ;
-        ret (EnvCons f' v fvs)
-  | EnvNil =>
+        ret ((f', v) :: fvs)
+  | [] =>
       missing_field f
   end.
 
@@ -240,11 +246,11 @@ Fixpoint remove f fvs : micro env :=
 
 Fixpoint update fvs fvs' : micro env :=
   match fvs' with
-  | EnvNil =>
+  | [] =>
       ret fvs
-  | EnvCons f v' fvs' =>
+  | (f, v') :: fvs' =>
       fvs ← remove f fvs ;
-      let fvs := EnvCons f v' fvs in
+      let fvs := (f, v') :: fvs in
       update fvs fvs'
   end.
 
@@ -253,45 +259,20 @@ Fixpoint update fvs fvs' : micro env :=
 (* A [sort] function for lists of string-value pairs, also known as
    environments. *)
 
-(* A painful difficulty is that [env] is a custom type of lists, so the
-   standard [sort] function cannot be applied directly to it. We extract a
-   list of keys, sort this list, then reconstruct a sorted environment by
-   performing lookups in the original environment. This has quadratic cost,
-   but all of operations on environments and records have quadratic cost
-   anyway. *)
-
 Require Import Orders Sorting.
 
-Module StringOrder <: TotalLeBool.
-  Definition t := string.
-  Definition leb := String.leb.
-  Definition leb_total := String.leb_total.
-End StringOrder.
+Module PairOrder <: TotalLeBool.
+  Definition t := prod string val.
+  Definition leb (t1 t2 : string * val) :=
+    String.leb (fst t1) (fst t2).
+  Definition leb_total (t1 t2 : string * val) :=
+    String.leb_total (fst t1) (fst t2).
+End PairOrder.
 
-Module StringSort := Sort StringOrder.
+Module PairSort := Sort PairOrder.
 
-Fixpoint domain (η : env) : list string :=
-  match η with
-  | EnvNil =>
-      []
-  | EnvCons x v η =>
-      x :: domain η
-  end.
+Definition sort (η : env) : env := PairSort.sort η.
 
-Fixpoint build (η : env) (xs : list string) : micro env :=
-  match xs with
-  | [] =>
-      ret EnvNil
-  | x :: xs =>
-      v ← lookup_name η x ;
-      xs ← build η xs ;
-      ret (EnvCons x v xs)
-  end.
-
-Definition sort (η : env) : micro env :=
-  build η (StringSort.sort (domain η)).
-
-(* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_rec_bindings_aux η rbs rbs'] transforms the bindings [rbs'] into an
@@ -303,10 +284,9 @@ Definition sort (η : env) : micro env :=
 
 Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
-  | RecBiNil =>
-      EnvNil
-  | RecBiCons (RecBinding g _a) rbs' =>
-      EnvCons g (VCloRec η rbs g) (eval_rec_bindings_aux η rbs rbs')
+  | [] => []
+  | (RecBinding g _a) :: rbs' =>
+      (g, (VCloRec η rbs g)) :: (eval_rec_bindings_aux η rbs rbs')
   end.
 
 (* [eval_rec_bindings η rbs] transforms the bindings [rbs] into an environment
@@ -323,13 +303,60 @@ Definition eval_rec_bindings η rbs : env :=
 
 Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
   match rbs with
-  | RecBiCons (RecBinding g' a) rbs =>
+  | (RecBinding g' a) :: rbs =>
       if g =? g' then ret a else lookup_rec_bindings rbs g
-  | RecBiNil =>
+  | [] =>
       missing_variable g
   end.
 
 (* ------------------------------------------------------------------------ *)
+
+(* [extends δ ps vs] matches the values [vs] against the patterns [ps].
+   In case of success, the result is an extension of the environment
+   fragment [δ] with bindings for the bound variables of the patterns [ps].
+
+   A hard failure occurs when [length ps ≠ length vs]. *)
+
+(* Pattern matching is sequential and obeys a left-to-right strategy. This
+   is important in the presence of GADTs, as the success of a test in the
+   left-hand side of a pair can guarantee the safety of a test in the
+   right-hand side of this pair. *)
+
+Definition pre_extends extend : env -> list pat -> list val -> micro env :=
+  fix extends (δ : env) ps vs : micro env :=
+    match ps, vs with
+    | [], [] =>
+        ret δ
+    | p::ps, v::vs =>
+        δ ← extend δ p v ;
+        δ ← extends δ ps vs ;
+        ret δ
+    | _::_, [] =>
+        length_mismatch "longer tuple expected"
+    | [], _::_ =>
+        length_mismatch "shorter tuple expected"
+   end.
+
+(* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
+   field-indexed patterns [fps].
+
+   In case of success, the result is an extension of the environment
+   fragment [δ] with bindings for the bound variables of
+   the patterns [fps].
+
+   A hard failure occurs if a field is present in [fps]
+   but absent in [fvs]. *)
+
+Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env :=
+  fix extendfs (δ : env) fps fvs : micro env :=
+    match fps with
+    | [] => ret δ
+    | (f, p) :: fps =>
+        v ← lookup_name fvs f ;
+        δ ← extend δ p v ;
+        δ ← extendfs δ fps fvs ;
+        ret δ
+    end.
 
 (* [extend δ p v] matches the value [v] against the pattern [p].
 
@@ -348,6 +375,8 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
    bound twice. This property is enforced by the OCaml type-checker. *)
 
 Fixpoint extend δ p v : micro env :=
+  let extends := pre_extends extend in
+  let extendfs := pre_extendfs extend in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -357,19 +386,18 @@ Fixpoint extend δ p v : micro env :=
   | PVar x, _ =>
       (* A variable pattern always succeeds, and causes the environment
          to be extended. *)
-      ret (EnvCons x v δ)
+      ret ((x, v) :: δ)
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
       δ ← extend δ p v ;
-      ret (EnvCons x v δ)
+      ret ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
       orelse (extend δ p1 v) (extend δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
-      (* A hard failure occurs when [length ps ≠ length vs]. *)
       extends δ ps vs
   | PData c p, VData c' v =>
       (* A data pattern matches a data value, provided the data constructors
@@ -379,8 +407,6 @@ Fixpoint extend δ p v : micro env :=
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
-      (* A hard failure occurs if a field is present in the pattern
-         but absent in the value. *)
       extendfs δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
@@ -401,52 +427,10 @@ Fixpoint extend δ p v : micro env :=
       type_mismatch "char expected"
   | PString _, _ =>
       type_mismatch "string expected"
-end
+end.
 
-(* [extends δ ps vs] matches the values [vs] against the patterns [ps].
-
-   In case of success, the result is an extension of the environment
-   fragment [δ] with bindings for the bound variables of the patterns [ps].
-
-   A hard failure occurs when [length ps ≠ length vs]. *)
-
-(* Pattern matching is sequential and obeys a left-to-right strategy. This
-   is important in the presence of GADTs, as the success of a test in the
-   left-hand side of a pair can guarantee the safety of a test in the
-   right-hand side of this pair. *)
-
-with extends δ ps vs : micro env :=
-  match ps, vs with
-  | PNil, VNil =>
-      ret δ
-  | PCons p ps, VCons v vs =>
-      δ ← extend δ p v ;
-      δ ← extends δ ps vs ;
-      ret δ
-  | PCons _ _, VNil =>
-      length_mismatch "longer tuple expected"
-  | PNil, VCons _ _ =>
-      length_mismatch "shorter tuple expected"
-  end
-
-(* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
-   field-indexed patterns [fps].
-
-   In case of success, the result is an extension of the environment fragment
-   [δ] with bindings for the bound variables of the patterns [fps].
-
-   A hard failure occurs if a field is present in [fps] but absent in [fvs]. *)
-
-with extendfs δ fps fvs : micro env :=
-  match fps with
-  | FPNil =>
-      ret δ
-  | FPCons f p fps =>
-      v ← lookup_name fvs f ;
-      δ ← extend δ p v ;
-      δ ← extendfs δ fps fvs ;
-      ret δ
-  end.
+Definition extends := pre_extends extend.
+Definition extendfs := pre_extendfs extend.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -458,7 +442,7 @@ Definition acall η a v : micro val :=
   let '(AnonFun x e) := a in
   (* Extend the environment [η] with a binding of the variable [x]
      to the value [v]. *)
-  let η := EnvCons x v η in
+  let η := (x, v) :: η in
   (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
      be used, so evaluation of [e] is requested via a [stop] effect. *)
   stop CEval (η, e).
@@ -477,7 +461,7 @@ Definition call v1 v2 : micro val :=
       (* Extend the environment [η] found in the closure with bindings
          for the recursive functions in [rbs]. *)
       let δ := eval_rec_bindings η rbs in
-      let η := concat δ η in
+      let η := δ ++ η in
       (* Look up the entry point [g] in [rbs], yielding an anonymous
          function [a]. *)
       a ← lookup_rec_bindings rbs g ;
@@ -518,27 +502,25 @@ Fixpoint eq_val v1 v2 : micro bool :=
   | VString s1, VString s2 =>
       ret (s1 =? s2)
   | VTuple vs1, VTuple vs2 =>
-      eq_vals vs1 vs2
+      ((fix eq_vals vs1 vs2 :=
+        match vs1, vs2 with
+        | [], [] =>
+            ret true
+        | v1 :: vs1, v2 :: vs2 =>
+            b ← eq_val v1 v2 ;
+            b' ← eq_vals vs1 vs2 ;
+            ret (b && b')
+        |  _ :: _, []
+        | [], _ :: _ =>
+            structural_equality_error "tuple length mismatch"
+        end) vs1 vs2)
   | VData c1 v1, VData c2 v2 =>
       let b := c1 =? c2 in
       b' ← eq_val v1 v2 ;
       ret (b && b')
   | _, _ =>
       structural_equality_error "invalid or unsupported arguments"
-  end
-
-with eq_vals vs1 vs2 : micro bool :=
-  match vs1, vs2 with
-  | VNil, VNil =>
-      ret true
-  | VCons v1 vs1, VCons v2 vs2 =>
-      b ← eq_val v1 v2 ;
-      b' ← eq_vals vs1 vs2 ;
-      ret (b && b')
-  | VCons _ _, VNil
-  | VNil, VCons _ _ =>
-      structural_equality_error "tuple length mismatch"
-  end.
+end.
 
 Definition ne_val v1 v2 :=
   b ← eq_val v1 v2 ;
@@ -602,7 +584,7 @@ Definition ge_val v1 v2 :=
    [acall]) and when the body of a loop is executed (see [loop]). *)
 
 Definition ret_concat δ η : micro env :=
-  ret (concat δ η).
+  ret (δ ++ η).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -625,7 +607,7 @@ Implicit Type ηδ : envs.
 
 Definition dconcat δ' ηδ : envs :=
   let '(η, δ) := ηδ in
-  (concat δ' η, concat δ' δ).
+  (δ' ++ η, δ' ++ δ).
 
 (* TODO comment *)
 
@@ -633,11 +615,30 @@ Definition ret_dconcat δ' ηδ :=
   ret (dconcat δ' ηδ).
 
 (* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
+
+Definition pre_coerces coerce : list fcoercion -> env -> micro env :=
+  fix coerces (xcs : list fcoercion ) xvs : micro env :=
+    match xcs with
+    | [] => ret []
+    | (x, c) :: xcs =>
+        (* Fetch the component [x] from [xvs]. *)
+        v ← lookup_name xvs x ;
+        (* Apply the coercion [c] to it. *)
+        v ← coerce c v ;
+        (* Fetch the rest. *)
+        xvs ← coerces xcs xvs ;
+        (* Combine the results. Whether we place [x] in front of [xvs] or
+           behind [xvs] should not make any difference, because the field
+           names that appear in the coercion should be pairwise distinct,
+           so the order in which these fields appear in the new structure
+           should be irrelevant. *)
+        ret ((x, v) :: xvs)
+    end.
 
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
 Fixpoint coerce (c : coercion) (v : val) : micro val :=
+  let coerces := pre_coerces coerce in
   match c with
   | CIdentity =>
       ret v
@@ -647,31 +648,156 @@ Fixpoint coerce (c : coercion) (v : val) : micro val :=
       (* From [xvs], fetch the components named in the list [xcs], and
          apply the corresponding coercions to them. *)
       xvs ← coerces xcs xvs ;
-      (* Return a structure. *)
       ret (VStruct xvs)
-  end
-
-(* [coerces xcs xvs] applies the name-coercion list [xcs] to the
-   name-value list [xvs], producing a new name-value list. *)
-
-with coerces (xcs : fcoercions) (xvs : env) : micro env :=
-  match xcs with
-  | CNil =>
-      ret EnvNil
-  | CCons x c xcs =>
-      (* Fetch the component [x] from [xvs]. *)
-      v ← lookup_name xvs x ;
-      (* Apply the coercion [c] to it. *)
-      v ← coerce c v ;
-      (* Fetch the rest. *)
-      xvs ← coerces xcs xvs ;
-      (* Combine the results. Whether we place [x] in front of [xvs] or
-         behind [xvs] should not make any difference, because the field
-         names that appear in the coercion should be pairwise distinct,
-         so the order in which these fields appear in the new structure
-         should be irrelevant. *)
-      ret (EnvCons x v xvs)
   end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_sitem ηδ item] evaluates the structure item [item] in the
+   double environment [ηδ], yielding an updated double environment. *)
+
+Definition pre_eval_sitem eval_mexpr eval_bindings (acc : micro envs) item :=
+  ηδ ← acc ;
+  let '(η, δ) := ηδ in
+  match item with
+  | ILet bs =>
+      δ' ← eval_bindings η bs;
+      ret_dconcat δ' (η, δ)
+  | ILetRec rbs =>
+      let δ' := eval_rec_bindings η rbs in
+      ret_dconcat δ' (η, δ)
+  | IModule m me' =>
+      v ← eval_mexpr η me' ;
+      ret_dconcat [(m, v)] (η, δ)
+  | IOpen me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (δ' ++ η, δ)
+  | IInclude me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (dconcat δ' (η, δ))
+  end.
+
+(* [eval_sitems ηδ items] evaluates the structure items [items] in the
+   double environment [ηδ], yielding an updated double environment. *)
+
+Definition pre_eval_sitems eval_mexpr eval_bindings : list sitem -> envs -> micro envs :=
+  λ (items : list sitem) (ηδ : envs),
+    let eval_sitem := pre_eval_sitem eval_mexpr eval_bindings in
+    fold_left eval_sitem items (ret ηδ).
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
+   yielding a value. *)
+
+Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val :=
+  fix eval_mexpr (η : env) (me : mexpr) :=
+    let eval_sitems := pre_eval_sitems eval_mexpr eval_bindings in
+    match me with
+    | MUnsupported => unsupported_construct
+    | MPath π =>
+        (* A path is looked up in the environment [η]. *)
+        lookup_path η π
+    | MCoercion me c =>
+        v ← eval_mexpr η me ;
+        coerce c v
+    | MStruct items =>
+        (* evaluate the structure items, yielding an environment [δ], *)
+        '(_, δ) ← eval_sitems items (η, []) ;
+        (* and wrap it in a [VStruct] value. *)
+        ret (VStruct δ)
+    end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_bindings η bs] evaluates the bindings [bs] in the environment [η],
+   producing an environment fragment. *)
+
+(* [eval_bindings] is used to evaluate the [let/and] construct. *)
+
+(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
+   bindings [bs] are evaluated in parallel. The values thus obtained are then
+   matched against the patterns in the left-hand sides. The pattern matching
+   process is sequential. *)
+
+(* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
+   as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
+   then [eval_bindings] would disappear. We prefer to avoid encodings. *)
+
+Definition pre_eval_bindings eval : env -> list binding -> micro env :=
+  λ (η : env) (bs : list binding),
+    let par_eval_binding :=
+      fun (b : binding) (acc : micro env) =>
+        match b with
+        | Binding p e0 =>
+            '(v, δ) ← par (eval η e0) acc ;
+            extend δ p v
+        end
+    in
+    fold_right par_eval_binding (ret []) bs.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [evals η es] evaluates the expressions [es] in the environment [η],
+   producing values [vs]. The expressions are evaluated in parallel. *)
+
+(* [evals] is used to evaluate tuples. *)
+
+Definition pre_evals eval : env -> list expr -> micro (list val) :=
+  λ (η : env) (es : list expr),
+    let par_eval :=
+      fun (e : expr) (acc : micro (list val)) =>
+        '(v, vs) ← par (eval η e) acc ;
+        ret (v :: vs)
+    in
+    fold_right par_eval (ret []) es.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
+   producing values [fvs]. The expressions are evaluated in parallel.
+
+   Each expression in the list [fes] and each value in the list [fvs]
+   is indexed with a record field. *)
+
+(* [evalfs] is used to evaluate record construction expressions. *)
+
+Definition pre_evalfs eval : env -> list fexpr -> micro (list (field * val)) :=
+  λ (η : env) (fes : list fexpr),
+    let par_eval_fexpr :=
+      fun (fe : fexpr) (acc : micro (list (field * val))) =>
+        match fe with
+        | Fexpr f e =>
+            '(v, fvs) ← par (eval η e) acc ;
+            ret ((f, v) :: fvs)
+        end
+    in
+    fold_right par_eval_fexpr (ret []) fes.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
+
+Definition pre_eval_match eval : env -> val -> list branch -> micro val :=
+  λ (η : env) (v : val) (bs : list branch),
+    let try_match_branch :=
+      fun (b : branch) (acc : micro val) =>
+        match b with
+        | Branch p e =>
+            (* Match the value [v] against the pattern [p]. *)
+            try
+              (extend [] p v)
+              (* Success: commit to this branch. Evaluate its body. *)
+              (λ δ, η ← ret_concat δ η; eval η e)
+              (* Soft failure: abandon this branch. Try the following branches. *)
+              (λ tt, acc)
+        end
+    in
+    (* A nonexhaustive [match] construct causes a hard failure. *)
+    (* Because the proof system forbids hard failures, the user of
+       the system will have to prove that this cannot happen, i.e.,
+       every case analysis is exhaustive. *)
+    fold_right try_match_branch (match_failure()) bs.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -701,6 +827,11 @@ with coerces (xcs : fcoercions) (xvs : env) : micro env :=
    left-to-right or right-to-left. *)
 
 Fixpoint eval η e : micro val :=
+  let evals := pre_evals eval in
+  let evalfs := pre_evalfs eval in
+  let eval_match := pre_eval_match eval in
+  let eval_bindings := pre_eval_bindings eval in
+  let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -730,7 +861,7 @@ Fixpoint eval η e : micro val :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
@@ -738,7 +869,7 @@ Fixpoint eval η e : micro val :=
       '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
       (* The new components override existing components by the same name. *)
       fvs ← update fvs fvs' ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
@@ -779,6 +910,29 @@ Fixpoint eval η e : micro val :=
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
+  | EIntLand e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.land i1 i2))
+  | EIntLor e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.lor i1 i2))
+  | EIntLxor e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      ret (VInt (int.lxor i1 i2))
+  | EIntLnot e =>
+      i ← as_int (eval η e) ;
+      ret (VInt (int.lnot i))
+  | EIntLsl e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.lsl i1 i2)))
+  | EIntLsr e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.lsr i1 i2)))
+  | EIntAsr e1 e2 =>
+      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      if_in_shift_range i2 (ret (VInt (int.asr i1 i2)))
+  | EFloat f =>
+      ret (VFloat f)
   | EOpPhysEq e1 e2 =>
       '(v1, v2) ← par (eval η e1) (eval η e2) ;
       b ← phys_eq_val v1 v2 ;
@@ -827,7 +981,7 @@ Fixpoint eval η e : micro val :=
       eval η e
   | ELetModule M me e =>
       v ← eval_mexpr η me ;
-      let δ := EnvCons M v EnvNil in
+      let δ := [(M, v)] in
       η ← ret_concat δ η;
       eval η e
   | ELetOpen me e =>
@@ -882,162 +1036,15 @@ Fixpoint eval η e : micro val :=
       '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
       _ ← stop CStore (l, v) ;
       ok
-  end
+  end.
 
-(* ------------------------------------------------------------------------ *)
 
-(* [evals η es] evaluates the expressions [es] in the environment [η],
-   producing values [vs]. The expressions are evaluated in parallel. *)
-
-(* [evals] is used to evaluate tuples. *)
-
-with evals η es : micro vals :=
-  match es with
-  | ENil =>
-      ret VNil
-  | ECons e es =>
-      '(v, vs) ← par (eval η e) (evals η es) ;
-      ret (VCons v vs)
-  end
-
-(* ------------------------------------------------------------------------ *)
-
-(* [evalfs η fes] evaluates the expressions [fes] in the environment [η],
-   producing values [fvs]. The expressions are evaluated in parallel.
-
-   Each expression in the list [fes] and each value in the list [fvs]
-   is indexed with a record field. *)
-
-(* [evalfs] is used to evaluate record construction expressions. *)
-
-with evalfs η fes : micro env :=
-  match fes with
-  | FENil =>
-      ret EnvNil
-  | FECons f e fes =>
-      '(v, fvs) ← par (eval η e) (evalfs η fes) ;
-      ret (EnvCons f v fvs)
-  end
-
-(* ------------------------------------------------------------------------ *)
-
-(* [eval_bindings η bs] evaluates the bindings [bs] in the environment [η],
-   producing an environment fragment. *)
-
-(* [eval_bindings] is used to evaluate the [let/and] construct. *)
-
-(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
-   bindings [bs] are evaluated in parallel. The values thus obtained are then
-   matched against the patterns in the left-hand sides. The pattern matching
-   process is sequential. *)
-
-(* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
-   as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
-   then [eval_bindings] would disappear. We prefer to avoid encodings. *)
-
-with eval_bindings η (bs : bindings) : micro env :=
-  match bs with
-  | BiNil =>
-      ret EnvNil
-  | BiCons (Binding p e) bs =>
-      (* Evaluate the expression [e], yielding a value [v]. In parallel,
-         evaluate the bindings [bs], yielding an environment fragment [δ]. *)
-      '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
-      (* Match the value [v] against the pattern [p], extending [δ]. *)
-      extend δ p v
-  end
-
-(* ------------------------------------------------------------------------ *)
-
-(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
-
-with eval_match η v bs : micro val :=
-  match bs with
-  | BrNil =>
-      (* A nonexhaustive [match] construct causes a hard failure. *)
-      (* Because the proof system forbids hard failures, the user of
-         the system will have to prove that this cannot happen, i.e.,
-         every case analysis is exhaustive. *)
-      match_failure()
-  | BrCons (Branch p e) bs =>
-      (* Match the value [v] against the pattern [p]. *)
-      try
-        (extend EnvNil p v)
-      (* Success: commit to this branch. Evaluate its body. *)
-      (λ δ, η ← ret_concat δ η; eval η e)
-      (* Soft failure: abandon this branch. Try the following branches. *)
-      (λ tt, eval_match η v bs)
-  end
-
-(* ------------------------------------------------------------------------ *)
-
-(* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
-   yielding a value. *)
-
-with eval_mexpr η me : micro val :=
-  match me with
-  | MUnsupported =>
-      unsupported_construct
-  | MPath π =>
-      (* A path is looked up in the environment [η]. *)
-      lookup_path η π
-  | MStruct items =>
-      (* Beginning with an empty current structure, *)
-      let δ := EnvNil in
-      (* evaluate the structure items, yielding an environment [δ], *)
-      '(_, δ) ← eval_sitems (η, δ) items ;
-      (* and wrap it in a [VStruct] value. *)
-      ret (VStruct δ)
-  | MCoercion me c =>
-      v ← eval_mexpr η me ;
-      coerce c v
-  end
-
-(* [eval_sitems ηδ items] evaluates the structure items [items] in the
-   double environment [ηδ], yielding an updated double environment. *)
-
-with eval_sitems ηδ items : micro envs :=
-  match items with
-  | INil =>
-      ret ηδ
-  | ICons item items =>
-      (* Evaluate this item. *)
-      ηδ ← eval_sitem ηδ item ;
-      (* Evaluate the remaining items. *)
-      eval_sitems ηδ items
-  end
-
-(* [eval_sitem ηδ item] evaluates the structure item [item] in the
-   double environment [ηδ], yielding an updated double environment. *)
-
-with eval_sitem (ηδ : envs) item : micro envs :=
-  let '(η, δ) := ηδ in
-  match item with
-  | ILet bs =>
-      δ' ← eval_bindings η bs;
-      ret_dconcat δ' ηδ
-  | ILetRec rbs =>
-      let δ' := eval_rec_bindings η rbs in
-      ret_dconcat δ' ηδ
-  | IModule m me =>
-      v ← eval_mexpr η me ;
-      let δ' := EnvCons m v EnvNil in
-      ret_dconcat δ' ηδ
-  | IOpen me =>
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend [η] but not [δ]. This reflects
-         the fact that these bindings become visible, but do not extend the
-         current structure. *)
-      δ' ← as_struct (eval_mexpr η me) ;
-      ret (concat δ' η, δ)
-  | IInclude me =>
-      δ' ← as_struct (eval_mexpr η me) ;
-      (* The bindings contained in the structure denoted by the module
-         expression [me] are used to extend both [η] and [δ]. *)
-      ret (dconcat δ' ηδ)
-  end
-
-.
+Definition evals := pre_evals eval.
+Definition evalfs := pre_evalfs eval.
+Definition eval_match := pre_eval_match eval.
+Definition eval_bindings := pre_eval_bindings eval.
+Definition eval_mexpr := pre_eval_mexpr eval_bindings.
+Definition eval_sitems := pre_eval_sitems eval_mexpr eval_bindings.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1051,7 +1058,7 @@ Definition loop η x i1 i2 e : micro val :=
   else
     (* Otherwise, the loop body [e] must be executed with a binding of [x]
        to [i1]. The value of [e] is ignored. Then, the loop continues. *)
-    let η' := EnvCons x (VInt i1) η in
+    let η' := (x, (VInt i1)) :: η in
     _v ← eval η' e ;
     (* Every [for] loop terminates, so we could in principle arrange to
        use a recursive call to [loop], but using a [stop] effect is much

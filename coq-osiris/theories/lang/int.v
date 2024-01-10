@@ -34,6 +34,8 @@ Qed.
 
 Parameter int_size : nat.
 
+Definition zintsize := Z.of_nat int_size.
+
 Parameter int_size_ge_31 :
   (31 <= int_size)%nat.
 
@@ -78,8 +80,13 @@ Lemma wordsize_is_int_size :
   M.wordsize = int_size.
 Proof. reflexivity. Qed.
 
+Lemma zwordsize_is_zintsize:
+  M.zwordsize = zintsize.
+Proof. reflexivity. Qed.
+
 Definition min_signed := M.min_signed.
 Definition max_signed := M.max_signed.
+Definition max_unsigned := M.max_unsigned.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -90,6 +97,21 @@ Definition max_signed := M.max_signed.
 
 Definition representable i :=
   (min_signed <= i <= max_signed).
+
+(* Should someone wish to work with unsigned integers, then the
+   representable integers would be those comprised between [0]
+   and [max_unsigned], inclusive. Working with unsigned integers
+   is not encouraged in OCaml, but is possible in principle,
+   with much care. *)
+
+Definition urepresentable i :=
+  (0 <= i <= max_unsigned).
+
+(* [in_shift_range i] means that the integer [i] is an acceptable
+   second operand to the shift operators [lsl], [lsr], and [asr]. *)
+
+Definition in_shift_range i :=
+  0 <= i <= zintsize.
 
 (* The function [signed : int -> Z] maps a machine integer to the
    ideal integer that it represents. *)
@@ -145,14 +167,19 @@ Proof.
   reflexivity.
 Qed.
 
+(* [max_unsigned] is [2^int_size-1]. *)
+
+Lemma max_unsigned_eq :
+  max_unsigned = two_power_nat int_size - 1.
+Proof. reflexivity. (* ah! *) Qed.
+
 (* -------------------------------------------------------------------------- *)
 
-(* The following facts are the specifications of the operations on machine
-   integers that are of interest to us. *)
+(* Definitions of the operations on machine integers that exist in OCaml. *)
 
-(* It is worth noting that negation, addition, subtraction, multiplication
-   have no proof obligation. There is no need to prove that the arguments
-   or result of the operation are representable. *)
+(* [ne] is not needed, because it is defined in terms of [eq]. *)
+
+(* Similarly, [gt], [le], [ge] are defined in terms of [lt]. *)
 
 Definition neg  := M.neg.
 Definition add  := M.add.
@@ -162,6 +189,50 @@ Definition divs := M.divs.
 Definition mods := M.mods.
 Definition eq   := M.eq.
 Definition lt   := M.lt.
+
+Definition lnot := M.not.
+Definition land := M.and.
+Definition lor  := M.or.
+Definition lxor := M.xor.
+Definition lsl  := M.shl.
+Definition lsr  := M.shru. (* inserts zeroes *)
+Definition asr  := M.shr.  (* inserts the sign bit of its first operand *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following facts are the specifications of the operations on machine
+   integers that are of interest to us. *)
+
+(* In OCaml, machine integers are usually understood as signed integers. In
+   accordance with this convention, several operations require their
+   operand(s) to be representable, that is, to inhabit the interval of the
+   signed integers. However, some operations require their operand(s) to be
+   representable as an unsigned integer. Some operations require one or the
+   other. Finally, some operations have no requirement at all. *)
+
+(* [neg], [add], [sub], [mul], [lnot], [land], [lor], [lxor] have no
+   precondition. There is no need to prove that the arguments or result of
+   the operation are representable. This is convenient, and implies that
+   these operations work both with signed and unsigned integers. *)
+
+(* [divs] and [mods] require (signed) representable integers. *)
+
+(* The logical operations [lsl], [lsr], and [asr] require their second
+   operand [z2] to satisfy [0 <= z2 <= zintsize]. This is perhaps more
+   restrictive than necessary, but this requirement appears in the OCaml
+   reference manual. *)
+
+(* [lsl] places no constraint on its first argument. [lsr] requires its
+   first argument [z1] to be representable as an unsigned integer. [asr]
+   requires [z1] to be representable in the usual sense, that is, as a
+   signed integer. *)
+
+(* [eq] requires its arguments to be either both representable as signed
+   integers or both representable as unsigned integers. Thus, it works both
+   with signed and with unsigned integers, but one must know which. *)
+
+(* [lt] requires its arguments to be representable as signed integers.
+   OCaml does not offer unsigned integer comparison operators. *)
 
 Lemma neg_repr : forall z, neg (repr z) = repr (-z).
 Proof. apply M.neg_repr. Qed.
@@ -193,16 +264,84 @@ Lemma eq_repr_repr :
   eq (repr z1) (repr z2) = (z1 =? z2).
 Proof. apply M.eq_repr_repr. Qed.
 
+Lemma eq_repr_repr_unsigned :
+  forall z1 z2,
+  urepresentable z1 -> urepresentable z2 ->
+  eq (repr z1) (repr z2) = (z1 =? z2).
+Proof. apply M.eq_repr_repr_unsigned. Qed.
+
 Lemma lt_repr_repr :
   forall z1 z2,
   representable z1 -> representable z2 ->
   lt (repr z1) (repr z2) = (z1 <? z2).
 Proof. apply M.lt_repr_repr. Qed.
 
+Lemma lnot_repr :
+  forall z,
+  lnot (repr z) = repr (Z.lnot z).
+Proof. apply M.not_repr. Qed.
+
+Lemma land_repr_repr :
+  forall z1 z2,
+  land (repr z1) (repr z2) = repr (Z.land z1 z2).
+Proof. apply M.and_repr_repr. Qed.
+
+Lemma lor_repr_repr :
+  forall z1 z2,
+  lor (repr z1) (repr z2) = repr (Z.lor z1 z2).
+Proof. apply M.or_repr_repr. Qed.
+
+Lemma lxor_repr_repr :
+  forall z1 z2,
+  lxor (repr z1) (repr z2) = repr (Z.lxor z1 z2).
+Proof. apply M.xor_repr_repr. Qed.
+
+Lemma lsl_repr_repr :
+  forall z1 z2,
+  in_shift_range z2 ->
+  lsl (repr z1) (repr z2) = repr (Z.shiftl z1 z2).
+Proof. apply M.shl_repr_repr. Qed.
+
+Lemma lsr_repr_repr :
+  forall z1 z2,
+  urepresentable z1 ->
+  in_shift_range z2 ->
+  lsr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
+Proof. apply M.shru_repr_repr. Qed.
+
+Lemma asr_repr_repr :
+  forall z1 z2,
+  representable z1 ->
+  in_shift_range z2 ->
+  asr (repr z1) (repr z2) = repr (Z.shiftr z1 z2).
+Proof. apply M.shr_repr_repr. Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas and tactics are intended to help prove that certain
    numbers are representable. *)
+
+Lemma in_shift_range_representable z :
+  in_shift_range z ->
+  representable z.
+Proof.
+  unfold in_shift_range, representable.
+  assert (min_signed < 0).
+  { unfold min_signed. apply M.min_signed_neg. }
+  assert (zintsize <= max_signed).
+  { rewrite <- zwordsize_is_zintsize. unfold max_signed.
+    apply M.wordsize_max_signed. }
+  lia.
+Qed.
+
+Lemma in_shift_range_b_spec z :
+  in_shift_range z ->
+  (0 <=? z) && (z <=? zintsize) = true.
+Proof.
+  unfold in_shift_range. intros.
+  repeat rewrite Zle_imp_le_bool by lia.
+  reflexivity.
+Qed.
 
 Lemma prove_representable_30 i :
   -(two_power_nat 30) <= i < two_power_nat 30 ->
@@ -223,6 +362,10 @@ Ltac prove_representable_30' :=
 (* TODO eliminate the redundancy between these tactics;
         use a single tactic and make it more robust;
         it should either succeed or fail quickly. *)
+
+(* TODO extend the tactic [representable] to also prove goals
+   of the form [urepresentable z] and [in_shift_range z].
+   Rename the tactic, if desired. *)
 
 Goal representable 1673.
 Proof.
@@ -254,4 +397,11 @@ Global Opaque
   mods
   eq
   lt
+  lnot
+  land
+  lor
+  lxor
+  lsl
+  lsr
+  asr
 .

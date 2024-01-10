@@ -144,6 +144,9 @@ and fcoercion (f, co) =
 let rec expr (e : expr) =
   match e with
 
+  | EDecorate (snippet, e) ->
+      c "deco" [ string snippet; expr e ]
+
   | EUnsupported ->
       c "EUnsupported" []
 
@@ -206,6 +209,9 @@ let rec expr (e : expr) =
 
   | EIntMod (e1, e2) ->
       c "EIntMod" [ expr e1; expr e2 ]
+
+  | EFloat f ->
+      c "EFloat" [ plain (sprintf "(%s)%%float" f)]
 
   | EChar cc ->
       c "EChar" [char cc]
@@ -296,13 +302,15 @@ and branch = function
       c "Branch" [ pat p; expr e ]
 
 and branches (bs : branches) =
-  cut "branches" (clist "MkBranches" (map branch bs))
+  cut "branches" (list (map branch bs))
+
+and fexpr = function
+  | Fexpr (f, e) -> 
+    c "Fexpr" [ field f; expr e ]
 
 and fexprs (fes : fexprs) =
-  clist "MkFexprs" (map fexpr fes)
+  list (map fexpr fes)
 
-and fexpr (f, e) =
-  pair (field f) (expr e)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -317,10 +325,10 @@ and rec_binding = function
       c "RecBinding" [ var x; anonfun a ]
 
 and bindings (bs : bindings) =
-  clist "MkBindings" (map binding bs)
+  list (map binding bs)
 
 and rec_bindings (rbs : rec_bindings) =
-  cut "bindings" (clist "MkRecBindings" (map rec_binding rbs))
+  cut "bindings" (list (map rec_binding rbs))
 
 (* -------------------------------------------------------------------------- *)
 

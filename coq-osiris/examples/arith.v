@@ -78,7 +78,7 @@ Lemma Add_spec :
       ("i3", is_equal #3)
     ]
   in
-  let η := EnvCons "Stdlib" Stdlib Stdlib_env in
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
   ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
 Proof.
   intros.
@@ -113,6 +113,7 @@ Proof.
         wp_use "Hadd".
         { iPureIntro. lia. }
         iIntros (vpadd) "Hvpadd".
+        rewrite sub_repr_repr.
         wp_bind.
         iApply (wp_covariant with "[Hvpadd]").
         { wp_use "Hvpadd".
@@ -154,6 +155,7 @@ Proof.
           wp_use "Hmult".
           { iPureIntro. lia. }
           iIntros (vmult_part) "Hvmult_part".
+          rewrite sub_repr_repr.
           wp_use "Hvmult_part".
           iPureIntro. lia. }
         { iIntros (v1 v2) "Hv1 ->".
