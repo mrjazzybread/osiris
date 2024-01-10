@@ -1059,6 +1059,7 @@ Definition evalfs := evalfs' eval.
 Definition eval_match := eval_match' eval.
 Definition eval_bindings := eval_bindings' eval.
 Definition eval_mexpr := eval_mexpr' eval_bindings.
+Definition eval_sitems := eval_sitems' eval_mexpr eval_bindings.
 
 (* ------------------------------------------------------------------------ *)
 

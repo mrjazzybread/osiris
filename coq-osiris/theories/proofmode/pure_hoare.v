@@ -233,7 +233,6 @@ Proof.
   tauto.
 Qed.
 
-<<<<<<< HEAD
 Lemma pure_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
   pure (
     let δ := eval_rec_bindings η rbs in
@@ -246,8 +245,6 @@ Proof.
   tauto.
 Qed.
 
-=======
->>>>>>> 389fe3f (Added reasoning on bind composed with structs and records)
 Lemma invert_pure_crash `{Encode Y} (φ : Y -> Prop) :
   pure Crash φ -> False.
 Proof.

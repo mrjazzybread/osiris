@@ -26,28 +26,13 @@ OCaml expression <code>24 + 18</code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><span class="alectryon-input"><span class="kn">Definition</span> <span class="nf">add_24_plus_18</span> : expr :=
   EIntAdd (EInt <span class="mi">24</span>) (EInt <span class="mi">18</span>).</span></span></pre><p>Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk0" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk0"><span class="kn">Print</span> pat.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">pat</span> : <span class="kt">Set</span> :=
-    PUnsupported : pat
-  | PAny : pat
-  | PVar : var → pat
-  | PAlias : pat → var → pat
-  | POr : pat → pat → pat
-  | PTuple : list pat → pat
-  | PData : data → pat → pat
-  | PRecord : list (<span class="bp">field</span> * pat) → pat
-  | PInt : Z → pat
-  | PChar : char → pat
-  | PString : string → pat.
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk0" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk0"><span class="kn">Print</span> pat.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">pat =
+<span class="kr">λ</span> <span class="nv">η</span> <span class="nv">p</span> <span class="nv">v</span> (<span class="nv">φ</span> : env → <span class="kt">Prop</span>) (<span class="nv">ψ</span> : <span class="kt">Prop</span>),
+  total (extend η p v) φ ψ
+     : env
+       → syntax.pat → val → (env → <span class="kt">Prop</span>) → <span class="kt">Prop</span> → <span class="kt">Prop</span>
 
-<span class="kn">Arguments</span> PVar x
-<span class="kn">Arguments</span> PAlias p x
-<span class="kn">Arguments</span> POr p1 p2
-<span class="kn">Arguments</span> PTuple ps%list_scope
-<span class="kn">Arguments</span> PData c p
-<span class="kn">Arguments</span> PRecord fps%list_scope
-<span class="kn">Arguments</span> PInt i%Z_scope
-<span class="kn">Arguments</span> PChar c
-<span class="kn">Arguments</span> PString s%string_scope</blockquote></div></div></small><span class="alectryon-wsp">
+<span class="kn">Arguments</span> pat η p v φ%function_scope ψ%type_scope</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=
     EUnsupported : expr
   | EPath : path → expr
@@ -105,9 +90,9 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   <span class="kr">with</span> fexpr : <span class="kt">Set</span> :=
     Fexpr : <span class="bp">field</span> → expr → fexpr
   <span class="kr">with</span> branch : <span class="kt">Set</span> :=
-    Branch : pat → expr → branch
+    Branch : syntax.pat → expr → branch
   <span class="kr">with</span> binding : <span class="kt">Set</span> :=
-    Binding : pat → expr → binding
+    Binding : syntax.pat → expr → binding
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=
     RecBinding : var → anonfun → rec_binding
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=
