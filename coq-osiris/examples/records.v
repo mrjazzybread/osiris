@@ -130,8 +130,7 @@ Proof.
   (* [flip] has the expected spec. *)
   oSpecify "flip" flip_spec vflip "#Hflip".
   { iIntros "!>" (b i); wp.
-    simpl. (* TODO *)
-    wp. equality. }
+    simpl. equality. } (* TODO *)
   wp_bind.
 
   (* [flip] is applied to [r_elt]. *)

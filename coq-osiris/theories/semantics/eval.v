@@ -259,37 +259,19 @@ Fixpoint update fvs fvs' : micro env :=
 (* A [sort] function for lists of string-value pairs, also known as
    environments. *)
 
-(* A painful difficulty is that [env] is a custom type of lists, so the
-   standard [sort] function cannot be applied directly to it. We extract a
-   list of keys, sort this list, then reconstruct a sorted environment by
-   performing lookups in the original environment. This has quadratic cost,
-   but all of operations on environments and records have quadratic cost
-   anyway. *)
-
 Require Import Orders Sorting.
 
-Module StringOrder <: TotalLeBool.
-  Definition t := string.
-  Definition leb := String.leb.
-  Definition leb_total := String.leb_total.
-End StringOrder.
+Module PairOrder <: TotalLeBool.
+  Definition t := prod string val.
+  Definition leb (t1 t2 : string * val) :=
+    String.leb (fst t1) (fst t2).
+  Definition leb_total (t1 t2 : string * val) :=
+    String.leb_total (fst t1) (fst t2).
+End PairOrder.
 
-Module StringSort := Sort StringOrder.
+Module PairSort := Sort PairOrder.
 
-Definition domain (η : env) : list string := fst (split η).
-
-Fixpoint build (η : env) (xs : list string) : micro env :=
-  match xs with
-  | [] =>
-      ret []
-  | x :: xs =>
-      v ← lookup_name η x ;
-      xs ← build η xs ;
-      ret ((x, v) :: xs)
-  end.
-
-Definition sort (η : env) : micro env :=
-  build η (StringSort.sort (domain η)).
+Definition sort (η : env) : env := PairSort.sort η.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -340,7 +322,7 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun :=
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Definition extends' extend : env -> list pat -> list val -> micro env :=
+Definition pre_extends extend : env -> list pat -> list val -> micro env :=
   fix extends (δ : env) ps vs : micro env :=
     match ps, vs with
     | [], [] =>
@@ -365,7 +347,7 @@ Definition extends' extend : env -> list pat -> list val -> micro env :=
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Definition extendfs' extend : env -> list (var * pat) -> env -> micro env :=
+Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env :=
   fix extendfs (δ : env) fps fvs : micro env :=
     match fps with
     | [] => ret δ
@@ -393,8 +375,8 @@ Definition extendfs' extend : env -> list (var * pat) -> env -> micro env :=
    bound twice. This property is enforced by the OCaml type-checker. *)
 
 Fixpoint extend δ p v : micro env :=
-  let extends := extends' extend in
-  let extendfs := extendfs' extend in
+  let extends := pre_extends extend in
+  let extendfs := pre_extendfs extend in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -447,8 +429,8 @@ Fixpoint extend δ p v : micro env :=
       type_mismatch "string expected"
 end.
 
-Definition extends := extends' extend.
-Definition extendfs := extendfs' extend.
+Definition extends := pre_extends extend.
+Definition extendfs := pre_extendfs extend.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -634,7 +616,7 @@ Definition ret_dconcat δ' ηδ :=
 
 (* ------------------------------------------------------------------------ *)
 
-Definition coerces' coerce : list fcoercion -> env -> micro env :=
+Definition pre_coerces coerce : list fcoercion -> env -> micro env :=
   fix coerces (xcs : list fcoercion ) xvs : micro env :=
     match xcs with
     | [] => ret []
@@ -656,7 +638,7 @@ Definition coerces' coerce : list fcoercion -> env -> micro env :=
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
 Fixpoint coerce (c : coercion) (v : val) : micro val :=
-  let coerces := coerces' coerce in
+  let coerces := pre_coerces coerce in
   match c with
   | CIdentity =>
       ret v
@@ -671,61 +653,36 @@ Fixpoint coerce (c : coercion) (v : val) : micro val :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval η e] evaluates the expression [e] in environment [η].
-
-   In case of success, the result is a value.
-
-   A hard failure reflects a dynamic type error (a crash).
-
-   A soft failure is impossible.
-
-   No substitutions are involved; this is an environment-based semantics.
-
-   [eval] is inductively defined. In some cases, it invokes itself
-   recursively on a subexpression of [e]. When an expression must be
-   evaluated but is not a subexpression of [e], a [stop] effect is
-   used instead of a recursive call to [eval]. *)
-
-(* In a binary application [e1 e2], the expressions [e1] and [e2] are
-   evaluated in parallel. This allows an interleaving of steps inside [e1]
-   and steps inside [e2]. This is more permissive than a choice between the
-   sequence [e1; e2] and the sequence [e2; e1]. As a result, in an n-ary
-   application [e1 e2 ... en], the expressions [e1], [e2], ... [en] can be
-   evaluated in an arbitrary order. That is, an arbitrary permutation of
-   these expressions is possible: the evaluation order is not necessarily
-   left-to-right or right-to-left. *)
-
-
 (* [eval_sitem ηδ item] evaluates the structure item [item] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-Definition eval_sitem' eval_mexpr eval_bindings (acc : micro envs) item :=
-  bind acc (fun ηδ =>
-              let '(η, δ) := ηδ in
-              match item with
-              | ILet bs =>
-                  δ' ← eval_bindings η bs;
-                  ret_dconcat δ' (η, δ)
-              | ILetRec rbs =>
-                  let δ' := eval_rec_bindings η rbs in
-                  ret_dconcat δ' (η, δ)
-              | IModule m me' =>
-                  v ← eval_mexpr η me' ;
-                  ret_dconcat [(m, v)] (η, δ)
-              | IOpen me' =>
-                  δ' ← as_struct (eval_mexpr η me') ;
-                  ret (δ' ++ η, δ)
-              | IInclude me' =>
-                  δ' ← as_struct (eval_mexpr η me') ;
-                  ret (dconcat δ' (η, δ))
-              end).
+Definition pre_eval_sitem eval_mexpr eval_bindings (acc : micro envs) item :=
+  ηδ ← acc ;
+  let '(η, δ) := ηδ in
+  match item with
+  | ILet bs =>
+      δ' ← eval_bindings η bs;
+      ret_dconcat δ' (η, δ)
+  | ILetRec rbs =>
+      let δ' := eval_rec_bindings η rbs in
+      ret_dconcat δ' (η, δ)
+  | IModule m me' =>
+      v ← eval_mexpr η me' ;
+      ret_dconcat [(m, v)] (η, δ)
+  | IOpen me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (δ' ++ η, δ)
+  | IInclude me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (dconcat δ' (η, δ))
+  end.
 
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-Definition eval_sitems' eval_mexpr eval_bindings : list sitem -> envs -> micro envs :=
+Definition pre_eval_sitems eval_mexpr eval_bindings : list sitem -> envs -> micro envs :=
   λ (items : list sitem) (ηδ : envs),
-    let eval_sitem := eval_sitem' eval_mexpr eval_bindings in
+    let eval_sitem := pre_eval_sitem eval_mexpr eval_bindings in
     fold_left eval_sitem items (ret ηδ).
 
 (* ------------------------------------------------------------------------ *)
@@ -733,9 +690,9 @@ Definition eval_sitems' eval_mexpr eval_bindings : list sitem -> envs -> micro e
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
-Definition eval_mexpr' eval_bindings : env -> mexpr -> micro val :=
+Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val :=
   fix eval_mexpr (η : env) (me : mexpr) :=
-    let eval_sitems := eval_sitems' eval_mexpr eval_bindings in
+    let eval_sitems := pre_eval_sitems eval_mexpr eval_bindings in
     match me with
     | MUnsupported => unsupported_construct
     | MPath π =>
@@ -767,17 +724,17 @@ Definition eval_mexpr' eval_bindings : env -> mexpr -> micro val :=
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
    then [eval_bindings] would disappear. We prefer to avoid encodings. *)
 
-Definition eval_bindings' eval : env -> list binding -> micro env :=
+Definition pre_eval_bindings eval : env -> list binding -> micro env :=
   λ (η : env) (bs : list binding),
-    let f :=
-      fun b acc =>
+    let par_eval_binding :=
+      fun (b : binding) (acc : micro env) =>
         match b with
         | Binding p e0 =>
             '(v, δ) ← par (eval η e0) acc ;
             extend δ p v
         end
     in
-    fold_right f (ret []) bs.
+    fold_right par_eval_binding (ret []) bs.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -786,14 +743,14 @@ Definition eval_bindings' eval : env -> list binding -> micro env :=
 
 (* [evals] is used to evaluate tuples. *)
 
-Definition evals' eval : env -> list expr -> micro (list val) :=
+Definition pre_evals eval : env -> list expr -> micro (list val) :=
   λ (η : env) (es : list expr),
-    let f :=
-      fun e acc =>
+    let par_eval :=
+      fun (e : expr) (acc : micro (list val)) =>
         '(v, vs) ← par (eval η e) acc ;
         ret (v :: vs)
     in
-    fold_right f (ret []) es.
+    fold_right par_eval (ret []) es.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -805,26 +762,26 @@ Definition evals' eval : env -> list expr -> micro (list val) :=
 
 (* [evalfs] is used to evaluate record construction expressions. *)
 
-Definition evalfs' eval : env -> list fexpr -> micro (list (field * val)) :=
+Definition pre_evalfs eval : env -> list fexpr -> micro (list (field * val)) :=
   λ (η : env) (fes : list fexpr),
-    let f :=
-      fun fe acc =>
+    let par_eval_fexpr :=
+      fun (fe : fexpr) (acc : micro (list (field * val))) =>
         match fe with
         | Fexpr f e =>
             '(v, fvs) ← par (eval η e) acc ;
             ret ((f, v) :: fvs)
         end
     in
-    fold_right f (ret []) fes.
+    fold_right par_eval_fexpr (ret []) fes.
 
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
-Definition eval_match' eval : env -> val -> list branch -> micro val :=
+Definition pre_eval_match eval : env -> val -> list branch -> micro val :=
   λ (η : env) (v : val) (bs : list branch),
-    let f :=
-      fun b acc =>
+    let try_match_branch :=
+      fun (b : branch) (acc : micro val) =>
         match b with
         | Branch p e =>
             (* Match the value [v] against the pattern [p]. *)
@@ -840,14 +797,41 @@ Definition eval_match' eval : env -> val -> list branch -> micro val :=
     (* Because the proof system forbids hard failures, the user of
        the system will have to prove that this cannot happen, i.e.,
        every case analysis is exhaustive. *)
-    fold_right f (match_failure()) bs.
+    fold_right try_match_branch (match_failure()) bs.
+
+(* ------------------------------------------------------------------------ *)
+(* ------------------------------------------------------------------------ *)
+
+(* [eval η e] evaluates the expression [e] in environment [η].
+
+   In case of success, the result is a value.
+
+   A hard failure reflects a dynamic type error (a crash).
+
+   A soft failure is impossible.
+
+   No substitutions are involved; this is an environment-based semantics.
+
+   [eval] is inductively defined. In some cases, it invokes itself
+   recursively on a subexpression of [e]. When an expression must be
+   evaluated but is not a subexpression of [e], a [stop] effect is
+   used instead of a recursive call to [eval]. *)
+
+(* In a binary application [e1 e2], the expressions [e1] and [e2] are
+   evaluated in parallel. This allows an interleaving of steps inside [e1]
+   and steps inside [e2]. This is more permissive than a choice between the
+   sequence [e1; e2] and the sequence [e2; e1]. As a result, in an n-ary
+   application [e1 e2 ... en], the expressions [e1], [e2], ... [en] can be
+   evaluated in an arbitrary order. That is, an arbitrary permutation of
+   these expressions is possible: the evaluation order is not necessarily
+   left-to-right or right-to-left. *)
 
 Fixpoint eval η e : micro val :=
-  let evals := evals' eval in
-  let evalfs := evalfs' eval in
-  let eval_match := eval_match' eval in
-  let eval_bindings := eval_bindings' eval in
-  let eval_mexpr := eval_mexpr' eval_bindings in
+  let evals := pre_evals eval in
+  let evalfs := pre_evalfs eval in
+  let eval_match := pre_eval_match eval in
+  let eval_bindings := pre_eval_bindings eval in
+  let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -877,7 +861,7 @@ Fixpoint eval η e : micro val :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
@@ -885,7 +869,7 @@ Fixpoint eval η e : micro val :=
       '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
       (* The new components override existing components by the same name. *)
       fvs ← update fvs fvs' ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
@@ -1054,12 +1038,13 @@ Fixpoint eval η e : micro val :=
       ok
   end.
 
-Definition evals := evals' eval.
-Definition evalfs := evalfs' eval.
-Definition eval_match := eval_match' eval.
-Definition eval_bindings := eval_bindings' eval.
-Definition eval_mexpr := eval_mexpr' eval_bindings.
-Definition eval_sitems := eval_sitems' eval_mexpr eval_bindings.
+
+Definition evals := pre_evals eval.
+Definition evalfs := pre_evalfs eval.
+Definition eval_match := pre_eval_match eval.
+Definition eval_bindings := pre_eval_bindings eval.
+Definition eval_mexpr := pre_eval_mexpr eval_bindings.
+Definition eval_sitems := pre_eval_sitems eval_mexpr eval_bindings.
 
 (* ------------------------------------------------------------------------ *)
 

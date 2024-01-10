@@ -391,7 +391,7 @@ Proof.
     (* Eval x2::l2 *)
     apply pure_eval_data.
     apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-      (* Establish postcondition *)
+    (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     repeat destruct_hyp.
     split; last split.
