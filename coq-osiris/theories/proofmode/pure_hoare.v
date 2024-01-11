@@ -6,7 +6,7 @@ From osiris.proofmode Require Import notations.
 
 (* Because the relation [simp] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
-   for pure compuations. *)
+   for pure computations. *)
 
 (* This file offers lemmas and tactics that help work with [pure] goals.
    These lemmas and tactics form a simple "proof mode" for pure
