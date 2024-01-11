@@ -303,89 +303,81 @@ Lemma Split_spec' η :
 Proof.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
+  (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   intros ? <-. unfold __branches6; simpl.
-  (* First branch of match: l = [] *)
+  (* First branch of match *)
   eapply pure_match_cons.
-  { (* Pattern [] l *)
+  { (* Match against "[]" *)
     eapply pat_pNil; first solve [encode].
-    (* Substitute l with [] *)
-    intros ->.
-    (* Eval ([], []) *)
+    intros Heql. (* We now know that l = [] *)
+    (* Traverse the expression after a succesful match *)
     apply pure_eval_pair. pure_const. pure_const.
-    (* Establish postcondition *)
-    by simpl. }
+    (* Establish the (trivial) postcondition *)
+    by rewrite Heql. }
+  (* Case: we don't match the first branch, we now know that l ≠ [] *)
   intros l_neq_nil.
-  (* Second branch of match, l = [x] *)
+  (* Second branch of match *)
   eapply pure_match_cons.
-  { (* Pattern (x :: []) l *)
+  { (* Match against "x :: []" *)
     eapply pat_pCons; eauto.
-    (* Substitute l with h :: t *)
-    intros h t Heql; clear l_neq_nil.
-    (* Patterns (x :: []) (#h :: #t) *)
+    intros h t Heql; clear l_neq_nil. (* We now know that l = h :: t *)
+    (* Match #h with "x" and #t with "[]" *)
     eapply pats_PCons_var.
-    (* Patterns [] #t *)
-    eapply pats_PCons.
-    (* Pattern [] #t *)
-    eapply pat_pNil2; first solve [encode]. apply eq_refl.
-    (* Substitute t with [] *)
-    intros ?; simpl; intros [Heqt <-].
+    eapply pats_PCons. { eapply pat_pNil2; first solve [encode]. apply eq_refl. }
+    intros ?; simpl; intros [Heqt <-]. (* We now know that t = [] *)
     apply pats_PNil.
-    (* Eval ([x], []) *)
+    (* Traverse the expression after a succesful match *)
     apply pure_eval_pair.
-    (* Eval [x] *)
     apply pure_eval_data.
     apply pure_eval_pair_val. pure_path. pure_const.
     pure_ret.
-    (* Eval [] *)
     pure_const.
     (* Establish postcondition *)
     by rewrite Heql, Heqt. }
+  (* Case: we don't match the first or second branch, we know that
+     ∃ h t, l = h :: t and t ≠ [] *)
   intros [(h & t & Heql & tneq) |t_neq_nil]; last contradiction.
   repeat (destruct tneq as [? | tneq]; try contradiction).
-  (* Match l with | x1 :: x2 :: t *)
-  rewrite Heql.
+  (* Third branch of match *)
   eapply pure_match_cons.
-  { (* Pattern (x1 :: x2 :: t) #(h :: t) *)
+  { (* Match against "x1 :: x2 :: t" *)
     eapply pat_pCons; eauto.
-    intros x1 ? Heqht.
-    (* Patterns (x1 :: (x2 :: t)) (#x1 :: #tmp) *)
+    intros x1 xs' Heqht. (* We regain the knowledge that l = x1 :: xs' *)
+    (* Match #x1 with "x1" and #xs' with "x2 :: t" *)
     apply pats_PCons_var.
-    (* Patterns [(x2::t)] #tmp *)
     eapply pats_PCons2 with
       (φ':= fun η' => exists x2 xs, xs' = x2 :: xs /\
                               η' = [("t", #xs);
                                     ("x2", #x2);
                                     ("x1", #x1);
-                                    ("l", encode_list (h :: t));
+                                    ("l", encode_list l);
                                     ("split", vf)] ++ η).
-    {
+    { (* Match #xs' with "x2 :: t" *)
       eapply pat_pCons; eauto.
-      intros x2 xs Heqxs.
-      (* Patterns (x2 :: t) (#x2 :: #t) *)
+      intros x2 xs Heqxs. (* We now know xs' = x2 :: xs *)
+      (* Match #x2 with "x2" and #xs with "t" *)
       apply pats_PCons_var.
-      (* Patterns t #t *)
       apply pats_PCons_var.
       apply pats_PNil.
       eauto. }
-    (* clean assumptions to just have [l = x1 :: x2 :: xs] *)
-    intros ? (x2 & xs & -> & ->). simpl.
-    injection Heqht; clear Heqht. intros -> ->.
-    clear l_neq_nil H0.
+    intros ? (x2 & xs & -> & ->); simpl. (* We now know that l = x1 :: xs :: xs *)
+    clear Heql l_neq_nil H0.
+    subst l.
     apply pats_PNil.
-    (* Eval let (l1, l2) = split t *)
+    (* Traverse the expression after a succesful match *)
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.
-    (* Call vf #t *)
+    (* Call vf #xs *)
     eapply pure_consequence.
     { (* Use induction hypothesis *)
       apply IH; first done.
-      rewrite Heql; eauto with arith. }
+      eauto with arith. }
     intros [l1 l2] Hpost; clear IH; simpl.
     unfold __exp5; simpl.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.
-      (* Eval x1::l1 *)
+    (* Eval x1::l1 *)
     apply pure_eval_data.
     apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
     (* Eval x2::l2 *)
@@ -395,22 +387,22 @@ Proof.
     unfold split_post in *; simpl in *.
     repeat destruct_hyp.
     split; last split.
-    { (* Subgoal: the length of l1 is half the length of l *)
-        destruct (Nat.even _); eauto with arith. }
-    { (* Subgoal: the length of l2 is hald the length of l *)
+    { (* Subgoal: the length of l1 is half the length of xs *)
+      destruct (Nat.even _); eauto with arith. }
+    { (* Subgoal: the length of l2 is half the length of xs *)
       eauto with arith. }
-    { (* Subgoal: l1++l2 is a permutation of l *)
+    { (* Subgoal: l1++l2 is a permutation of xs *)
       rewrite_permutation xs.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
-  (* Show that going past the last branch of the match is impossible *)
-  intros [ Hf | F]; last discriminate.
-  destruct Hf as (x1 & xs' & Heqht & Hf).
-  destruct Hf as [Hf | F]; last contradiction.
-  destruct Hf as [(? & ? & ? & F) | Heqxs']; first contradiction.
+  (* Case: we don't match against any of the branches *)
+  intros [ Hf | ? ]; last contradiction.
   exfalso.
-  injection Heqht; intros -> ->.
+  destruct Hf as (? & ? & Heqht & Hf).
+  destruct Hf as [ Hf | ? ]; last contradiction.
+  destruct Hf as [ (? & ? & ? & ?) | ? ]; first contradiction.
+  rewrite Heql in Heqht; injection Heqht; intros -> ->.
   contradiction.
 Qed.
 
