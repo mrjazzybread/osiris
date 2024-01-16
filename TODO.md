@@ -292,6 +292,7 @@
 * voigtlander-08, jaskelioff-rivas-15 (efficient presentation of the free monad)
 * svenningsson-axelsson-15
 * letan-al-18, letan-al-21 (FreeSpec)
+* recursion through a `call` effect: McBride, [Turing-Completeness Totally Free](https://strathprints.strath.ac.uk/60166/1/McBride_LNCS2015_Turing_completeness_totally_free.pdf)
 * maillard-al-19
 * swierstra-baanen-19
 * fromherz-steel-21
@@ -314,6 +315,7 @@
   Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
 * [Program Adverbs and Tlön embeddings](https://www.cis.upenn.edu/~sweirich/papers/icfp22.pdf)
 * [Spoq](https://www.usenix.org/system/files/osdi23-li-xupeng.pdf)
+* SSProve (imperative language embedded in Coq, plus Dijkstra monads)
 
 ## Features of OCaml that we want to support (at some point)
 
