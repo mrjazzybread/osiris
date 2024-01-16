@@ -14,7 +14,7 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 (* -------------------------------------------------------------------------- *)
 
 (* WIP: Tactics used in local proof scripts. *)
-  
+
 Ltac destruct_hyp :=
   match goal with
   | H : _ /\ _ |- _ => destruct H
@@ -92,7 +92,7 @@ Proof.
   auto with arith.
 Qed.
 
-(* Make a library of commonly used well founded relations? *) 
+(* Make a library of commonly used well founded relations? *)
 
 Lemma wf_list_length {A : Type} :
   well_founded (fun (l1 l2 : list A) => (length l1 < length l2)%nat).
@@ -181,7 +181,7 @@ Proof.
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *) Transparent app. simpl.
     pure_execute.
-    (* Use the induction hypothesis on [call merge (h1::t1) t2] *) 
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
     eapply pure_bind_binary.
     { apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
@@ -263,7 +263,7 @@ Proof.
     eauto using pat_pNil.
 Qed.
 
-Lemma pat_pCons2 `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) (ψ : Prop) ψ1 ψ2 :
+Lemma pat_pCons2_cut `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) (ψ : Prop) ψ1 ψ2 :
   v = #xs ->
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
@@ -292,6 +292,34 @@ Proof.
     intros Hψ. left. exists x, xs. destruct Hψ; eauto. }
 Qed.
 
+Lemma pat_pCons2 `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) ψ1 ψ2 :
+  v = #xs ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat η p1 #x (λ η0, η0 = (η' x xs')) (ψ1 x xs')) ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat (η' x xs') p2 #xs' φ (ψ2 x xs')) ->
+  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 x xs' \/ ψ2 x xs')) ∨ xs = []).
+Proof.
+  intros ? Hpat Hpats; subst.
+  eapply pat_pCons2_cut; eauto.
+Qed.
+
+Lemma pat_pCons2_nondep `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) ψ1 ψ2 :
+  v = #xs ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat η p1 #x (λ η0, η0 = (η' x xs')) ψ1) ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat (η' x xs') p2 #xs' φ (ψ2 xs')) ->
+  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 \/ ψ2 xs')) ∨ xs = []).
+Proof.
+  intros ? Hpat Hpats; subst.
+  eapply pat_pCons2; eauto.
+Qed.
+
 Lemma pats_PCons2 η p ps v vs φ' φ ψ1 ψ2 :
   pat η p v φ' ψ1 →
   (forall η', φ' η' -> pats η' ps vs φ ψ2) →
@@ -312,6 +340,12 @@ Proof.
   - tauto.
 Qed.
 
+Ltac pat_pNil :=
+  eapply pat_pNil; first solve [ encode ].
+
+Ltac pat_pCons :=
+  eapply pat_pCons2_nondep; first solve [ encode ].
+
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -320,26 +354,24 @@ Proof.
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   intros ? <-. unfold __branches6; simpl.
-  (* First branch of match *)
+  (* First branch of match *) rewrite ?encode_list_is_encode.
   eapply pure_match_cons.
-  { (* Match against "[]" *)
-    eapply pat_pNil; first solve [encode].
-    intros Heql. (* We now know that l = [] *)
+  { (* Case: l matches [] *)
+    pat_pNil. intros ->. (* We learn that l = [] *)
     (* Traverse the expression after a succesful match *)
     apply pure_eval_pair. pure_const. pure_const.
     (* Establish the (trivial) postcondition *)
-    by rewrite Heql. }
-  (* Case: we don't match the first branch, we now know that l ≠ [] *)
-  intros l_neq_nil.
+    done. }
+  (* Case: the first branch doesn't match, we learn that l ≠ [] *)
+  intros no_match1.
   (* Second branch of match *)
   eapply pure_match_cons.
-  { (* Match against "x :: []" *)
-    eapply pat_pCons2; eauto; intros h t Heql.
+  { (* Case: l matches "cons x []" *)
+    pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
     (* Match #h with "x" *)
     { apply pat_PVar. apply eq_refl. }
     (* Match #t with "[]" *)
-    simpl. eapply pat_pNil; eauto.
-    intros ->. (* We now know t = [] *)
+    simpl. pat_pNil. intros ->. (* We now know t = [] *)
     (* Traverse the expression after a succesful match *)
     apply pure_eval_pair.
     apply pure_eval_data.
@@ -348,19 +380,17 @@ Proof.
     pure_const.
     (* Establish postcondition *)
     by rewrite Heql. }
-  (* Case: we don't match the first or second branch, we know that
-     ∃ h t, l = h :: t and t ≠ [] *)
-  simpl.
-  intros [ (h & t & Heql & tneq) | ?]; last contradiction.
-  destruct tneq as [ ? | tneq ]; first contradiction.
+  (* Case: we don't match the second branch,
+     we learn that either l = [] or ∃ h t, l = h :: t and t ≠ [] *)
+  simpl. intros no_match2.
   (* Third branch of match *)
   eapply pure_match_cons.
   { (* Match against "x1 :: x2 :: t" *)
-    eapply pat_pCons2 with (ψ2 := fun _ _ => False); eauto; intros x1 xs' Heql2.
-    { (* Match #x1 with "x1" *) 
+    pat_pCons; intros x1 xs' Heql.
+    { (* Match #x1 with "x1" *)
       apply pat_PVar. apply eq_refl. }
     simpl. (* Match #xs' with "x2 :: t" *)
-    eapply pat_pCons2; eauto; try intros x2 xs Heqxs'.
+    pat_pCons; intros x2 xs Heqxs'.
     { (* Match #x2 with "xw" *)
       apply pat_PVar. apply eq_refl. }
     { simpl. (* Match #xs with "t" *)
@@ -372,8 +402,7 @@ Proof.
       eapply pure_consequence.
       { (* Use induction hypothesis *)
         apply IH; first done.
-        rewrite Heql2, Heqxs'.
-        eauto with arith. }
+        rewrite Heql, Heqxs'; eauto with arith. }
       intros [l1 l2] Hpost; clear IH; simpl.
       unfold __exp5; simpl.
       (* Eval (x1::l1, x2::l2) *)
@@ -386,26 +415,34 @@ Proof.
       apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
       (* Establish postcondition *)
       unfold split_post in *; simpl in *.
-      rewrite Heql2, Heqxs'.
-      repeat destruct_hyp.
+      rewrite Heql, Heqxs'.
+      destruct Hpost as (H1 & H2 & ?).
       split; last split.
       { (* Subgoal: the length of l1 is half the length of xs *)
-        destruct (Nat.even _); rewrite H0; eauto with arith. }
+        destruct (Nat.even _); rewrite H1; eauto with arith. }
       { (* Subgoal: the length of l2 is half the length of xs *)
-        rewrite H1.
-        eauto with arith. }
+        rewrite H2; eauto with arith. }
       { (* Subgoal: l1++l2 is a permutation of xs *)
         rewrite_permutation xs.
         apply Permutation_skip.
         apply Permutation_sym.
-        apply Permutation_middle. } }
-    simpl.
-    subst l. injection Heql2; intros -> ->; clear Heql2.
-    intros [ Hf | ? ]; exfalso; last contradiction.
-    destruct Hf as (? & ? & Heqht & Hf).
-    destruct Hf as [ Hf | ? ]; contradiction. }
-  simpl. intros [ Hf | ? ]; exfalso; last contradiction.
-  repeat destruct Hf as [? Hf]; tauto.
+        apply Permutation_middle. } } }
+  simpl; intros no_match3. exfalso.
+  Ltac strip_disjunction :=
+    match goal with
+    | H : _ \/ _ |- _ =>
+        (destruct H as [ H | H ]; last contradiction) ||
+          (destruct H as [ H | H ]; first contradiction)
+    end.
+  (* Goal: show that never matching is impossible *)
+  repeat strip_disjunction.
+  destruct no_match2 as (x & xs' & Heql1 & no_match2).
+  destruct no_match3 as (x' & xs'' & Heql2 & no_match3).
+  repeat strip_disjunction.
+  subst l; injection Heql2; intros -> ->.
+  strip_disjunction.
+  destruct no_match3 as (? & ? & ? & [ ? | ? ]); contradiction.
+  (* TODO: More automation for this part of the proof *)
 Qed.
 
 Opaque ret_concat.
@@ -431,7 +468,7 @@ Proof.
   assert (Forall representable l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall representable l2) as Hrep2 by
-        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
+        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   pure_continue.
   (* Apply the induction hypothesis on l1 *)
   eapply pure_try; first apply IH.
@@ -460,7 +497,7 @@ Proof.
   intros c; simpl; intros Hc.
   eapply pure_consequence; first apply Hc.
   intros l' [??].
-  (* Establish the postcondition *) 
+  (* Establish the postcondition *)
   split.
   { (* Subgoal: the output is sorted *)
     assumption. }
