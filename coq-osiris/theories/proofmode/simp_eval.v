@@ -573,7 +573,7 @@ Qed.
 (* Local definitions. *)
 
 (* TODO only one or two bindings, for now *)
-  
+
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   (v1 : A1) (v2 : A2) η θ :
   simp (eval η e1) (ret #(v1, v2)) ->
@@ -608,7 +608,7 @@ Proof.
   { eapply simp_eval_let_pair; eauto using prove_simp_bind. }
   eapply pure_ret; eauto.
 Qed.
-  
+
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
   (a1 : A1) (ψ : B → Prop)
 :
@@ -680,9 +680,9 @@ Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
   ψ (VStruct δ) ->
   pure (eval_mexpr η (MStruct items)) ψ.
 Proof.
-  intros.  
+  intros.
   eapply pure_simp.
-  { eapply prove_simp_bind; [eauto | apply SimpReflexive]. } 
+  { eapply prove_simp_bind; [eauto | apply SimpReflexive]. }
   eapply pure_ret; eauto.
 Qed.
 
@@ -847,7 +847,7 @@ Proof.
   { simpl; intros. eassumption. }
   { intros [|]; [ tauto | contradiction ]. }
 Qed.
-  
+
 Ltac pats :=
   repeat first [
     eapply pats_PNil; [ eauto ]
@@ -952,38 +952,43 @@ Proof.
   destruct_string_eqb; solve [ eauto using total_next | tauto ].
 Qed.
 
-Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
+Lemma pat_pNil `{Encode A} η v (xs : list A) (φ : env -> Prop) :
   v = #xs →
-  (xs = [] → φ η) →
-  pat η pNil v φ (xs ≠ []).
+  (xs = [] -> φ η) →
+  pat η pNil v (λ η', φ η') (xs ≠ []).
 Proof.
   intros; subst.
   destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_PData_eq. eapply pat_PTuple. pats. }
-  { eauto. }
-  { eapply pat_PData_neq. eauto. }
-  { eauto. }
+  { eapply pat_PData_eq; eauto.
+    eapply pat_PTuple.
+    pats. }
+  { tauto. }
+  { eapply pat_PData_neq; eauto. }
+  { done. }
 Qed.
 
-Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ (θ : A -> list A -> Prop) :
-  v = #xs →
-  (∀ x xs',
-     xs = x :: xs' →
-     pats η [p1; p2] [#x; #xs'] φ (θ x xs')
-  ) →
-  ((exists x xs', xs = x :: xs' /\ θ x xs') \/ xs = [] -> ψ) ->
-  pat η (pCons p1 p2) v φ ψ.
+Lemma pat_pCons `{Encode A} v xs η η' p1 p2
+  (φ : env -> Prop) (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
+  :
+  v = #xs ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat η p1 #x (λ η0, η0 = (η' x xs')) (ψ1 x)) ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat (η' x xs') p2 #xs' φ (ψ2 xs')) ->
+  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs')) ∨ xs = []).
 Proof.
-  intros ? Hpp; subst.
-  destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; eauto. }
-    { tauto. } }
-  { specialize (Hpp x xs eq_refl).
-    eapply pat_PData_eq.
+  intros ? Hpat Hpats; subst.
+  destruct xs as [| x xs]; eapply pat_consequence_psi.
+  { eapply pat_PData_neq; eauto. }
+  { by right. }
+  { eapply pat_PData_eq; eauto.
     rewrite ?encode_list_is_encode. (* optional, but helpful *)
     eapply pat_PTuple.
-    eapply pats_consequence_psi; eauto. }
+    eapply pats_PCons; eauto. intros ? ->.
+    pats. }
+  { intros [ | [ | F ]]; left; eauto; contradiction. }
 Qed.
 
 Lemma pat_false η v (P : Prop) φ :
@@ -1027,6 +1032,11 @@ Proof.
 Qed.
 
 End Pattern.
+
+Ltac pat_pNil :=
+  eapply pat_pNil; first solve [ encode ].
+Ltac pat_pCons :=
+  eapply pat_pCons; first solve [ encode ].
 
 Definition pure_match `{Encode A} (η : env) (v : val) bs (ψ : A -> Prop) :=
   pure (eval_match η v bs) ψ.
@@ -1212,10 +1222,18 @@ Proof.
   eauto using pat_consequence.
 Qed.
 
-Lemma pure_match_single `{Encode A} η v p e (ψ : A -> Prop) :
-  pat η p v (λ η', pure (eval η' e) ψ) False ->
-  pure_match η v [Branch p e] ψ.
+Lemma pure_match_single `{Encode A} η v p e (ψ : Prop) (φ : A -> Prop) :
+  pat η p v (λ η' : env, pure (eval η' e) φ) ψ →
+  (ψ -> False) ->
+  pure_match η v [Branch p e] φ.
 Proof.
   intros.
-  eapply pure_match_cons; [eassumption | contradiction].
+  eapply pure_match_cons; eauto.
+  tauto.
 Qed.
+
+Ltac pure_match :=
+  lazymatch goal with
+  | |- pure_match _ _ [?b] _ => eapply pure_match_single
+  | |- pure_match _ _ (?b :: ?bs) _ => eapply pure_match_cons
+  end.

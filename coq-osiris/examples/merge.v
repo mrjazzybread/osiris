@@ -253,99 +253,6 @@ Qed.
 
 Transparent ret_concat.
 
-Lemma pat_pNil2`{Encode A} η v (xs : list A) (φ : env -> Prop) :
-  v = #xs →
-  φ η →
-  pat η pNil v (λ η', xs = [] /\ φ η') (xs ≠ []).
-Proof.
-  intros; subst.
-  eapply pat_consequence with (φ:=fun η' => xs = [] /\ φ η');
-    eauto using pat_pNil.
-Qed.
-
-Lemma pat_pCons2_cut `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) (ψ : Prop) ψ1 ψ2 :
-  v = #xs ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat η p1 #x (λ η0, η0 = (η' x xs')) (ψ1 x xs')) ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat (η' x xs') p2 #xs' φ (ψ2 x xs')) ->
-  ((exists x xs', xs = x :: xs' /\ (ψ1 x xs' \/ ψ2 x xs')) ∨ xs = [] → ψ) ->
-  pat η (pCons p1 p2) v φ ψ.
-Proof.
-  intros ? Hpat Hpats; subst.
-  destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_consequence_psi.
-    - eapply pat_PData_neq; eauto.
-    - by right. }
-  { specialize (Hpat x xs eq_refl).
-    specialize (Hpats x xs eq_refl).
-    eapply pat_PData_eq.
-    rewrite ?encode_list_is_encode. (* optional, but helpful *)
-    eapply pat_PTuple.
-    eapply pats_consequence_psi.
-    eapply pats_PCons.
-    { eauto. }
-    { intros ? ->. apply pats_PCons_single.
-      eapply pat_consequence; eauto. }
-    intros Hψ. left. exists x, xs. destruct Hψ; eauto. }
-Qed.
-
-Lemma pat_pCons2 `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) ψ1 ψ2 :
-  v = #xs ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat η p1 #x (λ η0, η0 = (η' x xs')) (ψ1 x xs')) ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat (η' x xs') p2 #xs' φ (ψ2 x xs')) ->
-  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 x xs' \/ ψ2 x xs')) ∨ xs = []).
-Proof.
-  intros ? Hpat Hpats; subst.
-  eapply pat_pCons2_cut; eauto.
-Qed.
-
-Lemma pat_pCons2_nondep `{Encode A} v xs η η' p1 p2 (φ : env -> Prop) ψ1 ψ2 :
-  v = #xs ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat η p1 #x (λ η0, η0 = (η' x xs')) ψ1) ->
-  (∀ (x : A) (xs' : list A),
-      xs = x :: xs' →
-      pat (η' x xs') p2 #xs' φ (ψ2 xs')) ->
-  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 \/ ψ2 xs')) ∨ xs = []).
-Proof.
-  intros ? Hpat Hpats; subst.
-  eapply pat_pCons2; eauto.
-Qed.
-
-Lemma pats_PCons2 η p ps v vs φ' φ ψ1 ψ2 :
-  pat η p v φ' ψ1 →
-  (forall η', φ' η' -> pats η' ps vs φ ψ2) →
-  pats η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
-Proof.
-  intros. eapply pats_PCons; eauto.
-Qed.
-
-Lemma pats_PCons_var η x ps vs v φ ψ :
-  pats ((x, v) :: η) ps vs φ ψ →
-  pats η (PVar x :: ps) (v :: vs) φ (ψ).
-Proof.
-  intros.
-  eapply pats_consequence_psi.
-  eapply pats_PCons.
-  - apply pat_PVar. apply eq_refl.
-  - by intros ? <-.
-  - tauto.
-Qed.
-
-Ltac pat_pNil :=
-  eapply pat_pNil; first solve [ encode ].
-
-Ltac pat_pCons :=
-  eapply pat_pCons2_nondep; first solve [ encode ].
-
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -355,7 +262,7 @@ Proof.
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   intros ? <-. unfold __branches6; simpl.
   (* First branch of match *) rewrite ?encode_list_is_encode.
-  eapply pure_match_cons.
+  pure_match.
   { (* Case: l matches [] *)
     pat_pNil. intros ->. (* We learn that l = [] *)
     (* Traverse the expression after a succesful match *)
@@ -365,7 +272,7 @@ Proof.
   (* Case: the first branch doesn't match, we learn that l ≠ [] *)
   intros no_match1.
   (* Second branch of match *)
-  eapply pure_match_cons.
+  pure_match.
   { (* Case: l matches "cons x []" *)
     pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
     (* Match #h with "x" *)
@@ -384,7 +291,7 @@ Proof.
      we learn that either l = [] or ∃ h t, l = h :: t and t ≠ [] *)
   simpl. intros no_match2.
   (* Third branch of match *)
-  eapply pure_match_cons.
+  pure_match.
   { (* Match against "x1 :: x2 :: t" *)
     pat_pCons; intros x1 xs' Heql.
     { (* Match #x1 with "x1" *)
@@ -393,56 +300,68 @@ Proof.
     pat_pCons; intros x2 xs Heqxs'.
     { (* Match #x2 with "xw" *)
       apply pat_PVar. apply eq_refl. }
-    { simpl. (* Match #xs with "t" *)
-      apply pat_PVar. simpl.
-      (* Traverse the expression after a succesful match *)
-      eapply pure_eval_let_pair.
-      eapply pure_eval_app. pure_path. pure_path.
-      (* Call vf #xs *)
-      eapply pure_consequence.
-      { (* Use induction hypothesis *)
-        apply IH; first done.
-        rewrite Heql, Heqxs'; eauto with arith. }
-      intros [l1 l2] Hpost; clear IH; simpl.
-      unfold __exp5; simpl.
-      (* Eval (x1::l1, x2::l2) *)
-      apply pure_eval_pair.
-      (* Eval x1::l1 *)
-      apply pure_eval_data.
-      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-      (* Eval x2::l2 *)
-      apply pure_eval_data.
-      apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
-      (* Establish postcondition *)
-      unfold split_post in *; simpl in *.
-      rewrite Heql, Heqxs'.
-      destruct Hpost as (H1 & H2 & ?).
-      split; last split.
-      { (* Subgoal: the length of l1 is half the length of xs *)
-        destruct (Nat.even _); rewrite H1; eauto with arith. }
-      { (* Subgoal: the length of l2 is half the length of xs *)
-        rewrite H2; eauto with arith. }
-      { (* Subgoal: l1++l2 is a permutation of xs *)
-        rewrite_permutation xs.
-        apply Permutation_skip.
-        apply Permutation_sym.
-        apply Permutation_middle. } } }
-  simpl; intros no_match3. exfalso.
+    simpl. (* Match #xs with "t" *)
+    apply pat_PVar. simpl.
+    (* Traverse the expression after a succesful match *)
+    eapply pure_eval_let_pair.
+    eapply pure_eval_app. pure_path. pure_path.
+    (* Call vf #xs *)
+    eapply pure_consequence.
+    { (* Use induction hypothesis *)
+      apply IH; first done.
+      rewrite Heql, Heqxs'; eauto with arith. }
+    intros [l1 l2] Hpost; clear IH; simpl.
+    unfold __exp5; simpl.
+    (* Eval (x1::l1, x2::l2) *)
+    apply pure_eval_pair.
+    (* Eval x1::l1 *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Eval x2::l2 *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Establish postcondition *)
+    unfold split_post in *; simpl in *.
+    rewrite Heql, Heqxs'.
+    destruct Hpost as (H1 & H2 & ?).
+    split; last split.
+    { (* Subgoal: the length of l1 is half the length of xs *)
+      destruct (Nat.even _); rewrite H1; eauto with arith. }
+    { (* Subgoal: the length of l2 is half the length of xs *)
+      rewrite H2; eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of xs *)
+      rewrite_permutation xs.
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. } }
+  simpl; intros no_match3.
   Ltac strip_disjunction :=
     match goal with
     | H : _ \/ _ |- _ =>
-        (destruct H as [ H | H ]; last contradiction) ||
-          (destruct H as [ H | H ]; first contradiction)
+        destruct H as [ H | H ]; try contradiction
+    end.
+  Ltac remove_tauto :=
+    lazymatch goal with
+    | H : ?x = ?x |- _ => clear H
+    | _ => idtac
+    end.
+  Ltac subst_eq :=
+    lazymatch goal with
+    | H : ?x = _ |- _ => subst x
+    | _ => idtac
+    end.
+  Ltac inject_eq :=
+    lazymatch goal with
+    | H : ?x = _ |- _ => injection H; repeat (intros ->)
+    | _ => idtac
+    end.
+  Ltac elim_exists :=
+    lazymatch goal with
+    | H : exists _, _ |- _ => destruct H as [? H]
     end.
   (* Goal: show that never matching is impossible *)
-  repeat strip_disjunction.
-  destruct no_match2 as (x & xs' & Heql1 & no_match2).
-  destruct no_match3 as (x' & xs'' & Heql2 & no_match3).
-  repeat strip_disjunction.
-  subst l; injection Heql2; intros -> ->.
-  strip_disjunction.
-  destruct no_match3 as (? & ? & ? & [ ? | ? ]); contradiction.
-  (* TODO: More automation for this part of the proof *)
+  repeat ((repeat strip_disjunction); (repeat elim_exists); (repeat destruct_hyp); remove_tauto; subst_eq; remove_tauto; inject_eq).
+  (* TODO: Make automation more robust *)
 Qed.
 
 Opaque ret_concat.
