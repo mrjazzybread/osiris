@@ -246,7 +246,9 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma pat_pNil `{Encode A} η v (xs : list A) (φ : env -> Prop) :
+(* TODO: comment *)
+
+Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
   v = #xs →
   (xs = [] -> φ η) →
   pat η pNil v (λ η', φ η') (xs ≠ []).
@@ -290,34 +292,6 @@ Ltac pat_pNil :=
 
 Ltac pat_pCons :=
   eapply pat_pCons; first solve [ encode ].
-
-(* -------------------------------------------------------------------------- *)
-
-Definition pure_match `{Encode A} (η : env) (v : val) bs (ψ : A -> Prop) :=
-  pure (eval_match η v bs) ψ.
-Arguments pure_match {A} {H} _ _ _ _.
-
-Lemma pure_eval_match' `{Encode A, Encode B} η e bs (ψ : A -> Prop) :
-  pure (eval η e) (λ v : B, pure_match η #v bs ψ) ->
-  pure (eval η (EMatch e bs)) ψ.
-Proof.
-  intros. unfold pure_match in *.
-  destruct_pure v. destruct_pure x.
-  eapply pure_simp.
-  { rewrite eval_eval'; simpl.
-    eapply prove_simp_bind; eauto. }
-  eapply pure_ret; eauto.
-Qed.
-
-Lemma pure_eval_match `{Encode A, Encode B} η e bs (φ : A -> Prop) (ψ : B -> Prop) :
-  pure (eval η e) φ ->
-  (forall a, φ a -> pure_match η #a bs ψ) ->
-  pure (eval η (EMatch e bs)) ψ.
-Proof.
-  intros.
-  eapply pure_eval_match'.
-  eapply pure_consequence; eauto.
-Qed.
 
 (* TODO: Move/remove the following section *)
 
@@ -431,9 +405,9 @@ Proof.
   eauto using prove_simp_try_next, SimpReflexive.
 Qed.
 
-Lemma pure_total {B} `{Encode A} (m : micro B) k ko (ψ : A -> Prop) :
-  total m (fun a => pure (k a) ψ) (pure (ko ()) ψ) <->
-  pure (try m k ko) ψ.
+Lemma pure_total {B} `{Encode A} (m : micro B) k ko (φ : A -> Prop) :
+  total m (fun a => pure (k a) φ) (pure (ko ()) φ) <->
+  pure (try m k ko) φ.
 Proof.
   unfold pure; unfold total.
   split; [intros Ht | intros (a & Hsimp & Hψ)].
@@ -451,6 +425,35 @@ Qed.
 End HelperLemmas.
 
 (* -------------------------------------------------------------------------- *)
+
+(* Todo: comment *)
+
+Definition pure_match `{Encode A} (η : env) (v : val) bs (φ : A -> Prop) :=
+  pure (eval_match η v bs) φ.
+Arguments pure_match {A} {H} _ _ _ _.
+
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : A -> Prop) :
+  pure (eval η e) (λ v : B, pure_match η #v bs φ) ->
+  pure (eval η (EMatch e bs)) φ.
+Proof.
+  intros. unfold pure_match in *.
+  destruct_pure v. destruct_pure x.
+  eapply pure_simp.
+  { rewrite eval_eval'; simpl.
+    eapply prove_simp_bind; eauto. }
+  eapply pure_ret; eauto.
+Qed.
+
+Lemma pure_eval_match `{Encode A, Encode B} η e bs (φ1 : A -> Prop) (φ2 : B -> Prop) :
+  pure (eval η e) φ1 ->
+  (forall a, φ1 a -> pure_match η #a bs φ2) ->
+  pure (eval η (EMatch e bs)) φ2.
+Proof.
+  intros.
+  eapply pure_eval_match'.
+  eapply pure_consequence; eauto.
+Qed.
+
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
   pat η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
@@ -473,17 +476,17 @@ Proof.
    *)
 Admitted.
 
-Lemma pure_match_cons `{Encode A} η v p e bs (ψ : A -> Prop) (φ : Prop) :
-  pat η p v (λ η', pure (eval η' e) ψ) φ ->
-  (φ -> (pure_match η v bs ψ)) ->
-  pure_match η v ((Branch p e) :: bs) ψ.
+Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
+  pat η p v (λ η', pure (eval η' e) φ) ψ ->
+  (ψ -> (pure_match η v bs φ)) ->
+  pure_match η v ((Branch p e) :: bs) φ.
 Proof.
   intros.
   apply pure_match_cons_unary.
   eauto using pat_consequence.
 Qed.
 
-Lemma pure_match_single `{Encode A} η v p e (ψ : Prop) (φ : A -> Prop) :
+Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
   pat η p v (λ η' : env, pure (eval η' e) φ) ψ →
   (ψ -> False) ->
   pure_match η v [Branch p e] φ.
