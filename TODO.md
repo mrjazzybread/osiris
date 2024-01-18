@@ -302,6 +302,10 @@
 * yoon-zakowski-zdancewic-22
 * [keuchel-al-22](https://iris-project.org/pdfs/2022-icfp-symbexec-final.pdf)
 * chappe-al-23
+* [Modular Denotational Semantics for Effects with Guarded Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
+  seems to use interaction trees that are very much like the `micro` monad,
+  and seems to use a small-step semantics (just like us)
+  to give meaning to operations on the heap.
 * Look at Krebbers's dissertation to see how he handles unspecified evaluation
   order in C.
 * [Semi-automated Reasoning About Non-determinism in C Expressions](https://iris-project.org/pdfs/2019-esop-c.pdf),
@@ -334,6 +338,8 @@
   I think that we will be able to verify programs that make "dynamically well-typed"
   use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
 * Arrays
+  + allow ownership of individual array cells (or slices)
+  + see array-based trees in CPP 2024
 * Characters and strings
   + decide how they should be represented in Coq;
     Coq's `char` type seems needlessly inefficient,
@@ -344,6 +350,7 @@
 * `bytes`
 * `int32`, `int64`, `nativeint`
 * Records with mutable fields
+  + allow ownership of individual record fields?
   + `let rec` over mutable records could conceivably be supported
 * Integers:
   + give lemmas to help establish that the result of an operation
