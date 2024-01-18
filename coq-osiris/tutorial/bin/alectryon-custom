@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+from alectryon.serapi import SerAPI
+SerAPI.DEFAULT_PP_ARGS['pp_margin'] = 120
+
+from alectryon.cli import main
+main()
