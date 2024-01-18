@@ -246,12 +246,18 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO: comment *)
+(* Syntax-directed reasoning for data *)
+
+(* The following reasoning rules exemplify a general approach for matching
+   against algebraic data types. *)
 
 Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
   v = #xs →
   (xs = [] -> φ η) →
+  (* Enter the branch with knowledge that [xs] is empty *)
   pat η pNil v (λ η', φ η') (xs ≠ []).
+  (* If the match is unsuccessful, move to the next branch
+     with the knowledge that [xs] is not empty *)
 Proof.
   intros; subst.
   destruct xs as [| x xs ]; eapply pat_consequence_psi.
@@ -263,28 +269,34 @@ Proof.
   { done. }
 Qed.
 
-Lemma pat_pCons `{Encode A} v xs η η' p1 p2
-  (φ : env -> Prop) (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
+Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
+  (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
   :
   v = #xs ->
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      pat η p1 #x (λ η0, η0 = (η' x xs')) (ψ1 x)) ->
+      pat η p1 #x (λ η0, φ1 x η0) (ψ1 x)) ->
+      (* If [#x] does not match [p1], then we gain the knowledge [ψ1 x] *)
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      pat (η' x xs') p2 #xs' φ (ψ2 xs')) ->
-  pat η (pCons p1 p2) v φ ((exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs')) ∨ xs = []).
+      (forall η', φ1 x η' -> pat η' p2 #xs' φ (ψ2 xs'))) ->
+      (* If [#xs'] does not match [p2], then we gain the knowledge [ψ2 xs'] *)
+  pat η (pCons p1 p2) v φ (xs = [] \/ (exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs'))).
+  (* There are three ways the match can be unsuccessful:
+     - the list is empty
+     - the list is non-empty, but its head did not match [p1]
+     - the list is non-empty, but its tail did not match [p2] *)
 Proof.
   intros ? Hpat Hpats; subst.
   destruct xs as [| x xs]; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
-  { by right. }
+  { by left. }
   { eapply pat_PData_eq; eauto.
     rewrite ?encode_list_is_encode. (* optional, but helpful *)
     eapply pat_PTuple.
-    eapply pats_PCons; eauto. intros ? ->.
+    eapply pats_PCons; eauto. intros ?; simpl; intros.
     pats. }
-  { intros [ | [ | F ]]; left; eauto; contradiction. }
+  { intros [ | [ | F ]]; right; eauto; contradiction. }
 Qed.
 
 Ltac pat_pNil :=
@@ -454,7 +466,6 @@ Proof.
   eapply pure_consequence; eauto.
 Qed.
 
-
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
   pat η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
   pure_match η v ((Branch p e) :: bs) φ.
@@ -469,10 +480,11 @@ Proof.
      total (extend [] p v) (λ a : env, pure (eval (a ++ η) e) φ) ?k φ)
 
      Because pat η p v φ ψ := total (extend η p v) φ ψ and
-     eval_match η v bs ≊ fold (λ (Branch p e) acc,
-                          try (extend [] p v) (λ δ, eval (δ ++ η) e) acc)
-                       match_failure
-                       bs
+     eval_match η v bs ≊ fold
+                         (λ (Branch p e) acc,
+                           try (extend [] p v) (λ δ, eval (δ ++ η) e) acc)
+                         match_failure
+                         bs
    *)
 Admitted.
 

@@ -253,6 +253,12 @@ Qed.
 
 Transparent ret_concat.
 
+Lemma pat_PVar2 η x v :
+  pat η (PVar x) v (λ η', η' = (x ~> v; η)) False.
+Proof.
+  by apply pat_PVar.
+Qed.
+
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -275,10 +281,10 @@ Proof.
   pure_match.
   { (* Case: l matches "cons x []" *)
     pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
-    (* Match #h with "x" *)
-    { apply pat_PVar. apply eq_refl. }
+    { (* Match #h with "x" *) apply pat_PVar2. }
     (* Match #t with "[]" *)
-    simpl. pat_pNil. intros ->. (* We now know t = [] *)
+    intros ? ->. pat_pNil.
+    intros ->. (* We now know t = [] *)
     (* Traverse the expression after a succesful match *)
     apply pure_eval_pair.
     apply pure_eval_data.
@@ -294,13 +300,12 @@ Proof.
   pure_match.
   { (* Match against "x1 :: x2 :: t" *)
     pat_pCons; intros x1 xs' Heql.
-    { (* Match #x1 with "x1" *)
-      apply pat_PVar. apply eq_refl. }
-    simpl. (* Match #xs' with "x2 :: t" *)
+    { (* Match #x1 with "x1" *) apply pat_PVar2. }
+    simpl. intros ? ->. (* Match #xs' with "x2 :: t" *)
     pat_pCons; intros x2 xs Heqxs'.
-    { (* Match #x2 with "xw" *)
-      apply pat_PVar. apply eq_refl. }
-    simpl. (* Match #xs with "t" *)
+    { (* Match #x2 with "xw" *) apply pat_PVar2. }
+    simpl. intros ? ->.
+    (* Match #xs with "t" *)
     apply pat_PVar. simpl.
     (* Traverse the expression after a succesful match *)
     eapply pure_eval_let_pair.
