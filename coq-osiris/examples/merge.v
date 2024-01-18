@@ -259,6 +259,20 @@ Proof.
   by apply pat_PVar.
 Qed.
 
+Ltac pat_PVar :=
+  match goal with
+  | |- pat _ (PVar _) _ ?φ _ =>
+      tryif (has_evar φ) then apply pat_PVar2 else apply pat_PVar
+  end.
+
+Ltac pat_PVar_alt :=
+  match goal with
+  | |- pat _ (PVar _) _ _ _ =>
+      (apply pat_PVar2 || eapply pat_PVar)
+  end.
+
+(* Both of the previous tactics seem to work, is one better than the other? *)
+
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
@@ -281,7 +295,7 @@ Proof.
   pure_match.
   { (* Case: l matches "cons x []" *)
     pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
-    { (* Match #h with "x" *) apply pat_PVar2. }
+    { (* Match #h with "x" *) pat_PVar_alt. }
     (* Match #t with "[]" *)
     intros ? ->. pat_pNil.
     intros ->. (* We now know t = [] *)
@@ -300,13 +314,13 @@ Proof.
   pure_match.
   { (* Match against "x1 :: x2 :: t" *)
     pat_pCons; intros x1 xs' Heql.
-    { (* Match #x1 with "x1" *) apply pat_PVar2. }
+    { (* Match #x1 with "x1" *) pat_PVar_alt. }
     simpl. intros ? ->. (* Match #xs' with "x2 :: t" *)
     pat_pCons; intros x2 xs Heqxs'.
-    { (* Match #x2 with "xw" *) apply pat_PVar2. }
+    { (* Match #x2 with "xw" *) pat_PVar_alt. }
     simpl. intros ? ->.
     (* Match #xs with "t" *)
-    apply pat_PVar. simpl.
+    pat_PVar_alt. simpl.
     (* Traverse the expression after a succesful match *)
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.

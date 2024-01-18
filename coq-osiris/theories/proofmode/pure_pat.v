@@ -255,7 +255,7 @@ Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
   v = #xs →
   (xs = [] -> φ η) →
   (* Enter the branch with knowledge that [xs] is empty *)
-  pat η pNil v (λ η', φ η') (xs ≠ []).
+  pat η pNil v φ (xs ≠ []).
   (* If the match is unsuccessful, move to the next branch
      with the knowledge that [xs] is not empty *)
 Proof.
@@ -276,7 +276,8 @@ Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
       pat η p1 #x (λ η0, φ1 x η0) (ψ1 x)) ->
-      (* If [#x] does not match [p1], then we gain the knowledge [ψ1 x] *)
+      (* If [#x] matches [p1], we gain the knowledge [φ1 x η0].
+         Otherwise, we gain the knowledge [ψ1 x] *)
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
       (forall η', φ1 x η' -> pat η' p2 #xs' φ (ψ2 xs'))) ->
