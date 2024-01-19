@@ -271,7 +271,9 @@ Ltac pat_PVar_alt :=
       (apply pat_PVar2 || eapply pat_PVar)
   end.
 
-(* Both of the previous tactics seem to work, is one better than the other? *)
+(* Both of the previous tactics seem to work, is one better than the other?
+   I guess that [has_evar] could detect an evar which is nested deep into
+   the postcondition, so the second is the way to go. *)
 
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").

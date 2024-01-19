@@ -275,7 +275,7 @@ Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   v = #xs ->
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      pat η p1 #x (λ η0, φ1 x η0) (ψ1 x)) ->
+      pat η p1 #x (φ1 x) (ψ1 x)) ->
       (* If [#x] matches [p1], we gain the knowledge [φ1 x η0].
          Otherwise, we gain the knowledge [ψ1 x] *)
   (∀ (x : A) (xs' : list A),
@@ -305,6 +305,38 @@ Ltac pat_pNil :=
 
 Ltac pat_pCons :=
   eapply pat_pCons; first solve [ encode ].
+
+(* The previous lemmas give us a general scheme for reasoning about
+   pattern matching on ADTs.
+
+   Given an ADT [G] with with [n] constructors, we need one lemma
+   for each constructor.
+
+   Given a constructor [C] of [G] with [m] arguments with types [A1 ... A__m],
+   its reasoning rule should have the following form:
+
+   Lemma pat_pC v x η (p1 p2 ... p__m : pat) (φ : env -> Prop)
+   (φ1 : A1 -> env -> Prop) ... (φ__(m-1) : A__(m-1) -> env -> Prop)
+   (ψ1 : A1 -> Prop) ... (ψ__m : A__m -> Prop)
+   :
+   v = #x ->
+   (∀ (x1 : A1) ... (x__m : A__m),
+      x = C x1 ... x__m ->
+      pat η p1 #x1 (φ1 x1) (ψ1 x1)) ->
+   ⋮
+   (∀ (x1 : A1) ... (x__m : A__m),
+      x = C x1 ... x__m ->
+      pat η p__(m-1) #x__(m-1) (φ__(m-1) x__(m-1)) (ψ__(m-1) x__(m-1))) ->
+   (∀ (x1 : A1) ... (x__m : A__m),
+      x = C x1 ... x__m ->
+      pat η p__m #x__m φ (ψ__m x__m)) ->
+   pat (pC p1 ... p__m) v φ (match x with
+                             | C _ ... _ => ⊥
+                             | _ => ⊤
+                             end ∨ (∃ x1 ... x__m, x = C x1 ... x__m ∧
+                                     (ψ1 x1 ∨ ... ∨ ψ__m x__m)))
+   .
+*)
 
 (* TODO: Move/remove the following section *)
 
