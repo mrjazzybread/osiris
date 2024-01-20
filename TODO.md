@@ -37,6 +37,16 @@
 * Generates Coq encoding boilerplate for algebraic data types.
   See if Arthur's code can be re-used.
 
+## Tutorial
+
+* Make the tutorial easily readable online, e.g. via GitLab Pages,
+  or by copying it to a separate server.
+
+* Use CSS to enlarge the text width (the margins are currently too wide)
+  and increase the font size.
+
+* Try to improve the suboptimal rendering of Coq's `Check` commands.
+
 ## OCaml standard library
 
 * What version of the OCaml standard library do we embark?
@@ -282,6 +292,7 @@
 * voigtlander-08, jaskelioff-rivas-15 (efficient presentation of the free monad)
 * svenningsson-axelsson-15
 * letan-al-18, letan-al-21 (FreeSpec)
+* recursion through a `call` effect: McBride, [Turing-Completeness Totally Free](https://strathprints.strath.ac.uk/60166/1/McBride_LNCS2015_Turing_completeness_totally_free.pdf)
 * maillard-al-19
 * swierstra-baanen-19
 * fromherz-steel-21
@@ -291,6 +302,10 @@
 * yoon-zakowski-zdancewic-22
 * [keuchel-al-22](https://iris-project.org/pdfs/2022-icfp-symbexec-final.pdf)
 * chappe-al-23
+* [Modular Denotational Semantics for Effects with Guarded Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
+  seems to use interaction trees that are very much like the `micro` monad,
+  and seems to use a small-step semantics (just like us)
+  to give meaning to operations on the heap.
 * Look at Krebbers's dissertation to see how he handles unspecified evaluation
   order in C.
 * [Semi-automated Reasoning About Non-determinism in C Expressions](https://iris-project.org/pdfs/2019-esop-c.pdf),
@@ -304,6 +319,7 @@
   Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
 * [Program Adverbs and Tlön embeddings](https://www.cis.upenn.edu/~sweirich/papers/icfp22.pdf)
 * [Spoq](https://www.usenix.org/system/files/osdi23-li-xupeng.pdf)
+* SSProve (imperative language embedded in Coq, plus Dijkstra monads)
 
 ## Features of OCaml that we want to support (at some point)
 
@@ -322,6 +338,8 @@
   I think that we will be able to verify programs that make "dynamically well-typed"
   use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
 * Arrays
+  + allow ownership of individual array cells (or slices)
+  + see array-based trees in CPP 2024
 * Characters and strings
   + decide how they should be represented in Coq;
     Coq's `char` type seems needlessly inefficient,
@@ -332,6 +350,7 @@
 * `bytes`
 * `int32`, `int64`, `nativeint`
 * Records with mutable fields
+  + allow ownership of individual record fields?
   + `let rec` over mutable records could conceivably be supported
 * Integers:
   + give lemmas to help establish that the result of an operation

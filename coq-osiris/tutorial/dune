@@ -12,7 +12,7 @@
      (package coq-osiris)
   )
   (action
-    (run alectryon
+    (run alectryon-custom
          --long-line-threshold 80
          -R ../theories osiris
          tutorial.v

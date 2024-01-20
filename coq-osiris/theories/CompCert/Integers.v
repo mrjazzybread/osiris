@@ -1094,6 +1094,8 @@ Proof.
   apply H0. apply modu_divu_Euclid. auto.
 Qed.
 
+(* This law is documented in the OCaml reference manual. *)
+
 Lemma mods_divs_Euclid:
   forall x y, x = add (mul (divs x y) y) (mods x y).
 Proof.
@@ -1262,6 +1264,63 @@ Lemma mods_repr_repr x y :
   mods (repr x) (repr y) = repr (Z.rem x y).
 Proof.
   intros. unfold mods. rewrite !signed_repr by assumption. reflexivity.
+Qed.
+
+(* The following laws hold about the division of ideal integers. *)
+
+Goal forall (x y : Z), (-x) ÷ y = - (x ÷ y).
+Proof. exact Zquot.Zquot_opp_l. Qed.
+
+Goal forall (x y : Z), x ÷ (-y) = - (x ÷ y).
+Proof. exact Zquot.Zquot_opp_r. Qed.
+
+(* The OCaml manual claims that these laws hold also of machine
+   integers. In fact, they holds only if the value that is negated is
+   not [min_signed]. We can prove the following two amended laws. *)
+
+(* At present, we do not need these laws. We prove them to ensure that
+   we have the correct notion of signed division. *)
+
+Lemma divs_neg_l (x y : int) :
+  min_signed < signed x ->
+  divs (neg x) y = neg (divs x y).
+Proof.
+  intros H.
+  replace x with (repr (signed x)) by apply repr_signed.
+  replace y with (repr (signed y)) by apply repr_signed.
+  generalize (signed_range x); intro Hrx.
+  generalize (signed_range y); intro Hry.
+  revert H Hrx Hry. generalize (signed x), (signed y).
+  clear x y. intros x y. intros.
+  assert (max_signed = -min_signed - 1).
+  { unfold max_signed, min_signed. lia. }
+  rewrite neg_repr.
+  rewrite divs_repr_repr by lia.
+  rewrite divs_repr_repr by lia.
+  rewrite neg_repr.
+  rewrite Zquot.Zquot_opp_l.
+  reflexivity.
+Qed.
+
+Lemma divs_neg_r (x y : int) :
+  min_signed < signed y ->
+  divs x (neg y) = neg (divs x y).
+Proof.
+  intros H.
+  replace x with (repr (signed x)) by apply repr_signed.
+  replace y with (repr (signed y)) by apply repr_signed.
+  generalize (signed_range x); intro Hrx.
+  generalize (signed_range y); intro Hry.
+  revert H Hrx Hry. generalize (signed x), (signed y).
+  clear x y. intros x y. intros.
+  assert (max_signed = -min_signed - 1).
+  { unfold max_signed, min_signed. lia. }
+  rewrite neg_repr.
+  rewrite divs_repr_repr by lia.
+  rewrite divs_repr_repr by lia.
+  rewrite neg_repr.
+  rewrite Zquot.Zquot_opp_r.
+  reflexivity.
 Qed.
 
 (** ** Bit-level properties *)

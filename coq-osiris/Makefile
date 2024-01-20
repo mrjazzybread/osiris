@@ -1,5 +1,7 @@
 # This prevents Coq from producing stack backtraces.
 export OCAMLRUNPARAM=
+# This is used to find the script alectryon-custom.
+export PATH:=$(shell pwd)/tutorial/bin:$(PATH)
 
 .PHONY: all
 all:

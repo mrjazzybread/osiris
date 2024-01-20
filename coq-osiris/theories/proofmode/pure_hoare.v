@@ -6,7 +6,7 @@ From osiris.proofmode Require Import notations.
 
 (* Because the relation [simp] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
-   for pure compuations. *)
+   for pure computations. *)
 
 (* This file offers lemmas and tactics that help work with [pure] goals.
    These lemmas and tactics form a simple "proof mode" for pure
@@ -30,7 +30,7 @@ Proof.
     apply Hsimp. }
   done.
 Qed.
-  
+
 Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
   pure ('x ← m;
@@ -182,9 +182,9 @@ Proof.
   by apply simp_crash_ret in Hsimp.
 Qed.
 
-Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) : 
+Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
   pure (call f v) φ ->
-  (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g. 
+  (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g.
 Proof.
   intros Hcall.
   unfold call in Hcall.
@@ -354,7 +354,7 @@ Lemma pure_rec_call_unary `{Encode X} `{Encode Y}
       (forall v'',
           P v'' ->
           R v'' v' ->
-          pure (call vf #v'') (φ v'')) -> 
+          pure (call vf #v'') (φ v'')) ->
       pure (let 'AnonFun x e := afun in
             eval ((x, #v') :: (fname, vf) :: η) e) (φ v')) ->
   pure (call (VCloRec η [RecBinding fname afun] fname) #v) (φ v).
@@ -382,7 +382,7 @@ Lemma pure_rec_call_binary_mutual `{Encode X} `{Encode Y}
       (forall v'',
           P v'' ->
           R v'' v' ->
-          pure (call vf #v'') (φ v'')) -> 
+          pure (call vf #v'') (φ v'')) ->
       pure (let 'AnonFun x e := afun in
             eval (x ~> #v';
                   fname ~> vf;
@@ -413,7 +413,7 @@ Lemma pure_rec_call_binary_mutual_aliasing `{Encode X} `{Encode Y}
       (forall v'',
           P v'' ->
           R v'' v' ->
-          pure (call vf #v'') (φ v'')) -> 
+          pure (call vf #v'') (φ v'')) ->
       pure (eval ((if (fname =? gname)%string then garg else farg) ~> #v';
                   gname ~>
                     if (fname =? gname)%string
@@ -461,7 +461,7 @@ Lemma pure_rec_call_binary_mutual2 `{Encode X} `{Encode Y}
       (forall v'',
           P v'' ->
           R v'' v' ->
-          pure (call vf #v'') (φ v'')) -> 
+          pure (call vf #v'') (φ v'')) ->
       pure (eval (farg ~> #v';
                   gname ~>
                     (VCloRec η [RecBinding gname agun;
@@ -518,7 +518,7 @@ Proof.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   destruct p as [v1 v2]; simpl in *.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl; simpl.
-  
+
   unfold acall; apply pure_EvalRetNext.
   rewrite Heval. eapply pure_ret; first solve [encode].
   apply pure_enter_call_VClo; simpl; apply pure_EvalRetNext.
@@ -559,8 +559,7 @@ Proof.
   apply pure_EvalRetNext. rewrite Heval.
   eapply pure_ret; first solve [encode].
   apply pure_enter_call_VClo; apply pure_EvalRetNext.
-  rewrite <- (replace_binding _ _ _ _ Hlkp). 
+  rewrite <- (replace_binding _ _ _ _ Hlkp).
   eapply Hrec; auto; intros.
   apply (IH (v1'', v2'')); auto.
 Qed.
-

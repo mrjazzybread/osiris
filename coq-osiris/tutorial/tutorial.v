@@ -1,4 +1,3 @@
-
 Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import osiris. (* .none *)
 From osiris.program_logic Require Import safe. (* .none *)
@@ -17,6 +16,15 @@ Implicit Type i : int. (* .none *)
 Implicit Type b : bool. (* .none *)
 
 Implicit Type A B X Y : Type. (* .none *)
+
+(*|
+.. raw:: html
+
+   <style type="text/css">
+     .alectryon-standalone .alectryon-centered, .alectryon-standalone .alectryon-floating { max-width: 80%; }
+     div.document { max-width: unset; }
+   </style>
+|*)
 
 (*|
 =========================
