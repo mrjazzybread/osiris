@@ -339,7 +339,7 @@
   use of `Obj.magic` (i.e., programs that do no cast values from one type to another).
 * Arrays
   + allow ownership of individual array cells (or slices)
-  + see array-based trees in CPP 2024
+  + see array-based trees in CPP 2024 [Mechanised Reasoning about Array-Based Trees in Separation Logic](https://dl.acm.org/doi/abs/10.1145/3636501.3636944)
 * Characters and strings
   + decide how they should be represented in Coq;
     Coq's `char` type seems needlessly inefficient,
