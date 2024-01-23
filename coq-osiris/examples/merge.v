@@ -278,12 +278,13 @@ Ltac pat_PVar_alt :=
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
+  Opaque encode.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   intros ? <-. unfold __branches6; simpl.
-  (* First branch of match *) rewrite ?encode_list_is_encode.
+  (* First branch of match *)
   pure_match.
   { (* Case: l matches [] *)
     pat_pNil. intros ->. (* We learn that l = [] *)
@@ -298,7 +299,7 @@ Proof.
   { (* Case: l matches "cons x []" *)
     pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
     { (* Match #h with "x" *) pat_PVar_alt. }
-    (* Match #t with "[]" *)
+    (* Match #t with "[]" *) simpl.
     intros ? ->. pat_pNil.
     intros ->. (* We now know t = [] *)
     (* Traverse the expression after a succesful match *)
@@ -324,15 +325,17 @@ Proof.
     (* Match #xs with "t" *)
     pat_PVar_alt. simpl.
     (* Traverse the expression after a succesful match *)
+    subst.
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.
-    (* Call vf #xs *)
+    (* Call vf #xs *) simpl.
     eapply pure_consequence.
     { (* Use induction hypothesis *)
       apply IH; first done.
-      rewrite Heql, Heqxs'; eauto with arith. }
+      (* Justify use of induction hypothesis *)
+      eauto with arith. }
     intros [l1 l2] Hpost; clear IH; simpl.
-    unfold __exp5; simpl.
+    unfold __exp5.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.
     (* Eval x1::l1 *)
@@ -343,7 +346,6 @@ Proof.
     apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
-    rewrite Heql, Heqxs'.
     destruct Hpost as (H1 & H2 & ?).
     split; last split.
     { (* Subgoal: the length of l1 is half the length of xs *)

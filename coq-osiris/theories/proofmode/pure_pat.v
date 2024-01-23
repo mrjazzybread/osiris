@@ -309,8 +309,7 @@ Ltac pat_pCons :=
 (* The previous lemmas give us a general scheme for reasoning about
    pattern matching on ADTs.
 
-   Given an ADT [G] with with [n] constructors, we need one lemma
-   for each constructor.
+   Given an ADT [G], we need one lemma for each of its constructor.
 
    Given a constructor [C] of [G] with [m] arguments with types [A1 ... A__m],
    its reasoning rule should have the following form:
