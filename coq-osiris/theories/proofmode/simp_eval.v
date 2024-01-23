@@ -574,28 +574,40 @@ Qed.
 
 (* TODO only one or two bindings, for now *)
 
+Lemma simp_wrap {A E E'} (m : micro A E) (a : A) :
+  simp (try m ret (λ (_ : E), @Crash A E')) (ret a) -> simp m (ret a).
+Proof.
+  intros H.
+  apply invert_simp_try_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+  { apply destruct_simp_ret in simp_ret_ret.
+    by (injection simp_ret_ret; intros ->). }
+  { apply destruct_simp_crash in simp_crash_ret. (* TODO: rename to invert_simp_crash *)
+    congruence. }
+Qed.
+
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   (v1 : A1) (v2 : A2) η θ :
   simp (eval η e1) (ret #(v1, v2)) ->
-  simp (δ ← extend [] p1 #v1;
-        extend δ p2 #v2) (ret θ) ->
+  simp (δ ← irrefutably_extend [] p1 #v1;
+        irrefutably_extend δ p2 #v2) (ret θ) ->
   simp (eval (θ ++ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
   intros. simp.
   eapply prove_simp_try; last eassumption.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
-  eapply prove_simp_bind; first eassumption.
+  unfold irrefutably_extend in *.
+  eapply prove_simp_bind. { eauto using simp_wrap. }
   rewrite bind_bind.
-  simpl. by rewrite bind_ret_right.
+  simpl. rewrite bind_ret_right. eauto using simp_wrap.
 Qed.
 
 Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
-          δ ← extend [] p1 #v1;
-          θ ← extend δ p2 #v2;
+          δ ← irrefutably_extend [] p1 #v1;
+          θ ← irrefutably_extend δ p2 #v2;
           eval (θ ++ η) e2
         ) ψ) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
@@ -751,5 +763,5 @@ Proof.
   eapply pure_simp; [eauto using simp_eval_data |].
   eapply pure_ret; eauto.
   rewrite <- solve_encode_val.
-  by apply simp_ret_ret.
+  apply destruct_simp_ret in H1. by injection H1; intros ->.
 Qed.

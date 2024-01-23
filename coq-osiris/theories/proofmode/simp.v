@@ -98,9 +98,9 @@ Qed.
 
 (* The Try rule when the computation fails. *)
 
-Lemma prove_simp_try_next {A B m m'} {f : A → micro B} h :
-  simp m next →
-  simp (h ()) m' →
+Lemma prove_simp_try_throw {A B E' E m m'} e {f : A → micro B E} (h : E' -> micro B E) :
+  simp m (throw e) →
+  simp (h e) m' →
   simp (try m f h) m'.
 Proof.
   eauto using simp_try with simp try_ret.

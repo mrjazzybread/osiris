@@ -327,7 +327,7 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
    right-hand side of this pair. *)
 
 Definition pre_extends extend : env -> list pat -> list val -> micro env unit :=
-  fix extends (δ : env) ps vs : micro env :=
+  fix extends (δ : env) ps vs : micro env unit :=
     match ps, vs with
     | [], [] =>
         ret δ
@@ -744,7 +744,7 @@ Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val void :=
 Definition pre_eval_bindings eval : env -> list binding -> micro env void :=
   λ (η : env) (bs : list binding),
     let par_eval_binding :=
-      fun (b : binding) (acc : micro env) =>
+      fun (b : binding) (acc : micro env void) =>
         match b with
         | Binding p e0 =>
             '(v, δ) ← par (eval η e0) acc ;
@@ -763,7 +763,7 @@ Definition pre_eval_bindings eval : env -> list binding -> micro env void :=
 Definition pre_evals eval : env -> list expr -> micro (list val) void :=
   λ (η : env) (es : list expr),
     let par_eval :=
-      fun (e : expr) (acc : micro (list val)) =>
+      fun (e : expr) (acc : micro (list val) void) =>
         '(v, vs) ← par (eval η e) acc ;
         ret (v :: vs)
     in
@@ -782,7 +782,7 @@ Definition pre_evals eval : env -> list expr -> micro (list val) void :=
 Definition pre_evalfs eval : env -> list fexpr -> micro (list (field * val)) void :=
   λ (η : env) (fes : list fexpr),
     let par_eval_fexpr :=
-      fun (fe : fexpr) (acc : micro (list (field * val))) =>
+      fun (fe : fexpr) (acc : micro (list (field * val)) void) =>
         match fe with
         | Fexpr f e =>
             '(v, fvs) ← par (eval η e) acc ;
@@ -798,7 +798,7 @@ Definition pre_evalfs eval : env -> list fexpr -> micro (list (field * val)) voi
 Definition pre_eval_match eval : env -> val -> list branch -> micro val void :=
   λ (η : env) (v : val) (bs : list branch),
     let try_match_branch :=
-      fun (b : branch) (acc : micro val) =>
+      fun (b : branch) (acc : micro val void) =>
         match b with
         | Branch p e =>
             (* Match the value [v] against the pattern [p]. *)

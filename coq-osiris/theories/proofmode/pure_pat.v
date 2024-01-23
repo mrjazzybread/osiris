@@ -13,13 +13,13 @@ Implicit Type ψ : Prop.
 (* The judgement [pat η p v φ ψ] means that, in the environment [η],
    matching the pattern [p] against the value [v] is safe and either
    results in an extended environment that satisfies [φ]
-   or fails (by raising [Next]) and guarantees [ψ]. *)
+   or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
 Definition pat η p v φ ψ :=
-  total (extend η p v) φ ψ.
+  total (extend η p v) φ (λ (_ : unit), ψ).
 
 Definition pats η ps vs φ ψ :=
-  total (extends η ps vs) φ ψ.
+  total (extends η ps vs) φ (λ (_ : unit), ψ).
 
 (* A consequence rule. *)
 
@@ -93,7 +93,7 @@ Proof.
   { eapply total_consequence.
     { apply Hpat. }
     { intros η' ?. eapply pats_PNil; eauto. }
-    { intros Hψ; apply Hψ. } }
+    { simpl; intros _ Hψ; apply Hψ. } }
   { simpl; intros. eassumption. }
   { intros [|]; [ tauto | contradiction ]. }
 Qed.
@@ -183,7 +183,7 @@ Lemma pat_PData η c p c' v φ ψ :
        is not statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; eauto using total_next, total_consequence.
+  destruct_string_eqb; eauto using total_throw, total_consequence.
 Qed.
 
 Lemma pat_PData_eq η c p v φ ψ :
@@ -192,7 +192,7 @@ Lemma pat_PData_eq η c p v φ ψ :
     (* This form is useful when [c = c'] is statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_PData_neq η c p c' v φ :
@@ -201,7 +201,7 @@ Lemma pat_PData_neq η c p c' v φ :
     (* This form is useful when [c ≠ c'] is statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_false η v (P : Prop) φ :
@@ -342,115 +342,9 @@ Ltac pat_pCons :=
 (* -------------------------------------------------------------------------- *)
 
 Section HelperLemmas.
-Lemma destruct_bind_ret {A B} (m : micro A) (f : A -> micro B) b :
-  bind m f = ret b ->
-  exists c, m = ret c /\ f c = ret b.
-Proof.
-  destruct m; simpl; try discriminate 1.
-  eauto.
-Qed.
 
-Lemma destruct_bind_next {A B} (m : micro A) (f : A -> micro B) :
-  bind m f = next ->
-  m = next \/ exists c, m = ret c /\ f c = next.
-Proof.
-  destruct m; simpl; try discriminate 1.
-  right; eauto.
-  left; done.
-Qed.
-
-Ltac elim_existT :=
-  match goal with
-  | H : existT _ _ = existT _ _ |- _ =>
-      apply Eqdep.EqdepTheory.inj_pair2 in H
-  end.
-
-Lemma destruct_bind_stop {A X Y} (m : micro A) (f : A -> micro A)
-  c (x : X) (k : Y -> micro A) ko :
-  bind m f = Stop c x k ko ->
-  (exists km kom, m = Stop c x km kom) \/
-  exists a, m = ret a /\ f a = Stop c x k ko.
-Proof.
-  destruct m; simpl; try discriminate 1. { eauto. }
-  intros H. injection H; intros.
-  left.
-  subst Y0; subst X0. repeat (elim_existT). subst c0; subst x0.
-  eauto.
-Qed.
-
-Lemma destruct_bind_par {A A1 A2} m (m1 : micro A1) (m2 : micro A2) (f : A -> micro A)
-   (k : A1 * A2 -> micro A) ko :
-  bind m f = Par m1 m2 k ko ->
-  (exists k ko, m = Par m1 m2 k ko) \/
-  exists a, m = ret a /\ f a = Par m1 m2 k ko.
-Proof.
-  destruct m; simpl; try discriminate 1. { eauto. }
-  intros H. injection H; intros.
-  left.
-  subst A1; subst A2. repeat (elim_existT). subst m1; subst m2.
-  eauto.
-Qed.
-
-Lemma destruct_bind_choose {A B} m (m1 m2 : micro B) (f : A -> micro A) k ko :
-  bind m f = Choose m1 m2 k ko ->
-  (exists k ko, m = Choose m1 m2 k ko) \/
-    exists a, m = ret a /\ f a = Choose m1 m2 k ko.
-Proof.
-  destruct m; simpl; try discriminate 1. { eauto. }
-  intros H. injection H; intros.
-  left.
-  subst B. repeat (elim_existT). subst m1; subst m2.
-  eauto.
-Qed.
-
-Lemma destruct_orelse_ret {A : Type} (m1 m2 : micro A) a :
-  orelse m1 m2 = ret a ->
-  m1 = ret a \/ m1 = next /\ m2 = ret a.
-Proof.
-  destruct m1; try discriminate; eauto.
-Qed.
-
-Lemma destruct_lookup_name η v :
-  lookup_name η v = missing_variable_or_field v \/
-    exists v', lookup_name η v = ret v'.
-Proof.
-  induction η as [|[??] η]; first eauto.
-  simpl.
-  destruct (_ =? _)%string; first eauto.
-  destruct IHη as [|[v' Hv']]; eauto.
-Qed.
-
-Lemma invert_simp_orelse_ret {A} (m1 m2 : micro A) a :
-  simp (orelse m1 m2) (ret a) ->
-  simp m1 (ret a) \/ simp m1 next /\ simp m2 (ret a).
-Proof.
-  intros Hsimp. unfold orelse in Hsimp.
-  apply invert_simp_try_ret in Hsimp.
-  destruct_total b.
-  { left.
-    apply simp_ret_ret in H0. by subst. }
-  { eauto. }
-Qed.
-
-Lemma prove_simp_orelse_ret {A} (m1 m2 : micro A) b :
-  simp m1 (ret b) ->
-  simp (orelse m1 m2) (ret b).
-Proof.
-  intros; unfold orelse.
-  eauto using prove_simp_try, SimpReflexive.
-Qed.
-
-Lemma prove_simp_orelse_next_ret {A} (m1 m2 : micro A) b :
-  simp m1 next ->
-  simp m2 (ret b) ->
-  simp (orelse m1 m2) (ret b).
-Proof.
-  intros; unfold orelse.
-  eauto using prove_simp_try_next, SimpReflexive.
-Qed.
-
-Lemma pure_total {B} `{Encode A} (m : micro B) k ko (φ : A -> Prop) :
-  total m (fun a => pure (k a) φ) (pure (ko ()) φ) <->
+Lemma pure_total {B E} `{Encode A} (m : micro B E) k ko (φ : A -> Prop) :
+  total m (fun a => pure (k a) φ) (λ e, pure (ko e) φ) <->
   pure (try m k ko) φ.
 Proof.
   unfold pure; unfold total.
@@ -459,10 +353,10 @@ Proof.
     { destruct Hterm as (b & Hsimp & a & Ha & Hψ).
       exists a. split; last assumption.
       eapply prove_simp_try; eauto. }
-    { destruct Hcont as (Hnext & a & Hcont & Hψ).
+    { destruct Hcont as (e & Hnext & a & Hcont & Hψ).
       exists a. split; last assumption.
-      eapply prove_simp_try_next; eauto. } }
-  { apply invert_simp_try_ret in Hsimp as [(? & ? & ?) | (? & ?)].
+      eapply prove_simp_try_throw; eauto. } }
+  { apply invert_simp_try_ret in Hsimp as [(? & ? & ?) | (? & ? & ?)].
     - left; eauto.
     - right; eauto. }
 Qed.

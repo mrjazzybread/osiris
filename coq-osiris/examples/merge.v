@@ -252,6 +252,7 @@ Proof.
 Qed.
 
 Transparent ret_concat.
+Opaque encode.
 
 Lemma pat_PVar2 η x v :
   pat η (PVar x) v (λ η', η' = (x ~> v; η)) False.
@@ -278,7 +279,6 @@ Ltac pat_PVar_alt :=
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
-  Opaque encode.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
   (* Goal: eval match on l *)
@@ -388,6 +388,7 @@ Proof.
 Qed.
 
 Opaque ret_concat.
+Transparent encode.
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->

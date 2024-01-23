@@ -30,10 +30,8 @@ OCaml expression <code>24 + 18</code>:</p>
   EIntAdd (EInt <span class="mi">24</span>) (EInt <span class="mi">18</span>).</span></span></pre><p>Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk0" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk0"><span class="kn">Print</span> pat.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">pat =
-<span class="kr">λ</span> <span class="nv">η</span> <span class="nv">p</span> <span class="nv">v</span> (<span class="nv">φ</span> : env → <span class="kt">Prop</span>) (<span class="nv">ψ</span> : <span class="kt">Prop</span>),
-  total (extend η p v) φ ψ
-     : env
-       → syntax.pat → val → (env → <span class="kt">Prop</span>) → <span class="kt">Prop</span> → <span class="kt">Prop</span>
+<span class="kr">λ</span> <span class="nv">η</span> <span class="nv">p</span> <span class="nv">v</span> (<span class="nv">φ</span> : env → <span class="kt">Prop</span>) (<span class="nv">ψ</span> : <span class="kt">Prop</span>), total (extend η p v) φ (<span class="kr">λ</span> <span class="nv">_</span> : (), ψ)
+     : env → syntax.pat → val → (env → <span class="kt">Prop</span>) → <span class="kt">Prop</span> → <span class="kt">Prop</span>
 
 <span class="kn">Arguments</span> pat η p v φ%function_scope ψ%type_scope</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk1" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1"><span class="kn">Print</span> expr.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">expr</span> : <span class="kt">Set</span> :=
@@ -91,8 +89,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ELoad : expr → expr
   | EStore : expr → expr → expr
   <span class="kr">with</span> fexpr : <span class="kt">Set</span> :=  Fexpr : <span class="bp">field</span> → expr → fexpr
-  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : pat → expr → branch
-  <span class="kr">with</span> binding : <span class="kt">Set</span> :=  Binding : pat → expr → binding
+  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : syntax.pat → expr → branch
+  <span class="kr">with</span> binding : <span class="kt">Set</span> :=  Binding : syntax.pat → expr → binding
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=  RecBinding : var → anonfun → rec_binding
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=  AnonFun : var → expr → anonfun
   <span class="kr">with</span> mexpr : <span class="kt">Set</span> :=
@@ -335,7 +333,7 @@ and to resume the interpreter.</p>
 <code class="highlight coq"><span class="mi">24</span> <span class="o">+</span> <span class="mi">18</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk8" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk8"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε add_24_plus_18).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= Par (ret (repr <span class="mi">24</span>)) (ret (repr <span class="mi">18</span>)) (<span class="kr">λ</span> <span class="nv">y</span> : int * int, &#39;(
                                             i1, i2) ← ret y;
-                                            ret (VInt (add i1 i2)))
+                                            ret (VInt (add i1 i2))) 
     (<span class="kr">λ</span> <span class="nv">y</span> : void, throw y)
 : micro val void</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span></pre><p>The interpreter hits a <code class="highlight coq"><span class="n">Par</span></code> combinator whose branches are
@@ -527,26 +525,26 @@ takes us from one pause to the next pause.</p>
                          σ !! l = None → step (σ, l := v&#39;; ...continuations) (σ, crash)
   | StepParRetRet : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : A1 * A2 → micro A E) (<span class="nv">z</span> : E&#39; → micro A E),
                       step (σ, Par (ret v1) (ret v2) k z) (σ, k (v1, v2))
-  | StepParCrashLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E)
+  | StepParCrashLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E) 
                          (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par crash m2 k z) (σ, crash)
-  | StepParCrashRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                          (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E)
+  | StepParCrashRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                          (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E) 
                           (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par m1 crash k z) (σ, crash)
-  | StepParNextLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                        (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;)
-                        (<span class="nv">k</span> : A1 * A2 → micro A E)
+  | StepParNextLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                        (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;) 
+                        (<span class="nv">k</span> : A1 * A2 → micro A E) 
                         (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par (throw e) m2 k z) (σ, z e)
-  | StepParNextRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                         (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;)
-                         (<span class="nv">k</span> : A1 * A2 → micro A E)
+  | StepParNextRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                         (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;) 
+                         (<span class="nv">k</span> : A1 * A2 → micro A E) 
                          (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par m1 (throw e) k z) (σ, z e)
-  | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store)
-                    (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;)
+  | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
+                    (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;) 
                     (<span class="nv">k</span> : A1 * A2 → micro A E) (<span class="nv">z</span> : E&#39; → micro A E),
                     step (σ, m1) (σ&#39;, m&#39;1) → step (σ, Par m1 m2 k z) (σ&#39;, Par m&#39;1 m2 k z)
-  | StepParRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store)
-                     (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2 E&#39;)
+  | StepParRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
+                     (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2 E&#39;) 
                      (<span class="nv">k</span> : A1 * A2 → micro A E) (<span class="nv">z</span> : E&#39; → micro A E),
                      step (σ, m2) (σ&#39;, m&#39;2) → step (σ, Par m1 m2 k z) (σ&#39;, Par m1 m&#39;2 k z)
   | StepChooseLeft : <span class="kr">∀</span> (<span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : B → micro A E) (<span class="nv">z</span> : E&#39; → micro A E),
@@ -579,8 +577,8 @@ either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
 may take a step:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk17" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk17"><span class="kn">Check</span> @StepParLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParLeft
-     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;)
-         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E)
+     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) 
+         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E) 
          (<span class="nv">z</span> : E&#39; → micro A E), step (σ, m1) (σ&#39;, m&#39;1) → step (σ, Par m1 m2 k z) (σ&#39;, Par m&#39;1 m2 k z)</blockquote></div></div></small></span></pre><p>If both threads have reached a result, then
 the parallel composition disappears.
 The continuation <code class="highlight coq"><span class="n">k</span></code> is applied to the pair <code class="highlight coq"><span class="o">(</span><span class="n">v1</span><span class="o">,</span> <span class="n">v2</span><span class="o">)</span></code>
