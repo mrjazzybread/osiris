@@ -30,7 +30,7 @@ Time Eval cbn in left_leaning_sequence_of_binds 2500.
 (* This seems to exhibit linear time complexity.
    Speed is roughly 40,000 iterations per second. *)
 
-Time Eval cbv in left_leaning_sequence_of_binds 40000.
+Time Eval cbv in left_leaning_sequence_of_binds 20000.
 
 (* -------------------------------------------------------------------------- *)
 
