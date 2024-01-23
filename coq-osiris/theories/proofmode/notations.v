@@ -226,46 +226,6 @@ Notation "e1 ; e2" :=
   (ESeq e1 e2)
     (only printing, format "e1 ;  '/' e2", at level 20, e1, e2 at level 200).
 
-(* Check (Stop CLoop (("n" ~> #0; "k" ~> VData "S" <v VConstant "O" v> ; ε),
-                      "x", repr 1, repr 50,
-                      ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x"))
-                        (EApp (EVar "f") (EVar "x"))) ret next).
-   =>
-for "x" = repr 1 to repr 50
-with {: "n" ~> #0;
-        "k" ~> "S" (VConstant "O");
-        ε :}
-do
-  (EVar "f") (EVar "x"); (EVar "f") (EVar "x"); (EVar "f") (EVar "x"); (EVar "f") (EVar "x")
-done; ...
-     : micro val *)
-(* Check (Stop CLoop (("n" ~> #0; "k" ~> VData "S" <v VConstant "O" v> ; ε),
-                      "x", repr 1, repr 50,
-                      ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x")) $ ESeq
-                        (EApp (EVar "f") (EVar "x"))
-                        (EApp (EVar "f") (EVar "x"))) ret next).
-   =>
-for "x" = repr 1 to repr 50
-with {: "n" ~> #0;
-        "k" ~> "S" (VConstant "O");
-        ε :}
-do
-  (EVar "f") (EVar "x");
-  (EVar "f") (EVar "x");
-  (EVar "f") (EVar "x");
-  (EVar "f") (EVar "x");
-  (EVar "f") (EVar "x");
-  (EVar "f") (EVar "x")
-done; ...
-  : micro val *)
-
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
