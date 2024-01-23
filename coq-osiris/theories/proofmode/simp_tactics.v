@@ -187,22 +187,27 @@ Ltac pure_enter_and_abstract :=
 Ltac simp_evaluate :=
   simpl; repeat (rewrite eval_eval'; simpl).
 
+(* TODO the following tactics seem redundant with the symbolic execution
+        tactics, [simp] and friends. Avoid duplication. *)
+
 (* On a goal of the form [pure (Stop CEval x k ko) φ], evaluate the call by:
    stepping through the [Stop] with the appropriate advance_SimpEval lemma,
    using [simp_evaluate] under the resulting pure *)
 Ltac pure_evaluate :=
   (lazymatch goal with
-   | |- pure (Stop CEval _ ret throw) _ =>
-       eapply pure_simp; [apply advance_SimpEvalRetThrow | apply SimpReflexive]
-   | |- pure (Stop CEval _ _ throw _) =>
-       eapply pure_simp; [apply advance_SimpEvalThrow | apply SimpReflexive]
    | |- pure (Stop CEval _ _ _) _ =>
-       eapply pure_simp; [apply advance_SimpEval | apply SimpReflexive]
+       eapply pure_simp; [
+         first [
+           apply advance_SimpEvalRetThrow
+         | apply advance_SimpEvalThrow
+         | apply advance_SimpEval
+         ]
+       | apply SimpReflexive
+       ]
    | _ => idtac
    end);
   eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
 
-(* TODO this seems redundant with [simp] *)
 Ltac SimpParRet :=
   first [
     apply SimpParRetRet
