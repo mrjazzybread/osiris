@@ -4,7 +4,7 @@ From osiris.semantics Require Import semantics.
 Local Open Scope nat_scope.
 Local Set Warnings "-abstract-large-number".
 
-Definition do_something (v : val) : micro val :=
+Definition do_something (v : val) : micro val void :=
   let η := [("v", v)] in
   v ← lookup_name η "v" ;
   let η := [("x", v)] in
@@ -13,7 +13,7 @@ Definition do_something (v : val) : micro val :=
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint left_leaning_sequence_of_binds (n : nat) : micro val :=
+Fixpoint left_leaning_sequence_of_binds (n : nat) : micro val void :=
   match n with
   | 0 =>
       ok
@@ -30,11 +30,11 @@ Time Eval cbn in left_leaning_sequence_of_binds 2500.
 (* This seems to exhibit linear time complexity.
    Speed is roughly 40,000 iterations per second. *)
 
-Time Eval cbv in left_leaning_sequence_of_binds 20000.
+Time Eval cbv in left_leaning_sequence_of_binds 40000.
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint right_leaning_sequence_of_binds (n : nat) (v : val) : micro val :=
+Fixpoint right_leaning_sequence_of_binds (n : nat) (v : val) : micro val void :=
   match n with
   | 0 =>
       ok

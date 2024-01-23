@@ -7,7 +7,7 @@ From osiris.semantics Require Import code eval step simplification.
 (* The judgement [pure m φ] asserts that the computation [m] can be simplified
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
-Definition pure `{Encode A} (m : micro val) (φ : A → Prop) :=
+Definition pure `{Encode A} (m : micro val void) (φ : A → Prop) :=
   ∃ a, simp m (ret #a) ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
@@ -28,13 +28,13 @@ Ltac destruct_encode_image a :=
 
 (* [pure] can also be defined in terms of [totalv]. *)
 
-Lemma pure_totalv `{Encode A} (m : micro val) (φ : A → Prop) :
+Lemma pure_totalv `{Encode A} (m : micro val void) (φ : A → Prop) :
   pure m φ ↔
   totalv m (λ v, ∃ a, v = #a ∧ φ a).
 Proof.
   split.
   { intros. destruct_pure a. eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total v. destruct_encode_image a. unfold pure. eauto. }
+  { intros. destruct_total v e. destruct_encode_image a. unfold pure. eauto. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -77,12 +77,11 @@ Qed.
 
 (* A reasoning rule for [try]. *)
 
-(* The rule is degenerate; [m] is not allowed to reduce to [Next],
+(* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [z] is dead and no proof obligation bears on it. *)
 
 Lemma pure_try A (_ : Encode A) B (_ : Encode B)
-  (m : micro val) (k : val → micro val) (z : unit → micro val)
-  (φ : A → Prop) (ψ : B → Prop)
+  m k z (φ : A → Prop) (ψ : B → Prop)
 :
   pure m φ →
   (∀ a, φ a → pure (k #a) ψ) →
@@ -100,8 +99,7 @@ Qed.
    where [A] and [B] are types other than [val] will not work! *)
 
 Lemma pure_bind A (_ : Encode A) B (_ : Encode B)
-  (m : micro val) (k : val → micro val)
-  (φ : A → Prop) (ψ : B → Prop)
+  m k (φ : A → Prop) (ψ : B → Prop)
 :
   pure m φ →
   (∀ a, φ a → pure (k #a) ψ) →
@@ -111,8 +109,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_unary A (_ : Encode A) B (_ : Encode B)
-  (m : micro val) (k : val → micro val)
-  (ψ : B → Prop)
+  m k (ψ : B → Prop)
 :
   pure m (λ (a : A), pure (k #a) ψ) →
   pure (bind m k) ψ.
@@ -126,9 +123,8 @@ Qed.
    [micro (val * val)], not [micro val]. However, we can give a rule
    for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
-Lemma pure_par `{Encode A1, Encode A2, Encode A} m1 m2
-  (k : val * val → micro val) (z : unit → micro val)
-  (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+Lemma pure_par `{Encode A1, Encode A2, Encode A}
+  m1 m2 k z (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
 :
   pure m1 φ1 →
   pure m2 φ2 →
@@ -226,7 +222,7 @@ Proof.
   intros Hmk Hm.
   rewrite pure_totalv in Hmk.
   apply invert_totalv_bind in Hmk.
-  destruct_total v.
+  destruct_total v e.
 
   (* The problem that we now face is to prove that the value [v] produced
      by [m] must be of the form [#a]. The hypothesis [Hm] is necessary for
@@ -235,7 +231,7 @@ Proof.
 
   (* We can then conclude. *)
   unfold pure. exists a. split; [ eauto |].
-  destruct_total v. destruct_encode_image b. eauto.
+  destruct_total v e. destruct_encode_image b. eauto.
 Qed.
 
 (* That said, if we take the type [A] to be [val], then -- because [encode]
@@ -250,7 +246,7 @@ Proof.
   intros Hmk.
   rewrite pure_totalv in Hmk.
   apply invert_totalv_bind in Hmk.
-  destruct_total v.
+  destruct_total v e.
   unfold pure. exists v. split; [ eauto |].
-  destruct_total v'. destruct_encode_image b. eauto.
+  destruct_total v' e'. destruct_encode_image b. eauto.
 Qed.

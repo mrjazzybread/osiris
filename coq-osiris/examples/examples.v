@@ -227,7 +227,9 @@ Section ProofExamples.
         (* We use the IH and get back the postcondition of the function.
            Note: The IH is no longer behind a later because we have taken at
                  least a step since we got it. *)
-        wp_use "Hinfinite". }
+        wp_use "Hinfinite".
+        iIntros. tauto. (* FIXME? *)
+        }
 
 
     (* [infinite] is followed by [nat_to_int] in OCaml. *)
@@ -407,7 +409,8 @@ Section ProofExamples.
     change VUnit with #tt. (* FIXME! *)
 
     (* Initialize the counter and eliminate the first call to [Counter.get]. *)
-    counter_init. counter_get.
+    wp_bind. counter_init.
+    wp_bind. counter_get.
 
     (* Small loop.  In order to prove the loop with the rest of the program as
        continuation, one can define an invariant in the form of a predicate over

@@ -126,16 +126,17 @@ Ltac wp_concat :=
       | bind (ret_concat ?η ?δ) ?k =>
           with_strategy transparent [ret_concat]
                         (change (bind (ret_concat η δ) k) with (k (η ++ δ)))
+          (* TODO should use [unfold_breakpoint]? *)
       | ret_concat ?η ?δ =>
           with_strategy transparent [ret_concat]
-                        (change (ret_concat η δ) with (ret (η ++ δ)))
+                        (change (ret_concat η δ) with (@ret env void (η ++ δ)))
 
       | bind (ret_dconcat ?δ' ?ηδ) ?k =>
           with_strategy transparent [ret_dconcat]
                         (change (bind (ret_dconcat δ' ηδ) k) with (k (dconcat δ' ηδ)))
       | ret_dconcat ?δ' ?ηδ =>
           with_strategy transparent [ret_dconcat]
-                        (change (ret_dconcat δ' ηδ) with (ret (dconcat δ' ηδ)))
+                        (change (ret_dconcat δ' ηδ) with (@ret envs void (dconcat δ' ηδ)))
       | _ => fail "There is no concatenation here."
       end
   | _ => fail "There is no concatenation here."
@@ -223,7 +224,7 @@ Ltac wp_continue :=
 Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
   let is_in := eval cbn in (lookup_name δ name) in
   lazymatch is_in with
-  | Ret _ => idtac
+  | @Ret _ void _ => idtac
   | _ => t
   end.
 
@@ -232,13 +233,13 @@ Local Tactic Notation "@wp" "until" "check" constr(name) :=
   | |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
-        | Ret _ => idtac
+        | @Ret _ void _ => idtac
         | _ => fail "[wp until] cannot find the requested bindings"
         end
   | |- environments.envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
-        | Ret _ => idtac
+        | @Ret _ void _ => idtac
         | _ => fail "[wp until] cannot find the requested bindings"
         end
   | _ => fail "[wp until] cannot find the requested bindings."
@@ -463,7 +464,7 @@ Local Ltac oSpecify_assume_nonrec lspecs lnames lhyps δ :=
                  (λ '(spec, name) (res: list (iProp _)),
                    let value :=
                      match lookup_name δ name with
-                     | Ret v => v
+                     | @Ret _ _ v => v
                      | _ => VUnit
                      end in
                    spec value :: res)
@@ -487,7 +488,7 @@ Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
                  (λ '(spec, name) (res: list (iProp _)),
                    let value :=
                      match lookup_name δ name with
-                     | Ret v => v
+                     | @Ret _ _ v => v
                      | _ => VUnit
                      end in
                    spec value :: res)
@@ -502,7 +503,7 @@ Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
 Tactic Notation "oSpecify_abstract" constr(δ) constr(n1) ident(i1) :=
   let value :=
     eval cbn in (match lookup_name δ n1 with
-                           | Ret v => v
+                           | @Ret _ _ v => v
                            | _ => VUnit
                            end) in
     generalize value; intros i1.

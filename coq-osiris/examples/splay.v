@@ -479,7 +479,7 @@ Proof.
   (* Subgoal: prove that [zlookup] satisfies its specification. *)
   { unfold zlookup_spec. do 4 intro.
     intros Hcompare ??? Hbst.
-    eapply pure_rec_call_unary with 
+    eapply pure_rec_call_unary with
       (v:=(t,x,ctx))
       (P:=fun '(t, _, _) => bst (strict le) t)
       (φ:=fun tuple =>
@@ -503,7 +503,7 @@ Proof.
     (* Case: [Node]. *)
     { (* The call [compare x y] is curried. *)
       intros v Hv.
-      eapply pure_try. (* TODO try to automate this *)
+      eapply pure_bind. (* TODO try to automate this *)
       { eapply Hv. }
       clear v Hv.
       intros c Hc. cbn in Hc.

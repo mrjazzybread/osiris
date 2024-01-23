@@ -91,6 +91,7 @@ Proof.
   }
 
   (* The interpreter stops at the first call of [new_counter]. *)
+  wp_bind. (* FIXME *)
   wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget vupd) "(%l&Hl&#Hget&#Hupd)".
   wp_bind. (* TODO seems slow *)
@@ -106,6 +107,7 @@ Proof.
   iNext. iIntros "Hl".
   wp_bind.
   wp_continue.
+  wp_bind.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
@@ -118,10 +120,12 @@ Proof.
   (* The interpreter stops at the second call of [new_counter], which occurs in
      the definition of [_test]. *)
   wp_continue.
+  wp_bind.
   wp_use ("Hnew_counter" with "[//][]"). iNext.
   iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)".
   wp_bind.
   wp_continue.
+  wp_bind.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".
@@ -132,6 +136,7 @@ Proof.
   iNext. iIntros "Hl".
   wp_bind.
   wp_continue.
+  wp_bind.
 
   wp_use ("Hget" with "Hl").
   iNext. iIntros (?)"[->Hl]".

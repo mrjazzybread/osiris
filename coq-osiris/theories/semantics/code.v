@@ -7,6 +7,14 @@ From osiris.semantics Require Import micro.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Evaluating an OCaml expression cannot raise a meta-level exception. *)
+
+(* This will change once we model OCaml exceptions. *)
+
+Definition void : Type := (∀ A, A).
+
+(* ------------------------------------------------------------------------ *)
+
 (* [Eval (η, e)] is a request for the computation [eval η e]. *)
 
 (* [Loop (η, x, i1, i2, e)] is a request for the computation
@@ -20,12 +28,12 @@ From osiris.semantics Require Import micro.
    [micro] monad. See [invert_stack_try_ret] in simplification.v for an
    explanation. *)
 
-Inductive code : Type → Type → Type :=
-| CEval  : code (env * expr) val
-| CLoop  : code (env * var * int * int * expr) val
-| CAlloc : code val loc
-| CLoad  : code loc val
-| CStore : code (loc * val) unit
+Inductive code : Type → Type → Type → Type :=
+| CEval  : code (env * expr) val void
+| CLoop  : code (env * var * int * int * expr) val void
+| CAlloc : code val loc void
+| CLoad  : code loc val void
+| CStore : code (loc * val) unit void
 .
 
 (* ------------------------------------------------------------------------ *)

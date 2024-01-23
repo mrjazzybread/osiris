@@ -6,11 +6,13 @@ From stdpp Require Import relations.
 (* This file defines the relations [steps] and [produces]
    and establishes some of their properties. *)
 
+(* TODO remove; just use [nsteps] from stdpp everywhere *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* [steps n m m'] means that [m] reduces to [m'] in at most [n] steps. *)
 
-Inductive steps {A} : nat → config A → config A → Prop :=
+Inductive steps {A E} : nat → config A E → config A E → Prop :=
 | StepsZero:
     ∀ n m,
     steps n m m
@@ -24,52 +26,9 @@ Global Hint Constructors steps : steps.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Lemmas about [steps]. *)
-
-(* [step] implies [steps 1]. *)
-
-Lemma one_step {A} (m m' : config A) :
-  step m m' →
-  steps 1 m m'.
-Proof.
-  eauto with steps.
-Qed.
-
-(* [steps] is monotonic in [n]. *)
-
-Lemma steps_monotonic {A} :
-  ∀ n (m m' : config A),
-  steps n m m' →
-  ∀ n',
-  n ≤ n' →
-  steps n' m m'.
-Proof.
-  induction 1; intros.
-  { eauto with steps. }
-  { destruct n'; [ lia |]. eauto with lia steps. }
-Qed.
-
-(* [steps] is transitive. *)
-
-Lemma steps_transitive {A} :
-  ∀ n1 (m1 m2 : config A),
-  steps n1 m1 m2 →
-  ∀ n2 m3,
-  steps n2 m2 m3 →
-  steps (n1 + n2) m1 m3.
-Proof.
-  induction 1; intros; simpl.
-  (* Base case. *)
-  { eauto using steps_monotonic with lia. }
-  (* Step case. *)
-  { eauto with steps. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
 (* [produces n m a] means that [m] reduces to [Ret a] in at most [n] steps. *)
 
-Definition produces {A} n (m : micro A) σ (a : A) :=
+Definition produces {A E} n (m : micro A E) σ a :=
   steps n (σ, m) (σ, Ret a).
 
 Global Hint Unfold produces : steps.
@@ -80,7 +39,7 @@ Global Hint Unfold produces : steps.
 
 (* [step] and [produces] can be composed. *)
 
-Lemma step_produces {A} n (m m' : micro A) σ a :
+Lemma step_produces {A E} n (m m' : micro A E) σ a :
   step (σ, m) (σ, m') →
   produces n m' σ a →
   produces (S n) m σ a.
@@ -92,7 +51,7 @@ Global Hint Resolve step_produces : steps.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Inversion lemma. *)
+(* Inversion lemma. *) (* TODO remove *)
 
 Lemma nsteps_S_inv {T} R n (e e' : T) :
   nsteps R (S n) e e' → ∃ e'', R e e'' ∧ nsteps R n e'' e'.
@@ -102,8 +61,8 @@ Proof. inversion_clear 1. eauto. Qed.
 
 (* Relation between [steps] and its stdpp version ([nsteps]). *)
 
-Lemma steps_nsteps {A n} :
-  forall {σ1 σn} {m1 mn : micro A},
+Lemma steps_nsteps {A E n} :
+  forall {σ1 σn} {m1 mn : micro A E},
   steps n (σ1, m1) (σn, mn) → ∃ n', nsteps step n' (σ1, m1) (σn, mn).
 Proof.
   induction n as [|n IHn] => σ1 σn m1 mn Hsteps.

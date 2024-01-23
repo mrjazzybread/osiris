@@ -105,17 +105,17 @@ Context `{!osirisGS Σ}.
 
 (* The return rule. *)
 
-Lemma wp_ret {A} s E (a : A) φ :
+Lemma wp_ret {A X} s E (a : A) φ :
   φ a ⊢
-  WP (Ret a) @ s; E {{ φ }}.
+  WP (ret a : micro A X) @ s; E {{ φ }}.
 Proof.
   wp_unfold_all. iIntros. iFrame.
   iMod (@fupd_mask_subseteq _ _ E ∅); [set_solver | eauto].
 Qed.
 
-Lemma wp_ret_fupd {A} s E (a : A) φ :
+Lemma wp_ret_fupd {A X} s E (a : A) φ :
   (|={E}=> φ a) ⊢
-  WP (Ret a) @ s; E {{ φ }}.
+  WP (ret a : micro A X) @ s; E {{ φ }}.
 Proof.
   iIntros "H".
   iApply fupd_wp.
@@ -125,9 +125,9 @@ Qed.
 
 (* The inverse return rule. *)
 
-Lemma invert_wp_ret {A} s E (a : A) φ :
+Lemma invert_wp_ret {A X} s E (a : A) φ :
   ∀ σ, state_interp σ -∗
-       WP (Ret a) @ s; E {{ φ }} -∗
+       WP (ret a : micro A X) @ s; E {{ φ }} -∗
        |={E}=> state_interp σ ∗ φ a.
 Proof.
   intro_state. iIntros "Hwp".
@@ -137,9 +137,9 @@ Qed.
 
 (* The inverse crash rule. *)
 
-Lemma invert_wp_crash {A s E φ} :
+Lemma invert_wp_crash {A X s E φ} :
   ∀ σ, state_interp σ -∗
-       WP (@crash A) @ s; E {{φ}} -∗
+       WP (crash : micro A X) @ s; E {{φ}} -∗
        |={E}=> False.
 Proof.
   intro_state. iIntros "Hwp".
@@ -147,11 +147,11 @@ Proof.
   destruct_wp_nonret. exfalso; eauto with invert_can_step.
 Qed.
 
-(* The inverse [next] rule. *)
+(* The inverse [throw] rule. *)
 
-Lemma invert_wp_next {A s E φ} :
+Lemma invert_wp_throw {A X s E x φ} :
   ∀ σ, state_interp σ -∗
-       WP (@next A) @ s; E {{ φ }} -∗
+       WP (throw x : micro A X) @ s; E {{ φ }} -∗
        |={E}=> False.
 Proof.
   intro_state. iIntros "Hwp".
@@ -161,7 +161,7 @@ Qed.
 
 (* The consequence rule of Separation Logic. *)
 
-Lemma wp_covariant {A} s E (m : micro A) φ φ' :
+Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
 WP m @ s; E {{ φ }} -∗
 (∀ a, φ a -∗ φ' a) -∗
 WP m @ s; E {{ φ' }}.
@@ -184,10 +184,10 @@ Qed.
 
 (* A reasoning rule for [try]. *)
 
-(* Our definition of [WP] forbids [m1] from reducing to [next], so the
+(* Our definition of [WP] forbids [m1] from reducing to [throw _], so the
    handler [h] is dead. Therefore, no proof obligation bears on [h]. *)
 
-Lemma wp_try {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) h ψ :
+Lemma wp_try {A1 A2 X' X} s E (m1: micro A1 X') (m2: A1 → micro A2 X) h ψ :
   WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
   WP (try m1 m2 h) @ s; E {{ ψ }}.
 Proof.
@@ -227,7 +227,7 @@ Qed.
    analysis. The scope of the case analysis is then limited to the first
    premise, so the proof of [m2] is not duplicated. *)
 
-Lemma wp_try_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) h φ ψ :
+Lemma wp_try_binary {A1 A2 X' X} s E (m1: micro A1 X') (m2: A1 → micro A2 X) h φ ψ :
   WP m1 @ s; E {{ φ }} ⊢
   (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }})-∗
   WP (try m1 m2 h) @ s; E {{ ψ }}.
@@ -239,7 +239,7 @@ Qed.
 
 (* The Bind rule of Separation Logic. *)
 
-Lemma wp_bind {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) ψ :
+Lemma wp_bind {A1 A2 X} s E (m1: micro A1 X) (m2: A1 → micro A2 X) ψ :
   WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
              WP (bind m1 m2) @ s; E {{ ψ }}.
 Proof.
@@ -252,7 +252,7 @@ Qed.
    analysis. The scope of the case analysis is then limited to the first
    premise, so the proof of [m2] is not duplicated. *)
 
-Lemma wp_bind_binary {A1 A2} s E (m1: micro A1) (m2: A1 → micro A2) φ ψ :
+Lemma wp_bind_binary {A1 A2 X} s E (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
   WP m1 @ s; E {{ φ }} ⊢
   (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
   WP (bind m1 m2) @ s; E {{ ψ }}.
@@ -279,7 +279,8 @@ Qed.
    We do not want the user to rely on the fact that a join point counts as a
    step. *)
 
-Lemma wp_par {A1 A2 A3 s E m1 m2} {k: A1 * A2 → micro A3} {z φ} φ1 φ2:
+Lemma wp_par {A1 A2 A3 X' X s E m1 m2}
+  {k: A1 * A2 → micro A3 X} {z : X' → _} {φ} φ1 φ2:
   WP m1 @ s ; E {{ φ1 }} ⊢
   WP m2 @ s ; E {{ φ2 }} -∗
   (
@@ -324,13 +325,13 @@ Proof.
     iApply ("Hjoin" with "H1 H2"). }
 
   (* In the four following cases, one of the branches of the [Par] is either a
-     [crash] or a [next]. Hence, one can consume the corresponding [WP]
+     [crash] or [throw _]. Hence, one can consume the corresponding [WP]
      hypothesis to get [ |={E}=> False ]. As the goal is of the form
      [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
      Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
      the proof. *)
   1,2: by iMod (invert_wp_crash with "Hsi [$]") as "%".
-  1,2:  by iMod (invert_wp_next with "Hsi [$]") as "%".
+  1,2:  by iMod (invert_wp_throw with "Hsi [$]") as "%".
 
   { (* Case: [StepParLeft] *)
     (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
@@ -360,7 +361,7 @@ Qed.
 
 (* [CEval]. *)
 
-Lemma wp_eval {A} s E η e (k : val → micro A) z φ :
+Lemma wp_eval {A X} s E η e (k : val → micro A X) z φ :
   ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} ⊢
   WP (Stop CEval (η, e) k z) @ s; E {{ φ }}.
 Proof.
@@ -378,7 +379,7 @@ Qed.
 
 (* A special case of the previous lemma for the continuation [ret]. *)
 
-Lemma wp_eval_ret s E η e z φ :
+Lemma wp_eval_ret {X} s E η e {z : void → micro val X} φ :
   ▷ WP (eval η e) @ s; E {{ φ }} ⊢
   WP (Stop CEval (η, e) ret z) @ s; E {{ φ }}.
 Proof.
@@ -396,7 +397,7 @@ Qed.
    no need to split the current resource. It suffices to prove
    that both [m1] and [m2] are safe under the current resource. *)
 
-Lemma wp_choose {A} s E (m1 m2 : micro A) φ :
+Lemma wp_choose {A X} s E (m1 m2 : micro A X) φ :
   ▷ (WP m1 @ s; E {{ φ }} ∧ WP m2 @ s; E {{ φ }}) ⊢
   WP (choose m1 m2) @ s; E {{ φ }}.
 Proof.
@@ -422,7 +423,7 @@ Qed.
    side [m] preserves [φ], then after executing [choose ok m] the assertion
    [φ] still holds. *)
 
-Lemma wp_choose_ok s E (m : micro val) (φ : iProp Σ) :
+Lemma wp_choose_ok s E (m : micro val void) (φ : iProp Σ) :
   φ -∗
   ▷ (φ -∗ WP m @ s; E {{ λ _, φ }}) -∗
   WP (choose ok m) @ s; E {{ λ _, φ }}.
@@ -442,9 +443,9 @@ Qed.
 (* TODO these proofs need cleaning up *)
 
 (* The following lemma is inspired by the corresponding CFML rule. *)
-Lemma wp_loop {A} s E
+Lemma wp_loop {A X} s E
       (η : env) (x : var) (i1 i2 : int) (e : expr)
-      (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ) :
+      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ) :
   (* If *)
   (▷ (* Either: *)
      if int.lt i2 i1
@@ -512,9 +513,9 @@ Qed.
    the induction. Another lemma [wp_loop_inv_pos] is defined below. It is
    essentially the same lemma, except that [n] is no longer present in the
    statement. *)
-Local Lemma wp_loop_inv_pos_aux {A} s E
+Local Lemma wp_loop_inv_pos_aux {A X} s E
       (η : env) (x : var) (n i1 i2 : nat) (e : expr)
-      (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ)
+      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ)
       (Hinv : nat → iProp Σ) :
   representable i1 →
   representable (S i2) →
@@ -604,7 +605,7 @@ Proof.
     assert (Hlt: lt (repr i2) (add (repr i2) int.one) = true).
     { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
 
-    wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret propagate).
+    wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
     intro_state.
     iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; [ set_solver | iModIntro ].
     construct_wp_nonret; destruct_step.
@@ -616,10 +617,9 @@ Proof.
     iExact "Hccl". }
 Qed.
 
-(* TODO unused definition? *)
-Definition wp_loop_inv_pos {A} s E
+Definition wp_loop_inv_pos {A X} s E
       (η : env) (x : var) (i1 i2 : nat) (e : expr)
-      (k : val → micro A) (z : unit → micro A) (φ : A → iProp Σ)
+      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ)
       (Hinv : nat → iProp Σ) :
   representable i1 →
   representable (S i2) →
@@ -641,7 +641,7 @@ Definition wp_loop_inv_pos {A} s E
 
 (* The standard memory allocation rule of Separation Logic. *)
 
-Lemma wp_alloc {A} s E v (k : loc → micro A) z φ :
+Lemma wp_alloc {A X} s E v (k : loc → micro A X) z φ :
   ▷ (
       ∀ l,
         mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
@@ -670,7 +670,7 @@ Qed.
 
 (* The standard memory write rule of Separation Logic. *)
 
-Lemma wp_store {A} s E l v v' (k : unit → micro A) z φ :
+Lemma wp_store {A X} s E l v v' (k : unit → micro A X) z φ :
   mapsto l (DfracOwn 1) v ⊢
   ▷ (
       mapsto l (DfracOwn 1) v' -∗
@@ -699,7 +699,7 @@ Qed.
 
 (* The standard memory load rule of Separation Logic. *)
 
-Lemma wp_load {A} s E l v dq (k: val → micro A) z φ :
+Lemma wp_load {A X} s E l v dq (k: val → micro A X) z φ :
   mapsto l dq v ⊢
   ▷ (
       mapsto l dq v -∗
@@ -732,7 +732,7 @@ Qed.
    holds then the safety of the simplified program [ms] implies the safety
    of the more complex original program [ms]. *)
 
-Local Lemma wp_simplify {A} n (m ms : micro A) s E φ :
+Local Lemma wp_simplify {A X} n (m ms : micro A X) s E φ :
   WP ms @ s ; E {{ φ }} -∗
   ⌜ simplify n m ms ⌝ -∗
   WP m  @ s ; E {{ φ }}.
@@ -824,7 +824,7 @@ Qed. (* yes! *)
 
 (* A corollary, for public use: [simp] is sound. *)
 
-Lemma wp_simp {A} (m m' : micro A) s E φ :
+Lemma wp_simp {A X} (m m' : micro A X) s E φ :
   simp m m' →
   WP m' @ s ; E {{ φ }} ⊢
   WP m  @ s ; E {{ φ }}.
@@ -841,7 +841,9 @@ Qed.
 
 (* For this reason, they should not be used. TODO *)
 
-Lemma wp_par_ret_left {A1 A2 A} s E a1 m2 (k : A1 * A2 → micro A) z φ :
+Lemma wp_par_ret_left {A1 A2 A X' X} s E a1 m2
+  (k : A1 * A2 → micro A X) (z : X' → _) φ
+:
   WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} ⊢
   WP (Par (Ret a1) m2 k z) @ s; E {{ φ }}.
 Proof.
@@ -851,7 +853,9 @@ Proof.
   by iApply wp_try.
 Qed.
 
-Lemma wp_par_ret_right {A1 A2 A} s E m1 a2 (k : A1 * A2 → micro A) z φ :
+Lemma wp_par_ret_right {A1 A2 A X' X} s E m1 a2
+  (k : A1 * A2 → micro A X) (z : X' → _) φ
+:
   WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} ⊢
   WP (Par m1 (Ret a2) k z) @ s; E {{ φ }}.
 Proof.
@@ -861,14 +865,16 @@ Proof.
   by iApply wp_try.
 Qed.
 
-Lemma wp_par_ret_ret {A1 A2 A3} s E a1 a2 (k: A1 * A2 → micro A3) z φ:
+Lemma wp_par_ret_ret {A1 A2 A3 X' X} s E a1 a2
+  (k : A1 * A2 → micro A3 X) (z : X' → _) φ
+:
   WP (k (a1, a2)) @ s; E {{ φ }} ⊢
   WP (Par (ret a1) (ret a2) k z) @s; E {{ φ }}.
 Proof.
   iIntros "H".
   iApply (wp_simp with "[H]").
   { eapply SimpParRetRight. }
-  rewrite try_ret.
+  simpl try.
   iAssumption.
 Qed.
 

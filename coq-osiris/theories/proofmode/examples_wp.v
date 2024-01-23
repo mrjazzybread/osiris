@@ -270,7 +270,7 @@ Proof.
   iInduction bs as [| b bs ] "IHbs";
   wp_enter_and_abstract; iIntros (walk); wp; wp_continue.
   { equality. }
-  { wp_use "IHbs". }
+  { wp_use "IHbs". iIntros (?->). wp. equality. }
 Qed.
 
 Definition walk_example e :=
@@ -309,7 +309,7 @@ Proof.
     iInduction bs as [| b bs ] "IHbs";
     wp_enter_and_abstract; iIntros (walk); wp; wp_continue.
     { equality. }
-    { wp_use "IHbs". }
+    { wp_use "IHbs". iIntros (?->). wp. equality. }
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   (* The remains to exploit the hypothesis [Hwalk]. *)

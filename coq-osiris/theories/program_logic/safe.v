@@ -16,7 +16,9 @@ Local Open Scope nat_scope.
 
 (* We first define what it means to be safe for [n] steps. *)
 
-Fixpoint initially_safe {A} (n : nat) (c : config A) (φ : store → A → Prop) : Prop :=
+Fixpoint initially_safe {A E}
+  (n : nat) (c : config A E) (φ : store → A → Prop)
+: Prop :=
   match n with
   | 0 =>
       (* Every configuration is safe for zero steps. *)
@@ -36,7 +38,7 @@ Fixpoint initially_safe {A} (n : nat) (c : config A) (φ : store → A → Prop)
 (* If, for every [n], a configuration is safe for [n] steps,
    then this configuration is safe. *)
 
-Definition safe {A} (c : config A) (φ : store → A → Prop) :=
+Definition safe {A E} (c : config A E) (φ : store → A → Prop) :=
   ∀ n, initially_safe n c φ.
 
 (* -------------------------------------------------------------------------- *)
@@ -45,7 +47,9 @@ Definition safe {A} (c : config A) (φ : store → A → Prop) :=
 
 (* A paraphrase lemma. *)
 
-Lemma unfold_initially_safe_S {A n c} (φ : store → A → Prop) :
+Lemma unfold_initially_safe_S
+  {A E n} {c : config A E} (φ : store → A → Prop)
+:
   initially_safe (S n) c φ =
   (
     (∃ σ v, c = (σ, Ret v) ∧ φ σ v) ∨
@@ -75,13 +79,13 @@ Ltac destruct_initially_safe_S H :=
 (* If [n1 ≤ n2] holds, then a configuration that is safe for [n2] steps is
    also safe for [n1] steps. *)
 
-Lemma initially_safe_monotonic {A} (φ : store → A → Prop) :
-  ∀ n1 n2 m,
-  initially_safe n2 m φ →
+Lemma initially_safe_monotonic {A E} (φ : store → A → Prop) :
+  ∀ n1 n2 (c : config A E),
+  initially_safe n2 c φ →
   n1 ≤ n2 →
-  initially_safe n1 m φ.
+  initially_safe n1 c φ.
 Proof.
-  induction n1; simpl; intros n2 m Hsafe Hleq; [ tauto |].
+  induction n1; simpl; intros n2 c Hsafe Hleq; [ tauto |].
   destruct n2 as [| n2 ]; [ lia |].
   rewrite unfold_initially_safe_S in Hsafe.
   intuition eauto with lia.
@@ -92,9 +96,9 @@ Qed.
 (* If [φ] entails [φ'], then a computation that is safe with respect to [φ]
    is also safe with respect to [φ']. *)
 
-Lemma initially_safe_covariant {A} (φ φ' : store → A → Prop) :
+Lemma initially_safe_covariant {A E} (φ φ' : store → A → Prop) :
   (∀ σ a, φ σ a → φ' σ a) →
-  ∀ n c,
+  ∀ n (c : config A E),
   initially_safe n c φ →
   initially_safe n c φ'.
 Proof.
@@ -104,7 +108,7 @@ Proof.
   { intuition eauto. }
 Qed.
 
-Lemma safe_covariant {A c} (φ φ' : store → A → Prop) :
+Lemma safe_covariant {A E} {c : config A E} (φ φ' : store → A → Prop) :
   safe c φ →
   (∀ σ a, φ σ a → φ' σ a) →
   safe c φ'.
@@ -118,7 +122,7 @@ Qed.
 
 (* Every configuration is safe for 0 steps. *)
 
-Lemma initially_safe_zero {A c} (φ : store → A → Prop) :
+Lemma initially_safe_zero {A E} {c : config A E} (φ : store → A → Prop) :
   initially_safe 0 c φ.
 Proof.
   simpl. tauto.
@@ -127,9 +131,9 @@ Qed.
 (* [(σ, ret a)] is safe for [n] steps, for every [n],
    provided [φ σ a] holds. *)
 
-Lemma initially_safe_ret {A n σ a} (φ : store → A → Prop) :
+Lemma initially_safe_ret {A E n σ a} (φ : store → A → Prop) :
   φ σ a →
-  initially_safe n (σ, ret a) φ.
+  initially_safe n ((σ, ret a) : config A E) φ.
 Proof.
   unfold safe. intros. destruct n; simpl; eauto.
 Qed.
@@ -137,7 +141,7 @@ Qed.
 (* [c] is safe for [n+1] steps provided it is not stuck
    and every reduct [c'] of [c] is safe for [n] steps. *)
 
-Lemma initially_safe_step {A n c} (φ : store → A → Prop) :
+Lemma initially_safe_step {A E n} {c : config A E} (φ : store → A → Prop) :
   can_step c →
   (∀ c', step c c' → initially_safe n c' φ) →
   initially_safe (S n) c φ.
@@ -152,8 +156,8 @@ Qed.
    observable behavior of the configuration [c]. They correspond to the three
    cases of the triplicity principle. *)
 
-Lemma invert_initially_safe_result {A n σ a} (φ : store → A → Prop) :
-  initially_safe (S n) (σ, Ret a) φ →
+Lemma invert_initially_safe_result {A E n σ a} (φ : store → A → Prop) :
+  initially_safe (S n) ((σ, Ret a) : config A E) φ →
   φ σ a.
 Proof.
   simpl.
@@ -162,7 +166,9 @@ Proof.
   { destruct H as (H & _). exfalso. eauto with invert_can_step. }
 Qed.
 
-Lemma invert_initially_safe_step {A n c c'} (φ : store → A → Prop) :
+Lemma invert_initially_safe_step {A E n}
+  {c c' : config A E} (φ : store → A → Prop)
+:
   initially_safe (S n) c φ →
   step c c' →
   initially_safe n c' φ.
@@ -173,7 +179,9 @@ Proof.
   eauto.
 Qed.
 
-Lemma invert_initially_safe_stuck {A n c} (φ : store → A → Prop) :
+Lemma invert_initially_safe_stuck {A E}
+  n {c : config A E} (φ : store → A → Prop)
+:
   initially_safe (S n) c φ →
   stuck c →
   False.
@@ -199,12 +207,12 @@ Qed.
 (* An iterated version of [invert_initially_safe_step]. *)
 
 Lemma invert_initially_safe_steps k :
-  ∀ {A n c c'} (φ : store → A → Prop),
+  ∀ {A E n} {c c' : config A E} (φ : store → A → Prop),
   initially_safe (k + n) c φ →
   steps k c c' →
   initially_safe n c' φ.
 Proof.
-  induction k; intros A n c c' φ Hsafe Hsteps;
+  induction k; intros A E n c c' φ Hsafe Hsteps;
   inversion Hsteps; subst; clear Hsteps.
   (* Base case. *)
   { simpl in Hsafe. assumption. }
@@ -217,8 +225,8 @@ Qed.
 
 (* A consequence of [invert_initially_safe_stuck]. *)
 
-Lemma invert_initially_safe_crash {A n σ} (φ : store → A → Prop) :
-  initially_safe (S n) (σ, Crash) φ →
+Lemma invert_initially_safe_crash {A E n σ} (φ : store → A → Prop) :
+  initially_safe (S n) ((σ, Crash) : config A E) φ →
   False.
 Proof.
   eauto using invert_initially_safe_stuck, stuck_Crash.
@@ -230,15 +238,15 @@ Qed.
    of the judgement [safe c φ] under a hypothesis about the observable
    behavior of the configuration [c]. *)
 
-Lemma invert_safe_result {A a σ} (φ : store → A → Prop) :
-  safe (σ, Ret a) φ →
+Lemma invert_safe_result {A E a σ} (φ : store → A → Prop) :
+  safe ((σ, Ret a) : config A E) φ →
   φ σ a.
 Proof.
   unfold safe. intros Hsafe. specialize (Hsafe 1).
   eauto using (invert_initially_safe_result φ).
 Qed.
 
-Lemma invert_safe_step {A c c'} (φ : store → A → Prop) :
+Lemma invert_safe_step {A E} {c c' : config A E} (φ : store → A → Prop) :
   safe c φ →
   step c c' →
   safe c' φ.
@@ -246,7 +254,7 @@ Proof.
   unfold safe. eauto using invert_initially_safe_step.
 Qed.
 
-Lemma invert_safe_stuck {A c} (φ : store → A → Prop) :
+Lemma invert_safe_stuck {A E} {c : config A E} (φ : store → A → Prop) :
   safe c φ →
   stuck c →
   False.
@@ -263,15 +271,15 @@ Qed.
 
 (* [(σ, ret a)] is safe iff [φ σ a] holds. *)
 
-Lemma prove_safe_ret {A σ a} (φ : store → A → Prop) :
+Lemma prove_safe_ret {A E σ a} (φ : store → A → Prop) :
   φ σ a →
-  safe (σ, ret a) φ.
+  safe ((σ, ret a) : config A E) φ.
 Proof.
   unfold safe. eauto using initially_safe_ret.
 Qed.
 
-Lemma safe_ret {A σ a} (φ : store → A → Prop) :
-  safe (σ, ret a) φ ↔
+Lemma safe_ret {A E σ a} (φ : store → A → Prop) :
+  safe ((σ, ret a) : config A E) φ ↔
   φ σ a.
 Proof.
   split; eauto using (invert_safe_result φ), prove_safe_ret.
@@ -281,7 +289,7 @@ Qed.
    [c] is safe iff
    every reduct [c'] of [c] is safe. *)
 
-Lemma safe_step {A c} (φ : store → A → Prop) :
+Lemma safe_step {A E} {c : config A E} (φ : store → A → Prop) :
   can_step c →
   safe c φ ↔
   (∀ c', step c c' → safe c' φ).
@@ -294,7 +302,7 @@ Qed.
 
 (* A stuck configuration is not safe. *)
 
-Lemma safe_stuck {A c} (φ : store → A → Prop) :
+Lemma safe_stuck {A E} {c : config A E} (φ : store → A → Prop) :
   stuck c →
   safe c φ ↔
   False.
@@ -321,8 +329,8 @@ Qed.
    about [m1], one would have to prove that [m2 a] is safe for [n2]
    steps. *)
 
-Lemma initially_safe_try_aux_1 {A B} (m2 : A → micro B) h :
-  ∀ n (m1 : micro A) σ (φ : store → B → Prop),
+Lemma initially_safe_try_aux_1 {A B E' E} (m2 : A → micro B E) (h : E' → _) :
+  ∀ n (m1 : micro A E') σ (φ : store → B → Prop),
   initially_safe n (σ, m1) (λ σ' a, initially_safe n (σ', m2 a) φ) →
   initially_safe n (σ, try m1 m2 h) φ.
 Proof.
@@ -356,8 +364,8 @@ Proof.
 
 Qed.
 
-Lemma initially_safe_bind_aux_1 {A B} (m2 : A → micro B) :
-  ∀ n (m1 : micro A) σ (φ : store → B → Prop),
+Lemma initially_safe_bind_aux_1 {A B E} (m2 : A → micro B E) :
+  ∀ n (m1 : micro A E) σ (φ : store → B → Prop),
   initially_safe n (σ, m1) (λ σ' a, initially_safe n (σ', m2 a) φ) →
   initially_safe n (σ, bind m1 m2) φ.
 Proof.
@@ -368,8 +376,8 @@ Qed.
    then [m1] is safe for [n1] steps and (then, for every result [a])
         [m2 a] is safe for [n2] steps. *)
 
-Lemma initially_safe_bind_aux_2 {A B} (m2 : A → micro B) :
-  ∀ n1 n2 (m1 : micro A) σ (φ : store → B → Prop),
+Lemma initially_safe_bind_aux_2 {A B E} (m2 : A → micro B E) :
+  ∀ n1 n2 (m1 : micro A E) σ (φ : store → B → Prop),
   initially_safe (n1 + n2) (σ, bind m1 m2) φ →
   initially_safe n1 (σ, m1) (λ σ' a, initially_safe n2 (σ', m2 a) φ).
 Proof.
@@ -398,9 +406,9 @@ Qed.
    [m] admits the postcondition [φ x], then [m] admits the postcondition
    [∀ x, φ x]. *)
 
-Lemma initially_safe_intersection {A X} {_ : Inhabited X}
+Lemma initially_safe_intersection {A E X} {_ : Inhabited X}
   (φ : X → store → A → Prop) :
-  ∀ n c,
+  ∀ n (c : config A E),
   (∀ x, initially_safe n c (φ x)) →
   initially_safe n c (λ σ a, ∀ x, φ x σ a).
 Proof.
@@ -434,7 +442,7 @@ Qed.
    [m1] is safe and (then, for every result [a])
    [m2 a] is safe. *)
 
-Lemma safe_bind {A B} m1 σ (m2 : A → micro B) (φ : store → B → Prop) :
+Lemma safe_bind {A B E} m1 σ (m2 : A → micro B E) (φ : store → B → Prop) :
   safe (σ, bind m1 m2) φ ↔
   safe (σ, m1) (λ σ' a, safe (σ', m2 a) φ).
 Proof.
@@ -453,7 +461,7 @@ Proof.
     eapply Hm2a. }
 Qed.
 
-Lemma prove_safe_bind {A B} m1 σ (m2 : A → micro B) (φ : store → B → Prop) :
+Lemma prove_safe_bind {A B E} m1 σ (m2 : A → micro B E) (φ : store → B → Prop) :
   safe (σ, m1) (λ σ' a, safe (σ', m2 a) φ) →
   safe (σ, bind m1 m2) φ.
 Proof.
@@ -468,8 +476,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma prove_initially_safe {A} :
-  ∀ (n: nat) σ {m : micro A} {φ : A → Prop},
+Lemma prove_initially_safe {A E} :
+  ∀ (n: nat) σ {m : micro A E} {φ : A → Prop},
   (
     ∀ (j : nat) σ' m',
       j ≤ n →
@@ -498,7 +506,7 @@ Proof.
 
 Qed.
 
-Lemma prove_safe {A} σ {m : micro A} {φ : A → Prop} :
+Lemma prove_safe {A E} σ {m : micro A E} {φ : A → Prop} :
   (
     ∀ j σ' m',
       steps j (σ, m) (σ', m') →

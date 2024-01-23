@@ -14,7 +14,7 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 (* -------------------------------------------------------------------------- *)
 
 (* WIP: Tactics used in local proof scripts. *)
-  
+
 Ltac destruct_hyp :=
   match goal with
   | H : _ /\ _ |- _ => destruct H
@@ -92,7 +92,7 @@ Proof.
   auto with arith.
 Qed.
 
-(* Make a library of commonly used well founded relations? *) 
+(* Make a library of commonly used well founded relations? *)
 
 Lemma wf_list_length {A : Type} :
   well_founded (fun (l1 l2 : list A) => (length l1 < length l2)%nat).
@@ -174,13 +174,13 @@ Proof.
   { pure1; pure1; pure_continue.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions. pure1. pure_continue. 
+  all_inversions. pure1. pure_continue.
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *) Transparent app. simpl.
     pure_execute.
-    (* Use the induction hypothesis on [call merge (h1::t1) t2] *) 
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
     eapply pure_bind_binary.
     { apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
@@ -233,7 +233,7 @@ Proof.
   { by simpl. }
   (* Case: a::b::l *)
   { (* Apply the induction hypothesis *)
-    eapply pure_try; first apply IH; auto with arith.
+    eapply pure_bind; first apply IH; auto with arith.
     intros [l1 l2] (Hl1&Hl2&Hperm).
     pure_execute.
     (* Establish the three conjuncts of the postcondition *)
@@ -271,10 +271,10 @@ Proof.
   assert (Forall representable l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall representable l2) as Hrep2 by
-        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).  
+        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   pure_continue.
   (* Apply the induction hypothesis on l1 *)
-  eapply pure_try; first apply IH.
+  eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l1 *)
     apply Hrep1. }
   { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
@@ -282,7 +282,7 @@ Proof.
   simpl; intros sl1 (Hsl1 & Hpsl1).
   pure_continue.
   (* Apply the induction hypothesis on l2*)
-  eapply pure_try; first apply IH.
+  eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l2 *)
     apply Hrep2. }
   { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
@@ -300,7 +300,7 @@ Proof.
   intros c; simpl; intros Hc.
   eapply pure_consequence; first apply Hc.
   intros l' [??].
-  (* Establish the postcondition *) 
+  (* Establish the postcondition *)
   split.
   { (* Subgoal: the output is sorted *)
     assumption. }

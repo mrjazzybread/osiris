@@ -54,7 +54,7 @@ Local Open Scope nat_scope.
    paths from [k false] to [m] and from [k true] to [m] must be allowed to
    have different lengths. *)
 
-Inductive simp {A : Type} : micro A → micro A → Prop :=
+Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
 | SimpEval:
     ∀ η e k z,
     simp
@@ -66,24 +66,24 @@ Inductive simp {A : Type} : micro A → micro A → Prop :=
       (Stop CLoop (η, x, i1, i2, e) k z)
       (try (loop η x i1 i2 e) k z)
 | SimpChooseAgree :
-    ∀ {B} m m1 m2 (k : B → micro A) z,
+    ∀ {B E'} m m1 m2 (k : B → _) (z : E' → _),
     simp m1 m →
     simp m2 m →
     simp
       (Choose m1 m2 k z)
       (try m k z)
 | SimpParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k z,
+    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
     simp
       (Par (Ret a1) m2 k z)
       (try m2 (λ v2, k (a1, v2)) z)
 | SimpParRetRight:
-    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k z,
+    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
     simp
       (Par m1 (Ret a2) k z)
       (try m1 (λ v1, k (v1, a2)) z)
 | SimpPar:
-    ∀ {A1 A2} m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
+    ∀ {A1 A2 E'} m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     simp m1 m'1 →
     simp m2 m'2 →
     simp (Par m1 m2 k z) (Par m'1 m'2 k z)
@@ -106,7 +106,7 @@ Global Hint Constructors simp : simp.
 (* The following two auxiliary lemmas can be useful when a constructor cannot
    be applied directly. *)
 
-Lemma simp_up_to_eq_left {A} {m1 m1' m2 : micro A} :
+Lemma simp_up_to_eq_left {A E} {m1 m1' m2 : micro A E} :
   simp m1' m2 →
   m1 = m1' →
   simp m1 m2.
@@ -114,7 +114,7 @@ Proof.
   congruence.
 Qed.
 
-Lemma simp_up_to_eq_right {A} {m1 m2 m2' : micro A} :
+Lemma simp_up_to_eq_right {A E} {m1 m2 m2' : micro A E} :
   simp m1 m2 →
   m2 = m2' →
   simp m1 m2'.
@@ -124,7 +124,7 @@ Qed.
 
 (* Derived constructors. *)
 
-Lemma SimpParRetRet {A1 A2 A} a1 a2 (k : A1 * A2 → micro A) z :
+Lemma SimpParRetRet {A1 A2 A E E'} a1 a2 (k : A1 * A2 → _) (z : E' → micro A E) :
   simp
     (Par (Ret a1) (Ret a2) k z)
     (k (a1, a2)).
@@ -132,17 +132,17 @@ Proof.
   eauto using simp_up_to_eq_right with simp try_ret.
 Qed.
 
-Lemma SimpParRetLeftNext {A1 A2 A} a1 m2 (k : A1 * A2 → micro A) :
+Lemma SimpParRetLeftThrow {A1 A2 A E} a1 m2 (k : A1 * A2 → micro A E) :
   simp
-    (Par (Ret a1) m2 k propagate)
+    (Par (Ret a1) m2 k throw)
     (v2 ← m2 ; k (a1, v2)).
 Proof.
   eauto using simp_up_to_eq_right with simp bind_as_try.
 Qed.
 
-Lemma SimpParRetRightNext {A1 A2 A} m1 a2 (k : A1 * A2 → micro A) :
+Lemma SimpParRetRightThrow {A1 A2 A E} m1 a2 (k : A1 * A2 → micro A E) :
   simp
-    (Par m1 (Ret a2) k propagate)
+    (Par m1 (Ret a2) k throw)
     (v1 ← m1 ; k (v1, a2)).
 Proof.
   eauto using simp_up_to_eq_right with simp bind_as_try.
@@ -158,7 +158,7 @@ Qed.
 
 (* End users need not be know about this relation. *)
 
-Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
+Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SimplifyEval:
     ∀ n p η e k z,
     p = (η, e) →
@@ -172,24 +172,24 @@ Inductive simplify {A : Type} : nat → micro A → micro A → Prop :=
       (Stop CLoop p k z)
       (try (loop η x i1 i2 e) k z)
 | SimplifyChooseAgree :
-    ∀ {B} n m m1 m2 (k : B → micro A) z,
+    ∀ {B E'} n m m1 m2 (k : B → _) (z : E' → _),
     simplify n m1 m →
     simplify n m2 m →
     simplify (S n)
       (Choose m1 m2 k z)
       (try m k z)
 | SimplifyParRetLeft:
-    ∀ {A1 A2} n (a1 : A1) (m2 : micro A2) k z,
+    ∀ {A1 A2 E'} n a1 m2 (k : A1 * A2 → _) (z : E' → _),
     simplify (S n)
       (Par (Ret a1) m2 k z)
       (try m2 (λ v2, k (a1, v2)) z)
 | SimplifyParRetRight:
-    ∀ {A1 A2} n (m1 : micro A1) (a2 : A2) k z,
+    ∀ {A1 A2 E'} n m1 a2 (k : A1 * A2 → _) (z : E' → _),
     simplify (S n)
       (Par m1 (Ret a2) k z)
       (try m1 (λ v1, k (v1, a2)) z)
 | SimplifyPar:
-    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
+    ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
     S (n1 + n2) ≤ n →
@@ -213,7 +213,7 @@ Global Hint Constructors simplify : simplify.
 
 (* [simplify n m1 m2] implies [simp m1 m2]. *)
 
-Lemma simplify_simp {A} n (m1 m2 : micro A) :
+Lemma simplify_simp {A E} n (m1 m2 : micro A E) :
   simplify n m1 m2 →
   simp m1 m2.
 Proof.
@@ -222,7 +222,7 @@ Qed.
 
 (* [simp m1 m2] implies [simplify n m1 m2] for some [n]. *)
 
-Lemma simp_simplify {A} {m1 m2 : micro A} :
+Lemma simp_simplify {A E} {m1 m2 : micro A E} :
   simp m1 m2 →
   ∃ n,
   simplify n m1 m2.
@@ -243,7 +243,7 @@ Qed.
 
 (* Simplification is compatible with [try]. *)
 
-Lemma simplify_try {A B} n (m1 m2 : micro A) (f : A → micro B) h :
+Lemma simplify_try {A B E' E} n m1 m2 (f : A → micro B E) (h : E' → _) :
   simplify n m1 m2 →
   simplify n (try m1 f h) (try m2 f h).
 Proof.
@@ -251,7 +251,7 @@ Proof.
   rewrite ?try_try; econstructor; eauto with congruence.
 Qed.
 
-Lemma simp_try {A B} (m1 m2 : micro A) (f : A → micro B) h :
+Lemma simp_try {A B E' E} m1 m2 (f : A → micro B E) (h : E' → _) :
   simp m1 m2 →
   simp (try m1 f h) (try m2 f h).
 Proof.
@@ -261,14 +261,14 @@ Qed.
 
 (* Simplification is compatible with [bind]. *)
 
-Lemma simplify_bind {A B} n (m1 m2 : micro A) (f : A → micro B) :
+Lemma simplify_bind {A B E} n m1 m2 (f : A → micro B E) :
   simplify n m1 m2 →
   simplify n (bind m1 f) (bind m2 f).
 Proof.
   rewrite !bind_as_try. eauto using simplify_try.
 Qed.
 
-Lemma simp_bind {A B} (m1 m2 : micro A) (f : A → micro B) :
+Lemma simp_bind {A B E} m1 m2 (f : A → micro B E) :
   simp m1 m2 →
   simp (bind m1 f) (bind m2 f).
 Proof.
@@ -281,14 +281,14 @@ Qed.
 
 (* [ret _] cannot be simplified. *)
 
-Lemma destruct_simplify_ret {A} n a1 (m2 : micro A) :
+Lemma destruct_simplify_ret {A E} n a1 (m2 : micro A E) :
   simplify n (ret a1) m2 →
   m2 = ret a1.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
-Lemma destruct_simp_ret {A} a1 (m2 : micro A) :
+Lemma destruct_simp_ret {A E} a1 (m2 : micro A E) :
   simp (ret a1) m2 →
   m2 = ret a1.
 Proof.
@@ -297,40 +297,32 @@ Qed.
 
 (* [crash] cannot be simplified. *)
 
-Lemma destruct_simplify_crash {A} n (m2 : micro A) :
+Lemma destruct_simplify_crash {A E} n (m2 : micro A E) :
   simplify n crash m2 →
   m2 = crash.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
-Lemma destruct_simp_crash {A} (m2 : micro A) :
+Lemma destruct_simp_crash {A E} (m2 : micro A E) :
   simp crash m2 →
   m2 = crash.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
-(* [Next] cannot be simplified. *)
+(* [Throw _] cannot be simplified. *)
 
-Lemma destruct_simplify_next {A} n (m2 : micro A) :
-  simplify n next m2 →
-  m2 = next.
+Lemma destruct_simplify_throw {A E} n e (m2 : micro A E) :
+  simplify n (throw e) m2 →
+  m2 = throw e.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
-Lemma destruct_simplify_null {A} (m1 m2 : micro A) :
-  simplify 0 m1 m2 -> m1 = m2.
-Proof.
-  assert (forall n, (S n <= 0)%nat -> False) as F by lia.
-  inversion 1; (reflexivity || exfalso; eauto using F).
-Qed.
-
-(* This tactic applies the above lemmas if possible. *)
-Lemma destruct_simp_next {A} (m2 : micro A) :
-  simp next m2 →
-  m2 = next.
+Lemma destruct_simp_throw {A E} e (m2 : micro A E) :
+  simp (throw e) m2 →
+  m2 = throw e.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
@@ -341,14 +333,14 @@ Ltac clarify_simplify :=
   repeat match goal with
   | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
   | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
-  | h: simplify _ next ?m |- _ => apply destruct_simplify_next in h
+  | h: simplify _ (throw _) ?m |- _ => apply destruct_simplify_throw in h
   end; simplify_eq.
 
 Ltac clarify_simp :=
   repeat match goal with
   | h: simp (ret _) ?m |- _ => apply destruct_simp_ret in h
   | h: simp crash ?m |- _ => apply destruct_simp_crash in h
-  | h: simp next ?m |- _ => apply destruct_simp_next in h
+  | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
   end; simplify_eq.
 
 (* -------------------------------------------------------------------------- *)
@@ -367,14 +359,14 @@ Local Hint Constructors nsteps : nsteps.
    lemmas are accepted, but Coq 8.16.1 signals a Universe Inconsistency when
    this file is later loaded. *)
 
-Lemma invert_nsteps_0 {A} {c c' : config A} :
+Lemma invert_nsteps_0 {A E} {c c' : config A E} :
   nsteps step 0 c c' →
   c' = c.
 Proof.
   inversion 1; eauto.
 Qed.
 
-Lemma invert_nsteps_1 {A} (c c' : config A) :
+Lemma invert_nsteps_1 {A E} (c c' : config A E) :
   nsteps step 1 c c' →
   step c c'.
 Proof.
@@ -392,7 +384,7 @@ Local Ltac destruct_nsteps :=
 (* [nsteps step n] is compatible with a [Par] context. *)
 
 Local Lemma nsteps_step_par_left
-  {A1 A2 A} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A) z :
+  {A1 A2 A E' E} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A E) (z : E' → _) :
   nsteps step n (σ, m1) (σ', m'1) →
   nsteps step n (σ, Par m1 m2 k z) (σ', Par m'1 m2 k z).
 Proof.
@@ -405,7 +397,7 @@ Proof.
 Qed.
 
 Local Lemma nsteps_step_par_right
-  {A1 A2 A} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A) z :
+  {A1 A2 A E' E} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) :
   nsteps step n (σ, m2) (σ', m'2) →
   nsteps step n (σ, Par m1 m2 k z) (σ', Par m1 m'2 k z).
 Proof.
@@ -446,7 +438,7 @@ Local Hint Resolve
    never causes the loss of a reduction step. In other words, applying a
    simplification step does not eliminate any permitted behavior. *)
 
-Lemma simplify_step_diagram {A} {n} {m1 m2 : micro A} :
+Lemma simplify_step_diagram {A E} {n} {m1 m2 : micro A E} :
   (* If there is a simplification step of size [n]: *)
   simplify n m1 m2 →
   ∀ {m'1 σ σ'},
@@ -497,7 +489,7 @@ Qed.
 (* In the special case where [m2] is of the form [ret a2], the previous
    diagram can be simplified, because [ret a2] cannot step. *)
 
-Lemma simplify_ret_step_diagram {A} {n} {m1 : micro A} {a2 σ σ' m'1} :
+Lemma simplify_ret_step_diagram {A E} {n} {m1 : micro A E} {a2 σ σ' m'1} :
   (* If there is a simplification step of [m1] to [ret a2]: *)
   simplify n m1 (ret a2) →
   (* and a reduction step: *)
@@ -520,7 +512,7 @@ Qed.
 Local Hint Constructors rtc : rtc.
 
 Lemma simplify_ret_implies_step :
-  ∀ {n A} {m1 : micro A} {a2},
+  ∀ {n A E} {m1 : micro A E} {a2},
   simplify n m1 (ret a2) →
   ∀ σ,
   rtc step (σ, m1) (σ, ret a2).
@@ -528,12 +520,12 @@ Proof.
   induction n using (well_founded_induction lt_wf).
   (* Reformulate the induction hypothesis. *)
   assert (IH:
-    ∀ n' {A} σ (m1 : micro A) (a2 : A),
+    ∀ n' {A E} σ (m1 : micro A E) (a2 : A),
     simplify n' m1 (ret a2) →
     n' < n →
     rtc step (σ, m1) (σ, ret a2)
   ) by eauto; clear H.
-  intros ? ? ? Hsimp σ.
+  intros A E m1 a2 Hsimp σ.
   (* Reason by cases on [m1]. *)
   triplicity σ m1 Hm1.
   (* Case: [m1] is [ret _]. *)
@@ -542,25 +534,25 @@ Proof.
   { destruct Hm1 as ((σ' & m'1) & Hstep).
     pose proof (simplify_ret_step_diagram Hsimp Hstep)
       as (n' & -> & Hsimp' & ?).
-    specialize (IH _ _ σ _ _ Hsimp').
+    (* IH is used. *)
     eauto with rtc. }
   (* Case: [m1] is stuck. Impossible. *)
-  { apply only_crash_and_next_are_stuck in Hm1.
-    destruct Hm1 as [|]; subst m1; clarify_simplify. }
+  { apply only_crash_and_throw_are_stuck in Hm1.
+    destruct Hm1 as [| (e & ?)]; subst m1; clarify_simplify. }
 Qed.
 
 (* If there is a simplification step of [m1] to [ret a2]
    and a reduction path of [m1] to [ret b2],
    then the two paths must lead to the same end result. *)
 
-Lemma simplify_ret_rtc_step_diagram {A} {n} {m1 : micro A} {a2 b2 σ σ'} :
+Lemma simplify_ret_rtc_step_diagram {A E} {n} {m1 : micro A E} {a2 b2 σ σ'} :
   simplify n m1 (ret a2) →
   rtc step (σ, m1) (σ', ret b2) →
   σ' = σ ∧ a2 = b2.
 Proof.
   (* Reformulate the statement. *)
   cut (
-    ∀ c1 c2,
+    ∀ (c1 c2 : config A E),
     rtc step c1 c2 →
     ∀ σ σ' m1 b2 n (a2 : A),
     simplify n m1 (ret a2) →
@@ -584,7 +576,7 @@ Qed.
 (* The relation [simplify _ ?m (ret ?a)] is confluent. That is,
    simplification cannot lead to two distinct results. *)
 
-Lemma simplify_ret_confluent {A} (m : micro A) n1 n2 a1 a2 :
+Lemma simplify_ret_confluent {A E} (m : micro A E) n1 n2 a1 a2 :
   simplify n1 m (ret a1) →
   simplify n2 m (ret a2) →
   a1 = a2.
@@ -605,14 +597,14 @@ Qed.
    and if [m2] can step,
    then [m1] can step. *)
 
-Lemma invert_simplify_can_step {A} n (m1 m2 : micro A) σ :
+Lemma invert_simplify_can_step {A E} n (m1 m2 : micro A E) σ :
   simplify n m1 m2 →
   can_step (σ, m2) →
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [ret] and [crash] and [next], and
-     these terms cannot appear on the left-hand side of [simplify], so the
-     proof is trivial. *)
+  (* The only terms that cannot step are [ret _] and [crash] and [throw _],
+     and these terms cannot appear on the left-hand side of [simplify], so
+     the proof is trivial. *)
   induction 1; eauto with step.
 Qed.
 
@@ -620,13 +612,13 @@ Qed.
    either [m1] is [ret _]
    or [m1] can step. *)
 
-Lemma invert_simplify_ret {A} n (m1 : micro A) a2 σ :
+Lemma invert_simplify_ret {A E} n (m1 : micro A E) a2 σ :
   simplify n m1 (ret a2) →
   is_ret m1 = None →
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [ret] and [crash] and [next], and
-     these terms cannot appear on the left-hand side of [simplify], so the
+  (* The only terms that cannot step are [ret _] and [crash] and [throw _].
+     These terms cannot appear on the left-hand side of [simplify], so the
      proof is almost trivial. Only [SimplifyTransitive] requires work. *)
   intro h; dependent induction h; intros; simpl in *;
   try solve [ congruence | eauto with step ].
@@ -653,7 +645,7 @@ Qed.
    proving it, mostly as a challenge for myself, so I am keeping it. *)
 
 Lemma simplify_confluent :
-  ∀ {n i2 j' A} {m1 m2 m'1 : micro A},
+  ∀ {n i2 j' A E} {m1 m2 m'1 : micro A E},
   simplify i2 m1 m2 →
   simplify j' m1 m'1 →
   i2 + j' = n →
@@ -668,7 +660,7 @@ Proof.
   induction n using (well_founded_induction lt_wf).
   (* Reformulate the induction hypothesis for easier application. *)
   assert (IH:
-    ∀ i2 j' A (m1 m2 m'1 : micro A),
+    ∀ i2 j' A E (m1 m2 m'1 : micro A E),
     simplify i2 m1 m2 →
     simplify j' m1 m'1 →
     i2 + j' < n →
@@ -687,7 +679,7 @@ Proof.
     match goal with IH: ∀ (i2 j' : nat), _ |- _ =>
       let IH' := fresh in
       (* Apply it to [h] and [v]. *)
-      generalize (IH _ _ _ _ _ _ h v); intro IH';
+      generalize (IH _ _ _ _ _ _ _ h v); intro IH';
       (* Discharge the proof obligation [i2 + j' < n]. *)
       match type of IH' with ?check → _ =>
         let fact := fresh in
@@ -706,7 +698,7 @@ Proof.
       diagram__ h v
     end.
   (* We are now ready. *)
-  intros i2 j' A m1 m2 m'1 vertical' horizontal ?.
+  intros i2 j' A E m1 m2 m'1 vertical' horizontal ?.
   (* Analyze the vertical edge, while keeping a copy of it. *)
   generalize vertical'; intro vertical.
   dependent destruction vertical';
@@ -724,7 +716,7 @@ Qed.
 
 (* The relation [simp _ (ret _)] is confluent. *)
 
-Lemma simp_ret_confluent {A} {m : micro A} {a1 a2} :
+Lemma simp_ret_confluent {A E} {m : micro A E} {a1 a2} :
   simp m (ret a1) →
   simp m (ret a2) →
   a1 = a2.
@@ -743,7 +735,7 @@ Ltac simp_ret_confluent :=
 
 (* The relation [simp] is confluent. *)
 
-Lemma simp_confluent {A} {m1 m2 m'1 : micro A} :
+Lemma simp_confluent {A E} {m1 m2 m'1 : micro A E} :
   simp m1 m2 →
   simp m1 m'1 →
   ∃ m'2,
@@ -764,54 +756,20 @@ Ltac simp_confluent :=
       generalize (simp_confluent h1 h2)
   end.
 
-(* Extra reasoning on simp and ret *)
-
-Lemma invert_simp_ret {A} (a : A) m :
-  simp (ret a) m -> m = ret a.
-Proof.
-  intros Hsimp.
-  apply simp_simplify in Hsimp as (n & H).
-  eauto using destruct_simplify_ret.
-Qed.
-
-Lemma simp_ret_ret {A} (a b : A) :
-  simp (ret a) (ret b) -> a = b.
-Proof.
-  intros.
-  assert (ret b = ret a) as Heq by (apply invert_simp_ret; assumption).
-  by injection Heq.
-Qed.
-
-Lemma simp_crash_ret {A} (x : A) :
-  simp Crash (ret x) -> False.
-Proof.
-  intro F.
-  apply simp_simplify in F as (? & F).
-  apply destruct_simplify_crash in F.
-  discriminate.
-Qed.
-
-Lemma simp_next_ret {A} (x : A) :
-  simp Next (ret x) -> False.
-Proof.
-  intro F.
-  apply simp_simplify in F as (? & F).
-  apply destruct_simplify_next in F.
-  discriminate.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* Useful type class instances. *)
 
+(* TODO unused? *)
+
 (* Instantiating [Reflexive] allows to use [reflexivity] to prove
    [simp ?m ?m]. *)
-Global Instance TC_reflexivity_simp {A} : Reflexive (@simp A) :=
+Global Instance TC_reflexivity_simp {A E} : Reflexive (@simp A E) :=
   SimpReflexive.
 
 (* Instantiating [Transitive] allows to use [transitivity] (as well as
    [etransitivity] to prove [simp ?m ?m']. *)
-Global Instance TC_transitivity_simp {A} : Transitive (@simp A) :=
+Global Instance TC_transitivity_simp {A E} : Transitive (@simp A E) :=
   SimpTransitive.
 
 (* -------------------------------------------------------------------------- *)
@@ -823,31 +781,31 @@ Global Instance TC_transitivity_simp {A} : Transitive (@simp A) :=
    about terminating expressions only; it is a logic of total correctness. *)
 
 (* This Hoare logic can reason both about expressions that terminate normally
-   and about expressions that raise the exception [next]. *)
+   and about expressions that raise an exception. *)
 
 (* The judgement [total m φ ψ] means that either [m] terminates and produces
-   a result [a] that satisfies the postcondition [φ], or [m] raises [next],
-   in which case [ψ] is satisfied. *)
+   a result [a] that satisfies the postcondition [φ], or [m] raises an
+   exception [e], such that [ψ e] is satisfied. *)
 
-Definition total {A} m (φ : A → Prop) ψ :=
+Definition total {A E} m (φ : A → Prop) (ψ : E → Prop) :=
   (∃ a, simp m (ret a) ∧ φ a) ∨
-  (simp m next ∧ ψ).
+  (∃ e, simp m (throw e) ∧ ψ e).
 
-(* The judgement [totalv m φ] is the special case where [ψ] is [False]. It
-   means that [m] must terminate and produce a result [a] such that [φ a]
+(* The judgement [totalv m φ] is the special case where [ψ] is [λ _, False].
+   It means that [m] must terminate and produce a result [a] such that [φ a]
    holds. *)
 
-Definition totalv {A} m (φ : A → Prop) :=
-  total m φ False.
+Definition totalv {A E} m (φ : A → Prop) :=
+  total m φ (λ (e : E), False).
 
-(* The tactic [destruct_total a] destructs a hypothesis of the form
+(* The tactic [destruct_total a e] destructs a hypothesis of the form
    [total m φ ψ] or [totalv m φ]. The result of [m], if there is one,
-   is named [a]. *)
+   is named [a]. The exception, if there is one, is named [e]. *)
 
-Ltac destruct_total a :=
+Ltac destruct_total a e :=
   match goal with
   | h: total _ _ _ |- _ =>
-      destruct h as [ (a & ? & ?) | (? & ?) ]
+      destruct h as [ (a & ? & ?) | (e & ? & ?) ]
   | h: totalv _ _ |- _ =>
       unfold totalv in h at 1;
       destruct h as [ (a & ? & ?) | (? & ?) ]; [| tauto ]
@@ -855,31 +813,31 @@ Ltac destruct_total a :=
 
 (* The reasoning rule for [ret _]. *)
 
-Lemma total_ret {A} a (φ : A → Prop) ψ :
+Lemma total_ret {A E} a (φ : A → Prop) (ψ : E → Prop) :
   φ a →
   total (ret a) φ ψ.
 Proof.
   intros. left. eauto with simp.
 Qed.
 
-(* The reasoning rule for [next]. *)
+(* The reasoning rule for [throw _]. *)
 
-Lemma total_next {A} (φ : A → Prop) (ψ : Prop) :
-  ψ →
-  total next φ ψ.
+Lemma total_throw {A E} e (φ : A → Prop) (ψ : E → Prop) :
+  ψ e →
+  total (throw e) φ ψ.
 Proof.
   intros. right. eauto with simp.
 Qed.
 
 (* The consequence rule. *)
 
-Lemma total_consequence {A} m (φ φ' : A → Prop) (ψ ψ' : Prop) :
+Lemma total_consequence {A E} m (φ φ' : A → Prop) (ψ ψ' : E → Prop) :
   total m φ ψ →
   (∀ a, φ a → φ' a) →
-  (ψ → ψ') →
+  (∀ e, ψ e → ψ' e) →
   total m φ' ψ'.
 Proof.
-  intros. destruct_total a.
+  intros. destruct_total a e.
   { left. eauto. }
   { right. eauto. }
 Qed.
@@ -892,38 +850,38 @@ Qed.
 (* Although there is no reasoning rule for [Stop], the lemma [total_simp] can
    be used to reason about [Stop CEval] and [Stop CLoop]. *)
 
-Lemma total_simp {A} m m' (φ : A → Prop) (ψ : Prop) :
+Lemma total_simp {A E} m m' (φ : A → Prop) (ψ : E → Prop) :
   simp m m' →
   total m' φ ψ →
   total m φ ψ.
 Proof.
-  intros. destruct_total a.
+  intros. destruct_total a e.
   { left. eauto with simp. }
   { right. eauto with simp. }
 Qed.
 
 (* A reasoning rule for [try]. *)
 
-Lemma total_try {A B} m f g (φ : B → Prop) (φ' : A → Prop) (ψ ψ' : Prop) :
+Lemma total_try {A B E' E} m f g
+  (φ : B → Prop) (φ' : A → Prop)
+  (ψ : E → Prop) (ψ' : E' → Prop) :
   total m φ' ψ' →
   (∀ a, φ' a → total (f a) φ ψ) →
-  (ψ' → total (g ()) φ ψ) →
+  (∀ e, ψ' e → total (g e) φ ψ) →
   total (try m f g) φ ψ.
 Proof.
-  intros. destruct_total a.
+  intros. destruct_total a e.
   { eapply total_simp; [ eapply simp_try; eauto |].
-    rewrite try_ret.
-    eauto. }
+    simpl try. eauto. }
   { eapply total_simp; [ eapply simp_try; eauto |].
-    rewrite try_next.
-    eauto. }
+    simpl try. eauto. }
 Qed.
 
 (* A reasoning rule for [orelse]. *)
 
-Lemma total_orelse {A} (m1 m2 : micro A) φ ψ1 ψ :
+Lemma total_orelse {A E} (m1 m2 : micro A E) φ ψ1 ψ :
   total m1 φ ψ1 →
-  (ψ1 → total m2 φ ψ) →
+  (∀ e, ψ1 e → total m2 φ ψ) →
   total (orelse m1 m2) φ ψ.
 Proof.
   intros Hm1 H2. unfold orelse. eauto using total_try, total_ret.
@@ -931,15 +889,16 @@ Qed.
 
 (* A reasoning rule for [bind]. *)
 
-Lemma total_bind {A B} m f (φ : B → Prop) (φ' : A → Prop) (ψ : Prop) :
+Lemma total_bind {A B E} m f
+  (φ : B → Prop) (φ' : A → Prop) (ψ : E → Prop) :
   total m φ' ψ →
   (∀ a, φ' a → total (f a) φ ψ) →
   total (bind m f) φ ψ.
 Proof.
-  rewrite bind_as_try. eauto using total_try, total_next.
+  rewrite bind_as_try. eauto using total_try, total_throw.
 Qed.
 
-Lemma total_bind_unary {A B} m f (φ : B → Prop) (ψ : Prop) :
+Lemma total_bind_unary {A B E} m f (φ : B → Prop) (ψ : E → Prop) :
   total m (λ (a : A), total (f a) φ ψ) ψ →
   total (bind m f) φ ψ.
 Proof.
@@ -948,18 +907,20 @@ Qed.
 
 (* A reasoning rule for [par]. *)
 
-(* This rule is limited to the case where [ψ] is [False] because dealing with
-   arbitrary [ψ] would require the ability to simplify [Par next next _ _]
-   into [next]. The relation [simp] currently does not allow this. *)
+(* This rule is limited to the case where [ψ] is [λ _, False]. Dealing with
+   arbitrary [ψ] would require simplifying [Par (throw e) (throw e) _ _]
+   into [throw e]. The relation [simp] currently does not allow this.
+   Furthermore, such a rule would require [ψ] to be deterministic. *)
 
-Lemma total_par {A1 A2} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
-  let ψ := False in
+Lemma total_par {A1 A2 E} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
+  let ψ := λ (e : E), False in
   total m1 φ1 ψ →
   total m2 φ2 ψ →
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   total (par m1 m2) φ ψ.
 Proof.
-  intros. destruct_total a2; destruct_total a1; try solve [ exfalso; tauto ].
+  intros.
+  destruct_total a2 e2; destruct_total a1 e1; try solve [ exfalso; tauto ].
   eapply total_simp.
   eapply SimpPar; eassumption.
   eapply total_simp; [ eapply SimpParRetRet |].
@@ -974,20 +935,22 @@ Qed.
    [step], the relation [simp] can simplify [choose m1 m2] only if both
    sides produce the same result. *)
 
-(* This rule is limited to the case where [ψ] is [False] because we cannot
-   allow [m1] to raise an exception while [m2] terminates, or vice-versa. *)
+(* This rule is limited to the case where [ψ] is [λ _, False] because we
+   cannot allow [m1] to raise an exception while [m2] terminates, or
+   vice-versa. *)
 
 Definition deterministic {A} (φ : A → Prop) :=
   ∀ a1 a2, φ a1 → φ a2 → a1 = a2.
 
-Lemma total_choose {A} m1 m2 (φ : A → Prop) :
-  let ψ := False in
+Lemma total_choose {A E} m1 m2 (φ : A → Prop) :
+  let ψ := λ (_ : E), False in
   total m1 φ ψ →
   total m2 φ ψ →
   deterministic φ →
   total (choose m1 m2) φ ψ.
 Proof.
-  intros. destruct_total a2; destruct_total a1; try solve [ exfalso; tauto ].
+  intros.
+  destruct_total a2 e2; destruct_total a1 e1; try solve [ exfalso; tauto ].
   assert (a1 = a2); [ eauto | subst ].
   eapply total_simp.
   eapply SimpChooseAgree; eassumption.
@@ -1001,23 +964,25 @@ Qed.
    then one can deduce that the result of [m] satisfies [φ x] for every
    [x] simultaneously. *)
 
-Lemma total_intersection {A} `{Inhabited X} m (φ : X → A → Prop) (ψ : Prop) :
+Lemma total_intersection {A E} `{Inhabited X}
+  m (φ : X → A → Prop) (ψ : E → Prop) :
   (∀ x, total m (φ x) ψ) →
   total m (λ a, ∀ x, φ x a) ψ.
 Proof.
   intros Hm.
   (* Instantiate [Hm] with an arbitrary [x]. *)
-  generalize (Hm inhabitant). intros [ (a & ? & ?) | (? & ?) ].
+  generalize (Hm inhabitant).
+  intro Htotal. destruct_total a e.
   (* Case: there exists [a] such that [m] can be simplified to [ret a]. *)
   { left. exists a. split; [ eauto |].
-    intros x. destruct (Hm x) as [ (a' & ? & ?) | (? & ?) ].
+    intro x. specialize (Hm x). destruct_total a' e'.
     (* Because [simp _ (ret _)] is confluent, [a] and [a'] must be equal. *)
     { simp_ret_confluent. congruence. }
     (* Because [simp _ _] is confluent, [m] cannot be simplified both to
-       [ret _] and [next]. So, this subcase is impossible. *)
+       [ret _] and [throw _]. So, this subcase is impossible. *)
     { exfalso. simp_confluent; intros (m' & h1 & h2). clarify_simp. }
   }
-  (* Case: [m] can be simplified to [next]. *)
+  (* Case: [m] can be simplified to [throw _]. *)
   { right. eauto. }
 Qed.
 
@@ -1028,7 +993,7 @@ Qed.
    then one can deduce that the result of [m] satisfies [φ1] and [φ2]
    simultaneously. *)
 
-Lemma total_binary_intersection {A} m (φ1 φ2 : A → Prop) (ψ : Prop) :
+Lemma total_binary_intersection {A E} m (φ1 φ2 : A → Prop) (ψ : E → Prop) :
   total m φ1 ψ →
   total m φ2 ψ →
   total m (λ a, φ1 a ∧ φ2 a) ψ.
@@ -1054,16 +1019,16 @@ Qed.
 
 (* The reasoning rule for [ret _]. *)
 
-Lemma totalv_ret {A} a (φ : A → Prop):
+Lemma totalv_ret {A E} a (φ : A → Prop):
   φ a →
-  totalv (ret a) φ.
+  totalv (ret a : micro A E) φ.
 Proof.
   unfold totalv. eauto using total_ret.
 Qed.
 
 (* The consequence rule. *)
 
-Lemma totalv_consequence {A} m (φ φ' : A → Prop) :
+Lemma totalv_consequence {A E} (m : micro A E) (φ φ' : A → Prop) :
   totalv m φ →
   (∀ a, φ a → φ' a) →
   totalv m φ'.
@@ -1073,7 +1038,7 @@ Qed.
 
 (* The simplification rule. *)
 
-Lemma totalv_simp {A} m m' (φ : A → Prop) :
+Lemma totalv_simp {A E} (m m' : micro A E) (φ : A → Prop) :
   simp m m' →
   totalv m' φ →
   totalv m φ.
@@ -1083,20 +1048,22 @@ Qed.
 
 (* A reasoning rule for [try]. *)
 
-(* The rule is degenerate; [m] is not allowed to reduce to [next],
+(* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [g] is dead and no proof obligation bears on it. *)
 
-Lemma totalv_try {A B} m f g (φ : B → Prop) (φ' : A → Prop) :
+Lemma totalv_try {A B E' E} m f (g : E' → micro B E)
+  (φ : B → Prop) (φ' : A → Prop) :
   totalv m φ' →
   (∀ a, φ' a → totalv (f a) φ) →
   totalv (try m f g) φ.
 Proof.
-  unfold totalv. intros. eapply total_try; solve [ eauto | tauto ].
+  unfold totalv. intros.
+  eapply total_try; try solve [ eauto | simpl; tauto ].
 Qed.
 
 (* A reasoning rule for [bind]. *)
 
-Lemma totalv_bind {A B} m f (φ : B → Prop) (φ' : A → Prop) :
+Lemma totalv_bind {A B E} (m : micro A E) f (φ : B → Prop) (φ' : A → Prop) :
   totalv m φ' →
   (∀ a, φ' a → totalv (f a) φ) →
   totalv (bind m f) φ.
@@ -1104,7 +1071,7 @@ Proof.
   unfold totalv. eauto using total_bind.
 Qed.
 
-Lemma totalv_bind_unary {A B} m f (φ : B → Prop) :
+Lemma totalv_bind_unary {A B E} (m : micro A E) f (φ : B → Prop) :
   totalv m (λ (a : A), totalv (f a) φ) →
   totalv (bind m f) φ.
 Proof.
@@ -1113,7 +1080,7 @@ Qed.
 
 (* A reasoning rule for [par]. *)
 
-Lemma totalv_par {A1 A2} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
+Lemma totalv_par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) :
   totalv m1 φ1 →
   totalv m2 φ2 →
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
@@ -1124,7 +1091,7 @@ Qed.
 
 (* A reasoning rule for [choose]. *)
 
-Lemma totalv_choose {A} m1 m2 (φ : A → Prop) :
+Lemma totalv_choose {A E} (m1 m2 : micro A E) (φ : A → Prop) :
   totalv m1 φ →
   totalv m2 φ →
   deterministic φ →
@@ -1135,7 +1102,7 @@ Qed.
 
 (* The infinitary intersection rule. *)
 
-Lemma totalv_intersection {A} `{Inhabited X} m (φ : X → A → Prop) :
+Lemma totalv_intersection {A E} `{Inhabited X} (m : micro A E) (φ : X → A → Prop) :
   (∀ x, totalv m (φ x)) →
   totalv m (λ a, ∀ x, φ x a).
 Proof.
@@ -1144,7 +1111,7 @@ Qed.
 
 (* The binary intersection rule. *)
 
-Lemma totalv_binary_intersection {A} m (φ1 φ2 : A → Prop) :
+Lemma totalv_binary_intersection {A E} (m : micro A E) (φ1 φ2 : A → Prop) :
   totalv m φ1 →
   totalv m φ2 →
   totalv m (λ a, φ1 a ∧ φ2 a).
@@ -1167,7 +1134,7 @@ Qed.
 (* One can think of a proof of [sss n m m'] as a simplification tree
    from [m] to [m'] whose weight is [n]. *)
 
-Inductive sss {A : Type} : nat → micro A → micro A → Prop :=
+Inductive sss {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SssEval:
     ∀ p η e k z,
     p = (η, e) →
@@ -1181,24 +1148,24 @@ Inductive sss {A : Type} : nat → micro A → micro A → Prop :=
       (Stop CLoop p k z)
       (try (loop η x i1 i2 e) k z)
 | SssChooseAgree :
-    ∀ {B} n1 n2 m m1 m2 (k : B → micro A) z,
+    ∀ {B E'} n1 n2 m m1 m2 (k : B → _) (z : E' → _),
     sss n1 m1 m →
     sss n2 m2 m →
     sss (n1 + n2 + 1)
       (Choose m1 m2 k z)
       (try m k z)
 | SssParRetLeft:
-    ∀ {A1 A2} (a1 : A1) (m2 : micro A2) k z,
+    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
     sss 1
       (Par (Ret a1) m2 k z)
       (try m2 (λ v2, k (a1, v2)) z)
 | SssParRetRight:
-    ∀ {A1 A2} (m1 : micro A1) (a2 : A2) k z,
+    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
     sss 1
       (Par m1 (Ret a2) k z)
       (try m1 (λ v1, k (v1, a2)) z)
 | SssPar:
-    ∀ {A1 A2} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → micro A) z,
+    ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     sss n1 m1 m'1 →
     sss n2 m2 m'2 →
     n1 + n2 ≤ n →
@@ -1220,14 +1187,14 @@ Local Hint Constructors sss : sss.
 
 (* [sss _ m m'] and [simp m m'] are equivalent. *)
 
-Local Lemma sss_simp {A} {n} {m m' : micro A} :
+Local Lemma sss_simp {A E} {n} {m m' : micro A E} :
   sss n m m' →
   simp m m'.
 Proof.
   induction 1; subst; eauto with simp.
 Qed.
 
-Local Lemma simp_sss {A} {m m' : micro A} :
+Local Lemma simp_sss {A E} {m m' : micro A E} :
   simp m m' →
   ∃ n, sss n m m'.
 Local Ltac baz :=
@@ -1240,7 +1207,7 @@ Qed.
 
 (* The weight of a simplification tree is positive. *)
 
-Local Lemma sss_positive {A} {n} {m m' : micro A} :
+Local Lemma sss_positive {A E} {n} {m m' : micro A E} :
   sss n m m' →
   0 < n.
 Proof.
@@ -1262,7 +1229,7 @@ Local Ltac sss_positive :=
    embedding, making evaluation contexts explicit, and controlling their
    weight, is required here. *)
 
-Inductive stack {A : Type} : nat → micro A → micro A → Prop :=
+Inductive stack {A E : Type} : nat → micro A E → micro A E → Prop :=
 | StackNil:
     forall n m,
     0 ≤ n →
@@ -1282,7 +1249,7 @@ Local Hint Constructors stack : stack.
    weight of the stack, which itself is the sum of the weights of the
    trees in the stack. *)
 
-Local Lemma stack_monotone {A} n (m m' : micro A) :
+Local Lemma stack_monotone {A E} n (m m' : micro A E) :
   ∀ n',
   stack n m m' →
   n ≤ n' →
@@ -1293,7 +1260,7 @@ Qed.
 
 (* A single tree forms a stack (of one cell). *)
 
-Lemma sss_stack {A} n (m m' : micro A) :
+Lemma sss_stack {A E} n (m m' : micro A E) :
   sss n m m' →
   stack n m m'.
 Proof.
@@ -1302,7 +1269,7 @@ Qed.
 
 (* A stack represents a simplification path. *)
 
-Lemma stack_simp {A} {n} {m m' : micro A} :
+Lemma stack_simp {A E} {n} {m m' : micro A E} :
   stack n m m' →
   simp m m'.
 Proof.
@@ -1320,8 +1287,8 @@ Qed.
      for some [a] such that
      [k a] can be simplified to [ret b]
      via a stack of weight [n],
-   - or [m] can be simplified to [next]
-     and [h()] can be simplified to [ret b]
+   - or [m] can be simplified to [throw e]
+     and [h e] can be simplified to [ret b]
      via a stack of weight [n].
  *)
 
@@ -1339,11 +1306,11 @@ Qed.
    practice, but we prefer to have a better-behaved language if we can. *)
 
 Lemma invert_stack_try_ret :
-  ∀ n {A B} m (k : A → micro B) h b,
+  ∀ n {A B E' E} m (k : A → micro B E) (h : E' → _) b,
   stack n (try m k h) (ret b) →
   total m
     (λ a, stack n (k a) (ret b))
-    (stack n (h()) (ret b)).
+    (λ e, stack n (h e) (ret b)).
 Proof.
   induction n as [n IH] using (well_founded_induction lt_wf).
 
@@ -1351,29 +1318,29 @@ Proof.
      conclusion mentions [n] instead of [i]. Also, place the side
      condition [i < n] in the last position. *)
   assert (IHw :
-    ∀ i {A B} m (k : A → micro B) h b,
+    ∀ i {A B E' E} m (k : A → micro B E) (h : E' → _) b,
     stack i (try m k h) (ret b) →
     i < n →
     total m
       (λ a, stack n (k a) (ret b))
-      (stack n (h()) (ret b))
+      (λ e, stack n (h e) (ret b))
   ).
   { intros. eapply total_consequence; intuition eauto using stack_monotone. }
   clear IH.
 
   (* Now begin the proof. *)
-  intros A B m k h b.
+  intros A B E' E m k h b.
   intros Hstack.
 
-  (* If [m] is [ret a] or [next], then the result is immediate. Treat
+  (* If [m] is [ret a] or [throw e], then the result is immediate. Treat
      these two cases now, so as to avoid treating them several times
      later on. *)
-  destruct (ret_or_next_or_else m) as [ (a & ?) | [ ? | (Hret & Hnext) ]].
+  destruct (ret_or_throw_or_else m) as [ (a & ?) | [ (e & ?) | (Hret & Hthrow) ]].
   (* Case: [m] is [ret a]. *)
-  { subst m. rewrite try_ret in Hstack. eapply total_ret. eauto. }
-  (* Case: [m] is [next]. *)
-  { subst m. rewrite try_next in Hstack. eapply total_next. eauto. }
-  (* We can now assume that [m] is neither [ret _] nor [next]. *)
+  { subst m. simpl try in Hstack. eapply total_ret. eauto. }
+  (* Case: [m] is [throw e]. *)
+  { subst m. simpl try in Hstack. eapply total_throw. eauto. }
+  (* We can now assume that [m] is neither [ret _] nor [throw _]. *)
 
   (* Is the stack empty? *)
   dependent destruction Hstack.
@@ -1385,7 +1352,7 @@ Proof.
   (* Subcase: [SssEval]. *)
   { subst p.
     (* [m] is [Stop CEval _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret Hnext.
+    invert_try_eq_stop. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpEval |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1401,7 +1368,7 @@ Proof.
   (* Subcase: [SssLoop]. *)
   { subst p.
     (* [m] is [Stop Loop _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret Hnext.
+    invert_try_eq_stop. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpLoop |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1417,7 +1384,7 @@ Proof.
   (* Subcase: [SssChoose]. *)
   {
     (* [m] is [Choose m1 m2 _ _]. *)
-    invert_try_eq_choose. subst m. clear Hret Hnext.
+    invert_try_eq_choose. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpChooseAgree; eauto using sss_simp |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1429,7 +1396,7 @@ Proof.
   (* Subcase: [SssParRetLeft]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hnext.
+    invert_try_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetLeft |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1441,7 +1408,7 @@ Proof.
   (* Subcase: [SssParRetRight]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hnext.
+    invert_try_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetRight |].
     (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
@@ -1453,7 +1420,7 @@ Proof.
   (* Subcase: [SssPar]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hnext.
+    invert_try_eq_par. subst m. clear Hret Hthrow.
     (* Change [m1] to [m'1] and [m2] to [m'2] in the goal. *)
     eapply total_simp.
     { eapply SimpPar; eapply sss_simp; eauto. }
@@ -1478,11 +1445,11 @@ Qed.
 
 (* This yields the reciprocal try rule. *)
 
-Lemma invert_simp_try_ret {A B} m (k : A → micro B) h b :
+Lemma invert_simp_try_ret {A B E' E} m (k : A → micro B E) (h : E' → _) b :
   simp (try m k h) (ret b) →
   total m
     (λ a, simp (k a) (ret b))
-    (simp (h()) (ret b)).
+    (λ e, simp (h e) (ret b)).
 Proof.
   intros Hsimp.
   (* Transform [simp _ _] into [sss n _ _] for some unknown [n]. *)
@@ -1495,12 +1462,12 @@ Proof.
   (* The result then follows via the consequence rule. *)
   eapply total_consequence; [ eauto | |].
   + simpl. eauto using stack_simp.
-  + eauto using stack_simp.
+  + simpl. eauto using stack_simp.
 Qed.
 
 (* The previous lemma can be specialized to obtain a result about [bind]. *)
 
-Lemma invert_simp_bind_ret_totalv {A B} m (k : A → micro B) b :
+Lemma invert_simp_bind_ret_totalv {A B E} m (k : A → micro B E) b :
   simp (bind m k) (ret b) →
   totalv m (λ a, simp (k a) (ret b)).
 Proof.
@@ -1510,7 +1477,7 @@ Proof.
   eapply total_consequence.
   { eauto using invert_simp_try_ret. }
   { eauto. }
-  (* There remains to argue that [next] cannot reduce to [ret _]. *)
+  (* There remains to argue that [throw _] cannot reduce to [ret _]. *)
   { simpl. intros. clarify_simp. }
 Qed.
 
@@ -1518,14 +1485,14 @@ Qed.
 
 (* This is the reciprocal bind rule for [totalv]. *)
 
-Lemma invert_totalv_bind {A B} m (k : A → micro B) (φ : B → Prop) :
+Lemma invert_totalv_bind {A B E} m (k : A → micro B E) (φ : B → Prop) :
   totalv (bind m k) φ →
   totalv m (λ a, totalv (k a) φ).
 Proof.
   intros.
-  destruct_total b.
+  destruct_total b e.
   apply invert_simp_bind_ret_totalv in H.
-  destruct_total a.
+  destruct_total a e.
   eauto using totalv_simp, totalv_ret.
 Qed.
 
@@ -1533,10 +1500,10 @@ Qed.
 
 (* This is the reciprocal bind rule for [simp]. *)
 
-Lemma invert_simp_bind_ret {A B} m (k : A → micro B) b :
+Lemma invert_simp_bind_ret {A B E} m (k : A → micro B E) b :
   simp (bind m k) (ret b) →
   ∃ a, simp m (ret a) ∧ simp (k a) (ret b).
 Proof.
   intros h. apply invert_simp_bind_ret_totalv in h.
-  unfold totalv, total in h. tauto.
+  destruct_total a e. eauto.
 Qed.

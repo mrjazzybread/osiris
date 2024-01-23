@@ -15,7 +15,7 @@ From osiris.semantics Require Import code eval.
 
 (* The definition of [eval']. *)
 
-Definition eval' η e : micro val :=
+Definition eval' η e : micro val void :=
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -149,10 +149,9 @@ Definition eval' η e : micro val :=
       ret (VBool (negb b))
   | ELet bs e =>
       (* This is evaluated like a [match] construct with one branch. *)
-      try
-        (eval_bindings η bs)
-      (λ δ, η ← ret_concat δ η; eval η e)
-      match_failure
+      δ ← eval_bindings η bs ;
+      η ← ret_concat δ η;
+      eval η e
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
@@ -200,7 +199,7 @@ Definition eval' η e : micro val :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : micro val :=
+      let test : micro val void :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in

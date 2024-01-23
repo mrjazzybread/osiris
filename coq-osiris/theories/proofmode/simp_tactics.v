@@ -192,29 +192,25 @@ Ltac simp_evaluate :=
    using [simp_evaluate] under the resulting pure *)
 Ltac pure_evaluate :=
   (lazymatch goal with
-   | |- pure (Stop CEval _ ret (λ _ : (), Next)) _ =>
-       eapply pure_simp; [apply advance_SimpEvalRetNext | apply SimpReflexive]
-   | |- pure (Stop CEval _ _ (λ _ : (), Next)) _ =>
-       eapply pure_simp; [apply advance_SimpEvalNext | apply SimpReflexive]
+   | |- pure (Stop CEval _ ret throw) _ =>
+       eapply pure_simp; [apply advance_SimpEvalRetThrow | apply SimpReflexive]
+   | |- pure (Stop CEval _ _ throw _) =>
+       eapply pure_simp; [apply advance_SimpEvalThrow | apply SimpReflexive]
    | |- pure (Stop CEval _ _ _) _ =>
        eapply pure_simp; [apply advance_SimpEval | apply SimpReflexive]
    | _ => idtac
    end);
   eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
 
+(* TODO this seems redundant with [simp] *)
 Ltac SimpParRet :=
-  lazymatch goal with
-  | |- simp (Par (ret _) (ret _) _ _) _ =>
-      apply SimpParRetRet
-  | |- simp (Par (ret _) _ _ (λ _ : (), Next)) _ =>
-      apply SimpParRetLeftNext
-  | |- simp (Par _ (ret _) _ (λ _ : (), Next)) _ =>
-      apply SimpParRetRightNext
-  | |- simp (Par (ret _) _ _ _) _ =>
-      apply SimpParRetLeft
-  | |- simp (Par _ (ret _) _ _) _ =>
-      apply SimpParRetRight
-  end.
+  first [
+    apply SimpParRetRet
+  | apply SimpParRetLeftThrow
+  | apply SimpParRetRightThrow
+  | apply SimpParRetLeft
+  | apply SimpParRetRight
+  ].
 
 Ltac pureParRet :=
   eapply pure_simp; first SimpParRet; simpl.
@@ -265,7 +261,7 @@ Ltac capture_hypotheses_aux arg :=
   generalize (block);
   generalize_tuple arg;
   conj_until_BLOCK false.
-  
+
 Tactic Notation "capture_hypotheses" constr(arg1) :=
   capture_hypotheses_aux arg1.
 
@@ -358,12 +354,12 @@ Tactic Notation "pure_nested" constr(arg1) constr(arg2)
 
 Module Tac.
   Import Ltac2.
-  
+
   Ltac2 eta_post' (arg : constr list) :=
     lazy_match! goal with
     | [ |- pure _ ?φ ] =>
         let post := Fresh.in_goal @post in
-        set ($post := $φ);         
+        set ($post := $φ);
         Std.pattern (List.map (fun x => (x, Std.AllOccurrences)) arg)
           { Std.on_hyps := Some [(post, Std.AllOccurrences, Std.InHyp)];
                            Std.on_concl := Std.NoOccurrences };
@@ -381,7 +377,7 @@ Module Tac.
   Ltac eta_post arg :=
     let f := ltac2:(arg |- eta_post'' arg) in
     f arg.
-  
+
   Tactic Notation "eta_post" constr_list(arg) :=
     let f := ltac2:(arg |- eta_post'' arg) in
     f arg.
@@ -405,6 +401,5 @@ Module Tac.
   Tactic Notation "eta_tuple" constr(arg) :=
     let f := ltac2:(arg |- eta_tuple_aux_interface arg) in
     f arg.
-    
-End Tac.
 
+End Tac.

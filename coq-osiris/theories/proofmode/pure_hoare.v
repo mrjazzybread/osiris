@@ -15,7 +15,7 @@ From osiris.proofmode Require Import notations.
 (* -------------------------------------------------------------------------- *)
 
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
-  (f : A -> micro val) (g : val -> micro val) (φ : X -> Prop) :
+  (f : A -> _) (g : val -> _) (φ : X -> Prop) :
   simp ('c ← m;
         f c) (ret #a) ->
   pure (g #a) φ ->
@@ -31,7 +31,7 @@ Proof.
   done.
 Qed.
 
-Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val) f g
+Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
   pure ('x ← m;
         f x) ψ ->
@@ -46,7 +46,7 @@ Proof.
   auto.
 Qed.
 
-Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val) f g
+Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
   pure m (fun x => pure (f x) ψ) ->
   (forall y, ψ y -> pure (g #y) φ) ->
@@ -66,7 +66,7 @@ Qed.
 
 (* [bind] composed with [as_bool]. *)
 
-Lemma simp_as_bool (x : bool) (m : micro val) :
+Lemma simp_as_bool (x : bool) (m : micro val void) :
   simp m (ret #x) →
   simp (as_bool m) (ret x).
 Proof.
@@ -74,7 +74,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_bool Y (_ : Encode Y)
-  m (f : bool → micro val) (φ : bool → Prop) (ψ : Y → Prop) :
+  m (f : bool → micro val void) (φ : bool → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : bool), φ x → pure (f x) ψ) →
   pure (bind (as_bool m) f) ψ.
@@ -88,7 +88,7 @@ Qed.
 
 (* [bind] composed with [as_int]. *)
 
-Lemma simp_as_int (x : Z) (m : micro val) :
+Lemma simp_as_int (x : Z) (m : micro val void) :
   simp m (ret #x) →
   simp (as_int m) (ret (repr x)).
 Proof.
@@ -96,7 +96,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_int Y (_ : Encode Y)
-  m (f : int → micro val) (φ : Z → Prop) (ψ : Y → Prop) :
+  m (f : int → micro val void) (φ : Z → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : Z), φ x → pure (f (repr x)) ψ) →
   pure (bind (as_int m) f) ψ.
@@ -178,8 +178,7 @@ Qed.
 Lemma invert_pure_crash `{Encode Y} (φ : Y -> Prop) :
   pure Crash φ -> False.
 Proof.
-  intros (? & Hsimp & _).
-  by apply simp_crash_ret in Hsimp.
+  intros. destruct_pure a. clarify_simp.
 Qed.
 
 Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
@@ -296,16 +295,14 @@ Lemma pure_Eval `{Encode X} η e k ko (φ : X -> Prop) :
   pure (try (eval η e) k ko) φ ->
   pure (Stop CEval (η, e) k ko) φ.
 Proof.
-  intros.
-  by eapply pure_simp; first apply SimpEval.
+  intros. eapply pure_simp; [| eauto ]. simp.
 Qed.
 
-Lemma pure_EvalRetNext `{Encode X} η e (φ : X -> Prop) :
+Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
   pure (eval η e) φ ->
-  pure (Stop CEval (η, e) ret (fun _ => Next)) φ.
+  pure (Stop CEval (η, e) ret throw) φ.
 Proof.
-  intros.
-  by eapply pure_simp; [apply advance_SimpEvalRetNext; apply SimpReflexive|].
+  intros. eapply pure_simp; [| eauto ]. simp.
 Qed.
 
 (* (* Todo: write comment *) *)
@@ -337,7 +334,7 @@ Proof.
   { specialize (Hrec (VCloRec η rbs fname) v HP).
     erewrite replace_binding in Hrec by eauto.
     simpl in *; rewrite !Hlkp in *; simpl in *.
-    unfold acall; destruct afun; apply pure_EvalRetNext.
+    unfold acall; destruct afun; apply pure_EvalRetThrow.
     eapply Hrec; auto. }
 Qed.
 
@@ -368,7 +365,7 @@ Proof.
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
-  unfold acall; destruct afun; apply pure_EvalRetNext.
+  unfold acall; destruct afun; apply pure_EvalRetThrow.
   eapply Hrec; auto.
 Qed.
 
@@ -399,7 +396,7 @@ Proof.
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
-  unfold acall; destruct afun; apply pure_EvalRetNext.
+  unfold acall; destruct afun; apply pure_EvalRetThrow.
   eapply Hrec; auto.
 Qed.
 
@@ -445,7 +442,7 @@ Proof.
   intros Hwf HP Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
-  unfold acall; destruct (fname =? gname)%string eqn:name_eq; apply pure_EvalRetNext.
+  unfold acall; destruct (fname =? gname)%string eqn:name_eq; apply pure_EvalRetThrow.
   { apply String.eqb_eq in name_eq as ->. eapply Hrec; eauto. }
   eapply Hrec; eauto.
 Qed.
@@ -481,7 +478,7 @@ Proof.
   intros Hwf HP Hname Hrec.
   induction v as [v IH] using (well_founded_induction Hwf); intros.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl.
-  unfold acall; rewrite Hname; apply pure_EvalRetNext.
+  unfold acall; rewrite Hname; apply pure_EvalRetThrow.
   eapply Hrec; eauto.
 Qed.
 
@@ -519,9 +516,9 @@ Proof.
   destruct p as [v1 v2]; simpl in *.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl; simpl.
 
-  unfold acall; apply pure_EvalRetNext.
+  unfold acall; apply pure_EvalRetThrow.
   rewrite Heval. eapply pure_ret; first solve [encode].
-  apply pure_enter_call_VClo; simpl; apply pure_EvalRetNext.
+  apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
   eapply Hrec; auto; intros.
   apply (IH (v1'', v2'')); auto.
 Qed.
@@ -556,9 +553,9 @@ Proof.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   destruct p as [v1 v2]; simpl in *.
   apply pure_enter_call_VCloRec; rewrite Hlkp; simpl.
-  apply pure_EvalRetNext. rewrite Heval.
+  apply pure_EvalRetThrow. rewrite Heval.
   eapply pure_ret; first solve [encode].
-  apply pure_enter_call_VClo; apply pure_EvalRetNext.
+  apply pure_enter_call_VClo; apply pure_EvalRetThrow.
   rewrite <- (replace_binding _ _ _ _ Hlkp).
   eapply Hrec; auto; intros.
   apply (IH (v1'', v2'')); auto.

@@ -346,17 +346,17 @@ to an argument of an invalid nature.
 |*)
 
 (*|
-The `next` combinator can be thought of as an exception.
+The combinator `throw` combinator raises an exception.
 This exception can be caught and handled by the `try` combinator.
 |*)
 
-Check @next. (* .unfold *)
+Check @throw. (* .unfold *)
 Check @try. (* .unfold *)
 
 (*|
 Our interpreter raises and catches this exception
 as part of its normal execution.
-For instance, `next` is used during the
+For instance, `throw ()` is used during the
 evaluation of a pattern matching construct.
 Somewhere, deep down in an auxilliary function, this exception
 is raised to indicate that a pattern does *not* match
@@ -448,7 +448,7 @@ of computations*, equipped with the facilities that are needed to write
 the interpreter in a natural style. On the other hand, from a concrete
 point of view, it offers *a syntactic representation of a collection of
 threads*. The constructor `Par` allows describing a binary tree of
-threads. At the leaves, the constructors `Ret`, `Crash`, and `Next`
+threads. At the leaves, the constructors `Ret`, `Crash`, and `Throw`
 represent threads that have finished (in one way or another), while
 the constructor `Stop` represents a thread that is paused and needs
 to continue.

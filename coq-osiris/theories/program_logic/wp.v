@@ -42,14 +42,14 @@ Definition state_interp {Σ H} (σ : store) :=
 
 Section definition.
 
-Context (A: Type).
+Context (A X : Type).
 Context `{!osirisGS Σ}.
 
 (* The (open) recursive definition of [wp]. *)
 
 Definition wp_pre
-  (wp: coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ) :
-       coPset -d> micro A -d> (A -d> iPropO Σ) -d> iPropO Σ
+  (wp: coPset -d> micro A X -d> (A -d> iPropO Σ) -d> iPropO Σ) :
+       coPset -d> micro A X -d> (A -d> iPropO Σ) -d> iPropO Σ
   :=
   λ E m φ,
     (∀ σ,
@@ -98,7 +98,7 @@ Qed.
   would have to overwrite all useful wp-related notations, as well as Hoare,
   texan triples, etc. *)
 
-Definition wp_def : Wp (iProp Σ) (micro A) A stuckness :=
+Definition wp_def : Wp (iProp Σ) (micro A X) A stuckness :=
   λ (_ : stuckness), fixpoint wp_pre.
 
 (* Standard boilerplate to seal the definition of [wp]. *)
@@ -119,21 +119,21 @@ End definition.
 
 Section boilerplate.
 
-Context {A : Type}.
+Context {A X : Type}.
 Context `{!osirisGS Σ}.
 Implicit Type s : stuckness.
 Implicit Type P : iProp Σ.
 Implicit Type φ : A → iProp Σ.
 Implicit Type a : A.
-Implicit Type m : micro A.
+Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
 Lemma wp_unfold {s E} m {φ} :
-  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A (wp s) E m φ.
+  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A X (wp s) E m φ.
 Proof.
   rewrite wp_unseal.
-  apply (@fixpoint_unfold _ _ _ (wp_pre A)).
+  apply (@fixpoint_unfold _ _ _ (wp_pre A X)).
 Qed.
 
 Local Ltac wp_unfold_all :=

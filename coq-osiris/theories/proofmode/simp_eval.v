@@ -14,13 +14,13 @@ From osiris.proofmode Require Import simp.
 (* [simp m (ret a)] is equivalent to a Hoare logic judgement [totalv m _]
    whose postcondition is an equality [λ a', a = a']. *)
 
-Lemma simp_totalv {A} m (a : A) :
-  simp m (ret a) ↔
+Lemma simp_totalv {A E} m (a : A) :
+  simp m (ret a : micro A E) ↔
   totalv m (λ a', a = a').
 Proof.
   split.
   { eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total a'. congruence. }
+  { intros. destruct_total a' e'. congruence. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -72,7 +72,7 @@ Qed.
 
 (* A consequence rule. *)
 
-Lemma simp_consequence A (m : micro A) a' a :
+Lemma simp_consequence {A E} (m : micro A E) a' a :
   simp m (ret a') →
   a = a' →
   simp m (ret a).
@@ -221,7 +221,7 @@ Proof.
   intros. simpl. unfold as_int. simp.
 Qed.
 
-Lemma simp_if_in_shift_range {A} z (m : micro A) :
+Lemma simp_if_in_shift_range {A E} z (m : micro A E) :
   in_shift_range z →
   simp (if_in_shift_range (repr z) m) m.
 Proof.
@@ -573,13 +573,13 @@ Implicit Type ψ : Prop.
 (* The judgement [pat η p v φ ψ] means that, in the environment [η],
    matching the pattern [p] against the value [v] is safe and either
    results in an extended environment that satisfies [φ]
-   or fails (by raising [Next]) and guarantees [ψ]. *)
+   or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
 Definition pat η p v φ ψ :=
-  total (extend η p v) φ ψ.
+  total (extend η p v) φ (λ (_ : unit), ψ).
 
 Definition pats η ps vs φ ψ :=
-  total (extends η ps vs) φ ψ.
+  total (extends η ps vs) φ (λ (_ : unit), ψ).
 
 (* A consequence rule. *)
 
@@ -716,7 +716,7 @@ Lemma pat_PData η c p c' v φ ψ :
        is not statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; eauto using total_next, total_consequence.
+  destruct_string_eqb; eauto using total_throw, total_consequence.
 Qed.
 
 Lemma pat_PData_eq η c p v φ ψ :
@@ -725,7 +725,7 @@ Lemma pat_PData_eq η c p v φ ψ :
     (* This form is useful when [c = c'] is statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_PData_neq η c p c' v φ :
@@ -734,7 +734,7 @@ Lemma pat_PData_neq η c p c' v φ :
     (* This form is useful when [c ≠ c'] is statically known. *)
 Proof.
   unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_next | tauto ].
+  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
@@ -808,4 +808,3 @@ Proof.
     apply truth_false_elim in Hneq.
     tauto. }
 Qed.
-

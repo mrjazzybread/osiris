@@ -4,6 +4,26 @@ Local Notation ε := []. (* TODO move *)
 
 (* -------------------------------------------------------------------------- *)
 
+(* Tests that involve variables. *)
+
+Goal
+  let η : env := [("x", #0)] in
+  let e := EMkPath ["x"] in
+  simp (eval η e) (ret (#0)).
+Proof.
+  intros. simp.
+Qed.
+
+Goal
+  let η : env := [("x", #1); ("y", #2)] in
+  let e := EIntAdd (EMkPath ["x"]) (EMkPath ["y"]) in
+  simp (eval η e) (ret (#3)).
+Proof.
+  intros. simp.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Some tests that involve [let] constructs. *)
 
 Goal
@@ -18,7 +38,7 @@ Goal
   let e := ELet1Var "y" e (EMkPath ["y"]) in
   simp (eval ε e) (ret (#0)).
 Proof.
-  intros. simp. simp_continue.
+  intros. simp. simp_continue. simp_continue.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

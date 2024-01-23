@@ -9,11 +9,11 @@ From osiris.program_logic Require Import safe wp helpers.
 
 (* This file contains the adequacy theorem (i.e. correction of the WP).
    The main result is provided by [adequacy_corollary]:
-     For any type [A],
-             computation [m1 : micro A],
+     For any types [A] and [X],
+             computation [m1 : micro A X],
              natural integer [n],
              physical heap [σn],
-             computation[mn : micro A],
+             computation[mn : micro A X],
              postcondition [φ : A → iProp Σ],
 
          if [(∅, m1)] reduces to [(σn, mn)] in [n] steps,
@@ -147,8 +147,8 @@ Section Adequacy.
 
   (* Main result: the adequacy lemma. *)
 
-  Lemma wp_adequacy {A} `{!required_cmras Σ}
-        {m1 n σn mn} (s: stuckness) (φ: Prop) :
+  Lemma wp_adequacy {A X} `{!required_cmras Σ}
+        {m1 : micro A X} {n σn mn} (s: stuckness) (φ: Prop) :
     (* Assuming [(∅, m1)] steps to [(σn, mn)] in [n] steps. *)
     nsteps step n (∅, m1) (σn, mn) →
 
@@ -217,8 +217,8 @@ Section Adequacy.
         to [(σn, mn)] in n steps,
      then [mn] is not stuck, and if it represents a value [v], then [φ v]
           holds. *)
-  Lemma adequacy_corollary {A} `{!required_cmras Σ}
-        {m1 n σn mn} s (φ : A → Prop) :
+  Lemma adequacy_corollary {A X} `{!required_cmras Σ}
+        {m1 : micro A X} {n σn mn} s (φ : A → Prop) :
     (* [(∅, m1)] reduces to ([σn, mn)] in n steps. *)
     nsteps step n (∅, m1) (σn, mn) →
 
@@ -282,8 +282,8 @@ Section Adequacy.
 
   (* [wp_safe] states that if [wp _ _ m (λ a, ⌜ φ a ⌝)] holds, [(∅, m)] is a
      safe configuration that satisfies [φ]. *)
-  Lemma wp_safe {A} `{!required_cmras Σ}
-    {m1} s (φ : A → Prop) :
+  Lemma wp_safe {A X} `{!required_cmras Σ}
+    {m1 : micro A X} s (φ : A → Prop) :
     (* [wp _ _ m1 (λ v, ⌜φ v⌝)] holds *)
     (⊢ ∀ (Hstore: @gen_heapGS loc val Σ loc_eq_decision loc_countable)
          (Hinv : invGS_gen HasNoLc Σ),
