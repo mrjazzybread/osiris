@@ -457,4 +457,18 @@ Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_tuple4
 | 0 (* higher priority than tuple2 and tuple3 above *)
-: encode.
+  : encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Strings. *)
+
+Definition encode_string (s : string) :=
+  VString s.
+
+Global Instance Encode_string : Encode string :=
+  {encode := λ s, VString s }.
+
+Lemma encode_string_is_encode s :
+  VString s = #s.
+Proof. solve_encode. Qed.

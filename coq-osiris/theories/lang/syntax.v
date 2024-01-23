@@ -421,5 +421,3 @@ Proof.
   congruence.
 Qed.
 
-
-

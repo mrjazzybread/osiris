@@ -129,6 +129,13 @@ Proof.
   intros. simp. (* wow *)
 Qed.
 
+Lemma simp_eval_tuple' η es vs :
+  simp (evals η es) (ret vs) →
+  simp (eval η (ETuple es)) (ret (VTuple vs)).
+Proof.
+  intros. simp.
+Qed.
+
 (* Integer literals. *)
 
 Lemma simp_eval_int η (z : Z) :
@@ -339,6 +346,17 @@ Proof.
   simpl encode. rewrite truth_True. eauto using advance_SimpEvalEAssert.
 Qed.
 
+(* Sequence *)
+
+Lemma simp_eval_seq η e1 e2 v :
+  (exists a, simp (eval η e1) (ret a)) ->
+  simp (eval η e2) (ret v) ->
+  simp (eval η (ESeq e1 e2)) (ret v).
+Proof.
+  intros [??] ?.
+  eauto using prove_simp_bind.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Reasoning rules for [pure (eval _ _) _], that is,
@@ -359,7 +377,26 @@ Local Hint Unfold pure : core.
 
 (* TODO can we give a similar lemma at arity [n]? *)
 
-Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2
+Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2 (ψ : A1 * A2 → Prop) :
+  pure (eval η e1) (λ a1 : A1, pure (eval η e2) (λ a2 : A2, ψ (a1, a2))) →
+  pure (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a1. destruct_pure a2.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
+
+Lemma pure_eval_pair_val η e1 e2 (ψ : val → Prop) :
+  pure (eval η e1) (λ a1 : val, pure (eval η e2) (λ a2 : val, ψ (VPair a1 a2))) →
+  pure (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a1. destruct_pure a2.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
+
+
+Lemma pure_eval_pair_conseq `{Encode A1, Encode A2} η e1 e2
   (φ1 : A1 → Prop) (φ2 : A2 → Prop) (ψ : A1 * A2 → Prop)
 :
   pure (eval η e1) φ1 →
@@ -372,9 +409,27 @@ Proof.
   eauto using pure_ret with encode.
 Qed.
 
+Lemma pure_eval_tuple η es vs (ψ : val -> Prop) :
+  simp (evals η es) (ret vs) ->
+  ψ (VTuple vs) ->
+  pure (eval η (ETuple es)) ψ.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
+
 (* Function applications. *)
 
-Lemma pure_eval_app `{Encode A, Encode B} η e1 e2
+Lemma pure_eval_app `{Encode A} η e1 e2 (ψ : A → Prop) :
+  pure (eval η e1) (λ f : val, pure (eval η e2) (λ e : val, pure (call f e) ψ)) →
+  pure (eval η (EApp e1 e2)) ψ.
+Proof.
+  intros. destruct_pure a2. destruct_pure v1.
+  eapply pure_simp; [ simp | eauto ].
+Qed.
+
+Lemma pure_eval_app_conseq `{Encode A, Encode B} η e1 e2
   (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop)
 :
   pure (eval η e1) φ1 →
@@ -517,7 +572,42 @@ Qed.
 
 (* Local definitions. *)
 
-(* TODO one binding only, for now *)
+(* TODO only one or two bindings, for now *)
+
+Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
+  (v1 : A1) (v2 : A2) η θ :
+  simp (eval η e1) (ret #(v1, v2)) ->
+  simp (δ ← extend [] p1 #v1;
+        extend δ p2 #v2) (ret θ) ->
+  simp (eval (θ ++ η) e2) m ->
+  simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
+Proof.
+  intros. simp.
+  eapply prove_simp_try; last eassumption.
+  apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
+  eapply prove_simp_bind; first eassumption.
+  rewrite bind_bind.
+  simpl. by rewrite bind_ret_right.
+Qed.
+
+Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
+  p1 p2 e1 e2 η (ψ : X -> Prop) :
+  pure (eval η e1) (λ '((v1, v2) : A1 * A2),
+      pure (
+          δ ← extend [] p1 #v1;
+          θ ← extend δ p2 #v2;
+          eval (θ ++ η) e2
+        ) ψ) ->
+  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
+Proof.
+  intros ([v1 v2] & Hv & Hpure).
+  destruct Hpure as (x & Hsimp & Hψ).
+  eapply invert_simp_bind_ret in Hsimp as (δ & Hv1 & Hsimp).
+  eapply invert_simp_bind_ret in Hsimp as (θ & Hv2 & Hx).
+  eapply pure_simp.
+  { eapply simp_eval_let_pair; eauto using prove_simp_bind. }
+  eapply pure_ret; eauto.
+Qed.
 
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
   (a1 : A1) (ψ : B → Prop)
@@ -530,8 +620,7 @@ Proof.
 Qed.
 
 Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
-  (φ1 : A1 → Prop) (ψ : B → Prop)
-:
+  (φ1 : A1 → Prop) (ψ : B → Prop) :
   pure (eval η e1) φ1 →
   (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ) →
   pure (eval η (ELet1Var x e1 e)) ψ.
@@ -563,248 +652,104 @@ Proof.
   eauto using simp_eval_assert.
 Qed.
 
-(* -------------------------------------------------------------------------- *)
+(* Sequencing of pure computations. *)
 
-(* A judgement and a set of reasoning rules for pattern matching. *)
-
-Implicit Type φ : env → Prop.
-Implicit Type ψ : Prop.
-
-(* The judgement [pat η p v φ ψ] means that, in the environment [η],
-   matching the pattern [p] against the value [v] is safe and either
-   results in an extended environment that satisfies [φ]
-   or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
-
-Definition pat η p v φ ψ :=
-  total (extend η p v) φ (λ (_ : unit), ψ).
-
-Definition pats η ps vs φ ψ :=
-  total (extends η ps vs) φ (λ (_ : unit), ψ).
-
-(* A consequence rule. *)
-
-Lemma pat_consequence η p v φ φ' ψ ψ' :
-  pat η p v φ ψ →
-  (∀ η, φ η → φ' η) →
-  (ψ → ψ') →
-  pat η p v φ' ψ'.
+Lemma pure_eval_seq' `{Encode A} η e1 e2 a (ψ : A -> Prop) :
+  simp (eval η e1) (ret a) ->
+  pure (eval η e2) ψ ->
+  pure (eval η (ESeq e1 e2)) ψ.
 Proof.
-  unfold pat. eauto using total_consequence.
+  intros.
+  destruct_pure b.
+  eapply pure_simp. { apply simp_eval_seq; eauto. }
+  eapply pure_ret; eauto.
 Qed.
 
-Lemma pat_consequence_psi η p v φ ψ ψ' :
-  pat η p v φ ψ →
-  (ψ → ψ') →
-  pat η p v φ ψ'.
+Lemma pure_eval_seq `{Encode A} `{Encode B} η e1 e2 (ψ : A -> Prop) :
+  pure (eval η e1) (λ _ : B, True) ->
+  pure (eval η e2) ψ ->
+  pure (eval η (ESeq e1 e2)) ψ.
 Proof.
-  unfold pat. eauto using total_consequence.
+  intros. destruct_pure a. destruct_pure b.
+  eapply pure_simp. { apply simp_eval_seq; eauto. }
+  eapply pure_ret; eauto.
 Qed.
 
-(* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
-
-Lemma pats_PNil η φ :
-  φ η →
-  pats η [] [] φ False.
+Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
+  simp (eval_sitems items (η, [])) (ret (whatenv, δ)) ->
+  ψ (VStruct δ) ->
+  pure (eval_mexpr η (MStruct items)) ψ.
 Proof.
-  unfold pats. simpl. eauto using total_ret.
+  intros.
+  eapply pure_simp.
+  { eapply prove_simp_bind; [eauto | apply SimpReflexive]. }
+  eapply pure_ret; eauto.
 Qed.
 
-Lemma pats_PCons_unary η p ps v vs φ ψ :
-  pat η p v (λ η, pats η ps vs φ ψ) ψ →
-  pats η (p :: ps) (v :: vs) φ ψ.
-    (* a simple statement (unused) *)
+Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop):
+  simp (eval_mexpr η me) (ret v) ->
+  pure (coerce c v) ψ ->
+  pure (eval_mexpr η (MCoercion me c)) ψ.
 Proof.
-  unfold pats, pat. intro Hp. simpl.
-  eapply total_bind; [ eapply Hp | simpl ]. intros η' Hps.
-  rewrite bind_ret_right. eauto.
+  intros.
+  destruct_pure cv.
+  eapply pure_simp.
+  { eapply prove_simp_bind; eauto. }
+  eapply pure_ret; eauto.
 Qed.
 
-Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
-  pat η p v φ' ψ1 →
-  (∀ η, φ' η → pats η ps vs φ ψ2) →
-  pats η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
-    (* a more elaborate statement, where [ψ1] and [ψ2] are unconstrained,
-       and where a disjunction is explicitly constructed -- see below. *)
+Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
+  pure (lookup_path η π) ψ ->
+  pure (eval η (EPath π)) ψ.
 Proof.
-  unfold pats, pat. intros. simpl.
-  eapply total_bind; [ eauto using total_consequence | simpl ].
-  intros η' ?.
-  rewrite bind_ret_right.
-  eauto using total_consequence.
+  intros. destruct_pure v.
+  eapply pure_simp.
+  rewrite eval_eval'; eauto.
+  eapply pure_ret; eauto.
 Qed.
 
-Ltac pats :=
-  repeat first [
-    eapply pats_PNil; [ eauto ]
-  | eapply pats_PCons; [ eauto | simpl; intros ]
-  ].
-
-(* Syntax-directed reasoning rules for the judgement [pat]. *)
-
-(* From an operational point of view, the repeated application of these
-   lemmas to a pattern [p] and a value [v] have the effect of translating
-   the pattern matching operation [p = v] into a positive formula and a
-   negative formula. The positive formula, the postcondition [φ],
-   accumulates a sequence of universal quantifiers and equations that
-   describe what is learnt when pattern matching succeeds. The negative
-   formula, the failure postcondition [ψ], describes what is learnt when
-   pattern matching fails. *)
-
-(* When a pattern cannot fail or can fail due to several distinct causes,
-   a naive statement of its reasoning rule would have one occurrence of
-   [ψ] in its conclusion and no occurrence or multiple occurrences of [ψ]
-   in its premises. From an operational point of view, this is
-   undesirable, because [ψ] is then unconstrained or duplicated. We avoid
-   this phenomenon by using [False] or a disjunction in the conclusion of
-   the reasoning rule. Thus, from an operational point of view, applying
-   the reasoning rule instantiates the failure postcondition with a
-   logical connective. *)
-
-Lemma pat_PAny η v φ :
-  φ η →
-  pat η PAny v φ False.
+Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) :
+  pure (eval (δ ++ η) e) ψ ->
+  pure (θ ← ret_concat δ η;
+        eval θ e) ψ.
 Proof.
-  unfold pat. simpl. eauto using total_ret.
+  tauto.
 Qed.
 
-Lemma pat_PVar η x v φ :
-  (let η := (x, v) :: η in φ η) →
-  pat η (PVar x) v φ False.
+Lemma simp_eval_const η c :
+  simp (eval η (EConstant c)) (ret (VConstant c)).
 Proof.
-  unfold pat. simpl. eauto using total_ret.
+  do 2 (rewrite eval_eval'; simpl).
+  done.
 Qed.
 
-Lemma pat_PAlias η p x v φ ψ :
-  pat η p v (λ η, let η := (x, v) :: η in φ η) ψ →
-  pat η (PAlias p x) v φ ψ.
+Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) :
+  VConstant c = #x ->
+  ψ x ->
+  pure (eval η (EConstant c)) ψ.
 Proof.
-  unfold pat. simpl. intros Hp.
-  eapply total_bind; [ eapply Hp | simpl ]. intros η' ?.
-  eauto using total_ret.
+  intros.
+  eapply pure_simp; first apply simp_eval_const.
+  eauto using pure_ret.
 Qed.
 
-Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
-  pat η p1 v φ ψ1 →
-  pat η p2 v φ ψ2 →
-  pat η (POr p1 p2) v φ (ψ1 ∧ ψ2).
-    (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
-       disjunction pattern to fail, both sides must fail. *)
+Lemma simp_eval_data η c e v :
+  simp (eval η e) (ret v) ->
+  simp (eval η (EData c e)) (ret (VData c v)).
 Proof.
-  unfold pat; intros Hp1 Hp2. simpl.
-  eauto using total_orelse, total_consequence.
+  intros.
+  rewrite eval_eval'; simpl.
+  eapply prove_simp_bind; first eassumption.
+  apply SimpReflexive.
 Qed.
 
-Lemma pat_PUnit η v φ :
-  φ η →
-  v = #() →
-  pat η PUnit v φ False.
+Lemma pure_eval_data `{Encode X} η c e (ψ : X -> Prop) :
+  pure (eval η e) (λ y : val, pure (ret (VData c y)) ψ) ->
+  pure (eval η (EData c e)) ψ.
 Proof.
-  unfold pat. intros. subst. simpl. eauto using total_ret.
-Qed.
-
-Lemma pat_PTuple η ps vs φ ψ :
-  pats η ps vs φ ψ →
-  pat η (PTuple ps) (VTuple vs) φ ψ.
-Proof.
-  unfold pats, pat. simpl. eauto.
-Qed.
-
-Lemma pat_PData η c p c' v φ ψ :
-  (c = c' → pat η p v φ ψ) →
-  pat η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
-    (* This form is useful when the truth of the equality [c = c']
-       is not statically known. *)
-Proof.
-  unfold pat; intros. simpl.
-  destruct_string_eqb; eauto using total_throw, total_consequence.
-Qed.
-
-Lemma pat_PData_eq η c p v φ ψ :
-  pat η p v φ ψ →
-  pat η (PData c p) (VData c v) φ ψ.
-    (* This form is useful when [c = c'] is statically known. *)
-Proof.
-  unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
-Qed.
-
-Lemma pat_PData_neq η c p c' v φ :
-  c ≠ c' →
-  pat η (PData c p) (VData c' v) φ True.
-    (* This form is useful when [c ≠ c'] is statically known. *)
-Proof.
-  unfold pat; intros. simpl.
-  destruct_string_eqb; solve [ eauto using total_throw | tauto ].
-Qed.
-
-Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
-  v = #xs →
-  (xs = [] → φ η) →
-  pat η pNil v φ (xs ≠ []).
-Proof.
-  intros; subst.
-  destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_PData_eq. eapply pat_PTuple. pats. }
-  { eauto. }
-  { eapply pat_PData_neq. eauto. }
-  { eauto. }
-Qed.
-
-Lemma pat_pCons `{Encode A} η p1 p2 v (xs : list A) φ ψ :
-  v = #xs →
-  (∀ x xs',
-     xs = x :: xs' →
-     pats η [p1; p2] [#x; #xs'] φ ψ
-  ) →
-  pat η (pCons p1 p2) v φ (xs = [] ∨ ψ).
-Proof.
-  intros ? Hpp; subst.
-  destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_PData_neq. eauto. }
-  { tauto. }
-  { specialize (Hpp x xs eq_refl).
-    eapply pat_PData_eq.
-    rewrite ?encode_list_is_encode. (* optional, but helpful *)
-    eapply pat_PTuple. eauto. }
-  { eauto. }
-Qed.
-
-Lemma pat_false η v (P : Prop) φ :
-  v = #P →
-  (¬P → φ η) →
-  pat η (PConstant "false") v φ P.
-Proof.
-  intros; subst.
-  eapply pat_consequence_psi.
-  { (* The definition of [#] at type [Prop] involves [VBool], which
-       itself involves [BoolConstructor]. *)
-    change "false" with (BoolConstructor false).
-    eapply pat_PData.
-    intro Heq. symmetry in Heq.
-    apply BoolConstructor_injective, truth_false_elim in Heq.
-    pats. }
-  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
-    apply BoolConstructor_congruent_contrapositive in Hneq.
-    apply bool_neq in Hneq.
-    apply truth_true_elim in Hneq.
-    tauto. }
-Qed.
-
-Lemma pat_true η v (P : Prop) φ :
-  v = #P →
-  (P → φ η) →
-  pat η (PConstant "true") v φ (¬P).
-Proof.
-  intros; subst.
-  eapply pat_consequence_psi.
-  { change "true" with (BoolConstructor true).
-    eapply pat_PData.
-    intro Heq. symmetry in Heq.
-    apply BoolConstructor_injective, truth_true_elim in Heq.
-    pats. }
-  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
-    apply BoolConstructor_congruent_contrapositive in Hneq.
-    apply bool_neq in Hneq.
-    apply truth_false_elim in Hneq.
-    tauto. }
+  intros. destruct_pure v. destruct_pure x.
+  eapply pure_simp; [eauto using simp_eval_data |].
+  eapply pure_ret; eauto.
+  rewrite <- solve_encode_val.
+  by apply simp_ret_ret.
 Qed.

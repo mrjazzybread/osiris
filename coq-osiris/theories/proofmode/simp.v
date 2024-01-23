@@ -96,6 +96,16 @@ Proof.
   eauto using simp_try with simp try_ret.
 Qed.
 
+(* The Try rule when the computation fails. *)
+
+Lemma prove_simp_try_next {A B m m'} {f : A → micro B} h :
+  simp m next →
+  simp (h ()) m' →
+  simp (try m f h) m'.
+Proof.
+  eauto using simp_try with simp try_ret.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)

@@ -14,6 +14,7 @@ From osiris.proofmode Require Import notations.
 
 (* -------------------------------------------------------------------------- *)
 
+
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
   simp ('c ← m;
@@ -23,12 +24,12 @@ Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
         'v2 ← f v1;
         g v2) φ.
 Proof.
-  intros Hsimp (x & ? & ?).
-  exists x. split; last done.
-  eapply prove_simp_bind in Hsimp.
-  { rewrite bind_bind in Hsimp.
-    apply Hsimp. }
-  done.
+  intros Hsimp ?.
+  destruct_pure x.
+  exists x. split; last auto.
+  apply invert_simp_bind_ret in Hsimp as (b & Hb & Ha).
+  eapply prove_simp_bind; first apply Hb.
+  eapply prove_simp_bind; eauto.
 Qed.
 
 Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
@@ -36,9 +37,9 @@ Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
   pure ('x ← m;
         f x) ψ ->
   (forall y, ψ y -> pure (g #y) φ) ->
-  pure ('x ← m;
-        y ← f x;
-        g y) φ.
+  pure ('v1 ← m;
+        v2 ← f v1;
+        g v2) φ.
 Proof.
   intros (x & Hsimp & ?) ?.
   eapply pure_prove_bind_bind; first apply Hsimp.
@@ -55,10 +56,9 @@ Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
         g y) φ.
 Proof.
   intros.
-  eapply pure_bind_bind; first eapply pure_bind; eauto.
-  intros; auto.
+  eapply pure_bind_bind; last done.
+  eapply pure_bind; eauto.
 Qed.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -108,7 +108,77 @@ Proof.
   exists y; eauto using prove_simp_bind, simp_as_int.
 Qed.
 
-(* TODO add similar lemmas for [as_loc] and possibly others *)
+(* [bind] composed with [as_loc]. *)
+
+Lemma simp_as_loc (x : loc) (m : micro val) :
+  simp m (ret #x) ->
+  simp (as_loc m) (ret x).
+Proof.
+  destruct x; eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma pure_bind_as_loc Y (_ : Encode Y)
+  m (f : loc → micro val) (φ : loc → Prop) (ψ : Y → Prop) :
+  pure m φ →
+  (∀ (x : loc), φ x → pure (f x) ψ) →
+  pure (bind (as_loc m) f) ψ.
+  (* This is [@bind loc val]. *)
+Proof.
+  intros (x & ? & Hx) Hf.
+  specialize (Hf x Hx).
+  destruct Hf as (y & ? & ?).
+  exists y; eauto using prove_simp_bind, simp_as_loc.
+Qed.
+
+(* [bind] composed with [as_struct]. *)
+
+Lemma simp_as_struct (x : env) (m : micro val) :
+  simp m (ret (VStruct x)) ->
+  simp (as_struct m) (ret x).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma pure_bind_as_struct Y (_ : Encode Y)
+  m (f : env → micro val) (φ : val → Prop) (ψ : Y → Prop) :
+  pure m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
+  (∀ (x : env), φ (VStruct x) → pure (f x) ψ) →
+  pure (bind (as_struct m) f) ψ.
+  (* This is [@bind env val]. *)
+Proof.
+  intros (x & H & Hx) Hf.
+  destruct Hx as (x' & ? & Hx').
+  subst x. rewrite <- solve_encode_val in H.
+  specialize (Hf x' Hx').
+  destruct_pure y.
+  exists y; eauto using prove_simp_bind, simp_as_struct.
+Qed.
+
+(* [bind] composed with [as_record]. *)
+
+Lemma simp_as_record (x : env) (m : micro val) :
+  simp m (ret (VRecord x)) ->
+  simp (as_record m) (ret x).
+Proof.
+  eauto using prove_simp_bind with simp.
+Qed.
+
+Lemma pure_bind_as_record Y (_ : Encode Y)
+  m (f : env → micro val) (φ : val → Prop) (ψ : Y → Prop) :
+  pure m (λ y : val, exists y', y = VRecord y' /\ φ y) →
+  (∀ (x : env), φ (VRecord x) → pure (f x) ψ) →
+  pure (bind (as_record m) f) ψ.
+  (* This is also [@bind env val]. *)
+Proof.
+  intros (x & H & Hx) Hf.
+  destruct Hx as (x' & ? & Hx').
+  subst x. rewrite <- solve_encode_val in H.
+  specialize (Hf x' Hx').
+  destruct_pure y.
+  exists y; eauto using prove_simp_bind, simp_as_record.
+Qed.
+
+(* TODO add similar lemmas for other constructs *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -482,7 +552,7 @@ Proof.
   eapply Hrec; eauto.
 Qed.
 
-Definition nested_pure `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
+Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
   pure (call vf arg1) (fun c =>
                          pure (call c arg2) φ).
 
@@ -501,10 +571,10 @@ Lemma pure_nested_rec_call `{Encode A} `{Encode B} `{Encode C}
           eval η1' ef = ret (VClo η1' (AnonFun farg2 ef2)) ->
           P v1'' v2'' ->
           R (v1'', v2'') (v1', v2') ->
-          nested_pure vf #v1'' #v2'' (φ v1'' v2'')) ->
+          pure_call2 vf #v1'' #v2'' (φ v1'' v2'')) ->
       let δ := (farg2 ~> #v2'; farg ~> #v1'; fname ~> vf; η) in
       pure (eval δ ef2) (φ v1' v2')) ->
-  nested_pure vclo #v1 #v2 (φ v1 v2).
+  pure_call2 vclo #v1 #v2 (φ v1 v2).
 Proof.
   cbn zeta.
   intros Hwf HP Heval Hrec.
@@ -539,10 +609,10 @@ Lemma pure_nested_call `{Encode A} `{Encode B} `{Encode C}
            eval η0 e1 = ret (VClo η0 (AnonFun y e2))) ->
           P v1'' v2'' ->
           R (v1'', v2'') (v1', v2') ->
-          nested_pure vf #v1'' #v2'' (φ v1'' v2'')) ->
+          pure_call2 vf #v1'' #v2'' (φ v1'' v2'')) ->
       let δ := replace_env_binding δ fname vf in
       pure (eval (y ~> #v2'; x ~> #v1'; δ ++ η) e2) (φ v1' v2')) ->
-  nested_pure (VCloRec η rbs fname) #v1 #v2 (φ v1 v2).
+  pure_call2 (VCloRec η rbs fname) #v1 #v2 (φ v1 v2).
 Proof.
   cbn zeta.
   intros Hlkp Heval Hwf HP Hrec.

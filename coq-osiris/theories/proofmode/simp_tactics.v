@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp pure_hoare.
+From osiris.proofmode Require Import simp pure_hoare simp_eval.
 From Ltac2 Require Ltac2.
 
 (* This file contains tactics intended for use during hoare-style proofs of pure
@@ -24,18 +24,58 @@ Proof.
   beta. reflexivity.
 Qed.
 
+Ltac remove_deco :=
+  lazymatch goal with
+  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1
+  | _ => idtac
+  end.
+
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
 Ltac pure_ret :=
-  simple eapply pure_ret; [ solve [ encode ] | beta ].
+  remove_deco;
+  match goal with
+  | |- pure (ret ?v) ?φ =>
+      match type of φ with
+      | val -> Prop =>
+          simple eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | beta]
+      | _ =>
+          simple eapply pure_ret; [ solve [ encode ] | beta ]
+      end
+  end.
+
+(* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
+   the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
+   and, assuming that the lookup succeeds, calls pure_ret on the result. *)
+
+Ltac pure_path :=
+  remove_deco;
+  simple eapply pure_eval_path; simpl lookup_path; pure_ret.
+
+(* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
+   It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
+   and leaves the subgoal [φ x]. *)
+
+Ltac pure_const :=
+  remove_deco;
+  match goal with
+  | |- pure (eval ?η (EConstant ?c)) ?ψ =>
+      match type of ψ with
+      | val -> Prop =>
+          simple eapply pure_eval_const; [ rewrite <- solve_encode_val; reflexivity | ]
+      | _ =>
+          simple eapply pure_eval_const; [ solve [ encode ] | ]
+      end
+  end.
+
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
 Ltac pure_simp :=
-  simple eapply pure_simp; [ simp_really |].
+  eapply pure_simp; [ simp_really |].
 
 (* pure0 leaves zero subgoal. *)
 (* pure1 leaves one subgoal, which may have an arbitrary shape. *)

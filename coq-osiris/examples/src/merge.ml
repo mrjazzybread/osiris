@@ -24,4 +24,3 @@ let rec merge_sort l =
      let l1' = merge_sort l1 in
      let l2' = merge_sort l2 in
      merge l1' l2'
-

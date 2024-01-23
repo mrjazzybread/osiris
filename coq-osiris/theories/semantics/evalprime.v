@@ -41,7 +41,7 @@ Definition eval' η e : micro val void :=
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
@@ -49,7 +49,7 @@ Definition eval' η e : micro val void :=
       '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
       (* The new components override existing components by the same name. *)
       fvs ← update fvs fvs' ;
-      fvs ← sort fvs ;
+      let fvs := sort fvs in
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;

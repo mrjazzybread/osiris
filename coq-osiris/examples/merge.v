@@ -175,6 +175,7 @@ Proof.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions. pure1. pure_continue.
+  (* TODO: Environments are too present in the goal *)
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
@@ -249,6 +250,144 @@ Proof.
       apply Permutation_sym.
       apply Permutation_middle. }}
 Qed.
+
+Transparent ret_concat.
+
+Lemma pat_PVar2 η x v :
+  pat η (PVar x) v (λ η', η' = (x ~> v; η)) False.
+Proof.
+  by apply pat_PVar.
+Qed.
+
+Ltac pat_PVar :=
+  match goal with
+  | |- pat _ (PVar _) _ ?φ _ =>
+      tryif (has_evar φ) then apply pat_PVar2 else apply pat_PVar
+  end.
+
+Ltac pat_PVar_alt :=
+  match goal with
+  | |- pat _ (PVar _) _ _ _ =>
+      (apply pat_PVar2 || eapply pat_PVar)
+  end.
+
+(* Both of the previous tactics seem to work, is one better than the other?
+   I guess that [has_evar] could detect an evar which is nested deep into
+   the postcondition, so the second is the way to go. *)
+
+Lemma Split_spec' η :
+  split_spec (VCloRec η __bindings7 "split").
+Proof.
+  Opaque encode.
+  unfold split_spec. intros.
+  pure_rec l (@wf_list_length A).
+  (* Goal: eval match on l *)
+  eapply pure_eval_match. { pure_path. apply eq_refl. }
+  intros ? <-. unfold __branches6; simpl.
+  (* First branch of match *)
+  pure_match.
+  { (* Case: l matches [] *)
+    pat_pNil. intros ->. (* We learn that l = [] *)
+    (* Traverse the expression after a succesful match *)
+    apply pure_eval_pair. pure_const. pure_const.
+    (* Establish the (trivial) postcondition *)
+    done. }
+  (* Case: the first branch doesn't match, we learn that l ≠ [] *)
+  intros no_match1.
+  (* Second branch of match *)
+  pure_match.
+  { (* Case: l matches "cons x []" *)
+    pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
+    { (* Match #h with "x" *) pat_PVar_alt. }
+    (* Match #t with "[]" *) simpl.
+    intros ? ->. pat_pNil.
+    intros ->. (* We now know t = [] *)
+    (* Traverse the expression after a succesful match *)
+    apply pure_eval_pair.
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_const.
+    pure_ret.
+    pure_const.
+    (* Establish postcondition *)
+    by rewrite Heql. }
+  (* Case: we don't match the second branch,
+     we learn that either l = [] or ∃ h t, l = h :: t and t ≠ [] *)
+  simpl. intros no_match2.
+  (* Third branch of match *)
+  pure_match.
+  { (* Match against "x1 :: x2 :: t" *)
+    pat_pCons; intros x1 xs' Heql.
+    { (* Match #x1 with "x1" *) pat_PVar_alt. }
+    simpl. intros ? ->. (* Match #xs' with "x2 :: t" *)
+    pat_pCons; intros x2 xs Heqxs'.
+    { (* Match #x2 with "xw" *) pat_PVar_alt. }
+    simpl. intros ? ->.
+    (* Match #xs with "t" *)
+    pat_PVar_alt. simpl.
+    (* Traverse the expression after a succesful match *)
+    subst.
+    eapply pure_eval_let_pair.
+    eapply pure_eval_app. pure_path. pure_path.
+    (* Call vf #xs *) simpl.
+    eapply pure_consequence.
+    { (* Use induction hypothesis *)
+      apply IH; first done.
+      (* Justify use of induction hypothesis *)
+      eauto with arith. }
+    intros [l1 l2] Hpost; clear IH; simpl.
+    unfold __exp5.
+    (* Eval (x1::l1, x2::l2) *)
+    apply pure_eval_pair.
+    (* Eval x1::l1 *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Eval x2::l2 *)
+    apply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    (* Establish postcondition *)
+    unfold split_post in *; simpl in *.
+    destruct Hpost as (H1 & H2 & ?).
+    split; last split.
+    { (* Subgoal: the length of l1 is half the length of xs *)
+      destruct (Nat.even _); rewrite H1; eauto with arith. }
+    { (* Subgoal: the length of l2 is half the length of xs *)
+      rewrite H2; eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of xs *)
+      rewrite_permutation xs.
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. } }
+  simpl; intros no_match3.
+  Ltac strip_disjunction :=
+    match goal with
+    | H : _ \/ _ |- _ =>
+        destruct H as [ H | H ]; try contradiction
+    end.
+  Ltac remove_tauto :=
+    lazymatch goal with
+    | H : ?x = ?x |- _ => clear H
+    | _ => idtac
+    end.
+  Ltac subst_eq :=
+    lazymatch goal with
+    | H : ?x = _ |- _ => subst x
+    | _ => idtac
+    end.
+  Ltac inject_eq :=
+    lazymatch goal with
+    | H : ?x = _ |- _ => injection H; repeat (intros ->)
+    | _ => idtac
+    end.
+  Ltac elim_exists :=
+    lazymatch goal with
+    | H : exists _, _ |- _ => destruct H as [? H]
+    end.
+  (* Goal: show that never matching is impossible *)
+  repeat ((repeat strip_disjunction); (repeat elim_exists); (repeat destruct_hyp); remove_tauto; subst_eq; remove_tauto; inject_eq).
+  (* TODO: Make automation more robust *)
+Qed.
+
+Opaque ret_concat.
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
