@@ -563,7 +563,7 @@ Lemma pure_nested_rec_call `{Encode A} `{Encode B} `{Encode C}
   well_founded R ->
   P v1 v2 ->
   let η1 := (farg ~> #v1; fname ~> vclo; η) in
-  eval η1 ef = ret (VClo η1 (AnonFun farg2 ef2)) ->
+  pure (eval η1 ef) (λ v, v = (VClo η1 (AnonFun farg2 ef2))) ->
   (forall (vf : val) v1' v2',
       P v1' v2' ->
       (forall v1'' v2'',
@@ -587,10 +587,12 @@ Proof.
   apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl; simpl.
 
   unfold acall; apply pure_EvalRetThrow.
-  rewrite Heval. eapply pure_ret; first solve [encode].
+  eapply pure_consequence. apply Heval. intros vf ->.
   apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
   eapply Hrec; auto; intros.
-  apply (IH (v1'', v2'')); auto.
+  apply (IH (v1'', v2'')); eauto. simpl.
+  rewrite H2.
+  eapply pure_ret; [ solve [encode] | reflexivity].
 Qed.
 
 Lemma pure_nested_call `{Encode A} `{Encode B} `{Encode C}
