@@ -100,6 +100,13 @@ Proof.
   apply wf_inverse_image. apply lt_wf.
 Qed.
 
+Lemma wf_double_list_length {A B} :
+  well_founded (fun (p1 p2 : list A * list B) =>
+                  (length p1.1 + length p1.2 < length p2.1 + length p2.2)%nat).
+Proof.
+  apply wf_inverse_image. apply lt_wf.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Specification for [merge l1 l2]. *)
@@ -151,105 +158,9 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Specification proofs. *)
+(* Pure, Hoare-Style Specification proofs. *)
 
-Lemma wf_double_list_length {A B} :
-  well_founded (fun (p1 p2 : list A * list B) =>
-                  (length p1.1 + length p1.2 < length p2.1 + length p2.2)%nat).
-Proof.
-  apply wf_inverse_image. apply lt_wf.
-Qed.
-
-Lemma Merge_spec η:
-  merge_spec (VCloRec η __bindings4 "merge" ).
-Proof.
-  unfold merge_spec. intros l1 l2 ?.
-  pure_nested l1 l2 (@wf_double_list_length Z).
-  unfold merge_pre in HP; repeat destruct_hyp.
-  destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
-  (* Case: l1 = [] *)
-  { pure1; pure1; pure_continue.
-    unfold merge_post; rewrite app_nil_l; auto. }
-  (* Case: l2 = [] *)
-  { pure1; pure1; pure_continue.
-    unfold merge_post; rewrite app_nil_r; auto. }
-  (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions. pure1. pure_continue.
-  (* TODO: Environments are too present in the goal *)
-  rewrite lt_repr_repr by auto.
-  (* Reason by cases on the comparison of the heads *)
-  destruct (h2 <? h1) eqn:branch; simpl.
-  { (* Case: h2 < h1 *) Transparent app. simpl.
-    pure_execute.
-    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
-    eapply pure_bind_binary.
-    { apply (IH (h1::t1) t2).
-      (* Subgoal: the partial application of merge returns a closure *)
-      { rewrite eval_eval'; reflexivity. }
-      (* Subgoal: (h1::t1) and t2 satisfy the merge's precondition *)
-      { unfold merge_pre; auto. }
-      (* Subgoal: justify the induction: show [(h1::t1, t2) < (h1::t1, h2::t2)] *)
-      { simpl; auto with arith. } }
-    unfold merge_post; cbn; intros l' (? & ?).
-    (* Establish the postcondition *)
-    eapply pure_ret; first solve [encode]. split.
-    { (* Subgoal: the output is sorted *)
-      constructor; first done.
-      eapply (HdRel_Sorted_Permutation l' (h1 :: t1) t2); eauto with zarith. }
-    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      rewrite_permutation l'.
-      apply Permutation_sym.
-      change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
-      apply Permutation_middle. }}
-  { (* Case: h1 < h2 *)
-    pure_execute.
-    (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
-    eapply pure_bind_binary.
-    { apply (IH t1 (h2::t2)).
-      (* Subgoal: the partial application of merge returns a closure *)
-      { rewrite eval_eval'; reflexivity. }
-      (* Subgoal: t1 and (h2::t2) satisfy the merge's precondition *)
-      { unfold merge_pre; auto. }
-      (* Subgoal: justify the induction: show [(t1, h2::t2) < (h1::t1, h2::t2)] *)
-      { simpl; auto with arith. } }
-    unfold merge_post; cbn; intros l' (? & ?).
-    (* Establish the postcondition *)
-    eapply pure_ret; first solve [encode]. split.
-    { (* Subgoal: the output is sorted *)
-      constructor; first done.
-      eapply HdRel_Sorted_Permutation; eauto with zarith. }
-    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      by rewrite_permutation l'. }}
-Qed.
-
-Lemma Split_spec η :
-  split_spec (VCloRec η __bindings7 "split").
-Proof.
-  unfold split_spec. intros.
-  pure_rec l (@wf_list_length A).
-  destruct l as [| a l]; last destruct l as [| b l]; pure_execute.
-  (* Case: [] *)
-  { by simpl. }
-  (* Case: [a] *)
-  { by simpl. }
-  (* Case: a::b::l *)
-  { (* Apply the induction hypothesis *)
-    eapply pure_bind; first apply IH; auto with arith.
-    intros [l1 l2] (Hl1&Hl2&Hperm).
-    pure_execute.
-    (* Establish the three conjuncts of the postcondition *)
-    unfold split_post; simpl in *; split; last split.
-    { (* Subgoal: the length of l1 is half the length of l *)
-      destruct (Nat.even _); eauto with arith. }
-    { (* Subgoal: the length of l2 is hald the length of l *)
-      eauto with arith. }
-    { (* Subgoal: l1++l2 is a permutation of l *)
-      rewrite_permutation l.
-      change ((a::l1)++b::l2) with (a::l1++b::l2).
-      apply Permutation_skip.
-      apply Permutation_sym.
-      apply Permutation_middle. }}
-Qed.
+Section PureProofs.
 
 Transparent ret_concat.
 Opaque encode.
@@ -712,6 +623,103 @@ Qed.
 
 Opaque ret_concat.
 Transparent encode.
+
+End PureProofs.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Coq-Evaluation-Dependent Specification proofs. *)
+
+Lemma Merge_spec η:
+  merge_spec (VCloRec η __bindings4 "merge" ).
+Proof.
+  unfold merge_spec. intros l1 l2 ?.
+  pure_nested l1 l2 (@wf_double_list_length Z).
+  unfold merge_pre in HP; repeat destruct_hyp.
+  destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
+  (* Case: l1 = [] *)
+  { pure1; pure1; pure_continue.
+    unfold merge_post; rewrite app_nil_l; auto. }
+  (* Case: l2 = [] *)
+  { pure1; pure1; pure_continue.
+    unfold merge_post; rewrite app_nil_r; auto. }
+  (* Case: l1 = h1::t1, l2 = h2::t2 *)
+  all_inversions. pure1. pure_continue.
+  (* TODO: Environments are too present in the goal *)
+  rewrite lt_repr_repr by auto.
+  (* Reason by cases on the comparison of the heads *)
+  destruct (h2 <? h1) eqn:branch; simpl.
+  { (* Case: h2 < h1 *) Transparent app. simpl.
+    pure_execute.
+    (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
+    eapply pure_bind_binary.
+    { apply (IH (h1::t1) t2).
+      (* Subgoal: the partial application of merge returns a closure *)
+      { rewrite eval_eval'; reflexivity. }
+      (* Subgoal: (h1::t1) and t2 satisfy the merge's precondition *)
+      { unfold merge_pre; auto. }
+      (* Subgoal: justify the induction: show [(h1::t1, t2) < (h1::t1, h2::t2)] *)
+      { simpl; auto with arith. } }
+    unfold merge_post; cbn; intros l' (? & ?).
+    (* Establish the postcondition *)
+    eapply pure_ret; first solve [encode]. split.
+    { (* Subgoal: the output is sorted *)
+      constructor; first done.
+      eapply (HdRel_Sorted_Permutation l' (h1 :: t1) t2); eauto with zarith. }
+    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
+      rewrite_permutation l'.
+      apply Permutation_sym.
+      change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
+      apply Permutation_middle. }}
+  { (* Case: h1 < h2 *)
+    pure_execute.
+    (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
+    eapply pure_bind_binary.
+    { apply (IH t1 (h2::t2)).
+      (* Subgoal: the partial application of merge returns a closure *)
+      { rewrite eval_eval'; reflexivity. }
+      (* Subgoal: t1 and (h2::t2) satisfy the merge's precondition *)
+      { unfold merge_pre; auto. }
+      (* Subgoal: justify the induction: show [(t1, h2::t2) < (h1::t1, h2::t2)] *)
+      { simpl; auto with arith. } }
+    unfold merge_post; cbn; intros l' (? & ?).
+    (* Establish the postcondition *)
+    eapply pure_ret; first solve [encode]. split.
+    { (* Subgoal: the output is sorted *)
+      constructor; first done.
+      eapply HdRel_Sorted_Permutation; eauto with zarith. }
+    { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
+      by rewrite_permutation l'. }}
+Qed.
+
+Lemma Split_spec η :
+  split_spec (VCloRec η __bindings7 "split").
+Proof.
+  unfold split_spec. intros.
+  pure_rec l (@wf_list_length A).
+  destruct l as [| a l]; last destruct l as [| b l]; pure_execute.
+  (* Case: [] *)
+  { by simpl. }
+  (* Case: [a] *)
+  { by simpl. }
+  (* Case: a::b::l *)
+  { (* Apply the induction hypothesis *)
+    eapply pure_bind; first apply IH; auto with arith.
+    intros [l1 l2] (Hl1&Hl2&Hperm).
+    pure_execute.
+    (* Establish the three conjuncts of the postcondition *)
+    unfold split_post; simpl in *; split; last split.
+    { (* Subgoal: the length of l1 is half the length of l *)
+      destruct (Nat.even _); eauto with arith. }
+    { (* Subgoal: the length of l2 is hald the length of l *)
+      eauto with arith. }
+    { (* Subgoal: l1++l2 is a permutation of l *)
+      rewrite_permutation l.
+      change ((a::l1)++b::l2) with (a::l1++b::l2).
+      apply Permutation_skip.
+      apply Permutation_sym.
+      apply Permutation_middle. }}
+Qed.
 
 Lemma MergeSort_spec η :
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
