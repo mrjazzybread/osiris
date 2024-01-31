@@ -1,13 +1,10 @@
-# The Docker image that will be used to build your app
-image: coqorg/coq
-# Functions that should be executed before the build script is run
-before_script:
-  - make init
 pages:
+  tags:
+    - ci.inria.fr
+    - small
   script:
-    - make --no-print-directory -C coq-osiris
     - mkdir public
-    - mv coq-osiris/tutorial/* public
+    - cp coq-osiris/tutorial/* public
   artifacts:
     paths:
       # The folder that contains the files to be exposed at the Page URL
