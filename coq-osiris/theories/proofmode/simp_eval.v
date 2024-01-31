@@ -422,7 +422,11 @@ Qed.
 (* Function applications. *)
 
 Lemma pure_eval_app `{Encode A} η e1 e2 (ψ : A → Prop) :
-  pure (eval η e1) (λ f : val, pure (eval η e2) (λ e : val, pure (call f e) ψ)) →
+  pure (eval η e1)
+    (λ f : val,
+        pure (eval η e2)
+          (λ e : val,
+              pure (call f e) ψ)) →
   pure (eval η (EApp e1 e2)) ψ.
 Proof.
   intros. destruct_pure a2. destruct_pure v1.
@@ -439,6 +443,43 @@ Lemma pure_eval_app_conseq `{Encode A, Encode B} η e1 e2
 Proof.
   intros. destruct_pure a2. destruct_pure v1.
   eapply pure_simp; [ simp | eauto ].
+Qed.
+
+Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
+  pure (call vf arg1)
+    (λ c, pure (call c arg2) φ).
+
+Lemma pure_eval_app2 `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
+  (arg1 : A) (arg2 : B) (ψ : C → Prop)
+  :
+  pure (eval η e1) (λ vf', vf' = vf) ->
+  pure (eval η e2) (λ arg1', arg1' = arg1) ->
+  pure (eval η e3) (λ arg2', arg2' = arg2) ->
+  pure_call2 vf #arg1 #arg2 ψ ->
+  pure (eval η (EApp (EApp e1 e2) e3)) ψ.
+Proof.
+  intros.
+  destruct_pure v2; destruct_pure v1; destruct_pure vf'; subst.
+  eapply pure_simp; [ simp | eauto ].
+  eapply pure_bind_unary with (A:=val).
+  assumption.
+Qed.
+
+Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
+  (arg1 : A) (arg2 : B) (φ ψ : C → Prop)
+  :
+  pure (eval η e1) (λ vf', vf' = vf) ->
+  pure (eval η e2) (λ arg1', arg1' = arg1) ->
+  pure (eval η e3) (λ arg2', arg2' = arg2) ->
+  pure_call2 vf #arg1 #arg2 φ ->
+  (∀ a, φ a → ψ a) →
+  pure (eval η (EApp (EApp e1 e2) e3)) ψ.
+Proof.
+  intros.
+  eapply pure_eval_app2; eauto.
+  eapply pure_consequence; first eassumption.
+  simpl; intros.
+  eapply pure_consequence; eauto.
 Qed.
 
 (* Primitive arithmetic operations. *)
@@ -655,6 +696,47 @@ Proof.
   + intros hb. destruct b; simpl in hb; tauto.
 Qed.
 
+(* Boolean operations *)
+
+Lemma pure_eval_EOpLe_pure `{Encode A} η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLe e1 e2)) (λ P, P ↔ (x1 <= x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp.
+  rewrite eval_eval'; simpl.
+  eapply advance_SimpPar; eauto.
+  apply SimpParRetRet. simpl.
+  eapply pure_ret.
+  { unfold encode, Encode_Prop.
+    f_equal. f_equal.
+    rewrite lt_repr_repr; try assumption.
+    rewrite truth_Is_true.
+    reflexivity. }
+  apply Zle_spec.
+Qed.
+
+Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLe e1 e2)) (λ b, (x1 <=? x2)%Z = b).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp.
+  rewrite eval_eval'; simpl.
+  eapply advance_SimpPar; eauto.
+  apply SimpParRetRet.
+  eapply pure_ret; [ solve [encode] | ].
+  rewrite lt_repr_repr; try assumption.
+  apply Z.leb_antisym.
+Qed.
+
 (* Runtime assertions. *)
 
 Lemma pure_eval_assert η e :
@@ -755,13 +837,12 @@ Proof.
   apply SimpReflexive.
 Qed.
 
-Lemma pure_eval_data `{Encode X} η c e (ψ : X -> Prop) :
-  pure (eval η e) (λ y : val, pure (ret (VData c y)) ψ) ->
+Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) :
+  pure (eval η e) (λ v', VData c v' = #y) ->
+  ψ y ->
   pure (eval η (EData c e)) ψ.
 Proof.
-  intros. destruct_pure v. destruct_pure x.
+  intros. destruct_pure x; subst.
   eapply pure_simp; [eauto using simp_eval_data |].
   eapply pure_ret; eauto.
-  rewrite <- solve_encode_val.
-  apply destruct_simp_ret in H1. by injection H1; intros ->.
 Qed.

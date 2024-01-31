@@ -141,6 +141,18 @@ Proof.
   unfold pat. simpl. eauto using total_ret.
 Qed.
 
+Lemma pat_PVar2 η x v :
+  pat η (PVar x) v (λ η', η' = (x, v) :: η) False.
+Proof.
+  by apply pat_PVar.
+Qed.
+
+Ltac pat_PVar :=
+  match goal with
+  | |- pat _ (PVar _) _ _ _ =>
+      (apply pat_PVar2 || eapply pat_PVar)
+  end.
+
 Lemma pat_PAlias η p x v φ ψ :
   pat η p v (λ η, let η := (x, v) :: η in φ η) ψ →
   pat η (PAlias p x) v φ ψ.
@@ -175,6 +187,22 @@ Lemma pat_PTuple η ps vs φ ψ :
 Proof.
   unfold pats, pat. simpl. eauto.
 Qed.
+
+Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
+  v1 = #x1 ->
+  v2 = #x2 ->
+  pat η p1 #x1 (λ η', pat η' p2 #x2 φ (ψ2)) (ψ1) ->
+  pat η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
+Proof.
+  intros; subst.
+  apply pat_PTuple.
+  eapply pats_PCons; eauto.
+  intros; apply pats_PCons_single; assumption.
+Qed.
+
+Ltac pat_PPair := eapply pat_PPair; [ solve [encode]
+                                    | solve [encode]
+                                    |].
 
 Lemma pat_PData η c p c' v φ ψ :
   (c = c' → pat η p v φ ψ) →
@@ -382,14 +410,15 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma pure_eval_match `{Encode A, Encode B} η e bs (φ1 : A -> Prop) (φ2 : B -> Prop) :
-  pure (eval η e) φ1 ->
-  (forall a, φ1 a -> pure_match η #a bs φ2) ->
-  pure (eval η (EMatch e bs)) φ2.
+Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
+  pure (eval η e) (λ x, x = a) ->
+  pure_match η #a bs φ ->
+  pure (eval η (EMatch e bs)) φ.
 Proof.
   intros.
   eapply pure_eval_match'.
-  eapply pure_consequence; eauto.
+  eapply pure_consequence; [ eassumption | ].
+  by intros ? ->.
 Qed.
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
@@ -434,8 +463,35 @@ Proof.
   tauto.
 Qed.
 
+Ltac extend_env :=
+  match goal with
+  | |- forall (η : env), η = _ -> _ =>
+      intros ? ->
+  | _ => idtac
+  end.
+
+Ltac pattern_match :=
+   repeat (pat_PVar
+    || (pat_pNil;
+       let Heql := fresh "Heql" in
+       intros Heql)
+    || (pat_pCons;
+       (let h := fresh "h" in
+        let t := fresh "t" in
+        let Heql := fresh "Heql" in
+        intros h t Heql);
+       [ pattern_match | simpl; extend_env; pattern_match ])
+    || (apply pat_POr; pattern_match)
+    || pat_PPair
+    || apply pat_PAny
+   ); subst.
+
 Ltac pure_match :=
   lazymatch goal with
   | |- pure_match _ _ [?b] _ => eapply pure_match_single
-  | |- pure_match _ _ (?b :: ?bs) _ => eapply pure_match_cons
-  end.
+  | |- pure_match _ _ (?b :: ?bs) _ =>
+      eapply pure_match_cons;
+      [ | let no_match := fresh "no_match" in
+          intros no_match ]
+  end;
+  [ pattern_match | ].

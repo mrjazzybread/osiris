@@ -162,129 +162,18 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 Section PureProofs.
 
-Transparent ret_concat.
-Opaque encode.
-
-Lemma pat_PVar2 η x v :
-  pat η (PVar x) v (λ η', η' = (x ~> v; η)) False.
-Proof.
-  by apply pat_PVar.
-Qed.
-
-Ltac pat_PVar :=
-  match goal with
-  | |- pat _ (PVar _) _ _ _ =>
-      (apply pat_PVar2 || eapply pat_PVar)
-  end.
-
-Lemma pats_PCons2 `{Encode A} η p ps v (x : A) vs φ' φ ψ1 ψ2 :
-  v = #x ->
-  pat η p v (φ' x) (ψ1 x) ->
-  (forall η0, φ' x η0 -> pats η0 ps vs φ ψ2) ->
-  pats η (p :: ps) (v :: vs) φ (ψ1 x \/ ψ2).
-Proof.
-  intro. apply pats_PCons.
-Qed.
-
-Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
-  v1 = #x1 ->
-  v2 = #x2 ->
-  pat η p1 #x1 (λ η', pat η' p2 #x2 φ (ψ2)) (ψ1) ->
-  pat η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
-Proof.
-  intros; subst.
-  apply pat_PTuple.
-  eapply pats_PCons; eauto.
-  intros. apply pats_PCons_single. auto.
-Qed.
-
-Ltac pat_PPair := eapply pat_PPair; [ solve [encode]
-                                    | solve [encode]
-                                    |].
-
-Lemma elim_false_l P : (False \/ P) <-> P. Proof. tauto. Qed.
-Lemma elim_false_r P : (P \/ False) <-> P. Proof. tauto. Qed.
-
-Ltac cleanup_false_disj := rewrite !elim_false_l, !elim_false_r in *.
-
-Lemma pure_eval_EOpLe_pure `{Encode A} η e1 e2 (x1 x2 : Z) :
-  pure (eval η e1) (λ x1', x1' = x1) ->
-  pure (eval η e2) (λ x2', x2' = x2) ->
-  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
-  representable x1 ->
-  representable x2 ->
-  pure (eval η (EOpLe e1 e2)) (λ P, P <-> (x1 <= x2)%Z).
-Proof.
-  intros. destruct_pure a; destruct_pure b.
-  subst.
-  rewrite eval_eval'; simpl.
-  eapply pure_simp.
-  apply SimpPar; eauto. eapply pure_simp; [ apply SimpParRetRet | ].
-  simpl.
-  eapply pure_ret.
-  { Transparent encode. unfold encode; unfold Encode_Prop. Opaque encode.
-    f_equal. f_equal.
-    rewrite lt_repr_repr; try assumption.
-    rewrite truth_Is_true.
-    reflexivity. }
-  apply Zle_spec.
-Qed.
-
-Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
-  pure (eval η e1) (λ x1', x1' = x1) ->
-  pure (eval η e2) (λ x2', x2' = x2) ->
-  representable x1 ->
-  representable x2 ->
-  pure (eval η (EOpLe e1 e2)) (λ b, (x1 <=? x2)%Z = b).
-Proof.
-  intros. destruct_pure a; destruct_pure b.
-  subst.
-  rewrite eval_eval'; simpl.
-  eapply pure_simp.
-  apply SimpPar; eauto. eapply pure_simp; [ apply SimpParRetRet | ].
-  eapply pure_ret. Transparent encode. encode. Opaque encode.
-  rewrite lt_repr_repr; try assumption.
-  apply Z.leb_antisym.
-Qed.
-
-Lemma pure_eval_app2 `{Encode A, Encode B, Encode C} η e1 e2 e3 vf (arg1 : A) (arg2 : B) (ψ : C → Prop) :
-  pure (eval η e1) (λ vf', vf' = vf) ->
-  pure (eval η e2) (λ arg1', arg1' = arg1) ->
-  pure (eval η e3) (λ arg2', arg2' = arg2) ->
-  pure_call2 vf #arg1 #arg2 ψ ->
-  pure (eval η (EApp (EApp e1 e2) e3)) ψ.
-Proof.
-  intros.
-  destruct_pure v2; destruct_pure v1; destruct_pure vf'. subst.
-  eapply pure_simp; [ simp | eauto ]. unfold pure_call2 in *.
-  eapply pure_bind_unary with (A:=val).
-  Transparent encode. simpl. Opaque encode.
-  eassumption.
-Qed.
-
-Lemma pure_consequence2 `{Encode A} vf v1 v2 (φ ψ : A → Prop) :
-  pure_call2 vf v1 v2 φ →
-  (∀ a : A, φ a → ψ a) →
-  pure_call2 vf v1 v2 ψ.
-Proof.
-  intros. unfold pure_call2 in *.
-  eapply pure_consequence; first eassumption.
-  simpl; intros.
-  eapply pure_consequence; eauto.
-Qed.
-
 Lemma pure_eval_cons `{Encode A} η e (ψ : list A -> Prop) :
-  pure (eval η e) (λ (p : (A * list A)),
-      let '(h, t) := p in
-      pure (ret (VData "::" (VPair #h #t))) ψ) ->
+  pure (eval η e) (λ '(h, t), ψ (h :: t)) ->
   pure (eval η (EData "::" e)) ψ.
 Proof.
-  intros.
-  eapply pure_eval_data.
-  destruct_pure p. destruct p.
-  eapply pure_simp. apply H0.
-  eapply pure_ret; eauto. by rewrite <- solve_encode_val.
+  intros. destruct_pure a; destruct a.
+  eapply pure_eval_data; last done.
+  eapply pure_simp; eauto.
+  eapply pure_ret; eauto.
 Qed.
+
+Transparent ret_concat.
+Opaque encode.
 
 Ltac strip_disjunction :=
   match goal with
@@ -321,57 +210,29 @@ Ltac resolve_no_match :=
           remove_tauto;
           inject_eq).
 
-Lemma pure_eval_match2 `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
-  pure (eval η e) (λ x, x = a) →
-  pure_match η #a bs φ →
-  pure (eval η (EMatch e bs)) φ.
-Proof.
-  intros.
-  eapply pure_eval_match; eauto.
-  intros ? ->; assumption.
-Qed.
-
 Lemma Merge_spec' η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros.
   pure_nested l1 l2 (@wf_double_list_length Z).
-  eapply pure_eval_match2.
+  eapply pure_eval_match.
   { eapply pure_eval_pair. pure_path. pure_path. reflexivity. }
   unfold __branches2; simpl.
   (* First branch of match *)
   pure_match.
-  { apply pat_POr.
-    (* Match against "[], l" *)
-    { pat_PPair. (* Todo: better rule for pure_eval_tuple? *)
-      pat_pNil. intros ->.
-      pat_PVar. simpl.
-      (* Traverse expression after matching *)
-      pure_path.
-      (* Establish postcondition *)
-      unfold merge_post, merge_pre in *; repeat (destruct_hyp).
-      done. }
+  { (* Match against "[], l" *)
+    simpl. pure_path.
+    (* Establish postcondition *)
+    unfold merge_post, merge_pre in *; repeat (destruct_hyp).
+    done. }
     (* Match against "l, []" *)
-    { pat_PPair.
-      pat_PVar. simpl.
-      pat_pNil. intros ->.
-      (* Traverse expression after matching *)
-      pure_path.
-      (* Establish postcondition *)
-      unfold merge_post, merge_pre in *; repeat (destruct_hyp).
-      by rewrite app_nil_r. } }
-  intros no_match1.
+  { pure_path.
+    (* Establish postcondition *)
+    unfold merge_post, merge_pre in *; repeat (destruct_hyp).
+    by rewrite app_nil_r. }
   (* Second branch of match *)
   pure_match.
-  { pat_PPair.
-    pat_pCons; intros h1 t1 Heql1. { pat_PVar. }
-    intros ? ->.
-    pat_PVar. simpl.
-    pat_pCons; intros h2 t2 Heql2. { pat_PVar. }
-    intros ? ->.
-    pat_PVar. simpl.
-    (* Traverse expression after matching *)
-    eapply pure_eval_ifthenelse.
+  { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
       unfold merge_pre in *.
       repeat (destruct_hyp); subst; repeat Forall_inversion.
@@ -384,13 +245,11 @@ Proof.
       simpl; intros. unfold __exp0. (* TODO: can we change pure_eval_data to make it usable? *)
       eapply pure_eval_cons. simpl.
       apply pure_eval_pair. pure_path.
-      eapply pure_eval_app2.
+      eapply pure_eval_app2_conseq.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
-      unfold pure_call2.
       (* Use induction hypothesis on [call merge t1 l2] *)
-      eapply pure_consequence2.
       { eapply IH; subst.
         { (* Subgoal: the partial application of merge returns a closure *)
           rewrite eval_eval'; simpl. reflexivity. }
@@ -400,7 +259,6 @@ Proof.
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. } }
       intros l Hpost.
-      pure_ret.
       (* Establish the postcondition *)
       unfold merge_post, merge_pre in *; repeat (destruct_hyp); subst; all_inversions.
       split.
@@ -413,12 +271,11 @@ Proof.
       simpl; intros. unfold __exp1.
       eapply pure_eval_cons. simpl.
       apply pure_eval_pair. pure_path.
-      eapply pure_eval_app2.
+      eapply pure_eval_app2_conseq.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       (* Use induction hypothesis on [call merge l1 t2] *)
-      eapply pure_consequence2.
       eapply IH; subst.
       { (* Subgoal: the partial application of merge returns a closure *)
         rewrite eval_eval'; simpl. reflexivity. }
@@ -428,7 +285,6 @@ Proof.
       { (* Subgoal: justify the recursive call with a size argument *)
         auto with arith. }
       intros l Hpost.
-      pure_ret.
       (* Establish the postcondition *)
       unfold merge_post, merge_pre in *; repeat (destruct_hyp); subst; all_inversions.
       split.
@@ -450,49 +306,25 @@ Proof.
   pure_rec l (@wf_list_length A).
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
-  intros ? <-. unfold __branches6; simpl.
+  unfold __branches6; simpl.
   (* First branch of match *)
   pure_match.
   { (* Case: l matches [] *)
-    pat_pNil. intros ->. (* We learn that l = [] *)
-    (* Traverse the expression after a succesful match *)
     apply pure_eval_pair. pure_const. pure_const.
     (* Establish the (trivial) postcondition *)
     done. }
-  (* Case: the first branch doesn't match, we learn that l ≠ [] *)
-  intros no_match1.
   (* Second branch of match *)
   pure_match.
-  { (* Case: l matches "cons x []" *)
-    pat_pCons; intros h t Heql. (* We learn that l = h :: t *)
-    { (* Match #h with "x" *) pat_PVar. }
-    (* Match #t with "[]" *) simpl.
-    intros ? ->. pat_pNil.
-    intros ->. (* We now know t = [] *)
-    (* Traverse the expression after a succesful match *)
+  { (* Case: l matches [x] *)
     apply pure_eval_pair.
-    apply pure_eval_data.
-    apply pure_eval_pair_val. pure_path. pure_const.
-    pure_ret.
+    eapply pure_eval_data.
+    eapply pure_eval_pair_val. pure_path. pure_const. encode.
     pure_const.
     (* Establish postcondition *)
-    by rewrite Heql. }
-  (* Case: we don't match the second branch,
-     we learn that either l = [] or ∃ h t, l = h :: t and t ≠ [] *)
-  simpl. intros no_match2.
+    done. }
   (* Third branch of match *)
   pure_match.
-  { (* Match against "x1 :: x2 :: t" *)
-    pat_pCons; intros x1 xs' Heql.
-    { (* Match #x1 with "x1" *) pat_PVar. }
-    simpl. intros ? ->. (* Match #xs' with "x2 :: t" *)
-    pat_pCons; intros x2 xs Heqxs'.
-    { (* Match #x2 with "xw" *) pat_PVar. }
-    simpl. intros ? ->.
-    (* Match #xs with "t" *)
-    pat_PVar. simpl.
-    (* Traverse the expression after a succesful match *)
-    subst.
+  { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.
     (* Call vf #xs *) simpl.
@@ -506,11 +338,11 @@ Proof.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.
     (* Eval x1::l1 *)
-    apply pure_eval_data.
-    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    eapply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. encode.
     (* Eval x2::l2 *)
-    apply pure_eval_data.
-    apply pure_eval_pair_val. pure_path. pure_path. pure_ret.
+    eapply pure_eval_data.
+    apply pure_eval_pair_val. pure_path. pure_path. encode.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     destruct Hpost as (H1 & H2 & ?).
@@ -520,7 +352,7 @@ Proof.
     { (* Subgoal: the length of l2 is half the length of xs *)
       rewrite H2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
-      rewrite_permutation xs.
+      rewrite_permutation t0.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
@@ -539,32 +371,20 @@ Proof.
   destruct 1 as (merge&Hmerge&_merge_spec).
   unfold mergesort_spec; intros l ?.
   pure_rec l (@wf_list_length Z).
-  eapply pure_eval_match2. { pure_path. reflexivity. }
+  eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches11.
   pure_match.
-  { pat_pNil. intros ->.
-    (* Traverse expression after succesful match *)
-    simpl; pure_const.
-    done. }
-  intros no_match1.
+  { simpl; pure_const. done. }
   pure_match.
-  { pat_pCons; intros ?? Heql.
-    { pat_PVar. }
-    simpl; intros ? ->.
-    pat_pNil. intros ->.
-    (* Traverse expression after succesful match *)
-    apply pure_eval_cons.
+  { apply pure_eval_cons.
     apply pure_eval_pair. pure_path. pure_const. (* TODO: decoration fails here *)
-    pure_ret.
     subst; auto. }
-  intros no_match2. strip_disjunction.
+  strip_disjunction.
   assert (exists m, length l = S (S m)) as [m Heql].
-  { destruct no_match2 as (?&tail&?&[?|?]); first contradiction; subst.
+  { destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
   pure_match.
-  { eapply pat_PAny.
-    (* Traverse expression after succesful match *)
-    eapply pure_eval_let_pair.
+  { eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
     eapply pure_eval_path. simpl. rewrite Hsplit. pure_ret.
@@ -595,13 +415,12 @@ Proof.
         rewrite Hl2, Heql. auto with arith. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     unfold __exp8.
-    eapply pure_eval_app2.
+    eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)
       eapply pure_eval_path. simpl. rewrite Hmerge. by pure_ret. }
     { by pure_path. }
     { by pure_path. }
     (* Use the knowledge that [merge] ⊨ [_merge_spec] *)
-    eapply pure_consequence2.
     { apply _merge_spec.
       (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
       unfold mergesort_pre, mergesort_post in *.
@@ -618,7 +437,7 @@ Proof.
     reflexivity. }
   (* Show that not matching on any of pattern matching branches is impossible *)
   intros no_match3.
-  congruence. (* [resolve_no_match] still works *)
+  congruence.
 Qed.
 
 Opaque ret_concat.
