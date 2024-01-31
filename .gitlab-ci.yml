@@ -10,4 +10,5 @@ pages:
       # The folder that contains the files to be exposed at the Page URL
       - public
   only:
-    - pages
+    changes:
+      - coq-osiris/tutorial/*
