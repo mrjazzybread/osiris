@@ -175,41 +175,6 @@ Qed.
 Transparent ret_concat.
 Opaque encode.
 
-Ltac strip_disjunction :=
-  match goal with
-  | H : _ \/ _ |- _ =>
-      destruct H as [ H | H ]; try contradiction
-  end.
-Ltac remove_tauto :=
-  lazymatch goal with
-  | H : ?x = ?x |- _ => clear H
-  | _ => idtac
-  end.
-Ltac subst_eq :=
-  lazymatch goal with
-  | H : ?x = _ |- _ => subst x
-  | _ => idtac
-  end.
-Ltac inject_eq :=
-  lazymatch goal with
-  | H : ?x = _ |- _ => injection H; repeat (intros ->)
-  | _ => idtac
-  end.
-Ltac elim_exists :=
-  lazymatch goal with
-  | H : exists _, _ |- _ => destruct H as [? H]
-  end.
-(* Goal: show that never matching is impossible *)
-Ltac resolve_no_match :=
-  repeat ((repeat strip_disjunction);
-          (repeat elim_exists);
-          (repeat destruct_hyp);
-          try contradiction;
-          remove_tauto;
-          subst_eq;
-          remove_tauto;
-          inject_eq).
-
 Lemma Merge_spec' η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
@@ -231,7 +196,6 @@ Proof.
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     by rewrite app_nil_r. }
   (* Second branch of match *)
-  pure_match.
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
       unfold merge_pre in *.
@@ -294,9 +258,6 @@ Proof.
       { (* Subgoal: the output is a permutation of the inputs *)
         rewrite_permutation l.
         apply Permutation_sym. apply Permutation_middle. } } }
-  intros no_match2.
-  (* Goal: Show that not matching any of the branches is impossible *)
-  resolve_no_match.
 Qed.
 
 Lemma Split_spec' η :
@@ -314,7 +275,6 @@ Proof.
     (* Establish the (trivial) postcondition *)
     done. }
   (* Second branch of match *)
-  pure_match.
   { (* Case: l matches [x] *)
     apply pure_eval_pair.
     eapply pure_eval_data.
@@ -323,7 +283,6 @@ Proof.
     (* Establish postcondition *)
     done. }
   (* Third branch of match *)
-  pure_match.
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.
@@ -356,9 +315,6 @@ Proof.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
-  simpl; intros no_match3.
-  resolve_no_match.
-  (* TODO: Make automation more robust *)
 Qed.
 
 Lemma MergeSort_spec' η :
@@ -375,7 +331,6 @@ Proof.
   unfold __branches11.
   pure_match.
   { simpl; pure_const. done. }
-  pure_match.
   { apply pure_eval_cons.
     apply pure_eval_pair. pure_path. pure_const. (* TODO: decoration fails here *)
     subst; auto. }
@@ -383,7 +338,6 @@ Proof.
   assert (exists m, length l = S (S m)) as [m Heql].
   { destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
-  pure_match.
   { eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
@@ -435,9 +389,6 @@ Proof.
     rewrite_permutation l'. rewrite_permutation l.
     rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
-  (* Show that not matching on any of pattern matching branches is impossible *)
-  intros no_match3.
-  congruence.
 Qed.
 
 Opaque ret_concat.

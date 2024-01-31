@@ -484,14 +484,60 @@ Ltac pattern_match :=
     || (apply pat_POr; pattern_match)
     || pat_PPair
     || apply pat_PAny
-   ); subst.
+     ); subst.
+
+
+Ltac strip_disjunction :=
+  match goal with
+  | H : _ \/ _ |- _ =>
+      destruct H as [ H | H ]; try contradiction
+  end.
+Ltac remove_tauto :=
+  lazymatch goal with
+  | H : ?x = ?x |- _ => clear H
+  | _ => idtac
+  end.
+Ltac subst_eq :=
+  lazymatch goal with
+  | H : ?x = _ |- _ => subst x
+  | _ => idtac
+  end.
+Ltac inject_eq :=
+  lazymatch goal with
+  | H : ?x = _ |- _ => injection H; repeat (intros ->)
+  | _ => idtac
+  end.
+Ltac elim_exists :=
+  lazymatch goal with
+  | H : exists _, _ |- _ => destruct H as [? H]
+  end.
+
+Ltac destruct_hyp :=
+  match goal with
+  | H : _ /\ _ |- _ => destruct H
+  end.
+
+(* Goal: show that never matching is impossible *)
+Ltac resolve_no_match :=
+  repeat ((repeat strip_disjunction);
+          (repeat elim_exists);
+          (repeat destruct_hyp);
+          try contradiction;
+          remove_tauto;
+          subst_eq;
+          remove_tauto;
+          inject_eq).
 
 Ltac pure_match :=
   lazymatch goal with
-  | |- pure_match _ _ [?b] _ => eapply pure_match_single
+  | |- pure_match _ _ [?b] _ =>
+      eapply pure_match_single;
+      [ pattern_match
+      | let no_match := fresh "no_match" in
+        intros no_match; resolve_no_match ]
   | |- pure_match _ _ (?b :: ?bs) _ =>
       eapply pure_match_cons;
-      [ | let no_match := fresh "no_match" in
-          intros no_match ]
-  end;
-  [ pattern_match | ].
+      [ pattern_match
+      | (let no_match := fresh "no_match" in
+         intros no_match; pure_match) ]
+  end.
