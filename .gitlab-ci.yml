@@ -1,7 +1,4 @@
 pages:
-  tags:
-    - ci.inria.fr
-    - small
   script:
     - mkdir public
     - cp coq-osiris/tutorial/* public
