@@ -417,6 +417,46 @@ Proof.
     reflexivity. }
 Qed.
 
+Lemma Merge__spec':
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
+  pure (eval_mexpr η __main)
+    (is_module_with_pspecs [("merge", merge_spec);
+                        ("split", split_spec);
+                        ("merge_sort", mergesort_spec)]).
+Proof.
+  intros.
+  unfold __main. cbn; rewrite !bind_bind. (* Todo: make this unnecessary *)
+  pure_specify "merge" merge_spec. { apply Merge_spec'. }
+  intros merge ?; pure_continue.
+  pure_specify "split" split_spec. { apply Split_spec'. }
+  intros split ?; pure_continue.
+  pure_specify "merge_sort" mergesort_spec. { apply MergeSort_spec'; eauto. }
+  intros mergesort ?; pure_continue.
+  simpl. tauto.
+Qed.
+
+Transparent ret_dconcat.
+
+Lemma Merge__spec'2:
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
+  pure (eval_mexpr η __main)
+    (is_module_with_pspecs [("merge", merge_spec);
+                        ("split", split_spec);
+                        ("merge_sort", mergesort_spec)]).
+Proof.
+  intros.
+  unfold __main.
+  simpl. pure_ret. simpl.
+  split; [ | split].
+  - apply Merge_spec'.
+  - apply Split_spec'.
+  - apply MergeSort_spec'; simpl.
+    (* Todo: not satisfactory, we should be using [pure_specify] *)
+    eauto using Split_spec'.
+    eauto using Merge_spec'.
+Qed.
+
+
 Opaque ret_concat.
 Transparent encode.
 
