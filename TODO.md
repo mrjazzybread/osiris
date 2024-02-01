@@ -39,9 +39,6 @@
 
 ## Tutorial
 
-* Make the tutorial easily readable online, e.g. via GitLab Pages,
-  or by copying it to a separate server.
-
 * Use CSS to enlarge the text width (the margins are currently too wide)
   and increase the font size.
 

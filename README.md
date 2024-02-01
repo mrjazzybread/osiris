@@ -4,7 +4,7 @@
 
 ### Dependencies
 
-The project depends on `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`, 
+The project depends on `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`,
 `iris`, and `std++`.
 
 It is known to compile with the following versions of the packages:
@@ -25,10 +25,14 @@ It is known to compile with the following versions of the packages:
 - you also need to install the python package `alectryon` to build the tutorial.
 
 
-`make init` creates a new `opam` switch with all the required dependencies at 
+`make init` creates a new `opam` switch with all the required dependencies at
 the right version.
 
 
 ### Build
 
 Run `make`.
+
+## Tutorial
+
+The tutorial is available at <https://fpottier.gitlabpages.inria.fr/osiris/tutorial.html>
