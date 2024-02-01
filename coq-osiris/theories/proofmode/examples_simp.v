@@ -341,10 +341,7 @@ Proof.
      if we accept to step into each call to [walk]. *)
   intros.
   simp.
-  simp_continue.
-  simp_continue.
-  simp_continue.
-  simp_continue.
+  repeat simp_continue.
 Qed.
 
 (* The following example illustrates how to reason about a local function.
@@ -371,9 +368,9 @@ Proof.
     induction xs as [| x xs ];
     simp_enter_and_abstract; intros walk; [| intros Hwalk ].
     (* The [nil] branch. *)
-    + simp. simp_continue.
+    + simp.
     (* The [cons] branch. *)
-    + simp. simp_continue.
+    + simp.
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   intros walk Hwalk. simp_continue.
@@ -408,9 +405,9 @@ Proof.
   induction xs as [| x xs ];
   simp_enter_and_abstract; intros length; [| intros Hlength ].
   (* The [nil] branch. *)
-  { simp. simp_continue. }
+  { simp. }
   (* The [cons] branch. *)
-  { simp. simp_continue. }
+  { simp. }
 Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -430,7 +427,7 @@ Proof.
   unfold weak_spec_length.
   induction xs as [| x xs ].
   { eexists; split.
-    + simp. simp_continue.
+    + simp.
     + lia. }
   { (* The proof goes through, but it is necessary to destruct the
        induction hypothesis and name the result of the recursive
@@ -439,7 +436,7 @@ Proof.
     destruct IHxs as (n & ? & ?).
     eexists; split.
     + simp_enter_and_abstract. intros length Hlength.
-      simp. simp_continue.
+      simp.
     + lia. }
 Qed.
 
@@ -456,7 +453,7 @@ Proof.
   unfold weak_spec_length'.
   induction xs as [| x xs ];
   pure_enter_and_abstract; intros length; [| intros Hlength ];
-  pure1; pure_continue.
+  pure1.
   { lia. }
   { intros n ?. pure1. lia. }
 Qed.

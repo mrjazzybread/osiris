@@ -803,9 +803,9 @@ Definition pre_eval_match eval : env -> val -> list branch -> micro val void :=
         | Branch p e =>
             (* Match the value [v] against the pattern [p]. *)
             try
-              (extend [] p v)
+              (extend η p v)
               (* Success: commit to this branch. Evaluate its body. *)
-              (λ δ, η ← ret_concat δ η; eval η e)
+              (λ δ, eval δ e)
               (* Meta-level exception: [p] does not match [v].
                  Abandon this branch. Try the following branches. *)
               (λ tt, acc)

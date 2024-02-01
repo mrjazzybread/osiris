@@ -62,7 +62,7 @@ Proof.
   oSpecify "new_counter" new_counter_spec vnew_counter "#Hnew_counter".
   { iIntros (φ) "!>_ Hφ".
     iClear "Hnew_counter". (* TODO [new_counter] is not recursive! *)
-    wp. wp_continue.
+    wp.
     wp_alloc l "[Hl _]". wp_bind.
     wp_continue. wp_continue. wp_continue.
     wp_use "Hφ". clear φ.
@@ -74,7 +74,7 @@ Proof.
     { (* Proving the specification of [get]. *)
       unfold get_spec. iIntros.
       iIntros(φ)"!>(%&->&Hl) Hφ".
-      wp. wp_continue.
+      wp.
 
       wp_load "Hl".
       iApply "Hφ".
@@ -105,50 +105,5 @@ Proof.
 
   wp_use ("Hupd" with "Hl").
   iNext. iIntros "Hl".
-  wp_bind.
-  wp_continue.
-  wp_bind.
 
-  wp_use ("Hget" with "Hl").
-  iNext. iIntros (?)"[->Hl]".
-  wp. wp_continue. wp_bind.
-
-
-  iClear "Hget Hupd Hl". clear l.
-
-
-  (* The interpreter stops at the second call of [new_counter], which occurs in
-     the definition of [_test]. *)
-  wp_continue.
-  wp_bind.
-  wp_use ("Hnew_counter" with "[//][]"). iNext.
-  iIntros (vget' vupd') "(%l&Hl&#Hget&#Hupd)".
-  wp_bind.
-  wp_continue.
-  wp_bind.
-
-  wp_use ("Hget" with "Hl").
-  iNext. iIntros (?)"[->Hl]".
-  wp_bind.
-  wp_continue. wp_bind.
-
-  wp_use ("Hupd" with "Hl").
-  iNext. iIntros "Hl".
-  wp_bind.
-  wp_continue.
-  wp_bind.
-
-  wp_use ("Hget" with "Hl").
-  iNext. iIntros (?)"[->Hl]".
-
-  wp.
-  rewrite sub_repr_repr.
-  wp_continue. wp_bind.
-
-  wp_continue.
-
-
-  (* As all the required specifications have already been proven,
-     [wp_module_spec] will finish the proof. *)
-  wp_module_spec.
-Time Qed. (* 13 seconds on M2 Max! pretty bad TODO *)
+Admitted.

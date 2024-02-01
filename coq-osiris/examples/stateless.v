@@ -89,7 +89,7 @@ Section ProofExamples.
   Proof using Hη_add Hη_le Hη_load Hη_ref Hη_store osirisGS0 Σ η.
     oSpecify "make" make_spec vmake "#Hmake" !.
     { iIntros "!>".
-      @oCall unfold; wp_bind; wp_continue.
+      @oCall unfold.
       wp_alloc ℓ "[Hℓ _]".
       iExists ℓ.
       iSplit; first equality.

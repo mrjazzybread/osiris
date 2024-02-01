@@ -474,13 +474,13 @@ Proof.
   unfold merge_pre in HP; repeat destruct_hyp.
   destruct l1 as [|h1 t1]; last destruct l2 as [|h2 t2]; intros.
   (* Case: l1 = [] *)
-  { pure1; pure1; pure_continue.
+  { pure1; pure1.
     unfold merge_post; rewrite app_nil_l; auto. }
   (* Case: l2 = [] *)
-  { pure1; pure1; pure_continue.
+  { pure1; pure1.
     unfold merge_post; rewrite app_nil_r; auto. }
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
-  all_inversions. pure1. pure_continue.
+  all_inversions. pure1.
   (* TODO: Environments are too present in the goal *)
   rewrite lt_repr_repr by auto.
   (* Reason by cases on the comparison of the heads *)
@@ -533,7 +533,7 @@ Lemma Split_spec η :
 Proof.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
-  destruct l as [| a l]; last destruct l as [| b l]; pure_execute.
+  destruct l as [| a l]; last destruct l as [| b l]; pure1.
   (* Case: [] *)
   { by simpl. }
   (* Case: [a] *)
@@ -567,7 +567,7 @@ Proof.
   destruct 1 as (merge&Hmerge&_merge_spec).
   unfold mergesort_spec; intros l ?.
   pure_rec l (@wf_list_length Z).
-  destruct l as [|a l]; last destruct l as [|b l]; pure_execute.
+  destruct l as [|a l]; last destruct l as [|b l]; pure1.
   (* Case: [] *)
   { auto. }
   (* Case: [a] *)
@@ -615,6 +615,7 @@ Proof.
     rewrite_permutation l'.
     rewrite_permutation sl1.
     by rewrite_permutation sl2. }
+  Unshelve. apply nat. intros. apply Crash.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

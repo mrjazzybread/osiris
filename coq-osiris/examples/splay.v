@@ -410,15 +410,15 @@ Proof.
     intros splay [[[l x] r] ctx] _ IH.
     unfold zlt in IH.
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| ctx y ry | ly y ctx ]; pure1; pure_continue.
+    destruct ctx as [| ctx y ry | ly y ctx ]; pure1.
     (* Case: [Root]. *)
-    { pure_continue.
+    {
       (* Establish the postcondition. *)
       prove_same_fringe. }
     (* Case: [NodeL]. *)
     { (* Perform case analysis on the second level of the zipper. *)
       destruct ctx as [| up z rz | lz z up ];
-      pure1; pure_continue.
+      pure1.
       (* Subcase: [Root]. *)
       { (* Establish the postcondition. *)
         prove_same_fringe. }
@@ -437,17 +437,17 @@ Proof.
     { (* Perform case analysis on the second level of the zipper. *)
       destruct ctx as [| up z rz | lz z up ]; pure1.
       (* Subcase: [Root]. *)
-      { pure_continue.
+      {
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeL]. *)
-      { pure_continue.
+      {
         (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
-      { pure_continue.
+      {
         (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
@@ -465,7 +465,7 @@ Proof.
     (* Step into the function. *)
     pure_enter. fixme.
     (* Perform case analysis over the zipper [ctx]. *)
-    destruct ctx as [| up x r | r x up ]; pure1; pure_continue.
+    destruct ctx as [| up x r | r x up ]; pure1.
     (* Case: [Root]. *)
     { prove_same_fringe. }
     (* Case: [NodeL]. *)
@@ -493,7 +493,7 @@ Proof.
     clear dependent t x ctx.
     intros vf [[t x] ctx] Hbst IH.
     (* Reason by induction on the tree [t]. *)
-    destruct t as [|l y r]; pure1; pure_continue; pure_continue.
+    destruct t as [|l y r]; pure1.
     (* Case: [Leaf]. *)
     { intros t' Ht'. pure1.
       (* Establish the postcondition: *)

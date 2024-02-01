@@ -427,21 +427,8 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
 Proof.
   unfold pure_match; unfold pat.
   intros Hpat. simpl.
-  apply pure_total.
-  (* TODO: need to show
-
-     total (extend η p v) (λ η' : env, pure (eval η' e) φ) ?k φ)
-     ============================
-     total (extend [] p v) (λ a : env, pure (eval (a ++ η) e) φ) ?k φ)
-
-     Because pat η p v φ ψ := total (extend η p v) φ ψ and
-     eval_match η v bs ≊ fold
-                         (λ (Branch p e) acc,
-                           try (extend [] p v) (λ δ, eval (δ ++ η) e) acc)
-                         match_failure
-                         bs
-   *)
-Admitted.
+  by apply pure_total.
+Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
   pat η p v (λ η', pure (eval η' e) φ) ψ ->

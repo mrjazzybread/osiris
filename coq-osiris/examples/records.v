@@ -140,7 +140,7 @@ Proof.
   (* TODO and this should be done automatically by the [wp_] tactics *)
   change
     (VRecord [("b", VTrue); ("i", (VInt (int.repr 10)))])
-    with #{| b := true; i := 10 |}. 
+    with #{| b := true; i := 10 |}.
   wp_use "Hflip".
   iIntros (? <-). wp_bind.
 
@@ -153,7 +153,7 @@ Proof.
   (* [r_val] has the expected value. *)
   oSpecify "r_val" r_val_spec vr_val "#Hr_val".
   { iIntros "!>" ([[|] i]);
-      wp; wp_bind; wp_continue; iPureIntro; equality. }
+      wp; iPureIntro; equality. }
   wp_bind.
 
   (* [sum] is given the trivial spec for now. *)
