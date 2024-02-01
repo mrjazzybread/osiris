@@ -1,0 +1,11 @@
+pages:
+  script:
+    - mkdir public
+    - cp -r coq-osiris/tutorial/* public
+  artifacts:
+    paths:
+      # The folder that contains the files to be exposed at the Page URL
+      - public
+  only:
+    changes:
+      - coq-osiris/tutorial/*
