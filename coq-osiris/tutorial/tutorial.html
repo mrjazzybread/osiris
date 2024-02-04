@@ -104,58 +104,58 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 
 <span class="kn">Arguments</span> EPath x
 <span class="kn">Arguments</span> EAnonFun a
-<span class="kn">Arguments</span> EApp (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EApp e1 e2
 <span class="kn">Arguments</span> ETuple es%list_scope
-<span class="kn">Arguments</span> EData c e%expr_scope
+<span class="kn">Arguments</span> EData c e
 <span class="kn">Arguments</span> ERecord fes%list_scope
-<span class="kn">Arguments</span> ERecordUpdate e%expr_scope fes%list_scope
-<span class="kn">Arguments</span> ERecordAccess e%expr_scope f
-<span class="kn">Arguments</span> EBoolConj (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EBoolDisj (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EBoolNeg e%expr_scope
+<span class="kn">Arguments</span> ERecordUpdate e fes%list_scope
+<span class="kn">Arguments</span> ERecordAccess e f
+<span class="kn">Arguments</span> EBoolConj e1 e2
+<span class="kn">Arguments</span> EBoolDisj e1 e2
+<span class="kn">Arguments</span> EBoolNeg e
 <span class="kn">Arguments</span> EInt i%Z_scope
-<span class="kn">Arguments</span> EIntNeg e%expr_scope
-<span class="kn">Arguments</span> EIntAdd (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntSub (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntMul (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntDiv (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntMod (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntLand (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntLor (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntLxor (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntLnot e%expr_scope
-<span class="kn">Arguments</span> EIntLsl (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntLsr (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIntAsr (e1 e2)%expr_scope
+<span class="kn">Arguments</span> EIntNeg e
+<span class="kn">Arguments</span> EIntAdd e1 e2
+<span class="kn">Arguments</span> EIntSub e1 e2
+<span class="kn">Arguments</span> EIntMul e1 e2
+<span class="kn">Arguments</span> EIntDiv e1 e2
+<span class="kn">Arguments</span> EIntMod e1 e2
+<span class="kn">Arguments</span> EIntLand e1 e2
+<span class="kn">Arguments</span> EIntLor e1 e2
+<span class="kn">Arguments</span> EIntLxor e1 e2
+<span class="kn">Arguments</span> EIntLnot e
+<span class="kn">Arguments</span> EIntLsl e1 e2
+<span class="kn">Arguments</span> EIntLsr e1 e2
+<span class="kn">Arguments</span> EIntAsr e1 e2
 <span class="kn">Arguments</span> EFloat f%float_scope
 <span class="kn">Arguments</span> EChar c
 <span class="kn">Arguments</span> EString s%string_scope
-<span class="kn">Arguments</span> EOpPhysEq (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpEq (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpNe (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpLt (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpLe (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpGt (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EOpGe (e1 e2)%expr_scope
-<span class="kn">Arguments</span> ELet bs%list_scope e%expr_scope
-<span class="kn">Arguments</span> ELetRec rbs%list_scope e%expr_scope
-<span class="kn">Arguments</span> ELetModule M me e%expr_scope
-<span class="kn">Arguments</span> ELetOpen me e%expr_scope
-<span class="kn">Arguments</span> ESeq (e1 e2)%expr_scope
-<span class="kn">Arguments</span> EIfThen (e e1)%expr_scope
-<span class="kn">Arguments</span> EIfThenElse (e e1 e2)%expr_scope
-<span class="kn">Arguments</span> EMatch e%expr_scope bs%list_scope
-<span class="kn">Arguments</span> EWhile (e body)%expr_scope
-<span class="kn">Arguments</span> EFor x (e1 e2 e)%expr_scope
-<span class="kn">Arguments</span> EAssert e%expr_scope
-<span class="kn">Arguments</span> ERef e%expr_scope
-<span class="kn">Arguments</span> ELoad e%expr_scope
-<span class="kn">Arguments</span> EStore (e1 e2)%expr_scope
-<span class="kn">Arguments</span> Fexpr f e%expr_scope
-<span class="kn">Arguments</span> Branch p e%expr_scope
-<span class="kn">Arguments</span> Binding p e%expr_scope
+<span class="kn">Arguments</span> EOpPhysEq e1 e2
+<span class="kn">Arguments</span> EOpEq e1 e2
+<span class="kn">Arguments</span> EOpNe e1 e2
+<span class="kn">Arguments</span> EOpLt e1 e2
+<span class="kn">Arguments</span> EOpLe e1 e2
+<span class="kn">Arguments</span> EOpGt e1 e2
+<span class="kn">Arguments</span> EOpGe e1 e2
+<span class="kn">Arguments</span> ELet bs%list_scope e
+<span class="kn">Arguments</span> ELetRec rbs%list_scope e
+<span class="kn">Arguments</span> ELetModule M me e
+<span class="kn">Arguments</span> ELetOpen me e
+<span class="kn">Arguments</span> ESeq e1 e2
+<span class="kn">Arguments</span> EIfThen e e1
+<span class="kn">Arguments</span> EIfThenElse e e1 e2
+<span class="kn">Arguments</span> EMatch e bs%list_scope
+<span class="kn">Arguments</span> EWhile e body
+<span class="kn">Arguments</span> EFor x e1 e2 e
+<span class="kn">Arguments</span> EAssert e
+<span class="kn">Arguments</span> ERef e
+<span class="kn">Arguments</span> ELoad e
+<span class="kn">Arguments</span> EStore e1 e2
+<span class="kn">Arguments</span> Fexpr f e
+<span class="kn">Arguments</span> Branch p e
+<span class="kn">Arguments</span> Binding p e
 <span class="kn">Arguments</span> RecBinding f a
-<span class="kn">Arguments</span> AnonFun x e%expr_scope
+<span class="kn">Arguments</span> AnonFun x e
 <span class="kn">Arguments</span> MPath π
 <span class="kn">Arguments</span> MStruct items%list_scope
 <span class="kn">Arguments</span> MCoercion me c
@@ -242,7 +242,7 @@ may eventually produce a value.</p>
 <p>For instance, evaluating the OCaml expression <code>42</code>
 in the empty environment <code class="highlight coq"><span class="n">ε</span></code>
 yields the OCaml value <code>42</code>:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε (EInt <span class="mi">42</span>)
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε <span class="mi">42</span>%expr
 : micro val void</blockquote></div></div></small></span></pre><p>Coq finds that this computation is equal to
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span><span class="o">))</span></code>.</p>
 <p>The data constructor <code class="highlight coq"><span class="n">ret</span></code> is the <code class="highlight coq"><span class="kr">return</span></code> combinator
@@ -508,11 +508,7 @@ takes us from one pause to the next pause.</p>
     StepEval : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : val → micro A E) (<span class="nv">z</span> : void → micro A E),
                  step (σ, Stop CEval (η, e) k z) (σ, <span class="kp">try</span> (<span class="kp">eval</span> η e) k z)
   | StepLoop : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">x</span> <span class="nv">i1</span> <span class="nv">i2</span> <span class="nv">e</span> (<span class="nv">k</span> : val → micro A E) (<span class="nv">z</span> : void → micro A E),
-                 step (σ, <span class="kr">for</span> x = i1 to i2
-                          <span class="kr">with</span> {: η :}
-                          <span class="kp">do</span>
-                            e
-                          <span class="bp">done</span>; ...) (σ, <span class="kp">try</span> (loop η x i1 i2 e) k z)
+                 step (σ, Stop CLoop (η, x, i1, i2, e) k z) (σ, <span class="kp">try</span> (loop η x i1 i2 e) k z)
   | StepAlloc : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">v</span> (<span class="nv">l</span> : loc) (<span class="nv">k</span> : loc → micro A E) (<span class="nv">z</span> : void → micro A E),
                   σ !! l = None → step (σ, ref v; ...continuations) (&lt;[l:=v]&gt; σ, k l)
   | StepLoadSuccess : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v</span> (<span class="nv">k</span> : val → micro A E) (<span class="nv">z</span> : void → micro A E),
@@ -553,8 +549,8 @@ takes us from one pause to the next pause.</p>
                         step (σ, Choose m1 m2 k z) (σ, <span class="kp">try</span> m2 k z).
 
 <span class="kn">Arguments</span> step {A E}%type_scope _ _
-<span class="kn">Arguments</span> StepEval {A E}%type_scope σ η e%expr_scope (k z)%function_scope
-<span class="kn">Arguments</span> StepLoop {A E}%type_scope σ η x i1 i2 e%expr_scope (k z)%function_scope
+<span class="kn">Arguments</span> StepEval {A E}%type_scope σ η e (k z)%function_scope
+<span class="kn">Arguments</span> StepLoop {A E}%type_scope σ η x i1 i2 e (k z)%function_scope
 <span class="kn">Arguments</span> StepAlloc {A E}%type_scope σ v l (k z)%function_scope _
 <span class="kn">Arguments</span> StepLoadSuccess {A E}%type_scope σ l v (k z)%function_scope _
 <span class="kn">Arguments</span> StepLoadFailure {A E}%type_scope σ l (k z)%function_scope _

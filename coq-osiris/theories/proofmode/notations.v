@@ -25,7 +25,6 @@ Notation "'ocaml' decoration" := (deco decoration _)
 
 Declare Scope expr_scope.
 Delimit Scope expr_scope with expr.
-Bind Scope expr_scope with expr.
 
 Notation "- e" := (EIntNeg e) : expr_scope.
 Infix "+" := EIntAdd : expr_scope.
@@ -50,6 +49,8 @@ Definition Z_of_EInt e :=
   end.
 
 Number Notation expr EInt_of_Z Z_of_EInt : expr_scope.
+
+Open Scope expr.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -346,3 +347,5 @@ Notation "{ r 'with' fds }" :=
   (ERecordUpdate r fds)
     (only printing,
        format "{  r  'with'  fds  }").
+
+Close Scope expr.

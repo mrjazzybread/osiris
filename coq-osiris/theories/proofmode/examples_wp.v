@@ -470,10 +470,14 @@ Definition add_uc : expr :=
     (EApp
        (EApp
           (EApp
-             (EApp test_body (EVar "x")) (EInt 2)) (EInt 3)) (EInt 4)) (EInt 5).
+             (EApp test_body (EVar "x"))
+             (EInt 2))
+          (EInt 3))
+       (EInt 4))
+    (EInt 5).
 
 Lemma add_test (i j: Z) :
-  ⊢ WP eval [("bloup", #0)] add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
+  ⊢ WP eval [("bloup", #0%Z)] add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
 Proof.
   wp. wp_continue. equality.
 Qed.
