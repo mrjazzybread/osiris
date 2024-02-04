@@ -21,6 +21,8 @@ Notation "'ocaml' decoration" := (deco decoration _)
 
 (* ------------------------------------------------------------------------ *)
 
+(* A notation scope for [expr], includes arithmetic and booleans *)
+
 Declare Scope expr_scope.
 Delimit Scope expr_scope with expr.
 Bind Scope expr_scope with expr.
@@ -31,6 +33,23 @@ Infix "-" := EIntSub : expr_scope.
 Infix "*" := EIntMul : expr_scope.
 Infix "&&" := EBoolConj : expr_scope.
 Infix "||" := EBoolDisj : expr_scope.
+Infix "==" := EOpPhysEq (at level 90) : expr_scope.
+Infix "=" := EOpEq : expr_scope.
+Infix "<>" := EOpNe : expr_scope.
+Infix "<" := EOpLt : expr_scope.
+Infix "<=" := EOpLe : expr_scope.
+Infix ">" := EOpGt : expr_scope.
+Infix ">=" := EOpGe : expr_scope.
+
+Definition EInt_of_Z Z := EInt Z.
+
+Definition Z_of_EInt e :=
+  match e with
+  | EInt z => Some z
+  | _ => None
+  end.
+
+Number Notation expr EInt_of_Z Z_of_EInt : expr_scope.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -114,136 +133,153 @@ Infix ":::" := (concat).
 (* -------------------------------------------------------------------------- *)
 (* Paths, tuples and ADTs. *)
 
-
 Notation "'Path' x1" :=
   (PathBase x1)
     (at level 90,
       format "'Path'  x1").
+
+Check (PathBase "base").
 
 Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
   (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
     (at level 200,
        format "'Path'  x1 '/' '.' .. '/' '.' xn '.' '/' xm").
 
+Check (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3").
+
 Notation "'EPath' x1" :=
   (EPath (PathBase x1))
     (at level 90,
       only printing,
-        format "'EPath'  x1").
+      format "'EPath'  x1").
 
-Notation "'EPath' x1 '.' .. '.' xn '.' xm ')'" :=
+Check (EPath (PathBase "base")).
+
+Notation "'EPath' x1 '.' .. '.' xn '.' xm " :=
   (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
-    (x1, xn, xm at level 200,
+    (at level 200,
       only printing,
-        format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm ')'").
+      format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm").
 
-Notation "'<e' e1 , .. , en 'e>'" :=
-  (ETuple (cons e1 .. (cons en nil) ..))
-    (format "'<e'  e1 ,  '/' .. ,  '/' en  'e>'").
-
-Notation "'<v' v1 , .. , vn 'v>'" :=
-  (VTuple (VCons v1 .. (VCons vn VNil) ..))
-    (format "'<v'  v1 ,  '/' .. ,  '/' vn  'v>'").
-
-Notation "'<p' p1 , .. , pn 'p>'" :=
-  (PTuple (cons p1 .. (cons pn nil) ..))
-    (format "'<p'  p1 ,  '/' .. ,  '/' pn  'p>'").
-
-
-Notation "'edata:(' C1 $ .. $ Cn $ argn ')'" :=
-  (EData C1 <e .. (EData  Cn <e argn e>) .. e>).
-Notation "C ( e1 , .. , en )" :=
-  (EData C (ETuple (cons e1 (.. (cons en nil) ..))))
-    (only printing, at level 20).
-
-Notation "'vdata:(' C1 $ .. $ Cn $ argn ')'" :=
-  (VData C1 <v .. (VData  Cn <v argn v>) .. v>).
-Notation "C ( v1 , .. , vn )" :=
-  (VData C (VTuple (VCons v1 (.. (VCons vn VNil) ..))))
-    (only printing, at level 20).
-
-Notation "'pdata:(' C1 $ .. $ Cn $ argn ')'" :=
-  (PData C1 <p .. (PData  Cn <p argn p>) .. p>).
-Notation "C ( p1 , .. , pn )" :=
-  (PData C (PTuple (cons p1 (.. (cons pn nil) ..))))
-    (only printing, at level 20).
+Check (EPath (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3")).
 
 (* -------------------------------------------------------------------------- *)
-(* Closures. *)
+(* Closures, function applications, and function calls. *)
 
-(* Closures capture an environment. We rely on the above pretty-printing rules
-   for environments. Closures are delimitted by [closure:( ... )].
-   [VClo η f] is written
-   [closure:(
-        {: η :}
-        f )]. *)
-Notation "'closure:(' η f ')'" :=
-  (VClo η f)
-  (format "'[v    ' 'closure:(' '/' '[hv   '  η  ']'  '/' f  ')' ']'").
-
-
-Notation "'rec-closure:(' η rbds x ')'" :=
-  (VCloRec η rbds x)
-    (format
-       "'[v    ' 'rec-closure:(' '/' '[hv'     η   ']' '/' rbds '/'  x  ')' ']'").
-
-Notation "'λ:(' x , e )" :=
-  (AnonFun x e)
-    (format "'λ:(' x ',' '/'    '[hv' e ']' ')'").
-
-Notation "'λ:(' '_' , e )" :=
+Notation "'Anon' '(' '_' '=>' e ')'" :=
   (AnonFun "__osiris_anonymous_arg" e)
-    (format "'λ:('  '_'  ',' '/'    '[hv' e ']' ')'").
+    (at level 200,
+      format "'Anon'  '(' '_'  '=>' '/    '  '[hv' e ']' ')'").
 
-Notation "'eλ:(' x , e )" :=
-  (EAnonFun (AnonFun x e))
-    (format "'eλ:(' x ',' '/'    '[hv' e ']' ')'").
+Check (AnonFun "__osiris_anonymous_arg" (EInt 0)).
 
-Notation "'eλ:(' '_' , e )" :=
-  (EAnonFun (AnonFun "__osiris_anonymous_arg" e))
-    (format "'eλ:('  '_'  ',' '/'    '[hv' e ']' ')'").
+Notation "'Anon' '(' x '=>' e ')'" :=
+  (AnonFun x e)
+    (at level 200,
+      format "'Anon'  '(' x  '=>'  '/    ' '[hv' e ']' ')'").
+
+Check (AnonFun "argname" (EInt 1)).
+Check (AnonFun "x" (ETuple
+                      [EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;
+                       EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0])).
+
+Check (EAnonFun (AnonFun "argname" (EInt 1))).
+Check (EAnonFun (AnonFun "__osiris_anonymous_arg" (EInt 0))).
 
 Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 
-Notation "( e1 )  ( e2 )" := (EApp e1 e2) (only printing).
+Notation "'EApp' '(' e1 ')' '(' e2 ',' .. ',' en ')'" :=
+  (EApp (.. (EApp e1 e2) ..) en)
+    (at level 200,
+      only printing,
+      format "'EApp'  '(' e1 ')'  '/' '(' e2 ','  '/' .. ','  '/' en ')'").
+
+Check (EApp (EString "fun") (EString "arg")).
+
+Check (EApp
+         (EApp
+            (EApp
+               (EString "fun") (EString "arg1"))
+            (EString "arg2"))
+         (EString "arg3")).
+
+Notation "'pure' '(' call '( f ')'  '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
+  (pure (call f arg1)
+     (λ c, pure (call c arg2)
+             (.. (λ c, pure (call c argn) ψ) ..)))
+    (at level 200,
+      only printing).
+
+Check (pure (call (VString "F") (VString "X"))
+         (λ c, pure (call c (VString "Y"))
+                 (λ c, pure (call c (VString "Z"))
+                         (λ v : val, True)))).
+
+Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
+  (wp s E (call f v1)
+      (fun v => wp s E (call v v2)
+                   (.. (fun v =>  wp s E (call v vn) φ ) ..)))
+  (only printing).
 
 (* -------------------------------------------------------------------------- *)
 (* Loops and conditionals. *)
-
-Notation "'begin' 'if' econd 'then' ethen 'else' eelse 'end' " :=
-  (EIfThenElse econd ethen eelse)
-    (format "'[v' '[v  ' 'begin' '//' '[v' 'if'  '[hv  ' econd ']'  '/' 'then'  '[hv  ' ethen ']' '/' 'else'  '[v  ' eelse ']' ']' ']' '/' 'end' ']'",
-       only printing).
-
-
-
-Notation "'for' i '=' lo 'to' hi 'with' {: η :} 'do' e 'done;' '...'" :=
-  (Stop CLoop (η, i, lo, hi, e) _ _)
-     (only printing,
-        format "'[v' 'for'  i  '='  lo  'to'  hi '//' 'with'  '[hv   ' {:  η  :} ']' '//' 'do' '[hv' '//' e ']' '//' 'done;'  '...' ']'").
 
 Notation "e1 ; e2" :=
   (ESeq e1 e2)
     (only printing, format "e1 ;  '/' e2", at level 20, e1, e2 at level 200).
 
+Check (ESeq
+         (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+         (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))).
+
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
-Notation "'EMatch' x 'with' pats " :=
-  (EMatch x pats)
+Notation "'EMatch' '(' x ')' []" :=
+  (EMatch x [])
     (at level 90,
       only printing,
-        no associativity,
-          format "'[v' 'EMatch'  x  'with' '//' pats ']'").
+      no associativity,
+      format "'EMatch'  '(' x ')'  []").
 
-Notation "'|' pat '=>' e others" :=
-  (cons (Branch pat e) others)
+Check (EMatch (EPath (PathBase "l")) []).
+
+Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
+  (EMatch x (cons b1 (.. (cons bn nil) ..)))
+    (at level 90,
+      only printing,
+      no associativity,
+      format "'[v' 'EMatch'  '(' x ')'  'with' '//'     '[' b1 '//' ..  '//' bn ']'  '//' 'end' ']'").
+
+Check (EMatch (EPath (PathBase "l")) []).
+
+Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)]).
+Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1); Branch PAny 2]).
+
+Notation "'|' pat '->' e" :=
+  (Branch pat e)
     (at level 80,
-       others at level 81,
-         only printing,
-           format "'[hv' '|'  '[v  ' pat  '=>' '//' e ']' '//' others ']'").
+      only printing,
+      format "'|'  pat  '->'  '[' '/' e ']'").
 
-Notation "'end'" := (@nil branch) (only printing).
+Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)]).
+Check (EMatch
+         (EPath (PathBase "l"))
+         [Branch PAny
+            (ESeq
+               (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+               (ESeq
+                  (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                  (ESeq
+                     (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                     (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))
+                  )
+               )
+            );
+          Branch PAny 2]
+      ).
+
+Check (Branch PAny 2).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -272,29 +308,39 @@ Notation "ℓ ':=' v ';' '...continuations'" := (Stop CStore (ℓ, v) _ _) (at l
 (* -------------------------------------------------------------------------- *)
 (* Records *)
 
-Notation "'(' n1 := v1 ')'" :=
+Notation "n1 := v1" :=
   ([Fexpr n1 v1])
     (only printing,
      at level 80,
      right associativity,
-     format "'(' n1  ':='   v1 ')'").
+     format "n1  ':='   v1").
 
-Notation "'(' n1 := v1 ')' ; tail" :=
+Notation "n1 := v1 ; tail" :=
   ((Fexpr n1 v1) :: tail)
     (only printing,
      at level 80,
      right associativity,
-     format "'(' n1  ':='   v1 ')' ;  '/' tail").
+     format "n1  ':='   v1 ;  '/' tail").
+
+Notation "{ }" :=
+  (ERecord [])
+    (only printing,
+      format "{ }").
 
 Notation "{ fds }" :=
   (ERecord fds)
     (only printing,
-     format "{  '[hv' fds ']'  }").
+      format "{  '[hv' fds ']'  }").
+
+Check (ERecord []).
+Check (ERecord [Fexpr "a" 0; Fexpr "b" 1; Fexpr "c" 2; Fexpr "d" (EString "val")]).
 
 Notation "r . f" :=
   (ERecordAccess r f)
     (only printing,
-     at level 80, format "r . f").
+      at level 80, format "r . f").
+
+Check (ERecordAccess (ERecord [Fexpr "a" 0; Fexpr "b" 1; Fexpr "c" 2; Fexpr "d" (EString "val")]) ("a")).
 
 Notation "{ r 'with' fds }" :=
   (ERecordUpdate r fds)
