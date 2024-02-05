@@ -341,6 +341,8 @@ Definition pre_extends extend : env -> list pat -> list val -> micro env unit :=
         length_mismatch "shorter tuple expected"
    end.
 
+Arguments pre_extends extend /.
+
 (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
 
@@ -365,6 +367,8 @@ Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env uni
         δ ← extendfs δ fps fvs ;
         ret δ
     end.
+
+Arguments pre_extendfs extend /.
 
 (* [extend δ p v] matches the value [v] against the pattern [p].
 
@@ -437,8 +441,11 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "string expected"
 end.
 
-Definition extends := pre_extends extend.
-Definition extendfs := pre_extendfs extend.
+Definition extends δ ps vs := pre_extends extend δ ps vs.
+Arguments extends δ ps vs /.
+
+Definition extendfs δ fps fvs := pre_extendfs extend δ fps fvs.
+Arguments extendfs δ fps fvs /.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
@@ -630,8 +637,8 @@ Definition ret_dconcat δ' ηδ : micro envs void :=
 
 (* ------------------------------------------------------------------------ *)
 
-Definition pre_coerces coerce : list fcoercion -> env -> micro env void :=
-  fix coerces (xcs : list fcoercion ) xvs : micro env void :=
+Definition pre_coerces coerce :=
+  fix coerces (xcs : list fcoercion ) (xvs : env) : micro env void :=
     match xcs with
     | [] => ret []
     | (x, c) :: xcs =>
@@ -648,6 +655,8 @@ Definition pre_coerces coerce : list fcoercion -> env -> micro env void :=
            should be irrelevant. *)
         ret ((x, v) :: xvs)
     end.
+
+Arguments pre_coerces coerce /.
 
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
@@ -670,42 +679,54 @@ Fixpoint coerce (c : coercion) (v : val) : micro val void :=
 (* [eval_sitem ηδ item] evaluates the structure item [item] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-Definition pre_eval_sitem eval_mexpr eval_bindings (acc : micro envs void) item :=
-  ηδ ← acc ;
-  let '(η, δ) := ηδ in
-  match item with
-  | ILet bs =>
-      δ' ← eval_bindings η bs;
-      ret_dconcat δ' (η, δ)
-  | ILetRec rbs =>
-      let δ' := eval_rec_bindings η rbs in
-      ret_dconcat δ' (η, δ)
-  | IModule m me' =>
-      v ← eval_mexpr η me' ;
-      ret_dconcat [(m, v)] (η, δ)
-  | IOpen me' =>
-      δ' ← as_struct (eval_mexpr η me') ;
-      ret (δ' ++ η, δ)
-  | IInclude me' =>
-      δ' ← as_struct (eval_mexpr η me') ;
-      ret (dconcat δ' (η, δ))
-  end.
+Definition pre_eval_sitem eval_mexpr eval_bindings :=
+  λ (ηδ : envs) (item : sitem),
+    let '(η, δ) := ηδ in
+    match item with
+    | ILet bs =>
+        δ' ← eval_bindings η bs;
+        ret_dconcat δ' (η, δ)
+    | ILetRec rbs =>
+        let δ' := eval_rec_bindings η rbs in
+        ret_dconcat δ' (η, δ)
+    | IModule m me' =>
+        v ← eval_mexpr η me' ;
+        ret_dconcat [(m, v)] (η, δ)
+    | IOpen me' =>
+        δ' ← as_struct (eval_mexpr η me') ;
+        ret (δ' ++ η, δ)
+    | IInclude me' =>
+        δ' ← as_struct (eval_mexpr η me') ;
+        ret (dconcat δ' (η, δ))
+    end.
+
+Arguments pre_eval_sitem eval_mexpr eval_bindings /.
 
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-Definition pre_eval_sitems eval_mexpr eval_bindings : list sitem -> envs -> micro envs void :=
-  λ (items : list sitem) (ηδ : envs),
-    let eval_sitem := pre_eval_sitem eval_mexpr eval_bindings in
-    fold_left eval_sitem items (ret ηδ).
+Definition pre_eval_sitems eval_mexpr eval_bindings :=
+  let eval_sitem := pre_eval_sitem eval_mexpr eval_bindings in
+  fix eval_sitems (ηδ : envs) (items : list sitem) : micro envs void :=
+    match items with
+    | [] =>
+        ret ηδ
+    | item :: items =>
+        (* Evaluate this item *)
+        ηδ ← eval_sitem ηδ item ;
+        (* Evaluate the remaining items *)
+        eval_sitems ηδ items
+    end.
+
+Arguments pre_eval_sitems eval_mexpr eval_bindings /.
 
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
-Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val void :=
-  fix eval_mexpr (η : env) (me : mexpr) :=
+Definition pre_eval_mexpr eval_bindings :=
+  fix eval_mexpr (η : env) (me : mexpr) : micro val void :=
     let eval_sitems := pre_eval_sitems eval_mexpr eval_bindings in
     match me with
     | MUnsupported => unsupported_construct
@@ -717,10 +738,12 @@ Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val void :=
         coerce c v
     | MStruct items =>
         (* evaluate the structure items, yielding an environment [δ], *)
-        '(_, δ) ← eval_sitems items (η, []) ;
+        '(_, δ) ← eval_sitems (η, []) items ;
         (* and wrap it in a [VStruct] value. *)
         ret (VStruct δ)
     end.
+
+Arguments pre_eval_mexpr eval_bindings /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -741,17 +764,20 @@ Definition pre_eval_mexpr eval_bindings : env -> mexpr -> micro val void :=
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
    then [eval_bindings] would disappear. We prefer to avoid encodings. *)
 
-Definition pre_eval_bindings eval : env -> list binding -> micro env void :=
-  λ (η : env) (bs : list binding),
-    let par_eval_binding :=
-      fun (b : binding) (acc : micro env void) =>
-        match b with
-        | Binding p e0 =>
-            '(v, δ) ← par (eval η e0) acc ;
-            irrefutably_extend δ p v
-        end
-    in
-    fold_right par_eval_binding (ret []) bs.
+Definition pre_eval_bindings eval :=
+  fix eval_bindings (η : env) (bs : list binding) : micro env void :=
+    match bs with
+    | [] =>
+        ret []
+    | (Binding p e) :: bs =>
+        (* Evaluate the expression [e], yielding a value [v]. In parallel,
+           evaluate the bindings [bs], yielding an environment fragment [δ]. *)
+        '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
+         (* Match the value [v] against the pattern [p], extending [δ]. *)
+        irrefutably_extend δ p v
+    end.
+
+Arguments pre_eval_bindings eval /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -761,13 +787,16 @@ Definition pre_eval_bindings eval : env -> list binding -> micro env void :=
 (* [evals] is used to evaluate tuples. *)
 
 Definition pre_evals eval : env -> list expr -> micro (list val) void :=
-  λ (η : env) (es : list expr),
-    let par_eval :=
-      fun (e : expr) (acc : micro (list val) void) =>
-        '(v, vs) ← par (eval η e) acc ;
+  fix evals (η : env) (es : list expr) : micro (list val) void :=
+    match es with
+    | [] =>
+        ret []
+    | e :: es =>
+        '(v, vs) ← par (eval η e) (evals η es) ;
         ret (v :: vs)
-    in
-    fold_right par_eval (ret []) es.
+    end.
+
+Arguments pre_evals eval /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -779,43 +808,42 @@ Definition pre_evals eval : env -> list expr -> micro (list val) void :=
 
 (* [evalfs] is used to evaluate record construction expressions. *)
 
-Definition pre_evalfs eval : env -> list fexpr -> micro (list (field * val)) void :=
-  λ (η : env) (fes : list fexpr),
-    let par_eval_fexpr :=
-      fun (fe : fexpr) (acc : micro (list (field * val)) void) =>
-        match fe with
-        | Fexpr f e =>
-            '(v, fvs) ← par (eval η e) acc ;
-            ret ((f, v) :: fvs)
-        end
-    in
-    fold_right par_eval_fexpr (ret []) fes.
+Definition pre_evalfs eval :=
+  fix evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) void :=
+    match fes with
+    | [] =>
+        ret []
+    | (Fexpr f e) :: fes =>
+        '(v, fvs) ← par (eval η e) (evalfs η fes) ;
+        ret ((f, v) :: fvs)
+    end.
+
+Arguments pre_evalfs eval /.
 
 (* ------------------------------------------------------------------------ *)
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
-Definition pre_eval_match eval : env -> val -> list branch -> micro val void :=
-  λ (η : env) (v : val) (bs : list branch),
-    let try_match_branch :=
-      fun (b : branch) (acc : micro val void) =>
-        match b with
-        | Branch p e =>
-            (* Match the value [v] against the pattern [p]. *)
-            try
-              (extend η p v)
-              (* Success: commit to this branch. Evaluate its body. *)
-              (λ δ, eval δ e)
-              (* Meta-level exception: [p] does not match [v].
-                 Abandon this branch. Try the following branches. *)
-              (λ tt, acc)
-        end
-    in
-    (* A nonexhaustive [match] construct causes a hard failure. *)
-    (* Because the proof system forbids hard failures, the user of
-       the system will have to prove that this cannot happen, i.e.,
-       every case analysis is exhaustive. *)
-    fold_right try_match_branch (match_failure()) bs.
+Definition pre_eval_match eval :=
+  fix eval_match (η : env) (v : val) (bs : list branch) : micro val void :=
+    match bs with
+    | [] =>
+        (* A nonexhaustive [match] construct causes a hard failure. *)
+        (* Because the proof system forbids hard failures, the user of
+           the system will have to prove that this cannot happen, i.e.,
+           every case analysis is exhaustive. *)
+        match_failure()
+    | (Branch p e) :: bs =>
+        (* Match the value [v] against the pattern [p]. *)
+        try
+          (extend η p v)
+          (* Success: commit to this branch. Evaluate its body. *)
+          (λ δ, eval δ e)
+          (* Soft failure: abandon this branch. Try the following branches. *)
+          (λ tt, eval_match η v bs)
+    end.
+
+Arguments pre_eval_match eval /.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -1054,14 +1082,26 @@ Fixpoint eval η e : micro val void :=
       _ ← stop CStore (l, v) ;
       ok
   end.
+Arguments eval η !e /.
 
+Definition evals η es := pre_evals eval η es.
+Arguments evals η es /.
 
-Definition evals := pre_evals eval.
-Definition evalfs := pre_evalfs eval.
-Definition eval_match := pre_eval_match eval.
-Definition eval_bindings := pre_eval_bindings eval.
-Definition eval_mexpr := pre_eval_mexpr eval_bindings.
-Definition eval_sitems := pre_eval_sitems eval_mexpr eval_bindings.
+Definition evalfs η fes := pre_evalfs eval η fes.
+Arguments evalfs η fes /.
+
+Definition eval_match η v bs := pre_eval_match eval η v bs.
+Arguments eval_match η v bs /.
+
+Definition eval_bindings η bs := pre_eval_bindings eval η bs.
+Arguments eval_bindings η bs /.
+
+Definition eval_mexpr η me := pre_eval_mexpr eval_bindings η me.
+Arguments eval_mexpr η !me /.
+
+Definition eval_sitems ηδ sitems :=
+  pre_eval_sitems eval_mexpr eval_bindings ηδ sitems.
+Arguments eval_sitems ηδ sitems /.
 
 (* ------------------------------------------------------------------------ *)
 

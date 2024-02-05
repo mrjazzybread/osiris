@@ -783,7 +783,7 @@ Proof.
 Qed.
 
 Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
-  simp (eval_sitems items (η, [])) (ret (whatenv, δ)) ->
+  simp (eval_sitems (η, []) items) (ret (whatenv, δ)) ->
   ψ (VStruct δ) ->
   pure (eval_mexpr η (MStruct items)) ψ.
 Proof.
