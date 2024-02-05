@@ -696,15 +696,28 @@ Proof.
   + intros hb. destruct b; simpl in hb; tauto.
 Qed.
 
+
+Lemma pure_eval_ifthenelse_prop `{Encode A} η e e1 e2 (P : Prop) (ψ : A → Prop) :
+  pure (eval η e) (λ P', P' <-> P) →
+  (P → pure (eval η e1) ψ) →
+  (~ P → pure (eval η e2) ψ) →
+  pure (eval η (EIfThenElse e e1 e2)) ψ.
+Proof.
+  intros. destruct_pure P'.
+  eapply simp_eval_ifthenelse_pure;
+    first eassumption;
+    rewrite H3; auto.
+Qed.
+
 (* Boolean operations *)
 
-Lemma pure_eval_EOpLe_pure `{Encode A} η e1 e2 (x1 x2 : Z) :
+Lemma pure_eval_EOpLe_pure η e1 e2 (x1 x2 : Z) :
   pure (eval η e1) (λ x1', x1' = x1) ->
   pure (eval η e2) (λ x2', x2' = x2) ->
   (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
   representable x1 ->
   representable x2 ->
-  pure (eval η (EOpLe e1 e2)) (λ P, P ↔ (x1 <= x2)%Z).
+  pure (eval η (EOpLe e1 e2)) (λ P, P <-> (x1 <= x2)%Z).
 Proof.
   intros. destruct_pure a; destruct_pure b; subst.
   eapply pure_simp.

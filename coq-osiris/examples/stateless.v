@@ -121,8 +121,7 @@ Section ProofExamples.
           wp_load "Hℓ".
           rewrite lt_repr_repr; try representable.
           (* TODO deal with comparisons in a more automated way *)
-          replace (m <? n) with false; last first.
-          { symmetry; rewrite Z.ltb_ge; lia. }
+          replace (m <? n) with false by lia.
           wp. iFrame.
       } iIntros "_ Hℓ".
       (* Done dealing with [EAssert]... *)

@@ -247,17 +247,17 @@ Proof.
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     by rewrite app_nil_r. }
   (* Second branch of match *)
-  { eapply pure_eval_ifthenelse.
+  { eapply pure_eval_ifthenelse_prop.
     { (* Evaluate expression "h1 <= h2" *)
       unfold merge_pre in *.
       repeat (destruct_hyp); repeat Forall_inversion.
-      eapply pure_eval_EOpLe.
+      eapply pure_eval_EOpLe_pure.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { assumption. }
       { assumption. } }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
-      simpl; intros. unfold __exp0.
+      intros. unfold __exp0.
       apply pure_eval_data2.
       apply pure_eval_pair. new_pure_path.
       pure_eval_app2_conseq.
