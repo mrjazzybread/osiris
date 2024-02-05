@@ -135,7 +135,7 @@ Proof.
 Qed.
 
 Lemma pat_PVar η x v φ :
-  (let η := (x, v) :: η in φ η) →
+  φ ((x, v) :: η) →
   pat η (PVar x) v φ False.
 Proof.
   unfold pat. simpl. eauto using total_ret.
@@ -154,7 +154,7 @@ Ltac pat_PVar :=
   end.
 
 Lemma pat_PAlias η p x v φ ψ :
-  pat η p v (λ η, let η := (x, v) :: η in φ η) ψ →
+  pat η p v (λ η, φ ((x, v) :: η)) ψ →
   pat η (PAlias p x) v φ ψ.
 Proof.
   unfold pat. simpl. intros Hp.
@@ -491,7 +491,8 @@ Ltac subst_eq :=
   end.
 Ltac inject_eq :=
   lazymatch goal with
-  | H : ?x = _ |- _ => injection H; repeat (intros ->)
+  | H : ?x = _ |- _ =>
+      (injection H; repeat (intros ->) || clear dependent x)
   | _ => idtac
   end.
 Ltac elim_exists :=
@@ -510,9 +511,8 @@ Ltac resolve_no_match :=
           (repeat elim_exists);
           (repeat destruct_hyp);
           try contradiction;
-          remove_tauto;
-          subst_eq;
-          remove_tauto;
+          (repeat remove_tauto);
+          (repeat subst_eq);
           inject_eq).
 
 Ltac pure_match :=

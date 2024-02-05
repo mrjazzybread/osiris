@@ -179,10 +179,10 @@ Class T2 (A B X : Type) `{Encode A, Encode B, Encode X} (c : string) (C : A -> B
 
 Global Instance T2Cons `{Encode A} : T2 A (list A) (list A) "::" cons := {}.
 
-Lemma pure_eval_data2 `{T2 A B X c C} (η : env) (e : expr)
-   (ψ : X → Prop)
-  :
-  pure (eval η e) (λ '(x, y), VData c (VPair #x #y) = #(C x y) /\ ψ (C x y)) ->
+Lemma pure_eval_data2 `{T2 A B X c C} (η : env) (e : expr) (ψ : X → Prop) :
+  pure (eval η e)
+    (λ '(x, y),
+      VData c (VPair #x #y) = #(C x y) /\ ψ (C x y)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
   intros. destruct_pure a; destruct a.
@@ -192,7 +192,28 @@ Proof.
   eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
 Qed.
 
-Ltac trivial_pure := (pure_path || pure_const).
+Ltac subst_abstracted_env :=
+  lazymatch goal with
+  | H : ?η = _ |- pure (eval ?η _) _ =>
+      subst η
+  end.
+
+Ltac collapse_abstracted_env :=
+  repeat subst_abstracted_env.
+
+Ltac abstract_env :=
+  lazymatch goal with
+  | |- pure (eval ?η _) _ =>
+      collapse_abstracted_env;
+      let η0 := fresh "η" in
+      remember η as η0
+  | _ => idtac
+  end.
+
+Ltac new_pure_path :=
+  collapse_abstracted_env; pure_path; abstract_env.
+
+Ltac trivial_pure := (new_pure_path || pure_const).
 
 Ltac pure_eval_app2_conseq :=
   eapply pure_eval_app2_conseq;
@@ -202,23 +223,26 @@ Ltac pure_eval_app2_conseq :=
   |
   | ].
 
+
 Lemma Merge_spec' η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
   unfold merge_spec. intros.
   pure_nested l1 l2 (@wf_double_list_length Z).
+  abstract_env.
   eapply pure_eval_match.
-  { eapply pure_eval_pair. pure_path. pure_path. reflexivity. }
+  { eapply pure_eval_pair. new_pure_path. new_pure_path.
+    reflexivity. }
   unfold __branches2; simpl.
   (* First branch of match *)
-  pure_match.
+  pure_match; abstract_env. (* TODO: seems slow *)
   { (* Match against "[], l" *)
-    simpl. pure_path.
+    new_pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     done. }
     (* Match against "l, []" *)
-  { pure_path.
+  { new_pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     by rewrite app_nil_r. }
@@ -226,17 +250,16 @@ Proof.
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
       unfold merge_pre in *.
-      repeat (destruct_hyp); subst; repeat Forall_inversion.
+      repeat (destruct_hyp); repeat Forall_inversion.
       eapply pure_eval_EOpLe.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { assumption. }
       { assumption. } }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
-      simpl; intros. unfold __exp0. (* TODO: can we change pure_eval_data to make it usable? *)
-      simpl. remove_deco.
-      eapply pure_eval_data2.
-      eapply pure_eval_pair. pure_path.
+      simpl; intros. unfold __exp0.
+      apply pure_eval_data2.
+      apply pure_eval_pair. new_pure_path.
       pure_eval_app2_conseq.
       { (* Use induction hypothesis on [call merge t1 l2] *)
         eapply IH; subst.
@@ -260,11 +283,8 @@ Proof.
     { (* Evaluate expression "h2 :: (merge l1 t2)" knowing  (h1 > h2) *)
       simpl; intros. unfold __exp1.
       eapply pure_eval_cons. simpl.
-      apply pure_eval_pair. pure_path.
-      eapply pure_eval_app2_conseq.
-      { pure_path. reflexivity. }
-      { pure_path. reflexivity. }
-      { pure_path. reflexivity. }
+      apply pure_eval_pair. new_pure_path.
+      pure_eval_app2_conseq.
       (* Use induction hypothesis on [call merge l1 t2] *)
       eapply IH; subst.
       { (* Subgoal: the partial application of merge returns a closure *)
