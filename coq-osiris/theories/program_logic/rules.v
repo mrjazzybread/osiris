@@ -436,6 +436,41 @@ Section proof.
 
   (* ------------------------------------------------------------------------ *)
 
+  (* [CAlloc]. *)
+
+  (* The standard memory allocation rule of Separation Logic. *)
+
+  Lemma wp_alloc {A X} s E v (k : loc → micro A X) z φ :
+    ▷ (
+        ∀ l,
+          mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
+          WP (k l) @ s; E {{ φ }}
+      ) ⊢
+    WP (Stop CAlloc v k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "H".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      apply can_step_reducible.
+      eauto with step can_step. }
+
+    destruct Hstep as (Hstep & ?); subst.
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]".
+    { eassumption. }
+
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    iFrame. iSplitR ""; last done.
+    by iApply "H".
+  Qed.
+
   (* [CStore]. *)
 
   (* The standard memory write rule of Separation Logic. *)
