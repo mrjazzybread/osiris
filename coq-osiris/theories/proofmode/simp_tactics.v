@@ -19,16 +19,45 @@ From Ltac2 Require Ltac2.
 Ltac beta :=
   cbn beta.
 
-Goal (λ (x : bool), negb x = ((λ (x : bool), x) false)) true.
+Goal (forall l : list nat,
+         l = [] ->
+         (λ (x : bool), negb x = ((λ (x : bool), x) false)) true).
 Proof.
   beta. reflexivity.
 Qed.
 
+(* [remove_deco] is used by subsequent tactics when we want to match on an
+   expression under a decoration in a goal. *)
+
 Ltac remove_deco :=
   lazymatch goal with
-  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1
+  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1; simpl
   | _ => idtac
   end.
+
+(* Remove any local environment definitions. *)
+
+Ltac collapse_abstracted_env :=
+  repeat (match goal with
+          | η := _ : list (var * val) |- _ => subst η
+          end).
+
+(* [abstract_env] expects a goal of the form [pure (eval η e) φ]. It creates a
+   local definition for the environment [η]. *)
+
+Ltac abstract_env :=
+  lazymatch goal with
+  | |- pure (eval ?η _) _ =>
+      collapse_abstracted_env;
+      match goal with
+      | |- pure (eval ?η _) _ =>
+          let η0 := fresh "η" in
+          set η as η0
+      end
+  | _ => idtac
+  end.
+
+(* -------------------------------------------------------------------------- *)
 
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
@@ -82,6 +111,8 @@ Ltac pure_const :=
 
 Ltac pure_simp :=
   eapply pure_simp; [ simp_really |].
+
+(* -------------------------------------------------------------------------- *)
 
 (* pure0 leaves zero subgoal. *)
 (* pure1 leaves one subgoal, which may have an arbitrary shape. *)
