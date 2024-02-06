@@ -1,7 +1,7 @@
 From Coq Require Import Program.Equality.
 
 From iris.prelude Require Import options.
-From iris.base_logic.lib Require Import own.
+From iris.base_logic.lib Require Import own gen_heap.
 
 From iris.program_logic Require Import language.
 
@@ -244,23 +244,19 @@ Section ghost_instances.
 
   Class osirisGS := OsirisGS
    { osiris_inG :: osirisGpreS;
+    (* This gives us fancy updates (without allowing Later Credits). *)
      osiris_invGS : invGS_gen HasNoLc Σ;
+    (* This gives us a heap, which maps locations to values. *)
+     osiris_heapGS :: gen_heapGS locations.loc syntax.val Σ;
      osiris_store_name : gname }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _} _ : assert.
+#[global] Arguments OsirisGS Σ {_ _ _} _ : assert.
 #[global] Arguments osiris_store_name {_} _ : assert.
 
-Section definitions.
-
-  Context {Σ : gFunctors} {hG : osirisGS Σ}.
-
-  Definition store_interp (σ : store) : iProp Σ :=
-    own (osiris_store_name hG)
-      (gmap_view_auth (DfracOwn 1%Qp) (σ : gmap _ (leibnizO _))).
-
-End definitions.
+Definition store_interp {Σ H} (σ : store) :=
+  @gen_heap_interp locations.loc _ _ syntax.val Σ H σ.
 
 (** *Iris instantiation *)
 #[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E,

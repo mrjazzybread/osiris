@@ -1,6 +1,6 @@
 Require Import Coq.Program.Equality.
 
-From iris.base_logic.lib Require Import fancy_updates.
+From iris.base_logic.lib Require Import fancy_updates gen_heap.
 From iris.prelude Require Import options.
 From iris.proofmode Require Import proofmode.
 
@@ -342,6 +342,48 @@ Section proof.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). } }
   Qed.
 
+
+  (* The following lemmas offer reasoning rules for each of the system calls,
+    that is, for computations of the form [Stop c x y]. They are simple
+    consequences of the operational behavior of these system calls. *)
+
+  (* [CEval]. *)
+
+  Lemma wp_eval {A X} η e (k : val → micro A X) z φ :
+    ▷ WP (eval η e) {{ | RET v => WP (k v) {{ φ }} ;
+                       | EXN v => WP (z v) {{ φ }} }} ⊢
+    WP (Stop CEval (η, e) k z) {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { exists nil; repeat eexists; constructor. }
+    destruct Hstep. destruct_step.
+
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    iFrame; subst; iSplitR ""; last done.
+
+    by iApply wp_try.
+  Qed.
+
+  Lemma wp_eval_ret {X} η (e : expr)
+    {z : void → micro val X} (φ : _ -> iPropI Σ):
+    ▷ WP eval η e
+        {{ v, ( | RET v => WP ret v {{ v, φ v }};
+                | EXN v => WP z v {{ v, φ v }}) v }} ⊢
+    WP (Stop CEval (η, e) (ret : val -> micro val X) z) {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply wp_eval.
+    iNext.
+    iApply wp_mono; done.
+  Qed.
+
   (* A reasoning rule for [choose]. *)
 
   (* A non-separating conjunction is used to express the idea that
@@ -390,6 +432,80 @@ Section proof.
     iApply wp_choose. iModIntro. iSplit.
     { iClear "Hm". iApply wp_ret. iAssumption. }
     { by iApply "Hm". }
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* [CStore]. *)
+
+  (* The standard memory write rule of Separation Logic. *)
+
+  Lemma wp_store {A X} s E l v v' (k : unit → micro A X) z φ :
+    mapsto l (DfracOwn 1) v ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) v' -∗
+        WP (k tt) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      destruct (σ !! l) eqn: Hlu.
+      - exists nil; repeat eexists; by eapply StepStoreSuccess.
+      - exists nil; repeat eexists; by eapply StepStoreFailure. }
+
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod".
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct Hstep as (Hstep&?).
+    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iFrame. iModIntro; iSplitR ""; last done.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* The standard memory load rule of Separation Logic. *)
+
+  Lemma wp_load {A X} s E l v dq (k: val → micro A X) z φ :
+    mapsto l dq v ⊢
+    ▷ (
+        mapsto l dq v -∗
+        WP (k v) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CLoad l k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      destruct (σ !! l) eqn: Hlu.
+      - exists nil; repeat eexists; by eapply StepLoadSuccess.
+      - exists nil; repeat eexists; by eapply StepLoadFailure. }
+
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod".
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct Hstep as (Hstep&?).
+    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
+    iModIntro; iFrame; iSplitR ""; last done.
+    iApply ("Hwp" with "Hl").
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -458,7 +574,7 @@ Section proof.
         rewrite try_bind. (* <- push the [try] in the [bind]. *)
 
         (* use the hypothesis about the behavior of the body of the loop. *)
-        admit. }
+        admit. } }
 
     { exists nil; repeat eexists; econstructor. }
 
@@ -479,6 +595,44 @@ Section proof.
         iApply wp_try. iApply wp_ret.
   Admitted.
 
+  Local Lemma wp_loop_inv_pos_aux {A X} s E
+        (η : env) (x : var) (n i1 i2 : nat) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    n = S (i2 - i1)%nat →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                  ⌜le i i2⌝ →
+                  Hinv i -∗ wp s E
+                                (eval ((x, (VInt $ repr i)) :: η) e)
+                                (λ _, Hinv (S i))) -∗
+    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
+  Proof. Admitted.
+
+  Definition wp_loop_inv_pos {A X} s E
+        (η : env) (x : var) (i1 i2 : nat) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                ⌜le i i2⌝ →
+                Hinv i -∗ wp s E
+                              (eval ((x, (VInt $ repr i)) :: η) e)
+                              (λ _, Hinv (S i))) -∗
+    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
+    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
+    let n := S (i2 - i1)%nat in
+    fun repr1 repr2 Hle =>
+      wp_loop_inv_pos_aux s E η x n i1 i2 e k z φ Hinv
+                          repr1 repr2 Hle eq_refl.
+
   (* ------------------------------------------------------------------------ *)
 
   (* Simplification is sound. *)
@@ -487,7 +641,7 @@ Section proof.
     holds then the safety of the simplified program [ms] implies the safety
     of the more complex original program [ms]. *)
 
-  Local Lemma wp_simplify i (m ms : micro R E) φ :
+  Local Lemma wp_simplify {R E} i (m ms : micro R E) φ :
     WP ms {{ φ }} -∗
     ⌜ simplify i m ms ⌝ -∗
     WP m  {{ φ }}.
@@ -641,7 +795,7 @@ Section proof.
 
   (* A corollary, for public use: [simp] is sound. *)
 
-  Lemma wp_simp (m m' : micro R E) φ :
+  Lemma wp_simp {R E} (m m' : micro R E) φ :
     simp m m' →
     WP m' {{ φ }} ⊢
     WP m  {{ φ }}.
