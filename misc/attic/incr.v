@@ -23,7 +23,7 @@ Definition is_counter l (i: Z) : iProp Σ :=
 Definition get_spec l get : iProp Σ :=
   ∀ i s E,
   {{{ is_counter l i }}}
-    call get VUnit @ s; E
+    call get VUnit
   {{{ v, RET v; ⌜ v = #i ⌝ ∗ is_counter l i }}}.
 
 Definition upd_spec l upd : iProp Σ :=
