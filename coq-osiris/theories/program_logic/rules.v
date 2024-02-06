@@ -1,10 +1,8 @@
 Require Import Coq.Program.Equality.
 
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
-From iris.prelude Require Import options.
 From iris.proofmode Require Import proofmode.
 
-From iris.prelude Require Import options.
 From iris.base_logic.lib Require Import own.
 
 From osiris.lang Require Import lang.

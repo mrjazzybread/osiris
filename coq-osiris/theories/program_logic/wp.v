@@ -1,6 +1,5 @@
 From Coq Require Import Program.Equality.
 
-From iris.prelude Require Import options.
 From iris.base_logic.lib Require Import own gen_heap.
 
 From iris.program_logic Require Import language.
@@ -273,5 +272,8 @@ Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" := (wp s E e%E (lift_ipure (λ v, Q
 Notation "'WP' e {{ 'RET' v , Q } }" := (wp NotStuck ⊤ e%E (lift_ipure (λ v, Q)))
   (at level 20, e, Q at level 200,
    format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @ NotStuck; ⊤ {{ RET v , Φ v }}).
+
 
 From osiris Require Export syntax semantics lang.
