@@ -123,16 +123,16 @@ Section proof.
   Qed.
 
   (* Cut rule *)
-  Lemma wp_bind {R E} (m1 : micro R E) (m2 : R -> micro R E) ψ:
-    WP m1 {{ lift_ipure (fun (v : R) => WP (m2 v) {{ ψ }}) }} ⊢
-    WP (bind m1 m2 : micro R E) {{ ψ }}.
+  Lemma wp_bind {A1 A2 X} (m1 : micro A1 X) (m2 : A1 -> micro A2 X) ψ:
+    WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢
+    WP (bind m1 m2) {{ ψ }}.
   Proof.
     iLöb as "IH" forall (m1 m2 ψ).
     iIntros "Hwp".
     wp_case_is_ret m1 Hret.
     (* Case: [m1] is [ret _]. *)
-    { cbn; rewrite wp_unfold; rewrite /wp_pre /=.
-      by iMod "Hwp". }
+    { repeat wp_unfold_all;
+        destruct (to_value (m2 a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold m1.
@@ -153,7 +153,7 @@ Section proof.
 
       apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
 
-      wp_unfold (bind m1 m2 : micro R E).
+      wp_unfold (bind m1 m2).
       eapply (to_value_None_bind m1 m2) in Hret; rewrite Hret.
       intro_state;
       iSpecialize ("Hwp" $! _ _ _ _ _ with "Hsi").
@@ -177,9 +177,27 @@ Section proof.
       iSpecialize ("Hwp" $! _ _ _ Hstep_m1 with "H£").
       iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
         iModIntro; iFrame.
+      iSplitR ""; last done.
 
       by iApply ("IH" with "Hwp"). }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
+
+  (* A binary version of the previous lemma. *)
+
+  (* This version must be preferred when the proof of [m1] requires a case
+    analysis. The scope of the case analysis is then limited to the first
+    premise, so the proof of [m2] is not duplicated. *)
+
+  Lemma wp_bind_binary {A1 A2 X} (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
+    WP m1 {{ φ }} ⊢
+    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ↑) v) -∗
+    WP (bind m1 m2) {{ ψ }}.
+  Proof.
+    iIntros "Hm1 Hm2".
+    iApply wp_bind.
+    iApply (wp_strong_mono with "Hm1"); try set_solver.
+    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
+  Qed.
 
   (* Try-catch *)
   Lemma wp_try {A B E E'} (m : micro A E')
@@ -249,6 +267,26 @@ Section proof.
         iModIntro; iFrame; iSplitR ""; last done.
 
       by iApply ("IH" with "Hwp"). }
+  Qed.
+
+  (* A binary version of the previous lemma. *)
+
+  (* This version must be preferred when the proof of [m1] requires a case
+    analysis. The scope of the case analysis is then limited to the first
+    premise, so the proof of [m2] is not duplicated. *)
+
+  Lemma wp_try_binary {A1 A2 X' X} (m1: micro A1 X') (m2: A1 → micro A2 X)
+    (h : X' -> micro A2 X) (φ ψ : value -> _) :
+    WP m1 {{ φ }} ⊢
+    (∀ v, φ v -∗
+          (| RET x => WP m2 x {{ v, ψ v }};
+           | EXN y => WP h y {{ v, ψ v }}) v) -∗
+    WP (try m1 m2 h) {{ ψ }}.
+  Proof.
+    iIntros "Hm1 Hm2".
+    iApply wp_try.
+    iApply (wp_strong_mono with "Hm1"); try set_solver.
+    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
   Qed.
 
   (* Par combinator *)
@@ -559,19 +597,19 @@ Section proof.
     (▷ (* Either: *)
       if int.lt i2 i1
       then
-        (* - i2 < i1, *)
-    (*           and the rest of the program satisfies the postcondition. *)
+        (* - i2 < i1,
+             and the rest of the program satisfies the postcondition. *)
         wp NotStuck ⊤ (k #()) φ
       else
-        (* - i1 <= i2, *)
-    (*           and the evaluation of the body succeeds and the remaining *)
-    (*           iterations satisfy the postcondition. *)
+        (* - i1 <= i2,
+               and the evaluation of the body succeeds and the remaining
+               iterations satisfy the postcondition. *)
         wp NotStuck ⊤ (eval ((x, (VInt i1)) :: η) e)
-              (λ _,
-                  wp NotStuck ⊤ (
-                      Stop CLoop
-                            (η, x, int.add i1 int.one, i2, e)
-                            k z) φ)) ⊢
+          (| RET _ => WP stop CLoop (η, x, add i1 int.one, i2, e)
+                            {{ v, ( | RET x1 => WP k x1 {{ v, φ v }};
+                                    | EXN y => WP z y {{ v, φ v }}) v }};
+           | EXN y => WP throw y {{ v, ( | RET x0 => WP k x0 {{ v, φ v }};
+                                        | EXN y0 => WP z y0 {{ v, φ v }}) v }})) ⊢
     (* Then the loop (with the rest of the program as continuation) satisfies
       the postcondition. *)
     wp NotStuck ⊤ (Stop CLoop (η, x, i1, i2, e) k z) φ.
@@ -589,48 +627,32 @@ Section proof.
       construct_wp_nonret.
     { exists nil; repeat eexists; econstructor. }
 
-    { destruct Hstep.
+    { destruct Hstep as (Hstep&?); subst; destruct_step.
       iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
       iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
       [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-      inversion H; subst; iFrame; iSplitR ""; last done.
-
-      dependent destruction H4.
 
       (* Finally, expand the definition of the helper function [loop]. *)
-      rewrite/loop.
-
-      destruct (int.lt i3 i0).
-      { (* In the base case, the loop is over. One can use the hypothesis to end
-          the proof. *)
-        iApply wp_try. iApply wp_ret; iApply "H". }
-
-      { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _]. *)
-        rewrite try_bind. (* <- push the [try] in the [bind]. *)
-
-        (* use the hypothesis about the behavior of the body of the loop. *)
-        admit. } }
+      rewrite/loop Hlt; by iFrame. }
 
     { exists nil; repeat eexists; econstructor. }
 
-    { destruct Hstep.
+    { destruct Hstep as (Hstep&?); subst; destruct_step.
       iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
       iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-      inversion H; subst; iFrame; iSplitR ""; last done.
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
 
-      dependent destruction H4.
-
-      (* Finally, expand the definition of the helper function [loop]. *)
-      rewrite/loop.
-
-      destruct (int.lt i3 i0).
-      { (* In the base case, the loop is over. One can use the hypothesis to end
+      (* In the base case, the loop is over. One can use the hypothesis to end
           the proof. *)
-        iApply wp_try. iApply wp_ret.
-  Admitted.
+      iApply wp_try.
 
-  Local Lemma wp_loop_inv_pos_aux {A X} s E
+      rewrite/loop Hlt; iFrame.
+      rewrite bind_as_try.
+      by iApply wp_try. }
+  Qed.
+
+  Local Lemma wp_loop_inv_pos_aux {A X}
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
         (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
         (Hinv : nat → iProp Σ) :
@@ -641,14 +663,134 @@ Section proof.
     (Hinv i1) ⊢
     (□ ∀ (i: nat), ⌜le i1 i⌝ →
                   ⌜le i i2⌝ →
-                  Hinv i -∗ wp s E
+                  Hinv i -∗ wp NotStuck ⊤
                                 (eval ((x, (VInt $ repr i)) :: η) e)
                                 (λ _, Hinv (S i))) -∗
-    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
-  Proof. Admitted.
+    (Hinv (S i2) -∗ wp NotStuck ⊤ (k #()) φ) -∗
+    wp NotStuck ⊤ (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
+  Proof.
+    generalize dependent i1 ; generalize dependent i2.
+    induction n;
+      iIntros(i2 i1 Hrepr1 Hrepr2 Hle Hn) "Hinit #Hpreservation Hccl";
 
-  Definition wp_loop_inv_pos {A X} s E
+      (* Three cases: either the loop is over, or the loop is entered one last
+        time, or it is entered. *)
+      last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
+
+      (* First, we take a step in the WP and frame the state interp. *)
+      wp_unfold_head; intro_state;
+      (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+      [set_solver | iModIntro ]);
+      construct_wp_nonret.
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* The loop is over. *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      assert (i1 = S i2) as -> by lia.
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try representable.
+      replace (i2 <? S i2)%Z with true by lia.
+      iApply wp_ret.
+      iApply ("Hccl" with "Hinit"). }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* The body of the loop will be executed (not for the last time). *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      assert (Hlt: int.lt (repr i2) (repr i1) = false).
+      { rewrite lt_repr_repr; try assumption.
+        - lia.
+        - unfold representable in *; lia. }
+
+      (* The loop is really a try... *)
+      rewrite/loop Hlt.
+      rewrite try_bind.
+
+      (* ...which leads to a bind.
+        The first element of the bind is the evaluation of the body of the
+        loop. The assumption ["Hpreservation"] prove that this evaluation
+        preserves the loop invariant predicate. It takes the invariant at i1
+        and gives back the invariant at [S i1]. *)
+      iApply (wp_try_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" $! i1 with "[//][//]Hinit").
+      iIntros(v)"Hinit".
+
+      (* The goal is the proof of a WP for [for x = S i1 to i2 do e done]. The
+        induction hypothesis can take care of it.
+        Note: it is to use ["Hpreservation"] a second time that it needs to be
+              persistent.  *)
+      iPoseProof (IHn i2 (S i1)) as "IH".
+      { unfold representable in *. lia. }
+      { assumption. }
+      { lia. }
+      { lia. }
+      { iSpecialize ("IH" with "Hinit[]Hccl").
+        { iIntros "!>" (i Hi Hi').
+          iApply ("Hpreservation"); iPureIntro; lia. }
+        destruct v; cycle 1.
+        (* Why doesn't this get automatically discharged with [contradiction]? *)
+        { exfalso; apply e0. }
+        cbn.
+
+        replace (add (repr i1) int.one) with (repr (S i1)); last first.
+        { rewrite add_repr_repr. f_equal. lia. }
+        done. } }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* Last run of the loop. *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try assumption.
+      rewrite Z.ltb_irrefl.
+      iApply (wp_bind_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" with "[//][//]Hinit").
+      iIntros(v)"Hinit".
+      destruct v; cycle 1.
+      (* Why doesn't this get automatically discharged with [contradiction]? *)
+      { exfalso; apply e0. }
+      cbn.
+      iSpecialize ("Hccl" with "Hinit").
+
+      assert (Hlt: int.lt (repr i2) (add (repr i2) int.one) = true).
+      { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
+
+      wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
+      intro_state. iClear "Hmod".
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; [ set_solver | iModIntro ].
+      clear m'.
+      construct_wp_nonret.
+      { exists nil; repeat eexists; econstructor. }
+
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£'"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      iApply wp_try.
+      rewrite/loop Hlt.
+      do 2 iApply wp_ret.
+      iExact "Hccl". }
+  Qed.
+
+  Definition wp_loop_inv_pos {A X}
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
         (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
         (Hinv : nat → iProp Σ) :
@@ -658,14 +800,14 @@ Section proof.
     (Hinv i1) ⊢
     (□ ∀ (i: nat), ⌜le i1 i⌝ →
                 ⌜le i i2⌝ →
-                Hinv i -∗ wp s E
+                Hinv i -∗ wp NotStuck ⊤
                               (eval ((x, (VInt $ repr i)) :: η) e)
                               (λ _, Hinv (S i))) -∗
-    (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-    wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
+    (Hinv (S i2) -∗ wp NotStuck ⊤ (k #()) φ) -∗
+    wp NotStuck ⊤ (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
     let n := S (i2 - i1)%nat in
     fun repr1 repr2 Hle =>
-      wp_loop_inv_pos_aux s E η x n i1 i2 e k z φ Hinv
+      wp_loop_inv_pos_aux η x n i1 i2 e k z φ Hinv
                           repr1 repr2 Hle eq_refl.
 
   (* ------------------------------------------------------------------------ *)
