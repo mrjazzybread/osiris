@@ -7,20 +7,13 @@ From iris.proofmode Require Import proofmode.
 From iris.prelude Require Import options.
 From iris.base_logic.lib Require Import own.
 
+From osiris.lang Require Import lang.
 From osiris.program_logic Require Import wp tactics.
 From osiris Require Import syntax semantics.
 
 Section proof.
 
-  Context {R E : Type}.
   Context `{!osirisGS Σ}.
-
-  Implicit Type φ : @value R E → iProp Σ.
-  Implicit Type m : micro R E.
-  Implicit Type n : micro R E.
-
-  Notation store_interp := (@store_interp R E _ _).
-  Notation step := (@step.step R E).
 
   #[local] Instance invGS_gen_osiris : invGS_gen HasNoLc Σ :=
     (osiris_invGS Σ).
@@ -28,7 +21,7 @@ Section proof.
   (* ------------------------------------------------------------------------ *)
   (** *General properties about [WP] and [step] *)
 
-  Lemma wp_can_step {σ φ} (m : micro R E) {M}:
+  Lemma wp_can_step {R E} {σ} φ (m : micro R E) {M}:
     store_interp σ -∗
     wp NotStuck M m φ ={M, ∅}=∗
     ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
@@ -47,7 +40,7 @@ Section proof.
     Unshelve. all : solve [exact 1 | exact nil].
   Qed.
 
-  Lemma wp_can_step' {σ φ} (m : micro R E) {M}:
+  Lemma wp_can_step' {R E} {σ φ} (m : micro R E) {M}:
     store_interp σ -∗
     wp NotStuck M m φ ={M}=∗
     ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
@@ -57,7 +50,7 @@ Section proof.
     iApply (fupd_plain_mask_empty with "[$]").
   Qed.
 
-  Lemma wp_step {σ σ' m n φ}:
+  Lemma wp_step {R E} {σ σ'} {m n : micro R E} {φ}:
     step (σ, m) (σ', n) →
     store_interp σ -∗
     £ 1 -∗
@@ -83,7 +76,7 @@ Section proof.
 
   (* ------------------------------------------------------------------------ *)
   (** *Inversion Laws *)
-  Lemma invert_wp_ret φ r :
+  Lemma invert_wp_ret {R E} φ r :
     ∀ σ, store_interp σ -∗
         WP (Ret r : micro R E) {{ φ }} -∗
         |={⊤}=> store_interp σ ∗ φ (Res r).
@@ -91,7 +84,7 @@ Section proof.
     iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
   Qed.
 
-  Lemma invert_wp_throw φ exn:
+  Lemma invert_wp_throw {R E} φ exn:
     ∀ σ, store_interp σ -∗
         WP (throw exn : micro R E) {{ φ }} -∗
         |={⊤}=> store_interp σ ∗ φ (Exn exn).
@@ -99,7 +92,7 @@ Section proof.
     iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
   Qed.
 
-  Lemma invert_wp_crash φ:
+  Lemma invert_wp_crash {R E} φ:
     ∀ σ, store_interp σ -∗
         WP (crash : micro R E) {{ φ }} -∗
         |={⊤}=> False.
@@ -118,19 +111,19 @@ Section proof.
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
   (* Pure values *)
-  Definition wp_ret φ (a : R) :
+  Definition wp_ret {R E} φ (a : R) :
     ipure φ a ⊢ WP (Ret a : micro R E) {{ φ }}.
   Proof.
     iIntros "Hφ"; rewrite wp_unfold; by cbn.
   Qed.
-  Definition wp_ret' s a e φ:
+  Definition wp_ret' {R E} s a e φ:
     ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
   Proof.
     iIntros "Hφ"; rewrite wp_unfold; by cbn.
   Qed.
 
   (* Cut rule *)
-  Lemma wp_bind (m1 : micro R E) (m2 : R -> micro R E) ψ:
+  Lemma wp_bind {R E} (m1 : micro R E) (m2 : R -> micro R E) ψ:
     WP m1 {{ lift_ipure (fun (v : R) => WP (m2 v) {{ ψ }}) }} ⊢
     WP (bind m1 m2 : micro R E) {{ ψ }}.
   Proof.
@@ -189,24 +182,22 @@ Section proof.
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
 
   (* Try-catch *)
-  Lemma wp_try m (f : R -> micro R E) (h : E -> micro R E) φ :
-    WP (m : micro R E)
-      {{ | RET x =>
-              WP (f x : micro R E) {{ φ }} ;
-          | EXN y =>
-              WP (h y : micro R E) {{ φ }} }} -∗
-    WP (try m f h : micro R E) {{ φ }}.
+  Lemma wp_try {A B E E'} (m : micro A E')
+    (f : A -> micro B E) (h : E' -> micro B E) φ :
+    WP m {{ | RET x => WP (f x) {{ φ }} ;
+            | EXN y => WP (h y) {{ φ }} }} -∗
+    WP (try m f h) {{ φ }}.
   Proof.
     iLöb as "IH" forall (m f h φ).
     iIntros "Hwp".
     wp_case_is_ret m Hret.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
-    { cbn; rewrite wp_unfold; rewrite /wp_pre /=.
-      by iMod "Hwp". }
+    { repeat wp_unfold_all;
+        destruct (to_value (f a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
-    { wp_unfold m.
+    { wp_unfold_all.
 
       (* Case analysis on [try] *)
       case_eq (is_ret (try m f h)); [
@@ -229,7 +220,6 @@ Section proof.
 
       apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
 
-      wp_unfold (try m f h : micro R E).
       eapply (to_value_None_try m f h) in Hret; rewrite Hret.
 
       intro_state;
@@ -256,13 +246,13 @@ Section proof.
 
       iSpecialize ("Hwp" $! _ _ _ Hstep_m with "H£").
       iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
-        iModIntro; iFrame.
+        iModIntro; iFrame; iSplitR ""; last done.
 
       by iApply ("IH" with "Hwp"). }
   Qed.
 
   (* Par combinator *)
-  Lemma wp_par (m1 m2 : micro R E)
+  Lemma wp_par {R E} (m1 m2 : micro R E)
     {k: R * R → micro R E} {z : E → micro R E} {φ} φ1 φ2:
     WP m1 {{ φ1 }} ⊢
     WP m2 {{ φ2 }} -∗
@@ -351,6 +341,143 @@ Section proof.
       iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). } }
   Qed.
+
+  (* A reasoning rule for [choose]. *)
+
+  (* A non-separating conjunction is used to express the idea that
+    either [m1] or [m2] is executed, but not both. Thus, there is
+    no need to split the current resource. It suffices to prove
+    that both [m1] and [m2] are safe under the current resource. *)
+
+  Lemma wp_choose {res exn} (m1 m2 : micro res exn) ψ :
+    ▷ (WP m1 {{ ψ }} ∧ WP m2 {{ ψ }}) ⊢
+    WP (choose m1 m2) {{ ψ }}.
+  Proof.
+    iIntros "H".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq  _ _ ⊤ ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { exists nil; repeat eexists ; eauto. constructor. }
+    destruct Hstep; subst.
+    destruct_step.
+    { iDestruct "H" as "[H _]".
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      iFrame.
+      rewrite try_ret_right. iSplitR ""; last done.
+      by iApply "H". }
+    { iDestruct "H" as "[_ H]".
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      rewrite try_ret_right. by iFrame. }
+  Qed.
+
+  (* This is a special case of the previous rule, where the left-hand side if
+    [ok]. The rule reads as follows: if [φ] holds now, and if the right-hand
+    side [m] preserves [φ], then after executing [choose ok m] the assertion
+    [φ] still holds. *)
+
+  Lemma wp_choose_ok {E} (m : micro val E) (φ : iProp Σ) :
+    φ -∗
+    ▷ (φ -∗ WP m {{ λ _, φ }}) -∗
+    WP (choose ok m) {{ λ _, φ }}.
+  Proof.
+    iIntros "Hφ Hm".
+    iApply wp_choose. iModIntro. iSplit.
+    { iClear "Hm". iApply wp_ret. iAssumption. }
+    { by iApply "Hm". }
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* [CLoop] *)
+
+  (* The following lemmas help reason on loops. *)
+
+  (* TODO these proofs need cleaning up *)
+
+  (* The following lemma is inspired by the corresponding CFML rule. *)
+  Lemma wp_loop {A X}
+        (η : env) (x : var) (i1 i2 : int) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ) :
+    (* If *)
+    (▷ (* Either: *)
+      if int.lt i2 i1
+      then
+        (* - i2 < i1, *)
+    (*           and the rest of the program satisfies the postcondition. *)
+        wp NotStuck ⊤ (k #()) φ
+      else
+        (* - i1 <= i2, *)
+    (*           and the evaluation of the body succeeds and the remaining *)
+    (*           iterations satisfy the postcondition. *)
+        wp NotStuck ⊤ (eval ((x, (VInt i1)) :: η) e)
+              (λ _,
+                  wp NotStuck ⊤ (
+                      Stop CLoop
+                            (η, x, int.add i1 int.one, i2, e)
+                            k z) φ)) ⊢
+    (* Then the loop (with the rest of the program as continuation) satisfies
+      the postcondition. *)
+    wp NotStuck ⊤ (Stop CLoop (η, x, i1, i2, e) k z) φ.
+  Proof.
+    iIntros "H".
+
+    (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
+    destruct (int.lt i2 i1) eqn:Hlt; (* In each case: *)
+      (* we enter into the WP of the goal, eliminate modalities, use the fact
+        that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
+        state interp. *)
+      wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
+      intro_state; (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+                    [ set_solver | iModIntro ]);
+      construct_wp_nonret.
+    { exists nil; repeat eexists; econstructor. }
+
+    { destruct Hstep.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      inversion H; subst; iFrame; iSplitR ""; last done.
+
+      dependent destruction H4.
+
+      (* Finally, expand the definition of the helper function [loop]. *)
+      rewrite/loop.
+
+      destruct (int.lt i3 i0).
+      { (* In the base case, the loop is over. One can use the hypothesis to end
+          the proof. *)
+        iApply wp_try. iApply wp_ret; iApply "H". }
+
+      { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _]. *)
+        rewrite try_bind. (* <- push the [try] in the [bind]. *)
+
+        (* use the hypothesis about the behavior of the body of the loop. *)
+        admit. }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { destruct Hstep.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      inversion H; subst; iFrame; iSplitR ""; last done.
+
+      dependent destruction H4.
+
+      (* Finally, expand the definition of the helper function [loop]. *)
+      rewrite/loop.
+
+      destruct (int.lt i3 i0).
+      { (* In the base case, the loop is over. One can use the hypothesis to end
+          the proof. *)
+        iApply wp_try. iApply wp_ret.
+  Admitted.
 
   (* ------------------------------------------------------------------------ *)
 
