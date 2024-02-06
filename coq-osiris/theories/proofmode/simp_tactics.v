@@ -52,7 +52,13 @@ Ltac pure_ret :=
 
 Ltac pure_path :=
   remove_deco;
-  simple eapply pure_eval_path; simpl lookup_path; pure_ret.
+  eapply pure_eval_path; simpl lookup_path;
+  match goal with
+  | H : lookup_name ?η ?path = ret ?res |- pure (lookup_name ?η ?path) _ =>
+      rewrite H
+  | _ => idtac
+  end;
+  pure_ret.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
