@@ -77,7 +77,8 @@ Ltac wp_step :=
   (* | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) => *)
   (*     tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _) *)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
-      first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
+      first [ iApply wp_eval
+            | tac_change_goal (wp_eval_ret _ _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
   | |- environments.envs_entails _ (wp _ _ (choose ok ?m2) _) =>
       tac_change_goal (wp_choose_ok _ _ _ _)
@@ -332,7 +333,7 @@ Ltac wp_lift_ipure :=
   end.
 
 Ltac wp_pure_postcondition :=
-  repeat wp_intro_pure; repeat wp_lift_ipure.
+  repeat wp_intro_pure; repeat wp_lift_ipure; subst; cbn.
 
 
 (* TODO: not great *)

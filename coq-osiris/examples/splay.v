@@ -266,14 +266,16 @@ Qed.
 
 (* This tactic proves an equality between two fringes. *)
 
+#[export] Hint Rewrite @fringe_fill @app_nil_l @app_nil_r @app_assoc : fringe.
+
 Local Ltac prove_same_fringe :=
-  rewrite -> ?fringe_fill in *;
-  simpl fringe in *;
-  simpl lfringe in *;
-  simpl rfringe in *;
-  rewrite ?app_nil_l in *;
-  rewrite ?app_nil_r in *;
-  rewrite <- ?app_assoc in *;
+  rewrite -> ?fringe_fill;
+  simpl fringe ;
+  simpl lfringe ;
+  simpl rfringe ;
+  rewrite ?app_nil_l ;
+  rewrite ?app_nil_r ;
+  rewrite <- ?app_assoc ;
   eauto.
 
 (* -------------------------------------------------------------------------- *)
@@ -327,7 +329,7 @@ End BST.
 
 Ltac destruct_bst_Node :=
   lazymatch goal with h: bst _ (Node _ _ _) |- _ =>
-    rewrite bst_Node_iff in h; by typeclasses eauto;
+    rewrite bst_Node_iff in h; try typeclasses eauto;
     destruct h as (?&?&?&?)
   end.
 
@@ -426,11 +428,12 @@ Proof.
       { (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
-        prove_same_fringe. }
+        rewrite Ht'. prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       { (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
+        rewrite Ht'.
         prove_same_fringe. }
     }
     (* Case: [NodeR]. *)
@@ -445,12 +448,14 @@ Proof.
         (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
+        rewrite Ht'.
         prove_same_fringe. }
       (* Subcase: [NodeR]. *)
       {
         (* Apply the induction hypothesis. *)
         pure1. intros t' Ht'.
         (* Establish the postcondition. *)
+        rewrite Ht'.
         prove_same_fringe. }
     }
   }
@@ -510,44 +515,44 @@ Proof.
       (* The call [compare x y] is now complete. *)
       destruct_bst_Node.
       pure_continue.
-      rewrite lt_repr_repr by representable.
+      rewrite lt_repr_repr; [ | representable | representable].
       assert (c < 0 ∨ 0 < c ∨ c = 0) as [|[|]] by lia.
       (* Case: [c < 0], that is, [x < y]. *)
-      { rewrite ltb_true by lia.
+      { rewrite ltb_true; [ | lia ].
         pure1. eapply pure_consequence.
-        { eapply IH; first assumption.
+        { eapply IH; eauto.
           { unfold tlt. simpl; lia. }}
         intros [ox t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_member_left by representable. assumption.
+        - rewrite bst_member_left; representable.
         - assumption. }
       (* Case: [c > 0], that is, [x > y]. *)
-      { rewrite ltb_false by lia.
+      { rewrite ltb_false; try lia.
         pure1.
-        rewrite lt_repr_repr by representable.
-        rewrite ltb_true by lia.
+        rewrite lt_repr_repr; representable.
+        rewrite ltb_true; try lia.
         pure1. eapply pure_consequence.
         { eapply IH; first assumption.
           { unfold tlt. simpl; lia. }}
         intros [b t'] (? & ?); simpl.
         (* Establish the postcondition: *)
         split.
-        - rewrite bst_member_right by representable. assumption.
+        - rewrite bst_member_right; representable.
         - assumption. }
       (* Subcase: [c = 0], so [x] and [y] are equivalent with respect to
          the preorder [le]. *)
-      { rewrite ltb_false by lia.
+      { rewrite ltb_false; try lia.
         pure1.
-        rewrite lt_repr_repr by representable.
-        rewrite ltb_false by lia.
+        rewrite lt_repr_repr; representable.
+        rewrite ltb_false; try lia.
         pure1.
         intros t' Ht'. pure1.
         (* Establish the postcondition: *)
         assert (equivalent le x y) by tauto.
         split; [ split |]; simpl.
         - assumption.
-        - rewrite !elem_of_app, elem_of_list_singleton. tauto.
+        - rewrite !elem_of_app elem_of_list_singleton. tauto.
         - assumption. }
     }
   }

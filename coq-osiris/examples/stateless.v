@@ -91,6 +91,7 @@ Section ProofExamples.
     { iIntros "!>".
       @oCall unfold.
       wp_alloc ℓ "[Hℓ _]".
+      cbn; wp.
       iExists ℓ.
       iSplit; first equality.
       by cbn. }
@@ -104,10 +105,13 @@ Section ProofExamples.
       wp_store "Hℓ".
       replace (VInt (repr (n + 1))) with (#(S n)); last first.
       { simpl. do 2 f_equal; lia. }
+
+      cbn; wp.
       prove_counter. }
 
     oSpecify "set" set_spec vset "#Hset" !.
     { iIntros "!>" (vc). call.
+      cbn; wp.
       iIntros (n m Hle ??) "(%ℓ&->&Hℓ)". call.
       (* TODO deal with [EAssert] properly *)
       rewrite eval_eval'. simpl.
@@ -127,7 +131,7 @@ Section ProofExamples.
       iIntros (v) "Hℓ".
       (* Done dealing with [EAssert]... *)
       destruct v; cbn.
-      - wp. wp_store "Hℓ". prove_counter.
+      - wp. wp_store "Hℓ". cbn; wp. prove_counter.
       - exfalso; apply e. }
 
     oSpecify "get" get_spec vget "#Hget" !.

@@ -102,23 +102,26 @@ Proof.
       { (* [i2 = 0%Z] *)
         apply Z.eqb_eq in E as ->.
         wp_bind.
-        wp_use "Hmult".
-        iIntros (Hmult_part) "Hmult_part".
+        wp_use "Hmult"; auto.
+        wp_pure_postcondition.
+        cbn.
+        iIntros "Hmult_part".
         iApply (wp_covariant with "[Hmult_part]").
         { iApply "Hmult_part"; done. }
-        iIntros(?->).
+        cbn. wp_pure_postcondition. subst. cbn.
         iPureIntro. equality. }
       { (* [i2 != 0%Z], goal: [1 + (add x (y - 1)) == x + y] *)
         wp_bind.
         wp_use "Hadd".
         { iPureIntro. lia. }
-        iIntros (vpadd) "Hvpadd".
+        wp_pure_postcondition; cbn.
+        iIntros "Hvpadd".
         rewrite sub_repr_repr.
         wp_bind.
         iApply (wp_covariant with "[Hvpadd]").
         { wp_use "Hvpadd".
           iPureIntro. lia. }
-        iIntros (?) "->".
+        cbn. wp_pure_postcondition; subst; cbn.
         wp.
         iPureIntro.
         rewrite add_repr_repr.
@@ -154,55 +157,73 @@ Proof.
           (* [mult x (y - 1)] *)
           wp_use "Hmult".
           { iPureIntro. lia. }
-          iIntros (vmult_part) "Hvmult_part".
+          wp_pure_postcondition.
+          iIntros "Hvmult_part".
           rewrite sub_repr_repr.
           wp_use "Hvmult_part".
           iPureIntro. lia. }
-        { iIntros (v1 v2) "Hv1 ->".
+        { wp_absurd. }
+        { wp_absurd. }
+        { cbn. wp_pure_postcondition.
+          iIntros "Hv1 ->".
           wp.
           iApply (wp_covariant with "[Hv1]").
           { iApply "Hv1". iPureIntro. apply Ztac.mul_le; lia. }
-          iIntros (?->).
+          cbn. wp_pure_postcondition.
           iPureIntro; equality. } } } }
 
   wp_par.
   { by wp_use "Hadd". }
   { wp_bind. wp_use "Hadd"; first done.
-    iIntros (vadd_part) "Hadd_part"; wp; by wp_use "Hadd_part". }
-  iIntros (vadd_part ?) "Hadd_part ->". wp.
+    wp_pure_postcondition.
+    iIntros "Hadd_part"; wp; by wp_use "Hadd_part". }
+  { wp_absurd. }
+  { wp_absurd. }
+  wp_pure_postcondition.
+  iIntros "Hadd_part ->". wp.
   iSpecialize("Hadd_part" $! _ _).
   wp_bind.
   wp_use "Hadd_part".
   Unshelve. 2: lia. (* TODO avoid this *)
-  iIntros (?->). wp. wp_bind.
+  wp_pure_postcondition.
+  wp_bind.
   wp_continue.
 
-  repeat wp_par.
+  repeat wp_par; try wp_absurd.
   { wp_bind; wp_use "Hmult"; first done.
-    iIntros (vmult_part) "Hmult_part".
+    wp_pure_postcondition.
+    iIntros "Hmult_part".
     iSpecialize ("Hmult_part" $! _ _). wp. wp_bind.
     wp_use "Hmult_part".
-    iIntros (?->).
+    wp_pure_postcondition.
     wp_use "Hadd"; first done. }
   { wp_use "Hadd"; first done. }
   { wp_use "Hmult"; first done. }
   { wp_bind. wp_use "Hadd"; first done.
-    iIntros (vadd_part') "Hadd_part'".
+    wp_pure_postcondition.
+    iIntros "Hadd_part'".
     iSpecialize ("Hadd_part'" $! _ _).
     iApply (wp_covariant with "Hadd_part'"). (*TODO: fix [wp_use]. *)
-    iIntros(?->). by wp_set_postcondition. }
-  { iIntros (v1 ?) "H1 ->". wp.
+    cbn. wp_pure_postcondition.
+    by wp_set_postcondition. }
+  { wp_pure_postcondition.
+    iIntros "H1 %H"; inversion H; subst. wp.
     iSpecialize ("H1" $! _ _).
     iApply (wp_covariant with "H1"). (* ditto. *)
-    iIntros (?->). by wp_set_postcondition. }
-  { iIntros (v1 ?) "H1 ->". wp.
+    cbn; wp_pure_postcondition.
+    by wp_set_postcondition. }
+  { wp_pure_postcondition.
+    iIntros "H1 %H"; inversion H; subst. wp.
     iSpecialize ("H1" $! _ _).
     iApply (wp_covariant with "H1"). (* ditto. *)
-    iIntros (?->). by wp_set_postcondition. }
-  { iIntros (v1 ?) "H1 ->". wp.
+    cbn; wp_pure_postcondition.
+    by wp_set_postcondition. }
+  { wp_pure_postcondition.
+    iIntros "H1 %H"; inversion H; subst. wp.
     iSpecialize ("H1" $! _ _).
     wp_bind. iApply (wp_covariant with "H1"). (* ditto. *)
-    iIntros (?->). wp. wp_continue.
+    cbn. wp_pure_postcondition.
+    wp_continue.
 
     wp_module_spec. }
 

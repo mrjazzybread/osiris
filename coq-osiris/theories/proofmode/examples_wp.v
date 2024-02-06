@@ -199,7 +199,6 @@ Proof.
   wp_pure_postcondition.
   (* We are again looking at [id()]. *)
   wp_use "Hid".
-  wp_pure_postcondition; subst; done.
 Qed.
 
 (* let id = identity in
@@ -228,8 +227,7 @@ Proof.
   (* id () *)
   { wp_use "Hid". }
 
-  wp_pure_postcondition. subst.
-  wp_bind.
+  wp_pure_postcondition.
 
   wp_use "Hid".
 Qed.
@@ -277,8 +275,9 @@ Proof.
   iIntros (η) "!>%bs".
   iInduction bs as [| b bs ] "IHbs";
   wp_enter_and_abstract; iIntros (walk); wp.
-  { equality. }
-  { wp_use "IHbs". }
+  { cbn. wp. equality. }
+  { wp_use "IHbs". wp_pure_postcondition. wp.
+    equality. }
 Qed.
 
 Definition walk_example e :=
@@ -316,8 +315,9 @@ Proof.
     iIntros "!>"(bs).
     iInduction bs as [| b bs ] "IHbs";
     wp_enter_and_abstract; iIntros (walk); wp.
-    { equality. }
-    { wp_use "IHbs". }
+    { cbn. wp. equality. }
+    { wp_use "IHbs". wp_pure_postcondition. wp.
+      equality. }
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   (* The remains to exploit the hypothesis [Hwalk]. *)
@@ -354,10 +354,10 @@ Proof.
   iInduction (xs) as [| x xs ] "IHxs";
   wp_enter_and_abstract; iIntros (length);
   wp.
-  { equality. }
+  { cbn. wp. equality. }
   { iApply wp_bind_binary; first by wp_use "IHxs".
     wp_pure_postcondition; subst; cbn. wp.
-    cbn. iPureIntro.
+    cbn. wp. iPureIntro.
     rewrite add_repr_repr. equality. }
 Qed.
 

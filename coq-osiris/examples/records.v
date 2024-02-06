@@ -167,8 +167,7 @@ Proof.
       change (VRecord [("b", VBool b1); ("i", VInt (int.repr i1))])
       with (#{| b:=b1; i:= i1|}).
       wp_use "Hr_val". wp_pure_postcondition; subst.
-      wp_simp.
-      iApply wp_ret.
+      wp.
       wp_set_postcondition. }
     { wp_bind.
       (* TODO avoid manual encoding *)
