@@ -74,6 +74,16 @@ Section proof.
     Unshelve. all : solve [exact 1 | exact nil].
   Qed.
 
+  Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
+    WP m @ s; E {{ φ }} -∗
+    (∀ a, φ a -∗ φ' a) -∗
+    WP m @ s; E {{ φ' }}.
+  Proof.
+    iIntros "Hwp Himpl";
+      iApply (wp_strong_mono with "Hwp [Himpl]"); try done.
+    iIntros (?) "Hφ"; iModIntro; iApply ("Himpl" with "Hφ").
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *Inversion Laws *)
   Lemma invert_wp_ret {R E} φ r :
