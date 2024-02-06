@@ -3,7 +3,9 @@ From Coq Require Import Program.Equality.
 From iris.prelude Require Import options.
 From iris.base_logic.lib Require Import own.
 
-From osiris Require Import syntax semantics.
+From iris.program_logic Require Import language.
+
+From osiris Require Export syntax semantics.
 
 (** *Weakest precondition instantiation
 
@@ -156,8 +158,6 @@ Section exp_properties.
 
 End exp_properties.
 
-From iris.program_logic Require Export language.
-
 Section lang_instance.
 
   Context {res exn : Type}.
@@ -272,3 +272,6 @@ End definitions.
     fork_post _ := True%I;
     num_laters_per_step _ := 0;
     state_interp_mono _ _ _ _ := fupd_intro _ _ }.
+
+
+From osiris Require Export syntax semantics.
