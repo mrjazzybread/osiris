@@ -25,6 +25,38 @@ Section proof.
   #[local] Instance invGS_gen_osiris : invGS_gen HasNoLc Σ :=
     (osiris_invGS Σ).
 
+  (* ------------------------------------------------------------------------ *)
+  (** *General properties about [WP] and [step] *)
+
+  Lemma wp_can_step {σ φ} (m : micro R E) {M}:
+    store_interp σ -∗
+    wp NotStuck M m φ ={M, ∅}=∗
+    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
+  Proof.
+    iIntros "SI Hwp".
+    wp_unfold_all.
+    destruct (wp.to_value m) eqn: Hm.
+    { iMod "Hwp". iApply fupd_mask_intro; first set_solver.
+      iIntros "_".
+      to_value_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
+      iPureIntro; eauto. }
+    { iSpecialize ("Hwp" $! _ _ _ _ _ with "SI").
+      iMod "Hwp".
+      iDestruct "Hwp" as"[%c' _]". iPureIntro.
+      left. by apply can_step_reducible. }
+    Unshelve. all : solve [exact 1 | exact nil].
+  Qed.
+
+  Lemma wp_can_step' {σ φ} (m : micro R E) {M}:
+    store_interp σ -∗
+    wp NotStuck M m φ ={M}=∗
+    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
+  Proof.
+    iIntros.
+    iPoseProof (wp_can_step with "[$][$]") as "?".
+    iApply (fupd_plain_mask_empty with "[$]").
+  Qed.
+
   Lemma wp_step {σ σ' m n φ}:
     step (σ, m) (σ', n) →
     store_interp σ -∗
@@ -48,6 +80,42 @@ Section proof.
     iDestruct "Hwp" as "[$ [$ _]]".
     Unshelve. all : solve [exact 1 | exact nil].
   Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (** *Inversion Laws *)
+  Lemma invert_wp_ret φ r :
+    ∀ σ, store_interp σ -∗
+        WP (Ret r : micro R E) {{ φ }} -∗
+        |={⊤}=> store_interp σ ∗ φ (Res r).
+  Proof.
+    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+  Qed.
+
+  Lemma invert_wp_throw φ exn:
+    ∀ σ, store_interp σ -∗
+        WP (throw exn : micro R E) {{ φ }} -∗
+        |={⊤}=> store_interp σ ∗ φ (Exn exn).
+  Proof.
+    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+  Qed.
+
+  Lemma invert_wp_crash φ:
+    ∀ σ, store_interp σ -∗
+        WP (crash : micro R E) {{ φ }} -∗
+        |={⊤}=> False.
+  Proof.
+    iIntros (?) "Hsi Hwp".
+    wp_unfold_all. spec_state "Hwp".
+
+    destruct_wp_nonret.
+    inversion Hcanstep.
+    destruct H as (?&?&?&?); inversion H.
+    subst. inversion H0.
+    Unshelve. all : solve [ exact 1 | exact nil].
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
   (* Pure values *)
   Definition wp_ret φ (a : R) :
@@ -193,38 +261,6 @@ Section proof.
       by iApply ("IH" with "Hwp"). }
   Qed.
 
-  (* Inversion laws *)
-  Lemma invert_wp_ret φ r :
-    ∀ σ, store_interp σ -∗
-        WP (Ret r : micro R E) {{ φ }} -∗
-        |={⊤}=> store_interp σ ∗ φ (Res r).
-  Proof.
-    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
-  Qed.
-
-  Lemma invert_wp_throw φ exn:
-    ∀ σ, store_interp σ -∗
-        WP (throw exn : micro R E) {{ φ }} -∗
-        |={⊤}=> store_interp σ ∗ φ (Exn exn).
-  Proof.
-    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
-  Qed.
-
-  Lemma invert_wp_crash φ:
-    ∀ σ, store_interp σ -∗
-        WP (crash : micro R E) {{ φ }} -∗
-        |={⊤}=> False.
-  Proof.
-    iIntros (?) "Hsi Hwp".
-    wp_unfold_all. spec_state "Hwp".
-
-    destruct_wp_nonret.
-    inversion Hcanstep.
-    destruct H as (?&?&?&?); inversion H.
-    subst. inversion H0.
-    Unshelve. all : solve [ exact 1 | exact nil].
-  Qed.
-
   (* Par combinator *)
   Lemma wp_par (m1 m2 : micro R E)
     {k: R * R → micro R E} {z : E → micro R E} {φ} φ1 φ2:
@@ -314,43 +350,6 @@ Section proof.
       iDestruct "H2" as "[$ H2]"; cbn; iFrame; iSplitR ""; last done.
       iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). } }
-  Qed.
-
-  (* ------------------------------------------------------------------------ *)
-
-  (* Helper (LATER: Move?) *)
-
-  Ltac to_value_is_Some Hm :=
-    apply to_value_is_Some in Hm;
-    destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
-
-  Lemma wp_can_step {σ φ} (m : micro R E) {M}:
-    store_interp σ -∗
-    wp NotStuck M m φ ={M, ∅}=∗
-    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
-  Proof.
-    iIntros "SI Hwp".
-    wp_unfold_all.
-    destruct (wp.to_value m) eqn: Hm.
-    { iMod "Hwp". iApply fupd_mask_intro; first set_solver.
-      iIntros "_".
-      to_value_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
-      iPureIntro; eauto. }
-    { iSpecialize ("Hwp" $! _ _ _ _ _ with "SI").
-      iMod "Hwp".
-      iDestruct "Hwp" as"[%c' _]". iPureIntro.
-      left. by apply can_step_reducible. }
-    Unshelve. all : solve [exact 1 | exact nil].
-  Qed.
-
-  Lemma wp_can_step' {σ φ} (m : micro R E) {M}:
-    store_interp σ -∗
-    wp NotStuck M m φ ={M}=∗
-    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
-  Proof.
-    iIntros.
-    iPoseProof (wp_can_step with "[$][$]") as "?".
-    iApply (fupd_plain_mask_empty with "[$]").
   Qed.
 
   (* ------------------------------------------------------------------------ *)

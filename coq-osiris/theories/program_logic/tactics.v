@@ -82,3 +82,11 @@ Ltac construct_wp_nonret :=
   | (* Introduce a hypothetical step: *)
     iIntros (σ' m' ? ) "%Hstep"
   ].
+
+(* -------------------------------------------------------------------------- *)
+
+  (* Misc tactics *)
+
+  Ltac to_value_is_Some Hm :=
+    apply to_value_is_Some in Hm;
+    destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.

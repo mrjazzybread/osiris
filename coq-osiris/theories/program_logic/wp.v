@@ -7,7 +7,7 @@ From iris.program_logic Require Import language.
 
 From osiris Require Export syntax semantics.
 
-(** *Weakest precondition instantiation
+(** *Weakest precondition
 
   We instantiate an instance of [LanguageMixin], which do not include evalueuation
   contexts.
@@ -272,6 +272,5 @@ End definitions.
     fork_post _ := True%I;
     num_laters_per_step _ := 0;
     state_interp_mono _ _ _ _ := fupd_intro _ _ }.
-
 
 From osiris Require Export syntax semantics.
