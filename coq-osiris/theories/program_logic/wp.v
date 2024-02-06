@@ -267,4 +267,11 @@ Definition store_interp {Σ H} (σ : store) :=
     num_laters_per_step _ := 0;
     state_interp_mono _ _ _ _ := fupd_intro _ _ }.
 
-From osiris Require Export syntax semantics.
+Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" := (wp s E e%E (lift_ipure (λ v, Q)))
+  (at level 20, e, Q at level 200,
+   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e {{ 'RET' v , Q } }" := (wp NotStuck ⊤ e%E (lift_ipure (λ v, Q)))
+  (at level 20, e, Q at level 200,
+   format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+
+From osiris Require Export syntax semantics lang.

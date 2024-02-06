@@ -121,13 +121,13 @@ Section proof.
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
   (* Pure values *)
-  Definition wp_ret {R E} φ (a : R) :
-    ipure φ a ⊢ WP (Ret a : micro R E) {{ φ }}.
+  Definition wp_ret {R E} s a e φ:
+    ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
   Proof.
     iIntros "Hφ"; rewrite wp_unfold; by cbn.
   Qed.
   Definition wp_ret' {R E} s a e φ:
-    ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
+    φ a ⊢ WP (Ret a : micro R E) @ s; e {{ RET v, φ v }}.
   Proof.
     iIntros "Hφ"; rewrite wp_unfold; by cbn.
   Qed.
@@ -300,8 +300,8 @@ Section proof.
   Qed.
 
   (* Par combinator *)
-  Lemma wp_par {R E} (m1 m2 : micro R E)
-    {k: R * R → micro R E} {z : E → micro R E} {φ} φ1 φ2:
+  Lemma wp_par {A E A1 A2 E'} (m1 : micro A1 E') (m2 : micro A2 E')
+    {k: A1 * A2 → micro A E} {z : E' → micro A E} {φ} φ1 φ2:
     WP m1 {{ φ1 }} ⊢
     WP m2 {{ φ2 }} -∗
     (∀ e, φ1 (Exn e) -∗ WP (z e) {{ φ }}) -∗
@@ -309,7 +309,7 @@ Section proof.
     (∀ a1 a2,
         φ1 (Res a1) -∗ φ2 (Res a2) -∗
         WP (k (a1, a2)) {{ φ }}) -∗
-      WP (Par m1 m2 k z : micro R E) {{ φ }}.
+      WP (Par m1 m2 k z) {{ φ }}.
   Proof.
     (* We proceed by Löb-Induction after generalizing [m1] and [m2]. *)
     iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".

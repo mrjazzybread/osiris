@@ -70,12 +70,12 @@ Ltac wp_step :=
       tac_change_goal (wp_ret _ _ _ _)
   | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
       tac_change_goal (wp_try _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) =>
-      tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) _ _) _) =>
-      tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) =>
-      tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _)
+  (* | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) => *)
+  (*     tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _) *)
+  (* | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) _ _) _) => *)
+  (*     tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _) *)
+  (* | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) => *)
+  (*     tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _) *)
   | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ tac_change_goal (wp_eval_ret _ _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
@@ -197,7 +197,7 @@ Ltac wp_bind :=
   | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
       first [
           (* [wp_simp] will reduce the bind if it can. *)
-          progress wp_simp; try once wp_bind
+          try wp_simp; try iApply wp_bind
         | tac_change_goal (wp_bind _ _ _ _ _) ]
   | _ => fail "[wp_bind] should only be applied to goals of the form [WP bind _ _ {{ _ }}]."
   end; wp.
@@ -275,10 +275,10 @@ Tactic Notation "wp" "until" constr(name) "!" :=
 (* -------------------------------------------------------------------------- *)
 
 Ltac wp_par :=
-  iApply wp_par; [wp | wp | ].
+  iApply wp_par; [wp | wp | .. ].
 
 Ltac wp_par_with H :=
-  iApply (wp_par with H); [wp | wp | ].
+  iApply (wp_par with H); [wp | wp | .. ].
 
 Ltac wp_use H :=
   first [
@@ -308,10 +308,42 @@ Ltac wp_enter_and_abstract :=
     generalize dependent v
   end.
 
+Ltac wp_pure_postcondition' :=
+  let x := fresh "x" in
+  iIntros (x) "Hψ"; destruct x; [ | done];
+    iDestruct "Hψ" as "%Hψ"; subst; cbn.
+
+Ltac wp_intro_pure :=
+  match goal with
+  | |- environments.envs_entails _ (@bi_forall _ val _) =>
+      let e := fresh "e" in
+      iIntros (e)
+  | |- environments.envs_entails _ (@bi_forall _ value _) =>
+      let e := fresh "e" in
+      iIntros (e);
+      try destruct e as [e | e]; last (try (exfalso; apply e))
+  end.
+
+Ltac wp_lift_ipure :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (bi_wand (lift_ipure _ (Res ?e)) _) =>
+      let H := fresh "H" in
+      iIntros "H"; iDestruct "H" as %H
+  end.
+
+Ltac wp_pure_postcondition :=
+  repeat wp_intro_pure; repeat wp_lift_ipure.
+
+
 (* TODO: not great *)
 Ltac wp_set_postcondition :=
     by
     lazymatch goal with
+    | |- environments.envs_entails _ (@ipure ?res ?exn ?Σ ?φ ?v) =>
+        is_evar φ;
+        let H := eval cbn in (λ R : @value res exn,
+                                 ⌜R = @Res res exn v⌝%I : iPropI Σ)%I in
+        instantiate (1 := H)
     | |- environments.envs_entails ?Δ (?φ ?v) =>
         is_evar φ;
         let hyps :=
@@ -319,12 +351,20 @@ Ltac wp_set_postcondition :=
                      environments.env_to_list $
                      environments.env_spatial Δ
                    ) in
-          let H := eval cbn in (
-                              match hyps with
-                              | [] => λ res, ⌜ res = v ⌝%I
-                              | _ => (λ res, ⌜ res = v ⌝ ∗ [∗ list] p ∈ hyps, p)%I
-                              end)%I in
-            instantiate (1 := H)
+        let H := eval cbn in (
+                            match hyps with
+                            | [] => λ res, ⌜ res = v ⌝%I
+                            | _ => (λ res, ⌜ res = v ⌝ ∗ [∗ list] p ∈ hyps, p)%I
+                            end)%I in
+          instantiate (1 := H)
+    end.
+
+Ltac wp_absurd :=
+  by
+    lazymatch goal with
+    | |- environments.envs_entails _ (@bi_forall _ void _) =>
+        let e := fresh "e" in
+        iIntros (e); exfalso; apply e
     end.
 
 (* -------------------------------------------------------------------------- *)
