@@ -9,6 +9,7 @@ From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_stateless.
 
 
+
 Section Specifications.
   Context `{!osirisGS Σ}.
 
