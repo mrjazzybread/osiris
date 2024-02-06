@@ -318,7 +318,7 @@ Lemma bst_Node_iff l x r :
   bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
 Proof.
   unfold bst. simpl fringe.
-  rewrite !Sorted_app_iff, !Sorted_singleton_iff, pairwise_app_right_iff.
+  rewrite !Sorted_app_iff !Sorted_singleton_iff pairwise_app_right_iff.
   pose proof (@pairwise_transitive_singleton _ lt _ (fringe l) x (fringe r)).
   tauto.
 Qed.
@@ -327,7 +327,7 @@ End BST.
 
 Ltac destruct_bst_Node :=
   lazymatch goal with h: bst _ (Node _ _ _) |- _ =>
-    rewrite bst_Node_iff in h by typeclasses eauto;
+    rewrite bst_Node_iff in h; by typeclasses eauto;
     destruct h as (?&?&?&?)
   end.
 
@@ -354,7 +354,7 @@ Definition zlookup_spec (zlookup : val) : Prop :=
   bst (strict le) t →
   pure
     (call zlookup #(t, x, ctx))
-    (λ '((oy, t') : option A * tree A),
+    (λ '(oy, t'),
       member le x (fringe t) oy ∧
       fringe t' = fringe (fill ctx t)
     ).

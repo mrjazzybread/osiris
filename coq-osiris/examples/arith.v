@@ -26,18 +26,18 @@ Definition add_spec vadd : iProp Σ :=
   □ (∀ (x : Z),
     ⌜0 <= x⌝%Z →
     WP call vadd #x
-    {{ λ v,
+    {{ RET v,
         ∀ (y: Z),
           ⌜0 <= y⌝%Z →
-        WP call v #y {{ λ res, ⌜res = #(x + y)%Z⌝ }} }}).
+        WP call v #y {{ RET res, ⌜res = #(x + y)%Z⌝ }} }}).
 
 Definition mult_spec vmult : iProp Σ :=
   □ (∀ (x: Z),
     ⌜0 <= x⌝%Z →
     WP call vmult #x
-       {{ λ v, ∀ (y: Z),
+       {{ RET v, ∀ (y: Z),
              ⌜0 <= y⌝%Z →
-             WP call v #y {{ λ res, ⌜res = #(x * y)%Z⌝ }} }}).
+             WP call v #y {{ RET res, ⌜res = #(x * y)%Z⌝ }} }}).
 
 Definition trivial_spec: val → iProp Σ := λ v, ⌜ True ⌝%I.
 Definition is_equal `{Encode X} (e: X) : val → iProp Σ := λ v, ⌜v = #e⌝%I.
@@ -79,7 +79,7 @@ Lemma Add_spec :
     ]
   in
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η __main {{ RET v, module_spec Λ v }}.
 Proof.
   intros.
 
@@ -102,7 +102,7 @@ Proof.
       { (* [i2 = 0%Z] *)
         apply Z.eqb_eq in E as ->.
         wp_bind.
-        wp_use "Hmult"; first done.
+        wp_use "Hmult".
         iIntros (Hmult_part) "Hmult_part".
         iApply (wp_covariant with "[Hmult_part]").
         { iApply "Hmult_part"; done. }

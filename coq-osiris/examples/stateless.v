@@ -19,26 +19,26 @@ Section Specifications.
     ∃ (ℓ : loc), ⌜v = #ℓ⌝ ∗ ℓ ↦ #n.
 
   Definition make_spec (vmake : val) : iProp Σ :=
-    □ WP call vmake #() {{ λ res, is_counter O res }}.
+    □ WP call vmake #() {{ RET res, is_counter O res }}.
 
   Definition get_spec (vget : val) : iProp Σ :=
     □ ∀ (v : val) (n : nat),
-    is_counter n v -∗ WP call vget v {{ λ res, ⌜res = #n⌝ ∗ is_counter n v }}.
+    is_counter n v -∗ WP call vget v {{ RET res, ⌜res = #n⌝ ∗ is_counter n v }}.
 
   Definition incr_spec (vincr : val) : iProp Σ :=
     □ ∀ (v : val) (n : nat),
     is_counter n v -∗
-    WP call vincr v {{ λ res, ⌜res = VUnit⌝ ∗ is_counter (S n) v }}.
+    WP call vincr v {{ RET res, ⌜res = VUnit⌝ ∗ is_counter (S n) v }}.
   Definition set_spec (vset : val) : iProp Σ :=
     □ ∀ (v : val),
     WP call vset v {{
-          λ res,
+          RET res,
             ∀ (n m : nat),
             ⌜(n <= m)%nat⌝ →
             ⌜representable n⌝ →
             ⌜representable m⌝ →
             is_counter n v -∗
-            WP call res #m {{ λ res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
+            WP call res #m {{ RET res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
 
   Definition Counter_specs : spec val :=
     SpecModule
@@ -85,7 +85,7 @@ Section ProofExamples.
             (Hη_le: lookup_name η "<=" = Ret Stdlib__le).
 
   Lemma Stateless_correct :
-    ⊢ WP eval_mexpr η __main {{ Stateless_spec }}.
+    ⊢ WP eval_mexpr η __main {{ RET v, Stateless_spec v }}.
   Proof using Hη_add Hη_le Hη_load Hη_ref Hη_store osirisGS0 Σ η.
     oSpecify "make" make_spec vmake "#Hmake" !.
     { iIntros "!>".
@@ -114,7 +114,7 @@ Section ProofExamples.
       rewrite <- try_choose. rewrite <- bind_as_try.
       iApply (wp_bind_binary with "[Hℓ]").
       { wp.
-        iApply (wp_choose_ok _ _ _ (ℓ ↦ #n)%I with "[Hℓ]").
+        iApply (wp_choose_ok _ (ℓ ↦ #n)%I with "[Hℓ]").
         + iFrame.
         + iModIntro. iIntros "Hℓ".
           wp.
@@ -123,10 +123,12 @@ Section ProofExamples.
           (* TODO deal with comparisons in a more automated way *)
           replace (m <? n) with false by lia.
           wp. iFrame.
-      } iIntros "_ Hℓ".
+      } cbn.
+      iIntros (v) "Hℓ".
       (* Done dealing with [EAssert]... *)
-      wp.
-      wp_store "Hℓ". prove_counter. }
+      destruct v; cbn.
+      - wp. wp_store "Hℓ". prove_counter.
+      - exfalso; apply e. }
 
     oSpecify "get" get_spec vget "#Hget" !.
     { iIntros "!>"(? nc) "(%ℓ&->&Hℓ)".

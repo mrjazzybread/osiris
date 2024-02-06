@@ -402,7 +402,7 @@ Proof.
       { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
         assumption. }
       { (* Subgoal: show [length l1 < length l ] *)
-        rewrite Heql in *. by apply div2_lt_succ. } }
+        rewrite Heql; rewrite Heql in Hl1. by apply div2_lt_succ. } }
     intros l1' IHl1'.
     unfold __exp9.
     eapply pure_eval_let.
@@ -412,7 +412,7 @@ Proof.
       { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
         assumption. }
       { (* Subgoal: show [length l2 < length l] *)
-        rewrite Hl2, Heql. auto with arith. } }
+        rewrite Hl2 Heql. auto with arith. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     unfold __exp8.
     eapply pure_eval_app2_conseq.
@@ -502,7 +502,7 @@ Proof.
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions. pure1.
   (* TODO: Environments are too present in the goal *)
-  rewrite lt_repr_repr by auto.
+  rewrite lt_repr_repr; auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *) Transparent app. simpl.
