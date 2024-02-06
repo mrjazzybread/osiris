@@ -141,8 +141,8 @@ Section exp_properties.
     intros; destruct m; inversion H; subst; [right | left]; eauto.
   Qed.
 
-  Lemma to_value_None_try {A E}
-    (m : micro A E) (f : A -> micro A E) (h : E -> micro A E) :
+  Lemma to_value_None_try {A B E' E}
+    (m : micro A E') (f : A -> micro B E) (h : E' -> micro B E) :
     to_value m = None ->
     to_value (try m f h) = None.
   Proof.
@@ -187,7 +187,8 @@ End lang_instance.
 
 Section lang_properties.
 
-  Lemma reducible_try {A E} (m1 : micro A E) (f : A -> micro A E) (h : E -> micro A E) σ:
+  Lemma reducible_try {A B E' E}
+    (m1 : micro A E') (f : A -> micro B E) (h : E' -> micro B E) σ:
     reducible (Λ := osiris_lang) m1 σ ->
     reducible (Λ := osiris_lang) (try m1 f h) σ.
   Proof.
@@ -253,12 +254,9 @@ End ghost_instances.
 
 Section definitions.
 
-  Context {R E : Type}.
   Context {Σ : gFunctors} {hG : osirisGS Σ}.
 
-  Notation osiris_lang := (@osiris_lang R E).
-
-  Definition store_interp (σ : language.state osiris_lang) : iProp Σ :=
+  Definition store_interp (σ : store) : iProp Σ :=
     own (osiris_store_name hG)
       (gmap_view_auth (DfracOwn 1%Qp) (σ : gmap _ (leibnizO _))).
 

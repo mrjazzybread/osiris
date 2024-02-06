@@ -196,8 +196,8 @@ Qed.
 
 (* Inversion properties of [try] and [bind] *)
 
-Lemma invert_try_ret {A E' F} m1 m2 h v:
-  @try A A E' F m1 m2 h = ret v ->
+Lemma invert_try_ret {A B E' F} m1 m2 h v:
+  @try A B E' F m1 m2 h = ret v ->
   (∃ a, m1 = ret a /\ m2 a = ret v) \/
   (∃ e, m1 = throw e /\ h e = ret v).
 Proof.
