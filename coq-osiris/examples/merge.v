@@ -193,41 +193,24 @@ Proof.
   eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
 Qed.
 
-Fixpoint strip_cons {A : Type} (l : list A) : list A :=
-  match l with
-  | [] => []
-  | x :: l => strip_cons l
-  end.
-
-Ltac subst_abstracted_env :=
-  lazymatch goal with
-  | |- pure (eval ?η _) _ =>
-      match eval simpl in (strip_cons η) with
-      | [] => idtac
-      | strip_cons ?η0 =>
-          match goal with
-          | H : η0 = _ |- _ =>
-              subst η0
-          end
-      end
-  end.
-
 Ltac collapse_abstracted_env :=
-  repeat subst_abstracted_env.
+  repeat (match goal with
+          | η := _ : list (var * val) |- _ => subst η
+          end).
 
 Ltac abstract_env :=
   lazymatch goal with
   | |- pure (eval ?η _) _ =>
       collapse_abstracted_env;
-      let η0 := fresh "η" in
-      remember η as η0
+      match goal with
+      | |- pure (eval ?η _) _ =>
+          let η0 := fresh "η" in
+          set η as η0
+      end
   | _ => idtac
   end.
 
-Ltac new_pure_path :=
-  collapse_abstracted_env; pure_path; abstract_env.
-
-Ltac trivial_pure := (new_pure_path || pure_const).
+Ltac trivial_pure := (pure_path || pure_const).
 
 Ltac pure_eval_app2_conseq :=
   eapply pure_eval_app2_conseq;
@@ -261,18 +244,18 @@ Proof.
   unfold merge_pre in *; repeat (destruct_hyp).
   abstract_env.
   eapply pure_eval_match.
-  { eapply pure_eval_pair. new_pure_path. new_pure_path.
+  { eapply pure_eval_pair. pure_path. pure_path.
     reflexivity. }
   unfold __branches2; simpl.
   (* First branch of match *)
   pure_match; abstract_env. (* TODO: seems slow *)
   { (* Match against "[], l" *)
-    new_pure_path.
+    pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     done. }
     (* Match against "l, []" *)
-  { new_pure_path.
+  { pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     by rewrite app_nil_r. }
@@ -280,8 +263,8 @@ Proof.
   { eapply pure_eval_ifthenelse_prop.
     { (* Evaluate expression "h1 <= h2" *)
       eapply pure_eval_EOpLe_pure.
-      { new_pure_path. reflexivity. }
-      { new_pure_path. reflexivity. }
+      { pure_path. reflexivity. }
+      { pure_path. reflexivity. }
       { by repeat Forall_inversion. }
       { by repeat Forall_inversion. } }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
@@ -341,7 +324,7 @@ Proof.
   unfold split_spec. intros.
   pure_rec l (@wf_list_length A).
   (* Goal: eval match on l *)
-  eapply pure_eval_match. { new_pure_path. apply eq_refl. }
+  eapply pure_eval_match. { pure_path. apply eq_refl. }
   unfold __branches6; simpl.
   (* First branch of match *)
   pure_match; abstract_env.
@@ -357,7 +340,7 @@ Proof.
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
-    eapply pure_eval_app. new_pure_path. new_pure_path.
+    eapply pure_eval_app. pure_path. pure_path.
     (* Call vf #xs *) simpl.
     eapply pure_consequence.
     { (* Use induction hypothesis *)
@@ -403,7 +386,7 @@ Proof.
   { destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
   { eapply pure_eval_let_pair.
-    eapply pure_eval_app. new_pure_path. new_pure_path.
+    eapply pure_eval_app. pure_path. pure_path.
     (* Use knowledge that [split] ⊨ [split_spec] *)
     eapply pure_consequence. { apply _split_spec. }
     intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
@@ -413,7 +396,7 @@ Proof.
     (* TODO: make it so we don't need to manually apply abstract_env here.
        Note that it is currently required because of pure_eval_let_pair *)
     eapply pure_eval_let.
-    { eapply pure_eval_app. new_pure_path. new_pure_path.
+    { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l1] *)
       apply IH.
       { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
@@ -423,7 +406,7 @@ Proof.
     intros l1' IHl1'.
     unfold __exp9.
     eapply pure_eval_let.
-    { eapply pure_eval_app. new_pure_path. new_pure_path.
+    { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l2] *)
       apply IH.
       { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
