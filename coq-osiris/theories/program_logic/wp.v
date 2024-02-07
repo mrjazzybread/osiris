@@ -8,7 +8,7 @@ From osiris Require Export syntax semantics.
 
 (** *Weakest precondition
 
-  We instantiate an instance of [LanguageMixin], which do not include evalueuation
+  We instantiate an instance of [LanguageMixin], which do not include evaluation
   contexts.
 
   This is an "exception-handling" Hoare triple, which considers two cases for its
@@ -20,7 +20,7 @@ From osiris Require Export syntax semantics.
             {{ | RET x => ϕ x ;
                 | EXN x => ψ x }}.
 
-    to indicate that the expression may return a valueue and satisfy postcondition
+    to indicate that the expression may return a value and satisfy postcondition
     ϕ, or throw an exception and satisfy postcondition ψ. *)
 
 (** *Language instance *)
@@ -28,6 +28,11 @@ Section exp_def.
 
   Context {res exn : Type}.
 
+  (* The definition of "values" which is used for the weakest-precondition
+    definition.
+
+    i.e. Our postcondition over Osiris programs can be over either a pure result
+    [Res r] or an exceptional result [Exn e]. *)
   Variant value :=
     | Res (r : res)
     | Exn (e : exn).
@@ -35,7 +40,7 @@ Section exp_def.
   (* Instantiation of (non-context based) Iris language for Osiris. *)
   Notation exp := (micro res exn).
 
-  (* Naive projection between valueues and expressions. *)
+  (* Naive projection between values and expressions. *)
   Definition of_value (v : value) : exp :=
     match v with
     | Res r => Ret r
@@ -74,7 +79,10 @@ Section exp_def.
 
     Notation iProp := (iProp Σ).
 
-    (* Lifting specifications in Iris logic *)
+    (* Lifting specifications in Iris logic. *)
+
+    (* [lift_ipure] is especially useful for lifting specifications over pure
+      results to specifications which may handle exceptional results. *)
     Definition lift_ipure (ϕ : res -> iProp) (v : value) : iProp :=
       match v with
       | Res r => ϕ r
@@ -94,7 +102,6 @@ Section exp_def.
       end.
 
     Definition ipure (ϕ : value -> iProp) (v : res) : iProp := ϕ (Res v).
-
     Definition iexn (ψ : value -> iProp) (e : exn) : iProp := ψ (Exn e).
 
   End iProp.
@@ -108,7 +115,7 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
 (at level 200, right associativity, format
 "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
-
+(** *Basic properties about [value] *)
 Section exp_properties.
 
   Lemma is_not_ret_or_throw_to_value {A E} m :
@@ -157,6 +164,7 @@ Section exp_properties.
 
 End exp_properties.
 
+(** *Typeclass instance for Iris [Language] mixin *)
 Section lang_instance.
 
   Context {res exn : Type}.
@@ -183,7 +191,6 @@ End lang_instance.
 (* -------------------------------------------------------------------------- *)
 
 (* Simple properties about the instantiated language ([reducible/try/step]). *)
-
 Section lang_properties.
 
   Local Ltac simp_reducible := eexists nil, _, _, nil; split; [ | done].
@@ -242,7 +249,7 @@ Section ghost_instances.
   Class osirisGS := OsirisGS
    { osiris_inG :: osirisGpreS;
     (* This gives us fancy updates (without allowing Later Credits). *)
-     osiris_invGS : invGS_gen HasNoLc Σ;
+     osiris_invGS :: invGS_gen HasNoLc Σ;
     (* This gives us a heap, which maps locations to values. *)
      osiris_heapGS :: gen_heapGS locations.loc syntax.val Σ;
      osiris_store_name : gname }.
@@ -264,14 +271,19 @@ Definition store_interp {Σ H} (σ : store) :=
     num_laters_per_step _ := 0;
     state_interp_mono _ _ _ _ := fupd_intro _ _ }.
 
+(* Custom notation for hoare triples which state a postcondition only over the
+    return continuation *)
 Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" := (wp s E e%E (lift_ipure (λ v, Q)))
   (at level 20, e, Q at level 200,
    format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
 Notation "'WP' e {{ 'RET' v , Q } }" := (wp NotStuck ⊤ e%E (lift_ipure (λ v, Q)))
   (at level 20, e, Q at level 200,
    format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
+  pre-existing notation; might be brittle *)
 Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
   (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @ NotStuck; ⊤ {{ RET v , Φ v }}).
 
-
+(* N.B. A slight hack to control the namespace of constructs that have the same
+  name in [stdpp] and [osiris]. *)
 From osiris Require Export syntax semantics lang.

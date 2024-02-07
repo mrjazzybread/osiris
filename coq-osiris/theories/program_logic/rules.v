@@ -9,12 +9,11 @@ From osiris.lang Require Import lang.
 From osiris.program_logic Require Import wp tactics.
 From osiris Require Import syntax semantics.
 
-Section proof.
+(** *Reasoning principles of [Osiris] wp-based Hoare triples *)
+
+Section wp_rules.
 
   Context `{!osirisGS Σ}.
-
-  #[local] Instance invGS_gen_osiris : invGS_gen HasNoLc Σ :=
-    (osiris_invGS Σ).
 
   (* ------------------------------------------------------------------------ *)
   (** *General properties about [WP] and [step] *)
@@ -969,4 +968,4 @@ Section proof.
     iApply (wp_simplify with "Hwp [//]").
   Qed.
 
-End proof.
+End wp_rules.
