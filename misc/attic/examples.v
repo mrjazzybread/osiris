@@ -48,7 +48,7 @@ Section SpecsExample.
       (□
          ∀ (n: my_nat),
            WP call f #n
-              {{ RET res,
+              {{ λ res,
                   match n with
                   | O' => ⌜ res = #0 ⌝
                   | _ => ⌜ False ⌝
@@ -67,12 +67,12 @@ Section SpecsExample.
 
   Definition nat_to_int_spec (f : val) : iProp Σ :=
     □ ∀ (n : my_nat),
-    WP call f #n {{ RET res, ⌜ res = #(my_nat_to_nat n) ⌝ }}.
+    WP call f #n {{ λ res, ⌜ res = #(my_nat_to_nat n) ⌝ }}.
 
   Definition int_to_nat_spec (f : val) : iProp Σ :=
     □ ∀ (i : nat),
     ⌜Nat.le O i ∧ representable i⌝ →
-    WP call f #i {{ RET res, ⌜ res = #(nat_to_my_nat i) ⌝ }}.
+    WP call f #i {{ λ res, ⌜ res = #(nat_to_my_nat i) ⌝ }}.
 
   Definition Recursion_specs :=
     [
@@ -90,23 +90,23 @@ Section SpecsExample.
     ∃ (ℓ : loc), ⌜v = #ℓ⌝ ∗ ℓ ↦ #n.
 
   Definition init_spec (vinit : val) : iProp Σ :=
-    □ WP call vinit #() {{ RET res, is_counter O res }}.
+    □ WP call vinit #() {{ λ res, is_counter O res }}.
 
   Definition get_spec (vget : val) : iProp Σ :=
     □ ∀ (v : val) (n : nat),
-    is_counter n v -∗ WP call vget v {{ RET res, ⌜res = #n⌝ ∗ is_counter n v }}.
+    is_counter n v -∗ WP call vget v {{ λ res, ⌜res = #n⌝ ∗ is_counter n v }}.
 
   Definition incr_spec (vincr : val) : iProp Σ :=
     □ ∀ (v : val) (n : nat),
     is_counter n v -∗
-    WP call vincr v {{ RET res, ⌜res = VUnit⌝ ∗ is_counter (S n) v }}.
+    WP call vincr v {{ λ res, ⌜res = VUnit⌝ ∗ is_counter (S n) v }}.
   Definition set_spec (vset : val) : iProp Σ :=
     □ ∀ (v : val),
     WP call vset v {{
-          RET res,
+          λ res,
             ∀ (n m : nat),
             is_counter n v -∗
-            WP call res #m {{ RET res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
+            WP call res #m {{ λ res, ⌜res = VUnit⌝ ∗ is_counter m v }} }}.
 
   Definition Counter_specs : spec val :=
     SpecModule
@@ -178,7 +178,7 @@ Section ProofExamples.
             (representable_0 : representable 0).
 
   Goal
-    ⊢ WP eval_mexpr η __main {{ RET v, module_spec Examples_spec v }}.
+    ⊢ WP eval_mexpr η __main {{ module_spec Examples_spec }}.
   Proof using Hη_sub Hη_store Hη_ref Hη_load Hη_le Hη_eq Hη_add
     osirisGS0 representable_0 Σ η.
 
@@ -222,20 +222,20 @@ Section ProofExamples.
         (* FIXME: get rid of this line! *)
         change (VData _ _) with #(S' m).
         admit.
-        (* (* We use the IH and get back the postcondition of the function. *) *)
-    (*     (*    Note: The IH is no longer behind a later because we have taken at *) *)
-    (*     (*          least a step since we got it. *) *)
+        (* (* We use the IH and get back the postcondition of the function. *)
+        (*    Note: The IH is no longer behind a later because we have taken at *)
+        (*          least a step since we got it. *) *)
         (* wp_use "Hinfinite". *)
         (* iIntros. tauto. (* FIXME? *) *)
         }
 
 
     (* [infinite] is followed by [nat_to_int] in OCaml. *)
-    (* One can add '!' after [oSpecify] to fast-forward to the targeted *)
-    (*    bindings (it uses [wp until _ !] under the hood). *)
+    (* One can add '!' after [oSpecify] to fast-forward to the targeted
+       bindings (it uses [wp until _ !] under the hood). *)
     oSpecify "nat_to_int" nat_to_int_spec vnat_to_int "#Hnat_to_int" !.
-    { (* The proof is very similar to that of [infinite]. Therefore, we go *)
-    (*      faster here. *)
+    { (* The proof is very similar to that of [infinite]. Therefore, we go
+         faster here. *)
       iIntros "!>"([|m]);
         oCall "nat_to_int" vnat_to_int; first (by equality).
       destruct m eqn:Hm; simpl. { wp. iPureIntro. by rewrite add_repr_repr. }
@@ -243,12 +243,12 @@ Section ProofExamples.
 
     (* Finally, [nat_to_int] is followed by [int_to_nat] in OCaml. *)
     oSpecify "int_to_nat" int_to_nat_spec vint_to_nat "#Hint_to_nat" !.
-    { (* The following proof is a bit more tedious, so we will provide some more *)
-    (*      details. *)
+    { (* The following proof is a bit more tedious, so we will provide some more
+         details. *)
       iIntros (i) "!> [%Hle %Hrepresentable]".
 
-      (* First, we perform the function call and check whether or not [i] is *)
-    (*      equal to 0. *)
+      (* First, we perform the function call and check whether or not [i] is
+         equal to 0. *)
       oCall "int_to_nat" vint_to_nat.
       destruct (decide (i = O)) as [-> | n].
 
@@ -256,8 +256,8 @@ Section ProofExamples.
         change (Z.of_nat O) with 0%Z.
         rewrite eq_repr_repr; [ by wp | done | done ]. }
 
-      { (* Case [i <> 0]. *)
-    (*        We know that there exists a [j : nat] such that [i = S j]. *)
+      { (* Case [i <> 0].
+           We know that there exists a [j : nat] such that [i = S j]. *)
         pose proof (iffLR (Nat.neq_0_r i) n) as [j ->].
 
         (* First, reduce the condition. *)
@@ -276,8 +276,8 @@ Section ProofExamples.
 
         (* Now that the goal matches the IH, we can use it. *)
         wp_use "Hint_to_nat".
-          { (* It asks us to prove the precondition: [j] is positive and *)
-    (*            representable. *)
+          { (* It asks us to prove the precondition: [j] is positive and
+               representable. *)
           iPureIntro.
           unfold representable in *. split; lia. }
 
@@ -287,8 +287,8 @@ Section ProofExamples.
         (* Symboloc execution is over, we are done. *)
         wp. equality. } }
 
-    (* Every binding of the module [Recursion] has been proven.  Therefore, *)
-    (*    [wp_module_spec] is enough to prove the spec of [Recursion]. *)
+    (* Every binding of the module [Recursion] has been proven.  Therefore,
+       [wp_module_spec] is enough to prove the spec of [Recursion]. *)
     oSpecify "Recursion" Recursion_spec vRecursion "#HRec" !.
     { iModIntro; wp_module_spec. }
     (* Now that the module has been proven, these specs can be forgotten. *)
@@ -333,50 +333,50 @@ Section ProofExamples.
     (* ---------------------------------------------------------------------- *)
     (* Tests using the above-defined modules. *)
 
-    (* The following paragraphs justify our use of [val_as_struct_total] and *)
-    (*    [lookup_name_total]. *)
+    (* The following paragraphs justify our use of [val_as_struct_total] and
+       [lookup_name_total].
 
-    (*    The specifications cannot stay as is for several reasons: [simp] assumes *)
-    (*    that every goal of the form [lookup_path _ = Ret _] can be solved, and *)
-    (*    the elements of the modules are not available to the outside world. Thus, *)
-    (*    one needs to open the abstract modules to be able to use them, i.e. to *)
-    (*    destruct the modules specifications. *)
-    (*    The reason why the specifications should be destroyed is mainly to unpack *)
-    (*    existential values corresponding to the above paths. Note that *)
-    (*    [simp] could not perform these destructions on-the-fly as it does not *)
-    (*    have access to the Iris context in which the specs live. *)
+       The specifications cannot stay as is for several reasons: [simp] assumes
+       that every goal of the form [lookup_path _ = Ret _] can be solved, and
+       the elements of the modules are not available to the outside world. Thus,
+       one needs to open the abstract modules to be able to use them, i.e. to
+       destruct the modules specifications.
+       The reason why the specifications should be destroyed is mainly to unpack
+       existential values corresponding to the above paths. Note that
+       [simp] could not perform these destructions on-the-fly as it does not
+       have access to the Iris context in which the specs live.
 
-    (*    However, *)
-    (*      1. the specifications should be reformed afterwards... as the *)
-    (*         specification of the file (seen as a module) requries those. *)
-    (*      2. this would flood users with twice as many hypothesis as they are *)
-    (*         functions within the modules (its specification and a pure equality: *)
-    (*         [lookup_path _ = Ret _]). *)
+       However,
+         1. the specifications should be reformed afterwards... as the
+            specification of the file (seen as a module) requries those.
+         2. this would flood users with twice as many hypothesis as they are
+            functions within the modules (its specification and a pure equality:
+            [lookup_path _ = Ret _]).
 
-    (*    In this example, the specifcation of [Recursive] is persistent. *)
-    (*    Therefore, it is possible to duplicate it and destruct one of the *)
-    (*    copies. The specification of [Counter] is not entirely persistent, but *)
-    (*    part of it is. Therefore, it is possible to split the persistent part *)
-    (*    from the rest and copy it. The non-persistent part should not disappear *)
-    (*    (each time it is used by a function of [Counter], it will be given back *)
-    (*    to the user). At the end of the module (i.e. file), the sepcification of *)
-    (*    [Counter] can be proven again. *)
+       In this example, the specifcation of [Recursive] is persistent.
+       Therefore, it is possible to duplicate it and destruct one of the
+       copies. The specification of [Counter] is not entirely persistent, but
+       part of it is. Therefore, it is possible to split the persistent part
+       from the rest and copy it. The non-persistent part should not disappear
+       (each time it is used by a function of [Counter], it will be given back
+       to the user). At the end of the module (i.e. file), the sepcification of
+       [Counter] can be proven again.
 
-    (*    (* Destruction of ["HRec"]. *) *)
-    (*    iPoseProof "HRec" as "HRec'". *)
-    (*    unfold Recursion_specs at 1; *)
-    (*    unfold module_spec,module_spec_list at 1; simpl. *)
-    (*    iDestruct "HRec" as "(%ηRec&->& *)
-    (*                         (%vinfinite&%Hlookup_infinite&#Hinifinite)& *)
-    (*                         (%vnat_to_int&%Hlookup_nat_to_int&#Hnat_to_int)& *)
-    (*                         (%vint_to_nat&%Hlookup_int_to_nat&#Hint_to_nat)&_)". *)
+       (* Destruction of ["HRec"]. *)
+       iPoseProof "HRec" as "HRec'".
+       unfold Recursion_specs at 1;
+       unfold module_spec,module_spec_list at 1; simpl.
+       iDestruct "HRec" as "(%ηRec&->&
+                            (%vinfinite&%Hlookup_infinite&#Hinifinite)&
+                            (%vnat_to_int&%Hlookup_nat_to_int&#Hnat_to_int)&
+                            (%vint_to_nat&%Hlookup_int_to_nat&#Hint_to_nat)&_)".
 
-    (*    As we do not want to manually do this for any module that we want to use, *)
-    (*    we will use the aforementioned total functions instead. *)
+       As we do not want to manually do this for any module that we want to use,
+       we will use the aforementioned total functions instead. *)
 
-    (* The following line avoids to unfold [encode] with [cbn]. It should be *)
-    (*    able to move up at the beginning of the file. It is not currently the *)
-    (*    case at it breaks the tactic [equality].  *)
+    (* The following line avoids to unfold [encode] with [cbn]. It should be
+       able to move up at the beginning of the file. It is not currently the
+       case at it breaks the tactic [equality].  *)
     Local Arguments encode _ : simpl never.
     Local Ltac counter_init := oSpec' "init" from "HCounter"; iIntros (vc) "Hc";
                                wp; wp_continue.
@@ -385,9 +385,9 @@ Section ProofExamples.
     Local Ltac counter_get := oSpec' "get" from "HCounter" with "[$]";
                               iIntros (?)"[->Hc]"; wp; wp_continue.
 
-    (* Instead of opening existentials corresponding to [Recursion], we use *)
-    (*    [oModule], which is a trick introduced in *)
-    (*    [theories/proofmode/tactics.v] *)
+    (* Instead of opening existentials corresponding to [Recursion], we use
+       [oModule], which is a trick introduced in
+       [theories/proofmode/tactics.v] *)
     oModule vRecursion.
 
     (* ---------------------------------------------------------------------- *)
@@ -397,19 +397,19 @@ Section ProofExamples.
 
     (* ---------------------------------------------------------------------- *)
 
-    (* The constant [twelve] is defined.  In this let-binding, a counter is *)
-    (*    instantiated.  Then, a loop is run to increase the counter twelve times. *)
-    (*    Note : two calls to [Counter.get] are also performed. *)
+    (* The constant [twelve] is defined.  In this let-binding, a counter is
+       instantiated.  Then, a loop is run to increase the counter twelve times.
+       Note : two calls to [Counter.get] are also performed. *)
     change VUnit with #tt. (* FIXME! *)
 
     (* Initialize the counter and eliminate the first call to [Counter.get]. *)
     wp_bind. counter_init.
     wp_bind. counter_get.
 
-    (* Small loop.  In order to prove the loop with the rest of the program as *)
-    (*    continuation, one can define an invariant in the form of a predicate over *)
-    (*    the loop index, and prove the preservation of said predicate by the body *)
-    (*    of the loop. *)
+    (* Small loop.  In order to prove the loop with the rest of the program as
+       continuation, one can define an invariant in the form of a predicate over
+       the loop index, and prove the preservation of said predicate by the body
+       of the loop. *)
 
     oLoopPos 1%nat 12%nat(λ i, ∃ n, ⌜i = S n⌝ ∗ is_counter n vc)%I
       with "[Hc]" "[]".
@@ -438,11 +438,11 @@ Section ProofExamples.
     (* ---------------------------------------------------------------------- *)
     (* Now, some conversion functions of [Recursion] are called. *)
 
-    (* Before the environment gets extended with [twelve_nat'], its body needs *)
-    (*    to be evaluated. It is a function call. *)
-    (*    The function is present in the module [Recursion]. *)
-    (*    One can use the tactic notation [oSpec] to fetch the Iris specification *)
-    (*    from ["HRec"] of the function and apply it. *)
+    (* Before the environment gets extended with [twelve_nat'], its body needs
+       to be evaluated. It is a function call.
+       The function is present in the module [Recursion].
+       One can use the tactic notation [oSpec] to fetch the Iris specification
+       from ["HRec"] of the function and apply it. *)
     change (VInt (repr 12)) with #12%nat. (* TODO: erase me. *)
     oSpec "int_to_nat" from "HRec" with "[]".
     (* Proof of the precondition of [Rrecursion.int_to_nat]. *)
@@ -472,10 +472,10 @@ Section ProofExamples.
     iIntros (?->).
     wp_bind. wp_continue.
 
-    (* The evaluation of the module-expressions is over. One now needs to prove *)
-    (*    that the obtained value satisfies its specification. As the only required *)
-    (*    proofs are about [Counter] and [Recursion], and as they have been *)
-    (*    verified above, [wp_module_spec] can finish the proof. *)
+    (* The evaluation of the module-expressions is over. One now needs to prove
+       that the obtained value satisfies its specification. As the only required
+       proofs are about [Counter] and [Recursion], and as they have been
+       verified above, [wp_module_spec] can finish the proof. *)
     wp_module_spec.
   Admitted.
 End ProofExamples.
