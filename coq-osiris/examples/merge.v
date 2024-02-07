@@ -185,10 +185,14 @@ Qed.
 Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
   (c : string) (C : A1 -> A2 -> X) := { }.
 
+(* We write "[ #x; #y]" instead of "[#x; #y]" because stdpp imports the
+   notation "[# _; _; _]". Unfortunately, using "Disable Notation" does
+   not to remove it from the grammar used by Coq's parser. *)
+
 Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
   pure (eval η e)
     (λ '(x, y),
-      VData c (VPair #x #y) = #(C x y) /\ ψ (C x y)) ->
+      VData c (VTuple [ #x; #y]) = #(C x y) /\ ψ (C x y)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
   intros. destruct_pure a; destruct a.
@@ -200,15 +204,16 @@ Qed.
 
 Global Instance CRel2Cons `{Encode A} : CRel2 A (list A) (list A) "::" cons := {}.
 
-Class CRel3 (A B C X : Type) `{Encode A, Encode B, Encode C, Encode X}
-  (c : string) (C : A -> B -> C -> X) := { }.
+Class CRel3 (A1 A2 A3 X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
+  (c : string) (C : A1 -> A2 -> A3 -> X) := { }.
 
 Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
-  pure (A := A1 * A2 * A3) (eval η e)
+  pure (eval η e)
     (λ '(x, y, z),
-      VData c (VTuple ([(#x : val); (#y : val); (#z : val)])) = #(C x y z) /\ ψ (C x y z)) ->
+      VData c (VTuple ([ #x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
+  Unset Printing Notations.
   intros. destruct_pure a.
   destruct a as [[??] ?].
   destruct_hyp.
@@ -230,11 +235,13 @@ Ltac pure_data :=
       | 2 => eapply pure_eval_data2; eapply pure_eval_pair
       | 3 => eapply pure_eval_data3
       (* TODO: make a higher-order version of pure_eval_pair *)
-      | _ => idtac "Not implemented for this arity"
+      | _ => fail "Not implemented for this arity"
       end;
       repeat (pure_path || pure_const || pure_data);
       try (split; [ solve [ encode ] | ])
   end.
+
+Close Scope nat.
 
 Ltac trivial_pure := repeat (pure_path || pure_data || pure_const).
 
