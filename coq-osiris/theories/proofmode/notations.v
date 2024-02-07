@@ -14,6 +14,13 @@ From osiris.proofmode Require Import specifications.
 
 (* ------------------------------------------------------------------------ *)
 
+(* We use [Goal (trivial e)] to avoid printing notation the notation of [e]
+   to stdout when compiling *)
+
+Local Definition trivial {A : Type} := (λ (_ : A), True).
+
+(* ------------------------------------------------------------------------ *)
+
 (* When a decoration is present, the underlying AST is not shown. *)
 
 Notation "'ocaml' decoration" := (deco decoration _)
@@ -139,14 +146,16 @@ Notation "'Path' x1" :=
     (at level 90,
       format "'Path'  x1").
 
-Check (PathBase "base").
+Goal (trivial (PathBase "base")). Abort.
 
 Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
   (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
     (at level 200,
        format "'Path'  x1 '/' '.' .. '/' '.' xn '.' '/' xm").
 
-Check (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3").
+Goal (trivial
+        (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3")).
+Abort.
 
 Notation "'EPath' x1" :=
   (EPath (PathBase x1))
@@ -154,7 +163,7 @@ Notation "'EPath' x1" :=
       only printing,
       format "'EPath'  x1").
 
-Check (EPath (PathBase "base")).
+Goal (trivial (EPath (PathBase "base"))). Abort.
 
 Notation "'EPath' x1 '.' .. '.' xn '.' xm " :=
   (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
@@ -162,7 +171,9 @@ Notation "'EPath' x1 '.' .. '.' xn '.' xm " :=
       only printing,
       format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm").
 
-Check (EPath (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3")).
+Goal (trivial
+        (EPath (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3"))).
+Abort.
 
 (* -------------------------------------------------------------------------- *)
 (* Closures, function applications, and function calls. *)
@@ -172,20 +183,27 @@ Notation "'Anon' '(' '_' '=>' e ')'" :=
     (at level 200,
       format "'Anon'  '(' '_'  '=>' '/    '  '[hv' e ']' ')'").
 
-Check (AnonFun "__osiris_anonymous_arg" (EInt 0)).
+Goal (trivial
+        (AnonFun "__osiris_anonymous_arg" (EInt 0))).
+Abort.
 
 Notation "'Anon' '(' x '=>' e ')'" :=
   (AnonFun x e)
     (at level 200,
       format "'Anon'  '(' x  '=>'  '/    ' '[hv' e ']' ')'").
 
-Check (AnonFun "argname" (EInt 1)).
-Check (AnonFun "x" (ETuple
-                      [EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;
-                       EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0])).
+Goal (trivial (AnonFun "argname" (EInt 1))).
+Abort.
 
-Check (EAnonFun (AnonFun "argname" (EInt 1))).
-Check (EAnonFun (AnonFun "__osiris_anonymous_arg" (EInt 0))).
+Goal (trivial
+        (AnonFun "x" (ETuple
+                        [EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;
+                         EInt 0;EInt 0;EInt 0;EInt 0;EInt 0;EInt 0]))).
+Abort.
+
+Goal (trivial (EAnonFun (AnonFun "argname" (EInt 1)))). Abort.
+
+Goal (trivial (EAnonFun (AnonFun "__osiris_anonymous_arg" (EInt 0)))). Abort.
 
 Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 
@@ -195,26 +213,31 @@ Notation "'EApp' '(' e1 ')' '(' e2 ',' .. ',' en ')'" :=
       only printing,
       format "'EApp'  '(' e1 ')'  '/' '(' e2 ','  '/' .. ','  '/' en ')'").
 
-Check (EApp (EString "fun") (EString "arg")).
+Goal (trivial (EApp (EString "fun") (EString "arg"))). Abort.
 
-Check (EApp
+Goal (trivial
+        (EApp
          (EApp
             (EApp
                (EString "fun") (EString "arg1"))
             (EString "arg2"))
-         (EString "arg3")).
+         (EString "arg3"))).
+Abort.
 
-Notation "'pure' '(' call '( f ')'  '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
+Notation "'pure' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
   (pure (call f arg1)
      (λ c, pure (call c arg2)
              (.. (λ c, pure (call c argn) ψ) ..)))
     (at level 200,
-      only printing).
+      only printing,
+    format "'pure'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
 
-Check (pure (call (VString "F") (VString "X"))
-         (λ c, pure (call c (VString "Y"))
-                 (λ c, pure (call c (VString "Z"))
-                         (λ v : val, True)))).
+Goal (trivial
+        (pure (call (VString "F") (VString "X"))
+           (λ c, pure (call c (VString "Y"))
+                   (λ c, pure (call c (VString "Z"))
+                           (λ v : val, True))))).
+Abort.
 
 Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
   (wp s E (call f v1)
@@ -229,9 +252,11 @@ Notation "e1 ; e2" :=
   (ESeq e1 e2)
     (only printing, format "e1 ;  '/' e2", at level 20, e1, e2 at level 200).
 
-Check (ESeq
+Goal (trivial
+        (ESeq
          (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-         (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))).
+         (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2))))).
+Abort.
 
 (* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
@@ -243,7 +268,7 @@ Notation "'EMatch' '(' x ')' []" :=
       no associativity,
       format "'EMatch'  '(' x ')'  []").
 
-Check (EMatch (EPath (PathBase "l")) []).
+Goal (trivial (EMatch (EPath (PathBase "l")) [])). Abort.
 
 Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
   (EMatch x (cons b1 (.. (cons bn nil) ..)))
@@ -252,10 +277,13 @@ Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
       no associativity,
       format "'[v' 'EMatch'  '(' x ')'  'with' '//'     '[' b1 '//' ..  '//' bn ']'  '//' 'end' ']'").
 
-Check (EMatch (EPath (PathBase "l")) []).
+Goal (trivial (EMatch (EPath (PathBase "l")) [])). Abort.
 
-Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)]).
-Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1); Branch PAny 2]).
+Goal (trivial (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)])). Abort.
+
+Goal (trivial
+        (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1); Branch PAny 2])).
+Abort.
 
 Notation "'|' pat '->' e" :=
   (Branch pat e)
@@ -263,24 +291,27 @@ Notation "'|' pat '->' e" :=
       only printing,
       format "'|'  pat  '->'  '[' '/' e ']'").
 
-Check (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)]).
-Check (EMatch
-         (EPath (PathBase "l"))
-         [Branch PAny
-            (ESeq
-               (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-               (ESeq
-                  (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-                  (ESeq
-                     (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-                     (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))
-                  )
-               )
-            );
-          Branch PAny 2]
-      ).
+Goal (trivial (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)])). Abort.
 
-Check (Branch PAny 2).
+Goal (trivial
+        (EMatch
+           (EPath (PathBase "l"))
+           [Branch PAny
+              (ESeq
+                 (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                 (ESeq
+                    (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                    (ESeq
+                       (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                       (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))
+                    )
+                 )
+              );
+            Branch PAny 2]
+     )).
+Abort.
+
+Goal (trivial (Branch PAny 2)). Abort.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -333,15 +364,26 @@ Notation "{ fds }" :=
     (only printing,
       format "{  '[hv' fds ']'  }").
 
-Check (ERecord []).
-Check (ERecord [Fexpr "a" 0; Fexpr "b" 1; Fexpr "c" 2; Fexpr "d" (EString "val")]).
+Goal (trivial (ERecord [])). Abort.
+
+Goal (trivial
+        (ERecord [Fexpr "a" 0;
+                  Fexpr "b" 1;
+                  Fexpr "c" 2;
+                  Fexpr "d" (EString "val")])).
+Abort.
 
 Notation "r . f" :=
   (ERecordAccess r f)
     (only printing,
       at level 80, format "r . f").
 
-Check (ERecordAccess (ERecord [Fexpr "a" 0; Fexpr "b" 1; Fexpr "c" 2; Fexpr "d" (EString "val")]) ("a")).
+Goal (trivial
+        (ERecordAccess (ERecord [Fexpr "a" 0;
+                                 Fexpr "b" 1;
+                                 Fexpr "c" 2;
+                                 Fexpr "d" (EString "val")]) ("a"))).
+Abort.
 
 Notation "{ r 'with' fds }" :=
   (ERecordUpdate r fds)

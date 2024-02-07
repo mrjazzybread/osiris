@@ -192,7 +192,7 @@ Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
 Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
   pure (eval η e)
     (λ '(x, y),
-      VData c (VTuple [ #x; #y]) = #(C x y) /\ ψ (C x y)) ->
+      VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
   intros. destruct_pure a; destruct a.
@@ -210,10 +210,9 @@ Class CRel3 (A1 A2 A3 X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
 Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
   pure (eval η e)
     (λ '(x, y, z),
-      VData c (VTuple ([ #x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ->
+      VData c (VTuple ([encode x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
-  Unset Printing Notations.
   intros. destruct_pure a.
   destruct a as [[??] ?].
   destruct_hyp.
