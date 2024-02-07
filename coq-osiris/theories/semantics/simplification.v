@@ -1,4 +1,4 @@
-From stdpp Require Import relations. (* nsteps *)
+From stdpp Require Import relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
@@ -345,12 +345,6 @@ Ltac clarify_simp :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* The relation transformer [nsteps] is defined in stdpp. *)
-
-(* A construction hint. *)
-
-Local Hint Constructors nsteps : nsteps.
-
 (* Destruction lemmas and tactic. *)
 
 (* In principle, we should be able to use [dependent destruction h] directly
@@ -359,59 +353,52 @@ Local Hint Constructors nsteps : nsteps.
    lemmas are accepted, but Coq 8.16.1 signals a Universe Inconsistency when
    this file is later loaded. *)
 
-Lemma invert_nsteps_0 {A E} {c c' : config A E} :
-  nsteps step 0 c c' →
+Lemma invert_steps_0 {A E} {c c' : config A E} :
+  steps 0 c c' →
   c' = c.
 Proof.
   inversion 1; eauto.
 Qed.
 
-Lemma invert_nsteps_1 {A E} (c c' : config A E) :
-  nsteps step 1 c c' →
-  step c c'.
-Proof.
-  inversion 1; subst.
-  match goal with h: nsteps step 0 _ _ |- _ => apply invert_nsteps_0 in h end.
-  subst. eauto.
-Qed.
-
 Local Ltac destruct_nsteps :=
   repeat match goal with
-  | h: nsteps step 0 _ _ |- _ => apply invert_nsteps_0 in h; simplify_eq
-  | h: nsteps step 1 _ _ |- _ => apply invert_nsteps_1 in h
-  end.
+  | h: steps 0 _ _ |- _ => apply invert_steps_0 in h; simplify_eq
+  | h: steps 1 _ _ |- _ => apply nsteps_once_inv in h
+end.
 
 (* [nsteps step n] is compatible with a [Par] context. *)
 
-Local Lemma nsteps_step_par_left
+Local Lemma steps_step_par_left
   {A1 A2 A E' E} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A E) (z : E' → _) :
-  nsteps step n (σ, m1) (σ', m'1) →
-  nsteps step n (σ, Par m1 m2 k z) (σ', Par m'1 m2 k z).
+  steps n (σ, m1) (σ', m'1) →
+  steps n (σ, Par m1 m2 k z) (σ', Par m'1 m2 k z).
 Proof.
   (* Massage the goal: *)
   remember (σ, m1) as c. remember (σ', m'1) as c'. intro h.
   revert c c' h σ m1 σ' m'1 Heqc Heqc'.
   (* Prove it: *)
-  induction 1; intros; simplify_eq; destruct_config;
-  econstructor; eauto with nsteps; eauto with step.
+  induction 1; intros; simplify_eq; destruct_config; econstructor.
+  eapply StepParLeft; eassumption.
+  eapply IHh; reflexivity.
 Qed.
 
-Local Lemma nsteps_step_par_right
+Local Lemma steps_step_par_right
   {A1 A2 A E' E} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) :
-  nsteps step n (σ, m2) (σ', m'2) →
-  nsteps step n (σ, Par m1 m2 k z) (σ', Par m1 m'2 k z).
+  steps n (σ, m2) (σ', m'2) →
+  steps n (σ, Par m1 m2 k z) (σ', Par m1 m'2 k z).
 Proof.
   (* Massage the goal: *)
   remember (σ, m2) as c. remember (σ', m'2) as c'. intro h.
   revert c c' h σ m2 σ' m'2 Heqc Heqc'.
   (* Prove it: *)
-  induction 1; intros; simplify_eq; destruct_config;
-  econstructor; eauto with nsteps; eauto with step.
+  induction 1; intros; simplify_eq; destruct_config; econstructor.
+  eapply StepParRight; eassumption.
+  eapply IHh; reflexivity.
 Qed.
 
 Local Hint Resolve
-  nsteps_step_par_left
-  nsteps_step_par_right
+  steps_step_par_left
+  steps_step_par_right
 : step.
 
 (* -------------------------------------------------------------------------- *)
@@ -447,14 +434,14 @@ Lemma simplify_step_diagram {A E} {n} {m1 m2 : micro A E} :
   (* then the diagram can be closed using *)
   ∃ m'2 i n',
   (* [i] reduction steps *)
-  nsteps step i (σ, m2) (σ', m'2) ∧
+  steps i (σ, m2) (σ', m'2) ∧
   (* and a simplication step of size [n'] *)
   simplify n' m'1 m'2 ∧
   (* where [i] and [n'] satisfy the following constraint: *)
   (i = 0 ∧ n' < n  ∨  i = 1 ∧ n' ≤ n).
 Local Ltac search :=
   do 3 eexists;
-  eauto 7 using step_try, simplify_try with nsteps step simplify lia.
+  eauto 8 using step_try, simplify_try with steps step simplify lia.
 Local Ltac use_ih :=
   match goal with
   Hstep: step (_, ?m) _,
