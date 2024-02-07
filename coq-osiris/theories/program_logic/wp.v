@@ -186,15 +186,15 @@ End lang_instance.
 
 Section lang_properties.
 
+  Local Ltac simp_reducible := eexists nil, _, _, nil; split; [ | done].
+
   Lemma reducible_try {A B E' E}
     (m1 : micro A E') (f : A -> micro B E) (h : E' -> micro B E) σ:
     reducible (Λ := osiris_lang) m1 σ ->
     reducible (Λ := osiris_lang) (try m1 f h) σ.
   Proof.
-    intros H.
-    destruct H as (?&?&?&?&?).
-    repeat eexists; eapply step_try; apply H.
-    Unshelve. all: eauto.
+    intros H; destruct H as (?&?&?&?&?).
+    simp_reducible; eapply step_try; apply H.
   Qed.
 
   Lemma reducible_bind {A B E}
@@ -204,17 +204,15 @@ Section lang_properties.
   Proof.
     intros H.
     destruct H as (?&?&?&?&?).
-    repeat eexists; eapply step_bind; apply H.
-    Unshelve. all: eauto.
+    simp_reducible; eapply step_bind; apply H.
   Qed.
 
   Lemma can_step_reducible {R E} (e : micro R E) σ :
     can_step (σ, e) <-> reducible e σ.
   Proof.
     split.
-    { intros []. destruct x. repeat eexists; apply H. }
-    { intros []. destruct H as (?&?&?&?). repeat eexists; apply H. }
-    Unshelve. all : exact nil.
+    { intros []. destruct x. simp_reducible; apply H. }
+    { intros []. destruct H as (?&?&?&?). eexists; apply H. }
   Qed.
 
   Lemma prim_step_simp {A E} e σ es obs e' σ':
