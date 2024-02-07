@@ -61,7 +61,22 @@ Ltac destruct_wp_nonret :=
 
 Ltac intro_state := iIntros (σ????) "Hsi".
 
-Ltac spec_state H := iSpecialize (H $! _ _ _ _ _ with "Hsi").
+Ltac spec_state :=
+  lazymatch goal with
+  | |- context [environments.Esnoc _ ?Hwp
+      (bi_forall (fun σ1 : store =>
+        bi_forall (fun _ : nat =>
+          bi_forall (fun κ : list nat =>
+            bi_forall (fun _ : list nat =>
+              bi_forall (fun _ : nat => bi_wand (store_interp σ1) _))))))] =>
+      match goal with
+        | |- context [environments.Esnoc _ ?SI (store_interp ?σ)] =>
+          let Hstep := fresh "Hstep" in
+          iSpecialize (Hwp $! _ 0%nat nil nil 0%nat with SI);
+          iMod Hwp;
+          iDestruct Hwp as (Hred) Hwp
+      end
+  end.
 
 (* [tick_wp] is used when the goal is
    [|==> ▷ (state_interp σ' ∗ wp E m' φ)]. *)
@@ -85,8 +100,8 @@ Ltac construct_wp_nonret :=
 
 (* -------------------------------------------------------------------------- *)
 
-  (* Misc tactics *)
+(* Misc tactics *)
 
-  Ltac to_value_is_Some Hm :=
-    apply to_value_is_Some in Hm;
-    destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
+Ltac to_value_is_Some Hm :=
+  apply to_value_is_Some in Hm;
+  destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.

@@ -31,11 +31,8 @@ Section proof.
       iIntros "_".
       to_value_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
       iPureIntro; eauto. }
-    { iSpecialize ("Hwp" $! _ _ _ _ _ with "SI").
-      iMod "Hwp".
-      iDestruct "Hwp" as"[%c' _]". iPureIntro.
+    { spec_state. iPureIntro.
       left. by apply can_step_reducible. }
-    Unshelve. all : solve [exact 1 | exact nil].
   Qed.
 
   Lemma wp_can_step' {R E} {σ φ} (m : micro R E) {M}:
@@ -59,8 +56,7 @@ Section proof.
     iIntros "Hsi H£ Hwp".
     wp_unfold m.
     pose proof (step_not_value Hstep) as ->.
-    spec_state "Hwp".
-    destruct_wp_nonret. iModIntro.
+    spec_state. iModIntro.
     eassert (prim_step m σ _ _ _ _).
     { constructor; eauto. }
     iSpecialize ("Hwp" $! _ _ _ H with "H£").
@@ -69,7 +65,6 @@ Section proof.
     iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
     [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
     iDestruct "Hwp" as "[$ [$ _]]".
-    Unshelve. all : solve [exact 1 | exact nil].
   Qed.
 
   Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
@@ -106,13 +101,11 @@ Section proof.
         |={⊤}=> False.
   Proof.
     iIntros (?) "Hsi Hwp".
-    wp_unfold_all. spec_state "Hwp".
+    wp_unfold_all. spec_state.
 
-    destruct_wp_nonret.
-    inversion Hcanstep.
+    inversion Hred.
     destruct H as (?&?&?&?); inversion H.
     subst. inversion H0.
-    Unshelve. all : solve [ exact 1 | exact nil].
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -163,17 +156,13 @@ Section proof.
 
       wp_unfold (bind m1 m2).
       eapply (to_value_None_bind m1 m2) in Hret; rewrite Hret.
-      intro_state;
-      iSpecialize ("Hwp" $! _ _ _ _ _ with "Hsi").
-      iMod "Hwp"; iDestruct "Hwp" as (?) "Hwp".
+      intro_state; spec_state.
       iModIntro.
       iSplitL "".
-      { iPureIntro.
-        eapply reducible_bind; auto.
-        Unshelve. all : eauto. }
+      { iPureIntro; eapply reducible_bind; auto. }
 
       iIntros (????Hstep) "H£".
-      apply reducible_not_val in H.
+      apply reducible_not_val in Hred.
       destruct Hstep as (Hstep&?); subst.
 
       destruct (invert_step_bind Hstep) as (m'1 & Hstep' & ->).
@@ -242,29 +231,24 @@ Section proof.
       { rewrite Hthrow; cbn.
         wp_unfold_all. destruct (wp.to_value (h e)); [ by iMod "Hwp" |].
         iIntros (?????) "SI". iMod "Hwp".
-        iSpecialize ("Hwp" $! _ _ _ _ _ with "SI"); by iMod "Hwp". }
+        spec_state; by iFrame. }
 
       apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
 
       eapply (to_value_None_try m f h) in Hret; rewrite Hret.
 
-      intro_state;
-      iSpecialize ("Hwp" $! _ _ _ _ _ with "Hsi").
-      iMod "Hwp"; iDestruct "Hwp" as (?) "Hwp".
-      iModIntro.
-      iSplitL "".
-      { iPureIntro.
-        eapply reducible_try; auto.
-        Unshelve. all : eauto. }
+      intro_state; spec_state.
+      iModIntro; iSplitL "".
+      { iPureIntro; eapply reducible_try; auto. }
 
       iIntros (????Hstep) "H£".
-      assert (Hstep' := H).
-      apply reducible_not_val in H.
+      assert (Hstep' := Hred).
+      apply reducible_not_val in Hred.
 
       destruct Hstep as (Hstep & ?); subst.
 
       destruct (invert_step_try Hstep) as (m'1 & Hstep'' & ->).
-      { destruct Hstep' as (?&?&?&?&?); eexists; apply H0. }
+      { by apply can_step_reducible. }
       clear Hstep. rename Hstep' into Hstep.
 
       eassert (Hstep_m: prim_step m σ κs _ _ _).
@@ -865,9 +849,7 @@ Section proof.
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
       { pose proof (invert_simplify_ret _ _ _ σ Hsimp Hretm) as Hsimpl.
-        iPureIntro.
-        destruct Hsimpl as (?&Hsimpl); destruct x;
-          repeat eexists; apply Hsimpl. }
+        iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       iModIntro.
@@ -893,9 +875,7 @@ Section proof.
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
       { pose proof (invert_simplify_throw _ _ _ σ Hsimp Hthrow) as Hsimpl.
-        iPureIntro.
-        destruct Hsimpl as (?&Hsimpl); destruct x;
-          repeat eexists; apply Hsimpl. }
+        iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       iModIntro.
@@ -961,11 +941,11 @@ Section proof.
     wp_unfold ms.
 
     pose proof (is_not_ret_or_throw_to_value _ Hretms Hthrow_ms) as ->.
-    spec_state "Hwp". destruct_wp_nonret.
+    spec_state.
 
     assert (prim_step ms σ nil ms' m' nil) by (by constructor).
 
-    iSpecialize ("Hwp" $! _ _ _ H0).
+    iSpecialize ("Hwp" $! _ _ nil H0).
     cbn.
     iIntros "H£".
     iSpecialize ("Hwp" with "H£").
@@ -974,8 +954,6 @@ Section proof.
     iDestruct "Hwp" as "(SI & Hwp & _)"; iFrame.
     iSplitR ""; last done.
     iApply ("IH" with "Hwp [//]").
-    Unshelve.
-    all : solve [exact nil | exact 1].
   Qed.
 
   (* A corollary, for public use: [simp] is sound. *)
