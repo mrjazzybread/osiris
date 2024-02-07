@@ -204,9 +204,9 @@ Class CRel3 (A B C X : Type) `{Encode A, Encode B, Encode C, Encode X}
   (c : string) (C : A -> B -> C -> X) := { }.
 
 Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
-  pure (eval η e)
+  pure (A := A1 * A2 * A3) (eval η e)
     (λ '(x, y, z),
-      VData c (VTuple [#x; #y; #z]) = #(C x y z) /\ ψ (C x y z)) ->
+      VData c (VTuple ([(#x : val); (#y : val); (#z : val)])) = #(C x y z) /\ ψ (C x y z)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
   intros. destruct_pure a.
@@ -452,58 +452,7 @@ Proof.
     rewrite_permutation l'. rewrite_permutation l.
     rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
-
-  (* let l1, l2 = split l *)
-  eapply pure_eval_let_pair.
-  eapply pure_eval_app. trivial_pure.
-  (* Use knowledge that [split] satisfies [split_spec] *)
-  eapply pure_consequence. { apply _split_spec. }
-  intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
-  unfold mergesort_pre in HP.
-  rewrite <- Hperm in HP; apply Forall_app in HP as [??].
-  unfold __exp10; abstract_env.
-  (* TODO: make it so we don't need to manually apply abstract_env here.
-     Note that it is currently required because of pure_eval_let_pair *)
-
-  (* let l1' = merge_sort l1 *)
-  eapply pure_eval_let.
-  { eapply pure_eval_app. trivial_pure.
-    apply IH.
-    { (* Subgoal: [l1] satisfies [mergesort_pre] *)
-      assumption. }
-    { (* Subgoal: show [length l1 < length l ] *)
-      rewrite Heql in *. by apply div2_lt_succ. } }
-  intros l1' IHl1'. unfold __exp9.
-
-  (* let l2' = merge_sort l2 *)
-  eapply pure_eval_let.
-  { eapply pure_eval_app. trivial_pure.
-    apply IH.
-    { (* Subgoal: [l2] satisfies [mergesort_pre] *)
-      assumption.  }
-    { (* Subgoal: show [length l2 < length l] *)
-      rewrite Hl2, Heql. auto with arith. } }
-  intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
-  unfold __exp8.
-
-  (* merge l1' l2' *)
-  pure_eval_app2_conseq.
-  { apply _merge_spec.
-    (* Show that [l1'], [l2'] satisfy [merge_pre] *)
-    unfold mergesort_pre, mergesort_post in *; repeat (destruct_hyp).
-    split; last split.
-    - by rewrite_permutation l1'.
-    - by rewrite_permutation l2'.
-    - tauto. }
-  intros l' IH.
-
-  (* Establish the postcondition *)
-  unfold mergesort_post, merge_post in *; repeat (destruct_hyp).
-  split; [ assumption | ].
-  rewrite_permutation l'. rewrite_permutation l.
-  rewrite_permutation l1'. rewrite_permutation l2'.
-  reflexivity.
-Qed.
+  Qed.
 
 Lemma Merge__spec':
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
