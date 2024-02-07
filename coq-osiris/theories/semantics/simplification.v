@@ -348,7 +348,7 @@ Ltac clarify_simp :=
 (* Destruction lemmas and tactic. *)
 
 (* In principle, we should be able to use [dependent destruction h] directly
-   in the definition of the tactic [destruct_nsteps]. The two lemmas below
+   in the definition of the tactic [destruct_steps]. The two lemmas below
    would then not be necessary. However, attempting to do this fails. The
    lemmas are accepted, but Coq 8.16.1 signals a Universe Inconsistency when
    this file is later loaded. *)
@@ -360,13 +360,13 @@ Proof.
   inversion 1; eauto.
 Qed.
 
-Local Ltac destruct_nsteps :=
+Local Ltac destruct_steps :=
   repeat match goal with
   | h: steps 0 _ _ |- _ => apply invert_steps_0 in h; simplify_eq
   | h: steps 1 _ _ |- _ => apply nsteps_once_inv in h
 end.
 
-(* [nsteps step n] is compatible with a [Par] context. *)
+(* [steps n] is compatible with a [Par] context. *)
 
 Local Lemma steps_step_par_left
   {A1 A2 A E' E} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A E) (z : E' → _) :
@@ -451,7 +451,7 @@ Local Ltac use_ih :=
   end.
 Ltac destruct_simplify_step_diagram :=
   match goal with h: _ ∨ _ |- _ => destruct h as [ (? & ?) | (? & ?) ] end;
-  subst; destruct_nsteps.
+  subst; destruct_steps.
 Proof.
   (* A model of a beautiful proof. *)
   induction 1; intros.
