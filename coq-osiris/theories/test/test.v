@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
+From stdpp Require Import relations.
 
 (* We want to test our semantics, so as to ensure that it seems to be
    consistent with our expectations and with the informal definition
@@ -53,8 +54,8 @@ Local Ltac steps :=
   cbn;
   repeat first [
     rewrite bind_ret (* not sure why this is needed; [cbn] not enough *)
-  | eapply (StepsZero 0%nat)
-  | eapply StepsSucc; [ step | cbn ]
+  | eapply (nsteps_O)
+  | eapply nsteps_l; [ step | cbn ]
   | rewrite add_repr_repr
   | rewrite eq_repr_repr by representable
   ].

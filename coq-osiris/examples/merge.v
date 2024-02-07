@@ -185,9 +185,9 @@ Qed.
 Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
   (c : string) (C : A1 -> A2 -> X) := { }.
 
-(* We write "[ #x; #y]" instead of "[#x; #y]" because stdpp imports the
-   notation "[# _; _; _]". Unfortunately, using "Disable Notation" does
-   not to remove it from the grammar used by Coq's parser. *)
+(* We write "[encode x; #y]" instead of "[#x; #y]" because stdpp imports the
+   notation "[# _; _; _]" for vectors. Unfortunately, using "Disable Notation"
+   does not to remove the vector notation from Coq's parser. *)
 
 Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
   pure (eval η e)

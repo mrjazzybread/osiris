@@ -212,15 +212,11 @@ Lemma invert_initially_safe_steps k :
   steps k c c' →
   initially_safe n c' φ.
 Proof.
-  induction k; intros A E n c c' φ Hsafe Hsteps;
-  inversion Hsteps; subst; clear Hsteps.
-  (* Base case. *)
-  { simpl in Hsafe. assumption. }
-  (* Step case; subcase [StepsZero]. *)
-  { eauto using initially_safe_monotonic with lia. }
-  (* Step case; subcase [StepsSucc]. *)
-  { eapply IHk; [| eassumption ].
-    eauto using invert_initially_safe_step. }
+  induction k; intros A E n c c' φ Hsafe Hsteps.
+  { by simpl in Hsafe; inversion Hsteps; subst. }
+  eapply nsteps_inv_r in Hsteps as (?&Hsteps&Hstep).
+  rewrite Nat.add_succ_comm in Hsafe.
+  eauto using invert_initially_safe_step.
 Qed.
 
 (* A consequence of [invert_initially_safe_stuck]. *)

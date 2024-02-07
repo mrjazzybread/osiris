@@ -1,4 +1,4 @@
-From stdpp Require Import gmap.
+From stdpp Require Import gmap relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval.
@@ -678,3 +678,31 @@ Qed.
 Ltac triplicity σ m H :=
   let a := fresh "a" in
   destruct (triplicity σ m) as [ (a & ->) | [ H | H ]].
+
+(* -------------------------------------------------------------------------- *)
+
+Definition steps {A E} := @nsteps (config A E) step.
+
+Global Hint Unfold steps : steps.
+Global Hint Constructors nsteps : steps.
+
+Definition produces {A E} n (m : micro A E) σ a :=
+  steps n (σ, m) (σ, Ret a).
+
+Global Hint Unfold produces : steps.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Lemmas about [produces]. *)
+
+(* [step] and [produces] can be composed. *)
+
+Lemma step_produces {A E} n (m m' : micro A E) σ a :
+  step (σ, m) (σ, m') →
+  produces n m' σ a →
+  produces (S n) m σ a.
+Proof.
+  unfold produces. econstructor; eauto.
+Qed.
+
+Global Hint Resolve step_produces : steps.

@@ -5,7 +5,6 @@ From osiris.semantics Require Export
   code
   eval
   step
-  steps
   simplification
   pure
   evalprime
