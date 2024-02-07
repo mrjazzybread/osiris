@@ -261,10 +261,10 @@ Proof.
   tauto.
 Qed.
 
-Lemma Stdlib__ref__spec v s E :
+Lemma Stdlib__ref__spec v :
   {{{ True }}}
-    call Stdlib__ref v @ s; E
-  {{{ l, RET #l ; l ↦ v }}}.
+    call Stdlib__ref v
+  {{{ (l : loc), RET #l ; (l ↦ v : iPropI Σ) }}}.
 Proof.
   iIntros (φ) "_ Hpost".
   wp_enter. wp_simp.
@@ -272,10 +272,10 @@ Proof.
   iApply "Hpost". iFrame.
 Qed.
 
-Lemma Stdlib__load__spec l v s E :
+Lemma Stdlib__load__spec l v :
   {{{ l ↦ v }}}
-    call Stdlib__load #l @ s; E
-  {{{ RET v ; l ↦ v }}}.
+    call Stdlib__load #l
+  {{{ v, RET v ; l ↦ v }}}.
 Proof.
   iIntros (φ) "Hl Hpost".
   wp_enter. wp_simp.
@@ -286,20 +286,20 @@ Qed.
 (* [Stdlib__store] is a curried binary function. The application to the
    first argument is pure, so its specification is expressed using pure. *)
 
-Lemma Stdlib__store__spec l v v' s E :
+Lemma Stdlib__store__spec (l : loc) (v v' : val) :
   pure
     (call Stdlib__store #l)
     (λ c,
       {{{ l ↦ v }}}
-        call c v' @ s; E
-      {{{ RET #() ; l ↦ v' }}}
+        call c v'
+      {{{ (v : val), RET #tt; l ↦ v' }}}
     ).
 Proof.
   pure1.
   iIntros (φ) "Hl Hpost".
   wp_enter. wp_simp.
-  wp_store "Hl".
-  iApply "Hpost". iFrame.
+  wp_store "Hl". cbn.
+  by iSpecialize ("Hpost" $! (VArray nil) with "Hl").
 Qed.
 
 End Stdlib__specs.

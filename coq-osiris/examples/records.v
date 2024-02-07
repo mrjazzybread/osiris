@@ -67,7 +67,7 @@ Definition trivial_spec (v: val) : iProp Σ :=
 Definition flip_spec (v : val) : iProp Σ :=
   □ ∀ (b: bool) (i: Z),
     WP call v #{| b := b; i := i |}
-    {{ λ r, is_equal r #{| b := negb b; i := i |} }}.
+    {{ RET r, is_equal r #{| b := negb b; i := i |} }}.
 
 (* [r_val_spec] performs a different arithmetic computation depending on the
    fiels [b] of a record. *)
@@ -80,16 +80,16 @@ Definition r_val_pure (r: R) : Z :=
 Definition r_val_spec (r_val: val): iProp Σ :=
   □ ∀ (r: R),
   WP call r_val #r
-     {{ λ result, is_equal result #(r_val_pure r) }}.
+     {{ RET result, is_equal result #(r_val_pure r) }}.
 
 Definition sum_pure (r1 r2: R) : Z :=
   r_val_pure r1 + r_val_pure r2.
 Definition sum_spec (vsum: val) : iProp Σ :=
   □ ∀ (r1 r2 : R),
     WP call vsum #r1 {{
-          λ vpart,
+          RET vpart,
           WP call vpart #r2 {{
-                λ res,
+                RET res,
                 is_equal res # (sum_pure r1 r2) }} }}.
 
 (* -------------------------------------------------------------------------- *)
@@ -116,7 +116,7 @@ Ltac wp_simp_eusing H :=
 
 Lemma Records_spec :
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  ⊢ WP eval_mexpr η __main {{ module_spec Λ }}.
+  ⊢ WP eval_mexpr η __main {{ RET v, module_spec Λ v }}.
 Proof.
   intros η.
   wp.
@@ -142,7 +142,8 @@ Proof.
     (VRecord [("b", VTrue); ("i", (VInt (int.repr 10)))])
     with #{| b := true; i := 10 |}.
   wp_use "Hflip".
-  iIntros (? <-). wp_bind.
+  wp_pure_postcondition; subst; cbn.
+  wp_bind.
 
   (* [lily] has the expected value. *)
   wp_continue. wp_bind.
@@ -165,20 +166,20 @@ Proof.
       (* TODO avoid manual encoding *)
       change (VRecord [("b", VBool b1); ("i", VInt (int.repr i1))])
       with (#{| b:=b1; i:= i1|}).
-      wp_use "Hr_val". iIntros(?<-).
-      wp_simp.
-      iApply wp_ret.
+      wp_use "Hr_val". wp_pure_postcondition; subst.
+      wp.
       wp_set_postcondition. }
     { wp_bind.
       (* TODO avoid manual encoding *)
       change (VRecord [("b", VBool b2); ("i", VInt (int.repr i2))])
       with (#{| b:=b2; i:= i2|}).
       wp_use "Hr_val".
-      (* TODO ugly... *)
-      iIntros (a) "%Ha". subst a. simpl val_as_int.
+      wp_pure_postcondition; subst; cbn.
       iApply wp_ret. wp_set_postcondition.
     }
-    { iIntros (v1 v2) "%Hv1 %Hv2". subst v1 v2.
+    { wp_absurd. }
+    { wp_absurd. }
+     { iIntros (v1 v2) "%Hv1 %Hv2". inversion Hv1; inversion Hv2; subst.
       wp. equality. }
   }
 

@@ -401,6 +401,57 @@ Proof.
   { strip_disjunction.
     destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
+  { eapply pure_eval_let_pair.
+    eapply pure_eval_app.
+    (* Use knowledge that [split] ∈ [η] *)
+    eapply pure_eval_path. simpl. rewrite Hsplit. pure_ret.
+    pure_path.
+    (* Use knowledge that [split] ⊨ [split_spec] *)
+    eapply pure_consequence. { apply _split_spec. }
+    intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
+    unfold mergesort_pre in HP;
+      rewrite <- Hperm in HP; apply Forall_app in HP as [??].
+    unfold __exp10.
+    eapply pure_eval_let.
+    { eapply pure_eval_app. pure_path. pure_path.
+      (* Use the induction hypothesis on [l1] *)
+      apply IH.
+      { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
+        assumption. }
+      { (* Subgoal: show [length l1 < length l ] *)
+        rewrite Heql; rewrite Heql in Hl1. by apply div2_lt_succ. } }
+    intros l1' IHl1'.
+    unfold __exp9.
+    eapply pure_eval_let.
+    { eapply pure_eval_app. pure_path. pure_path.
+      (* Use the induction hypothesis on [l2] *)
+      apply IH.
+      { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
+        assumption. }
+      { (* Subgoal: show [length l2 < length l] *)
+        rewrite Hl2 Heql. auto with arith. } }
+    intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
+    unfold __exp8.
+    eapply pure_eval_app2_conseq.
+    { (* Use the knowledge that [merge] ∈ [η] *)
+      eapply pure_eval_path. simpl. rewrite Hmerge. by pure_ret. }
+    { by pure_path. }
+    { by pure_path. }
+    (* Use the knowledge that [merge] ⊨ [_merge_spec] *)
+    { apply _merge_spec.
+      (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
+      unfold mergesort_pre, mergesort_post in *.
+      repeat (destruct_hyp).
+      split; [ by rewrite_permutation l1'
+             | split; [ by rewrite_permutation l2' | auto] ]. }
+    intros l' IH.
+    (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
+    unfold mergesort_post, merge_post in *.
+    repeat (destruct_hyp).
+    split; [ assumption | ].
+    rewrite_permutation l'. rewrite_permutation l.
+    rewrite_permutation l1'. rewrite_permutation l2'.
+    reflexivity. }
 
   (* let l1, l2 = split l *)
   eapply pure_eval_let_pair.
@@ -519,7 +570,7 @@ Proof.
   (* Case: l1 = h1::t1, l2 = h2::t2 *)
   all_inversions. pure1.
   (* TODO: Environments are too present in the goal *)
-  rewrite lt_repr_repr by auto.
+  rewrite lt_repr_repr; auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
   { (* Case: h2 < h1 *) Transparent app. simpl.

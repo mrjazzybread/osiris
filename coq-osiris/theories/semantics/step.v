@@ -194,6 +194,23 @@ Proof.
   congruence.
 Qed.
 
+(* Inversion properties of [try] and [bind] *)
+
+Lemma invert_try_ret {A B E' F} m1 m2 h v:
+  @try A B E' F m1 m2 h = ret v ->
+  (∃ a, m1 = ret a /\ m2 a = ret v) \/
+  (∃ e, m1 = throw e /\ h e = ret v).
+Proof.
+  destruct m1 eqn: Hm1; intros; cbn in H; eauto; try solve [inversion H].
+Qed.
+
+Lemma invert_bind_ret {A B E} m1 m2 v:
+  @bind A B E m1 m2 = ret v ->
+  ∃ a, m1 = ret a /\ m2 a = ret v.
+Proof.
+  destruct m1 eqn: Hm1; intros; cbn in H; eauto; try solve [inversion H].
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* [is_ret m] is [Some a] if and only if [m] is [Ret a]. *)
@@ -249,6 +266,58 @@ Qed.
 
 Lemma is_not_ret_throw {A E} (e : E) :
   is_not_ret (throw e : micro A E).
+Proof.
+  reflexivity.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [is_throw m] is [Some a] if and only if [m] is [Throw a]. *)
+
+(* [is_throw] offers an executable way of testing whether a computation is
+   [Throw _]. *)
+
+Definition is_throw {A B} (m : micro A B) : option B :=
+  match m with
+  | Throw a => Some a
+  | _     => None
+  end.
+
+(* Basic properties of [is_throw]. *)
+
+Lemma invert_is_throw_Some {A E} {m : micro A E} {a} :
+  is_throw m = Some a →
+  m = Throw a.
+Proof.
+  destruct m; inversion 1; reflexivity.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [is_not_throw m] holds if [m] is not [throw _]. *)
+
+Notation is_not_throw m :=
+  (is_throw m = None).
+
+(* -------------------------------------------------------------------------- *)
+
+(* Basic properties of [is_not_throw]. *)
+
+Lemma is_not_throw_throw {A E} (a : E) :
+  is_not_throw (throw a : micro A E) →
+  False.
+Proof.
+  simpl. congruence.
+Qed.
+
+Lemma is_not_throw_ret {A E} (e : A) :
+  is_not_throw (ret e : micro A E).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma is_not_throw_crash {A E} :
+  is_not_throw (Crash : micro A E).
 Proof.
   reflexivity.
 Qed.
@@ -468,6 +537,22 @@ Proof.
     exfalso; eauto with invert_can_step
   | (* Every other case: *)
     destruct_step; eauto with step try_try
+  ].
+Qed.
+
+Lemma invert_step_try' {A E} m (f : A → micro A E) (h : E → _) σ σ' mm :
+  step.step (σ, try m f h) (σ', mm) →
+  is_not_ret m ->
+  is_not_throw m ->
+  (∃ m', step.step (σ, m) (σ', m') ∧ mm = try m' f h).
+Proof.
+  destruct m;
+  simpl try;
+  intros;
+  try solve [
+    (* Case: [Ret] *) inversion H0
+  | (* Every other case: *)
+  destruct_step; eauto with step try_try; inversion H1
   ].
 Qed.
 

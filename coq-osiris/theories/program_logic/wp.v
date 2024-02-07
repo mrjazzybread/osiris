@@ -1,171 +1,279 @@
-From iris.prelude Require Import options.
-From iris.bi Require Import weakestpre.
-From iris.base_logic.lib Require Import fancy_updates gen_heap.
-From iris.proofmode Require Import base proofmode classes.
+From Coq Require Import Program.Equality.
 
-From osiris Require Import base.
-From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import safe.
+From iris.base_logic.lib Require Import own gen_heap.
 
-(* This file defines the predicate [WP]. *)
+From iris.program_logic Require Import language.
 
-(* It is heavily inspired from [iris/{bi,program_logic}/weakestpre.v]. *)
+From osiris Require Export syntax semantics.
+
+(** *Weakest precondition
+
+  We instantiate an instance of [LanguageMixin], which do not include evalueuation
+  contexts.
+
+  This is an "exception-handling" Hoare triple, which considers two cases for its
+  postcondition, each for the return and exception continuation cases.
+
+    We use the notation
+
+          WP (try m f h)
+            {{ | RET x => ϕ x ;
+                | EXN x => ψ x }}.
+
+    to indicate that the expression may return a valueue and satisfy postcondition
+    ϕ, or throw an exception and satisfy postcondition ψ. *)
+
+(** *Language instance *)
+Section exp_def.
+
+  Context {res exn : Type}.
+
+  Variant value :=
+    | Res (r : res)
+    | Exn (e : exn).
+
+  (* Instantiation of (non-context based) Iris language for Osiris. *)
+  Notation exp := (micro res exn).
+
+  (* Naive projection between valueues and expressions. *)
+  Definition of_value (v : value) : exp :=
+    match v with
+    | Res r => Ret r
+    | Exn e => Throw e
+    end.
+
+  Definition to_value (e : exp) : option value :=
+    match e with
+    | Ret a => Some (Res a)
+    | Throw e => Some (Exn e)
+    | _ => None
+    end.
+
+  (* Lifting specifications in Coq *)
+  Definition lift_pure (ϕ : res -> Prop) (v : value) : Prop :=
+    match v with
+    | Res r => ϕ r
+    | Exn _ => False
+    end.
+
+  Definition lift_exn (ψ : exn -> Prop) (v : value) : Prop :=
+    match v with
+    | Exn e => ψ e
+    | Res _ => False
+    end.
+
+  Definition lift (ϕ : res -> Prop) (ψ : exn -> Prop) (v : value) : Prop :=
+    match v with
+    | Res r => ϕ r
+    | Exn e => ψ e
+    end.
+
+  Section iProp.
+
+    Context {Σ : gFunctors}.
+
+    Notation iProp := (iProp Σ).
+
+    (* Lifting specifications in Iris logic *)
+    Definition lift_ipure (ϕ : res -> iProp) (v : value) : iProp :=
+      match v with
+      | Res r => ϕ r
+      | Exn _ => False
+      end.
+
+    Definition lift_iexn (ψ : exn -> iProp) (v : value) : iProp :=
+      match v with
+      | Exn e => ψ e
+      | Res _ => False
+      end.
+
+    Definition ilift (ϕ : res -> iProp) (ψ : exn -> iProp) (v : value) : iProp :=
+      match v with
+      | Res r => ϕ r
+      | Exn e => ψ e
+      end.
+
+    Definition ipure (ϕ : value -> iProp) (v : res) : iProp := ϕ (Res v).
+
+    Definition iexn (ψ : value -> iProp) (e : exn) : iProp := ψ (Exn e).
+
+  End iProp.
+
+End exp_def.
+
+Notation "ϕ ↑" := (lift_ipure ϕ) (at level 20).
+Notation "ψ ⤉ " := (lift_iexn ψ) (at level 30).
+Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
+  (ilift (fun x => e) (fun y => f))
+(at level 200, right associativity, format
+"'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+
+
+Section exp_properties.
+
+  Lemma is_not_ret_or_throw_to_value {A E} m :
+    is_not_ret m ->
+    is_not_throw m ->
+    @to_value A E m = None.
+  Proof.
+    intros H; destruct m; inversion H; intros H'; inversion H'; eauto.
+  Qed.
+
+  Lemma to_value_is_not_ret {A E} (m : micro A E) :
+    to_value m = None -> is_not_ret m.
+  Proof.
+    intros H; destruct m; inversion H; eauto.
+  Qed.
+
+  Lemma to_value_None_bind {A B E} (m1 : micro A E) (m2 : A -> micro B E):
+    to_value m1 = None ->
+    to_value (bind m1 m2) = None.
+  Proof.
+    intros; destruct m1; eauto; inversion H.
+  Qed.
+
+  Lemma to_value_is_Some {A E} (m : micro A E) v:
+    to_value m = Some v ->
+    (∃ v', v = Exn v' /\ m = Throw v') \/
+    (∃ v', v = Res v' /\ m = Ret v').
+  Proof.
+    intros; destruct m; inversion H; subst; [right | left]; eauto.
+  Qed.
+
+  Lemma to_value_None_try {A B E' E}
+    (m : micro A E') (f : A -> micro B E) (h : E' -> micro B E) :
+    to_value m = None ->
+    to_value (try m f h) = None.
+  Proof.
+    intros; destruct m; eauto; inversion H.
+  Qed.
+
+  Lemma step_not_value {A E} {σ σ'} {m m' : micro A E} :
+    step.step (σ, m) (σ', m') ->
+    to_value m = None.
+  Proof.
+    destruct m; inversion 1; try dependent destruction H8; eauto.
+  Qed.
+
+End exp_properties.
+
+Section lang_instance.
+
+  Context {res exn : Type}.
+
+  (* N.B.: We ignore the observation and list of expressions for now. *)
+  Definition prim_step
+    (e : micro res exn) (σ : store) (obs : list nat)
+    (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
+    step.step (σ, e) (σ', e') /\ exprs = [].
+
+  Definition osiris_lang_mixin :
+    LanguageMixin of_value to_value prim_step.
+  Proof.
+    constructor; auto.
+    { intros; destruct v; auto. }
+    { intros; destruct e; inversion H; auto. }
+    { intros; destruct e; inversion H; auto; subst; inversion H0. }
+  Defined.
+
+  Canonical Structure osiris_lang := Language (osiris_lang_mixin).
+
+End lang_instance.
 
 (* -------------------------------------------------------------------------- *)
 
-(* For details about these incantations, see
-   [iris.base_logic.lib.fancy_updates] and
-   [iris.base_logic.lib.gen_heap]. *)
+(* Simple properties about the instantiated language ([reducible/try/step]). *)
 
-Class osirisGS (Σ: gFunctors) := OsirisG {
+Section lang_properties.
 
-  (* This gives us fancy updates (without allowing Later Credits). *)
-  osiris_invGS :: invGS_gen HasNoLc Σ;
+  Lemma reducible_try {A B E' E}
+    (m1 : micro A E') (f : A -> micro B E) (h : E' -> micro B E) σ:
+    reducible (Λ := osiris_lang) m1 σ ->
+    reducible (Λ := osiris_lang) (try m1 f h) σ.
+  Proof.
+    intros H.
+    destruct H as (?&?&?&?&?).
+    repeat eexists; eapply step_try; apply H.
+    Unshelve. all: eauto.
+  Qed.
 
-  (* This gives us a heap, which maps locations to values. *)
-  osiris_heapGS :: gen_heapGS loc val Σ;
+  Lemma reducible_bind {A B E}
+    (m1 : micro A E) (m2 : A -> micro B E) σ:
+    reducible (Λ := osiris_lang) m1 σ ->
+    reducible (Λ := osiris_lang) (bind m1 m2) σ.
+  Proof.
+    intros H.
+    destruct H as (?&?&?&?&?).
+    repeat eexists; eapply step_bind; apply H.
+    Unshelve. all: eauto.
+  Qed.
 
-}.
+  Lemma can_step_reducible {R E} (e : micro R E) σ :
+    can_step (σ, e) <-> reducible e σ.
+  Proof.
+    split.
+    { intros []. destruct x. repeat eexists; apply H. }
+    { intros []. destruct H as (?&?&?&?). repeat eexists; apply H. }
+    Unshelve. all : exact nil.
+  Qed.
 
-(* Definition of the state interpretation predicate. *)
+  Lemma prim_step_simp {A E} e σ es obs e' σ':
+    prim_step e σ es e' σ' obs ->
+    step.step (A := A) (E := E) (σ, e) (σ', e').
+  Proof.
+    by intros [].
+  Qed.
 
-(* For the moment, it is set to [gen_heap_interp σ], which is the standard state
-   interpretation of Iris. *)
+End lang_properties.
 
-Definition state_interp {Σ H} (σ : store) :=
-  @gen_heap_interp loc _ _ val Σ H σ.
+(** *Basic resource algebra for Osiris
+  (store can be represented as an authoritative gmap, for now.) *)
+From iris.algebra Require Import gmap_view.
 
-(* -------------------------------------------------------------------------- *)
+From iris.algebra Require Export dfrac.
+From iris.program_logic Require Export weakestpre.
 
-(* This is the definition of the predicate [WP]. *)
+Section ghost_instances.
 
-Section definition.
+  Context (Σ : gFunctors).
 
-Context (A X : Type).
-Context `{!osirisGS Σ}.
+  Class osirisGpreS := {
+    osirisGpreS_inG :: inG Σ (gmap_viewR locations.loc (leibnizO syntax.val))
+  }.
 
-(* The (open) recursive definition of [wp]. *)
+  Class osirisGS := OsirisGS
+   { osiris_inG :: osirisGpreS;
+    (* This gives us fancy updates (without allowing Later Credits). *)
+     osiris_invGS : invGS_gen HasNoLc Σ;
+    (* This gives us a heap, which maps locations to values. *)
+     osiris_heapGS :: gen_heapGS locations.loc syntax.val Σ;
+     osiris_store_name : gname }.
 
-Definition wp_pre
-  (wp: coPset -d> micro A X -d> (A -d> iPropO Σ) -d> iPropO Σ) :
-       coPset -d> micro A X -d> (A -d> iPropO Σ) -d> iPropO Σ
-  :=
-  λ E m φ,
-    (∀ σ,
-       (* Give, the state of the heap [σ] and under the modality [|={E,∅}=>], *)
-       state_interp σ ={E,∅}=∗
-       match is_ret m with
-       | Some v =>
-           (* If the term is a value, it satisfies the postcondition and the
-              state interpretation can be returned after giving back the
-              invariants in [E]. *)
-           |={∅,E}=> state_interp σ ∗ φ v
-       | None =>
-           (* Otherwise, the term [m] is not a value. The [wp] states that:
-              (1) the configuration [σ, m] is not stuck, and *)
-           ⌜can_step (σ, m)⌝ ∗
-           (* (2) for any step this configuration can take, the state
-                  interpretation can be given back and the [wp] holds.
-              Using [ ={∅}▷=∗ ] allows the adequacy theorem to hold. The
-              proofs of [theories/program_logic/adequacy.v] use this modality.
-              Using [ |={∅, E}=> ] ask invariants in [E] to hold in the
-              conclusion. *)
-           ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ={∅}=∗ ▷
-                    |={∅,E}=> (state_interp σ' ∗ wp E m' φ)
-     end
-    )%I.
+End ghost_instances.
 
-Local Instance wp_pre_contractive : Contractive wp_pre.
-Proof.
-  rewrite /wp_pre /= => n wp wp' Hwp E m Φ.
-  repeat (f_contractive || f_equiv).
-  apply Hwp.
-Qed.
+#[global] Arguments OsirisGS Σ {_ _ _} _ : assert.
+#[global] Arguments osiris_store_name {_} _ : assert.
 
-(* The following definition is intended to ensure that the usual Iris
-   notation is available, e.g.:
-     [WP _ @ _ {{ _ }}]
-     [WP _ @ _ ?{{ _ }}]).
+Definition store_interp {Σ H} (σ : store) :=
+  @gen_heap_interp locations.loc _ _ syntax.val Σ H σ.
 
-  The stuckness bit is not used at the moment. It is still provided as argument
-  to [wp_def] so that we can use the typeclass [Wp] and the rest of the Iris
-  boilerplate to define our program-logic.  As it is unused, we could change its
-  type to [unit]. However, this would not allow us to use the above notations,
-  hence our choice to keep it this way.
+(** *Iris instantiation *)
+#[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E,
+  irisGS_gen HasNoLc (@osiris_lang R E) Σ := {
+    iris_invGS := osiris_invGS Σ;
+    state_interp σ _ _ _ := (store_interp σ)%I;
+    fork_post _ := True%I;
+    num_laters_per_step _ := 0;
+    state_interp_mono _ _ _ _ := fupd_intro _ _ }.
 
-  If we were to remove this from the definition of Weakest Precondition, we
-  would have to overwrite all useful wp-related notations, as well as Hoare,
-  texan triples, etc. *)
+Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" := (wp s E e%E (lift_ipure (λ v, Q)))
+  (at level 20, e, Q at level 200,
+   format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e {{ 'RET' v , Q } }" := (wp NotStuck ⊤ e%E (lift_ipure (λ v, Q)))
+  (at level 20, e, Q at level 200,
+   format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @ NotStuck; ⊤ {{ RET v , Φ v }}).
 
-Definition wp_def : Wp (iProp Σ) (micro A X) A stuckness :=
-  λ (_ : stuckness), fixpoint wp_pre.
 
-(* Standard boilerplate to seal the definition of [wp]. *)
-
-Local Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
-Definition wp' := wp_aux.(unseal).
-Global Arguments wp' {Σ _ _}.
-Global Existing Instance wp'.
-Local Lemma wp_unseal: wp = wp_def.
-Proof. rewrite -wp_aux.(seal_eq) //. Qed.
-
-End definition.
-
-(* -------------------------------------------------------------------------- *)
-
-(* More boilerplate, once again inspired by
-   [iris/{bi,program_logic}/weakestpre.v] *)
-
-Section boilerplate.
-
-Context {A X : Type}.
-Context `{!osirisGS Σ}.
-Implicit Type s : stuckness.
-Implicit Type P : iProp Σ.
-Implicit Type φ : A → iProp Σ.
-Implicit Type a : A.
-Implicit Type m : micro A X.
-
-Notation wp := (wp (PROP:=iProp Σ)).
-
-Lemma wp_unfold {s E} m {φ} :
-  WP m @ s; E {{ φ }} ⊣⊢ wp_pre A X (wp s) E m φ.
-Proof.
-  rewrite wp_unseal.
-  apply (@fixpoint_unfold _ _ _ (wp_pre A X)).
-Qed.
-
-Local Ltac wp_unfold_all :=
-  rewrite !wp_unfold /wp_pre /=.
-
-Global Instance wp_ne s E m n :
-  Proper
-    (pointwise_relation _ (dist n) ==> dist n)
-    (wp s E m).
-Proof.
-  revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
-  wp_unfold_all.
-  repeat ((by rewrite IH; [done|lia|];
-              intros v; eapply dist_le; [apply HΦ|lia])
-          + (f_contractive || f_equiv)).
-Qed.
-
-Global Instance wp_proper s E m :
-  Proper
-    (pointwise_relation _ (≡) ==> (≡))
-    (wp s E m).
-Proof.
-  by intros Φ Φ' ?; apply equiv_dist=>n; apply wp_ne=>v; apply equiv_dist.
-Qed.
-
-Global Instance wp_contractive s E m n :
-  TCEq (is_ret m) None →
-  Proper
-    (pointwise_relation _ (dist_later n) ==> dist n)
-    (wp s E m).
-Proof.
-  intros He Φ Ψ HΦ. wp_unfold_all. rewrite He /=.
-  repeat (f_contractive || f_equiv).
-Qed.
-End boilerplate.
+From osiris Require Export syntax semantics lang.

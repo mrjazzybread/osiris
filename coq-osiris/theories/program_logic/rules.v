@@ -1,881 +1,994 @@
-From iris.prelude Require Import options.
-From iris.bi Require Import weakestpre.
+Require Import Coq.Program.Equality.
+
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
-From iris.proofmode Require Import base proofmode classes.
+From iris.proofmode Require Import proofmode.
 
-From osiris Require Import base.
-From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import safe wp helpers.
+From iris.base_logic.lib Require Import own.
 
+From osiris.lang Require Import lang.
+From osiris.program_logic Require Import wp tactics.
+From osiris Require Import syntax semantics.
 
-Local Ltac wp_unfold_all :=
-  rewrite !wp_unfold /wp_pre /=.
+Section proof.
 
-(* This tactic unfolds one occurrence of [wp] at the head of the goal. *)
+  Context `{!osirisGS Σ}.
 
-Local Ltac wp_unfold_head :=
-  iApply wp_unfold; rewrite /wp_pre /=.
+  #[local] Instance invGS_gen_osiris : invGS_gen HasNoLc Σ :=
+    (osiris_invGS Σ).
 
-(* This tactic unfolds [wp] applied to the computation [m]. *)
+  (* ------------------------------------------------------------------------ *)
+  (** *General properties about [WP] and [step] *)
 
-Local Ltac wp_unfold m :=
-  setoid_rewrite (wp_unfold m); rewrite /wp_pre /=.
-
-
-(* -------------------------------------------------------------------------- *)
-
-(* Local tactics. *)
-
-(* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
-   of the form [ret a], or it is not. In the second branch, the equality
-   [is_ret m = None] appears under the name [Hret]. *)
-
-Local Ltac wp_case_is_ret m Hret :=
-  case_eq (is_ret m); [
-    intros ? Hret;
-    apply invert_is_ret_Some in Hret; subst m
-  | intros Hret
-  ].
-
-(* The following tactics corresponds to the branch [is_ret _ = Some _] in
-   the definition of [wp]. This branch is a conjunction
-     state_interp σ ∗ φ v
-   [destruct_wp_ret] is used when this form appears in the hypothesis "Hwp". *)
-
-Ltac destruct_wp_ret :=
-  iMod "Hwp"; iModIntro;
-  iMod "Hwp" as "[Hsi Hwp]"; iModIntro.
-
-(* The following two tactics correspond to the branch [is_ret _ = None] in
-   the definition of [wp]. This branch is a conjunction
-     ⌜can_step (σ, m)⌝ ∗ ∀ σ' m', ...
-   [construct_wp_nonret] is used when this form appears in the goal.
-   [destruct_wp_nonret] is used when it appears in the hypothesis "Hwp". *)
-
-Local Ltac construct_wp_nonret :=
-  iSplitR; [
-    (* Prove [can_step]: *)
-    iPureIntro; eauto with step can_step
-  | (* Introduce a hypothetical step: *)
-    iIntros (σ' m') "%Hstep"
-  ].
-
-Ltac destruct_wp_nonret :=
-  iMod "Hwp" as "[%Hcanstep Hwp]".
-
-(* Working with the state interpretation invariant. *)
-
-(* [intro_state] introduces [σ] and [state_interp σ]. *)
-(* [spec_state H] specializes the hypothesis H with [state_interp σ]. *)
-(* [release_state] abandons [state_interp σ]. *)
-
-Local Ltac intro_state :=
-  iIntros (σ) "Hsi".
-
-Local Ltac spec_state H :=
-  iSpecialize (H with "Hsi").
-
-Local Ltac release_state :=
-  iFrame "Hsi".
-
-(* [tick_wp] is used when the goal is
-   [|==> ▷ (state_interp σ' ∗ wp E m' φ)]. *)
-
-Local Ltac tick_wp :=
-  iModIntro; iNext;
-  iMod "Hwp" as "[$Hwp]"; iModIntro. (*
-  iModIntro; iNext; iMod "Hwp"; iModIntro;
-  iMod "Hwp" as "[$ Hwp]";
-  iModIntro.*)
-
-(* [step_wp] is used when the hypothesis "Hwp" has the form
-     ∀ σ' m', ⌜step (σ, m) (σ', m')⌝ ==∗ ...
-              ▷ (state_interp σ' ∗ wp E m' φ)
-
-   It applies this hypothesis to a fact of the form [step (σ, m) _],
-   which must appear in the context, and destructs the result. *)
-
-Local Ltac step_wp :=
-  iMod ("Hwp" with "[//]") as "Hwp".
-
-Section Rules.
-
-Context `{!osirisGS Σ}.
-
-(* The return rule. *)
-
-Lemma wp_ret {A X} s E (a : A) φ :
-  φ a ⊢
-  WP (ret a : micro A X) @ s; E {{ φ }}.
-Proof.
-  wp_unfold_all. iIntros. iFrame.
-  iMod (@fupd_mask_subseteq _ _ E ∅); [set_solver | eauto].
-Qed.
-
-Lemma wp_ret_fupd {A X} s E (a : A) φ :
-  (|={E}=> φ a) ⊢
-  WP (ret a : micro A X) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply fupd_wp.
-  iMod "H"; iModIntro.
-  iApply (wp_ret with "H").
-Qed.
-
-(* The inverse return rule. *)
-
-Lemma invert_wp_ret {A X} s E (a : A) φ :
-  ∀ σ, state_interp σ -∗
-       WP (ret a : micro A X) @ s; E {{ φ }} -∗
-       |={E}=> state_interp σ ∗ φ a.
-Proof.
-  intro_state. iIntros "Hwp".
-  wp_unfold_all. spec_state "Hwp".
-  iApply (fupd_trans with "Hwp").
-Qed.
-
-(* The inverse crash rule. *)
-
-Lemma invert_wp_crash {A X s E φ} :
-  ∀ σ, state_interp σ -∗
-       WP (crash : micro A X) @ s; E {{φ}} -∗
-       |={E}=> False.
-Proof.
-  intro_state. iIntros "Hwp".
-  wp_unfold_all. spec_state "Hwp".
-  destruct_wp_nonret. exfalso; eauto with invert_can_step.
-Qed.
-
-(* The inverse [throw] rule. *)
-
-Lemma invert_wp_throw {A X s E x φ} :
-  ∀ σ, state_interp σ -∗
-       WP (throw x : micro A X) @ s; E {{ φ }} -∗
-       |={E}=> False.
-Proof.
-  intro_state. iIntros "Hwp".
-  wp_unfold_all. spec_state "Hwp".
-  destruct_wp_nonret. exfalso; eauto with invert_can_step.
-Qed.
-
-(* The consequence rule of Separation Logic. *)
-
-Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
-WP m @ s; E {{ φ }} -∗
-(∀ a, φ a -∗ φ' a) -∗
-WP m @ s; E {{ φ' }}.
-Proof.
-iLöb as "IH" forall (φ φ' m).
-iIntros "Hwp Himplication".
-wp_unfold_all.
-intro_state. spec_state "Hwp".
-destruct (is_ret m); [ destruct_wp_ret | destruct_wp_nonret ].
-(* Case: [m] is [ret _]. *)
-{ release_state.
-  iApply ("Himplication" with "Hwp"). }
-(* Case: [m] is not [ret _]. *)
-{ iModIntro.
-  construct_wp_nonret.
-  step_wp.
-  tick_wp.
-  iApply ("IH" with "Hwp Himplication"). }
-Qed.
-
-(* A reasoning rule for [try]. *)
-
-(* Our definition of [WP] forbids [m1] from reducing to [throw _], so the
-   handler [h] is dead. Therefore, no proof obligation bears on [h]. *)
-
-Lemma wp_try {A1 A2 X' X} s E (m1: micro A1 X') (m2: A1 → micro A2 X) h ψ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
-  WP (try m1 m2 h) @ s; E {{ ψ }}.
-Proof.
-  iLöb as "IH" forall (m1 m2 h ψ).
-  iIntros "Hwp".
-  wp_unfold m1.
-  wp_case_is_ret m1 Hret.
-
-  (* Case: [m1] is [ret _]. *)
-  (* The result is immediate. *)
-  { by iApply wp_grab. }
-
-  (* Case: [m1] is not [ret _]. *)
-  {
-    (* Unfold and simplify the goal and hypothesis. *)
+  Lemma wp_can_step {R E} {σ} φ (m : micro R E) {M}:
+    store_interp σ -∗
+    wp NotStuck M m φ ={M, ∅}=∗
+    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
+  Proof.
+    iIntros "SI Hwp".
     wp_unfold_all.
-    intro_state.
+    destruct (wp.to_value m) eqn: Hm.
+    { iMod "Hwp". iApply fupd_mask_intro; first set_solver.
+      iIntros "_".
+      to_value_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
+      iPureIntro; eauto. }
+    { iSpecialize ("Hwp" $! _ _ _ _ _ with "SI").
+      iMod "Hwp".
+      iDestruct "Hwp" as"[%c' _]". iPureIntro.
+      left. by apply can_step_reducible. }
+    Unshelve. all : solve [exact 1 | exact nil].
+  Qed.
+
+  Lemma wp_can_step' {R E} {σ φ} (m : micro R E) {M}:
+    store_interp σ -∗
+    wp NotStuck M m φ ={M}=∗
+    ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
+  Proof.
+    iIntros.
+    iPoseProof (wp_can_step with "[$][$]") as "?".
+    iApply (fupd_plain_mask_empty with "[$]").
+  Qed.
+
+  Lemma wp_step {R E} {σ σ'} {m n : micro R E} {φ}:
+    step (σ, m) (σ', n) →
+    store_interp σ -∗
+    £ 1 -∗
+    WP m {{ φ }} ={⊤,∅}=∗ |={∅}▷=> |={∅,⊤}=>
+    (store_interp σ' ∗ WP n {{ φ }}).
+  Proof.
+    intro Hstep.
+    iIntros "Hsi H£ Hwp".
+    wp_unfold m.
+    pose proof (step_not_value Hstep) as ->.
     spec_state "Hwp".
+    destruct_wp_nonret. iModIntro.
+    eassert (prim_step m σ _ _ _ _).
+    { constructor; eauto. }
+    iSpecialize ("Hwp" $! _ _ _ H with "H£").
+    iMod "Hwp". iModIntro. iNext.
+    do 2 iMod "Hwp".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    iDestruct "Hwp" as "[$ [$ _]]".
+    Unshelve. all : solve [exact 1 | exact nil].
+  Qed.
+
+  Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
+    WP m @ s; E {{ φ }} -∗
+    (∀ a, φ a -∗ φ' a) -∗
+    WP m @ s; E {{ φ' }}.
+  Proof.
+    iIntros "Hwp Himpl";
+      iApply (wp_strong_mono with "Hwp [Himpl]"); try done.
+    iIntros (?) "Hφ"; iModIntro; iApply ("Himpl" with "Hφ").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (** *Inversion Laws *)
+  Lemma invert_wp_ret {R E} φ r :
+    ∀ σ, store_interp σ -∗
+        WP (Ret r : micro R E) {{ φ }} -∗
+        |={⊤}=> store_interp σ ∗ φ (Res r).
+  Proof.
+    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+  Qed.
+
+  Lemma invert_wp_throw {R E} φ exn:
+    ∀ σ, store_interp σ -∗
+        WP (throw exn : micro R E) {{ φ }} -∗
+        |={⊤}=> store_interp σ ∗ φ (Exn exn).
+  Proof.
+    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+  Qed.
+
+  Lemma invert_wp_crash {R E} φ:
+    ∀ σ, store_interp σ -∗
+        WP (crash : micro R E) {{ φ }} -∗
+        |={⊤}=> False.
+  Proof.
+    iIntros (?) "Hsi Hwp".
+    wp_unfold_all. spec_state "Hwp".
+
     destruct_wp_nonret.
-    (* [try m1 m2 h] cannot be [ret _]. *)
-    pose proof (is_not_ret_try m1 m2 h Hcanstep) as ->.
-    iModIntro; construct_wp_nonret.
-    (* We must prove that every reduct of [try m1 m2 h] is safe. *)
-    (* Because [m1] can step, a reduct of [try m1 m2 h] must be
-     of the form [try m'1 m2 h], where [m'1] is a reduct of [m1]. *)
-    destruct (invert_step_try Hstep Hcanstep) as (m'1 & Hstep' & ->).
-    clear Hstep. rename Hstep' into Hstep.
-    (* The hypothesis can then be further exploited. *)
-    step_wp. tick_wp. iApply "IH". iApply "Hwp".
-  }
+    inversion Hcanstep.
+    destruct H as (?&?&?&?); inversion H.
+    subst. inversion H0.
+    Unshelve. all : solve [ exact 1 | exact nil].
+  Qed.
 
-Qed.
+  (* ------------------------------------------------------------------------ *)
+  (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
-(* A binary version of the previous lemma. *)
+  (* Pure values *)
+  Definition wp_ret {R E} s a e φ:
+    ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
+  Proof.
+    iIntros "Hφ"; rewrite wp_unfold; by cbn.
+  Qed.
+  Definition wp_ret' {R E} s a e φ:
+    φ a ⊢ WP (Ret a : micro R E) @ s; e {{ RET v, φ v }}.
+  Proof.
+    iIntros "Hφ"; rewrite wp_unfold; by cbn.
+  Qed.
 
-(* This version must be preferred when the proof of [m1] requires a case
-   analysis. The scope of the case analysis is then limited to the first
-   premise, so the proof of [m2] is not duplicated. *)
+  (* Cut rule *)
+  Lemma wp_bind {A1 A2 X} (m1 : micro A1 X) (m2 : A1 -> micro A2 X) ψ:
+    WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢
+    WP (bind m1 m2) {{ ψ }}.
+  Proof.
+    iLöb as "IH" forall (m1 m2 ψ).
+    iIntros "Hwp".
+    wp_case_is_ret m1 Hret.
+    (* Case: [m1] is [ret _]. *)
+    { repeat wp_unfold_all;
+        destruct (to_value (m2 a)); by iMod "Hwp". }
 
-Lemma wp_try_binary {A1 A2 X' X} s E (m1: micro A1 X') (m2: A1 → micro A2 X) h φ ψ :
-  WP m1 @ s; E {{ φ }} ⊢
-  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }})-∗
-  WP (try m1 m2 h) @ s; E {{ ψ }}.
-Proof.
-  iIntros "Hm1 Hm2".
-  iApply wp_try.
-  iApply (wp_covariant with "Hm1 Hm2").
-Qed.
+    (* Case: [m1] is not [ret _]. *)
+    { wp_unfold m1.
+      (* Case analysis on [try] *)
+      case_eq (is_ret (bind m1 m2)); [
+        intros ? Hret';
+        apply invert_is_ret_Some in Hret'
+      | intros Hret'
+      ].
+      { apply invert_bind_ret in Hret';
+        destruct Hret' as (?&?&?); subst; inversion Hret. }
 
-(* The Bind rule of Separation Logic. *)
+      case_eq (is_throw m1);
+        [intros ? Hthrow;
+          apply invert_is_throw_Some in Hthrow | intros Hthrow].
+      { rewrite Hthrow; cbn;
+        wp_unfold_all; iMod "Hwp"; done. }
 
-Lemma wp_bind {A1 A2 X} s E (m1: micro A1 X) (m2: A1 → micro A2 X) ψ :
-  WP m1 @ s; E {{ λ v, WP (m2 v) @ s; E {{ ψ }} }} ⊢
-             WP (bind m1 m2) @ s; E {{ ψ }}.
-Proof.
-  rewrite bind_as_try. eauto using wp_try.
-Qed.
+      apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
 
-(* A binary version of the previous lemma. *)
+      wp_unfold (bind m1 m2).
+      eapply (to_value_None_bind m1 m2) in Hret; rewrite Hret.
+      intro_state;
+      iSpecialize ("Hwp" $! _ _ _ _ _ with "Hsi").
+      iMod "Hwp"; iDestruct "Hwp" as (?) "Hwp".
+      iModIntro.
+      iSplitL "".
+      { iPureIntro.
+        eapply reducible_bind; auto.
+        Unshelve. all : eauto. }
 
-(* This version must be preferred when the proof of [m1] requires a case
-   analysis. The scope of the case analysis is then limited to the first
-   premise, so the proof of [m2] is not duplicated. *)
+      iIntros (????Hstep) "H£".
+      apply reducible_not_val in H.
+      destruct Hstep as (Hstep&?); subst.
 
-Lemma wp_bind_binary {A1 A2 X} s E (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
-  WP m1 @ s; E {{ φ }} ⊢
-  (∀ v, φ v -∗ WP (m2 v) @ s; E {{ ψ }}) -∗
-  WP (bind m1 m2) @ s; E {{ ψ }}.
-Proof.
-  iIntros "Hm1 Hm2".
-  iApply wp_bind.
-  iApply (wp_covariant with "Hm1 Hm2").
-Qed.
+      destruct (invert_step_bind Hstep) as (m'1 & Hstep' & ->).
+      { apply to_value_is_not_ret; auto. }
 
-(* ------------------------------------------------------------------------ *)
+      clear Hstep; rename Hstep' into Hstep.
+      eassert (Hstep_m1: prim_step m1 σ κs _ _ []).
+      { constructor; eauto. }
+      iSpecialize ("Hwp" $! _ _ _ Hstep_m1 with "H£").
+      iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
+        iModIntro; iFrame.
+      iSplitR ""; last done.
 
-(* The parallel composition rule of Separation Logic. *)
+      by iApply ("IH" with "Hwp"). }
+  Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
 
-(* To prove that [Par m1 m2 k z] satisfies [φ], one must provide
-   two postconditions [φ1] and [φ2] and *separately* prove that:
-   - [m1] satisfies [φ1]
-   - [m2] satisfies [φ2]
-   - for all results [a1] and [a2] that satisfy [φ1] and [φ2],
-     the application of the the continuation [k]
-     to the pair [(a1, a2)] satisfies [φ]. *)
+  (* A binary version of the previous lemma. *)
 
-(* The lemma could be strengthened by placing a ▷ modality in front of the
-   third premise, but I doubt that this would be useful, so I remove it.
-   We do not want the user to rely on the fact that a join point counts as a
-   step. *)
+  (* This version must be preferred when the proof of [m1] requires a case
+    analysis. The scope of the case analysis is then limited to the first
+    premise, so the proof of [m2] is not duplicated. *)
 
-Lemma wp_par {A1 A2 A3 X' X s E m1 m2}
-  {k: A1 * A2 → micro A3 X} {z : X' → _} {φ} φ1 φ2:
-  WP m1 @ s ; E {{ φ1 }} ⊢
-  WP m2 @ s ; E {{ φ2 }} -∗
-  (
-    ∀ a1 a2,
-      φ1 a1 -∗ φ2 a2 -∗
-      WP (k (a1, a2)) @ s; E {{ φ }}
-  )
-  -∗ WP (Par m1 m2 k z) @ s ; E {{ φ }}.
-Proof.
-  (* We proceed by Löb-Induction after generalizing [m1] and [m2]. *)
-  iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hjoin".
+  Lemma wp_bind_binary {A1 A2 X} (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
+    WP m1 {{ φ }} ⊢
+    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ↑) v) -∗
+    WP (bind m1 m2) {{ ψ }}.
+  Proof.
+    iIntros "Hm1 Hm2".
+    iApply wp_bind.
+    iApply (wp_strong_mono with "Hm1"); try set_solver.
+    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
+  Qed.
 
-  (* As for the other rules, proof starts by stepping in the WP:
-     (1) unfold the wp, (2) introduce a valid state, (3) introduce the head
-     modality and (4) enter in the second branch of the WP. *)
-  wp_unfold_head; intro_state;
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
+  (* Try-catch *)
+  Lemma wp_try {A B E E'} (m : micro A E')
+    (f : A -> micro B E) (h : E' -> micro B E) φ :
+    WP m {{ | RET x => WP (f x) {{ φ }} ;
+            | EXN y => WP (h y) {{ φ }} }} -∗
+    WP (try m f h) {{ φ }}.
+  Proof.
+    iLöb as "IH" forall (m f h φ).
+    iIntros "Hwp".
+    wp_case_is_ret m Hret.
+    (* Case: [m1] is [ret _]. *)
+    (* The result is immediate. *)
+    { repeat wp_unfold_all;
+        destruct (to_value (f a)); by iMod "Hwp". }
+
+    (* Case: [m1] is not [ret _]. *)
+    { wp_unfold_all.
+
+      (* Case analysis on [try] *)
+      case_eq (is_ret (try m f h)); [
+        intros ? Hret';
+        apply invert_is_ret_Some in Hret'
+      | intros Hret'
+      ].
+      { apply invert_try_ret in Hret'.
+        destruct Hret' as [(?&?&?) | (?&?&?)]; subst; [ inversion Hret | ].
+        cbn; rewrite H0;
+          cbn; rewrite wp_unfold; cbn; by iMod "Hwp". }
+
+      case_eq (is_throw m);
+        [intros ? Hthrow;
+          apply invert_is_throw_Some in Hthrow | intros Hthrow].
+      { rewrite Hthrow; cbn.
+        wp_unfold_all. destruct (wp.to_value (h e)); [ by iMod "Hwp" |].
+        iIntros (?????) "SI". iMod "Hwp".
+        iSpecialize ("Hwp" $! _ _ _ _ _ with "SI"); by iMod "Hwp". }
+
+      apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
+
+      eapply (to_value_None_try m f h) in Hret; rewrite Hret.
+
+      intro_state;
+      iSpecialize ("Hwp" $! _ _ _ _ _ with "Hsi").
+      iMod "Hwp"; iDestruct "Hwp" as (?) "Hwp".
+      iModIntro.
+      iSplitL "".
+      { iPureIntro.
+        eapply reducible_try; auto.
+        Unshelve. all : eauto. }
+
+      iIntros (????Hstep) "H£".
+      assert (Hstep' := H).
+      apply reducible_not_val in H.
+
+      destruct Hstep as (Hstep & ?); subst.
+
+      destruct (invert_step_try Hstep) as (m'1 & Hstep'' & ->).
+      { destruct Hstep' as (?&?&?&?&?); eexists; apply H0. }
+      clear Hstep. rename Hstep' into Hstep.
+
+      eassert (Hstep_m: prim_step m σ κs _ _ _).
+      { constructor; eauto. }
+
+      iSpecialize ("Hwp" $! _ _ _ Hstep_m with "H£").
+      iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
+        iModIntro; iFrame; iSplitR ""; last done.
+
+      by iApply ("IH" with "Hwp"). }
+  Qed.
+
+  (* A binary version of the previous lemma. *)
+
+  (* This version must be preferred when the proof of [m1] requires a case
+    analysis. The scope of the case analysis is then limited to the first
+    premise, so the proof of [m2] is not duplicated. *)
+
+  Lemma wp_try_binary {A1 A2 X' X} (m1: micro A1 X') (m2: A1 → micro A2 X)
+    (h : X' -> micro A2 X) (φ ψ : value -> _) :
+    WP m1 {{ φ }} ⊢
+    (∀ v, φ v -∗
+          (| RET x => WP m2 x {{ v, ψ v }};
+           | EXN y => WP h y {{ v, ψ v }}) v) -∗
+    WP (try m1 m2 h) {{ ψ }}.
+  Proof.
+    iIntros "Hm1 Hm2".
+    iApply wp_try.
+    iApply (wp_strong_mono with "Hm1"); try set_solver.
+    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
+  Qed.
+
+  (* Par combinator *)
+  Lemma wp_par {A E A1 A2 E'} (m1 : micro A1 E') (m2 : micro A2 E')
+    {k: A1 * A2 → micro A E} {z : E' → micro A E} {φ} φ1 φ2:
+    WP m1 {{ φ1 }} ⊢
+    WP m2 {{ φ2 }} -∗
+    (∀ e, φ1 (Exn e) -∗ WP (z e) {{ φ }}) -∗
+    (∀ e, φ2 (Exn e) -∗ WP (z e) {{ φ }}) -∗
+    (∀ a1 a2,
+        φ1 (Res a1) -∗ φ2 (Res a2) -∗
+        WP (k (a1, a2)) {{ φ }}) -∗
+      WP (Par m1 m2 k z) {{ φ }}.
+  Proof.
+    (* We proceed by Löb-Induction after generalizing [m1] and [m2]. *)
+    iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
+
+    (* As for the other rules, proof starts by stepping in the WP:
+      (1) unfold the wp, (2) introduce a valueid state, (3) introduce the head
+      modality and (4) enter in the second branch of the WP. *)
+    wp_unfold_head; intro_state.
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
     [ set_solver | iModIntro; construct_wp_nonret ].
+    { apply can_step_reducible. eauto with step can_step. }
 
-  (* Make a case study over the possible step. In each case, use FupTrans to
-     add the modality [ |={E,∅}=> ] in front of the goal. *)
-  destruct_step; iMod "Hmod" as "_".
+    (* Make a case study over the possible step. In each case, use FupTrans to
+      add the modality [ |={E,∅}=> ] in front of the goal. *)
+    { iIntros "H£".
 
-  (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
+      destruct Hstep as (Hstep & ->); iMod "Hmod" as "_".
+      inversion Hstep; dependent destruction H7; subst.
 
-  { (* Case: [StepParRetRet].
-       Both [m1] and [m2] represent values [v1] and [v2]. One can consume [H1]
-       and [H2] to learn that the values respect their postconditions.
-       The inversion does not consume the state-interpretation, which can be
-       framed behind the modalities. *)
-    iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
-    iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
+    (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
 
-    (* Introduce the modality [ |={E,∅}=> ]. *)
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
-      [ set_solver | iModIntro ].
-    (* The later is not exposed in this rule. Hence, it can simply be
-       introduced together with the remaining modalities. *)
-    iModIntro; iMod "Hmod"; iModIntro.
+    { (* Case: [StepParRetRet].
+        Both [m1] and [m2] represent valueues [v1] and [v2]. One can consume [H1]
+        and [H2] to learn that the valueues respect their postconditions.
+        The inversion does not consume the state-interpretation, which can be
+        framed behind the modalities. *)
+      iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
+      iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
 
-    (* Finally, use the hypothesis on [k] to finish the proof. *)
-    iApply ("Hjoin" with "H1 H2"). }
+      (* Introduce the modality [ |={E,∅}=> ]. *)
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+        [ set_solver | iModIntro ].
+      (* The later is not exposed in this rule. Hence, it can simply be
+        introduced together with the remaining modalities. *)
+      iNext.
+      iModIntro; iMod "Hmod"; iModIntro.
 
-  (* In the four following cases, one of the branches of the [Par] is either a
-     [crash] or [throw _]. Hence, one can consume the corresponding [WP]
-     hypothesis to get [ |={E}=> False ]. As the goal is of the form
-     [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
-     Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
-     the proof. *)
-  1,2: by iMod (invert_wp_crash with "Hsi [$]") as "%".
-  1,2:  by iMod (invert_wp_throw with "Hsi [$]") as "%".
+      repeat red in Hstep.
+      (* Finally, use the hypothesis on [k] to finish the proof. *)
+      iSpecialize ("Hjoin" with "H1 H2"); by iFrame. }
 
-  { (* Case: [StepParLeft] *)
-    (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
-       state interpretation. Some modalities need to be stripped from the
-       result. *)
-    iMod (wp_step Hstep with "Hsi H1") as ">H1".
-    do 2 iModIntro.
-    iMod "H1";
-    iMod "H1" as "[$?]"; iModIntro. (* After stripping modalities, one can
-                                       frame the state interpretation. *)
+    (* In the four following cases, one of the branches of the [Par] is either a
+      [crash] or [throw _]. Hence, one can consume the corresponding [WP]
+      hypothesis to get [ |={E}=> False ]. As the goal is of the form
+      [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
+      Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
+      the proof. *)
+    1,2: by iMod (invert_wp_crash with "Hsi [$]") as "%".
+    1,2: iMod (invert_wp_throw with "Hsi [$]") as "[$ HΨ]";
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+        [ set_solver | iModIntro ]; iNext; iModIntro;
+      iMod "Hmod"; iModIntro; cbn; iFrame.
+    1:by iApply ("Hexn1" with "HΨ").
+    1:by iApply ("Hexn2" with "HΨ").
 
-    (* The induction hypothesis ends the proof. *)
-    iApply ("IH" with "[$]H2 Hjoin"). }
+    { (* Case: [StepParLeft] *)
+      (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
+        state interpretation. Some modalities need to be stripped from the
+        result. *)
+      iPoseProof (wp_step H0 with "Hsi H£ H1") as ">H1".
+      iMod "H1"; iModIntro. (* After stripping modalities, one can
+                                        frame the state interpretation. *)
+      iNext. iModIntro; do 2 iMod "H1". iModIntro.
+      iDestruct "H1" as "[$ H1]"; cbn; iFrame; iSplitR ""; last done.
 
-  { (* Case: [StepParRight]
-       This case is similar to the previous one. *)
-    iMod (wp_step Hstep with "Hsi H2") as ">H2".
-    do 2 iModIntro. iMod "H2". iMod "H2" as "[$?]"; iModIntro.
-    iApply ("IH" with "H1 [$] Hjoin"). }
-Qed.
+      (* The induction hypothesis ends the proof. *)
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
-(* ------------------------------------------------------------------------ *)
+    { (* Case: [StepParRight]
+        This case is similar to the previous one. *)
+      iMod (wp_step H0 with "Hsi H£ H2") as ">H2".
+      iModIntro. iNext.
+      iMod "H2"; iModIntro. (* After stripping modalities, one can
+                                        frame the state interpretation. *)
+      iMod "H2".
+      iDestruct "H2" as "[$ H2]"; cbn; iFrame; iSplitR ""; last done.
+      iModIntro.
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). } }
+  Qed.
 
-(* The following lemmas offer reasoning rules for each of the system calls,
-   that is, for computations of the form [Stop c x y]. They are simple
-   consequences of the operational behavior of these system calls. *)
 
-(* [CEval]. *)
+  (* The following lemmas offer reasoning rules for each of the system calls,
+    that is, for computations of the form [Stop c x y]. They are simple
+    consequences of the operational behavior of these system calls. *)
 
-Lemma wp_eval {A X} s E η e (k : val → micro A X) z φ :
-  ▷ WP (eval η e) @ s; E {{ λ v, WP (k v) @ s; E {{ φ }} }} ⊢
-  WP (Stop CEval (η, e) k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "Hwp".
-  wp_unfold_head.
-  intro_state.
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro.
-  construct_wp_nonret.
-  destruct_step.
-  iModIntro; iNext; iMod "Hmod" as "_"; iModIntro.
-  iFrame.
-  by iApply wp_try.
-Qed.
+  (* [CEval]. *)
 
-(* A special case of the previous lemma for the continuation [ret]. *)
+  Lemma wp_eval {A X} η e (k : val → micro A X) z φ :
+    ▷ WP (eval η e) {{ | RET v => WP (k v) {{ φ }} ;
+                       | EXN v => WP (z v) {{ φ }} }} ⊢
+    WP (Stop CEval (η, e) k z) {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { exists nil; repeat eexists; constructor. }
+    destruct Hstep. destruct_step.
 
-Lemma wp_eval_ret {X} s E η e {z : void → micro val X} φ :
-  ▷ WP (eval η e) @ s; E {{ φ }} ⊢
-  WP (Stop CEval (η, e) ret z) @ s; E {{ φ }}.
-Proof.
-  iIntros "Hwp".
-  iApply wp_eval.
-  iNext.
-  iApply (wp_covariant with "Hwp").
-  iIntros. by iApply wp_ret.
-Qed.
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    iFrame; subst; iSplitR ""; last done.
 
-(* A reasoning rule for [choose]. *)
+    by iApply wp_try.
+  Qed.
 
-(* A non-separating conjunction is used to express the idea that
-   either [m1] or [m2] is executed, but not both. Thus, there is
-   no need to split the current resource. It suffices to prove
-   that both [m1] and [m2] are safe under the current resource. *)
+  Lemma wp_eval_ret {X} η (e : expr)
+    {z : void → micro val X} (φ : _ -> iPropI Σ):
+    ▷ WP eval η e
+        {{ v, ( | RET v => WP ret v {{ v, φ v }};
+                | EXN v => WP z v {{ v, φ v }}) v }} ⊢
+    WP (Stop CEval (η, e) (ret : val -> micro val X) z) {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply wp_eval.
+    iNext.
+    iApply wp_mono; done.
+  Qed.
 
-Lemma wp_choose {A X} s E (m1 m2 : micro A X) φ :
-  ▷ (WP m1 @ s; E {{ φ }} ∧ WP m2 @ s; E {{ φ }}) ⊢
-  WP (choose m1 m2) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  wp_unfold_head.
-  intro_state.
-  iMod (@fupd_mask_subseteq  _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro.
-  construct_wp_nonret.
-  destruct_step.
-  { iDestruct "H" as "[H _]".
-    iModIntro; iNext; iMod "Hmod" as "_".
-    iFrame. iModIntro.
-    rewrite try_ret_right. by iApply "H". }
-  { iDestruct "H" as "[_ H]".
-    iModIntro; iNext; iMod "Hmod" as "_".
-    iFrame. iModIntro.
-    rewrite try_ret_right. by iApply "H". }
-Qed.
+  (* A reasoning rule for [choose]. *)
 
-(* This is a special case of the previous rule, where the left-hand side if
-   [ok]. The rule reads as follows: if [φ] holds now, and if the right-hand
-   side [m] preserves [φ], then after executing [choose ok m] the assertion
-   [φ] still holds. *)
+  (* A non-separating conjunction is used to express the idea that
+    either [m1] or [m2] is executed, but not both. Thus, there is
+    no need to split the current resource. It suffices to prove
+    that both [m1] and [m2] are safe under the current resource. *)
 
-Lemma wp_choose_ok s E (m : micro val void) (φ : iProp Σ) :
-  φ -∗
-  ▷ (φ -∗ WP m @ s; E {{ λ _, φ }}) -∗
-  WP (choose ok m) @ s; E {{ λ _, φ }}.
-Proof.
-  iIntros "Hφ Hm".
-  iApply wp_choose. iModIntro. iSplit.
-  { iClear "Hm". iApply wp_ret. iAssumption. }
-  { by iApply "Hm". }
-Qed.
+  Lemma wp_choose {res exn} (m1 m2 : micro res exn) ψ :
+    ▷ (WP m1 {{ ψ }} ∧ WP m2 {{ ψ }}) ⊢
+    WP (choose m1 m2) {{ ψ }}.
+  Proof.
+    iIntros "H".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq  _ _ ⊤ ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { exists nil; repeat eexists ; eauto. constructor. }
+    destruct Hstep; subst.
+    destruct_step.
+    { iDestruct "H" as "[H _]".
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      iFrame.
+      rewrite try_ret_right. iSplitR ""; last done.
+      by iApply "H". }
+    { iDestruct "H" as "[_ H]".
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+      rewrite try_ret_right. by iFrame. }
+  Qed.
 
-(* ------------------------------------------------------------------------ *)
+  (* This is a special case of the previous rule, where the left-hand side if
+    [ok]. The rule reads as follows: if [φ] holds now, and if the right-hand
+    side [m] preserves [φ], then after executing [choose ok m] the assertion
+    [φ] still holds. *)
 
-(* [CLoop] *)
+  Lemma wp_choose_ok {E} (m : micro val E) (φ : iProp Σ) :
+    φ -∗
+    ▷ (φ -∗ WP m {{ λ _, φ }}) -∗
+    WP (choose ok m) {{ λ _, φ }}.
+  Proof.
+    iIntros "Hφ Hm".
+    iApply wp_choose. iModIntro. iSplit.
+    { iClear "Hm". iApply wp_ret. iAssumption. }
+    { by iApply "Hm". }
+  Qed.
 
-(* The following lemmas help reason on loops. *)
+  (* ------------------------------------------------------------------------ *)
 
-(* TODO these proofs need cleaning up *)
+  (* [CAlloc]. *)
 
-(* The following lemma is inspired by the corresponding CFML rule. *)
-Lemma wp_loop {A X} s E
-      (η : env) (x : var) (i1 i2 : int) (e : expr)
-      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ) :
-  (* If *)
-  (▷ (* Either: *)
-     if int.lt i2 i1
-     then
-       (* - i2 < i1,
-            and the rest of the program satisfies the postcondition. *)
-       wp s E (k #()) φ
-     else
-       (* - i1 <= i2,
-            and the evaluation of the body succeeds and the remaining
-            iterations satisfy the postcondition. *)
-       wp s E (eval ((x, (VInt i1)) :: η) e)
-             (λ _,
-                wp s E (
-                     Stop CLoop
-                          (η, x, int.add i1 int.one, i2, e)
-                          k z) φ)) ⊢
-  (* Then the loop (with the rest of the program as continuation) satisfies
-     the postcondition. *)
-  wp s E (Stop CLoop (η, x, i1, i2, e) k z) φ.
-Proof.
-  iIntros "H".
+  (* The standard memory allocation rule of Separation Logic. *)
 
-  (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
-  destruct (lt i2 i1) eqn:Hlt; (* In each case: *)
-    (* we enter into the WP of the goal, eliminate modalities, use the fact
-       that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
-       state interp. *)
-    wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
-    intro_state; (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
-                  [ set_solver | iModIntro ]);
-    construct_wp_nonret; destruct_step;
-    do 2 iModIntro; iMod "Hmod" as "_"; iModIntro; iFrame;
+  Lemma wp_alloc {A X} s E v (k : loc → micro A X) z φ :
+    ▷ (
+        ∀ l,
+          mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
+          WP (k l) @ s; E {{ φ }}
+      ) ⊢
+    WP (Stop CAlloc v k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "H".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      apply can_step_reducible.
+      eauto with step can_step. }
 
-    (* Finally, expand the definition of the helper function [loop]. *)
-    rewrite/loop Hlt.
+    destruct Hstep as (Hstep & ?); subst.
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]".
+    { eassumption. }
 
-  { (* In the base case, the loop is over. One can use the hypothesis to end
-       the proof. *)
-    iApply wp_try; iApply wp_ret; iApply "H". }
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    iFrame. iSplitR ""; last done.
+    by iApply "H".
+  Qed.
 
-  { (* Otherwise,  [loop] reduces to a [try (bind _ _) _ _]. *)
-    rewrite try_bind. (* <- push the [try] in the [bind]. *)
+  (* [CStore]. *)
 
-    (* use the hypothesis about the behavior of the body of the loop. *)
-    iApply (wp_try_binary with "H").
-    iIntros(_) "H".
+  (* The standard memory write rule of Separation Logic. *)
 
-    rewrite try_stop. iAssumption. }
-Qed.
+  Lemma wp_store {A X} s E l v v' (k : unit → micro A X) z φ :
+    mapsto l (DfracOwn 1) v ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) v' -∗
+        WP (k tt) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      destruct (σ !! l) eqn: Hlu.
+      - exists nil; repeat eexists; by eapply StepStoreSuccess.
+      - exists nil; repeat eexists; by eapply StepStoreFailure. }
 
-(* [wp_loop_inv_pos_aux] is a helper lemma to prove that:
-   for any predicate [P : nat → iProp Σ],
-   If - [P n1],
-      - [P] is preserved by the body [e] of the loop
-        (ie. [P i -∗ WP (eval (η with i) e) {{ P (S i) }}]),
-      - [P (S nn) -∗ rest of the program satisfies φ]
-   Then, [for i = n1 to nn do e done; rest of the program] satisfies [φ].
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod".
 
-   Additionally, the lemma requires that [n1] and [S nn] are representable.
-   Note that [P] is quantified after every other variables, so the invariant
-   might depend on [η], [n1], ...
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct Hstep as (Hstep&?).
+    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iFrame. iModIntro; iSplitR ""; last done.
+    iApply ("Hwp" with "Hl").
+  Qed.
 
-   This helper lemma takes an argument [n = S (i2 - i1)] explicitly to ease
-   the induction. Another lemma [wp_loop_inv_pos] is defined below. It is
-   essentially the same lemma, except that [n] is no longer present in the
-   statement. *)
-Local Lemma wp_loop_inv_pos_aux {A X} s E
-      (η : env) (x : var) (n i1 i2 : nat) (e : expr)
-      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ)
-      (Hinv : nat → iProp Σ) :
-  representable i1 →
-  representable (S i2) →
-  le i1 i2 →
-  n = S (i2 - i1)%nat →
-  (Hinv i1) ⊢
-  (□ ∀ (i: nat), ⌜le i1 i⌝ →
-                 ⌜le i i2⌝ →
-                 Hinv i -∗ wp s E
+  (* The standard memory load rule of Separation Logic. *)
+
+  Lemma wp_load {A X} s E l v dq (k: val → micro A X) z φ :
+    mapsto l dq v ⊢
+    ▷ (
+        mapsto l dq v -∗
+        WP (k v) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CLoad l k z) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    wp_unfold_head.
+    intro_state.
+    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    iModIntro.
+    construct_wp_nonret.
+    { destruct s; eauto.
+      destruct (σ !! l) eqn: Hlu.
+      - exists nil; repeat eexists; by eapply StepLoadSuccess.
+      - exists nil; repeat eexists; by eapply StepLoadFailure. }
+
+    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+    [ set_solver | iModIntro ]. iMod "Hmod".
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct Hstep as (Hstep&?).
+    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
+    iModIntro; iFrame; iSplitR ""; last done.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* [CLoop] *)
+
+  (* The following lemmas help reason on loops. *)
+
+  (* TODO these proofs need cleaning up *)
+
+  (* The following lemma is inspired by the corresponding CFML rule. *)
+  Lemma wp_loop {A X}
+        (η : env) (x : var) (i1 i2 : int) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ) :
+    (* If *)
+    (▷ (* Either: *)
+      if int.lt i2 i1
+      then
+        (* - i2 < i1,
+             and the rest of the program satisfies the postcondition. *)
+        wp NotStuck ⊤ (k #()) φ
+      else
+        (* - i1 <= i2,
+               and the evaluation of the body succeeds and the remaining
+               iterations satisfy the postcondition. *)
+        wp NotStuck ⊤ (eval ((x, (VInt i1)) :: η) e)
+          (| RET _ => WP stop CLoop (η, x, add i1 int.one, i2, e)
+                            {{ v, ( | RET x1 => WP k x1 {{ v, φ v }};
+                                    | EXN y => WP z y {{ v, φ v }}) v }};
+           | EXN y => WP throw y {{ v, ( | RET x0 => WP k x0 {{ v, φ v }};
+                                        | EXN y0 => WP z y0 {{ v, φ v }}) v }})) ⊢
+    (* Then the loop (with the rest of the program as continuation) satisfies
+      the postcondition. *)
+    wp NotStuck ⊤ (Stop CLoop (η, x, i1, i2, e) k z) φ.
+  Proof.
+    iIntros "H".
+
+    (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
+    destruct (int.lt i2 i1) eqn:Hlt; (* In each case: *)
+      (* we enter into the WP of the goal, eliminate modalities, use the fact
+        that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
+        state interp. *)
+      wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
+      intro_state; (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+                    [ set_solver | iModIntro ]);
+      construct_wp_nonret.
+    { exists nil; repeat eexists; econstructor. }
+
+    { destruct Hstep as (Hstep&?); subst; destruct_step.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+
+      (* Finally, expand the definition of the helper function [loop]. *)
+      rewrite/loop Hlt; by iFrame. }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { destruct Hstep as (Hstep&?); subst; destruct_step.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+
+      (* In the base case, the loop is over. One can use the hypothesis to end
+          the proof. *)
+      iApply wp_try.
+
+      rewrite/loop Hlt; iFrame.
+      rewrite bind_as_try.
+      by iApply wp_try. }
+  Qed.
+
+  Local Lemma wp_loop_inv_pos_aux {A X}
+        (η : env) (x : var) (n i1 i2 : nat) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    n = S (i2 - i1)%nat →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                  ⌜le i i2⌝ →
+                  Hinv i -∗ wp NotStuck ⊤
+                                (eval ((x, (VInt $ repr i)) :: η) e)
+                                (λ _, Hinv (S i))) -∗
+    (Hinv (S i2) -∗ wp NotStuck ⊤ (k #()) φ) -∗
+    wp NotStuck ⊤ (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
+  Proof.
+    generalize dependent i1 ; generalize dependent i2.
+    induction n;
+      iIntros(i2 i1 Hrepr1 Hrepr2 Hle Hn) "Hinit #Hpreservation Hccl";
+
+      (* Three cases: either the loop is over, or the loop is entered one last
+        time, or it is entered. *)
+      last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
+
+      (* First, we take a step in the WP and frame the state interp. *)
+      wp_unfold_head; intro_state;
+      (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+      [set_solver | iModIntro ]);
+      construct_wp_nonret.
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* The loop is over. *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      assert (i1 = S i2) as -> by lia.
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try representable.
+      replace (i2 <? S i2)%Z with true by lia.
+      iApply wp_ret.
+      iApply ("Hccl" with "Hinit"). }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* The body of the loop will be executed (not for the last time). *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      assert (Hlt: int.lt (repr i2) (repr i1) = false).
+      { rewrite lt_repr_repr; try assumption.
+        - lia.
+        - unfold representable in *; lia. }
+
+      (* The loop is really a try... *)
+      rewrite/loop Hlt.
+      rewrite try_bind.
+
+      (* ...which leads to a bind.
+        The first element of the bind is the evaluation of the body of the
+        loop. The assumption ["Hpreservation"] prove that this evaluation
+        preserves the loop invariant predicate. It takes the invariant at i1
+        and gives back the invariant at [S i1]. *)
+      iApply (wp_try_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" $! i1 with "[//][//]Hinit").
+      iIntros(v)"Hinit".
+
+      (* The goal is the proof of a WP for [for x = S i1 to i2 do e done]. The
+        induction hypothesis can take care of it.
+        Note: it is to use ["Hpreservation"] a second time that it needs to be
+              persistent.  *)
+      iPoseProof (IHn i2 (S i1)) as "IH".
+      { unfold representable in *. lia. }
+      { assumption. }
+      { lia. }
+      { lia. }
+      { iSpecialize ("IH" with "Hinit[]Hccl").
+        { iIntros "!>" (i Hi Hi').
+          iApply ("Hpreservation"); iPureIntro; lia. }
+        destruct v; cycle 1.
+        (* Why doesn't this get automatically discharged with [contradiction]? *)
+        { exfalso; apply e0. }
+        cbn.
+
+        replace (add (repr i1) int.one) with (repr (S i1)); last first.
+        { rewrite add_repr_repr. f_equal. lia. }
+        done. } }
+
+    { exists nil; repeat eexists; econstructor. }
+
+    { (* Last run of the loop. *)
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+
+      iApply wp_try.
+      rewrite/loop lt_repr_repr; try assumption.
+      rewrite Z.ltb_irrefl.
+      iApply (wp_bind_binary with "[Hinit Hpreservation]");
+        first iApply ("Hpreservation" with "[//][//]Hinit").
+      iIntros(v)"Hinit".
+      destruct v; cycle 1.
+      (* Why doesn't this get automatically discharged with [contradiction]? *)
+      { exfalso; apply e0. }
+      cbn.
+      iSpecialize ("Hccl" with "Hinit").
+
+      assert (Hlt: int.lt (repr i2) (add (repr i2) int.one) = true).
+      { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
+
+      wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
+      intro_state. iClear "Hmod".
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; [ set_solver | iModIntro ].
+      clear m'.
+      construct_wp_nonret.
+      { exists nil; repeat eexists; econstructor. }
+
+      destruct Hstep as (Hstep & ?); subst; destruct_step.
+
+      iIntros "H£'"; iModIntro; iNext; iMod "Hmod" as "_".
+      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
+      iSplitR ""; last done.
+      iApply wp_try.
+      rewrite/loop Hlt.
+      do 2 iApply wp_ret.
+      iExact "Hccl". }
+  Qed.
+
+  Definition wp_loop_inv_pos {A X}
+        (η : env) (x : var) (i1 i2 : nat) (e : expr)
+        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (Hinv : nat → iProp Σ) :
+    representable i1 →
+    representable (S i2) →
+    le i1 i2 →
+    (Hinv i1) ⊢
+    (□ ∀ (i: nat), ⌜le i1 i⌝ →
+                ⌜le i i2⌝ →
+                Hinv i -∗ wp NotStuck ⊤
                               (eval ((x, (VInt $ repr i)) :: η) e)
                               (λ _, Hinv (S i))) -∗
-  (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-  wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ.
-Proof.
-  generalize dependent i1 ; generalize dependent i2.
-  induction n;
-    iIntros(i2 i1 Hrepr1 Hrepr2 Hle Hn) "Hinit #Hpreservation Hccl";
+    (Hinv (S i2) -∗ wp NotStuck ⊤ (k #()) φ) -∗
+    wp NotStuck ⊤ (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
+    let n := S (i2 - i1)%nat in
+    fun repr1 repr2 Hle =>
+      wp_loop_inv_pos_aux η x n i1 i2 e k z φ Hinv
+                          repr1 repr2 Hle eq_refl.
 
-    (* Three cases: either the loop is over, or the loop is entered one last
-       time, or it is entered. *)
-    last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
+  (* ------------------------------------------------------------------------ *)
 
-    (* First, we take a step in the WP and frame the state interp. *)
-    wp_unfold_head; intro_state;
-    (iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod";
-     [set_solver | iModIntro ]);
-    construct_wp_nonret;
-    do 2 iModIntro; iMod "Hmod" as "_"; iModIntro;
-    destruct_step; iFrame.
+  (* Simplification is sound. *)
 
-  { (* The loop is over. *)
-    assert (i1 = S i2) as -> by lia.
-    iApply wp_try.
-    rewrite/loop lt_repr_repr; try representable.
-    replace (i2 <? S i2) with true by lia.
-    iApply wp_ret.
-    iApply ("Hccl" with "Hinit"). }
+  (* That is, as announced in semantics/simplification.v, if [simplify n m ms]
+    holds then the safety of the simplified program [ms] implies the safety
+    of the more complex original program [ms]. *)
 
+  Local Lemma wp_simplify {R E} i (m ms : micro R E) φ :
+    WP ms {{ φ }} -∗
+    ⌜ simplify i m ms ⌝ -∗
+    WP m  {{ φ }}.
+  Proof.
+    (* Proceed by Löb induction. *)
+    iLöb as "IH" forall (i m ms).
+    (* Then, perform well-founded induction over [n]. *)
+    iInduction i as (? & ?) "IHn"
+                            using (well_founded_induction lt_wf)
+                            forall (m ms).
+    (* Introduce the hypotheses. *)
+    iIntros "Hwp" (Hsimp).
 
-  { (* The body of the loop will be executed (not for the last time). *)
-    assert (Hlt: lt (repr i2) (repr i1) = false).
-    { rewrite lt_repr_repr; try assumption.
-      - lia.
-      - unfold representable in *; lia. }
+    (* Examine [m]. *)
+    wp_case_is_ret m Hretm.
+    (* If [m] is [ret a], then [ms] is also [ret a], so we are done. *)
+    { clarify_simplify. iAssumption. }
 
-    (* The loop is really a try... *)
-    rewrite/loop Hlt.
-    rewrite try_bind.
+    (* Thus, in the following, we assume [m] is not [ret _]. *)
+    (* Examine [m] again, on whether it is a [throw]. *)
+    wp_case_is_throw m Hthrow.
+    { (* If [m] is [throw e], then [ms] is also [throw e], so we are done. *)
+      apply destruct_simplify_throw in Hsimp; by subst. }
 
-    (* ...which leads to a bind.
-       The first element of the bind is the evaluation of the body of the
-       loop. The assumption ["Hpreservation"] prove that this evaluation
-       preserves the loop invariant predicate. It takes the invariant at i1
-       and gives back the invariant at [S i1]. *)
-    iApply (wp_try_binary with "[Hinit Hpreservation]");
-      first iApply ("Hpreservation" $! i1 with "[//][//]Hinit").
-    iIntros(_)"Hinit".
+    (* Begin unfolding the definition of [WP m ...]. *)
+    wp_unfold m.
 
-    (* The goal is the proof of a WP for [for x = S i1 to i2 do e done]. The
-       induction hypothesis can take care of it.
-       Note: it is to use ["Hpreservation"] a second time that it needs to be
-             persistent.  *)
-    iPoseProof (IHn i2 (S i1)) as "IH".
-    { unfold representable in *. lia. }
-    { assumption. }
-    { lia. }
-    { lia. }
-    { iSpecialize ("IH" with "Hinit[]Hccl").
-      { iIntros "!>" (i Hi Hi').
-        iApply ("Hpreservation"); iPureIntro; lia. }
-
-      replace (add (repr i1) int.one) with (repr (S i1)); last first.
-      { rewrite add_repr_repr. f_equal. lia. }
-
-      rewrite try_stop. iAssumption. } }
-
-  { (* Last run of the loop. *)
-    iApply wp_try.
-    rewrite/loop lt_repr_repr; try assumption.
-    rewrite Z.ltb_irrefl.
-    iApply (wp_bind_binary with "[Hinit Hpreservation]");
-      first iApply ("Hpreservation" with "[//][//]Hinit").
-    iIntros(_)"Hinit".
-    iSpecialize ("Hccl" with "Hinit").
-    clear σ'.
-
-    assert (Hlt: lt (repr i2) (add (repr i2) int.one) = true).
-    { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
-
-    wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
+    (* Simplify match on [m]. *)
+    pose proof (is_not_ret_or_throw_to_value _ Hretm Hthrow) as ->.
     intro_state.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; [ set_solver | iModIntro ].
-    construct_wp_nonret; destruct_step.
-    do 2 iModIntro. iMod "Hmod" as "_"; iModIntro.
-    iFrame.
-    iApply wp_try.
-    rewrite/loop Hlt.
-    do 2 iApply wp_ret.
-    iExact "Hccl". }
-Qed.
 
-Definition wp_loop_inv_pos {A X} s E
-      (η : env) (x : var) (i1 i2 : nat) (e : expr)
-      (k : val → micro A X) (z : void → micro A X) (φ : A → iProp Σ)
-      (Hinv : nat → iProp Σ) :
-  representable i1 →
-  representable (S i2) →
-  le i1 i2 →
-  (Hinv i1) ⊢
-  (□ ∀ (i: nat), ⌜le i1 i⌝ →
-               ⌜le i i2⌝ →
-               Hinv i -∗ wp s E
-                            (eval ((x, (VInt $ repr i)) :: η) e)
-                            (λ _, Hinv (S i))) -∗
-  (Hinv (S i2) -∗ wp s E (k #()) φ) -∗
-  wp s E (Stop CLoop (η, x, repr i1, repr i2, e) k z) φ :=
-  let n := S (i2 - i1)%nat in
-  fun repr1 repr2 Hle =>
-    wp_loop_inv_pos_aux s E η x n i1 i2 e k z φ Hinv
-                        repr1 repr2 Hle eq_refl.
+    (* Examine [ms] on whether it is a [ret]. *)
+    wp_case_is_ret ms Hretms.
 
-(* [CAlloc]. *)
+    (* Case: [ms] is [ret _]. *)
+    { (* Prove that [m] is able to step. *)
+      iApply fupd_frame_l; iSplit.
+      { pose proof (invert_simplify_ret _ _ _ σ Hsimp Hretm) as Hsimpl.
+        iPureIntro.
+        destruct Hsimpl as (?&Hsimpl); destruct x;
+          repeat eexists; apply Hsimpl. }
 
-(* The standard memory allocation rule of Separation Logic. *)
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+      iModIntro.
+      iIntros (σ' m' obs []) "H£"; subst.
+      iMod "Hmod" as "_".
 
-Lemma wp_alloc {A X} s E v (k : loc → micro A X) z φ :
-  ▷ (
-      ∀ l,
-        mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
-        WP (k l) @ s; E {{ φ }}
-    ) ⊢
-  WP (Stop CAlloc v k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  wp_unfold_head.
-  intro_state.
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro.
-  construct_wp_nonret.
-  destruct_step.
-  (* Allocate a new location in the ghost heap. *)
-  iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]".
-  { eassumption. }
-  iModIntro; iNext; iMod "Hmod" as "_".
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iMod "Hmod" as "_"; iModIntro.
-  iFrame.
-  iApply ("H" with "HH").
-Qed.
+      (* Examine one step of [m] to [m']. The simulation diagram in this case
+      tells us that this reduction step takes us closer to [ret a].
+      That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
+      pose proof (simplify_ret_step_diagram Hsimp H)
+        as (n' & ? & ? & ?); subst.
+      (* We are then able to use the inner induction hypothesis. *)
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+      do 3 iModIntro.
+      iMod "Hmod"; iModIntro.
+      cbn; iFrame.
 
-(* [CStore]. *)
+      iApply ("IHn" with "[//] Hwp [//]"). }
 
-(* The standard memory write rule of Separation Logic. *)
+    (* Examine [ms] on whether it is a [throw]. *)
+    wp_case_is_throw ms Hthrow_ms.
+    (* Case : [ms] is [throw _]. *)
+    { (* Prove that [m] is able to step. *)
+      iApply fupd_frame_l; iSplit.
+      { pose proof (invert_simplify_throw _ _ _ σ Hsimp Hthrow) as Hsimpl.
+        iPureIntro.
+        destruct Hsimpl as (?&Hsimpl); destruct x;
+          repeat eexists; apply Hsimpl. }
 
-Lemma wp_store {A X} s E l v v' (k : unit → micro A X) z φ :
-  mapsto l (DfracOwn 1) v ⊢
-  ▷ (
-      mapsto l (DfracOwn 1) v' -∗
-      WP (k tt) @ s; E {{ φ }}
-    ) -∗
-  WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "Hl Hwp".
-  wp_unfold_head.
-  intro_state.
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro.
-  construct_wp_nonret.
-  (* Argue that [l] must be in the domain of the ghost heap. *)
-  iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-  (* Thus, the reduction step must be a successful step. *)
-  eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
-  (* Update the ghost heap. *)
-  iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-  iModIntro; iNext; iMod "Hmod" as "_".
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iMod "Hmod" as "_"; iModIntro.
-  iFrame.
-  iApply ("Hwp" with "Hl").
-Qed.
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+      iModIntro.
+      iIntros (σ' m' obs []) "H£"; subst.
+      iMod "Hmod" as "_".
 
-(* The standard memory load rule of Separation Logic. *)
+      (* Examine one step of [m] to [m']. The simulation diagram in this case
+      tells us that this reduction step takes us closer to [ret a].
+      That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
+      pose proof (simplify_throw_step_diagram Hsimp H)
+        as (n' & ? & ? & ?); subst.
+      (* We are then able to use the inner induction hypothesis. *)
+      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+      do 3 iModIntro.
+      iMod "Hmod"; iModIntro.
+      cbn; iFrame.
 
-Lemma wp_load {A X} s E l v dq (k: val → micro A X) z φ :
-  mapsto l dq v ⊢
-  ▷ (
-      mapsto l dq v -∗
-      WP (k v) @ s; E {{ φ }}
-    ) -∗
-  WP (Stop CLoad l k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "Hl Hwp".
-  wp_unfold_head.
-  intro_state.
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro.
-  construct_wp_nonret.
-  (* Argue that [l] must be in the domain of the ghost heap. *)
-  iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-  (* Thus, the reduction step must be a successful step. *)
-  eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
-  iModIntro; iNext; iMod "Hmod" as "_".
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iMod "Hmod" as "_"; iModIntro.
-  iFrame.
-  iApply ("Hwp" with "Hl").
-Qed.
+      iApply ("IHn" with "[//] Hwp [//]"). }
 
-(* ------------------------------------------------------------------------ *)
+    (* [ms] is neither a [ret _] or [throw _]. *)
 
-(* Simplification is sound. *)
+    (* Then, [WP ms ...] implies than [ms] can step.
+    This implies that [m], too, can step. *)
 
-(* That is, as announced in semantics/simplification.v, if [simplify n m ms]
-   holds then the safety of the simplified program [ms] implies the safety
-   of the more complex original program [ms]. *)
+    iAssert (|={⊤}=> ⌜ can_step (σ, m) ⌝
+                    ∗ wp NotStuck ⊤ ms φ
+                    ∗ store_interp σ)%I
+      with "[Hwp Hsi]"
+      as ">(%&Hwp&Hsi)".
+    { iApply ((fupd_plain_keep_l ⊤ ⌜can_step (σ, m)⌝
+                                (wp NotStuck ⊤ ms φ ∗ store_interp σ))%I
+              with "[$Hwp $Hsi]").
+      iIntros "[??]";
+        iMod (wp_can_step' with "[$][$]") as "%Hdisj".
+      iModIntro; iPureIntro; destruct Hdisj.
+      { eauto using invert_simplify_can_step. }
+      destruct H; exfalso; eauto. }
+    iApply fupd_frame_l; iSplit.
+    { iPureIntro; by apply can_step_reducible. }
+    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+    iModIntro. iIntros (σ' m' efs Hstep).
+    iMod "Hmod" as "_". destruct Hstep as (Hstep&->).
 
-Local Lemma wp_simplify {A X} n (m ms : micro A X) s E φ :
-  WP ms @ s ; E {{ φ }} -∗
-  ⌜ simplify n m ms ⌝ -∗
-  WP m  @ s ; E {{ φ }}.
-Proof.
-  (* Proceed by Löb induction. *)
-  iLöb as "IH" forall (n m ms).
-  (* Then, perform well-founded induction over [n]. *)
-  iInduction n as (? & ?) "IHn"
-                          using (well_founded_induction lt_wf)
-                          forall (m ms).
-  (* Introduce the hypotheses. *)
-  iIntros "Hwp" (Hsimp).
+    (* We now examine an arbitrary step of [m] to [m']. *)
+    (* Exploit the main simulation diagram. *)
+    pose proof (simplify_step_diagram Hsimp Hstep)
+      as (ms' & n' & i' & Hstep' & Hsimp' & Hcases);
+      clear Hsimp Hstep.
+    destruct_simplify_step_diagram.
 
-  (* Examine [m]. *)
-  wp_case_is_ret m Hretm.
-  (* If [m] is [ret a], then [ms] is also [ret a], so we are done. *)
-  { clarify_simplify. iAssumption. }
-  (* Thus, in the following, we assume [m] is not [ret _]. *)
+    (* Case: the reduction step disappears through the diagram. *)
+    { iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
+      iIntros "H£".
+      do 3 iModIntro.
+      iMod "Hmod"; iModIntro.
+      iFrame; cbn. iSplitR ""; last done.
+      iApply ("IHn" with "[//] Hwp [//]"). }
 
-  (* Begin unfolding the definition of [WP m ...]. *)
-  wp_unfold m; rewrite Hretm. intro_state.
+    (* Case: the reduction step is preserved through the diagram. *)
+    (* We can now commit to stepping [ms] -- a commitment which we have
+    carefully avoided up to this point. *)
+    iClear "IHn".
+    wp_unfold ms.
 
-  (* Examine [ms]. *)
-  wp_case_is_ret ms Hretms.
-  (* Case: [ms] is [ret _]. *)
-  { (* Prove that [m] is able to step. *)
-    iApply fupd_frame_l; iSplit; first by eauto using invert_simplify_ret.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
+    pose proof (is_not_ret_or_throw_to_value _ Hretms Hthrow_ms) as ->.
+    spec_state "Hwp". destruct_wp_nonret.
+
+    assert (prim_step ms σ nil ms' m' nil) by (by constructor).
+
+    iSpecialize ("Hwp" $! _ _ _ H0).
+    cbn.
+    iIntros "H£".
+    iSpecialize ("Hwp" with "H£").
+    iMod "Hwp". iModIntro; iNext. iMod "Hwp"; iModIntro; iMod "Hwp".
     iModIntro.
-    iIntros (σ' m' Hstep).
-    iMod "Hmod" as "_".
+    iDestruct "Hwp" as "(SI & Hwp & _)"; iFrame.
+    iSplitR ""; last done.
+    iApply ("IH" with "Hwp [//]").
+    Unshelve.
+    all : solve [exact nil | exact 1].
+  Qed.
 
-    (* Examine one step of [m] to [m']. The simulation diagram in this case
-     tells us that this reduction step takes us closer to [ret a].
-     That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-    pose proof (simplify_ret_step_diagram Hsimp Hstep)
-      as (n' & ? & ? & ?); subst.
-    (* We are then able to use the inner induction hypothesis. *)
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    iModIntro.
-    iMod "Hmod"; iModIntro.
-    iFrame.
-    iApply ("IHn" with "[//] Hwp [//]"). }
-  (* Thus, in the following, we assume [ms] is not [ret _]. *)
+  (* A corollary, for public use: [simp] is sound. *)
 
-  (* Then, [WP ms ...] implies than [ms] can step.
-   This implies that [m], too, can step. *)
-  iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
-                   ∗ wp s E ms φ
-                   ∗ state_interp σ)%I
-    with "[Hwp Hsi]"
-    as ">(%&Hwp&Hsi)".
-  { iApply ((fupd_plain_keep_l E ⌜can_step (σ, m)⌝
-                               (wp s E ms φ ∗ state_interp σ))%I
-             with "[$Hwp $Hsi]").
-    iIntros "[??]";
-      iMod (wp_can_step' with "[$][$]") as "%Hdisj".
-    iModIntro; iPureIntro; destruct Hdisj.
-    { eauto using invert_simplify_can_step. }
-    { exfalso; eauto. } }
-  iApply fupd_frame_l; iSplit; first done.
-  iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-  iModIntro. iIntros (σ' m' Hstep).
-  iMod "Hmod" as "_".
+  Lemma wp_simp {R E} (m m' : micro R E) φ :
+    simp m m' →
+    WP m' {{ φ }} ⊢
+    WP m  {{ φ }}.
+  Proof.
+    iIntros (Hsimp) "Hwp".
+    apply simp_simplify in Hsimp.
+    destruct Hsimp as (n & Hsimp).
+    iApply (wp_simplify with "Hwp [//]").
+  Qed.
 
-  (* We now examine an arbitrary step of [m] to [m']. *)
-  (* Exploit the main simulation diagram. *)
-  pose proof (simplify_step_diagram Hsimp Hstep)
-    as (ms' & n' & i & Hstep' & Hsimp' & Hcases);
-    clear Hsimp Hstep.
-  destruct_simplify_step_diagram.
-
-  (* Case: the reduction step disappears through the diagram. *)
-  { iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    do 2 iModIntro.
-    iMod "Hmod"; iModIntro.
-    iFrame. iApply ("IHn" with "[//] Hwp [//]"). }
-
-  (* Case: the reduction step is preserved through the diagram. *)
-  (* We can now commit to stepping [ms] -- a commitment which we have
-   carefully avoided up to this point. *)
-  iClear "IHn".
-  wp_unfold ms; rewrite Hretms. spec_state "Hwp". destruct_wp_nonret.
-  step_wp. tick_wp. (* The induction hypothesis becomes usable! *)
-  (* Then, the result follows from the induction hypothesis. *)
-  iApply ("IH" with "Hwp [//]").
-Qed. (* yes! *)
-
-(* A corollary, for public use: [simp] is sound. *)
-
-Lemma wp_simp {A X} (m m' : micro A X) s E φ :
-  simp m m' →
-  WP m' @ s ; E {{ φ }} ⊢
-  WP m  @ s ; E {{ φ }}.
-Proof.
-  iIntros (Hsimp) "Hwp".
-  apply simp_simplify in Hsimp.
-  destruct Hsimp as (n & Hsimp).
-  iApply (wp_simplify with "Hwp [//]").
-Qed.
-
-(* -------------------------------------------------------------------------*)
-
-(* The following three lemmas are special cases of [wp_simp]. *)
-
-(* For this reason, they should not be used. TODO *)
-
-Lemma wp_par_ret_left {A1 A2 A X' X} s E a1 m2
-  (k : A1 * A2 → micro A X) (z : X' → _) φ
-:
-  WP m2 @ s; E {{ λ v2, WP (k (a1, v2)) @ s; E {{ φ }} }} ⊢
-  WP (Par (Ret a1) m2 k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_simp with "[H]").
-  { eapply SimpParRetLeft. }
-  by iApply wp_try.
-Qed.
-
-Lemma wp_par_ret_right {A1 A2 A X' X} s E m1 a2
-  (k : A1 * A2 → micro A X) (z : X' → _) φ
-:
-  WP m1 @ s; E {{ λ v1, WP (k (v1, a2)) @ s; E {{ φ }} }} ⊢
-  WP (Par m1 (Ret a2) k z) @ s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_simp with "[H]").
-  { eapply SimpParRetRight. }
-  by iApply wp_try.
-Qed.
-
-Lemma wp_par_ret_ret {A1 A2 A3 X' X} s E a1 a2
-  (k : A1 * A2 → micro A3 X) (z : X' → _) φ
-:
-  WP (k (a1, a2)) @ s; E {{ φ }} ⊢
-  WP (Par (ret a1) (ret a2) k z) @s; E {{ φ }}.
-Proof.
-  iIntros "H".
-  iApply (wp_simp with "[H]").
-  { eapply SimpParRetRight. }
-  simpl try.
-  iAssumption.
-Qed.
-
-End Rules.
+End proof.

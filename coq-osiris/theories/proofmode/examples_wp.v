@@ -7,18 +7,16 @@ Import uPred.
 From osiris Require Import osiris.
 Local Transparent eval.
 
-
 Context `{!osirisGS Σ}.
 
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
 
-
 (* let x = A() in y *)
 
 Goal
   let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
-  ⊢ WP (eval [] e) {{ λ v, ⌜v = VConstant "A"⌝ }}.
+  ⊢ WP eval [] e @ NotStuck; ⊤ {{ RET v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   iIntros.
@@ -35,7 +33,7 @@ Definition example :=
 
 (* An example of reasoning about straight-line code. *)
 
-Goal ⊢ WP (eval [] example) {{ λ v, ⌜v = VData "A" (VTuple [])⌝ }}.
+Goal ⊢ WP (eval [] example) {{ RET v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   wp. do 2 wp_continue.
   iPureIntro. reflexivity.
@@ -51,7 +49,7 @@ Definition example2 :=
 Goal
   ∀ v1 v2,
   let env := [("z1", v1); ("z2", v2)] in
-  ⊢ WP (eval env example2) {{ λ v, ⌜v = v1⌝ }}.
+  ⊢ WP (eval env example2) {{ RET v, ⌜v = v1⌝ }}.
 Proof.
   iIntros. wp.
   do 2 wp_continue.
@@ -66,19 +64,22 @@ Definition example3 :=
 
 Lemma spec_example3:
   ∀ (id : val),
-  ⊢ □ (∀ v, WP (call id v) {{ λ v', ⌜ v' = v⌝ }} ) -∗
+  ⊢ □ (∀ v, WP (call id v) {{ RET v', ⌜ v' = v⌝ }} ) -∗
   let env := [("id", id)] in
-  WP (eval env example3) {{ λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+  WP (eval env example3) {{ RET v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   iIntros (id) "#Hid".
   wp.
   wp_par.
+  3,4: try wp_absurd.
   { wp_use "Hid". }
-  { wp_bind; wp_use "Hid".
-    iIntros (v->).
-    wp. wp_set_postcondition. }
-  { iIntros (??) "->->".
-    wp. iPureIntro. reflexivity. }
+  { wp_bind. wp_use "Hid".
+    (* Coq throws an anomaly if we don't invoke a [subst] here and call
+        [wp_set_postcondition]. *)
+    wp_pure_postcondition; subst.
+    cbn. wp. wp_set_postcondition. }
+  { cbn. iIntros (??) "%H %H'"; inversion H'; subst.
+    wp; by iPureIntro. }
 Qed.
 
 (* The identity function. *)
@@ -90,10 +91,10 @@ Definition identity :=
   EFun1Var "x" (EVar "x").
 
 Definition spec_id (c: val) : iProp Σ :=
-  □ ∀ v, WP call c v {{ λ v', ⌜ v' = v ⌝ }}.
+  □ ∀ v, WP call c v {{ RET v', ⌜ v' = v ⌝ }}.
 
 Goal
-  ⊢ WP (eval [] identity) {{ spec_id }}.
+  ⊢ WP (eval [] identity) {{ RET v, spec_id v }}.
 Proof.
   wp. iModIntro. iIntros. wp. equality.
 Qed.
@@ -107,7 +108,7 @@ Definition example4 :=
 
 Lemma spec_example4:
   ⊢ WP (eval [] example4)
-    {{λ v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+    {{ RET v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
   wp. wp_bind.
@@ -136,7 +137,7 @@ Definition example5 :=
   ESeq (EAssert ETrue) EFalse.
 
 Lemma spec_example5:
-  ⊢ WP (eval [] example5) {{ λ v, ⌜v = VFalse⌝ }}.
+  ⊢ WP (eval [] example5) {{ RET v, ⌜v = VFalse⌝ }}.
 Proof.
   (* TODO make [choose] opaque somewhere else *)
   (* TODO and prove a [wp] rule for [eval (EAssert _)]
@@ -147,10 +148,12 @@ Proof.
      duplicates the proof of the continuation. We must use
      [wp_bind_binary] to introduce a cut and avoid duplication. *)
   iApply wp_bind_binary.
-  + iApply (wp_choose_ok _ _ _ (True)%I).
+  + iApply (wp_choose_ok _ (True)%I).
     - auto.
     - iModIntro. iIntros "_". wp. auto.
-  + iIntros "_ _". wp. equality.
+  + iIntros (??). unfold lift_ipure. destruct v.
+    - wp. equality.
+    - iPureIntro; apply e.
 Qed.
 
 (* let id = identity in
@@ -162,7 +165,7 @@ Definition example4b :=
   EApp (EApp id id) EUnit.
 
 Lemma spec_example4b:
-  ⊢ WP eval [] example4b {{λ v, ⌜v = VUnit⌝ }}.
+  ⊢ WP eval [] example4b {{ RET v, ⌜v = VUnit⌝ }}.
 Proof.
   unfold example4b. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -170,7 +173,8 @@ Proof.
   { unfold spec_id. iIntros (v).
     iModIntro. wp. equality. }
   (* We are looking at [id id]. *)
-  wp_bind. wp_use "Hid". iIntros(?->).
+  wp_bind. wp_use "Hid".
+  wp_pure_postcondition; subst.
   wp_use "Hid".
 Qed.
 
@@ -183,7 +187,7 @@ Definition example4c :=
   EApp id (EApp id EUnit).
 
 Lemma spec_example4c:
-  ⊢ WP eval [] example4c {{λ v, ⌜v = VUnit⌝}}.
+  ⊢ WP eval [] example4c {{ RET v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4c. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -191,7 +195,8 @@ Proof.
   { unfold spec_id. iIntros (v).
     iModIntro. wp. equality. }
   (* We are looking at [id()]. *)
-  wp_bind. wp_use "Hid". iIntros(?->).
+  wp_bind. wp_use "Hid".
+  wp_pure_postcondition.
   (* We are again looking at [id()]. *)
   wp_use "Hid".
 Qed.
@@ -205,7 +210,7 @@ Definition example4d :=
   EApp (EApp id id) (EApp id EUnit).
 
 Lemma spec_example4d:
-  ⊢ WP eval [] example4d {{λ v, ⌜v = VUnit⌝}}.
+  ⊢ WP eval [] example4d {{ RET v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4d. wp. wp_bind.
   (* Deal with the local binding of [id]. *)
@@ -214,7 +219,7 @@ Proof.
     iModIntro. wp. equality. }
   (* Here, [wp] is unable to make progress because we are looking at two
      function calls in parallel. *)
-  wp_par.
+  wp_par; try wp_absurd.
 
   (* id id *)
   { wp_use "Hid". }
@@ -222,7 +227,8 @@ Proof.
   (* id () *)
   { wp_use "Hid". }
 
-  iIntros (??->->).
+  wp_pure_postcondition.
+
   wp_use "Hid".
 Qed.
 
@@ -256,7 +262,7 @@ Definition walk : list rec_binding :=
 
 Definition spec_walk (walk : val): iProp Σ :=
   □ ∀ (bs : list bool),
-  WP call walk (encode_list bs) {{ λ v, ⌜v = VUnit⌝ }}.
+  WP call walk (encode_list bs) {{ RET v, ⌜v = VUnit⌝ }}.
   (* TODO should always use [encode], not [encode_list] *)
 
 (* This is a subgoal that appears in the proof of
@@ -269,8 +275,9 @@ Proof.
   iIntros (η) "!>%bs".
   iInduction bs as [| b bs ] "IHbs";
   wp_enter_and_abstract; iIntros (walk); wp.
-  { equality. }
-  { wp_use "IHbs". iIntros (?->). wp. equality. }
+  { cbn. wp. equality. }
+  { wp_use "IHbs". wp_pure_postcondition. wp.
+    equality. }
 Qed.
 
 Definition walk_example e :=
@@ -279,7 +286,7 @@ Definition walk_example e :=
 
 Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
-  ⊢ WP eval [] (walk_example e) {{ λ v, ⌜v = encode tt⌝ }}.
+  ⊢ WP eval [] (walk_example e) {{ RET v, ⌜v = encode tt⌝ }}.
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. wp. wp_continue. equality.
@@ -292,7 +299,7 @@ Qed.
 Lemma spec_walk_example_abstract :
   forall (bs : list bool),
   let η := [("xs", (encode bs))] in
-  ⊢ WP (eval η (walk_example (EVar "xs"))) {{ λ v, ⌜v = encode tt⌝ }}.
+  ⊢ WP (eval η (walk_example (EVar "xs"))) {{ RET v, ⌜v = encode tt⌝ }}.
 Proof.
   intros. wp. wp_bind.
   (* The environment is about to be extended with a binding of the variable
@@ -308,8 +315,9 @@ Proof.
     iIntros "!>"(bs).
     iInduction bs as [| b bs ] "IHbs";
     wp_enter_and_abstract; iIntros (walk); wp.
-    { equality. }
-    { wp_use "IHbs". iIntros (?->). wp. equality. }
+    { cbn. wp. equality. }
+    { wp_use "IHbs". wp_pure_postcondition. wp.
+      equality. }
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
   (* The remains to exploit the hypothesis [Hwalk]. *)
@@ -336,7 +344,7 @@ Definition length : list rec_binding :=
 Definition spec_length (length : val) :=
   ∀ A (eA : Encode A) (xs : list A),
   ⊢ WP call length (encode_list xs)
-       {{ λ v, ⌜v = encode (List.length xs)⌝ }}.
+       {{ RET v, ⌜v = encode (List.length xs)⌝ }}.
 
 Goal
   ∀ η,
@@ -346,9 +354,10 @@ Proof.
   iInduction (xs) as [| x xs ] "IHxs";
   wp_enter_and_abstract; iIntros (length);
   wp.
-  { equality. }
-  { iApply wp_bind_binary; first by wp_use "IHxs". iIntros(?->).
-    wp. iPureIntro.
+  { cbn. wp. equality. }
+  { iApply wp_bind_binary; first by wp_use "IHxs".
+    wp_pure_postcondition; subst; cbn. wp.
+    cbn. wp. iPureIntro.
     rewrite add_repr_repr. equality. }
 Qed.
 
@@ -364,11 +373,9 @@ Definition ref_store_load: expr :=
   ELet1Var "_" (EStore (EVar "l") (EConstant "B")) $
   ELoad (EVar "l").
 
-Goal forall s E,
-  ⊢ WP (eval [] ref_store_load)@s; E {{ λ v, ⌜ v = VConstant "B" ⌝ }}.
+Goal ⊢ WP (eval [] ref_store_load) {{ RET v, ⌜ v = VConstant "B" ⌝ }}.
 Proof.
   unfold ref_store_load.
-  iIntros(??).
   wp.
   wp_alloc l "[Hl _]". wp_continue.
   wp_store "Hl". wp_continue.
@@ -403,7 +410,7 @@ Definition simple_module_spec: val → iProp Σ :=
 
 
 Goal
-  ⊢ WP eval_mexpr [] simple_module {{ simple_module_spec }}.
+  ⊢ WP eval_mexpr [] simple_module {{ RET v, simple_module_spec v }}.
 Proof.
   wp. wp_bind.
 
@@ -419,7 +426,8 @@ Proof.
     wp_use "Hid". }
 
   (* We can use the spec of [f] at the function call (of the body of [h]). *)
-  wp_bind. wp_use "Hid". iIntros (?->). wp_continue.
+  wp_bind. wp_use "Hid". wp_pure_postcondition; subst; cbn.
+  wp_bind. wp_concat. wp.
 
   (* Proving the trivial post condition using the aforementioned specs. *)
   wp_module_spec.
@@ -477,7 +485,7 @@ Definition add_uc : expr :=
     (EInt 5).
 
 Lemma add_test (i j: Z) :
-  ⊢ WP eval [("bloup", #0%Z)] add_uc {{ λ v, ⌜ v = #16 ⌝ }}.
+  ⊢ WP eval [("bloup", #0%Z)] add_uc {{ RET v, ⌜ v = #16 ⌝ }}.
 Proof.
   wp. wp_continue. equality.
 Qed.

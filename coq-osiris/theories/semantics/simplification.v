@@ -506,6 +506,26 @@ Proof.
   eauto.
 Qed.
 
+(* In the special case where [m2] is of the form [throw a2], the previous
+   diagram can be simplified, because [throw a2] cannot step. *)
+
+Lemma simplify_throw_step_diagram {A E} {n} {m1 : micro A E} {a2 σ σ' m'1} :
+  (* If there is a simplification step of [m1] to [throw a2]: *)
+  simplify n m1 (throw a2) →
+  (* and a reduction step: *)
+  step (σ, m1) (σ', m'1) →
+  (* then the reduction step must take us closer to [throw a2]: *)
+  ∃ n',
+  σ' = σ ∧
+  simplify n' m'1 (throw a2) ∧
+  n' < n.
+Proof.
+  intros Hsimp Hstep.
+  destruct (simplify_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ? & ?).
+  destruct_simplify_step_diagram; [| exfalso; destruct_step ].
+  eauto.
+Qed.
+
 (* If there is a simplification path from [m1] to [ret a2], then there
    must be a reduction path from [m1] to [ret a2]. *)
 
@@ -630,6 +650,32 @@ Proof.
   { apply invert_is_ret_Some in Hm2. subst m2.
     eauto using invert_simplify_can_step. }
   (* Case: [m2] is not [ret _]. *)
+  { specialize (IHh2 Hm2).
+    eauto using invert_simplify_can_step. }
+Qed.
+
+(* If [m1] can be simplified into [throw a2] then
+   either [m1] is [throw _]
+   or [m1] can step. *)
+
+Lemma invert_simplify_throw {A E} n (m1 : micro A E) a2 σ :
+  simplify n m1 (throw a2) →
+  is_throw m1 = None →
+  can_step (σ, m1).
+Proof.
+  (* The only terms that cannot step are [throw _] and [crash] and [throw _].
+    These terms cannot appear on the left-hand side of [simplify], so the
+    proof is almost trivial. Only [SimplifyTransitive] requires work. *)
+  intro h; dependent induction h; intros; simpl in *;
+  try solve [ congruence | eauto with step ].
+
+  (* SimplifyTransitive *)
+  specialize (IHh2 _ eq_refl).
+  case_eq (is_throw m2); [ intros a'2 Hm2 | intro Hm2 ].
+  (* Case: [m2] is [throw a2]. *)
+  { apply invert_is_throw_Some in Hm2. subst m2.
+    eauto using invert_simplify_can_step. }
+  (* Case: [m2] is not [throw _] *)
   { specialize (IHh2 Hm2).
     eauto using invert_simplify_can_step. }
 Qed.
