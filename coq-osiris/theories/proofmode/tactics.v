@@ -320,7 +320,7 @@ Ltac wp_intro_pure :=
   | |- environments.envs_entails _ (@bi_forall _ val _) =>
       let e := fresh "e" in
       iIntros (e)
-  | |- environments.envs_entails _ (@bi_forall _ value _) =>
+  | |- environments.envs_entails _ (@bi_forall _ outcome _) =>
       let e := fresh "e" in
       iIntros (e);
       try destruct e as [e | e]; last (try (elim_void e))
@@ -336,14 +336,13 @@ Ltac wp_lift_ipure :=
 Ltac wp_pure_postcondition :=
   repeat wp_intro_pure; repeat wp_lift_ipure; subst; cbn.
 
-
 (* TODO: not great *)
 Ltac wp_set_postcondition :=
     by
     lazymatch goal with
     | |- environments.envs_entails _ (@ipure ?res ?exn ?Σ ?φ ?v) =>
         is_evar φ;
-        let H := eval cbn in (λ R : @value res exn,
+        let H := eval cbn in (λ R : @outcome res exn,
                                  ⌜R = @Res res exn v⌝%I : iPropI Σ)%I in
         instantiate (1 := H)
     | |- environments.envs_entails ?Δ (?φ ?v) =>

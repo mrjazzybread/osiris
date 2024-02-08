@@ -26,10 +26,10 @@ Section wp_rules.
   Proof.
     iIntros "SI Hwp".
     wp_unfold_all.
-    destruct (wp.to_value m) eqn: Hm.
+    destruct (wp.to_outcome m) eqn: Hm.
     { iMod "Hwp". iApply fupd_mask_intro; first set_solver.
       iIntros "_".
-      to_value_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
+      to_outcome_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
       iPureIntro; eauto. }
     { spec_state. iPureIntro.
       left. by apply can_step_reducible. }
@@ -55,7 +55,7 @@ Section wp_rules.
     intro Hstep.
     iIntros "Hsi H£ Hwp".
     wp_unfold m.
-    pose proof (step_not_value Hstep) as ->.
+    pose proof (step_not_outcome Hstep) as ->.
     spec_state. iModIntro.
     eassert (prim_step m σ _ _ _ _).
     { constructor; eauto. }
@@ -111,7 +111,7 @@ Section wp_rules.
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
-  (* Pure values *)
+  (* Pure outcomes *)
   Definition wp_ret {R E} s a e φ:
     ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
   Proof.
@@ -133,7 +133,7 @@ Section wp_rules.
     wp_case_is_ret m1 Hret.
     (* Case: [m1] is [ret _]. *)
     { repeat wp_unfold_all;
-        destruct (to_value (m2 a)); by iMod "Hwp". }
+        destruct (to_outcome (m2 a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold m1.
@@ -152,10 +152,10 @@ Section wp_rules.
       { rewrite Hthrow; cbn;
         wp_unfold_all; iMod "Hwp"; done. }
 
-      apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
+      apply is_not_ret_or_throw_to_outcome in Hret; auto; rewrite Hret.
 
       wp_unfold (bind m1 m2).
-      eapply (to_value_None_bind m1 m2) in Hret; rewrite Hret.
+      eapply (to_outcome_None_bind m1 m2) in Hret; rewrite Hret.
       intro_state; spec_state.
       iModIntro.
       iSplitL "".
@@ -166,7 +166,7 @@ Section wp_rules.
       destruct Hstep as (Hstep&?); subst.
 
       destruct (invert_step_bind Hstep) as (m'1 & Hstep' & ->).
-      { apply to_value_is_not_ret; auto. }
+      { apply to_outcome_is_not_ret; auto. }
 
       clear Hstep; rename Hstep' into Hstep.
       eassert (Hstep_m1: prim_step m1 σ κs _ _ []).
@@ -209,7 +209,7 @@ Section wp_rules.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
     { repeat wp_unfold_all;
-        destruct (to_value (f a)); by iMod "Hwp". }
+        destruct (to_outcome (f a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold_all.
@@ -229,13 +229,13 @@ Section wp_rules.
         [intros ? Hthrow;
           apply invert_is_throw_Some in Hthrow | intros Hthrow].
       { rewrite Hthrow; cbn.
-        wp_unfold_all. destruct (wp.to_value (h e)); [ by iMod "Hwp" |].
+        wp_unfold_all. destruct (wp.to_outcome (h e)); [ by iMod "Hwp" |].
         iIntros (?????) "SI". iMod "Hwp".
         spec_state; by iFrame. }
 
-      apply is_not_ret_or_throw_to_value in Hret; auto; rewrite Hret.
+      apply is_not_ret_or_throw_to_outcome in Hret; auto; rewrite Hret.
 
-      eapply (to_value_None_try m f h) in Hret; rewrite Hret.
+      eapply (to_outcome_None_try m f h) in Hret; rewrite Hret.
 
       intro_state; spec_state.
       iModIntro; iSplitL "".
@@ -268,7 +268,7 @@ Section wp_rules.
     premise, so the proof of [m2] is not duplicated. *)
 
   Lemma wp_try_binary {A1 A2 X' X} (m1: micro A1 X') (m2: A1 → micro A2 X)
-    (h : X' -> micro A2 X) (φ ψ : value -> _) :
+    (h : X' -> micro A2 X) (φ ψ : outcome -> _) :
     WP m1 {{ φ }} ⊢
     (∀ v, φ v -∗
           (| RET x => WP m2 x {{ v, ψ v }};
@@ -297,7 +297,7 @@ Section wp_rules.
     iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
 
     (* As for the other rules, proof starts by stepping in the WP:
-      (1) unfold the wp, (2) introduce a valueid state, (3) introduce the head
+      (1) unfold the wp, (2) introduce a outcomeid state, (3) introduce the head
       modality and (4) enter in the second branch of the WP. *)
     wp_unfold_head; intro_state.
     iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
@@ -314,8 +314,8 @@ Section wp_rules.
     (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
 
     { (* Case: [StepParRetRet].
-        Both [m1] and [m2] represent valueues [v1] and [v2]. One can consume [H1]
-        and [H2] to learn that the valueues respect their postconditions.
+        Both [m1] and [m2] represent outcomeues [v1] and [v2]. One can consume [H1]
+        and [H2] to learn that the outcomeues respect their postconditions.
         The inversion does not consume the state-interpretation, which can be
         framed behind the modalities. *)
       iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
@@ -584,7 +584,7 @@ Section wp_rules.
   (* The following lemma is inspired by the corresponding CFML rule. *)
   Lemma wp_loop {A X}
         (η : env) (x : var) (i1 i2 : int) (e : expr)
-        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ) :
+        (k : val → micro A X) (z : void → micro A X) (φ : outcome → iProp Σ) :
     (* If *)
     (▷ (* Either: *)
       if int.lt i2 i1
@@ -646,7 +646,7 @@ Section wp_rules.
 
   Local Lemma wp_loop_inv_pos_aux {A X}
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
-        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (k : val → micro A X) (z : void → micro A X) (φ : outcome → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -784,7 +784,7 @@ Section wp_rules.
 
   Definition wp_loop_inv_pos {A X}
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
-        (k : val → micro A X) (z : void → micro A X) (φ : value → iProp Σ)
+        (k : val → micro A X) (z : void → micro A X) (φ : outcome → iProp Σ)
         (Hinv : nat → iProp Σ) :
     representable i1 →
     representable (S i2) →
@@ -839,7 +839,7 @@ Section wp_rules.
     wp_unfold m.
 
     (* Simplify match on [m]. *)
-    pose proof (is_not_ret_or_throw_to_value _ Hretm Hthrow) as ->.
+    pose proof (is_not_ret_or_throw_to_outcome _ Hretm Hthrow) as ->.
     intro_state.
 
     (* Examine [ms] on whether it is a [ret]. *)
@@ -940,7 +940,7 @@ Section wp_rules.
     iClear "IHn".
     wp_unfold ms.
 
-    pose proof (is_not_ret_or_throw_to_value _ Hretms Hthrow_ms) as ->.
+    pose proof (is_not_ret_or_throw_to_outcome _ Hretms Hthrow_ms) as ->.
     spec_state.
 
     assert (prim_step ms σ nil ms' m' nil) by (by constructor).

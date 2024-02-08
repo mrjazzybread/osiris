@@ -102,6 +102,6 @@ Ltac construct_wp_nonret :=
 
 (* Misc tactics *)
 
-Ltac to_value_is_Some Hm :=
-  apply to_value_is_Some in Hm;
+Ltac to_outcome_is_Some Hm :=
+  apply to_outcome_is_Some in Hm;
   destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.

@@ -20,7 +20,7 @@ From osiris Require Export syntax semantics.
             {{ | RET x => ϕ x ;
                 | EXN x => ψ x }}.
 
-    to indicate that the expression may return a value and satisfy postcondition
+    to indicate that the expression may return a outcome and satisfy postcondition
     ϕ, or throw an exception and satisfy postcondition ψ. *)
 
 (** *Language instance *)
@@ -28,26 +28,26 @@ Section exp_def.
 
   Context {res exn : Type}.
 
-  (* The definition of "values" which is used for the weakest-precondition
+  (* The definition of "outcomes" which is used for the weakest-precondition
     definition.
 
     i.e. Our postcondition over Osiris programs can be over either a pure result
     [Res r] or an exceptional result [Exn e]. *)
-  Variant value :=
+  Variant outcome :=
     | Res (r : res)
     | Exn (e : exn).
 
   (* Instantiation of (non-context based) Iris language for Osiris. *)
   Notation exp := (micro res exn).
 
-  (* Naive projection between values and expressions. *)
-  Definition of_value (v : value) : exp :=
+  (* Naive projection between outcomes and expressions. *)
+  Definition of_outcome (v : outcome) : exp :=
     match v with
     | Res r => Ret r
     | Exn e => Throw e
     end.
 
-  Definition to_value (e : exp) : option value :=
+  Definition to_outcome (e : exp) : option outcome :=
     match e with
     | Ret a => Some (Res a)
     | Throw e => Some (Exn e)
@@ -55,19 +55,19 @@ Section exp_def.
     end.
 
   (* Lifting specifications in Coq *)
-  Definition lift_pure (ϕ : res -> Prop) (v : value) : Prop :=
+  Definition lift_pure (ϕ : res -> Prop) (v : outcome) : Prop :=
     match v with
     | Res r => ϕ r
     | Exn _ => False
     end.
 
-  Definition lift_exn (ψ : exn -> Prop) (v : value) : Prop :=
+  Definition lift_exn (ψ : exn -> Prop) (v : outcome) : Prop :=
     match v with
     | Exn e => ψ e
     | Res _ => False
     end.
 
-  Definition lift (ϕ : res -> Prop) (ψ : exn -> Prop) (v : value) : Prop :=
+  Definition lift (ϕ : res -> Prop) (ψ : exn -> Prop) (v : outcome) : Prop :=
     match v with
     | Res r => ϕ r
     | Exn e => ψ e
@@ -83,26 +83,26 @@ Section exp_def.
 
     (* [lift_ipure] is especially useful for lifting specifications over pure
       results to specifications which may handle exceptional results. *)
-    Definition lift_ipure (ϕ : res -> iProp) (v : value) : iProp :=
+    Definition lift_ipure (ϕ : res -> iProp) (v : outcome) : iProp :=
       match v with
       | Res r => ϕ r
       | Exn _ => False
       end.
 
-    Definition lift_iexn (ψ : exn -> iProp) (v : value) : iProp :=
+    Definition lift_iexn (ψ : exn -> iProp) (v : outcome) : iProp :=
       match v with
       | Exn e => ψ e
       | Res _ => False
       end.
 
-    Definition ilift (ϕ : res -> iProp) (ψ : exn -> iProp) (v : value) : iProp :=
+    Definition ilift (ϕ : res -> iProp) (ψ : exn -> iProp) (v : outcome) : iProp :=
       match v with
       | Res r => ϕ r
       | Exn e => ψ e
       end.
 
-    Definition ipure (ϕ : value -> iProp) (v : res) : iProp := ϕ (Res v).
-    Definition iexn (ψ : value -> iProp) (e : exn) : iProp := ψ (Exn e).
+    Definition ipure (ϕ : outcome -> iProp) (v : res) : iProp := ϕ (Res v).
+    Definition iexn (ψ : outcome -> iProp) (e : exn) : iProp := ψ (Exn e).
 
   End iProp.
 
@@ -115,49 +115,49 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
 (at level 200, right associativity, format
 "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
-(** *Basic properties about [value] *)
+(** *Basic properties about [outcome] *)
 Section exp_properties.
 
-  Lemma is_not_ret_or_throw_to_value {A E} m :
+  Lemma is_not_ret_or_throw_to_outcome {A E} m :
     is_not_ret m ->
     is_not_throw m ->
-    @to_value A E m = None.
+    @to_outcome A E m = None.
   Proof.
     intros H; destruct m; inversion H; intros H'; inversion H'; eauto.
   Qed.
 
-  Lemma to_value_is_not_ret {A E} (m : micro A E) :
-    to_value m = None -> is_not_ret m.
+  Lemma to_outcome_is_not_ret {A E} (m : micro A E) :
+    to_outcome m = None -> is_not_ret m.
   Proof.
     intros H; destruct m; inversion H; eauto.
   Qed.
 
-  Lemma to_value_None_bind {A B E} (m1 : micro A E) (m2 : A -> micro B E):
-    to_value m1 = None ->
-    to_value (bind m1 m2) = None.
+  Lemma to_outcome_None_bind {A B E} (m1 : micro A E) (m2 : A -> micro B E):
+    to_outcome m1 = None ->
+    to_outcome (bind m1 m2) = None.
   Proof.
     intros; destruct m1; eauto; inversion H.
   Qed.
 
-  Lemma to_value_is_Some {A E} (m : micro A E) v:
-    to_value m = Some v ->
+  Lemma to_outcome_is_Some {A E} (m : micro A E) v:
+    to_outcome m = Some v ->
     (∃ v', v = Exn v' /\ m = Throw v') \/
     (∃ v', v = Res v' /\ m = Ret v').
   Proof.
     intros; destruct m; inversion H; subst; [right | left]; eauto.
   Qed.
 
-  Lemma to_value_None_try {A B E' E}
+  Lemma to_outcome_None_try {A B E' E}
     (m : micro A E') (f : A -> micro B E) (h : E' -> micro B E) :
-    to_value m = None ->
-    to_value (try m f h) = None.
+    to_outcome m = None ->
+    to_outcome (try m f h) = None.
   Proof.
     intros; destruct m; eauto; inversion H.
   Qed.
 
-  Lemma step_not_value {A E} {σ σ'} {m m' : micro A E} :
+  Lemma step_not_outcome {A E} {σ σ'} {m m' : micro A E} :
     step.step (σ, m) (σ', m') ->
-    to_value m = None.
+    to_outcome m = None.
   Proof.
     destruct m; inversion 1; try dependent destruction H8; eauto.
   Qed.
@@ -176,7 +176,7 @@ Section lang_instance.
     step.step (σ, e) (σ', e') /\ exprs = [].
 
   Definition osiris_lang_mixin :
-    LanguageMixin of_value to_value prim_step.
+    LanguageMixin of_outcome to_outcome prim_step.
   Proof.
     constructor; auto.
     { intros; destruct v; auto. }
