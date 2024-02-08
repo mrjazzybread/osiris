@@ -118,6 +118,12 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
 (** *Basic properties about [outcome] *)
 Section exp_properties.
 
+  Lemma outcome_roundtrip {A E} (a : @outcome A E) :
+    to_outcome (of_outcome a) = Some a.
+  Proof.
+    destruct a; auto.
+  Qed.
+
   Lemma is_not_ret_or_throw_to_outcome {A E} m :
     is_not_ret m ->
     is_not_throw m ->
@@ -170,6 +176,7 @@ Section lang_instance.
   Context {res exn : Type}.
 
   (* N.B.: We ignore the observation and list of expressions for now. *)
+  (* TODO: The [exprs] might want to keep track of a log of expressions *)
   Definition prim_step
     (e : micro res exn) (σ : store) (obs : list nat)
     (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
@@ -179,7 +186,7 @@ Section lang_instance.
     LanguageMixin of_outcome to_outcome prim_step.
   Proof.
     constructor; auto.
-    { intros; destruct v; auto. }
+    { apply outcome_roundtrip. }
     { intros; destruct e; inversion H; auto. }
     { intros; destruct e; inversion H; auto; subst; inversion H0. }
   Defined.
@@ -251,13 +258,11 @@ Section ghost_instances.
     (* This gives us fancy updates (without allowing Later Credits). *)
      osiris_invGS :: invGS_gen HasNoLc Σ;
     (* This gives us a heap, which maps locations to values. *)
-     osiris_heapGS :: gen_heapGS locations.loc syntax.val Σ;
-     osiris_store_name : gname }.
+     osiris_heapGS :: gen_heapGS locations.loc syntax.val Σ; }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _} _ : assert.
-#[global] Arguments osiris_store_name {_} _ : assert.
+#[global] Arguments OsirisGS Σ {_ _ _} : assert.
 
 Definition store_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ syntax.val Σ H σ.
