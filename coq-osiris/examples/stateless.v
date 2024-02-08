@@ -131,9 +131,9 @@ Section ProofExamples.
       } cbn.
       iIntros (v) "Hℓ".
       (* Done dealing with [EAssert]... *)
-      destruct v; cbn.
+      destruct v; cbn. (* TODO do not destruct [v] *)
       - wp. wp_store "Hℓ". cbn; wp. prove_counter.
-      - exfalso; apply e. }
+      - elim_void e. }
 
     oSpecify "get" get_spec vget "#Hget" !.
     { iIntros "!>"(? nc) "(%ℓ&->&Hℓ)".

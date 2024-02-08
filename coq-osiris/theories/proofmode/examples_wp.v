@@ -71,13 +71,20 @@ Proof.
   iIntros (id) "#Hid".
   wp.
   wp_par.
-  3,4: try wp_absurd.
   { wp_use "Hid". }
-  { wp_bind. wp_use "Hid".
-    (* Coq throws an anomaly if we don't invoke a [subst] here and call
-        [wp_set_postcondition]. *)
-    wp_pure_postcondition; subst.
-    cbn. wp. wp_set_postcondition. }
+  { wp_bind. wp_use "Hid". iIntros (r) "Hr". iClear (id) "Hid".
+    (* TODO fp: I cannot read the goal. The "uparrow" notation
+            makes it incomprehensible. *)
+    (* TODO fp: we should be able to reason without destructing [r] *)
+    destruct r as [v|e]; simpl.
+    + iDestruct "Hr" as %H. subst v.
+      (* TODO [wp_set_postcondition] does not work here *)
+      iApply wp_ret. unfold ipure.
+      wp_set_postcondition.
+    + iExact "Hr".
+  }
+  { wp_absurd. }
+  { wp_absurd. }
   { cbn. iIntros (??) "%H %H'"; inversion H'; subst.
     wp; by iPureIntro. }
 Qed.
@@ -151,9 +158,11 @@ Proof.
   + iApply (wp_choose_ok _ (True)%I).
     - auto.
     - iModIntro. iIntros "_". wp. auto.
-  + iIntros (??). unfold lift_ipure. destruct v.
+  + iSimpl. iIntros (??).
+    (* TODO not clean! *)
+    unfold lift_ipure. destruct v.
     - wp. equality.
-    - iPureIntro; apply e.
+    - elim_void e.
 Qed.
 
 (* let id = identity in
@@ -276,8 +285,8 @@ Proof.
   iInduction bs as [| b bs ] "IHbs";
   wp_enter_and_abstract; iIntros (walk); wp.
   { cbn. wp. equality. }
-  { wp_use "IHbs". wp_pure_postcondition. wp.
-    equality. }
+  { wp_use "IHbs". wp_pure_postcondition.
+    wp. equality. }
 Qed.
 
 Definition walk_example e :=

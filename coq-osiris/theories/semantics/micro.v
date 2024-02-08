@@ -215,6 +215,26 @@ Definition orelse {A E} (m1 m2 : micro A E) : micro A E :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* A computation that cannot throw an exception can be assigned the
+   type [micro _ E] for an arbitrary [E]. This leads to a choice:
+   one can either instantiate [E] with the empty type [void] or
+   universally quantify over [E]. Put another way, the question
+   is where to put the universal quantifier: either [micro _ (∀E.E)]
+   or [∀E. micro _ E].
+
+   In general, monomorphic objects can be easier to work with, so
+   using the type [micro _ void], where possible, seems preferable.
+   However, polymorphic objects are more flexible. In particular,
+   when a computation of type [micro _ void] is used in a context
+   where exceptions of type [E] may be thrown, this computation
+   must be converted to the type [micro _ E]. The coercion [widen]
+   is used for this purpose. *)
+
+Definition widen {A E} (m : micro A void) : micro A E :=
+  try m ret elim_void.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Paraphrase lemmas. *)
 
 (* TODO Some of these lemmas are unused. Remove them or make them Local. *)

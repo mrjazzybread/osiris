@@ -354,10 +354,6 @@ Arguments pre_extends extend /.
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-(* TODO *)
-Definition widen {E} (m : micro val void) : micro val E :=
-  try m ret (λ (v : void), throw (@v E)).
-
 Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env unit :=
   fix extendfs (δ : env) fps fvs : micro env unit :=
     match fps with

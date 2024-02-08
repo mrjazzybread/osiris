@@ -6,6 +6,7 @@ Import uPred.
 
 From iris Require Import base_logic.lib.gen_heap.
 
+From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
@@ -322,7 +323,7 @@ Ltac wp_intro_pure :=
   | |- environments.envs_entails _ (@bi_forall _ value _) =>
       let e := fresh "e" in
       iIntros (e);
-      try destruct e as [e | e]; last (try (exfalso; apply e))
+      try destruct e as [e | e]; last (try (elim_void e))
   end.
 
 Ltac wp_lift_ipure :=
@@ -363,9 +364,11 @@ Ltac wp_set_postcondition :=
 Ltac wp_absurd :=
   by
     lazymatch goal with
+    | e: void |- _ =>
+        elim_void e
     | |- environments.envs_entails _ (@bi_forall _ void _) =>
         let e := fresh "e" in
-        iIntros (e); exfalso; apply e
+        iIntros (e); elim_void e
     end.
 
 (* -------------------------------------------------------------------------- *)

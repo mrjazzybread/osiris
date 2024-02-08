@@ -7,14 +7,6 @@ From osiris.semantics Require Import micro.
 
 (* ------------------------------------------------------------------------ *)
 
-(* Evaluating an OCaml expression cannot raise a meta-level exception. *)
-
-(* This will change once we model OCaml exceptions. *)
-
-Definition void : Type := (∀ A, A).
-
-(* ------------------------------------------------------------------------ *)
-
 (* [Eval (η, e)] is a request for the computation [eval η e]. *)
 
 (* [Loop (η, x, i1, i2, e)] is a request for the computation

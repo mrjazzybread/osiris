@@ -5,6 +5,7 @@ From iris.proofmode Require Import proofmode.
 
 From iris.base_logic.lib Require Import own.
 
+From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import wp tactics.
 From osiris Require Import syntax semantics.
@@ -731,7 +732,7 @@ Section wp_rules.
           iApply ("Hpreservation"); iPureIntro; lia. }
         destruct v; cycle 1.
         (* Why doesn't this get automatically discharged with [contradiction]? *)
-        { exfalso; apply e0. }
+        { exfalso. exact (elim_void e0). }
         cbn.
 
         replace (add (repr i1) int.one) with (repr (S i1)); last first.
@@ -755,7 +756,7 @@ Section wp_rules.
       iIntros(v)"Hinit".
       destruct v; cycle 1.
       (* Why doesn't this get automatically discharged with [contradiction]? *)
-      { exfalso; apply e0. }
+      { exfalso. exact (elim_void e0). }
       cbn.
       iSpecialize ("Hccl" with "Hinit").
 
