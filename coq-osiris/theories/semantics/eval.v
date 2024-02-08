@@ -284,9 +284,10 @@ Definition sort (η : env) : env := PairSort.sort η.
 
 Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
-  | [] => []
-  | (RecBinding g _a) :: rbs' =>
-      (g, (VCloRec η rbs g)) :: (eval_rec_bindings_aux η rbs rbs')
+  | [] =>
+      []
+  | RecBinding g _a :: rbs' =>
+      (g, VCloRec η rbs g) :: eval_rec_bindings_aux η rbs rbs'
   end.
 
 (* [eval_rec_bindings η rbs] transforms the bindings [rbs] into an environment
@@ -303,7 +304,7 @@ Definition eval_rec_bindings η rbs : env :=
 
 Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
   match rbs with
-  | (RecBinding g' a) :: rbs =>
+  | RecBinding g' a :: rbs =>
       if g =? g' then ret a else lookup_rec_bindings rbs g
   | [] =>
       missing_variable g
