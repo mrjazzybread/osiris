@@ -1,4 +1,4 @@
-From iris.proofmode Require Import base proofmode classes.
+From iris.proofmode Require Import base proofmode classes environments.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
@@ -17,12 +17,10 @@ From osiris.proofmode Require Import simp specifications.
 
 Lemma tac_change_goal {Σ: gFunctors} Δ (P Q : iProp Σ) :
   (P ⊢ Q) →
-  environments.envs_entails Δ P →
-  environments.envs_entails Δ Q.
+  envs_entails Δ P →
+  envs_entails Δ Q.
 Proof.
-  intros H Henv.
-  eapply coq_tactics.tac_eval; last done.
-  intros Q''; subst Q''. assumption.
+  eauto using coq_tactics.tac_eval.
 Qed.
 
 (* [lem] must be of the form (P -∗ Q). Thanks to the tactic notation it can be
@@ -67,23 +65,23 @@ Ltac wp_simp :=
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
   lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (ret _) _) =>
+  | |- envs_entails _ (wp _ _ (ret _) _) =>
       tac_change_goal (wp_ret _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (try _ _ _) _) =>
+  | |- envs_entails _ (wp _ _ (try _ _ _) _) =>
       tac_change_goal (wp_try _ _ _ _ _ _)
-  (* | |- environments.envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) => *)
+  (* | |- envs_entails _ (wp _ _ (Par (ret _) (ret _) _ _) _) => *)
   (*     tac_change_goal (wp_par_ret_ret _ _ _ _ _ _ _) *)
-  (* | |- environments.envs_entails _ (wp _ _ (Par _ (ret _) _ _) _) => *)
+  (* | |- envs_entails _ (wp _ _ (Par _ (ret _) _ _) _) => *)
   (*     tac_change_goal (wp_par_ret_right _ _ _ _ _ _ _) *)
-  (* | |- environments.envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) => *)
+  (* | |- envs_entails _ (wp _ _ (Par (ret _) _ _ _) _) => *)
   (*     tac_change_goal (wp_par_ret_left _ _ _ _ _ _ _) *)
-  | |- environments.envs_entails _ (wp _ _ (stop CEval _) _) =>
+  | |- envs_entails _ (wp _ _ (stop CEval _) _) =>
       first [ iApply wp_eval
             | tac_change_goal (wp_eval_ret _ _ _ _ _ _)
             | tac_change_goal (wp_eval _ _ _ _ _ _ _) ]
-  | |- environments.envs_entails _ (wp _ _ (choose ok ?m2) _) =>
+  | |- envs_entails _ (wp _ _ (choose ok ?m2) _) =>
       tac_change_goal (wp_choose_ok _ _ _ _)
-  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+  | |- envs_entails _ (wp _ _ (bind _ _) _) =>
       fail "[bind] is no longer simplified by [wp_step]."
   | _ =>
       fail "The goal must be a wp to apply [wp_step]."
@@ -102,7 +100,7 @@ Ltac wp_cbn_term m :=
 
 Ltac wp_cbn :=
   lazymatch goal with
-  | |- environments.envs_entails _ $ wp _ _ ?m _ =>
+  | |- envs_entails _ $ wp _ _ ?m _ =>
       let m' := wp_cbn_term m in
       first [
           progress change m with m'
@@ -113,7 +111,7 @@ Ltac wp_cbn :=
 Local Ltac wp_progress :=
   first [
       lazymatch goal with
-      | |- environments.envs_entails _ $ wp _ _ (eval _ _) _ =>
+      | |- envs_entails _ $ wp _ _ (eval _ _) _ =>
           rewrite eval_eval'; try progress wp_cbn
       end
     | wp_cbn (* TODO: better control the reduction strategy. *)
@@ -123,7 +121,7 @@ Local Ltac wp_progress :=
 
 Ltac wp_concat :=
   lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ ?m _) =>
+  | |- envs_entails _ (wp _ _ ?m _) =>
       lazymatch m with
       | bind (ret_concat ?η ?δ) ?k =>
           with_strategy transparent [ret_concat]
@@ -132,13 +130,12 @@ Ltac wp_concat :=
       | ret_concat ?η ?δ =>
           with_strategy transparent [ret_concat]
                         (change (ret_concat η δ) with (@ret env void (η ++ δ)))
-
       | bind (ret_dconcat ?δ' ?ηδ) ?k =>
           with_strategy transparent [ret_dconcat]
-                        (change (bind (ret_dconcat δ' ηδ) k) with (k (dconcat δ' ηδ)))
+            (change (bind (ret_dconcat δ' ηδ) k) with (k (dconcat δ' ηδ)))
       | ret_dconcat ?δ' ?ηδ =>
           with_strategy transparent [ret_dconcat]
-                        (change (ret_dconcat δ' ηδ) with (@ret envs void (dconcat δ' ηδ)))
+            (change (ret_dconcat δ' ηδ) with (@ret envs void (dconcat δ' ηδ)))
       | _ => fail "There is no concatenation here."
       end
   | _ => fail "There is no concatenation here."
@@ -147,10 +144,10 @@ Ltac wp_concat :=
 Local Ltac wp_setup :=
   iStartProof;
   lazymatch goal with
-  | |- environments.envs_entails ?Δ $ wp _ _ _ _ =>
+  | |- envs_entails ?Δ $ wp _ _ _ _ =>
       let Δ :=
-        eval cbn in (environments.env_to_list
-                       (environments.env_intuitionistic Δ)) in
+        eval cbn in (env_to_list
+                       (env_intuitionistic Δ)) in
       let rec lookforme l :=
         lazymatch constr:(l) with
         | [] => idtac
@@ -179,7 +176,7 @@ Ltac wp :=
     (first [
           (* 1. Try to eliminate a later or take a step. *)
           lazymatch goal with
-          | |- environments.envs_entails _ (bi_later _) => iNext
+          | |- envs_entails _ (bi_later _) => iNext
           | _ => wp_step
           end
         | (* 2. Try to simplify the proof goal using [wp_progress].*)
@@ -196,7 +193,7 @@ Ltac wp :=
    - otherwise, apply the lemma [wp_bind]. *)
 Ltac wp_bind :=
   lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (bind _ _) _) =>
+  | |- envs_entails _ (wp _ _ (bind _ _) _) =>
       first [
           (* [wp_simp] will reduce the bind if it can. *)
           try wp_simp; try iApply wp_bind
@@ -232,13 +229,13 @@ Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
 
 Local Tactic Notation "@wp" "until" "check" constr(name) :=
   lazymatch goal with
-  | |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+  | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
         | @Ret _ void _ => idtac
         | _ => fail "[wp until] cannot find the requested bindings"
         end
-  | |- environments.envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+  | |- envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
         | @Ret _ void _ => idtac
@@ -252,11 +249,11 @@ Tactic Notation "@wp" "until" constr(name) :=
       first
         [
           lazymatch goal with
-          | |- environments.envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+          | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
               idtac_or_do
                 name δ
                 (unfold_breakpoint (ret_dconcat δ η); fail)
-          | |- environments.envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+          | |- envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
               idtac_or_do
                 name δ
                 (unfold_breakpoint (ret_concat δ η); fail)
@@ -297,7 +294,7 @@ Ltac wp_enter :=
   ].
 
 Ltac wp_enter_and_abstract :=
-  lazymatch goal with |- environments.envs_entails _ (wp _ _ (call ?v _) _) =>
+  lazymatch goal with |- envs_entails _ (wp _ _ (call ?v _) _) =>
     (* First, expand [call] away. *)
     iApply wp_simp; [
       simp_enter; eapply SimpReflexive
@@ -317,10 +314,10 @@ Ltac wp_pure_postcondition' :=
 
 Ltac wp_intro_pure :=
   match goal with
-  | |- environments.envs_entails _ (@bi_forall _ val _) =>
+  | |- envs_entails _ (@bi_forall _ val _) =>
       let e := fresh "e" in
       iIntros (e)
-  | |- environments.envs_entails _ (@bi_forall _ outcome _) =>
+  | |- envs_entails _ (@bi_forall _ outcome _) =>
       let e := fresh "e" in
       iIntros (e);
       try destruct e as [e | e]; last (try (elim_void e))
@@ -328,7 +325,7 @@ Ltac wp_intro_pure :=
 
 Ltac wp_lift_ipure :=
   lazymatch goal with
-  | |- environments.envs_entails _ (bi_wand (lift_ipure _ (Res ?e)) _) =>
+  | |- envs_entails _ (bi_wand (lift_ipure _ (Res ?e)) _) =>
       let H := fresh "H" in
       iIntros "H"; iDestruct "H" as %H
   end.
@@ -340,17 +337,17 @@ Ltac wp_pure_postcondition :=
 Ltac wp_set_postcondition :=
     by
     lazymatch goal with
-    | |- environments.envs_entails _ (@ipure ?res ?exn ?Σ ?φ ?v) =>
+    | |- envs_entails _ (@ipure ?res ?exn ?Σ ?φ ?v) =>
         is_evar φ;
         let H := eval cbn in (λ R : @outcome res exn,
                                  ⌜R = @Res res exn v⌝%I : iPropI Σ)%I in
         instantiate (1 := H)
-    | |- environments.envs_entails ?Δ (?φ ?v) =>
+    | |- envs_entails ?Δ (?φ ?v) =>
         is_evar φ;
         let hyps :=
           eval cbn in (
-                     environments.env_to_list $
-                     environments.env_spatial Δ
+                     env_to_list $
+                     env_spatial Δ
                    ) in
         let H := eval cbn in (
                             match hyps with
@@ -365,7 +362,7 @@ Ltac wp_absurd :=
     lazymatch goal with
     | e: void |- _ =>
         elim_void e
-    | |- environments.envs_entails _ (@bi_forall _ void _) =>
+    | |- envs_entails _ (@bi_forall _ void _) =>
         let e := fresh "e" in
         iIntros (e); elim_void e
     end.
@@ -387,7 +384,7 @@ Ltac wp_store H :=
 
 Ltac wp_module_spec :=
   lazymatch goal with
-  | |- environments.envs_entails _  (?φ (VStruct ?η)) =>
+  | |- envs_entails _  (?φ (VStruct ?η)) =>
       iExists _; iSplit ; first  (iPureIntro; reflexivity);
       repeat first
              [ (iApply big_sepL_cons; iSplitL;
@@ -405,7 +402,7 @@ Ltac wp_module_spec :=
 Tactic Notation "oLoopPos" constr(v1) constr(v2) constr(Hinv) "with" constr(Hini) constr(Hend) :=
   let H := eval cbn in (Hini +:+ Hend) in
     lazymatch goal with
-    | |- environments.envs_entails
+    | |- envs_entails
            _ $
            wp _ _ (Stop CLoop (?η, ?x, repr ?i1, repr ?i2, ?e) ?k ?z) ?φ =>
         iApply
@@ -458,10 +455,10 @@ Tactic Notation "@oCall" "unfold" :=
   with_strategy
     transparent [call]
     ( lazymatch goal with
-      | |- environments.envs_entails ?Δ $ wp ?s ?E (call ?f ?a) ?φ =>
+      | |- envs_entails ?Δ $ wp ?s ?E (call ?f ?a) ?φ =>
           let m := eval unfold call in (call f a) in
-            change (environments.envs_entails Δ $ wp s E (call f a) φ)
-              with (environments.envs_entails Δ $ wp s E m φ)
+            change (envs_entails Δ $ wp s E (call f a) φ)
+              with (envs_entails Δ $ wp s E m φ)
       | _ => fail "[oCall] The goal is not a call"
       end); try wp.
 
@@ -580,12 +577,12 @@ Tactic Notation "oSpecify_abstract" constr(δ)
 Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1) :=
   lazymatch goal with
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
       oSpecify_assume_nonrec [spec1] [n1] [H1] δ;
       last ( oSpecify_abstract δ n1 i1 ;
              wp_continue)
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1] [n1] [H1] δ;
       last ( oSpecify_abstract δ n1 i1 ;
@@ -596,7 +593,7 @@ Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1)
        constr(n2) constr(spec2) ident(i2) constr(H2) :=
   lazymatch goal with
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2]
                              [n1; n2]
@@ -604,7 +601,7 @@ Tactic Notation "oSpecify"
                              δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 ;
              wp_continue)
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
       oSpecify_assume_nonrec [spec1; spec2]
                       [n1; n2]
@@ -619,12 +616,12 @@ Tactic Notation "oSpecify"
        constr(n2) constr(spec2) ident(i2) constr(H2)
        constr(n3) constr(spec3) ident(i3) constr(H3) :=
   lazymatch goal with
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
       oSpecify_assume_nonrec [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
              wp_continue)
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
@@ -637,7 +634,7 @@ Tactic Notation "oSpecify"
        constr(n3) constr(spec3) ident(i3) constr(H3)
        constr(n4) constr(spec4) ident(i4) constr(H4) :=
   lazymatch goal with
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_concat ?δ _) _) =>
       oSpecify_assume_nonrec [spec1; spec2; spec3; spec4]
                              [n1; n2; n3; n4]
@@ -645,7 +642,7 @@ Tactic Notation "oSpecify"
                              δ;
       last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
              wp_continue)
-  | |- environments.envs_entails
+  | |- envs_entails
          _ (wp _ _ (ret_dconcat ?δ _) _) =>
       oSpecify_assume [spec1; spec2; spec3; spec4]
                       [n1; n2; n3; n4]
@@ -668,7 +665,7 @@ Tactic Notation "oSpecify"
 
 Tactic Notation "oSpecOf" constr(name) "from" constr(hyp) "as" constr(hyp_dest) :=
   lazymatch goal with
-  | |- environments.envs_entails
+  | |- envs_entails
          ?Δ $ wp _ _
          (call ((lookup_name_total (val_as_struct_total ?v) ?n)) _) _ =>
       (* - [v] stores the value of the module,
@@ -676,8 +673,8 @@ Tactic Notation "oSpecOf" constr(name) "from" constr(hyp) "as" constr(hyp_dest) 
          The first step is to find the Iris hypothesis discussing the module
          [v]. *)
       let env := eval cbn in
-      (environments.env_lookup
-         (INamed hyp) $ environments.env_intuitionistic Δ) in
+      (env_lookup
+         (INamed hyp) $ env_intuitionistic Δ) in
       let φs :=
         lazymatch constr:(env) with
         | None => fail "Unknown hypothesis"
