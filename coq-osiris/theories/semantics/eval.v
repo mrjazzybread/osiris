@@ -336,20 +336,20 @@ Variable extend : env -> pat -> val -> micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Definition pre_extends : env -> list pat -> list val -> micro env unit :=
-  fix extends (δ : env) ps vs : micro env unit :=
-    match ps, vs with
-    | [], [] =>
-        ret δ
-    | p::ps, v::vs =>
-        δ ← extend δ p v ;
-        δ ← extends δ ps vs ;
-        ret δ
-    | _::_, [] =>
-        length_mismatch "longer tuple expected"
-    | [], _::_ =>
-        length_mismatch "shorter tuple expected"
-   end.
+Fixpoint pre_extends (δ : env) ps vs : micro env unit :=
+  let extends := pre_extends in
+  match ps, vs with
+  | [], [] =>
+      ret δ
+  | p::ps, v::vs =>
+      δ ← extend δ p v ;
+      δ ← extends δ ps vs ;
+      ret δ
+  | _::_, [] =>
+      length_mismatch "longer tuple expected"
+  | [], _::_ =>
+      length_mismatch "shorter tuple expected"
+ end.
 
 (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
@@ -361,16 +361,17 @@ Definition pre_extends : env -> list pat -> list val -> micro env unit :=
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Definition pre_extendfs : env -> list (var * pat) -> env -> micro env unit :=
-  fix extendfs (δ : env) fps fvs : micro env unit :=
-    match fps with
-    | [] => ret δ
-    | (f, p) :: fps =>
-        v ← widen (lookup_name fvs f) ;
-        δ ← extend δ p v ;
-        δ ← extendfs δ fps fvs ;
-        ret δ
-    end.
+Fixpoint pre_extendfs (δ : env) fps fvs : micro env unit :=
+  let extendfs := pre_extendfs in
+  match fps with
+  | [] =>
+      ret δ
+  | (f, p) :: fps =>
+      v ← widen (lookup_name fvs f) ;
+      δ ← extend δ p v ;
+      δ ← extendfs δ fps fvs ;
+      ret δ
+  end.
 
 End Extend.
 
