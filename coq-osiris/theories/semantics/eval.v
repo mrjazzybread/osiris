@@ -312,6 +312,15 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* This section defines the auxiliary functions that are mutually recursive
+   with [extend]. *)
+
+Section Extend.
+
+Variable extend : env -> pat -> val -> micro env unit.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [extends δ ps vs] matches the values [vs] against the patterns [ps].
 
    In case of success, the result is an extension of the environment
@@ -327,7 +336,7 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Definition pre_extends extend : env -> list pat -> list val -> micro env unit :=
+Definition pre_extends : env -> list pat -> list val -> micro env unit :=
   fix extends (δ : env) ps vs : micro env unit :=
     match ps, vs with
     | [], [] =>
@@ -342,8 +351,6 @@ Definition pre_extends extend : env -> list pat -> list val -> micro env unit :=
         length_mismatch "shorter tuple expected"
    end.
 
-Arguments pre_extends extend /.
-
 (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
 
@@ -354,7 +361,7 @@ Arguments pre_extends extend /.
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env unit :=
+Definition pre_extendfs : env -> list (var * pat) -> env -> micro env unit :=
   fix extendfs (δ : env) fps fvs : micro env unit :=
     match fps with
     | [] => ret δ
@@ -365,7 +372,7 @@ Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env uni
         ret δ
     end.
 
-Arguments pre_extendfs extend /.
+End Extend.
 
 (* [extend δ p v] matches the value [v] against the pattern [p].
 
