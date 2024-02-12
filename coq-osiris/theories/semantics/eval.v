@@ -317,7 +317,7 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
 
 Section Extend.
 
-Variable extend : env -> pat -> val -> micro env unit.
+Variable extend : env → pat → val → micro env unit.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -463,7 +463,7 @@ Definition irrefutably_extend δ p v : micro env void :=
    to the value [v] in the environment [η]. *)
 
 Definition acall η a v : micro val void :=
-  (* An anonymous function [a] is of the form [fun x -> e]. *)
+  (* An anonymous function [a] is of the form [fun x → e]. *)
   let '(AnonFun x e) := a in
   (* Extend the environment [η] with a binding of the variable [x]
      to the value [v]. *)
