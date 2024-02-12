@@ -229,7 +229,7 @@ Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
 
 Local Tactic Notation "@wp" "until" "check" constr(name) :=
   lazymatch goal with
-  | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
+  | |- envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
         | @Ret _ void _ => idtac
@@ -249,7 +249,7 @@ Tactic Notation "@wp" "until" constr(name) :=
       first
         [
           lazymatch goal with
-          | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
+          | |- envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
               idtac_or_do
                 name δ
                 (unfold_breakpoint (ret_dconcat δ η); fail)
