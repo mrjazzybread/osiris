@@ -700,24 +700,24 @@ Variable eval_mexpr : env → mexpr → micro val void.
    double environment [ηδ], yielding an updated double environment. *)
 
 Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
-    let '(η, δ) := ηδ in
-    match item with
-    | ILet bs =>
-        δ' ← eval_bindings η bs;
-        ret_dconcat δ' (η, δ)
-    | ILetRec rbs =>
-        let δ' := eval_rec_bindings η rbs in
-        ret_dconcat δ' (η, δ)
-    | IModule m me' =>
-        v ← eval_mexpr η me' ;
-        ret_dconcat [(m, v)] (η, δ)
-    | IOpen me' =>
-        δ' ← as_struct (eval_mexpr η me') ;
-        ret (δ' ++ η, δ)
-    | IInclude me' =>
-        δ' ← as_struct (eval_mexpr η me') ;
-        ret (dconcat δ' (η, δ))
-    end.
+  let '(η, δ) := ηδ in
+  match item with
+  | ILet bs =>
+      δ' ← eval_bindings η bs;
+      ret_dconcat δ' (η, δ)
+  | ILetRec rbs =>
+      let δ' := eval_rec_bindings η rbs in
+      ret_dconcat δ' (η, δ)
+  | IModule m me' =>
+      v ← eval_mexpr η me' ;
+      ret_dconcat [(m, v)] (η, δ)
+  | IOpen me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (δ' ++ η, δ)
+  | IInclude me' =>
+      δ' ← as_struct (eval_mexpr η me') ;
+      ret (dconcat δ' (η, δ))
+  end.
 
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
@@ -725,15 +725,15 @@ Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
 Fixpoint pre_eval_sitems (ηδ : envs) (items : list sitem) : micro envs void :=
   let eval_sitem := pre_eval_sitem in
   let eval_sitems := pre_eval_sitems in
-    match items with
-    | [] =>
-        ret ηδ
-    | item :: items =>
-        (* Evaluate this item *)
-        ηδ ← eval_sitem ηδ item ;
-        (* Evaluate the remaining items *)
-        eval_sitems ηδ items
-    end.
+  match items with
+  | [] =>
+      ret ηδ
+  | item :: items =>
+      (* Evaluate this item *)
+      ηδ ← eval_sitem ηδ item ;
+      (* Evaluate the remaining items *)
+      eval_sitems ηδ items
+  end.
 
 End EvalMExpr.
 
@@ -744,21 +744,21 @@ End EvalMExpr.
 
 Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : micro val void :=
   let eval_mexpr := pre_eval_mexpr in
-    let eval_sitems := pre_eval_sitems eval_mexpr in
-    match me with
-    | MUnsupported => unsupported_construct
-    | MPath π =>
-        (* A path is looked up in the environment [η]. *)
-        lookup_path η π
-    | MCoercion me c =>
-        v ← eval_mexpr η me ;
-        coerce c v
-    | MStruct items =>
-        (* evaluate the structure items, yielding an environment [δ], *)
-        '(_, δ) ← eval_sitems (η, []) items ;
-        (* and wrap it in a [VStruct] value. *)
-        ret (VStruct δ)
-    end.
+  let eval_sitems := pre_eval_sitems eval_mexpr in
+  match me with
+  | MUnsupported => unsupported_construct
+  | MPath π =>
+      (* A path is looked up in the environment [η]. *)
+      lookup_path η π
+  | MCoercion me c =>
+      v ← eval_mexpr η me ;
+      coerce c v
+  | MStruct items =>
+      (* evaluate the structure items, yielding an environment [δ], *)
+      '(_, δ) ← eval_sitems (η, []) items ;
+      (* and wrap it in a [VStruct] value. *)
+      ret (VStruct δ)
+  end.
 
 End EvalBindings.
 
@@ -787,16 +787,16 @@ Variable eval : env → expr → micro val void.
 
 Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env void :=
   let eval_bindings := pre_eval_bindings in
-    match bs with
-    | [] =>
-        ret []
-    | (Binding p e) :: bs =>
-        (* Evaluate the expression [e], yielding a value [v]. In parallel,
-           evaluate the bindings [bs], yielding an environment fragment [δ]. *)
-        '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
-         (* Match the value [v] against the pattern [p], extending [δ]. *)
-        irrefutably_extend δ p v
-    end.
+  match bs with
+  | [] =>
+      ret []
+  | (Binding p e) :: bs =>
+      (* Evaluate the expression [e], yielding a value [v]. In parallel,
+         evaluate the bindings [bs], yielding an environment fragment [δ]. *)
+      '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
+       (* Match the value [v] against the pattern [p], extending [δ]. *)
+      irrefutably_extend δ p v
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -807,13 +807,13 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env void :=
 
 Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) void :=
   let evals := pre_evals in
-    match es with
-    | [] =>
-        ret []
-    | e :: es =>
-        '(v, vs) ← par (eval η e) (evals η es) ;
-        ret (v :: vs)
-    end.
+  match es with
+  | [] =>
+      ret []
+  | e :: es =>
+      '(v, vs) ← par (eval η e) (evals η es) ;
+      ret (v :: vs)
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -827,13 +827,13 @@ Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) void :=
 
 Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) void :=
   let evalfs := pre_evalfs in
-    match fes with
-    | [] =>
-        ret []
-    | (Fexpr f e) :: fes =>
-        '(v, fvs) ← par (eval η e) (evalfs η fes) ;
-        ret ((f, v) :: fvs)
-    end.
+  match fes with
+  | [] =>
+      ret []
+  | (Fexpr f e) :: fes =>
+      '(v, fvs) ← par (eval η e) (evalfs η fes) ;
+      ret ((f, v) :: fvs)
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -841,22 +841,22 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) v
 
 Fixpoint pre_eval_match (η : env) (v : val) (bs : list branch) : micro val void :=
   let eval_match := pre_eval_match in
-    match bs with
-    | [] =>
-        (* A nonexhaustive [match] construct causes a hard failure. *)
-        (* Because the proof system forbids hard failures, the user of
-           the system will have to prove that this cannot happen, i.e.,
-           every case analysis is exhaustive. *)
-        match_failure()
-    | (Branch p e) :: bs =>
-        (* Match the value [v] against the pattern [p]. *)
-        try
-          (extend η p v)
-          (* Success: commit to this branch. Evaluate its body. *)
-          (λ δ, eval δ e)
-          (* Soft failure: abandon this branch. Try the following branches. *)
-          (λ tt, eval_match η v bs)
-    end.
+  match bs with
+  | [] =>
+      (* A nonexhaustive [match] construct causes a hard failure. *)
+      (* Because the proof system forbids hard failures, the user of
+         the system will have to prove that this cannot happen, i.e.,
+         every case analysis is exhaustive. *)
+      match_failure()
+  | (Branch p e) :: bs =>
+      (* Match the value [v] against the pattern [p]. *)
+      try
+        (extend η p v)
+        (* Success: commit to this branch. Evaluate its body. *)
+        (λ δ, eval δ e)
+        (* Soft failure: abandon this branch. Try the following branches. *)
+        (λ tt, eval_match η v bs)
+  end.
 
 End Eval.
 
