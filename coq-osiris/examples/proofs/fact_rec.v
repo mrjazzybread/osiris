@@ -82,6 +82,8 @@ Section fact_rec_example.
     let _spec v := (⌜v = # 120⌝)%I in
     let_spec v "fact_rec_5" _spec.
 
+  (* At each invocation of a factorial, we compute the if guard condition and
+    reduce the expression until arrive at the base case *)
   Local Ltac simpl_fact :=
     repeat (wp;
     rewrite ?sub_repr_repr;
@@ -93,21 +95,18 @@ Section fact_rec_example.
         [ rewrite eq_repr_repr ; [ done | representable | representable ] | ])
     end).
 
+  (* IY: For now, we're using the old [wp] tactics that we would like to revamp.. *)
   Example fact_rec_5_correct :
     ⊢ WP fact_rec_5 {{ RET v, fact_rec_5_spec v }}.
   Proof.
-    (* Proof using the old wp tactics *)
     wp; wp_continue.
 
     (* Reduce each call to [fact] *)
     simpl_fact.
 
-    wp_bind; wp_continue. (* Kind of feels random when we use [wp], [wp_bind] or
-                            [wp_continue] *)
-
-    (* We have reached the postcondition *)
-    (* Deal with [ipure] goals somehow *)
-    cbn; rewrite /fact_rec_5_spec; iPureIntro.
+    (* We have reached the postcondition; conclude *)
+    wp_bind; wp_continue;
+      cbn; rewrite /fact_rec_5_spec; iPureIntro.
 
     (* Reduce down arithmetic expr *)
     match goal with
@@ -137,7 +136,6 @@ Section fact_rec_example.
   Example fact_5_correct :
     ⊢ WP fact_5 {{ RET v, fact_5_spec v }}.
   Proof.
-    (* Proof using the old wp tactics *)
     (* TODO: Can we skip proofs for functions that are not relevant? *)
     (* Processing [fact_rec] *)
     wp; wp_continue.
@@ -145,10 +143,11 @@ Section fact_rec_example.
     (* We get to the [fact_rec] *)
 
     (* Allocate a new variable that stores the dummy function value *)
-    wp_alloc factv "[Hfact _]". (* Why do we get a [meta_token] here? *)
+    wp_alloc factv "[Hfact _]". (* IY: Why do we get a [meta_token] here? *)
 
     do 2 wp_continue.
 
+    (* We store the value of [fact0] that ties the recursive knot. *)
     wp_store "Hfact".
 
     wp_concat; wp.
@@ -156,6 +155,7 @@ Section fact_rec_example.
     (* Reduce each call to [fact_rec] *)
     simpl_fact.
 
+    (* TODO: shouldn't need to use all of [wp/wp_bind/wp_continue] *)
     wp; wp_bind; wp_continue.
 
     (* Reduce each call to [fact] *)
@@ -165,7 +165,7 @@ Section fact_rec_example.
 
     wp; wp_continue.
 
-    (* Deal with [ipure] goals somehow *)
+    (* Deal with [ipure] goals somehow (TODO: ipure goals look ugly..) *)
     cbn; rewrite /fact_rec_5_spec; iPureIntro.
 
     (* Reduce down arithmetic expr *)
