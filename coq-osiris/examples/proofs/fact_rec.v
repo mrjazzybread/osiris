@@ -75,8 +75,9 @@ Section fact_rec_example.
     (* The function does not depend on any prior function definitions *)
     eval_mexpr nil (MStruct [fact_rec; f]).
 
-  (* A simple specification of [fact_rec] :
-      That [fact_rec 5] is equivalent to 120. *)
+  (* A very simple and incomplete specification of [fact_rec] to test [WP]
+      machinery :
+      [fact_rec 5] should be equivalent to 120. *)
   Definition fact_rec_5_spec (v : val) : iProp Σ :=
     let _spec v := (⌜v = # 120⌝)%I in
     let_spec v "fact_rec_5" _spec.
@@ -176,6 +177,18 @@ Section fact_rec_example.
   Qed. (* Long QED time for some reason *)
 
 End fact_rec_example.
+
+(* Some questions remain:
+
+    To give a complete specification of both of these factorial functions, how
+    do we want to give them?
+
+   We could either:
+     (1) Give a functional specification via Gallina, showing a correspondence
+        between a Gallina specification of [factorial]
+           => the reasoning will be pushed down to [pure] for [fact_rec]
+
+     (2) Prove a simulation between [fact_rec] and [fact], ignoring store *)
 
 (* --------------------------------------------------------------------- *)
 
