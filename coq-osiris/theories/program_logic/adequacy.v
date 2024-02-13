@@ -213,3 +213,26 @@ Proof.
   split; intro;
     eauto using adequate_safe, safe_adequate_res.
 Qed.
+
+Definition osirisΣ : gFunctors :=
+  #[invΣ; gen_heap.gen_heapΣ locations.loc syntax.val].
+Global Instance subG_osirisGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
+Proof. solve_inG. Qed.
+
+(* Derived adequacy statement *)
+Theorem osiris_adequacy Σ `{!osirisGpreS Σ} {R E}
+  s (e : (language.expr (@osiris_lang R E))) σ φ :
+  (∀ `{!osirisGS Σ}, ⊢ WP e @ s; ⊤ {{ v, ⌜φ v⌝ }}) →
+  adequate s e σ (λ v _, φ v).
+Proof.
+  intros Hwp.
+  apply (wp_adequacy_gen HasNoLc Σ _).
+  iIntros (??).
+  iMod (gen_heap.gen_heap_init σ) as (?) "[Ah _]".
+
+  iDestruct (Hwp (@OsirisGS _ _ _ _)) as "Hwp".
+  iModIntro.
+  iExists (λ σ ns, store_interp σ)%I.
+  iExists (λ v, True%I). iFrame.
+  iApply "Hwp".
+Qed.

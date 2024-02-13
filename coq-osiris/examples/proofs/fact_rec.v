@@ -6,8 +6,6 @@ From osiris.examples Require Import og_fact_rec.
 
 Open Scope nat_scope.
 
-Context `{!osirisGS Σ}.
-
 (** * General utility functions *)
 
 (* Thread through a default value for the [None] case. *)
@@ -48,7 +46,7 @@ Definition eval η s := (eval_mexpr η (MStruct [s])).
 
 (* Lifting a specification over a specific let binding identified by [name]
     to a specification over [mexprs] *)
-Definition let_spec (module_val : val) (name : var) (spec : val -> iProp Σ)
+Definition let_spec {Σ} (module_val : val) (name : var) (spec : val -> iProp Σ)
   : iProp Σ :=
   (* Find the let binding in the module value;
       If not found, the postcondition does not hold.
@@ -62,114 +60,143 @@ Definition let_spec (module_val : val) (name : var) (spec : val -> iProp Σ)
   (* The module value must be a [VStruct]. *)
   match module_val with | VStruct l => _let_spec l | _ => False end.
 
-(** *Factorial specification and proof *)
+Section fact_rec_example.
+  Context `{!osirisGS Σ}.
+
+  (** *Factorial specification and proof *)
+
+  (* --------------------------------------------------------------------- *)
+  (* First, let's specify the pure recursive implementation of factorial. *)
+
+  (* Set up for the [fact_rec_5] : a lookup in the [main] module *)
+  Definition fact_rec_5 :=
+    let fact_rec := lookup_let_d __main "fact_rec" in
+    let f := lookup_let_d __main "fact_rec_5" in
+    (* The function does not depend on any prior function definitions *)
+    eval_mexpr nil (MStruct [fact_rec; f]).
+
+  (* A simple specification of [fact_rec] :
+      That [fact_rec 5] is equivalent to 120. *)
+  Definition fact_rec_5_spec (v : val) : iProp Σ :=
+    let _spec v := (⌜v = # 120⌝)%I in
+    let_spec v "fact_rec_5" _spec.
+
+  Local Ltac simpl_fact :=
+    repeat (wp;
+    rewrite ?sub_repr_repr;
+    match goal with
+      | |- context [if ?b then _ else _] =>
+        try (assert (b = false) as ->;
+        [ rewrite eq_repr_repr ; [ done | representable | representable ] | ]);
+        try (assert (b = true) as ->;
+        [ rewrite eq_repr_repr ; [ done | representable | representable ] | ])
+    end).
+
+  Example fact_rec_5_correct :
+    ⊢ WP fact_rec_5 {{ RET v, fact_rec_5_spec v }}.
+  Proof.
+    (* Proof using the old wp tactics *)
+    wp; wp_continue.
+
+    (* Reduce each call to [fact] *)
+    simpl_fact.
+
+    wp_bind; wp_continue. (* Kind of feels random when we use [wp], [wp_bind] or
+                            [wp_continue] *)
+
+    (* We have reached the postcondition *)
+    (* Deal with [ipure] goals somehow *)
+    cbn; rewrite /fact_rec_5_spec; iPureIntro.
+
+    (* Reduce down arithmetic expr *)
+    match goal with
+      | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
+    end.
+    { rewrite !mul_repr_repr; f_equiv; lia. }
+
+    done.
+  Qed.
+
+  (* --------------------------------------------------------------------- *)
+  (* Next is the specification of the stateful implementation of factorial. *)
+
+  (* Set up for the [fact_5] : a lookup in the [main] module *)
+  Definition fact_5 :=
+    (* Either we would like to:
+        (1) get every dependency, in order... (TODO: clean up) or
+        (2) generate appropriate subgoals per specification? *)
+    eval_mexpr nil __main.
+
+  (* A simple specification of [fact] :
+      That [fact 5] is equivalent to 120. *)
+  Definition fact_5_spec (v : val) : iProp Σ :=
+    let _spec v := (⌜v = # 120⌝)%I in
+    let_spec v "fact_5" _spec.
+
+  Example fact_5_correct :
+    ⊢ WP fact_5 {{ RET v, fact_5_spec v }}.
+  Proof.
+    (* Proof using the old wp tactics *)
+    (* TODO: Can we skip proofs for functions that are not relevant? *)
+    (* Processing [fact_rec] *)
+    wp; wp_continue.
+
+    (* We get to the [fact_rec] *)
+
+    (* Allocate a new variable that stores the dummy function value *)
+    wp_alloc factv "[Hfact _]". (* Why do we get a [meta_token] here? *)
+
+    do 2 wp_continue.
+
+    wp_store "Hfact".
+
+    wp_concat; wp.
+
+    (* Reduce each call to [fact_rec] *)
+    simpl_fact.
+
+    wp; wp_bind; wp_continue.
+
+    (* Reduce each call to [fact] *)
+    repeat (simpl_fact; wp; wp_load "Hfact").
+
+    simpl_fact.
+
+    wp; wp_continue.
+
+    (* Deal with [ipure] goals somehow *)
+    cbn; rewrite /fact_rec_5_spec; iPureIntro.
+
+    (* Reduce down arithmetic expr *)
+    match goal with
+      | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
+    end.
+    { rewrite !mul_repr_repr; f_equiv. lia. }
+    done.
+  Qed. (* Long QED time for some reason *)
+
+End fact_rec_example.
 
 (* --------------------------------------------------------------------- *)
-(* First, let's specify the pure recursive implementation of factorial. *)
 
-(* Set up for the [fact_rec_5] : a lookup in the [main] module *)
-Definition fact_rec_5 :=
-  let fact_rec := lookup_let_d __main "fact_rec" in
-  let f := lookup_let_d __main "fact_rec_5" in
-  (* The function does not depend on any prior function definitions *)
-  eval_mexpr nil (MStruct [fact_rec; f]).
+From iris Require Import program_logic.adequacy.
+From osiris Require Import program_logic.adequacy.
 
-(* A simple specification of [fact_rec] :
-    That [fact_rec 5] is equivalent to 120. *)
-Definition fact_rec_5_spec (v : val) : iProp Σ :=
-  let _spec v := (⌜v = # 120⌝)%I in
-  let_spec v "fact_rec_5" _spec.
+(** * Adequacy sanity check
 
-Local Ltac simpl_fact :=
-  repeat (wp;
-  rewrite ?sub_repr_repr;
-  match goal with
-    | |- context [if ?b then _ else _] =>
-      try (assert (b = false) as ->;
-      [ rewrite eq_repr_repr ; [ done | representable | representable ] | ]);
-      try (assert (b = true) as ->;
-      [ rewrite eq_repr_repr ; [ done | representable | representable ] | ])
-  end).
+  Instantiating concrete example program for adequacy
 
-Lemma fact_rec_5_correct :
-  ⊢ WP fact_rec_5 {{ RET v, fact_rec_5_spec v }}.
+  Following instantiation of a concrete program in heap_lang; see
+  https://gitlab.mpi-sws.org/iris/iris/-/blob/master/tests/one_shot.v?ref_type=heads *)
+
+Lemma client_adequate σ :
+  adequate NotStuck fact_5 σ (λ v _, True).
 Proof.
-  (* Proof using the old wp tactics *)
-  wp; wp_continue.
-
-  (* Reduce each call to [fact] *)
-  simpl_fact.
-
-  wp_bind; wp_continue. (* Kind of feels random when we use [wp], [wp_bind] or
-                           [wp_continue] *)
-
-  (* We have reached the postcondition *)
-  (* Deal with [ipure] goals somehow *)
-  cbn; rewrite /fact_rec_5_spec; iPureIntro.
-
-  (* Reduce down arithmetic expr *)
-  match goal with
-    | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
-  end.
-  { rewrite !mul_repr_repr; f_equiv; lia. }
-
-  done.
+  apply (osiris_adequacy osirisΣ)=> ?.
+  iApply wp_mono; last iApply fact_5_correct; iIntros; done.
 Qed.
 
-(* --------------------------------------------------------------------- *)
-(* Next is the specification of the stateful implementation of factorial. *)
+(* Print Assumptions client_adequate. *)
+(* Some assumptions about integers, funext and eqdep.
+    Free of iris-related assumptions. *)
 
-(* Set up for the [fact_5] : a lookup in the [main] module *)
-Definition fact_5 :=
-  (* Either we would like to:
-      (1) get every dependency, in order... (TODO: clean up) or
-      (2) generate appropriate subgoals per specification? *)
-  eval_mexpr nil __main.
-
-(* A simple specification of [fact] :
-    That [fact 5] is equivalent to 120. *)
-Definition fact_5_spec (v : val) : iProp Σ :=
-  let _spec v := (⌜v = # 120⌝)%I in
-  let_spec v "fact_5" _spec.
-
-Lemma fact_5_correct :
-  ⊢ WP fact_5 {{ RET v, fact_5_spec v }}.
-Proof.
-  (* Proof using the old wp tactics *)
-  (* TODO: Can we skip proofs for functions that are not relevant? *)
-  (* Processing [fact_rec] *)
-  wp; wp_continue.
-
-  (* We get to the [fact] *)
-
-  (* Allocate a new variable that stores the dummy function value *)
-  wp_alloc factv "[Hfact _]". (* Why do we get a [meta_token] here? *)
-
-  do 2 wp_continue.
-
-  wp_store "Hfact".
-
-  wp_concat; wp.
-
-  (* Reduce each call to [fact_rec] *)
-  simpl_fact.
-
-  wp; wp_bind; wp_continue.
-
-  (* Reduce each call to [fact] *)
-  repeat (simpl_fact; wp; wp_load "Hfact").
-
-  simpl_fact.
-
-  wp; wp_continue.
-
-  (* Deal with [ipure] goals somehow *)
-  cbn; rewrite /fact_rec_5_spec; iPureIntro.
-
-  (* Reduce down arithmetic expr *)
-  match goal with
-    | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
-  end.
-  { rewrite !mul_repr_repr; f_equiv. lia. }
-  done.
-Qed. (* Long QED time for some reason *)
