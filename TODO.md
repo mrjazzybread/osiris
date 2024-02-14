@@ -48,6 +48,9 @@
   modified to unfold a decoration at the root if it can make progress
   afterwards.
 
+* Rework module specifications and establish how [pure] and [wp] proofs work
+  on [eval_mexpr].
+
 * Module paths whose specification is known are currently simplified by [simp].
   However, it required to alter [simp1_inspect]. Replace this hack by hints.
 
@@ -79,24 +82,6 @@
   transparent and control whether each closure is transparent or opaque.
   We should also decide whether each definition in `Stdlib` is opaque
   or transparent, and document these decisions.
-
-* It is painful to be stopped by `ret_concat` or `ret_dconcat`
-  when there is no interesting specification to provide
-  and one just wishes to continue.
-
-* Most of the file `tc_simplifications.v` should go away, I think (?).
-  => simplication typeclasses have been removed,
-     specifications of pure functions should use simp/pure.
-  The tactic `encode` should be used to solve goals of the form `v = #x`.
-  Function arguments and function results should always be encoded.
-
-* Once the above is done,
-  remove the use of
-  `wp_par_ret_ret`,
-  `wp_par_ret_left`,
-  `wp_par_ret_right`
-  in the tactics.
-  (Then, remove these lemmas or make them local.)
 
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
@@ -136,9 +121,6 @@
   In the first approach, the judgement `safe` suffices.
   In the second approach, the judgement `safe2` may be needed.
   Which approach do we wish to favor?
-
-* Use Coq lists, if possible, instead of custom `Nil` and `Cons`
-  constructors in patterns, values, etc.
 
 * Write a `help` tactic that analyzes the goal, explains its shape,
   explains why we are here and what likely is the next thing to do.
