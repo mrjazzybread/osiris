@@ -356,6 +356,8 @@
   + Must allow spurious CAS failures
     or restrict CAS to simple values (VBool, VInt, VLoc);
     what does HeapLang do?
+  + Should we distinguish between threads and domains,
+    and model [the subtle semantics of safe points](https://discuss.ocaml.org/t/using-poll-error-attribute-to-implement-systhread-safe-data-structures/12804)?
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
