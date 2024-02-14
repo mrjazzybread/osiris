@@ -99,14 +99,14 @@ Section fact_rec_example.
   Example fact_rec_5_correct :
     ⊢ WP fact_rec_5 {{ RET v, fact_rec_5_spec v }}.
   Proof.
-    wp; wp_continue.
+    wp.
 
     (* Reduce each call to [fact] *)
     simpl_fact.
 
     (* We have reached the postcondition; conclude *)
-    wp_bind; wp_continue;
-      cbn; rewrite /fact_rec_5_spec; iPureIntro.
+    wp_bind.
+    cbn; rewrite /fact_rec_5_spec; iPureIntro.
 
     (* Reduce down arithmetic expr *)
     match goal with
@@ -138,32 +138,30 @@ Section fact_rec_example.
   Proof.
     (* TODO: Can we skip proofs for functions that are not relevant? *)
     (* Processing [fact_rec] *)
-    wp; wp_continue.
+    wp.
 
     (* We get to the [fact_rec] *)
 
     (* Allocate a new variable that stores the dummy function value *)
     wp_alloc factv "[Hfact _]". (* IY: Why do we get a [meta_token] here? *)
 
-    do 2 wp_continue.
+    wp.
 
     (* We store the value of [fact0] that ties the recursive knot. *)
     wp_store "Hfact".
-
-    wp_concat; wp.
 
     (* Reduce each call to [fact_rec] *)
     simpl_fact.
 
     (* TODO: shouldn't need to use all of [wp/wp_bind/wp_continue] *)
-    wp; wp_bind; wp_continue.
+    wp_bind.
 
     (* Reduce each call to [fact] *)
     repeat (simpl_fact; wp; wp_load "Hfact").
 
     simpl_fact.
 
-    wp; wp_continue.
+    wp_bind; cbn; wp.
 
     (* Deal with [ipure] goals somehow (TODO: ipure goals look ugly..) *)
     cbn; rewrite /fact_rec_5_spec; iPureIntro.
@@ -212,4 +210,3 @@ Qed.
 (* Print Assumptions client_adequate. *)
 (* Some assumptions about integers, funext and eqdep.
     Free of iris-related assumptions. *)
-
