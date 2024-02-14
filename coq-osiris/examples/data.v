@@ -35,5 +35,5 @@ Local Transparent structural_equality_error.
 Lemma main η :
   simp (eval_mexpr η __main) crash.
 Proof.
-  simp. simp_continue. simp_continue.
+  simp.
 Qed.

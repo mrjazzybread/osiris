@@ -60,7 +60,15 @@ Tactic Notation "tac_change_goal" uconstr(lem) := (tac_change_goal lem).
          only if we are able to silently solve its first premise. *)
 
 Ltac wp_simp :=
-  iApply wp_simp; first by simp_really.
+  lazymatch goal with
+  | |- envs_entails _ $ wp _ _ ?m _ =>
+      iApply wp_simp; first solve [simp];
+      lazymatch goal with
+      | |- envs_entails _ $ wp _ _ m _ =>
+          fail
+      | _ => idtac
+      end
+  end.
 
 Ltac wp_step :=
   (* The lazymatch stills misses a few cases and should be completed. *)
@@ -87,11 +95,11 @@ Ltac wp_step :=
       fail "The goal must be a wp to apply [wp_step]."
   end.
 
-Ltac wp_cbn_term m :=
+Ltac cbn_term m :=
   lazymatch m with
   | Par ?m1 ?m2 ?k ?z =>
-      let m'1 := wp_cbn_term m1 in
-      let m'2 := wp_cbn_term m2 in
+      let m'1 := cbn_term m1 in
+      let m'2 := cbn_term m2 in
       uconstr:(Par m'1 m'2 k z)
   | Stop ?c ?x ?k ?z =>
       let x' := eval cbn in x in uconstr:(Stop c x' k z)
@@ -101,7 +109,7 @@ Ltac wp_cbn_term m :=
 Ltac wp_cbn :=
   lazymatch goal with
   | |- envs_entails _ $ wp _ _ ?m _ =>
-      let m' := wp_cbn_term m in
+      let m' := cbn_term m in
       first [
           progress change m with m'
         | fail "[wp_cbn] No progress to be made." ]
@@ -110,36 +118,14 @@ Ltac wp_cbn :=
 
 Local Ltac wp_progress :=
   first [
-      lazymatch goal with
-      | |- envs_entails _ $ wp _ _ (eval _ _) _ =>
+      wp_simp
+    | lazymatch goal with
+      | |- envs_entails _ $ wp _ _ (eval _ ?e) _ =>
           rewrite eval_eval'; try progress wp_cbn
       end
     | wp_cbn (* TODO: better control the reduction strategy. *)
-    | progress wp_simp
     | cbn beta
     ].
-
-Ltac wp_concat :=
-  lazymatch goal with
-  | |- envs_entails _ (wp _ _ ?m _) =>
-      lazymatch m with
-      | bind (ret_concat ?η ?δ) ?k =>
-          with_strategy transparent [ret_concat]
-                        (change (bind (ret_concat η δ) k) with (k (η ++ δ)))
-          (* TODO should use [unfold_breakpoint]? *)
-      | ret_concat ?η ?δ =>
-          with_strategy transparent [ret_concat]
-                        (change (ret_concat η δ) with (@ret env void (η ++ δ)))
-      | bind (ret_dconcat ?δ' ?ηδ) ?k =>
-          with_strategy transparent [ret_dconcat]
-            (change (bind (ret_dconcat δ' ηδ) k) with (k (dconcat δ' ηδ)))
-      | ret_dconcat ?δ' ?ηδ =>
-          with_strategy transparent [ret_dconcat]
-            (change (ret_dconcat δ' ηδ) with (@ret envs void (dconcat δ' ηδ)))
-      | _ => fail "There is no concatenation here."
-      end
-  | _ => fail "There is no concatenation here."
-  end.
 
 Local Ltac wp_setup :=
   iStartProof;
@@ -172,20 +158,23 @@ Local Ltac wp_setup :=
 
 Ltac wp :=
   wp_setup;
+  lazymatch goal with
+  | |- envs_entails _ $ wp _ _ (eval (_ ++ _) _) _ =>
+      simpl app
+  | _ => idtac
+  end;
   repeat
     (first [
-          (* 1. Try to eliminate a later or take a step. *)
-          lazymatch goal with
-          | |- envs_entails _ (bi_later _) => iNext
-          | _ => wp_step
-          end
-        | (* 2. Try to simplify the proof goal using [wp_progress].*)
-          progress wp_progress
-        | (* Otherwise, do nothing ([repeat] will stop). *)
-          idtac
+         (* 1. Try to eliminate a later or take a step. *)
+         lazymatch goal with
+         | |- envs_entails _ $ wp _ _ (eval (_ ++ _) _) _ =>
+             idtac
+         | |- envs_entails _ (bi_later _) => iNext
+         | _ => wp_step
+         end
+       | (* 2. Try to simplify the proof goal using [wp_progress].*)
+         wp_progress
     ]).
-  (* ;normalize.
-    (* TODO [wp] should NOT normalize the entire goal *) *)
 
 (* [wp_bind] can be applied when the goal is of the form [WP bind m m' {{ _ }}].
    It bahaves differently depending on the term [m]:
@@ -203,22 +192,6 @@ Ltac wp_bind :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* We want symbolic execution to stop at breakpoints, that is, when the
-   environment is extended with new bindings. This gives the user a chance
-   to prove specifications about these bindings using [wp_specify]. *)
-
-(* The tactic [wp_continue] moves past a breakpoint and invokes [wp]
-   to continue simplifying the goal. *)
-
-(* The tactic [simp] applies [rewrite ?bind_bind], which ensures that
-   the breakpoint of interest cannot be buried under several [bind]s. *)
-
-Ltac wp_continue :=
-  wp_concat;
-  wp.
-
-(* -------------------------------------------------------------------------- *)
-
 (* TODO: get [wp until check _] to use [idtac_or_do]. *)
 Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
   let is_in := eval cbn in (lookup_name δ name) in
@@ -229,13 +202,13 @@ Local Tactic Notation "idtac_or_do" constr(name) constr(δ) ltac(t) :=
 
 Local Tactic Notation "@wp" "until" "check" constr(name) :=
   lazymatch goal with
-  | |- envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+  | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
         | @Ret _ void _ => idtac
         | _ => fail "[wp until] cannot find the requested bindings"
         end
-  | |- envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+  | |- envs_entails _ $ wp _ _ (ret (?δ ++ ?η)) _ =>
       let is_in := eval cbn in (lookup_name δ name) in
         lazymatch is_in with
         | @Ret _ void _ => idtac
@@ -249,14 +222,14 @@ Tactic Notation "@wp" "until" constr(name) :=
       first
         [
           lazymatch goal with
-          | |- envs_entails _ $ wp _ _ (ret_dconcat ?δ ?η) _ =>
+          | |- envs_entails _ $ wp _ _ (ret (?δ ++ _, ?δ ++ _)) _ =>
               idtac_or_do
                 name δ
-                (unfold_breakpoint (ret_dconcat δ η); fail)
-          | |- envs_entails _ $ wp _ _ (ret_concat ?δ ?η) _ =>
+                wp
+          | |- envs_entails _ $ wp _ _ (ret (?δ ++ ?η)) _ =>
               idtac_or_do
                 name δ
-                (unfold_breakpoint (ret_concat δ η); fail)
+                wp
           end
         | wp
     ]).
@@ -578,15 +551,13 @@ Tactic Notation "oSpecify"
        constr(n1) constr(spec1) ident(i1) constr(H1) :=
   lazymatch goal with
   | |- envs_entails
-         _ (wp _ _ (ret_concat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _) _) _) =>
       oSpecify_assume_nonrec [spec1] [n1] [H1] δ;
-      last ( oSpecify_abstract δ n1 i1 ;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 )
   | |- envs_entails
-         _ (wp _ _ (ret_dconcat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _, ?δ ++ _) _) _) =>
       oSpecify_assume [spec1] [n1] [H1] δ;
-      last ( oSpecify_abstract δ n1 i1 ;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 )
   | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
@@ -594,21 +565,19 @@ Tactic Notation "oSpecify"
        constr(n2) constr(spec2) ident(i2) constr(H2) :=
   lazymatch goal with
   | |- envs_entails
-         _ (wp _ _ (ret_dconcat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _, ?δ ++ _) _) _) =>
       oSpecify_assume [spec1; spec2]
                              [n1; n2]
                              [H1; H2]
                              δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 ;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 )
   | |- envs_entails
-         _ (wp _ _ (ret_concat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _) _) _) =>
       oSpecify_assume_nonrec [spec1; spec2]
                       [n1; n2]
                       [H1; H2]
                       δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 ;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 )
   | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
@@ -617,15 +586,13 @@ Tactic Notation "oSpecify"
        constr(n3) constr(spec3) ident(i3) constr(H3) :=
   lazymatch goal with
   | |- envs_entails
-         _ (wp _ _ (ret_concat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _) _) _) =>
       oSpecify_assume_nonrec [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 )
   | |- envs_entails
-         _ (wp _ _ (ret_dconcat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _, ?δ ++ _) _) _) =>
       oSpecify_assume [spec1; spec2; spec3] [n1; n2; n3] [H1; H2; H3] δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 )
   | _ => fail "[oSpecify] only works on environment extension."
   end.
 Tactic Notation "oSpecify"
@@ -635,21 +602,19 @@ Tactic Notation "oSpecify"
        constr(n4) constr(spec4) ident(i4) constr(H4) :=
   lazymatch goal with
   | |- envs_entails
-         _ (wp _ _ (ret_concat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _) _) _) =>
       oSpecify_assume_nonrec [spec1; spec2; spec3; spec4]
                              [n1; n2; n3; n4]
                              [H1; H2; H3; H4]
                              δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4 )
   | |- envs_entails
-         _ (wp _ _ (ret_dconcat ?δ _) _) =>
+         _ (wp _ _ (eval (?δ ++ _, ?δ ++ _) _) _) =>
       oSpecify_assume [spec1; spec2; spec3; spec4]
                       [n1; n2; n3; n4]
                       [H1; H2; H3; H4]
                       δ;
-      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4;
-             wp_continue)
+      last ( oSpecify_abstract δ n1 i1 n2 i2 n3 i3 n4 i4 )
   | _ => fail "[oSpecify] only works on environment extension."
   end.
 
@@ -766,7 +731,7 @@ Tactic Notation "oModule" ident(v1) ident(v2) ident(v3) ident(v4) :=
    For some (unknown) reason, it is not possible to overload [oSpecify] with
    four new notations, even if the arities differ from the previous notations.
  *)
-(*
+
 From iris.proofmode Require Import string_ident.
 
 Tactic Notation "o_specify"
@@ -806,7 +771,6 @@ Tactic Notation "o_specify"
                                 oSpecify n1 spec1 i1 H1
                                          n2 spec2 i2 H2
                                          n3 spec3 i3 H3))).
- *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -819,7 +783,7 @@ Tactic Notation "oSpecify"
   wp until n1 ! ;
   oSpecify n1 spec1 i1 H1.
 
-Tactic Notation "wp" "skip" constr(n1) := wp until n1 ! ; wp_continue.
+Tactic Notation "wp" "skip" constr(n1) := wp until n1 ! ; wp.
 Tactic Notation "wp" "skip" constr(n1) constr(n2) := wp skip n1 ; wp skip n2.
 Tactic Notation "wp" "skip" constr(n1) constr(n2) constr(n3) :=
   wp skip n1 ; wp skip n2 n3.

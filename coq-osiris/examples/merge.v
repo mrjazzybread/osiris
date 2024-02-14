@@ -163,7 +163,6 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 Section PureProofs.
 
-Transparent ret_concat.
 Opaque encode.
 
 Class CRel1 (A X : Type) `{Encode A, Encode X}
@@ -460,26 +459,6 @@ Proof.
     reflexivity. }
   Qed.
 
-Lemma Merge__spec':
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  pure (eval_mexpr η __main)
-    (is_module_with_pspecs [("merge", merge_spec);
-                        ("split", split_spec);
-                        ("merge_sort", mergesort_spec)]).
-Proof.
-  intros.
-  unfold __main. cbn; rewrite !bind_bind. (* Todo: make this unnecessary *)
-  pure_specify "merge" merge_spec. { apply Merge_spec'. }
-  intros merge ?; pure_continue.
-  pure_specify "split" split_spec. { apply Split_spec'. }
-  intros split ?; pure_continue.
-  pure_specify "merge_sort" mergesort_spec. { apply MergeSort_spec'; eauto. }
-  intros mergesort ?; pure_continue.
-  simpl. tauto.
-Qed.
-
-Transparent ret_dconcat.
-
 Lemma Merge__spec'2:
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
   pure (eval_mexpr η __main)
@@ -499,8 +478,6 @@ Proof.
     eauto using Merge_spec'.
 Qed.
 
-
-Opaque ret_concat.
 Transparent encode.
 
 End PureProofs.
@@ -528,17 +505,19 @@ Proof.
   rewrite lt_repr_repr; auto.
   (* Reason by cases on the comparison of the heads *)
   destruct (h2 <? h1) eqn:branch; simpl.
-  { (* Case: h2 < h1 *) Transparent app. simpl.
-    pure_execute.
+  { (* Case: h2 < h1 *)
+    repeat (rewrite eval_eval'; simpl).
+    pure1. rewrite <- !bind_bind, !bind_bind.
     (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
     eapply pure_bind_binary.
-    { apply (IH (h1::t1) t2).
+    { eapply pure_consequence. apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
       (* Subgoal: (h1::t1) and t2 satisfy the merge's precondition *)
       { unfold merge_pre; auto. }
       (* Subgoal: justify the induction: show [(h1::t1, t2) < (h1::t1, h2::t2)] *)
-      { simpl; auto with arith. } }
+      { simpl; auto with arith. }
+      intro; simpl; intros. eassumption. }
     unfold merge_post; cbn; intros l' (? & ?).
     (* Establish the postcondition *)
     eapply pure_ret; first solve [encode]. split.
@@ -551,7 +530,7 @@ Proof.
       change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
       apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
-    pure_execute.
+    pure1. rewrite <- !bind_bind, !bind_bind.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
     eapply pure_bind_binary.
     { apply (IH t1 (h2::t2)).
@@ -583,9 +562,11 @@ Proof.
   { by simpl. }
   (* Case: a::b::l *)
   { (* Apply the induction hypothesis *)
+    repeat (rewrite eval_eval'; simpl); pure1.
+    rewrite <- !bind_bind, !bind_bind.
     eapply pure_bind; first apply IH; auto with arith.
     intros [l1 l2] (Hl1&Hl2&Hperm).
-    pure_execute.
+    pure1.
     (* Establish the three conjuncts of the postcondition *)
     unfold split_post; simpl in *; split; last split.
     { (* Subgoal: the length of l1 is half the length of l *)
@@ -616,13 +597,14 @@ Proof.
   (* Case: [a] *)
   { auto. }
   (* Case: a::b::l *)
+  repeat (rewrite eval_eval'; simpl); pure1.
   unfold split_post; intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
   (* Assert that the sublists l1 and l2 satisfy the precondition *)
   assert (Forall representable l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall representable l2) as Hrep2 by
         (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
-  pure_continue.
+  pure1.
   (* Apply the induction hypothesis on l1 *)
   eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l1 *)
@@ -630,7 +612,7 @@ Proof.
   { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
     by apply div2_lt_succ. }
   simpl; intros sl1 (Hsl1 & Hpsl1).
-  pure_continue.
+  pure1.
   (* Apply the induction hypothesis on l2*)
   eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l2 *)
@@ -638,7 +620,7 @@ Proof.
   { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
-  pure_continue.
+  pure1.
   eapply pure_bind.
   (* Use the fact that [merge] satisfies its specification *)
   { eapply _merge_spec with (l2:=sl2); unfold merge_pre; eauto.
@@ -658,7 +640,6 @@ Proof.
     rewrite_permutation l'.
     rewrite_permutation sl1.
     by rewrite_permutation sl2. }
-  Unshelve. apply nat. intros. apply Crash.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -672,17 +653,6 @@ Lemma Merge__spec:
                         ("split", split_spec);
                         ("merge_sort", mergesort_spec)]).
 Proof.
-  intros.
-  pure1.
-  pure_specify "merge" merge_spec.
-  { apply Merge_spec. } intros merge _spec1.
-  pure_continue.
-  pure_specify "split" split_spec.
-  { apply Split_spec. } intros split _spec2.
-  pure_continue.
-  pure_specify "merge_sort" mergesort_spec.
-  { apply MergeSort_spec; eauto. } intros mergesort _spec3.
-  repeat pure_continue.
-  (* Postcondition *)
-  simpl. auto.
+  intros. pure1. simpl.
+  eauto 9 using MergeSort_spec, Split_spec, Merge_spec.
 Qed.

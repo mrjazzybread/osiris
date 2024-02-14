@@ -195,19 +195,9 @@ Ltac pure_enter :=
   pure1_call_step;
   pure1.
 
-Ltac pure_continue :=
-  lazymatch goal with
-  | |- pure ?m _ =>
-      unfold_breakpoint m;
-      pure1
-  | _ =>
-      fail "[pure_continue] expects a goal of the form [pure _ _]"
-  end.
-
 Ltac pure_specify x φ :=
   lazymatch goal with
-  | |- pure (bind (ret_dconcat ?δ _) _) _ =>
-      (* is this reduction too strong? *)
+  | |- pure (bind (ret (?δ ++ _, ?δ ++ _)) _) _ =>
       let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in
@@ -296,9 +286,6 @@ Ltac SimpParRet :=
 
 Ltac pureParRet :=
   eapply pure_simp; first SimpParRet; simpl.
-
-Ltac pure_execute :=
-  repeat (simpl; (pure_evaluate || pure_continue)); repeat pureParRet.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -37,30 +37,6 @@ Ltac force_unfold_at_1 x :=
 Ltac force_unfold x :=
   with_strategy transparent [x] unfold x.
 
-(* [unfold_breakpoint m] determines whether the computation [m] is stopped
-   at a "breakpoint" and if so, performs an unfolding so as to move the
-   goal past the breakpoint.
-
-   Currently, a breakpoint is a computation that is blocked because of an
-   invocation of [ret_concat] or [ret_dconcat]. We allow this invocation
-   to appear either at the root or in the left-hand side of [bind]. We do
-   not need to look under multiple [bind]s because a simplified goal does
-   not contain left-nested [bind]s. *)
-
-Ltac unfold_breakpoint m :=
-  lazymatch m with
-  | ret_concat _ _ =>
-      force_unfold_at_1 ret_concat
-  | ret_dconcat _ _ =>
-      force_unfold_at_1 ret_dconcat
-  | bind (ret_concat _ _) _ =>
-      force_unfold_at_1 ret_concat
-  | bind (ret_dconcat _ _) _ =>
-      force_unfold_at_1 ret_dconcat
-  | _ =>
-      fail "Not at a breakpoint" (* TODO improve message *)
-  end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas are reasoning rules for goals of the form [simp _ _]. *)
@@ -126,6 +102,65 @@ Lemma simp_reflexive_ret {A E} (m1 : micro A E) a2 :
   simp m1 (ret a2).
 Proof.
   intros. subst. eauto with simp.
+Qed.
+
+Lemma advance_simp_let η δ bs e m2 :
+  simp (eval_bindings η bs) (ret δ) ->
+  simp (eval (δ ++ η) e) m2 ->
+  simp (eval η (ELet bs e)) m2.
+Proof.
+  intros. rewrite eval_eval'; simpl.
+  eapply prove_simp_bind; eauto.
+Qed.
+
+Lemma advance_simp_letrec η δ rbs e m2 :
+  eval_rec_bindings η rbs = δ ->
+  simp (eval (δ ++ η) e) m2 ->
+  simp (eval η (ELetRec rbs e)) m2.
+Proof.
+  intros Hevalrb ?.
+  rewrite eval_eval'; simpl.
+  by rewrite Hevalrb.
+Qed.
+
+Lemma advance_simp_ilet η1 η2 δ bs sitems m2 :
+  simp (eval_bindings η1 bs) (ret δ) ->
+  simp (eval_sitems (δ ++ η1, δ ++ η2) sitems) m2 ->
+  simp (eval_sitems (η1, η2) ((ILet bs) :: sitems)) m2.
+Proof.
+  intros.
+  eapply prove_simp_bind; last eassumption.
+  eapply prove_simp_bind; [ eassumption | apply SimpReflexive ].
+Qed.
+
+Lemma advance_simp_iletrec η1 η2 δ rbs sitems m2 :
+  eval_rec_bindings η1 rbs = δ ->
+  simp (eval_sitems (δ ++ η1, δ ++ η2) sitems) m2 ->
+  simp (eval_sitems (η1, η2) ((ILetRec rbs) :: sitems)) m2.
+Proof.
+  intros Heq ?.
+  eapply prove_simp_bind; last eassumption.
+  simpl; rewrite Heq; apply SimpReflexive.
+Qed.
+
+Lemma advance_simp_imodule η1 η2 m v me sitems m2 :
+  simp (eval_mexpr η1 me) (ret v) ->
+  simp (eval_sitems ([(m, v)] ++ η1, [(m, v)] ++ η2) sitems) m2 ->
+  simp (eval_sitems (η1, η2) ((IModule m me) :: sitems)) m2.
+Proof.
+  intros.
+  eapply prove_simp_bind; last eassumption.
+  { eapply prove_simp_bind; first eassumption.
+    apply SimpReflexive. }
+Qed.
+
+Lemma advance_simp_mexpr η δ δ' sitems :
+  simp (eval_sitems (η, []) sitems) (Ret (δ', δ)) ->
+  simp (eval_mexpr η (MStruct sitems)) (Ret (VStruct δ)).
+Proof.
+  intros Hsimp.
+  eapply prove_simp_bind. { apply Hsimp. }
+  apply SimpReflexive.
 Qed.
 
 Lemma advance_SimpEval {A E} η e (k : val → micro A E) z m' :
@@ -540,7 +575,7 @@ Create HintDb simp_specs.
 
 Ltac simp_ret :=
   simple eapply prove_simp_ret; [ eauto with encode equality ].
-    (* TODO limit search depth? *)
+(* TODO limit search depth? *)
 
 (* The tactic [normalize] attempts to reduce and normalize the goal.
    It is used (as sparingly as possible) by the tactics that follow. *)
@@ -551,7 +586,6 @@ Ltac normalize :=
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
    If reflexivity cannot solve the goal, then [simp_close] fails. *)
-Global Hint Extern 1 (_ = _) => normalize : equality.
 
 Ltac simp_close :=
   solve [
@@ -582,7 +616,7 @@ Ltac fail_if_goal_contains_eval' :=
 
 Ltac simp_eval :=
   simple eapply advance_simp_eval;
-  cbn; (* TODO or: [simpl eval']? *)
+  cbn -[app]; (* TODO or: [simpl eval']? *)
     (* TODO decide how much reduction must be done here, and how *)
   fail_if_goal_contains_eval'.
     (* TODO The goal could still contain [eval'] at this point if [eval']
@@ -611,7 +645,15 @@ Ltac simp_eval :=
 Ltac simp0 :=
   (* We are allowed to perform zero or more steps. *)
   (* Either perform at least one step, or perform zero step. *)
-  try simp1
+  first [
+      eapply advance_simp_let; [ simp0 | ]
+    | eapply advance_simp_letrec; [ reflexivity | ]
+    | eapply advance_simp_mexpr; simp0
+    | eapply advance_simp_ilet; [simp0 | ]
+    | eapply advance_simp_iletrec; [ reflexivity | ]
+    | eapply advance_simp_imodule; [ simp0 | ]
+    | try simp1
+    ]
 
 with simp1 :=
   (* We must perform at least one step. *)
@@ -824,7 +866,7 @@ with simp1_bind :=
     simple eapply advance_simp_bind_ret
   | lazymatch goal with
     |- simp (bind ?m _) _ =>
-      let o := eval cbn in m in
+      let o := eval cbn -[app] in m in
       lazymatch o with ret _ =>
         (* strong *) eapply advance_simp_bind_ret
       end
@@ -880,10 +922,11 @@ with simp1_par :=
    a term that has been simplified as far as possible. *)
 
 Ltac simp :=
-  lazymatch goal with |- simp ?m1 _ =>
-    simp0; try simp_close
+  lazymatch goal with
+  | |- simp ?m1 _ =>
+      simp0; try simp_close
   | _ =>
-    fail "[simp] expects a goal of the form [simp _ _]"
+      fail "[simp] expects a goal of the form [simp _ _]"
   end.
 
 (* [simp_really] is another public entry point into the above tactics. *)
@@ -898,19 +941,6 @@ Ltac simp_really :=
     simp1; simp_close
   | _ =>
     fail "[simp_really] expects a goal of the form [simp _ _]"
-  end.
-
-(* [simp_continue] unfolds an opaque definition and continues simplifying
-   via [simp]. *)
-
-Ltac simp_continue :=
-  lazymatch goal with
-  | |- simp ?m _ =>
-      (* TODO should use [simple eapply] to enforce rewriting at the root *)
-      unfold_breakpoint m;
-      simp
-  | _ =>
-      fail "[simp_continue] expects a goal of the form [simp _ _]"
   end.
 
 (* [simp_enter_and_abstract] expects a goal of the form [simp (call v _) _],
@@ -948,7 +978,7 @@ Ltac simp_enter_and_abstract :=
 
 Ltac simp_specify x φ :=
   lazymatch goal with
-    |- simp (bind (ret_concat ?δ _) _) _ =>
+    |- simp (eval (?δ ++ _) _) _ =>
       let o := eval cbn in (lookup_name δ x) in
       lazymatch o with ret ?v =>
         let h := fresh in

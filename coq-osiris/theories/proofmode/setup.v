@@ -47,8 +47,6 @@ Global Opaque
 
   (* Evaluator functions. *)
   call
-  ret_concat
-  ret_dconcat
   eval
 
   assertion_failure
@@ -66,4 +64,3 @@ Global Opaque
   pure
 
 .
-

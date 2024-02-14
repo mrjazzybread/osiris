@@ -150,22 +150,22 @@ Definition eval' η e : micro val void :=
   | ELet bs e =>
       (* This is evaluated like a [match] construct with one branch. *)
       δ ← eval_bindings η bs ;
-      η ← ret_concat δ η;
+      η ← ret (δ ++ η);
       eval η e
   | ELetRec rbs e =>
       (* Extend the environment with a mapping of each function name in [rbs]
          to a suitable recursive closure; then, evaluate [e]. *)
       let δ := eval_rec_bindings η rbs in
-      η ← ret_concat δ η;
+      η ← ret (δ ++ η);
       eval η e
   | ELetModule M me e =>
       v ← eval_mexpr η me ;
       let δ := [(M, v)] in
-      η ← ret_concat δ η;
+      η ← ret (δ ++ η);
       eval η e
   | ELetOpen me e =>
       δ ← as_struct (eval_mexpr η me) ;
-      η ← ret_concat δ η;
+      η ← ret (δ ++ η);
       eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;

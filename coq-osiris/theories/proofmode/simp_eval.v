@@ -302,7 +302,7 @@ Lemma simp_eval_let η x e1 e2 v1 m :
   (let η' := (x, v1) :: η in simp (eval η' e2) m) →
   simp (eval η (ELet1Var x e1 e2)) m.
 Proof.
-  intros. simp.
+  intros. simp. assumption.
 Qed.
 
 (* Conditionals. *)
@@ -634,8 +634,8 @@ Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   simp (eval (θ ++ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
-  intros. simp.
-  eapply prove_simp_try; last eassumption.
+  intros. simp; last eassumption.
+  eapply prove_simp_try; last apply SimpReflexive.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
   unfold irrefutably_extend in *.
   eapply prove_simp_bind. { eauto using simp_wrap. }
@@ -817,7 +817,7 @@ Qed.
 
 Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) :
   pure (eval (δ ++ η) e) ψ ->
-  pure (θ ← ret_concat δ η;
+  pure (θ ← ret (δ ++ η);
         eval θ e) ψ.
 Proof.
   tauto.

@@ -130,9 +130,8 @@ Notation "x  '≈>'  f" :=
     (only printing, at level 100, no associativity).
 
 Notation "'An' 'environment' 'containing' n1 , .. , nn 'will' 'be' 'added' 'to' 'the' 'current' 'environment.'" :=
-  (ret_dconcat
-     (n1 ~> _ ; (.. (nn ~> _ ; []) ..))
-     (_, _))
+  (ret
+     (n1 ~> _ ; (.. (nn ~> _ ; []) ..)) ++ _, (n1 ~> _ ; (.. (nn ~> _ ; []) ..)) ++ _)
     (only printing, format
 "'[v    ' 'An'  'environment'  'containing'  '/' n1 ,  '/' .. ,  '/' nn  '/' 'will'  'be'  'added'  'to'  'the'  'current'  'environment.' ']'").
 

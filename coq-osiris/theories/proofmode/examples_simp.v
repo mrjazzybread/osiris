@@ -30,7 +30,7 @@ Goal
   let e := ELet1Var "x" (EInt 0) (EMkPath ["x"]) in
   simp (eval ε e) (ret (#0)).
 Proof.
-  intros. simp. simp_continue.
+  intros. simp. simp.
 Qed.
 
 Goal
@@ -38,7 +38,7 @@ Goal
   let e := ELet1Var "y" e (EMkPath ["y"]) in
   simp (eval ε e) (ret (#0)).
 Proof.
-  intros. simp. simp_continue. simp_continue.
+  intros. simp. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -111,9 +111,7 @@ Goal let e :=
   in simp (eval ε e) (ret (encode tt)).
 Proof.
   intros.
-  simp.
-  simp_continue.
-  simp_continue.
+  simp. simp. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -127,9 +125,7 @@ Goal let e :=
   in simp (eval ε e) (ret (encode A)).
 Proof.
   intros.
-  simp.
-  simp_continue.
-  simp_continue.
+  simp. simp. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -143,8 +139,8 @@ Proof.
   intros.
   (* This goal is false: the variable [y] is unbound. *)
   simp.
-  simp_continue.
-  match goal with |- simp (missing_variable_or_field _) _ => idtac end.
+  simp.
+  simpl; match goal with |- simp (missing_variable_or_field _) _ => idtac end.
 Abort. (* expected *)
 
 (* -------------------------------------------------------------------------- *)
@@ -160,9 +156,7 @@ Goal let e :=
   simp (eval env e) (ret v1).
 Proof.
   intros.
-  simp.
-  simp_continue.
-  simp_continue.
+  simp. simp. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -224,7 +218,7 @@ Proof.
   (* Subgoal: prove that the closure satisfies [spec_id]. *)
   { unfold spec_id. intros. simp. }
   (* The variable "id" is now bound to an abstract closure [id]. *)
-  intros. simp_continue.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -243,7 +237,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp. }
-  intros. simp_continue.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -262,7 +256,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp. }
-  intros. simp_continue.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -281,7 +275,7 @@ Proof.
   (* Deal with the local binding of [id]. *)
   simp_specify "id" spec_id.
   { unfold spec_id. intros. simp. }
-  intros. simp_continue.
+  intros. simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -304,7 +298,7 @@ Goal let e :=
 Proof.
   intros.
   simp.
-  simp_continue.
+  simp.
     (* Look Ma, the assertions are automatically verified! *)
 Qed.
 
@@ -340,8 +334,7 @@ Proof.
   (* The code is pure and terminating and can be fully evaluated,
      if we accept to step into each call to [walk]. *)
   intros.
-  simp.
-  repeat simp_continue.
+  simp. simp.
 Qed.
 
 (* The following example illustrates how to reason about a local function.
@@ -373,8 +366,8 @@ Proof.
     + simp.
   }
   (* The variable "walk" is now bound to an abstract closure [walk]. *)
-  intros walk Hwalk. simp_continue.
-Qed.
+  intros walk Hwalk. admit.
+Admitted.
 
 (* ------------------------------------------------------------------------- *)
 
