@@ -250,7 +250,8 @@ Section ghost_instances.
   Context (Σ : gFunctors).
 
   Class osirisGpreS := {
-    osirisGpreS_inG :: inG Σ (gmap_viewR locations.loc (leibnizO syntax.val))
+    #[global] osirisGpreS_iris :: invGpreS Σ;
+    #[global] osirisGpreS_inG :: gen_heapGpreS locations.loc syntax.val Σ
   }.
 
   Class osirisGS := OsirisGS
