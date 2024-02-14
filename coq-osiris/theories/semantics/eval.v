@@ -342,8 +342,6 @@ Definition pre_extends extend : env -> list pat -> list val -> micro env unit :=
         length_mismatch "shorter tuple expected"
    end.
 
-Arguments pre_extends extend /.
-
 (* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
 
@@ -364,8 +362,6 @@ Definition pre_extendfs extend : env -> list (var * pat) -> env -> micro env uni
         δ ← extendfs δ fps fvs ;
         ret δ
     end.
-
-Arguments pre_extendfs extend /.
 
 (* [extend δ p v] matches the value [v] against the pattern [p].
 
@@ -439,10 +435,8 @@ Fixpoint extend δ p v : micro env unit :=
 end.
 
 Definition extends δ ps vs := pre_extends extend δ ps vs.
-Arguments extends δ ps vs /.
 
 Definition extendfs δ fps fvs := pre_extendfs extend δ fps fvs.
-Arguments extendfs δ fps fvs /.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
@@ -644,8 +638,6 @@ Definition pre_coerces coerce :=
         ret ((x, v) :: xvs)
     end.
 
-Arguments pre_coerces coerce /.
-
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
 Fixpoint coerce (c : coercion) (v : val) : micro val void :=
@@ -688,8 +680,6 @@ Definition pre_eval_sitem eval_mexpr eval_bindings :=
         ret (δ' ++ η, δ' ++ δ)
     end.
 
-Arguments pre_eval_sitem eval_mexpr eval_bindings /.
-
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
 
@@ -705,8 +695,6 @@ Definition pre_eval_sitems eval_mexpr eval_bindings :=
         (* Evaluate the remaining items *)
         eval_sitems ηδ items
     end.
-
-Arguments pre_eval_sitems eval_mexpr eval_bindings /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -730,8 +718,6 @@ Definition pre_eval_mexpr eval_bindings :=
         (* and wrap it in a [VStruct] value. *)
         ret (VStruct δ)
     end.
-
-Arguments pre_eval_mexpr eval_bindings /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -765,8 +751,6 @@ Definition pre_eval_bindings eval :=
         irrefutably_extend δ p v
     end.
 
-Arguments pre_eval_bindings eval /.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [evals η es] evaluates the expressions [es] in the environment [η],
@@ -783,8 +767,6 @@ Definition pre_evals eval : env -> list expr -> micro (list val) void :=
         '(v, vs) ← par (eval η e) (evals η es) ;
         ret (v :: vs)
     end.
-
-Arguments pre_evals eval /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -805,8 +787,6 @@ Definition pre_evalfs eval :=
         '(v, fvs) ← par (eval η e) (evalfs η fes) ;
         ret ((f, v) :: fvs)
     end.
-
-Arguments pre_evalfs eval /.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -830,8 +810,6 @@ Definition pre_eval_match eval :=
           (* Soft failure: abandon this branch. Try the following branches. *)
           (λ tt, eval_match η v bs)
     end.
-
-Arguments pre_eval_match eval /.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -1070,30 +1048,23 @@ Fixpoint eval η e : micro val void :=
       _ ← stop CStore (l, v) ;
       ok
   end.
-Arguments eval η !e /.
 
 Definition evals η es := pre_evals eval η es.
-Arguments evals η !es /.
 
 Definition evalfs η fes := pre_evalfs eval η fes.
-Arguments evalfs η !fes /.
 
 Definition eval_match η v bs := pre_eval_match eval η v bs.
-Arguments eval_match η v !bs /.
 
 Definition eval_bindings η bs := pre_eval_bindings eval η bs.
-Arguments eval_bindings η !bs /.
 
 Definition eval_mexpr η me := pre_eval_mexpr eval_bindings η me.
-Arguments eval_mexpr η !me /.
 
 Definition eval_sitem ηδ item :=
   pre_eval_sitem eval_mexpr eval_bindings ηδ item.
-Arguments eval_sitem ηδ !item /.
 
 Definition eval_sitems ηδ sitems :=
   pre_eval_sitems eval_mexpr eval_bindings ηδ sitems.
-Arguments eval_sitems ηδ !sitems /.
+
 
 (* ------------------------------------------------------------------------ *)
 
