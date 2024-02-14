@@ -484,7 +484,7 @@ Local Ltac oSpecify_assume_nonrec lspecs lnames lhyps δ :=
                  [] (combine lspecs lnames)
              )
     in
-    iApply (assumming_list_nonrec specs);
+    iApply (assuming_list_nonrec specs);
     last oSpecify_intros lhyps.
 
 (* [oSpecify_assume specs names hyps δ] assumes specifications of elements of a
@@ -492,7 +492,7 @@ Local Ltac oSpecify_assume_nonrec lspecs lnames lhyps δ :=
    Löb-induction-related hypotheses are provided: when proving the spec of
    mutually recursive functions [f] and [g], the specifications are available
    under a later modality. This only works for persistent specifications.
-   Cf. [assumming_list] in [theories/weakestpre/specifications.v] for more
+   Cf. [assuming_list] in [theories/proofmode/specifications.v] for more
    details. *)
 Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
   let specs :=
@@ -508,7 +508,7 @@ Local Ltac oSpecify_assume lspecs lnames lhyps δ :=
                  [] (combine lspecs lnames)
              )
     in
-    iApply (assumming_list specs);
+    iApply (assuming_list specs);
       first (by eauto using intuitionistically_persistent);
       (try iModIntro);
       oSpecify_intros lhyps.

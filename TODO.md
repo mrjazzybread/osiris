@@ -2,17 +2,8 @@
 
 ## Cleanup
 
-* Remove all uses of `Transparent eval`.
-
-* The proof tactics in `weakestpre/tactics.v` and `weakestpre/wp_tactics.v`
-  should move into `proofmode/`.
-
-* Rename `free` to `micro`.
+* Remove dead branches.
 * Rename `osirisGS` to something less ugly.
-* In `steps.v`, we could use `nsteps` from `stdpp`.
-
-* `ret_concat`, `ret_dconcat` and other hacks
-  could (should?) appear in `evalprime`, not `eval`.
 
 ## Iris machinery
 

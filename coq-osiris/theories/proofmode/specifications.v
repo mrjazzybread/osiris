@@ -594,7 +594,7 @@ Section MutuallyRecursive.
   (* ------------------------------------------------------------------------ *)
 
   (* Main result.
-     [assumming_list] (* TODO: find a better suited name for this lemma. *)
+     [assuming_list] (* TODO: find a better suited name for this lemma. *)
      states that for any persistent propositions [p1], ..., [pn] and any
      proposition [P] (which does not have to be persistent),
      [
@@ -607,7 +607,7 @@ Section MutuallyRecursive.
    *)
 
 
-  Lemma assumming_list_nonrec (pl: list (iProp Σ)) (P: iProp Σ) :
+  Lemma assuming_list_nonrec (pl: list (iProp Σ)) (P: iProp Σ) :
     ⊢ wandn pl ((wandn pl P) -∗ P).
   Proof.
     iApply wandn_sepn_wand_2.
@@ -615,7 +615,7 @@ Section MutuallyRecursive.
     iApply (wandn_sepn_wand_1 with "[$][$]").
   Qed.
 
-  Lemma assumming_list (pl: list (iProp Σ)) (P: iProp Σ) :
+  Lemma assuming_list (pl: list (iProp Σ)) (P: iProp Σ) :
     Forall Persistent pl → ⊢
     (wandn
        (map (λ p, □ p)
