@@ -2,7 +2,9 @@
 opam-version: "2.0"
 synopsis: "An instance of the Iris verification framework for OCaml"
 maintainer: ["François Pottier"]
-authors: ["François Pottier" "Arnaud Daby-Seesaram" "Remy Seassau"]
+authors: [
+  "François Pottier" "Arnaud Daby-Seesaram" "Remy Seassau" "Irene Yoon"
+]
 homepage: "https://gitlab.inria.fr/fpottier/osiris/"
 bug-reports: "francois.pottier@inria.fr"
 depends: [

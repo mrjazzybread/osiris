@@ -683,7 +683,7 @@ Qed.
 
 (* Conditionals. *)
 
-Lemma pure_eval_ifthenelse `{Encode A} η e e1 e2 φ (ψ : A → Prop) :
+Lemma pure_eval_ifthenelse_bool `{Encode A} η e e1 e2 φ (ψ : A → Prop) :
   pure (eval η e) φ →
   (φ true  → pure (eval η e1) ψ) →
   (φ false → pure (eval η e2) ψ) →
@@ -697,7 +697,7 @@ Proof.
 Qed.
 
 
-Lemma pure_eval_ifthenelse_prop `{Encode A} η e e1 e2 (P : Prop) (ψ : A → Prop) :
+Lemma pure_eval_ifthenelse `{Encode A} η e e1 e2 (P : Prop) (ψ : A → Prop) :
   pure (eval η e) (λ P', P' <-> P) →
   (P → pure (eval η e1) ψ) →
   (~ P → pure (eval η e2) ψ) →
@@ -711,7 +711,7 @@ Qed.
 
 (* Boolean operations *)
 
-Lemma pure_eval_EOpLe_pure η e1 e2 (x1 x2 : Z) :
+Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
   pure (eval η e1) (λ x1', x1' = x1) ->
   pure (eval η e2) (λ x2', x2' = x2) ->
   (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
@@ -720,20 +720,17 @@ Lemma pure_eval_EOpLe_pure η e1 e2 (x1 x2 : Z) :
   pure (eval η (EOpLe e1 e2)) (λ P, P <-> (x1 <= x2)%Z).
 Proof.
   intros. destruct_pure a; destruct_pure b; subst.
-  eapply pure_simp.
-  rewrite eval_eval'; simpl.
-  eapply advance_SimpPar; eauto.
-  apply SimpParRetRet. simpl.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
   eapply pure_ret.
-  { unfold encode, Encode_Prop.
-    f_equal. f_equal.
-    rewrite lt_repr_repr; try assumption.
-    rewrite truth_Is_true.
-    reflexivity. }
-  apply Zle_spec.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite lt_repr_repr; auto using Zle_spec.
 Qed.
 
-Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
+Lemma pure_eval_EOpLe_bool η e1 e2 (x1 x2 : Z) :
   pure (eval η e1) (λ x1', x1' = x1) ->
   pure (eval η e2) (λ x2', x2' = x2) ->
   representable x1 ->
@@ -741,13 +738,88 @@ Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
   pure (eval η (EOpLe e1 e2)) (λ b, (x1 <=? x2)%Z = b).
 Proof.
   intros. destruct_pure a; destruct_pure b; subst.
-  eapply pure_simp.
-  rewrite eval_eval'; simpl.
-  eapply advance_SimpPar; eauto.
-  apply SimpParRetRet.
-  eapply pure_ret; [ solve [encode] | ].
-  rewrite lt_repr_repr; try assumption.
-  apply Z.leb_antisym.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
+  eapply pure_ret; first encode.
+  rewrite lt_repr_repr; auto using Z.leb_antisym.
+Qed.
+
+Lemma pure_eval_EOpLt η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLt e1 e2)) (λ P, P <-> (x1 < x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
+  eapply pure_ret.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite lt_repr_repr; auto using Zlt_spec.
+Qed.
+
+Lemma pure_eval_EOpGt η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGt e1 e2)) (λ P, P <-> (x1 > x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
+  eapply pure_ret.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite Z.gt_lt_iff, lt_repr_repr; auto using Zlt_spec.
+Qed.
+
+Lemma pure_eval_EOpGe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGe e1 e2)) (λ P, P <-> (x1 >= x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
+  eapply pure_ret.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite Z.ge_le_iff, lt_repr_repr; auto using Zle_spec.
+Qed.
+
+Lemma pure_eval_EOpEq η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpEq e1 e2)) (λ P, P <-> (x1 = x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  (* { rewrite eval_eval'; simpl. *)
+  (*   eapply advance_SimpPar; eauto. *)
+  (*   apply SimpParRetRet. } *)
+  eapply pure_ret.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite eq_repr_repr; auto using Zeq_spec.
 Qed.
 
 (* Runtime assertions. *)

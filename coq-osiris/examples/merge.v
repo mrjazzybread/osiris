@@ -252,7 +252,7 @@ Ltac pure_eval_app2_conseq :=
   | ].
 
 Ltac pure_EOpLe :=
-  eapply pure_eval_EOpLe_pure;
+  eapply pure_eval_EOpLe;
   [ trivial_pure; reflexivity
   | trivial_pure; reflexivity
   |
@@ -283,7 +283,7 @@ Proof.
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     by rewrite app_nil_r. }
   (* Second branch of match *)
-  { eapply pure_eval_ifthenelse_prop.
+  { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
       pure_EOpLe; by repeat Forall_inversion. }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
