@@ -119,7 +119,7 @@ Section StdLib__code.
             Stdlib_store_env;
             Stdlib_misc_env;
             Stdlib_bool_env].
-  
+
   Definition Stdlib := VStruct Stdlib_env.
 End StdLib__code.
 
@@ -180,16 +180,15 @@ Qed.
 Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
-  ∀ (x : A),
+  ∀ (x y : A),
   pure (call compare #x) (λ v,
-    ∀ (y : A),
-    pure (call v #y) (λ (c : Z),
-      representable c ∧
-      (c < 0 ↔ lt x y) ∧
-      (c = 0 ↔ eq x y) ∧
-      (0 < c ↔ lt y x)
-    )
-  ).
+      pure (call v #y) (λ (c : Z),
+          representable c ∧
+            (c < 0 ↔ lt x y) ∧
+            (c = 0 ↔ eq x y) ∧
+            (0 < c ↔ lt y x)
+        )
+    ).
 
 (* -------------------------------------------------------------------------- *)
 

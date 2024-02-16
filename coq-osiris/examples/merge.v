@@ -165,81 +165,7 @@ Section PureProofs.
 
 Opaque encode.
 
-Class CRel1 (A X : Type) `{Encode A, Encode X}
-  (c : string) (C : A -> X) := { }.
-
-Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) :
-  pure (eval η e)
-    (λ x,
-      VData c #x = #(C x) /\ ψ (C x)) ->
-  pure (eval η (EData c e)) ψ.
-Proof.
-  intros. destruct_pure a.
-  destruct_hyp.
-  eapply pure_eval_data; [ | eauto ].
-  eapply pure_simp; [ eassumption | ].
-  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
-Qed.
-
-Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
-  (c : string) (C : A1 -> A2 -> X) := { }.
-
-(* We write "[encode x; #y]" instead of "[#x; #y]" because stdpp imports the
-   notation "[# _; _; _]" for vectors. Unfortunately, using "Disable Notation"
-   does not to remove the vector notation from Coq's parser. *)
-
-Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
-  pure (eval η e)
-    (λ '(x, y),
-      VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ->
-  pure (eval η (EData c e)) ψ.
-Proof.
-  intros. destruct_pure a; destruct a.
-  destruct_hyp.
-  eapply pure_eval_data; [ | eauto ].
-  eapply pure_simp; [ eassumption | ].
-  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
-Qed.
-
 Global Instance CRel2Cons `{Encode A} : CRel2 A (list A) (list A) "::" cons := {}.
-
-Class CRel3 (A1 A2 A3 X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
-  (c : string) (C : A1 -> A2 -> A3 -> X) := { }.
-
-Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
-  pure (eval η e)
-    (λ '(x, y, z),
-      VData c (VTuple ([encode x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ->
-  pure (eval η (EData c e)) ψ.
-Proof.
-  intros. destruct_pure a.
-  destruct a as [[??] ?].
-  destruct_hyp.
-  eapply pure_eval_data; [ | eauto ].
-  eapply pure_simp; [ eassumption | ].
-  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
-Qed.
-
-Open Scope nat.
-
-Ltac pure_data :=
-  remove_deco;
-  simpl;
-  match goal with
-  | |- pure (eval _ (EData ?c (ETuple ?args))) _ =>
-      match eval cbn in (length args) with
-      | 0 => pure_const
-      | 1 => eapply pure_eval_data1
-      | 2 => eapply pure_eval_data2; eapply pure_eval_pair
-      | 3 => eapply pure_eval_data3
-      (* TODO: make a higher-order version of pure_eval_pair *)
-      | _ => fail "Not implemented for this arity"
-      end;
-      repeat (pure_path || pure_const || pure_data);
-      try (split; [ solve [ encode ] | ])
-  end.
-
-Close Scope nat.
 
 Ltac trivial_pure := repeat (pure_path || pure_data || pure_const).
 
@@ -650,9 +576,15 @@ Lemma Merge__spec:
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
   pure (eval_mexpr η __main)
     (is_module_with_pspecs [("merge", merge_spec);
-                        ("split", split_spec);
-                        ("merge_sort", mergesort_spec)]).
+                            ("split", split_spec);
+                            ("merge_sort", mergesort_spec)]).
 Proof.
-  intros. pure1. simpl.
+  intros. simpl. pure_ret. simpl.
+  (* split; last split. *)
+  (* { apply Merge_spec. } *)
+  (* { apply Split_spec. } *)
+  (* { apply MergeSort_spec. *)
+  (*   - eauto using Split_spec. *)
+  (*   - eauto using Merge_spec. } *)
   eauto 9 using MergeSort_spec, Split_spec, Merge_spec.
 Qed.

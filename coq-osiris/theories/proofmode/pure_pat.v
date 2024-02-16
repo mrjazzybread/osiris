@@ -288,13 +288,14 @@ Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
      with the knowledge that [xs] is not empty *)
 Proof.
   intros; subst.
-  destruct xs as [| x xs ]; eapply pat_consequence_psi.
-  { eapply pat_PData_eq; eauto.
-    eapply pat_PTuple.
-    pats. }
-  { tauto. }
-  { eapply pat_PData_neq; eauto. }
-  { done. }
+  destruct xs.
+  { eapply pat_consequence_psi.
+    { eapply pat_PData_eq; eapply pat_PTuple.
+      pats. }
+    clear; tauto. }
+  { eapply pat_consequence_psi.
+    { eapply pat_PData_neq; done. }
+    done.  }
 Qed.
 
 Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
@@ -316,16 +317,15 @@ Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
      - the list is non-empty, but its head did not match [p1]
      - the list is non-empty, but its tail did not match [p2] *)
 Proof.
-  intros ? Hpat Hpats; subst.
-  destruct xs as [| x xs]; eapply pat_consequence_psi.
-  { eapply pat_PData_neq; eauto. }
-  { by left. }
-  { eapply pat_PData_eq; eauto.
-    rewrite ?encode_list_is_encode. (* optional, but helpful *)
-    eapply pat_PTuple.
-    eapply pats_PCons; eauto. intros ?; simpl; intros.
-    pats. }
-  { intros [ | [ | F ]]; right; eauto; contradiction. }
+  intros; subst.
+  destruct xs.
+  { eapply pat_consequence_psi.
+    { by apply pat_PData_neq. }
+    tauto. }
+  { eapply pat_consequence_psi.
+    { eapply pat_PData_eq; eapply pat_PTuple.
+      pats. }
+    right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
 Ltac pat_pNil :=
@@ -458,21 +458,22 @@ Ltac extend_env :=
   end.
 
 Ltac pattern_match :=
-   repeat (pat_PVar
-    || (pat_pNil;
+  repeat first
+    [ pat_PVar
+    | pat_pNil;
+      let Heql := fresh "Heql" in
+      intros Heql
+    | pat_pCons;
+      (let h := fresh "h" in
+       let t := fresh "t" in
        let Heql := fresh "Heql" in
-       intros Heql)
-    || (pat_pCons;
-       (let h := fresh "h" in
-        let t := fresh "t" in
-        let Heql := fresh "Heql" in
-        intros h t Heql);
-       [ pattern_match | simpl; extend_env; pattern_match ])
-    || (apply pat_POr; pattern_match)
-    || pat_PPair
-    || apply pat_PAny
-     ); subst.
-
+       intros h t Heql);
+      [ pattern_match | simpl; extend_env; pattern_match ]
+    | apply pat_POr; pattern_match
+    | pat_PPair
+    | eapply pat_PTuple; pats
+    | apply pat_PAny ];
+  subst.
 
 Ltac strip_disjunction :=
   match goal with
@@ -507,13 +508,14 @@ Ltac destruct_hyp :=
 
 (* Goal: show that never matching is impossible *)
 Ltac resolve_no_match :=
-  repeat ((repeat strip_disjunction);
-          (repeat elim_exists);
-          (repeat destruct_hyp);
-          try contradiction;
-          (repeat remove_tauto);
-          (repeat subst_eq);
-          inject_eq).
+  repeat first
+    [ strip_disjunction
+    | elim_exists
+    | destruct_hyp
+    | congruence
+    | remove_tauto
+    | subst_eq
+    | inject_eq ].
 
 Ltac pure_match :=
   lazymatch goal with

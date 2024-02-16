@@ -386,6 +386,18 @@ Proof.
   eauto using pure_ret with encode.
 Qed.
 
+Lemma pure_eval_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 * A2 * A3 -> Prop) :
+  pure (eval η e1) (λ a1 : A1,
+        pure (eval η e2) (λ a2 : A2,
+              pure (eval η e3) (λ a3 : A3,
+                    ψ (a1, a2, a3)))) ->
+  pure (eval η (ETuple [e1; e2; e3])) ψ.
+Proof.
+  intros. destruct_pure a1; destruct_pure a2; destruct_pure a3.
+  eapply pure_simp; [ simp |].
+  eauto using pure_ret with encode.
+Qed.
+
 Lemma pure_eval_pair_val η e1 e2 (ψ : val → Prop) :
   pure (eval η e1) (λ a1 : val, pure (eval η e2) (λ a2 : val, ψ (VPair a1 a2))) →
   pure (eval η (EPair e1 e2)) ψ.
@@ -419,14 +431,25 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
+(* TODO: comment *)
+
+Lemma pure_eval_int η i (ψ : Z -> Prop) :
+  ψ i ->
+  pure (eval η (EInt i)) ψ.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
+
 (* Function applications. *)
 
-Lemma pure_eval_app `{Encode A} η e1 e2 (ψ : A → Prop) :
+Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) :
   pure (eval η e1)
     (λ f : val,
         pure (eval η e2)
-          (λ e : val,
-              pure (call f e) ψ)) →
+          (λ arg : A1,
+              pure (call f #arg) ψ)) →
   pure (eval η (EApp e1 e2)) ψ.
 Proof.
   intros. destruct_pure a2. destruct_pure v1.
@@ -930,4 +953,90 @@ Proof.
   intros. destruct_pure x; subst.
   eapply pure_simp; [eauto using simp_eval_data |].
   eapply pure_ret; eauto.
+Qed.
+
+(* TODO 02/15/23 - Should this live elsewhere? *)
+Local Ltac destruct_hyp :=
+  match goal with
+  | H : _ /\ _ |- _ => destruct H
+  end.
+
+Class CRel1 {A : Type} (X : Type) `{Encode A, Encode X}
+  (c : string) (C : A -> X) := { }.
+
+Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+  pure (eval η e)
+    (λ x,
+      VData c (VTuple1 #x) = #(C x) /\ ψ (C x)) ->
+  pure (eval η (EData c (ETuple [e]))) ψ.
+Proof.
+  intros. destruct_pure a.
+  destruct_hyp.
+  eapply pure_eval_data; [ | eassumption ].
+  eapply pure_simp.
+  { rewrite eval_eval'; simpl. apply SimpParRetRight. }
+  eapply pure_try.
+  { eapply pure_simp; first eassumption.
+    eapply pure_ret; [ encode | apply eq_refl ]. }
+  intros; subst; simpl.
+  eapply pure_ret; eauto.
+Qed.
+
+Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
+  (c : string) (C : A1 -> A2 -> X) := { }.
+
+(* We write "[encode x; #y]" instead of "[#x; #y]" because stdpp imports the
+   notation "[# _; _; _]" for vectors. Unfortunately, using "Disable Notation"
+   does not to remove the vector notation from Coq's parser. *)
+
+Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+  pure (eval η e)
+    (λ '(x, y),
+      VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ->
+  pure (eval η (EData c e)) ψ.
+Proof.
+  intros. destruct_pure a; destruct a.
+  destruct_hyp.
+  eapply pure_eval_data; [ | eauto ].
+  eapply pure_simp; [ eassumption | ].
+  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
+Qed.
+
+(* Example usage of the CRel typeclasses:
+
+   Global Instance CRel2Cons `{Encode A} :
+     CRel2 A (list A) (list A) "::" cons := {}. *)
+
+Class CRel3 {A1 A2 A3 : Type} (X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
+  (c : string) (C : A1 -> A2 -> A3 -> X) := { }.
+
+Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+  pure (eval η e)
+    (λ '(x, y, z),
+      VData c (VTuple ([encode x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ->
+  pure (eval η (EData c e)) ψ.
+Proof.
+  intros. destruct_pure a.
+  destruct a as [[??] ?].
+  destruct_hyp.
+  eapply pure_eval_data; [ | eauto ].
+  eapply pure_simp; [ eassumption | ].
+  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
+Qed.
+
+Class CRel4 (A1 A2 A3 A4 X : Type) `{Encode A1, Encode A2, Encode A3, Encode A4, Encode X}
+  (c : string) (C : A1 -> A2 -> A3 -> A4 -> X) := { }.
+
+Lemma pure_eval_data4 `{CRel4 A1 A2 A3 A4 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+  pure (eval η e)
+    (λ '(x, y, z, w),
+      VData c (VTuple ([encode x; #y; #z; #w])) = #(C x y z w) /\ ψ (C x y z w)) ->
+  pure (eval η (EData c e)) ψ.
+Proof.
+  intros. destruct_pure a.
+  repeat (destruct a as [a ?]).
+  destruct_hyp.
+  eapply pure_eval_data; [ | eauto ].
+  eapply pure_simp; [ eassumption | ].
+  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
 Qed.

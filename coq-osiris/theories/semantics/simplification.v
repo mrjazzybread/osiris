@@ -148,6 +148,16 @@ Proof.
   eauto using simp_up_to_eq_right with simp bind_as_try.
 Qed.
 
+Lemma simp_par {A E A1 A2 E'} (m1 : micro A1 E) (m2 : micro A2 E) (m : micro A E')
+  k (z : E -> micro A E') a1 a2 :
+  simp m1 (ret a1) ->
+  simp m2 (ret a2) ->
+  simp (k (a1, a2)) m ->
+  simp (Par m1 m2 k z) m.
+Proof.
+  intros. eauto with simp.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* We define a 3-argument relation [simplify n m m'] where the natural integer

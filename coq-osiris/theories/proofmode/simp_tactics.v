@@ -105,6 +105,25 @@ Ltac pure_const :=
       end
   end.
 
+Local Open Scope nat.
+
+Ltac pure_data :=
+  remove_deco;
+  simpl;
+  match goal with
+  | |- pure (eval _ (EData ?c (ETuple ?args))) _ =>
+      match eval cbn in (length args) with
+      | 0 => pure_const
+      | 1 => eapply pure_eval_data1
+      | 2 => eapply pure_eval_data2; eapply pure_eval_pair
+      | 3 => eapply pure_eval_data3; eapply pure_eval_triple
+      | 4 => eapply pure_eval_data4
+      (* TODO: make a higher-order version of pure_eval_pair *)
+      | _ => fail "Not implemented for this arity"
+      end
+  end;
+  repeat (pure_path || pure_const || pure_data);
+  try (split; [ solve [ encode ] | ]).
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
@@ -367,7 +386,7 @@ Ltac pure_rec_tac arg pre Hwf :=
         pattern arg in HPre;
         exact HPre
     | Some _ =>
-        auto
+        subst; auto; fail
     end
   | ];
   clear dependent arg; (* [pure_rec_call] deprecates the original argument *)
