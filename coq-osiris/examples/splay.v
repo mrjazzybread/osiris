@@ -311,13 +311,6 @@ Qed.
 Ltac pat_pNodeR :=
   eapply pat_pNodeR; first solve [encode].
 
-Ltac pattern_match :=
-  repeat (first
-            [ pure_pat.pattern_match
-            | pat_pRoot
-            | pat_pNodeL
-            | pat_pNodeR ]).
-
 (* -------------------------------------------------------------------------- *)
 
 (* The depth of a zipper. *)
@@ -558,6 +551,15 @@ Proof.
   by pure_ret.
 Qed.
 
+Ltac pattern_hook ::=
+  first
+    [ pat_pRoot; intros
+    | pat_pNodeL; intros
+    | pat_pNodeR; intros
+    | pat_pLeaf; intros
+    | pat_pNode; intros
+    ].
+
 Lemma Splay_spec :
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
   splay_spec (VCloRec η __bindings2 "splay").
@@ -576,67 +578,45 @@ Proof.
   clear l ctx x r.
   destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches1; pure_match. (* Todo: slow *)
+  unfold __branches1; pure_match.
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches0; pure_match.
-  { pat_pRoot. intros.
-    pure_data.
+  unfold __branches0; pure_match. (* Slow *)
+  { pure_data.
     subst; prove_same_fringe. }
 
-  { pat_pNodeL. intros.
-    pat_pRoot. intros. pat_PVar. pat_PVar.
-    pure_data.
+  { pure_data.
     subst; prove_same_fringe. }
 
-  { pat_pNodeL. intros. pat_pNodeL. intros.
-    pat_PVar. pat_PVar. pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. Transparent app. (* Bad! *) pure_path.
-    eapply pure_eval_quadruple. pure_path. pure_path.
-    pure_data. pure_path.
+  { eapply pure_eval_app. Transparent app. (* Bad! *) pure_path.
+    eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     subst; prove_same_fringe. }
 
-  { pat_pNodeL. intros.
-    pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple.
-    pure_data. pure_path. pure_data. pure_path.
+  { eapply pure_eval_app. pure_path.
+    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     subst; prove_same_fringe. }
 
-  { pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_pRoot. intros.
-    pure_data.
+  { pure_data.
     subst; prove_same_fringe. }
 
-  { pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_pNodeL. intros.
-    pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple.
-    pure_data. pure_path. pure_data. pure_path.
+  { eapply pure_eval_app. pure_path.
+    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     subst; prove_same_fringe. }
 
-  { pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple.
-    pure_data. pure_path. pure_path. pure_path.
+  { eapply pure_eval_app. pure_path.
+    eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     subst; prove_same_fringe. }
-
-  resolve_no_match.
 Qed.
 
 Lemma Splay_leaf_spec η :
@@ -650,30 +630,22 @@ Proof.
   eapply pure_EvalRetThrow.
   eapply pure_eval_match. { pure_path; reflexivity. }
   unfold __branches3; pure_match.
-  { pat_pRoot. intros ->.
-    pure_const. done. }
+  { pure_const. by subst. }
 
-  { pat_pNodeL. intros.
-    pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
+  { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
     eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity. (* Todo: weird *)
     pure_path.
     pure_path.
     pure_path.
-    pure_call. intros ? ->.
-    subst; prove_same_fringe. }
+    pure_call. }
 
-  { pat_pNodeR. intros.
-    pat_PVar. pat_PVar. pat_PVar.
-    eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
+  { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
-    pure_call. intros ? ->.
-    subst; prove_same_fringe. }
+    pure_call. }
 
-  resolve_no_match.
 Qed.
 
 Lemma Zlookup_spec η :
@@ -705,24 +677,21 @@ Proof.
   unfold __branches11; pure_match.
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches10; pure_match.
-  { pat_pLeaf. intros ->.
-    eapply pure_eval_pair. pure_const. remove_deco.
+  { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
-    pure_call. intros t' Ht'.
+    pure_call. intros; subst.
     split.
     - intros. apply not_elem_of_nil.
     - assumption. }
 
-  { pat_pNode. intros.
-    pat_PVar. pat_PVar. pat_PVar.
-    subst; destruct_bst_Node.
-    eapply pure_eval_let.
+  { eapply pure_eval_let.
     { eapply pure_eval_app2.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       apply Hcompare. }
     intros c (?&Hlt&Heq&Hgt).
+    subst; destruct_bst_Node.
     unfold __exp9.
     eapply pure_eval_ifthenelse.
     { eapply pure_eval_EOpLt.
@@ -770,8 +739,6 @@ Proof.
         - assumption.
         - apply elem_of_app; right; apply elem_of_cons; by left.
         - assumption. } } }
-
-  resolve_no_match.
 Qed.
 
 Lemma Splay__spec:

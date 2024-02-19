@@ -59,14 +59,16 @@ Proof.
   unfold pats. simpl. eauto using total_ret.
 Qed.
 
-Lemma pats_PCons_unary η p ps v vs φ ψ :
-  pat η p v (λ η, pats η ps vs φ ψ) ψ →
-  pats η (p :: ps) (v :: vs) φ ψ.
-    (* a simple statement (unused) *)
+Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
+  pat η p v (λ η, pats η ps vs φ ψ2) ψ1 →
+  pats η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
   unfold pats, pat. intro Hp. simpl.
-  eapply total_bind; [ eapply Hp | simpl ]. intros η' Hps.
-  rewrite bind_ret_right. eauto.
+  apply total_bind_unary.
+  eapply total_consequence; eauto.
+  simpl; intros η' Hps.
+  rewrite bind_ret_right.
+  eapply total_consequence; eauto.
 Qed.
 
 Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
@@ -97,6 +99,12 @@ Proof.
   { simpl; intros. eassumption. }
   { intros [|]; [ tauto | contradiction ]. }
 Qed.
+
+Ltac pats_unary :=
+  first [
+      eapply pats_PNil; [ eauto ]
+    | eapply pats_PCons_unary; [ eauto ]
+    ].
 
 Ltac pats :=
   repeat first [
@@ -200,10 +208,6 @@ Proof.
   intros; apply pats_PCons_single; assumption.
 Qed.
 
-Ltac pat_PPair := eapply pat_PPair; [ solve [encode]
-                                    | solve [encode]
-                                    |].
-
 Lemma pat_PData η c p c' v φ ψ :
   (c = c' → pat η p v φ ψ) →
   pat η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
@@ -298,7 +302,10 @@ Proof.
     done.  }
 Qed.
 
-Lemma pat_pCons `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
+(* [pat_pCons_cut] exists for explanatory purposes. In practice we use
+   pat_pCons to aboid headaches caused by evar instatiation scopes. *)
+
+Lemma pat_pCons_cut `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
   :
   v = #xs ->
@@ -324,8 +331,30 @@ Proof.
     tauto. }
   { eapply pat_consequence_psi.
     { eapply pat_PData_eq; eapply pat_PTuple.
-      pats. }
+      pats.  }
     right; do 2 eexists; split; [ reflexivity | tauto ]. }
+Qed.
+
+Lemma pat_pCons `{Encode A} v xs η p1 p2 φ
+  (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
+  :
+  v = #xs ->
+  (∀ (x : A) (xs' : list A),
+      xs = x :: xs' →
+      pat η p1 #x
+        (λ η',
+          pat η' p2 #xs' φ (ψ2 xs'))
+        (ψ1 x)) ->
+  pat η (pCons p1 p2) v φ
+    (xs = [] \/ (exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs'))).
+Proof.
+  intros; subst.
+  destruct xs; eapply pat_consequence_psi.
+  { by apply pat_PData_neq. }
+  { tauto. }
+  { eapply pat_PData_eq; eapply pat_PTuple.
+    pats. }
+  { clear; right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
 Ltac pat_pNil :=
@@ -457,23 +486,18 @@ Ltac extend_env :=
   | _ => idtac
   end.
 
+Ltac pattern_hook := fail.
+
 Ltac pattern_match :=
   repeat first
-    [ pat_PVar
-    | pat_pNil;
-      let Heql := fresh "Heql" in
-      intros Heql
-    | pat_pCons;
-      (let h := fresh "h" in
-       let t := fresh "t" in
-       let Heql := fresh "Heql" in
-       intros h t Heql);
-      [ pattern_match | simpl; extend_env; pattern_match ]
-    | apply pat_POr; pattern_match
-    | pat_PPair
-    | eapply pat_PTuple; pats
-    | apply pat_PAny ];
-  subst.
+    [ pats_unary
+    | pattern_hook
+    | pat_PVar
+    | pat_pNil; intros
+    | pat_pCons; intros
+    | apply pat_POr
+    | eapply pat_PTuple
+    | apply pat_PAny ].
 
 Ltac strip_disjunction :=
   match goal with
@@ -517,16 +541,42 @@ Ltac resolve_no_match :=
     | subst_eq
     | inject_eq ].
 
-Ltac pure_match :=
+(* [post_process_pats] is expected to be used on multiple goals of the
+   form [pat η p v ?φ ?ψ] and one goal of the form [False]. It performs
+   pattern matching on the pat goals and then tries to prove the
+   non-matching (False) goal. *)
+
+Ltac post_process_pats :=
+  (* First try to resolve the pattern matching, instantiating all
+     postcondition evars in the process *)
+  match goal with
+  | |- False => idtac
+  | _ => pattern_match
+  end;
+  (* Only after finishing our matches do we substitute our newly
+     learnt equalities *)
+  subst;
+  (* Afterwards, use [resolve_no_match] to perform congruence on the
+     remaining False goal *)
+  match goal with
+  | |- False => resolve_no_match
+  | _ => idtac
+  end.
+
+Ltac pure_match_list :=
   lazymatch goal with
   | |- pure_match _ _ [?b] _ =>
       eapply pure_match_single;
-      [ pattern_match
+      [
       | let no_match := fresh "no_match" in
-        intros no_match; resolve_no_match ]
+        intros no_match ]
   | |- pure_match _ _ (?b :: ?bs) _ =>
       eapply pure_match_cons;
-      [ pattern_match
+      [
       | (let no_match := fresh "no_match" in
-         intros no_match; pure_match) ]
+         intros no_match; pure_match_list) ]
   end.
+
+Ltac pure_match :=
+  pure_match_list;
+  post_process_pats.

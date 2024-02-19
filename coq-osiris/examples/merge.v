@@ -195,9 +195,8 @@ Proof.
   eapply pure_eval_match.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
-  unfold __branches2; simpl.
+  unfold __branches2; pure_match.
   (* First branch of match *)
-  pure_match; abstract_env. (* TODO: seems slow *)
   { (* Match against "[], l" *)
     pure_path.
     (* Establish postcondition *)
@@ -211,14 +210,14 @@ Proof.
   (* Second branch of match *)
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
-      pure_EOpLe; by repeat Forall_inversion. }
+      pure_EOpLe; by subst; repeat Forall_inversion. }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
       intros. unfold __exp0.
       pure_data.
       (* Evaluate "merge t1 l2" under the cons *)
       pure_eval_app2_conseq.
       { (* Use induction hypothesis on [call merge t1 l2] *)
-        eapply IH; subst.
+        eapply IH.
         { (* Subgoal: the partial application of merge returns a closure *)
           rewrite eval_eval'; simpl. reflexivity. }
         { (* Subgoal: t1 and l2 satisfy merge's precondition *)
@@ -242,14 +241,14 @@ Proof.
       (* Evaluate "merge l1 t2" under the cons *)
       pure_eval_app2_conseq.
       (* Use induction hypothesis on [call merge l1 t2] *)
-      eapply IH; subst.
-      { (* Subgoal: the partial application of merge returns a closure *)
-        rewrite eval_eval'; simpl. reflexivity. }
-      { (* Subgoal: l1 and t2 satisfy merge's precondition *)
-        unfold merge_pre in *.
-        repeat (destruct_hyp); all_inversions; auto. }
-      { (* Subgoal: justify the recursive call with a size argument *)
-        auto with arith. }
+      { eapply IH.
+        { (* Subgoal: the partial application of merge returns a closure *)
+          rewrite eval_eval'; simpl. reflexivity. }
+        { (* Subgoal: l1 and t2 satisfy merge's precondition *)
+          unfold merge_pre in *.
+          repeat (destruct_hyp); all_inversions; auto. }
+        { (* Subgoal: justify the recursive call with a size argument *)
+          auto with arith. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
@@ -298,6 +297,7 @@ Proof.
     apply pure_eval_pair. trivial_pure.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
+    subst.
     destruct Hpost as (H1 & H2 & ?).
     split; last split.
     { (* Subgoal: the length of l1 is half the length of xs *)
@@ -305,7 +305,7 @@ Proof.
     { (* Subgoal: the length of l2 is half the length of xs *)
       rewrite H2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
-      rewrite_permutation t0.
+      rewrite_permutation xs'0.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
