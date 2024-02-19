@@ -479,14 +479,11 @@ Proof.
   tauto.
 Qed.
 
-Ltac extend_env :=
-  match goal with
-  | |- forall (η : env), η = _ -> _ =>
-      intros ? ->
-  | _ => idtac
-  end.
-
 Ltac pattern_hook := fail.
+
+(* [pattern_match] expects a goal in the form of a [pat] or [pats] judgement.
+   It tries to apply all know pattern matching rules. We use [pattern_hook] to
+   make this tactic extensible (see its redefinition in examples/splay.v). *)
 
 Ltac pattern_match :=
   repeat first
@@ -563,7 +560,13 @@ Ltac post_process_pats :=
   | _ => idtac
   end.
 
-Ltac pure_match_list :=
+(* [pure_match_branches] expects a goal of the form
+   [pure_match _ _ bs _] where [bs] is a list of n branches. It
+   successively applies [pure_match_cons], creating n subgoals of the
+   form [pat _ _ _ (λ n', pure (eval η' _) _ _) _] and one subgoal of
+   the form [False]. *)
+
+Ltac pure_match_branches :=
   lazymatch goal with
   | |- pure_match _ _ [?b] _ =>
       eapply pure_match_single;
@@ -574,9 +577,11 @@ Ltac pure_match_list :=
       eapply pure_match_cons;
       [
       | (let no_match := fresh "no_match" in
-         intros no_match; pure_match_list) ]
+         intros no_match; pure_match_branches) ]
   end.
 
-Ltac pure_match :=
-  pure_match_list;
-  post_process_pats.
+(* [pure_match] expects a goal of the form [pure_match _ _ _ _], and
+   produces subgoals corresponding to the successful match and entry
+   of each branch. *)
+
+Ltac pure_match := pure_match_branches; post_process_pats.

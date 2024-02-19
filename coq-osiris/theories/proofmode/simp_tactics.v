@@ -37,7 +37,7 @@ Ltac remove_deco :=
 
 (* Remove any local environment definitions. *)
 
-Ltac collapse_abstracted_env :=
+Ltac clear_abstracted_env :=
   repeat (match goal with
           | η := _ : list (var * val) |- _ => subst η
           end).
@@ -48,12 +48,19 @@ Ltac collapse_abstracted_env :=
 Ltac abstract_env :=
   lazymatch goal with
   | |- pure (eval ?η _) _ =>
-      collapse_abstracted_env;
+      clear_abstracted_env;
       match goal with
       | |- pure (eval ?η _) _ =>
           let η0 := fresh "η" in
           set η as η0
       end
+  | _ => idtac
+  end.
+
+Ltac extend_env :=
+  match goal with
+  | |- forall (η : env), η = _ -> _ =>
+      intros ? ->
   | _ => idtac
   end.
 
@@ -124,6 +131,9 @@ Ltac pure_data :=
   end;
   repeat (pure_path || pure_const || pure_data);
   try (split; [ solve [ encode ] | ]).
+
+Ltac pure_call_VClo :=
+  apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)

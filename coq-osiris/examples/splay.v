@@ -577,46 +577,57 @@ Proof.
   pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
   clear l ctx x r.
   destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
+
+  (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches1; pure_match.
+  (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches0; pure_match. (* Slow *)
-  { pure_data.
-    subst; prove_same_fringe. }
+  unfold __branches0; pure_match. (* Was very slow, now just slow *)
 
+  (* Case: [ctx] matches [Root] *)
   { pure_data.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 
+  (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
+  { pure_data.
+    prove_same_fringe. }
+
+  (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
   { eapply pure_eval_app. Transparent app. (* Bad! *) pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 
+  (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 
+  (* Case: [ctx] matches [NodeR (ly, y, Root)] *)
   { pure_data.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 
+  (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 
+  (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
-    subst; prove_same_fringe. }
+    prove_same_fringe. }
 Qed.
 
 Lemma Splay_leaf_spec η :
@@ -626,12 +637,15 @@ Proof.
   intros (splay & find_splay & spec_splay).
   unfold splay_leaf_spec.
   intros.
-  eapply pure_enter_call_VClo; simpl.
-  eapply pure_EvalRetThrow.
+  pure_call_VClo.
+  (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path; reflexivity. }
   unfold __branches3; pure_match.
+
+  (* Case: [ctx] matches [Root] *)
   { pure_const. by subst. }
 
+  (* Case: [ctx] matches [NodeL (up, x, r)] *)
   { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
     eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity. (* Todo: weird *)
@@ -640,12 +654,12 @@ Proof.
     pure_path.
     pure_call. }
 
+  (* Case: [ctx] matches [NodeR (l, x, up)] *)
   { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
     pure_call. }
-
 Qed.
 
 Lemma Zlookup_spec η :
@@ -673,10 +687,14 @@ Proof.
       | (t, _, _) => bst (strict le) t
       end) (@zlookup_wf A).
   repeat (destruct tup as [tup ?]); simpl in *.
+  (* Match on tuple argument *)
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches11; pure_match.
+  (* Match on [t] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches10; pure_match.
+
+  (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
     pure_call.
@@ -684,23 +702,28 @@ Proof.
     - intros. apply not_elem_of_nil.
     - assumption. }
 
+  (* Case: [t] matches [Node (l, y, r)] *)
   { destruct_bst_Node.
     eapply pure_eval_let.
-    { eapply pure_eval_app2.
-      { pure_path. reflexivity. }
-      { pure_path. reflexivity. }
-      { pure_path. reflexivity. }
+    { (* Evaluate rhs of [let c = ..] *)
+      eapply pure_eval_app2.
+      { pure_path; reflexivity. }
+      { pure_path; reflexivity. }
+      { pure_path; reflexivity. }
       apply Hcompare. }
+    (* Evaluate continuation expression after let *)
     intros c (?&Hlt&Heq&Hgt).
     unfold __exp9.
     eapply pure_eval_ifthenelse.
-    { eapply pure_eval_EOpLt.
+    { (* Evalute comparison operation *)
+      eapply pure_eval_EOpLt.
       { pure_path. reflexivity. }
       { eapply pure_eval_int. reflexivity. }
       { assumption. }
       { representable. } }
 
-    { intro Clt0. unfold __exp5.
+    { (* Case: [c < 0] *)
+      intro Clt0. unfold __exp5.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       pure_call.
@@ -710,15 +733,18 @@ Proof.
       - rewrite bst_member_left; representable.
       - assumption. }
 
-    { intros Cge0. unfold __exp8.
+    { (* Case: [c >= 0] *)
+      intros Cge0. unfold __exp8.
       eapply pure_eval_ifthenelse.
-      { eapply pure_eval_EOpGt.
+      { (* Evaluate second comparison operation *)
+        eapply pure_eval_EOpGt.
         { pure_path. reflexivity. }
         { eapply pure_eval_int. reflexivity. }
         { assumption. }
         { representable. } }
 
-      { intros Cgt0. unfold __exp6.
+      { (* Subcase: [c > 0] *)
+        intros Cgt0. unfold __exp6.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
         pure_call.
@@ -729,7 +755,9 @@ Proof.
           by apply Hgt; apply Z.gt_lt.
         - assumption. }
 
-      { intros Cle0. unfold __exp7.
+      { (* Subcase: [c <= 0] *)
+        intros Cle0. unfold __exp7.
+        (* Deduce [c = 0] *)
         assert (equivalent le a a0) by (apply Heq; lia).
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
