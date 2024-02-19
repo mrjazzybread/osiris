@@ -4,6 +4,7 @@ From osiris.proofmode Require Export
   pure_hoare
   simp_eval
   pat
+  struct
   simp_tactics
   setup
   notations
