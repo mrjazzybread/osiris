@@ -372,6 +372,7 @@
 * Immutable recursive values other than functions
 * Labeled arguments
 * Optional arguments and default values
+* Unix signal handling
 
 ## Miscellaneous notes
 
