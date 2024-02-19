@@ -131,13 +131,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* If a soft failure on either side is detected, then
      the failure continuation [z] can be invoked. *)
-  | StepParNextLeft :
+  | StepParThrowLeft :
       ∀ {A1 A2 E'} σ m2 e (k : A1 * A2 → _) (z : E' → _),
       step
         (σ, Par (Throw e) m2 k z)
         (σ, z e)
 
-  | StepParNextRight :
+  | StepParThrowRight :
       ∀ {A1 A2 E'} σ m1 e (k : A1 * A2 → _) (z : E' → _),
       step
         (σ, Par m1 (Throw e) k z)
