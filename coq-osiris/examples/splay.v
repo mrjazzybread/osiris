@@ -679,19 +679,19 @@ Proof.
   unfold __branches10; pure_match.
   { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
-    pure_call. intros; subst.
+    pure_call.
     split.
     - intros. apply not_elem_of_nil.
     - assumption. }
 
-  { eapply pure_eval_let.
+  { destruct_bst_Node.
+    eapply pure_eval_let.
     { eapply pure_eval_app2.
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       { pure_path. reflexivity. }
       apply Hcompare. }
     intros c (?&Hlt&Heq&Hgt).
-    subst; destruct_bst_Node.
     unfold __exp9.
     eapply pure_eval_ifthenelse.
     { eapply pure_eval_EOpLt.
