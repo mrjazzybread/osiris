@@ -98,7 +98,7 @@ let rec pat (p : pat) =
       c "POr" [ pat p1; pat p2 ]
 
   | PTuple ps ->
-      clist "PMkTuple" (map pat ps)
+      clist "PTuple" (map pat ps)
 
   | PData (d, p) ->
       c "PData" [ data d; pat p ]
@@ -160,7 +160,7 @@ let rec expr (e : expr) =
       c "EApp" [ expr e1; expr e2 ]
 
   | ETuple es ->
-      clist "EMkTuple" (exprs es)
+      clist "ETuple" (exprs es)
 
   | EData (d, e) ->
       c "EData" [ data d; expr e ]
@@ -305,7 +305,7 @@ and branches (bs : branches) =
   cut "branches" (list (map branch bs))
 
 and fexpr = function
-  | Fexpr (f, e) -> 
+  | Fexpr (f, e) ->
     c "Fexpr" [ field f; expr e ]
 
 and fexprs (fes : fexprs) =
@@ -369,7 +369,7 @@ and mexpr (me : mexpr) =
       c "MPath" [ path p ]
 
   | MStruct items ->
-      clist "MkStruct" (structure_items items)
+      clist "MStruct" (structure_items items)
 
   | MCoercion (me, co) ->
       c "MCoercion" [ mexpr me; coercion co ]

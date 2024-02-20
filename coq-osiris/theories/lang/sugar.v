@@ -233,12 +233,6 @@ Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
 
 (* Sugar for module expressions. *)
 
-(* [MkStruct items] allows the use of standard list syntax. *)
-
-Definition MkStruct (items : list sitem) : mexpr :=
-  MStruct (items).
-Arguments MkStruct / items.
-
 (* [open π]. *)
 
 Definition IOpenMkPath xs :=
@@ -248,13 +242,3 @@ Definition IOpenMkPath xs :=
 
 Definition IIncludeMkPath xs :=
   (IInclude (MPath (MkPath xs))).
-
-(* ------------------------------------------------------------------------ *)
-
-Definition PMkTuple l :=
-  PTuple l.
-Arguments PMkTuple / l.
-
-Definition EMkTuple l :=
-  ETuple l.
-Arguments EMkTuple / l.

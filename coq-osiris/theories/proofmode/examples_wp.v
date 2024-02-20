@@ -359,14 +359,14 @@ Qed.
 (* [simple_module] defines stand alone module expression.
    There are no side-effects to deal with. *)
 Definition simple_module: mexpr :=
-  MkStruct
+  MStruct
     [
       ILet (Binding1 (PVar "f")
-                     identity);
+              identity);
       ILet (Binding1 (PVar "g") $
-                     EVar "f");
+              EVar "f");
       ILet (Binding1 (PVar "h") $
-                     EApp (EVar "f") (EVar "g"))
+              EApp (EVar "f") (EVar "g"))
     ].
 
 Definition simple_module_spec: val → iProp Σ :=

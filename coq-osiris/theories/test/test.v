@@ -271,15 +271,15 @@ Qed.
 Lemma test_struct_access :
   let e :=
     ELetModule "A" (
-      MkStruct [
-        IModule "B" $ MkStruct [
-          ILet (Binding1 (PVar "x") (EInt 0));
-          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
-        ];
-        ILet (Binding1 (PVar "z") (EMkPath ["B"; "y"]))
-      ]
-    ) $
-    EMkPath ["A"; "z"]
+        MStruct [
+          IModule "B" $ MStruct [
+              ILet (Binding1 (PVar "x") (EInt 0));
+              ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+            ];
+          ILet (Binding1 (PVar "z") (EMkPath ["B"; "y"]))
+        ]
+      ) $
+      EMkPath ["A"; "z"]
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -300,16 +300,16 @@ Proof. reduces. Qed.
 Lemma test_open :
   let e :=
     ELetModule "A" (
-      MkStruct [
-        IModule "B" $ MkStruct [
-          ILet (Binding1 (PVar "x") (EInt 0));
-          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
-        ];
-        IOpenMkPath ["B"];
-        ILet (Binding1 (PVar "z") (EMkPath ["y"]))
-      ]
-    ) $
-    EMkPath ["A"; "z"]
+        MStruct [
+            IModule "B" $ MStruct [
+                ILet (Binding1 (PVar "x") (EInt 0));
+                ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+              ];
+            IOpenMkPath ["B"];
+            ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+          ]
+      ) $
+      EMkPath ["A"; "z"]
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -330,16 +330,16 @@ Proof. reduces. Qed.
 Lemma test_include :
   let e :=
     ELetModule "A" (
-      MkStruct [
-        IModule "B" $ MkStruct [
-          ILet (Binding1 (PVar "x") (EInt 0));
-          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
-        ];
-        IIncludeMkPath ["B"];
-        ILet (Binding1 (PVar "z") (EMkPath ["y"]))
-      ]
-    ) $
-    EIntAdd (EMkPath ["A"; "x"]) (EMkPath ["A"; "z"])
+        MStruct [
+            IModule "B" $ MStruct [
+                ILet (Binding1 (PVar "x") (EInt 0));
+                ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+              ];
+            IIncludeMkPath ["B"];
+            ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+          ]
+      ) $
+      EIntAdd (EMkPath ["A"; "x"]) (EMkPath ["A"; "z"])
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -360,16 +360,16 @@ Proof. reduces. Qed.
 Lemma test_let_open :
   let e :=
     ELetModule "A" (
-      MkStruct [
-        IModule "B" $ MkStruct [
-          ILet (Binding1 (PVar "x") (EInt 0));
-          ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
-        ]
-      ]
-    ) $
-    ELetOpen (MPath (MkPath ["A"])) $
-    ELetOpen (MPath (MkPath ["B"])) $
-    EVar "y"
+        MStruct [
+            IModule "B" $ MStruct [
+                ILet (Binding1 (PVar "x") (EInt 0));
+                ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
+              ]
+          ]
+      ) $
+      ELetOpen (MPath (MkPath ["A"])) $
+      ELetOpen (MPath (MkPath ["B"])) $
+      EVar "y"
   in
   let v := VInt (repr 1) in
   reduces e v.
