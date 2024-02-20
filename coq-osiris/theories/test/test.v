@@ -143,7 +143,7 @@ Proof. reduces. Qed.
 
 Lemma test_match_integer :
   let e := EInt 12 in
-  let e := EMatchMkBranches e [
+  let e := EMatch e [
     Branch (PInt 0) (EInt 0);
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
   ] in
@@ -153,7 +153,7 @@ Proof. reduces. Qed.
 
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
-  let e := EMatchMkBranches e [
+  let e := EMatch e [
     Branch (PAlias (PInt 0) "x") (EVar "x");
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 1))
   ] in
@@ -163,7 +163,7 @@ Proof. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
-  let e := EMatchMkBranches e [
+  let e := EMatch e [
     Branch (PAlias (POr (PInt 0) (PInt 1)) "x") (EIntAdd (EInt 1) (EVar "x"));
     Branch (PVar "x") (EIntAdd (EVar "x") (EInt 33))
 ] in

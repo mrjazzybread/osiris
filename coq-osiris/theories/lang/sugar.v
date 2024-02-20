@@ -159,11 +159,6 @@ Definition AnonFunction (bs : list branch) : anonfun :=
 Definition EFunction (bs : list branch) :=
   EAnonFun (AnonFunction bs).
 
-(* [match e with bs]. *)
-
-Definition EMatchMkBranches (e : expr) (bs : list branch) :=
-  EMatch e bs.
-
 (* [fun p -> e] is sugar for [fun x -> match x with p -> e]. *)
 
 (* It is the same as [function p -> e]. *)

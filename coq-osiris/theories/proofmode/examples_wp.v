@@ -242,7 +242,7 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
 
 Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
-  EMatchMkBranches (EVar "xs") [
+  EMatch (EVar "xs") [
     Branch pNil EUnit;
     Branch (pCons (PVar "x") (PVar "xs"))
            (EApp (EVar "walk") (EVar "xs"))
@@ -291,7 +291,7 @@ Qed.
 
 Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
-  EMatchMkBranches (EVar "xs") [
+  EMatch (EVar "xs") [
     Branch pNil (EInt 0);
     Branch (pCons (PVar "x") (PVar "xs"))
            (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))

@@ -313,7 +313,7 @@ Qed.
 
 Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
-  EMatchMkBranches (EVar "xs") [
+  EMatch (EVar "xs") [
     Branch pNil EUnit;
     Branch (pCons (PVar "x") (PVar "xs"))
            (EApp (EVar "walk") (EVar "xs"))
@@ -380,7 +380,7 @@ Admitted.
 
 Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
-  EMatchMkBranches (EVar "xs") [
+  EMatch (EVar "xs") [
     Branch pNil (EInt 0);
     Branch (pCons (PVar "x") (PVar "xs"))
            (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
