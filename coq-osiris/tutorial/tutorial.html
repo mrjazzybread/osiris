@@ -527,14 +527,14 @@ takes us from one pause to the next pause.</p>
   | StepParCrashRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
                           (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">k</span> : A1 * A2 → micro A E) 
                           (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par m1 crash k z) (σ, crash)
-  | StepParNextLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
-                        (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;) 
-                        (<span class="nv">k</span> : A1 * A2 → micro A E) 
-                        (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par (throw e) m2 k z) (σ, z e)
-  | StepParNextRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
-                         (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;) 
+  | StepParThrowLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;) 
                          (<span class="nv">k</span> : A1 * A2 → micro A E) 
-                         (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par m1 (throw e) k z) (σ, z e)
+                         (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par (throw e) m2 k z) (σ, z e)
+  | StepParThrowRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                          (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;) 
+                          (<span class="nv">k</span> : A1 * A2 → micro A E) 
+                          (<span class="nv">z</span> : E&#39; → micro A E), step (σ, Par m1 (throw e) k z) (σ, z e)
   | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
                     (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;) 
                     (<span class="nv">k</span> : A1 * A2 → micro A E) (<span class="nv">z</span> : E&#39; → micro A E),
@@ -559,8 +559,8 @@ takes us from one pause to the next pause.</p>
 <span class="kn">Arguments</span> StepParRetRet {A E A1 A2 E&#39;}%type_scope σ v1 v2 (k z)%function_scope
 <span class="kn">Arguments</span> StepParCrashLeft {A E A1 A2 E&#39;}%type_scope σ m2 (k z)%function_scope
 <span class="kn">Arguments</span> StepParCrashRight {A E A1 A2 E&#39;}%type_scope σ m1 (k z)%function_scope
-<span class="kn">Arguments</span> StepParNextLeft {A E A1 A2 E&#39;}%type_scope σ m2 e (k z)%function_scope
-<span class="kn">Arguments</span> StepParNextRight {A E A1 A2 E&#39;}%type_scope σ m1 e (k z)%function_scope
+<span class="kn">Arguments</span> StepParThrowLeft {A E A1 A2 E&#39;}%type_scope σ m2 e (k z)%function_scope
+<span class="kn">Arguments</span> StepParThrowRight {A E A1 A2 E&#39;}%type_scope σ m1 e (k z)%function_scope
 <span class="kn">Arguments</span> StepParLeft {A E A1 A2 E&#39;}%type_scope σ σ&#39; m1 m&#39;1 m2 (k z)%function_scope _
 <span class="kn">Arguments</span> StepParRight {A E A1 A2 E&#39;}%type_scope σ σ&#39; m1 m2 m&#39;2 (k z)%function_scope _
 <span class="kn">Arguments</span> StepChooseLeft {A E B E&#39;}%type_scope σ m1 m2 (k z)%function_scope
