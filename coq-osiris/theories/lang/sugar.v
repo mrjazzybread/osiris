@@ -18,24 +18,6 @@ Definition deco {A} (decoration : string) (a : A) :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* Paths. *)
-
-Fixpoint MkPathRev (xs : list name) : path :=
-  match xs with
-  | [] =>
-      (* Not supposed to happen. *)
-      PathBase "<error in MkPath>"
-  | [x] =>
-      PathBase x
-  | x :: xs =>
-      PathDot (MkPathRev xs) x
-  end.
-
-Definition MkPath (xs : list name) : path :=
-  MkPathRev (rev xs).
-
-(* ------------------------------------------------------------------------ *)
-
 (* Branches *)
 
 Definition Branch1 p e : list branch :=
@@ -110,12 +92,7 @@ Definition VCons v1 v2 :=
 (* [x]. *)
 
 Definition EVar x :=
-  (EPath (PathBase x)).
-
-(* [π]. *)
-
-Definition EMkPath xs :=
-  (EPath (MkPath xs)).
+  (EPath [x]).
 
 (* [p = e]. *)
 
@@ -231,9 +208,9 @@ Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
 (* [open π]. *)
 
 Definition IOpenMkPath xs :=
-  (IOpen (MPath (MkPath xs))).
+  (IOpen (MPath xs)).
 
 (* [include π]. *)
 
 Definition IIncludeMkPath xs :=
-  (IInclude (MPath (MkPath xs))).
+  (IInclude (MPath xs)).

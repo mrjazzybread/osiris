@@ -276,10 +276,10 @@ Lemma test_struct_access :
               ILet (Binding1 (PVar "x") (EInt 0));
               ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
             ];
-          ILet (Binding1 (PVar "z") (EMkPath ["B"; "y"]))
+          ILet (Binding1 (PVar "z") (EPath ["B"; "y"]))
         ]
       ) $
-      EMkPath ["A"; "z"]
+      (EPath ["A"; "z"])
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -306,10 +306,10 @@ Lemma test_open :
                 ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
               ];
             IOpenMkPath ["B"];
-            ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+            ILet (Binding1 (PVar "z") (EPath ["y"]))
           ]
       ) $
-      EMkPath ["A"; "z"]
+      EPath (["A"; "z"])
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -336,10 +336,10 @@ Lemma test_include :
                 ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
               ];
             IIncludeMkPath ["B"];
-            ILet (Binding1 (PVar "z") (EMkPath ["y"]))
+            ILet (Binding1 (PVar "z") (EPath ["y"]))
           ]
       ) $
-      EIntAdd (EMkPath ["A"; "x"]) (EMkPath ["A"; "z"])
+      EIntAdd (EPath ["A"; "x"]) (EPath ["A"; "z"])
   in
   let v := VInt (repr 1) in
   reduces e v.
@@ -367,8 +367,8 @@ Lemma test_let_open :
               ]
           ]
       ) $
-      ELetOpen (MPath (MkPath ["A"])) $
-      ELetOpen (MPath (MkPath ["B"])) $
+      ELetOpen (MPath ["A"]) $
+      ELetOpen (MPath ["B"]) $
       EVar "y"
   in
   let v := VInt (repr 1) in

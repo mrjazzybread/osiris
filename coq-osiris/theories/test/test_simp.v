@@ -8,7 +8,7 @@ Local Notation ε := []. (* TODO move *)
 
 Goal
   let η : env := [("x", #0)] in
-  let e := EMkPath ["x"] in
+  let e := EPath ["x"] in
   simp (eval η e) (ret (#0)).
 Proof.
   intros. simp.
@@ -16,7 +16,7 @@ Qed.
 
 Goal
   let η : env := [("x", #1); ("y", #2)] in
-  let e := EIntAdd (EMkPath ["x"]) (EMkPath ["y"]) in
+  let e := EIntAdd (EPath ["x"]) (EPath ["y"]) in
   simp (eval η e) (ret (#3)).
 Proof.
   intros. simp.
@@ -27,15 +27,15 @@ Qed.
 (* Some tests that involve [let] constructs. *)
 
 Goal
-  let e := ELet1Var "x" (EInt 0) (EMkPath ["x"]) in
+  let e := ELet1Var "x" (EInt 0) (EPath ["x"]) in
   simp (eval ε e) (ret (#0)).
 Proof.
   intros. simp. simp.
 Qed.
 
 Goal
-  let e := ELet1Var "x" (EInt 0) (EMkPath ["x"]) in
-  let e := ELet1Var "y" e (EMkPath ["y"]) in
+  let e := ELet1Var "x" (EInt 0) (EPath ["x"]) in
+  let e := ELet1Var "y" e (EPath ["y"]) in
   simp (eval ε e) (ret (#0)).
 Proof.
   intros. simp. simp.

@@ -214,13 +214,15 @@ Fixpoint lookup_name η x : micro val void :=
 
 Fixpoint lookup_path η π : micro val void :=
   match π with
-  | PathBase x =>
+  | [] =>
+      missing_variable "no path base"
+  | [x] =>
       lookup_name η x
-  | PathDot π x =>
+  | x1 :: π =>
       (* The content of a structure is an environment, *)
-      xvs ← as_struct (lookup_path η π) ;
+      xvs ← as_struct (lookup_name η x1) ;
       (* so we can look up [x] in the environment [xvs]. *)
-      lookup_name xvs x
+      lookup_path xvs π
   end.
 
 (* ------------------------------------------------------------------------ *)

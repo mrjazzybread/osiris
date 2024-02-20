@@ -140,38 +140,22 @@ Infix ":::" := (concat).
 (* -------------------------------------------------------------------------- *)
 (* Paths, tuples and ADTs. *)
 
-Notation "'Path' x1" :=
-  (PathBase x1)
-    (at level 90,
-      format "'Path'  x1").
-
-Goal (trivial (PathBase "base")). Abort.
-
-Notation "'Path' x1 '.' .. '.' xn '.' xm" :=
-  (PathDot (.. (PathDot (PathBase xm) xn) ..) x1)
-    (at level 200,
-       format "'Path'  x1 '/' '.' .. '/' '.' xn '.' '/' xm").
-
-Goal (trivial
-        (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3")).
-Abort.
-
 Notation "'EPath' x1" :=
-  (EPath (PathBase x1))
+  (EPath [x1])
     (at level 90,
       only printing,
       format "'EPath'  x1").
 
-Goal (trivial (EPath (PathBase "base"))). Abort.
+Goal (trivial (EPath ["base"])). Abort.
 
-Notation "'EPath' x1 '.' .. '.' xn '.' xm " :=
-  (EPath (PathDot (.. (PathDot (PathBase xm) xn) ..) x1))
+Notation "'EPath' x1 '.' .. '.' xm" :=
+  (EPath (cons x1 (.. (cons xm nil) ..)))
     (at level 200,
       only printing,
-      format "'EPath'  x1 '/' '.' .. '/' '.' xn '/' '.' xm").
+       format "'EPath'  x1 '.' .. '.' xm").
 
 Goal (trivial
-        (EPath (PathDot (PathDot (PathDot (PathBase "base") "1") "2") "3"))).
+        (EPath ["A"; "B"; "C"; "base"])).
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -253,8 +237,8 @@ Notation "e1 ; e2" :=
 
 Goal (trivial
         (ESeq
-         (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-         (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2))))).
+         (EApp (EPath ["f"]) (EPath ["x"]))
+         (EAssert (EOpEq (EPath ["x"]) (EInt 2))))).
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -267,7 +251,7 @@ Notation "'EMatch' '(' x ')' []" :=
       no associativity,
       format "'EMatch'  '(' x ')'  []").
 
-Goal (trivial (EMatch (EPath (PathBase "l")) [])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [])). Abort.
 
 Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
   (EMatch x (cons b1 (.. (cons bn nil) ..)))
@@ -276,12 +260,12 @@ Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
       no associativity,
       format "'[v' 'EMatch'  '(' x ')'  'with' '//'     '[' b1 '//' ..  '//' bn ']'  '//' 'end' ']'").
 
-Goal (trivial (EMatch (EPath (PathBase "l")) [])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [])). Abort.
 
-Goal (trivial (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
 
 Goal (trivial
-        (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1); Branch PAny 2])).
+        (EMatch (EPath ["l"]) [Branch PAny (EInt 1); Branch PAny 2])).
 Abort.
 
 Notation "'|' pat '->' e" :=
@@ -290,19 +274,19 @@ Notation "'|' pat '->' e" :=
       only printing,
       format "'|'  pat  '->'  '[' '/' e ']'").
 
-Goal (trivial (EMatch (EPath (PathBase "l")) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
 
 Goal (trivial
         (EMatch
-           (EPath (PathBase "l"))
+           (EPath ["l"])
            [Branch PAny
               (ESeq
-                 (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                 (EApp (EPath ["f"]) (EPath ["x"]))
                  (ESeq
-                    (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
+                    (EApp (EPath ["f"]) (EPath ["x"]))
                     (ESeq
-                       (EApp (EPath (PathBase "f")) (EPath (PathBase "x")))
-                       (EAssert (EOpEq (EPath (PathBase "x")) (EInt 2)))
+                       (EApp (EPath ["f"]) (EPath ["x"]))
+                       (EAssert (EOpEq (EPath ["x"]) (EInt 2)))
                     )
                  )
               );

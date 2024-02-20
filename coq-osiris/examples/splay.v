@@ -3,8 +3,6 @@ From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_splay.
-Local Opaque app. (* Prevent undesired simplification. *)
-  (* TODO clash between ++ in fringes and ++ in paths *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -461,12 +459,17 @@ Proof.
   unfold bst. simpl fringe. rewrite Sorted_empty_iff. tauto.
 Qed.
 
+Lemma cons_is_app x (l1 : list A) : x :: l1 = [x] ++ l1. Proof. tauto. Qed.
+
 Lemma bst_Node_iff l x r :
   bst (Node l x r) ↔
   bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
 Proof.
   unfold bst. simpl fringe.
-  rewrite !Sorted_app_iff !Sorted_singleton_iff pairwise_app_right_iff.
+  repeat first [ rewrite Sorted_app_iff
+               | rewrite Sorted_singleton_iff
+               | rewrite cons_is_app; rewrite Sorted_app_iff
+               | rewrite pairwise_app_right_iff].
   pose proof (@pairwise_transitive_singleton _ lt _ (fringe l) x (fringe r)).
   tauto.
 Qed.
@@ -521,9 +524,6 @@ Lemma ltb_false (n m : Z) :
 Proof.
   intros. rewrite Z.ltb_ge. lia.
 Qed.
-
-Local Ltac fixme :=
-  with_strategy transparent [app] simpl (MkPathRev _); pure1.
 
 Lemma pat_consequence_phi η p v (φ φ' : env -> Prop) ψ :
   (∀ η, φ' η -> φ η) ->

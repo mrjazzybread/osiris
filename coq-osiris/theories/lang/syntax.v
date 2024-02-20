@@ -30,11 +30,7 @@ Definition name :=
 (* A module path is a possibly-empty list of module names [M], followed with
    a final name, which can be a variable [x] or a module name [M]. *)
 
-Inductive path :=
-  (* An unqualified name. *)
-  | PathBase (n : name)
-  (* A qualified name. *)
-  | PathDot (π : path) (n : name).
+Definition path := list name.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -420,4 +416,3 @@ Lemma BoolConstructor_congruent_contrapositive b1 b2 :
 Proof.
   congruence.
 Qed.
-

@@ -66,17 +66,6 @@ let char (cc : char) =
 
 (* -------------------------------------------------------------------------- *)
 
-(* Paths. *)
-
-let path (pi : path) =
-  (* We could use [MkPath], but its definition in Coq involves [rev].
-     This is very bad, because using [rev] is bad in the first place
-     and because [rev] is itself defined in an inefficient way.
-     So, better use [MkPathRev]. *)
-  clist "MkPathRev" (List.rev (map var pi))
-
-(* -------------------------------------------------------------------------- *)
-
 (* Patterns. *)
 
 let rec pat (p : pat) =
@@ -150,8 +139,8 @@ let rec expr (e : expr) =
   | EUnsupported ->
       c "EUnsupported" []
 
-  | EPath x ->
-      c "EPath" [ path x ]
+  | EPath pi ->
+      clist "EPath" (map var pi)
 
   | EAnonFun a ->
       c "EAnonFun" [ cut "fun" (anonfun a) ]
@@ -365,8 +354,8 @@ and mexpr (me : mexpr) =
   | MUnsupported ->
       c "MUnsupported" []
 
-  | MPath p ->
-      c "MPath" [ path p ]
+  | MPath pi ->
+      clist "MPath" (map var pi)
 
   | MStruct items ->
       clist "MStruct" (structure_items items)
