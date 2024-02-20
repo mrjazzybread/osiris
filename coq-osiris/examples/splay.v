@@ -594,7 +594,7 @@ Proof.
     prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
-  { eapply pure_eval_app. Transparent app. (* Bad! *) pure_path.
+  { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
     { eapply IH; unfold zlt; subst; auto with arith. }
