@@ -11,8 +11,8 @@ From osiris.examples Require Import og_splay.
 Local Ltac unpack :=
   repeat lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
 
-Notation "'<closure>'" := (VCloRec _ _ _) (only printing).
-Notation "'<closure>'" := (VClo _ _) (only printing).
+(* Notation "'<closure>'" := (VCloRec _ _ _) (only printing). *)
+(* Notation "'<closure>'" := (VClo _ _) (only printing). *)
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
   (cons x _ (.. (cons z _ nil) ..))
  (only printing).
@@ -546,7 +546,7 @@ Definition lift_decl_spec : var * (val -> Prop) -> env -> Prop :=
 (* -------------------------------------------------------------------------- *)
 (* Specification structures. *)
 
-Class decl_spec (name : var) := { Decl_spec : val -> Prop }.
+Class decl_spec (name : var) := { Decl_spec : pspec }.
 
 Definition env_spec name `{decl_spec name} :=
   lift_decl_spec (name, Decl_spec).
@@ -560,41 +560,194 @@ Definition spec (name : var) `{decl_spec name} :=
   @Decl_spec name _.
 
 (* -------------------------------------------------------------------------- *)
+(* Module-relevant specification structures. *)
+
+(* Type of association lists from names to pure specifications,
+  listing dependencies; the dependency must not be cyclic *)
+Definition dep_list := list var.
+
+(* A pure specification for a declaration, which includes a list of dependencies *)
+Record decl_dep_spec :=
+  { name : var;
+    dspec : pspec;
+    dependency: dep_list }.
+
+(* A specification of a module combines the list of specifications for
+    declarations *)
+Definition module_dep_spec := list decl_dep_spec.
+
+Fixpoint pspec_has_defs (defs : list var) (Λ : module_dep_spec) :=
+  match defs with
+  | [] => True
+  | h :: t => match (find (fun x => String.eqb (name x) h) Λ) with
+              | Some _ => pspec_has_defs t Λ
+              | None => False
+            end
+  end.
+
+(* Lookup the specification of a declaration with name [v] *)
+Definition lookup_spec (Λ : module_dep_spec) (v : var) : option pspec :=
+  match (find (fun x => String.eqb (name x) v) Λ) with
+    | Some {| name := _; dspec := x; dependency := _|} => Some x
+    | None => None
+  end.
+
+Fixpoint env_has_pspecs_dep (η : env) (Λ : module_dep_spec) :=
+  match Λ with
+  | [] => True
+  | [x] => match (lookup_name η (name x)) with
+          | ret v' =>
+              (dspec x) v' /\ pspec_has_defs (dependency x) Λ
+          | _ => False
+          end
+  | h::t => match (lookup_name η (name h)) with
+          | ret v' =>
+              (dspec h) v' /\ env_has_pspecs_dep η t /\
+                pspec_has_defs (dependency h) Λ
+          | _ => False
+          end
+  end.
+
+Definition is_module_with_pspecs_dep (Λ : module_dep_spec) : (val -> Prop) :=
+  fun v => match v with
+        | VStruct env => env_has_pspecs_dep env Λ
+        | _ => False
+        end.
+
+
+Fixpoint internalize Λ (l : dep_list) (v : val) (Φ : Prop) :=
+  match l with
+    | nil => Φ
+    | h :: t =>
+        internalize Λ t v
+          (match lookup_spec Λ h with
+            | Some x => x v -> Φ
+            | None => Φ
+            end)
+  end.
+
+Section internalize_dep.
+
+  Context (Λ : module_dep_spec).
+
+  Notation internalize := (internalize Λ).
+
+  Fixpoint _internalize_dep l :=
+    match l with
+    | nil => nil
+    | {| name := x;
+         dspec := P;
+         dependency := dep |} :: l =>
+      (x, (fun v => internalize dep v (P v)))
+        :: _internalize_dep l
+    end.
+
+  Definition internalize_dep : pspec_assoc :=
+    _internalize_dep Λ.
+
+End internalize_dep.
+
+Lemma env_has_pspecs_resolve xvs l:
+  env_has_pspecs xvs (internalize_dep l) ->
+  env_has_pspecs_dep xvs l.
+Proof.
+  revert xvs. induction l; auto.
+  cbn.
+  destruct a; eauto.
+  intros. destruct l; cbn in *; eauto.
+  destruct (lookup_name xvs name0); auto.
+Admitted.
+
+Lemma module_dep_resolve l v:
+  is_module_with_pspecs (internalize_dep l) v ->
+  is_module_with_pspecs_dep l v.
+Proof.
+  revert v.
+  induction l; cbn; eauto.
+  destruct a; eauto; intros.
+  unfold is_module_with_pspecs_dep.
+  destruct v; eauto.
+  apply env_has_pspecs_resolve.
+  unfold is_module_with_pspecs_dep in IHl.
+
+  specialize (IHl (VStruct xvs)). cbn in *. auto.
+Qed.
+
+Definition pure_module η main spec :=
+  pure (eval_mexpr η main) (is_module_with_pspecs_dep spec).
+
+(* -------------------------------------------------------------------------- *)
 (* Specification of [splay]. *)
 
+Definition splay_spec :=
+  fun splay =>
+    ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
+    pure
+      (call splay #(l, x, r, ctx))
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))).
+
+Definition splay_leaf_spec :=
+  fun (splay_leaf : val) =>
+    ∀ A `(_ : Encode A) (ctx : zipper A),
+    pure
+      (call splay_leaf #ctx)
+      (λ t', fringe t' = fringe (fill ctx Leaf)).
+
+Definition zlookup_spec :=
+  fun (zlookup : val) =>
+    ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
+      compare_spec Stdlib__compare le →
+      ∀ (t : tree A) (x : A) (ctx : zipper A),
+      bst (strict le) t →
+      pure
+        (call zlookup #(t, x, ctx))
+        (λ '(oy, t'),
+          member le x (fringe t) oy ∧
+          fringe t' = fringe (fill ctx t)).
+
 #[local] Instance splay_decl_spec : decl_spec "splay" :=
-  {| Decl_spec :=
-      fun splay =>
-        ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-        pure
-          (call splay #(l, x, r, ctx))
-          (λ t', fringe t' = fringe (fill ctx (Node l x r)))
-  |}.
+  {| Decl_spec := splay_spec |}.
 
 #[local] Instance splay_leaf_decl_spec : decl_spec "splay_leaf" :=
-  {| Decl_spec :=
-      fun (splay_leaf : val) =>
-        ∀ A `(_ : Encode A) (ctx : zipper A),
-        pure
-          (call splay_leaf #ctx)
-          (λ t', fringe t' = fringe (fill ctx Leaf))
-  |}.
+  {| Decl_spec := splay_leaf_spec |}.
 
 #[local] Instance zlookup_decl_spec : decl_spec "zlookup" :=
-  {| Decl_spec :=
-      fun (zlookup : val) =>
-      ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
-        compare_spec Stdlib__compare le →
-        ∀ (t : tree A) (x : A) (ctx : zipper A),
-        bst (strict le) t →
-        pure
-          (call zlookup #(t, x, ctx))
-          (λ '(oy, t'),
-            member le x (fringe t) oy ∧
-            fringe t' = fringe (fill ctx t)
-          )
-  |}.
+  {| Decl_spec := zlookup_spec |}.
 
+(* LATER: Infer some of this *)
+Definition splay_module_spec :=
+[ {| name := "splay"; dspec := spec "splay"; dependency := nil |};
+  {| name := "splay_leaf"; dspec := spec "splay_leaf"; dependency := nil |};
+  {| name := "zlookup"; dspec := spec "zlookup"; dependency := ["splay"; "splay_leaf"]|}].
+
+Eval cbn in lookup_spec splay_module_spec "splay".
+
+Eval cbn in internalize splay_module_spec ["splay"] (VString "h").
+
+(* -------------------------------------------------------------------------- *)
+
+(* Top-level specification of [splay]. *)
+
+(* From the [pure_module] signature, generate the obligations below. *)
+Lemma Splay__spec:
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
+  pure_module η __main splay_module_spec.
+Proof.
+  intros. pure1.
+  eapply module_dep_resolve.
+
+  simpl.
+  split; last split.
+  (* { apply Splay_spec. } *)
+  (* { intros; apply Splay_leaf_spec. *)
+  (*   eexists; split; [ reflexivity | apply Splay_spec ]. } *)
+  (* { intros; eapply Zlookup_spec; eexists; intuition; eauto. (* Why is this not being resolved? *) *)
+Admitted.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Specification of [splay]. *)
 Section splay_proofs.
 
   Definition Stdlib_defs := ("Stdlib", Stdlib) :: Stdlib_env.
@@ -808,145 +961,6 @@ Proof.
         - apply elem_of_app; right; apply elem_of_cons; by left.
         - assumption. } } }
 Qed.
-
-(* Type of association lists from names to pure specifications,
-  listing dependencies; the dependency must not be cyclic *)
-Definition dep_list := list var.
-
-(* A pure specification for a declaration, which includes a list of dependencies *)
-Record decl_spec :=
-  { name : var;
-    spec : pspec;
-    dependency: dep_list }.
-
-(* A specification of a module combines the list of specifications for
-    declarations *)
-Definition module_spec := list decl_spec.
-
-Fixpoint pspec_has_defs (defs : list var) (Λ : module_spec) :=
-  match defs with
-  | [] => True
-  | h :: t => match (find (fun x => String.eqb (name x) h) Λ) with
-              | Some _ => pspec_has_defs t Λ
-              | None => False
-            end
-  end.
-
-Definition splay_module_spec :=
-[ {| name := "splay"; spec := splay_spec; dependency := nil |};
-  {| name := "splay_leaf"; spec := splay_leaf_spec; dependency := nil |};
-  {| name := "zlookup"; spec := zlookup_spec; dependency := ["splay"; "splay_leaf"]|}].
-
-(* Lookup the specification of a declaration with name [v] *)
-Definition lookup_spec (Λ : module_spec) (v : var) : option pspec :=
-  match (find (fun x => String.eqb (name x) v) Λ) with
-    | Some {| name := _; spec := x; dependency := _|} => Some x
-    | None => None
-  end.
-
-Eval cbn in lookup_spec splay_module_spec "splay".
-
-Fixpoint env_has_pspecs_dep (η : env) (Λ : module_spec) :=
-  match Λ with
-  | [] => True
-  | [x] => match (lookup_name η (name x)) with
-          | ret v' =>
-              (spec x) v' /\ pspec_has_defs (dependency x) Λ
-          | _ => False
-          end
-  | h::t => match (lookup_name η (name h)) with
-          | ret v' =>
-              (spec h) v' /\ env_has_pspecs_dep η t /\
-                pspec_has_defs (dependency h) Λ
-          | _ => False
-          end
-  end.
-
-Definition is_module_with_pspecs_dep (Λ : module_spec) : (val -> Prop) :=
-  fun v => match v with
-        | VStruct env => env_has_pspecs_dep env Λ
-        | _ => False
-        end.
-
-
-Fixpoint internalize Λ (l : dep_list) (v : val) (Φ : Prop) :=
-  match l with
-    | nil => Φ
-    | h :: t =>
-        internalize Λ t v
-          (match lookup_spec Λ h with
-            | Some x => x v -> Φ
-            | None => Φ
-            end)
-  end.
-
-Eval cbn in internalize splay_module_spec ["splay"] (VString "h").
-
-Section internalize_dep.
-
-  Context (Λ : module_spec).
-
-  Notation internalize := (internalize Λ).
-
-  Fixpoint _internalize_dep l :=
-    match l with
-    | nil => nil
-    | {| name := x;
-         spec := P;
-         dependency := dep |} :: l =>
-      (x, (fun v => internalize dep v (P v)))
-        :: _internalize_dep l
-    end.
-
-  Definition internalize_dep : pspec_assoc :=
-    _internalize_dep Λ.
-
-End internalize_dep.
-
-Lemma env_has_pspecs_resolve xvs l:
-  env_has_pspecs xvs (internalize_dep l) ->
-  env_has_pspecs_dep xvs l.
-Proof.
-  revert xvs. induction l; auto.
-  cbn.
-  destruct a; eauto.
-  intros. destruct l; cbn in *; eauto.
-  destruct (lookup_name xvs name0); auto.
-Admitted.
-
-Lemma module_dep_resolve l v:
-  is_module_with_pspecs (internalize_dep l) v ->
-  is_module_with_pspecs_dep l v.
-Proof.
-  revert v.
-  induction l; cbn; eauto.
-  destruct a; eauto; intros.
-  unfold is_module_with_pspecs_dep.
-  destruct v; eauto.
-  apply env_has_pspecs_resolve.
-  unfold is_module_with_pspecs_dep in IHl.
-
-  specialize (IHl (VStruct xvs)). cbn in *. auto.
-Qed.
-
-Definition pure_module η main spec :=
-  pure (eval_mexpr η main) (is_module_with_pspecs_dep spec).
-
-Lemma Splay__spec:
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  pure_module η __main splay_module_spec.
-Proof.
-  intros. pure1.
-  eapply module_dep_resolve.
-
-  simpl.
-  split; last split.
-  { apply Splay_spec. }
-  { intros; apply Splay_leaf_spec.
-  (*   eexists; split; [ reflexivity | apply Splay_spec ]. } *)
-  (* { intros; eapply Zlookup_spec; eexists; intuition; eauto. (* Why is this not being resolved? *) *)
-Admitted.
-
 
 Lemma Splay__spec:
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
