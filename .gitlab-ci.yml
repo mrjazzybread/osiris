@@ -6,6 +6,7 @@ pages:
     paths:
       # The folder that contains the files to be exposed at the Page URL
       - public
-  only:
-    changes:
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      changes:
       - coq-osiris/tutorial/*
