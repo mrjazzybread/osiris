@@ -86,7 +86,7 @@ Inductive micro A E :=
       (z : E' → micro A E)
 .
 
-(* Make [A] an implicit argument of the constructors. *)
+(* Make [A] and [E] implicit arguments of the constructors. *)
 
 Arguments Ret    {A E}.
 Arguments Throw  {A E}.
