@@ -559,119 +559,89 @@ Ltac pattern_hook ::=
     | pat_pLeaf; intros
     | pat_pNode; intros
     ].
-(* Sugar for [expr] syntax *)
 
-Declare Scope expr_scope.
-Delimit Scope expr_scope with expr.
+Section splay_proofs.
 
-Notation "e1 e2" :=
-  (EApp e1 e2)
-    (only printing, at level 1, left associativity) : expr_scope.
-Notation "x" :=
-  (EVar x)
-    (only printing, at level 1, left associativity) : expr_scope.
-Notation "'match' e 'with' l" :=
-  (EMatch e l)
-    (only printing, at level 1, e at level 1,
-      format "'match'  '[' e ']'  'with' '//' l",
-      left associativity) : expr_scope.
+  Definition Stdlib_defs := ("Stdlib", Stdlib) :: Stdlib_env.
+  Definition η := Stdlib_defs.
 
+  Lemma Splay_spec :
+    splay_spec (VCloRec η __bindings2 "splay").
+  Proof.
+    intros.
+    unfold splay_spec. intros ??.
+    intros.
+    (* TODO: Add the following pattern into pure_rec_call *)
+    remember (l, x, r, ctx) as t.
+    replace ctx with t.2 by (rewrite Heqt; reflexivity).
+    replace l with (t.1.1.1) by (rewrite Heqt; reflexivity).
+    replace x with (t.1.1.2) by (rewrite Heqt; reflexivity).
+    replace r with (t.1.2) by (rewrite Heqt; reflexivity).
+    pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
 
-Global Arguments eval _ _%expr_scope.
+    clear l ctx x r.
+    destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
 
-(* Notations for [pure] proofmode *)
-Notation "Γ x : v" := (cons (x, v) _ : env)
-  (at level 1,
-   left associativity,
-    format "Γ x  :  '[' v ']' '//'", only printing) : proof_scope.
+    (* Match to destruct the argument tuple *)
+    eapply pure_eval_match. { pure_path. reflexivity. }
+    unfold __branches1; pure_match.
 
+    (* Match on [ctx] *)
+    eapply pure_eval_match. { pure_path. reflexivity. }
+    unfold __branches0; pure_match. (* Was very slow, now just slow *)
 
-Notation "Γ '--------------------------------------🐪' e { Q }" :=
-  (pure (eval Γ e%expr) Q)
-  (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------🐪' '//' e '//' '//' {  Q  } ']'").
+    (* Case: [ctx] matches [Root] *)
+    { pure_data.
+      prove_same_fringe. }
 
-Lemma Splay_spec :
-  let Stdlib_defs := ("Stdlib", Stdlib) :: Stdlib_env in
-  splay_spec (VCloRec Stdlib_defs __bindings2 "splay").
-Proof.
-  intros.
-  generalize Stdlib_defs; clear Stdlib_defs; intro Stdlib_defs. (* optional *)
-  unfold splay_spec. intros ??.
-  intros.
-  (* TODO: Add the following pattern into pure_rec_call *)
-  remember (l, x, r, ctx) as t.
-  replace ctx with t.2 by (rewrite Heqt; reflexivity).
-  replace l with (t.1.1.1) by (rewrite Heqt; reflexivity).
-  replace x with (t.1.1.2) by (rewrite Heqt; reflexivity).
-  replace r with (t.1.2) by (rewrite Heqt; reflexivity).
-  pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
+    (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
+    { pure_data.
+      prove_same_fringe. }
 
-  clear l ctx x r.
-  destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
+    (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
+    { eapply pure_eval_app. pure_path.
+      eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
+      pure_call.
+      { eapply IH; unfold zlt; subst; auto with arith. }
+      simpl; intros ? ->.
+      prove_same_fringe. }
 
-  (* Match to destruct the argument tuple *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches1; pure_match.
+    (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
+    { eapply pure_eval_app. pure_path.
+      eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
+      pure_call.
+      { eapply IH; unfold zlt; subst; auto with arith. }
+      intros ? ->.
+      prove_same_fringe. }
 
-  (* Match on [ctx] *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches0; pure_match. (* Was very slow, now just slow *)
+    (* Case: [ctx] matches [NodeR (ly, y, Root)] *)
+    { pure_data.
+      prove_same_fringe. }
 
-  (* Notation η := pure (eval η e) Φ. *)
+    (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
+    { eapply pure_eval_app. pure_path.
+      eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
+      pure_call.
+      { eapply IH; unfold zlt; subst; auto with arith. }
+      intros ? ->.
+      prove_same_fringe. }
 
-cbn.
- 
-  (* Case: [ctx] matches [Root] *)
-  { pure_data.
-    prove_same_fringe. }
+    (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
+    { eapply pure_eval_app. pure_path.
+      eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
+      pure_call.
+      { eapply IH; unfold zlt; subst; auto with arith. }
+      intros ? ->.
+      prove_same_fringe. }
+  Qed.
 
-  (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
-  { pure_data.
-    prove_same_fringe. }
+  Definition splay_leaf_closure := VClo η __fun4.
 
-  (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    simpl; intros ? ->.
-    prove_same_fringe. }
-
-  (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
-
-  (* Case: [ctx] matches [NodeR (ly, y, Root)] *)
-  { pure_data.
-    prove_same_fringe. }
-
-  (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
-
-  (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
-Qed.
-
-Lemma Splay_leaf_spec η :
-  (exists splay, lookup_name η "splay" = ret splay /\ splay_spec splay) ->
-  splay_leaf_spec (VClo η __fun4).
-Proof.
-  intros (splay & find_splay & spec_splay).
+  Lemma Splay_leaf_spec :
+    splay_spec splay_leaf_closure ->
+    splay_leaf_spec splay_leaf_closure.
+  Proof.
+  intros spec_splay.
   unfold splay_leaf_spec.
   intros.
   pure_call_VClo.
@@ -805,6 +775,145 @@ Proof.
         - apply elem_of_app; right; apply elem_of_cons; by left.
         - assumption. } } }
 Qed.
+
+(* Type of association lists from names to pure specifications,
+  listing dependencies; the dependency must not be cyclic *)
+Definition dep_list := list var.
+
+(* A pure specification for a declaration, which includes a list of dependencies *)
+Record decl_spec :=
+  { name : var;
+    spec : pspec;
+    dependency: dep_list }.
+
+(* A specification of a module combines the list of specifications for
+    declarations *)
+Definition module_spec := list decl_spec.
+
+Fixpoint pspec_has_defs (defs : list var) (Λ : module_spec) :=
+  match defs with
+  | [] => True
+  | h :: t => match (find (fun x => String.eqb (name x) h) Λ) with
+              | Some _ => pspec_has_defs t Λ
+              | None => False
+            end
+  end.
+
+Definition splay_module_spec :=
+[ {| name := "splay"; spec := splay_spec; dependency := nil |};
+  {| name := "splay_leaf"; spec := splay_leaf_spec; dependency := nil |};
+  {| name := "zlookup"; spec := zlookup_spec; dependency := ["splay"; "splay_leaf"]|}].
+
+(* Lookup the specification of a declaration with name [v] *)
+Definition lookup_spec (Λ : module_spec) (v : var) : option pspec :=
+  match (find (fun x => String.eqb (name x) v) Λ) with
+    | Some {| name := _; spec := x; dependency := _|} => Some x
+    | None => None
+  end.
+
+Eval cbn in lookup_spec splay_module_spec "splay".
+
+Fixpoint env_has_pspecs_dep (η : env) (Λ : module_spec) :=
+  match Λ with
+  | [] => True
+  | [x] => match (lookup_name η (name x)) with
+          | ret v' =>
+              (spec x) v' /\ pspec_has_defs (dependency x) Λ
+          | _ => False
+          end
+  | h::t => match (lookup_name η (name h)) with
+          | ret v' =>
+              (spec h) v' /\ env_has_pspecs_dep η t /\
+                pspec_has_defs (dependency h) Λ
+          | _ => False
+          end
+  end.
+
+Definition is_module_with_pspecs_dep (Λ : module_spec) : (val -> Prop) :=
+  fun v => match v with
+        | VStruct env => env_has_pspecs_dep env Λ
+        | _ => False
+        end.
+
+
+Fixpoint internalize Λ (l : dep_list) (v : val) (Φ : Prop) :=
+  match l with
+    | nil => Φ
+    | h :: t =>
+        internalize Λ t v
+          (match lookup_spec Λ h with
+            | Some x => x v -> Φ
+            | None => Φ
+            end)
+  end.
+
+Eval cbn in internalize splay_module_spec ["splay"] (VString "h").
+
+Section internalize_dep.
+
+  Context (Λ : module_spec).
+
+  Notation internalize := (internalize Λ).
+
+  Fixpoint _internalize_dep l :=
+    match l with
+    | nil => nil
+    | {| name := x;
+         spec := P;
+         dependency := dep |} :: l =>
+      (x, (fun v => internalize dep v (P v)))
+        :: _internalize_dep l
+    end.
+
+  Definition internalize_dep : pspec_assoc :=
+    _internalize_dep Λ.
+
+End internalize_dep.
+
+Lemma env_has_pspecs_resolve xvs l:
+  env_has_pspecs xvs (internalize_dep l) ->
+  env_has_pspecs_dep xvs l.
+Proof.
+  revert xvs. induction l; auto.
+  cbn.
+  destruct a; eauto.
+  intros. destruct l; cbn in *; eauto.
+  destruct (lookup_name xvs name0); auto.
+Admitted.
+
+Lemma module_dep_resolve l v:
+  is_module_with_pspecs (internalize_dep l) v ->
+  is_module_with_pspecs_dep l v.
+Proof.
+  revert v.
+  induction l; cbn; eauto.
+  destruct a; eauto; intros.
+  unfold is_module_with_pspecs_dep.
+  destruct v; eauto.
+  apply env_has_pspecs_resolve.
+  unfold is_module_with_pspecs_dep in IHl.
+
+  specialize (IHl (VStruct xvs)). cbn in *. auto.
+Qed.
+
+Definition pure_module η main spec :=
+  pure (eval_mexpr η main) (is_module_with_pspecs_dep spec).
+
+Lemma Splay__spec:
+  let η := ("Stdlib", Stdlib) :: Stdlib_env in
+  pure_module η __main splay_module_spec.
+Proof.
+  intros. pure1.
+  eapply module_dep_resolve.
+
+  simpl.
+  split; last split.
+  { apply Splay_spec. }
+  { intros; apply Splay_leaf_spec.
+  (*   eexists; split; [ reflexivity | apply Splay_spec ]. } *)
+  (* { intros; eapply Zlookup_spec; eexists; intuition; eauto. (* Why is this not being resolved? *) *)
+Admitted.
+
 
 Lemma Splay__spec:
   let η := ("Stdlib", Stdlib) :: Stdlib_env in
