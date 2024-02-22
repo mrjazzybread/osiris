@@ -123,7 +123,7 @@ Notation "'WP' e {{ v , ... } }" :=
    - [name1 ~> value1; ...; namen ~> valuen] otherwise. *)
 
 Notation "n1 ~> v1 ; η" :=
-  ((n1, v1) :: η) (at level 80, right associativity, format "n1  ~>  v1 ;  '/' η").
+  ((n1, v1) :: η) (at level 80, right associativity, format "n1  ~>  v1 ;  '//' η").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)

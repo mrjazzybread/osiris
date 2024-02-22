@@ -559,13 +559,44 @@ Ltac pattern_hook ::=
     | pat_pLeaf; intros
     | pat_pNode; intros
     ].
+(* Sugar for [expr] syntax *)
+
+Declare Scope expr_scope.
+Delimit Scope expr_scope with expr.
+
+Notation "e1 e2" :=
+  (EApp e1 e2)
+    (only printing, at level 1, left associativity) : expr_scope.
+Notation "x" :=
+  (EVar x)
+    (only printing, at level 1, left associativity) : expr_scope.
+Notation "'match' e 'with' l" :=
+  (EMatch e l)
+    (only printing, at level 1, e at level 1,
+      format "'match'  '[' e ']'  'with' '//' l",
+      left associativity) : expr_scope.
+
+
+Global Arguments eval _ _%expr_scope.
+
+(* Notations for [pure] proofmode *)
+Notation "Γ x : v" := (cons (x, v) _ : env)
+  (at level 1,
+   left associativity,
+    format "Γ x  :  '[' v ']' '//'", only printing) : proof_scope.
+
+
+Notation "Γ '--------------------------------------🐪' e { Q }" :=
+  (pure (eval Γ e%expr) Q)
+  (only printing, at level 100,
+      format "'[' Γ '//' '--------------------------------------🐪' '//' e '//' '//' {  Q  } ']'").
 
 Lemma Splay_spec :
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  splay_spec (VCloRec η __bindings2 "splay").
+  let Stdlib_defs := ("Stdlib", Stdlib) :: Stdlib_env in
+  splay_spec (VCloRec Stdlib_defs __bindings2 "splay").
 Proof.
   intros.
-  generalize η; clear η; intro η. (* optional *)
+  generalize Stdlib_defs; clear Stdlib_defs; intro Stdlib_defs. (* optional *)
   unfold splay_spec. intros ??.
   intros.
   (* TODO: Add the following pattern into pure_rec_call *)
@@ -575,16 +606,22 @@ Proof.
   replace x with (t.1.1.2) by (rewrite Heqt; reflexivity).
   replace r with (t.1.2) by (rewrite Heqt; reflexivity).
   pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
+
   clear l ctx x r.
   destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches1; pure_match.
+
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches0; pure_match. (* Was very slow, now just slow *)
 
+  (* Notation η := pure (eval η e) Φ. *)
+
+cbn.
+ 
   (* Case: [ctx] matches [Root] *)
   { pure_data.
     prove_same_fringe. }
