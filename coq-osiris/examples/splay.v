@@ -484,32 +484,6 @@ Ltac destruct_bst_Node :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Specification of [splay]. *)
-
-Definition splay_spec (splay : val) : Prop :=
-  ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-  pure
-    (call splay #(l, x, r, ctx))
-    (λ t', fringe t' = fringe (fill ctx (Node l x r))).
-
-Definition splay_leaf_spec (splay_leaf : val) : Prop :=
-  ∀ A `(_ : Encode A) (ctx : zipper A),
-  pure
-    (call splay_leaf #ctx)
-    (λ t', fringe t' = fringe (fill ctx Leaf)).
-
-Definition zlookup_spec (zlookup : val) : Prop :=
-  ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
-  compare_spec Stdlib__compare le →
-  ∀ (t : tree A) (x : A) (ctx : zipper A),
-  bst (strict le) t →
-  pure
-    (call zlookup #(t, x, ctx))
-    (λ '(oy, t'),
-      member le x (fringe t) oy ∧
-      fringe t' = fringe (fill ctx t)
-    ).
-
 (* TODO move these lemmas *)
 Lemma ltb_true (n m : Z) :
   n < m →
@@ -560,17 +534,79 @@ Ltac pattern_hook ::=
     | pat_pNode; intros
     ].
 
+(* -------------------------------------------------------------------------- *)
+
+Definition And {A} : list (A -> Prop) -> A -> Prop :=
+  fun props a => List.fold_left (fun acc x => (x a) /\ acc) props True.
+
+Definition lift_decl_spec : var * (val -> Prop) -> env -> Prop :=
+ fun '(name, Φ) η =>
+   (exists decl, lookup_name η name = ret decl /\ Φ decl).
+
+(* -------------------------------------------------------------------------- *)
+(* Specification structures. *)
+
+Class decl_spec (name : var) := { Decl_spec : val -> Prop }.
+
+Definition env_spec name `{decl_spec name} :=
+  lift_decl_spec (name, Decl_spec).
+
+Definition decl := { name : var & decl_spec name }.
+
+Definition module_spec (names: list decl) :=
+  And (List.map (fun x => @Decl_spec (projT1 x) (projT2 x)) names).
+
+Definition spec (name : var) `{decl_spec name} :=
+  @Decl_spec name _.
+
+(* -------------------------------------------------------------------------- *)
+(* Specification of [splay]. *)
+
+#[local] Instance splay_decl_spec : decl_spec "splay" :=
+  {| Decl_spec :=
+      fun splay =>
+        ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
+        pure
+          (call splay #(l, x, r, ctx))
+          (λ t', fringe t' = fringe (fill ctx (Node l x r)))
+  |}.
+
+#[local] Instance splay_leaf_decl_spec : decl_spec "splay_leaf" :=
+  {| Decl_spec :=
+      fun (splay_leaf : val) =>
+        ∀ A `(_ : Encode A) (ctx : zipper A),
+        pure
+          (call splay_leaf #ctx)
+          (λ t', fringe t' = fringe (fill ctx Leaf))
+  |}.
+
+#[local] Instance zlookup_decl_spec : decl_spec "zlookup" :=
+  {| Decl_spec :=
+      fun (zlookup : val) =>
+      ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
+        compare_spec Stdlib__compare le →
+        ∀ (t : tree A) (x : A) (ctx : zipper A),
+        bst (strict le) t →
+        pure
+          (call zlookup #(t, x, ctx))
+          (λ '(oy, t'),
+            member le x (fringe t) oy ∧
+            fringe t' = fringe (fill ctx t)
+          )
+  |}.
+
 Section splay_proofs.
 
   Definition Stdlib_defs := ("Stdlib", Stdlib) :: Stdlib_env.
   Definition η := Stdlib_defs.
 
+  Definition splay_closure := (VCloRec η __bindings2 "splay").
+  Definition splay_leaf_closure := VClo η __fun4.
+
   Lemma Splay_spec :
-    splay_spec (VCloRec η __bindings2 "splay").
+    spec "splay" splay_closure.
   Proof.
-    intros.
-    unfold splay_spec. intros ??.
-    intros.
+    repeat intro.
     (* TODO: Add the following pattern into pure_rec_call *)
     remember (l, x, r, ctx) as t.
     replace ctx with t.2 by (rewrite Heqt; reflexivity).
@@ -635,15 +671,12 @@ Section splay_proofs.
       prove_same_fringe. }
   Qed.
 
-  Definition splay_leaf_closure := VClo η __fun4.
-
   Lemma Splay_leaf_spec :
-    splay_spec splay_leaf_closure ->
-    splay_leaf_spec splay_leaf_closure.
+    spec "splay" splay_leaf_closure ->
+    spec "splay_leaf" splay_leaf_closure.
   Proof.
   intros spec_splay.
-  unfold splay_leaf_spec.
-  intros.
+  repeat intro.
   pure_call_VClo.
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path; reflexivity. }
