@@ -714,7 +714,7 @@ Definition zlookup_spec :=
 #[local] Instance zlookup_decl_spec : decl_spec "zlookup" :=
   {| Decl_spec := zlookup_spec |}.
 
-(* LATER: Infer some of this *)
+(* LATER: Infer some of this from taking in a closure *)
 Definition splay_module_spec :=
 [ {| name := "splay"; dspec := spec "splay"; dependency := nil |};
   {| name := "splay_leaf"; dspec := spec "splay_leaf"; dependency := nil |};
@@ -728,22 +728,43 @@ Eval cbn in internalize splay_module_spec ["splay"] (VString "h").
 
 (* Top-level specification of [splay]. *)
 
-(* From the [pure_module] signature, generate the obligations below. *)
-Lemma Splay__spec:
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  pure_module η __main splay_module_spec.
-Proof.
-  intros. pure1.
-  eapply module_dep_resolve.
+Definition stdlib_env := ("Stdlib", Stdlib) :: Stdlib_env.
 
-  simpl.
-  split; last split.
-  (* { apply Splay_spec. } *)
-  (* { intros; apply Splay_leaf_spec. *)
-  (*   eexists; split; [ reflexivity | apply Splay_spec ]. } *)
-  (* { intros; eapply Zlookup_spec; eexists; intuition; eauto. (* Why is this not being resolved? *) *)
-Admitted.
+(* Ltac programming to compute the environment from [mexpr]'s. *)
 
+(* Instantiates an evar and tries to apply the aggressive [simp_really] resolution
+   spitting out a [micro] monad if it succeeds. *)
+Ltac try_reduce_with_simp A E m :=
+  let e := fresh "e" in
+  let H := fresh "H" in
+  evar (e : micro A E);
+  assert (H:simp m ?e) by simp_really;
+  clear H;
+  exact e.
+
+(* Given a module definition that has been evaluated, return the environment that
+ is built from the evaluated module. *)
+Ltac extract_env module_def :=
+  let m := fresh "m" in
+  let l := fresh "l" in
+  pose module_def as m;
+  unfold module_def in m;
+  match goal with
+  | m := ret (VStruct ?x) |- _ => pose x as l
+  end; clear m; cbn in *; exact l.
+
+(* Feels kind of deranged to do this, but we can extract the environment
+    programmatically. *)
+Definition splay_module_env' :=
+  (ltac:(try_reduce_with_simp val void (eval_mexpr stdlib_env __main))).
+
+(* Extracted environment programmatically. Sort of cool, but at what cost.
+  Some obfuscated Coq programming at its finest... *)
+Program Definition splay_module_env : env :=
+  ltac:(extract_env splay_module_env').
+
+(* Definition splay_closure := lookup_spec "splay" splay_module_env. *)
+(* Definition splay_leaf_closure := VClo η __fun4. *)
 
 (* -------------------------------------------------------------------------- *)
 
