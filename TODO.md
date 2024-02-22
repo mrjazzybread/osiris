@@ -181,6 +181,10 @@
     [ {[ x := v ; ... ; z := w ]} ] ;
   - values should be hidden in other environments.
 
+* Can we somehow view continuations as linear (instead of affine) in the
+  program logic, so that the user is forced to check that a continuation
+  is never dropped by mistake?
+
 ## Semantics
 
 * Write down an informal argument of why translating `Obj.magic` to the
