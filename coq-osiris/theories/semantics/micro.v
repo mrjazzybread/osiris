@@ -472,10 +472,29 @@ Qed.
    of the form [try m _ _ = ret _], [try m _ _ = Stop _ _ _ _], and
    [try m _ _ = Par _ _ _ _]. They provide information about [m]. *)
 
+(* The following lemma exhibits a disjunction in the conclusion.
+   A variant of this statement appears below. *)
+
+Lemma invert_try_eq_ret_disj {A B E E' m}
+  {k : A → micro B E} {z : E' → micro B E} {b} :
+  try m k z = ret b →
+  (∃ a, m = ret a /\ k a = ret b) \/
+  (∃ e, m = throw e /\ z e = ret b).
+Proof.
+  destruct m; simpl; solve [ congruence | eauto ].
+Qed.
+
+Lemma invert_bind_eq_ret {A B E m} {k : A → micro B E} {b} :
+  bind m k = ret b ->
+  ∃ a, m = ret a /\ k a = ret b.
+Proof.
+  destruct m; simpl; solve [ congruence | eauto ].
+Qed.
+
 (* These lemmas are written in a form where one assumes that [m] is
    not [ret _] or [throw _]. This allows the conclusion to be simple.
    Without this hypothesis, the conclusion of the lemma would have
-   to be a 3-way disjunction. *)
+   to be a disjunction. *)
 
 Lemma invert_try_eq_ret {A B E E' m}
   {k : A → micro B E} {z : E' → micro B E} {b} :

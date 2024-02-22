@@ -194,23 +194,6 @@ Proof.
   congruence.
 Qed.
 
-(* Inversion properties of [try] and [bind] *)
-
-Lemma invert_try_ret {A B E' F} m1 m2 h v:
-  @try A B E' F m1 m2 h = ret v ->
-  (∃ a, m1 = ret a /\ m2 a = ret v) \/
-  (∃ e, m1 = throw e /\ h e = ret v).
-Proof.
-  destruct m1 eqn: Hm1; intros; cbn in H; eauto; try solve [inversion H].
-Qed.
-
-Lemma invert_bind_ret {A B E} m1 m2 v:
-  @bind A B E m1 m2 = ret v ->
-  ∃ a, m1 = ret a /\ m2 a = ret v.
-Proof.
-  destruct m1 eqn: Hm1; intros; cbn in H; eauto; try solve [inversion H].
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* [is_ret m] is [Some a] if and only if [m] is [Ret a]. *)

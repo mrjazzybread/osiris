@@ -143,7 +143,7 @@ Section wp_rules.
         apply invert_is_ret_Some in Hret'
       | intros Hret'
       ].
-      { apply invert_bind_ret in Hret';
+      { apply invert_bind_eq_ret in Hret';
         destruct Hret' as (?&?&?); subst; inversion Hret. }
 
       case_eq (is_throw m1);
@@ -220,7 +220,7 @@ Section wp_rules.
         apply invert_is_ret_Some in Hret'
       | intros Hret'
       ].
-      { apply invert_try_ret in Hret'.
+      { apply invert_try_eq_ret_disj in Hret'.
         destruct Hret' as [(?&?&?) | (?&?&?)]; subst; [ inversion Hret | ].
         cbn; rewrite H0;
           cbn; rewrite wp_unfold; cbn; by iMod "Hwp". }
