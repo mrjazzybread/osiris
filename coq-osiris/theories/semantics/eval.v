@@ -120,7 +120,8 @@ Definition val_as_bool (v : val) : micro bool void :=
   end.
 
 Definition as_bool (m : micro val void) : micro bool void :=
-  bind m val_as_bool.
+  v ← m ;
+  val_as_bool v.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -136,7 +137,8 @@ Definition val_as_loc (v: val) : micro loc void :=
   end.
 
 Definition as_loc (m : micro val void) : micro loc void :=
-  bind m val_as_loc.
+  v ← m ;
+  val_as_loc v.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -152,7 +154,8 @@ Definition val_as_int (v : val) : micro int void :=
   end.
 
 Definition as_int (m : micro val void) : micro int void :=
-  bind m val_as_int.
+  v ← m ;
+  val_as_int v.
 
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
@@ -177,7 +180,8 @@ Definition val_as_record (v : val) : micro env void :=
   end.
 
 Definition as_record (m : micro val void) : micro env void :=
-  bind m val_as_record.
+  v ← m ;
+  val_as_record v.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -193,7 +197,8 @@ Definition val_as_struct (v : val) : micro env void :=
   end.
 
 Definition as_struct (m : micro val void) : micro env void :=
-  bind m val_as_struct.
+  v ← m ;
+  val_as_struct v.
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
