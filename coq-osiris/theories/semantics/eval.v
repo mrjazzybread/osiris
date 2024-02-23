@@ -436,9 +436,11 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "string expected"
 end.
 
-Definition extends δ ps vs := pre_extends extend δ ps vs.
+Definition extends δ ps vs :=
+  pre_extends extend δ ps vs.
 
-Definition extendfs δ fps fvs := pre_extendfs extend δ fps fvs.
+Definition extendfs δ fps fvs :=
+  pre_extendfs extend δ fps fvs.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
