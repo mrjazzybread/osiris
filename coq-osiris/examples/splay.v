@@ -626,7 +626,7 @@ Definition splay_module_env' :=
 (* A more sane approach would be to state some well-formedness conditions *)
 
 (* Extracted environment *)
-Program Definition splay_module_env : env :=
+Definition splay_module_env : env :=
   ltac:(extract_env splay_module_env').
 
 (* -------------------------------------------------------------------------- *)
