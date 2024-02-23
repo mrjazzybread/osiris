@@ -583,21 +583,6 @@ Definition ge_val v1 v2 : micro bool void :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [ret_concat δ η] is [ret (concat δ η)]. *)
-
-(* The auxiliary function [ret_concat] is used when the environment is
-   extended with potentially "interesting" bindings, including [let],
-   [let rec], and [match] constructs. It is later made opaque. This
-   allows the user to get a chance to inspect the new bindings, possibly
-   prove something about them, such as a function specification, and
-   possibly abstract them away. *)
-
-(* [ret_concat] is not used when the environment is extended with
-   uninteresting bindings, e.g., when a function is invoked (see
-   [acall]) and when the body of a loop is executed (see [loop]). *)
-
-(* ------------------------------------------------------------------------ *)
-
 (* The evaluation of a list of structure items involves two environments [η]
    and [δ]. The environment [η] contains the bindings that are currently in
    scope: it is used when a name must be looked up. The environment [δ]
