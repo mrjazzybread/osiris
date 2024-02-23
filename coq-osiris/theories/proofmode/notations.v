@@ -374,3 +374,19 @@ Notation "{ r 'with' fds }" :=
        format "{  r  'with'  fds  }").
 
 Close Scope expr.
+
+
+Global Arguments eval _ _%expr_scope.
+
+(* Notation for osiris contexts on pure propositions *)
+
+Notation "Γ '--------------------------------------env' e { Q }" :=
+  (pure (eval Γ e%expr) Q)
+  (only printing, at level 100,
+      format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+
+
+Notation "'--------------------------------------env' e { Q }" :=
+  (pure e Q)
+  (only printing, at level 100,
+      format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
