@@ -99,6 +99,7 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
 
 Global Hint Constructors simp : simp.
 
+
 (* -------------------------------------------------------------------------- *)
 
 (* More (derived) construction rules for [simp]. *)
@@ -1549,4 +1550,103 @@ Lemma invert_simp_bind_ret {A B E} m (k : A → micro B E) b :
 Proof.
   intros h. apply invert_simp_bind_ret_totalv in h.
   destruct_total a e. eauto.
+Qed.
+
+(* Variants of [crash] do not reduce to a pure result under [simp].
+
+   These lemmas are helpful during proofmode while variants of [crash]
+    are Opaque. (It's a lot of duplicate code, though).  *)
+
+Lemma invert_simp_unsupported_construct_ret {E A} x:
+  simp (E := E) (A := A) unsupported_construct (ret x) -> False.
+Proof.
+  intros; unfold unsupported_construct in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_assertion_failure_ret {E A} x:
+  simp (E := E) (A := A) assertion_failure (ret x) -> False.
+Proof.
+  intros; unfold assertion_failure in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_division_by_zero_ret {E A} x:
+  simp (E := E) (A := A) division_by_zero (ret x) -> False.
+Proof.
+  intros; unfold division_by_zero in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_length_mismatch_ret {E A} msg x:
+  simp (E := E) (A := A) (length_mismatch msg) (ret x) -> False.
+Proof.
+  intros; unfold length_mismatch in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_match_failure_ret {E A} v x:
+  simp (E := E) (A := A) (match_failure v) (ret x) -> False.
+Proof.
+  intros; unfold match_failure in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_missing_field_ret {E A} v x:
+  simp (E := E) (A := A) (missing_field v) (ret x) -> False.
+Proof.
+  intros; unfold missing_field in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_missing_variable_ret {E A} v x:
+  simp (E := E) (A := A) (missing_variable v) (ret x) -> False.
+Proof.
+  intros; unfold missing_variable in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_missing_variable_or_field_ret {E A} v x:
+  simp (E := E) (A := A) (missing_variable_or_field v) (ret x) -> False.
+Proof.
+  intros; unfold missing_variable_or_field in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_physical_equality_error_ret {E A} v x:
+  simp (E := E) (A := A) (physical_equality_error v) (ret x) -> False.
+Proof.
+  intros; unfold physical_equality_error in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_structural_equality_error_ret {E A} v x:
+  simp (E := E) (A := A) (structural_equality_error v) (ret x) -> False.
+Proof.
+  intros; unfold structural_equality_error in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_structural_ordering_error_ret {E A} v x:
+  simp (E := E) (A := A) (structural_ordering_error v) (ret x) -> False.
+Proof.
+  intros; unfold structural_ordering_error in H; clarify_simp.
+Qed.
+
+Lemma invert_simp_type_mismatch_ret {E A} v x:
+  simp (E := E) (A := A) (type_mismatch v) (ret x) -> False.
+Proof.
+  intros; unfold type_mismatch in H; clarify_simp.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Partial computation of simp *)
+Fixpoint compute_simp {A E : Type} (m : micro A E) : micro A E :=
+  match m with
+  | Stop CEval (η, e) k z => try (eval η e) k z
+  | (Stop CLoop (η, x, i1, i2, e) k z) => try (loop η x i1 i2 e) k z
+  | Par (Ret a1) m2 k z => try (compute_simp m2) (λ v2, k (a1, v2)) z
+  | Par m1 (Ret a2) k z => try (compute_simp m1) (λ v1, k (v1, a2)) z
+  | _ => m
+  end.
+
+Lemma compute_simp_approximates_simp {A E} (m m' : micro A E) :
+  compute_simp m = m' -> simp m m'.
+Proof.
+  induction m; cbn -[eval loop]; intros; subst; try eauto with simp.
+  { destruct c; eauto with simp.
+    - destruct x; constructor.
+    - destruct x, p, p, p. constructor. }
+  destruct m1, m2; eauto with simp.
 Qed.
