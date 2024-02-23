@@ -509,6 +509,22 @@ Definition phys_eq_val v1 v2 : micro bool void :=
    data structures (tuples, algebraic data, etc.). *)
 
 Fixpoint eq_val v1 v2 : micro bool void :=
+
+  let eq_vals :=
+    fix eq_vals vs1 vs2 :=
+      match vs1, vs2 with
+      | [], [] =>
+          ret true
+      | v1 :: vs1, v2 :: vs2 =>
+          b ← eq_val v1 v2 ;
+          b' ← eq_vals vs1 vs2 ;
+          ret (b && b')
+      |  _ :: _, []
+      | [], _ :: _ =>
+          structural_equality_error "tuple length mismatch"
+      end
+  in
+
   match v1, v2 with
   | VInt i1, VInt i2 =>
       ret (int.eq i1 i2)
@@ -517,18 +533,7 @@ Fixpoint eq_val v1 v2 : micro bool void :=
   | VString s1, VString s2 =>
       ret (s1 =? s2)
   | VTuple vs1, VTuple vs2 =>
-      ((fix eq_vals vs1 vs2 :=
-        match vs1, vs2 with
-        | [], [] =>
-            ret true
-        | v1 :: vs1, v2 :: vs2 =>
-            b ← eq_val v1 v2 ;
-            b' ← eq_vals vs1 vs2 ;
-            ret (b && b')
-        |  _ :: _, []
-        | [], _ :: _ =>
-            structural_equality_error "tuple length mismatch"
-        end) vs1 vs2)
+      eq_vals vs1 vs2
   | VData c1 v1, VData c2 v2 =>
       let b := c1 =? c2 in
       b' ← eq_val v1 v2 ;
