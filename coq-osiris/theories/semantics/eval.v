@@ -35,6 +35,10 @@ Implicit Type items : list sitem.
    namely, pattern matching failures (caused by nonexhaustive case analyses)
    and assertion failures. *)
 
+(* Some errors that are exceptions in OCaml are treated as crashes here:
+   assertion failure, match failure, division by zero, applications of
+   structural equality to values of an unsupported type, etc. *)
+
 Definition unsupported_construct {A E} : micro A E :=
   crash.
 
@@ -154,7 +158,7 @@ Definition as_int (m : micro val void) : micro int void :=
 
 Definition check_div_by_zero i : micro unit void :=
   if int.eq i int.zero then
-    division_by_zero (* TODO raise an OCaml exception *)
+    division_by_zero
   else
     ret ().
 
