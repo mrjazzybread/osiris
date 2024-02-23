@@ -536,13 +536,16 @@ Ltac pattern_hook ::=
 (* -------------------------------------------------------------------------- *)
 (* Specification structures. *)
 
+(* Given a name which corresponds to the declaration, there is some pspec *)
 Class decl_spec (name : var) := { Decl_spec : pspec }.
 
-Definition decl := { name : var & decl_spec name }.
-
+(* Smart constructor *)
 Definition val_spec (name : var) `{decl_spec name} (v : val) : Prop :=
   @Decl_spec name _ v.
 
+(* Lifting specification over declaration to a specification over an environment:
+    i.e. the declaration can be found the environment and satisfies the
+    specification. *)
 Definition spec (name : var) `{decl_spec name} (η : env) : Prop :=
   let val_spec := @Decl_spec name _ in
   pure (lookup_name η name) val_spec.
