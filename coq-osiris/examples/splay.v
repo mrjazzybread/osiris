@@ -596,7 +596,7 @@ Definition zlookup_spec :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Top-level specification of [splay]. *)
+(* Top-level environment of [splay]. *)
 
 Definition stdlib_env := ("Stdlib", Stdlib) :: Stdlib_env.
 
