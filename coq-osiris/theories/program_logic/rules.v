@@ -817,10 +817,6 @@ Section wp_rules.
   Proof.
     (* Proceed by Löb induction. *)
     iLöb as "IH" forall (i m ms).
-    (* Then, perform well-founded induction over [n]. *)
-    iInduction i as (? & ?) "IHn"
-                            using (well_founded_induction lt_wf)
-                            forall (m ms).
     (* Introduce the hypotheses. *)
     iIntros "Hwp" (Hsimp).
 
@@ -866,8 +862,7 @@ Section wp_rules.
       do 3 iModIntro.
       iMod "Hmod"; iModIntro.
       cbn; iFrame.
-
-      iApply ("IHn" with "[//] Hwp [//]"). }
+      iApply ("IH" with "Hwp [//]"). }
 
     (* Examine [ms] on whether it is a [throw]. *)
     wp_case_is_throw ms Hthrow_ms.
@@ -893,7 +888,7 @@ Section wp_rules.
       iMod "Hmod"; iModIntro.
       cbn; iFrame.
 
-      iApply ("IHn" with "[//] Hwp [//]"). }
+      iApply ("IH" with "Hwp [//]"). }
 
     (* [ms] is neither a [ret _] or [throw _]. *)
 
@@ -932,12 +927,11 @@ Section wp_rules.
       do 3 iModIntro.
       iMod "Hmod"; iModIntro.
       iFrame; cbn. iSplitR ""; last done.
-      iApply ("IHn" with "[//] Hwp [//]"). }
+      iApply ("IH" with "Hwp [//]"). }
 
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
     carefully avoided up to this point. *)
-    iClear "IHn".
     wp_unfold ms.
 
     pose proof (is_not_ret_or_throw_to_outcome _ Hretms Hthrow_ms) as ->.
