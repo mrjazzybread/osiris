@@ -228,9 +228,12 @@ Fixpoint lookup_path η π : micro val void :=
   | [x] =>
       lookup_name η x
   | x1 :: π =>
-      (* The content of a structure is an environment, *)
-      xvs ← as_struct (lookup_name η x1) ;
-      (* so we can look up [x] in the environment [xvs]. *)
+      (* We retrieve the value bound to the name [x1] in [η]. *)
+      v ← lookup_name η x1 ;
+      (* We expect this value to be a structure. *)
+      xvs ← val_as_struct v ;
+      (* The content of a structure is an environment,
+         so we can look up [π] in the environment [xvs]. *)
       lookup_path xvs π
   end.
 
