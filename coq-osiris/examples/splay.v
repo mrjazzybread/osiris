@@ -639,6 +639,11 @@ Ltac start_proof := unfold spec; cbn; pure1; red.
 
 (* If a specification holds for an environment, we know that there exists some
    declaration in the environment that satisfies the specification. *)
+(* TODO fp: It seems to me that this lemma goes too far.
+        It essentially expands away the judgement
+        [pure (lookup_name η name) val_spec]
+        but we should we able to exploit this judgement
+        without expanding it. *)
 Lemma invert_spec :
   forall x `{decl_spec x} env,
     spec x env ->
@@ -649,7 +654,9 @@ Proof.
   intros * Hspec. red in Hspec; cbn in Hspec.
   - unfold lookup_name in Hspec.
     destruct Hspec as (?&Hspec&?).
-    by apply invert_simp_missing_variable_or_field_ret in Hspec.
+    with_strategy transparent [missing_variable_or_field]
+      unfold missing_variable_or_field in Hspec.
+    clarify_simp.
   - intros * Hspec. red in Hspec.
     unfold lookup_name in *. destruct a.
     destruct (x =? v)%string.
