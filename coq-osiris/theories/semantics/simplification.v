@@ -1699,25 +1699,3 @@ Lemma invert_simp_type_mismatch_ret {E A} v x:
 Proof.
   intros; unfold type_mismatch in H; clarify_simp.
 Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Partial computation of simp *)
-Fixpoint compute_simp {A E : Type} (m : micro A E) : micro A E :=
-  match m with
-  | Stop CEval (η, e) k z => try (eval η e) k z
-  | (Stop CLoop (η, x, i1, i2, e) k z) => try (loop η x i1 i2 e) k z
-  | Par (Ret a1) m2 k z => try (compute_simp m2) (λ v2, k (a1, v2)) z
-  | Par m1 (Ret a2) k z => try (compute_simp m1) (λ v1, k (v1, a2)) z
-  | _ => m
-  end.
-
-Lemma compute_simp_approximates_simp {A E} (m m' : micro A E) :
-  compute_simp m = m' -> simp m m'.
-Proof.
-  induction m; cbn -[eval loop]; intros; subst; try eauto with simp.
-  { destruct c; eauto with simp.
-    - destruct x; constructor.
-    - destruct x, p, p, p. constructor. }
-  destruct m1, m2; eauto with simp.
-Qed.
