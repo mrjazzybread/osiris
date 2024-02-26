@@ -164,8 +164,9 @@ Qed.
 (* We define a 3-argument relation [simplify n m m'] where the natural integer
    [n] measures the length of the simplification path. The simulation lemmas
    [simplify_step_diagram] and [simplify_ret_step_diagram] control the manner
-   in which [n] decreases or is preserved. This is necessary for the proof of
-   the lemma [wp_simplify] to go through. *)
+   in which [n] decreases or is preserved. This decrease is used in the proof
+   of [simplify_ret_implies_step] (which leads to [simplify_ret_confluent])
+   and in the direct proof of [simplify_confluent]. *)
 
 (* End users need not be know about this relation. *)
 
@@ -504,23 +505,93 @@ Proof.
   eauto.
 Qed.
 
+(* It is also possible to give weaker variants of the previous two lemmas, by
+   working directly with [simp], instead of [simplify]. For now I am keeping
+   both paths, but in the future it would be desirable to keep only one. *)
+
+Module DirectSimp.
+
+Lemma simp_step_diagram {A E} {m1 m2 : micro A E} :
+  (* If there is a simplification step: *)
+  simp m1 m2 →
+  ∀ {m'1 σ σ'},
+  (* and a reduction step: *)
+  step (σ, m1) (σ', m'1) →
+  (* then the diagram can be closed using *)
+  ∃ m'2 i,
+  (* [i] reduction steps *)
+  steps i (σ, m2) (σ', m'2) ∧
+  (* and a simplication step *)
+  simp m'1 m'2 ∧
+  (* where [i] is at most 1. *)
+  (i = 0 ∨ i = 1).
+Local Ltac search :=
+  do 2 eexists;
+  eauto 8 using step_try, simp_try with steps step simp lia.
+Local Ltac use_ih :=
+  match goal with
+  Hstep: step (_, ?m) _,
+  IH: ∀ _ _ _, step (_, ?m) _ → _ |- _ =>
+    specialize (IH _ _ _ Hstep);
+    destruct IH as (? & ? & ? & ? & ?)
+  end.
+Ltac destruct_simp_step_diagram :=
+  match goal with h: _ ∨ _ |- _ => destruct h end;
+  subst; destruct_steps.
+Proof.
+  (* A model of a beautiful proof. *)
+  induction 1; intros.
+  (* SimplifyEval *)
+  { destruct_step. search. }
+  (* SimplifyLoop *)
+  { destruct_step. search. }
+  (* SimplifyChooseAgree *)
+  { destruct_step; search. }
+  (* SimplifyParRetLeft *)
+  { destruct_step; try solve [destruct_step]; search. }
+  (* SimplifyParRetRight *)
+  { destruct_step; try solve [destruct_step]; search. }
+  (* SimplifyPar *)
+  { destruct_step; clarify_simp; solve [ search | use_ih; search ]. }
+  (* SimplifyReflexive *)
+  { search. }
+  (* SimplifyTransitive *)
+  { use_ih. destruct_simp_step_diagram; try use_ih; search. }
+Qed.
+
+Lemma simp_ret_step_diagram {A E} {m1 : micro A E} {a2 σ σ' m'1} :
+  (* If there is a simplification step of [m1] to [ret a2]: *)
+  simp m1 (ret a2) →
+  (* and a reduction step: *)
+  step (σ, m1) (σ', m'1) →
+  (* then the reduction step must take us closer to [ret a2]: *)
+  σ' = σ ∧
+  simp m'1 (ret a2).
+Proof.
+  intros Hsimp Hstep.
+  destruct (simp_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ?).
+  destruct_simp_step_diagram; [| exfalso; destruct_step ].
+  eauto.
+Qed.
+End DirectSimp.
+
+Include DirectSimp.
+
 (* In the special case where [m2] is of the form [throw a2], the previous
    diagram can be simplified, because [throw a2] cannot step. *)
 
-Lemma simplify_throw_step_diagram {A E} {n} {m1 : micro A E} {a2 σ σ' m'1} :
+Lemma simp_throw_step_diagram {A E} {m1 : micro A E} {a2 σ σ' m'1} :
   (* If there is a simplification step of [m1] to [throw a2]: *)
-  simplify n m1 (throw a2) →
+  simp m1 (throw a2) →
   (* and a reduction step: *)
   step (σ, m1) (σ', m'1) →
   (* then the reduction step must take us closer to [throw a2]: *)
-  ∃ n',
   σ' = σ ∧
-  simplify n' m'1 (throw a2) ∧
-  n' < n.
+  simp m'1 (throw a2).
 Proof.
   intros Hsimp Hstep.
-  destruct (simplify_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ? & ?).
-  destruct_simplify_step_diagram; [| exfalso; destruct_step ].
+  destruct (simp_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ?).
+  destruct_simp_step_diagram; [| exfalso; destruct_step ].
   eauto.
 Qed.
 
@@ -615,8 +686,8 @@ Qed.
    and if [m2] can step,
    then [m1] can step. *)
 
-Lemma invert_simplify_can_step {A E} n (m1 m2 : micro A E) σ :
-  simplify n m1 m2 →
+Lemma invert_simp_can_step {A E} (m1 m2 : micro A E) σ :
+  simp m1 m2 →
   can_step (σ, m2) →
   can_step (σ, m1).
 Proof.
@@ -630,13 +701,13 @@ Qed.
    either [m1] is [ret _]
    or [m1] can step. *)
 
-Lemma invert_simplify_ret {A E} n (m1 : micro A E) a2 σ :
-  simplify n m1 (ret a2) →
+Lemma invert_simp_ret {A E} (m1 : micro A E) a2 σ :
+  simp m1 (ret a2) →
   is_ret m1 = None →
   can_step (σ, m1).
 Proof.
   (* The only terms that cannot step are [ret _] and [crash] and [throw _].
-     These terms cannot appear on the left-hand side of [simplify], so the
+     These terms cannot appear on the left-hand side of [simp], so the
      proof is almost trivial. Only [SimplifyTransitive] requires work. *)
   intro h; dependent induction h; intros; simpl in *;
   try solve [ congruence | eauto with step ].
@@ -646,23 +717,23 @@ Proof.
   case_eq (is_ret m2); [ intros a'2 Hm2 | intro Hm2 ].
   (* Case: [m2] is [ret a2]. *)
   { apply invert_is_ret_Some in Hm2. subst m2.
-    eauto using invert_simplify_can_step. }
+    eauto using invert_simp_can_step. }
   (* Case: [m2] is not [ret _]. *)
   { specialize (IHh2 Hm2).
-    eauto using invert_simplify_can_step. }
+    eauto using invert_simp_can_step. }
 Qed.
 
 (* If [m1] can be simplified into [throw a2] then
    either [m1] is [throw _]
    or [m1] can step. *)
 
-Lemma invert_simplify_throw {A E} n (m1 : micro A E) a2 σ :
-  simplify n m1 (throw a2) →
+Lemma invert_simp_throw {A E} (m1 : micro A E) a2 σ :
+  simp m1 (throw a2) →
   is_throw m1 = None →
   can_step (σ, m1).
 Proof.
   (* The only terms that cannot step are [throw _] and [crash] and [throw _].
-    These terms cannot appear on the left-hand side of [simplify], so the
+    These terms cannot appear on the left-hand side of [simp], so the
     proof is almost trivial. Only [SimplifyTransitive] requires work. *)
   intro h; dependent induction h; intros; simpl in *;
   try solve [ congruence | eauto with step ].
@@ -672,10 +743,10 @@ Proof.
   case_eq (is_throw m2); [ intros a'2 Hm2 | intro Hm2 ].
   (* Case: [m2] is [throw a2]. *)
   { apply invert_is_throw_Some in Hm2. subst m2.
-    eauto using invert_simplify_can_step. }
+    eauto using invert_simp_can_step. }
   (* Case: [m2] is not [throw _] *)
   { specialize (IHh2 Hm2).
-    eauto using invert_simplify_can_step. }
+    eauto using invert_simp_can_step. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)

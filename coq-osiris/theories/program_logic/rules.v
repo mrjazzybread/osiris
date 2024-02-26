@@ -810,26 +810,26 @@ Section wp_rules.
     holds then the safety of the simplified program [ms] implies the safety
     of the more complex original program [ms]. *)
 
-  Local Lemma wp_simplify {R E} i (m ms : micro R E) φ :
+  Local Lemma wp_simp_prelim {R E} (m ms : micro R E) φ :
     WP ms {{ φ }} -∗
-    ⌜ simplify i m ms ⌝ -∗
+    ⌜ simp m ms ⌝ -∗
     WP m  {{ φ }}.
   Proof.
     (* Proceed by Löb induction. *)
-    iLöb as "IH" forall (i m ms).
+    iLöb as "IH" forall (m ms).
     (* Introduce the hypotheses. *)
     iIntros "Hwp" (Hsimp).
 
     (* Examine [m]. *)
     wp_case_is_ret m Hretm.
     (* If [m] is [ret a], then [ms] is also [ret a], so we are done. *)
-    { clarify_simplify. iAssumption. }
+    { clarify_simp. iAssumption. }
 
     (* Thus, in the following, we assume [m] is not [ret _]. *)
     (* Examine [m] again, on whether it is a [throw]. *)
     wp_case_is_throw m Hthrow.
     { (* If [m] is [throw e], then [ms] is also [throw e], so we are done. *)
-      apply destruct_simplify_throw in Hsimp; by subst. }
+      clarify_simp. iAssumption. }
 
     (* Begin unfolding the definition of [WP m ...]. *)
     wp_unfold m.
@@ -844,7 +844,7 @@ Section wp_rules.
     (* Case: [ms] is [ret _]. *)
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simplify_ret _ _ _ σ Hsimp Hretm) as Hsimpl.
+      { pose proof (invert_simp_ret _ _ σ Hsimp Hretm) as Hsimpl.
         iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
@@ -855,8 +855,7 @@ Section wp_rules.
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      pose proof (simplify_ret_step_diagram Hsimp H)
-        as (n' & ? & ? & ?); subst.
+      pose proof (simp_ret_step_diagram Hsimp H) as (? & ?); subst.
       (* We are then able to use the inner induction hypothesis. *)
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       do 3 iModIntro.
@@ -869,7 +868,7 @@ Section wp_rules.
     (* Case : [ms] is [throw _]. *)
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simplify_throw _ _ _ σ Hsimp Hthrow) as Hsimpl.
+      { pose proof (invert_simp_throw _ _ σ Hsimp Hthrow) as Hsimpl.
         iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
@@ -880,8 +879,7 @@ Section wp_rules.
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      pose proof (simplify_throw_step_diagram Hsimp H)
-        as (n' & ? & ? & ?); subst.
+      pose proof (simp_throw_step_diagram Hsimp H) as (? & ?); subst.
       (* We are then able to use the inner induction hypothesis. *)
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       do 3 iModIntro.
@@ -906,7 +904,7 @@ Section wp_rules.
       iIntros "[??]";
         iMod (wp_can_step' with "[$][$]") as "%Hdisj".
       iModIntro; iPureIntro; destruct Hdisj.
-      { eauto using invert_simplify_can_step. }
+      { eauto using invert_simp_can_step. }
       destruct H; exfalso; eauto. }
     iApply fupd_frame_l; iSplit.
     { iPureIntro; by apply can_step_reducible. }
@@ -916,10 +914,10 @@ Section wp_rules.
 
     (* We now examine an arbitrary step of [m] to [m']. *)
     (* Exploit the main simulation diagram. *)
-    pose proof (simplify_step_diagram Hsimp Hstep)
-      as (ms' & n' & i' & Hstep' & Hsimp' & Hcases);
+    pose proof (simp_step_diagram Hsimp Hstep)
+      as (ms' & i' & Hstep' & Hsimp' & ?);
       clear Hsimp Hstep.
-    destruct_simplify_step_diagram.
+    destruct_simp_step_diagram.
 
     (* Case: the reduction step disappears through the diagram. *)
     { iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
@@ -928,6 +926,7 @@ Section wp_rules.
       iMod "Hmod"; iModIntro.
       iFrame; cbn. iSplitR ""; last done.
       iApply ("IH" with "Hwp [//]"). }
+
 
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
@@ -958,9 +957,7 @@ Section wp_rules.
     WP m  {{ φ }}.
   Proof.
     iIntros (Hsimp) "Hwp".
-    apply simp_simplify in Hsimp.
-    destruct Hsimp as (n & Hsimp).
-    iApply (wp_simplify with "Hwp [//]").
+    iApply (wp_simp_prelim with "Hwp [//]").
   Qed.
 
 End wp_rules.
