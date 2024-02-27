@@ -49,10 +49,7 @@ Local Open Scope nat_scope.
    constructor.
 
    The constructors [SimpReflexive] and [SimpTransitive] make simplification
-   reflexive and transitive by definition. This is essentially forced on us,
-   because otherwise the premises of [SimpFlip] would be too restrictive. The
-   paths from [k false] to [m] and from [k true] to [m] must be allowed to
-   have different lengths. *)
+   reflexive and transitive by definition. *)
 
 Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
 | SimpEval:
