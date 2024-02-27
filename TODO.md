@@ -41,12 +41,12 @@
 
 ## Engineering and proof mode
 
+* What language(s) do we expose to the end user? Just OCaml,
+  or part of the micro monad, or all of the micro monad?
+  How do we let the end user perform simplification of `par` trees?
+
 * Probably we should use `set` every time we extend the environment,
   so the environment in the goal is always a name and never an explicit list.
-
-* If we decide to keep decorations, then the tactic `simp` should be
-  modified to unfold a decoration at the root if it can make progress
-  afterwards.
 
 * Rework module specifications and establish how [pure] and [wp] proofs work
   on [eval_mexpr].
@@ -60,28 +60,7 @@
 * Improve [wp_bind] : if [simp] simplifies [m1] into [ret v1], let Coq compute,
   otherwise, use the lemma [wp_simp].
 
-* Automatically unfold `call` if the closure is transparent.
-
-* Develop variants of the tactics `simp` and/or `pure` that
-  advance step by step (whatever that means...) instead of
-  performing as many steps as possible. Perhaps also offer
-  a variant that stops at `ret_concat` and `ret_dconcat`
-  and one that does not. Organize these tactics in a way
-  that is easy to understand and remember.
-
-* Should `simp` (or a tactic above it)
-  perform rewriting using `add_repr_repr`
-  and related lemmas?
-
-* Review every use of `with_strategy transparent [call]` and
-  make sure that we understand which occurrences of `call`
-  we are making transparent and for how long.
-  Multiple applications of curried functions are difficult to deal with.
-
-* In fact, instead of making `call` opaque, perhaps we could make it
-  transparent and control whether each closure is transparent or opaque.
-  We should also decide whether each definition in `Stdlib` is opaque
-  or transparent, and document these decisions.
+* Multiple applications of curried functions are difficult to deal with.
 
 * Experiment with the granularity of Coq toplevel definitions.
   We could use as few as one per OCaml file
@@ -99,57 +78,11 @@
   + By default, display complex values (such as closures)
     in an abbreviated form.
 
-* The judgement `safe m φ` has just one postcondition
-  and forbids the answer `Next`.
-  It is really a special case of a more general judgement
-  `safe2 m φ ψ` which means that if `m` reduces to `Next`
-  then `ψ` holds.
-  It may be necessary to define `safe2` and to establish
-  its reasoning rules.
-
-* There are two approaches to reasoning about `match` constructs.
-  In one approach, the user first performs a case analysis at the
-  logical level. In each branch of this logical case analysis,
-  enough information is obtained to allow determining which
-  branch of the `match` construct is taken. The `match`
-  construct can then be symbolically evaluated.
-  In the other approach, the user performs no case analysis
-  up front; a set of Hoare-style reasoning rules are used
-  to reason about the body of each branch,
-  under the hypothesis that the previous branches
-  have not been taken and that this branch has been taken.
-  In the first approach, the judgement `safe` suffices.
-  In the second approach, the judgement `safe2` may be needed.
-  Which approach do we wish to favor?
-
 * Write a `help` tactic that analyzes the goal, explains its shape,
   explains why we are here and what likely is the next thing to do.
 
-* Allowing the user to place labels in the OCaml code, disguised as comments
-  `(* label: *)`, could be useful. (Agree with Mario and the Gospel people on
-  a standard syntax.) These comments could be preserved in the AST and could
-  serve multiple purposes, e.g.: they could be printed in a special way (print
-  just the label, not the code below it); they could be used to prevent `cbn`
-  to perform simplifications too early; they could serve as targets for the
-  symbolic execution engine ("please perform symbolic execution until the
-  label foo"). Comments (perhaps of a different kind?) could also be used to
-  indicate where we want a sub-AST to be isolated in a toplevel (Coq)
-  definition.
-
 * Find a way to declare a function n-ary so that proving specifications of its
   partial applications is not required.
-
-* Find a way to declare functions "pure" so that their applications can move out
-  of Par-trees.
-
-* Define a better [wp] tactic so that it automatically calls user-defined
-  specification lemmas and those about the standard library.
-
-* Using distinct typeclasses for partially and totally applied binary functions
-  allows to decide which functions are allowed to be partially applied. On the
-  other hand, it duplicates all the proofs.  It might be interesting to use only
-  one TC and add a trivial typeclass to request an automatic treatment of
-  partial applications.
 
 * Get tactics to fail: currently, most tactics do not fail and might not make
   progress. Thus, it is difficult to debug them.
@@ -157,22 +90,9 @@
 * Use more hint databases for typeclasses, not to mix simplifications with
   reasoning.
 
-* Find a good way to rewrite `VInt _` and others using the Encode typeclass.
-  Currently, special instances are written when applying specifications.
-  Two ideas would be to:
-  - either rewrite `VInt i` and others as `#i` after each step (might cost a
-    lot)
-  - either write generic typeclass instances which know about Encode (for the
-    lemmas applying specifications). This was not added yet as the specification
-    mechanism will probably change soon.
-
-* Make [module_spec_fetch] to return a list of specs instead of a single one.
-* Get [oSpec] to try every (or choose wisely the) specification available.
-
-* Use the hypothesis [__osiris_specs].
-
-* Get [oSpecify] and friends to be efficient (ie. write a wrapper around
-  [assumming_list]).
+* Try to always work with values of the form `#v` and never `VInt _`.
+  (Hide the constructors of the the type `val` from the end user.)
+  `#` should be opaque.
 
 * Fix the notation for environments:
   - values should be explicit in records:
