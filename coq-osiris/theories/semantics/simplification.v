@@ -162,62 +162,121 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* We define a 3-argument relation [simplify n m m'] where the natural integer
-   [n] measures the length of the simplification path. The simulation lemmas
-   [simplify_step_diagram] and [simplify_ret_step_diagram] control the manner
-   in which [n] decreases or is preserved. This decrease is used in the proof
-   of [simplify_ret_implies_step] (which leads to [simplify_ret_confluent])
-   and in the direct proof of [simplify_confluent]. *)
+   [n] measures a certain notion of the cost of the simplification path from
+   [m] to [m'].
 
-(* End users need not be know about this relation. *)
+   The main two commutative diagrams, namely [simplify_step_diagram] and
+   [simplify_confluent], control the manner in which [n] decreases or is
+   preserved.
+
+   In [simplify_step_diagram], the fact that [n] cannot increase means that
+   one [step] of computation cannot create simplification work. Intuitively,
+   this is true because [step] does not duplicate computations.
+
+   In [simplify_confluent], a similar intuition holds. One step of
+   simplification cannot create more simplification work, because
+   simplification does not duplicate computations. *)
+
+(* In [SimplifyTransitive], requiring [0 < n1] and [0 < n2] lets us forbid a
+   trivial use of reflexivity under the transitivity rule. This gives us a
+   simple way of ensuring that the two children of the transitivity rule have
+   smaller indices, while still assigning zero cost to the transitivity rule
+   itself. *)
+
+(* In [SimplifyPar], we could require [0 < n1 ∨ 0 < n2], because the case
+   where both children perform no simplification work is trivial. However,
+   that would not help. We must assign a nonzero cost to [SimplifyPar] anyway;
+   otherwise, we cannot ensure that both children have smaller indices, and
+   the proof of [simplify_confluent] fails. *)
+
+(* It is worth noting that the lemma [wp_simp] needs only the weak commutative
+   diagram [simp_step_diagram], where the index [n] is not controlled. Indeed,
+   the proof of [wp_simp] is by Löb induction, so only a finite number of
+   [step]s into the future are of interest. Therefore, even if the cost of the
+   [simp] path is not under control, once the end of the future is reached, we
+   do not care any more. *)
+
+(* End users need not be know about the relation [simplify]. *)
 
 Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SimplifyEval:
-    ∀ n p η e k z,
+    ∀ p η e k z,
     p = (η, e) →
-    simplify (S n)
+    simplify 1
       (Stop CEval p k z)
       (try (eval η e) k z)
 | SimplifyLoop :
-    ∀ n p η x i1 i2 e k z,
+    ∀ p η x i1 i2 e k z,
     p = (η, x, i1, i2, e) →
-    simplify (S n)
+    simplify 1
       (Stop CLoop p k z)
       (try (loop η x i1 i2 e) k z)
 | SimplifyChooseAgree :
-    ∀ {B E'} n m m1 m2 (k : B → _) (z : E' → _),
-    simplify n m1 m →
-    simplify n m2 m →
-    simplify (S n)
+    ∀ {B E'} n1 n2 m m1 m2 (k : B → _) (z : E' → _),
+    simplify n1 m1 m →
+    simplify n2 m2 m →
+    simplify (n1 + n2 + 1)
       (Choose m1 m2 k z)
       (try m k z)
 | SimplifyParRetLeft:
-    ∀ {A1 A2 E'} n a1 m2 (k : A1 * A2 → _) (z : E' → _),
-    simplify (S n)
+    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
+    simplify 1
       (Par (Ret a1) m2 k z)
       (try m2 (λ v2, k (a1, v2)) z)
 | SimplifyParRetRight:
-    ∀ {A1 A2 E'} n m1 a2 (k : A1 * A2 → _) (z : E' → _),
-    simplify (S n)
+    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
+    simplify 1
       (Par m1 (Ret a2) k z)
       (try m1 (λ v1, k (v1, a2)) z)
 | SimplifyPar:
-    ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
+    ∀ {A1 A2 E'} n1 n2 m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
-    S (n1 + n2) ≤ n →
-    simplify n (Par m1 m2 k z) (Par m'1 m'2 k z)
+    simplify (n1 + n2 + 1) (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SimplifyReflexive:
-    ∀ n m,
-    simplify n m m
+    ∀ m,
+    simplify 0 m m
 | SimplifyTransitive:
-    ∀ n1 n2 n m1 m2 m3,
+    ∀ n1 n2 m1 m2 m3,
     simplify n1 m1 m2 →
     simplify n2 m2 m3 →
-    S (n1 + n2) ≤ n →
-    simplify n m1 m3
+    0 < n1 →
+    0 < n2 →
+    simplify (n1 + n2) m1 m3
 .
 
 Global Hint Constructors simplify : simplify.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [simplify 0 m1 m2] implies [m1 = m2]. *)
+
+Lemma invert_simplify_zero {A E} {m1 m2 : micro A E} :
+  simplify 0 m1 m2 →
+  m1 = m2.
+Proof.
+  intros h; dependent induction h; eauto with lia f_equal.
+Qed.
+
+(* The requirement [0 < n1 ∧ 0 < n2] in [SimplifyTransitive] does not cause
+   a loss of generality. Indeed, the cases [0 = n1] and [0 = n2] represent
+   zero simplification work, so they are useless. *)
+
+Lemma SimplifyTransitiveUnrestricted {A E} n1 n2 (m1 m2 m3 : micro A E) :
+  simplify n1 m1 m2 →
+  simplify n2 m2 m3 →
+  simplify (n1 + n2) m1 m3.
+Proof.
+  intros H1 H2.
+  assert (0 = n1 ∨ 0 < n1) as [|] by lia; [ subst |].
+  { apply invert_simplify_zero in H1. subst. eauto. }
+  assert (0 = n2 ∨ 0 < n2) as [|] by lia; [ subst |].
+  { apply invert_simplify_zero in H2. subst.
+    replace (n1 + 0) with n1 by lia. eauto. }
+  eauto with simplify.
+Qed.
+
+Global Hint Resolve SimplifyTransitiveUnrestricted : simplify.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -241,14 +300,7 @@ Lemma simp_simplify {A E} {m1 m2 : micro A E} :
 Proof.
   induction 1;
   repeat match goal with h: ∃ n, _ |- _ => destruct h end;
-  eauto using
-    (SimplifyEval 0),
-    (SimplifyLoop 0),
-    (SimplifyChooseAgree 0),
-    (SimplifyParRetLeft 0),
-    (SimplifyParRetRight 0),
-    (SimplifyReflexive 0)
-    with simplify.
+  eauto with simplify.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -482,7 +534,7 @@ Proof.
   (* SimplifyReflexive *)
   { search. }
   (* SimplifyTransitive *)
-  { use_ih. destruct_simplify_step_diagram; try use_ih; search. }
+  { use_ih; destruct_simplify_step_diagram; [| use_ih ]; search. }
 Qed.
 
 (* In the special case where [m2] is of the form [ret a2], the previous
@@ -825,7 +877,10 @@ Proof.
     (* Analyze the horizontal edge. *)
     dependent destruction horizontal; subst;
     try clarify_simplify;
-    repeat diagram; search
+    try solve [
+      search
+    | diagram; diagram; search
+    ]
   ].
 Qed.
 
