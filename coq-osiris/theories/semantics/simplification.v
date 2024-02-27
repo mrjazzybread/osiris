@@ -784,22 +784,6 @@ Ltac simp_final_confluent :=
       | simplify_eq ]
   end.
 
-(* As a corollary, the relation [simp _ (ret _)] is confluent. *)
-
-Lemma simp_ret_confluent {A E} {m : micro A E} {a1 a2} :
-  simp m (ret a1) →
-  simp m (ret a2) →
-  a1 = a2.
-Proof.
-  intros. simp_final_confluent. eauto.
-Qed.
-
-Ltac simp_ret_confluent :=
-  match goal with
-  | h1: simp ?m (ret ?a1), h2: simp ?m (ret ?a2) |- _ =>
-      generalize (simp_ret_confluent h1 h2); intro
-  end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas transport information in the reverse direction
