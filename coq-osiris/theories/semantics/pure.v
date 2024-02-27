@@ -227,7 +227,7 @@ Proof.
   (* The problem that we now face is to prove that the value [v] produced
      by [m] must be of the form [#a]. The hypothesis [Hm] is necessary for
      this purpose. *)
-  destruct_pure a. simp_ret_confluent. subst v.
+  destruct_pure a. simp_final_confluent.
 
   (* We can then conclude. *)
   unfold pure. exists a. split; [ eauto |].
