@@ -840,22 +840,25 @@ Section wp_rules.
 
     (* Examine [ms] on whether it is a [ret]. *)
     wp_case_is_ret ms Hretms.
+    (* TODO the cases [ms = ret _] and [ms = throw _] can probably
+            be merged. In both cases, [ms] is final. *)
 
     (* Case: [ms] is [ret _]. *)
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simp_ret _ _ σ Hsimp Hretm) as Hsimpl.
+      { pose proof (invert_simp_final σ Hsimp) as [|];
+          [ prove_final | subst; simpl in Hretm; congruence |].
         iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       iModIntro.
-      iIntros (σ' m' obs []) "H£"; subst.
+      iIntros (m' σ' obs []) "H£"; subst.
       iMod "Hmod" as "_".
 
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      pose proof (simp_ret_step_diagram Hsimp H) as (? & ?); subst.
+      simp_final_step_diagram.
       (* We are then able to use the inner induction hypothesis. *)
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       do 3 iModIntro.
@@ -868,18 +871,19 @@ Section wp_rules.
     (* Case : [ms] is [throw _]. *)
     { (* Prove that [m] is able to step. *)
       iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simp_throw _ _ σ Hsimp Hthrow) as Hsimpl.
+      { pose proof (invert_simp_final σ Hsimp) as [|];
+          [ prove_final | subst; simpl in Hthrow; congruence |].
         iPureIntro. by apply can_step_reducible. }
 
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       iModIntro.
-      iIntros (σ' m' obs []) "H£"; subst.
+      iIntros (m' σ' obs []) "H£"; subst.
       iMod "Hmod" as "_".
 
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      pose proof (simp_throw_step_diagram Hsimp H) as (? & ?); subst.
+      simp_final_step_diagram.
       (* We are then able to use the inner induction hypothesis. *)
       iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
       do 3 iModIntro.
@@ -909,15 +913,12 @@ Section wp_rules.
     iApply fupd_frame_l; iSplit.
     { iPureIntro; by apply can_step_reducible. }
     iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-    iModIntro. iIntros (σ' m' efs Hstep).
+    iModIntro. iIntros (m' σ' efs Hstep).
     iMod "Hmod" as "_". destruct Hstep as (Hstep&->).
 
     (* We now examine an arbitrary step of [m] to [m']. *)
     (* Exploit the main simulation diagram. *)
-    pose proof (simp_step_diagram Hsimp Hstep)
-      as (ms' & i' & Hstep' & Hsimp' & ?);
-      clear Hsimp Hstep.
-    destruct_simp_step_diagram.
+    simp_step_diagram.
 
     (* Case: the reduction step disappears through the diagram. *)
     { iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
@@ -936,7 +937,7 @@ Section wp_rules.
     pose proof (is_not_ret_or_throw_to_outcome _ Hretms Hthrow_ms) as ->.
     spec_state.
 
-    assert (prim_step ms σ nil ms' m' nil) by (by constructor).
+    assert (prim_step ms σ nil _ σ' nil) by (by constructor).
 
     iSpecialize ("Hwp" $! _ _ nil H0).
     cbn.

@@ -404,6 +404,36 @@ Ltac clarify_simp :=
   | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
   end; simplify_eq.
 
+(* A category of final terms, which cannot be simplified
+   and cannot step. *)
+
+Definition final {A E} (m : micro A E) :=
+  match m with
+  | Ret _ | Throw _ | Crash => True
+  | _                       => False
+  end.
+
+Lemma destruct_simplify_final {A E n} {m1 m2 : micro A E} :
+  simplify n m1 m2 →
+  final m1 →
+  m2 = m1.
+Proof.
+  intros. destruct m1; clarify_simplify; tauto.
+Qed.
+
+Lemma destruct_step_final {A E} σ1 σ2 (m1 m2 : micro A E) :
+  step (σ1, m1) (σ2, m2) →
+  final m1 →
+  False.
+Proof.
+  intros. destruct m1; destruct_step; tauto.
+Qed.
+
+Ltac destruct_simplify_final :=
+  match goal with h1: simplify _ ?m1 ?m2, h2: final ?m1 |- _ =>
+    pose proof (destruct_simplify_final h1 h2); subst m2
+  end.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Destruction lemmas and tactic. *)
@@ -486,7 +516,7 @@ Local Hint Resolve
    never causes the loss of a reduction step. In other words, applying a
    simplification step does not eliminate any permitted behavior. *)
 
-Lemma simplify_step_diagram {A E} {n} {m1 m2 : micro A E} :
+Lemma simplify_step_diagram {A E n} {m1 m2 : micro A E} :
   (* If there is a simplification step of size [n]: *)
   simplify n m1 m2 →
   ∀ {m'1 σ σ'},
@@ -534,31 +564,47 @@ Proof.
   { use_ih; destruct_simplify_step_diagram; [| use_ih ]; search. }
 Qed.
 
-(* In the special case where [m2] is of the form [ret a2], the previous
-   diagram can be simplified, because [ret a2] cannot step. *)
+(* In the special case where [m2] is final, the previous
+   diagram can be simplified, because [m2] cannot step. *)
 
-Lemma simplify_ret_step_diagram {A E} {n} {m1 : micro A E} {a2 σ σ' m'1} :
-  (* If there is a simplification step of [m1] to [ret a2]: *)
-  simplify n m1 (ret a2) →
-  (* and a reduction step: *)
+Lemma simplify_final_step_diagram {A E n} {m1 m2 : micro A E} {σ σ' m'1} :
+  (* If there is a simplification step of [m1] to [m2], *)
+  simplify n m1 m2 →
+  (* if there is also a reduction step out of [m1], *)
   step (σ, m1) (σ', m'1) →
-  (* then the reduction step must take us closer to [ret a2]: *)
+  (* and if [m2] is final, *)
+  final m2 →
+  (* then this reduction step must take us closer to [m2]. *)
   ∃ n',
   σ' = σ ∧
-  simplify n' m'1 (ret a2) ∧
+  simplify n' m'1 m2 ∧
   n' < n.
 Proof.
-  intros Hsimp Hstep.
+  intros Hsimp Hstep Hfinal.
   destruct (simplify_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ? & ?).
-  destruct_simplify_step_diagram; [| exfalso; destruct_step ].
-  eauto.
+  destruct_simplify_step_diagram.
+  { eauto. }
+  { exfalso; eauto using destruct_step_final. }
 Qed.
 
-(* It is also possible to give weaker variants of the previous two lemmas, by
-   working directly with [simp], instead of [simplify]. For now I am keeping
-   both paths, but in the future it would be desirable to keep only one. *)
+Ltac prove_final :=
+  first [ exact I | eauto ].
 
-Module DirectSimp.
+Ltac simplify_final_step_diagram :=
+  match goal with
+  Hsimp: simplify _ ?m1 ?m2,
+  Hstep: step (_, ?m1) _
+  |- _ =>
+    let n' := fresh "n'" in
+    destruct (simplify_final_step_diagram Hsimp Hstep)
+      as (n' & -> & ? & ?);
+      [ prove_final |]
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following are (weakened) reformulations of the previous two lemmas
+   in terms of [simp]. *)
 
 Lemma simp_step_diagram {A E} {m1 m2 : micro A E} :
   (* If there is a simplification step: *)
@@ -574,156 +620,185 @@ Lemma simp_step_diagram {A E} {m1 m2 : micro A E} :
   simp m'1 m'2 ∧
   (* where [i] is at most 1. *)
   (i = 0 ∨ i = 1).
-Local Ltac search :=
-  do 2 eexists;
-  eauto 8 using step_try, simp_try with steps step simp lia.
-Local Ltac use_ih :=
+Proof.
+  (* It would be possible to give a direct proof of this lemma,
+     without relying on [simplify_step_diagram]. *)
+  intros (n & Hsimplify)%simp_simplify.
+  intros ? ? ? Hstep.
+  pose proof (simplify_step_diagram Hsimplify Hstep)
+    as (m'2 & i & n' & ? & ? & ?).
+  eauto 6 using simplify_simp with lia.
+Qed.
+
+Ltac simp_step_diagram :=
   match goal with
-  Hstep: step (_, ?m) _,
-  IH: ∀ _ _ _, step (_, ?m) _ → _ |- _ =>
-    specialize (IH _ _ _ Hstep);
-    destruct IH as (? & ? & ? & ? & ?)
+  Hsimp: simp ?m1 _,
+  Hstep: step (_, ?m1) _
+  |- _ =>
+    let Hstep' := fresh in
+    let Hsimp' := fresh in
+    let Hcases := fresh in
+    pose proof (simp_step_diagram Hsimp Hstep)
+      as (? & ? & Hstep' & Hsimp' & Hcases);
+    clear Hsimp Hstep;
+    rename Hsimp' into Hsimp;
+    rename Hstep' into Hstep;
+    destruct Hcases;
+    subst; destruct_steps
   end.
-Ltac destruct_simp_step_diagram :=
-  match goal with h: _ ∨ _ |- _ => destruct h end;
-  subst; destruct_steps.
-Proof.
-  (* A model of a beautiful proof. *)
-  induction 1; intros.
-  (* SimplifyEval *)
-  { destruct_step. search. }
-  (* SimplifyLoop *)
-  { destruct_step. search. }
-  (* SimplifyChooseAgree *)
-  { destruct_step; search. }
-  (* SimplifyParRetLeft *)
-  { destruct_step; try solve [destruct_step]; search. }
-  (* SimplifyParRetRight *)
-  { destruct_step; try solve [destruct_step]; search. }
-  (* SimplifyPar *)
-  { destruct_step; clarify_simp; solve [ search | use_ih; search ]. }
-  (* SimplifyReflexive *)
-  { search. }
-  (* SimplifyTransitive *)
-  { use_ih. destruct_simp_step_diagram; try use_ih; search. }
-Qed.
 
-Lemma simp_ret_step_diagram {A E} {m1 : micro A E} {a2 σ σ' m'1} :
-  (* If there is a simplification step of [m1] to [ret a2]: *)
-  simp m1 (ret a2) →
-  (* and a reduction step: *)
+Lemma simp_final_step_diagram {A E} {m1 m2 : micro A E} {σ σ' m'1} :
+  (* If there is a simplification step of [m1] to [m2], *)
+  simp m1 m2 →
+  (* if there is also a reduction step out of [m1], *)
   step (σ, m1) (σ', m'1) →
-  (* then the reduction step must take us closer to [ret a2]: *)
+  (* and if [m2] is final, *)
+  final m2 →
+  (* then this reduction step does not prevent us from reaching [m2]. *)
   σ' = σ ∧
-  simp m'1 (ret a2).
+  simp m'1 m2.
 Proof.
-  intros Hsimp Hstep.
-  destruct (simp_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ?).
-  destruct_simp_step_diagram; [| exfalso; destruct_step ].
-  eauto.
-Qed.
-End DirectSimp.
-
-Include DirectSimp.
-
-(* In the special case where [m2] is of the form [throw a2], the previous
-   diagram can be simplified, because [throw a2] cannot step. *)
-
-Lemma simp_throw_step_diagram {A E} {m1 : micro A E} {a2 σ σ' m'1} :
-  (* If there is a simplification step of [m1] to [throw a2]: *)
-  simp m1 (throw a2) →
-  (* and a reduction step: *)
-  step (σ, m1) (σ', m'1) →
-  (* then the reduction step must take us closer to [throw a2]: *)
-  σ' = σ ∧
-  simp m'1 (throw a2).
-Proof.
-  intros Hsimp Hstep.
-  destruct (simp_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ?).
-  destruct_simp_step_diagram; [| exfalso; destruct_step ].
-  eauto.
+  intros (n & Hsimplify)%simp_simplify.
+  intros Hstep Hfinal.
+  simplify_final_step_diagram.
+  eauto using simplify_simp.
 Qed.
 
-(* If there is a simplification path from [m1] to [ret a2], then there
-   must be a reduction path from [m1] to [ret a2]. *)
+Ltac simp_final_step_diagram :=
+  match goal with
+  Hsimp: simp ?m1 ?m2,
+  Hstep: step (_, ?m1) _
+  |- _ =>
+    destruct (simp_final_step_diagram Hsimp Hstep)
+      as (-> & ?);
+      [ prove_final |]
+  end.
+
+(* If there is a simplification path from [m1] to [m2],
+   where [m2] is final,
+   then there must be a reduction path from [m1] to [m2]. *)
 
 Local Hint Constructors rtc : rtc.
 
-Lemma simplify_ret_implies_step :
-  ∀ {n A E} {m1 : micro A E} {a2},
-  simplify n m1 (ret a2) →
+Lemma simplify_final_implies_rtc_step :
+  ∀ {n A E} {m1 m2 : micro A E},
+  simplify n m1 m2 →
+  final m2 →
   ∀ σ,
-  rtc step (σ, m1) (σ, ret a2).
+  rtc step (σ, m1) (σ, m2).
 Proof.
   induction n using (well_founded_induction lt_wf).
   (* Reformulate the induction hypothesis. *)
   assert (IH:
-    ∀ n' {A E} σ (m1 : micro A E) (a2 : A),
-    simplify n' m1 (ret a2) →
+    ∀ n' {A E} σ (m1 m2 : micro A E),
+    simplify n' m1 m2 →
+    final m2 →
     n' < n →
-    rtc step (σ, m1) (σ, ret a2)
+    rtc step (σ, m1) (σ, m2)
   ) by eauto; clear H.
-  intros A E m1 a2 Hsimp σ.
+  intros A E m1 m2 Hsimp Hfinal σ.
   (* Reason by cases on [m1]. *)
   triplicity σ m1 Hm1.
   (* Case: [m1] is [ret _]. *)
   { clarify_simplify. eauto with rtc. }
   (* Case: [m1] can step. *)
   { destruct Hm1 as ((σ' & m'1) & Hstep).
-    pose proof (simplify_ret_step_diagram Hsimp Hstep)
-      as (n' & -> & Hsimp' & ?).
+    simplify_final_step_diagram.
     (* IH is used. *)
     eauto with rtc. }
-  (* Case: [m1] is stuck. Impossible. *)
+  (* Case: [m1] is stuck. *)
   { apply only_crash_and_throw_are_stuck in Hm1.
-    destruct Hm1 as [| (e & ?)]; subst m1; clarify_simplify. }
+    destruct Hm1 as [| (e & ?)]; subst m1;
+    clarify_simplify; eauto with rtc. }
 Qed.
 
-(* If there is a simplification step of [m1] to [ret a2]
-   and a reduction path of [m1] to [ret b2],
+(* If there is a simplification step of [m1] to [m'1]
+   and a reduction path of [m1] to [m2],
+   where [m'1] and [m2] are final,
    then the two paths must lead to the same end result. *)
 
-Lemma simplify_ret_rtc_step_diagram {A E} {n} {m1 : micro A E} {a2 b2 σ σ'} :
-  simplify n m1 (ret a2) →
-  rtc step (σ, m1) (σ', ret b2) →
-  σ' = σ ∧ a2 = b2.
+Lemma simplify_final_rtc_step_diagram
+  {A E n} {m1 m'1 m2 : micro A E} {σ σ'} :
+  simplify n m1 m'1 →
+  rtc step (σ, m1) (σ', m2) →
+  final m'1 →
+  final m2 →
+  σ' = σ ∧ m2 = m'1.
 Proof.
   (* Reformulate the statement. *)
   cut (
     ∀ (c1 c2 : config A E),
     rtc step c1 c2 →
-    ∀ σ σ' m1 b2 n (a2 : A),
-    simplify n m1 (ret a2) →
+    ∀ σ σ' m1 m'1 m2 n,
+    simplify n m1 m'1 →
+    final m'1 →
+    final m2 →
     c1 = (σ, m1) →
-    c2 = (σ', ret b2) →
-    σ' = σ ∧ a2 = b2
-  ). eauto. clear n m1 a2 b2 σ σ'.
+    c2 = (σ', m2) →
+    σ' = σ ∧ m2 = m'1
+  ). eauto. clear n m1 m'1 m2 σ σ'.
   (* Reason by induction on the reduction path. *)
   induction 1; intros; simplify_eq; clarify_simplify; destruct_config.
   (* The base case is immediate. *)
-  { eauto. }
-  { (* Exploit the fact that each reduction step must take us closer to
-       [ret a2]. *)
-    match goal with Hsimp: simplify _ _ _, Hstep: step _ _ |- _ =>
-      pose proof (simplify_ret_step_diagram Hsimp Hstep)
-        as (n' & -> & Hsimp' & ?)
-    end.
-    eauto. }
+  { destruct_simplify_final. eauto. }
+  (* In the other case, we are looking at a reduction step. We then
+     exploit the fact that each reduction step must take us closer
+     to [m'1], which is the target of the simplification path. *)
+  simplify_final_step_diagram.
+  eauto.
 Qed.
 
-(* The relation [simplify _ ?m (ret ?a)] is confluent. That is,
-   simplification cannot lead to two distinct results. *)
+(* The relation [simplify _], restricted to final results, is confluent.
+   That is, simplification cannot lead to two distinct final results. *)
 
-Lemma simplify_ret_confluent {A E} (m : micro A E) n1 n2 a1 a2 :
-  simplify n1 m (ret a1) →
-  simplify n2 m (ret a2) →
+Lemma simplify_final_confluent {A E} {m m1 m2 : micro A E} {n1 n2} :
+  simplify n1 m m1 →
+  simplify n2 m m2 →
+  final m1 →
+  final m2 →
+  m1 = m2.
+Proof.
+  intros Hsimp1 Hsimp2 Hfinal1 Hfinal2.
+  pose proof (simplify_final_implies_rtc_step Hsimp1 Hfinal1 ∅) as Hpath.
+  pose proof (simplify_final_rtc_step_diagram Hsimp2 Hpath Hfinal2 Hfinal1)
+    as (_ & ?).
+  eauto.
+Qed.
+
+Lemma simp_final_confluent {A E} {m m1 m2 : micro A E} :
+  simp m m1 →
+  simp m m2 →
+  final m1 →
+  final m2 →
+  m1 = m2.
+Proof.
+  intros (n1 & H1)%simp_simplify (n2 & H2)%simp_simplify.
+  eauto using simplify_final_confluent.
+Qed.
+
+Ltac simp_final_confluent :=
+  match goal with
+  | h1: simp ?m ?m1, h2: simp ?m ?m2 |- _ =>
+      assert (m1 = m2); [
+        eapply (simp_final_confluent h1 h2); prove_final
+      | simplify_eq ]
+  end.
+
+(* As a corollary, the relation [simp _ (ret _)] is confluent. *)
+
+Lemma simp_ret_confluent {A E} {m : micro A E} {a1 a2} :
+  simp m (ret a1) →
+  simp m (ret a2) →
   a1 = a2.
 Proof.
-  intros Hsimp1 Hsimp2.
-  pose proof (simplify_ret_implies_step Hsimp1 ∅) as Hpath.
-  pose proof (simplify_ret_rtc_step_diagram Hsimp2 Hpath) as (_ & ?).
-  congruence.
+  intros. simp_final_confluent. eauto.
 Qed.
+
+Ltac simp_ret_confluent :=
+  match goal with
+  | h1: simp ?m (ret ?a1), h2: simp ?m (ret ?a2) |- _ =>
+      generalize (simp_ret_confluent h1 h2); intro
+  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -746,56 +821,24 @@ Proof.
   induction 1; eauto with step.
 Qed.
 
-(* If [m1] can be simplified into [ret a2] then
-   either [m1] is [ret _]
+(* If [m1] can be simplified into a final result [m2] then
+   either [m1] is [m2]
    or [m1] can step. *)
 
-Lemma invert_simp_ret {A E} (m1 : micro A E) a2 σ :
-  simp m1 (ret a2) →
-  is_ret m1 = None →
+Lemma invert_simp_final {A E} {m1 m2 : micro A E} σ :
+  simp m1 m2 →
+  final m2 →
+  m1 = m2 ∨
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [ret _] and [crash] and [throw _].
-     These terms cannot appear on the left-hand side of [simp], so the
-     proof is almost trivial. Only [SimplifyTransitive] requires work. *)
-  intro h; dependent induction h; intros; simpl in *;
-  try solve [ congruence | eauto with step ].
-
-  (* SimplifyTransitive *)
-  specialize (IHh2 _ eq_refl).
-  case_eq (is_ret m2); [ intros a'2 Hm2 | intro Hm2 ].
-  (* Case: [m2] is [ret a2]. *)
-  { apply invert_is_ret_Some in Hm2. subst m2.
-    eauto using invert_simp_can_step. }
-  (* Case: [m2] is not [ret _]. *)
-  { specialize (IHh2 Hm2).
-    eauto using invert_simp_can_step. }
-Qed.
-
-(* If [m1] can be simplified into [throw a2] then
-   either [m1] is [throw _]
-   or [m1] can step. *)
-
-Lemma invert_simp_throw {A E} (m1 : micro A E) a2 σ :
-  simp m1 (throw a2) →
-  is_throw m1 = None →
-  can_step (σ, m1).
-Proof.
-  (* The only terms that cannot step are [throw _] and [crash] and [throw _].
-    These terms cannot appear on the left-hand side of [simp], so the
-    proof is almost trivial. Only [SimplifyTransitive] requires work. *)
-  intro h; dependent induction h; intros; simpl in *;
-  try solve [ congruence | eauto with step ].
-
-  (* SimplifyTransitive *)
-  specialize (IHh2 _ eq_refl).
-  case_eq (is_throw m2); [ intros a'2 Hm2 | intro Hm2 ].
-  (* Case: [m2] is [throw a2]. *)
-  { apply invert_is_throw_Some in Hm2. subst m2.
-    eauto using invert_simp_can_step. }
-  (* Case: [m2] is not [throw _] *)
-  { specialize (IHh2 Hm2).
-    eauto using invert_simp_can_step. }
+  (* The only terms that cannot step are the final terms, and these
+     terms cannot be simplified, so the result is almost immediate. *)
+  intro h; dependent induction h; intros Hfinal; simpl in *;
+  eauto with step.
+  (* Only [SimpTransitive] requires some work. *)
+  destruct (IHh2 Hfinal); clear IHh2; [ subst |].
+  { destruct (IHh1 Hfinal); eauto. }
+  { eauto using invert_simp_can_step. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -880,25 +923,6 @@ Proof.
     ]
   ].
 Qed.
-
-(* The relation [simp _ (ret _)] is confluent. *)
-
-Lemma simp_ret_confluent {A E} {m : micro A E} {a1 a2} :
-  simp m (ret a1) →
-  simp m (ret a2) →
-  a1 = a2.
-Proof.
-  intros Hsimp1 Hsimp2.
-  apply simp_simplify in Hsimp1 as (n1 & H1).
-  apply simp_simplify in Hsimp2 as (n2 & H2).
-  eauto using simplify_ret_confluent.
-Qed.
-
-Ltac simp_ret_confluent :=
-  match goal with
-  | h1: simp ?m (ret ?a1), h2: simp ?m (ret ?a2) |- _ =>
-      generalize (simp_ret_confluent h1 h2); intro
-  end.
 
 (* The relation [simp] is confluent. *)
 
@@ -1142,13 +1166,10 @@ Proof.
   intro Htotal. destruct_total a e.
   (* Case: there exists [a] such that [m] can be simplified to [ret a]. *)
   { left. exists a. split; [ eauto |].
-    intro x. specialize (Hm x). destruct_total a' e'.
-    (* Because [simp _ (ret _)] is confluent, [a] and [a'] must be equal. *)
-    { simp_ret_confluent. congruence. }
-    (* Because [simp _ _] is confluent, [m] cannot be simplified both to
-       [ret _] and [throw _]. So, this subcase is impossible. *)
-    { exfalso. simp_confluent; intros (m' & h1 & h2). clarify_simp. }
-  }
+    intro x. specialize (Hm x). destruct_total a' e';
+    (* Because [simp _ _], restricted to final results, is confluent,
+       the two results must be equal. *)
+    simp_final_confluent; congruence. }
   (* Case: [m] can be simplified to [throw _]. *)
   { right. eauto. }
 Qed.
@@ -1353,7 +1374,7 @@ Local Hint Constructors sss : sss.
 
 (* [sss _ m m'] and [simp m m'] are equivalent. *)
 
-Local Lemma sss_simp {A E} {n} {m m' : micro A E} :
+Local Lemma sss_simp {A E n} {m m' : micro A E} :
   sss n m m' →
   simp m m'.
 Proof.
@@ -1446,7 +1467,7 @@ Qed.
 
 (* A stack represents a simplification path. *)
 
-Lemma stack_simp {A E} {n} {m m' : micro A E} :
+Lemma stack_simp {A E n} {m m' : micro A E} :
   stack n m m' →
   simp m m'.
 Proof.
