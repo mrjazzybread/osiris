@@ -1338,11 +1338,11 @@ Inductive sss {A E : Type} : nat → micro A E → micro A E → Prop :=
     ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     sss n1 m1 m'1 →
     sss n2 m2 m'2 →
-    n1 + n2 ≤ n →
+    n1 + n2 + 1 ≤ n →
     sss n (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SssReflexive:
     ∀ m,
-    sss 1 m m
+    sss 0 m m
 | SssTransitive:
     ∀ n1 n2 n m1 m2 m3,
     sss n1 m1 m2 →
@@ -1375,22 +1375,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The weight of a simplification tree is positive. *)
-
-Local Lemma sss_positive {A E} {n} {m m' : micro A E} :
-  sss n m m' →
-  0 < n.
-Proof.
-  induction 1; eauto with lia.
-Qed.
-
-Local Ltac sss_positive :=
-  match goal with h: sss _ _ _ |- _ =>
-    generalize (sss_positive h); intro
-  end.
-
-(* -------------------------------------------------------------------------- *)
-
 (* A stack of simplification trees is needed in the statement of the lemma
    [invert_stack_try_ret]. *)
 
@@ -1408,6 +1392,7 @@ Inductive stack {A E : Type} : nat → micro A E → micro A E → Prop :=
     forall n1 n2 n m1 m2 m3,
     sss n1 m1 m2 →
     stack n2 m2 m3 →
+    0 < n1 →
     n1 + n2 ≤ n →
     stack n m1 m3.
 
@@ -1427,6 +1412,32 @@ Local Lemma stack_monotone {A E} n (m m' : micro A E) :
 Proof.
   induction 1; intros; econstructor; eauto with lia.
 Qed.
+
+(* [sss 0 m1 m2] implies [m1 = m2]. *)
+
+Lemma invert_sss_zero {A E} {m1 m2 : micro A E} :
+  sss 0 m1 m2 →
+  m1 = m2.
+Proof.
+  intros h; dependent induction h; eauto with lia f_equal.
+Qed.
+
+(* The side condition [0 < n1] in [StackCons] is not restrictive. *)
+
+Lemma StackConsUnrestricted {A E} n1 n2 n (m1 m2 m3 : micro A E) :
+  sss n1 m1 m2 →
+  stack n2 m2 m3 →
+  n1 + n2 ≤ n →
+  stack n m1 m3.
+Proof.
+  intros H1 H2 ?.
+  assert (0 = n1 ∨ 0 < n1) as [|] by lia; [ subst |].
+  { apply invert_sss_zero in H1. subst.
+    eauto using stack_monotone with lia. }
+  eauto with stack.
+Qed.
+
+Local Hint Resolve StackConsUnrestricted : stack.
 
 (* A single tree forms a stack (of one cell). *)
 
@@ -1597,7 +1608,7 @@ Proof.
     (* Recognize [try (Par _ _ _ _) _ _] in the stack. *)
     rewrite <- try_Par in Hstack.
     (* Apply the induction hypothesis. *)
-    sss_positive. eauto with lia.
+    eauto with lia.
   }
 
   (* Subcase: [SssReflexive]. *)
