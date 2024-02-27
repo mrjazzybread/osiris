@@ -1297,12 +1297,11 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* To do so, we need another indexed variant of the relation [simp].
-   This variant places a weight of 1 on every node. This weight is
-   used to do a well-founded induction in the proof of the lemma
-   [invert_stack_try_ret]. *)
 
-(* One can think of a proof of [sss n m m'] as a simplification tree
-   from [m] to [m'] whose weight is [n]. *)
+   The relation [sss] is identical to [simplify], except that it places a
+   weight of 1 on transitivity nodes, where [simplify] assigns them zero
+   cost. This weight of 1 is needed in the last case of the proof of the
+   lemma [invert_stack_try_ret]. *)
 
 Inductive sss {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SssEval:
@@ -1338,7 +1337,7 @@ Inductive sss {A E : Type} : nat → micro A E → micro A E → Prop :=
     ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
     sss n1 m1 m'1 →
     sss n2 m2 m'2 →
-    n1 + n2 + 1 ≤ n →
+    n1 + n2 < n →
     sss n (Par m1 m2 k z) (Par m'1 m'2 k z)
 | SssReflexive:
     ∀ m,
