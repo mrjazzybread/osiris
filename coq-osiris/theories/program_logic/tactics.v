@@ -13,36 +13,28 @@ Module wp_rules_tactics.
 
 (* Tactics relevant to [step] relation *)
 
-(* Juice out more information of goals of form [step (σ, bind _ _) _] *)
-Tactic Notation "step_bind" hyp(Hstep) :=
-  match type of Hstep with
-  | step (?σ, bind ?m ?k) _ =>
-      match goal  with
-        [ H' : reducible m σ |- _ ] =>
-          apply reducible_not_val in H';
-          let m' := fresh "m'" in
-          let Hstep' := fresh "Hstep'" in
-          destruct (invert_step_bind Hstep) as (m' & Hstep' & ->);
-          [ by apply to_outcome_is_not_ret | ]
-      end
+(* Try to search the environment if there is something known about the head of
+  the computation, i.e. [m] ; if so, try to extract as much information as
+  possible *)
+Tactic Notation "step_inv_aux" constr(m) constr(lem) tactic(tac) :=
+  (* Generate some fresh names *)
+  let Hred := fresh "Hred" in
+  let m' := fresh "m'" in
+  let Hstep' := fresh "Hstep'" in
+  match goal with
+    [ H' : reducible m _ |- _ ] =>
+      pose proof (reducible_not_val _ _ H') as Hred;
+      destruct lem as (m' & Hstep' & ->); [ by tac | ]
   end.
 
-(* Juice out more information of goals of form [step (σ, try _ _ _) _] *)
-Tactic Notation "step_try" hyp(Hstep) :=
+(* Invert hypotheses of the shape
+    [step (σ, bind _ _) _] and [step (σ, try _ _ _) _] *)
+Tactic Notation "step_inv" hyp(Hstep) :=
   match type of Hstep with
-  | step (?σ, try ?m ?k ?h) _ =>
-      match goal  with
-        [ H' : reducible m σ |- _ ] =>
-          let Hred := fresh "Hred" in
-          assert (Hred := H');
-          apply reducible_not_val in H';
-          (* destruct Hstep as (Hstep & ?); subst *)
-          let m' := fresh "m'" in
-          let Hstep' := fresh "Hstep'" in
-          destruct (invert_step_try Hstep) as (m' & Hstep' & ->);
-          [ by apply can_step_reducible | ];
-          clear Hred
-      end
+  | step (_, bind ?m _) _ =>
+      (step_inv_aux m (invert_step_bind Hstep) (apply to_outcome_is_not_ret))
+  | step (_, try ?m _ _) _ =>
+      (step_inv_aux m (invert_step_try Hstep) (apply can_step_reducible))
   end.
 
 (* Change goals of form [step _ _] to [prim_step _ _ _ _ _ ] *)
@@ -253,26 +245,33 @@ Ltac discharge_emp :=
       iSplitR ""; [ | done ]
   end.
 
-(* Conclude that any computation is reducible by information in the context *)
+(* Conclude that some computation is reducible by information in the context *)
 Ltac reducible :=
   (* Coq weirdness: Without this [idtac], the matched goal is not what you would
     expect when this tactic is passed into [discharge_pure] *)
   idtac
   ;
   try
+  match goal with
+  | [ |- match ?s with | NotStuck => _ | MaybeStuck => _ end] =>
+      destruct s; last done
+  end
+  ;
+  try progress
     match goal with
-    | [ |- match ?s with | NotStuck => _ | MaybeStuck => _ end] =>
-        destruct s; last done
+    | [ H : reducible ?m ?σ |- reducible (bind ?m _) ?σ] =>
+        apply (reducible_bind _ _ _ H)
+    | [ H : reducible ?m ?σ |- reducible (try ?m _ _) ?σ] =>
+        apply (reducible_try _ _ _ _ H)
+    | [ H : simp ?m1 ?m2 |- _ ] =>
+        epose proof (invert_simp_final _ H) as [|];
+        [ prove_final |
+          subst; try destruct_is_ret; try destruct_is_throw |
+          by apply can_step_reducible ]
     end
   ;
-  match goal with
-  | [ H : reducible ?m ?σ |- reducible (bind ?m _) ?σ] =>
-      apply (reducible_bind _ _ _ H)
-  | [ H : reducible ?m ?σ |- reducible (try ?m _ _) ?σ] =>
-      apply (reducible_try _ _ _ _ H)
-  | |- reducible _ _ =>
-      apply can_step_reducible; eauto with step can_step
-  end.
+  try (apply can_step_reducible; eauto with step can_step)
+.
 
 (* -------------------------------------------------------------------------- *)
 (* More [wp] tactics *)
@@ -329,6 +328,12 @@ Ltac wp_step :=
   try wp_unfold_head; try intro_state;
   wp_intro_mask "Hmod";
   destruct_step;
+  wp_resolve_mask "Hmod".
+
+Ltac wp_final_step_diagram :=
+  try wp_unfold_head; try intro_state;
+  wp_intro_mask "Hmod";
+  simp_final_step_diagram;
   wp_resolve_mask "Hmod".
 
 (* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)

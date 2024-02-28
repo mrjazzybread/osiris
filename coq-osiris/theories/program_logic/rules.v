@@ -177,9 +177,9 @@ Section wp_rules.
 
       construct_wp_nonret.
 
-      step_bind Hstep; spec_step.
+      step_inv Hstep.
 
-      iModIntro; wp_frame.
+      spec_step; iModIntro; wp_frame.
 
       by iApply ("IH" with "Hwp"). }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
@@ -241,10 +241,9 @@ Section wp_rules.
       intro_state; spec_state; iModIntro.
 
       construct_wp_nonret.
+      step_inv Hstep.
 
-      step_try Hstep; spec_step.
-
-      iModIntro; wp_frame.
+      spec_step; iModIntro; wp_frame.
 
       by iApply ("IH" with "Hwp"). }
   Qed.
@@ -687,46 +686,18 @@ Section wp_rules.
 
     (* Examine [ms] on whether it is a [ret]. *)
     wp_case_is_ret ms Hretms.
-    (* TODO the cases [ms = ret _] and [ms = throw _] can probably
-            be merged. In both cases, [ms] is final. *)
 
     (* Case: [ms] is [ret _]. *)
-    { (* Prove that [m] is able to step. *)
-      iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simp_final σ Hsimp) as [|];
-          [ prove_final | subst; simpl in Hretm; congruence |].
-        iPureIntro. by apply can_step_reducible. }
-
-      wp_intro_mask "Hmod".
-      intro_step.
-
-      (* Examine one step of [m] to [m']. The simulation diagram in this case
-      tells us that this reduction step takes us closer to [ret a].
-      That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      simp_final_step_diagram.
-      wp_resolve_mask "Hmod".
-
-      (* We are then able to use the induction hypothesis. *)
-      iApply ("IH" with "Hwp [//]"). }
+    { (* Prove that [m] is a final step in the diagram. *)
+      wp_final_step_diagram;
+        (* We are then able to use the induction hypothesis. *)
+        iApply ("IH" with "Hwp [//]"). }
 
     (* Examine [ms] on whether it is a [throw]. *)
     wp_case_is_throw ms Hthrow_ms.
     (* Case : [ms] is [throw _]. *)
-    { (* Prove that [m] is able to step. *)
-      iApply fupd_frame_l; iSplit.
-      { pose proof (invert_simp_final σ Hsimp) as [|];
-          [ prove_final | subst; simpl in Hthrow; congruence |].
-        iPureIntro. by apply can_step_reducible. }
-
-      wp_intro_mask "Hmod".
-      intro_step.
-
-      (* Examine one step of [m] to [m']. The simulation diagram in this case
-      tells us that this reduction step takes us closer to [ret a].
-      That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
-      simp_final_step_diagram.
-      wp_resolve_mask "Hmod".
-
+    { (* Prove that [m] is a final step in the diagram. *)
+      wp_final_step_diagram;
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "Hwp [//]"). }
 
@@ -750,6 +721,12 @@ Section wp_rules.
       destruct H; exfalso; eauto. }
 
     wp_intro_mask "Hmod".
+
+
+    iSplitL "". iPureIntro.
+    (* Why isn't this resolved? *)
+    try (apply can_step_reducible; eauto with step can_step).
+    intro_step.
 
     (* We now examine an arbitrary step of [m] to [m']. *)
     (* Exploit the main simulation diagram. *)
