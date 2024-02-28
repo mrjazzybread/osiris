@@ -3,7 +3,7 @@ From iris Require Import base_logic.lib.gen_heap.
 From osiris Require Import base.
 From osiris.semantics Require Import semantics.
 From osiris.lang Require Import lang.
-From osiris.proofmode Require Import specifications.
+From osiris.proofmode Require Import specifications struct.
 
 (* Cf.
    https://coq.inria.fr/doc/V8.10.2/refman/user-extensions/syntax-extensions.html#displaying-symbolic-notations
@@ -11,8 +11,6 @@ From osiris.proofmode Require Import specifications.
 
 (* TODO Most of the notation in this file should go away.
    The rest should be cleaned up and documented. *)
-
-(* ------------------------------------------------------------------------ *)
 
 (* We use [Goal (trivial e)] to avoid printing notation the notation of [e]
    to stdout when compiling *)
@@ -123,19 +121,16 @@ Notation "'WP' e {{ v , ... } }" :=
    - [name1 ~> value1; ...; namen ~> valuen] otherwise. *)
 
 Notation "n1 ~> v1 ; η" :=
-  ((n1, v1) :: η) (at level 80, right associativity, format "n1  ~>  v1 ;  '//' η").
+  (@cons (var * val) (n1, v1) η)
+    (at level 80, right associativity, format "n1  ~>  v1 ;  '//' η").
+
+Notation "n1 ~> v1" :=
+  (@cons (var * val) (n1, v1) [])
+    (at level 90, right associativity, format "n1 ~> v1").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)
     (only printing, at level 100, no associativity).
-
-Notation "'An' 'environment' 'containing' n1 , .. , nn 'will' 'be' 'added' 'to' 'the' 'current' 'environment.'" :=
-  (ret
-     (n1 ~> _ ; (.. (nn ~> _ ; []) ..)) ++ _, (n1 ~> _ ; (.. (nn ~> _ ; []) ..)) ++ _)
-    (only printing, format
-"'[v    ' 'An'  'environment'  'containing'  '/' n1 ,  '/' .. ,  '/' nn  '/' 'will'  'be'  'added'  'to'  'the'  'current'  'environment.' ']'").
-
-Infix ":::" := (concat).
 
 (* -------------------------------------------------------------------------- *)
 (* Paths, tuples and ADTs. *)
@@ -233,7 +228,7 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
 
 Notation "e1 ; e2" :=
   (ESeq e1 e2)
-    (only printing, format "e1 ;  '/' e2", at level 20, e1, e2 at level 200).
+    (only printing, format "e1 ;  '/' e2", at level 80).
 
 Goal (trivial
         (ESeq
@@ -297,23 +292,6 @@ Abort.
 Goal (trivial (Branch PAny 2)). Abort.
 
 (* -------------------------------------------------------------------------- *)
-
-(* On modules. *)
-
-(* [val_as_struct_total] is introduced by Osiris tactics when the evaluation
-   function wants to extract the underlying environment of a value which we know
-   define a module. Thus, it can be saftely hidden. *)
-Notation "« v »" :=
-  (val_as_struct_total _ v)
-  (only printing, at level 101).
-
-(* The following notation represents paths: [M :$: f] is the osiris equivalent
-   to the OCaml [M.f] *)
-Notation "v  ':$:'  n" :=
-  (lookup_name_total (val_as_struct_total v) n)
-  (only printing, at level 100).
-
-(* -------------------------------------------------------------------------- *)
 (* [Stop]-related notations. *)
 
 Notation "'ref' v ';' '...continuations'" := (Stop CAlloc v _ _) (only printing).
@@ -371,10 +349,12 @@ Abort.
 Notation "{ r 'with' fds }" :=
   (ERecordUpdate r fds)
     (only printing,
-       format "{  r  'with'  fds  }").
+      format "{  r  'with'  fds  }").
+
+(* -------------------------------------------------------------------------- *)
+(* Hoare-style judgements. *)
 
 Close Scope expr.
-
 
 Global Arguments eval _ _%expr_scope.
 
@@ -390,3 +370,15 @@ Notation "'--------------------------------------env' e { Q }" :=
   (pure e Q)
   (only printing, at level 100,
       format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+
+
+Notation "Γ '--------------------------------------env' module me { Q }" :=
+  (module Γ me Q)
+    (only printing, at level 100,
+      format "'[' Γ '//' '--------------------------------------env' '//' module  me '//' '//' {  Q  } ']'").
+
+
+Notation "Γ '--------------------------------------env' struct_items bs { Q }" :=
+  (struct_items (Γ, _) bs Q)
+    (only printing, at level 100,
+      format "'[' Γ '//' '--------------------------------------env' '//' struct_items  bs '//' '//' {  Q  } ']'").

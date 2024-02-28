@@ -55,7 +55,7 @@ Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, *patterns* and *expressions*.
 |*)
 
-Print pat.
+Print syntax.pat.
 Print expr.
 
 (*|
