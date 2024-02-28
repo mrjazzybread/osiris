@@ -110,8 +110,13 @@ Section wp_rules.
     subst. inversion H0.
   Qed.
 
+  Local Ltac strip_modalities Hmod :=
+    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as Hmod;
+    [ set_solver | iModIntro ]; iNext; iModIntro;
+    iMod Hmod; iModIntro; wp_frame.
+
   (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
-  Ltac wp_invert :=
+  Local Ltac wp_invert :=
     match goal with
     | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
         match goal with
@@ -122,11 +127,7 @@ Section wp_rules.
         (* WP throw Ψ *)
         | |- context [environments.Esnoc _ ?Hwp (wp _ _ (throw _) _)] =>
             iPoseProof (invert_wp_throw with SI) as "Hinv";
-            iMod ("Hinv" with "[$]") as "[$ Hinv]";
-            (* TODO factor this out *)
-            iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
-            [ set_solver | iModIntro ]; iNext; iModIntro;
-            iMod "Hmod"; iModIntro; cbn; iFrame
+            iMod ("Hinv" with "[$]") as "[$ Hinv]"; strip_modalities "Hmod"
         end
     end.
 
@@ -295,7 +296,7 @@ Section wp_rules.
     { iMod "Hmod" as "_".
 
       (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
-      inversion Hstep; dependent destruction H7; subst.
+      destruct_step.
 
     { (* Case: [StepParRetRet].
         Both [m1] and [m2] represent outcomes [v1] and [v2]. One can consume [H1]
@@ -332,7 +333,7 @@ Section wp_rules.
       (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the
         state interpretation. Some modalities need to be stripped from the
         result. *)
-      iPoseProof (wp_step H0 with "Hsi H£ H1") as ">H1".
+      iPoseProof (wp_step Hstep with "Hsi H£ H1") as ">H1".
       iMod "H1"; iModIntro. (* After stripping modalities, one can
                                         frame the state interpretation. *)
       iNext. iModIntro; do 2 iMod "H1". iModIntro.
@@ -343,7 +344,7 @@ Section wp_rules.
 
     { (* Case: [StepParRight]
         This case is similar to the previous one. *)
-      iMod (wp_step H0 with "Hsi H£ H2") as ">H2".
+      iMod (wp_step Hstep with "Hsi H£ H2") as ">H2".
       iModIntro. iNext.
       iMod "H2"; iModIntro. (* After stripping modalities, one can
                                         frame the state interpretation. *)
@@ -368,8 +369,7 @@ Section wp_rules.
     iIntros "Hwp".
     wp_unfold_head.
     intro_state.
-
-    masked_step.
+    wp_step.
 
     by iApply wp_try.
   Qed.
@@ -400,7 +400,7 @@ Section wp_rules.
   Proof.
     iIntros "H".
     wp_unfold_head.
-    intro_state. masked_step.
+    intro_state. wp_step.
 
     { iDestruct "H" as "[H _]".
       by rewrite try_ret_right. }
@@ -514,8 +514,6 @@ Section wp_rules.
 
   (* The following lemmas help reason on loops. *)
 
-  (* TODO these proofs need cleaning up *)
-
   (* The following lemma is inspired by the corresponding CFML rule. *)
   Lemma wp_loop {A X}
         (η : env) (x : var) (i1 i2 : int) (e : expr)
@@ -549,19 +547,12 @@ Section wp_rules.
         that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
         state interp. *)
       wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
-      intro_state; (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
-                    [ set_solver | iModIntro ]);
-      construct_wp_nonret.
+      intro_state; wp_step.
 
-    { destruct_step.
-      wp_resolve_mask "Hmod".
-      (* Finally, expand the definition of the helper function [loop]. *)
+    { (* Finally, expand the definition of the helper function [loop]. *)
       rewrite/loop Hlt; by iFrame. }
 
-    { destruct_step.
-      wp_resolve_mask "Hmod".
-
-      (* In the base case, the loop is over. One can use the hypothesis to end
+    { (* In the base case, the loop is over. One can use the hypothesis to end
           the proof. *)
       iApply wp_try.
 
@@ -596,12 +587,7 @@ Section wp_rules.
       last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
 
       (* First, we take a step in the WP and frame the state interp. *)
-      wp_unfold_head; intro_state;
-      (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
-      [set_solver | iModIntro ]);
-      construct_wp_nonret;
-      destruct_step;
-      wp_resolve_mask "Hmod".
+      wp_unfold_head; intro_state; wp_step.
 
     { (* The loop is over. *)
       assert (i1 = S i2) as -> by lia.
@@ -634,14 +620,11 @@ Section wp_rules.
         induction hypothesis can take care of it.
         Note: it is to use ["Hpreservation"] a second time that it needs to be
               persistent.  *)
-      iPoseProof (IHn i2 (S i1)) as "IH".
-      { unfold representable in *. lia. }
-      { assumption. }
-      { lia. }
-      { lia. }
-      { iSpecialize ("IH" with "Hinit[]Hccl").
-        { iIntros "!>" (i Hi Hi').
-          iApply ("Hpreservation"); iPureIntro; lia. }
+      iPoseProof (IHn i2 (S i1)) as "IH"; unfold representable in *; try lia.
+
+      iSpecialize ("IH" with "Hinit[]Hccl").
+      { iIntros "!>" (i Hi Hi').
+        iApply ("Hpreservation"); iPureIntro; lia. }
         destruct v; cycle 1.
         (* Why doesn't this get automatically discharged with [contradiction]? *)
         { exfalso. exact (elim_void e0). }
@@ -649,7 +632,7 @@ Section wp_rules.
 
         replace (add (repr i1) int.one) with (repr (S i1)); last first.
         { rewrite add_repr_repr. f_equal. lia. }
-        done. } }
+        done. }
 
     { (* Last run of the loop. *)
       iApply wp_try.
@@ -671,7 +654,7 @@ Section wp_rules.
       intro_state. iClear "Hmod".
 
       iRename "H£" into "H£'".
-      masked_step.
+      wp_step.
       iApply wp_try.
       rewrite/loop Hlt.
       do 2 iApply wp_ret.
@@ -746,20 +729,16 @@ Section wp_rules.
           [ prove_final | subst; simpl in Hretm; congruence |].
         iPureIntro. by apply can_step_reducible. }
 
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-      iModIntro.
-      iIntros (m' σ' obs []) "H£"; subst.
-      iMod "Hmod" as "_".
+      wp_intro_mask "Hmod".
+      intro_step.
 
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
       simp_final_step_diagram.
-      (* We are then able to use the inner induction hypothesis. *)
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-      do 3 iModIntro.
-      iMod "Hmod"; iModIntro.
-      cbn; iFrame.
+      wp_resolve_mask "Hmod".
+
+      (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "Hwp [//]"). }
 
     (* Examine [ms] on whether it is a [throw]. *)
@@ -771,21 +750,16 @@ Section wp_rules.
           [ prove_final | subst; simpl in Hthrow; congruence |].
         iPureIntro. by apply can_step_reducible. }
 
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-      iModIntro.
-      iIntros (m' σ' obs []) "H£"; subst.
-      iMod "Hmod" as "_".
+      wp_intro_mask "Hmod".
+      intro_step.
 
       (* Examine one step of [m] to [m']. The simulation diagram in this case
       tells us that this reduction step takes us closer to [ret a].
       That is, we get [simplify n' m' (ret a)] where [n' < n] holds. *)
       simp_final_step_diagram.
-      (* We are then able to use the inner induction hypothesis. *)
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-      do 3 iModIntro.
-      iMod "Hmod"; iModIntro.
-      cbn; iFrame.
+      wp_resolve_mask "Hmod".
 
+      (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "Hwp [//]"). }
 
     (* [ms] is neither a [ret _] or [throw _]. *)
@@ -806,24 +780,16 @@ Section wp_rules.
       iModIntro; iPureIntro; destruct Hdisj.
       { eauto using invert_simp_can_step. }
       destruct H; exfalso; eauto. }
-    iApply fupd_frame_l; iSplit.
-    { iPureIntro; by apply can_step_reducible. }
-    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-    iModIntro. iIntros (m' σ' efs Hstep).
-    iMod "Hmod" as "_". destruct Hstep as (Hstep&->).
+
+    wp_intro_mask "Hmod".
 
     (* We now examine an arbitrary step of [m] to [m']. *)
     (* Exploit the main simulation diagram. *)
     simp_step_diagram.
 
     (* Case: the reduction step disappears through the diagram. *)
-    { iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-      iIntros "H£".
-      do 3 iModIntro.
-      iMod "Hmod"; iModIntro.
-      iFrame; cbn. iSplitR ""; last done.
+    { wp_resolve_mask "Hmod".
       iApply ("IH" with "Hwp [//]"). }
-
 
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
@@ -831,18 +797,15 @@ Section wp_rules.
     wp_unfold ms.
 
     pose proof (is_not_ret_or_throw_to_outcome _ Hretms Hthrow_ms) as ->.
-    spec_state.
+    iMod "Hmod" as "_"; spec_state.
 
-    assert (prim_step ms σ nil _ σ' nil) by (by constructor).
+    assert (prim_step ms σ nil _ _ nil) by (by constructor).
+    iSpecialize ("Hwp" $! _ _ nil H0 with "H£").
 
-    iSpecialize ("Hwp" $! _ _ nil H0).
-    cbn.
-    iIntros "H£".
-    iSpecialize ("Hwp" with "H£").
-    iMod "Hwp". iModIntro; iNext. iMod "Hwp"; iModIntro; iMod "Hwp".
-    iModIntro.
-    iDestruct "Hwp" as "(SI & Hwp & _)"; iFrame.
-    iSplitR ""; last done.
+    (* TODO: messy modality handling.. *)
+    iMod "Hwp"; iModIntro; iNext; iMod "Hwp"; iModIntro; iMod "Hwp"; iModIntro.
+
+    iDestruct "Hwp" as "(SI & Hwp & _)"; wp_frame.
     iApply ("IH" with "Hwp [//]").
   Qed.
 

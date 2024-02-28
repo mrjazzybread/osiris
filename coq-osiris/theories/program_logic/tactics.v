@@ -307,10 +307,10 @@ Ltac construct_wp_nonret :=
 Ltac wp_intro_mask Hmod :=
   match goal with
   | |- environments.envs_entails _ (fupd ?mask _ _) =>
-      iMod (@fupd_mask_subseteq _ _ mask ∅) as "Hmod";
+      iMod (@fupd_mask_subseteq _ _ mask ∅) as Hmod;
       first set_solver;
       iModIntro;
-      construct_wp_nonret
+      try construct_wp_nonret
   end.
 
 (* Take care of the modality of the goal if Hmod is a result of [fupd_mask_subseteq]
@@ -322,9 +322,9 @@ Ltac wp_resolve_mask Hmod :=
   do 2 iModIntro;
   iMod Hmod; iModIntro;
   (* Also does the framing *)
-  wp_frame.
+  try wp_frame.
 
-Ltac masked_step :=
+Ltac wp_step :=
   wp_intro_mask "Hmod";
   destruct_step;
   wp_resolve_mask "Hmod".
