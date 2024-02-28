@@ -409,7 +409,7 @@ Section PureModules.
   (* Type of association lists from names to pure specifications *)
   Definition pspec_assoc := list (var * pspec).
 
-  Fixpoint env_has_pspecs (η : env) (Λ : pspec_assoc) :=
+  Fixpoint env_has_pspecs (Λ : pspec_assoc) (η : env) :=
     match Λ with
     | [] => True
     | [x] => let (name, spec) := x in
@@ -419,7 +419,7 @@ Section PureModules.
             end
     | h::t => let (name, spec) := h in
             match (lookup_name η name) with
-            | ret v' => spec v' /\ env_has_pspecs η t
+            | ret v' => spec v' /\ env_has_pspecs t η
             | _ => False
             end
     end.
@@ -428,7 +428,7 @@ Section PureModules.
      vars in [Λ], such that these vars satisfy their spec in the module *)
   Definition is_module_with_pspecs (Λ : pspec_assoc) : (val -> Prop) :=
     fun v => match v with
-          | VStruct env => env_has_pspecs env Λ
+          | VStruct env => env_has_pspecs Λ env
           | _ => False
           end.
 

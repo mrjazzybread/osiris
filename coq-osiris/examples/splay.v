@@ -735,7 +735,8 @@ Section splay_proofs.
       prove_same_fringe. }
 
     (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
-    { eapply pure_eval_app. pure_path.
+    { eapply pure_eval_app.
+      pure_path.
       eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
       pure_call.
       { eapply IH; unfold zlt; subst; auto with arith. }

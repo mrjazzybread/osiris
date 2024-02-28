@@ -75,7 +75,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EOpGe : expr → expr → expr
   | ELet : list binding → expr → expr
   | ELetRec : list rec_binding → expr → expr
-  | ELetModule : module → mexpr → expr → expr
+  | ELetModule : syntax.module → mexpr → expr → expr
   | ELetOpen : mexpr → expr → expr
   | ESeq : expr → expr → expr
   | EIfThen : expr → expr → expr
@@ -98,7 +98,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   <span class="kr">with</span> sitem : <span class="kt">Set</span> :=
     ILet : list binding → sitem
   | ILetRec : list rec_binding → sitem
-  | IModule : module → mexpr → sitem
+  | IModule : syntax.module → mexpr → sitem
   | IOpen : mexpr → sitem
   | IInclude : mexpr → sitem.
 
@@ -242,7 +242,7 @@ may eventually produce a value.</p>
 <p>For instance, evaluating the OCaml expression <code>42</code>
 in the empty environment <code class="highlight coq"><span class="n">ε</span></code>
 yields the OCaml value <code>42</code>:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε <span class="mi">42</span>%expr
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= <span class="kp">eval</span> ε <span class="mi">42</span>
 : micro val void</blockquote></div></div></small></span></pre><p>Coq finds that this computation is equal to
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span><span class="o">))</span></code>.</p>
 <p>The data constructor <code class="highlight coq"><span class="n">ret</span></code> is the <code class="highlight coq"><span class="kr">return</span></code> combinator
