@@ -167,7 +167,7 @@ Opaque encode.
 
 Global Instance CRel2Cons `{Encode A} : CRel2 A (list A) (list A) "::" cons := {}.
 
-Ltac trivial_pure := repeat (pure_path || pure_data || pure_const).
+Ltac trivial_pure := repeat first [ pure_path | pure_data | pure_const].
 
 Ltac pure_eval_app2_conseq :=
   eapply pure_eval_app2_conseq;
@@ -383,25 +383,41 @@ Proof.
     rewrite_permutation l'. rewrite_permutation l.
     rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
-  Qed.
+Qed.
 
-Lemma Merge__spec'2:
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  pure (eval_mexpr η __main)
-    (is_module_with_pspecs [("merge", merge_spec);
-                        ("split", split_spec);
-                        ("merge_sort", mergesort_spec)]).
+(* We use the [toplevel] judgement to specify the module
+   created by the whole [merge.ml] file. *)
+
+Definition toplevel me (φ : env -> Prop) :=
+  module (("Stdlib", Stdlib) :: Stdlib_env) me φ.
+
+(* [env_has_pspecs] takes an association list of names and
+   specifications. It returns the conjunction of each specification
+   applied to the lookup of its corresponding name. *)
+
+Lemma Module__spec' :
+  toplevel __main
+    (env_has_pspecs [("merge", merge_spec);
+                     ("split", split_spec);
+                     ("merge_sort", mergesort_spec)]).
 Proof.
-  intros.
-  unfold __main.
-  simpl. pure_ret. simpl.
-  split; [ | split].
-  - apply Merge_spec'.
-  - apply Split_spec'.
-  - apply MergeSort_spec'; simpl.
-    (* Todo: not satisfactory, we should be using [pure_specify] *)
-    eauto using Split_spec'.
-    eauto using Merge_spec'.
+  apply module_struct.
+  eapply structs_cons.
+  (* Evaluate "merge" letrec *)
+  { eapply struct_letrec_single. apply Merge_spec'. }
+  intros [??] (merge & Hmerge & -> & ->).
+  eapply structs_cons.
+  (* Evaluate "split" letrec *)
+  { eapply struct_letrec_single. apply Split_spec'. }
+  intros [??] (split & Hsplit & -> & ->).
+  eapply structs_cons.
+  (* Evaluate "merge_sort" letrec *)
+  { eapply struct_letrec_single. apply MergeSort_spec'; eauto. }
+  intros [??] (mergesort & Hmergesort & -> & ->).
+  (* We have now evaluated the whole struct. *)
+  eapply structs_nil.
+  (* Goal: Show that the resulting environment satisfies the spec. *)
+  simpl. tauto.
 Qed.
 
 Transparent encode.
