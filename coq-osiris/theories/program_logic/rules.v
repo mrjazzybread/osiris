@@ -16,6 +16,8 @@ Section wp_rules.
 
   Context `{!osirisGS Σ}.
 
+  Import wp_rules_tactics.
+
   (* ------------------------------------------------------------------------ *)
   (** *General properties about [WP] and [step] *)
 
@@ -130,32 +132,23 @@ Section wp_rules.
   Proof.
     iLöb as "IH" forall (m1 m2 ψ).
     iIntros "Hwp".
-    wp_case_is_ret m1 Hret.
+    wp_case_is_ret m1.
     (* Case: [m1] is [ret _]. *)
     { repeat wp_unfold_all;
-        destruct (to_outcome (m2 a)); by iMod "Hwp". }
+        destruct (to_outcome (m2 a));
+        by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold m1.
-      (* Case analysis on [try] *)
-      case_eq (is_ret (bind m1 m2)); [
-        intros ? Hret';
-        apply invert_is_ret_Some in Hret'
-      | intros Hret'
-      ].
-      { apply invert_bind_eq_ret in Hret';
-        destruct Hret' as (?&?&?); subst; inversion Hret. }
+      (* Case analysis on [bind] *)
+      wp_case_is_ret (bind m1 m2); subst.
 
-      case_eq (is_throw m1);
-        [intros ? Hthrow;
-          apply invert_is_throw_Some in Hthrow | intros Hthrow].
-      { rewrite Hthrow; cbn;
-        wp_unfold_all; iMod "Hwp"; done. }
-
-      apply is_not_ret_or_throw_to_outcome in Hret; auto; rewrite Hret.
+      wp_case_is_throw m1.
+      { cbn; by try_iMod "Hwp". }
 
       wp_unfold (bind m1 m2).
-      eapply (to_outcome_None_bind m1 m2) in Hret; rewrite Hret.
+      rewrite Houtcome;
+        eapply (to_outcome_None_bind m1 m2) in Houtcome; rewrite Houtcome.
       intro_state; spec_state.
       iModIntro.
       iSplitL "".
@@ -205,37 +198,30 @@ Section wp_rules.
   Proof.
     iLöb as "IH" forall (m f h φ).
     iIntros "Hwp".
-    wp_case_is_ret m Hret.
+    wp_case_is_ret m.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
     { repeat wp_unfold_all;
         destruct (to_outcome (f a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
-    { wp_unfold_all.
+    { wp_unfold m.
 
       (* Case analysis on [try] *)
-      case_eq (is_ret (try m f h)); [
-        intros ? Hret';
-        apply invert_is_ret_Some in Hret'
-      | intros Hret'
-      ].
-      { apply invert_try_eq_ret_disj in Hret'.
-        destruct Hret' as [(?&?&?) | (?&?&?)]; subst; [ inversion Hret | ].
-        cbn; rewrite H0;
-          cbn; rewrite wp_unfold; cbn; by iMod "Hwp". }
+      wp_case_is_ret (try m f h) Hret'; subst.
+      { rewrite /= Hk_ret /=.
+        wp_unfold_all; by iMod "Hwp". }
 
-      case_eq (is_throw m);
-        [intros ? Hthrow;
-          apply invert_is_throw_Some in Hthrow | intros Hthrow].
-      { rewrite Hthrow; cbn.
-        wp_unfold_all. destruct (wp.to_outcome (h e)); [ by iMod "Hwp" |].
-        iIntros (?????) "SI". iMod "Hwp".
+      wp_case_is_throw m Hthrow; cbn.
+      { wp_unfold_all.
+        destruct (to_outcome (h e)); [ by iMod "Hwp" |].
+        intro_state; iMod "Hwp";
         spec_state; by iFrame. }
 
-      apply is_not_ret_or_throw_to_outcome in Hret; auto; rewrite Hret.
+      rewrite Houtcome.
 
-      eapply (to_outcome_None_try m f h) in Hret; rewrite Hret.
+      eapply (to_outcome_None_try m f h) in Houtcome.
+      wp_unfold (try m f h); rewrite Houtcome.
 
       intro_state; spec_state.
       iModIntro; iSplitL "".
