@@ -314,8 +314,8 @@ Section wp_rules.
     (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
 
     { (* Case: [StepParRetRet].
-        Both [m1] and [m2] represent outcomeues [v1] and [v2]. One can consume [H1]
-        and [H2] to learn that the outcomeues respect their postconditions.
+        Both [m1] and [m2] represent outcomes [v1] and [v2]. One can consume [H1]
+        and [H2] to learn that the outcomes respect their postconditions.
         The inversion does not consume the state-interpretation, which can be
         framed behind the modalities. *)
       iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
