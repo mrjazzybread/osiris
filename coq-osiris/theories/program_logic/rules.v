@@ -130,44 +130,36 @@ Section wp_rules.
     WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢
     WP (bind m1 m2) {{ ψ }}.
   Proof.
-    iLöb as "IH" forall (m1 m2 ψ).
-    iIntros "Hwp".
+    iLöb as "IH" forall (m1 m2 ψ); iIntros "Hwp".
+
     wp_case_is_ret m1.
     (* Case: [m1] is [ret _]. *)
-    { repeat wp_unfold_all;
-        destruct (to_outcome (m2 a));
-        by iMod "Hwp". }
+    { repeat wp_unfold_all; destruct (to_outcome (m2 a));
+      by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold m1.
-      (* Case analysis on [bind] *)
+      (* Case analysis on [bind] :
+            If [m1] is not [ret _]; [bind m1 m2] is not [ret _] *)
       wp_case_is_ret (bind m1 m2); subst.
 
       wp_case_is_throw m1.
+      (* Case : [m1] is [throw _]; trivial *)
       { cbn; by try_iMod "Hwp". }
 
-      wp_unfold (bind m1 m2).
-      rewrite Houtcome;
-        eapply (to_outcome_None_bind m1 m2) in Houtcome; rewrite Houtcome.
-      intro_state; spec_state.
-      iModIntro.
-      iSplitL "".
-      { iPureIntro; eapply reducible_bind; auto. }
+      (* Case : [m1] is not [throw _] *)
+      wp_unfold (bind m1 m2); rewrite Houtcome.
+      (* Since [m1] is not an outcome, [bind m1 m2] is not an outcome, either. *)
+      not_outcome: bind m1 m2.
 
-      iIntros (????Hstep) "H£".
-      apply reducible_not_val in Hred.
-      destruct Hstep as (Hstep&?); subst.
+      intro_state; spec_state; iModIntro.
 
-      destruct (invert_step_bind Hstep) as (m'1 & Hstep' & ->).
-      { apply to_outcome_is_not_ret; auto. }
+      (* Discharge pure subgoal *)
+      discharge_pure reducible.
 
-      clear Hstep; rename Hstep' into Hstep.
-      eassert (Hstep_m1: prim_step m1 σ κs _ _ []).
-      { constructor; eauto. }
-      iSpecialize ("Hwp" $! _ _ _ Hstep_m1 with "H£").
-      iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
-        iModIntro; iFrame.
-      iSplitR ""; last done.
+      intro_step; step_bind Hstep; spec_step.
+
+      iModIntro; iFrame; cbn; discharge_emp.
 
       by iApply ("IH" with "Hwp"). }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
@@ -207,42 +199,33 @@ Section wp_rules.
     (* Case: [m1] is not [ret _]. *)
     { wp_unfold m.
 
-      (* Case analysis on [try] *)
+      (* Case analysis on [try] :
+            If [m1] is not [ret _]; [try m1 _ _] is not [ret _] *)
       wp_case_is_ret (try m f h) Hret'; subst.
       { rewrite /= Hk_ret /=.
         wp_unfold_all; by iMod "Hwp". }
 
       wp_case_is_throw m Hthrow; cbn.
+      (* Case : [m1] is [throw _]. *)
       { wp_unfold_all.
         destruct (to_outcome (h e)); [ by iMod "Hwp" |].
         intro_state; iMod "Hwp";
-        spec_state; by iFrame. }
+          spec_state; by iFrame. }
 
+      (* Case : [m1] is not [throw _]. *)
       rewrite Houtcome.
 
       eapply (to_outcome_None_try m f h) in Houtcome.
       wp_unfold (try m f h); rewrite Houtcome.
 
-      intro_state; spec_state.
-      iModIntro; iSplitL "".
-      { iPureIntro; eapply reducible_try; auto. }
+      intro_state; spec_state; iModIntro.
 
-      iIntros (????Hstep) "H£".
-      assert (Hstep' := Hred).
-      apply reducible_not_val in Hred.
+      (* Discharge pure subgoal *)
+      discharge_pure reducible.
 
-      destruct Hstep as (Hstep & ?); subst.
+      intro_step; step_try Hstep; spec_step.
 
-      destruct (invert_step_try Hstep) as (m'1 & Hstep'' & ->).
-      { by apply can_step_reducible. }
-      clear Hstep. rename Hstep' into Hstep.
-
-      eassert (Hstep_m: prim_step m σ κs _ _ _).
-      { constructor; eauto. }
-
-      iSpecialize ("Hwp" $! _ _ _ Hstep_m with "H£").
-      iMod "Hwp". tick_wp; iMod "Hwp" as "[SI [Hwp H]]";
-        iModIntro; iFrame; iSplitR ""; last done.
+      iModIntro; iFrame; cbn; discharge_emp.
 
       by iApply ("IH" with "Hwp"). }
   Qed.
