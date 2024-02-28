@@ -110,6 +110,26 @@ Section wp_rules.
     subst. inversion H0.
   Qed.
 
+  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
+  Ltac wp_invert :=
+    match goal with
+    | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
+        match goal with
+        (* WP crash Ψ is an absurd goal; can conclude immediately *)
+        | |- context [environments.Esnoc _ ?Hwp (wp _ _ crash _)] =>
+            iPoseProof (invert_wp_crash with SI) as "Hinv";
+              by iMod ("Hinv" with "[$]") as "%"
+        (* WP throw Ψ *)
+        | |- context [environments.Esnoc _ ?Hwp (wp _ _ (throw _) _)] =>
+            iPoseProof (invert_wp_throw with SI) as "Hinv";
+            iMod ("Hinv" with "[$]") as "[$ Hinv]";
+            (* TODO factor this out *)
+            iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
+            [ set_solver | iModIntro ]; iNext; iModIntro;
+            iMod "Hmod"; iModIntro; cbn; iFrame
+        end
+    end.
+
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
@@ -270,8 +290,7 @@ Section wp_rules.
       modality and (4) enter in the second branch of the WP. *)
     wp_unfold_head; intro_state.
     iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro; construct_wp_nonret ].
-    { apply can_step_reducible. eauto with step can_step. }
+    [ set_solver | iModIntro; construct_wp_nonret; [ reducible | ] ].
 
     (* Make a case study over the possible step. In each case, use FupTrans to
       add the modality [ |={E,∅}=> ] in front of the goal. *)
@@ -295,8 +314,7 @@ Section wp_rules.
         [ set_solver | iModIntro ].
       (* The later is not exposed in this rule. Hence, it can simply be
         introduced together with the remaining modalities. *)
-      iNext.
-      iModIntro; iMod "Hmod"; iModIntro.
+      iNext; iModIntro; iMod "Hmod"; iModIntro.
 
       repeat red in Hstep.
       (* Finally, use the hypothesis on [k] to finish the proof. *)
@@ -308,13 +326,11 @@ Section wp_rules.
       [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
       Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
       the proof. *)
-    1,2: by iMod (invert_wp_crash with "Hsi [$]") as "%".
-    1,2: iMod (invert_wp_throw with "Hsi [$]") as "[$ HΨ]";
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
-        [ set_solver | iModIntro ]; iNext; iModIntro;
-      iMod "Hmod"; iModIntro; cbn; iFrame.
-    1:by iApply ("Hexn1" with "HΨ").
-    1:by iApply ("Hexn2" with "HΨ").
+
+    (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
+    1-4: wp_invert;
+      try iApply ("Hexn1" with "[$]");
+      try iApply ("Hexn2" with "[$]").
 
     { (* Case: [StepParLeft] *)
       (* [m1] steps to [m'1]. Steps preserve the conjunction of the [WP] and the

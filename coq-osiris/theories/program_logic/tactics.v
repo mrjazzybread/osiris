@@ -253,20 +253,20 @@ Tactic Notation "try_and_revert" tactic(tac) :=
       end
   end.
 
-(* Takes in an additional [revert_tac] tactic in case [change] is not enough to
+(* Takes in an additional [force_conversion] tactic in case [change] is not enough to
   revert the goal back to its original form *)
 Tactic Notation "try_and_revert"
-    tactic(unrevertible_tac) tactic(revertible_tac) tactic(manual_revert):=
-  unrevertible_tac;
+    tactic(unconvertible_tac) tactic(convertible_tac) tactic(force_conversion):=
+  unconvertible_tac;
   match goal with
   | |- environments.envs_entails _ ?x =>
-      revertible_tac;
+      convertible_tac;
       match goal with
       | |- environments.envs_entails _ ?x' =>
           change x' with x
       end
   end;
-  manual_revert.
+  force_conversion.
 
 (* Temporarily unfold [wp] to expose the [fupd] in order to apply [iMod] to a
     hypothesis. (The [try and revert] folds the [wp] definition back into shape) *)
@@ -318,6 +318,8 @@ Ltac reducible :=
       apply (reducible_bind _ _ _ H)
   | [ H : reducible ?m ?σ |- reducible (try ?m _ _) ?σ] =>
       apply (reducible_try _ _ _ _ H)
+  | |- reducible _ _ =>
+      apply can_step_reducible; eauto with step can_step
   end.
 (* -------------------------------------------------------------------------- *)
 (* Misc tactics *)
