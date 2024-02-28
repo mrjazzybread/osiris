@@ -174,12 +174,11 @@ Section wp_rules.
 
       intro_state; spec_state; iModIntro.
 
-      (* Discharge pure subgoal *)
-      discharge_pure reducible.
+      construct_wp_nonret.
 
-      intro_step; step_bind Hstep; spec_step.
+      step_bind Hstep; spec_step.
 
-      iModIntro; iFrame; cbn; discharge_emp.
+      iModIntro; wp_frame.
 
       by iApply ("IH" with "Hwp"). }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
@@ -240,12 +239,11 @@ Section wp_rules.
 
       intro_state; spec_state; iModIntro.
 
-      (* Discharge pure subgoal *)
-      discharge_pure reducible.
+      construct_wp_nonret.
 
-      intro_step; step_try Hstep; spec_step.
+      step_try Hstep; spec_step.
 
-      iModIntro; iFrame; cbn; discharge_emp.
+      iModIntro; wp_frame.
 
       by iApply ("IH" with "Hwp"). }
   Qed.
@@ -289,17 +287,15 @@ Section wp_rules.
       (1) unfold the wp, (2) introduce a outcomeid state, (3) introduce the head
       modality and (4) enter in the second branch of the WP. *)
     wp_unfold_head; intro_state.
-    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro; construct_wp_nonret; [ reducible | ] ].
+
+    wp_intro_mask "Hmod".
 
     (* Make a case study over the possible step. In each case, use FupTrans to
       add the modality [ |={E,∅}=> ] in front of the goal. *)
-    { iIntros "H£".
+    { iMod "Hmod" as "_".
 
-      destruct Hstep as (Hstep & ->); iMod "Hmod" as "_".
+      (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
       inversion Hstep; dependent destruction H7; subst.
-
-    (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
 
     { (* Case: [StepParRetRet].
         Both [m1] and [m2] represent outcomes [v1] and [v2]. One can consume [H1]
@@ -372,16 +368,8 @@ Section wp_rules.
     iIntros "Hwp".
     wp_unfold_head.
     intro_state.
-    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
-    { exists nil; repeat eexists; constructor. }
-    destruct Hstep. destruct_step.
 
-    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-    iFrame; subst; iSplitR ""; last done.
+    masked_step.
 
     by iApply wp_try.
   Qed.
@@ -412,25 +400,13 @@ Section wp_rules.
   Proof.
     iIntros "H".
     wp_unfold_head.
-    intro_state.
-    iMod (@fupd_mask_subseteq  _ _ ⊤ ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
-    { exists nil; repeat eexists ; eauto. constructor. }
-    destruct Hstep; subst.
-    destruct_step.
+    intro_state. masked_step.
+
     { iDestruct "H" as "[H _]".
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-      iFrame.
-      rewrite try_ret_right. iSplitR ""; last done.
-      by iApply "H". }
+      by rewrite try_ret_right. }
+
     { iDestruct "H" as "[_ H]".
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-      rewrite try_ret_right. by iFrame. }
+      by rewrite try_ret_right. }
   Qed.
 
   (* This is a special case of the previous rule, where the left-hand side if
@@ -466,23 +442,16 @@ Section wp_rules.
     iIntros "H".
     wp_unfold_head.
     intro_state.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
-    { destruct s; eauto.
-      apply can_step_reducible.
-      eauto with step can_step. }
 
-    destruct Hstep as (Hstep & ?); subst.
+    wp_intro_mask "Hmod".
+
     destruct_step.
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]".
-    { eassumption. }
 
-    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-    iFrame. iSplitR ""; last done.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]"; first done.
+
+    wp_resolve_mask "Hmod".
+
     by iApply "H".
   Qed.
 
@@ -501,26 +470,17 @@ Section wp_rules.
     iIntros "Hl Hwp".
     wp_unfold_head.
     intro_state.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
-    { destruct s; eauto.
-      destruct (σ !! l) eqn: Hlu.
-      - exists nil; repeat eexists; by eapply StepStoreSuccess.
-      - exists nil; repeat eexists; by eapply StepStoreFailure. }
-
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod".
+    wp_intro_mask "Hmod".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct Hstep as (Hstep&?).
     eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    iFrame. iModIntro; iSplitR ""; last done.
+
+    wp_resolve_mask "Hmod".
+
     iApply ("Hwp" with "Hl").
   Qed.
 
@@ -537,24 +497,14 @@ Section wp_rules.
     iIntros "Hl Hwp".
     wp_unfold_head.
     intro_state.
-    iMod (@fupd_mask_subseteq _ _ E ∅) as "Hmod"; first set_solver.
-    iModIntro.
-    construct_wp_nonret.
-    { destruct s; eauto.
-      destruct (σ !! l) eqn: Hlu.
-      - exists nil; repeat eexists; by eapply StepLoadSuccess.
-      - exists nil; repeat eexists; by eapply StepLoadFailure. }
-
-    iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-    iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro ]. iMod "Hmod".
+    wp_intro_mask "Hmod".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct Hstep as (Hstep&?).
     eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
-    iModIntro; iFrame; iSplitR ""; last done.
+
+    wp_resolve_mask "Hmod".
     iApply ("Hwp" with "Hl").
   Qed.
 
@@ -602,23 +552,14 @@ Section wp_rules.
       intro_state; (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
                     [ set_solver | iModIntro ]);
       construct_wp_nonret.
-    { exists nil; repeat eexists; econstructor. }
 
-    { destruct Hstep as (Hstep&?); subst; destruct_step.
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-
+    { destruct_step.
+      wp_resolve_mask "Hmod".
       (* Finally, expand the definition of the helper function [loop]. *)
       rewrite/loop Hlt; by iFrame. }
 
-    { exists nil; repeat eexists; econstructor. }
-
-    { destruct Hstep as (Hstep&?); subst; destruct_step.
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
-      iSplitR ""; last done.
+    { destruct_step.
+      wp_resolve_mask "Hmod".
 
       (* In the base case, the loop is over. One can use the hypothesis to end
           the proof. *)
@@ -658,17 +599,11 @@ Section wp_rules.
       wp_unfold_head; intro_state;
       (iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
       [set_solver | iModIntro ]);
-      construct_wp_nonret.
-
-    { exists nil; repeat eexists; econstructor. }
+      construct_wp_nonret;
+      destruct_step;
+      wp_resolve_mask "Hmod".
 
     { (* The loop is over. *)
-      destruct Hstep as (Hstep & ?); subst; destruct_step.
-
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
-      iSplitR ""; last done.
       assert (i1 = S i2) as -> by lia.
       iApply wp_try.
       rewrite/loop lt_repr_repr; try representable.
@@ -676,15 +611,7 @@ Section wp_rules.
       iApply wp_ret.
       iApply ("Hccl" with "Hinit"). }
 
-    { exists nil; repeat eexists; econstructor. }
-
     { (* The body of the loop will be executed (not for the last time). *)
-      destruct Hstep as (Hstep & ?); subst; destruct_step.
-
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
-      iSplitR ""; last done.
       assert (Hlt: int.lt (repr i2) (repr i1) = false).
       { rewrite lt_repr_repr; try assumption.
         - lia.
@@ -724,15 +651,7 @@ Section wp_rules.
         { rewrite add_repr_repr. f_equal. lia. }
         done. } }
 
-    { exists nil; repeat eexists; econstructor. }
-
     { (* Last run of the loop. *)
-      destruct Hstep as (Hstep & ?); subst; destruct_step.
-      iIntros "H£"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
-      iSplitR ""; last done.
-
       iApply wp_try.
       rewrite/loop lt_repr_repr; try assumption.
       rewrite Z.ltb_irrefl.
@@ -750,17 +669,9 @@ Section wp_rules.
 
       wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
       intro_state. iClear "Hmod".
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod"; [ set_solver | iModIntro ].
-      clear m'.
-      construct_wp_nonret.
-      { exists nil; repeat eexists; econstructor. }
 
-      destruct Hstep as (Hstep & ?); subst; destruct_step.
-
-      iIntros "H£'"; iModIntro; iNext; iMod "Hmod" as "_".
-      iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro; iFrame; cbn.
-      iSplitR ""; last done.
+      iRename "H£" into "H£'".
+      masked_step.
       iApply wp_try.
       rewrite/loop Hlt.
       do 2 iApply wp_ret.

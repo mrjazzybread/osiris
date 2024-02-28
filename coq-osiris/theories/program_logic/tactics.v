@@ -146,17 +146,6 @@ Tactic Notation "wp_case_is_throw" constr(x) :=
   let Hthrow := fresh "Hthrow" in
   wp_case_is_throw x Hthrow.
 
-(* The following tactics corresponds to the branch [is_ret _ = Some _] in
-   the definition of [wp]. This branch is a conjunction
-     state_interp σ ∗ φ v
-   [destruct_wp_ret] is used when this form appears in the hypothesis "Hwp". *)
-
-Ltac destruct_wp_ret :=
-  iMod "Hwp"; iModIntro; iDestruct "Hwp" as "[%Hsi Hwp]".
-
-Ltac destruct_wp_nonret :=
-  iMod "Hwp" as "[%Hcanstep Hwp]".
-
 (* Working with the state interpretation invariant. *)
 
 (* [intro_state] introduces [σ] and [state_interp σ]. *)
@@ -195,50 +184,6 @@ Ltac spec_credit H :=
 Ltac tick_wp :=
   iModIntro; iNext; iMod "Hwp"; iModIntro.
 
-(* [intro_step] introduces [prim_step] along with the new expression and state *)
-Ltac intro_step :=
-  let Hstep := fresh "Hstep" in
-  let efs := fresh "efs" in
-  iIntros (???efs Hstep) "H£";
-  destruct Hstep as (Hstep&?);
-  (* [efs] doesn't keep track of anything for now so it's trivial to substitute *)
-  subst efs.
-
-(* Specialize hypothesis that expects a [step] relation and extract out
-    information *)
-Ltac spec_step :=
-  match goal with
-    | |- context[environments.Esnoc _ ?Hwp
-        (bi_forall (fun _ : micro _ _ =>
-            bi_forall (fun _ : store =>
-              bi_forall (fun κ : list _ =>
-                bi_wand (bi_pure (wp.prim_step ?m ?σ _ _ _ _)) _))))] =>
-      match goal with
-      | [Hstep : step (σ, m) _ |- _] =>
-          to_prim_step Hstep;
-          (* Specialize step relation *)
-          iSpecialize (Hwp $! _ _ _ Hstep);
-          spec_credit Hwp;
-          (* Destruct the hypothesis *)
-          iMod Hwp;
-          tick_wp;
-          iMod Hwp as "[SI [Hwp _]]"
-      end
-  end.
-
-(* The following two tactics correspond to the branch [is_ret _ = None] in
-   the definition of [wp]. This branch is a conjunction
-     ⌜can_step (σ, m)⌝ ∗ ∀ σ' m', ...
-   [construct_wp_nonret] is used when this form appears in the goal.
-   [destruct_wp_nonret] is used when it appears in the hypothesis "Hwp". *)
-
-Ltac construct_wp_nonret :=
-  iSplitR; [
-    (* Prove [can_step]: *)
-    iPureIntro; eauto with step can_step
-  | (* Introduce a hypothetical step: *)
-    iIntros (σ' m' ? ) "%Hstep"
-  ].
 
 (* -------------------------------------------------------------------------- *)
 (* Try a tactic that acts on the conclusion of an Iris proof mode, and reverts
@@ -312,7 +257,14 @@ Ltac discharge_emp :=
 Ltac reducible :=
   (* Coq weirdness: Without this [idtac], the matched goal is not what you would
     expect when this tactic is passed into [discharge_pure] *)
-  idtac;
+  idtac
+  ;
+  try
+    match goal with
+    | [ |- match ?s with | NotStuck => _ | MaybeStuck => _ end] =>
+        destruct s; last done
+    end
+  ;
   match goal with
   | [ H : reducible ?m ?σ |- reducible (bind ?m _) ?σ] =>
       apply (reducible_bind _ _ _ H)
@@ -321,6 +273,84 @@ Ltac reducible :=
   | |- reducible _ _ =>
       apply can_step_reducible; eauto with step can_step
   end.
+
+(* -------------------------------------------------------------------------- *)
+(* More [wp] tactics *)
+
+Ltac wp_frame := iFrame; cbn; discharge_emp.
+
+(* [intro_step] introduces [prim_step] along with the new expression and state *)
+Ltac intro_step :=
+  let Hstep := fresh "Hstep" in
+  let efs := fresh "efs" in
+  iIntros (???efs Hstep) "H£";
+  destruct Hstep as (Hstep&?);
+  (* [efs] doesn't keep track of anything for now so it's trivial to substitute *)
+  subst efs.
+
+(* The following two tactics correspond to the branch [is_ret _ = None] in
+   the definition of [wp]. This branch is a conjunction
+     ⌜can_step (σ, m)⌝ ∗ ∀ σ' m', ...
+   [construct_wp_nonret] is used when this form appears in the goal.
+   [destruct_wp_nonret] is used when it appears in the hypothesis "Hwp". *)
+
+Ltac construct_wp_nonret :=
+  (* Prove [can_step]: *)
+  (discharge_pure reducible);
+  (* Introduce a hypothetical step: *)
+  intro_step.
+
+(* -------------------------------------------------------------------------- *)
+(* Modality-relevant tactics *)
+
+(* TODO comment *)
+Ltac wp_intro_mask Hmod :=
+  match goal with
+  | |- environments.envs_entails _ (fupd ?mask _ _) =>
+      iMod (@fupd_mask_subseteq _ _ mask ∅) as "Hmod";
+      first set_solver;
+      iModIntro;
+      construct_wp_nonret
+  end.
+
+(* Take care of the modality of the goal if Hmod is a result of [fupd_mask_subseteq]
+      TODO: see if this is necessary *)
+Ltac wp_resolve_mask Hmod :=
+  iMod Hmod as "_";
+  iMod (@fupd_mask_subseteq _ _ _ ∅) as Hmod;
+  [ set_solver | iModIntro ];
+  do 2 iModIntro;
+  iMod Hmod; iModIntro;
+  (* Also does the framing *)
+  wp_frame.
+
+Ltac masked_step :=
+  wp_intro_mask "Hmod";
+  destruct_step;
+  wp_resolve_mask "Hmod".
+
+(* Specialize hypothesis that expects a [step] relation and extract out
+    information *)
+Ltac spec_step :=
+  match goal with
+    | |- context[environments.Esnoc _ ?Hwp
+        (bi_forall (fun _ : micro _ _ =>
+            bi_forall (fun _ : store =>
+              bi_forall (fun κ : list _ =>
+                bi_wand (bi_pure (wp.prim_step ?m ?σ _ _ _ _)) _))))] =>
+      match goal with
+      | [Hstep : step (σ, m) _ |- _] =>
+          to_prim_step Hstep;
+          (* Specialize step relation *)
+          iSpecialize (Hwp $! _ _ _ Hstep);
+          spec_credit Hwp;
+          (* Destruct the hypothesis *)
+          iMod Hwp;
+          tick_wp;
+          iMod Hwp as "[SI [Hwp _]]"
+      end
+  end.
+
 (* -------------------------------------------------------------------------- *)
 (* Misc tactics *)
 
