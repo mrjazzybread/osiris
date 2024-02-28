@@ -324,10 +324,17 @@ Ltac wp_resolve_mask Hmod :=
   (* Also does the framing *)
   try wp_frame.
 
+(* Try to take a step of [wp] *)
 Ltac wp_step :=
+  try wp_unfold_head; try intro_state;
   wp_intro_mask "Hmod";
   destruct_step;
   wp_resolve_mask "Hmod".
+
+(* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)
+Tactic Notation "wp_step_mask" constr(Hmod) :=
+  try wp_unfold_head; try intro_state;
+  wp_intro_mask Hmod; destruct_step.
 
 (* Specialize hypothesis that expects a [step] relation and extract out
     information *)

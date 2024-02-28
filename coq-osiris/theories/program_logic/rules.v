@@ -258,9 +258,9 @@ Section wp_rules.
   Lemma wp_try_binary {A1 A2 X' X} (m1: micro A1 X') (m2: A1 → micro A2 X)
     (h : X' -> micro A2 X) (φ ψ : outcome -> _) :
     WP m1 {{ φ }} ⊢
-    (∀ v, φ v -∗
-          (| RET x => WP m2 x {{ v, ψ v }};
-           | EXN y => WP h y {{ v, ψ v }}) v) -∗
+      (∀ v, φ v -∗
+        (| RET x => WP m2 x {{ v, ψ v }};
+        | EXN y => WP h y {{ v, ψ v }}) v) -∗
     WP (try m1 m2 h) {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
@@ -287,17 +287,12 @@ Section wp_rules.
     (* As for the other rules, proof starts by stepping in the WP:
       (1) unfold the wp, (2) introduce a outcomeid state, (3) introduce the head
       modality and (4) enter in the second branch of the WP. *)
-    wp_unfold_head; intro_state.
-
-    wp_intro_mask "Hmod".
 
     (* Make a case study over the possible step. In each case, use FupTrans to
       add the modality [ |={E,∅}=> ] in front of the goal. *)
-    { iMod "Hmod" as "_".
+    wp_step_mask "Hmod"; iMod "Hmod" as "_".
 
-      (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
-      destruct_step.
-
+    (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
     { (* Case: [StepParRetRet].
         Both [m1] and [m2] represent outcomes [v1] and [v2]. One can consume [H1]
         and [H2] to learn that the outcomes respect their postconditions.
@@ -306,14 +301,9 @@ Section wp_rules.
       iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
       iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
 
-      (* Introduce the modality [ |={E,∅}=> ]. *)
-      iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as "Hmod";
-        [ set_solver | iModIntro ].
-      (* The later is not exposed in this rule. Hence, it can simply be
-        introduced together with the remaining modalities. *)
-      iNext; iModIntro; iMod "Hmod"; iModIntro.
+      (* Strip all the modalities in the goal. *)
+      strip_modalities "Hmod".
 
-      repeat red in Hstep.
       (* Finally, use the hypothesis on [k] to finish the proof. *)
       iSpecialize ("Hjoin" with "H1 H2"); by iFrame. }
 
@@ -351,7 +341,7 @@ Section wp_rules.
       iMod "H2".
       iDestruct "H2" as "[$ H2]"; cbn; iFrame; iSplitR ""; last done.
       iModIntro.
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). } }
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
 
@@ -366,12 +356,7 @@ Section wp_rules.
                        | EXN v => WP (z v) {{ φ }} }} ⊢
     WP (Stop CEval (η, e) k z) {{ φ }}.
   Proof.
-    iIntros "Hwp".
-    wp_unfold_head.
-    intro_state.
-    wp_step.
-
-    by iApply wp_try.
+    iIntros "Hwp". wp_step. by iApply wp_try.
   Qed.
 
   Lemma wp_eval_ret {X} η (e : expr)
@@ -383,8 +368,7 @@ Section wp_rules.
   Proof.
     iIntros "Hwp".
     iApply wp_eval.
-    iNext.
-    iApply wp_mono; done.
+    iNext; iApply wp_mono; done.
   Qed.
 
   (* A reasoning rule for [choose]. *)
@@ -398,9 +382,7 @@ Section wp_rules.
     ▷ (WP m1 {{ ψ }} ∧ WP m2 {{ ψ }}) ⊢
     WP (choose m1 m2) {{ ψ }}.
   Proof.
-    iIntros "H".
-    wp_unfold_head.
-    intro_state. wp_step.
+    iIntros "H". wp_step.
 
     { iDestruct "H" as "[H _]".
       by rewrite try_ret_right. }
@@ -440,18 +422,10 @@ Section wp_rules.
     WP (Stop CAlloc v k z) @ s; E {{ φ }}.
   Proof.
     iIntros "H".
-    wp_unfold_head.
-    intro_state.
-
-    wp_intro_mask "Hmod".
-
-    destruct_step.
-
+    wp_step_mask "Hmod".
     (* Allocate a new location in the ghost heap. *)
     iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]"; first done.
-
     wp_resolve_mask "Hmod".
-
     by iApply "H".
   Qed.
 
@@ -468,17 +442,14 @@ Section wp_rules.
     WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
-    wp_unfold_head.
-    intro_state.
-    wp_intro_mask "Hmod".
+    wp_unfold_head; intro_state; wp_intro_mask "Hmod".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
     (* Thus, the reduction step must be a successful step. *)
     eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-
     wp_resolve_mask "Hmod".
 
     iApply ("Hwp" with "Hl").
@@ -495,9 +466,7 @@ Section wp_rules.
     WP (Stop CLoad l k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
-    wp_unfold_head.
-    intro_state.
-    wp_intro_mask "Hmod".
+    wp_unfold_head; intro_state; wp_intro_mask "Hmod".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl") as "%".
@@ -547,7 +516,7 @@ Section wp_rules.
         that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
         state interp. *)
       wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
-      intro_state; wp_step.
+      wp_step.
 
     { (* Finally, expand the definition of the helper function [loop]. *)
       rewrite/loop Hlt; by iFrame. }
@@ -555,11 +524,19 @@ Section wp_rules.
     { (* In the base case, the loop is over. One can use the hypothesis to end
           the proof. *)
       iApply wp_try.
-
-      rewrite/loop Hlt; iFrame.
-      rewrite bind_as_try.
+      rewrite/loop Hlt; iFrame; rewrite bind_as_try.
       by iApply wp_try. }
   Qed.
+
+  (* General tactic *)
+
+  (* Compute the guard condition of an if statement using [tac] *)
+  Tactic Notation "compute_if" "using" tactic(tac) :=
+    match goal with
+      | |- context[if ?b then _ else _] =>
+          first [replace b with true by tac |
+                  replace b with false by tac ]
+    end.
 
   Local Lemma wp_loop_inv_pos_aux {A X}
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
@@ -586,26 +563,24 @@ Section wp_rules.
         time, or it is entered. *)
       last (destruct (decide (i1 = i2)) as [ -> | Hneq ]; last first);
 
-      (* First, we take a step in the WP and frame the state interp. *)
-      wp_unfold_head; intro_state; wp_step.
+    (* First, we take a step in the WP and frame the state interp. *)
+    wp_step.
 
     { (* The loop is over. *)
       assert (i1 = S i2) as -> by lia.
       iApply wp_try.
       rewrite/loop lt_repr_repr; try representable.
-      replace (i2 <? S i2)%Z with true by lia.
+      compute_if using lia.
       iApply wp_ret.
       iApply ("Hccl" with "Hinit"). }
 
     { (* The body of the loop will be executed (not for the last time). *)
       assert (Hlt: int.lt (repr i2) (repr i1) = false).
-      { rewrite lt_repr_repr; try assumption.
-        - lia.
-        - unfold representable in *; lia. }
+      { rewrite lt_repr_repr; try assumption;
+          unfold representable in *; lia. }
 
       (* The loop is really a try... *)
-      rewrite/loop Hlt.
-      rewrite try_bind.
+      rewrite /loop Hlt try_bind.
 
       (* ...which leads to a bind.
         The first element of the bind is the evaluation of the body of the
@@ -625,26 +600,19 @@ Section wp_rules.
       iSpecialize ("IH" with "Hinit[]Hccl").
       { iIntros "!>" (i Hi Hi').
         iApply ("Hpreservation"); iPureIntro; lia. }
-        destruct v; cycle 1.
-        (* Why doesn't this get automatically discharged with [contradiction]? *)
-        { exfalso. exact (elim_void e0). }
-        cbn.
+        destruct v; [ | done]; cbn.
 
-        replace (add (repr i1) int.one) with (repr (S i1)); last first.
-        { rewrite add_repr_repr. f_equal. lia. }
-        done. }
+        replace (add (repr i1) int.one) with (repr (S i1)); [ done | ].
+        rewrite add_repr_repr; f_equal; lia. }
 
     { (* Last run of the loop. *)
       iApply wp_try.
       rewrite/loop lt_repr_repr; try assumption.
-      rewrite Z.ltb_irrefl.
+      compute_if using lia.
       iApply (wp_bind_binary with "[Hinit Hpreservation]");
         first iApply ("Hpreservation" with "[//][//]Hinit").
       iIntros(v)"Hinit".
-      destruct v; cycle 1.
-      (* Why doesn't this get automatically discharged with [contradiction]? *)
-      { exfalso. exact (elim_void e0). }
-      cbn.
+      destruct v; [ | done]; cbn.
       iSpecialize ("Hccl" with "Hinit").
 
       assert (Hlt: int.lt (repr i2) (add (repr i2) int.one) = true).
