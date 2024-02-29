@@ -289,13 +289,12 @@ Section wp_rules.
       (1) unfold the wp, (2) introduce a outcomeid state, (3) introduce the head
       modality and (4) enter in the second branch of the WP. *)
 
-    (* Make a case study over the possible step. In each case, use FupTrans to
+    (* Make a case study over the possible step. In each case, use FupdIntro to
       add the modality [ |={E,∅}=> ] in front of the goal. *)
      wp_unfold_head. intro_state.
 
      wp_mask_intro "Hmod".
-     construct_wp_nonret; destruct_step;
-       iMod "Hmod" as "_"; cbn.
+     construct_wp_nonret; destruct_step; iMod "Hmod" as "_"; cbn.
 
     (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
     { (* Case: [StepParRetRet].
@@ -312,13 +311,10 @@ Section wp_rules.
       iSpecialize ("Hjoin" with "H1 H2"); by iFrame. }
 
     (* In the four following cases, one of the branches of the [Par] is either a
-      [crash] or [throw _]. Hence, one can consume the corresponding [WP]
-      hypothesis to get [ |={E}=> False ]. As the goal is of the form
-      [ |={E,∅}=> G ], by FupTrans, it suffices to show [|={E}=> |={E,∅}=> G].
-      Then, by monotony of [ |={E}=> ], one can eliminate [False] and finish
-      the proof. *)
+      [crash] or [throw _].
 
-    (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
+      We invert the cases where there are premises of the form [WP crash _] or
+        [WP (throw _) _] *)
     1-4: wp_invert;
       try iApply ("Hexn1" with "[$]");
       try iApply ("Hexn2" with "[$]").
@@ -331,9 +327,9 @@ Section wp_rules.
 
       wp_mask_elim.
 
-      iMod "H1". iModIntro.
-      iDestruct "H1" as "[$ H1]"; cbn;
-        iFrame; iSplitR ""; last done.
+      iMod "H1"; iModIntro.
+
+      iDestruct "H1" as "[$ H1]"; wp_frame.
 
       (* The induction hypothesis ends the proof. *)
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
@@ -343,9 +339,9 @@ Section wp_rules.
       iMod (wp_step Hstep with "Hsi H£ H2") as ">H2".
 
       wp_mask_elim.
-      iMod "H2"; iModIntro. (* After stripping modalities, one can
-                                        frame the state interpretation. *)
-      iDestruct "H2" as "[$ H2]"; cbn; iFrame; iSplitR ""; last done.
+      iMod "H2"; iModIntro.
+
+      iDestruct "H2" as "[$ H2]"; wp_frame.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
@@ -727,13 +723,7 @@ Section wp_rules.
       { eauto using invert_simp_can_step. }
       destruct H; exfalso; eauto. }
 
-    wp_mask_intro "Hmod".
-
-
-    iSplitL "". iPureIntro.
-    (* Why isn't this resolved? *)
-    try (apply can_step_reducible; eauto with step can_step).
-    intro_step.
+    wp_mask_intro "Hmod". construct_wp_nonret.
 
     (* We now examine an arbitrary step of [m] to [m']. *)
     (* Exploit the main simulation diagram. *)

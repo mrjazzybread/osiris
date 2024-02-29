@@ -279,7 +279,7 @@ Ltac reducible :=
         apply (reducible_try _ _ _ _ H)
     | [ H : simp ?m1 ?m2 |- _ ] =>
         epose proof (invert_simp_final _ H) as [|];
-        [ prove_final |
+        [ by prove_final |
           subst; try destruct_is_ret; try destruct_is_throw |
           by apply can_step_reducible ]
     end
