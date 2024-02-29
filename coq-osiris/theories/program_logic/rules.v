@@ -513,28 +513,16 @@ Section wp_rules.
     iIntros "H".
 
     (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
-    destruct (int.lt i2 i1) eqn:Hlt;
-    wp_unfold (Stop CLoop (η, x, i1, i2, e) k z); wp_step.
+    destruct (int.lt i2 i1) eqn:Hlt; wp_unfold_head; wp_step; reduce_loop.
 
     { (* Finally, expand the definition of the helper function [loop]. *)
-      rewrite/loop Hlt; by iFrame. }
+      by iFrame. }
 
     { (* In the base case, the loop is over. One can use the hypothesis to end
           the proof. *)
       iApply wp_try.
-      rewrite/loop Hlt; iFrame; rewrite bind_as_try.
-      by iApply wp_try. }
+      iFrame; rewrite bind_as_try; by iApply wp_try. }
   Qed.
-
-  (* General tactic *)
-
-  (* Compute the guard condition of an if statement using [tac] *)
-  Tactic Notation "compute_if" "using" tactic(tac) :=
-    match goal with
-      | |- context[if ?b then _ else _] =>
-          first [replace b with true by tac |
-                  replace b with false by tac ]
-    end.
 
   Local Lemma wp_loop_inv_pos_aux {A X}
         (η : env) (x : var) (n i1 i2 : nat) (e : expr)
@@ -565,20 +553,17 @@ Section wp_rules.
     wp_step.
 
     { (* The loop is over. *)
-      assert (i1 = S i2) as -> by lia.
+      replace i1 with (S i2) ; [ | lia].
       iApply wp_try.
-      rewrite/loop lt_repr_repr; try representable.
-      compute_if using lia.
-      iApply wp_ret.
+
+      reduce_loop. iApply wp_ret.
       iApply ("Hccl" with "Hinit"). }
 
     { (* The body of the loop will be executed (not for the last time). *)
-      assert (Hlt: int.lt (repr i2) (repr i1) = false).
-      { rewrite lt_repr_repr; try assumption;
-          unfold representable in *; lia. }
+      reduce_loop.
 
       (* The loop is really a try... *)
-      rewrite /loop Hlt try_bind.
+      rewrite try_bind.
 
       (* ...which leads to a bind.
         The first element of the bind is the evaluation of the body of the
@@ -605,8 +590,8 @@ Section wp_rules.
 
     { (* Last run of the loop. *)
       iApply wp_try.
-      rewrite/loop lt_repr_repr; try assumption.
-      compute_if using lia.
+
+      reduce_loop.
       iApply (wp_bind_binary with "[Hinit Hpreservation]");
         first iApply ("Hpreservation" with "[//][//]Hinit").
       iIntros(v)"Hinit".
@@ -621,9 +606,7 @@ Section wp_rules.
 
       iRename "H£" into "H£'".
       wp_step.
-      iApply wp_try.
-      rewrite/loop Hlt.
-      do 2 iApply wp_ret.
+      iApply wp_try. reduce_loop. do 2 iApply wp_ret.
       iExact "Hccl". }
   Qed.
 

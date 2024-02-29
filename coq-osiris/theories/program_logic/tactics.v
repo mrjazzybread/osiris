@@ -4,8 +4,34 @@ From iris.program_logic Require Export weakestpre.
 From osiris Require Import semantics.
 From osiris Require Import program_logic.wp.
 
+(* -------------------------------------------------------------------------- *)
+(* Tactics to reason about [if] and [loop] guards;
+      not specific to the use of [wp]. *)
 
-(* WP tactics that is used in [rules.v]. *)
+(* Compute the guard condition of an if statement using [tac] *)
+Tactic Notation "compute_if" "using" tactic(tac) :=
+  match goal with
+  | |- context[if ?b then _ else _] =>
+      first [replace b with true by tac |
+              replace b with false by tac ]
+  end.
+
+(* If we have information about the loop guard, do the appropriate
+  unfolding and rewriting to reduce the loop expression into either the
+  loop body or exit *)
+Ltac reduce_loop :=
+  match goal with
+  (* We know the exact value of the loop guard; do a rewrite *)
+  | H : int.lt ?i2 ?i1 = _ |- context[loop _ _ ?i1 ?i2 _] =>
+      rewrite /loop H
+  (* Otherwise, see if we can compute the loop guard *)
+  | |- context[loop _ _ ?i1 ?i2 _] =>
+      rewrite /loop;
+      compute_if using
+        (rewrite ?lt_repr_repr; unfold representable in *; lia)
+  end.
+
+(** *WP tactics for [rules.v]. *)
 
 Module wp_rules_tactics.
 
