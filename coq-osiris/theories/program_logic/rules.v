@@ -513,12 +513,8 @@ Section wp_rules.
     iIntros "H".
 
     (* We proceed by case analysis on the comparison of [i1] and [i2]. *)
-    destruct (int.lt i2 i1) eqn:Hlt; (* In each case: *)
-      (* we enter into the WP of the goal, eliminate modalities, use the fact
-        that the [Stop CLoop _ _ _] can step (in a unique way) and frame the
-        state interp. *)
-      wp_unfold (Stop CLoop (η, x, i1, i2, e) k z);
-      wp_step.
+    destruct (int.lt i2 i1) eqn:Hlt;
+    wp_unfold (Stop CLoop (η, x, i1, i2, e) k z); wp_step.
 
     { (* Finally, expand the definition of the helper function [loop]. *)
       rewrite/loop Hlt; by iFrame. }

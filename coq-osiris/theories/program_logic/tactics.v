@@ -355,18 +355,31 @@ Ltac wp_mask_elim :=
 Ltac wp_try_step := try construct_wp_nonret; destruct_step.
 Ltac wp_try_final_step := try construct_wp_nonret; simp_final_step_diagram.
 
+(* We enter into the WP of the goal, eliminate modalities, use the fact
+  that the program can step (in a unique way) and frame the state interp. *)
 Ltac wp_step :=
   try wp_unfold_head; try intro_state;
+  (* Introduce mask for entering into WP *)
   wp_mask_intro "Hmod";
+  (* Try to step in a unique way *)
   wp_try_step;
+  (* Eliminate mask to "exit" WP *)
   wp_mask_elim;
+  (* Frame state interp *)
   try wp_frame.
 
+(* We enter into the WP of the goal, eliminate modalities, use the fact
+  that the program can be the final step of a diagram and frame the state
+  interp. *)
 Ltac wp_final_step_diagram :=
   try wp_unfold_head; try intro_state;
+  (* Introduce mask for entering into WP *)
   wp_mask_intro "Hmod";
+  (* Try to step in a unique way *)
   wp_try_final_step;
+  (* Eliminate mask to "exit" WP *)
   wp_mask_elim;
+  (* Frame state interp *)
   try wp_frame.
 
 (* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)
