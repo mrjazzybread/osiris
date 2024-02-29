@@ -14,7 +14,6 @@ From osiris.proofmode Require Import notations.
 
 (* -------------------------------------------------------------------------- *)
 
-
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
   simp ('c ← m;
