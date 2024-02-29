@@ -110,27 +110,6 @@ Section wp_rules.
     subst. inversion H0.
   Qed.
 
-  Local Ltac strip_modalities Hmod :=
-    iMod (@fupd_mask_subseteq _ _ ⊤ ∅) as Hmod;
-    [ set_solver | iModIntro ]; iNext; iModIntro;
-    iMod Hmod; iModIntro; wp_frame.
-
-  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
-  Local Ltac wp_invert :=
-    match goal with
-    | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
-        match goal with
-        (* WP crash Ψ is an absurd goal; can conclude immediately *)
-        | |- context [environments.Esnoc _ ?Hwp (wp _ _ crash _)] =>
-            iPoseProof (invert_wp_crash with SI) as "Hinv";
-              by iMod ("Hinv" with "[$]") as "%"
-        (* WP throw Ψ *)
-        | |- context [environments.Esnoc _ ?Hwp (wp _ _ (throw _) _)] =>
-            iPoseProof (invert_wp_throw with SI) as "Hinv";
-            iMod ("Hinv" with "[$]") as "[$ Hinv]"; strip_modalities "Hmod"
-        end
-    end.
-
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
@@ -173,14 +152,18 @@ Section wp_rules.
       (* Since [m1] is not an outcome, [bind m1 m2] is not an outcome, either. *)
       not_outcome: bind m1 m2.
 
+      (* Process a step of computation. *)
       intro_state; spec_state; iModIntro.
 
       construct_wp_nonret.
 
+      (* Get more information out of [e2]; *)
       step_inv Hstep.
 
+      (* Can use information from above to get [wp] about stepped computation *)
       spec_step; iModIntro; wp_frame.
 
+      (* Apply induction hypothesis  *)
       by iApply ("IH" with "Hwp"). }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
 
@@ -226,25 +209,27 @@ Section wp_rules.
         wp_unfold_all; by iMod "Hwp". }
 
       wp_case_is_throw m Hthrow; cbn.
-      (* Case : [m1] is [throw _]. *)
-      { wp_unfold_all.
-        destruct (to_outcome (h e)); [ by iMod "Hwp" |].
-        intro_state; iMod "Hwp";
-          spec_state; by iFrame. }
+      (* Case : [m1] is [throw _]; trivial  *)
+      { try_iMod "Hwp"; by iFrame. }
 
       (* Case : [m1] is not [throw _]. *)
-      rewrite Houtcome.
+      wp_unfold_head. rewrite Houtcome.
 
-      eapply (to_outcome_None_try m f h) in Houtcome.
-      wp_unfold (try m f h); rewrite Houtcome.
+      (* Since [m] is not an outcome, [try m f h] is not an outcome, either. *)
+      not_outcome: try m f h.
 
+      (* Process a step of computation. *)
       intro_state; spec_state; iModIntro.
 
       construct_wp_nonret.
+
+      (* Get more information out of [e2]; *)
       step_inv Hstep.
 
+      (* Can use information from above to get [wp] about stepped computation *)
       spec_step; iModIntro; wp_frame.
 
+      (* Apply induction hypothesis  *)
       by iApply ("IH" with "Hwp"). }
   Qed.
 
@@ -258,15 +243,32 @@ Section wp_rules.
     (h : X' -> micro A2 X) (φ ψ : outcome -> _) :
     WP m1 {{ φ }} ⊢
       (∀ v, φ v -∗
-        (| RET x => WP m2 x {{ v, ψ v }};
-        | EXN y => WP h y {{ v, ψ v }}) v) -∗
-    WP (try m1 m2 h) {{ ψ }}.
+      (| RET x => WP m2 x {{ v, ψ v }};
+      | EXN y => WP h y {{ v, ψ v }}) v) -∗
+        WP (try m1 m2 h) {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
     iApply wp_try.
     iApply (wp_strong_mono with "Hm1"); try set_solver.
     iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
   Qed.
+
+  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
+  Local Ltac wp_invert :=
+    match goal with
+    | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
+        match goal with
+        (* WP crash Ψ is an absurd goal; can conclude immediately *)
+        | |- context [environments.Esnoc _ ?Hwp (wp _ _ crash _)] =>
+            iPoseProof (invert_wp_crash with SI) as "Hinv";
+              by iMod ("Hinv" with "[$]") as "%"
+        (* WP throw Ψ *)
+        | |- context [environments.Esnoc _ ?Hwp (wp _ _ (throw _) _)] =>
+            iPoseProof (invert_wp_throw with SI) as "Hinv";
+            iMod ("Hinv" with "[$]") as "[$ Hinv]";
+            wp_mask_intro "Hmod"; wp_mask_elim; wp_frame
+        end
+    end.
 
   (* Par combinator *)
   Lemma wp_par {A E A1 A2 E'} (m1 : micro A1 E') (m2 : micro A2 E')
@@ -289,7 +291,11 @@ Section wp_rules.
 
     (* Make a case study over the possible step. In each case, use FupTrans to
       add the modality [ |={E,∅}=> ] in front of the goal. *)
-    wp_step_mask "Hmod"; iMod "Hmod" as "_".
+     wp_unfold_head. intro_state.
+
+     wp_mask_intro "Hmod".
+     construct_wp_nonret; destruct_step;
+       iMod "Hmod" as "_"; cbn.
 
     (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
     { (* Case: [StepParRetRet].
@@ -300,8 +306,7 @@ Section wp_rules.
       iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
       iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
 
-      (* Strip all the modalities in the goal. *)
-      strip_modalities "Hmod".
+      wp_mask_intro "Hmod"; wp_mask_elim.
 
       (* Finally, use the hypothesis on [k] to finish the proof. *)
       iSpecialize ("Hjoin" with "H1 H2"); by iFrame. }
@@ -323,10 +328,12 @@ Section wp_rules.
         state interpretation. Some modalities need to be stripped from the
         result. *)
       iPoseProof (wp_step Hstep with "Hsi H£ H1") as ">H1".
-      iMod "H1"; iModIntro. (* After stripping modalities, one can
-                                        frame the state interpretation. *)
-      iNext. iModIntro; do 2 iMod "H1". iModIntro.
-      iDestruct "H1" as "[$ H1]"; cbn; iFrame; iSplitR ""; last done.
+
+      wp_mask_elim.
+
+      iMod "H1". iModIntro.
+      iDestruct "H1" as "[$ H1]"; cbn;
+        iFrame; iSplitR ""; last done.
 
       (* The induction hypothesis ends the proof. *)
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
@@ -334,12 +341,11 @@ Section wp_rules.
     { (* Case: [StepParRight]
         This case is similar to the previous one. *)
       iMod (wp_step Hstep with "Hsi H£ H2") as ">H2".
-      iModIntro. iNext.
+
+      wp_mask_elim.
       iMod "H2"; iModIntro. (* After stripping modalities, one can
                                         frame the state interpretation. *)
-      iMod "H2".
       iDestruct "H2" as "[$ H2]"; cbn; iFrame; iSplitR ""; last done.
-      iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
@@ -424,8 +430,7 @@ Section wp_rules.
     wp_step_mask "Hmod".
     (* Allocate a new location in the ghost heap. *)
     iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]"; first done.
-    wp_resolve_mask "Hmod".
-    by iApply "H".
+    wp_mask_elim. wp_frame. by iApply "H".
   Qed.
 
   (* [CStore]. *)
@@ -441,7 +446,8 @@ Section wp_rules.
     WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
-    wp_unfold_head; intro_state; wp_intro_mask "Hmod".
+    wp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
@@ -449,8 +455,8 @@ Section wp_rules.
     eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    wp_resolve_mask "Hmod".
 
+    wp_mask_elim. wp_frame.
     iApply ("Hwp" with "Hl").
   Qed.
 
@@ -465,14 +471,15 @@ Section wp_rules.
     WP (Stop CLoad l k z) @ s; E {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
-    wp_unfold_head; intro_state; wp_intro_mask "Hmod".
+    wp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
     eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
 
-    wp_resolve_mask "Hmod".
+    wp_mask_elim. wp_frame.
     iApply ("Hwp" with "Hl").
   Qed.
 
@@ -618,7 +625,7 @@ Section wp_rules.
       { rewrite add_repr_repr lt_repr_repr; unfold representable in *; lia. }
 
       wp_unfold (Stop CLoop (η, x, add (repr i2) int.one, repr i2, e) ret throw).
-      intro_state. iClear "Hmod".
+      intro_state.
 
       iRename "H£" into "H£'".
       wp_step.
@@ -720,7 +727,7 @@ Section wp_rules.
       { eauto using invert_simp_can_step. }
       destruct H; exfalso; eauto. }
 
-    wp_intro_mask "Hmod".
+    wp_mask_intro "Hmod".
 
 
     iSplitL "". iPureIntro.
@@ -733,7 +740,7 @@ Section wp_rules.
     simp_step_diagram.
 
     (* Case: the reduction step disappears through the diagram. *)
-    { wp_resolve_mask "Hmod".
+    { wp_mask_elim. wp_frame.
       iApply ("IH" with "Hwp [//]"). }
 
     (* Case: the reduction step is preserved through the diagram. *)

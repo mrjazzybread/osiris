@@ -210,10 +210,15 @@ Tactic Notation "try_and_revert"
 Ltac try_iMod H :=
   match goal with
   | |- environments.envs_entails _ (wp ?s ?E ?e ?Φ) =>
+      first [
       try_and_revert
         (rewrite !(wp_unfold s E e Φ))
         (rewrite /wp_pre /=; iMod H)
         (rewrite <- (wp_unfold s E e Φ))
+      |
+      wp_unfold_all;
+      destruct (to_outcome e); [ by iMod H |];
+      intro_state; iMod H; spec_state ]
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -224,6 +229,15 @@ Tactic Notation "not_outcome:" "bind" constr(m1) constr(m2) :=
   match goal with
   | [H: to_outcome m1 = None |- _ ] =>
       apply (to_outcome_None_bind m1 m2) in H;
+      try rewrite H
+  end.
+
+(* Assert that [try m _ _] is not an outcome, deduced by [m] not being an
+    outcome *)
+Tactic Notation "not_outcome:" "try" constr(m) constr(f) constr(h) :=
+  match goal with
+  | [H: to_outcome m = None |- _ ] =>
+      apply (to_outcome_None_try m f h) in H;
       try rewrite H
   end.
 
@@ -302,45 +316,65 @@ Ltac construct_wp_nonret :=
 (* -------------------------------------------------------------------------- *)
 (* Modality-relevant tactics *)
 
-(* TODO comment *)
-Ltac wp_intro_mask Hmod :=
+(* Introduce a mask. *)
+Ltac wp_mask_intro Hmod :=
+  iApply fupd_mask_intro; [ set_solver | ]; iIntros Hmod.
+
+(* Try to introduce modalities "as much as possible" *)
+Ltac try_iModIntro :=
+  repeat iModIntro; try iNext; repeat iModIntro.
+
+(* Try to "cleanup" the goal; remove any modalities from the premise that can
+   be discharged trivially and then introduce any "straight forward" modalities
+  that can be introduced *)
+Ltac wp_cleanup_mod :=
+  repeat match goal with
+    | |- context[environments.Esnoc _
+                  ?Hmod (fupd empty empty _)] =>
+        iMod Hmod
+    end;
+  try_iModIntro.
+
+(* Try to eliminate the mask that's currently in context *)
+Ltac wp_mask_elim :=
+  wp_cleanup_mod;
   match goal with
-  | |- environments.envs_entails _ (fupd ?mask _ _) =>
-      iMod (@fupd_mask_subseteq _ _ mask ∅) as Hmod;
-      first set_solver;
-      iModIntro;
-      try construct_wp_nonret
-  end.
+  | |- environments.envs_entails _ (fupd ?mask1 ?mask2 _) =>
+    try match goal with
+      | |- context[environments.Esnoc _
+                    ?Hmod (fupd mask1 mask2 emp)] =>
+          iMod Hmod as "_"
+      end
+  end;
+  wp_cleanup_mod.
 
-(* Take care of the modality of the goal if Hmod is a result of [fupd_mask_subseteq]
-      TODO: see if this is necessary *)
-Ltac wp_resolve_mask Hmod :=
-  iMod Hmod as "_";
-  iMod (@fupd_mask_subseteq _ _ _ ∅) as Hmod;
-  [ set_solver | iModIntro ];
-  do 2 iModIntro;
-  iMod Hmod; iModIntro;
-  (* Also does the framing *)
-  try wp_frame.
-
+(* -------------------------------------------------------------------------- *)
+(* WP step tactics *)
 (* Try to take a step of [wp] *)
+
+Ltac wp_try_step := try construct_wp_nonret; destruct_step.
+Ltac wp_try_final_step := try construct_wp_nonret; simp_final_step_diagram.
+
 Ltac wp_step :=
   try wp_unfold_head; try intro_state;
-  wp_intro_mask "Hmod";
-  destruct_step;
-  wp_resolve_mask "Hmod".
+  wp_mask_intro "Hmod";
+  wp_try_step;
+  wp_mask_elim;
+  try wp_frame.
 
 Ltac wp_final_step_diagram :=
   try wp_unfold_head; try intro_state;
-  wp_intro_mask "Hmod";
-  simp_final_step_diagram;
-  wp_resolve_mask "Hmod".
+  wp_mask_intro "Hmod";
+  wp_try_final_step;
+  wp_mask_elim;
+  try wp_frame.
 
 (* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)
 Tactic Notation "wp_step_mask" constr(Hmod) :=
   try wp_unfold_head; try intro_state;
-  wp_intro_mask Hmod; destruct_step.
+  wp_mask_intro Hmod; wp_try_step.
 
+(* -------------------------------------------------------------------------- *)
 (* Specialize hypothesis that expects a [step] relation and extract out
     information *)
 Ltac spec_step :=
