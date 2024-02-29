@@ -754,8 +754,9 @@ Section wp_rules.
     assert (prim_step ms σ nil _ _ nil) by (by constructor).
     iSpecialize ("Hwp" $! _ _ nil H0 with "H£").
 
-    (* TODO: messy modality handling.. *)
-    iMod "Hwp"; iModIntro; iNext; iMod "Hwp"; iModIntro; iMod "Hwp"; iModIntro.
+    wp_mask_elim.
+
+    iMod "Hwp"; iModIntro.
 
     iDestruct "Hwp" as "(SI & Hwp & _)"; wp_frame.
     iApply ("IH" with "Hwp [//]").
