@@ -231,6 +231,8 @@ Tactic Notation "try_and_revert"
   end;
   force_conversion.
 
+(* TODO: See if this is necessary; perhaps [WP] already satisfies some typeclass
+  on being able to discharge modalities of form (fupd Top Top _). *)
 (* Temporarily unfold [wp] to expose the [fupd] in order to apply [iMod] to a
     hypothesis. (The [try and revert] folds the [wp] definition back into shape) *)
 Ltac try_iMod H :=
