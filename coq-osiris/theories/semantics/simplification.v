@@ -933,9 +933,7 @@ Ltac simp_confluent :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Useful type class instances. *)
-
-(* TODO unused? *)
+(* Potentially useful type class instances. *)
 
 (* Instantiating [Reflexive] allows to use [reflexivity] to prove
    [simp ?m ?m]. *)
