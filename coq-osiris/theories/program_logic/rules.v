@@ -140,7 +140,7 @@ Section wp_rules.
 
   (* Cut rule *)
   Lemma wp_bind {A1 A2 X} (m1 : micro A1 X) (m2 : A1 -> micro A2 X) ψ:
-    WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢ (* TODO: Clean up [lift_ipure] *)
+    WP m1 {{ RET v, WP (m2 v) {{ ψ }} }} ⊢
     WP (bind m1 m2) {{ ψ }}.
   Proof.
     iLöb as "IH" forall (m1 m2 ψ); iIntros "Hwp".
@@ -266,8 +266,8 @@ Section wp_rules.
     iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
   Qed.
 
-  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]
-      TODO: Handle [ret] inversions *)
+  (* Invert cases where there are premises of the form
+    [WP (ret _) _] [WP crash _] or [WP (throw _) _] *)
   Local Ltac wp_invert :=
     match goal with
     | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
@@ -281,6 +281,8 @@ Section wp_rules.
             iPoseProof (invert_wp_throw with SI) as "Hinv";
             iMod ("Hinv" with "[$]") as "[$ Hinv]";
             wp_mask_intro "Hmod"; wp_mask_elim; wp_frame
+        | |- context [environments.Esnoc _ ?Hwp (wp _ _ (ret _)_)] =>
+            iMod (invert_wp_ret with "[$][$]") as "[Hsi Hret]"
         end
     end.
 
@@ -316,13 +318,12 @@ Section wp_rules.
         and [H2] to learn that the outcomes respect their postconditions.
         The inversion does not consume the state-interpretation, which can be
         framed behind the modalities. *)
-      iMod (invert_wp_ret with "[$][$]") as "[Hsi H2]".
-      iMod (invert_wp_ret with "[$][$]") as "[$ H1]".
+      wp_invert; iRename "Hret" into "Hret'"; wp_invert.
 
       wp_mask_intro "Hmod"; wp_mask_elim.
 
       (* Finally, use the hypothesis on [k] to finish the proof. *)
-      iSpecialize ("Hjoin" with "H1 H2"); by iFrame. }
+      iSpecialize ("Hjoin" with "Hret Hret'"); by iFrame. }
 
     (* In the four following cases, one of the branches of the [Par] is either a
       [crash] or [throw _].
