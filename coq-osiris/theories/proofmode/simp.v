@@ -267,24 +267,6 @@ Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpParRetLeftThrow {A1 A2 A E}
-  a1 m2 (k : A1 * A2 → micro A E) m'
-:
-  simp (v2 ← m2 ; k (a1, v2)) m' →
-  simp (Par (Ret a1) m2 k throw) m'.
-Proof.
-  rewrite bind_as_try. eauto using advance_SimpParRetLeft.
-Qed.
-
-Lemma advance_SimpParRetRightThrow {A1 A2 A E}
-  m1 a2 (k : A1 * A2 → micro A E) m'
-:
-  simp (v1 ← m1 ; k (v1, a2)) m' →
-  simp (Par m1 (Ret a2) k throw) m'.
-Proof.
-  rewrite bind_as_try. eauto using advance_SimpParRetRight.
-Qed.
-
 Lemma advance_SimpPar {A1 A2 A E' E}
   m1 m'1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) m'
 :
@@ -908,9 +890,7 @@ with simp1_par :=
           appear under [par] *)
   first [
     (* strong *) eapply advance_SimpParRetRet (* maybe a special case of the following *)
-  | (* strong *) eapply advance_SimpParRetLeftThrow
   | (* strong *) eapply advance_SimpParRetLeft
-  | (* strong *) eapply advance_SimpParRetRightThrow
   | (* strong *) eapply advance_SimpParRetRight
   ];
   simp0.
