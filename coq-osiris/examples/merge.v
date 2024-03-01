@@ -329,7 +329,9 @@ Proof.
 
   (* Branch: "_" *)
   assert (exists m, length l = S (S m)) as [m Heql].
-  { strip_disjunction.
+  { (* TODO: too difficult to acquire knowledge from not matching on
+       previous branches *)
+    destruct no_match0 as [|no_match0]; [congruence | ].
     destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
   { eapply pure_eval_let_pair.
