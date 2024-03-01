@@ -37,7 +37,7 @@ Module wp_rules_tactics.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Tactics relevant to [step] relation *)
+(* Some tactics relevant to [step] relation *)
 
 (* Try to search the environment if there is something known about the head of
   the computation, i.e. [m] ; if so, try to extract as much information as
@@ -75,7 +75,7 @@ Tactic Notation "to_prim_step" hyp(H) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* WP tactics. *)
+(** *WP tactics. *)
 
 Ltac wp_unfold_all :=
   rewrite !wp_unfold /wp_pre /=.
@@ -188,7 +188,6 @@ Ltac spec_state :=
       end
   end.
 
-
 (* Use one credit in a goal *)
 Ltac spec_credit H :=
   match goal with
@@ -201,54 +200,6 @@ Ltac spec_credit H :=
 
 Ltac tick_wp :=
   iModIntro; iNext; iMod "Hwp"; iModIntro.
-
-
-(* -------------------------------------------------------------------------- *)
-(* Try a tactic that acts on the conclusion of an Iris proof mode, and reverts
-    the goal state into its original form. *)
-Tactic Notation "try_and_revert" tactic(tac) :=
-  match goal with
-  | |- environments.envs_entails _ ?x =>
-      try tac;
-      match goal with
-      | |- environments.envs_entails _ ?x' =>
-          change x' with x
-      end
-  end.
-
-(* Takes in an additional [force_conversion] tactic in case [change] is not enough to
-  revert the goal back to its original form *)
-Tactic Notation "try_and_revert"
-    tactic(unconvertible_tac) tactic(convertible_tac) tactic(force_conversion):=
-  unconvertible_tac;
-  match goal with
-  | |- environments.envs_entails _ ?x =>
-      convertible_tac;
-      match goal with
-      | |- environments.envs_entails _ ?x' =>
-          change x' with x
-      end
-  end;
-  force_conversion.
-
-(* TODO: See if this is necessary; perhaps [WP] already satisfies some typeclass
-  on being able to discharge modalities of form (fupd Top Top _). *)
-(* Temporarily unfold [wp] to expose the [fupd] in order to apply [iMod] to a
-    hypothesis. (The [try and revert] folds the [wp] definition back into shape) *)
-Ltac try_iMod H :=
-  match goal with
-  | |- environments.envs_entails _ (wp ?s ?E ?e ?Φ) =>
-      first [
-      try_and_revert
-        (rewrite !(wp_unfold s E e Φ))
-        (rewrite /wp_pre /=; iMod H)
-        (rewrite <- (wp_unfold s E e Φ))
-      |
-      wp_unfold_all;
-      destruct (to_outcome e); [ by iMod H |];
-      intro_state; iMod H; spec_state ]
-  end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* Assert that [bind m1 m2] is not an outcome, deduced by [m1] not being an
@@ -342,9 +293,28 @@ Ltac construct_wp_nonret :=
   intro_step.
 
 (* -------------------------------------------------------------------------- *)
-(* Modality-relevant tactics *)
+(** * Modality and mask (fupd) tactics *)
 
-(* Introduce a mask. *)
+(* The Iris [wp] has mask-changing updates in order to enforce that during
+    a step of computation, no invariants can be opened. In order to control
+   the introduction of this mask change, and restore the mask, we provide
+   custom tactics analogous to "iModIntro" (here, [wp_mask_intro) and
+    "iMod [H]" (here, [wp_mask_elim]) (where [H] corresponds to a premise with
+    mask-changing information that restores the previous mask *)
+
+(* Introduce a mask when there is a goal of shape (fupd E1 E2 _)
+    (i.e. The starting goal is of shape ⊢ |={E1, E2}=> P
+          and the updated goal is ⊢ P , where (|={E2, E1}=> emp) is introduced
+          as a premise)
+
+   The first mask [E1] indicates the set of invariants that can be opened
+   currently (i.e. before taking the mask-changing update) and the second mask
+   [E2] indicates the set of invariants that can be opened after the mask
+   change.
+
+   This tactic (through [fupd_mask_intro]) behaves as an "iModIntro" for
+   mask-changing updates and introduce a premise of shape (fupd E1 E2 emp).
+   This premise can be used later to restore the mask [E1] *)
 Ltac wp_mask_intro Hmod :=
   iApply fupd_mask_intro; [ set_solver | ]; iIntros Hmod.
 
@@ -363,33 +333,33 @@ Ltac wp_cleanup_mod :=
     end;
   try_iModIntro.
 
-(* Try to eliminate the mask that's currently in context *)
+(* Try to restore a mask from a previous mask update. *)
 Ltac wp_mask_elim :=
   wp_cleanup_mod;
   match goal with
   | |- environments.envs_entails _ (fupd ?mask1 ?mask2 _) =>
     try match goal with
-      | |- context[environments.Esnoc _
-                    ?Hmod (fupd mask1 mask2 emp)] =>
+      | |- context[environments.Esnoc _ ?Hmod (fupd mask1 mask2 emp)] =>
           iMod Hmod as "_"
       end
   end;
   wp_cleanup_mod.
 
 (* -------------------------------------------------------------------------- *)
-(* WP step tactics *)
-(* Try to take a step of [wp] *)
+(** *WP step tactics *)
 
 Ltac wp_try_step := try construct_wp_nonret; destruct_step.
 Ltac wp_try_final_step := try construct_wp_nonret; simp_final_step_diagram.
 
-(* We enter into the WP of the goal, eliminate modalities, use the fact
-  that the program can step (in a unique way) and frame the state interp. *)
+(* Try to take a step of [wp] for goals of shape
+    [⊢ WP e {{ v, Ψ v }}] where [e] is known to take a step, and generate
+    appropriate [WP] subgoals for each possible step. *)
 Ltac wp_step :=
   try wp_unfold_head; try intro_state;
   (* Introduce mask for entering into WP *)
   wp_mask_intro "Hmod";
-  (* Try to step in a unique way *)
+  (* Try to step, possibly generating multiple subgoals if there is more than
+     one way of stepping *)
   wp_try_step;
   (* Eliminate mask to "exit" WP *)
   wp_mask_elim;

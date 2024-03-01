@@ -18,6 +18,19 @@ Section wp_rules.
 
   Import wp_rules_tactics.
 
+  (* Local Instance for eliminating fancy updates *)
+  (* For some reason this has to be shown explicitly (perhaps the quantification
+    over return and exception types for the language make the tc resolution
+    finnicky) *)
+  Global Instance elim_modal_fupd_wp {A X} p s E (e : micro A X) P Φ :
+    classes.ElimModal True p false (fupd E E P) P (WP e @ s; E {{ Φ }})
+      (WP e @ s; E {{ Φ }}).
+  Proof.
+    rewrite /classes.ElimModal bi.intuitionistically_if_elim.
+      rewrite fupd_frame_r. rewrite bi.wand_elim_r. intro.
+      by pose proof (fupd_wp s E e Φ).
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *General properties about [WP] and [step] *)
 
@@ -127,7 +140,7 @@ Section wp_rules.
 
   (* Cut rule *)
   Lemma wp_bind {A1 A2 X} (m1 : micro A1 X) (m2 : A1 -> micro A2 X) ψ:
-    WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢
+    WP m1 {{ lift_ipure (fun (v : _) => WP (m2 v) {{ ψ }}) }} ⊢ (* TODO: Clean up [lift_ipure] *)
     WP (bind m1 m2) {{ ψ }}.
   Proof.
     iLöb as "IH" forall (m1 m2 ψ); iIntros "Hwp".
@@ -145,7 +158,7 @@ Section wp_rules.
 
       wp_case_is_throw m1.
       (* Case : [m1] is [throw _]; trivial *)
-      { cbn; by try_iMod "Hwp". }
+      { cbn; by iMod "Hwp". }
 
       (* Case : [m1] is not [throw _] *)
       wp_unfold (bind m1 m2); rewrite Houtcome.
@@ -157,7 +170,7 @@ Section wp_rules.
 
       construct_wp_nonret.
 
-      (* Get more information out of [e2]; *)
+      (* Get more information out of [e2] *)
       step_inv Hstep.
 
       (* Can use information from above to get [wp] about stepped computation *)
@@ -210,7 +223,7 @@ Section wp_rules.
 
       wp_case_is_throw m Hthrow; cbn.
       (* Case : [m1] is [throw _]; trivial  *)
-      { try_iMod "Hwp"; by iFrame. }
+      { iMod "Hwp"; by iFrame. }
 
       (* Case : [m1] is not [throw _]. *)
       wp_unfold_head. rewrite Houtcome.
@@ -253,7 +266,8 @@ Section wp_rules.
     iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
   Qed.
 
-  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]*)
+  (* Invert cases where there are premises of the form [WP crash _] or [WP (throw _) _]
+      TODO: Handle [ret] inversions *)
   Local Ltac wp_invert :=
     match goal with
     | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
@@ -294,7 +308,7 @@ Section wp_rules.
      wp_unfold_head. intro_state.
 
      wp_mask_intro "Hmod".
-     construct_wp_nonret; destruct_step; iMod "Hmod" as "_"; cbn.
+     construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn.
 
     (* We now examine each of the ways in which [Par m1 m2 k z] can step. *)
     { (* Case: [StepParRetRet].
@@ -610,6 +624,7 @@ Section wp_rules.
       iExact "Hccl". }
   Qed.
 
+  (* LATER: do something with this? *)
   Definition wp_loop_inv_pos {A X}
         (η : env) (x : var) (i1 i2 : nat) (e : expr)
         (k : val → micro A X) (z : void → micro A X) (φ : outcome → iProp Σ)
@@ -638,15 +653,15 @@ Section wp_rules.
     holds then the safety of the simplified program [ms] implies the safety
     of the more complex original program [ms]. *)
 
-  Local Lemma wp_simp_prelim {R E} (m ms : micro R E) φ :
-    WP ms {{ φ }} -∗
-    ⌜ simp m ms ⌝ -∗
+  Lemma wp_simp {R E} (m ms : micro R E) φ :
+    simp m ms →
+    WP ms {{ φ }} ⊢
     WP m  {{ φ }}.
   Proof.
     (* Proceed by Löb induction. *)
     iLöb as "IH" forall (m ms).
     (* Introduce the hypotheses. *)
-    iIntros "Hwp" (Hsimp).
+    iIntros (Hsimp) "Hwp".
 
     (* Examine [m]. *)
     wp_case_is_ret m Hretm.
@@ -673,7 +688,7 @@ Section wp_rules.
     { (* Prove that [m] is a final step in the diagram. *)
       wp_final_step_diagram;
         (* We are then able to use the induction hypothesis. *)
-        iApply ("IH" with "Hwp [//]"). }
+        iApply ("IH" with "[//] Hwp"). }
 
     (* Examine [ms] on whether it is a [throw]. *)
     wp_case_is_throw ms Hthrow_ms.
@@ -681,7 +696,7 @@ Section wp_rules.
     { (* Prove that [m] is a final step in the diagram. *)
       wp_final_step_diagram;
       (* We are then able to use the induction hypothesis. *)
-      iApply ("IH" with "Hwp [//]"). }
+      iApply ("IH" with "[//] Hwp"). }
 
     (* [ms] is neither a [ret _] or [throw _]. *)
 
@@ -710,7 +725,7 @@ Section wp_rules.
 
     (* Case: the reduction step disappears through the diagram. *)
     { wp_mask_elim. wp_frame.
-      iApply ("IH" with "Hwp [//]"). }
+      iApply ("IH" with "[//] Hwp"). }
 
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
@@ -728,18 +743,7 @@ Section wp_rules.
     iMod "Hwp"; iModIntro.
 
     iDestruct "Hwp" as "(SI & Hwp & _)"; wp_frame.
-    iApply ("IH" with "Hwp [//]").
-  Qed.
-
-  (* A corollary, for public use: [simp] is sound. *)
-
-  Lemma wp_simp {R E} (m m' : micro R E) φ :
-    simp m m' →
-    WP m' {{ φ }} ⊢
-    WP m  {{ φ }}.
-  Proof.
-    iIntros (Hsimp) "Hwp".
-    iApply (wp_simp_prelim with "Hwp [//]").
+    iApply ("IH" with "[//] Hwp").
   Qed.
 
 End wp_rules.
