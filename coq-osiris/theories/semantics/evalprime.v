@@ -15,7 +15,7 @@ From osiris.semantics Require Import code eval.
 
 (* The definition of [eval']. *)
 
-Definition eval' η e : micro val void :=
+Definition eval' η e : microvx :=
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -23,7 +23,7 @@ Definition eval' η e : micro val void :=
       ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
-      lookup_path η π
+      widen (lookup_path η π)
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
       ret (VClo η a)
@@ -53,7 +53,7 @@ Definition eval' η e : micro val void :=
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
-      lookup_name fvs f
+      widen (lookup_name fvs f)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
@@ -199,7 +199,7 @@ Definition eval' η e : micro val void :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : micro val void :=
+      let test : microvx :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in
