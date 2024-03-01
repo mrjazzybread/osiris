@@ -23,11 +23,11 @@ Section ghost_instances.
     }.
 
   Class osirisGS := OsirisGS
-                      { osiris_inG :: osirisGpreS;
-                        (* This gives us fancy updates (without allowing Later Credits). *)
-                        osiris_invGS :: invGS_gen HasNoLc Σ;
-                        (* This gives us a heap, which maps locations to values. *)
-                        osiris_heapGS :: gen_heapGS locations.loc step.block Σ; }.
+    { osiris_inG :: osirisGpreS;
+      (* This gives us fancy updates (without allowing Later Credits). *)
+      osiris_invGS :: invGS_gen HasNoLc Σ;
+      (* This gives us a heap, which maps locations to values. *)
+      osiris_heapGS :: gen_heapGS locations.loc step.block Σ; }.
 
 End ghost_instances.
 
@@ -112,6 +112,8 @@ End ewp.
 
 (* -------------------------------------------------------------------------- *)
 
+From iris.proofmode Require Import proofmode.
+
 Section ewp_properties.
 
 Context {A X : Type}.
@@ -165,4 +167,34 @@ Proof.
   do 23 (f_contractive || f_equiv).
   repeat f_equiv.
 Qed.
+
+Lemma ewp_strong_mono s1 s2 E1 E2 e Φ φ :
+  s1 ⊑ s2 → E1 ⊆ E2 →
+  WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ φ v) -∗ WP e @ s2; E2 {{ φ }}.
+Proof.
+  iIntros (? HE) "H HΦ".
+  iLöb as "IH" forall (e E1 E2 HE Φ φ).
+  rewrite !ewp_unfold /ewp_pre /=.
+  destruct (is_outcome2 e) as [v|] eqn:?.
+  { iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
+  iIntros (σ) "Hσ".
+  iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
+  iMod ("H" with "[$]") as "[% H]".
+  iModIntro. iSplit; [by destruct s1, s2|].
+  iIntros (σ2 ? Hstep).
+  destruct H1, x.
+  iMod ("H" with "[//]") as "H". iIntros "!> !>".  iMod "H".
+  iMod "Hclose".
+  iModIntro.
+  destruct (is_eff e); cycle 1.
+  { iDestruct "H" as "[$ H]";
+      iApply ("IH" with "[//] H HΦ"). }
+  destruct p.
+  iDestruct "H" as "[$ [$ H]]".
+  iIntros (??) "HSA".
+  iSpecialize ("H" with "HSA"). iMod "H".
+  iIntros "!> !>".
+  iApply ("IH" with "[] H"); auto.
+Qed.
+
 End ewp_properties.

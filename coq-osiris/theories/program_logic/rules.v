@@ -7,51 +7,87 @@ From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import wp tactics.
-From osiris Require Import syntax semantics.
+From osiris.program_logic Require Import ewp.
 
 (** *Reasoning principles of [Osiris] wp-based Hoare triples *)
 
+Lemma is_outcome2_is_Some {A E} (m : micro A E) v:
+  is_outcome2 m = Some v ->
+  (∃ v', v = O2Throw v' /\ m = Throw v') \/
+    (∃ v', v = O2Ret v' /\ m = Ret v').
+Proof.
+  intros; destruct m; inversion H; subst; eauto.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+Ltac ewp_unfold_all :=
+  rewrite !ewp_unfold /ewp_pre /=.
+
+(* This tactic unfolds [ewp] applied to the computation [m]. *)
+
+Ltac ewp_unfold m :=
+  setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
+
+Ltac is_outcome2_is_Some Hm :=
+  apply is_outcome2_is_Some in Hm;
+  destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
+
+(* Working with the state interpretation invariant. *)
+
+(* [intro_state] introduces [σ] and [state_interp σ]. *)
+(* [spec_state H] specializes the hypothesis H with [state_interp σ]. *)
+
+Ltac intro_state := iIntros (σ????) "Hsi".
+
+Ltac spec_state :=
+  lazymatch goal with
+  | |- context [environments.Esnoc _ ?Hwp
+      (bi_forall (fun σ1 : store => bi_wand (state_interp σ1) _))] =>
+      match goal with
+      | |- context [environments.Esnoc _ ?SI (state_interp ?σ)] =>
+          let Hstep := fresh "Hstep" in
+          iSpecialize (Hwp with SI);
+          iMod Hwp;
+          iDestruct Hwp as (Hred) Hwp
+      end
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 Section wp_rules.
 
-  Context `{!osirisGS Σ}.
+  Context `{!osirisGS Σ} `{protocol Σ}.
 
-  Import wp_rules_tactics.
+  (* ------------------------------------------------------------------------ *)
+  (** *Some properties about [step] *)
 
-  (* Local Instance for eliminating fancy updates *)
-  (* For some reason this has to be shown explicitly (perhaps the quantification
-    over return and exception types for the language make the tc resolution
-    finnicky) *)
-  Global Instance elim_modal_fupd_wp {A X} p s E (e : micro A X) P Φ :
-    classes.ElimModal True p false (fupd E E P) P (WP e @ s; E {{ Φ }})
-      (WP e @ s; E {{ Φ }}).
+  Lemma step_not_outcome2 {A E} {σ σ'} {m m' : micro A E} :
+    step.step (σ, m) (σ', m') ->
+    is_outcome2 m = None.
   Proof.
-    rewrite /classes.ElimModal bi.intuitionistically_if_elim.
-      rewrite fupd_frame_r. rewrite bi.wand_elim_r. intro.
-      by pose proof (fupd_wp s E e Φ).
+    destruct m; inversion 1; try dependent destruction H8; eauto.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
   (** *General properties about [WP] and [step] *)
 
   Lemma wp_can_step {R E} {σ} φ (m : micro R E) {M}:
-    store_interp σ -∗
+    state_interp σ -∗
     wp NotStuck M m φ ={M, ∅}=∗
     ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
   Proof.
     iIntros "SI Hwp".
-    wp_unfold_all.
-    destruct (wp.to_outcome m) eqn: Hm.
+    ewp_unfold_all.
+    destruct (is_outcome2 m) eqn: Hm.
     { iMod "Hwp". iApply fupd_mask_intro; first set_solver.
       iIntros "_".
-      to_outcome_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
+      is_outcome2_is_Some Hm; [ iRight; iRight | iRight; iLeft ];
       iPureIntro; eauto. }
-    { spec_state. iPureIntro.
-      left. by apply can_step_reducible. }
+    { spec_state; iPureIntro; by left. }
   Qed.
 
   Lemma wp_can_step' {R E} {σ φ} (m : micro R E) {M}:
-    store_interp σ -∗
+    state_interp σ -∗
     wp NotStuck M m φ ={M}=∗
     ⌜can_step (σ, m) ∨ is_ret m <> None \/ is_throw m <> None⌝.
   Proof.
@@ -60,26 +96,26 @@ Section wp_rules.
     iApply (fupd_plain_mask_empty with "[$]").
   Qed.
 
-  Lemma wp_step {R E} {σ σ'} {m n : micro R E} {φ}:
-    step (σ, m) (σ', n) →
-    store_interp σ -∗
-    £ 1 -∗
+  Lemma wp_step_not_eff {R E} {σ σ'} {m n : micro R E} {φ}:
+    is_eff m = None ->
+    step.step (σ, m) (σ', n) →
+    state_interp σ -∗
     WP m {{ φ }} ={⊤,∅}=∗ |={∅}▷=> |={∅,⊤}=>
-    (store_interp σ' ∗ WP n {{ φ }}).
+    (state_interp σ' ∗ WP n {{ φ }}).
   Proof.
-    intro Hstep.
-    iIntros "Hsi H£ Hwp".
-    wp_unfold m.
-    pose proof (step_not_outcome Hstep) as ->.
+    intros Heff Hstep.
+    iIntros "Hsi Hwp".
+
+    ewp_unfold m.
+    pose proof (step_not_outcome2 Hstep) as ->.
     spec_state. iModIntro.
-    eassert (prim_step m σ _ _ _ _).
-    { constructor; eauto. }
-    iSpecialize ("Hwp" $! _ _ _ H with "H£").
+    iSpecialize ("Hwp" $! _ _ Hstep).
     iMod "Hwp". iModIntro. iNext.
-    do 2 iMod "Hwp".
+    iMod "Hwp".
     iMod (@fupd_mask_subseteq _ _ _ ∅) as "Hmod";
-    [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
-    iDestruct "Hwp" as "[$ [$ _]]".
+      [ set_solver | iModIntro ]. iMod "Hmod". iModIntro.
+    rewrite Heff.
+    iDestruct "Hwp" as "[$ $]".
   Qed.
 
   Lemma wp_covariant {A X} s E (m : micro A X) φ φ' :
@@ -88,49 +124,49 @@ Section wp_rules.
     WP m @ s; E {{ φ' }}.
   Proof.
     iIntros "Hwp Himpl";
-      iApply (wp_strong_mono with "Hwp [Himpl]"); try done.
+      iApply (ewp_strong_mono with "Hwp [Himpl]"); try done.
     iIntros (?) "Hφ"; iModIntro; iApply ("Himpl" with "Hφ").
   Qed.
 
   (* ------------------------------------------------------------------------ *)
   (** *Inversion Laws *)
   Lemma invert_wp_ret {R E} φ r :
-    ∀ σ, store_interp σ -∗
+    ∀ σ, state_interp σ -∗
         WP (Ret r : micro R E) {{ φ }} -∗
-        |={⊤}=> store_interp σ ∗ φ (Res r).
+        |={⊤}=> state_interp σ ∗ φ (O2Ret r).
   Proof.
-    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+    iIntros (?) "Hsi Hwp"; ewp_unfold_all; by iFrame.
   Qed.
 
   Lemma invert_wp_throw {R E} φ exn:
-    ∀ σ, store_interp σ -∗
+    ∀ σ, state_interp σ -∗
         WP (throw exn : micro R E) {{ φ }} -∗
-        |={⊤}=> store_interp σ ∗ φ (Exn exn).
+        |={⊤}=> state_interp σ ∗ φ (O2Throw exn).
   Proof.
-    iIntros (?) "Hsi Hwp"; wp_unfold_all; by iFrame.
+    iIntros (?) "Hsi Hwp"; ewp_unfold_all; by iFrame.
   Qed.
 
   Lemma invert_wp_crash {R E} φ:
-    ∀ σ, store_interp σ -∗
+    ∀ σ, state_interp σ -∗
         WP (crash : micro R E) {{ φ }} -∗
         |={⊤}=> False.
   Proof.
     iIntros (?) "Hsi Hwp".
-    wp_unfold_all. spec_state.
+    ewp_unfold_all. spec_state.
 
-    inversion Hred.
-    destruct H as (?&?&?&?); inversion H.
-    subst. inversion H0.
+    inversion Hred; destruct x.
+    inversion H0.
   Qed.
 
+(* TODO: repair *)
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
   (* Pure outcomes *)
   Definition wp_ret {R E} s a e φ:
-    ipure φ a ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
+    φ (O2Ret a) ⊢ WP (Ret a : micro R E) @ s; e {{ φ }}.
   Proof.
-    iIntros "Hφ"; rewrite wp_unfold; by cbn.
+    iIntros "Hφ"; rewrite ewp_unfold; by cbn.
   Qed.
   Definition wp_ret' {R E} s a e φ:
     φ a ⊢ WP (Ret a : micro R E) @ s; e {{ RET v, φ v }}.
@@ -270,7 +306,7 @@ Section wp_rules.
     [WP (ret _) _] [WP crash _] or [WP (throw _) _] *)
   Local Ltac wp_invert :=
     match goal with
-    | |- context [environments.Esnoc _ ?SI (store_interp _)] =>
+    | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
         match goal with
         (* WP crash Ψ is an absurd goal; can conclude immediately *)
         | |- context [environments.Esnoc _ ?Hwp (wp _ _ crash _)] =>
@@ -706,11 +742,11 @@ Section wp_rules.
 
     iAssert (|={⊤}=> ⌜ can_step (σ, m) ⌝
                     ∗ wp NotStuck ⊤ ms φ
-                    ∗ store_interp σ)%I
+                    ∗ state_interp σ)%I
       with "[Hwp Hsi]"
       as ">(%&Hwp&Hsi)".
     { iApply ((fupd_plain_keep_l ⊤ ⌜can_step (σ, m)⌝
-                                (wp NotStuck ⊤ ms φ ∗ store_interp σ))%I
+                                (wp NotStuck ⊤ ms φ ∗ state_interp σ))%I
               with "[$Hwp $Hsi]").
       iIntros "[??]";
         iMod (wp_can_step' with "[$][$]") as "%Hdisj".
