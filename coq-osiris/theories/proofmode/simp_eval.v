@@ -642,7 +642,7 @@ Lemma simp_wrap {A E E'} (m : micro A E) (a : A) :
   simp (try m ret (λ (_ : E), @Crash A E')) (ret a) -> simp m (ret a).
 Proof.
   intros H.
-  apply invert_simp_try_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+  apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
   { apply destruct_simp_ret in simp_ret_ret.
     by (injection simp_ret_ret; intros ->). }
   { apply destruct_simp_crash in simp_crash_ret. (* TODO: rename to invert_simp_crash *)

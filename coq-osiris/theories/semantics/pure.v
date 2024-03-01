@@ -52,7 +52,7 @@ Proof.
       apply total_ret; eauto. }
   { intros Hp. destruct_pure a.
     eapply total_consequence.
-    { eapply invert_simp_try_ret; eassumption. }
+    { eapply invert_simp_try2_ret; eassumption. }
     { simpl; intros. exists a; tauto. }
     { simpl; intros. exists a; tauto. } }
 Qed.
