@@ -1,21 +1,28 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From stdpp Require Import relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
 Local Open Scope nat_scope.
 
-(* This file defines a simplification relation: [simp m m'] means that
-   [m] can be simplified to [m']. Simplification is pure (it does not
-   involve the heap and cannot make non-deterministic choices).
+(* This file defines a simplification relation: [simp m m'] means that [m]
+   can be simplified to [m']. Simplification is pure: it does not involve
+   the heap and does not make irreversible non-deterministic choices. This
+   is expressed by a commutation diagram between the relations [step] and
+   [simp].
 
-   When this relation holds, we expect [WP m' φ] to imply [WP m φ]. This
-   means that one can prove a safety property of the simpler program [m']
-   and transport this property back to [m].
+   [simp] is nevertheless a non-deterministic relation: there can be several
+   ways of simplifying a computation. We prove a confluence property, which
+   is limited to final results.
+
+   When [simp m m'] holds, we expect [WP m' φ] to imply [WP m φ]. This means
+   that one can prove a safety property of the simpler program [m'] and
+   transport this property back to [m].
 
    A simplification step is not necessarily a reduction step: that is,
-   [simplify] is not a subrelation of [step].
+   [simp] is not a subrelation of [step].
 
-   The simplification relation can serve two distinct (but related) purposes:
+   The simplification relation serves two distinct (yet related) purposes:
 
    - It can be used to simplify a program while proving that this program
      satisfies a specification of the form of [WP m φ]. This simplification
@@ -23,18 +30,18 @@ Local Open Scope nat_scope.
 
    - It can be used to write specifications for pure programs. Indeed, if a
      program is pure (that is, does not involve divergence, non-determinism,
-     or mutable state) then it should have a specification of the form
-     [∃ a, simp m (ret a) ∧ φ a]. See the judgement [total] in this file.
+     or mutable state) then it should have a specification of the form [∃ a,
+     simp m (ret a) ∧ φ a]. See the judgement [total] in this file.
 
-     Such a specification implies [WP m (λa, ⌜ φ a ⌝)], so a pure program
-     is a special case of a possibly-impure program. *)
+     Such a specification implies [WP m (λa, ⌜ φ a ⌝)], so a pure program is
+     a special case of a possibly-impure program. *)
 
 (* -------------------------------------------------------------------------- *)
 
 (* The relation [simp m m'] is inductively defined as follows. *)
 
-(* The constructors [SimpEval] and [SimpLoop] allow certain [Stop] events to
-   be replaced with their meaning.
+(* [SimpEval] and [SimpLoop] allow certain [Stop] events to be replaced with
+   their meaning.
 
    [SimpChooseAgree] requires that the computations [m1] and [m2] can both
    be simplified to a common computation [m]. Thus, this rule is applicable
@@ -42,48 +49,63 @@ Local Open Scope nat_scope.
    independent of the coin flip. This is useful; e.g., it allows OCaml's
    [assert] construct to be regarded as pure.
 
-   Two constructors [SimpParRetLeft] and [SimpParRetRight] simplify a [par]
-   construct where at least one side is [ret _].
+   [SimpParRetLeft] and [SimpParRetRight] simplify a [par] construct
+   where at least one side is [ret _].
 
-   The constructor [SimpPar] allows simplification to take place under a [Par]
-   constructor.
+   [SimpPar] allows simplification to take place under a [Par] constructor.
 
-   The constructors [SimpReflexive] and [SimpTransitive] make simplification
-   reflexive and transitive by definition. *)
+   [SimpPerform] allows simplification in the continuation of [perform e].
+   This is the only rule that allows simplification in a continuation, under
+   a binder. This rule is not expected to be useful to the end user;
+   however, it is required in the proof of the main commutative diagram; see
+   the lemma [simplify_step_diagram].
+
+   [SimpReflexive] and [SimpTransitive] make simplification reflexive and
+   transitive by definition. *)
+
+(* Simplification under [Handle] is not permitted. Perhaps it could be
+   easily allowed (we have not tried). We do not anticipate a need for this
+   rule, so we are waiting until the need arises. *)
 
 Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
 | SimpEval:
-    ∀ η e k z,
+    ∀ η e k,
     simp
-      (Stop CEval (η, e) k z)
-      (try (eval η e) k z)
+      (Stop CEval (η, e) k)
+      (try2 (eval η e) k)
 | SimpLoop :
-    ∀ η x i1 i2 e k z,
+    ∀ η x i1 i2 e k,
     simp
-      (Stop CLoop (η, x, i1, i2, e) k z)
-      (try (loop η x i1 i2 e) k z)
+      (Stop CLoop (η, x, i1, i2, e) k)
+      (try2 (loop η x i1 i2 e) k)
 | SimpChooseAgree :
-    ∀ {B E'} m m1 m2 (k : B → _) (z : E' → _),
+    ∀ {B E'} m m1 m2 (k : outcome2 B E' → _),
     simp m1 m →
     simp m2 m →
     simp
-      (Choose m1 m2 k z)
-      (try m k z)
+      (Choose m1 m2 k)
+      (try2 m k)
 | SimpParRetLeft:
-    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
+    ∀ {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _),
     simp
-      (Par (Ret a1) m2 k z)
-      (try m2 (λ v2, k (a1, v2)) z)
+      (Par (Ret a1) m2 k)
+      (try2 m2 (join1 a1 k))
 | SimpParRetRight:
-    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
+    ∀ {A1 A2 E'} m1 a2 (k : outcome2 (A1 * A2) E' → _),
     simp
-      (Par m1 (Ret a2) k z)
-      (try m1 (λ v1, k (v1, a2)) z)
+      (Par m1 (Ret a2) k)
+      (try2 m1 (join2 a2 k))
 | SimpPar:
-    ∀ {A1 A2 E'} m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
+    ∀ {A1 A2 E'} m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → _),
     simp m1 m'1 →
     simp m2 m'2 →
-    simp (Par m1 m2 k z) (Par m'1 m'2 k z)
+    simp (Par m1 m2 k) (Par m'1 m'2 k)
+| SimpPerform:
+     ∀ e k k',
+     (∀ o, simp (k o) (k' o)) →
+     simp
+       (Stop CPerform e k)
+       (Stop CPerform e k')
 | SimpReflexive:
     ∀ m,
     simp m m
@@ -122,45 +144,31 @@ Qed.
 
 (* Derived constructors. *)
 
-Lemma SimpParRetRet {A1 A2 A E E'} a1 a2 (k : A1 * A2 → _) (z : E' → micro A E) :
+Lemma SimpParRetRet {A1 A2 A E E'}
+  a1 a2 (k : outcome2 (A1 * A2) E' → micro A E)
+:
   simp
-    (Par (Ret a1) (Ret a2) k z)
-    (k (a1, a2)).
+    (Par (Ret a1) (Ret a2) k)
+    (continue k (a1, a2)).
 Proof.
   eauto using simp_up_to_eq_right with simp try_ret.
 Qed.
 
-Lemma SimpParRetLeftThrow {A1 A2 A E} a1 m2 (k : A1 * A2 → micro A E) :
-  simp
-    (Par (Ret a1) m2 k throw)
-    (v2 ← m2 ; k (a1, v2)).
-Proof.
-  eauto using simp_up_to_eq_right with simp bind_as_try.
-Qed.
-
-Lemma SimpParRetRightThrow {A1 A2 A E} m1 a2 (k : A1 * A2 → micro A E) :
-  simp
-    (Par m1 (Ret a2) k throw)
-    (v1 ← m1 ; k (v1, a2)).
-Proof.
-  eauto using simp_up_to_eq_right with simp bind_as_try.
-Qed.
-
-Lemma simp_par {A E A1 A2 E'} (m1 : micro A1 E) (m2 : micro A2 E) (m : micro A E')
-  k (z : E -> micro A E') a1 a2 :
+Lemma simp_par {A E A1 A2 E'} m1 m2 m
+  (k : outcome2 (A1 * A2) E → micro A E') a1 a2 :
   simp m1 (ret a1) ->
   simp m2 (ret a2) ->
-  simp (k (a1, a2)) m ->
-  simp (Par m1 m2 k z) m.
+  simp (continue k (a1, a2)) m ->
+  simp (Par m1 m2 k) m.
 Proof.
   intros. eauto with simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We define a 3-argument relation [simplify n m m'] where the natural integer
-   [n] measures a certain notion of the cost of the simplification path from
-   [m] to [m'].
+(* We define a 3-argument relation [simplify n m m'] where the natural
+   integer [n] measures a certain notion of the cost of the simplification
+   path from [m] to [m'].
 
    The main two commutative diagrams, namely [simplify_step_diagram] and
    [simplify_confluent], control the manner in which [n] decreases or is
@@ -174,17 +182,21 @@ Qed.
    simplification cannot create more simplification work, because
    simplification does not duplicate computations. *)
 
-(* In [SimplifyTransitive], requiring [0 < n1] and [0 < n2] lets us forbid a
-   trivial use of reflexivity under the transitivity rule. This gives us a
-   simple way of ensuring that the two children of the transitivity rule have
-   smaller indices, while still assigning zero cost to the transitivity rule
-   itself. *)
+(* Assigning a cost of 1 to [SimplifyTransitive] is not required in the proof
+   of [simplify_step_diagram], but appears to be necessary in the proof of
+   [invert_stack_try2_ret]. *)
 
-(* In [SimplifyPar], we could require [0 < n1 ∨ 0 < n2], because the case
-   where both children perform no simplification work is trivial. However,
-   that would not help. We must assign a nonzero cost to [SimplifyPar] anyway;
-   otherwise, we cannot ensure that both children have smaller indices, and
-   the proof of [simplify_confluent] fails. *)
+(* In the proof of [simplify_step_diagram], in the cases [SimplifyParRetLeft]
+   and [SimplifyParRetRight], we find that the cost of these rules, when used
+   naked, must be *greater* than the cost of the same rules, when used under
+   [SimplifyPerform]. This leads us to assign cost 2 to [SimplifyParRet*] and
+   cost 1 to [SimplifyPerform], *regardless of the cost* of the simplification
+   step that is performed inside. Then, the proof of [simplify_step_diagram]
+   goes through. However, because the cost of the premise in [SimplifyPerform]
+   is not bounded, we lose the proof of confluence of [simplify], which used
+   to exist. Fortunately, the confluence of [simplify] is not needed anywhere.
+   We are still able to prove that [simplify], restricted to final results, is
+   confluent. This is good enough. *)
 
 (* It is worth noting that the lemma [wp_simp] needs only the weak commutative
    diagram [simp_step_diagram], where the index [n] is not controlled. Indeed,
@@ -197,39 +209,47 @@ Qed.
 
 Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SimplifyEval:
-    ∀ p η e k z,
+    ∀ p η e k,
     p = (η, e) →
     simplify 1
-      (Stop CEval p k z)
-      (try (eval η e) k z)
+      (Stop CEval p k)
+      (try2 (eval η e) k)
 | SimplifyLoop :
-    ∀ p η x i1 i2 e k z,
+    ∀ p η x i1 i2 e k,
     p = (η, x, i1, i2, e) →
     simplify 1
-      (Stop CLoop p k z)
-      (try (loop η x i1 i2 e) k z)
+      (Stop CLoop p k)
+      (try2 (loop η x i1 i2 e) k)
 | SimplifyChooseAgree :
-    ∀ {B E'} n1 n2 m m1 m2 (k : B → _) (z : E' → _),
+    ∀ {B E'} n1 n2 m m1 m2 (k : outcome2 B E' → _),
     simplify n1 m1 m →
     simplify n2 m2 m →
     simplify (n1 + n2 + 1)
-      (Choose m1 m2 k z)
-      (try m k z)
+      (Choose m1 m2 k)
+      (try2 m k)
+(* The following two rules have cost 2. *)
 | SimplifyParRetLeft:
-    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
-    simplify 1
-      (Par (Ret a1) m2 k z)
-      (try m2 (λ v2, k (a1, v2)) z)
+    ∀ {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _),
+    simplify 2
+      (Par (Ret a1) m2 k)
+      (try2 m2 (join1 a1 k))
 | SimplifyParRetRight:
-    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
-    simplify 1
-      (Par m1 (Ret a2) k z)
-      (try m1 (λ v1, k (v1, a2)) z)
+    ∀ {A1 A2 E'} m1 a2 (k : outcome2 (A1 * A2) E' → _),
+    simplify 2
+      (Par m1 (Ret a2) k)
+      (try2 m1 (join2 a2 k))
 | SimplifyPar:
-    ∀ {A1 A2 E'} n1 n2 m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
+    ∀ {A1 A2 E'} n1 n2 m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → _),
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
-    simplify (n1 + n2 + 1) (Par m1 m2 k z) (Par m'1 m'2 k z)
+    simplify (n1 + n2 + 1) (Par m1 m2 k) (Par m'1 m'2 k)
+(* The following rule has cost 1, regardless of the cost of its premise. *)
+| SimplifyPerform:
+     ∀ e k k',
+     (∀ o, simp (k o) (k' o)) →
+     simplify 1
+       (Stop CPerform e k)
+       (Stop CPerform e k')
 | SimplifyReflexive:
     ∀ m,
     simplify 0 m m
@@ -237,12 +257,59 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
     ∀ n1 n2 m1 m2 m3,
     simplify n1 m1 m2 →
     simplify n2 m2 m3 →
-    0 < n1 →
-    0 < n2 →
-    simplify (n1 + n2) m1 m3
+    simplify (n1 + n2 + 1) m1 m3
 .
 
 Global Hint Constructors simplify : simplify.
+
+(* For some mysterious reason, [eauto] can prove the following lemmas if we
+   explicitly state them, but cannot prove them if it encounters them as
+   subgoals in a larger proof. *)
+
+Lemma SimplifyPerformParRetLeft
+  {A E A1 A2 E'} e a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simplify 1
+    (Stop CPerform e (λ o, Par (Ret a1) (m2 o) k))
+    (Stop CPerform e (λ o, try2 (m2 o) (join1 a1 k))).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyPerformParRetRight
+  {A E A1 A2 E'} e m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simplify 1
+    (Stop CPerform e (λ o, Par (m1 o) (Ret a2) k))
+    (Stop CPerform e (λ o, try2 (m1 o) (join2 a2 k))).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyPerformParLeft
+  {A E A1 A2 E'} e m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  (∀ o, simp (m1 o) (m'1 o)) →
+  simp m2 m'2 →
+  simplify 1
+    (Stop CPerform e (λ o, Par (m1 o) m2 k))
+    (Stop CPerform e (λ o, Par (m'1 o) m'2 k)).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyPerformParRight
+  {A E A1 A2 E'} e m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simp m1 m'1 →
+  (∀ o, simp (m2 o) (m'2 o)) →
+  simplify 1
+    (Stop CPerform e (λ o, Par m1 (m2 o) k))
+    (Stop CPerform e (λ o, Par m'1 (m'2 o) k)).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Global Hint Resolve
+  SimplifyPerformParRetLeft SimplifyPerformParRetRight
+  SimplifyPerformParLeft SimplifyPerformParRight
+: simplify.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -254,26 +321,6 @@ Lemma invert_simplify_zero {A E} {m1 m2 : micro A E} :
 Proof.
   intros h; dependent induction h; eauto with lia f_equal.
 Qed.
-
-(* The requirement [0 < n1 ∧ 0 < n2] in [SimplifyTransitive] does not cause
-   a loss of generality. Indeed, the cases [0 = n1] and [0 = n2] represent
-   zero simplification work, so they are useless. *)
-
-Lemma SimplifyTransitiveUnrestricted {A E} n1 n2 (m1 m2 m3 : micro A E) :
-  simplify n1 m1 m2 →
-  simplify n2 m2 m3 →
-  simplify (n1 + n2) m1 m3.
-Proof.
-  intros H1 H2.
-  assert (0 = n1 ∨ 0 < n1) as [|] by lia; [ subst |].
-  { apply invert_simplify_zero in H1. subst. eauto. }
-  assert (0 = n2 ∨ 0 < n2) as [|] by lia; [ subst |].
-  { apply invert_simplify_zero in H2. subst.
-    replace (n1 + 0) with n1 by lia. eauto. }
-  eauto with simplify.
-Qed.
-
-Global Hint Resolve SimplifyTransitiveUnrestricted : simplify.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -287,6 +334,8 @@ Lemma simplify_simp {A E} n (m1 m2 : micro A E) :
 Proof.
   induction 1; intros; subst; eauto with simp.
 Qed.
+
+Local Hint Resolve simplify_simp : simp.
 
 (* [simp m1 m2] implies [simplify n m1 m2] for some [n]. *)
 
@@ -302,32 +351,36 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Simplification is compatible with [try]. *)
+(* Simplification is compatible with [try2]. *)
 
-Lemma simplify_try {A B E' E} n m1 m2 (f : A → micro B E) (h : E' → _) :
-  simplify n m1 m2 →
-  simplify n (try m1 f h) (try m2 f h).
+Lemma simp_try2 {A B E' E} m1 m2 (k : outcome2 A E' → micro B E) :
+  simp m1 m2 →
+  simp (try2 m1 k) (try2 m2 k).
 Proof.
   induction 1; simpl;
-  rewrite ?try_try; econstructor; eauto with congruence.
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  econstructor; eauto.
 Qed.
+
+Lemma simplify_try2 {A B E' E} n m1 m2 (k : outcome2 A E' → micro B E) :
+  simplify n m1 m2 →
+  simplify n (try2 m1 k) (try2 m2 k).
+Proof.
+  induction 1; simpl;
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  econstructor; eauto using simp_try2.
+Qed.
+
+(* Simplification is compatible with [try]. *)
 
 Lemma simp_try {A B E' E} m1 m2 (f : A → micro B E) (h : E' → _) :
   simp m1 m2 →
   simp (try m1 f h) (try m2 f h).
 Proof.
-  induction 1; simpl; rewrite ?try_try;
-  econstructor; eauto with congruence.
+  eapply simp_try2.
 Qed.
 
 (* Simplification is compatible with [bind]. *)
-
-Lemma simplify_bind {A B E} n m1 m2 (f : A → micro B E) :
-  simplify n m1 m2 →
-  simplify n (bind m1 f) (bind m2 f).
-Proof.
-  rewrite !bind_as_try. eauto using simplify_try.
-Qed.
 
 Lemma simp_bind {A B E} m1 m2 (f : A → micro B E) :
   simp m1 m2 →
@@ -388,6 +441,32 @@ Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
+(* [perform e k] can be simplified
+   by performing simplification inside [k].
+   No other simplification is possible. *)
+
+Lemma destruct_simplify_perform {A E} n e k (m' : micro A E) :
+  simplify n (Stop CPerform e k) m' →
+  ∃ k',
+  m' = Stop CPerform e k' ∧
+  ∀ o, simp (k o) (k' o).
+Proof.
+  intros h; dependent induction h; eauto with simp.
+  (* SimplifyTransitive *)
+  { destruct (IHh1 _ _ eq_refl) as (k1 & ? & ?). subst.
+    destruct (IHh2 _ _ eq_refl) as (k2 & ? & ?). subst.
+    eauto with simp. }
+Qed.
+
+Lemma destruct_simp_perform {A E} e k (m' : micro A E) :
+  simp (Stop CPerform e k) m' →
+  ∃ k',
+  m' = Stop CPerform e k' ∧
+  ∀ o, simp (k o) (k' o).
+Proof.
+  intros (n & ?)%simp_simplify. eauto using destruct_simplify_perform.
+Qed.
+
 (* These tactics apply the above lemmas, if possible. *)
 
 Ltac clarify_simplify :=
@@ -395,6 +474,9 @@ Ltac clarify_simplify :=
   | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
   | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
   | h: simplify _ (throw _) ?m |- _ => apply destruct_simplify_throw in h
+  | h: simplify _ (Stop CPerform _ _) ?m' |- _ =>
+      apply destruct_simplify_perform in h;
+      destruct h as (? & ? & ?)
   end; simplify_eq.
 
 Ltac clarify_simp :=
@@ -402,7 +484,12 @@ Ltac clarify_simp :=
   | h: simp (ret _) ?m |- _ => apply destruct_simp_ret in h
   | h: simp crash ?m |- _ => apply destruct_simp_crash in h
   | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
+  | h: simp (Stop CPerform _ _) ?m' |- _ =>
+      apply destruct_simp_perform in h;
+      destruct h as (? & ? & ?)
   end; simplify_eq.
+
+(* -------------------------------------------------------------------------- *)
 
 (* A category of final terms, which cannot be simplified
    and cannot step. *)
@@ -434,6 +521,9 @@ Ltac destruct_simplify_final :=
     pose proof (destruct_simplify_final h1 h2); subst m2
   end.
 
+Ltac prove_final :=
+  first [ exact I | eauto ].
+
 (* -------------------------------------------------------------------------- *)
 
 (* Destruction lemmas and tactic. *)
@@ -457,12 +547,14 @@ Local Ltac destruct_steps :=
   | h: steps 1 _ _ |- _ => apply nsteps_once_inv in h
 end.
 
+(* -------------------------------------------------------------------------- *)
+
 (* [steps n] is compatible with a [Par] context. *)
 
 Local Lemma steps_step_par_left
-  {A1 A2 A E' E} n σ σ' m1 m'1 m2 (k : A1 * A2 → micro A E) (z : E' → _) :
+  {A1 A2 A E' E} n σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
   steps n (σ, m1) (σ', m'1) →
-  steps n (σ, Par m1 m2 k z) (σ', Par m'1 m2 k z).
+  steps n (σ, Par m1 m2 k) (σ', Par m'1 m2 k).
 Proof.
   (* Massage the goal: *)
   remember (σ, m1) as c. remember (σ', m'1) as c'. intro h.
@@ -474,9 +566,9 @@ Proof.
 Qed.
 
 Local Lemma steps_step_par_right
-  {A1 A2 A E' E} n σ σ' m1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) :
+  {A1 A2 A E' E} n σ σ' m1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) :
   steps n (σ, m2) (σ', m'2) →
-  steps n (σ, Par m1 m2 k z) (σ', Par m1 m'2 k z).
+  steps n (σ, Par m1 m2 k) (σ', Par m1 m'2 k).
 Proof.
   (* Massage the goal: *)
   remember (σ, m2) as c. remember (σ', m'2) as c'. intro h.
@@ -532,7 +624,7 @@ Lemma simplify_step_diagram {A E n} {m1 m2 : micro A E} :
   (i = 0 ∧ n' < n  ∨  i = 1 ∧ n' ≤ n).
 Local Ltac search :=
   do 3 eexists;
-  eauto 8 using step_try, simplify_try with steps step simplify lia.
+  eauto 8 using step_try2, simplify_try2 with steps step simplify simp lia.
 Local Ltac use_ih :=
   match goal with
   Hstep: step (_, ?m) _,
@@ -553,11 +645,14 @@ Proof.
   (* SimplifyChooseAgree *)
   { destruct_step; search. }
   (* SimplifyParRetLeft *)
+  (* This case is the reason why [SimplifyPerform] is needed. *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
   (* SimplifyParRetRight *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
   (* SimplifyPar *)
-  { destruct_step; clarify_simplify; solve [ search | use_ih; search ]. }
+  { destruct_step; clarify_simplify; try solve [ search | use_ih; search ]. }
+  (* SimplifyPerform *)
+  { destruct_step. }
   (* SimplifyReflexive *)
   { search. }
   (* SimplifyTransitive *)
@@ -586,9 +681,6 @@ Proof.
   { eauto. }
   { exfalso; eauto using destruct_step_final. }
 Qed.
-
-Ltac prove_final :=
-  first [ exact I | eauto ].
 
 Ltac simplify_final_step_diagram :=
   match goal with
@@ -707,9 +799,9 @@ Proof.
     (* IH is used. *)
     eauto with rtc. }
   (* Case: [m1] is stuck. *)
-  { apply only_crash_and_throw_are_stuck in Hm1.
-    destruct Hm1 as [| (e & ?)]; subst m1;
-    clarify_simplify; eauto with rtc. }
+  { apply only_crash_and_throw_and_perform_are_stuck in Hm1.
+    destruct Hm1 as [| [(e & ?) | (e & k & ?)]]; subst m1; simpl in Hfinal;
+    clarify_simplify; solve [ eauto with rtc | tauto ]. }
 Qed.
 
 (* If there is a simplification step of [m1] to [m'1]
@@ -799,10 +891,14 @@ Lemma invert_simp_can_step {A E} (m1 m2 : micro A E) σ :
   can_step (σ, m2) →
   can_step (σ, m1).
 Proof.
-  (* The only terms that cannot step are [ret _] and [crash] and [throw _],
-     and these terms cannot appear on the left-hand side of [simplify], so
-     the proof is trivial. *)
+  (* Every term can step except [ret _], [throw _], [crash], and [perform _].
+     So, all cases except these 4 cases are immediate. Furthermore, out of
+     these four cases, the first three are also immediate, because [ret _],
+     [throw _], and [crash] cannot be simplified. *)
   induction 1; eauto with step.
+  (* So, only [perform _] remains. This case is also immediate, because
+     [perform _] cannot step. *)
+  intros. destruct_can_step. destruct_step.
 Qed.
 
 (* If [m1] can be simplified into a final result [m2] then
@@ -1190,86 +1286,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* To do so, we need another indexed variant of the relation [simp].
-
-   The relation [sss] is identical to [simplify], except that it places a
-   weight of 1 on transitivity nodes, where [simplify] assigns them zero
-   cost. This weight of 1 is needed in the last case of the proof of the
-   lemma [invert_stack_try_ret]. *)
-
-Inductive sss {A E : Type} : nat → micro A E → micro A E → Prop :=
-| SssEval:
-    ∀ p η e k z,
-    p = (η, e) →
-    sss 1
-      (Stop CEval p k z)
-      (try (eval η e) k z)
-| SssLoop :
-    ∀ p η x i1 i2 e k z,
-    p = (η, x, i1, i2, e) →
-    sss 1
-      (Stop CLoop p k z)
-      (try (loop η x i1 i2 e) k z)
-| SssChooseAgree :
-    ∀ {B E'} n1 n2 m m1 m2 (k : B → _) (z : E' → _),
-    sss n1 m1 m →
-    sss n2 m2 m →
-    sss (n1 + n2 + 1)
-      (Choose m1 m2 k z)
-      (try m k z)
-| SssParRetLeft:
-    ∀ {A1 A2 E'} a1 m2 (k : A1 * A2 → _) (z : E' → _),
-    sss 1
-      (Par (Ret a1) m2 k z)
-      (try m2 (λ v2, k (a1, v2)) z)
-| SssParRetRight:
-    ∀ {A1 A2 E'} m1 a2 (k : A1 * A2 → _) (z : E' → _),
-    sss 1
-      (Par m1 (Ret a2) k z)
-      (try m1 (λ v1, k (v1, a2)) z)
-| SssPar:
-    ∀ {A1 A2 E'} n1 n2 n m1 m'1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
-    sss n1 m1 m'1 →
-    sss n2 m2 m'2 →
-    n1 + n2 < n →
-    sss n (Par m1 m2 k z) (Par m'1 m'2 k z)
-| SssReflexive:
-    ∀ m,
-    sss 0 m m
-| SssTransitive:
-    ∀ n1 n2 n m1 m2 m3,
-    sss n1 m1 m2 →
-    sss n2 m2 m3 →
-    n1 + n2 < n →
-    sss n m1 m3
-.
-
-Local Hint Constructors sss : sss.
-
-(* -------------------------------------------------------------------------- *)
-
-(* [sss _ m m'] and [simp m m'] are equivalent. *)
-
-Local Lemma sss_simp {A E n} {m m' : micro A E} :
-  sss n m m' →
-  simp m m'.
-Proof.
-  induction 1; subst; eauto with simp.
-Qed.
-
-Local Lemma simp_sss {A E} {m m' : micro A E} :
-  simp m m' →
-  ∃ n, sss n m m'.
-Local Ltac baz :=
-  match goal with h: ∃ n, sss n _ _ |- _ => destruct h end.
-Proof.
-  induction 1; try solve [ repeat baz; eauto with lia sss ].
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
 (* A stack of simplification trees is needed in the statement of the lemma
-   [invert_stack_try_ret]. *)
+   [invert_stack_try2_ret]. *)
 
 (* One can think of this stack as an evaluation context. Although there is
    no syntax for evaluation contexts, because the [micro] monad is a shallow
@@ -1283,7 +1301,7 @@ Inductive stack {A E : Type} : nat → micro A E → micro A E → Prop :=
     stack n m m
 | StackCons:
     forall n1 n2 n m1 m2 m3,
-    sss n1 m1 m2 →
+    simplify n1 m1 m2 →
     stack n2 m2 m3 →
     0 < n1 →
     n1 + n2 ≤ n →
@@ -1306,26 +1324,17 @@ Proof.
   induction 1; intros; econstructor; eauto with lia.
 Qed.
 
-(* [sss 0 m1 m2] implies [m1 = m2]. *)
-
-Lemma invert_sss_zero {A E} {m1 m2 : micro A E} :
-  sss 0 m1 m2 →
-  m1 = m2.
-Proof.
-  intros h; dependent induction h; eauto with lia f_equal.
-Qed.
-
 (* The side condition [0 < n1] in [StackCons] is not restrictive. *)
 
 Lemma StackConsUnrestricted {A E} n1 n2 n (m1 m2 m3 : micro A E) :
-  sss n1 m1 m2 →
+  simplify n1 m1 m2 →
   stack n2 m2 m3 →
   n1 + n2 ≤ n →
   stack n m1 m3.
 Proof.
   intros H1 H2 ?.
   assert (0 = n1 ∨ 0 < n1) as [|] by lia; [ subst |].
-  { apply invert_sss_zero in H1. subst.
+  { apply invert_simplify_zero in H1. subst.
     eauto using stack_monotone with lia. }
   eauto with stack.
 Qed.
@@ -1334,8 +1343,8 @@ Local Hint Resolve StackConsUnrestricted : stack.
 
 (* A single tree forms a stack (of one cell). *)
 
-Lemma sss_stack {A E} n (m m' : micro A E) :
-  sss n m m' →
+Lemma simplify_stack {A E} n (m m' : micro A E) :
+  simplify n m m' →
   stack n m m'.
 Proof.
   eauto with stack lia.
@@ -1347,22 +1356,34 @@ Lemma stack_simp {A E n} {m m' : micro A E} :
   stack n m m' →
   simp m m'.
 Proof.
-  induction 1; eauto using sss_simp with simp.
+  induction 1; eauto using simplify_simp with simp.
+Qed.
+
+(* There is no simplification path from [perform _] to a final result. *)
+
+Lemma invert_stack_perform {A E} n e k (m : micro A E) :
+  stack n (Stop CPerform e k) m →
+  final m →
+  False.
+Proof.
+  intros h; dependent induction h; intros Hfinal.
+  { simpl in Hfinal. tauto. }
+  { apply simplify_simp in H. clarify_simp. eauto. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
 (* The main lemma. *)
 
-(* If [try m m h] can be simplified to [ret b]
+(* If [try2 m k] can be simplified to [ret b]
    via a stack of weight [n],
    then:
    - either [m] can be simplified to [ret a]
      for some [a] such that
-     [k a] can be simplified to [ret b]
+     [continue k a] can be simplified to [ret b]
      via a stack of weight [n],
    - or [m] can be simplified to [throw e]
-     and [h e] can be simplified to [ret b]
+     and [discontinue k e] can be simplified to [ret b]
      via a stack of weight [n].
  *)
 
@@ -1379,12 +1400,12 @@ Qed.
    be viewed as pure (simplifiable). This was not really a problem in
    practice, but we prefer to have a better-behaved language if we can. *)
 
-Lemma invert_stack_try_ret :
-  ∀ n {A B E' E} m (k : A → micro B E) (h : E' → _) b,
-  stack n (try m k h) (ret b) →
+Lemma invert_stack_try2_ret :
+  ∀ n {A B E' E} m (k : outcome2 A E' → micro B E) b,
+  stack n (try2 m k) (ret b) →
   total m
-    (λ a, stack n (k a) (ret b))
-    (λ e, stack n (h e) (ret b)).
+    (λ a, stack n (continue k a) (ret b))
+    (λ e, stack n (discontinue k e) (ret b)).
 Proof.
   induction n as [n IH] using (well_founded_induction lt_wf).
 
@@ -1392,18 +1413,18 @@ Proof.
      conclusion mentions [n] instead of [i]. Also, place the side
      condition [i < n] in the last position. *)
   assert (IHw :
-    ∀ i {A B E' E} m (k : A → micro B E) (h : E' → _) b,
-    stack i (try m k h) (ret b) →
+    ∀ i {A B E' E} m (k : outcome2 A E' → micro B E) b,
+    stack i (try2 m k) (ret b) →
     i < n →
     total m
-      (λ a, stack n (k a) (ret b))
-      (λ e, stack n (h e) (ret b))
+      (λ a, stack n (continue k a) (ret b))
+      (λ e, stack n (discontinue k e) (ret b))
   ).
   { intros. eapply total_consequence; intuition eauto using stack_monotone. }
   clear IH.
 
   (* Now begin the proof. *)
-  intros A B E' E m k h b.
+  intros A B E' E m k b.
   intros Hstack.
 
   (* If [m] is [ret a] or [throw e], then the result is immediate. Treat
@@ -1419,95 +1440,100 @@ Proof.
   (* Is the stack empty? *)
   dependent destruction Hstack.
   (* Case: the stack is empty. *)
-  { clear IHw. exfalso. eauto using invert_try_eq_ret. }
+  { clear IHw. exfalso. eauto using invert_try2_eq_ret. }
   (* Case: the stack is nonempty. Analyze its first element. *)
-  match goal with h: sss _ _ _ |- _ => dependent destruction h end.
+  match goal with h: simplify _ _ _ |- _ => dependent destruction h end.
 
-  (* Subcase: [SssEval]. *)
+  (* Subcase: [SimplifyEval]. *)
   { subst p.
     (* [m] is [Stop CEval _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret Hthrow.
+    invert_try2_eq_stop. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpEval |].
-    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
-    rewrite <- try_try in Hstack.
-    (* Abstract away the inner [try _ _ _]. (Optional.) *)
-    match type of Hstack with context[try ?m _ _] =>
+    (* Recognize [(try2 (try2 _ _) _)] in the stack. (Yes!) *)
+    rewrite <- try2_try2 in Hstack.
+    (* Abstract away the inner [try2 _ _]. (Optional.) *)
+    match type of Hstack with context[try2 ?m _] =>
       generalize dependent m
     end; intros m Hstack.
     (* We recognize an opportunity to apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssLoop]. *)
+  (* Subcase: [SimplifyLoop]. *)
   { subst p.
     (* [m] is [Stop Loop _ _ _]. *)
-    invert_try_eq_stop. subst m. clear Hret Hthrow.
+    invert_try2_eq_stop. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpLoop |].
-    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
-    rewrite <- try_try in Hstack.
+    (* Recognize [(try2 (try2 _ _) _)] in the stack. (Yes!) *)
+    rewrite <- try2_try2 in Hstack.
     (* Abstract away the inner [try _ _ _]. (Optional.) *)
-    match type of Hstack with context[try ?m _ _] =>
+    match type of Hstack with context[try2 ?m _] =>
       generalize dependent m
     end; intros m Hstack.
     (* We recognize an opportunity to apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssChoose]. *)
+  (* Subcase: [SimplifyChoose]. *)
   {
     (* [m] is [Choose m1 m2 _ _]. *)
-    invert_try_eq_choose. subst m. clear Hret Hthrow.
+    invert_try2_eq_choose. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
-    eapply total_simp; [ eapply SimpChooseAgree; eauto using sss_simp |].
-    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
-    rewrite <- try_try in Hstack.
+    eapply total_simp; [ eapply SimpChooseAgree; eauto using simplify_simp |].
+    (* Recognize [(try2 (try2 _ _) _)] in the stack. (Yes!) *)
+    rewrite <- try2_try2 in Hstack.
     (* Apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssParRetLeft]. *)
+  (* Subcase: [SimplifyParRetLeft]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hthrow.
+    invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetLeft |].
-    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
-    rewrite <- try_try in Hstack.
+    (* Recognize [(try2 (try2 _ _) _)] in the stack. (Yes, yes!) *)
+    rewrite <- pftry2_join1 in Hstack.
+    rewrite <- try2_try2 in Hstack.
     (* Apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssParRetRight]. *)
+  (* Subcase: [SimplifyParRetRight]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hthrow.
+    invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetRight |].
-    (* Recognize [(try (try _ _ _) _ _)] in the stack. (Yes!) *)
-    rewrite <- try_try in Hstack.
+    (* Recognize [(try2 (try2 _ _) _)] in the stack. (Yes, yes!) *)
+    rewrite <- pftry2_join2 in Hstack.
+    rewrite <- try2_try2 in Hstack.
     (* Apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssPar]. *)
+  (* Subcase: [SimplifyPar]. *)
   {
     (* [m] is [Par m1 m2 _ _]. *)
-    invert_try_eq_par. subst m. clear Hret Hthrow.
+    invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Change [m1] to [m'1] and [m2] to [m'2] in the goal. *)
     eapply total_simp.
-    { eapply SimpPar; eapply sss_simp; eauto. }
+    { eapply SimpPar; eapply simplify_simp; eauto. }
     (* Recognize [try (Par _ _ _ _) _ _] in the stack. *)
-    rewrite <- try_Par in Hstack.
+    rewrite <- try2_Par in Hstack.
     (* Apply the induction hypothesis. *)
     eauto with lia.
   }
 
-  (* Subcase: [SssReflexive]. *)
+  (* Subcase: [SimplifyPerform]. *)
+  { exfalso. eapply invert_stack_perform; [ eauto | prove_final ]. }
+
+  (* Subcase: [SimplifyReflexive]. *)
   { eauto with lia. }
 
-  (* Subcase: [SssTransitive]. *)
+  (* Subcase: [SimplifyTransitive]. *)
   { eauto with stack lia. }
 
 Qed.
@@ -1517,22 +1543,22 @@ Qed.
 (* The previous lemma can now be specialized to the case where the stack
    initially has height one, that is, it consists of a single tree. *)
 
-(* This yields the reciprocal try rule. *)
+(* This yields the reciprocal [try2] rule. *)
 
-Lemma invert_simp_try_ret {A B E' E} m (k : A → micro B E) (h : E' → _) b :
-  simp (try m k h) (ret b) →
+Lemma invert_simp_try2_ret {A B E' E} m (k : outcome2 A E' → micro B E) b :
+  simp (try2 m k) (ret b) →
   total m
-    (λ a, simp (k a) (ret b))
-    (λ e, simp (h e) (ret b)).
+    (λ a, simp (continue k a) (ret b))
+    (λ e, simp (discontinue k e) (ret b)).
 Proof.
   intros Hsimp.
-  (* Transform [simp _ _] into [sss n _ _] for some unknown [n]. *)
-  apply simp_sss in Hsimp.
+  (* Transform [simp _ _] into [simplify n _ _] for some unknown [n]. *)
+  apply simp_simplify in Hsimp.
   destruct Hsimp as (n & Hsimp).
   (* Thus, we have a stack (of one cell). *)
-  apply sss_stack in Hsimp.
+  apply simplify_stack in Hsimp.
   (* We can apply the previous lemma. *)
-  apply invert_stack_try_ret in Hsimp.
+  apply invert_stack_try2_ret in Hsimp.
   (* The result then follows via the consequence rule. *)
   eapply total_consequence; [ eauto | |].
   + simpl. eauto using stack_simp.
@@ -1545,14 +1571,14 @@ Lemma invert_simp_bind_ret_totalv {A B E} m (k : A → micro B E) b :
   simp (bind m k) (ret b) →
   totalv m (λ a, simp (k a) (ret b)).
 Proof.
-  rewrite bind_as_try.
+  rewrite bind_as_try2.
   intros h.
   unfold totalv.
   eapply total_consequence.
-  { eauto using invert_simp_try_ret. }
+  { eauto using invert_simp_try2_ret. }
   { eauto. }
   (* There remains to argue that [throw _] cannot reduce to [ret _]. *)
-  { simpl. intros. clarify_simp. }
+  { unfold discontinue, glue2. intros. clarify_simp. }
 Qed.
 
 (* Reformulating the previous result yields this statement. *)
