@@ -63,11 +63,13 @@ Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
   pat η p v (λ η, pats η ps vs φ ψ2) ψ1 →
   pats η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
-  unfold pats, pat. intro Hp. simpl.
-  apply total_bind_unary.
-  eapply total_consequence; eauto.
-  simpl; intros η' Hps.
-  rewrite bind_ret_right.
+  unfold pats, pats. intros Hp; simpl.
+  eapply total_bind.
+  { eapply total_consequence.
+    - eassumption.
+    - simpl; intros. eapply total_consequence; eauto.
+    - tauto. }
+  simpl; intros. rewrite bind_ret_right.
   eapply total_consequence; eauto.
 Qed.
 
@@ -76,33 +78,24 @@ Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
   (∀ η, φ' η → pats η ps vs φ ψ2) →
   pats η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
 Proof.
-  unfold pats, pat. intros. simpl.
-  eapply total_bind; [ eauto using total_consequence | simpl ].
-  intros η' ?.
-  rewrite bind_ret_right.
-  eauto using total_consequence.
+  intros. eapply pats_PCons_unary.
+  eapply pat_consequence; eauto.
 Qed.
 
-Lemma pats_PCons_single η p v φ ψ :
-  pat η p v φ ψ ->
-  pats η [p] [v] φ ψ.
-Proof.
-  intros Hpat.
-  eapply pats_consequence_psi.
-  eapply pats_PCons.
-  { eapply total_consequence.
-    { apply Hpat. }
-    { intros η' ?. eapply pats_PNil; eauto. }
-    { simpl; intros _ Hψ; apply Hψ. } }
-  { simpl; intros. eassumption. }
-  { intros [|]; [ tauto | contradiction ]. }
-Qed.
+(* [pats_unary] expects a goal of the form [pats η ps vs φ ψ]. It is
+   used during pattern matching because the [pats] judgement can be
+   introduced by applying [pat_PTuple]. *)
+
+(* We use the unary version in automation tactics to avoid creating
+   evars accross different subgoals and scopes. *)
 
 Ltac pats_unary :=
   first [
       eapply pats_PNil; [ eauto ]
     | eapply pats_PCons_unary; [ eauto ]
     ].
+
+(* The binary variant is more natural to use in interactive proofs. *)
 
 Ltac pats :=
   repeat first [
@@ -137,15 +130,19 @@ Lemma pat_PAny η v φ :
   φ η →
   pat η PAny v φ False.
 Proof.
-  unfold pat. simpl. eauto using total_ret.
+  unfold pat. eauto using total_ret.
 Qed.
 
 Lemma pat_PVar η x v φ :
   φ ((x, v) :: η) →
   pat η (PVar x) v φ False.
 Proof.
-  unfold pat. simpl. eauto using total_ret.
+  unfold pat. eauto using total_ret.
 Qed.
+
+(* Given a goal of the form [pat η (PVar x) v ?φ False],
+   applying the lemma [pat_PVar2] solves the goal and
+   instantiates the postcondition [?φ]. *)
 
 Lemma pat_PVar2 η x v :
   pat η (PVar x) v (λ η', η' = (x, v) :: η) False.
@@ -163,9 +160,9 @@ Lemma pat_PAlias η p x v φ ψ :
   pat η p v (λ η, φ ((x, v) :: η)) ψ →
   pat η (PAlias p x) v φ ψ.
 Proof.
-  unfold pat. simpl. intros Hp.
-  eapply total_bind; [ eapply Hp | simpl ]. intros η' ?.
-  eauto using total_ret.
+  unfold pat. simpl; intros.
+  apply total_bind_unary.
+  eauto using total_consequence, total_ret.
 Qed.
 
 Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
@@ -175,7 +172,7 @@ Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
     (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
        disjunction pattern to fail, both sides must fail. *)
 Proof.
-  unfold pat; intros Hp1 Hp2. simpl.
+  unfold pat. simpl; intros.
   eauto using total_orelse, total_consequence.
 Qed.
 
@@ -184,14 +181,15 @@ Lemma pat_PUnit η v φ :
   v = #() →
   pat η PUnit v φ False.
 Proof.
-  unfold pat. intros. subst. simpl. eauto using total_ret.
+  unfold pat. intros ? ->; simpl.
+  eauto using total_ret.
 Qed.
 
 Lemma pat_PTuple η ps vs φ ψ :
   pats η ps vs φ ψ →
   pat η (PTuple ps) (VTuple vs) φ ψ.
 Proof.
-  unfold pats, pat. simpl. eauto.
+  unfold pats, pat. by simpl.
 Qed.
 
 Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
@@ -201,9 +199,7 @@ Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ
   pat η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
 Proof.
   intros; subst.
-  apply pat_PTuple.
-  eapply pats_PCons; eauto.
-  intros; apply pats_PCons_single; assumption.
+  eapply pats_consequence_psi; [ pats | tauto ].
 Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
@@ -234,25 +230,49 @@ Proof.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
+Lemma pat_PConst η c c' φ :
+  (c = c' -> φ η) ->
+  pat η (PConstant c) (VConstant c') φ (c <> c').
+Proof.
+  intros Hφ.
+  eapply pat_consequence.
+  { eapply pat_PData.
+    intros Hc; specialize (Hφ Hc).
+    apply pat_PTuple; pats. }
+  { tauto. }
+  { tauto. }
+Qed.
+
+Lemma pat_PConst_eq η c φ ψ :
+  φ η ->
+  pat η (PConstant c) (VConstant c) φ ψ.
+Proof.
+  intros Hφ.
+  eapply pat_consequence_psi; [ eapply pat_PConst; eauto | tauto ].
+Qed.
+
+Lemma pat_PConst_neq η c c' φ ψ :
+  c <> c' ->
+  ψ ->
+  pat η (PConstant c) (VConstant c') φ ψ.
+Proof.
+  intros.
+  eapply pat_consequence_psi; [ apply pat_PConst | ]; tauto.
+Qed.
+
 Lemma pat_false η v (P : Prop) φ :
   v = #P →
   (¬P → φ η) →
   pat η (PConstant "false") v φ P.
 Proof.
-  intros; subst.
-  eapply pat_consequence_psi.
-  { (* The definition of [#] at type [Prop] involves [VBool], which
-       itself involves [BoolConstructor]. *)
-    change "false" with (BoolConstructor false).
-    eapply pat_PData.
-    intro Heq. symmetry in Heq.
-    apply BoolConstructor_injective, truth_false_elim in Heq.
-    pats. }
-  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
-    apply BoolConstructor_congruent_contrapositive in Hneq.
-    apply bool_neq in Hneq.
-    apply truth_true_elim in Hneq.
-    tauto. }
+  intros -> ?; simpl.
+  destruct (truth P) eqn:?.
+
+  { eapply pat_PConst_neq;
+      [ by simpl | by apply truth_true_elim]. }
+
+  { eapply pat_PConst_eq;
+      auto using truth_false_elim. }
 Qed.
 
 Lemma pat_true η v (P : Prop) φ :
@@ -260,18 +280,14 @@ Lemma pat_true η v (P : Prop) φ :
   (P → φ η) →
   pat η (PConstant "true") v φ (¬P).
 Proof.
-  intros; subst.
-  eapply pat_consequence_psi.
-  { change "true" with (BoolConstructor true).
-    eapply pat_PData.
-    intro Heq. symmetry in Heq.
-    apply BoolConstructor_injective, truth_true_elim in Heq.
-    pats. }
-  { intros [| Hneq ]; [ tauto |]. apply not_eq_sym in Hneq.
-    apply BoolConstructor_congruent_contrapositive in Hneq.
-    apply bool_neq in Hneq.
-    apply truth_false_elim in Hneq.
-    tauto. }
+  intros -> Hφ; simpl.
+  destruct (truth P) eqn:?.
+
+  { eapply pat_PConst_eq;
+      apply Hφ; by apply truth_true_elim. }
+
+  { eapply pat_PConst_neq;
+      [ by simpl | by apply truth_false_elim]. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -290,18 +306,16 @@ Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
      with the knowledge that [xs] is not empty *)
 Proof.
   intros; subst.
-  destruct xs.
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_eq; eapply pat_PTuple.
-      pats. }
-    clear; tauto. }
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; done. }
-    done.  }
+  destruct xs; eapply pat_consequence_psi.
+  { eapply pat_PConst; eauto. }
+  { tauto. }
+  { eapply pat_PData_neq; done. }
+  { congruence. }
 Qed.
 
-(* [pat_pCons_cut] exists for explanatory purposes. In practice we use
-   [pat_pCons] to avoid headaches caused by evar instatiation scopes. *)
+(* [pat_pCons_cut] exists for pedagogical purposes. In practice,
+   we use [pat_pCons] to avoid headaches caused by
+   evar instantiation scopes. *)
 
 Lemma pat_pCons_cut `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
@@ -361,61 +375,11 @@ Ltac pat_pNil :=
 Ltac pat_pCons :=
   eapply pat_pCons; first solve [ encode ].
 
-(* The previous lemmas give us a general scheme for reasoning about
+(* The previous lemmas start to give us a general scheme for reasoning about
    pattern matching on ADTs.
 
-   Given an ADT [G], we need one lemma for each of its constructor.
-
-   Given a constructor [C] of [G] with [m] arguments with types [A1 ... A__m],
-   its reasoning rule should have the following form:
-
-   Lemma pat_pC v x η (p1 p2 ... p__m : pat) (φ : env -> Prop)
-   (φ1 : A1 -> env -> Prop) ... (φ__(m-1) : A__(m-1) -> env -> Prop)
-   (ψ1 : A1 -> Prop) ... (ψ__m : A__m -> Prop)
-   :
-   v = #x ->
-   (∀ (x1 : A1) ... (x__m : A__m),
-      x = C x1 ... x__m ->
-      pat η p1 #x1 (φ1 x1) (ψ1 x1)) ->
-   ⋮
-   (∀ (x1 : A1) ... (x__m : A__m),
-      x = C x1 ... x__m ->
-      pat η p__(m-1) #x__(m-1) (φ__(m-1) x__(m-1)) (ψ__(m-1) x__(m-1))) ->
-   (∀ (x1 : A1) ... (x__m : A__m),
-      x = C x1 ... x__m ->
-      pat η p__m #x__m φ (ψ__m x__m)) ->
-   pat (pC p1 ... p__m) v φ (match x with
-                             | C _ ... _ => ⊥
-                             | _ => ⊤
-                             end ∨ (∃ x1 ... x__m, x = C x1 ... x__m ∧
-                                     (ψ1 x1 ∨ ... ∨ ψ__m x__m)))
-   .
-*)
-
-(* TODO: Move/remove the following section *)
-
-(* -------------------------------------------------------------------------- *)
-
-Section HelperLemmas.
-
-Lemma pure_total {B E} `{Encode A} (m : micro B E) k ko (φ : A -> Prop) :
-  total m (fun a => pure (k a) φ) (λ e, pure (ko e) φ) <->
-  pure (try m k ko) φ.
-Proof.
-  unfold pure; unfold total.
-  split; [intros Ht | intros (a & Hsimp & Hψ)].
-  { destruct Ht as [Hterm | Hcont].
-    { destruct Hterm as (b & Hsimp & a & Ha & Hψ).
-      exists a. split; last assumption.
-      eapply prove_simp_try; eauto. }
-    { destruct Hcont as (e & Hnext & a & Hcont & Hψ).
-      exists a. split; last assumption.
-      eapply prove_simp_try_throw; eauto. } }
-  { apply invert_simp_try_ret in Hsimp as [(? & ? & ?) | (? & ? & ?)].
-    - left; eauto.
-    - right; eauto. }
-Qed.
-End HelperLemmas.
+   More experimenting is required. As of now (29/02/24),
+   see [examples/splay.v] for more examples. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -479,33 +443,34 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac strip_disjunction :=
+(* Pattern proofmode tactics *)
+
+Local Ltac strip_disjunction :=
   match goal with
   | H : _ \/ _ |- _ =>
       destruct H as [ H | H ]; try contradiction
   end.
-Ltac remove_tauto :=
+Local Ltac remove_tauto :=
   lazymatch goal with
   | H : ?x = ?x |- _ => clear H
   | _ => idtac
   end.
-Ltac subst_eq :=
+Local Ltac subst_eq :=
   lazymatch goal with
   | H : ?x = _ |- _ => subst x
   | _ => idtac
   end.
-Ltac inject_eq :=
+Local Ltac inject_eq :=
   lazymatch goal with
   | H : ?x = _ |- _ =>
       (injection H; repeat (intros ->) || clear dependent x)
   | _ => idtac
   end.
-Ltac elim_exists :=
+Local Ltac elim_exists :=
   lazymatch goal with
   | H : exists _, _ |- _ => destruct H as [? H]
   end.
-
-Ltac destruct_hyp :=
+Local Ltac destruct_hyp :=
   match goal with
   | H : _ /\ _ |- _ => destruct H
   end.
