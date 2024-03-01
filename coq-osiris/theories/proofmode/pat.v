@@ -417,8 +417,8 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
   pure_match η v ((Branch p e) :: bs) φ.
 Proof.
   unfold pure_match; unfold pat.
-  intros Hpat. simpl.
-  by apply pure_total.
+  intros; simpl.
+  by apply total_pure.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
