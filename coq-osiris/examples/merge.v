@@ -292,7 +292,7 @@ Proof.
       (* Justify use of induction hypothesis *)
       eauto with arith. }
     intros [l1 l2] Hpost; clear IH; simpl.
-    unfold __exp5; abstract_env.
+    abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair. trivial_pure.
     (* Establish postcondition *)
@@ -344,7 +344,6 @@ Proof.
     intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
     unfold mergesort_pre in HP;
       rewrite <- Hperm in HP; apply Forall_app in HP as [??].
-    unfold __exp10.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l1] *)
@@ -354,7 +353,6 @@ Proof.
       { (* Subgoal: show [length l1 < length l ] *)
         rewrite Heql; rewrite Heql in Hl1. by apply div2_lt_succ. } }
     intros l1' IHl1'.
-    unfold __exp9.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l2] *)
@@ -364,7 +362,6 @@ Proof.
       { (* Subgoal: show [length l2 < length l] *)
         rewrite Hl2 Heql. auto with arith. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
-    unfold __exp8.
     eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)
       eapply pure_eval_path. simpl. rewrite Hmerge. by pure_ret. }
