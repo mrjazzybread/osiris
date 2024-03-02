@@ -274,8 +274,18 @@ let rec expr (e : expr) =
   | EStore (e1, e2) ->
       c "EStore" [ expr e1; expr e2 ]
 
+(* If [e] carries a decoration, then [cut_expr e] takes care of
+   cutting below the decoration so the decoration hides the cut in the
+   eyes of the end user. (If we cut above the decoration then the end
+   user would see the Coq toplevel definition created by the cut, and
+   would not see the decoration until they unfold this definition.) *)
+
 and cut_expr e =
-  cut "exp" (expr e)
+  match e with
+  | EDecorate (snippet, e) ->
+      c "deco" [ string snippet; cut_expr e ]
+  | e ->
+      cut "exp" (expr e)
 
 and exprs es =
   map expr es
