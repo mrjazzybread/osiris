@@ -11,6 +11,7 @@ From osiris.program_logic Require Import ewp.
 
 (** *Reasoning principles of [Osiris] wp-based Hoare triples *)
 
+(* Properties about [outcome2] *)
 Lemma is_outcome2_is_Some {A E} (m : micro A E) v:
   is_outcome2 m = Some v ->
   (∃ v', v = O2Throw v' /\ m = Throw v') \/
@@ -19,18 +20,104 @@ Proof.
   intros; destruct m; inversion H; subst; eauto.
 Qed.
 
+Lemma is_not_ret_or_throw_to_outcome2 {A E} m :
+  is_not_ret m ->
+  is_not_throw m ->
+  @is_outcome2 A E m = None.
+Proof.
+  intros H; destruct m; inversion H; intros H'; inversion H'; eauto.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
+(** *EWP tactics *)
+
+(* TODO: Move to a different file *)
+
 Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
 (* This tactic unfolds [ewp] applied to the computation [m]. *)
-
 Ltac ewp_unfold m :=
   setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
+
+(* Reason about case analysis on [is_ret]*)
+Ltac destruct_is_ret :=
+  repeat match goal with
+    (* Inversion for if a computation is a ret *)
+    | [H : is_ret ?x = Some _ |- _] =>
+        apply invert_is_ret_Some in H;
+        try subst x
+    (* Inversion if some bind is equivalent to a return *)
+    | [H : bind _ _ = ret _ |- _] =>
+        let Hm := fresh "Hm_ret" in
+        let Hk := fresh "Hk_ret" in
+        let a := fresh "a" in
+        apply invert_bind_eq_ret in H;
+        destruct H as (a & Hm & Hk);
+        subst
+    (* Inversion if some try is equivalent to a return *)
+    | [H : try _ _ _ = ret _ |- _] =>
+        let Hm := fresh "Hm_ret" in
+        let Hk := fresh "Hk_ret" in
+        let a := fresh "a" in
+        apply invert_try_eq_ret_disj in H;
+        destruct H as [(a & Hm & Hk) | (a & Hm & Hk)];
+        subst
+    (* Absurd goal *)
+    | [H : is_not_ret (ret _) |- _] =>
+        by inversion H
+    end.
+
+Ltac destruct_is_throw :=
+  repeat match goal with
+    (* Inversion for if a computation is a ret *)
+    | [H : is_throw ?x = Some _ |- _] =>
+        apply invert_is_throw_Some in H;
+        try subst x
+    end.
+
+Ltac destruct_is_not_ret_or_throw :=
+  match goal with
+  (* Inversion for if a computation is not a [ret] or [throw] *)
+  | [H : is_not_ret ?a, H' : is_not_throw ?a |- _] =>
+      let Houtcome := fresh "Houtcome" in
+      pose proof (is_not_ret_or_throw_to_outcome2 a H H') as Houtcome
+  end.
 
 Ltac is_outcome2_is_Some Hm :=
   apply is_outcome2_is_Some in Hm;
   destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
+
+(* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
+   of the form [ret a], or it is not. In the second branch, the equality
+   [is_ret m = None] appears under the name [Hret]. *)
+
+Tactic Notation "wp_case_is_ret" constr(x) ident(Hret) :=
+  case_eq (is_ret x);
+  [ intros ? Hret;
+    try destruct_is_ret |
+    intros Hret;
+    try destruct_is_not_ret_or_throw].
+
+Tactic Notation "wp_case_is_ret" constr(x) :=
+  let Hret := fresh "Hret" in
+  wp_case_is_ret x Hret.
+
+(* [wp_case_is_throw m Hthrow] performs a case analysis on [m]: either it is
+   of the form [throw a], or it is not. In the second branch, the equality
+   [is_throw m = None] appears under the name [Hthrow]. *)
+
+Tactic Notation "wp_case_is_throw" constr(x) ident(Hthrow) :=
+  case_eq (is_throw x);
+  [ intros ? Hthrow;
+    try destruct_is_throw |
+    intros Hthrow;
+    try destruct_is_not_ret_or_throw ].
+
+Tactic Notation "wp_case_is_throw" constr(x) :=
+  let Hthrow := fresh "Hthrow" in
+  wp_case_is_throw x Hthrow.
+
 
 (* Working with the state interpretation invariant. *)
 
@@ -158,7 +245,6 @@ Section wp_rules.
     inversion H0.
   Qed.
 
-(* TODO: repair *)
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
@@ -171,7 +257,7 @@ Section wp_rules.
   Definition wp_ret' {R E} s a e φ:
     φ a ⊢ WP (Ret a : micro R E) @ s; e {{ RET v, φ v }}.
   Proof.
-    iIntros "Hφ"; rewrite wp_unfold; by cbn.
+    iIntros "Hφ"; rewrite ewp_unfold; by cbn.
   Qed.
 
   (* Cut rule *)
@@ -183,15 +269,16 @@ Section wp_rules.
 
     wp_case_is_ret m1.
     (* Case: [m1] is [ret _]. *)
-    { repeat wp_unfold_all; destruct (to_outcome (m2 a));
+    { repeat ewp_unfold_all; destruct (is_outcome2 (m2 a));
       by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
-    { wp_unfold m1.
+    { ewp_unfold m1.
       (* Case analysis on [bind] :
             If [m1] is not [ret _]; [bind m1 m2] is not [ret _] *)
       wp_case_is_ret (bind m1 m2); subst.
 
+      (* TODO repair *)
       wp_case_is_throw m1.
       (* Case : [m1] is [throw _]; trivial *)
       { cbn; by iMod "Hwp". }

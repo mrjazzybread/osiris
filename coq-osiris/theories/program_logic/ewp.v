@@ -198,3 +198,44 @@ Proof.
 Qed.
 
 End ewp_properties.
+
+(* TODO Comment *)
+Section lift_specs.
+
+  Context {Σ : gFunctors}.
+
+  Notation iProp := (iProp Σ).
+
+  (* Lifting specifications in Iris logic. *)
+
+  (* [lift_ret_spec] is especially useful for lifting specifications over pure
+      results to specifications which may handle exceptional results. *)
+  Definition lift_ret_spec {A E} (ϕ : A -> iProp) (v : outcome2 A E) : iProp :=
+    match v with
+    | O2Ret r => ϕ r
+    | _ => False
+    end.
+
+  Definition lift_exn_spec {A E} (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
+    match v with
+    | O2Throw e => ψ e
+    | _ => False
+    end.
+
+End lift_specs.
+
+
+(* Custom notation for hoare triples which state a postcondition only over the
+    return continuation *)
+Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" :=
+  (wp s E e%E (lift_ret_spec (λ v, Q)))
+    (at level 20, e, Q at level 200,
+      format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e {{ 'RET' v , Q } }" :=
+  (wp NotStuck ⊤ e%E (lift_ret_spec (λ v, Q)))
+    (at level 20, e, Q at level 200,
+      format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
+  pre-existing notation; might be brittle *)
+Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @ NotStuck; ⊤ {{ RET v , Φ v }}).
