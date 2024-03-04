@@ -28,6 +28,21 @@ Proof.
   intros H; destruct m; inversion H; intros H'; inversion H'; eauto.
 Qed.
 
+Lemma is_outcome2_None_bind {A B E} (m1 : micro A E) (m2 : A -> micro B E):
+  is_outcome2 m1 = None ->
+  is_outcome2 (bind m1 m2) = None.
+Proof.
+  intros; destruct m1; eauto; inversion H.
+Qed.
+
+Lemma is_outcome2_None_try {A B E' E}
+  (m : micro A E') (f : A -> micro B E) (h : E' -> micro B E) :
+  is_outcome2 m = None ->
+  is_outcome2 (try m f h) = None.
+Proof.
+  intros; destruct m; eauto; inversion H.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 (** *EWP tactics *)
 
@@ -84,6 +99,47 @@ Ltac destruct_is_not_ret_or_throw :=
       pose proof (is_not_ret_or_throw_to_outcome2 a H H') as Houtcome
   end.
 
+
+(* -------------------------------------------------------------------------- *)
+
+(* Assert that [bind m1 m2] is not an outcome, deduced by [m1] not being an
+    outcome *)
+Tactic Notation "not_outcome:" "bind" constr(m1) constr(m2) :=
+  match goal with
+  | [H: is_outcome2 m1 = None |- _ ] =>
+      apply (is_outcome2_None_bind m1 m2) in H;
+      try rewrite H
+  end.
+
+(* Assert that [try m _ _] is not an outcome, deduced by [m] not being an
+    outcome *)
+Tactic Notation "not_outcome:" "try" constr(m) constr(f) constr(h) :=
+  match goal with
+  | [H: is_outcome2 m = None |- _ ] =>
+      apply (is_outcome2_None_try m f h) in H;
+      try rewrite H
+  end.
+
+(* Discharge pure subgoal that follows immediately by [tac] *)
+Tactic Notation "discharge_pure" tactic(tac) :=
+  match goal with
+  | |- environments.envs_entails _ (bi_sep (bi_pure _) _) =>
+      iSplitL ""; [ iPureIntro; by tac | ]
+  | |- environments.envs_entails _ (bi_sep  _ (bi_pure _)) =>
+      iSplitL ""; [ | iPureIntro; by tac ]
+  end.
+
+(* Discharge emp subgoal *)
+Ltac discharge_emp :=
+  match goal with
+  | |- environments.envs_entails _ (bi_sep emp _) =>
+      iSplitL ""; [ done | ]
+  | |- environments.envs_entails _ (bi_sep  _ emp) =>
+      iSplitR ""; [ | done ]
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 Ltac is_outcome2_is_Some Hm :=
   apply is_outcome2_is_Some in Hm;
   destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
@@ -124,7 +180,7 @@ Tactic Notation "wp_case_is_throw" constr(x) :=
 (* [intro_state] introduces [σ] and [state_interp σ]. *)
 (* [spec_state H] specializes the hypothesis H with [state_interp σ]. *)
 
-Ltac intro_state := iIntros (σ????) "Hsi".
+Ltac intro_state := iIntros (σ) "Hsi".
 
 Ltac spec_state :=
   lazymatch goal with
@@ -136,6 +192,90 @@ Ltac spec_state :=
           iSpecialize (Hwp with SI);
           iMod Hwp;
           iDestruct Hwp as (Hred) Hwp
+      end
+  end.
+
+(* -------------------------------------------------------------------------- *)
+(* More [wp] tactics *)
+
+Ltac wp_frame := iFrame; cbn; discharge_emp.
+
+(* [intro_step] introduces [prim_step] along with the new expression and state *)
+Ltac intro_step :=
+  let Hstep := fresh "Hstep" in
+  let efs := fresh "efs" in
+  iIntros (?? Hstep).
+
+(* NEXT: EDIT *)
+(* The following two tactics correspond to the branch [is_ret _ = None] in
+  the definition of [wp]. This branch is a conjunction
+    ⌜can_step (σ, m)⌝ ∗ ∀ σ' m', ...
+  [construct_wp_nonret] is used when this form appears in the goal.
+  [destruct_wp_nonret] is used when it appears in the hypothesis "Hwp". *)
+
+Ltac construct_wp_nonret :=
+  (* Prove [can_step]: *)
+  (discharge_pure (eauto with can_step));
+  (* Introduce a hypothetical step: *)
+  intro_step.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Some tactics relevant to [step] relation *)
+
+(* Try to search the environment if there is something known about the head of
+  the computation, i.e. [m] ; if so, try to extract as much information as
+  possible *)
+Tactic Notation "step_inv_aux" constr(m) constr(lem) tactic(tac) :=
+  (* Generate some fresh names *)
+  let Hred := fresh "Hred" in
+  let m' := fresh "m'" in
+  let Hstep' := fresh "Hstep'" in
+  destruct lem as (m' & Hstep' & ->); [ done | ].
+
+(* Invert hypotheses of the shape
+    [step (σ, bind _ _) _] and [step (σ, try _ _ _) _] *)
+Tactic Notation "step_inv" hyp(Hstep) :=
+  match type of Hstep with
+  | step.step (_, bind ?m _) _ =>
+      (step_inv_aux m (invert_step_bind Hstep) idtac)
+  | step.step (_, try ?m _ _) _ =>
+      (step_inv_aux m (invert_step_try Hstep) idtac)
+  end.
+
+(* Change goals of form [step _ _] to [prim_step _ _ _ _ _ ] *)
+Tactic Notation "to_prim_step" hyp(H) :=
+  match type of H with
+  | step (?σ, ?m) (?σ', ?m') =>
+      let H' := fresh "H'" in
+      rename H into H';
+      assert (H: prim_step m σ [] m' σ' []) by (constructor; eauto);
+      clear H'
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [tick_wp] is used when the goal is
+    [|==> ▷ (state_interp σ' ∗ wp E m' φ)]. *)
+
+Ltac tick_wp :=
+  iModIntro; iNext; iMod "Hwp"; iModIntro.
+
+(* Specialize hypothesis that expects a [step] relation and extract out
+information *)
+Ltac spec_step :=
+  match goal with
+  | |- context[environments.Esnoc _ ?Hwp
+                (bi_forall (fun _ : store =>
+                              bi_forall (fun _ : micro _ _ =>
+                                            bi_wand (bi_pure (step.step (?σ, ?m) _)) _)))] =>
+      match goal with
+      | [Hstep : step.step (σ, m) _ |- _] =>
+          (* Specialize step relation *)
+          iSpecialize (Hwp $! _ _ Hstep);
+          (* Destruct the hypothesis *)
+          iMod Hwp;
+          tick_wp
       end
   end.
 
@@ -153,6 +293,28 @@ Section wp_rules.
     is_outcome2 m = None.
   Proof.
     destruct m; inversion 1; try dependent destruction H8; eauto.
+  Qed.
+
+  Lemma fupd_wp {A X} s E (e : micro A X) Φ :
+    (|={E}=> WP e @ s; E {{ Φ }}) ⊢ WP e @ s; E {{ Φ }}.
+  Proof.
+    rewrite ewp_unfold /ewp_pre. iIntros "H".
+    destruct (is_outcome2 e) as [v|] eqn:?.
+    { by iMod "H". }
+    iIntros (σ) "Hσ1". iMod "H". by iApply "H".
+  Qed.
+
+  (* Local Instance for eliminating fancy updates *)
+  (* For some reason this has to be shown explicitly (perhaps the quantification
+    over return and exception types for the language make the tc resolution
+    finnicky) *)
+  Global Instance elim_modal_fupd_wp {A X} p s E (e : micro A X) P Φ :
+    classes.ElimModal True p false (fupd E E P) P (WP e @ s; E {{ Φ }})
+      (WP e @ s; E {{ Φ }}).
+  Proof.
+    rewrite /classes.ElimModal bi.intuitionistically_if_elim.
+    rewrite fupd_frame_r. rewrite bi.wand_elim_r. intro.
+    by pose proof (fupd_wp s E e Φ).
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -245,6 +407,16 @@ Section wp_rules.
     inversion H0.
   Qed.
 
+  (* NEXT: Move *)
+  Lemma is_eff_bind {A1 A2 X} (m1 : micro A1 X) (m2 : A1 -> micro A2 X) v k:
+    is_eff m1 = Some (v, k)->
+    is_eff (bind m1 m2) = Some (v, fun v => bind (k v) m2).
+  Proof.
+    intros Hm1.
+    destruct m1; inversion Hm1.
+    destruct c; inversion H1; subst; by cbn.
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
@@ -278,13 +450,12 @@ Section wp_rules.
             If [m1] is not [ret _]; [bind m1 m2] is not [ret _] *)
       wp_case_is_ret (bind m1 m2); subst.
 
-      (* TODO repair *)
       wp_case_is_throw m1.
       (* Case : [m1] is [throw _]; trivial *)
-      { cbn; by iMod "Hwp". }
+      { cbn. by iMod "Hwp". }
 
       (* Case : [m1] is not [throw _] *)
-      wp_unfold (bind m1 m2); rewrite Houtcome.
+      ewp_unfold (bind m1 m2); rewrite Houtcome.
       (* Since [m1] is not an outcome, [bind m1 m2] is not an outcome, either. *)
       not_outcome: bind m1 m2.
 
@@ -297,10 +468,27 @@ Section wp_rules.
       step_inv Hstep.
 
       (* Can use information from above to get [wp] about stepped computation *)
-      spec_step; iModIntro; wp_frame.
+      spec_step.
 
-      (* Apply induction hypothesis  *)
-      by iApply ("IH" with "Hwp"). }
+      (* TODO: Clean up *)
+      destruct (is_eff m1) eqn: Hm1.
+      { destruct p; apply (is_eff_bind m1 m2) in Hm1; rewrite Hm1.
+        iDestruct "Hwp" as "[Si [Heff Hwp]]"; iFrame.
+        iIntros (??) "SI"; iSpecialize ("Hwp" with "SI").
+        iMod "Hwp". iModIntro; iNext.
+        by iApply ("IH" with "Hwp"). }
+
+      destruct m1; inversion Hm1; cbn.
+      all: try (iDestruct "Hwp" as "[SI Hwp]"; iFrame;
+                  by iApply ("IH" with "Hwp")).
+
+      2 : {
+        destruct c; inversion H1;
+        try (iDestruct "Hwp" as "[SI Hwp]"; iFrame;
+        by iApply ("IH" with "Hwp")). }
+
+      (* [m1] is [ret _] *)
+      inversion Hstep'. }
   Qed. (* LATER: See if we can clean up this proof using [wp_try] Proof. *)
 
   (* A binary version of the previous lemma. *)
@@ -311,7 +499,7 @@ Section wp_rules.
 
   Lemma wp_bind_binary {A1 A2 X} (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
     WP m1 {{ φ }} ⊢
-    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ↑) v) -∗
+    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ) v) -∗
     WP (bind m1 m2) {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
