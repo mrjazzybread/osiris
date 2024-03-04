@@ -36,89 +36,165 @@ End ghost_instances.
 Definition state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
-
 (* -------------------------------------------------------------------------- *)
+(* Computations that can be handled by a match-expression;
+      a [ret _] [throw _] or [perform _ _]. *)
+Inductive handleable (A E : Type) : Type :=
+  HRet : A → handleable A E
+| HThrow : E → handleable A E
+| HPerform : C.eff -> (outcome2 syntax.val exn -> micro A E) → handleable A E.
 
-(* TODO *)
-Definition is_outcome2 {A X} (m : micro A X) : option (outcome2 A X):=
+Arguments handleable {A E}.
+
+Arguments HRet {A E}.
+Arguments HThrow {A E}.
+Arguments HPerform {A E}.
+
+(* Check whether a computation is [handleable]. *)
+Definition is_handleable {A X} (m : micro A X) : option handleable :=
   match m with
-  | Ret v => Some (O2Ret v)
-  | Throw e => Some (O2Throw e)
+  | Ret v => Some (HRet v)
+  | Throw e => Some (HThrow e)
+  | Stop CPerform e k => Some (HPerform e k)
   | _ => None
   end.
 
-(* TODO *)
-Definition is_eff {A X} (m : micro A X) : option _:=
-  match m with
-  | Stop CPerform e k => Some (e, k)
-  | _ => None
-  end.
+(* -------------------------------------------------------------------------- *)
+(* Protocols, following Vilhena and Pottier's [A Separation Logic for Effect
+    Handlers]. *)
+Notation Val := syntax.val.
+Notation Eff := C.eff.
+Notation Outcome := (outcome2 syntax.val exn).
+
+(* Operations over protocols of carrier [A] *)
+Class protocol_op {A} :=
+  { (* Operation on protocols *)
+    prot_abort : A;
+    prot_sum : A -> A -> A;
+  (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
+
+Class protocol_spec Σ {A} `{@protocol_op A} :=
+  { prot_spec : A -d> Eff -d> (Outcome -d> iProp Σ) -d> iProp Σ ;
+    prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
+
+Arguments protocol_spec {_ _ _}.
+Arguments prot_spec {_ _ _ _} _ _ _.
+
+Class protocol Σ {A} :=
+  { protocol_operations :: @protocol_op A;
+    protocol_specification :: @protocol_spec Σ A _ }.
+
+Notation "P + Q" := (prot_sum P Q).
+Notation "Ψ 'allows' 'do' v { Φ }" := (prot_spec Ψ v Φ) (at level 40).
+
+(* Axiomatic characterization of protocols *)
+Section protocol_spec_properties.
+
+  Variable (Σ : gFunctors).
+  Context {A : Type}.
+  Context {Protocol : @protocol Σ A}.
+
+  Class protocol_monotone :=
+    prot_mono v' Ψ Φ1 Φ2 :
+      prot_spec Ψ v' Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ⊢
+            prot_spec Ψ v' Φ2.
+
+  Class protocol_abort :=
+    prot_abort_absurd v Φ :
+      (prot_spec prot_abort v Φ ⊣⊢ ⌜False⌝)%I.
+
+  Class protocol_sum_or :=
+    prot_sum_or v' Ψ1 Ψ2 Φ :
+      prot_spec (Ψ1 + Ψ2) v' Φ ⊣⊢
+        prot_spec Ψ1 v' Φ ∨ prot_spec Ψ2 v' Φ.
+
+  Class protocol_properties :=
+  { (* [A2] *)
+    prot_prop_abort :: protocol_abort;
+    (* [A3] *)
+    prot_prop_sum :: protocol_sum_or;
+    (* [A5] *)
+    prot_prop_mono :: protocol_monotone; }.
+
+End protocol_spec_properties.
+
+(* Definition of well-formed protocols, i.e. protocol operations and spec
+   that satisfies certain axiomatic properties. *)
+Class protocol_wf Σ {A} :=
+  { protocol_def :: @protocol Σ A;
+    protocol_wf_properties :: protocol_properties Σ }.
 
 (* -------------------------------------------------------------------------- *)
-(* TODO *)
-Class protocol {Σ} :=
-  { eff_p : syntax.val -d> iPropO Σ;
-    ans_p : syntax.val -d> iPropO Σ }.
-(* -------------------------------------------------------------------------- *)
 
-(* TODO *)
 Section ewp.
 
-Context `{!osirisGS Σ} `{protocol Σ}.
+  Context {A X : Type}.
 
-Context {A X : Type}.
+  (* Carrier type of protocols *)
+  Context {P : Type}.
 
-(* TODO *)
-Definition ewp_pre
-  (ewp: coPset -d> micro A X -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-  coPset -d> micro A X -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
-  λ E m φ,
-  (match is_outcome2 m with
-    | Some v =>
-        |={E}=> φ v
-    | None =>
-      ∀ σ, state_interp σ ={E, ∅}=∗
-        ⌜can_step (σ, m)⌝ ∗
-        (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-            match is_eff m with
-            | Some (v, k) =>
-                state_interp σ' ∗ eff_p v ∗
-                (∀ σ'' w, state_interp σ'' ∗ ans_p w ==∗ ▷ ewp E (k (O2Ret w)) φ)
-            | None =>
-                (state_interp σ' ∗ ewp E m' φ)
-      end)
-  end)%I.
+  Context `{!osirisGS Σ}
+           `{protocol_wf Σ P}.
 
-Local Instance ewp_pre_contractive : Contractive ewp_pre.
-Proof.
-  rewrite /ewp_pre /= => n wp wp' Hwp E m Φ.
-  do 16 (f_contractive || f_equiv);
-  repeat f_equiv; apply Hwp.
-Qed.
+  Definition ewp_pre
+    (ewp: coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
+    coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+    λ E m Ψ φ,
+    (match is_handleable m with
+      (* [EWP1] *)
+      | Some (HRet v) => |={E}=> φ (O2Ret v)
+      | Some (HThrow v) => |={E}=> φ (O2Throw v)
+      (* [EWP2] *)
+      | Some (HPerform v k) =>
+          prot_spec Ψ v (fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ)
+      (* [EWP3] *)
+      | None =>
+          ∀ σ, state_interp σ ={E, ∅}=∗
+                ⌜can_step (σ, m)⌝ ∗
+                (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
+                  (state_interp σ' ∗ ewp E m' Ψ φ))
+      end)%I.
 
-Definition ewp_def : Wp (iProp Σ) (micro A X) (outcome2 A X) stuckness :=
-  λ (_ : stuckness), fixpoint ewp_pre.
+  Local Instance ewp_pre_contractive : Contractive ewp_pre.
+  Proof.
+    rewrite /ewp_pre /= => n wp wp' Hwp E m Φ.
+    repeat intro.
+    do 2 (f_contractive || f_equiv); cycle 1.
+    { repeat (f_contractive || f_equiv);
+        apply Hwp. }
 
-Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
-Definition ewp' := ewp_aux.(unseal).
+    repeat (f_contractive || f_equiv).
+    intro.
+    repeat (f_contractive || f_equiv).
+    apply Hwp.
+  Qed.
 
+  Definition ewp_def := fixpoint ewp_pre.
 
-Global Arguments ewp' {Σ _ _}.
-Global Existing Instance ewp'.
-Local Lemma ewp_unseal: wp = ewp_def.
-Proof. rewrite -ewp_aux.(seal_eq) //. Qed.
+  Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
+  Definition ewp' := ewp_aux.(unseal).
+
+  Global Arguments ewp' {E e Ψ Φ} : rename.
 
 End ewp.
 
 (* -------------------------------------------------------------------------- *)
 
+(** Notation. *)
+
+Notation "'EWP' e @ E <| Ψ '|' '>'  {{ Φ } }" :=
+  (ewp_def E e%E Ψ Φ)
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+(* -------------------------------------------------------------------------- *)
 From iris.proofmode Require Import proofmode.
 
 Section ewp_properties.
 
-Context {A X : Type}.
-Context `{!osirisGS Σ} `{protocol Σ}.
-Implicit Type s : stuckness.
+Context {A X P : Type}.
+Context `{!osirisGS Σ} `{protocol_wf Σ P}.
 Implicit Type P : iProp Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : A.
@@ -126,80 +202,48 @@ Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
-Lemma ewp_unfold {s E} m {φ} :
-  WP m @ s; E {{ φ }} ⊣⊢ ewp_pre (wp s) E m φ.
-Proof.
-  rewrite ewp_unseal.
-  apply (@fixpoint_unfold _ _ _ ewp_pre).
-Qed.
+Lemma ewp_unfold {E} m Ψ {φ} :
+  EWP m @ E <| Ψ |> {{ φ }} ⊣⊢ ewp_pre ewp_def E m Ψ φ.
+Proof. rewrite /ewp_def; apply (@fixpoint_unfold _ _ _ ewp_pre). Qed.
 
 Local Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
-Global Instance ewp_ne s E m n :
-  Proper
-    (pointwise_relation _ (dist n) ==> dist n)
-    (wp s E m).
+Global Instance ewp_ne E m n Ψ:
+  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m Ψ).
 Proof.
-  revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ HΦ.
+  revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ' HΦ.
   ewp_unfold_all.
   repeat ((by rewrite IH; [done|lia|];
           let v := fresh "v" in
-              intros v; eapply dist_le; [apply HΦ|lia])
-         + (f_contractive || f_equiv)).
+          intros v; eapply dist_le; [apply HΦ|lia])
+          + (f_contractive || f_equiv)).
+  intro.
+
+  (f_contractive || f_equiv). eapply IH; auto.
+  intros v; eapply dist_le; [apply HΦ|lia].
 Qed.
 
-Global Instance ewp_proper s E m :
+Global Instance ewp_proper E m Ψ:
   Proper
     (pointwise_relation _ (≡) ==> (≡))
-    (wp s E m).
+    (ewp_def E m Ψ).
 Proof.
   by intros Φ Φ' ?; apply equiv_dist=>n; apply ewp_ne=>v; apply equiv_dist.
 Qed.
 
-Global Instance ewp_contractive s E m n :
-  TCEq (is_outcome2 m) None →
+Global Instance ewp_contractive E m n Ψ:
+  TCEq (is_handleable m) None →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
-    (wp s E m).
+    (ewp_def E m Ψ).
 Proof.
-  intros He Φ Ψ HΦ. ewp_unfold_all. rewrite He /=.
+  intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
   do 23 (f_contractive || f_equiv).
-  repeat f_equiv.
-Qed.
-
-Lemma ewp_strong_mono s1 s2 E1 E2 e Φ φ :
-  s1 ⊑ s2 → E1 ⊆ E2 →
-  WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v ={E2}=∗ φ v) -∗ WP e @ s2; E2 {{ φ }}.
-Proof.
-  iIntros (? HE) "H HΦ".
-  iLöb as "IH" forall (e E1 E2 HE Φ φ).
-  rewrite !ewp_unfold /ewp_pre /=.
-  destruct (is_outcome2 e) as [v|] eqn:?.
-  { iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
-  iIntros (σ) "Hσ".
-  iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
-  iMod ("H" with "[$]") as "[% H]".
-  iModIntro. iSplit; [by destruct s1, s2|].
-  iIntros (σ2 ? Hstep).
-  destruct H1, x.
-  iMod ("H" with "[//]") as "H". iIntros "!> !>".  iMod "H".
-  iMod "Hclose".
-  iModIntro.
-  destruct (is_eff e); cycle 1.
-  { iDestruct "H" as "[$ H]";
-      iApply ("IH" with "[//] H HΦ"). }
-  destruct p.
-  iDestruct "H" as "[$ [$ H]]".
-  iIntros (??) "HSA".
-  iSpecialize ("H" with "HSA"). iMod "H".
-  iIntros "!> !>".
-  iApply ("IH" with "[] H"); auto.
 Qed.
 
 End ewp_properties.
 
-(* TODO Comment *)
 Section lift_specs.
 
   Context {Σ : gFunctors}.
@@ -228,7 +272,6 @@ Section lift_specs.
     | O2Throw e => ψ e
     end.
 
-
 End lift_specs.
 
 Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
@@ -236,19 +279,15 @@ Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
 Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
   (ilift (fun x => e) (fun y => f))
     (at level 200, right associativity, format
-                                          "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+    "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation *)
-Notation "'WP' e @ s ; E {{ 'RET' v , Q } }" :=
-  (wp s E e%E (lift_ret_spec (λ v, Q)))
+Notation "'WP' e @ E  <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
+  (ewp_def E e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'WP'  e  '/' @  '[' s ;  '/' E  ']' '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e {{ 'RET' v , Q } }" :=
-  (wp NotStuck ⊤ e%E (lift_ret_spec (λ v, Q)))
+      format "'[hv' 'WP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
+  (ewp_def NotStuck ⊤ e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'WP'  e  '/' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
-(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
-  pre-existing notation; might be brittle *)
-Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
-  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @ NotStuck; ⊤ {{ RET v , Φ v }}).
+      format "'[hv' 'WP'  e  '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
