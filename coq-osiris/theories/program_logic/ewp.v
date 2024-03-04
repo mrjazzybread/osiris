@@ -284,13 +284,13 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation *)
-Notation "'WP' e @ E  <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
+Notation "'EWP' e @ E  <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def E e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'WP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>'
+      format "'[hv' 'EWP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>'
         {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
-Notation "'WP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
+Notation "'EWP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def NotStuck ⊤ e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'WP'  e  '/' <| Ψ '|' '>'
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'
           {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
