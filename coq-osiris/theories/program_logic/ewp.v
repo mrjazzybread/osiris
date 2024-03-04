@@ -222,8 +222,21 @@ Section lift_specs.
     | _ => False
     end.
 
+  Definition ilift {A E} (ϕ : A -> iProp) (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
+    match v with
+    | O2Ret r => ϕ r
+    | O2Throw e => ψ e
+    end.
+
+
 End lift_specs.
 
+Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
+Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
+Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
+  (ilift (fun x => e) (fun y => f))
+    (at level 200, right associativity, format
+                                          "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation *)

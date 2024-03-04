@@ -8,6 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp.
+From osiris.semantics Require Import step code.
 
 (** *Reasoning principles of [Osiris] wp-based Hoare triples *)
 
@@ -54,6 +55,11 @@ Ltac ewp_unfold_all :=
 (* This tactic unfolds [ewp] applied to the computation [m]. *)
 Ltac ewp_unfold m :=
   setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
+
+(* This tactic unfolds one occurrence of [ewp] at the head of the goal. *)
+
+Ltac ewp_unfold_head :=
+  iApply ewp_unfold; rewrite /ewp_pre /=.
 
 (* Reason about case analysis on [is_ret]*)
 Ltac destruct_is_ret :=
@@ -198,7 +204,7 @@ Ltac spec_state :=
 (* -------------------------------------------------------------------------- *)
 (* More [wp] tactics *)
 
-Ltac wp_frame := iFrame; cbn; discharge_emp.
+Ltac wp_frame := iFrame; cbn.
 
 (* [intro_step] introduces [prim_step] along with the new expression and state *)
 Ltac intro_step :=
@@ -215,7 +221,7 @@ Ltac intro_step :=
 
 Ltac construct_wp_nonret :=
   (* Prove [can_step]: *)
-  (discharge_pure (eauto with can_step));
+  (discharge_pure (eauto with step can_step || econstructor; constructor));
   (* Introduce a hypothetical step: *)
   intro_step.
 
@@ -417,6 +423,16 @@ Section wp_rules.
     destruct c; inversion H1; subst; by cbn.
   Qed.
 
+  Lemma is_eff_try {A B E' E}
+    (m : micro A E') (f : A -> micro B E) (h : E' -> micro B E) v k:
+    is_eff m = Some (v, k)->
+    is_eff (try m f h) = Some (v, fun v => try (k v) f h).
+  Proof.
+    intros Hm.
+    destruct m; inversion Hm.
+    destruct c; inversion H1; subst; by cbn.
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *Hoare-style reasoning rules for primitive [micro] and monadic combinators *)
 
@@ -499,13 +515,12 @@ Section wp_rules.
 
   Lemma wp_bind_binary {A1 A2 X} (m1: micro A1 X) (m2: A1 → micro A2 X) φ ψ :
     WP m1 {{ φ }} ⊢
-    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ) v) -∗
+    (∀ v, φ v -∗ ((fun v0 => WP m2 v0 {{ v, ψ v }}) ↑) v) -∗
     WP (bind m1 m2) {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
     iApply wp_bind.
-    iApply (wp_strong_mono with "Hm1"); try set_solver.
-    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
+    iApply (wp_covariant with "Hm1"); try set_solver.
   Qed.
 
   (* Try-catch *)
@@ -520,24 +535,24 @@ Section wp_rules.
     wp_case_is_ret m.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
-    { repeat wp_unfold_all;
-        destruct (to_outcome (f a)); by iMod "Hwp". }
+    { repeat ewp_unfold_all; cbn;
+        destruct (is_outcome2 (f a)); by iMod "Hwp". }
 
     (* Case: [m1] is not [ret _]. *)
-    { wp_unfold m.
+    { ewp_unfold m.
 
       (* Case analysis on [try] :
             If [m1] is not [ret _]; [try m1 _ _] is not [ret _] *)
       wp_case_is_ret (try m f h) Hret'; subst.
       { rewrite /= Hk_ret /=.
-        wp_unfold_all; by iMod "Hwp". }
+        ewp_unfold_all; cbn; rewrite Hk_ret; by iMod "Hwp". }
 
       wp_case_is_throw m Hthrow; cbn.
       (* Case : [m1] is [throw _]; trivial  *)
       { iMod "Hwp"; by iFrame. }
 
       (* Case : [m1] is not [throw _]. *)
-      wp_unfold_head. rewrite Houtcome.
+      rewrite Houtcome. ewp_unfold_head.
 
       (* Since [m] is not an outcome, [try m f h] is not an outcome, either. *)
       not_outcome: try m f h.
@@ -551,10 +566,26 @@ Section wp_rules.
       step_inv Hstep.
 
       (* Can use information from above to get [wp] about stepped computation *)
-      spec_step; iModIntro; wp_frame.
+      spec_step.
 
-      (* Apply induction hypothesis  *)
-      by iApply ("IH" with "Hwp"). }
+      (* TODO: Clean up *)
+      destruct (is_eff m) eqn: Hm.
+      { destruct p; apply (is_eff_try m f h) in Hm; rewrite Hm.
+        iDestruct "Hwp" as "[Si [Heff Hwp]]"; iFrame.
+        iIntros (??) "SI"; iSpecialize ("Hwp" with "SI").
+        iMod "Hwp". iModIntro; iNext.
+        by iApply ("IH" with "Hwp"). }
+
+      destruct m; inversion Hm; cbn.
+      all: try (iDestruct "Hwp" as "[SI Hwp]"; iFrame;
+                  by iApply ("IH" with "Hwp")).
+
+      3 : {
+        destruct c; inversion H1;
+        try (iDestruct "Hwp" as "[SI Hwp]"; iFrame;
+        by iApply ("IH" with "Hwp")). }
+
+      all: inversion Hstep'. }
   Qed.
 
   (* A binary version of the previous lemma. *)
@@ -564,21 +595,186 @@ Section wp_rules.
     premise, so the proof of [m2] is not duplicated. *)
 
   Lemma wp_try_binary {A1 A2 X' X} (m1: micro A1 X') (m2: A1 → micro A2 X)
-    (h : X' -> micro A2 X) (φ ψ : outcome -> _) :
+    (h : X' -> micro A2 X) (φ ψ : outcome2 _ _ -> _) :
     WP m1 {{ φ }} ⊢
       (∀ v, φ v -∗
-      (| RET x => WP m2 x {{ v, ψ v }};
-      | EXN y => WP h y {{ v, ψ v }}) v) -∗
-        WP (try m1 m2 h) {{ ψ }}.
+                   (| RET x => WP m2 x {{ v, ψ v }};
+                   | EXN y => WP h y {{ v, ψ v }}) v) -∗
+                                                        WP (try m1 m2 h) {{ ψ }}.
   Proof.
     iIntros "Hm1 Hm2".
     iApply wp_try.
-    iApply (wp_strong_mono with "Hm1"); try set_solver.
-    iIntros (?) "Hφ"; iSpecialize ("Hm2" with "Hφ"); by iModIntro.
+    iApply (wp_covariant with "Hm1"); try set_solver.
   Qed.
 
-  (* Invert cases where there are premises of the form
-    [WP (ret _) _] [WP crash _] or [WP (throw _) _] *)
+
+
+From osiris.semantics Require Import simplification.
+
+Ltac wp_mask_intro Hmod :=
+  iApply fupd_mask_intro; [ set_solver | ]; iIntros Hmod.
+
+(* Try to introduce modalities "as much as possible" *)
+Ltac try_iModIntro :=
+  repeat iModIntro; try iNext; repeat iModIntro.
+
+(* Try to "cleanup" the goal; remove any modalities from the premise that can
+   be discharged trivially and then introduce any "straight forward" modalities
+  that can be introduced *)
+Ltac wp_cleanup_mod :=
+  repeat match goal with
+    | |- context[environments.Esnoc _
+                  ?Hmod (fupd empty empty _)] =>
+        iMod Hmod
+    end;
+  try_iModIntro.
+
+(* Try to restore a mask from a previous mask update. *)
+Ltac wp_mask_elim :=
+  wp_cleanup_mod;
+  match goal with
+  | |- environments.envs_entails _ (fupd ?mask1 ?mask2 _) =>
+    try match goal with
+      | |- context[environments.Esnoc _ ?Hmod (fupd mask1 mask2 emp)] =>
+          iMod Hmod as "_"
+      end
+  end;
+  wp_cleanup_mod.
+
+(* -------------------------------------------------------------------------- *)
+(** *WP step tactics *)
+
+Ltac wp_try_step := try construct_wp_nonret; destruct_step.
+Ltac wp_try_final_step := try construct_wp_nonret; simp_final_step_diagram.
+
+(* Try to take a step of [wp] for goals of shape
+    [⊢ WP e {{ v, Ψ v }}] where [e] is known to take a step, and generate
+    appropriate [WP] subgoals for each possible step. *)
+Ltac wp_step :=
+  try ewp_unfold_head; try intro_state;
+  (* Introduce mask for entering into WP *)
+  wp_mask_intro "Hmod";
+  (* Try to step, possibly generating multiple subgoals if there is more than
+     one way of stepping *)
+  wp_try_step;
+  (* Eliminate mask to "exit" WP *)
+  wp_mask_elim;
+  (* Frame state interp *)
+  try wp_frame.
+
+(* We enter into the WP of the goal, eliminate modalities, use the fact
+  that the program can be the final step of a diagram and frame the state
+  interp. *)
+Ltac wp_final_step_diagram :=
+  try ewp_unfold_head; try intro_state;
+  (* Introduce mask for entering into WP *)
+  wp_mask_intro "Hmod";
+  (* Try to step in a unique way *)
+  wp_try_final_step;
+  (* Eliminate mask to "exit" WP *)
+  wp_mask_elim;
+  (* Frame state interp *)
+  try wp_frame.
+
+(* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)
+Tactic Notation "wp_step_mask" constr(Hmod) :=
+  try ewp_unfold_head; try intro_state;
+  wp_mask_intro Hmod; wp_try_step.
+
+
+  (* A reasoning rule for [choose]. *)
+
+  (* A non-separating conjunction is used to express the idea that
+    either [m1] or [m2] is executed, but not both. Thus, there is
+    no need to split the current resource. It suffices to prove
+    that both [m1] and [m2] are safe under the current resource. *)
+
+  Lemma wp_choose {res exn} (m1 m2 : micro res exn) ψ :
+    ▷ (WP m1 {{ ψ }} ∧ WP m2 {{ ψ }}) ⊢
+      WP (choose m1 m2) {{ ψ }}.
+  Proof.
+    iIntros "H"; wp_step.
+    { iDestruct "H" as "[H _]".
+      rewrite try2_ret_right; iFrame. }
+
+    { iDestruct "H" as "[_ H]".
+      rewrite try2_ret_right; iFrame. }
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* [CAlloc]. *)
+
+  (* The standard memory allocation rule of Separation Logic. *)
+
+  Lemma wp_alloc {A X} s E v (k : outcome2 loc exn → micro A X) (φ : outcome2 A X -> _) :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
+          WP (k (O2Ret l)) @ s; E {{ φ }}) ⊢
+    WP (Stop CAlloc v k) @ s; E {{ φ }}.
+  Proof.
+    iIntros "H".
+    wp_step_mask "Hmod".
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]"; first done.
+    wp_mask_elim.
+
+    wp_frame. by iApply "H".
+  Qed.
+
+  (* [CStore]. *)
+
+  (* The standard memory write rule of Separation Logic. *)
+
+  Lemma wp_store {A X} s E l v v' (k : outcome2 _ exn → micro A X) φ :
+    mapsto l (DfracOwn 1) (V v) ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) (V v') -∗
+        WP (k (O2Ret tt)) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CStore (l, v') k) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%";
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    wp_mask_elim. wp_frame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* The standard memory load rule of Separation Logic. *)
+
+  Lemma wp_load {A X} s E l v dq (k: outcome2 _ exn → micro A X) φ :
+    mapsto l dq (V v) ⊢
+    ▷ (
+        mapsto l dq (V v) -∗
+        WP (k (O2Ret v)) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CLoad l k) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
+
+    wp_mask_elim. wp_frame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* Invert cases where there are premises of the form *)
+  (*   [WP (ret _) _] [WP crash _] or [WP (throw _) _] *)
   Local Ltac wp_invert :=
     match goal with
     | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
@@ -671,139 +867,6 @@ Section wp_rules.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
-
-  (* The following lemmas offer reasoning rules for each of the system calls,
-    that is, for computations of the form [Stop c x y]. They are simple
-    consequences of the operational behavior of these system calls. *)
-
-  (* [CEval]. *)
-
-  Lemma wp_eval {A X} η e (k : val → micro A X) z φ :
-    ▷ WP (eval η e) {{ | RET v => WP (k v) {{ φ }} ;
-                       | EXN v => WP (z v) {{ φ }} }} ⊢
-    WP (Stop CEval (η, e) k z) {{ φ }}.
-  Proof.
-    iIntros "Hwp". wp_step. by iApply wp_try.
-  Qed.
-
-  Lemma wp_eval_ret {X} η (e : expr)
-    {z : void → micro val X} (φ : _ -> iPropI Σ):
-    ▷ WP eval η e
-        {{ v, ( | RET v => WP ret v {{ v, φ v }};
-                | EXN v => WP z v {{ v, φ v }}) v }} ⊢
-    WP (Stop CEval (η, e) (ret : val -> micro val X) z) {{ φ }}.
-  Proof.
-    iIntros "Hwp".
-    iApply wp_eval.
-    iNext; iApply wp_mono; done.
-  Qed.
-
-  (* A reasoning rule for [choose]. *)
-
-  (* A non-separating conjunction is used to express the idea that
-    either [m1] or [m2] is executed, but not both. Thus, there is
-    no need to split the current resource. It suffices to prove
-    that both [m1] and [m2] are safe under the current resource. *)
-
-  Lemma wp_choose {res exn} (m1 m2 : micro res exn) ψ :
-    ▷ (WP m1 {{ ψ }} ∧ WP m2 {{ ψ }}) ⊢
-    WP (choose m1 m2) {{ ψ }}.
-  Proof.
-    iIntros "H". wp_step.
-
-    { iDestruct "H" as "[H _]".
-      by rewrite try_ret_right. }
-
-    { iDestruct "H" as "[_ H]".
-      by rewrite try_ret_right. }
-  Qed.
-
-  (* This is a special case of the previous rule, where the left-hand side if
-    [ok]. The rule reads as follows: if [φ] holds now, and if the right-hand
-    side [m] preserves [φ], then after executing [choose ok m] the assertion
-    [φ] still holds. *)
-
-  Lemma wp_choose_ok {E} (m : micro val E) (φ : iProp Σ) :
-    φ -∗
-    ▷ (φ -∗ WP m {{ λ _, φ }}) -∗
-    WP (choose ok m) {{ λ _, φ }}.
-  Proof.
-    iIntros "Hφ Hm".
-    iApply wp_choose. iModIntro. iSplit.
-    { iClear "Hm". iApply wp_ret. iAssumption. }
-    { by iApply "Hm". }
-  Qed.
-
-  (* ------------------------------------------------------------------------ *)
-
-  (* [CAlloc]. *)
-
-  (* The standard memory allocation rule of Separation Logic. *)
-
-  Lemma wp_alloc {A X} s E v (k : loc → micro A X) z φ :
-    ▷ (
-        ∀ l,
-          mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗
-          WP (k l) @ s; E {{ φ }}
-      ) ⊢
-    WP (Stop CAlloc v k z) @ s; E {{ φ }}.
-  Proof.
-    iIntros "H".
-    wp_step_mask "Hmod".
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi HH]"; first done.
-    wp_mask_elim. wp_frame. by iApply "H".
-  Qed.
-
-  (* [CStore]. *)
-
-  (* The standard memory write rule of Separation Logic. *)
-
-  Lemma wp_store {A X} s E l v v' (k : unit → micro A X) z φ :
-    mapsto l (DfracOwn 1) v ⊢
-    ▷ (
-        mapsto l (DfracOwn 1) v' -∗
-        WP (k tt) @ s; E {{ φ }}
-      ) -∗
-    WP (Stop CStore (l, v') k z) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    wp_unfold_head; intro_state; wp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-
-    wp_mask_elim. wp_frame.
-    iApply ("Hwp" with "Hl").
-  Qed.
-
-  (* The standard memory load rule of Separation Logic. *)
-
-  Lemma wp_load {A X} s E l v dq (k: val → micro A X) z φ :
-    mapsto l dq v ⊢
-    ▷ (
-        mapsto l dq v -∗
-        WP (k v) @ s; E {{ φ }}
-      ) -∗
-    WP (Stop CLoad l k z) @ s; E {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    wp_unfold_head; intro_state; wp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
-
-    wp_mask_elim. wp_frame.
-    iApply ("Hwp" with "Hl").
-  Qed.
 
   (* ------------------------------------------------------------------------ *)
 
