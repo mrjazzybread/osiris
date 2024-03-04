@@ -313,9 +313,9 @@ Proof.
   { congruence. }
 Qed.
 
-(* [pat_pCons_cut] exists for pedagogical purposes. In practice,
-   we use [pat_pCons] to avoid headaches caused by
-   evar instantiation scopes. *)
+(* [pat_pCons_cut] exists for pedagogical purposes.
+   We use [pat_pCons] in practice to avoid headaches caused
+   by evar instantiation scopes. *)
 
 Lemma pat_pCons_cut `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   (ψ1 : A -> Prop) (ψ2 : list A -> Prop)
@@ -378,39 +378,31 @@ Ltac pat_pCons :=
 (* The previous lemmas start to give us a general scheme for reasoning about
    pattern matching on ADTs.
 
-   More experimenting is required. As of now (29/02/24),
-   see [examples/splay.v] for more examples. *)
+   More experimenting is required.
+   As of now (29/02/24), see [examples/splay.v] for more examples. *)
 
 (* -------------------------------------------------------------------------- *)
 
-(* Todo: comment *)
+(* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) φ].
+
+   [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
 Definition pure_match `{Encode A} (η : env) (v : val) bs (φ : A -> Prop) :=
   pure (eval_match η v bs) φ.
-Arguments pure_match {A} {H} _ _ _ _.
 
-Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : A -> Prop) :
-  pure (eval η e) (λ v : B, pure_match η #v bs φ) ->
-  pure (eval η (EMatch e bs)) φ.
-Proof.
-  intros. unfold pure_match in *.
-  destruct_pure v. destruct_pure x.
-  eapply pure_simp.
-  { rewrite eval_eval'; simpl.
-    eapply prove_simp_bind; eauto. }
-  eapply pure_ret; eauto.
-Qed.
+Arguments pure_match {A} {H} _ _ _ _.
 
 Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure (eval η e) (λ x, x = a) ->
   pure_match η #a bs φ ->
   pure (eval η (EMatch e bs)) φ.
 Proof.
-  intros.
-  eapply pure_eval_match'.
-  eapply pure_consequence; [ eassumption | ].
-  by intros ? ->.
+  unfold pure_match; intros.
+  eapply pure_simp; [ simp | ].
+  eapply pure_bind; [ eauto | by intros ? -> ].
 Qed.
+
+(* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
   pat η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
@@ -430,6 +422,12 @@ Proof.
   apply pure_match_cons_unary.
   eauto using pat_consequence.
 Qed.
+
+(* Not matching is an error. *)
+
+Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) :
+  False -> pure_match η v [] φ.
+Proof. contradiction. Qed.
 
 Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
   pat η p v (λ η' : env, pure (eval η' e) φ) ψ →
