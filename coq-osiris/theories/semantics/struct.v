@@ -1,34 +1,83 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
-From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp pat.
+From osiris.semantics Require Import code eval simplification pure.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Definitions of judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
 
+(* A judgement and a set of reasoning rules for pattern matching. *)
+
+(* The judgement [pat η p v φ ψ] means that, in the environment [η],
+   matching the pattern [p] against the value [v] is safe and either
+   results in an extended environment that satisfies [φ]
+   or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
+
+Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
+  total (extend η p v) φ (λ (_ : unit), ψ).
+
+Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
+  total (extends η ps vs) φ (λ (_ : unit), ψ).
+
+(* A consequence rule. *)
+
+Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  (ψ → ψ') →
+  pattern η p v φ' ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (ψ → ψ') →
+  pattern η p v φ ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
+  patterns η ps vs φ ψ →
+  (ψ → ψ') →
+  patterns η ps vs φ ψ'.
+Proof.
+  unfold patterns. eauto using total_consequence.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* A judgement for the evaluation of structure items. *)
+
 Definition struct_item ηδ item (φ : envs -> Prop) :=
   totalv (eval_sitem ηδ item) φ.
 
 Definition struct_items ηδ sitems (φ : envs -> Prop) :=
   totalv (eval_sitems ηδ sitems) φ.
 
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of module expressions. *)
+
 Definition module η me (φ : env -> Prop) :=
   totalv (eval_mexpr η me) (λ v, match v with
                                  | VStruct η' => φ η'
                                  | _ => False
                                  end).
 
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of let bindings. *)
+
 Definition bindings η bs (φ : env -> Prop) :=
   totalv (eval_bindings η bs) φ.
 
+(* -------------------------------------------------------------------------- *)
+
 (* A judgement for module coercion. *)
+
 Definition coerces c η (φ : env -> Prop) :=
   totalv (coerce c (VStruct η)) (λ v, match v with
                                        | VStruct η' => φ η'
@@ -119,7 +168,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) φ ψ :
-  pure (eval η e) (λ v, pat [] p v ψ False) ->
+  pure (eval η e) (λ v, pattern [] p v ψ False) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -263,7 +312,7 @@ Section Binding.
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   pure (eval η e) ψ ->
   bindings η bs φ' ->
-  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pat η' p #x φ False) ->
+  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
 Proof.
   unfold bindings. simpl. intros Hpure Hbs Hcov.
@@ -288,15 +337,15 @@ Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
 Proof.
   intros.
   eapply bindings_cons; eauto.
-  intros.
-  eapply pat_PVar; eauto.
+  intros; unfold pattern; simpl.
+  apply total_ret; eauto.
 Qed.
 
 Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
   pure (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ->
   bindings η bs φ' ->
-  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pat η' (PPair p1 p2) #(a, b) φ False) ->
+  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.
 Proof.
   intros Hpure Hbs Hpat.

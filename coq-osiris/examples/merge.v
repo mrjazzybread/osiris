@@ -385,12 +385,9 @@ Proof.
 Qed.
 
 (* We use the [toplevel] judgement to specify the module
-   created by the whole [merge.ml] file. *)
+   created by the whole [merge.ml] file.
 
-Definition toplevel me (φ : env -> Prop) :=
-  module (("Stdlib", Stdlib) :: Stdlib_env) me φ.
-
-(* [env_has_pspecs] takes an association list of names and
+   [env_has_pspecs] takes an association list of names and
    specifications. It returns the conjunction of each specification
    applied to the lookup of its corresponding name. *)
 

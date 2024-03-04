@@ -3,7 +3,7 @@ From iris Require Import base_logic.lib.gen_heap.
 From osiris Require Import base.
 From osiris.semantics Require Import semantics.
 From osiris.lang Require Import lang.
-From osiris.proofmode Require Import specifications struct.
+From osiris.proofmode Require Import specifications.
 
 (* Cf.
    https://coq.inria.fr/doc/V8.10.2/refman/user-extensions/syntax-extensions.html#displaying-symbolic-notations
