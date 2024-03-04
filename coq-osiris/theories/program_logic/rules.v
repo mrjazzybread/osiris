@@ -773,6 +773,101 @@ Tactic Notation "wp_step_mask" constr(Hmod) :=
   Qed.
 
   (* ------------------------------------------------------------------------ *)
+  (* Effect-relevant rules *)
+
+  (* LATER: Without [eval], [CPerform] on its own doesn't do anything interesting *)
+  Lemma wp_perform {A X} v (k : outcome2 _ exn -> micro A X) s E φ :
+    ⊢ WP (Stop CPerform v k) @ s; E {{ φ }}.
+  Proof.
+    ewp_unfold_head; intro_state; wp_mask_intro "Hmod".
+  Abort.
+
+  Lemma wp_handle_ret {A X} v (h : outcome3 _ _ -> micro A X) s E φ:
+    WP h (O3Ret v) @ s; E {{ v, φ v }}
+    ⊢ WP (Handle (Ret v) h) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hwp". wp_step. inversion Hstep.
+  Qed.
+
+  Lemma wp_handle_throw {A X} e (h : outcome3 _ _ -> micro A X) s E φ:
+    WP h (O3Throw e) @ s; E {{ v, φ v }}
+                            ⊢ WP (Handle (Throw e) h) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hwp". wp_step. inversion Hstep.
+  Qed.
+
+  (* NEXT : Move to [step.v] *)
+  Lemma invert_step_continue {A E} σ σ' l v k c m' :
+    σ !! l = Some (K c) →
+    @step A E (σ, Stop CContinue (l, v) k) (σ', m') →
+    σ' = <[l := Shot]> σ ∧
+    m' = try2 (continue c v) k.
+  Proof.
+    intros Heq Hstep. destruct_step.
+    rewrite Heq in x. inversion x; subst. by split.
+  Qed.
+
+  (* NEXT : Move to [step.v] *)
+  Lemma invert_step_discontinue {A E} σ σ' l v k c m' :
+    σ !! l = Some (K c) →
+    @step A E (σ, Stop CDiscontinue (l, v) k) (σ', m') →
+    σ' = <[l := Shot]> σ ∧
+    m' = try2 (discontinue c v) k.
+  Proof.
+    intros Heq Hstep. destruct_step.
+    rewrite Heq in x. inversion x; subst. by split.
+  Qed.
+
+  Lemma wp_continue {A X} l v c (k : _ -> micro A X) s E φ:
+    mapsto l (DfracOwn 1) (K c) ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) Shot -∗
+        WP (try2 (continue c v) k) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CContinue (l, v) k) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_continue in Hstep; [ destruct Hstep | eauto ]. subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    wp_mask_elim. wp_frame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  Lemma wp_disccontinue {A X} l v c (k : _ -> micro A X) s E φ:
+    mapsto l (DfracOwn 1) (K c) ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) Shot -∗
+        WP (try2 (discontinue c v) k) @ s; E {{ φ }}
+      ) -∗
+    WP (Stop CDiscontinue (l, v) k) @ s; E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; wp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_discontinue in Hstep; [ destruct Hstep | eauto ]. subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    wp_mask_elim. wp_frame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* TODO ------------------------------ *)
+  (* ------------------------------------------------------------------------ *)
   (* Invert cases where there are premises of the form *)
   (*   [WP (ret _) _] [WP crash _] or [WP (throw _) _] *)
   Local Ltac wp_invert :=
