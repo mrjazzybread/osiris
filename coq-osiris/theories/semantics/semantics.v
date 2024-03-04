@@ -7,5 +7,6 @@ From osiris.semantics Require Export
   step
   simplification
   pure
+  struct
   evalprime
 .

@@ -30,17 +30,17 @@ OCaml expression <code>24 + 18</code>:</p>
   EIntAdd (EInt <span class="mi">24</span>) (EInt <span class="mi">18</span>).</span></span></pre><p>Only a subset of OCaml's syntax is supported at this point. It involves
 two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk0" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk0"><span class="kn">Print</span> syntax.pat.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">pat</span> : <span class="kt">Set</span> :=
-    PUnsupported : syntax.pat
-  | PAny : syntax.pat
-  | PVar : var → syntax.pat
-  | PAlias : syntax.pat → var → syntax.pat
-  | POr : syntax.pat → syntax.pat → syntax.pat
-  | PTuple : list syntax.pat → syntax.pat
-  | PData : data → syntax.pat → syntax.pat
-  | PRecord : list (<span class="bp">field</span> * syntax.pat) → syntax.pat
-  | PInt : Z → syntax.pat
-  | PChar : char → syntax.pat
-  | PString : string → syntax.pat.
+    PUnsupported : pat
+  | PAny : pat
+  | PVar : var → pat
+  | PAlias : pat → var → pat
+  | POr : pat → pat → pat
+  | PTuple : list pat → pat
+  | PData : data → pat → pat
+  | PRecord : list (<span class="bp">field</span> * pat) → pat
+  | PInt : Z → pat
+  | PChar : char → pat
+  | PString : string → pat.
 
 <span class="kn">Arguments</span> PVar x
 <span class="kn">Arguments</span> PAlias p x
@@ -92,7 +92,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EOpGe : expr → expr → expr
   | ELet : list binding → expr → expr
   | ELetRec : list rec_binding → expr → expr
-  | ELetModule : syntax.module → mexpr → expr → expr
+  | ELetModule : module → mexpr → expr → expr
   | ELetOpen : mexpr → expr → expr
   | ESeq : expr → expr → expr
   | EIfThen : expr → expr → expr
@@ -106,8 +106,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ELoad : expr → expr
   | EStore : expr → expr → expr
   <span class="kr">with</span> fexpr : <span class="kt">Set</span> :=  Fexpr : <span class="bp">field</span> → expr → fexpr
-  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : syntax.pat → expr → branch
-  <span class="kr">with</span> binding : <span class="kt">Set</span> :=  Binding : syntax.pat → expr → binding
+  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : pat → expr → branch
+  <span class="kr">with</span> binding : <span class="kt">Set</span> :=  Binding : pat → expr → binding
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=  RecBinding : var → anonfun → rec_binding
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=  AnonFun : var → expr → anonfun
   <span class="kr">with</span> mexpr : <span class="kt">Set</span> :=
@@ -115,7 +115,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   <span class="kr">with</span> sitem : <span class="kt">Set</span> :=
     ILet : list binding → sitem
   | ILetRec : list rec_binding → sitem
-  | IModule : syntax.module → mexpr → sitem
+  | IModule : module → mexpr → sitem
   | IOpen : mexpr → sitem
   | IInclude : mexpr → sitem.
 

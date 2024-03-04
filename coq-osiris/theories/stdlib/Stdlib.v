@@ -123,6 +123,9 @@ Section StdLib__code.
   Definition Stdlib := VStruct Stdlib_env.
 End StdLib__code.
 
+Definition toplevel me (φ : env -> Prop) :=
+  struct.module (("Stdlib", Stdlib) :: Stdlib_env) me φ.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Specification templates. *)

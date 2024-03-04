@@ -109,7 +109,7 @@ Definition pLeaf := PConstant "Leaf".
 Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
   v = #t →
   (t = Leaf -> φ η) ->
-  pat η pLeaf v φ (t <> Leaf).
+  pattern η pLeaf v φ (t <> Leaf).
 Proof.
   intros; subst.
   destruct t.
@@ -135,12 +135,12 @@ Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
   v = #t ->
   (∀ (t1 : tree A) (a : A) (t2 : tree A),
       t = Node t1 a t2 →
-      pat η p1 #t1
-        (λ η', pat η' p2 #a
-            (λ η', pat η' p3 #t2 φ (ψ3 t2))
+      pattern η p1 #t1
+        (λ η', pattern η' p2 #a
+            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
             (ψ2 a))
         (ψ1 t1)) ->
-  pat η (pNode p1 p2 p3) v φ
+  pattern η (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros; subst.
@@ -232,7 +232,7 @@ Definition pRoot := PConstant "Root".
 Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
   v = #z →
   (z = Root -> φ η) ->
-  pat η pRoot v φ (z <> Root).
+  pattern η pRoot v φ (z <> Root).
 Proof.
   intros; subst.
   destruct z.
@@ -261,8 +261,8 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
   v = #z ->
   (∀ (z' : zipper A) (a : A) (t : tree A),
       z = NodeL z' a t →
-      pat η p1 #z' (λ η', pat η' p2 #a (λ η', pat η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
-  pat η (pNodeL p1 p2 p3) v φ (z = Root \/
+      pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
+  pattern η (pNodeL p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
@@ -290,8 +290,8 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
   v = #z ->
   (∀ (t : tree A) (a : A) (z' : zipper A),
       z = NodeR t a z' →
-      pat η p1 #t (λ η', pat η' p2 #a (λ η', pat η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
-  pat η (pNodeR p1 p2 p3) v φ (z = Root \/
+      pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
+  pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
@@ -501,8 +501,8 @@ Qed.
 
 Lemma pat_consequence_phi η p v (φ φ' : env -> Prop) ψ :
   (∀ η, φ' η -> φ η) ->
-  pat η p v φ' ψ ->
-  pat η p v φ ψ.
+  pattern η p v φ' ψ ->
+  pattern η p v φ ψ.
 Proof.
   intros.
   eapply pat_consequence; eauto.
