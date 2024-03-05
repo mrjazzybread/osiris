@@ -279,18 +279,15 @@ Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
 Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
   (ilift (fun x => e) (fun y => f))
     (at level 200, right associativity, format
-    "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/'
-      '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+    "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation *)
 Notation "'EWP' e @ E  <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def E e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'EWP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>'
-        {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+      format "'[hv' 'EWP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
 Notation "'EWP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def NotStuck ⊤ e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
-      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'
-          {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
