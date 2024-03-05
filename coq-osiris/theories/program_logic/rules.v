@@ -8,7 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp ewp_tactics.
-From osiris.semantics Require Import step code.
+From osiris.semantics Require Import step code simplification.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -323,6 +323,74 @@ Section wp_handler_rules.
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
+
+  Lemma ewp_simp E m ms Ψ φ:
+    simp m ms →
+    EWP ms @ E <| Ψ |> {{ φ }} ⊢
+    EWP m @ E <| Ψ |> {{ φ }}.
+  Proof.
+    (* Proceed by Löb induction. *)
+    iLöb as "IH" forall (m ms).
+    (* Introduce the hypotheses. *)
+    iIntros (Hsimp) "Hwp".
+
+    destruct (is_handleable m) eqn: Hmh.
+    { destruct m; inversion Hmh; subst; try solve [inversion Hsimp];
+      clarify_simp; subst; try done.
+      inversion Hmh. destruct c; inversion H1; subst.
+      clarify_simp.
+      iApply ewp_perform.
+      iPoseProof (ewp_perform_inv with "Hwp") as "Hwp".
+      iApply prot_mono; iFrame.
+      iIntros (w) "Hw". iNext.
+      iApply ("IH" $! _ _ (H2 w) with "Hw"). }
+
+    (* Examine [ms] on whether it is a [ret]. *)
+    wp_case_is_ret ms Hretms.
+
+    (* Case: [ms] is [ret _]. *)
+    { (* Prove that [m] is a final step in the diagram. *)
+      ewp_unfold_head. rewrite Hmh.
+      intro_state. ewp_mask_intro "Hmod".
+      iSplitL "".
+      { iPureIntro.
+        epose proof (invert_simp_final _ Hsimp) as [|];
+          [ by prove_final |
+            subst; try destruct_is_ret; try destruct_is_throw |
+            eauto with can_step ].
+        inversion Hmh. }
+      intro_step.
+      eapply simp_final_step_diagram in Hsimp; eauto; last done.
+      destruct Hsimp; subst; iFrame.
+      ewp_mask_elim.
+      (* We are then able to use the induction hypothesis. *)
+      iApply ("IH" with "[//] Hwp"). }
+
+    (* Examine [ms] on whether it is a [throw]. *)
+    wp_case_is_throw ms Hthrow_ms.
+    (* Case : [ms] is [throw _]. *)
+    { (* Prove that [m] is a final step in the diagram. *)
+      ewp_unfold_head. rewrite Hmh.
+      intro_state. ewp_mask_intro "Hmod".
+      iSplitL "".
+      { iPureIntro.
+        epose proof (invert_simp_final _ Hsimp) as [|];
+          [ by prove_final |
+            subst; try destruct_is_ret; try destruct_is_throw |
+            eauto with can_step ].
+        inversion Hmh. }
+      intro_step.
+      eapply simp_final_step_diagram in Hsimp; eauto; last done.
+      destruct Hsimp; subst; iFrame.
+      ewp_mask_elim.
+      (* We are then able to use the induction hypothesis. *)
+      iApply ("IH" with "[//] Hwp"). }
+
+    (* [ms] is neither a [ret _] or [throw _]. *)
+    ewp_unfold_head. rewrite Hmh.
+    intro_state.
+
+  Admitted.
 
 End wp_handler_rules.
 

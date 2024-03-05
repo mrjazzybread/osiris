@@ -96,4 +96,71 @@ Module ewp_rules_tactics.
     (* Introduce a hypothetical step: *)
     intro_step.
 
+  (* ------------------------------------------------------------------------ *)
+
+  (* Reason about case analysis on [is_ret]*)
+  Ltac destruct_is_ret :=
+    repeat match goal with
+      (* Inversion for if a computation is a ret *)
+      | [H : is_ret ?x = Some _ |- _] =>
+          apply invert_is_ret_Some in H;
+          try subst x
+      (* Inversion if some bind is equivalent to a return *)
+      | [H : bind _ _ = ret _ |- _] =>
+          let Hm := fresh "Hm_ret" in
+          let Hk := fresh "Hk_ret" in
+          let a := fresh "a" in
+          apply invert_bind_eq_ret in H;
+          destruct H as (a & Hm & Hk);
+          subst
+      (* Inversion if some try is equivalent to a return *)
+      | [H : try _ _ _ = ret _ |- _] =>
+          let Hm := fresh "Hm_ret" in
+          let Hk := fresh "Hk_ret" in
+          let a := fresh "a" in
+          apply invert_try_eq_ret_disj in H;
+          destruct H as [(a & Hm & Hk) | (a & Hm & Hk)];
+          subst
+      (* Absurd goal *)
+      | [H : is_not_ret (ret _) |- _] =>
+          by inversion H
+      end.
+
+  Ltac destruct_is_throw :=
+    repeat match goal with
+      (* Inversion for if a computation is a ret *)
+      | [H : is_throw ?x = Some _ |- _] =>
+          apply invert_is_throw_Some in H;
+          try subst x
+      end.
+
+  (* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
+    of the form [ret a], or it is not. In the second branch, the equality
+    [is_ret m = None] appears under the name [Hret]. *)
+  (* TODO cleanup *)
+
+  Tactic Notation "wp_case_is_ret" constr(x) ident(Hret) :=
+    case_eq (is_ret x);
+    [ intros ? Hret;
+      try destruct_is_ret |
+      intros Hret].
+
+  Tactic Notation "wp_case_is_ret" constr(x) :=
+    let Hret := fresh "Hret" in
+    wp_case_is_ret x Hret.
+
+  (* [wp_case_is_throw m Hthrow] performs a case analysis on [m]: either it is
+    of the form [throw a], or it is not. In the second branch, the equality
+    [is_throw m = None] appears under the name [Hthrow]. *)
+
+  Tactic Notation "wp_case_is_throw" constr(x) ident(Hthrow) :=
+    case_eq (is_throw x);
+    [ intros ? Hthrow;
+      try destruct_is_throw |
+      intros Hthrow].
+
+  Tactic Notation "wp_case_is_throw" constr(x) :=
+    let Hthrow := fresh "Hthrow" in
+    wp_case_is_throw x Hthrow.
+
 End ewp_rules_tactics.
