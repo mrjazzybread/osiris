@@ -1,50 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp.
-
-(* -------------------------------------------------------------------------- *)
-
-(* The judgement [simp m (ret a)] means that the computation [m] is pure,
-   therefore terminates, and produces the result [a]. *)
-
-(* We do not give a Notation or a Definition for this judgement; we
-   prefer to keep it in this form. *)
-
-(* [simp m (ret a)] is equivalent to a Hoare logic judgement [totalv m _]
-   whose postcondition is an equality [λ a', a = a']. *)
-
-Lemma simp_totalv {A E} m (a : A) :
-  simp m (ret a : micro A E) ↔
-  totalv m (λ a', a = a').
-Proof.
-  split.
-  { eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total a' e'. congruence. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* The judgement [simp m (ret #a)] means that the computation [m] is pure,
-   therefore terminates, and produces the OCaml value [#a], that is, the
-   encoding of the logical value [a]. It requires a type class instance
-   `{Encode A}. *)
-
-(* We do not give a Notation or a Definition for this judgement; we
-   prefer to keep it in this form. *)
-
-(* [simp m (ret #a)] is equivalent to a Hoare logic judgement [pure m _]
-   whose postcondition is an equality [λ a', a = a']. *)
-
-Lemma simp_pure `{Encode A} {X} m (a : A) :
-  simp m (ret #a) ↔
-  pure (X := X) m (λ a', a = a').
-Proof.
-  rewrite simp_totalv. rewrite pure_totalv.
-  split; intro; (eapply totalv_consequence; [ eassumption | simpl ]).
-  { eauto. }
-  { intros a' (? & ? & ?). subst. eauto. }
-Qed.
+From osiris.proofmode Require Import simp_tactics.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -70,16 +27,6 @@ Qed.
 (* Reasoning rules for [simp (eval _ _) (ret _)], that is,
    for pure expressions with a deterministic postcondition. *)
 
-(* A consequence rule. *)
-
-Lemma simp_consequence {A E} (m : micro A E) a' a :
-  simp m (ret a') →
-  a = a' →
-  simp m (ret a).
-Proof.
-  intros. subst. eauto.
-Qed.
-
 (* Paths. *)
 
 Lemma simp_eval_path η π v :
@@ -93,7 +40,7 @@ Qed.
 
 (* This lemma is general. *)
 
-(* TODO avoid [ForallEV] just by showing nil and cons lemmas;
+(* TODO avoid [Forall2] just by showing nil and cons lemmas;
    offer tactic analogous to [pats]. *)
 
 Lemma simp_evals η :
@@ -365,6 +312,20 @@ Qed.
 
 (* Reasoning rules for [pure (eval _ _) _], that is,
    for pure expressions with an arbitrary postcondition. *)
+
+Lemma pure_Eval `{Encode X} η e k ko (φ : X -> Prop) :
+  pure (try (eval η e) k ko) φ ->
+  pure (Stop CEval (η, e) k ko) φ.
+Proof.
+  intros. eapply pure_simp; [ simp | eauto ].
+Qed.
+
+Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
+  pure (eval η e) φ ->
+  pure (Stop CEval (η, e) ret throw) φ.
+Proof.
+  intros. eapply pure_simp; [ simp | eauto ].
+Qed.
 
 (* The following lemmas are obtained as consequences of the previous
    lemmas, so [eval] and its auxiliary functions can be made opaque. *)

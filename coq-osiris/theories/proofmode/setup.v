@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import simp pure_hoare specifications.
+From osiris.proofmode Require Import pure_hoare specifications.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -56,6 +56,16 @@ Global Opaque
   (* Evaluator functions. *)
   call
   eval
+  evals
+  eval_sitem
+  eval_sitems
+  eval_bindings
+  extend
+  extends
+  eval_mexpr
+  coerce
+
+  encode
 
   assertion_failure
   division_by_zero

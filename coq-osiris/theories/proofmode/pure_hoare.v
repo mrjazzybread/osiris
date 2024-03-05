@@ -1,8 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import equality simp.
-From osiris.proofmode Require Import notations.
+From osiris.proofmode Require Import equality.
+From osiris.proofmode Require Import simp_eval notations.
 
 (* Because the relation [simp] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
@@ -27,6 +27,7 @@ Proof.
   destruct_pure x.
   exists x. split; last auto.
   apply invert_simp_bind_ret in Hsimp as (b & Hb & Ha).
+
   eapply prove_simp_bind; first apply Hb.
   eapply prove_simp_bind; eauto.
 Qed.
@@ -360,21 +361,7 @@ Proof.
   rewrite replace_env_idempotent; auto.
 Qed.
 
-Lemma pure_Eval `{Encode X} {E} η e k (φ : X -> Prop) :
-  pure (try2 (eval η e) k) φ ->
-  pure (X := E) (Stop CEval (η, e) k) φ.
-Proof.
-  intros. eapply pure_simp; [| eauto ]. simp.
-Qed.
-
-Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
-  pure (eval η e) φ ->
-  pure (Stop CEval (η, e) inject2) φ.
-Proof.
-  intros. eapply pure_simp; [| eauto ]. simp.
-Qed.
-
-(* (* Todo: write comment *) *)
+(* Todo: write comment *)
 
 Lemma pure_rec_call `{Encode X} `{Encode Y}
   (η : env) (rbs : list rec_binding) (fname : var) (v : X)
