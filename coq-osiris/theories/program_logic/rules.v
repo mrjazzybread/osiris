@@ -78,8 +78,8 @@ Section ewp_rules.
   (** Monotonicity. *)
   Lemma ewp_mono E m φ φ' Ψ:
     EWP m @ E <| Ψ |> {{ φ }} -∗
-                                 (∀ a, φ a -∗ φ' a) -∗
-                                                       EWP m @ E <| Ψ |> {{ φ' }}.
+    (∀ a, φ a -∗ φ' a) -∗
+    EWP m @ E <| Ψ |> {{ φ' }}.
   Proof. Admitted.
 
   (* TODO: Strong monotonicity principle over ordering on protocols *)
