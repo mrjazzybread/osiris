@@ -6,6 +6,8 @@ From osiris.semantics Require Import step code.
 (* Local tactics for [ewp] rules *)
 Module ewp_rules_tactics.
 
+  Ltac ewp_unfold m :=
+    setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
   Ltac ewp_unfold_all :=
     rewrite !ewp_unfold /ewp_pre /=.
   (* This tactic unfolds one occurrence of [ewp] at the head of the goal. *)

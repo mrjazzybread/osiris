@@ -52,11 +52,34 @@ Section ewp_rules.
   Proof. Admitted.
 
   (* ------------------------------------------------------------------------ *)
+
+  Lemma ewp_step {σ σ'} E m n {φ} Ψ:
+    step (σ, m) (σ', n) →
+    state_interp σ -∗
+    EWP m @ E <| Ψ |> {{ φ }} ={E,∅}=∗ |={∅}▷=> |={∅,E}=>
+    (state_interp σ' ∗ EWP n @ E <| Ψ |> {{ φ }}).
+  Proof.
+    intro Hstep.
+    iIntros "Hsi Hwp".
+    ewp_unfold m.
+    destruct (is_handleable m) eqn: Hmh.
+    { destruct m; inversion Hmh; subst; try solve [inversion Hstep];
+        destruct c; inversion H1; subst.
+      inversion Hstep. }
+    iSpecialize ("Hwp" with "Hsi").
+    iMod "Hwp". iDestruct "Hwp" as (?) "Hwp".
+    iSpecialize ("Hwp" $! _ _ Hstep).
+    iMod "Hwp". iModIntro. iModIntro. iNext.
+    try iModIntro; auto.
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
   (** Monotonicity. *)
   Lemma ewp_mono E m φ φ' Ψ:
     EWP m @ E <| Ψ |> {{ φ }} -∗
-    (∀ a, φ a -∗ φ' a) -∗
-    EWP m @ E <| Ψ |> {{ φ' }}.
+                                 (∀ a, φ a -∗ φ' a) -∗
+                                                       EWP m @ E <| Ψ |> {{ φ' }}.
   Proof. Admitted.
 
   (* TODO: Strong monotonicity principle over ordering on protocols *)
@@ -216,10 +239,10 @@ Section wp_handler_rules.
       by ewp_invert. }
 
     { (* [StepHandleLeft] *)
-
-      (* TODO: Need [ewp_step] *)
-
-  Admitted.
+      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
+      ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
+      iApply ("IH" with "H Hsh"). }
+  Qed.
 
 End wp_handler_rules.
 
