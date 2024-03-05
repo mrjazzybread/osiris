@@ -256,11 +256,11 @@ Section wp_handler_rules.
 
   (* Par combinator TODO: For now, the statement maintains the same Ψ .. *)
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X')
-    {k: outcome2 (A1 * A2) X' → micro A X} {z : X' → micro A X} {φ} φ1 φ2 Ψ :
+    {k: outcome2 (A1 * A2) X' → micro A X} {φ} φ1 φ2 Ψ :
       EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
       EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
-      ( ∀ e, φ1 (O2Throw e) -∗ EWP (z e) @ E <| Ψ |> {{ φ }}) -∗
-      (∀ e, φ2 (O2Throw e) -∗ EWP (z e) @ E <| Ψ |> {{ φ }}) -∗
+      ( ∀ e, φ1 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
+      (∀ e, φ2 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
       (∀ a1 a2,
           φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗
           EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
@@ -285,11 +285,15 @@ Section wp_handler_rules.
 
       We invert the cases where there are premises of the form [WP crash _] or
         [WP (throw _) _] *)
-    1-4: ewp_invert;
-    try iApply ("Hexn1" with "[$]");
-    try iApply ("Hexn2" with "[$]"); try done.
+    1-4: ewp_invert; try done.
 
-    1,2: admit. (* Discontinue *)
+    (* [StepParThrowLeft/Right] *)
+    1,2: iMod "HΦ";
+        ewp_mask_intro "Hmod"; ewp_mask_elim;
+        iFrame;
+        try iApply ("Hexn1" with "[$]");
+        try iApply ("Hexn2" with "[$]");
+        done.
 
     { (* [ParPerformLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -318,7 +322,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
-  Admitted.
+  Qed.
 
 End wp_handler_rules.
 
