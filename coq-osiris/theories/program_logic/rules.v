@@ -162,11 +162,21 @@ Section wp_handler_rules.
 
   Notation do v := (stop CPerform v).
 
+  Lemma ewp_perform {B X'} E Ψ v Φ (k : _ -> micro B X'):
+    prot_spec Ψ v (fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+
+    iIntros "HP".
+    ewp_unfold_head.
+    iApply prot_mono; iFrame.
+    iIntros (?) "HΦ". by iNext.
+  Qed.
+
   Lemma ewp_do E Ψ v Φ:
     prot_spec Ψ v Φ ⊢ EWP (do v) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "HP".
-    ewp_unfold_head.
+    iIntros "HP". iApply ewp_perform.
     iApply prot_mono; iFrame.
     iIntros (?) "HΦ". iNext.
     by iApply ewp_outcome2.
@@ -243,6 +253,72 @@ Section wp_handler_rules.
       ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
       iApply ("IH" with "H Hsh"). }
   Qed.
+
+  (* Par combinator TODO: For now, the statement maintains the same Ψ .. *)
+  Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X')
+    {k: outcome2 (A1 * A2) X' → micro A X} {z : X' → micro A X} {φ} φ1 φ2 Ψ :
+      EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
+      EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
+      ( ∀ e, φ1 (O2Throw e) -∗ EWP (z e) @ E <| Ψ |> {{ φ }}) -∗
+      (∀ e, φ2 (O2Throw e) -∗ EWP (z e) @ E <| Ψ |> {{ φ }}) -∗
+      (∀ a1 a2,
+          φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗
+          EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
+      EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
+    iLöb as "IH" forall (m1 m2 k); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
+
+    ewp_unfold_head.
+    intro_state.
+
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn.
+
+    { (* Case: [StepParRetRet].. *)
+      ewp_invert; iRename "HΦ" into "HΦ2"; ewp_invert; iFrame.
+      ewp_mask_intro "Hmod"; ewp_mask_elim.
+      iSpecialize ("Hjoin" with "HΦ HΦ2"); by iFrame. }
+
+    (* In the four following cases, one of the branches of the [Par] is either a
+      [crash] or [throw _].
+
+      We invert the cases where there are premises of the form [WP crash _] or
+        [WP (throw _) _] *)
+    1-4: ewp_invert;
+    try iApply ("Hexn1" with "[$]");
+    try iApply ("Hexn2" with "[$]"); try done.
+
+    1,2: admit. (* Discontinue *)
+
+    { (* [ParPerformLeft] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      iPoseProof (ewp_perform_inv with "[$]") as "H1".
+      iApply ewp_perform.
+      iApply prot_mono; iFrame.
+      iIntros (?) "Hk".
+      iNext.
+      iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [ParPerformRight] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      iPoseProof (ewp_perform_inv with "[$]") as "H2".
+      iApply ewp_perform.
+      iApply prot_mono; iFrame.
+      iIntros (?) "H2".
+      iNext.
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [ParLeft] *)
+      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H1") as ">H1".
+      ewp_mask_elim. iMod "H1" as "[$ H1]". iModIntro.
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [ParRight] *)
+      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
+      ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+  Admitted.
 
 End wp_handler_rules.
 
