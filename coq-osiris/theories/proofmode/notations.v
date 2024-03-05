@@ -373,7 +373,7 @@ Notation "'--------------------------------------env' e { Q }" :=
 
 
 Notation "Γ '--------------------------------------env' 'module' me { Q }" :=
-  (module Γ me Q)
+  (eval_module Γ me Q)
     (only printing, at level 100,
       format "'[' Γ '//' '--------------------------------------env' '//' 'module'  me '//' '//' {  Q  } ']'").
 
