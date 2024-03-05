@@ -8,6 +8,15 @@ From osiris.lang Require Import int locations syntax sugar.
 Class Encode (A : Type) :=
   { encode: A → val }.
 
+(* We will later make [encode] opaque. We keep [encode'] transparent
+   to compute the encoding at will. *)
+
+Definition encode' {A : Type} := @encode A.
+
+Lemma encode_encode' {A} :
+  ∀ a, (@encode A a) = (encode' a).
+Proof. tauto. Qed.
+
 (* This declaration is supposed to tell Coq that a goal of the form [Encode ?A]
    should *not* be solved by instantiating [?A] in an arbitrary way. *)
 
@@ -382,12 +391,20 @@ Global Hint Resolve
 
 (* Pairs, or tuples of arity 2. *)
 
+Definition encode_pair `{Encode A, Encode B} : (A * B) -> val :=
+  λ '(a, b), VPair #a #b.
+
 Global Instance Encode_tuple2
   `{Encode A, Encode B}
   : Encode (A * B)
   | 10 (* lower priority than tuple3 and tuple4 below *)
 :=
-  { encode := λ '(a, b), VPair #a #b }.
+  { encode := encode_pair }.
+
+Lemma encode_pair_is_encode `{Encode A, Encode B} :
+  ∀ (p : A * B),
+    encode_pair p = #p.
+Proof. solve_encode. Qed.
 
 Lemma solve_encode_tuple2
   `{Encode A} `{Encode B}
@@ -400,7 +417,7 @@ Lemma solve_encode_tuple2
   VPair va vb = #t.
 Proof. solve_encode. Qed.
 
-Global Hint Resolve solve_encode_tuple2
+Global Hint Resolve encode_pair_is_encode solve_encode_tuple2
 | 10 (* lower priority than tuple3 and tuple4 below *)
  : encode.
 

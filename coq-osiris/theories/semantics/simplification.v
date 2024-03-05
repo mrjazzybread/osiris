@@ -120,6 +120,16 @@ Proof.
   congruence.
 Qed.
 
+(* A consequence rule. *)
+
+Lemma simp_consequence {A E} (m : micro A E) a' a :
+  simp m (ret a') →
+  a = a' →
+  simp m (ret a).
+Proof.
+  intros. subst. eauto.
+Qed.
+
 (* Derived constructors. *)
 
 Lemma SimpParRetRet {A1 A2 A E E'} a1 a2 (k : A1 * A2 → _) (z : E' → micro A E) :
@@ -320,6 +330,27 @@ Proof.
   econstructor; eauto with congruence.
 Qed.
 
+(* The Try rule. *)
+
+Lemma prove_simp_try {A B E' E m m' a} {f : A → micro B E} (h : E' → _) :
+  simp m (ret a) →
+  simp (f a) m' →
+  simp (try m f h) m'.
+Proof.
+  eauto using simp_try with simp try_ret.
+Qed.
+
+(* The Try rule when the computation fails. *)
+
+Lemma prove_simp_try_throw {A B E' E m m'} e {f : A → micro B E} (h : E' -> micro B E) :
+  simp m (throw e) →
+  simp (h e) m' →
+  simp (try m f h) m'.
+Proof.
+  eauto using simp_try with simp try_ret.
+Qed.
+
+
 (* Simplification is compatible with [bind]. *)
 
 Lemma simplify_bind {A B E} n m1 m2 (f : A → micro B E) :
@@ -334,6 +365,16 @@ Lemma simp_bind {A B E} m1 m2 (f : A → micro B E) :
   simp (bind m1 f) (bind m2 f).
 Proof.
   rewrite !bind_as_try. eauto using simp_try.
+Qed.
+
+(* The Bind rule. *)
+
+Lemma prove_simp_bind {A B E m m' a} {f : A → micro B E} :
+  simp m (ret a) →
+  simp (f a) m' →
+  simp (bind m f) m'.
+Proof.
+  eauto using simp_bind with simp.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1108,6 +1149,18 @@ Lemma totalv_simp {A E} (m m' : micro A E) (φ : A → Prop) :
   totalv m φ.
 Proof.
   unfold totalv. eauto using total_simp.
+Qed.
+
+(* [simp m (ret a)] is equivalent to a Hoare logic judgement [totalv m _]
+   whose postcondition is an equality [λ a', a = a']. *)
+
+Lemma simp_totalv {A E} m (a : A) :
+  simp m (ret a : micro A E) ↔
+  totalv m (λ a', a = a').
+Proof.
+  split.
+  { eauto using totalv_simp, totalv_ret. }
+  { intros. destruct_total a' e'. congruence. }
 Qed.
 
 (* A reasoning rule for [try]. *)

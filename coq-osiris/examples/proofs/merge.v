@@ -197,8 +197,7 @@ Proof.
     reflexivity. }
   unfold __branches2; pure_match.
   (* First branch of match *)
-  { (* Match against "[], l" *)
-    pure_path.
+  { pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
     done. }
@@ -424,6 +423,8 @@ End PureProofs.
 
 (* Coq-Evaluation-Dependent Specification proofs. *)
 
+Local Transparent eval_mexpr eval_bindings evals extend encode.
+
 Lemma Merge_spec η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof.
@@ -585,8 +586,7 @@ Qed.
 (* Main module specification. *)
 
 Lemma Merge__spec:
-  let η := ("Stdlib", Stdlib) :: Stdlib_env in
-  pure (eval_mexpr η __main)
+  pure (eval_mexpr stdlib_env __main)
     (is_module_with_pspecs [("merge", merge_spec);
                             ("split", split_spec);
                             ("merge_sort", mergesort_spec)]).

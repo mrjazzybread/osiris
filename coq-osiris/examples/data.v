@@ -30,7 +30,11 @@ Local Hint Resolve encode_arity0_is_encode : encode.
 
 (* This program crashes. *)
 
-Local Transparent structural_equality_error.
+Local Transparent
+  eval_mexpr
+  eval_bindings
+  extend evals
+  structural_equality_error.
 
 Lemma main η :
   simp (eval_mexpr η __main) crash.

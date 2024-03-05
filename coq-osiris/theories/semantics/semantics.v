@@ -7,6 +7,6 @@ From osiris.semantics Require Export
   step
   simplification
   pure
-  struct
+  auxiliary_judgements
   evalprime
 .

@@ -1,12 +1,12 @@
 From osiris.proofmode Require Export
   equality
-  simp
+  simp_tactics
   pure_hoare
   simp_eval
   pat
-  simp_tactics
+  pure_tactics
   setup
   notations
-  tactics
+  wp_tactics
   specifications
 .

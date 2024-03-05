@@ -1,6 +1,7 @@
 From osiris Require Import osiris.
 
 Local Notation ε := []. (* TODO move *)
+Local Transparent eval_mexpr eval_bindings evals extend encode.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -28,7 +29,7 @@ Qed.
 
 Goal
   let e := ELet1Var "x" (EInt 0) (EPath ["x"]) in
-  simp (eval ε e) (ret (#0)).
+  simp (eval ε e) (ret #0).
 Proof.
   intros. simp. simp.
 Qed.

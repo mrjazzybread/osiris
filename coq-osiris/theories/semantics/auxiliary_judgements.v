@@ -2,14 +2,14 @@ From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
 From osiris.semantics Require Import code eval simplification pure.
 
-(* -------------------------------------------------------------------------- *)
-
-(* Definitions of judgements for Hoare-style reasoning on
+(* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
+
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement and a set of reasoning rules for pattern matching. *)
 
-(* The judgement [pat η p v φ ψ] means that, in the environment [η],
+(* The judgement [pattern η p v φ ψ] means that, in the environment [η],
    matching the pattern [p] against the value [v] is safe and either
    results in an extended environment that satisfies [φ]
    or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
@@ -20,7 +20,41 @@ Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
 Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
   total (extends η ps vs) φ (λ (_ : unit), ψ).
 
-(* A consequence rule. *)
+
+(* A judgement for the evaluation of structure items. *)
+
+Definition struct_item ηδ item (φ : envs -> Prop) :=
+  totalv (eval_sitem ηδ item) φ.
+
+Definition struct_items ηδ sitems (φ : envs -> Prop) :=
+  totalv (eval_sitems ηδ sitems) φ.
+
+
+(* A judgement for the evaluation of module expressions. *)
+
+Definition eval_module η me (φ : env -> Prop) :=
+  totalv (eval_mexpr η me) (λ v, match v with
+                                 | VStruct η' => φ η'
+                                 | _ => False
+                                 end).
+
+
+(* A judgement for the evaluation of let bindings. *)
+
+Definition bindings η bs (φ : env -> Prop) :=
+  totalv (eval_bindings η bs) φ.
+
+
+(* A judgement for module coercion. *)
+
+Definition coerces c η (φ : env -> Prop) :=
+  totalv (coerce c (VStruct η)) (λ v, match v with
+                                       | VStruct η' => φ η'
+                                       | _ => False
+                                       end).
+
+
+(* -------------------------------------------------------------------------- *)
 
 Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
   pattern η p v φ ψ →
@@ -49,48 +83,7 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A judgement for the evaluation of structure items. *)
-
-Definition struct_item ηδ item (φ : envs -> Prop) :=
-  totalv (eval_sitem ηδ item) φ.
-
-Definition struct_items ηδ sitems (φ : envs -> Prop) :=
-  totalv (eval_sitems ηδ sitems) φ.
-
-(* -------------------------------------------------------------------------- *)
-
-(* A judgement for the evaluation of module expressions. *)
-
-Definition module η me (φ : env -> Prop) :=
-  totalv (eval_mexpr η me) (λ v, match v with
-                                 | VStruct η' => φ η'
-                                 | _ => False
-                                 end).
-
-(* -------------------------------------------------------------------------- *)
-
-(* A judgement for the evaluation of let bindings. *)
-
-Definition bindings η bs (φ : env -> Prop) :=
-  totalv (eval_bindings η bs) φ.
-
-(* -------------------------------------------------------------------------- *)
-
-(* A judgement for module coercion. *)
-
-Definition coerces c η (φ : env -> Prop) :=
-  totalv (coerce c (VStruct η)) (λ v, match v with
-                                       | VStruct η' => φ η'
-                                       | _ => False
-                                       end).
-
-(* -------------------------------------------------------------------------- *)
-
-Section SItem.
-
-Implicit Type φ : envs -> Prop.
-
-Lemma struct_consequence ηδ item φ φ' :
+Lemma struct_consequence ηδ item (φ φ' : envs -> Prop) :
   struct_item ηδ item φ ->
   (∀ ηδ, φ ηδ -> φ' ηδ) ->
   struct_item ηδ item φ'.
@@ -102,7 +95,7 @@ Qed.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [structs]. *)
 
-Lemma structs_nil ηδ φ :
+Lemma structs_nil ηδ (φ : envs -> Prop) :
   φ ηδ ->
   struct_items ηδ [] φ.
 Proof.
@@ -110,7 +103,7 @@ Proof.
   by apply totalv_ret.
 Qed.
 
-Lemma structs_cons_unary ηδ item items φ :
+Lemma structs_cons_unary ηδ item items (φ : envs -> Prop) :
   struct_item ηδ item (λ ηδ', struct_items ηδ' items φ) ->
   struct_items ηδ (item :: items) φ.
 Proof.
@@ -128,11 +121,9 @@ Proof.
   eapply totalv_bind; eauto.
 Qed.
 
-(* -------------------------------------------------------------------------- *)
-
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
 
-Lemma struct_let η δ bs φ ψ :
+Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
   bindings η bs ψ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet bs) φ.
@@ -143,7 +134,7 @@ Proof.
   apply totalv_ret; auto.
 Qed.
 
-Lemma struct_letrec η δ rbs φ ψ :
+Lemma struct_letrec η δ rbs (φ : envs -> Prop) ψ :
   ψ (eval_rec_bindings η rbs) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILetRec rbs) φ.
@@ -152,22 +143,22 @@ Proof.
   auto using totalv_ret.
 Qed.
 
-Lemma struct_let_single `{Encode A} η δ e v (spec : A -> Prop) φ :
+Lemma struct_let_single η δ e name (spec : val -> Prop) :
   pure (eval η e) spec ->
-  struct_item (η, δ) (ILet [Binding (PVar v) e])
+  struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
-      ∃ clo : A, spec clo /\
-                   η0 = [(v, encode clo)] ++ η /\
-                   δ0 = [(v, encode clo)] ++ δ) .
+      ∃ clo, spec clo /\
+                   η0 = [(name, clo)] ++ η /\
+                   δ0 = [(name, clo)] ++ δ) .
 Proof.
   intros; unfold struct_item; simpl.
   eapply totalv_simp. { apply SimpParRetRightThrow. }
   eapply totalv_bind. { eapply pure_totalv; eassumption. }
-  simpl; intros v' (? & -> & Hextend).
+  simpl; intros ? (? & -> & Hextend).
   eapply totalv_ret. eauto.
 Qed.
 
-Lemma struct_let_pat η δ p e (spec : val -> Prop) φ ψ :
+Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   pure (eval η e) (λ v, pattern [] p v ψ False) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
@@ -198,8 +189,8 @@ Proof.
   eauto.
 Qed.
 
-Lemma struct_module η δ m me φ (φ' : env -> Prop) :
-  module η me φ' ->
+Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
+  eval_module η me φ' ->
   (∀ η', φ' η' -> φ ((m, VStruct η') :: η, (m, VStruct η') :: δ)) ->
   struct_item (η, δ) (IModule m me) φ.
 Proof.
@@ -208,8 +199,8 @@ Proof.
   intros []; try contradiction; eauto using totalv_ret.
 Qed.
 
-Lemma struct_open η δ me φ (φ' : env -> Prop) :
-  module η me φ' ->
+Lemma struct_open η δ me (φ : envs -> Prop) (φ' : env -> Prop) :
+  eval_module η me φ' ->
   (∀ η', φ' η' -> φ (η' ++ η, δ)) ->
   struct_item (η, δ) (IOpen me) φ.
 Proof.
@@ -221,8 +212,8 @@ Proof.
   eauto using totalv_ret.
 Qed.
 
-Lemma struct_include η δ me φ module_spec :
-  module η me module_spec ->
+Lemma struct_include η δ me (φ : envs -> Prop) module_spec :
+  eval_module η me module_spec ->
   (∀ η', module_spec η' ->
          φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (IInclude me) φ.
@@ -235,16 +226,12 @@ Proof.
   eauto using totalv_ret.
 Qed.
 
-End SItem.
-
 (* -------------------------------------------------------------------------- *)
 
-Section MExpr.
-
-Implicit Type φ : env -> Prop.
+(* Syntax-directed reasoning rules for the auxiliary judgement [module]. *)
 
 Lemma pure_module η me φ :
-  module η me φ ->
+  eval_module η me φ ->
   pure (eval_mexpr η me) (λ v, match v with
                                | VStruct η => φ η
                                | _ => False
@@ -257,7 +244,7 @@ Qed.
 
 Lemma module_struct η sitems φ :
   struct_items (η, []) sitems (λ '(η, δ), φ δ) ->
-  module η (MStruct sitems) φ.
+  eval_module η (MStruct sitems) φ.
 Proof.
   intros  Hcov.
   unfold module; simpl.
@@ -269,7 +256,7 @@ Lemma module_struct_let η bs sitems φ ψ :
   bindings η bs ψ ->
   (∀ η', ψ η' ->
          struct_items (η' ++ η, η') sitems (λ '(_, δ), φ  δ)) ->
-  module η (MStruct ((ILet bs) :: sitems)) φ.
+  eval_module η (MStruct ((ILet bs) :: sitems)) φ.
 Proof.
   intros Hbs Hψsitems.
   eapply module_struct.
@@ -283,7 +270,7 @@ Lemma module_path η π φ :
                                  | VStruct η => φ η
                                  | _ => False
                                  end) ->
-  module η (MPath π) φ.
+  eval_module η (MPath π) φ.
 Proof.
   unfold module; simpl; intros.
   eapply totalv_consequence; [ eassumption | ].
@@ -291,18 +278,18 @@ Proof.
 Qed.
 
 Lemma module_coercion η me c φ :
-  module η me φ ->
+  eval_module η me φ ->
   (∀ η', φ η' -> coerces c η' φ) ->
-  module η (MCoercion me c) φ.
+  eval_module η (MCoercion me c) φ.
 Proof.
   unfold module. intros. simpl.
   eapply totalv_bind; [ eassumption | ].
   intros []; try contradiction; unfold coerces in *; auto.
 Qed.
 
-End MExpr.
+(* -------------------------------------------------------------------------- *)
 
-Section Binding.
+(* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
 
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   pure (eval η e) ψ ->
@@ -321,6 +308,13 @@ Proof.
   eapply totalv_try.
   { by apply Hcov. }
   intros. by apply total_ret.
+Qed.
+
+Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :
+  φ [] ->
+  bindings η [] φ.
+Proof.
+  unfold bindings. apply totalv_ret.
 Qed.
 
 Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
@@ -349,5 +343,3 @@ Proof.
   intros [a b] η' [Hψ1 Hψ2] Hη'.
   auto.
 Qed.
-
-End Binding.

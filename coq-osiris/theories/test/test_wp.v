@@ -8,6 +8,8 @@ From osiris Require Import osiris.
 
 Context `{!osirisGS Σ}.
 
+Local Transparent eval_mexpr eval_bindings evals extend encode.
+
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
 

@@ -6,6 +6,8 @@ From osiris Require Import osiris.
 From osiris.logic Require Import orders.
 From osiris.stdlib Require Import Externals.
 
+Local Transparent encode.
+
 (* The symbols of the OCaml standard library are translated as
    [Stdlib.<symbol>].
    This file defines:
@@ -123,8 +125,10 @@ Section StdLib__code.
   Definition Stdlib := VStruct Stdlib_env.
 End StdLib__code.
 
+Definition stdlib_env := ("Stdlib", Stdlib) :: Stdlib_env.
+
 Definition toplevel me (φ : env -> Prop) :=
-  struct.module (("Stdlib", Stdlib) :: Stdlib_env) me φ.
+  eval_module stdlib_env me φ.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -1,14 +1,13 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Syntax-directed reasoning rules for the auxiliary judgement [pats]. *)
 
 Implicit Type φ : env -> Prop.
 Implicit Type ψ : Prop.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Syntax-directed reasoning rules for the auxiliary judgement [patterns]. *)
 
 Lemma pats_PNil η φ :
   φ η →
@@ -143,12 +142,26 @@ Proof.
   eauto using total_ret.
 Qed.
 
-Lemma pat_PTuple η ps vs φ ψ :
+Lemma pat_PTuple `{Encode A} η ps (a : A) vs φ ψ :
+  #a = VTuple vs ->
   patterns η ps vs φ ψ →
+  pattern η (PTuple ps) #a φ ψ.
+Proof.
+  unfold patterns, pattern.
+  by intros ->.
+Qed.
+
+Lemma pat_PTuple_val η ps vs φ ψ :
+  patterns η ps vs φ ψ ->
   pattern η (PTuple ps) (VTuple vs) φ ψ.
 Proof.
-  unfold patterns, pattern. by simpl.
+  tauto.
 Qed.
+
+Ltac pat_PTuple :=
+  first [
+      eapply pat_PTuple; first solve [ encode ]
+    | rewrite 1 ?encode_encode'; simpl; eapply pat_PTuple_val ].
 
 Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
   v1 = #x1 ->
@@ -196,7 +209,7 @@ Proof.
   eapply pat_consequence.
   { eapply pat_PData.
     intros Hc; specialize (Hφ Hc).
-    apply pat_PTuple; pats. }
+    pat_PTuple; pats. }
   { tauto. }
   { tauto. }
 Qed.
@@ -300,7 +313,7 @@ Proof.
     { by apply pat_PData_neq. }
     tauto. }
   { eapply pat_consequence_psi.
-    { eapply pat_PData_eq; eapply pat_PTuple.
+    { eapply pat_PData_eq; pat_PTuple.
       pats.  }
     right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
@@ -322,7 +335,7 @@ Proof.
   destruct xs; eapply pat_consequence_psi.
   { by apply pat_PData_neq. }
   { tauto. }
-  { eapply pat_PData_eq; eapply pat_PTuple.
+  { eapply pat_PData_eq; pat_PTuple.
     pats. }
   { clear; right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
@@ -356,7 +369,7 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure (eval η (EMatch e bs)) φ.
 Proof.
   unfold pure_match; intros.
-  eapply pure_simp; [ simp | ].
+  eapply pure_simp; [ eapply simp_bind; eauto with simp | fold eval ].
   eapply pure_bind; [ eauto | by intros ? -> ].
 Qed.
 
@@ -460,7 +473,7 @@ Ltac pattern_match :=
     | pat_pNil; intros
     | pat_pCons; intros
     | apply pat_POr
-    | eapply pat_PTuple
+    | pat_PTuple
     | apply pat_PAny ].
 
 (* [post_process_pats] is expected to be used on multiple goals of the
