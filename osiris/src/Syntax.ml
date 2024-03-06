@@ -3,11 +3,8 @@
 (* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
 (* There are a few minor differences between the Coq Osiris AST (syntax.v)
-   and this OCaml Osiris AST.
-
-   TODO: Updated Comment.
-   In particular, while the Coq AST uses ad hoc lists,
-   this AST uses ordinary lists. *)
+   and this OCaml Osiris AST. In particular, while the Coq AST uses ad hoc
+   lists, this AST uses ordinary lists. *)
 
 (* -------------------------------------------------------------------------- *)
 
