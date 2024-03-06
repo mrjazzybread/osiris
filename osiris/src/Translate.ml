@@ -425,16 +425,14 @@ let rec translate_expr (e: expression) : expr =
       let m = Ident.name id in
       ELetModule (m, translate_mod_expr me, translate_expr e)
 
-  | Texp_letmodule (None, _, _, _, _) ->
-      eunsupported loc "let module _"
+  | Texp_assert
+      { exp_desc = Texp_construct ({ txt = Lident "false"; _}, _, []); _ }
+  | Texp_unreachable ->
+      (* [assert false] and [.] are both translated to [EAssertFalse]. *)
+      EAssertFalse
 
-  | Texp_letexception _ ->
-      eunsupported loc "let exception"
-
-  | Texp_assert (e, _) ->
-      (match (e.exp_desc) with
-      | Texp_construct ({ txt = Lident "false"; _}, _, []) -> EAssertFalse
-      | _ -> EAssert (translate_expr e))
+  | Texp_assert e ->
+      EAssert (translate_expr e)
 
   | Texp_lazy _ ->
       eunsupported loc "lazy"
@@ -447,10 +445,6 @@ let rec translate_expr (e: expression) : expr =
 
   | Texp_letop _ ->
       eunsupported loc "let operators"
-
-  | Texp_unreachable ->
-      (* [assert false] and [.] are both translated to [EAssertFalse]. *)
-      EAssertFalse
 
   | Texp_extension_constructor _ ->
       eunsupported loc "extension constructors"
