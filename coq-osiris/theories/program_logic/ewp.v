@@ -74,7 +74,7 @@ Class protocol_op {A} :=
   (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
 
 Class protocol_spec Σ {A} `{@protocol_op A} :=
-  { prot_spec : A -d> Eff -d> (Outcome -d> iProp Σ) -d> iProp Σ ;
+  { prot_spec : A -d> Eff -d> (Val -d> iProp Σ) -d> iProp Σ ;
     prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
 
 Arguments protocol_spec {_ _ _}.
@@ -147,7 +147,7 @@ Section ewp.
       | Some (HThrow v) => |={E}=> φ (O2Throw v)
       (* [EWP2] *)
       | Some (HPerform v k) =>
-         |={E}=> prot_spec Ψ v (fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ)
+         |={E}=> prot_spec Ψ v (fun w : syntax.val => ▷ ewp E (continue k w) Ψ φ)
       (* [EWP3] *)
       | None =>
           ∀ σ, state_interp σ ={E, ∅}=∗

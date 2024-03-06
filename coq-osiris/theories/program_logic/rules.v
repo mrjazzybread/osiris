@@ -368,10 +368,9 @@ Section wp_handler_rules.
   Notation do v := (stop CPerform v).
 
   Lemma ewp_perform {B X'} E Ψ v Φ (k : _ -> micro B X'):
-    prot_spec Ψ v (fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }}) -∗
+    prot_spec Ψ v (fun w => ▷ EWP (continue k w) @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }}.
   Proof.
-
     iIntros "HP".
     ewp_unfold_head.
     iApply prot_mono; iFrame. iModIntro.
@@ -379,38 +378,31 @@ Section wp_handler_rules.
   Qed.
 
   Lemma ewp_do E Ψ v Φ:
-    prot_spec Ψ v Φ ⊢ EWP (do v) @ E <| Ψ |> {{ Φ }}.
+    prot_spec Ψ v Φ ⊢ EWP (do v) @ E <| Ψ |> {{ Φ ↑ }}.
   Proof.
     iIntros "HP". iApply ewp_perform.
     iApply prot_mono; iFrame.
     iIntros (?) "HΦ". iNext.
-    by iApply ewp_outcome2.
+    cbn. iApply ewp_value; by cbn.
   Qed.
 
   Lemma ewp_perform_inv {B X'} E Ψ v Φ (k : _ -> micro B X'):
     EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }} ={E}=∗
-    prot_spec Ψ v (fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }}).
+    prot_spec Ψ v (fun w => ▷ EWP (continue k w) @ E <| Ψ |> {{ Φ }}).
   Proof.
     iIntros "HP".
-
     ewp_unfold_all.
     iApply prot_mono; iMod "HP"; iModIntro; iFrame.
     iIntros (?) "HΦ". by iNext.
   Qed.
-
-  Definition continue_spec l E Ψ Φ :=
-    (fun w =>
-       (∃ r, ⌜w = O2Ret r⌝ ∗
-         ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}) ∨
-       (∃ e, ⌜w = O2Throw e⌝ ∗
-         ▷ EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}))%I.
 
   Definition shallow_handler E Ψ Φ
     (h : Outcome -> microvx) (* Handler for outcomes *)
     (eh : Eff -> C.continuation -> microvx) (* Effect handler *)
     Ψ' Φ' :=
     ((∀ v, Φ v -∗ ▷ EWP (h v) @ E <| Ψ' |> {{ Φ' }}) ∧
-    (∀ v l, prot_spec Ψ v (continue_spec l E Ψ Φ) -∗
+    (∀ v l, prot_spec Ψ v
+        (fun r => ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}) -∗
        ▷ EWP (eh v l) @ E <| Ψ' |> {{ Φ' }}))%I.
 
   Definition handler (h : Outcome -> microvx) (eh : Eff -> C.continuation -> microvx) :
@@ -454,41 +446,22 @@ Section wp_handler_rules.
         [ exact H0 | ].
 
       iAssert (prot_spec Ψ e0
-        (fun w =>
-          (∃ r, ⌜w = O2Ret r⌝ ∗
-            ▷ (EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }})) ∨
-          (∃ e, ⌜w = O2Throw e⌝ ∗
-            ▷ (EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}
-            (* mapsto l (DfracOwn 1) Shot *)))))%I
+                 (fun r => ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}))%I
         with "[HP HH]" as "HΨ".
       { iApply prot_mono; iFrame.
-        iIntros (?) "Hwp"; destruct w; cbn.
-        - iLeft. iExists _; iSplitL ""; first done.
-          iNext.
-          rename σ into σ'.
-          ewp_unfold_head.
-          intro_state.
-          ewp_mask_intro "Hmod". unfold stop.
-          construct_wp_nonret. destruct_step.
-          iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-          rewrite Hl in x; inversion x; subst.
-          rewrite try2_ret_right.
-          iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
-            iFrame.
-          by ewp_mask_elim.
-        - iRight. iExists _; iSplitL ""; first done.
-          iNext.
-          rename σ into σ'.
-          ewp_unfold_head.
-          intro_state.
-          ewp_mask_intro "Hmod". unfold stop.
-          construct_wp_nonret. destruct_step.
-          iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-          rewrite Hl in x; inversion x; subst.
-          rewrite try2_ret_right.
-          iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
-            iFrame.
-          by ewp_mask_elim. }
+        iIntros (?) "Hwp"; cbn.
+        iNext.
+        rename σ into σ'.
+        ewp_unfold_head.
+        intro_state.
+        ewp_mask_intro "Hmod". unfold stop.
+        construct_wp_nonret. destruct_step.
+        iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
+        rewrite Hl in x; inversion x; subst.
+        rewrite try2_ret_right.
+        iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
+          iFrame.
+        by ewp_mask_elim. }
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
       iFrame. }
@@ -595,7 +568,7 @@ Section wp_handler_rules.
       iApply prot_mono; iFrame. iMod "Hwp"; iModIntro. (* TODO cleanup *)
       iFrame.
       iIntros (w) "Hw". iNext.
-      iApply ("IH" $! _ _ (H2 w) with "Hw"). }
+      iApply ("IH" $! _ _ (H2 (O2Ret w)) with "Hw"). }
 
     (* Examine [ms] on whether it is a [ret]. *)
     wp_case_is_ret ms Hretms.
