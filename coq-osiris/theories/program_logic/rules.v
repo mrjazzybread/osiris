@@ -215,14 +215,22 @@ Section ewp_rules.
     destruct c; inversion H1; done.
   Qed.
 
+  Lemma is_handleable_try2 {B X'} m (f : _ -> micro B X'):
+    is_handleable m = None ->
+    is_handleable (try2 m f) = None.
+  Proof.
+    intros Hm. destruct m; inversion Hm; try done.
+    destruct c; inversion H1; done.
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *Try rule *)
-  Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :
-    EWP m @ E <| Ψ |> {{| RET v => EWP (f v) @ E <| Ψ |> {{ Φ }};
-                        | EXN v => EWP (h v) @ E <| Ψ |> {{ Φ }}}} -∗
-    EWP (try m f h) @ E <| Ψ |> {{ Φ }}.
+
+  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
+    EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
+    EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iLöb as "IH" forall (m f h Ψ Φ).
+    iLöb as "IH" forall (m f Ψ Φ).
     iIntros "Hwp".
     wp_case_is_ret m.
     (* Case: [m1] is [ret _]. *)
@@ -233,14 +241,15 @@ Section ewp_rules.
     (* Case: [m1] is not [ret _]. *)
     { ewp_unfold m.
 
-      (* Case analysis on [try] :
-            If [m1] is not [ret _]; [try m1 _ _] is not [ret _] *)
-      wp_case_is_ret (try m f h) Hret'; subst.
-      { rewrite /= Hk_ret /=; cbn; rewrite Hk_ret. by iApply ewp_fupd. }
-
       wp_case_is_throw m Hthrow; cbn.
       (* Case : [m1] is [throw _]; trivial  *)
       { by iApply ewp_fupd. }
+
+      (* Case analysis on [try] :
+            If [m1] is not [ret _] or [throw _]; [try m1 _ _] is not [ret _] *)
+      wp_case_is_ret (try2 m f) Hret'; subst.
+      { rewrite Hret' /=.
+        apply invert_try2_eq_ret in Hret' ; intros; subst; try done. }
 
       (* Case : [m1] is not [throw _]. *)
       ewp_unfold_head.
@@ -258,7 +267,7 @@ Section ewp_rules.
 
       (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
       (* TODO: cleanup *)
-      apply (is_handleable_try m f h) in Hhm.
+      apply (is_handleable_try2 m f) in Hhm.
       rewrite Hhm.
 
       (* Process a step of computation. *)
@@ -269,7 +278,7 @@ Section ewp_rules.
       construct_wp_nonret.
 
       (* Get more information out of [e2]; *)
-      apply invert_step_try in Hstep0; auto. destruct Hstep0 as (?&Hstep0&->).
+      apply invert_step_try2 in Hstep0; auto. destruct Hstep0 as (?&Hstep0&->).
 
       (* Can use information from above to get [wp] about stepped computation *)
       iSpecialize ("Hwp" with "[//]").
@@ -278,6 +287,17 @@ Section ewp_rules.
 
       (* Apply induction hypothesis  *)
       by iApply ("IH" with "Hwp"). }
+  Qed.
+
+  Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :
+    EWP m @ E <| Ψ |> {{| RET v => EWP (f v) @ E <| Ψ |> {{ Φ }};
+                        | EXN v => EWP (h v) @ E <| Ψ |> {{ Φ }}}} -∗
+    EWP (try m f h) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply ewp_try2.
+    iApply (ewp_mono with "Hwp").
+    iIntros ([]) "Hwp"; by cbn.
   Qed.
 
   (** *Bind rule *)
@@ -496,8 +516,7 @@ Section wp_handler_rules.
     match m1 with
     | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
     | _ => False
-    end ∨
-      can_step (σ, m1).
+    end ∨ can_step (σ, m1).
   Proof.
     (* The only terms that cannot step are the final terms, and these
      terms cannot be simplified, so the result is almost immediate. *)
