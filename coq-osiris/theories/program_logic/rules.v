@@ -38,16 +38,16 @@ Section ewp_basic_rules.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E Ψ Φ :
+  Lemma ewp_crash_inv E Ψ Φ σ:
+    state_interp σ -∗
     EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
-  Admitted.
-  (*   iIntros (σ) "Hsi HCrash". *)
-  (*   ewp_unfold (@crash A X). *)
-  (*   iSpecialize ("HCrash" $! σ with "Hsi"). *)
-  (*   iDestruct "HCrash" as "[>%HStep _]". *)
-  (*   exfalso; by eapply invert_can_step_Crash. *)
-  (* Qed. *)
+    ewp_unfold (@crash A X).
+    iIntros "Hsi HCrash".
+    iSpecialize ("HCrash" $! σ with "Hsi").
+    iDestruct "HCrash" as "[>%HStep _]".
+    exfalso; by eapply invert_can_step_Crash.
+  Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
     Φ v -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
@@ -331,6 +331,7 @@ End ewp_rules.
 (* ------------------------------------------------------------------------ *)
 (* Invert cases where there are premises of the form
           [EWP (ret _) _] [EWP crash _] or [EWP (throw _) _] *)
+
 Local Ltac ewp_invert :=
   match goal with
   | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
@@ -343,9 +344,13 @@ Local Ltac ewp_invert :=
           iMod (ewp_ret_inv with "[$]") as "HΦ"
       (* EWP crash *)
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
-          iMod (ewp_crash_inv with "[$]") as "%"
+          match goal with
+          | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
+            iMod (ewp_crash_inv with "[$][$]") as "%"
+          end
       end
   end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Effect and handler rules *)
