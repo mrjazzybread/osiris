@@ -398,13 +398,19 @@ Section wp_handler_rules.
     iIntros (?) "HΦ". by iNext.
   Qed.
 
+  Definition continue_spec l E Ψ Φ :=
+    (fun w =>
+       (∃ r, ⌜w = O2Ret r⌝ ∗
+         ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}) ∨
+       (∃ e, ⌜w = O2Throw e⌝ ∗
+         ▷ EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}))%I.
+
   Definition shallow_handler E Ψ Φ
     (h : Outcome -> microvx) (* Handler for outcomes *)
     (eh : Eff -> C.continuation -> microvx) (* Effect handler *)
     Ψ' Φ' :=
     ((∀ v, Φ v -∗ ▷ EWP (h v) @ E <| Ψ' |> {{ Φ' }}) ∧
-    (∀ v k l, prot_spec Ψ v (fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }}) -∗
-       mapsto l (DfracOwn 1) (K k) ==∗
+    (∀ v l, prot_spec Ψ v (continue_spec l E Ψ Φ) -∗
        ▷ EWP (eh v l) @ E <| Ψ' |> {{ Φ' }}))%I.
 
   Definition handler (h : Outcome -> microvx) (eh : Eff -> C.continuation -> microvx) :
@@ -442,11 +448,48 @@ Section wp_handler_rules.
     { (* [StepHandlePerform] *)
       iDestruct "Hsh" as "[_ Hsh]".
       iPoseProof (ewp_perform_inv with "[$]") as "HP".
-      iSpecialize ("Hsh" $! _ _ with "HP").
+      iMod "HP".
 
-      iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH _]]"; first done.
-      iSpecialize ("Hsh" with "HH"). do 2 iMod "Hsh".
+      iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
+        [ exact H0 | ].
 
+      iAssert (prot_spec Ψ e0
+        (fun w =>
+          (∃ r, ⌜w = O2Ret r⌝ ∗
+            ▷ (EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }})) ∨
+          (∃ e, ⌜w = O2Throw e⌝ ∗
+            ▷ (EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}
+            (* mapsto l (DfracOwn 1) Shot *)))))%I
+        with "[HP HH]" as "HΨ".
+      { iApply prot_mono; iFrame.
+        iIntros (?) "Hwp"; destruct w; cbn.
+        - iLeft. iExists _; iSplitL ""; first done.
+          iNext.
+          rename σ into σ'.
+          ewp_unfold_head.
+          intro_state.
+          ewp_mask_intro "Hmod". unfold stop.
+          construct_wp_nonret. destruct_step.
+          iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
+          rewrite Hl in x; inversion x; subst.
+          rewrite try2_ret_right.
+          iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
+            iFrame.
+          by ewp_mask_elim.
+        - iRight. iExists _; iSplitL ""; first done.
+          iNext.
+          rename σ into σ'.
+          ewp_unfold_head.
+          intro_state.
+          ewp_mask_intro "Hmod". unfold stop.
+          construct_wp_nonret. destruct_step.
+          iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
+          rewrite Hl in x; inversion x; subst.
+          rewrite try2_ret_right.
+          iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
+            iFrame.
+          by ewp_mask_elim. }
+      iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
       iFrame. }
 
