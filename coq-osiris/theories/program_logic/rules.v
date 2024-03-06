@@ -284,7 +284,11 @@ Section ewp_rules.
   Lemma ewp_bind {B} E m (k : _ -> micro B X) Ψ Φ :
     EWP m @ E <| Ψ |> {{ RET v, EWP (k v) @ E <| Ψ |> {{ Φ }} }} -∗
     EWP bind m k @ E <| Ψ |> {{ Φ }}.
-  Proof. Admitted.
+  Proof.
+    iIntros "Hwp". rewrite bind_as_try. iApply ewp_try.
+    iApply (ewp_mono with "[$]"). iIntros (?) "H".
+    destruct a; last done; by cbn.
+  Qed.
 
 End ewp_rules.
 
