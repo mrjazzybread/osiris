@@ -128,17 +128,33 @@ Section ewp_basic_rules.
     by iApply ("IH" with "Hwp").
   Qed.
 
-
   (* TODO: Strong monotonicity principle over ordering on protocols *)
 
-  Lemma ewp_pers_smono E E' Ψ Ψ' Φ Φ' m :
+  Lemma ewp_pers_smono E E' Ψ Φ Φ' m :
     E ⊆ E' →
     EWP m @ E <| Ψ |> {{ Φ }} -∗
     □ (∀ v, Φ v ={E'}=∗ Φ' v) -∗
-    EWP m @ E' <| Ψ' |> {{ Φ' }}.
+    EWP m @ E' <| Ψ |> {{ Φ' }}.
   Proof.
     iIntros (HE) "He #HΦ".
-  Admitted.
+    iLöb as "IH" forall (m).
+    ewp_unfold m.
+    destruct (is_handleable m) as [ [] |] eqn:?.
+    - iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E _).
+    - iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E _).
+    - iApply (fupd_mask_mono E _); first done.
+      iMod "He"; iModIntro.
+      iApply prot_mono; iFrame.
+      iIntros (w) "Hk"; iNext; by iApply ("IH" with "Hk").
+    - iIntros (σ) "Hσ".
+      iMod (fupd_mask_subseteq E) as "Hclose"; first done.
+      iMod ("He" with "[$]") as "[$ H]".
+      iModIntro. iIntros (σ' m' Hstep).
+      iMod ("H" with "[//]") as "H". iIntros "!> !>".
+      iMod "H". iMod "Hclose". iModIntro.
+      iDestruct "H" as "(SI & H)"; iFrame.
+      iApply ("IH" with "H").
+  Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
     EWP m @ E <| Ψ |> {{ Φ }} -∗
