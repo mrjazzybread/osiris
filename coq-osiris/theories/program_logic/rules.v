@@ -25,31 +25,54 @@ Section ewp_rules.
   Lemma ewp_value E Ψ Φ v :
     Φ (O2Ret v) -∗ EWP (Ret v : micro A X) @ E <| Ψ |> {{ Φ }}.
   Proof. iIntros "HΦ". by rewrite ewp_unfold /ewp_pre. Qed.
+
   Lemma ewp_ret_inv E Ψ Φ v :
     EWP (Ret v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Ret v).
-  Proof. Admitted.
+  Proof. iIntros "HRet". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_throw E Ψ Φ (v : X) :
     Φ (O2Throw v) -∗ EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }}.
   Proof. iIntros "HΦ". by rewrite ewp_unfold /ewp_pre. Qed.
+
   Lemma ewp_throw_inv E Ψ Φ v :
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
-  Proof. Admitted.
+  Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_crash_inv E Ψ Φ :
     EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
-  Proof. Admitted.
+  Proof.
+  Admitted.
+  (*   iIntros (σ) "Hsi HCrash". *)
+  (*   ewp_unfold (@crash A X). *)
+  (*   iSpecialize ("HCrash" $! σ with "Hsi"). *)
+  (*   iDestruct "HCrash" as "[>%HStep _]". *)
+  (*   exfalso; by eapply invert_can_step_Crash. *)
+  (* Qed. *)
 
   Lemma ewp_outcome2 E Ψ Φ v :
     Φ v -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
-  Proof. Admitted.
+  Proof.
+    iIntros "HΦ". destruct v; simpl.
+    { by iApply ewp_value. }
+    { by iApply ewp_throw. }
+  Qed.
+
   Lemma ewp_outcome2_inv E Ψ Φ v :
     EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ v.
-  Proof. Admitted.
+  Proof.
+    iIntros "Hv". destruct v; simpl.
+    { by iApply ewp_ret_inv. }
+    { by iApply ewp_throw_inv. }
+  Qed.
 
   Lemma ewp_outcome2_fupd E Ψ Φ v :
     (|={E}=> Φ v) -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
-  Proof. Admitted.
+  Proof.
+    iIntros "HΦ".
+    destruct v; simpl.
+    { by ewp_unfold (@ret A X a). }
+    { by ewp_unfold (@throw A X e). }
+  Qed.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -63,14 +86,14 @@ Section ewp_rules.
     iIntros "Hsi Hwp".
     ewp_unfold m.
     destruct (is_handleable m) eqn: Hmh.
-    { destruct m; inversion Hmh; subst; try solve [inversion Hstep];
-        destruct c; inversion H1; subst.
+    { destruct m; inversion Hmh; subst; try by inversion Hstep.
+      destruct c; try congruence.
       inversion Hstep. }
     iSpecialize ("Hwp" with "Hsi").
     iMod "Hwp". iDestruct "Hwp" as (?) "Hwp".
     iSpecialize ("Hwp" $! _ _ Hstep).
     iMod "Hwp". iModIntro. iModIntro. iNext.
-    try iModIntro; auto.
+    by iModIntro.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -80,7 +103,30 @@ Section ewp_rules.
     EWP m @ E <| Ψ |> {{ φ }} -∗
     (∀ a, φ a -∗ φ' a) -∗
     EWP m @ E <| Ψ |> {{ φ' }}.
-  Proof. Admitted.
+  Proof.
+    iLöb as "IH" forall (m).
+    iIntros "Hwp Hmon".
+    ewp_unfold m.
+    destruct (is_handleable m) eqn: Hmh.
+    { (* Case: [m] is a [HRet] or a [HThrow]. We easily conclude. *)
+      destruct h; try (iMod "Hwp"; iModIntro; by iApply "Hmon").
+      (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
+      iApply prot_mono. iFrame. iIntros (w) "Hewp".
+      iApply ("IH" with "Hewp").
+      by iModIntro. }
+
+    intro_state.
+    iSpecialize ("Hwp" $! σ with "Hsi").
+    iMod "Hwp"; iModIntro.
+    iDestruct "Hwp" as "[Hcstep Hwp]".
+    iFrame.
+    iIntros (σ' m') "Hsi'".
+    iSpecialize ("Hwp" $! σ' m' with "Hsi'").
+    iMod "Hwp". iModIntro. iNext. iMod "Hwp". iModIntro.
+    iDestruct "Hwp" as "[$ Hwp]".
+    by iApply ("IH" with "Hwp").
+  Qed.
+
 
   (* TODO: Strong monotonicity principle over ordering on protocols *)
 
@@ -542,6 +588,7 @@ Section wp_handler_rules.
     ewp_unfold_head. rewrite Hmh.
     intro_state.
 
+
     iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
                       ∗ EWP ms @ E <| Ψ |> {{ φ }}
                       ∗ state_interp σ)%I
@@ -584,4 +631,3 @@ Section wp_handler_rules.
   Admitted.
 
 End wp_handler_rules.
-
