@@ -459,7 +459,7 @@ Section wp_handler_rules.
       iApply ("IH" with "H Hsh"). }
   Qed.
 
-  (* Par combinator TODO: For now, the statement maintains the same Ψ .. *)
+  (* Par combinator *)
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X')
     {k: outcome2 (A1 * A2) X' → micro A X} {φ} φ1 φ2 Ψ :
       EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
@@ -529,45 +529,6 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
-  Qed.
-
-  (* TODO Move *)
-  Lemma invert_simp_perform {E} {m1 : micro A E} σ v k :
-    simp m1 (Stop CPerform v k) →
-    match m1 with
-    | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
-    | _ => False
-    end ∨ can_step (σ, m1).
-  Proof.
-    (* The only terms that cannot step are the final terms, and these
-     terms cannot be simplified, so the result is almost immediate. *)
-    intro h; dependent induction h; simpl in *;
-      eauto with step.
-    { left; split; eauto. constructor. }
-    (* Only [SimpTransitive] requires some work. *)
-    destruct (IHh2 _ _ _ _ eq_refl); clear IHh2; [ subst |].
-    { destruct m2; try done. destruct c; try done. destruct H0; subst.
-      destruct (IHh1 _ _ _ _ eq_refl); eauto.
-      left; auto.
-      destruct m1; try done. destruct c; try done.
-      destruct H0; subst; split; eauto.
-      intros; eapply SimpTransitive; eauto. }
-    { eauto using invert_simp_can_step. }
-  Qed.
-
-  Lemma simp_final_step_diagram_perform {m1 : micro A X} {σ σ' m'1} v k:
-    (* If there is a simplification step of [m1] to [m2], *)
-    (* and if [m2] is a perform, *)
-    simp m1 (Stop CPerform v k) →
-    (* if there is also a reduction step out of [m1], *)
-    step (σ, m1) (σ', m'1) →
-    (* then this reduction step does not prevent us from reaching [m2]. *)
-    σ' = σ ∧
-      simp m'1 (Stop CPerform v k).
-  Proof.
-    intros Hsimp Hstep.
-    simp_step_diagram; eauto.
-    inversion Hstep.
   Qed.
 
   Lemma ewp_simp E m ms Ψ φ:
@@ -650,7 +611,7 @@ Section wp_handler_rules.
         destruct m; try done; destruct c; try done. }
       intro_step.
 
-      eapply simp_final_step_diagram_perform in Hsimp; eauto.
+      eapply simp_perform_step_diagram in Hsimp; eauto.
       destruct Hsimp; subst; iFrame.
       ewp_mask_elim.
       (* We are then able to use the induction hypothesis. *)

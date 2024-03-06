@@ -748,7 +748,7 @@ Lemma simp_final_step_diagram {A E} {m1 m2 : micro A E} {σ σ' m'1} :
   final m2 →
   (* then this reduction step does not prevent us from reaching [m2]. *)
   σ' = σ ∧
-  simp m'1 m2.
+    simp m'1 m2.
 Proof.
   intros (n & Hsimplify)%simp_simplify.
   intros Hstep Hfinal.
@@ -756,12 +756,26 @@ Proof.
   eauto using simplify_simp.
 Qed.
 
+Lemma simp_perform_step_diagram {A E} {m : micro A E} {σ σ' m'} v k:
+  (* If there is a simplification step of [m] to a perform, *)
+  simp m (Stop CPerform v k) →
+  (* if there is also a reduction step out of [m], *)
+  step (σ, m) (σ', m') →
+  (* then this reduction step does not prevent us from reaching the perform. *)
+  σ' = σ ∧
+    simp m' (Stop CPerform v k).
+Proof.
+  intros Hsimp Hstep.
+  simp_step_diagram; eauto.
+  inversion Hstep.
+Qed.
+
 Ltac simp_final_step_diagram :=
   match goal with
-  Hsimp: simp ?m1 ?m2,
-  Hstep: step (_, ?m1) _
-  |- _ =>
-    destruct (simp_final_step_diagram Hsimp Hstep)
+    Hsimp: simp ?m1 ?m2,
+      Hstep: step (_, ?m1) _
+    |- _ =>
+      destruct (simp_final_step_diagram Hsimp Hstep)
       as (-> & ?);
       [ prove_final |]
   end.
@@ -909,15 +923,41 @@ Lemma invert_simp_final {A E} {m1 m2 : micro A E} σ :
   simp m1 m2 →
   final m2 →
   m1 = m2 ∨
-  can_step (σ, m1).
+    can_step (σ, m1).
 Proof.
   (* The only terms that cannot step are the final terms, and these
      terms cannot be simplified, so the result is almost immediate. *)
   intro h; dependent induction h; intros Hfinal; simpl in *;
-  eauto with step.
+    eauto with step.
   (* Only [SimpTransitive] requires some work. *)
   destruct (IHh2 Hfinal); clear IHh2; [ subst |].
   { destruct (IHh1 Hfinal); eauto. }
+  { eauto using invert_simp_can_step. }
+Qed.
+
+(* If [m] can be simplified into a [Stop CPerform v k] then
+   either [m] is a [Stop CPerform v k'] where k' can be simplified to k or
+   or [m] can step. *)
+
+Lemma invert_simp_perform {A E} {m : micro A E} σ v k :
+  simp m (Stop CPerform v k) →
+  match m with
+  | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
+  | _ => False
+  end ∨
+    can_step (σ, m).
+Proof.
+  intro h; dependent induction h; simpl in *;
+    eauto with step.
+  { left; split; eauto; constructor. }
+  (* Only [SimpTransitive] requires some work. *)
+  destruct (IHh2 _ _ eq_refl); clear IHh2; [ subst |].
+  { destruct m2; try done. destruct c; try done. destruct H; subst.
+    destruct (IHh1  _ _ eq_refl); eauto.
+    left; auto.
+    destruct m1; try done. destruct c; try done.
+    destruct H; subst; split; eauto.
+    intros; eapply SimpTransitive; eauto. }
   { eauto using invert_simp_can_step. }
 Qed.
 
