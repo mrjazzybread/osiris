@@ -324,6 +324,90 @@ Section wp_handler_rules.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
+  Lemma ewp_can_step {σ} Ψ φ m E:
+    state_interp σ -∗
+    EWP m @ E <| Ψ |> {{ φ }} ={E, ∅}=∗
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+  Proof.
+    iIntros "SI Hwp".
+    ewp_unfold_all.
+    destruct (is_handleable m) eqn: Hm.
+    (* TODO: Clean up *)
+    { destruct h; try iMod "Hwp"; try (iApply fupd_mask_intro; first set_solver);
+        iIntros "_"; iPureIntro; right; eauto. }
+    { iSpecialize ("Hwp" with "SI"). iMod "Hwp".
+      iDestruct "Hwp" as (Hwp) "Hwp". iPureIntro; auto. }
+  Qed.
+
+  Lemma ewp_can_step' {σ} Ψ φ m E:
+    state_interp σ -∗
+    EWP m @ E <| Ψ |> {{ φ }} ={E}=∗
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+  Proof.
+    iIntros.
+    iPoseProof (ewp_can_step with "[$][$]") as "?".
+    iApply (fupd_plain_mask_empty with "[$]").
+  Qed.
+
+  Lemma destruct_simp_alloc : forall E X x (k : _ -> micro E X) e,
+      simp (Stop CAlloc x k) e -> e = Stop CAlloc x k.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
+  Lemma destruct_simp_load : forall E X x (k : _ -> micro E X) e,
+      simp (Stop CLoad x k) e -> e = Stop CLoad x k.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
+  Lemma destruct_simp_store : forall E X x (k : _ -> micro E X) e,
+      simp (Stop CStore x k) e -> e = Stop CStore x k.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
+  Lemma destruct_simp_continue : forall E X x (k : _ -> micro E X) e,
+      simp (Stop CContinue x k) e -> e = Stop CContinue x k.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
+  Lemma destruct_simp_discontinue : forall E X x (k : _ -> micro E X) e,
+      simp (Stop CDiscontinue x k) e -> e = Stop CDiscontinue x k.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
+  Lemma destruct_simp_stop : forall X0 Y E' x (k : _ -> micro A X) x' k' (c : C.code X0 Y E'),
+      simp (Stop c x k) (Stop CPerform x' k') ->
+      match c with
+      | CEval => True
+      | CLoop => True
+      | CPerform => True
+      | _ => False
+      end.
+  Proof.
+    intros; dependent induction H0; eauto.
+    destruct c; eauto; clarify_simp.
+    - eapply destruct_simp_alloc in H0_; subst.
+      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
+    - eapply destruct_simp_load in H0_; subst.
+      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
+    - eapply destruct_simp_store in H0_; subst.
+      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
+    - eapply destruct_simp_continue in H0_; subst.
+      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
+    - eapply destruct_simp_discontinue in H0_; subst.
+      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
+  Qed.
+
+  Lemma destruct_simp_handle : forall n h (e :  micro A X),
+      simp (Handle n h) e -> e = Handle n h.
+  Proof.
+    intros; dependent induction H0; eauto.
+  Qed.
+
   Lemma ewp_simp E m ms Ψ φ:
     simp m ms →
     EWP ms @ E <| Ψ |> {{ φ }} ⊢
@@ -387,8 +471,115 @@ Section wp_handler_rules.
       iApply ("IH" with "[//] Hwp"). }
 
     (* [ms] is neither a [ret _] or [throw _]. *)
+    destruct (is_handleable ms) eqn: Hmh_ms.
+    { destruct ms; inversion Hmh_ms; cbn in *; subst.
+      - inversion Hretms.
+      - inversion Hthrow_ms.
+      - destruct c; inversion H1; subst.
+
+        destruct m; try solve [inversion Hmh | clarify_simp]; eauto.
+
+        { apply destruct_simp_handle in Hsimp; inversion Hsimp. }
+
+
+        ewp_unfold_head. rewrite Hmh.
+        intro_state.
+
+        iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
+                          ∗ EWP ms @ E <| Ψ |> {{ φ }}
+                          ∗ state_interp σ)%I
+          with "[Hwp Hsi]"
+          as ">(%&Hwp&Hsi)".
+
+        { iApply ((fupd_plain_keep_l E ⌜can_step (σ, m)⌝
+                     (EWP ms @ E <| Ψ |>  {{ φ }} ∗ state_interp σ))%I
+                   with "[$Hwp $Hsi]").
+          iIntros "[??]".
+          iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
+
+          iModIntro; iPureIntro; destruct Hdisj.
+          { eauto using invert_simp_can_step. }
+
+          exfalso. apply H0; auto. }
+
+
+        + pose proof (destruct_simp_stop _ _ _ _ _ _ _ _ Hsimp);
+            destruct c; inversion H0; clear H0; clarify_simp.
+
+          { (* CEval *)
+
+          ewp_unfold_head.
+          intro_state. ewp_mask_intro "Hmod".
+          construct_wp_nonret.
+          destruct_step. cbn in *.
+          ewp_mask_elim.
+
+          iFrame.
+          iApply ("IH" $! _ _ _ with "Hwp"). Unshelve.
+          remember (η, e).
+          inversion Hsimp. destruct p; inversion Heqp; subst.
+          dependent destruction H2. constructor.
+          subst.  admit. }
+
+        { (* CLoop *)
+
+          ewp_unfold_head.
+          intro_state. ewp_mask_intro "Hmod".
+          construct_wp_nonret.
+          destruct_step. cbn in *.
+          ewp_mask_elim.
+
+          iFrame.
+          iApply ("IH" $! _ _ _ with "Hwp"). Unshelve.
+          remember (η, x1, i1, i2, e).
+          inversion Hsimp. destruct p; inversion Heqp; subst.
+          dependent destruction H2. constructor.
+          subst. admit. }
+
+        + admit.
+        + admit. }
+
     ewp_unfold_head. rewrite Hmh.
     intro_state.
+
+    iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
+                      ∗ EWP ms @ E <| Ψ |> {{ φ }}
+                      ∗ state_interp σ)%I
+      with "[Hwp Hsi]"
+      as ">(%&Hwp&Hsi)".
+
+    { iApply ((fupd_plain_keep_l E ⌜can_step (σ, m)⌝
+                 (EWP ms @ E <| Ψ |>  {{ φ }} ∗ state_interp σ))%I
+               with "[$Hwp $Hsi]").
+      iIntros "[??]".
+        iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
+
+      iModIntro; iPureIntro; destruct Hdisj.
+      { eauto using invert_simp_can_step. }
+
+      exfalso. apply H0; auto. }
+
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    simp_step_diagram.
+
+    (* Case: the reduction step disappears through the diagram. *)
+    { ewp_mask_elim. iFrame.
+      iApply ("IH" with "[//] Hwp"). }
+
+    (* Case: the reduction step is preserved through the diagram. *)
+    (* We can now commit to stepping [ms] -- a commitment which we have
+    carefully avoided up to this point. *)
+    ewp_unfold ms. rewrite Hmh_ms.
+    iSpecialize ("Hwp" with "Hsi"). iMod "Hmod".
+    iMod "Hwp".
+    iDestruct "Hwp" as (?) "Hwp".
+    iSpecialize ("Hwp" $! _ _ Hstep).
+    iMod "Hwp". iModIntro. iNext.
+    iMod "Hwp". iDestruct "Hwp" as "(SI & Hwp)"; iFrame.
+    iModIntro.
+    iApply ("IH" with "[//] Hwp").
 
   Admitted.
 
