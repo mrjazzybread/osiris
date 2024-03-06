@@ -97,7 +97,7 @@ Section protocol_spec_properties.
   Class protocol_monotone :=
     prot_mono v' Ψ Φ1 Φ2 :
       prot_spec Ψ v' Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ⊢
-            prot_spec Ψ v' Φ2.
+        prot_spec Ψ v' Φ2.
 
   Class protocol_abort :=
     prot_abort_absurd v Φ :
@@ -114,7 +114,8 @@ Section protocol_spec_properties.
     (* [A3] *)
     prot_prop_sum :: protocol_sum_or;
     (* [A5] *)
-    prot_prop_mono :: protocol_monotone; }.
+    prot_prop_mono :: protocol_monotone;
+  }.
 
 End protocol_spec_properties.
 
@@ -146,7 +147,7 @@ Section ewp.
       | Some (HThrow v) => |={E}=> φ (O2Throw v)
       (* [EWP2] *)
       | Some (HPerform v k) =>
-          prot_spec Ψ v (fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ)
+         |={E}=> prot_spec Ψ v (fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ)
       (* [EWP3] *)
       | None =>
           ∀ σ, state_interp σ ={E, ∅}=∗
