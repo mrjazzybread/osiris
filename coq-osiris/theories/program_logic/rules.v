@@ -171,6 +171,31 @@ Section ewp_basic_rules.
     iSpecialize ("He" with "Hsi"). done.
   Qed.
 
+  Lemma ewp_can_step {σ} Ψ φ m E:
+    state_interp σ -∗
+    EWP m @ E <| Ψ |> {{ φ }} ={E, ∅}=∗
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+  Proof.
+    iIntros "SI Hwp".
+    ewp_unfold_all.
+    destruct (is_handleable m) eqn: Hm.
+    (* TODO: Clean up *)
+    { destruct h; try iMod "Hwp"; try (iApply fupd_mask_intro; first set_solver);
+        iIntros "_"; iPureIntro; right; eauto. }
+    { iSpecialize ("Hwp" with "SI"). iMod "Hwp".
+      iDestruct "Hwp" as (Hwp) "Hwp". iPureIntro; auto. }
+  Qed.
+
+  Lemma ewp_can_step' {σ} Ψ φ m E:
+    state_interp σ -∗
+    EWP m @ E <| Ψ |> {{ φ }} ={E}=∗
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+  Proof.
+    iIntros.
+    iPoseProof (ewp_can_step with "[$][$]") as "?".
+    iApply (fupd_plain_mask_empty with "[$]").
+  Qed.
+
 End ewp_basic_rules.
 
 Section ewp_rules.
@@ -461,92 +486,7 @@ Section wp_handler_rules.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
-  Lemma ewp_can_step {σ} Ψ φ m E:
-    state_interp σ -∗
-    EWP m @ E <| Ψ |> {{ φ }} ={E, ∅}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
-  Proof.
-    iIntros "SI Hwp".
-    ewp_unfold_all.
-    destruct (is_handleable m) eqn: Hm.
-    (* TODO: Clean up *)
-    { destruct h; try iMod "Hwp"; try (iApply fupd_mask_intro; first set_solver);
-        iIntros "_"; iPureIntro; right; eauto. }
-    { iSpecialize ("Hwp" with "SI"). iMod "Hwp".
-      iDestruct "Hwp" as (Hwp) "Hwp". iPureIntro; auto. }
-  Qed.
-
-  Lemma ewp_can_step' {σ} Ψ φ m E:
-    state_interp σ -∗
-    EWP m @ E <| Ψ |> {{ φ }} ={E}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
-  Proof.
-    iIntros.
-    iPoseProof (ewp_can_step with "[$][$]") as "?".
-    iApply (fupd_plain_mask_empty with "[$]").
-  Qed.
-
-  (* TODO : Move *)
-  Lemma destruct_simp_alloc : forall E X x (k : _ -> micro E X) e,
-      simp (Stop CAlloc x k) e -> e = Stop CAlloc x k.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-  Lemma destruct_simp_load : forall E X x (k : _ -> micro E X) e,
-      simp (Stop CLoad x k) e -> e = Stop CLoad x k.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-  Lemma destruct_simp_store : forall E X x (k : _ -> micro E X) e,
-      simp (Stop CStore x k) e -> e = Stop CStore x k.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-  Lemma destruct_simp_continue : forall E X x (k : _ -> micro E X) e,
-      simp (Stop CContinue x k) e -> e = Stop CContinue x k.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-  Lemma destruct_simp_discontinue : forall E X x (k : _ -> micro E X) e,
-      simp (Stop CDiscontinue x k) e -> e = Stop CDiscontinue x k.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-  Lemma destruct_simp_stop : forall X0 Y E' x (k : _ -> micro A X) x' k' (c : C.code X0 Y E'),
-      simp (Stop c x k) (Stop CPerform x' k') ->
-      match c with
-      | CEval => True
-      | CLoop => True
-      | CPerform => True
-      | _ => False
-      end.
-  Proof.
-    intros; dependent induction H0; eauto.
-    destruct c; eauto; clarify_simp.
-    - eapply destruct_simp_alloc in H0_; subst.
-      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
-    - eapply destruct_simp_load in H0_; subst.
-      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
-    - eapply destruct_simp_store in H0_; subst.
-      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
-    - eapply destruct_simp_continue in H0_; subst.
-      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
-    - eapply destruct_simp_discontinue in H0_; subst.
-      specialize (IHsimp2 _ _ _ _ _ _ _ _ _ _ eq_refl eq_refl); auto.
-  Qed.
-
-  Lemma destruct_simp_handle : forall n h (e :  micro A X),
-      simp (Handle n h) e -> e = Handle n h.
-  Proof.
-    intros; dependent induction H0; eauto.
-  Qed.
-
-
+  (* TODO Move *)
   Lemma invert_simp_perform {E} {m1 : micro A E} σ v k :
     simp m1 (Stop CPerform v k) →
     match m1 with
@@ -573,10 +513,10 @@ Section wp_handler_rules.
 
   Lemma simp_final_step_diagram_perform {m1 : micro A X} {σ σ' m'1} v k:
     (* If there is a simplification step of [m1] to [m2], *)
+    (* and if [m2] is a perform, *)
     simp m1 (Stop CPerform v k) →
     (* if there is also a reduction step out of [m1], *)
     step (σ, m1) (σ', m'1) →
-    (* and if [m2] is final, *)
     (* then this reduction step does not prevent us from reaching [m2]. *)
     σ' = σ ∧
       simp m'1 (Stop CPerform v k).
@@ -585,7 +525,6 @@ Section wp_handler_rules.
     simp_step_diagram; eauto.
     inversion Hstep.
   Qed.
-
 
   Lemma ewp_simp E m ms Ψ φ:
     simp m ms →
