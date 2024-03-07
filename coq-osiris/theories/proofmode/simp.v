@@ -163,23 +163,23 @@ Proof.
   apply SimpReflexive.
 Qed.
 
-Lemma advance_SimpEval {A E} η e (k : val → micro A E) z m' :
-  simp (try (eval η e) k z) m' →
-  simp (Stop CEval (η, e) k z) m'.
+Lemma advance_SimpEval {A E} η e (k : outcome2 val exn → micro A E) m' :
+  simp (try2 (eval η e) k) m' →
+  simp (Stop CEval (η, e) k) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpEvalThrow {A} η e (k : val → micro A void) m' :
+Lemma advance_SimpEvalThrow {A} η e (k : val → micro A exn) m' :
   simp (bind (eval η e) k) m' →
-  simp (Stop CEval (η, e) k throw) m'.
+  simp (Stop CEval (η, e) (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
 Lemma advance_SimpEvalRetThrow η e m' :
   simp (eval η e) m' ->
-  simp (Stop CEval (η, e) ret throw) m'.
+  simp (Stop CEval (η, e) inject2) m'.
 Proof.
   intros.
   by apply advance_SimpEvalThrow; rewrite bind_ret_right.
@@ -192,25 +192,25 @@ Proof.
   unfold stop. eauto using advance_SimpEvalRetThrow.
 Qed.
 
-Lemma advance_SimpLoop {A E} η x i1 i2 e (k : val → micro A E) z m' :
-  simp (try (loop η x i1 i2 e) k z) m' →
-  simp (Stop CLoop (η, x, i1, i2, e) k z) m'.
+Lemma advance_SimpLoop {A E} η x i1 i2 e (k : outcome2 val exn → micro A E) m' :
+  simp (try2 (loop η x i1 i2 e) k) m' →
+  simp (Stop CLoop (η, x, i1, i2, e) k) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpLoopThrow {A} η x i1 i2 e (k : val → micro A void) m' :
+Lemma advance_SimpLoopThrow {A} η x i1 i2 e (k : val → micro A exn) m' :
   simp (bind (loop η x i1 i2 e) k) m' →
-  simp (Stop CLoop (η, x, i1, i2, e) k throw) m'.
+  simp (Stop CLoop (η, x, i1, i2, e) (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpChooseAgree {A B E' E} m1 m2 m (k : A → micro B E) (z : E' → _) m' :
+Lemma advance_SimpChooseAgree {A B E' E} m1 m2 m (k : outcome2 A E' → micro B E) m' :
   simp m1 m →
   simp m2 m →
-  simp (try m k z) m' →
-  simp (Choose m1 m2 k z) m'.
+  simp (try2 m k) m' →
+  simp (Choose m1 m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -221,7 +221,7 @@ Lemma advance_simp_choose {A E} (m1 m2 : micro A E) m' :
   simp (choose m1 m2) m'.
 Proof.
   intros. eapply advance_SimpChooseAgree; eauto.
-  rewrite try_ret_right. eauto with simp.
+  rewrite try2_ret_right. eauto with simp.
 Qed.
 
 Lemma advance_SimpBind {A B E} m1 m2 (f : A → micro B E) m' :
@@ -241,39 +241,39 @@ Proof.
 Qed.
 
 Lemma advance_SimpParRetRet {A1 A2 A E' E}
-  a1 a2 (k : A1 * A2 → micro A E) (z : E' → _) m'
+  a1 a2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (k (a1, a2)) m' →
-  simp (Par (Ret a1) (Ret a2) k z) m'.
+  simp (continue k (a1, a2)) m' →
+  simp (Par (Ret a1) (Ret a2) k) m'.
 Proof.
   eauto using SimpParRetRet with simp.
 Qed.
 
 Lemma advance_SimpParRetLeft {A1 A2 A E' E}
-  a1 m2 (k : A1 * A2 → micro A E) (h : E' → _) m'
+  a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (try m2 (λ v2, k (a1, v2)) h) m' →
-  simp (Par (Ret a1) m2 k h) m'.
+  simp (try2 m2 (join1 a1 k)) m' →
+  simp (Par (Ret a1) m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
 
 Lemma advance_SimpParRetRight {A1 A2 A E' E}
-  m1 a2 (k : A1 * A2 → micro A E) (h : E' → _) m'
+  m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (try m1 (λ v1, k (v1, a2)) h) m' →
-  simp (Par m1 (Ret a2) k h) m'.
+  simp (try2 m1 (join2 a2 k)) m' →
+  simp (Par m1 (Ret a2) k) m'.
 Proof.
   eauto with simp.
 Qed.
 
 Lemma advance_SimpPar {A1 A2 A E' E}
-  m1 m'1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) m'
+  m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
   simp m1 m'1 →
   simp m2 m'2 →
-  simp (Par m'1 m'2 k z) m' →
-  simp (Par m1 m2 k z) m'.
+  simp (Par m'1 m'2 k) m' →
+  simp (Par m1 m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
