@@ -760,13 +760,13 @@ with simp1_inspect :=
            and possibly more progress thereafter. *)
         simp1_bind
       ]
-  | try ?m ?f ?h =>
+  | try2 ?m ?f =>
       (* [try] is treated in the same way as [bind]. *)
       first [
         simple eapply advance_SimpTry; [ simp1; simp_close | simp0_try ]
       | simp1_try
       ]
-  | Par ?m1l ?m1r ?k ?h =>
+  | Par ?m1l ?m1r ?k =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
          away and further simplify the result. Three attempts are needed to

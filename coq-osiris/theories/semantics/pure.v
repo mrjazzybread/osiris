@@ -7,7 +7,7 @@ From osiris.semantics Require Import code eval step simplification.
 (* The judgement [pure m φ] asserts that the computation [m] can be simplified
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
-Definition pure `{Encode A} (m : micro val void) (φ : A → Prop) :=
+Definition pure `{Encode A} (m : microvx) (φ : A → Prop) :=
   ∃ a, simp m (ret #a) ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
@@ -28,7 +28,7 @@ Ltac destruct_encode_image a :=
 
 (* [pure] can also be defined in terms of [totalv]. *)
 
-Lemma pure_totalv `{Encode A} (m : micro val void) (φ : A → Prop) :
+Lemma pure_totalv `{Encode A} (m : microvx) (φ : A → Prop) :
   pure m φ ↔
   totalv m (λ v, ∃ a, v = #a ∧ φ a).
 Proof.

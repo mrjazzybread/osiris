@@ -101,7 +101,7 @@ Lemma simp_evals η :
   Forall2 (λ e v, simp (eval η e) (ret v)) es vs →
   simp (evals η es) (ret vs).
 Proof.
-  induction 1; simpl; simp. (* nice and sweet! *)
+  induction 1; simpl; simp.
 Qed.
 
 (* This lemma is general but does not mention the encoding function,
@@ -126,7 +126,7 @@ Lemma simp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
   simp (eval η e2) (ret #a2) →
   simp (eval η (EPair e1 e2)) (ret #(a1, a2)).
 Proof.
-  intros. simp. (* wow *)
+  intros. simp.
 Qed.
 
 Lemma simp_eval_tuple' η es vs :
@@ -209,7 +209,8 @@ Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntLand e1 e2)) (ret #(Z.land z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl. unfold as_int.
+  eapply simp_par; simp.
 Qed.
 
 Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
@@ -246,6 +247,7 @@ Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsl_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -258,6 +260,7 @@ Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -270,6 +273,7 @@ Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite asr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
