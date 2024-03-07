@@ -68,9 +68,7 @@ Notation Outcome := (outcome2 syntax.val exn).
 
 (* Operations over protocols of carrier [A] *)
 Class protocol_op {A} :=
-  { (* Partial order on carrier [A] *)
-    prot_order :: SqSubsetEq A;
-    (* Operation on protocols *)
+  { (* Operation on protocols *)
     prot_abort : A;
     prot_sum : A -> A -> A;
   (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
@@ -82,9 +80,19 @@ Class protocol_spec Σ {A} `{@protocol_op A} :=
 Arguments protocol_spec {_ _ _}.
 Arguments prot_spec {_ _ _ _} _ _ _.
 
+Class preorder Σ (A : Type)  :=
+  { order : A -d> A -d> iProp Σ;
+    refl : (⊢ ∀ a, order a a)%I;
+    trans : (⊢ ∀ a b c, order a b -∗ order b c -∗ order a c)%I;
+    order_persistent :: forall a b, Persistent (order a b)}.
+
+Notation "P ⊑ Q" := (order P Q)%I.
+(* TODO: Add RewriteRelation? *)
+
 Class protocol Σ {A} :=
   { protocol_operations :: @protocol_op A;
-    protocol_specification :: @protocol_spec Σ A _ }.
+    protocol_specification :: @protocol_spec Σ A _;
+    protocol_preorder :: preorder Σ A }.
 
 Notation "P + Q" := (prot_sum P Q).
 Notation "Ψ 'allows' 'do' v { Φ }" := (prot_spec Ψ v Φ) (at level 40).
@@ -97,14 +105,9 @@ Section protocol_spec_properties.
   Context {Protocol : @protocol Σ A}.
 
   Class protocol_monotone :=
-    prot_mono v Ψ Φ1 Φ2 :
-      prot_spec Ψ v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ⊢
-        prot_spec Ψ v Φ2.
-
-  Class protocol_prot_monotone :=
-    prot_pmono v Ψ1 Ψ2 Φ :
-      prot_spec Ψ1 v Φ ∗ ⌜Ψ1 ⊑ Ψ2⌝ ⊢
-        prot_spec Ψ2 v Φ.
+    prot_mono v Ψ1 Ψ2 Φ1 Φ2 :
+      prot_spec Ψ1 v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ∗ Ψ1 ⊑ Ψ2 ⊢
+        prot_spec Ψ2 v Φ2.
 
   Class protocol_abort :=
     prot_abort_absurd v Φ :
@@ -122,7 +125,6 @@ Section protocol_spec_properties.
     prot_prop_sum :: protocol_sum_or;
     (* [A5] *)
     prot_prop_mono :: protocol_monotone;
-    prot_prop_pmono :: protocol_prot_monotone;
   }.
 
 End protocol_spec_properties.
@@ -132,6 +134,16 @@ End protocol_spec_properties.
 Class protocol_wf Σ {A} :=
   { protocol_def :: @protocol Σ A;
     protocol_wf_properties :: protocol_properties Σ }.
+
+From iris.proofmode Require Import proofmode.
+
+Lemma prot_mono_post {Σ P} `{protocol_wf Σ P}:
+  ∀ Ψ v Φ1 Φ2,
+    ⊢ prot_spec Ψ v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) -∗ prot_spec Ψ v Φ2.
+Proof.
+  iIntros (????) "[HΨ Hmono]".
+  iApply prot_mono; iFrame. iApply refl.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -198,7 +210,6 @@ Notation "'EWP' e @ E <| Ψ '|' '>'  {{ Φ } }" :=
     : bi_scope.
 
 (* -------------------------------------------------------------------------- *)
-From iris.proofmode Require Import proofmode.
 
 Section ewp_properties.
 

@@ -105,9 +105,9 @@ Section ewp_basic_rules.
     1, 2 : iMod "Hwp"; iModIntro; iApply ("Hmon" with "[$]").
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
-      iApply prot_mono. iMod "Hwp"; iModIntro.
-      iFrame. iIntros (w) "Hewp".
-      iApply ("IH" with "Hewp").
+      iMod "Hwp"; iModIntro.
+      iApply prot_mono_post; iFrame.
+      iIntros (w) "Hewp"; iApply ("IH" with "Hewp").
       by iModIntro. }
 
     intro_state. spec_state. iModIntro.
@@ -119,21 +119,21 @@ Section ewp_basic_rules.
   Qed.
 
   Lemma ewp_prot_mono E m φ Ψ Ψ':
-    Ψ ⊑ Ψ' ->
-    ⊢ EWP m @ E <| Ψ |> {{ φ }} -∗
+    Ψ ⊑ Ψ' -∗
+    EWP m @ E <| Ψ |> {{ φ }} -∗
     EWP m @ E <| Ψ' |> {{ φ }}.
   Proof.
     iLöb as "IH" forall (m).
-    iIntros (Hmono) "Hwp".
+    iIntros "#Hmono Hwp".
     ewp_unfold m.
     ewp_case_is_handleable m; try done.
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
-      iApply prot_pmono. iMod "Hwp".
-      iSplitL "Hwp"; first iApply prot_mono; iFrame; try done.
-      iModIntro.
+      iMod "Hwp"; iModIntro.
+      iApply prot_mono; iFrame.
+      iFrame "Hmono".
       iIntros (w) "Hewp". iNext.
-      iApply ("IH" with "[//] Hewp"). }
+      iApply ("IH" with "Hmono Hewp"). }
 
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
@@ -158,7 +158,7 @@ Section ewp_basic_rules.
     1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
     - iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro.
-      iApply prot_mono; iFrame.
+      iApply prot_mono_post; iFrame.
       iIntros (w) "Hk"; iNext; by iApply ("IH" with "Hk").
     - iIntros (σ) "Hσ".
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
@@ -270,8 +270,9 @@ Section ewp_rules.
     { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
 
     (* Case : [m1] is [Perform _ _]. *)
-    { ewp_unfold_all. iMod "Hwp"; iModIntro.
-      iApply prot_mono; iFrame; iIntros (w) "Hewp".
+    { cbn. ewp_unfold_all. iMod "Hwp"; iModIntro.
+      iApply prot_mono_post; iFrame.
+      iIntros (w) "Hewp".
       iNext; by iSpecialize ("IH" with "Hewp"). }
 
     (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
@@ -362,7 +363,7 @@ Section wp_handler_rules.
   Proof.
     iIntros "HP".
     ewp_unfold_head.
-    iApply prot_mono; iFrame. iModIntro.
+    iApply prot_mono_post; iFrame. iModIntro.
     iIntros (?) "HΦ". by iNext.
   Qed.
 
@@ -370,7 +371,7 @@ Section wp_handler_rules.
     prot_spec Ψ v Φ ⊢ EWP (do v) @ E <| Ψ |> {{ Φ ↑ }}.
   Proof.
     iIntros "HP". iApply ewp_perform.
-    iApply prot_mono; iFrame.
+    iApply prot_mono_post; iFrame.
     iIntros (?) "HΦ". iNext.
     cbn. iApply ewp_value; by cbn.
   Qed.
@@ -381,7 +382,7 @@ Section wp_handler_rules.
   Proof.
     iIntros "HP".
     ewp_unfold_all.
-    iApply prot_mono; iMod "HP"; iModIntro; iFrame.
+    iApply prot_mono_post; iMod "HP"; iModIntro; iFrame.
     iIntros (?) "HΦ". by iNext.
   Qed.
 
@@ -437,7 +438,7 @@ Section wp_handler_rules.
       iAssert (prot_spec Ψ e0
                  (fun r => ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}))%I
         with "[HP HH]" as "HΨ".
-      { iApply prot_mono; iFrame.
+      { iApply prot_mono_post; iFrame.
         iIntros (?) "Hwp"; cbn.
         iNext.
         rename σ into σ'.
@@ -510,7 +511,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_perform_inv with "[$]") as "H1".
       iApply ewp_fupd. iMod "H1"; iModIntro. (* TODO: cleanup *)
       iApply ewp_perform.
-      iApply prot_mono; iFrame.
+      iApply prot_mono_post; iFrame.
       iIntros (?) "Hk".
       iNext.
       iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
@@ -520,7 +521,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_perform_inv with "[$]") as "H2".
       iApply ewp_fupd. iMod "H2"; iModIntro. (* TODO: cleanup *)
       iApply ewp_perform.
-      iApply prot_mono; iFrame.
+      iApply prot_mono_post; iFrame.
       iIntros (?) "H2".
       iNext.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
@@ -554,8 +555,8 @@ Section wp_handler_rules.
       iApply ewp_fupd.
       iApply ewp_perform.
       iPoseProof (ewp_perform_inv with "Hwp") as "Hwp".
-      iApply prot_mono; iFrame. iMod "Hwp"; iModIntro. (* TODO cleanup *)
-      iFrame.
+      iMod "Hwp"; iModIntro.
+      iApply prot_mono_post; iFrame.
       iIntros (w) "Hw". iNext.
       iApply ("IH" $! _ _ (H2 (O2Ret w)) with "Hw"). }
 
