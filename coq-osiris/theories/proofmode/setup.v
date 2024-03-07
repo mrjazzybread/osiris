@@ -19,12 +19,12 @@ Arguments as_bool m /.
 Arguments as_int m /.
 Arguments as_loc m /.
 Arguments as_record m /.
-Arguments as_struct m /.
+Arguments as_struct E m /.
 Arguments lookup_name _ _/.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
-Arguments remove !f !fvs : simpl nomatch.
+Arguments eval.remove !f !fvs : simpl nomatch. (* FIXME *)
 Arguments update !fvs !fvs' : simpl nomatch.
 Arguments extend δ !p v.
 Arguments extends δ !ps !vs.
