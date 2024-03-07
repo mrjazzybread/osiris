@@ -203,7 +203,7 @@ End ewp.
 
 (** Notation. *)
 
-Notation "'EWP' e @ E <| Ψ '|' '>'  {{ Φ } }" :=
+Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
   (ewp_def E e%E Ψ Φ)
     (at level 20, e, Ψ, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
@@ -303,7 +303,7 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation *)
-Notation "'EWP' e @ E  <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
+Notation "'EWP' e @ E <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def E e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
       format "'[hv' 'EWP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
@@ -311,3 +311,9 @@ Notation "'EWP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
   (ewp_def NotStuck ⊤ e%E Ψ (lift_ret_spec (λ v, Q)))
     (at level 20, e, Q at level 200,
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+
+(* N.B. A slight hack to control the namespace of constructs that have the same
+  name in [stdpp] and [osiris]. *)
+From osiris Require Export syntax.
+(* LATER: import [semantics] after [eval, pure] compiles *)
+From osiris.semantics Require Export code micro step.
