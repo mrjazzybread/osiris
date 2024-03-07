@@ -79,21 +79,14 @@ Section ewp_basic_rules.
   Lemma ewp_step {σ σ'} E m n {φ} Ψ:
     step (σ, m) (σ', n) →
     state_interp σ -∗
-    EWP m @ E <| Ψ |> {{ φ }} ={E,∅}=∗ |={∅}▷=> |={∅,E}=>
-    (state_interp σ' ∗ EWP n @ E <| Ψ |> {{ φ }}).
+     EWP m @ E <| Ψ |> {{ φ }} ={E,∅}=∗ |={∅}▷=> |={∅,E}=>
+     (state_interp σ' ∗ EWP n @ E <| Ψ |> {{ φ }}).
   Proof.
     intro Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
-    destruct (is_handleable m) eqn: Hmh.
-    { destruct m; inversion Hmh; subst; try by inversion Hstep.
-      destruct c; try congruence.
-      inversion Hstep. }
-    iSpecialize ("Hwp" with "Hsi").
-    iMod "Hwp". iDestruct "Hwp" as (?) "Hwp".
-    iSpecialize ("Hwp" $! _ _ Hstep).
-    iMod "Hwp". iModIntro. iModIntro. iNext.
-    by iModIntro.
+    ewp_case_is_handleable m; spec_state; spec_step.
+    by ewp_mask_elim.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -107,24 +100,21 @@ Section ewp_basic_rules.
     iLöb as "IH" forall (m).
     iIntros "Hwp Hmon".
     ewp_unfold m.
-    destruct (is_handleable m) eqn: Hmh.
-    { (* Case: [m] is a [HRet] or a [HThrow]. We easily conclude. *)
-      destruct h; try (iMod "Hwp"; iModIntro; by iApply "Hmon").
-      (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
-      iApply prot_mono. iMod "Hwp".
-      iModIntro. iFrame. iIntros (w) "Hewp".
+    ewp_case_is_handleable m.
+    (* Case: [m] is a [HRet] or a [HThrow]. We easily conclude. *)
+    1, 2 : iMod "Hwp"; iModIntro; iApply ("Hmon" with "[$]").
+
+    { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
+      iApply prot_mono. iMod "Hwp"; iModIntro.
+      iFrame. iIntros (w) "Hewp".
       iApply ("IH" with "Hewp").
       by iModIntro. }
 
-    intro_state.
-    iSpecialize ("Hwp" $! σ with "Hsi").
-    iMod "Hwp"; iModIntro.
-    iDestruct "Hwp" as "[Hcstep Hwp]".
-    iFrame.
-    iIntros (σ' m') "Hsi'".
-    iSpecialize ("Hwp" $! σ' m' with "Hsi'").
-    iMod "Hwp". iModIntro. iNext. iMod "Hwp". iModIntro.
-    iDestruct "Hwp" as "[$ Hwp]".
+    intro_state. spec_state. iModIntro.
+    construct_wp_nonret.
+    spec_step. ewp_mask_elim.
+
+    iDestruct "Hwp" as ">[$ Hwp]".
     by iApply ("IH" with "Hwp").
   Qed.
 
@@ -139,21 +129,18 @@ Section ewp_basic_rules.
     iIntros (HE) "He #HΦ".
     iLöb as "IH" forall (m).
     ewp_unfold m.
-    destruct (is_handleable m) as [ [] |] eqn:?.
-    - iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E _).
-    - iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E _).
+    ewp_case_is_handleable m.
+    1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
     - iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro.
       iApply prot_mono; iFrame.
       iIntros (w) "Hk"; iNext; by iApply ("IH" with "Hk").
     - iIntros (σ) "Hσ".
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
-      iMod ("He" with "[$]") as "[$ H]".
-      iModIntro. iIntros (σ' m' Hstep).
-      iMod ("H" with "[//]") as "H". iIntros "!> !>".
-      iMod "H". iMod "Hclose". iModIntro.
-      iDestruct "H" as "(SI & H)"; iFrame.
-      iApply ("IH" with "H").
+      spec_state. iModIntro. construct_wp_nonret.
+      spec_step. ewp_mask_elim.
+      iDestruct "He" as ">(SI & H)"; iFrame.
+      iMod "Hclose"; iApply ("IH" with "H").
   Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
@@ -194,12 +181,12 @@ Section ewp_basic_rules.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
-    destruct (is_handleable m) eqn: Hm.
-    (* TODO: Clean up *)
-    { destruct h; try iMod "Hwp"; try (iApply fupd_mask_intro; first set_solver);
-        iIntros "_"; iPureIntro; right; eauto. }
-    { iSpecialize ("Hwp" with "SI"). iMod "Hwp".
-      iDestruct "Hwp" as (Hwp) "Hwp". iPureIntro; auto. }
+    ewp_case_is_handleable m.
+    1-3: try iMod "Hwp";
+        try (iApply fupd_mask_intro; first set_solver);
+        iIntros "_"; iPureIntro; right; eauto.
+
+    spec_state. iModIntro. iPureIntro; auto.
   Qed.
 
   Lemma ewp_can_step' {σ} Ψ φ m E:
@@ -223,7 +210,7 @@ Section ewp_rules.
   Implicit Type m : micro A X.
   Import ewp_rules_tactics.
 
-  Lemma is_handleable_try {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
+  Lemma is_handleable_try_None {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
     is_handleable m = None ->
     is_handleable (try m f h) = None.
   Proof.
@@ -231,7 +218,7 @@ Section ewp_rules.
     destruct c; inversion H1; done.
   Qed.
 
-  Lemma is_handleable_try2 {B X'} m (f : _ -> micro B X'):
+  Lemma is_handleable_try2_None {B X'} m (f : _ -> micro B X'):
     is_handleable m = None ->
     is_handleable (try2 m f) = None.
   Proof.
@@ -248,61 +235,38 @@ Section ewp_rules.
   Proof.
     iLöb as "IH" forall (m f Ψ Φ).
     iIntros "Hwp".
-    wp_case_is_ret m.
+    ewp_case_is_handleable m.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
     { iPoseProof (ewp_ret_inv with "[$]") as "Hret"; cbn.
       by iApply ewp_fupd. }
 
-    (* Case: [m1] is not [ret _]. *)
-    { ewp_unfold m.
+    (* Case : [m1] is [throw _]; trivial  *)
+    { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
 
-      wp_case_is_throw m Hthrow; cbn.
-      (* Case : [m1] is [throw _]; trivial  *)
-      { by iApply ewp_fupd. }
+    (* Case : [m1] is [Perform _ _]. *)
+    { ewp_unfold_all. iMod "Hwp"; iModIntro.
+      iApply prot_mono; iFrame; iIntros (w) "Hewp".
+      iNext; by iSpecialize ("IH" with "Hewp"). }
 
-      (* Case analysis on [try] :
-            If [m1] is not [ret _] or [throw _]; [try m1 _ _] is not [ret _] *)
-      wp_case_is_ret (try2 m f) Hret'; subst.
-      { rewrite Hret' /=.
-        apply invert_try2_eq_ret in Hret' ; intros; subst; try done. }
+    (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
+    ewp_unfold_all; rewrite Hmh.
+    apply (is_handleable_try2_None m f) in Hmh; rewrite Hmh.
 
-      (* Case : [m1] is not [throw _]. *)
-      ewp_unfold_head.
+    (* Process a step of computation. *)
+    intro_state. spec_state.
+    iModIntro. construct_wp_nonret.
 
-      destruct (is_handleable m) eqn : Hhm.
+    (* Get more information out of [e2]; *)
+    apply invert_step_try2 in Hstep; auto; destruct Hstep as (?&Hstep&->).
 
-      (* Case : [m1] is [Perform _ _]. *)
-      { destruct m; inversion Hhm;
-          (* TODO: cleanup *)
-          try solve [inversion Hret | inversion Hthrow].
-        destruct c; inversion H1; subst.
-        cbn. iMod "Hwp". iModIntro.
-        iApply prot_mono; iFrame; iIntros (w) "Hewp".
-        iNext. by iSpecialize ("IH" with "Hewp"). }
+    (* Can use information from above to get [wp] about stepped computation *)
+    spec_step.
+    ewp_mask_elim. iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
+    iModIntro.
 
-      (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
-      (* TODO: cleanup *)
-      apply (is_handleable_try2 m f) in Hhm.
-      rewrite Hhm.
-
-      (* Process a step of computation. *)
-      intro_state.
-      iSpecialize ("Hwp" with "Hsi").
-      iDestruct "Hwp" as ">(%Hstep & Hwp)". iModIntro.
-
-      construct_wp_nonret.
-
-      (* Get more information out of [e2]; *)
-      apply invert_step_try2 in Hstep0; auto. destruct Hstep0 as (?&Hstep0&->).
-
-      (* Can use information from above to get [wp] about stepped computation *)
-      iSpecialize ("Hwp" with "[//]").
-      ewp_mask_elim. iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
-      iModIntro.
-
-      (* Apply induction hypothesis  *)
-      by iApply ("IH" with "Hwp"). }
+    (* Apply induction hypothesis  *)
+    by iApply ("IH" with "Hwp").
   Qed.
 
   Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :

@@ -96,6 +96,57 @@ Module ewp_rules_tactics.
     (* Introduce a hypothetical step: *)
     intro_step.
 
+  Ltac inv H := inversion H; subst; clear H.
+
+  Ltac destruct_stop_code :=
+    match goal with
+    | [H: is_handleable (Stop ?c _ _) = Some _ |- _] =>
+        destruct c; try done
+    end.
+
+  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hret) :=
+    case_eq (is_handleable x);
+    [ intros ? Hmh; destruct x;
+      try destruct_stop_code;
+      try (inversion Hmh; subst; clear Hmh);
+      try solve [by destruct_step] |
+      intros Hmh ].
+
+  Tactic Notation "ewp_case_is_handleable" constr(x) :=
+    let Hhm := fresh "Hhm" in
+    ewp_case_is_handleable x Hhm.
+
+  Ltac spec_state :=
+    lazymatch goal with
+    | |- context
+      [environments.Esnoc _ ?Hwp
+        (bi_forall (fun σ : store => bi_wand (state_interp σ) _))] =>
+        match goal with
+        | |- context [environments.Esnoc _ ?SI (state_interp ?σ)] =>
+            let Hstep := fresh "Hstep" in
+            iSpecialize (Hwp $! _ with SI);
+            iMod Hwp;
+            iDestruct Hwp as (Hred) Hwp
+        end
+    end.
+
+  (* Specialize hypothesis that expects a [step] relation and extract out
+    information *)
+  Ltac spec_step :=
+    match goal with
+    | |- context[environments.Esnoc _ ?Hwp
+        (bi_forall (fun σ'0 =>
+        bi_forall (fun m' =>
+        bi_wand (bi_pure (step (pair ?σ ?m) _)) _)))] =>
+        match goal with
+        | [Hstep : step (σ, m) _ |- _] =>
+            (* Specialize step relation *)
+            iSpecialize (Hwp $! _ _ Hstep);
+            (* Destruct the hypothesis *)
+            iMod Hwp
+        end
+    end.
+
   (* ------------------------------------------------------------------------ *)
 
   (* Reason about case analysis on [is_ret]*)
