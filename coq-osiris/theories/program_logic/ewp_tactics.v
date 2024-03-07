@@ -104,13 +104,13 @@ Module ewp_rules_tactics.
         destruct c; try done
     end.
 
-  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hret) :=
+  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hhm) :=
     case_eq (is_handleable x);
-    [ intros ? Hmh; destruct x;
+    [ intros ? Hhm; destruct x;
       try destruct_stop_code;
-      try (inversion Hmh; subst; clear Hmh);
+      try (inversion Hhm; subst; clear Hhm);
       try solve [by destruct_step] |
-      intros Hmh ].
+      intros Hhm ].
 
   Tactic Notation "ewp_case_is_handleable" constr(x) :=
     let Hhm := fresh "Hhm" in
@@ -125,8 +125,8 @@ Module ewp_rules_tactics.
         | |- context [environments.Esnoc _ ?SI (state_interp ?σ)] =>
             let Hstep := fresh "Hstep" in
             iSpecialize (Hwp $! _ with SI);
-            iMod Hwp;
-            iDestruct Hwp as (Hred) Hwp
+            try (iMod Hwp;
+            iDestruct Hwp as (Hred) Hwp)
         end
     end.
 

@@ -250,8 +250,8 @@ Section ewp_rules.
       iNext; by iSpecialize ("IH" with "Hewp"). }
 
     (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
-    ewp_unfold_all; rewrite Hmh.
-    apply (is_handleable_try2_None m f) in Hmh; rewrite Hmh.
+    ewp_unfold_all; rewrite Hhm.
+    apply (is_handleable_try2_None m f) in Hhm; rewrite Hhm.
 
     (* Process a step of computation. *)
     intro_state. spec_state.
@@ -535,7 +535,7 @@ Section wp_handler_rules.
       iApply ("IH" $! _ _ (H2 (O2Ret w)) with "Hw"). }
 
     (* Examine [ms] on whether it is a [ret]. *)
-    wp_case_is_ret ms Hretms.
+    ewp_case_is_handleable ms.
 
     (* Case: [ms] is [ret _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
@@ -555,8 +555,6 @@ Section wp_handler_rules.
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "[//] Hwp"). }
 
-    (* Examine [ms] on whether it is a [throw]. *)
-    wp_case_is_throw ms Hthrow_ms.
     (* Case : [ms] is [throw _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
       ewp_unfold_head. rewrite Hmh.
@@ -575,13 +573,8 @@ Section wp_handler_rules.
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "[//] Hwp"). }
 
-    (* [ms] is neither a [ret _] or [throw _]. *)
-    destruct (is_handleable ms) eqn: Hmh_ms.
-    { destruct ms; inversion Hmh_ms; cbn in *; subst;
-        [ inversion Hretms | inversion Hthrow_ms |].
-      destruct c; inversion H1; subst.
-
-      ewp_unfold_head. rewrite Hmh.
+    (* Case : [ms] is [Perform _]. *)
+    { ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplitL "".
       { iPureIntro.
@@ -629,15 +622,10 @@ Section wp_handler_rules.
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
     carefully avoided up to this point. *)
-    ewp_unfold ms. rewrite Hmh_ms.
-    iSpecialize ("Hwp" with "Hsi"). iMod "Hmod".
-    iMod "Hwp".
-    iDestruct "Hwp" as (?) "Hwp".
-    iSpecialize ("Hwp" $! _ _ Hstep).
-    iMod "Hwp". iModIntro. iNext.
-    iMod "Hwp". iDestruct "Hwp" as "(SI & Hwp)"; iFrame.
-    iModIntro.
-    iApply ("IH" with "[//] Hwp").
+    ewp_unfold ms. rewrite Hhm. iMod "Hmod". spec_state. spec_step.
+    ewp_mask_elim.
+    iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
+    iModIntro; iApply ("IH" with "[//] Hwp").
   Qed.
 
 End wp_handler_rules.
