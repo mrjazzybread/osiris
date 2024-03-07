@@ -68,7 +68,9 @@ Notation Outcome := (outcome2 syntax.val exn).
 
 (* Operations over protocols of carrier [A] *)
 Class protocol_op {A} :=
-  { (* Operation on protocols *)
+  { (* Partial order on carrier [A] *)
+    prot_order :: SqSubsetEq A;
+    (* Operation on protocols *)
     prot_abort : A;
     prot_sum : A -> A -> A;
   (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
@@ -95,18 +97,23 @@ Section protocol_spec_properties.
   Context {Protocol : @protocol Σ A}.
 
   Class protocol_monotone :=
-    prot_mono v' Ψ Φ1 Φ2 :
-      prot_spec Ψ v' Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ⊢
-        prot_spec Ψ v' Φ2.
+    prot_mono v Ψ Φ1 Φ2 :
+      prot_spec Ψ v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ⊢
+        prot_spec Ψ v Φ2.
+
+  Class protocol_prot_monotone :=
+    prot_pmono v Ψ1 Ψ2 Φ :
+      prot_spec Ψ1 v Φ ∗ ⌜Ψ1 ⊑ Ψ2⌝ ⊢
+        prot_spec Ψ2 v Φ.
 
   Class protocol_abort :=
     prot_abort_absurd v Φ :
       (prot_spec prot_abort v Φ ⊣⊢ ⌜False⌝)%I.
 
   Class protocol_sum_or :=
-    prot_sum_or v' Ψ1 Ψ2 Φ :
-      prot_spec (Ψ1 + Ψ2) v' Φ ⊣⊢
-        prot_spec Ψ1 v' Φ ∨ prot_spec Ψ2 v' Φ.
+    prot_sum_or v Ψ1 Ψ2 Φ :
+      prot_spec (Ψ1 + Ψ2) v Φ ⊣⊢
+        prot_spec Ψ1 v Φ ∨ prot_spec Ψ2 v Φ.
 
   Class protocol_properties :=
   { (* [A2] *)
@@ -115,6 +122,7 @@ Section protocol_spec_properties.
     prot_prop_sum :: protocol_sum_or;
     (* [A5] *)
     prot_prop_mono :: protocol_monotone;
+    prot_prop_pmono :: protocol_prot_monotone;
   }.
 
 End protocol_spec_properties.

@@ -118,6 +118,31 @@ Section ewp_basic_rules.
     by iApply ("IH" with "Hwp").
   Qed.
 
+  Lemma ewp_prot_mono E m φ Ψ Ψ':
+    Ψ ⊑ Ψ' ->
+    ⊢ EWP m @ E <| Ψ |> {{ φ }} -∗
+    EWP m @ E <| Ψ' |> {{ φ }}.
+  Proof.
+    iLöb as "IH" forall (m).
+    iIntros (Hmono) "Hwp".
+    ewp_unfold m.
+    ewp_case_is_handleable m; try done.
+
+    { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
+      iApply prot_pmono. iMod "Hwp".
+      iSplitL "Hwp"; first iApply prot_mono; iFrame; try done.
+      iModIntro.
+      iIntros (w) "Hewp". iNext.
+      iApply ("IH" with "[//] Hewp"). }
+
+    intro_state. spec_state. iModIntro.
+    construct_wp_nonret.
+    spec_step. ewp_mask_elim.
+
+    iDestruct "Hwp" as ">[$ Hwp]".
+    by iApply ("IH" with "[//] Hwp").
+  Qed.
+
   (* TODO: Strong monotonicity principle over ordering on protocols *)
 
   Lemma ewp_pers_smono E E' Ψ Φ Φ' m :
