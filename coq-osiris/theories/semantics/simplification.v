@@ -1063,9 +1063,26 @@ Proof.
   { right. eauto with simp. }
 Qed.
 
+(* A reasoning rule for [try2]. *)
+
+Lemma total_try2 {A B E' E} m h
+  (φ : B → Prop) (φ' : A → Prop)
+  (ψ : E → Prop) (ψ' : E' → Prop) :
+  total m φ' ψ' →
+  (∀ a, φ' a → total (continue h a) φ ψ) →
+  (∀ e, ψ' e → total (discontinue h e) φ ψ) →
+  total (try2 m h) φ ψ.
+Proof.
+  intros. destruct_total a e.
+  { eapply total_simp; [ eapply simp_try2; eauto |].
+    simpl try. eauto. }
+  { eapply total_simp; [ eapply simp_try2; eauto |].
+    simpl try. eauto. }
+Qed.
+
 (* A reasoning rule for [try]. *)
 
-Lemma total_try {A B E' E} m f g
+Corollary total_try {A B E' E} m f g
   (φ : B → Prop) (φ' : A → Prop)
   (ψ : E → Prop) (ψ' : E' → Prop) :
   total m φ' ψ' →
@@ -1073,11 +1090,7 @@ Lemma total_try {A B E' E} m f g
   (∀ e, ψ' e → total (g e) φ ψ) →
   total (try m f g) φ ψ.
 Proof.
-  intros. destruct_total a e.
-  { eapply total_simp; [ eapply simp_try; eauto |].
-    simpl try. eauto. }
-  { eapply total_simp; [ eapply simp_try; eauto |].
-    simpl try. eauto. }
+  intros; eapply total_try2; eauto.
 Qed.
 
 (* A reasoning rule for [orelse]. *)
@@ -1246,19 +1259,32 @@ Proof.
   unfold totalv. eauto using total_simp.
 Qed.
 
-(* A reasoning rule for [try]. *)
+(* A reasoning rule for [try2]. *)
 
 (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [g] is dead and no proof obligation bears on it. *)
 
-Lemma totalv_try {A B E' E} m f (g : E' → micro B E)
+Lemma totalv_try2 {A B E' E} m (h : outcome2 _ E' → micro B E)
+  (φ : B → Prop) (φ' : A → Prop) :
+  totalv m φ' →
+  (∀ a, φ' a → totalv (continue h a) φ) →
+  totalv (try2 m h) φ.
+Proof.
+  unfold totalv. intros.
+  eapply total_try2; try solve [ eauto | simpl; tauto ].
+Qed.
+
+(* A reasoning rule for [try]. *)
+
+(* Corollary of [totalv_try2] *)
+
+Corollary totalv_try {A B E' E} m f (g : E' → micro B E)
   (φ : B → Prop) (φ' : A → Prop) :
   totalv m φ' →
   (∀ a, φ' a → totalv (f a) φ) →
   totalv (try m f g) φ.
 Proof.
-  unfold totalv. intros.
-  eapply total_try; try solve [ eauto | simpl; tauto ].
+  intros; eapply totalv_try2; eauto.
 Qed.
 
 (* A reasoning rule for [bind]. *)

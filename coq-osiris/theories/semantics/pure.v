@@ -95,22 +95,34 @@ Proof.
   rewrite !pure_totalv. eauto using totalv_simp.
 Qed.
 
-(* A reasoning rule for [try]. *)
+(* A reasoning rule for [try2]. *)
 
 (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [z] is dead and no proof obligation bears on it. *)
 
-Lemma pure_try A (_ : Encode A) B (_ : Encode B)
+Lemma pure_try2 A (_ : Encode A) B (_ : Encode B)
+  m h (φ : A → Prop) (ψ : B → Prop)
+  :
+  pure m φ →
+  (∀ a, φ a → pure (continue h #a) ψ) →
+  pure (try2 m h) ψ.
+Proof.
+  (* We could give a direct proof. We go through [totalv]. *)
+  rewrite !pure_totalv. intros. eapply totalv_try2; [ eauto |].
+  simpl. intros v Hv. destruct_encode_image a.
+  rewrite <- pure_totalv. eauto.
+Qed.
+
+(* A reasoning rule for [try]; corollary of [pure_try2] *)
+
+Corollary pure_try A (_ : Encode A) B (_ : Encode B)
   m k z (φ : A → Prop) (ψ : B → Prop)
 :
   pure m φ →
   (∀ a, φ a → pure (k #a) ψ) →
   pure (try m k z) ψ.
 Proof.
-  (* We could give a direct proof. We go through [totalv]. *)
-  rewrite !pure_totalv. intros. eapply totalv_try; [ eauto |].
-  simpl. intros v Hv. destruct_encode_image a.
-  rewrite <- pure_totalv. eauto.
+  intros; eapply pure_try2; eauto.
 Qed.
 
 (* A reasoning rule for [bind]. *)
