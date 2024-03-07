@@ -62,6 +62,16 @@ Proof.
   eauto using simp_bind with simp.
 Qed.
 
+(* The Try2 rule. *)
+
+Lemma prove_simp_try2 {A B E' E m m' a} {f : outcome2 A E' → micro B E} :
+  simp m (ret a) →
+  simp (continue f a) m' →
+  simp (try2 m f) m'.
+Proof.
+  eauto using simp_try2 with simp try_ret.
+Qed.
+
 (* The Try rule. *)
 
 Lemma prove_simp_try {A B E' E m m' a} {f : A → micro B E} (h : E' → _) :

@@ -36,9 +36,9 @@ Qed.
 (* [simp m (ret #a)] is equivalent to a Hoare logic judgement [pure m _]
    whose postcondition is an equality [λ a', a = a']. *)
 
-Lemma simp_pure `{Encode A} m (a : A) :
+Lemma simp_pure `{Encode A} {X} m (a : A) :
   simp m (ret #a) ↔
-  pure m (λ a', a = a').
+  pure (X := X) m (λ a', a = a').
 Proof.
   rewrite simp_totalv. rewrite pure_totalv.
   split; intro; (eapply totalv_consequence; [ eassumption | simpl ]).
@@ -488,8 +488,7 @@ Proof.
   intros.
   destruct_pure v2; destruct_pure v1; destruct_pure vf'; subst.
   eapply pure_simp; [ simp | eauto ].
-  eapply pure_bind_unary with (A:=val).
-  assumption.
+  eapply pure_try2; eauto.
 Qed.
 
 Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
@@ -653,6 +652,19 @@ Proof.
     congruence. }
 Qed.
 
+Lemma simp_widen {A E} (m : micro A void) (a : A) :
+  simp (E := E) (widen m) (ret a) <-> simp m (ret a).
+Proof.
+  split.
+  { intros H.
+    apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+    { apply destruct_simp_ret in simp_ret_ret.
+      by (injection simp_ret_ret; intros ->). }
+    { done. } }
+  { intros. unfold widen.
+    eapply prove_simp_try; simp. }
+Qed.
+
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   (v1 : A1) (v2 : A2) η θ :
   simp (eval η e1) (ret #(v1, v2)) ->
@@ -662,9 +674,10 @@ Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
   intros. simp; last eassumption.
-  eapply prove_simp_try; last apply SimpReflexive.
+  eapply prove_simp_try2; last apply SimpReflexive.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
   unfold irrefutably_extend in *.
+  eapply prove_simp_try2; last apply SimpReflexive.
   eapply prove_simp_bind. { eauto using simp_wrap. }
   rewrite bind_bind.
   simpl. rewrite bind_ret_right. eauto using simp_wrap.
@@ -674,8 +687,8 @@ Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
-          δ ← irrefutably_extend [] p1 #v1;
-          θ ← irrefutably_extend δ p2 #v2;
+          δ ← widen (irrefutably_extend [] p1 #v1);
+          θ ← widen (irrefutably_extend δ p2 #v2);
           eval (θ ++ η) e2
         ) ψ) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
@@ -685,7 +698,8 @@ Proof.
   eapply invert_simp_bind_ret in Hsimp as (δ & Hv1 & Hsimp).
   eapply invert_simp_bind_ret in Hsimp as (θ & Hv2 & Hx).
   eapply pure_simp.
-  { eapply simp_eval_let_pair; eauto using prove_simp_bind. }
+  { eapply simp_eval_let_pair; eauto using prove_simp_bind.
+    eapply prove_simp_bind; eapply simp_widen; eauto. }
   eapply pure_ret; eauto.
 Qed.
 
@@ -900,7 +914,7 @@ Proof.
   intros.
   destruct_pure cv.
   eapply pure_simp.
-  { eapply prove_simp_bind; eauto. }
+  { eapply prove_simp_bind; eauto. apply simp_widen; eauto. }
   eapply pure_ret; eauto.
 Qed.
 
@@ -910,7 +924,7 @@ Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
 Proof.
   intros. destruct_pure v.
   eapply pure_simp.
-  rewrite eval_eval'; eauto.
+  rewrite eval_eval'; cbn; eapply simp_widen; eauto.
   eapply pure_ret; eauto.
 Qed.
 
