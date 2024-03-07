@@ -144,12 +144,12 @@ Qed.
    for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
 Lemma pure_par `{Encode A1, Encode A2, Encode A}
-  m1 m2 k z (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
   pure m1 φ1 →
   pure m2 φ2 →
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure (k (#a1, #a2)) φ) →
-  pure (Par m1 m2 k z) φ.
+  pure (Par m1 m2 (glue2 k z)) φ.
 Proof.
   rewrite !pure_totalv. intros Hm1 Hm2 Hentail. rewrite <- try_par.
   eapply totalv_try.
@@ -158,6 +158,22 @@ Proof.
     destruct_encode_image a2. destruct_encode_image a1.
     eauto. }
   { intros v. rewrite <- pure_totalv. tauto. }
+Qed.
+
+Lemma pure_par' `{Encode A1, Encode A2, Encode A}
+  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+:
+  pure m1 φ1 →
+  pure m2 φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ) →
+  pure (Par m1 m2 k) φ.
+Proof.
+  rewrite !pure_totalv. intros Hm1 Hm2 Hentail.
+  destruct_total a1 e. destruct_total a2 e.
+  destruct_encode_image a. destruct_encode_image b.
+  specialize (Hentail b a).
+  destruct Hentail as (x & ? & ?); try assumption.
+  left. exists (#x). split; [ eapply simp_par; eauto | eauto ].
 Qed.
 
 (* A reasoning rule for [choose]. *)

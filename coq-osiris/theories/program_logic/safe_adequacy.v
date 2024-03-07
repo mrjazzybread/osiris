@@ -215,7 +215,7 @@ Proof.
 Qed.
 
 Definition osirisΣ : gFunctors :=
-  #[invΣ; gen_heap.gen_heapΣ locations.loc syntax.val].
+  #[invΣ; gen_heap.gen_heapΣ locations.loc step.block].
 Global Instance subG_osirisGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
