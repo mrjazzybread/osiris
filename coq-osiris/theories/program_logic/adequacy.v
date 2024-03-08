@@ -1,23 +1,18 @@
-
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap.
 From iris.program_logic Require Import weakestpre adequacy.
 
 From osiris.program_logic Require Import ewp rules tactics.
 
-(* ========================================================================== *)
 
+(* -------------------------------------------------------------------------- *)
 Section ewp_wp.
 
   Import ewp_rules_tactics.
-  (* -------------------------------------------------------------------------- *)
-  (** * Link Between [WP] and [EWP]. *)
 
-  (* The adequacy of [EWP] follows from the adequacy of [WP], the standard Iris
-    weakest-precondition construction (that becomes available for any
-    programming language satisfying the Iris axiomatization [Language]). The
-    notion of [WP] is adequate. The idea is thus to prove that [EWP] entails
-    [WP] (under the assumption that both protocols are empty). *)
+  (*  We show an adequacy of a closed program using the fact that the adequacy of
+    [EWP] is a consequence of the adequacy of [WP]. This is following the adequacy
+    proof of [Hazel] (de Vilhena & Pottier) *)
 
   Lemma ewp_imp_wp {Σ P} {A X}
     {irisGen: irisGS_gen HasNoLc (@osiris_lang A X) Σ}
@@ -52,19 +47,18 @@ Section ewp_wp.
 End ewp_wp.
 
 
-(* ========================================================================== *)
+(* -------------------------------------------------------------------------- *)
 (** * Adequacy. *)
 
 Section adequacy.
 
   Context {A X : Type} {Σ : gFunctors}.
 
-  (* TODO: cleanup the obligations *)
-  Context `{!invGpreS Σ} `{!gen_heapGpreS locations.loc block Σ}.
+  Context `{!osirisGpreS Σ}.
   Context `{protocol_wf Σ P}.
 
   (* ------------------------------------------------------------------------ *)
-  (** Adequacy Theorem for [EWP]. *)
+  (** Adequacy Theorem for [EWP], for closed programs. *)
 
   Theorem ewp_adequacy e σ φ :
   (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
