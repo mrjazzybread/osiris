@@ -112,8 +112,8 @@ Lemma struct_let_single `{Encode A} η δ e v (spec : A -> Prop) φ :
                    δ0 = [(v, encode clo)] ++ δ) .
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { apply SimpParRetRightThrow. }
-  eapply totalv_bind. { eapply pure_totalv; eassumption. }
+  eapply totalv_simp. { simp. }
+  eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v' (? & -> & Hextend).
   eapply totalv_ret. eauto.
 Qed.
@@ -124,11 +124,12 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) φ ψ :
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { apply SimpParRetRightThrow. }
-  eapply totalv_bind. { eapply pure_totalv; eassumption. }
+  eapply totalv_simp. { simp. }
+  eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v (? & -> & Hextend).
   eapply totalv_bind.
-  { unfold pat in Hextend. unfold irrefutably_extend.
+  { unfold pat in Hextend. unfold irrefutably_extend; cbn.
+    rewrite totalv_widen.
     eapply totalv_try; [ eassumption | ].
     eauto using totalv_ret. }
   auto using totalv_ret.
@@ -168,7 +169,8 @@ Proof.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
-    intros []; try contradiction; eauto using totalv_ret. }
+    intros []; try contradiction; rewrite totalv_widen;
+    eauto using totalv_ret. }
   eauto using totalv_ret.
 Qed.
 
@@ -182,7 +184,8 @@ Proof.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
-    intros []; try contradiction; eauto using totalv_ret. }
+    intros []; try contradiction; rewrite totalv_widen;
+      eauto using totalv_ret. }
   eauto using totalv_ret.
 Qed.
 
@@ -237,6 +240,7 @@ Lemma module_path η π φ :
   module η (MPath π) φ.
 Proof.
   unfold module; simpl; intros.
+  rewrite totalv_widen.
   eapply totalv_consequence; [ eassumption | ].
   auto.
 Qed.
@@ -248,7 +252,8 @@ Lemma module_coercion η me c φ :
 Proof.
   unfold module. intros. simpl.
   eapply totalv_bind; [ eassumption | ].
-  intros []; try contradiction; unfold coerces in *; auto.
+  intros []; try contradiction; rewrite totalv_widen;
+    unfold coerces in *; auto.
 Qed.
 
 End MExpr.
@@ -265,10 +270,9 @@ Proof.
   destruct_pure a.
   eapply totalv_simp.
   { eapply SimpPar; eauto with simp. }
-  eapply totalv_simp; [ apply SimpParRetLeftThrow | ].
-  eapply totalv_bind; [ eassumption | ].
-  intros η' Hη'.
-  rewrite bind_ret.
+  eapply totalv_simp; [ simp | ].
+  eapply totalv_try2; [ eassumption | ].
+  intros η' Hη'. cbn. rewrite totalv_widen.
   eapply totalv_try.
   { by apply Hcov. }
   intros. by apply total_ret.
