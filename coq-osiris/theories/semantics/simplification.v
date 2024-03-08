@@ -1673,3 +1673,29 @@ Proof.
   intros h. apply invert_simp_bind_ret_totalv in h.
   destruct_total a e. eauto.
 Qed.
+
+(* Lemma about [widen] : [widen] does not change the [simp] relation
+  for programs simplify to [ret] *)
+Lemma simp_widen {A E} (m : micro A void) (a : A) :
+  simp (E := E) (widen m) (ret a) <-> simp m (ret a).
+Proof.
+  split.
+  { intros H.
+    apply invert_simp_try2_ret in H as
+        [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+    { apply destruct_simp_ret in simp_ret_ret.
+      by (injection simp_ret_ret; intros ->). }
+    { done. } }
+  { intros. unfold widen.
+    eauto using simp_try2 with simp try_ret. }
+Qed.
+
+(* [widen] does not change the [totalv] relation *)
+Lemma totalv_widen {A E} (m : micro A void) Φ :
+  totalv (E := E) (widen m) Φ <-> totalv m Φ.
+Proof.
+  split; intros Htotal;
+    destruct Htotal as [(?&(Htotal&HΦ)) | (?&(Htotal&[]))].
+  { apply simp_widen in Htotal; left; eauto. }
+  { left; setoid_rewrite simp_widen; eauto. }
+Qed.
