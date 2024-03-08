@@ -8,6 +8,5 @@ From osiris.proofmode Require Export
   simp_tactics
   setup
   notations
-  tactics
   specifications
 .
