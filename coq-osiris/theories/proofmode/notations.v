@@ -360,25 +360,24 @@ Global Arguments eval _ _%expr_scope.
 
 (* Notation for osiris contexts on pure propositions *)
 
-Notation "Γ '--------------------------------------env' e { Q }" :=
-  (pure (eval Γ e%expr) Q)
-  (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+(* Notation "Γ '--------------------------------------env' e { Q }" := *)
+(*   (pure (eval Γ e%expr) Q) *)
+(*   (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
 
 
-Notation "'--------------------------------------env' e { Q }" :=
-  (pure e Q)
-  (only printing, at level 100,
-      format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+(* Notation "'--------------------------------------env' e { Q }" := *)
+(*   (pure e Q) *)
+(*   (only printing, at level 100, *)
+(*       format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
+
+(* Notation "Γ '--------------------------------------env' module me { Q }" := *)
+(*   (module Γ me Q) *)
+(*     (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' module  me '//' '//' {  Q  } ']'"). *)
 
 
-Notation "Γ '--------------------------------------env' module me { Q }" :=
-  (module Γ me Q)
-    (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' module  me '//' '//' {  Q  } ']'").
-
-
-Notation "Γ '--------------------------------------env' struct_items bs { Q }" :=
-  (struct_items (Γ, _) bs Q)
-    (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' struct_items  bs '//' '//' {  Q  } ']'").
+(* Notation "Γ '--------------------------------------env' struct_items bs { Q }" := *)
+(*   (struct_items (Γ, _) bs Q) *)
+(*     (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' struct_items  bs '//' '//' {  Q  } ']'"). *)
