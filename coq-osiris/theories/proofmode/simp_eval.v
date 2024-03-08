@@ -313,16 +313,16 @@ Qed.
 (* Reasoning rules for [pure (eval _ _) _], that is,
    for pure expressions with an arbitrary postcondition. *)
 
-Lemma pure_Eval `{Encode X} η e k ko (φ : X -> Prop) :
-  pure (try (eval η e) k ko) φ ->
-  pure (Stop CEval (η, e) k ko) φ.
+Lemma pure_Eval `{Encode X} η e k (φ : X -> Prop) :
+  pure (try2 (eval η e) k) φ ->
+  pure (X := X) (Stop CEval (η, e) k) φ.
 Proof.
   intros. eapply pure_simp; [ simp | eauto ].
 Qed.
 
 Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
   pure (eval η e) φ ->
-  pure (Stop CEval (η, e) ret throw) φ.
+  pure (Stop CEval (η, e) inject2) φ.
 Proof.
   intros. eapply pure_simp; [ simp | eauto ].
 Qed.

@@ -152,8 +152,8 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
                    δ0 = [(name, clo)] ++ δ) .
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { apply SimpParRetRightThrow. }
-  eapply totalv_bind. { eapply pure_totalv; eassumption. }
+  eapply totalv_simp. { apply SimpParRetRight. }
+  eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros ? (? & -> & Hextend).
   eapply totalv_ret. eauto.
 Qed.
@@ -164,11 +164,11 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { simp. }
+  eapply totalv_simp. { apply SimpParRetRight. }
   eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v (? & -> & Hextend).
   eapply totalv_bind.
-  { unfold pat in Hextend. unfold irrefutably_extend; cbn.
+  { unfold pattern in Hextend. unfold irrefutably_extend; cbn.
     rewrite totalv_widen.
     eapply totalv_try; [ eassumption | ].
     eauto using totalv_ret. }
@@ -275,7 +275,7 @@ Lemma module_path η π φ :
                                  end) ->
   eval_module η (MPath π) φ.
 Proof.
-  unfold module; simpl; intros.
+  unfold eval_module; simpl; intros.
   rewrite totalv_widen.
   eapply totalv_consequence; [ eassumption | ].
   auto.
@@ -306,7 +306,7 @@ Proof.
   destruct_pure a.
   eapply totalv_simp.
   { eapply SimpPar; eauto with simp. }
-  eapply totalv_simp; [ simp | ].
+  eapply totalv_simp; [ apply SimpParRetLeft | ].
   eapply totalv_try2; [ eassumption | ].
   intros η' Hη'. cbn. rewrite totalv_widen.
   eapply totalv_try.

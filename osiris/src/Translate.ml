@@ -41,12 +41,6 @@ let rec show_path (p : Path.t) =
       sprintf "%s.%s" (show_path p) x
   | Papply (p1, p2) ->
       sprintf "%s(%s)" (show_path p1) (show_path p2)
-  | Pextra_ty (p1, p2) ->
-      match p2 with
-      | Pcstr_ty x ->
-	  sprintf "%s{%s}" x (show_path p1)
-      | Pext_ty ->
-	  sprintf "+=%s" (show_path p1)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -424,6 +418,12 @@ let rec translate_expr (e: expression) : expr =
   | Texp_letmodule (Some id, _, _, me, e) ->
       let m = Ident.name id in
       ELetModule (m, translate_mod_expr me, translate_expr e)
+
+  | Texp_letmodule (None, _, _, _, _) ->
+      eunsupported loc "let module _"
+
+  | Texp_letexception _ ->
+      eunsupported loc "let exception"
 
   | Texp_assert
       { exp_desc = Texp_construct ({ txt = Lident "false"; _}, _, []); _ }
@@ -819,9 +819,6 @@ and translate_mod_expr (me : module_expr) : mexpr =
 
   | Tmod_apply _ ->
       munsupported loc "functor application"
-
-  | Tmod_apply_unit _ ->
-      munsupported loc "functor unit application"
 
   | Tmod_constraint _ ->
       munsupported loc "signature ascription"

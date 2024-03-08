@@ -372,6 +372,16 @@ Proof.
   econstructor; eauto.
 Qed.
 
+Lemma prove_simp_try2 {A B E' E} m a (k : outcome2 A E' -> micro B E) m' :
+  simp m (ret a) ->
+  simp (continue k a) m' ->
+  simp (try2 m k) m'.
+Proof.
+  intros.
+  eapply SimpTransitive. { eapply simp_try2; eauto. }
+  assumption.
+Qed.
+
 Lemma simplify_try2 {A B E' E} n m1 m2 (k : outcome2 A E' → micro B E) :
   simplify n m1 m2 →
   simplify n (try2 m1 k) (try2 m2 k).

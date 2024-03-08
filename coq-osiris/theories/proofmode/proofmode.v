@@ -7,6 +7,5 @@ From osiris.proofmode Require Export
   pure_tactics
   setup
   notations
-  wp_tactics
   specifications
 .

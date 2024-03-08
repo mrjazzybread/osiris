@@ -191,9 +191,9 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   pure (call compare #x) (λ v,
       pure (call v #y) (λ (c : Z),
           representable c ∧
-            (c < 0 ↔ lt x y) ∧
-            (c = 0 ↔ eq x y) ∧
-            (0 < c ↔ lt y x)
+            (c < 0 ↔ lt x y)%Z ∧
+            (c = 0 ↔ eq x y)%Z ∧
+            (0 < c ↔ lt y x)%Z
         )
     ).
 
