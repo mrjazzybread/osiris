@@ -39,23 +39,35 @@ Qed.
 
 (* ... and with a little more effort, in terms of [total]. *)
 
-Lemma pure_total {B E X} `{Encode A} (m : micro B E) k ko (φ : A -> Prop) :
-  total m (fun a => pure (k a) φ) (λ e, pure (ko e) φ) <->
-  pure (X := X) (try m k ko) φ.
+Lemma total_pure {B E E'} `{Encode A} (m : micro B E')
+  (k : _ -> micro val E) (ko : E' -> micro val E)  (φ : A -> Prop)
+  :
+  total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
+  pure (try m k ko) φ.
 Proof.
-  split.
-  { intros. eapply pure_totalv. unfold totalv.
-    eapply total_try; eauto; simpl; intros; destruct_pure b.
-    - eapply total_simp; eauto.
-      apply total_ret; eauto.
-    - eapply total_simp; eauto.
-      apply total_ret; eauto. }
-  { intros Hp. destruct_pure a.
-    eapply total_consequence.
-    { eapply invert_simp_try2_ret; eassumption. }
-    { simpl; intros. exists a; tauto. }
-    { simpl; intros. exists a; tauto. } }
+  intros. apply pure_totalv; unfold totalv.
+  eapply total_try; [ eassumption | | ];
+    simpl; intros; destruct_pure b.
+  { eapply total_simp; eauto.
+    apply total_ret; eauto. }
+  { eapply total_simp; eauto.
+    apply total_ret; eauto. }
 Qed.
+
+(* [pure_total] is currently unused *)
+
+(* Lemma pure_total {B E} `{Encode A} (m : micro B E) *)
+(*   (k : _ -> micro val A) ko (φ : A -> Prop) : *)
+(*   pure (try m k ko) φ -> *)
+(*   total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ). *)
+(* Proof. *)
+(*   intros Hp. destruct_pure a. *)
+(*   eapply total_consequence. *)
+(*   { eapply invert_simp_try_ret; eassumption. } *)
+(*   { simpl; intros. exists a; tauto. } *)
+(*   { simpl; intros. exists a; tauto. } *)
+(* Qed. *)
+
 
 (* -------------------------------------------------------------------------- *)
 
