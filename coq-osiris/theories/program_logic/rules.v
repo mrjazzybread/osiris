@@ -12,8 +12,11 @@ From osiris.semantics Require Import step code simplification.
 
 (* ------------------------------------------------------------------------ *)
 
+Notation state_interp := osiris_state_interp.
+
 Section ewp_basic_rules.
 
+Context `{protocol_wf Σ P}.
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
 
   Context {A X : Type}.
@@ -38,15 +41,14 @@ Section ewp_basic_rules.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E Ψ Φ σ:
+  Lemma ewp_crash_inv E (Ψ : P) (Φ : outcome2 A X -> _) σ:
     state_interp σ -∗
     EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
     ewp_unfold (@crash A X).
     iIntros "Hsi HCrash".
-    iSpecialize ("HCrash" $! σ with "Hsi").
-    iDestruct "HCrash" as "[>%HStep _]".
-    exfalso; by eapply invert_can_step_Crash.
+    spec_state. destruct Hred, x; spec_step.
+    inversion H1.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
@@ -160,7 +162,7 @@ Section ewp_basic_rules.
       iMod "He"; iModIntro.
       iApply prot_mono_post; iFrame.
       iIntros (w) "Hk"; iNext; by iApply ("IH" with "Hk").
-    - iIntros (σ) "Hσ".
+    - intro_state.
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
       spec_state. iModIntro. construct_wp_nonret.
       spec_step. ewp_mask_elim.
@@ -196,7 +198,7 @@ Section ewp_basic_rules.
     ewp_unfold_all. destruct (is_handleable m).
     { destruct h; iMod "He"; done. }
     intro_state. iMod "He".
-    iSpecialize ("He" with "Hsi"). done.
+    spec_state. by iFrame.
   Qed.
 
   Lemma ewp_can_step {σ} Ψ φ m E:

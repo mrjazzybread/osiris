@@ -1,66 +1,85 @@
 
 From iris.proofmode Require Import base tactics classes.
-From iris.base_logic.lib Require Import iprop wsat.
+From iris.base_logic.lib Require Import iprop wsat gen_heap.
 From iris.program_logic Require Import weakestpre adequacy.
 
-From osiris.program_logic Require Import ewp rules.
+From osiris.program_logic Require Import ewp rules tactics.
 
 (* ========================================================================== *)
-(** *Typeclass instance for Iris [Language] mixin *)
 
-Section lang_instance.
+Section ewp_wp.
 
-  Context {res exn : Type}.
+  Import ewp_rules_tactics.
+  (* -------------------------------------------------------------------------- *)
+  (** * Link Between [WP] and [EWP]. *)
 
-  (* N.B.: We ignore the observation and list of expressions for now. *)
-  Definition prim_step
-    (e : micro res exn) (σ : store) (obs : list nat)
-    (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
-    step.step (σ, e) (σ', e') /\ exprs = [].
+  (* The adequacy of [EWP] follows from the adequacy of [WP], the standard Iris
+    weakest-precondition construction (that becomes available for any
+    programming language satisfying the Iris axiomatization [Language]). The
+    notion of [WP] is adequate. The idea is thus to prove that [EWP] entails
+    [WP] (under the assumption that both protocols are empty). *)
 
-  Definition is_outcome (e : micro res exn) : option (outcome2 res exn) :=
-    match e with
-    | Ret a => Some (O2Ret a)
-    | Throw e => Some (O2Throw e)
-    | _ => None
-    end.
-
-  Lemma is_outcome_inject2 a :
-    is_outcome (inject2 a) = Some a.
+  Lemma ewp_imp_wp {Σ P} {A X}
+    {irisGen: irisGS_gen HasNoLc (@osiris_lang A X) Σ}
+    {Prot: @protocol_wf Σ P}
+    E (e : micro A X) (Φ : outcome2 A X -> _) :
+    EWP e @ E <| prot_abort |> {{ Φ }} -∗ WP e @ NotStuck; E {{ Φ }} : iProp Σ.
   Proof.
-    destruct a; auto.
+    iLöb as "IH" forall (e).
+    iIntros "Hwp".
+    destruct (to_val e) as [ v         |] eqn:?.
+    (* [e] is an outcome2 (either [ret _] or [throw _]). *)
+    { rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
+      destruct e; inversion Heqo; subst; eauto. }
+    rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
+    ewp_case_is_handleable e ;inversion Heqo.
+    iMod "Hwp".
+    { by iPoseProof (prot_abort_absurd with "Hwp") as "H". }
+    intro_state. iMod ("Hwp" with "Hsi") as "[% H]".
+    iSplitL "".
+    { iPureIntro; destruct H, x. eexists nil, _,_, nil; cbn; split; eauto. }
+    iModIntro. iIntros (e2 σ2 efs step) "H£".
+    destruct step as (Hstep&->).
+    iSpecialize ("H" $! _ _ Hstep).
+    iMod "H"; iModIntro. iNext.
+    repeat iModIntro.
+    iApply step_fupdN_intro; [set_solver | ..].
+    iNext; cbn; iMod "H"; iModIntro.
+    iDestruct "H" as "[$ Hwp]"; iSplitR ""; last done.
+    iApply ("IH" with "Hwp").
   Qed.
 
-  Definition osiris_lang_mixin :
-    LanguageMixin inject2 is_outcome prim_step.
-  Proof.
-    constructor; auto.
-    { apply is_outcome_inject2. }
-    { intros; destruct e; inversion H; auto. }
-    { intros; destruct e; inversion H; auto; subst; inversion H0. }
-  Defined.
+End ewp_wp.
 
-  Canonical Structure osiris_lang := Language (osiris_lang_mixin).
-
-End lang_instance.
-
-(* ========================================================================== *)
 
 (* ========================================================================== *)
 (** * Adequacy. *)
 
 Section adequacy.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P} `{Bottom P}.
+  Context {A X : Type} {Σ : gFunctors}.
+
+  (* TODO: cleanup the obligations *)
+  Context `{!invGpreS Σ} `{!gen_heapGpreS locations.loc block Σ}.
+  Context `{protocol_wf Σ P}.
 
   (* ------------------------------------------------------------------------ *)
   (** Adequacy Theorem for [EWP]. *)
 
-  Theorem ewp_adequacy (e : microvx) σ φ E :
-    (∀ `{!heapGS Σ}, ⊢ EWP e @ E <| ⊥ |> {{ fun v =>  ⌜ φ v ⌝ }}) →
-      adequate NotStuck e σ (λ v _, φ v).
+  Theorem ewp_adequacy e σ φ :
+  (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
+    ⊢ EWP e @ ⊤ <| prot_abort |> {{ fun v =>  ⌜ φ v ⌝ }}) →
+    adequate NotStuck e σ (λ v _, φ v).
   Proof.
     intros Hwp.
-  Admitted.
+    eapply (wp_adequacy_gen HasNoLc Σ _).
+    iIntros (??) "".
+    iMod (gen_heap_init σ) as (?) "[Hh _]".
+    iModIntro. iExists
+      (λ σ κs, gen_heap_interp σ),
+      (λ _, True%I). iFrame.
+    iApply ewp_imp_wp. iApply Hwp.
+  Qed.
 
 End adequacy.
+

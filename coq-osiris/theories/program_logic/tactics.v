@@ -19,7 +19,7 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ] and [state_interp σ]. *)
 
-  Ltac intro_state := iIntros (σ) "Hsi".
+  Ltac intro_state := iIntros (σ????) "Hsi".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -116,17 +116,22 @@ Module ewp_rules_tactics.
     let Hhm := fresh "Hhm" in
     ewp_case_is_handleable x Hhm.
 
+
   Ltac spec_state :=
     lazymatch goal with
     | |- context
-      [environments.Esnoc _ ?Hwp
-        (bi_forall (fun σ : store => bi_wand (state_interp σ) _))] =>
+          [environments.Esnoc _ ?Hwp
+             (bi_forall (fun σ1 : store =>
+              bi_forall (fun _ : nat =>
+              bi_forall (fun κ : list nat =>
+              bi_forall (fun _ : list nat =>
+              bi_forall (fun _ : nat => bi_wand (osiris_state_interp σ1) _))))))]  =>
         match goal with
-        | |- context [environments.Esnoc _ ?SI (state_interp ?σ)] =>
+        | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! _ with SI);
+            iSpecialize (Hwp $! σ 0%nat nil nil 0%nat with SI);
             try (iMod Hwp;
-            iDestruct Hwp as (Hred) Hwp)
+                 iDestruct Hwp as (Hred) Hwp)
         end
     end.
 

@@ -13,6 +13,47 @@ From iris.algebra Require Import gmap_view.
 From iris.algebra Require Export dfrac.
 From iris.program_logic Require Export weakestpre.
 
+(* ========================================================================== *)
+(** *Typeclass instance for Iris [Language] mixin *)
+
+Section lang_instance.
+
+  Context {res exn : Type}.
+
+  (* N.B.: We ignore the observation and list of expressions for now. *)
+  Definition prim_step
+    (e : micro res exn) (σ : store) (obs : list nat)
+    (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
+    step.step (σ, e) (σ', e') /\ exprs = [].
+
+  Definition is_outcome (e : micro res exn) : option (outcome2 res exn) :=
+    match e with
+    | Ret a => Some (O2Ret a)
+    | Throw e => Some (O2Throw e)
+    | _ => None
+    end.
+
+  Lemma is_outcome_inject2 a :
+    is_outcome (inject2 a) = Some a.
+  Proof.
+    destruct a; auto.
+  Qed.
+
+  Definition osiris_lang_mixin :
+    LanguageMixin inject2 is_outcome prim_step.
+  Proof.
+    constructor; auto.
+    { apply is_outcome_inject2. }
+    { intros; destruct e; inversion H; auto. }
+    { intros; destruct e; inversion H; auto; subst; inversion H0. }
+  Defined.
+
+  Canonical Structure osiris_lang := Language (osiris_lang_mixin).
+
+End lang_instance.
+
+(* ========================================================================== *)
+
 Section ghost_instances.
 
   Context (Σ : gFunctors).
@@ -33,7 +74,7 @@ End ghost_instances.
 
 #[global] Arguments OsirisGS Σ {_ _ _} : assert.
 
-Definition state_interp {Σ H} (σ : store) :=
+Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
 (* -------------------------------------------------------------------------- *)
@@ -154,7 +195,7 @@ Section ewp.
   (* Carrier type of protocols *)
   Context {P : Type}.
 
-  Context `{!osirisGS Σ}
+  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}
            `{protocol_wf Σ P}.
 
   Definition ewp_pre
@@ -170,10 +211,10 @@ Section ewp.
          |={E}=> prot_spec Ψ v (fun w : syntax.val => ▷ ewp E (continue k w) Ψ φ)
       (* [EWP3] *)
       | None =>
-          ∀ σ, state_interp σ ={E, ∅}=∗
-                ⌜can_step (σ, m)⌝ ∗
-                (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                  (state_interp σ' ∗ ewp E m' Ψ φ))
+          ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
+            ⌜can_step (σ, m)⌝ ∗
+            (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
+              (state_interp σ' (S ns) κs n ∗ ewp E m' Ψ φ))
       end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
@@ -201,6 +242,17 @@ End ewp.
 
 (* -------------------------------------------------------------------------- *)
 
+(** *Iris instantiation *)
+#[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E,
+    irisGS_gen HasNoLc (@osiris_lang R E) Σ := {
+    iris_invGS := osiris_invGS Σ;
+    state_interp σ _ _ _ := (osiris_state_interp σ)%I;
+    fork_post _ := True%I;
+    num_laters_per_step _ := 0;
+    state_interp_mono _ _ _ _ := fupd_intro _ _ }.
+
+(* -------------------------------------------------------------------------- *)
+
 (** Notation. *)
 
 Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
@@ -214,7 +266,8 @@ Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
 Section ewp_properties.
 
 Context {A X P : Type}.
-Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+
+Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ} `{protocol_wf Σ P}.
 Implicit Type P : iProp Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : A.
@@ -259,7 +312,7 @@ Global Instance ewp_contractive E m n Ψ:
     (ewp_def E m Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
-  do 23 (f_contractive || f_equiv).
+  do 23 (f_contractive || f_equiv). auto.
 Qed.
 
 End ewp_properties.
