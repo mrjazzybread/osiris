@@ -196,7 +196,7 @@ Section ewp.
   Context {P : Type}.
 
   Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}
-           `{protocol_wf Σ P}.
+           `{@protocol_wf Σ P}.
 
   Definition ewp_pre
     (ewp: coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
@@ -390,6 +390,10 @@ Notation "'EWP' e {{ 'RET' v , Q } }" :=
       format "'[' 'EWP'  e  '/' '[ '  {{  '[' 'RET'  v ,  '/' Q  ']' } } ']' ']'")
     : bi_scope.
 
+(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
+  pre-existing notation; might be brittle *)
+Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ EWP e {{ RET v , Φ v }}).
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)
