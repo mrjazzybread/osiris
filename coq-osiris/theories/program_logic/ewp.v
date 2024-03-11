@@ -355,16 +355,23 @@ Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
     "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
-    return continuation *)
-Notation "'EWP' e @ E <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
-  (ewp_def E e%E Ψ (lift_ret_spec (λ v, Q)))
-    (at level 20, e, Q at level 200,
-      format "'[hv' 'EWP'  e  '/' @  '[' '/' E  ']' '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+    return continuation. *)
+Notation "'RET' v , Q" :=
+  (lift_ret_spec (λ v, Q))
+    (at level 20, Q at level 200,
+      format "'RET'  v ,  '/' Q") : bi_scope.
 
-Notation "'EWP' e <| Ψ '|' '>' {{ 'RET' v , Q } }" :=
-  (ewp_def ⊤ e%E Ψ (lift_ret_spec (λ v, Q)))
-    (at level 20, e, Q at level 200,
-      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' 'RET'  v ,  '/' Q  ']' } } ']'") : bi_scope.
+(* Custom notation for hoare triples which state a postcondition only over the
+    return continuation of an encoded value. *)
+Notation "'RET' '#' v , Q" :=
+  (lift_ret_spec (λ v', (∃ v, (bi_pure (v' = osiris.lang.encode.encode v)) ∧ Q)%I))
+    (at level 20, Q, v at level 200,
+      format "'RET'  '#' v ,  '/' Q") : bi_scope.
+
+Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
+  (ewp_def ⊤ e%E Ψ Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
   (ewp_def E e%E prot_abort Φ)
@@ -372,22 +379,10 @@ Notation "'EWP' e @ E {{ Φ } }" :=
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'EWP' e @ E {{ 'RET' v , Q } }" :=
-  (ewp_def E e%E prot_abort (lift_ret_spec (λ v, Q)))
-    (at level 20, e, Q at level 200,
-      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  '[' 'RET'  v ,  '/' Q  ']' } } ']' ']'")
-    : bi_scope.
-
 Notation "'EWP' e {{ Φ } }" :=
   (ewp_def ⊤ e%E prot_abort Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'EWP' e {{ 'RET' v , Q } }" :=
-  (ewp_def ⊤ e%E prot_abort (lift_ret_spec (λ v, Q)))
-    (at level 20, e, Q at level 200,
-      format "'[' 'EWP'  e  '/' '[ '  {{  '[' 'RET'  v ,  '/' Q  ']' } } ']' ']'")
     : bi_scope.
 
 (* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
