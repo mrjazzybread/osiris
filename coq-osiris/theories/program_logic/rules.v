@@ -318,6 +318,94 @@ Section ewp_rules.
     destruct a; last done; by cbn.
   Qed.
 
+(* ------------------------------------------------------------------------ *)
+
+  (* [CAlloc]. *)
+
+  (* The standard memory allocation rule of Separation Logic. *)
+
+  Lemma ewp_alloc E v (k : _ → micro A X) φ :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) -∗
+          EWP (continue k l) @ E {{ φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E {{ φ }}.
+  Proof.
+    iIntros "H".
+    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH _]]"; first done.
+    ewp_mask_elim. iFrame. by iApply "H".
+  Qed.
+
+  Lemma ewp_alloc' E v (k : _ → micro A X) φ :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
+          EWP (continue k l) @ E {{ φ }}) ⊢
+      EWP (Stop CAlloc v k) @ E {{ φ }}.
+  Proof.
+    iIntros "H".
+    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
+    ewp_mask_elim. iFrame. by iApply "H"; iFrame.
+  Qed.
+
+  (* [CStore]. *)
+
+  (* The standard memory write rule of Separation Logic. *)
+
+  Lemma ewp_store E l v v' (k : _ → micro A X) φ :
+    mapsto l (DfracOwn 1) (V v) ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) (V v') -∗
+        EWP (continue k tt) @ E {{ φ }}
+      ) -∗
+    EWP (Stop CStore (l, v') k) @ E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* The standard memory load rule of Separation Logic. *)
+
+  Lemma ewp_load E l v dq (k: _ → micro A X) φ :
+    mapsto l dq (V v) ⊢
+    ▷ (
+        mapsto l dq (V v) -∗
+        EWP (continue k v) @ E {{ φ }}
+      ) -∗
+    EWP (Stop CLoad l k) @ E {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
 End ewp_rules.
 
 (* ------------------------------------------------------------------------ *)
