@@ -443,12 +443,12 @@ Proof.
   (* TODO: Environments are too present in the goal *)
   rewrite lt_repr_repr; auto.
   (* Reason by cases on the comparison of the heads *)
-  destruct (h2 <? h1) eqn:branch; simpl.
+  destruct (h2 <? h1)%Z eqn:branch; simpl.
   { (* Case: h2 < h1 *)
     repeat (rewrite eval_eval'; simpl).
-    pure1. rewrite <- !bind_bind, !bind_bind.
+    pure1.
     (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
-    eapply pure_bind_binary.
+    eapply pure_try.
     { eapply pure_consequence. apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -456,22 +456,23 @@ Proof.
       { unfold merge_pre; auto. }
       (* Subgoal: justify the induction: show [(h1::t1, t2) < (h1::t1, h2::t2)] *)
       { simpl; auto with arith. }
-      intro; simpl; intros. eassumption. }
+      intro; simpl; intros. apply H. }
     unfold merge_post; cbn; intros l' (? & ?).
+    repeat destruct_hyp. pure1.
     (* Establish the postcondition *)
-    eapply pure_ret; first solve [encode]. split.
+    split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
-      eapply (HdRel_Sorted_Permutation l' (h1 :: t1) t2); eauto with zarith. }
+      eapply (HdRel_Sorted_Permutation x (h1 :: t1) t2); eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      rewrite_permutation l'.
+      rewrite_permutation x.
       apply Permutation_sym.
       change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
       apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
-    pure1. rewrite <- !bind_bind, !bind_bind.
+    pure1. rewrite bind_try.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
-    eapply pure_bind_binary.
+    eapply pure_try.
     { apply (IH t1 (h2::t2)).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -480,13 +481,14 @@ Proof.
       (* Subgoal: justify the induction: show [(t1, h2::t2) < (h1::t1, h2::t2)] *)
       { simpl; auto with arith. } }
     unfold merge_post; cbn; intros l' (? & ?).
+    repeat destruct_hyp. pure1.
     (* Establish the postcondition *)
-    eapply pure_ret; first solve [encode]. split.
+    split.
     { (* Subgoal: the output is sorted *)
       constructor; first done.
       eapply HdRel_Sorted_Permutation; eauto with zarith. }
     { (* Subgoal: the output is a permutation of the concatenation of the inputs *)
-      by rewrite_permutation l'. }}
+      by rewrite_permutation x. }}
 Qed.
 
 Lemma Split_spec η :
@@ -501,9 +503,9 @@ Proof.
   { by simpl. }
   (* Case: a::b::l *)
   { (* Apply the induction hypothesis *)
-    repeat (rewrite eval_eval'; simpl); pure1.
-    rewrite <- !bind_bind, !bind_bind.
-    eapply pure_bind; first apply IH; auto with arith.
+    repeat (rewrite eval_eval'; simpl); pure1; cbn.
+    pure1.
+    eapply pure_try. { apply IH; auto with arith. }
     intros [l1 l2] (Hl1&Hl2&Hperm).
     pure1.
     (* Establish the three conjuncts of the postcondition *)
@@ -536,16 +538,19 @@ Proof.
   (* Case: [a] *)
   { auto. }
   (* Case: a::b::l *)
-  repeat (rewrite eval_eval'; simpl); pure1.
+  repeat (rewrite eval_eval'; simpl); pure1; cbn.
+  pure1. rewrite Hsplit. cbn.
+  eapply pure_try. { pure_call. }
   unfold split_post; intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
   (* Assert that the sublists l1 and l2 satisfy the precondition *)
   assert (Forall representable l1) as Hrep1 by
       (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
   assert (Forall representable l2) as Hrep2 by
-        (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
+      (apply Forall_app with (l1:=l1) (l2:=l2); by rewrite_permutation (l1++l2)).
+  cbn.
   pure1.
   (* Apply the induction hypothesis on l1 *)
-  eapply pure_bind; first apply IH.
+  eapply pure_try; first apply IH.
   { (* Subgoal: show the precondition holds for l1 *)
     apply Hrep1. }
   { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
@@ -553,7 +558,7 @@ Proof.
   simpl; intros sl1 (Hsl1 & Hpsl1).
   pure1.
   (* Apply the induction hypothesis on l2*)
-  eapply pure_bind; first apply IH.
+  eapply pure_try; first apply IH.
   { (* Subgoal: show the precondition holds for l2 *)
     apply Hrep2. }
   { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
@@ -561,13 +566,19 @@ Proof.
   simpl; intros sl2 (Hsl2 & Hpsl2).
   pure1.
   eapply pure_bind.
+  { rewrite Hmerge; cbn.
+    eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | ].
+    apply eq_refl. }
+  intros ? <-.
+  eapply pure_try.
   (* Use the fact that [merge] satisfies its specification *)
-  { eapply _merge_spec with (l2:=sl2); unfold merge_pre; eauto.
-    split; last split; auto.
-    { (* Subgoal: show merge's precondition that l1 is representable *)
-      by rewrite_permutation sl1. }
-    { (* Subgoal: show merge's precondition that l2 is representable *)
-      by rewrite_permutation sl2. }}
+  { eapply _merge_spec with (l2 := sl2).
+    unfold merge_pre;
+      split; last split; auto.
+    - (* Subgoal: show merge's precondition that l1 is representable *)
+      by rewrite_permutation sl1.
+    - (* Subgoal: show merge's precondition that l2 is representable *)
+      by rewrite_permutation sl2. }
   intros c; simpl; intros Hc.
   eapply pure_consequence; first apply Hc.
   intros l' [??].
