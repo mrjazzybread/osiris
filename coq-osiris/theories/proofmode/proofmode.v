@@ -5,7 +5,11 @@ From osiris.proofmode Require Export
   simp_eval
   pat
   pure_tactics
-  setup
+  ewp_tactics
   notations
   specifications
+.
+(* [setup.v] should be exported last. *)
+From osiris.proofmode Require Export
+  setup
 .
