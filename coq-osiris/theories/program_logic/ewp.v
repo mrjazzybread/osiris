@@ -1,17 +1,21 @@
 From iris.base_logic.lib Require Import own gen_heap.
 
-From osiris Require Export syntax.
+From osiris Require Export syntax semantics.
 
-(* LATER: import [semantics] after [eval, pure] compiles *)
-From osiris.semantics Require Export code micro step.
-
-
-(** *Basic resource algebra for Osiris
-  (store can be represented as an authoritative gmap, for now.) *)
-From iris.algebra Require Import gmap_view.
-
-From iris.algebra Require Export dfrac.
+From iris.algebra Require Import gmap_view dfrac.
 From iris.program_logic Require Export weakestpre.
+
+(* Definition of a preorder over carrier type [A], where the ordering is
+    persistent. *)
+Class preorder Σ (A : Type)  :=
+  { order : A -d> A -d> iProp Σ;
+    refl : (⊢ ∀ a, order a a)%I;
+    trans : (⊢ ∀ a b c, order a b -∗ order b c -∗ order a c)%I;
+    order_persistent :: forall a b, Persistent (order a b)}.
+(* LATER: Move to a more generic utility file. *)
+
+Notation "P ⊑ Q" := (order P Q)%I.
+(* TODO: Add RewriteRelation? *)
 
 (* ========================================================================== *)
 (** *Typeclass instance for Iris [Language] mixin *)
@@ -54,6 +58,8 @@ End lang_instance.
 
 (* ========================================================================== *)
 
+(** *Basic resource algebra for Osiris
+  (store can be represented as an authoritative gmap, for now.) *)
 Section ghost_instances.
 
   Context (Σ : gFunctors).
@@ -78,8 +84,16 @@ Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
 (* -------------------------------------------------------------------------- *)
-(* Computations that can be handled by a match-expression;
-      a [ret _] [throw _] or [perform _ _]. *)
+
+(* The type [handleable A E] represents computations that can be handled by a
+   match-expression:
+
+      Either
+      (1) a pure computation with result of type A,
+      (2) an exception of type [E], or
+      (3) a perform effect that performs effect of type [C.eff] and the
+          rest of its computation.  *)
+
 Inductive handleable (A E : Type) : Type :=
   HRet : A → handleable A E
 | HThrow : E → handleable A E
@@ -100,12 +114,18 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
   | _ => None
   end.
 
-(* -------------------------------------------------------------------------- *)
-(* Protocols, following Vilhena and Pottier's [A Separation Logic for Effect
-    Handlers]. *)
 Notation Val := syntax.val.
 Notation Eff := C.eff.
 Notation Outcome := (outcome2 syntax.val exn).
+
+(* -------------------------------------------------------------------------- *)
+(** *Protocols
+
+    Protocols (following Vilhena and Pottier's [A Separation Logic for Effect
+    Handlers]), describe what effects a computation may perform. *)
+
+(* We characterize protocols abstractly, with a carrier type [A], paired with
+   primitive operations [protocol_op]. *)
 
 (* Operations over protocols of carrier [A] *)
 Class protocol_op {A} :=
@@ -114,6 +134,17 @@ Class protocol_op {A} :=
     prot_sum : A -> A -> A;
   (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
 
+(* The three-place predicate [prot_spec] (analogous to Ψ allows do v {Φ} in
+    Vilhena & Pottier) describes the behavior of a protocol.
+
+   Quoting Vihena & Pottier,
+
+   [prot_spec Ψ v Φ] means that: the "protocol Ψ allows making the request v"
+    and additionally "the protocol Ψ guarantee(s) that every permitted reply
+    satisfies the postcondition Φ.
+
+    Additionally, we require with [prot_spec_ne] that the predicate respects the
+    equivalences for the step-indexed logic of Iris. *)
 Class protocol_spec Σ {A} `{@protocol_op A} :=
   { prot_spec : A -d> Eff -d> (Val -d> iProp Σ) -d> iProp Σ ;
     prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
@@ -121,15 +152,8 @@ Class protocol_spec Σ {A} `{@protocol_op A} :=
 Arguments protocol_spec {_ _ _}.
 Arguments prot_spec {_ _ _ _} _ _ _.
 
-Class preorder Σ (A : Type)  :=
-  { order : A -d> A -d> iProp Σ;
-    refl : (⊢ ∀ a, order a a)%I;
-    trans : (⊢ ∀ a b c, order a b -∗ order b c -∗ order a c)%I;
-    order_persistent :: forall a b, Persistent (order a b)}.
-
-Notation "P ⊑ Q" := (order P Q)%I.
-(* TODO: Add RewriteRelation? *)
-
+(* Protocols, with operations and protocol predicate with carrier type [A] and
+    preorder relation. *)
 Class protocol Σ {A} :=
   { protocol_operations :: @protocol_op A;
     protocol_specification :: @protocol_spec Σ A _;
@@ -138,27 +162,34 @@ Class protocol Σ {A} :=
 Notation "P + Q" := (prot_sum P Q).
 Notation "Ψ 'allows' 'do' v { Φ }" := (prot_spec Ψ v Φ) (at level 40).
 
-(* Axiomatic characterization of protocols *)
+(* Axiomatic characterization of protocols. *)
 Section protocol_spec_properties.
 
   Variable (Σ : gFunctors).
   Context {A : Type}.
   Context {Protocol : @protocol Σ A}.
 
+  (* The protocol is monotone over the postcondition and the ordering on protocols. *)
   Class protocol_monotone :=
     prot_mono v Ψ1 Ψ2 Φ1 Φ2 :
       prot_spec Ψ1 v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ∗ Ψ1 ⊑ Ψ2 ⊢
         prot_spec Ψ2 v Φ2.
 
+  (* [prot_abort] is logically equivalent to [False]. *)
   Class protocol_abort :=
     prot_abort_absurd v Φ :
       (prot_spec prot_abort v Φ ⊣⊢ ⌜False⌝)%I.
 
+  (* [prot_sum] corresponds to logical or [∨]. *)
   Class protocol_sum_or :=
     prot_sum_or v Ψ1 Ψ2 Φ :
       prot_spec (Ψ1 + Ψ2) v Φ ⊣⊢
         prot_spec Ψ1 v Φ ∨ prot_spec Ψ2 v Φ.
 
+  (* The set of axiomatic properties that we support on protocols.
+
+     N.B. the [A2; A3; A5] corresponds to the labelling of laws in Vilhena &
+      Pottier. *)
   Class protocol_properties :=
   { (* [A2] *)
     prot_prop_abort :: protocol_abort;
@@ -187,6 +218,7 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+(** *Effect-aware Weakest Precondition *)
 
 Section ewp.
 
@@ -346,6 +378,9 @@ Section lift_specs.
     end.
 
 End lift_specs.
+
+(* -------------------------------------------------------------------------- *)
+(* Notation *)
 
 Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
 Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
