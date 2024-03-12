@@ -42,13 +42,13 @@ Ltac Ret := iApply ewp_value.
 
 Ltac Par :=
   lazymatch goal with
-  | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _ _) _ _) =>
+  | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
       iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ (Ret _) _ _) _ _) =>
+  | |- envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
       iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par (ret _) _ _ _) _ _) =>
+  | |- envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
       iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ _ _ _) _ _) =>
+  | |- envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
       iApply ewp_par
   | _ => fail "The goal must be a par to apply [ewp_par]."
   end; try done.

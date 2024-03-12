@@ -8,7 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
-From osiris.semantics Require Import step code simplification.
+From osiris Require Import syntax semantics.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -625,6 +625,38 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+  Qed.
+
+  (* The following lemmas offer reasoning rules for each of the system calls,
+    that is, for computations of the form [Stop c x y]. They are simple
+    consequences of the operational behavior of these system calls. *)
+
+  (* [CEval]. *)
+
+  Lemma ewp_eval {B E'} E η e (k : _ → micro B E') φ Ψ :
+    ▷ EWP (eval η e) @ E <| Ψ |>
+        {{ fun v => EWP (k v) @ E <| Ψ |> {{ φ }} }} ⊢
+      EWP (Stop CEval (η, e) k) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    try ewp_unfold_head; try intro_state;
+      (* Introduce mask for entering into WP *)
+      ewp_mask_intro "Hmod".
+    try construct_wp_nonret; destruct_step.
+    ewp_mask_elim;
+      (* Frame state interp *)
+      try iFrame; cbn.
+    by iApply ewp_try2.
+  Qed.
+
+  Lemma ewp_eval_ret E η e Ψ (φ : _ -> iPropI Σ):
+    ▷ EWP eval η e @ E <| Ψ |>
+      {{ fun v => EWP inject2 v @ E <| Ψ |> {{ φ }} }} ⊢
+      EWP stop CEval (η, e) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply ewp_eval.
+    iNext. iApply (ewp_mono with "Hwp"); iIntros (?) "H"; done.
   Qed.
 
   Lemma ewp_simp E m ms Ψ φ:

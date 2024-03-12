@@ -1,6 +1,5 @@
 Set Warnings "-require-in-section". (* .none *)
 From osiris Require Import osiris. (* .none *)
-From osiris.program_logic Require Import safe. (* .none *)
 Implicit Type f x : var. (* .none *)
 Implicit Type c : data. (* .none *)
 Implicit Type p : syntax.pat. (* .none *)
@@ -571,37 +570,6 @@ We also sometimes refer to this semantics as the «system»,
 because it answers `Stop` requests.
 |*)
 
-(*|
-------
-Safety
-------
-|*)
-
-(*|
-This reduction semantics allows us to define what it means for a program
-to be safe. A program is *safe* if it cannot crash, that is, if it cannot
-reduce (in zero, one, or more steps) to `Crash`.
-
-Technically, we say that a program is *initially safe* for `n` steps
-if it cannot reduce in at most `n` steps to `Crash`.
-We say that a program is safe
-if, for every `n`, this program is initially safe for `n` steps.
-|*)
-
-Print initially_safe. (* .fold *)
-Print safe. (* .fold *)
-
-(*|
-The following lemmas can be used to prove that a program is safe.
-Because the monad has few data constructors,
-few lemmas are needed.
-This is a minimalist program logic,
-yet it is a full-fledged logic!
-|*)
-
-Check @safe_ret. (* .unfold *)
-
-Check @safe_bind. (* .unfold *)
 
 (*|
 |*)
