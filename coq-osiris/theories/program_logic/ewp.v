@@ -141,7 +141,7 @@ Class protocol_op {A} :=
 
    [prot_spec Ψ v Φ] means that: the "protocol Ψ allows making the request v"
     and additionally "the protocol Ψ guarantee(s) that every permitted reply
-    satisfies the postcondition Φ.
+    satisfies the postcondition Φ."
 
     Additionally, we require with [prot_spec_ne] that the predicate respects the
     equivalences for the step-indexed logic of Iris. *)
