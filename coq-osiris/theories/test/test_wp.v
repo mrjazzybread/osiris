@@ -253,7 +253,7 @@ Definition walk_example e :=
 
 Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
-  ⊢ EWP eval [] (walk_example e) {{ RET v, ⌜v = (encode.encode tt : Val)⌝ }}.
+  ⊢ EWP eval [] (walk_example e) {{ RET v, ⌜v = (encode.encode tt : val)⌝ }}.
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. do 2 Simp. by Ret.

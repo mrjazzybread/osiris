@@ -1,24 +1,19 @@
 From iris.base_logic.lib Require Import own gen_heap.
-
-From osiris Require Export syntax semantics.
-
 From iris.algebra Require Import gmap_view dfrac.
 From iris.program_logic Require Export weakestpre.
 
-(* Definition of a preorder over carrier type [A], where the ordering is
-    persistent. *)
-Class preorder Σ (A : Type)  :=
-  { order : A -d> A -d> iProp Σ;
-    refl : (⊢ ∀ a, order a a)%I;
-    trans : (⊢ ∀ a b c, order a b -∗ order b c -∗ order a c)%I;
-    order_persistent :: forall a b, Persistent (order a b)}.
-(* LATER: Move to a more generic utility file. *)
-
-Notation "P ⊑ Q" := (order P Q)%I.
-(* TODO: Add RewriteRelation? *)
+From osiris Require Export syntax semantics.
 
 (* ========================================================================== *)
-(** *Typeclass instance for Iris [Language] mixin *)
+
+(** *Iris [Language] instance for Osiris *)
+
+(* [osiris] is an instance of an Iris [Language], i.e. it has a small-step
+   semantics and notion of values (here, we use [outcome2]). *)
+
+(* With this instance, the default [wp] (Iris weakest precondition) can be
+   derived. We define our custom [ewp] later in this file to reason about
+   effectful programs. *)
 
 Section lang_instance.
 
@@ -30,36 +25,25 @@ Section lang_instance.
     (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
     step.step (σ, e) (σ', e') /\ exprs = [].
 
-  Definition is_outcome (e : micro res exn) : option (outcome2 res exn) :=
-    match e with
-    | Ret a => Some (O2Ret a)
-    | Throw e => Some (O2Throw e)
-    | _ => None
-    end.
-
-  Lemma is_outcome_inject2 a :
-    is_outcome (inject2 a) = Some a.
-  Proof.
-    destruct a; auto.
-  Qed.
-
   Definition osiris_lang_mixin :
-    LanguageMixin inject2 is_outcome prim_step.
+    LanguageMixin inject2 outcome2_opt prim_step.
   Proof.
     constructor; auto.
-    { apply is_outcome_inject2. }
-    { intros; destruct e; inversion H; auto. }
-    { intros; destruct e; inversion H; auto; subst; inversion H0. }
+    { apply outcome2_opt_inject2. }
+    { intros * Ho; destruct e; inversion Ho; auto. }
+    { intros * Ho; destruct e; inversion Ho; auto; subst; inversion H. }
   Defined.
 
   Canonical Structure osiris_lang := Language (osiris_lang_mixin).
 
 End lang_instance.
 
-(* ========================================================================== *)
+(* -------------------------------------------------------------------------- *)
 
-(** *Basic resource algebra for Osiris
-  (store can be represented as an authoritative gmap, for now.) *)
+(** *Basic resource algebra for Osiris *)
+
+(* The store is viewed as an authorative ghost map. *)
+
 Section ghost_instances.
 
   Context (Σ : gFunctors).
@@ -84,6 +68,19 @@ Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
 (* -------------------------------------------------------------------------- *)
+
+(** *Iris instantiation *)
+#[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E,
+    irisGS_gen HasNoLc (@osiris_lang R E) Σ := {
+    iris_invGS := osiris_invGS Σ;
+    state_interp σ _ _ _ := (osiris_state_interp σ)%I;
+    fork_post _ := True%I;
+    num_laters_per_step _ := 0;
+    state_interp_mono _ _ _ _ := fupd_intro _ _ }.
+
+(* ========================================================================== *)
+
+(** *Effect-aware Weakest Precondition *)
 
 (* The type [handleable A E] represents computations that can be handled by a
    match-expression:
@@ -114,111 +111,9 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
   | _ => None
   end.
 
-Notation Val := syntax.val.
-Notation Eff := C.eff.
-Notation Outcome := (outcome2 syntax.val exn).
-
 (* -------------------------------------------------------------------------- *)
-(** *Protocols
 
-    Protocols (following Vilhena and Pottier's [A Separation Logic for Effect
-    Handlers]), describe what effects a computation may perform. *)
-
-(* We characterize protocols abstractly, with a carrier type [A], paired with
-   primitive operations [protocol_op]. *)
-
-(* Operations over protocols of carrier [A] *)
-Class protocol_op {A} :=
-  { (* Operation on protocols *)
-    prot_abort : A;
-    prot_sum : A -> A -> A;
-  (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
-
-(* The three-place predicate [prot_spec] (analogous to Ψ allows do v {Φ} in
-    Vilhena & Pottier) describes the behavior of a protocol.
-
-   Quoting Vihena & Pottier,
-
-   [prot_spec Ψ v Φ] means that: the "protocol Ψ allows making the request v"
-    and additionally "the protocol Ψ guarantee(s) that every permitted reply
-    satisfies the postcondition Φ."
-
-    Additionally, we require with [prot_spec_ne] that the predicate respects the
-    equivalences for the step-indexed logic of Iris. *)
-Class protocol_spec Σ {A} `{@protocol_op A} :=
-  { prot_spec : A -d> Eff -d> (Val -d> iProp Σ) -d> iProp Σ ;
-    prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
-
-Arguments protocol_spec {_ _ _}.
-Arguments prot_spec {_ _ _ _} _ _ _.
-
-(* Protocols, with operations and protocol predicate with carrier type [A] and
-    preorder relation. *)
-Class protocol Σ {A} :=
-  { protocol_operations :: @protocol_op A;
-    protocol_specification :: @protocol_spec Σ A _;
-    protocol_preorder :: preorder Σ A }.
-
-Notation "P + Q" := (prot_sum P Q).
-Notation "Ψ 'allows' 'do' v { Φ }" := (prot_spec Ψ v Φ) (at level 40).
-
-(* Axiomatic characterization of protocols. *)
-Section protocol_spec_properties.
-
-  Variable (Σ : gFunctors).
-  Context {A : Type}.
-  Context {Protocol : @protocol Σ A}.
-
-  (* The protocol is monotone over the postcondition and the ordering on protocols. *)
-  Class protocol_monotone :=
-    prot_mono v Ψ1 Ψ2 Φ1 Φ2 :
-      prot_spec Ψ1 v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ∗ Ψ1 ⊑ Ψ2 ⊢
-        prot_spec Ψ2 v Φ2.
-
-  (* [prot_abort] is logically equivalent to [False]. *)
-  Class protocol_abort :=
-    prot_abort_absurd v Φ :
-      (prot_spec prot_abort v Φ ⊣⊢ ⌜False⌝)%I.
-
-  (* [prot_sum] corresponds to logical or [∨]. *)
-  Class protocol_sum_or :=
-    prot_sum_or v Ψ1 Ψ2 Φ :
-      prot_spec (Ψ1 + Ψ2) v Φ ⊣⊢
-        prot_spec Ψ1 v Φ ∨ prot_spec Ψ2 v Φ.
-
-  (* The set of axiomatic properties that we support on protocols.
-
-     N.B. the [A2; A3; A5] corresponds to the labelling of laws in Vilhena &
-      Pottier. *)
-  Class protocol_properties :=
-  { (* [A2] *)
-    prot_prop_abort :: protocol_abort;
-    (* [A3] *)
-    prot_prop_sum :: protocol_sum_or;
-    (* [A5] *)
-    prot_prop_mono :: protocol_monotone;
-  }.
-
-End protocol_spec_properties.
-
-(* Definition of well-formed protocols, i.e. protocol operations and spec
-   that satisfies certain axiomatic properties. *)
-Class protocol_wf Σ {A} :=
-  { protocol_def :: @protocol Σ A;
-    protocol_wf_properties :: protocol_properties Σ }.
-
-From iris.proofmode Require Import proofmode.
-
-Lemma prot_mono_post {Σ P} `{protocol_wf Σ P}:
-  ∀ Ψ v Φ1 Φ2,
-    ⊢ prot_spec Ψ v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) -∗ prot_spec Ψ v Φ2.
-Proof.
-  iIntros (????) "[HΨ Hmono]".
-  iApply prot_mono; iFrame. iApply refl.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-(** *Effect-aware Weakest Precondition *)
+From osiris.program_logic Require Export protocols.
 
 Section ewp.
 
@@ -271,17 +166,6 @@ Section ewp.
   Global Arguments ewp' {E e Ψ Φ} : rename.
 
 End ewp.
-
-(* -------------------------------------------------------------------------- *)
-
-(** *Iris instantiation *)
-#[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E,
-    irisGS_gen HasNoLc (@osiris_lang R E) Σ := {
-    iris_invGS := osiris_invGS Σ;
-    state_interp σ _ _ _ := (osiris_state_interp σ)%I;
-    fork_post _ := True%I;
-    num_laters_per_step _ := 0;
-    state_interp_mono _ _ _ _ := fupd_intro _ _ }.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -349,9 +233,15 @@ Qed.
 
 End ewp_properties.
 
+(* ========================================================================== *)
+
+(* Utility functions for writing postconditions on [ewp] *)
+
 Section lift_specs.
 
   Context {Σ : gFunctors}.
+
+  Context {A E : Type}.
 
   Notation iProp := (iProp Σ).
 
@@ -359,19 +249,19 @@ Section lift_specs.
 
   (* [lift_ret_spec] is especially useful for lifting specifications over pure
       results to specifications which may handle exceptional results. *)
-  Definition lift_ret_spec {A E} (ϕ : A -> iProp) (v : outcome2 A E) : iProp :=
+  Definition lift_ret_spec (ϕ : A -> iProp) (v : outcome2 A E) : iProp :=
     match v with
     | O2Ret r => ϕ r
     | _ => False
     end.
 
-  Definition lift_exn_spec {A E} (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
+  Definition lift_exn_spec (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
     match v with
     | O2Throw e => ψ e
     | _ => False
     end.
 
-  Definition ilift {A E} (ϕ : A -> iProp) (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
+  Definition ilift (ϕ : A -> iProp) (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
     match v with
     | O2Ret r => ϕ r
     | O2Throw e => ψ e
@@ -379,8 +269,9 @@ Section lift_specs.
 
 End lift_specs.
 
-(* -------------------------------------------------------------------------- *)
-(* Notation *)
+(* ========================================================================== *)
+
+(** *Notation *)
 
 Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
 Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
@@ -402,6 +293,8 @@ Notation "'RET' '#' v , Q" :=
   (lift_ret_spec (λ v', (∃ v, (bi_pure (v' = osiris.lang.encode.encode v)) ∧ Q)%I))
     (at level 20, Q, v at level 200,
       format "'RET'  '#' v ,  '/' Q") : bi_scope.
+
+(* Notation for [ewp] *)
 
 Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
   (ewp_def ⊤ e%E Ψ Φ)

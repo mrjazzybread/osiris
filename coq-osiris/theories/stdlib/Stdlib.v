@@ -270,7 +270,7 @@ Section Stdlib__specs.
 
   Context `{!osirisGS Σ} `{@protocol_wf Σ P}.
 
-Lemma Stdlib__ref__spec (v : Val) :
+Lemma Stdlib__ref__spec (v : val) :
   {{{ True }}}
     call Stdlib__ref v
   {{{ (l : loc), RET #l ; (l ↦ V v : iPropI Σ) }}}.

@@ -907,4 +907,19 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Match whether a computation [e] is an [outcome2], returning an [outcome2] if
+  so. *)
+Definition outcome2_opt {A E} (e : micro A E): option (outcome2 A E) :=
+  match e with
+  | Ret a => Some (O2Ret a)
+  | Throw e => Some (O2Throw e)
+  | _ => None
+  end.
+
+Lemma outcome2_opt_inject2 {A E} (v : outcome2 A E) :
+  outcome2_opt (inject2 v) = Some v.
+Proof.
+  destruct v; auto.
+Qed.
+
 End Make.

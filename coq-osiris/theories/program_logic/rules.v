@@ -9,6 +9,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
 From osiris Require Import syntax semantics.
+From osiris Require Import util.order.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -121,7 +122,7 @@ Context `{protocol_wf Σ P}.
   Qed.
 
   Lemma ewp_prot_mono E m φ Ψ Ψ':
-    Ψ ⊑ Ψ' -∗
+    Ψ ⊆ Ψ' -∗
     EWP m @ E <| Ψ |> {{ φ }} -∗
     EWP m @ E <| Ψ' |> {{ φ }}.
   Proof.
@@ -477,15 +478,17 @@ Section wp_handler_rules.
   Qed.
 
   Definition shallow_handler E Ψ Φ
-    (h : Outcome -> microvx) (* Handler for outcomes *)
-    (eh : Eff -> C.continuation -> microvx) (* Effect handler *)
+    (h : outcome2 val exn -> microvx) (* Handler for outcomes *)
+    (eh : C.eff -> C.continuation -> microvx) (* Effect handler *)
     Ψ' Φ' :=
     ((∀ v, Φ v -∗ ▷ EWP (h v) @ E <| Ψ' |> {{ Φ' }}) ∧
     (∀ v l, prot_spec Ψ v
         (fun r => ▷ EWP (stop CContinue (l, r)) @ E <| Ψ |> {{ Φ }}) -∗
        ▷ EWP (eh v l) @ E <| Ψ' |> {{ Φ' }}))%I.
 
-  Definition handler (h : Outcome -> microvx) (eh : Eff -> C.continuation -> microvx) :
+  Definition handler
+    (h : outcome2 val exn -> microvx)
+    (eh : C.eff -> C.continuation -> microvx) :
     _ -> microvx :=
     fun x =>
       match x with
