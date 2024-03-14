@@ -14,7 +14,7 @@ From osiris Require Import util.order.
 (* Operations over protocols of carrier [A] *)
 Class protocol_op {A} :=
   { (* Operation on protocols *)
-    prot_abort : A;
+    prot_bottom : A;
     prot_sum : A -> A -> A;
   (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
 
@@ -22,7 +22,6 @@ Class protocol_op {A} :=
     Vilhena & Pottier) describes the behavior of a protocol.
 
    Quoting Vihena & Pottier,
-
    [prot_spec Ψ v Φ] means that: the "protocol Ψ allows making the request v"
     and additionally "the protocol Ψ guarantee(s) that every permitted reply
     satisfies the postcondition Φ."
@@ -30,7 +29,7 @@ Class protocol_op {A} :=
     Additionally, we require with [prot_spec_ne] that the predicate respects the
     equivalences for the step-indexed logic of Iris. *)
 Class protocol_spec Σ {A} `{@protocol_op A} :=
-  { prot_spec : A -d> C.eff -d> (syntax.val -d> iProp Σ) -d> iProp Σ ;
+  { prot_spec : A -d> C.eff -d> (outcome2 syntax.val exn -d> iProp Σ) -d> iProp Σ ;
     prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
 
 Arguments protocol_spec {_ _ _}.
@@ -44,7 +43,10 @@ Class protocol (Σ : gFunctors) {A} :=
     protocol_preorder :: preorder Σ A }.
 
 Notation "P + Q" := (prot_sum P Q).
-Notation "Ψ 'allows' 'do' v { Φ }" := (prot_spec Ψ v Φ) (at level 40).
+Notation "Ψ 'allows' 'perform' v << Φ >>" :=
+  (prot_spec Ψ v Φ)
+  (left associativity, Φ at level 200, at level 12,
+    format "'[' Ψ  'allows'  'perform'  v  '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
 
 (* Axiomatic characterization of protocols. *)
 Section protocol_spec_properties.
@@ -56,19 +58,19 @@ Section protocol_spec_properties.
   (* The protocol is monotone over the postcondition and the ordering on protocols. *)
   Class protocol_monotone :=
     prot_mono v Ψ1 Ψ2 Φ1 Φ2 :
-      prot_spec Ψ1 v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) ∗ Ψ1 ⊆ Ψ2 ⊢
-        prot_spec Ψ2 v Φ2.
+      Ψ1 allows perform v << Φ1 >> ∗ (∀ w, Φ1 w -∗ Φ2 w) ∗ Ψ1 ⊆ Ψ2 ⊢
+        Ψ2 allows perform v << Φ2 >>.
 
-  (* [prot_abort] is logically equivalent to [False]. *)
-  Class protocol_abort :=
-    prot_abort_absurd v Φ :
-      (prot_spec prot_abort v Φ ⊣⊢ ⌜False⌝)%I.
+  (* [prot_bottom] is logically equivalent to [False]. *)
+  Class protocol_bottom :=
+    prot_bottom_absurd v Φ :
+      (prot_bottom allows perform v << Φ >> ⊣⊢ ⌜False⌝)%I.
 
   (* [prot_sum] corresponds to logical or [∨]. *)
   Class protocol_sum_or :=
     prot_sum_or v Ψ1 Ψ2 Φ :
-      prot_spec (Ψ1 + Ψ2) v Φ ⊣⊢
-        prot_spec Ψ1 v Φ ∨ prot_spec Ψ2 v Φ.
+      (Ψ1 + Ψ2) allows perform v << Φ >> ⊣⊢
+        Ψ1 allows perform v << Φ >> ∨ Ψ2 allows perform v << Φ >>.
 
   (* The set of axiomatic properties that we support on protocols.
 
@@ -76,7 +78,7 @@ Section protocol_spec_properties.
       Pottier. *)
   Class protocol_properties :=
   { (* [A2] *)
-    prot_prop_abort :: protocol_abort;
+    prot_prop_bottom :: protocol_bottom;
     (* [A3] *)
     prot_prop_sum :: protocol_sum_or;
     (* [A5] *)
@@ -95,7 +97,8 @@ From iris.proofmode Require Import proofmode.
 
 Lemma prot_mono_post {Σ P} `{protocol_wf Σ P}:
   ∀ Ψ v Φ1 Φ2,
-    ⊢ prot_spec Ψ v Φ1 ∗ (∀ w, Φ1 w -∗ Φ2 w) -∗ prot_spec Ψ v Φ2.
+    ⊢ Ψ allows perform v << Φ1 >> ∗ (∀ w, Φ1 w -∗ Φ2 w) -∗
+    Ψ allows perform v << Φ2 >>.
 Proof.
   iIntros (????) "[HΨ Hmono]".
   iApply prot_mono; iFrame. iApply refl.

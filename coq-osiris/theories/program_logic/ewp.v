@@ -115,6 +115,8 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
 
 From osiris.program_logic Require Export protocols.
 
+(** *Definition of the effectful weakest precondition *)
+
 Section ewp.
 
   Context {A X : Type}.
@@ -130,13 +132,18 @@ Section ewp.
     coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     λ E m Ψ φ,
     (match is_handleable m with
-      (* [EWP1] *)
+      (* [EWP1]: Pure and exceptional values *)
       | Some (HRet v) => |={E}=> φ (O2Ret v)
       | Some (HThrow v) => |={E}=> φ (O2Throw v)
-      (* [EWP2] *)
-      | Some (HPerform v k) =>
-         |={E}=> prot_spec Ψ v (fun w : syntax.val => ▷ ewp E (continue k w) Ψ φ)
-      (* [EWP3] *)
+      (* [EWP2]: Effectful case
+            The effect [e] satisfies protocol Ψ and the permitted replies
+          satisfy the [ewp] when continued with the continuation [k] with the
+          same protocol.
+       *)
+      | Some (HPerform e k) =>
+         |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ >>
+      (* [EWP3]: Non-effectful step of computation;
+              this portion follows to the typical weakest precondition for Iris *)
       | None =>
           ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
             ⌜can_step (σ, m)⌝ ∗
@@ -302,13 +309,13 @@ Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
-  (ewp_def E e%E prot_abort Φ)
+  (ewp_def E e%E prot_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e {{ Φ } }" :=
-  (ewp_def ⊤ e%E prot_abort Φ)
+  (ewp_def ⊤ e%E prot_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.

@@ -49,7 +49,7 @@ Ltac Par :=
   | |- envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
       iApply ewp_simp; first simp
   | |- envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
-      iApply ewp_par
+      iApply ewp_Par
   | _ => fail "The goal must be a par to apply [ewp_par]."
   end; try done.
 

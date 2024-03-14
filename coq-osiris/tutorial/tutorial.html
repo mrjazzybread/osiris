@@ -206,18 +206,18 @@ expression <code class="highlight coq"><span class="n">e</span></code>, it shoul
 <p><em>Values</em> have their own syntactic category: they are not a subset of
 expressions. For instance, a closure is a value, not an expression.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk2" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk2"><span class="kn">Print</span> val.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">val</span> : <span class="kt">Set</span> :=
-    VClo : list (var * Val) → anonfun → Val
-  | VCloRec : list (var * Val) → list rec_binding → var → Val
-  | VString : string → Val
-  | VInt : int → Val
-  | VFloat : float → Val
-  | VTuple : list Val → Val
-  | VData : data → Val → Val
-  | VRecord : list (var * Val) → Val
-  | VLoc : loc → Val
-  | VStruct : list (var * Val) → Val
-  | VChar : char → Val
-  | VArray : list Val → Val.
+    VClo : list (var * val) → anonfun → val
+  | VCloRec : list (var * val) → list rec_binding → var → val
+  | VString : string → val
+  | VInt : int → val
+  | VFloat : float → val
+  | VTuple : list val → val
+  | VData : data → val → val
+  | VRecord : list (var * val) → val
+  | VLoc : loc → val
+  | VStruct : list (var * val) → val
+  | VChar : char → val
+  | VArray : list val → val.
 
 <span class="kn">Arguments</span> VClo η%list_scope a
 <span class="kn">Arguments</span> VCloRec (η rbs)%list_scope f
@@ -233,7 +233,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VArray c%list_scope</blockquote></div></div></small></span></pre><p>An <em>environment</em> is a mapping of variables to values. Because a closure captures
 an environment, the syntactic categories of values and environments are mutually
 recursive.</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">env = list (var * Val)
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk3" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk3"><span class="kn">Print</span> env.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">env = list (var * val)
      : <span class="kt">Set</span></blockquote></div></div></small></span></pre></div>
 <div class="section" id="a-monadic-interpreter">
 <h1>A Monadic Interpreter</h1>
@@ -487,14 +487,14 @@ that Coq's β-reduction engine can simplify the application <code class="highlig
 the system calls are or what is their meaning. Our interpreter
 uses the following set of codes:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk13" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk13"><span class="kn">Print</span> code.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">code</span> : <span class="kt">Type</span> → <span class="kt">Type</span> → <span class="kt">Type</span> → <span class="kt">Set</span> :=
-    CEval : code (env * expr) Val exn
-  | CLoop : code (env * var * int * int * expr) Val exn
-  | CAlloc : code Val loc exn
-  | CLoad : code loc Val exn
-  | CStore : code (loc * Val) () exn
-  | CPerform : code Val Val exn
-  | CContinue : code (loc * Val) Val exn
-  | CDiscontinue : code (loc * Val) Val exn.
+    CEval : code (env * expr) val exn
+  | CLoop : code (env * var * int * int * expr) val exn
+  | CAlloc : code val loc exn
+  | CLoad : code loc val exn
+  | CStore : code (loc * val) () exn
+  | CPerform : code val val exn
+  | CContinue : code (loc * val) val exn
+  | CDiscontinue : code (loc * val) val exn.
 
 <span class="kn">Arguments</span> code (_ _ _)%type_scope</blockquote></div></div></small></span></pre><p>The code <code class="highlight coq"><span class="n">CEval</span></code>, which we have encountered earlier, is used to request
 a recursive invocation of the function <code class="highlight coq"><span class="kp">eval</span></code>. The code <code class="highlight coq"><span class="n">CLoop</span></code> plays a
@@ -524,12 +524,13 @@ The interpreter pauses itself from time to time, and each step
 takes us from one pause to the next pause.</p>
 <p>The relation <code class="highlight coq"><span class="n">step</span></code> is inductively defined.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input class="alectryon-toggle" id="tutorial-v-chk15" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk15"><span class="kn">Print</span> step.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">step</span> (<span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>) : config A E → config A E → <span class="kt">Prop</span> :=
-    StepEval : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : Outcome → micro A E), step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)
-  | StepLoop : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">x</span> <span class="nv">i1</span> <span class="nv">i2</span> <span class="nv">e</span> (<span class="nv">k</span> : Outcome → micro A E),
+    StepEval : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : outcome2 val exn → micro A E),
+                 step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)
+  | StepLoop : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">x</span> <span class="nv">i1</span> <span class="nv">i2</span> <span class="nv">e</span> (<span class="nv">k</span> : outcome2 val exn → micro A E),
                  step (σ, Stop CLoop (η, x, i1, i2, e) k) (σ, try2 (loop η x i1 i2 e) k)
   | StepAlloc : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">v</span> (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 loc exn → micro A E),
                   σ !! l = None → step (σ, Stop CAlloc v k) (&lt;[l:=V v]&gt; σ, continue k l)
-  | StepLoad : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : Outcome → micro A E) (<span class="nv">m&#39;</span> : micro A E),
+  | StepLoad : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">m&#39;</span> : micro A E),
                  m&#39; = <span class="kr">match</span> σ !! l <span class="kr">with</span>
                       | Some (V v) =&gt; continue k v
                       | _ =&gt; crash
@@ -543,20 +544,20 @@ takes us from one pause to the next pause.</p>
                       step (σ, Handle (ret v) h) (σ, h (O3Ret v))
   | StepHandleThrow : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : C.exn) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
                         step (σ, Handle (throw e) h) (σ, h (O3Throw e))
-  | StepHandlePerform : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : Val) (<span class="nv">k</span> : Outcome → micro C.val C.exn) 
+  | StepHandlePerform : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : val) (<span class="nv">k</span> : outcome2 val exn → micro C.val C.exn) 
                           (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E) 
                           (<span class="nv">l</span> : C.continuation),
                           σ !! l = None → step (σ, Handle (Stop CPerform e k) h) (&lt;[l:=K k]&gt; σ, h (O3Perform e l))
   | StepHandleCrash : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E), step (σ, Handle crash h) (σ, crash)
   | StepHandleLeft : <span class="kr">∀</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m</span> <span class="nv">m&#39;</span> : micro C.val C.exn) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
                        step (σ, m) (σ&#39;, m&#39;) → step (σ, Handle m h) (σ&#39;, Handle m&#39; h)
-  | StepContinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v</span> (<span class="nv">k</span> : Outcome → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
+  | StepContinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v</span> (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
                      c&#39; =
                      <span class="kr">match</span> σ !! l <span class="kr">with</span>
                      | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (continue sk v) k)
                      | _ =&gt; (σ, crash)
                      <span class="kr">end</span> → step (σ, Stop CContinue (l, v) k) c&#39;
-  | StepDiscontinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">v</span> : exn) (<span class="nv">k</span> : Outcome → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
+  | StepDiscontinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">v</span> : exn) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
                         c&#39; =
                         <span class="kr">match</span> σ !! l <span class="kr">with</span>
                         | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (discontinue sk v) k)
@@ -577,15 +578,17 @@ takes us from one pause to the next pause.</p>
                           (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E), 
                           step (σ, Par m1 (throw e) k) (σ, discontinue k e)
   | StepParPerformLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
-                           (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : Val) 
-                           (<span class="nv">k</span> : Outcome → micro A1 E&#39;) 
+                           (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : val) 
+                           (<span class="nv">k</span> : outcome2 val exn → micro A1 E&#39;) 
                            (<span class="nv">h</span> : outcome2 (A1 * A2) E&#39; → micro A E),
-                           step (σ, Par (Stop CPerform e k) m2 h) (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : Outcome, Par (k o) m2 h))
+                           step (σ, Par (Stop CPerform e k) m2 h)
+                             (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn, Par (k o) m2 h))
   | StepParPerformRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
-                            (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : Val) 
-                            (<span class="nv">k</span> : Outcome → micro A2 E&#39;) 
+                            (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : val) 
+                            (<span class="nv">k</span> : outcome2 val exn → micro A2 E&#39;) 
                             (<span class="nv">h</span> : outcome2 (A1 * A2) E&#39; → micro A E),
-                            step (σ, Par m1 (Stop CPerform e k) h) (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : Outcome, Par m1 (k o) h))
+                            step (σ, Par m1 (Stop CPerform e k) h)
+                              (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn, Par m1 (k o) h))
   | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
                     (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;) 
                     (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
@@ -625,7 +628,8 @@ takes us from one pause to the next pause.</p>
 <span class="kn">Arguments</span> StepChooseRight {A E B E&#39;}%type_scope σ m1 m2 k%function_scope</blockquote></div></div></small></span></pre><p>Let us look at some of the cases in this definition.
 An <code class="highlight coq"><span class="n">CEval</span></code> request steps to an invocation of <code class="highlight coq"><span class="kp">eval</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk16" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk16"><span class="kn">Check</span> @StepEval.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepEval
-     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : Outcome → micro A E), step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)</blockquote></div></div></small></span></pre><p>Under a parallel composition constructor <code class="highlight coq"><span class="n">Par</span></code>,
+     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : outcome2 val exn → micro A E),
+         step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)</blockquote></div></div></small></span></pre><p>Under a parallel composition constructor <code class="highlight coq"><span class="n">Par</span></code>,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
 may take a step:</p>

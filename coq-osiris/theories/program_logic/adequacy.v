@@ -18,7 +18,7 @@ Section ewp_wp.
     {irisGen: irisGS_gen HasNoLc (@osiris_lang A X) Σ}
     {Prot: @protocol_wf Σ P}
     E (e : micro A X) (Φ : outcome2 A X -> _) :
-    EWP e @ E <| prot_abort |> {{ Φ }} -∗ WP e @ NotStuck; E {{ Φ }} : iProp Σ.
+    EWP e @ E <| prot_bottom |> {{ Φ }} -∗ WP e @ NotStuck; E {{ Φ }} : iProp Σ.
   Proof.
     iLöb as "IH" forall (e).
     iIntros "Hwp".
@@ -29,7 +29,7 @@ Section ewp_wp.
     rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
     ewp_case_is_handleable e ;inversion Heqo.
     iMod "Hwp".
-    { by iPoseProof (prot_abort_absurd with "Hwp") as "H". }
+    { by iPoseProof (prot_bottom_absurd with "Hwp") as "H". }
     intro_state. iMod ("Hwp" with "Hsi") as "[% H]".
     iSplitL "".
     { iPureIntro; destruct H, x. eexists nil, _,_, nil; cbn; split; eauto. }
@@ -62,7 +62,7 @@ Section adequacy.
 
   Theorem ewp_adequacy e σ φ :
   (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
-    ⊢ EWP e @ ⊤ <| prot_abort |> {{ fun v =>  ⌜ φ v ⌝ }}) →
+    ⊢ EWP e @ ⊤ <| prot_bottom |> {{ fun v =>  ⌜ φ v ⌝ }}) →
     adequate NotStuck e σ (λ v _, φ v).
   Proof.
     intros Hwp.

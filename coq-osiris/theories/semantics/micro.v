@@ -103,6 +103,16 @@ Arguments O3Ret     {A E}.
 Arguments O3Throw   {A E}.
 Arguments O3Perform {A E}.
 
+(* An [outcome2 A E] can always be injected as an [outcome3 A E]. *)
+
+Definition outcome2_inject {A X} (o : outcome2 A X) :=
+  match o with
+  | O2Ret a => O3Ret a
+  | O2Throw e => O3Throw e
+  end.
+
+Coercion outcome2_inject : outcome2 >-> outcome3.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Auxiliary functions for [outcome2]. *)
