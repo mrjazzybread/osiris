@@ -352,8 +352,7 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
 
 Section Extend.
 
-Variable A : Type.
-Variable extend : env → A → val → micro env unit.
+Variable extend : env → pat → val → micro env unit.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -372,7 +371,7 @@ Variable extend : env → A → val → micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Fixpoint pre_extends (δ : env) (ps : list A) vs : micro env unit :=
+Fixpoint pre_extends (δ : env) ps vs : micro env unit :=
   let extends := pre_extends in
   match ps, vs with
   | [], [] =>
@@ -426,9 +425,9 @@ End Extend.
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Fixpoint extend_value δ p v : micro env unit :=
-  let extends := pre_extends pat extend_value in
-  let extendfs := pre_extendfs pat extend_value in
+Fixpoint extend δ p v : micro env unit :=
+  let extends := pre_extends extend in
+  let extendfs := pre_extendfs extend in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -442,12 +441,12 @@ Fixpoint extend_value δ p v : micro env unit :=
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
-      δ ← extend_value δ p v ;
+      δ ← extend δ p v ;
       ret ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
-      orelse (extend_value δ p1 v) (extend_value δ p2 v)
+      orelse (extend δ p1 v) (extend δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       extends δ ps vs
@@ -455,7 +454,7 @@ Fixpoint extend_value δ p v : micro env unit :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then extend_value δ p v else throw ()
+      if c =? c' then extend δ p v else throw ()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -481,59 +480,28 @@ Fixpoint extend_value δ p v : micro env unit :=
       type_mismatch "string expected"
   end.
 
-Fixpoint extend_exception δ p v : micro env unit :=
-  match p, v with
-  | PAny, _ =>
-      (* A wildcard pattern always succeeds. *)
-      ret δ
-  | PData c p, VData c' v =>
-      (* A data pattern matches a data value, provided the data constructors
-         match. If the data constructors do not match, a meta-level exception
-         is raised. *)
-      match (lookup_exn_name δ c), (lookup_exn_name δ c') with
-      | ret l1, ret l2 =>
-          if (address l1 =? address l2)%Z then extend_value δ p v else throw ()
-      | _, _ =>
-          throw ()
-      end
-  | POr p1 p2, _ =>
-      orelse (extend_exception δ p1 v) (extend_exception δ p2 v)
-  | _, _ =>
-      type_mismatch "exception expected"
-  end.
-
-Definition extend δ (p : cpat) v : micro env unit :=
+Fixpoint cextend δ (p : cpat) v : micro env unit :=
   match p with
-  | Val p =>
-      extend_value δ p v
-  | Exc p =>
-      extend_exception δ p v
-  | Eff _ =>
+  | CVal p =>
+      extend δ p v
+  | CExc p =>
+      extend δ p v
+  | CEff _ =>
       unsupported_construct
   | COr p1 p2 =>
-      orelse (extend_value δ p1 v) (extend_exception δ p2 v)
+      orelse (cextend δ p1 v) (cextend δ p2 v)
   end.
 
-Definition extends δ (ps : list cpat) vs :=
-  pre_extends cpat extend δ ps vs.
+Definition extends δ ps vs :=
+  pre_extends extend δ ps vs.
 
 Definition extendfs δ fps fvs :=
-  pre_extendfs cpat extend δ fps fvs.
-
-Definition extend_exceptions δ ps vs :=
-  pre_extends pat extend_exception δ ps vs.
-
-Definition extend_values δ ps vs :=
-  pre_extends pat extend_value δ ps vs.
+  pre_extendfs extend δ fps fvs.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
-Definition irrefutably_extend δ (p : cpat) v : micro env void :=
+Definition irrefutably_extend δ p v : micro env void :=
   try (extend δ p v) ret match_failure.
-
-Definition irrefutably_extend_value δ (p : pat) v : micro env void :=
-  try (extend_value δ p v) ret match_failure.
-
 
 (* ------------------------------------------------------------------------ *)
 
@@ -853,7 +821,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
          evaluate the bindings [bs], yielding an environment fragment [δ]. *)
       '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
        (* Match the value [v] against the pattern [p], extending [δ]. *)
-      widen (irrefutably_extend_value δ p v)
+      widen (irrefutably_extend δ p v)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -909,7 +877,7 @@ Fixpoint pre_eval_match (η : env) (v : val) (bs : list branch) : microvx :=
   | Branch p e :: bs =>
       (* Match the value [v] against the pattern [p]. *)
       try
-        (extend η p v)
+        (cextend η p v)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)

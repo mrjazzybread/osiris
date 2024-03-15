@@ -92,10 +92,10 @@ Inductive pat :=
   | PString (s : string).
 
 Inductive cpat :=
-  | Val (p : pat)
-  | Exc (p : pat)
-  | Eff (p : pat)
-  | COr (p1 : pat) (p2 : pat).
+  | CVal (p : pat)
+  | CExc (p : pat)
+  | CEff (p : pat)
+  | COr (p1 : cpat) (p2 : cpat).
 
 (* ------------------------------------------------------------------------ *)
 
