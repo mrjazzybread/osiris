@@ -107,17 +107,17 @@ let rec pat (p : pat) =
 and cpat (cp : cpat) =
   match cp with
 
-  | Val p ->
+  | CVal p ->
      c "Val" [ pat p ]
 
-  | Exc p ->
+  | CExc p ->
      c "Exc" [ pat p ]
 
-  | Eff p ->
+  | CEff p ->
      c "Eff" [ pat p ]
 
   | COr (p1, p2) ->
-     c "COr" [ pat p1; pat p2 ]
+     c "COr" [ cpat p1; cpat p2 ]
 
 and fpats fps =
   clist "MkFpats" (map fpat fps)

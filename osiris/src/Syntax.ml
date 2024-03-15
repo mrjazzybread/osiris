@@ -71,12 +71,11 @@ type pat =
 (* Computation patterns. *)
 
 and cpat =
-  | Val of pat
-  | Exc of pat
-  | Eff of pat
-  (* A disjunction pattern [p1 | p2].
-     [p1] is a value pattern and [p2] is an exception pattern. *)
-  | COr of pat * pat
+  | CVal of pat
+  | CExc of pat
+  | CEff of pat
+  (* A disjunction pattern [p1 | p2]. *)
+  | COr of cpat * cpat
 
 (* Lists of patterns. *)
 

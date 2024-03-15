@@ -296,22 +296,20 @@ and translate_field_pattern (i, label_desc, pat) : field * pat =
 
 (* Computation patterns distinguish normal termination and exceptions. *)
 
-let translate_computation_pattern (pat : computation general_pattern) : cpat =
-  match split_pattern pat with
-  | Some pat, None ->
-      (* A normal termination pattern. *)
-      Val (translate_pat pat)
-  | None, Some pat ->
-     (* An exception pattern. *)
-     Exc (translate_pat pat)
-  | Some pat1, Some pat2 ->
-     (* An Or pattern with its left branch containing a normal pattern and
-        its right branch containing an exception pattern. *)
-     let lpat = translate_pat pat1 in
-     let rpat = translate_pat pat2 in
-     COr (lpat, rpat)
-  | _ ->
-      assert false
+
+let rec translate_computation_pattern (pat : computation general_pattern) : cpat =
+  match pat.pat_desc with
+  | Tpat_value p ->
+     (* We need a coercion because the type of Tpat_value is private. *)
+     CVal (translate_pat (p :> pattern))
+
+  | Tpat_exception p ->
+     CExc (translate_pat p)
+
+  | Tpat_or (p1, p2, _) ->
+     let cp1 = translate_computation_pattern p1 in
+     let cp2 = translate_computation_pattern p2 in
+     COr (cp1, cp2)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -651,7 +649,7 @@ and translate_case : type k . (k general_pattern -> cpat) -> k case -> branch =
   )
 
 and translate_value_case (case : value case) : branch =
-  translate_case (fun p -> Val (translate_pat p)) case
+  translate_case (fun p -> CVal (translate_pat p)) case
 
 and translate_value_cases cases =
   map translate_value_case cases
