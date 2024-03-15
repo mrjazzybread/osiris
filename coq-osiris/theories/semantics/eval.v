@@ -239,6 +239,27 @@ Fixpoint lookup_path η π : micro val void :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [lookup_exn_name η x] looks up the name [x] in the environment [env],
+   producing the location of the exception [x].
+
+   A hard failure occurs if [x] is unbound. *)
+
+Fixpoint lookup_exn_name η x : micro loc void :=
+  match η with
+  | (x', v) :: η =>
+      if x =? x' then
+        match v with
+        | VLoc l => ret l
+        | _ => type_mismatch "expected exception"
+        end
+      else
+        lookup_exn_name η x
+  | [] =>
+      missing_variable_or_field x
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
 
 Fixpoint remove f fvs : micro env exn :=
@@ -331,7 +352,8 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
 
 Section Extend.
 
-Variable extend : env → pat → val → micro env unit.
+Variable A : Type.
+Variable extend : env → A → val → micro env unit.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -350,7 +372,7 @@ Variable extend : env → pat → val → micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Fixpoint pre_extends (δ : env) ps vs : micro env unit :=
+Fixpoint pre_extends (δ : env) (ps : list A) vs : micro env unit :=
   let extends := pre_extends in
   match ps, vs with
   | [], [] =>
@@ -388,7 +410,7 @@ Fixpoint pre_extendfs (δ : env) fps fvs : micro env unit :=
 
 End Extend.
 
-(* [extend δ p v] matches the value [v] against the pattern [p].
+(* [extend_value δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
    fragment [δ] with bindings for the bound variables of the pattern [p].
@@ -404,9 +426,9 @@ End Extend.
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Fixpoint extend δ p v : micro env unit :=
-  let extends := pre_extends extend in
-  let extendfs := pre_extendfs extend in
+Fixpoint extend_value δ p v : micro env unit :=
+  let extends := pre_extends pat extend_value in
+  let extendfs := pre_extendfs pat extend_value in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -420,12 +442,12 @@ Fixpoint extend δ p v : micro env unit :=
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
-      δ ← extend δ p v ;
+      δ ← extend_value δ p v ;
       ret ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
-      orelse (extend δ p1 v) (extend δ p2 v)
+      orelse (extend_value δ p1 v) (extend_value δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       extends δ ps vs
@@ -433,7 +455,7 @@ Fixpoint extend δ p v : micro env unit :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then extend δ p v else throw ()
+      if c =? c' then extend_value δ p v else throw ()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -457,18 +479,55 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "char expected"
   | PString _, _ =>
       type_mismatch "string expected"
-end.
+  end.
 
-Definition extends δ ps vs :=
-  pre_extends extend δ ps vs.
+Fixpoint extend_exception δ p v : micro env unit :=
+  match p, v with
+  | PAny, _ =>
+      (* A wildcard pattern always succeeds. *)
+      ret δ
+  | PData c p, VData c' v =>
+      (* A data pattern matches a data value, provided the data constructors
+         match. If the data constructors do not match, a meta-level exception
+         is raised. *)
+      match (lookup_exn_name δ c), (lookup_exn_name δ c') with
+      | ret l1, ret l2 =>
+          if (address l1 =? address l2)%Z then extend_value δ p v else throw ()
+      | _, _ =>
+          throw ()
+      end
+  | POr p1 p2, _ =>
+      orelse (extend_exception δ p1 v) (extend_exception δ p2 v)
+  | _, _ =>
+      type_mismatch "exception expected"
+  end.
+
+Definition extend δ (p : cpat) v : micro env unit :=
+  match p with
+  | Val p =>
+      extend_value δ p v
+  | Exc p =>
+      extend_exception δ p v
+  | Eff _ =>
+      unsupported_construct
+  | COr p1 p2 =>
+      orelse (extend_value δ p1 v) (extend_exception δ p2 v)
+  end.
+
+Definition extends δ (ps : list cpat) vs :=
+  pre_extends cpat extend δ ps vs.
 
 Definition extendfs δ fps fvs :=
-  pre_extendfs extend δ fps fvs.
+  pre_extendfs cpat extend δ fps fvs.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
-Definition irrefutably_extend δ p v : micro env void :=
+Definition irrefutably_extend δ (p : cpat) v : micro env void :=
   try (extend δ p v) ret match_failure.
+
+Definition irrefutably_extend_value δ (p : pat) v : micro env void :=
+  try (extend_value δ p v) ret match_failure.
+
 
 (* ------------------------------------------------------------------------ *)
 
@@ -788,7 +847,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
          evaluate the bindings [bs], yielding an environment fragment [δ]. *)
       '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
        (* Match the value [v] against the pattern [p], extending [δ]. *)
-      widen (irrefutably_extend δ p v)
+      widen (irrefutably_extend_value δ p v)
   end.
 
 (* ------------------------------------------------------------------------ *)

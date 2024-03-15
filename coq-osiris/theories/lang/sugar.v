@@ -142,17 +142,17 @@ Definition EFunction (bs : list branch) :=
 
 (* It is a special case of the previous sugar. *)
 
-Definition AnonFun1Pat (p : pat) (e : expr) : anonfun :=
+Definition AnonFun1Pat (p : cpat) (e : expr) : anonfun :=
   AnonFunction [Branch p e].
 
-Definition EFun1Pat (p : pat) (e : expr) :=
+Definition EFun1Pat (p : cpat) (e : expr) :=
   EAnonFun (AnonFun1Pat p e).
 
 (* [fun ps -> e]. *)
 
 (* [fun p1 p2 ... pn -> e] is [fun p1 -> fun p2 -> ... fun pn -> e]. *)
 
-Fixpoint EFunMultiPat (ps : list pat) (e : expr) :=
+Fixpoint EFunMultiPat (ps : list cpat) (e : expr) :=
   match ps with
   | [] =>
       e
@@ -160,7 +160,7 @@ Fixpoint EFunMultiPat (ps : list pat) (e : expr) :=
       EFun1Pat p (EFunMultiPat ps e)
   end.
 
-Definition AnonFunMultiPat (p : pat) (ps : list pat) (e : expr) : anonfun :=
+Definition AnonFunMultiPat (p : cpat) (ps : list cpat) (e : expr) : anonfun :=
   AnonFun1Pat p (EFunMultiPat ps e).
 
 Goal

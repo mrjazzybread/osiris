@@ -91,7 +91,11 @@ Inductive pat :=
   (* A literal string pattern. *)
   | PString (s : string).
 
-
+Inductive cpat :=
+  | Val (p : pat)
+  | Exc (p : pat)
+  | Eff (p : pat)
+  | COr (p1 : pat) (p2 : pat).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -238,7 +242,7 @@ with fexpr :=
 (* A branch is of the form [p -> e]. *)
 
 with branch :=
-  | Branch (p : pat) (e : expr)
+  | Branch (p : cpat) (e : expr)
 
 (* A binding is of the form [p = e]. *)
 
