@@ -53,8 +53,6 @@ type pat =
   | PVar of var
   (* An alias pattern [p as x]. *)
   | PAlias of pat * var
-  (* A disjunction pattern [p1 | p2]. *)
-  | POr of pat * pat
   (* A tuple pattern. *)
   | PTuple of pats
   (* A data constructor pattern. *)
@@ -67,6 +65,18 @@ type pat =
   | PChar of char
   (* A literal string pattern. *)
   | PString of string
+  (* A disjunction pattern [p1 | p2]. *)
+  | POr of pat * pat
+
+(* Computation patterns. *)
+
+and cpat =
+  | Val of pat
+  | Exc of pat
+  | Eff of pat
+  (* A disjunction pattern [p1 | p2].
+     [p1] is a value pattern and [p2] is an exception pattern. *)
+  | COr of pat * pat
 
 (* Lists of patterns. *)
 
@@ -225,7 +235,7 @@ and fexprs =
 (* A branch is of the form [p -> e]. *)
 
 and branch =
-  | Branch of pat * expr
+  | Branch of cpat * expr
 
 (* Lists of branches. *)
 

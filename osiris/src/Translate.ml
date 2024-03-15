@@ -280,7 +280,7 @@ let rec translate_pat (pat: pattern) : pat =
       punsupported loc "lazy pattern"
 
   | Tpat_or (pat1, pat2, _) ->
-      POr (translate_pat pat1, translate_pat pat2)
+     POr (translate_pat pat1, translate_pat pat2)
 
 and translate_pats pats : pats =
   map translate_pat pats
@@ -296,15 +296,20 @@ and translate_field_pattern (i, label_desc, pat) : field * pat =
 
 (* Computation patterns distinguish normal termination and exceptions. *)
 
-let translate_computation_pattern (pat : computation general_pattern) : pat =
-  let loc = pat.pat_loc in
+let translate_computation_pattern (pat : computation general_pattern) : cpat =
   match split_pattern pat with
   | Some pat, None ->
       (* A normal termination pattern. *)
-      translate_pat pat
-  | None, Some _ ->
-      (* An exception pattern. *)
-      punsupported loc "exception pattern"
+      Val (translate_pat pat)
+  | None, Some pat ->
+     (* An exception pattern. *)
+     Exc (translate_pat pat)
+  | Some pat1, Some pat2 ->
+     (* An Or pattern with its left branch containing a normal pattern and
+        its right branch containing an exception pattern. *)
+     let lpat = translate_pat pat1 in
+     let rpat = translate_pat pat2 in
+     COr (lpat, rpat)
   | _ ->
       assert false
 
@@ -631,7 +636,7 @@ and translate_labeled_argument loc arg : expr =
 
 (* Cases in [fun], [match], [try] constructs. *)
 
-and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
+and translate_case : type k . (k general_pattern -> cpat) -> k case -> branch =
   fun translate_pat case ->
   let pat = case.c_lhs
   and e = case.c_rhs in
@@ -646,7 +651,7 @@ and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
   )
 
 and translate_value_case (case : value case) : branch =
-  translate_case translate_pat case
+  translate_case (fun p -> Val (translate_pat p)) case
 
 and translate_value_cases cases =
   map translate_value_case cases

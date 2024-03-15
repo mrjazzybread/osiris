@@ -83,9 +83,6 @@ let rec pat (p : pat) =
   | PAlias (p, x) ->
       c "PAlias" [ pat p; var x ]
 
-  | POr (p1, p2) ->
-      c "POr" [ pat p1; pat p2 ]
-
   | PTuple ps ->
       clist "PTuple" (map pat ps)
 
@@ -102,7 +99,25 @@ let rec pat (p : pat) =
       c "PChar" [ char cc ]
 
   | PString s ->
-      c "PString" [ string s ]
+     c "PString" [ string s ]
+
+  | POr (p1, p2) ->
+     c "POr" [ pat p1; pat p2 ]
+
+and cpat (cp : cpat) =
+  match cp with
+
+  | Val p ->
+     c "Val" [ pat p ]
+
+  | Exc p ->
+     c "Exc" [ pat p ]
+
+  | Eff p ->
+     c "Eff" [ pat p ]
+
+  | COr (p1, p2) ->
+     c "COr" [ pat p1; pat p2 ]
 
 and fpats fps =
   clist "MkFpats" (map fpat fps)
@@ -298,7 +313,7 @@ and anonfun = function
 
 and branch = function
   | Branch (p, e) ->
-      c "Branch" [ pat p; expr e ]
+      c "Branch" [ cpat p; expr e ]
 
 and branches (bs : branches) =
   cut "branches" (list (map branch bs))
