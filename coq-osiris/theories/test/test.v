@@ -144,8 +144,8 @@ Proof. reduces. Qed.
 Lemma test_match_integer :
   let e := EInt 12 in
   let e := EMatch e [
-    Branch (Val (PInt 0)) (EInt 0);
-    Branch (Val (PVar "x")) (EIntAdd (EVar "x") (EInt 1))
+    Branch (CVal (PInt 0)) (EInt 0);
+    Branch (CVal (PVar "x")) (EIntAdd (EVar "x") (EInt 1))
   ] in
   let v := VInt (repr 13) in
   reduces e v.
@@ -154,8 +154,8 @@ Proof. reduces. Qed.
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
   let e := EMatch e [
-    Branch (Val (PAlias (PInt 0) "x")) (EVar "x");
-    Branch (Val (PVar "x")) (EIntAdd (EVar "x") (EInt 1))
+    Branch (CVal (PAlias (PInt 0) "x")) (EVar "x");
+    Branch (CVal (PVar "x")) (EIntAdd (EVar "x") (EInt 1))
   ] in
   let v := VInt (repr 0) in
   reduces e v.
@@ -164,8 +164,8 @@ Proof. reduces. Qed.
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
   let e := EMatch e [
-    Branch (Val (PAlias (POr (PInt 0) (PInt 1)) "x")) (EIntAdd (EInt 1) (EVar "x"));
-    Branch (Val (PVar "x")) (EIntAdd (EVar "x") (EInt 33))
+    Branch (CVal (PAlias (POr (PInt 0) (PInt 1)) "x")) (EIntAdd (EInt 1) (EVar "x"));
+    Branch (CVal (PVar "x")) (EIntAdd (EVar "x") (EInt 33))
 ] in
   let v := VInt (repr 2) in
   reduces e v.
@@ -186,8 +186,8 @@ Proof. reduces. Qed.
 Lemma test_EFunction :
   let e :=
     ELet1Var "f" (EFunction $ [
-      Branch (Val (PInt 0)) (EInt 32);
-      Branch (Val (PVar "x")) (EIntAdd (EVar "x") (EInt 33))
+      Branch (CVal (PInt 0)) (EInt 32);
+      Branch (CVal (PVar "x")) (EIntAdd (EVar "x") (EInt 33))
     ]) $
     EApp (EVar "f") (EInt 1)
   in
@@ -199,8 +199,8 @@ Lemma test_EFun :
   let e :=
     ELet1Var "f" (
       EFunMultiPat [
-        Val (PPair (PVar "x1") (PVar "x2"));
-        Val (PPair (PVar "y1") (PVar "y2"))
+        CVal (PPair (PVar "x1") (PVar "x2"));
+        CVal (PPair (PVar "y1") (PVar "y2"))
       ] $
       EIntAdd (EVar "x1") (EVar "y2")
     ) $

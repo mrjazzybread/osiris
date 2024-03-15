@@ -376,7 +376,7 @@ Qed.
 (* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
-  pattern η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
+  cpattern η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
   pure_match η v ((Branch p e) :: bs) φ.
 Proof.
   unfold pure_match; unfold pattern.
@@ -385,13 +385,13 @@ Proof.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
-  pattern η p v (λ η', pure (eval η' e) φ) ψ ->
+  cpattern η p v (λ η', pure (eval η' e) φ) ψ ->
   (ψ -> (pure_match η v bs φ)) ->
   pure_match η v ((Branch p e) :: bs) φ.
 Proof.
   intros.
   apply pure_match_cons_unary.
-  eauto using pat_consequence.
+  unfold cpattern in *; eauto using total_consequence.
 Qed.
 
 (* Not matching is an error. *)
@@ -401,7 +401,7 @@ Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) :
 Proof. contradiction. Qed.
 
 Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
-  pattern η p v (λ η' : env, pure (eval η' e) φ) ψ →
+  cpattern η p v (λ η' : env, pure (eval η' e) φ) ψ →
   (ψ -> False) ->
   pure_match η v [Branch p e] φ.
 Proof.
@@ -413,6 +413,13 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* Pattern proofmode tactics *)
+
+Ltac specify_cpattern :=
+  first [
+      apply cpat_CVal
+    | apply cpat_CExc
+    | eapply cpat_COr; specify_cpattern
+    ].
 
 Local Ltac strip_disjunction :=
   match goal with
@@ -508,12 +515,12 @@ Ltac pure_match_branches :=
   lazymatch goal with
   | |- pure_match _ _ [?b] _ =>
       eapply pure_match_single;
-      [
+      [ specify_cpattern
       | let no_match := fresh "no_match" in
         intros no_match ]
   | |- pure_match _ _ (?b :: ?bs) _ =>
       eapply pure_match_cons;
-      [
+      [ specify_cpattern
       | (let no_match := fresh "no_match" in
          intros no_match; pure_match_branches) ]
   end.

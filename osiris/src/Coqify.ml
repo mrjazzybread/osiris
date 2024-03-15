@@ -108,13 +108,13 @@ and cpat (cp : cpat) =
   match cp with
 
   | CVal p ->
-     c "Val" [ pat p ]
+     c "CVal" [ pat p ]
 
   | CExc p ->
-     c "Exc" [ pat p ]
+     c "CExc" [ pat p ]
 
   | CEff p ->
-     c "Eff" [ pat p ]
+     c "CEff" [ pat p ]
 
   | COr (p1, p2) ->
      c "COr" [ cpat p1; cpat p2 ]

@@ -14,6 +14,9 @@ From osiris.semantics Require Import code eval simplification pure.
    results in an extended environment that satisfies [φ]
    or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
+Definition cpattern η p v (φ : env -> Prop) (ψ : Prop) :=
+  total (cextend η p v) φ (λ (_ : unit), ψ).
+
 Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
   total (extend η p v) φ (λ (_ : unit), ψ).
 
@@ -79,6 +82,29 @@ Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
   patterns η ps vs φ ψ'.
 Proof.
   unfold patterns. eauto using total_consequence.
+Qed.
+
+Lemma cpat_CVal η p v (φ : env -> Prop) (ψ : Prop) :
+  pattern η p v φ ψ ->
+  cpattern η (CVal p) v φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_CExc η p v (φ : env -> Prop) (ψ : Prop) :
+  pattern η p v φ ψ ->
+  cpattern η (CExc p) v φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_COr η p1 p2 v (φ : env -> Prop) (ψ1 ψ2 : Prop) :
+  cpattern η p1 v φ ψ1 ->
+  cpattern η p2 v φ ψ2 ->
+  cpattern η (COr p1 p2) v φ (ψ1 /\ ψ2).
+Proof.
+  unfold cpattern.
+  eauto using total_orelse, total_consequence.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
