@@ -616,8 +616,8 @@ Qed.
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   (v1 : A1) (v2 : A2) η θ :
   simp (eval η e1) (ret #(v1, v2)) ->
-  simp (δ ← irrefutably_extend [] p1 #v1;
-        irrefutably_extend δ p2 #v2) (ret θ) ->
+  simp (δ ← irrefutably_extend_value [] p1 #v1;
+        irrefutably_extend_value δ p2 #v2) (ret θ) ->
   simp (eval (θ ++ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
@@ -635,8 +635,8 @@ Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
-          δ ← widen (irrefutably_extend [] p1 #v1);
-          θ ← widen (irrefutably_extend δ p2 #v2);
+          δ ← widen (irrefutably_extend_value [] p1 #v1);
+          θ ← widen (irrefutably_extend_value δ p2 #v2);
           eval (θ ++ η) e2
         ) ψ) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.

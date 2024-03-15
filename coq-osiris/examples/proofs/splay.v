@@ -111,7 +111,7 @@ Definition pLeaf := PConstant "Leaf".
 Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
   v = #t →
   (t = Leaf -> φ η) ->
-  pattern η pLeaf v φ (t <> Leaf).
+  pattern_val η pLeaf v φ (t <> Leaf).
 Proof.
   intros; subst.
   destruct t.
@@ -136,19 +136,22 @@ Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
   v = #t ->
   (∀ (t1 : tree A) (a : A) (t2 : tree A),
       t = Node t1 a t2 →
-      pattern η p1 #t1
-        (λ η', pattern η' p2 #a
-            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
+      pattern_val η p1 #t1
+        (λ η', pattern_val η' p2 #a
+            (λ η', pattern_val η' p3 #t2 φ (ψ3 t2))
             (ψ2 a))
         (ψ1 t1)) ->
-  pattern η (pNode p1 p2 p3) v φ
+  pattern_val η (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct t; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
-  { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
+  { eapply pat_PData_eq; pat_PTuple; pats.
+    { eapply Hcov; reflexivity. }
+    { simpl in *; eassumption. }
+    { simpl in *; eassumption. } }
   { clear; right; do 3 eexists; split; [reflexivity | tauto]. }
 Qed.
 
@@ -232,7 +235,7 @@ Definition pRoot := PConstant "Root".
 Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
   v = #z →
   (z = Root -> φ η) ->
-  pattern η pRoot v φ (z <> Root).
+  pattern_val η pRoot v φ (z <> Root).
 Proof.
   intros; subst.
   destruct z.
@@ -260,16 +263,19 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
   v = #z ->
   (∀ (z' : zipper A) (a : A) (t : tree A),
       z = NodeL z' a t →
-      pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
-  pattern η (pNodeL p1 p2 p3) v φ (z = Root \/
+      pattern_val η p1 #z' (λ η', pattern_val η' p2 #a (λ η', pattern_val η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
+  pattern_val η (pNodeL p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
-  { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
+  { eapply pat_PData_eq; pat_PTuple; pats.
+    { eapply Hcov; reflexivity. }
+    { simpl in *; eassumption. }
+    { simpl in *; eassumption. } }
   { clear; do 2 right; do 3 eexists; split; [reflexivity | tauto]. }
   { eapply pat_PData_neq; eauto. }
   { right; left; eauto. }
@@ -288,18 +294,21 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
   v = #z ->
   (∀ (t : tree A) (a : A) (z' : zipper A),
       z = NodeR t a z' →
-      pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
-  pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
+      pattern_val η p1 #t (λ η', pattern_val η' p2 #a (λ η', pattern_val η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
+  pattern_val η (pNodeR p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
   { eapply pat_PData_neq; eauto. }
   { right; left; eauto. }
-  { eapply pat_PData_eq; pat_PTuple; pats. }
+  { eapply pat_PData_eq; pat_PTuple; pats.
+    { apply Hcov; reflexivity. }
+    { simpl in *; eassumption. }
+    { simpl in *; eassumption. } }
   { clear; right; right; do 3 eexists; split; [ reflexivity | tauto]. }
 Qed.
 

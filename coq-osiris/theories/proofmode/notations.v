@@ -257,10 +257,10 @@ Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
 
 Goal (trivial (EMatch (EPath ["l"]) [])). Abort.
 
-Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch (Val PAny) (EInt 1)])). Abort.
 
 Goal (trivial
-        (EMatch (EPath ["l"]) [Branch PAny (EInt 1); Branch PAny 2])).
+        (EMatch (EPath ["l"]) [Branch (Val PAny) (EInt 1); Branch (Val PAny) 2])).
 Abort.
 
 Notation "'|' pat '->' e" :=
@@ -269,12 +269,12 @@ Notation "'|' pat '->' e" :=
       only printing,
       format "'|'  pat  '->'  '[' '/' e ']'").
 
-Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch (Val PAny) (EInt 1)])). Abort.
 
 Goal (trivial
         (EMatch
            (EPath ["l"])
-           [Branch PAny
+           [Branch (Val PAny)
               (ESeq
                  (EApp (EPath ["f"]) (EPath ["x"]))
                  (ESeq
@@ -285,11 +285,11 @@ Goal (trivial
                     )
                  )
               );
-            Branch PAny 2]
+            Branch (Exc PAny) 2]
      )).
 Abort.
 
-Goal (trivial (Branch PAny 2)). Abort.
+Goal (trivial (Branch (Val PAny) 2)). Abort.
 
 (* -------------------------------------------------------------------------- *)
 (* [Stop]-related notations. *)
