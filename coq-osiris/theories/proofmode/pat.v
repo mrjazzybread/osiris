@@ -9,31 +9,28 @@ Implicit Type ψ : Prop.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [patterns]. *)
 
-Lemma pats_PNil η φ :
+Lemma pats_PNil {P} extend η φ :
   φ η →
-  patterns η [] [] φ False.
+  @general_patterns P extend η [] [] φ False.
 Proof.
-  unfold patterns. simpl. eauto using total_ret.
+  unfold general_patterns. simpl. eauto using total_ret.
 Qed.
 
-Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
-  pattern η p v (λ η, patterns η ps vs φ ψ2) ψ1 →
-  patterns η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
+Lemma pats_PCons_unary {P} extend η (p : P) ps v vs φ ψ1 ψ2 :
+  general_pattern extend η p v (λ η, general_patterns extend η ps vs φ ψ2) ψ1 →
+  general_patterns extend η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
-  unfold patterns, patterns. intros Hp; simpl.
+  unfold general_patterns, patterns. intros Hp; simpl.
   eapply total_bind.
-  { eapply total_consequence.
-    - eassumption.
-    - simpl; intros. eapply total_consequence; eauto.
-    - tauto. }
+  { eauto using total_consequence. }
   simpl; intros. rewrite bind_ret_right.
   eapply total_consequence; eauto.
 Qed.
 
-Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
-  pattern η p v φ' ψ1 →
-  (∀ η, φ' η → patterns η ps vs φ ψ2) →
-  patterns η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
+Lemma pats_PCons {P} extend η (p : P) (ps : list P) v vs φ' φ ψ1 ψ2 :
+  general_pattern extend η p v φ' ψ1 →
+  (∀ η, φ' η → general_patterns extend η ps vs φ ψ2) →
+  general_patterns extend η (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
 Proof.
   intros. eapply pats_PCons_unary.
   eapply pat_consequence; eauto.
@@ -83,18 +80,21 @@ Ltac pats :=
    the reasoning rule instantiates the failure postcondition with a
    logical connective. *)
 
+Ltac unfold_pat :=
+  unfold pattern_val, pattern_exc, pattern, general_pattern.
+
 Lemma pat_PAny η v φ :
   φ η →
-  pattern η PAny v φ False.
+  pattern_val η PAny v φ False.
 Proof.
-  unfold pattern. eauto using total_ret.
+  unfold_pat. eauto using total_ret.
 Qed.
 
 Lemma pat_PVar η x v φ :
   φ ((x, v) :: η) →
-  pattern η (PVar x) v φ False.
+  pattern_val η (PVar x) v φ False.
 Proof.
-  unfold pattern. eauto using total_ret.
+  unfold_pat. eauto using total_ret.
 Qed.
 
 (* Given a goal of the form [pattern η (PVar x) v ?φ False],
@@ -102,7 +102,7 @@ Qed.
    instantiates the postcondition [?φ]. *)
 
 Lemma pat_PVar2 η x v :
-  pattern η (PVar x) v (λ η', η' = (x, v) :: η) False.
+  pattern_val η (PVar x) v (λ η', η' = (x, v) :: η) False.
 Proof.
   by apply pat_PVar.
 Qed.
@@ -114,46 +114,46 @@ Ltac pat_PVar :=
   end.
 
 Lemma pat_PAlias η p x v φ ψ :
-  pattern η p v (λ η, φ ((x, v) :: η)) ψ →
-  pattern η (PAlias p x) v φ ψ.
+  pattern_val η p v (λ η, φ ((x, v) :: η)) ψ →
+  pattern_val η (PAlias p x) v φ ψ.
 Proof.
-  unfold pattern. simpl; intros.
+  unfold_pat. simpl; intros.
   apply total_bind_unary.
   eauto using total_consequence, total_ret.
 Qed.
 
 Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
-  pattern η p1 v φ ψ1 →
-  pattern η p2 v φ ψ2 →
-  pattern η (POr p1 p2) v φ (ψ1 ∧ ψ2).
+  pattern_val η p1 v φ ψ1 →
+  pattern_val η p2 v φ ψ2 →
+  pattern_val η (POr p1 p2) v φ (ψ1 ∧ ψ2).
     (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
        disjunction pattern to fail, both sides must fail. *)
 Proof.
-  unfold pattern. simpl; intros.
+  unfold_pat. simpl; intros.
   eauto using total_orelse, total_consequence.
 Qed.
 
 Lemma pat_PUnit η v φ :
   φ η →
   v = #() →
-  pattern η PUnit v φ False.
+  pattern_val η PUnit v φ False.
 Proof.
-  unfold pattern. intros ? ->; simpl.
+  unfold_pat. intros ? ->; simpl.
   eauto using total_ret.
 Qed.
 
 Lemma pat_PTuple `{Encode A} η ps (a : A) vs φ ψ :
   #a = VTuple vs ->
-  patterns η ps vs φ ψ →
-  pattern η (PTuple ps) #a φ ψ.
+  pattern_vals η ps vs φ ψ →
+  pattern_val η (PTuple ps) #a φ ψ.
 Proof.
-  unfold patterns, pattern.
+  unfold_pat.
   by intros ->.
 Qed.
 
 Lemma pat_PTuple_val η ps vs φ ψ :
-  patterns η ps vs φ ψ ->
-  pattern η (PTuple ps) (VTuple vs) φ ψ.
+  pattern_vals η ps vs φ ψ ->
+  pattern_val η (PTuple ps) (VTuple vs) φ ψ.
 Proof.
   tauto.
 Qed.
@@ -166,44 +166,44 @@ Ltac pat_PTuple :=
 Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
   v1 = #x1 ->
   v2 = #x2 ->
-  pattern η p1 #x1 (λ η', pattern η' p2 #x2 φ (ψ2)) (ψ1) ->
-  pattern η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
+  pattern_val η p1 #x1 (λ η', pattern_val η' p2 #x2 φ (ψ2)) (ψ1) ->
+  pattern_val η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
 Proof.
   intros; subst.
   eapply pats_consequence_psi; [ pats | tauto ].
 Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
-  (c = c' → pattern η p v φ ψ) →
-  pattern η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
+  (c = c' → pattern_val η p v φ ψ) →
+  pattern_val η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
     (* This form is useful when the truth of the equality [c = c']
        is not statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold_pat; intros. simpl.
   destruct_string_eqb; eauto using total_throw, total_consequence.
 Qed.
 
 Lemma pat_PData_eq η c p v φ ψ :
-  pattern η p v φ ψ →
-  pattern η (PData c p) (VData c v) φ ψ.
+  pattern_val η p v φ ψ →
+  pattern_val η (PData c p) (VData c v) φ ψ.
     (* This form is useful when [c = c'] is statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold_pat; intros. simpl.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_PData_neq η c p c' v φ :
   c ≠ c' →
-  pattern η (PData c p) (VData c' v) φ True.
+  pattern_val η (PData c p) (VData c' v) φ True.
     (* This form is useful when [c ≠ c'] is statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold_pat; intros. simpl.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
 Lemma pat_PConst η c c' φ :
   (c = c' -> φ η) ->
-  pattern η (PConstant c) (VConstant c') φ (c <> c').
+  pattern_val η (PConstant c) (VConstant c') φ (c <> c').
 Proof.
   intros Hφ.
   eapply pat_consequence.
@@ -216,7 +216,7 @@ Qed.
 
 Lemma pat_PConst_eq η c φ ψ :
   φ η ->
-  pattern η (PConstant c) (VConstant c) φ ψ.
+  pattern_val η (PConstant c) (VConstant c) φ ψ.
 Proof.
   intros Hφ.
   eapply pat_consequence_psi; [ eapply pat_PConst; eauto | tauto ].
@@ -225,7 +225,7 @@ Qed.
 Lemma pat_PConst_neq η c c' φ ψ :
   c <> c' ->
   ψ ->
-  pattern η (PConstant c) (VConstant c') φ ψ.
+  pattern_val η (PConstant c) (VConstant c') φ ψ.
 Proof.
   intros.
   eapply pat_consequence_psi; [ apply pat_PConst | ]; tauto.
@@ -234,7 +234,7 @@ Qed.
 Lemma pat_false η v (P : Prop) φ :
   v = #P →
   (¬P → φ η) →
-  pattern η (PConstant "false") v φ P.
+  pattern_val η (PConstant "false") v φ P.
 Proof.
   intros -> ?; simpl.
   destruct (truth P) eqn:?.
@@ -249,7 +249,7 @@ Qed.
 Lemma pat_true η v (P : Prop) φ :
   v = #P →
   (P → φ η) →
-  pattern η (PConstant "true") v φ (¬P).
+  pattern_val η (PConstant "true") v φ (¬P).
 Proof.
   intros -> Hφ; simpl.
   destruct (truth P) eqn:?.
@@ -272,7 +272,7 @@ Lemma pat_pNil `{Encode A} η v (xs : list A) φ :
   v = #xs →
   (xs = [] -> φ η) →
   (* Enter the branch with knowledge that [xs] is empty *)
-  pattern η pNil v φ (xs ≠ []).
+  pattern_val η pNil v φ (xs ≠ []).
   (* If the match is unsuccessful, move to the next branch
      with the knowledge that [xs] is not empty *)
 Proof.
@@ -294,27 +294,29 @@ Lemma pat_pCons_cut `{Encode A} v xs η p1 p2 φ (φ1 : A -> env -> Prop)
   v = #xs ->
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      pattern η p1 #x (φ1 x) (ψ1 x)) ->
+      pattern_val η p1 #x (φ1 x) (ψ1 x)) ->
       (* If [#x] matches [p1], we gain the knowledge [φ1 x η0].
          Otherwise, we gain the knowledge [ψ1 x] *)
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      (forall η', φ1 x η' -> pattern η' p2 #xs' φ (ψ2 xs'))) ->
+      (forall η', φ1 x η' -> pattern_val η' p2 #xs' φ (ψ2 xs'))) ->
       (* If [#xs'] does not match [p2], then we gain the knowledge [ψ2 xs'] *)
-  pattern η (pCons p1 p2) v φ (xs = [] \/ (exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs'))).
+  pattern_val η (pCons p1 p2) v φ (xs = [] \/ (exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs'))).
   (* There are three ways the match can be unsuccessful:
      - the list is empty
      - the list is non-empty, but its head did not match [p1]
      - the list is non-empty, but its tail did not match [p2] *)
 Proof.
-  intros; subst.
+  intros -> H1 H2.
   destruct xs.
   { eapply pat_consequence_psi.
     { by apply pat_PData_neq. }
     tauto. }
   { eapply pat_consequence_psi.
     { eapply pat_PData_eq; pat_PTuple.
-      pats.  }
+      pats.
+      { eapply H1; reflexivity. }
+      { eapply H2; eauto. } }
     right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
@@ -324,19 +326,21 @@ Lemma pat_pCons `{Encode A} v xs η p1 p2 φ
   v = #xs ->
   (∀ (x : A) (xs' : list A),
       xs = x :: xs' →
-      pattern η p1 #x
+      pattern_val η p1 #x
         (λ η',
-          pattern η' p2 #xs' φ (ψ2 xs'))
+          pattern_val η' p2 #xs' φ (ψ2 xs'))
         (ψ1 x)) ->
-  pattern η (pCons p1 p2) v φ
+  pattern_val η (pCons p1 p2) v φ
     (xs = [] \/ (exists x xs', xs = x :: xs' /\ (ψ1 x \/ ψ2 xs'))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct xs; eapply pat_consequence_psi.
   { by apply pat_PData_neq. }
   { tauto. }
   { eapply pat_PData_eq; pat_PTuple.
-    pats. }
+    pats.
+    { eapply Hcov; reflexivity. }
+    { simpl in *; eassumption. } }
   { clear; right; do 2 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
@@ -347,7 +351,7 @@ Ltac pat_pCons :=
   eapply pat_pCons; first solve [ encode ].
 
 (* The previous lemmas start to give us a general scheme for reasoning about
-   pattern matching on ADTs.
+   pattern_val matching on ADTs.
 
    More experimenting is required.
    As of now (29/02/24), see [examples/splay.v] for more examples. *)
@@ -379,7 +383,7 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
   pattern η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
   pure_match η v ((Branch p e) :: bs) φ.
 Proof.
-  unfold pure_match; unfold pattern.
+  unfold pure_match; unfold_pat.
   intros; simpl.
   by apply total_pure.
 Qed.
@@ -391,7 +395,7 @@ Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
 Proof.
   intros.
   apply pure_match_cons_unary.
-  eauto using pat_consequence.
+  eapply pat_consequence; eauto.
 Qed.
 
 (* Not matching is an error. *)

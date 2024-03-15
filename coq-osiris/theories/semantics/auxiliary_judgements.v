@@ -14,12 +14,28 @@ From osiris.semantics Require Import code eval simplification pure.
    results in an extended environment that satisfies [φ]
    or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
-Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
+(* We provide judgements for pattern matching on values, pattern
+   matching on exceptions, and pattern matching on branches which
+   may be either values or exceptions. *)
+
+Definition general_pattern {P} extend
+  (η : env) (p : P) (v : val) (φ : env -> Prop) (ψ : Prop) :=
   total (extend η p v) φ (λ (_ : unit), ψ).
 
-Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
-  total (extends η ps vs) φ (λ (_ : unit), ψ).
+Definition pattern := general_pattern extend.
 
+Definition pattern_val := general_pattern extend_value.
+
+Definition pattern_exc := general_pattern extend_exception.
+
+Definition general_patterns {P} extend η ps vs (φ : env -> Prop) (ψ : Prop) :=
+  total (pre_extends P extend η ps vs) φ (λ (_ : unit), ψ).
+
+Definition patterns := general_patterns extend.
+
+Definition pattern_vals := general_patterns extend_value.
+
+Definition pattern_excs := general_patterns extend_exception.
 
 (* A judgement for the evaluation of structure items. *)
 
@@ -56,29 +72,52 @@ Definition coerces c η (φ : env -> Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
+Lemma pat_consequence {P} extend η (p : P) v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+  general_pattern extend η p v φ ψ →
   (∀ η, φ η → φ' η) →
   (ψ → ψ') →
-  pattern η p v φ' ψ'.
+  general_pattern extend η p v φ' ψ'.
 Proof.
-  unfold pattern. eauto using total_consequence.
+  unfold general_pattern. eauto using total_consequence.
 Qed.
 
-Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
+Lemma pat_consequence_psi {P} extend η (p : P) v φ (ψ ψ' : Prop) :
+  general_pattern extend η p v φ ψ →
   (ψ → ψ') →
-  pattern η p v φ ψ'.
+  general_pattern extend η p v φ ψ'.
 Proof.
-  unfold pattern. eauto using total_consequence.
+  unfold general_pattern. eauto using total_consequence.
 Qed.
 
-Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
-  patterns η ps vs φ ψ →
+Lemma pats_consequence_psi {P} extend η (ps : list P) vs φ (ψ ψ' : Prop) :
+  general_patterns extend η ps vs φ ψ →
   (ψ → ψ') →
-  patterns η ps vs φ ψ'.
+  general_patterns extend η ps vs φ ψ'.
 Proof.
-  unfold patterns. eauto using total_consequence.
+  unfold general_patterns. eauto using total_consequence.
+Qed.
+
+Lemma pat_val η p v (φ : env -> Prop) (ψ : Prop) :
+  pattern_val η p v φ ψ ->
+  pattern η (Val p) v φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma pat_exc η p v (φ : env -> Prop) (ψ : Prop) :
+  pattern_exc η p v φ ψ ->
+  pattern η (Exc p) v φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma pat_or η p1 p2 v (φ : env -> Prop) (ψ : Prop) :
+  pattern_val η p1 v φ ψ ->
+  pattern_exc η p2 v φ ψ ->
+  pattern η (COr p1 p2) v φ ψ.
+Proof.
+  unfold pattern, general_pattern; simpl.
+  eauto using total_orelse.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -159,7 +198,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure (eval η e) (λ v, pattern [] p v ψ False) ->
+  pure (eval η e) (λ v, pattern_val [] p v ψ False) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -299,7 +338,7 @@ Qed.
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   pure (eval η e) ψ ->
   bindings η bs φ' ->
-  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
+  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern_val η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
 Proof.
   unfold bindings. simpl. intros Hpure Hbs Hcov.
@@ -339,7 +378,7 @@ Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
   pure (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ->
   bindings η bs φ' ->
-  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
+  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern_val η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.
 Proof.
   intros Hpure Hbs Hpat.

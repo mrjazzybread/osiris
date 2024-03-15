@@ -520,6 +520,12 @@ Definition extends δ (ps : list cpat) vs :=
 Definition extendfs δ fps fvs :=
   pre_extendfs cpat extend δ fps fvs.
 
+Definition extend_exceptions δ ps vs :=
+  pre_extends pat extend_exception δ ps vs.
+
+Definition extend_values δ ps vs :=
+  pre_extends pat extend_value δ ps vs.
+
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
 Definition irrefutably_extend δ (p : cpat) v : micro env void :=
