@@ -239,23 +239,28 @@ Fixpoint lookup_path η π : micro val void :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [lookup_exn_name η x] looks up the name [x] in the environment [env],
-   producing the location of the exception [x].
+(* [lookup_ext_name η x] looks up the name [x] in the environment [env],
+   producing the location of [x]. A hard failure occurs if [x] is unbound. *)
 
-   A hard failure occurs if [x] is unbound. *)
-
-Fixpoint lookup_exn_name η x : micro loc void :=
+Fixpoint lookup_ext_name η x : micro loc void :=
   match η with
   | (x', v) :: η =>
       if x =? x' then
         match v with
         | VLoc l => ret l
-        | _ => type_mismatch "expected exception"
+        | _ => type_mismatch "expected location"
         end
       else
-        lookup_exn_name η x
+        lookup_ext_name η x
   | [] =>
       missing_variable_or_field x
+  end.
+
+Definition compare_locs δ x1 x2 : bool :=
+  match (lookup_ext_name δ x1), (lookup_ext_name δ x2) with
+  | ret l1, ret l2 =>
+      (address l1 =? address l2)%Z
+  | _, _ => false
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -455,6 +460,11 @@ Fixpoint extend δ p v : micro env unit :=
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
       if c =? c' then extend δ p v else throw ()
+  | PXData c p, VXData c' v =>
+      (* A data pattern for an extensible data type matches a data value, provided
+         the data constructors correspond to the same location in the environment.
+         If the data constructors do not match, a meta-level exception is raised. *)
+      if (compare_locs δ c c') then extend δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -470,6 +480,8 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "tuple expected"
   | PData _ _, _ =>
       type_mismatch "algebraic data expected"
+  | PXData _ _, _ =>
+      type_mismatch "extensible algebraic data expected"
   | PRecord _, _ =>
       type_mismatch "record expected"
   | PInt _, _ =>

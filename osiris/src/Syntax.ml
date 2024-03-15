@@ -57,6 +57,8 @@ type pat =
   | PTuple of pats
   (* A data constructor pattern. *)
   | PData of data * pat
+  (* A data constructor pattern of an extensible type. *)
+  | PXData of data * pat
   (* A record pattern. *)
   | PRecord of fpats
   (* A literal integer pattern. *)

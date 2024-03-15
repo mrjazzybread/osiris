@@ -264,8 +264,12 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-      let data = translate_data_constructor id constructor_desc in
-      PData (data, PTuple (translate_pats pats))
+     let data = translate_data_constructor id constructor_desc in
+     (match constructor_desc.cstr_tag with
+      | Cstr_extension _ ->
+         PXData (data, PTuple (translate_pats pats))
+      | _ ->
+         PData (data, PTuple (translate_pats pats)))
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"

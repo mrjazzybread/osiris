@@ -82,6 +82,8 @@ Inductive pat :=
   | PTuple (ps : list pat)
   (* A data constructor pattern. *)
   | PData (c : data) (p : pat)
+  (* A data constructor pattern of an extensible type. *)
+  | PXData (c : data) (p : pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
@@ -332,6 +334,8 @@ Inductive val :=
   | VTuple (vs : list val)
   (* A data constructor value. *)
   | VData (c : data) (v : val)
+  (* A data constructor value of an extensible type. *)
+  | VXData (c : data) (v : val)
   (* A record. *)
   (* A list of field-value pairs is the same thing as an environment,
      so, for the moment at least, we identify these concepts. *)

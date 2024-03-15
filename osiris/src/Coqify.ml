@@ -89,6 +89,9 @@ let rec pat (p : pat) =
   | PData (d, p) ->
       c "PData" [ data d; pat p ]
 
+  | PXData (d, p) ->
+      c "PXData" [ data d; pat p ]
+
   | PRecord fps ->
       c "PRecord" [ fpats fps ]
 

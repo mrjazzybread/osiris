@@ -37,6 +37,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | POr : pat → pat → pat
   | PTuple : list pat → pat
   | PData : data → pat → pat
+  | PXData : data → pat → pat
   | PRecord : list (<span class="bp">field</span> * pat) → pat
   | PInt : Z → pat
   | PChar : char → pat
@@ -47,6 +48,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> POr p1 p2
 <span class="kn">Arguments</span> PTuple ps%list_scope
 <span class="kn">Arguments</span> PData c p
+<span class="kn">Arguments</span> PXData c p
 <span class="kn">Arguments</span> PRecord fps%list_scope
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
@@ -213,6 +215,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VFloat : float → val
   | VTuple : list val → val
   | VData : data → val → val
+  | VXData : data → val → val
   | VRecord : list (var * val) → val
   | VLoc : loc → val
   | VStruct : list (var * val) → val
@@ -226,6 +229,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VTuple vs%list_scope
 <span class="kn">Arguments</span> VData c v
+<span class="kn">Arguments</span> VXData c v
 <span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
 <span class="kn">Arguments</span> VStruct xvs%list_scope
