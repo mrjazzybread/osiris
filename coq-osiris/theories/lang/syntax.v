@@ -96,7 +96,7 @@ Inductive pat :=
 Inductive cpat :=
   | CVal (p : pat)
   | CExc (p : pat)
-  | CEff (p : pat)
+  | CEff (p : pat) (* TODO: add continuation argument *)
   | COr (p1 : cpat) (p2 : cpat).
 
 (* ------------------------------------------------------------------------ *)

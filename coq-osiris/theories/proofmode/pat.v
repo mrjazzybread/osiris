@@ -358,19 +358,19 @@ Ltac pat_pCons :=
 
    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
-Definition pure_match `{Encode A} (η : env) (v : val) bs (φ : A -> Prop) :=
-  pure (eval_match η v bs) φ.
+Definition pure_match `{Encode A} (η : env) (o : outcome2 val exn) bs (φ : A -> Prop) :=
+  pure (eval_match η o bs) φ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
 Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure (eval η e) (λ x, x = a) ->
-  pure_match η #a bs φ ->
+  pure_match η (O2Ret #a) bs φ ->
   pure (eval η (EMatch e bs)) φ.
 Proof.
   unfold pure_match; intros.
-  eapply pure_simp; [ eapply simp_bind; eauto with simp | fold eval ].
-  eapply pure_bind; [ eauto | by intros ? -> ].
+  eapply pure_simp; [ eapply simp_try2; eauto with simp | fold eval ].
+  eapply pure_try2; [ eauto | by intros ? -> ].
 Qed.
 
 (* Currently unused *)

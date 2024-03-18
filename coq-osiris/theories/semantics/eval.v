@@ -439,7 +439,7 @@ Fixpoint extend δ p v : micro env unit :=
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
       l' ← as_loc (widen (lookup_name δ c)) ;
-      if (address l =? address l')%Z then extend δ p v else throw()
+      if (locations.eqb l l') then extend δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -467,23 +467,23 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "string expected"
   end.
 
-Fixpoint cextend δ (p : cpat) v : micro env unit :=
-  match p with
-  | CVal p =>
-      extend δ p v
-  | CExc p =>
-      extend δ p v
-  | CEff _ =>
-      unsupported_construct
-  | COr p1 p2 =>
-      orelse (cextend δ p1 v) (cextend δ p2 v)
-  end.
-
 Definition extends δ ps vs :=
   pre_extends extend δ ps vs.
 
 Definition extendfs δ fps fvs :=
   pre_extendfs extend δ fps fvs.
+
+Fixpoint cextend η cp o : micro env unit :=
+  match cp, o with
+  | CVal p, O2Ret v =>
+      extend η p v
+  | CExc p, O2Throw v =>
+      extend η p v
+  | COr cp1 cp2, _  =>
+      orelse (cextend η cp1 o) (cextend η cp2 o)
+  | _, _ =>
+      throw()
+  end.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
@@ -852,7 +852,7 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
 
-Fixpoint pre_eval_match (η : env) (v : val) (bs : list branch) : microvx :=
+Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : microvx :=
   let eval_match := pre_eval_match in
   match bs with
   | [] =>
@@ -860,15 +860,20 @@ Fixpoint pre_eval_match (η : env) (v : val) (bs : list branch) : microvx :=
       (* Because the proof system forbids hard failures, the user of
          the system will have to prove that this cannot happen, i.e.,
          every case analysis is exhaustive. *)
-      match_failure()
-  | Branch p e :: bs =>
-      (* Match the value [v] against the pattern [p]. *)
+      match o with
+      | O2Ret _ =>
+          match_failure()
+      | O2Throw e =>
+          throw e
+      end
+  | Branch cp e :: bs =>
+      (* Match the outcome [o] against the computational pattern [cp]. *)
       try
-        (cextend η p v)
+        (cextend η cp o)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)
-        (λ tt, eval_match η v bs)
+        (λ tt, eval_match η o bs)
   end.
 
 End Eval.
@@ -1071,8 +1076,9 @@ Fixpoint eval η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      v ← eval η e ;
-      eval_match η v bs
+      try2
+        (eval η e)
+        (λ (o : outcome2 val exn), eval_match η o bs)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
@@ -1115,7 +1121,7 @@ Definition evals η es := pre_evals eval η es.
 
 Definition evalfs η fes := pre_evalfs eval η fes.
 
-Definition eval_match η v bs := pre_eval_match eval η v bs.
+Definition eval_match η o bs := pre_eval_match eval η o bs.
 
 Definition eval_bindings η bs := pre_eval_bindings eval η bs.
 
