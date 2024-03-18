@@ -473,15 +473,23 @@ Definition extends δ ps vs :=
 Definition extendfs δ fps fvs :=
   pre_extendfs extend δ fps fvs.
 
+(* [cextend η cp o] matches the outcome [o] against
+   the computation pattern [cp]. *)
+
 Fixpoint cextend η cp o : micro env unit :=
   match cp, o with
   | CVal p, O2Ret v =>
+      (* A value pattern matches a return. *)
       extend η p v
   | CExc p, O2Throw v =>
+      (* An exception pattern matches a throw. *)
       extend η p v
   | COr cp1 cp2, _  =>
+      (* A [COr] either matches its first or second branch. *)
       orelse (cextend η cp1 o) (cextend η cp2 o)
   | _, _ =>
+      (* If [o] and [cp] don't match, we throw a meta-level exception
+         and continue to the next branch.*)
       throw()
   end.
 
@@ -850,20 +858,24 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
+(* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
+   taking into account whether [o] is a return or a throw. *)
 
 Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : microvx :=
   let eval_match := pre_eval_match in
   match bs with
   | [] =>
-      (* A nonexhaustive [match] construct causes a hard failure. *)
-      (* Because the proof system forbids hard failures, the user of
-         the system will have to prove that this cannot happen, i.e.,
-         every case analysis is exhaustive. *)
+      (* A nonexhaustive [match] construct. *)
       match o with
       | O2Ret _ =>
+          (* When matching on a value, a nonexhaustive [match] causes
+             a hard failure. *)
+          (* The user of the system will have to prove that this
+             cannot happen, i.e., every case analysis is exhaustive. *)
           match_failure()
       | O2Throw e =>
+          (* When matching on an exception, a nonexhaustive [match]
+             causes the exception to be propagated. *)
           throw e
       end
   | Branch cp e :: bs =>
@@ -1078,7 +1090,7 @@ Fixpoint eval η e : microvx :=
   | EMatch e bs =>
       try2
         (eval η e)
-        (λ (o : outcome2 val exn), eval_match η o bs)
+        (λ o, eval_match η o bs)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
