@@ -17,7 +17,7 @@ Arguments satisfies_spec : simpl never.
    This exposes a [bind] combinator and enables further simplifications. *)
 Arguments as_bool m /.
 Arguments as_int m /.
-Arguments as_loc m /.
+Arguments as_loc E m /.
 Arguments as_record m /.
 Arguments as_struct E m /.
 Arguments lookup_name _ _/.

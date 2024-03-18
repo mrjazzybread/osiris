@@ -128,7 +128,7 @@ Definition as_bool (m : microvx) : micro bool exn :=
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
 
-Definition val_as_loc (v : val) : micro loc exn :=
+Definition val_as_loc {E} (v : val) : micro loc E :=
   match v with
   | VLoc l =>
       ret l
@@ -136,7 +136,7 @@ Definition val_as_loc (v : val) : micro loc exn :=
       type_mismatch "location value expected"
   end.
 
-Definition as_loc (m : microvx) : micro loc exn :=
+Definition as_loc {E} (m : micro val E) : micro loc E :=
   v ← m ;
   val_as_loc v.
 
@@ -235,32 +235,6 @@ Fixpoint lookup_path η π : micro val void :=
       (* The content of a structure is an environment,
          so we can look up [π] in the environment [xvs]. *)
       lookup_path xvs π
-  end.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [lookup_ext_name η x] looks up the name [x] in the environment [env],
-   producing the location of [x]. A hard failure occurs if [x] is unbound. *)
-
-Fixpoint lookup_ext_name η x : micro loc void :=
-  match η with
-  | (x', v) :: η =>
-      if x =? x' then
-        match v with
-        | VLoc l => ret l
-        | _ => type_mismatch "expected location"
-        end
-      else
-        lookup_ext_name η x
-  | [] =>
-      missing_variable_or_field x
-  end.
-
-Definition compare_locs δ x1 x2 : bool :=
-  match (lookup_ext_name δ x1), (lookup_ext_name δ x2) with
-  | ret l1, ret l2 =>
-      (address l1 =? address l2)%Z
-  | _, _ => false
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -460,11 +434,12 @@ Fixpoint extend δ p v : micro env unit :=
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
       if c =? c' then extend δ p v else throw ()
-  | PXData c p, VXData c' v =>
+  | PXData c p, VXData l v =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
-      if (compare_locs δ c c') then extend δ p v else throw()
+      l' ← as_loc (widen (lookup_name δ c)) ;
+      if (address l =? address l')%Z then extend δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
