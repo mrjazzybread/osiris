@@ -2,12 +2,12 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
-Implicit Type φ : env -> Prop.
-Implicit Type ψ : Prop.
-
 (* -------------------------------------------------------------------------- *)
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [patterns]. *)
+
+Implicit Type φ : env -> Prop.
+Implicit Type ψ : Prop.
 
 Lemma pats_PNil η φ :
   φ η →
