@@ -17,7 +17,7 @@ Arguments satisfies_spec : simpl never.
    This exposes a [bind] combinator and enables further simplifications. *)
 Arguments as_bool m /.
 Arguments as_int m /.
-Arguments as_loc m /.
+Arguments as_loc E m /.
 Arguments as_record m /.
 Arguments as_struct E m /.
 Arguments lookup_name _ _/.
@@ -32,7 +32,7 @@ Arguments extendfs δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments eval_match η v !bs /.
+Arguments eval_match η o !bs /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.

@@ -325,6 +325,31 @@ Notation "'EWP' e {{ Φ } }" :=
 Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
   (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ EWP e {{ RET v , Φ v }}).
 
+Notation "'EWP' e @ E {{ Φ } }" :=
+  (ewp_def E e%E prot_abort Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E {{ 'RET' v , Q } }" :=
+  (ewp_def E e%E prot_abort (lift_ret_spec (λ v, Q)))
+    (at level 20, e, Q at level 200,
+      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  '[' 'RET'  v ,  '/' Q  ']' } } ']' ']'")
+    : bi_scope.
+
+Notation "'EWP' e {{ Φ } }" :=
+  (ewp_def ⊤ e%E prot_abort Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'EWP' e {{ 'RET' v , Q } }" :=
+  (ewp_def ⊤ e%E prot_abort (lift_ret_spec (λ v, Q)))
+    (at level 20, e, Q at level 200,
+      format "'[' 'EWP'  e  '/' '[ '  {{  '[' 'RET'  v ,  '/' Q  ']' } } ']' ']'")
+    : bi_scope.
+
+
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)
 From osiris Require Export syntax.

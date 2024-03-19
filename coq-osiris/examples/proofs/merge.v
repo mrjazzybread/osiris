@@ -539,8 +539,7 @@ Proof.
   { auto. }
   (* Case: a::b::l *)
   repeat (rewrite eval_eval'; simpl); pure1; cbn.
-  pure1. rewrite Hsplit. cbn.
-  eapply pure_try. { pure_call. }
+  pure1.
   unfold split_post; intros [l1 l2]; simpl; intros (Hl1 & Hl2 & Hperm).
   (* Assert that the sublists l1 and l2 satisfy the precondition *)
   assert (Forall representable l1) as Hrep1 by
@@ -565,11 +564,6 @@ Proof.
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
   pure1.
-  eapply pure_bind.
-  { rewrite Hmerge; cbn.
-    eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | ].
-    apply eq_refl. }
-  intros ? <-.
   eapply pure_try.
   (* Use the fact that [merge] satisfies its specification *)
   { eapply _merge_spec with (l2 := sl2).

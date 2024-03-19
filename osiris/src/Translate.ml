@@ -264,8 +264,12 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-      let data = translate_data_constructor id constructor_desc in
-      PData (data, PTuple (translate_pats pats))
+     let data = translate_data_constructor id constructor_desc in
+     (match constructor_desc.cstr_tag with
+      | Cstr_extension _ ->
+         PXData (data, PTuple (translate_pats pats))
+      | _ ->
+         PData (data, PTuple (translate_pats pats)))
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -280,7 +284,7 @@ let rec translate_pat (pat: pattern) : pat =
       punsupported loc "lazy pattern"
 
   | Tpat_or (pat1, pat2, _) ->
-      POr (translate_pat pat1, translate_pat pat2)
+     POr (translate_pat pat1, translate_pat pat2)
 
 and translate_pats pats : pats =
   map translate_pat pats
@@ -296,17 +300,20 @@ and translate_field_pattern (i, label_desc, pat) : field * pat =
 
 (* Computation patterns distinguish normal termination and exceptions. *)
 
-let translate_computation_pattern (pat : computation general_pattern) : pat =
-  let loc = pat.pat_loc in
-  match split_pattern pat with
-  | Some pat, None ->
-      (* A normal termination pattern. *)
-      translate_pat pat
-  | None, Some _ ->
-      (* An exception pattern. *)
-      punsupported loc "exception pattern"
-  | _ ->
-      assert false
+
+let rec translate_computation_pattern (pat : computation general_pattern) : cpat =
+  match pat.pat_desc with
+  | Tpat_value p ->
+     (* We need a coercion because the type of Tpat_value is private. *)
+     CVal (translate_pat (p :> pattern))
+
+  | Tpat_exception p ->
+     CExc (translate_pat p)
+
+  | Tpat_or (p1, p2, _) ->
+     let cp1 = translate_computation_pattern p1 in
+     let cp2 = translate_computation_pattern p2 in
+     COr (cp1, cp2)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -631,7 +638,7 @@ and translate_labeled_argument loc arg : expr =
 
 (* Cases in [fun], [match], [try] constructs. *)
 
-and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
+and translate_case : type k . (k general_pattern -> cpat) -> k case -> branch =
   fun translate_pat case ->
   let pat = case.c_lhs
   and e = case.c_rhs in
@@ -646,7 +653,7 @@ and translate_case : type k . (k general_pattern -> pat) -> k case -> branch =
   )
 
 and translate_value_case (case : value case) : branch =
-  translate_case translate_pat case
+  translate_case (fun p -> CVal (translate_pat p)) case
 
 and translate_value_cases cases =
   map translate_value_case cases
