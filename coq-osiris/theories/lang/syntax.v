@@ -161,6 +161,7 @@ Inductive expr :=
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
+  | EXData (c : data) (e : expr)
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : list fexpr)

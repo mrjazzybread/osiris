@@ -38,6 +38,10 @@ Definition eval' η e : microvx :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | EXData c e =>
+      l ← as_loc (widen (lookup_name η c)) ;
+      v ← eval η e ;
+      ret (VXData l v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;

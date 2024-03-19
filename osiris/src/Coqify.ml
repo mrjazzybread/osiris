@@ -172,6 +172,9 @@ let rec expr (e : expr) =
   | EData (d, e) ->
       c "EData" [ data d; expr e ]
 
+  | EXData (d, e) ->
+     c "EXData" [ data d; expr e ]
+
   | ERecord fs ->
       c "ERecord" [ fexprs fs ]
 

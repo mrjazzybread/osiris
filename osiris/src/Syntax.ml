@@ -138,6 +138,8 @@ type expr =
   (* Every data constructor is considered unary. *)
   | EData of data * expr
 
+  | EXData of data * expr
+
   (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs
   (* Record update: [{ e and fs = es }]. *)
