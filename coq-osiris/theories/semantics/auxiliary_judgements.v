@@ -5,9 +5,6 @@ From osiris.semantics Require Import code eval simplification pure.
 (* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
 
-(* This file defines judgements for Hoare-style reasoning on
-   the auxiliary functions in [semantics/eval.v]. *)
-
 (* -------------------------------------------------------------------------- *)
 
 (* A judgement and a set of reasoning rules for pattern matching. *)

@@ -38,7 +38,6 @@ Definition example :=
 Goal ⊢ EWP (eval [] example) {{ RET v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   do 3 Simp. Ret. cbn. iPureIntro. reflexivity.
-  (* FIXME *) Unshelve. 1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
@@ -56,7 +55,6 @@ Proof.
   iIntros.
   do 3 Simp. Ret. cbn.
   iPureIntro. reflexivity.
-  (* FIXME *) Unshelve. 1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* (id (A()), id (A())) *)
@@ -155,10 +153,6 @@ Lemma spec_example4b:
 Proof.
   unfold example4b.
   Simp. Simp. Ret. done.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let id = identity in
@@ -175,10 +169,6 @@ Proof.
   unfold example4c.
 
   Simp. Simp. Ret. done.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let id = identity in
@@ -195,12 +185,6 @@ Proof.
   unfold example4d.
 
   Simp. Simp. Ret. done.
-
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let rec diverge x = diverge x in diverge() *)
@@ -259,12 +243,6 @@ Lemma spec_walk_example_concrete :
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. do 2 Simp. by Ret.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* ------------------------------------------------------------------------- *)
