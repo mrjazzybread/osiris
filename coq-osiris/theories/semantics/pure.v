@@ -45,18 +45,13 @@ Lemma total_pure {B E E'} `{Encode A} (m : micro B E')
   total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
   pure (try m k ko) φ.
 Proof.
-  split.
-  { intros. eapply pure_totalv. unfold totalv.
-    eapply total_try; eauto; simpl; intros; destruct_pure b.
-    - eapply total_simp; eauto.
-      apply total_ret; eauto.
-    - eapply total_simp; eauto.
-      apply total_ret; eauto. }
-  { intros Hp. destruct_pure a.
-    eapply total_consequence.
-    { eapply invert_simp_try2_ret; eassumption. }
-    { simpl; intros. exists a; tauto. }
-    { simpl; intros. exists a; tauto. } }
+  intros. apply pure_totalv; unfold totalv.
+  eapply total_try; [ eassumption | | ];
+    simpl; intros; destruct_pure b.
+  { eapply total_simp; eauto.
+    apply total_ret; eauto. }
+  { eapply total_simp; eauto.
+    apply total_ret; eauto. }
 Qed.
 
 (* [pure_total] is currently unused *)
