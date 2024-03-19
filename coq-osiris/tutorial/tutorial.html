@@ -14,7 +14,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.17.0+0.17.1. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
+<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.17.0+0.17.2. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
 <h1 class="title">A Program Logic for OCaml</h1>
 
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-wsp">
@@ -37,6 +37,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | POr : pat → pat → pat
   | PTuple : list pat → pat
   | PData : data → pat → pat
+  | PXData : var → pat → pat
   | PRecord : list (<span class="bp">field</span> * pat) → pat
   | PInt : Z → pat
   | PChar : char → pat
@@ -47,6 +48,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> POr p1 p2
 <span class="kn">Arguments</span> PTuple ps%list_scope
 <span class="kn">Arguments</span> PData c p
+<span class="kn">Arguments</span> PXData c p
 <span class="kn">Arguments</span> PRecord fps%list_scope
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
@@ -106,7 +108,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ELoad : expr → expr
   | EStore : expr → expr → expr
   <span class="kr">with</span> fexpr : <span class="kt">Set</span> :=  Fexpr : <span class="bp">field</span> → expr → fexpr
-  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : pat → expr → branch
+  <span class="kr">with</span> branch : <span class="kt">Set</span> :=  Branch : cpat → expr → branch
   <span class="kr">with</span> binding : <span class="kt">Set</span> :=  Binding : pat → expr → binding
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=  RecBinding : var → anonfun → rec_binding
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=  AnonFun : var → expr → anonfun
@@ -213,6 +215,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VFloat : float → val
   | VTuple : list val → val
   | VData : data → val → val
+  | VXData : loc → val → val
   | VRecord : list (var * val) → val
   | VLoc : loc → val
   | VStruct : list (var * val) → val
@@ -226,6 +229,7 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VTuple vs%list_scope
 <span class="kn">Arguments</span> VData c v
+<span class="kn">Arguments</span> VXData l v
 <span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
 <span class="kn">Arguments</span> VStruct xvs%list_scope

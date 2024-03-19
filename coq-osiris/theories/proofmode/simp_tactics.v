@@ -198,6 +198,14 @@ Proof.
   eauto using simp_bind with simp.
 Qed.
 
+Lemma advance_SimpTry2 {A B E' E} m1 m2 (f : outcome2 A E' → micro B E) m' :
+  simp m1 m2 →
+  simp (try2 m2 f) m' →
+  simp (try2 m1 f) m'.
+Proof.
+  eauto using simp_try2 with simp.
+Qed.
+
 Lemma advance_SimpTry {A B E' E} m1 m2 (f : A → micro B E) (h : E' → _) m' :
   simp m1 m2 →
   simp (try m2 f h) m' →
@@ -440,6 +448,20 @@ Lemma advance_simp_bind_ret_right {A E} (m : micro A E) m' :
   simp (bind m ret) m'.
 Proof.
   rewrite bind_ret_right. eauto.
+Qed.
+
+Lemma advance_simp_try2_ret {A B E' E} (a : A) (f : outcome2 A E' -> micro B E) m' :
+  simp (f (O2Ret a)) m' ->
+  simp (try2 (ret a) f) m'.
+Proof.
+  tauto.
+Qed.
+
+Lemma advance_simp_try2_throw {A B E' E} (e : E') (f : outcome2 A E' -> micro B E) m' :
+  simp (f (O2Throw e)) m' ->
+  simp (try2 (throw e) f) m'.
+Proof.
+  tauto.
 Qed.
 
 Lemma advance_simp_try_ret {A B E' E} (a : A) (f : A → micro B E) (h : E' → _) m' :
@@ -743,7 +765,13 @@ with simp1_inspect :=
         (* Attempt 2. Make progress by eliminating this [bind],
            and possibly more progress thereafter. *)
         simp1_bind
-      ]
+        ]
+  | try2 ?m ?f =>
+  (* [try2] is treated the same way as [bind]. *)
+      first [
+          simple eapply advance_SimpTry2; [simp1; simp_close | simp0_try2 ]
+        | simp1_try2
+        ]
   | try ?m ?f ?h =>
       (* [try] is treated in the same way as [bind]. *)
       first [
@@ -832,12 +860,32 @@ with simp1_bind :=
     simple eapply advance_simp_bind_ret
   | lazymatch goal with
     |- simp (bind ?m _) _ =>
-      let o := eval cbn -[app] in m in
+      let o := eval cbn in m in
       lazymatch o with ret _ =>
         (* strong *) eapply advance_simp_bind_ret
       end
     end
   ];
+  simp0
+
+with simp0_try2 :=
+  try simp1_try2
+
+with simp1_try2 :=
+  first [
+      simple eapply advance_simp_try2_ret
+    | simple eapply advance_simp_try2_throw
+    | lazymatch goal with
+        |- simp (try2 ?m _) _ =>
+          let o := eval cbn in m in
+            lazymatch o with
+            | ret _ =>
+                eapply advance_simp_try2_ret
+            | throw _ =>
+                eapply advance_simp_try2_throw
+            end
+      end
+    ];
   simp0
 
 (* [simp0_try] and [simp1_try] are special cases of [simp0] and [simp1].

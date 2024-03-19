@@ -177,8 +177,9 @@ Definition eval' η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      v ← eval η e ;
-      eval_match η v bs
+      try2
+        (eval η e)
+        (λ (o : outcome2 val exn), eval_match η o bs)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then

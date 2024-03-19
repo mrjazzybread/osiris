@@ -144,7 +144,7 @@ Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
   pattern η (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct t; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -265,7 +265,7 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -293,7 +293,7 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -576,7 +576,6 @@ Proof.
   replace x with (t.1.1.2) by (rewrite Heqt; reflexivity).
   replace r with (t.1.2) by (rewrite Heqt; reflexivity).
   pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
-  (* Why does the encode in IH get simplified to a VTuple4? *)
 
   clear l ctx x r.
   destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
@@ -601,7 +600,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (l, x, Node r a (Node t a0 t0), z'0)); simpl in *.
+    { specialize (IH (l, x, Node r a (Node t a0 t0), z'0)).
       eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -661,11 +660,8 @@ Proof.
     eapply pure_eval_const.
     apply (@solve_encode_Leaf A); first done. (* Todo: weird *)
     repeat pure_path.
-    eapply pure_call.
-    (* TODO: This didn't use to be necessary. *)
-    { erewrite <- solve_encode_tuple4; try reflexivity.
-      eapply solve_encode_Leaf. reflexivity.
-      rewrite encode_tree_is_encode. reflexivity. }
+    unfold splay_spec in Hsplay.
+    specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
 
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
@@ -673,10 +669,7 @@ Proof.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
-    eapply pure_call.
-    { erewrite <- solve_encode_tuple4; try reflexivity.
-      rewrite encode_tree_is_encode; reflexivity.
-      eapply solve_encode_Leaf; reflexivity. }
+    specialize (Hsplay _ _ z' t a Leaf).
     apply Hsplay. }
 Qed.
 

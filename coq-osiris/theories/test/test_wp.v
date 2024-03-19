@@ -11,6 +11,8 @@ Context `{!osirisGS Σ} `{protocol_wf Σ}.
 
 Local Transparent eval_mexpr eval_bindings evals extend encode.
 
+Local Transparent eval_mexpr eval_bindings evals extend encode.
+
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
 
@@ -36,7 +38,6 @@ Definition example :=
 Goal ⊢ EWP (eval [] example) {{ RET v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   do 3 Simp. Ret. cbn. iPureIntro. reflexivity.
-  (* FIXME *) Unshelve. 1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)
@@ -54,7 +55,6 @@ Proof.
   iIntros.
   do 3 Simp. Ret. cbn.
   iPureIntro. reflexivity.
-  (* FIXME *) Unshelve. 1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* (id (A()), id (A())) *)
@@ -153,10 +153,6 @@ Lemma spec_example4b:
 Proof.
   unfold example4b.
   Simp. Simp. Ret. done.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let id = identity in
@@ -173,10 +169,6 @@ Proof.
   unfold example4c.
 
   Simp. Simp. Ret. done.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let id = identity in
@@ -193,12 +185,6 @@ Proof.
   unfold example4d.
 
   Simp. Simp. Ret. done.
-
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* let rec diverge x = diverge x in diverge() *)
@@ -224,8 +210,8 @@ Abort. (* TODO now that we have Löb induction, prove this goal *)
 Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
   EMatch (EVar "xs") [
-    Branch pNil EUnit;
-    Branch (pCons (PVar "x") (PVar "xs"))
+    Branch (CVal pNil) EUnit;
+    Branch (CVal (pCons (PVar "x") (PVar "xs")))
            (EApp (EVar "walk") (EVar "xs"))
     ].
 
@@ -257,12 +243,6 @@ Lemma spec_walk_example_concrete :
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. do 2 Simp. by Ret.
-
-  (* FIXME *) Unshelve.
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
-  1: exact nat. 1 : intro; exact (Ret (#1)).
 Qed.
 
 (* ------------------------------------------------------------------------- *)
@@ -277,8 +257,8 @@ Qed.
 Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
   EMatch (EVar "xs") [
-    Branch pNil (EInt 0);
-    Branch (pCons (PVar "x") (PVar "xs"))
+    Branch (CVal pNil) (EInt 0);
+    Branch (CVal (pCons (PVar "x") (PVar "xs")))
            (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
     ].
 

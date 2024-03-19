@@ -8,7 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
-From osiris Require Import syntax semantics.
+From osiris.semantics Require Import step code simplification.
 From osiris Require Import util.order.
 
 (* ------------------------------------------------------------------------ *)
@@ -689,6 +689,47 @@ Section wp_handler_rules.
     iApply ewp_eval.
     iNext. iApply (ewp_mono with "Hwp"); iIntros (?) "H"; done.
   Qed.
+
+
+  Lemma invert_simp_perform {E} {m1 : micro A E} σ v k :
+    simp m1 (Stop CPerform v k) →
+    match m1 with
+    | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
+    | _ => False
+    end ∨
+      can_step (σ, m1).
+  Proof.
+    (* The only terms that cannot step are the final terms, and these
+     terms cannot be simplified, so the result is almost immediate. *)
+    intro h; dependent induction h; simpl in *;
+      eauto with step.
+    { left; split; eauto. constructor. }
+    (* Only [SimpTransitive] requires some work. *)
+    destruct (IHh2 _ _ _ _ eq_refl); clear IHh2; [ subst |].
+    { destruct m2; try done. destruct c; try done. destruct H0; subst.
+      destruct (IHh1 _ _ _ _ eq_refl); eauto.
+      left; auto.
+      destruct m1; try done. destruct c; try done.
+      destruct H0; subst; split; eauto.
+      intros; eapply SimpTransitive; eauto. }
+    { eauto using invert_simp_can_step. }
+  Qed.
+
+  Lemma simp_final_step_diagram_perform {m1 : micro A X} {σ σ' m'1} v k:
+    (* If there is a simplification step of [m1] to [m2], *)
+    simp m1 (Stop CPerform v k) →
+    (* if there is also a reduction step out of [m1], *)
+    step (σ, m1) (σ', m'1) →
+    (* and if [m2] is final, *)
+    (* then this reduction step does not prevent us from reaching [m2]. *)
+    σ' = σ ∧
+      simp m'1 (Stop CPerform v k).
+  Proof.
+    intros Hsimp Hstep.
+    simp_step_diagram; eauto.
+    inversion Hstep.
+  Qed.
+
 
   Lemma ewp_simp E m ms Ψ φ:
     simp m ms →
