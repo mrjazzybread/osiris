@@ -1,12 +1,9 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
 From osiris.semantics Require Import code eval simplification pure.
-<<<<<<<< HEAD:coq-osiris/theories/semantics/auxiliary_judgements.v
 
 (* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
-========
->>>>>>>> 9388206 (Moved proofmode/struct.v to semantics/struct.v):coq-osiris/theories/semantics/struct.v
 
 (* -------------------------------------------------------------------------- *)
 
@@ -27,21 +24,34 @@ Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
   total (extends η ps vs) φ (λ (_ : unit), ψ).
 
 
+(* A consequence rule. *)
+
+Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  (ψ → ψ') →
+  pattern η p v φ' ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (ψ → ψ') →
+  pattern η p v φ ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
+  patterns η ps vs φ ψ →
+  (ψ → ψ') →
+  patterns η ps vs φ ψ'.
+Proof.
+  unfold patterns. eauto using total_consequence.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
-
-(* A judgement and a set of reasoning rules for pattern matching. *)
-
-(* The judgement [pattern η p v φ ψ] means that, in the environment [η],
-   matching the pattern [p] against the value [v] is safe and either
-   results in an extended environment that satisfies [φ]
-   or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
-
-Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
-  total (extend η p v) φ (λ (_ : unit), ψ).
-
-Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
-  total (extends η ps vs) φ (λ (_ : unit), ψ).
-
 
 (* A judgement for the evaluation of structure items. *)
 
@@ -51,21 +61,31 @@ Definition struct_item ηδ item (φ : envs -> Prop) :=
 Definition struct_items ηδ sitems (φ : envs -> Prop) :=
   totalv (eval_sitems ηδ sitems) φ.
 
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of module expressions. *)
 
+<<<<<<<< HEAD:coq-osiris/theories/semantics/auxiliary_judgements.v
 Definition eval_module η me (φ : env -> Prop) :=
+========
+Definition module η me (φ : env -> Prop) :=
+>>>>>>>> a5a23d5 (Moved proofmode/struct.v to semantics/struct.v):coq-osiris/theories/semantics/struct.v
   totalv (eval_mexpr η me) (λ v, match v with
                                  | VStruct η' => φ η'
                                  | _ => False
                                  end).
 
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of let bindings. *)
 
 Definition bindings η bs (φ : env -> Prop) :=
   totalv (eval_bindings η bs) φ.
 
+<<<<<<<< HEAD:coq-osiris/theories/semantics/auxiliary_judgements.v
+========
+(* -------------------------------------------------------------------------- *)
+>>>>>>>> a5a23d5 (Moved proofmode/struct.v to semantics/struct.v):coq-osiris/theories/semantics/struct.v
 
 (* A judgement for module coercion. *)
 
@@ -180,7 +200,11 @@ Proof.
   eapply totalv_ret. eauto.
 Qed.
 
+<<<<<<<< HEAD:coq-osiris/theories/semantics/auxiliary_judgements.v
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
+========
+Lemma struct_let_pat η δ p e (spec : val -> Prop) φ ψ :
+>>>>>>>> a5a23d5 (Moved proofmode/struct.v to semantics/struct.v):coq-osiris/theories/semantics/struct.v
   pure (eval η e) (λ v, pattern [] p v ψ False) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.

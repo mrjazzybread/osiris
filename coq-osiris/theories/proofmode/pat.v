@@ -9,6 +9,9 @@ Implicit Type ψ : Prop.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [patterns]. *)
 
+Implicit Type φ : env -> Prop.
+Implicit Type ψ : Prop.
+
 Lemma pats_PNil η φ :
   φ η →
   patterns η [] [] φ False.
