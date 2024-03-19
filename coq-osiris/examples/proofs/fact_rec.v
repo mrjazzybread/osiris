@@ -101,26 +101,14 @@ Section fact_rec_example.
         [ rewrite eq_repr_repr ; [ done | representable | representable ] | ])
     end).
 
-  Opaque prot_bottom.
-
-  Lemma ewp_bind_fmap {B C X} E m (k : C -> micro B X) (f : B -> C) Ψ Φ :
-    EWP m @ E <| Ψ |> {{ RET v, EWP (k v) @ E <| Ψ |> {{ RET v, Φ (f v) }} }} -∗
-    EWP bind m (pffmap f k) @ E <| Ψ |> {{ RET v, Φ v }}.
-  Proof.
-    iIntros "H". iApply ewp_bind.
-    iApply (ewp_mono with "H").
-    iIntros ([]) "H"; [ | done]; cbn.
-    by iApply ewp_fmap.
-  Qed.
-
-  Example fact_rec_5_correct_opt :
+  Example fact_rec_5_correct :
     ⊢ EWP fact_rec_5 <| prot_bottom |> {{ RET v, fact_rec_5_spec v }}.
   Proof.
     iStartProof; rewrite /fact_rec_5. simpl.
-    Simp. Bind.
-    repeat (simpl_fact; do 2 Simp; iApply ewp_bind_fmap).
 
-    simpl_fact. Simp.
+    repeat (Simp; Bind; simpl_fact).
+
+    Simp.
 
     repeat Ret; iPureIntro.
 

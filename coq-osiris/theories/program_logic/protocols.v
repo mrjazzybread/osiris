@@ -103,3 +103,5 @@ Proof.
   iIntros (????) "[HΨ Hmono]".
   iApply prot_mono; iFrame. iApply refl.
 Qed.
+
+Arguments prot_bottom : simpl never.
