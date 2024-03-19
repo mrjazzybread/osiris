@@ -613,6 +613,19 @@ Proof.
     congruence. }
 Qed.
 
+Lemma simp_widen {A E} (m : micro A void) (a : A) :
+  simp (E := E) (widen m) (ret a) <-> simp m (ret a).
+Proof.
+  split.
+  { intros H.
+    apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+    { apply destruct_simp_ret in simp_ret_ret.
+      by (injection simp_ret_ret; intros ->). }
+    { done. } }
+  { intros. unfold widen.
+    eapply prove_simp_try; simp. }
+Qed.
+
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   (v1 : A1) (v2 : A2) η θ :
   simp (eval η e1) (ret #(v1, v2)) ->
