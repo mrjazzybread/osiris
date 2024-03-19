@@ -990,7 +990,42 @@ Ltac simp_enter_and_abstract :=
      which means that [v] becomes an opaque value
      about which nothing is known except that [φ v] holds. *)
 
-Ltac simp_specify x φ :=
+(* On a goal of the form [pure (Stop CEval x k ko) φ], evaluate the call by:
+   stepping through the [Stop] with the appropriate advance_SimpEval lemma,
+   using [simp_evaluate] under the resulting pure *)
+Ltac pure_evaluate :=
+  (lazymatch goal with
+   | |- pure (Stop CEval _ _ _) _ =>
+       eapply pure_simp; [
+         first [
+           apply advance_SimpEvalRetThrow
+         | apply advance_SimpEvalThrow
+         | apply advance_SimpEval
+         ]
+       | apply SimpReflexive
+       ]
+   | _ => idtac
+   end);
+  eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
+
+Ltac SimpParRet :=
+  first [
+    apply SimpParRetRet
+  | apply SimpParRetLeft
+  | apply SimpParRetRight
+  ].
+
+Ltac pureParRet :=
+  eapply pure_simp; first SimpParRet; simpl.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Dummy proposition with one constructor *)
+Inductive BLOCK := block.
+
+(* Tranform a goal of the form [H1 -> H2 -> ... -> BLOCK -> G] into
+   [H1 /\ H2 /\ ... -> G] *)
+Ltac conj_until_BLOCK b :=
   lazymatch goal with
     |- simp (eval (?δ ++ _) _) _ =>
       let o := eval cbn in (lookup_name δ x) in
