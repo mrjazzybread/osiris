@@ -430,6 +430,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+From Coq.Logic Require Import FunctionalExtensionality.
+
 (* More lemmas for use by the tactics that follow. *)
 
 (* The following lemmas paraphrase the rewrite rules [ret_bind], [bind_ret],
@@ -478,11 +480,14 @@ Proof.
   simpl try. tauto.
 Qed.
 
-Lemma advance_simp_bind_as_try {A B E} m (f : A → micro B E) m' :
+Lemma advance_simp_bind_as_try {A B E} m (f : A → micro B E) h m' :
+  (forall o, h o = throw o) ->
   simp (bind m f) m' →
-  simp (try m f throw) m'.
+  simp (try m f h) m'.
 Proof.
-  rewrite bind_as_try. tauto.
+  rewrite bind_as_try; intros; try tauto.
+  assert (EQ: throw = h). { by extensionality v. }
+  by rewrite <-EQ.
 Qed.
 
 Lemma advance_simp_bind_bind
@@ -516,6 +521,14 @@ Lemma advance_simp_try_try {A B C E'' E' E}
   simp (try (try m f h) g h') m'.
 Proof.
   rewrite try_try. tauto.
+Qed.
+
+Lemma advance_simp_try_pftry {A B C E'' E}
+  (m : micro A E'') (k : A -> micro B E) (g : B -> C) h m' :
+  simp (try m (pffmap g k) h) m' →
+  simp (try m (pftry k (fun v => ret (g v)) throw) h) m'.
+Proof.
+  by rewrite pftry_pffmap.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -653,14 +666,16 @@ with simp1 :=
     (* Exploit an assumption, if we have one. *)
     eassumption
     (* Transform [try] into [bind]. *)
-  | simple eapply advance_simp_bind_as_try; simp0
+  | simple eapply advance_simp_bind_as_try; [ reflexivity | simp0 ]
     (* Perform tail call optimisation. (Not essential.) *)
   |  simple eapply advance_simp_bind_ret_right; simp0
-    (* Hoist left-nested [bind]s and [try]s. *)
+    (* Hoist left-nested [bind]s and [try]s, and try to transform [try] into
+       [bind] as much as possible. *)
   | simple eapply advance_simp_bind_bind; simp0
   | simple eapply advance_simp_bind_try; simp0
   | simple eapply advance_simp_try_bind; simp0
   | simple eapply advance_simp_try_try; simp0
+  | simple eapply advance_simp_try_pftry; simp0
     (* Handle [Stop] effects. *)
   | simple eapply advance_SimpEvalRetThrow'; simp0
   | simple eapply advance_SimpEvalRetThrow; simp0

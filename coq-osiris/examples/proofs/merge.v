@@ -448,7 +448,7 @@ Proof.
     repeat (rewrite eval_eval'; simpl).
     pure1.
     (* Use the induction hypothesis on [call merge (h1::t1) t2] *)
-    eapply pure_try.
+    eapply pure_bind.
     { eapply pure_consequence. apply (IH (h1::t1) t2).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -470,9 +470,9 @@ Proof.
       change (h1 :: t1 ++ t2) with ((h1 :: t1) ++ t2).
       apply Permutation_middle. }}
   { (* Case: h1 < h2 *)
-    pure1. rewrite bind_try.
+    pure1. rewrite bind_bind.
     (* Use the induction hypothesis on [call merge t1 (h2::t2)] *)
-    eapply pure_try.
+    eapply pure_bind.
     { apply (IH t1 (h2::t2)).
       (* Subgoal: the partial application of merge returns a closure *)
       { rewrite eval_eval'; reflexivity. }
@@ -505,7 +505,7 @@ Proof.
   { (* Apply the induction hypothesis *)
     repeat (rewrite eval_eval'; simpl); pure1; cbn.
     pure1.
-    eapply pure_try. { apply IH; auto with arith. }
+    eapply pure_bind. { apply IH; auto with arith. }
     intros [l1 l2] (Hl1&Hl2&Hperm).
     pure1.
     (* Establish the three conjuncts of the postcondition *)
@@ -549,7 +549,7 @@ Proof.
   cbn.
   pure1.
   (* Apply the induction hypothesis on l1 *)
-  eapply pure_try; first apply IH.
+  eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l1 *)
     apply Hrep1. }
   { (* Subgoal: justify the induction by showing [length l1 < length a::b::l] *)
@@ -557,14 +557,14 @@ Proof.
   simpl; intros sl1 (Hsl1 & Hpsl1).
   pure1.
   (* Apply the induction hypothesis on l2*)
-  eapply pure_try; first apply IH.
+  eapply pure_bind; first apply IH.
   { (* Subgoal: show the precondition holds for l2 *)
     apply Hrep2. }
   { (* Subgoal: justify the induction by showing [length l2 < length a::b::l] *)
     rewrite Hl2; eauto with arith. }
   simpl; intros sl2 (Hsl2 & Hpsl2).
   pure1.
-  eapply pure_try.
+  eapply pure_bind.
   (* Use the fact that [merge] satisfies its specification *)
   { eapply _merge_spec with (l2 := sl2).
     unfold merge_pre;

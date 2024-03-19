@@ -3,4 +3,7 @@
 From osiris.program_logic Require Export
      ewp
      rules
+     protocols
+     protocol_instance
+     adequacy
 .

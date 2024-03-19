@@ -319,6 +319,17 @@ Section ewp_rules.
     destruct a; last done; by cbn.
   Qed.
 
+  (** *Fmap rule *)
+  Lemma ewp_fmap {B} E (f : A -> B) (m : micro A X) Ψ Φ :
+    EWP m @ E <| Ψ |> {{ RET v, Φ (f v) }} -∗
+    EWP fmap f m @ E <| Ψ |> {{ RET v, Φ v }}.
+  Proof.
+    iIntros "Hwp". iApply ewp_bind.
+    iApply (ewp_mono with "[$]"). iIntros (?) "H".
+    destruct a; last done. cbn.
+    iApply ewp_value; by cbn.
+  Qed.
+
 (* ------------------------------------------------------------------------ *)
 
   (* [CAlloc]. *)

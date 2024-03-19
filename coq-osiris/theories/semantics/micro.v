@@ -305,6 +305,13 @@ Fixpoint bind {A B E} (m : micro A E) (f : A → micro B E) : micro B E :=
 
 Global Arguments bind A B E !m f : simpl nomatch.
 
+(* [fmap f m] is sequences the computation [m] and the pure function [f]. *)
+
+Definition fmap {A B E} (f : A -> B) (m : micro A E) : micro B E :=
+  bind m (fun x => ret (f x)).
+
+Global Arguments fmap A B E f m : simpl nomatch.
+
 (* [try2 m f] runs the computation [m] under the two-armed handler [f]. *)
 
 (* In the cases of [Handle], [Stop], [Par], [Choose], the existing
@@ -344,6 +351,10 @@ Definition try {A B E' E}
 Notation pfbind k f :=
   (λ o, bind (k o) f).
 
+(* Point-free [fmap]. *)
+
+Notation pffmap f k := (λ o, fmap f (k o)).
+
 (* Point-free [try2]. *)
 
 Notation pftry2 k h :=
@@ -376,7 +387,25 @@ Proof.
   eapply bind_as_try2.
 Qed.
 
+(* Since [bind] is a special case of [try], [fmap] can be written in terms of
+ [try] as well. *)
+
+Corollary try_as_fmap {A B E} (f : A -> B) (m : micro A E) :
+  try m (fun v => ret (f v)) throw =
+  fmap f m.
+Proof.
+  by rewrite <- bind_as_try.
+Qed.
+
+Lemma pftry_pffmap {A B C E} (f : A -> B) (k : C -> micro A E) :
+  pftry k (fun v => ret (f v)) throw = pffmap f k.
+Proof.
+  extensionality v.
+  intros; apply try_as_fmap.
+Qed.
+
 Global Hint Extern 1 (_ = _) => rewrite bind_as_try : bind_as_try.
+Global Hint Extern 1 (_ = _) => rewrite try_as_fmap : try_as_fmap.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -919,6 +948,9 @@ Qed.
 
 (* Match whether a computation [e] is an [outcome2], returning an [outcome2] if
   so. *)
+
+(* This is used in the definition of the [ewp] weakest precondition in [ewp.v]. *)
+
 Definition outcome2_opt {A E} (e : micro A E): option (outcome2 A E) :=
   match e with
   | Ret a => Some (O2Ret a)

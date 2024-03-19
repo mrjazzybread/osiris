@@ -33,7 +33,8 @@ Global Hint Unfold val_as_int : osiris.
 Ltac Start_proof := iStartProof.
 
 (* Try to simplify the goal using the [simp] relation *)
-Ltac Simp := iApply ewp_simp; first try solve [simp].
+Ltac Simp :=
+  iApply ewp_simp; first try solve [simp].
 
 (* Hoare-style rules that correspond to [rule] lemmas *)
 Ltac Try := iApply ewp_try.
@@ -54,7 +55,7 @@ Ltac Par :=
   end; try done.
 
 (* -------------------------------------------------------------------------- *)
-Ltac Bind := iApply ewp_bind.
+Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
 
 (* If anything has been added to the hint data base of [osiris], using
     [Hint Rewrite] or [Hint Extern], then apply the automation. *)

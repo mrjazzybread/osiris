@@ -449,7 +449,7 @@ Proof.
   intros.
   destruct_pure v2; destruct_pure v1; destruct_pure vf'; subst.
   eapply pure_simp; [ simp | eauto ].
-  eapply pure_try2; eauto.
+  eapply pure_bind; eauto.
 Qed.
 
 Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf

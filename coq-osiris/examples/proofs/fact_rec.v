@@ -103,138 +103,33 @@ Section fact_rec_example.
 
   Opaque prot_bottom.
 
-  Definition fmap {A B E} (f : A -> B) (m : micro A E) : micro B E :=
-    bind m (fun x => ret (f x)).
-
-  Definition eq_fmap {A B E} (f : A -> B) (m : micro A E) :
-    bind m (fun x => ret (f x)) = fmap f m.
-  Proof. done. Qed.
-
-  Lemma eq_bind_bind {A B E E'} m
-    (k k' : outcome2 B E' → micro A E) :
-    (∀ o, k o = k' o) →
-    bind m k = bind m k'.
+  Lemma ewp_bind_fmap {B C X} E m (k : C -> micro B X) (f : B -> C) Ψ Φ :
+    EWP m @ E <| Ψ |> {{ RET v, EWP (k v) @ E <| Ψ |> {{ RET v, Φ (f v) }} }} -∗
+    EWP bind m (pffmap f k) @ E <| Ψ |> {{ RET v, Φ v }}.
   Proof.
-    intros. f_equal.
-    eapply FunctionalExtensionality.functional_extensionality; done.
+    iIntros "H". iApply ewp_bind.
+    iApply (ewp_mono with "H").
+    iIntros ([]) "H"; [ | done]; cbn.
+    by iApply ewp_fmap.
   Qed.
 
-  (** *Fmap rule *)
-  Lemma ewp_fmap {A B X} E (f : A -> B) (m : micro A X) Ψ Φ :
-    EWP m @ E <| Ψ |> {{ RET v, Φ (f v) }} -∗
-    EWP fmap f m @ E <| Ψ |> {{ RET v, Φ v }}.
-  Proof.
-    iIntros "Hwp". rewrite -eq_fmap. iApply ewp_bind.
-    iApply (ewp_mono with "[$]"). iIntros (?) "H".
-    destruct a; last done. cbn.
-    iApply ewp_value; by cbn.
-  Qed.
-
-  Example fact_rec_5_correct :
-    ⊢ EWP fact_rec_5 <| prot_bottom |> {{ RET v, fact_rec_5_spec v }}.
-  Proof.
-    iStartProof; rewrite /fact_rec_5. simpl.
-    Par.
-    repeat (simpl_fact; Simp; Try; try Bind).
-
-    simpl_fact; Simp.
-
-    repeat (Ret; cbn).
-    iPureIntro.
-
-    match goal with
-      | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
-    end.
-    { rewrite !mul_repr_repr; f_equiv. lia. }
-    done.
-  Admitted.
-
-  (* Naive :
-
-      Finished transaction in 11.607 secs (11.294u,0.312s) (successful) *)
-
-  (* TODO: Better tactics for [EWP]. *)
   Example fact_rec_5_correct_opt :
     ⊢ EWP fact_rec_5 <| prot_bottom |> {{ RET v, fact_rec_5_spec v }}.
   Proof.
     iStartProof; rewrite /fact_rec_5. simpl.
+    Simp. Bind.
+    repeat (simpl_fact; do 2 Simp; iApply ewp_bind_fmap).
 
-    (* Normalization 1 : Normalize bind ("head normal form") *)
-    setoid_rewrite eq_par_par; cycle 1.
-    { intros; rewrite !bind_bind; cbn. reflexivity. }
+    simpl_fact. Simp.
 
-    (* Normalization 2 : Normalize bind using unit rule and manual rewrite.. *)
-    (* setoid_rewrite eq_par_par; cycle 1. *)
-    (* { intros; rewrite !bind_bind. *)
-
-      (* destruct o; cbn. *)
-      (* { destruct a. rewrite bind_ret. *)
-      (*   Unshelve. *)
-      (*   2 : exact (fun o => *)
-      (*    match o with *)
-      (*    | O2Ret (v, e) => *)
-      (*       ret (VStruct *)
-      (*         (app (cons (pair "fact_rec_5" v) e) *)
-      (*            (cons (pair "fact_rec" (VCloRec nil __bindings2 "fact_rec")) nil))) *)
-      (*    | O2Throw  e => throw e *)
-      (*    end). *)
-      (* reflexivity. } *)
-      (* reflexivity. } *)
-
-    Par.
-
-    (* Normalization 3 *)
-    rewrite try2_join2. cbn. (* [cbn] results in a more efficient term than [Simp]. *)
-
-    (* The exceptional continuation is equivalent to [throw], but only using
-      functional extensionality *)
-    match goal with
-      | |- context[try _ _ ?k] =>
-        replace k with (fun e => throw (A := val) (E := exn) e);
-        [ | apply FunctionalExtensionality.functional_extensionality;
-          reflexivity ]
-    end.
-
-    Simp. rewrite eq_fmap. iApply ewp_fmap.
-
-    repeat (
-    simpl_fact; Simp;
-    rewrite -bind_as_try2 eq_fmap;
-    iApply ewp_fmap;
-    iApply ewp_bind).
-
-    simpl_fact; Simp.
-
-    repeat (Ret; cbn).
-    iPureIntro.
+    repeat Ret; iPureIntro.
 
     match goal with
-      | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
+      | |- VInt ?i = #?x => assert (i = repr x) as ->
     end.
     { rewrite !mul_repr_repr; f_equiv. lia. }
     done.
-  Time Qed.
-
-  (* With normalization 1:
-
-      Finished transaction in 6.723 secs (6.503u,0.219s) (successful) *)
-
-  (* With normalization 2:
-
-      Finished transaction in 6.498 secs (6.305u,0.192s) (successful) *)
-
-  (* With normalization 2 + 3:
-
-      Finished transaction in 4.443 secs (4.338u,0.105s) (successful)
-   *)
-
-  (* With 2 + 3 + FMap :
-
-      Finished transaction in 0.972 secs (0.945u,0.027s) (successful) *)
-
-  (* With 1 + 3 + FMap :
-
-      Finished transaction in 0.94 secs (0.914u,0.025s) (successful) *)
+  Qed. (* [Qed] time around ~1 second *)
 
   (* --------------------------------------------------------------------- *)
   (* Next is the specification of the stateful implementation of factorial. *)
@@ -252,7 +147,6 @@ Section fact_rec_example.
     let _spec v := (⌜v = # 120⌝)%I in
     let_spec v "fact_5" _spec.
 
-  (* TODO: Term explosion is really not great *)
   Example fact_5_correct :
     ⊢ EWP fact_5 <| prot_bottom |> {{ RET v, fact_5_spec v }}.
   Proof.
@@ -261,34 +155,29 @@ Section fact_rec_example.
     Par; cbn.
 
     (* Allocate a new variable that stores the dummy function value *)
-    Alloc factv "Hfact".
-
-    Simp.
+    Alloc factv "Hfact"; Simp.
 
     (* We store the value of [fact0] that ties the recursive knot. *)
     Store "Hfact".
-    iIntros "Hfactv".
 
-    Simp.
+    iIntros "Hfactv"; Simp.
 
-    simpl_fact. Try. Simp. cbn.
-    repeat (simpl_fact; Try; Bind; Simp).
-
+    (* Symbolic execution *)
+    repeat (simpl_fact; Bind; Simp).
     repeat (Ret; cbn).
-    Par.
+
+    Par. Bind.
 
     (* Reduce each call to [fact] *)
-    Try. simpl_fact. Simp.
+    simpl_fact. Simp.
     ewp_tactics.Load "Hfactv". iIntros "Hfactv".
 
-    repeat (
-    Try; Bind; cbn; Simp;
-    simpl_fact; Simp;
-    ewp_tactics.Load "Hfactv"; iIntros "Hfactv").
+    (* More symbolic execution, then loading and reading the information each time *)
+    repeat (Simp; simpl_fact; Bind; Simp;
+      ewp_tactics.Load "Hfactv"; iIntros "Hfactv").
 
-    Try. Bind. cbn. Simp.
+    Bind; cbn; Simp;
     simpl_fact; Simp.
-
     repeat (Ret; cbn).
 
     iPureIntro.
@@ -297,7 +186,10 @@ Section fact_rec_example.
     end.
     { rewrite !mul_repr_repr; f_equiv. lia. }
     done.
-  Admitted.
+  Qed.
+  (* TODO: Avoid term explosion;
+
+      Finished transaction in 3.829 secs (3.733u,0.095s) (successful) *)
 
 End fact_rec_example.
 

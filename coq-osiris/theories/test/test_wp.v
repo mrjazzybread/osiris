@@ -63,6 +63,16 @@ Definition example3 :=
   let idA := EApp (EVar "id") (EConstant "A") in
   EPair idA idA.
 
+Ltac Apply H :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (ewp_def _ _ _ (lift_ret_spec _)) =>
+      let v := fresh "v" in
+      let Hv := fresh "Hv" in
+      iApply ewp_mono; [ iApply H | ]; iIntros ([v | ?]) "HΦ"; [ | done];
+      try iDestruct "HΦ" as %HΦ
+  | _ => iApply ewp_mono; [ iApply H | ]; iDestruct H as ([v _]) "HΦ"
+  end.
+
 Lemma spec_example3:
   ∀ (id : val),
   ⊢ □ (∀ v, EWP (call id v) {{ RET v', ⌜ v' = v⌝ }} ) -∗
@@ -71,15 +81,11 @@ Lemma spec_example3:
 Proof.
   iIntros (id) "#Hid".
   Simp. Par.
-  { Try. cbn.
-    iApply ewp_mono; [ iApply "Hid" | ].
-    (* TODO *)
-    iIntros (?) "Hp".
-    destruct a; [ iDestruct "Hp" as %Hp | done]; cbn.
-    Ret. rewrite Hp.
+  { Bind.
+    Apply "Hid"; subst; cbn.
     (* FIXME *)
     Unshelve.
-    2 : exact ((fun x => ⌜x = [VConstant "A"]⌝)↑)%I.
+    2 : exact (fun x => ⌜x = [VConstant "A"]⌝)%I.
     cbn. iPureIntro; done. }
 
   (* Exceptional continuations are not taken. *)
