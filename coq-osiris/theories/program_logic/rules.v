@@ -325,11 +325,11 @@ Section ewp_rules.
 
   (* The standard memory allocation rule of Separation Logic. *)
 
-  Lemma ewp_alloc E v (k : _ → micro A X) φ :
+  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           mapsto l (DfracOwn 1) (V v) -∗
-          EWP (continue k l) @ E {{ φ }}) ⊢
-    EWP (Stop CAlloc v k) @ E {{ φ }}.
+          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -341,11 +341,11 @@ Section ewp_rules.
     ewp_mask_elim. iFrame. by iApply "H".
   Qed.
 
-  Lemma ewp_alloc' E v (k : _ → micro A X) φ :
+  Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
-          EWP (continue k l) @ E {{ φ }}) ⊢
-      EWP (Stop CAlloc v k) @ E {{ φ }}.
+          EWP (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
+      EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -361,13 +361,13 @@ Section ewp_rules.
 
   (* The standard memory write rule of Separation Logic. *)
 
-  Lemma ewp_store E l v v' (k : _ → micro A X) φ :
+  Lemma ewp_store {B Y} E l v v' (k : _ → micro B Y) φ Ψ :
     mapsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         mapsto l (DfracOwn 1) (V v') -∗
-        EWP (continue k tt) @ E {{ φ }}
+        EWP (continue k tt) @ E <| Ψ |> {{ φ }}
       ) -∗
-    EWP (Stop CStore (l, v') k) @ E {{ φ }}.
+    EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -386,13 +386,13 @@ Section ewp_rules.
 
   (* The standard memory load rule of Separation Logic. *)
 
-  Lemma ewp_load E l v dq (k: _ → micro A X) φ :
+  Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
     mapsto l dq (V v) ⊢
     ▷ (
         mapsto l dq (V v) -∗
-        EWP (continue k v) @ E {{ φ }}
+        EWP (continue k v) @ E <| Ψ |> {{ φ }}
       ) -∗
-    EWP (Stop CLoad l k) @ E {{ φ }}.
+    EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".

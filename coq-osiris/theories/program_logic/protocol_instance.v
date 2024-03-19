@@ -118,5 +118,8 @@ Section concrete_protocols.
     constructor; typeclasses eauto.
   Qed.
 
+  #[global] Instance iEff_protocol_WF : @protocol_wf Σ iEff.
+  Proof. econstructor; typeclasses eauto. Qed.
+
 End concrete_protocols.
 
