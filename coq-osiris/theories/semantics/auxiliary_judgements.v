@@ -51,6 +51,30 @@ Proof.
   unfold patterns. eauto using total_consequence.
 Qed.
 
+Lemma cpat_CVal η p v φ ψ :
+  pattern η p v φ ψ ->
+  cpattern η (CVal p) (O2Ret v) φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_CExc η p v φ ψ :
+  pattern η p v φ ψ ->
+  cpattern η (CExc p) (O2Throw v) φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_COr η cp1 cp2 o φ ψ1 ψ2 :
+  cpattern η cp1 o φ ψ1 ->
+  cpattern η cp2 o φ ψ2 ->
+  cpattern η (COr cp1 cp2) o φ (ψ1 /\ ψ2).
+Proof.
+  unfold cpattern. intros.
+  eapply total_orelse; [ eassumption | ].
+  eauto using total_consequence.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of structure items. *)
@@ -84,34 +108,6 @@ Definition coerces c η (φ : env -> Prop) :=
                                        | VStruct η' => φ η'
                                        | _ => False
                                        end).
-
-
-(* -------------------------------------------------------------------------- *)
-
-Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
-  (∀ η, φ η → φ' η) →
-  (ψ → ψ') →
-  pattern η p v φ' ψ'.
-Proof.
-  unfold pattern. eauto using total_consequence.
-Qed.
-
-Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
-  (ψ → ψ') →
-  pattern η p v φ ψ'.
-Proof.
-  unfold pattern. eauto using total_consequence.
-Qed.
-
-Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
-  patterns η ps vs φ ψ →
-  (ψ → ψ') →
-  patterns η ps vs φ ψ'.
-Proof.
-  unfold patterns. eauto using total_consequence.
-Qed.
 
 (* -------------------------------------------------------------------------- *)
 

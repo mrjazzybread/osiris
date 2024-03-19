@@ -548,8 +548,8 @@ takes us from one pause to the next pause.</p>
                       step (σ, Handle (ret v) h) (σ, h (O3Ret v))
   | StepHandleThrow : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : C.exn) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
                         step (σ, Handle (throw e) h) (σ, h (O3Throw e))
-  | StepHandlePerform : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : val) (<span class="nv">k</span> : outcome2 val exn → micro C.val C.exn)
-                          (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E)
+  | StepHandlePerform : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : val) (<span class="nv">k</span> : outcome2 val exn → micro C.val C.exn) 
+                          (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E) 
                           (<span class="nv">l</span> : C.continuation),
                           σ !! l = None → step (σ, Handle (Stop CPerform e k) h) (&lt;[l:=K k]&gt; σ, h (O3Perform e l))
   | StepHandleCrash : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E), step (σ, Handle crash h) (σ, crash)
@@ -573,32 +573,32 @@ takes us from one pause to the next pause.</p>
                          step (σ, Par crash m2 k) (σ, crash)
   | StepParCrashRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                           step (σ, Par m1 crash k) (σ, crash)
-  | StepParThrowLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;)
-                         (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
+  | StepParThrowLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                         (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : E&#39;) 
+                         (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E), 
                          step (σ, Par (throw e) m2 k) (σ, discontinue k e)
-  | StepParThrowRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                          (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;)
-                          (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
+  | StepParThrowRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                          (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : E&#39;) 
+                          (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E), 
                           step (σ, Par m1 (throw e) k) (σ, discontinue k e)
-  | StepParPerformLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                           (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : val)
-                           (<span class="nv">k</span> : outcome2 val exn → micro A1 E&#39;)
+  | StepParPerformLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                           (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">e</span> : val) 
+                           (<span class="nv">k</span> : outcome2 val exn → micro A1 E&#39;) 
                            (<span class="nv">h</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                            step (σ, Par (Stop CPerform e k) m2 h)
                              (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn, Par (k o) m2 h))
-  | StepParPerformRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store)
-                            (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : val)
-                            (<span class="nv">k</span> : outcome2 val exn → micro A2 E&#39;)
+  | StepParPerformRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) 
+                            (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">e</span> : val) 
+                            (<span class="nv">k</span> : outcome2 val exn → micro A2 E&#39;) 
                             (<span class="nv">h</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                             step (σ, Par m1 (Stop CPerform e k) h)
                               (σ, Stop CPerform e (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn, Par m1 (k o) h))
-  | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store)
-                    (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;)
+  | StepParLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
+                    (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) (<span class="nv">m2</span> : micro A2 E&#39;) 
                     (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                     step (σ, m1) (σ&#39;, m&#39;1) → step (σ, Par m1 m2 k) (σ&#39;, Par m&#39;1 m2 k)
-  | StepParRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store)
-                     (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2 E&#39;)
+  | StepParRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
+                     (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2 E&#39;) 
                      (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                      step (σ, m2) (σ&#39;, m&#39;2) → step (σ, Par m1 m2 k) (σ&#39;, Par m1 m&#39;2 k)
   | StepChooseLeft : <span class="kr">∀</span> (<span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : outcome2 B E&#39; → micro A E),
@@ -638,7 +638,7 @@ either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
 may take a step:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk17" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk17"><span class="kn">Check</span> @StepParLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParLeft
-     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;)
+     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) 
          (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
          step (σ, m1) (σ&#39;, m&#39;1) → step (σ, Par m1 m2 k) (σ&#39;, Par m&#39;1 m2 k)</blockquote></div></div></small></span></pre><p>If both threads have reached a result, then
 the parallel composition disappears.
