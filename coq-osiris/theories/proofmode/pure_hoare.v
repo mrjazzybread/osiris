@@ -361,7 +361,21 @@ Proof.
   rewrite replace_env_idempotent; auto.
 Qed.
 
-(* Todo: write comment *)
+Lemma pure_Eval `{Encode X} {E} η e k (φ : X -> Prop) :
+  pure (try2 (eval η e) k) φ ->
+  pure (X := E) (Stop CEval (η, e) k) φ.
+Proof.
+  intros. eapply pure_simp; [| eauto ]. simp.
+Qed.
+
+Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
+  pure (eval η e) φ ->
+  pure (Stop CEval (η, e) inject2) φ.
+Proof.
+  intros. eapply pure_simp; [| eauto ]. simp.
+Qed.
+
+(* (* Todo: write comment *) *)
 
 Lemma pure_rec_call `{Encode X} `{Encode Y}
   (η : env) (rbs : list rec_binding) (fname : var) (v : X)
