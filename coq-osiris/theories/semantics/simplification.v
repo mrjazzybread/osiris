@@ -1310,19 +1310,7 @@ Proof.
   unfold totalv. eauto using total_simp.
 Qed.
 
-(* [simp m (ret a)] is equivalent to a Hoare logic judgement [totalv m _]
-   whose postcondition is an equality [λ a', a = a']. *)
-
-Lemma simp_totalv {A E} m (a : A) :
-  simp m (ret a : micro A E) ↔
-  totalv m (λ a', a = a').
-Proof.
-  split.
-  { eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total a' e'. congruence. }
-Qed.
-
-(* A reasoning rule for [try]. *)
+(* A reasoning rule for [try2]. *)
 
 (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [g] is dead and no proof obligation bears on it. *)
