@@ -305,8 +305,8 @@ Ltac pure_evaluate :=
 Ltac SimpParRet :=
   first [
     apply SimpParRetRet
-  | apply advance_SimpParRetLeftThrow
-  | apply advance_SimpParRetRightThrow
+  | apply SimpParRetLeftThrow
+  | apply SimpParRetRightThrow
   | apply SimpParRetLeft
   | apply SimpParRetRight
   ].

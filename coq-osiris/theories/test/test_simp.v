@@ -1,7 +1,7 @@
 From osiris Require Import osiris.
 
 Local Notation ε := []. (* TODO move *)
-Local Transparent eval_mexpr eval_bindings evals extend encode continue discontinue.
+Local Transparent eval_mexpr eval_bindings evals extend encode.
 
 (* -------------------------------------------------------------------------- *)
 
