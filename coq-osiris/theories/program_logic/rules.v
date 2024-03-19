@@ -8,8 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
-From osiris Require Import syntax semantics.
-From osiris Require Import util.order.
+From osiris.semantics Require Import step code simplification.
 
 (* ------------------------------------------------------------------------ *)
 
