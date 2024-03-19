@@ -190,12 +190,8 @@ Proof.
   eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v (? & -> & Hextend).
   eapply totalv_bind.
-<<<<<<<< HEAD:coq-osiris/theories/semantics/auxiliary_judgements.v
   { unfold pattern in Hextend. unfold irrefutably_extend; cbn.
     rewrite totalv_widen.
-========
-  { unfold pattern in Hextend. unfold irrefutably_extend.
->>>>>>>> 9388206 (Moved proofmode/struct.v to semantics/struct.v):coq-osiris/theories/semantics/struct.v
     eapply totalv_try; [ eassumption | ].
     eauto using totalv_ret. }
   auto using totalv_ret.
