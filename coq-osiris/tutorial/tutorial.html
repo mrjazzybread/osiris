@@ -60,6 +60,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EApp : expr → expr → expr
   | ETuple : list expr → expr
   | EData : data → expr → expr
+  | EXData : data → expr → expr
   | ERecord : list fexpr → expr
   | ERecordUpdate : expr → list fexpr → expr
   | ERecordAccess : expr → <span class="bp">field</span> → expr
@@ -126,6 +127,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EApp e1 e2
 <span class="kn">Arguments</span> ETuple es%list_scope
 <span class="kn">Arguments</span> EData c e
+<span class="kn">Arguments</span> EXData c e
 <span class="kn">Arguments</span> ERecord fes%list_scope
 <span class="kn">Arguments</span> ERecordUpdate e fes%list_scope
 <span class="kn">Arguments</span> ERecordAccess e f

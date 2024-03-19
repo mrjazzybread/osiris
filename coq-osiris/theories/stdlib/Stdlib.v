@@ -99,12 +99,22 @@ Section StdLib__code.
        EVar "y"
       ).
 
+  Axiom Stdlib__raise : val.
+  (* An equational specification for a [raise] function,
+   which throws an exception. *)
+
+  Axiom raise_spec :
+    ∀ (e : exn),
+      call Stdlib__raise e = throw e.
+
   Definition Stdlib_misc_env : env :=
     [("=", Stdlib__eq);
      ("<>", Stdlib__ne);
      ("compare", Stdlib__compare);
+     ("raise", Stdlib__raise);
      ("fst", Stdlib__fst);
      ("snd", Stdlib__snd)].
+
 
   (* ------------------------------------------------------------------------ *)
 

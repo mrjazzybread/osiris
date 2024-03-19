@@ -374,8 +374,12 @@ let rec translate_expr (e: expression) : expr =
       ETuple (translate_exprs es)
 
   | Texp_construct (id, constructor_desc, es) ->
-      let data = translate_data_constructor id constructor_desc in
-      EData (data, ETuple (translate_exprs es))
+     let data = translate_data_constructor id constructor_desc in
+     (match constructor_desc.cstr_tag with
+      | Cstr_extension _ ->
+         EXData (data, ETuple (translate_exprs es))
+      |_ ->
+        EData (data, ETuple (translate_exprs es)))
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
