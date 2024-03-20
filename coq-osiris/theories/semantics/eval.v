@@ -1110,6 +1110,8 @@ Fixpoint eval η e : microvx :=
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       try2
+        (eval η e)
+        (λ o, eval_match η o bs)
   | ETryWith e bs =>
       (* TODO: Comment. *)
       try
