@@ -184,6 +184,11 @@ Definition eval' η e : microvx :=
       try2
         (eval η e)
         (λ (o : outcome2 val exn), eval_match η o bs)
+  | ETryWith e bs =>
+      try
+        (eval η e)
+        Ret
+        (λ ex, eval_trywith η ex bs)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then

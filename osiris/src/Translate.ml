@@ -367,8 +367,9 @@ let rec translate_expr (e: expression) : expr =
   | Texp_match (e, cases, _partial) ->
       EMatch (translate_expr e, translate_computation_cases cases)
 
-  | Texp_try _ ->
-      eunsupported loc "try/with"
+  | Texp_try (e, cases) ->
+     (* TODO: Comment exception cases. *)
+      ETryWith (translate_expr e, translate_exception_cases cases)
 
   | Texp_tuple es ->
       ETuple (translate_exprs es)
@@ -661,6 +662,12 @@ and translate_value_case (case : value case) : branch =
 
 and translate_value_cases cases =
   map translate_value_case cases
+
+and translate_exception_case (case : value case) : branch =
+  translate_case (fun p -> CExc (translate_pat p)) case
+
+and translate_exception_cases cases =
+  map translate_exception_case cases
 
 and translate_computation_case (case : computation case) : branch =
   translate_case translate_computation_pattern case

@@ -888,6 +888,22 @@ Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : m
         (λ tt, eval_match η o bs)
   end.
 
+(* TODO: Comment. *)
+
+Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
+  let eval_trywith := pre_eval_trywith in
+  match bs with
+  | [] =>
+      throw ex
+  | Branch (CExc p) e :: bs =>
+      try
+        (extend η p ex)
+        (λ δ, eval δ e)
+        (λ tt, eval_trywith η ex bs)
+  | _ =>
+      type_mismatch "exception pattern expected"
+  end.
+
 End Eval.
 
 (* ------------------------------------------------------------------------ *)
@@ -921,6 +937,7 @@ Fixpoint eval η e : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_match := pre_eval_match eval in
+  let eval_trywith := pre_eval_trywith eval in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -1093,8 +1110,12 @@ Fixpoint eval η e : microvx :=
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       try2
+  | ETryWith e bs =>
+      (* TODO: Comment. *)
+      try
         (eval η e)
-        (λ o, eval_match η o bs)
+        Ret
+        (λ ex, eval_trywith η ex bs)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
@@ -1138,6 +1159,8 @@ Definition evals η es := pre_evals eval η es.
 Definition evalfs η fes := pre_evalfs eval η fes.
 
 Definition eval_match η o bs := pre_eval_match eval η o bs.
+
+Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
 
 Definition eval_bindings η bs := pre_eval_bindings eval η bs.
 

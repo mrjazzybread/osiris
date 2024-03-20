@@ -204,6 +204,9 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
+  (* TODO: Comment. *)
+  | ETryWith of expr * branches
+
   (* Loop: [while e do body done] .*)
   | EWhile of expr * expr
   (* Loop: [for x = e1 to e2 do e done]. *)
