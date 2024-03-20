@@ -478,12 +478,17 @@ Definition extendfs δ fps fvs :=
 
 Fixpoint cextend η cp o : micro env unit :=
   match cp, o with
-  | CVal p, O2Ret v =>
+  | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
       extend η p v
-  | CExc p, O2Throw v =>
+  | CExc p, O3Throw v =>
       (* An exception pattern matches a throw. *)
       extend η p v
+  | CEff pe pk, O3Perform e k =>
+      δ ← extend η pe e ;
+      (* [pk] is a pattern for the continuation [k].
+         It can only be a [PVar] or a [PAny]. *)
+      extend η pk (VLoc k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
       orelse (cextend η cp1 o) (cextend η cp2 o)
@@ -861,22 +866,25 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 (* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
    taking into account whether [o] is a return or a throw. *)
 
-Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : microvx :=
+Fixpoint pre_eval_match (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
   let eval_match := pre_eval_match in
   match bs with
   | [] =>
       (* A nonexhaustive [match] construct. *)
       match o with
-      | O2Ret _ =>
+      | O3Ret _ =>
           (* When matching on a value, a nonexhaustive [match] causes
              a hard failure. *)
           (* The user of the system will have to prove that this
              cannot happen, i.e., every case analysis is exhaustive. *)
           match_failure()
-      | O2Throw e =>
+      | O3Throw e =>
           (* When matching on an exception, a nonexhaustive [match]
              causes the exception to be propagated. *)
           throw e
+      | O3Perform e l =>
+          (* TODO: Comment. *)
+          Stop CRePerform (e, l) inject2
       end
   | Branch cp e :: bs =>
       (* Match the outcome [o] against the computational pattern [cp]. *)
@@ -1109,7 +1117,8 @@ Fixpoint eval η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      try2
+      (* TODO: Comment. *)
+      Handle (eval η e) (λ o3, eval_match η o3 bs)
   | ETryWith e bs =>
       (* TODO: Comment. *)
       try

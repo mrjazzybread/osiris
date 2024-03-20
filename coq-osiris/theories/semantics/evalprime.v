@@ -181,9 +181,8 @@ Definition eval' η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      try2
-        (eval η e)
-        (λ (o : outcome2 val exn), eval_match η o bs)
+      (* TODO: Comment. *)
+      Handle (eval η e) (λ o3, eval_match η o3 bs)
   | ETryWith e bs =>
       try
         (eval η e)

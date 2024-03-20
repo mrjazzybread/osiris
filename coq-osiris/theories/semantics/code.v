@@ -48,6 +48,8 @@ Definition eff := val.
    is determined by whomever decides to continue or discontinue
    the continuation that is captured when this effect is performed. *)
 
+(* TODO: Comment CRePerform. *)
+
 (* [CContinue (l, v)] is a request to continue the continuation stored
    at address [l] with value [v].
    The result is a value (or an exception). *)
@@ -68,6 +70,7 @@ Inductive code : Type → Type → Type → Type :=
 | CLoad  : code loc val exn
 | CStore : code (loc * val) unit exn
 | CPerform  : code val val exn
+| CRePerform : code (val * loc) val exn
 | CContinue : code (loc * val) val exn
 | CDiscontinue : code (loc * val) val exn
 .

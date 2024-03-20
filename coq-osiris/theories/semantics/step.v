@@ -136,6 +136,19 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CPerform e k) h)
         (<[l := K k]>σ, h (O3Perform e l))
 
+  (* TODO: Comment. *)
+  | StepRePerform :
+    ∀ σ e k l c',
+      c' = match σ !! l with
+           | Some (K sk) =>
+               (σ, Stop CPerform e (pftry2 sk k))
+           | _ =>
+               (σ, Crash)
+           end ->
+      step
+        (σ, Stop CRePerform (e, l) k)
+        c'
+
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h,
