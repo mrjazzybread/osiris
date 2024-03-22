@@ -1,3 +1,4 @@
+From Coq Require Import Logic.FunctionalExtensionality.
 From stdpp Require Import gmap relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
@@ -669,7 +670,11 @@ Proof.
   (* The cases that involve store lookups are a bit tricky, because
      of the way we have used [match] in the reduction rules. *)
   case_location_lookup; simplify_eq;
-  eauto with step exploit_location_lookup try_try.
+    eauto with step exploit_location_lookup try_try.
+  (* StepRePerform *)
+  constructor. exploit_location_lookup.
+  f_equal; simpl; f_equal.
+  by extensionality o; rewrite try2_try2.
 Qed.
 
 (* As special cases, stepping under [try] or [bind] is also permitted. *)
@@ -733,7 +738,11 @@ Proof.
   destruct_step; eauto with step try_try;
   (* The cases of store lookups remain: *)
   case_location_lookup; simplify_eq;
-  eauto 6 with step exploit_location_lookup try_try.
+    eauto 6 with step exploit_location_lookup try_try.
+  (* StepRePerform *)
+  eexists. split; [ constructor; exploit_location_lookup; reflexivity | ].
+  simpl; f_equal.
+  by extensionality o; rewrite try2_try2.
 Qed.
 
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :
