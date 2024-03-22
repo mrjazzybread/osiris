@@ -46,6 +46,7 @@ Local Ltac step :=
   | eapply StepParRetRet
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]
+  | eapply StepHandleRet
   ].
 
 (* The tactic [steps] solves a goal of the form [steps ?n e v]. *)
