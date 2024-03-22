@@ -369,6 +369,7 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure (eval η (EMatch e bs)) φ.
 Proof.
   unfold pure_match; intros.
+  eapply pure_simp. simpl.
   eapply pure_simp; [ eapply simp_try2; eauto with simp | fold eval ].
   eapply pure_try2; [ eauto | by intros ? -> ].
 Qed.

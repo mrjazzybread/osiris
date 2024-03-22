@@ -102,6 +102,9 @@ Notation microvx :=
 Definition perform (v : eff) : microvx :=
   stop CPerform v.
 
+Definition reperform (v : eff) (l : loc) : microvx :=
+  stop CRePerform (v, l).
+
 (* ------------------------------------------------------------------------ *)
 
 (* The left-arrow notation, analogous to Haskell's do notation. *)

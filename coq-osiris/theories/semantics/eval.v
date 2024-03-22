@@ -476,22 +476,22 @@ Definition extendfs δ fps fvs :=
 (* [cextend η cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
 
-Fixpoint cextend η cp o : micro env unit :=
+Fixpoint cextend δ cp o : micro env unit :=
   match cp, o with
   | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
-      extend η p v
+      extend δ p v
   | CExc p, O3Throw v =>
       (* An exception pattern matches a throw. *)
-      extend η p v
+      extend δ p v
   | CEff pe pk, O3Perform e k =>
-      δ ← extend η pe e ;
+      δ ← extend δ pe e ;
       (* [pk] is a pattern for the continuation [k].
          It can only be a [PVar] or a [PAny]. *)
-      extend η pk (VLoc k)
+      extend δ pk (VLoc k) (* TODO: VCont instead of VLoc. *)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
-      orelse (cextend η cp1 o) (cextend η cp2 o)
+      orelse (cextend δ cp1 o) (cextend δ cp2 o)
   | _, _ =>
       (* If [o] and [cp] don't match, we throw a meta-level exception
          and continue to the next branch.*)
