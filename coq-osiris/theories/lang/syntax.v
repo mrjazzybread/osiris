@@ -234,8 +234,11 @@ Inductive expr :=
 
   (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : list branch)
-  (* TODO: Comment. *)
+
+  (* Exception catching: [try e with bs]. *)
   | ETryWith (e : expr) (bs : list branch)
+  (* Exception raising: [raise e]. *)
+  | ERaise (e : expr)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)

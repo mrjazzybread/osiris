@@ -189,6 +189,9 @@ Definition eval' η e : microvx :=
         (eval η e)
         Ret
         (λ ex, eval_trywith η ex bs)
+  | ERaise e =>
+      exc ← eval η e ;
+      throw exc
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
