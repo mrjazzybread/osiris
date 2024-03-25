@@ -1,418 +1,222 @@
 From iris.proofmode Require Import tactics.
-From iris.program_logic Require Export weakestpre.
 
-From osiris Require Import semantics.
-From osiris Require Import program_logic.wp.
+From osiris Require Import program_logic.ewp.
+From osiris.semantics Require Import step code.
 
-(* -------------------------------------------------------------------------- *)
-(* Tactics to reason about [if] and [loop] guards;
-      not specific to the use of [wp]. *)
+(* Local tactics for [ewp] rules *)
+Module ewp_rules_tactics.
 
-(* Compute the guard condition of an if statement using [tac] *)
-Tactic Notation "compute_if" "using" tactic(tac) :=
-  match goal with
-  | |- context[if ?b then _ else _] =>
-      first [replace b with true by tac |
-              replace b with false by tac ]
-  end.
+  Ltac ewp_unfold m :=
+    setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
+  Ltac ewp_unfold_all :=
+    rewrite !ewp_unfold /ewp_pre /=.
+  (* This tactic unfolds one occurrence of [ewp] at the head of the goal. *)
+  Ltac ewp_unfold_head :=
+    iApply ewp_unfold; rewrite /ewp_pre /=.
 
-(* If we have information about the loop guard, do the appropriate
-  unfolding and rewriting to reduce the loop expression into either the
-  loop body or exit *)
-Ltac reduce_loop :=
-  match goal with
-  (* We know the exact value of the loop guard; do a rewrite *)
-  | H : int.lt ?i2 ?i1 = _ |- context[loop _ _ ?i1 ?i2 _] =>
-      rewrite /loop H
-  (* Otherwise, see if we can compute the loop guard *)
-  | |- context[loop _ _ ?i1 ?i2 _] =>
-      rewrite /loop;
-      compute_if using
-        (rewrite ?lt_repr_repr; unfold representable in *; lia)
-  end.
+  (* ------------------------------------------------------------------------ *)
+  (* Working with the state interpretation invariant. *)
 
-(** *WP tactics for [rules.v]. *)
+  (* [intro_state] introduces [σ] and [state_interp σ]. *)
 
-Module wp_rules_tactics.
+  Ltac intro_state := iIntros (σ????) "Hsi".
 
-(* -------------------------------------------------------------------------- *)
+  (* -------------------------------------------------------------------------- *)
+  (** * Modality and mask (fupd) tactics *)
 
-(* Some tactics relevant to [step] relation *)
+  (* The Iris [wp] has mask-changing updates in order to enforce that during
+      a step of computation, no invariants can be opened. In order to control
+    the introduction of this mask change, and restore the mask, we provide
+    custom tactics analogous to "iModIntro" (here, [wp_mask_intro) and
+      "iMod [H]" (here, [wp_mask_elim]) (where [H] corresponds to a premise with
+      mask-changing information that restores the previous mask *)
 
-(* Try to search the environment if there is something known about the head of
-  the computation, i.e. [m] ; if so, try to extract as much information as
-  possible *)
-Tactic Notation "step_inv_aux" constr(m) constr(lem) tactic(tac) :=
-  (* Generate some fresh names *)
-  let Hred := fresh "Hred" in
-  let m' := fresh "m'" in
-  let Hstep' := fresh "Hstep'" in
-  match goal with
-    [ H' : reducible m _ |- _ ] =>
-      pose proof (reducible_not_val _ _ H') as Hred;
-      destruct lem as (m' & Hstep' & ->); [ by tac | ]
-  end.
+  (* Introduce a mask when there is a goal of shape (fupd E1 E2 _)
+      (i.e. The starting goal is of shape ⊢ |={E1, E2}=> P
+            and the updated goal is ⊢ P , where (|={E2, E1}=> emp) is introduced
+            as a premise)
 
-(* Invert hypotheses of the shape
-    [step (σ, bind _ _) _] and [step (σ, try _ _ _) _] *)
-Tactic Notation "step_inv" hyp(Hstep) :=
-  match type of Hstep with
-  | step (_, bind ?m _) _ =>
-      (step_inv_aux m (invert_step_bind Hstep) (apply to_outcome_is_not_ret))
-  | step (_, try ?m _ _) _ =>
-      (step_inv_aux m (invert_step_try Hstep) (apply can_step_reducible))
-  end.
+    The first mask [E1] indicates the set of invariants that can be opened
+    currently (i.e. before taking the mask-changing update) and the second mask
+    [E2] indicates the set of invariants that can be opened after the mask
+    change.
 
-(* Change goals of form [step _ _] to [prim_step _ _ _ _ _ ] *)
-Tactic Notation "to_prim_step" hyp(H) :=
-  match type of H with
-  | step (?σ, ?m) (?σ', ?m') =>
-      let H' := fresh "H'" in
-      rename H into H';
-      assert (H: prim_step m σ [] m' σ' []) by (constructor; eauto);
-      clear H'
-  end.
+    This tactic (through [fupd_mask_intro]) behaves as an "iModIntro" for
+    mask-changing updates and introduce a premise of shape (fupd E1 E2 emp).
+    This premise can be used later to restore the mask [E1] *)
 
-(* -------------------------------------------------------------------------- *)
+  Ltac ewp_mask_intro Hmod :=
+    iApply fupd_mask_intro; [ set_solver | ]; iIntros Hmod.
 
-(** *WP tactics. *)
+  (* Try to introduce modalities "as much as possible" *)
+  Ltac try_iModIntro :=
+    repeat iModIntro; try iNext; repeat iModIntro.
 
-Ltac wp_unfold_all :=
-  rewrite !wp_unfold /wp_pre /=.
+  (* Try to "cleanup" the goal; remove any modalities from the premise that can
+    be discharged trivially and then introduce any "straight forward" modalities
+    that can be introduced *)
+  Ltac ewp_cleanup_mod :=
+    repeat match goal with
+      | |- context[environments.Esnoc _
+                    ?Hmod (fupd empty empty _)] =>
+          iMod Hmod
+      end;
+    try_iModIntro.
 
-(* This tactic unfolds [wp] applied to the computation [m]. *)
 
-Ltac wp_unfold m :=
-  setoid_rewrite (wp_unfold _ _ m); rewrite /wp_pre /=.
-
-(* This tactic unfolds one occurrence of [wp] at the head of the goal. *)
-
-Ltac wp_unfold_head :=
-  iApply wp_unfold; rewrite /wp_pre /=.
-
-(* Reason about case analysis on [is_ret]*)
-Ltac destruct_is_ret :=
-  repeat match goal with
-    (* Inversion for if a computation is a ret *)
-    | [H : is_ret ?x = Some _ |- _] =>
-        apply invert_is_ret_Some in H;
-        try subst x
-    (* Inversion if some bind is equivalent to a return *)
-    | [H : bind _ _ = ret _ |- _] =>
-        let Hm := fresh "Hm_ret" in
-        let Hk := fresh "Hk_ret" in
-        let a := fresh "a" in
-        apply invert_bind_eq_ret in H;
-        destruct H as (a & Hm & Hk);
-        subst
-    (* Inversion if some try is equivalent to a return *)
-    | [H : try _ _ _ = ret _ |- _] =>
-        let Hm := fresh "Hm_ret" in
-        let Hk := fresh "Hk_ret" in
-        let a := fresh "a" in
-        apply invert_try_eq_ret_disj in H;
-        destruct H as [(a & Hm & Hk) | (a & Hm & Hk)];
-        subst
-    (* Absurd goal *)
-    | [H : is_not_ret (ret _) |- _] =>
-        by inversion H
-    end.
-
-Ltac destruct_is_throw :=
-  repeat match goal with
-    (* Inversion for if a computation is a ret *)
-    | [H : is_throw ?x = Some _ |- _] =>
-        apply invert_is_throw_Some in H;
-        try subst x
-    end.
-
-Ltac destruct_is_not_ret_or_throw :=
-  match goal with
-  (* Inversion for if a computation is not a [ret] or [throw] *)
-  | [H : is_not_ret ?a, H' : is_not_throw ?a |- _] =>
-      let Houtcome := fresh "Houtcome" in
-      pose proof (is_not_ret_or_throw_to_outcome a H H') as Houtcome
-  end.
-
-(* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
-   of the form [ret a], or it is not. In the second branch, the equality
-   [is_ret m = None] appears under the name [Hret]. *)
-
-Tactic Notation "wp_case_is_ret" constr(x) ident(Hret) :=
-  case_eq (is_ret x);
-  [ intros ? Hret;
-    try destruct_is_ret |
-    intros Hret;
-    try destruct_is_not_ret_or_throw].
-
-Tactic Notation "wp_case_is_ret" constr(x) :=
-  let Hret := fresh "Hret" in
-  wp_case_is_ret x Hret.
-
-(* [wp_case_is_throw m Hthrow] performs a case analysis on [m]: either it is
-   of the form [throw a], or it is not. In the second branch, the equality
-   [is_throw m = None] appears under the name [Hthrow]. *)
-
-Tactic Notation "wp_case_is_throw" constr(x) ident(Hthrow) :=
-  case_eq (is_throw x);
-  [ intros ? Hthrow;
-    try destruct_is_throw |
-    intros Hthrow;
-    try destruct_is_not_ret_or_throw ].
-
-Tactic Notation "wp_case_is_throw" constr(x) :=
-  let Hthrow := fresh "Hthrow" in
-  wp_case_is_throw x Hthrow.
-
-(* Working with the state interpretation invariant. *)
-
-(* [intro_state] introduces [σ] and [state_interp σ]. *)
-(* [spec_state H] specializes the hypothesis H with [state_interp σ]. *)
-
-Ltac intro_state := iIntros (σ????) "Hsi".
-
-Ltac spec_state :=
-  lazymatch goal with
-  | |- context [environments.Esnoc _ ?Hwp
-        (bi_forall (fun σ1 : store =>
-          bi_forall (fun _ : nat =>
-            bi_forall (fun κ : list nat =>
-              bi_forall (fun _ : list nat =>
-                bi_forall (fun _ : nat => bi_wand (store_interp σ1) _))))))] =>
-      match goal with
-      | |- context [environments.Esnoc _ ?SI (store_interp ?σ)] =>
-          let Hstep := fresh "Hstep" in
-          iSpecialize (Hwp $! _ 0%nat nil nil 0%nat with SI);
-          iMod Hwp;
-          iDestruct Hwp as (Hred) Hwp
-      end
-  end.
-
-(* Use one credit in a goal *)
-Ltac spec_credit H :=
-  match goal with
-  | |- context[environments.Esnoc _ ?Hc (lc 1)] =>
-      iSpecialize (H with Hc)
-  end.
-
-(* [tick_wp] is used when the goal is
-   [|==> ▷ (state_interp σ' ∗ wp E m' φ)]. *)
-
-Ltac tick_wp :=
-  iModIntro; iNext; iMod "Hwp"; iModIntro.
-(* -------------------------------------------------------------------------- *)
-
-(* Assert that [bind m1 m2] is not an outcome, deduced by [m1] not being an
-    outcome *)
-Tactic Notation "not_outcome:" "bind" constr(m1) constr(m2) :=
-  match goal with
-  | [H: to_outcome m1 = None |- _ ] =>
-      apply (to_outcome_None_bind m1 m2) in H;
-      try rewrite H
-  end.
-
-(* Assert that [try m _ _] is not an outcome, deduced by [m] not being an
-    outcome *)
-Tactic Notation "not_outcome:" "try" constr(m) constr(f) constr(h) :=
-  match goal with
-  | [H: to_outcome m = None |- _ ] =>
-      apply (to_outcome_None_try m f h) in H;
-      try rewrite H
-  end.
-
-(* Discharge pure subgoal that follows immediately by [tac] *)
-Tactic Notation "discharge_pure" tactic(tac) :=
-  match goal with
-  | |- environments.envs_entails _ (bi_sep (bi_pure _) _) =>
-      iSplitL ""; [ iPureIntro; by tac | ]
-  | |- environments.envs_entails _ (bi_sep  _ (bi_pure _)) =>
-      iSplitL ""; [ | iPureIntro; by tac ]
-  end.
-
-(* Discharge emp subgoal *)
-Ltac discharge_emp :=
-  match goal with
-  | |- environments.envs_entails _ (bi_sep emp _) =>
-      iSplitL ""; [ done | ]
-  | |- environments.envs_entails _ (bi_sep  _ emp) =>
-      iSplitR ""; [ | done ]
-  end.
-
-(* Conclude that some computation is reducible by information in the context *)
-Ltac reducible :=
-  (* Coq weirdness: Without this [idtac], the matched goal is not what you would
-    expect when this tactic is passed into [discharge_pure] *)
-  idtac
-  ;
-  try
-  match goal with
-  | [ |- match ?s with | NotStuck => _ | MaybeStuck => _ end] =>
-      destruct s; last done
-  end
-  ;
-  try progress
+  Ltac ewp_mask_elim :=
+    ewp_cleanup_mod;
     match goal with
-    | [ H : reducible ?m ?σ |- reducible (bind ?m _) ?σ] =>
-        apply (reducible_bind _ _ _ H)
-    | [ H : reducible ?m ?σ |- reducible (try ?m _ _) ?σ] =>
-        apply (reducible_try _ _ _ _ H)
-    | [ H : simp ?m1 ?m2 |- _ ] =>
-        epose proof (invert_simp_final _ H) as [|];
-        [ by prove_final |
-          subst; try destruct_is_ret; try destruct_is_throw |
-          by apply can_step_reducible ]
-    end
-  ;
-  try (apply can_step_reducible; eauto with step can_step)
-.
-
-(* -------------------------------------------------------------------------- *)
-(* More [wp] tactics *)
-
-Ltac wp_frame := iFrame; cbn; discharge_emp.
-
-(* [intro_step] introduces [prim_step] along with the new expression and state *)
-Ltac intro_step :=
-  let Hstep := fresh "Hstep" in
-  let efs := fresh "efs" in
-  iIntros (???efs Hstep) "H£";
-  destruct Hstep as (Hstep&?);
-  (* [efs] doesn't keep track of anything for now so it's trivial to substitute *)
-  subst efs.
-
-(* The following two tactics correspond to the branch [is_ret _ = None] in
-   the definition of [wp]. This branch is a conjunction
-     ⌜can_step (σ, m)⌝ ∗ ∀ σ' m', ...
-   [construct_wp_nonret] is used when this form appears in the goal.
-   [destruct_wp_nonret] is used when it appears in the hypothesis "Hwp". *)
-
-Ltac construct_wp_nonret :=
-  (* Prove [can_step]: *)
-  (discharge_pure reducible);
-  (* Introduce a hypothetical step: *)
-  intro_step.
-
-(* -------------------------------------------------------------------------- *)
-(** * Modality and mask (fupd) tactics *)
-
-(* The Iris [wp] has mask-changing updates in order to enforce that during
-    a step of computation, no invariants can be opened. In order to control
-   the introduction of this mask change, and restore the mask, we provide
-   custom tactics analogous to "iModIntro" (here, [wp_mask_intro) and
-    "iMod [H]" (here, [wp_mask_elim]) (where [H] corresponds to a premise with
-    mask-changing information that restores the previous mask *)
-
-(* Introduce a mask when there is a goal of shape (fupd E1 E2 _)
-    (i.e. The starting goal is of shape ⊢ |={E1, E2}=> P
-          and the updated goal is ⊢ P , where (|={E2, E1}=> emp) is introduced
-          as a premise)
-
-   The first mask [E1] indicates the set of invariants that can be opened
-   currently (i.e. before taking the mask-changing update) and the second mask
-   [E2] indicates the set of invariants that can be opened after the mask
-   change.
-
-   This tactic (through [fupd_mask_intro]) behaves as an "iModIntro" for
-   mask-changing updates and introduce a premise of shape (fupd E1 E2 emp).
-   This premise can be used later to restore the mask [E1] *)
-Ltac wp_mask_intro Hmod :=
-  iApply fupd_mask_intro; [ set_solver | ]; iIntros Hmod.
-
-(* Try to introduce modalities "as much as possible" *)
-Ltac try_iModIntro :=
-  repeat iModIntro; try iNext; repeat iModIntro.
-
-(* Try to "cleanup" the goal; remove any modalities from the premise that can
-   be discharged trivially and then introduce any "straight forward" modalities
-  that can be introduced *)
-Ltac wp_cleanup_mod :=
-  repeat match goal with
-    | |- context[environments.Esnoc _
-                  ?Hmod (fupd empty empty _)] =>
-        iMod Hmod
+    | |- environments.envs_entails _ (fupd ?mask1 ?mask2 _) =>
+      try match goal with
+        | |- context[environments.Esnoc _ ?Hmod (fupd mask1 mask2 emp)] =>
+            iMod Hmod as "_"
+        end
     end;
-  try_iModIntro.
+    ewp_cleanup_mod.
 
-(* Try to restore a mask from a previous mask update. *)
-Ltac wp_mask_elim :=
-  wp_cleanup_mod;
-  match goal with
-  | |- environments.envs_entails _ (fupd ?mask1 ?mask2 _) =>
-    try match goal with
-      | |- context[environments.Esnoc _ ?Hmod (fupd mask1 mask2 emp)] =>
-          iMod Hmod as "_"
-      end
-  end;
-  wp_cleanup_mod.
+  (* ------------------------------------------------------------------------ *)
+  (* [intro_step] introduces [prim_step] along with the new expression and state *)
+  Ltac intro_step :=
+    let Hstep := fresh "Hstep" in
+    iIntros (???Hstep).
 
-(* -------------------------------------------------------------------------- *)
-(** *WP step tactics *)
+  (* Discharge pure subgoal that follows immediately by [tac] *)
+  Tactic Notation "discharge_pure" tactic(tac) :=
+    match goal with
+    | |- environments.envs_entails _ (bi_sep (bi_pure _) _) =>
+        iSplitL ""; [ iPureIntro; by tac | ]
+    | |- environments.envs_entails _ (bi_sep  _ (bi_pure _)) =>
+        iSplitL ""; [ | iPureIntro; by tac ]
+    end.
 
-Ltac wp_try_step := try construct_wp_nonret; destruct_step.
-Ltac wp_try_final_step := try construct_wp_nonret; simp_final_step_diagram.
+  Ltac construct_wp_nonret :=
+    (* Prove [can_step]: *)
+    (discharge_pure (auto with step can_step));
+    (* Introduce a hypothetical step: *)
+    intro_step.
 
-(* Try to take a step of [wp] for goals of shape
-    [⊢ WP e {{ v, Ψ v }}] where [e] is known to take a step, and generate
-    appropriate [WP] subgoals for each possible step. *)
-Ltac wp_step :=
-  try wp_unfold_head; try intro_state;
-  (* Introduce mask for entering into WP *)
-  wp_mask_intro "Hmod";
-  (* Try to step, possibly generating multiple subgoals if there is more than
-     one way of stepping *)
-  wp_try_step;
-  (* Eliminate mask to "exit" WP *)
-  wp_mask_elim;
-  (* Frame state interp *)
-  try wp_frame.
+  Ltac inv H := inversion H; subst; clear H.
 
-(* We enter into the WP of the goal, eliminate modalities, use the fact
-  that the program can be the final step of a diagram and frame the state
-  interp. *)
-Ltac wp_final_step_diagram :=
-  try wp_unfold_head; try intro_state;
-  (* Introduce mask for entering into WP *)
-  wp_mask_intro "Hmod";
-  (* Try to step in a unique way *)
-  wp_try_final_step;
-  (* Eliminate mask to "exit" WP *)
-  wp_mask_elim;
-  (* Frame state interp *)
-  try wp_frame.
+  Ltac destruct_stop_code :=
+    match goal with
+    | [H: is_handleable (Stop ?c _ _) = Some _ |- _] =>
+        destruct c; try done
+    end.
 
-(* Try to take a step of [wp] but leave the mask associated with [Hmod] unresolved *)
-Tactic Notation "wp_step_mask" constr(Hmod) :=
-  try wp_unfold_head; try intro_state;
-  wp_mask_intro Hmod; wp_try_step.
+  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hhm) :=
+    case_eq (is_handleable x);
+    [ intros ? Hhm; destruct x;
+      try destruct_stop_code;
+      try (inversion Hhm; subst; clear Hhm);
+      try solve [by destruct_step] |
+      intros Hhm ].
 
-(* -------------------------------------------------------------------------- *)
-(* Specialize hypothesis that expects a [step] relation and extract out
+  Tactic Notation "ewp_case_is_handleable" constr(x) :=
+    let Hhm := fresh "Hhm" in
+    ewp_case_is_handleable x Hhm.
+
+
+  Ltac spec_state :=
+    lazymatch goal with
+    | |- context
+          [environments.Esnoc _ ?Hwp
+             (bi_forall (fun σ1 : store =>
+              bi_forall (fun _ : nat =>
+              bi_forall (fun κ : list nat =>
+              bi_forall (fun _ : list nat =>
+              bi_forall (fun _ : nat => bi_wand (osiris_state_interp σ1) _))))))]  =>
+        match goal with
+        | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
+            let Hstep := fresh "Hstep" in
+            iSpecialize (Hwp $! σ 0%nat nil nil 0%nat with SI);
+            try (iMod Hwp;
+                 iDestruct Hwp as (Hred) Hwp)
+        end
+    end.
+
+  (* Specialize hypothesis that expects a [step] relation and extract out
     information *)
-Ltac spec_step :=
-  match goal with
+  Ltac spec_step :=
+    match goal with
     | |- context[environments.Esnoc _ ?Hwp
-        (bi_forall (fun _ : micro _ _ =>
-            bi_forall (fun _ : store =>
-              bi_forall (fun κ : list _ =>
-                bi_wand (bi_pure (wp.prim_step ?m ?σ _ _ _ _)) _))))] =>
-      match goal with
-      | [Hstep : step (σ, m) _ |- _] =>
-          to_prim_step Hstep;
-          (* Specialize step relation *)
-          iSpecialize (Hwp $! _ _ _ Hstep);
-          spec_credit Hwp;
-          (* Destruct the hypothesis *)
-          iMod Hwp;
-          tick_wp;
-          iMod Hwp as "[SI [Hwp _]]"
-      end
-  end.
+        (bi_forall (fun σ'0 =>
+        bi_forall (fun m' =>
+        bi_wand (bi_pure (step (pair ?σ ?m) _)) _)))] =>
+        match goal with
+        | [Hstep : step (σ, m) _ |- _] =>
+            (* Specialize step relation *)
+            iSpecialize (Hwp $! _ _ Hstep);
+            (* Destruct the hypothesis *)
+            iMod Hwp
+        end
+    end.
 
-(* -------------------------------------------------------------------------- *)
-(* Misc tactics *)
+  (* ------------------------------------------------------------------------ *)
 
-Ltac to_outcome_is_Some Hm :=
-  apply to_outcome_is_Some in Hm;
-  destruct Hm as [ (?&?&?) | (?&?&?) ]; subst.
+  (* Reason about case analysis on [is_ret]*)
+  Ltac destruct_is_ret :=
+    repeat match goal with
+      (* Inversion for if a computation is a ret *)
+      | [H : is_ret ?x = Some _ |- _] =>
+          apply invert_is_ret_Some in H;
+          try subst x
+      (* Inversion if some bind is equivalent to a return *)
+      | [H : bind _ _ = ret _ |- _] =>
+          let Hm := fresh "Hm_ret" in
+          let Hk := fresh "Hk_ret" in
+          let a := fresh "a" in
+          apply invert_bind_eq_ret in H;
+          destruct H as (a & Hm & Hk);
+          subst
+      (* Inversion if some try is equivalent to a return *)
+      | [H : try _ _ _ = ret _ |- _] =>
+          let Hm := fresh "Hm_ret" in
+          let Hk := fresh "Hk_ret" in
+          let a := fresh "a" in
+          apply invert_try_eq_ret_disj in H;
+          destruct H as [(a & Hm & Hk) | (a & Hm & Hk)];
+          subst
+      (* Absurd goal *)
+      | [H : is_not_ret (ret _) |- _] =>
+          by inversion H
+      end.
 
-End wp_rules_tactics.
+  Ltac destruct_is_throw :=
+    repeat match goal with
+      (* Inversion for if a computation is a ret *)
+      | [H : is_throw ?x = Some _ |- _] =>
+          apply invert_is_throw_Some in H;
+          try subst x
+      end.
+
+  (* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
+    of the form [ret a], or it is not. In the second branch, the equality
+    [is_ret m = None] appears under the name [Hret]. *)
+  (* TODO cleanup *)
+
+  Tactic Notation "wp_case_is_ret" constr(x) ident(Hret) :=
+    case_eq (is_ret x);
+    [ intros ? Hret;
+      try destruct_is_ret |
+      intros Hret].
+
+  Tactic Notation "wp_case_is_ret" constr(x) :=
+    let Hret := fresh "Hret" in
+    wp_case_is_ret x Hret.
+
+  (* [wp_case_is_throw m Hthrow] performs a case analysis on [m]: either it is
+    of the form [throw a], or it is not. In the second branch, the equality
+    [is_throw m = None] appears under the name [Hthrow]. *)
+
+  Tactic Notation "wp_case_is_throw" constr(x) ident(Hthrow) :=
+    case_eq (is_throw x);
+    [ intros ? Hthrow;
+      try destruct_is_throw |
+      intros Hthrow].
+
+  Tactic Notation "wp_case_is_throw" constr(x) :=
+    let Hthrow := fresh "Hthrow" in
+    wp_case_is_throw x Hthrow.
+
+End ewp_rules_tactics.

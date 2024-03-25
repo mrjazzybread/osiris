@@ -48,7 +48,7 @@ Lemma simp_evals η :
   Forall2 (λ e v, simp (eval η e) (ret v)) es vs →
   simp (evals η es) (ret vs).
 Proof.
-  induction 1; simpl; simp. (* nice and sweet! *)
+  induction 1; simpl; simp.
 Qed.
 
 (* This lemma is general but does not mention the encoding function,
@@ -73,7 +73,7 @@ Lemma simp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
   simp (eval η e2) (ret #a2) →
   simp (eval η (EPair e1 e2)) (ret #(a1, a2)).
 Proof.
-  intros. simp. (* wow *)
+  intros. simp.
 Qed.
 
 Lemma simp_eval_tuple' η es vs :
@@ -156,7 +156,8 @@ Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntLand e1 e2)) (ret #(Z.land z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl. unfold as_int.
+  eapply simp_par; simp.
 Qed.
 
 Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
@@ -193,6 +194,7 @@ Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsl_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -205,6 +207,7 @@ Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -217,6 +220,7 @@ Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl. unfold as_int. simp.
+  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite asr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -309,16 +313,16 @@ Qed.
 (* Reasoning rules for [pure (eval _ _) _], that is,
    for pure expressions with an arbitrary postcondition. *)
 
-Lemma pure_Eval `{Encode X} η e k ko (φ : X -> Prop) :
-  pure (try (eval η e) k ko) φ ->
-  pure (Stop CEval (η, e) k ko) φ.
+Lemma pure_Eval `{Encode X} η e k (φ : X -> Prop) :
+  pure (try2 (eval η e) k) φ ->
+  pure (X := X) (Stop CEval (η, e) k) φ.
 Proof.
   intros. eapply pure_simp; [ simp | eauto ].
 Qed.
 
 Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
   pure (eval η e) φ ->
-  pure (Stop CEval (η, e) ret throw) φ.
+  pure (Stop CEval (η, e) inject2) φ.
 Proof.
   intros. eapply pure_simp; [ simp | eauto ].
 Qed.
@@ -445,8 +449,7 @@ Proof.
   intros.
   destruct_pure v2; destruct_pure v1; destruct_pure vf'; subst.
   eapply pure_simp; [ simp | eauto ].
-  eapply pure_bind_unary with (A:=val).
-  assumption.
+  eapply pure_bind; eauto.
 Qed.
 
 Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
@@ -603,11 +606,24 @@ Lemma simp_wrap {A E E'} (m : micro A E) (a : A) :
   simp (try m ret (λ (_ : E), @Crash A E')) (ret a) -> simp m (ret a).
 Proof.
   intros H.
-  apply invert_simp_try_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+  apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
   { apply destruct_simp_ret in simp_ret_ret.
     by (injection simp_ret_ret; intros ->). }
   { apply destruct_simp_crash in simp_crash_ret. (* TODO: rename to invert_simp_crash *)
     congruence. }
+Qed.
+
+Lemma simp_widen {A E} (m : micro A void) (a : A) :
+  simp (E := E) (widen m) (ret a) <-> simp m (ret a).
+Proof.
+  split.
+  { intros H.
+    apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
+    { apply destruct_simp_ret in simp_ret_ret.
+      by (injection simp_ret_ret; intros ->). }
+    { done. } }
+  { intros. unfold widen.
+    eapply prove_simp_try; simp. }
 Qed.
 
 Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
@@ -619,9 +635,10 @@ Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
   intros. simp; last eassumption.
-  eapply prove_simp_try; last apply SimpReflexive.
+  eapply prove_simp_try2; last apply SimpReflexive.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
   unfold irrefutably_extend in *.
+  eapply prove_simp_try2; last apply SimpReflexive.
   eapply prove_simp_bind. { eauto using simp_wrap. }
   rewrite bind_bind.
   simpl. rewrite bind_ret_right. eauto using simp_wrap.
@@ -631,8 +648,8 @@ Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
-          δ ← irrefutably_extend [] p1 #v1;
-          θ ← irrefutably_extend δ p2 #v2;
+          δ ← widen (irrefutably_extend [] p1 #v1);
+          θ ← widen (irrefutably_extend δ p2 #v2);
           eval (θ ++ η) e2
         ) ψ) ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
@@ -642,7 +659,8 @@ Proof.
   eapply invert_simp_bind_ret in Hsimp as (δ & Hv1 & Hsimp).
   eapply invert_simp_bind_ret in Hsimp as (θ & Hv2 & Hx).
   eapply pure_simp.
-  { eapply simp_eval_let_pair; eauto using prove_simp_bind. }
+  { eapply simp_eval_let_pair; eauto using prove_simp_bind.
+    eapply prove_simp_bind; eapply simp_widen; eauto. }
   eapply pure_ret; eauto.
 Qed.
 
@@ -857,7 +875,7 @@ Proof.
   intros.
   destruct_pure cv.
   eapply pure_simp.
-  { eapply prove_simp_bind; eauto. }
+  { eapply prove_simp_bind; eauto. apply simp_widen; eauto. }
   eapply pure_ret; eauto.
 Qed.
 
@@ -867,7 +885,7 @@ Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
 Proof.
   intros. destruct_pure v.
   eapply pure_simp.
-  rewrite eval_eval'; eauto.
+  rewrite eval_eval'; cbn; eapply simp_widen; eauto.
   eapply pure_ret; eauto.
 Qed.
 

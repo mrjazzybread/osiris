@@ -257,10 +257,10 @@ Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
 
 Goal (trivial (EMatch (EPath ["l"]) [])). Abort.
 
-Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch (CVal PAny) (EInt 1)])). Abort.
 
 Goal (trivial
-        (EMatch (EPath ["l"]) [Branch PAny (EInt 1); Branch PAny 2])).
+        (EMatch (EPath ["l"]) [Branch (CVal PAny) (EInt 1); Branch (CVal PAny) 2])).
 Abort.
 
 Notation "'|' pat '->' e" :=
@@ -269,12 +269,12 @@ Notation "'|' pat '->' e" :=
       only printing,
       format "'|'  pat  '->'  '[' '/' e ']'").
 
-Goal (trivial (EMatch (EPath ["l"]) [Branch PAny (EInt 1)])). Abort.
+Goal (trivial (EMatch (EPath ["l"]) [Branch (CVal PAny) (EInt 1)])). Abort.
 
 Goal (trivial
         (EMatch
            (EPath ["l"])
-           [Branch PAny
+           [Branch (CVal PAny)
               (ESeq
                  (EApp (EPath ["f"]) (EPath ["x"]))
                  (ESeq
@@ -285,11 +285,11 @@ Goal (trivial
                     )
                  )
               );
-            Branch PAny 2]
+            Branch (CExc PAny) 2]
      )).
 Abort.
 
-Goal (trivial (Branch PAny 2)). Abort.
+Goal (trivial (Branch (CVal PAny) 2)). Abort.
 
 (* -------------------------------------------------------------------------- *)
 (* [Stop]-related notations. *)
@@ -360,25 +360,24 @@ Global Arguments eval _ _%expr_scope.
 
 (* Notation for osiris contexts on pure propositions *)
 
-Notation "Γ '--------------------------------------env' e { Q }" :=
-  (pure (eval Γ e%expr) Q)
-  (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+(* Notation "Γ '--------------------------------------env' e { Q }" := *)
+(*   (pure (eval Γ e%expr) Q) *)
+(*   (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
 
 
-Notation "'--------------------------------------env' e { Q }" :=
-  (pure e Q)
-  (only printing, at level 100,
-      format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'").
+(* Notation "'--------------------------------------env' e { Q }" := *)
+(*   (pure e Q) *)
+(*   (only printing, at level 100, *)
+(*       format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
+
+(* Notation "Γ '--------------------------------------env' module me { Q }" := *)
+(*   (eval_module Γ me Q) *)
+(*     (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' module  me '//' '//' {  Q  } ']'"). *)
 
 
-Notation "Γ '--------------------------------------env' 'module' me { Q }" :=
-  (eval_module Γ me Q)
-    (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' 'module'  me '//' '//' {  Q  } ']'").
-
-
-Notation "Γ '--------------------------------------env' 'struct_items' bs { Q }" :=
-  (struct_items (Γ, _) bs Q)
-    (only printing, at level 100,
-      format "'[' Γ '//' '--------------------------------------env' '//' 'struct_items'  bs '//' '//' {  Q  } ']'").
+(* Notation "Γ '--------------------------------------env' struct_items bs { Q }" := *)
+(*   (struct_items (Γ, _) bs Q) *)
+(*     (only printing, at level 100, *)
+(*       format "'[' Γ '//' '--------------------------------------env' '//' struct_items  bs '//' '//' {  Q  } ']'"). *)

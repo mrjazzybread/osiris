@@ -4,6 +4,8 @@ From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
 From osiris.logic Require Import orders.
+From osiris.program_logic Require Import ewp.
+From osiris.proofmode Require Import ewp_tactics.
 From osiris.stdlib Require Import Externals.
 
 Local Transparent encode.
@@ -37,7 +39,6 @@ Local Notation VClo2 body :=
   ).
 
 Section StdLib__code.
-  Context `{!osirisGS Σ}.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -98,12 +99,22 @@ Section StdLib__code.
        EVar "y"
       ).
 
+  Axiom Stdlib__raise : val.
+  (* An equational specification for a [raise] function,
+   which throws an exception. *)
+
+  Axiom raise_spec :
+    ∀ (e : exn),
+      call Stdlib__raise e = throw e.
+
   Definition Stdlib_misc_env : env :=
     [("=", Stdlib__eq);
      ("<>", Stdlib__ne);
      ("compare", Stdlib__compare);
+     ("raise", Stdlib__raise);
      ("fst", Stdlib__fst);
      ("snd", Stdlib__snd)].
+
 
   (* ------------------------------------------------------------------------ *)
 
@@ -188,28 +199,16 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
   ∀ (x y : A),
-  pure (call compare #x) (λ v,
-      pure (call v #y) (λ (c : Z),
-          representable c ∧
-            (c < 0 ↔ lt x y) ∧
-            (c = 0 ↔ eq x y) ∧
-            (0 < c ↔ lt y x)
-        )
-    ).
+    pure (call compare #x) (λ v,
+        pure (call v #y) (λ (c : Z),
+            representable c ∧
+              (c < 0 ↔ lt x y)%Z ∧
+              (c = 0 ↔ eq x y)%Z ∧
+              (0 < c ↔ lt y x)%Z
+          )
+      ).
 
 (* -------------------------------------------------------------------------- *)
-
-(* TODO specify every pure function using [pure], not [WP]. *)
-
-(* The following specification lemmas are no longer used,
-   since [simp] now steps into calls to concrete closures. *)
-
-(* TODO The proofs of these lemmas should be one-liners.
-        If they are not then our tactics need improvements. *)
-
-Section Stdlib__specs.
-
-Context `{!osirisGS Σ}.
 
 Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
@@ -259,7 +258,7 @@ Qed.
 
 Lemma Stdlib__ge_spec :
   decide_spec Stdlib__ge representable (λ x y, Z.le y x).
-                                       (* avoid [Z.ge] *)
+(* avoid [Z.ge] *)
 Proof.
   intros x Hx. pure_enter. intros y Hy. pure_enter.
   rewrite lt_repr_repr; try assumption.
@@ -267,25 +266,39 @@ Proof.
   tauto.
 Qed.
 
-Lemma Stdlib__ref__spec v :
+(* -------------------------------------------------------------------------- *)
+
+(* TODO specify every pure function using [pure], not [WP]. *)
+
+(* The following specification lemmas are no longer used,
+   since [simp] now steps into calls to concrete closures. *)
+
+(* TODO The proofs of these lemmas should be one-liners.
+        If they are not then our tactics need improvements. *)
+
+Section Stdlib__specs.
+
+  Context `{!osirisGS Σ} `{@protocol_wf Σ P}.
+
+Lemma Stdlib__ref__spec (v : val) :
   {{{ True }}}
     call Stdlib__ref v
-  {{{ (l : loc), RET #l ; (l ↦ v : iPropI Σ) }}}.
+  {{{ (l : loc), RET #l ; (l ↦ V v : iPropI Σ) }}}.
 Proof.
   iIntros (φ) "_ Hpost".
-  wp_enter. wp_simp.
-  wp_alloc l "[Hl _]".
+  Simp. Alloc l "Hl".
+  cbn. Ret.
   iApply "Hpost". iFrame.
 Qed.
 
 Lemma Stdlib__load__spec l v :
-  {{{ l ↦ v }}}
+  {{{ l ↦ V v }}}
     call Stdlib__load #l
-  {{{ v, RET v ; l ↦ v }}}.
+  {{{ v, RET v ; l ↦ V v }}}.
 Proof.
   iIntros (φ) "Hl Hpost".
-  wp_enter. wp_simp.
-  wp_load "Hl".
+  Simp. ewp_tactics.Load "Hl".
+  iIntros "Hl". cbn. Ret.
   iApply "Hpost". iFrame.
 Qed.
 
@@ -296,21 +309,22 @@ Lemma Stdlib__store__spec (l : loc) (v v' : val) :
   pure
     (call Stdlib__store #l)
     (λ c,
-      {{{ l ↦ v }}}
+      {{{ l ↦ V v }}}
         call c v'
-      {{{ (v : val), RET #tt; l ↦ v' }}}
+      {{{ (v : val), RET #tt; l ↦ V v' }}}
     ).
 Proof.
   pure1.
   iIntros (φ) "Hl Hpost".
-  wp_enter. wp_simp.
-  wp_store "Hl". cbn.
+  Simp.
+  Store "Hl". cbn. iIntros "Hl". Ret.
   by iSpecialize ("Hpost" $! (VArray nil) with "Hl").
 Qed.
 
 End Stdlib__specs.
 
 (* -------------------------------------------------------------------------- *)
+
 
 (* TODO WIP *)
 
@@ -326,7 +340,7 @@ End Stdlib__specs.
 
 Local Lemma experiment_add :
   ∀ (x y : Z),
-  simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(x + y)).
+  simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(Z.add x y)).
 Proof.
   intros. simp.
     (* Even though [call] is opaque, the tactic [simp] is able to step

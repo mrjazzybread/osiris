@@ -14,12 +14,68 @@ From osiris.semantics Require Import code eval simplification pure.
    results in an extended environment that satisfies [φ]
    or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
+Definition cpattern η p o (φ : env -> Prop) (ψ : Prop) :=
+  total (cextend η p o) φ (λ (_ : unit), ψ).
+
 Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
   total (extend η p v) φ (λ (_ : unit), ψ).
 
 Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
   total (extends η ps vs) φ (λ (_ : unit), ψ).
 
+
+(* A consequence rule. *)
+
+Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  (ψ → ψ') →
+  pattern η p v φ' ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
+  pattern η p v φ ψ →
+  (ψ → ψ') →
+  pattern η p v φ ψ'.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
+Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
+  patterns η ps vs φ ψ →
+  (ψ → ψ') →
+  patterns η ps vs φ ψ'.
+Proof.
+  unfold patterns. eauto using total_consequence.
+Qed.
+
+Lemma cpat_CVal η p v φ ψ :
+  pattern η p v φ ψ ->
+  cpattern η (CVal p) (O2Ret v) φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_CExc η p v φ ψ :
+  pattern η p v φ ψ ->
+  cpattern η (CExc p) (O2Throw v) φ ψ.
+Proof.
+  tauto.
+Qed.
+
+Lemma cpat_COr η cp1 cp2 o φ ψ1 ψ2 :
+  cpattern η cp1 o φ ψ1 ->
+  cpattern η cp2 o φ ψ2 ->
+  cpattern η (COr cp1 cp2) o φ (ψ1 /\ ψ2).
+Proof.
+  unfold cpattern. intros.
+  eapply total_orelse; [ eassumption | ].
+  eauto using total_consequence.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of structure items. *)
 
@@ -53,33 +109,6 @@ Definition coerces c η (φ : env -> Prop) :=
                                        | _ => False
                                        end).
 
-
-(* -------------------------------------------------------------------------- *)
-
-Lemma pat_consequence η p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
-  (∀ η, φ η → φ' η) →
-  (ψ → ψ') →
-  pattern η p v φ' ψ'.
-Proof.
-  unfold pattern. eauto using total_consequence.
-Qed.
-
-Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
-  pattern η p v φ ψ →
-  (ψ → ψ') →
-  pattern η p v φ ψ'.
-Proof.
-  unfold pattern. eauto using total_consequence.
-Qed.
-
-Lemma pats_consequence_psi η ps vs φ (ψ ψ' : Prop) :
-  patterns η ps vs φ ψ →
-  (ψ → ψ') →
-  patterns η ps vs φ ψ'.
-Proof.
-  unfold patterns. eauto using total_consequence.
-Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -152,8 +181,8 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
                    δ0 = [(name, clo)] ++ δ) .
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { apply SimpParRetRightThrow. }
-  eapply totalv_bind. { eapply pure_totalv; eassumption. }
+  eapply totalv_simp. { apply SimpParRetRight. }
+  eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros ? (? & -> & Hextend).
   eapply totalv_ret. eauto.
 Qed.
@@ -164,11 +193,12 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
   intros; unfold struct_item; simpl.
-  eapply totalv_simp. { apply SimpParRetRightThrow. }
-  eapply totalv_bind. { eapply pure_totalv; eassumption. }
+  eapply totalv_simp. { apply SimpParRetRight. }
+  eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v (? & -> & Hextend).
   eapply totalv_bind.
-  { unfold pattern in Hextend. unfold irrefutably_extend.
+  { unfold pattern in Hextend. unfold irrefutably_extend; cbn.
+    rewrite totalv_widen.
     eapply totalv_try; [ eassumption | ].
     eauto using totalv_ret. }
   auto using totalv_ret.
@@ -208,7 +238,8 @@ Proof.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
-    intros []; try contradiction; eauto using totalv_ret. }
+    intros []; try contradiction; rewrite totalv_widen;
+    eauto using totalv_ret. }
   eauto using totalv_ret.
 Qed.
 
@@ -222,7 +253,8 @@ Proof.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
-    intros []; try contradiction; eauto using totalv_ret. }
+    intros []; try contradiction; rewrite totalv_widen;
+      eauto using totalv_ret. }
   eauto using totalv_ret.
 Qed.
 
@@ -272,7 +304,8 @@ Lemma module_path η π φ :
                                  end) ->
   eval_module η (MPath π) φ.
 Proof.
-  unfold module; simpl; intros.
+  unfold eval_module; simpl; intros.
+  rewrite totalv_widen.
   eapply totalv_consequence; [ eassumption | ].
   auto.
 Qed.
@@ -284,7 +317,8 @@ Lemma module_coercion η me c φ :
 Proof.
   unfold module. intros. simpl.
   eapply totalv_bind; [ eassumption | ].
-  intros []; try contradiction; unfold coerces in *; auto.
+  intros []; try contradiction; rewrite totalv_widen;
+    unfold coerces in *; auto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -301,10 +335,9 @@ Proof.
   destruct_pure a.
   eapply totalv_simp.
   { eapply SimpPar; eauto with simp. }
-  eapply totalv_simp; [ apply SimpParRetLeftThrow | ].
-  eapply totalv_bind; [ eassumption | ].
-  intros η' Hη'.
-  rewrite bind_ret.
+  eapply totalv_simp; [ apply SimpParRetLeft | ].
+  eapply totalv_try2; [ eassumption | ].
+  intros η' Hη'. cbn. rewrite totalv_widen.
   eapply totalv_try.
   { by apply Hcov. }
   intros. by apply total_ret.

@@ -63,7 +63,10 @@ Definition let_spec {Σ} (module_val : val) (name : var) (spec : val -> iProp Σ
   (* The module value must be a [VStruct]. *)
   match module_val with | VStruct l => _let_spec l | _ => False end.
 
+From osiris.program_logic Require Import ewp protocols protocol_instance.
+
 Section fact_rec_example.
+
   Context `{!osirisGS Σ}.
 
   (** *Factorial specification and proof *)
@@ -88,7 +91,7 @@ Section fact_rec_example.
   (* At each invocation of a factorial, we compute the if guard condition and
     reduce the expression until arrive at the base case *)
   Local Ltac simpl_fact :=
-    repeat (wp;
+    repeat (
     rewrite ?sub_repr_repr;
     match goal with
       | |- context [if ?b then _ else _] =>
@@ -98,27 +101,23 @@ Section fact_rec_example.
         [ rewrite eq_repr_repr ; [ done | representable | representable ] | ])
     end).
 
-  (* IY: For now, we're using the old [wp] tactics that we would like to revamp.. *)
   Example fact_rec_5_correct :
-    ⊢ WP fact_rec_5 {{ RET v, fact_rec_5_spec v }}.
+    ⊢ EWP fact_rec_5 <| prot_bottom |> {{ RET v, fact_rec_5_spec v }}.
   Proof.
-    wp.
+    iStartProof; rewrite /fact_rec_5. simpl.
 
-    (* Reduce each call to [fact] *)
-    simpl_fact.
+    repeat (Simp; Bind; simpl_fact).
 
-    (* We have reached the postcondition; conclude *)
-    wp_bind.
-    cbn; rewrite /fact_rec_5_spec; iPureIntro.
+    Simp.
 
-    (* Reduce down arithmetic expr *)
+    repeat Ret; iPureIntro.
+
     match goal with
-      | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
+      | |- VInt ?i = #?x => assert (i = repr x) as ->
     end.
-    { rewrite !mul_repr_repr; f_equiv; lia. }
-
+    { rewrite !mul_repr_repr; f_equiv. lia. }
     done.
-  Qed.
+  Qed. (* [Qed] time around ~1 second *)
 
   (* --------------------------------------------------------------------- *)
   (* Next is the specification of the stateful implementation of factorial. *)
@@ -137,45 +136,48 @@ Section fact_rec_example.
     let_spec v "fact_5" _spec.
 
   Example fact_5_correct :
-    ⊢ WP fact_5 {{ RET v, fact_5_spec v }}.
+    ⊢ EWP fact_5 <| prot_bottom |> {{ RET v, fact_5_spec v }}.
   Proof.
-    (* TODO: Can we skip proofs for functions that are not relevant? *)
-    (* Processing [fact_rec] *)
-    wp.
-
-    (* We get to the [fact_rec] *)
+    iStartProof.
+    rewrite /fact_rec_5 /eval_mexpr; cbn.
+    Par; cbn.
 
     (* Allocate a new variable that stores the dummy function value *)
-    wp_alloc factv "[Hfact _]". (* IY: Why do we get a [meta_token] here? *)
-
-    wp.
+    Alloc factv "Hfact"; Simp.
 
     (* We store the value of [fact0] that ties the recursive knot. *)
-    wp_store "Hfact".
+    Store "Hfact".
 
-    (* Reduce each call to [fact_rec] *)
-    simpl_fact.
+    iIntros "Hfactv"; Simp.
 
-    (* TODO: shouldn't need to use all of [wp/wp_bind/wp_continue] *)
-    wp_bind.
+    (* Symbolic execution *)
+    repeat (simpl_fact; Bind; Simp).
+    repeat (Ret; cbn).
+
+    Par. Bind.
 
     (* Reduce each call to [fact] *)
-    repeat (simpl_fact; wp; wp_load "Hfact").
+    simpl_fact. Simp.
+    ewp_tactics.Load "Hfactv". iIntros "Hfactv".
 
-    simpl_fact.
+    (* More symbolic execution, then loading and reading the information each time *)
+    repeat (Simp; simpl_fact; Bind; Simp;
+      ewp_tactics.Load "Hfactv"; iIntros "Hfactv").
 
-    wp_bind; cbn; wp.
+    Bind; cbn; Simp;
+    simpl_fact; Simp.
+    repeat (Ret; cbn).
 
-    (* Deal with [ipure] goals somehow (TODO: ipure goals look ugly..) *)
-    cbn; rewrite /fact_rec_5_spec; iPureIntro.
-
-    (* Reduce down arithmetic expr *)
+    iPureIntro.
     match goal with
       | |- VInt ?i = VInt (repr ?x) => assert (i = repr x) as ->
     end.
     { rewrite !mul_repr_repr; f_equiv. lia. }
     done.
-  Qed. (* Long QED time for some reason *)
+  Qed.
+  (* TODO: Avoid term explosion;
+
+      Finished transaction in 3.829 secs (3.733u,0.095s) (successful) *)
 
 End fact_rec_example.
 
@@ -190,26 +192,3 @@ End fact_rec_example.
            => the reasoning will be pushed down to [pure] for [fact_rec]
 
      (2) Prove a simulation between [fact_rec] and [fact], ignoring store *)
-
-(* --------------------------------------------------------------------- *)
-
-From iris Require Import program_logic.adequacy.
-From osiris Require Import program_logic.adequacy.
-
-(** * Adequacy sanity check
-
-  Instantiating concrete example program for adequacy
-
-  Following instantiation of a concrete program in heap_lang; see
-  https://gitlab.mpi-sws.org/iris/iris/-/blob/master/tests/one_shot.v?ref_type=heads *)
-
-Lemma client_adequate σ :
-  adequate NotStuck fact_5 σ (λ v _, True).
-Proof.
-  apply (osiris_adequacy osirisΣ)=> ?.
-  iApply wp_mono; last iApply fact_5_correct; iIntros; done.
-Qed.
-
-(* Print Assumptions client_adequate. *)
-(* Some assumptions about integers, funext and eqdep.
-    Free of iris-related assumptions. *)
