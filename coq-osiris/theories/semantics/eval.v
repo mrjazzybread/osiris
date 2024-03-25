@@ -488,7 +488,8 @@ Fixpoint cextend δ cp o : micro env unit :=
       δ ← extend δ pe e ;
       (* [pk] is a pattern for the continuation [k].
          It can only be a [PVar] or a [PAny]. *)
-      extend δ pk (VLoc k) (* TODO: VCont instead of VLoc. *)
+      (* TODO: VCont instead of VLoc. *)
+      extend δ pk (VLoc k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
       orelse (cextend δ cp1 o) (cextend δ cp2 o)
@@ -866,37 +867,55 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 (* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
    taking into account whether [o] is a return or a throw. *)
 
-Fixpoint pre_eval_match (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
-  let eval_match := pre_eval_match in
+Definition wrap η k bs : micro loc exn :=
+  stop CWrap (η, k, bs).
+
+Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
+  (bs : list branch) (all_branches : list branch)
+   : microvx :=
+  let eval_match := pre_eval_match_aux in
   match bs with
   | [] =>
       (* A nonexhaustive [match] construct. *)
-      match o with
+      (match o with
       | O3Ret _ =>
           (* When matching on a value, a nonexhaustive [match] causes
-             a hard failure. *)
+              a hard failure. *)
           (* The user of the system will have to prove that this
-             cannot happen, i.e., every case analysis is exhaustive. *)
+              cannot happen, i.e., every case analysis is exhaustive. *)
           match_failure()
       | O3Throw e =>
           (* When matching on an exception, a nonexhaustive [match]
-             causes the exception to be propagated. *)
+              causes the exception to be propagated. *)
           throw e
       | O3Perform e l =>
-          (* TODO: Comment. *)
-          Stop CRePerform (e, l) inject2
-      end
+          l ←
+            if deep
+            then Ret l
+            else wrap η l all_branches ;
+          (* TODO: Comment *)
+          try2 (stop CPerform e) (fun o => stop CResume (l, o))
+      end)
   | Branch cp e :: bs =>
-      (* Match the outcome [o] against the computational pattern [cp]. *)
       try
+        (* Match the outcome [o] against the computational pattern [cp]. *)
         (cextend η cp o)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)
-        (λ tt, eval_match η o bs)
+        (fun tt => eval_match deep η o bs all_branches)
   end.
 
-(* TODO: Comment. *)
+Definition pre_eval_match (deep : bool) (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
+  o ← if deep then
+        match o with
+          | O3Perform e k =>
+              k ← wrap η k bs ;
+              Ret (O3Perform e k)
+          | _ => Ret o
+        end
+      else Ret o ;
+  pre_eval_match_aux deep η o bs bs.
 
 Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
   let eval_trywith := pre_eval_trywith in
@@ -914,7 +933,6 @@ Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
 
 End Eval.
 
-(* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -941,7 +959,7 @@ End Eval.
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Fixpoint eval η e : microvx :=
+Fixpoint eval η e {struct e} : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_match := pre_eval_match eval in
@@ -1118,7 +1136,8 @@ Fixpoint eval η e : microvx :=
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       (* TODO: Comment. *)
-      Handle (eval η e) (λ o3, eval_match η o3 bs)
+      Handle (eval η e)
+        (λ o3, eval_match true η o3 bs)
   | ETryWith e bs =>
       (* TODO: Comment. *)
       try
@@ -1167,7 +1186,8 @@ Definition evals η es := pre_evals eval η es.
 
 Definition evalfs η fes := pre_evalfs eval η fes.
 
-Definition eval_match η o bs := pre_eval_match eval η o bs.
+(* Handlers are deep by default. TODO: More comment *)
+Definition eval_match η o bs := pre_eval_match eval true η o bs.
 
 Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
 

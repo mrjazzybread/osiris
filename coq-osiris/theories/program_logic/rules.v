@@ -491,11 +491,7 @@ Section wp_handler_rules.
     Ψ' Φ' :=
     ((∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
     (∀ v l, Ψ allows perform v
-        << fun r =>
-           match r with
-           | O2Ret v => ▷ EWP (stop CContinue (l, v)) @ E <| Ψ |> {{ Φ }}
-           | O2Throw e => ▷ EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}
-            end >> -∗
+        << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >> -∗
        ▷ EWP (h (O3Perform v l)) @ E <| Ψ' |> {{ Φ' }}))%I.
 
   (* Specification for handlers (shallow by default) *)
@@ -530,11 +526,7 @@ Section wp_handler_rules.
         [ exact H0 | ].
 
       iAssert (prot_spec Ψ e0
-                 (fun r =>
-                    match r with
-                    | O2Ret v => ▷ EWP (stop CContinue (l, v)) @ E <| Ψ |> {{ Φ }}
-                    | O2Throw e => ▷ EWP (stop CDiscontinue (l, e)) @ E <| Ψ |> {{ Φ }}
-                    end))%I
+                 (fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }}))%I
         with "[HP HH]" as "HΨ".
       { iApply prot_mono_post; iFrame.
         iIntros (?) "Hwp"; cbn.

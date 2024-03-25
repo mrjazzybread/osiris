@@ -137,19 +137,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CPerform e k) h)
         (<[l := K k]>σ, h (O3Perform e l))
 
-  (* TODO: Comment. *)
-  | StepRePerform :
-    ∀ σ e k l c',
-      c' = match σ !! l with
-           | Some (K sk) =>
-               (σ, Stop CPerform e (pftry2 sk k))
-           | _ =>
-               (σ, Crash)
-           end ->
-      step
-        (σ, Stop CRePerform (e, l) k)
-        c'
-
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h,
@@ -163,6 +150,19 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step (σ, m) (σ', m') →
       step (σ, Handle m h) (σ', Handle m' h)
 
+   (* TODO *)
+   | StepWrap :
+     forall σ σ' (l k : loc) h (hs : handler) c' η,
+       σ !! l = None ->
+       c' = match σ !! k with
+            | Some (K sk) =>
+               (<[ l := K (fun o => Handle (sk o) (fun o => eval_match η o hs)) ]> σ,
+                  continue h l)
+            | _ => (σ, crash)
+            end ->
+       step (σ, Stop CWrap (η, k, hs) h)
+            c'
+
   (* [stop CContinue (l, v)] reads the continuation [sk] that is stored
      at address [l] in the heap, updates [l] to [Shot], and resumes the
      continuation [sk] with the value [v]. *)
@@ -175,7 +175,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
                (σ, crash)
            end →
       step
-        (σ, Stop CContinue (l, v) k)
+        (σ, Stop CResume (l, O2Ret v) k)
         c'
 
   (* [stop CDiscontinue (l, v)] reads the continuation [sk] that is stored
@@ -190,7 +190,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
                (σ, crash)
            end →
       step
-        (σ, Stop CDiscontinue (l, v) k)
+        (σ, Stop CResume (l, O2Throw v) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -546,7 +546,7 @@ Lemma can_step_stop {A X Y E' E}
   match c with CPerform => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
-  destruct c; repeat destruct x as (x & ?);
+  destruct c; repeat destruct x as (x & ?); try destruct o;
   (* Get rid of [CPerform]. *)
   first [ tauto | intros _ ];
   (* Deal with all remaining cases except [CAlloc]. *)
