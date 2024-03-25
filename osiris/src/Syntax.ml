@@ -204,8 +204,10 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
-  (* TODO: Comment. *)
+  (* Exception catching: [try e with bs]. *)
   | ETryWith of expr * branches
+  (* Exception raising: [raise e]. *)
+  | ERaise of expr
 
   (* Loop: [while e do body done] .*)
   | EWhile of expr * expr

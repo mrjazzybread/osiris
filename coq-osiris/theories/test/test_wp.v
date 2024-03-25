@@ -13,6 +13,8 @@ Local Transparent eval_mexpr eval_bindings evals extend encode.
 
 Local Transparent eval_mexpr eval_bindings evals extend encode.
 
+Local Transparent eval_mexpr eval_bindings evals extend encode.
+
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
 
