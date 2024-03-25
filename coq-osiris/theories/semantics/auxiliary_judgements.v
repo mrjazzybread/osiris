@@ -109,6 +109,7 @@ Definition coerces c η (φ : env -> Prop) :=
                                        | _ => False
                                        end).
 
+
 (* -------------------------------------------------------------------------- *)
 
 Lemma struct_consequence ηδ item (φ φ' : envs -> Prop) :

@@ -1,3 +1,4 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
@@ -429,8 +430,6 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-
-From Coq.Logic Require Import FunctionalExtensionality.
 
 (* More lemmas for use by the tactics that follow. *)
 

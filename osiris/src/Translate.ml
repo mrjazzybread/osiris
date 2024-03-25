@@ -600,6 +600,11 @@ and translate_exact_primitive_application loc path p args =
     when is_Stdlib parent ->
       EStore (e1, e2)
 
+  (* Exceptions. *)
+  | Pdot (parent, "raise"), "%raise", [e]
+    when is_Stdlib parent ->
+      ERaise e
+
   | _, _, _ ->
       raise NotExactKnownPrimitive
 

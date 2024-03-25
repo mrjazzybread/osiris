@@ -277,6 +277,9 @@ let rec expr (e : expr) =
   | ETryWith (e, bs) ->
      c "ETryWith" [ expr e; branches bs ]
 
+  | ERaise e ->
+     c "ERaise" [ expr e ]
+
   | EWhile (e1, e2) ->
       c "EWhile" [ expr e1; cut_expr e2 ]
 

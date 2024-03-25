@@ -102,6 +102,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EIfThenElse : expr → expr → expr → expr
   | EMatch : expr → list branch → expr
   | ETryWith : expr → list branch → expr
+  | ERaise : expr → expr
   | EWhile : expr → expr → expr
   | EFor : var → expr → expr → expr → expr
   | EAssertFalse : expr
@@ -168,6 +169,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EIfThenElse e e1 e2
 <span class="kn">Arguments</span> EMatch e bs%list_scope
 <span class="kn">Arguments</span> ETryWith e bs%list_scope
+<span class="kn">Arguments</span> ERaise e
 <span class="kn">Arguments</span> EWhile e body
 <span class="kn">Arguments</span> EFor x e1 e2 e
 <span class="kn">Arguments</span> EAssert e
