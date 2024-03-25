@@ -161,7 +161,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
                (σ, crash)
            end →
       step
-        (σ, Stop CContinue (l, v) k)
+        (σ, Stop CResume (l, O2Ret v) k)
         c'
 
   (* [stop CDiscontinue (l, v)] reads the continuation [sk] that is stored
@@ -176,7 +176,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
                (σ, crash)
            end →
       step
-        (σ, Stop CDiscontinue (l, v) k)
+        (σ, Stop CResume (l, O2Throw v) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -532,7 +532,7 @@ Lemma can_step_stop {A X Y E' E}
   match c with CPerform => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
-  destruct c; repeat destruct x as (x & ?);
+  destruct c; repeat destruct x as (x & ?); try destruct o;
   (* Get rid of [CPerform]. *)
   first [ tauto | intros _ ];
   (* Deal with all remaining cases except [CAlloc]. *)

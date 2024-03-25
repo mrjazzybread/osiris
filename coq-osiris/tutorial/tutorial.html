@@ -14,7 +14,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.17.0+0.17.2. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
+<div class="alectryon-root alectryon-centered"><div class="alectryon-banner">Built with <a href="https://github.com/cpitclaudel/alectryon/">Alectryon</a>, running Coq+SerAPI v8.17.0+0.17.1. Bubbles (<span class="alectryon-bubble"></span>) indicate interactive fragments: hover for details, tap to reveal contents. Use <kbd>Ctrl+↑</kbd> <kbd>Ctrl+↓</kbd> to navigate, <kbd>Ctrl+🖱️</kbd> to focus. On Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</div><div class="document" id="a-program-logic-for-ocaml">
 <h1 class="title">A Program Logic for OCaml</h1>
 
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-wsp">
@@ -501,8 +501,7 @@ uses the following set of codes:</p>
   | CLoad : code loc val exn
   | CStore : code (loc * val) () exn
   | CPerform : code val val exn
-  | CContinue : code (loc * val) val exn
-  | CDiscontinue : code (loc * val) val exn.
+  | CResume : code (loc * outcome2 val exn) val exn.
 
 <span class="kn">Arguments</span> code (_ _ _)%type_scope</blockquote></div></div></small></span></pre><p>The code <code class="highlight coq"><span class="n">CEval</span></code>, which we have encountered earlier, is used to request
 a recursive invocation of the function <code class="highlight coq"><span class="kp">eval</span></code>. The code <code class="highlight coq"><span class="n">CLoop</span></code> plays a
@@ -564,13 +563,13 @@ takes us from one pause to the next pause.</p>
                      <span class="kr">match</span> σ !! l <span class="kr">with</span>
                      | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (continue sk v) k)
                      | _ =&gt; (σ, crash)
-                     <span class="kr">end</span> → step (σ, Stop CContinue (l, v) k) c&#39;
+                     <span class="kr">end</span> → step (σ, Stop CResume (l, O2Ret v) k) c&#39;
   | StepDiscontinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">v</span> : exn) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
                         c&#39; =
                         <span class="kr">match</span> σ !! l <span class="kr">with</span>
                         | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (discontinue sk v) k)
                         | _ =&gt; (σ, crash)
-                        <span class="kr">end</span> → step (σ, Stop CDiscontinue (l, v) k) c&#39;
+                        <span class="kr">end</span> → step (σ, Stop CResume (l, O2Throw v) k) c&#39;
   | StepParRetRet : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                       step (σ, Par (ret v1) (ret v2) k) (σ, continue k (v1, v2))
   | StepParCrashLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),

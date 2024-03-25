@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import micro.
+From osiris.semantics Require Export outcome micro.
 
 (* This module fixes the specific set of codes that are needed in the Osiris
    project. We use the [micro] monad to define an interpreter for OCaml. We
@@ -48,8 +48,11 @@ Definition eff := val.
    is determined by whomever decides to continue or discontinue
    the continuation that is captured when this effect is performed. *)
 
-(* [CContinue (l, v)] is a request to continue the continuation stored
-   at address [l] with value [v].
+(* [CResume (l, o)] is a request to resume the continuation stored at
+   address [l] with an outcome [o].
+   Depending on the outcome, the continuation is either continued or
+   discontinued.
+
    The result is a value (or an exception). *)
 
 (* [CDiscontinue (l, e)] is a request to discontinue the continuation
@@ -68,8 +71,7 @@ Inductive code : Type → Type → Type → Type :=
 | CLoad  : code loc val exn
 | CStore : code (loc * val) unit exn
 | CPerform  : code val val exn
-| CContinue : code (loc * val) val exn
-| CDiscontinue : code (loc * val) val exn
+| CResume : code (loc * outcome2 val exn) val exn
 .
 
 (* ------------------------------------------------------------------------ *)
