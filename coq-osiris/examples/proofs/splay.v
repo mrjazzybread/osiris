@@ -144,7 +144,7 @@ Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
   pattern η (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct t; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -265,7 +265,7 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -293,7 +293,7 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
-  intros; subst.
+  intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
   { tauto. }
@@ -483,6 +483,8 @@ Ltac destruct_bst_Node :=
 
 (* -------------------------------------------------------------------------- *)
 
+Open Scope Z.
+
 (* TODO move these lemmas *)
 Lemma ltb_true (n m : Z) :
   n < m →
@@ -598,7 +600,8 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
+    { specialize (IH (l, x, Node r a (Node t a0 t0), z'0)).
+      eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
 
@@ -606,7 +609,8 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
+    { specialize (IH (Node t0 a0 l, x, Node r a t, z'0)).
+      eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 
@@ -619,7 +623,8 @@ Proof.
     pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
+    { specialize (IH (Node t a l, x, Node r a0 t0, z'0)).
+      eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 
@@ -627,7 +632,8 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
+    { specialize (IH (Node (Node t0 a0 t) a l, x, r, z'0)).
+      eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 Qed.
@@ -654,6 +660,8 @@ Proof.
     eapply pure_eval_const.
     apply (@solve_encode_Leaf A); first done. (* Todo: weird *)
     repeat pure_path.
+    unfold splay_spec in Hsplay.
+    specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
 
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
@@ -661,6 +669,7 @@ Proof.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
+    specialize (Hsplay _ _ z' t a Leaf).
     apply Hsplay. }
 Qed.
 
@@ -723,7 +732,8 @@ Proof.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       pure_call.
-      { eapply IH; unfold tlt, tree_depth; auto with arith. }
+      { specialize (IH (t1, a, NodeL z a0 t2)).
+        eapply IH; unfold tlt, tree_depth; auto with arith. }
       intros [oy t'] [??]; simpl in *.
       split.
       - rewrite bst_member_left; representable.
@@ -744,7 +754,8 @@ Proof.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
         pure_call.
-        { eapply IH; [ auto | unfold tlt, tree_depth; lia ]. }
+        { specialize (IH (t2, a, NodeR t1 a0 z)).
+          eapply IH; [ auto | unfold tlt, tree_depth; lia ]. }
         intros [oy t'] [??]; simpl in *.
         split.
         - rewrite bst_member_right; representable.

@@ -109,7 +109,7 @@ Notation ok :=
 (* [val_as_bool v] checks that the value [v] is a language-level Boolean
    value and returns its meta-level Boolean value. *)
 
-Definition val_as_bool (v : val) : micro bool void :=
+Definition val_as_bool (v : val) : micro bool exn :=
   match v with
   | VFalse =>
       ret false
@@ -119,7 +119,7 @@ Definition val_as_bool (v : val) : micro bool void :=
       type_mismatch "Boolean value expected"
   end.
 
-Definition as_bool (m : micro val void) : micro bool void :=
+Definition as_bool (m : microvx) : micro bool exn :=
   v ← m ;
   val_as_bool v.
 
@@ -128,7 +128,7 @@ Definition as_bool (m : micro val void) : micro bool void :=
 (* [val_as_loc v] checks that the value [v] is a language-level location
    value and returns its meta-level value. *)
 
-Definition val_as_loc (v: val) : micro loc void :=
+Definition val_as_loc {E} (v : val) : micro loc E :=
   match v with
   | VLoc l =>
       ret l
@@ -136,7 +136,7 @@ Definition val_as_loc (v: val) : micro loc void :=
       type_mismatch "location value expected"
   end.
 
-Definition as_loc (m : micro val void) : micro loc void :=
+Definition as_loc {E} (m : micro val E) : micro loc E :=
   v ← m ;
   val_as_loc v.
 
@@ -145,7 +145,7 @@ Definition as_loc (m : micro val void) : micro loc void :=
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
-Definition val_as_int (v : val) : micro int void :=
+Definition val_as_int (v : val) : micro int exn :=
   match v with
   | VInt i =>
       ret i
@@ -153,13 +153,13 @@ Definition val_as_int (v : val) : micro int void :=
       type_mismatch "integer value expected"
   end.
 
-Definition as_int (m : micro val void) : micro int void :=
+Definition as_int (m : microvx) : micro int exn :=
   v ← m ;
   val_as_int v.
 
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
-Definition check_div_by_zero i : micro unit void :=
+Definition check_div_by_zero i : micro unit exn :=
   if int.eq i int.zero then
     division_by_zero
   else
@@ -171,7 +171,7 @@ Definition check_div_by_zero i : micro unit void :=
    value and returns its content, a list of field-value pairs, which can
    also be viewed as an environment fragment. *)
 
-Definition val_as_record (v : val) : micro env void :=
+Definition val_as_record (v : val) : micro env exn :=
   match v with
   | VRecord fvs =>
       ret fvs
@@ -179,7 +179,7 @@ Definition val_as_record (v : val) : micro env void :=
       type_mismatch "record value expected"
   end.
 
-Definition as_record (m : micro val void) : micro env void :=
+Definition as_record (m : microvx) : micro env exn :=
   v ← m ;
   val_as_record v.
 
@@ -196,9 +196,9 @@ Definition val_as_struct (v : val) : micro env void :=
       type_mismatch "structure expected"
   end.
 
-Definition as_struct (m : micro val void) : micro env void :=
+Definition as_struct {E} (m : micro val E) : micro env E :=
   v ← m ;
-  val_as_struct v.
+  widen (val_as_struct v).
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -241,7 +241,7 @@ Fixpoint lookup_path η π : micro val void :=
 
 (* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
 
-Fixpoint remove f fvs : micro env void :=
+Fixpoint remove f fvs : micro env exn :=
   match fvs with
   | (f', v) :: fvs =>
       if f =? f' then
@@ -258,7 +258,7 @@ Fixpoint remove f fvs : micro env void :=
 (* [update fvs fvs'] updates the existing record fields [fvs] with the new
    record fields [fvs']. *)
 
-Fixpoint update fvs fvs' : micro env void :=
+Fixpoint update fvs fvs' : micro env exn :=
   match fvs' with
   | [] =>
       ret fvs
@@ -316,7 +316,7 @@ Definition eval_rec_bindings η rbs : env :=
 (* [lookup_rec_bindings rbs g] looks up the function [g] in the recursive
    bindings [rbs]. The right-hand side is an anonymous function [a]. *)
 
-Fixpoint lookup_rec_bindings rbs g : micro anonfun void :=
+Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
   match rbs with
   | RecBinding g' a :: rbs =>
       if g =? g' then ret a else lookup_rec_bindings rbs g
@@ -388,7 +388,7 @@ Fixpoint pre_extendfs (δ : env) fps fvs : micro env unit :=
 
 End Extend.
 
-(* [extend δ p v] matches the value [v] against the pattern [p].
+(* [extend_value δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
    fragment [δ] with bindings for the bound variables of the pattern [p].
@@ -434,6 +434,12 @@ Fixpoint extend δ p v : micro env unit :=
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
       if c =? c' then extend δ p v else throw ()
+  | PXData c p, VXData l v =>
+      (* A data pattern for an extensible data type matches a data value, provided
+         the data constructors correspond to the same location in the environment.
+         If the data constructors do not match, a meta-level exception is raised. *)
+      l' ← as_loc (widen (lookup_name δ c)) ;
+      if (locations.eqb l l') then extend δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -449,6 +455,8 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "tuple expected"
   | PData _ _, _ =>
       type_mismatch "algebraic data expected"
+  | PXData _ _, _ =>
+      type_mismatch "extensible algebraic data expected"
   | PRecord _, _ =>
       type_mismatch "record expected"
   | PInt _, _ =>
@@ -457,13 +465,33 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "char expected"
   | PString _, _ =>
       type_mismatch "string expected"
-end.
+  end.
 
 Definition extends δ ps vs :=
   pre_extends extend δ ps vs.
 
 Definition extendfs δ fps fvs :=
   pre_extendfs extend δ fps fvs.
+
+(* [cextend η cp o] matches the outcome [o] against
+   the computation pattern [cp]. *)
+
+Fixpoint cextend η cp o : micro env unit :=
+  match cp, o with
+  | CVal p, O2Ret v =>
+      (* A value pattern matches a return. *)
+      extend η p v
+  | CExc p, O2Throw v =>
+      (* An exception pattern matches a throw. *)
+      extend η p v
+  | COr cp1 cp2, _  =>
+      (* A [COr] either matches its first or second branch. *)
+      orelse (cextend η cp1 o) (cextend η cp2 o)
+  | _, _ =>
+      (* If [o] and [cp] don't match, we throw a meta-level exception
+         and continue to the next branch.*)
+      throw()
+  end.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
@@ -475,7 +503,7 @@ Definition irrefutably_extend δ p v : micro env void :=
 (* [acall η a v] evaluates the application of the anonymous function [a]
    to the value [v] in the environment [η]. *)
 
-Definition acall η a v : micro val void :=
+Definition acall η a v : microvx :=
   (* An anonymous function [a] is of the form [fun x → e]. *)
   let '(AnonFun x e) := a in
   (* Extend the environment [η] with a binding of the variable [x]
@@ -490,7 +518,7 @@ Definition acall η a v : micro val void :=
 (* The value [v1] is expected to be either a non-recursive closure [VClo η a]
    or a recursive closure [VCloRec η rbs g]. *)
 
-Definition call v1 v2 : micro val void :=
+Definition call v1 v2 : microvx :=
   (* The value [v1] must be a closure. *)
   match v1 with
   | VClo η a =>
@@ -515,7 +543,7 @@ Definition call v1 v2 : micro val void :=
 
 (* This operator can be applied to memory locations. *)
 
-Definition phys_eq_val v1 v2 : micro bool void :=
+Definition phys_eq_val v1 v2 : micro bool exn :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
@@ -531,7 +559,7 @@ Definition phys_eq_val v1 v2 : micro bool void :=
    applied to values of base type (e.g., integers) and to composite immutable
    data structures (tuples, algebraic data, etc.). *)
 
-Fixpoint eq_val v1 v2 : micro bool void :=
+Fixpoint eq_val v1 v2 : micro bool exn :=
 
   let eq_vals :=
     fix eq_vals vs1 vs2 :=
@@ -565,7 +593,7 @@ Fixpoint eq_val v1 v2 : micro bool void :=
       structural_equality_error "invalid or unsupported arguments"
 end.
 
-Definition ne_val v1 v2 : micro bool void :=
+Definition ne_val v1 v2 : micro bool exn :=
   b ← eq_val v1 v2 ;
   ret (negb b).
 
@@ -584,7 +612,7 @@ Definition ne_val v1 v2 : micro bool void :=
    of the comparison between two data constructors A and B depends on their
    type; but, in our model of values, type information is absent. *)
 
-Definition lt_val v1 v2 : micro bool void :=
+Definition lt_val v1 v2 : micro bool exn :=
   match v1, v2 with
   | VInt i1, VInt i2 =>
       (* A signed integer comparison. *)
@@ -600,14 +628,14 @@ Definition lt_val v1 v2 : micro bool void :=
    preferable to give a direct definition of [le] that relies on [int.le].
    However, for the moment, [int.le] itself does not exist. *)
 
-Definition gt_val v1 v2 : micro bool void :=
+Definition gt_val v1 v2 : micro bool exn :=
   lt_val v2 v1.
 
-Definition le_val v1 v2 : micro bool void :=
+Definition le_val v1 v2 : micro bool exn :=
   b ← gt_val v1 v2 ;
   ret (negb b).
 
-Definition ge_val v1 v2 : micro bool void :=
+Definition ge_val v1 v2 : micro bool exn :=
   b ← lt_val v1 v2 ;
   ret (negb b).
 
@@ -680,11 +708,11 @@ Fixpoint coerce (c : coercion) (v : val) : micro val void :=
 
 Section EvalBindings.
 
-Variable eval_bindings : env → list binding → micro env void.
+Variable eval_bindings : env → list binding → micro env exn.
 
 Section EvalMExpr.
 
-Variable eval_mexpr : env → mexpr → micro val void.
+Variable eval_mexpr : env → mexpr → microvx.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -714,7 +742,7 @@ Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
 (* [eval_sitems ηδ items] evaluates the structure items [items] in the
    double environment [ηδ], yielding an updated double environment. *)
 
-Fixpoint pre_eval_sitems (ηδ : envs) (items : list sitem) : micro envs void :=
+Fixpoint pre_eval_sitems (ηδ : envs) (items : list sitem) : micro envs exn :=
   let eval_sitem := pre_eval_sitem in
   let eval_sitems := pre_eval_sitems in
   match items with
@@ -734,7 +762,7 @@ End EvalMExpr.
 (* [eval_mexpr η me] evaluates the module expression [me] in environment [η],
    yielding a value. *)
 
-Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : micro val void :=
+Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : microvx :=
   let eval_mexpr := pre_eval_mexpr in
   let eval_sitems := pre_eval_sitems eval_mexpr in
   match me with
@@ -742,10 +770,10 @@ Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : micro val void :=
       unsupported_construct
   | MPath π =>
       (* A path is looked up in the environment [η]. *)
-      lookup_path η π
+      widen (lookup_path η π)
   | MCoercion me c =>
       v ← eval_mexpr η me ;
-      coerce c v
+      widen (coerce c v)
   | MStruct items =>
       (* evaluate the structure items, yielding an environment [δ], *)
       '(_, δ) ← eval_sitems (η, []) items ;
@@ -757,7 +785,7 @@ End EvalBindings.
 
 Section Eval.
 
-Variable eval : env → expr → micro val void.
+Variable eval : env → expr → microvx.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -778,7 +806,7 @@ Variable eval : env → expr → micro val void.
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
    then [eval_bindings] would disappear. We prefer to avoid encodings. *)
 
-Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env void :=
+Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
   let eval_bindings := pre_eval_bindings in
   match bs with
   | [] =>
@@ -788,7 +816,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env void :=
          evaluate the bindings [bs], yielding an environment fragment [δ]. *)
       '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
        (* Match the value [v] against the pattern [p], extending [δ]. *)
-      irrefutably_extend δ p v
+      widen (irrefutably_extend δ p v)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -798,7 +826,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env void :=
 
 (* [evals] is used to evaluate tuples. *)
 
-Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) void :=
+Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) exn :=
   let evals := pre_evals in
   match es with
   | [] =>
@@ -818,7 +846,7 @@ Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) void :=
 
 (* [evalfs] is used to evaluate record construction expressions. *)
 
-Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) void :=
+Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) exn :=
   let evalfs := pre_evalfs in
   match fes with
   | [] =>
@@ -830,25 +858,50 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) v
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_match η v bs] evaluates [match v with bs] in the environment [η]. *)
+(* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
+   taking into account whether [o] is a return or a throw. *)
 
-Fixpoint pre_eval_match (η : env) (v : val) (bs : list branch) : micro val void :=
+Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : microvx :=
   let eval_match := pre_eval_match in
   match bs with
   | [] =>
-      (* A nonexhaustive [match] construct causes a hard failure. *)
-      (* Because the proof system forbids hard failures, the user of
-         the system will have to prove that this cannot happen, i.e.,
-         every case analysis is exhaustive. *)
-      match_failure()
-  | Branch p e :: bs =>
-      (* Match the value [v] against the pattern [p]. *)
+      (* A nonexhaustive [match] construct. *)
+      match o with
+      | O2Ret _ =>
+          (* When matching on a value, a nonexhaustive [match] causes
+             a hard failure. *)
+          (* The user of the system will have to prove that this
+             cannot happen, i.e., every case analysis is exhaustive. *)
+          match_failure()
+      | O2Throw e =>
+          (* When matching on an exception, a nonexhaustive [match]
+             causes the exception to be propagated. *)
+          throw e
+      end
+  | Branch cp e :: bs =>
+      (* Match the outcome [o] against the computational pattern [cp]. *)
       try
-        (extend η p v)
+        (cextend η cp o)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)
-        (λ tt, eval_match η v bs)
+        (λ tt, eval_match η o bs)
+  end.
+
+(* TODO: Comment. *)
+
+Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
+  let eval_trywith := pre_eval_trywith in
+  match bs with
+  | [] =>
+      throw ex
+  | Branch (CExc p) e :: bs =>
+      try
+        (extend η p ex)
+        (λ δ, eval δ e)
+        (λ tt, eval_trywith η ex bs)
+  | _ =>
+      type_mismatch "exception pattern expected"
   end.
 
 End Eval.
@@ -880,10 +933,11 @@ End Eval.
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Fixpoint eval η e : micro val void :=
+Fixpoint eval η e : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_match := pre_eval_match eval in
+  let eval_trywith := pre_eval_trywith eval in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -893,7 +947,7 @@ Fixpoint eval η e : micro val void :=
       ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
-      lookup_path η π
+      widen (lookup_path η π)
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
       (* This environment is *not* trimmed so as to keep only the variables
@@ -912,6 +966,10 @@ Fixpoint eval η e : micro val void :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | EXData c e =>
+      l ← as_loc (widen (lookup_name η c)) ;
+      v ← eval η e ;
+      ret (VXData l v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
@@ -927,7 +985,7 @@ Fixpoint eval η e : micro val void :=
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
-      lookup_name fvs f
+      widen (lookup_name fvs f)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse
@@ -1051,8 +1109,18 @@ Fixpoint eval η e : micro val void :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      v ← eval η e ;
-      eval_match η v bs
+      try2
+        (eval η e)
+        (λ o, eval_match η o bs)
+  | ETryWith e bs =>
+      (* TODO: Comment. *)
+      try
+        (eval η e)
+        Ret
+        (λ ex, eval_trywith η ex bs)
+  | ERaise e =>
+      exc ← eval η e ;
+      throw exc
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
@@ -1073,7 +1141,7 @@ Fixpoint eval η e : micro val void :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : micro val void :=
+      let test : microvx :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in
@@ -1095,7 +1163,9 @@ Definition evals η es := pre_evals eval η es.
 
 Definition evalfs η fes := pre_evalfs eval η fes.
 
-Definition eval_match η v bs := pre_eval_match eval η v bs.
+Definition eval_match η o bs := pre_eval_match eval η o bs.
+
+Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
 
 Definition eval_bindings η bs := pre_eval_bindings eval η bs.
 
@@ -1112,7 +1182,7 @@ Definition eval_sitems ηδ sitems :=
 (* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
    in the environment [η]. *)
 
-Definition loop η x i1 i2 e : micro val void :=
+Definition loop η x i1 i2 e : microvx :=
   if int.lt i2 i1 then
     (* If [i2 < i1] holds, then there is nothing to do. *)
     ok

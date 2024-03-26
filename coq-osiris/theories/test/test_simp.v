@@ -109,7 +109,7 @@ Goal let e :=
   ELet1Var "x" (EConstant "A") $
   ELet1 (PConstant "A") (EVar "x") $
   EUnit
-  in simp (eval ε e) (ret (encode tt)).
+  in simp (eval ε e) (ret (# tt)).
 Proof.
   intros.
   simp. simp. simp.
@@ -123,7 +123,7 @@ Goal let e :=
   ELet1Var "x" (EPair (EConstant "A") (EConstant "B")) $
   ELet1 (PPair (PVar "x1") (PVar "x2")) (EVar "x") $
   EVar "x1"
-  in simp (eval ε e) (ret (encode A)).
+  in simp (eval ε e) (ret (# A)).
 Proof.
   intros.
   simp. simp. simp.
@@ -141,7 +141,7 @@ Proof.
   (* This goal is false: the variable [y] is unbound. *)
   simp.
   simp.
-  simpl; match goal with |- simp (missing_variable_or_field _) _ => idtac end.
+  simpl; match goal with |- simp (try2 (missing_variable_or_field _) _) _ => idtac end.
 Abort. (* expected *)
 
 (* -------------------------------------------------------------------------- *)
@@ -315,14 +315,14 @@ Qed.
 Definition walk : list rec_binding :=
   RecBinding1Var "walk" "xs" $
   EMatch (EVar "xs") [
-    Branch pNil EUnit;
-    Branch (pCons (PVar "x") (PVar "xs"))
+    Branch (CVal pNil) EUnit;
+    Branch (CVal (pCons (PVar "x") (PVar "xs")))
            (EApp (EVar "walk") (EVar "xs"))
     ].
 
 Definition spec_walk (walk : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
-  simp (call walk (encode xs)) ok.
+  simp (call walk (# xs)) ok.
 
 Definition walk_example e :=
   ELetRec walk $
@@ -345,7 +345,7 @@ Qed.
 
 Lemma spec_walk_example_abstract :
   forall `{Encode X} (xs : list X),
-  let η := [("xs", (encode xs))] in
+  let η := [("xs", (# xs))] in
   simp (eval η (walk_example (EVar "xs"))) ok.
 Proof.
   intros. simp.
@@ -382,14 +382,14 @@ Admitted.
 Definition length : list rec_binding :=
   RecBinding1Var "length" "xs" $
   EMatch (EVar "xs") [
-    Branch pNil (EInt 0);
-    Branch (pCons (PVar "x") (PVar "xs"))
+    Branch (CVal pNil) (EInt 0);
+    Branch (CVal (pCons (PVar "x") (PVar "xs")))
            (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
     ].
 
 Definition spec_length (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
-  simp (call length (encode xs)) (ret (encode (List.length xs))).
+  simp (call length (# xs)) (ret (# (List.length xs))).
 
 Goal
   ∀ η,
@@ -412,7 +412,7 @@ Qed.
 Definition weak_spec_length (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
   ∃ (n : Z),
-  simp (call length (encode xs)) (ret (encode n)) ∧ (0 ≤ n)%Z.
+  simp (call length (# xs)) (ret (# n)) ∧ (0 ≤ n)%Z.
 
 Goal
   ∀ η,
@@ -438,7 +438,7 @@ Qed.
 
 Definition weak_spec_length' (length : val) :=
   ∀ X `(_ : Encode X) (xs : list X),
-  pure (call length (encode xs)) (λ n : Z, 0 ≤ n)%Z.
+  pure (call length (# xs)) (λ n : Z, 0 ≤ n)%Z.
 
 Goal
   ∀ η,

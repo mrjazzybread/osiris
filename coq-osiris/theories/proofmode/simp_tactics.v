@@ -1,3 +1,4 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
@@ -129,23 +130,23 @@ Proof.
   apply SimpReflexive.
 Qed.
 
-Lemma advance_SimpEval {A E} η e (k : val → micro A E) z m' :
-  simp (try (eval η e) k z) m' →
-  simp (Stop CEval (η, e) k z) m'.
+Lemma advance_SimpEval {A E} η e (k : outcome2 val exn → micro A E) m' :
+  simp (try2 (eval η e) k) m' →
+  simp (Stop CEval (η, e) k) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpEvalThrow {A} η e (k : val → micro A void) m' :
+Lemma advance_SimpEvalThrow {A} η e (k : val → micro A exn) m' :
   simp (bind (eval η e) k) m' →
-  simp (Stop CEval (η, e) k throw) m'.
+  simp (Stop CEval (η, e) (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
 Lemma advance_SimpEvalRetThrow η e m' :
   simp (eval η e) m' ->
-  simp (Stop CEval (η, e) ret throw) m'.
+  simp (Stop CEval (η, e) inject2) m'.
 Proof.
   intros.
   by apply advance_SimpEvalThrow; rewrite bind_ret_right.
@@ -158,25 +159,25 @@ Proof.
   unfold stop. eauto using advance_SimpEvalRetThrow.
 Qed.
 
-Lemma advance_SimpLoop {A E} η x i1 i2 e (k : val → micro A E) z m' :
-  simp (try (loop η x i1 i2 e) k z) m' →
-  simp (Stop CLoop (η, x, i1, i2, e) k z) m'.
+Lemma advance_SimpLoop {A E} η x i1 i2 e (k : outcome2 val exn → micro A E) m' :
+  simp (try2 (loop η x i1 i2 e) k) m' →
+  simp (Stop CLoop (η, x, i1, i2, e) k) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_SimpLoopThrow {A} η x i1 i2 e (k : val → micro A void) m' :
+Lemma advance_SimpLoopThrow {A} η x i1 i2 e (k : val → micro A exn) m' :
   simp (bind (loop η x i1 i2 e) k) m' →
-  simp (Stop CLoop (η, x, i1, i2, e) k throw) m'.
+  simp (Stop CLoop (η, x, i1, i2, e) (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpChooseAgree {A B E' E} m1 m2 m (k : A → micro B E) (z : E' → _) m' :
+Lemma advance_SimpChooseAgree {A B E' E} m1 m2 m (k : outcome2 A E' → micro B E) m' :
   simp m1 m →
   simp m2 m →
-  simp (try m k z) m' →
-  simp (Choose m1 m2 k z) m'.
+  simp (try2 m k) m' →
+  simp (Choose m1 m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -187,7 +188,7 @@ Lemma advance_simp_choose {A E} (m1 m2 : micro A E) m' :
   simp (choose m1 m2) m'.
 Proof.
   intros. eapply advance_SimpChooseAgree; eauto.
-  rewrite try_ret_right. eauto with simp.
+  rewrite try2_ret_right. eauto with simp.
 Qed.
 
 Lemma advance_SimpBind {A B E} m1 m2 (f : A → micro B E) m' :
@@ -196,6 +197,14 @@ Lemma advance_SimpBind {A B E} m1 m2 (f : A → micro B E) m' :
   simp (bind m1 f) m'.
 Proof.
   eauto using simp_bind with simp.
+Qed.
+
+Lemma advance_SimpTry2 {A B E' E} m1 m2 (f : outcome2 A E' → micro B E) m' :
+  simp m1 m2 →
+  simp (try2 m2 f) m' →
+  simp (try2 m1 f) m'.
+Proof.
+  eauto using simp_try2 with simp.
 Qed.
 
 Lemma advance_SimpTry {A B E' E} m1 m2 (f : A → micro B E) (h : E' → _) m' :
@@ -207,28 +216,28 @@ Proof.
 Qed.
 
 Lemma advance_SimpParRetRet {A1 A2 A E' E}
-  a1 a2 (k : A1 * A2 → micro A E) (z : E' → _) m'
+  a1 a2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (k (a1, a2)) m' →
-  simp (Par (Ret a1) (Ret a2) k z) m'.
+  simp (continue k (a1, a2)) m' →
+  simp (Par (Ret a1) (Ret a2) k) m'.
 Proof.
   eauto using SimpParRetRet with simp.
 Qed.
 
 Lemma advance_SimpParRetLeft {A1 A2 A E' E}
-  a1 m2 (k : A1 * A2 → micro A E) (h : E' → _) m'
+  a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (try m2 (λ v2, k (a1, v2)) h) m' →
-  simp (Par (Ret a1) m2 k h) m'.
+  simp (try m2 (λ v2, continue k (a1, v2)) (discontinue k)) m' ->
+  simp (Par (Ret a1) m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
 
 Lemma advance_SimpParRetRight {A1 A2 A E' E}
-  m1 a2 (k : A1 * A2 → micro A E) (h : E' → _) m'
+  m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
-  simp (try m1 (λ v1, k (v1, a2)) h) m' →
-  simp (Par m1 (Ret a2) k h) m'.
+  simp (try m1 (λ v1, continue k (v1, a2)) (discontinue k)) m' →
+  simp (Par m1 (Ret a2) k) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -237,7 +246,7 @@ Lemma advance_SimpParRetLeftThrow {A1 A2 A E}
   a1 m2 (k : A1 * A2 → micro A E) m'
 :
   simp (v2 ← m2 ; k (a1, v2)) m' →
-  simp (Par (Ret a1) m2 k throw) m'.
+  simp (Par (Ret a1) m2 (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetLeft.
 Qed.
@@ -246,18 +255,18 @@ Lemma advance_SimpParRetRightThrow {A1 A2 A E}
   m1 a2 (k : A1 * A2 → micro A E) m'
 :
   simp (v1 ← m1 ; k (v1, a2)) m' →
-  simp (Par m1 (Ret a2) k throw) m'.
+  simp (Par m1 (Ret a2) (glue2 k throw)) m'.
 Proof.
   rewrite bind_as_try. eauto using advance_SimpParRetRight.
 Qed.
 
 Lemma advance_SimpPar {A1 A2 A E' E}
-  m1 m'1 m2 m'2 (k : A1 * A2 → micro A E) (z : E' → _) m'
+  m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) m'
 :
   simp m1 m'1 →
   simp m2 m'2 →
-  simp (Par m'1 m'2 k z) m' →
-  simp (Par m1 m2 k z) m'.
+  simp (Par m'1 m'2 k) m' →
+  simp (Par m1 m2 k) m'.
 Proof.
   eauto with simp.
 Qed.
@@ -442,6 +451,20 @@ Proof.
   rewrite bind_ret_right. eauto.
 Qed.
 
+Lemma advance_simp_try2_ret {A B E' E} (a : A) (f : outcome2 A E' -> micro B E) m' :
+  simp (f (O2Ret a)) m' ->
+  simp (try2 (ret a) f) m'.
+Proof.
+  tauto.
+Qed.
+
+Lemma advance_simp_try2_throw {A B E' E} (e : E') (f : outcome2 A E' -> micro B E) m' :
+  simp (f (O2Throw e)) m' ->
+  simp (try2 (throw e) f) m'.
+Proof.
+  tauto.
+Qed.
+
 Lemma advance_simp_try_ret {A B E' E} (a : A) (f : A → micro B E) (h : E' → _) m' :
   simp (f a) m' →
   simp (try (ret a) f h) m'.
@@ -456,11 +479,14 @@ Proof.
   simpl try. tauto.
 Qed.
 
-Lemma advance_simp_bind_as_try {A B E} m (f : A → micro B E) m' :
+Lemma advance_simp_bind_as_try {A B E} m (f : A → micro B E) h m' :
+  (forall o, h o = throw o) ->
   simp (bind m f) m' →
-  simp (try m f throw) m'.
+  simp (try m f h) m'.
 Proof.
-  rewrite bind_as_try. tauto.
+  rewrite bind_as_try; intros; try tauto.
+  assert (EQ: throw = h). { by extensionality v. }
+  by rewrite <-EQ.
 Qed.
 
 Lemma advance_simp_bind_bind
@@ -494,6 +520,14 @@ Lemma advance_simp_try_try {A B C E'' E' E}
   simp (try (try m f h) g h') m'.
 Proof.
   rewrite try_try. tauto.
+Qed.
+
+Lemma advance_simp_try_pftry {A B C E'' E}
+  (m : micro A E'') (k : A -> micro B E) (g : B -> C) h m' :
+  simp (try m (pffmap g k) h) m' →
+  simp (try m (pftry k (fun v => ret (g v)) throw) h) m'.
+Proof.
+  by rewrite pftry_pffmap.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -631,14 +665,16 @@ with simp1 :=
     (* Exploit an assumption, if we have one. *)
     eassumption
     (* Transform [try] into [bind]. *)
-  | simple eapply advance_simp_bind_as_try; simp0
+  | simple eapply advance_simp_bind_as_try; [ reflexivity | simp0 ]
     (* Perform tail call optimisation. (Not essential.) *)
   |  simple eapply advance_simp_bind_ret_right; simp0
-    (* Hoist left-nested [bind]s and [try]s. *)
+    (* Hoist left-nested [bind]s and [try]s, and try to transform [try] into
+       [bind] as much as possible. *)
   | simple eapply advance_simp_bind_bind; simp0
   | simple eapply advance_simp_bind_try; simp0
   | simple eapply advance_simp_try_bind; simp0
   | simple eapply advance_simp_try_try; simp0
+  | simple eapply advance_simp_try_pftry; simp0
     (* Handle [Stop] effects. *)
   | simple eapply advance_SimpEvalRetThrow'; simp0
   | simple eapply advance_SimpEvalRetThrow; simp0
@@ -743,14 +779,20 @@ with simp1_inspect :=
         (* Attempt 2. Make progress by eliminating this [bind],
            and possibly more progress thereafter. *)
         simp1_bind
-      ]
+        ]
+  | try2 ?m ?f =>
+  (* [try2] is treated the same way as [bind]. *)
+      first [
+          simple eapply advance_SimpTry2; [simp1; simp_close | simp0_try2 ]
+        | simp1_try2
+        ]
   | try ?m ?f ?h =>
       (* [try] is treated in the same way as [bind]. *)
       first [
         simple eapply advance_SimpTry; [ simp1; simp_close | simp0_try ]
       | simp1_try
       ]
-  | Par ?m1l ?m1r ?k ?h =>
+  | Par ?m1l ?m1r ?k =>
       (* We want to first simplify both sides of the [Par] independently, as
          far as possible; then, if possible, simplify the [Par] combinator
          away and further simplify the result. Three attempts are needed to
@@ -832,12 +874,32 @@ with simp1_bind :=
     simple eapply advance_simp_bind_ret
   | lazymatch goal with
     |- simp (bind ?m _) _ =>
-      let o := eval cbn -[app] in m in
+      let o := eval cbn in m in
       lazymatch o with ret _ =>
         (* strong *) eapply advance_simp_bind_ret
       end
     end
   ];
+  simp0
+
+with simp0_try2 :=
+  try simp1_try2
+
+with simp1_try2 :=
+  first [
+      simple eapply advance_simp_try2_ret
+    | simple eapply advance_simp_try2_throw
+    | lazymatch goal with
+        |- simp (try2 ?m _) _ =>
+          let o := eval cbn in m in
+            lazymatch o with
+            | ret _ =>
+                eapply advance_simp_try2_ret
+            | throw _ =>
+                eapply advance_simp_try2_throw
+            end
+      end
+    ];
   simp0
 
 (* [simp0_try] and [simp1_try] are special cases of [simp0] and [simp1].

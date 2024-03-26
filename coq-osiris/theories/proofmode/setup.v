@@ -17,14 +17,14 @@ Arguments satisfies_spec : simpl never.
    This exposes a [bind] combinator and enables further simplifications. *)
 Arguments as_bool m /.
 Arguments as_int m /.
-Arguments as_loc m /.
+Arguments as_loc E m /.
 Arguments as_record m /.
-Arguments as_struct m /.
+Arguments as_struct E m /.
 Arguments lookup_name _ _/.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
-Arguments remove !f !fvs : simpl nomatch.
+Arguments eval.remove !f !fvs : simpl nomatch. (* FIXME *)
 Arguments update !fvs !fvs' : simpl nomatch.
 Arguments extend δ !p v.
 Arguments extends δ !ps !vs.
@@ -32,7 +32,7 @@ Arguments extendfs δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments eval_match η v !bs /.
+Arguments eval_match η o !bs /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.

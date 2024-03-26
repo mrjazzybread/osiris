@@ -4,20 +4,33 @@ From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval.
 From iris.prelude Require Import prelude options.
 
-(* This file defines an ample-step semantics, that is, a reduction semantics
-   of the form [step c c'] where [c] and [c'] are pairs of a computation in
-   the [micro] monad and a store. *)
+(* This file equips the [micro] monad with an operational semantics, that is,
+   a reduction semantics of the form [step c c'] where [c] and [c'] are pairs
+   of a store and a computation. *)
 
-(* The definition of the relation [step] provides an interpretation of system
-   calls, that is, of [Stop] events. For example, a [Stop CEval] event is
-   interpreted as a request for a recursive invocation of the evaluator. *)
+(* The definition of the relation [step] gives meaning to system calls, that
+   is, to [Stop] events. For example, a [Stop CEval] event is interpreted as a
+   request for a recursive invocation of the evaluator. It also gives meaning
+   to the monad's non-standard constructs, namely [Handle], [Par], [Choose]. *)
 
 (* -------------------------------------------------------------------------- *)
 
-(* A store is a finite map of locations to values. *)
+(* A memory block stores either a value or a captured continuation.
+
+   A continuation is either not-yet-shot or already shot.
+
+   This gives rise to three cases: [V] for values, [K] for continuations,
+   and [Shot] for already-shot continuations.  *)
+
+Inductive block : Type :=
+| V (v : val)
+| K (k : outcome2 val exn → microvx)
+| Shot.
+
+(* A store (or heap) is a finite map of locations to memory blocks. *)
 
 Definition store : Type :=
-  gmap loc val.
+  gmap loc block.
 
 Implicit Type σ : store.
 
@@ -35,164 +48,229 @@ Ltac destruct_config :=
 
 (* The relation [step] is defined as follows. *)
 
-(* [Ret a] cannot step. It is a result. *)
+(* [Ret a] and [Throw e] cannot step. They are results. *)
 
-(* [Throw e] and [Crash] cannot step. *)
+(* [Crash] cannot step. *)
 
-(* The reduction rules for [Par] are designed so as to guarantee that [Par]
-   can always step. This preserves the property that the only stuck terms
-   are [Throw _] and [Crash]. There is a lot of non-determinism in these
-   reduction rules: e.g., [Par Crash (Throw _) _ _] can step to either
-   [Crash] or [Throw _]. *)
+(* [Stop CPerform e k] cannot step by itself. If it appears in the scope of
+   [Handle] then it can step. *)
+
+(* The reduction rules are designed so that [Handle] and [Par] can always
+   step. There is a lot of non-determinism in the reduction of [Par]. *)
 
 Inductive step {A E} : config A E → config A E → Prop :=
 
-  (* [Stop CEval (η, e) k z] steps to an invocation of [eval η e] under
-     [try _ k z]. Thus, from the user's perspective, the computation
+  (* [Stop CEval (η, e) k] steps to an invocation of [eval η e] under
+     [try2 _ k]. Thus, from the user's perspective, the computation
      [stop CEval (η, e)] behaves just like [eval η e]. *)
   | StepEval :
-      ∀ σ η e k z,
+      ∀ σ η e k,
       step
-        (σ, Stop CEval (η, e) k z)
-        (σ, try (eval η e) k z)
+        (σ, Stop CEval (η, e) k)
+        (σ, try2 (eval η e) k)
 
   (* [stop (η, x, i1, i2, e)] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
-      ∀ σ η x i1 i2 e k z,
+      ∀ σ η x i1 i2 e k,
       step
-        (σ, Stop CLoop (η, x, i1, i2, e) k z)
-        (σ, try (loop η x i1 i2 e) k z)
+        (σ, Stop CLoop (η, x, i1, i2, e) k)
+        (σ, try2 (loop η x i1 i2 e) k)
 
   (* [stop CAlloc v] allocates a fresh location in the heap,
-     initializes it with [v], and returns this location. *)
+     initializes it with the value [v], and returns this location. *)
   | StepAlloc :
-      ∀ σ v l k z,
+      ∀ σ v l k,
       σ !! l = None →
       step
-        (σ, Stop CAlloc v k z)
-        (<[l := v]>σ, k l)
+        (σ, Stop CAlloc v k)
+        (<[l := V v]>σ, continue k l)
 
-  (* If the location [l] exists, then [stop CLoad l] looks up its content
-     in the heap and returns it. *)
-  | StepLoadSuccess :
-      ∀ σ l v k z,
-      σ !! l = Some v →
+  (* If the location [l] exists and contains a value [v], then
+     [stop CLoad l] returns this value; otherwise, it crashes. *)
+  | StepLoad :
+      ∀ σ l k m',
+      m' = match σ !! l with Some (V v) => continue k v | _ => crash end →
       step
-        (σ, Stop CLoad l k z)
-        (σ, k v)
+        (σ, Stop CLoad l k)
+        (σ, m')
 
-  (* If the location [l] does not exist, then [stop CLoad l] fails. This
-     ensures that [Crash] is the only stuck term. *)
-  | StepLoadFailure :
-      ∀ σ l k z,
+  (* If the location [l] exists and contains a value [v], then
+     [stop CStore (l, v')] overwrites this value with [v'];
+     otherwise, it crashes. *)
+  | StepStore :
+      ∀ σ l v' k c',
+      c' = match σ !! l with
+           | Some (V v) =>
+               (<[ l := V v' ]> σ, continue k ())
+           | _ =>
+               (σ, crash)
+           end →
+      step
+        (σ, Stop CStore (l, v') k)
+        c'
+
+  (* If [Handle _ h] observes a normal result [ret v] then it reduces to an
+     application of the first arm of the handler [h] to the value [v]. *)
+  | StepHandleRet :
+      ∀ σ v h,
+      step
+        (σ, Handle (Ret v) h)
+        (σ, h (O3Ret v))
+
+  (* If [Handle _ h] observes an exception [throw e] then it reduces to an
+     application of the second arm of the handler [h] to the exception [e]. *)
+  | StepHandleThrow :
+      ∀ σ e h,
+      step
+        (σ, Handle (Throw e) h)
+        (σ, h (O3Throw e))
+
+  (* If [Handle _ h] observes an effect [perform e k] then it captures the
+     continuation [k], which becomes stored at a fresh address [l] in the
+     heap. Then, it reduces to an application of the third arm of the
+     handler [h] to the effect [e] and to the location [l]. *)
+  | StepHandlePerform :
+      ∀ σ e k h l,
       σ !! l = None →
       step
-        (σ, Stop CLoad l k z)
+        (σ, Handle (Stop CPerform e k) h)
+        (<[l := K k]>σ, h (O3Perform e l))
+
+  (* If [Handle _ h] observes a crash then this crash is propagated. *)
+  | StepHandleCrash :
+      ∀ σ h,
+      step
+        (σ, Handle Crash h)
         (σ, Crash)
 
-  (* If the location [l] exists, then [stop CStore (l, v')] overwrites
-     its content with [v'] and returns a unit value. *)
-  | StepStoreSuccess :
-      ∀ σ l v' v k z,
-      σ !! l = Some v →
-      step
-        (σ, Stop CStore (l, v') k z)
-        (<[ l := v' ]> σ, k tt)
+  (* Reduction under [Handle _ h] is permitted. *)
+  | StepHandleLeft :
+      ∀ σ σ' m m' h,
+      step (σ, m) (σ', m') →
+      step (σ, Handle m h) (σ', Handle m' h)
 
-  (* If the location [l] does not exist, then [stop CStore (l, v')] fails.
-     This ensures that [Crash] is the only stuck term. *)
-  | StepStoreFailure :
-      ∀ σ l v' k z,
-      σ !! l = None →
+  (* [stop CContinue (l, v)] reads the continuation [sk] that is stored
+     at address [l] in the heap, updates [l] to [Shot], and resumes the
+     continuation [sk] with the value [v]. *)
+  | StepContinue :
+      ∀ σ l v k c',
+      c' = match σ !! l with
+           | Some (K sk) =>
+               (<[l := Shot]>σ, try2 (continue sk v) k)
+           | _ =>
+               (σ, crash)
+           end →
       step
-        (σ, Stop CStore (l, v') k z)
-        (σ, Crash)
+        (σ, Stop CContinue (l, v) k)
+        c'
+
+  (* [stop CDiscontinue (l, v)] reads the continuation [sk] that is stored
+     at address [l] in the heap, updates [l] to [Shot], and resumes the
+     continuation [sk] with the exception [v]. *)
+  | StepDiscontinue :
+      ∀ σ l v k c',
+      c' = match σ !! l with
+           | Some (K sk) =>
+               (<[l := Shot]>σ, try2 (discontinue sk v) k)
+           | _ =>
+               (σ, crash)
+           end →
+      step
+        (σ, Stop CDiscontinue (l, v) k)
+        c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
      then the continuation [k] is applied to the pair [(v1, v2)]. *)
   | StepParRetRet :
-      ∀ {A1 A2 E'} σ (v1 : A1) (v2 : A2) k (z : E' → _),
+      ∀ {A1 A2 E'} σ v1 v2 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par (Ret v1) (Ret v2) k z)
-        (σ, k (v1, v2))
+        (σ, Par (Ret v1) (Ret v2) k)
+        (σ, continue k (v1, v2))
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2 E'} σ m2 (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par Crash m2 k z)
+        (σ, Par Crash m2 k)
         (σ, Crash)
 
   | StepParCrashRight :
-      ∀ {A1 A2 E'} σ m1 (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par m1 Crash k z)
+        (σ, Par m1 Crash k)
         (σ, Crash)
 
   (* If a soft failure on either side is detected, then
-     the failure continuation [z] can be invoked. *)
+     the failure component of the continuation [k] can be invoked. *)
   | StepParThrowLeft :
-      ∀ {A1 A2 E'} σ m2 e (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ m2 e (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par (Throw e) m2 k z)
-        (σ, z e)
+        (σ, Par (Throw e) m2 k)
+        (σ, discontinue k e)
 
   | StepParThrowRight :
-      ∀ {A1 A2 E'} σ m1 e (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ m1 e (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par m1 (Throw e) k z)
-        (σ, z e)
+        (σ, Par m1 (Throw e) k)
+        (σ, discontinue k e)
+
+  (* If [Stop (perform e) k] appears under the context [Par _ m2 h] then
+     it can capture this evaluation context frame. Thus, it reduces to a
+     new term where [Stop (perform e) _] now appears naked and the captured
+     evaluation context is [Par (k _) m2 h]. *)
+  | StepParPerformLeft :
+      ∀ {A1 A2 E'} σ m2 e k (h : outcome2 (A1 * A2) E' → _),
+      step
+        (σ, Par (Stop CPerform e k) m2 h)
+        (σ, Stop CPerform e (λ o, Par (k o) m2 h))
+
+  | StepParPerformRight :
+      ∀ {A1 A2 E'} σ m1 e k (h : outcome2 (A1 * A2) E' → _),
+      step
+        (σ, Par m1 (Stop CPerform e k) h)
+        (σ, Stop CPerform e (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
-      ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _),
       step (σ, m1) (σ', m'1) →
       step
-        (σ, Par m1 m2 k z)
-        (σ', Par m'1 m2 k z)
+        (σ, Par m1 m2 k)
+        (σ', Par m'1 m2 k)
 
   | StepParRight :
-      ∀ {A1 A2 E'} σ σ' m1 m2 m'2 (k : A1 * A2 → _) (z : E' → _),
+      ∀ {A1 A2 E'} σ σ' m1 m2 m'2 (k : outcome2 (A1 * A2) E' → _),
       step (σ, m2) (σ', m'2) →
       step
-        (σ, Par m1 m2 k z)
-        (σ', Par m1 m'2 k z)
+        (σ, Par m1 m2 k)
+        (σ', Par m1 m'2 k)
 
   (* [choose] steps to either side. *)
   | StepChooseLeft :
-      ∀ {B E'} σ m1 m2 (k : B → _) (z : E' → _),
+      ∀ {B E'} σ m1 m2 (k : outcome2 B E' → _),
       step
-        (σ, Choose m1 m2 k z)
-        (σ, try m1 k z)
+        (σ, Choose m1 m2 k)
+        (σ, try2 m1 k)
 
   | StepChooseRight :
-      ∀ {B E'} σ m1 m2 (k : B → _) (z : E' → _),
+      ∀ {B E'} σ m1 m2 (k : outcome2 B E' → _),
       step
-        (σ, Choose m1 m2 k z)
-        (σ, try m2 k z)
+        (σ, Choose m1 m2 k)
+        (σ, try2 m2 k)
 
 .
 
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
-  try match goal with h: step (?σ, Stop ?c ?x ?k ?z) ?m' |- _ =>
+  (* For some reason, [dependent destruction] does not like it when
+     the argument [x] of [Stop] is not a variable. *)
+  try match goal with h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
     remember x
   end;
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
-
-(* This auxiliary lemma is useful when a constructor of the relation [step]
-   cannot be applied directly. *)
-
-Lemma step_up_to_eq {A E} (c : config A E) σ e e' :
-  step c (σ, e) →
-  e = e' →
-  step c (σ, e').
-Proof.
-  congruence.
-Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -241,18 +319,6 @@ Proof.
   destruct m; simpl; congruence.
 Qed.
 
-Lemma is_not_ret_crash {A E} :
-  is_not_ret (Crash : micro A E).
-Proof.
-  reflexivity.
-Qed.
-
-Lemma is_not_ret_throw {A E} (e : E) :
-  is_not_ret (throw e : micro A E).
-Proof.
-  reflexivity.
-Qed.
-
 (* -------------------------------------------------------------------------- *)
 
 (* [is_throw m] is [Some a] if and only if [m] is [Throw a]. *)
@@ -263,7 +329,7 @@ Qed.
 Definition is_throw {A B} (m : micro A B) : option B :=
   match m with
   | Throw a => Some a
-  | _     => None
+  | _       => None
   end.
 
 (* Basic properties of [is_throw]. *)
@@ -322,7 +388,11 @@ Ltac destruct_can_step :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* A configuration that is not [ret _] and that is unable to step is stuck. *)
+(* A configuration that is not [ret _] and that is unable to step is stuck.
+   This includes unhandled exceptions and unhandled effects. *)
+
+(* TODO it may be confusing to characterize unhandled exceptions and
+   effects as "stuck". Could we just remove [stuck] entirely? *)
 
 Definition stuck {A E} (c : config A E) :=
   let '(σ, m) := c in
@@ -360,34 +430,89 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+(* [perform e] cannot step. *)
+
+Lemma invert_can_step_perform σ e :
+  can_step (σ, perform e) →
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
   invert_can_step_Throw
+  invert_can_step_perform
 : invert_can_step.
 
-(* If the location [l] exists in the store, then [stop CStore (l, v')]
-   can step in only one way. *)
+(* -------------------------------------------------------------------------- *)
 
-Lemma invert_step_store {A E} σ l v' v k z σ' m' :
-  σ !! l = Some v →
-  @step A E (σ, Stop CStore (l, v') k z) (σ', m') →
-  σ' = <[ l := v' ]> σ ∧
-  m' = k ().
+(* A few technical tactics. *)
+
+(* [exploit_location_lookup] rewrites an equality hypothesis [σ !! l = _]
+   to rewrite in another hypothesis or in the goal, provided it mentions
+   [σ !! l]. *)
+
+Local Ltac exploit_location_lookup :=
+  match goal with
+  h1: ?σ !! ?l = _,
+  h2: context[?σ !! ?l]
+  |- _ =>
+    rewrite h1 in h2
+  |
+  h1: ?σ !! ?l = _
+  |- context[?σ !! ?l]
+  =>
+    rewrite h1
+  end.
+
+(* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
+   in the goal and performs a case analysis on [σ !! l], giving rise to 4
+   cases (value block; ordinary continuation block; shot continuation block;
+   nonexistent address). *)
+
+Local Ltac case_location_lookup :=
+  match goal with
+  |- context[?σ !! ?l] =>
+      let block := fresh "block" in
+      let Hσ := fresh in
+      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+  | h: context[?σ !! ?l] |- _ =>
+      let block := fresh "block" in
+      let Hσ := fresh in
+      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+  end.
+
+Local Hint Extern 1 (_ = _) =>
+  exploit_location_lookup
+: exploit_location_lookup.
+
+(* -------------------------------------------------------------------------- *)
+
+(* If the location [l] exists in the store and contains a value,
+   then [stop CStore (l, v')] can step in only one way. *)
+
+Lemma invert_step_store {A E} σ l v' v k σ' m' :
+  σ !! l = Some (V v) →
+  @step A E (σ, Stop CStore (l, v') k) (σ', m') →
+  σ' = <[ l := V v' ]> σ ∧
+  m' = continue k ().
 Proof.
-  intros. destruct_step; split; congruence.
+  intros Heq Hstep. destruct_step. exploit_location_lookup.
+  split; congruence.
 Qed.
 
-(* If the location [l] exists in the store, then [stop CLoad l]
-   can step in only one way. *)
+(* If the location [l] exists in the store and contains a value,
+   then [stop CLoad l] can step in only one way. *)
 
-Lemma invert_step_load {A E} σ σ' l v k z m' :
-  σ !! l = Some v →
-  @step A E (σ, Stop CLoad l k z) (σ', m') →
+Lemma invert_step_load {A E} σ σ' l v k m' :
+  σ !! l = Some (V v) →
+  @step A E (σ, Stop CLoad l k) (σ', m') →
   σ' = σ ∧
-  m' = k v.
+  m' = continue k v.
 Proof.
-  intros. destruct_step; split; congruence.
+  intros Heq Hstep. destruct_step. rewrite Heq. split; congruence.
 Qed.
 
 (* A term that can step is not [ret _]. *)
@@ -400,81 +525,148 @@ Proof.
   destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* [Stop] can step. *)
+(* If [c] is not [CPerform _], then [Stop c x k] can step. *)
 
 Lemma can_step_stop {A X Y E' E}
-  σ (c : code X Y E') x (k : Y → _) (z : E' → _) :
-  can_step ((σ, Stop c x k z) : config A E).
+  σ (c : code X Y E') x (k : outcome2 Y E' → _) :
+  match c with CPerform => False | _ => True end →
+  can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?);
-  (* For reading and writing, we must reason by cases, according to
-     whether the location [l] is or is not in the domain of [σ]. *)
-  try match goal with σ: store, l: loc |- _ => case_eq (σ !! l) end;
-  (* All cases except allocation are handled here: *)
-  eauto using step_up_to_eq with step.
+  (* Get rid of [CPerform]. *)
+  first [ tauto | intros _ ];
+  (* Deal with all remaining cases except [CAlloc]. *)
+  eauto using StepLoad with step.
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
   { set (l := fresh_loc (dom σ)).
     pose proof (Hl := fresh_loc_fresh (dom σ)).
     rewrite not_elem_of_dom in Hl.
-    eauto using step_up_to_eq with step. }
+    eauto using StepAlloc with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.
 
-(* The following auxiliary lemma is used in the proof of [can_step_par],
-   which establishes a stronger result. *)
+(* The following two auxiliary lemmas are used in the proof of
+   [can_step_handle_par], which establishes a stronger result. *)
+
+Local Lemma can_step_under_handle {A E} σ m h :
+  can_step (σ, m) →
+  can_step ((σ, Handle m h) : config A E).
+Proof.
+  intros; destruct_can_step; eauto using StepHandleLeft with step.
+Qed.
 
 Local Lemma can_step_under_par {A1 A2 A E' E}
-  σ m1 m2 (k : A1 * A2 → _) (z : E' → _) :
+  σ m1 m2 (k : outcome2 (A1 * A2) E' → _) :
   can_step (σ, m1) ∨ can_step (σ, m2) →
-  can_step ((σ, Par m1 m2 k z) : config A E).
+  can_step ((σ, Par m1 m2 k) : config A E).
 Proof.
-  intros [|]; destruct_can_step; eauto using step_up_to_eq with step.
+  intros [|]; destruct_can_step;
+  eauto using StepParLeft, StepParRight with step.
 Qed.
 
-(* [Par] can step. *)
+(* [Handle] and [Par] can step. *)
 
-Lemma can_step_par :
-  ∀ {A E} m {A1 A2 E'} σ m1 m2 (k : A1 * A2 → _) (z : E' → _),
-  m = Par m1 m2 k z →
-  can_step ((σ, m) : config A E).
+Lemma can_step_handle_par :
+  ∀ {A E} (m : micro A E),
+  match m with Handle _ _ | Par _ _ _ => True | _ => False end →
+  ∀ σ,
+  can_step (σ, m).
 Proof.
-  induction m; try solve [ congruence ].
-  intros A'1 A'2 E'' σ' m'1 m'2 k' z' Heq.
-  (* The hypothesis [Heq] is tricky because it involves different types
-     on either side. Fortunately, [dependent destruction] is capable
-     of deconstructing it for us. Phew! *)
-  dependent destruction Heq.
-  destruct m'1; eauto using can_step_under_par with step.
-  destruct m'2; eauto using can_step_under_par with step.
+  induction m; try tauto; intros _ σ.
+  (* We get two goals, [Handle] and [Par]. *)
+
+  (* Case: [Handle]. *)
+  {
+    (* Clear the (useless) second induction hypothesis. *)
+    clear H.
+    (* Analyze [m]; analyze [c]. *)
+    destruct m; eauto using can_step_under_handle with step.
+    destruct c; eauto using can_step_under_handle with step.
+    (* We are now looking at [perform] under [handle]. *)
+    (* An allocation is involved, so (again) we must exhibit
+       an address [l] that is not in the domain of [σ]. *)
+    set (l := fresh_loc (dom σ)).
+    pose proof (Hl := fresh_loc_fresh (dom σ)).
+    rewrite not_elem_of_dom in Hl.
+    (* At this point, the reduction rule [StepHandlePerform] is
+       exploited. It is worth noting that this rule can be used
+       only if the computation that is being handled has type
+       [micro val exn], as opposed to [micro A E]. This explains
+       why the [Handle] construct is restricted to this case. *)
+    eauto using StepHandlePerform with step.
+  }
+
+  (* Case: [Par]. *)
+  {
+    (* Analyze [m1]. *)
+    destruct m1; eauto using can_step_under_par with step.
+    + (* Analyze [m2]. *)
+      destruct m2; eauto using can_step_under_par with step.
+      (* We are now looking at [Stop] under [Par]. *)
+      destruct c; eauto using can_step_under_par with step.
+    + (* We are now looking at [Stop] under [Par]. *)
+      destruct c; eauto using can_step_under_par with step.
+  }
+
 Qed.
+
+(* Corollaries: [Handle] can step; [Par] can step. *)
+
+Lemma can_step_handle {A E} σ m h :
+  can_step ((σ, Handle m h) : config A E).
+Proof.
+  eauto using can_step_handle_par.
+Qed.
+
+Lemma can_step_par
+  {A E A1 A2 E'} σ m1 m2 (k : outcome2 (A1 * A2) E' → _) :
+  can_step ((σ, Par m1 m2 k) : config A E).
+Proof.
+  eauto using can_step_handle_par.
+Qed.
+
+(* [Choose] can step. *)
 
 Lemma can_step_choose :
-  ∀ {A B E' E} σ m m1 m2 (k : A → _) (z : E' → _),
-  m = Choose m1 m2 k z →
-  can_step ((σ, m) : config B E).
+  ∀ {A B E' E} σ m1 m2 (k : outcome2 A E' → _),
+  can_step ((σ, Choose m1 m2 k) : config B E).
 Proof.
-  intros. subst. unfold can_step. eauto with step.
+  eauto with step.
 Qed.
 
-Global Hint Resolve can_step_par can_step_choose : step.
+Global Hint Resolve
+  can_step_handle can_step_par can_step_choose
+: step.
 
-(* Stepping in the left-hand side of [try] is permitted. *)
+(* Stepping in the left-hand side of [try2] is permitted. *)
 
 (* This corresponds to reduction under an evaluation context. *)
+
+Lemma step_try2 {A B E' E} σ σ' m m' (h : outcome2 A E' → micro B E) :
+  step (σ, m) (σ', m') →
+  step (σ, try2 m h) (σ', try2 m' h).
+Proof.
+  (* A general recipe. *)
+  inversion 1; subst;
+  simpl try2;
+  rewrite ?try2_try2;
+  eauto with step;
+  (* The cases that involve store lookups are a bit tricky, because
+     of the way we have used [match] in the reduction rules. *)
+  case_location_lookup; simplify_eq;
+  eauto with step exploit_location_lookup try_try.
+Qed.
+
+(* As special cases, stepping under [try] or [bind] is also permitted. *)
 
 Lemma step_try {A B E' E} σ σ' m m' (f : A → micro B E) (h : E' → _) :
   step (σ, m) (σ', m') →
   step (σ, try m f h) (σ', try m' f h).
 Proof.
-  inversion 1; subst;
-  simpl try;
-  rewrite ?try_try;
-  eauto using step_up_to_eq with step.
+  eauto using step_try2.
 Qed.
-
-(* As a special case, stepping under [bind] is also permitted. *)
 
 Lemma step_bind {A B E} σ σ' m m' (f : A → micro B E) :
   step (σ, m) (σ', m') →
@@ -484,6 +676,13 @@ Proof.
 Qed.
 
 (* Corollaries. *)
+
+Lemma can_step_try2 {A B E' E} σ m (h : outcome2 A E' → micro B E) :
+  can_step (σ, m) →
+  can_step (σ, try2 m h).
+Proof.
+  unfold can_step. intros ([] & Hstep). eauto using step_try2.
+Qed.
 
 Lemma can_step_try {A B E' E} σ m (f : A → micro B E) (h : E' → _) :
   can_step (σ, m) →
@@ -499,7 +698,7 @@ Proof.
   rewrite bind_as_try. eauto using can_step_try.
 Qed.
 
-Global Hint Resolve can_step_try can_step_bind : can_step.
+Global Hint Resolve can_step_try2 can_step_try can_step_bind : can_step.
 
 (* If [try m f h] takes a step, and if [m] can step, then the step taken by
    [try m f h] must a step of [m] under the context [try _ f h]. *)
@@ -507,56 +706,42 @@ Global Hint Resolve can_step_try can_step_bind : can_step.
 (* In other words, reduction under a context is mandatory: no other reduction
    is possible. *)
 
+Lemma invert_step_try2 {A B E' E σ} {m} {h : outcome2 A E' → micro B E} {σ' mm} :
+  step (σ, try2 m h) (σ', mm) →
+  can_step (σ, m) →
+  (∃ m', step (σ, m) (σ', m') ∧ mm = try2 m' h).
+Proof.
+  destruct m;
+  simpl try2;
+  intros;
+  (* Case: [Ret] *)
+  try solve [ exfalso; eauto with invert_can_step ];
+  (* Every other case: *)
+  destruct_step; eauto with step try_try;
+  (* The cases of store lookups remain: *)
+  case_location_lookup; simplify_eq;
+  eauto 6 with step exploit_location_lookup try_try.
+Qed.
+
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :
   step (σ, try m f h) (σ', mm) →
   can_step (σ, m) →
   (∃ m', step (σ, m) (σ', m') ∧ mm = try m' f h).
 Proof.
-  destruct m;
-  simpl try;
-  intros;
-  try solve [
-    (* Case: [Ret] *)
-    exfalso; eauto with invert_can_step
-  | (* Every other case: *)
-    destruct_step; eauto with step try_try
-  ].
+  eauto using invert_step_try2.
 Qed.
 
-Lemma invert_step_try' {A E} m (f : A → micro A E) (h : E → _) σ σ' mm :
-  step.step (σ, try m f h) (σ', mm) →
-  is_not_ret m ->
-  is_not_throw m ->
-  (∃ m', step.step (σ, m) (σ', m') ∧ mm = try m' f h).
-Proof.
-  destruct m;
-  simpl try;
-  intros;
-  try solve [
-    (* Case: [Ret] *) inversion H0
-  | (* Every other case: *)
-  destruct_step; eauto with step try_try; inversion H1
-  ].
-Qed.
+(* A stronger version of the following lemma is proved later on. *)
 
-(* The following lemma looks like a special case of [invert_step_try], but
-   is in fact stronger, as it requires just [is_not_ret m] instead of the
-   stronger hypothesis [can_step (_, m)]. *)
-
-Lemma invert_step_bind {A B E σ m} {f : A → micro B E} {σ' mm} :
+Lemma invert_step_bind_weak {A B E σ} {m} {f : A → micro B E} {σ' mm} :
   step (σ, bind m f) (σ', mm) →
-  is_not_ret m →
+  can_step (σ, m) →
   (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
 Proof.
-  destruct m;
-  simpl try;
-  intros;
-  try solve [
-    (* Case: [Ret] *)
-    exfalso; eauto using is_not_ret_ret
-  | (* Every other case: *)
-    destruct_step; eauto with step bind_try
-  ].
+  intros Hstep Hcan.
+  rewrite bind_as_try in Hstep.
+  destruct (invert_step_try Hstep Hcan) as (m' & ? & ?). subst mm.
+  exists m'. rewrite bind_as_try. eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -603,9 +788,7 @@ Qed.
 Lemma stuck_Crash {A E} σ :
   stuck ((σ, Crash) : config A E).
 Proof.
-  unfold stuck. split.
-  { eauto using is_not_ret_crash. }
-  { inversion 1. }
+  unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
 (* [Throw e] is stuck. *)
@@ -613,16 +796,22 @@ Qed.
 Lemma stuck_Throw {A E} σ e :
   stuck ((σ, Throw e) : config A E).
 Proof.
-  unfold stuck. split.
-  { eauto using is_not_ret_throw. }
-  { inversion 1. }
+  unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-(* The only stuck terms are [Crash] and [Throw _]. *)
+(* [Stop CPerform e k] is stuck. *)
 
-Lemma only_crash_and_throw_are_stuck {A E} σ m :
+Lemma stuck_Perform {A E} σ e k :
+  stuck ((σ, Stop CPerform e k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
+(* The only stuck terms are [Crash] and [Throw _] and [perform _]. *)
+
+Lemma only_crash_and_throw_and_perform_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  m = Crash ∨ ∃ e, m = Throw e.
+  m = Crash ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerform e k).
 Proof.
   intros.
   destruct m; try solve [
@@ -630,6 +819,29 @@ Proof.
   | exfalso; eauto using invert_stuck_ret
   | exfalso; eauto using can_step_not_stuck with step
   ].
+  (* The case of [Stop] remains. *)
+  destruct_code; try solve [
+    eauto
+  | exfalso; eauto using can_step_not_stuck with step
+  ].
+Qed.
+
+(* TODO could we use this lemma
+   and avoid reasoning with [stuck],
+   which introduces painful negations? *)
+Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
+  match m with
+  | Ret _
+  | Crash
+  | Throw _
+  | Stop CPerform _ _ =>
+      True
+  | _ =>
+      can_step (σ, m)
+  end.
+Proof.
+  destruct m; eauto with step.
+  destruct_code; eauto with step.
 Qed.
 
 (* If [m] is stuck then [bind m f] is also stuck. *)
@@ -638,9 +850,26 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, m) →
   stuck (σ, bind m f).
 Proof.
-  intros [| (e & ?)]%only_crash_and_throw_are_stuck; subst m.
-  + rewrite bind_crash. eauto using stuck_Crash.
-  + rewrite bind_throw. eauto using stuck_Throw.
+  intros Hstuck.
+  apply only_crash_and_throw_and_perform_are_stuck in Hstuck.
+  destruct Hstuck as [| [(e & ?) | (e & k & ?)]]; subst m; simpl bind;
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform.
+Qed.
+
+(* The following lemma is a stronger version of [invert_step_bind_weak].
+   It requires just [is_not_ret m] instead of [can_step (_, m)]. *)
+
+Lemma invert_step_bind {A B E σ m} {f : A → micro B E} {σ' mm} :
+  step (σ, bind m f) (σ', mm) →
+  is_not_ret m →
+  (∃ m', step (σ, m) (σ', m') ∧ mm = bind m' f).
+Proof.
+  intros.
+  destruct m; intros; try destruct_code;
+  (* This takes care of the cases covered by the weak lemma: *)
+  eauto using invert_step_bind_weak with step;
+  (* The remaining cases are [ret _] and the stuck terms. *)
+  simpl in *; solve [ congruence | destruct_step ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -655,7 +884,8 @@ Lemma triplicity {A E} σ (m : micro A E) :
   can_step (σ, m) ∨
   stuck (σ, m).
 Proof.
-  destruct m; eauto using stuck_Crash, stuck_Throw with step.
+  destruct m; try destruct_code;
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform with step.
 Qed.
 
 Ltac triplicity σ m H :=

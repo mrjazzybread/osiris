@@ -15,7 +15,7 @@ From osiris.semantics Require Import code eval.
 
 (* The definition of [eval']. *)
 
-Definition eval' η e : micro val void :=
+Definition eval' η e : microvx :=
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -23,7 +23,7 @@ Definition eval' η e : micro val void :=
       ret (VChar c)
   | EPath π =>
       (* A path [π] is looked up in the environment [η]. *)
-      lookup_path η π
+      widen (lookup_path η π)
   | EAnonFun a =>
       (* The creation of a closure captures the environment [η]. *)
       ret (VClo η a)
@@ -38,6 +38,10 @@ Definition eval' η e : micro val void :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
+  | EXData c e =>
+      l ← as_loc (widen (lookup_name η c)) ;
+      v ← eval η e ;
+      ret (VXData l v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
       fvs ← evalfs η fes ;
@@ -53,7 +57,7 @@ Definition eval' η e : micro val void :=
       ret (VRecord fvs)
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
-      lookup_name fvs f
+      widen (lookup_name fvs f)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
      if (b1 : bool) then eval η e2 else ret VFalse
@@ -177,8 +181,17 @@ Definition eval' η e : micro val void :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      v ← eval η e ;
-      eval_match η v bs
+      try2
+        (eval η e)
+        (λ (o : outcome2 val exn), eval_match η o bs)
+  | ETryWith e bs =>
+      try
+        (eval η e)
+        Ret
+        (λ ex, eval_trywith η ex bs)
+  | ERaise e =>
+      exc ← eval η e ;
+      throw exc
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
@@ -199,7 +212,7 @@ Definition eval' η e : micro val void :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is executed, or it is skipped. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : micro val void :=
+      let test : microvx :=
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
       in

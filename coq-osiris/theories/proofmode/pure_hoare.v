@@ -14,12 +14,12 @@ From osiris.proofmode Require Import simp_eval notations.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma pure_prove_bind_bind `{Encode A} `{Encode X} m (a : A)
+Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
   simp ('c ← m;
         f c) (ret #a) ->
   pure (g #a) φ ->
-  pure ('v1 ← m;
+  pure (X := E) ('v1 ← m;
         'v2 ← f v1;
         g v2) φ.
 Proof.
@@ -66,7 +66,7 @@ Qed.
 
 (* [bind] composed with [as_bool]. *)
 
-Lemma simp_as_bool (x : bool) (m : micro val void) :
+Lemma simp_as_bool (x : bool) (m : microvx) :
   simp m (ret #x) →
   simp (as_bool m) (ret x).
 Proof.
@@ -74,7 +74,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_bool Y (_ : Encode Y)
-  m (f : bool → micro val void) (φ : bool → Prop) (ψ : Y → Prop) :
+  m (f : bool → microvx) (φ : bool → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : bool), φ x → pure (f x) ψ) →
   pure (bind (as_bool m) f) ψ.
@@ -88,7 +88,7 @@ Qed.
 
 (* [bind] composed with [as_int]. *)
 
-Lemma simp_as_int (x : Z) (m : micro val void) :
+Lemma simp_as_int (x : Z) (m : microvx) :
   simp m (ret #x) →
   simp (as_int m) (ret (repr x)).
 Proof.
@@ -96,7 +96,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_int `{Encode Y}
-  m (f : int → micro val void) (φ : Z → Prop) (ψ : Y → Prop) :
+  m (f : int → microvx) (φ : Z → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : Z), φ x → pure (f (repr x)) ψ) →
   pure (bind (as_int m) f) ψ.
@@ -110,7 +110,7 @@ Qed.
 
 (* [bind] composed with [as_loc]. *)
 
-Lemma simp_as_loc (x : loc) (m : micro val void) :
+Lemma simp_as_loc (x : loc) (m : microvx) :
   simp m (ret #x) ->
   simp (as_loc m) (ret x).
 Proof.
@@ -118,7 +118,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_loc `{Encode Y}
-  m (f : loc → micro val void) (φ : loc → Prop) (ψ : Y → Prop) :
+  m (f : loc → microvx) (φ : loc → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : loc), φ x → pure (f x) ψ) →
   pure (bind (as_loc m) f) ψ.
@@ -132,7 +132,7 @@ Qed.
 
 (* [bind] composed with [as_struct]. *)
 
-Lemma simp_as_struct (x : env) (m : micro val void) :
+Lemma simp_as_struct (x : env) (m : microvx) :
   simp m (ret (VStruct x)) ->
   simp (as_struct m) (ret x).
 Proof.
@@ -140,7 +140,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_struct Y (_ : Encode Y)
-  m (f : env → micro val void) (φ : val → Prop) (ψ : Y → Prop) :
+  m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
   pure m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
   (∀ (x : env), φ (VStruct x) → pure (f x) ψ) →
   pure (bind (as_struct m) f) ψ.
@@ -156,7 +156,7 @@ Qed.
 
 (* [bind] composed with [as_record]. *)
 
-Lemma simp_as_record (x : env) (m : micro val void) :
+Lemma simp_as_record (x : env) (m : microvx) :
   simp m (ret (VRecord x)) ->
   simp (as_record m) (ret x).
 Proof.
@@ -164,7 +164,7 @@ Proof.
 Qed.
 
 Lemma pure_bind_as_record Y (_ : Encode Y)
-  m (f : env → micro val void) (φ : val → Prop) (ψ : Y → Prop) :
+  m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
   pure m (λ y : val, exists y', y = VRecord y' /\ φ y) →
   (∀ (x : env), φ (VRecord x) → pure (f x) ψ) →
   pure (bind (as_record m) f) ψ.
@@ -245,8 +245,8 @@ Proof.
   tauto.
 Qed.
 
-Lemma invert_pure_crash `{Encode Y} (φ : Y -> Prop) :
-  pure Crash φ -> False.
+Lemma invert_pure_crash `{Encode Y} {X} (φ : Y -> Prop) :
+  pure (X := X) Crash φ -> False.
 Proof.
   intros. destruct_pure a. clarify_simp.
 Qed.

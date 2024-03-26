@@ -53,12 +53,12 @@ type pat =
   | PVar of var
   (* An alias pattern [p as x]. *)
   | PAlias of pat * var
-  (* A disjunction pattern [p1 | p2]. *)
-  | POr of pat * pat
   (* A tuple pattern. *)
   | PTuple of pats
   (* A data constructor pattern. *)
   | PData of data * pat
+  (* A data constructor pattern of an extensible type. *)
+  | PXData of data * pat
   (* A record pattern. *)
   | PRecord of fpats
   (* A literal integer pattern. *)
@@ -67,6 +67,17 @@ type pat =
   | PChar of char
   (* A literal string pattern. *)
   | PString of string
+  (* A disjunction pattern [p1 | p2]. *)
+  | POr of pat * pat
+
+(* Computation patterns. *)
+
+and cpat =
+  | CVal of pat
+  | CExc of pat
+  | CEff of pat
+  (* A disjunction pattern [p1 | p2]. *)
+  | COr of cpat * cpat
 
 (* Lists of patterns. *)
 
@@ -126,6 +137,8 @@ type expr =
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData of data * expr
+
+  | EXData of data * expr
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs
@@ -191,6 +204,11 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
+  (* Exception catching: [try e with bs]. *)
+  | ETryWith of expr * branches
+  (* Exception raising: [raise e]. *)
+  | ERaise of expr
+
   (* Loop: [while e do body done] .*)
   | EWhile of expr * expr
   (* Loop: [for x = e1 to e2 do e done]. *)
@@ -225,7 +243,7 @@ and fexprs =
 (* A branch is of the form [p -> e]. *)
 
 and branch =
-  | Branch of pat * expr
+  | Branch of cpat * expr
 
 (* Lists of branches. *)
 

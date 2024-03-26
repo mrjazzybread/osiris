@@ -82,6 +82,10 @@ Inductive pat :=
   | PTuple (ps : list pat)
   (* A data constructor pattern. *)
   | PData (c : data) (p : pat)
+  (* A data constructor pattern for extensible types.
+     Extension constructors are distinguished using their memory location,
+     so the name [c] should point to a location in the current environment. *)
+  | PXData (c : var) (p : pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
@@ -92,6 +96,25 @@ Inductive pat :=
   | PString (s : string).
 
 
+(* In pattern matching branches, we tag patterns according to whether
+   they should apply to a return value, a raised exception, or an effect. *)
+
+(* Note that in the case of an "Or" pattern, a single branch match
+   multiple return types.
+   For example, the branch [| exception E | _ -> e] matches both
+   an exception [E] and any normal termination. *)
+
+(* Computational Patterns.*)
+
+Inductive cpat :=
+  (* A pattern for conventional termination. *)
+  | CVal (p : pat)
+  (* A pattern for catching exceptions [exception p]. *)
+  | CExc (p : pat)
+  (* A pattern for handling a performed effect [handle p, k]. *)
+  | CEff (p : pat) (k : pat)
+  (* A disjunction pattern [cp1 | cp2]. *)
+  | COr (cp1 : cpat) (cp2 : cpat).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -138,6 +161,7 @@ Inductive expr :=
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
+  | EXData (c : data) (e : expr)
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : list fexpr)
@@ -211,6 +235,11 @@ Inductive expr :=
   (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : list branch)
 
+  (* Exception catching: [try e with bs]. *)
+  | ETryWith (e : expr) (bs : list branch)
+  (* Exception raising: [raise e]. *)
+  | ERaise (e : expr)
+
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
   (* Loop: [for x = e1 to e2 do e done]. *)
@@ -238,7 +267,7 @@ with fexpr :=
 (* A branch is of the form [p -> e]. *)
 
 with branch :=
-  | Branch (p : pat) (e : expr)
+  | Branch (p : cpat) (e : expr)
 
 (* A binding is of the form [p = e]. *)
 
@@ -328,6 +357,11 @@ Inductive val :=
   | VTuple (vs : list val)
   (* A data constructor value. *)
   | VData (c : data) (v : val)
+  (* A data constructor value for an extensible type. *)
+  (* Extension constructors are dynamically alocated to the heap.
+     [l] is the location of the constructor. Extensible types can
+     alias by having two constructors point to the same location. *)
+  | VXData (l : loc) (v : val)
   (* A record. *)
   (* A list of field-value pairs is the same thing as an environment,
      so, for the moment at least, we identify these concepts. *)
