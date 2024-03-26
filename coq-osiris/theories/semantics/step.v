@@ -516,6 +516,16 @@ Proof.
   intros Heq Hstep. destruct_step. rewrite Heq. split; congruence.
 Qed.
 
+Lemma invert_step_resume {A E} σ σ' l o k sk m' :
+  σ !! l = Some (K sk) ->
+  @step A E (σ, Stop CResume (l, o) k) (σ', m') ->
+  σ' = <[ l := Shot ]> σ /\
+  m' = try2 (sk o) k.
+Proof.
+  intros Heq Hstep. destruct_step. exploit_location_lookup.
+  split; congruence.
+Qed.
+
 (* A term that can step is not [ret _]. *)
 
 Lemma can_step_is_not_ret {A E} σ m :
