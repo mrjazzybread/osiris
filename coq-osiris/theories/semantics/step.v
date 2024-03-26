@@ -151,7 +151,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step (σ, Handle m h) (σ', Handle m' h)
 
    (* TODO *)
-   | StepWrap :
+   | StepInstall :
      forall σ σ' (l k : loc) h (hs : handler) c' η,
        σ !! l = None ->
        c' = match σ !! k with
@@ -160,7 +160,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
                   continue h l)
             | _ => (σ, crash)
             end ->
-       step (σ, Stop CWrap (η, k, hs) h)
+       step (σ, Stop CInstall (η, k, hs) h)
             c'
 
   (* [stop CContinue (l, v)] reads the continuation [sk] that is stored
@@ -562,7 +562,7 @@ Proof.
   { set (l' := fresh_loc (dom σ)).
     pose proof (Hl := fresh_loc_fresh (dom σ)).
     rewrite not_elem_of_dom in Hl.
-    eauto using StepWrap with step. }
+    eauto using StepInstall with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.

@@ -488,8 +488,7 @@ Fixpoint cextend δ cp o : micro env unit :=
       δ ← extend δ pe e ;
       (* [pk] is a pattern for the continuation [k].
          It can only be a [PVar] or a [PAny]. *)
-      (* TODO: VCont instead of VLoc. *)
-      extend δ pk (VLoc k)
+      extend δ pk (VCont k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
       orelse (cextend δ cp1 o) (cextend δ cp2 o)
@@ -553,6 +552,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
+  | VCont k1, VCont k2 =>
+      ret (locations.eqb k1 k2)
   | _, _ =>
       physical_equality_error "invalid or unsupported arguments"
   end.
@@ -864,14 +865,17 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
+(* [eval_match deep η o bs] evaluates [match o with bs] in the environment [η],
    taking into account whether [o] is a return or a throw. *)
 
-Definition wrap η k bs : micro loc exn :=
-  stop CWrap (η, k, bs).
+(* The boolean flag [deep] indicates whether the [match] is a deep handler.
+
+   Shallow handlers must discharge itself only when it is consumed by an effect,
+   thus [all_branches] keep track of all the branches in order to install the
+   handler if it has not been consumed. *)
 
 Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
-  (bs : list branch) (all_branches : list branch)
+  (bs : handler) (all_branches : handler)
    : microvx :=
   let eval_match := pre_eval_match_aux in
   match bs with
@@ -889,12 +893,15 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
               causes the exception to be propagated. *)
           throw e
       | O3Perform e l =>
-          l ←
-            if deep
-            then Ret l
-            else wrap η l all_branches ;
-          (* TODO: Comment *)
-          try2 (stop CPerform e) (fun o => stop CResume (l, o))
+          if deep then
+            (* For a deep handler, there is no need to install the handler
+               again. *)
+            try2 (stop CPerform e) (fun o => stop CResume (l, o))
+          else
+            (* For a shallow handler, since the handler has not been consumed
+               by an effect, we must install the handler. *)
+            l ← install η l all_branches ;
+            try2 (stop CPerform e) (fun o => stop CResume (l, o))
       end)
   | Branch cp e :: bs =>
       try
@@ -906,16 +913,24 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
         (fun tt => eval_match deep η o bs all_branches)
   end.
 
-Definition pre_eval_match (deep : bool) (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
-  o ← if deep then
-        match o with
-          | O3Perform e k =>
-              k ← wrap η k bs ;
-              Ret (O3Perform e k)
-          | _ => Ret o
-        end
-      else Ret o ;
-  pre_eval_match_aux deep η o bs bs.
+Definition pre_eval_match (deep : bool)
+  (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
+  if deep then
+    match o with
+    | O3Perform e k =>
+        (* Deep handler installation: we allocate a new location where the
+         handler is installed around the continuation captured by [k]. *)
+        k ← install η k bs ;
+        pre_eval_match_aux deep η (O3Perform e k) bs bs
+    | _ =>
+        (* There are no effects to install the handler around, so we do not
+           install a handler. *)
+        pre_eval_match_aux deep η o bs bs
+    end
+  else
+    (* Shallow handlers are "consumed-once" handlers; no installations necessary
+       here. *)
+    pre_eval_match_aux deep η o bs bs.
 
 Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
   let eval_trywith := pre_eval_trywith in
@@ -1189,7 +1204,7 @@ Definition evals η es := pre_evals eval η es.
 
 Definition evalfs η fes := pre_evalfs eval η fes.
 
-(* Handlers are deep by default. TODO: More comment *)
+(* Handlers are deep by default. *)
 Definition eval_match η o bs := pre_eval_match eval true η o bs.
 
 Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.

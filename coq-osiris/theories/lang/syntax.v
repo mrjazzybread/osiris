@@ -370,6 +370,8 @@ Inductive val :=
   | VRecord (fvs : list (var * val))
   (* A location. *)
   | VLoc (l: loc)
+  (* A continuation; more precisely, a location which stores a continuation. *)
+  | VCont (k: loc)
   (* A module. *)
   | VStruct (xvs : list (var * val))
   | VChar (c: char)
