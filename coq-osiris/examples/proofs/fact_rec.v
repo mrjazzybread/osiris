@@ -148,7 +148,7 @@ Section fact_rec_example.
     (* We store the value of [fact0] that ties the recursive knot. *)
     Store "Hfact".
 
-    iIntros "Hfactv"; Simp.
+    Simp.
 
     (* Symbolic execution *)
     repeat (simpl_fact; Bind; Simp).
@@ -158,11 +158,10 @@ Section fact_rec_example.
 
     (* Reduce each call to [fact] *)
     simpl_fact. Simp.
-    ewp_tactics.Load "Hfactv". iIntros "Hfactv".
+    ewp_tactics.Load "Hfact".
 
     (* More symbolic execution, then loading and reading the information each time *)
-    repeat (Simp; simpl_fact; Bind; Simp;
-      ewp_tactics.Load "Hfactv"; iIntros "Hfactv").
+    repeat (Simp; simpl_fact; Bind; Simp; Load "Hfact").
 
     Bind; cbn; Simp;
     simpl_fact; Simp.

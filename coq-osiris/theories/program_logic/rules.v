@@ -17,7 +17,6 @@ Notation state_interp := osiris_state_interp.
 
 Section ewp_basic_rules.
 
-Context `{protocol_wf Σ P}.
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
 
   Context {A X : Type}.
@@ -49,7 +48,7 @@ Context `{protocol_wf Σ P}.
     ewp_unfold (@crash A X).
     iIntros "Hsi HCrash".
     spec_state. destruct Hred, x; spec_step.
-    inversion H1.
+    inversion H0.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
@@ -315,8 +314,18 @@ Section ewp_rules.
     EWP bind m k @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hwp". rewrite bind_as_try. iApply ewp_try.
-    iApply (ewp_mono with "[$]"). iIntros (?) "H".
-    destruct a; last done; by cbn.
+    iApply (ewp_mono with "[$]"). iIntros (a) "H".
+    destruct a; done.
+  Qed.
+
+  Lemma ewp_bind_exn {B} E m (k : _ -> micro B X) Ψ Φ :
+    EWP m @ E <| Ψ |> {{| RET v => EWP (k v) @ E <| Ψ |> {{ Φ }};
+                        | EXN v => Φ (O2Throw v) }} -∗
+    EWP bind m k @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hwp". rewrite bind_as_try. iApply ewp_try.
+    iApply (ewp_mono with "[$]"). iIntros (a) "H".
+    destruct a. done. by iApply ewp_throw.
   Qed.
 
   (** *Fmap rule *)

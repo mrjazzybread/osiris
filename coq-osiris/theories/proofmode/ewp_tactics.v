@@ -41,6 +41,8 @@ Ltac Try := iApply ewp_try.
 
 Ltac Ret := iApply ewp_value.
 
+Ltac Throw := iApply ewp_throw.
+
 Ltac Par :=
   lazymatch goal with
   | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
@@ -96,9 +98,9 @@ Ltac IfThenElse :=
 Ltac Alloc l H :=
   iApply ewp_alloc; iNext; iIntros (l) H.
 Ltac Load H :=
-  iApply (ewp_load with H); iNext.
+  iApply (ewp_load with H); iNext; iIntros H.
 Ltac Store H :=
-  iApply (ewp_store with H); iNext.
+  iApply (ewp_store with H); iNext; iIntros H.
 
 (* -------------------------------------------------------------------------- *)
 

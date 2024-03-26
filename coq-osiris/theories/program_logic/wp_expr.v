@@ -1,100 +1,97 @@
 From iris Require Import gen_heap proofmode.proofmode.
-From osiris.program_logic Require Import wp rules.
+From osiris.lang Require Import locations.
+From osiris.program_logic Require Import ewp rules.
+From osiris.proofmode Require Import notations ewp_tactics.
 
-Section wp_expr_rules.
+Section ewp_expr_rules.
 
-  Context `{!osirisGS Σ}.
+  Context `{protocol_wf Σ P} `{!osirisGS Σ}.
 
-  Lemma wp_ERef env e φ1 φ :
-    WP (eval env e) {{ φ1 }} -∗
-    (∀ v, φ1 (Res v) -∗ ∀ l, mapsto l (DfracOwn 1) v ∗ meta_token l ⊤ -∗ φ (Res (VLoc l))) -∗
-    WP (eval env (ERef e)) {{ φ }}.
+  Lemma ewp_ERef env e φ1 φ Ψ :
+    EWP (eval env e) <|Ψ|> {{ φ1 }} -∗
+    (∀ v, φ1 (O2Ret v) -∗ ∀ l, l ↦ V v -∗ φ (O2Ret (VLoc l))) -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    EWP (eval env (ERef e)) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "He P".
-    simpl.
-    iApply wp_bind.
-    iApply (wp_frame_wand with "P").
-    iApply (wp_mono with "He").
-    iIntros ([res|exn]) "H P". 2:auto.
-    iApply wp_alloc.
-    iNext.
-    iIntros (l) "Hl".
-    iApply wp_ret.
-    iApply ("P" with "[$] [$]").
+    iIntros "He P E".
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "He").
+    iIntros ([v|v]) "H".
+    - Alloc l "Hl".
+      Bind.
+      Ret.
+      Ret.
+      iApply ("P" with "H"). auto.
+    - iApply ("E" with "H").
   Qed.
 
-  Lemma wp_EStore env e1 e2 φ1 φ2 φ :
-    WP (as_loc (eval env e1)) {{ φ1 }} -∗
-    WP (eval env e2) {{ φ2 }} -∗
-    (∀ l1 v2, φ1 (Res l1) ∗ φ2 (Res v2) -∗
-      ∃ v1, mapsto l1 (DfracOwn 1) v1 ∗
-         ▷(mapsto l1 (DfracOwn 1) v2 -∗ φ (Res #()))) -∗
-    WP (eval env (EStore e1 e2)) {{ φ }}.
+  Lemma ewp_EStore env e1 e2 φ1 φ2 φ Ψ :
+    EWP (as_loc (eval env e1)) <|Ψ|> {{ φ1 }} -∗
+    EWP (eval env e2) <|Ψ|> {{ φ2 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ l1 v2, φ1 (O2Ret l1) ∗ φ2 (O2Ret v2) -∗
+      ∃ v1, l1 ↦ V v1 ∗ ▷(l1 ↦ V v2 -∗ φ (O2Ret VUnit))) -∗
+    EWP (eval env (EStore e1 e2)) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 P".
-    simpl.
-    iApply (wp_par with "H1 H2").
-    now iIntros ([]).
-    now iIntros ([]).
-    iIntros (l1 v2) "H1 H2".
-    simpl.
-    iSpecialize ("P" $! l1 v2 with "[$]").
-    iDestruct "P" as (v1) "(Hl1 & P)".
-    iApply (wp_store with "[$]").
-    iNext.
-    iIntros "Hl1".
-    iApply wp_ret.
-    iApply "P".
-    iApply "Hl1".
+    iIntros "H1 H2 E1 E2 P /=".
+    iApply (ewp_Par with "H1 H2 [E1] [E2]").
+    - iIntros (e) "H1". iApply ewp_throw. iApply ("E1" with "H1").
+    - iIntros (e) "H2". iApply ewp_throw. iApply ("E2" with "H2").
+    - iIntros (l1 v2) "H1 H2".
+      iSpecialize ("P" $! l1 v2 with "[$]").
+      iDestruct "P" as (v1) "(Hl1 & P)".
+      Store "Hl1".
+      Ret.
+      iApply ("P" with "Hl1").
   Qed.
 
-  Lemma wp_ELoad env e φ1 φ :
-    WP (as_loc (eval env e)) {{ φ1 }} -∗
-    (∀ l, φ1 (Res l) -∗ ∃ q v, mapsto l q v ∗ ▷(mapsto l q v -∗ φ (Res v))) -∗
-    WP (eval env (ELoad e)) {{ φ }}.
+  Lemma ewp_ELoad env e φ1 φ Ψ :
+    EWP (as_loc (eval env e)) <|Ψ|> {{ φ1 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ l, φ1 (O2Ret l) -∗ ∃ q v, mapsto l q (V v) ∗ ▷(mapsto l q (V v) -∗ φ (O2Ret v))) -∗
+    EWP (eval env (ELoad e)) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H P".
-    simpl.
-    iApply wp_bind.
-    iApply (wp_frame_wand with "P [H]").
-    iApply (wp_mono with "H").
-    iIntros (v) "H1 P".
-    destruct v as [l|[]]; simpl.
-    iSpecialize ("P" with "H1").
-    iDestruct "P" as (q v) "(Hl & P)".
-    iApply (wp_load with "Hl").
-    iNext.
-    iIntros "Hl".
-    iApply wp_ret.
-    now iApply ("P" with "Hl").
+    iIntros "H E P /=".
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "H").
+    iIntros ([l|v]) "H1".
+    - iSpecialize ("P" with "H1").
+      iDestruct "P" as (q v) "(Hl & P)".
+      (Load "Hl").
+      Ret.
+      iApply ("P" with "Hl").
+    - iApply ("E" with "H1").
   Qed.
 
-  (* Change style to φ1, φ2, etc? *)
-  Lemma wp_ESeq env e1 e2 φ :
-    WP (eval env e1) {{ λ _, WP (eval env e2) {{ φ }} }} -∗
-    WP (eval env (ESeq e1 e2)) {{ φ }}.
+  Lemma ewp_ESeq env e1 e2 φ1 φ Ψ :
+    EWP (eval env e1) <|Ψ|> {{ φ1 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v1, φ1 (O2Ret v1) -∗ EWP (eval env e2) <|Ψ|> {{ φ }}) -∗
+    EWP (eval env (ESeq e1 e2)) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H".
-    simpl.
-    iApply wp_bind.
-    iApply (wp_mono with "H").
-    iIntros ([v|[]]) "//".
+    iIntros "H E P /=".
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "H").
+    iIntros ([v|v]) "/= H1".
+    - iApply ("P" with "H1").
+    - iApply ("E" with "H1").
   Qed.
 
-  Lemma wp_EIntAdd env e1 e2 φ1 φ2 φ :
-    WP (as_int (eval env e1)) {{ φ1 }} -∗
-    WP (as_int (eval env e2)) {{ φ2 }} -∗
-    (∀ n1 n2, φ1 (Res n1) ∗ φ2 (Res n2) -∗ φ (Res (VInt (add n1 n2)))) -∗
-    WP (eval env (EIntAdd e1 e2)) {{ φ }}.
+  Lemma ewp_EIntAdd env e1 e2 φ1 φ2 φ Ψ :
+    EWP (as_int (eval env e1)) <|Ψ|> {{ φ1 }} -∗
+    EWP (as_int (eval env e2)) <|Ψ|> {{ φ2 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ n1 n2, φ1 (O2Ret n1) ∗ φ2 (O2Ret n2) -∗ φ (O2Ret (VInt (int.M.add n1 n2)))) -∗
+    EWP (eval env (EIntAdd e1 e2)) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 P".
-    simpl.
-    iApply (wp_par with "H1 H2"). iIntros ([]). iIntros ([]).
-    iIntros (n1 n2) "H1 H2".
-    iApply wp_bind.
-    iApply wp_ret.
-    iApply wp_ret.
-    iApply "P". iFrame.
+    iIntros "H1 H2 E1 E2 P /=".
+    iApply (ewp_Par with "H1 H2 [E1] [E2]").
+    - iIntros (v) "H /=". Throw. iApply ("E1" with "H").
+    - iIntros (v) "H /=". Throw. iApply ("E2" with "H").
+    - iIntros (n1 n2) "H1 H2". Bind. Ret. Ret.
+      iApply "P". iFrame.
   Qed.
 
-End wp_expr_rules.
+End ewp_expr_rules.

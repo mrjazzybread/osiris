@@ -291,7 +291,7 @@ Lemma Stdlib__load__spec l v :
 Proof.
   iIntros (φ) "Hl Hpost".
   Simp. ewp_tactics.Load "Hl".
-  iIntros "Hl". cbn. Ret.
+  Ret.
   iApply "Hpost". iFrame.
 Qed.
 
@@ -310,7 +310,7 @@ Proof.
   pure1.
   iIntros (φ) "Hl Hpost".
   Simp.
-  Store "Hl". cbn. iIntros "Hl". Ret.
+  Store "Hl". cbn. Ret.
   by iSpecialize ("Hpost" $! (VArray nil) with "Hl").
 Qed.
 
