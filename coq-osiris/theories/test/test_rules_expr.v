@@ -1,9 +1,9 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris.lang Require Import locations sugar.
-From osiris.program_logic Require Import ewp rules wp_expr.
+From osiris.program_logic Require Import ewp rules_expr.
 From osiris.proofmode Require Import proofmode notations.
 
-Section test_ewp_expr.
+Section test_rules_expr.
 Context `{protocol_wf Σ P} `{!osirisGS Σ}.
 
 (* Useful when goal is [R ⊢ WP (ret v) {{ ?evar }}] *)
@@ -288,4 +288,4 @@ Proof.
     by iFrame.
 Qed.
 
-End test_ewp_expr.
+End test_rules_expr.
