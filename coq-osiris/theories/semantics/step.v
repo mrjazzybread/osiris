@@ -161,7 +161,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
                   continue h l)
             | _ => (σ, crash)
             end ->
-       (* FIXME: Swap [k] and [η] *)
        step (σ, Stop CInstall (k, η, hs) h)
             c'
 
