@@ -1,5 +1,5 @@
 From iris Require Import gen_heap proofmode.proofmode.
-From osiris.lang Require Import locations sugar.
+From osiris Require Import osiris lang.
 From osiris.program_logic Require Import ewp rules_expr.
 From osiris.proofmode Require Import proofmode notations.
 
@@ -37,7 +37,7 @@ Qed.
 (* [ref 1] *)
 
 Lemma example_ref_1 env:
-  ⊢ EWP (eval env (ERef (EInt 1))) {{ RET v, ∃ l : loc, ⌜v = VLoc l⌝ ∗ l ↦ V (VInt int.one) }}.
+  ⊢ EWP (eval env (ERef (EInt 1))) {{ RET v, ∃ l : loc, ⌜v = VLoc l⌝ ∗ l ↦ V #1 }}.
 Proof.
   iApply ewp_ERef.
   - (* 1 *)
@@ -63,9 +63,9 @@ Qed.
 (* [x := 2] *)
 Lemma example_store env x l :
   lookup_name env x = ret (VLoc l) ->
-  l ↦ V (VInt (int.repr 1))
+  l ↦ V #1
     ⊢ EWP (eval env (EStore (EVar x) (EInt 2)))
-    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V (VInt (int.repr 2)) }}.
+    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V #2 }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_EStore.
@@ -80,12 +80,12 @@ Qed.
 (* [x := 2; x := 4] *)
 Lemma example_2_stores env x l :
   lookup_name env x = ret (VLoc l) ->
-  l ↦ V (VInt (int.repr 1))
+  l ↦ V #1
     ⊢ EWP (eval env
             (ESeq
                (EStore (EVar x) (EInt 2))
                (EStore (EVar x) (EInt 4))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V (VInt (int.repr 4)) }}.
+    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V #4 }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply (ewp_ESeq with "[Hl]").
@@ -105,9 +105,9 @@ Qed.
 
 (* [!(ref 1)]  *)
 Lemma example_load_ref env :
-  ⊢ EWP (eval env (ELoad (ERef (EInt 1)))) {{ RET r, ⌜r = VInt (int.repr 1)⌝ }}.
+  ⊢ EWP (eval env (ELoad (ERef (EInt 1)))) {{ RET r, ⌜r = #1⌝ }}.
 Proof.
-  iApply (ewp_ELoad _ _ (λ l, l ↦ V (VInt (int.repr 1)))).
+  iApply (ewp_ELoad _ _ (λ l, l ↦ V #1)).
   - (* ref 1 *)
     Bind.
     iApply ewp_ERef.
@@ -125,9 +125,9 @@ Qed.
 (* [x := 1 + !x] *)
 Lemma example_incr env x lx n :
   lookup_name env x = ret (VLoc lx) ->
-  lx ↦ V (VInt (int.repr n))
+  lx ↦ V #n
   ⊢ EWP (eval env (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V (VInt (int.repr (1 + n))) }}.
+    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(1 + n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (ewp_EStore with "[] [Hx]").
@@ -156,7 +156,7 @@ Proof.
   - (* store's postcondition *)
     iIntros (l1 v2) "(-> & -> & A) /=".
     iExists _. iFrame. iNext.
-    rewrite int.M.add_repr_repr.
+    rewrite M.add_repr_repr.
     auto.
 Qed.
 
@@ -164,11 +164,11 @@ Qed.
 Lemma example_incr_via_y env x lx y ly n :
   lookup_name env x = ret (VLoc lx) ->
   lookup_name env y = ret (VLoc ly) ->
-  lx ↦ V (VInt (int.repr n)) ∗ ly ↦ V (VInt (int.repr 0))
+  lx ↦ V #n ∗ ly ↦ V #0
   ⊢ EWP (eval env (EStore (EVar x) (ELoad (EVar x) +
          ESeq (EStore (EVar y) (EIntAdd (EInt 1) (ELoad (EVar y)))) (ELoad (EVar y))
        )))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V (VInt (int.repr (n + 1)%Z)) ∗ ly ↦ V (VInt (int.repr 1)) }}.
+    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(n + 1)%Z ∗ ly ↦ V #1 }}.
 Proof.
   iIntros (Ex Ey) "(Hx & Hy)".
   iApply (ewp_EStore with "[] [Hx Hy]").
@@ -212,16 +212,16 @@ Proof.
     iIntros (l1 v2) "(-> & -> & (Hx & Hy))".
     iExists _. iFrame.
     iNext. iIntros "Hx".
-    rewrite int.M.add_repr_repr.
+    rewrite M.add_repr_repr.
     auto.
 Qed.
 
 (* [x := !x + !x] *)
 Lemma example_double env x lx n :
   lookup_name env x = ret (VLoc lx) ->
-  lx ↦ V (VInt (int.repr n))
-  ⊢ EWP (eval env (EStore (EVar x) (EIntAdd (ELoad (EVar x)) (ELoad (EVar x)))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V (VInt (int.repr (2 * n))) }}.
+  lx ↦ V #n
+  ⊢ EWP (eval env (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
+    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(2 * n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (ewp_EStore with "[] [Hx]").
@@ -250,7 +250,7 @@ Proof.
   - (* := *)
     iIntros (_l1 _v2) "(-> & -> & Hx)".
     iExists _. iFrame. iNext. iIntros "Hx".
-    rewrite int.M.add_repr_repr.
+    rewrite M.add_repr_repr.
     replace (n + n)%Z with (2 * n)%Z by lia.
     by iFrame.
 Qed.
