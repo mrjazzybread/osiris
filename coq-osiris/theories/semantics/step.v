@@ -557,6 +557,12 @@ Proof.
     pose proof (Hl := fresh_loc_fresh (dom σ)).
     rewrite not_elem_of_dom in Hl.
     eauto using StepAlloc with step. }
+  (* In the case of wrap, we must also exhibit an address [l]
+     that is not in the domain of [σ]. *)
+  { set (l' := fresh_loc (dom σ)).
+    pose proof (Hl := fresh_loc_fresh (dom σ)).
+    rewrite not_elem_of_dom in Hl.
+    eauto using StepWrap with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -671,10 +677,6 @@ Proof.
      of the way we have used [match] in the reduction rules. *)
   case_location_lookup; simplify_eq;
     eauto with step exploit_location_lookup try_try.
-  (* StepRePerform *)
-  constructor. exploit_location_lookup.
-  f_equal; simpl; f_equal.
-  by extensionality o; rewrite try2_try2.
 Qed.
 
 (* As special cases, stepping under [try] or [bind] is also permitted. *)
@@ -739,10 +741,6 @@ Proof.
   (* The cases of store lookups remain: *)
   case_location_lookup; simplify_eq;
     eauto 6 with step exploit_location_lookup try_try.
-  (* StepRePerform *)
-  eexists. split; [ constructor; exploit_location_lookup; reflexivity | ].
-  simpl; f_equal.
-  by extensionality o; rewrite try2_try2.
 Qed.
 
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :
