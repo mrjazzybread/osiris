@@ -445,6 +445,77 @@ Local Ltac ewp_invert :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* Handler specifications *)
+
+Section handler_specifications.
+
+  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+
+  Context {A X : Type}.
+
+  (** * Shallow handler specification. *)
+
+  Definition shallow_handler_spec E Ψ (Φ : outcome2 val exn -d> iProp Σ)
+    (h : outcome3 val exn -> microvx)
+    Ψ' Φ' :=
+    ((* [Return] and [Exception] branch *)
+    (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+
+    (* [Effect] branch *)
+    (∀ v k, Ψ allows perform v
+          << fun o => ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} >> -∗
+        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
+
+  (** * Deep handler specification. *)
+
+  Definition deep_handler_spec_pre
+    (deep_handler_spec:
+      coPset -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      (outcome3 val exn -> microvx) -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      iPropI Σ) :
+      coPset -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      (outcome3 val exn -> microvx) -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      iPropI Σ :=
+    (λ E Ψ Φ h Ψ' Φ',
+      ((* [Return] and [Exception] branch *)
+      (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+
+      (* [Effect] branch *)
+      (∀ v k, Ψ allows perform v
+          << fun o => ∀ Ψ'' Φ'',
+            ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
+            EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
+
+  Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
+  Proof.
+    rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
+    repeat intro. repeat (f_contractive || f_equiv).
+    repeat intro. repeat (f_contractive || f_equiv).
+    apply Hwp.
+  Qed.
+
+  Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
+
+  Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
+  Proof. by eexists. Qed.
+  Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
+
+  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
+      the expr level). *)
+
+End handler_specifications.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Effect and handler rules *)
 
 Section wp_handler_rules.
@@ -485,55 +556,6 @@ Section wp_handler_rules.
     iApply prot_mono_post; iMod "HP"; iModIntro; iFrame.
     iIntros (?) "HΦ". by iNext.
   Qed.
-
-  Definition shallow_handler_spec E Ψ (Φ : outcome2 val exn -d> iProp Σ)
-    (h : outcome3 val exn -> microvx)
-    Ψ' Φ' :=
-    ((∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
-    (∀ v k, Ψ allows perform v
-        << fun o => ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} >> -∗
-       ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
-
-  Definition deep_handler_spec_pre
-    (deep_handler_spec:
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      iPropI Σ) :
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      iPropI Σ :=
-    (λ E Ψ Φ h Ψ' Φ',
-      ((∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
-      (∀ v k, Ψ allows perform v
-          << fun o => ∀ Ψ'' Φ'',
-            ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
-            EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
-        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
-
-  Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
-  Proof.
-    rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
-    repeat intro. repeat (f_contractive || f_equiv).
-    repeat intro. repeat (f_contractive || f_equiv).
-    apply Hwp.
-  Qed.
-
-  Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
-
-  Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
-  Proof. by eexists. Qed.
-  Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
-
-  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
-      the expr level). *)
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handler E Ψ Φ Ψ' Φ' e h:
@@ -733,47 +755,6 @@ Section wp_handler_rules.
     iApply ewp_eval.
     iNext. iApply (ewp_mono with "Hwp"); iIntros (?) "H"; done.
   Qed.
-
-
-  Lemma invert_simp_perform {E} {m1 : micro A E} σ v k :
-    simp m1 (Stop CPerform v k) →
-    match m1 with
-    | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
-    | _ => False
-    end ∨
-      can_step (σ, m1).
-  Proof.
-    (* The only terms that cannot step are the final terms, and these
-     terms cannot be simplified, so the result is almost immediate. *)
-    intro h; dependent induction h; simpl in *;
-      eauto with step.
-    { left; split; eauto. constructor. }
-    (* Only [SimpTransitive] requires some work. *)
-    destruct (IHh2 _ _ _ _ eq_refl); clear IHh2; [ subst |].
-    { destruct m2; try done. destruct c; try done. destruct H0; subst.
-      destruct (IHh1 _ _ _ _ eq_refl); eauto.
-      left; auto.
-      destruct m1; try done. destruct c; try done.
-      destruct H0; subst; split; eauto.
-      intros; eapply SimpTransitive; eauto. }
-    { eauto using invert_simp_can_step. }
-  Qed.
-
-  Lemma simp_final_step_diagram_perform {m1 : micro A X} {σ σ' m'1} v k:
-    (* If there is a simplification step of [m1] to [m2], *)
-    simp m1 (Stop CPerform v k) →
-    (* if there is also a reduction step out of [m1], *)
-    step (σ, m1) (σ', m'1) →
-    (* and if [m2] is final, *)
-    (* then this reduction step does not prevent us from reaching [m2]. *)
-    σ' = σ ∧
-      simp m'1 (Stop CPerform v k).
-  Proof.
-    intros Hsimp Hstep.
-    simp_step_diagram; eauto.
-    inversion Hstep.
-  Qed.
-
 
   Lemma ewp_simp E m ms Ψ φ:
     simp m ms →
