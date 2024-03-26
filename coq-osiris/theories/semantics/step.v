@@ -161,37 +161,23 @@ Inductive step {A E} : config A E → config A E → Prop :=
                   continue h l)
             | _ => (σ, crash)
             end ->
-       step (σ, Stop CInstall (η, k, hs) h)
+       (* FIXME: Swap [k] and [η] *)
+       step (σ, Stop CInstall (k, η, hs) h)
             c'
 
-  (* [stop CContinue (l, v)] reads the continuation [sk] that is stored
+  (* [stop Resume (l, o)] reads the continuation [sk] that is stored
      at address [l] in the heap, updates [l] to [Shot], and resumes the
-     continuation [sk] with the value [v]. *)
-  | StepContinue :
-      ∀ σ l v k c',
+     continuation [sk] with the outcome [o]. *)
+  | StepResume :
+      ∀ σ l o k c',
       c' = match σ !! l with
            | Some (K sk) =>
-               (<[l := Shot]>σ, try2 (continue sk v) k)
+               (<[l := Shot]>σ, try2 (sk o) k)
            | _ =>
                (σ, crash)
            end →
       step
-        (σ, Stop CResume (l, O2Ret v) k)
-        c'
-
-  (* [stop CDiscontinue (l, v)] reads the continuation [sk] that is stored
-     at address [l] in the heap, updates [l] to [Shot], and resumes the
-     continuation [sk] with the exception [v]. *)
-  | StepDiscontinue :
-      ∀ σ l v k c',
-      c' = match σ !! l with
-           | Some (K sk) =>
-               (<[l := Shot]>σ, try2 (discontinue sk v) k)
-           | _ =>
-               (σ, crash)
-           end →
-      step
-        (σ, Stop CResume (l, O2Throw v) k)
+        (σ, Stop CResume (l, o) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],

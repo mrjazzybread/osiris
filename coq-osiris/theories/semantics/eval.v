@@ -900,7 +900,7 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
           else
             (* For a shallow handler, since the handler has not been consumed
                by an effect, we must install the handler. *)
-            l ← install η l all_branches ;
+            l ← install l η all_branches ;
             try2 (stop CPerform e) (fun o => stop CResume (l, o))
       end)
   | Branch cp e :: bs =>
@@ -920,7 +920,7 @@ Definition pre_eval_match (deep : bool)
     | O3Perform e k =>
         (* Deep handler installation: we allocate a new location where the
          handler is installed around the continuation captured by [k]. *)
-        k ← install η k bs ;
+        k ← install k η bs ;
         pre_eval_match_aux deep η (O3Perform e k) bs bs
     | _ =>
         (* There are no effects to install the handler around, so we do not
