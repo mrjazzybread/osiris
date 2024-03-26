@@ -486,18 +486,59 @@ Section wp_handler_rules.
     iIntros (?) "HΦ". by iNext.
   Qed.
 
-  Definition shallow_handler E Ψ (Φ : outcome2 val exn -d> iProp Σ)
+  Definition shallow_handler_spec E Ψ (Φ : outcome2 val exn -d> iProp Σ)
     (h : outcome3 val exn -> microvx)
     Ψ' Φ' :=
     ((∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
-    (∀ v l, Ψ allows perform v
-        << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >> -∗
-       ▷ EWP (h (O3Perform v l)) @ E <| Ψ' |> {{ Φ' }}))%I.
+    (∀ v k, Ψ allows perform v
+        << fun o => ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} >> -∗
+       ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
 
-  (* Specification for handlers (shallow by default) *)
+  Definition deep_handler_spec_pre
+    (deep_handler_spec:
+      coPset -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      (outcome3 val exn -> microvx) -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      iPropI Σ) :
+      coPset -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      (outcome3 val exn -> microvx) -d>
+      P -d>
+      (outcome2 val exn -d> iPropO Σ) -d>
+      iPropI Σ :=
+    (λ E Ψ Φ h Ψ' Φ',
+      ((∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+      (∀ v k, Ψ allows perform v
+          << fun o => ∀ Ψ'' Φ'',
+            ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
+            EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
+
+  Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
+  Proof.
+    rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
+    repeat intro. repeat (f_contractive || f_equiv).
+    repeat intro. repeat (f_contractive || f_equiv).
+    apply Hwp.
+  Qed.
+
+  Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
+
+  Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
+  Proof. by eexists. Qed.
+  Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
+
+  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
+      the expr level). *)
+
+  (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handler E Ψ Φ Ψ' Φ' e h:
     EWP e @ E <| Ψ |> {{ Φ }} -∗
-    shallow_handler E Ψ Φ h Ψ' Φ' -∗
+    shallow_handler_spec E Ψ Φ h Ψ' Φ' -∗
     EWP (Handle e h) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We proceed by Löb-induction after generalizing [e] [h] and [eh]. *)
