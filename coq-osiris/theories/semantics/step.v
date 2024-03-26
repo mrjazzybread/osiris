@@ -150,7 +150,8 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step (σ, m) (σ', m') →
       step (σ, Handle m h) (σ', Handle m' h)
 
-   (* TODO *)
+   (* [stop CInstall (η, k, hs)] installs a handler [hs] wrapped around the
+      continuation stored at [k] at a new location. *)
    | StepInstall :
      forall σ σ' (l k : loc) h (hs : handler) c' η,
        σ !! l = None ->
