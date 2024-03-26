@@ -15,6 +15,11 @@ From osiris.semantics Require Export outcome micro.
 Definition exn := val.
 Definition eff := val.
 
+(* A handler is a list of branches, where it can handle a pure, exceptional,
+   or effectful computation. *)
+
+Definition handler := list branch.
+
 (* ------------------------------------------------------------------------ *)
 
 (* In the definition of the type [code], which follows, every system
@@ -55,16 +60,16 @@ Definition eff := val.
 
    The result is a value (or an exception). *)
 
-(* [CDiscontinue (l, e)] is a request to discontinue the continuation
-   stored at address [l] with exception [e].
-   The result is a value (or an exception). *)
+(* [CInstall (η, k, bs)] retrieves the continuation stored at [k] and installs
+    a handler around it at a new location.
+
+    The handler is given by [bs] (list of branches), and is evaluated with
+    the environment [η].  *)
 
 (* We used to have a [Flip] effect that would flip a Boolean coin. This has
    been removed and replaced with a primitive [Choose] construct in the
    [micro] monad. See [invert_stack_try_ret] in simplification.v for an
    explanation. *)
-
-Definition handler := list branch.
 
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
@@ -74,7 +79,7 @@ Inductive code : Type → Type → Type → Type :=
 | CStore : code (loc * val) unit exn
 | CPerform  : code val val exn
 | CResume : code (loc * outcome2 val exn) val exn
-| CWrap : code (env * loc * handler) loc exn
+| CInstall : code (env * loc * handler) loc exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -103,6 +108,12 @@ Notation microvx :=
 
 Definition perform (v : eff) : microvx :=
   stop CPerform v.
+
+(* The computation [install η k bs] installs a handler [bs] for the continuation
+  stored at [k], and returns a new location which stores this installation. *)
+
+Definition install η k bs : micro loc exn :=
+  stop CInstall (η, k, bs).
 
 (* ------------------------------------------------------------------------ *)
 
