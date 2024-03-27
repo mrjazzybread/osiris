@@ -2,7 +2,6 @@ PWD := $(shell pwd)
 
 .PHONY: all
 all:
-	@ opam switch osiris && eval $(opam env)
 # Build the Osiris translator.
 	@ make --no-print-directory -C osiris
 # Compile the OCaml source code of the OCaml standard library.
@@ -24,7 +23,6 @@ all:
 	@ cd coq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
 	@ cd coq-osiris/examples && mv src/*.v .
 # Now compile all of the Coq code.
-	@ opam switch coq-osiris && eval $(opam env)
 	@ make --no-print-directory -C coq-osiris
 
 .PHONY: clean
@@ -44,15 +42,13 @@ clean:
 
 .PHONY: init
 init:
-	opam switch create osiris 5.1.1+effect-syntax
-	opam pin --switch=osiris --yes dune 3.11.0
-	opam install --switch=osiris --yes pprint ocaml-compiler-libs
-	opam install --switch=osiris --yes "coq-serapi>=8.10.0+0.7.0"
-	opam switch create coq-osiris 4.14.1
-	opam repo --switch=coq-osiris add coq-released https://coq.inria.fr/opam/released
-	opam repo --switch=coq-osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin --switch=coq-osiris --yes dune 3.11.0
-	opam pin --switch=coq-osiris --yes coq 8.17.1
-	opam pin --switch=coq-osiris --yes coq-stdpp --dev-repo 1.9.0
-	opam pin --switch=coq-osiris --yes coq-iris --dev-repo 4.1.0
+	opam switch create osiris5 5.1.1+effect-syntax
+	opam pin --switch=osiris5 --yes dune 3.11.0
+	opam install --switch=osiris5 --yes pprint ocaml-compiler-libs
+	opam repo --switch=osiris5 add coq-released https://coq.inria.fr/opam/released
+	opam repo --switch=osiris5 add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	opam pin --switch=osiris5 --yes coq 8.17.1
+	opam install --switch=osiris5 --yes coq-serapi 8.17.0+0.17.2
+	opam pin --switch=osiris5 --yes coq-stdpp --dev-repo 1.9.0
+	opam pin --switch=osiris5 --yes coq-iris --dev-repo 4.1.0
 	python3 -m pip install alectryon
