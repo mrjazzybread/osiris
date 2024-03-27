@@ -679,37 +679,18 @@ Section wp_handler_rules.
   Qed.
 
   (* Non-deterministic Choose: note the use of non-separating conjunction *)
-  Lemma ewp_Choose {E B Y} (m1 m2 : micro B Y)
-    (k: outcome2 B Y → micro A X) {φ} φ1 φ2 Ψ :
-      ▷((EWP m1 @ E <| Ψ |> {{ φ1 }}
-        ∗ (∀ e, φ1 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }})
-        ∗ (∀ a, φ1 (O2Ret a) -∗ EWP (k (O2Ret a)) @ E <| Ψ |> {{ φ }}))
-      ∧ (EWP m2 @ E <| Ψ |> {{ φ2 }}
-        ∗ (∀ e, φ2 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }})
-        ∗ (∀ a, φ2 (O2Ret a) -∗ EWP (k (O2Ret a)) @ E <| Ψ |> {{ φ }})))
+  Lemma ewp_Choose {E B Y} (m1 m2 : micro B Y) (k: outcome2 B Y → micro A X) {φ} Ψ :
+      ▷(EWP try2 m1 k  @ E <| Ψ |> {{ φ }} ∧ EWP try2 m2 k  @ E <| Ψ |> {{ φ }})
       ⊢ EWP (Choose m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head.
     intro_state.
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn.
-    - (* Case: [StepChooseLeft] *)
+    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn;
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iPoseProof (bi.and_elim_l with "H") as "(H & He & Hr)".
-      iApply ewp_try2.
-      iApply (ewp_mono with "H").
-      iIntros ([]) "H".
-      + by iApply "Hr".
-      + by iApply "He".
-    - (* Case: [StepChooseRight] (same but with and_elim_r) *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iPoseProof (bi.and_elim_r with "H") as "(H & He & Hr)".
-      iApply ewp_try2.
-      iApply (ewp_mono with "H").
-      iIntros ([]) "H".
-      + by iApply "Hr".
-      + by iApply "He".
+    { iApply (bi.and_elim_l with "H"). }
+    { iApply (bi.and_elim_r with "H"). }
   Qed.
 
     (* The following lemmas offer reasoning rules for each of the system calls,

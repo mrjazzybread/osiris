@@ -183,24 +183,17 @@ Section ewp_rules_expr.
     iIntros "H /=".
     iApply ewp_Choose.
     iNext. iSplit.
-    - iPoseProof (bi.and_elim_l with "H") as "H".
-      iSplitR; [ | iSplitR ].
-      + Ret. by instantiate (1 := λ v, ⌜v = O2Ret VUnit⌝%I).
-      + iIntros (?) "%". discriminate.
-      + iIntros (?) "->". by Ret.
+    - Ret. iApply (bi.and_elim_l with "H").
     - iPoseProof (bi.and_elim_r with "H") as "(H & E & P)".
-      iSplitL "H E P".
-      + iApply ewp_bind_exn.
-        iApply ewp_bind_exn.
-        iApply (ewp_mono with "H").
-        iIntros ([v|v]) "H /=".
-        * iDestruct ("P" with "H") as "(-> & H)".
-          Simp. Ret. Ret.
-          iApply "H".
-        * iApply ("E" with "H").
-      + iSplitL.
-        * iIntros (v) "H". by Throw.
-        * iIntros (v) "H". by Ret.
+      Try.
+      iApply ewp_bind_exn.
+      iApply ewp_bind_exn.
+      iApply (ewp_mono with "H").
+      iIntros ([v|v]) "H /=".
+      * iDestruct ("P" with "H") as "(-> & H)".
+        Simp. Ret. Ret. Ret.
+        iApply "H".
+      * Throw. iApply ("E" with "H").
   Qed.
 
   Lemma ewp_EAssert η e R Ψ :
