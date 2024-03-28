@@ -500,7 +500,7 @@ Fixpoint cextend δ cp o : micro env unit :=
 
 (* TODO: Comment. *)
 
-Fixpoint try_extend_eff η v k bs :=
+Fixpoint try_cextend_eff η v k bs :=
   match bs with
   | [] =>
       None
@@ -509,7 +509,7 @@ Fixpoint try_extend_eff η v k bs :=
       | ret δ =>
           Some (δ, e)
       | _ =>
-          try_extend_eff η v k bs
+          try_cextend_eff η v k bs
       end
   end.
 
@@ -961,6 +961,27 @@ Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
       type_mismatch "exception pattern expected"
   end.
 
+(* TODO: Comment. *)
+
+Fixpoint pre_try_cextend_pure η (o : outcome2 val val) bs :=
+  let try_cextend_pure := pre_try_cextend_pure in
+  match bs with
+  | [] =>
+      match o with
+      | O2Ret _ =>
+          None
+      | O2Throw e =>
+          Some (throw e)
+      end
+  | (Branch cp e) :: bs =>
+      match cextend η cp o with
+      | ret δ =>
+          Some (eval δ e)
+      | _ =>
+          try_cextend_pure η o bs
+      end
+  end.
+
 End Eval.
 
 (* ------------------------------------------------------------------------ *)
@@ -1223,6 +1244,8 @@ Definition evalfs η fes := pre_evalfs eval η fes.
 Definition eval_match η o bs := pre_eval_match eval true η o bs.
 
 Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
+
+Definition try_cextend_pure η o bs := pre_try_cextend_pure eval η o bs.
 
 Definition eval_bindings η bs := pre_eval_bindings eval η bs.
 
