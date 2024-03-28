@@ -73,12 +73,6 @@ Section handler_specifications.
   Proof. by eexists. Qed.
   Definition shallow_handler_spec := shallow_handler_spec_aux.(unseal).
 
-  Lemma ewp_shallow_handler E Ψ Φ Ψ' Φ' η o bs:
-    shallow_handler_spec E Ψ Φ Ψ' Φ' η bs -∗
-    EWP (eval_shallow_match η o bs) @ E <| Ψ' |> {{ Φ' }}.
-  Proof.
-  Admitted.
-
 (* -------------------------------------------------------------------------- *)
   (** * Deep handler specification. *)
 
@@ -127,3 +121,38 @@ Section handler_specifications.
       the expr level). *)
 
 End handler_specifications.
+
+Section handler_proof.
+
+  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+
+  Context {A X : Type}.
+
+  Lemma shallow_handler_spec_unfold {E} Ψ Φ Ψ' Φ' η bs :
+    shallow_handler_spec E Ψ Φ Ψ' Φ' η bs ⊣⊢
+    shallow_handler_spec_pre shallow_handler_spec_def E Ψ Φ Ψ' Φ' η bs.
+  Proof.
+    rewrite /shallow_handler_spec seal_eq /shallow_handler_spec_def;
+    apply (@fixpoint_unfold _ _ _ shallow_handler_spec_pre).
+  Qed.
+
+  Local Ltac spec_unfold :=
+    rewrite !shallow_handler_spec_unfold /shallow_handler_spec_pre /=.
+
+  Lemma ewp_shallow_handler E Ψ Φ Ψ' Φ' η o bs:
+    ⌜try_cextend_pure η o bs = None⌝ -∗
+    shallow_handler_spec E Ψ Φ Ψ' Φ' η bs -∗
+    EWP (eval_shallow_match η o bs) @ E <| Ψ' |> {{ Φ' }}.
+  Proof.
+    (* Induction on the handler, which is a list of branches *)
+    iInduction bs as [ | ] "IH".
+    { (* Empty handler. *)
+      iIntros "Hspec"; spec_unfold.
+      cbn; destruct o.
+
+      (* [O3Ret] case *)
+      -
+
+  Admitted.
+  
+End handler_proof.

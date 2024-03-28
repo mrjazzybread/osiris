@@ -655,7 +655,7 @@ Section wp_handler_rules.
   Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
-  Lemma ewp_handler E Ψ Φ Ψ' Φ' e h:
+  Lemma ewp_handle E Ψ Φ Ψ' Φ' e h:
     EWP e @ E <| Ψ |> {{ Φ }} -∗
     shallow_handler_spec E Ψ Φ h Ψ' Φ' -∗
     EWP (Handle e h) @ E <| Ψ' |> {{ Φ' }}.
