@@ -515,6 +515,9 @@ Proof.
   intros Heq Hstep. destruct_step. rewrite Heq. split; congruence.
 Qed.
 
+(* If the location [l] exists in the store and contains a continuation,
+   then [stop CResume (l, o)] can step in only one way. *)
+
 Lemma invert_step_resume {A E} σ σ' l o k sk m' :
   σ !! l = Some (K sk) ->
   @step A E (σ, Stop CResume (l, o) k) (σ', m') ->
@@ -523,6 +526,21 @@ Lemma invert_step_resume {A E} σ σ' l o k sk m' :
 Proof.
   intros Heq Hstep. destruct_step. exploit_location_lookup.
   split; congruence.
+Qed.
+
+(* If the location [l] exists in the store and contains a continuation,
+   then [stop CInstall (l, η, hs)] can step in only one way. *)
+
+Lemma invert_step_install {A E} σ σ' l η hs k sk m' :
+  σ !! l = Some (K sk) ->
+  @step A E (σ, Stop CInstall (l, η, hs) k) (σ', m') ->
+  ∃ l',
+  σ !! l' = None /\
+  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match η o hs)) ]> σ /\
+  m' = continue k l'.
+Proof.
+  intros Heq Hstep. destruct_step. exploit_location_lookup.
+  eexists; split; [ eassumption | split ]; congruence.
 Qed.
 
 (* A term that can step is not [ret _]. *)

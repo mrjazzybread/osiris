@@ -404,6 +404,8 @@ Section ewp_rules.
     iApply ("Hwp" with "Hl").
   Qed.
 
+  (* [CLoad]. *)
+
   (* The standard memory load rule of Separation Logic. *)
 
   Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
@@ -425,6 +427,92 @@ Section ewp_rules.
 
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* [CResume]. *)
+
+  (* Resuming a continuation from a location in the store. *)
+
+  Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    ▷ (∀ l,
+        mapsto l (DfracOwn 1) (Shot) -∗
+          EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* [CInstall]. *)
+
+  (* Installing a handler with branches [h] on top of a continuation
+     that is located in the store at location [l]. *)
+
+  Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    ▷ (∀ l',
+        mapsto l' (DfracOwn 1)
+          (K (λ o,
+               Handle (sk o) (λ o, eval_match η o h))) -∗
+        EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl'").
+  Qed.
+
+  Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+      ▷ (∀ l',
+          mapsto l' (DfracOwn 1)
+            (K (λ o,
+                 Handle (sk o) (λ o, eval_match η o h))) -∗
+          meta_token l' ⊤ -∗
+          EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ) -∗
+      EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & HMT)"; first done.
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl' HMT").
   Qed.
 
 End ewp_rules.
