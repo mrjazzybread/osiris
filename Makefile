@@ -42,7 +42,7 @@ clean:
 
 .PHONY: init
 init:
-	opam switch create osiris5 5.1.1+effect-syntax
+	opam switch create osiris5 5.1.1
 	opam pin --switch=osiris5 --yes dune 3.11.0
 	opam install --switch=osiris5 --yes pprint ocaml-compiler-libs
 	opam repo --switch=osiris5 add coq-released https://coq.inria.fr/opam/released
