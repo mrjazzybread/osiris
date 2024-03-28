@@ -498,6 +498,21 @@ Fixpoint cextend δ cp o : micro env unit :=
       throw()
   end.
 
+(* TODO: Comment. *)
+
+Fixpoint try_extend_eff η v k bs :=
+  match bs with
+  | [] =>
+      None
+  | (Branch cp e) :: bs =>
+      match cextend η cp (O3Perform v k) with
+      | ret δ =>
+          Some (δ, e)
+      | _ =>
+          try_extend_eff η v k bs
+      end
+  end.
+
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
 Definition irrefutably_extend δ p v : micro env void :=
