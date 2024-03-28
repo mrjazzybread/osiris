@@ -963,7 +963,7 @@ Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
 
 (* TODO: Comment. *)
 
-Fixpoint pre_try_cextend_pure η (o : outcome2 val val) bs :=
+Fixpoint pre_try_cextend_pure η (o : outcome2 val exn) bs :=
   let try_cextend_pure := pre_try_cextend_pure in
   match bs with
   | [] =>
