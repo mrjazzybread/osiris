@@ -256,23 +256,51 @@ Section lift_specs.
 
   (* [lift_ret_spec] is especially useful for lifting specifications over pure
       results to specifications which may handle exceptional results. *)
-  Definition lift_ret_spec (ϕ : A -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Ret r => ϕ r
-    | _ => False
-    end.
+  Definition lift_ret_spec (ϕ : A -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Ret r => ϕ r
+          | _ => False
+          end)%I.
 
-  Definition lift_exn_spec (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Throw e => ψ e
-    | _ => False
-    end.
+  Definition lift_exn_spec (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Throw e => ψ e
+          | _ => False
+          end)%I.
 
-  Definition ilift (ϕ : A -> iProp) (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Ret r => ϕ r
-    | O2Throw e => ψ e
-    end.
+  Definition ilift (ϕ : A -d> iProp) (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Ret r => ϕ r
+          | O2Throw e => ψ e
+          end)%I.
+
+  Global Instance lift_ret_spec_ne n :
+    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_ret_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_ret_spec_proper :
+    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_ret_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_exn_spec_ne n :
+    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_exn_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_exn_spec_proper :
+    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_exn_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance ilift_ne n :
+    Proper (pointwise_relation _ (dist n) ==>
+            pointwise_relation _ (dist n) ==>
+            eq ==> (dist n)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
+
+  Global Instance ilift_proper :
+    Proper (pointwise_relation _ (≡) ==>
+            pointwise_relation _ (≡) ==>
+            eq ==> (≡)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
 
 End lift_specs.
 
