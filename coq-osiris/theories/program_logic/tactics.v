@@ -3,7 +3,7 @@ From iris.proofmode Require Import tactics.
 From osiris Require Import program_logic.ewp.
 From osiris.semantics Require Import step code.
 
-(* Local tactics for [ewp] rules *)
+(** *Local tactics for [ewp] rules *)
 Module ewp_rules_tactics.
 
   Ltac ewp_unfold m :=

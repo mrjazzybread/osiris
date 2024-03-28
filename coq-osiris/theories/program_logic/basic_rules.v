@@ -11,6 +11,15 @@ From osiris.program_logic Require Import ewp tactics.
 From osiris.semantics Require Import step code simplification.
 From osiris Require Import util.order.
 
+(** *Basic rules on the program logic
+
+  This file contains the "basic" rules of how to use the program logic.
+
+  i.e.
+  (1) How to reason about expressions at the [micro] monad level and
+  (2) Proof that the weakest precondition is closed under [simp]
+      (see [ewp_simp]). *)
+
 (* ------------------------------------------------------------------------ *)
 
 Notation state_interp := osiris_state_interp.
