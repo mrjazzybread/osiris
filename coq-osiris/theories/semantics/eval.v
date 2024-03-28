@@ -1236,26 +1236,30 @@ Fixpoint eval η e {struct e} : microvx :=
       ok
   end.
 
-Definition evals η es := pre_evals eval η es.
+Definition evals := pre_evals eval.
 
-Definition evalfs η fes := pre_evalfs eval η fes.
+Definition evalfs := pre_evalfs eval.
+
+Definition eval_deep_match := pre_eval_match eval true.
+
+Definition eval_shallow_match := pre_eval_match eval false.
 
 (* Handlers are deep by default. *)
-Definition eval_match η o bs := pre_eval_match eval true η o bs.
+Definition eval_match := pre_eval_match eval true.
 
-Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
+Definition eval_trywith := pre_eval_trywith eval.
 
-Definition try_cextend_pure η o bs := pre_try_cextend_pure eval η o bs.
+Definition try_cextend_pure := pre_try_cextend_pure eval.
 
-Definition eval_bindings η bs := pre_eval_bindings eval η bs.
+Definition eval_bindings := pre_eval_bindings eval.
 
-Definition eval_mexpr η me := pre_eval_mexpr eval_bindings η me.
+Definition eval_mexpr := pre_eval_mexpr eval_bindings.
 
-Definition eval_sitem ηδ item :=
-  pre_eval_sitem eval_bindings eval_mexpr ηδ item.
+Definition eval_sitem :=
+  pre_eval_sitem eval_bindings eval_mexpr.
 
-Definition eval_sitems ηδ sitems :=
-  pre_eval_sitems eval_bindings eval_mexpr ηδ sitems.
+Definition eval_sitems :=
+  pre_eval_sitems eval_bindings eval_mexpr.
 
 (* ------------------------------------------------------------------------ *)
 
