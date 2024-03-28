@@ -48,7 +48,7 @@ init:
 	opam repo --switch=osiris5 add coq-released https://coq.inria.fr/opam/released
 	opam repo --switch=osiris5 add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
 	opam pin --switch=osiris5 --yes coq 8.17.1
-	opam install --switch=osiris5 --yes coq-serapi 8.17.0+0.17.2
+	opam pin --switch=osiris5 --yes coq-serapi 8.17.0+0.17.2
 	opam pin --switch=osiris5 --yes coq-stdpp --dev-repo 1.9.0
 	opam pin --switch=osiris5 --yes coq-iris --dev-repo 4.1.0
 	python3 -m pip install alectryon
