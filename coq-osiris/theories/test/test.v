@@ -48,24 +48,31 @@ Qed.
 
 Local Ltac step :=
   first [
-    eapply StepEval
-  | eapply StepLoop
-  | eapply StepChooseRight
-  | eapply StepParRetRet
-  | eapply StepParLeft; [ step ]
-  | eapply StepParRight; [ step ]
-  | eapply StepHandleRet
-  | match goal with
+      eapply StepEval
+    | eapply StepLoop
+    | eapply StepChooseRight
+    | eapply StepParRetRet
+    | eapply StepParLeft; [ step ]
+    | eapply StepParRight; [ step ]
+    | eapply StepHandleRet
+    | match goal with
     | |- step (?σ, Stop CAlloc _ _) _ =>
-        let l := fresh "l" in
-        set (l := fresh (dom σ));
-        eapply StepAlloc with (l := l); apply is_fresh
-    end
-  | eapply StepLoad;
-    setoid_rewrite lookup_insert; reflexivity
-  | eapply StepStore;
-    setoid_rewrite lookup_insert; reflexivity
-  ].
+        eapply StepAlloc with (l := fresh (dom σ)); apply is_fresh
+      end
+    | eapply StepLoad;
+      setoid_rewrite lookup_insert; reflexivity
+    | eapply StepStore;
+      setoid_rewrite lookup_insert; reflexivity
+    | match goal with
+      | |- step (?σ, Handle _ _) _ =>
+          eapply StepHandlePerform with (l := fresh (dom σ)); apply is_fresh
+      end
+    | match goal with
+      | |- step (?σ, Stop CInstall _ _) _ =>
+          eapply StepInstall;
+          [ apply is_fresh | setoid_rewrite lookup_insert; reflexivity ]
+      end
+    ].
 
 
 
@@ -422,15 +429,4 @@ Lemma test_handle :
     EMatch e [Branch (CEff PAny PAny) (EInt 42)]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof.
-  reduces.
-  eapply nsteps_l.
-  eapply StepHandlePerform with (l := fresh (dom ∅)).
-  apply is_fresh.
-  reduces.
-  eapply nsteps_l.
-  eapply StepInstall. apply ∅.
-  apply is_fresh.
-  setoid_rewrite lookup_insert. reflexivity.
-  reduces.
-Qed.
+Proof. reduces. Qed.
