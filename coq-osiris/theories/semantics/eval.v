@@ -1198,6 +1198,9 @@ Fixpoint eval η e {struct e} : microvx :=
   | ERaise e =>
       exc ← eval η e ;
       throw exc
+  | EPerform e =>
+      eff ← eval η e ;
+      perform eff
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
