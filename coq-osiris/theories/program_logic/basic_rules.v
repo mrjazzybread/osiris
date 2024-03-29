@@ -437,7 +437,7 @@ Section ewp_rules.
     mapsto l (DfracOwn 1) (K sk) ⊢
     ▷ (∀ l,
         mapsto l (DfracOwn 1) (Shot) -∗
-          EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+         EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
       ) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -452,9 +452,33 @@ Section ewp_rules.
 
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    by iSpecialize ("Hwp" with "Hl").
+  Qed.
+
+
+  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    (∀ l,
+        mapsto l (DfracOwn 1) (Shot) -∗
+         ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iSpecialize ("Hwp" with "Hl").
 
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
   Qed.
 
   (* [CInstall]. *)
@@ -464,11 +488,11 @@ Section ewp_rules.
 
   Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
     mapsto l (DfracOwn 1) (K sk) ⊢
-    ▷ (∀ l',
+    (∀ l',
         mapsto l' (DfracOwn 1)
           (K (λ o,
                Handle (sk o) (λ o, eval_match η o h))) -∗
-        EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗
     EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -483,9 +507,9 @@ Section ewp_rules.
 
     (* Allocate a new location in the heap. *)
     iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iFrame. iSpecialize ("Hwp" with "Hl'").
 
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl'").
   Qed.
 
   Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
