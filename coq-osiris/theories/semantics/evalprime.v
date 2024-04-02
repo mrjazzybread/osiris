@@ -194,6 +194,9 @@ Definition eval' η e : microvx :=
   | EPerform e =>
       eff ← eval η e ;
       perform eff
+  | EContinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      try2 (eval η e2) (λ o, stop CResume (l, o))
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
