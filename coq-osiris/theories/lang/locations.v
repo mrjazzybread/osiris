@@ -29,4 +29,4 @@ Proof. apply (inj_countable' address Loc). intros [?]. eauto. Defined.
 Global Instance Infinite_loc : Infinite loc.
 Proof.
   by apply infinite.inj_infinite with (f := Loc) (g := λ l, Some (address l)).
-Qed.
+Defined.

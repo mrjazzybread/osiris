@@ -142,6 +142,23 @@ Definition as_loc {E} (m : micro val E) : micro loc E :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_cont v] checks that the value [v] is a language-level continuation
+   value and returns its meta-level value. *)
+
+Definition val_as_cont {E} (v : val) : micro loc E :=
+  match v with
+  | VCont l =>
+      ret l
+  | _ =>
+      type_mismatch "continuation value expected"
+  end.
+
+Definition as_cont {E} (m : micro val E) : micro loc E :=
+  v ← m ;
+  val_as_cont v.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
@@ -1201,6 +1218,9 @@ Fixpoint eval η e {struct e} : microvx :=
   | EPerform e =>
       eff ← eval η e ;
       perform eff
+  | EContinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      try2 (eval η e2) (λ o, stop CResume (l, o))
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
