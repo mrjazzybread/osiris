@@ -153,7 +153,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
    (* [stop CInstall (η, k, hs)] installs a handler [hs] wrapped around the
       continuation stored at [k] at a new location. *)
    | StepInstall :
-     forall σ σ' (l k : loc) h (hs : handler) c' η,
+     forall σ (l k : loc) h (hs : handler) c' η,
        σ !! l = None ->
        c' = match σ !! k with
             | Some (K sk) =>
@@ -567,15 +567,13 @@ Proof.
   eauto using StepLoad with step.
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
-  { set (l := fresh_loc (dom σ)).
-    pose proof (Hl := fresh_loc_fresh (dom σ)).
-    rewrite not_elem_of_dom in Hl.
+  { set (l := fresh (dom σ)).
+    assert (lookup l σ = None) by apply not_elem_of_dom, is_fresh.
     eauto using StepAlloc with step. }
   (* In the case of wrap, we must also exhibit an address [l]
      that is not in the domain of [σ]. *)
-  { set (l' := fresh_loc (dom σ)).
-    pose proof (Hl := fresh_loc_fresh (dom σ)).
-    rewrite not_elem_of_dom in Hl.
+  { set (l' := fresh (dom σ)).
+    assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
     eauto using StepInstall with step. }
 Qed.
 
@@ -621,9 +619,8 @@ Proof.
     (* We are now looking at [perform] under [handle]. *)
     (* An allocation is involved, so (again) we must exhibit
        an address [l] that is not in the domain of [σ]. *)
-    set (l := fresh_loc (dom σ)).
-    pose proof (Hl := fresh_loc_fresh (dom σ)).
-    rewrite not_elem_of_dom in Hl.
+    set (l := fresh (dom σ)).
+    assert (lookup l σ = None) by apply not_elem_of_dom, is_fresh.
     (* At this point, the reduction rule [StepHandlePerform] is
        exploited. It is worth noting that this rule can be used
        only if the computation that is being handled has type

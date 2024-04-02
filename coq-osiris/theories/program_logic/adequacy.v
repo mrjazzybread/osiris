@@ -2,7 +2,7 @@ From iris.proofmode Require Import base tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap.
 From iris.program_logic Require Import weakestpre adequacy.
 
-From osiris.program_logic Require Import ewp rules tactics.
+From osiris.program_logic Require Import ewp basic_rules tactics.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -76,4 +76,3 @@ Section adequacy.
   Qed.
 
 End adequacy.
-

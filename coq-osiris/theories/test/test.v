@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From stdpp Require Import relations.
+From stdpp Require Import relations base gmap.
 
 (* We want to test our semantics, so as to ensure that it seems to be
    consistent with our expectations and with the informal definition
@@ -22,12 +22,12 @@ From stdpp Require Import relations.
 (* [reduces e v] means that the expression [e] can reduce to the value [v]. *)
 
 Local Notation reduces e v :=
-  (∃ n, steps n (∅, eval [] e) (∅, ret v)).
+  (∃ n σ, steps n (∅, eval [] e) (σ, ret v)).
 
 (* [crashes e] means that the expression [e] can crash. *)
 
 Local Notation crashes e :=
-  (∃ n, steps n (∅, eval [] e) (∅, crash)).
+  (∃ n σ, steps n (∅, eval [] e) (σ, crash)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -38,6 +38,14 @@ Local Notation crashes e :=
    dynamic tests to be performed, so we choose the right-hand side. This is
    done by using [StepChooseRight]. It is brittle, but should do for now. *)
 
+Lemma is_fresh :
+  ∀ (σ : store), σ !! (fresh (dom σ)) = None.
+Proof.
+  intros.
+  apply fin_map_dom.not_elem_of_dom_1.
+  apply fin_sets.is_fresh.
+Qed.
+
 Local Ltac step :=
   first [
     eapply StepEval
@@ -47,7 +55,19 @@ Local Ltac step :=
   | eapply StepParLeft; [ step ]
   | eapply StepParRight; [ step ]
   | eapply StepHandleRet
+  | match goal with
+    | |- step (?σ, Stop CAlloc _ _) _ =>
+        let l := fresh "l" in
+        set (l := fresh (dom σ));
+        eapply StepAlloc with (l := l); apply is_fresh
+    end
+  | eapply StepLoad;
+    setoid_rewrite lookup_insert; reflexivity
+  | eapply StepStore;
+    setoid_rewrite lookup_insert; reflexivity
   ].
+
+
 
 (* The tactic [steps] solves a goal of the form [steps ?n e v]. *)
 
@@ -64,7 +84,7 @@ Local Ltac steps :=
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
 
 Local Ltac reduces :=
-  intros; eexists; steps.
+  intros; repeat eexists; steps.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -375,3 +395,42 @@ Lemma test_let_open :
   let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.
+
+Lemma test_ref :
+  let e :=
+    ELet (Binding1 (PVar "x") (ERef (EInt 0)))
+      (ELoad (EPath ["x"]))
+  in
+  reduces e (VInt (repr 0)).
+Proof. reduces. Qed.
+
+Lemma test_double_ref :
+  let e :=
+    ELet (Binding1 (PVar "x") (ERef (EInt 0)))
+      (ESeq
+         (EStore (EPath ["x"]) (EInt 1))
+         (ELoad (EPath ["x"])))
+  in
+  reduces e (VInt (repr 1)).
+Proof. reduces. Qed.
+
+Lemma test_handle :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e [Branch (CEff PAny PAny) (EInt 42)]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof.
+  reduces.
+  eapply nsteps_l.
+  eapply StepHandlePerform with (l := fresh (dom ∅)).
+  apply is_fresh.
+  reduces.
+  eapply nsteps_l.
+  eapply StepInstall. apply ∅.
+  apply is_fresh.
+  setoid_rewrite lookup_insert. reflexivity.
+  reduces.
+Qed.

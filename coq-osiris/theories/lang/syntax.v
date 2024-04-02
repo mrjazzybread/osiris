@@ -237,8 +237,10 @@ Inductive expr :=
 
   (* Exception catching: [try e with bs]. *)
   | ETryWith (e : expr) (bs : list branch)
-  (* Exception raising: [raise e]. *)
+  (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)
+                                                                                         (* Performing an effect. *)
+  | EPerform (e : expr)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
