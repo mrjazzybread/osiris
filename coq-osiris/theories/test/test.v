@@ -55,6 +55,8 @@ Local Ltac step :=
     | eapply StepParRetRet
     | eapply StepParLeft; [ step ]
     | eapply StepParRight; [ step ]
+    | eapply StepParPerformLeft
+    | eapply StepParPerformRight
     | eapply StepHandleRet
     | match goal with
       | |- step (?σ, Stop CAlloc _ _) _ =>
@@ -431,7 +433,9 @@ Lemma test_handle_nocont :
     EPerform (EXData "Choose" (ETuple []))
   in
   let m :=
-    EMatch e [Branch (CEff PAny PAny) (EInt 42)]
+    EMatch e
+      [ (* | effect _, _ -> 42 *)
+        Branch (CEff PAny PAny) (EInt 42)]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
@@ -441,26 +445,78 @@ Lemma test_handle :
     EPerform (EXData "Choose" (ETuple []))
   in
   let m :=
-    EMatch e [Branch
-                (CEff PAny (PVar "k"))
-                (EContinue (EVar "k") (EInt 42));
-              Branch
-                (CVal (PVar "x"))
-                (EVar "x")]
+    EMatch e
+      [ (* | effect _, k -> continue k 42 *)
+        Branch
+         (CEff PAny (PVar "k"))
+         (EContinue (EVar "k") (EInt 42));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
 
-Lemma test_reinstall_ret :
+Lemma test_handle_compute_head :
+  let e :=
+      (21 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_compute_branch :
+  let e :=
+    (20 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> let y = continue k 21 in y + 1 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (ELet1 (PVar "y")
+             (EContinue (EVar "k") (EInt 21))
+             (EVar "y" + 1)%expr);
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_reinstall_ret :
   let e1 :=
     EPerform (EXData "Choose" (ETuple []))
   in
   let e2 :=
-    EMatch e1 [Branch (CVal (PVar "x")) (21 + EVar "x")%expr]
+    EMatch e1
+      [ (* | x -> 21 + x *)
+        Branch
+          (CVal (PVar "x"))
+          (21 + EVar "x")%expr]
   in
   let m :=
-    EMatch e2 [Branch (CEff PAny (PVar "k")) (EContinue (EVar "k") (EInt 21));
-               Branch (CVal (PVar "x")) (EVar "x")]
+    EMatch e2
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.

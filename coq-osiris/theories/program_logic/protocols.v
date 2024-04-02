@@ -8,16 +8,27 @@ From iris.base_logic.lib Require Import iprop.
 From osiris Require Export semantics.
 From osiris Require Import util.order.
 
+(* -------------------------------------------------------------------------- *)
+(** *Abstract protocols  *)
 (* We characterize protocols abstractly, with a carrier type [A], paired with
    primitive operations [protocol_op]. *)
 
-(* Operations over protocols of carrier [A] *)
-Class protocol_op {A} :=
-  { (* Operation on protocols *)
-    prot_bottom : A;
-    prot_sum : A -> A -> A;
-  (* LATER: Support for [f # Ψ] (see Vilhena & Pottier) *)}.
+(* Operations over protocols of carrier [P] and assertions of type [A]. *)
+Class protocol_op {P A} :=
+  { (* Primitive for protocols that takes in a precondition and postcondition
+       assertion, with request and answers between the Player and Opponent *)
+    prot_req_ans : ∀ X Y (x : X) (y : Y),
+                    syntax.val -> (X -> A) ->
+                    outcome2 syntax.val exn ->
+                    (X -> Y -> A) -> P;
+    (* Bottom protocol *)
+    prot_bottom : P;
+    (* Sum of protocols *)
+    prot_sum : P -> P -> P;
+    (* f # Ψ *)
+    prot_app : forall (f : syntax.val -> syntax.val) {Inj_f : Inj eq eq f}, P -> P;}.
 
+(* -------------------------------------------------------------------------- *)
 (* The three-place predicate [prot_spec] (analogous to Ψ allows do v {Φ} in
     Vilhena & Pottier) describes the behavior of a protocol.
 
@@ -28,8 +39,9 @@ Class protocol_op {A} :=
 
     Additionally, we require with [prot_spec_ne] that the predicate respects the
     equivalences for the step-indexed logic of Iris. *)
-Class protocol_spec Σ {A} `{@protocol_op A} :=
-  { prot_spec : A -d> C.eff -d> (outcome2 syntax.val exn -d> iProp Σ) -d> iProp Σ ;
+(* We fix the type of assertions to [iProp]. *)
+Class protocol_spec Σ {P} `{@protocol_op P (iProp Σ)} :=
+  { prot_spec : P -d> C.eff -d> (outcome2 syntax.val exn -d> iProp Σ) -d> iProp Σ ;
     prot_spec_ne :: forall a e n, Proper ((dist n) ==> (dist n)) (prot_spec a e) }.
 
 Arguments protocol_spec {_ _ _}.
@@ -37,23 +49,43 @@ Arguments prot_spec {_ _ _ _} _ _ _.
 
 (* Protocols, with operations and protocol predicate with carrier type [A] and
     preorder relation. *)
-Class protocol (Σ : gFunctors) {A} :=
-  { protocol_operations :: @protocol_op A;
-    protocol_specification :: @protocol_spec Σ A _;
-    protocol_preorder :: preorder Σ A }.
+Class protocol (Σ : gFunctors) {P} :=
+  { protocol_operations :: @protocol_op P (iProp Σ);
+    protocol_specification :: @protocol_spec Σ P protocol_operations;
+    protocol_preorder :: preorder Σ P }.
 
+(* Notations *)
+Notation "!( x , v ) { P }.?( y , w ){ Q }" :=
+  (prot_req_ans _ _ x y v P w Q)
+    (left associativity,
+      P at level 200, Q at level 200, at level 13,
+      format "'[' '!(' x ','  v ')' '{' P '}.?(' y ','  w '){' Q '}' ']'").
 Notation "P + Q" := (prot_sum P Q).
 Notation "Ψ 'allows' 'perform' v << Φ >>" :=
   (prot_spec Ψ v Φ)
   (left associativity, Φ at level 200, at level 12,
     format "'[' Ψ  'allows'  'perform'  v  '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
+Notation "f # Ψ" :=
+  (prot_app f Ψ)
+  (at level 11, format "'[' f  '#'  Ψ ']'").
 
-(* Axiomatic characterization of protocols. *)
+(* -------------------------------------------------------------------------- *)
+(** *Axiomatic characterization of protocols. *)
+
 Section protocol_spec_properties.
 
   Variable (Σ : gFunctors).
-  Context {A : Type}.
-  Context {Protocol : @protocol Σ A}.
+  Context {P : Type}.
+  Context {Protocol : @protocol Σ P}.
+
+  (* [A1] TODO Comment *)
+  Class protocol_req_ans :=
+    prot_req_ans_allows A X (v v' : C.eff) w
+      (P : _ -> iProp Σ) (Q : _ -> _ -> iProp Σ) Φ (x : A) (y : X) :
+      !(x, v) { P }.?(y, w){ Q } allows perform v' << Φ x y >> ⊣⊢
+      (* LATER: see if there is a better way to deal with binders *)
+      ∃ (x' : A), ⌜x = x'⌝ ∗ ⌜v' = v⌝ ∗
+        P x' ∗ ∀ y', ⌜y = y'⌝ -∗ (Q x' y' -∗ Φ x' y' w).
 
   (* The protocol is monotone over the postcondition and the ordering on protocols. *)
   Class protocol_monotone :=
@@ -66,6 +98,11 @@ Section protocol_spec_properties.
     prot_bottom_absurd v Φ :
       (prot_bottom allows perform v << Φ >> ⊣⊢ ⌜False⌝)%I.
 
+  (* [A4] TODO Comment *)
+  Class protocol_apply :=
+    prot_apply f {Inj_f : Inj eq eq f} Ψ v' Φ :
+      f # Ψ allows perform f (v') << Φ >> ⊢ Ψ allows perform v' << Φ >>.
+
   (* [prot_sum] corresponds to logical or [∨]. *)
   Class protocol_sum_or :=
     prot_sum_or v Ψ1 Ψ2 Φ :
@@ -74,13 +111,17 @@ Section protocol_spec_properties.
 
   (* The set of axiomatic properties that we support on protocols.
 
-     N.B. the [A2; A3; A5] corresponds to the labelling of laws in Vilhena &
+     N.B. the [A *] corresponds to the labelling of laws in Vilhena &
       Pottier. *)
   Class protocol_properties :=
-  { (* [A2] *)
+  { (* [A1] *)
+    prot_prop_req_ans :: protocol_req_ans;
+    (* [A2] *)
     prot_prop_bottom :: protocol_bottom;
     (* [A3] *)
     prot_prop_sum :: protocol_sum_or;
+    (* [A4] *)
+    prot_prop_apply :: protocol_apply;
     (* [A5] *)
     prot_prop_mono :: protocol_monotone;
   }.

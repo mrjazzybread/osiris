@@ -437,7 +437,7 @@ Section ewp_rules.
     mapsto l (DfracOwn 1) (K sk) ⊢
     ▷ (∀ l,
         mapsto l (DfracOwn 1) (Shot) -∗
-          EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+         EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
       ) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -452,9 +452,33 @@ Section ewp_rules.
 
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    by iSpecialize ("Hwp" with "Hl").
+  Qed.
+
+
+  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    (∀ l,
+        mapsto l (DfracOwn 1) (Shot) -∗
+         ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iSpecialize ("Hwp" with "Hl").
 
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
   Qed.
 
   (* [CInstall]. *)
@@ -464,11 +488,11 @@ Section ewp_rules.
 
   Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
     mapsto l (DfracOwn 1) (K sk) ⊢
-    ▷ (∀ l',
+    (∀ l',
         mapsto l' (DfracOwn 1)
           (K (λ o,
                Handle (sk o) (λ o, eval_match η o h))) -∗
-        EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗
     EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -483,9 +507,9 @@ Section ewp_rules.
 
     (* Allocate a new location in the heap. *)
     iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iFrame. iSpecialize ("Hwp" with "Hl'").
 
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl'").
   Qed.
 
   Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
@@ -563,52 +587,6 @@ Section handler_specifications.
           << fun o => ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} >> -∗
         ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
 
-  (** * Deep handler specification. *)
-
-  Definition deep_handler_spec_pre
-    (deep_handler_spec:
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      iPropI Σ) :
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      iPropI Σ :=
-    (λ E Ψ Φ h Ψ' Φ',
-      ((* [Return] and [Exception] branch *)
-      (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
-
-      (* [Effect] branch *)
-      (∀ v k, Ψ allows perform v
-          << fun o => ∀ Ψ'' Φ'',
-            ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
-            EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
-        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
-
-  Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
-  Proof.
-    rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
-    repeat intro. repeat (f_contractive || f_equiv).
-    repeat intro. repeat (f_contractive || f_equiv).
-    apply Hwp.
-  Qed.
-
-  Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
-
-  Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
-  Proof. by eexists. Qed.
-  Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
-
-  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
-      the expr level). *)
-
 End handler_specifications.
 
 (* -------------------------------------------------------------------------- *)
@@ -655,7 +633,7 @@ Section wp_handler_rules.
   Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
-  Lemma ewp_handler E Ψ Φ Ψ' Φ' e h:
+  Lemma ewp_handle E Ψ Φ Ψ' Φ' e h:
     EWP e @ E <| Ψ |> {{ Φ }} -∗
     shallow_handler_spec E Ψ Φ h Ψ' Φ' -∗
     EWP (Handle e h) @ E <| Ψ' |> {{ Φ' }}.
@@ -689,9 +667,7 @@ Section wp_handler_rules.
                  (fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }}))%I
         with "[HP HH]" as "HΨ".
       { iApply prot_mono_post; iFrame.
-        iIntros (?) "Hwp"; cbn.
-        destruct w.
-        { iNext.
+        iIntros (?) "Hwp"; cbn. iNext.
         rename σ into σ'.
         ewp_unfold_head.
         intro_state.
@@ -703,19 +679,6 @@ Section wp_handler_rules.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
           iFrame.
         by ewp_mask_elim. }
-
-        { iNext.
-        rename σ into σ'.
-        ewp_unfold_head.
-        intro_state.
-        ewp_mask_intro "Hmod". unfold stop.
-        construct_wp_nonret. destruct_step.
-        iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-        rewrite Hl in x; inversion x; subst.
-        rewrite try2_ret_right.
-        iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
-          iFrame.
-        by ewp_mask_elim. } }
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.

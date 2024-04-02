@@ -45,8 +45,29 @@ Section concrete_protocols.
     (λ v, λne Φ, (Ψ1 v Φ) ∨ (Ψ2 v Φ))%I.
   Next Obligation. solve_proper. Qed.
 
-  #[global] Instance iEff_op : @protocol_op iEff :=
-    {| prot_bottom := iEff_bottom; prot_sum := iEff_sum |}.
+  Program Definition iEff_prot_req_ans
+    (X Y : Type) (x : X) (y : Y)
+    v (P : X -> iProp Σ) w
+    (Q : X -> Y -> iProp Σ)
+    : iEff :=
+    (λ v', λne Φ',
+      ∃ x',
+        ⌜x' = x⌝ ∗ (* TODO: Improve this binder fiddliness *)
+        ⌜v' = v⌝ ∗ P x' ∗
+      ∀ y', ⌜y = y'⌝ -∗ (* TODO: Ditto. *)
+        Q x' y' -∗ Φ' w)%I.
+  Next Obligation. solve_proper. Qed.
+
+  Program Definition iEff_app
+    (f : syntax.val -> syntax.val) {Inj_f : Inj eq eq f} (Ψ : iEff) : iEff :=
+    (λ v', λne Φ', ∃ w', ⌜v' = f (w')⌝ ∗ Ψ w' Φ')%I.
+  Next Obligation. solve_proper. Qed.
+
+  #[global] Instance iEff_op : @protocol_op iEff (iProp Σ) :=
+    {| prot_req_ans := iEff_prot_req_ans;
+       prot_bottom := iEff_bottom;
+       prot_sum := iEff_sum;
+       prot_app := iEff_app |}.
 
   #[global] Instance iEff_protocol_spec : protocol_spec :=
     {| prot_spec := iEff_spec; prot_spec_ne := iEff_spec_proper |}.
@@ -80,6 +101,29 @@ Section concrete_protocols.
 
   (* [iEff] protocol properties *)
 
+  #[global] Instance iEff_protocol_req_ans :
+    @protocol_req_ans Σ iEff iEff_protocol.
+  Proof.
+    iIntros (??????????); iSplit.
+    { iIntros "HΦ".
+      iExists x; iSplitL ""; first done.
+      cbn; rewrite /iEff_spec /iEff_prot_req_ans.
+      iDestruct "HΦ" as (?) "(HPQ & HΦ)"; cbn.
+      iDestruct "HPQ" as (???) "(HP & HQ)"; subst.
+      iSplitL ""; first done; iFrame.
+      iIntros (?->) "Hq".
+      iSpecialize ("HQ" $! _ eq_refl with "Hq").
+      iApply ("HΦ" with "HQ"). }
+    { iIntros "HΦ".
+      iDestruct "HΦ" as (???) "(HP & HQ)"; subst.
+      cbn; rewrite /iEff_spec /iEff_prot_req_ans.
+      iSpecialize ("HQ" $! _ eq_refl).
+      iExists (Φ x' y); cbn; iSplitR ""; [ | by iIntros ].
+      iExists _; do 2 (iSplitL ""; first done).
+      iFrame.
+      iIntros (??); subst; iFrame. }
+  Qed.
+
   #[global] Instance iEff_protocol_mono :
     @protocol_monotone Σ iEff iEff_protocol.
   Proof.
@@ -97,6 +141,16 @@ Section concrete_protocols.
     iIntros (??). rewrite /prot_bottom /= /iEff_spec.
     iSplit; [ | iIntros (?); done ].
     iIntros "[%_ [[] _]]".
+  Qed.
+
+  #[global] Instance iEff_protocol_apply :
+    @protocol_apply Σ iEff iEff_protocol.
+  Proof.
+    iIntros (?????) "Hf"; cbn; rewrite /iEff_spec /iEff_app /=.
+    iDestruct "Hf" as (?) "(Hf & HΦ)".
+    iExists Φ'.
+    iDestruct "Hf" as (??) "HΨ"; iFrame.
+    apply Inj_f in H; by subst.
   Qed.
 
   #[global] Instance iEff_protocol_sum_or :

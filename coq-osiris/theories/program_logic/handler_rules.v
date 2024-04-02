@@ -2,85 +2,48 @@ From iris.proofmode Require Import proofmode.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics.
+From osiris.program_logic Require Import ewp tactics basic_rules.
 From osiris.semantics Require Import code.
+
+(* -------------------------------------------------------------------------- *)
+(** *Shallow and deep handlers *)
+
+(* Shallow handlers are use-once handlers;
+    If the handled expression performs an effect caught by the handler,
+    we are done (and the handlers are not installed).
+    If not, the handler is installed around the captured continuation. *)
+
+Definition shallow_handler η e bs :=
+  Handle (eval η e) (λ o, eval_shallow_match η o bs).
+
+(* Deep handlers are installed permanently;
+     Regardless of whether the handled expression performs an effect
+    caught by the handler, the handler is installed around the captured
+    continuation. *)
+
+Definition deep_handler η e bs :=
+  Handle (eval η e) (λ o, eval_deep_match η o bs).
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
 
+(* Definition of handler specifications *)
 Section handler_specifications.
 
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
 
   Context {A X : Type}.
 
-(* -------------------------------------------------------------------------- *)
+  (* -------------------------------------------------------------------------- *)
   (** * Shallow handler specification. *)
+  (* The shallow handler specification is defined over the [Handle] primitive in
+   [basic_rules.v] *)
+  (* -------------------------------------------------------------------------- *)
 
-  Definition shallow_handler_spec_pre
-    (shallow_handler_spec:
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      env -d>
-      handler -d>
-      iPropI Σ) :
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      env -d>
-      handler -d>
-      iPropI Σ :=
-    (λ E Ψ Φ Ψ' Φ' η bs,
-
-     (* [Return] and [Exception] branch *)
-      (∀ (o : outcome2 val exn) e,
-        Φ o -∗
-        ⌜try_cextend_pure η o bs = Some e⌝ -∗
-        ▷ EWP e @ E <| Ψ' |> {{ Φ' }}) ∧
-
-     (* Effectful branch. *)
-      (∀ v k η' e,
-        ⌜try_cextend_eff η v k bs = Some (η', e)⌝ -∗
-        Ψ allows perform v
-          << λ o, ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} -∗
-                   ▷ EWP (eval η' e) @ E <| Ψ' |> {{ Φ' }} >>) ∧
-
-     (* Effectful branch that fell through *)
-      (∀ v k,
-        ⌜try_cextend_eff η v k bs = None⌝ -∗
-        Ψ allows perform v
-          << fun o => ▷ EWP (stop CInstall (k, η, bs)) @ E <| prot_bottom |>
-              {{ RET l, shallow_handler_spec E Ψ Φ Ψ' Φ' η bs -∗
-                  ▷ EWP (stop CResume (l, o)) @ E <| Ψ' |> {{ Φ' }} }} >>)) %I.
-
-
-  Local Instance shallow_handler_spec_pre_contractive:
-    Contractive shallow_handler_spec_pre.
-  Proof.
-    rewrite /shallow_handler_spec_pre /= => n wp wp' Hwp E m Φ.
-    repeat intro. repeat (f_contractive || f_equiv).
-    repeat intro. repeat (f_contractive || f_equiv).
-    apply Hwp.
-  Qed.
-
-  Definition shallow_handler_spec_def := fixpoint shallow_handler_spec_pre.
-  Local Definition shallow_handler_spec_aux : seal (@shallow_handler_spec_def).
-  Proof. by eexists. Qed.
-  Definition shallow_handler_spec := shallow_handler_spec_aux.(unseal).
-
-  Lemma ewp_shallow_handler E Ψ Φ Ψ' Φ' η o bs:
-    shallow_handler_spec E Ψ Φ Ψ' Φ' η bs -∗
-    EWP (eval_shallow_match η o bs) @ E <| Ψ' |> {{ Φ' }}.
-  Proof.
-  Admitted.
-
-(* -------------------------------------------------------------------------- *)
+  (* -------------------------------------------------------------------------- *)
   (** * Deep handler specification. *)
+  (* We follow the deep handler judgment in [hazel] (the one-shot case),
+      which reflects the recursive behavior of deep handlers. *)
 
   Definition deep_handler_spec_pre
     (deep_handler_spec:
@@ -102,13 +65,14 @@ Section handler_specifications.
       ((* [Return] and [Exception] branch *)
       (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
 
-      (* [Effect] branch *)
+      (* [Effect] branch (one-shot) *)
       (∀ v k, Ψ allows perform v
-          << fun o => ∀ Ψ'' Φ'',
+          << fun o : outcome2 val exn => ∀ Ψ'' Φ'',
             ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
             EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
         ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
 
+  (* Some definition sealing (and auxilliary functions) *)
   Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
   Proof.
     rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
@@ -117,13 +81,153 @@ Section handler_specifications.
     apply Hwp.
   Qed.
 
-  Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
+  Local Definition deep_handler_spec_def := fixpoint deep_handler_spec_pre.
 
   Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
   Proof. by eexists. Qed.
+  (* Top-level definition for [deep_handler] *)
   Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
 
-  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
-      the expr level). *)
+  Lemma deep_handler_spec_unfold {E} Ψ Φ Ψ' Φ' h :
+    deep_handler_spec E Ψ Φ h Ψ' Φ' ⊣⊢
+    deep_handler_spec_pre deep_handler_spec_def E Ψ Φ h Ψ' Φ'.
+  Proof.
+    rewrite /deep_handler_spec seal_eq /deep_handler_spec_def;
+    apply (@fixpoint_unfold _ _ _ deep_handler_spec_pre).
+  Qed.
 
 End handler_specifications.
+
+(* TODO: Move or remove *)
+Opaque eval_match.
+
+(* LATER: refactor *)
+Local Ltac ewp_invert :=
+  match goal with
+  | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
+      match goal with
+      (* EWP throw *)
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (throw _) _ _)] =>
+          iPoseProof (ewp_throw_inv with "[$]") as "HΦ"
+      (* EWP ret *)
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
+          iMod (ewp_ret_inv with "[$]") as "HΦ"
+      (* EWP crash *)
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+          match goal with
+          | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
+            iMod (ewp_crash_inv with "[$][$]") as "%"
+          end
+      end
+  end.
+
+(* -------------------------------------------------------------------------- *)
+(** *Reasoning rules over effect handlers *)
+
+Section handler_proof.
+
+  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+
+  Context {A X : Type}.
+
+  Import ewp_rules_tactics.
+
+  (* Specification of [shallow_handler] at the [expr] level. *)
+  Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
+    EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
+    (* The shallow handler specification is met *)
+    shallow_handler_spec E Ψ Φ (λ o, eval_shallow_match η o bs) Ψ' Φ' -∗
+    EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
+  Proof.
+    iIntros "He Hspec".
+    rewrite /shallow_handler.
+    (* Follows immediately by the reasoning rule on [Handle]. *)
+    by iApply (ewp_handle with "He").
+  Qed.
+
+  (* Specification of [deep_handler] at the [expr] level. *)
+  Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
+    EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
+    (* The deep handler specification is met *)
+    deep_handler_spec E Ψ Φ (λ o, pre_eval_match_aux eval true η o bs bs) Ψ' Φ' -∗
+    EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
+  Proof.
+    (* We abstract away [eval η e]. *)
+    rewrite /deep_handler; remember (eval η e); clear.
+
+    (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
+    iLöb as "IH" forall (m η bs Ψ' Φ').
+
+    (* Expand the definition of [EWP] to inspect the possible steps that
+        can result from [deep_handler η e bs]. *)
+    iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+
+    (* Case analysis on the steps from [deep_handler η e bs]. *)
+    construct_wp_nonret; destruct_step; cbn -[eval_deep_match];
+      iMod "Hmod" as "_"; try rewrite -x; cbn -[eval_deep_match];
+    rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
+
+    1,2: (* [StepHandleRet] and [StepHandleThrow] *)
+      ewp_invert; iFrame;
+      iDestruct "Hsh" as "[Hsh _]";
+      iSpecialize ("Hsh" with "HΦ");
+      try iMod "Hsh";
+      by ewp_mask_intro "Hmod"; ewp_mask_elim.
+
+    { (* [StepHandlePerform] *)
+      iDestruct "Hsh" as "[_ Hsh]".
+
+      (* [Perform e] satisfies the protocol specification *)
+      iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
+
+      (* We allocate a new location that contains the continuation *)
+      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
+        [ exact H0 | ].
+      iFrame; rewrite {2}/eval_deep_match; cbn -[eval_deep_match].
+
+      (* Install the handler around the location [l]. *)
+      iApply (ewp_install with "HH").
+      ewp_mask_intro "Hmod"; ewp_mask_elim.
+      iIntros (?) "Hl"; cbn.
+
+      iAssert (Ψ allows perform e
+        << λ o : outcome2 val exn, (* We need the annotation here; LATER: remove? *)
+            ∀ Ψ'' Φ'',
+              ▷ deep_handler_spec_def E Ψ Φ
+                (* TODO Rename this [pre_eval_match_aux]? *)
+                (λ o, pre_eval_match_aux eval true η o bs bs) Ψ'' Φ'' -∗
+              EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
+        with "[HP Hl]" as "HΨ".
+      { iApply prot_mono_post; iFrame.
+        iIntros (?) "Hwp"; cbn; iIntros (??) "H".
+        iSpecialize ("IH" with "Hwp").
+
+        rewrite /deep_handler_spec seal_eq.
+
+        (* Resume the continuation that stored the installed handler *)
+        iApply (ewp_resume with "Hl"). iNext.
+        iIntros (?) "Hl". cbn.
+        iSpecialize ("IH" with "H").
+
+        (* Rewriting under binders for handle.. LATER: Remove? *)
+        erewrite (eq_handle_handle (k w) (λ o : outcome3 C.val C.exn,
+                        try2 (eval_match η o bs) inject2));
+          first done.
+        intros; by rewrite try2_ret_right. }
+      (* We're forgetting the [Shot] information here.
+           Do we want to strengthen this?  *)
+
+      by iSpecialize ("Hsh" with "HΨ"). }
+
+    { (* [StepHandleCrash] *)
+      by ewp_invert. }
+
+    { (* [StepHandleLeft] *)
+      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
+      ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
+      iSpecialize ("IH" with "H").
+      rewrite deep_handler_spec_unfold.
+      iApply ("IH" with "Hsh"). }
+  Qed.
+
+End handler_proof.
