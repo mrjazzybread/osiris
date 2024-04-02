@@ -1213,14 +1213,19 @@ Fixpoint eval η e {struct e} : microvx :=
         Ret
         (λ ex, eval_trywith η ex bs)
   | ERaise e =>
-      exc ← eval η e ;
-      throw exc
+      exn ← eval η e ;
+      throw exn
   | EPerform e =>
       eff ← eval η e ;
       perform eff
   | EContinue e1 e2 =>
       l ← as_cont (eval η e1) ;
-      try2 (eval η e2) (λ o, stop CResume (l, o))
+      v ← eval η e2 ;
+      stop CResume (l, O2Ret v)
+  | EDiscontinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      exn ← eval η e2 ;
+      stop CResume (l, O2Throw exn)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then

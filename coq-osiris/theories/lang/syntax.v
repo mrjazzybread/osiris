@@ -239,10 +239,13 @@ Inductive expr :=
   | ETryWith (e : expr) (bs : list branch)
   (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)
-                                                                                         (* Performing an effect. *)
+
+  (* Performing an effect. *)
   | EPerform (e : expr)
   (* Continue a continuation: [continue e1 e2]. *)
   | EContinue (e1 : expr) (e2 : expr)
+  (* Discontinue a continuation: [discontinue e1 e2]. *)
+  | EDiscontinue (e1 : expr) (e2 : expr)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
