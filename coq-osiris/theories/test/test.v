@@ -58,6 +58,7 @@ Local Ltac step :=
     | eapply StepParPerformLeft
     | eapply StepParPerformRight
     | eapply StepHandleRet
+    | eapply StepHandleThrow
     | match goal with
       | |- step (?σ, Stop CAlloc _ _) _ =>
           let l' := eval cbn in (fresh (dom σ)) in
@@ -519,4 +520,23 @@ Lemma test_handle_reinstall_ret :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_exception :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> discontinue k Not_found *)
+        Branch
+         (CEff PAny (PVar "k"))
+         (EDiscontinue (EVar "k") (EXData "Not_found" (ETuple [])));
+        (* | exception Not_found -> 42 *)
+        Branch
+          (CExc (PXData "Not_found" (PTuple [])))
+          (EInt 42)]
+  in
+  ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
+                           ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
