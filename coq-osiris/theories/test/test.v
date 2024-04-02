@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
+From osiris.proofmode Require Import notations.
 From stdpp Require Import relations base gmap.
 
 (* We want to test our semantics, so as to ensure that it seems to be
@@ -48,16 +49,19 @@ Qed.
 
 Local Ltac step :=
   first [
-    eapply StepEval
-  | eapply StepLoop
-  | eapply StepChooseRight
-  | eapply StepParRetRet
-  | eapply StepParLeft; [ step ]
-  | eapply StepParRight; [ step ]
-  | eapply StepHandleRet
-  | match goal with
-    | |- step (?σ, Stop CAlloc _ _) _ =>
-        eapply StepAlloc with (l := fresh (dom σ)); apply is_fresh
+      eapply StepEval
+    | eapply StepLoop
+    | eapply StepChooseRight
+    | eapply StepParRetRet
+    | eapply StepParLeft; [ step ]
+    | eapply StepParRight; [ step ]
+    | eapply StepParPerformLeft
+    | eapply StepParPerformRight
+    | eapply StepHandleRet
+    | match goal with
+      | |- step (?σ, Stop CAlloc _ _) _ =>
+          let l' := eval cbn in (fresh (dom σ)) in
+          eapply StepAlloc with (l := l'); apply is_fresh
       end
     | eapply StepLoad;
       setoid_rewrite lookup_insert; reflexivity
@@ -65,15 +69,16 @@ Local Ltac step :=
       setoid_rewrite lookup_insert; reflexivity
     | match goal with
       | |- step (?σ, Handle _ _) _ =>
-          eapply StepHandlePerform with (l := fresh (dom σ)); apply is_fresh
+          let l' := eval cbn in (fresh (dom σ)) in
+          eapply StepHandlePerform with (l := l'); apply is_fresh
       end
     | match goal with
       | |- step (?σ, Stop CInstall _ _) _ =>
           eapply StepInstall;
-          [ apply is_fresh | setoid_rewrite lookup_insert; reflexivity ]
+          [ apply is_fresh | by cbn ]
       end
     | eapply StepHandleLeft; [ step ]
-    | eapply StepResume; setoid_rewrite lookup_insert; reflexivity
+    | eapply StepResume; by cbn
     ].
 
 
@@ -82,9 +87,7 @@ Local Ltac step :=
 
 Local Ltac steps :=
   cbn;
-  repeat first [
-    rewrite bind_ret (* not sure why this is needed; [cbn] not enough *)
-  | eapply (nsteps_O)
+  repeat first [ eapply (nsteps_O)
   | eapply nsteps_l; [ step | cbn ]
   | rewrite add_repr_repr
   | rewrite eq_repr_repr by representable
@@ -430,7 +433,9 @@ Lemma test_handle_nocont :
     EPerform (EXData "Choose" (ETuple []))
   in
   let m :=
-    EMatch e [Branch (CEff PAny PAny) (EInt 42)]
+    EMatch e
+      [ (* | effect _, _ -> 42 *)
+        Branch (CEff PAny PAny) (EInt 42)]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
@@ -440,12 +445,78 @@ Lemma test_handle :
     EPerform (EXData "Choose" (ETuple []))
   in
   let m :=
-    EMatch e [Branch
-                (CEff PAny (PVar "k"))
-                (EContinue (EVar "k") (EInt 42));
-              Branch
-                (CVal (PVar "x"))
-                (EVar "x")]
+    EMatch e
+      [ (* | effect _, k -> continue k 42 *)
+        Branch
+         (CEff PAny (PVar "k"))
+         (EContinue (EVar "k") (EInt 42));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_compute_head :
+  let e :=
+      (21 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_compute_branch :
+  let e :=
+    (20 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> let y = continue k 21 in y + 1 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (ELet1 (PVar "y")
+             (EContinue (EVar "k") (EInt 21))
+             (EVar "y" + 1)%expr);
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_reinstall_ret :
+  let e1 :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let e2 :=
+    EMatch e1
+      [ (* | x -> 21 + x *)
+        Branch
+          (CVal (PVar "x"))
+          (21 + EVar "x")%expr]
+  in
+  let m :=
+    EMatch e2
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
