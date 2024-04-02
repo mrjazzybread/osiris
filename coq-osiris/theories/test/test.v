@@ -57,15 +57,24 @@ Local Ltac step :=
   | eapply StepHandleRet
   | match goal with
     | |- step (?σ, Stop CAlloc _ _) _ =>
-        let l := fresh "l" in
-        set (l := fresh (dom σ));
-        eapply StepAlloc with (l := l); apply is_fresh
-    end
-  | eapply StepLoad;
-    setoid_rewrite lookup_insert; reflexivity
-  | eapply StepStore;
-    setoid_rewrite lookup_insert; reflexivity
-  ].
+        eapply StepAlloc with (l := fresh (dom σ)); apply is_fresh
+      end
+    | eapply StepLoad;
+      setoid_rewrite lookup_insert; reflexivity
+    | eapply StepStore;
+      setoid_rewrite lookup_insert; reflexivity
+    | match goal with
+      | |- step (?σ, Handle _ _) _ =>
+          eapply StepHandlePerform with (l := fresh (dom σ)); apply is_fresh
+      end
+    | match goal with
+      | |- step (?σ, Stop CInstall _ _) _ =>
+          eapply StepInstall;
+          [ apply is_fresh | setoid_rewrite lookup_insert; reflexivity ]
+      end
+    | eapply StepHandleLeft; [ step ]
+    | eapply StepResume; setoid_rewrite lookup_insert; reflexivity
+    ].
 
 
 
@@ -414,7 +423,9 @@ Lemma test_double_ref :
   reduces e (VInt (repr 1)).
 Proof. reduces. Qed.
 
-Lemma test_handle :
+Notation "'cont'" := (K _).
+
+Lemma test_handle_nocont :
   let e :=
     EPerform (EXData "Choose" (ETuple []))
   in
@@ -422,15 +433,19 @@ Lemma test_handle :
     EMatch e [Branch (CEff PAny PAny) (EInt 42)]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof.
-  reduces.
-  eapply nsteps_l.
-  eapply StepHandlePerform with (l := fresh (dom ∅)).
-  apply is_fresh.
-  reduces.
-  eapply nsteps_l.
-  eapply StepInstall with (l := fresh (fresh (dom ∅))).
-  { apply is_fresh. }
-  setoid_rewrite lookup_insert. reflexivity.
-  reduces.
-Qed.
+Proof. reduces. Qed.
+
+Lemma test_handle :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e [Branch
+                (CEff PAny (PVar "k"))
+                (EContinue (EVar "k") (EInt 42));
+              Branch
+                (CVal (PVar "x"))
+                (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.

@@ -241,6 +241,8 @@ Inductive expr :=
   | ERaise (e : expr)
                                                                                          (* Performing an effect. *)
   | EPerform (e : expr)
+  (* Continue a continuation: [continue e1 e2]. *)
+  | EContinue (e1 : expr) (e2 : expr)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
