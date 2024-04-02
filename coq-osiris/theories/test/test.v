@@ -429,8 +429,8 @@ Proof.
   apply is_fresh.
   reduces.
   eapply nsteps_l.
-  eapply StepInstall. apply ∅.
-  apply is_fresh.
+  eapply StepInstall with (l := fresh (fresh (dom ∅))).
+  { apply is_fresh. }
   setoid_rewrite lookup_insert. reflexivity.
   reduces.
 Qed.
