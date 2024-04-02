@@ -67,6 +67,10 @@ End ghost_instances.
 Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
+(* Notations *)
+Notation "l ↦ v" := (mapsto l (DfracOwn 1) v)
+  (at level 20, format "l  ↦  v") : bi_scope.
+
 (* -------------------------------------------------------------------------- *)
 
 (** *Iris instantiation *)
@@ -358,3 +362,4 @@ Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
 From osiris Require Export syntax.
 (* LATER: import [semantics] after [eval, pure] compiles *)
 From osiris.semantics Require Export code micro step.
+

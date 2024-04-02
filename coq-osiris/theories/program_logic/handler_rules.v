@@ -66,26 +66,11 @@ Section handler_specifications.
     apply (@fixpoint_unfold _ _ _ deep_handler_spec_pre).
   Qed.
 
-
-  (* TODO : Prove rule about [deep_handler_spec] (probably needs to be done at
-      the expr level). *)
-
 End handler_specifications.
-
-(* TODO : Move *)
-Definition outcome3_to_micro (o : outcome3 val exn) :=
-  match o with
-  | O3Ret a => Ret a
-  | O3Throw e => Throw e
-  | O3Perform e k => Stop CPerform e (fun v => stop CResume (k, v))
-  end.
-
-(* TODO : Move *)
-Notation "l ↦ v" := (gen_heap.mapsto l (DfracOwn 1) v)
-  (at level 20, format "l  ↦  v") : bi_scope.
 
 Opaque eval_match.
 
+(* LATER: refactor *)
 Local Ltac ewp_invert :=
   match goal with
   | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
@@ -105,7 +90,6 @@ Local Ltac ewp_invert :=
       end
   end.
 
-
 Section handler_proof.
 
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
@@ -120,7 +104,8 @@ Section handler_proof.
   Definition deep_match η e bs :=
     Handle (eval η e) (λ o, eval_deep_match η o bs).
 
-  Lemma ewp_shallow_match E Ψ Φ Ψ' Φ' η e bs:
+  (* Specification of [shallow_match] at the [expr] level. *)
+  Corollary ewp_shallow_match E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
     shallow_handler_spec E Ψ Φ (λ o, eval_shallow_match η o bs) Ψ' Φ' -∗
@@ -131,23 +116,26 @@ Section handler_proof.
     by iApply (ewp_handle with "He").
   Qed.
 
+  (* Specification of [deep_match] at the [expr] level. *)
   Lemma ewp_deep_match E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
     deep_handler_spec E Ψ Φ (λ o, pre_eval_match_aux eval true η o bs bs) Ψ' Φ' -∗
     EWP (deep_match η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
-    (* We proceed by Löb-induction after generalizing [η] [e] and [bs]. *)
-    rewrite /deep_match. remember (eval η e). clear.
+    (* We abstract away [eval η e]. *)
+    rewrite /deep_match; remember (eval η e); clear.
+
+    (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
     iLöb as "IH" forall (m η bs Ψ' Φ').
 
-    iIntros "He Hsh".
-    ewp_unfold_head.
-    intro_state.
+    (* Expand the definition of [EWP] to inspect the possible steps that
+        can result from [deep_match η e bs]. *)
+    iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
-    ewp_mask_intro "Hmod".
-    Opaque eval_deep_match.
-    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; try rewrite -x; cbn;
+    (* Case analysis on the steps from [deep_match η e bs]. *)
+    construct_wp_nonret; destruct_step; cbn -[eval_deep_match];
+      iMod "Hmod" as "_"; try rewrite -x; cbn -[eval_deep_match];
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
@@ -159,45 +147,48 @@ Section handler_proof.
 
     { (* [StepHandlePerform] *)
       iDestruct "Hsh" as "[_ Hsh]".
-      iPoseProof (ewp_perform_inv with "[$]") as "HP".
-      iMod "HP".
 
+      (* [Perform e] satisfies the protocol specification *)
+      iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
+
+      (* We allocate a new location that contains the continuation *)
       iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H0 | ].
-      iFrame.
+      iFrame; rewrite {2}/eval_deep_match; cbn -[eval_deep_match].
 
-      Transparent eval_deep_match.
-      rewrite {2}/eval_deep_match.
-      Opaque eval_deep_match.
-      cbn.
-
+      (* Install the handler around the location [l]. *)
       iApply (ewp_install with "HH").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
       iIntros (?) "Hl"; cbn.
 
       iAssert (Ψ allows perform e
-        << λ o : outcome2 val exn,
+        << λ o : outcome2 val exn, (* We need the annotation here; LATER: remove? *)
             ∀ Ψ'' Φ'',
-              ▷ deep_handler_spec_def E Ψ Φ (λ o, pre_eval_match_aux eval true η o bs bs) Ψ'' Φ'' -∗
+              ▷ deep_handler_spec_def E Ψ Φ
+                (* TODO Rename this [pre_eval_match_aux]? *)
+                (λ o, pre_eval_match_aux eval true η o bs bs) Ψ'' Φ'' -∗
               EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
         with "[HP Hl]" as "HΨ".
       { iApply prot_mono_post; iFrame.
-        iIntros (?) "Hwp"; cbn.
-        iIntros (??) "H".
+        iIntros (?) "Hwp"; cbn; iIntros (??) "H".
         iSpecialize ("IH" with "Hwp").
 
         rewrite /deep_handler_spec seal_eq.
 
+        (* Resume the continuation that stored the installed handler *)
         iApply (ewp_resume with "Hl"). iNext.
         iIntros (?) "Hl". cbn.
         iSpecialize ("IH" with "H").
 
-        erewrite (eq_handle_handle (k w) (λ o : outcome3 C.val C.exn, try2 (eval_match η o bs) inject2)).
-        2 : intros; rewrite try2_ret_right; reflexivity.
-        done. } (* We're forgetting the [Shot] information here *)
+        (* Rewriting under binders for handle.. LATER: Remove? *)
+        erewrite (eq_handle_handle (k w) (λ o : outcome3 C.val C.exn,
+                        try2 (eval_match η o bs) inject2));
+          first done.
+        intros; by rewrite try2_ret_right. }
+      (* We're forgetting the [Shot] information here.
+           Do we want to strengthen this?  *)
 
-      iSpecialize ("Hsh" with "HΨ"). Transparent eval_deep_match.
-      rewrite /eval_deep_match /pre_eval_match. done. }
+      by iSpecialize ("Hsh" with "HΨ"). }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -211,85 +202,3 @@ Section handler_proof.
   Qed.
 
 End handler_proof.
-
-Section alternative_handler_specifications.
-
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
-
-  Context {A X : Type}.
-
- (* -------------------------------------------------------------------------- *)
-  (** * Shallow handler specification. *)
-
-  Definition shallow_handler_spec_pre
-    (shallow_handler_spec:
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      env -d>
-      handler -d>
-      iPropI Σ) :
-      coPset -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      P -d>
-      (outcome2 val exn -d> iPropO Σ) -d>
-      env -d>
-      handler -d>
-      iPropI Σ :=
-    (λ E Ψ Φ Ψ' Φ' η bs,
-
-     (* [Return] and [Exception] branch *)
-      (∀ (o : outcome2 val exn) e,
-        Φ o -∗
-        ⌜try_cextend_pure η o bs = Some e⌝ -∗
-        EWP e @ E <| Ψ' |> {{ Φ' }}) ∧
-
-     (* Effectful branch. *)
-      (∀ v k η' e,
-        ⌜try_cextend_eff η v k bs = Some (η', e)⌝ -∗
-        Ψ allows perform v
-          << λ o, ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} -∗
-                   ▷ EWP (eval η' e) @ E <| Ψ' |> {{ Φ' }} >>) ∧
-
-     (* Effectful branch that fell through *)
-      (∀ v k,
-        ⌜try_cextend_eff η v k bs = None⌝ -∗
-        Ψ allows perform v
-          << fun o => ▷ EWP (stop CInstall (k, η, bs)) @ E <| prot_bottom |>
-              {{ RET l, shallow_handler_spec E Ψ Φ Ψ' Φ' η bs -∗
-                  ▷ EWP (stop CResume (l, o)) @ E <| Ψ' |> {{ Φ' }} }} >>)) %I.
-
-
-  Local Instance shallow_handler_spec_pre_contractive:
-    Contractive shallow_handler_spec_pre.
-  Proof.
-    rewrite /shallow_handler_spec_pre /= => n wp wp' Hwp E m Φ.
-    repeat intro. repeat (f_contractive || f_equiv).
-    repeat intro. repeat (f_contractive || f_equiv).
-    apply Hwp.
-  Qed.
-
-  Definition shallow_handler_spec_def := fixpoint shallow_handler_spec_pre.
-  Local Definition shallow_handler_spec_aux : seal (@shallow_handler_spec_def).
-  Proof. by eexists. Qed.
-  Definition shallow_handler_spec := shallow_handler_spec_aux.(unseal).
-
-  Lemma shallow_handler_spec_unfold {E} Ψ Φ Ψ' Φ' η bs :
-    shallow_handler_spec E Ψ Φ Ψ' Φ' η bs ⊣⊢
-    shallow_handler_spec_pre shallow_handler_spec_def E Ψ Φ Ψ' Φ' η bs.
-  Proof.
-    rewrite /shallow_handler_spec seal_eq /shallow_handler_spec_def;
-    apply (@fixpoint_unfold _ _ _ shallow_handler_spec_pre).
-  Qed.
-
-End alternative_handler_specifications.
-
-
-(* ------------------------------------------------------------------------ *)
-  (* Local tactics *)
-
-Local Ltac spec_unfold :=
-  rewrite !shallow_handler_spec_unfold /shallow_handler_spec_pre /=.
