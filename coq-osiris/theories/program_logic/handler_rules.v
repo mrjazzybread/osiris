@@ -6,16 +6,44 @@ From osiris.program_logic Require Import ewp tactics basic_rules.
 From osiris.semantics Require Import code.
 
 (* -------------------------------------------------------------------------- *)
+(** *Shallow and deep handlers *)
+
+(* Shallow handlers are use-once handlers;
+    If the handled expression performs an effect caught by the handler,
+    we are done (and the handlers are not installed).
+    If not, the handler is installed around the captured continuation. *)
+
+Definition shallow_handler η e bs :=
+  Handle (eval η e) (λ o, eval_shallow_match η o bs).
+
+(* Deep handlers are installed permanently;
+     Regardless of whether the handled expression performs an effect
+    caught by the handler, the handler is installed around the captured
+    continuation. *)
+
+Definition deep_handler η e bs :=
+  Handle (eval η e) (λ o, eval_deep_match η o bs).
+
+(* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
 
+(* Definition of handler specifications *)
 Section handler_specifications.
 
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
 
   Context {A X : Type}.
 
-(* -------------------------------------------------------------------------- *)
+  (* -------------------------------------------------------------------------- *)
+  (** * Shallow handler specification. *)
+  (* The shallow handler specification is defined over the [Handle] primitive in
+   [basic_rules.v] *)
+  (* -------------------------------------------------------------------------- *)
+
+  (* -------------------------------------------------------------------------- *)
   (** * Deep handler specification. *)
+  (* We follow the deep handler judgment in [hazel] (the one-shot case),
+      which reflects the recursive behavior of deep handlers. *)
 
   Definition deep_handler_spec_pre
     (deep_handler_spec:
@@ -37,13 +65,14 @@ Section handler_specifications.
       ((* [Return] and [Exception] branch *)
       (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
 
-      (* [Effect] branch *)
+      (* [Effect] branch (one-shot) *)
       (∀ v k, Ψ allows perform v
           << fun o : outcome2 val exn => ∀ Ψ'' Φ'',
             ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
             EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
         ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
 
+  (* Some definition sealing (and auxilliary functions) *)
   Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
   Proof.
     rewrite /deep_handler_spec_pre /= => n wp wp' Hwp E m Φ.
@@ -56,6 +85,7 @@ Section handler_specifications.
 
   Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
   Proof. by eexists. Qed.
+  (* Top-level definition for [deep_handler] *)
   Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
 
   Lemma deep_handler_spec_unfold {E} Ψ Φ Ψ' Φ' h :
@@ -68,6 +98,7 @@ Section handler_specifications.
 
 End handler_specifications.
 
+(* TODO: Move or remove *)
 Opaque eval_match.
 
 (* LATER: refactor *)
@@ -90,6 +121,9 @@ Local Ltac ewp_invert :=
       end
   end.
 
+(* -------------------------------------------------------------------------- *)
+(** *Reasoning rules over effect handlers *)
+
 Section handler_proof.
 
   Context `{!osirisGS Σ} `{protocol_wf Σ P}.
@@ -98,42 +132,37 @@ Section handler_proof.
 
   Import ewp_rules_tactics.
 
-  Definition shallow_match η e bs :=
-    Handle (eval η e) (λ o, eval_shallow_match η o bs).
-
-  Definition deep_match η e bs :=
-    Handle (eval η e) (λ o, eval_deep_match η o bs).
-
-  (* Specification of [shallow_match] at the [expr] level. *)
-  Corollary ewp_shallow_match E Ψ Φ Ψ' Φ' η e bs:
+  (* Specification of [shallow_handler] at the [expr] level. *)
+  Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
     shallow_handler_spec E Ψ Φ (λ o, eval_shallow_match η o bs) Ψ' Φ' -∗
-    EWP (shallow_match η e bs) @ E <| Ψ' |> {{ Φ' }}.
+    EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     iIntros "He Hspec".
-    rewrite /shallow_match.
+    rewrite /shallow_handler.
+    (* Follows immediately by the reasoning rule on [Handle]. *)
     by iApply (ewp_handle with "He").
   Qed.
 
-  (* Specification of [deep_match] at the [expr] level. *)
-  Lemma ewp_deep_match E Ψ Φ Ψ' Φ' η e bs:
+  (* Specification of [deep_handler] at the [expr] level. *)
+  Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
     deep_handler_spec E Ψ Φ (λ o, pre_eval_match_aux eval true η o bs bs) Ψ' Φ' -∗
-    EWP (deep_match η e bs) @ E <| Ψ' |> {{ Φ' }}.
+    EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
-    rewrite /deep_match; remember (eval η e); clear.
+    rewrite /deep_handler; remember (eval η e); clear.
 
     (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
     iLöb as "IH" forall (m η bs Ψ' Φ').
 
     (* Expand the definition of [EWP] to inspect the possible steps that
-        can result from [deep_match η e bs]. *)
+        can result from [deep_handler η e bs]. *)
     iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
-    (* Case analysis on the steps from [deep_match η e bs]. *)
+    (* Case analysis on the steps from [deep_handler η e bs]. *)
     construct_wp_nonret; destruct_step; cbn -[eval_deep_match];
       iMod "Hmod" as "_"; try rewrite -x; cbn -[eval_deep_match];
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
