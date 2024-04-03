@@ -17,10 +17,8 @@ From osiris Require Import util.order.
 Class protocol_op {P A} :=
   { (* Primitive for protocols that takes in a precondition and postcondition
        assertion, with request and answers between the Player and Opponent *)
-    prot_req_ans : ∀ X Y (x : X) (y : Y),
-                    syntax.val -> (X -> A) ->
-                    outcome2 syntax.val exn ->
-                    (X -> Y -> A) -> P;
+    prot_req_ans : ∀ X Y,
+        (X -> syntax.val * A * (Y -> outcome2 syntax.val exn * A)) -> P;
     (* Bottom protocol *)
     prot_bottom : P;
     (* Sum of protocols *)
@@ -56,7 +54,7 @@ Class protocol (Σ : gFunctors) {P} :=
 
 (* Notations *)
 Notation "!( x , v ) { P }.?( y , w ){ Q }" :=
-  (prot_req_ans _ _ x y v P w Q)
+  (prot_req_ans _ _ (fun x => v * P * (fun y => w * Q)))
     (left associativity,
       P at level 200, Q at level 200, at level 13,
       format "'[' '!(' x ','  v ')' '{' P '}.?(' y ','  w '){' Q '}' ']'").
@@ -80,12 +78,13 @@ Section protocol_spec_properties.
 
   (* [A1] TODO Comment *)
   Class protocol_req_ans :=
-    prot_req_ans_allows A X (v v' : C.eff) w
-      (P : _ -> iProp Σ) (Q : _ -> _ -> iProp Σ) Φ (x : A) (y : X) :
-      !(x, v) { P }.?(y, w){ Q } allows perform v' << Φ x y >> ⊣⊢
+    prot_req_ans_allows A X (v : _ -> syntax.val) (v' : C.eff)
+      (w : _ -> _ -> outcome2 syntax.val exn)
+      (P : _ -> iProp Σ) (Q : _ -> _ -> iProp Σ) Φ :
+      prot_req_ans A X (fun x => (v x , P x, (fun y => (w x y, Q x y))))
+      allows perform v' << Φ >> ⊣⊢
       (* LATER: see if there is a better way to deal with binders *)
-      ∃ (x' : A), ⌜x = x'⌝ ∗ ⌜v' = v⌝ ∗
-        P x' ∗ ∀ y', ⌜y = y'⌝ -∗ (Q x' y' -∗ Φ x' y' w).
+      ∃ (x' : A), ⌜v' = v x'⌝ ∗ P x' ∗ ∀ y', (Q x' y' -∗ Φ (w x' y')).
 
   (* The protocol is monotone over the postcondition and the ordering on protocols. *)
   Class protocol_monotone :=

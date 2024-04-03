@@ -46,17 +46,23 @@ Section concrete_protocols.
   Next Obligation. solve_proper. Qed.
 
   Program Definition iEff_prot_req_ans
-    (X Y : Type) (x : X) (y : Y)
-    v (P : X -> iProp Σ) w
-    (Q : X -> Y -> iProp Σ)
+    (X Y : Type)
+    (f : X -> syntax.val * iProp Σ * (Y -> outcome2 syntax.val exn * iProp Σ))
     : iEff :=
     (λ v', λne Φ',
       ∃ x',
-        ⌜x' = x⌝ ∗ (* TODO: Improve this binder fiddliness *)
-        ⌜v' = v⌝ ∗ P x' ∗
-      ∀ y', ⌜y = y'⌝ -∗ (* TODO: Ditto. *)
-        Q x' y' -∗ Φ' w)%I.
-  Next Obligation. solve_proper. Qed.
+        let '(v, P, Ψ) := f x' in
+        ⌜v = v'⌝ ∗
+        P ∗
+      ∀ y',
+        let '(w, Q) := Ψ y' in
+        Q -∗ Φ' w)%I.
+  Next Obligation.
+    cbn; repeat intro. repeat f_equiv.
+    destruct (f a). destruct p; cbn.
+    repeat f_equiv.
+    destruct (p0 a0). repeat f_equiv.
+  Qed.
 
   Program Definition iEff_app
     (f : syntax.val -> syntax.val) {Inj_f : Inj eq eq f} (Ψ : iEff) : iEff :=
@@ -104,24 +110,20 @@ Section concrete_protocols.
   #[global] Instance iEff_protocol_req_ans :
     @protocol_req_ans Σ iEff iEff_protocol.
   Proof.
-    iIntros (??????????); iSplit.
+    iIntros (????????).
+    iSplit; rewrite /prot_req_ans /= /iEff_spec /iEff_prot_req_ans.
     { iIntros "HΦ".
-      iExists x; iSplitL ""; first done.
-      cbn; rewrite /iEff_spec /iEff_prot_req_ans.
-      iDestruct "HΦ" as (?) "(HPQ & HΦ)"; cbn.
-      iDestruct "HPQ" as (???) "(HP & HQ)"; subst.
-      iSplitL ""; first done; iFrame.
-      iIntros (?->) "Hq".
-      iSpecialize ("HQ" $! _ eq_refl with "Hq").
-      iApply ("HΦ" with "HQ"). }
+      iDestruct "HΦ" as (?) "HΦ"; cbn.
+      iDestruct "HΦ" as "(HΦv & Hw)".
+      iDestruct "HΦv" as (??) "(HP & HQΦ)"; subst.
+      iExists x'; iSplitL ""; first done; iFrame.
+      iIntros (?) "HQ". iSpecialize ("HQΦ" with "HQ").
+      iApply ("Hw" with "HQΦ"). }
     { iIntros "HΦ".
-      iDestruct "HΦ" as (???) "(HP & HQ)"; subst.
-      cbn; rewrite /iEff_spec /iEff_prot_req_ans.
-      iSpecialize ("HQ" $! _ eq_refl).
-      iExists (Φ x' y); cbn; iSplitR ""; [ | by iIntros ].
-      iExists _; do 2 (iSplitL ""; first done).
-      iFrame.
-      iIntros (??); subst; iFrame. }
+      iDestruct "HΦ" as (??) "(HP & HQΦ)"; subst; cbn.
+      iExists Φ.
+      iSplitR ""; last (iIntros; done).
+      iExists x'; by iFrame. }
   Qed.
 
   #[global] Instance iEff_protocol_mono :
