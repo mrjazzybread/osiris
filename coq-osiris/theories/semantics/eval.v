@@ -1275,6 +1275,8 @@ Definition eval_shallow_match := pre_eval_match eval false.
 (* Handlers are deep by default. *)
 Definition eval_match := pre_eval_match eval true.
 
+Definition shallow_eval_match := pre_eval_match eval false.
+
 Definition eval_trywith := pre_eval_trywith eval.
 
 Definition try_cextend_pure := pre_try_cextend_pure eval.

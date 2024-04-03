@@ -540,3 +540,20 @@ Lemma test_handle_exception :
   ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
                            ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
 Proof. reduces. Qed.
+
+Lemma test_shallow_handle :
+  let η := [("Choose", (VLoc (Loc 0)))] in
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    Handle
+      (eval η e)
+      (λ o, shallow_eval_match η  o
+              [ (* | effect _, k -> continue k 42 *)
+                Branch
+                  (CEff PAny (PVar "k"))
+                  (EContinue (EVar "k") (EInt 42))])
+  in
+  ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
+Proof. do 2 eexists. reduces. Qed.
