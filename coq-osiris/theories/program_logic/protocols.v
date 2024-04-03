@@ -53,11 +53,11 @@ Class protocol (Σ : gFunctors) {P} :=
     protocol_preorder :: preorder Σ P }.
 
 (* Notations *)
-Notation "!( x , v ) { P }.?( y , w ){ Q }" :=
-  (prot_req_ans _ _ (fun x => v * P * (fun y => w * Q)))
+Notation "λ! x , v <{ P }> λ? y , w <{ Q }>" :=
+  (prot_req_ans _ _ (λ x , (v x, P x, λ y, (w x y, Q x y))))
     (left associativity,
       P at level 200, Q at level 200, at level 13,
-      format "'[' '!(' x ','  v ')' '{' P '}.?(' y ','  w '){' Q '}' ']'").
+      format "'[' 'λ!'  x ','  v  '<{'  P  '}>'  'λ?'  y ','  w  '<{'  Q  '}>' ']'").
 Notation "P + Q" := (prot_sum P Q).
 Notation "Ψ 'allows' 'perform' v << Φ >>" :=
   (prot_spec Ψ v Φ)
@@ -78,10 +78,10 @@ Section protocol_spec_properties.
 
   (* [A1] TODO Comment *)
   Class protocol_req_ans :=
-    prot_req_ans_allows A X (v : _ -> syntax.val) (v' : C.eff)
-      (w : _ -> _ -> outcome2 syntax.val exn)
-      (P : _ -> iProp Σ) (Q : _ -> _ -> iProp Σ) Φ :
-      prot_req_ans A X (fun x => (v x , P x, (fun y => (w x y, Q x y))))
+    prot_req_ans_allows A X (v : A -> syntax.val) (v' : C.eff)
+      (w : A -> X -> outcome2 syntax.val exn)
+      (P : A -> iProp Σ) (Q : A -> X -> iProp Σ) Φ :
+      (λ! x , v <{ P }> λ? y , w <{ Q }>)
       allows perform v' << Φ >> ⊣⊢
       (* LATER: see if there is a better way to deal with binders *)
       ∃ (x' : A), ⌜v' = v x'⌝ ∗ P x' ∗ ∀ y', (Q x' y' -∗ Φ (w x' y')).
