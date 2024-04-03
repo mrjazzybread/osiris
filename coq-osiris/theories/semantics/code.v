@@ -60,7 +60,7 @@ Definition handler := list branch.
 
    The result is a value (or an exception). *)
 
-(* [CInstall (k, η, bs)] retrieves the continuation stored at [k] and installs
+(* [CInstall (deep, k, η, bs)] retrieves the continuation stored at [k] and installs
     a handler around it at a new location.
 
     The handler is given by [bs] (list of branches), and is evaluated with
@@ -79,7 +79,7 @@ Inductive code : Type → Type → Type → Type :=
 | CStore : code (loc * val) unit exn
 | CPerform  : code val val exn
 | CResume : code (loc * outcome2 val exn) val exn
-| CInstall : code (loc * env * handler) loc exn
+| CInstall : code (bool * loc * env * handler) loc exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -112,8 +112,8 @@ Definition perform (v : eff) : microvx :=
 (* The computation [install η k bs] installs a handler [bs] for the continuation
   stored at [k], and returns a new location which stores this installation. *)
 
-Definition install k η bs : micro loc exn :=
-  stop CInstall (k, η, bs).
+Definition install deep k η bs : micro loc exn :=
+  stop CInstall (deep, k, η, bs).
 
 (* ------------------------------------------------------------------------ *)
 

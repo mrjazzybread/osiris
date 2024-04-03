@@ -494,7 +494,7 @@ Section ewp_rules.
                Handle (sk o) (λ o, eval_match η o h))) -∗
       ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗
-    EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
+    EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -521,7 +521,7 @@ Section ewp_rules.
           meta_token l' ⊤ -∗
           EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗
-      EWP (Stop CInstall (l, η, h) k) @ E <| ψ |> {{ φ }}.
+      EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".

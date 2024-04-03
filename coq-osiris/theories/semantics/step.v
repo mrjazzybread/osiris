@@ -150,18 +150,22 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step (σ, m) (σ', m') →
       step (σ, Handle m h) (σ', Handle m' h)
 
-   (* [stop CInstall (η, k, hs)] installs a handler [hs] wrapped around the
+   (* [stop CInstall (deep, k, η, bs)] installs a handler [bs] wrapped around the
       continuation stored at [k] at a new location. *)
    | StepInstall :
-     forall σ (l k : loc) h (hs : handler) c' η,
+     forall σ (deep : bool) (l k : loc) h (bs : handler) c' η,
        σ !! l = None ->
        c' = match σ !! k with
             | Some (K sk) =>
-               (<[ l := K (fun o => Handle (sk o) (fun o => eval_match η o hs)) ]> σ,
-                  continue h l)
+                if deep then
+                  (<[ l := K (fun o => Handle (sk o) (fun o => eval_match η o bs)) ]> σ,
+                    continue h l)
+                else
+                  (<[ l := K (fun o => Handle (sk o) (fun o => shallow_eval_match η o bs)) ]> σ,
+                    continue h l)
             | _ => (σ, crash)
             end ->
-       step (σ, Stop CInstall (k, η, hs) h)
+       step (σ, Stop CInstall (deep, k, η, bs) h)
             c'
 
   (* [stop Resume (l, o)] reads the continuation [sk] that is stored
@@ -533,7 +537,7 @@ Qed.
 
 Lemma invert_step_install {A E} σ σ' l η hs k sk m' :
   σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CInstall (l, η, hs) k) (σ', m') ->
+  @step A E (σ, Stop CInstall (true, l, η, hs) k) (σ', m') ->
   ∃ l',
   σ !! l' = None /\
   σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match η o hs)) ]> σ /\
@@ -542,6 +546,19 @@ Proof.
   intros Heq Hstep. destruct_step. exploit_location_lookup.
   eexists; split; [ eassumption | split ]; congruence.
 Qed.
+
+Lemma invert_step_shallow_install {A E} σ σ' l η hs k sk m' :
+  σ !! l = Some (K sk) ->
+  @step A E (σ, Stop CInstall (false, l, η, hs) k) (σ', m') ->
+  ∃ l',
+  σ !! l' = None /\
+  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, shallow_eval_match η o hs)) ]> σ /\
+  m' = continue k l'.
+Proof.
+  intros Heq Hstep. destruct_step. exploit_location_lookup.
+  eexists; split; [ eassumption | split ]; congruence.
+Qed.
+
 
 (* A term that can step is not [ret _]. *)
 
@@ -681,6 +698,8 @@ Lemma step_try2 {A B E' E} σ σ' m m' (h : outcome2 A E' → micro B E) :
 Proof.
   (* A general recipe. *)
   inversion 1; subst;
+  (* Case analysis on installing a deep or shallow handler. *)
+  try destruct deep;
   simpl try2;
   rewrite ?try2_try2;
   eauto with step;
@@ -748,7 +767,7 @@ Proof.
   (* Case: [Ret] *)
   try solve [ exfalso; eauto with invert_can_step ];
   (* Every other case: *)
-  destruct_step; eauto with step try_try;
+  destruct_step; try destruct deep; eauto with step try_try;
   (* The cases of store lookups remain: *)
   case_location_lookup; simplify_eq;
     eauto 6 with step exploit_location_lookup try_try.

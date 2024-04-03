@@ -30,3 +30,5 @@ Global Instance Infinite_loc : Infinite loc.
 Proof.
   by apply infinite.inj_infinite with (f := Loc) (g := λ l, Some (address l)).
 Defined.
+
+(* TODO: comment why defined. *)

@@ -61,8 +61,9 @@ Local Ltac step :=
     | eapply StepHandleThrow
     | match goal with
       | |- step (?σ, Stop CAlloc _ _) _ =>
-          let l' := eval cbn in (fresh (dom σ)) in
-          eapply StepAlloc with (l := l'); apply is_fresh
+          eapply StepAlloc with (l := fresh (dom σ));
+          vm_compute fresh;
+          apply is_fresh
       end
     | eapply StepLoad;
       setoid_rewrite lookup_insert; reflexivity
@@ -70,8 +71,8 @@ Local Ltac step :=
       setoid_rewrite lookup_insert; reflexivity
     | match goal with
       | |- step (?σ, Handle _ _) _ =>
-          let l' := eval cbn in (fresh (dom σ)) in
-          eapply StepHandlePerform with (l := l'); apply is_fresh
+          eapply StepHandlePerform with (l := fresh (dom σ));
+          vm_compute fresh; apply is_fresh
       end
     | match goal with
       | |- step (?σ, Stop CInstall _ _) _ =>
@@ -82,22 +83,35 @@ Local Ltac step :=
     | eapply StepResume; by cbn
     ].
 
-
-
 (* The tactic [steps] solves a goal of the form [steps ?n e v]. *)
+
+Local Ltac compute_lookup :=
+  cbv [ lookup
+          gmap_lookup
+          gmap.gmap_dep_lookup
+          gmap_car
+          gmap.gmap_dep_ne_lookup
+          encode
+          loc_countable
+          inj_countable'
+          inj_countable
+          Z_countable
+          address ].
 
 Local Ltac steps :=
   cbn;
   repeat first [ eapply (nsteps_O)
-  | eapply nsteps_l; [ step | cbn ]
-  | rewrite add_repr_repr
-  | rewrite eq_repr_repr by representable
-  ].
+               | eapply nsteps_l; [ step | compute_lookup; vm_compute fresh; cbn ]
+               | rewrite add_repr_repr
+               | rewrite eq_repr_repr by representable
+    ].
+
+Local Ltac s := eapply nsteps_l; [ step | cbn; compute_lookup; vm_compute fresh ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
 
 Local Ltac reduces :=
-  intros; repeat eexists; steps.
+  intros; subst; repeat eexists; steps.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -547,9 +561,8 @@ Lemma test_shallow_handle :
     EPerform (EXData "Choose" (ETuple []))
   in
   let m :=
-    Handle
-      (eval η e)
-      (λ o, shallow_eval_match η  o
+    Handle (eval η e)
+      (λ o, shallow_eval_match η o
               [ (* | effect _, k -> continue k 42 *)
                 Branch
                   (CEff PAny (PVar "k"))
@@ -557,3 +570,82 @@ Lemma test_shallow_handle :
   in
   ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
 Proof. do 2 eexists. reduces. Qed.
+
+Lemma test_nested_handlers :
+  let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
+  let e :=
+    ELet1 (PVar "y")
+      (EPerform (EXData "Get22" (ETuple [])))
+      (EVar "y" + EPerform (EXData "Get20" (ETuple [])))%expr
+  in
+  let m1 :=
+    EMatch e
+      [ (* | effect Get22, k -> continue k 22 *)
+        Branch
+          (CEff (PXData "Get22" (PTuple [])) (PVar "k"))
+          (EContinue (EVar "k") (EInt 22));
+        (* | x -> x *)
+        Branch (CVal (PVar "x")) (EVar "x") ]
+  in
+  let m2 :=
+    EMatch m1
+      [ (* | effect Get20, k -> continue k 20 *)
+        Branch
+          (CEff (PXData "Get20" (PTuple [])) (PVar "k"))
+          (EContinue
+             (EVar "k")
+             (EInt 20));
+        (* | x -> x *)
+        Branch (CVal (PVar "x")) (EVar "x") ]
+  in
+  ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
+Proof. intros. subst e m1 m2. reduces. Admitted.
+
+Lemma test_repeat_handle :
+  let η :=  [("Get21", (VLoc (Loc 21)))] in
+  let e :=
+    (EPerform (EXData "Get21" (ETuple [])) + EPerform (EXData "Get21" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect Get21, k -> continue k 21 *)
+        Branch
+          (CEff (PXData "Get21" (PTuple [])) (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval η m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_shallow_ret_reinstall :
+  let η := [("Get32", (VLoc (Loc 32))); ("Get10", (VLoc (Loc 10)))] in
+  let e := (ELet1 (PVar "x")
+              (EPerform (EXData "Get32" (ETuple [])))
+              (EVar "x" + EPerform (EXData "Get10" (ETuple []))))%expr
+  in
+  let m1 :=
+    Handle (eval η e)
+      (λ o, shallow_eval_match η o
+              [ (* | effect Get10, k -> continue k 10 *)
+                Branch
+                  (CEff (PXData "Get10" (PTuple [])) (PVar "k"))
+                  (EContinue (EVar "k") (EInt 10))])
+  in
+  let m2 :=
+    Handle m1 (λ o, eval_match η o
+      [ (* | effect Get32, k -> continue k 32 *)
+        Branch
+          (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
+          (EContinue (EVar "k") (EInt 32));
+        (* | x -> x *)
+        Branch (CVal (PVar "x")) (EVar "x")])
+  in
+  ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
+Proof.
+  intros. subst e m1 m2. reduces. Qed.
+
+(* Further example ideas:
+   - nested effect and exception handlers *)
