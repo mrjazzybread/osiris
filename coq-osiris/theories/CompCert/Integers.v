@@ -95,38 +95,14 @@ Remark half_modulus_power : half_modulus = two_p (zwordsize - 1).
   reflexivity.
 Qed.
 
+(* rseassau *)
 Lemma le_half_two_p n : (n <= 2 ^ (n - 1))%nat.
 Proof.
   induction n; [ lia | ].
   destruct n; simpl in *; rewrite ?Nat.sub_0_r in IHn; lia.
 Qed.
 
-Lemma afa n : (2 ^ n >= 1)%nat.
-Proof.
-  induction n; simpl; lia.
-Qed.
-
-Lemma lt_two_p n : (n < 2 ^ n)%nat.
-Proof.
-  induction n; simpl; lia.
-Qed.
-
-Lemma tl_suc_two_p n : (n > 1 -> S n < 2 ^ n)%nat.
-Proof.
-  destruct n; [ lia | destruct n ]; [ lia | intros _ ].
-  simpl; rewrite !Nat.add_0_r; simpl.
-  assert (2 ^ n >= 1)%nat as H by (induction n; simpl; lia).
-  revert H; generalize (2 ^ n)%nat at 1 2 3 4; intros.
-  generalize (lt_two_p n). lia.
-Qed.
-
-Lemma lt_half_two_p n : (n > 2 -> n < 2 ^ (n - 1))%nat.
-Proof.
-  do 2 (destruct n; [ lia | intros ]).
-  change (S (S n) - 1)%nat with (S n).
-  apply tl_suc_two_p; lia.
-Qed.
-
+(* rseassau *)
 Remark zwordsize_le_half_modulus: zwordsize <= half_modulus.
 Proof.
   rewrite half_modulus_power; unfold zwordsize, wordsize.
@@ -137,10 +113,30 @@ Proof.
   apply inj_le, le_half_two_p.
 Qed.
 
+(* rseassau *)
+Lemma tl_suc_two_p n : (n > 1 -> S n < 2 ^ n)%nat.
+Proof.
+  do 2 (destruct n; [ lia | intros ]).
+  simpl; rewrite !Nat.add_0_r; simpl.
+  assert (H2n: (2 ^ n >= 1)%nat) by (induction n; simpl; lia); revert H2n.
+  generalize (2 ^ n)%nat at 1 2 3 4; intros.
+  assert (n < 2 ^ n)%nat by (induction n; simpl; lia).
+  lia.
+Qed.
+
+(* rseassau *)
+Lemma lt_half_two_p n : (n > 2 -> n < 2 ^ (n - 1))%nat.
+Proof.
+  do 2 (destruct n; [ lia | intros ]).
+  change (S (S n) - 1)%nat with (S n).
+  apply tl_suc_two_p; lia.
+Qed.
+
+(* rseassau *)
 Remark zwordsize_lt_half_modulus: zwordsize > 2 -> zwordsize < half_modulus.
 Proof.
   rewrite half_modulus_power; unfold zwordsize, wordsize.
-  intros Hws1. change 2 with (Z.of_nat 2) in Hws1. apply Nat2Z.inj_gt in Hws1.
+  intros Hws1; change 2 with (Z.of_nat 2) in Hws1; apply Nat2Z.inj_gt in Hws1.
   assert (two_p (Z.of_nat WS.wordsize - 1) = Z.of_nat (2 ^ (WS.wordsize - 1))) as ->.
   { rewrite two_p_correct; change 1 with (Z.of_nat 1); change 2 with (Z.of_nat 2).
     rewrite <- Nat2Z.inj_sub, <- Nat2Z.inj_pow by (generalize WS.wordsize_not_zero; lia).
@@ -448,7 +444,7 @@ Proof.
   unfold max_signed. generalize half_modulus_pos. lia.
 Qed.
 
-(* fpottier *)
+(* fpottier & rseassau *)
 Remark wordsize_max_signed: zwordsize > 2 -> zwordsize <= max_signed.
 Proof.
   unfold max_signed. generalize zwordsize_lt_half_modulus. lia.
