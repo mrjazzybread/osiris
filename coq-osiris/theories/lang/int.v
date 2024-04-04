@@ -330,7 +330,9 @@ Proof.
   { unfold min_signed. apply M.min_signed_neg. }
   assert (zintsize <= max_signed).
   { rewrite <- zwordsize_is_zintsize. unfold max_signed.
-    apply M.wordsize_max_signed. }
+    apply M.wordsize_max_signed.
+    rewrite zwordsize_is_zintsize; unfold zintsize.
+    generalize int_size_ge_31; lia. }
   lia.
 Qed.
 
