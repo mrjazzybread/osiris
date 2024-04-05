@@ -418,15 +418,19 @@ Qed.
 (** Relative positions, from greatest to smallest:
 <<
       modulus
+      [<, by max_unsigned_modulus]
       max_unsigned
+      [<=, by half_modulus_max_unsigned]
       half_modulus
+      [<, by max_signed_half_modulus]
       max_signed
+      [<=, by wordsize_max_signed], assuming [wordsize > 2]
       wordsize
+      [<, by wordsize_pos]
       0
+      [<, by min_signed_neg]
       min_signed
 >>
-
-(* TODO: Check that the inequalities are verified by the following lemmas. *)
 *)
 
 Remark half_modulus_pos: half_modulus > 0.

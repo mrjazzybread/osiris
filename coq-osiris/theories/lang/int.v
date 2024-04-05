@@ -346,28 +346,19 @@ Proof.
 Qed.
 
 Lemma prove_representable_30 i :
-  -(two_power_nat 30) <= i < two_power_nat 30 ->
+  -(2 ^ 30) <= i < 2 ^ 30 ->
   representable i.
 Proof.
   unfold representable.
-  rewrite min_signed_eq, max_signed_eq.
+  change (30) with (Z.of_nat 30).
+  rewrite min_signed_eq, max_signed_eq, <- two_power_nat_equiv.
   assert (two_power_nat 30 <= two_power_nat w)
     by auto using two_power_nat_mono, w_ge_30.
   lia.
 Qed.
 
 Ltac prove_representable_30 :=
-  apply prove_representable_30; cbv; split; congruence.
-Ltac prove_representable_30' :=
-  apply prove_representable_30; rewrite two_power_nat_equiv; lia.
-(* TODO should we use [two_power_nat_equiv] and write (2^30)%Z ? *)
-(* TODO eliminate the redundancy between these tactics;
-        use a single tactic and make it more robust;
-        it should either succeed or fail quickly. *)
-
-(* TODO extend the tactic [representable] to also prove goals
-   of the form [urepresentable z] and [in_shift_range z].
-   Rename the tactic, if desired. *)
+  apply prove_representable_30; lia.
 
 Goal representable 1673.
 Proof.
@@ -379,8 +370,46 @@ Proof.
   prove_representable_30.
 Qed.
 
+Lemma prove_urepresentable_30 i :
+  0 <= i < 2 ^ 31 ->
+  urepresentable i.
+Proof.
+  pose proof w_ge_30.
+  unfold urepresentable.
+  rewrite max_unsigned_eq, int_size_eq_succ_w.
+  assert (2 ^ 31 <= two_power_nat (S w)).
+  { change 31 with (Z.of_nat 31); rewrite <- two_power_nat_equiv.
+    apply two_power_nat_mono; lia. }
+  lia.
+Qed.
+
+Ltac prove_urepresentable_30 :=
+  apply prove_urepresentable_30; lia.
+
+Goal urepresentable 2147483647.
+Proof.
+  prove_urepresentable_30.
+Qed.
+
+Lemma prove_in_shift_range_30 i :
+  0 <= i <= 31 ->
+  in_shift_range i.
+Proof.
+  unfold in_shift_range.
+  rewrite <- zwordsize_is_zintsize.
+  unfold M.zwordsize. rewrite wordsize_is_int_size.
+  pose proof int_size_ge_31.
+  lia.
+Qed.
+
+Ltac prove_in_shift_range_30 :=
+  apply prove_in_shift_range_30; lia.
+
 Ltac representable :=
-  try solve [ tauto | eauto 2 | prove_representable_30'| prove_representable_30 ].
+  try solve [ tauto | eauto 2
+            | prove_representable_30
+            | prove_urepresentable_30
+            | prove_in_shift_range_30 ].
 
 Global Hint Extern 1 (representable _) => representable : representable.
 
