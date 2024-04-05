@@ -409,6 +409,47 @@ Qed.
 
 (* Function applications. *)
 
+Lemma pure_eval_anonfun `{Encode A, Encode A1} η v e (φ : A1 -> Prop) (ψ : val -> Prop) :
+  (∀ (x : A), pure (eval ((v, #x) :: η) e) φ) ->
+  (∀ (vf : val), (∀ (x : A), pure (call vf #x) φ) -> ψ vf) ->
+  pure (eval η (EAnonFun (AnonFun v e))) ψ.
+Proof.
+  intros Hcall Hcov. specialize (Hcov (VClo η (AnonFun v e))).
+  eapply pure_simp; [ simp | eauto ].
+  eapply pure_ret; first solve [encode].
+  apply Hcov.
+  intros. eapply pure_simp; [ simp | eauto ].
+Qed.
+
+Lemma pure_eval_anonfun' `{Encode A, Encode A1} η a φ (ψ : val -> Prop) :
+  (∀ (x : A), φ (VClo η a) #x) ->
+  (∀ (vf : val), (∀ (x : A), φ vf #x) -> ψ vf) ->
+  pure (eval η (EAnonFun a)) ψ.
+Proof.
+  intros Hcall Hcov. specialize (Hcov (VClo η a)).
+  eapply pure_simp; [ simp | eauto ].
+  eapply pure_ret; first solve [encode].
+  eauto.
+Qed.
+
+Lemma pure_eval_anonfunction `{Encode A, Encode A1} η bs (φ : A1 -> Prop) (ψ : val -> Prop) :
+  (∀ (x : A),
+      pure
+        (eval_match
+           (("__osiris_anonymous_arg", #x) :: η)
+           (O2Ret #x)
+           bs)
+        φ) ->
+  (∀ (vf : val), (∀ (x : A), pure (call vf #x) φ) -> ψ vf) ->
+  pure (eval η (EAnonFun (AnonFunction bs))) ψ.
+Proof.
+  intros Hcall Hcov.
+  eapply pure_simp; [ simp | eauto ].
+  eapply pure_ret; first solve [encode].
+  apply Hcov.
+  intros. eapply pure_simp; [ simp  | eauto ].
+Qed.
+
 Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) :
   pure (eval η e1)
     (λ f : val,
