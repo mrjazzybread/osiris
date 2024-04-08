@@ -30,7 +30,7 @@ Definition deep_handler η e bs :=
 (* Definition of handler specifications *)
 Section handler_specifications.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
@@ -48,17 +48,17 @@ Section handler_specifications.
   Definition deep_handler_spec_pre
     (deep_handler_spec:
       coPset -d>
-      P -d>
+      iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       (outcome3 val exn -> microvx) -d>
-      P -d>
+      iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       iPropI Σ) :
       coPset -d>
-      P -d>
+      iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       (outcome3 val exn -> microvx) -d>
-      P -d>
+      iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       iPropI Σ :=
     (λ E Ψ Φ h Ψ' Φ',
@@ -126,7 +126,7 @@ Local Ltac ewp_invert :=
 
 Section handler_proof.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
@@ -182,7 +182,8 @@ Section handler_proof.
 
       (* We allocate a new location that contains the continuation *)
       iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
-        [ exact H0 | ].
+        [ exact H | ].
+
       iFrame; rewrite {2}/eval_deep_match; cbn -[eval_deep_match].
 
       (* Install the handler around the location [l]. *)
@@ -198,7 +199,7 @@ Section handler_proof.
                 (λ o, pre_eval_match_aux eval true η o bs bs) Ψ'' Φ'' -∗
               EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
         with "[HP Hl]" as "HΨ".
-      { iApply prot_mono_post; iFrame.
+      { iApply (monotonic_prot with "[Hl] HP"); iFrame.
         iIntros (?) "Hwp"; cbn; iIntros (??) "H".
         iSpecialize ("IH" with "Hwp").
 

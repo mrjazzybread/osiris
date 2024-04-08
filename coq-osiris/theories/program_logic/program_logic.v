@@ -4,7 +4,5 @@ From osiris.program_logic Require Export
      ewp
      basic_rules
      handler_rules
-     protocols
-     protocol_instance
      adequacy
 .

@@ -117,7 +117,10 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
 
 (* -------------------------------------------------------------------------- *)
 
-From osiris.program_logic Require Export protocols.
+(* Definition of protocols, inherited from [Hazel] *)
+From osiris.Hazel Require Export protocols.
+
+(* -------------------------------------------------------------------------- *)
 
 (** *Definition of the effectful weakest precondition *)
 
@@ -125,15 +128,11 @@ Section ewp.
 
   Context {A X : Type}.
 
-  (* Carrier type of protocols *)
-  Context {P : Type}.
-
-  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}
-           `{@protocol_wf Σ P}.
+  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
 
   Definition ewp_pre
-    (ewp: coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+    (ewp: coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
+    coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     λ E m Ψ φ,
     (match is_handleable m with
       (* [EWP1]: Pure and exceptional values *)
@@ -159,14 +158,10 @@ Section ewp.
   Proof.
     rewrite /ewp_pre /= => n wp wp' Hwp E m Φ.
     repeat intro.
-    do 2 (f_contractive || f_equiv); cycle 1.
-    { repeat (f_contractive || f_equiv);
-        apply Hwp. }
+    repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
 
-    repeat (f_contractive || f_equiv).
-    intro.
-    repeat (f_contractive || f_equiv).
-    apply Hwp.
+    repeat intro. f_contractive.
+    eapply Hwp.
   Qed.
 
   Definition ewp_def := fixpoint ewp_pre.
@@ -194,8 +189,8 @@ Section ewp_properties.
 
 Context {A X P : Type}.
 
-Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ} `{protocol_wf Σ P}.
-Implicit Type P : iProp Σ.
+Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
+Implicit Type P : iEff Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : A.
 Implicit Type m : micro A X.
@@ -218,10 +213,10 @@ Proof.
           let v := fresh "v" in
           intros v; eapply dist_le; [apply HΦ|lia])
           + (f_contractive || f_equiv)).
-  intro.
-
-  (f_contractive || f_equiv). eapply IH; auto.
-  intros v; eapply dist_le; [apply HΦ|lia].
+  repeat intro. f_contractive.
+  specialize (IH m1). eapply IH; eauto.
+  intro; eauto.
+  eapply dist_le; eauto. lia.
 Qed.
 
 Global Instance ewp_proper E m Ψ:
@@ -341,13 +336,13 @@ Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
-  (ewp_def E e%E prot_bottom Φ)
+  (ewp_def E e%E iEff_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e {{ Φ } }" :=
-  (ewp_def ⊤ e%E prot_bottom Φ)
+  (ewp_def ⊤ e%E iEff_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.
@@ -362,4 +357,3 @@ Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
 From osiris Require Export syntax.
 (* LATER: import [semantics] after [eval, pure] compiles *)
 From osiris.semantics Require Export code micro step.
-

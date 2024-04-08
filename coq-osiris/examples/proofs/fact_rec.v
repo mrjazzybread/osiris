@@ -63,7 +63,7 @@ Definition let_spec {Σ} (module_val : val) (name : var) (spec : val -> iProp Σ
   (* The module value must be a [VStruct]. *)
   match module_val with | VStruct l => _let_spec l | _ => False end.
 
-From osiris.program_logic Require Import ewp protocols protocol_instance.
+From osiris.program_logic Require Import ewp.
 
 Section fact_rec_example.
 

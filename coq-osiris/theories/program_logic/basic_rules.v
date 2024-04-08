@@ -26,8 +26,7 @@ Notation state_interp := osiris_state_interp.
 
 Section ewp_basic_rules.
 
-Context `{protocol_wf Σ P}.
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
@@ -51,14 +50,14 @@ Context `{protocol_wf Σ P}.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E (Ψ : P) (Φ : outcome2 A X -> _) σ:
+  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) σ:
     state_interp σ -∗
     EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
     ewp_unfold (@crash A X).
     iIntros "Hsi HCrash".
     spec_state. destruct Hred, x; spec_step.
-    inversion H1.
+    inversion H.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
@@ -109,7 +108,7 @@ Context `{protocol_wf Σ P}.
     (∀ a, φ a -∗ φ' a) -∗
     EWP m @ E <| Ψ |> {{ φ' }}.
   Proof.
-    iLöb as "IH" forall (m).
+    iLöb as "IH" forall (m φ).
     iIntros "Hwp Hmon".
     ewp_unfold m.
     ewp_case_is_handleable m.
@@ -118,9 +117,9 @@ Context `{protocol_wf Σ P}.
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
       iMod "Hwp"; iModIntro.
-      iApply prot_mono_post; iFrame.
-      iIntros (w) "Hewp"; iApply ("IH" with "Hewp").
-      by iModIntro. }
+      iApply (monotonic_prot with "[Hmon] Hwp").
+      iIntros (w) "Hewp"; iNext.
+      by iApply ("IH" with "Hewp Hmon"). }
 
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
@@ -131,21 +130,21 @@ Context `{protocol_wf Σ P}.
   Qed.
 
   Lemma ewp_prot_mono E m φ Ψ Ψ':
-    Ψ ⊆ Ψ' -∗
+    (Ψ ⊑ Ψ')%ieff -∗
     EWP m @ E <| Ψ |> {{ φ }} -∗
     EWP m @ E <| Ψ' |> {{ φ }}.
   Proof.
-    iLöb as "IH" forall (m).
+    iLöb as "IH" forall (m φ).
     iIntros "#Hmono Hwp".
     ewp_unfold m.
     ewp_case_is_handleable m; try done.
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
       iMod "Hwp"; iModIntro.
-      iApply prot_mono; iFrame.
-      iFrame "Hmono".
-      iIntros (w) "Hewp". iNext.
-      iApply ("IH" with "Hmono Hewp"). }
+      iDestruct "Hwp" as (?) "(Hwp & HΨ)"; iExists Φ.
+      iSplitL "Hwp"; first iApply ("Hmono" with "Hwp"); cbn.
+      iIntros (?) "HΦ". iSpecialize ("HΨ" with "HΦ").
+      iNext; iApply ("IH" with "Hmono HΨ"). }
 
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
@@ -170,8 +169,9 @@ Context `{protocol_wf Σ P}.
     1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
     - iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro.
-      iApply prot_mono_post; iFrame.
-      iIntros (w) "Hk"; iNext; by iApply ("IH" with "Hk").
+      iApply (monotonic_prot with "[] He").
+      iIntros (?) "Hewp". iNext.
+      iApply ("IH" with "Hewp").
     - intro_state.
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
       spec_state. iModIntro. construct_wp_nonret.
@@ -240,7 +240,7 @@ End ewp_basic_rules.
 
 Section ewp_rules.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
@@ -252,7 +252,7 @@ Section ewp_rules.
     is_handleable (try m f h) = None.
   Proof.
     intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H1; done.
+    destruct c; inversion H0; done.
   Qed.
 
   Lemma is_handleable_try2_None {B X'} m (f : _ -> micro B X'):
@@ -260,7 +260,7 @@ Section ewp_rules.
     is_handleable (try2 m f) = None.
   Proof.
     intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H1; done.
+    destruct c; inversion H0; done.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -282,10 +282,11 @@ Section ewp_rules.
     { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
 
     (* Case : [m1] is [Perform _ _]. *)
-    { cbn. ewp_unfold_all. iMod "Hwp"; iModIntro.
-      iApply prot_mono_post; iFrame.
-      iIntros (w) "Hewp".
-      iNext; by iSpecialize ("IH" with "Hewp"). }
+    { cbn.
+      ewp_unfold_all. iMod "Hwp"; iModIntro.
+      iApply (monotonic_prot with "[] Hwp").
+      iIntros (?) "HΨ"; iNext;
+      by iSpecialize ("IH" with "HΨ"). }
 
     (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
     ewp_unfold_all; rewrite Hhm.
@@ -570,7 +571,7 @@ Local Ltac ewp_invert :=
 
 Section handler_specifications.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
@@ -595,12 +596,12 @@ End handler_specifications.
 
 Section wp_handler_rules.
 
-  Context `{!osirisGS Σ} `{protocol_wf Σ P}.
+  Context `{!osirisGS Σ}.
 
   Context {A X : Type}.
 
   Implicit Type m : micro A X.
-  Implicit Type Ψ : P.
+  Implicit Type Ψ : iEff Σ.
   Import ewp_rules_tactics.
 
   Lemma ewp_stop_perform {B X'} E Ψ v Φ (k : _ -> micro B X'):
@@ -608,8 +609,8 @@ Section wp_handler_rules.
     EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HP".
-    ewp_unfold_head.
-    iApply prot_mono_post; iFrame. iModIntro.
+    iPoseProof (monotonic_prot with "[] HP") as "H"; cycle 1.
+    { ewp_unfold_head; by iFrame. }
     iIntros (?) "HΦ". by iNext.
   Qed.
 
@@ -617,7 +618,7 @@ Section wp_handler_rules.
     Ψ allows perform v << Φ >> ⊢ EWP (perform v) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HP". iApply ewp_stop_perform.
-    iApply prot_mono_post; iFrame.
+    iApply (monotonic_prot with "[] HP").
     iIntros (?) "HΦ". iNext.
     cbn. iApply ewp_outcome2; by cbn.
   Qed.
@@ -627,9 +628,9 @@ Section wp_handler_rules.
     Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }} >>.
   Proof.
     iIntros "HP".
-    ewp_unfold_all.
-    iApply prot_mono_post; iMod "HP"; iModIntro; iFrame.
-    iIntros (?) "HΦ". by iNext.
+    ewp_unfold_all. iMod "HP"; iModIntro.
+    iApply (monotonic_prot with "[] HP").
+    iIntros (?) "HΦ"; by iNext.
   Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
@@ -661,12 +662,12 @@ Section wp_handler_rules.
       iMod "HP".
 
       iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
-        [ exact H0 | ].
+        [ exact H | ].
 
-      iAssert (prot_spec Ψ e0
-                 (fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }}))%I
+      iAssert (Ψ allows perform e0
+                 << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >>)%I
         with "[HP HH]" as "HΨ".
-      { iApply prot_mono_post; iFrame.
+      { iApply (monotonic_prot with "[HH] HP").
         iIntros (?) "Hwp"; cbn. iNext.
         rename σ into σ'.
         ewp_unfold_head.
@@ -739,7 +740,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_perform_inv with "[$]") as "H1".
       iApply ewp_fupd. iMod "H1"; iModIntro. (* TODO: cleanup *)
       iApply ewp_stop_perform.
-      iApply prot_mono_post; iFrame.
+      iApply (monotonic_prot with "[H2 Hexn1 Hexn2 Hjoin] H1").
       iIntros (?) "Hk".
       iNext.
       iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
@@ -749,7 +750,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_perform_inv with "[$]") as "H2".
       iApply ewp_fupd. iMod "H2"; iModIntro. (* TODO: cleanup *)
       iApply ewp_stop_perform.
-      iApply prot_mono_post; iFrame.
+      iApply (monotonic_prot with "[H1 Hexn1 Hexn2 Hjoin] H2").
       iIntros (?) "H2".
       iNext.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
@@ -766,7 +767,7 @@ Section wp_handler_rules.
   Qed.
 
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ} φ1 φ2 Ψ :
-    EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
+    EWP m1 @ E <| Ψ |> {{ φ1 }} -∗
     EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
     (∀ e, φ1 (O2Throw e) -∗ φ (O2Throw e))-∗
     (∀ e, φ2 (O2Throw e) -∗ φ (O2Throw e)) -∗
@@ -829,15 +830,15 @@ Section wp_handler_rules.
     destruct (is_handleable m) eqn: Hmh.
     { destruct m; inversion Hmh; subst; try solve [inversion Hsimp];
       clarify_simp; subst; try done.
-      inversion Hmh. destruct c; inversion H1; subst.
+      inversion Hmh. destruct c; inversion H0; subst.
       clarify_simp.
       iApply ewp_fupd.
       iApply ewp_stop_perform.
       iPoseProof (ewp_perform_inv with "Hwp") as "Hwp".
       iMod "Hwp"; iModIntro.
-      iApply prot_mono_post; iFrame.
+      iApply (monotonic_prot with "[] Hwp").
       iIntros (w) "Hw". iNext.
-      iApply ("IH" $! _ _ (H2 w) with "Hw"). }
+      iApply ("IH" $! _ _ (H1 w) with "Hw"). }
 
     (* Examine [ms] on whether it is a [ret]. *)
     ewp_case_is_handleable ms.
@@ -913,7 +914,7 @@ Section wp_handler_rules.
       iModIntro; iPureIntro; destruct Hdisj.
       { eauto using invert_simp_can_step. }
 
-      exfalso. apply H0; auto. }
+      exfalso. apply H; auto. }
 
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
