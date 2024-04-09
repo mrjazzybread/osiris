@@ -98,9 +98,6 @@ Section handler_specifications.
 
 End handler_specifications.
 
-(* TODO: Move or remove *)
-Opaque eval_match.
-
 (* LATER: refactor *)
 Local Ltac ewp_invert :=
   match goal with
@@ -211,10 +208,8 @@ Section handler_proof.
         iSpecialize ("IH" with "H").
 
         (* Rewriting under binders for handle.. LATER: Remove? *)
-        erewrite (eq_handle_handle (k w) (λ o : outcome3 C.val C.exn,
-                        try2 (eval_match η o bs) inject2));
-          first done.
-        intros; by rewrite try2_ret_right. }
+        erewrite (eq_handle_handle (k w) _); first done.
+        intros; cbn. rewrite try2_ret_right; reflexivity. }
       (* We're forgetting the [Shot] information here.
            Do we want to strengthen this?  *)
 
