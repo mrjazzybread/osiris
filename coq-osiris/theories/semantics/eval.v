@@ -818,12 +818,8 @@ Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : microvx :=
       '(_, δ) ← eval_sitems (η, []) items ;
       (* and wrap it in a [VStruct] value. *)
       ret (VStruct δ)
-  | MFunctor bs items =>
-      δ' ← eval_bindings η bs;
-      (* evaluate the structure items, yielding an environment [δ], *)
-      '(_, δ) ← eval_sitems (δ', []) items ;
-      (* and wrap it in a [VStruct] value. *)
-      ret (VStruct δ)
+  | MFunctor x items =>
+      ret (VFunctor η x items)
   end.
 
 End EvalBindings.

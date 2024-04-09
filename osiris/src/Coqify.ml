@@ -397,8 +397,8 @@ and mexpr (me : mexpr) =
   | MStruct items ->
       clist "MStruct" (structure_items items)
 
-  | MFunctor (bs, items) ->
-      c "MFunctor" ([ bindings bs ] @ structure_items items)
+  | MFunctor (x, items) ->
+      c "MFunctor" ([ var x ] @ structure_items items)
 
   | MCoercion (me, co) ->
       c "MCoercion" [ mexpr me; coercion co ]

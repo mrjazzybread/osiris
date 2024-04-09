@@ -311,7 +311,7 @@ with mexpr :=
   | MStruct (items : list sitem)
 
   (* A functor [functor _ -> struct ... end]. *)
-  | MFunctor (bs : list binding) (items : list sitem)
+  | MFunctor (x : var) (items : list sitem)
 
   (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for
@@ -384,6 +384,8 @@ Inductive val :=
   | VCont (k: loc)
   (* A module. *)
   | VStruct (xvs : list (var * val))
+  (* A functor. *)
+  | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
   | VArray (c: list val)
 .
