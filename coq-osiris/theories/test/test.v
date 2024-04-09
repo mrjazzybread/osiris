@@ -635,7 +635,7 @@ Lemma test_shallow_ret_reinstall :
   in
   let m2 :=
     Handle m1
-      (λ o, eval_match η o
+      (λ o, deep_eval_match η o
               [ (* | effect Get32, k -> continue k 32 *)
                 Branch
                   (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
