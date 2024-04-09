@@ -295,6 +295,9 @@ and mexpr =
   (* A structure [struct ... end]. *)
   | MStruct of sitems
 
+  (* A functor [functor _ -> struct ... end]. *)
+  | MFunctor of bindings * sitems
+
   (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for
      example, a functor application [F(M)] must be understood as [F(M : S)]
