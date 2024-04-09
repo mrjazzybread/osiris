@@ -62,7 +62,6 @@ Local Ltac step :=
     | match goal with
       | |- step (?σ, Stop CAlloc _ _) _ =>
           eapply StepAlloc with (l := fresh (dom σ));
-          vm_compute fresh;
           apply is_fresh
       end
     | eapply StepLoad;
@@ -72,7 +71,7 @@ Local Ltac step :=
     | match goal with
       | |- step (?σ, Handle _ _) _ =>
           eapply StepHandlePerform with (l := fresh (dom σ));
-          vm_compute fresh; apply is_fresh
+          apply is_fresh
       end
     | match goal with
       | |- step (?σ, Stop CInstall _ _) _ =>
@@ -575,8 +574,8 @@ Lemma test_nested_handlers :
   let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
   let e :=
     ELet1 (PVar "y")
-      (EPerform (EXData "Get22" (ETuple [])))
-      (EVar "y" + EPerform (EXData "Get20" (ETuple [])))%expr
+      (EPerform (EXData "Get20" (ETuple [])))
+      (EVar "y" + EPerform (EXData "Get22" (ETuple [])))%expr
   in
   let m1 :=
     EMatch e
@@ -599,7 +598,7 @@ Lemma test_nested_handlers :
         Branch (CVal (PVar "x")) (EVar "x") ]
   in
   ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. Admitted.
+Proof. intros. subst e m1 m2. reduces. Qed.
 
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
@@ -635,17 +634,17 @@ Lemma test_shallow_ret_reinstall :
                   (EContinue (EVar "k") (EInt 10))])
   in
   let m2 :=
-    Handle m1 (λ o, eval_match η o
-      [ (* | effect Get32, k -> continue k 32 *)
-        Branch
-          (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
-          (EContinue (EVar "k") (EInt 32));
-        (* | x -> x *)
-        Branch (CVal (PVar "x")) (EVar "x")])
+    Handle m1
+      (λ o, eval_match η o
+              [ (* | effect Get32, k -> continue k 32 *)
+                Branch
+                  (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
+                  (EContinue (EVar "k") (EInt 32));
+                (* | x -> x *)
+                Branch (CVal (PVar "x")) (EVar "x")])
   in
   ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
-Proof.
-  intros. subst e m1 m2. reduces. Qed.
+Proof. intros. subst e m1 m2. reduces. Qed.
 
-(* Further example ideas:
+(* Further test ideas:
    - nested effect and exception handlers *)

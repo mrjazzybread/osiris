@@ -14,7 +14,7 @@ From osiris.semantics Require Import code.
     If not, the handler is installed around the captured continuation. *)
 
 Definition shallow_handler η e bs :=
-  Handle (eval η e) (λ o, eval_shallow_match η o bs).
+  Handle (eval η e) (λ o, shallow_eval_match η o bs).
 
 (* Deep handlers are installed permanently;
      Regardless of whether the handled expression performs an effect
@@ -22,7 +22,7 @@ Definition shallow_handler η e bs :=
     continuation. *)
 
 Definition deep_handler η e bs :=
-  Handle (eval η e) (λ o, eval_deep_match η o bs).
+  Handle (eval η e) (λ o, deep_eval_match η o bs).
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
@@ -136,7 +136,7 @@ Section handler_proof.
   Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
-    shallow_handler_spec E Ψ Φ (λ o, eval_shallow_match η o bs) Ψ' Φ' -∗
+    shallow_handler_spec E Ψ Φ (λ o, shallow_eval_match η o bs) Ψ' Φ' -∗
     EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     iIntros "He Hspec".
@@ -163,8 +163,8 @@ Section handler_proof.
     iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
-    construct_wp_nonret; destruct_step; cbn -[eval_deep_match];
-      iMod "Hmod" as "_"; try rewrite -x; cbn -[eval_deep_match];
+    construct_wp_nonret; destruct_step; cbn -[deep_eval_match];
+      iMod "Hmod" as "_"; try rewrite -x; cbn -[deep_eval_match];
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
@@ -184,7 +184,7 @@ Section handler_proof.
       iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H | ].
 
-      iFrame; rewrite {2}/eval_deep_match; cbn -[eval_deep_match].
+      iFrame; rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
 
       (* Install the handler around the location [l]. *)
       iApply (ewp_install with "HH").

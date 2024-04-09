@@ -1274,14 +1274,12 @@ Definition evals := pre_evals eval.
 
 Definition evalfs := pre_evalfs eval.
 
-Definition eval_deep_match := pre_eval_match eval true.
-
-Definition eval_shallow_match := pre_eval_match eval false.
-
 (* Handlers are deep by default. *)
-Definition eval_match := pre_eval_match eval true.
+Definition eval_match := pre_eval_match eval.
 
-Definition shallow_eval_match := pre_eval_match eval false.
+Definition deep_eval_match := eval_match true.
+
+Definition shallow_eval_match := eval_match false.
 
 Definition eval_trywith := pre_eval_trywith eval.
 
