@@ -529,8 +529,29 @@ and translate_application loc e args =
                  )
             | _ ->
                eunsupported loc "Syntax error in [match_with] body")
-    | _ ->
-       assert false)
+        | _ ->
+           assert false)
+
+    (* Recognize [try_with f arg e] as primitive. *)
+    | EPath [ "try_with" ]  ->
+       assert (List.length args = 3);
+       (match args with
+        | [(Nolabel, Some f); (Nolabel, Some arg); (Nolabel, Some e)] ->
+           (* We expect the body to be a record *)
+           (match e.exp_desc with
+            | Texp_record
+              { fields; representation = _; extended_expression = None } ->
+               let bs = translate_record_fields_as_branches fields in
+               (* [try_with] carries two implicit branches,
+                  these branches propagate return values and exceptions. *)
+               let bs = Branch (CVal (PVar "x"), EPath [ "x" ]) ::
+                          Branch (CExc (PVar "x"), ERaise (EPath [ "x" ])) ::
+                            bs in
+               EMatch (EApp (translate_expr f, translate_expr arg), bs)
+            | _ ->
+               eunsupported loc "Syntax error in [match_with] body")
+        | _ ->
+           assert false)
 
     (* Default case: [e args]. *)
     | e ->
