@@ -283,6 +283,12 @@ let rec expr (e : expr) =
   | EPerform e ->
      c "EPerform" [ expr e ]
 
+  | EContinue (e1, e2) ->
+     c "EContinue" [ expr e1; expr e2 ]
+
+  | EDiscontinue (e1, e2) ->
+     c "EDiscontinue" [ expr e1; expr e2 ]
+
   | EWhile (e1, e2) ->
       c "EWhile" [ expr e1; cut_expr e2 ]
 

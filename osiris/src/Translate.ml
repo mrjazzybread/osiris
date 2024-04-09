@@ -491,12 +491,28 @@ and translate_application loc e args =
   with NotExactKnownPrimitive ->
     match translate_expr e with
 
-    (* Recognize [perform] as primitive. *)
+    (* Recognize [perform eff] as primitive. *)
     | EPath [ "perform" ] ->
        assert (List.length args = 1);
        (match args with
         | [arg] -> EPerform (translate_labeled_argument loc arg)
         | _ -> assert false )
+
+    (* Recognize [continue k v] as primitive. *)
+    | EPath [ "continue" ] ->
+       assert (List.length args = 2);
+       (match args with
+        | [ ek; ev ] ->
+           EContinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
+        | _ -> assert false)
+
+    (* Recognize [discontinue k v] as primitive. *)
+    | EPath [ "discontinue" ] ->
+       assert (List.length args = 2);
+       (match args with
+        | [ ek; ev ] ->
+           EDiscontinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
+        | _ -> assert false)
 
     (* Recognize [match_with f arg e] as primitive. *)
     | EPath [ "match_with" ]  ->
