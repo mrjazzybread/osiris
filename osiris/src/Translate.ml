@@ -699,14 +699,14 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      (match translate_expr e with
       | (EAnonFun (AnonFun (v, e))) ->
          [Branch (CVal (PVar v), e)]
-      | _ ->
-         assert false)
+      | _ -> assert false)
+
   | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
      (match translate_expr e with
       | EAnonFun (AnonFun (v, e)) ->
          [Branch (CExc (PVar v), e)]
-      | _ ->
-         assert false)
+      | _ -> assert false)
+
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match translate_expr e with
       (* Remy/ It is unclear to me why the first case occurs. *)
@@ -714,10 +714,8 @@ and translate_record_field_as_branches (_, label_def) : branch list =
          translate_branches_to_effect_branches bs
       | EAnonFun (AnonFun (v1, EMatch (EPath [ v2 ], bs))) when v1 = v2 ->
          translate_branches_to_effect_branches bs
-      | _ ->
-         assert false)
-  | _ ->
-     []
+      | _ -> assert false)
+  | _ -> []
 
 (* We expect the branches in our effect field to be of the following form:
    [ | Eff -> Some (fun k -> e) ]. *)
@@ -726,16 +724,18 @@ and translate_branch_to_effect_branch b =
   match b with
   (* | p -> Some (fun k -> e) *)
   | Branch (CVal p, EData (_, ETuple [EAnonFun (AnonFun (k, e))])) ->
-     Branch (CEff (p, PVar k), e)
+     Some (Branch (CEff (p, PVar k), e))
   (* | peff -> Some (fun pk -> e) *)
   | Branch (CVal peff,
             EData (_, ETuple [EAnonFun (AnonFunction [Branch (CVal pk, e)])])) ->
-     Branch (CEff (peff, pk), e)
+     Some (Branch (CEff (peff, pk), e))
+  | Branch (CVal PAny, EData ("None", ETuple [])) ->
+     None
   | _ ->
-     Branch (CVal PAny, EUnsupported)
+     Some (Branch (CEff (PAny, PAny), EUnsupported))
 
 and translate_branches_to_effect_branches bs =
-  map translate_branch_to_effect_branch bs
+  List.filter_map translate_branch_to_effect_branch bs
 
 (* Expressions: actual arguments in applications. *)
 
