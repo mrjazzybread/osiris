@@ -157,11 +157,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
        σ !! l = None ->
        c' = match σ !! k with
             | Some (K sk) =>
-                if deep then
-                  (<[ l := K (fun o => Handle (sk o) (fun o => eval_match η o bs)) ]> σ,
-                    continue h l)
-                else
-                  (<[ l := K (fun o => Handle (sk o) (fun o => shallow_eval_match η o bs)) ]> σ,
+                  (<[ l := K (fun o => Handle (sk o) (fun o => eval_match deep η o bs)) ]> σ,
                     continue h l)
             | _ => (σ, crash)
             end ->
@@ -540,7 +536,7 @@ Lemma invert_step_install {A E} σ σ' l η hs k sk m' :
   @step A E (σ, Stop CInstall (true, l, η, hs) k) (σ', m') ->
   ∃ l',
   σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match η o hs)) ]> σ /\
+  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match true η o hs)) ]> σ /\
   m' = continue k l'.
 Proof.
   intros Heq Hstep. destruct_step. exploit_location_lookup.
@@ -552,7 +548,7 @@ Lemma invert_step_shallow_install {A E} σ σ' l η hs k sk m' :
   @step A E (σ, Stop CInstall (false, l, η, hs) k) (σ', m') ->
   ∃ l',
   σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, shallow_eval_match η o hs)) ]> σ /\
+  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match false η o hs)) ]> σ /\
   m' = continue k l'.
 Proof.
   intros Heq Hstep. destruct_step. exploit_location_lookup.

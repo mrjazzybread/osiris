@@ -492,7 +492,7 @@ Section ewp_rules.
     (∀ l',
         mapsto l' (DfracOwn 1)
           (K (λ o,
-               Handle (sk o) (λ o, eval_match η o h))) -∗
+               Handle (sk o) (λ o, deep_eval_match η o h))) -∗
       ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗
     EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
@@ -518,7 +518,7 @@ Section ewp_rules.
       ▷ (∀ l',
           mapsto l' (DfracOwn 1)
             (K (λ o,
-                 Handle (sk o) (λ o, eval_match η o h))) -∗
+                 Handle (sk o) (λ o, deep_eval_match η o h))) -∗
           meta_token l' ⊤ -∗
           EWP (continue k l') @ E <| ψ |> {{ φ }}
       ) -∗

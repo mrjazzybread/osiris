@@ -182,7 +182,7 @@ Definition eval' η e : microvx :=
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       (* TODO: Comment. *)
-      Handle (eval η e) (λ o3, eval_match η o3 bs)
+      Handle (eval η e) (λ o3, deep_eval_match η o3 bs)
   | ETryWith e bs =>
       try
         (eval η e)
