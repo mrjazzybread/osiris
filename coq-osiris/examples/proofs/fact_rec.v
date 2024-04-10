@@ -102,7 +102,7 @@ Section fact_rec_example.
     end).
 
   Example fact_rec_5_correct :
-    ⊢ EWP fact_rec_5 <| prot_bottom |> {{ RET v, fact_rec_5_spec v }}.
+    ⊢ EWP fact_rec_5 <| ⊥ |> {{ RET v, fact_rec_5_spec v }}.
   Proof.
     iStartProof; rewrite /fact_rec_5. simpl.
 
@@ -136,7 +136,7 @@ Section fact_rec_example.
     let_spec v "fact_5" _spec.
 
   Example fact_5_correct :
-    ⊢ EWP fact_5 <| prot_bottom |> {{ RET v, fact_5_spec v }}.
+    ⊢ EWP fact_5 <| ⊥ |> {{ RET v, fact_5_spec v }}.
   Proof.
     iStartProof.
     rewrite /fact_rec_5 /eval_mexpr; cbn.
