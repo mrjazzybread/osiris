@@ -811,6 +811,32 @@ Ltac invert_try2_eq_choose :=
       invert_try2_eq_choose
   end.
 
+Lemma invert_try2_eq_handle
+  {A B E E' m} {f : outcome2 A E' → micro B E}
+  {e k} :
+  try2 m f = Handle e k →
+  (∀ a, m = ret a → False) →
+  (∀ e, m = throw e → False) →
+  ∃ k',
+  m = Handle e k' ∧
+  k = pftry2 k' f.
+Proof.
+  destruct m; simpl; try solve [ congruence | intros; exfalso; eauto ].
+  intros H. dependent destruction H.
+  intros _ _. eauto.
+Qed.
+
+Ltac invert_try2_eq_handle :=
+  match goal with
+  | h: try2 _ _ = Handle _ ?k |- _ =>
+      apply invert_try2_eq_handle in h; [| eauto | eauto ];
+      let k' := fresh k in
+      destruct h as (k' & ? & ?);
+      subst k; rename k' into k
+  | h: Handle _ _ = try2 _ _ |- _ =>
+      symmetry in h;
+      invert_try2_eq_handle
+  end.
 (* -------------------------------------------------------------------------- *)
 
 (* The auxiliary functions [join1 a1] and [join2 a2] transform a two-armed

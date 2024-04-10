@@ -1755,18 +1755,24 @@ Proof.
   { exfalso. eapply invert_stack_perform; [ eauto | prove_final ]. }
 
   (* Subcase: [SimpHandleRet]. *)
-  { admit. }
+  { invert_try2_eq_handle. subst m. clear Hret Hthrow.
+    eapply total_simp; [ eapply SimpHandleRet |].
+    { eapply simplify_simp; eauto. }
+    eauto with lia. }
 
   (* Subcase: [SimpHandleThrow]. *)
-  { admit. }
+  { invert_try2_eq_handle. subst m. clear Hret Hthrow.
+    eapply total_simp; [ eapply SimpHandleThrow |].
+    { eapply simplify_simp; eauto. }
+
+    eauto with lia. }
 
   (* Subcase: [SimplifyReflexive]. *)
   { eauto with lia. }
 
   (* Subcase: [SimplifyTransitive]. *)
   { eauto with stack lia. }
-
-Admitted.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
