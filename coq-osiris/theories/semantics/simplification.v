@@ -106,6 +106,16 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
      simp
        (Stop CPerform e k)
        (Stop CPerform e k')
+| SimpHandleRet:
+     ∀ m v k,
+     simp m (Ret v) ->
+     simp (Handle m k) (continue k v)
+| SimpHandleThrow:
+     ∀ m e k,
+     simp m (Throw e) ->
+     simp
+       (Handle m k)
+       (discontinue k e)
 | SimpReflexive:
     ∀ m,
     simp m m
@@ -164,15 +174,15 @@ Proof.
   eauto using simp_up_to_eq_right with simp try_ret.
 Qed.
 
-Lemma simp_par {A E A1 A2 E'} m1 m2 m
-  (k : outcome2 (A1 * A2) E → micro A E') a1 a2 :
-  simp m1 (ret a1) ->
-  simp m2 (ret a2) ->
-  simp (continue k (a1, a2)) m ->
-  simp (Par m1 m2 k) m.
-Proof.
-  intros. eauto with simp.
-Qed.
+(* Lemma simp_par {A E A1 A2 E'} m1 m2 m *)
+(*   (k : outcome2 (A1 * A2) E → micro A E') a1 a2 : *)
+(*   simp m1 (ret a1) -> *)
+(*   simp m2 (ret a2) -> *)
+(*   simp (continue k (a1, a2)) m -> *)
+(*   simp (Par m1 m2 k) m. *)
+(* Proof. *)
+(*   intros. eauto with simp. *)
+(* Qed. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -260,6 +270,18 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
      simplify 1
        (Stop CPerform e k)
        (Stop CPerform e k')
+| SimplifyHandleRet:
+     ∀ v n m k,
+     simplify n m (Ret v) ->
+     simplify (S n)
+       (Handle m k)
+       (continue k v)
+| SimplifyHandleThrow:
+     ∀ v n m k,
+     simplify n m (Throw v) ->
+     simplify (S n)
+       (Handle m k)
+       (discontinue k v)
 | SimplifyReflexive:
     ∀ m,
     simplify 0 m m
@@ -368,7 +390,8 @@ Lemma simp_try2 {A B E' E} m1 m2 (k : outcome2 A E' → micro B E) :
   simp (try2 m1 k) (try2 m2 k).
 Proof.
   induction 1; simpl;
-  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2, ?try2_continue,
+    ?try2_discontinue;
   econstructor; eauto.
 Qed.
 
@@ -387,7 +410,8 @@ Lemma simplify_try2 {A B E' E} n m1 m2 (k : outcome2 A E' → micro B E) :
   simplify n (try2 m1 k) (try2 m2 k).
 Proof.
   induction 1; simpl;
-  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2, ?try2_continue,
+    ?try2_discontinue;
   econstructor; eauto using simp_try2.
 Qed.
 
@@ -678,7 +702,7 @@ Proof.
   { destruct_step; search. }
   (* SimpParRetLeft *)
   (* This case is the reason why [SimpPerform] is needed. *)
-  { destruct_step; try solve [destruct_step]; clarify_simp; search.
+   { destruct_step; try solve [destruct_step]; clarify_simp; search.
     split.
     - eauto 8 using step_try2, simp_try2 with steps step simp lia.
     - split; last lia.
@@ -699,6 +723,18 @@ Proof.
   { destruct_step; clarify_simp; try solve [ search | use_ih; search ]. }
   (* SimpPerform *)
   { destruct_step. }
+  (* SimpHandleRet *)
+  { destruct_step; clarify_simp; try solve [ search | use_ih; search ].
+    use_ih. destruct H3; subst; cycle 1.
+    { inversion H1. subst. inversion H4. }
+    inversion H1; subst.
+    search. }
+  (* SimpHandleThrow *)
+  { destruct_step; clarify_simp; try solve [ search | use_ih; search ].
+    use_ih. destruct H3; subst; cycle 1.
+    { inversion H1. subst. inversion H4. }
+    inversion H1; subst.
+    search. }
   (* SimpReflexive *)
   { search. }
   (* SimpTransitive *)
