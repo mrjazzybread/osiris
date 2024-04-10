@@ -109,7 +109,9 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
 | SimpHandleRet:
      ∀ m v k,
      simp m (Ret v) ->
-     simp (Handle m k) (continue k v)
+     simp
+       (Handle m k)
+       (continue k v)
 | SimpHandleThrow:
      ∀ m e k,
      simp m (Throw e) ->
