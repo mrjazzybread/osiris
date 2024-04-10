@@ -330,3 +330,70 @@ Ltac simp_final_confluent :=
         eapply (simp_final_confluent h1 h2); prove_final
       | simplify_eq ]
   end.
+
+(* The infinitary intersection rule. *)
+
+(* If for every [x] one can prove that the result of [m] satisfies [φ x],
+   then one can deduce that the result of [m] satisfies [φ x] for every
+   [x] simultaneously. *)
+
+Lemma total_intersection {A E} `{Inhabited X}
+  m (φ : X → A → Prop) (ψ : E → Prop) :
+  (∀ x, total m (φ x) ψ) →
+  total m (λ a, ∀ x, φ x a) ψ.
+Proof.
+  intros Hm.
+  (* Instantiate [Hm] with an arbitrary [x]. *)
+  generalize (Hm inhabitant).
+  intro Htotal. destruct_total a e.
+  (* Case: there exists [a] such that [m] can be simplified to [ret a]. *)
+  { left. exists a. split; [ eauto |].
+    intro x. specialize (Hm x). destruct_total a' e';
+    (* Because [simp _ _], restricted to final results, is confluent,
+       the two results must be equal. *)
+    simp_final_confluent; congruence. }
+  (* Case: [m] can be simplified to [throw _]. *)
+  { right. eauto. }
+Qed.
+
+(* The binary intersection rule. *)
+
+(* If one can prove that the result of [m] satisfies [φ1]
+   and if one can prove that the result of [m] satisfies [φ2]
+   then one can deduce that the result of [m] satisfies [φ1] and [φ2]
+   simultaneously. *)
+
+Lemma total_binary_intersection {A E} m (φ1 φ2 : A → Prop) (ψ : E → Prop) :
+  total m φ1 ψ →
+  total m φ2 ψ →
+  total m (λ a, φ1 a ∧ φ2 a) ψ.
+Proof.
+  intros.
+  set (post := λ (b : bool), λ a, if b then φ1 a else φ2 a).
+  eapply total_consequence with (φ := λ a, ∀ b, post b a) (ψ := ψ).
+  { eapply total_intersection.
+    intros b. destruct b; unfold post; assumption. }
+  { intros a Hpost. split.
+    + apply (Hpost true).
+    + apply (Hpost false). }
+  { tauto. }
+Qed.
+
+(* The infinitary intersection rule. *)
+
+Lemma totalv_intersection {A E} `{Inhabited X} (m : micro A E) (φ : X → A → Prop) :
+  (∀ x, totalv m (φ x)) →
+  totalv m (λ a, ∀ x, φ x a).
+Proof.
+  unfold totalv. eauto using total_intersection.
+Qed.
+
+(* The binary intersection rule. *)
+
+Lemma totalv_binary_intersection {A E} (m : micro A E) (φ1 φ2 : A → Prop) :
+  totalv m φ1 →
+  totalv m φ2 →
+  totalv m (λ a, φ1 a ∧ φ2 a).
+Proof.
+  unfold totalv. eauto using total_binary_intersection.
+Qed.
