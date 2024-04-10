@@ -78,7 +78,7 @@ type pat =
 and cpat =
   | CVal of pat
   | CExc of pat
-  | CEff of pat
+  | CEff of pat * pat
   (* A disjunction pattern [p1 | p2]. *)
   | COr of cpat * cpat
 
@@ -211,6 +211,13 @@ type expr =
   | ETryWith of expr * branches
   (* Exception raising: [raise e]. *)
   | ERaise of expr
+
+  (* Performing an effect: [perform e]. *)
+  | EPerform of expr
+  (* Continuing a continuation: [continue e1 e2]. *)
+  | EContinue of expr * expr
+  (* Discontinuing a continuation: [discontinue e1 e2]. *)
+  | EDiscontinue of expr * expr
 
   (* Loop: [while e do body done] .*)
   | EWhile of expr * expr

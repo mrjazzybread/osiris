@@ -116,8 +116,8 @@ and cpat (cp : cpat) =
   | CExc p ->
      c "CExc" [ pat p ]
 
-  | CEff p ->
-     c "CEff" [ pat p ]
+  | CEff (p1, p2) ->
+     c "CEff" [ pat p1; pat p2 ]
 
   | COr (p1, p2) ->
      c "COr" [ cpat p1; cpat p2 ]
@@ -279,6 +279,15 @@ let rec expr (e : expr) =
 
   | ERaise e ->
      c "ERaise" [ expr e ]
+
+  | EPerform e ->
+     c "EPerform" [ expr e ]
+
+  | EContinue (e1, e2) ->
+     c "EContinue" [ expr e1; expr e2 ]
+
+  | EDiscontinue (e1, e2) ->
+     c "EDiscontinue" [ expr e1; expr e2 ]
 
   | EWhile (e1, e2) ->
       c "EWhile" [ expr e1; cut_expr e2 ]
