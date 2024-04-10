@@ -135,8 +135,20 @@ Definition discontinue {A E R} (k : outcome2 A E → R) (e : E) : R :=
 Definition glue2 {A E R} (f : A → R) (h : E → R) : outcome2 A E → R :=
   λ o, match o with O2Ret a => f a | O2Throw e => h e end.
 
-(* TODO prove lemmas about composing [continue] and [discontinue]
-   with [glue2]? *)
+Lemma continue_glue2 {A E R} a (f : A -> R) (h : E -> R) :
+  continue (glue2 f h) a = f a.
+Proof.
+  tauto.
+Qed.
+
+Lemma discontinue_glue2 {A E R} e (f : A -> R) (h : E -> R) :
+  discontinue (glue2 f h) e = h e.
+Proof.
+  tauto.
+Qed.
+
+Global Hint Extern 1 (_ = _) => rewrite continue_glue2 : continue_glue2.
+Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
 
 (* ------------------------------------------------------------------------ *)
 
