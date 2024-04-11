@@ -16,7 +16,19 @@ open Coq
 (* Variables, module names, data constructors, and field names are
    represented in Coq as strings. *)
 
+(* Coq strings can contain any printable character, with the exception
+   of quotation marks, which need to be doubled up in order to be escapled. *)
+
+let double_quotations s =
+  String.fold_right
+    (fun c s ->
+      if c = (Char.chr 34) then (String.make 2 c) ^ s
+      else (String.make 1 c) ^ s)
+    s
+    String.empty
+
 let quote s =
+  let s = double_quotations s in
   plain (sprintf "\"%s\"" s)
 
 let var =
