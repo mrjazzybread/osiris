@@ -238,310 +238,6 @@ Section ewp_basic_rules.
 
 End ewp_basic_rules.
 
-Section ewp_rules.
-
-  Context `{!osirisGS Σ}.
-
-  Context {A X : Type}.
-
-  Implicit Type m : micro A X.
-  Import ewp_rules_tactics.
-
-  Lemma is_handleable_try_None {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
-    is_handleable m = None ->
-    is_handleable (try m f h) = None.
-  Proof.
-    intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H0; done.
-  Qed.
-
-  Lemma is_handleable_try2_None {B X'} m (f : _ -> micro B X'):
-    is_handleable m = None ->
-    is_handleable (try2 m f) = None.
-  Proof.
-    intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H0; done.
-  Qed.
-
-  (* ------------------------------------------------------------------------ *)
-  (** *Try rule *)
-
-  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
-    EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
-    EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
-  Proof.
-    iLöb as "IH" forall (m f Ψ Φ).
-    iIntros "Hwp".
-    ewp_case_is_handleable m.
-    (* Case: [m1] is [ret _]. *)
-    (* The result is immediate. *)
-    { iPoseProof (ewp_ret_inv with "[$]") as "Hret"; cbn.
-      by iApply ewp_fupd. }
-
-    (* Case : [m1] is [throw _]; trivial  *)
-    { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
-
-    (* Case : [m1] is [Perform _ _]. *)
-    { cbn.
-      ewp_unfold_all. iMod "Hwp"; iModIntro.
-      iApply (monotonic_prot with "[] Hwp").
-      iIntros (?) "HΨ"; iNext;
-      by iSpecialize ("IH" with "HΨ"). }
-
-    (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
-    ewp_unfold_all; rewrite Hhm.
-    apply (is_handleable_try2_None m f) in Hhm; rewrite Hhm.
-
-    (* Process a step of computation. *)
-    intro_state. spec_state.
-    iModIntro. construct_wp_nonret.
-
-    (* Get more information out of [e2]; *)
-    apply invert_step_try2 in Hstep; auto; destruct Hstep as (?&Hstep&->).
-
-    (* Can use information from above to get [wp] about stepped computation *)
-    spec_step.
-    ewp_mask_elim. iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
-    iModIntro.
-
-    (* Apply induction hypothesis  *)
-    by iApply ("IH" with "Hwp").
-  Qed.
-
-  Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :
-    EWP m @ E <| Ψ |> {{| RET v => EWP (f v) @ E <| Ψ |> {{ Φ }};
-                        | EXN v => EWP (h v) @ E <| Ψ |> {{ Φ }}}} -∗
-    EWP (try m f h) @ E <| Ψ |> {{ Φ }}.
-  Proof.
-    iIntros "Hwp".
-    iApply ewp_try2.
-    iApply (ewp_mono with "Hwp").
-    iIntros ([]) "Hwp"; by cbn.
-  Qed.
-
-  (** *Bind rule *)
-  Lemma ewp_bind {B} E m (k : _ -> micro B X) Ψ Φ :
-    EWP m @ E <| Ψ |> {{ RET v, EWP (k v) @ E <| Ψ |> {{ Φ }} }} -∗
-    EWP bind m k @ E <| Ψ |> {{ Φ }}.
-  Proof.
-    iIntros "Hwp". rewrite bind_as_try. iApply ewp_try.
-    iApply (ewp_mono with "[$]"). iIntros (?) "H".
-    destruct a; last done; by cbn.
-  Qed.
-
-  (** *Fmap rule *)
-  Lemma ewp_fmap {B} E (f : A -> B) (m : micro A X) Ψ Φ :
-    EWP m @ E <| Ψ |> {{ RET v, Φ (f v) }} -∗
-    EWP fmap f m @ E <| Ψ |> {{ RET v, Φ v }}.
-  Proof.
-    iIntros "Hwp". iApply ewp_bind.
-    iApply (ewp_mono with "[$]"). iIntros (?) "H".
-    destruct a; last done. cbn.
-    iApply ewp_value; by cbn.
-  Qed.
-
-(* ------------------------------------------------------------------------ *)
-
-  (* [CAlloc]. *)
-
-  (* The standard memory allocation rule of Separation Logic. *)
-
-  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
-    ▷ (∀ l,
-          mapsto l (DfracOwn 1) (V v) -∗
-          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
-    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
-  Proof.
-    iIntros "H".
-    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    destruct_step.
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH _]]"; first done.
-    ewp_mask_elim. iFrame. by iApply "H".
-  Qed.
-
-  Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
-    ▷ (∀ l,
-          mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
-          EWP (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
-      EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
-  Proof.
-    iIntros "H".
-    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    destruct_step.
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
-    ewp_mask_elim. iFrame. by iApply "H"; iFrame.
-  Qed.
-
-  (* [CStore]. *)
-
-  (* The standard memory write rule of Separation Logic. *)
-
-  Lemma ewp_store {B Y} E l v v' (k : _ → micro B Y) φ Ψ :
-    mapsto l (DfracOwn 1) (V v) ⊢
-    ▷ (
-        mapsto l (DfracOwn 1) (V v') -∗
-        EWP (continue k tt) @ E <| Ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
-  Qed.
-
-  (* [CLoad]. *)
-
-  (* The standard memory load rule of Separation Logic. *)
-
-  Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
-    mapsto l dq (V v) ⊢
-    ▷ (
-        mapsto l dq (V v) -∗
-        EWP (continue k v) @ E <| Ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
-
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
-  Qed.
-
-  (* [CResume]. *)
-
-  (* Resuming a continuation from a location in the store. *)
-
-  Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    ▷ (∀ l,
-        mapsto l (DfracOwn 1) (Shot) -∗
-         EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
-
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    ewp_mask_elim. iFrame.
-    by iSpecialize ("Hwp" with "Hl").
-  Qed.
-
-
-  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    (∀ l,
-        mapsto l (DfracOwn 1) (Shot) -∗
-         ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
-
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    iSpecialize ("Hwp" with "Hl").
-
-    ewp_mask_elim. iFrame.
-  Qed.
-
-  (* [CInstall]. *)
-
-  (* Installing a handler with branches [h] on top of a continuation
-     that is located in the store at location [l]. *)
-
-  Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    (∀ l',
-        mapsto l' (DfracOwn 1)
-          (K (λ o,
-               Handle (sk o) (λ o, deep_eval_match η o h))) -∗
-      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
-    iFrame. iSpecialize ("Hwp" with "Hl'").
-
-    ewp_mask_elim. iFrame.
-  Qed.
-
-  Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-      ▷ (∀ l',
-          mapsto l' (DfracOwn 1)
-            (K (λ o,
-                 Handle (sk o) (λ o, deep_eval_match η o h))) -∗
-          meta_token l' ⊤ -∗
-          EWP (continue k l') @ E <| ψ |> {{ φ }}
-      ) -∗
-      EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & HMT)"; first done.
-
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl' HMT").
-  Qed.
-
-End ewp_rules.
-
 (* ------------------------------------------------------------------------ *)
 (* Invert cases where there are premises of the form
           [EWP (ret _) _] [EWP crash _] or [EWP (throw _) _] *)
@@ -694,16 +390,356 @@ Section wp_handler_rules.
       iApply ("IH" with "H Hsh"). }
   Qed.
 
+
+  (* Specification for [Handle] follows the specification for shallow handlers. *)
+  Lemma ewp_handle_ret E Ψ (Φ : outcome2 A X -> _) (a : val) h:
+    EWP (h (O3Ret a)) @ E <| Ψ |> {{ Φ }} -∗
+    EWP (Handle (ret a) h) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hhandle".
+    ewp_unfold_head.
+    intro_state.
+
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn.
+
+    - iFrame. ewp_mask_intro "Hmod"; ewp_mask_elim; done.
+    - exfalso. eapply invert_can_step_Ret; unfold can_step; eauto.
+  Qed.
+
+  Lemma ewp_handle_throw E Ψ (Φ : outcome2 A X -> _) (e : exn) h:
+    EWP (h (O3Throw e)) @ E <| Ψ |> {{ Φ }} -∗
+    EWP (Handle (throw e) h) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hhandle".
+    ewp_unfold_head.
+    intro_state.
+
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn.
+
+    - iFrame. ewp_mask_intro "Hmod"; ewp_mask_elim; done.
+    - exfalso. eapply invert_can_step_Throw; unfold can_step; eauto.
+  Qed.
+
+End wp_handler_rules.
+
+Section ewp_rules.
+
+  Context `{!osirisGS Σ}.
+
+  Context {A X : Type}.
+
+  Implicit Type m : micro A X.
+  Import ewp_rules_tactics.
+
+  Lemma is_handleable_try_None {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
+    is_handleable m = None ->
+    is_handleable (try m f h) = None.
+  Proof.
+    intros Hm. destruct m; inversion Hm; try done.
+    destruct c; inversion H0; done.
+  Qed.
+
+  Lemma is_handleable_try2_None {B X'} m (f : _ -> micro B X'):
+    is_handleable m = None ->
+    is_handleable (try2 m f) = None.
+  Proof.
+    intros Hm. destruct m; inversion Hm; try done.
+    destruct c; inversion H0; done.
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (** *Try rule *)
+
+  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
+    EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
+    EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iLöb as "IH" forall (m f Ψ Φ).
+    iIntros "Hwp".
+    ewp_case_is_handleable m.
+    (* Case: [m1] is [ret _]. *)
+    (* The result is immediate. *)
+    { iPoseProof (ewp_ret_inv with "[$]") as "Hret"; cbn.
+      by iApply ewp_fupd. }
+
+    (* Case : [m1] is [throw _]; trivial  *)
+    { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
+
+    (* Case : [m1] is [Perform _ _]. *)
+    { cbn.
+      ewp_unfold_all. iMod "Hwp"; iModIntro.
+      iApply (monotonic_prot with "[] Hwp").
+      iIntros (?) "HΨ"; iNext;
+      by iSpecialize ("IH" with "HΨ"). }
+
+    (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
+    ewp_unfold_all; rewrite Hhm.
+    apply (is_handleable_try2_None m f) in Hhm; rewrite Hhm.
+
+    (* Process a step of computation. *)
+    intro_state. spec_state.
+    iModIntro. construct_wp_nonret.
+
+    (* Get more information out of [e2]; *)
+    apply invert_step_try2 in Hstep; auto; destruct Hstep as (?&Hstep&->).
+
+    (* Can use information from above to get [wp] about stepped computation *)
+    spec_step.
+    ewp_mask_elim. iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
+    iModIntro.
+
+    (* Apply induction hypothesis  *)
+    by iApply ("IH" with "Hwp").
+  Qed.
+
+  Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :
+    EWP m @ E <| Ψ |> {{| RET v => EWP (f v) @ E <| Ψ |> {{ Φ }};
+                        | EXN v => EWP (h v) @ E <| Ψ |> {{ Φ }}}} -∗
+    EWP (try m f h) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply ewp_try2.
+    iApply (ewp_mono with "Hwp").
+    iIntros ([]) "Hwp"; by cbn.
+  Qed.
+
+  (** *Bind rule *)
+  Lemma ewp_bind {B} E m (k : _ -> micro B X) Ψ Φ :
+    EWP m @ E <| Ψ |> {{ RET v, EWP (k v) @ E <| Ψ |> {{ Φ }} }} -∗
+    EWP bind m k @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hwp". rewrite bind_as_try. iApply ewp_try.
+    iApply (ewp_mono with "[$]"). iIntros (?) "H".
+    destruct a; last done; by cbn.
+  Qed.
+
+  (** *Fmap rule *)
+  Lemma ewp_fmap {B} E (f : A -> B) (m : micro A X) Ψ Φ :
+    EWP m @ E <| Ψ |> {{ RET v, Φ (f v) }} -∗
+    EWP fmap f m @ E <| Ψ |> {{ RET v, Φ v }}.
+  Proof.
+    iIntros "Hwp". iApply ewp_bind.
+    iApply (ewp_mono with "[$]"). iIntros (?) "H".
+    destruct a; last done. cbn.
+    iApply ewp_value; by cbn.
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+
+  (* The following lemmas offer reasoning rules for each of the system calls,
+     that is, for computations of the form [Stop c x y]. They are simple
+     consequences of the operational behavior of these system calls. *)
+
+  (* [CAlloc]. *)
+
+  (* The standard memory allocation rule of Separation Logic. *)
+
+  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) -∗
+          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
+  Proof.
+    iIntros "H".
+    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH _]]"; first done.
+    ewp_mask_elim. iFrame. by iApply "H".
+  Qed.
+
+  Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
+          EWP (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
+      EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "H".
+    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    destruct_step.
+    (* Allocate a new location in the ghost heap. *)
+    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
+    ewp_mask_elim. iFrame. by iApply "H"; iFrame.
+  Qed.
+
+  (* [CStore]. *)
+
+  (* The standard memory write rule of Separation Logic. *)
+
+  Lemma ewp_store {B Y} E l v v' (k : _ → micro B Y) φ Ψ :
+    mapsto l (DfracOwn 1) (V v) ⊢
+    ▷ (
+        mapsto l (DfracOwn 1) (V v') -∗
+        EWP (continue k tt) @ E <| Ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%";
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_store in Hstep; [ destruct Hstep | eauto ]. subst.
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* [CLoad]. *)
+
+  (* The standard memory load rule of Separation Logic. *)
+
+  Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
+    mapsto l dq (V v) ⊢
+    ▷ (
+        mapsto l dq (V v) -∗
+        EWP (continue k v) @ E <| Ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_load in Hstep; [ destruct Hstep | eauto ]. subst.
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* [CResume]. *)
+
+  (* Resuming a continuation from a location in the store. *)
+
+  Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    ▷ (∀ l,
+        mapsto l (DfracOwn 1) (Shot) -∗
+         EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    by iSpecialize ("Hwp" with "Hl").
+  Qed.
+
+  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    (∀ l,
+        mapsto l (DfracOwn 1) (Shot) -∗
+         ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iSpecialize ("Hwp" with "Hl").
+
+    ewp_mask_elim. iFrame.
+  Qed.
+
+  (* [CInstall]. *)
+
+  (* Installing a handler with branches [h] on top of a continuation
+     that is located in the store at location [l]. *)
+
+  Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+    (∀ l',
+        mapsto l' (DfracOwn 1)
+          (K (λ o,
+               Handle (sk o) (λ o, deep_eval_match η o h))) -∗
+      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ) -∗
+    EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iFrame. iSpecialize ("Hwp" with "Hl'").
+
+    ewp_mask_elim. iFrame.
+  Qed.
+
+  Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
+    mapsto l (DfracOwn 1) (K sk) ⊢
+      ▷ (∀ l',
+          mapsto l' (DfracOwn 1)
+            (K (λ o,
+                 Handle (sk o) (λ o, deep_eval_match η o h))) -∗
+          meta_token l' ⊤ -∗
+          EWP (continue k l') @ E <| ψ |> {{ φ }}
+      ) -∗
+      EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & HMT)"; first done.
+
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl' HMT").
+  Qed.
+
   (* Par combinator *)
+
   Lemma ewp_Par {E A1 A2 A3 X' Y} (m1 : micro A1 X') (m2 : micro A2 X')
-    (k: outcome2 (A1 * A2) X' → micro A3 Y) {φ} φ1 φ2 Ψ :
-      EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
+    (k: outcome2 (A1 * A2) X' → micro A3 Y) φ φ1 φ2 (Ψ : iEff Σ) :
+    EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
       EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
       (∀ e, φ1 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
       (∀ e, φ2 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
       (∀ a1 a2,
           φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗
-          EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
+            EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
       EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
@@ -721,19 +757,19 @@ Section wp_handler_rules.
       iSpecialize ("Hjoin" with "HΦ HΦ2"); by iFrame. }
 
     (* In the four following cases, one of the branches of the [Par] is either a
-      [crash] or [throw _].
+     [crash] or [throw _].
 
-      We invert the cases where there are premises of the form [WP crash _] or
-        [WP (throw _) _] *)
-    1-4: ewp_invert; try done.
+     We invert the cases where there are premises of the form [WP crash _] or
+     [WP (throw _) _] *)
+     1-4: ewp_invert; try done.
 
     (* [StepParThrowLeft/Right] *)
     1,2: iMod "HΦ";
-        ewp_mask_intro "Hmod"; ewp_mask_elim;
-        iFrame;
-        try iApply ("Hexn1" with "[$]");
-        try iApply ("Hexn2" with "[$]");
-        done.
+    ewp_mask_intro "Hmod"; ewp_mask_elim;
+    iFrame;
+    try iApply ("Hexn1" with "[$]");
+    try iApply ("Hexn2" with "[$]");
+    done.
 
     { (* [ParPerformLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -768,12 +804,12 @@ Section wp_handler_rules.
 
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ} φ1 φ2 Ψ :
     EWP m1 @ E <| Ψ |> {{ φ1 }} -∗
-    EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
-    (∀ e, φ1 (O2Throw e) -∗ φ (O2Throw e))-∗
-    (∀ e, φ2 (O2Throw e) -∗ φ (O2Throw e)) -∗
-    (∀ a1 a2,
-      φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗ φ (O2Ret (a1, a2))) -∗
-    EWP (par m1 m2) @ E <| Ψ |> {{ φ }}.
+      EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
+      (∀ e, φ1 (O2Throw e) -∗ φ (O2Throw e))-∗
+      (∀ e, φ2 (O2Throw e) -∗ φ (O2Throw e)) -∗
+      (∀ a1 a2,
+          φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗ φ (O2Ret (a1, a2))) -∗
+      EWP (par m1 m2) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Hm1 Hm2 Hφ1 Hφ2 Hr".
     iApply (ewp_Par m1 m2 inject2 with "Hm1 Hm2 [Hφ1] [Hφ2] [Hr]").
@@ -785,15 +821,20 @@ Section wp_handler_rules.
       iApply ewp_value. iApply ("Hr" with "Hφ1 Hφ2"). }
   Qed.
 
-    (* The following lemmas offer reasoning rules for each of the system calls,
-    that is, for computations of the form [Stop c x y]. They are simple
-    consequences of the operational behavior of these system calls. *)
+End ewp_rules.
+
+(* Rules that deal with microvx directly. *)
+
+Section ewp_val_rules.
+
+  Context `{!osirisGS Σ}.
+  Import ewp_rules_tactics.
 
   (* [CEval]. *)
 
-  Lemma ewp_eval {B E'} E η e (k : _ → micro B E') φ Ψ :
+  Lemma ewp_eval {B X'} E η e (k : _ → micro B X') φ Ψ :
     ▷ EWP (eval η e) @ E <| Ψ |>
-        {{ fun v => EWP (k v) @ E <| Ψ |> {{ φ }} }} ⊢
+      {{ fun v => EWP (k v) @ E <| Ψ |> {{ φ }} }} ⊢
       EWP (Stop CEval (η, e) k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Hwp".
@@ -804,7 +845,8 @@ Section wp_handler_rules.
     ewp_mask_elim;
       (* Frame state interp *)
       try iFrame; cbn.
-    by iApply ewp_try2.
+    Set Printing All.
+    iApply (ewp_try2 with "Hwp").
   Qed.
 
   Lemma ewp_eval_ret E η e Ψ (φ : _ -> iPropI Σ):
@@ -817,10 +859,10 @@ Section wp_handler_rules.
     iNext. iApply (ewp_mono with "Hwp"); iIntros (?) "H"; done.
   Qed.
 
-  Lemma ewp_simp E m ms Ψ φ:
+  Lemma ewp_simp {A X} E (m : micro A X) ms Ψ φ:
     simp m ms →
     EWP ms @ E <| Ψ |> {{ φ }} ⊢
-    EWP m @ E <| Ψ |> {{ φ }}.
+      EWP m @ E <| Ψ |> {{ φ }}.
   Proof.
     (* Proceed by Löb induction. *)
     iLöb as "IH" forall (m ms).
@@ -829,7 +871,7 @@ Section wp_handler_rules.
 
     destruct (is_handleable m) eqn: Hmh.
     { destruct m; inversion Hmh; subst; try solve [inversion Hsimp];
-      clarify_simp; subst; try done.
+        clarify_simp; subst; try done.
       inversion Hmh. destruct c; inversion H0; subst.
       clarify_simp.
       iApply ewp_fupd.
@@ -909,7 +951,7 @@ Section wp_handler_rules.
                  (EWP ms @ E <| Ψ |>  {{ φ }} ∗ state_interp σ))%I
                with "[$Hwp $Hsi]").
       iIntros "[??]".
-        iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
+      iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
 
       iModIntro; iPureIntro; destruct Hdisj.
       { eauto using invert_simp_can_step. }
@@ -934,4 +976,15 @@ Section wp_handler_rules.
     iModIntro; iApply ("IH" with "[//] Hwp").
   Qed.
 
-End wp_handler_rules.
+  Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
+    pure m φ ->
+    ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
+  Proof.
+    iIntros.
+    destruct_pure v.
+    iApply ewp_simp; [ eassumption | iApply ewp_value ].
+    iPureIntro.
+    eauto.
+  Qed.
+
+End ewp_val_rules.
