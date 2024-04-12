@@ -68,6 +68,23 @@ Notation outcome3 := (outcome3 eff continuation).
 Definition outcome_inject {A X} : outcome2 A X -> outcome3 A X := outcome2_inject.
 Coercion outcome_inject : outcome2 >-> outcome3.
 
+Lemma continue_glue2 {A E R} a (f : A -> R) (h : E -> R) :
+  continue (glue2 f h) a = f a.
+Proof.
+  tauto.
+Qed.
+
+Lemma discontinue_glue2 {A E R} e (f : A -> R) (h : E -> R) :
+  discontinue (glue2 f h) e = h e.
+Proof.
+  tauto.
+Qed.
+
+Global Hint Extern 1 (_ = _) => rewrite continue_glue2 : continue_glue2.
+Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
+
+(* ------------------------------------------------------------------------ *)
+
 (* The abstract API of this micro monad is as follows.
 
    [ret a] is a computation that returns the result [a].

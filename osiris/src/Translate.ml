@@ -306,7 +306,6 @@ and translate_field_pattern (i, label_desc, pat) : field * pat =
 
 (* Computation patterns distinguish normal termination and exceptions. *)
 
-
 let rec translate_computation_pattern (pat : computation general_pattern) : cpat =
   match pat.pat_desc with
   | Tpat_value p ->
@@ -374,7 +373,6 @@ let rec translate_expr (e: expression) : expr =
       EMatch (translate_expr e, translate_computation_cases cases)
 
   | Texp_try (e, cases) ->
-     (* TODO: Comment exception cases. *)
       ETryWith (translate_expr e, translate_exception_cases cases)
 
   | Texp_tuple es ->
