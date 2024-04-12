@@ -373,6 +373,17 @@ Proof.
   eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | done ].
 Qed.
 
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
+  pure (eval η e) φ' ->
+  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs bs φ) ->
+  pure (eval η (EMatch e bs)) φ.
+Proof.
+  unfold pure_match; intros Heval Hmatch.
+  destruct Heval as (? & ? & ?).
+  eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | ].
+  by apply Hmatch.
+Qed.
+
 (* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs all_bs (φ : A -> Prop) :
