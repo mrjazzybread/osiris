@@ -88,14 +88,12 @@ Lemma example_2_stores env x l :
     {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V #4 }}.
 Proof.
   iIntros (Hx) "Hl".
-  iApply (ewp_ESeq with "[Hl]").
-  - iApply ewp_EStore.
-    + Simp. iApply ewp_ret_eq_emp.
-    + iApply ewp_ret_eq_emp.
-    + iIntros (? ?) "(-> & ->)".
-      iExists _. iFrame. iNext. iIntros "Hl /=".
-      iApply (goal_eq with "Hl"). reflexivity.
-  - iIntros (?) "(%E & Hl)".
+  iApply ewp_ESeq.
+  iApply ewp_EStore.
+  - Simp. iApply ewp_ret_eq_emp.
+  - iApply ewp_ret_eq_emp.
+  - iIntros (? ?) "(-> & ->)".
+    iExists _. iFrame. iNext. iIntros "Hl /=".
     iApply ewp_EStore.
     + Simp. iApply ewp_ret_eq_emp.
     + iApply ewp_ret_eq_emp.
@@ -189,18 +187,20 @@ Proof.
 
     + (* as_int (y := 1 + !y; !y) *)
       Bind.
-      iApply (ewp_ESeq with "[Hy]").
-      * (* y := 1 + !y: use previous example *)
-        iApply (example_incr with "Hy"). done.
-      * (* !y *)
-        iIntros (v_) "(-> & A)".
-        iApply ewp_ELoad.
-        -- Simp. iApply ewp_ret_eq_emp.
-        -- iIntros (l) "->".
-           iExists _, _. iFrame. iNext.
-           iIntros "Hy". simpl.
-           iApply ewp_ret_eq.
-           iApply "Hy".
+      iApply ewp_ESeq.
+      (* y := 1 + !y: use previous example *)
+      iApply (ewp_mono with "[Hy]").
+      by iApply (example_incr with "Hy").
+      (* !y *)
+      iIntros ([v_|]) "H". 2: done.
+      iApply ewp_ELoad.
+      * Simp. iApply ewp_ret_eq_emp.
+      * iDestruct "H" as "(-> & H)".
+        iIntros (l) "->".
+        iExists _, _. iFrame. iNext.
+        iIntros "Hy". simpl.
+        iApply ewp_ret_eq.
+        iApply "Hy".
 
     + (* add's postcondition *)
       iIntros (n1 n2) "((-> & Hx) & (-> & Hy))".

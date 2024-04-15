@@ -6,4 +6,5 @@ From osiris.program_logic Require Export
      protocols
      protocol_instance
      adequacy
+     rules_expr
 .
