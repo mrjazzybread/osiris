@@ -752,15 +752,26 @@ and translate_record_field_as_branches (_, label_def) : branch list =
 
 and translate_branch_to_effect_branch b =
   match b with
-  (* | p -> Some (fun k -> e) *)
-  | Branch (CVal p, EData (_, ETuple [EAnonFun (AnonFun (k, e))])) ->
-     Some (Branch (CEff (p, PVar k), e))
-  (* | peff -> Some (fun pk -> e) *)
-  | Branch (CVal peff,
-            EData (_, ETuple [EAnonFun (AnonFunction [Branch (CVal pk, e)])])) ->
-     Some (Branch (CEff (peff, pk), e))
-  | Branch (CVal PAny, EData ("None", ETuple [])) ->
-     None
+
+  | Branch (CVal peff, e) ->
+     (match (undecorate e) with
+      | EData ("None", _) ->
+         None
+      | EData (_, e) ->
+         (match (undecorate e) with
+          | ETuple [ e ] ->
+             (match (undecorate e) with
+              (* | p -> Some (fun k -> e) *)
+              | EAnonFun (AnonFun (k, e)) ->
+                 Some (Branch (CEff (peff, PVar k), e))
+              (* | peff -> Some (fun pk -> e) *)
+              | EAnonFun (AnonFunction [Branch (CVal pk, e)]) ->
+                 Some (Branch (CEff (peff, pk), e))
+              | _ -> assert false)
+          | ETuple [] ->
+             None
+          | _ -> assert false)
+      | _ -> assert false)
   | _ ->
      Some (Branch (CEff (PAny, PAny), EUnsupported))
 
