@@ -139,6 +139,10 @@ let decorate (loc : Location.t) (e : expr) : expr =
       (* If we are unable to produce a decoration, forget about it. *)
       e
 
+let rec undecorate : expr -> expr = function
+  | EDecorate (_, e) -> undecorate e
+  | e -> e
+
 (* -------------------------------------------------------------------------- *)
 
 (* Stripping off a location. *)
@@ -487,7 +491,8 @@ and translate_application loc e args =
   try
     translate_primitive_application loc e args
   with NotExactKnownPrimitive ->
-    match translate_expr e with
+    let e = translate_expr e in
+    match undecorate e with
 
     (* Recognize [perform eff] as primitive. *)
     | EPath [ "perform" ] ->
@@ -552,7 +557,7 @@ and translate_application loc e args =
            assert false)
 
     (* Default case: [e args]. *)
-    | e ->
+    | _ ->
        apply e (translate_labeled_arguments loc args)
 
 and translate_primitive_application loc e args =
@@ -715,24 +720,30 @@ and translate_record_field_as_branches (_, label_def) : branch list =
         expression. *)
      []
   | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
-     (match translate_expr e with
+     (match undecorate (translate_expr e) with
       | (EAnonFun (AnonFun (v, e))) ->
          [Branch (CVal (PVar v), e)]
       | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
-     (match translate_expr e with
+     (match undecorate (translate_expr e) with
       | EAnonFun (AnonFun (v, e)) ->
          [Branch (CExc (PVar v), e)]
       | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
-     (match translate_expr e with
+     (match undecorate (translate_expr e) with
       (* Remy/ It is unclear to me why the first case occurs. *)
-      | EAnonFun (AnonFunction [Branch (_, (EMatch (_, bs)))]) ->
-         translate_branches_to_effect_branches bs
-      | EAnonFun (AnonFun (v1, EMatch (EPath [ v2 ], bs))) when v1 = v2 ->
-         translate_branches_to_effect_branches bs
+      | EAnonFun (AnonFunction [Branch (_, e)]) ->
+         (match undecorate e with
+          | EMatch (_, bs) ->
+             translate_branches_to_effect_branches bs
+          | _ -> assert false)
+      | EAnonFun (AnonFun (_, e)) ->
+         (match undecorate e with
+          | EMatch (_, bs) ->
+             translate_branches_to_effect_branches bs
+          | _ -> assert false)
       | _ -> assert false)
   | _ -> []
 
