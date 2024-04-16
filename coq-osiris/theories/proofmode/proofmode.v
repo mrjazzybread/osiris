@@ -6,6 +6,7 @@ From osiris.proofmode Require Export
   pat
   pure_tactics
   ewp_tactics
+  expr_rules
   notations
   specifications
 .
