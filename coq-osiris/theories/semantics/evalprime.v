@@ -181,17 +181,27 @@ Definition eval' η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      try2
-        (eval η e)
-        (λ (o : outcome2 val exn), eval_match η o bs)
+      (* TODO: Comment. *)
+      Handle (eval η e) (λ o3, deep_eval_match η o3 bs)
   | ETryWith e bs =>
       try
         (eval η e)
         Ret
         (λ ex, eval_trywith η ex bs)
   | ERaise e =>
-      exc ← eval η e ;
-      throw exc
+      exn ← eval η e ;
+      throw exn
+  | EPerform e =>
+      eff ← eval η e ;
+      perform eff
+  | EContinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      v ← eval η e2 ;
+      stop CResume (l, O2Ret v)
+  | EDiscontinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      exn ← eval η e2 ;
+      stop CResume (l, O2Throw exn)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then

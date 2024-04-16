@@ -4,7 +4,7 @@ From osiris.program_logic Require Import ewp rules_expr.
 From osiris.proofmode Require Import proofmode notations.
 
 Section test_rules_expr.
-Context `{protocol_wf Σ P} `{!osirisGS Σ}.
+Context `{!osirisGS Σ}.
 
 (* Useful when goal is [R ⊢ WP (ret v) {{ ?evar }}] *)
 (* iApply-ing it will fail without providing much information if [R] or [v]

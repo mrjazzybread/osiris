@@ -161,7 +161,7 @@ Inductive expr :=
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
-  | EXData (c : data) (e : expr)
+  | EXData (c : var) (e : expr)
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : list fexpr)
@@ -237,8 +237,15 @@ Inductive expr :=
 
   (* Exception catching: [try e with bs]. *)
   | ETryWith (e : expr) (bs : list branch)
-  (* Exception raising: [raise e]. *)
+  (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)
+
+  (* Performing an effect: [perform e]. *)
+  | EPerform (e : expr)
+  (* Continuing a continuation: [continue e1 e2]. *)
+  | EContinue (e1 : expr) (e2 : expr)
+  (* Discontinuing a continuation: [discontinue e1 e2]. *)
+  | EDiscontinue (e1 : expr) (e2 : expr)
 
   (* Loop: [while e do body done]. *)
   | EWhile (e body : expr)
@@ -302,6 +309,9 @@ with mexpr :=
 
   (* A structure [struct ... end]. *)
   | MStruct (items : list sitem)
+
+  (* A functor [functor _ -> struct ... end]. *)
+  | MFunctor (x : var) (items : list sitem)
 
   (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for
@@ -370,8 +380,12 @@ Inductive val :=
   | VRecord (fvs : list (var * val))
   (* A location. *)
   | VLoc (l: loc)
+  (* A continuation; more precisely, a location which stores a continuation. *)
+  | VCont (k: loc)
   (* A module. *)
   | VStruct (xvs : list (var * val))
+  (* A functor. *)
+  | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
   | VArray (c: list val)
 .

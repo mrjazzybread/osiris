@@ -142,6 +142,23 @@ Definition as_loc {E} (m : micro val E) : micro loc E :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_cont v] checks that the value [v] is a language-level continuation
+   value and returns its meta-level value. *)
+
+Definition val_as_cont {E} (v : val) : micro loc E :=
+  match v with
+  | VCont l =>
+      ret l
+  | _ =>
+      type_mismatch "continuation value expected"
+  end.
+
+Definition as_cont {E} (m : micro val E) : micro loc E :=
+  v ← m ;
+  val_as_cont v.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [val_as_int v] checks that the value [v] is a language-level integer
    value and returns its meta-level value. *)
 
@@ -476,21 +493,41 @@ Definition extendfs δ fps fvs :=
 (* [cextend η cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
 
-Fixpoint cextend η cp o : micro env unit :=
+Fixpoint cextend δ cp o : micro env unit :=
   match cp, o with
-  | CVal p, O2Ret v =>
+  | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
-      extend η p v
-  | CExc p, O2Throw v =>
+      extend δ p v
+  | CExc p, O3Throw v =>
       (* An exception pattern matches a throw. *)
-      extend η p v
+      extend δ p v
+  | CEff pe pk, O3Perform e k =>
+      δ ← extend δ pe e ;
+      (* [pk] is a pattern for the continuation [k].
+         It can only be a [PVar] or a [PAny]. *)
+      extend δ pk (VCont k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
-      orelse (cextend η cp1 o) (cextend η cp2 o)
+      orelse (cextend δ cp1 o) (cextend δ cp2 o)
   | _, _ =>
       (* If [o] and [cp] don't match, we throw a meta-level exception
          and continue to the next branch.*)
       throw()
+  end.
+
+(* TODO: Comment. *)
+
+Fixpoint try_cextend_eff η v k bs :=
+  match bs with
+  | [] =>
+      None
+  | (Branch cp e) :: bs =>
+      match cextend η cp (O3Perform v k) with
+      | ret δ =>
+          Some (δ, e)
+      | _ =>
+          try_cextend_eff η v k bs
+      end
   end.
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
@@ -547,6 +584,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
+  | VCont k1, VCont k2 =>
+      ret (locations.eqb k1 k2)
   | _, _ =>
       physical_equality_error "invalid or unsupported arguments"
   end.
@@ -779,6 +818,8 @@ Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : microvx :=
       '(_, δ) ← eval_sitems (η, []) items ;
       (* and wrap it in a [VStruct] value. *)
       ret (VStruct δ)
+  | MFunctor x items =>
+      ret (VFunctor η x items)
   end.
 
 End EvalBindings.
@@ -858,37 +899,72 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_match η o bs] evaluates [match o with bs] in the environment [η],
+(* [eval_match deep η o bs] evaluates [match o with bs] in the environment [η],
    taking into account whether [o] is a return or a throw. *)
 
-Fixpoint pre_eval_match (η : env) (o : outcome2 val exn) (bs : list branch) : microvx :=
-  let eval_match := pre_eval_match in
+(* The boolean flag [deep] indicates whether the [match] is a deep handler.
+
+   Shallow handlers must discharge itself only when it is consumed by an effect,
+   thus [all_branches] keep track of all the branches in order to install the
+   handler if it has not been consumed. *)
+
+Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
+  (bs : handler) (all_branches : handler)
+   : microvx :=
+  let eval_match := pre_eval_match_aux in
   match bs with
   | [] =>
       (* A nonexhaustive [match] construct. *)
-      match o with
-      | O2Ret _ =>
+      (match o with
+      | O3Ret _ =>
           (* When matching on a value, a nonexhaustive [match] causes
-             a hard failure. *)
+              a hard failure. *)
           (* The user of the system will have to prove that this
-             cannot happen, i.e., every case analysis is exhaustive. *)
+              cannot happen, i.e., every case analysis is exhaustive. *)
           match_failure()
-      | O2Throw e =>
+      | O3Throw e =>
           (* When matching on an exception, a nonexhaustive [match]
-             causes the exception to be propagated. *)
+              causes the exception to be propagated. *)
           throw e
-      end
+      | O3Perform e l =>
+          if deep then
+            (* For a deep handler, there is no need to install the handler
+               again. *)
+            try2 (stop CPerform e) (fun o => stop CResume (l, o))
+          else
+            (* For a shallow handler, since the handler has not been consumed
+               by an effect, we must install the handler. *)
+            l ← install deep l η all_branches ;
+            try2 (stop CPerform e) (fun o => stop CResume (l, o))
+      end)
   | Branch cp e :: bs =>
-      (* Match the outcome [o] against the computational pattern [cp]. *)
       try
+        (* Match the outcome [o] against the computational pattern [cp]. *)
         (cextend η cp o)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)
-        (λ tt, eval_match η o bs)
+        (fun tt => eval_match deep η o bs all_branches)
   end.
 
-(* TODO: Comment. *)
+Definition pre_eval_match (deep : bool)
+  (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
+  if deep then
+    match o with
+    | O3Perform e k =>
+        (* Deep handler installation: we allocate a new location where the
+         handler is installed around the continuation captured by [k]. *)
+        k ← install deep k η bs ;
+        pre_eval_match_aux deep η (O3Perform e k) bs bs
+    | _ =>
+        (* There are no effects to install the handler around, so we do not
+           install a handler. *)
+        pre_eval_match_aux deep η o bs bs
+    end
+  else
+    (* Shallow handlers are "consumed-once" handlers; no installations necessary
+       here. *)
+    pre_eval_match_aux deep η o bs bs.
 
 Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
   let eval_trywith := pre_eval_trywith in
@@ -904,9 +980,29 @@ Fixpoint pre_eval_trywith (η : env) (ex : exn) (bs : list branch) : microvx :=
       type_mismatch "exception pattern expected"
   end.
 
+(* TODO: Comment. *)
+
+Fixpoint pre_try_cextend_pure η (o : outcome2 val exn) bs :=
+  let try_cextend_pure := pre_try_cextend_pure in
+  match bs with
+  | [] =>
+      match o with
+      | O2Ret _ =>
+          None
+      | O2Throw e =>
+          Some (throw e)
+      end
+  | (Branch cp e) :: bs =>
+      match cextend η cp o with
+      | ret δ =>
+          Some (eval δ e)
+      | _ =>
+          try_cextend_pure η o bs
+      end
+  end.
+
 End Eval.
 
-(* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -933,7 +1029,7 @@ End Eval.
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Fixpoint eval η e : microvx :=
+Fixpoint eval η e {struct e} : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_match := pre_eval_match eval in
@@ -1109,9 +1205,9 @@ Fixpoint eval η e : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      try2
-        (eval η e)
-        (λ o, eval_match η o bs)
+      (* TODO: Comment. *)
+      Handle (eval η e)
+        (λ o3, eval_match true η o3 bs)
   | ETryWith e bs =>
       (* TODO: Comment. *)
       try
@@ -1119,8 +1215,19 @@ Fixpoint eval η e : microvx :=
         Ret
         (λ ex, eval_trywith η ex bs)
   | ERaise e =>
-      exc ← eval η e ;
-      throw exc
+      exn ← eval η e ;
+      throw exn
+  | EPerform e =>
+      eff ← eval η e ;
+      perform eff
+  | EContinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      v ← eval η e2 ;
+      stop CResume (l, O2Ret v)
+  | EDiscontinue e1 e2 =>
+      l ← as_cont (eval η e1) ;
+      exn ← eval η e2 ;
+      stop CResume (l, O2Throw exn)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
@@ -1159,23 +1266,30 @@ Fixpoint eval η e : microvx :=
       ok
   end.
 
-Definition evals η es := pre_evals eval η es.
+Definition evals := pre_evals eval.
 
-Definition evalfs η fes := pre_evalfs eval η fes.
+Definition evalfs := pre_evalfs eval.
 
-Definition eval_match η o bs := pre_eval_match eval η o bs.
+(* Handlers are deep by default. *)
+Definition eval_match := pre_eval_match eval.
 
-Definition eval_trywith η ex bs := pre_eval_trywith eval η ex bs.
+Definition deep_eval_match := eval_match true.
 
-Definition eval_bindings η bs := pre_eval_bindings eval η bs.
+Definition shallow_eval_match := eval_match false.
 
-Definition eval_mexpr η me := pre_eval_mexpr eval_bindings η me.
+Definition eval_trywith := pre_eval_trywith eval.
 
-Definition eval_sitem ηδ item :=
-  pre_eval_sitem eval_bindings eval_mexpr ηδ item.
+Definition try_cextend_pure := pre_try_cextend_pure eval.
 
-Definition eval_sitems ηδ sitems :=
-  pre_eval_sitems eval_bindings eval_mexpr ηδ sitems.
+Definition eval_bindings := pre_eval_bindings eval.
+
+Definition eval_mexpr := pre_eval_mexpr eval_bindings.
+
+Definition eval_sitem :=
+  pre_eval_sitem eval_bindings eval_mexpr.
+
+Definition eval_sitems :=
+  pre_eval_sitems eval_bindings eval_mexpr.
 
 (* ------------------------------------------------------------------------ *)
 

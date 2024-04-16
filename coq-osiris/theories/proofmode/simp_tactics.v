@@ -271,6 +271,24 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma advance_SimpHandleRet {A E}
+  (m1 : micro val exn) m2 v (k : outcome3 val exn -> micro A E) :
+  simp m1 (ret v) ->
+  simp (continue k v) m2 ->
+  simp (Handle m1 k) m2.
+Proof.
+  eauto with simp.
+Qed.
+
+Lemma advance_SimpHandleThrow {A E}
+  (m1 : micro val exn) m2 e (k : outcome3 val exn -> micro A E) :
+  simp m1 (throw e) ->
+  simp (discontinue k e) m2 ->
+  simp (Handle m1 k) m2.
+Proof.
+  eauto with simp.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -810,7 +828,17 @@ with simp1_inspect :=
         (* Attempt 3. Make progress by eliminating this [Par],
            and possibly more progress thereafter. *)
         simp1_par
-      ]
+        ]
+  | Handle ?m ?k =>
+      (* We need to simplify [m] to either a [ret] or a [throw],
+         only afterwards can we discharge the [Handle]. *)
+      first [
+          (* Attempt 1. Reduce m to a ret. *)
+          simple eapply advance_SimpHandleRet; [ simp1; simp_close | simp0; simp_close ]
+        |
+          (* Attempt 2. Reduce m to a throw. *)
+          simple eapply advance_SimpHandleThrow; [ simp1; simp_close | simp0; simp_close ]
+        ]
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps

@@ -1,11 +1,11 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp rules.
+From osiris.program_logic Require Import ewp basic_rules.
 From osiris.proofmode Require Import notations ewp_tactics.
 
 Section ewp_rules_expr.
 
-  Context `{protocol_wf Σ P} `{!osirisGS Σ}.
+  Context `{!osirisGS Σ}.
 
   Lemma ewp_ERef_exn η e φ1 φ Ψ :
     EWP eval η e <|Ψ|> {{ φ1 }} -∗

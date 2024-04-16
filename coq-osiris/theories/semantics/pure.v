@@ -233,36 +233,6 @@ Proof.
   apply encode_injective in Heq. congruence.
 Qed.
 
-Lemma pure_intersection `{Inhabited X} `{EncodeInjective A} E
-  m (φ : X → A → Prop)
-:
-  (∀ x, pure m (φ x)) →
-  pure (X := E) m (λ a, ∀ x, φ x a).
-Proof.
-  intros. rewrite pure_totalv.
-  eapply totalv_consequence; [| intro; eapply exploit_injectivity ].
-  eapply totalv_intersection.
-  intros. rewrite <- pure_totalv. eauto.
-Qed.
-
-(* The binary intersection rule. *)
-
-(* This rule requires the encoding function [# : A → val] to be injective]. *)
-
-Lemma pure_binary_intersection `{EncodeInjective A} E m (φ1 φ2 : A → Prop) :
-  pure m φ1 →
-  pure m φ2 →
-  pure (X := E) m (λ a, φ1 a ∧ φ2 a).
-Proof.
-  intros.
-  set (post := λ (b : bool), λ a, if b then φ1 a else φ2 a).
-  eapply pure_consequence with (φ := λ a, ∀ b, post b a).
-  { eapply pure_intersection.
-    intros b. destruct b; unfold post; assumption. }
-  { intros a Hpost. split.
-    + apply (Hpost true).
-    + apply (Hpost false). }
-Qed.
 
 (* This is the reciprocal bind rule for [pure]. *)
 

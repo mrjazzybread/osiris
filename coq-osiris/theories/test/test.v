@@ -1,7 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From stdpp Require Import relations.
+From osiris.proofmode Require Import notations.
+From stdpp Require Import relations base gmap.
 
 (* We want to test our semantics, so as to ensure that it seems to be
    consistent with our expectations and with the informal definition
@@ -22,12 +23,12 @@ From stdpp Require Import relations.
 (* [reduces e v] means that the expression [e] can reduce to the value [v]. *)
 
 Local Notation reduces e v :=
-  (∃ n, steps n (∅, eval [] e) (∅, ret v)).
+  (∃ n σ, steps n (∅, eval [] e) (σ, ret v)).
 
 (* [crashes e] means that the expression [e] can crash. *)
 
 Local Notation crashes e :=
-  (∃ n, steps n (∅, eval [] e) (∅, crash)).
+  (∃ n σ, steps n (∅, eval [] e) (σ, crash)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -38,32 +39,78 @@ Local Notation crashes e :=
    dynamic tests to be performed, so we choose the right-hand side. This is
    done by using [StepChooseRight]. It is brittle, but should do for now. *)
 
+Lemma is_fresh :
+  ∀ (σ : store), σ !! (fresh (dom σ)) = None.
+Proof.
+  intros.
+  apply fin_map_dom.not_elem_of_dom_1.
+  apply fin_sets.is_fresh.
+Qed.
+
 Local Ltac step :=
   first [
-    eapply StepEval
-  | eapply StepLoop
-  | eapply StepChooseRight
-  | eapply StepParRetRet
-  | eapply StepParLeft; [ step ]
-  | eapply StepParRight; [ step ]
-  ].
+      eapply StepEval
+    | eapply StepLoop
+    | eapply StepChooseRight
+    | eapply StepParRetRet
+    | eapply StepParLeft; [ step ]
+    | eapply StepParRight; [ step ]
+    | eapply StepParPerformLeft
+    | eapply StepParPerformRight
+    | eapply StepHandleRet
+    | eapply StepHandleThrow
+    | match goal with
+      | |- step (?σ, Stop CAlloc _ _) _ =>
+          eapply StepAlloc with (l := fresh (dom σ));
+          apply is_fresh
+      end
+    | eapply StepLoad;
+      setoid_rewrite lookup_insert; reflexivity
+    | eapply StepStore;
+      setoid_rewrite lookup_insert; reflexivity
+    | match goal with
+      | |- step (?σ, Handle _ _) _ =>
+          eapply StepHandlePerform with (l := fresh (dom σ));
+          apply is_fresh
+      end
+    | match goal with
+      | |- step (?σ, Stop CInstall _ _) _ =>
+          eapply StepInstall;
+          [ apply is_fresh | by cbn ]
+      end
+    | eapply StepHandleLeft; [ step ]
+    | eapply StepResume; by cbn
+    ].
 
 (* The tactic [steps] solves a goal of the form [steps ?n e v]. *)
 
+Local Ltac compute_lookup :=
+  cbv [ lookup
+          gmap_lookup
+          gmap.gmap_dep_lookup
+          gmap_car
+          gmap.gmap_dep_ne_lookup
+          encode
+          loc_countable
+          inj_countable'
+          inj_countable
+          Z_countable
+          address ].
+
 Local Ltac steps :=
   cbn;
-  repeat first [
-    rewrite bind_ret (* not sure why this is needed; [cbn] not enough *)
-  | eapply (nsteps_O)
-  | eapply nsteps_l; [ step | cbn ]
-  | rewrite add_repr_repr
-  | rewrite eq_repr_repr by representable
-  ].
+  repeat first [ eapply (nsteps_O)
+               | eapply nsteps_l; [ step | compute_lookup; vm_compute fresh; cbn ]
+               | rewrite add_repr_repr
+               | rewrite eq_repr_repr by representable
+    ].
+
+Local Ltac s := eapply nsteps_l; [ step | cbn; compute_lookup; vm_compute fresh ].
 
 (* The tactic [reduces] solves a goal of the form [reduces e v]. *)
 
 Local Ltac reduces :=
-  intros; eexists; steps.
+  intros; subst; repeat eexists; steps.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -374,3 +421,230 @@ Lemma test_let_open :
   let v := VInt (repr 1) in
   reduces e v.
 Proof. reduces. Qed.
+
+Lemma test_ref :
+  let e :=
+    ELet (Binding1 (PVar "x") (ERef (EInt 0)))
+      (ELoad (EPath ["x"]))
+  in
+  reduces e (VInt (repr 0)).
+Proof. reduces. Qed.
+
+Lemma test_double_ref :
+  let e :=
+    ELet (Binding1 (PVar "x") (ERef (EInt 0)))
+      (ESeq
+         (EStore (EPath ["x"]) (EInt 1))
+         (ELoad (EPath ["x"])))
+  in
+  reduces e (VInt (repr 1)).
+Proof. reduces. Qed.
+
+Notation "'cont'" := (K _).
+
+Lemma test_handle_nocont :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, _ -> 42 *)
+        Branch (CEff PAny PAny) (EInt 42)]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> continue k 42 *)
+        Branch
+         (CEff PAny (PVar "k"))
+         (EContinue (EVar "k") (EInt 42));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_compute_head :
+  let e :=
+      (21 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_compute_branch :
+  let e :=
+    (20 + EPerform (EXData "Choose" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> let y = continue k 21 in y + 1 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (ELet1 (PVar "y")
+             (EContinue (EVar "k") (EInt 21))
+             (EVar "y" + 1)%expr);
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_reinstall_ret :
+  let e1 :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let e2 :=
+    EMatch e1
+      [ (* | x -> 21 + x *)
+        Branch
+          (CVal (PVar "x"))
+          (21 + EVar "x")%expr]
+  in
+  let m :=
+    EMatch e2
+      [ (* | effect _, k -> continue k 21 *)
+        Branch
+          (CEff PAny (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_handle_exception :
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    EMatch e
+      [ (* | effect _, k -> discontinue k Not_found *)
+        Branch
+         (CEff PAny (PVar "k"))
+         (EDiscontinue (EVar "k") (EXData "Not_found" (ETuple [])));
+        (* | exception Not_found -> 42 *)
+        Branch
+          (CExc (PXData "Not_found" (PTuple [])))
+          (EInt 42)]
+  in
+  ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
+                           ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_shallow_handle :
+  let η := [("Choose", (VLoc (Loc 0)))] in
+  let e :=
+    EPerform (EXData "Choose" (ETuple []))
+  in
+  let m :=
+    Handle (eval η e)
+      (λ o, shallow_eval_match η o
+              [ (* | effect _, k -> continue k 42 *)
+                Branch
+                  (CEff PAny (PVar "k"))
+                  (EContinue (EVar "k") (EInt 42))])
+  in
+  ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
+Proof. do 2 eexists. reduces. Qed.
+
+Lemma test_nested_handlers :
+  let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
+  let e :=
+    ELet1 (PVar "y")
+      (EPerform (EXData "Get20" (ETuple [])))
+      (EVar "y" + EPerform (EXData "Get22" (ETuple [])))%expr
+  in
+  let m1 :=
+    EMatch e
+      [ (* | effect Get22, k -> continue k 22 *)
+        Branch
+          (CEff (PXData "Get22" (PTuple [])) (PVar "k"))
+          (EContinue (EVar "k") (EInt 22));
+        (* | x -> x *)
+        Branch (CVal (PVar "x")) (EVar "x") ]
+  in
+  let m2 :=
+    EMatch m1
+      [ (* | effect Get20, k -> continue k 20 *)
+        Branch
+          (CEff (PXData "Get20" (PTuple [])) (PVar "k"))
+          (EContinue
+             (EVar "k")
+             (EInt 20));
+        (* | x -> x *)
+        Branch (CVal (PVar "x")) (EVar "x") ]
+  in
+  ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
+Proof. intros. subst e m1 m2. reduces. Qed.
+
+Lemma test_repeat_handle :
+  let η :=  [("Get21", (VLoc (Loc 21)))] in
+  let e :=
+    (EPerform (EXData "Get21" (ETuple [])) + EPerform (EXData "Get21" (ETuple [])))%expr
+  in
+  let m :=
+    EMatch e
+      [ (* | effect Get21, k -> continue k 21 *)
+        Branch
+          (CEff (PXData "Get21" (PTuple [])) (PVar "k"))
+          (EContinue (EVar "k") (EInt 21));
+        (* | x -> x *)
+        Branch
+          (CVal (PVar "x"))
+          (EVar "x")]
+  in
+  ∃ n σ, steps n (∅, eval η m) (σ, ret (VInt (repr 42))).
+Proof. reduces. Qed.
+
+Lemma test_shallow_ret_reinstall :
+  let η := [("Get32", (VLoc (Loc 32))); ("Get10", (VLoc (Loc 10)))] in
+  let e := (ELet1 (PVar "x")
+              (EPerform (EXData "Get32" (ETuple [])))
+              (EVar "x" + EPerform (EXData "Get10" (ETuple []))))%expr
+  in
+  let m1 :=
+    Handle (eval η e)
+      (λ o, shallow_eval_match η o
+              [ (* | effect Get10, k -> continue k 10 *)
+                Branch
+                  (CEff (PXData "Get10" (PTuple [])) (PVar "k"))
+                  (EContinue (EVar "k") (EInt 10))])
+  in
+  let m2 :=
+    Handle m1
+      (λ o, deep_eval_match η o
+              [ (* | effect Get32, k -> continue k 32 *)
+                Branch
+                  (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
+                  (EContinue (EVar "k") (EInt 32));
+                (* | x -> x *)
+                Branch (CVal (PVar "x")) (EVar "x")])
+  in
+  ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
+Proof. intros. subst e m1 m2. reduces. Qed.
+
+(* Further test ideas:
+   - nested effect and exception handlers *)

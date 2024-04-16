@@ -106,6 +106,18 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
      simp
        (Stop CPerform e k)
        (Stop CPerform e k')
+| SimpHandleRet:
+     ∀ m v k,
+     simp m (Ret v) ->
+     simp
+       (Handle m k)
+       (continue k v)
+| SimpHandleThrow:
+     ∀ m e k,
+     simp m (Throw e) ->
+     simp
+       (Handle m k)
+       (discontinue k e)
 | SimpReflexive:
     ∀ m,
     simp m m
@@ -260,6 +272,18 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
      simplify 1
        (Stop CPerform e k)
        (Stop CPerform e k')
+| SimplifyHandleRet:
+     ∀ v n m k,
+     simplify n m (Ret v) ->
+     simplify (S n)
+       (Handle m k)
+       (continue k v)
+| SimplifyHandleThrow:
+     ∀ v n m k,
+     simplify n m (Throw v) ->
+     simplify (S n)
+       (Handle m k)
+       (discontinue k v)
 | SimplifyReflexive:
     ∀ m,
     simplify 0 m m
@@ -368,7 +392,8 @@ Lemma simp_try2 {A B E' E} m1 m2 (k : outcome2 A E' → micro B E) :
   simp (try2 m1 k) (try2 m2 k).
 Proof.
   induction 1; simpl;
-  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2, ?try2_continue,
+    ?try2_discontinue;
   econstructor; eauto.
 Qed.
 
@@ -387,7 +412,8 @@ Lemma simplify_try2 {A B E' E} n m1 m2 (k : outcome2 A E' → micro B E) :
   simplify n (try2 m1 k) (try2 m2 k).
 Proof.
   induction 1; simpl;
-  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2;
+  rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2, ?try2_continue,
+    ?try2_discontinue;
   econstructor; eauto using simp_try2.
 Qed.
 
@@ -704,6 +730,14 @@ Proof.
   { destruct_step; clarify_simplify; try solve [ search | use_ih; search ]. }
   (* SimplifyPerform *)
   { destruct_step. }
+  (* SimplifyHandleRet *)
+  { destruct_step; clarify_simplify; try solve [ search | use_ih; search ].
+    use_ih. destruct_simplify_step_diagram; try solve [ search ].
+    inversion H1. }
+  (* SimplifyHandleThrow *)
+  { destruct_step; clarify_simplify; try solve [ search | use_ih; search ].
+    use_ih. destruct_simplify_step_diagram; try solve [ search ].
+    inversion H1. }
   (* SimplifyReflexive *)
   { search. }
   (* SimplifyTransitive *)
@@ -745,91 +779,6 @@ Ltac simplify_final_step_diagram :=
   end.
 
 (* -------------------------------------------------------------------------- *)
-
-(* The following are (weakened) reformulations of the previous two lemmas
-   in terms of [simp]. *)
-
-Lemma simp_step_diagram {A E} {m1 m2 : micro A E} :
-  (* If there is a simplification step: *)
-  simp m1 m2 →
-  ∀ {m'1 σ σ'},
-  (* and a reduction step: *)
-  step (σ, m1) (σ', m'1) →
-  (* then the diagram can be closed using *)
-  ∃ m'2 i,
-  (* [i] reduction steps *)
-  steps i (σ, m2) (σ', m'2) ∧
-  (* and a simplication step *)
-  simp m'1 m'2 ∧
-  (* where [i] is at most 1. *)
-  (i = 0 ∨ i = 1).
-Proof.
-  (* It would be possible to give a direct proof of this lemma,
-     without relying on [simplify_step_diagram]. *)
-  intros (n & Hsimplify)%simp_simplify.
-  intros ? ? ? Hstep.
-  pose proof (simplify_step_diagram Hsimplify Hstep)
-    as (m'2 & i & n' & ? & ? & ?).
-  eauto 6 using simplify_simp with lia.
-Qed.
-
-Ltac simp_step_diagram :=
-  match goal with
-  Hsimp: simp ?m1 _,
-  Hstep: step (_, ?m1) _
-  |- _ =>
-    let Hstep' := fresh in
-    let Hsimp' := fresh in
-    let Hcases := fresh in
-    pose proof (simp_step_diagram Hsimp Hstep)
-      as (? & ? & Hstep' & Hsimp' & Hcases);
-    clear Hsimp Hstep;
-    rename Hsimp' into Hsimp;
-    rename Hstep' into Hstep;
-    destruct Hcases;
-    subst; destruct_steps
-  end.
-
-Lemma simp_final_step_diagram {A E} {m1 m2 : micro A E} {σ σ' m'1} :
-  (* If there is a simplification step of [m1] to [m2], *)
-  simp m1 m2 →
-  (* if there is also a reduction step out of [m1], *)
-  step (σ, m1) (σ', m'1) →
-  (* and if [m2] is final, *)
-  final m2 →
-  (* then this reduction step does not prevent us from reaching [m2]. *)
-  σ' = σ ∧
-    simp m'1 m2.
-Proof.
-  intros (n & Hsimplify)%simp_simplify.
-  intros Hstep Hfinal.
-  simplify_final_step_diagram.
-  eauto using simplify_simp.
-Qed.
-
-Lemma simp_perform_step_diagram {A E} {m : micro A E} {σ σ' m'} v k:
-  (* If there is a simplification step of [m] to a perform, *)
-  simp m (Stop CPerform v k) →
-  (* if there is also a reduction step out of [m], *)
-  step (σ, m) (σ', m') →
-  (* then this reduction step does not prevent us from reaching the perform. *)
-  σ' = σ ∧
-    simp m' (Stop CPerform v k).
-Proof.
-  intros Hsimp Hstep.
-  simp_step_diagram; eauto.
-  inversion Hstep.
-Qed.
-
-Ltac simp_final_step_diagram :=
-  match goal with
-    Hsimp: simp ?m1 ?m2,
-      Hstep: step (_, ?m1) _
-    |- _ =>
-      destruct (simp_final_step_diagram Hsimp Hstep)
-      as (-> & ?);
-      [ prove_final |]
-  end.
 
 (* If there is a simplification path from [m1] to [m2],
    where [m2] is final,
@@ -940,6 +889,153 @@ Ltac simp_final_confluent :=
         eapply (simp_final_confluent h1 h2); prove_final
       | simplify_eq ]
   end.
+(* -------------------------------------------------------------------------- *)
+
+(* The following are (weakened) reformulations of the previous two lemmas
+   in terms of [simp]. *)
+
+Lemma simp_step_diagram {A E} {m1 m2 : micro A E} :
+  (* If there is a simplification step: *)
+  simp m1 m2 →
+  ∀ {m'1 σ σ'},
+  (* and a reduction step: *)
+  step (σ, m1) (σ', m'1) →
+  (* then the diagram can be closed using *)
+  ∃ m'2 i,
+  (* [i] reduction steps *)
+  steps i (σ, m2) (σ', m'2) ∧
+  (* and a simplication step *)
+  simp m'1 m'2 ∧
+  (* where [i] is at most 1. *)
+  (i = 0 ∨ i = 1).
+Local Ltac simp_search :=
+  do 2 eexists;
+  eauto 8 using step_try2, simp_try2 with steps step simp lia.
+Local Ltac simp_use_ih :=
+  match goal with
+  Hstep: step (_, ?m) _,
+  IH: ∀ _ _ _, step (_, ?m) _ → _ |- _ =>
+    specialize (IH _ _ _ Hstep);
+    destruct IH as (? & ? & ? & ? & ?)
+  end.
+Ltac destruct_simp_step_diagram :=
+  match goal with h: _ ∨ _ |- _ => destruct h as [ ? | ? ] end;
+  subst; destruct_steps.
+Proof.
+  (* A model of a beautiful proof. *)
+  induction 1; intros.
+  (* SimpEval *)
+  { destruct_step. simp_search. }
+  (* SimpLoop *)
+  { destruct_step. simp_search. }
+  (* SimpChooseAgree *)
+  { destruct_step; simp_search. }
+  (* SimpParRetLeft *)
+  (* This case is the reason why [SimpPerform] is needed. *)
+   { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.
+    split.
+    - eauto 8 using step_try2, simp_try2 with steps step simp lia.
+    - split; last lia.
+      eapply SimpTransitive.
+      + eapply SimpPerform.
+        intros; eapply SimpParRetLeft.
+      + cbn. auto with simp. }
+  (* SimpParRetRight *)
+  { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.
+    split.
+    - eauto 8 using step_try2, simp_try2 with steps step simp lia.
+    - split; last lia.
+      eapply SimpTransitive.
+      + eapply SimpPerform.
+        intros; eapply SimpParRetRight.
+      + cbn. auto with simp. }
+  (* SimpPar *)
+  { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ]. }
+  (* SimpPerform *)
+  { destruct_step. }
+  (* SimpHandleRet *)
+  { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ].
+    simp_use_ih. destruct H3; subst; cycle 1.
+    { inversion H1. subst. inversion H4. }
+    inversion H1; subst.
+    simp_search. }
+  (* SimpHandleThrow *)
+  { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ].
+    simp_use_ih. destruct H3; subst; cycle 1.
+    { inversion H1. subst. inversion H4. }
+    inversion H1; subst.
+    simp_search. }
+  (* SimpReflexive *)
+  { simp_search. }
+  (* SimpTransitive *)
+  { simp_use_ih.
+    destruct_simp_step_diagram; [| simp_use_ih ]; simp_search. }
+Qed.
+
+Ltac simp_step_diagram :=
+  match goal with
+  Hsimp: simp ?m1 _,
+  Hstep: step (_, ?m1) _
+  |- _ =>
+    let Hstep' := fresh in
+    let Hsimp' := fresh in
+    let Hcases := fresh in
+    pose proof (simp_step_diagram Hsimp Hstep)
+      as (? & ? & Hstep' & Hsimp' & Hcases);
+    clear Hsimp Hstep;
+    rename Hsimp' into Hsimp;
+    rename Hstep' into Hstep;
+    destruct Hcases;
+    subst; destruct_steps
+  end.
+
+Lemma simp_final_step_diagram {A E} {m1 m2 : micro A E} {σ σ' m'1} :
+  (* If there is a simplification step of [m1] to [m2], *)
+  simp m1 m2 →
+  (* if there is also a reduction step out of [m1], *)
+  step (σ, m1) (σ', m'1) →
+  (* and if [m2] is final, *)
+  final m2 →
+  (* then this reduction step does not prevent us from reaching [m2]. *)
+  σ' = σ ∧
+    simp m'1 m2.
+Proof.
+  intros Hsimp Hstep Hfinal.
+  destruct (simp_step_diagram Hsimp Hstep) as (? & ? & ? & ? & ?).
+  destruct_simp_step_diagram.
+  { eauto. }
+  { exfalso; eauto using destruct_step_final. }
+Qed.
+
+Lemma simp_perform_step_diagram {A E} {m : micro A E} {σ σ' m'} v k:
+  (* If there is a simplification step of [m] to a perform, *)
+  simp m (Stop CPerform v k) →
+  (* if there is also a reduction step out of [m], *)
+  step (σ, m) (σ', m') →
+  (* then this reduction step does not prevent us from reaching the perform. *)
+  σ' = σ ∧
+    simp m' (Stop CPerform v k).
+Proof.
+  intros Hsimp Hstep.
+  simp_step_diagram; eauto.
+  inversion Hstep.
+Qed.
+
+Ltac simp_final_step_diagram :=
+  match goal with
+    Hsimp: simp ?m1 ?m2,
+      Hstep: step (_, ?m1) _
+    |- _ =>
+      destruct (simp_final_step_diagram Hsimp Hstep)
+      as (-> & ?);
+      [ prove_final |]
+  end.
+
+(* If there is a simplification path from [m1] to [m2],
+   where [m2] is final,
+   then there must be a reduction path from [m1] to [m2]. *)
+
+Local Hint Constructors rtc : rtc.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1225,6 +1321,7 @@ Proof.
   eauto.
 Qed.
 
+
 (* The infinitary intersection rule. *)
 
 (* If for every [x] one can prove that the result of [m] satisfies [φ x],
@@ -1271,6 +1368,25 @@ Proof.
     + apply (Hpost true).
     + apply (Hpost false). }
   { tauto. }
+Qed.
+
+(* The infinitary intersection rule. *)
+
+Lemma totalv_intersection {A E} `{Inhabited X} (m : micro A E) (φ : X → A → Prop) :
+  (∀ x, totalv m (φ x)) →
+  totalv m (λ a, ∀ x, φ x a).
+Proof.
+  unfold totalv. eauto using total_intersection.
+Qed.
+
+(* The binary intersection rule. *)
+
+Lemma totalv_binary_intersection {A E} (m : micro A E) (φ1 φ2 : A → Prop) :
+  totalv m φ1 →
+  totalv m φ2 →
+  totalv m (λ a, φ1 a ∧ φ2 a).
+Proof.
+  unfold totalv. eauto using total_binary_intersection.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1387,25 +1503,6 @@ Lemma totalv_choose {A E} (m1 m2 : micro A E) (φ : A → Prop) :
   totalv (choose m1 m2) φ.
 Proof.
   unfold totalv. eauto using total_choose.
-Qed.
-
-(* The infinitary intersection rule. *)
-
-Lemma totalv_intersection {A E} `{Inhabited X} (m : micro A E) (φ : X → A → Prop) :
-  (∀ x, totalv m (φ x)) →
-  totalv m (λ a, ∀ x, φ x a).
-Proof.
-  unfold totalv. eauto using total_intersection.
-Qed.
-
-(* The binary intersection rule. *)
-
-Lemma totalv_binary_intersection {A E} (m : micro A E) (φ1 φ2 : A → Prop) :
-  totalv m φ1 →
-  totalv m φ2 →
-  totalv m (λ a, φ1 a ∧ φ2 a).
-Proof.
-  unfold totalv. eauto using total_binary_intersection.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1659,12 +1756,24 @@ Proof.
   (* Subcase: [SimplifyPerform]. *)
   { exfalso. eapply invert_stack_perform; [ eauto | prove_final ]. }
 
+  (* Subcase: [SimpHandleRet]. *)
+  { invert_try2_eq_handle. subst m. clear Hret Hthrow.
+    eapply total_simp; [ eapply SimpHandleRet |].
+    { eapply simplify_simp; eauto. }
+    eauto with lia. }
+
+  (* Subcase: [SimpHandleThrow]. *)
+  { invert_try2_eq_handle. subst m. clear Hret Hthrow.
+    eapply total_simp; [ eapply SimpHandleThrow |].
+    { eapply simplify_simp; eauto. }
+
+    eauto with lia. }
+
   (* Subcase: [SimplifyReflexive]. *)
   { eauto with lia. }
 
   (* Subcase: [SimplifyTransitive]. *)
   { eauto with stack lia. }
-
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1762,3 +1871,4 @@ Proof.
   { apply simp_widen in Htotal; left; eauto. }
   { left; setoid_rewrite simp_widen; eauto. }
 Qed.
+

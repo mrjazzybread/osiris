@@ -3,8 +3,11 @@
 (* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
 (* There are a few minor differences between the Coq Osiris AST (syntax.v)
-   and this OCaml Osiris AST. In particular, while the Coq AST uses ad hoc
-   lists, this AST uses ordinary lists. *)
+   and this OCaml Osiris AST.
+
+   TODO: Updated Comment.
+   In particular, while the Coq AST uses ad hoc lists,
+   this AST uses ordinary lists. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -75,7 +78,7 @@ type pat =
 and cpat =
   | CVal of pat
   | CExc of pat
-  | CEff of pat
+  | CEff of pat * pat
   (* A disjunction pattern [p1 | p2]. *)
   | COr of cpat * cpat
 
@@ -209,6 +212,13 @@ type expr =
   (* Exception raising: [raise e]. *)
   | ERaise of expr
 
+  (* Performing an effect: [perform e]. *)
+  | EPerform of expr
+  (* Continuing a continuation: [continue e1 e2]. *)
+  | EContinue of expr * expr
+  (* Discontinuing a continuation: [discontinue e1 e2]. *)
+  | EDiscontinue of expr * expr
+
   (* Loop: [while e do body done] .*)
   | EWhile of expr * expr
   (* Loop: [for x = e1 to e2 do e done]. *)
@@ -291,6 +301,9 @@ and mexpr =
 
   (* A structure [struct ... end]. *)
   | MStruct of sitems
+
+  (* A functor [functor _ -> struct ... end]. *)
+  | MFunctor of var * sitems
 
   (* A coercion, that is, a shape restriction operation. This operation is
      written [M : S] in OCaml surface syntax, and is sometimes implicit: for

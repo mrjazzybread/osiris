@@ -358,36 +358,47 @@ Ltac pat_pCons :=
 
    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
-Definition pure_match `{Encode A} (η : env) (o : outcome2 val exn) bs (φ : A -> Prop) :=
-  pure (eval_match η o bs) φ.
+Definition pure_match `{Encode A} (η : env) (o : outcome3 val exn) bs all_bs (φ : A -> Prop) :=
+  pure (pre_eval_match_aux eval true η o bs all_bs) φ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
 Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure (eval η e) (λ x, x = a) ->
-  pure_match η (O2Ret #a) bs φ ->
+  pure_match η (O3Ret #a) bs bs φ ->
   pure (eval η (EMatch e bs)) φ.
 Proof.
-  unfold pure_match; intros.
-  eapply pure_simp; [ eapply simp_try2; eauto with simp | fold eval ].
-  eapply pure_try2; [ eauto | by intros ? -> ].
+  unfold pure_match; intros Heval Hmatch.
+  destruct Heval as (? & ? & ->).
+  eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | done ].
+Qed.
+
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
+  pure (eval η e) φ' ->
+  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs bs φ) ->
+  pure (eval η (EMatch e bs)) φ.
+Proof.
+  unfold pure_match; intros Heval Hmatch.
+  destruct Heval as (? & ? & ?).
+  eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | ].
+  by apply Hmatch.
 Qed.
 
 (* Currently unused *)
 
-Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
-  cpattern η p v (λ η', pure (eval η' e) φ) (pure_match η v bs φ) ->
-  pure_match η v ((Branch p e) :: bs) φ.
+Lemma pure_match_cons_unary `{Encode A} η v p e bs all_bs (φ : A -> Prop) :
+  cpattern η p v (λ η', pure (eval η' e) φ) (pure_match η v bs all_bs φ) ->
+  pure_match η v ((Branch p e) :: bs) all_bs φ.
 Proof.
   unfold pure_match; unfold pattern.
   intros; simpl.
   by apply total_pure.
 Qed.
 
-Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
+Lemma pure_match_cons `{Encode A} η v p e bs all_bs (φ : A -> Prop) ψ :
   cpattern η p v (λ η', pure (eval η' e) φ) ψ ->
-  (ψ -> (pure_match η v bs φ)) ->
-  pure_match η v ((Branch p e) :: bs) φ.
+  (ψ -> (pure_match η v bs all_bs φ)) ->
+  pure_match η v ((Branch p e) :: bs) all_bs φ.
 Proof.
   intros.
   apply pure_match_cons_unary.
@@ -396,14 +407,14 @@ Qed.
 
 (* Not matching is an error. *)
 
-Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) :
-  False -> pure_match η v [] φ.
+Lemma pure_match_nil `{Encode A} η v all_bs (φ : A -> Prop) :
+  False -> pure_match η v [] all_bs φ.
 Proof. contradiction. Qed.
 
-Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
+Lemma pure_match_single `{Encode A} η v p e all_bs (φ : A -> Prop) ψ :
   cpattern η p v (λ η' : env, pure (eval η' e) φ) ψ →
   (ψ -> False) ->
-  pure_match η v [Branch p e] φ.
+  pure_match η v [Branch p e] all_bs φ.
 Proof.
   intros.
   eapply pure_match_cons; eauto.
@@ -513,12 +524,12 @@ Ltac post_process_pats :=
 
 Ltac pure_match_branches :=
   lazymatch goal with
-  | |- pure_match _ _ [?b] _ =>
+  | |- pure_match _ _ [?b] _ _ =>
       eapply pure_match_single;
       [ specify_cpattern
       | let no_match := fresh "no_match" in
         intros no_match ]
-  | |- pure_match _ _ (?b :: ?bs) _ =>
+  | |- pure_match _ _ (?b :: ?bs) _ _ =>
       eapply pure_match_cons;
       [ specify_cpattern
       | (let no_match := fresh "no_match" in

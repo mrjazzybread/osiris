@@ -41,6 +41,12 @@ let rec show_path (p : Path.t) =
       sprintf "%s.%s" (show_path p) x
   | Papply (p1, p2) ->
       sprintf "%s(%s)" (show_path p1) (show_path p2)
+  | Pextra_ty (p1, p2) ->
+      match p2 with
+      | Pcstr_ty x ->
+	  sprintf "%s{%s}" x (show_path p1)
+      | Pext_ty ->
+	  sprintf "+=%s" (show_path p1)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -132,6 +138,10 @@ let decorate (loc : Location.t) (e : expr) : expr =
   | None ->
       (* If we are unable to produce a decoration, forget about it. *)
       e
+
+let rec undecorate : expr -> expr = function
+  | EDecorate (_, e) -> undecorate e
+  | e -> e
 
 (* -------------------------------------------------------------------------- *)
 
@@ -435,14 +445,10 @@ let rec translate_expr (e: expression) : expr =
   | Texp_letexception _ ->
       eunsupported loc "let exception"
 
-  | Texp_assert
-      { exp_desc = Texp_construct ({ txt = Lident "false"; _}, _, []); _ }
-  | Texp_unreachable ->
-      (* [assert false] and [.] are both translated to [EAssertFalse]. *)
-      EAssertFalse
-
-  | Texp_assert e ->
-      EAssert (translate_expr e)
+  | Texp_assert (e, _) ->
+      (match (e.exp_desc) with
+      | Texp_construct ({ txt = Lident "false"; _}, _, []) -> EAssertFalse
+      | _ -> EAssert (translate_expr e))
 
   | Texp_lazy _ ->
       eunsupported loc "lazy"
@@ -455,6 +461,10 @@ let rec translate_expr (e: expression) : expr =
 
   | Texp_letop _ ->
       eunsupported loc "let operators"
+
+  | Texp_unreachable ->
+      (* [assert false] and [.] are both translated to [EAssertFalse]. *)
+      EAssertFalse
 
   | Texp_extension_constructor _ ->
       eunsupported loc "extension constructors"
@@ -481,7 +491,74 @@ and translate_application loc e args =
   try
     translate_primitive_application loc e args
   with NotExactKnownPrimitive ->
-    apply (translate_expr e) (translate_labeled_arguments loc args)
+    let e = translate_expr e in
+    match undecorate e with
+
+    (* Recognize [perform eff] as primitive. *)
+    | EPath [ "perform" ] ->
+       assert (List.length args = 1);
+       (match args with
+        | [arg] -> EPerform (translate_labeled_argument loc arg)
+        | _ -> assert false )
+
+    (* Recognize [continue k v] as primitive. *)
+    | EPath [ "continue" ] ->
+       assert (List.length args = 2);
+       (match args with
+        | [ ek; ev ] ->
+           EContinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
+        | _ -> assert false)
+
+    (* Recognize [discontinue k v] as primitive. *)
+    | EPath [ "discontinue" ] ->
+       assert (List.length args = 2);
+       (match args with
+        | [ ek; ev ] ->
+           EDiscontinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
+        | _ -> assert false)
+
+    (* Recognize [match_with f arg e] as primitive. *)
+    | EPath [ "match_with" ]  ->
+       assert (List.length args = 3);
+       (match args with
+        | [(Nolabel, Some f); (Nolabel, Some arg); (Nolabel, Some e)] ->
+           (* We expect the body to be a record *)
+           (match e.exp_desc with
+            | Texp_record
+              { fields; representation = _; extended_expression = None } ->
+               EMatch (
+                   EApp (translate_expr f, translate_expr arg),
+                   translate_record_fields_as_branches fields
+                 )
+            | _ ->
+               eunsupported loc "Syntax error in [match_with] body")
+        | _ ->
+           assert false)
+
+    (* Recognize [try_with f arg e] as primitive. *)
+    | EPath [ "try_with" ]  ->
+       assert (List.length args = 3);
+       (match args with
+        | [(Nolabel, Some f); (Nolabel, Some arg); (Nolabel, Some e)] ->
+           (* We expect the body to be a record *)
+           (match e.exp_desc with
+            | Texp_record
+              { fields; representation = _; extended_expression = None } ->
+               let bs = translate_record_fields_as_branches fields in
+               (* [try_with] carries two implicit branches,
+                  these branches propagate return values and exceptions. *)
+               let bs = Branch (CVal (PVar "x"), EPath [ "x" ]) ::
+                          Branch (CExc (PVar "x"), ERaise (EPath [ "x" ])) ::
+                            bs in
+               EMatch (EApp (translate_expr f, translate_expr arg), bs)
+            | _ ->
+               eunsupported loc "Syntax error in [match_with] body")
+        | _ ->
+           assert false)
+
+    (* Default case: [e args]. *)
+    | _ ->
+       apply e (translate_labeled_arguments loc args)
 
 and translate_primitive_application loc e args =
   match e.exp_desc with
@@ -626,6 +703,69 @@ and translate_function cases partial : expr =
       EAnonFun (AnonFunction (translate_value_cases cases))
 
 (* -------------------------------------------------------------------------- *)
+
+(* Expressions: fields in the body of a [match_with] application. *)
+
+and translate_record_fields_as_branches fields =
+  List.concat_map translate_record_field_as_branches (Array.to_list fields)
+
+(* We restrict the syntax of the body of a match_with. We expect
+   the value and exception fields to be of the form [fun v -> e].
+   The effect field should be of the form [fun v -> match v with bs].  *)
+
+and translate_record_field_as_branches (_, label_def) : branch list =
+  match label_def with
+  | Kept _ ->
+     (* This field is omitted. This can occur only in a record update
+        expression. *)
+     []
+  | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
+     (match undecorate (translate_expr e) with
+      | (EAnonFun (AnonFun (v, e))) ->
+         [Branch (CVal (PVar v), e)]
+      | _ -> assert false)
+
+  | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
+     (match undecorate (translate_expr e) with
+      | EAnonFun (AnonFun (v, e)) ->
+         [Branch (CExc (PVar v), e)]
+      | _ -> assert false)
+
+  | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
+     (match undecorate (translate_expr e) with
+      (* Remy/ It is unclear to me why the first case occurs. *)
+      | EAnonFun (AnonFunction [Branch (_, e)]) ->
+         (match undecorate e with
+          | EMatch (_, bs) ->
+             translate_branches_to_effect_branches bs
+          | _ -> assert false)
+      | EAnonFun (AnonFun (_, e)) ->
+         (match undecorate e with
+          | EMatch (_, bs) ->
+             translate_branches_to_effect_branches bs
+          | _ -> assert false)
+      | _ -> assert false)
+  | _ -> []
+
+(* We expect the branches in our effect field to be of the following form:
+   [ | Eff -> Some (fun k -> e) ]. *)
+
+and translate_branch_to_effect_branch b =
+  match b with
+  (* | p -> Some (fun k -> e) *)
+  | Branch (CVal p, EData (_, ETuple [EAnonFun (AnonFun (k, e))])) ->
+     Some (Branch (CEff (p, PVar k), e))
+  (* | peff -> Some (fun pk -> e) *)
+  | Branch (CVal peff,
+            EData (_, ETuple [EAnonFun (AnonFunction [Branch (CVal pk, e)])])) ->
+     Some (Branch (CEff (peff, pk), e))
+  | Branch (CVal PAny, EData ("None", ETuple [])) ->
+     None
+  | _ ->
+     Some (Branch (CEff (PAny, PAny), EUnsupported))
+
+and translate_branches_to_effect_branches bs =
+  List.filter_map translate_branch_to_effect_branch bs
 
 (* Expressions: actual arguments in applications. *)
 
@@ -840,6 +980,9 @@ and translate_mod_expr (me : module_expr) : mexpr =
 
   | Tmod_apply _ ->
       munsupported loc "functor application"
+
+  | Tmod_apply_unit _ ->
+      munsupported loc "functor unit application"
 
   | Tmod_constraint _ ->
       munsupported loc "signature ascription"

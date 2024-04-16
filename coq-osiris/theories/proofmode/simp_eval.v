@@ -435,7 +435,7 @@ Qed.
 Lemma pure_eval_anonfunction `{Encode A, Encode A1} η bs (φ : A1 -> Prop) (ψ : val -> Prop) :
   (∀ (x : A),
       pure
-        (eval_match
+        (deep_eval_match
            (("__osiris_anonymous_arg", #x) :: η)
            (O2Ret #x)
            bs)
@@ -447,7 +447,8 @@ Proof.
   eapply pure_simp; [ simp | eauto ].
   eapply pure_ret; first solve [encode].
   apply Hcov.
-  intros. eapply pure_simp; [ simp  | eauto ].
+  intros. eapply pure_simp; [ simp  |  ].
+  by apply Hcall.
 Qed.
 
 Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) :

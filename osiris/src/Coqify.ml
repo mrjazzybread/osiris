@@ -16,7 +16,19 @@ open Coq
 (* Variables, module names, data constructors, and field names are
    represented in Coq as strings. *)
 
+(* Coq strings can contain any printable character, with the exception
+   of quotation marks, which need to be doubled up in order to be escapled. *)
+
+let double_quotations s =
+  String.fold_right
+    (fun c s ->
+      if c = (Char.chr 34) then (String.make 2 c) ^ s
+      else (String.make 1 c) ^ s)
+    s
+    String.empty
+
 let quote s =
+  let s = double_quotations s in
   plain (sprintf "\"%s\"" s)
 
 let var =
@@ -116,8 +128,8 @@ and cpat (cp : cpat) =
   | CExc p ->
      c "CExc" [ pat p ]
 
-  | CEff p ->
-     c "CEff" [ pat p ]
+  | CEff (p1, p2) ->
+     c "CEff" [ pat p1; pat p2 ]
 
   | COr (p1, p2) ->
      c "COr" [ cpat p1; cpat p2 ]
@@ -280,6 +292,15 @@ let rec expr (e : expr) =
   | ERaise e ->
      c "ERaise" [ expr e ]
 
+  | EPerform e ->
+     c "EPerform" [ expr e ]
+
+  | EContinue (e1, e2) ->
+     c "EContinue" [ expr e1; expr e2 ]
+
+  | EDiscontinue (e1, e2) ->
+     c "EDiscontinue" [ expr e1; expr e2 ]
+
   | EWhile (e1, e2) ->
       c "EWhile" [ expr e1; cut_expr e2 ]
 
@@ -396,6 +417,9 @@ and mexpr (me : mexpr) =
 
   | MStruct items ->
       clist "MStruct" (structure_items items)
+
+  | MFunctor (x, items) ->
+      c "MFunctor" ([ var x ] @ structure_items items)
 
   | MCoercion (me, co) ->
       c "MCoercion" [ mexpr me; coercion co ]
