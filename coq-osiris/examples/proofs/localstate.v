@@ -1,5 +1,8 @@
 From stdpp Require Import telescopes.
 
+From iris.proofmode Require Import base tactics classes.
+From iris.algebra Require Import excl_auth.
+
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_localstate.
@@ -7,13 +10,21 @@ From osiris.examples Require Import og_localstate.
 (* ========================================================================== *)
 (** * Protocol. *)
 
+Section localstate_example.
+(* Location for the get/set eff *)
+Context (read_eff write_eff : loc).
+Context (Hloc: address read_eff <> address write_eff).
+
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
-Definition state := Z.
+Definition state := int.
+
+Definition read : val := VXData read_eff (VTuple []).
+Definition write (v : state) : val := VXData write_eff (VTuple [VInt v]).
 
 Definition READ {Σ} (St : state -> _) : iEff Σ :=
-  (>> x >> ! (VUnit) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
+  (>> x >> ! (read) {{ St x }}; ? (O2Ret (VInt x)) {{ St x }} @ OS).
 Definition WRITE {Σ} St : iEff Σ :=
-  (>> x (y : Z) >> ! (# y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
+  (>> x y >> ! (write y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
 Definition STATE {Σ} (St : state -> _) : iEff Σ := (READ St <+> WRITE St)%ieff.
 
 Lemma upcl_state {Σ} St v Φ :
@@ -24,16 +35,14 @@ Proof. by rewrite /STATE; apply upcl_sum. Qed.
 
 Lemma upcl_read {Σ} St v Φ :
   iEff_car (upcl OS (READ (Σ:=Σ) St)) v Φ ⊣⊢
-    (∃ x, ⌜ v = VUnit ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (#x))))%I.
+    (∃ x, ⌜ v = read ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (VInt x))))%I.
 Proof. by rewrite /READ (upcl_tele' [tele _] [tele]). Qed.
 
 Lemma upcl_write {Σ} St v Φ :
   iEff_car (upcl OS (WRITE (Σ:=Σ) St)) v Φ ⊣⊢
-    (∃ x y, ⌜ v = # y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
+    (∃ x y, ⌜ v = write y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
 Proof. by rewrite /WRITE (upcl_tele' [tele _ _] [tele]). Qed.
 
-From iris.proofmode Require Import base tactics classes.
-From iris.algebra Require Import excl_auth.
 (* ========================================================================== *)
 (** * Verification. *)
 
@@ -76,7 +85,7 @@ End ghost_theory.
 Section verification.
   Context `{!osirisGS Σ} `{!inG Σ (excl_authR (leibnizO val))}.
 
-  Definition run := __fun6.
+  Definition run := __fun7.
 
   Definition eval_anon_fun η f := eval η (EAnonFun f).
 
@@ -91,24 +100,30 @@ Section verification.
   Definition call_anon_fun η f args :=
     call_anon_fun_ args (eval_anon_fun η f).
 
+  Local Instance encode_state : Encode state.
+  constructor. exact VInt.
+  Defined.
+
   Lemma run_spec Φ init main :
-    (* FIXME: The notation spacing is weird for [EWP]. *)
+    let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
+    (* FIXME: The notation spacing is weird for [EWP] and protocols . *)
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
-    EWP call_anon_fun stdlib_env run [ #init ; main] {{ RET v, Φ v }}.
+    EWP call_anon_fun env run [ #init ; main]
+      {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
-    (* unfold run. *)
+    cbn.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]". iModIntro.
 
     (* -------------------------------------------------------------------------- *)
     (* 1. Symbolic execution..? *)
-    rewrite /call_anon_fun /=. rewrite bind_bind /eval_anon_fun /run.
+
+    rewrite /call_anon_fun /= bind_bind /eval_anon_fun /run.
 
     do 2 (Bind; Simp; Ret; cbn).
+    rewrite /__fun6.
 
-    rewrite /__fun5.
     Simp.
-
     (* FIXME ? The [simp_enter_call_VClo] should not be needed explicitly *)
     { eapply simp_enter_call_VClo.
       with_strategy transparent [eval_bindings] unfold eval_bindings.
@@ -118,7 +133,10 @@ Section verification.
 
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
-    iApply (ewp_ELet _ _ _ (fun x => ∃ v l, ⌜x = O2Ret ([(v, VLoc l)])⌝ ∗ l ↦ V (VInt (repr init))))%I.
+
+    iApply (ewp_ELet _ _ _
+      (fun x => ∃ l, ⌜x = O2Ret ([("var", VLoc l)])⌝ ∗ l ↦ V (VInt init)))%I.
+
     (* TODO: Version of [ELet] where we know that the evaluation of the let-bound
       term will not fail *)
     { (* FIXME : some auxiliary lemma about [eval_bindings] *)
@@ -126,8 +144,7 @@ Section verification.
       cbn. Simp.
 
       (* Allocate a new location with value [init] *)
-      iApply ewp_alloc.
-      iNext.
+      iApply ewp_alloc; iNext.
 
       iIntros (?) "Hl". cbn.
       iApply ewp_simp.
@@ -136,40 +153,139 @@ Section verification.
         simp. }
 
       iApply ewp_value.
-      iExists "var", l; by iFrame. }
+      iExists l; by iFrame. }
 
-    { iIntros (?) "H"; by iDestruct "H" as (???) "H". }
+    { iIntros (?) "H"; by iDestruct "H" as (??) "H". }
 
     (* TODO: Invert the conclusion from the successful let-bound evaluation *)
-    iIntros (?) "H"; iDestruct "H" as (???) "Hl"; inversion H; subst; clear H.
+    iIntros (?) "H"; iDestruct "H" as (??) "Hl"; inversion H; subst; clear H.
+
     (* -------------------------------------------------------------------------- *)
     (* 3. At an [EMatch] !! *)
+    iApply ewp_EMatch.
 
-    (* rewrite eval_eval'; cbn. *)
-    (* Bind. *)
-    (* (* Prove specification over handler. *) *)
-    (* iApply (ewp_bind' (AppRCtx _)). { done. } *)
-    (* iApply (ewp_deep_try_with with "[Hstate Hmain]"). *)
-    (* { iApply "Hmain". by iApply "Hstate". } *)
-    (* iLöb as "IH" forall (γ init). *)
-    (* rewrite !deep_handler_unfold. iSplit; [|iSplit]; *)
-    (* last by iIntros (??) "HFalse"; rewrite upcl_bottom. *)
-    (* - iIntros (y) "Hy". by ewp_pure_steps. *)
-    (* - iIntros (args k). *)
-    (*   rewrite upcl_state upcl_write upcl_read. *)
-    (*   iIntros "[[%x (->&Hx&Hk)]|[%x [%y (->&Hx&Hk)]]]"; *)
-    (*   ewp_pure_steps; ewp_bind_rule. *)
-    (*   + iDestruct (ghost_var_agree γ x init with "[$]") as %->. *)
-    (*     iApply (ewp_mono with "[Hk Hpoints_to Hx]"). *)
-    (*     { iSpecialize ("IH" with "Hpoints_to"). *)
-    (*       by iApply ("Hk" with "Hx IH"). } *)
-    (*     by auto. *)
-    (*   + iApply fupd_ewp. *)
-    (*     iMod ((ghost_var_update _ y) with "Hx Hpoints_to") as *)
-    (*       "[Hy Hpoints_to]". *)
-    (*     iModIntro. simpl. iApply ("Hk" with "Hy"). *)
-    (*     by iApply "IH". *)
-  Admitted.
+    iApply (ewp_deep_handler with "[Hpoints_to Hmain]").
+    { (* 3A. Call to [main] in the handled expression *)
+      (* TODO iApply ewp_EApp. *)
+      rewrite eval_eval' /=; Simp.
+      iApply ("Hmain" $! (fun init => points_to γ (VInt init)) with "Hpoints_to"). }
+
+    (* Finally, we prove the specification over handler. *)
+
+    (* TODO: We need to abstract over the environment "just enough" *)
+    remember (VInt init). rewrite {1 2}Heqv; clear Heqv.
+    iLöb as "IH" forall (γ main init).
+    rewrite deep_handler_spec_unfold. iSplit.
+    { (* Outcome case *)
+      iIntros (?) "H"; destruct o; [ | done].
+      cbn -[pre_eval_match_aux].
+
+      (* TODO: Aux lemma *)
+      iClear "IH". cbn.
+      iApply ewp_try2.
+      with_strategy transparent [extend] unfold extend. (* FIXME *)
+
+      iNext. Ret. cbn. Simp. Bind.
+      (* FIXME [evals] is reading from a location, so we cannot use [simp] *)
+      with_strategy transparent [evals] unfold evals. (* FIXME *)
+      cbn. Simp.
+
+      ewp_tactics.Load "Hl".
+      cbn. Ret; cbn. iExists (init, a); cbn; iFrame.
+      encode. }
+
+    (* Effectful case *)
+     iIntros (e k) "Hp".
+     iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
+
+     (* READ case *)
+     { (* TODO: Notation on [iEff_car] is really ugly.. *)
+       cbn -[pre_eval_match_aux].
+       rewrite upcl_read.
+       iDestruct "H_READ" as (?->) "(Hx & H_READ)".
+       Opaque auth_state.
+       iCombine "Hstate Hx" as "H".
+       iDestruct (ghost_var_agree with "H") as %Hag.
+
+       Local Ltac ecbn := cbn -[pre_eval_match_aux].
+
+       rewrite {3}/pre_eval_match_aux; cbn -[pre_eval_match_aux].
+       with_strategy transparent [extend] unfold extend. (* FIXME *)
+
+       ecbn.
+
+       inversion Hag; subst.
+       iApply ewp_try2. rewrite !bind_bind.
+       Simp.
+       destruct (locations.eqb read_eff read_eff) eqn: Hread_eff; cycle 1.
+       { rewrite Z.eqb_neq in Hread_eff; lia. }
+
+       Simp. Ret. ecbn.
+
+       iDestruct "H" as "(Hauth & Hx)".
+       iSpecialize ("H_READ" with "Hx").
+       iSpecialize ("H_READ"
+          $! iEff_bottom
+             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∧ Φ v.2))%I.
+       iNext.
+
+       Simp. rewrite /as_cont. Simp. Simp.
+       ewp_tactics.Load "Hl".
+       ecbn.
+       iApply "H_READ".
+       iNext. iSpecialize ("IH" with "Hauth Hl").
+       by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
+
+     { (* TODO: Notation on [iEff_car] is really ugly.. *)
+       cbn -[pre_eval_match_aux].
+       rewrite upcl_write.
+       iDestruct "H_WRITE" as (??->) "(Hx & H_WRITE)".
+       Opaque auth_state.
+       iCombine "Hstate Hx" as "H".
+       iDestruct (ghost_var_agree with "H") as %Hag.
+
+       rewrite {3}/pre_eval_match_aux; cbn -[pre_eval_match_aux].
+       with_strategy transparent [extend] unfold extend. (* FIXME *)
+
+       ecbn.
+
+       iApply ewp_try2. rewrite !bind_bind.
+       Simp.
+       destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff.
+       { by rewrite Z.eqb_eq in Hwrite_eff. }
+
+       clear Hwrite_eff.
+
+       Simp. iNext. Throw. ecbn.
+       iApply ewp_try2. Bind.
+
+       destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff; cycle 1.
+       { by rewrite Z.eqb_neq in Hwrite_eff. }
+
+       do 2 (Ret; ecbn).
+
+       iDestruct "H" as "(Hauth & Hx)".
+
+       iApply ewp_fupd.
+       iDestruct (ghost_var_update γ (VInt y) with "Hauth Hx") as ">(Hauth & Hx)".
+       iSpecialize ("H_WRITE" with "Hx").
+
+       iSpecialize ("H_WRITE"
+          $! iEff_bottom
+             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∧ Φ v.2))%I.
+
+       Simp. iModIntro. Simp.
+       Store "Hl".
+       ecbn.
+       iApply "H_WRITE".
+       iNext. iSpecialize ("IH" $! _ main y with "Hauth Hl").
+       by rewrite /deep_handler_spec seal_eq. }
+
+     Unshelve. (* FIXME *)
+     exact void. done.
+   Qed.
 
 End verification.
 (* ========================================================================== *)
+
+End localstate_example.

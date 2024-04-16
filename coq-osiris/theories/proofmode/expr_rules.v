@@ -1,6 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp basic_rules.
+From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import notations ewp_tactics.
 
 Section ewp_rules_expr.
@@ -207,6 +207,13 @@ Section ewp_rules_expr.
     - iPoseProof (bi.and_elim_r with "H") as "H".
       iSplitL "H". iAssumption.
       iSplitL. by iIntros. iIntros (v) "(-> & $) //".
+  Qed.
+
+  Lemma ewp_EMatch η e bs Ψ Φ :
+    EWP deep_handler η e bs <|Ψ|> {{ Φ }} -∗
+    EWP eval η (EMatch e bs) <|Ψ|> {{ Φ }}.
+  Proof.
+    iIntros "H"; by rewrite (eval_eval' _ (EMatch _ _)) /=.
   Qed.
 
 End ewp_rules_expr.
