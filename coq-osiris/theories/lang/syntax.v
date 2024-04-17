@@ -138,9 +138,14 @@ Inductive coercion :=
      fields named in the list [xcs] are retained, and the corresponding
      coercions in the list [xcs] are applied to them. All other fields are
      dropped. *)
-| CStruct (xcs : list (var * coercion)).
+| CStruct (xcs : list (field * coercion)).
 
-Definition fcoercion : Set := (var * coercion).
+Definition fcoercion :=
+  (var * coercion)%type.
+
+Definition fcoercions :=
+  list fcoercion.
+      (* A field-coercion list [xcs] must have no duplicate names. *)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -241,7 +246,7 @@ Inductive expr :=
   (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : list branch)
 
-  (* Exception catching: [try e with bs]. *)
+  (* Catching an exception: [try e with bs]. *)
   | ETryWith (e : expr) (bs : list branch)
   (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)

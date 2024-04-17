@@ -113,6 +113,10 @@ and fpats =
 
 (* Module coercions. *)
 
+(* Module coercions can be understood as a very impoverished form of module
+   types. They play a role in the dynamic semantics of the shape restriction
+   operation on modules. *)
+
 type coercion =
 
   (* The coercion [CIdentity] has no effect. *)
@@ -157,8 +161,7 @@ type expr =
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData of data * expr
-
-  | EXData of data * expr
+  | EXData of var * expr
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs
@@ -173,7 +176,7 @@ type expr =
   | EBoolNeg of expr
 
   (* Integer literals. *)
-  | EInt of int (* TODO is this integer representable? *)
+  | EInt of int
   | EMaxInt
   | EMinInt
   (* Integer arithmetic. *)
@@ -224,9 +227,9 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
-  (* Exception catching: [try e with bs]. *)
+  (* Catching an exception: [try e with bs]. *)
   | ETryWith of expr * branches
-  (* Exception raising: [raise e]. *)
+  (* Raising an exception: [raise e]. *)
   | ERaise of expr
 
   (* Performing an effect: [perform e]. *)
@@ -242,6 +245,7 @@ type expr =
   | EFor of var * expr * expr * expr
 
   (* Fatal error: [assert false]. *)
+  (* We model OCaml's unreachable construct [.] in this way, too. *)
   | EAssertFalse
 
   (* Runtime assertion: [assert(e)]. *)
@@ -277,7 +281,7 @@ and branch =
 and branches =
   branch list
 
-(* A binding is of the form [p = e], or a meta-level reference. *)
+(* A binding is of the form [p = e]. *)
 
 and binding =
   | Binding of pat * expr
@@ -287,7 +291,7 @@ and binding =
 and bindings =
   binding list
 
-(* A recursive binding is of the form [f = a], or a meta-level reference. *)
+(* A recursive binding is of the form [f = a]. *)
 
 and rec_binding =
   | RecBinding of var * anonfun
