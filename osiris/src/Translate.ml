@@ -512,43 +512,16 @@ and translate_exprs es : exprs =
 
 (* Expressions: function applications. *)
 
-(* We first check whether this is an exact application of a known primitive
-   operation. If so, it is given special treatment. Otherwise, it is viewed
-   as a normal application. *)
-
-(* Thus, an under- or over-application of a primitive operation, or an exact
-   application of an unknown primitive operation, is naturally considered as a
-   call to an external library function. No special treatment is required. *)
+(* We first check whether this is application is recognized as a special
+   application. If so, it receives special treatment. Otherwise, it is
+   treated as a normal application. *)
 
 and translate_application loc e args =
   try
-    translate_primitive_application loc e args
+    translate_special_application loc e args
   with Unrecognized ->
     let e = translate_expr e in
     match undecorate e with
-
-    (* Recognize [perform eff] as primitive. *)
-    | EPath [ "perform" ] ->
-       assert (List.length args = 1);
-       (match args with
-        | [arg] -> EPerform (translate_labeled_argument loc arg)
-        | _ -> assert false )
-
-    (* Recognize [continue k v] as primitive. *)
-    | EPath [ "continue" ] ->
-       assert (List.length args = 2);
-       (match args with
-        | [ ek; ev ] ->
-           EContinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
-        | _ -> assert false)
-
-    (* Recognize [discontinue k v] as primitive. *)
-    | EPath [ "discontinue" ] ->
-       assert (List.length args = 2);
-       (match args with
-        | [ ek; ev ] ->
-           EDiscontinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
-        | _ -> assert false)
 
     (* Recognize [match_with f arg e] as primitive. *)
     | EPath [ "match_with" ]  ->
@@ -593,23 +566,54 @@ and translate_application loc e args =
     | _ ->
        apply e (translate_labeled_arguments loc args)
 
-and translate_primitive_application loc e args =
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: recognition of special applications, that is,
+   applications of primitive operations and
+   applications of standard library functions. *)
+
+(* If this application is not recognized, then [Unrecognized] is raised. *)
+
+and translate_special_application loc e args =
   match e.exp_desc with
 
   | Texp_ident (path, _, { val_kind = Val_prim p; _ }) ->
-      (* This is an application of a primitive operation. *)
-      translate_exact_primitive_application loc path p args
+      let path = recognize_global_path path in
+      (* This is an application of a primitive operation (to an
+         as-yet-undetermined number of arguments). *)
+      translate_primitive_application loc path p args
+
+  | Texp_ident (path, _, _) ->
+      let path = recognize_global_path path in
+      (* This may be an application of a standard library function. *)
+      translate_stdlib_application loc path args
 
   | _ ->
-      (* This is either not a recognized primitive operation,
-         or not an exact application. *)
       raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
-(* Expressions: exact applications of primitive operations. *)
+(* Expressions: applications of standard library functions. *)
 
-(* An exact application of a primitive operation is recognized as such. *)
+(* If this application is not recognized, then [Unrecognized] is raised. *)
+
+and translate_stdlib_application loc path args =
+  match path, translate_labeled_arguments loc args with
+  | ["Stdlib"; "Effect"; "Deep"; "continue"], [e1; e2] ->
+      EContinue (e1, e2)
+  | ["Stdlib"; "Effect"; "Deep"; "discontinue"], [e1; e2] ->
+      EDiscontinue (e1, e2)
+  | _, _ ->
+      raise Unrecognized
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: applications of primitive operations. *)
+
+(* An application of a primitive operation (to a correct number of arguments)
+   is recognized as such. If the primitive operation is not recognized or is
+   applied to an incorrect number of arguments, then [Unrecognized] is
+   raised. *)
 
 (* In the case of Boolean conjunction (&&) and disjunction (||), this is
    crucial in order to obtain the correct (short-circuit) semantics. *)
@@ -628,8 +632,7 @@ and translate_primitive_application loc e args =
    both the OCaml identifier and the primitive operation. This is not 100%
    bulletproof. *)
 
-and translate_exact_primitive_application loc path p args =
-  let path = recognize_global_path path in
+and translate_primitive_application loc path p args =
   match path, p.prim_name, translate_labeled_arguments loc args with
 
   (* Erasing applications of [Obj.magic] is an experimental feature. It takes
@@ -706,8 +709,14 @@ and translate_exact_primitive_application loc path p args =
       EStore (e1, e2)
 
   (* Exceptions. *)
+
   | ["Stdlib"; "raise"], "%raise", [e] ->
       ERaise e
+
+  (* Effects. *)
+
+  | ["Stdlib"; "Effect"; "perform"], "%perform", [e] ->
+      EPerform e
 
   | _, _, _ ->
       raise Unrecognized
