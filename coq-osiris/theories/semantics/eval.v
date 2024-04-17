@@ -930,12 +930,12 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
           if deep then
             (* For a deep handler, there is no need to install the handler
                again. *)
-            try2 (stop CPerform e) (fun o => stop CResume (l, o))
+            Stop CPerform e (fun o => stop CResume (l, o))
           else
             (* For a shallow handler, since the handler has not been consumed
                by an effect, we must install the handler. *)
             l ← install deep l η all_branches ;
-            try2 (stop CPerform e) (fun o => stop CResume (l, o))
+            Stop CPerform e (fun o => stop CResume (l, o))
       end)
   | Branch cp e :: bs =>
       try
