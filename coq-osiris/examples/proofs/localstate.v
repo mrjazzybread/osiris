@@ -78,6 +78,7 @@ Section ghost_theory.
 
 End ghost_theory.
 
+Opaque auth_state.
 
 (* -------------------------------------------------------------------------- *)
 (** Specification & Verification. *)
@@ -87,6 +88,7 @@ Section verification.
 
   Definition run := __fun7.
 
+  (* TODO: Move *)
   Definition eval_anon_fun η f := eval η (EAnonFun f).
 
   Fixpoint call_anon_fun_ (arg : list val) (acc : microvx) : microvx :=
@@ -104,15 +106,32 @@ Section verification.
   constructor. exact VInt.
   Defined.
 
+  (* TODO: Move *)
+  (* LATER: Can we generalize this so we don't manually write down existentials
+     everywhere? *)
+  (* Specialized postconditions *)
+  Definition val_points_to (v : val) (b : step.block) :=
+    (∃ l, ⌜v = VLoc l⌝ ∗ l ↦ b)%I.
+
+  Fact val_points_to_unfold l b :
+    l ↦ b ⊣⊢ val_points_to (VLoc l) b.
+  Proof.
+    rewrite /val_points_to.
+    iSplit; iIntros "H".
+    { iExists _; by iFrame. }
+    { iDestruct "H" as (? Heq) "H"; by inversion Heq. }
+  Qed.
+
+  Definition env_post (η : env) (Φ : iProp Σ) := (λ v, ⌜v = η⌝ ∗ Φ)%I.
+
   Lemma run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
-    (* FIXME: The notation spacing is weird for [EWP] and protocols . *)
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
     EWP call_anon_fun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
+  Local Ltac ecbn := cbn -[pre_eval_match_aux].
   Proof.
-    cbn.
-    iIntros "Hmain". iApply ewp_fupd.
+    ecbn. iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]". iModIntro.
 
     (* -------------------------------------------------------------------------- *)
@@ -134,31 +153,29 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
 
-    iApply (ewp_ELet _ _ _
-      (fun x => ∃ l, ⌜x = O2Ret ([("var", VLoc l)])⌝ ∗ l ↦ V (VInt init)))%I.
+    iApply (ewp_ELet_total
+      (fun x => ∃ l, env_post [("var", VLoc l)] (l ↦ V (VInt init)) x)%I).
 
-    (* TODO: Version of [ELet] where we know that the evaluation of the let-bound
-      term will not fail *)
-    { (* FIXME : some auxiliary lemma about [eval_bindings] *)
-      with_strategy transparent [eval_bindings] unfold eval_bindings.
-      cbn. Simp.
+    { iApply (ewp_eval_bindings_singleton_total
+                (fun v => val_points_to v (V (VInt init)))).
+      Simp.
 
       (* Allocate a new location with value [init] *)
-      iApply ewp_alloc; iNext.
+      { iApply ewp_alloc; iNext.
+        iIntros (?) "Hl"; Ret.
+        by iApply val_points_to_unfold. }
 
-      iIntros (?) "Hl". cbn.
-      iApply ewp_simp.
-      { eapply simp_widen.
-        rewrite /irrefutably_extend. (* FIXME *)
+      (* TODO: Invert the conclusion from the successful let-bound evaluation *)
+      iIntros (?) "H"; iDestruct "H" as (??) "Hl"; subst.
+
+      iApply ewp_widen.
+      { rewrite /irrefutably_extend. (* FIXME *)
         simp. }
 
-      iApply ewp_value.
       iExists l; by iFrame. }
 
-    { iIntros (?) "H"; by iDestruct "H" as (??) "H". }
-
-    (* TODO: Invert the conclusion from the successful let-bound evaluation *)
-    iIntros (?) "H"; iDestruct "H" as (??) "Hl"; inversion H; subst; clear H.
+    (* TODO: Another inversion *)
+    iIntros (?) "H"; iDestruct "H" as (??) "Hl"; subst.
 
     (* -------------------------------------------------------------------------- *)
     (* 3. At an [EMatch] !! *)
@@ -177,8 +194,7 @@ Section verification.
     iLöb as "IH" forall (γ main init).
     rewrite deep_handler_spec_unfold. iSplit.
     { (* Outcome case *)
-      iIntros (?) "H"; destruct o; [ | done].
-      cbn -[pre_eval_match_aux].
+      iIntros (?) "H"; destruct o; [ | done]; ecbn.
 
       (* TODO: Aux lemma *)
       iClear "IH". cbn.
@@ -200,16 +216,13 @@ Section verification.
 
      (* READ case *)
      { (* TODO: Notation on [iEff_car] is really ugly.. *)
-       cbn -[pre_eval_match_aux].
+       ecbn.
        rewrite upcl_read.
        iDestruct "H_READ" as (?->) "(Hx & H_READ)".
-       Opaque auth_state.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       Local Ltac ecbn := cbn -[pre_eval_match_aux].
-
-       rewrite {3}/pre_eval_match_aux; cbn -[pre_eval_match_aux].
+       rewrite {3}/pre_eval_match_aux; ecbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
        ecbn.
@@ -237,23 +250,20 @@ Section verification.
        by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
 
      { (* TODO: Notation on [iEff_car] is really ugly.. *)
-       cbn -[pre_eval_match_aux].
-       rewrite upcl_write.
+       ecbn; rewrite upcl_write.
        iDestruct "H_WRITE" as (??->) "(Hx & H_WRITE)".
-       Opaque auth_state.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       rewrite {3}/pre_eval_match_aux; cbn -[pre_eval_match_aux].
+       rewrite {3}/pre_eval_match_aux; ecbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
        ecbn.
 
-       iApply ewp_try2. rewrite !bind_bind.
-       Simp.
+       iApply ewp_try2; rewrite !bind_bind; Simp.
+
        destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff.
        { by rewrite Z.eqb_eq in Hwrite_eff. }
-
        clear Hwrite_eff.
 
        Simp. iNext. Throw. ecbn.
@@ -281,8 +291,6 @@ Section verification.
        iNext. iSpecialize ("IH" $! _ main y with "Hauth Hl").
        by rewrite /deep_handler_spec seal_eq. }
 
-     Unshelve. (* FIXME *)
-     exact void. done.
    Qed.
 
 End verification.
