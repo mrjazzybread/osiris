@@ -324,7 +324,7 @@ Notation "'RET' v , Q" :=
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation of an encoded value. *)
 Notation "'RET' '#' v , Q" :=
-  (lift_ret_spec (λ v', (∃ v, (bi_pure (v' = osiris.lang.encode.encode v)) ∧ Q)%I))
+  (lift_ret_spec (λ v', (∃ v, (bi_pure (v' = osiris.lang.encode.encode v)) ∗ Q)%I))
     (at level 20, Q, v at level 200,
       format "'RET'  '#' v ,  '/' Q") : bi_scope.
 

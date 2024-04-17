@@ -129,6 +129,16 @@ Section ewp_basic_rules.
     by iApply ("IH" with "Hwp").
   Qed.
 
+  Lemma ewp_mono_ret E m φ φ' Ψ:
+    EWP m @ E <| Ψ |> {{ RET a, φ a }} -∗
+    (∀ a, φ a -∗ φ' a) -∗
+    EWP m @ E <| Ψ |> {{ RET a, φ' a }}.
+  Proof.
+    iIntros "H P".
+    iApply (ewp_mono with "H").
+    by iIntros ([]).
+  Qed.
+
   Lemma ewp_prot_mono E m φ Ψ Ψ':
     (Ψ ⊑ Ψ')%ieff -∗
     EWP m @ E <| Ψ |> {{ φ }} -∗
@@ -546,22 +556,6 @@ Section ewp_rules.
 
   (* The standard memory allocation rule of Separation Logic. *)
 
-  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
-    ▷ (∀ l,
-          mapsto l (DfracOwn 1) (V v) -∗
-          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
-    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
-  Proof.
-    iIntros "H".
-    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    destruct_step.
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH _]]"; first done.
-    ewp_mask_elim. iFrame. by iApply "H".
-  Qed.
-
   Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
@@ -576,6 +570,18 @@ Section ewp_rules.
     (* Allocate a new location in the ghost heap. *)
     iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
     ewp_mask_elim. iFrame. by iApply "H"; iFrame.
+  Qed.
+
+  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
+    ▷ (∀ l,
+          mapsto l (DfracOwn 1) (V v) -∗
+          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply ewp_alloc'; iNext.
+    iIntros (l) "(Hl & _)".
+    iApply ("H" with "Hl").
   Qed.
 
   (* [CStore]. *)

@@ -412,11 +412,6 @@ Section PureModules.
   Fixpoint env_has_pspecs (Λ : pspec_assoc) (η : env) :=
     match Λ with
     | [] => True
-    | [x] => let (name, spec) := x in
-            match (lookup_name η name) with
-            | ret v' => spec v'
-            | _ => False
-            end
     | h::t => let (name, spec) := h in
             match (lookup_name η name) with
             | ret v' => spec v' /\ env_has_pspecs t η
@@ -431,6 +426,20 @@ Section PureModules.
           | VStruct env => env_has_pspecs Λ env
           | _ => False
           end.
+
+  (* Easier fetching of pspecs by tactic *)
+  Lemma env_has_pspecs_find {Λ η} x spec :
+    env_has_pspecs Λ η →
+    In (x, spec) Λ →
+    ∃ v, lookup_name η x = ret v ∧ spec v.
+  Proof.
+    intros H1 H2; revert H2 H1.
+    induction Λ as [ | (y, sy) Λ IHΛ].
+    - done.
+    - intros [ [= -> ->] | ]; simpl.
+      + destruct (lookup_name η x); intros []; eauto.
+      + destruct (lookup_name η y); intros []; eauto.
+  Qed.
 
 End PureModules.
 

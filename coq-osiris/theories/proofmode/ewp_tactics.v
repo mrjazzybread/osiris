@@ -56,6 +56,30 @@ Ltac Par :=
   | _ => fail "The goal must be a par to apply [ewp_par]."
   end; try done.
 
+(** [uchange A with B] is an untyped version of [change A with B]: it guesses
+  types in [A = B] instead of trying to type [A] and [B] independently *)
+Tactic Notation "uchange" uconstr(A) "with" uconstr(B) :=
+  let Heq := fresh "Heq" in
+  assert (A = B) as Heq;
+  [ | rewrite Heq; clear Heq ];
+  [ reflexivity | ].
+
+(** Use [iExactEq "H"] if the Iris goal is provably equal, but not convertible
+   to, an Iris hypothesis ["H" : hyp], which will replace your [goal] with
+   [⌜goal = hyp⌝] *)
+Tactic Notation "iExactEq" constr(irisHyp) :=
+  match goal with
+  | |- envs_entails ?Δ ?goal =>
+    match Δ with
+    | context[Esnoc _ (INamed irisHyp) ?hyp] =>
+      iAssert ⌜goal = hyp⌝%I as %->; [ | iApply irisHyp ]
+    end
+  end.
+
+(** Use [iExactEq "H" n] to perform [iPureIntro] and n [f_equal]s just after *)
+Tactic Notation "iExactEq" constr(irisHyp) int_or_var(n) :=
+  iExactEq irisHyp; iPureIntro; do n f_equal.
+
 (* -------------------------------------------------------------------------- *)
 Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
 
@@ -123,3 +147,33 @@ Global Hint Extern 0 (envs_entails _ (ewp_def _ (ret _) _ _)) => ewp: Ret : core
 
 Notation "OCAML⟦ x ⟧" := (eval.eval (deco x _)).
 
+(* -------------------------------------------------------------------------- *)
+
+(** *Fetching specifications of functions*)
+
+(* Returns [spec] for the first occurrence of [(name, spec)] in [specs] *)
+Ltac spec_of_name specs name :=
+  match specs with
+  | (name, ?spec) :: _ => constr:(spec)
+  | _ :: ?l => spec_of_name l name
+  end.
+
+(* From [env_has_pspecs Λ η], add to Coq hypotheses [lookup_name η x = ret v]
+   and the corresponding specification for [x] *)
+Tactic Notation "get_spec" constr(name) "as" simple_intropattern(Hv) :=
+  match goal with
+    He : env_has_pspecs ?specs ?η |- _ =>
+      let spec := spec_of_name specs name in
+      edestruct (env_has_pspecs_find name spec He) as Hv;
+      [ repeat first [ left; reflexivity | right ] (* solving List.In *)
+      | ]
+  end.
+
+(** *Set postcondition *)
+
+(* Force a postcondition, for example when the postcondition is an evar and one
+   wants to perform an induction *)
+Tactic Notation "set_postcondition" uconstr(φ) :=
+  match goal with
+  | |- envs_entails _ (ewp_def ?E ?m ?Ψ ?Φ) => assert (Φ = φ) as -> by reflexivity
+  end.

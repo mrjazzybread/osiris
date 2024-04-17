@@ -277,15 +277,16 @@ Section verification.
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ"
           $! iEff_bottom
-             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∧ Φ v.2))%I.
+             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
        iNext.
 
        Simp. rewrite /as_cont. do 2 Simp.
        ewp_tactics.Load "Hl".
-       cbn.
-       iApply "H_READ".
-       iNext. iSpecialize ("IH" with "Hauth Hl").
-       by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
+       iSpecialize ("IH" with "Hauth Hl").
+       iSpecialize ("H_READ" with "[IH]").
+       { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
+
+       done. }
 
     (* -------------------------------------------------------------------------- *)
      { (* WRITE case *)
@@ -321,7 +322,7 @@ Section verification.
 
        iSpecialize ("H_WRITE"
           $! iEff_bottom
-             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∧ Φ v.2))%I.
+             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
 
        Simp. iModIntro. Simp.
        Store "Hl".
