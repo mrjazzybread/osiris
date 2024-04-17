@@ -596,9 +596,8 @@ and translate_application loc e args =
 and translate_primitive_application loc e args =
   match e.exp_desc with
 
-  | Texp_ident (path, _, { val_kind = Val_prim p; _ })
-    when List.length args = p.prim_arity ->
-      (* This is an exact application of a primitive operation. *)
+  | Texp_ident (path, _, { val_kind = Val_prim p; _ }) ->
+      (* This is an application of a primitive operation. *)
       translate_exact_primitive_application loc path p args
 
   | _ ->
@@ -630,7 +629,6 @@ and translate_primitive_application loc e args =
    bulletproof. *)
 
 and translate_exact_primitive_application loc path p args =
-  assert (List.length args = p.prim_arity);
   let path = recognize_global_path path in
   match path, p.prim_name, translate_labeled_arguments loc args with
 
