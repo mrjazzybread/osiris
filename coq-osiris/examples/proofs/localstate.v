@@ -222,14 +222,15 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
-
-      iApply deep_handler_body_ret_singleton; [ eauto | .. ].
-      { with_strategy transparent [extend] unfold extend; simp. (* FIXME extend simp? *) }
+      iCombine "Hl H" as "Hl".
+      iApply (deep_handle_cons with "Hl"); [ | iIntros ([]) ].
+      specify_cpattern. pattern_match.
+      iIntros "[Hl H]".
 
       (* FIXME *)
       Simp; with_strategy transparent [evals] unfold evals; Simp.
-
       (* Load from location *)
+
       ewp_tactics.Load "Hl".
       Ret; iExists (init, a); iFrame; encode. }
 
