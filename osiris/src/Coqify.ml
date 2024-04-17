@@ -16,19 +16,10 @@ open Coq
 (* Variables, module names, data constructors, and field names are
    represented in Coq as strings. *)
 
-(* Coq strings can contain any printable character, with the exception
-   of quotation marks, which need to be doubled up in order to be escapled. *)
-
-let double_quotations s =
-  String.fold_right
-    (fun c s ->
-      if c = (Char.chr 34) then (String.make 2 c) ^ s
-      else (String.make 1 c) ^ s)
-    s
-    String.empty
+(* Because an OCaml identifier cannot contain a double quote character,
+   there is no need for escaping of any kind. *)
 
 let quote s =
-  let s = double_quotations s in
   plain (sprintf "\"%s\"" s)
 
 let var =
@@ -51,8 +42,18 @@ let int i =
 
 (* String literals. *)
 
+(* A Coq string literal can contain any character below ASCII 128,
+   with the exception of the double quote character, which must be
+   repeated. It can also contain valid UTF8 characters. *)
+
+let is_double_quote =
+  function '"' -> true | _ -> false
+
+let repeat_double_quotes s =
+  StringExtra.double is_double_quote s
+
 let string s =
-  quote (String.escaped s)
+  quote (repeat_double_quotes s)
 
 (* -------------------------------------------------------------------------- *)
 
