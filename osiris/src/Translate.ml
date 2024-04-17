@@ -36,17 +36,24 @@ let rec show_longident (i : Longident.t) =
 let rec show_path (p : Path.t) =
   match p with
   | Pident i ->
+      (* A variable or module identifier. *)
       Ident.name i
   | Pdot (p, x) ->
+      (* A field selection in a structure. *)
       sprintf "%s.%s" (show_path p) x
   | Papply (p1, p2) ->
+      (* A functor application. *)
       sprintf "%s(%s)" (show_path p1) (show_path p2)
-  | Pextra_ty (p1, p2) ->
-      match p2 with
-      | Pcstr_ty x ->
-	  sprintf "%s{%s}" x (show_path p1)
-      | Pext_ty ->
-	  sprintf "+=%s" (show_path p1)
+  | Pextra_ty (p, Pcstr_ty data) ->
+      (* This path names the inline record carried by the data constructor
+         [data] of the algebraic data type [p]. See [path.mli]. *)
+      (* OCaml has no agreed-upon surface syntax for this concept. *)
+      sprintf "%s/%s{}" (show_path p) data
+  | Pextra_ty (p, Pext_ty) ->
+      (* This path names the inline record carried by the extensible data
+         constructor [p]. See [path.mli]. *)
+      (* OCaml has no agreed-upon surface syntax for this concept. *)
+      sprintf "%s{}" (show_path p)
 
 (* -------------------------------------------------------------------------- *)
 
