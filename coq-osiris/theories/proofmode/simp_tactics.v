@@ -939,14 +939,20 @@ with simp0_try :=
   try simp1_try
 
 with simp1_try :=
-  (* TODO we cut corners and use strong [eapply] here; this is simpler;
-          we need not worry about opacity because breakpoints do not
-          appear under [try] *)
-  first [
-    (* strong *) eapply advance_simp_try_ret
-  | (* strong *) eapply advance_simp_try_throw
-  ];
-  simp0
+  (* Instead of using strong [eapply] (i.e. without the [simple] prefix),
+      we can use [apply] and directly refer to the shape of the context.
+    This is preferable because in some cases, [apply] does not resolve
+    the arguments to these lemmas automatically, and [simple eapply] does
+    not work for some reason.
+    TODO propogate this style to other strong [eapply] uses *)
+  match goal with
+  | |- simp (try ?m ?f ?h) _ =>
+      first [
+         apply (advance_simp_try_ret _ f h)
+      |  apply (advance_simp_try_throw _ f h)
+      ];
+        simp0
+  end
 
 (* [simp0_par] and [simp1_par] are special cases of [simp0] and [simp1].
 
