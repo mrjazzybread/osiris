@@ -444,7 +444,7 @@ Notation "'cont'" := (K _).
 
 Lemma test_handle_nocont :
   let e :=
-    EPerform (EXData "Choose" (ETuple []))
+    EPerform (EXData ["Choose"] (ETuple []))
   in
   let m :=
     EMatch e
@@ -456,7 +456,7 @@ Proof. reduces. Qed.
 
 Lemma test_handle :
   let e :=
-    EPerform (EXData "Choose" (ETuple []))
+    EPerform (EXData ["Choose"] (ETuple []))
   in
   let m :=
     EMatch e
@@ -474,7 +474,7 @@ Proof. reduces. Qed.
 
 Lemma test_handle_compute_head :
   let e :=
-      (21 + EPerform (EXData "Choose" (ETuple [])))%expr
+      (21 + EPerform (EXData ["Choose"] (ETuple [])))%expr
   in
   let m :=
     EMatch e
@@ -492,7 +492,7 @@ Proof. reduces. Qed.
 
 Lemma test_handle_compute_branch :
   let e :=
-    (20 + EPerform (EXData "Choose" (ETuple [])))%expr
+    (20 + EPerform (EXData ["Choose"] (ETuple [])))%expr
   in
   let m :=
     EMatch e
@@ -512,7 +512,7 @@ Proof. reduces. Qed.
 
 Lemma test_handle_reinstall_ret :
   let e1 :=
-    EPerform (EXData "Choose" (ETuple []))
+    EPerform (EXData ["Choose"] (ETuple []))
   in
   let e2 :=
     EMatch e1
@@ -537,17 +537,17 @@ Proof. reduces. Qed.
 
 Lemma test_handle_exception :
   let e :=
-    EPerform (EXData "Choose" (ETuple []))
+    EPerform (EXData ["Choose"] (ETuple []))
   in
   let m :=
     EMatch e
       [ (* | effect _, k -> discontinue k Not_found *)
         Branch
          (CEff PAny (PVar "k"))
-         (EDiscontinue (EVar "k") (EXData "Not_found" (ETuple [])));
+         (EDiscontinue (EVar "k") (EXData ["Not_found"] (ETuple [])));
         (* | exception Not_found -> 42 *)
         Branch
-          (CExc (PXData "Not_found" (PTuple [])))
+          (CExc (PXData ["Not_found"] (PTuple [])))
           (EInt 42)]
   in
   ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
@@ -557,7 +557,7 @@ Proof. reduces. Qed.
 Lemma test_shallow_handle :
   let η := [("Choose", (VLoc (Loc 0)))] in
   let e :=
-    EPerform (EXData "Choose" (ETuple []))
+    EPerform (EXData ["Choose"] (ETuple []))
   in
   let m :=
     Handle (eval η e)
@@ -574,14 +574,14 @@ Lemma test_nested_handlers :
   let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
   let e :=
     ELet1 (PVar "y")
-      (EPerform (EXData "Get20" (ETuple [])))
-      (EVar "y" + EPerform (EXData "Get22" (ETuple [])))%expr
+      (EPerform (EXData ["Get20"] (ETuple [])))
+      (EVar "y" + EPerform (EXData ["Get22"] (ETuple [])))%expr
   in
   let m1 :=
     EMatch e
       [ (* | effect Get22, k -> continue k 22 *)
         Branch
-          (CEff (PXData "Get22" (PTuple [])) (PVar "k"))
+          (CEff (PXData ["Get22"] (PTuple [])) (PVar "k"))
           (EContinue (EVar "k") (EInt 22));
         (* | x -> x *)
         Branch (CVal (PVar "x")) (EVar "x") ]
@@ -590,7 +590,7 @@ Lemma test_nested_handlers :
     EMatch m1
       [ (* | effect Get20, k -> continue k 20 *)
         Branch
-          (CEff (PXData "Get20" (PTuple [])) (PVar "k"))
+          (CEff (PXData ["Get20"] (PTuple [])) (PVar "k"))
           (EContinue
              (EVar "k")
              (EInt 20));
@@ -603,13 +603,13 @@ Proof. intros. subst e m1 m2. reduces. Qed.
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
   let e :=
-    (EPerform (EXData "Get21" (ETuple [])) + EPerform (EXData "Get21" (ETuple [])))%expr
+    (EPerform (EXData ["Get21"] (ETuple [])) + EPerform (EXData ["Get21"] (ETuple [])))%expr
   in
   let m :=
     EMatch e
       [ (* | effect Get21, k -> continue k 21 *)
         Branch
-          (CEff (PXData "Get21" (PTuple [])) (PVar "k"))
+          (CEff (PXData ["Get21"] (PTuple [])) (PVar "k"))
           (EContinue (EVar "k") (EInt 21));
         (* | x -> x *)
         Branch
@@ -622,15 +622,15 @@ Proof. reduces. Qed.
 Lemma test_shallow_ret_reinstall :
   let η := [("Get32", (VLoc (Loc 32))); ("Get10", (VLoc (Loc 10)))] in
   let e := (ELet1 (PVar "x")
-              (EPerform (EXData "Get32" (ETuple [])))
-              (EVar "x" + EPerform (EXData "Get10" (ETuple []))))%expr
+              (EPerform (EXData ["Get32"] (ETuple [])))
+              (EVar "x" + EPerform (EXData ["Get10"] (ETuple []))))%expr
   in
   let m1 :=
     Handle (eval η e)
       (λ o, shallow_eval_match η o
               [ (* | effect Get10, k -> continue k 10 *)
                 Branch
-                  (CEff (PXData "Get10" (PTuple [])) (PVar "k"))
+                  (CEff (PXData ["Get10"] (PTuple [])) (PVar "k"))
                   (EContinue (EVar "k") (EInt 10))])
   in
   let m2 :=
@@ -638,7 +638,7 @@ Lemma test_shallow_ret_reinstall :
       (λ o, deep_eval_match η o
               [ (* | effect Get32, k -> continue k 32 *)
                 Branch
-                  (CEff (PXData "Get32" (PTuple [])) (PVar "k"))
+                  (CEff (PXData ["Get32"] (PTuple [])) (PVar "k"))
                   (EContinue (EVar "k") (EInt 32));
                 (* | x -> x *)
                 Branch (CVal (PVar "x")) (EVar "x")])

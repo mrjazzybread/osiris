@@ -63,10 +63,9 @@ type pat =
      In [PData (d, p)], the data constructor [d] is a fixed string. *)
   | PData of data * pat
   (* A data constructor pattern in an extensible algebraic data type.
-     In [PXData (c, p)], the variable [c] appears free: it is not
-     bound by this pattern. This variable is expected to denote a
-     memory location, which serves as a dynamically-allocated name. *)
-  | PXData of var * pat
+     In [PXData (π, p)], the path [π] is expected to denote a memory
+     location, which serves as a dynamically-allocated name. *)
+  | PXData of path * pat
   (* A record pattern. *)
   | PRecord of fpats
   (* A literal integer pattern. *)
@@ -161,7 +160,7 @@ type expr =
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData of data * expr
-  | EXData of var * expr
+  | EXData of path * expr
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs

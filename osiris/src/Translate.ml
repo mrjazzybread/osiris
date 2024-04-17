@@ -181,14 +181,12 @@ let debug_ident kind path id =
   debug "      path = %s\n" (show_path path)
 
 let translate_exp_ident path id : path =
-  let id = txt id in
   debug_ident "Texp_ident" path id;
   (* For the moment, we ignore [path] and keep [id]. However, [path]
      could be used to identify references to the OCaml standard library. *)
   translate_longident id
 
 let translate_mod_ident path id : path =
-  let id = txt id in
   debug_ident "Tmod_ident" path id;
   translate_longident id
 
@@ -297,11 +295,12 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let data = translate_data_constructor id constructor_desc in
+     let tuple = PTuple (translate_pats pats) in
      if is_extensible constructor_desc then
-       PXData (data, PTuple (translate_pats pats))
+       PXData (translate_longident (txt id), tuple)
      else
-       PData  (data, PTuple (translate_pats pats))
+       let data = translate_data_constructor id constructor_desc in
+       PData  (data, tuple)
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -367,7 +366,7 @@ let rec translate_expr (e: expression) : expr =
   match e.exp_desc with
 
   | Texp_ident (path, id, _) ->
-      EPath (translate_exp_ident path id)
+      EPath (translate_exp_ident path (txt id))
 
   | Texp_constant c ->
       translate_exp_constant loc c
@@ -405,11 +404,14 @@ let rec translate_expr (e: expression) : expr =
       ETuple (translate_exprs es)
 
   | Texp_construct (id, constructor_desc, es) ->
-     let data = translate_data_constructor id constructor_desc in
+      (* An OCaml data constructor application is always translated as an
+         application of the data constructor to a tuple of its arguments. *)
+     let tuple = ETuple (translate_exprs es) in
      if is_extensible constructor_desc then
-       EXData (data, ETuple (translate_exprs es))
+       EXData (translate_longident (txt id), tuple)
      else
-       EData  (data, ETuple (translate_exprs es))
+       let data = translate_data_constructor id constructor_desc in
+       EData  (data, tuple)
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
@@ -1002,7 +1004,7 @@ and translate_mod_expr (me : module_expr) : mexpr =
   match me.mod_desc with
 
   | Tmod_ident (path, id) ->
-      MPath (translate_mod_ident path id)
+      MPath (translate_mod_ident path (txt id))
 
   | Tmod_structure str ->
       translate_structure str

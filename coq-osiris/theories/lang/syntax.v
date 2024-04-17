@@ -86,10 +86,9 @@ Inductive pat :=
   (* A data constructor pattern in an ordinary algebraic data type. *)
   | PData (c : data) (p : pat)
   (* A data constructor pattern in an extensible algebraic data type.
-     In [PXData (c, p)], the variable [c] appears free: it is not
-     bound by this pattern. This variable is expected to denote a
-     memory location, which serves as a dynamically-allocated name. *)
-  | PXData (c : var) (p : pat)
+     In [PXData (π, p)], the path [π] is expected to denote a memory
+     location, which serves as a dynamically-allocated name. *)
+  | PXData (π : path) (p : pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
@@ -172,7 +171,7 @@ Inductive expr :=
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData (c : data) (e : expr)
-  | EXData (c : var) (e : expr)
+  | EXData (π : path) (e : expr)
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : list fexpr)

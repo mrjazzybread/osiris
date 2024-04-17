@@ -31,6 +31,9 @@ let data =
 let field =
   quote
 
+let path (pi : path) : expression =
+  list (map var pi)
+
 (* -------------------------------------------------------------------------- *)
 
 (* Integer literals. *)
@@ -96,8 +99,8 @@ let rec pat (p : pat) =
   | PData (d, p) ->
       c "PData" [ data d; pat p ]
 
-  | PXData (d, p) ->
-      c "PXData" [ data d; pat p ]
+  | PXData (pi, p) ->
+      c "PXData" [ path pi; pat p ]
 
   | PRecord fps ->
       c "PRecord" [ fpats fps ]
@@ -165,7 +168,7 @@ let rec expr (e : expr) =
       c "EUnsupported" []
 
   | EPath pi ->
-      clist "EPath" (map var pi)
+      c "EPath" [path pi]
 
   | EAnonFun a ->
       c "EAnonFun" [ cut "fun" (anonfun a) ]
@@ -179,8 +182,8 @@ let rec expr (e : expr) =
   | EData (d, e) ->
       c "EData" [ data d; expr e ]
 
-  | EXData (d, e) ->
-     c "EXData" [ data d; expr e ]
+  | EXData (pi, e) ->
+     c "EXData" [ path pi; expr e ]
 
   | ERecord fs ->
       c "ERecord" [ fexprs fs ]
@@ -408,7 +411,7 @@ and mexpr (me : mexpr) =
       c "MUnsupported" []
 
   | MPath pi ->
-      clist "MPath" (map var pi)
+      c "MPath" [path pi]
 
   | MStruct items ->
       clist "MStruct" (structure_items items)
