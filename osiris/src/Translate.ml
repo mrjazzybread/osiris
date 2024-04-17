@@ -772,11 +772,7 @@ and translate_record_field_as_branches (_, label_def) : branch list =
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match undecorate (translate_expr e) with
       (* Remy/ It is unclear to me why the first case occurs. *)
-      | EAnonFun (AnonFunction [Branch (_, e)]) ->
-         (match undecorate e with
-          | EMatch (_, bs) ->
-             translate_branches_to_effect_branches bs
-          | _ -> assert false)
+      | EAnonFun (AnonFunction [Branch (_, e)])
       | EAnonFun (AnonFun (_, e)) ->
          (match undecorate e with
           | EMatch (_, bs) ->
