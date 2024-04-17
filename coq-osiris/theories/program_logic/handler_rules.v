@@ -142,11 +142,13 @@ Section handler_proof.
     by iApply (ewp_handle with "He").
   Qed.
 
+  Definition deep_handler_body η o bs := pre_eval_match_aux eval true η o bs bs.
+
   (* Specification of [deep_handler] at the [expr] level. *)
   Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E Ψ Φ (λ o, pre_eval_match_aux eval true η o bs bs) Ψ' Φ' -∗
+    deep_handler_spec E Ψ Φ (λ o, deep_handler_body η o bs) Ψ' Φ' -∗
     EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
@@ -192,8 +194,7 @@ Section handler_proof.
         << λ o : outcome2 val exn, (* We need the annotation here; LATER: remove? *)
             ∀ Ψ'' Φ'',
               ▷ deep_handler_spec_def E Ψ Φ
-                (* TODO Rename this [pre_eval_match_aux]? *)
-                (λ o, pre_eval_match_aux eval true η o bs bs) Ψ'' Φ'' -∗
+                (λ o, deep_handler_body η o bs) Ψ'' Φ'' -∗
               EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
         with "[HP Hl]" as "HΨ".
       { iApply (monotonic_prot with "[Hl] HP"); iFrame.

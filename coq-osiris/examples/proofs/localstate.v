@@ -88,7 +88,9 @@ Section verification.
 
   Definition run := __fun7.
 
-  (* TODO: Move *)
+(* -------------------------------------------------------------------------- *)
+  (* TODO: n-ary application on an anonymous function. *)
+
   Definition eval_anon_fun η f := eval η (EAnonFun f).
 
   Fixpoint call_anon_fun_ (arg : list val) (acc : microvx) : microvx :=
@@ -102,10 +104,13 @@ Section verification.
   Definition call_anon_fun η f args :=
     call_anon_fun_ args (eval_anon_fun η f).
 
+(* -------------------------------------------------------------------------- *)
+
   Local Instance encode_state : Encode state.
   constructor. exact VInt.
   Defined.
 
+(* -------------------------------------------------------------------------- *)
   (* TODO: Move *)
   (* LATER: Can we generalize this so we don't manually write down existentials
      everywhere? *)
@@ -122,25 +127,64 @@ Section verification.
     { iDestruct "H" as (? Heq) "H"; by inversion Heq. }
   Qed.
 
-  Definition env_post (η : env) (Φ : iProp Σ) := (λ v, ⌜v = η⌝ ∗ Φ)%I.
+  (* -------------------------------------------------------------------------- *)
+  (* TODO: Move to [handler_rules.v] *)
 
-  Lemma run_spec Φ init main :
+  Arguments deep_handler_body : simpl never.
+
+  Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+
+  (* FIXME: More general version of this lemma that handles more than one pattern *)
+  Lemma deep_handler_body_ret_singleton η η' bs a Φ p e :
+    List.filter (fun p => match p with
+                       | Branch (CVal _) _ | Branch (COr _ _) _ => true
+                       | _ => false end) bs = [Branch (CVal p) e] ->
+    simp (extend η p a) (ret η') ->
+    EWP eval η' e  {{ Φ }} -∗
+    EWP deep_handler_body η (O3Ret a) bs {{ Φ }}.
+  Proof.
+    rewrite /deep_handler_body; cbn.
+    iIntros (Hl Hextend) "HΨ".
+
+    remember bs. rewrite {1}Heql. rewrite Heql in Hl; clear Heql.
+
+    iInduction bs as [ | ] "IH" forall (l).
+    { inversion Hl. }
+
+    cbn in *.
+    destruct a0, p0 eqn: Hp0; cbn in *; inversion Hl; subst.
+    { iClear "IH". cbn.
+      iApply ewp_try2; cbn.
+      Simp. by Ret. }
+
+    all: try solve [ iSpecialize ("IH" $! eq_refl with "HΨ"); cbn;
+      rewrite {2}/pre_eval_match_aux; cbn;
+      iApply "IH" ].
+  Qed.
+
+  Lemma trivial_pure_spec {A E} (v : A):
+    ⊢ (RET v0, (λ x, ⌜v = x⌝) v0) (O2Ret (E := E) v) : iProp Σ.
+  Proof.
+    cbn. by iPureIntro.
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
+  Example run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
     EWP call_anon_fun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
-  Local Ltac ecbn := cbn -[pre_eval_match_aux].
   Proof.
-    ecbn. iIntros "Hmain". iApply ewp_fupd.
-    iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]". iModIntro.
+    cbn.
+    iIntros "Hmain". iApply ewp_fupd.
+    iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* -------------------------------------------------------------------------- *)
-    (* 1. Symbolic execution..? *)
+    (* 1. Symbolic execution.. TODO: automate this *)
 
     rewrite /call_anon_fun /= bind_bind /eval_anon_fun /run.
-
-    do 2 (Bind; Simp; Ret; cbn).
-    rewrite /__fun6.
+    do 2 (Bind; Simp; Ret; cbn); rewrite /__fun6.
 
     Simp.
     (* FIXME ? The [simp_enter_call_VClo] should not be needed explicitly *)
@@ -153,32 +197,25 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
 
-    iApply (ewp_ELet_total
-      (fun x => ∃ l, env_post [("var", VLoc l)] (l ↦ V (VInt init)) x)%I).
+    iApply (ewp_ELet_singleton_total (fun x => val_points_to x (V (VInt init)))%I).
 
-    { iApply (ewp_eval_bindings_singleton_total
-                (fun v => val_points_to v (V (VInt init)))).
-      Simp.
+    (* Evaluating the let-bound expression *)
+    { (* Allocate a new location with value [init] *)
+      Simp; iApply ewp_alloc; iNext.
+      iIntros (?) "Hl"; Ret;
+      by iApply val_points_to_unfold. }
 
-      (* Allocate a new location with value [init] *)
-      { iApply ewp_alloc; iNext.
-        iIntros (?) "Hl"; Ret.
-        by iApply val_points_to_unfold. }
+    (* Continuing with the rest of the computation *)
 
-      (* TODO: Invert the conclusion from the successful let-bound evaluation *)
-      iIntros (?) "H"; iDestruct "H" as (??) "Hl"; subst.
+    (* TODO: Cleaner inversion of facts learned from let-bound term. *)
+    iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
+    iExists _; iSplitL "";
+      first (iPureIntro; cbn; rewrite /irrefutably_extend; simp) (* FIXME *).
 
-      iApply ewp_widen.
-      { rewrite /irrefutably_extend. (* FIXME *)
-        simp. }
-
-      iExists l; by iFrame. }
-
-    (* TODO: Another inversion *)
-    iIntros (?) "H"; iDestruct "H" as (??) "Hl"; subst.
+    (* LATER : Hide the [V] constructor for blocks *)
 
     (* -------------------------------------------------------------------------- *)
-    (* 3. At an [EMatch] !! *)
+    (* 3. At an [EMatch] -- more interesting part of this proof. *)
     iApply ewp_EMatch.
 
     iApply (ewp_deep_handler with "[Hpoints_to Hmain]").
@@ -190,50 +227,51 @@ Section verification.
     (* Finally, we prove the specification over handler. *)
 
     (* TODO: We need to abstract over the environment "just enough" *)
-    remember (VInt init). rewrite {1 2}Heqv; clear Heqv.
+    remember (VInt init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
+
+    (* Löb induction *)
     iLöb as "IH" forall (γ main init).
-    rewrite deep_handler_spec_unfold. iSplit.
+
+    (* Prove that the spec is met. *)
+    prove_handler_spec.
+
+    (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
-      iIntros (?) "H"; destruct o; [ | done]; ecbn.
+      iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
 
-      (* TODO: Aux lemma *)
-      iClear "IH". cbn.
-      iApply ewp_try2.
-      with_strategy transparent [extend] unfold extend. (* FIXME *)
+      iApply deep_handler_body_ret_singleton; [ eauto | .. ].
+      { with_strategy transparent [extend] unfold extend; simp. (* FIXME extend simp? *) }
 
-      iNext. Ret. cbn. Simp. Bind.
-      (* FIXME [evals] is reading from a location, so we cannot use [simp] *)
-      with_strategy transparent [evals] unfold evals. (* FIXME *)
-      cbn. Simp.
+      (* FIXME *)
+      Simp; with_strategy transparent [evals] unfold evals; Simp.
 
+      (* Load from location *)
       ewp_tactics.Load "Hl".
-      cbn. Ret; cbn. iExists (init, a); cbn; iFrame.
-      encode. }
+      Ret; iExists (init, a); iFrame; encode. }
 
+    (* -------------------------------------------------------------------------- *)
     (* Effectful case *)
      iIntros (e k) "Hp".
      iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
 
-     (* READ case *)
-     { (* TODO: Notation on [iEff_car] is really ugly.. *)
-       ecbn.
+     { (* READ case *)
+       (* TODO: Notation on [iEff_car] is really ugly.. *)
+       cbn.
        rewrite upcl_read.
        iDestruct "H_READ" as (?->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       rewrite {3}/pre_eval_match_aux; ecbn.
+       rewrite {3}/deep_handler_body; cbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
-       ecbn.
+       cbn; inversion Hag; subst.
+       iApply ewp_try2. rewrite !bind_bind. Simp.
 
-       inversion Hag; subst.
-       iApply ewp_try2. rewrite !bind_bind.
-       Simp.
-       destruct (locations.eqb read_eff read_eff) eqn: Hread_eff; cycle 1.
-       { rewrite Z.eqb_neq in Hread_eff; lia. }
+       destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
+       last (rewrite Z.eqb_neq in Hread_eff; lia).
 
-       Simp. Ret. ecbn.
+       Simp; Ret; cbn.
 
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
@@ -242,37 +280,38 @@ Section verification.
              (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∧ Φ v.2))%I.
        iNext.
 
-       Simp. rewrite /as_cont. Simp. Simp.
+       Simp. rewrite /as_cont. do 2 Simp.
        ewp_tactics.Load "Hl".
-       ecbn.
+       cbn.
        iApply "H_READ".
        iNext. iSpecialize ("IH" with "Hauth Hl").
        by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
 
-     { (* TODO: Notation on [iEff_car] is really ugly.. *)
-       ecbn; rewrite upcl_write.
+    (* -------------------------------------------------------------------------- *)
+     { (* WRITE case *)
+       cbn; rewrite upcl_write.
        iDestruct "H_WRITE" as (??->) "(Hx & H_WRITE)".
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       rewrite {3}/pre_eval_match_aux; ecbn.
+       rewrite {3}/deep_handler_body; cbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
-       ecbn.
+       cbn.
 
        iApply ewp_try2; rewrite !bind_bind; Simp.
 
-       destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff.
-       { by rewrite Z.eqb_eq in Hwrite_eff. }
-       clear Hwrite_eff.
+       destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff;
+         last clear Hwrite_eff;
+       first (by rewrite Z.eqb_eq in Hwrite_eff).
 
-       Simp. iNext. Throw. ecbn.
+       Simp. iNext. Throw. cbn.
        iApply ewp_try2. Bind.
 
-       destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff; cycle 1.
-       { by rewrite Z.eqb_neq in Hwrite_eff. }
+       destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff;
+        last by rewrite Z.eqb_neq in Hwrite_eff.
 
-       do 2 (Ret; ecbn).
+       do 2 (Ret; cbn).
 
        iDestruct "H" as "(Hauth & Hx)".
 
@@ -286,11 +325,10 @@ Section verification.
 
        Simp. iModIntro. Simp.
        Store "Hl".
-       ecbn.
+       cbn.
        iApply "H_WRITE".
        iNext. iSpecialize ("IH" $! _ main y with "Hauth Hl").
        by rewrite /deep_handler_spec seal_eq. }
-
    Qed.
 
 End verification.

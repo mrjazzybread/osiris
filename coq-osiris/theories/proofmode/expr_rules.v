@@ -7,6 +7,79 @@ Section ewp_rules_expr.
 
   Context `{!osirisGS Σ}.
 
+  (* -------------------------------------------------------------------------- *)
+  (* Auxiliary lemmas that are useful when proving facts about [EWP eval _] *)
+
+  (* LATER: Strange name conflict on [void.void] *)
+  Lemma ewp_widen {A E} (e : micro A void.void) v Ψ φ :
+    simp e (ret v) ->
+    φ (O2Ret v) -∗
+    EWP (widen e : micro A E) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros (?).
+    iIntros "H". iApply ewp_simp.
+    { by apply simp_widen. }
+    by Ret.
+  Qed.
+
+  (* TODO: These should all be [simp]-level lemmas *)
+  Lemma ewp_eval_bindings_cons_total η p e bs φ1 φs φ Ψ :
+    EWP eval η e <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval_bindings η bs <|Ψ|> {{ RET v, φs v }} -∗
+    (∀ v δ, φ1 v -∗ φs δ -∗
+       ∃ δ', ⌜simp (irrefutably_extend δ p v) (ret δ')⌝
+               ∗ φ (O2Ret δ')) -∗
+    EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 P /=".
+    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
+    iApply (ewp_Par with "H1 H2 [] []");
+      [ by iIntros (v) "H" | by iIntros (v) "H" | .. ].
+    iIntros (v δ) "H1 H2".
+    rewrite /irrefutably_extend. cbn.
+    iSpecialize ("P" with "H1 H2").
+    iDestruct "P" as (??) "P".
+    iApply ewp_widen; done.
+  Qed.
+
+  Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ Ψ :
+    EWP eval η e <|Ψ|> {{ RET v, Φ v }} -∗
+    (∀ v, Φ v -∗
+        ∃ δ,
+          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝
+           ∗ φ (O2Ret δ)) -∗
+    EWP eval_bindings η [ Binding p e ] <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 P /=".
+    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
+    Par. Bind.
+    iApply (ewp_mono with "H1").
+    iIntros (v) "H"; destruct v; try done; cbn.
+    iSpecialize ("P" with "H").
+    iDestruct "P" as (??) "P".
+    iApply ewp_widen; rewrite /irrefutably_extend; done.
+  Qed.
+
+  Lemma ewp_eval_bindings_cons η p e bs φ1 φs φ Ψ :
+    EWP eval η e <|Ψ|> {{ φ1 }} -∗
+    EWP eval_bindings η bs <|Ψ|> {{ φs }} -∗
+    (∀ v : exn, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v : exn, φs (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v δ, φ1 (O2Ret v) ∗ φs (O2Ret δ) -∗
+      EWP widen (irrefutably_extend δ p v)  <|Ψ|> {{ φ }}) -∗
+    EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 E1 E2 P /=".
+    iApply (ewp_Par with "H1 H2 [E1] [E2]").
+    - iIntros (v) "H". Throw. iApply ("E1" with "H").
+    - iIntros (v) "H". Throw. iApply ("E2" with "H").
+    - iIntros (v δ) "H1 H2". iApply ("P" $! v δ with "[$]").
+  Qed.
+
+
+  (* -------------------------------------------------------------------------- *)
+  (* Lemmas about [expr]s *)
+
   Lemma ewp_ERef_exn η e φ1 φ Ψ :
     EWP eval η e <|Ψ|> {{ φ1 }} -∗
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
@@ -216,62 +289,24 @@ Section ewp_rules_expr.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
-  (* Auxiliary lemmas that are useful when proving facts about [EWP eval _] *)
+  (* Specialized [ewp_expr] lemmas  *)
 
-  Lemma ewp_eval_bindings_total η p e bs φ1 φs φ Ψ :
-    EWP eval η e <|Ψ|> {{ RET v, φ1 v }} -∗
-    EWP eval_bindings η bs <|Ψ|> {{ RET v, φs v }} -∗
-    (∀ v δ, φ1 v -∗ φs δ -∗
-      EWP widen (irrefutably_extend δ p v)  <|Ψ|> {{ φ }}) -∗
-    EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H1 H2 P /=".
-    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
-    iApply (ewp_Par with "H1 H2 [] []");
-      [ by iIntros (v) "H" | by iIntros (v) "H" | .. ].
-    iIntros (v δ) "H1 H2"; by iApply ("P" $! v δ with "[$]").
-  Qed.
-
-  Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ Ψ :
-    EWP eval η e <|Ψ|> {{ RET v, Φ v }} -∗
+  (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
+  Corollary ewp_ELet_singleton_total {η p e e'} Φ φ Ψ:
+    EWP eval η e' <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
-      EWP widen (irrefutably_extend [] p v)  <|Ψ|> {{ φ }}) -∗
-    EWP eval_bindings η [ Binding p e ] <|Ψ|> {{ φ }}.
+        ∃ δ,
+          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝ ∗
+          EWP eval (δ ++ η) e <|Ψ|> {{ φ }}) -∗
+    EWP eval η (ELet [ Binding p e' ] e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 P /=".
-    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
-    Par. Bind.
-    iApply (ewp_mono with "H1").
-    iIntros (v) "H"; destruct v; try done; cbn.
-    iApply ("P" $! a with "[$]").
-  Qed.
-
-  Lemma ewp_eval_bindings_cons η p e bs φ1 φs φ Ψ :
-    EWP eval η e <|Ψ|> {{ φ1 }} -∗
-    EWP eval_bindings η bs <|Ψ|> {{ φs }} -∗
-    (∀ v : exn, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v : exn, φs (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v δ, φ1 (O2Ret v) ∗ φs (O2Ret δ) -∗
-      EWP widen (irrefutably_extend δ p v)  <|Ψ|> {{ φ }}) -∗
-    EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H1 H2 E1 E2 P /=".
-    iApply (ewp_Par with "H1 H2 [E1] [E2]").
-    - iIntros (v) "H". Throw. iApply ("E1" with "H").
-    - iIntros (v) "H". Throw. iApply ("E2" with "H").
-    - iIntros (v δ) "H1 H2". iApply ("P" $! v δ with "[$]").
-  Qed.
-
-  (* LATER: Strange name conflict on [void.void] *)
-  Lemma ewp_widen {A E} (e : micro A void.void) v Ψ φ :
-    simp e (ret v) ->
-    φ v -∗
-    EWP (widen e : micro A E) <|Ψ|> {{ RET v, φ v }}.
-  Proof.
-    iIntros (?).
-    iIntros "H". iApply ewp_simp.
-    { by apply simp_widen. }
-    by Ret.
+    iIntros "He HP".
+    iApply (ewp_ELet_total (λ δ, EWP eval (δ ++ η) e <|Ψ|> {{ φ }})%I
+      with "[He HP]").
+    { iApply (ewp_eval_bindings_singleton_total with "He").
+      iIntros (?) "HΦ"; iSpecialize ("HP" with "HΦ").
+      iDestruct "HP" as (??) "HP"; iExists _; by iSplitL "". }
+    by iIntros (?) "HΦ".
   Qed.
 
 End ewp_rules_expr.
