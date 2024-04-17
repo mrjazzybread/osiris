@@ -125,7 +125,7 @@ Section verification.
                        | _ => false end) bs = [Branch (CVal p) e] ->
     simp (extend η p a) (ret η') ->
     EWP eval η' e  {{ Φ }} -∗
-    EWP deep_handler_body η (O3Ret a) bs {{ Φ }}.
+    EWP deep_handler_body η (O3Ret a) bs bs {{ Φ }}.
   Proof.
     rewrite /deep_handler_body; cbn.
     iIntros (Hl Hextend) "HΨ".
