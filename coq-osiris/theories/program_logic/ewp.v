@@ -333,7 +333,7 @@ Notation "'RET' '#' v , Q" :=
 Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
   (ewp_def ⊤ e%E Ψ Φ)
     (at level 20, e, Φ at level 200,
-      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' Φ  ']' } } ']'") : bi_scope.
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
   (ewp_def E e%E iEff_bottom Φ)
