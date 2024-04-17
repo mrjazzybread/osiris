@@ -73,8 +73,8 @@ let char (cc : char) =
   and d6 = i land 64 <> 0
   and d7 = i land 128 <> 0
   in
-  (* In Coq, a [char] is represented by the type [ascii]. Each character is
-     represented by eight Booleans. *)
+  (* In Coq, a [char] is represented by the type [ascii]. A character is
+     represented as a tuple of eight Boolean values. *)
   c "Ascii" (map bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
 
 (* -------------------------------------------------------------------------- *)
