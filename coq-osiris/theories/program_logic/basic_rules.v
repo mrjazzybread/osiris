@@ -642,10 +642,8 @@ Section ewp_rules.
 
   Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
     mapsto l (DfracOwn 1) (K sk) ⊢
-    ▷ (∀ l,
-        mapsto l (DfracOwn 1) (Shot) -∗
-         EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
-      ) -∗
+    ▷ (mapsto l (DfracOwn 1) (Shot) -∗
+       EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
@@ -665,10 +663,8 @@ Section ewp_rules.
 
   Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
     mapsto l (DfracOwn 1) (K sk) ⊢
-    (∀ l,
-        mapsto l (DfracOwn 1) (Shot) -∗
-         ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}
-      ) -∗
+    (mapsto l (DfracOwn 1) (Shot) -∗
+       ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".

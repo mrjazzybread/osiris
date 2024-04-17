@@ -205,7 +205,7 @@ Section handler_proof.
 
         (* Resume the continuation that stored the installed handler *)
         iApply (ewp_resume with "Hl"). iNext.
-        iIntros (?) "Hl". cbn.
+        iIntros "Hl". cbn.
         iSpecialize ("IH" with "H").
 
         (* Rewriting under binders for handle.. LATER: Remove? *)
