@@ -116,6 +116,18 @@ let rec recognize_global_path path : string list =
   | Pextra_ty _ ->
       raise Unrecognized
 
+(* Recognizing the Boolean expression [false]. *)
+
+(* TODO this is a bit fragile, as the user could in theory redefine
+   the identifier [false] to mean something else *)
+
+let is_false (e : expression) : bool =
+  match e.exp_desc with
+  | Texp_construct ({ txt = Lident "false"; _}, _, []) ->
+      true
+  | _ ->
+      false
+
 (* -------------------------------------------------------------------------- *)
 
 (* If the source file is available, then we insert decorations into the
@@ -479,9 +491,10 @@ let rec translate_expr (e: expression) : expr =
       eunsupported loc "let exception"
 
   | Texp_assert (e, _) ->
-      (match (e.exp_desc) with
-      | Texp_construct ({ txt = Lident "false"; _}, _, []) -> EAssertFalse
-      | _ -> EAssert (translate_expr e))
+      if is_false e then
+        EAssertFalse
+      else
+        EAssert (translate_expr e)
 
   | Texp_lazy _ ->
       eunsupported loc "lazy"
