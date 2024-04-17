@@ -67,6 +67,9 @@ Definition char :=
 
 (* Patterns. *)
 
+(* An ordinary pattern, or value pattern, has type [pat].
+   Such a pattern is used in a case analysis on a value. *)
+
 Inductive pat :=
   (* A placeholder for as-yet-unsupported constructs. *)
   | PUnsupported
@@ -80,11 +83,12 @@ Inductive pat :=
   | POr (p1 p2 : pat)
   (* A tuple pattern. *)
   | PTuple (ps : list pat)
-  (* A data constructor pattern. *)
+  (* A data constructor pattern in an ordinary algebraic data type. *)
   | PData (c : data) (p : pat)
-  (* A data constructor pattern for extensible types.
-     Extension constructors are distinguished using their memory location,
-     so the name [c] should point to a location in the current environment. *)
+  (* A data constructor pattern in an extensible algebraic data type.
+     In [PXData (c, p)], the variable [c] appears free: it is not
+     bound by this pattern. This variable is expected to denote a
+     memory location, which serves as a dynamically-allocated name. *)
   | PXData (c : var) (p : pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
@@ -95,23 +99,25 @@ Inductive pat :=
   (* A literal string pattern. *)
   | PString (s : string).
 
+(* Computation patterns. *)
 
-(* In pattern matching branches, we tag patterns according to whether
-   they should apply to a return value, a raised exception, or an effect. *)
-
-(* Note that in the case of an "Or" pattern, a single branch match
-   multiple return types.
-   For example, the branch [| exception E | _ -> e] matches both
-   an exception [E] and any normal termination. *)
-
-(* Computational Patterns.*)
+(* A computation pattern has type [cpat]. Such a pattern is used in a
+   case analysis on a three-branch outcome, which represents a value,
+   an exception, or an effect. *)
 
 Inductive cpat :=
-  (* A pattern for conventional termination. *)
+  (* This pattern matches a normal termination outcome. It guards the
+     "return branch" in an effect handler. In OCaml's concrete syntax,
+     it corresponds to the absence of an [exception] or [effect]
+     keyword in a [match] construct. *)
   | CVal (p : pat)
-  (* A pattern for catching exceptions [exception p]. *)
+  (* This pattern matches an exceptional outcome. In OCaml's concrete
+     syntax, it corresponds to the presence of the [exception] keyword
+     in a [match] branch. *)
   | CExc (p : pat)
-  (* A pattern for handling a performed effect [handle p, k]. *)
+  (* This pattern matches an effect. In OCaml's concrete syntax, it
+     corresponds to the presence of the [effect] keyword in a [match]
+     branch. *)
   | CEff (p : pat) (k : pat)
   (* A disjunction pattern [cp1 | cp2]. *)
   | COr (cp1 : cpat) (cp2 : cpat).

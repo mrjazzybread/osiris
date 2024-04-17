@@ -43,6 +43,9 @@ type field =
 
 (* Patterns. *)
 
+(* An ordinary pattern, or value pattern, has type [pat].
+   Such a pattern is used in a case analysis on a value. *)
+
 type pat =
   (* A placeholder for as-yet-unsupported constructs. *)
   | PUnsupported
@@ -52,12 +55,18 @@ type pat =
   | PVar of var
   (* An alias pattern [p as x]. *)
   | PAlias of pat * var
+  (* A disjunction pattern [p1 | p2]. *)
+  | POr of pat * pat
   (* A tuple pattern. *)
   | PTuple of pats
-  (* A data constructor pattern. *)
+  (* A data constructor pattern in an ordinary algebraic data type.
+     In [PData (d, p)], the data constructor [d] is a fixed string. *)
   | PData of data * pat
-  (* A data constructor pattern of an extensible type. *)
-  | PXData of data * pat
+  (* A data constructor pattern in an extensible algebraic data type.
+     In [PXData (c, p)], the variable [c] appears free: it is not
+     bound by this pattern. This variable is expected to denote a
+     memory location, which serves as a dynamically-allocated name. *)
+  | PXData of var * pat
   (* A record pattern. *)
   | PRecord of fpats
   (* A literal integer pattern. *)
@@ -66,16 +75,28 @@ type pat =
   | PChar of char
   (* A literal string pattern. *)
   | PString of string
-  (* A disjunction pattern [p1 | p2]. *)
-  | POr of pat * pat
 
 (* Computation patterns. *)
 
+(* A computation pattern has type [cpat]. Such a pattern is used in a
+   case analysis on a three-branch outcome, which represents a value,
+   an exception, or an effect. *)
+
 and cpat =
+  (* This pattern matches a normal termination outcome. It guards the
+     "return branch" in an effect handler. In OCaml's concrete syntax,
+     it corresponds to the absence of an [exception] or [effect]
+     keyword in a [match] construct. *)
   | CVal of pat
+  (* This pattern matches an exceptional outcome. In OCaml's concrete
+     syntax, it corresponds to the presence of the [exception] keyword
+     in a [match] branch. *)
   | CExc of pat
+  (* This pattern matches an effect. In OCaml's concrete syntax, it
+     corresponds to the presence of the [effect] keyword in a [match]
+     branch. *)
   | CEff of pat * pat
-  (* A disjunction pattern [p1 | p2]. *)
+  (* A disjunction pattern [cp1 | cp2]. *)
   | COr of cpat * cpat
 
 (* Lists of patterns. *)
