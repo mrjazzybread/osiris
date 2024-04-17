@@ -255,6 +255,22 @@ let translate_pat_constant loc (c : constant) : pat =
 
 (* -------------------------------------------------------------------------- *)
 
+(* Recognizing a constructor in an extensible algebraic data type,
+   as opposed to a constructor in an ordinary algebraic data type. *)
+
+(* See [types.mli]. *)
+
+let is_extensible constructor_desc =
+  match constructor_desc.cstr_tag with
+  | Cstr_constant _
+  | Cstr_block _
+  | Cstr_unboxed ->
+      false
+  | Cstr_extension _ ->
+      true
+
+(* -------------------------------------------------------------------------- *)
+
 (* Patterns, also known as value patterns. *)
 
 (* The type [pattern] is a synonym for [value general_pattern]. *)
@@ -282,11 +298,10 @@ let rec translate_pat (pat: pattern) : pat =
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
      let data = translate_data_constructor id constructor_desc in
-     (match constructor_desc.cstr_tag with
-      | Cstr_extension _ ->
-         PXData (data, PTuple (translate_pats pats))
-      | _ ->
-         PData (data, PTuple (translate_pats pats)))
+     if is_extensible constructor_desc then
+       PXData (data, PTuple (translate_pats pats))
+     else
+       PData  (data, PTuple (translate_pats pats))
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -391,11 +406,10 @@ let rec translate_expr (e: expression) : expr =
 
   | Texp_construct (id, constructor_desc, es) ->
      let data = translate_data_constructor id constructor_desc in
-     (match constructor_desc.cstr_tag with
-      | Cstr_extension _ ->
-         EXData (data, ETuple (translate_exprs es))
-      |_ ->
-        EData (data, ETuple (translate_exprs es)))
+     if is_extensible constructor_desc then
+       EXData (data, ETuple (translate_exprs es))
+     else
+       EData  (data, ETuple (translate_exprs es))
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
