@@ -46,6 +46,9 @@ let int i =
    with the exception of the double quote character, which must be
    repeated. It can also contain valid UTF8 characters. *)
 
+(* A scope annotation [%string] could be added, but is unnecessary
+   as the library [osiris] makes it the default scope. *)
+
 let is_double_quote =
   function '"' -> true | _ -> false
 
