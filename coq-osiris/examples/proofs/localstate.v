@@ -89,22 +89,6 @@ Section verification.
   Definition run := __fun7.
 
 (* -------------------------------------------------------------------------- *)
-  (* TODO: n-ary application on an anonymous function. *)
-
-  Definition eval_anon_fun η f := eval η (EAnonFun f).
-
-  Fixpoint call_anon_fun_ (arg : list val) (acc : microvx) : microvx :=
-    match arg with
-      | nil => acc
-      | x :: tl =>
-          call_anon_fun_ tl (bind acc (fun f => call f x))
-    end.
-
-  (* LATER: Make this normal form. *)
-  Definition call_anon_fun η f args :=
-    call_anon_fun_ args (eval_anon_fun η f).
-
-(* -------------------------------------------------------------------------- *)
 
   Local Instance encode_state : Encode state.
   constructor. exact VInt.
@@ -173,7 +157,7 @@ Section verification.
   Example run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
-    EWP call_anon_fun env run [ #init ; main]
+    EWP call_anonfun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
     cbn.
@@ -183,7 +167,7 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     (* 1. Symbolic execution.. TODO: automate this *)
 
-    rewrite /call_anon_fun /= bind_bind /eval_anon_fun /run.
+    rewrite /call_anonfun /= bind_bind /eval_anonfun /run.
     do 2 (Bind; Simp; Ret; cbn); rewrite /__fun6.
 
     Simp.

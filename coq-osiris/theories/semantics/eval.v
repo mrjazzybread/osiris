@@ -1291,8 +1291,25 @@ Definition eval_sitem :=
 Definition eval_sitems :=
   pre_eval_sitems eval_bindings eval_mexpr.
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
+(* Auxiliary functions on [eval] *)
 
+Definition eval_anonfun η fn := eval η (EAnonFun fn).
+
+(* [call_anonfun η fn args] calls the anonymous function expression [fn] with
+  a list of arguments [args] in environment [η]. *)
+
+(* N-ary application on function calls *)
+(* LATER: Make this normal form. *)
+Fixpoint nary_call (arg : list val) (acc : microvx) : microvx :=
+  match arg with
+    | nil => acc
+    | x :: tl => nary_call tl (bind acc (fun v => call v x))
+  end.
+
+Definition call_anonfun η fn args := nary_call args (eval_anonfun η fn).
+
+(* -------------------------------------------------------------------------- *)
 (* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
    in the environment [η]. *)
 
