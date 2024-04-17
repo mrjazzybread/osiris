@@ -88,23 +88,33 @@ exception Unsupported
 
 (* -------------------------------------------------------------------------- *)
 
-(* Auxiliary exceptions and functions. *)
+(* Recognizing global identifiers and paths. *)
 
-exception NotExactKnownPrimitive
+exception Unrecognized
 
-let is_Stdlib path =
+(* [recognize_global_ident id] checks that [id] is a global identifier, and
+   if so, returns its name. Otherwise, [Unrecognized] is raised. *)
+
+let recognize_global_ident (id : Ident.t) : string =
+  if Ident.global id then
+    Ident.name id
+  else
+    raise Unrecognized
+
+(* [recognize_global_path path] checks that [path] is rooted at a global
+   identifier, and if so, converts this path to a list of strings, where
+   the first element of the list represents the root of the path.
+   Otherwise, [Unrecognized] is raised. *)
+
+let rec recognize_global_path path : string list =
   match path with
-  | Pident m when Ident.name m = "Stdlib" ->
-      true
-  | _ ->
-      false
-
-let is_Obj path =
-  match path with
-  | Pdot (parent, "Obj") when is_Stdlib parent ->
-      true
-  | _ ->
-      false
+  | Pident id ->
+      [recognize_global_ident id]
+  | Pdot (parent, field) ->
+      recognize_global_path parent @ [field]
+  | Papply _
+  | Pextra_ty _ ->
+      raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
@@ -513,7 +523,7 @@ and translate_exprs es : exprs =
 and translate_application loc e args =
   try
     translate_primitive_application loc e args
-  with NotExactKnownPrimitive ->
+  with Unrecognized ->
     let e = translate_expr e in
     match undecorate e with
 
@@ -585,14 +595,16 @@ and translate_application loc e args =
 
 and translate_primitive_application loc e args =
   match e.exp_desc with
+
   | Texp_ident (path, _, { val_kind = Val_prim p; _ })
     when List.length args = p.prim_arity ->
       (* This is an exact application of a primitive operation. *)
       translate_exact_primitive_application loc path p args
+
   | _ ->
-      (* This is either not a primitive operation,
+      (* This is either not a recognized primitive operation,
          or not an exact application. *)
-      raise NotExactKnownPrimitive
+      raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
@@ -619,12 +631,12 @@ and translate_primitive_application loc e args =
 
 and translate_exact_primitive_application loc path p args =
   assert (List.length args = p.prim_arity);
+  let path = recognize_global_path path in
   match path, p.prim_name, translate_labeled_arguments loc args with
 
   (* Erasing applications of [Obj.magic] is an experimental feature. It takes
      careful consideration and arguments to ascertain that this is sound. *)
-  | Pdot (parent, "magic"), "%identity", [e]
-    when is_Obj parent ->
+  | ["Stdlib"; "Obj"; "magic"], "%identity", [e] ->
       e
 
   (* Integers. *)
@@ -688,23 +700,19 @@ and translate_exact_primitive_application loc path p args =
 
   (* References. *)
 
-  | Pdot (parent, "ref"), "%makemutable", [e]
-    when is_Stdlib parent ->
+  | ["Stdlib"; "ref"], "%makemutable", [e] ->
       ERef e
-  | Pdot (parent, "!"), "%field0", [e]
-    when is_Stdlib parent ->
+  | ["Stdlib"; "!"], "%field0", [e] ->
       ELoad e
-  | Pdot (parent, ":="), "%setfield0", [e1; e2]
-    when is_Stdlib parent ->
+  | ["Stdlib"; ":="], "%setfield0", [e1; e2] ->
       EStore (e1, e2)
 
   (* Exceptions. *)
-  | Pdot (parent, "raise"), "%raise", [e]
-    when is_Stdlib parent ->
+  | ["Stdlib"; "raise"], "%raise", [e] ->
       ERaise e
 
   | _, _, _ ->
-      raise NotExactKnownPrimitive
+      raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
