@@ -13,9 +13,10 @@
 
 ## Translator
 
-* Document which version of OCaml we depend upon (4.14).
+* Document which version of OCaml we depend upon (5.x).
 
-* Primitive operations that still need to be recognized:
+* Primitive operations and constants that still need to be recognized:
+  + `min_int`, `max_int`
   + `%compare`
   + `%loc_LOC` and friends (type-directed!)
   + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
