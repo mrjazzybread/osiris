@@ -62,23 +62,14 @@ let string s =
 
 (* Character literals. *)
 
-let bool b =
-  if b then plain "true" else plain "false"
+(* In Coq, a character has type [ascii]. A character is internally represented
+   as a tuple of eight Boolean values. However, this information need not be
+   exposed here. Instead, we use Coq's character literal notation. A character
+   literal is a string literal followed with the scope annotation [%char]. *)
 
-let char (cc : char) =
-  let i = int_of_char cc in
-  let d0 = i land 1 <> 0
-  and d1 = i land 2 <> 0
-  and d2 = i land 4 <> 0
-  and d3 = i land 8 <> 0
-  and d4 = i land 16 <> 0
-  and d5 = i land 32 <> 0
-  and d6 = i land 64 <> 0
-  and d7 = i land 128 <> 0
-  in
-  (* In Coq, a [char] is represented by the type [ascii]. A character is
-     represented as a tuple of eight Boolean values. *)
-  c "Ascii" (map bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
+let char (cc: char) =
+  let s = String.make 1 cc in
+  plain (sprintf "\"%s\"%%char" (repeat_double_quotes s))
 
 (* -------------------------------------------------------------------------- *)
 
