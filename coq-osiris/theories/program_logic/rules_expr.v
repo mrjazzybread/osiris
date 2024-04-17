@@ -1,6 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang semantics.
-From osiris.program_logic Require Import ewp rules.
+From osiris.program_logic Require Import ewp basic_rules.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)
@@ -17,7 +17,7 @@ Notation "'RET=' v" :=
 
 Section ewp_rules_expr.
 
-  Context `{protocol_wf Σ P} `{!osirisGS Σ}.
+  Context `{!osirisGS Σ}.
 
   (** * EPath : path → expr *)
 
@@ -622,16 +622,17 @@ Section ewp_rules_expr.
   (* This lemma is proved with a single tactic [iApply ewp_try2], but in a
    program proof, using [iApply ewp_try2] might fail *)
   Lemma ewp_EMatch η e bs φ Ψ :
-    EWP eval η e <|Ψ|>{{ λ a, EWP eval_match η a bs <|Ψ|>{{ φ }} }} -∗
+    EWP eval η e <|Ψ|>{{ λ a, EWP eval_match true η a bs <|Ψ|>{{ φ }} }} -∗
     EWP eval η (EMatch e bs) <|Ψ|> {{ φ }}.
   Proof.
-    iApply ewp_try2.
-  Qed.
+    (* TODO, adapt to handle handlers *)
+    (* iApply ewp_try2. *)
+  Admitted.
 
   (* TODO: remove? probably handled by Simp *)
   Lemma ewp_eval_match_nil η a φ Ψ :
     (∃ e, ⌜a = O2Throw e⌝ ∗ φ (O2Throw e)) -∗
-      EWP eval_match η a [] <|Ψ|>{{ φ }}.
+      EWP eval_match true η a [] <|Ψ|>{{ φ }}.
   Proof.
     iIntros "H".
     iDestruct "H" as (e) "(-> & H)".
@@ -640,7 +641,7 @@ Section ewp_rules_expr.
 
   Lemma ewp_eval_match_cons η a b bs φ Ψ :
     ⊢
-      EWP eval_match η a (b :: bs) <|Ψ|>{{ φ }}.
+      EWP eval_match true η a (b :: bs) <|Ψ|>{{ φ }}.
   Proof.
     (* maybe handled by Simp? TODO *)
   Abort.

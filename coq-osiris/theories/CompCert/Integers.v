@@ -88,12 +88,61 @@ Proof.
   unfold modulus. apply two_power_nat_two_p.
 Qed.
 
-Remark zwordsize_lt_half_modulus: zwordsize < half_modulus.
+Remark half_modulus_power : half_modulus = two_p (zwordsize - 1).
+  unfold half_modulus. rewrite modulus_power.
+  rewrite !two_p_correct.
+  rewrite Z.pow_sub_r, Z.pow_1_r by (generalize wordsize_pos; lia).
+  reflexivity.
+Qed.
+
+(* rseassau *)
+Lemma le_half_two_p n : (n <= 2 ^ (n - 1))%nat.
 Proof.
-  unfold half_modulus.
-  rewrite modulus_power.
-  assert (zwordsize > 1). admit. (* TODO *)
-Admitted. (* TODO *)
+  induction n; [ lia | ].
+  destruct n; simpl in *; rewrite ?Nat.sub_0_r in IHn; lia.
+Qed.
+
+(* rseassau *)
+Remark zwordsize_le_half_modulus: zwordsize <= half_modulus.
+Proof.
+  rewrite half_modulus_power; unfold zwordsize, wordsize.
+  assert (two_p (Z.of_nat WS.wordsize - 1) = Z.of_nat (2 ^ (WS.wordsize - 1))) as ->.
+  { rewrite two_p_correct; change 1 with (Z.of_nat 1); change 2 with (Z.of_nat 2).
+    rewrite <- Nat2Z.inj_sub, <- Nat2Z.inj_pow by (generalize WS.wordsize_not_zero; lia).
+    reflexivity. }
+  apply inj_le, le_half_two_p.
+Qed.
+
+(* rseassau *)
+Lemma tl_suc_two_p n : (n > 1 -> S n < 2 ^ n)%nat.
+Proof.
+  do 2 (destruct n; [ lia | intros ]).
+  simpl; rewrite !Nat.add_0_r; simpl.
+  assert (H2n: (2 ^ n >= 1)%nat) by (induction n; simpl; lia); revert H2n.
+  generalize (2 ^ n)%nat at 1 2 3 4; intros.
+  assert (n < 2 ^ n)%nat by (induction n; simpl; lia).
+  lia.
+Qed.
+
+(* rseassau *)
+Lemma lt_half_two_p n : (n > 2 -> n < 2 ^ (n - 1))%nat.
+Proof.
+  do 2 (destruct n; [ lia | intros ]).
+  change (S (S n) - 1)%nat with (S n).
+  apply tl_suc_two_p; lia.
+Qed.
+
+(* rseassau *)
+Remark zwordsize_lt_half_modulus: zwordsize > 2 -> zwordsize < half_modulus.
+Proof.
+  rewrite half_modulus_power; unfold zwordsize, wordsize.
+  intros Hws1; change 2 with (Z.of_nat 2) in Hws1; apply Nat2Z.inj_gt in Hws1.
+  assert (two_p (Z.of_nat WS.wordsize - 1) = Z.of_nat (2 ^ (WS.wordsize - 1))) as ->.
+  { rewrite two_p_correct; change 1 with (Z.of_nat 1); change 2 with (Z.of_nat 2).
+    rewrite <- Nat2Z.inj_sub, <- Nat2Z.inj_pow by (generalize WS.wordsize_not_zero; lia).
+    reflexivity. }
+  apply inj_lt, lt_half_two_p, Hws1.
+Qed.
 
 Remark zwordsize_lt_modulus: zwordsize < modulus.
 Proof.
@@ -343,17 +392,6 @@ Definition divmods2 (nhi nlo: int) (d: int) : option (int * int) :=
 
 (** ** Properties of [modulus], [max_unsigned], etc. *)
 
-Remark half_modulus_power:
-  half_modulus = two_p (zwordsize - 1).
-Proof.
-  unfold half_modulus. rewrite modulus_power.
-  set (ws1 := zwordsize - 1).
-  replace (zwordsize) with (Z.succ ws1).
-  rewrite two_p_S. rewrite Z.mul_comm. apply Z_div_mult. lia.
-  unfold ws1. generalize wordsize_pos; lia.
-  unfold ws1. lia.
-Qed.
-
 Remark half_modulus_modulus: modulus = 2 * half_modulus.
 Proof.
   rewrite half_modulus_power. rewrite modulus_power.
@@ -380,11 +418,17 @@ Qed.
 (** Relative positions, from greatest to smallest:
 <<
       modulus
+      [<, by max_unsigned_modulus]
       max_unsigned
+      [<=, by half_modulus_max_unsigned]
       half_modulus
+      [<, by max_signed_half_modulus]
       max_signed
+      [<=, by wordsize_max_signed], assuming [wordsize > 2]
       wordsize
+      [<, by wordsize_pos]
       0
+      [<, by min_signed_neg]
       min_signed
 >>
 *)
@@ -404,8 +448,8 @@ Proof.
   unfold max_signed. generalize half_modulus_pos. lia.
 Qed.
 
-(* fpottier *)
-Remark wordsize_max_signed: zwordsize <= max_signed.
+(* fpottier & rseassau *)
+Remark wordsize_max_signed: zwordsize > 2 -> zwordsize <= max_signed.
 Proof.
   unfold max_signed. generalize zwordsize_lt_half_modulus. lia.
 Qed.

@@ -32,11 +32,11 @@ Arguments extendfs δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments eval_match η o !bs /.
+Arguments eval_match deep η o !bs /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.
-Arguments eval_sitems ηδ !sitems /.
+Arguments eval_sitems ηδ !sitems / : rename.
 
 (* -------------------------------------------------------------------------- *)
 

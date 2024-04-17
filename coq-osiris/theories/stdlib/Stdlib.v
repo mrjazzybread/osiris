@@ -271,7 +271,7 @@ Qed.
 
 Section Stdlib__specs.
 
-  Context `{!osirisGS Σ} `{@protocol_wf Σ P}.
+Context `{!osirisGS Σ}.
 
 Lemma Stdlib__ref__spec (v : val) :
   {{{ True }}}

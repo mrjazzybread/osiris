@@ -60,7 +60,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EApp : expr → expr → expr
   | ETuple : list expr → expr
   | EData : data → expr → expr
-  | EXData : data → expr → expr
+  | EXData : var → expr → expr
   | ERecord : list fexpr → expr
   | ERecordUpdate : expr → list fexpr → expr
   | ERecordAccess : expr → <span class="bp">field</span> → expr
@@ -103,6 +103,9 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EMatch : expr → list branch → expr
   | ETryWith : expr → list branch → expr
   | ERaise : expr → expr
+  | EPerform : expr → expr
+  | EContinue : expr → expr → expr
+  | EDiscontinue : expr → expr → expr
   | EWhile : expr → expr → expr
   | EFor : var → expr → expr → expr → expr
   | EAssertFalse : expr
@@ -116,7 +119,11 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   <span class="kr">with</span> rec_binding : <span class="kt">Set</span> :=  RecBinding : var → anonfun → rec_binding
   <span class="kr">with</span> anonfun : <span class="kt">Set</span> :=  AnonFun : var → expr → anonfun
   <span class="kr">with</span> mexpr : <span class="kt">Set</span> :=
-    MUnsupported : mexpr | MPath : path → mexpr | MStruct : list sitem → mexpr | MCoercion : mexpr → coercion → mexpr
+    MUnsupported : mexpr
+  | MPath : path → mexpr
+  | MStruct : list sitem → mexpr
+  | MFunctor : var → list sitem → mexpr
+  | MCoercion : mexpr → coercion → mexpr
   <span class="kr">with</span> sitem : <span class="kt">Set</span> :=
     ILet : list binding → sitem
   | ILetRec : list rec_binding → sitem
@@ -170,6 +177,9 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EMatch e bs%list_scope
 <span class="kn">Arguments</span> ETryWith e bs%list_scope
 <span class="kn">Arguments</span> ERaise e
+<span class="kn">Arguments</span> EPerform e
+<span class="kn">Arguments</span> EContinue e1 e2
+<span class="kn">Arguments</span> EDiscontinue e1 e2
 <span class="kn">Arguments</span> EWhile e body
 <span class="kn">Arguments</span> EFor x e1 e2 e
 <span class="kn">Arguments</span> EAssert e
@@ -183,6 +193,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> AnonFun x e
 <span class="kn">Arguments</span> MPath π
 <span class="kn">Arguments</span> MStruct items%list_scope
+<span class="kn">Arguments</span> MFunctor x items%list_scope
 <span class="kn">Arguments</span> MCoercion me c
 <span class="kn">Arguments</span> ILet bs%list_scope
 <span class="kn">Arguments</span> ILetRec rbs%list_scope
@@ -224,7 +235,9 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VXData : loc → val → val
   | VRecord : list (var * val) → val
   | VLoc : loc → val
+  | VCont : loc → val
   | VStruct : list (var * val) → val
+  | VFunctor : list (var * val) → var → list sitem → val
   | VChar : char → val
   | VArray : list val → val.
 
@@ -238,7 +251,9 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VXData l v
 <span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
+<span class="kn">Arguments</span> VCont k
 <span class="kn">Arguments</span> VStruct xvs%list_scope
+<span class="kn">Arguments</span> VFunctor η%list_scope x xvs%list_scope
 <span class="kn">Arguments</span> VChar c
 <span class="kn">Arguments</span> VArray c%list_scope</blockquote></div></div></small></span></pre><p>An <em>environment</em> is a mapping of variables to values. Because a closure captures
 an environment, the syntactic categories of values and environments are mutually
@@ -449,7 +464,7 @@ an exception, or stop on a system call, and Coq's execution engine can
     Ret : A → micro A E
   | Throw : E → micro A E
   | Crash : micro A E
-  | Handle : micro C.val C.exn → (outcome3 C.val C.exn → micro A E) → micro A E
+  | Handle : micro C.val C.exn → (code.outcome3 C.val C.exn → micro A E) → micro A E
   | Stop : <span class="kr">∀</span> <span class="nv">X</span> <span class="nv">Y</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, C.code X Y E&#39; → X → (outcome2 Y E&#39; → micro A E) → micro A E
   | Par : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, micro A1 E&#39; → micro A2 E&#39; → (outcome2 (A1 * A2) E&#39; → micro A E) → micro A E
   | Choose : <span class="kr">∀</span> <span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, micro B E&#39; → micro B E&#39; → (outcome2 B E&#39; → micro A E) → micro A E.
@@ -503,8 +518,8 @@ uses the following set of codes:</p>
   | CLoad : code loc val exn
   | CStore : code (loc * val) () exn
   | CPerform : code val val exn
-  | CContinue : code (loc * val) val exn
-  | CDiscontinue : code (loc * val) val exn.
+  | CResume : code (loc * outcome2 val exn) val exn
+  | CInstall : code (bool * loc * env * handler) loc exn.
 
 <span class="kn">Arguments</span> code (_ _ _)%type_scope</blockquote></div></div></small></span></pre><p>The code <code class="highlight coq"><span class="n">CEval</span></code>, which we have encountered earlier, is used to request
 a recursive invocation of the function <code class="highlight coq"><span class="kp">eval</span></code>. The code <code class="highlight coq"><span class="n">CLoop</span></code> plays a
@@ -550,29 +565,38 @@ takes us from one pause to the next pause.</p>
                        | Some (V _) =&gt; (&lt;[l:=V v&#39;]&gt; σ, continue k ())
                        | _ =&gt; (σ, crash)
                        <span class="kr">end</span> → step (σ, Stop CStore (l, v&#39;) k) c&#39;
-  | StepHandleRet : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">v</span> : C.val) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
+  | StepHandleRet : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">v</span> : C.val) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
                       step (σ, Handle (ret v) h) (σ, h (O3Ret v))
-  | StepHandleThrow : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : C.exn) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
+  | StepHandleThrow : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : C.exn) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
                         step (σ, Handle (throw e) h) (σ, h (O3Throw e))
   | StepHandlePerform : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : val) (<span class="nv">k</span> : outcome2 val exn → micro C.val C.exn) 
-                          (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E) 
+                          (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E) 
                           (<span class="nv">l</span> : C.continuation),
                           σ !! l = None → step (σ, Handle (Stop CPerform e k) h) (&lt;[l:=K k]&gt; σ, h (O3Perform e l))
-  | StepHandleCrash : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E), step (σ, Handle crash h) (σ, crash)
-  | StepHandleLeft : <span class="kr">∀</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m</span> <span class="nv">m&#39;</span> : micro C.val C.exn) (<span class="nv">h</span> : outcome3 C.val C.exn → micro A E),
+  | StepHandleCrash : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E), step (σ, Handle crash h) (σ, crash)
+  | StepHandleLeft : <span class="kr">∀</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m</span> <span class="nv">m&#39;</span> : micro C.val C.exn) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
                        step (σ, m) (σ&#39;, m&#39;) → step (σ, Handle m h) (σ&#39;, Handle m&#39; h)
-  | StepContinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v</span> (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
-                     c&#39; =
-                     <span class="kr">match</span> σ !! l <span class="kr">with</span>
-                     | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (continue sk v) k)
-                     | _ =&gt; (σ, crash)
-                     <span class="kr">end</span> → step (σ, Stop CContinue (l, v) k) c&#39;
-  | StepDiscontinue : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">v</span> : exn) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
-                        c&#39; =
-                        <span class="kr">match</span> σ !! l <span class="kr">with</span>
-                        | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (discontinue sk v) k)
+  | StepInstall : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">deep</span> : bool) (<span class="nv">l</span> <span class="nv">k</span> : loc) 
+                    (<span class="nv">h</span> : outcome2 loc exn → micro A E) 
+                    (<span class="nv">bs</span> : handler) (<span class="nv">c&#39;</span> : store * micro A E) 
+                    <span class="nv">η</span>,
+                    σ !! l = None
+                    → c&#39; =
+                      <span class="kr">match</span> σ !! k <span class="kr">with</span>
+                      | Some (K sk) =&gt;
+                          (&lt;[l:=K
+                                  (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn,
+                                     Handle (sk o) (<span class="kr">λ</span> <span class="nv">o0</span> : code.outcome3 C.val C.exn, eval_match deep η o0 bs))]&gt; σ,
+                           continue h l)
+                      | _ =&gt; (σ, crash)
+                      <span class="kr">end</span> → step (σ, Stop CInstall (deep, k, η, bs) h) c&#39;
+  | StepResume : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">o</span> : outcome2 val exn) 
+                   (<span class="nv">k</span> : outcome2 val exn → micro A E) 
+                   (<span class="nv">c&#39;</span> : store * micro A E),
+                   c&#39; = <span class="kr">match</span> σ !! l <span class="kr">with</span>
+                        | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (sk o) k)
                         | _ =&gt; (σ, crash)
-                        <span class="kr">end</span> → step (σ, Stop CDiscontinue (l, v) k) c&#39;
+                        <span class="kr">end</span> → step (σ, Stop CResume (l, o) k) c&#39;
   | StepParRetRet : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                       step (σ, Par (ret v1) (ret v2) k) (σ, continue k (v1, v2))
   | StepParCrashLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
@@ -623,8 +647,8 @@ takes us from one pause to the next pause.</p>
 <span class="kn">Arguments</span> StepHandlePerform {A E}%type_scope σ e (k h)%function_scope l _
 <span class="kn">Arguments</span> StepHandleCrash {A E}%type_scope σ h%function_scope
 <span class="kn">Arguments</span> StepHandleLeft {A E}%type_scope σ σ&#39; m m&#39; h%function_scope _
-<span class="kn">Arguments</span> StepContinue {A E}%type_scope σ l v k%function_scope c&#39; _
-<span class="kn">Arguments</span> StepDiscontinue {A E}%type_scope σ l v k%function_scope c&#39; _
+<span class="kn">Arguments</span> StepInstall {A E}%type_scope σ deep%bool_scope l k h%function_scope bs c&#39; η _ _
+<span class="kn">Arguments</span> StepResume {A E}%type_scope σ l o k%function_scope c&#39; _
 <span class="kn">Arguments</span> StepParRetRet {A E A1 A2 E&#39;}%type_scope σ v1 v2 k%function_scope
 <span class="kn">Arguments</span> StepParCrashLeft {A E A1 A2 E&#39;}%type_scope σ m2 k%function_scope
 <span class="kn">Arguments</span> StepParCrashRight {A E A1 A2 E&#39;}%type_scope σ m1 k%function_scope

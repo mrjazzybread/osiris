@@ -22,3 +22,18 @@ let b =
      happens to crash, because the two constructors have the same name but
      have different arities.  *)
   (Obj.magic a0) = a1
+
+(* A string literal. *)
+
+let s =
+  "émission de caractères spéciaux:\"\n\""
+
+(* Character literals. *)
+
+let cs =
+  [' '; 'a'; 'e'; '"'; '\''; '\n']
+
+(* Integer literals and special constants. *)
+
+let i =
+  [min_int; -1; 0; 1; max_int]

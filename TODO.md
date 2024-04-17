@@ -13,9 +13,10 @@
 
 ## Translator
 
-* Document which version of OCaml we depend upon (4.14).
+* Document which version of OCaml we depend upon (5.x).
 
-* Primitive operations that still need to be recognized:
+* Primitive operations and constants that still need to be recognized:
+  + `min_int`, `max_int`
   + `%compare`
   + `%loc_LOC` and friends (type-directed!)
   + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
@@ -172,46 +173,6 @@
     the execution of the rest of the loop
   - Check that we are able to use Iris invariants
   - Port Arthur's imperative pairing heaps and compare with CFML.
-
-## References
-
-* Do Jacques Garrigue and his students have a semantics of a fragment of OCaml?
-* Scott Owens
-* Functional big-step semantics, ESOP 2016.
-* Malfunction
-* audebaud-zucca-99 (spec monad)
-* claessen-99, harrison-06, pirog-gibbons-14 (resumption monad)
-* voigtlander-08, jaskelioff-rivas-15 (efficient presentation of the free monad)
-* svenningsson-axelsson-15
-* letan-al-18, letan-al-21 (FreeSpec)
-* recursion through a `call` effect: McBride, [Turing-Completeness Totally Free](https://strathprints.strath.ac.uk/60166/1/McBride_LNCS2015_Turing_completeness_totally_free.pdf)
-* maillard-al-19
-* swierstra-baanen-19
-* fromherz-steel-21
-* silver-zdancewic-21
-* nigron-dagand-21
-* zakowski-al-21
-* yoon-zakowski-zdancewic-22
-* [keuchel-al-22](https://iris-project.org/pdfs/2022-icfp-symbexec-final.pdf)
-* chappe-al-23
-* [Modular Denotational Semantics for Effects with Guarded Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
-  seems to use interaction trees that are very much like the `micro` monad,
-  and seems to use a small-step semantics (just like us)
-  to give meaning to operations on the heap.
-* Look at Krebbers's dissertation to see how he handles unspecified evaluation
-  order in C.
-* [Semi-automated Reasoning About Non-determinism in C Expressions](https://iris-project.org/pdfs/2019-esop-c.pdf),
-  by D. Frumin, L. Gondelman et R. Krebbers (2019);
-* Goose and GooseLang (Tej Chajed).
-* WasmRef-Isabelle (https://dl.acm.org/doi/pdf/10.1145/3591224).
-  Testing or fuzzing techniques that we could re-use?
-* Reynald Affeldt, monadic equational reasoning;
-  also Hinze & Gibbons.
-* Frumin/Timany/Birkedal, [Modular Denotational Semantics for Effects with Guarded
-  Interaction Trees](https://arxiv.org/pdf/2307.08514.pdf)
-* [Program Adverbs and Tlön embeddings](https://www.cis.upenn.edu/~sweirich/papers/icfp22.pdf)
-* [Spoq](https://www.usenix.org/system/files/osdi23-li-xupeng.pdf)
-* SSProve (imperative language embedded in Coq, plus Dijkstra monads)
 
 ## Features of OCaml that we want to support (at some point)
 

@@ -67,6 +67,10 @@ End ghost_instances.
 Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
+(* Notations *)
+Notation "l ↦ v" := (mapsto l (DfracOwn 1) v)
+  (at level 20, format "l  ↦  v") : bi_scope.
+
 (* -------------------------------------------------------------------------- *)
 
 (** *Iris instantiation *)
@@ -113,7 +117,10 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
 
 (* -------------------------------------------------------------------------- *)
 
-From osiris.program_logic Require Export protocols.
+(* Definition of protocols, inherited from [Hazel] *)
+From osiris.Hazel Require Export protocols.
+
+(* -------------------------------------------------------------------------- *)
 
 (** *Definition of the effectful weakest precondition *)
 
@@ -121,15 +128,11 @@ Section ewp.
 
   Context {A X : Type}.
 
-  (* Carrier type of protocols *)
-  Context {P : Type}.
-
-  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}
-           `{@protocol_wf Σ P}.
+  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
 
   Definition ewp_pre
-    (ewp: coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    coPset -d> micro A X -d> P -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+    (ewp: coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
+    coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     λ E m Ψ φ,
     (match is_handleable m with
       (* [EWP1]: Pure and exceptional values *)
@@ -155,14 +158,10 @@ Section ewp.
   Proof.
     rewrite /ewp_pre /= => n wp wp' Hwp E m Φ.
     repeat intro.
-    do 2 (f_contractive || f_equiv); cycle 1.
-    { repeat (f_contractive || f_equiv);
-        apply Hwp. }
+    repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
 
-    repeat (f_contractive || f_equiv).
-    intro.
-    repeat (f_contractive || f_equiv).
-    apply Hwp.
+    repeat intro. f_contractive.
+    eapply Hwp.
   Qed.
 
   Definition ewp_def := fixpoint ewp_pre.
@@ -190,8 +189,8 @@ Section ewp_properties.
 
 Context {A X P : Type}.
 
-Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ} `{protocol_wf Σ P}.
-Implicit Type P : iProp Σ.
+Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
+Implicit Type P : iEff Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : A.
 Implicit Type m : micro A X.
@@ -214,10 +213,10 @@ Proof.
           let v := fresh "v" in
           intros v; eapply dist_le; [apply HΦ|lia])
           + (f_contractive || f_equiv)).
-  intro.
-
-  (f_contractive || f_equiv). eapply IH; auto.
-  intros v; eapply dist_le; [apply HΦ|lia].
+  repeat intro. f_contractive.
+  specialize (IH m1). eapply IH; eauto.
+  intro; eauto.
+  eapply dist_le; eauto. lia.
 Qed.
 
 Global Instance ewp_proper E m Ψ:
@@ -256,23 +255,51 @@ Section lift_specs.
 
   (* [lift_ret_spec] is especially useful for lifting specifications over pure
       results to specifications which may handle exceptional results. *)
-  Definition lift_ret_spec (ϕ : A -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Ret r => ϕ r
-    | _ => False
-    end.
+  Definition lift_ret_spec (ϕ : A -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Ret r => ϕ r
+          | _ => False
+          end)%I.
 
-  Definition lift_exn_spec (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Throw e => ψ e
-    | _ => False
-    end.
+  Definition lift_exn_spec (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Throw e => ψ e
+          | _ => False
+          end)%I.
 
-  Definition ilift (ϕ : A -> iProp) (ψ : E -> iProp) (v : outcome2 A E) : iProp :=
-    match v with
-    | O2Ret r => ϕ r
-    | O2Throw e => ψ e
-    end.
+  Definition ilift (ϕ : A -d> iProp) (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
+    (λ v, match v with
+          | O2Ret r => ϕ r
+          | O2Throw e => ψ e
+          end)%I.
+
+  Global Instance lift_ret_spec_ne n :
+    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_ret_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_ret_spec_proper :
+    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_ret_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_exn_spec_ne n :
+    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_exn_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance lift_exn_spec_proper :
+    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_exn_spec.
+  Proof. repeat intro; subst; destruct y0; eauto. Qed.
+
+  Global Instance ilift_ne n :
+    Proper (pointwise_relation _ (dist n) ==>
+            pointwise_relation _ (dist n) ==>
+            eq ==> (dist n)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
+
+  Global Instance ilift_proper :
+    Proper (pointwise_relation _ (≡) ==>
+            pointwise_relation _ (≡) ==>
+            eq ==> (≡)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
 
 End lift_specs.
 
@@ -309,13 +336,13 @@ Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>' {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
-  (ewp_def E e%E prot_bottom Φ)
+  (ewp_def E e%E iEff_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e {{ Φ } }" :=
-  (ewp_def ⊤ e%E prot_bottom Φ)
+  (ewp_def ⊤ e%E iEff_bottom Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.

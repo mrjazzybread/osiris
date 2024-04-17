@@ -16,6 +16,9 @@ open Coq
 (* Variables, module names, data constructors, and field names are
    represented in Coq as strings. *)
 
+(* Because an OCaml identifier cannot contain a double quote character,
+   there is no need for escaping of any kind. *)
+
 let quote s =
   plain (sprintf "\"%s\"" s)
 
@@ -39,30 +42,34 @@ let int i =
 
 (* String literals. *)
 
+(* A Coq string literal can contain any character below ASCII 128,
+   with the exception of the double quote character, which must be
+   repeated. It can also contain valid UTF8 characters. *)
+
+(* A scope annotation [%string] could be added, but is unnecessary
+   as the library [osiris] makes it the default scope. *)
+
+let is_double_quote =
+  function '"' -> true | _ -> false
+
+let repeat_double_quotes s =
+  StringExtra.double is_double_quote s
+
 let string s =
-  quote (String.escaped s)
+  quote (repeat_double_quotes s)
 
 (* -------------------------------------------------------------------------- *)
 
 (* Character literals. *)
 
-let bool b =
-  if b then plain "true" else plain "false"
+(* In Coq, a character has type [ascii]. A character is internally represented
+   as a tuple of eight Boolean values. However, this information need not be
+   exposed here. Instead, we use Coq's character literal notation. A character
+   literal is a string literal followed with the scope annotation [%char]. *)
 
-let char (cc : char) =
-  let i = int_of_char cc in
-  let d0 = i land 1 <> 0
-  and d1 = i land 2 <> 0
-  and d2 = i land 4 <> 0
-  and d3 = i land 8 <> 0
-  and d4 = i land 16 <> 0
-  and d5 = i land 32 <> 0
-  and d6 = i land 64 <> 0
-  and d7 = i land 128 <> 0
-  in
-  (* In Coq, a [char] is represented by the type [ascii]. Each character is
-     represented by eight Booleans. *)
-  c "Ascii" (map bool [ d0; d1; d2; d3; d4; d5; d6; d7 ])
+let char (cc: char) =
+  let s = String.make 1 cc in
+  plain (sprintf "\"%s\"%%char" (repeat_double_quotes s))
 
 (* -------------------------------------------------------------------------- *)
 
@@ -116,8 +123,8 @@ and cpat (cp : cpat) =
   | CExc p ->
      c "CExc" [ pat p ]
 
-  | CEff p ->
-     c "CEff" [ pat p ]
+  | CEff (p1, p2) ->
+     c "CEff" [ pat p1; pat p2 ]
 
   | COr (p1, p2) ->
      c "COr" [ cpat p1; cpat p2 ]
@@ -280,6 +287,15 @@ let rec expr (e : expr) =
   | ERaise e ->
      c "ERaise" [ expr e ]
 
+  | EPerform e ->
+     c "EPerform" [ expr e ]
+
+  | EContinue (e1, e2) ->
+     c "EContinue" [ expr e1; expr e2 ]
+
+  | EDiscontinue (e1, e2) ->
+     c "EDiscontinue" [ expr e1; expr e2 ]
+
   | EWhile (e1, e2) ->
       c "EWhile" [ expr e1; cut_expr e2 ]
 
@@ -396,6 +412,9 @@ and mexpr (me : mexpr) =
 
   | MStruct items ->
       clist "MStruct" (structure_items items)
+
+  | MFunctor (x, items) ->
+      c "MFunctor" ([ var x ] @ structure_items items)
 
   | MCoercion (me, co) ->
       c "MCoercion" [ mexpr me; coercion co ]

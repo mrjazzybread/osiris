@@ -105,3 +105,4 @@ Ltac simp_confluent :=
   | h1: simp ?m ?m'1, h2: simp ?m ?m'2 |- _ =>
       generalize (simp_confluent h1 h2)
   end.
+
