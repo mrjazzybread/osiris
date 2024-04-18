@@ -249,22 +249,25 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %Hag.
        inversion Hag; subst; clear Hag.
 
-       rewrite {3}/deep_handler_body; cbn.
-       with_strategy transparent [extend] unfold extend. (* FIXME *)
+       iNext.
+       Ltac skip_branch :=
+         iApply handle_cons_skip; [ reflexivity | ].
 
-       iApply ewp_try2. rewrite !bind_bind. Simp.
+       skip_branch.
+       skip_branch.
+
+       iCombine "Hl H_READ H IH" as "Q".
+       iApply (handle_cons with "Q"); [ specify_cpattern; pattern_match | iIntros ([[] | []]) ].
+       iIntros "(Hl & H_READ & H & IH)".
 
        destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
-       last (rewrite Z.eqb_neq in Hread_eff; lia).
-
-       Simp; Ret; cbn.
+         last (rewrite Z.eqb_neq in Hread_eff; lia).
 
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ"
           $! iEff_bottom
              (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
-       iNext.
 
        Simp. rewrite /as_cont. do 2 Simp.
        ewp_tactics.Load "Hl".
@@ -281,7 +284,8 @@ Section verification.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       rewrite {3}/deep_handler_body; cbn.
+       iNext. skip_branch. skip_branch.
+       rewrite /deep_handler_body; cbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
        cbn.
@@ -292,7 +296,7 @@ Section verification.
          last clear Hwrite_eff;
        first (by rewrite Z.eqb_eq in Hwrite_eff).
 
-       Simp. iNext. Throw. cbn.
+       Simp. Throw. cbn.
        iApply ewp_try2. Bind.
 
        destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff;

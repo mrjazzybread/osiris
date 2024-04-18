@@ -303,5 +303,19 @@ Section handler_proof.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 
+  Lemma handle_cons_skip deep η o cp e bs all_branches ψ Φ :
+    valid_cpattern_match cp o = false ->
+    EWP (pre_eval_match_aux eval deep η o bs all_branches) <|ψ|> {{ Φ }} -∗
+    EWP (pre_eval_match_aux eval deep η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
+  Proof.
+    iIntros (Hvalid) "Hmatch".
+    iAssert (bi_pure True) as "Htrue". done.
+    iApply handle_cons.
+    { unfold cpattern.
+      rewrite invert_valid_match; [ | assumption ].
+      apply total_throw. apply I. }
+    { iApply "Htrue". }
+    by iFrame.
+  Qed.
 
 End handler_proof.
