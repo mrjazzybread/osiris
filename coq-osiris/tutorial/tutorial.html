@@ -37,7 +37,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | POr : pat → pat → pat
   | PTuple : list pat → pat
   | PData : data → pat → pat
-  | PXData : var → pat → pat
+  | PXData : path → pat → pat
   | PRecord : list (<span class="bp">field</span> * pat) → pat
   | PInt : Z → pat
   | PChar : char → pat
@@ -48,7 +48,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> POr p1 p2
 <span class="kn">Arguments</span> PTuple ps%list_scope
 <span class="kn">Arguments</span> PData c p
-<span class="kn">Arguments</span> PXData c p
+<span class="kn">Arguments</span> PXData π p
 <span class="kn">Arguments</span> PRecord fps%list_scope
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
@@ -60,7 +60,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EApp : expr → expr → expr
   | ETuple : list expr → expr
   | EData : data → expr → expr
-  | EXData : var → expr → expr
+  | EXData : path → expr → expr
   | ERecord : list fexpr → expr
   | ERecordUpdate : expr → list fexpr → expr
   | ERecordAccess : expr → <span class="bp">field</span> → expr
@@ -136,7 +136,7 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EApp e1 e2
 <span class="kn">Arguments</span> ETuple es%list_scope
 <span class="kn">Arguments</span> EData c e
-<span class="kn">Arguments</span> EXData c e
+<span class="kn">Arguments</span> EXData π e
 <span class="kn">Arguments</span> ERecord fes%list_scope
 <span class="kn">Arguments</span> ERecordUpdate e fes%list_scope
 <span class="kn">Arguments</span> ERecordAccess e f

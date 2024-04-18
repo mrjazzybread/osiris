@@ -451,11 +451,11 @@ Fixpoint extend δ p v : micro env unit :=
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
       if c =? c' then extend δ p v else throw ()
-  | PXData c p, VXData l v =>
+  | PXData π p, VXData l v =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
-      l' ← as_loc (widen (lookup_name δ c)) ;
+      l' ← as_loc (widen (lookup_path δ π)) ;
       if (locations.eqb l l') then extend δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
@@ -1062,8 +1062,8 @@ Fixpoint eval η e {struct e} : microvx :=
   | EData c e =>
       v ← eval η e ;
       ret (VData c v)
-  | EXData c e =>
-      l ← as_loc (widen (lookup_name η c)) ;
+  | EXData π e =>
+      l ← as_loc (widen (lookup_path η π)) ;
       v ← eval η e ;
       ret (VXData l v)
   | ERecord fes =>

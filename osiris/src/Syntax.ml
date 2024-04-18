@@ -3,11 +3,7 @@
 (* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
 
 (* There are a few minor differences between the Coq Osiris AST (syntax.v)
-   and this OCaml Osiris AST.
-
-   TODO: Updated Comment.
-   In particular, while the Coq AST uses ad hoc lists,
-   this AST uses ordinary lists. *)
+   and this OCaml Osiris AST. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -47,6 +43,9 @@ type field =
 
 (* Patterns. *)
 
+(* An ordinary pattern, or value pattern, has type [pat].
+   Such a pattern is used in a case analysis on a value. *)
+
 type pat =
   (* A placeholder for as-yet-unsupported constructs. *)
   | PUnsupported
@@ -56,12 +55,17 @@ type pat =
   | PVar of var
   (* An alias pattern [p as x]. *)
   | PAlias of pat * var
+  (* A disjunction pattern [p1 | p2]. *)
+  | POr of pat * pat
   (* A tuple pattern. *)
   | PTuple of pats
-  (* A data constructor pattern. *)
+  (* A data constructor pattern in an ordinary algebraic data type.
+     In [PData (d, p)], the data constructor [d] is a fixed string. *)
   | PData of data * pat
-  (* A data constructor pattern of an extensible type. *)
-  | PXData of data * pat
+  (* A data constructor pattern in an extensible algebraic data type.
+     In [PXData (π, p)], the path [π] is expected to denote a memory
+     location, which serves as a dynamically-allocated name. *)
+  | PXData of path * pat
   (* A record pattern. *)
   | PRecord of fpats
   (* A literal integer pattern. *)
@@ -70,16 +74,28 @@ type pat =
   | PChar of char
   (* A literal string pattern. *)
   | PString of string
-  (* A disjunction pattern [p1 | p2]. *)
-  | POr of pat * pat
 
 (* Computation patterns. *)
 
+(* A computation pattern has type [cpat]. Such a pattern is used in a
+   case analysis on a three-branch outcome, which represents a value,
+   an exception, or an effect. *)
+
 and cpat =
+  (* This pattern matches a normal termination outcome. It guards the
+     "return branch" in an effect handler. In OCaml's concrete syntax,
+     it corresponds to the absence of an [exception] or [effect]
+     keyword in a [match] construct. *)
   | CVal of pat
+  (* This pattern matches an exceptional outcome. In OCaml's concrete
+     syntax, it corresponds to the presence of the [exception] keyword
+     in a [match] branch. *)
   | CExc of pat
+  (* This pattern matches an effect. In OCaml's concrete syntax, it
+     corresponds to the presence of the [effect] keyword in a [match]
+     branch. *)
   | CEff of pat * pat
-  (* A disjunction pattern [p1 | p2]. *)
+  (* A disjunction pattern [cp1 | cp2]. *)
   | COr of cpat * cpat
 
 (* Lists of patterns. *)
@@ -95,6 +111,10 @@ and fpats =
 (* -------------------------------------------------------------------------- *)
 
 (* Module coercions. *)
+
+(* Module coercions can be understood as a very impoverished form of module
+   types. They play a role in the dynamic semantics of the shape restriction
+   operation on modules. *)
 
 type coercion =
 
@@ -140,8 +160,7 @@ type expr =
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
   | EData of data * expr
-
-  | EXData of data * expr
+  | EXData of path * expr
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord of fexprs
@@ -156,7 +175,7 @@ type expr =
   | EBoolNeg of expr
 
   (* Integer literals. *)
-  | EInt of int (* TODO is this integer representable? *)
+  | EInt of int
   | EMaxInt
   | EMinInt
   (* Integer arithmetic. *)
@@ -207,9 +226,9 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
-  (* Exception catching: [try e with bs]. *)
+  (* Catching an exception: [try e with bs]. *)
   | ETryWith of expr * branches
-  (* Exception raising: [raise e]. *)
+  (* Raising an exception: [raise e]. *)
   | ERaise of expr
 
   (* Performing an effect: [perform e]. *)
@@ -225,6 +244,7 @@ type expr =
   | EFor of var * expr * expr * expr
 
   (* Fatal error: [assert false]. *)
+  (* We model OCaml's unreachable construct [.] in this way, too. *)
   | EAssertFalse
 
   (* Runtime assertion: [assert(e)]. *)
@@ -260,7 +280,7 @@ and branch =
 and branches =
   branch list
 
-(* A binding is of the form [p = e], or a meta-level reference. *)
+(* A binding is of the form [p = e]. *)
 
 and binding =
   | Binding of pat * expr
@@ -270,7 +290,7 @@ and binding =
 and bindings =
   binding list
 
-(* A recursive binding is of the form [f = a], or a meta-level reference. *)
+(* A recursive binding is of the form [f = a]. *)
 
 and rec_binding =
   | RecBinding of var * anonfun

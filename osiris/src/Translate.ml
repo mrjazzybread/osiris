@@ -36,17 +36,24 @@ let rec show_longident (i : Longident.t) =
 let rec show_path (p : Path.t) =
   match p with
   | Pident i ->
+      (* A variable or module identifier. *)
       Ident.name i
   | Pdot (p, x) ->
+      (* A field selection in a structure. *)
       sprintf "%s.%s" (show_path p) x
   | Papply (p1, p2) ->
+      (* A functor application. *)
       sprintf "%s(%s)" (show_path p1) (show_path p2)
-  | Pextra_ty (p1, p2) ->
-      match p2 with
-      | Pcstr_ty x ->
-	  sprintf "%s{%s}" x (show_path p1)
-      | Pext_ty ->
-	  sprintf "+=%s" (show_path p1)
+  | Pextra_ty (p, Pcstr_ty data) ->
+      (* This path names the inline record carried by the data constructor
+         [data] of the algebraic data type [p]. See [path.mli]. *)
+      (* OCaml has no agreed-upon surface syntax for this concept. *)
+      sprintf "%s/%s{}" (show_path p) data
+  | Pextra_ty (p, Pext_ty) ->
+      (* This path names the inline record carried by the extensible data
+         constructor [p]. See [path.mli]. *)
+      (* OCaml has no agreed-upon surface syntax for this concept. *)
+      sprintf "%s{}" (show_path p)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -81,20 +88,42 @@ exception Unsupported
 
 (* -------------------------------------------------------------------------- *)
 
-(* Auxiliary exceptions and functions. *)
+(* Recognizing global identifiers and paths. *)
 
-exception NotExactKnownPrimitive
+exception Unrecognized
 
-let is_Stdlib path =
+(* [recognize_global_ident id] checks that [id] is a global identifier, and
+   if so, returns its name. Otherwise, [Unrecognized] is raised. *)
+
+let recognize_global_ident (id : Ident.t) : string =
+  if Ident.global id then
+    Ident.name id
+  else
+    raise Unrecognized
+
+(* [recognize_global_path path] checks that [path] is rooted at a global
+   identifier, and if so, converts this path to a list of strings, where
+   the first element of the list represents the root of the path.
+   Otherwise, [Unrecognized] is raised. *)
+
+let rec recognize_global_path path : string list =
   match path with
-  | Pident m when Ident.name m = "Stdlib" ->
-      true
-  | _ ->
-      false
+  | Pident id ->
+      [recognize_global_ident id]
+  | Pdot (parent, field) ->
+      recognize_global_path parent @ [field]
+  | Papply _
+  | Pextra_ty _ ->
+      raise Unrecognized
 
-let is_Obj path =
-  match path with
-  | Pdot (parent, "Obj") when is_Stdlib parent ->
+(* Recognizing the Boolean expression [false]. *)
+
+(* This code is a bit fragile, as the user might find a way of redefining
+   the identifier [false] to mean something else. The risk seems low. *)
+
+let is_false (e : expression) : bool =
+  match e.exp_desc with
+  | Texp_construct ({ txt = Lident "false"; _}, _, []) ->
       true
   | _ ->
       false
@@ -174,14 +203,12 @@ let debug_ident kind path id =
   debug "      path = %s\n" (show_path path)
 
 let translate_exp_ident path id : path =
-  let id = txt id in
   debug_ident "Texp_ident" path id;
   (* For the moment, we ignore [path] and keep [id]. However, [path]
      could be used to identify references to the OCaml standard library. *)
   translate_longident id
 
 let translate_mod_ident path id : path =
-  let id = txt id in
   debug_ident "Tmod_ident" path id;
   translate_longident id
 
@@ -248,6 +275,22 @@ let translate_pat_constant loc (c : constant) : pat =
 
 (* -------------------------------------------------------------------------- *)
 
+(* Recognizing a constructor in an extensible algebraic data type,
+   as opposed to a constructor in an ordinary algebraic data type. *)
+
+(* See [types.mli]. *)
+
+let is_extensible constructor_desc =
+  match constructor_desc.cstr_tag with
+  | Cstr_constant _
+  | Cstr_block _
+  | Cstr_unboxed ->
+      false
+  | Cstr_extension _ ->
+      true
+
+(* -------------------------------------------------------------------------- *)
+
 (* Patterns, also known as value patterns. *)
 
 (* The type [pattern] is a synonym for [value general_pattern]. *)
@@ -274,12 +317,12 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let data = translate_data_constructor id constructor_desc in
-     (match constructor_desc.cstr_tag with
-      | Cstr_extension _ ->
-         PXData (data, PTuple (translate_pats pats))
-      | _ ->
-         PData (data, PTuple (translate_pats pats)))
+     let tuple = PTuple (translate_pats pats) in
+     if is_extensible constructor_desc then
+       PXData (translate_longident (txt id), tuple)
+     else
+       let data = translate_data_constructor id constructor_desc in
+       PData  (data, tuple)
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -345,7 +388,7 @@ let rec translate_expr (e: expression) : expr =
   match e.exp_desc with
 
   | Texp_ident (path, id, _) ->
-      EPath (translate_exp_ident path id)
+      EPath (translate_exp_ident path (txt id))
 
   | Texp_constant c ->
       translate_exp_constant loc c
@@ -383,12 +426,14 @@ let rec translate_expr (e: expression) : expr =
       ETuple (translate_exprs es)
 
   | Texp_construct (id, constructor_desc, es) ->
-     let data = translate_data_constructor id constructor_desc in
-     (match constructor_desc.cstr_tag with
-      | Cstr_extension _ ->
-         EXData (data, ETuple (translate_exprs es))
-      |_ ->
-        EData (data, ETuple (translate_exprs es)))
+      (* An OCaml data constructor application is always translated as an
+         application of the data constructor to a tuple of its arguments. *)
+     let tuple = ETuple (translate_exprs es) in
+     if is_extensible constructor_desc then
+       EXData (translate_longident (txt id), tuple)
+     else
+       let data = translate_data_constructor id constructor_desc in
+       EData  (data, tuple)
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
@@ -446,9 +491,10 @@ let rec translate_expr (e: expression) : expr =
       eunsupported loc "let exception"
 
   | Texp_assert (e, _) ->
-      (match (e.exp_desc) with
-      | Texp_construct ({ txt = Lident "false"; _}, _, []) -> EAssertFalse
-      | _ -> EAssert (translate_expr e))
+      if is_false e then
+        EAssertFalse
+      else
+        EAssert (translate_expr e)
 
   | Texp_lazy _ ->
       eunsupported loc "lazy"
@@ -479,43 +525,16 @@ and translate_exprs es : exprs =
 
 (* Expressions: function applications. *)
 
-(* We first check whether this is an exact application of a known primitive
-   operation. If so, it is given special treatment. Otherwise, it is viewed
-   as a normal application. *)
-
-(* Thus, an under- or over-application of a primitive operation, or an exact
-   application of an unknown primitive operation, is naturally considered as a
-   call to an external library function. No special treatment is required. *)
+(* We first check whether this is application is recognized as a special
+   application. If so, it receives special treatment. Otherwise, it is
+   treated as a normal application. *)
 
 and translate_application loc e args =
   try
-    translate_primitive_application loc e args
-  with NotExactKnownPrimitive ->
+    translate_special_application loc e args
+  with Unrecognized ->
     let e = translate_expr e in
     match undecorate e with
-
-    (* Recognize [perform eff] as primitive. *)
-    | EPath [ "perform" ] ->
-       assert (List.length args = 1);
-       (match args with
-        | [arg] -> EPerform (translate_labeled_argument loc arg)
-        | _ -> assert false )
-
-    (* Recognize [continue k v] as primitive. *)
-    | EPath [ "continue" ] ->
-       assert (List.length args = 2);
-       (match args with
-        | [ ek; ev ] ->
-           EContinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
-        | _ -> assert false)
-
-    (* Recognize [discontinue k v] as primitive. *)
-    | EPath [ "discontinue" ] ->
-       assert (List.length args = 2);
-       (match args with
-        | [ ek; ev ] ->
-           EDiscontinue (translate_labeled_argument loc ek, translate_labeled_argument loc ev)
-        | _ -> assert false)
 
     (* Recognize [match_with f arg e] as primitive. *)
     | EPath [ "match_with" ]  ->
@@ -560,22 +579,54 @@ and translate_application loc e args =
     | _ ->
        apply e (translate_labeled_arguments loc args)
 
-and translate_primitive_application loc e args =
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: recognition of special applications, that is,
+   applications of primitive operations and
+   applications of standard library functions. *)
+
+(* If this application is not recognized, then [Unrecognized] is raised. *)
+
+and translate_special_application loc e args =
   match e.exp_desc with
-  | Texp_ident (path, _, { val_kind = Val_prim p; _ })
-    when List.length args = p.prim_arity ->
-      (* This is an exact application of a primitive operation. *)
-      translate_exact_primitive_application loc path p args
+
+  | Texp_ident (path, _, { val_kind = Val_prim p; _ }) ->
+      let path = recognize_global_path path in
+      (* This is an application of a primitive operation (to an
+         as-yet-undetermined number of arguments). *)
+      translate_primitive_application loc path p args
+
+  | Texp_ident (path, _, _) ->
+      let path = recognize_global_path path in
+      (* This may be an application of a standard library function. *)
+      translate_stdlib_application loc path args
+
   | _ ->
-      (* This is either not a primitive operation,
-         or not an exact application. *)
-      raise NotExactKnownPrimitive
+      raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
-(* Expressions: exact applications of primitive operations. *)
+(* Expressions: applications of standard library functions. *)
 
-(* An exact application of a primitive operation is recognized as such. *)
+(* If this application is not recognized, then [Unrecognized] is raised. *)
+
+and translate_stdlib_application loc path args =
+  match path, translate_labeled_arguments loc args with
+  | ["Stdlib"; "Effect"; "Deep"; "continue"], [e1; e2] ->
+      EContinue (e1, e2)
+  | ["Stdlib"; "Effect"; "Deep"; "discontinue"], [e1; e2] ->
+      EDiscontinue (e1, e2)
+  | _, _ ->
+      raise Unrecognized
+
+(* -------------------------------------------------------------------------- *)
+
+(* Expressions: applications of primitive operations. *)
+
+(* An application of a primitive operation (to a correct number of arguments)
+   is recognized as such. If the primitive operation is not recognized or is
+   applied to an incorrect number of arguments, then [Unrecognized] is
+   raised. *)
 
 (* In the case of Boolean conjunction (&&) and disjunction (||), this is
    crucial in order to obtain the correct (short-circuit) semantics. *)
@@ -594,14 +645,12 @@ and translate_primitive_application loc e args =
    both the OCaml identifier and the primitive operation. This is not 100%
    bulletproof. *)
 
-and translate_exact_primitive_application loc path p args =
-  assert (List.length args = p.prim_arity);
+and translate_primitive_application loc path p args =
   match path, p.prim_name, translate_labeled_arguments loc args with
 
   (* Erasing applications of [Obj.magic] is an experimental feature. It takes
      careful consideration and arguments to ascertain that this is sound. *)
-  | Pdot (parent, "magic"), "%identity", [e]
-    when is_Obj parent ->
+  | ["Stdlib"; "Obj"; "magic"], "%identity", [e] ->
       e
 
   (* Integers. *)
@@ -665,23 +714,25 @@ and translate_exact_primitive_application loc path p args =
 
   (* References. *)
 
-  | Pdot (parent, "ref"), "%makemutable", [e]
-    when is_Stdlib parent ->
+  | ["Stdlib"; "ref"], "%makemutable", [e] ->
       ERef e
-  | Pdot (parent, "!"), "%field0", [e]
-    when is_Stdlib parent ->
+  | ["Stdlib"; "!"], "%field0", [e] ->
       ELoad e
-  | Pdot (parent, ":="), "%setfield0", [e1; e2]
-    when is_Stdlib parent ->
+  | ["Stdlib"; ":="], "%setfield0", [e1; e2] ->
       EStore (e1, e2)
 
   (* Exceptions. *)
-  | Pdot (parent, "raise"), "%raise", [e]
-    when is_Stdlib parent ->
+
+  | ["Stdlib"; "raise"], "%raise", [e] ->
       ERaise e
 
+  (* Effects. *)
+
+  | ["Stdlib"; "Effect"; "perform"], "%perform", [e] ->
+      EPerform e
+
   | _, _, _ ->
-      raise NotExactKnownPrimitive
+      raise Unrecognized
 
 (* -------------------------------------------------------------------------- *)
 
@@ -734,11 +785,7 @@ and translate_record_field_as_branches (_, label_def) : branch list =
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match undecorate (translate_expr e) with
       (* Remy/ It is unclear to me why the first case occurs. *)
-      | EAnonFun (AnonFunction [Branch (_, e)]) ->
-         (match undecorate e with
-          | EMatch (_, bs) ->
-             translate_branches_to_effect_branches bs
-          | _ -> assert false)
+      | EAnonFun (AnonFunction [Branch (_, e)])
       | EAnonFun (AnonFun (_, e)) ->
          (match undecorate e with
           | EMatch (_, bs) ->
@@ -981,7 +1028,7 @@ and translate_mod_expr (me : module_expr) : mexpr =
   match me.mod_desc with
 
   | Tmod_ident (path, id) ->
-      MPath (translate_mod_ident path id)
+      MPath (translate_mod_ident path (txt id))
 
   | Tmod_structure str ->
       translate_structure str

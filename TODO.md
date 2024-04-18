@@ -13,6 +13,10 @@
 
 ## Translator
 
+* In `src/Translate.ml`, once we have OCaml with effect handler syntax,
+  remove the ugly code that recognizes applications of `match_with` and
+  `try_with` to a record.
+
 * Document which version of OCaml we depend upon (5.x).
 
 * Primitive operations and constants that still need to be recognized:
