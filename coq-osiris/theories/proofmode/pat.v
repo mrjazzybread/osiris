@@ -201,6 +201,19 @@ Proof.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
+Lemma pat_PXData_eq η c p c' v φ ψ :
+  lookup_path η c = ret (VLoc c') ->
+  pattern η p v φ ψ →
+  pattern η (PXData c p) (VXData c' v) φ ψ.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Hpat.
+  simpl; rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; destruct c'; cbn.
+  by rewrite Z.eqb_refl.
+Qed.
+
 Lemma pat_PConst η c c' φ :
   (c = c' -> φ η) ->
   pattern η (PConstant c) (VConstant c') φ (c <> c').
@@ -492,8 +505,10 @@ Ltac pattern_match :=
     | pat_PVar
     | pat_pNil; intros
     | pat_pCons; intros
+    | eapply pat_PXData_eq; [ reflexivity | ]
     | apply pat_POr
     | pat_PTuple
+    | apply pat_PAlias
     | apply pat_PAny ].
 
 (* [post_process_pats] is expected to be used on multiple goals of the
