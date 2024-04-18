@@ -229,16 +229,16 @@ Section handler_proof.
       iApply ("IH" with "Hsh"). }
   Qed.
 
-  Lemma deep_handle_nil_ret η v all_branches ψ Φ :
+  Lemma handle_nil_ret deep η v all_branches ψ Φ :
    EWP match_failure () <|ψ|> {{ Φ }} -∗
-   EWP (deep_handler_body η (O3Ret v) [] all_branches) <|ψ|> {{ Φ }}.
+   EWP (pre_eval_match_aux eval deep η (O3Ret v) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
     by iIntros.
   Qed.
 
-  Lemma deep_handle_nil_throw η e all_branches ψ Φ :
+  Lemma handle_nil_throw deep η e all_branches ψ Φ :
    EWP throw e <|ψ|> {{ Φ }} -∗
-   EWP (deep_handler_body η (O3Throw e) [] all_branches) <|ψ|> {{ Φ }}.
+   EWP (pre_eval_match_aux eval deep η (O3Throw e) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
     by iIntros.
   Qed.
@@ -261,7 +261,34 @@ Section handler_proof.
     done.
   Qed.
 
-  Lemma deep_handle_cons deep η o cp e bs all_branches ψ Φ φ Q :
+  Lemma shallow_handle_nil_perform η eff k all_branches ψ sk Φ :
+    k ↦ K sk -∗
+    ψ allows perform eff
+    << λ o,
+      ▷ EWP Handle (sk o) (λ o,
+          shallow_handler_body η o all_branches all_branches) <|ψ|> {{ Φ }} >> -∗
+    EWP (shallow_handler_body η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
+  Proof.
+    iIntros "Hl Hperf".
+    iApply (ewp_install with "Hl").
+
+    iIntros (l) "Hl". iNext. cbn.
+
+    iApply ewp_stop_perform.
+
+    rewrite /prot /iEff_car.
+    iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
+    { iIntros (o) "H".
+      iPoseProof (ewp_resume with "Hl") as "Hcov".
+      iModIntro.
+      iApply "Hcov". rewrite try2_ret_right.
+      iApply (bi.later_mono with "H").
+      iIntros "H _".
+      iApply "H". }
+    done.
+  Qed.
+
+  Lemma handle_cons deep η o cp e bs all_branches ψ Φ φ Q :
     cpattern η cp o (λ δ, Q ⊢ EWP (eval δ e) <|ψ|> {{ Φ }}) φ ->
     Q -∗
     (⌜φ⌝ -∗ EWP (pre_eval_match_aux eval deep η o bs all_branches) <|ψ|> {{ Φ }}) -∗
@@ -273,20 +300,6 @@ Section handler_proof.
       simpl; iApply ewp_try;
       (iApply ewp_simp; [ eassumption | ]).
     - iApply ewp_value; simpl. iApply (Hewp with "Q").
-    - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
-  Qed.
-
-  Lemma shallow_handle_cons η o cp e bs all_branches ψ Φ φ :
-    cpattern η cp o (λ δ, ⊢ EWP (eval δ e) <|ψ|> {{ Φ }}) φ ->
-    (⌜φ⌝ -∗ EWP (shallow_handler_body η o bs all_branches) <|ψ|> {{ Φ }}) -∗
-    EWP (shallow_handler_body η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
-  Proof.
-    unfold cpattern, shallow_handler_body.
-    iIntros (Hpat) "Hcov".
-    destruct Hpat as [ (δ & Hsimp & Hewp) | (exc & Hsimp & Hφ) ];
-      simpl; iApply ewp_try;
-      (iApply ewp_simp; [ eassumption | ]).
-    - by iApply ewp_value.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 

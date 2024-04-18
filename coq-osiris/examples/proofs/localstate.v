@@ -224,8 +224,9 @@ Section verification.
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
       iCombine "Hl H" as "Hl".
-      iApply (deep_handle_cons with "Hl"); [ | iIntros ([]) ];
-        specify_cpattern; pattern_match.
+
+      iApply (handle_cons with "Hl"); [ | iIntros ([]) ];
+      specify_cpattern; pattern_match.
 
       iIntros "[Hl H]".
       (* FIXME : expr-level lemma about Data type *)

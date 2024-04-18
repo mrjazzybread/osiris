@@ -531,30 +531,17 @@ Qed.
 (* If the location [l] exists in the store and contains a continuation,
    then [stop CInstall (l, η, hs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} σ σ' l η hs k sk m' :
+Lemma invert_step_install {A E} σ σ' deep l η hs k sk m' :
   σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CInstall (true, l, η, hs) k) (σ', m') ->
+  @step A E (σ, Stop CInstall (deep, l, η, hs) k) (σ', m') ->
   ∃ l',
   σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match true η o hs)) ]> σ /\
+  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o hs)) ]> σ /\
   m' = continue k l'.
 Proof.
   intros Heq Hstep. destruct_step. exploit_location_lookup.
   eexists; split; [ eassumption | split ]; congruence.
 Qed.
-
-Lemma invert_step_shallow_install {A E} σ σ' l η hs k sk m' :
-  σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CInstall (false, l, η, hs) k) (σ', m') ->
-  ∃ l',
-  σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match false η o hs)) ]> σ /\
-  m' = continue k l'.
-Proof.
-  intros Heq Hstep. destruct_step. exploit_location_lookup.
-  eexists; split; [ eassumption | split ]; congruence.
-Qed.
-
 
 (* A term that can step is not [ret _]. *)
 
