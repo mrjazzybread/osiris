@@ -204,13 +204,14 @@ Section verification.
 
     iApply (ewp_deep_handler with "[Hpoints_to Hmain]").
     { (* 3A. Call to [main] in the handled expression *)
-      (* TODO iApply ewp_EApp. *)
-      rewrite eval_eval' /=; Simp.
-      iApply ("Hmain" $! (fun init => points_to γ (VInt init)) with "Hpoints_to"). }
+      iApply (ewp_EApp with "[] [] [Hmain Hpoints_to]"); last first.
+      { iApply ("Hmain" $! (fun init => points_to γ (VInt init)) with "Hpoints_to"). }
+      { Simp; by Ret. }
+      { Simp; by Ret. } }
 
     (* Finally, we prove the specification over handler. *)
 
-    (* TODO: We need to abstract over the environment "just enough" *)
+    (* We need to abstract over the environment "just enough" *)
     remember (VInt init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
 
     (* Löb induction *)
@@ -223,34 +224,33 @@ Section verification.
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
       iCombine "Hl H" as "Hl".
-      iApply (deep_handle_cons with "Hl"); [ | iIntros ([]) ].
-      specify_cpattern. pattern_match.
+      iApply (deep_handle_cons with "Hl"); [ | iIntros ([]) ];
+        specify_cpattern; pattern_match.
+
       iIntros "[Hl H]".
-
-      (* FIXME *)
+      (* FIXME : expr-level lemma about Data type *)
       Simp; with_strategy transparent [evals] unfold evals; Simp.
-      (* Load from location *)
 
+      (* Load from location *)
       ewp_tactics.Load "Hl".
       Ret; iExists (init, a); iFrame; encode. }
 
-    (* -------------------------------------------------------------------------- *)
-    (* Effectful case *)
+     (* -------------------------------------------------------------------------- *)
+     (* Effectful case *)
      iIntros (e k) "Hp".
      iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
 
      { (* READ case *)
        (* TODO: Notation on [iEff_car] is really ugly.. *)
-       cbn.
-       rewrite upcl_read.
+       cbn; rewrite upcl_read.
        iDestruct "H_READ" as (?->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
+       inversion Hag; subst; clear Hag.
 
        rewrite {3}/deep_handler_body; cbn.
        with_strategy transparent [extend] unfold extend. (* FIXME *)
 
-       cbn; inversion Hag; subst.
        iApply ewp_try2. rewrite !bind_bind. Simp.
 
        destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
