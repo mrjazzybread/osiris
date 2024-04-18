@@ -118,8 +118,8 @@ let rec recognize_global_path path : string list =
 
 (* Recognizing the Boolean expression [false]. *)
 
-(* TODO this is a bit fragile, as the user could in theory redefine
-   the identifier [false] to mean something else *)
+(* This code is a bit fragile, as the user might find a way of redefining
+   the identifier [false] to mean something else. The risk seems low. *)
 
 let is_false (e : expression) : bool =
   match e.exp_desc with
