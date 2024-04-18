@@ -772,19 +772,23 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      []
   | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
      (match undecorate (translate_expr e) with
-      | (EAnonFun (AnonFun (v, e))) ->
-         [Branch (CVal (PVar v), e)]
+      | EAnonFun (AnonFunction bs) -> bs
+      | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
       | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
      (match undecorate (translate_expr e) with
-      | EAnonFun (AnonFun (v, e)) ->
-         [Branch (CExc (PVar v), e)]
+      | EAnonFun (AnonFunction bs) -> bs
+      | EAnonFun (AnonFun (v, e)) -> [Branch (CExc (PVar v), e)]
       | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match undecorate (translate_expr e) with
-      (* Remy/ It is unclear to me why the first case occurs. *)
+      (* For now, we ignore the pattern matching on the arguments bound
+         by the anonymous function.
+
+         Due to the signature of [handler] in Effect.Deep, we know that
+         there is only one argument to this anonymous function. *)
       | EAnonFun (AnonFunction [Branch (_, e)])
       | EAnonFun (AnonFun (_, e)) ->
          (match undecorate e with
