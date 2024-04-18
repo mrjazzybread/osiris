@@ -430,6 +430,8 @@ Ltac specify_cpattern :=
       apply cpat_CVal
     | apply cpat_CExc
     | eapply cpat_COr; specify_cpattern
+    | eapply cpat_CEff
+    | eapply cpat_mismatch; [ cbn; reflexivity | ]
     ].
 
 Local Ltac strip_disjunction :=
