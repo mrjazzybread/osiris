@@ -1,6 +1,6 @@
 From stdpp Require Import telescopes.
 
-From iris.proofmode Require Import base tactics classes.
+From iris.proofmode Require Import base tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
@@ -160,8 +160,40 @@ Section verification.
     EWP call_anonfun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
-    Local Ltac skip_branch :=
+    Local Ltac get_outcome_from_match e :=
+      lazymatch e with
+      | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
+      | (deep_handler_body _ ?o _ _) => constr:(o)
+      | (shallow_handler_body _ ?o _ _) => constr:(o)
+      end.
+    Local Ltac trivial_post_instantiation :=
+        lazymatch goal with
+        | |- envs_entails _ ?G =>
+            lazymatch G with
+            | ewp_def _ ?e _ _ =>
+                lazymatch (get_outcome_from_match e) with
+                | O3Ret _ => constr:(True)
+                | O3Throw _ => constr:(True)
+                | O3Perform _ _ => constr:(True \/ True)
+                end
+             end
+         end.
+    Local Ltac skip_matching_branch :=
+      let φ2 := trivial_post_instantiation in
+      iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) φ2);
+      [ specify_cpattern; pattern_match
+      | iIntros (? [])
+      | iIntros (_) ].
+    Local Ltac skip_non_matching_branch :=
       iApply handle_cons_skip; [ reflexivity | ].
+    Local Ltac skip_branch :=
+      (skip_non_matching_branch || skip_matching_branch);
+      fold deep_handler_body; fold shallow_handler_body.
+    Local Ltac enter_branch :=
+      iApply (handle_cons with "[-]");
+      [ specify_cpattern; pattern_match; try (apply eq_refl)
+      | (iIntros (? ->) || iIntros (? <-))
+      | let F := fresh in iIntros (F); tauto ].
     cbn.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
@@ -225,9 +257,8 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
-
-      iApply (handle_cons with "[Hl H]");
-        [ specify_cpattern; pattern_match | iIntros (? ->) | iIntros ([]) ].
+      (* Enter the return branch. *)
+      enter_branch.
 
       (* FIXME : expr-level lemma about Data type *)
       Simp; with_strategy transparent [evals] unfold evals; Simp.
@@ -252,11 +283,8 @@ Section verification.
        iNext.
        (* Skip return and exception branches. *)
        skip_branch. skip_branch.
-       (* Enter [Get] branch. TODO: Make this a one-liner. *)
-       iApply (handle_cons with "[IH Hl H_READ H]");
-         [ specify_cpattern; pattern_match; apply eq_refl
-         | iIntros (? <-)
-         | iIntros ([[] | []]) ].
+       (* Enter [Get] branch. *)
+       enter_branch.
 
        (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
@@ -279,20 +307,14 @@ Section verification.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       (* Skip the return and exceptions branches. *)
-       skip_branch. skip_branch.
-       (* Skip the [Get] branch. TODO: Make this a one-liner. *)
-       iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) (True \/ True));
-         [ specify_cpattern; eapply pat_PXData_neq; [ reflexivity | assumption ]
-         | iIntros (? [])
-         | iIntros (_) ].
+       (* Skip the return, exception, and [Get] branches. *)
+       iNext. skip_branch. skip_branch. skip_branch.
        (* Enter the "Set" Branch. TODO: Make this a one-liner. *)
-       iApply (handle_cons with "[-]");
-         [ specify_cpattern; pattern_match | iIntros (? ->) | iIntros (F); tauto ].
+       enter_branch.
 
        (* EWP Goal: [var := y; continue k ()]. *)
-       iApply ewp_ESeq.
-
+       iApply ewp_ESeq
+.
        (* EWP Subgoal: [var := y]. *)
        iApply (ewp_mono with "[Hl]").
        { iApply (ewp_EStore_simple).

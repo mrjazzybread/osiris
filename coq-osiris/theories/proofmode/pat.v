@@ -538,6 +538,7 @@ Ltac pattern_match :=
     | pat_pNil; intros
     | pat_pCons; intros
     | eapply pat_PXData_eq; [ reflexivity | ]
+    | eapply pat_PXData_neq; [ reflexivity | auto ]
     | apply pat_POr
     | pat_PTuple
     | apply pat_PAlias
