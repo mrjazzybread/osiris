@@ -275,10 +275,12 @@ Section verification.
        iApply ewp_ESeq.
 
        (* EWP Subgoal: [var := y]. *)
-       iApply (ewp_EStore (λ l', bi_pure (l' = l)) (λ v, bi_pure (v = VInt y))).
-       { Bind. iApply ewp_EPath. Ret. by Ret. }
-       { iApply ewp_EPath. by Ret. }
-       iIntros (?? [-> ->]). iExists (VInt init). iFrame. iNext. iIntros "Hl".
+       iApply (ewp_mono with "[Hl]").
+       { iApply (ewp_EStore_simple).
+         { iApply ewp_EPath; by Ret. }
+         { iApply ewp_EPath. Ret. by iFrame. } }
+       iIntros ([|]) "Hl"; simpl;
+         [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
 
        (* EWP Subgoal: [continue k ()]. *)
        iDestruct "H" as "(Hauth & Hx)".
