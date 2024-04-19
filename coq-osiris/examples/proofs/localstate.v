@@ -272,8 +272,8 @@ Section verification.
        enter_branch.
 
        (* EWP Goal: [var := y; continue k ()]. *)
-       iApply ewp_ESeq.
-
+       iApply ewp_ESeq
+.
        (* EWP Subgoal: [var := y]. *)
        iApply (ewp_mono with "[Hl]").
        { iApply (ewp_EStore_simple).
