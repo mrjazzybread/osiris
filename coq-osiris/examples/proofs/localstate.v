@@ -160,6 +160,8 @@ Section verification.
     EWP call_anonfun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
+    Local Ltac skip_branch :=
+      iApply handle_cons_skip; [ reflexivity | ].
     cbn.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
@@ -248,20 +250,15 @@ Section verification.
        inversion Hag; subst; clear Hag.
 
        iNext.
-       Ltac skip_branch :=
-         iApply handle_cons_skip; [ reflexivity | ].
-
-       skip_branch.
-       skip_branch.
-
+       (* Skip return and exception branches. *)
+       skip_branch. skip_branch.
+       (* Enter [Get] branch. TODO: Make this a one-liner. *)
        iApply (handle_cons with "[IH Hl H_READ H]");
-         [ specify_cpattern; pattern_match | | iIntros ([[] | []]) ]. apply eq_refl.
+         [ specify_cpattern; pattern_match; apply eq_refl
+         | iIntros (? <-)
+         | iIntros ([[] | []]) ].
 
-       iIntros (? <-).
-
-       destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
-         last (rewrite Z.eqb_neq in Hread_eff; lia).
-
+       (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ"
@@ -273,8 +270,7 @@ Section verification.
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
        { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
-
-       done. }
+       iApply "H_READ". }
 
     (* -------------------------------------------------------------------------- *)
      { (* WRITE case *)
@@ -284,14 +280,12 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %Hag.
 
        (* Skip the return and exceptions branches. *)
-       skip_branch; skip_branch.
-
+       skip_branch. skip_branch.
        (* Skip the [Get] branch. TODO: Make this a one-liner. *)
        iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) (True \/ True));
          [ specify_cpattern; eapply pat_PXData_neq; [ reflexivity | assumption ]
          | iIntros (? [])
          | iIntros (_) ].
-
        (* Enter the "Set" Branch. TODO: Make this a one-liner. *)
        iApply (handle_cons with "[-]");
          [ specify_cpattern; pattern_match | iIntros (? ->) | iIntros (F); tauto ].
@@ -300,10 +294,12 @@ Section verification.
        iApply ewp_ESeq.
 
        (* EWP Subgoal: [var := y]. *)
-       iApply (ewp_EStore (λ l', bi_pure (l' = l)) (λ v, bi_pure (v = VInt y))).
-       { Bind. iApply ewp_EPath. Ret. by Ret. }
-       { iApply ewp_EPath. by Ret. }
-       iIntros (?? [-> ->]). iExists (VInt init). iFrame. iNext. iIntros "Hl".
+       iApply (ewp_mono with "[Hl]").
+       { iApply (ewp_EStore_simple).
+         { iApply ewp_EPath; by Ret. }
+         { iApply ewp_EPath. Ret. by iFrame. } }
+       iIntros ([|]) "Hl"; simpl;
+         [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
 
        (* EWP Subgoal: [continue k ()]. *)
        iDestruct "H" as "(Hauth & Hx)".
