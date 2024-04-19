@@ -223,12 +223,10 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
-      iCombine "Hl H" as "Hl".
 
-      iApply (handle_cons with "Hl"); [ | iIntros ([]) ];
-      specify_cpattern; pattern_match.
+      iApply (handle_cons with "[Hl H]");
+        [ specify_cpattern; pattern_match | iIntros (? ->) | iIntros ([]) ].
 
-      iIntros "[Hl H]".
       (* FIXME : expr-level lemma about Data type *)
       Simp; with_strategy transparent [evals] unfold evals; Simp.
 
@@ -256,9 +254,10 @@ Section verification.
        skip_branch.
        skip_branch.
 
-       iCombine "Hl H_READ H IH" as "Q".
-       iApply (handle_cons with "Q"); [ specify_cpattern; pattern_match | iIntros ([[] | []]) ].
-       iIntros "(Hl & H_READ & H & IH)".
+       iApply (handle_cons with "[IH Hl H_READ H]");
+         [ specify_cpattern; pattern_match | | iIntros ([[] | []]) ]. apply eq_refl.
+
+       iIntros (? <-).
 
        destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
          last (rewrite Z.eqb_neq in Hread_eff; lia).
@@ -284,26 +283,29 @@ Section verification.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       iNext. skip_branch. skip_branch.
-       rewrite /deep_handler_body; cbn.
-       with_strategy transparent [extend] unfold extend. (* FIXME *)
+       (* Skip the return and exceptions branches. *)
+       skip_branch; skip_branch.
 
-       cbn.
+       (* Skip the [Get] branch. TODO: Make this a one-liner. *)
+       iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) (True \/ True));
+         [ specify_cpattern; eapply pat_PXData_neq; [ reflexivity | assumption ]
+         | iIntros (? [])
+         | iIntros (_) ].
 
-       iApply ewp_try2; rewrite !bind_bind; Simp.
+       (* Enter the "Set" Branch. TODO: Make this a one-liner. *)
+       iApply (handle_cons with "[-]");
+         [ specify_cpattern; pattern_match | iIntros (? ->) | iIntros (F); tauto ].
 
-       destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff;
-         last clear Hwrite_eff;
-       first (by rewrite Z.eqb_eq in Hwrite_eff).
+       (* EWP Goal: [var := y; continue k ()]. *)
+       iApply ewp_ESeq.
 
-       Simp. Throw. cbn.
-       iApply ewp_try2. Bind.
+       (* EWP Subgoal: [var := y]. *)
+       iApply (ewp_EStore (λ l', bi_pure (l' = l)) (λ v, bi_pure (v = VInt y))).
+       { Bind. iApply ewp_EPath. Ret. by Ret. }
+       { iApply ewp_EPath. by Ret. }
+       iIntros (?? [-> ->]). iExists (VInt init). iFrame. iNext. iIntros "Hl".
 
-       destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff;
-        last by rewrite Z.eqb_neq in Hwrite_eff.
-
-       do 2 (Ret; cbn).
-
+       (* EWP Subgoal: [continue k ()]. *)
        iDestruct "H" as "(Hauth & Hx)".
 
        iApply ewp_fupd.
@@ -312,14 +314,19 @@ Section verification.
 
        iSpecialize ("H_WRITE"
           $! iEff_bottom
-             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
+          (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
 
-       Simp. iModIntro. Simp.
-       Store "Hl".
-       cbn.
-       iApply "H_WRITE".
-       iNext. iSpecialize ("IH" $! _ main y with "Hauth Hl").
-       by rewrite /deep_handler_spec seal_eq. }
+       (* Symbolic Execution. *)
+       iModIntro.
+       Simp. Bind. Bind. Simp. Ret. Ret. Bind. Simp. Bind. Bind.
+       (* FIXME. *)
+       with_strategy transparent [evals] unfold evals; simpl.
+       Ret.
+
+       (* Resume the continuation. *)
+       iApply "H_WRITE". iNext.
+       rewrite /deep_handler_spec seal_eq.
+       iApply ("IH" with "Hauth Hl"). }
    Qed.
 
 End verification.

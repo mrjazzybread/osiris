@@ -288,18 +288,32 @@ Section handler_proof.
     done.
   Qed.
 
-  Lemma handle_cons deep η o cp e bs all_branches ψ Φ φ Q :
-    cpattern η cp o (λ δ, Q ⊢ EWP (eval δ e) <|ψ|> {{ Φ }}) φ ->
-    Q -∗
+  Lemma handle_cons deep η o cp e bs all_branches ψ Φ φ1 φ2 :
+    cpattern η cp o φ1 φ2 ->
+    (∀ δ, ⌜φ1 δ⌝ -∗ EWP (eval δ e) <|ψ|> {{ Φ }}) -∗
+    (⌜φ2⌝ -∗ EWP (pre_eval_match_aux eval deep η o bs all_branches) <|ψ|> {{ Φ }}) -∗
+    EWP (pre_eval_match_aux eval deep η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
+  Proof.
+    unfold cpattern.
+    iIntros (Hpat) "Heval Hcov".
+    destruct Hpat as [ (δ' & Hsimp & Hewp) | (exc & Hsimp & Hφ) ];
+      simpl; iApply ewp_try;
+      (iApply ewp_simp; [ eassumption | ]).
+    - iApply ewp_value; simpl. by iApply "Heval".
+    - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
+  Qed.
+
+  Lemma handle_cons' deep η o cp e bs all_branches ψ Φ φ :
+    ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) <|ψ|> {{ Φ }} ) φ⌝ -∗
     (⌜φ⌝ -∗ EWP (pre_eval_match_aux eval deep η o bs all_branches) <|ψ|> {{ Φ }}) -∗
     EWP (pre_eval_match_aux eval deep η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
   Proof.
     unfold cpattern.
-    iIntros (Hpat) "Q Hcov".
+    iIntros (Hpat) "Hcov".
     destruct Hpat as [ (δ & Hsimp & Hewp) | (exc & Hsimp & Hφ) ];
       simpl; iApply ewp_try;
       (iApply ewp_simp; [ eassumption | ]).
-    - iApply ewp_value; simpl. iApply (Hewp with "Q").
+    - iApply ewp_value; simpl. iApply Hewp.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 
@@ -310,12 +324,11 @@ Section handler_proof.
   Proof.
     iIntros (Hvalid) "Hmatch".
     iAssert (bi_pure True) as "Htrue". done.
-    iApply handle_cons.
-    { unfold cpattern.
+    iApply handle_cons'.
+    { iPureIntro. unfold cpattern.
       rewrite invert_valid_match; [ | assumption ].
       apply total_throw. apply I. }
-    { iApply "Htrue". }
-    by iFrame.
+    { iIntros "_". iApply "Hmatch". }
   Qed.
 
 End handler_proof.

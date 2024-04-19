@@ -869,7 +869,7 @@ Section ewp_rules_expr.
       iApply ("P" with "Hl1").
   Qed.
 
-  Lemma ewp_EStore η e1 e2 φ1 φ2 φ Ψ :
+  Lemma ewp_EStore {η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ) φ Ψ :
     EWP as_loc (eval η e1) <|Ψ|> {{ RET l1, φ1 l1 }} -∗
     EWP eval η e2 <|Ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
@@ -889,7 +889,7 @@ Section ewp_rules_expr.
     EWP eval η (EStore e1 e2) <|Ψ|> {{ RET= #(), mapsto l (DfracOwn 1) (V v') }}.
   Proof.
     iIntros "H1 H2".
-    iApply (ewp_EStore _ _ _ (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
+    iApply (ewp_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
     - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
       by iIntros (?) "(-> & ?)"; iApply ewp_value.
     - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.

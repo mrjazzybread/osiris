@@ -214,6 +214,38 @@ Proof.
   by rewrite Z.eqb_refl.
 Qed.
 
+Lemma pat_PXData_neq η π p l1 l2 v φ :
+  lookup_path η π = ret (VLoc l1) ->
+  (address l1 <> address l2) ->
+  pattern η (PXData π p) (VXData l2 v) φ True.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Heq; simpl.
+  rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; simpl.
+  destruct l1, l2; simpl in *.
+  replace (address0 =? address) with false;
+    last by apply eq_sym; apply Z.eqb_neq.
+  by apply total_throw.
+Qed.
+
+Lemma pat_PXData_neq' η π p l1 l2 v :
+  lookup_path η π = ret (VLoc l1) ->
+  (address l1 <> address l2) ->
+  pattern η (PXData π p) (VXData l2 v) (λ _, False) True.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Heq; simpl.
+  rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; simpl.
+  destruct l1, l2; simpl in *.
+  replace (address0 =? address) with false;
+    last by apply eq_sym; apply Z.eqb_neq.
+  by apply total_throw.
+Qed.
+
 Lemma pat_PConst η c c' φ :
   (c = c' -> φ η) ->
   pattern η (PConstant c) (VConstant c') φ (c <> c').
