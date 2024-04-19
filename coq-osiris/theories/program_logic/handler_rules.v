@@ -313,12 +313,11 @@ Section handler_proof.
   Proof.
     iIntros (Hvalid) "Hmatch".
     iAssert (bi_pure True) as "Htrue". done.
-    iApply handle_cons.
-    { unfold cpattern.
+    iApply handle_cons'.
+    { iPureIntro. unfold cpattern.
       rewrite invert_valid_match; [ | assumption ].
       apply total_throw. apply I. }
-    { iApply "Htrue". }
-    by iFrame.
+    { iIntros "_". iApply "Hmatch". }
   Qed.
 
 End handler_proof.
