@@ -252,6 +252,9 @@
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
     as an expression that raises `Next` if `e1` evaluates to `false`)
 * Recursive modules? (Used in Sek, for example.)
+* We *could* support `[%extension_constructor X]`,
+  although it is so obscure that it is perhaps not worth the trouble.
+  See "Built-in extension nodes" in the OCaml manual.
 
 ## Features of OCaml that we do not want to support
 
