@@ -661,28 +661,6 @@ Section ewp_rules.
     by iSpecialize ("Hwp" with "Hl").
   Qed.
 
-  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    (mapsto l (DfracOwn 1) (Shot) -∗
-       ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
-
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    iSpecialize ("Hwp" with "Hl").
-
-    ewp_mask_elim. iFrame.
-  Qed.
-
   (* [CInstall]. *)
 
   (* Installing a handler with branches [h] on top of a continuation
