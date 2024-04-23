@@ -370,6 +370,7 @@ Section wp_handler_rules.
       iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H | ].
 
+      (* TODO redundancy with [ewp_resume]? *)
       iAssert (Ψ allows perform e0
                  << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >>)%I
         with "[HP HH]" as "HΨ".
@@ -378,10 +379,11 @@ Section wp_handler_rules.
         rename σ into σ'.
         ewp_unfold_head.
         intro_state.
-        ewp_mask_intro "Hmod". unfold stop.
-        construct_wp_nonret. destruct_step.
+        ewp_mask_intro "Hmod".
         iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-        rewrite Hl in x; inversion x; subst.
+        unfold stop.
+        construct_wp_nonret.
+        eapply invert_step_resume in Hstep; [ destruct Hstep | eexact Hl ]; subst.
         rewrite try2_ret_right.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
           iFrame.
