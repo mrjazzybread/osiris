@@ -146,6 +146,75 @@ Section handler_proof.
 
   Definition shallow_handler_body := pre_eval_match_aux eval false.
 
+  Lemma ewp_handle_inv {B Y} E k l w (c : _ -> micro B Y) Ψ Φ:
+    l ↦ K k -∗
+    EWP Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
+    EWP Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hl H".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+
+    inversion Hstep; subst.
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in H1; [ destruct H1 | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    rewrite try2_ret_right. done.
+  Qed.
+
+  Lemma ewp_handle_inv' k l w (c : _ -> micro A X) Ψ Φ:
+    l ↦ K k -∗
+    ▷ (l ↦ Shot -∗
+        EWP Handle (k w) c <| Ψ |> {{ Φ }}) -∗
+    EWP Handle (stop CResume (l, w)) c <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hl H".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+
+    inversion Hstep; subst.
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in H1; [ destruct H1 | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    rewrite try2_ret_right.
+    iApply ("H" with "Hl").
+  Qed.
+
+  Lemma ewp_install {B Y} E l deep η bs (k: _ -> micro B Y) φ ψ :
+    (∀ l',
+      l'↦ 
+        (K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs))) -∗
+     ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
+    ) -∗
+    EWP (Stop CInstall (deep, l, η, bs) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* The reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
+    ewp_mask_elim.
+    iFrame "Hsi".
+    done.
+  Qed.
+
   (* Specification of [deep_handler] at the [expr] level. *)
   Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
@@ -157,7 +226,7 @@ Section handler_proof.
     rewrite /deep_handler; remember (eval η e); clear.
 
     (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
-    iLöb as "IH" forall (m η bs Ψ' Φ').
+    iLöb as "IH" forall (m η bs Ψ' Φ' E).
 
     (* Expand the definition of [EWP] to inspect the possible steps that
         can result from [deep_handler η e bs]. *)
@@ -182,51 +251,30 @@ Section handler_proof.
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
 
       (* We allocate a new location that contains the continuation *)
-      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
-        [ exact H | ].
+      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi")
+        as ">[Hsi [HH _]]"; [ exact H | ].
 
-      iFrame; rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
-
+      iFrame.
       (* Install the handler around the location [l]. *)
+      rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
       iApply ewp_install.
       ewp_mask_intro "Hmod".
       ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
                              but not in "Hsh", so we lose; FIXME *)
-      iIntros (?) "Hl"; cbn.
+      iIntros (?) "Hl".
+      iSpecialize ("Hsh" $! e l').
 
-      iAssert (Ψ allows perform e
-        << λ o : outcome2 val exn, (* We need the annotation here; LATER: remove? *)
-            ∀ Ψ'' Φ'',
-              ▷ deep_handler_spec_def E Ψ Φ
-                (λ o, deep_handler_body η o bs bs) Ψ'' Φ'' -∗
-              EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
-        with "[HP Hl HH]" as "HΨ".
-      { iApply (monotonic_prot with "[Hl HH] HP"); iFrame.
-        iIntros (?) "Hwp"; cbn; iIntros (??) "H".
-        iSpecialize ("IH" with "Hwp").
-
+      iSpecialize ("Hsh" with "[HP HH Hl]").
+      { rewrite /prot.
+        iApply (monotonic_prot with "[HH Hl] HP").
+        iIntros (?) "Hk"; iIntros (??) "H".
         rewrite /deep_handler_spec seal_eq.
-
-        (* Resume the continuation that stored the installed handler *)
-        iApply (ewp_resume with "Hl"). iNext.
-        (* No need to remember that this continuation was shot. *)
-        iIntros "_".
-        cbn.
-        iSpecialize ("IH" with "H").
-
-        (* TODO the IH does not look good; it is an [EWP Handle]
-                and we need to reason under it. *)
-        (* TODO
-        (* Rewriting under binders for handle.. LATER: Remove? *)
-        erewrite (eq_handle_handle (k w) _); first done.
-        intros; cbn. rewrite try2_ret_right; reflexivity. *)
-        admit.
-      }
-
-      iSpecialize ("Hsh" with "HΨ").
-      unfold deep_handler_body.
-      (* iApply "Hsh". FIXME fails because of ▷ *) admit.
-    }
+        iApply (ewp_resume with "Hl").
+        iSpecialize ("IH" with "Hk H").
+        iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
+        iNext. iIntros "H".
+        rewrite try2_ret_right. done. }
+      done. }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -237,8 +285,7 @@ Section handler_proof.
       iSpecialize ("IH" with "H").
       rewrite deep_handler_spec_unfold.
       iApply ("IH" with "Hsh"). }
-
-  Admitted.
+  Qed.
 
   Lemma deep_handle_nil_ret η v all_branches ψ Φ :
    EWP match_failure () <|ψ|> {{ Φ }} -∗
