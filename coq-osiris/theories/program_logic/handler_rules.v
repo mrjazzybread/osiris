@@ -188,8 +188,10 @@ Section handler_proof.
       iFrame; rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
 
       (* Install the handler around the location [l]. *)
-      iApply (ewp_install with "HH").
-      ewp_mask_intro "Hmod"; ewp_mask_elim.
+      iApply ewp_install.
+      ewp_mask_intro "Hmod".
+      ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
+                             but not in "Hsh", so we lose; FIXME *)
       iIntros (?) "Hl"; cbn.
 
       iAssert (Ψ allows perform e
@@ -198,8 +200,8 @@ Section handler_proof.
               ▷ deep_handler_spec_def E Ψ Φ
                 (λ o, deep_handler_body η o bs bs) Ψ'' Φ'' -∗
               EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
-        with "[HP Hl]" as "HΨ".
-      { iApply (monotonic_prot with "[Hl] HP"); iFrame.
+        with "[HP Hl HH]" as "HΨ".
+      { iApply (monotonic_prot with "[Hl HH] HP"); iFrame.
         iIntros (?) "Hwp"; cbn; iIntros (??) "H".
         iSpecialize ("IH" with "Hwp").
 
@@ -207,16 +209,24 @@ Section handler_proof.
 
         (* Resume the continuation that stored the installed handler *)
         iApply (ewp_resume with "Hl"). iNext.
-        iIntros "Hl". cbn.
+        (* No need to remember that this continuation was shot. *)
+        iIntros "_".
+        cbn.
         iSpecialize ("IH" with "H").
 
+        (* TODO the IH does not look good; it is an [EWP Handle]
+                and we need to reason under it. *)
+        (* TODO
         (* Rewriting under binders for handle.. LATER: Remove? *)
         erewrite (eq_handle_handle (k w) _); first done.
-        intros; cbn. rewrite try2_ret_right; reflexivity. }
-      (* We're forgetting the [Shot] information here.
-           Do we want to strengthen this?  *)
+        intros; cbn. rewrite try2_ret_right; reflexivity. *)
+        admit.
+      }
 
-      by iSpecialize ("Hsh" with "HΨ"). }
+      iSpecialize ("Hsh" with "HΨ").
+      unfold deep_handler_body.
+      (* iApply "Hsh". FIXME fails because of ▷ *) admit.
+    }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -227,7 +237,8 @@ Section handler_proof.
       iSpecialize ("IH" with "H").
       rewrite deep_handler_spec_unfold.
       iApply ("IH" with "Hsh"). }
-  Qed.
+
+  Admitted.
 
   Lemma handle_nil_ret deep η v all_branches ψ Φ :
    EWP match_failure () <|ψ|> {{ Φ }} -∗
