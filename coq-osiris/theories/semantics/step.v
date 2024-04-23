@@ -189,14 +189,12 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_install σ l deep η bs] is the right-hand side of the reduction rule
-   [StepInstall].
+(* [step_install σ l deep η bs l' k] is the right-hand side of the reduction
+   rule [StepInstall].
 
-   This rule loads a continuation [sk] from the store [σ] at location [l],
-   overwrites it with [Shot], and resumes [sk] with the outcome [o] -- so the
-   result of resuming [sk] with [o] is returned to the continuation [k]. This
-   rule fails if the location [l] is not in the domain of [σ] or contains
-   something other than a continuation. *)
+   TODO change these definitions to *not* read [σ !! l] now;
+        instead, replace [sk o] with [stop CResume (l, o)]
+   TODO comment. *)
 
 Definition step_install_1 σ l deep η bs l' :=
   match σ !! l with
@@ -346,8 +344,10 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CResume (l, o) k)
         c'
 
-  (* [stop CInstall (deep, k, η, bs)] installs a handler [bs] wrapped around the
-     continuation stored at [k] at a new location. *)
+  (* [stop CInstall (deep, l, η, bs)] wraps the continuation that is currently
+     stored at address [l] in an effect handler described by [deep], [η], and
+     [bs]. This results in a new continuation, which is stored in the heap at
+     a fresh location [l']. This location is returned. *)
   | StepInstall :
       ∀ σ deep l η bs k l' c',
       σ !! l' = None →
