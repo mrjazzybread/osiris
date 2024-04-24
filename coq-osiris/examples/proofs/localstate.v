@@ -115,7 +115,7 @@ Section verification.
 
   Definition run := __fun7.
 
-  Example run_spec Φ init main :
+  Example localstate_run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
     EWP call_anonfun env run [ #init ; main]
