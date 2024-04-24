@@ -47,6 +47,195 @@ Ltac destruct_config :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* A few technical tactics. *)
+
+(* [exploit_location_lookup] rewrites an equality hypothesis [σ !! l = _]
+   to rewrite in another hypothesis or in the goal, provided it mentions
+   [σ !! l]. *)
+
+Local Ltac exploit_location_lookup :=
+  match goal with
+  h1: ?σ !! ?l = _,
+  h2: context[?σ !! ?l]
+  |- _ =>
+    rewrite h1 in h2
+  |
+  h1: ?σ !! ?l = _
+  |- context[?σ !! ?l]
+  =>
+    rewrite h1
+  end.
+
+(* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
+   in the goal and performs a case analysis on [σ !! l], giving rise to 4
+   cases (value block; ordinary continuation block; shot continuation block;
+   nonexistent address). *)
+
+Local Ltac case_location_lookup :=
+  match goal with
+  |- context[?σ !! ?l] =>
+      let block := fresh "block" in
+      let Hσ := fresh in
+      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+  | h: context[?σ !! ?l] |- _ =>
+      let block := fresh "block" in
+      let Hσ := fresh in
+      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+  end.
+
+Local Hint Extern 1 (_ = _) =>
+  exploit_location_lookup
+: exploit_location_lookup.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [step_load σ l k] is the right-hand side of the reduction rule [StepLoad].
+
+   The rule loads a value from the store [σ] at location [l] and returns it to
+   the continuation [k]. It fails if this location is not in the domain of [σ]
+   or contains something other than a value. *)
+
+Definition step_load_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
+  match σ !! l with
+  | Some (V v) => continue k v
+  | _          => crash
+  end.
+
+Notation step_load σ l k :=
+  (σ, step_load_2 σ l k).
+
+(* [step_load_2] commutes with [try2]. This expresses the intuition that
+   [step_load_2 σ l k] is parametric in the continuation [k]: it applies
+   [k] without inspecting it. In other words, loading is an "algebraic"
+   effect. *)
+
+Lemma try2_step_load_2 {A E B F} σ l k (k' : outcome2 A E → micro B F) :
+  try2 (step_load_2 σ l k) k' = step_load_2 σ l (pftry2 k k').
+Proof.
+  unfold step_load_2. intros. case_location_lookup; simplify_eq; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [step_store σ l] is the right-hand side of the reduction rule [StepStore].
+
+   This rule loads a value [v] from the store [σ] at location [l], overwrites
+   it with the value [v'], and returns a unit value to the continuation [k].
+   It fails if the location [l] is not in the domain of [σ] or contains
+   something other than a value. *)
+
+Definition step_store_1 σ l v' : store :=
+  match σ !! l with
+  | Some (V v) => <[ l := V v' ]> σ
+  | _          => σ
+  end.
+
+Definition step_store_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :=
+  match σ !! l with
+  | Some (V v) => continue k ()
+  | _          => crash
+  end.
+
+Notation step_store σ l v' k :=
+  (step_store_1 σ l v', step_store_2 σ l k).
+
+(* Storing is an algebraic effect. *)
+
+Lemma try2_step_store_2 {A B E F} σ l
+  (k : outcome2 unit val → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_store_2 σ l (pftry2 k k') = try2 (step_store_2 σ l k) k'.
+Proof.
+  unfold step_store_2. intros. case_location_lookup; simplify_eq; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [step_resume σ l o] is the right-hand side of the rule [StepResume].
+
+   This rule loads a continuation [sk] from the store [σ] at location [l],
+   overwrites it with [Shot], and resumes [sk] with the outcome [o] -- so the
+   result of resuming [sk] with [o] is returned to the continuation [k]. This
+   rule fails if the location [l] is not in the domain of [σ] or contains
+   something other than a continuation. *)
+
+Definition step_resume_1 σ l :=
+  match σ !! l with
+  | Some (K sk) => <[l := Shot]> σ
+  | _           => σ
+  end.
+
+Definition step_resume_2 {A E} σ l o k : micro A E :=
+  match σ !! l with
+  | Some (K sk) => try2 (sk o) k
+  | _           => crash
+  end.
+
+Notation step_resume σ l o k :=
+  (step_resume_1 σ l, step_resume_2 σ l o k).
+
+(* Resuming is an algebraic effect. *)
+
+Lemma try2_step_resume_2 {A B E F} σ l o
+  (k : _ → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_resume_2 σ l o (pftry2 k k') = try2 (step_resume_2 σ l o k) k'.
+Proof.
+  unfold step_resume_2. intros.
+  case_location_lookup; simplify_eq; eauto with try_try.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [step_install σ l deep η bs l' k] is the right-hand side of the reduction
+   rule [StepInstall].
+
+   TODO change these definitions to *not* read [σ !! l] now;
+        instead, replace [sk o] with [stop CResume (l, o)]
+   TODO comment. *)
+
+Definition step_install_1 σ l deep η bs l' :=
+  match σ !! l with
+  | Some (K sk) => <[l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o bs))]> σ
+  | _           => σ
+  end.
+
+Definition step_install_2 {A E} σ l l' (k : outcome2 loc exn → _) : micro A E :=
+  match σ !! l with
+  | Some (K sk) => continue k l'
+  | _           => crash
+  end.
+
+Notation step_install σ l deep η bs l' k :=
+  (step_install_1 σ l deep η bs l', step_install_2 σ l l' k).
+
+(* Installing is an algebraic effect. *)
+
+Lemma try2_step_install_2 {A B E F} σ l l'
+  (k : _ → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_install_2 σ l l' (pftry2 k k') = try2 (step_install_2 σ l l' k) k'.
+Proof.
+  unfold step_install_2. intros.
+  case_location_lookup; simplify_eq; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* A summary of our algebraicity laws. *)
+
+Local Hint Resolve
+  try2_step_load_2
+  try2_step_store_2
+  try2_step_resume_2
+  try2_step_install_2
+: algebraic.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The relation [step] is defined as follows. *)
 
 (* [Ret a] and [Throw e] cannot step. They are results. *)
@@ -89,23 +278,18 @@ Inductive step {A E} : config A E → config A E → Prop :=
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
   | StepLoad :
-      ∀ σ l k m',
-      m' = match σ !! l with Some (V v) => continue k v | _ => crash end →
+      ∀ σ l k c',
+      c' = step_load σ l k →
       step
         (σ, Stop CLoad l k)
-        (σ, m')
+        c'
 
   (* If the location [l] exists and contains a value [v], then
      [stop CStore (l, v')] overwrites this value with [v'];
      otherwise, it crashes. *)
   | StepStore :
       ∀ σ l v' k c',
-      c' = match σ !! l with
-           | Some (V v) =>
-               (<[ l := V v' ]> σ, continue k ())
-           | _ =>
-               (σ, crash)
-           end →
+      c' = step_store σ l v' k →
       step
         (σ, Stop CStore (l, v') k)
         c'
@@ -150,33 +334,26 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step (σ, m) (σ', m') →
       step (σ, Handle m h) (σ', Handle m' h)
 
-   (* [stop CInstall (deep, k, η, bs)] installs a handler [bs] wrapped around the
-      continuation stored at [k] at a new location. *)
-   | StepInstall :
-     forall σ (deep : bool) (l k : loc) h (bs : handler) c' η,
-       σ !! l = None ->
-       c' = match σ !! k with
-            | Some (K sk) =>
-                  (<[ l := K (fun o => Handle (sk o) (fun o => eval_match deep η o bs)) ]> σ,
-                    continue h l)
-            | _ => (σ, crash)
-            end ->
-       step (σ, Stop CInstall (deep, k, η, bs) h)
-            c'
-
   (* [stop Resume (l, o)] reads the continuation [sk] that is stored
      at address [l] in the heap, updates [l] to [Shot], and resumes the
      continuation [sk] with the outcome [o]. *)
   | StepResume :
       ∀ σ l o k c',
-      c' = match σ !! l with
-           | Some (K sk) =>
-               (<[l := Shot]>σ, try2 (sk o) k)
-           | _ =>
-               (σ, crash)
-           end →
+      c' = step_resume σ l o k →
       step
         (σ, Stop CResume (l, o) k)
+        c'
+
+  (* [stop CInstall (deep, l, η, bs)] wraps the continuation that is currently
+     stored at address [l] in an effect handler described by [deep], [η], and
+     [bs]. This results in a new continuation, which is stored in the heap at
+     a fresh location [l']. This location is returned. *)
+  | StepInstall :
+      ∀ σ deep l η bs k l' c',
+      σ !! l' = None →
+      c' = step_install σ l deep η bs l' k →
+      step
+        (σ, Stop CInstall (deep, l, η, bs) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -271,6 +448,29 @@ Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Some derived rules. *)
+
+Lemma StepLoadSuccess {A E} σ l (k : outcome2 val exn → micro A E) v :
+  σ !! l = Some (V v) →
+  step
+    (σ, Stop CLoad l k)
+    (σ, continue k v).
+Proof.
+  intros Heq. econstructor. unfold step_load_2. rewrite Heq. eauto.
+Qed.
+
+Lemma StepStoreSuccess {A E} σ l v v' (k : outcome2 unit exn → micro A E) :
+  σ !! l = Some (V v) →
+  step
+    (σ, Stop CStore (l, v') k)
+    (<[ l := V v' ]> σ, continue k ()).
+Proof.
+  intros Heq. econstructor. unfold step_store_1, step_store_2.
+  rewrite Heq. eauto.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -448,47 +648,19 @@ Global Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
-(* A few technical tactics. *)
+(* If the location [l] exists in the store and contains a value,
+   then [stop CLoad l] can step in only one way. *)
 
-(* [exploit_location_lookup] rewrites an equality hypothesis [σ !! l = _]
-   to rewrite in another hypothesis or in the goal, provided it mentions
-   [σ !! l]. *)
-
-Local Ltac exploit_location_lookup :=
-  match goal with
-  h1: ?σ !! ?l = _,
-  h2: context[?σ !! ?l]
-  |- _ =>
-    rewrite h1 in h2
-  |
-  h1: ?σ !! ?l = _
-  |- context[?σ !! ?l]
-  =>
-    rewrite h1
-  end.
-
-(* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
-   in the goal and performs a case analysis on [σ !! l], giving rise to 4
-   cases (value block; ordinary continuation block; shot continuation block;
-   nonexistent address). *)
-
-Local Ltac case_location_lookup :=
-  match goal with
-  |- context[?σ !! ?l] =>
-      let block := fresh "block" in
-      let Hσ := fresh in
-      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
-  | h: context[?σ !! ?l] |- _ =>
-      let block := fresh "block" in
-      let Hσ := fresh in
-      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
-  end.
-
-Local Hint Extern 1 (_ = _) =>
-  exploit_location_lookup
-: exploit_location_lookup.
-
-(* -------------------------------------------------------------------------- *)
+Lemma invert_step_load {A E} σ σ' l v k m' :
+  σ !! l = Some (V v) →
+  @step A E (σ, Stop CLoad l k) (σ', m') →
+  σ' = σ ∧
+  m' = continue k v.
+Proof.
+  intros Heq Hstep. destruct_step.
+  unfold step_load_2. rewrite Heq.
+  eauto.
+Qed.
 
 (* If the location [l] exists in the store and contains a value,
    then [stop CStore (l, v')] can step in only one way. *)
@@ -499,39 +671,29 @@ Lemma invert_step_store {A E} σ l v' v k σ' m' :
   σ' = <[ l := V v' ]> σ ∧
   m' = continue k ().
 Proof.
-  intros Heq Hstep. destruct_step. exploit_location_lookup.
-  split; congruence.
-Qed.
-
-(* If the location [l] exists in the store and contains a value,
-   then [stop CLoad l] can step in only one way. *)
-
-Lemma invert_step_load {A E} σ σ' l v k m' :
-  σ !! l = Some (V v) →
-  @step A E (σ, Stop CLoad l k) (σ', m') →
-  σ' = σ ∧
-  m' = continue k v.
-Proof.
-  intros Heq Hstep. destruct_step. rewrite Heq. split; congruence.
+  intros Heq Hstep. destruct_step.
+  unfold step_store_1, step_store_2. rewrite Heq.
+  eauto.
 Qed.
 
 (* If the location [l] exists in the store and contains a continuation,
    then [stop CResume (l, o)] can step in only one way. *)
 
 Lemma invert_step_resume {A E} σ σ' l o k sk m' :
-  σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CResume (l, o) k) (σ', m') ->
-  σ' = <[ l := Shot ]> σ /\
+  σ !! l = Some (K sk) →
+  @step A E (σ, Stop CResume (l, o) k) (σ', m') →
+  σ' = <[ l := Shot ]> σ ∧
   m' = try2 (sk o) k.
 Proof.
-  intros Heq Hstep. destruct_step. exploit_location_lookup.
-  split; congruence.
+  intros Heq Hstep. destruct_step.
+  unfold step_resume_1, step_resume_2. rewrite Heq.
+  eauto.
 Qed.
 
 (* If the location [l] exists in the store and contains a continuation,
-   then [stop CInstall (l, η, hs)] can step in only one way. *)
+   then [stop CInstall (l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} σ σ' deep l η hs k sk m' :
+Lemma invert_step_install {A E} deep σ σ' l η hs k sk m' :
   σ !! l = Some (K sk) ->
   @step A E (σ, Stop CInstall (deep, l, η, hs) k) (σ', m') ->
   ∃ l',
@@ -539,8 +701,9 @@ Lemma invert_step_install {A E} σ σ' deep l η hs k sk m' :
   σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o hs)) ]> σ /\
   m' = continue k l'.
 Proof.
-  intros Heq Hstep. destruct_step. exploit_location_lookup.
-  eexists; split; [ eassumption | split ]; congruence.
+  intros Heq Hstep. destruct_step.
+  unfold step_install_1, step_install_2. rewrite Heq.
+  eauto.
 Qed.
 
 (* A term that can step is not [ret _]. *)
@@ -679,17 +842,11 @@ Lemma step_try2 {A B E' E} σ σ' m m' (h : outcome2 A E' → micro B E) :
   step (σ, m) (σ', m') →
   step (σ, try2 m h) (σ', try2 m' h).
 Proof.
-  (* A general recipe. *)
-  inversion 1; subst;
-  (* Case analysis on installing a deep or shallow handler. *)
-  try destruct deep;
+  inversion 1;
+  simplify_eq;
   simpl try2;
   rewrite ?try2_try2;
-  eauto with step;
-  (* The cases that involve store lookups are a bit tricky, because
-     of the way we have used [match] in the reduction rules. *)
-  case_location_lookup; simplify_eq;
-    eauto with step exploit_location_lookup try_try.
+  eauto with step algebraic f_equal.
 Qed.
 
 (* As special cases, stepping under [try] or [bind] is also permitted. *)
@@ -750,10 +907,8 @@ Proof.
   (* Case: [Ret] *)
   try solve [ exfalso; eauto with invert_can_step ];
   (* Every other case: *)
-  destruct_step; try destruct deep; eauto with step try_try;
-  (* The cases of store lookups remain: *)
-  case_location_lookup; simplify_eq;
-    eauto 6 with step exploit_location_lookup try_try.
+  destruct_step;
+  eauto with step algebraic try_try.
 Qed.
 
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :

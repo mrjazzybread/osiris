@@ -15,11 +15,6 @@ From osiris.semantics Require Export outcome micro.
 Definition exn := val.
 Definition eff := val.
 
-(* A handler is a list of branches, where it can handle a pure, exceptional,
-   or effectful computation. *)
-
-Definition handler := list branch.
-
 (* ------------------------------------------------------------------------ *)
 
 (* In the definition of the type [code], which follows, every system

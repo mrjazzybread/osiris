@@ -100,9 +100,9 @@ Inductive pat :=
 
 (* Computation patterns. *)
 
-(* A computation pattern has type [cpat]. Such a pattern is used in a
-   case analysis on a three-branch outcome, which represents a value,
-   an exception, or an effect. *)
+(* A computation pattern [cp] has type [cpat]. Such a pattern is used
+   in a case analysis on a three-branch outcome, which represents a
+   value, an exception, or an effect. *)
 
 Inductive cpat :=
   (* This pattern matches a normal termination outcome. It guards the
@@ -281,7 +281,8 @@ Inductive expr :=
 with fexpr :=
   | Fexpr (f : field)  (e : expr)
 
-(* A branch is of the form [p -> e]. *)
+(* A branch is of the form [cp -> e],
+   where [cp] is a computation pattern. *)
 
 with branch :=
   | Branch (p : cpat) (e : expr)
@@ -349,6 +350,12 @@ with sitem :=
   | IInclude (me : mexpr)
 
 .
+
+(* ------------------------------------------------------------------------ *)
+
+(* A handler is a list of branches. *)
+
+Definition handler := list branch.
 
 (* ------------------------------------------------------------------------ *)
 

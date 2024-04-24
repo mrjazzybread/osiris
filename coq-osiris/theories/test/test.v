@@ -64,10 +64,13 @@ Local Ltac step :=
           eapply StepAlloc with (l := fresh (dom σ));
           apply is_fresh
       end
-    | eapply StepLoad;
-      setoid_rewrite lookup_insert; reflexivity
-    | eapply StepStore;
-      setoid_rewrite lookup_insert; reflexivity
+    | eapply StepLoadSuccess;
+      eauto using lookup_insert
+      (* TODO this seems too restrictive:
+              it will work only if we are reading the reference
+              that was last allocated or updated *)
+    | eapply StepStoreSuccess;
+      eauto using lookup_insert (* TODO same as above *)
     | match goal with
       | |- step (?σ, Handle _ _) _ =>
           eapply StepHandlePerform with (l := fresh (dom σ));

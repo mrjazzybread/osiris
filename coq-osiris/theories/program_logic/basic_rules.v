@@ -370,6 +370,7 @@ Section wp_handler_rules.
       iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H | ].
 
+      (* TODO redundancy with [ewp_resume]? *)
       iAssert (Ψ allows perform e0
                  << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >>)%I
         with "[HP HH]" as "HΨ".
@@ -378,10 +379,11 @@ Section wp_handler_rules.
         rename σ into σ'.
         ewp_unfold_head.
         intro_state.
-        ewp_mask_intro "Hmod". unfold stop.
-        construct_wp_nonret. destruct_step.
+        ewp_mask_intro "Hmod".
         iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-        rewrite Hl in x; inversion x; subst.
+        unfold stop.
+        construct_wp_nonret.
+        eapply invert_step_resume in Hstep; [ destruct Hstep | eexact Hl ]; subst.
         rewrite try2_ret_right.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
           iFrame.
@@ -659,28 +661,6 @@ Section ewp_rules.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     ewp_mask_elim. iFrame.
     by iSpecialize ("Hwp" with "Hl").
-  Qed.
-
-  Lemma ewp_resume' {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    (mapsto l (DfracOwn 1) (Shot) -∗
-       ▷ EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume in Hstep; [ destruct Hstep | eauto ]; subst.
-
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    iSpecialize ("Hwp" with "Hl").
-
-    ewp_mask_elim. iFrame.
   Qed.
 
   (* [CInstall]. *)

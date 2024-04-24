@@ -16,13 +16,13 @@ Context (read_eff write_eff : loc).
 Context (Hloc: address read_eff <> address write_eff).
 
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
-Definition state := int.
+Definition state := Z.
 
 Definition read : val := VXData read_eff (VTuple []).
-Definition write (v : state) : val := VXData write_eff (VTuple [VInt v]).
+Definition write (v : state) : val := VXData write_eff (VTuple [ # v]).
 
 Definition READ {Σ} (St : state -> _) : iEff Σ :=
-  (>> x >> ! (read) {{ St x }}; ? (O2Ret (VInt x)) {{ St x }} @ OS).
+  (>> x  >> ! (read) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
 Definition WRITE {Σ} St : iEff Σ :=
   (>> x y >> ! (write y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
 Definition STATE {Σ} (St : state -> _) : iEff Σ := (READ St <+> WRITE St)%ieff.
@@ -35,7 +35,7 @@ Proof. by rewrite /STATE; apply upcl_sum. Qed.
 
 Lemma upcl_read {Σ} St v Φ :
   iEff_car (upcl OS (READ (Σ:=Σ) St)) v Φ ⊣⊢
-    (∃ x, ⌜ v = read ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (VInt x))))%I.
+    (∃ x, ⌜ v = read ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
 Proof. by rewrite /READ (upcl_tele' [tele _] [tele]). Qed.
 
 Lemma upcl_write {Σ} St v Φ :
@@ -76,28 +76,14 @@ Section ghost_theory.
     [ apply excl_auth_update | ]; done.
   Qed.
 
-End ghost_theory.
-
-Opaque auth_state.
-
-(* -------------------------------------------------------------------------- *)
-(** Specification & Verification. *)
-
-Section verification.
-  Context `{!osirisGS Σ} `{!inG Σ (excl_authR (leibnizO val))}.
-
-  Definition run := __fun7.
-
-(* -------------------------------------------------------------------------- *)
-
-  Local Instance encode_state : Encode state.
-  constructor. exact VInt.
-  Defined.
-
-(* -------------------------------------------------------------------------- *)
-  (* TODO: Move *)
   (* LATER: Can we generalize this so we don't manually write down existentials
      everywhere? *)
+
+End ghost_theory.
+
+Section val_points_to.
+  Context `{!osirisGS Σ}.
+
   (* Specialized postconditions *)
   Definition val_points_to (v : val) (b : step.block) :=
     (∃ l, ⌜v = VLoc l⌝ ∗ l ↦ b)%I.
@@ -111,48 +97,23 @@ Section verification.
     { iDestruct "H" as (? Heq) "H"; by inversion Heq. }
   Qed.
 
-  (* -------------------------------------------------------------------------- *)
-  (* TODO: Move to [handler_rules.v] *)
+End val_points_to.
 
-  Arguments deep_handler_body : simpl never.
+(* LATER: Give more control on opacity *)
+Opaque auth_state.
+Opaque encode.encode.
 
-  Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+Arguments deep_handler_body : simpl never.
 
-  (* FIXME: More general version of this lemma that handles more than one pattern *)
-  Lemma deep_handler_body_ret_singleton η η' bs a Φ p e :
-    List.filter (fun p => match p with
-                       | Branch (CVal _) _ | Branch (COr _ _) _ => true
-                       | _ => false end) bs = [Branch (CVal p) e] ->
-    simp (extend η p a) (ret η') ->
-    EWP eval η' e  {{ Φ }} -∗
-    EWP deep_handler_body η (O3Ret a) bs bs {{ Φ }}.
-  Proof.
-    rewrite /deep_handler_body; cbn.
-    iIntros (Hl Hextend) "HΨ".
+Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
 
-    remember bs. rewrite {1}Heql. rewrite Heql in Hl; clear Heql.
+(* -------------------------------------------------------------------------- *)
+(** Specification & Verification. *)
 
-    iInduction bs as [ | ] "IH" forall (l).
-    { inversion Hl. }
+Section verification.
+  Context `{!osirisGS Σ} `{!inG Σ (excl_authR (leibnizO val))}.
 
-    cbn in *.
-    destruct a0, p0 eqn: Hp0; cbn in *; inversion Hl; subst.
-    { iClear "IH". cbn.
-      iApply ewp_try2; cbn.
-      Simp. by Ret. }
-
-    all: try solve [ iSpecialize ("IH" $! eq_refl with "HΨ"); cbn;
-      rewrite {2}/pre_eval_match_aux; cbn;
-      iApply "IH" ].
-  Qed.
-
-  Lemma trivial_pure_spec {A E} (v : A):
-    ⊢ (RET v0, (λ x, ⌜v = x⌝) v0) (O2Ret (E := E) v) : iProp Σ.
-  Proof.
-    cbn. by iPureIntro.
-  Qed.
-
-  (* -------------------------------------------------------------------------- *)
+  Definition run := __fun7.
 
   Example run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
@@ -215,7 +176,7 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
 
-    iApply (ewp_ELet_singleton_total (fun x => val_points_to x (V (VInt init)))%I).
+    iApply (ewp_ELet_singleton_total (fun x => val_points_to x (V (# init)))%I).
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
@@ -239,14 +200,14 @@ Section verification.
     iApply (ewp_deep_handler with "[Hpoints_to Hmain]").
     { (* 3A. Call to [main] in the handled expression *)
       iApply (ewp_EApp with "[] [] [Hmain Hpoints_to]"); last first.
-      { iApply ("Hmain" $! (fun init => points_to γ (VInt init)) with "Hpoints_to"). }
+      { iApply ("Hmain" $! (fun init => points_to γ (# init)) with "Hpoints_to"). }
       { Simp; by Ret. }
       { Simp; by Ret. } }
 
     (* Finally, we prove the specification over handler. *)
 
     (* We need to abstract over the environment "just enough" *)
-    remember (VInt init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
+    remember (# init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
 
     (* Löb induction *)
     iLöb as "IH" forall (γ main init).
@@ -278,7 +239,7 @@ Section verification.
        iDestruct "H_READ" as (?->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
-       inversion Hag; subst; clear Hag.
+       rewrite Hag.
 
        iNext.
        (* Skip return and exception branches. *)
@@ -289,9 +250,7 @@ Section verification.
        (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
-       iSpecialize ("H_READ"
-          $! iEff_bottom
-             (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
+       iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
        Simp. rewrite /as_cont. do 2 Simp.
        ewp_tactics.Load "Hl".
@@ -327,12 +286,10 @@ Section verification.
        iDestruct "H" as "(Hauth & Hx)".
 
        iApply ewp_fupd.
-       iDestruct (ghost_var_update γ (VInt y) with "Hauth Hx") as ">(Hauth & Hx)".
+       iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
        iSpecialize ("H_WRITE" with "Hx").
 
-       iSpecialize ("H_WRITE"
-          $! iEff_bottom
-          (RET v', ∃ v : state * val, ⌜v' = encode_pair v⌝ ∗ Φ v.2))%I.
+       iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
        (* Symbolic Execution. *)
        iModIntro.
