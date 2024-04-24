@@ -157,7 +157,7 @@ Section handler_proof.
     rewrite /deep_handler; remember (eval η e); clear.
 
     (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
-    iLöb as "IH" forall (m η bs Ψ' Φ').
+    iLöb as "IH" forall (m η bs Ψ' Φ' E).
 
     (* Expand the definition of [EWP] to inspect the possible steps that
         can result from [deep_handler η e bs]. *)
@@ -182,41 +182,30 @@ Section handler_proof.
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
 
       (* We allocate a new location that contains the continuation *)
-      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
-        [ exact H | ].
+      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi")
+        as ">[Hsi [HH _]]"; [ exact H | ].
 
-      iFrame; rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
-
+      iFrame.
       (* Install the handler around the location [l]. *)
-      iApply (ewp_install with "HH").
-      ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iIntros (?) "Hl"; cbn.
+      rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
+      iApply ewp_install.
+      ewp_mask_intro "Hmod".
+      ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
+                             but not in "Hsh", so we lose; FIXME *)
+      iIntros (?) "Hl".
+      iSpecialize ("Hsh" $! e l').
 
-      iAssert (Ψ allows perform e
-        << λ o : outcome2 val exn, (* We need the annotation here; LATER: remove? *)
-            ∀ Ψ'' Φ'',
-              ▷ deep_handler_spec_def E Ψ Φ
-                (λ o, deep_handler_body η o bs bs) Ψ'' Φ'' -∗
-              EWP stop CResume (l', o) @ E <| Ψ'' |> {{ Φ'' }} >>)%I
-        with "[HP Hl]" as "HΨ".
-      { iApply (monotonic_prot with "[Hl] HP"); iFrame.
-        iIntros (?) "Hwp"; cbn; iIntros (??) "H".
-        iSpecialize ("IH" with "Hwp").
-
+      iSpecialize ("Hsh" with "[HP HH Hl]").
+      { rewrite /prot.
+        iApply (monotonic_prot with "[HH Hl] HP").
+        iIntros (?) "Hk"; iIntros (??) "H".
         rewrite /deep_handler_spec seal_eq.
-
-        (* Resume the continuation that stored the installed handler *)
-        iApply (ewp_resume with "Hl"). iNext.
-        iIntros "Hl". cbn.
-        iSpecialize ("IH" with "H").
-
-        (* Rewriting under binders for handle.. LATER: Remove? *)
-        erewrite (eq_handle_handle (k w) _); first done.
-        intros; cbn. rewrite try2_ret_right; reflexivity. }
-      (* We're forgetting the [Shot] information here.
-           Do we want to strengthen this?  *)
-
-      by iSpecialize ("Hsh" with "HΨ"). }
+        iApply (ewp_resume with "Hl").
+        iSpecialize ("IH" with "Hk H").
+        iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
+        iNext. iIntros "H".
+        rewrite try2_ret_right. done. }
+      done. }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }

@@ -402,7 +402,6 @@ Section wp_handler_rules.
       iApply ("IH" with "H Hsh"). }
   Qed.
 
-
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle_ret E Ψ (Φ : outcome2 A X -> _) (a : val) h:
     EWP (h (O3Ret a)) @ E <| Ψ |> {{ Φ }} -∗
@@ -432,6 +431,54 @@ Section wp_handler_rules.
 
     - iFrame. ewp_mask_intro "Hmod"; ewp_mask_elim; done.
     - exfalso. eapply invert_can_step_Throw; unfold can_step; eauto.
+  Qed.
+
+  (* Inversion for [Handle] *)
+  Lemma ewp_handle_inv {B Y} E k l w (c : _ -> micro B Y) Ψ Φ:
+    l ↦ K k -∗
+    EWP Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
+    EWP Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hl H".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+
+    inversion Hstep; subst.
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in H1; [ destruct H1 | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    rewrite try2_ret_right. done.
+  Qed.
+
+  (* Variant inversion rule for [Handle] *)
+  Lemma ewp_handle_inv' k l w (c : _ -> micro A X) Ψ Φ:
+    l ↦ K k -∗
+    ▷ (l ↦ Shot -∗
+        EWP Handle (k w) c <| Ψ |> {{ Φ }}) -∗
+    EWP Handle (stop CResume (l, w)) c <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hl H".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+
+    inversion Hstep; subst.
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume in H1; [ destruct H1 | eauto ]; subst.
+
+    (* Update the ghost heap. *)
+    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    ewp_mask_elim. iFrame.
+    rewrite try2_ret_right.
+    iApply ("H" with "Hl").
   Qed.
 
 End wp_handler_rules.
@@ -665,60 +712,29 @@ Section ewp_rules.
 
   (* [CInstall]. *)
 
-  (* Installing a handler with branches [h] on top of a continuation
+  (* Installing a handler with branches [bs] on top of a continuation
      that is located in the store at location [l]. *)
 
-  Lemma ewp_install {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
+  Lemma ewp_install {B Y} E l deep η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
-        mapsto l' (DfracOwn 1)
-          (K (λ o,
-               Handle (sk o) (λ o, deep_eval_match η o h))) -∗
-      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}
-      ) -∗
-    EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
+      l'↦
+        (K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs))) -∗
+     ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
+    EWP (Stop CInstall (deep, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
-    iIntros "Hl Hwp".
+    iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
+    (* The reduction step must be a successful step. *)
+    eapply invert_step_install in Hstep as (l' & ? & ? & ?); subst.
 
     (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
-    iFrame. iSpecialize ("Hwp" with "Hl'").
-
-    ewp_mask_elim. iFrame.
-  Qed.
-
-  Lemma ewp_install' {B Y} E l η h sk (k: _ -> micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-      ▷ (∀ l',
-          mapsto l' (DfracOwn 1)
-            (K (λ o,
-                 Handle (sk o) (λ o, deep_eval_match η o h))) -∗
-          meta_token l' ⊤ -∗
-          EWP (continue k l') @ E <| ψ |> {{ φ }}
-      ) -∗
-      EWP (Stop CInstall (true, l, η, h) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); [ | eauto ]; subst.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & HMT)"; first done.
-
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl' HMT").
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
+    ewp_mask_elim.
+    iFrame "Hsi".
+    done.
   Qed.
 
   (* Par combinator *)
