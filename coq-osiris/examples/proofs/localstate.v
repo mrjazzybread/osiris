@@ -141,21 +141,17 @@ Section verification.
 
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
-
-    iApply (ewp_ELet_singleton_total (fun x => val_points_to x (V (# init)))%I).
-
+    iApply (ewp_ELet_PVar_1 (fun x => val_points_to x (V (# init)))%I).
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
       Simp; iApply ewp_alloc; iNext.
-      iIntros (?) "Hl"; Ret;
+      iIntros (?) "Hl"; Ret. cbn.
       by iApply val_points_to_unfold. }
 
     (* Continuing with the rest of the computation *)
 
     (* TODO: Cleaner inversion of facts learned from let-bound term. *)
     iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
-    iExists _; iSplitL "";
-      first (iPureIntro; cbn; rewrite /irrefutably_extend; simp) (* FIXME *).
 
     (* LATER : Hide the [V] constructor for blocks *)
 
@@ -189,12 +185,16 @@ Section verification.
         specify_cpattern; pattern_match.
 
       iIntros "[Hl H]".
-      (* FIXME : expr-level lemma about Data type *)
-      Simp; with_strategy transparent [evals] unfold evals; Simp.
+      iApply (ewp_EPair_ret _ _ _
+                (fun x => l ↦ V x ∗ ⌜x = # init⌝)%I (fun x => ⌜x = a⌝)%I with "[Hl]").
 
       (* Load from location *)
-      ewp_tactics.Load "Hl".
-      Ret; iExists (init, a); iFrame; encode. }
+      { Simp. ewp_tactics.Load "Hl"; Ret; by iFrame. }
+
+      { Simp; by Ret. }
+
+      iIntros (??) "(Hl & %Hinit) %Heq"; subst.
+      iExists (init, a); iFrame; encode. }
 
      (* -------------------------------------------------------------------------- *)
      (* Effectful case *)
