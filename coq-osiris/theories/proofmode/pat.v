@@ -261,6 +261,24 @@ Proof.
       [ by simpl | by apply truth_false_elim]. }
 Qed.
 
+Lemma pat_PInt η v (i j : Z) (φ : env → Prop) :
+  representable i →
+  representable j →
+  v = #j →
+  (i = j → φ η) →
+  pattern η (PInt i) v φ (i <> j).
+Proof.
+  intros Hi Hj -> Hφ.
+  unfold pattern; simpl.
+  rewrite eq_repr_repr; auto.
+  destruct (_ =? _) eqn:E.
+  - apply total_ret. apply Hφ. by apply Z.eqb_eq.
+  - apply total_throw. by apply Z.eqb_neq.
+Qed.
+
+Ltac pat_PInt :=
+  eapply pat_PInt; [ | | encode | ]; representable; intros.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Syntax-directed reasoning for data *)
@@ -488,6 +506,7 @@ Ltac pattern_match :=
     [ pats_unary
     | pattern_hook
     | pat_PVar
+    | pat_PInt
     | pat_pNil; intros
     | pat_pCons; intros
     | apply pat_POr

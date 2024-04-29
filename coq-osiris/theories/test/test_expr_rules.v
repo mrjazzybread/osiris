@@ -25,12 +25,21 @@ Proof.
   auto.
 Qed.
 
-(* Useful when goal is [R ⊢ ?Evar v] *)
+(* Useful when goal is [R ⊢ ?evar v] *)
 Lemma goal_eq {A} (v : A) (R : iProp Σ) φ :
   φ = (λ x, ⌜x = v⌝ ∗ R)%I ->
   R ⊢ φ v.
 Proof.
   iIntros (->) "R".
+  auto.
+Qed.
+
+(* Useful when goal is [⊢ ?evar v] *)
+Lemma goal_eq_emp {A} (v : A) (φ : _ -> iProp Σ) :
+  φ = (λ x, ⌜x = v⌝)%I ->
+  ⊢ φ v.
+Proof.
+  iIntros (->).
   auto.
 Qed.
 
@@ -253,6 +262,208 @@ Proof.
     rewrite M.add_repr_repr.
     replace (n + n)%Z with (2 * n)%Z by lia.
     by iFrame.
+Qed.
+
+(* match 1 with _ -> true *)
+
+Lemma simple_PAny_match env :
+  ⊢ EWP eval env
+    (EMatch (EInt 1)
+      [Branch (CVal PAny) (EConstant "true")])
+    {{ RET #r, ⌜r = true⌝ }}.
+Proof.
+  iApply ewp_EMatch.
+  iApply (ewp_deep_handler _ iEff_bottom).
+  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+
+  rewrite deep_handler_spec_unfold; iSplit.
+
+  - iIntros (?) "->". iNext.
+    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + specify_cpattern.
+      pattern_match.
+      iIntros "_".
+      iApply ewp_EConstant.
+      by iExists true.
+    + done.
+    + iIntros "[]".
+
+  - iIntros (e k) "Hp".
+    unfold iEff_bottom in *.
+    unfold prot in *.
+    rewrite upcl_bottom.
+    done.
+Qed.
+
+(*
+a few examples for EMatch, for now more than necessary
+we should remove most of them once EMatch rules are well understood.
+TODO: simpler rule/eval function for EMatch with iEff_bottom
+*)
+
+(* match 1 with 1 -> true | _ -> false *)
+
+Lemma simple_PInt_eq_match env :
+  ⊢ EWP eval env
+    (EMatch (EInt 1)
+      [Branch (CVal (PInt 1)) (EConstant "true");
+       Branch (CVal  PAny   ) (EConstant "false")])
+    {{ RET #r, ⌜r = true⌝ }}.
+Proof.
+  iApply ewp_EMatch.
+  iApply (ewp_deep_handler _ iEff_bottom).
+  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+
+  rewrite deep_handler_spec_unfold; iSplit.
+
+  - iIntros (?) "->". iNext.
+    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + specify_cpattern.
+      pattern_match.
+      iIntros "_".
+      iApply ewp_EConstant.
+      by iExists true.
+    + done.
+    + iIntros (?). done.
+
+  - iIntros (e k) "Hp".
+    unfold iEff_bottom in *.
+    unfold prot in *.
+    rewrite upcl_bottom.
+    done.
+Qed.
+
+(* match 2 with 1 -> true | _ -> false *)
+
+Lemma simple_PInt_neq_match env :
+  ⊢ EWP eval env
+    (EMatch (EInt 2)
+      [Branch (CVal (PInt 1)) (EConstant "true");
+       Branch (CVal  PAny   ) (EConstant "false")])
+    {{ RET #r, ⌜r = false⌝ }}.
+Proof.
+  iApply ewp_EMatch.
+  iApply (ewp_deep_handler _ iEff_bottom).
+  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+
+  rewrite deep_handler_spec_unfold; iSplit.
+
+  - iIntros (?) "->". iNext.
+    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + specify_cpattern.
+      pattern_match.
+      discriminate.
+    + done.
+    + iIntros (?).
+      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      * specify_cpattern.
+        pattern_match.
+        iIntros "_".
+        iApply ewp_EConstant.
+        by iExists false.
+      * done.
+      * iIntros "[]".
+
+  - iIntros (e k) "Hp".
+    unfold iEff_bottom in *.
+    unfold prot in *.
+    rewrite upcl_bottom.
+    done.
+Qed.
+
+(* match 2 with 0 -> 0 | 1 -> 1 | 2 -> 2 *)
+
+Lemma simple_PInt_012_match env :
+  ⊢ EWP eval env
+    (EMatch (EInt 2)
+      [Branch (CVal (PInt 0)) (EInt 0);
+       Branch (CVal (PInt 1)) (EInt 1);
+       Branch (CVal (PInt 2)) (EInt 2)])
+    {{ RET #r, ⌜r = 2⌝ }}.
+Proof.
+  iApply ewp_EMatch.
+  iApply (ewp_deep_handler _ iEff_bottom).
+  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+
+  rewrite deep_handler_spec_unfold; iSplit.
+
+  - iIntros (?) "->". iNext.
+    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + specify_cpattern.
+      pattern_match.
+      discriminate.
+    + done.
+    + iIntros (?).
+      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      * specify_cpattern.
+        pattern_match.
+        iIntros "_".
+        discriminate.
+      * done.
+      * iIntros (?).
+        iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+        -- specify_cpattern.
+           pattern_match.
+           iIntros "_".
+           iApply ewp_EInt.
+           by iExists 2.
+        -- done.
+        -- by iIntros (?).
+
+  - iIntros (e k) "Hp".
+    unfold iEff_bottom in *.
+    unfold prot in *.
+    rewrite upcl_bottom.
+    done.
+Qed.
+
+(* checking now whether pat_pNil works with
+match [] with _ :: _ -> 1 | _ -> 2 *)
+
+Lemma simple_true_true_match env :
+  ⊢ EWP eval env
+    (EMatch (EData "[]" (ETuple []))
+      [Branch (CVal (PData "::" (PTuple [ PAny; PAny ]))) (EInt 1);
+       Branch (CVal (PConstant "[]")) (EInt 2)])
+    {{ RET #r, ⌜r = 2⌝ }}.
+Proof.
+  iApply ewp_EMatch.
+  iApply (ewp_deep_handler _ iEff_bottom).
+  { iApply ewp_EConstant. iApply goal_eq_emp. reflexivity. }
+
+  rewrite deep_handler_spec_unfold; iSplit.
+
+  - iIntros (?) "->". iNext.
+    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + specify_cpattern.
+      pattern_match.
+      (* interesting:
+        Here, using [done] would use [x] as a proof of the goal, and so if one does:
+        [done. Unshelve.]
+        we see that a shelved goal has become:
+        [Encode (emp ⊢ EWP eval env 1  {{ RET #r, ⌜r = 2⌝ }})]
+        so we use [discriminate] instead
+      *)
+      discriminate.
+    + done.
+    + iIntros "_".
+      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      * specify_cpattern.
+        pattern_match.
+        iIntros "_".
+        iApply ewp_EInt.
+        by iExists 2.
+      * done.
+      * by iIntros (?).
+
+  - iIntros (e k) "Hp".
+    unfold iEff_bottom in *.
+    unfold prot in *.
+    rewrite upcl_bottom.
+    done.
+Unshelve.
+2,4: apply Encode_unit.
+(* check that the meaning of the lemma does not depend on the encoded type *)
 Qed.
 
 End test_expr_rules.

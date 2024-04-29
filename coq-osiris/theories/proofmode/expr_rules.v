@@ -336,6 +336,38 @@ Section ewp_rules_expr.
   Qed.
 
   (** * EData : data → expr → expr *)
+
+  Definition propagate_exn {A B E} (φ1 : outcome2 A E → iProp Σ) (φ2 : outcome2 B E → iProp Σ) : iProp Σ :=
+    (∀ e, φ1 (O2Throw e) -∗ φ2 (O2Throw e))%I.
+
+  Definition propagate_ret_fmap {A B E} (f : A → B) (φ1 : outcome2 A E → iProp Σ) (φ2 : outcome2 B E → iProp Σ) : iProp Σ :=
+    (∀ a, φ1 (O2Ret a) -∗ φ2 (O2Ret (f a)))%I.
+
+  Lemma ewp_EData η c e Ψ φ1 φ :
+    EWP eval η e <|Ψ|> {{ φ1 }} -∗
+    propagate_exn φ1 φ -∗
+    propagate_ret_fmap (λ v, VData c v) φ1 φ -∗
+    EWP eval η (EData c e) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "He E R /=".
+    iApply ewp_bind_exn. iApply (ewp_mono with "He").
+    iIntros ([]) "H /=".
+    - iApply ewp_value. iApply "R". auto.
+    - iApply "E". auto.
+  Qed.
+
+  (* E/VConstant is a macro for E/VData *)
+  Lemma ewp_EConstant η c Ψ φ :
+    φ (O2Ret (VConstant c)) -∗
+    EWP eval η (EConstant c) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply ewp_EData.
+    - by iApply (ewp_value _ _ (λ v, ⌜v = O2Ret (VTuple [])⌝)%I).
+    - iIntros (e [=]).
+    - by iIntros (? [=->]).
+  Qed.
+
   (** * EXData : data → expr → expr *)
   (** * ERecord : list fexpr → expr *)
   (** * ERecordUpdate : expr → list fexpr → expr *)
