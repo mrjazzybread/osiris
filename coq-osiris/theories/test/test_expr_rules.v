@@ -279,13 +279,11 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    iApply handle_cons.
     + specify_cpattern.
-      pattern_match.
-      iIntros "_".
-      iApply ewp_EConstant.
+      pattern_match. apply eq_refl.
+    + iIntros (δ) "_". iApply ewp_EConstant; simpl.
       by iExists true.
-    + done.
     + iIntros "[]".
 
   - iIntros (e k) "Hp".
@@ -317,13 +315,13 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    iApply handle_cons.
     + specify_cpattern.
       pattern_match.
-      iIntros "_".
+      apply eq_refl.
+    + iIntros (δ) "_".
       iApply ewp_EConstant.
       by iExists true.
-    + done.
     + iIntros (?). done.
 
   - iIntros (e k) "Hp".
@@ -349,19 +347,19 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    iApply handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
-    + done.
+    + iIntros (δ) "[]".
     + iIntros (?).
-      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      iApply handle_cons.
       * specify_cpattern.
         pattern_match.
-        iIntros "_".
+        apply eq_refl.
+      * iIntros (δ) "_".
         iApply ewp_EConstant.
         by iExists false.
-      * done.
       * iIntros "[]".
 
   - iIntros (e k) "Hp".
@@ -388,26 +386,25 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    iApply handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
-    + done.
-    + iIntros (?).
-      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    + iIntros (δ) "[]".
+    + iIntros (_).
+      iApply handle_cons.
       * specify_cpattern.
         pattern_match.
-        iIntros "_".
         discriminate.
-      * done.
-      * iIntros (?).
-        iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      * iIntros (δ) "[]".
+      * iIntros (_).
+        iApply handle_cons.
         -- specify_cpattern.
            pattern_match.
-           iIntros "_".
+           apply eq_refl.
+        -- iIntros (δ) "_".
            iApply ewp_EInt.
            by iExists 2.
-        -- done.
         -- by iIntros (?).
 
   - iIntros (e k) "Hp".
@@ -434,26 +431,19 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+    iApply handle_cons.
     + specify_cpattern.
       pattern_match.
-      (* interesting:
-        Here, using [done] would use [x] as a proof of the goal, and so if one does:
-        [done. Unshelve.]
-        we see that a shelved goal has become:
-        [Encode (emp ⊢ EWP eval env 1  {{ RET #r, ⌜r = 2⌝ }})]
-        so we use [discriminate] instead
-      *)
       discriminate.
-    + done.
+    + iIntros (δ) "[]".
     + iIntros "_".
-      iApply (deep_handle_cons _ _ _ _ _ _ _ _ _ _ bi_emp).
+      iApply handle_cons.
       * specify_cpattern.
         pattern_match.
-        iIntros "_".
+        apply eq_refl.
+      * iIntros (δ) "_".
         iApply ewp_EInt.
         by iExists 2.
-      * done.
       * by iIntros (?).
 
   - iIntros (e k) "Hp".
@@ -461,7 +451,7 @@ Proof.
     unfold prot in *.
     rewrite upcl_bottom.
     done.
-Unshelve.
+    Unshelve.
 2,4: apply Encode_unit.
 (* check that the meaning of the lemma does not depend on the encoded type *)
 Qed.

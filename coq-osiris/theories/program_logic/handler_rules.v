@@ -258,8 +258,8 @@ Section handler_proof.
           shallow_handler_body η o all_branches all_branches) <|ψ|> {{ Φ }} >> -∗
     EWP (shallow_handler_body η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
-    iIntros "Hl Hperf".
-    iApply (ewp_install with "Hl").
+    iIntros "Hk Hperf".
+    iApply ewp_install.
 
     iIntros (l) "Hl". iNext. cbn.
 
@@ -269,11 +269,14 @@ Section handler_proof.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
-      iModIntro.
-      iApply "Hcov". rewrite try2_ret_right.
+      iNext. iApply "Hcov". rewrite try2_ret_right.
       iApply (bi.later_mono with "H").
       iIntros "H _".
       iApply "H". }
+    iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hk]").
+    { iIntros (o) "H".
+      iPoseProof (ewp_handle_inv with "Hk") as "Hcov".
+      iApply "Hcov". iApply "H". }
     done.
   Qed.
 

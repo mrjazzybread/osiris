@@ -685,12 +685,11 @@ Qed.
 
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} σ σ' deep l η hs k sk m' :
-  σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CInstall (deep, l, η, hs) k) (σ', m') ->
+Lemma invert_step_install {A E} σ σ' deep l η bs k m' :
+  @step A E (σ, Stop CInstall (deep, l, η, bs) k) (σ', m') →
   ∃ l',
-  σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o hs)) ]> σ /\
+  σ !! l' = None ∧
+  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
