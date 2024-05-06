@@ -163,4 +163,6 @@ Section verification.
       | let F := fresh in iIntros (F) ]. (* Something is fishy about this *)
     Admitted.
 
+End verification.
+
 End protocol.
