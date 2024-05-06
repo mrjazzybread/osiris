@@ -197,30 +197,23 @@ Qed.
    TODO comment. *)
 
 Definition step_install_1 σ l deep η bs l' :=
-  match σ !! l with
-  | Some (K sk) => <[l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o bs))]> σ
-  | _           => σ
-  end.
+  <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs))]> σ.
 
-Definition step_install_2 {A E} σ l l' (k : outcome2 loc exn → _) : micro A E :=
-  match σ !! l with
-  | Some (K sk) => continue k l'
-  | _           => crash
-  end.
+Definition step_install_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
+  continue k l'.
 
 Notation step_install σ l deep η bs l' k :=
-  (step_install_1 σ l deep η bs l', step_install_2 σ l l' k).
+  (step_install_1 σ l deep η bs l', step_install_2 l' k).
 
 (* Installing is an algebraic effect. *)
 
-Lemma try2_step_install_2 {A B E F} σ l l'
+Lemma try2_step_install_2 {A B E F} l'
   (k : _ → micro A E)
   (k' : outcome2 A E → micro B F)
 :
-  step_install_2 σ l l' (pftry2 k k') = try2 (step_install_2 σ l l' k) k'.
+  step_install_2 l' (pftry2 k k') = try2 (step_install_2 l' k) k'.
 Proof.
-  unfold step_install_2. intros.
-  case_location_lookup; simplify_eq; eauto.
+  unfold step_install_2. eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -690,19 +683,17 @@ Proof.
   eauto.
 Qed.
 
-(* If the location [l] exists in the store and contains a continuation,
-   then [stop CInstall (l, η, bs)] can step in only one way. *)
+(* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} deep σ σ' l η hs k sk m' :
-  σ !! l = Some (K sk) ->
-  @step A E (σ, Stop CInstall (deep, l, η, hs) k) (σ', m') ->
+Lemma invert_step_install {A E} σ deep l η bs k σ' m' :
+  @step A E (σ, Stop CInstall (deep, l, η, bs) k) (σ', m') →
   ∃ l',
-  σ !! l' = None /\
-  σ' = <[ l' := K (λ o, Handle (sk o) (λ o, eval_match deep η o hs)) ]> σ /\
+  σ !! l' = None ∧
+  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
-  intros Heq Hstep. destruct_step.
-  unfold step_install_1, step_install_2. rewrite Heq.
+  intros Hstep. destruct_step.
+  unfold step_install_1, step_install_2.
   eauto.
 Qed.
 
