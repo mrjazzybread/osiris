@@ -7,8 +7,8 @@
   (name coq-osiris)
   (authors
      "François Pottier"
-     "Armaël Guéneau"
      "Arnaud Daby-Seesaram"
+     "Jean-Marie Madiot"
      "Remy Seassau"
      "Irene Yoon"
    )
@@ -29,8 +29,9 @@
   (name coq-osiris-examples)
   (authors
      "François Pottier"
-     "Armaël Guéneau"
-     "Arnaud Daby-Seesaram"
+     "Jean-Marie Madiot"
+     "Remy Seassau"
+     "Irene Yoon"
    )
   (maintainers
     "François Pottier"
