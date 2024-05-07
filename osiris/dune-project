@@ -6,14 +6,13 @@
     "François Pottier"
     "Arnaud Daby-Seesaram"
     "Remy Seassau"
-    "Irene Yoon"
   )
   (maintainers
     "François Pottier"
   )
   (homepage https://gitlab.inria.fr/fpottier/osiris/)
   (bug_reports francois.pottier@inria.fr)
-  (synopsis "An instance of the Iris verification framework for OCaml")
+  (synopsis "Osiris translates OCaml to Coq for verification")
   (depends
     ocaml
     dune
