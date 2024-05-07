@@ -39,13 +39,6 @@ Section shift_protocol.
     (>> h Q >> !(shift h) {{ is_shift Ψ Φ Q h }};
       << w   << ?(w) {{ Q ↑ w }} @ OS)%ieff.
 
-  Local Instance shift_pre_contractive : Contractive SHIFT.
-  Proof.
-    intros n SHIFT SHIFT' HS Ψ Φ.
-    rewrite /is_shift /lift_ret_spec.
-    (* Need to show some proper instances in [protocol.v] *)
-  Admitted.
-
   Lemma upcl_SHIFT Ψ Φ v Φ' :
     iEff_car (upcl OS (SHIFT Ψ Φ)) v Φ' ≡
       (∃ t Q,
