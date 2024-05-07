@@ -716,7 +716,7 @@ Section ewp_rules.
      that is located in the store at location [l]. *)
 
   Lemma ewp_install {B Y} E l deep η bs (k: _ -> micro B Y) φ ψ :
-     (∀ l',
+    (∀ l',
       l'↦
         (K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
@@ -730,36 +730,11 @@ Section ewp_rules.
     eapply invert_step_install in Hstep as (l' & ? & ? & ?); subst.
 
     (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
-    iFrame. iSpecialize ("Hwp" with "Hl'").
-
-    ewp_mask_elim. iFrame.
-  Qed.
-
-  Lemma ewp_install' {B Y} E l deep η bs (k: _ -> micro B Y) φ ψ :
-    ▷ (∀ l',
-          l' ↦
-            K (λ o,
-              Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs)) -∗
-            meta_token l' ⊤ -∗
-            EWP (continue k l') @ E <| ψ |> {{ φ }}
-    ) -∗
-    EWP (Stop CInstall (deep, l, η, bs) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hwp".
-
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* The reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); subst.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap_alloc with "Hsi") as "(Hsi & Hl' & HMT)"; first done.
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim.
-
-    iFrame. iSpecialize ("Hwp" with "Hl'").
-    by iApply "Hwp".
+    iFrame "Hsi".
+    done.
   Qed.
 
   (* Par combinator *)

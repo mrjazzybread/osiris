@@ -15,6 +15,7 @@ From osiris.semantics Require Export outcome micro.
 Definition exn := val.
 Definition eff := val.
 
+
 (* ------------------------------------------------------------------------ *)
 
 (* In the definition of the type [code], which follows, every system
@@ -130,3 +131,17 @@ Notation "' x ← y ; z" :=
 
 Ltac destruct_code :=
   match goal with c: C.code _ _ _ |- _ => destruct c end.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [LeibnizEquiv] instances for [val] and [outcome2]. *)
+
+From iris.algebra Require Import ofe.
+
+(* N.B.: We need to turn off this [redundant canonical projection] warning;
+  As of Coq 8.17.1, the typechecker believes that this instance is redundant
+  with [boolO], although that is not the case. *)
+Set Warnings "-redundant-canonical-projection".
+
+Canonical Structure valO := leibnizO val.
+Canonical Structure outcome2O := leibnizO (outcome2 val exn).
