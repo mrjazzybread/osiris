@@ -155,23 +155,31 @@ Section verification.
       [ specify_cpattern; pattern_match; try (apply eq_refl)
       | (iIntros (? ->) || iIntros (? <-))
       | let F := fresh in iIntros (F); tauto ].
-    cbn.
+    cbn zeta.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* -------------------------------------------------------------------------- *)
     (* 1. Symbolic execution.. TODO: automate this *)
 
-    rewrite /call_anonfun /= bind_bind /eval_anonfun /run.
-    do 2 (Bind; Simp; Ret; cbn); rewrite /__fun6.
+    (* [ewp_call_anonfun] expects a goal of the form
+           [ EWP call_anonfun η (λ args, body) (args ++ [x]) {{ Q }} ]
+       and produces a goal of the form
+           [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
 
-    Simp.
-    (* FIXME ? The [simp_enter_call_VClo] should not be needed explicitly *)
-    { eapply simp_enter_call_VClo.
-      with_strategy transparent [eval_bindings] unfold eval_bindings.
-      cbn. eapply SimpEval. }
+    Ltac ewp_call_anonfun :=
+      (* Unfold [call_anonfun], and get a tower of binds. *)
+      rewrite /call_anonfun; simpl; rewrite !bind_bind;
+      (* Unfold [eval_anonfun]. *)
+      rewrite /eval_anonfun;
+      (* Simplify the tower of binds,
+         this should elaborate a closure capturing all arguments.  *)
+      repeat (iApply ewp_bind;
+              repeat (Simp; Ret; try Bind));
+      simpl.
+    ewp_call_anonfun.
 
-    rewrite try2_ret_right.
+    iApply ewp_call_nonrec.
 
     (* -------------------------------------------------------------------------- *)
     (* 2. Evaluate allocation of [init] *)
@@ -185,6 +193,7 @@ Section verification.
     (* Continuing with the rest of the computation *)
 
     (* TODO: Cleaner inversion of facts learned from let-bound term. *)
+    iNext.
     iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
 
     (* LATER : Hide the [V] constructor for blocks *)
@@ -203,7 +212,8 @@ Section verification.
     (* Finally, we prove the specification over handler. *)
 
     (* We need to abstract over the environment "just enough" *)
-    remember (# init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
+
+    remember (# init) eqn:Heqv; rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
 
     (* Löb induction *)
     iLöb as "IH" forall (γ main init).
@@ -213,7 +223,7 @@ Section verification.
 
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
-      iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
+      iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
       (* Enter the return branch. *)
       enter_branch.
 
@@ -236,10 +246,9 @@ Section verification.
      { (* READ case *)
        (* TODO: Notation on [iEff_car] is really ugly.. *)
        cbn; rewrite upcl_read.
-       iDestruct "H_READ" as (?->) "(Hx & H_READ)".
+       iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
-       iDestruct (ghost_var_agree with "H") as %Hag.
-       rewrite Hag.
+       iDestruct (ghost_var_agree with "H") as %->.
 
        iNext.
        (* Skip return and exception branches. *)
@@ -252,7 +261,7 @@ Section verification.
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       Simp. rewrite /as_cont. do 2 Simp.
+       Simp. rewrite /as_cont. Simp. Simp.
        ewp_tactics.Load "Hl".
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
