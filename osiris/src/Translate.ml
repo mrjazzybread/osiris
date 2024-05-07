@@ -818,10 +818,6 @@ and translate_branch_to_effect_branch b =
               (* | peff -> Some (fun pk -> e) *)
               | EAnonFun (AnonFunction [Branch (CVal pk, e)]) ->
                  Some (Branch (CEff (peff, pk), e))
-              (* | _ -> Some x *)
-              | EPath _ ->
-                 Some (Branch (CEff (peff, PAny), e))
-              (* FIXME: Not sure why we would need to [assert false] here. *)
               | _ -> assert false)
           | ETuple [] ->
              None
