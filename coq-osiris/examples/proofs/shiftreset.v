@@ -4,7 +4,7 @@ From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
-From osiris.examples Require Import og_shiftreset.
+From osiris.examples Require Import og_shiftreset localstate.
 
 (* Reasoning about delimited control via [shift/reset].
 
@@ -87,6 +87,63 @@ End reasoning_rules.
 
 Opaque eval_match. (* TODO: Move *)
 
+(* [ewp_call_anonfun] expects a goal of the form
+          [ EWP call_anonfun η (λ args, body) (args ++ [x]) {{ Q }} ]
+      and produces a goal of the form
+          [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
+  Ltac ewp_call_anonfun :=
+    (* Unfold [call_anonfun], and get a tower of binds. *)
+    rewrite /call_anonfun; simpl; rewrite ?bind_bind;
+    (* Unfold [eval_anonfun]. *)
+    rewrite /eval_anonfun;
+    (* Simplify the tower of binds,
+        this should elaborate a closure capturing all arguments.  *)
+    repeat (iApply ewp_bind;
+            repeat (Simp; Ret; try Bind));
+    simpl.
+
+  (* Non-recursive call. *)
+  Ltac Call :=
+    match goal with
+    | |- envs_entails _ (ewp_def _ (call_anonfun _ _ _) _ _) =>
+          ewp_call_anonfun; iApply ewp_call_nonrec
+    end.
+
+   Ltac get_outcome_from_match e :=
+    lazymatch e with
+    | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
+    | (deep_handler_body _ ?o _ _) => constr:(o)
+    | (shallow_handler_body _ ?o _ _) => constr:(o)
+    end.
+  Ltac trivial_post_instantiation :=
+      lazymatch goal with
+      | |- envs_entails _ ?G =>
+          lazymatch G with
+          | ewp_def _ ?e _ _ =>
+              lazymatch (get_outcome_from_match e) with
+              | O3Ret _ => constr:(True)
+              | O3Throw _ => constr:(True)
+              | O3Perform _ _ => constr:(True \/ True)
+              end
+            end
+        end.
+  Ltac skip_matching_branch :=
+    let φ2 := trivial_post_instantiation in
+    iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) φ2);
+    [ specify_cpattern; pattern_match
+    | iIntros (? [])
+    | iIntros (_) ].
+  Ltac skip_non_matching_branch :=
+    iApply handle_cons_skip; [ reflexivity | ].
+  Ltac skip_branch :=
+    (skip_non_matching_branch || skip_matching_branch);
+    fold deep_handler_body; fold shallow_handler_body.
+  Ltac enter_branch :=
+    iApply (handle_cons with "[-]");
+    [ specify_cpattern; pattern_match; try (apply eq_refl)
+    | (iIntros (? ->) || iIntros (? <-))
+    | let F := fresh in iIntros (F); tauto ].
+
 Section verification.
   Context `{!osirisGS Σ}.
 
@@ -94,58 +151,51 @@ Section verification.
   Proof.
     iIntros "He". unfold Reset.
 
-    (* Symbolic execution.. TODO: automate this *)
-    rewrite /call_anonfun /= /eval_anonfun.
-    (Bind; Simp; Ret; cbn); rewrite /__fun2.
-    Simp.
+    Call. Simp. iNext.
 
     iApply (ewp_deep_handler _ (SHIFT Ψ Φ) (Φ ↑) with "[He]").
-    { by do 2 Simp. }
+    { by Simp. }
 
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?) "H". destruct o; try done.
-      iNext. iClear "IH". cbn.
-      (* TODO: The [skip branch] tactics do not work. *)
-      iApply ewp_try2.
-      with_strategy transparent [extend] unfold extend; cbn.
-      Ret; Simp; by Ret. }
+      iNext. iClear "IH".
+      enter_branch.
+      Simp. by Ret. }
 
     iIntros (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
     iDestruct "Hprot" as (t Q) "[-> [Hshift Hk]]".
 
-    rewrite {3}/deep_handler_body. cbn -[deep_handler_body].
-
-    (* TODO: The [enter branch] tactics do not work. *)
-    iApply ewp_try2.
-    with_strategy transparent [extend] unfold extend; cbn -[deep_handler_body].
-    Simp. setoid_rewrite Z.eqb_refl. Ret. Simp.
-
     iSpecialize ("Hshift" $! k with "[Hk]").
     { iIntros (w) "Hw". iSpecialize ("Hk" $! (O2Ret w) with "Hw").
       rewrite /deep_handler_spec seal_eq.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
-    done.
+    iModIntro.
+
+    skip_branch. skip_branch. enter_branch.
+
+    by Simp.
   Qed.
+
+  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
   Lemma ewp_shift b e Ψ Φ Q : shift_spec b e Ψ Φ Q.
   Proof.
     iIntros "Hshift". unfold Shift.
 
-    (* Symbolic execution.. TODO: automate this *)
-    rewrite /call_anonfun /= /eval_anonfun.
-    (Bind; Simp; Ret; cbn); rewrite /__fun2.
+    Call. iNext. rewrite /deco.
 
-    iApply ewp_call_nonrec. iNext.
-    (* TODO: Add expr-level rule for perform *)
-    do 3 Simp.
-    with_strategy transparent [evals] unfold evals; cbn.
-    Simp.
+    iApply (ewp_EPerform _ _ _ (ieq ?[y])).
+    { (* TODO: Add expr-level rule for EXdata. *)
+      Simp;
+      with_strategy transparent [evals] unfold evals;
+      Simp. by Ret. }
+    iIntros (? ->).
     iApply ewp_perform.
 
     rewrite /prot upcl_SHIFT.
-    iExists (VClo env (Anon (b => e))), Q. iSplit; [done |]. iFrame.
+    iExists _, Q. iSplit; [ done | ]. iFrame.
     by iIntros (w) "Hw".
   Qed.
 

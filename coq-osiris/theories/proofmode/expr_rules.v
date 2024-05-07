@@ -1053,4 +1053,37 @@ Section ewp_rules_expr.
     - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.
   Qed.
 
+  (** * EPerform : expr -> expr *)
+
+  Lemma ewp_EPerform η e ψ (φ1 : val -d> iPropO Σ) φ :
+    EWP eval η e <|ψ|> {{ RET v, φ1 v }} -∗
+    (∀ v, φ1 v -∗ EWP perform v <|ψ|> {{ φ }} ) -∗
+    EWP eval η (EPerform e) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "He Hv".
+    Simp. iApply ewp_bind.
+    iApply (ewp_mono with "He").
+    iIntros ([|]) "Hφ1"; [ by iApply "Hv" | done ].
+  Qed.
+
+  (** * EContinue : expr -> expr -> expr *)
+
+  Lemma ewp_EContinue η e1 e2 ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP as_cont (eval η e1) <|ψ|> {{ RET k, φ1 k }} -∗
+    EWP eval η e2 <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    (∀ k v, φ1 k -∗ φ2 v -∗
+                EWP stop CResume (k, O2Ret v) <|ψ|> {{ φ }}) -∗
+    EWP eval η (EContinue e1 e2) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hk Hv Hmon".
+    Simp.
+    iApply ewp_bind.
+    iApply (ewp_mono with "Hk").
+    iIntros ([|]) "Hφ1"; [ simpl | done ].
+    iApply ewp_bind.
+    iApply (ewp_mono with "Hv").
+    iIntros ([|]) "Hφ2"; [ simpl | done ].
+    iApply ("Hmon" with "Hφ1 Hφ2").
+  Qed.
+
 End ewp_rules_expr.
