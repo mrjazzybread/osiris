@@ -35,6 +35,14 @@ Proof.
   unfold pattern. eauto using total_consequence.
 Qed.
 
+Lemma pat_consequence_phi η p v (φ φ' : env -> Prop) (ψ : Prop) :
+  pattern η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  pattern η p v φ' ψ.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
 Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
   pattern η p v φ ψ →
   (ψ → ψ') →

@@ -140,6 +140,19 @@ Section ewp_rules_expr.
     iIntros (? ?) "-> -> //".
   Qed.
 
+  Lemma ewp_EApp' η e1 e2 φ1 φ2 φ Ψ :
+    EWP eval η e1 <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e2 <|Ψ|> {{ RET v, φ2 v }} -∗
+    (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗
+       EWP call v1 v2 <|Ψ|> {{ φ }}) -∗
+    EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 H".
+    iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
+    iIntros (? ?) "Hφ1 Hφ2".
+    iApply ("H" with "Hφ1 Hφ2").
+  Qed.
+
   (* The following [ewp_call_*] lemmas just follow the reduction rules for
   function calls when a closure is applied. For better modularity and smaller
   proof terms, it should generally preferred to have a specification ready for
@@ -678,6 +691,21 @@ Section ewp_rules_expr.
   (** * ELetModule : module → mexpr → expr → expr *)
 
   (** * ELetOpen : mexpr → expr → expr *)
+  Lemma ewp_ELetOpen η me e ψ φ :
+    EWP eval_mexpr η me <|ψ|> {{ RET m, ∃ δ, ⌜ m = VStruct δ ⌝ ∗
+    EWP eval (δ ++ η) e <|ψ|> {{ φ }} }} -∗
+    EWP eval η (ELetOpen me e) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hme".
+    rewrite eval_eval'; simpl.
+    iApply ewp_bind.
+    rewrite /as_struct. iApply ewp_bind.
+    iApply (ewp_mono with "Hme").
+    iIntros ([|]) "Hδ"; [ simpl | done].
+    iDestruct "Hδ" as "(%δ & -> & He)".
+    iApply ewp_widen. by simpl.
+    done.
+  Qed.
 
   (** * ESeq : expr → expr → expr *)
 
