@@ -39,7 +39,7 @@ Ltac Simp :=
 (* Hoare-style rules that correspond to [rule] lemmas *)
 Ltac Try := iApply ewp_try.
 
-Ltac Ret := iApply ewp_value.
+Ltac Ret := repeat iApply ewp_value.
 
 Ltac Throw := iApply ewp_throw.
 

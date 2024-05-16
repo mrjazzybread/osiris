@@ -96,6 +96,27 @@ Section handler_specifications.
     apply (@fixpoint_unfold _ _ _ deep_handler_spec_pre).
   Qed.
 
+  Lemma deep_handler_spec_mono E ψ φ h ψ' φ1 φ2 :
+    (∀ o, φ1 o -∗ φ2 o) -∗
+    deep_handler_spec E ψ φ h ψ' φ1 -∗
+    deep_handler_spec E ψ φ h ψ' φ2.
+  Proof.
+    rewrite !deep_handler_spec_unfold /deep_handler_spec_pre.
+    iIntros "Hcov Hhandler".
+    iSplit.
+    { iIntros (o) "Hφ".
+      iDestruct "Hhandler" as "[Hhandler _]".
+      iSpecialize ("Hhandler" $! o with "Hφ").
+      iModIntro.
+      iApply (ewp_mono with "Hhandler Hcov"). }
+
+    { iIntros (v k) "HProt".
+      iDestruct "Hhandler" as "[_ Hhandler]".
+      iSpecialize ("Hhandler" $! v k with "HProt").
+      iModIntro.
+      iApply (ewp_mono with "Hhandler Hcov"). }
+  Qed.
+
 End handler_specifications.
 
 (* LATER: refactor *)
