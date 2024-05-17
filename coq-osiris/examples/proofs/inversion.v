@@ -9,7 +9,7 @@ From osiris.examples Require Import og_inversion.
 (* ========================================================================== *)
 (** * Iteration Descriptors. *)
 
-Class Iterable (G : Type → Type) := {
+Class FinitelyObservable (G : Type → Type) := {
   (* [permitted T Xs] holds if [Xs] is a possible prefix
      of visited elements of the collection [T]. *)
   permitted {A : Type} : G A → list A → Prop;
@@ -18,16 +18,6 @@ Class Iterable (G : Type → Type) := {
      of elements of the collection [T]. *)
   complete  {A : Type} : G A → list A → Prop;
 }.
-
-(* A finitely iterable data structure is one whose elements can
-   be named in advance, before the iteration has terminated. *)
-Class FinIterable G `{Iterable G, ∀ A, Elements A (G A)} := {
-  permitted_elements {A : Type} :
-    ∀ (T : G A) (Xs : list A), permitted T Xs → Xs ⊆ elements T;
-
-  complete_elements {A : Type} :
-    ∀ (T : G A) (Xs : list A), complete T Xs → Xs ≡ₚ elements T;
-  }.
 
 
 (* ========================================================================== *)
@@ -44,7 +34,7 @@ Class DataStructure (G : Type → Type) :=
 
 Section iteration_methods.
   Context `{!osirisGS Σ}.
-  Context {G : Type → Type} `{DataStructure G, Iterable G}
+  Context {G : Type → Type} `{DataStructure G, FinitelyObservable G}
           {A : Type}         `{Encode A}.
 
   Variables (T : G A).
@@ -76,7 +66,7 @@ Proof. intros ??. simpl. by apply _. Defined.
 
 Section lift_iteration_method.
   Context `{!osirisGS Σ}.
-  Context G `{DataStructure G, Iterable G}.
+  Context G `{DataStructure G, FinitelyObservable G}.
 
   Definition lift_permitted {A} (TT : (G (G A))) (Xs : list A) : Prop :=
     (* We match over [last Xs] to facilitate the simplification of
@@ -97,7 +87,7 @@ Section lift_iteration_method.
         complete TT Ts          ∧
         Forall2 complete Ts Xss.
 
-  Global Instance lift_iterable : Iterable (G ∘ G) := {
+  Global Instance lift_iterable : FinitelyObservable (G ∘ G) := {
       permitted := @lift_permitted;
       complete  := @lift_complete;
     }.
@@ -166,7 +156,7 @@ End lift_iteration_method.
 
 Section lazy_sequences.
   Context `{!osirisGS Σ}.
-  Context  {G : Type → Type} `{DataStructure G, Iterable G}
+  Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}
            {A : Type}         `{Encode A}.
 
   Variables (t : G A).
@@ -235,7 +225,7 @@ Definition yield x : val := VXData yield_eff (VTuple [x]).
 
 Section inversion_protocol.
   Context `{!osirisGS Σ}.
-  Context  {G : Type → Type} `{DataStructure G, Iterable G}.
+  Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}.
   Context  {A : Type} `{Encode A}.
 
   Definition ψ_yield T (iterView : list A → iProp Σ) : iEff Σ :=
@@ -319,7 +309,7 @@ Section verification.
 
   Section specification.
     Context `{!osirisGS Σ}.
-    Context {G : Type → Type} `{DataStructure G, Iterable G}.
+    Context {G : Type → Type} `{DataStructure G, FinitelyObservable G}.
     Context {A : Type}         `{Encode A} `{Encode (G A)}.
 
     (* ------------------------------------------------------------------------ *)
@@ -347,7 +337,7 @@ Section verification.
 
   Section invert_correct.
     Context `{!osirisGS Σ}.
-    Context  {G : Type → Type} `{DataStructure G, Iterable G}
+    Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}
              {A : Type}         `{Encode A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
@@ -408,10 +398,6 @@ Section verification.
           ewp_call_anonfun; iApply ewp_call_nonrec
       end.
 
-    Definition invert := __fun9.
-
-    Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
-
     Lemma yield_handler_correct (iter : val) γ (Ys : list A) (T : G A) :
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield T (iterView γ))
@@ -459,87 +445,77 @@ Section verification.
         iApply "IH". }
     Qed.
 
-   Lemma ewp_invert : ⊢ @invert_spec _ _ G _ _ A _ _ invert. simpl.
+    Definition invert := __fun9.
+
+    Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
+
+    Lemma ewp_invert : ⊢ @invert_spec _ _ G _ _ A _ _ invert.
       iIntros (T iter) "Hiter".
+      (* Initialise handler view and iterator view. *)
       iApply ewp_fupd.
       iMod (new_cell []) as (γ) "[HhandlerView HiterView]"; iModIntro.
 
-      rewrite /call_anonfun; simpl; rewrite ?bind_bind.
-      rewrite /eval_anonfun.
-      iApply ewp_bind. Simp. Ret. simpl.
-
-      iApply ewp_call_nonrec.
+      Call.
+      (* Because of the [type elt] annotation, [fun iter -> ...] has
+         been translated as  [fun x -> match x with | iter -> ...]. *)
       iApply ewp_EMatch.
       iApply (ewp_deep_handler _ ⊥ (ieq ?[y])).
-
       { Simp. by Ret. }
-
-      rewrite /ieq.
-
       rewrite deep_handler_spec_unfold; iSplit; last first.
-      (* Effectful case: we don't allow effect (TODO: automate). *)
-      { iModIntro. iIntros (??) "HF".
+      (* Trivially discard the effect case. *)
+      { iIntros "!#" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
-
-      iModIntro. iIntros (? ->). iModIntro.
+      iIntros (? ->) "!> !>".
       enter_branch.
 
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.
-      with_strategy transparent [eval_mexpr] Ret. simpl.
-      iExists _; iSplit; [ done | ].
+      (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
+      with_strategy transparent [eval_mexpr] Ret; simpl.
+      iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
       (* [let yield x = ...] *)
       iApply (ewp_ELet_singleton_total (ieq ?[y])).
-      { Simp. by Ret. }
-      iIntros (? ->).
-      iExists _; iSplit.
-      { iPureIntro.
-        eapply prove_simp_try.
-        { with_strategy transparent [extend] apply SimpReflexive. }
-        apply SimpReflexive. }
+      { Simp; by Ret. }
+      iIntros (? ->). iExists _; iSplit.
+      (* Subgoal: [simp (irrefutably_extend [] (PVar "yield") ...) (ret ?G)] *)
+      { iPureIntro. apply SimpReflexive. }
 
       (* fun () -> match iter yield with ... *)
-      Simp. Ret. simpl. rewrite isSeq_unfold /isSeq_pre.
-
+      Simp; Ret. rewrite /= isSeq_unfold /isSeq_pre.
       iApply ewp_call_nonrec.
-      iModIntro.
+      (* [fun () -> ... ] has been translated as
+         [fun x -> match x with | () -> ... ]. *)
       iApply ewp_EMatch.
       iApply (ewp_deep_handler _ _ (ieq ?[y])).
-
-      { Simp. by Ret. }
-
-      rewrite /__branches4.
+      { Simp; by Ret. }
       rewrite deep_handler_spec_unfold; iSplit; last first.
-      { iIntros (??) "HF".
+      (* Trivially discard the effect case. *)
+      { iIntros "!>" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
-      iIntros (? ->). iModIntro.
-
+      iIntros (? ->) "!> !>".
       enter_branch.
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.
-      iApply (ewp_deep_handler
-                (* E: *)
-                ⊤
+      iApply (ewp_deep_handler ⊤
                 (* Handlee's protocol: *)
                 (ψ_yield T (iterView γ))
                 (* Handlee's postcondition: *)
                 (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete T Xs ⌝)%I
-                (* Handler's protocol: *)
-                ⊥
-                (* Handler's postcondition: *)
-                (lift_ret_spec (λ h, isHead T ⊥ h [])) with "[Hiter HiterView] [HhandlerView]").
+               with "[Hiter HiterView] [HhandlerView]").
 
-      { Simp. Bind.
+      (* Subgoal: [EWP (eval η (EApp iter yield)) <| ψ_yield |> {{ ... }} ]. *)
+      { Simp; Bind.
         iApply (ewp_pers_mono with "[-]").
         { iApply ("Hiter" with "[] HiterView").
-          iIntros "!#" (Xs X) "%Hpermitted HI".
+          iIntros "!>" (Xs X) "%Hpermitted HI".
           with_strategy transparent [evals] Simp.
           iApply ewp_perform.
-          rewrite /prot. iApply upcl_yield.
+          rewrite /prot; iApply upcl_yield.
           iExists _, _.
-          iSplit; [ equality | ]. iFrame. iSplit; [ by iPureIntro | by iIntros "?" ]. }
+          iSplit; [ iPureIntro; reflexivity | iFrame ].
+          iSplit; [ by iPureIntro | by iIntros "?" ]. }
         iIntros "!#" ([|]); [ by iIntros "?" | done ]. }
 
       { iApply (yield_handler_correct with "HhandlerView"). }
