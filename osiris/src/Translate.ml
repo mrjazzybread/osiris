@@ -772,7 +772,10 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      []
   | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
      (match undecorate (translate_expr e) with
-      | EAnonFun (AnonFunction bs) -> bs
+      | EAnonFun (AnonFunction bs) ->
+         (List.map (function
+                Branch ((CVal p), e) -> Branch ((CExc p), e)
+              | _ -> assert false) bs)
       | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
       | _ -> assert false)
 
