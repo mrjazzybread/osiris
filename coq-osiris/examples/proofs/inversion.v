@@ -339,7 +339,7 @@ Section verification.
     Definition invert_spec invert : iProp Σ :=
       ∀ (T : G A) (iter : val),
       (∀ ψ, isIter T ψ iter) -∗
-      EWP (call_anonfun env invert [(iterv iter #T); #()])
+      EWP (call_anonfun env invert [iterv iter #T])
         {{ lift_ret_spec (λ k, isSeq T ⊥ k []) }}.
 
   End specification.
@@ -467,7 +467,6 @@ Section verification.
       rewrite /call_anonfun; simpl; rewrite ?bind_bind.
       rewrite /eval_anonfun.
       iApply ewp_bind. Simp. Ret. simpl.
-      iApply ewp_bind.
 
       iApply ewp_call_nonrec.
       iApply ewp_EMatch.
@@ -501,7 +500,7 @@ Section verification.
         apply SimpReflexive. }
 
       (* fun () -> match iter yield with ... *)
-      Simp. Ret. simpl.
+      Simp. Ret. simpl. rewrite isSeq_unfold /isSeq_pre.
 
       iApply ewp_call_nonrec.
       iModIntro.
@@ -510,7 +509,7 @@ Section verification.
 
       { Simp. by Ret. }
 
-      rewrite /__branches4. rewrite !/deco.
+      rewrite /__branches4.
       rewrite deep_handler_spec_unfold; iSplit; last first.
       { iIntros (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
@@ -520,7 +519,6 @@ Section verification.
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.
-      iApply (ewp_pers_mono _ _ ((lift_ret_spec (λ h, isHead T ⊥ h []))) with "[-]").
       iApply (ewp_deep_handler
                 (* E: *)
                 ⊤
@@ -545,9 +543,6 @@ Section verification.
         iIntros "!#" ([|]); [ by iIntros "?" | done ]. }
 
       { iApply (yield_handler_correct with "HhandlerView"). }
-
-      { iIntros "!#" ([|]); [ simpl | done ].
-        iIntros "HisHead !>".
-        rewrite isSeq_unfold /isSeq_pre isHead_unfold /isHead_pre.
+   Qed.
 
 End verification.
