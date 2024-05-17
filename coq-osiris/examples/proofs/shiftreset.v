@@ -144,6 +144,10 @@ Opaque eval_match. (* TODO: Move *)
     | (iIntros (? ->) || iIntros (? <-))
     | let F := fresh in iIntros (F); tauto ].
 
+  (* Try to reduce a [match] expression by skipping all branches seen and then
+     entering a branch on match. *)
+  Ltac red_match := repeat (skip_branch; [ idtac ]); enter_branch.
+
 Section verification.
   Context `{!osirisGS Σ}.
 
@@ -160,8 +164,8 @@ Section verification.
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?) "H". destruct o; try done.
       iNext. iClear "IH".
-      enter_branch.
-      Simp. by Ret. }
+      red_match.
+      iApply ewp_EPath. by Ret. }
 
     iIntros (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
@@ -173,7 +177,7 @@ Section verification.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
 
-    skip_branch. skip_branch. enter_branch.
+    red_match.
 
     by Simp.
   Qed.

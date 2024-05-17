@@ -1,4 +1,4 @@
-From stdpp Require Import telescopes.
+sFrom stdpp Require Import telescopes.
 
 From iris.proofmode Require Import base tactics classes environments.
 From iris.algebra Require Import excl_auth.
@@ -160,13 +160,12 @@ Section verification.
           [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
   Ltac ewp_call_anonfun :=
     (* Unfold [call_anonfun], and get a tower of binds. *)
-    rewrite /call_anonfun; simpl; rewrite !bind_bind;
+    rewrite /call_anonfun; simpl; rewrite ?bind_bind;
     (* Unfold [eval_anonfun]. *)
     rewrite /eval_anonfun;
     (* Simplify the tower of binds,
         this should elaborate a closure capturing all arguments.  *)
-    repeat (iApply ewp_bind;
-            repeat (Simp; Ret; try Bind));
+    repeat (iApply ewp_bind; Simp; Ret);
     simpl.
 
   (* Non-recursive call. *)
@@ -182,6 +181,8 @@ Section verification.
           (bi_later (ewp_def _ (eval _ (deco _ (ELet [ Binding (PVar _) _ ] _))) _ _)) =>
         iApply (ewp_ELet_PVar_1 Φ)
     end.
+
+  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
   Example localstate_run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
@@ -201,7 +202,8 @@ Section verification.
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      Simp. Alloc l "Hl". Ret.
+      iApply ewp_ERef. { iApply ewp_EPath; by Ret. }
+      iIntros (? -> ?) "?".
       by iApply val_points_to_unfold. }
 
     (* Continuing with the rest of the computation *)
@@ -221,7 +223,7 @@ Section verification.
       iApply (ewp_EApp with "[] [] [Hmain Hpoints_to]"); last first.
       { iApply ("Hmain" $! (fun init => points_to γ (# init)) with "Hpoints_to"). }
       { Simp; by Ret. }
-      { Simp; by Ret. } }
+      { iApply ewp_EPath. by Ret. } }
 
     (* Finally, we prove the specification over handler. *)
 
@@ -242,15 +244,14 @@ Section verification.
 
       red_match.
 
-      iApply (ewp_EPair_ret _ _ _
-                (fun x => l ↦ V x ∗ ⌜x = # init⌝)%I (fun x => ⌜x = a⌝)%I with "[Hl]").
+      iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
       (* Load from location *)
-      { Simp. ewp_tactics.Load "Hl"; Ret; by iFrame. }
+      { iApply (ewp_ELoad_simple with "[] Hl").
+        iApply ewp_EPath. by Ret. }
+      { iApply ewp_EPath. by Ret. }
 
-      { Simp; by Ret. }
-
-      iIntros (??) "(Hl & %Hinit) %Heq"; subst.
+      iIntros (??) "(%Hinit & Hl) %Heq"; subst.
       iExists (init, a); iFrame; encode. }
 
      (* -------------------------------------------------------------------------- *)
@@ -272,8 +273,14 @@ Section verification.
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       Simp. rewrite /as_cont. Simp. Simp.
-       ewp_tactics.Load "Hl".
+       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
+         [ | | iIntros (?? ->) ].
+       { rewrite /as_cont; iApply ewp_bind.
+         iApply ewp_EPath. Ret. by Ret. }
+       { iApply (ewp_ELoad_simple with "[] Hl").
+         iApply ewp_EPath. by Ret. }
+
+       iIntros "[-> Hl]".
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
        { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
@@ -305,16 +312,15 @@ Section verification.
 
        iApply ewp_fupd.
        iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
-       iSpecialize ("H_WRITE" with "Hx").
+       iModIntro.
 
+       iSpecialize ("H_WRITE" with "Hx").
        iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       (* Symbolic Execution. *)
-       iModIntro.
-       Simp. Bind. Bind. Simp. Ret. Ret. Bind. Simp. Bind. Bind.
-       (* FIXME. *)
-       with_strategy transparent [evals] unfold evals; simpl.
-       Ret.
+       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+       { rewrite /as_cont; iApply ewp_bind.
+         iApply ewp_EPath. Ret. by Ret. }
+       { by iApply ewp_EConstant. }
 
        (* Resume the continuation. *)
        iApply "H_WRITE". iNext.
