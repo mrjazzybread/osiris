@@ -10,14 +10,14 @@ From osiris.examples Require Import og_inversion.
 (** * Iteration Descriptors. *)
 
 Class FinitelyObservable (G : Type → Type) := {
-  (* [permitted T Xs] holds if [Xs] is a possible prefix
+    (* [permitted T Xs] holds if [Xs] is a possible prefix
      of visited elements of the collection [T]. *)
-  permitted {A : Type} : G A → list A → Prop;
+    permitted {A : Type} : G A → list A → Prop;
 
-  (* [complete T Xs] holds if [Xs] is the complete list
+    (* [complete T Xs] holds if [Xs] is the complete list
      of elements of the collection [T]. *)
-  complete  {A : Type} : G A → list A → Prop;
-}.
+    complete  {A : Type} : G A → list A → Prop;
+  }.
 
 
 (* ========================================================================== *)
@@ -52,103 +52,6 @@ Section iteration_methods.
         {{ λ _, ∃ Xs, I Xs ∗ ⌜ complete T Xs ⌝ }} }}.
 
 End iteration_methods.
-
-(* ------------------------------------------------------------------------ *)
-(** Lift Data Structure. *)
-
-Global Instance lift_data_structure G `{DataStructure G} :
-  DataStructure (G ∘ G).
-Proof. intros ??. simpl. by apply _. Defined.
-
-
-(* ========================================================================== *)
-(** * Lift Iteration Method. *)
-
-Section lift_iteration_method.
-  Context `{!osirisGS Σ}.
-  Context G `{DataStructure G, FinitelyObservable G}.
-
-  Definition lift_permitted {A} (TT : (G (G A))) (Xs : list A) : Prop :=
-    (* We match over [last Xs] to facilitate the simplification of
-         assertions of the form [permitted _ (_ ++ [X])]. *)
-    match last Xs with
-    | None => True
-    | _ =>
-        ∃ (Ts : list (G A)) (T : G A) (Xss : list (list A)) (Ys : list A),
-        Xs = concat Xss ++ Ys    ∧
-        permitted TT (Ts ++ [T]) ∧
-        permitted T Ys           ∧
-        Forall2 complete Ts Xss
-  end.
-
-  Definition lift_complete {A} (TT : G (G A)) (Xs : list A) : Prop :=
-    ∃ (Ts : list (G A)) (Xss : list (list A)),
-      Xs = concat Xss         ∧
-        complete TT Ts          ∧
-        Forall2 complete Ts Xss.
-
-  Global Instance lift_iterable : FinitelyObservable (G ∘ G) := {
-      permitted := @lift_permitted;
-      complete  := @lift_complete;
-    }.
-
-  (* Value representing [fun f tt -> iter (fun t -> iter f t) tt]. *)
-  Definition lift_iter (iter : val) : val :=
-    (VClo [("iter", iter)]
-            (Anon ("f" =>
-                 EAnonFun
-                   (Anon ("tt" =>
-                            EApp
-                              (EApp
-                                 (EPath ["iter"])
-                                 (EAnonFun (Anon ("t" => EApp (EApp (EPath ["iter"]) (EPath ["f"])) (EPath ["t"])))))
-                              (EPath ["tt"])))))).
-
-  Lemma lift_iter_isIter (iter : val) (Ψ : iEff Σ) :
-      □ (∀ (A : Type) `{Encode A} (T : G A),
-          isIter T Ψ iter)
-        -∗
-      □ (∀ (A : Type) `{Encode A} (TT : (G ∘ G) A),
-          isIter TT Ψ (lift_iter iter)).
-  Proof.
-    iIntros "#Hiter" (????) "!#".
-    iIntros (I f) "#Hf HI". unfold lift_iter.
-    Simp. Ret. Simp. Bind. simpl in *.
-    iApply (ewp_pers_mono with "[HI]").
-    iApply ("Hiter" $!
-              ((* Type of the elements. *) G A) (is_representable A)
-              ((* Data structure. *) TT)
-              ((* Mask. *) E)
-              ((* Invariant. *) λ (Ts : list (G A)), ∃ Xss,
-                  I (concat Xss) ∗ ⌜ Forall2 complete Ts Xss ⌝)%I
-              ((* Iteratee. *) _ )
-             with "[] [HI]"); [|by iExists []; iFrame].
-    - iIntros "!#" (Ts T) "%Hpermitted [%Xss [HI %Hcomplete]]".
-      Simp. Bind.
-      iApply (ewp_pers_mono with "[HI]").
-      iApply ("Hiter" $! A H1 T E
-                ((* Invariant. *) λ (Xs : list A), I (concat Xss ++ Xs))%I
-                ((* Iteratee. *) f)
-               with "[] [HI]"); [|rewrite app_nil_r; by iFrame].
-      + iIntros "!#" (Xs X) "%Hpermitted_T HI".
-        rewrite app_assoc.
-        iApply ("Hf" $! _ X with "[] HI").
-        iPureIntro. rewrite /= /lift_permitted last_app last_cons //=.
-        exists Ts, T, Xss, (Xs ++ [X]).
-        rewrite app_assoc. by repeat split.
-      + iIntros "!#" ([|]); [ simpl | done]; iIntros "Hc !>".
-        iApply (ewp_pers_mono with "Hc").
-        iIntros "!#" (_) "[%Xs [HI %Hcomplete_T]] !>".
-        iExists (Xss ++ [Xs]). rewrite concat_app //= app_nil_r.
-        iFrame. iPureIntro. by decompose_Forall.
-    - iIntros "!#" ([y|]); [ simpl | done]; iIntros "Hc !>".
-      iApply (ewp_pers_mono with "Hc").
-      iIntros "!#" (_) "[%Ts [[%Xss [HI %Hxs]] %Hcomplete_TT]] !>".
-      iExists (concat Xss). iFrame. iPureIntro.
-      rewrite /lift_complete. by exists Ts, Xss.
-    Qed.
-
-End lift_iteration_method.
 
 
 (* ========================================================================== *)
