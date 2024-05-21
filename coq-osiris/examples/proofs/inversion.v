@@ -9,24 +9,15 @@ From osiris.examples Require Import og_inversion.
 (* ========================================================================== *)
 (** * Iteration Descriptors. *)
 
-Class FinitelyObservable (G : Type → Type) := {
+Class FinitelyObservable (A : Type) := {
     (* [permitted T Xs] holds if [Xs] is a possible prefix
      of visited elements of the collection [T]. *)
-    permitted {A : Type} : G A → list A → Prop;
+    permitted : list A → Prop;
 
     (* [complete T Xs] holds if [Xs] is the complete list
      of elements of the collection [T]. *)
-    complete  {A : Type} : G A → list A → Prop;
+    complete  : list A → Prop;
   }.
-
-
-(* ========================================================================== *)
-(** * Data Structure. *)
-
-(* We formalize a data structure as a type family [G], such that
-   [G A] is representable for every repesentable type [A]. *)
-Class DataStructure (G : Type → Type) :=
-  is_representable A `{Encode A} :> Encode (G A).
 
 
 (* ========================================================================== *)
@@ -34,22 +25,18 @@ Class DataStructure (G : Type → Type) :=
 
 Section iteration_methods.
   Context `{!osirisGS Σ}.
-  Context {G : Type → Type} `{DataStructure G, FinitelyObservable G}
-          {A : Type}         `{Encode A}.
+  Context {A : Type} `{Encode A, FinitelyObservable A}.
 
-  Variables (T : G A).
-
-  Definition isIter (ψ : iEff Σ) (iter : val) : iProp Σ :=
-    ∀ E (I : list A → iProp Σ) (f : val),
+  Definition isIter (iter : val) : iProp Σ :=
+    ∀ (ψ : iEff Σ) E (I : list A → iProp Σ) (f : val),
       □ (∀ (Xs : list A) (X : A),
-           ⌜ permitted T (Xs ++ [X]) ⌝ -∗
+           ⌜ permitted (Xs ++ [X]) ⌝ -∗
            I Xs -∗
            EWP (call f #X) @ E <| ψ |> {{ λ _, I (Xs ++ [X]) }})
       -∗
       I [] -∗
-      EWP (call iter f) @E <| ψ |> {{ RET c,
-      EWP (call c #T) @ E <| ψ |>
-        {{ λ _, ∃ Xs, I Xs ∗ ⌜ complete T Xs ⌝ }} }}.
+      EWP (call iter f) @E <| ψ |>
+        {{ λ _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
 
 End iteration_methods.
 
@@ -59,10 +46,7 @@ End iteration_methods.
 
 Section lazy_sequences.
   Context `{!osirisGS Σ}.
-  Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}
-           {A : Type}         `{Encode A}.
-
-  Variables (t : G A).
+  Context  {A : Type} `{Encode A, FinitelyObservable A}.
 
   (* ------------------------------------------------------------------------ *)
   (** Specification of Heads. *)
@@ -76,10 +60,10 @@ Section lazy_sequences.
     λ Ψ h Xs,
       match h with
       | VData "Nil" (VTuple [])       =>
-          ⌜ complete t Xs ⌝
+          ⌜ complete Xs ⌝
       | VData "Cons" p =>
           ∃ X k, ⌜ p = #(X, k) ⌝ ∧
-                 ⌜ permitted t (Xs ++ [X]) ⌝ ∗ ▷ isSeq Ψ k (Xs ++ [X])
+                 ⌜ permitted (Xs ++ [X]) ⌝ ∗ ▷ isSeq Ψ k (Xs ++ [X])
       | _ =>
           False
       end%I.
@@ -128,21 +112,20 @@ Definition yield x : val := VXData yield_eff (VTuple [x]).
 
 Section inversion_protocol.
   Context `{!osirisGS Σ}.
-  Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}.
-  Context  {A : Type} `{Encode A}.
+  Context  {A : Type} `{Encode A, FinitelyObservable A}.
 
-  Definition ψ_yield T (iterView : list A → iProp Σ) : iEff Σ :=
+  Definition ψ_yield (iterView : list A → iProp Σ) : iEff Σ :=
     (>> Xs X >>
        ! (yield #X)
-         {{ iterView Xs ∗ ⌜ permitted T (Xs ++ [X]) ⌝ }};
+         {{ iterView Xs ∗ ⌜ permitted (Xs ++ [X]) ⌝ }};
        ? (@O2Ret val exn #())
          {{ iterView (Xs ++ [X]) }} @ OS).
 
-  Lemma upcl_yield T iterView v Φ :
-    iEff_car (upcl OS (ψ_yield T iterView)) v Φ ⊣⊢
+  Lemma upcl_yield iterView v Φ :
+    iEff_car (upcl OS (ψ_yield iterView)) v Φ ⊣⊢
       (∃ Xs (X : A), ⌜ v = yield #X ⌝ ∗
                              (iterView Xs ∗
-                             ⌜ permitted T (Xs ++ [X]) ⌝) ∗
+                             ⌜ permitted (Xs ++ [X]) ⌝) ∗
                              (iterView (Xs ++ [X]) -∗ Φ (O2Ret (VUnit))))%I.
   Proof. by rewrite /ψ_yield  (upcl_tele' [tele _ _] [tele]) //=. Qed.
 
@@ -212,36 +195,24 @@ Section verification.
 
   Section specification.
     Context `{!osirisGS Σ}.
-    Context {G : Type → Type} `{DataStructure G, FinitelyObservable G}.
-    Context {A : Type}         `{Encode A} `{Encode (G A)}.
+    Context {A : Type} `{Encode A, FinitelyObservable A}.
 
     (* ------------------------------------------------------------------------ *)
     (** Specification of [invert]. *)
 
-    (* ∀ iter t, iterv iter t ≜ [fun f -> iter f t]. *)
-    Definition iterv iter t :=
-      VClo [("iter", iter); ("t", t)]
-        (Anon ("f" => EApp
-                       (EApp
-                          (EPath ["iter"])
-                          (EPath ["f"]))
-                       (EPath ["t"]))).
-
     Definition env := ("Yield", (VLoc yield_eff)) :: stdlib_env.
 
     Definition invert_spec invert : iProp Σ :=
-      ∀ (T : G A) (iter : val),
-      (∀ ψ, isIter T ψ iter) -∗
-      EWP (call_anonfun env invert [iterv iter #T])
-        {{ lift_ret_spec (λ k, isSeq T ⊥ k []) }}.
+      ∀ (iter : val),
+      isIter iter -∗
+      EWP (call_anonfun env invert [iter]) {{ RET k, isSeq ⊥ k [] }}.
 
   End specification.
 
 
   Section invert_correct.
     Context `{!osirisGS Σ}.
-    Context  {G : Type → Type} `{DataStructure G, FinitelyObservable G}
-             {A : Type}         `{Encode A}.
+    Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
 
@@ -301,19 +272,19 @@ Section verification.
           ewp_call_anonfun; iApply ewp_call_nonrec
       end.
 
-    Lemma yield_handler_correct (iter : val) γ (Ys : list A) (T : G A) :
+    Lemma yield_handler_correct (iter : val) γ (Ys : list A) :
       handlerView γ Ys -∗
-      deep_handler_spec ⊤ (ψ_yield T (iterView γ))
-        (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete T Xs⌝)
+      deep_handler_spec ⊤ (ψ_yield (iterView γ))
+        (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o : code.outcome3 val exn,
             deep_handler_body
               ("__osiris_anonymous_arg" ~> VUnit;
-               "yield" ~> VClo ("iter" ~> iterv iter #T;
-                                "__osiris_anonymous_arg" ~> iterv iter #T;
+               "yield" ~> VClo ("iter" ~> iter;
+                                "__osiris_anonymous_arg" ~> iter;
                                 env) __fun0;
-               "iter" ~> iterv iter #T;
-               "__osiris_anonymous_arg" ~> iterv iter #T;
-               env) o __branches3 __branches3) ⊥ (RET h, isHead T ⊥ h Ys).
+               "iter" ~> iter;
+               "__osiris_anonymous_arg" ~> iter;
+               env) o __branches3 __branches3) ⊥ (RET h, isHead ⊥ h Ys).
     Proof.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
@@ -342,7 +313,7 @@ Section verification.
         with_strategy transparent [evals] Simp; Ret; simpl.
         iExists _, _.
         iSplit; [ iPureIntro; reflexivity | iSplit; [ by iPureIntro | ] ].
-        (* Goal: [isSeq T ⊥ (fun () -> continue k ()) (Ys ++ [X])]. *)
+        (* Goal: [isSeq ⊥ (fun () -> continue k ()) (Ys ++ [X])]. *)
         rewrite !isSeq_unfold /isSeq_pre.
         with_strategy transparent [extend evals]
           Simp; Bind; Bind; Simp; Ret; Bind; Simp; Ret; simpl.
@@ -357,8 +328,8 @@ Section verification.
 
     Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
-    Lemma ewp_invert : ⊢ @invert_spec _ _ G _ _ A _ _ invert.
-      iIntros (T iter) "Hiter".
+    Lemma ewp_invert : ⊢ invert_spec invert.
+      iIntros (iter) "Hiter".
       (* Initialise handler view and iterator view. *)
       iApply ewp_fupd.
       iMod (new_cell []) as (γ) "[HhandlerView HiterView]"; iModIntro.
@@ -408,13 +379,13 @@ Section verification.
       iApply ewp_EMatch.
       iApply (ewp_deep_handler ⊤
                 (* Handlee's protocol: *)
-                (ψ_yield T (iterView γ))
+                (ψ_yield (iterView γ))
                 (* Handlee's postcondition: *)
-                (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete T Xs ⌝)%I
+                (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
                with "[Hiter HiterView] [HhandlerView]").
 
       (* Subgoal: [EWP (eval η (EApp iter yield)) <| ψ_yield |> {{ ... }} ]. *)
-      { Simp; Bind.
+      { Simp.
         iApply (ewp_pers_mono with "[-]").
         { iApply ("Hiter" with "[] HiterView").
           iIntros "!>" (Xs X) "%Hpermitted HI".
@@ -424,9 +395,9 @@ Section verification.
           iExists _, _.
           iSplit; [ iPureIntro; reflexivity | iFrame ].
           iSplit; [ by iPureIntro | by iIntros "?" ]. }
-        iIntros "!#" ([|]); [ by iIntros "?" | done ]. }
+        iIntros "!#" ([|]); [ by iIntros "?" | by iIntros "?"]. }
 
-      { iApply (yield_handler_correct iter γ [] T with "HhandlerView"). }
+      { iApply (yield_handler_correct iter γ [] with "HhandlerView"). }
    Qed.
 
 End invert_correct.
