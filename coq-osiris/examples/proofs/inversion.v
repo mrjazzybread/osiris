@@ -416,33 +416,38 @@ Section verification.
       iIntros "HhandlerView".
       rewrite deep_handler_spec_unfold /deep_handler_spec_pre.
       iSplit.
+      (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        iModIntro.
         destruct o; red_match;
-          with_strategy transparent [evals] Simp; Ret;
-          by iPureIntro. }
+          with_strategy transparent [evals] Simp; Ret; by iPureIntro. }
 
-      { iIntros (v k) "HProt".
+      (* Effectful case: *)
+      { iIntros (v k) "HProt !>".
+        (* Inversion on the [allows perform]. *)
         rewrite /prot; iPoseProof (upcl_yield with "HProt") as "HProt".
         iDestruct "HProt" as "[%Xs [%X [-> [[HiterView %Hpermitted] HProt]]]]".
-        iModIntro.
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        iApply ewp_fupd. iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
-          as "[HhandlerView HiterView]"; iModIntro.
+        (* Update the handler and iterator views. *)
+        iApply ewp_fupd;
+          iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
+          as "[HhandlerView HiterView]";
+          iModIntro.
         red_match.
-        with_strategy transparent [evals] Simp. Ret. simpl.
-        iExists _, _. iSplit; [ iPureIntro; reflexivity | ]. iSplit; [ by iPureIntro | ].
-        iModIntro.
+
+        (* [Seq.Cons (x, fun () -> continue k ())]. *)
+        with_strategy transparent [evals] Simp; Ret; simpl.
+        iExists _, _.
+        iSplit; [ iPureIntro; reflexivity | iSplit; [ by iPureIntro | ] ].
+        (* Goal: [isSeq T ⊥ (fun () -> continue k ()) (Ys ++ [X])]. *)
         rewrite !isSeq_unfold /isSeq_pre.
-        with_strategy transparent [extend] Simp.
-        Bind. rewrite /as_cont. Bind. Simp. Ret. Bind.
-        with_strategy transparent [evals] Simp. Ret. simpl.
+        with_strategy transparent [extend evals]
+          Simp; Bind; Bind; Simp; Ret; Bind; Simp; Ret; simpl.
+        (* Goal: Result of resuming [k] is a Head of [T]. *)
         iApply ("HProt" with "HiterView").
-        iModIntro.
-        iSpecialize ("IH" $! (Ys ++ [X]) γ with "HhandlerView").
+        (* Use induction hypothesis on the handler. *)
         rewrite /deep_handler_spec seal_eq.
-        iApply "IH". }
+        iApply ("IH" $! (Ys ++ [X]) γ with "HhandlerView"). }
     Qed.
 
     Definition invert := __fun9.
@@ -456,8 +461,8 @@ Section verification.
       iMod (new_cell []) as (γ) "[HhandlerView HiterView]"; iModIntro.
 
       Call.
-      (* Because of the [type elt] annotation, [fun iter -> ...] has
-         been translated as  [fun x -> match x with | iter -> ...]. *)
+      (* [fun iter -> ...] has been translated as
+         [fun x -> match x with | iter -> ...]. *)
       iApply ewp_EMatch.
       iApply (ewp_deep_handler _ ⊥ (ieq ?[y])).
       { Simp. by Ret. }
@@ -468,7 +473,7 @@ Section verification.
       iIntros (? ->) "!> !>".
       enter_branch.
 
-      (* [let open struct ...] *)
+      (* [let open struct ...] *) rewrite /deco.
       iApply ewp_ELetOpen.
       (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
       with_strategy transparent [eval_mexpr] Ret; simpl.
@@ -518,7 +523,9 @@ Section verification.
           iSplit; [ by iPureIntro | by iIntros "?" ]. }
         iIntros "!#" ([|]); [ by iIntros "?" | done ]. }
 
-      { iApply (yield_handler_correct with "HhandlerView"). }
+      { iApply (yield_handler_correct iter γ [] T with "HhandlerView"). }
    Qed.
+
+End invert_correct.
 
 End verification.
