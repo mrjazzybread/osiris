@@ -98,8 +98,7 @@ Opaque eval_match. (* TODO: Move *)
     rewrite /eval_anonfun;
     (* Simplify the tower of binds,
         this should elaborate a closure capturing all arguments.  *)
-    repeat (iApply ewp_bind;
-            repeat (Simp; Ret; try Bind));
+    repeat (iApply ewp_bind; Simp; Ret);
     simpl.
 
   (* Non-recursive call. *)
