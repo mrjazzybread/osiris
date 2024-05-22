@@ -4,8 +4,8 @@ synopsis: "An instance of the Iris verification framework for OCaml"
 maintainer: ["François Pottier"]
 authors: [
   "François Pottier"
-  "Armaël Guéneau"
   "Arnaud Daby-Seesaram"
+  "Jean-Marie Madiot"
   "Remy Seassau"
   "Irene Yoon"
 ]
