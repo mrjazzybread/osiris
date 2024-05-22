@@ -19,10 +19,6 @@ Class FinitelyObservable (A : Type) := {
     complete  : list A → Prop;
   }.
 
-
-(* ========================================================================== *)
-(** * Higher-Order Iteration Methods. *)
-
 Section iteration_methods.
   Context `{!osirisGS Σ}.
   Context {A : Type} `{Encode A, FinitelyObservable A}.

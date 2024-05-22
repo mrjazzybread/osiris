@@ -1,4 +1,4 @@
-sFrom stdpp Require Import telescopes.
+From stdpp Require Import telescopes.
 
 From iris.proofmode Require Import base tactics classes environments.
 From iris.algebra Require Import excl_auth.

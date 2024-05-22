@@ -248,7 +248,9 @@ let translate_exp_constant loc (c : constant) : expr =
   | Const_string (s, _, _) ->
       EString s
   | Const_float f ->
-      EFloat f
+     (* Remove the decimal-point if there is no fractional part. *)
+     let f = Float.of_string f in
+     EFloat (sprintf "%g" f)
   | Const_int32 _ ->
       eunsupported loc "32-bit integer literal"
   | Const_int64 _ ->
