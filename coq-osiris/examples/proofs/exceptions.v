@@ -13,7 +13,7 @@ Context `{!osirisGS Σ}.
 Definition stdlib_with_notfound :=
   ("Not_found", (VLoc (Loc 0))) :: stdlib_env.
 
-Local Transparent extend evals call.
+Local Transparent extend evals eval_match call.
 
 (* Calling [head #l] either returns [#h] when [l = h :: t],
    or throws an exception when [l = []]. *)

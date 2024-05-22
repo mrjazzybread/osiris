@@ -205,68 +205,10 @@ Section verification.
 
   End specification.
 
-
   Section invert_correct.
     Context `{!osirisGS Σ}.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
-
-
-    Ltac get_outcome_from_match e :=
-    lazymatch e with
-    | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
-    | (deep_handler_body _ ?o _ _) => constr:(o)
-    | (shallow_handler_body _ ?o _ _) => constr:(o)
-    end.
-    Ltac trivial_post_instantiation :=
-      lazymatch goal with
-      | |- envs_entails _ ?G =>
-          lazymatch G with
-          | ewp_def _ ?e _ _ =>
-              lazymatch (get_outcome_from_match e) with
-              | O3Ret _ => constr:(True)
-              | O3Throw _ => constr:(True)
-              | O3Perform _ _ => constr:(True \/ True)
-              end
-          end
-      end.
-    Ltac skip_matching_branch :=
-      let φ2 := trivial_post_instantiation in
-      iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) φ2);
-      [ specify_cpattern; pattern_match
-      | iIntros (? [])
-      | iIntros (_) ].
-    Ltac skip_non_matching_branch :=
-      iApply handle_cons_skip; [ reflexivity | ].
-    Ltac skip_branch :=
-      (skip_non_matching_branch || skip_matching_branch);
-      fold deep_handler_body; fold shallow_handler_body.
-    Ltac enter_branch :=
-      iApply (handle_cons with "[-]");
-      [ specify_cpattern; pattern_match; try (apply eq_refl)
-      | (iIntros (? ->) || iIntros (? <-))
-      | let F := fresh in iIntros (F); tauto ].
-
-    (* Try to reduce a [match] expression by skipping all branches seen and then
-     entering a branch on match. *)
-    Ltac red_match := repeat (skip_branch; [ idtac ]); enter_branch.
-
-    Ltac ewp_call_anonfun :=
-      (* Unfold [call_anonfun], and get a tower of binds. *)
-      rewrite /call_anonfun; simpl; rewrite ?bind_bind;
-      (* Unfold [eval_anonfun]. *)
-      rewrite /eval_anonfun;
-      (* Simplify the tower of binds,
-        this should elaborate a closure capturing all arguments.  *)
-      repeat (iApply ewp_bind; Simp; Ret);
-      simpl.
-
-    (* Non-recursive call. *)
-    Ltac Call :=
-      match goal with
-      | |- envs_entails _ (ewp_def _ (call_anonfun _ _ _) _ _) =>
-          ewp_call_anonfun; iApply ewp_call_nonrec
-      end.
 
     Lemma yield_handler_correct (iter : val) γ (Ys : list A) :
       handlerView γ Ys -∗
@@ -311,7 +253,7 @@ Section verification.
         iSplit; [ iPureIntro; reflexivity | iSplit; [ by iPureIntro | ] ].
         (* Goal: [isSeq ⊥ (fun () -> continue k ()) (Ys ++ [X])]. *)
         rewrite !isSeq_unfold /isSeq_pre.
-        with_strategy transparent [extend evals]
+        with_strategy transparent [extend eval_match evals]
           Simp; Bind; Bind; Simp; Ret; Bind; Simp; Ret; simpl.
         (* Goal: Result of resuming [k] is a Head of [T]. *)
         iApply ("HProt" with "HiterView").
