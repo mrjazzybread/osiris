@@ -302,10 +302,10 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_any ->
       PAny
 
-  | Tpat_var (_, x) ->
+  | Tpat_var (_, x, _) ->
       PVar (txt x)
 
-  | Tpat_alias (pat, _, x) ->
+  | Tpat_alias (pat, _, x, _) ->
       PAlias (translate_pat pat, txt x)
 
   | Tpat_constant c ->
@@ -400,18 +400,19 @@ let rec translate_expr (e: expression) : expr =
       begin try
         ELetRec (translate_rec_bindings vbs, translate_expr e)
       with Unsupported ->
+        printf "failed recursive letrec translation\n";
         eunsupported loc "recursive definition of values"
       end
 
-  | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
-      (* [param] is apparently meaningless. *)
-      translate_function cases partial
-
-  | Texp_function { arg_label = Labelled _; _ } ->
-      eunsupported loc "labeled argument"
-
-  | Texp_function { arg_label = Optional _; _ } ->
-      eunsupported loc "optional argument"
+  | Texp_function (params, body) ->
+     if List.exists
+          (fun (param : function_param) -> match (param.fp_arg_label) with
+                        | Nolabel -> false
+                        | Labelled _ | Optional _ -> true) params
+     then
+       eunsupported loc "labelled or optional argument"
+     else
+      translate_function params body
 
   | Texp_apply (e, args) ->
       translate_application loc e args
@@ -738,20 +739,38 @@ and translate_primitive_application loc path p args =
 
 (* Expressions: anonymous functions. *)
 
-and translate_function cases partial : expr =
-  match cases with
-  | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ };
-       c_guard = None;
-       c_rhs = e
-     }] ->
-      (* We recognize the special case of [fun x -> e]. In this case
-         we can use [AnonFun], a primitive form in the Osiris AST. *)
-      assert (partial = Total);
-      EAnonFun (AnonFun (txt x, translate_expr e))
-  | _ ->
-      (* In the general case, this function has the form [function bs].
-         Then we use [AnonFunction], a derived form in Osiris. *)
-      EAnonFun (AnonFunction (translate_value_cases cases))
+and translate_function params body : expr =
+  match body with
+  | Tfunction_body e ->
+     let rec talt params (acc : expr -> expr) =
+       match params with
+       | [] -> acc
+       | p :: params ->
+          match p.fp_kind with
+          | Tparam_pat p ->
+             (match p.pat_desc with
+              | Tpat_var (_, x, _) ->
+                 talt params (fun e -> acc (EAnonFun (AnonFun (txt x, e))))
+              | _ ->
+                 talt params (fun e -> acc (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)]))))
+          | Tparam_optional_default (_, _) ->
+             talt params (fun _ -> acc (EUnsupported))
+     in
+     talt params (fun e -> e) (translate_expr e)
+  | Tfunction_cases { cases; partial; param = _; loc = _; exp_extra = _; attributes = _ } ->
+     match cases with
+     | [{ c_lhs = { pat_desc = Tpat_var (_, x, _); _ };
+          c_guard = None;
+          c_rhs = e
+       }] ->
+        (* We recognize the special case of [fun x -> e]. In this case
+           we can use [AnonFun], a primitive form in the Osiris AST. *)
+        assert (partial = Total);
+        EAnonFun (AnonFun (txt x, translate_expr e))
+     | _ ->
+        (* In the general case, this function has the form [function bs].
+           Then we use [AnonFunction], a derived form in Osiris. *)
+        EAnonFun (AnonFunction (translate_value_cases cases))
 
 (* -------------------------------------------------------------------------- *)
 
@@ -774,13 +793,15 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      (match undecorate (translate_expr e) with
       | EAnonFun (AnonFunction bs) -> bs
       | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
-      | _ -> assert false)
+      | e -> printf "%s\n" (show_expr e); [])
+      (* | _ -> assert false) *)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
      (match undecorate (translate_expr e) with
       | EAnonFun (AnonFunction bs) -> bs
       | EAnonFun (AnonFun (v, e)) -> [Branch (CExc (PVar v), e)]
-      | _ -> assert false)
+      | e -> printf "%s\n" (show_expr e); [])
+      (* | _ -> assert false) *)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match undecorate (translate_expr e) with
@@ -795,7 +816,8 @@ and translate_record_field_as_branches (_, label_def) : branch list =
           | EMatch (_, bs) ->
              translate_branches_to_effect_branches bs
           | _ -> assert false)
-      | _ -> assert false)
+      | e -> printf "%s\n" (show_expr e); [])
+   (* | _ -> assert false) *)
   | _ -> []
 
 (* We expect the branches in our effect field to be of the following form:
@@ -904,11 +926,11 @@ and project_EAnonFun (e : expr) : anonfun =
   | EDecorate (_, e) ->
       project_EAnonFun e
   | EAnonFun a -> a
-  | _ -> raise Unsupported
+  | e -> printf "%s\n" (show_expr e); raise Unsupported
 
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
-  | Tpat_var (_, v) -> txt v
+  | Tpat_var (_, v, _) -> txt v
   | _ -> assert false
 
 and translate_rec_binding (vb : value_binding) : rec_binding =

@@ -121,7 +121,7 @@ Section verification.
     EWP call_anonfun env run [ #init ; main]
       {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
-    cbn.
+    cbn zeta.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 

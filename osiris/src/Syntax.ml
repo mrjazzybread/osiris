@@ -11,11 +11,13 @@
 
 type var =
   string
+    [@@ deriving show]
 
 (* Variables and module names. *)
 
 type name =
   string
+    [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -26,6 +28,7 @@ type name =
 
 type path =
   name list (* must be nonempty *)
+    [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -33,11 +36,13 @@ type path =
 
 type data =
   string
+    [@@ deriving show]
 
 (* Record fields. *)
 
 type field =
   string
+    [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -74,6 +79,7 @@ type pat =
   | PChar of char
   (* A literal string pattern. *)
   | PString of string
+                 [@@ deriving show]
 
 (* Computation patterns. *)
 
@@ -97,16 +103,19 @@ and cpat =
   | CEff of pat * pat
   (* A disjunction pattern [cp1 | cp2]. *)
   | COr of cpat * cpat
+                    [@@ deriving show]
 
 (* Lists of patterns. *)
 
 and pats =
   pat list
+    [@@ deriving show]
 
 (* Lists of field-pattern pairs. *)
 
 and fpats =
   (field * pat) list
+    [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -126,10 +135,12 @@ type coercion =
      coercions in the list [xcs] are applied to them. All other fields are
      dropped. *)
   | CStruct of fcoercions
+                 [@@ deriving show]
 
 and fcoercions =
   (field * coercion) list
       (* A field-coercion list [xcs] must have no duplicate names. *)
+    [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -256,6 +267,7 @@ type expr =
   | ELoad of expr
   (* Reference assignment: [e1 := e2]. *)
   | EStore of expr * expr
+                       [@@ deriving show]
 
 (* Lists of expressions. *)
 

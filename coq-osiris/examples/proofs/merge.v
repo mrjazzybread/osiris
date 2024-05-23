@@ -196,7 +196,7 @@ Proof.
   { pure_path.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; repeat (destruct_hyp).
-    done. }
+    by rewrite app_nil_l. }
     (* Match against "l, []" *)
   { pure_path.
     (* Establish postcondition *)
