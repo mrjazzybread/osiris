@@ -400,7 +400,6 @@ let rec translate_expr (e: expression) : expr =
       begin try
         ELetRec (translate_rec_bindings vbs, translate_expr e)
       with Unsupported ->
-        printf "failed recursive letrec translation\n";
         eunsupported loc "recursive definition of values"
       end
 
@@ -739,24 +738,29 @@ and translate_primitive_application loc path p args =
 
 (* Expressions: anonymous functions. *)
 
-and translate_function params body : expr =
-  match body with
-  | Tfunction_body e ->
-     let rec talt params (acc : expr -> expr) =
-       match params with
-       | [] -> acc
-       | p :: params ->
-          match p.fp_kind with
-          | Tparam_pat p ->
-             (match p.pat_desc with
-              | Tpat_var (_, x, _) ->
-                 talt params (fun e -> acc (EAnonFun (AnonFun (txt x, e))))
-              | _ ->
-                 talt params (fun e -> acc (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)]))))
-          | Tparam_optional_default (_, _) ->
-             talt params (fun _ -> acc (EUnsupported))
-     in
-     talt params (fun e -> e) (translate_expr e)
+and translate_function_param (param : function_param) : expr -> expr =
+  match param.fp_kind with
+  | Tparam_optional_default (_, _) ->
+     (fun _ -> eunsupported param.fp_loc "optional argument")
+  | Tparam_pat p ->
+     match p.pat_desc with
+     (* We recognize the special case of [fun x -> e]. In this case
+        we can use [AnonFun], a primitive form in the Osiris AST. *)
+     | Tpat_var (_, x, _) ->
+        (fun e -> (EAnonFun (AnonFun (txt x, e))))
+     | _ ->
+        (fun e -> (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])))
+
+and translate_function_params params : expr -> expr =
+  List.fold_left
+    (fun acc param ->
+      let param = translate_function_param param in
+      fun e -> acc (param e))
+    (fun e -> e)
+    params
+
+and translate_function_body : function_body -> expr = function
+  | Tfunction_body e -> translate_expr e
   | Tfunction_cases { cases; partial; param = _; loc = _; exp_extra = _; attributes = _ } ->
      match cases with
      | [{ c_lhs = { pat_desc = Tpat_var (_, x, _); _ };
@@ -771,6 +775,10 @@ and translate_function params body : expr =
         (* In the general case, this function has the form [function bs].
            Then we use [AnonFunction], a derived form in Osiris. *)
         EAnonFun (AnonFunction (translate_value_cases cases))
+
+and translate_function params body : expr =
+  (translate_function_params params) (translate_function_body body)
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -793,15 +801,13 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      (match undecorate (translate_expr e) with
       | EAnonFun (AnonFunction bs) -> bs
       | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
-      | e -> printf "%s\n" (show_expr e); [])
-      (* | _ -> assert false) *)
+      | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
      (match undecorate (translate_expr e) with
       | EAnonFun (AnonFunction bs) -> bs
       | EAnonFun (AnonFun (v, e)) -> [Branch (CExc (PVar v), e)]
-      | e -> printf "%s\n" (show_expr e); [])
-      (* | _ -> assert false) *)
+      | _ -> assert false)
 
   | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
      (match undecorate (translate_expr e) with
@@ -816,8 +822,7 @@ and translate_record_field_as_branches (_, label_def) : branch list =
           | EMatch (_, bs) ->
              translate_branches_to_effect_branches bs
           | _ -> assert false)
-      | e -> printf "%s\n" (show_expr e); [])
-   (* | _ -> assert false) *)
+      | _ -> assert false)
   | _ -> []
 
 (* We expect the branches in our effect field to be of the following form:
@@ -926,7 +931,7 @@ and project_EAnonFun (e : expr) : anonfun =
   | EDecorate (_, e) ->
       project_EAnonFun e
   | EAnonFun a -> a
-  | e -> printf "%s\n" (show_expr e); raise Unsupported
+  | _ -> raise Unsupported
 
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
