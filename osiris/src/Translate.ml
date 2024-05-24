@@ -738,7 +738,7 @@ and translate_primitive_application loc path p args =
 (* We translate a function parameter to a hole which expects
    an expression corresponding to the body of a function. *)
 
-and translate_function_param (param : function_param) : expr -> expr =
+and translate_function_param (param : function_param) e : expr =
   match param.fp_arg_label with
   | Labelled _ | Optional _ -> raise Unsupported
   | Nolabel ->
@@ -749,25 +749,23 @@ and translate_function_param (param : function_param) : expr -> expr =
         (* We recognize the special case of [fun x -> e]. In this case
            we can use [AnonFun], a primitive form in the Osiris AST. *)
         | Tpat_var (_, x, _) ->
-           (fun e -> (EAnonFun (AnonFun (txt x, e))))
+           EAnonFun (AnonFun (txt x, e))
         | _ ->
-           (fun e -> (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])))
+           EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])
 
 and translate_function_params params e : expr =
-  List.fold_right
-    (fun param next_params ->
-      let hole = translate_function_param param in
-      fun e -> hole (next_params e))
-    params
-    (fun e -> e)
+  match params with
+  | [] -> e
+  | param :: params ->
+     translate_function_param param (translate_function_params params e)
 
 and translate_function_body : function_body -> expr = function
   | Tfunction_body e -> translate_expr e
-  | Tfunction_cases { cases; partial; param = _; loc = _; exp_extra = _; attributes = _ } ->
+  | Tfunction_cases { cases; partial = _; param = _; loc = _; exp_extra = _; attributes = _ } ->
      EAnonFun (AnonFunction (translate_value_cases cases))
 
 and translate_function params body : expr =
-  (translate_function_params params) (translate_function_body body)
+  (translate_function_params params (translate_function_body body))
 
 
 (* -------------------------------------------------------------------------- *)
