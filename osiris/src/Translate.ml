@@ -304,10 +304,10 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_any ->
       PAny
 
-  | Tpat_var (_, x) ->
+  | Tpat_var (_, x, _) ->
       PVar (txt x)
 
-  | Tpat_alias (pat, _, x) ->
+  | Tpat_alias (pat, _, x, _) ->
       PAlias (translate_pat pat, txt x)
 
   | Tpat_constant c ->
@@ -405,15 +405,12 @@ let rec translate_expr (e: expression) : expr =
         eunsupported loc "recursive definition of values"
       end
 
-  | Texp_function { arg_label = Nolabel; param = _; cases; partial } ->
-      (* [param] is apparently meaningless. *)
-      translate_function cases partial
-
-  | Texp_function { arg_label = Labelled _; _ } ->
-      eunsupported loc "labeled argument"
-
-  | Texp_function { arg_label = Optional _; _ } ->
-      eunsupported loc "optional argument"
+  | Texp_function (params, body) ->
+     begin try
+       translate_function params body
+     with Unsupported ->
+       eunsupported loc "labelled or optional argument"
+     end
 
   | Texp_apply (e, args) ->
       translate_application loc e args
@@ -740,20 +737,38 @@ and translate_primitive_application loc path p args =
 
 (* Expressions: anonymous functions. *)
 
-and translate_function cases partial : expr =
-  match cases with
-  | [{ c_lhs = { pat_desc = Tpat_var (_, x); _ };
-       c_guard = None;
-       c_rhs = e
-     }] ->
-      (* We recognize the special case of [fun x -> e]. In this case
-         we can use [AnonFun], a primitive form in the Osiris AST. *)
-      assert (partial = Total);
-      EAnonFun (AnonFun (txt x, translate_expr e))
-  | _ ->
-      (* In the general case, this function has the form [function bs].
-         Then we use [AnonFunction], a derived form in Osiris. *)
-      EAnonFun (AnonFunction (translate_value_cases cases))
+(* We translate a function parameter to a hole which expects
+   an expression corresponding to the body of a function. *)
+
+and translate_function_param (param : function_param) e : expr =
+  match param.fp_arg_label with
+  | Labelled _ | Optional _ -> raise Unsupported
+  | Nolabel ->
+     match param.fp_kind with
+     | Tparam_optional_default (_, _) -> raise Unsupported
+     | Tparam_pat p ->
+        match p.pat_desc with
+        (* We recognize the special case of [fun x -> e]. In this case
+           we can use [AnonFun], a primitive form in the Osiris AST. *)
+        | Tpat_var (_, x, _) ->
+           EAnonFun (AnonFun (txt x, e))
+        | _ ->
+           EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])
+
+and translate_function_params params e : expr =
+  match params with
+  | [] -> e
+  | param :: params ->
+     translate_function_param param (translate_function_params params e)
+
+and translate_function_body : function_body -> expr = function
+  | Tfunction_body e -> translate_expr e
+  | Tfunction_cases { cases; partial = _; param = _; loc = _; exp_extra = _; attributes = _ } ->
+     EAnonFun (AnonFunction (translate_value_cases cases))
+
+and translate_function params body : expr =
+  (translate_function_params params (translate_function_body body))
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -913,7 +928,7 @@ and project_EAnonFun (e : expr) : anonfun =
 
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
-  | Tpat_var (_, v) -> txt v
+  | Tpat_var (_, v, _) -> txt v
   | _ -> assert false
 
 and translate_rec_binding (vb : value_binding) : rec_binding =

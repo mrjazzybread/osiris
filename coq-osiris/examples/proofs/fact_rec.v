@@ -108,7 +108,7 @@ Section fact_rec_example.
 
     repeat (Simp; Bind; simpl_fact).
 
-    Simp.
+    Simp. Ret.
 
     repeat Ret; iPureIntro.
 
