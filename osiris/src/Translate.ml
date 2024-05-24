@@ -404,14 +404,11 @@ let rec translate_expr (e: expression) : expr =
       end
 
   | Texp_function (params, body) ->
-     if List.exists
-          (fun (param : function_param) -> match (param.fp_arg_label) with
-                        | Nolabel -> false
-                        | Labelled _ | Optional _ -> true) params
-     then
+     begin try
+       translate_function params body
+     with Unsupported ->
        eunsupported loc "labelled or optional argument"
-     else
-      translate_function params body
+     end
 
   | Texp_apply (e, args) ->
       translate_application loc e args
@@ -739,17 +736,20 @@ and translate_primitive_application loc path p args =
 (* Expressions: anonymous functions. *)
 
 and translate_function_param (param : function_param) : expr -> expr =
-  match param.fp_kind with
-  | Tparam_optional_default (_, _) ->
-     (fun _ -> eunsupported param.fp_loc "optional argument")
-  | Tparam_pat p ->
-     match p.pat_desc with
-     (* We recognize the special case of [fun x -> e]. In this case
-        we can use [AnonFun], a primitive form in the Osiris AST. *)
-     | Tpat_var (_, x, _) ->
-        (fun e -> (EAnonFun (AnonFun (txt x, e))))
-     | _ ->
-        (fun e -> (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])))
+  match param.fp_arg_label with
+  | Labelled _ | Optional _ -> raise Unsupported
+  | Nolabel ->
+     match param.fp_kind with
+     | Tparam_optional_default (_, _) ->
+        raise Unsupported
+     | Tparam_pat p ->
+        match p.pat_desc with
+        (* We recognize the special case of [fun x -> e]. In this case
+           we can use [AnonFun], a primitive form in the Osiris AST. *)
+        | Tpat_var (_, x, _) ->
+           (fun e -> (EAnonFun (AnonFun (txt x, e))))
+        | _ ->
+           (fun e -> (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])))
 
 and translate_function_params params : expr -> expr =
   List.fold_left
