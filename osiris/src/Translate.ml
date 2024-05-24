@@ -735,13 +735,15 @@ and translate_primitive_application loc path p args =
 
 (* Expressions: anonymous functions. *)
 
+(* We translate a function parameter to a hole which expects
+   an expression corresponding to the body of a function. *)
+
 and translate_function_param (param : function_param) : expr -> expr =
   match param.fp_arg_label with
   | Labelled _ | Optional _ -> raise Unsupported
   | Nolabel ->
      match param.fp_kind with
-     | Tparam_optional_default (_, _) ->
-        raise Unsupported
+     | Tparam_optional_default (_, _) -> raise Unsupported
      | Tparam_pat p ->
         match p.pat_desc with
         (* We recognize the special case of [fun x -> e]. In this case
@@ -751,30 +753,18 @@ and translate_function_param (param : function_param) : expr -> expr =
         | _ ->
            (fun e -> (EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])))
 
-and translate_function_params params : expr -> expr =
-  List.fold_left
-    (fun acc param ->
-      let param = translate_function_param param in
-      fun e -> acc (param e))
-    (fun e -> e)
+and translate_function_params params e : expr =
+  List.fold_right
+    (fun param next_params ->
+      let hole = translate_function_param param in
+      fun e -> hole (next_params e))
     params
+    (fun e -> e)
 
 and translate_function_body : function_body -> expr = function
   | Tfunction_body e -> translate_expr e
   | Tfunction_cases { cases; partial; param = _; loc = _; exp_extra = _; attributes = _ } ->
-     match cases with
-     | [{ c_lhs = { pat_desc = Tpat_var (_, x, _); _ };
-          c_guard = None;
-          c_rhs = e
-       }] ->
-        (* We recognize the special case of [fun x -> e]. In this case
-           we can use [AnonFun], a primitive form in the Osiris AST. *)
-        assert (partial = Total);
-        EAnonFun (AnonFun (txt x, translate_expr e))
-     | _ ->
-        (* In the general case, this function has the form [function bs].
-           Then we use [AnonFunction], a derived form in Osiris. *)
-        EAnonFun (AnonFunction (translate_value_cases cases))
+     EAnonFun (AnonFunction (translate_value_cases cases))
 
 and translate_function params body : expr =
   (translate_function_params params) (translate_function_body body)
