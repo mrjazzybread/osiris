@@ -555,16 +555,10 @@ takes us from one pause to the next pause.</p>
                  step (σ, Stop CLoop (η, x, i1, i2, e) k) (σ, try2 (loop η x i1 i2 e) k)
   | StepAlloc : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">v</span> (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 loc exn → micro A E),
                   σ !! l = None → step (σ, Stop CAlloc v k) (&lt;[l:=V v]&gt; σ, continue k l)
-  | StepLoad : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">m&#39;</span> : micro A E),
-                 m&#39; = <span class="kr">match</span> σ !! l <span class="kr">with</span>
-                      | Some (V v) =&gt; continue k v
-                      | _ =&gt; crash
-                      <span class="kr">end</span> → step (σ, Stop CLoad l k) (σ, m&#39;)
+  | StepLoad : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
+                 c&#39; = step_load σ l k → step (σ, Stop CLoad l k) c&#39;
   | StepStore : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) <span class="nv">v&#39;</span> (<span class="nv">k</span> : outcome2 () exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
-                  c&#39; = <span class="kr">match</span> σ !! l <span class="kr">with</span>
-                       | Some (V _) =&gt; (&lt;[l:=V v&#39;]&gt; σ, continue k ())
-                       | _ =&gt; (σ, crash)
-                       <span class="kr">end</span> → step (σ, Stop CStore (l, v&#39;) k) c&#39;
+                  c&#39; = step_store σ l v&#39; k → step (σ, Stop CStore (l, v&#39;) k) c&#39;
   | StepHandleRet : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">v</span> : C.val) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
                       step (σ, Handle (ret v) h) (σ, h (O3Ret v))
   | StepHandleThrow : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">e</span> : C.exn) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
@@ -576,27 +570,14 @@ takes us from one pause to the next pause.</p>
   | StepHandleCrash : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E), step (σ, Handle crash h) (σ, crash)
   | StepHandleLeft : <span class="kr">∀</span> (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m</span> <span class="nv">m&#39;</span> : micro C.val C.exn) (<span class="nv">h</span> : code.outcome3 C.val C.exn → micro A E),
                        step (σ, m) (σ&#39;, m&#39;) → step (σ, Handle m h) (σ&#39;, Handle m&#39; h)
-  | StepInstall : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">deep</span> : bool) (<span class="nv">l</span> <span class="nv">k</span> : loc) 
-                    (<span class="nv">h</span> : outcome2 loc exn → micro A E) 
-                    (<span class="nv">bs</span> : handler) (<span class="nv">c&#39;</span> : store * micro A E) 
-                    <span class="nv">η</span>,
-                    σ !! l = None
-                    → c&#39; =
-                      <span class="kr">match</span> σ !! k <span class="kr">with</span>
-                      | Some (K sk) =&gt;
-                          (&lt;[l:=K
-                                  (<span class="kr">λ</span> <span class="nv">o</span> : outcome2 val exn,
-                                     Handle (sk o) (<span class="kr">λ</span> <span class="nv">o0</span> : code.outcome3 C.val C.exn, eval_match deep η o0 bs))]&gt; σ,
-                           continue h l)
-                      | _ =&gt; (σ, crash)
-                      <span class="kr">end</span> → step (σ, Stop CInstall (deep, k, η, bs) h) c&#39;
   | StepResume : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">o</span> : outcome2 val exn) 
                    (<span class="nv">k</span> : outcome2 val exn → micro A E) 
-                   (<span class="nv">c&#39;</span> : store * micro A E),
-                   c&#39; = <span class="kr">match</span> σ !! l <span class="kr">with</span>
-                        | Some (K sk) =&gt; (&lt;[l:=Shot]&gt; σ, try2 (sk o) k)
-                        | _ =&gt; (σ, crash)
-                        <span class="kr">end</span> → step (σ, Stop CResume (l, o) k) c&#39;
+                   (<span class="nv">c&#39;</span> : store * micro A E), c&#39; = step_resume σ l o k → step (σ, Stop CResume (l, o) k) c&#39;
+  | StepInstall : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">deep</span> : bool) (<span class="nv">l</span> : loc) 
+                    <span class="nv">η</span> (<span class="nv">bs</span> : list branch) (<span class="nv">k</span> : outcome2 loc exn → micro A E) 
+                    (<span class="nv">l&#39;</span> : loc) (<span class="nv">c&#39;</span> : store * micro A E),
+                    σ !! l&#39; = None
+                    → c&#39; = step_install σ l deep η bs l&#39; k → step (σ, Stop CInstall (deep, l, η, bs) k) c&#39;
   | StepParRetRet : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
                       step (σ, Par (ret v1) (ret v2) k) (σ, continue k (v1, v2))
   | StepParCrashLeft : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
@@ -640,15 +621,15 @@ takes us from one pause to the next pause.</p>
 <span class="kn">Arguments</span> StepEval {A E}%type_scope σ η e k%function_scope
 <span class="kn">Arguments</span> StepLoop {A E}%type_scope σ η x i1 i2 e k%function_scope
 <span class="kn">Arguments</span> StepAlloc {A E}%type_scope σ v l k%function_scope _
-<span class="kn">Arguments</span> StepLoad {A E}%type_scope σ l k%function_scope m&#39; _
+<span class="kn">Arguments</span> StepLoad {A E}%type_scope σ l k%function_scope c&#39; _
 <span class="kn">Arguments</span> StepStore {A E}%type_scope σ l v&#39; k%function_scope c&#39; _
 <span class="kn">Arguments</span> StepHandleRet {A E}%type_scope σ v h%function_scope
 <span class="kn">Arguments</span> StepHandleThrow {A E}%type_scope σ e h%function_scope
 <span class="kn">Arguments</span> StepHandlePerform {A E}%type_scope σ e (k h)%function_scope l _
 <span class="kn">Arguments</span> StepHandleCrash {A E}%type_scope σ h%function_scope
 <span class="kn">Arguments</span> StepHandleLeft {A E}%type_scope σ σ&#39; m m&#39; h%function_scope _
-<span class="kn">Arguments</span> StepInstall {A E}%type_scope σ deep%bool_scope l k h%function_scope bs c&#39; η _ _
 <span class="kn">Arguments</span> StepResume {A E}%type_scope σ l o k%function_scope c&#39; _
+<span class="kn">Arguments</span> StepInstall {A E}%type_scope σ deep%bool_scope l η bs%list_scope k%function_scope l&#39; c&#39; _ _
 <span class="kn">Arguments</span> StepParRetRet {A E A1 A2 E&#39;}%type_scope σ v1 v2 k%function_scope
 <span class="kn">Arguments</span> StepParCrashLeft {A E A1 A2 E&#39;}%type_scope σ m2 k%function_scope
 <span class="kn">Arguments</span> StepParCrashRight {A E A1 A2 E&#39;}%type_scope σ m1 k%function_scope

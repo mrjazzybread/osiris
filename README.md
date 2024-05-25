@@ -11,7 +11,7 @@ It is known to compile with the following versions of the packages:
 
 | Package     | Version | Repo                                         |
 |-------------|:-------:|:--------------------------------------------:|
-| `ocaml`     | 4.14.1  | -                                            |
+| `ocaml`     | 5.2.0   | -                                            |
 | `pprint`    | -       | -                                            |
 | `ocaml-compiler-libs` | -  | -                                       |
 | `dune`      | 3.11.0  | -                                            |
