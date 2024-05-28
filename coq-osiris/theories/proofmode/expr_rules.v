@@ -1,7 +1,7 @@
-From iris Require Import gen_heap proofmode.proofmode.
+From iris Require Import gen_heap proofmode.proofmode proofmode.environments.
 From osiris Require Import lang.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import notations ewp_tactics.
+From osiris.proofmode Require Import notations simp_tactics.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)
@@ -15,6 +15,36 @@ Notation "'RET=' v" :=
   (lift_ret_spec (λ v', (bi_pure (v' = v) ∗ emp)%I))
     (at level 20, v at level 200,
       format "'RET='  v") : bi_scope.
+
+(** *General tactics *)
+(* Start proof mode. *)
+Ltac Start_proof := iStartProof.
+
+(* Try to simplify the goal using the [simp] relation *)
+Ltac Simp :=
+  iApply ewp_simp; first try solve [simp].
+
+(* Hoare-style rules that correspond to [rule] lemmas *)
+Ltac Try := iApply ewp_try.
+
+Ltac Ret := repeat iApply ewp_value.
+
+Ltac Throw := iApply ewp_throw.
+
+Ltac Par :=
+  lazymatch goal with
+  | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
+      iApply ewp_Par
+  | _ => fail "The goal must be a par to apply [ewp_par]."
+  end; try done.
+
+Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
 
 Section ewp_rules_expr.
 
@@ -32,7 +62,7 @@ Section ewp_rules_expr.
     iIntros (?).
     iIntros "H". iApply ewp_simp.
     { by apply simp_widen. }
-    by Ret.
+    by iApply ewp_value.
   Qed.
 
   (* TODO: These should all be [simp]-level lemmas *)
@@ -138,6 +168,19 @@ Section ewp_rules_expr.
     iIntros "H1 H2 H".
     iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
     iIntros (? ?) "-> -> //".
+  Qed.
+
+  Lemma ewp_EApp' η e1 e2 φ1 φ2 φ Ψ :
+    EWP eval η e1 <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e2 <|Ψ|> {{ RET v, φ2 v }} -∗
+    (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗
+       EWP call v1 v2 <|Ψ|> {{ φ }}) -∗
+    EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 H".
+    iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
+    iIntros (? ?) "Hφ1 Hφ2".
+    iApply ("H" with "Hφ1 Hφ2").
   Qed.
 
   (* The following [ewp_call_*] lemmas just follow the reduction rules for
@@ -678,6 +721,21 @@ Section ewp_rules_expr.
   (** * ELetModule : module → mexpr → expr → expr *)
 
   (** * ELetOpen : mexpr → expr → expr *)
+  Lemma ewp_ELetOpen η me e ψ φ :
+    EWP eval_mexpr η me <|ψ|> {{ RET m, ∃ δ, ⌜ m = VStruct δ ⌝ ∗
+    EWP eval (δ ++ η) e <|ψ|> {{ φ }} }} -∗
+    EWP eval η (ELetOpen me e) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hme".
+    rewrite eval_eval'; simpl.
+    iApply ewp_bind.
+    rewrite /as_struct. iApply ewp_bind.
+    iApply (ewp_mono with "Hme").
+    iIntros ([|]) "Hδ"; [ simpl | done].
+    iDestruct "Hδ" as "(%δ & -> & He)".
+    iApply ewp_widen. by simpl.
+    done.
+  Qed.
 
   (** * ESeq : expr → expr → expr *)
 
@@ -1027,7 +1085,7 @@ Section ewp_rules_expr.
       iApply ("P" with "Hl1").
   Qed.
 
-  Lemma ewp_EStore η e1 e2 φ1 φ2 φ Ψ :
+  Lemma ewp_EStore {η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ) φ Ψ :
     EWP as_loc (eval η e1) <|Ψ|> {{ RET l1, φ1 l1 }} -∗
     EWP eval η e2 <|Ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
@@ -1047,10 +1105,43 @@ Section ewp_rules_expr.
     EWP eval η (EStore e1 e2) <|Ψ|> {{ RET= #(), mapsto l (DfracOwn 1) (V v') }}.
   Proof.
     iIntros "H1 H2".
-    iApply (ewp_EStore _ _ _ (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
+    iApply (ewp_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
     - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
       by iIntros (?) "(-> & ?)"; iApply ewp_value.
     - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.
+  Qed.
+
+  (** * EPerform : expr -> expr *)
+
+  Lemma ewp_EPerform η e ψ (φ1 : val -d> iPropO Σ) φ :
+    EWP eval η e <|ψ|> {{ RET v, φ1 v }} -∗
+    (∀ v, φ1 v -∗ EWP perform v <|ψ|> {{ φ }} ) -∗
+    EWP eval η (EPerform e) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "He Hv".
+    Simp. iApply ewp_bind.
+    iApply (ewp_mono with "He").
+    iIntros ([|]) "Hφ1"; [ by iApply "Hv" | done ].
+  Qed.
+
+  (** * EContinue : expr -> expr -> expr *)
+
+  Lemma ewp_EContinue η e1 e2 ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP as_cont (eval η e1) <|ψ|> {{ RET k, φ1 k }} -∗
+    EWP eval η e2 <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    (∀ k v, φ1 k -∗ φ2 v -∗
+                EWP stop CResume (k, O2Ret v) <|ψ|> {{ φ }}) -∗
+    EWP eval η (EContinue e1 e2) <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hk Hv Hmon".
+    Simp.
+    iApply ewp_bind.
+    iApply (ewp_mono with "Hk").
+    iIntros ([|]) "Hφ1"; [ simpl | done ].
+    iApply ewp_bind.
+    iApply (ewp_mono with "Hv").
+    iIntros ([|]) "Hφ2"; [ simpl | done ].
+    iApply ("Hmon" with "Hφ1 Hφ2").
   Qed.
 
 End ewp_rules_expr.

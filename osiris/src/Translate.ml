@@ -248,7 +248,9 @@ let translate_exp_constant loc (c : constant) : expr =
   | Const_string (s, _, _) ->
       EString s
   | Const_float f ->
-      EFloat f
+     (* Remove the decimal-point if there is no fractional part. *)
+     let f = Float.of_string f in
+     EFloat (sprintf "%g" f)
   | Const_int32 _ ->
       eunsupported loc "32-bit integer literal"
   | Const_int64 _ ->
@@ -787,7 +789,10 @@ and translate_record_field_as_branches (_, label_def) : branch list =
      []
   | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
      (match undecorate (translate_expr e) with
-      | EAnonFun (AnonFunction bs) -> bs
+      | EAnonFun (AnonFunction bs) ->
+         (List.map (function
+                Branch ((CVal p), e) -> Branch ((CExc p), e)
+              | _ -> assert false) bs)
       | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
       | _ -> assert false)
 

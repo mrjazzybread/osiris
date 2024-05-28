@@ -133,7 +133,7 @@ and cpat (cp : cpat) =
      c "COr" [ cpat p1; cpat p2 ]
 
 and fpats fps =
-  clist "MkFpats" (map fpat fps)
+  list (map fpat fps)
 
 and fpat (f, p) =
   pair (field f) (pat p)
@@ -149,7 +149,7 @@ let rec coercion = function
       c "CStruct" [ fcoercions fcs ]
 
 and fcoercions fcs =
-  clist "MkFCoercions" (map fcoercion fcs)
+  list (map fcoercion fcs)
 
 and fcoercion (f, co) =
   pair (field f) (coercion co)

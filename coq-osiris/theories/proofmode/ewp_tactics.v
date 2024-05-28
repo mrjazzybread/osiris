@@ -10,7 +10,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import simp_tactics specifications.
+From osiris.proofmode Require Import simp_tactics specifications pat expr_rules.
 
 (** *Utility *)
 
@@ -27,34 +27,6 @@ Global Hint Unfold val_as_int : osiris.
 
   All tactics that are not "Hoare-style" are internal and should not be exposed
   to the user. *)
-
-(** *General tactics *)
-(* Start proof mode. *)
-Ltac Start_proof := iStartProof.
-
-(* Try to simplify the goal using the [simp] relation *)
-Ltac Simp :=
-  iApply ewp_simp; first try solve [simp].
-
-(* Hoare-style rules that correspond to [rule] lemmas *)
-Ltac Try := iApply ewp_try.
-
-Ltac Ret := iApply ewp_value.
-
-Ltac Throw := iApply ewp_throw.
-
-Ltac Par :=
-  lazymatch goal with
-  | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
-      iApply ewp_Par
-  | _ => fail "The goal must be a par to apply [ewp_par]."
-  end; try done.
 
 (** [uchange A with B] is an untyped version of [change A with B]: it guesses
   types in [A = B] instead of trying to type [A] and [B] independently *)
@@ -81,7 +53,6 @@ Tactic Notation "iExactEq" constr(irisHyp) int_or_var(n) :=
   iExactEq irisHyp; iPureIntro; do n f_equal.
 
 (* -------------------------------------------------------------------------- *)
-Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
 
 (* If anything has been added to the hint data base of [osiris], using
     [Hint Rewrite] or [Hint Extern], then apply the automation. *)
@@ -177,3 +148,73 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
   match goal with
   | |- envs_entails _ (ewp_def ?E ?m ?Ψ ?Φ) => assert (Φ = φ) as -> by reflexivity
   end.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(** *Calling AnonFuns *)
+
+(* [ewp_call_anonfun] expects a goal of the form
+          [ EWP call_anonfun η (λ args, body) (args ++ [x]) {{ Q }} ]
+      and produces a goal of the form
+          [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
+Ltac ewp_call_anonfun :=
+  (* Unfold [call_anonfun], and get a tower of binds. *)
+  rewrite /call_anonfun; simpl; rewrite ?bind_bind;
+  (* Unfold [eval_anonfun]. *)
+  rewrite /eval_anonfun;
+  (* Simplify the tower of binds,
+        this should elaborate a closure capturing all arguments.  *)
+  repeat (iApply ewp_bind; Simp; Ret);
+  simpl.
+
+(* Non-recursive call. *)
+Ltac Call :=
+  match goal with
+  | |- envs_entails _ (ewp_def _ (call_anonfun _ _ _) _ _) =>
+      ewp_call_anonfun; iApply ewp_call_nonrec
+  end.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(** *Entering and Skipping Handler Branches *)
+
+Ltac get_outcome_from_match e :=
+  lazymatch e with
+  | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
+  | (deep_handler_body _ ?o _ _) => constr:(o)
+  | (shallow_handler_body _ ?o _ _) => constr:(o)
+  end.
+Ltac trivial_post_instantiation :=
+  lazymatch goal with
+  | |- envs_entails _ ?G =>
+      lazymatch G with
+      | ewp_def _ ?e _ _ =>
+          lazymatch (get_outcome_from_match e) with
+          | O3Ret _ => constr:(True)
+          | O3Throw _ => constr:(True)
+          | O3Perform _ _ => constr:(True \/ True)
+          end
+      end
+  end.
+Ltac skip_matching_branch :=
+  let φ2 := trivial_post_instantiation in
+  iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) φ2);
+  [ specify_cpattern; pattern_match
+  | iIntros (? [])
+  | iIntros (_) ].
+Ltac skip_non_matching_branch :=
+  iApply handle_cons_skip; [ reflexivity | ].
+Ltac skip_branch :=
+  (skip_non_matching_branch || skip_matching_branch);
+  fold deep_handler_body; fold shallow_handler_body.
+Ltac enter_branch :=
+  iApply (handle_cons with "[-]");
+  [ specify_cpattern; pattern_match; try (apply eq_refl)
+  | (iIntros (? ->) || iIntros (? <-))
+  | let F := fresh in iIntros (F); tauto ].
+
+(* Try to reduce a [match] expression by skipping all branches seen and then
+     entering a branch on match. *)
+Ltac red_match := repeat (skip_branch; [ idtac ]); enter_branch.

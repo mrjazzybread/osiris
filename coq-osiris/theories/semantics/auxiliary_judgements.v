@@ -35,6 +35,14 @@ Proof.
   unfold pattern. eauto using total_consequence.
 Qed.
 
+Lemma pat_consequence_phi η p v (φ φ' : env -> Prop) (ψ : Prop) :
+  pattern η p v φ ψ →
+  (∀ η, φ η → φ' η) →
+  pattern η p v φ' ψ.
+Proof.
+  unfold pattern. eauto using total_consequence.
+Qed.
+
 Lemma pat_consequence_psi η p v φ (ψ ψ' : Prop) :
   pattern η p v φ ψ →
   (ψ → ψ') →
@@ -73,6 +81,52 @@ Proof.
   unfold cpattern. intros.
   eapply total_orelse; [ eassumption | ].
   eauto using total_consequence.
+Qed.
+
+Lemma cpat_CEff η peff pk v k φ ψ1 ψ2 :
+  pattern η peff v (λ δ, pattern δ pk (VCont k) φ ψ2) ψ1 ->
+  cpattern η (CEff peff pk) (O3Perform v k) φ (ψ1 \/ ψ2).
+Proof.
+  unfold cpattern, pattern; intros. simpl.
+  eapply total_bind; [ eapply total_consequence; eauto | ].
+  simpl; intros δ ?.
+  eauto using total_consequence.
+Qed.
+
+Fixpoint valid_cpattern_match {A E} cp (o : outcome3 A E) :=
+  match cp, o with
+  | CVal _, O3Ret _
+  | CExc _, O3Throw _
+  | CEff _ _, O3Perform _ _ =>
+      true
+  | COr cp1 cp2, _ =>
+      valid_cpattern_match cp1 o || valid_cpattern_match cp2 o
+  | _, _ =>
+      false
+  end.
+
+Lemma invert_valid_match cp o :
+  valid_cpattern_match cp o = false ->
+  ∀ η, cextend η cp o = throw ().
+Proof.
+  intros Hvalid η.
+  induction cp; destruct o; simpl in *; try congruence;
+    (* Only the [COr cp1 cp2] case remains. *)
+    unfold orelse;
+    apply orb_false_elim in Hvalid as [H1 H2];
+    apply IHcp1 in H1; apply IHcp2 in H2;
+    by rewrite H1, H2, !try_throw.
+Qed.
+
+Lemma cpat_mismatch η cp o φ (ψ : Prop) :
+  valid_cpattern_match cp o = false ->
+  ψ ->
+  cpattern η cp o φ ψ.
+Proof.
+  intros.
+  unfold cpattern.
+  rewrite invert_valid_match by assumption.
+  by apply total_throw.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

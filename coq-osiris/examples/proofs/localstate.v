@@ -1,6 +1,6 @@
 From stdpp Require Import telescopes.
 
-From iris.proofmode Require Import base tactics classes.
+From iris.proofmode Require Import base tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
@@ -115,7 +115,16 @@ Section verification.
 
   Definition run := __fun7.
 
-  Example run_spec Φ init main :
+  Ltac LetV Φ :=
+    match goal with
+    | |- envs_entails _
+          (bi_later (ewp_def _ (eval _ (deco _ (ELet [ Binding (PVar _) _ ] _))) _ _)) =>
+        iApply (ewp_ELet_PVar_1 Φ)
+    end.
+
+  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
+
+  Example localstate_run_spec Φ init main :
     let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
     (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
     EWP call_anonfun env run [ #init ; main]
@@ -125,32 +134,22 @@ Section verification.
     iIntros "Hmain". iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
-    (* -------------------------------------------------------------------------- *)
-    (* 1. Symbolic execution.. TODO: automate this *)
+    (* Call the anonymous function. *)
+    Call.
 
-    rewrite /call_anonfun /= bind_bind /eval_anonfun /run.
-    do 2 (Bind; Simp; Ret; cbn); rewrite /__fun6.
+    (* Evaluate allocation of [init] *)
+    LetV (fun x => val_points_to x (V (# init)))%I.
 
-    Simp.
-    (* FIXME ? The [simp_enter_call_VClo] should not be needed explicitly *)
-    { eapply simp_enter_call_VClo.
-      with_strategy transparent [eval_bindings] unfold eval_bindings.
-      cbn. eapply SimpEval. }
-
-    rewrite try2_ret_right.
-
-    (* -------------------------------------------------------------------------- *)
-    (* 2. Evaluate allocation of [init] *)
-    iApply (ewp_ELet_PVar_1 (fun x => val_points_to x (V (# init)))%I).
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      Simp; iApply ewp_alloc; iNext.
-      iIntros (?) "Hl"; Ret. cbn.
+      iApply ewp_ERef. { iApply ewp_EPath; by Ret. }
+      iIntros (? -> ?) "?".
       by iApply val_points_to_unfold. }
 
     (* Continuing with the rest of the computation *)
 
     (* TODO: Cleaner inversion of facts learned from let-bound term. *)
+    iNext.
     iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
 
     (* LATER : Hide the [V] constructor for blocks *)
@@ -164,12 +163,14 @@ Section verification.
       iApply (ewp_EApp with "[] [] [Hmain Hpoints_to]"); last first.
       { iApply ("Hmain" $! (fun init => points_to γ (# init)) with "Hpoints_to"). }
       { Simp; by Ret. }
-      { Simp; by Ret. } }
+      { iApply ewp_EPath. by Ret. } }
 
     (* Finally, we prove the specification over handler. *)
 
     (* We need to abstract over the environment "just enough" *)
-    remember (# init); rewrite {1 2}Heqv; clear Heqv. (* Q. Better way to handle this? *)
+
+    remember (# init) eqn:Heqv; rewrite {1 2}Heqv; clear Heqv.
+    (* Q. Better way to handle this? *)
 
     (* Löb induction *)
     iLöb as "IH" forall (γ main init).
@@ -179,21 +180,18 @@ Section verification.
 
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
-      iIntros (?) "H"; destruct o; [ | try done]; iClear "IH"; iNext.
-      iCombine "Hl H" as "Hl".
-      iApply (deep_handle_cons with "Hl"); [ | iIntros ([]) ];
-        specify_cpattern; pattern_match.
+      iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
 
-      iIntros "[Hl H]".
-      iApply (ewp_EPair_ret _ _ _
-                (fun x => l ↦ V x ∗ ⌜x = # init⌝)%I (fun x => ⌜x = a⌝)%I with "[Hl]").
+      red_match.
+
+      iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
       (* Load from location *)
-      { Simp. ewp_tactics.Load "Hl"; Ret; by iFrame. }
+      { iApply (ewp_ELoad_simple with "[] Hl").
+        iApply ewp_EPath. by Ret. }
+      { iApply ewp_EPath. by Ret. }
 
-      { Simp; by Ret. }
-
-      iIntros (??) "(Hl & %Hinit) %Heq"; subst.
+      iIntros (??) "(%Hinit & Hl) %Heq"; subst.
       iExists (init, a); iFrame; encode. }
 
      (* -------------------------------------------------------------------------- *)
@@ -204,33 +202,29 @@ Section verification.
      { (* READ case *)
        (* TODO: Notation on [iEff_car] is really ugly.. *)
        cbn; rewrite upcl_read.
-       iDestruct "H_READ" as (?->) "(Hx & H_READ)".
+       iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
-       iDestruct (ghost_var_agree with "H") as %Hag.
-       rewrite Hag.
+       iDestruct (ghost_var_agree with "H") as %->.
 
-       rewrite {3}/deep_handler_body; cbn.
-       with_strategy transparent [extend] unfold extend. (* FIXME *)
+       iNext. red_match.
 
-       iApply ewp_try2. rewrite !bind_bind. Simp.
-
-       destruct (locations.eqb read_eff read_eff) eqn: Hread_eff;
-       last (rewrite Z.eqb_neq in Hread_eff; lia).
-
-       Simp; Ret; cbn.
-
+       (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
-       iSpecialize ("H_READ"
-          $! iEff_bottom (RET # v, Φ v.2))%I.
-       iNext.
+       iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       Simp. rewrite /as_cont. do 2 Simp.
-       ewp_tactics.Load "Hl".
+       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
+         [ | | iIntros (?? ->) ].
+       { rewrite /as_cont; iApply ewp_bind.
+         iApply ewp_EPath. Ret. by Ret. }
+       { iApply (ewp_ELoad_simple with "[] Hl").
+         iApply ewp_EPath. by Ret. }
+
+       iIntros "[-> Hl]".
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
        { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
-       done. }
+       iApply "H_READ". }
 
     (* -------------------------------------------------------------------------- *)
      { (* WRITE case *)
@@ -239,39 +233,39 @@ Section verification.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %Hag.
 
-       rewrite {3}/deep_handler_body; cbn.
-       with_strategy transparent [extend] unfold extend. (* FIXME *)
+       (* Skip the return, exception, and [Get] branches. *)
+       iNext. red_match.
 
-       cbn.
+       (* EWP Goal: [var := y; continue k ()]. *)
+       iApply ewp_ESeq.
 
-       iApply ewp_try2; rewrite !bind_bind; Simp.
+       (* EWP Subgoal: [var := y]. *)
+       iApply (ewp_mono with "[Hl]").
+       { iApply (ewp_EStore_simple).
+         { iApply ewp_EPath; by Ret. }
+         { iApply ewp_EPath. Ret. by iFrame. } }
+       iIntros ([|]) "Hl"; simpl;
+         [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
 
-       destruct (locations.eqb write_eff read_eff) eqn: Hwrite_eff;
-         last clear Hwrite_eff;
-       first (by rewrite Z.eqb_eq in Hwrite_eff).
-
-       Simp. iNext. Throw. cbn.
-       iApply ewp_try2. Bind.
-
-       destruct (locations.eqb write_eff write_eff) eqn: Hwrite_eff;
-        last by rewrite Z.eqb_neq in Hwrite_eff.
-
-       do 2 (Ret; cbn).
-
+       (* EWP Subgoal: [continue k ()]. *)
        iDestruct "H" as "(Hauth & Hx)".
 
        iApply ewp_fupd.
        iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
-       iSpecialize ("H_WRITE" with "Hx").
+       iModIntro.
 
+       iSpecialize ("H_WRITE" with "Hx").
        iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       Simp. iModIntro. Simp.
-       Store "Hl".
-       cbn.
-       iApply "H_WRITE".
-       iNext. iSpecialize ("IH" $! _ main y with "Hauth Hl").
-       by rewrite /deep_handler_spec seal_eq. }
+       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+       { rewrite /as_cont; iApply ewp_bind.
+         iApply ewp_EPath. Ret. by Ret. }
+       { by iApply ewp_EConstant. }
+
+       (* Resume the continuation. *)
+       iApply "H_WRITE". iNext.
+       rewrite /deep_handler_spec seal_eq.
+       iApply ("IH" with "Hauth Hl"). }
    Qed.
 
 End verification.

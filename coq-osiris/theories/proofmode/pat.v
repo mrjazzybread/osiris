@@ -201,6 +201,51 @@ Proof.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
+Lemma pat_PXData_eq η c p c' v φ ψ :
+  lookup_path η c = ret (VLoc c') ->
+  pattern η p v φ ψ →
+  pattern η (PXData c p) (VXData c' v) φ ψ.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Hpat.
+  simpl; rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; destruct c'; cbn.
+  by rewrite Z.eqb_refl.
+Qed.
+
+Lemma pat_PXData_neq η π p l1 l2 v φ :
+  lookup_path η π = ret (VLoc l1) ->
+  (address l1 <> address l2) ->
+  pattern η (PXData π p) (VXData l2 v) φ True.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Heq; simpl.
+  rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; simpl.
+  destruct l1, l2; simpl in *.
+  replace (address0 =? address) with false;
+    last by apply eq_sym; apply Z.eqb_neq.
+  by apply total_throw.
+Qed.
+
+Lemma pat_PXData_neq' η π p l1 l2 v :
+  lookup_path η π = ret (VLoc l1) ->
+  (address l1 <> address l2) ->
+  pattern η (PXData π p) (VXData l2 v) (λ _, False) True.
+    (* This form is useful when the truth of the equality [c = c']
+       is not statically known. *)
+Proof.
+  unfold pattern; intros Hlookup Heq; simpl.
+  rewrite Hlookup. cbn; rewrite bind_ret.
+  unfold locations.eqb; simpl.
+  destruct l1, l2; simpl in *.
+  replace (address0 =? address) with false;
+    last by apply eq_sym; apply Z.eqb_neq.
+  by apply total_throw.
+Qed.
+
 Lemma pat_PConst η c c' φ :
   (c = c' -> φ η) ->
   pattern η (PConstant c) (VConstant c') φ (c <> c').
@@ -214,18 +259,18 @@ Proof.
   { tauto. }
 Qed.
 
-Lemma pat_PConst_eq η c φ ψ :
+Lemma pat_PConst_eq η c φ :
   φ η ->
-  pattern η (PConstant c) (VConstant c) φ ψ.
+  pattern η (PConstant c) (VConstant c) φ False.
 Proof.
   intros Hφ.
   eapply pat_consequence_psi; [ eapply pat_PConst; eauto | tauto ].
 Qed.
 
-Lemma pat_PConst_neq η c c' φ ψ :
+Lemma pat_PConst_neq η c c' ψ :
   c <> c' ->
   ψ ->
-  pattern η (PConstant c) (VConstant c') φ ψ.
+  pattern η (PConstant c) (VConstant c') (λ _, False) ψ.
 Proof.
   intros.
   eapply pat_consequence_psi; [ apply pat_PConst | ]; tauto.
@@ -239,11 +284,15 @@ Proof.
   intros -> ?; simpl.
   destruct (truth P) eqn:?.
 
-  { eapply pat_PConst_neq;
-      [ by simpl | by apply truth_true_elim]. }
+  { eapply pat_consequence_phi.
+    eapply pat_PConst_neq;
+      [ by simpl | by apply truth_true_elim].
+    done. }
 
-  { eapply pat_PConst_eq;
-      auto using truth_false_elim. }
+  { eapply pat_consequence_psi.
+    eapply pat_PConst_eq;
+      auto using truth_false_elim.
+    tauto. }
 Qed.
 
 Lemma pat_true η v (P : Prop) φ :
@@ -254,11 +303,15 @@ Proof.
   intros -> Hφ; simpl.
   destruct (truth P) eqn:?.
 
-  { eapply pat_PConst_eq;
-      apply Hφ; by apply truth_true_elim. }
+  { eapply pat_consequence_psi.
+    eapply pat_PConst_eq;
+      apply Hφ; by apply truth_true_elim.
+    tauto. }
 
-  { eapply pat_PConst_neq;
-      [ by simpl | by apply truth_false_elim]. }
+  { eapply pat_consequence_phi.
+    eapply pat_PConst_neq;
+      [ by simpl | by apply truth_false_elim].
+    intros; tauto. }
 Qed.
 
 Lemma pat_PInt η v (i j : Z) (φ : env → Prop) :
@@ -448,6 +501,8 @@ Ltac specify_cpattern :=
       apply cpat_CVal
     | apply cpat_CExc
     | eapply cpat_COr; specify_cpattern
+    | eapply cpat_CEff
+    | eapply cpat_mismatch; [ cbn; reflexivity | ]
     ].
 
 Local Ltac strip_disjunction :=
@@ -509,8 +564,12 @@ Ltac pattern_match :=
     | pat_PInt
     | pat_pNil; intros
     | pat_pCons; intros
+    | eapply pat_PXData_eq; [ reflexivity | ]
+    | eapply pat_PXData_neq; [ reflexivity | auto ]
+    | eapply pat_PConst_eq; by apply eq_refl
     | apply pat_POr
     | pat_PTuple
+    | apply pat_PAlias
     | apply pat_PAny ].
 
 (* [post_process_pats] is expected to be used on multiple goals of the

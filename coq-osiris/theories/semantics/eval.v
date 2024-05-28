@@ -1309,6 +1309,11 @@ Fixpoint nary_call (arg : list val) (acc : microvx) : microvx :=
 
 Definition call_anonfun η fn args := nary_call args (eval_anonfun η fn).
 
+Definition ncall fn args := match args with
+                            | [] => ret fn
+                            | x :: args => nary_call args (call fn x)
+                            end.
+
 (* -------------------------------------------------------------------------- *)
 (* [loop η x i1 i2 e] executes the loop [for x = i1 to i2 do e done]
    in the environment [η]. *)

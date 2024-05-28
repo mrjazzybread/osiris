@@ -57,6 +57,7 @@ Global Opaque
   call
   eval
   evals
+  eval_match
   eval_sitem
   eval_sitems
   eval_bindings

@@ -685,7 +685,7 @@ Qed.
 
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} σ deep l η bs k σ' m' :
+Lemma invert_step_install {A E} σ σ' deep l η bs k m' :
   @step A E (σ, Stop CInstall (deep, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
