@@ -366,3 +366,5 @@ and sitem =
 
   (* An [include] directive [include me]. *)
   | IInclude of mexpr
+
+  | IExtend of name list

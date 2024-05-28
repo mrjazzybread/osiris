@@ -129,7 +129,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | ILetRec : list rec_binding → sitem
   | IModule : module → mexpr → sitem
   | IOpen : mexpr → sitem
-  | IInclude : mexpr → sitem.
+  | IInclude : mexpr → sitem
+  | IExtend : list name → sitem.
 
 <span class="kn">Arguments</span> EPath x
 <span class="kn">Arguments</span> EAnonFun a
@@ -199,7 +200,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> ILetRec rbs%list_scope
 <span class="kn">Arguments</span> IModule m me
 <span class="kn">Arguments</span> IOpen me
-<span class="kn">Arguments</span> IInclude me</blockquote></div></div></small></span></pre><p>At this time, expressions include:</p>
+<span class="kn">Arguments</span> IInclude me
+<span class="kn">Arguments</span> IExtend cs%list_scope</blockquote></div></div></small></span></pre><p>At this time, expressions include:</p>
 <ul class="simple">
 <li>Variables;</li>
 <li>Functions and function calls;</li>

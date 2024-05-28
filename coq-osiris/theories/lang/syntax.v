@@ -349,6 +349,9 @@ with sitem :=
   (* An [include] directive [include me]. *)
   | IInclude (me : mexpr)
 
+  (* An extensible variant type extension [type t += cs]. *)
+  | IExtend (cs : list name)
+
 .
 
 (* ------------------------------------------------------------------------ *)

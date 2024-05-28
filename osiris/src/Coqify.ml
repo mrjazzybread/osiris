@@ -397,6 +397,9 @@ and structure_item (item : sitem) =
   | IInclude me ->
       c "IInclude" [ mexpr me ]
 
+  | IExtend cs ->
+      clist "IExtend" (map var cs)
+
 and structure_items items =
   map structure_item items
 

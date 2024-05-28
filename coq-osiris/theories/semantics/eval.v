@@ -758,6 +758,15 @@ Variable eval_mexpr : env → mexpr → microvx.
 (* [eval_sitem ηδ item] evaluates the structure item [item] in the
    double environment [ηδ], yielding an updated double environment. *)
 
+Fixpoint eval_type_extensions (cs : list name) :=
+  match cs with
+  | [] => ret []
+  | c :: cs =>
+      l ← stop CAlloc VUnit;
+      η ← eval_type_extensions cs;
+      ret ((c, VLoc l) :: η)
+  end.
+
 Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
   let '(η, δ) := ηδ in
   match item with
@@ -775,6 +784,9 @@ Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
       ret (δ' ++ η, δ)
   | IInclude me' =>
       δ' ← as_struct (eval_mexpr η me') ;
+      ret (δ' ++ η, δ' ++ δ)
+  | IExtend cs =>
+      δ' ← eval_type_extensions cs;
       ret (δ' ++ η, δ' ++ δ)
   end.
 

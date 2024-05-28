@@ -1000,8 +1000,8 @@ and translate_structure_item (item : structure_item) : sitem option =
       (* A type definition is silently ignored. *)
       None
 
-  | Tstr_typext _ ->
-      ounsupported loc "extending an extensible algebraic data type"
+  | Tstr_typext { tyext_constructors = tys; _} ->
+      Some (IExtend (map (fun c -> txt c.ext_name) tys))
 
   | Tstr_exception _ ->
       ounsupported loc "exception declaration"

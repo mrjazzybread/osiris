@@ -101,8 +101,7 @@ End lazy_sequences.
 (* ========================================================================== *)
 (** * Protocol. *)
 
-Context (yield_eff : loc).
-Definition yield x : val := VXData yield_eff (VTuple [x]).
+Definition yield l x : val := VXData l (VTuple [x]).
 
 (* This protocol describes the effects performed by [yield]. *)
 
@@ -110,19 +109,19 @@ Section inversion_protocol.
   Context `{!osirisGS Σ}.
   Context  {A : Type} `{Encode A, FinitelyObservable A}.
 
-  Definition ψ_yield (iterView : list A → iProp Σ) : iEff Σ :=
+  Definition ψ_yield l (iterView : list A → iProp Σ) : iEff Σ :=
     (>> Xs X >>
-       ! (yield #X)
+       ! (yield l #X)
          {{ iterView Xs ∗ ⌜ permitted (Xs ++ [X]) ⌝ }};
        ? (@O2Ret val exn #())
          {{ iterView (Xs ++ [X]) }} @ OS).
 
-  Lemma upcl_yield iterView v Φ :
-    iEff_car (upcl OS (ψ_yield iterView)) v Φ ⊣⊢
-      (∃ Xs (X : A), ⌜ v = yield #X ⌝ ∗
-                             (iterView Xs ∗
-                             ⌜ permitted (Xs ++ [X]) ⌝) ∗
-                             (iterView (Xs ++ [X]) -∗ Φ (O2Ret (VUnit))))%I.
+  Lemma upcl_yield l iterView v Φ :
+    iEff_car (upcl OS (ψ_yield l iterView)) v Φ ⊣⊢
+      (∃ Xs (X : A), ⌜ v = yield l #X ⌝ ∗
+                     (iterView Xs ∗
+                     ⌜ permitted (Xs ++ [X]) ⌝) ∗
+                     (iterView (Xs ++ [X]) -∗ Φ (O2Ret (VUnit))))%I.
   Proof. by rewrite /ψ_yield  (upcl_tele' [tele _ _] [tele]) //=. Qed.
 
 End inversion_protocol.
@@ -196,7 +195,7 @@ Section verification.
     (* ------------------------------------------------------------------------ *)
     (** Specification of [invert]. *)
 
-    Definition env := ("Yield", (VLoc yield_eff)) :: stdlib_env.
+    Definition env := stdlib_env.
 
     Definition invert_spec invert : iProp Σ :=
       ∀ (iter : val),
@@ -210,16 +209,18 @@ Section verification.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
-    Lemma yield_handler_correct (iter : val) γ (Ys : list A) :
+    Lemma yield_handler_correct l (iter : val) γ (Ys : list A) :
       handlerView γ Ys -∗
-      deep_handler_spec ⊤ (ψ_yield (iterView γ))
+      deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o : code.outcome3 val exn,
             deep_handler_body
               ("__osiris_anonymous_arg" ~> VUnit;
-               "yield" ~> VClo ("iter" ~> iter;
+               "yield" ~> VClo ("Yield" ~> VLoc l;
+                                "iter" ~> iter;
                                 "__osiris_anonymous_arg" ~> iter;
                                 env) __fun0;
+               "Yield" ~> VLoc l;
                "iter" ~> iter;
                "__osiris_anonymous_arg" ~> iter;
                env) o __branches3 __branches3) ⊥ (RET h, isHead ⊥ h Ys).
@@ -288,7 +289,8 @@ Section verification.
       (* [let open struct ...] *) rewrite /deco.
       iApply ewp_ELetOpen.
       (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
-      with_strategy transparent [eval_mexpr] Ret; simpl.
+      Local Transparent eval_mexpr. simpl. Local Opaque eval_mexpr.
+      iApply ewp_alloc. iIntros "!>" (l) "Hl". Ret. simpl.
       iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
       (* [let yield x = ...] *)
@@ -317,7 +319,7 @@ Section verification.
       iApply ewp_EMatch.
       iApply (ewp_deep_handler ⊤
                 (* Handlee's protocol: *)
-                (ψ_yield (iterView γ))
+                (ψ_yield l (iterView γ))
                 (* Handlee's postcondition: *)
                 (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
                with "[Hiter HiterView] [HhandlerView]").
@@ -335,7 +337,7 @@ Section verification.
           iSplit; [ by iPureIntro | by iIntros "?" ]. }
         iIntros "!#" ([|]); [ by iIntros "?" | by iIntros "?"]. }
 
-      { iApply (yield_handler_correct iter γ [] with "HhandlerView"). }
+      { iApply (yield_handler_correct l iter γ [] with "HhandlerView"). }
    Qed.
 
 End invert_correct.
