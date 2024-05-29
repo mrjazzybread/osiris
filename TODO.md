@@ -249,6 +249,12 @@
     and model [the subtle semantics of safe points](https://discuss.ocaml.org/t/using-poll-error-attribute-to-implement-systhread-safe-data-structures/12804)?
 * Shared-memory concurrency (weak memory)
 * Pattern matching on mutable data
+  + Careful: the change log for OCaml 5.2 says:
+    *Function arity [...] is now based solely on the source program's
+    parsetree. Previously, the heuristic for arity had more subtle heuristics
+    that involved type information about patterns. Function arity is important
+    because it determines when a pattern match's effects run and is an input
+    into the fast path for function application.*
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
     as an expression that raises `Next` if `e1` evaluates to `false`)
 * Recursive modules? (Used in Sek, for example.)
