@@ -209,17 +209,14 @@ Section verification.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
-    Lemma yield_handler_correct l (iter : val) γ (Ys : list A) :
+    Lemma yield_handler_correct l (iter yield : val) γ (Ys : list A) :
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o : code.outcome3 val exn,
             deep_handler_body
               ("__osiris_anonymous_arg" ~> VUnit;
-               "yield" ~> VClo ("Yield" ~> VLoc l;
-                                "iter" ~> iter;
-                                "__osiris_anonymous_arg" ~> iter;
-                                env) __fun0;
+               "yield" ~> yield;
                "Yield" ~> VLoc l;
                "iter" ~> iter;
                "__osiris_anonymous_arg" ~> iter;
@@ -267,6 +264,23 @@ Section verification.
 
     Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
+
+    Lemma ewp_ELet_singleton_var spec η x e e' ψ Q :
+      EWP eval η e <| ψ |> {{ RET v, spec v }} -∗
+      (∀ v, spec v -∗ EWP eval ((x, v) :: η) e' <| ψ |> {{ Q }}) -∗
+      EWP eval η (ELet [Binding (PVar x) e] e') <| ψ |> {{ Q }}.
+    Proof.
+      iIntros "He He'".
+      rewrite !eval_eval' /=.
+      with_strategy transparent [eval_bindings] simpl.
+      Par. Bind.
+      iApply (ewp_mono with "[He]"). by rewrite eval_eval'.
+      iIntros ([|]); [ simpl | done ].
+      iIntros "Hspec".
+      with_strategy transparent [extend] simpl.
+      by iApply "He'".
+    Qed.
+
     Lemma ewp_invert : ⊢ invert_spec invert.
       iIntros (iter) "Hiter".
       (* Initialise handler view and iterator view. *)
@@ -286,7 +300,7 @@ Section verification.
       iIntros (? ->) "!> !>".
       enter_branch.
 
-      (* [let open struct ...] *) rewrite /deco.
+      (* [let open struct ...] *)
       iApply ewp_ELetOpen.
       (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
       Local Transparent eval_mexpr. simpl. Local Opaque eval_mexpr.
@@ -294,11 +308,25 @@ Section verification.
       iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
       (* [let yield x = ...] *)
-      iApply (ewp_ELet_singleton_total (ieq ?[y])).
-      { Simp; by Ret. }
-      iIntros (? ->). iExists _; iSplit.
-      (* Subgoal: [simp (irrefutably_extend [] (PVar "yield") ...) (ret ?G)] *)
-      { iPureIntro. apply SimpReflexive. }
+      iApply (ewp_ELet_singleton_var
+                (λ v,
+                  □ ∀ (Xs : list A) (X : A),
+                    iterView γ Xs -∗
+                    ⌜permitted (Xs ++ [X])⌝ -∗
+                    EWP call v #X <| ψ_yield l (iterView γ) |>
+                      {{ λ _, iterView γ (Xs ++ [X]) }} )%I).
+      { Simp; Ret; simpl.
+        iIntros "!>" (Xs X) "Hiter Hpermitted".
+        iApply ewp_call_nonrec.
+        iNext.
+        with_strategy transparent [evals] Simp.
+        iApply ewp_perform.
+        rewrite /prot; iApply upcl_yield.
+        iExists _, _.
+        iSplit; [ iPureIntro; reflexivity | iFrame ].
+        by iIntros. }
+
+      iIntros (yield) "#yield_spec".
 
       (* fun () -> match iter yield with ... *)
       Simp; Ret. rewrite /= isSeq_unfold /isSeq_pre.
@@ -324,20 +352,16 @@ Section verification.
                 (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
                with "[Hiter HiterView] [HhandlerView]").
 
-      (* Subgoal: [EWP (eval η (EApp iter yield)) <| ψ_yield |> {{ ... }} ]. *)
+      (* Subgoal: The body of the match [iter yield] produces
+         [iterView γ Xs], where [Xs] is the full collection. *)
       { Simp.
-        iApply (ewp_pers_mono with "[-]").
-        { iApply ("Hiter" with "[] HiterView").
-          iIntros "!>" (Xs X) "%Hpermitted HI".
-          with_strategy transparent [evals] Simp.
-          iApply ewp_perform.
-          rewrite /prot; iApply upcl_yield.
-          iExists _, _.
-          iSplit; [ iPureIntro; reflexivity | iFrame ].
-          iSplit; [ by iPureIntro | by iIntros "?" ]. }
-        iIntros "!#" ([|]); [ by iIntros "?" | by iIntros "?"]. }
+        iApply ("Hiter" with "[] HiterView").
+        iIntros "!>" (Xs X) "#Hpermitted HI".
+        iApply ("yield_spec" with "HI Hpermitted"). }
 
-      { iApply (yield_handler_correct l iter γ [] with "HhandlerView"). }
+      (* Subgoal: The branches of the match constitute
+         a valid handler for yield. *)
+      { iApply (yield_handler_correct with "HhandlerView"). }
    Qed.
 
 End invert_correct.
