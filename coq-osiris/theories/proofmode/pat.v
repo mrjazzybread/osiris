@@ -564,8 +564,8 @@ Ltac pattern_match :=
     | pat_PInt
     | pat_pNil; intros
     | pat_pCons; intros
-    | eapply pat_PXData_eq; [ reflexivity | ]
-    | eapply pat_PXData_neq; [ reflexivity | auto ]
+    | eapply pat_PXData_eq; [ reflexivity || by eauto | ]
+    | eapply pat_PXData_neq; [ reflexivity || by eauto | auto ]
     | eapply pat_PConst_eq; by apply eq_refl
     | apply pat_POr
     | pat_PTuple

@@ -133,16 +133,38 @@ Section verification.
     intros ->. by apply Hne.
   Qed.
 
-  Example localstate_run_spec rl wl Φ init main :
-    let env := [("Get", VLoc rl); ("Set", VLoc wl)] ++ stdlib_env in
-    rl ↦ V #() -∗
-    wl ↦ V #() -∗
-    (∀ St, St init -∗ EWP call main #() <| STATE rl wl St |> {{ RET v, Φ v }}) -∗
-    EWP call_anonfun env run [ #init ; main]
-      {{ RET # v, Φ (snd (v : state * val)) }}.
+  Definition run_env_requirements η rl wl :=
+    (rl ↦ V #() ∗
+     wl ↦ V #() ∗
+     ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ ∗
+     ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝)%I.
+
+  Definition main_spec main init rl wl spec :=
+    (∀ St,
+        St init -∗
+        EWP call main #() <| STATE rl wl St |> {{ RET v, spec v }} )%I.
+
+  Definition run_spec rl wl run :=
+    (∀ (* η *) (spec : val -> iProp Σ) init main,
+       (* run_env_requirements η rl wl -∗ *)
+       main_spec main init rl wl spec -∗
+       EWP c ← (call run #init);
+           call c main {{ RET #v, spec (snd (v : state * val)) }})%I.
+
+  Lemma localstate_run_spec rl wl :
+    ∀ η (Φ : val -> iProp Σ) init main,
+      ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
+      ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
+      ⌜ address rl ≠ address wl ⌝ -∗
+      (∀ St,
+          St init -∗
+          EWP call main #() <| STATE rl wl St |> {{ RET v, Φ v }} ) -∗
+      EWP call_anonfun η run [ #init ; main]
+        {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
     cbn zeta.
-    iIntros "Hrl Hwl Hmain". iApply ewp_fupd.
+    iIntros (env Φ init main HGet HSet Haddr) "Hmain".
+    iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* Call the anonymous function. *)
@@ -232,7 +254,7 @@ Section verification.
          iApply ewp_EPath. by Ret. }
 
        iIntros "[-> Hl]".
-       iSpecialize ("IH" with "Hrl Hwl Hauth Hl").
+       iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
        { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
        iApply "H_READ". }
@@ -245,9 +267,7 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %Hag.
 
        (* Skip the return, exception, and [Get] branches. *)
-       iNext.
-       iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddresses".
-       red_match.
+       iNext. red_match.
 
        (* EWP Goal: [var := y; continue k ()]. *)
        iApply ewp_ESeq.
@@ -278,7 +298,7 @@ Section verification.
        (* Resume the continuation. *)
        iApply "H_WRITE". iNext.
        rewrite /deep_handler_spec seal_eq.
-       iApply ("IH" with "Hrl Hwl Hauth Hl"). }
+       iApply ("IH" with "Hauth Hl"). }
    Qed.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
@@ -308,16 +328,15 @@ Section verification.
     iApply ("Hcov" with "Hφ").
   Qed.
 
-  Lemma ewp_sitem_extend η δ es E ψ Q :
+  Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
     EWP eval_type_extensions es @ E <| ψ |>
-      {{ RET δ', Q (O2Ret (δ' ++ η, δ' ++ δ)) }} -∗
-    EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ Q }}.
+      {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
+    EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
   Proof.
     iIntros "Hes".
     with_strategy transparent [eval_sitem] Simp.
     Bind. iApply (ewp_mono with "Hes").
-    iIntros ([|]); [ simpl; iIntros "HQ" | done ].
-    by iApply ewp_value.
+    iIntros ([|]); [ simpl; by iIntros "HQ" | done ].
   Qed.
 
   Lemma ewp_type_extension_cons e es E ψ Q :
@@ -342,6 +361,14 @@ Section verification.
     EWP eval_type_extensions [] @ E <| ψ |> {{ Q }}.
   Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
 
+  Lemma ewp_sitems_nil ηδ E ψ Q :
+    Q (O2Ret ηδ) -∗
+    EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
+  Proof.
+    with_strategy transparent [eval_sitems] simpl.
+    by iApply ewp_value.
+  Qed.
+
   Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
     EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
     (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
@@ -354,8 +381,26 @@ Section verification.
     iApply "Hcov".
   Qed.
 
+  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
+    EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He HQ".
+    with_strategy transparent [eval_sitem eval_bindings] simpl.
+    Par. Bind.
+    iApply (ewp_mono with "He").
+    iIntros ([|]); [ simpl | done ].
+    iIntros "Hspec".
+    with_strategy transparent [extend] simpl; Ret.
+    by iApply "HQ".
+  Qed.
+
   Lemma lemmaname (Q : val -> iProp Σ) :
-    ⊢ EWP (eval_mexpr dummy_env __main) {{ RET v, Q v }}.
+    ⊢ EWP (eval_mexpr dummy_env __main)
+      {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
+                       ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
+                              ∃ rl wl, run_spec rl wl run }}.
   Proof.
     iIntros. rewrite /__main.
     iApply ewp_mexpr_MStruct.
@@ -369,55 +414,144 @@ Section verification.
 
     (* [open Effect.Deep] *)
     iIntros (? ->).
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])).
-    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2])).
-      { with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
-        equality. }
-      iIntros (δ' ->). equality. }
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
+    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2]));
+        [ | iIntros (? ->); equality ].
+      with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
+      equality. }
 
     (* [type _ Effect.t += Get : t Effect.t] *)
-    iIntros (? ->). simpl.
-    iApply (ewp_sitems_cons _ _ _ _ _ _
-              (fun (ηδ : env * env) => ∃ l,
-                   ⌜ ηδ = (("Get", VLoc l) :: ("Deep", VStruct []) :: dummy_env,
-                          [("Get", VLoc l)]) ⌝
-                   ∗ l ↦ V #())%I).
-    { iApply ewp_sitem_extend.
+    iApply ewp_sitems_cons.
+    { iApply (ewp_sitem_extend _ _ _ _ _
+                (fun (ηδ : env * env) => ∃ l,
+                     ⌜ ηδ = (("Get", VLoc l) :: ("Deep", VStruct []) :: dummy_env,
+                              [("Get", VLoc l)]) ⌝
+                              ∗ l ↦ V #())%I).
       iApply ewp_type_extension_cons.
-      iIntros "!> %l Hl".
+      iIntros "!> %rl Hrl".
       iApply ewp_type_extension_nil.
-      simpl. iExists l. iFrame. equality. }
+      iExists rl; iFrame; equality. }
 
     (* [type _ Effect.t += Set : t -> unit Effect.t] *)
-    iIntros ([η δ]) "[%l [-> Hl]]"; clear η δ.
-    iApply (ewp_sitems_cons _ _ _ _ _ _
-              (fun (ηδ : env * env) => ∃ l',
-                   ⌜ ηδ = (("Set", VLoc l') :: ("Get", VLoc l) :: ("Deep", VStruct []) :: dummy_env,
-                          [("Set", VLoc l'); ("Get", VLoc l)]) ⌝
+    iIntros ([η δ]) "[%rl [-> Hrl]]"; clear η δ.
+    iApply ewp_sitems_cons.
+    { iApply (ewp_sitem_extend _ _ _ _ _
+                (fun (ηδ : env * env) => ∃ l',
+                     ⌜ ηδ = (("Set", VLoc l') ::
+                               ("Get", VLoc rl) ::
+                               ("Deep", VStruct []) ::
+                               dummy_env,
+                              [("Set", VLoc l'); ("Get", VLoc rl)]) ⌝
                    ∗ l' ↦ V #())%I).
-    { iApply ewp_sitem_extend.
       iApply ewp_type_extension_cons.
-      iIntros "!> %l' Hl'".
+      iIntros "!> %wl Hwl".
       iApply ewp_type_extension_nil.
-      simpl. iExists l'. iFrame. equality. }
+      iExists wl; iFrame; equality. }
 
     (* [let get () = perform Get] *)
-    iIntros ([η δ]) "[%l' [-> Hl']]"; clear η δ.
-    iApply (ewp_sitems_cons).
-    { admit. }
+    iIntros ([η δ]) "[%wl [-> Hwl]]"; clear η δ.
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
+                ∃ v, ⌜ ηδ =
+                       (("get", v) ::
+                         ("Set", VLoc wl) ::
+                         ("Get", VLoc rl) ::
+                         ("Deep", VStruct []) :: dummy_env,
+                       [("get", v); ("Set", VLoc wl); ("Get", VLoc rl)]) ⌝ ∗
+                  □ ∀ St x,
+                      St x -∗
+                      EWP call v #()  <|STATE rl wl St|>
+                        {{ RET #X, ⌜X = x⌝ }})%I ).
+    { iApply (ewp_sitem_let_singleton_var
+                (λ v,
+                  □ ∀ St x,
+                      St x -∗
+                      EWP call v #()  <|STATE rl wl St|>
+                        {{ RET #X, ⌜X = x⌝ }})%I).
+      { Simp; Ret; simpl.
+        iIntros "!>" (St x) "HSt".
+        iApply ewp_call_nonrec. iNext. Simp. rewrite /continue.
+        (* TODO: there must be a better way. *)
+        Local Transparent eval_match.
+        rewrite /deep_eval_match /eval_match.
+        Local Opaque eval_match.
+        red_match.
+        with_strategy transparent [evals] Simp.
+        iApply ewp_perform.
+        rewrite /prot. rewrite upcl_state upcl_read.
+        iLeft. iExists _. iFrame. iSplit. equality.
+        iIntros "_". iExists _; iSplit; equality. }
+
+      { iIntros (get) "get_spec".
+        iExists get. iSplit; [ equality | ]. iApply "get_spec". } }
+
 
     (* [let set y = perform (Set y)] *)
-    iIntros ([η δ]) "Hed".
-    iApply (ewp_sitems_cons).
-    { admit. }
+    iIntros ([η δ]) "[%get [-> get_spec]]"; clear η δ.
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
+                ∃ v, ⌜ ηδ =
+                       (("set", v) ::
+                          ("get", get) ::
+                          ("Set", VLoc wl) ::
+                          ("Get", VLoc rl) ::
+                          ("Deep", VStruct []) :: dummy_env,
+                         [("set", v); ("get", get); ("Set", VLoc wl); ("Get", VLoc rl)]) ⌝ ∗
+                         □ ∀ St x y,
+                           St x -∗
+                             EWP call v #y  <|STATE rl wl St|>
+                             {{ RET _, St y }})%I ).
+    { iApply (ewp_sitem_let_singleton_var
+                (λ v,
+                  □ ∀ St x y,
+                      St x -∗
+                      EWP call v #y  <|STATE rl wl St|>
+                      {{ RET _, St y }})%I).
+      { Simp; Ret; simpl.
+        iIntros "!>" (St x y) "HSt".
+        iApply ewp_call_nonrec. iNext.
+        with_strategy transparent [evals] Simp.
+        iApply ewp_perform.
+        rewrite /prot. rewrite upcl_state upcl_write.
+        iRight. iExists _, _. iFrame. iSplit. equality.
+        by iIntros "Hsty". }
+
+      { iIntros (set) "set_spec".
+        iExists set. iSplit; [ equality | done ]. } }
+
 
     (* [let run (type a) init maint : t * a =] *)
-    iIntros ([η' δ']) "Hed'".
-    iApply ewp_sitems_cons.
-  Admitted.
+    iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
+    iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddr".
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
+                ∃ v, ⌜ ηδ = ?[H1] v ⌝ ∗ run_spec rl wl v)%I).
+    { iApply (ewp_sitem_let_singleton_var (run_spec rl wl)).
+      { Simp. Ret. simpl. unfold run_spec.
+        iIntros (spec init main) "Hmain".
+        iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
+        rewrite /call_anonfun. simpl. rewrite /eval_anonfun. rewrite eval_eval'; simpl.
+        fold run.
+        iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }
+
+      iIntros (run) "Hrun". simpl.
+      iExists run. iFrame. iPureIntro.
+      Unshelve.
+      2: exact (λ v : val,
+     ("run" ~> v;
+      ("set", set)
+      :: ("get", get)
+         :: ("Set", VLoc wl) :: ("Get", VLoc rl) :: ("Deep", VStruct []) :: dummy_env,
+      "run" ~> v;
+      [("set", set); ("get", get); ("Set", VLoc wl); ("Get", VLoc rl)])).
+      reflexivity. }
+
+    iIntros ([η δ]) "[%run [-> Hrun]]".
+    iApply ewp_sitems_nil; simpl.
+
+    (* Establish postcondition. *)
+    iExists _; iSplit; [ equality | ].
+    iExists _; iSplit; [ equality | ].
+    iExists _, _; iApply "Hrun".
+  Qed.
 
 End verification.
-
-(* ========================================================================== *)
 
 End localstate_example.
