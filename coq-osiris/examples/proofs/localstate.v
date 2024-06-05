@@ -396,6 +396,22 @@ Section verification.
     by iApply "HQ".
   Qed.
 
+  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
+                   EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+    EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He Hcov".
+    with_strategy transparent [eval_sitems eval_sitem eval_bindings] simpl.
+    Par. Bind.
+    iApply (ewp_mono with "He").
+    iIntros ([v|]); [ simpl; iIntros "Hspec" | done ].
+    rewrite /continue. with_strategy transparent [extend] Simp.
+    iApply "Hcov".
+    iExists v; by iFrame.
+  Qed.
+
   Lemma lemmaname (Q : val -> iProp Σ) :
     ⊢ EWP (eval_mexpr dummy_env __main)
       {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
@@ -521,27 +537,13 @@ Section verification.
     (* [let run (type a) init maint : t * a =] *)
     iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
     iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddr".
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
-                ∃ v, ⌜ ηδ = ?[H1] v ⌝ ∗ run_spec rl wl v)%I).
-    { iApply (ewp_sitem_let_singleton_var (run_spec rl wl)).
-      { Simp. Ret. simpl. unfold run_spec.
-        iIntros (spec init main) "Hmain".
-        iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
-        rewrite /call_anonfun. simpl. rewrite /eval_anonfun. rewrite eval_eval'; simpl.
-        fold run.
-        iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }
-
-      iIntros (run) "Hrun". simpl.
-      iExists run. iFrame. iPureIntro.
-      Unshelve.
-      2: exact (λ v : val,
-     ("run" ~> v;
-      ("set", set)
-      :: ("get", get)
-         :: ("Set", VLoc wl) :: ("Get", VLoc rl) :: ("Deep", VStruct []) :: dummy_env,
-      "run" ~> v;
-      [("set", set); ("get", get); ("Set", VLoc wl); ("Get", VLoc rl)])).
-      reflexivity. }
+    iApply (ewp_sitems_let_singleton_var (run_spec rl wl)).
+    { Simp. Ret. simpl. unfold run_spec.
+      iIntros (spec init main) "Hmain".
+      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
+      rewrite /call_anonfun. simpl. rewrite /eval_anonfun. rewrite eval_eval'; simpl.
+      fold run.
+      iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }
 
     iIntros ([η δ]) "[%run [-> Hrun]]".
     iApply ewp_sitems_nil; simpl.
