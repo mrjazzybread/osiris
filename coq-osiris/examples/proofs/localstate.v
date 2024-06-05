@@ -412,6 +412,24 @@ Section verification.
     iExists v; by iFrame.
   Qed.
 
+  Lemma ewp_sitems_extend sitems η δ x E ψ Q :
+    (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
+      EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+    EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hcov".
+    iApply (ewp_sitems_cons).
+    { iApply (ewp_sitem_extend).
+      iApply ewp_alloc.
+      iIntros "!>" (l) "Hl".
+      rewrite /continue. Ret.
+      Unshelve.
+      2: (apply (λ ηδ,
+              (∃ l, ⌜ηδ = (x ~> VLoc l; η, x ~> VLoc l; δ)⌝ ∗ l ↦ V VUnit)%I)).
+      iExists l; iFrame. equality. }
+    iApply "Hcov".
+  Qed.
+
   Lemma lemmaname (Q : val -> iProp Σ) :
     ⊢ EWP (eval_mexpr dummy_env __main)
       {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
@@ -437,47 +455,15 @@ Section verification.
       equality. }
 
     (* [type _ Effect.t += Get : t Effect.t] *)
-    iApply ewp_sitems_cons.
-    { iApply (ewp_sitem_extend _ _ _ _ _
-                (fun (ηδ : env * env) => ∃ l,
-                     ⌜ ηδ = (("Get", VLoc l) :: ("Deep", VStruct []) :: dummy_env,
-                              [("Get", VLoc l)]) ⌝
-                              ∗ l ↦ V #())%I).
-      iApply ewp_type_extension_cons.
-      iIntros "!> %rl Hrl".
-      iApply ewp_type_extension_nil.
-      iExists rl; iFrame; equality. }
+    iApply ewp_sitems_extend.
+    iIntros ([η δ]) "[%rl [-> Hrl]]"; clear η δ.
 
     (* [type _ Effect.t += Set : t -> unit Effect.t] *)
-    iIntros ([η δ]) "[%rl [-> Hrl]]"; clear η δ.
-    iApply ewp_sitems_cons.
-    { iApply (ewp_sitem_extend _ _ _ _ _
-                (fun (ηδ : env * env) => ∃ l',
-                     ⌜ ηδ = (("Set", VLoc l') ::
-                               ("Get", VLoc rl) ::
-                               ("Deep", VStruct []) ::
-                               dummy_env,
-                              [("Set", VLoc l'); ("Get", VLoc rl)]) ⌝
-                   ∗ l' ↦ V #())%I).
-      iApply ewp_type_extension_cons.
-      iIntros "!> %wl Hwl".
-      iApply ewp_type_extension_nil.
-      iExists wl; iFrame; equality. }
+    iApply ewp_sitems_extend.
+    iIntros ([η δ]) "[%wl [-> Hwl]]"; clear η δ.
 
     (* [let get () = perform Get] *)
-    iIntros ([η δ]) "[%wl [-> Hwl]]"; clear η δ.
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
-                ∃ v, ⌜ ηδ =
-                       (("get", v) ::
-                         ("Set", VLoc wl) ::
-                         ("Get", VLoc rl) ::
-                         ("Deep", VStruct []) :: dummy_env,
-                       [("get", v); ("Set", VLoc wl); ("Get", VLoc rl)]) ⌝ ∗
-                  □ ∀ St x,
-                      St x -∗
-                      EWP call v #()  <|STATE rl wl St|>
-                        {{ RET #X, ⌜X = x⌝ }})%I ).
-    { iApply (ewp_sitem_let_singleton_var
+    iApply (ewp_sitems_let_singleton_var
                 (λ v,
                   □ ∀ St x,
                       St x -∗
@@ -497,30 +483,12 @@ Section verification.
         iLeft. iExists _. iFrame. iSplit. equality.
         iIntros "_". iExists _; iSplit; equality. }
 
-      { iIntros (get) "get_spec".
-        iExists get. iSplit; [ equality | ]. iApply "get_spec". } }
-
-
     (* [let set y = perform (Set y)] *)
     iIntros ([η δ]) "[%get [-> get_spec]]"; clear η δ.
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (λ ηδ,
-                ∃ v, ⌜ ηδ =
-                       (("set", v) ::
-                          ("get", get) ::
-                          ("Set", VLoc wl) ::
-                          ("Get", VLoc rl) ::
-                          ("Deep", VStruct []) :: dummy_env,
-                         [("set", v); ("get", get); ("Set", VLoc wl); ("Get", VLoc rl)]) ⌝ ∗
-                         □ ∀ St x y,
+    iApply (ewp_sitems_let_singleton_var (λ v, □ ∀ St x y,
                            St x -∗
                              EWP call v #y  <|STATE rl wl St|>
                              {{ RET _, St y }})%I ).
-    { iApply (ewp_sitem_let_singleton_var
-                (λ v,
-                  □ ∀ St x y,
-                      St x -∗
-                      EWP call v #y  <|STATE rl wl St|>
-                      {{ RET _, St y }})%I).
       { Simp; Ret; simpl.
         iIntros "!>" (St x y) "HSt".
         iApply ewp_call_nonrec. iNext.
@@ -529,10 +497,6 @@ Section verification.
         rewrite /prot. rewrite upcl_state upcl_write.
         iRight. iExists _, _. iFrame. iSplit. equality.
         by iIntros "Hsty". }
-
-      { iIntros (set) "set_spec".
-        iExists set. iSplit; [ equality | done ]. } }
-
 
     (* [let run (type a) init maint : t * a =] *)
     iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
