@@ -484,11 +484,15 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "string expected"
   end.
 
-Definition extends δ ps vs :=
-  pre_extends extend δ ps vs.
+Local Definition extends_aux : seal (pre_extends extend).
+Proof. by eexists. Qed.
+(* Top-level definition for [extends] *)
+Definition extends := extends_aux.(unseal).
 
-Definition extendfs δ fps fvs :=
-  pre_extendfs extend δ fps fvs.
+Local Definition extendfs_aux : seal (pre_extendfs extend).
+Proof. by eexists. Qed.
+(* Top-level definition for [extendfs] *)
+Definition extendfs := extendfs_aux.(unseal).
 
 (* [cextend η cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
@@ -1041,7 +1045,8 @@ End Eval.
    these expressions is possible: the evaluation order is not necessarily
    left-to-right or right-to-left. *)
 
-Fixpoint eval η e {struct e} : microvx :=
+Fixpoint pre_eval η e {struct e} : microvx :=
+  let eval := pre_eval in
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_match := pre_eval_match eval in
@@ -1278,30 +1283,91 @@ Fixpoint eval η e {struct e} : microvx :=
       ok
   end.
 
-Definition evals := pre_evals eval.
 
-Definition evalfs := pre_evalfs eval.
+Local Definition eval_aux : seal (pre_eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval] *)
+Definition eval := eval_aux.(unseal).
+
+Ltac simpl_eval :=
+  unfold eval; rewrite seal_eq;
+  (progress simpl pre_eval || idtac "Unable to simplify application of eval.").
+
+Local Definition evals_aux : seal (pre_evals eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [evals] *)
+Definition evals := evals_aux.(unseal).
+
+Ltac simpl_evals :=
+  unfold evals; rewrite seal_eq;
+  (progress simpl pre_evals || idtac "Unable to simplify application of evals.").
+
+
+Local Definition evalfs_aux : seal (pre_evalfs eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [evalfs] *)
+Definition evalfs := evalfs_aux.(unseal).
+
+Ltac simpl_evalfs :=
+  unfold evalfs; rewrite seal_eq;
+  (progress simpl pre_evalfs || idtac "Unable to simplify application of evalfs.").
+
 
 (* Handlers are deep by default. *)
-Definition eval_match := pre_eval_match eval.
 
-Definition deep_eval_match := eval_match true.
+Local Definition eval_match_aux : seal (pre_eval_match eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_match] *)
+Definition eval_match := eval_match_aux.(unseal).
 
-Definition shallow_eval_match := eval_match false.
+Ltac simpl_eval_match :=
+  unfold eval_match; rewrite seal_eq;
+  (progress simpl pre_eval_match || idtac "Unable to simplify application of eval_match.").
 
-Definition eval_trywith := pre_eval_trywith eval.
+Local Definition deep_eval_match_aux : seal (eval_match true).
+Proof. by eexists. Qed.
+(* Top-level definition for [deep_eval_match] *)
+Definition deep_eval_match := deep_eval_match_aux.(unseal).
 
-Definition try_cextend_pure := pre_try_cextend_pure eval.
+Local Definition shallow_eval_match_aux : seal (eval_match false).
+Proof. by eexists. Qed.
+(* Top-level definition for [shallow_eval_match] *)
+Definition shallow_eval_match := shallow_eval_match_aux.(unseal).
 
-Definition eval_bindings := pre_eval_bindings eval.
+Local Definition eval_trywith_aux : seal (pre_eval_trywith eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_trywith] *)
+Definition eval_trywith := eval_trywith_aux.(unseal).
 
-Definition eval_mexpr := pre_eval_mexpr eval_bindings.
+Local Definition try_cextend_pure_aux : seal (pre_try_cextend_pure eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [try_cextend_pure] *)
+Definition try_cextend_pure := try_cextend_pure_aux.(unseal).
 
-Definition eval_sitem :=
-  pre_eval_sitem eval_bindings eval_mexpr.
+Local Definition eval_bindings_aux : seal (pre_eval_bindings eval).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_bindings] *)
+Definition eval_bindings := eval_bindings_aux.(unseal).
 
-Definition eval_sitems :=
-  pre_eval_sitems eval_bindings eval_mexpr.
+Local Definition eval_mexpr_aux : seal (pre_eval_mexpr eval_bindings).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_mexpr] *)
+Definition eval_mexpr := eval_mexpr_aux.(unseal).
+
+Local Definition eval_sitem_aux : seal (pre_eval_sitem eval_bindings eval_mexpr).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_sitem] *)
+Definition eval_sitem := eval_sitem_aux.(unseal).
+
+Local Definition eval_sitems_aux : seal (pre_eval_sitems eval_bindings).
+Proof. by eexists. Qed.
+(* Top-level definition for [eval_sitems] *)
+Definition eval_sitems := eval_sitems_aux.(unseal).
+
+Ltac simpl_eval_sitems :=
+  (unfold eval_sitems;
+   rewrite seal_eq;
+   progress simpl pre_eval_sitems) || fail "Unable to simplify application of eval_sitems".
 
 (* -------------------------------------------------------------------------- *)
 (* Auxiliary functions on [eval] *)

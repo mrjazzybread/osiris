@@ -182,7 +182,8 @@ Lemma structs_nil ηδ (φ : envs -> Prop) :
   φ ηδ ->
   struct_items ηδ [] φ.
 Proof.
-  unfold struct_items. intros. simpl.
+  unfold struct_items.
+  simpl_eval_sitems.
   by apply totalv_ret.
 Qed.
 
@@ -190,7 +191,8 @@ Lemma structs_cons_unary ηδ item items (φ : envs -> Prop) :
   struct_item ηδ item (λ ηδ', struct_items ηδ' items φ) ->
   struct_items ηδ (item :: items) φ.
 Proof.
-  unfold struct_items, struct_item. intros. simpl.
+  unfold struct_items, struct_item. intros.
+  simpl_eval_sitems.
   apply totalv_bind_unary.
   eapply totalv_consequence; eauto.
 Qed.
