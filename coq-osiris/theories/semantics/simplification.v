@@ -100,6 +100,11 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
     simp m1 m'1 →
     simp m2 m'2 →
     simp (Par m1 m2 k) (Par m'1 m'2 k)
+| SimpParThrowAgree:
+    ∀ {A1 A2 E'} e m1 m2 (k : outcome2 (A1 * A2) E' → _),
+    simp m1 (Throw e) →
+    simp m2 (Throw e) →
+    simp (Par m1 m2 k) (k (O2Throw e))
 | SimpPerform:
      ∀ e k k',
      (∀ o, simp (k o) (k' o)) →
@@ -227,7 +232,7 @@ Qed.
    [simp] path is not under control, once the end of the future is reached, we
    do not care any more. *)
 
-(* End users need not be know about the relation [simplify]. *)
+(* End users need not know about the relation [simplify]. *)
 
 Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
 | SimplifyEval:
@@ -265,6 +270,11 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
     simplify n1 m1 m'1 →
     simplify n2 m2 m'2 →
     simplify (n1 + n2 + 1) (Par m1 m2 k) (Par m'1 m'2 k)
+| SimplifyParThrowAgree:
+    ∀ {A1 A2 E'} n1 n2 e m1 m2 (k : outcome2 (A1 * A2) E' → _),
+    simplify n1 m1 (Throw e) →
+    simplify n2 m2 (Throw e) →
+    simplify (n1 + n2 + 1) (Par m1 m2 k) (discontinue k e)
 (* The following rule has cost 1, regardless of the cost of its premise. *)
 | SimplifyPerform:
      ∀ e k k',
@@ -395,6 +405,7 @@ Proof.
   rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2, ?try2_continue,
     ?try2_discontinue;
   econstructor; eauto.
+  apply (SimpParThrowAgree e m1 m2); auto. constructor.
 Qed.
 
 Lemma prove_simp_try2 {A B E' E} m a (k : outcome2 A E' -> micro B E) m' :
@@ -728,6 +739,9 @@ Proof.
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
   (* SimplifyPar *)
   { destruct_step; clarify_simplify; try solve [ search | use_ih; search ]. }
+  (* SimplifyParThrowAgree *)
+  { destruct_step; clarify_simplify; try solve [ search ];
+      use_ih; destruct_simplify_step_diagram; try solve [ search ]; inversion H2. }
   (* SimplifyPerform *)
   { destruct_step. }
   (* SimplifyHandleRet *)
@@ -951,6 +965,9 @@ Proof.
       + cbn. auto with simp. }
   (* SimpPar *)
   { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ]. }
+  (* SimpParThrowAgree *)
+  { destruct_step; clarify_simp; try solve [ simp_search ];
+      simp_use_ih; inversion H2; subst; try solve [ simp_search ]; inversion H5. }
   (* SimpPerform *)
   { destruct_step. }
   (* SimpHandleRet *)
@@ -1270,25 +1287,39 @@ Qed.
 
 (* A reasoning rule for [par]. *)
 
-(* This rule is limited to the case where [ψ] is [λ _, False]. Dealing with
-   arbitrary [ψ] would require simplifying [Par (throw e) (throw e) _ _]
-   into [throw e]. The relation [simp] currently does not allow this.
-   Furthermore, such a rule would require [ψ] to be deterministic. *)
+(* This rule requires the exception predicate [ψ] to be deterministic, otherwise
+   [Par (throw e) (throw e') _] cannot be simplified *)
 
-Lemma total_par {A1 A2 E} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) :
-  let ψ := λ (e : E), False in
+Definition deterministic {A} (φ : A → Prop) :=
+  ∀ a1 a2, φ a1 → φ a2 → a1 = a2.
+
+Lemma total_par {A1 A2 E} m1 m2 φ1 φ2 (φ : A1 * A2 → Prop) (ψ : E → Prop) :
+  deterministic ψ →
   total m1 φ1 ψ →
   total m2 φ2 ψ →
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   total (par m1 m2) φ ψ.
 Proof.
-  intros.
-  destruct_total a2 e2; destruct_total a1 e1; try solve [ exfalso; tauto ].
-  eapply total_simp.
-  eapply SimpPar; eassumption.
-  eapply total_simp; [ eapply SimpParRetRet |].
-  eapply total_ret.
-  eauto.
+  intros Hdet H1 H2 H12.
+  destruct_total a2 e2; destruct_total a1 e1.
+  { (* ret, ret *)
+    eapply total_simp.
+    eapply SimpPar; eassumption.
+    eapply total_simp; [ eapply SimpParRetRet |].
+    eapply total_ret.
+    eauto. }
+  { (* throw, ret *)
+    eapply total_simp. eapply SimpPar; eassumption.
+    eapply total_simp. constructor. simpl.
+    by apply total_throw. }
+  { (* ret, throw *)
+    eapply total_simp. eapply SimpPar; eassumption.
+    eapply total_simp. constructor. simpl.
+    by apply total_throw. }
+  { (* throw, throw *)
+    assert (e1 = e2) by by apply Hdet. subst e2.
+    eapply total_simp. eapply SimpParThrowAgree; subst; eauto.
+    by apply total_throw. }
 Qed.
 
 (* A reasoning rule for [choose]. *)
@@ -1301,9 +1332,6 @@ Qed.
 (* This rule is limited to the case where [ψ] is [λ _, False] because we
    cannot allow [m1] to raise an exception while [m2] terminates, or
    vice-versa. *)
-
-Definition deterministic {A} (φ : A → Prop) :=
-  ∀ a1 a2, φ a1 → φ a2 → a1 = a2.
 
 Lemma total_choose {A E} m1 m2 (φ : A → Prop) :
   let ψ := λ (_ : E), False in
@@ -1491,7 +1519,9 @@ Lemma totalv_par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) :
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   totalv (par m1 m2) φ.
 Proof.
-  unfold totalv. eauto using total_par.
+  unfold totalv.
+  apply total_par.
+  intros ? ? [].
 Qed.
 
 (* A reasoning rule for [choose]. *)
@@ -1716,7 +1746,7 @@ Proof.
 
   (* Subcase: [SimplifyParRetLeft]. *)
   {
-    (* [m] is [Par m1 m2 _ _]. *)
+    (* [m] is [Par m1 m2 _]. *)
     invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetLeft |].
@@ -1729,7 +1759,7 @@ Proof.
 
   (* Subcase: [SimplifyParRetRight]. *)
   {
-    (* [m] is [Par m1 m2 _ _]. *)
+    (* [m] is [Par m1 m2 _]. *)
     invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Perform one step forward in the goal. *)
     eapply total_simp; [ eapply SimpParRetRight |].
@@ -1742,13 +1772,23 @@ Proof.
 
   (* Subcase: [SimplifyPar]. *)
   {
-    (* [m] is [Par m1 m2 _ _]. *)
+    (* [m] is [Par m1 m2 _]. *)
     invert_try2_eq_par. subst m. clear Hret Hthrow.
     (* Change [m1] to [m'1] and [m2] to [m'2] in the goal. *)
     eapply total_simp.
     { eapply SimpPar; eapply simplify_simp; eauto. }
-    (* Recognize [try (Par _ _ _ _) _ _] in the stack. *)
+    (* Recognize [try (Par _ _ _) _ _] in the stack. *)
     rewrite <- try2_Par in Hstack.
+    (* Apply the induction hypothesis. *)
+    eauto with lia.
+  }
+
+  (* Subcase: [SimplifyParThrowAgree]. *)
+  { (* [m] is [Par m1 m2 k0] *)
+    invert_try2_eq_par. subst m.
+    (* Change [Par m1 m2 k0] to [discontinue k0 e] *)
+    eapply total_simp.
+    { eapply SimpParThrowAgree; eapply simplify_simp; eauto. }
     (* Apply the induction hypothesis. *)
     eauto with lia.
   }
