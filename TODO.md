@@ -178,6 +178,13 @@
   - Check that we are able to use Iris invariants
   - Port Arthur's imperative pairing heaps and compare with CFML.
 
+* Suggested examples for different features:
+  - pure code: searching in a BST
+  - mutually recursive definitions: List.sort
+  - exceptions: List.mem using List.iter
+  - mutable state: sum of a list using List.iter and a reference
+  - try-with catching one exception but not another
+
 ## Features of OCaml that we want to support (at some point)
 
 * Functions and function applications ✓
