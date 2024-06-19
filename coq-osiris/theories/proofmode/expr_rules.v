@@ -75,13 +75,12 @@ Section ewp_rules_expr.
     EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 P /=".
-    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
+    simpl_eval_bindings.
     iApply (ewp_Par with "H1 H2 [] []");
       [ by iIntros (v) "H" | by iIntros (v) "H" | .. ].
     iIntros (v δ) "H1 H2".
-    rewrite /irrefutably_extend. cbn.
-    iSpecialize ("P" with "H1 H2").
-    iDestruct "P" as (??) "P".
+    unfold irrefutably_extend; cbn.
+    iSpecialize ("P" with "H1 H2"); iDestruct "P" as (??) "P".
     iApply ewp_widen; done.
   Qed.
 
@@ -93,8 +92,7 @@ Section ewp_rules_expr.
            ∗ φ (O2Ret δ)) -∗
     EWP eval_bindings η [ Binding p e ] <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 P /=".
-    with_strategy transparent [eval_bindings] unfold eval_bindings; cbn.
+    iIntros "H1 P /=". simpl_eval_bindings.
     Par. Bind.
     iApply (ewp_mono with "H1").
     iIntros (v) "H"; destruct v; try done; cbn.
@@ -112,7 +110,7 @@ Section ewp_rules_expr.
       EWP widen (irrefutably_extend δ p v)  <|Ψ|> {{ φ }}) -∗
     EWP eval_bindings η (Binding p e :: bs) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=".
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval_bindings.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (v) "H". Throw. iApply ("E1" with "H").
     - iIntros (v) "H". Throw. iApply ("E2" with "H").
@@ -122,7 +120,7 @@ Section ewp_rules_expr.
   Lemma ewp_eval_bindings_nil η Ψ :
     ⊢ EWP eval_bindings η [] <|Ψ|> {{ RET= [] }}.
   Proof.
-    by iApply ewp_value.
+    simpl_eval_bindings; by iApply ewp_value.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -134,7 +132,7 @@ Section ewp_rules_expr.
     EWP lookup_path η p <|Ψ|> {{ RET v, φ v }} -∗
     EWP eval η (EPath p) <|Ψ|> {{ RET v, φ v }}.
   Proof.
-    iIntros "H /=".
+    iIntros "H /=". simpl_eval.
     iApply ewp_try.
     iApply (ewp_mono with "H").
     iIntros ([|[]]) "A/=".
@@ -152,7 +150,7 @@ Section ewp_rules_expr.
     (∀ v1 v2, φ1 (O2Ret v1) -∗ φ2 (O2Ret v2) -∗ EWP call v1 v2 <|Ψ|> {{ φ }}) -∗
     EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=".
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (?) "E /= //". iApply ewp_throw. iApply ("E1" with "E").
     - iIntros (?) "E /= //". iApply ewp_throw. iApply ("E2" with "E").
@@ -228,13 +226,13 @@ Section ewp_rules_expr.
       {{| RET v => ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi;
         | EXN e => φe e }}.
   Proof.
-    iIntros "H /=".
+    iIntros "H /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono _ _ (| RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
                           | EXN v => φe v) with "[-]")%I.
     2: by iIntros ([]) "A/="; auto; iApply ewp_value; simpl; iExists _; auto.
-    iInduction es as [ | ei es ] "IH" forall (φs) "H".
-    - iApply ewp_value. auto.
+    iInduction es as [ | ei es ] "IH" forall (φs) "H"; simpl_evals.
+    - by iApply ewp_value.
     - iDestruct (big_sepL2_cons_inv_l with "H") as (φi φs') "(-> & Hi & H) /=".
       iApply (ewp_Par with "Hi [H]").
       + iApply ("IH" with "H").
@@ -309,13 +307,13 @@ Section ewp_rules_expr.
     φ (O2Ret VUnit) -∗
     EWP eval η EUnit <|Ψ|> {{ φ }}.
   Proof.
-    iApply ewp_value.
+    simpl_eval; iApply ewp_value.
   Qed.
 
   Lemma ewp_EUnit_forward η Ψ :
     ⊢ EWP eval η EUnit <|Ψ|> {{ RET= #() }}.
   Proof.
-    by iApply ewp_value.
+    simpl_eval; by iApply ewp_value.
   Qed.
 
   Lemma ewp_EPair_exn η e1 e2 (φ1 φ2 φ : outcome2 val exn -> _) Ψ :
@@ -392,7 +390,7 @@ Section ewp_rules_expr.
     propagate_ret_fmap (λ v, VData c v) φ1 φ -∗
     EWP eval η (EData c e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "He E R /=".
+    iIntros "He E R /=". simpl_eval.
     iApply ewp_bind_exn. iApply (ewp_mono with "He").
     iIntros ([]) "H /=".
     - iApply ewp_value. iApply "R". auto.
@@ -404,11 +402,7 @@ Section ewp_rules_expr.
     φ (O2Ret (VConstant c)) -∗
     EWP eval η (EConstant c) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H".
-    iApply ewp_EData.
-    - by iApply (ewp_value _ _ (λ v, ⌜v = O2Ret (VTuple [])⌝)%I).
-    - iIntros (e [=]).
-    - by iIntros (? [=->]).
+    iIntros "H". simpl_eval. by iApply ewp_value.
   Qed.
 
   (** * EXData : data → expr → expr *)
@@ -423,14 +417,14 @@ Section ewp_rules_expr.
   Lemma ewp_EInt_forward η i Ψ :
     ⊢ EWP eval η (EInt i) <|Ψ|> {{ RET= #i }}.
   Proof.
-    by iApply ewp_value.
+    simpl_eval; by iApply ewp_value.
   Qed.
 
   Lemma ewp_EInt η i φ Ψ :
     φ (O2Ret #i) -∗
     EWP eval η (EInt i) <|Ψ|> {{ φ }}.
   Proof.
-    by iApply ewp_value.
+    simpl_eval; by iApply ewp_value.
   Qed.
 
   (** * EMaxInt : expr *)
@@ -446,7 +440,7 @@ Section ewp_rules_expr.
     (∀ n1 n2, φ1 (O2Ret n1) ∗ φ2 (O2Ret n2) -∗ φ (O2Ret (VInt (int.M.add n1 n2)))) -∗
     EWP eval η (EIntAdd e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=".
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E1" with "H").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E2" with "H").
@@ -533,7 +527,7 @@ Section ewp_rules_expr.
       EWP eq_val v1 v2 <|Ψ|> {{ RET b, φ (O2Ret (VBool b)) }}) -∗
     EWP eval η (EOpEq e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=".
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E1" with "H").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E2" with "H").
@@ -591,7 +585,7 @@ Section ewp_rules_expr.
     (∀ δ, φ1 (O2Ret δ) -∗ EWP eval (δ ++ η) e <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet bs e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hη E P /=".
+    iIntros "Hη E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "Hη").
     iIntros ([δ|v]) "H/=".
@@ -604,7 +598,7 @@ Section ewp_rules_expr.
     (∀ δ, φ' δ -∗ EWP eval (δ ++ η) e <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet bs e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hη P /=".
+    iIntros "Hη P /=". simpl_eval.
     iApply ewp_bind.
     iApply (ewp_mono with "Hη").
     iIntros ([δ|v]) "H/="; last done.
@@ -640,8 +634,9 @@ Section ewp_rules_expr.
     iIntros "H P".
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
-    iExists _. iSplit. by iPureIntro; constructor.
-    iApply ("P" with "Hv").
+    iExists _. iSplit.
+    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iApply ("P" with "Hv").
   Qed.
 
   (* Alternative form *)
@@ -665,8 +660,9 @@ Section ewp_rules_expr.
     iIntros "H P".
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
-    iExists _. iSplit. by iPureIntro; constructor.
-    iApply ("P" with "Hv").
+    iExists _. iSplit.
+    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iApply ("P" with "Hv").
   Qed.
 
   (** * ELetRec : list rec_binding → expr → expr *)
@@ -676,7 +672,7 @@ Section ewp_rules_expr.
     EWP eval (δ ++ η) e <|Ψ|> {{ φ }} -∗
     EWP eval η (ELetRec bs e) <|Ψ|> {{ φ }}.
   Proof.
-    auto.
+    simpl_eval; auto.
   Qed.
 
   (** let rec expressions with one function. Here [a : A] is an auxiliary
@@ -726,8 +722,7 @@ Section ewp_rules_expr.
     EWP eval (δ ++ η) e <|ψ|> {{ φ }} }} -∗
     EWP eval η (ELetOpen me e) <|ψ|> {{ φ }}.
   Proof.
-    iIntros "Hme".
-    rewrite eval_eval'; simpl.
+    iIntros "Hme". simpl_eval.
     iApply ewp_bind.
     rewrite /as_struct. iApply ewp_bind.
     iApply (ewp_mono with "Hme").
@@ -745,7 +740,7 @@ Section ewp_rules_expr.
     (∀ v1, φ1 (O2Ret v1) -∗ EWP eval η e2 <|Ψ|> {{ φ }}) -∗
     EWP eval η (ESeq e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H E P /=".
+    iIntros "H E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
     iIntros ([v|v]) "/= H1".
@@ -757,7 +752,7 @@ Section ewp_rules_expr.
     EWP eval η e1 <|Ψ|> {{ RET _, EWP eval η e2 <|Ψ|> {{ φ }} }} -∗
     EWP eval η (ESeq e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H". iApply ewp_bind. auto.
+    iIntros "H". simpl_eval. by iApply ewp_bind.
   Qed.
 
   (** * EIfThen : expr → expr → expr *)
@@ -770,7 +765,7 @@ Section ewp_rules_expr.
     ∨ (⌜v = VFalse⌝ ∗ φ (O2Ret VUnit))) -∗
     EWP eval η (EIfThen eb e1) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hb E P /=".
+    iIntros "Hb E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
@@ -789,7 +784,7 @@ Section ewp_rules_expr.
            else φ (O2Ret VUnit)) -∗
     EWP eval η (EIfThen eb e1) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hb E P /=".
+    iIntros "Hb E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
@@ -821,7 +816,7 @@ Section ewp_rules_expr.
     ∨ (⌜v = VFalse⌝ ∗ EWP eval η e2 <|Ψ|> {{ φ }})) -∗
     EWP eval η (EIfThenElse eb e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hb E P /=".
+    iIntros "Hb E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
@@ -840,7 +835,7 @@ Section ewp_rules_expr.
            else EWP eval η e2 <|Ψ|> {{ φ }}) -∗
     EWP eval η (EIfThenElse eb e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "Hb E P /=".
+    iIntros "Hb E P". simpl_eval.
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
@@ -868,7 +863,8 @@ Section ewp_rules_expr.
     EWP deep_handler η e bs <|Ψ|> {{ Φ }} -∗
     EWP eval η (EMatch e bs) <|Ψ|> {{ Φ }}.
   Proof.
-    iIntros "H"; by rewrite (eval_eval' _ (EMatch _ _)) /=.
+    iIntros "H"; simpl_eval.
+    by unfold deep_handler; simpl_deep_eval_match.
   Qed.
 
   (* TODO: remove? probably handled by Simp *)
@@ -876,8 +872,8 @@ Section ewp_rules_expr.
     (∃ e, ⌜a = O2Throw e⌝ ∗ φ (O2Throw e)) -∗
       EWP eval_match true η a [] <|Ψ|>{{ φ }}.
   Proof.
-    iIntros "H".
-    iDestruct "H" as (e) "(-> & H)".
+    iIntros "(%e & -> & H)".
+    simpl_eval_match.
     iApply (ewp_throw with "H").
   Qed.
 
@@ -889,9 +885,7 @@ Section ewp_rules_expr.
                | EXN v => EWP eval_trywith η v bs <|Ψ|>{{ φ }} }} -∗
     EWP eval η (ETryWith e bs) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "?".
-    rewrite (eval_eval' _ (ETryWith _ _)) /=.
-    by iApply ewp_try.
+    iIntros "?". simpl_eval. by iApply ewp_try.
   Qed.
 
   (** * ERaise : expr → expr *)
@@ -900,7 +894,7 @@ Section ewp_rules_expr.
     EWP eval η e <|Ψ|> {{ | RET v => φ (O2Throw v); | EXN v => φ (O2Throw v)}} -∗
     EWP eval η (ERaise e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H /=".
+    iIntros "H". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
     iIntros ([]) "/= H //".
@@ -921,7 +915,7 @@ Section ewp_rules_expr.
      (∀ v, φ1 (O2Ret v) -∗ ⌜v = VTrue⌝ ∗ φ (O2Ret #())))
     ⊢ EWP eval η (EAssert e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H /=".
+    iIntros "H /=". simpl_eval.
     iApply ewp_Choose.
     iNext. iSplit.
     - iApply ewp_value. iApply (bi.and_elim_l with "H").
@@ -946,7 +940,7 @@ Section ewp_rules_expr.
     (∀ v, φ1 (O2Ret v) -∗ ⌜v = VTrue⌝ ∗ φ (O2Ret #()))
     ⊢ EWP eval η (EAssert e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "(R & H & He & P) /=".
+    iIntros "(R & H & He & P) /=". simpl_eval.
     iApply ewp_Choose.
     iNext. iSplit. by iApply ewp_value.
     iSpecialize ("H" with "R").
@@ -991,7 +985,7 @@ Section ewp_rules_expr.
     (∀ v, φ1 (O2Ret v) -∗ ∀ l, mapsto l (DfracOwn 1) (V v) -∗ φ (O2Ret (VLoc l))) -∗
     EWP eval η (ERef e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H E P".
+    iIntros "H E P". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
     iIntros ([v|v]) "H".
@@ -1031,7 +1025,7 @@ Section ewp_rules_expr.
     (∀ l, φ1 (O2Ret l) -∗ ∃ q v, mapsto l q (V v) ∗ ▷(mapsto l q (V v) -∗ φ (O2Ret v))) -∗
     EWP eval η (ELoad e) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H E P /=".
+    iIntros "H E P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
     iIntros ([l|v]) "H1".
@@ -1073,7 +1067,7 @@ Section ewp_rules_expr.
       ∃ v1, mapsto l1 (DfracOwn 1) (V v1) ∗ ▷(mapsto l1 (DfracOwn 1) (V v2) -∗ φ (O2Ret VUnit))) -∗
     EWP eval η (EStore e1 e2) <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=".
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (e) "H1". iApply ewp_throw. iApply ("E1" with "H1").
     - iIntros (e) "H2". iApply ewp_throw. iApply ("E2" with "H2").

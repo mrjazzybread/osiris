@@ -33,7 +33,7 @@ Lemma simp_eval_path η π v :
   lookup_path η π = ret v →
   simp (eval η (EPath π)) (ret v).
 Proof.
-  intros Hlookup. simpl. rewrite Hlookup. simp.
+  intros Hlookup. simpl_eval. rewrite Hlookup. simp.
 Qed.
 
 (* Tuples. *)
@@ -48,7 +48,7 @@ Lemma simp_evals η :
   Forall2 (λ e v, simp (eval η e) (ret v)) es vs →
   simp (evals η es) (ret vs).
 Proof.
-  induction 1; simpl; simp.
+  induction 1; simpl_evals; simp.
 Qed.
 
 (* This lemma is general but does not mention the encoding function,
@@ -110,7 +110,7 @@ Lemma simp_eval_add η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntAdd e1 e2)) (ret #(z1 + z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_eval_sub η e1 e2 (z1 z2 : Z) :
@@ -118,7 +118,7 @@ Lemma simp_eval_sub η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntSub e1 e2)) (ret #(z1 - z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_eval_mul η e1 e2 (z1 z2 : Z) :
@@ -126,7 +126,7 @@ Lemma simp_eval_mul η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntMul e1 e2)) (ret #(z1 * z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_eval_div η e1 e2 (z1 z2 : Z) :
@@ -137,7 +137,7 @@ Lemma simp_eval_div η e1 e2 (z1 z2 : Z) :
   z2 ≠ 0 →
   simp (eval η (EIntDiv e1 e2)) (ret #(z1 ÷ z2)).
 Proof.
-  intros ? ? Hrz1 Hrz2 Hnnz2. simpl. unfold as_int. simp.
+  intros ? ? Hrz1 Hrz2 Hnnz2. simpl_eval. unfold as_int. simp.
   specialize (simp_check_div_by_zero _ Hrz2 Hnnz2); intro.
   simp.
 Qed.
@@ -148,7 +148,7 @@ Lemma simp_eval_lnot η e (z : Z) :
   simp (eval η e) (ret #z) →
   simp (eval η (EIntLnot e)) (ret #(Z.lnot z)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
@@ -156,8 +156,8 @@ Lemma simp_eval_land η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntLand e1 e2)) (ret #(Z.land z1 z2)).
 Proof.
-  intros. simpl. unfold as_int.
-  eapply simp_par; simp.
+  intros. simpl_eval. unfold as_int.
+  simp.
 Qed.
 
 Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
@@ -165,7 +165,7 @@ Lemma simp_eval_lor η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntLor e1 e2)) (ret #(Z.lor z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_eval_lxor η e1 e2 (z1 z2 : Z) :
@@ -173,7 +173,7 @@ Lemma simp_eval_lxor η e1 e2 (z1 z2 : Z) :
   simp (eval η e2) (ret #z2) →
   simp (eval η (EIntLxor e1 e2)) (ret #(Z.lxor z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
 Qed.
 
 Lemma simp_if_in_shift_range {A E} z (m : micro A E) :
@@ -193,7 +193,7 @@ Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
   in_shift_range z2 →
   simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
   unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsl_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
@@ -206,7 +206,7 @@ Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
   in_shift_range z2 →
   simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
   unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
@@ -219,7 +219,7 @@ Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
   in_shift_range z2 →
   simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
-  intros. simpl. unfold as_int. simp.
+  intros. simpl_eval. unfold as_int. simp.
   unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite asr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
@@ -234,14 +234,14 @@ Lemma simp_eval_negb η e (b : bool) :
   simp (eval η e) (ret #b) →
   simp (eval η (EBoolNeg e)) (ret #(negb b)).
 Proof.
-  intros. simpl. unfold as_bool. simp.
+  intros. simpl_eval. unfold as_bool. simp.
 Qed.
 
 Lemma simp_eval_not η e (P : Prop) :
   simp (eval η e) (ret #P) →
   simp (eval η (EBoolNeg e)) (ret #(¬P)).
 Proof.
-  intros. simpl. unfold as_bool. rewrite truth_neg. simp.
+  intros. simpl_eval. unfold as_bool. simp. by rewrite truth_neg.
 Qed.
 
 (* Local definitions. *)
@@ -253,7 +253,8 @@ Lemma simp_eval_let η x e1 e2 v1 m :
   (let η' := (x, v1) :: η in simp (eval η' e2) m) →
   simp (eval η (ELet1Var x e1 e2)) m.
 Proof.
-  intros. simp. assumption.
+  intros. simpl_eval. simp.
+  unfold irrefutably_extend; simpl_extend. assumption.
 Qed.
 
 (* Conditionals. *)
@@ -266,12 +267,12 @@ Lemma simp_eval_ifthenelse η e e1 e2 (P : Prop) v :
   (¬P → simp (eval η e2) (ret v)) →
   simp (eval η (EIfThenElse e e1 e2)) (ret v).
 Proof.
-  simpl. unfold as_bool. (* [simp] cannot deal with [as_bool] *)
+  simpl_eval. unfold as_bool. (* [simp] cannot deal with [as_bool] *)
   intros He He1 He2.
   generalize (truth_elim P). generalize dependent (truth P).
-  intros [|] He.
-  { intros HP. specialize (He1 HP). simp. }
-  { intros HP. specialize (He2 HP). simp. }
+  intros [|] HP.
+  { specialize (He1 HP). simp. rewrite truth_true by assumption. simp. }
+  { specialize (He2 HP). simp. rewrite truth_false by assumption. simp. }
 Qed.
 
 Lemma simp_eval_ifthenelse_pure
@@ -282,10 +283,12 @@ Lemma simp_eval_ifthenelse_pure
   (¬P → pure (eval η e2) ψ) →
   pure (eval η (EIfThenElse e e1 e2)) ψ.
 Proof.
-  simpl. unfold as_bool. (* [simp] cannot deal with [as_bool] *)
+  simpl_eval. unfold as_bool. (* [simp] cannot deal with [as_bool] *)
   intros.
   generalize (truth_elim P). generalize dependent (truth P).
-  intros [|] ? ?; solve [ eapply pure_simp; [ simp | eauto ]].
+  intros [|] ?; (eapply pure_simp; [ simp | eauto ]).
+  - rewrite truth_true by assumption; eauto.
+  - rewrite truth_false by assumption; eauto.
 Qed.
 
 (* Runtime assertions. *)
@@ -304,7 +307,7 @@ Lemma simp_eval_seq η e1 e2 v :
   simp (eval η e2) (ret v) ->
   simp (eval η (ESeq e1 e2)) (ret v).
 Proof.
-  intros [??] ?.
+  intros [??] ?. simpl_eval.
   eauto using prove_simp_bind.
 Qed.
 
@@ -326,11 +329,6 @@ Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
 Proof.
   intros. eapply pure_simp; [ simp | eauto ].
 Qed.
-
-(* The following lemmas are obtained as consequences of the previous
-   lemmas, so [eval] and its auxiliary functions can be made opaque. *)
-
-Local Opaque eval as_bool.
 
 (* This hint is used in the proofs that follow. *)
 
@@ -448,7 +446,7 @@ Proof.
   eapply pure_ret; first solve [encode].
   apply Hcov.
   intros. eapply pure_simp; [ simp  |  ].
-  by apply Hcall.
+  specialize (Hcall x); generalize Hcall; by simpl_deep_eval_match.
 Qed.
 
 Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) :
@@ -676,11 +674,11 @@ Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   simp (eval (θ ++ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
-  intros. simp; last eassumption.
-  eapply prove_simp_try2; last apply SimpReflexive.
+  intros. simp; last eassumption. simpl_eval_bindings. simp.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
-  unfold irrefutably_extend in *.
+  unfold irrefutably_extend in *; simpl_extend.
   eapply prove_simp_try2; last apply SimpReflexive.
+  eapply prove_simp_try; [ | apply SimpReflexive ].
   eapply prove_simp_bind. { eauto using simp_wrap. }
   rewrite bind_bind.
   simpl. rewrite bind_ret_right. eauto using simp_wrap.
@@ -903,10 +901,8 @@ Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
   ψ (VStruct δ) ->
   pure (eval_mexpr η (MStruct items)) ψ.
 Proof.
-  intros.
-  eapply pure_simp.
-  { eapply prove_simp_bind; [eauto | apply SimpReflexive]. }
-  eapply pure_ret; eauto.
+  intros. simpl_eval_mexpr.
+  eapply pure_simp; [ simp | eauto using pure_ret ].
 Qed.
 
 Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop):
@@ -914,7 +910,7 @@ Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop):
   pure (coerce c v) ψ ->
   pure (eval_mexpr η (MCoercion me c)) ψ.
 Proof.
-  intros.
+  intros. simpl_eval_mexpr.
   destruct_pure cv.
   eapply pure_simp.
   { eapply prove_simp_bind; eauto. apply simp_widen; eauto. }
@@ -925,10 +921,8 @@ Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
   pure (lookup_path η π) ψ ->
   pure (eval η (EPath π)) ψ.
 Proof.
-  intros. destruct_pure v.
-  eapply pure_simp.
-  rewrite eval_eval'; cbn; eapply simp_widen; eauto.
-  eapply pure_ret; eauto.
+  intros. destruct_pure v. simpl_eval.
+  eapply pure_simp; [ by apply simp_widen | eauto using pure_ret ].
 Qed.
 
 Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) :
@@ -942,8 +936,7 @@ Qed.
 Lemma simp_eval_const η c :
   simp (eval η (EConstant c)) (ret (VConstant c)).
 Proof.
-  do 2 (rewrite eval_eval'; simpl).
-  done.
+  by simpl_eval.
 Qed.
 
 Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) :
@@ -952,18 +945,15 @@ Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) :
   pure (eval η (EConstant c)) ψ.
 Proof.
   intros.
-  eapply pure_simp; first apply simp_eval_const.
-  eauto using pure_ret.
+  eapply pure_simp; [ apply simp_eval_const | eauto using pure_ret ].
 Qed.
 
 Lemma simp_eval_data η c e v :
   simp (eval η e) (ret v) ->
   simp (eval η (EData c e)) (ret (VData c v)).
 Proof.
-  intros.
-  rewrite eval_eval'; simpl.
-  eapply prove_simp_bind; first eassumption.
-  apply SimpReflexive.
+  intros. simpl_eval.
+  eapply prove_simp_bind; eauto with simp.
 Qed.
 
 Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) :
@@ -991,16 +981,8 @@ Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) 
       VData c (VTuple1 #x) = #(C x) /\ ψ (C x)) ->
   pure (eval η (EData c (ETuple [e]))) ψ.
 Proof.
-  intros. destruct_pure a.
-  destruct_hyp.
-  eapply pure_eval_data; [ | eassumption ].
-  eapply pure_simp.
-  { rewrite eval_eval'; simpl. apply SimpParRetRight. }
-  eapply pure_try.
-  { eapply pure_simp; first eassumption.
-    eapply pure_ret; [ encode | apply eq_refl ]. }
-  intros; subst; simpl.
-  eapply pure_ret; eauto.
+  intros. destruct_pure a. destruct_hyp.
+  eapply pure_simp; [simp | eapply pure_ret; eauto].
 Qed.
 
 Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
@@ -1016,11 +998,8 @@ Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Pro
       VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ->
   pure (eval η (EData c e)) ψ.
 Proof.
-  intros. destruct_pure a; destruct a.
-  destruct_hyp.
-  eapply pure_eval_data; [ | eauto ].
-  eapply pure_simp; [ eassumption | ].
-  eapply pure_ret; [ by apply solve_encode_val | ]; eauto.
+  intros. destruct_pure a; destruct a. destruct_hyp.
+  eapply pure_simp; [ simp | eapply pure_ret; eauto ].
 Qed.
 
 (* Example usage of the CRel typeclasses:

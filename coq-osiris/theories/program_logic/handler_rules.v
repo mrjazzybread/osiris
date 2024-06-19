@@ -163,15 +163,13 @@ Section handler_proof.
     by iApply (ewp_handle with "He").
   Qed.
 
-  Definition deep_handler_body := pre_eval_match_aux eval true.
-
   Definition shallow_handler_body := pre_eval_match_aux eval false.
 
   (* Specification of [deep_handler] at the [expr] level. *)
   Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E Ψ Φ (λ o, deep_handler_body η o bs bs) Ψ' Φ' -∗
+    deep_handler_spec E Ψ Φ (λ o, deep_eval_match_aux η o bs bs) Ψ' Φ' -∗
     EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
@@ -185,16 +183,16 @@ Section handler_proof.
     iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
-    construct_wp_nonret; destruct_step; cbn -[deep_eval_match];
-      iMod "Hmod" as "_"; try rewrite -x; cbn -[deep_eval_match];
-    rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
+    construct_wp_nonret; destruct_step;
+      iMod "Hmod" as "_"; try rewrite -x;
+      rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       ewp_invert; iFrame;
       iDestruct "Hsh" as "[Hsh _]";
       iSpecialize ("Hsh" with "HΦ");
-      try iMod "Hsh";
-      by ewp_mask_intro "Hmod"; ewp_mask_elim.
+      try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim;
+      by simpl_deep_eval_match.
 
     { (* [StepHandlePerform] *)
       iDestruct "Hsh" as "[_ Hsh]".
@@ -206,9 +204,8 @@ Section handler_proof.
       iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi")
         as ">[Hsi [HH _]]"; [ exact H | ].
 
-      iFrame.
+      iFrame. simpl_deep_eval_match.
       (* Install the handler around the location [l]. *)
-      rewrite {2}/deep_eval_match; cbn -[deep_eval_match].
       iApply ewp_install.
       ewp_mask_intro "Hmod".
       ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
@@ -225,7 +222,8 @@ Section handler_proof.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
         iNext. iIntros "H".
-        rewrite try2_ret_right. done. }
+        rewrite try2_ret_right.
+        by rewrite /eval_match seal_eq /= ?fold_pre_eval_match_aux. }
       done. }
 
     { (* [StepHandleCrash] *)
@@ -258,10 +256,10 @@ Section handler_proof.
     ψ allows perform eff
     << λ o,
       ▷ (k ↦ Shot -∗ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
-    EWP (deep_handler_body η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
+    EWP (deep_eval_match_aux η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
     iIntros "Hl Hperf".
-    iApply ewp_stop_perform.
+    simpl_deep_eval_match_aux. iApply ewp_stop_perform.
     rewrite /prot /iEff_car.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
@@ -298,6 +296,7 @@ Section handler_proof.
     { iIntros (o) "H".
       iPoseProof (ewp_handle_inv with "Hk") as "Hcov".
       iApply "Hcov". iApply "H". }
+    rewrite /eval_match seal_eq /=.
     done.
   Qed.
 

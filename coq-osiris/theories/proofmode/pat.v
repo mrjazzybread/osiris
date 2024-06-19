@@ -13,14 +13,16 @@ Lemma pats_PNil η φ :
   φ η →
   patterns η [] [] φ False.
 Proof.
-  unfold patterns. simpl. eauto using total_ret.
+  unfold patterns.
+  simpl_extends.
+  eauto using total_ret.
 Qed.
 
 Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
   pattern η p v (λ η, patterns η ps vs φ ψ2) ψ1 →
   patterns η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
-  unfold patterns, patterns. intros Hp; simpl.
+  unfold patterns, patterns. intros Hp; simpl_extends.
   eapply total_bind.
   { eapply total_consequence.
     - eassumption.
@@ -87,14 +89,14 @@ Lemma pat_PAny η v φ :
   φ η →
   pattern η PAny v φ False.
 Proof.
-  unfold pattern. eauto using total_ret.
+  unfold pattern. simpl_extend. eauto using total_ret.
 Qed.
 
 Lemma pat_PVar η x v φ :
   φ ((x, v) :: η) →
   pattern η (PVar x) v φ False.
 Proof.
-  unfold pattern. eauto using total_ret.
+  unfold pattern. simpl_extend. eauto using total_ret.
 Qed.
 
 (* Given a goal of the form [pattern η (PVar x) v ?φ False],
@@ -117,7 +119,7 @@ Lemma pat_PAlias η p x v φ ψ :
   pattern η p v (λ η, φ ((x, v) :: η)) ψ →
   pattern η (PAlias p x) v φ ψ.
 Proof.
-  unfold pattern. simpl; intros.
+  unfold pattern. simpl_extend; intros.
   apply total_bind_unary.
   eauto using total_consequence, total_ret.
 Qed.
@@ -129,7 +131,7 @@ Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
     (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
        disjunction pattern to fail, both sides must fail. *)
 Proof.
-  unfold pattern. simpl; intros.
+  unfold pattern. simpl_extend; intros.
   eauto using total_orelse, total_consequence.
 Qed.
 
@@ -138,7 +140,7 @@ Lemma pat_PUnit η v φ :
   v = #() →
   pattern η PUnit v φ False.
 Proof.
-  unfold pattern. intros ? ->; simpl.
+  unfold pattern. intros ? ->; simpl_extend.
   eauto using total_ret.
 Qed.
 
@@ -148,14 +150,14 @@ Lemma pat_PTuple `{Encode A} η ps (a : A) vs φ ψ :
   pattern η (PTuple ps) #a φ ψ.
 Proof.
   unfold patterns, pattern.
-  by intros ->.
+  intros ->. by simpl_extend.
 Qed.
 
 Lemma pat_PTuple_val η ps vs φ ψ :
   patterns η ps vs φ ψ ->
   pattern η (PTuple ps) (VTuple vs) φ ψ.
 Proof.
-  tauto.
+  unfold pattern. by simpl_extend.
 Qed.
 
 Ltac pat_PTuple :=
@@ -170,7 +172,11 @@ Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ
   pattern η (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
 Proof.
   intros; subst.
-  eapply pats_consequence_psi; [ pats | tauto ].
+  unfold pattern. simpl_extend.
+  eapply total_bind; [ eapply total_consequence; eauto | ].
+  simpl; intros. rewrite bind_ret_right.
+  eapply total_bind; [ eapply total_consequence; eauto | ].
+  auto using total_ret.
 Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
@@ -179,7 +185,7 @@ Lemma pat_PData η c p c' v φ ψ :
     (* This form is useful when the truth of the equality [c = c']
        is not statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold pattern; intros. simpl_extend.
   destruct_string_eqb; eauto using total_throw, total_consequence.
 Qed.
 
@@ -188,7 +194,7 @@ Lemma pat_PData_eq η c p v φ ψ :
   pattern η (PData c p) (VData c v) φ ψ.
     (* This form is useful when [c = c'] is statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold pattern; intros. simpl_extend.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
@@ -197,7 +203,7 @@ Lemma pat_PData_neq η c p c' v φ :
   pattern η (PData c p) (VData c' v) φ True.
     (* This form is useful when [c ≠ c'] is statically known. *)
 Proof.
-  unfold pattern; intros. simpl.
+  unfold pattern; intros. simpl_extend.
   destruct_string_eqb; solve [ eauto using total_throw | tauto ].
 Qed.
 
@@ -209,7 +215,7 @@ Lemma pat_PXData_eq η c p c' v φ ψ :
        is not statically known. *)
 Proof.
   unfold pattern; intros Hlookup Hpat.
-  simpl; rewrite Hlookup. cbn; rewrite bind_ret.
+  simpl_extend; rewrite Hlookup. cbn; rewrite bind_ret.
   unfold locations.eqb; destruct c'; cbn.
   by rewrite Z.eqb_refl.
 Qed.
@@ -221,7 +227,7 @@ Lemma pat_PXData_neq η π p l1 l2 v φ :
     (* This form is useful when the truth of the equality [c = c']
        is not statically known. *)
 Proof.
-  unfold pattern; intros Hlookup Heq; simpl.
+  unfold pattern; intros Hlookup Heq; simpl_extend.
   rewrite Hlookup. cbn; rewrite bind_ret.
   unfold locations.eqb; simpl.
   destruct l1, l2; simpl in *.
@@ -237,7 +243,7 @@ Lemma pat_PXData_neq' η π p l1 l2 v :
     (* This form is useful when the truth of the equality [c = c']
        is not statically known. *)
 Proof.
-  unfold pattern; intros Hlookup Heq; simpl.
+  unfold pattern; intros Hlookup Heq; simpl_extend.
   rewrite Hlookup. cbn; rewrite bind_ret.
   unfold locations.eqb; simpl.
   destruct l1, l2; simpl in *.
@@ -322,7 +328,7 @@ Lemma pat_PInt η v (i j : Z) (φ : env → Prop) :
   pattern η (PInt i) v φ (i <> j).
 Proof.
   intros Hi Hj -> Hφ.
-  unfold pattern; simpl.
+  unfold pattern; simpl_extend.
   rewrite eq_repr_repr; auto.
   destruct (_ =? _) eqn:E.
   - apply total_ret. apply Hφ. by apply Z.eqb_eq.
@@ -430,7 +436,7 @@ Ltac pat_pCons :=
    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
 Definition pure_match `{Encode A} (η : env) (o : outcome3 val exn) bs all_bs (φ : A -> Prop) :=
-  pure (pre_eval_match_aux eval true η o bs all_bs) φ.
+  pure (deep_eval_match_aux η o bs all_bs) φ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
@@ -441,7 +447,8 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
 Proof.
   unfold pure_match; intros Heval Hmatch.
   destruct Heval as (? & ? & ->).
-  eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | done ].
+  eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption |  ].
+  by unfold continue; simpl.
 Qed.
 
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
@@ -451,7 +458,7 @@ Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -
 Proof.
   unfold pure_match; intros Heval Hmatch.
   destruct Heval as (? & ? & ?).
-  eapply pure_simp; [ simpl; eapply SimpHandleRet; eassumption | ].
+  eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption | ].
   by apply Hmatch.
 Qed.
 
@@ -462,7 +469,7 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs all_bs (φ : A -> Prop) :
   pure_match η v ((Branch p e) :: bs) all_bs φ.
 Proof.
   unfold pure_match; unfold pattern.
-  intros; simpl.
+  intros; simpl_deep_eval_match_aux.
   by apply total_pure.
 Qed.
 
