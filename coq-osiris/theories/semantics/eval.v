@@ -421,7 +421,8 @@ End Extend.
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Fixpoint extend δ p v : micro env unit :=
+Local Fixpoint pre_extend δ p v : micro env unit :=
+  let extend := pre_extend in
   let extends := pre_extends extend in
   let extendfs := pre_extendfs extend in
   match p, v with
@@ -484,10 +485,35 @@ Fixpoint extend δ p v : micro env unit :=
       type_mismatch "string expected"
   end.
 
+Local Definition extend_aux : seal (pre_extend).
+Proof. by eexists. Qed.
+Definition extend := extend_aux.(unseal).
+Lemma fold_pre_extend :
+  pre_extend = extend.
+Proof. unfold extend; by rewrite seal_eq. Qed.
+
 Local Definition extends_aux : seal (pre_extends extend).
 Proof. by eexists. Qed.
 (* Top-level definition for [extends] *)
 Definition extends := extends_aux.(unseal).
+Lemma fold_pre_extends :
+  pre_extends extend = extends.
+Proof. unfold extends; by rewrite seal_eq. Qed.
+
+Ltac simpl_extends :=
+  (unfold extends;
+   rewrite seal_eq;
+   (progress simpl pre_extends);
+   rewrite ?fold_pre_extends)
+  || fail "Unable to simplify application of extends".
+
+Ltac simpl_extend :=
+  (unfold extend;
+   rewrite seal_eq;
+   (progress simpl pre_extend);
+   rewrite ?fold_pre_extend, ?fold_pre_extends)
+  || fail "Unable to simplify application of extend".
+
 
 Local Definition extendfs_aux : seal (pre_extendfs extend).
 Proof. by eexists. Qed.
@@ -1284,50 +1310,53 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   end.
 
 
+(* -------------------------------------------------------------------------- *)
+
+(* Sealing definitions. *)
+
 Local Definition eval_aux : seal (pre_eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval] *)
 Definition eval := eval_aux.(unseal).
-
-Ltac simpl_eval :=
-  unfold eval; rewrite seal_eq;
-  (progress simpl pre_eval || idtac "Unable to simplify application of eval.").
+Lemma fold_pre_eval :
+  pre_eval = eval.
+Proof. unfold eval; by rewrite seal_eq. Qed.
 
 Local Definition evals_aux : seal (pre_evals eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [evals] *)
 Definition evals := evals_aux.(unseal).
-
-Ltac simpl_evals :=
-  unfold evals; rewrite seal_eq;
-  (progress simpl pre_evals || idtac "Unable to simplify application of evals.").
-
+Lemma fold_pre_evals :
+  pre_evals eval = evals.
+Proof. unfold evals; by rewrite seal_eq. Qed.
 
 Local Definition evalfs_aux : seal (pre_evalfs eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [evalfs] *)
 Definition evalfs := evalfs_aux.(unseal).
+Lemma fold_pre_evalfs :
+  pre_evalfs eval = evalfs.
+Proof. unfold evalfs; by rewrite seal_eq. Qed.
 
-Ltac simpl_evalfs :=
-  unfold evalfs; rewrite seal_eq;
-  (progress simpl pre_evalfs || idtac "Unable to simplify application of evalfs.").
-
-
-(* Handlers are deep by default. *)
+Local Definition deep_eval_match_aux_aux : seal (pre_eval_match_aux eval true).
+Proof. by eexists. Qed.
+Definition deep_eval_match_aux := deep_eval_match_aux_aux.(unseal).
+Lemma fold_pre_eval_match_aux :
+  pre_eval_match_aux eval true = deep_eval_match_aux.
+Proof. unfold deep_eval_match_aux; by rewrite seal_eq. Qed.
 
 Local Definition eval_match_aux : seal (pre_eval_match eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_match] *)
 Definition eval_match := eval_match_aux.(unseal).
+Lemma fold_pre_eval_match :
+  pre_eval_match eval = eval_match.
+Proof. unfold eval_match; by rewrite seal_eq. Qed.
 
-Ltac simpl_eval_match :=
-  unfold eval_match; rewrite seal_eq;
-  (progress simpl pre_eval_match || idtac "Unable to simplify application of eval_match.").
-
-Local Definition deep_eval_match_aux : seal (eval_match true).
+Local Definition deep_eval_match_aux' : seal (eval_match true).
 Proof. by eexists. Qed.
 (* Top-level definition for [deep_eval_match] *)
-Definition deep_eval_match := deep_eval_match_aux.(unseal).
+Definition deep_eval_match := deep_eval_match_aux'.(unseal).
 
 Local Definition shallow_eval_match_aux : seal (eval_match false).
 Proof. by eexists. Qed.
@@ -1338,36 +1367,128 @@ Local Definition eval_trywith_aux : seal (pre_eval_trywith eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_trywith] *)
 Definition eval_trywith := eval_trywith_aux.(unseal).
+Lemma fold_pre_eval_trywith :
+  pre_eval_trywith eval = eval_trywith.
+Proof. unfold eval_trywith; by rewrite seal_eq. Qed.
 
 Local Definition try_cextend_pure_aux : seal (pre_try_cextend_pure eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [try_cextend_pure] *)
 Definition try_cextend_pure := try_cextend_pure_aux.(unseal).
+Lemma fold_pre_try_cextend_pure :
+  pre_try_cextend_pure eval = try_cextend_pure.
+Proof. unfold try_cextend_pure; by rewrite seal_eq. Qed.
 
 Local Definition eval_bindings_aux : seal (pre_eval_bindings eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_bindings] *)
 Definition eval_bindings := eval_bindings_aux.(unseal).
+Lemma fold_pre_eval_bindings :
+  pre_eval_bindings eval = eval_bindings.
+Proof. unfold eval_bindings; by rewrite seal_eq. Qed.
 
 Local Definition eval_mexpr_aux : seal (pre_eval_mexpr eval_bindings).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_mexpr] *)
 Definition eval_mexpr := eval_mexpr_aux.(unseal).
+Lemma fold_pre_eval_mexpr :
+  pre_eval_mexpr eval_bindings = eval_mexpr.
+Proof. unfold eval_mexpr; by rewrite seal_eq. Qed.
 
 Local Definition eval_sitem_aux : seal (pre_eval_sitem eval_bindings eval_mexpr).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_sitem] *)
 Definition eval_sitem := eval_sitem_aux.(unseal).
+Lemma fold_pre_eval_sitem :
+  pre_eval_sitem eval_bindings eval_mexpr = eval_sitem.
+Proof. unfold eval_sitem; by rewrite seal_eq. Qed.
 
-Local Definition eval_sitems_aux : seal (pre_eval_sitems eval_bindings).
+Local Definition eval_sitems_aux : seal (pre_eval_sitems eval_bindings eval_mexpr).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_sitems] *)
 Definition eval_sitems := eval_sitems_aux.(unseal).
+Lemma fold_pre_eval_sitems :
+  pre_eval_sitems eval_bindings eval_mexpr = eval_sitems.
+Proof. unfold eval_sitems; by rewrite seal_eq. Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Unfolding and simplifying definitions. *)
+
+Ltac simpl_eval :=
+  (unfold eval;
+   rewrite seal_eq;
+   (progress simpl pre_eval);
+   rewrite ?fold_pre_eval,
+     ?fold_pre_evals,
+     ?fold_pre_evalfs,
+     ?fold_pre_eval_match,
+     ?fold_pre_eval_match_aux,
+     ?fold_pre_eval_trywith,
+     ?fold_pre_eval_bindings,
+     ?fold_pre_eval_mexpr)
+  || fail "Unable to simplify application of eval".
+
+Ltac simpl_evals :=
+  (unfold evals;
+   rewrite seal_eq;
+   (progress simpl pre_evals);
+   rewrite ?fold_pre_eval, ?fold_pre_evals)
+  || idtac "Unable to simplify application of evals".
+
+Ltac simpl_evalfs :=
+  (unfold evalfs;
+   rewrite seal_eq;
+   (progress simpl pre_evalfs))
+  || fail "Unable to simplify application of evalfs".
+
+Ltac simpl_deep_eval_match_aux :=
+  (unfold deep_eval_match_aux;
+   rewrite seal_eq;
+   (progress simpl pre_eval_match_aux);
+  rewrite ?fold_pre_eval_match_aux)
+  || fail "Unable to simplify application of deep_eval_match_aux".
+
+Ltac simpl_eval_match :=
+  (unfold eval_match;
+   rewrite seal_eq;
+   (progress simpl pre_eval_match);
+  rewrite ?fold_pre_eval_match_aux)
+  || fail "Unable to simplify application of eval_match".
+
+Ltac simpl_deep_eval_match :=
+  (unfold deep_eval_match;
+   rewrite seal_eq;
+   simpl_eval_match)
+  || fail "Unable to simplify application of deep_eval_match".
+
+Ltac simpl_eval_bindings :=
+  (unfold eval_bindings;
+   rewrite seal_eq;
+   (progress simpl pre_eval_bindings);
+   rewrite ?fold_pre_eval_bindings)
+  || fail "Unable to simplify application of eval_bindings".
+
+Ltac simpl_eval_sitem :=
+  (unfold eval_sitem;
+   rewrite seal_eq;
+   (progress simpl pre_eval_sitem))
+  || fail "Unable to simplify application of eval_sitem".
 
 Ltac simpl_eval_sitems :=
   (unfold eval_sitems;
    rewrite seal_eq;
-   progress simpl pre_eval_sitems) || fail "Unable to simplify application of eval_sitems".
+   (progress simpl pre_eval_sitems);
+   rewrite ?fold_pre_eval_sitem, ?fold_pre_eval_sitems)
+  || fail "Unable to simplify application of eval_sitems".
+
+Ltac simpl_eval_mexpr :=
+  (unfold eval_mexpr;
+   rewrite seal_eq;
+   (progress simpl pre_eval_mexpr);
+   rewrite ?fold_pre_eval_mexpr, ?fold_pre_eval_sitems)
+  || fail "Unable to simplify application of eval_mexpr".
+
 
 (* -------------------------------------------------------------------------- *)
 (* Auxiliary functions on [eval] *)
