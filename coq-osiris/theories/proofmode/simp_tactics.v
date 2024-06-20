@@ -589,13 +589,14 @@ Ltac simp_ret :=
    It is used (as sparingly as possible) by the tactics that follow. *)
 
 Ltac normalize :=
-  cbn.
+  unfold_all; cbn.
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
    If reflexivity cannot solve the goal, then [simp_close] fails. *)
 
 Ltac simp_close :=
+  fold_all;
   solve [
     simple eapply SimpReflexive
   | simp_ret
@@ -803,11 +804,15 @@ with simp1_inspect :=
          only afterwards can we discharge the [Handle]. *)
       first [
           (* Attempt 1. Reduce m to a ret. *)
-          simple eapply advance_SimpHandleRet; [ simp1; simp_close | simp0; simp_close ]
+          simple eapply advance_SimpHandleRet; [ simp0; simp_close | simp0; simp_close ]
         |
           (* Attempt 2. Reduce m to a throw. *)
-          simple eapply advance_SimpHandleThrow; [ simp1; simp_close | simp0; simp_close ]
+          simple eapply advance_SimpHandleThrow; [ simp0; simp_close | simp0; simp_close ]
         ]
+  | Choose ?m1 ?m2 ?k =>
+      simple eapply advance_SimpChooseAgree; [ simp0; simp_close
+                                             | simp0; simp_close
+                                             | simp0; simp_close ]
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
@@ -955,7 +960,7 @@ with simp1_par :=
 Ltac simp :=
   lazymatch goal with
   | |- simp ?m1 _ =>
-      simp0; try simp_close
+      simp0; (try simp_close || fold_all)
   | _ =>
       fail "[simp] expects a goal of the form [simp _ _]"
   end.

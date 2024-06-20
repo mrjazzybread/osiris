@@ -183,7 +183,7 @@ Ltac Call :=
 Ltac get_outcome_from_match e :=
   lazymatch e with
   | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
-  | (deep_handler_body _ ?o _ _) => constr:(o)
+  | (deep_eval_match_aux _ ?o _ _) => constr:(o)
   | (shallow_handler_body _ ?o _ _) => constr:(o)
   end.
 Ltac trivial_post_instantiation :=
@@ -208,7 +208,7 @@ Ltac skip_non_matching_branch :=
   iApply handle_cons_skip; [ reflexivity | ].
 Ltac skip_branch :=
   (skip_non_matching_branch || skip_matching_branch);
-  fold deep_handler_body; fold shallow_handler_body.
+  fold shallow_handler_body.
 Ltac enter_branch :=
   iApply (handle_cons with "[-]");
   [ specify_cpattern; pattern_match; try (apply eq_refl)

@@ -277,42 +277,20 @@ Ltac pure_enter_and_abstract :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Evaluate an [eval] by repeatedly changing [eval] into [eval'] *)
-Ltac simp_evaluate :=
-  simpl; repeat (rewrite eval_eval'; simpl).
-
-(* TODO the following tactics seem redundant with the symbolic execution
-        tactics, [simp] and friends. Avoid duplication. *)
-
-(* On a goal of the form [pure (Stop CEval x k ko) φ], evaluate the call by:
-   stepping through the [Stop] with the appropriate advance_SimpEval lemma,
-   using [simp_evaluate] under the resulting pure *)
-Ltac pure_evaluate :=
-  (lazymatch goal with
-   | |- pure (Stop CEval _ _ _) _ =>
-       eapply pure_simp; [
-         first [
-           apply advance_SimpEvalRetThrow
-         | apply advance_SimpEvalThrow
-         | apply advance_SimpEval
-         ]
-       | apply SimpReflexive
-       ]
-   | _ => idtac
-   end);
-  eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
-
-Ltac SimpParRet :=
-  first [
-    apply SimpParRetRet
-  | apply advance_SimpParRetLeftThrow
-  | apply advance_SimpParRetRightThrow
-  | apply SimpParRetLeft
-  | apply SimpParRetRight
-  ].
-
-Ltac pureParRet :=
-  eapply pure_simp; first SimpParRet; simpl.
+(* Evaluate an [eval] by repeatedly applying all of the simplifications. *)
+Ltac simpl_evaluate :=
+  repeat first [ simpl_eval
+               | simpl_evals
+               | simpl_evalfs
+               | simpl_deep_eval_match_aux
+               | simpl_eval_match
+               | simpl_eval_bindings
+               | simpl_eval_sitem
+               | simpl_eval_sitems
+               | simpl_eval_mexpr
+               | simpl_extends
+               | simpl_extend
+    ].
 
 (* -------------------------------------------------------------------------- *)
 
@@ -421,7 +399,7 @@ Ltac pure_nested_tac arg1 arg2 pre Hwf :=
           eapply pure_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
       end;
       [ reflexivity
-      | simpl; rewrite eval_eval'; reflexivity
+      | simpl_evaluate; reflexivity
       | apply Hwf
       | lazymatch pre with
           None =>
