@@ -500,20 +500,6 @@ Lemma fold_pre_extends :
   pre_extends extend = extends.
 Proof. unfold extends; by rewrite seal_eq. Qed.
 
-Ltac simpl_extends :=
-  (unfold extends;
-   rewrite seal_eq;
-   (progress simpl pre_extends);
-   rewrite ?fold_pre_extends)
-  || fail "Unable to simplify application of extends".
-
-Ltac simpl_extend :=
-  (unfold extend;
-   rewrite seal_eq;
-   (progress simpl pre_extend);
-   rewrite ?fold_pre_extend, ?fold_pre_extends)
-  || fail "Unable to simplify application of extend".
-
 
 Local Definition extendfs_aux : seal (pre_extendfs extend).
 Proof. by eexists. Qed.
@@ -1489,6 +1475,42 @@ Ltac simpl_eval_mexpr :=
    rewrite ?fold_pre_eval_mexpr, ?fold_pre_eval_sitems)
   || fail "Unable to simplify application of eval_mexpr".
 
+Ltac simpl_extends :=
+  (unfold extends;
+   rewrite seal_eq;
+   (progress simpl pre_extends);
+   rewrite ?fold_pre_extends)
+  || fail "Unable to simplify application of extends".
+
+Ltac simpl_extend :=
+  (unfold irrefutably_extend;
+   unfold extend;
+   rewrite seal_eq;
+   (progress simpl pre_extend);
+   rewrite ?fold_pre_extend, ?fold_pre_extends)
+  || fail "Unable to simplify application of extend".
+
+Ltac unfold_all :=
+  unfold eval, evals, evalfs,
+    deep_eval_match_aux, deep_eval_match, shallow_eval_match, eval_match,
+    eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
+    extends, irrefutably_extend, extend;
+  rewrite ?seal_eq.
+
+Ltac fold_all :=
+  repeat first [ rewrite fold_pre_eval
+               | rewrite fold_pre_evals
+               | rewrite fold_pre_evalfs
+               | rewrite fold_pre_eval_match
+               | rewrite fold_pre_eval_match_aux
+               | rewrite fold_pre_eval_bindings
+               | rewrite fold_pre_eval_mexpr
+               | rewrite fold_pre_eval_sitem
+               | rewrite fold_pre_eval_sitems
+               | rewrite fold_pre_extend
+               | rewrite fold_pre_extends
+               | rewrite fold_pre_try_cextend_pure
+    ].
 
 (* -------------------------------------------------------------------------- *)
 (* Auxiliary functions on [eval] *)

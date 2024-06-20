@@ -22,6 +22,13 @@ Arguments as_record m /.
 Arguments as_struct E m /.
 Arguments lookup_name _ _/.
 
+Arguments val_as_bool !v /.
+Arguments val_as_loc _ !v /.
+Arguments val_as_cont _ !v /.
+Arguments val_as_int !v /.
+Arguments val_as_record !v /.
+Arguments val_as_struct !v /.
+
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
 Arguments eval.remove !f !fvs : simpl nomatch. (* FIXME *)
@@ -55,16 +62,16 @@ Global Opaque
 
   (* Evaluator functions. *)
   call
-  eval
-  evals
-  eval_match
-  eval_sitem
-  eval_sitems
-  eval_bindings
-  extend
-  extends
-  eval_mexpr
-  coerce
+  (* eval *)
+  (* evals *)
+  (* eval_match *)
+  (* eval_sitem *)
+  (* eval_sitems *)
+  (* eval_bindings *)
+  (* extend *)
+  (* extends *)
+  (* eval_mexpr *)
+  (* coerce *)
 
   encode
 
