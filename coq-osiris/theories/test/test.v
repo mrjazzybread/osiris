@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import notations.
+From osiris.proofmode Require Import notations pure_tactics.
 From stdpp Require Import relations base gmap.
 
 (* We want to test our semantics, so as to ensure that it seems to be
@@ -100,13 +100,21 @@ Local Ltac compute_lookup :=
           Z_countable
           address ].
 
+Local Ltac unfold_all :=
+  unfold eval, evals, evalfs,
+    deep_eval_match_aux, shallow_eval_match, deep_eval_match, eval_match,
+    eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
+    extends, irrefutably_extend, extend;
+  rewrite ?seal_eq.
+
 Local Ltac steps :=
-  cbn;
-  repeat first [ eapply (nsteps_O)
-               | eapply nsteps_l; [ step | compute_lookup; vm_compute fresh; cbn ]
+  unfold_all; cbn;
+  repeat
+    (first [ eapply (nsteps_O)
+               | eapply nsteps_l; [ step | compute_lookup; vm_compute fresh ]
                | rewrite add_repr_repr
                | rewrite eq_repr_repr by representable
-    ].
+       ]; unfold_all; cbn).
 
 Local Ltac s := eapply nsteps_l; [ step | cbn; compute_lookup; vm_compute fresh ].
 
@@ -571,7 +579,7 @@ Lemma test_shallow_handle :
                   (EContinue (EVar "k") (EInt 42))])
   in
   ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
-Proof. do 2 eexists. reduces. Qed.
+Proof. do 2 eexists. reduces. steps. Qed.
 
 Lemma test_nested_handlers :
   let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in

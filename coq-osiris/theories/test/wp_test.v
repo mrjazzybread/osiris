@@ -9,7 +9,8 @@ From osiris.proofmode Require Import ewp_tactics.
 
 Context `{!osirisGS Σ} `{protocol_wf Σ}.
 
-Local Transparent eval_mexpr eval_match eval_bindings evals extend encode.
+Local Transparent eval eval_mexpr eval_match eval_sitem eval_sitems
+  eval_bindings evals extend extends encode.
 
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)
@@ -35,7 +36,7 @@ Definition example :=
 
 Goal ⊢ EWP (eval [] example) {{ RET v, ⌜v = VConstant "A"⌝ }}.
 Proof.
-  do 3 Simp. Ret. cbn. iPureIntro. reflexivity.
+  do 3 Simp. Ret. iPureIntro. reflexivity.
 Qed.
 
 (* let x = (z1, z2) in let (x1, x2) = x in x1 *)

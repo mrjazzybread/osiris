@@ -253,8 +253,7 @@ Lemma simp_eval_let η x e1 e2 v1 m :
   (let η' := (x, v1) :: η in simp (eval η' e2) m) →
   simp (eval η (ELet1Var x e1 e2)) m.
 Proof.
-  intros. simpl_eval. simp.
-  unfold irrefutably_extend; simpl_extend. assumption.
+  intros. by simp.
 Qed.
 
 (* Conditionals. *)
@@ -270,7 +269,7 @@ Proof.
   simpl_eval. unfold as_bool. (* [simp] cannot deal with [as_bool] *)
   intros He He1 He2.
   generalize (truth_elim P). generalize dependent (truth P).
-  intros [|] HP.
+  intros [|] HP; simp.
   { specialize (He1 HP). simp. rewrite truth_true by assumption. simp. }
   { specialize (He2 HP). simp. rewrite truth_false by assumption. simp. }
 Qed.
@@ -674,11 +673,10 @@ Lemma simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
   simp (eval (θ ++ η) e2) m ->
   simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
 Proof.
-  intros. simp; last eassumption. simpl_eval_bindings. simp.
+  intros. simp; last eassumption.
   apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
-  unfold irrefutably_extend in *; simpl_extend.
-  eapply prove_simp_try2; last apply SimpReflexive.
-  eapply prove_simp_try; [ | apply SimpReflexive ].
+  unfold irrefutably_extend in *.
+  do 2 (eapply prove_simp_try2; last apply SimpReflexive).
   eapply prove_simp_bind. { eauto using simp_wrap. }
   rewrite bind_bind.
   simpl. rewrite bind_ret_right. eauto using simp_wrap.
