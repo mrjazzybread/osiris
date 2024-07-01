@@ -1452,13 +1452,16 @@ Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
    rewrite seal_eq;
    (progress simpl pre_eval_bindings);
-   rewrite ?fold_pre_eval_bindings)
+   rewrite ?fold_pre_eval_bindings;
+   fold eval)
   || fail "Unable to simplify application of eval_bindings".
 
 Ltac simpl_eval_sitem :=
   (unfold eval_sitem;
    rewrite seal_eq;
-   (progress simpl pre_eval_sitem))
+   (progress simpl pre_eval_sitem);
+   rewrite ?fold_pre_eval_sitem;
+  fold eval_bindings)
   || fail "Unable to simplify application of eval_sitem".
 
 Ltac simpl_eval_sitems :=
@@ -1472,7 +1475,10 @@ Ltac simpl_eval_mexpr :=
   (unfold eval_mexpr;
    rewrite seal_eq;
    (progress simpl pre_eval_mexpr);
-   rewrite ?fold_pre_eval_mexpr, ?fold_pre_eval_sitems)
+   (rewrite ?fold_pre_eval_mexpr,
+     ?fold_pre_eval_sitems,
+     ?fold_pre_eval_sitem);
+  fold eval_bindings)
   || fail "Unable to simplify application of eval_mexpr".
 
 Ltac simpl_extends :=

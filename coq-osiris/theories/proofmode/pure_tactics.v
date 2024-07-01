@@ -13,9 +13,11 @@ From Ltac2 Require Ltac2.
 (* Tactics. *)
 
 (* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
+Import Ltac2.
 
-Ltac beta :=
-  cbn beta.
+Ltac2 beta () := cbn beta.
+
+Ltac2 Notation "beta" := cbn beta.
 
 Goal (forall l : list nat,
          l = [] ->
@@ -27,108 +29,145 @@ Qed.
 (* [remove_deco] is used by subsequent tactics when we want to match on an
    expression under a decoration in a goal. *)
 
-Ltac remove_deco :=
-  lazymatch goal with
-  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1; simpl
-  | _ => idtac
-  end.
+Ltac2 notation remove_deco := unfold deco.
 
 (* Remove any local environment definitions. *)
 
-Ltac clear_abstracted_env :=
-  repeat (match goal with
-          | η := _ : list (var * val) |- _ => subst η
-          end).
+Ltac2 clear_abstracted_env () :=
+  (* Iterate over the hypotheses. *)
+  List.iter
+    (* Take [η] the name of the hyp-name and [ty] its type. *)
+    (fun (η, _, ty) =>
+       (* Use [Std.eval_vm] in case [ty] is folded as [env]. *)
+       match! (Std.eval_vm None ty) with
+       (* If [η] is an environment, try substitute it. *)
+       | list (var * val) => subst η
+       end)
+    (Control.hyps ()).
+
+Ltac2 Notation "clear_abstracted_env" := clear_abstracted_env ().
+
+(* [get_env] returns the current environment under which an expression
+   is currently being evaluated in [pure] mode. *)
+
+Ltac2 get_env () :=
+  lazy_match! goal with
+  | [ |- pure (eval ?η _) _ ]  => η
+  end.
 
 (* [abstract_env] expects a goal of the form [pure (eval η e) φ]. It creates a
    local definition for the environment [η]. *)
 
-Ltac abstract_env :=
-  lazymatch goal with
-  | |- pure (eval ?η _) _ =>
-      clear_abstracted_env;
-      match goal with
-      | |- pure (eval ?η _) _ =>
-          let η0 := fresh "η" in
-          set η as η0
-      end
-  | _ => idtac
-  end.
+Ltac2 abstract_env () :=
+  (* Collapse any previous environment abstraction. *)
+  clear_abstracted_env;
+  (* Fetch the full environment as a constr [η]. *)
+  let η := get_env () in
+  (* Generate a fresh name and use [set] to abstract [η]. *)
+  let η0 := Fresh.in_goal @η in
+  set ($η) as η0.
 
-Ltac extend_env :=
-  match goal with
-  | |- forall (η : env), η = _ -> _ =>
-      intros ? ->
-  | _ => idtac
-  end.
 
 (* -------------------------------------------------------------------------- *)
+
+Ltac2 decompose_pure () : (constr * constr) :=
+  match! goal with
+  | [ |- pure ?m ?φ ] => (m, φ)
+  end.
 
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
-Ltac pure_ret :=
-  remove_deco;
-  match goal with
-  | |- pure (ret ?v) ?φ =>
-      match type of φ with
-      | val -> Prop =>
-          simple eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | beta]
-      | _ =>
-          simple eapply pure_ret; [ solve [ encode ] | beta ]
-      end
+Ltac2 pure_ret () :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | ret ?v =>
+      (* [pure_ret : v = #a → φ a → pure (ret v) φ] *)
+      eapply pure_ret;
+      (* We solve [v = #a] differently depending on the type of [a]. *)
+      let solve_encoding : unit -> unit :=
+        fun _ =>
+          match! Constr.type φ with
+          | val -> Prop => rewrite <- solve_encode_val; reflexivity
+          | _ => solve [ ltac1:(encode) ]
+          end
+      in
+      Control.focus 1 1 solve_encoding;
+      Control.enter beta
   end.
 
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
-Ltac pure_path :=
-  remove_deco;
-  eapply pure_eval_path; simpl lookup_path;
-  match goal with
-  | H : lookup_name ?η ?path = ret ?res |- pure (lookup_name ?η ?path) _ =>
-      rewrite H
-  | _ => idtac
-  end;
-  pure_ret.
+Ltac2 pure_path () : unit :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | eval _ (EPath _) =>
+      (* [pure_eval_path :
+          pure (lookup_path η π) ψ -> pure (eval η (EPath π)) ψ] *)
+      eapply pure_eval_path;
+      simpl lookup_path;
+      lazy_match! goal with
+      | [ h_ident : lookup_name ?η ?π = ret _
+          |- pure (lookup_name ?η ?π) _ ] =>
+          let h := Control.hyp h_ident in
+          rewrite [$h]; pure_ret ()
+      | [ |- pure (ret _) _ ] => pure_ret ()
+      end
+  end.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
-Ltac pure_const :=
-  remove_deco;
-  match goal with
-  | |- pure (eval ?η (EConstant ?c)) ?ψ =>
-      match type of ψ with
-      | val -> Prop =>
-          simple eapply pure_eval_const; [ rewrite <- solve_encode_val; reflexivity | ]
-      | _ =>
-          simple eapply pure_eval_const; [ solve [ encode ] | ]
-      end
+Ltac2 pure_const () :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | eval _ (EConstant _) =>
+      (* [pure_eval_const :
+          VConstant c = #x -> ψ x -> pure (eval η (EConstant c)) ψ] *)
+      eapply pure_eval_const;
+      let solve_encoding : unit -> unit :=
+        fun _ =>
+          match! Constr.type φ with
+          | val -> Prop => rewrite <- solve_encode_val; reflexivity
+          | _ => solve [ ltac1:(encode) ]
+          end
+      in
+      Control.focus 1 1 solve_encoding
   end.
 
 Local Open Scope nat.
 
-Ltac pure_data :=
-  remove_deco;
-  simpl;
-  match goal with
-  | |- pure (eval _ (EData ?c (ETuple ?args))) _ =>
-      match eval cbn in (length args) with
-      | 0 => pure_const
+Ltac2 rec pure_ADT () : unit :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | eval _ (EData ?c (ETuple ?args)) =>
+      1. Evaluate all args to encoded values.
+      2. Solve [VData c (VTuple encoded_args) = #v]
+      3. Reduce goal to [φ v]
+
+Ltac2 rec pure_data () : unit :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | eval _ (EData _ (ETuple ?args)) =>
+      lazy_match! eval cbn in (List.length $args) with
+      | 0 => pure_const ()
       | 1 => eapply pure_eval_data1
       | 2 => eapply pure_eval_data2; eapply pure_eval_pair
       | 3 => eapply pure_eval_data3; eapply pure_eval_triple
       | 4 => eapply pure_eval_data4
       (* TODO: make a higher-order version of pure_eval_pair *)
-      | _ => fail "Not implemented for this arity"
+      | _ =>
+          Control.throw
+            (Tactic_failure (Some
+               (Message.of_string "Not implemented for this arity")))
       end
   end;
-  repeat (pure_path || pure_const || pure_data);
-  try (split; [ solve [ encode ] | ]).
+  repeat first [ pure_path (); pure_const (); pure_data () ];
+  try (split; Control.focus 1 1 (fun _ => (solve [ encode ]))).
 
 Ltac pure_call_VClo :=
   apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
