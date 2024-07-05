@@ -1,5 +1,5 @@
 From Coq Require Import FunctionalExtensionality.
-From osiris Require Import base.
+From osiris Require Import base lang.
 From osiris.semantics Require Import code eval step.
 
 (** [may] simplification relation *)
@@ -18,10 +18,10 @@ definition for the [may] relation. In fact the [may] relation could be called
 
 List of results to establish for a useful [pure_wp] relation:
 
-- pure_wp_bind: [pure_wp φ ψ m] and [∀ a, φ a → pure_wp φ' ψ (k a)] imply
-  [pure_wp φ' ψ (bind m k)]
+- pure_wp_bind: [pure_wp m φ ψ] and [∀ a, φ a → pure_wp (k a) φ' ψ] imply
+  [pure_wp (bind m k) φ' ψ]
 
-- ewp_pure_wp: [pure_wp φ ψ] implies [ewp m (ilift φ ψ)]
+- pure_wp_ewp: [pure_wp m φ ψ] implies [ewp m (ilift ⌜φ⌝ ⌜ψ⌝)]
 
 - hoare reasoning on [pure_wp] (TODO) : see results about [pure] in
   [proofmode/simp_eval]) but this time more results can be included, allowing
@@ -95,8 +95,9 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Handle (Throw e) k)
     (discontinue k e)
-(* TODO if needed, introduce a constructor corresponding to [SimpPerform]. Expect
-   a problem in the proof of [invert_may_bind]. *)
+(* TODO if needed, introduce a constructor corresponding to [SimpPerform].
+   Expect a problem in the proof of [invert_may_bind]. Note that this may not be
+   useful, since [may] is used only in pure settings. *)
 | MayHandle m m' k :
   may m m' ->
   may
@@ -306,9 +307,9 @@ Qed.
 
 (** The [pure_wp] predicate *)
 
-(* [pure_wp φ ψ m] states that [m] is either a value satisfying [φ], a raised
+(* [pure_wp m φ ψ] states that [m] is either a value satisfying [φ], a raised
 exception satisfying [ψ], or can only do pure [may] reduction steps to states
-[m'] also satisfying [pure_wp φ ψ m']. It is somewhat a terminating and pure
+[m'] also satisfying [pure_wp m' φ ψ]. It is somewhat a terminating and pure
 version of the standard WP.
 
 The syntactic [immediately_pure] requirement in the stepping case is needed as
@@ -324,45 +325,45 @@ quantification on the [may] reductions of [ret _] would be vacuously true, and
 similarly for [is_not_throw]. It corresponds to the [can_step] requirement in
 the standard WP. *)
 
-Inductive pure_wp {A E} (φ : A → Prop) (ψ : E → Prop) : micro A E → Prop :=
-  | pure_wp_ret a : φ a → pure_wp φ ψ (ret a)
-  | pure_wp_throw e : ψ e → pure_wp φ ψ (throw e)
-  | pure_wp_may m :
+Inductive pure_wp {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :=
+  | pure_wp_ret (φ : A → Prop) ψ a : φ a → pure_wp (ret a) φ ψ
+  | pure_wp_throw φ (ψ : E → Prop) e : ψ e → pure_wp (throw e) φ ψ
+  | pure_wp_may φ ψ m :
     is_not_ret m →
     is_not_throw m →
     immediately_pure m →
-    (∀ m', may m m' → pure_wp φ ψ m') →
-    pure_wp φ ψ m.
+    (∀ m', may m m' → pure_wp m' φ ψ) →
+    pure_wp m φ ψ.
 
 (* [pure_wp] is easy to reason about *)
 
 Section pure_wp_results.
   Context {A E : Type} (φ : A → Prop) (ψ : E → Prop).
 
-  Lemma pure_wp_immediately_pure m : pure_wp φ ψ m → immediately_pure m.
+  Lemma pure_wp_immediately_pure m : pure_wp m φ ψ → immediately_pure m.
   Proof.
     induction 1; try econstructor; auto.
   Qed.
 
-  Lemma pure_wp_may_forward m m' : pure_wp φ ψ m → may m m' → pure_wp φ ψ m'.
+  Lemma pure_wp_may_forward m m' : pure_wp m φ ψ → may m m' → pure_wp m' φ ψ.
   Proof.
     induction 1; auto; inversion 1.
   Qed.
 
-  Lemma invert_pure_wp_ret a : pure_wp φ ψ (ret a) → φ a.
+  Lemma invert_pure_wp_ret a : pure_wp (ret a) φ ψ → φ a.
   Proof.
     intros S; remember (ret a) as m; revert a Heqm.
     induction S; try congruence. destruct m; discriminate.
   Qed.
 
-  Lemma invert_pure_wp_throw e : pure_wp φ ψ (throw e) → ψ e.
+  Lemma invert_pure_wp_throw e : pure_wp (throw e) φ ψ → ψ e.
   Proof.
     intros S; remember (throw e) as m; revert e Heqm.
     induction S; try congruence. destruct m; discriminate.
   Qed.
 
   Lemma pure_wp_step {m σ m' σ'} :
-    pure_wp φ ψ m → step (σ, m) (σ', m') → σ' = σ ∧ pure_wp φ ψ m'.
+    pure_wp m φ ψ → step (σ, m) (σ', m') → σ' = σ ∧ pure_wp m' φ ψ.
   Proof.
     intros Hm Hstep.
     pose proof immediately_pure_step_may _ _ _ _ (pure_wp_immediately_pure _ Hm) Hstep.
@@ -372,13 +373,13 @@ End pure_wp_results.
 
 (* TODO generalize to try2 *)
 Lemma pure_wp_bind {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
-  pure_wp φ ψ m →
-  (∀ a, φ a → pure_wp φ' ψ (k a)) →
-  pure_wp φ' ψ (bind m k).
+  pure_wp m φ ψ →
+  (∀ a, φ a → pure_wp (k a) φ' ψ) →
+  pure_wp (bind m k) φ' ψ.
 Proof.
-  induction 1 as [ Ha | e | m Nret Nthr Pm Hm IHm]; intros Hk; simpl; auto.
+  induction 1 as [ Ha | e | φ ψ m Nret Nthr Pm Hm IHm]; intros Hk; simpl; auto.
   - by constructor.
-  - assert (Sm : pure_wp φ ψ m) by now econstructor.
+  - assert (Sm : pure_wp m φ ψ) by now econstructor.
     constructor.
     + destruct m; simpl; discriminate || congruence.
     + destruct m; simpl; discriminate || congruence.
@@ -396,8 +397,8 @@ From iris.proofmode Require Import proofmode.
 From osiris.program_logic Require Import ewp tactics.
 Import ewp_rules_tactics.
 
-Lemma ewp_pure_wp `{!osirisGS Σ} {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
-  pure_wp φ ψ m →
+Lemma pure_wp_ewp `{!osirisGS Σ} {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
+  pure_wp m φ ψ →
   ⊢ EWP m @ E' <| Ψ |> {{ | RET a => ⌜φ a⌝; | EXN e => ⌜ψ e⌝ }}.
 Proof.
   iIntros (Hm).
