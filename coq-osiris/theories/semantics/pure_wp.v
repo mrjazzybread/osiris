@@ -387,6 +387,44 @@ Proof.
     + intros m1 [(m' & Hm' & ->) | (a & -> & Hm1)]%invert_may_bind; eauto.
       eapply pure_wp_may_forward; eauto. apply invert_pure_wp_ret in Sm; auto.
 Qed.
+Import syntax.
+
+(** Encode compatibility *)
+
+Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
+
+Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
+  pure_wp m (encode_pred φ) ψ.
+
+(** Hoare reasoning rules *)
+
+Lemma pure_wp_seq φ ψ η e1 e2 :
+  pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
+  pure_wp (eval η (ESeq e1 e2)) φ ψ.
+Proof.
+  eauto using pure_wp_bind.
+Qed.
+
+Lemma pure_wp_as_bool m φ ψ :
+  pure_wp_encode m φ ψ →
+  pure_wp (as_bool m) φ ψ.
+Proof.
+  intro H.
+  eapply pure_wp_bind. apply H.
+  intros [] ([] & E & Hb); discriminate || rewrite E; by constructor.
+Qed.
+
+Lemma pure_wp_ifthenelse_bool η e e1 e2 φ φb ψ :
+  pure_wp_encode (eval η e) φb ψ →
+  (φb true  → pure_wp (eval η e1) φ ψ) →
+  (φb false → pure_wp (eval η e2) φ ψ) →
+  pure_wp (eval η (EIfThenElse e e1 e2)) φ ψ.
+Proof.
+  simpl.
+  intros Hb Ht Hf.
+  eapply pure_wp_bind. apply pure_wp_as_bool. apply Hb.
+  intros []; auto.
+Qed.
 
 
 (* TODO later, move the following to [program_logic] *)
