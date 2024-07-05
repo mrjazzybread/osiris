@@ -54,6 +54,9 @@ Local Open Scope nat_scope.
 
    [SimpPar] allows simplification to take place under a [Par] constructor.
 
+   [SimpParThrowAgree] allows simplification of the same exception on both
+   sides of a [Par] constructor
+
    [SimpPerform] allows simplification in the continuation of [perform e].
    This is the only rule that allows simplification in a continuation, under
    a binder. This rule is not expected to be useful to the end user;
@@ -1732,7 +1735,7 @@ Proof.
     eauto with lia.
   }
 
-  (* Subcase: [SimplifyChoose]. *)
+  (* Subcase: [SimplifyChooseAgree]. *)
   {
     (* [m] is [Choose m1 m2 _ _]. *)
     invert_try2_eq_choose. subst m. clear Hret Hthrow.

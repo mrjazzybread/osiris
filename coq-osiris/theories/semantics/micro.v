@@ -329,7 +329,23 @@ Lemma bind_as_try {A B E} (m : micro A E) (f : A → micro B E) :
   bind m f =
   try m f throw.
 Proof.
-  eapply bind_as_try2.
+  apply bind_as_try2.
+Qed.
+
+(* Point-free versions *)
+
+Lemma pfbind_as_pftry2 {A B A' E' E}
+  (k : outcome2 A E → micro A' E') (f : A' → micro B E') :
+  pfbind k f = pftry2 k (glue2 f throw).
+Proof.
+  extensionality x. apply bind_as_try2.
+Qed.
+
+Lemma pfbind_as_pftry {A B A' E' E}
+  (k : outcome2 A E → micro A' E') (f : A' → micro B E') :
+  pfbind k f = pftry k f throw.
+Proof.
+  extensionality x. apply bind_as_try2.
 Qed.
 
 (* Since [bind] is a special case of [try], [fmap] can be written in terms of
