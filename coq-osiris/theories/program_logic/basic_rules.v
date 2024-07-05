@@ -108,7 +108,7 @@ Section ewp_basic_rules.
     (∀ a, φ a -∗ φ' a) -∗
     EWP m @ E <| Ψ |> {{ φ' }}.
   Proof.
-    iLöb as "IH" forall (m φ).
+    iLöb as "IH" forall (m).
     iIntros "Hwp Hmon".
     ewp_unfold m.
     ewp_case_is_handleable m.
@@ -144,7 +144,7 @@ Section ewp_basic_rules.
     EWP m @ E <| Ψ |> {{ φ }} -∗
     EWP m @ E <| Ψ' |> {{ φ }}.
   Proof.
-    iLöb as "IH" forall (m φ).
+    iLöb as "IH" forall (m).
     iIntros "#Hmono Hwp".
     ewp_unfold m.
     ewp_case_is_handleable m; try done.
@@ -346,7 +346,7 @@ Section wp_handler_rules.
     EWP (Handle e h) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We proceed by Löb-induction after generalizing [e] [h] and [eh]. *)
-    iLöb as "IH" forall (e h).
+    iLöb as "IH" forall (e).
 
     iIntros "He Hsh".
     ewp_unfold_head.
@@ -515,7 +515,7 @@ Section ewp_rules.
     EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
     EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iLöb as "IH" forall (m f Ψ Φ).
+    iLöb as "IH" forall (m).
     iIntros "Hwp".
     ewp_case_is_handleable m.
     (* Case: [m1] is [ret _]. *)
@@ -773,7 +773,7 @@ Section ewp_rules.
       EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
-    iLöb as "IH" forall (m1 m2 k); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
+    iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
 
     ewp_unfold_head.
     intro_state.
@@ -936,7 +936,7 @@ Section ewp_val_rules.
     { (* Prove that [m] is a final step in the diagram. *)
       ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
-      iSplitL "".
+      iSplit.
       { iPureIntro.
         epose proof (invert_simp_final _ Hsimp) as [|];
           [ by prove_final |
@@ -954,7 +954,7 @@ Section ewp_val_rules.
     { (* Prove that [m] is a final step in the diagram. *)
       ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
-      iSplitL "".
+      iSplit.
       { iPureIntro.
         epose proof (invert_simp_final _ Hsimp) as [|];
           [ by prove_final |
@@ -971,7 +971,7 @@ Section ewp_val_rules.
     (* Case : [ms] is [Perform _]. *)
     { ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
-      iSplitL "".
+      iSplit.
       { iPureIntro.
         epose proof (invert_simp_perform _ _ _ Hsimp) as [|];
           [subst; try destruct_is_ret; try destruct_is_throw |
@@ -1003,7 +1003,7 @@ Section ewp_val_rules.
       iModIntro; iPureIntro; destruct Hdisj.
       { eauto using invert_simp_can_step. }
 
-      exfalso. apply H; auto. }
+      tauto. }
 
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -1011,7 +1011,7 @@ Section ewp_val_rules.
     simp_step_diagram.
 
     (* Case: the reduction step disappears through the diagram. *)
-    { ewp_mask_elim. iFrame.
+    { ewp_cleanup_mod. ewp_mask_elim. iFrame.
       iApply ("IH" with "[//] Hwp"). }
 
     (* Case: the reduction step is preserved through the diagram. *)
