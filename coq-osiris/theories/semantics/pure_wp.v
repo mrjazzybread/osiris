@@ -1,5 +1,5 @@
 From Coq Require Import FunctionalExtensionality.
-From osiris Require Import base lang.
+From osiris Require Import base lang syntax.
 From osiris.semantics Require Import code eval step.
 
 (** [may] simplification relation *)
@@ -96,7 +96,7 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
     (Handle (Throw e) k)
     (discontinue k e)
 (* TODO if needed, introduce a constructor corresponding to [SimpPerform].
-   Expect a problem in the proof of [invert_may_bind]. Note that this may not be
+   Expect a problem in the proof of [invert_may_try2]. Note that this may not be
    useful, since [may] is used only in pure settings. *)
 | MayHandle m m' k :
   may m m' ->
@@ -130,19 +130,21 @@ necessary for the end results. *)
 
 (** Compatibility with [bind] *)
 
-Lemma may_eq {A E} (m m1 m2 : micro A E) : may m m1 → m1 = m2 → may m m2.
+Lemma may_try2 {A B E E'} (m m' : micro A E) (f : outcome2 A E → micro B E') :
+  may m m' → may (try2 m f) (try2 m' f).
 Proof.
-  congruence.
+  induction 1; eauto; try solve [ inversion 1 ]; simpl;
+    try constructor; auto;
+    rewrite try2_try2, ?pftry2_join1, ?pftry2_join2;
+    constructor.
 Qed.
 
 Lemma may_bind {A B E} (m m' : micro A E) (k : A → micro B E) :
   may m m' → may (bind m k) (bind m' k).
 Proof.
-  induction 1; eauto; try solve [ inversion 1 ]; simpl;
-    try rewrite bind_try2; try constructor; auto.
-  all: eapply may_eq; [ constructor | f_equal ].
-  all: extensionality v; destruct v; auto.
+  rewrite !bind_as_try2. eapply may_try2.
 Qed.
+
 
 (** Inversion lemmas *)
 
@@ -161,6 +163,21 @@ Lemma Stop_inj {A E X Y E'} (c : C.code X Y E') x1 x2 (k1 k2 : _ → micro A E) 
 Proof.
   injection 1 as Ecfg Ek.
   by eq_dep_inj.
+Qed.
+
+Lemma invert_may_ret A E a (m : micro A E) : may (ret a) m → False.
+Proof.
+  inversion 1.
+Qed.
+
+Lemma invert_may_throw {A E} e (m : micro A E) : may (throw e) m → False.
+Proof.
+  inversion 1.
+Qed.
+
+Lemma invert_may_perform {A E} e k (m : micro A E) : may (Stop CPerform e k) m → False.
+Proof.
+  inversion 1.
 Qed.
 
 Lemma invert_may_eval {A E} (m' : micro A E) ηe k:
@@ -199,14 +216,15 @@ Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
 
-Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro B E) :
-  may (bind m k) m1 →
-  (∃ m', may m m' ∧ m1 = bind m' k) ∨
-  (∃ a, m = ret a ∧ may (k a) m1).
+Lemma invert_may_try2 {A B E E'} (m : micro A E') (f : outcome2 A E' → micro B E) (m1 : micro B E) :
+  may (try2 m f) m1 →
+  (∃ m', may m m' ∧ m1 = try2 m' f) ∨
+  (∃ a, m = ret a ∧ may (f (O2Ret a)) m1) ∨
+  (∃ e, m = throw e ∧ may (f (O2Throw e)) m1).
 Proof.
   revert m1; induction m; intros m'.
   - firstorder.
-  - inversion 1.
+  - firstorder.
   - inversion 1.
   - inversion 1; subst; now repeat econstructor.
   - intros M.
@@ -217,12 +235,12 @@ Proof.
       apply invert_may_eval in M. subst.
       destruct x as (η, e).
       repeat econstructor.
-      by rewrite bind_as_try2, try2_try2, pfbind_as_pftry2.
+      by rewrite try2_try2.
     + (* Stop CLoop *)
       simpl in M; apply invert_may_loop in M; subst.
       destruct x as [[[[]]]].
       repeat econstructor. subst.
-      by rewrite bind_as_try2, try2_try2, pfbind_as_pftry2.
+      by rewrite try2_try2.
   (* for [Stop CPerform] for every [o] the I.H. would provide an [m'] to which
      [k0 o] simplifies. But we would need some [k0'] s.t. [k0'; k] is [k'], then
      we could choose [m1 = Stop CPerform x (pfbind k0 K))] *)
@@ -234,15 +252,30 @@ Proof.
     firstorder; subst.
     all: try solve [repeat (econstructor; eauto)].
     all: repeat econstructor.
-    all: rewrite ?bind_as_try2, ?try2_try2, ?pftry2_join1,
-        ?pftry2_join2, ?pfbind_as_pftry2; auto.
+    all: rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2; auto.
   - (* Choose *)
     simpl. intros [-> | ->]%invert_may_choose; left; eexists; split.
     1: apply MayChooseLeft.
     2: apply MayChooseRight.
-    all: rewrite ?bind_as_try2, ?try2_try2, ?pfbind_as_pftry2; auto.
+    all: rewrite ?try2_try2; auto.
 Qed.
 
+Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro B E) :
+  may (bind m k) m1 →
+  (∃ m', may m m' ∧ m1 = bind m' k) ∨
+  (∃ a, m = ret a ∧ may (k a) m1).
+Proof.
+  rewrite bind_as_try2.
+  intros [(m' & Hm & ->)|[(a & -> & Ha)|(e & -> & He)]]%invert_may_try2.
+  - rewrite <-bind_as_try2; firstorder.
+  - firstorder.
+  - inversion He.
+Qed.
+
+Global Hint Resolve invert_may_ret invert_may_throw invert_may_perform
+  invert_may_eval (* invert_may_loop *)
+  invert_may_par invert_may_choose invert_may_try2 invert_may_bind
+  : invert_may.
 
 (** The [immediately_pure] predicate excludes subterms that are about to perform
     a mutation step *)
@@ -294,15 +327,15 @@ Proof.
   - (* handle *)
     specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
     inversion P; subst; eq_dep_inj; subst.
-    firstorder repeat constructor; auto.
+    firstorder eauto with may.
   - (* par left *)
     specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
     inversion P; subst; eq_dep_inj; subst.
-    firstorder repeat constructor; auto.
+    firstorder eauto with may.
   - (* par right *)
     specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
     inversion P; subst; eq_dep_inj; subst.
-    firstorder repeat constructor; auto.
+    firstorder eauto with may.
 Qed.
 
 (** The [pure_wp] predicate *)
@@ -329,8 +362,7 @@ Inductive pure_wp {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :
   | pure_wp_ret (φ : A → Prop) ψ a : φ a → pure_wp (ret a) φ ψ
   | pure_wp_throw φ (ψ : E → Prop) e : ψ e → pure_wp (throw e) φ ψ
   | pure_wp_may φ ψ m :
-    is_not_ret m →
-    is_not_throw m →
+    (∃ m', may m m') →
     immediately_pure m →
     (∀ m', may m m' → pure_wp m' φ ψ) →
     pure_wp m φ ψ.
@@ -353,13 +385,13 @@ Section pure_wp_results.
   Lemma invert_pure_wp_ret a : pure_wp (ret a) φ ψ → φ a.
   Proof.
     intros S; remember (ret a) as m; revert a Heqm.
-    induction S; try congruence. destruct m; discriminate.
+    induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
   Qed.
 
   Lemma invert_pure_wp_throw e : pure_wp (throw e) φ ψ → ψ e.
   Proof.
     intros S; remember (throw e) as m; revert e Heqm.
-    induction S; try congruence. destruct m; discriminate.
+    induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
   Qed.
 
   Lemma pure_wp_step {m σ m' σ'} :
@@ -371,23 +403,33 @@ Section pure_wp_results.
   Qed.
 End pure_wp_results.
 
-(* TODO generalize to try2 *)
+Lemma pure_wp_try2 {A' A E E'} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) (ψ' : E' → Prop) m f :
+  pure_wp m φ ψ →
+  (∀ a, φ a → pure_wp (f (O2Ret a)) φ' ψ') →
+  (∀ e, ψ e → pure_wp (f (O2Throw e)) φ' ψ') →
+  pure_wp (try2 m f) φ' ψ'.
+Proof.
+  induction 1 as [ Ha | e | φ ψ m Hex Pm Hm IHm]; intros Hv He; simpl; eauto.
+  assert (Sm : pure_wp m φ ψ) by now econstructor.
+  constructor.
+  - destruct Hex as (m', Hm'). eexists. by apply may_try2.
+  - inversion Pm; subst; try by constructor.
+    exfalso. firstorder eauto with invert_may. exfalso. inversion H.
+    exfalso. firstorder eauto with invert_may.
+  - intros m1 [(m' & Hm' & ->) | [(a & -> & Hm1) | (e & -> & Hm1)]]%invert_may_try2; eauto.
+    eapply pure_wp_may_forward; eauto. apply invert_pure_wp_ret in Sm; auto.
+    eapply pure_wp_may_forward; eauto. apply invert_pure_wp_throw in Sm; auto.
+Qed.
+
 Lemma pure_wp_bind {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
   pure_wp m φ ψ →
   (∀ a, φ a → pure_wp (k a) φ' ψ) →
   pure_wp (bind m k) φ' ψ.
 Proof.
-  induction 1 as [ Ha | e | φ ψ m Nret Nthr Pm Hm IHm]; intros Hk; simpl; auto.
-  - by constructor.
-  - assert (Sm : pure_wp m φ ψ) by now econstructor.
-    constructor.
-    + destruct m; simpl; discriminate || congruence.
-    + destruct m; simpl; discriminate || congruence.
-    + inversion Pm; subst; try by constructor. discriminate.
-    + intros m1 [(m' & Hm' & ->) | (a & -> & Hm1)]%invert_may_bind; eauto.
-      eapply pure_wp_may_forward; eauto. apply invert_pure_wp_ret in Sm; auto.
+  rewrite bind_as_try2. intros. eapply pure_wp_try2; eauto.
+  by constructor.
 Qed.
-Import syntax.
+
 
 (** Encode compatibility *)
 
@@ -454,7 +496,7 @@ Proof.
       by eapply invert_pure_wp_throw in Hm.
     + (* [perform]'s are not immediately pure *)
       destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
-      inversion Hm; subst. inversion H1.
+      inversion Hm; subst. exfalso. destruct H. eauto with invert_may.
 
   - (* [m] is not handleable *)
     intro_state.
