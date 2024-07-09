@@ -41,7 +41,11 @@ Other differences with [simp]:
 - transitivity is not included, which makes the relation simpler to reason
   about. Transitivity is necessary for [simp] to be able to ignore intermediate
   steps in case of temporary nondeterminism, for example in the different
-  components of a [Choose]. *)
+  components of a [Choose].
+
+- if [m] has side-effects, even under nested [Par]s, it can reach [crash] in
+  some number of [may] steps, so that [pure_wp] computations are guaranteed to
+  be pure. *)
 
 Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayEval η e k:
@@ -52,6 +56,30 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CLoop (η, x, i1, i2, e) k)
     (try2 (loop η x i1 i2 e) k)
+| MayAlloc v k :
+  may
+    (Stop CAlloc v k)
+    crash
+| MayLoad lv k :
+  may
+    (Stop CLoad lv k)
+    crash
+| MayStore l k :
+  may
+    (Stop CStore l k)
+    crash
+| MayResume lo k :
+  may
+    (Stop CResume lo k)
+    crash
+| MayInstall t k :
+  may
+    (Stop CInstall t k)
+    crash
+| MayPerform e k :
+  may
+    (Stop CPerform e k)
+    crash
 | MayChooseLeft {B E'} m1 m2 (k : outcome2 B E' → _) :
   may
     (Choose m1 m2 k)
@@ -60,6 +88,14 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Choose m1 m2 k)
     (try2 m2 k)
+| MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
+  may
+    (Par crash m2 k)
+    crash
+| MayParCrashRight {A1 A2 E'} m1 (k : outcome2 (A1 * A2) E' → _) :
+  may
+    (Par m1 crash k)
+    crash
 | MayParRetLeft {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par (Ret a1) m2 k)
@@ -87,22 +123,27 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 (* For the same reason [may] does not need transitivity, the constructors for
    [Handle] are slightly simpler than for [simp] as there is no need to resolve
    temporary nondeterminism *)
-| MayHandleRet v k :
+| MayHandleRet v h :
   may
-    (Handle (Ret v) k)
-    (continue k v)
-| MayHandleThrow e k :
+    (Handle (Ret v) h)
+    (continue h v)
+| MayHandleThrow e h :
   may
-    (Handle (Throw e) k)
-    (discontinue k e)
-(* TODO if needed, introduce a constructor corresponding to [SimpPerform].
-   Expect a problem in the proof of [invert_may_try2]. Note that this may not be
-   useful, since [may] is used only in pure settings. *)
-| MayHandle m m' k :
-  may m m' ->
+    (Handle (Throw e) h)
+    (discontinue h e)
+| MayHandlePerform e h k :
   may
-    (Handle m k)
-    (Handle m' k).
+    (Handle (Stop CPerform e k) h)
+    crash
+| MayHandleCrash h :
+  may
+    (Handle crash h)
+    crash
+| MayHandle m m' h :
+  may m m' →
+  may
+    (Handle m h)
+    (Handle m' h).
 
 Global Hint Constructors may : may.
 
@@ -113,22 +154,31 @@ may m m' → ∀ σ, step (σ, m) (σ, m')
 
 may m m' → ∀ σ, ∃ m'', step (σ, m) (σ, m'')
 
-First, because MayParRetLeft/MayParRetRight take a shortcut as soon as [ret] is
-present in a [Par], with with no corresponding [step] constructor. (To
-circumvent this problem, a simulation statement might be established.)
+First, because [may] takes a shortcut as soon as [ret] or [throw] is present in
+a [Par], with with no corresponding [step] constructor. (To circumvent this
+problem, a simulation statement might be established.)
 
 Second, because [Par (Ret _) (Stop CStore _ _) _] can only [step] to a different
-store when the initial store fits. For this, some additional conditional
-property of purity would be required.
-
-This purity condition is shown in [immediately_pure_step_may], which shows that
-under it, [step]s do not change the store and are included in [may].
-
-Under the same condition the second statement should hold, but it is not
-necessary for the end results. *)
+store when the initial store fits. For this, we could forbid all impurities
+syntactically by requiring some [immediately_pure] predicate a every step in the
+definition of [pure_wp], but we choose here to make impurities reduce to
+[crash]. *)
 
 
-(** Compatibility with [bind] *)
+(* Computations are either final or may reduce *)
+
+Lemma may_cases {A E} (m : micro A E) :
+  m = crash ∨ (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
+Proof.
+  induction m; eauto with may;
+    firstorder; subst; eauto 10 with may.
+  destruct c; eauto with may.
+  - destruct x; eauto with may.
+  - destruct x as [[[[]]]]; eauto with may.
+Qed.
+
+
+(** Compatibility of [may] with [bind] *)
 
 Lemma may_try2 {A B E E'} (m m' : micro A E) (f : outcome2 A E → micro B E') :
   may m m' → may (try2 m f) (try2 m' f).
@@ -148,9 +198,10 @@ Qed.
 
 (** Inversion lemmas *)
 
-(* Inversion lemmas are useful since because of dependent equality [inversion]
-   is tedious to use by itself. We use the classical property [inj_pair2], which
-   is a consequence of the axiom of the excluded middle. *)
+(* The first inversion lemmas are simple but useful since because of dependent
+   equality [inversion] is tedious to use by itself. We use the classical
+   property [inj_pair2], which is a consequence of the axiom of the excluded
+   middle. *)
 
 Ltac eq_dep_inj :=
   repeat match goal with
@@ -165,17 +216,17 @@ Proof.
   by eq_dep_inj.
 Qed.
 
+Lemma invert_may_crash A E (m : micro A E) : may crash m → False.
+Proof.
+  inversion 1.
+Qed.
+
 Lemma invert_may_ret A E a (m : micro A E) : may (ret a) m → False.
 Proof.
   inversion 1.
 Qed.
 
 Lemma invert_may_throw {A E} e (m : micro A E) : may (throw e) m → False.
-Proof.
-  inversion 1.
-Qed.
-
-Lemma invert_may_perform {A E} e k (m : micro A E) : may (Stop CPerform e k) m → False.
 Proof.
   inversion 1.
 Qed.
@@ -204,7 +255,8 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ m1', may m1 m1' ∧ m' = Par m1' m2 k) ∨
   (∃ m2', may m2 m2' ∧ m' = Par m1 m2' k) ∨
   (∃ e1, m1 = throw e1 ∧ m' = k (O2Throw e1)) ∨
-  (∃ e2, m2 = throw e2 ∧ m' = k (O2Throw e2)).
+  (∃ e2, m2 = throw e2 ∧ m' = k (O2Throw e2)) ∨
+  ((m1 = crash ∨ m2 = crash) ∧ m' = crash).
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
@@ -228,42 +280,36 @@ Proof.
   - inversion 1.
   - inversion 1; subst; now repeat econstructor.
   - intros M.
-    left.
-    destruct c; try solve [inversion M].
+    destruct c; try solve [inversion M; subst; eq_dep_inj; subst; eauto with may].
     + (* Stop CEval *)
-      simpl in M.
+      left. simpl in M.
       apply invert_may_eval in M. subst.
       destruct x as (η, e).
       repeat econstructor.
       by rewrite try2_try2.
     + (* Stop CLoop *)
-      simpl in M; apply invert_may_loop in M; subst.
+      left. simpl in M; apply invert_may_loop in M; subst.
       destruct x as [[[[]]]].
       repeat econstructor. subst.
       by rewrite try2_try2.
-  (* for [Stop CPerform] for every [o] the I.H. would provide an [m'] to which
-     [k0 o] simplifies. But we would need some [k0'] s.t. [k0'; k] is [k'], then
-     we could choose [m1 = Stop CPerform x (pfbind k0 K))] *)
-  - (* Par: all shortcuts are compatible with [bind] *)
-    simpl.
-    intros M.
-    left.
+  - (* Par: all [may] shortcuts commute with [bind] *)
+    simpl; intros M. left.
     apply invert_may_par in M.
     firstorder; subst.
-    all: try solve [repeat (econstructor; eauto)].
-    all: repeat econstructor.
+    all: try solve [repeat (econstructor; eauto)]; repeat econstructor.
     all: rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2; auto.
   - (* Choose *)
     simpl. intros [-> | ->]%invert_may_choose; left; eexists; split.
     1: apply MayChooseLeft.
     2: apply MayChooseRight.
-    all: rewrite ?try2_try2; auto.
+    1,2 : rewrite ?try2_try2; auto.
 Qed.
 
 Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro B E) :
   may (bind m k) m1 →
   (∃ m', may m m' ∧ m1 = bind m' k) ∨
-  (∃ a, m = ret a ∧ may (k a) m1).
+  (∃ a, m = ret a ∧ may (k a) m1) ∨
+  m1 = crash.
 Proof.
   rewrite bind_as_try2.
   intros [(m' & Hm & ->)|[(a & -> & Ha)|(e & -> & He)]]%invert_may_try2.
@@ -272,136 +318,85 @@ Proof.
   - inversion He.
 Qed.
 
-Global Hint Resolve invert_may_ret invert_may_throw invert_may_perform
-  invert_may_eval (* invert_may_loop *)
-  invert_may_par invert_may_choose invert_may_try2 invert_may_bind
+
+Global Hint Resolve invert_may_ret invert_may_throw invert_may_crash
+  invert_may_eval invert_may_par invert_may_choose
+  invert_may_try2 invert_may_bind
   : invert_may.
 
-(** The [immediately_pure] predicate excludes subterms that are about to perform
-    a mutation step *)
-
-Inductive immediately_pure {A E} : micro A E → Prop :=
-  | ImmPure_Ret a : immediately_pure (Ret a)
-  | ImmPure_Throw e : immediately_pure (Throw e)
-  | ImmPure_Handle m k : immediately_pure m → immediately_pure (Handle m k)
-  | ImmPure_Stop_Eval p k : immediately_pure (Stop CEval p k)
-  | ImmPure_Stop_Loop p k : immediately_pure (Stop CLoop p k)
-  | ImmPure_Par {A1 A2 E'} (m1 : micro A1 E') (m2 : micro A2 E') k :
-    immediately_pure m1 →
-    immediately_pure m2 →
-    immediately_pure (Par m1 m2 k)
-  | ImmPure_Choose {B E'} m1 m2 k : immediately_pure (@Choose _ _ B E' m1 m2 k).
-
-(* Unused *)
-Lemma immediately_pure_may {A E} (m : micro A E) :
-  immediately_pure m →
-  (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
-Proof.
-  intros P; dependent induction P; try solve [repeat econstructor]; right; right.
-  - firstorder; subst; eauto with may.
-  - destruct p; eauto with may.
-  - destruct p as [[[[]]]]; eauto with may.
-  - firstorder; subst; eauto with may.
-Qed.
-
-(* pure configuration can step *)
-Lemma immediately_pure_can_step {A E} (m : micro A E) :
-  immediately_pure m →
-  (∃ a, m = ret a) \/ (∃ e, m = throw e) ∨ (∀ σ, can_step (σ, m)).
-Proof.
-  induction 1; eauto with step.
-Qed.
-
-(* [step]ping from a immediately pure configuration does not modify the store
-   and correspond to a [may] reduction *)
-Lemma immediately_pure_step_may {A E} (m m' : micro A E) σ σ' :
-  immediately_pure m →
-  step (σ, m) (σ', m') →
-  may m m' ∧ σ' = σ.
-Proof.
-  intros P Hstep.
-  revert P.
-  dependent induction Hstep; intros P.
-  all: try solve [repeat constructor | inversion P ].
-  all: try solve [inversion P; subst; inversion H0 || eq_dep_inj; subst; now inversion H1].
-  - (* handle *)
-    specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
-    inversion P; subst; eq_dep_inj; subst.
-    firstorder eauto with may.
-  - (* par left *)
-    specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
-    inversion P; subst; eq_dep_inj; subst.
-    firstorder eauto with may.
-  - (* par right *)
-    specialize (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
-    inversion P; subst; eq_dep_inj; subst.
-    firstorder eauto with may.
-Qed.
 
 (** The [pure_wp] predicate *)
 
 (* [pure_wp m φ ψ] states that [m] is either a value satisfying [φ], a raised
 exception satisfying [ψ], or can only do pure [may] reduction steps to states
 [m'] also satisfying [pure_wp m' φ ψ]. It is somewhat a terminating and pure
-version of the standard WP.
-
-The syntactic [immediately_pure] requirement in the stepping case is needed as
-[may] does not reduce mutations, and so the [pure_wp] predicate would be
-oblivious to mutations. For example only the [MayParThrowLeft] construct applies
-to [Par (Throw _) (Stop CStore _ _) _], so we forbid this configuration.
-Alternatively, the may relation could reduce to [crash] in cases of mutations;
-it would make the definition of [pure_wp] more elegant but it looks like we
-might still require a purity property for intermediate proofs.
-
-We also require [is_not_ret] in the stepping case, otherwise the universal
-quantification on the [may] reductions of [ret _] would be vacuously true, and
-similarly for [is_not_throw]. It corresponds to the [can_step] requirement in
-the standard WP. *)
+version of the standard WP. *)
 
 Inductive pure_wp {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :=
   | pure_wp_ret (φ : A → Prop) ψ a : φ a → pure_wp (ret a) φ ψ
   | pure_wp_throw φ (ψ : E → Prop) e : ψ e → pure_wp (throw e) φ ψ
   | pure_wp_may φ ψ m :
     (∃ m', may m m') →
-    immediately_pure m →
     (∀ m', may m m' → pure_wp m' φ ψ) →
     pure_wp m φ ψ.
 
-(* [pure_wp] is easy to reason about *)
+Global Hint Constructors pure_wp : pure_wp.
 
-Section pure_wp_results.
-  Context {A E : Type} (φ : A → Prop) (ψ : E → Prop).
 
-  Lemma pure_wp_immediately_pure m : pure_wp m φ ψ → immediately_pure m.
-  Proof.
-    induction 1; try econstructor; auto.
-  Qed.
+(* [pure_wp] is preserved by [may] steps *)
 
-  Lemma pure_wp_may_forward m m' : pure_wp m φ ψ → may m m' → pure_wp m' φ ψ.
-  Proof.
-    induction 1; auto; inversion 1.
-  Qed.
+Lemma pure_wp_may_forward {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
+  pure_wp m φ ψ → may m m' → pure_wp m' φ ψ.
+Proof.
+  induction 1; auto; inversion 1.
+Qed.
 
-  Lemma invert_pure_wp_ret a : pure_wp (ret a) φ ψ → φ a.
-  Proof.
-    intros S; remember (ret a) as m; revert a Heqm.
-    induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
-  Qed.
 
-  Lemma invert_pure_wp_throw e : pure_wp (throw e) φ ψ → ψ e.
-  Proof.
-    intros S; remember (throw e) as m; revert e Heqm.
-    induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
-  Qed.
+(** Inversion lemmas *)
 
-  Lemma pure_wp_step {m σ m' σ'} :
-    pure_wp m φ ψ → step (σ, m) (σ', m') → σ' = σ ∧ pure_wp m' φ ψ.
-  Proof.
-    intros Hm Hstep.
-    pose proof immediately_pure_step_may _ _ _ _ (pure_wp_immediately_pure _ Hm) Hstep.
-    firstorder eauto using pure_wp_may_forward.
-  Qed.
-End pure_wp_results.
+Lemma invert_pure_wp_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) :
+  pure_wp crash φ ψ → False.
+Proof.
+  inversion 1; subst. firstorder eauto with invert_may.
+Qed.
+
+Lemma invert_pure_wp_ret {A E : Type} (φ : A → Prop) (ψ : E → Prop) a :
+  pure_wp (ret a) φ ψ → φ a.
+Proof.
+  intros S; remember (ret a) as m; revert a Heqm.
+  induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
+Qed.
+
+Lemma invert_pure_wp_throw {A E : Type} (φ : A → Prop) (ψ : E → Prop) e :
+  pure_wp (throw e) φ ψ → ψ e.
+Proof.
+  intros S; remember (throw e) as m; revert e Heqm.
+  induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
+Qed.
+
+Lemma invert_pure_wp_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m :
+  may m crash → pure_wp m φ ψ → False.
+Proof.
+  eauto using invert_pure_wp_crash, pure_wp_may_forward.
+Qed.
+
+Lemma invert_pure_wp_may_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
+  may m m' → may m' crash → pure_wp m φ ψ → False.
+Proof.
+  eauto using invert_pure_wp_crash, pure_wp_may_forward.
+Qed.
+
+Lemma invert_pure_wp_stop {A E X Y E'} (φ : A → Prop) (ψ : E → Prop) (c : code X Y E') (x : X) k :
+  pure_wp (Stop c x k) φ ψ → match c with CEval | CLoop => True | _ => False end.
+Proof.
+  intros S. inversion S; subst.
+  destruct H as (m', Hm'). assert (Wm' : pure_wp m' φ ψ) by eauto.
+  destruct c; inversion Hm'; eq_dep_inj; subst; auto;
+    eapply invert_pure_wp_may_crash; eauto.
+Qed.
+
+
+(** [pure_wp] is preserved by binds *)
 
 Lemma pure_wp_try2 {A' A E E'} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) (ψ' : E' → Prop) m f :
   pure_wp m φ ψ →
@@ -409,13 +404,10 @@ Lemma pure_wp_try2 {A' A E E'} (φ : A → Prop) (ψ : E → Prop) (φ' : A' →
   (∀ e, ψ e → pure_wp (f (O2Throw e)) φ' ψ') →
   pure_wp (try2 m f) φ' ψ'.
 Proof.
-  induction 1 as [ Ha | e | φ ψ m Hex Pm Hm IHm]; intros Hv He; simpl; eauto.
+  induction 1 as [ Ha | e | φ ψ m Hex Hm IHm]; intros Hv He; simpl; eauto.
   assert (Sm : pure_wp m φ ψ) by now econstructor.
   constructor.
   - destruct Hex as (m', Hm'). eexists. by apply may_try2.
-  - inversion Pm; subst; try by constructor.
-    exfalso. firstorder eauto with invert_may. exfalso. inversion H.
-    exfalso. firstorder eauto with invert_may.
   - intros m1 [(m' & Hm' & ->) | [(a & -> & Hm1) | (e & -> & Hm1)]]%invert_may_try2; eauto.
     eapply pure_wp_may_forward; eauto. apply invert_pure_wp_ret in Sm; auto.
     eapply pure_wp_may_forward; eauto. apply invert_pure_wp_throw in Sm; auto.
@@ -431,12 +423,152 @@ Proof.
 Qed.
 
 
+(** Local [is_pure] predicate *)
+
+(* This local definition of [is_pure] is defined as [pure_wp] with trivial
+postconditions. It is useful to state inversion lemmas about [pure_wp] when the
+types change, since new φ/ψ predicates must change too. Another name for it
+could be [safe] or [purely_safe], since it is a WP with trivial postconditions.
+
+It is not intended to be used outside this file and is only used in the proof of
+[pure_wp_preservation].
+
+Using a [pure_wp] definition with an [immediately_pure] predicate mentioned
+above would mean we do not need the invertion lemmas and [is_pure_step_may]
+would only have [immediately_pure m] as precondition. *)
+
+Section is_pure.
+
+  Local Definition is_pure {A E} (m : micro A E) := pure_wp m (λ _, True) (λ _, True).
+
+  Lemma pure_wp_is_pure {A E : Type} {φ ψ} (m : micro A E) :
+    pure_wp m φ ψ → is_pure m.
+  Proof.
+    induction 1; constructor; auto.
+  Qed.
+
+  Lemma invert_is_pure_try2 {A1 E1 B E'} (m : micro A1 E1) (k : _ → micro B E') :
+    is_pure (try2 m k) → is_pure m.
+  Proof.
+    remember (try2 m k) as mt; intros PS; revert m Heqmt.
+    induction PS as [ |  | φ ψ m Hex HF IH]; intros m1 Hm1;
+      (* if [try2 m k] is [ret] or [throw] then [m] is, as well, so is safe *)
+      try solve [ destruct m1; try discriminate; by constructor ].
+    (* otherwise [m] reduces to some [m'], and all such [m'] are safe  *)
+    subst.
+    (* from the fact that [try2 m1 k] reduce to [m']: *)
+    destruct Hex as (m', [(m1' & Hm1 & ->) | ?]%invert_may_try2).
+    - (* either [m1] reduces to [m1'] and [m' = try2 m1' k], conclude by IH *)
+      constructor; eauto. intros m2 Hm2.
+      eapply IH; eauto. by apply may_try2.
+    - (* or [m1] is [ret] or [throw] and so is safe *)
+      by hnf; firstorder (subst; eauto with pure_wp).
+  Qed.
+
+  Lemma invert_is_pure_par {A E A1 A2 E'} m1 m2 (k :  outcome2 (A1 * A2) E' → micro A E) :
+    is_pure (Par m1 m2 k) → is_pure m1 ∧ is_pure m2.
+  Proof.
+    remember (Par m1 m2 k) as m; intros PS; revert m1 m2 Heqm.
+    induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m1 m2 ->.
+    split.
+    - destruct (may_cases m1) as [-> | [ | [ | Hm1 ]]].
+      now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+      now firstorder (subst; econstructor; eauto).
+      now firstorder (subst; econstructor; eauto).
+      constructor; auto. intros m1' Hm1'.
+      eapply IH; eauto with may.
+    - destruct (may_cases m2) as [-> | [ | [ | Hm1 ]]].
+      now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+      now firstorder (subst; econstructor; eauto).
+      now firstorder (subst; econstructor; eauto).
+      constructor; auto. intros m1' Hm1'.
+      eapply IH; eauto with may.
+  Qed.
+
+  Lemma invert_is_pure_handle {A E} m (h : _ → micro A E) :
+    is_pure (Handle m h) → is_pure m.
+  Proof.
+    remember (Handle m h) as m1; intros PS; revert m Heqm1.
+    induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m_ ->.
+    destruct (may_cases m_) as [-> | [ | [ | Hm1 ]]].
+    now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    now firstorder (subst; econstructor; eauto).
+    now firstorder (subst; econstructor; eauto).
+    constructor; auto. intros m1' Hm1'.
+    apply (IH _ ltac:(eauto with may) _ eq_refl).
+  Qed.
+
+  (* Steps from pure computations necessarily are [may] and preserve the store *)
+  Lemma is_pure_step_may {A E : Type} (m : micro A E) {σ m' σ'} :
+    is_pure m → step (σ, m) (σ', m') → may m m' ∧ σ' = σ.
+  Proof.
+    intros Hm Hstep. revert Hm.
+    (* this dep. induction uses the [eq_rect_eq] axiom. If problematic, can be
+       removed by generalizing (σ, m) and (σ', m') *)
+    dependent induction Hstep; intros Hm.
+
+    (* Simple pure steps result in goals of the form [σ' = σ' ∧ may m1 m2] that
+       correspond to a single [may] constructor: *)
+    all: try solve [auto with may].
+
+    (* Contradiction if [pure_wp m _ _] and [m] reduces to [crash] *)
+    all: try solve [by eapply invert_pure_wp_may_crash in Hm; eauto with may].
+    (* same if [m] reduces to [crash] in two steps*)
+    all: try solve [by eapply invert_pure_wp_may_may_crash in Hm; eauto with may].
+
+    (* Remains to prove the three recursive cases of [step] *)
+    - (* [handle] *)
+      inversion Hm as [ | | ? ? ? (m', Hm') Hfo]; subst.
+      inversion Hm'; subst; try by inversion Hstep.
+      destruct (IHHstep _ _ _ _ JMeq_refl JMeq_refl). 
+      eapply invert_is_pure_handle in Hm; apply Hm.
+      auto with may.
+    - (* [Par] left *)
+      destruct (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
+      eapply invert_is_pure_par in Hm; apply Hm.
+      eauto with may.
+    - (* [Par] right *)
+      destruct (IHHstep _ _ _ _ JMeq_refl JMeq_refl).
+      eapply invert_is_pure_par in Hm; apply Hm.
+      eauto with may.
+  Qed.
+
+End is_pure.
+
+
+(** [pure_wp] : progress and preservation *)
+
+Lemma pure_wp_progress {A E : Type} {φ : A → Prop} {ψ : E → Prop} m :
+  pure_wp m φ ψ → (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ ∀ σ, can_step (σ, m).
+Proof.
+  intros Hm.
+  destruct m; eauto.
+  - by apply invert_pure_wp_crash in Hm.
+  - eauto using can_step_handle.
+  - right; right; intros.
+    apply can_step_stop.
+    apply invert_pure_wp_stop in Hm.
+    destruct c; auto.
+  - eauto using can_step_par.
+  - eauto using can_step_choose.
+Qed.
+
+Lemma pure_wp_preservation {A E : Type} {φ : A → Prop} {ψ : E → Prop} {m σ m' σ'} :
+  pure_wp m φ ψ → step (σ, m) (σ', m') → pure_wp m' φ ψ ∧ σ' = σ.
+Proof.
+  intros Hm Hstep.
+  destruct (is_pure_step_may _ (pure_wp_is_pure _ Hm) Hstep).
+  eauto using pure_wp_may_forward.
+Qed.
+
+
 (** Encode compatibility *)
 
 Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
 
 Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
   pure_wp m (encode_pred φ) ψ.
+
 
 (** Hoare reasoning rules *)
 
@@ -496,21 +628,18 @@ Proof.
       by eapply invert_pure_wp_throw in Hm.
     + (* [perform]'s are not immediately pure *)
       destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
-      inversion Hm; subst. exfalso. destruct H. eauto with invert_may.
+      by apply invert_pure_wp_stop in Hm.
 
   - (* [m] is not handleable *)
     intro_state.
     ewp_mask_intro "Hmod".
     iSplit.
     + (* so [m] can step because it is [pure_wp] *)
-      inversion Hm; subst; try discriminate.
-      iPureIntro.
-      edestruct (immediately_pure_can_step m) as [(a, ->) | [(e, ->) | ? ]];
-        auto; discriminate.
-    + (* and no step changes [σ] or escapes [pure_wp] *)
+      destruct (pure_wp_progress m Hm) as [(a, ->)|[(e, ->)|]]; auto; discriminate.
+    + (* and no step can change [σ] or escape [pure_wp] *)
       intro_step.
       ewp_cleanup_mod. ewp_mask_elim.
-      destruct (pure_wp_step _ _ Hm Hstep) as [<- Hm'].
+      destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
       iFrame.
       by iApply "IH".
 Qed.
