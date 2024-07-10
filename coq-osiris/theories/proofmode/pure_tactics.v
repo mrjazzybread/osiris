@@ -39,7 +39,7 @@ Ltac2 clear_abstracted_env () :=
        (* Use [Std.eval_vm] in case [ty] is folded as [env]. *)
        match! (Std.eval_vm None ty) with
        (* If [η] is an environment, try substitute it. *)
-       | list (string * val) => subst η
+       | list (string * val) => subst $η
        | _ => ()
        end)
     (Control.hyps ()).
