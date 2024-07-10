@@ -73,11 +73,23 @@ Ltac2 decompose_pure () : (constr * constr) :=
   | [ |- pure ?m ?φ ] => (m, φ)
   end.
 
+Ltac2 get_expr_from_eval (m : constr) :=
+  lazy_match! m with
+  | eval _ ?e => eval hnf in $e
+  | unseal eval.eval_aux _ ?e => eval hnf in $e
+  | _ =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string
+                 "Expected term of the form [eval η e]")))
+  end.
+
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
-Ltac2 pure_ret () :=
+Ltac2 pure_ret0 () :=
   let (m, φ) := decompose_pure () in
   match! (Std.eval_vm None m) with
   | ret ?v =>
@@ -86,22 +98,31 @@ Ltac2 pure_ret () :=
       (* We solve [v = #a] differently depending on the type of [a]. *)
       let solve_encoding : unit -> unit :=
         fun _ =>
-          lazy_match! Constr.type φ with
+          match! Constr.type φ with
           | val -> Prop => rewrite <- solve_encode_val; reflexivity
-          | _ => solve [ ltac1:(encode) ]
+          | _ => complete (fun _ => ltac1:(encode))
+          | _ =>
+              Control.throw
+                (Tactic_failure
+                   (Some
+                      (Message.of_string
+                         "Was not able to solve encoding")))
           end
       in
       Control.dispatch [ solve_encoding ; beta ]
   end.
 
+Ltac2 Notation "pure_ret" := Control.enter pure_ret0.
+
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
-Ltac2 pure_path () : unit :=
+Ltac2 pure_path0 () : unit :=
   let (m, φ) := decompose_pure () in
-  match! (Std.eval_vm None m) with
-  | eval _ (EPath _) =>
+  let e := get_expr_from_eval m in
+  match! e with
+  | (EPath _) =>
       (* [pure_eval_path :
           pure (lookup_path η π) ψ -> pure (eval η (EPath π)) ψ] *)
       eapply pure_eval_path;
@@ -111,20 +132,23 @@ Ltac2 pure_path () : unit :=
       | [ h_ident : lookup_name ?η ?π = ret _
           |- pure (lookup_name ?η ?π) _ ] =>
           let h := Control.hyp h_ident in
-          rewrite [$h]; pure_ret ()
+          rewrite [$h]; pure_ret
       (* If the lookup has reduced to a result, use [pure_ret]. *)
-      | [ |- pure (ret _) _ ] => pure_ret ()
+      | [ |- pure (ret _) _ ] => pure_ret
       end
   end.
+
+Ltac2 Notation "pure_path" := Control.enter pure_path0.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
-Ltac2 pure_const () :=
+Ltac2 pure_const0 () :=
   let (m, φ) := decompose_pure () in
-  match! (Std.eval_vm None m) with
-  | eval _ (EConstant _) =>
+  let e := get_expr_from_eval m in
+  match! e with
+  | EConstant _ =>
       (* [pure_eval_const :
           VConstant c = #x -> ψ x -> pure (eval η (EConstant c)) ψ] *)
       eapply pure_eval_const;
@@ -137,6 +161,8 @@ Ltac2 pure_const () :=
       in
       Control.focus 1 1 solve_encoding
   end.
+
+Ltac2 Notation "pure_const" := Control.enter pure_const0.
 
 Local Open Scope nat.
 
@@ -167,7 +193,7 @@ Proof.
   eapply prove_simp_bind.
   - apply prove_evals. apply Hevals.
   - apply SimpReflexive.
-  - pure_ret (). assumption.
+  - pure_ret. assumption.
 Qed.
 
 Lemma simp_pure {E} `{Encode A} (m : micro val E) (φ : A -> Prop) :
@@ -232,13 +258,13 @@ Ltac2 pure_tuple0 clear_hyps () :=
     | ];
   if clear_hyps then Std.clear hs else ().
 
-Ltac2 Notation "pure_tuple" := pure_tuple0 true ().
+Ltac2 Notation "pure_tuple" := Control.enter (pure_tuple0 true).
 
 Ltac2 pure_data0 clear_hyps () :=
   eapply pure_eval_data > [ pure_tuple0 clear_hyps (); Control.enter solve_encode | ].
 
-Ltac2 Notation "pure_data" := pure_data0 true ().
-Ltac2 Notation "pure_data_v" := pure_data0 false ().
+Ltac2 Notation "pure_data" := Control.enter (pure_data0 true).
+Ltac2 Notation "pure_data_v" := Control.enter (pure_data0 false).
 
 Goal pure (eval [] (ETuple [EConstant "true"; EConstant "false"])) (fun v => v = (true, false)).
   pure_tuple. reflexivity.
@@ -290,8 +316,16 @@ Ltac2 pure_call_VClo () :=
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
 Ltac2 pure_simp () :=
-  eapply pure_simp > [ ltac1:(simp_really) |].
+  eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
 
+Ltac2 pure_enter () :=
+  first [
+      eapply pure_enter_call_VClo
+    | eapply pure_enter_call_VCloRec
+    ];
+  apply pure_stop_eval; try (rewrite ?try2_ret_right).
+
+Ltac2 Notation "pure_enter" := Control.enter pure_enter.
 
 (* It is debatable in which order the two premises of the lemma [pure_call]
    should be attacked. The premise [v'2 = #x] may seem easy to solve (this
@@ -402,27 +436,6 @@ Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intro
 Ltac2 eta_expand (arg : constr) (f : constr) : constr :=
   Std.eval_pattern [(arg, Std.AllOccurrences)] f.
 
-Lemma pure_rec_call_no_pre `{Encode X} `{Encode Y}
-  (η : env) (rbs : list rec_binding) (fname : var) (v : X)
-  (φ : X → Y → Prop) (R : X → X → Prop) :
-  well_founded R ->
-  (∀ (vf : val) (v' : X),
-      (∀ v'' : X, R v'' v' → pure (call vf #v'') (φ v'')) ->
-      pure
-        ('afun ← lookup_rec_bindings rbs fname;
-         let δ := replace_env_binding (eval_rec_bindings η rbs) fname vf in
-         let 'AnonFun x e := afun in eval ((x, #v') :: δ ++ η) e)
-        (φ v')) →
-  pure (call (VCloRec η rbs fname) #v) (φ v).
-Proof.
-  intros Hwf IH.
-  eapply pure_rec_call.
-  - apply Hwf.
-  - Control.refine (fun () => constr:(I)).
-  - intros f x _ Hcall.
-    auto using IH.
-Qed.
-
 Ltac2 pure_rec_subgoals hwf pre () := ().
 
 Ltac2 pure_rec0 arg pre hwf :=
@@ -444,10 +457,8 @@ Ltac2 pure_rec0 arg pre hwf :=
       eapply pure_rec_call_no_pre with (v := $arg)
   | Some ?pre =>
       eapply pure_rec_call with (v := $arg) (P := $pre)
-  end >
-    [ apply $hwf
-    |
-    | ].
+  end;
+  Control.focus 1 1 (fun _ => apply $hwf).
 
 
 (* Automatically apply [pure_rec_call] on a goal of the form [pure m φ] *)
@@ -488,6 +499,11 @@ Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
 Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
   pure_rec_tac arg constr:(Some pre) Hwf.
 
+
+Definition lift_rel {X Y} (R : (X * Y) -> (X * Y) -> Prop) (y : Y) : X -> X -> Prop :=
+  fun x1 x2 => R (x1, y) (x2, y).
+
+
 (* Automatically apply [pure_nested_call] on a goal of the form [pure m φ] *)
 Ltac pure_nested_tac arg1 arg2 pre Hwf :=
   match goal with
@@ -496,12 +512,12 @@ Ltac pure_nested_tac arg1 arg2 pre Hwf :=
       set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
       lazymatch pre with
       | None =>
-          eapply pure_nested_call with (v1:=arg1) (v2:=arg2)
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2)
       | Some ?pre =>
-          eapply pure_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2) (P:=pre)
       end;
       [ reflexivity
-      | simpl_evaluate; reflexivity
+      | simpl_eval; reflexivity
       | apply Hwf
       | lazymatch pre with
           None =>

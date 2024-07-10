@@ -411,21 +411,3 @@ Proof.
     + simp_enter_and_abstract. intros length Hlength. simp.
     + lia. }
 Qed.
-
-(* ------------------------------------------------------------------------- *)
-
-Definition weak_spec_length' (length : val) :=
-  ∀ X `(_ : Encode X) (xs : list X),
-  pure (call length (# xs)) (λ n : Z, 0 ≤ n)%Z.
-
-Goal
-  ∀ η,
-  weak_spec_length' (VCloRec η length "length").
-Proof.
-  unfold weak_spec_length'.
-  induction xs as [| x xs ];
-  pure_enter_and_abstract; intros length; [| intros Hlength ];
-  repeat (unfold_all; pure1).
-  { lia. }
-  { intros n ?. pure1. lia. }
-Qed.
