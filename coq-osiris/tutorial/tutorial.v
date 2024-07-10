@@ -194,6 +194,7 @@ Goal ∀ η e e1 e2,
     b ← as_bool (eval η e) ;
     if (b : bool) then eval η e1 else eval η e2. (* .no-goals *)
 Proof. (* .none *)
+  simpl_eval.
   reflexivity. (* .none *)
 Qed. (* .none *)
 
@@ -212,6 +213,7 @@ Goal ∀ η e body,
     else
       ok. (* .no-goals *)
 Proof. (* .none *)
+  simpl_eval.
   reflexivity. (* .none *)
 Qed. (* .none *)
 
@@ -243,6 +245,7 @@ Goal ∀ η e1 e2,
     '(v1, v2) ← par (eval η e1) (eval η e2) ;
     call v1 v2. (* .no-goals *)
 Proof. (* .none *)
+  simpl_eval.
   reflexivity. (* .none *)
 Qed. (* .none *)
 

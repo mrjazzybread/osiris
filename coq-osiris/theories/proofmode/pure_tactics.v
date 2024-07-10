@@ -249,7 +249,7 @@ Ltac2 simp_to_value η e :=
 
 Ltac2 simp_tuple_args () :=
   let (m, _) := decompose_pure () in
-  match! m with
+  lazy_match! m with
   | (eval ?η ?e) =>
       let args := etuple_args e in
       List.map (fun e => simp_to_value η e) args

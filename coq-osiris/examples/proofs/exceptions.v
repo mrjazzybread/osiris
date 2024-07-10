@@ -44,7 +44,7 @@ Proof.
   (* Struct item: [let head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := head_spec).
-    pure1; unfold head_spec; intros.
+    ltac2:(pure_simp ()); unfold head_spec; intros.
     iIntros.
     destruct l; Simp.
     { iApply ewp_throw. simpl. equality. }
@@ -54,13 +54,13 @@ Proof.
   (* Struct item: [let cath_head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
-    pure1; unfold catch_head_spec; intros.
+    ltac2:(pure_simp ()); unfold catch_head_spec; intros.
     iIntros.
     iApply ewp_eval. iModIntro.
-    rewrite eval_eval'; simpl.
-    iApply ewp_handle; first Simp.
+    iApply ewp_EMatch.
+    iApply ewp_handle.
     { (* Call to [head]. *)
-      iApply Hhead. }
+      Simp. iApply Hhead. }
     { (* Show that h satisfies shallow_handler_spec *)
       iSplit.
       { (* Value/exception case. *)
@@ -83,13 +83,12 @@ Proof.
   (* Struct item: [let catch_head2 l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
-    pure1; unfold catch_head_spec; intros.
+    ltac2:(pure_simp ()); unfold catch_head_spec; intros.
     iIntros.
     iApply ewp_eval.
     iModIntro.
-    Simp.
+    Simp. Simp.
     (* Reshape the goal to get [EWP try (o ← call head #l; ...)] *)
-    rewrite bind_bind try_bind.
     iApply ewp_try.
     (* Call to head. *)
     iApply ewp_mono. { iApply Hhead. }
