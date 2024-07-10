@@ -280,14 +280,14 @@ Lemma pure_rec_call `{Encode X, Encode Y} {A}
   P a x ->
   (∀ vf x,
       (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) (φ a)) ->
-      (∀ (a : A), pure (eval (arg ~> #x; f ~> vf; η) e1) (φ a))) ->
+      (∀ (a : A), P a x -> pure (eval (arg ~> #x; f ~> vf; η) e1) (φ a))) ->
   pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) (φ a).
 Proof.
   intros Hwf HPx Hrec.
   generalize dependent a.
   induction x as [x IH] using (well_founded_induction Hwf); intros.
   simpl; rewrite String.eqb_refl; apply pure_stop_eval; rewrite try2_ret_right.
-  apply Hrec. intros a2 y HR HPy.
+  apply Hrec; [ intros a2 y HR HPy | assumption ].
   apply IH; auto.
 Qed.
 
@@ -303,7 +303,7 @@ Lemma pure_letrec `{Encode X, Encode Y} {A}
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
       (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) (φf a)) ->
-      ∀ (a : A), pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a)) ->
+      ∀ (a : A), P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a)) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
@@ -346,41 +346,30 @@ Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
   pure (call vf arg1) (fun c =>
                          pure (call c arg2) φ).
 
-Lemma pure_nested_rec_call `{Encode A} `{Encode B} `{Encode C}
-  (η : env) farg farg2 ef ef2 (fname : var) (v1 : A) (v2 : B)
-  (P : A -> B -> Prop) (φ : A -> B -> C -> Prop) (R : (A * B) -> (A * B) -> Prop) :
-  let vclo := (VCloRec η [RecBinding fname (AnonFun farg ef)] fname) in
+Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} {A}
+  η f arg e1 (x : X) (y : Y) (a : A) (φ : A -> W -> Prop)
+  (R : (X * Y) -> (X * Y) -> Prop) (P : A -> (X * Y) -> Prop)
+  :
   well_founded R ->
-  P v1 v2 ->
-  let η1 := (farg ~> #v1; fname ~> vclo; η) in
-  pure (eval η1 ef) (λ v, v = (VClo η1 (AnonFun farg2 ef2))) ->
-  (forall (vf : val) v1' v2',
-      P v1' v2' ->
-      (forall v1'' v2'',
-          let η1' := (farg ~> #v1''; fname ~> vclo; η) in
-          eval η1' ef = ret (VClo η1' (AnonFun farg2 ef2)) ->
-          P v1'' v2'' ->
-          R (v1'', v2'') (v1', v2') ->
-          pure_call2 vf #v1'' #v2'' (φ v1'' v2'')) ->
-      let δ := (farg2 ~> #v2'; farg ~> #v1'; fname ~> vf; η) in
-      pure (eval δ ef2) (φ v1' v2')) ->
-  pure_call2 vclo #v1 #v2 (φ v1 v2).
+  P a (x, y) ->
+  (∀ vf x1 y1,
+      (∀ (a : A) (x2 : X) (y2 : Y),
+          R (x2, y2) (x1, y1) ->
+          P a (x2, y2) ->
+          pure_call2 vf #x2 #y2 (φ a)) ->
+      (∀ (a : A),
+          pure (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure (call c #y1) (φ a)))) ->
+  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ a).
 Proof.
-  cbn zeta.
-  intros Hwf HP Heval Hrec.
-  remember (v1, v2) as p eqn:Hpeq.
-  replace v1 with (p.1) in * by (rewrite Hpeq; reflexivity).
-  replace v2 with (p.2) in * by (rewrite Hpeq; reflexivity).
-  clear v1 v2 Hpeq.
+  intros Hwf HP Hrec.
+  remember (x, y) as p eqn:Hpeq.
+  rewrite (surjective_pairing p) in Hpeq.
+  apply pair_eq in Hpeq as [<- <-].
+  revert HP. generalize a. clear a.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
-  destruct p as [v1 v2]; simpl in *.
-  apply pure_enter_call_VCloRec; simpl; rewrite String.eqb_refl; simpl.
-
-  unfold acall; apply pure_EvalRetThrow.
-  eapply pure_consequence. apply Heval. intros vf ->.
-  apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
-  eapply Hrec; auto; intros.
-  apply (IH (v1'', v2'')); eauto. simpl.
-  rewrite H2.
-  eapply pure_ret; [ solve [encode] | reflexivity].
+  unfold pure_call2; simpl;
+    rewrite String.eqb_refl; apply pure_stop_eval; rewrite try2_ret_right.
+  apply Hrec. intros a2 x2 y2 HR HP2.
+  apply (IH (x2, y2)); auto.
+  rewrite surjective_pairing. apply HR.
 Qed.
