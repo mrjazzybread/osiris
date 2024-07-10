@@ -358,6 +358,7 @@ Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} {A}
           P a (x2, y2) ->
           pure_call2 vf #x2 #y2 (φ a)) ->
       (∀ (a : A),
+          P a (x1, y1) ->
           pure (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure (call c #y1) (φ a)))) ->
   pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ a).
 Proof.
@@ -369,7 +370,7 @@ Proof.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   unfold pure_call2; simpl;
     rewrite String.eqb_refl; apply pure_stop_eval; rewrite try2_ret_right.
-  apply Hrec. intros a2 x2 y2 HR HP2.
+  apply Hrec; [ intros a2 x2 y2 HR HP2 | rewrite <- surjective_pairing; apply HP ].
   apply (IH (x2, y2)); auto.
-  rewrite surjective_pairing. apply HR.
+  rewrite surjective_pairing; apply HR.
 Qed.
