@@ -862,6 +862,50 @@ Proof.
   rewrite eq_repr_repr; auto using Zeq_spec.
 Qed.
 
+Lemma pure_eval_EOpEq_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpEq e1 e2)) (λ (b : bool), b <-> (x1 = x2)).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  eapply pure_ret. { encode. }
+  rewrite eq_repr_repr; auto using Zeq_spec.
+Qed.
+
+Lemma pure_eval_EOpNe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpNe e1 e2)) (λ P, P <-> (x1 <> x2)%Z).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  eapply pure_ret.
+  { unfold encode, Encode_Prop; f_equal; f_equal.
+    rewrite truth_Is_true. auto with arith. }
+  rewrite eq_repr_repr; auto using Zne_spec.
+Qed.
+
+Lemma pure_eval_EOpNe_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (λ x1', x1' = x1) ->
+  pure (eval η e2) (λ x2', x2' = x2) ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpNe e1 e2)) (λ (b : bool), b <-> (x1 <> x2)).
+Proof.
+  intros. destruct_pure a; destruct_pure b; subst.
+  eapply pure_simp. simp.
+  eapply pure_ret. { encode. }
+  rewrite eq_repr_repr; auto using Zne_spec.
+Qed.
+
 (* Runtime assertions. *)
 
 Lemma pure_eval_assert η e :
