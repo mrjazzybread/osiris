@@ -39,7 +39,8 @@ Ltac2 clear_abstracted_env () :=
        (* Use [Std.eval_vm] in case [ty] is folded as [env]. *)
        match! (Std.eval_vm None ty) with
        (* If [η] is an environment, try substitute it. *)
-       | list (var * val) => subst η
+       | list (string * val) => subst η
+       | _ => ()
        end)
     (Control.hyps ()).
 
@@ -51,6 +52,11 @@ Ltac2 Notation "clear_abstracted_env" := clear_abstracted_env ().
 Ltac2 get_env () :=
   lazy_match! goal with
   | [ |- pure (eval ?η _) _ ]  => η
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pure (eval η e) φ]")))
   end.
 
 (* [abstract_env] expects a goal of the form [pure (eval η e) φ]. It creates a
@@ -65,6 +71,7 @@ Ltac2 abstract_env () :=
   let η0 := Fresh.in_goal @η in
   set ($η) as η0.
 
+Ltac2 Notation "abstract_env" := abstract_env ().
 
 (* -------------------------------------------------------------------------- *)
 
