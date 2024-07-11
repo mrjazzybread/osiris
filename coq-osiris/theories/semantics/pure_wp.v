@@ -96,14 +96,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Par m1 crash k)
     crash
-| MayParRetLeft {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _) :
+| MayParRetRet {A1 A2 E'} a1 a2 (k : outcome2 (A1 * A2) E' → _) :
   may
-    (Par (Ret a1) m2 k)
-    (try2 m2 (join1 a1 k))
-| MayParRetRight {A1 A2 E'} m1 a2 (k : outcome2 (A1 * A2) E' → _) :
-  may
-    (Par m1 (Ret a2) k)
-    (try2 m1 (join2 a2 k))
+    (Par (Ret a1) (Ret a2) k)
+    (continue k (a1, a2))
 | MayParThrowLeft {A1 A2 E'} e1 m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par (Throw e1) m2 k)
@@ -250,8 +246,7 @@ Qed.
 
 Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1 m2 m' :
   may (Par m1 m2 k) m' →
-  (∃ a, m1 = ret a ∧ m' = try2 m2 (join1 a k)) ∨
-  (∃ a, m2 = ret a ∧ m' = try2 m1 (join2 a k)) ∨
+  (∃ a1 a2, m1 = ret a1 ∧ m2 = ret a2 ∧ m' = continue k (a1, a2)) ∨
   (∃ m1', may m1 m1' ∧ m' = Par m1' m2 k) ∨
   (∃ m2', may m2 m2' ∧ m' = Par m1 m2' k) ∨
   (∃ e1, m1 = throw e1 ∧ m' = k (O2Throw e1)) ∨
