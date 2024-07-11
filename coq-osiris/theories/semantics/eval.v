@@ -1323,17 +1323,37 @@ Lemma fold_pre_evalfs :
   pre_evalfs eval = evalfs.
 Proof. unfold evalfs; by rewrite seal_eq. Qed.
 
-Local Definition deep_eval_match_aux_aux : seal (pre_eval_match_aux eval true).
+Local Definition eval_match_aux_aux : seal (pre_eval_match_aux eval).
 Proof. by eexists. Qed.
-Definition deep_eval_match_aux := deep_eval_match_aux_aux.(unseal).
+Definition eval_match_aux := eval_match_aux_aux.(unseal).
 Lemma fold_pre_eval_match_aux :
-  pre_eval_match_aux eval true = deep_eval_match_aux.
-Proof. unfold deep_eval_match_aux; by rewrite seal_eq. Qed.
+  pre_eval_match_aux eval = eval_match_aux.
+Proof. unfold eval_match_aux; by rewrite seal_eq. Qed.
 
-Local Definition eval_match_aux : seal (pre_eval_match eval).
+Definition deep_eval_match_aux := eval_match_aux true.
+Lemma fold_deep_pre_eval_match_aux :
+  pre_eval_match_aux eval true = deep_eval_match_aux.
+Proof.
+  unfold deep_eval_match_aux, eval_match_aux.
+  by rewrite seal_eq.
+Qed.
+
+(* [eval_match_aux] needs to keep the initial handler branches around
+   for reinstallation. We use notations to hide this as it busies the
+   goal. *)
+
+Notation "'eval_match_aux' deep η o bs" :=
+  (eval_match_aux deep η o bs _)
+    (at level 8, only printing).
+
+Notation "'deep_eval_match_aux' η o bs" :=
+  (deep_eval_match_aux η o bs _)
+    (at level 8, only printing).
+
+Local Definition eval_match_s : seal (pre_eval_match eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_match] *)
-Definition eval_match := eval_match_aux.(unseal).
+Definition eval_match := eval_match_s.(unseal).
 Lemma fold_pre_eval_match :
   pre_eval_match eval = eval_match.
 Proof. unfold eval_match; by rewrite seal_eq. Qed.
@@ -1428,7 +1448,7 @@ Ltac simpl_evalfs :=
   || fail "Unable to simplify application of evalfs".
 
 Ltac simpl_deep_eval_match_aux :=
-  (unfold deep_eval_match_aux;
+  (unfold deep_eval_match_aux, eval_match_aux;
    rewrite seal_eq;
    (progress simpl pre_eval_match_aux);
   rewrite ?fold_pre_eval_match_aux)

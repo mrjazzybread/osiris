@@ -467,7 +467,6 @@ Ltac2 pure_rec0 arg pre hwf :=
   end;
   Control.focus 1 1 (fun _ => apply $hwf).
 
-
 (* Automatically apply [pure_rec_call] on a goal of the form [pure m φ] *)
 Ltac pure_rec_tac arg pre Hwf :=
   (* Eta-expand the postcondition *)

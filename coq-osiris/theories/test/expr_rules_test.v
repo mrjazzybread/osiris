@@ -278,7 +278,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext. Simp. Ret. by iExists true.
+  - iIntros (?) "->". iNext.
+    simpl_deep_eval_match_aux. Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -308,7 +309,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext. rewrite <- fold_pre_eval_match_aux. (* FIXME *)
+  - iIntros (?) "->". iNext.
+    unfold deep_eval_match_aux, eval_match_aux. rewrite seal_eq.
     red_match. Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
@@ -333,7 +335,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext. rewrite <- fold_pre_eval_match_aux.
+  - iIntros (?) "->". iNext.
+    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
     iApply handle_cons. (* TODO: Improve red_match to manage this case. *)
     + specify_cpattern.
       pattern_match.
@@ -366,7 +369,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext. rewrite <- fold_pre_eval_match_aux.
+  - iIntros (?) "->". iNext.
+    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
     iApply handle_cons.
     + specify_cpattern.
       pattern_match.
@@ -411,7 +415,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext. rewrite <- fold_pre_eval_match_aux.
+  - iIntros (?) "->". iNext.
+    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
     iApply handle_cons.
     + specify_cpattern.
       pattern_match.
