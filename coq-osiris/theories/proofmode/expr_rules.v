@@ -864,13 +864,13 @@ Section ewp_rules_expr.
     EWP eval η (EMatch e bs) <|Ψ|> {{ Φ }}.
   Proof.
     iIntros "H"; simpl_eval.
-    by unfold deep_handler; simpl_deep_eval_match.
+    by unfold deep_handler, deep_eval_match; rewrite -> seal_eq.
   Qed.
 
   (* TODO: remove? probably handled by Simp *)
   Lemma ewp_eval_match_nil η a φ Ψ :
     (∃ e, ⌜a = O2Throw e⌝ ∗ φ (O2Throw e)) -∗
-      EWP eval_match true η a [] <|Ψ|>{{ φ }}.
+      EWP eval_match true η [] a <|Ψ|>{{ φ }}.
   Proof.
     iIntros "(%e & -> & H)".
     simpl_eval_match.

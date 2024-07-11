@@ -14,7 +14,7 @@ From osiris.semantics Require Import code.
     If not, the handler is installed around the captured continuation. *)
 
 Definition shallow_handler η e bs :=
-  Handle (eval η e) (λ o, shallow_eval_match η o bs).
+  Handle (eval η e) (shallow_eval_match η bs).
 
 (* Deep handlers are installed permanently;
      Regardless of whether the handled expression performs an effect
@@ -22,7 +22,7 @@ Definition shallow_handler η e bs :=
     continuation. *)
 
 Definition deep_handler η e bs :=
-  Handle (eval η e) (λ o, deep_eval_match η o bs).
+  Handle (eval η e) (deep_eval_match η bs).
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
@@ -154,7 +154,7 @@ Section handler_proof.
   Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
-    shallow_handler_spec E Ψ Φ (λ o, shallow_eval_match η o bs) Ψ' Φ' -∗
+    shallow_handler_spec E Ψ Φ (shallow_eval_match η bs) Ψ' Φ' -∗
     EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     iIntros "He Hspec".

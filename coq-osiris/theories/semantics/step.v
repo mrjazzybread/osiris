@@ -197,7 +197,7 @@ Qed.
    TODO comment. *)
 
 Definition step_install_1 σ l deep η bs l' :=
-  <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs))]> σ.
+  <[l' := K (λ o, Handle (stop CResume (l, o)) (eval_match deep η bs))]> σ.
 
 Definition step_install_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
@@ -689,7 +689,7 @@ Lemma invert_step_install {A E} σ σ' deep l η bs k m' :
   @step A E (σ, Stop CInstall (deep, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (λ o, eval_match deep η o bs)) ]> σ ∧
+  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (eval_match deep η bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.

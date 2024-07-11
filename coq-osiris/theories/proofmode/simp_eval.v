@@ -432,10 +432,7 @@ Qed.
 Lemma pure_eval_anonfunction `{Encode A, Encode A1} η bs (φ : A1 -> Prop) (ψ : val -> Prop) :
   (∀ (x : A),
       pure
-        (deep_eval_match
-           (("__osiris_anonymous_arg", #x) :: η)
-           (O2Ret #x)
-           bs)
+        (deep_eval_match (("__osiris_anonymous_arg", #x) :: η) bs (O2Ret #x))
         φ) ->
   (∀ (vf : val), (∀ (x : A), pure (call vf #x) φ) -> ψ vf) ->
   pure (eval η (EAnonFun (AnonFunction bs))) ψ.

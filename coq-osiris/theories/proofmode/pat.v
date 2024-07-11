@@ -448,7 +448,7 @@ Proof.
   unfold pure_match; intros Heval Hmatch.
   destruct Heval as (? & ? & ->).
   eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption |  ].
-  by unfold continue; simpl.
+  unfold continue. by simpl_eval_match.
 Qed.
 
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
@@ -459,7 +459,7 @@ Proof.
   unfold pure_match; intros Heval Hmatch.
   destruct Heval as (? & ? & ?).
   eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption | ].
-  by apply Hmatch.
+  unfold continue. simpl_eval_match. auto.
 Qed.
 
 (* Currently unused *)

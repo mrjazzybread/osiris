@@ -976,7 +976,7 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
   end.
 
 Definition pre_eval_match (deep : bool)
-  (η : env) (o : outcome3 val exn) (bs : list branch) : microvx :=
+  (η : env) (bs : list branch) (o : outcome3 val exn): microvx :=
   if deep then
     match o with
     | O3Perform e k =>
@@ -1235,8 +1235,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
       (* TODO: Comment. *)
-      Handle (eval η e)
-        (λ o3, eval_match true η o3 bs)
+      Handle (eval η e) (eval_match true η bs)
   | ETryWith e bs =>
       (* TODO: Comment. *)
       try

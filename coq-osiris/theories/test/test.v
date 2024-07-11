@@ -207,7 +207,7 @@ Lemma test_match_integer :
   ] in
   let v := VInt (repr 13) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
@@ -217,7 +217,7 @@ Lemma test_match_integer_and_alias_pattern :
   ] in
   let v := VInt (repr 0) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
@@ -227,7 +227,7 @@ Lemma test_match_integer_and_disjunction_pattern :
 ] in
   let v := VInt (repr 2) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_call :
   let e :=
@@ -572,11 +572,11 @@ Lemma test_shallow_handle :
   in
   let m :=
     Handle (eval η e)
-      (λ o, shallow_eval_match η o
-              [ (* | effect _, k -> continue k 42 *)
-                Branch
-                  (CEff PAny (PVar "k"))
-                  (EContinue (EVar "k") (EInt 42))])
+      (shallow_eval_match η
+         [ (* | effect _, k -> continue k 42 *)
+           Branch
+             (CEff PAny (PVar "k"))
+             (EContinue (EVar "k") (EInt 42))])
   in
   ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
 Proof. do 2 eexists. reduces. steps. Qed.
@@ -638,24 +638,24 @@ Lemma test_shallow_ret_reinstall :
   in
   let m1 :=
     Handle (eval η e)
-      (λ o, shallow_eval_match η o
-              [ (* | effect Get10, k -> continue k 10 *)
-                Branch
-                  (CEff (PXData ["Get10"] (PTuple [])) (PVar "k"))
-                  (EContinue (EVar "k") (EInt 10))])
+      (shallow_eval_match η
+         [ (* | effect Get10, k -> continue k 10 *)
+           Branch
+             (CEff (PXData ["Get10"] (PTuple [])) (PVar "k"))
+             (EContinue (EVar "k") (EInt 10))])
   in
   let m2 :=
     Handle m1
-      (λ o, deep_eval_match η o
-              [ (* | effect Get32, k -> continue k 32 *)
-                Branch
-                  (CEff (PXData ["Get32"] (PTuple [])) (PVar "k"))
-                  (EContinue (EVar "k") (EInt 32));
-                (* | x -> x *)
-                Branch (CVal (PVar "x")) (EVar "x")])
+      (deep_eval_match η
+         [ (* | effect Get32, k -> continue k 32 *)
+           Branch
+             (CEff (PXData ["Get32"] (PTuple [])) (PVar "k"))
+             (EContinue (EVar "k") (EInt 32));
+           (* | x -> x *)
+           Branch (CVal (PVar "x")) (EVar "x")])
   in
   ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. Qed.
+Proof. intros. subst e m1 m2. reduces. reduces. Qed.
 
 (* Further test ideas:
    - nested effect and exception handlers *)
