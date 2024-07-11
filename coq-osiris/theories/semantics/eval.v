@@ -939,7 +939,7 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
   (bs : handler) (all_branches : handler)
    : microvx :=
-  let eval_match := pre_eval_match_aux in
+  let eval_match_aux := pre_eval_match_aux in
   match bs with
   | [] =>
       (* A nonexhaustive [match] construct. *)
@@ -972,7 +972,7 @@ Fixpoint pre_eval_match_aux (deep : bool) (η : env) (o : outcome3 val exn)
         (* Success: commit to this branch. Evaluate its body. *)
         (λ δ, eval δ e)
         (* Soft failure: abandon this branch. Try the following branches. *)
-        (fun tt => eval_match deep η o bs all_branches)
+        (fun tt => eval_match_aux deep η o bs all_branches)
   end.
 
 Definition pre_eval_match (deep : bool)
