@@ -45,6 +45,7 @@ Ltac2 clear_abstracted_env () :=
     (Control.hyps ()).
 
 Ltac2 Notation "clear_abstracted_env" := clear_abstracted_env ().
+Tactic Notation "clear_abstracted_env" := ltac2:(clear_abstracted_env).
 
 (* [get_env] returns the current environment under which an expression
    is currently being evaluated in [pure] mode. *)
@@ -63,15 +64,18 @@ Ltac2 get_env () :=
    local definition for the environment [η]. *)
 
 Ltac2 abstract_env () :=
-  (* Collapse any previous environment abstraction. *)
-  clear_abstracted_env;
-  (* Fetch the full environment as a constr [η]. *)
-  let η := get_env () in
-  (* Generate a fresh name and use [set] to abstract [η]. *)
-  let η0 := Fresh.in_goal @η in
-  set ($η) as η0.
+  Control.enter
+    (fun _ =>
+       (* Collapse any previous environment abstraction. *)
+       clear_abstracted_env;
+       (* Fetch the full environment as a constr [η]. *)
+       let η := get_env () in
+                   (* Generate a fresh name and use [set] to abstract [η]. *)
+       let η0 := Fresh.in_goal @η in
+       set ($η) as η0).
 
 Ltac2 Notation "abstract_env" := abstract_env ().
+Tactic Notation "abstract_env" := ltac2:(abstract_env).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -120,6 +124,7 @@ Ltac2 pure_ret0 () :=
   end.
 
 Ltac2 Notation "pure_ret" := Control.enter pure_ret0.
+Tactic Notation "pure_ret" := ltac2:(pure_ret).
 
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
@@ -146,6 +151,7 @@ Ltac2 pure_path0 () : unit :=
   end.
 
 Ltac2 Notation "pure_path" := Control.enter pure_path0.
+Tactic Notation "pure_path" := ltac2:(pure_path).
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
@@ -170,6 +176,7 @@ Ltac2 pure_const0 () :=
   end.
 
 Ltac2 Notation "pure_const" := Control.enter pure_const0.
+Tactic Notation "pure_const" := ltac2:(pure_const).
 
 Local Open Scope nat.
 
@@ -266,12 +273,16 @@ Ltac2 pure_tuple0 clear_hyps () :=
   if clear_hyps then Std.clear hs else ().
 
 Ltac2 Notation "pure_tuple" := Control.enter (pure_tuple0 true).
+Tactic Notation "pure_tuple" := ltac2:(pure_tuple).
 
 Ltac2 pure_data0 clear_hyps () :=
   eapply pure_eval_data > [ pure_tuple0 clear_hyps (); Control.enter solve_encode | ].
 
 Ltac2 Notation "pure_data" := Control.enter (pure_data0 true).
 Ltac2 Notation "pure_data_v" := Control.enter (pure_data0 false).
+
+Tactic Notation "pure_data" := ltac2:(pure_data).
+Tactic Notation "pure_data_v" := ltac2:(pure_data_v).
 
 Goal pure (eval [] (ETuple [EConstant "true"; EConstant "false"])) (fun v => v = (true, false)).
   pure_tuple. reflexivity.
@@ -333,6 +344,7 @@ Ltac2 pure_enter () :=
   apply pure_stop_eval; try (rewrite ?try2_ret_right).
 
 Ltac2 Notation "pure_enter" := Control.enter pure_enter.
+Tactic Notation "pure_enter" := ltac2:(pure_enter).
 
 (* It is debatable in which order the two premises of the lemma [pure_call]
    should be attacked. The premise [v'2 = #x] may seem easy to solve (this

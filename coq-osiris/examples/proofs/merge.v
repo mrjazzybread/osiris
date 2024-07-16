@@ -5,7 +5,6 @@ From osiris.stdlib Require Import Stdlib.
 From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
 
-From Ltac2 Require Import Ltac2.
 
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
   (cons x _ (.. (cons z _ nil) ..))
@@ -15,15 +14,12 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 
 (* WIP: Tactics used in local proof scripts. *)
 
-Local Ltac2 destruct_hyps () :=
+Local Ltac destruct_hyps :=
   repeat (
-  match! goal with
+  match goal with
   | [ h : _ /\ _ |- _ ] =>
-      let h := Control.hyp h in
-      destruct $h
+      destruct h
   end).
-
-Local Ltac2 Notation "destruct_hyps" := destruct_hyps ().
 
 Local Ltac rewrite_permutation t :=
   lazymatch goal with
@@ -58,9 +54,9 @@ Local Ltac all_inversions :=
 
 Lemma even_false_odd_true n : Nat.even n = false <-> Nat.odd n = true.
 Proof.
-  split >
-          [rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd] >
-          [ apply negb_true_iff; auto   | apply negb_false_iff; auto ].
+  split;
+    [rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd];
+    [ apply negb_true_iff; auto   | apply negb_false_iff; auto ].
 Qed.
 
 Local Hint Resolve even_false_odd_true : arith.
@@ -74,7 +70,7 @@ Proof.
  destruct (Nat.even n) eqn:Hn.
  { (* Case: n is even *)
    rewrite Nat.Even_div2.
-   - apply Nat.lt_div2; ltac1:(lia).
+   - apply Nat.lt_div2; lia.
    - apply Nat.even_spec. assumption. }
  { (* Case: n is odd *)
    apply Nat.succ_lt_mono.
@@ -168,18 +164,18 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 Global Instance CRel2Cons `{Encode A} : CRel2 A (list A) (list A) "::" cons := {}.
 
-Ltac2 Notation "trivial_pure" := repeat (first [ pure_path | pure_data | pure_const]).
+Local Ltac trivial_pure := repeat (first [ pure_path | pure_data | pure_const]).
 
-Ltac2 pure_eval_app2_conseq () :=
-  eapply pure_eval_app2_conseq >
+Local Ltac pure_eval_app2_conseq :=
+  eapply pure_eval_app2_conseq;
   [ trivial_pure; reflexivity
   | trivial_pure; reflexivity
   | trivial_pure; reflexivity
   |
   | ].
 
-Ltac2 pure_EOpLe () :=
-  eapply pure_eval_EOpLe >
+Local Ltac pure_EOpLe :=
+  eapply pure_eval_EOpLe;
   [ trivial_pure; reflexivity
   | trivial_pure; reflexivity
   |
@@ -202,12 +198,14 @@ Proof.
   simpl. intros merge x1 y1 IH [l3 l4] (-> & -> & Hpre). fold eval.
   abstract_env.
   (* FIXME: rule for pure_eval_EAnonFun is incorrect. *)
-  pure_simp (). pure_enter. abstract_env.
+  eapply pure_simp; [ simp | ]. pure_ret.
+  pure_enter. abstract_env.
 
   eapply pure_eval_match.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
-  unfold __branches2; ltac1:(pure_match).
+
+  unfold __branches2; pure_match.
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
@@ -221,15 +219,15 @@ Proof.
   (* Second branch of match *)
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
-      pure_EOpLe (); destruct Hpre as (? & ? & ?);
-      repeat (ltac1:(Forall_inversion)); auto. }
+      pure_EOpLe; destruct Hpre as (? & ? & ?);
+      repeat (Forall_inversion); auto. }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
       intros. unfold deco. unfold __exp0.
 
       eapply pure_eval_data2.
       eapply pure_eval_pair. pure_path.
       (* Evaluate "merge t1 l2" under the cons *)
-      pure_eval_app2_conseq ().
+      pure_eval_app2_conseq.
       { (* Use induction hypothesis on [call merge t1 l2] *)
         eapply (IH (xs', x0::xs'0)).
         { (* Subgoal: justify the recursive call with a size argument *)
@@ -237,39 +235,39 @@ Proof.
         { (* Subgoal: t1 and l2 satisfy merge's precondition *)
           repeat split;
           unfold merge_pre in Hpre;
-          destruct_hyps; ltac1:(all_inversions); auto. } }
+          destruct_hyps; all_inversions; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; ltac1:(all_inversions).
+      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
-        constructor > [ assumption | ].
+        constructor; [ assumption | ].
         eapply HdRel_Sorted_Permutation; eauto with zarith. }
       { (* Subgoal: the output is a permutation of the inputs *)
-        ltac1:(by rewrite_permutation l). } }
+        by rewrite_permutation l. } }
     { (* Evaluate expression "h2 :: (merge l1 t2)" knowing  (h1 > h2) *)
       simpl; intros. fold eval.
       eapply pure_eval_data2. eapply pure_eval_pair; pure_path.
       (* Evaluate "merge l1 t2" under the cons *)
-      pure_eval_app2_conseq ().
+      pure_eval_app2_conseq.
       (* Use induction hypothesis on [call merge l1 t2] *)
       { eapply (IH (x::xs', xs'0)).
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. }
         { (* Subgoal: l1 and t2 satisfy merge's precondition *)
           unfold merge_pre in *.
-          destruct_hyps; ltac1:(all_inversions); repeat split; auto. } }
+          destruct_hyps; all_inversions; repeat split; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; ltac1:(all_inversions).
+      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
-        constructor > [ auto | ].
+        constructor; [ auto | ].
         eapply HdRel_Sorted_Permutation; eauto with zarith. }
       { (* Subgoal: the output is a permutation of the inputs *)
-        ltac1:(rewrite_permutation l).
+        rewrite_permutation l.
         apply Permutation_sym. apply Permutation_middle. } } }
 Qed.
 
@@ -290,7 +288,7 @@ Proof.
   eapply pure_eval_match. { pure_path. apply eq_refl. }
   unfold __branches6; simpl.
   (* First branch of match *)
-  ltac1:(pure_match); Control.enter abstract_env.
+  pure_match; abstract_env.
   { (* Case: l matches [] *)
     apply pure_eval_pair. trivial_pure.
     (* Establish the (trivial) postcondition *)
@@ -313,20 +311,20 @@ Proof.
       { (* Show the precondition. *)
         reflexivity. } }
     intros [l1 l2] Hpost; clear IH; simpl.
-    ltac1:(simpl_extend); simpl. fold eval. abstract_env.
+    simpl_extend; simpl. fold eval. abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair. trivial_pure.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     subst.
     destruct Hpost as (H1 & H2 & ?).
-    split > [ | split ].
+    split; [ | split ].
     { (* Subgoal: the length of l1 is half the length of xs *)
       destruct (Nat.even _); rewrite H1; eauto with arith. }
     { (* Subgoal: the length of l2 is half the length of xs *)
       rewrite H2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
-      ltac1:(rewrite_permutation xs'0).
+      rewrite_permutation xs'0.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
@@ -343,13 +341,13 @@ Proof.
   unfold mergesort_spec; intros l ?.
   eapply pure_rec_call with (P := fun a x => a = x /\ mergesort_pre x).
   { apply wf_list_length. }
-  { split > [ reflexivity | assumption ]. }
+  { split; [ reflexivity | assumption ]. }
   clear H l.
   intros mergesort l IH ? (-> & Hpre).
 
   eapply pure_eval_match. { pure_path. reflexivity. }
   unfold __branches11.
-  ltac1:(pure_match); Control.enter abstract_env.
+  pure_match; abstract_env.
   { pure_const. auto. } (* Branch: "[]"  *)
   { pure_data. auto. }  (* Branch: "[x]" *)
 
@@ -357,9 +355,9 @@ Proof.
   assert (exists m, length l = S (S m)) as [m Heql].
   { (* TODO: too difficult to acquire knowledge from not matching on
        previous branches *)
-    destruct no_match0 as [ | no_match0 ] > [ ltac1:(congruence) | ].
-    destruct no_match0 as (?&tail&?&[?|?]) > [ ltac1:(contradiction) | ]; subst.
-    destruct tail > [ ltac1:(contradiction) | simpl; eauto with arith]. }
+    destruct no_match0 as [ | no_match0 ]; [ congruence | ].
+    destruct no_match0 as (?&tail&?&[?|?]); [ contradiction | ]; subst.
+    destruct tail; [ contradiction | simpl; eauto with arith]. }
   { eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
@@ -371,7 +369,7 @@ Proof.
     intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
     unfold mergesort_pre in Hpre;
       rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
-    ltac1:(simpl_extend); simpl.
+    simpl_extend; simpl.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l1] *)
@@ -379,16 +377,16 @@ Proof.
       { (* Subgoal: show [length l1 < length l ] *)
         rewrite Heql; rewrite Heql in Hl1. apply div2_lt_succ; auto. }
       { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
-        split > [ reflexivity | assumption ]. } }
+        split; [ reflexivity | assumption ]. } }
     intros l1' IHl1'.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l2] *)
       apply IH.
       { (* Subgoal: show [length l2 < length l] *)
-        rewrite Hl2, Heql. auto with arith. }
+        rewrite Hl2 Heql. auto with arith. }
       { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
-        split > [ reflexivity | assumption ]. } }
+        split; [ reflexivity | assumption ]. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)
@@ -400,16 +398,18 @@ Proof.
       (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
       unfold mergesort_pre, mergesort_post in *.
       destruct_hyps.
-      split > [ ltac1:(by rewrite_permutation l1')
-              | split > [ ltac1:(by rewrite_permutation l2') | auto ]
+      split; [ by rewrite_permutation l1'
+             | split;
+               [ by rewrite_permutation l2'
+               | auto ]
         ]. }
     intros l' IH.
     (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
     unfold mergesort_post, merge_post in *.
     destruct_hyps.
-    split > [ assumption | ].
-    ltac1:(rewrite_permutation l'). ltac1:(rewrite_permutation l).
-    ltac1:(rewrite_permutation l1'). ltac1:(rewrite_permutation l2').
+    split; [ assumption | ].
+    rewrite_permutation l'. rewrite_permutation l.
+    rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
 Qed.
 

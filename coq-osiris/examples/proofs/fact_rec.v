@@ -104,7 +104,7 @@ Section fact_rec_example.
   Example fact_rec_5_correct :
     ⊢ EWP fact_rec_5 <| ⊥ |> {{ RET v, fact_rec_5_spec v }}.
   Proof.
-    iStartProof; rewrite /fact_rec_5. simpl.
+    iStartProof; rewrite /fact_rec_5. simpl_eval_mexpr.
 
     repeat (Simp; Bind; simpl_fact).
 
@@ -138,17 +138,14 @@ Section fact_rec_example.
   Example fact_5_correct :
     ⊢ EWP fact_5 <| ⊥ |> {{ RET v, fact_5_spec v }}.
   Proof.
-    iStartProof.
-    rewrite /fact_rec_5 /eval_mexpr; cbn.
-    Par; cbn.
+    iStartProof. rewrite /fact_5.
+    (simpl; try rewrite -> seal_eq; Simp).
 
     (* Allocate a new variable that stores the dummy function value *)
-    Alloc factv "Hfact"; Simp.
+    Alloc factv "Hfact"; Simp; Ret.
 
     (* We store the value of [fact0] that ties the recursive knot. *)
-    Store "Hfact".
-
-    Simp.
+    Store "Hfact"; Simp; Ret. 
 
     (* Symbolic execution *)
     repeat (simpl_fact; Bind; Simp).

@@ -609,12 +609,12 @@ Ltac post_process_pats :=
 
 Ltac pure_match_branches :=
   lazymatch goal with
-  | |- pure_match _ _ [?b] _ _ =>
+  | |- pure_match _ [?b] _ _ =>
       eapply pure_match_single;
       [ specify_cpattern
       | let no_match := fresh "no_match" in
         intros no_match ]
-  | |- pure_match _ _ (?b :: ?bs) _ _ =>
+  | |- pure_match _ (?b :: ?bs) _ _ =>
       eapply pure_match_cons;
       [ specify_cpattern
       | (let no_match := fresh "no_match" in
