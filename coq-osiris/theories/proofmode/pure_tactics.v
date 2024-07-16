@@ -327,14 +327,14 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 pure_call_VClo () :=
-  apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
-
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
 Ltac2 pure_simp () :=
   eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
+
+Ltac2 Notation "pure_simp" := pure_simp ().
+Tactic Notation "pure_simp" := ltac2:(pure_simp).
 
 Ltac2 pure_enter () :=
   first [

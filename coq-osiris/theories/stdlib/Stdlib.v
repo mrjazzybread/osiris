@@ -203,13 +203,11 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-From Ltac2 Require Import Ltac2.
-
 Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
 Proof.
   intros x Hx.
-  pure_enter. ltac1:(simpl_eval). pure_ret.
+  pure_enter. simpl_eval. pure_ret.
   intros y Hy.
   pure_enter.
   eapply pure_eval_EOpEq_bool; try (pure_path); auto.
@@ -218,21 +216,21 @@ Qed.
 Lemma Stdlib__ne_spec :
   decide_spec Stdlib__ne representable (λ x y, x ≠ y).
 Proof.
-  intros x Hx. pure_enter. ltac1:(simpl_eval). pure_ret. intros y Hy. pure_enter.
+  intros x Hx. pure_enter. simpl_eval. pure_ret. intros y Hy. pure_enter.
   eapply pure_eval_EOpNe_bool; try (pure_path); auto.
 Qed.
 
 Lemma Stdlib__lt_spec :
   decide_spec Stdlib__lt representable Z.lt.
 Proof.
-  intros x Hx. pure_enter. pure_simp (). intros y Hy. pure_enter.
+  intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
   eapply pure_eval_EOpLt_bool; try (pure_path); auto.
 Qed.
 
 Lemma Stdlib__le_spec :
   decide_spec Stdlib__le representable Z.le.
 Proof.
-  intros x Hx. pure_enter. pure_simp (). intros y Hy. pure_enter.
+  intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
   eapply pure_eval_EOpLe_bool; try (pure_path); auto.
 Qed.
 
@@ -240,7 +238,7 @@ Lemma Stdlib__gt_spec :
   decide_spec Stdlib__gt representable (λ x y, Z.lt y x).
                                        (* avoid [Z.gt] *)
 Proof.
-  intros x Hx. pure_enter. pure_simp (). intros y Hy. pure_enter.
+  intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
   eapply pure_consequence.
   eapply pure_eval_EOpGt_bool; try (pure_path); auto.
   simpl; intros b ->; apply Z.gt_lt_iff.
@@ -250,7 +248,7 @@ Lemma Stdlib__ge_spec :
   decide_spec Stdlib__ge representable (λ x y, Z.le y x).
                                        (* avoid [Z.ge] *)
 Proof.
-  intros x Hx. pure_enter. pure_simp (). intros y Hy. pure_enter.
+  intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
   eapply pure_consequence.
   eapply pure_eval_EOpGe_bool; try (pure_path); auto.
   simpl; intros b ->; apply Z.ge_le_iff.
@@ -306,7 +304,7 @@ Lemma Stdlib__store__spec (l : loc) (v v' : val) :
       {{{ (v : val), RET #tt; l ↦ V v' }}}
     ).
 Proof.
-  ltac2:(pure_simp ()).
+  pure_simp.
   iIntros (φ) "Hl Hpost".
   Simp.
   Store "Hl". cbn. Ret.

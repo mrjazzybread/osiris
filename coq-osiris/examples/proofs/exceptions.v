@@ -44,7 +44,7 @@ Proof.
   (* Struct item: [let head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := head_spec).
-    ltac2:(pure_simp ()); unfold head_spec; intros.
+    pure_simp; unfold head_spec; intros.
     iIntros.
     destruct l; Simp.
     { iApply ewp_throw. simpl. equality. }
@@ -54,7 +54,7 @@ Proof.
   (* Struct item: [let cath_head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
-    ltac2:(pure_simp ()); unfold catch_head_spec; intros.
+    pure_simp; unfold catch_head_spec; intros.
     iIntros.
     iApply ewp_eval. iModIntro.
     iApply ewp_EMatch.
@@ -83,7 +83,7 @@ Proof.
   (* Struct item: [let catch_head2 l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
-    ltac2:(pure_simp ()); unfold catch_head_spec; intros.
+    pure_simp; unfold catch_head_spec; intros.
     iIntros.
     iApply ewp_eval.
     iModIntro.
