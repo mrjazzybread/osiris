@@ -104,11 +104,11 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayParThrowLeft {A1 A2 E'} e1 m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par (Throw e1) m2 k)
-    (k (O2Throw e1))
+    (discontinue k e1)
 | MayParThrowRight {A1 A2 E'} m1 e2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par m1 (Throw e2) k)
-    (k (O2Throw e2))
+    (discontinue k e2)
 (* Two constructors for [Par]. Requiring both sides to simplify might complexify
    proofs, since the relation is not reflexive. *)
 | MayParLeft {A1 A2 E'} m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _) :
@@ -265,8 +265,8 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ a1 a2, m1 = ret a1 ∧ m2 = ret a2 ∧ m' = continue k (a1, a2)) ∨
   (∃ m1', may m1 m1' ∧ m' = Par m1' m2 k) ∨
   (∃ m2', may m2 m2' ∧ m' = Par m1 m2' k) ∨
-  (∃ e1, m1 = throw e1 ∧ m' = k (O2Throw e1)) ∨
-  (∃ e2, m2 = throw e2 ∧ m' = k (O2Throw e2)) ∨
+  (∃ e1, m1 = throw e1 ∧ m' = discontinue k e1) ∨
+  (∃ e2, m2 = throw e2 ∧ m' = discontinue k e2) ∨
   ((m1 = crash ∨ m2 = crash) ∧ m' = crash).
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
@@ -282,8 +282,8 @@ Qed.
 Lemma invert_may_try2 {A B E E'} (m : micro A E') (f : outcome2 A E' → micro B E) (m1 : micro B E) :
   may (try2 m f) m1 →
   (∃ m', may m m' ∧ m1 = try2 m' f) ∨
-  (∃ a, m = ret a ∧ may (f (O2Ret a)) m1) ∨
-  (∃ e, m = throw e ∧ may (f (O2Throw e)) m1).
+  (∃ a, m = ret a ∧ may (continue f a) m1) ∨
+  (∃ e, m = throw e ∧ may (discontinue f e) m1).
 Proof.
   revert m1; induction m; intros m'.
   - firstorder.
@@ -356,22 +356,22 @@ Global Hint Constructors pure_wp : pure_wp.
 
 (** [pure_wp] is monotonic *)
 
-Lemma pure_wp_monotonic {A E : Type} (φ φ' : A → Prop) (ψ ψ' : E → Prop) m :
-  (∀ a, φ a → φ' a) → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ → pure_wp m φ' ψ'.
+Lemma pure_wp_consequence {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
+  pure_wp m φ ψ → (∀ a, φ a → φ' a) → (∀ e, ψ e → ψ' e) → pure_wp m φ' ψ'.
 Proof.
-  induction 3; constructor; auto.
+  induction 1; constructor; auto.
 Qed.
 
-Lemma pure_wp_monotonic_ret {A E : Type} (φ φ' : A → Prop) (ψ : E → Prop) m :
-  (∀ a, φ a → φ' a) → pure_wp m φ ψ → pure_wp m φ' ψ.
+Lemma pure_wp_consequence_ret {A E} {φ φ' ψ : _ → Prop} (m : micro A E) :
+  pure_wp m φ ψ → (∀ a, φ a → φ' a) → pure_wp m φ' ψ.
 Proof.
-  induction 2; constructor; auto.
+  induction 1; constructor; auto.
 Qed.
 
-Lemma pure_wp_monotonic_throw {A E : Type} (φ : A → Prop) (ψ ψ' : E → Prop) m :
-  (∀ e, ψ e → ψ' e) → pure_wp m φ ψ → pure_wp m φ ψ'.
+Lemma pure_wp_consequence_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
+  pure_wp m φ ψ → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ'.
 Proof.
-  induction 2; constructor; auto.
+  induction 1; constructor; auto.
 Qed.
 
 (** [pure_wp] is preserved by forward [may] steps *)
@@ -383,7 +383,7 @@ Proof.
 Qed.
 
 Lemma pure_wp_rtc_may_forward {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
-  pure_wp m φ ψ → relations.rtc may m m' → pure_wp m' φ ψ.
+  pure_wp m φ ψ → rtc may m m' → pure_wp m' φ ψ.
 Proof.
   induction 2; eauto using pure_wp_may_forward.
 Qed.
@@ -395,9 +395,9 @@ Definition deterministically {X} (R : relation X) : relation X :=
   λ x y, R x y ∧ ∀ z, R x z → z = y.
 
 Lemma pure_wp_det_may_backward {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
-  pure_wp m' φ ψ → deterministically may m m' → pure_wp m φ ψ.
+  deterministically may m m' → pure_wp m' φ ψ → pure_wp m φ ψ.
 Proof.
-  intros P (M, MF). constructor. eauto. firstorder congruence.
+  intros (M, MF) P. constructor. eauto. firstorder congruence.
 Qed.
 
 
@@ -447,10 +447,12 @@ Qed.
 
 (** [pure_wp] is preserved by binds *)
 
-Lemma pure_wp_try2 {A' A E E'} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) (ψ' : E' → Prop) m f :
+(* The _compat format is slightly easier to prove and is easier to use in cases
+  where a result is in hypothesis *)
+Lemma pure_wp_try2_compat {A' A E E' φ ψ φ' ψ'} m (f : outcome2 A E → micro A' E') :
   pure_wp m φ ψ →
-  (∀ a, φ a → pure_wp (f (O2Ret a)) φ' ψ') →
-  (∀ e, ψ e → pure_wp (f (O2Throw e)) φ' ψ') →
+  (∀ a, φ a → pure_wp (continue f a) φ' ψ') →
+  (∀ e, ψ e → pure_wp (discontinue f e) φ' ψ') →
   pure_wp (try2 m f) φ' ψ'.
 Proof.
   induction 1 as [ Ha | e | φ ψ m Hex Hm IHm]; intros Hv He; simpl; eauto.
@@ -462,13 +464,28 @@ Proof.
     eapply pure_wp_may_forward; eauto. apply invert_pure_wp_throw in Sm; auto.
 Qed.
 
-Lemma pure_wp_bind {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
+Lemma pure_wp_try2 {A' A E E' φ ψ} m (f : outcome2 A E → micro A' E') :
+  pure_wp m (λ a, pure_wp (continue f a) φ ψ) (λ e, pure_wp (discontinue f e) φ ψ) →
+  pure_wp (try2 m f) φ ψ.
+Proof.
+  intros P. eapply pure_wp_try2_compat; eauto.
+Qed.
+
+Lemma pure_wp_bind {A' A E φ ψ} m (k : A → micro A' E) :
+  pure_wp m (λ a, pure_wp (k a) φ ψ) ψ →
+  pure_wp (bind m k) φ ψ.
+Proof.
+  rewrite bind_as_try2. intros. eapply pure_wp_try2; eauto.
+  eapply pure_wp_consequence; eauto.
+  intros e. rewrite discontinue_glue2. by constructor.
+Qed.
+
+Lemma pure_wp_bind_compat {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
   pure_wp m φ ψ →
   (∀ a, φ a → pure_wp (k a) φ' ψ) →
   pure_wp (bind m k) φ' ψ.
 Proof.
-  rewrite bind_as_try2. intros. eapply pure_wp_try2; eauto.
-  by constructor.
+  intros. eapply pure_wp_bind, pure_wp_consequence_ret; eauto.
 Qed.
 
 
@@ -528,7 +545,7 @@ Qed.
 
 (* [pure_wp] preserved by [Par] : linking postconditions with implications *)
 
-Lemma pure_wp_par {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
+Lemma pure_wp_par_compat {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1 φ1 ψ1 →
   pure_wp m2 φ2 ψ2 →
@@ -566,7 +583,7 @@ setting, proving correct a parallel computation of [m1] and [m2] is the safe as
 proving correct both sequentializations [m1; m2] and [m2; m1]. Both are needed
 since exceptions introduce nondeterminism. *)
 
-Lemma pure_wp_par_sequentialization {A E A1 A2 E'} m1 m2 φ ψ
+Lemma pure_wp_par {A E A1 A2 E'} m1 m2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1
     (λ a1,
@@ -602,12 +619,12 @@ Proof.
     + destruct M as (m1' & M1 & ->). eapply (IH (m1', m2)); auto.
       * constructor; apply M1.
       * eauto using pure_wp_may_forward.
-      * eapply pure_wp_monotonic_ret; eauto.
+      * eapply pure_wp_consequence_ret; eauto.
         Fail solve [intros; eapply pure_wp_may_forward; eauto 10000].
         intros; eapply pure_wp_may_forward; eauto; eauto.
     + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto.
       * constructor; apply M2.
-      * eapply pure_wp_monotonic_ret; eauto.
+      * eapply pure_wp_consequence_ret; eauto.
         intros; eapply pure_wp_may_forward; eauto; eauto.
       * eauto using pure_wp_may_forward.
     + destruct M as (e1 & -> & ->). eapply invert_pure_wp_throw in H1; eauto.
@@ -773,12 +790,12 @@ Proof.
 Qed.
 
 
-(** One proof of the preservation of [pure_wp] under [step]s. It may be removed
+(* One proof of the preservation of [pure_wp] under [step]s. It may be removed
 since it is a consequence of [pure_wp_step_may] and [pure_wp_may_forward],
 however it is a demonstration that we can split a [pure_wp] on a [Par] into two
 with [invert_pure_wp_par_*] and recombine them with
-[pure_wp_par_sequentialization] after a step on either side. This technique may
-be useful to prove that [simp] preserves [pure_wp]. *)
+[pure_wp_par_sequentialization] after a step on either side. This technique is
+also useful for [pure_wp_simp].. *)
 
 Lemma pure_wp_preservation_duplicate {A E : Type} {φ : A → Prop} {ψ : E → Prop} {m σ m' σ'} :
   pure_wp m φ ψ → step (σ, m) (σ', m') → pure_wp m' φ ψ ∧ σ' = σ.
@@ -805,13 +822,13 @@ Proof.
     + by apply invert_pure_wp_stop in Hm1.
     + by apply invert_pure_wp_stop in Hm2.
     + edestruct IHm1 as [IHm1' ->]; eauto. split; auto.
-      eapply pure_wp_par_sequentialization. apply IHm1'.
-      eapply pure_wp_monotonic_ret; eauto. simpl.
+      eapply pure_wp_par. apply IHm1'.
+      eapply pure_wp_consequence_ret; eauto. simpl.
       intros a2 Hm1'.
       eapply (IHm1 _ _ _ _ _ Hm1'); eauto.
     + edestruct IHm2 as [IHm2' ->]; eauto. split; auto.
-      eapply pure_wp_par_sequentialization. 2: apply IHm2'.
-      eapply pure_wp_monotonic_ret; eauto. simpl.
+      eapply pure_wp_par. 2: apply IHm2'.
+      eapply pure_wp_consequence_ret; eauto. simpl.
       intros a1 Hm2'.
       eapply (IHm2 _ _ _ _ _ Hm2'); eauto.
   - inv Hstep; split; auto; eapply pure_wp_may_forward; eauto with may.
@@ -841,6 +858,65 @@ Proof.
   intros Hm Hstep.
   destruct (pure_wp_step_may Hm Hstep).
   eauto using pure_wp_may_forward.
+Qed.
+
+
+(** [pure_wp] is preserved by [simp] *)
+
+Lemma pure_wp_simp {A E} (m m' : micro A E) :
+  simp m m' → ∀ φ ψ, pure_wp m' φ ψ → pure_wp m φ ψ.
+Proof.
+  intros S. induction S; eauto; intros φ ψ.
+  (* SimpEval and SimpLoop are deterministic may steps *)
+  - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_eval.
+  - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_loop.
+  (* Most cases are now simple uses of inversion and compatibility lemmas *)
+  - intros P. constructor. eauto with may.
+    intros m' [-> | ->]%invert_may_choose; eauto using invert_pure_wp_try2, pure_wp_try2.
+  - intros P%invert_pure_wp_try2.
+    apply pure_wp_par.
+    + by constructor.
+    + eapply pure_wp_consequence_ret; eauto. by constructor.
+  - intros P%invert_pure_wp_try2.
+    apply pure_wp_par.
+    + eapply pure_wp_consequence_ret; eauto. by constructor.
+    + by constructor.
+  - intros P.
+    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P) as P1.
+    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P) as P2.
+    apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
+  - (* SimpParThrowAgree *)
+    intros P. apply pure_wp_par; eauto with pure_wp.
+  - (* Stop CPerform is impure *)
+    intros []%invert_pure_wp_stop.
+  - intros P. apply pure_wp_handle, IHS. by constructor.
+  - intros P. apply pure_wp_handle, IHS. by constructor.
+Qed.
+
+(* The reverse and less useful direction also holds *)
+Lemma pure_wp_complexify {A E} (m m' : micro A E) :
+  simp m m' → ∀ φ ψ, pure_wp m φ ψ → pure_wp m' φ ψ.
+Proof.
+  intros S. induction S; eauto; intros φ ψ.
+  (* SimpEval and SimpLoop are deterministic may steps *)
+  - intro; eapply pure_wp_may_forward; eauto. constructor.
+  - intro; eapply pure_wp_may_forward; eauto. constructor.
+  (* Most cases are now simple uses of inversion and compatibility lemmas *)
+  - intros P.
+    eapply pure_wp_may_forward in P; [ | constructor ].
+    apply pure_wp_try2, IHS1, invert_pure_wp_try2, P.
+  - intros P%invert_pure_wp_par_ret_left. by apply pure_wp_try2.
+  - intros P%invert_pure_wp_par_ret_right. by apply pure_wp_try2.
+  - intros P.
+    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P) as P1.
+    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P) as P2.
+    apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
+  - (* SimpParThrowAgree uses only one hyp *)
+    by intros P%invert_pure_wp_par_left%IHS1%invert_pure_wp_throw.
+  - (* Stop CPerform is impure *)
+    intros []%invert_pure_wp_stop.
+  - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
+  - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
 Qed.
 
 
@@ -887,7 +963,7 @@ Lemma pure_wp_as_bool m φ ψ :
   pure_wp (as_bool m) φ ψ.
 Proof.
   intro H.
-  eapply pure_wp_bind. apply H.
+  eapply pure_wp_bind_compat; eauto.
   intros [] ([] & E & Hb); discriminate || rewrite E; by constructor.
 Qed.
 
@@ -899,7 +975,7 @@ Lemma pure_wp_ifthenelse_bool η e e1 e2 φ φb ψ :
 Proof.
   simpl.
   intros Hb Ht Hf.
-  eapply pure_wp_bind. apply pure_wp_as_bool. apply Hb.
+  eapply pure_wp_bind_compat. apply pure_wp_as_bool. apply Hb.
   intros []; auto.
 Qed.
 
