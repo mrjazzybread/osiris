@@ -715,19 +715,41 @@ Section ewp_rules.
   (* Installing a handler with branches [bs] on top of a continuation
      that is located in the store at location [l]. *)
 
-  Lemma ewp_install {B Y} E l deep η bs (k: _ -> micro B Y) φ ψ :
+  Lemma ewp_install_deep {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
       l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (eval_match deep η bs))) -∗
+        (K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CInstall (deep, l, η, bs) k) @ E <| ψ |> {{ φ }}.
+    EWP (Stop CInstall (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* The reduction step must be a successful step. *)
-    eapply invert_step_install in Hstep as (l' & ? & ? & ?); subst.
+    eapply invert_step_install_deep in Hstep as (l' & ? & ? & ?); subst.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
+    ewp_mask_elim.
+    iFrame "Hsi".
+    done.
+  Qed.
+
+  Lemma ewp_install_shallow {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
+    (∀ l',
+      l'↦
+        (K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs))) -∗
+     ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
+    EWP (Stop CInstall (false, l, η, bs) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* The reduction step must be a successful step. *)
+    eapply invert_step_install_shallow in Hstep as (l' & ? & ? & ?); subst.
 
     (* Allocate a new location in the heap. *)
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.

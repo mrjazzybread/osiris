@@ -196,8 +196,11 @@ Qed.
         instead, replace [sk o] with [stop CResume (l, o)]
    TODO comment. *)
 
-Definition step_install_1 σ l deep η bs l' :=
-  <[l' := K (λ o, Handle (stop CResume (l, o)) (eval_match deep η bs))]> σ.
+Definition step_install_1 σ l (deep : bool) η bs l' :=
+  if deep then
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs))]> σ
+  else
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs))]> σ.
 
 Definition step_install_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
@@ -685,17 +688,30 @@ Qed.
 
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install {A E} σ σ' deep l η bs k m' :
-  @step A E (σ, Stop CInstall (deep, l, η, bs) k) (σ', m') →
+Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
+  @step A E (σ, Stop CInstall (true, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (eval_match deep η bs)) ]> σ ∧
+  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
   unfold step_install_1, step_install_2.
   eauto.
 Qed.
+
+Lemma invert_step_install_shallow {A E} σ σ' l η bs k m' :
+  @step A E (σ, Stop CInstall (false, l, η, bs) k) (σ', m') →
+  ∃ l',
+  σ !! l' = None ∧
+  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs)) ]> σ ∧
+  m' = continue k l'.
+Proof.
+  intros Hstep. destruct_step.
+  unfold step_install_1, step_install_2.
+  eauto.
+Qed.
+
 
 (* A term that can step is not [ret _]. *)
 
