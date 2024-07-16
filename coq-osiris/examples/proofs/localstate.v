@@ -100,8 +100,6 @@ End val_points_to.
 Opaque auth_state.
 Opaque encode.encode.
 
-Arguments deep_handler_body : simpl never.
-
 Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
 
 (* -------------------------------------------------------------------------- *)
@@ -307,8 +305,8 @@ Section verification.
     EWP eval_sitems (η, []) sitems @ E <| ψ |> {{ RET ηδ, let '(_, δ) := ηδ in Q (O2Ret (VStruct δ)) }} -∗
     EWP (eval_mexpr η (MStruct sitems)) @ E <| ψ |> {{ Q }}.
   Proof.
-    iIntros "Hsitems".
-    with_strategy transparent [eval_mexpr] simpl. Bind.
+    iIntros "Hsitems". simpl_eval_mexpr.
+    Bind.
     iApply (ewp_mono with "Hsitems").
     iIntros ([ηδ|]); [ simpl; iIntros "HQ" | done ].
     destruct ηδ; by iApply ewp_value.
@@ -319,8 +317,8 @@ Section verification.
     ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
     EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
   Proof.
-    iIntros "Hme Hcov".
-    with_strategy transparent [eval_sitem] simpl. Bind. Bind.
+    iIntros "Hme Hcov". simpl_eval_sitem.
+    Bind. Bind.
     iApply (ewp_mono with "Hme").
     iIntros ([|]); [ simpl | done ].
     iIntros "[-> Hφ]".
@@ -365,7 +363,7 @@ Section verification.
     Q (O2Ret ηδ) -∗
     EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
   Proof.
-    with_strategy transparent [eval_sitems] simpl.
+    simpl_eval_sitems.
     by iApply ewp_value.
   Qed.
 
@@ -374,8 +372,8 @@ Section verification.
     (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
     EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
   Proof.
-    iIntros "Hsitem Hcov".
-    with_strategy transparent [eval_sitems] simpl. Bind.
+    iIntros "Hsitem Hcov". simpl_eval_sitems.
+    Bind.
     iApply (ewp_mono with "Hsitem").
     iIntros ([ηδ'|]); [ simpl | done ].
     iApply "Hcov".
@@ -387,12 +385,12 @@ Section verification.
     EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
   Proof.
     iIntros "He HQ".
-    with_strategy transparent [eval_sitem eval_bindings] simpl.
-    Par. Bind.
+    simpl_eval_sitem. simpl_eval_bindings.
+    Bind. Par. Bind.
     iApply (ewp_mono with "He").
     iIntros ([|]); [ simpl | done ].
     iIntros "Hspec".
-    with_strategy transparent [extend] simpl; Ret.
+    simpl_extend. Ret.
     by iApply "HQ".
   Qed.
 
@@ -403,11 +401,11 @@ Section verification.
     EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
   Proof.
     iIntros "He Hcov".
-    with_strategy transparent [eval_sitems eval_sitem eval_bindings] simpl.
+    simpl_eval_sitems; simpl_eval_bindings; simpl.
     Par. Bind.
     iApply (ewp_mono with "He").
     iIntros ([v|]); [ simpl; iIntros "Hspec" | done ].
-    rewrite /continue. with_strategy transparent [extend] Simp.
+    Simp.
     iApply "Hcov".
     iExists v; by iFrame.
   Qed.
@@ -471,13 +469,9 @@ Section verification.
                         {{ RET #X, ⌜X = x⌝ }})%I).
       { Simp; Ret; simpl.
         iIntros "!>" (St x) "HSt".
-        iApply ewp_call_nonrec. iNext. Simp. rewrite /continue.
-        (* TODO: there must be a better way. *)
-        Local Transparent eval_match.
-        rewrite /deep_eval_match /eval_match.
-        Local Opaque eval_match.
-        red_match.
-        with_strategy transparent [evals] Simp.
+        iApply ewp_call_nonrec. iNext. Simp.        
+        rewrite <- solve_encode_unit; simpl; fold eval. (* FIXME: should not have to do this. *)
+        Simp.
         iApply ewp_perform.
         rewrite /prot. rewrite upcl_state upcl_read.
         iLeft. iExists _. iFrame. iSplit. equality.
@@ -504,9 +498,10 @@ Section verification.
     iApply (ewp_sitems_let_singleton_var (run_spec rl wl)).
     { Simp. Ret. simpl. unfold run_spec.
       iIntros (spec init main) "Hmain".
-      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
-      rewrite /call_anonfun. simpl. rewrite /eval_anonfun. rewrite eval_eval'; simpl.
-      fold run.
+      (* TODO: UGLY. *)
+      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".      
+      rewrite /call_anonfun. simpl. rewrite /eval_anonfun.
+      unfold eval; rewrite -> (@seal_eq _ pre_eval); simpl.
       iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }
 
     iIntros ([η δ]) "[%run [-> Hrun]]".

@@ -278,8 +278,7 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext.
-    simpl_deep_eval_match_aux. Simp. Ret. by iExists true.
+  - iIntros (?) "->". iNext. Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -309,9 +308,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext.
-    unfold deep_eval_match_aux, eval_match_aux. rewrite seal_eq.
-    red_match. Simp. Ret. by iExists true.
+  - iIntros (?) "->". iNext. red_match.
+    Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -336,8 +334,7 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
-    iApply handle_cons. (* TODO: Improve red_match to manage this case. *)
+    iApply deep_handle_cons. (* TODO: Improve red_match to manage this case. *)
     + specify_cpattern.
       pattern_match.
       discriminate.
@@ -370,20 +367,19 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
-    iApply handle_cons.
+    iApply deep_handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
     + iIntros (δ) "[]".
     + iIntros (_).
-      iApply handle_cons.
+      iApply deep_handle_cons.
       * specify_cpattern.
         pattern_match.
         discriminate.
       * iIntros (δ) "[]".
       * iIntros (_).
-        iApply handle_cons.
+        iApply deep_handle_cons.
         -- specify_cpattern.
            pattern_match.
            apply eq_refl.
@@ -416,14 +412,13 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    unfold deep_eval_match_aux, eval_match_aux; rewrite seal_eq.
-    iApply handle_cons.
+    iApply deep_handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
     + iIntros (δ) "[]".
     + iIntros "_".
-      iApply handle_cons.
+      iApply deep_handle_cons.
       * specify_cpattern.
         pattern_match.
         apply eq_refl.

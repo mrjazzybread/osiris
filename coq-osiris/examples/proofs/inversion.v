@@ -213,14 +213,15 @@ Section verification.
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-        (λ o : code.outcome3 val exn,
-            deep_handler_body
-              ("__osiris_anonymous_arg" ~> VUnit;
-               "yield" ~> yield;
-               "Yield" ~> VLoc l;
-               "iter" ~> iter;
-               "__osiris_anonymous_arg" ~> iter;
-               env) o __branches3 __branches3) ⊥ (RET h, isHead ⊥ h Ys).
+        (deep_eval_match
+           ("__osiris_anonymous_arg" ~> VUnit;
+            "yield" ~> yield;
+            "Yield" ~> VLoc l;
+            "iter" ~> iter;
+            "__osiris_anonymous_arg" ~> iter;
+            env)
+           __branches3)
+        ⊥ (RET h, isHead ⊥ h Ys).
     Proof.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
@@ -229,8 +230,7 @@ Section verification.
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        destruct o; red_match;
-          with_strategy transparent [evals] Simp; Ret; by iPureIntro. }
+        destruct o; red_match; Simp; Ret; by iPureIntro. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -246,13 +246,12 @@ Section verification.
         red_match.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
-        with_strategy transparent [evals] Simp; Ret; simpl.
+        Simp; Ret; simpl.
         iExists _, _.
         iSplit; [ iPureIntro; reflexivity | iSplit; [ by iPureIntro | ] ].
         (* Goal: [isSeq ⊥ (fun () -> continue k ()) (Ys ++ [X])]. *)
         rewrite !isSeq_unfold /isSeq_pre.
-        with_strategy transparent [extend eval_match evals]
-          Simp; Bind; Bind; Simp; Ret; Bind; Simp; Ret; simpl.
+        Simp.
         (* Goal: Result of resuming [k] is a Head of [T]. *)
         iApply ("HProt" with "HiterView").
         (* Use induction hypothesis on the handler. *)
@@ -270,14 +269,12 @@ Section verification.
       (∀ v, spec v -∗ EWP eval ((x, v) :: η) e' <| ψ |> {{ Q }}) -∗
       EWP eval η (ELet [Binding (PVar x) e] e') <| ψ |> {{ Q }}.
     Proof.
-      iIntros "He He'".
-      rewrite !eval_eval' /=.
-      with_strategy transparent [eval_bindings] simpl.
+      iIntros "He He'". simpl_eval.
       Par. Bind.
-      iApply (ewp_mono with "[He]"). by rewrite eval_eval'.
+      iApply (ewp_mono with "He").
       iIntros ([|]); [ simpl | done ].
       iIntros "Hspec".
-      with_strategy transparent [extend] simpl.
+      simpl_extend.
       by iApply "He'".
     Qed.
 
@@ -303,7 +300,7 @@ Section verification.
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.
       (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
-      Local Transparent eval_mexpr. simpl. Local Opaque eval_mexpr.
+      simpl_eval_mexpr.
       iApply ewp_alloc. iIntros "!>" (l) "Hl". Ret. simpl.
       iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
@@ -319,7 +316,7 @@ Section verification.
         iIntros "!>" (Xs X) "Hiter Hpermitted".
         iApply ewp_call_nonrec.
         iNext.
-        with_strategy transparent [evals] Simp.
+        Simp.
         iApply ewp_perform.
         rewrite /prot; iApply upcl_yield.
         iExists _, _.

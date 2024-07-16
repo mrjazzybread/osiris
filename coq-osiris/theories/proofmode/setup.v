@@ -12,6 +12,11 @@ From osiris.proofmode Require Import pure_hoare specifications.
 Arguments String.eqb !s1 !s2 : simpl nomatch.
 Arguments satisfies_spec : simpl never.
 
+(* Encourage simplifying [continue] and [discontinue], which can often block
+   symbolic execution. *)
+Arguments continue _ _ _ k a /.
+Arguments discontinue _ _ _ k e /.
+
 
 (* Unfold [as_bool] and friends as soon as they are applied to an argument.
    This exposes a [bind] combinator and enables further simplifications. *)
@@ -39,7 +44,10 @@ Arguments extendfs δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments eval_match deep η !bs o /.
+Arguments eval_match η !bs o.
+Arguments shallow_eval_match η !bs all_bs o.
+Arguments install_deep_eval_match η bs !o.
+Arguments deep_eval_match η !bs o /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.

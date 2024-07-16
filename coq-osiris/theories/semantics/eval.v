@@ -1503,7 +1503,8 @@ Ltac simpl_eval_sitems :=
   (unfold eval_sitems;
    rewrite seal_eq;
    (progress simpl pre_eval_sitems);
-   rewrite ?fold_pre_eval_sitem, ?fold_pre_eval_sitems)
+   rewrite ?fold_pre_eval_sitem, ?fold_pre_eval_sitems;
+  fold eval_bindings)
   || fail "Unable to simplify application of eval_sitems".
 
 Ltac simpl_eval_mexpr :=
@@ -1533,7 +1534,7 @@ Ltac simpl_extend :=
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,
-    deep_eval_match_aux, deep_eval_match, shallow_eval_match, eval_match,
+    eval_match, deep_eval_match, install_deep_eval_match, shallow_eval_match,
     eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
     extends, irrefutably_extend, extend;
   rewrite ?seal_eq.

@@ -139,6 +139,7 @@ Lemma simp_eval_div η e1 e2 (z1 z2 : Z) :
 Proof.
   intros ? ? Hrz1 Hrz2 Hnnz2. simpl_eval. unfold as_int. simp.
   specialize (simp_check_div_by_zero _ Hrz2 Hnnz2); intro.
+  unfold continue.
   simp.
 Qed.
 
@@ -194,7 +195,6 @@ Lemma simp_eval_lsl η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsl e1 e2)) (ret #(Z.shiftl z1 z2)).
 Proof.
   intros. simpl_eval. unfold as_int. simp.
-  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsl_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -207,7 +207,6 @@ Lemma simp_eval_lsr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntLsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl_eval. unfold as_int. simp.
-  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite lsr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.
@@ -220,7 +219,6 @@ Lemma simp_eval_asr η e1 e2 (z1 z2 : Z) :
   simp (eval η (EIntAsr e1 e2)) (ret #(Z.shiftr z1 z2)).
 Proof.
   intros. simpl_eval. unfold as_int. simp.
-  unfold continue; cbn; rewrite bind_ret. (* FIXME *)
   rewrite asr_repr_repr by assumption.
   eauto using simp_if_in_shift_range.
 Qed.

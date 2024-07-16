@@ -92,19 +92,18 @@ Section verification.
   Proof.
     iIntros "He". unfold Reset.
 
-    Call. Simp. iNext.
+    Call. iApply ewp_EMatch.
 
     iApply (ewp_deep_handler _ (SHIFT Ψ Φ) (Φ ↑) with "[He]").
     { by Simp. }
 
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
-    { iIntros (?) "H". destruct o; try done.
-      iNext. iClear "IH".
+    { iIntros (?). iIntros "!> H !>"; destruct o; try done.
       red_match.
       iApply ewp_EPath. by Ret. }
 
-    iIntros (v k) "Hprot"; rewrite /prot.
+    iIntros "!>" (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
     iDestruct "Hprot" as (t Q) "[-> [Hshift Hk]]".
 

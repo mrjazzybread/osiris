@@ -589,7 +589,7 @@ Ltac simp_ret :=
    It is used (as sparingly as possible) by the tactics that follow. *)
 
 Ltac normalize :=
-  unfold_all; cbn.
+  unfold continue; unfold discontinue; unfold_all; cbn.
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 

@@ -100,13 +100,6 @@ Local Ltac compute_lookup :=
           Z_countable
           address ].
 
-Local Ltac unfold_all :=
-  unfold eval, evals, evalfs,
-    deep_eval_match_aux, shallow_eval_match, deep_eval_match, eval_match,
-    eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
-    extends, irrefutably_extend, extend;
-  rewrite ?seal_eq.
-
 Local Ltac steps :=
   unfold_all; cbn;
   repeat
@@ -251,7 +244,7 @@ Lemma test_EFunction :
   in
   let v := VInt (repr 34) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_EFun :
   let e :=
@@ -269,7 +262,7 @@ Lemma test_EFun :
   in
   let v := VInt (repr 50) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
@@ -481,7 +474,7 @@ Lemma test_handle :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_handle_compute_head :
   let e :=
@@ -544,7 +537,7 @@ Lemma test_handle_reinstall_ret :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_handle_exception :
   let e :=
@@ -563,23 +556,25 @@ Lemma test_handle_exception :
   in
   ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
                            ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_shallow_handle :
   let η := [("Choose", (VLoc (Loc 0)))] in
   let e :=
     EPerform (EXData ["Choose"] (ETuple []))
   in
+  let bs :=
+    [ (* | effect _, k -> continue k 42 *)
+      Branch
+        (CEff PAny (PVar "k"))
+        (EContinue (EVar "k") (EInt 42))]
+  in
   let m :=
     Handle (eval η e)
-      (shallow_eval_match η
-         [ (* | effect _, k -> continue k 42 *)
-           Branch
-             (CEff PAny (PVar "k"))
-             (EContinue (EVar "k") (EInt 42))])
+      (shallow_eval_match η bs bs)
   in
   ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
-Proof. do 2 eexists. reduces. steps. Qed.
+Proof. do 2 eexists. reduces. Qed.
 
 Lemma test_nested_handlers :
   let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
@@ -609,7 +604,7 @@ Lemma test_nested_handlers :
         Branch (CVal (PVar "x")) (EVar "x") ]
   in
   ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. Qed.
+Proof. intros. subst e m1 m2. reduces. reduces. Qed.
 
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
@@ -636,13 +631,15 @@ Lemma test_shallow_ret_reinstall :
               (EPerform (EXData ["Get32"] (ETuple [])))
               (EVar "x" + EPerform (EXData ["Get10"] (ETuple []))))%expr
   in
+  let bs :=
+    [ (* | effect Get10, k -> continue k 10 *)
+      Branch
+        (CEff (PXData ["Get10"] (PTuple [])) (PVar "k"))
+        (EContinue (EVar "k") (EInt 10))]
+  in
   let m1 :=
     Handle (eval η e)
-      (shallow_eval_match η
-         [ (* | effect Get10, k -> continue k 10 *)
-           Branch
-             (CEff (PXData ["Get10"] (PTuple [])) (PVar "k"))
-             (EContinue (EVar "k") (EInt 10))])
+      (shallow_eval_match η bs bs)
   in
   let m2 :=
     Handle m1
@@ -655,7 +652,7 @@ Lemma test_shallow_ret_reinstall :
            Branch (CVal (PVar "x")) (EVar "x")])
   in
   ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. reduces. Qed.
+Proof. intros. subst e m1 m2. reduces. Qed.
 
 (* Further test ideas:
    - nested effect and exception handlers *)

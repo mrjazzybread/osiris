@@ -365,24 +365,6 @@ Ltac pure_call :=
     | cbn ]
   ].
 
-(* -------------------------------------------------------------------------- *)
-
-(* Evaluate an [eval] by repeatedly applying all of the simplifications. *)
-Ltac2 simpl_evaluate () :=
-  repeat
-    (first
-       [ ltac1:(simpl_eval)
-       | ltac1:(simpl_evals)
-       | ltac1:(simpl_evalfs)
-       | ltac1:(simpl_deep_eval_match_aux)
-       | ltac1:(simpl_eval_match)
-       | ltac1:(simpl_eval_bindings)
-       | ltac1:(simpl_eval_sitem)
-       | ltac1:(simpl_eval_sitems)
-       | ltac1:(simpl_eval_mexpr)
-       | ltac1:(simpl_extends)
-       | ltac1:(simpl_extend)
-    ]).
 
 (* -------------------------------------------------------------------------- *)
 
