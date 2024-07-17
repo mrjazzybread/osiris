@@ -3,39 +3,30 @@ From stdpp Require Import relations.
 From osiris Require Import base lang syntax.
 From osiris.semantics Require Import code eval step simplification.
 
-(** [may] simplification relation *)
+(** [may] relation : reduction steps for pure computations *)
 
-(* The [may] relation performs simplifications on pure subprograms, to be able
-to have a pure reasoning mode simpler than the full separation logic framework.
-In this way it is similar to the [simp] relation, but [may] allows
-non-deterministic choices. The price to pay is the quantification over all
-possible [may] paths.
+(* The [may] relation represents reduction steps to reason about pure
+computations. It is similar to [step] reductions that do not mention the store,
+and reduces impure computations to [crash].
 
-The idea is that if you prove that some desired property holds for all final
-states after pure reductions, then the corresponding wp holds for [m]; that's
-the role of the [pure_wp] predicate, named as such as it is a kind of pure WP
-definition for the [may] relation. In fact the [may] relation could be called
-[pure_step] but it is not exactly that for now.
-
-List of results to establish for a useful [pure_wp] relation:
-
-- pure_wp_bind: [pure_wp m φ ψ] and [∀ a, φ a → pure_wp (k a) φ' ψ] imply
-  [pure_wp (bind m k) φ' ψ]
-
-- pure_wp_ewp: [pure_wp m φ ψ] implies [ewp m (ilift ⌜φ⌝ ⌜ψ⌝)]
-
-- hoare reasoning on [pure_wp] (TODO) : see results about [pure] in
-  [proofmode/simp_eval]) but this time more results can be included, allowing
-  exceptions.
+The resulting WP, called [pure_wp] is a pure reasoning mode simpler than full
+separation logic. In this way it is similar to the [total] predicate based on
+the [simp] relation, but as opposed to [simp], [may] is small-step and allows
+non-deterministic choices. The price to pay when reasoning about computations is
+the quantification over all possible [may] paths, rather than simply the
+existence of a [simp] simplification. This nondeterminism is the reason this
+relation was originally called [may]. It would be reasonable to call it
+[pure_step], though the correspondence between [may m m'] and [∀ σ, step (σ, m)
+(σ, m')] is not perfect.
 
 Compared to the [simp] relation, [may] is able to bypass some steps, for example
-[Par m1 (throw e) k] is simplified into [k (Throw e)], which is one example of
+[Par m1 (throw e) k] reduces to [k (Throw e)], which is one example of
 non-determinism, since [m1] could throw a different exception.
 
 Other differences with [simp]:
 
 - [may] is not reflexive, otherwise the main construct of the [pure_wp]
-  predicate would has its conclusion as a premise. For the same reason, one
+  predicate would have its conclusion as a premise. For the same reason, one
   should not directly include [simp] in [may] (maybe [simplify (S _)] could be
   fine).
 
@@ -44,9 +35,8 @@ Other differences with [simp]:
   steps in case of temporary nondeterminism, for example in the different
   components of a [Choose].
 
-- if [m] has side-effects, even under nested [Par]s, it can reach [crash] in
-  some number of [may] steps, so that [pure_wp] computations are guaranteed to
-  be pure. *)
+- if [m] is impure it can reach [crash] in some number of [may] steps, and so
+  [pure_wp] computations are guaranteed to be pure. *)
 
 Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayEval η e k:
@@ -155,7 +145,10 @@ Second, because [Par (Ret _) (Stop CStore _ _) _] can only [step] to a different
 store when the initial store fits. For this, we could forbid all impurities
 syntactically by requiring some [immediately_pure] predicate a every step in the
 definition of [pure_wp], but we choose here to make impurities reduce to
-[crash]. *)
+[crash].
+
+However statements of progress and preservations are shown for computations
+that are [pure_wp] *)
 
 
 (** Computations are either final or may reduce *)
@@ -374,6 +367,7 @@ Proof.
   induction 1; constructor; auto.
 Qed.
 
+
 (** [pure_wp] is preserved by forward [may] steps *)
 
 Lemma pure_wp_may_forward {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
@@ -579,7 +573,7 @@ Qed.
 
 (* [pure_wp] preserved by [Par], stated by giving [m1] a [pure_wp m2]
 postcondition and [m2] a [pure_wp m1] postcondition. In other words, in a pure
-setting, proving correct a parallel computation of [m1] and [m2] is the safe as
+setting, proving correct a parallel computation of [m1] and [m2] is the same as
 proving correct both sequentializations [m1; m2] and [m2; m1]. Both are needed
 since exceptions introduce nondeterminism. *)
 
@@ -620,7 +614,6 @@ Proof.
       * constructor; apply M1.
       * eauto using pure_wp_may_forward.
       * eapply pure_wp_consequence_ret; eauto.
-        Fail solve [intros; eapply pure_wp_may_forward; eauto 10000].
         intros; eapply pure_wp_may_forward; eauto; eauto.
     + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto.
       * constructor; apply M2.
@@ -795,7 +788,7 @@ since it is a consequence of [pure_wp_step_may] and [pure_wp_may_forward],
 however it is a demonstration that we can split a [pure_wp] on a [Par] into two
 with [invert_pure_wp_par_*] and recombine them with
 [pure_wp_par_sequentialization] after a step on either side. This technique is
-also useful for [pure_wp_simp].. *)
+also useful for [pure_wp_simp]. *)
 
 Lemma pure_wp_preservation_duplicate {A E : Type} {φ : A → Prop} {ψ : E → Prop} {m σ m' σ'} :
   pure_wp m φ ψ → step (σ, m) (σ', m') → pure_wp m' φ ψ ∧ σ' = σ.
@@ -882,8 +875,8 @@ Proof.
     + eapply pure_wp_consequence_ret; eauto. by constructor.
     + by constructor.
   - intros P.
-    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P) as P1.
-    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P) as P2.
+    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
+    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
     apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree *)
     intros P. apply pure_wp_par; eauto with pure_wp.
@@ -898,25 +891,49 @@ Lemma pure_wp_complexify {A E} (m m' : micro A E) :
   simp m m' → ∀ φ ψ, pure_wp m φ ψ → pure_wp m' φ ψ.
 Proof.
   intros S. induction S; eauto; intros φ ψ.
-  (* SimpEval and SimpLoop are deterministic may steps *)
+  (* SimpEval and SimpLoop are forward may steps *)
   - intro; eapply pure_wp_may_forward; eauto. constructor.
   - intro; eapply pure_wp_may_forward; eauto. constructor.
-  (* Most cases are now simple uses of inversion and compatibility lemmas *)
   - intros P.
     eapply pure_wp_may_forward in P; [ | constructor ].
     apply pure_wp_try2, IHS1, invert_pure_wp_try2, P.
   - intros P%invert_pure_wp_par_ret_left. by apply pure_wp_try2.
   - intros P%invert_pure_wp_par_ret_right. by apply pure_wp_try2.
   - intros P.
-    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P) as P1.
-    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P) as P2.
+    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
+    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
     apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree uses only one hyp *)
     by intros P%invert_pure_wp_par_left%IHS1%invert_pure_wp_throw.
-  - (* Stop CPerform is impure *)
-    intros []%invert_pure_wp_stop.
+  - intros []%invert_pure_wp_stop.
   - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
   - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
+Qed.
+
+
+(** Intersection rule *)
+
+Lemma pure_wp_intersection {A E} `{Inhabited X}
+  m (φ : X → A → Prop) (ψ : E → Prop) :
+  (∀ x, pure_wp m (φ x) ψ) →
+  pure_wp m (λ a, ∀ x, φ x a) ψ.
+Proof.
+  intros Hm.
+  induction (Hm inhabitant); constructor; eauto using pure_wp_may_forward.
+  intros x. apply (invert_pure_wp_ret _ _ _ (Hm x)).
+Qed.
+
+
+(** Compatibility with [widen] *)
+
+Lemma pure_wp_widen {A E} (m : micro A void) φ ψ ψ' :
+  pure_wp (E := E) (widen m) φ ψ <-> pure_wp m φ ψ'.
+Proof.
+  unfold widen; split.
+  - intros P%invert_pure_wp_try2. eapply (pure_wp_consequence _ P); try intros [].
+    by intros a ?%invert_pure_wp_ret.
+  - intros P. apply pure_wp_try2, (pure_wp_consequence _ P); try intros [].
+    by constructor.
 Qed.
 
 
