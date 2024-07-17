@@ -26,7 +26,7 @@ Ltac destruct_encode_image a :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* [pure] can also be defined in terms of [totalv]. *)
+(* [pure] can also be defined in terms of [totalv] and in terms of [total]. *)
 
 Lemma pure_totalv `{Encode A} {X} (m : micro val X) (φ : A → Prop) :
   pure m φ ↔
@@ -37,15 +37,22 @@ Proof.
   { intros. destruct_total v e. destruct_encode_image a. unfold pure. eauto. }
 Qed.
 
-(* ... and with a little more effort, in terms of [total]. *)
+Lemma pure_total `{Encode A} {X} (m : micro val X) (φ : A -> Prop) :
+  pure m φ <->
+  total m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
+Proof.
+  apply pure_totalv.
+Qed.
 
-Lemma total_pure {B E E'} `{Encode A} (m : micro B E')
+(* [pure (try _ _ _)] can be expressed in terms of [total]. *)
+
+Lemma total_pure_try {B E E'} `{Encode A} (m : micro B E')
   (k : _ -> micro val E) (ko : E' -> micro val E)  (φ : A -> Prop)
   :
   total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
   pure (try m k ko) φ.
 Proof.
-  intros. apply pure_totalv; unfold totalv.
+  intros. apply pure_total.
   eapply total_try; [ eassumption | | ];
     simpl; intros; destruct_pure b.
   { eapply total_simp; eauto.
@@ -54,9 +61,9 @@ Proof.
     apply total_ret; eauto. }
 Qed.
 
-(* [pure_total] is currently unused *)
+(* [pure_try_total] is currently unused *)
 
-(* Lemma pure_total {B E} `{Encode A} (m : micro B E) *)
+(* Lemma pure_try_total {B E} `{Encode A} (m : micro B E) *)
 (*   (k : _ -> micro val A) ko (φ : A -> Prop) : *)
 (*   pure (try m k ko) φ -> *)
 (*   total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ). *)
