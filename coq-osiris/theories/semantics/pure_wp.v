@@ -368,6 +368,32 @@ Proof.
 Qed.
 
 
+(* Postconditions can be strengthened since final states must be reachable *)
+
+Lemma pure_wp_strengthen_reachable {A E} {φ ψ : _ → Prop} (m : micro A E) :
+  pure_wp m φ ψ →
+  pure_wp m
+    (λ a, rtc may m (ret a) ∧ φ a)
+    (λ e, rtc may m (throw e) ∧ ψ e).
+Proof.
+  induction 1 as [ |  | ? ? ? Hex Hfo IH]; constructor; auto with relations.
+  intros m' M. clear Hex.
+  apply (pure_wp_consequence _ (IH m' M)); firstorder; econstructor; eauto.
+Qed.
+
+(* A consequence rule that requires inclusion only on reachable final states *)
+
+Lemma pure_wp_consequence_reachable {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
+  pure_wp m φ ψ →
+  (∀ a, rtc may m (ret a) → φ a → φ' a) →
+  (∀ e, rtc may m (throw e) → ψ e → ψ' e) →
+  pure_wp m φ' ψ'.
+Proof.
+  intros P%pure_wp_strengthen_reachable Hv He.
+  apply (pure_wp_consequence _ P); firstorder.
+Qed.
+
+
 (** [pure_wp] is preserved by forward [may] steps *)
 
 Lemma pure_wp_may_forward {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
@@ -472,6 +498,13 @@ Proof.
   rewrite bind_as_try2. intros. eapply pure_wp_try2; eauto.
   eapply pure_wp_consequence; eauto.
   intros e. rewrite discontinue_glue2. by constructor.
+Qed.
+
+Lemma pure_wp_try {A' A E E' φ ψ} m (f : A → micro A' E) (h : E' → micro A' E) :
+  pure_wp m (λ a, pure_wp (f a) φ ψ) (λ e, pure_wp (h e) φ ψ) →
+  pure_wp (try m f h) φ ψ.
+Proof.
+  eauto using pure_wp_try2.
 Qed.
 
 Lemma pure_wp_bind_compat {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
@@ -645,6 +678,25 @@ Proof.
     + firstorder.
 Qed.
 
+Lemma pure_wp_Choose {A B E E' φ ψ} m1 m2 (k : outcome2 B E' → micro A E) :
+  pure_wp (try2 m1 k) φ ψ →
+  pure_wp (try2 m2 k) φ ψ →
+  pure_wp (Choose m1 m2 k) φ ψ.
+Proof.
+  intros H1 H2. constructor. eauto with may.
+  intros m' M. by inv M.
+Qed.
+
+Lemma pure_wp_choose {A E φ ψ} (m1 m2 : micro A E) :
+  pure_wp m1 φ ψ →
+  pure_wp m2 φ ψ →
+  pure_wp (choose m1 m2) φ ψ.
+Proof.
+  intros H1 H2.
+  apply pure_wp_Choose; eapply pure_wp_try2; eapply pure_wp_consequence; eauto.
+  all: by constructor.
+Qed.
+
 
 (** More inversion lemmas on [pure_wp] : bind, [Par]s, [Handle] *)
 
@@ -670,6 +722,16 @@ Proof.
       eapply IH; eauto. by apply may_try2.
     + (* or [m1] is [ret] or [throw] and so is safe *)
       by hnf; firstorder (subst; eauto with pure_wp).
+Qed.
+
+Lemma invert_pure_wp_bind {A1 E B φ ψ} (m : micro A1 E) (k : _ → micro B E) :
+  pure_wp (bind m k) φ ψ →
+  pure_wp m (λ a, pure_wp (k a) φ ψ) ψ.
+Proof.
+  rewrite bind_as_try2.
+  intros H%invert_pure_wp_try2.
+  eapply pure_wp_consequence; eauto.
+  by intros ? ?%invert_pure_wp_throw.
 Qed.
 
 Lemma invert_pure_wp_par_ret_left {A E A1 A2 E' φ ψ} a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
@@ -856,10 +918,10 @@ Qed.
 
 (** [pure_wp] is preserved by [simp] *)
 
-Lemma pure_wp_simp {A E} (m m' : micro A E) :
-  simp m m' → ∀ φ ψ, pure_wp m' φ ψ → pure_wp m φ ψ.
+Lemma pure_wp_simp {A E φ ψ} (m m' : micro A E) :
+  simp m m' → pure_wp m' φ ψ → pure_wp m φ ψ.
 Proof.
-  intros S. induction S; eauto; intros φ ψ.
+  intros S. revert φ ψ. induction S; eauto; intros φ ψ.
   (* SimpEval and SimpLoop are deterministic may steps *)
   - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_eval.
   - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_loop.
@@ -913,14 +975,29 @@ Qed.
 
 (** Intersection rule *)
 
-Lemma pure_wp_intersection {A E} `{Inhabited X}
-  m (φ : X → A → Prop) (ψ : E → Prop) :
-  (∀ x, pure_wp m (φ x) ψ) →
+Lemma pure_wp_intersection {A E} `{Inhabited X} {φ ψ} (m : micro A E) :
+  (∀ x : X, pure_wp m (φ x) ψ) →
   pure_wp m (λ a, ∀ x, φ x a) ψ.
 Proof.
   intros Hm.
   induction (Hm inhabitant); constructor; eauto using pure_wp_may_forward.
   intros x. apply (invert_pure_wp_ret _ _ _ (Hm x)).
+Qed.
+
+Lemma pure_wp_binary_intersection {A E φ1 φ2 ψ} (m : micro A E) :
+  pure_wp m φ1 ψ →
+  pure_wp m φ2 ψ →
+  pure_wp m (λ a, φ1 a ∧ φ2 a) ψ.
+Proof.
+  intros.
+  set (post := λ (b : bool), λ a, if b then φ1 a else φ2 a).
+  eapply @pure_wp_consequence with (φ := λ a, ∀ b, post b a) (ψ := ψ).
+  { eapply pure_wp_intersection.
+    intros b. destruct b; unfold post; assumption. }
+  { intros a Hpost. split.
+    + apply (Hpost true).
+    + apply (Hpost false). }
+  { tauto. }
 Qed.
 
 
