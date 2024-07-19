@@ -289,7 +289,7 @@ Proof.
        the pattern match. It uses the information gained by pattern
        matching to rewrite the term being matched on, and to prove
        that the match is exhaustive. *)
-    unfold __branches4; pure_match.
+    pure_match.
 
     (* First Branch. *)
     { (* When evaluating a constructor, [pure_data] can deal with "simple"
@@ -434,7 +434,7 @@ Proof.
     pure_simp.
     pure_enter.
     eapply pure_eval_match. { pure_path; reflexivity. }
-    unfold __branches11; pure_match.
+    pure_match.
 
     (* First branch of the match. *)
     { pure_data; reflexivity. }

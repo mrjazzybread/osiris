@@ -66,7 +66,6 @@ Proof.
       { (* Value/exception case. *)
         iIntros (o) "Ho"; simpl.
         iModIntro.
-        unfold __branches2.
         destruct o; cbn.
         { Simp. iApply ewp_value. iApply ewp_value. cbn.
           iDestruct "Ho" as "(%h & %t & -> & ->)".

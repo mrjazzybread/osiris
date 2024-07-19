@@ -583,11 +583,11 @@ Proof.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches1; pure_match.
+  pure_match.
 
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches0; pure_match; abstract_env. (* Was very slow, now just slow *)
+  pure_match; abstract_env. (* Was very slow, now just slow *)
 
   (* Case: [ctx] matches [Root] *)
   { pure_data.
@@ -650,7 +650,7 @@ Proof.
   pure_enter.
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path; reflexivity. }
-  unfold __branches3; pure_match.
+  pure_match.
 
   (* Case: [ctx] matches [Root] *)
   { pure_const. reflexivity. }
@@ -707,10 +707,10 @@ Proof.
 
   (* Match on tuple argument *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches11; pure_match.
+  pure_match.
   (* Match on [t] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches10; pure_match.
+  pure_match.
 
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
@@ -728,8 +728,7 @@ Proof.
       { pure_path; reflexivity. }
       apply Hcompare. }
     (* Evaluate continuation expression after let *)
-    intros c (?&Hlt&Heq&Hgt).
-    unfold __exp9.
+    intros c (? & Hlt & Heq & Hgt).
     eapply pure_eval_ifthenelse.
     { (* Evalute comparison operation *)
       eapply pure_eval_EOpLt.
@@ -739,7 +738,7 @@ Proof.
       { representable. } }
 
     { (* Case: [c < 0] *)
-      intro Clt0. unfold __exp5.
+      intro Clt0.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       pure_call.
@@ -750,7 +749,7 @@ Proof.
       - apply bst_member_left; representable. }
 
     { (* Case: [c >= 0] *)
-      intros Cge0. unfold __exp8.
+      intros Cge0.
       eapply pure_eval_ifthenelse.
       { (* Evaluate second comparison operation *)
         eapply pure_eval_EOpGt.
@@ -760,7 +759,7 @@ Proof.
         { representable. } }
 
       { (* Subcase: [c > 0] *)
-        intros Cgt0. unfold __exp6.
+        intros Cgt0.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
         pure_call.
@@ -774,7 +773,7 @@ Proof.
         - assumption. }
 
       { (* Subcase: [c <= 0] *)
-        intros Cle0. unfold __exp7.
+        intros Cle0.
         (* Deduce [c = 0] *)
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.

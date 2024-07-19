@@ -619,6 +619,9 @@ Ltac pure_match_branches :=
       [ specify_cpattern
       | (let no_match := fresh "no_match" in
          intros no_match; pure_match_branches) ]
+  | |- pure_match _ ?b _ _ =>
+      progress (unfold b);
+      pure_match_branches
   end.
 
 (* [pure_match] expects a goal of the form [pure_match _ _ _ _], and

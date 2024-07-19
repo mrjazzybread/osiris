@@ -205,7 +205,7 @@ Proof.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
 
-  unfold __branches2; pure_match.
+  pure_match.
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
@@ -222,8 +222,7 @@ Proof.
       pure_EOpLe; destruct Hpre as (? & ? & ?);
       repeat (Forall_inversion); auto. }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
-      intros. unfold deco. unfold __exp0.
-
+      intros.
       eapply pure_eval_data2.
       eapply pure_eval_pair. pure_path.
       (* Evaluate "merge t1 l2" under the cons *)
@@ -286,7 +285,7 @@ Proof.
   (* pure_rec l (@wf_list_length A). *)
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
-  unfold __branches6; simpl.
+
   (* First branch of match *)
   pure_match; abstract_env.
   { (* Case: l matches [] *)
@@ -346,7 +345,6 @@ Proof.
   intros mergesort l IH ? (-> & Hpre).
 
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches11.
   pure_match; abstract_env.
   { pure_const. auto. } (* Branch: "[]"  *)
   { pure_data. auto. }  (* Branch: "[x]" *)
