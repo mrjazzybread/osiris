@@ -236,14 +236,14 @@ Proof.
   (* Evaluating a [MStruct] boils down to evaluating the structure items one by one. *)
   apply module_struct.
 
-  (* Applying [structs_cons] introduces a cut, allowing structure items
-     to be individually specified and abstracted as we go through them. *)
-  eapply structs_cons.
-  { (* Facing a standard [let rec], we use the following lemma
-       to specify the resulting value. *)
-    eapply struct_letrec_single with (spec := (@insert_spec Z _ _ _)).
-    unfold insert_spec.
+  (* The [next_item] tactic applies the [structs_cons] lemma followed
+     by an appropriate lemma for dealing with the item being
+     evaluated. It takes an optional specification for the item,
+     which is left as an evar if unspecified. *)
+  next_item with (@insert_spec Z _ _ _).
 
+  { (* Show that the [insert] closure satisfies its spec. *)
+    unfold insert_spec.
     intros.
 
     (* Goal: show that calling [insert] satifies its postcondition.

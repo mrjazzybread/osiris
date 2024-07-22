@@ -178,6 +178,75 @@ Ltac2 pure_const0 () :=
 Ltac2 Notation "pure_const" := Control.enter pure_const0.
 Tactic Notation "pure_const" := ltac2:(pure_const).
 
+(* -------------------------------------------------------------------------- *)
+
+Ltac2 get_ref (t : constr) : Std.reference :=
+ match Constr.Unsafe.kind t with
+ | Constr.Unsafe.Var id => Std.VarRef id
+ | Constr.Unsafe.Constant c _ => Std.ConstRef c
+ | _ => Control.zero Match_failure
+ end.
+
+Ltac2 rec unfold_item (item : constr) : constr :=
+  Control.plus
+    (fun _ =>
+       let ref :=
+         match! item with
+         | ILet ?bs => get_ref bs
+         | ILetRec ?rbs => get_ref rbs
+         | IModule ?m ?me => Control.zero Match_failure
+         | IOpen ?i => get_ref i
+         | IInclude ?me => get_ref me
+         | IExtend ?ns => get_ref ns
+         end
+       in
+       Std.eval_unfold [(ref, Std.AllOccurrences)] item)
+    (fun _ =>
+       item).
+
+Ltac2 init_item (item : constr) (spec : constr option) () :=
+  let item := unfold_item item in
+  lazy_match! item with
+  | IOpen _ => eapply struct_open
+  | IInclude _ =>
+      match spec with
+      | None => eapply struct_include
+      | Some spec => eapply struct_include with (module_spec := $spec)
+      end
+  | ILet [Binding (PVar _) _] =>
+      match spec with
+      | None => eapply struct_let_single
+      | Some spec => eapply struct_let_single with (spec := $spec)
+      end
+  | ILet [Binding _ _] => eapply struct_let_pat
+  | ILet _ => eapply struct_let
+  | ILetRec [RecBinding _ _] =>
+      match spec with
+      | None => eapply struct_letrec_single
+      | Some spec => eapply struct_letrec_single with (spec := $spec)
+      end
+  | ILetRec _ => eapply struct_letrec
+  | IModule _ _ => eapply struct_module
+  end.
+
+Ltac2 next_item0 (spec : constr option) () :=
+  lazy_match! goal with
+  | [ |- struct_items _ (?item :: ?items) _ ] =>
+      eapply structs_cons;
+      Control.focus 1 1 (init_item item spec)
+  end.
+
+Ltac2 Notation "next_item" spec(opt(constr)) := Control.enter (next_item0 spec).
+Tactic Notation "next_item" := ltac2:(next_item).
+Tactic Notation "next_item" "with" constr(spec) :=
+  let f := ltac2:(spec |-
+    let spec := Option.get (Ltac1.to_constr spec) in
+    Control.enter (next_item0 (Init.Some spec)))
+  in
+  f spec.
+
+(* -------------------------------------------------------------------------- *)
+
 Local Open Scope nat.
 
 Lemma prove_evals η es vs :
