@@ -9,4 +9,5 @@ From osiris.semantics Require Export
   pure
   auxiliary_judgements
   evalprime
+  pure_wp
 .

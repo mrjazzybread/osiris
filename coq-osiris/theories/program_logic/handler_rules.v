@@ -308,12 +308,12 @@ Section handler_proof.
     EWP (pre_eval_match_aux eval deep η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
   Proof.
     unfold cpattern.
-    iIntros (Hpat) "Heval Hcov".
-    destruct Hpat as [ (δ' & Hsimp & Hewp) | (exc & Hsimp & Hφ) ];
-      simpl; iApply ewp_try;
-      (iApply ewp_simp; [ eassumption | ]).
-    - iApply ewp_value; simpl. by iApply "Heval".
-    - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
+    iIntros (Hpat) "Heval Hcov /=".
+    iApply ewp_try.
+    iApply ewp_mono. by iApply pure_wp_ewp.
+    iIntros ([|] Ho) "/=".
+    - by iApply "Heval".
+    - by iApply "Hcov".
   Qed.
 
   Lemma handle_cons' deep η o cp e bs all_branches ψ Φ φ :
@@ -322,12 +322,12 @@ Section handler_proof.
     EWP (pre_eval_match_aux eval deep η o (Branch cp e :: bs) all_branches) <|ψ|> {{ Φ }}.
   Proof.
     unfold cpattern.
-    iIntros (Hpat) "Hcov".
-    destruct Hpat as [ (δ & Hsimp & Hewp) | (exc & Hsimp & Hφ) ];
-      simpl; iApply ewp_try;
-      (iApply ewp_simp; [ eassumption | ]).
-    - iApply ewp_value; simpl. iApply Hewp.
-    - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
+    iIntros (Hpat) "Hcov". simpl.
+    iApply ewp_try.
+    iApply ewp_mono. by iApply pure_wp_ewp.
+    iIntros ([|] Ho) "/=".
+    - iApply Ho.
+    - by iApply "Hcov".
   Qed.
 
   Lemma handle_cons_skip deep η o cp e bs all_branches ψ Φ :
@@ -340,7 +340,7 @@ Section handler_proof.
     iApply handle_cons'.
     { iPureIntro. unfold cpattern.
       rewrite invert_valid_match; [ | assumption ].
-      apply total_throw. apply I. }
+      constructor. apply I. }
     { iIntros "_". iApply "Hmatch". }
   Qed.
 

@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
-From osiris.semantics Require Import code eval simplification pure.
+From osiris.semantics Require Import code eval simplification pure_wp total pure.
 
 (* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
@@ -386,14 +386,10 @@ Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   bindings η ((Binding p e) :: bs) φ.
 Proof.
   unfold bindings. simpl. intros Hpure Hbs Hcov.
-  destruct_pure a.
-  eapply totalv_simp.
-  { eapply SimpPar; eauto with simp. }
-  eapply totalv_simp; [ apply SimpParRetLeft | ].
-  eapply totalv_try2; [ eassumption | ].
-  intros η' Hη'. cbn. rewrite totalv_widen.
-  eapply totalv_try.
-  { by apply Hcov. }
+  apply pure_wp_par_vals_left.
+  apply (totalv_consequence _ _ _ Hpure). intros v (a & -> & Ha).
+  apply (totalv_consequence _ _ _ Hbs). intros η' Hη'.
+  eapply totalv_widen, totalv_try. by eapply Hcov.
   intros. by apply total_ret.
 Qed.
 

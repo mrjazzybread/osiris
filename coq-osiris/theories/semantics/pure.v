@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval step simplification.
+From osiris.semantics Require Import code eval step simplification pure_wp total.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -8,16 +8,18 @@ From osiris.semantics Require Import code eval step simplification.
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
 Definition pure `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
-  ∃ a, simp m (ret #a) ∧ φ a.
+  totalv m (λ v, ∃ a, v = #a ∧ φ a).
 
 (* -------------------------------------------------------------------------- *)
 
 (* Inversion tactics. *)
 
+(*
 Ltac destruct_pure a :=
   match goal with h: pure _ _ |- _ =>
     destruct h as (a & ? & ?)
   end.
+*)
 
 Ltac destruct_encode_image a :=
   match goal with h: ∃ _, ?v = #_ ∧ _ |- _ =>
@@ -32,9 +34,7 @@ Lemma pure_totalv `{Encode A} {X} (m : micro val X) (φ : A → Prop) :
   pure m φ ↔
   totalv m (λ v, ∃ a, v = #a ∧ φ a).
 Proof.
-  split.
-  { intros. destruct_pure a. eauto using totalv_simp, totalv_ret. }
-  { intros. destruct_total v e. destruct_encode_image a. unfold pure. eauto. }
+  reflexivity.
 Qed.
 
 Lemma pure_total `{Encode A} {X} (m : micro val X) (φ : A -> Prop) :
@@ -53,12 +53,7 @@ Lemma total_pure_try {B E E'} `{Encode A} (m : micro B E')
   pure (try m k ko) φ.
 Proof.
   intros. apply pure_total.
-  eapply total_try; [ eassumption | | ];
-    simpl; intros; destruct_pure b.
-  { eapply total_simp; eauto.
-    apply total_ret; eauto. }
-  { eapply total_simp; eauto.
-    apply total_ret; eauto. }
+  eapply total_try; [ eassumption | | ]; firstorder eauto.
 Qed.
 
 (* [pure_try_total] is currently unused *)
@@ -92,6 +87,15 @@ Proof.
   rewrite pure_totalv. eauto using totalv_ret.
 Qed.
 
+(* A reasoning rule for ret that can instantiate the goal when it is an evar *)
+
+Lemma pure_ret_eq `{Encode A} {X : Type} (a : A) :
+  pure (X := X) (ret #a) (λ a', a' = a).
+Proof.
+  intros.
+  eapply pure_ret; eauto.
+Qed.
+
 (* The consequence rule. *)
 
 Lemma pure_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
@@ -113,6 +117,16 @@ Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
 Proof.
   rewrite !pure_totalv. eauto using totalv_simp.
 Qed.
+
+(* Corollary when simplifying to a return *)
+
+Lemma pure_simp_ret `{Encode A} {X : Type} (m : micro val X) (a : A) :
+  simp m (ret #a) → pure m (λ a', a' = a).
+Proof.
+  intros. eapply pure_simp; eauto.
+  eapply pure_ret; eauto.
+Qed.
+
 
 (* A reasoning rule for [try2]. *)
 
@@ -199,12 +213,38 @@ Lemma pure_par' `{Encode A1, Encode A2, Encode A} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ) →
   pure (X := Y) (Par m1 m2 k) φ.
 Proof.
-  rewrite !pure_totalv. intros Hm1 Hm2 Hentail.
-  destruct_total a1 e. destruct_total a2 e.
-  destruct_encode_image a. destruct_encode_image b.
-  specialize (Hentail b a).
-  destruct Hentail as (x & ? & ?); try assumption.
-  left. exists (#x). split; [ eapply simp_par; eauto | eauto ].
+  intros. eapply pure_wp_par_compat; eauto; firstorder subst; eauto.
+Qed.
+
+(* Sequentializations of previous lemmas, considering the LHS first *)
+
+(* TODO: I do not seem to be able to use those, for example in simp_eval.v's
+[pure_eval_pair] *)
+
+Lemma pure_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
+  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
+:
+  pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (k (#a1, #a2)) φ)) →
+  pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
+Proof.
+  intros Hm1.
+  apply pure_wp_par_vals_left.
+  eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
+  eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
+  eauto.
+Qed.
+
+Lemma pure_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
+  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+:
+  pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (continue k (#a1, #a2)) φ)) →
+  pure (X := Y) (Par m1 m2 k) φ.
+Proof.
+  intros Hm1.
+  apply pure_wp_par_vals_left.
+  eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
+  eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
+  eauto.
 Qed.
 
 (* A reasoning rule for [choose]. *)
@@ -256,19 +296,9 @@ Lemma invert_pure_bind `{Encode A, Encode B} X m k (φ : B → Prop) :
   pure m (λ (a : A), True) →
   pure (X := X) m (λ (a : A), pure (k #a) φ).
 Proof.
-  intros Hmk Hm.
-  rewrite pure_totalv in Hmk.
-  apply invert_totalv_bind in Hmk.
-  destruct_total v e.
-
-  (* The problem that we now face is to prove that the value [v] produced
-     by [m] must be of the form [#a]. The hypothesis [Hm] is necessary for
-     this purpose. *)
-  destruct_pure a. simp_final_confluent.
-
-  (* We can then conclude. *)
-  unfold pure. exists a. split; [ eauto |].
-  destruct_total v e. destruct_encode_image b. eauto.
+  intros Hmk%invert_pure_wp_bind Hm.
+  pose proof pure_wp_binary_intersection _ Hmk Hm as I.
+  eapply (pure_wp_mono _ I); firstorder subst; eauto.
 Qed.
 
 (* That said, if we take the type [A] to be [val], then -- because [encode]
@@ -280,10 +310,6 @@ Lemma invert_pure_bind' `{Encode B} {X} m k (φ : B → Prop) :
   pure (bind m k) φ →
   pure (X := X) m (λ (v : val), pure (k v) φ).
 Proof.
-  intros Hmk.
-  rewrite pure_totalv in Hmk.
-  apply invert_totalv_bind in Hmk.
-  destruct_total v e.
-  unfold pure. exists v. split; [ eauto |].
-  destruct_total v' e'. destruct_encode_image b. eauto.
+  intros Hmk%invert_pure_wp_bind.
+  eapply pure_wp_mono; eauto.
 Qed.

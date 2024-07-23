@@ -8,7 +8,7 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
-From osiris.semantics Require Import step code simplification.
+From osiris.semantics Require Import step code simplification pure_wp.
 From osiris Require Import util.order.
 
 (** *Basic rules on the program logic
@@ -1001,15 +1001,48 @@ Section ewp_val_rules.
     iModIntro; iApply ("IH" with "[//] Hwp").
   Qed.
 
+  Lemma pure_wp_ewp {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
+    pure_wp m φ ψ →
+    ⊢ EWP m @ E' <| Ψ |> {{ | RET a => ⌜φ a⌝; | EXN e => ⌜ψ e⌝ }}.
+  Proof.
+    iIntros (Hm).
+    iLöb as "IH" forall (m Hm).
+    iApply ewp_unfold; rewrite /ewp_pre /=.
+
+    destruct (is_handleable m) as [ h | ] eqn:R.
+    - (* [m] is handleable *)
+      destruct h as [ a | e | eff f ].
+      + (* [ret]'s satisfy [φ] *)
+        destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
+        by eapply invert_pure_wp_ret in Hm.
+      + (* [throw]'s satisfy [ψ] *)
+        destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
+        by eapply invert_pure_wp_throw in Hm.
+      + (* [perform]'s are not immediately pure *)
+        destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
+        by apply invert_pure_wp_stop in Hm.
+
+    - (* [m] is not handleable *)
+      intro_state.
+      ewp_mask_intro "Hmod".
+      iSplit.
+      + (* so [m] can step because it is [pure_wp] *)
+        destruct (pure_wp_progress m Hm) as [(a, ->)|[(e, ->)|]]; auto; discriminate.
+      + (* and no step can change [σ] or escape [pure_wp] *)
+        intro_step.
+        ewp_cleanup_mod. ewp_mask_elim.
+        destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
+        iFrame.
+        by iApply "IH".
+  Qed.
+
   Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
     pure m φ ->
     ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
   Proof.
-    iIntros.
-    destruct_pure v.
-    iApply ewp_simp; [ eassumption | iApply ewp_value ].
-    iPureIntro.
-    eauto.
+    iIntros (W).
+    iApply ewp_mono.
+    iApply pure_wp_ewp. eassumption. iIntros ([]); eauto.
   Qed.
 
 End ewp_val_rules.
