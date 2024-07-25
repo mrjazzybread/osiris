@@ -570,6 +570,17 @@ Proof.
   - apply invert_pure_wp_crash in W; tauto.
 Qed.
 
+Lemma pure_wp_sequentialize {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ1 φ2 :
+  pure_wp m1 (λ a1, pure_wp m2 (λ a2, φ1 a1 ∧ φ2 a2) (λ _, False)) (λ _, False) →
+  pure_wp m1 φ1 (λ _, False) ∧ pure_wp m2 φ2 (λ _, False).
+Proof.
+  intros Hm1. split.
+  - apply (pure_wp_consequence_ret _ Hm1).
+    intros a1 []%pure_wp_exists_ret_or_throw; firstorder.
+  - destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & M & Hm2)| ]; firstorder.
+    eapply (pure_wp_consequence_ret _ Hm2). firstorder.
+Qed.
+
 
 (** [Par] preserves [pure_wp] *)
 
@@ -1109,28 +1120,63 @@ Proof.
     by constructor.
 Qed.
 
+Lemma pure_wp_evals η es φs ψ :
+  Forall2 (λ e φ, pure_wp (eval η e) φ ψ) es φs →
+  pure_wp (evals η es) (Forall2 id φs) ψ.
+Proof.
+  revert φs.
+  induction es as [ | e es IHes]; intros φs' Hes.
+  - constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (φ & φs & He & Hes & ->).
+    eapply pure_wp_par_compat.
+    + apply He.
+    + apply IHes, Hes.
+    + intros v vs Hv Hvs. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
 
-(** Encode compatibility *)
 
-Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
+(** Hoare reasoning rules, no encode *)
 
-Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
-  pure_wp m (encode_pred φ) ψ.
-
-Notation "m 'returns' v" := (pure_wp m (Logic.eq v) (λ _, False)) (at level 0).
-
-
-(** Hoare reasoning rules *)
-
-Lemma pure_wp_val {A E} (a : A) ψ : pure_wp (E := E) (ret a) (Logic.eq a) ψ.
+Lemma pure_wp_val {A E} (a : A) (ψ : E → Prop) : pure_wp (ret a) (λ b, b = a) ψ.
 Proof.
   by constructor.
+Qed.
+
+Lemma pure_wp_ifthenelse η e e1 e2 φ ψ :
+  pure_wp (eval η e) (λ v, ∃ b : bool, v = #b ∧ pure_wp (eval η (if b then e1 else e2)) φ ψ) ψ →
+  pure_wp (eval η (EIfThenElse e e1 e2)) φ ψ.
+Proof.
+  simpl.
+  intros He.
+  eapply pure_wp_bind, pure_wp_bind, (pure_wp_consequence _ He); auto.
+  intros _v ([] & -> & H); apply pure_wp_ret, H.
+Qed.
+
+Lemma pure_wp_assert η e ψ :
+  pure_wp (eval η e) (λ v, v = #true) ψ →
+  pure_wp (eval η (EAssert e)) (λ v, v = #()) ψ.
+Proof.
+  intros He. simpl.
+  apply pure_wp_choose. by apply pure_wp_ret.
+  apply pure_wp_bind, pure_wp_bind.
+  apply (pure_wp_consequence _ He); auto.
+  intros _ ->.
+  repeat econstructor.
+Qed.
+
+Lemma pure_wp_seq φ ψ η e1 e2 :
+  pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
+  pure_wp (eval η (ESeq e1 e2)) φ ψ.
+Proof.
+  eauto using pure_wp_bind.
 Qed.
 
 Lemma simp_check_div_by_zero z :
   representable z →
   (z ≠ 0)%Z →
-  (check_div_by_zero (repr z)) returns ().
+  pure_wp (check_div_by_zero (repr z)) (λ v, v = ()) (λ _, False).
 Proof.
   intros.
   unfold check_div_by_zero.
@@ -1141,12 +1187,18 @@ Proof.
   { apply pure_wp_val. }
 Qed.
 
-Lemma pure_wp_seq φ ψ η e1 e2 :
-  pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
-  pure_wp (eval η (ESeq e1 e2)) φ ψ.
-Proof.
-  eauto using pure_wp_bind.
-Qed.
+
+(** Encode compatibility *)
+
+Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
+
+Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
+  pure_wp m (encode_pred φ) ψ.
+
+Notation "m 'returns' v" := (pure_wp m (λ a, a = v) (λ _, False)) (at level 10).
+
+
+(** Hoare reasoning rules, with encode *)
 
 Lemma pure_wp_as_bool m φ ψ :
   pure_wp_encode m φ ψ →
@@ -1169,19 +1221,6 @@ Proof.
   intros []; auto.
 Qed.
 
-Lemma pure_wp_assert η e :
-  pure_wp (eval η e) (λ v, v = #True) (λ _, False) →
-  pure_wp (eval η (EAssert e)) (λ v, v = #()) (λ _, False).
-Proof.
-  intros He. simpl.
-  apply pure_wp_choose. by apply pure_wp_ret.
-  apply pure_wp_bind. apply pure_wp_as_bool.
-  apply (pure_wp_consequence_ret _ He).
-  intros _ ->. exists true.
-  unfold encode, Encode_Prop, Encode_bool.
-  rewrite truth_True.
-  repeat constructor.
-Qed.
 
 (* TODO later, move the following to [program_logic] *)
 
