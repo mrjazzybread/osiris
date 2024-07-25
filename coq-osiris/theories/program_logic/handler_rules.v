@@ -310,11 +310,11 @@ Section handler_proof.
     done.
   Qed.
 
-  Lemma deep_handle_cons η o cp e bs ψ Φ φ1 φ2 :
+  Lemma deep_handle_cons η o cp e bs E ψ Φ φ1 φ2 :
     cpattern η cp o φ1 φ2 ->
-    (∀ δ, ⌜φ1 δ⌝ -∗ EWP (eval δ e) <|ψ|> {{ Φ }}) -∗
-    (⌜φ2⌝ -∗ EWP (deep_eval_match η bs o) <|ψ|> {{ Φ }}) -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) <|ψ|> {{ Φ }}.
+    (∀ δ, ⌜φ1 δ⌝ -∗ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) -∗
+    (⌜φ2⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
   Proof.
     unfold cpattern; simpl_deep_eval_match.
     iIntros (Hpat) "Heval Hcov".
@@ -325,10 +325,10 @@ Section handler_proof.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 
-  Lemma deep_handle_cons' η o cp e bs ψ Φ φ :
-    ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) <|ψ|> {{ Φ }} ) φ⌝ -∗
-    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) <|ψ|> {{ Φ }}) -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) <|ψ|> {{ Φ }}.
+  Lemma deep_handle_cons' η o cp e bs E ψ Φ φ :
+    ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }} ) φ⌝ -∗
+    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
   Proof.
     unfold cpattern; simpl_deep_eval_match.
     iIntros (Hpat) "Hcov".
@@ -339,10 +339,10 @@ Section handler_proof.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 
-  Lemma deep_handle_cons_skip η o cp e bs ψ Φ :
+  Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
     valid_cpattern_match cp o = false ->
-    EWP (deep_eval_match η bs o) <|ψ|> {{ Φ }} -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) <|ψ|> {{ Φ }}.
+    EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }} -∗
+    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
   Proof.
     iIntros (Hvalid) "Hmatch".
     iAssert (bi_pure True) as "Htrue". done.

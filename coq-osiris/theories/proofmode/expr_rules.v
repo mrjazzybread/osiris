@@ -188,9 +188,9 @@ Section ewp_rules_expr.
   Maybe in some cases, though, having a specification for a simple function
   might be too verbose or be too trivial, and one could simply wish to "just
   reduce" the term, in which case those lemmas may be useful. *)
-  Lemma ewp_call_nonrec η x_arg body v_arg φ Ψ:
-    ▷EWP eval ((x_arg, v_arg) :: η) body <|Ψ|> {{ φ }} -∗
-    EWP call (VClo η (AnonFun x_arg body)) v_arg <|Ψ|> {{ φ }}.
+  Lemma ewp_call_nonrec η x_arg body v_arg φ E Ψ:
+    ▷EWP eval ((x_arg, v_arg) :: η) body @ E <|Ψ|> {{ φ }} -∗
+    EWP call (VClo η (AnonFun x_arg body)) v_arg @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H".
     iApply ewp_eval. iNext.
@@ -198,21 +198,21 @@ Section ewp_rules_expr.
     iIntros ([]). iApply ewp_value. iApply ewp_throw.
   Qed.
 
-  Lemma ewp_call_rec η f x body bs v φ Ψ:
+  Lemma ewp_call_rec η f x body bs v φ E Ψ:
     lookup_rec_bindings bs f = ret (AnonFun x body) ->
-    ▷EWP eval ((x, v) :: eval_rec_bindings η bs ++ η) body <|Ψ|> {{ φ }} -∗
-    EWP call (VCloRec η bs f) v <|Ψ|> {{ φ }}.
+    ▷EWP eval ((x, v) :: eval_rec_bindings η bs ++ η) body @ E <|Ψ|> {{ φ }} -∗
+    EWP call (VCloRec η bs f) v @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros (E) "H /=". rewrite E /=.
+    iIntros (Hlk) "H /=". rewrite Hlk /=.
     iApply ewp_eval. iNext.
     iApply (ewp_mono with "H").
     iIntros ([]). iApply ewp_value. iApply ewp_throw.
   Qed.
 
-  Lemma ewp_call_rec_1 η f x body v φ Ψ:
+  Lemma ewp_call_rec_1 η f x body v φ E Ψ:
     let vf := VCloRec η [RecBinding f (AnonFun x body)] f in
-    ▷EWP eval ((x, v) :: (f, vf) :: η) body <|Ψ|> {{ φ }} -∗
-    EWP call vf v <|Ψ|> {{ φ }}.
+    ▷EWP eval ((x, v) :: (f, vf) :: η) body @ E <|Ψ|> {{ φ }} -∗
+    EWP call vf v @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros (vf) "H". iApply ewp_call_rec; auto.
     rewrite /= String.eqb_refl //.
@@ -859,9 +859,9 @@ Section ewp_rules_expr.
 
   (** * EMatch : expr → list branch → expr *)
 
-  Lemma ewp_EMatch η e bs Ψ Φ :
-    EWP deep_handler η e bs <|Ψ|> {{ Φ }} -∗
-    EWP eval η (EMatch e bs) <|Ψ|> {{ Φ }}.
+  Lemma ewp_EMatch η e bs Ψ E Φ :
+    EWP deep_handler η e bs @ E <|Ψ|> {{ Φ }} -∗
+    EWP eval η (EMatch e bs) @ E <|Ψ|> {{ Φ }}.
   Proof.
     by iIntros "H"; simpl_eval.
   Qed.
