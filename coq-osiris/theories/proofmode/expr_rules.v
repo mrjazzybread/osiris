@@ -128,9 +128,9 @@ Section ewp_rules_expr.
 
   (** * EPath : path → expr *)
 
-  Lemma ewp_EPath η p φ Ψ :
-    EWP lookup_path η p <|Ψ|> {{ RET v, φ v }} -∗
-    EWP eval η (EPath p) <|Ψ|> {{ RET v, φ v }}.
+  Lemma ewp_EPath η p φ E Ψ :
+    EWP lookup_path η p @ E <|Ψ|> {{ RET v, φ v }} -∗
+    EWP eval η (EPath p) @ E <|Ψ|> {{ RET v, φ v }}.
   Proof.
     iIntros "H /=". simpl_eval.
     iApply ewp_try.
@@ -142,13 +142,13 @@ Section ewp_rules_expr.
   (** * EAnonFun : anonfun → expr *)
   (** * EApp : expr → expr → expr *)
 
-  Lemma ewp_EApp_exn η e1 e2 φ1 φ2 φ Ψ :
-    EWP eval η e1 <|Ψ|> {{ φ1 }} -∗
-    EWP eval η e2 <|Ψ|> {{ φ2 }} -∗
+  Lemma ewp_EApp_exn η e1 e2 φ1 φ2 φ E Ψ :
+    EWP eval η e1 @ E <|Ψ|> {{ φ1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ φ2 }} -∗
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v1 v2, φ1 (O2Ret v1) -∗ φ2 (O2Ret v2) -∗ EWP call v1 v2 <|Ψ|> {{ φ }}) -∗
-    EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
+    (∀ v1 v2, φ1 (O2Ret v1) -∗ φ2 (O2Ret v2) -∗ EWP call v1 v2 @ E <|Ψ|> {{ φ }}) -∗
+    EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
@@ -157,23 +157,23 @@ Section ewp_rules_expr.
     - iIntros (? ?) "? ? /=". iApply ("P" with "[$] [$]").
   Qed.
 
-  Lemma ewp_EApp η e1 e2 v1 v2 φ Ψ :
-    EWP eval η e1 <|Ψ|> {{ RET v, ⌜v = v1⌝ }} -∗
-    EWP eval η e2 <|Ψ|> {{ RET v, ⌜v = v2⌝ }} -∗
-    EWP call v1 v2 <|Ψ|> {{ φ }} -∗
-    EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
+  Lemma ewp_EApp η e1 e2 v1 v2 φ E Ψ :
+    EWP eval η e1 @ E <|Ψ|> {{ RET v, ⌜v = v1⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ RET v, ⌜v = v2⌝ }} -∗
+    EWP call v1 v2 @ E <|Ψ|> {{ φ }} -∗
+    EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 H".
     iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
     iIntros (? ?) "-> -> //".
   Qed.
 
-  Lemma ewp_EApp' η e1 e2 φ1 φ2 φ Ψ :
-    EWP eval η e1 <|Ψ|> {{ RET v, φ1 v }} -∗
-    EWP eval η e2 <|Ψ|> {{ RET v, φ2 v }} -∗
+  Lemma ewp_EApp' η e1 e2 φ1 φ2 φ E Ψ :
+    EWP eval η e1 @ E <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ RET v, φ2 v }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗
-       EWP call v1 v2 <|Ψ|> {{ φ }}) -∗
-    EWP eval η (EApp e1 e2) <|Ψ|> {{ φ }}.
+       EWP call v1 v2 @ E <|Ψ|> {{ φ }}) -∗
+    EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 H".
     iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
@@ -734,23 +734,23 @@ Section ewp_rules_expr.
 
   (** * ESeq : expr → expr → expr *)
 
-  Lemma ewp_ESeq_exn η e1 e2 φ1 φ Ψ :
-    EWP eval η e1 <|Ψ|> {{ φ1 }} -∗
+  Lemma ewp_ESeq_exn η e1 e2 φ1 φ E Ψ :
+    EWP eval η e1 @ E <|Ψ|> {{ φ1 }} -∗
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v1, φ1 (O2Ret v1) -∗ EWP eval η e2 <|Ψ|> {{ φ }}) -∗
-    EWP eval η (ESeq e1 e2) <|Ψ|> {{ φ }}.
+    (∀ v1, φ1 (O2Ret v1) -∗ EWP eval η e2 @ E <|Ψ|> {{ φ }}) -∗
+    EWP eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H E P /=". simpl_eval.
+    iIntros "H M P /=". simpl_eval.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
     iIntros ([v|v]) "/= H1".
     - iApply ("P" with "H1").
-    - iApply ("E" with "H1").
+    - iApply ("M" with "H1").
   Qed.
 
-  Lemma ewp_ESeq η e1 e2 φ Ψ :
-    EWP eval η e1 <|Ψ|> {{ RET _, EWP eval η e2 <|Ψ|> {{ φ }} }} -∗
-    EWP eval η (ESeq e1 e2) <|Ψ|> {{ φ }}.
+  Lemma ewp_ESeq η e1 e2 φ E Ψ :
+    EWP eval η e1 @ E <|Ψ|> {{ RET _, EWP eval η e2 @ E <|Ψ|> {{ φ }} }} -∗
+    EWP eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H". simpl_eval. by iApply ewp_bind.
   Qed.
