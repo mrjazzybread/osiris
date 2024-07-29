@@ -12,6 +12,11 @@ From osiris.proofmode Require Import pure_hoare specifications.
 Arguments String.eqb !s1 !s2 : simpl nomatch.
 Arguments satisfies_spec : simpl never.
 
+(* Encourage simplifying [continue] and [discontinue], which can often block
+   symbolic execution. *)
+Arguments continue _ _ _ k a /.
+Arguments discontinue _ _ _ k e /.
+
 
 (* Unfold [as_bool] and friends as soon as they are applied to an argument.
    This exposes a [bind] combinator and enables further simplifications. *)
@@ -21,6 +26,13 @@ Arguments as_loc E m /.
 Arguments as_record m /.
 Arguments as_struct E m /.
 Arguments lookup_name _ _/.
+
+Arguments val_as_bool !v /.
+Arguments val_as_loc _ !v /.
+Arguments val_as_cont _ !v /.
+Arguments val_as_int !v /.
+Arguments val_as_record !v /.
+Arguments val_as_struct !v /.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
@@ -32,7 +44,10 @@ Arguments extendfs δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments eval_match deep η o !bs /.
+Arguments eval_match η !bs o.
+Arguments shallow_eval_match η !bs all_bs o.
+Arguments install_deep_eval_match η bs !o.
+Arguments deep_eval_match η !bs o /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.
@@ -55,16 +70,16 @@ Global Opaque
 
   (* Evaluator functions. *)
   call
-  eval
-  evals
-  eval_match
-  eval_sitem
-  eval_sitems
-  eval_bindings
-  extend
-  extends
-  eval_mexpr
-  coerce
+  (* eval *)
+  (* evals *)
+  (* eval_match *)
+  (* eval_sitem *)
+  (* eval_sitems *)
+  (* eval_bindings *)
+  (* extend *)
+  (* extends *)
+  (* eval_mexpr *)
+  (* coerce *)
 
   encode
 

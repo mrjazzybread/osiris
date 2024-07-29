@@ -9,7 +9,7 @@ From osiris.examples Require Import og_splay.
 (* WIP *)
 
 Local Ltac unpack :=
-  repeat lazymatch goal with h: _ ∧ _ |- _ => destruct h end.
+  repeat (lazymatch goal with [ h: _ ∧ _ |- _ ] => destruct h end).
 
 (* Notation "'<closure>'" := (VCloRec _ _ _) (only printing). *)
 (* Notation "'<closure>'" := (VClo _ _) (only printing). *)
@@ -117,9 +117,9 @@ Proof.
   destruct t.
   { eapply pat_consequence_psi.
     { eapply pat_PData_eq; pat_PTuple; pats. }
-    tauto. }
+    destruct 1. }
   { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; done. }
+    { eapply pat_PData_neq; auto. }
     congruence. }
 Qed.
 
@@ -147,9 +147,9 @@ Proof.
   intros -> Hcov.
   destruct t; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
-  { tauto. }
+  { auto. }
   { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
-  { clear; right; do 3 eexists; split; [reflexivity | tauto]. }
+  { clear; right; do 3 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
 Ltac pat_pNode :=
@@ -238,12 +238,12 @@ Proof.
   destruct z.
   { eapply pat_consequence_psi.
     { eapply pat_PData_eq; pat_PTuple; pats. }
-    tauto. }
+    destruct 1. }
   { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; done. }
+    { eapply pat_PData_neq; auto. }
     congruence. }
   { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; done. }
+    { eapply pat_PData_neq; auto. }
     congruence. }
 Qed.
 
@@ -268,9 +268,9 @@ Proof.
   intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
-  { tauto. }
+  { auto. }
   { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
-  { clear; do 2 right; do 3 eexists; split; [reflexivity | tauto]. }
+  { clear; do 2 right; do 3 eexists; split; [ reflexivity | tauto ]. }
   { eapply pat_PData_neq; eauto. }
   { right; left; eauto. }
 Qed.
@@ -296,11 +296,11 @@ Proof.
   intros -> Hcov.
   destruct z; eapply pat_consequence_psi.
   { eapply pat_PData_neq; eauto. }
-  { tauto. }
+  { auto. }
   { eapply pat_PData_neq; eauto. }
   { right; left; eauto. }
   { eapply pat_PData_eq; pat_PTuple; pats. }
-  { clear; right; right; do 3 eexists; split; [ reflexivity | tauto]. }
+  { clear; right; right; do 3 eexists; split; [ reflexivity | tauto ]. }
 Qed.
 
 Ltac pat_pNodeR :=
@@ -455,20 +455,20 @@ Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 Lemma bst_Leaf_iff :
   bst Leaf ↔ True.
 Proof.
-  unfold bst. simpl fringe. rewrite Sorted_empty_iff. tauto.
+  unfold bst. simpl fringe. rewrite Sorted_empty_iff. auto.
 Qed.
 
-Lemma cons_is_app x (l1 : list A) : x :: l1 = [x] ++ l1. Proof. tauto. Qed.
+Lemma cons_is_app x (l1 : list A) : x :: l1 = [x] ++ l1. Proof. auto. Qed.
 
 Lemma bst_Node_iff l x r :
   bst (Node l x r) ↔
   bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
 Proof.
   unfold bst. simpl fringe.
-  repeat first [ rewrite Sorted_app_iff
-               | rewrite Sorted_singleton_iff
-               | rewrite cons_is_app; rewrite Sorted_app_iff
-               | rewrite pairwise_app_right_iff].
+  repeat (first [ rewrite Sorted_app_iff
+                | rewrite Sorted_singleton_iff
+                | rewrite cons_is_app; rewrite Sorted_app_iff
+                | rewrite pairwise_app_right_iff]).
   pose proof (@pairwise_transitive_singleton _ lt _ (fringe l) x (fringe r)).
   tauto.
 Qed.
@@ -511,12 +511,7 @@ Lemma pure_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4} (η : en
 Proof.
   intros.
   repeat (let h := fresh in destruct_pure h).
-  eapply pure_simp; [ simp | ].
-  eapply pure_simp.
-  { eapply simp_bind.
-    apply simp_evals; eauto. }
-  rewrite bind_ret.
-  by pure_ret.
+  eapply pure_simp; [ simp | ]. pure_ret. assumption.
 Qed.
 
 Ltac pattern_hook ::=
@@ -571,22 +566,28 @@ Proof.
   intros A H ctx l x r.
   (* TODO: Add the following pattern into pure_rec_call *)
   remember (l, x, r, ctx) as t.
-  replace ctx with t.2 by (rewrite Heqt; reflexivity).
-  replace l with (t.1.1.1) by (rewrite Heqt; reflexivity).
-  replace x with (t.1.1.2) by (rewrite Heqt; reflexivity).
-  replace r with (t.1.2) by (rewrite Heqt; reflexivity).
-  pure_rec t (fun _ : (tree A * A * tree A * zipper A) => True) (@splay_wf A).
+  rewrite (surjective_pairing t) in Heqt.
+  rewrite (surjective_pairing t.1) in Heqt.
+  rewrite (surjective_pairing t.1.1) in Heqt.
+  apply pair_eq in Heqt as [Heqt <-].
+  apply pair_eq in Heqt as [Heqt <-].
+  apply pair_eq in Heqt as [<- <-].
 
-  clear l ctx x r.
-  destruct t as [[[l x] r] ctx]; simpl; rename vf into splay.
+  change
+    (λ t' : tree A, fringe t' = fringe (fill t.2 (Node t.1.1.1 t.1.1.2 t.1.2)))
+    with
+    ((fun t t' => fringe t' = fringe (fill t.2 (Node t.1.1.1 t.1.1.2 t.1.2))) t).
+
+  eapply pure_rec_call with (P := fun a x => a = x). apply splay_wf. reflexivity.
+  intros splay [[[l x] r] ctx] IH a ->; simpl.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches1; pure_match.
+  pure_match.
 
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches0; pure_match. (* Was very slow, now just slow *)
+  pure_match; abstract_env. (* Was very slow, now just slow *)
 
   (* Case: [ctx] matches [Root] *)
   { pure_data.
@@ -600,7 +601,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (l, x, Node r a (Node t a0 t0), z'0)).
+    { specialize (IH (l, x, Node r a (Node t0 a0 t1), z'0)).
       eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -609,7 +610,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (Node t0 a0 l, x, Node r a t, z'0)).
+    { specialize (IH (Node t1 a0 l, x, Node r a t0, z'0)).
       eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -623,7 +624,7 @@ Proof.
     pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (Node t a l, x, Node r a0 t0, z'0)).
+    { specialize (IH (Node t0 a l, x, Node r a0 t1, z'0)).
       eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -632,7 +633,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     pure_call.
-    { specialize (IH (Node (Node t0 a0 t) a l, x, r, z'0)).
+    { specialize (IH (Node (Node t1 a0 t0) a l, x, r, z'0)).
       eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -646,20 +647,20 @@ Lemma Splay_leaf_spec splay :
 Proof.
   unfold splay_leaf_spec.
   intros Hsplay A H ctx.
-  pure_call_VClo.
+  pure_enter.
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path; reflexivity. }
-  unfold __branches3; pure_match.
+  pure_match.
 
   (* Case: [ctx] matches [Root] *)
-  { pure_const. by subst. }
+  { pure_const. reflexivity. }
 
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
   { eapply pure_eval_app. pure_path. (* What does [pure_path] do? *)
     eapply pure_eval_quadruple.
     eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); first done. (* Todo: weird *)
-    repeat pure_path.
+    apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
+    pure_path. pure_path. pure_path.
     unfold splay_spec in Hsplay.
     specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
@@ -686,26 +687,36 @@ Proof.
   unfold zlookup_spec.
   intros Hsplay_leaf Hsplay A H le ? Hcompare t x ctx Hbst.
   remember (t, x, ctx) as tup eqn:Heqtup.
-  replace ctx with (tup.2) by (rewrite Heqtup; reflexivity).
-  replace x with (tup.1.2) by (rewrite Heqtup; reflexivity).
-  replace t with (tup.1.1) in Hbst |- * by (rewrite Heqtup; reflexivity).
-  pure_rec tup (λ (t : tree A * A * zipper A),
-      match t with
-      | (t, _, _) => bst (strict le) t
-      end) (@zlookup_wf A).
-  repeat (destruct tup as [tup ?]); simpl in *.
+  rewrite (surjective_pairing tup) in Heqtup.
+  rewrite (surjective_pairing tup.1) in Heqtup.
+  apply pair_eq in Heqtup as [Heqtup <-].
+  apply pair_eq in Heqtup as [<- <-].
+  match goal with
+  | |- pure _ ?φ =>
+      let h := fresh in
+      set (h := φ);
+      pattern tup in h;
+      subst h
+  end.
+
+  eapply pure_rec_call with (a := tup) (x := tup) (P := fun a x => a = x /\ _ x.1.1).
+  { apply zlookup_wf. }
+  { split; [ reflexivity | exact Hbst ]. }
+  clear Hbst tup.
+  intros zlookup [[t x] ctx] IH ? [-> Hpre]. simpl in *. fold eval.
+
   (* Match on tuple argument *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches11; pure_match.
+  pure_match.
   (* Match on [t] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches10; pure_match.
+  pure_match.
 
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
-    eapply pure_eval_app. do 2 pure_path.
+    eapply pure_eval_app. pure_path. pure_path.
     pure_call.
-    split; [ intros | done]; apply not_elem_of_nil. }
+    split; [ intros | auto]; apply not_elem_of_nil. }
 
   (* Case: [t] matches [Node (l, y, r)] *)
   { destruct_bst_Node.
@@ -717,8 +728,7 @@ Proof.
       { pure_path; reflexivity. }
       apply Hcompare. }
     (* Evaluate continuation expression after let *)
-    intros c (?&Hlt&Heq&Hgt).
-    unfold __exp9.
+    intros c (? & Hlt & Heq & Hgt).
     eapply pure_eval_ifthenelse.
     { (* Evalute comparison operation *)
       eapply pure_eval_EOpLt.
@@ -728,19 +738,18 @@ Proof.
       { representable. } }
 
     { (* Case: [c < 0] *)
-      intro Clt0. unfold __exp5.
+      intro Clt0.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       pure_call.
-      { specialize (IH (t1, a, NodeL z a0 t2)).
-        eapply IH; unfold tlt, tree_depth; auto with arith. }
+      { eapply IH with (y := (t1, x, NodeL ctx a t2));
+          unfold tlt, tree_depth; auto with arith. }
       intros [oy t'] [??]; simpl in *.
-      split.
-      - rewrite bst_member_left; representable.
-      - assumption. }
+      split; [ | assumption ].
+      - apply bst_member_left; representable. }
 
     { (* Case: [c >= 0] *)
-      intros Cge0. unfold __exp8.
+      intros Cge0.
       eapply pure_eval_ifthenelse.
       { (* Evaluate second comparison operation *)
         eapply pure_eval_EOpGt.
@@ -750,29 +759,29 @@ Proof.
         { representable. } }
 
       { (* Subcase: [c > 0] *)
-        intros Cgt0. unfold __exp6.
+        intros Cgt0.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
         pure_call.
-        { specialize (IH (t2, a, NodeR t1 a0 z)).
-          eapply IH; [ auto | unfold tlt, tree_depth; lia ]. }
+        { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
+          { unfold tlt, tree_depth; lia. }
+          { split; [ reflexivity | auto ]. } }
         intros [oy t'] [??]; simpl in *.
         split.
-        - rewrite bst_member_right; representable.
-          by apply Hgt; apply Z.gt_lt.
+        - apply bst_member_right; representable.
+          apply Hgt; apply Z.gt_lt; auto.
         - assumption. }
 
       { (* Subcase: [c <= 0] *)
-        intros Cle0. unfold __exp7.
+        intros Cle0.
         (* Deduce [c = 0] *)
-        assert (equivalent le a a0) by (apply Heq; lia).
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
-        eapply pure_eval_quadruple. do 4 pure_path.
+        eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
         pure_call.
-        intros. split; first split.
-        - assumption.
-        - apply elem_of_app; right; apply elem_of_cons; by left.
+        intros. split; [ split | ].
+        - apply Heq. lia.
+        - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
         - assumption. } } }
 Qed.
 
@@ -783,28 +792,21 @@ Lemma Splay__spec:
                             ("zlookup", zlookup_spec)]).
 Proof.
   apply module_struct.
-  eapply structs_cons.
-  { eapply struct_letrec_single.
-    apply Splay_spec. }
+  next_item.
+  { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
-  eapply structs_cons.
-  { eapply struct_let_single.
-    rewrite eval_eval'; simpl.
-    eapply pure_ret. { rewrite <- solve_encode_val; apply eq_refl. }
+  next_item with splay_leaf_spec.
+  { pure_simp.
     apply Splay_leaf_spec; assumption. }
   intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
-  eapply structs_cons.
-  { eapply struct_letrec_single.
-    apply Zlookup_spec; assumption. }
+  next_item.
+  { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
-  eapply structs_cons.
-  { eapply struct_let_single.
-    rewrite eval_eval'; simpl.
-    eapply pure_ret. { rewrite <- !solve_encode_val. apply eq_refl. }
-    apply eq_refl. }
+  next_item.
+  { pure_simp. apply eq_refl. }
   intros [??] (lookup & Hlookup & -> & ->).
-  apply structs_nil.
-  simpl. tauto.
+  finished_struct.
+  simpl. repeat split; auto.
 Qed.
 
 End splay_proofs.

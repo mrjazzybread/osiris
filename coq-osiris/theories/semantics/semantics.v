@@ -8,5 +8,4 @@ From osiris.semantics Require Export
   simplification
   pure
   auxiliary_judgements
-  evalprime
 .

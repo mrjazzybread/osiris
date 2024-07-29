@@ -5,8 +5,7 @@ From osiris.stdlib Require Import Stdlib.
 From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
 
-Notation "'<(' f ')>'" := (VCloRec _ _ f) (only printing).
-Notation "'<' f '>'" := (VClo _ f) (only printing).
+
 Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
   (cons x _ (.. (cons z _ nil) ..))
  (only printing).
@@ -15,10 +14,12 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 
 (* WIP: Tactics used in local proof scripts. *)
 
-Local Ltac destruct_hyp :=
+Local Ltac destruct_hyps :=
+  repeat (
   match goal with
-  | H : _ /\ _ |- _ => destruct H
-  end.
+  | [ h : _ /\ _ |- _ ] =>
+      destruct h
+  end).
 
 Local Ltac rewrite_permutation t :=
   lazymatch goal with
@@ -53,9 +54,9 @@ Local Ltac all_inversions :=
 
 Lemma even_false_odd_true n : Nat.even n = false <-> Nat.odd n = true.
 Proof.
-  split; intros;
+  split;
     [rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd];
-    [by apply negb_true_iff   | by apply negb_false_iff].
+    [ apply negb_true_iff; auto   | apply negb_false_iff; auto ].
 Qed.
 
 Local Hint Resolve even_false_odd_true : arith.
@@ -70,11 +71,11 @@ Proof.
  { (* Case: n is even *)
    rewrite Nat.Even_div2.
    - apply Nat.lt_div2; lia.
-   - by apply Nat.even_spec. }
+   - apply Nat.even_spec. assumption. }
  { (* Case: n is odd *)
    apply Nat.succ_lt_mono.
    rewrite Nat.Odd_div2; auto with arith.
-   apply Nat.odd_spec. by apply even_false_odd_true. }
+   apply Nat.odd_spec. apply even_false_odd_true. assumption. }
 Qed.
 
 Local Hint Resolve suc_div2_lt_suc : arith.
@@ -90,7 +91,7 @@ Proof.
     auto with arith. }
   { (* Case: m is odd *)
     rewrite Nat.Odd_div2; auto with arith.
-    apply Nat.odd_spec. by apply even_false_odd_true. }
+    apply Nat.odd_spec. apply even_false_odd_true. assumption. }
 Qed.
 
 (* Make a library of commonly used well founded relations? *)
@@ -163,9 +164,9 @@ Definition mergesort_spec (mergesort : val) : Prop :=
 
 Global Instance CRel2Cons `{Encode A} : CRel2 A (list A) (list A) "::" cons := {}.
 
-Ltac trivial_pure := repeat first [ pure_path | pure_data | pure_const].
+Local Ltac trivial_pure := repeat (first [ pure_path | pure_data | pure_const]).
 
-Ltac pure_eval_app2_conseq :=
+Local Ltac pure_eval_app2_conseq :=
   eapply pure_eval_app2_conseq;
   [ trivial_pure; reflexivity
   | trivial_pure; reflexivity
@@ -173,7 +174,7 @@ Ltac pure_eval_app2_conseq :=
   |
   | ].
 
-Ltac pure_EOpLe :=
+Local Ltac pure_EOpLe :=
   eapply pure_eval_EOpLe;
   [ trivial_pure; reflexivity
   | trivial_pure; reflexivity
@@ -185,116 +186,138 @@ Lemma Merge_spec' η:
 Proof.
   unfold merge_spec.
   intros.
-  pure_nested l1 l2 (@wf_double_list_length Z).
-  unfold merge_pre in *; repeat (destruct_hyp).
+
+  (* TODO: automate application of [pure_rec_call2]. *)
+
+  change (merge_post l1 l2) with ((fun '(l1, l2) => merge_post l1 l2) (l1, l2)).
+  eapply pure_rec_call2 with (P := fun '(l1, l2) '(l3, l4) => l1 = l3 /\ l2 = l4 /\ merge_pre l3 l4).
+
+
+  { apply wf_double_list_length. }
+  { auto. }
+  simpl. intros merge x1 y1 IH [l3 l4] (-> & -> & Hpre). fold eval.
   abstract_env.
+  (* FIXME: rule for pure_eval_EAnonFun is incorrect. *)
+  eapply pure_simp; [ simp | ]. pure_ret.
+  pure_enter. abstract_env.
+
   eapply pure_eval_match.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
-  unfold __branches2; pure_match.
+
+  pure_match.
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; repeat (destruct_hyp).
-    by rewrite app_nil_l. }
-    (* Match against "l, []" *)
+    unfold merge_post, merge_pre in *; destruct_hyps.
+    rewrite app_nil_l. auto. }
+  (* Match against "l, []" *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; repeat (destruct_hyp).
-    by rewrite app_nil_r. }
+    unfold merge_post, merge_pre in *; destruct_hyps.
+    rewrite app_nil_r. auto. }
   (* Second branch of match *)
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
-      pure_EOpLe; by subst; repeat Forall_inversion. }
+      pure_EOpLe; destruct Hpre as (? & ? & ?);
+      repeat (Forall_inversion); auto. }
     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
-      intros. unfold __exp0.
-      pure_data.
+      intros.
+      eapply pure_eval_data2.
+      eapply pure_eval_pair. pure_path.
       (* Evaluate "merge t1 l2" under the cons *)
       pure_eval_app2_conseq.
       { (* Use induction hypothesis on [call merge t1 l2] *)
-        eapply IH.
-        { (* Subgoal: the partial application of merge returns a closure *)
-          rewrite eval_eval'; simpl. reflexivity. }
-        { (* Subgoal: t1 and l2 satisfy merge's precondition *)
-          unfold merge_pre in *.
-          repeat (destruct_hyp); all_inversions; auto. }
+        eapply (IH (xs', x0::xs'0)).
         { (* Subgoal: justify the recursive call with a size argument *)
-          auto with arith. } }
+          auto with arith. }
+        { (* Subgoal: t1 and l2 satisfy merge's precondition *)
+          repeat split;
+          unfold merge_pre in Hpre;
+          destruct_hyps; all_inversions; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; repeat (destruct_hyp); subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
-        constructor; first done.
+        constructor; [ assumption | ].
         eapply HdRel_Sorted_Permutation; eauto with zarith. }
       { (* Subgoal: the output is a permutation of the inputs *)
         by rewrite_permutation l. } }
     { (* Evaluate expression "h2 :: (merge l1 t2)" knowing  (h1 > h2) *)
-      simpl; intros. unfold __exp1.
-      pure_data.
+      simpl; intros. fold eval.
+      eapply pure_eval_data2. eapply pure_eval_pair; pure_path.
       (* Evaluate "merge l1 t2" under the cons *)
       pure_eval_app2_conseq.
       (* Use induction hypothesis on [call merge l1 t2] *)
-      { eapply IH.
-        { (* Subgoal: the partial application of merge returns a closure *)
-          rewrite eval_eval'; simpl. reflexivity. }
+      { eapply (IH (x::xs', xs'0)).
+        { (* Subgoal: justify the recursive call with a size argument *)
+          auto with arith. }
         { (* Subgoal: l1 and t2 satisfy merge's precondition *)
           unfold merge_pre in *.
-          repeat (destruct_hyp); all_inversions; auto. }
-        { (* Subgoal: justify the recursive call with a size argument *)
-          auto with arith. } }
+          destruct_hyps; all_inversions; repeat split; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; repeat (destruct_hyp); subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
-        constructor; first done.
+        constructor; [ auto | ].
         eapply HdRel_Sorted_Permutation; eauto with zarith. }
       { (* Subgoal: the output is a permutation of the inputs *)
         rewrite_permutation l.
         apply Permutation_sym. apply Permutation_middle. } } }
 Qed.
 
+
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
 Proof.
   unfold split_spec. intros.
-  pure_rec l (@wf_list_length A).
+
+  eapply pure_rec_call with (P := fun l1 l2 => l1 = l2).
+  { apply wf_list_length. }
+  { reflexivity. }
+  clear l.
+  intros split ? IH ? ->.
+
+  (* pure_rec l (@wf_list_length A). *)
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
-  unfold __branches6; simpl.
+
   (* First branch of match *)
   pure_match; abstract_env.
   { (* Case: l matches [] *)
     apply pure_eval_pair. trivial_pure.
     (* Establish the (trivial) postcondition *)
-    done. }
+    split; simpl; auto. }
   (* Second branch of match *)
   { (* Case: l matches [x] *)
     apply pure_eval_pair. trivial_pure.
     (* Establish postcondition *)
-    done. }
+    split; simpl; auto. }
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
-    eapply pure_eval_app. trivial_pure.
-    (* Call vf #xs *) simpl.
+    eapply pure_eval_app. pure_path. pure_path.
+    (* Call vf #xs *)
     eapply pure_consequence.
     { (* Use induction hypothesis *)
-      apply IH; first done.
-      (* Justify use of induction hypothesis *)
-      eauto with arith. }
+      apply IH.
+      { (* Justify use of induction hypothesis *)
+        eauto with arith. }
+      { (* Show the precondition. *)
+        reflexivity. } }
     intros [l1 l2] Hpost; clear IH; simpl.
-    abstract_env.
+    simpl_extend; simpl. fold eval. abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair. trivial_pure.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     subst.
     destruct Hpost as (H1 & H2 & ?).
-    split; last split.
+    split; [ | split ].
     { (* Subgoal: the length of l1 is half the length of xs *)
       destruct (Nat.even _); rewrite H1; eauto with arith. }
     { (* Subgoal: the length of l2 is half the length of xs *)
@@ -315,64 +338,73 @@ Proof.
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
   unfold mergesort_spec; intros l ?.
-  pure_rec l (@wf_list_length Z).
+  eapply pure_rec_call with (P := fun a x => a = x /\ mergesort_pre x).
+  { apply wf_list_length. }
+  { split; [ reflexivity | assumption ]. }
+  clear H l.
+  intros mergesort l IH ? (-> & Hpre).
+
   eapply pure_eval_match. { pure_path. reflexivity. }
-  unfold __branches11.
   pure_match; abstract_env.
-  { pure_const. done. } (* Branch: "[]"  *)
+  { pure_const. auto. } (* Branch: "[]"  *)
   { pure_data. auto. }  (* Branch: "[x]" *)
 
   (* Branch: "_" *)
   assert (exists m, length l = S (S m)) as [m Heql].
   { (* TODO: too difficult to acquire knowledge from not matching on
        previous branches *)
-    destruct no_match0 as [|no_match0]; [congruence | ].
-    destruct no_match0 as (?&tail&?&[?|?]); first contradiction; subst.
+    destruct no_match0 as [ | no_match0 ]; [ congruence | ].
+    destruct no_match0 as (?&tail&?&[?|?]); [ contradiction | ]; subst.
     destruct tail; [ contradiction | simpl; eauto with arith]. }
   { eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
-    eapply pure_eval_path. simpl. rewrite Hsplit. pure_ret.
+    eapply pure_eval_path. simpl. rewrite Hsplit.
+    pure_ret.
     pure_path.
     (* Use knowledge that [split] ⊨ [split_spec] *)
     eapply pure_consequence. { apply _split_spec. }
     intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
-    unfold mergesort_pre in HP;
-      rewrite <- Hperm in HP; apply Forall_app in HP as [??].
+    unfold mergesort_pre in Hpre;
+      rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
+    simpl_extend; simpl.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l1] *)
       apply IH.
-      { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
-        assumption. }
       { (* Subgoal: show [length l1 < length l ] *)
-        rewrite Heql; rewrite Heql in Hl1. by apply div2_lt_succ. } }
+        rewrite Heql; rewrite Heql in Hl1. apply div2_lt_succ; auto. }
+      { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
+        split; [ reflexivity | assumption ]. } }
     intros l1' IHl1'.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
       (* Use the induction hypothesis on [l2] *)
       apply IH.
-      { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
-        assumption. }
       { (* Subgoal: show [length l2 < length l] *)
-        rewrite Hl2 Heql. auto with arith. } }
+        rewrite Hl2 Heql. auto with arith. }
+      { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
+        split; [ reflexivity | assumption ]. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)
-      eapply pure_eval_path. simpl. rewrite Hmerge. by pure_ret. }
-    { by pure_path. }
-    { by pure_path. }
+      eapply pure_eval_path. simpl. rewrite Hmerge. pure_ret. reflexivity. }
+    { pure_path. reflexivity. }
+    { pure_path. reflexivity. }
     (* Use the knowledge that [merge] ⊨ [_merge_spec] *)
     { apply _merge_spec.
       (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
       unfold mergesort_pre, mergesort_post in *.
-      repeat (destruct_hyp).
+      destruct_hyps.
       split; [ by rewrite_permutation l1'
-             | split; [ by rewrite_permutation l2' | auto] ]. }
+             | split;
+               [ by rewrite_permutation l2'
+               | auto ]
+        ]. }
     intros l' IH.
     (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
     unfold mergesort_post, merge_post in *.
-    repeat (destruct_hyp).
+    destruct_hyps.
     split; [ assumption | ].
     rewrite_permutation l'. rewrite_permutation l.
     rewrite_permutation l1'. rewrite_permutation l2'.
@@ -393,20 +425,20 @@ Lemma Module__spec' :
                      ("merge_sort", mergesort_spec)]).
 Proof.
   apply module_struct.
-  eapply structs_cons.
+  next_item.
   (* Evaluate "merge" letrec *)
-  { eapply struct_letrec_single. apply Merge_spec'. }
+  { apply Merge_spec'. }
   intros [??] (merge & Hmerge & -> & ->).
-  eapply structs_cons.
+  next_item.
   (* Evaluate "split" letrec *)
-  { eapply struct_letrec_single. apply Split_spec'. }
+  { apply Split_spec'. }
   intros [??] (split & Hsplit & -> & ->).
-  eapply structs_cons.
+  next_item.
   (* Evaluate "merge_sort" letrec *)
-  { eapply struct_letrec_single. apply MergeSort_spec'; eauto. }
+  { apply MergeSort_spec'; eauto. }
   intros [??] (mergesort & Hmergesort & -> & ->).
   (* We have now evaluated the whole struct. *)
-  eapply structs_nil.
+  finished_struct.
   (* Goal: Show that the resulting environment satisfies the spec. *)
-  simpl. tauto.
+  simpl. repeat split; assumption.
 Qed.

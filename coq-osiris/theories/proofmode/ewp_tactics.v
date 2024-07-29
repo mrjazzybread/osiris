@@ -182,9 +182,9 @@ Ltac Call :=
 
 Ltac get_outcome_from_match e :=
   lazymatch e with
-  | (pre_eval_match_aux _ _ _ ?o _ _) => constr:(o)
-  | (deep_handler_body _ ?o _ _) => constr:(o)
-  | (shallow_handler_body _ ?o _ _) => constr:(o)
+  | (deep_eval_match _ _ ?o) => constr:(o)
+  | (shallow_eval_match _ _ _ ?o) => constr:(o)
+  | (eval_match _ _ ?o) => constr:(o)
   end.
 Ltac trivial_post_instantiation :=
   lazymatch goal with
@@ -200,17 +200,16 @@ Ltac trivial_post_instantiation :=
   end.
 Ltac skip_matching_branch :=
   let φ2 := trivial_post_instantiation in
-  iApply (handle_cons _ _ _ _ _ _ _ _ _ (λ _, False) φ2);
+  iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2);
   [ specify_cpattern; pattern_match
   | iIntros (? [])
   | iIntros (_) ].
 Ltac skip_non_matching_branch :=
-  iApply handle_cons_skip; [ reflexivity | ].
+  iApply deep_handle_cons_skip; [ reflexivity | ].
 Ltac skip_branch :=
-  (skip_non_matching_branch || skip_matching_branch);
-  fold deep_handler_body; fold shallow_handler_body.
+  (skip_non_matching_branch || skip_matching_branch).
 Ltac enter_branch :=
-  iApply (handle_cons with "[-]");
+  iApply (deep_handle_cons with "[-]");
   [ specify_cpattern; pattern_match; try (apply eq_refl)
   | (iIntros (? ->) || iIntros (? <-))
   | let F := fresh in iIntros (F); tauto ].

@@ -50,10 +50,10 @@ Lemma example_ref_1 env:
 Proof.
   iApply ewp_ERef.
   - (* 1 *)
-    iApply ewp_ret_eq_emp.
+    by iApply ewp_EInt.
   - (* ref *)
-    iIntros (v) "->".
-    iIntros (l) "(? & ?)". iExists _. iFrame. auto.
+    iIntros (v) "<-".
+    iIntros (l) "?". iExists _. iFrame. auto.
 Qed.
 
 (* [!x] *)
@@ -79,7 +79,7 @@ Proof.
   iIntros (Hx) "Hl".
   iApply ewp_EStore.
   - Simp. iApply ewp_ret_eq_emp.
-  - iApply ewp_ret_eq_emp.
+  - Simp. iApply ewp_ret_eq_emp.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext.
     iIntros "Hl /=".
@@ -100,12 +100,12 @@ Proof.
   iApply ewp_ESeq.
   iApply ewp_EStore.
   - Simp. iApply ewp_ret_eq_emp.
-  - iApply ewp_ret_eq_emp.
+  - Simp. iApply ewp_ret_eq_emp.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext. iIntros "Hl /=".
     iApply ewp_EStore.
     + Simp. iApply ewp_ret_eq_emp.
-    + iApply ewp_ret_eq_emp.
+    + Simp. iApply ewp_ret_eq_emp.
     + iIntros (? ?) "(-> & ->)".
       iExists _. iFrame. iNext. iIntros "$ //".
 Qed.
@@ -118,7 +118,7 @@ Proof.
   - (* ref 1 *)
     Bind.
     iApply ewp_ERef.
-    + iApply ewp_ret_eq_emp.
+    + Simp. iApply ewp_ret_eq_emp.
     + iIntros (?) "->".
       iIntros (l) "Hl /=".
       by Ret.
@@ -278,13 +278,7 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext.
-    iApply handle_cons.
-    + specify_cpattern.
-      pattern_match. apply eq_refl.
-    + iIntros (δ) "_". iApply ewp_EConstant; simpl.
-      by iExists true.
-    + iIntros "[]".
+  - iIntros (?) "->". iNext. Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -314,15 +308,8 @@ Proof.
 
   rewrite deep_handler_spec_unfold; iSplit.
 
-  - iIntros (?) "->". iNext.
-    iApply handle_cons.
-    + specify_cpattern.
-      pattern_match.
-      apply eq_refl.
-    + iIntros (δ) "_".
-      iApply ewp_EConstant.
-      by iExists true.
-    + iIntros (?). done.
+  - iIntros (?) "->". iNext. red_match.
+    Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -347,20 +334,14 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply handle_cons.
+    iApply deep_handle_cons. (* TODO: Improve red_match to manage this case. *)
     + specify_cpattern.
       pattern_match.
       discriminate.
     + iIntros (δ) "[]".
-    + iIntros (?).
-      iApply handle_cons.
-      * specify_cpattern.
-        pattern_match.
-        apply eq_refl.
-      * iIntros (δ) "_".
-        iApply ewp_EConstant.
-        by iExists false.
-      * iIntros "[]".
+    + iIntros (?). red_match.
+      iApply ewp_EConstant.
+      by iExists false.
 
   - iIntros (e k) "Hp".
     unfold iEff_bottom in *.
@@ -386,19 +367,19 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply handle_cons.
+    iApply deep_handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
     + iIntros (δ) "[]".
     + iIntros (_).
-      iApply handle_cons.
+      iApply deep_handle_cons.
       * specify_cpattern.
         pattern_match.
         discriminate.
       * iIntros (δ) "[]".
       * iIntros (_).
-        iApply handle_cons.
+        iApply deep_handle_cons.
         -- specify_cpattern.
            pattern_match.
            apply eq_refl.
@@ -431,13 +412,13 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext.
-    iApply handle_cons.
+    iApply deep_handle_cons.
     + specify_cpattern.
       pattern_match.
       discriminate.
     + iIntros (δ) "[]".
     + iIntros "_".
-      iApply handle_cons.
+      iApply deep_handle_cons.
       * specify_cpattern.
         pattern_match.
         apply eq_refl.

@@ -11,36 +11,33 @@ From osiris.examples Require Import og_localstate.
 (** * Protocol. *)
 
 Section localstate_example.
-(* Location for the get/set eff *)
-Context (read_eff write_eff : loc).
-Context (Hloc: address read_eff <> address write_eff).
 
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
 Definition state := Z.
 
-Definition read : val := VXData read_eff (VTuple []).
-Definition write (v : state) : val := VXData write_eff (VTuple [ # v]).
+Definition read rl : val := VXData rl (VTuple []).
+Definition write wl (v : state) : val := VXData wl (VTuple [ # v]).
 
-Definition READ {Σ} (St : state -> _) : iEff Σ :=
-  (>> x  >> ! (read) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
-Definition WRITE {Σ} St : iEff Σ :=
-  (>> x y >> ! (write y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
-Definition STATE {Σ} (St : state -> _) : iEff Σ := (READ St <+> WRITE St)%ieff.
+Definition READ {Σ} rl (St : state -> _) : iEff Σ :=
+  (>> x  >> ! (read rl) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
+Definition WRITE {Σ} wl St : iEff Σ :=
+  (>> x y >> ! (write wl y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
+Definition STATE {Σ} rl wl (St : state -> _) : iEff Σ := (READ rl St <+> WRITE wl St)%ieff.
 
-Lemma upcl_state {Σ} St v Φ :
-  iEff_car (upcl OS (STATE (Σ:=Σ) St)) v Φ ⊣⊢
-    ((iEff_car (upcl OS (READ  St)) v Φ) ∨
-     (iEff_car (upcl OS (WRITE St)) v Φ)).
+Lemma upcl_state {Σ} rl wl St v Φ :
+  iEff_car (upcl OS (STATE (Σ:=Σ) rl wl St)) v Φ ⊣⊢
+    ((iEff_car (upcl OS (READ  rl St)) v Φ) ∨
+     (iEff_car (upcl OS (WRITE wl St)) v Φ)).
 Proof. by rewrite /STATE; apply upcl_sum. Qed.
 
-Lemma upcl_read {Σ} St v Φ :
-  iEff_car (upcl OS (READ (Σ:=Σ) St)) v Φ ⊣⊢
-    (∃ x, ⌜ v = read ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
+Lemma upcl_read {Σ} rl St v Φ :
+  iEff_car (upcl OS (READ (Σ:=Σ) rl St)) v Φ ⊣⊢
+    (∃ x, ⌜ v = read rl ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
 Proof. by rewrite /READ (upcl_tele' [tele _] [tele]). Qed.
 
-Lemma upcl_write {Σ} St v Φ :
-  iEff_car (upcl OS (WRITE (Σ:=Σ) St)) v Φ ⊣⊢
-    (∃ x y, ⌜ v = write y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
+Lemma upcl_write {Σ} wl St v Φ :
+  iEff_car (upcl OS (WRITE (Σ:=Σ) wl St)) v Φ ⊣⊢
+    (∃ x y, ⌜ v = write wl y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
 Proof. by rewrite /WRITE (upcl_tele' [tele _ _] [tele]). Qed.
 
 (* ========================================================================== *)
@@ -103,8 +100,6 @@ End val_points_to.
 Opaque auth_state.
 Opaque encode.encode.
 
-Arguments deep_handler_body : simpl never.
-
 Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
 
 (* -------------------------------------------------------------------------- *)
@@ -124,14 +119,50 @@ Section verification.
 
   Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
-  Example localstate_run_spec Φ init main :
-    let env := [("Get", (VLoc read_eff)); ("Set", (VLoc write_eff))] ++ stdlib_env in
-    (∀ St, St init -∗ EWP call main #() <| STATE St |> {{ RET v, Φ v }}) -∗
-    EWP call_anonfun env run [ #init ; main]
-      {{ RET # v, Φ (snd (v : state * val)) }}.
+  Lemma confront_addresses l1 l2 :
+    ∀ v1 v2,
+      (l1 ↦ v1) -∗
+      (l2 ↦ v2) -∗
+      ⌜address l1 ≠ address l2⌝.
+  Proof.
+    iIntros (v1 v2) "Hl1 Hl2".
+    iPoseProof (gen_heap.mapsto_ne with "Hl1 Hl2") as "%Hne".
+    iPureIntro. destruct l1, l2. simpl.
+    intros ->. by apply Hne.
+  Qed.
+
+  Definition run_env_requirements η rl wl :=
+    (rl ↦ V #() ∗
+     wl ↦ V #() ∗
+     ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ ∗
+     ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝)%I.
+
+  Definition main_spec main init rl wl spec :=
+    (∀ St,
+        St init -∗
+        EWP call main #() <| STATE rl wl St |> {{ RET v, spec v }} )%I.
+
+  Definition run_spec rl wl run :=
+    (∀ (* η *) (spec : val -> iProp Σ) init main,
+       (* run_env_requirements η rl wl -∗ *)
+       main_spec main init rl wl spec -∗
+       EWP c ← (call run #init);
+           call c main {{ RET #v, spec (snd (v : state * val)) }})%I.
+
+  Lemma localstate_run_spec rl wl :
+    ∀ η (Φ : val -> iProp Σ) init main,
+      ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
+      ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
+      ⌜ address rl ≠ address wl ⌝ -∗
+      (∀ St,
+          St init -∗
+          EWP call main #() <| STATE rl wl St |> {{ RET v, Φ v }} ) -∗
+      EWP call_anonfun η run [ #init ; main]
+        {{ RET # v, Φ (snd (v : state * val)) }}.
   Proof.
     cbn zeta.
-    iIntros "Hmain". iApply ewp_fupd.
+    iIntros (env Φ init main HGet HSet Haddr) "Hmain".
+    iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* Call the anonymous function. *)
@@ -268,7 +299,220 @@ Section verification.
        iApply ("IH" with "Hauth Hl"). }
    Qed.
 
+  Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
+
+  Lemma ewp_mexpr_MStruct η sitems E ψ Q :
+    EWP eval_sitems (η, []) sitems @ E <| ψ |> {{ RET ηδ, let '(_, δ) := ηδ in Q (O2Ret (VStruct δ)) }} -∗
+    EWP (eval_mexpr η (MStruct sitems)) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hsitems". simpl_eval_mexpr.
+    Bind.
+    iApply (ewp_mono with "Hsitems").
+    iIntros ([ηδ|]); [ simpl; iIntros "HQ" | done ].
+    destruct ηδ; by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_sitem_open η δ me E ψ Q φ δ' :
+    EWP eval_mexpr η me @ E <| ψ |> {{ RET v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
+    ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
+    EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hme Hcov". simpl_eval_sitem.
+    Bind. Bind.
+    iApply (ewp_mono with "Hme").
+    iIntros ([|]); [ simpl | done ].
+    iIntros "[-> Hφ]".
+    iApply ewp_try. Ret.
+    iApply ("Hcov" with "Hφ").
+  Qed.
+
+  Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
+    EWP eval_type_extensions es @ E <| ψ |>
+      {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
+    EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
+  Proof.
+    iIntros "Hes".
+    with_strategy transparent [eval_sitem] Simp.
+    Bind. iApply (ewp_mono with "Hes").
+    iIntros ([|]); [ simpl; by iIntros "HQ" | done ].
+  Qed.
+
+  Lemma ewp_type_extension_cons e es E ψ Q :
+    ▷ (∀ l, l ↦ V #() -∗
+          EWP eval_type_extensions es @ E <| ψ |>
+            {{ RET δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
+    EWP eval_type_extensions (e :: es) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hes". simpl.
+    iApply ewp_alloc.
+    iModIntro.
+    iIntros "%l Hl".
+    rewrite /continue; simpl. Bind.
+    iSpecialize ("Hes" with "Hl").
+    iApply (ewp_mono with "Hes").
+    iIntros ([|]); [ simpl | done ]; iIntros "HQ".
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_type_extension_nil E ψ Q :
+    Q (O2Ret []) -∗
+    EWP eval_type_extensions [] @ E <| ψ |> {{ Q }}.
+  Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
+
+  Lemma ewp_sitems_nil ηδ E ψ Q :
+    Q (O2Ret ηδ) -∗
+    EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
+  Proof.
+    simpl_eval_sitems.
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
+    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
+    (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
+    EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hsitem Hcov". simpl_eval_sitems.
+    Bind.
+    iApply (ewp_mono with "Hsitem").
+    iIntros ([ηδ'|]); [ simpl | done ].
+    iApply "Hcov".
+  Qed.
+
+  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
+    EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He HQ".
+    simpl_eval_sitem. simpl_eval_bindings.
+    Bind. Par. Bind.
+    iApply (ewp_mono with "He").
+    iIntros ([|]); [ simpl | done ].
+    iIntros "Hspec".
+    simpl_extend. Ret.
+    by iApply "HQ".
+  Qed.
+
+  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
+                   EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+    EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He Hcov".
+    simpl_eval_sitems; simpl_eval_bindings; simpl.
+    Par. Bind.
+    iApply (ewp_mono with "He").
+    iIntros ([v|]); [ simpl; iIntros "Hspec" | done ].
+    Simp.
+    iApply "Hcov".
+    iExists v; by iFrame.
+  Qed.
+
+  Lemma ewp_sitems_extend sitems η δ x E ψ Q :
+    (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
+      EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+    EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hcov".
+    iApply (ewp_sitems_cons).
+    { iApply (ewp_sitem_extend).
+      iApply ewp_alloc.
+      iIntros "!>" (l) "Hl".
+      rewrite /continue. Ret.
+      Unshelve.
+      2: (apply (λ ηδ,
+              (∃ l, ⌜ηδ = (x ~> VLoc l; η, x ~> VLoc l; δ)⌝ ∗ l ↦ V VUnit)%I)).
+      iExists l; iFrame. equality. }
+    iApply "Hcov".
+  Qed.
+
+  Lemma lemmaname (Q : val -> iProp Σ) :
+    ⊢ EWP (eval_mexpr dummy_env __main)
+      {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
+                       ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
+                              ∃ rl wl, run_spec rl wl run }}.
+  Proof.
+    iIntros. rewrite /__main.
+    iApply ewp_mexpr_MStruct.
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])).
+
+    (* [open Effect] *)
+    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ3])).
+      { with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
+        equality. }
+      iIntros (δ' ->). equality. }
+
+    (* [open Effect.Deep] *)
+    iIntros (? ->).
+    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
+    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2]));
+        [ | iIntros (? ->); equality ].
+      with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
+      equality. }
+
+    (* [type _ Effect.t += Get : t Effect.t] *)
+    iApply ewp_sitems_extend.
+    iIntros ([η δ]) "[%rl [-> Hrl]]"; clear η δ.
+
+    (* [type _ Effect.t += Set : t -> unit Effect.t] *)
+    iApply ewp_sitems_extend.
+    iIntros ([η δ]) "[%wl [-> Hwl]]"; clear η δ.
+
+    (* [let get () = perform Get] *)
+    iApply (ewp_sitems_let_singleton_var
+                (λ v,
+                  □ ∀ St x,
+                      St x -∗
+                      EWP call v #()  <|STATE rl wl St|>
+                        {{ RET #X, ⌜X = x⌝ }})%I).
+      { Simp; Ret; simpl.
+        iIntros "!>" (St x) "HSt".
+        iApply ewp_call_nonrec. iNext. Simp.        
+        rewrite <- solve_encode_unit; simpl; fold eval. (* FIXME: should not have to do this. *)
+        Simp.
+        iApply ewp_perform.
+        rewrite /prot. rewrite upcl_state upcl_read.
+        iLeft. iExists _. iFrame. iSplit. equality.
+        iIntros "_". iExists _; iSplit; equality. }
+
+    (* [let set y = perform (Set y)] *)
+    iIntros ([η δ]) "[%get [-> get_spec]]"; clear η δ.
+    iApply (ewp_sitems_let_singleton_var (λ v, □ ∀ St x y,
+                           St x -∗
+                             EWP call v #y  <|STATE rl wl St|>
+                             {{ RET _, St y }})%I ).
+      { Simp; Ret; simpl.
+        iIntros "!>" (St x y) "HSt".
+        iApply ewp_call_nonrec. iNext.
+        with_strategy transparent [evals] Simp.
+        iApply ewp_perform.
+        rewrite /prot. rewrite upcl_state upcl_write.
+        iRight. iExists _, _. iFrame. iSplit. equality.
+        by iIntros "Hsty". }
+
+    (* [let run (type a) init maint : t * a =] *)
+    iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
+    iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddr".
+    iApply (ewp_sitems_let_singleton_var (run_spec rl wl)).
+    { Simp. Ret. simpl. unfold run_spec.
+      iIntros (spec init main) "Hmain".
+      (* TODO: UGLY. *)
+      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".      
+      rewrite /call_anonfun. simpl. rewrite /eval_anonfun.
+      unfold eval; rewrite -> (@seal_eq _ pre_eval); simpl.
+      iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }
+
+    iIntros ([η δ]) "[%run [-> Hrun]]".
+    iApply ewp_sitems_nil; simpl.
+
+    (* Establish postcondition. *)
+    iExists _; iSplit; [ equality | ].
+    iExists _; iSplit; [ equality | ].
+    iExists _, _; iApply "Hrun".
+  Qed.
+
 End verification.
-(* ========================================================================== *)
 
 End localstate_example.

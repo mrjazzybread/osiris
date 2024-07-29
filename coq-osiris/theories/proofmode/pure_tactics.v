@@ -13,224 +13,412 @@ From Ltac2 Require Ltac2.
 (* Tactics. *)
 
 (* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
+Import Ltac2.
 
-Ltac beta :=
-  cbn beta.
+Ltac2 beta () := cbn beta.
 
 Goal (forall l : list nat,
          l = [] ->
          (λ (x : bool), negb x = ((λ (x : bool), x) false)) true).
 Proof.
-  beta. reflexivity.
+  beta (). reflexivity.
 Qed.
 
 (* [remove_deco] is used by subsequent tactics when we want to match on an
    expression under a decoration in a goal. *)
 
-Ltac remove_deco :=
-  lazymatch goal with
-  | |- pure (eval _ (deco _ _)) _ => unfold deco at 1; simpl
-  | _ => idtac
-  end.
+Ltac2 notation remove_deco := unfold deco.
 
 (* Remove any local environment definitions. *)
 
-Ltac clear_abstracted_env :=
-  repeat (match goal with
-          | η := _ : list (var * val) |- _ => subst η
-          end).
+Ltac2 clear_abstracted_env () :=
+  (* Iterate over the hypotheses. *)
+  List.iter
+    (* Take [η] the name of the hyp-name and [ty] its type. *)
+    (fun (η, _, ty) =>
+       (* Use [Std.eval_vm] in case [ty] is folded as [env]. *)
+       match! (Std.eval_vm None ty) with
+       (* If [η] is an environment, try substitute it. *)
+       | list (string * val) => subst $η
+       | _ => ()
+       end)
+    (Control.hyps ()).
+
+Ltac2 Notation "clear_abstracted_env" := clear_abstracted_env ().
+Tactic Notation "clear_abstracted_env" := ltac2:(clear_abstracted_env).
+
+(* [get_env] returns the current environment under which an expression
+   is currently being evaluated in [pure] mode. *)
+
+Ltac2 get_env () :=
+  lazy_match! goal with
+  | [ |- pure (eval ?η _) _ ]  => η
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pure (eval η e) φ]")))
+  end.
 
 (* [abstract_env] expects a goal of the form [pure (eval η e) φ]. It creates a
    local definition for the environment [η]. *)
 
-Ltac abstract_env :=
-  lazymatch goal with
-  | |- pure (eval ?η _) _ =>
-      clear_abstracted_env;
-      match goal with
-      | |- pure (eval ?η _) _ =>
-          let η0 := fresh "η" in
-          set η as η0
-      end
-  | _ => idtac
-  end.
+Ltac2 abstract_env () :=
+  Control.enter
+    (fun _ =>
+       (* Collapse any previous environment abstraction. *)
+       clear_abstracted_env;
+       (* Fetch the full environment as a constr [η]. *)
+       let η := get_env () in
+                   (* Generate a fresh name and use [set] to abstract [η]. *)
+       let η0 := Fresh.in_goal @η in
+       set ($η) as η0).
 
-Ltac extend_env :=
-  match goal with
-  | |- forall (η : env), η = _ -> _ =>
-      intros ? ->
-  | _ => idtac
-  end.
+Ltac2 Notation "abstract_env" := abstract_env ().
+Tactic Notation "abstract_env" := ltac2:(abstract_env).
 
 (* -------------------------------------------------------------------------- *)
+
+Ltac2 decompose_pure () : (constr * constr) :=
+  match! goal with
+  | [ |- pure ?m ?φ ] => (m, φ)
+  end.
+
+Ltac2 get_expr_from_eval (m : constr) :=
+  lazy_match! m with
+  | eval _ ?e => eval hnf in $e
+  | unseal eval.eval_aux _ ?e => eval hnf in $e
+  | _ =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string
+                 "Expected term of the form [eval η e]")))
+  end.
 
 (* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
-Ltac pure_ret :=
-  remove_deco;
-  match goal with
-  | |- pure (ret ?v) ?φ =>
-      match type of φ with
-      | val -> Prop =>
-          simple eapply pure_ret; [ rewrite <- solve_encode_val; reflexivity | beta]
-      | _ =>
-          simple eapply pure_ret; [ solve [ encode ] | beta ]
-      end
+Ltac2 pure_ret0 () :=
+  let (m, φ) := decompose_pure () in
+  match! (Std.eval_vm None m) with
+  | ret ?v =>
+      (* [pure_ret : v = #a → φ a → pure (ret v) φ] *)
+      eapply pure_ret;
+      (* We solve [v = #a] differently depending on the type of [a]. *)
+      let solve_encoding : unit -> unit :=
+        fun _ =>
+          match! Constr.type φ with
+          | val -> Prop => rewrite <- solve_encode_val; reflexivity
+          | _ => complete (fun _ => ltac1:(encode))
+          | _ =>
+              Control.throw
+                (Tactic_failure
+                   (Some
+                      (Message.of_string
+                         "Was not able to solve encoding")))
+          end
+      in
+      Control.dispatch [ solve_encoding ; beta ]
   end.
+
+Ltac2 Notation "pure_ret" := Control.enter pure_ret0.
+Tactic Notation "pure_ret" := ltac2:(pure_ret).
 
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
-Ltac pure_path :=
-  remove_deco;
-  eapply pure_eval_path; simpl lookup_path;
-  match goal with
-  | H : lookup_name ?η ?path = ret ?res |- pure (lookup_name ?η ?path) _ =>
-      rewrite H
-  | _ => idtac
-  end;
-  pure_ret.
+Ltac2 pure_path0 () : unit :=
+  let (m, φ) := decompose_pure () in
+  let e := get_expr_from_eval m in
+  match! e with
+  | (EPath _) =>
+      (* [pure_eval_path :
+          pure (lookup_path η π) ψ -> pure (eval η (EPath π)) ψ] *)
+      eapply pure_eval_path;
+      simpl lookup_path;
+      lazy_match! goal with
+      (* If the lookup has not reduced to a result, try and use a hypothesis. *)
+      | [ h_ident : lookup_name ?η ?π = ret _
+          |- pure (lookup_name ?η ?π) _ ] =>
+          let h := Control.hyp h_ident in
+          rewrite [$h]; pure_ret
+      (* If the lookup has reduced to a result, use [pure_ret]. *)
+      | [ |- pure (ret _) _ ] => pure_ret
+      end
+  end.
+
+Ltac2 Notation "pure_path" := Control.enter pure_path0.
+Tactic Notation "pure_path" := ltac2:(pure_path).
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) φ].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
-Ltac pure_const :=
-  remove_deco;
-  match goal with
-  | |- pure (eval ?η (EConstant ?c)) ?ψ =>
-      match type of ψ with
-      | val -> Prop =>
-          simple eapply pure_eval_const; [ rewrite <- solve_encode_val; reflexivity | ]
-      | _ =>
-          simple eapply pure_eval_const; [ solve [ encode ] | ]
-      end
+Ltac2 pure_const0 () :=
+  let (m, φ) := decompose_pure () in
+  let e := get_expr_from_eval m in
+  match! e with
+  | EConstant _ =>
+      (* [pure_eval_const :
+          VConstant c = #x -> ψ x -> pure (eval η (EConstant c)) ψ] *)
+      eapply pure_eval_const;
+      let solve_encoding : unit -> unit :=
+        fun _ =>
+          match! Constr.type φ with
+          | val -> Prop => rewrite <- solve_encode_val; reflexivity
+          | _ => solve [ ltac1:(encode) ]
+          end
+      in
+      Control.focus 1 1 solve_encoding
   end.
+
+Ltac2 Notation "pure_const" := Control.enter pure_const0.
+Tactic Notation "pure_const" := ltac2:(pure_const).
+
+(* -------------------------------------------------------------------------- *)
+
+Ltac2 get_ref (t : constr) : Std.reference :=
+ match Constr.Unsafe.kind t with
+ | Constr.Unsafe.Var id => Std.VarRef id
+ | Constr.Unsafe.Constant c _ => Std.ConstRef c
+ | _ => Control.zero Match_failure
+ end.
+
+Ltac2 rec unfold_item (item : constr) : constr :=
+  Control.plus
+    (fun _ =>
+       let ref :=
+         match! item with
+         | ILet ?bs => get_ref bs
+         | ILetRec ?rbs => get_ref rbs
+         | IModule ?m ?me => Control.zero Match_failure
+         | IOpen ?i => get_ref i
+         | IInclude ?me => get_ref me
+         | IExtend ?ns => get_ref ns
+         end
+       in
+       Std.eval_unfold [(ref, Std.AllOccurrences)] item)
+    (fun _ =>
+       item).
+
+Ltac2 init_item (item : constr) (spec : constr option) () :=
+  let item := unfold_item item in
+  lazy_match! item with
+  | IOpen _ => eapply struct_open
+  | IInclude _ =>
+      match spec with
+      | None => eapply struct_include
+      | Some spec => eapply struct_include with (module_spec := $spec)
+      end
+  | ILet [Binding (PVar _) _] =>
+      match spec with
+      | None => eapply struct_let_single
+      | Some spec => eapply struct_let_single with (spec := $spec)
+      end
+  | ILet [Binding _ _] => eapply struct_let_pat
+  | ILet _ => eapply struct_let
+  | ILetRec [RecBinding _ _] =>
+      match spec with
+      | None => eapply struct_letrec_single
+      | Some spec => eapply struct_letrec_single with (spec := $spec)
+      end
+  | ILetRec _ => eapply struct_letrec
+  | IModule _ _ => eapply struct_module
+  end.
+
+Ltac2 next_item0 (spec : constr option) () :=
+  lazy_match! goal with
+  | [ |- struct_items _ (?item :: ?items) _ ] =>
+      eapply structs_cons;
+      Control.focus 1 1 (init_item item spec)
+  end.
+
+Ltac2 Notation "next_item" spec(opt(constr)) := Control.enter (next_item0 spec).
+Tactic Notation "next_item" := ltac2:(next_item).
+Tactic Notation "next_item" "with" constr(spec) :=
+  let f := ltac2:(spec |-
+    let spec := Option.get (Ltac1.to_constr spec) in
+    Control.enter (next_item0 (Init.Some spec)))
+  in
+  f spec.
+
+Ltac2 finished_struct0 () := apply structs_nil.
+
+Ltac2 Notation "finished_struct" := finished_struct0 ().
+Tactic Notation "finished_struct" := ltac2:(finished_struct).
+
+(* -------------------------------------------------------------------------- *)
 
 Local Open Scope nat.
 
-Ltac pure_data :=
-  remove_deco;
-  simpl;
-  match goal with
-  | |- pure (eval _ (EData ?c (ETuple ?args))) _ =>
-      match eval cbn in (length args) with
-      | 0 => pure_const
-      | 1 => eapply pure_eval_data1
-      | 2 => eapply pure_eval_data2; eapply pure_eval_pair
-      | 3 => eapply pure_eval_data3; eapply pure_eval_triple
-      | 4 => eapply pure_eval_data4
-      (* TODO: make a higher-order version of pure_eval_pair *)
-      | _ => fail "Not implemented for this arity"
-      end
-  end;
-  repeat (pure_path || pure_const || pure_data);
-  try (split; [ solve [ encode ] | ]).
+Lemma prove_evals η es vs :
+  Forall2 (fun e v => simp (eval η e) (ret v)) es vs ->
+  simp (evals η es) (ret vs).
+Proof.
+  generalize vs. induction es; intros.
+  - apply Forall2_nil_inv_l in H; rewrite H.
+    ltac1:(by simpl_evals).
+  - apply Forall2_cons_inv_l in H.
+    destruct H as (v & vs' & Heval & H & ->).
+    ltac1:(simpl_evals).
+    eapply simp_par. apply Heval.
+    apply IHes. apply H.
+    unfold continue; apply SimpReflexive.
+Qed.
 
-Ltac pure_call_VClo :=
-  apply pure_enter_call_VClo; simpl; apply pure_EvalRetThrow.
+Lemma pure_eval_tuple `{Encode A} η es a vs (ψ : A -> Prop)  :
+  Forall2 (fun e v => simp (eval η e) (ret v)) es vs ->
+  VTuple vs = #a ->
+  ψ a ->
+  pure (eval η (ETuple es)) ψ.
+Proof.
+  intros Hevals Henc Hψ.
+  ltac1:(simpl_eval).
+  eapply pure_simp.
+  eapply prove_simp_bind.
+  - apply prove_evals. apply Hevals.
+  - apply SimpReflexive.
+  - pure_ret. assumption.
+Qed.
+
+Lemma simp_pure {E} `{Encode A} (m : micro val E) (φ : A -> Prop) :
+  pure m φ ->
+  exists v, simp m (ret v).
+Proof.
+  intros (a & ? & ?). exists #a. assumption.
+Qed.
+
+Ltac2 rec unfold_Forall2 () :=
+  match! goal with
+  | [ |- Forall2 _ (?x :: ?xs) _ ] =>
+      apply List.Forall2_cons > [ | unfold_Forall2 () ]
+  | [ |- Forall2 _ [] _ ] =>
+      apply List.Forall2_nil
+  end.
+
+Ltac2 solve_or_silent tac :=
+ try (complete tac).
+
+Ltac2 solve_by_simp () := solve_or_silent (fun _ => ltac1:(simp)).
+
+Ltac2 solve_encode () := solve_or_silent (fun _ => ltac1:(encode)).
+
+Ltac2 etuple_args (e : constr) : constr list :=
+  match! e with
+  | ETuple ?l =>
+      let rec aux l :=
+        match! l with
+        | cons ?e ?t => e :: (aux t)
+        | nil => []
+        end
+      in
+      aux l
+  end.
+
+Ltac2 simp_to_value η e :=
+  let res := Fresh.in_goal @t in
+  let h := Fresh.in_goal @H in
+  epose _ as $res;
+  let ev := Control.hyp res in
+  (* Fixme: surely there's an easier way to create the evar [ev]? *)
+  assert (simp (eval $η $e) (ret $ev)) as $h; subst $res;
+  Control.focus 1 1 (fun _ => complete (fun _ => ltac1:(simp)));
+  h.
+
+Ltac2 simp_tuple_args () :=
+  let (m, _) := decompose_pure () in
+  lazy_match! m with
+  | (eval ?η ?e) =>
+      let args := etuple_args e in
+      List.map (fun e => simp_to_value η e) args
+  end.
+
+Ltac2 pure_tuple0 clear_hyps () :=
+  (* Simplify all elements of the tuple to a value using [simp]. *)
+  let hs := simp_tuple_args () in
+  eapply pure_eval_tuple >
+    [ (* Use the assumption generated by [simp_tuple_args]. *)
+      unfold_Forall2 (); ltac1:(eassumption)
+    | Control.enter solve_encode
+    | ];
+  if clear_hyps then Std.clear hs else ().
+
+Ltac2 Notation "pure_tuple" := Control.enter (pure_tuple0 true).
+Tactic Notation "pure_tuple" := ltac2:(pure_tuple).
+
+Ltac2 pure_data0 clear_hyps () :=
+  eapply pure_eval_data > [ pure_tuple0 clear_hyps (); Control.enter solve_encode | ].
+
+Ltac2 Notation "pure_data" := Control.enter (pure_data0 true).
+Ltac2 Notation "pure_data_v" := Control.enter (pure_data0 false).
+
+Tactic Notation "pure_data" := ltac2:(pure_data).
+Tactic Notation "pure_data_v" := ltac2:(pure_data_v).
+
+Goal pure (eval [] (ETuple [EConstant "true"; EConstant "false"])) (fun v => v = (true, false)).
+  pure_tuple. reflexivity.
+Qed.
+
+Goal
+  pure (eval []
+          (EData "::"
+             (ETuple [EConstant "true";
+                      EConstant "[]"])))
+    (fun v => v = [true]).
+  pure_data_v. reflexivity.
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Given a tuple type of the form [ty := (t1 * t2 * ... * tn)],
+   [evar_tuple ty] returns an evar of that type.
+
+   Use: [let ev := evar_tuple &ty in epose $ev as t]. *)
+
+Ltac2 rec evar_tuple (ty: constr) : constr :=
+  (* Allows you to pass [ty] instead of something like [(nat * (bool * nat))%type]. *)
+  let ty := eval hnf in $ty in
+  lazy_match! ty with
+  | prod ?a ?b =>
+      let evar_a := evar_tuple a in
+      let evar_b := evar_tuple b in
+      (* typing constraints on the evars are enforced here;
+         note that this will give you an evar with evar type,
+         rather than a typed evar, if you pass it a type that is not a prod. *)
+      constr:(@pair $a $b $evar_a $evar_b)
+  | ?a =>
+      (* This uses base name "t". *)
+      let arg_i := Fresh.in_goal @t in
+      (* [_] gives a new evar, use ['_] or [open_constr:(_)] in other contexts. *)
+      epose _ as $arg_i;
+      Control.hyp arg_i
+  end.
+
+
+(* -------------------------------------------------------------------------- *)
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
 
-Ltac pure_simp :=
-  eapply pure_simp; [ simp_really |].
+Ltac2 pure_simp () :=
+  eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
 
-(* -------------------------------------------------------------------------- *)
+Ltac2 Notation "pure_simp" := pure_simp ().
+Tactic Notation "pure_simp" := ltac2:(pure_simp).
 
-(* pure0 leaves zero subgoal. *)
-(* pure1 leaves one subgoal, which may have an arbitrary shape. *)
-
-Ltac pure0 :=
-  try pure_simp;
+Ltac2 pure_enter () :=
   first [
+      eapply pure_enter_call_VClo
+    | eapply pure_enter_call_VCloRec
+    ];
+  apply pure_stop_eval; try (rewrite ?try2_ret_right).
 
-    pure_ret; [
-      (* goal: [φ x] *)
-      pure_close
-    ]
-
-  | simple eapply pure_call; [
-      (* goal: [v = #x] *)
-      solve [encode]
-    | (* goal: [pure (call #x) φ] *)
-      pure_close
-    ]
-
-  | simple eapply pure_call_consequence; [
-      (* goal: [v = #x] *)
-      solve [encode]
-      (* goal: [pure (call #x) φ] *)
-    | solve [eauto with pure_specs]
-      (* goal: [∀ x, φ x → φ' x] *)
-    | pure_close
-    ]
-
-  | simple eapply pure_bind_as_bool; [ pure0 | beta; intros; pure0 ]
-  | simple eapply pure_bind_as_int ; [ pure0 | beta; intros; pure0 ]
-  | simple eapply pure_bind        ; [ pure0 | beta; intros; pure0 ]
-  | simple eapply pure_try         ; [ pure0 | beta; intros; pure0 ]
-
-  | pure_close
-
-  ]
-
-with pure1 :=
-  try pure_simp;
-  first [
-
-    pure_ret (* residual goal: [φ x] *)
-
-  | simple eapply pure_call_consequence; [
-      (* goal: [v = #x] *)
-      solve [encode]
-      (* goal: [pure (call #x) φ] *)
-    | solve [eauto with pure_specs]
-      (* residual goal: [∀ x, φ x → φ' x] *)
-    | beta
-    ]
-
-  | simple eapply pure_call; [
-      (* goal: [v = #x] *)
-      solve [encode]
-    | (* residual goal: [pure (call #x) φ] *)
-      idtac
-    ]
-
-  | simple eapply pure_bind_as_bool; [ pure0 | (* residual goal *) beta ]
-  | simple eapply pure_bind_as_int ; [ pure0 | (* residual goal *) beta ]
-  | simple eapply pure_bind        ; [ pure0 | (* residual goal *) beta ]
-  | simple eapply pure_try         ; [ pure0 | (* residual goal *) beta ]
-
-  | idtac (* residual goal *)
-
-  ]
-
-with pure_close :=
-  solve [ eauto with pure_specs representable ].
-
-Ltac pure1_call_step :=
-  first [
-    eapply pure_enter_call_VClo
-  | eapply pure_enter_call_VCloRec
-  ].
-
-Ltac pure_enter :=
-  pure1_call_step;
-  pure1.
-
-Ltac pure_specify x φ :=
-  lazymatch goal with
-  | |- pure (bind (ret (?δ ++ _, ?δ ++ _)) _) _ =>
-      let o := eval cbn in (lookup_name δ x) in
-      lazymatch o with ret ?v =>
-        let h := fresh in
-        assert (φ v) as h; [| revert h; generalize v ]
-      end
-  end.
+Ltac2 Notation "pure_enter" := Control.enter pure_enter.
+Tactic Notation "pure_enter" := ltac2:(pure_enter).
 
 (* It is debatable in which order the two premises of the lemma [pure_call]
    should be attacked. The premise [v'2 = #x] may seem easy to solve (this
@@ -263,56 +451,6 @@ Ltac pure_call :=
     | cbn ]
   ].
 
-Ltac pure_enter_and_abstract :=
-  lazymatch goal with |- pure (call ?v _) _ =>
-    (* First, expand [call] away. *)
-    pure1_call_step;
-    normalize;
-    (* Second, abstract away the closure (of which there are typically
-       several occurrences in the hypotheses and goal), replacing it
-       with an abstract value. This ensures that we cannot step into
-       recursive calls. *)
-    generalize dependent v
-  end.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Evaluate an [eval] by repeatedly changing [eval] into [eval'] *)
-Ltac simp_evaluate :=
-  simpl; repeat (rewrite eval_eval'; simpl).
-
-(* TODO the following tactics seem redundant with the symbolic execution
-        tactics, [simp] and friends. Avoid duplication. *)
-
-(* On a goal of the form [pure (Stop CEval x k ko) φ], evaluate the call by:
-   stepping through the [Stop] with the appropriate advance_SimpEval lemma,
-   using [simp_evaluate] under the resulting pure *)
-Ltac pure_evaluate :=
-  (lazymatch goal with
-   | |- pure (Stop CEval _ _ _) _ =>
-       eapply pure_simp; [
-         first [
-           apply advance_SimpEvalRetThrow
-         | apply advance_SimpEvalThrow
-         | apply advance_SimpEval
-         ]
-       | apply SimpReflexive
-       ]
-   | _ => idtac
-   end);
-  eapply pure_simp; [simp_evaluate; apply SimpReflexive|].
-
-Ltac SimpParRet :=
-  first [
-    apply SimpParRetRet
-  | apply advance_SimpParRetLeftThrow
-  | apply advance_SimpParRetRightThrow
-  | apply SimpParRetLeft
-  | apply SimpParRetRight
-  ].
-
-Ltac pureParRet :=
-  eapply pure_simp; first SimpParRet; simpl.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -370,6 +508,33 @@ Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) :=
 Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intropattern(x) :=
   capture_hypotheses_aux (arg1, arg2); intros x.
 
+Ltac2 eta_expand (arg : constr) (f : constr) : constr :=
+  Std.eval_pattern [(arg, Std.AllOccurrences)] f.
+
+Ltac2 pure_rec_subgoals hwf pre () := ().
+
+Ltac2 pure_rec0 arg pre hwf :=
+  let expanded_post :=
+    lazy_match! goal with
+    | [ |- pure (call _ _) ?φ ] =>
+        Std.eval_pattern [(arg, Std.AllOccurrences)] φ
+    (* TODO: Standardize error messages. *)
+    | [ |- _ ] =>
+        Control.throw
+          (Tactic_failure
+             (Some
+                (Message.of_string
+                   "[pure_rec] expects a goal of the form [pure (call f x) φ]")))
+    end
+  in
+  match! pre with
+  | None =>
+      eapply pure_rec_call_no_pre with (v := $arg)
+  | Some ?pre =>
+      eapply pure_rec_call with (v := $arg) (P := $pre)
+  end;
+  Control.focus 1 1 (fun _ => apply $hwf).
+
 (* Automatically apply [pure_rec_call] on a goal of the form [pure m φ] *)
 Ltac pure_rec_tac arg pre Hwf :=
   (* Eta-expand the postcondition *)
@@ -408,6 +573,11 @@ Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
 Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
   pure_rec_tac arg constr:(Some pre) Hwf.
 
+
+Definition lift_rel {X Y} (R : (X * Y) -> (X * Y) -> Prop) (y : Y) : X -> X -> Prop :=
+  fun x1 x2 => R (x1, y) (x2, y).
+
+
 (* Automatically apply [pure_nested_call] on a goal of the form [pure m φ] *)
 Ltac pure_nested_tac arg1 arg2 pre Hwf :=
   match goal with
@@ -416,12 +586,12 @@ Ltac pure_nested_tac arg1 arg2 pre Hwf :=
       set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
       lazymatch pre with
       | None =>
-          eapply pure_nested_call with (v1:=arg1) (v2:=arg2)
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2)
       | Some ?pre =>
-          eapply pure_nested_call with (v1:=arg1) (v2:=arg2) (P:=pre)
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2) (P:=pre)
       end;
       [ reflexivity
-      | simpl; rewrite eval_eval'; reflexivity
+      | simpl_eval; reflexivity
       | apply Hwf
       | lazymatch pre with
           None =>

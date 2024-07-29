@@ -76,7 +76,7 @@ Lemma advance_simp_let η δ bs e m2 :
   simp (eval (δ ++ η) e) m2 ->
   simp (eval η (ELet bs e)) m2.
 Proof.
-  intros. rewrite eval_eval'; simpl.
+  intros. simpl_eval.
   eapply prove_simp_bind; eauto.
 Qed.
 
@@ -86,7 +86,7 @@ Lemma advance_simp_letrec η δ rbs e m2 :
   simp (eval η (ELetRec rbs e)) m2.
 Proof.
   intros Hevalrb ?.
-  rewrite eval_eval'; simpl.
+  simpl_eval.
   by rewrite Hevalrb.
 Qed.
 
@@ -95,7 +95,7 @@ Lemma advance_simp_ilet η1 η2 δ bs sitems m2 :
   simp (eval_sitems (δ ++ η1, δ ++ η2) sitems) m2 ->
   simp (eval_sitems (η1, η2) ((ILet bs) :: sitems)) m2.
 Proof.
-  intros.
+  intros. simpl_eval_sitems.
   eapply prove_simp_bind; last eassumption.
   eapply prove_simp_bind; [ eassumption | apply SimpReflexive ].
 Qed.
@@ -105,9 +105,7 @@ Lemma advance_simp_iletrec η1 η2 δ rbs sitems m2 :
   simp (eval_sitems (δ ++ η1, δ ++ η2) sitems) m2 ->
   simp (eval_sitems (η1, η2) ((ILetRec rbs) :: sitems)) m2.
 Proof.
-  intros Heq ?.
-  eapply prove_simp_bind; last eassumption.
-  simpl; rewrite Heq; apply SimpReflexive.
+  intros Heq ?. simpl_eval_sitems. by rewrite Heq.
 Qed.
 
 Lemma advance_simp_imodule η1 η2 m v me sitems m2 :
@@ -115,17 +113,17 @@ Lemma advance_simp_imodule η1 η2 m v me sitems m2 :
   simp (eval_sitems ([(m, v)] ++ η1, [(m, v)] ++ η2) sitems) m2 ->
   simp (eval_sitems (η1, η2) ((IModule m me) :: sitems)) m2.
 Proof.
-  intros.
+  intros. simpl_eval_sitems.
   eapply prove_simp_bind; last eassumption.
-  { eapply prove_simp_bind; first eassumption.
-    apply SimpReflexive. }
+  eapply prove_simp_bind; first eassumption.
+  apply SimpReflexive.
 Qed.
 
 Lemma advance_simp_mexpr η δ δ' sitems :
   simp (eval_sitems (η, []) sitems) (Ret (δ', δ)) ->
   simp (eval_mexpr η (MStruct sitems)) (Ret (VStruct δ)).
 Proof.
-  intros Hsimp.
+  intros Hsimp. simpl_eval_mexpr.
   eapply prove_simp_bind. { apply Hsimp. }
   apply SimpReflexive.
 Qed.
@@ -422,19 +420,11 @@ Qed.
 
 (* This lemma replaces [eval] with [eval'] at the root of the goal. *)
 
-Lemma advance_simp_eval η e m' :
-  simp (eval' η e) m' →
-  simp (eval  η e) m'.
-Proof.
-  rewrite eval_eval'. tauto.
-Qed.
-
 Lemma advance_SimpEvalEAssert η e :
   simp (eval η e) (ret #true) →
   simp (eval η (EAssert e)) ok.
 Proof.
-  intros.
-  eapply advance_simp_eval. simpl eval'.
+  intros. simpl_eval.
   (* Because of [choose], the runtime test may be skipped or executed.
      If it is skipped, then the result is immediate. If it is executed,
      then the assumption that [e] evaluates to [true] is exploited. *)
@@ -599,13 +589,14 @@ Ltac simp_ret :=
    It is used (as sparingly as possible) by the tactics that follow. *)
 
 Ltac normalize :=
-  cbn.
+  unfold continue; unfold discontinue; unfold_all; cbn.
 
 (* [simp_close] solves a goal of the form [simp m1 m2] using reflexivity.
 
    If reflexivity cannot solve the goal, then [simp_close] fails. *)
 
 Ltac simp_close :=
+  fold_all;
   solve [
     simple eapply SimpReflexive
   | simp_ret
@@ -621,27 +612,6 @@ Ltac simp_close :=
 
 Ltac simp_solve_eauto :=
   solve [ eauto with simp_specs encode typeclass_instances ].
-
-(* [fail_if_goal_contains_eval'] fails if the goal contains an occurrence
-   of [eval']. It does nothing otherwise. *)
-
-Ltac fail_if_goal_contains_eval' :=
-  lazymatch goal with |- context[eval'] => fail | _ => idtac end.
-
-(* [simp_eval] rewrites [eval] to [eval'], then reduces the goal, hopefully
-   expanding [eval'] away. It checks that [eval'] has indeed been
-   eliminated, and fails otherwise. *)
-
-Ltac simp_eval :=
-  simple eapply advance_simp_eval;
-  cbn -[app]; (* TODO or: [simpl eval']? *)
-    (* TODO decide how much reduction must be done here, and how *)
-  fail_if_goal_contains_eval'.
-    (* TODO The goal could still contain [eval'] at this point if [eval']
-       is applied to an opaque expression. There is currently an example
-       of this in records_proof.v, where we do caller-side reasoning.
-       We may abandon this style in the future. This expensive test
-       could then become unnecessary. *)
 
 (* The tactics [simp0] and [simp1] expect a goal of the form [simp m1 m2].
 
@@ -771,7 +741,7 @@ with simp1_inspect :=
         simp_solve_eauto
       |
         (* Attempt 2. Unfold the definition of [eval] once in [eval η e]. *)
-        simp_eval; simp0
+        simpl_eval; simp0
       ]
   | call ?v1 ?v2 =>
       first [
@@ -834,11 +804,15 @@ with simp1_inspect :=
          only afterwards can we discharge the [Handle]. *)
       first [
           (* Attempt 1. Reduce m to a ret. *)
-          simple eapply advance_SimpHandleRet; [ simp1; simp_close | simp0; simp_close ]
+          simple eapply advance_SimpHandleRet; [ simp0; simp_close | simp0; simp_close ]
         |
           (* Attempt 2. Reduce m to a throw. *)
-          simple eapply advance_SimpHandleThrow; [ simp1; simp_close | simp0; simp_close ]
+          simple eapply advance_SimpHandleThrow; [ simp0; simp_close | simp0; simp_close ]
         ]
+  | Choose ?m1 ?m2 ?k =>
+      simple eapply advance_SimpChooseAgree; [ simp0; simp_close
+                                             | simp0; simp_close
+                                             | simp0; simp_close ]
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps
@@ -986,7 +960,7 @@ with simp1_par :=
 Ltac simp :=
   lazymatch goal with
   | |- simp ?m1 _ =>
-      simp0; try simp_close
+      simp0; (try simp_close || fold_all)
   | _ =>
       fail "[simp] expects a goal of the form [simp _ _]"
   end.

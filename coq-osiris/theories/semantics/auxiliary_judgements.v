@@ -182,7 +182,8 @@ Lemma structs_nil ηδ (φ : envs -> Prop) :
   φ ηδ ->
   struct_items ηδ [] φ.
 Proof.
-  unfold struct_items. intros. simpl.
+  unfold struct_items.
+  simpl_eval_sitems.
   by apply totalv_ret.
 Qed.
 
@@ -190,7 +191,8 @@ Lemma structs_cons_unary ηδ item items (φ : envs -> Prop) :
   struct_item ηδ item (λ ηδ', struct_items ηδ' items φ) ->
   struct_items ηδ (item :: items) φ.
 Proof.
-  unfold struct_items, struct_item. intros. simpl.
+  unfold struct_items, struct_item. intros.
+  simpl_eval_sitems.
   apply totalv_bind_unary.
   eapply totalv_consequence; eauto.
 Qed.
@@ -200,7 +202,8 @@ Lemma structs_cons ηδ item items φ ψ :
   (∀ ηδ', ψ ηδ' -> struct_items ηδ' items φ) ->
   struct_items ηδ (item :: items) φ.
 Proof.
-  unfold struct_items, struct_item. intros. simpl.
+  unfold struct_items, struct_item. intros.
+  simpl_eval_sitems.
   eapply totalv_bind; eauto.
 Qed.
 
@@ -211,10 +214,8 @@ Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet bs) φ.
 Proof.
-  unfold struct_item; simpl; intros.
-  eapply totalv_bind; eauto.
-  intros.
-  apply totalv_ret; auto.
+  unfold struct_item; simpl_eval_sitem; intros.
+  eapply totalv_bind; eauto using totalv_ret.
 Qed.
 
 Lemma struct_letrec η δ rbs (φ : envs -> Prop) ψ :
@@ -222,8 +223,8 @@ Lemma struct_letrec η δ rbs (φ : envs -> Prop) ψ :
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILetRec rbs) φ.
 Proof.
-  unfold struct_item; simpl; intros.
-  auto using totalv_ret.
+  unfold struct_item; intros.
+  simpl_eval_sitem; auto using totalv_ret.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
@@ -234,11 +235,12 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
                    η0 = [(name, clo)] ++ η /\
                    δ0 = [(name, clo)] ++ δ) .
 Proof.
-  intros; unfold struct_item; simpl.
+  intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
   eapply totalv_simp. { apply SimpParRetRight. }
   eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros ? (? & -> & Hextend).
-  eapply totalv_ret. eauto.
+  unfold irrefutably_extend; simpl_extend.
+  eapply totalv_ret; eauto.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
@@ -246,7 +248,7 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
-  intros; unfold struct_item; simpl.
+  intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
   eapply totalv_simp. { apply SimpParRetRight. }
   eapply totalv_try2. { eapply pure_totalv; eassumption. }
   simpl; intros v (? & -> & Hextend).
@@ -267,10 +269,9 @@ Lemma struct_letrec_single η δ name af (spec : val -> Prop) :
                η0 = [(name, clo)] ++ η /\
                δ0 = [(name, clo)] ++ δ) .
 Proof.
-  intros.
-  unfold struct_item.
-  apply totalv_ret.
-  eauto.
+  intros; unfold struct_item.
+  simpl_eval_sitem.
+  apply totalv_ret; eauto.
 Qed.
 
 Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
@@ -278,7 +279,8 @@ Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
   (∀ η', φ' η' -> φ ((m, VStruct η') :: η, (m, VStruct η') :: δ)) ->
   struct_item (η, δ) (IModule m me) φ.
 Proof.
-  unfold struct_item; simpl; intros.
+  unfold struct_item; intros.
+  simpl_eval_sitem.
   eapply totalv_bind; eauto.
   intros []; try contradiction; eauto using totalv_ret.
 Qed.
@@ -288,7 +290,8 @@ Lemma struct_open η δ me (φ : envs -> Prop) (φ' : env -> Prop) :
   (∀ η', φ' η' -> φ (η' ++ η, δ)) ->
   struct_item (η, δ) (IOpen me) φ.
 Proof.
-  unfold struct_item; simpl; intros.
+  unfold struct_item; intros.
+  simpl_eval_sitem.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
@@ -303,7 +306,8 @@ Lemma struct_include η δ me (φ : envs -> Prop) module_spec :
          φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (IInclude me) φ.
 Proof.
-  unfold struct_item; simpl; intros.
+  unfold struct_item; intros.
+  simpl_eval_sitem.
   eapply totalv_bind.
   { unfold as_struct.
     eapply totalv_bind; eauto.
@@ -332,8 +336,8 @@ Lemma module_struct η sitems φ :
   struct_items (η, []) sitems (λ '(η, δ), φ δ) ->
   eval_module η (MStruct sitems) φ.
 Proof.
-  intros  Hcov.
-  unfold module; simpl.
+  intros; unfold eval_module.
+  simpl_eval_mexpr.
   eapply totalv_bind; [ eassumption | ].
   intros [??]; auto using totalv_ret.
 Qed.
@@ -358,10 +362,9 @@ Lemma module_path η π φ :
                                  end) ->
   eval_module η (MPath π) φ.
 Proof.
-  unfold eval_module; simpl; intros.
+  unfold eval_module; simpl_eval_mexpr; intros.
   rewrite totalv_widen.
-  eapply totalv_consequence; [ eassumption | ].
-  auto.
+  eapply totalv_consequence; eauto.
 Qed.
 
 Lemma module_coercion η me c φ :
@@ -369,7 +372,8 @@ Lemma module_coercion η me c φ :
   (∀ η', φ η' -> coerces c η' φ) ->
   eval_module η (MCoercion me c) φ.
 Proof.
-  unfold module. intros. simpl.
+  intros; unfold eval_module.
+  simpl_eval_mexpr.
   eapply totalv_bind; [ eassumption | ].
   intros []; try contradiction; rewrite totalv_widen;
     unfold coerces in *; auto.
@@ -385,23 +389,23 @@ Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
 Proof.
-  unfold bindings. simpl. intros Hpure Hbs Hcov.
-  destruct_pure a.
+  unfold bindings; simpl_eval_bindings.
+  intros Hpure Hbs Hcov; destruct_pure a.
   eapply totalv_simp.
   { eapply SimpPar; eauto with simp. }
   eapply totalv_simp; [ apply SimpParRetLeft | ].
   eapply totalv_try2; [ eassumption | ].
-  intros η' Hη'. cbn. rewrite totalv_widen.
+  intros η' Hη'; cbn; rewrite totalv_widen.
   eapply totalv_try.
   { by apply Hcov. }
-  intros. by apply total_ret.
+  intros; by apply total_ret.
 Qed.
 
 Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :
   φ [] ->
   bindings η [] φ.
 Proof.
-  unfold bindings. apply totalv_ret.
+  unfold bindings. simpl_eval_bindings. apply totalv_ret.
 Qed.
 
 Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
@@ -414,7 +418,7 @@ Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
 Proof.
   intros.
   eapply bindings_cons; eauto.
-  intros; unfold pattern; simpl.
+  intros; unfold pattern. simpl_extend.
   apply total_ret; eauto.
 Qed.
 
