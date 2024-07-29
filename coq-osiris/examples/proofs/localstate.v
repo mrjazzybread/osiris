@@ -244,7 +244,7 @@ Section verification.
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
+       iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
          [ | | iIntros (?? ->) ].
        { rewrite /as_cont; iApply ewp_bind.
          iApply ewp_EPath. Ret. by Ret. }
@@ -288,7 +288,7 @@ Section verification.
        iSpecialize ("H_WRITE" with "Hx").
        iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       iApply (ewp_EContinue _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+       iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
        { rewrite /as_cont; iApply ewp_bind.
          iApply ewp_EPath. Ret. by Ret. }
        { by iApply ewp_EConstant. }
@@ -331,8 +331,7 @@ Section verification.
       {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
     EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
   Proof.
-    iIntros "Hes".
-    with_strategy transparent [eval_sitem] Simp.
+    iIntros "Hes". Simp.
     Bind. iApply (ewp_mono with "Hes").
     iIntros ([|]); [ simpl; by iIntros "HQ" | done ].
   Qed.
@@ -440,8 +439,7 @@ Section verification.
 
     (* [open Effect] *)
     { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ3])).
-      { with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
-        equality. }
+      { Simp. Ret. equality. }
       iIntros (δ' ->). equality. }
 
     (* [open Effect.Deep] *)
@@ -449,8 +447,7 @@ Section verification.
     iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
     { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2]));
         [ | iIntros (? ->); equality ].
-      with_strategy transparent [eval_mexpr] Simp. Ret. simpl.
-      equality. }
+      Simp. Ret. equality. }
 
     (* [type _ Effect.t += Get : t Effect.t] *)
     iApply ewp_sitems_extend.
@@ -469,7 +466,7 @@ Section verification.
                         {{ RET #X, ⌜X = x⌝ }})%I).
       { Simp; Ret; simpl.
         iIntros "!>" (St x) "HSt".
-        iApply ewp_call_nonrec. iNext. Simp.        
+        iApply ewp_call_nonrec. iNext. Simp.
         rewrite <- solve_encode_unit; simpl; fold eval. (* FIXME: should not have to do this. *)
         Simp.
         iApply ewp_perform.
@@ -485,8 +482,7 @@ Section verification.
                              {{ RET _, St y }})%I ).
       { Simp; Ret; simpl.
         iIntros "!>" (St x y) "HSt".
-        iApply ewp_call_nonrec. iNext.
-        with_strategy transparent [evals] Simp.
+        iApply ewp_call_nonrec. iNext. Simp.
         iApply ewp_perform.
         rewrite /prot. rewrite upcl_state upcl_write.
         iRight. iExists _, _. iFrame. iSplit. equality.
@@ -499,7 +495,7 @@ Section verification.
     { Simp. Ret. simpl. unfold run_spec.
       iIntros (spec init main) "Hmain".
       (* TODO: UGLY. *)
-      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".      
+      iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
       rewrite /call_anonfun. simpl. rewrite /eval_anonfun.
       unfold eval; rewrite -> (@seal_eq _ pre_eval); simpl.
       iApply ("Hrunspec" with "[] [] [] Hmain"); try by equality. }

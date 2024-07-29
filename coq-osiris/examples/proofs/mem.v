@@ -97,8 +97,8 @@ Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
     EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
 Proof.
   iIntros "Hes".
-  with_strategy transparent [eval_sitem] Simp.
-  Bind. iApply (ewp_mono with "Hes").
+  Simp. Bind.
+  iApply (ewp_mono with "Hes").
   iIntros ([|]); [ simpl; by iIntros "HQ" | done ].
 Qed.
 
