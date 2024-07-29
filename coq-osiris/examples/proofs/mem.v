@@ -23,7 +23,7 @@ Fixpoint memb `{Eq A} (x : A) l :=
   end.
 
 Definition mem_spec mem :=
-  (∀ `{Encode A, Eq A} (x : A) (l : list A),
+  (∀ (A : Type) (H : Encode A) (H0 : Eq) (x : A) (l : list A),
       EWP (ncall mem [ #x; #l]) <|⊥|> {{ RET #b, ⌜b = memb x l⌝ }})%I.
 
 Lemma ewp_struct_let η δ bs Q Ψ :
