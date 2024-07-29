@@ -10,26 +10,19 @@ Context `{!osirisGS Σ}.
 
 Context (A : Type) `{Encode A}.
 
-Fixpoint iter_post to E Ψ f (φf : A -> outcome2 val exn -> iProp Σ) (l : list A) :=
-  (match l with
-   | [] => ⌜to = O2Ret VUnit⌝
-   | x :: l =>
-       EWP call f #x @ E <|Ψ|> {{ λ o, φf x o ∧
-             match o with
-             | O2Ret _ => iter_post to E Ψ f φf l
-             | O2Throw e => ⌜to = O2Throw e⌝
-             end }}
-  end)%I.
+Definition isListIter (iter : val) : iProp Σ :=
+  ∀ (ψ : iEff Σ) E (I : list A → iProp Σ) φ (f : val) (l : list A),
+    □ (∀ (Xs : list A) (X : A),
+          ⌜ (Xs ++ [X]) `prefix_of` l ⌝ -∗
+            I Xs -∗
+            EWP (call f #X) @ E <| ψ |> {{ | RET v => ⌜ v = VUnit ⌝ ∗ I (Xs ++ [X]);
+                                         | EXN e => φ e ∗ I Xs }})
+      -∗
+      I [] -∗
+      EWP (ncall iter [f; #l] ) @E <| ψ |>
+      {{ | RET v => ⌜ v = VUnit ⌝ ∗ ∃ Xs, I Xs ∗ ⌜ Xs = l ⌝;
+       | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
 
-Definition iter_spec : val -d> iPropI Σ :=
-  (λ iter,
-    ∀ E Ψ f φf (l : list A),
-      (* Calling [iter] on an empty list returns unit. *)
-      (* Calling [iter] on [x :: l] gives [φf] and keeps going if the
-         outcome of [f x] is not an exception. *)
-      (□ (∀ (x : A), EWP call f #x @ E <|Ψ|> {{ φf x }})) -∗
-        EWP (ncall iter [ f; #l ]) @ E <|Ψ|> {{ λ o, iter_post o E Ψ f φf l }}
-  )%I.
 
 Lemma ewp_module η sitems (Q : val -> iProp Σ) :
   EWP (eval_sitems (η, []) sitems) {{ RET ηδ, let '(_, δ) := ηδ in Q (VStruct δ) }} -∗
@@ -81,79 +74,74 @@ Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
 
 Lemma iter_module :
   ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{ RET m, module_spec [("iter", iter_spec)] m}}.
+    {{ RET m, module_spec [("iter", isListIter)] m}}.
 Proof.
   iIntros. unfold __main.
   iApply ewp_module.
   iApply ewp_sitems_cons.
-  { iApply (ewp_sitem_letrec_singleton iter_spec).
-    unfold iter_spec.
-    iIntros (E Ψ f φf l) "#Hf".
-    simpl. with_strategy transparent [call] simpl.
-    iApply ewp_eval. iNext.
-    simpl_eval. Ret. simpl.
-
-    iLöb as "IH" forall (l).
-
-    destruct l.
-    { Simp. Ret. done. }
-
-    Simp. simpl. iApply ewp_bind_exn.
-    iSpecialize ("Hf" $! a).
-    iApply (ewp_mono with "Hf").
-    iIntros (o) "Hφf".
-    destruct o; last first.
-    { simpl. iApply (ewp_mono with "Hf").
-      iIntros (o) "Ho". iFrame. destruct o.
-
+  { iApply (ewp_sitem_letrec_singleton isListIter).
+    unfold isListIter.
+    iIntros (Ψ E I φ f l).
+    iIntros "#Hf Inil".
+    simpl. Bind.
     iApply ewp_call_rec; [ reflexivity | ].
-    iNext.
+    iNext. simpl_eval. Ret. simpl.
+    iAssert ⌜(l `suffix_of` l)⌝%I as "Hl".
+    { iPureIntro; by (exists []; reflexivity). }
+    generalize l at 2 4; intros l'. iRevert "Hl". iLöb as "IH" forall (l').
+    iIntros "%Hl".
+    destruct l'.
+    { apply suffix_nil_inv in Hl as ->.
+      Simp. Ret. iSplit; [ equality | iExists [] ].
+      iFrame. equality. }
 
-    Simp. Ret. simpl.
-    change (VCons #a (encode_list l)) with #(a :: l).
-    generalize dependent l. intros l.
-    iLöb as "IH" forall (l).
+
     iApply ewp_call_nonrec. iNext.
     iApply ewp_EMatch.
-
-    iApply (ewp_deep_handler _ _ (ieq ?[y])).
-    { Simp. Ret. equality. }
+    iApply (ewp_deep_handler _ _ (ieq ?[y])). { Simp; Ret; equality. }
 
     prove_handler_spec; last first.
     (* No effects are used, so the effectful case is discarded. *)
     { iIntros (??) "HF".
       by iPoseProof (upcl_bottom with "HF") as "F". }
 
-    iIntros (o) "->". unfold __branches1.
-    iNext.
+    iIntros (o) "->".
     ltac2:(skip_branch ()).
-    iApply (deep_handle_cons).
-    { specify_cpattern; pattern_match. inversion H0; subst. apply eq_refl. }
-    { iIntros (? <-).
-      iApply (ewp_ESeq_exn with "[-]").
-      iApply ewp_EApp; try (iApply ewp_EPath; Ret; equality).
-      { iApply "Hf". }
-      { iIntros (?) "Hφ". iFrame. equality. }
-      { iIntros (vunit) "Hφ".
-        iApply ewp_EApp; try (iApply ewp_EPath; Ret; equality); try eauto.
-        iApply ewp_EApp_exn; try (iApply ewp_EPath; Ret; equality); try eauto.
-        iIntros (v1 v2) "<- <-"; simpl. iApply ewp_call_rec; [ reflexivity | ].
-        Simp. Ret. equality.
-        { Simp. Ret. equality. }
+    iApply ((deep_handle_cons _ _ _ _ _ _ _ _ (λ δ, ∃ xs' x, a :: l' = x :: xs' ∧
+                 δ = ("l" ~> #xs';
+                  "x" ~> #x;
+                  "__osiris_anonymous_arg" ~> encode_list (a :: l');
+                  "f" ~> f;
+                  "iter" ~> VCloRec stdlib_env [RecBinding "iter" (Anon ("f" => EAnonFun __fun2))] "iter";
+                  stdlib_env))) with "[Inil]");
+       [ specify_cpattern; pattern_match
+       |
+       | let F := fresh in iIntros (F); try tauto ].
+    { exists xs', x. split.
+      - assumption.
+      - apply eq_refl. }
+    { iIntros (δ (? & ? & Hal & ->)).
+      inversion Hal; subst; clear Hal.
+      iApply (ewp_ESeq_exn with "[Inil]").
+      { Simp.
+        iApply (ewp_mono with "[Inil]").
+        { iApply "Hf".
+          - iPureIntro. instantiate (1 := []). simpl. apply prefix_cons. apply prefix_nil.
+          - iApply "Inil". }
+      iIntros (o) "Ho". iExact "Ho". }
 
+      { iIntros (e); simpl.
+        iIntros "[Hφ HI]". iFrame.
+        iExists []. iFrame.
+        iPureIntro; apply prefix_nil. }
 
+      { iIntros (vu); simpl.
+        iIntros "[-> HI]". fold eval.
 
+        iApply ewp_EApp.
+        { iApply ewp_EApp; try (iApply ewp_EPath; Ret; equality).
+          iApply ewp_call_rec; [ reflexivity | ].
+          Simp. Ret. equality. }
+        { iApply ewp_EPath; Ret; equality. }
 
-
-      { iIntros (? []). }
-      { iIntros (? []). }
-      { iIntros (??) "<- <-"; simpl.
-
-
-      iApply ewp_call_rec.
-      (iApply (deep_handle_cons with "[-]"));
-      [ specify_cpattern; pattern_match
-      |
-      | let F := fresh in iIntros (F); try tauto ].
-      ltac2:(enter_branch ()).
-      pattern_match.
+        iApply "IH".
