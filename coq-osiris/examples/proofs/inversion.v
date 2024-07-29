@@ -230,7 +230,8 @@ Section verification.
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        destruct o; red_match; Simp; Ret; by iPureIntro. }
+        destruct o.
+        red_match. Simp; Ret; by iPureIntro. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".

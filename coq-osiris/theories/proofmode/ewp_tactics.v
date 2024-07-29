@@ -180,40 +180,74 @@ Ltac Call :=
 
 (** *Entering and Skipping Handler Branches *)
 
-Ltac get_outcome_from_match e :=
-  lazymatch e with
-  | (deep_eval_match _ _ ?o) => constr:(o)
-  | (shallow_eval_match _ _ _ ?o) => constr:(o)
-  | (eval_match _ _ ?o) => constr:(o)
+From Ltac2 Require Import Ltac2.
+
+Ltac2 get_outcome_from_match (e : constr) : constr :=
+  let o :=
+    lazy_match! e with
+    | (deep_eval_match _ _ ?o) => o
+    | (shallow_eval_match _ _ _ ?o) => o
+    | (eval_match _ _ ?o) => o
+    | _ =>
+        Control.throw
+          (Tactic_failure
+             (Some
+                (Message.of_string "Expected a match")))
+    end
+  in
+  (* We evaluate to get rid of coercions, such as [outcome2_inject]. *)
+  Std.eval_hnf o.
+
+Ltac2 trivial_post_instantiation (e : constr) : constr :=
+  lazy_match! (get_outcome_from_match e) with
+  | O3Ret _ => constr:(True)
+  | O3Throw _ => constr:(True)
+  | O3Perform _ _ => constr:(True \/ True)
   end.
-Ltac trivial_post_instantiation :=
-  lazymatch goal with
-  | |- envs_entails _ ?G =>
-      lazymatch G with
-      | ewp_def _ ?e _ _ =>
-          lazymatch (get_outcome_from_match e) with
-          | O3Ret _ => constr:(True)
-          | O3Throw _ => constr:(True)
-          | O3Perform _ _ => constr:(True \/ True)
-          end
+
+Ltac2 skip_matching_branch (e : constr) :=
+  let φ2 := trivial_post_instantiation e in
+  ltac1:(φ2 |- iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2)) (Ltac1.of_constr φ2) >
+  [ ltac1:(specify_cpattern; pattern_match)
+  | ltac1:(iIntros (? []))
+  | ltac1:(iIntros (_)) ].
+
+Ltac2 skip_non_matching_branch () :=
+  ltac1:(iApply deep_handle_cons_skip) > [ reflexivity | ].
+
+Ltac2 get_expr_from_ewp () :=
+  match! goal with
+  | [ |- envs_entails _ ?e ] =>
+      let rec strip_laters e :=
+        lazy_match! e with
+        | bi_later ?e => strip_laters e
+        | _ => e
+        end
+      in
+      lazy_match! strip_laters e with
+      | ewp_def _ ?e _ _ => e
       end
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [EWP m @ E <|Ψ|> {{ Q}}]")))
   end.
-Ltac skip_matching_branch :=
-  let φ2 := trivial_post_instantiation in
-  iApply (deep_handle_cons _ _ _ _ _ _ _ (λ _, False) φ2);
-  [ specify_cpattern; pattern_match
-  | iIntros (? [])
-  | iIntros (_) ].
-Ltac skip_non_matching_branch :=
-  iApply deep_handle_cons_skip; [ reflexivity | ].
-Ltac skip_branch :=
-  (skip_non_matching_branch || skip_matching_branch).
-Ltac enter_branch :=
-  iApply (deep_handle_cons with "[-]");
-  [ specify_cpattern; pattern_match; try (apply eq_refl)
-  | (iIntros (? ->) || iIntros (? <-))
-  | let F := fresh in iIntros (F); tauto ].
+
+Ltac2 skip_branch () :=
+  let e := get_expr_from_ewp () in
+  Control.plus
+    (* Try to skip a branch that doesn't match the pattern type. *)
+    (fun _ => skip_non_matching_branch ())
+    (* Enter the branch and *)
+    (fun _ => skip_matching_branch e).
+
+Ltac2 enter_branch () :=
+  ltac1:(iApply (deep_handle_cons with "[-]")) >
+  [ ltac1:(specify_cpattern; pattern_match; try (apply eq_refl))
+  | ltac1:(iIntros (? ->) || iIntros (? <-))
+  | ltac1:(let F := fresh in iIntros (F); try tauto) ].
 
 (* Try to reduce a [match] expression by skipping all branches seen and then
      entering a branch on match. *)
-Ltac red_match := repeat (skip_branch; [ idtac ]); enter_branch.
+Ltac red_match := repeat (ltac2:(skip_branch ()); [ idtac ]); ltac2:(enter_branch ()).

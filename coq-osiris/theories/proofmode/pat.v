@@ -273,13 +273,15 @@ Proof.
   eapply pat_consequence_psi; [ eapply pat_PConst; eauto | tauto ].
 Qed.
 
-Lemma pat_PConst_neq η c c' ψ :
+Lemma pat_PConst_neq η c c' e ψ :
   c <> c' ->
   ψ ->
-  pattern η (PConstant c) (VConstant c') (λ _, False) ψ.
+  pattern η (PConstant c) (VData c' e) (λ _, False) ψ.
 Proof.
-  intros.
-  eapply pat_consequence_psi; [ apply pat_PConst | ]; tauto.
+  intros Hneq Hψ.
+  unfold pattern. simpl_extend.
+  apply String.eqb_neq in Hneq as ->.
+  by apply total_throw.
 Qed.
 
 Lemma pat_false η v (P : Prop) φ :
@@ -574,6 +576,7 @@ Ltac pattern_match :=
     | eapply pat_PXData_eq; [ reflexivity || by eauto | ]
     | eapply pat_PXData_neq; [ reflexivity || by eauto | auto ]
     | eapply pat_PConst_eq; by apply eq_refl
+    | eapply pat_PConst_neq; [ congruence | try tauto ]
     | apply pat_POr
     | pat_PTuple
     | apply pat_PAlias
