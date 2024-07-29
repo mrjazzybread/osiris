@@ -1145,6 +1145,7 @@ Lemma pure_wp_seq φ ψ η e1 e2 :
   pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
   pure_wp (eval η (ESeq e1 e2)) φ ψ.
 Proof.
+  simpl_eval.
   eauto using pure_wp_bind.
 Qed.
 
@@ -1165,6 +1166,7 @@ Lemma pure_wp_ifthenelse_bool η e e1 e2 φ φb ψ :
 Proof.
   simpl.
   intros Hb Ht Hf.
+  simpl_eval.
   eapply pure_wp_bind_compat. apply pure_wp_as_bool. apply Hb.
   intros []; auto.
 Qed.
@@ -1173,7 +1175,7 @@ Lemma pure_wp_assert η e :
   pure_wp (eval η e) (λ v, v = #True) (λ _, False) →
   pure_wp (eval η (EAssert e)) (λ v, v = #()) (λ _, False).
 Proof.
-  intros He. simpl.
+  intros He. simpl_eval.
   apply pure_wp_choose. by apply pure_wp_ret.
   apply pure_wp_bind. apply pure_wp_as_bool.
   apply (pure_wp_consequence_ret _ He).
