@@ -245,6 +245,11 @@ Tactic Notation "next_item" "with" constr(spec) :=
   in
   f spec.
 
+Ltac2 finished_struct0 () := apply structs_nil.
+
+Ltac2 Notation "finished_struct" := finished_struct0 ().
+Tactic Notation "finished_struct" := ltac2:(finished_struct).
+
 (* -------------------------------------------------------------------------- *)
 
 Local Open Scope nat.

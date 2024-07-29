@@ -425,20 +425,20 @@ Lemma Module__spec' :
                      ("merge_sort", mergesort_spec)]).
 Proof.
   apply module_struct.
-  eapply structs_cons.
+  next_item.
   (* Evaluate "merge" letrec *)
-  { eapply struct_letrec_single. apply Merge_spec'. }
+  { apply Merge_spec'. }
   intros [??] (merge & Hmerge & -> & ->).
-  eapply structs_cons.
+  next_item.
   (* Evaluate "split" letrec *)
-  { eapply struct_letrec_single. apply Split_spec'. }
+  { apply Split_spec'. }
   intros [??] (split & Hsplit & -> & ->).
-  eapply structs_cons.
+  next_item.
   (* Evaluate "merge_sort" letrec *)
-  { eapply struct_letrec_single. apply MergeSort_spec'; eauto. }
+  { apply MergeSort_spec'; eauto. }
   intros [??] (mergesort & Hmergesort & -> & ->).
   (* We have now evaluated the whole struct. *)
-  eapply structs_nil.
+  finished_struct.
   (* Goal: Show that the resulting environment satisfies the spec. *)
   simpl. repeat split; assumption.
 Qed.

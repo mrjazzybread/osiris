@@ -792,25 +792,20 @@ Lemma Splay__spec:
                             ("zlookup", zlookup_spec)]).
 Proof.
   apply module_struct.
-  eapply structs_cons.
-  { eapply struct_letrec_single.
-    apply Splay_spec. }
+  next_item.
+  { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
-  eapply structs_cons.
-  { eapply struct_let_single with (spec := splay_leaf_spec).
-    simpl_eval. pure_ret.
+  next_item with splay_leaf_spec.
+  { pure_simp.
     apply Splay_leaf_spec; assumption. }
   intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
-  eapply structs_cons.
-  { eapply struct_letrec_single.
-    apply Zlookup_spec; assumption. }
+  next_item.
+  { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
-  eapply structs_cons.
-  { eapply struct_let_single.
-    simpl_eval. pure_ret.
-    apply eq_refl. }
+  next_item.
+  { pure_simp. apply eq_refl. }
   intros [??] (lookup & Hlookup & -> & ->).
-  apply structs_nil.
+  finished_struct.
   simpl. repeat split; auto.
 Qed.
 
