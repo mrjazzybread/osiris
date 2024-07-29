@@ -200,7 +200,7 @@ Ltac trivial_post_instantiation :=
   end.
 Ltac skip_matching_branch :=
   let φ2 := trivial_post_instantiation in
-  iApply (deep_handle_cons _ _ _ _ _ _ _ (λ _, False) φ2);
+  iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2);
   [ specify_cpattern; pattern_match
   | iIntros (? [])
   | iIntros (_) ].
