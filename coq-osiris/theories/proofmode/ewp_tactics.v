@@ -207,10 +207,10 @@ Ltac2 trivial_post_instantiation (e : constr) : constr :=
 
 Ltac2 skip_matching_branch (e : constr) :=
   let φ2 := trivial_post_instantiation e in
-  ltac1:(φ2 |- iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2)) (Ltac1.of_constr φ2) >
-  [ ltac1:(specify_cpattern; pattern_match)
-  | ltac1:(iIntros (? []))
-  | ltac1:(iIntros (_)) ].
+  ltac1:(φ2 |- iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2);
+         [ specify_cpattern; pattern_match
+         | iIntros (? [])
+         | iIntros (_) ]) (Ltac1.of_constr φ2).
 
 Ltac2 skip_non_matching_branch () :=
   ltac1:(iApply deep_handle_cons_skip) > [ reflexivity | ].
