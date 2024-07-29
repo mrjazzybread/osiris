@@ -230,8 +230,7 @@ Section verification.
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        destruct o.
-        red_match. Simp; Ret; by iPureIntro. }
+        destruct o; red_match; Simp; Ret; by iPureIntro. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -296,7 +295,7 @@ Section verification.
       { iIntros "!#" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
       iIntros (? ->) "!> !>".
-      enter_branch.
+      red_match.
 
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.
@@ -339,7 +338,7 @@ Section verification.
       { iIntros "!>" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
       iIntros (? ->) "!> !>".
-      enter_branch.
+      red_match.
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.
