@@ -126,11 +126,9 @@ Section verification.
 
     Call. iNext. rewrite /deco.
 
-    iApply (ewp_EPerform _ _ _ (ieq ?[y])).
+    iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
     { (* TODO: Add expr-level rule for EXdata. *)
-      Simp;
-      with_strategy transparent [evals] unfold evals;
-      Simp. by Ret. }
+      Simp; by Ret. }
     iIntros (? ->).
     iApply ewp_perform.
 
