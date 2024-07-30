@@ -16,13 +16,12 @@ Definition isListIter (iter : val) : iProp Σ :=
           ⌜ (Xs ++ [X]) `prefix_of` l ⌝ -∗
             I Xs -∗
             EWP (call f #X) @ E <| ψ |> {{ | RET v => ⌜ v = VUnit ⌝ ∗ I (Xs ++ [X]);
-                                         | EXN e => φ e ∗ I Xs }})
+                                           | EXN e => φ e ∗ I Xs }})
       -∗
       I [] -∗
       EWP (ncall iter [f; #l] ) @E <| ψ |>
-      {{ | RET v => ⌜ v = VUnit ⌝ ∗ ∃ Xs, I Xs ∗ ⌜ Xs = l ⌝;
-       | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
-
+      {{ | RET v => ⌜ v = VUnit ⌝ ∗ I l;
+         | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
 
 Lemma ewp_module η sitems (Q : val -> iProp Σ) :
   EWP (eval_sitems (η, []) sitems) {{ RET ηδ, let '(_, δ) := ηδ in Q (VStruct δ) }} -∗
@@ -82,19 +81,24 @@ Proof.
   { iApply (ewp_sitem_letrec_singleton isListIter).
     unfold isListIter.
     iIntros (Ψ E I φ f l).
-    iIntros "#Hf Inil".
+    iIntros "#Hf HI".
     simpl. Bind.
     iApply ewp_call_rec; [ reflexivity | ].
     iNext. simpl_eval. Ret. simpl.
-    iAssert ⌜(l `suffix_of` l)⌝%I as "Hl".
-    { iPureIntro; by (exists []; reflexivity). }
-    generalize l at 2 4; intros l'. iRevert "Hl". iLöb as "IH" forall (l').
-    iIntros "%Hl".
-    destruct l'.
-    { apply suffix_nil_inv in Hl as ->.
-      Simp. Ret. iSplit; [ equality | iExists [] ].
-      iFrame. equality. }
 
+    (* assert ([] `prefix_of` l) as Hpref by apply prefix_nil; revert Hpref. *)
+    assert ([] ++ l = l) as Heql by reflexivity; revert Heql.
+    generalize (@nil A) at 1 4; intro lpre.
+    generalize l at 1 4; intro lsuf.
+    intros Heql.
+
+    iLöb as "IH" forall (lsuf lpre Heql) "Hf HI".
+
+    destruct lsuf.
+    { Simp; Ret.
+      iSplit; [ equality | ].
+      rewrite app_nil_r in Heql. rewrite Heql.
+      iApply "HI". }
 
     iApply ewp_call_nonrec. iNext.
     iApply ewp_EMatch.
@@ -107,33 +111,36 @@ Proof.
 
     iIntros (o) "->".
     ltac2:(skip_branch ()).
-    iApply ((deep_handle_cons _ _ _ _ _ _ _ _ (λ δ, ∃ xs' x, a :: l' = x :: xs' ∧
+    iApply ((deep_handle_cons _ _ _ _ _ _ _ _ (λ δ, ∃ xs' x0, a :: lsuf = x0 :: xs' ∧
                  δ = ("l" ~> #xs';
-                  "x" ~> #x;
-                  "__osiris_anonymous_arg" ~> encode_list (a :: l');
+                  "x" ~> #x0;
+                  "__osiris_anonymous_arg" ~> encode_list (a :: lsuf);
                   "f" ~> f;
                   "iter" ~> VCloRec stdlib_env [RecBinding "iter" (Anon ("f" => EAnonFun __fun2))] "iter";
-                  stdlib_env))) with "[Inil]");
+                  stdlib_env))) with "[HI]");
        [ specify_cpattern; pattern_match
        |
        | let F := fresh in iIntros (F); try tauto ].
-    { exists xs', x. split.
-      - assumption.
-      - apply eq_refl. }
+    { exists lsuf, a. split.
+      - reflexivity.
+      - inversion H0; subst; reflexivity. }
     { iIntros (δ (? & ? & Hal & ->)).
       inversion Hal; subst; clear Hal.
-      iApply (ewp_ESeq_exn with "[Inil]").
+      iApply (ewp_ESeq_exn with "[HI]").
       { Simp.
-        iApply (ewp_mono with "[Inil]").
+        iApply (ewp_mono with "[HI]").
         { iApply "Hf".
-          - iPureIntro. instantiate (1 := []). simpl. apply prefix_cons. apply prefix_nil.
-          - iApply "Inil". }
+          - iPureIntro. instantiate (1 := lpre).
+            apply prefix_app. apply prefix_cons. apply prefix_nil.
+          - iApply "HI". }
       iIntros (o) "Ho". iExact "Ho". }
 
       { iIntros (e); simpl.
         iIntros "[Hφ HI]". iFrame.
-        iExists []. iFrame.
-        iPureIntro; apply prefix_nil. }
+        iExists lpre. iFrame.
+        iPureIntro.
+        replace lpre with (lpre ++ []) at 1 by (rewrite app_nil_r; reflexivity).
+        apply prefix_app, prefix_nil. }
 
       { iIntros (vu); simpl.
         iIntros "[-> HI]". fold eval.
@@ -144,4 +151,32 @@ Proof.
           Simp. Ret. equality. }
         { iApply ewp_EPath; Ret; equality. }
 
-        iApply "IH".
+        iApply (ewp_mono with "[HI]").
+        { iApply "IH".
+          { iPureIntro.
+            instantiate (1 := lpre ++ [x0]).
+            rewrite (cons_middle x0 lpre x).
+            by rewrite app_assoc. }
+
+          { iIntros "!>" (Xs X) "Hpref HI".
+            iApply (ewp_mono with "[-]").
+            iApply ("Hf" with "Hpref HI").
+            iIntros (?) "?". iAssumption. }
+
+          { iApply "HI". } }
+
+        iIntros (?) "?". iAssumption. } }
+
+    destruct H0 as [|]; [ congruence | ].
+    destruct H0 as (? & ? & ? & F).
+    tauto. }
+
+  iIntros ([δ η]).
+  iIntros "(%iter & Hiter & -> & ->)".
+
+  iApply ewp_sitems_nil. simpl.
+  unfold module_spec; intros.
+  iExists _; iSplit; [ equality | simpl ].
+  iSplit; [ | done ].
+  iExists _; iSplit; [ equality | iAssumption ].
+Qed.
