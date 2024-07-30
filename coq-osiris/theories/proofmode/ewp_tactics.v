@@ -242,12 +242,30 @@ Ltac2 skip_branch () :=
     (* Enter the branch and *)
     (fun _ => skip_matching_branch e).
 
-Ltac2 enter_branch () :=
-  ltac1:(iApply (deep_handle_cons with "[-]")) >
-  [ ltac1:(specify_cpattern; pattern_match; try (apply eq_refl))
-  | ltac1:(iIntros (? ->) || iIntros (? <-))
-  | ltac1:(let F := fresh in iIntros (F); try tauto) ].
+Ltac2 iapply (lem : constr) (sel : constr option) :=
+  match sel with
+  | None => ltac1:(lem |- iApply lem) (Ltac1.of_constr lem)
+  | Some sel =>
+      ltac1:(lem sel |- iApply (lem with sel))
+              (Ltac1.of_constr lem) (Ltac1.of_constr sel)
+  end.
+
+Ltac2 Notation "iApply" "(" lem(constr) "with" sel(constr) ")" := iapply lem (Some sel).
+Ltac2 Notation "iApply" lem(constr) := iapply lem None.
+
+Ltac2 enter_branch0 (intro_pat : constr option) :=
+  match intro_pat with
+  | None => iApply deep_handle_cons
+  | Some intro_pat => iApply (deep_handle_cons with $intro_pat)
+  end >
+    [ ltac1:(specify_cpattern; pattern_match); try (apply eq_refl)
+    | ltac1:(iIntros (? ->) || iIntros (? <-))
+    | ltac1:(let F := fresh in iIntros (F); try tauto) ].
+
+Ltac2 Notation "enter_branch" "with" intro_pat(constr) := enter_branch0 (Some intro_pat).
+Ltac2 Notation "enter_branch" := enter_branch0 None.
 
 (* Try to reduce a [match] expression by skipping all branches seen and then
      entering a branch on match. *)
-Ltac red_match := repeat (ltac2:(skip_branch ()); [ idtac ]); ltac2:(enter_branch ()).
+Ltac red_match := repeat (ltac2:(skip_branch ()); [ idtac ]);
+                  ltac2:(enter_branch with "[-]").
