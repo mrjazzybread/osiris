@@ -43,7 +43,7 @@ clean:
 .PHONY: init
 init:
 	opam switch create osiris 5.2.0
-	opam pin --switch=osiris5 --yes dune 3.11.0
+	opam pin --switch=osiris --yes dune 3.11.0
 	opam install --switch=osiris --yes pprint ocaml-compiler-libs
 	opam repo --switch=osiris add coq-released https://coq.inria.fr/opam/released
 	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
