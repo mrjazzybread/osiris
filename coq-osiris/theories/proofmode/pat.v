@@ -638,6 +638,17 @@ Ltac2 set_postcondition_to_false () :=
       if Constr.is_evar ψ then unify $ψ False else ()
   end.
 
+Ltac2 patterns () :=
+  lazy_match! goal with
+  | [ |- patterns _ (_ :: _) _ _ _ ] =>
+      eapply pats_PCons_unary
+  | [ |- patterns _ [] _ _ ?ψ ] =>
+      if (Constr.is_evar ψ) then
+        eapply pats_PNil
+      else
+        eapply pats_consequence_psi > [ eapply pats_PNil | intros [] ]
+  end.
+
 (* Assuming a goal of the form [pattern(s) η p v ?φ ?ψ], the
    [pattern_match] tactic tries to solve this goal and elaborate
    the uninstantiated success and failure postconditions. *)
@@ -649,66 +660,67 @@ Ltac2 rec pattern_match0 () :=
   let continue_matching :=
     fun _ => if goal_is_pattern () then pattern_match0 () else ()
   in
-  lazy_match! goal with
-  | [ |- patterns _ (_ :: _) _ _ _ ] =>
-      eapply pats_PCons_unary
-  | [ |- patterns _ [] _ _ ?ψ ] =>
-      if (Constr.is_evar ψ) then
-        eapply pats_PNil
-      else
-        eapply pats_consequence_psi > [ eapply pats_PNil | intros [] ]
-  | [ |- _ ] => ()
-  end;
-  Control.enter (fun _ =>
-    let (p, ψ) :=
-      lazy_match! goal with
-      | [ |- pattern _ ?p _ _ ?ψ ] => (p, ψ)
-      | [ |- _ ] =>
-          Control.throw
-            (Tactic_failure
-               (Some
-                  (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
-      end
-    in
-    match! p with
-    | PVar _ =>
-        set_postcondition_to_false ();
-        Control.plus
-          (fun _ => eapply pat_PVar2)
-          (fun _ => eapply pat_PVar;
-                 continue_matching ())
-    | PInt _ =>
-        eapply pat_PInt > [ ltac1:(representable)
-                          | ltac1:(representable)
-                          | ltac1:(encode)
-                          | intros ?; continue_matching () ]
-    | pNil =>
-        eapply pat_pNil > [ solve [ ltac1:(encode) ]
-                          | intros ->; continue_matching () ]
-    | pCons _ _ =>
-        eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                           | intros ???; continue_matching () ]
-    | PXData _ _ =>
-        Control.plus
-          (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match0 () ])
-          (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
-    | PConstant _ =>
-        Control.plus
-          (fun _ => eapply pat_PConst_eq; continue_matching ())
-          (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
-    | POr _ _ =>
-        apply pat_POr > [ pattern_match0 () | pattern_match0 () ]
-    | PTuple _ =>
-        ltac1:(pat_PTuple)
-    | PAlias _ _ =>
-        apply pat_PAlias; pattern_match0 ()
-    | PAny =>
-        apply pat_PAny; continue_matching ()
-    | _ =>
-        ltac1:(pattern_hook); continue_matching ()
-    end).
+  Control.enter
+    (fun _ =>
+       lazy_match! goal with
+       | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
+       | [ |- pattern _ ?p _ _ ?ψ ] =>
+           lazy_match! p with
+           | PVar _ =>
+               set_postcondition_to_false ();
+               Control.plus
+                 (fun _ => eapply pat_PVar2)
+                 (fun _ => eapply pat_PVar;
+                        continue_matching ())
+           | PInt _ =>
+               eapply pat_PInt > [ ltac1:(representable)
+                                 | ltac1:(representable)
+                                 | ltac1:(encode)
+                                 | intros ?; continue_matching () ]
+           | pNil =>
+               eapply pat_pNil > [ solve [ ltac1:(encode) ]
+                                 | intros ->; continue_matching () ]
+           | PConstant "[]" =>
+               eapply pat_pNil > [ solve [ ltac1:(encode) ]
+                                 | intros ->; continue_matching () ]
+           | pCons _ _ =>
+               eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                                  | intros ???; continue_matching () ]
+           | PData "::" _ =>
+               eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                                  | intros ???; continue_matching () ]
+           | PXData _ _ =>
+               Control.plus
+                 (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match0 () ])
+                 (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
+           | PConstant _ =>
+               Control.plus
+                 (fun _ => eapply pat_PConst_eq; continue_matching ())
+                 (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
+           | POr _ _ =>
+               apply pat_POr > [ pattern_match0 () | pattern_match0 () ]
+           | PTuple _ =>
+               ltac1:(pat_PTuple); continue_matching ()
+           | PAlias _ _ =>
+               apply pat_PAlias; pattern_match0 ()
+           | PAny =>
+               apply pat_PAny; continue_matching ()
+           | _ =>
+               ltac1:(pattern_hook); continue_matching ()
+           end
+       end).
 
-Ltac2 Notation "pattern_match" := pattern_match0 ().
+Ltac2 pattern_match () :=
+  lazy_match! goal with
+  | [ |- pattern _ ?p _ _ ?ψ ] => pattern_match0 ()
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
+  end.
+
+Ltac2 Notation "pattern_match" := pattern_match ().
 Tactic Notation "pattern_match" := ltac2:(pattern_match).
 
 (* [post_process_pats] is expected to be used on multiple goals of the
