@@ -507,16 +507,24 @@ Qed.
 
 From Ltac2 Require Import Ltac2.
 
-Ltac2 rec specify_cpattern () :=
-  first [
-      apply cpat_CVal
-    | apply cpat_CExc
-    | eapply cpat_COr; specify_cpattern ()
-    | eapply cpat_CEff
-    | eapply cpat_mismatch > [ cbn; reflexivity | ]
-    ].
+Ltac2 rec specify_cpattern () : int :=
+  lazy_match! goal with
+  | [ |- cpattern _ (CVal _) (O3Ret _) _ _ ] =>
+      apply cpat_CVal; 1
+  | [ |- cpattern _ (CExc _) (O3Throw _) _ _ ] =>
+      apply cpat_CExc; 1
+  | [ |- cpattern _ (CEff _ _) (O3Perform _ _) _ _ ] =>
+      apply cpat_CEff; 1
+  | [ |- cpattern _ (COr _ _) _ _ _ ] =>
+      eapply cpat_COr;
+      let n := Control.focus 1 1 specify_cpattern in
+      let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+      Int.add n m
+  | [ |- cpattern _ _ _ _ _ ] =>
+      eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+  end.
 
-Tactic Notation "specify_cpattern" := ltac2:(specify_cpattern ()).
+Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
 
 Ltac2 tauto0 () := ltac1:(tauto).
 Ltac2 Notation tauto := tauto0 ().
@@ -797,25 +805,44 @@ Ltac post_process_pats :=
    form [pattern _ _ _ (λ n', pure (eval η' _) _ _) _] and one subgoal of
    the form [False]. *)
 
-Ltac pure_match_branches :=
-  lazymatch goal with
-  | |- pure_match _ [?b] _ _ =>
-      eapply pure_match_single;
-      [ specify_cpattern
-      | let no_match := fresh "no_match" in
-        intros no_match ]
-  | |- pure_match _ (?b :: ?bs) _ _ =>
-      eapply pure_match_cons;
-      [ specify_cpattern
-      | (let no_match := fresh "no_match" in
-         intros no_match; pure_match_branches) ]
-  | |- pure_match _ ?b _ _ =>
-      progress (unfold b);
-      pure_match_branches
+Ltac2 rec pure_match_branches_aux n : int :=
+  lazy_match! goal with
+  | [ |- pure_match _ ?bs _ _ ] =>
+      lazy_match! (Std.eval_hnf bs) with
+      | [_] =>
+          eapply pure_match_single;
+          let m := Control.focus 1 1 specify_cpattern in
+          Control.focus (Int.add m 1) (Int.add m 1)
+            (fun _ =>
+               let no_match := Fresh.in_goal @no_match in
+               intros $no_match);
+          (Int.add n m)
+      | _ :: _ =>
+          eapply pure_match_cons;
+          let m := Control.focus 1 1 specify_cpattern in
+          Control.focus (Int.add m 1) (Int.add m 1)
+            (fun _ =>
+               let no_match := Fresh.in_goal @no_match in
+               intros $no_match;
+               pure_match_branches_aux (Int.add n m))
+      | [] =>
+          eapply pure_match_nil; n
+      end
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pure_match η bs o φ]")))
   end.
+
+
+Ltac2 pure_match_branches () : int := pure_match_branches_aux 0.
 
 (* [pure_match] expects a goal of the form [pure_match _ _ _ _], and
    produces subgoals corresponding to the successful match and entry
    of each branch. *)
 
-Ltac pure_match := pure_match_branches; post_process_pats.
+Ltac2 pure_match () := let _ := pure_match_branches () in ltac1:(post_process_pats).
+
+Ltac2 Notation "pure_match" := pure_match ().
+Tactic Notation "pure_match" := ltac2:(pure_match).
