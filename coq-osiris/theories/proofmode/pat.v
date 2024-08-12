@@ -505,14 +505,216 @@ Qed.
 
 (* Pattern proofmode tactics *)
 
-Ltac specify_cpattern :=
+From Ltac2 Require Import Ltac2.
+
+Ltac2 rec specify_cpattern () :=
   first [
       apply cpat_CVal
     | apply cpat_CExc
-    | eapply cpat_COr; specify_cpattern
+    | eapply cpat_COr; specify_cpattern ()
     | eapply cpat_CEff
-    | eapply cpat_mismatch; [ cbn; reflexivity | ]
+    | eapply cpat_mismatch > [ cbn; reflexivity | ]
     ].
+
+Tactic Notation "specify_cpattern" := ltac2:(specify_cpattern ()).
+
+Ltac2 tauto0 () := ltac1:(tauto).
+Ltac2 Notation tauto := tauto0 ().
+
+(* Lemmas to help prune pattern no_match hypotheses. *)
+
+Local Lemma false_or_r P :
+  P ∨ False <-> P.
+Proof. tauto. Qed.
+
+Local Lemma false_or_l P :
+  False ∨ P <-> P.
+Proof. tauto. Qed.
+
+Local Lemma true_or_r P :
+  P ∨ True <-> True.
+Proof. tauto. Qed.
+
+Local Lemma true_or_l P :
+  True ∨ P <-> True.
+Proof. tauto. Qed.
+
+Local Lemma false_and_r P :
+  P ∧ False <-> False.
+Proof. tauto. Qed.
+
+Local Lemma false_and_l P :
+  False ∧ P <-> False.
+Proof. tauto. Qed.
+
+Local Lemma true_and_r P :
+  P ∧ True <-> P.
+Proof. tauto. Qed.
+
+Local Lemma true_and_l P :
+  True ∧ P <-> P.
+Proof. tauto. Qed.
+
+Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
+  let hyp_clauses :=
+    List.map (fun id => (id, Std.AllOccurrences, Std.InHyp)) hyps
+  in
+  let clause :=
+    { Std.on_hyps := Some hyp_clauses;
+                     Std.on_concl := Std.NoOccurrences }
+  in
+  rewrite $rw in clause.
+
+Ltac2 normalize_hyps (hyps : ident list) :=
+  let lemma_list :=
+    [ 'false_or_r;
+      'false_or_l;
+      'true_or_r;
+      'true_or_l;
+      'false_and_r;
+      'false_and_l;
+      'true_and_r;
+      'true_and_l ]
+  in
+  let thunk_list :=
+    List.map (fun l => (fun () => rewrite_in_hyps l hyps)) lemma_list
+  in
+  repeat (first0 thunk_list).
+
+Ltac pattern_hook := fail.
+
+(* [pattern_match] expects a goal in the form of a [pattern] or [patterns] judgement.
+   It tries to apply all know pattern matching rules. We use [pattern_hook] to
+   make this tactic extensible (see its redefinition in examples/splay.v). *)
+
+Ltac2 rec solve_lookup_name () :=
+  lazy_match! goal with
+  (* If a hypothesis matches the lookup we are trying to do, use it. *)
+  | [ h_ident : lookup_name ?η ?c = _ |- lookup_name ?η ?c = _ ] =>
+      let h := Control.hyp h_ident in
+      rewrite -> $h
+  (* Otherwise just try and compute the lookup. *)
+  | [ |- lookup_name _ _ = _ ] =>
+      progress simpl
+  end;
+  (* We now have two cases:
+     - Using a hypothesis or simplification has produced a goal of
+       the form [ret v = ret v].
+     - Using a hypothesis has led us to a new lookup *)
+  match! goal with
+  | [ |- ?a = ?a ] => reflexivity
+  | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
+  end.
+
+Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
+  m = ret a ->
+  bind m f = f a.
+Proof. intros ->; reflexivity. Qed.
+
+Ltac2 rec solve_lookup_path () :=
+  simpl;
+  match! goal with
+  | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
+  | [ |- bind (lookup_name ?η ?c) _ = _ ] =>
+      erewrite -> (rewrite_bind (lookup_name $η $c)) >
+        [ solve_lookup_name () | solve_lookup_path () ]
+  end.
+
+Ltac2 goal_is_pattern () :=
+  match! goal with
+  | [ |- pattern _ _ _ _ _ ] => true
+  | [ |- patterns _ _ _ _ _ ] => true
+  | [ |- _ ] => false
+  end.
+
+Ltac2 set_postcondition_to_false () :=
+  lazy_match! goal with
+  | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
+      if Constr.is_evar ψ then
+        let t := Constr.type arg in
+        unify $ψ (fun (_ : $t) => False)
+      else ()
+  | [ |- pattern _ _ _ _ ?ψ ] =>
+      if Constr.is_evar ψ then unify $ψ False else ()
+  end.
+
+(* Assuming a goal of the form [pattern(s) η p v ?φ ?ψ], the
+   [pattern_match] tactic tries to solve this goal and elaborate
+   the uninstantiated success and failure postconditions. *)
+
+Ltac2 rec pattern_match0 () :=
+  (* If the goal is of the form [patterns ...] we either
+     - reduce to a [pattern ...] with [pats_PCons_unary],
+     - solve the goal with [pats_PNil]. *)
+  let continue_matching :=
+    fun _ => if goal_is_pattern () then pattern_match0 () else ()
+  in
+  lazy_match! goal with
+  | [ |- patterns _ (_ :: _) _ _ _ ] =>
+      eapply pats_PCons_unary
+  | [ |- patterns _ [] _ _ ?ψ ] =>
+      if (Constr.is_evar ψ) then
+        eapply pats_PNil
+      else
+        eapply pats_consequence_psi > [ eapply pats_PNil | intros [] ]
+  | [ |- _ ] => ()
+  end;
+  Control.enter (fun _ =>
+    let (p, ψ) :=
+      lazy_match! goal with
+      | [ |- pattern _ ?p _ _ ?ψ ] => (p, ψ)
+      | [ |- _ ] =>
+          Control.throw
+            (Tactic_failure
+               (Some
+                  (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
+      end
+    in
+    match! p with
+    | PVar _ =>
+        set_postcondition_to_false ();
+        Control.plus
+          (fun _ => eapply pat_PVar2)
+          (fun _ => eapply pat_PVar;
+                 continue_matching ())
+    | PInt _ =>
+        eapply pat_PInt > [ ltac1:(representable)
+                          | ltac1:(representable)
+                          | ltac1:(encode)
+                          | intros ?; continue_matching () ]
+    | pNil =>
+        eapply pat_pNil > [ solve [ ltac1:(encode) ]
+                          | intros ->; continue_matching () ]
+    | pCons _ _ =>
+        eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                           | intros ???; continue_matching () ]
+    | PXData _ _ =>
+        Control.plus
+          (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match0 () ])
+          (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
+    | PConstant _ =>
+        Control.plus
+          (fun _ => eapply pat_PConst_eq; continue_matching ())
+          (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
+    | POr _ _ =>
+        apply pat_POr > [ pattern_match0 () | pattern_match0 () ]
+    | PTuple _ =>
+        ltac1:(pat_PTuple)
+    | PAlias _ _ =>
+        apply pat_PAlias; pattern_match0 ()
+    | PAny =>
+        apply pat_PAny; continue_matching ()
+    | _ =>
+        ltac1:(pattern_hook); continue_matching ()
+    end).
+
+Ltac2 Notation "pattern_match" := pattern_match0 ().
+Tactic Notation "pattern_match" := ltac2:(pattern_match).
+
+(* [post_process_pats] is expected to be used on multiple goals of the
+   form [pattern η p v ?φ ?ψ] and one goal of the form [False]. It performs
+   pattern matching on the pat goals and then tries to prove the
+   non-matching (False) goal. *)
 
 Local Ltac strip_disjunction :=
   match goal with
@@ -559,33 +761,6 @@ Ltac resolve_no_match :=
     | subst_eq
     | inject_eq ].
 
-Ltac pattern_hook := fail.
-
-(* [pattern_match] expects a goal in the form of a [pattern] or [patterns] judgement.
-   It tries to apply all know pattern matching rules. We use [pattern_hook] to
-   make this tactic extensible (see its redefinition in examples/splay.v). *)
-
-Ltac pattern_match :=
-  repeat first
-    [ pats_unary
-    | pattern_hook
-    | pat_PVar
-    | pat_PInt
-    | pat_pNil; intros
-    | pat_pCons; intros
-    | eapply pat_PXData_eq; [ reflexivity || by eauto | ]
-    | eapply pat_PXData_neq; [ reflexivity || by eauto | auto ]
-    | eapply pat_PConst_eq; by apply eq_refl
-    | eapply pat_PConst_neq; [ congruence | try tauto ]
-    | apply pat_POr
-    | pat_PTuple
-    | apply pat_PAlias
-    | apply pat_PAny ].
-
-(* [post_process_pats] is expected to be used on multiple goals of the
-   form [pattern η p v ?φ ?ψ] and one goal of the form [False]. It performs
-   pattern matching on the pat goals and then tries to prove the
-   non-matching (False) goal. *)
 
 Ltac post_process_pats :=
   (* First try to resolve the pattern matching, instantiating all
