@@ -665,7 +665,7 @@ Ltac2 rec pattern_match0 () :=
        lazy_match! goal with
        | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
        | [ |- pattern _ ?p _ _ ?ψ ] =>
-           lazy_match! p with
+           match! p with
            | PVar _ =>
                set_postcondition_to_false ();
                Control.plus
