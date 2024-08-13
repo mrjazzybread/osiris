@@ -507,6 +507,10 @@ Qed.
 
 From Ltac2 Require Import Ltac2.
 
+(* [specify_cpattern] takes a goal of the form [cpattern η cp o3 φ ψ]
+   and turns it into [n] goals of the form [pattern η p v φ ψ],
+   returning [n]. *)
+
 Ltac2 rec specify_cpattern () : int :=
   lazy_match! goal with
   | [ |- cpattern _ (CVal _) (O3Ret _) _ _ ] =>
@@ -781,23 +785,18 @@ Ltac resolve_no_match :=
     | subst_eq
     | inject_eq ].
 
-
-Ltac post_process_pats :=
-  (* First try to resolve the pattern matching, instantiating all
-     postcondition evars in the process *)
-  match goal with
-  | |- False => idtac
-  | _ => pattern_match
-  end;
+Ltac2 post_process_pats (b : bool) (hs : ident list) :=
+  (* Use the [pattern_match] tactic on every goal but the last one. *)
+  Control.extend [] pattern_match [(fun _ => ())];
+  if b then
+    Control.extend [] (fun _ => Std.clear hs) [(fun _ => ())]
+  else ();
   (* Only after finishing our matches do we substitute our newly
      learnt equalities *)
   subst;
   (* Afterwards, use [resolve_no_match] to perform congruence on the
      remaining False goal *)
-  match goal with
-  | |- False => resolve_no_match
-  | _ => idtac
-  end.
+  ltac1:(resolve_no_match).
 
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
@@ -805,7 +804,7 @@ Ltac post_process_pats :=
    form [pattern _ _ _ (λ n', pure (eval η' _) _ _) _] and one subgoal of
    the form [False]. *)
 
-Ltac2 rec pure_match_branches_aux n : int :=
+Ltac2 rec pure_match_branches0 () : ident list :=
   lazy_match! goal with
   | [ |- pure_match _ ?bs _ _ ] =>
       lazy_match! (Std.eval_hnf bs) with
@@ -815,8 +814,7 @@ Ltac2 rec pure_match_branches_aux n : int :=
           Control.focus (Int.add m 1) (Int.add m 1)
             (fun _ =>
                let no_match := Fresh.in_goal @no_match in
-               intros $no_match);
-          (Int.add n m)
+               intros $no_match; [no_match])
       | _ :: _ =>
           eapply pure_match_cons;
           let m := Control.focus 1 1 specify_cpattern in
@@ -824,9 +822,9 @@ Ltac2 rec pure_match_branches_aux n : int :=
             (fun _ =>
                let no_match := Fresh.in_goal @no_match in
                intros $no_match;
-               pure_match_branches_aux (Int.add n m))
+               (no_match :: pure_match_branches0 ()))
       | [] =>
-          eapply pure_match_nil; n
+          eapply pure_match_nil; []
       end
   | [ |- _ ] =>
       Control.throw
@@ -835,14 +833,17 @@ Ltac2 rec pure_match_branches_aux n : int :=
               (Message.of_string "Expected goal of the form [pure_match η bs o φ]")))
   end.
 
-
-Ltac2 pure_match_branches () : int := pure_match_branches_aux 0.
+Ltac2 pure_match_branches () : ident list := pure_match_branches0 ().
 
 (* [pure_match] expects a goal of the form [pure_match _ _ _ _], and
    produces subgoals corresponding to the successful match and entry
    of each branch. *)
 
-Ltac2 pure_match () := let _ := pure_match_branches () in ltac1:(post_process_pats).
+Ltac2 pure_match0 (b : bool) :=
+  let no_match_hypotheses := pure_match_branches () in
+  post_process_pats b no_match_hypotheses.
 
-Ltac2 Notation "pure_match" := pure_match ().
+Ltac2 Notation "pure_match_verbose" := pure_match0 false.
+Ltac2 Notation "pure_match" := pure_match0 true.
 Tactic Notation "pure_match" := ltac2:(pure_match).
+Tactic Notation "pure_match_verbose" := ltac2:(pure_match_verbose).
