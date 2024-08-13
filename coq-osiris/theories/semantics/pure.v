@@ -252,15 +252,9 @@ Qed.
 Lemma pure_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
   pure (X := X) m1 φ →
   pure m2 φ →
-  deterministic φ →
   pure (choose m1 m2) φ.
 Proof.
-  rewrite !pure_totalv.
-  intros. eapply totalv_choose; [ eauto | eauto |].
-  unfold deterministic.
-  intros v1 v2 ? ?. destruct_encode_image a2. destruct_encode_image a1.
-  assert (a1 = a2) by eauto.
-  congruence.
+  apply pure_wp_choose.
 Qed.
 
 (* The infinitary intersection rule. *)

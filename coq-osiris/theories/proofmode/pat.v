@@ -122,6 +122,7 @@ Proof.
   eauto using total_consequence, total_ret.
 Qed.
 
+(* TODO generalize to [(φ1 η → pattern η p2 v φ ψ2)] and see if it is useful *)
 Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
   pattern η p1 v φ ψ1 →
   pattern η p2 v φ ψ2 →

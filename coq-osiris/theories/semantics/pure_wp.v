@@ -546,6 +546,21 @@ Proof.
       intros f m'f F. apply HF; auto; econstructor; eauto.
 Qed.
 
+Lemma pure_wp_long_steps_ret_throw {A E} {φ : A → Prop} {ψ : E → Prop} m :
+  pure_wp m φ ψ ↔
+  sn may m ∧ (∀ a, rtc may m (ret a) → φ a)
+           ∧ (∀ e, rtc may m (throw e) → ψ e)
+           ∧ ¬rtc may m crash.
+Proof.
+  rewrite pure_wp_long_steps.
+  split; intros [S L]; split; auto.
+  - split; [|split].
+    + intros a M. apply (invert_pure_wp_ret _ _ _ (L _ M I)).
+    + intros e M. apply (invert_pure_wp_throw _ _ _ (L _ M I)).
+    + intros M.   apply (invert_pure_wp_crash _ _ (L _ M I)).
+  - intros [] Hm []; constructor; firstorder.
+Qed.
+
 (* [pure_wp_exists_path] implies e.g. [pure_wp m (λ _, P) (λ _, P) → P] *)
 
 Lemma pure_wp_exists_path {A E} {φ : A → Prop} {ψ : E → Prop} m :
