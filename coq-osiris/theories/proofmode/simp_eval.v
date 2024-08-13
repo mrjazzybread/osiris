@@ -24,14 +24,14 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Reasoning rules for [(eval _ _) returns v], that is, for pure expressions
-   that deterministically return a the value v. *)
+(* Reasoning rules for [pure_wpv (eval _ _) (λ x, x = v)], that is, for pure
+   expressions that deterministically return a the value v. *)
 
 (* Paths. *)
 
 Lemma pure_wp_eval_path η π v :
   lookup_path η π = ret v →
-  (eval η (EPath π)) returns v.
+  pure_wpv (eval η (EPath π)) (λ x, x = v).
 Proof.
   intros Hlookup. simpl_eval. rewrite Hlookup. by constructor.
 Qed.
@@ -44,8 +44,8 @@ Qed.
    offer tactic analogous to [pats]. *)
 
 Lemma pure_wp_evals η es vs :
-  Forall2 (λ e v, (eval η e) returns v) es vs →
-  (evals η es) returns vs.
+  Forall2 (λ e v, pure_wpv (eval η e) (λ x, x = v)) es vs →
+  pure_wpv (evals η es) (λ x, x = vs).
 Proof.
   revert vs.
   induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
@@ -65,8 +65,8 @@ Qed.
 
 (* TODO can we give a generic definition of the encoding of n-tuples? *)
 Lemma pure_wp_eval_tuple η es vs :
-  Forall2 (λ e v, (eval η e) returns v) es vs →
-  (eval η (ETuple es)) returns (VTuple vs).
+  Forall2 (λ e v, pure_wpv (eval η e) (λ x, x = v)) es vs →
+  pure_wpv (eval η (ETuple es)) (λ x, x = VTuple vs).
 Proof.
   intros H%pure_wp_evals. simpl_eval.
   apply pure_wp_bind.
@@ -78,9 +78,9 @@ Qed.
 (* TODO can we give a similar lemma at arity [n]? *)
 
 Lemma pure_wp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
-  (eval η e1) returns #a1 →
-  (eval η e2) returns #a2 →
-  (eval η (EPair e1 e2)) returns #(a1, a2).
+  pure_wpv (eval η e1) (λ x, x = #a1) →
+  pure_wpv (eval η e2) (λ x, x = #a2) →
+  pure_wpv (eval η (EPair e1 e2)) (λ x, x = #(a1, a2)).
 Proof.
   intros He1 He2. simpl.
   simpl_eval.
@@ -92,8 +92,8 @@ Proof.
 Qed.
 
 Lemma pure_wp_tuple' η es vs :
-  (evals η es) returns vs →
-  (eval η (ETuple es)) returns (VTuple vs).
+  pure_wpv (evals η es) (λ x, x = vs) →
+  pure_wpv (eval η (ETuple es)) (λ x, x = VTuple vs).
 Proof.
   intros. simpl_eval. apply pure_wp_bind. apply (pure_wp_mono_ret _ H).
   by constructor; congruence.

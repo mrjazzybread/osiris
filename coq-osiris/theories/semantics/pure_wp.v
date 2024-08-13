@@ -1322,8 +1322,6 @@ Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ 
 Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
   pure_wp m (encode_pred φ) ψ.
 
-Notation "m 'returns' v" := (pure_wp m (λ a, a = v) (λ _, False)) (at level 10).
-
 
 (** Hoare reasoning rules, with encode *)
 
