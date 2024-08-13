@@ -230,6 +230,23 @@ Proof.
   { eapply truth_true. tauto. }
 Qed.
 
+(* If [b] reflects [P], [truth P] is [b] *)
+
+Lemma truth_reflect P b : reflect P b → truth P = b.
+Proof.
+  inversion 1; auto using truth_true, truth_false.
+Qed.
+
+(* Similar but formulated in a way [lia] understands *)
+
+Lemma truth_eq_true P b : (b = true ↔ P) → truth P = b.
+Proof.
+  destruct b; intros.
+  - intuition auto using truth_true.
+  - assert (¬P) by firstorder congruence.
+    auto using truth_false.
+Qed.
+
 (* A Coq proposition can be encoded as an OCaml Boolean value. *)
 
 (* In other words, the logical model of an OCaml Boolean value
@@ -261,6 +278,24 @@ Proof.
 Qed.
 
 (* Global Hint Resolve solve_encode_False solve_encode_True : encode. *)
+
+Lemma encode_truth (P : Prop) : #(truth P) = #P.
+Proof.
+  unfold encode, Encode_Prop.
+  by destruct (truth P).
+Qed.
+
+Lemma iff_truth (P Q : Prop) : P ↔ Q → truth P = truth Q.
+Proof.
+  generalize (truth_elim P), (truth_elim Q).
+  do 2 destruct (truth _); tauto.
+Qed.
+
+Lemma iff_encode (P Q : Prop) : P ↔ Q → #P = #Q.
+Proof.
+  unfold encode, Encode_Prop.
+  by intros ->%iff_truth.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 

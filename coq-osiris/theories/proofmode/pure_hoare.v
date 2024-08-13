@@ -4,7 +4,7 @@ From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality.
 From osiris.proofmode Require Import simp_eval notations.
 
-(* Because the relation [simp] is inductively defined, the [pure] judgement
+(* Because the relation [pure_wp] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
    for pure computations. *)
 
@@ -23,13 +23,14 @@ Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
         'v2 ← f v1;
         g v2) φ.
 Proof.
-  intros Hsimp ?.
-  destruct_pure x.
-  exists x. split; last auto.
-  apply invert_simp_bind_ret in Hsimp as (b & Hb & Ha).
-
-  eapply prove_simp_bind; first apply Hb.
-  eapply prove_simp_bind; eauto.
+  (* TODO should we really have [simp] as hypothesis? *)
+  eintros Hfm%pure_simp_ret Hga.
+  apply invert_pure_wp_bind in Hfm.
+  eapply pure_wp_bind_compat; eauto. simpl.
+  intros a' Ha'.
+  eapply pure_wp_bind_compat; eauto. simpl.
+  intros _v (_a & -> & ->).
+  eapply pure_wp_mono; eauto.
 Qed.
 
 Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
@@ -41,10 +42,15 @@ Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
         v2 ← f v1;
         g v2) φ.
 Proof.
-  intros (x & Hsimp & ?) ?.
-  eapply pure_prove_bind_bind; first apply Hsimp.
-  rewrite <- solve_encode_val.
-  auto.
+  intros Hm Hga.
+  apply invert_pure_wp_bind in Hm.
+  eapply pure_wp_bind_compat; eauto. simpl.
+  intros v Hv.
+  eapply pure_wp_bind_compat; eauto. simpl.
+  intros _ (y & -> & Hy).
+  eapply pure_wp_mono_ret.
+  - apply Hga, Hy.
+  - intros _ (x & -> & Hx). eauto.
 Qed.
 
 Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
@@ -64,36 +70,9 @@ Qed.
 
 (* Variants of the Bind rule. *)
 
-(* [bind] composed with [as_bool]. *)
-
-Lemma simp_as_bool (x : bool) (m : microvx) :
-  simp m (ret #x) →
-  simp (as_bool m) (ret x).
-Proof.
-  destruct x; eauto using prove_simp_bind with simp.
-Qed.
-
-Lemma pure_bind_as_bool Y (_ : Encode Y)
-  m (f : bool → microvx) (φ : bool → Prop) (ψ : Y → Prop) :
-  pure m φ →
-  (∀ (x : bool), φ x → pure (f x) ψ) →
-  pure (bind (as_bool m) f) ψ.
-  (* This is [@bind bool val]. *)
-Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  exists y; eauto using prove_simp_bind, simp_as_bool.
-Qed.
+(* [pure_bind_as_bool] is already in [simp_eval.v] but it is useful there *)
 
 (* [bind] composed with [as_int]. *)
-
-Lemma simp_as_int (x : Z) (m : microvx) :
-  simp m (ret #x) →
-  simp (as_int m) (ret (repr x)).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
 
 Lemma pure_bind_as_int `{Encode Y}
   m (f : int → microvx) (φ : Z → Prop) (ψ : Y → Prop) :
@@ -102,20 +81,13 @@ Lemma pure_bind_as_int `{Encode Y}
   pure (bind (as_int m) f) ψ.
   (* This is [@bind int val]. *)
 Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  exists y; eauto using prove_simp_bind, simp_as_int.
+  intros Hm%pure_as_int Hf.
+  eapply pure_wp_bind_compat; eauto.
+  intros _ (i & -> & Hi).
+  eapply (pure_wp_mono_ret _ (Hf i Hi)); auto.
 Qed.
 
 (* [bind] composed with [as_loc]. *)
-
-Lemma simp_as_loc (x : loc) (m : microvx) :
-  simp m (ret #x) ->
-  simp (as_loc m) (ret x).
-Proof.
-  destruct x; eauto using prove_simp_bind with simp.
-Qed.
 
 Lemma pure_bind_as_loc `{Encode Y}
   m (f : loc → microvx) (φ : loc → Prop) (ψ : Y → Prop) :
@@ -124,20 +96,13 @@ Lemma pure_bind_as_loc `{Encode Y}
   pure (bind (as_loc m) f) ψ.
   (* This is [@bind loc val]. *)
 Proof.
-  intros (x & ? & Hx) Hf.
-  specialize (Hf x Hx).
-  destruct Hf as (y & ? & ?).
-  exists y; eauto using prove_simp_bind, simp_as_loc.
+  intros Hm Hf.
+  apply pure_wp_bind.
+  eapply pure_wp_bind_compat; eauto.
+  intros _ (l & -> & Hl). apply pure_wp_ret, Hf, Hl.
 Qed.
 
 (* [bind] composed with [as_struct]. *)
-
-Lemma simp_as_struct (x : env) (m : microvx) :
-  simp m (ret (VStruct x)) ->
-  simp (as_struct m) (ret x).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
 
 Lemma pure_bind_as_struct Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
@@ -146,22 +111,14 @@ Lemma pure_bind_as_struct Y (_ : Encode Y)
   pure (bind (as_struct m) f) ψ.
   (* This is [@bind env val]. *)
 Proof.
-  intros (x & H & Hx) Hf.
-  destruct Hx as (x' & ? & Hx').
-  subst x. rewrite <- solve_encode_val in H.
-  specialize (Hf x' Hx').
-  destruct_pure y.
-  exists y; eauto using prove_simp_bind, simp_as_struct.
+  intros Hm Hf.
+  apply pure_wp_bind.
+  eapply pure_wp_bind_compat; eauto.
+  intros _ (_ & -> & (env & -> & Henv)).
+  apply pure_wp_ret, Hf, Henv.
 Qed.
 
 (* [bind] composed with [as_record]. *)
-
-Lemma simp_as_record (x : env) (m : microvx) :
-  simp m (ret (VRecord x)) ->
-  simp (as_record m) (ret x).
-Proof.
-  eauto using prove_simp_bind with simp.
-Qed.
 
 Lemma pure_bind_as_record Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
@@ -170,12 +127,12 @@ Lemma pure_bind_as_record Y (_ : Encode Y)
   pure (bind (as_record m) f) ψ.
   (* This is also [@bind env val]. *)
 Proof.
-  intros (x & H & Hx) Hf.
-  destruct Hx as (x' & ? & Hx').
-  subst x. rewrite <- solve_encode_val in H.
-  specialize (Hf x' Hx').
-  destruct_pure y.
-  exists y; eauto using prove_simp_bind, simp_as_record.
+  (* same exact proof script *)
+  intros Hm Hf.
+  apply pure_wp_bind.
+  eapply pure_wp_bind_compat; eauto.
+  intros _ (_ & -> & (env & -> & Henv)).
+  apply pure_wp_ret, Hf, Henv.
 Qed.
 
 (* TODO add similar lemmas for other constructs *)
@@ -248,7 +205,7 @@ Qed.
 Lemma invert_pure_crash `{Encode Y} {X} (φ : Y -> Prop) :
   pure (X := X) Crash φ -> False.
 Proof.
-  intros. destruct_pure a. clarify_simp.
+  apply invert_pure_wp_crash.
 Qed.
 
 Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :

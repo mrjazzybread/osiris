@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
+From osiris.semantics Require Import semantics total.
 
 Implicit Type φ : env -> Prop.
 Implicit Type ψ : Prop.
@@ -124,6 +124,7 @@ Proof.
   eauto using total_consequence, total_ret.
 Qed.
 
+(* TODO generalize to [(φ1 η → pattern η p2 v φ ψ2)] and see if it is useful *)
 Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
   pattern η p1 v φ ψ1 →
   pattern η p2 v φ ψ2 →
@@ -445,10 +446,13 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure_match η bs (O3Ret #a) φ ->
   pure (eval η (EMatch e bs)) φ.
 Proof.
-  unfold pure_match; intros Heval Hmatch.
-  destruct Heval as (? & ? & ->).
-  eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption |  ].
-  unfold continue. by simpl_install_deep_eval_match.
+  unfold pure_match; intros Heval Hmatch. simpl.
+  simpl_eval.
+  apply pure_wp_handle.
+  apply (pure_wp_mono _ Heval). 2: intros _ [].
+  intros ? (? & -> & ->).
+  simpl_install_deep_eval_match.
+  apply (pure_wp_mono _ Hmatch); eauto.
 Qed.
 
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
@@ -456,10 +460,13 @@ Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -
   (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
   pure (eval η (EMatch e bs)) φ.
 Proof.
-  unfold pure_match; intros Heval Hmatch.
-  destruct Heval as (? & ? & ?).
-  eapply pure_simp; [ simpl_eval; eapply SimpHandleRet; eassumption | ].
-  unfold continue. simpl_install_deep_eval_match. auto.
+  unfold pure_match; intros Heval Hmatch. simpl.
+  simpl_eval.
+  apply pure_wp_handle.
+  apply (pure_wp_mono _ Heval). 2: intros _ [].
+  intros ? (a & -> & Ha).
+  simpl_install_deep_eval_match.
+  apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
 Qed.
 
 (* Currently unused *)

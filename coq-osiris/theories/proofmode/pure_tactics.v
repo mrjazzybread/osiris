@@ -284,13 +284,6 @@ Proof.
   - pure_ret. assumption.
 Qed.
 
-Lemma simp_pure {E} `{Encode A} (m : micro val E) (φ : A -> Prop) :
-  pure m φ ->
-  exists v, simp m (ret v).
-Proof.
-  intros (a & ? & ?). exists #a. assumption.
-Qed.
-
 Ltac2 rec unfold_Forall2 () :=
   match! goal with
   | [ |- Forall2 _ (?x :: ?xs) _ ] =>

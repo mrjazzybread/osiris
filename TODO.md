@@ -223,7 +223,8 @@
 * Booleans:
   + We would like to have all of the comparison operators,
     but because our model views Booleans as data constructors,
-    we cannot have the ordering operators.
+    we cannot have the ordering operators (e.g. false < true
+    crashes in the current semantics).
 * Polymorphic comparison operators
   + `eq_val` should be extended to records
   + `lt_val` should be extended to chars, strings, tuples, records

@@ -349,19 +349,19 @@ Global Hint Constructors pure_wp : pure_wp.
 
 (** [pure_wp] is monotonic *)
 
-Lemma pure_wp_consequence {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
+Lemma pure_wp_mono {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
   pure_wp m φ ψ → (∀ a, φ a → φ' a) → (∀ e, ψ e → ψ' e) → pure_wp m φ' ψ'.
 Proof.
   induction 1; constructor; auto.
 Qed.
 
-Lemma pure_wp_consequence_ret {A E} {φ φ' ψ : _ → Prop} (m : micro A E) :
+Lemma pure_wp_mono_ret {A E} {φ φ' ψ : _ → Prop} (m : micro A E) :
   pure_wp m φ ψ → (∀ a, φ a → φ' a) → pure_wp m φ' ψ.
 Proof.
   induction 1; constructor; auto.
 Qed.
 
-Lemma pure_wp_consequence_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
+Lemma pure_wp_mono_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
   pure_wp m φ ψ → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ'.
 Proof.
   induction 1; constructor; auto.
@@ -378,19 +378,19 @@ Lemma pure_wp_strengthen_reachable {A E} {φ ψ : _ → Prop} (m : micro A E) :
 Proof.
   induction 1 as [ |  | ? ? ? Hex Hfo IH]; constructor; auto with relations.
   intros m' M. clear Hex.
-  apply (pure_wp_consequence _ (IH m' M)); firstorder; econstructor; eauto.
+  apply (pure_wp_mono _ (IH m' M)); firstorder; econstructor; eauto.
 Qed.
 
 (* A consequence rule that requires inclusion only on reachable final states *)
 
-Lemma pure_wp_consequence_reachable {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
+Lemma pure_wp_mono_reachable {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
   pure_wp m φ ψ →
   (∀ a, rtc may m (ret a) → φ a → φ' a) →
   (∀ e, rtc may m (throw e) → ψ e → ψ' e) →
   pure_wp m φ' ψ'.
 Proof.
   intros P%pure_wp_strengthen_reachable Hv He.
-  apply (pure_wp_consequence _ P); firstorder.
+  apply (pure_wp_mono _ P); firstorder.
 Qed.
 
 
@@ -496,7 +496,7 @@ Lemma pure_wp_bind {A' A E φ ψ} m (k : A → micro A' E) :
   pure_wp (bind m k) φ ψ.
 Proof.
   rewrite bind_as_try2. intros. eapply pure_wp_try2; eauto.
-  eapply pure_wp_consequence; eauto.
+  eapply pure_wp_mono; eauto.
   intros e. rewrite discontinue_glue2. by constructor.
 Qed.
 
@@ -512,7 +512,7 @@ Lemma pure_wp_bind_compat {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A'
   (∀ a, φ a → pure_wp (k a) φ' ψ) →
   pure_wp (bind m k) φ' ψ.
 Proof.
-  intros. eapply pure_wp_bind, pure_wp_consequence_ret; eauto.
+  intros. eapply pure_wp_bind, pure_wp_mono_ret; eauto.
 Qed.
 
 
@@ -546,6 +546,21 @@ Proof.
       intros f m'f F. apply HF; auto; econstructor; eauto.
 Qed.
 
+Lemma pure_wp_long_steps_ret_throw {A E} {φ : A → Prop} {ψ : E → Prop} m :
+  pure_wp m φ ψ ↔
+  sn may m ∧ (∀ a, rtc may m (ret a) → φ a)
+           ∧ (∀ e, rtc may m (throw e) → ψ e)
+           ∧ ¬rtc may m crash.
+Proof.
+  rewrite pure_wp_long_steps.
+  split; intros [S L]; split; auto.
+  - split; [|split].
+    + intros a M. apply (invert_pure_wp_ret _ _ _ (L _ M I)).
+    + intros e M. apply (invert_pure_wp_throw _ _ _ (L _ M I)).
+    + intros M.   apply (invert_pure_wp_crash _ _ (L _ M I)).
+  - intros [] Hm []; constructor; firstorder.
+Qed.
+
 (* [pure_wp_exists_path] implies e.g. [pure_wp m (λ _, P) (λ _, P) → P] *)
 
 Lemma pure_wp_exists_path {A E} {φ : A → Prop} {ψ : E → Prop} m :
@@ -568,6 +583,17 @@ Proof.
   - apply invert_pure_wp_ret in W; eauto.
   - apply invert_pure_wp_throw in W; eauto.
   - apply invert_pure_wp_crash in W; tauto.
+Qed.
+
+Lemma pure_wp_sequentialize {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ1 φ2 :
+  pure_wp m1 (λ a1, pure_wp m2 (λ a2, φ1 a1 ∧ φ2 a2) (λ _, False)) (λ _, False) →
+  pure_wp m1 φ1 (λ _, False) ∧ pure_wp m2 φ2 (λ _, False).
+Proof.
+  intros Hm1. split.
+  - apply (pure_wp_mono_ret _ Hm1).
+    intros a1 []%pure_wp_exists_ret_or_throw; firstorder.
+  - destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & M & Hm2)| ]; firstorder.
+    eapply (pure_wp_mono_ret _ Hm2). firstorder.
 Qed.
 
 
@@ -628,6 +654,17 @@ Proof.
     + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_wp_crash; eauto.
 Qed.
 
+(* simpler version disallowing exceptions *)
+Lemma pure_wp_par_compat_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
+  (k : outcome2 (A1 * A2) E' → micro A E) :
+  pure_wp m1 φ1 (λ _, False) →
+  pure_wp m2 φ2 (λ _, False) →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → pure_wp (continue k (a1, a2)) φ (λ _, False)) →
+  pure_wp (Par m1 m2 k) φ (λ _, False).
+Proof.
+  intros; eapply pure_wp_par_compat; eauto; tauto.
+Qed.
+
 (* [pure_wp] preserved by [Par], stated by giving [m1] a [pure_wp m2]
 postcondition and [m2] a [pure_wp m1] postcondition. In other words, in a pure
 setting, proving correct a parallel computation of [m1] and [m2] is the same as
@@ -671,11 +708,11 @@ Proof.
     + destruct M as (m1' & M1 & ->). eapply (IH (m1', m2)); auto.
       * constructor; apply M1.
       * eauto using pure_wp_may_forward.
-      * eapply pure_wp_consequence_ret; eauto.
+      * eapply pure_wp_mono_ret; eauto.
         intros; eapply pure_wp_may_forward; eauto; eauto.
     + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto.
       * constructor; apply M2.
-      * eapply pure_wp_consequence_ret; eauto.
+      * eapply pure_wp_mono_ret; eauto.
         intros; eapply pure_wp_may_forward; eauto; eauto.
       * eauto using pure_wp_may_forward.
     + destruct M as (e1 & -> & ->). apply invert_pure_wp_throw in H1; eauto.
@@ -704,7 +741,7 @@ Proof.
   assert (H2 : pure_wp m2 (λ _, True) (λ e, pure_wp (discontinue k e) φ ψ)). {
     apply pure_wp_exists_ret_or_throw in H1.
     destruct H1 as [(a & _ & P) | (e & _ & [])].
-    eapply pure_wp_consequence; eauto.
+    eapply pure_wp_mono; eauto.
   }
   pose proof either_Acc _ _ _ _ (pure_wp_sn _ H1) (pure_wp_sn _ H2) as SN.
   remember (m1, m2) as p.
@@ -727,7 +764,7 @@ Proof.
       * eauto using pure_wp_may_forward.
     + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto.
       * constructor; apply M2.
-      * eapply pure_wp_consequence_ret; eauto.
+      * eapply pure_wp_mono_ret; eauto.
         intros; eapply pure_wp_may_forward; eauto; eauto.
       * eauto using pure_wp_may_forward.
     + destruct M as (e1 & -> & ->). apply invert_pure_wp_throw in H1; tauto.
@@ -750,8 +787,8 @@ Lemma pure_wp_par_vals_left {A E A1 A2 E'} m1 m2 φ
 Proof.
   intros H1.
   apply pure_wp_par_val_left.
-  eapply pure_wp_consequence; eauto. simpl. intros.
-  eapply pure_wp_consequence; firstorder eauto.
+  eapply pure_wp_mono; eauto. simpl. intros.
+  eapply pure_wp_mono; firstorder eauto.
 Qed.
 
 
@@ -789,7 +826,7 @@ Lemma pure_wp_choose {A E φ ψ} (m1 m2 : micro A E) :
   pure_wp (choose m1 m2) φ ψ.
 Proof.
   intros H1 H2.
-  apply pure_wp_Choose; eapply pure_wp_try2; eapply pure_wp_consequence; eauto.
+  apply pure_wp_Choose; eapply pure_wp_try2; eapply pure_wp_mono; eauto.
   all: by constructor.
 Qed.
 
@@ -826,7 +863,7 @@ Lemma invert_pure_wp_bind {A1 E B φ ψ} (m : micro A1 E) (k : _ → micro B E) 
 Proof.
   rewrite bind_as_try2.
   intros H%invert_pure_wp_try2.
-  eapply pure_wp_consequence; eauto.
+  eapply pure_wp_mono; eauto.
   by intros ? ?%invert_pure_wp_throw.
 Qed.
 
@@ -974,12 +1011,12 @@ Proof.
     + by apply invert_pure_wp_stop in Hm2.
     + edestruct IHm1 as [IHm1' ->]; eauto. split; auto.
       eapply pure_wp_par. apply IHm1'.
-      eapply pure_wp_consequence_ret; eauto. simpl.
+      eapply pure_wp_mono_ret; eauto. simpl.
       intros a2 Hm1'.
       eapply (IHm1 _ _ _ _ _ Hm1'); eauto.
     + edestruct IHm2 as [IHm2' ->]; eauto. split; auto.
       eapply pure_wp_par. 2: apply IHm2'.
-      eapply pure_wp_consequence_ret; eauto. simpl.
+      eapply pure_wp_mono_ret; eauto. simpl.
       intros a1 Hm2'.
       eapply (IHm2 _ _ _ _ _ Hm2'); eauto.
   - inv Hstep; split; auto; eapply pure_wp_may_forward; eauto with may.
@@ -1027,15 +1064,15 @@ Proof.
   - intros P%invert_pure_wp_try2.
     apply pure_wp_par.
     + by constructor.
-    + eapply pure_wp_consequence_ret; eauto. by constructor.
+    + eapply pure_wp_mono_ret; eauto. by constructor.
   - intros P%invert_pure_wp_try2.
     apply pure_wp_par.
-    + eapply pure_wp_consequence_ret; eauto. by constructor.
+    + eapply pure_wp_mono_ret; eauto. by constructor.
     + by constructor.
   - intros P.
     pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
     pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
-    apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
+    apply pure_wp_par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree *)
     intros P. apply pure_wp_par; eauto with pure_wp.
   - (* Stop CPerform is impure *)
@@ -1060,7 +1097,7 @@ Proof.
   - intros P.
     pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
     pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
-    apply pure_wp_par; eapply pure_wp_consequence_ret; eauto; firstorder eauto.
+    apply pure_wp_par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree uses only one hyp *)
     by intros P%invert_pure_wp_par_left%IHS1%invert_pure_wp_throw.
   - intros []%invert_pure_wp_stop.
@@ -1087,7 +1124,7 @@ Lemma pure_wp_binary_intersection {A E φ1 φ2 ψ} (m : micro A E) :
 Proof.
   intros.
   set (post := λ (b : bool), λ a, if b then φ1 a else φ2 a).
-  eapply @pure_wp_consequence with (φ := λ a, ∀ b, post b a) (ψ := ψ).
+  eapply @pure_wp_mono with (φ := λ a, ∀ b, post b a) (ψ := ψ).
   { eapply pure_wp_intersection.
     intros b. destruct b; unfold post; assumption. }
   { intros a Hpost. split.
@@ -1099,38 +1136,81 @@ Qed.
 
 (** Compatibility with [widen] *)
 
-Lemma pure_wp_widen {A E} (m : micro A void) φ ψ ψ' :
+Lemma pure_wp_widen {A E} (m : micro A void) φ ψ :
+  pure_wp m φ (λ _, False) → pure_wp (E := E) (widen m) φ ψ.
+Proof.
+  unfold widen.
+  intros P. apply pure_wp_try2, (pure_wp_mono _ P); try intros [].
+  by constructor.
+Qed.
+
+Lemma pure_wp_widen' {A E} (m : micro A void) φ ψ ψ' :
   pure_wp (E := E) (widen m) φ ψ ↔ pure_wp m φ ψ'.
 Proof.
   unfold widen; split.
-  - intros P%invert_pure_wp_try2. eapply (pure_wp_consequence _ P); try intros [].
+  - intros P%invert_pure_wp_try2. eapply (pure_wp_mono _ P); try intros [].
     by intros a ?%invert_pure_wp_ret.
-  - intros P. apply pure_wp_try2, (pure_wp_consequence _ P); try intros [].
+  - intros P. apply pure_wp_try2, (pure_wp_mono _ P); try intros [].
     by constructor.
 Qed.
 
+Lemma pure_wp_evals η es φs ψ :
+  Forall2 (λ e φ, pure_wp (eval η e) φ ψ) es φs →
+  pure_wp (evals η es) (Forall2 id φs) ψ.
+Proof.
+  revert φs.
+  induction es as [ | e es IHes]; intros φs' Hes.
+  - simpl_evals. constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (φ & φs & He & Hes & ->).
+    simpl_evals.
+    eapply pure_wp_par_compat.
+    + apply He.
+    + apply IHes, Hes.
+    + intros v vs Hv Hvs. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
 
-(** Encode compatibility *)
 
-Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
+(** Hoare reasoning rules, no encode *)
 
-Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
-  pure_wp m (encode_pred φ) ψ.
-
-Notation "m 'returns' v" := (pure_wp m (Logic.eq v) (λ _, False)) (at level 0).
-
-
-(** Hoare reasoning rules *)
-
-Lemma pure_wp_val {A E} (a : A) ψ : pure_wp (E := E) (ret a) (Logic.eq a) ψ.
+Lemma pure_wp_val {A E} a : @pure_wp A E (ret a) (λ b, b = a) (λ _, False).
 Proof.
   by constructor.
 Qed.
 
-Lemma simp_check_div_by_zero z :
+(* A reasoning rule for ret that can instantiate the goal when it is an evar *)
+Lemma pure_wp_ret_eq {A E} (a : A) : pure_wp (ret a) (λ a', a' = a) (λ _ : E, False).
+Proof.
+  by apply pure_wp_ret.
+Qed.
+
+Lemma pure_wp_ifthenelse η e e1 e2 φ ψ :
+  pure_wp (eval η e) (λ v, ∃ b : bool, v = #b ∧ pure_wp (eval η (if b then e1 else e2)) φ ψ) ψ →
+  pure_wp (eval η (EIfThenElse e e1 e2)) φ ψ.
+Proof.
+  simpl.
+  intros He. simpl_eval.
+  eapply pure_wp_bind, pure_wp_bind, (pure_wp_mono _ He); auto.
+  intros _v ([] & -> & H); apply pure_wp_ret, H.
+Qed.
+
+Lemma pure_wp_assert η e ψ :
+  pure_wp (eval η e) (λ v, v = #true) ψ →
+  pure_wp (eval η (EAssert e)) (λ v, v = #()) ψ.
+Proof.
+  intros He. simpl_eval.
+  apply pure_wp_choose. by apply pure_wp_ret.
+  apply pure_wp_bind, pure_wp_bind.
+  apply (pure_wp_mono _ He); auto.
+  intros _ ->.
+  repeat econstructor.
+Qed.
+
+Lemma pure_wp_check_div_by_zero z :
   representable z →
   (z ≠ 0)%Z →
-  (check_div_by_zero (repr z)) returns ().
+  pure_wp (check_div_by_zero (repr z)) (λ v, v = ()) (λ _, False).
 Proof.
   intros.
   unfold check_div_by_zero.
@@ -1149,7 +1229,19 @@ Proof.
   eauto using pure_wp_bind.
 Qed.
 
-Lemma pure_wp_as_bool m φ ψ :
+(** Encode compatibility *)
+
+Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
+
+Definition pure_wp_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
+  pure_wp m (encode_pred φ) ψ.
+
+Notation "m 'returns' v" := (pure_wp m (λ a, a = v) (λ _, False)) (at level 10).
+
+
+(** Hoare reasoning rules, with encode *)
+
+Lemma pure_wp_as_bool (m : microvx) (φ : bool → Prop) ψ :
   pure_wp_encode m φ ψ →
   pure_wp (as_bool m) φ ψ.
 Proof.
@@ -1169,61 +1261,4 @@ Proof.
   simpl_eval.
   eapply pure_wp_bind_compat. apply pure_wp_as_bool. apply Hb.
   intros []; auto.
-Qed.
-
-Lemma pure_wp_assert η e :
-  pure_wp (eval η e) (λ v, v = #True) (λ _, False) →
-  pure_wp (eval η (EAssert e)) (λ v, v = #()) (λ _, False).
-Proof.
-  intros He. simpl_eval.
-  apply pure_wp_choose. by apply pure_wp_ret.
-  apply pure_wp_bind. apply pure_wp_as_bool.
-  apply (pure_wp_consequence_ret _ He).
-  intros _ ->. exists true.
-  unfold encode, Encode_Prop, Encode_bool.
-  rewrite truth_True.
-  repeat constructor.
-Qed.
-
-(* TODO later, move the following to [program_logic] *)
-
-(** [pure_wp] implies [ewp] *)
-
-From iris.proofmode Require Import proofmode.
-From osiris.program_logic Require Import ewp tactics.
-Import ewp_rules_tactics.
-
-Lemma pure_wp_ewp `{!osirisGS Σ} {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
-  pure_wp m φ ψ →
-  ⊢ EWP m @ E' <| Ψ |> {{ | RET a => ⌜φ a⌝; | EXN e => ⌜ψ e⌝ }}.
-Proof.
-  iIntros (Hm).
-  iLöb as "IH" forall (m Hm).
-  iApply ewp_unfold; rewrite /ewp_pre /=.
-
-  destruct (is_handleable m) as [ h | ] eqn:R.
-  - (* [m] is handleable *)
-    destruct h as [ a | e | eff f ].
-    + (* [ret]'s satisfy [φ] *)
-      destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
-      by eapply invert_pure_wp_ret in Hm.
-    + (* [throw]'s satisfy [ψ] *)
-      destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
-      by eapply invert_pure_wp_throw in Hm.
-    + (* [perform]'s are not immediately pure *)
-      destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
-      by apply invert_pure_wp_stop in Hm.
-
-  - (* [m] is not handleable *)
-    intro_state.
-    ewp_mask_intro "Hmod".
-    iSplit.
-    + (* so [m] can step because it is [pure_wp] *)
-      destruct (pure_wp_progress m Hm) as [(a, ->)|[(e, ->)|]]; auto; discriminate.
-    + (* and no step can change [σ] or escape [pure_wp] *)
-      intro_step.
-      ewp_cleanup_mod. ewp_mask_elim.
-      destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
-      iFrame.
-      by iApply "IH".
 Qed.
