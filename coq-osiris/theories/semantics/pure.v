@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval step simplification pure_wp total.
+From osiris.semantics Require Import code eval step simplification pure_wp.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -8,67 +8,28 @@ From osiris.semantics Require Import code eval step simplification pure_wp total
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
 Definition pure `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
-  totalv m (λ v, ∃ a, v = #a ∧ φ a).
+  pure_wp m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
 
 (* -------------------------------------------------------------------------- *)
 
 (* Inversion tactics. *)
-
-(*
-Ltac destruct_pure a :=
-  match goal with h: pure _ _ |- _ =>
-    destruct h as (a & ? & ?)
-  end.
-*)
 
 Ltac destruct_encode_image a :=
   match goal with h: ∃ _, ?v = #_ ∧ _ |- _ =>
     destruct h as (a & ? & ?); try subst v
   end.
 
-(* -------------------------------------------------------------------------- *)
-
-(* [pure] can also be defined in terms of [totalv] and in terms of [total]. *)
-
-Lemma pure_totalv `{Encode A} {X} (m : micro val X) (φ : A → Prop) :
-  pure m φ ↔
-  totalv m (λ v, ∃ a, v = #a ∧ φ a).
-Proof.
-  reflexivity.
-Qed.
-
-Lemma pure_total `{Encode A} {X} (m : micro val X) (φ : A -> Prop) :
-  pure m φ <->
-  total m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
-Proof.
-  apply pure_totalv.
-Qed.
-
 (* [pure (try _ _ _)] can be expressed in terms of [total]. *)
 
 Lemma total_pure_try {B E E'} `{Encode A} (m : micro B E')
   (k : _ -> micro val E) (ko : E' -> micro val E)  (φ : A -> Prop)
   :
-  total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
+  pure_wp m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
   pure (try m k ko) φ.
 Proof.
-  intros. apply pure_total.
-  eapply total_try; [ eassumption | | ]; firstorder eauto.
+  intros.
+  eapply pure_wp_try_compat; [ eassumption | | ]; firstorder eauto.
 Qed.
-
-(* [pure_try_total] is currently unused *)
-
-(* Lemma pure_try_total {B E} `{Encode A} (m : micro B E) *)
-(*   (k : _ -> micro val A) ko (φ : A -> Prop) : *)
-(*   pure (try m k ko) φ -> *)
-(*   total m (λ v, pure (k v) φ) (λ e, pure (ko e) φ). *)
-(* Proof. *)
-(*   intros Hp. destruct_pure a. *)
-(*   eapply total_consequence. *)
-(*   { eapply invert_simp_try_ret; eassumption. } *)
-(*   { simpl; intros. exists a; tauto. } *)
-(*   { simpl; intros. exists a; tauto. } *)
-(* Qed. *)
 
 
 (* -------------------------------------------------------------------------- *)
@@ -84,7 +45,7 @@ Lemma pure_ret `{Encode A} {X} (φ : A → Prop) v a :
   φ a →
   pure (X := X) (ret v) φ.
 Proof.
-  rewrite pure_totalv. eauto using totalv_ret.
+  unfold pure; eauto using pure_wp_ret.
 Qed.
 
 (* A reasoning rule for ret that can instantiate the goal when it is an evar *)
@@ -104,8 +65,8 @@ Lemma pure_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
   pure (X := X) m ψ.
 Proof.
   (* We could give a direct proof. We go through [totalv]. *)
-  rewrite !pure_totalv. intros. eapply totalv_consequence; [ eauto |].
-  simpl. intros v Hv. destruct_encode_image a. eauto.
+  intros. eapply pure_wp_mono_ret; [ eauto |].
+  firstorder.
 Qed.
 
 (* The simplification rule. *)
@@ -115,7 +76,7 @@ Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
   pure (X := X) m' φ →
   pure (X := X) m φ.
 Proof.
-  rewrite !pure_totalv. eauto using totalv_simp.
+  apply pure_wp_simp.
 Qed.
 
 (* Corollary when simplifying to a return *)
@@ -141,9 +102,8 @@ Lemma pure_try2 A X Y (_ : Encode A) B (_ : Encode B)
   pure (X := Y) (try2 m h) ψ.
 Proof.
   (* We could give a direct proof. We go through [totalv]. *)
-  rewrite !pure_totalv. intros. eapply totalv_try2; [ eauto |].
-  simpl. intros v Hv. destruct_encode_image a.
-  rewrite <- pure_totalv. eauto.
+  intros. eapply pure_wpv_try2_compat; eauto.
+  simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
 
 (* A reasoning rule for [try]; corollary of [pure_try2] *)
@@ -196,13 +156,13 @@ Lemma pure_par `{Encode A1, Encode A2, Encode A} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure (k (#a1, #a2)) φ) →
   pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
-  rewrite !pure_totalv. intros Hm1 Hm2 Hentail. rewrite <- try_par.
-  eapply totalv_try.
-  { eapply totalv_par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
+  intros Hm1 Hm2 Hentail. rewrite <- try_par.
+  eapply pure_wpv_try_compat.
+  { eapply pure_wp__par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
     simpl. intros v1 v2 ? ?.
     destruct_encode_image a2. destruct_encode_image a1.
     eauto. }
-  { intros v. rewrite <- pure_totalv. tauto. }
+  { intros v. tauto. }
 Qed.
 
 Lemma pure_par' `{Encode A1, Encode A2, Encode A} {X Y}
