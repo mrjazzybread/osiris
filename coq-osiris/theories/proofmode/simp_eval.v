@@ -537,47 +537,6 @@ Qed.
 
 (* TODO: lemmas starting with "_" are unused: remove? *)
 
-Lemma _simp_wrap {A E E'} (m : micro A E) (a : A) :
-  simp (try m ret (λ (_ : E), @Crash A E')) (ret a) -> simp m (ret a).
-Proof.
-  intros H.
-  apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
-  { apply destruct_simp_ret in simp_ret_ret.
-    by (injection simp_ret_ret; intros ->). }
-  { apply destruct_simp_crash in simp_crash_ret. (* TODO: rename to invert_simp_crash *)
-    congruence. }
-Qed.
-
-Lemma _simp_widen {A E} (m : micro A void) (a : A) :
-  simp (E := E) (widen m) (ret a) <-> simp m (ret a).
-Proof.
-  split.
-  { intros H.
-    apply invert_simp_try2_ret in H as [(a' & ? & simp_ret_ret) | (? & ? & simp_crash_ret)].
-    { apply destruct_simp_ret in simp_ret_ret.
-      by (injection simp_ret_ret; intros ->). }
-    { done. } }
-  { intros. unfold widen.
-    eapply prove_simp_try; simp. }
-Qed.
-
-Lemma _simp_eval_let_pair `{Encode A1, Encode A2} p1 p2 e1 e2 m
-  (v1 : A1) (v2 : A2) η θ :
-  simp (eval η e1) (ret #(v1, v2)) ->
-  simp (δ ← irrefutably_extend [] p1 #v1;
-        irrefutably_extend δ p2 #v2) (ret θ) ->
-  simp (eval (θ ++ η) e2) m ->
-  simp (eval η (ELet1 (PPair p1 p2) e1 e2)) m.
-Proof.
-  intros. simp; last eassumption.
-  apply invert_simp_bind_ret in H2 as (δ & Hnil & Hext).
-  unfold irrefutably_extend in *.
-  do 2 (eapply prove_simp_try2; last apply SimpReflexive).
-  eapply prove_simp_bind. { eauto using _simp_wrap. }
-  rewrite bind_bind.
-  simpl. rewrite bind_ret_right. eauto using _simp_wrap.
-Qed.
-
 Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),

@@ -59,10 +59,12 @@ Section ewp_rules_expr.
     φ (O2Ret v) -∗
     EWP (widen e : micro A E) @ m <|Ψ|> {{ φ }}.
   Proof.
-    iIntros (?).
-    iIntros "H". iApply ewp_simp.
-    { by apply simp_widen. }
-    by iApply ewp_value.
+    iIntros (He) "H".
+    iApply ewp_mono.
+    { iApply (@pure_wp_ewp _ _ _ _ _ _ _ (λ _, False)).
+      eapply pure_wp_widen, pure_wp_simp. apply He.
+      apply pure_wp_ret_eq. }
+    by iIntros ([|] []).
   Qed.
 
   (* TODO: These should all be [simp]-level lemmas *)
