@@ -12,7 +12,6 @@ From osiris.proofmode Require Import equality notations pure_eval.
    computations. *)
 
 (* -------------------------------------------------------------------------- *)
-
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
   simp ('c ← m;
@@ -136,6 +135,8 @@ Qed.
 
 (* TODO add similar lemmas for other constructs *)
 
+(* TODO on 2024-08-14 the lemmas above are unused *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* This trivial lemma gives the user a chance to prove that the actual
@@ -177,34 +178,23 @@ Proof.
   tauto.
 Qed.
 
-Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
-  pure (
-    let δ := eval_rec_bindings η rbs in
-    let η := δ ++ η in
-    a ← lookup_rec_bindings rbs g ;
-    acall η a v2
-  ) φ ->
-  pure (call (VCloRec η rbs g) v2) φ.
+Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
+  pure (try2 (eval η e) k) φ ->
+  @pure X _ Y (Stop CEval (η, e) k) φ.
 Proof.
-  tauto.
+  intros.
+  eapply pure_simp; [ apply SimpEval | assumption ].
 Qed.
 
-Lemma pure_call_VCloRec `{Encode Y} η rbs g v2 (φ : Y → Prop) :
-  pure (
-    let δ := eval_rec_bindings η rbs in
-    let η := δ ++ η in
-    a ← lookup_rec_bindings rbs g ;
-    acall η a v2
-  ) φ =
+Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :
+  lookup_rec_bindings rbs g = ret (AnonFun x e)  ->
+  pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ->
   pure (call (VCloRec η rbs g) v2) φ.
 Proof.
-  tauto.
-Qed.
-
-Lemma invert_pure_crash `{Encode Y} {X} (φ : Y -> Prop) :
-  pure (X := X) Crash φ -> False.
-Proof.
-  apply invert_pure_wp_crash.
+  intros Hlookup Hpure.
+  simpl; rewrite Hlookup.
+  eapply pure_wp_CEval; rewrite try2_ret_right.
+  done.
 Qed.
 
 Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
@@ -214,15 +204,7 @@ Proof.
   intros Hcall.
   unfold call in Hcall.
   destruct f; simpl in Hcall;
-    ((exfalso; by eapply invert_pure_crash) || eauto).
-Qed.
-
-Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
-  pure (try2 (eval η e) k) φ ->
-  @pure X _ Y (Stop CEval (η, e) k) φ.
-Proof.
-  intros.
-  eapply pure_simp; [ apply SimpEval | assumption ].
+    ((exfalso; by eapply invert_pure_wp_crash) || eauto).
 Qed.
 
 (* - [X] is the type of the argument.
@@ -242,7 +224,7 @@ Proof.
   intros Hwf HPx Hrec.
   generalize dependent a.
   induction x as [x IH] using (well_founded_induction Hwf); intros.
-  simpl; rewrite String.eqb_refl; apply pure_stop_eval; rewrite try2_ret_right.
+  simpl; rewrite String.eqb_refl; apply pure_wp_CEval; rewrite try2_ret_right.
   apply Hrec; [ intros a2 y HR HPy | assumption ].
   apply IH; auto.
 Qed.
@@ -325,7 +307,7 @@ Proof.
   revert HP. generalize a. clear a.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   unfold pure_call2; simpl;
-    rewrite String.eqb_refl; apply pure_stop_eval; rewrite try2_ret_right.
+    rewrite String.eqb_refl; apply pure_wp_CEval; rewrite try2_ret_right.
   apply Hrec; [ intros a2 x2 y2 HR HP2 | rewrite <- surjective_pairing; apply HP ].
   apply (IH (x2, y2)); auto.
   rewrite surjective_pairing; apply HR.

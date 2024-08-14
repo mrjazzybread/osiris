@@ -41,38 +41,6 @@ Proof.
   by constructor; congruence.
 Qed.
 
-(* Helper lemma for primitive arithmetic operations. *)
-
-Lemma pure_wp_if_in_shift_range {A E} z (m : micro A E) φ ψ :
-  in_shift_range z →
-  pure_wp m φ ψ →
-  pure_wp (if_in_shift_range (repr z) m) φ ψ.
-Proof.
-  intros.
-  unfold if_in_shift_range, in_shift_range_b.
-  rewrite signed_repr by eauto using in_shift_range_representable.
-  by rewrite in_shift_range_b_spec.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Reasoning rules for [pure (eval _ _) _], that is,
-   for pure expressions with an arbitrary postcondition. *)
-
-Lemma pure_Eval `{Encode X} η e k (φ : X -> Prop) :
-  pure (try2 (eval η e) k) φ ->
-  pure (X := X) (Stop CEval (η, e) k) φ.
-Proof.
-  apply pure_wp_CEval.
-Qed.
-
-Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
-  pure (eval η e) φ ->
-  pure (Stop CEval (η, e) inject2) φ.
-Proof.
-  apply pure_wp_CEval_inject2.
-Qed.
-
 (* Tuples. *)
 
 (* A special case at arity 2. *)
@@ -548,13 +516,12 @@ Proof.
 Qed.
 
 Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
-  (a1 : A1) (ψ : B → Prop)
-:
-  simp (eval η e1) (ret #a1) →
+  (a1 : A1) (ψ : B → Prop) :
+  pure (eval η e1) (λ x, x = a1) →
   pure (eval ((x, #a1) :: η) e) ψ →
   pure (eval η (ELet1Var x e1 e)) ψ.
 Proof.
-  intros He1%pure_simp_ret He2.
+  intros He1 He2.
   eapply pure_eval_let; eauto.
   congruence.
 Qed.
@@ -788,16 +755,6 @@ Proof.
   - intros _ (P & -> & HP).
     unfold encode, Encode_bool, Encode_Prop. by rewrite truth_true.
   - intros _ ->. eauto.
-Qed.
-
-Lemma simp_pure_eval_assert η e :
-  simp (eval η e) (ret #True) →
-  pure (eval η (EAssert e)) (λ (_ : unit), True).
-Proof.
-  intros He%pure_simp_ret.
-  apply pure_eval_assert_Prop.
-  apply (pure_wp_mono_ret _ He).
-  intros _ (V & -> & ->). eauto.
 Qed.
 
 (* Sequencing of pure computations. *)

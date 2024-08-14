@@ -1384,6 +1384,14 @@ Proof.
   repeat econstructor.
 Qed.
 
+Lemma pure_wp_seq φ ψ η e1 e2 :
+  pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
+  pure_wp (eval η (ESeq e1 e2)) φ ψ.
+Proof.
+  simpl_eval.
+  eauto using pure_wp_bind.
+Qed.
+
 (* If [z] is representable and [z ≠ 0] then the runtime check
    performed by [check_div_by_zero (repr z)] must succeed. *)
 
@@ -1401,12 +1409,17 @@ Proof.
   { apply pure_wp_val. }
 Qed.
 
-Lemma pure_wp_seq φ ψ η e1 e2 :
-  pure_wp (eval η e1) (λ _, pure_wp (eval η e2) φ ψ) ψ →
-  pure_wp (eval η (ESeq e1 e2)) φ ψ.
+(* Helper lemma for primitive arithmetic operations. *)
+
+Lemma pure_wp_if_in_shift_range {A E} z (m : micro A E) φ ψ :
+  in_shift_range z →
+  pure_wp m φ ψ →
+  pure_wp (if_in_shift_range (repr z) m) φ ψ.
 Proof.
-  simpl_eval.
-  eauto using pure_wp_bind.
+  intros.
+  unfold if_in_shift_range, in_shift_range_b.
+  rewrite signed_repr by eauto using in_shift_range_representable.
+  by rewrite in_shift_range_b_spec.
 Qed.
 
 (** Encode compatibility *)
