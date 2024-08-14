@@ -349,6 +349,7 @@ Global Hint Constructors pure_wp : pure_wp.
 (* Definition disallowing exceptions *)
 Definition pure_wpv {A E} (m : micro A E) φ := pure_wp m φ (λ _, False).
 
+
 (** [pure_wp] is monotonic *)
 
 Lemma pure_wp_mono {A E} {φ φ' ψ ψ' : _ → Prop} (m : micro A E) :
@@ -368,6 +369,21 @@ Lemma pure_wp_mono_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
 Proof.
   induction 1; constructor; auto.
 Qed.
+
+Lemma pure_wpv_mono {A E} {φ φ' : _ → Prop} (m : micro A E) :
+  pure_wpv m φ → (∀ a, φ a → φ' a) → pure_wpv m φ'.
+Proof.
+  apply pure_wp_mono_ret.
+Qed.
+
+(* Often, the exceptional postcondition is not syntactically [λ _, False]
+because it is wrapped in a continuation *)
+Lemma pure_wpv_mono' {A E} {φ φ' ψ : _ → Prop} (m : micro A E) :
+  pure_wpv m φ → (∀ a, φ a → φ' a) → pure_wp m φ' ψ.
+Proof.
+  intros; eapply pure_wp_mono; eauto. intros _ [].
+Qed.
+
 
 
 (* Postconditions can be strengthened since final states must be reachable *)
@@ -877,6 +893,19 @@ Proof.
   eapply pure_wp_mono; firstorder eauto.
 Qed.
 
+(* The binary/compat style is common *)
+
+Lemma pure_wpv_Par_left_compat {A E A1 A2 E' m1 m2 φ φ1}
+  {k : outcome2 (A1 * A2) E' → micro A E} :
+  pure_wpv m1 φ1 →
+  (∀ a1, φ1 a1 → pure_wpv m2 (λ a2, pure_wpv (continue k (a1, a2)) φ)) →
+  pure_wpv (Par m1 m2 k) φ.
+Proof.
+  intros H1 H2.
+  apply pure_wp_par_vals_left.
+  eapply pure_wp_mono; eauto.
+Qed.
+
 
 (** [pure_wp] is preserved by [Handle] and [Choose] *)
 
@@ -1240,6 +1269,30 @@ Proof.
     by constructor.
 Qed.
 
+(* Stepping through Stop CEval *)
+
+Lemma pure_wp_CEval {A E η e k} (φ : A → Prop) (ψ : E → Prop) :
+  pure_wp (try2 (eval η e) k) φ ψ →
+  pure_wp (Stop CEval (η, e) k) φ ψ.
+Proof.
+  intros. eapply pure_wp_det_may_backward; eauto. repeat constructor.
+  by intros m' ->%invert_may_eval.
+Qed.
+
+Lemma pure_wp_CEval_inject2 {η e φ ψ} :
+  pure_wp (eval η e) φ ψ →
+  pure_wp (Stop CEval (η, e) inject2) φ ψ.
+Proof.
+  intros He. apply pure_wp_CEval, pure_wp_try2.
+  apply (pure_wp_mono _ He); eauto using pure_wp_ret, pure_wp_throw.
+Qed.
+
+
+(** Evaluating tuples, or several expressions in parallel *)
+
+(* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
+   analogous to [pats]. *)
+
 Lemma pure_wp_evals η es φs ψ :
   Forall2 (λ e φ, pure_wp (eval η e) φ ψ) es φs →
   pure_wp (evals η es) (Forall2 id φs) ψ.
@@ -1255,6 +1308,44 @@ Proof.
     + apply IHes, Hes.
     + intros v vs Hv Hvs. repeat constructor; eauto.
     + intros exn []; repeat constructor; eauto.
+Qed.
+
+(* The following [_eq] versions should be simpler to use in cases we know the
+final values *)
+
+Lemma pure_wp_evals_eq η es vs ψ :
+  Forall2 (λ e v, pure_wp (eval η e) (λ x, x = v) ψ) es vs →
+  pure_wp (evals η es) (λ x, x = vs) ψ.
+Proof.
+  revert vs.
+  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
+  - constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (v & vs & He & Hes & ->).
+    eapply pure_wp_par_compat.
+    + apply He.
+    + apply IHes, Hes.
+    + intros _ _ -> ->. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
+Lemma pure_wp_eval_tuple η es φs ψ :
+  Forall2 (λ e φ, pure_wp (eval η e) φ ψ) es φs →
+  pure_wp (eval η (ETuple es)) (λ x, ∃ vs, x = VTuple vs ∧ Forall2 id φs vs) ψ.
+Proof.
+  intros H%pure_wp_evals. simpl_eval.
+  apply pure_wp_bind.
+  apply (pure_wp_mono_ret _ H).
+  eauto using pure_wp_ret.
+Qed.
+
+Lemma pure_wp_eval_tuple_eq η es vs ψ :
+  Forall2 (λ e v, pure_wp (eval η e) (λ x, x = v) ψ) es vs →
+  pure_wp (eval η (ETuple es)) (λ x, x = VTuple vs) ψ.
+Proof.
+  intros H%pure_wp_evals_eq. simpl_eval.
+  apply pure_wp_bind.
+  apply (pure_wp_mono_ret _ H). intros; apply pure_wp_ret; congruence.
 Qed.
 
 
@@ -1292,6 +1383,9 @@ Proof.
   intros _ ->.
   repeat econstructor.
 Qed.
+
+(* If [z] is representable and [z ≠ 0] then the runtime check
+   performed by [check_div_by_zero (repr z)] must succeed. *)
 
 Lemma pure_wp_check_div_by_zero z :
   representable z →

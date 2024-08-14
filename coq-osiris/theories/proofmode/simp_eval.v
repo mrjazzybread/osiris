@@ -3,30 +3,6 @@ From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import simp_tactics.
 
-(* -------------------------------------------------------------------------- *)
-
-(* If [z] is representable and [z ≠ 0] then the runtime check
-   performed by [check_div_by_zero (repr z)] must succeed. *)
-
-Lemma pure_wp_check_div_by_zero z :
-  representable z →
-  z ≠ 0 →
-  pure_wp (check_div_by_zero (repr z)) (λ _ : (), True) (λ _, False).
-Proof.
-  intros.
-  unfold check_div_by_zero.
-  change int.zero with (repr 0).
-  rewrite eq_repr_repr by representable.
-  case_eq (z =? 0); [ rewrite Z.eqb_eq | rewrite Z.eqb_neq ]; intro.
-  { tauto. }
-  { apply pure_wp_ret; auto. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Reasoning rules for [pure_wpv (eval _ _) (λ x, x = v)], that is, for pure
-   expressions that deterministically return a the value v. *)
-
 (* Paths. *)
 
 Lemma pure_wp_eval_path η π v :
@@ -38,43 +14,9 @@ Qed.
 
 (* Tuples. *)
 
-(* This lemma is general. *)
-
-(* TODO avoid [Forall2] just by showing nil and cons lemmas;
-   offer tactic analogous to [pats]. *)
-
-Lemma pure_wp_evals η es vs :
-  Forall2 (λ e v, pure_wpv (eval η e) (λ x, x = v)) es vs →
-  pure_wpv (evals η es) (λ x, x = vs).
-Proof.
-  revert vs.
-  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
-  - constructor; inv Hes; auto.
-  - apply Forall2_cons_inv_l in Hes. simpl.
-    destruct Hes as (v & vs & He & Hes & ->).
-    eapply pure_wp_par_compat.
-    + apply He.
-    + apply IHes, Hes.
-    + intros _ _ -> ->. repeat constructor; eauto.
-    + intros exn []; repeat constructor; eauto.
-Qed.
-
-(* This lemma is general but does not mention the encoding function,
-   because we do not currently have a general definition of the
-   encoding of n-tuples. *)
-
 (* TODO can we give a generic definition of the encoding of n-tuples? *)
-Lemma pure_wp_eval_tuple η es vs :
-  Forall2 (λ e v, pure_wpv (eval η e) (λ x, x = v)) es vs →
-  pure_wpv (eval η (ETuple es)) (λ x, x = VTuple vs).
-Proof.
-  intros H%pure_wp_evals. simpl_eval.
-  apply pure_wp_bind.
-  apply (pure_wp_mono_ret _ H). intros; apply pure_wp_ret; congruence.
-Qed.
 
 (* This special case at arity 2 does mention the encoding function. *)
-
 (* TODO can we give a similar lemma at arity [n]? *)
 
 Lemma pure_wp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
@@ -121,14 +63,14 @@ Lemma pure_Eval `{Encode X} η e k (φ : X -> Prop) :
   pure (try2 (eval η e) k) φ ->
   pure (X := X) (Stop CEval (η, e) k) φ.
 Proof.
-  intros. eapply pure_simp; [ simp | eauto ].
+  apply pure_wp_CEval.
 Qed.
 
 Lemma pure_EvalRetThrow `{Encode X} η e (φ : X -> Prop) :
   pure (eval η e) φ ->
   pure (Stop CEval (η, e) inject2) φ.
 Proof.
-  intros. eapply pure_simp; [ simp | eauto ].
+  apply pure_wp_CEval_inject2.
 Qed.
 
 (* Tuples. *)
@@ -141,11 +83,9 @@ Lemma pure_eval_pair `{Encode A1, Encode A2} η e1 e2 (ψ : A1 * A2 → Prop) :
   pure (eval η e1) (λ a1 : A1, pure (eval η e2) (λ a2 : A2, ψ (a1, a2))) →
   pure (eval η (EPair e1 e2)) ψ.
 Proof.
-  intros He1. simpl_eval.
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He1). intros ? (a1 & -> & He2).
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He2). intros ? (a2 & -> & Hψ).
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
   repeat apply pure_wp_ret.
   eauto with encode.
 Qed.
@@ -157,13 +97,28 @@ Lemma pure_eval_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 *
                     ψ (a1, a2, a3)))) ->
   pure (eval η (ETuple [e1; e2; e3])) ψ.
 Proof.
-  intros He1. simpl_eval.
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He1). intros ? (a1 & -> & He2).
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He2). intros ? (a2 & -> & He3).
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He3). intros ? (a3 & -> & Hψ).
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  repeat apply pure_wp_ret.
+  eauto with encode.
+Qed.
+
+Lemma pure_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4} (η : env) (e1 e2 e3 e4 : expr)
+  (ψ : A1 * A2 * A3 * A4 → Prop) :
+  pure (eval η e1) (λ a1 : A1,
+        pure (eval η e2) (λ a2 : A2,
+              pure (eval η e3) (λ a3 : A3,
+                    pure (eval η e4) (λ a4 : A4,
+                          ψ (a1, a2, a3, a4))))) ->
+  pure (eval η (ETuple [e1; e2; e3; e4])) ψ.
+Proof.
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
   repeat apply pure_wp_ret.
   eauto with encode.
 Qed.
@@ -172,11 +127,9 @@ Lemma pure_eval_pair_val η e1 e2 (ψ : val → Prop) :
   pure (eval η e1) (λ a1 : val, pure (eval η e2) (λ a2 : val, ψ (VPair a1 a2))) →
   pure (eval η (EPair e1 e2)) ψ.
 Proof.
-  intros He1. simpl_eval.
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He1). intros ? (a1 & -> & He2).
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He2). intros ? (a2 & -> & Hψ).
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
   repeat apply pure_wp_ret.
   eauto.
 Qed.
@@ -189,12 +142,9 @@ Lemma pure_eval_pair_conseq `{Encode A1, Encode A2} η e1 e2
   (∀ a1 a2, φ1 a1 → φ2 a2 → ψ (a1, a2)) →
   pure (eval η (EPair e1 e2)) ψ.
 Proof.
-  intros He1 He2 Hψ.
-  simpl_eval.
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He1). intros ? (a1 & -> & Ha1).
-  apply pure_wp_par_vals_left.
-  eapply (pure_wp_mono_ret _ He2). intros ? (a2 & -> & Ha2).
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_compat; eauto. intros ? (? & -> & ?).
   repeat apply pure_wp_ret. eauto with encode.
 Qed.
 
@@ -935,12 +885,6 @@ Proof.
   eapply pure_ret; eauto; auto.
 Qed.
 
-(* TODO 02/15/23 - Should this live elsewhere? *)
-Local Ltac destruct_hyp :=
-  match goal with
-  | H : _ /\ _ |- _ => destruct H
-  end.
-
 Class CRel1 {A : Type} (X : Type) `{Encode A, Encode X}
   (c : string) (C : A -> X) := { }.
 
@@ -1018,4 +962,3 @@ Proof.
   repeat apply pure_wp_ret || apply pure_wp_bind.
   eauto.
 Qed.
-

@@ -500,22 +500,6 @@ Proof.
   intros. rewrite Z.ltb_ge. lia.
 Qed.
 
-Lemma pure_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4} (η : env) (e1 e2 e3 e4 : expr)
-  (ψ : A1 * A2 * A3 * A4 → Prop) :
-  pure (eval η e1) (λ a1 : A1,
-        pure (eval η e2) (λ a2 : A2,
-              pure (eval η e3) (λ a3 : A3,
-                    pure (eval η e4) (λ a4 : A4,
-                          ψ (a1, a2, a3, a4))))) ->
-  pure (eval η (ETuple [e1; e2; e3; e4])) ψ.
-Proof.
-  intros.
-Admitted. (*
-  repeat (let h := fresh in destruct_pure h).
-  eapply pure_simp; [ simp | ]. pure_ret. assumption.
-Qed.
-*)
-
 Ltac pattern_hook ::=
   first
     [ pat_pRoot; intros
