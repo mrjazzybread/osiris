@@ -1,8 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import equality.
-From osiris.proofmode Require Import simp_eval notations.
+From osiris.proofmode Require Import equality notations pure_eval.
 
 (* Because the relation [pure_wp] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
@@ -70,7 +69,7 @@ Qed.
 
 (* Variants of the Bind rule. *)
 
-(* [pure_bind_as_bool] is already in [simp_eval.v] but it is useful there *)
+(* [pure_bind_as_bool] is already in [pure_eval.v] but it is useful there *)
 
 (* [bind] composed with [as_int]. *)
 

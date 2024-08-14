@@ -2,7 +2,7 @@ From osiris.proofmode Require Export
   equality
   simp_tactics
   pure_hoare
-  simp_eval
+  pure_eval
   pat
   pure_tactics
   ewp_tactics
