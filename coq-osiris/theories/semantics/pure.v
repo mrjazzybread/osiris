@@ -12,25 +12,12 @@ Definition pure `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Inversion tactics. *)
+(* Inversion tactic. *)
 
 Ltac destruct_encode_image a :=
   match goal with h: ∃ _, ?v = #_ ∧ _ |- _ =>
     destruct h as (a & ? & ?); try subst v
   end.
-
-(* [pure (try _ _ _)] can be expressed in terms of [total]. *)
-
-Lemma total_pure_try {B E E'} `{Encode A} (m : micro B E')
-  (k : _ -> micro val E) (ko : E' -> micro val E)  (φ : A -> Prop)
-  :
-  pure_wp m (λ v, pure (k v) φ) (λ e, pure (ko e) φ) ->
-  pure (try m k ko) φ.
-Proof.
-  intros.
-  eapply pure_wp_try_compat; [ eassumption | | ]; firstorder eauto.
-Qed.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -64,30 +51,9 @@ Lemma pure_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
   (∀ a, φ a → ψ a) →
   pure (X := X) m ψ.
 Proof.
-  (* We could give a direct proof. We go through [totalv]. *)
   intros. eapply pure_wp_mono_ret; [ eauto |].
   firstorder.
 Qed.
-
-(* The simplification rule. *)
-
-Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
-  simp m m' →
-  pure (X := X) m' φ →
-  pure (X := X) m φ.
-Proof.
-  apply pure_wp_simp.
-Qed.
-
-(* Corollary when simplifying to a return *)
-
-Lemma pure_simp_ret `{Encode A} {X : Type} (m : micro val X) (a : A) :
-  simp m (ret #a) → pure m (λ a', a' = a).
-Proof.
-  intros. eapply pure_simp; eauto.
-  eapply pure_ret; eauto.
-Qed.
-
 
 (* A reasoning rule for [try2]. *)
 
@@ -101,7 +67,6 @@ Lemma pure_try2 A X Y (_ : Encode A) B (_ : Encode B)
   (∀ a, φ a → pure (continue h #a) ψ) →
   pure (X := Y) (try2 m h) ψ.
 Proof.
-  (* We could give a direct proof. We go through [totalv]. *)
   intros. eapply pure_wpv_try2_compat; eauto.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
@@ -178,7 +143,7 @@ Qed.
 
 (* Sequentializations of previous lemmas, considering the LHS first *)
 
-(* TODO: I do not seem to be able to use those, for example in simp_eval.v's
+(* TODO: I do not seem to be able to use those, for example in pure_eval.v's
 [pure_eval_pair] *)
 
 Lemma pure_par_seq `{Encode A1, Encode A2, Encode A} {X Y}

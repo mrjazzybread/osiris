@@ -14,15 +14,14 @@ From osiris.proofmode Require Import equality notations pure_eval.
 (* -------------------------------------------------------------------------- *)
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
-  simp ('c ← m;
-        f c) (ret #a) ->
+  pure ('c ← m;
+        f c) (λ x, x = #a) ->
   pure (g #a) φ ->
   pure (X := E) ('v1 ← m;
         'v2 ← f v1;
         g v2) φ.
 Proof.
-  (* TODO should we really have [simp] as hypothesis? *)
-  eintros Hfm%pure_simp_ret Hga.
+  intros Hfm Hga.
   apply invert_pure_wp_bind in Hfm.
   eapply pure_wp_bind_compat; eauto. simpl.
   intros a' Ha'.
@@ -183,7 +182,7 @@ Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
   @pure X _ Y (Stop CEval (η, e) k) φ.
 Proof.
   intros.
-  eapply pure_simp; [ apply SimpEval | assumption ].
+  eapply pure_wp_simp; [ apply SimpEval | assumption ].
 Qed.
 
 Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :

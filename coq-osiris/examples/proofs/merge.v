@@ -198,7 +198,7 @@ Proof.
   simpl. intros merge x1 y1 IH [l3 l4] (-> & -> & Hpre). fold eval.
   abstract_env.
   (* FIXME: rule for pure_eval_EAnonFun is incorrect. *)
-  eapply pure_simp; [ simp | ]. pure_ret.
+  pure_simp.
   pure_enter. abstract_env.
 
   eapply pure_eval_match.

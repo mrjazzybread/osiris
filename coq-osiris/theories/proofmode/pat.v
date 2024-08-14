@@ -477,7 +477,7 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
 Proof.
   unfold pure_match; unfold pattern.
   intros; simpl_deep_eval_match.
-  by apply total_pure_try.
+  apply pure_wp_try; auto.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :

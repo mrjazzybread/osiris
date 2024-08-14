@@ -277,11 +277,11 @@ Lemma pure_eval_tuple `{Encode A} η es a vs (ψ : A -> Prop)  :
 Proof.
   intros Hevals Henc Hψ.
   ltac1:(simpl_eval).
-  eapply pure_simp.
+  eapply pure_wp_simp.
   eapply prove_simp_bind.
   - apply prove_evals. apply Hevals.
   - apply SimpReflexive.
-  - pure_ret. assumption.
+  - apply pure_wp_ret. eauto.
 Qed.
 
 Ltac2 rec unfold_Forall2 () :=
@@ -396,6 +396,10 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
 
 (* [pure_simp] expects a goal of the form [pure m φ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ]. *)
+
+Local Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
+  simp m m' → pure (X := X) m' φ → pure (X := X) m φ.
+Proof. apply pure_wp_simp. Qed.
 
 Ltac2 pure_simp () :=
   eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
