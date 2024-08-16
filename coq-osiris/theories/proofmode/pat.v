@@ -535,35 +535,35 @@ Ltac2 Notation tauto := tauto0 ().
 
 (* Lemmas to help prune pattern no_match hypotheses. *)
 
-Local Lemma false_or_r P :
+Lemma false_or_r P :
   P ∨ False <-> P.
 Proof. tauto. Qed.
 
-Local Lemma false_or_l P :
+Lemma false_or_l P :
   False ∨ P <-> P.
 Proof. tauto. Qed.
 
-Local Lemma true_or_r P :
+Lemma true_or_r P :
   P ∨ True <-> True.
 Proof. tauto. Qed.
 
-Local Lemma true_or_l P :
+Lemma true_or_l P :
   True ∨ P <-> True.
 Proof. tauto. Qed.
 
-Local Lemma false_and_r P :
+Lemma false_and_r P :
   P ∧ False <-> False.
 Proof. tauto. Qed.
 
-Local Lemma false_and_l P :
+Lemma false_and_l P :
   False ∧ P <-> False.
 Proof. tauto. Qed.
 
-Local Lemma true_and_r P :
+Lemma true_and_r P :
   P ∧ True <-> P.
 Proof. tauto. Qed.
 
-Local Lemma true_and_l P :
+Lemma true_and_l P :
   True ∧ P <-> P.
 Proof. tauto. Qed.
 
@@ -575,7 +575,12 @@ Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
     { Std.on_hyps := Some hyp_clauses;
                      Std.on_concl := Std.NoOccurrences }
   in
-  rewrite $rw in clause.
+  let rw :=
+    { Std.rew_orient := Some Std.LTR;
+      Std.rew_repeat := Std.RepeatPlus;
+      Std.rew_equatn := fun _ => (rw, Std.NoBindings) }
+  in
+  Std.rewrite false [rw] clause None.
 
 Ltac2 normalize_hyps (hyps : ident list) :=
   let lemma_list :=
@@ -592,6 +597,9 @@ Ltac2 normalize_hyps (hyps : ident list) :=
     List.map (fun l => (fun () => rewrite_in_hyps l hyps)) lemma_list
   in
   repeat (first0 thunk_list).
+
+Ltac2 normalize_hyp (h : ident) :=
+  normalize_hyps [h].
 
 Ltac pattern_hook := fail.
 
@@ -740,6 +748,91 @@ Tactic Notation "pattern_match" := ltac2:(pattern_match).
    pattern matching on the pat goals and then tries to prove the
    non-matching (False) goal. *)
 
+Ltac2 constr_at_ident (h : ident) : constr :=
+  let (_, _, x) :=
+    List.find (fun (id, _, _) => Ident.equal h id) (Control.hyps ())
+  in
+  x.
+
+Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
+  let cl :=
+        { Std.indcl_arg := Std.ElimOnIdent h;
+          Std.indcl_eqn := None;
+          Std.indcl_as := Some p;
+          Std.indcl_in := None }
+  in
+  Std.destruct false [cl] None.
+
+Ltac2 rec get_arity (c : constr) :=
+  match! c with
+  | ?a _ => (Int.add 1 (get_arity a))
+  | _ => 0
+  end.
+
+Ltac2 rec destruct_hyp (h : ident) : unit :=
+  normalize_hyp h;
+  let x := constr_at_ident h in
+  lazy_match! x with
+  | exists x, _ =>
+      (* pat := [ ? h ] *)
+      let pat :=
+        Std.IntroAndPattern
+          [Std.IntroNaming Std.IntroAnonymous;
+           Std.IntroNaming (Std.IntroIdentifier h)]
+      in
+      destruct_as h pat;
+      (* Recursive call in case [h] is a nested existential. *)
+      destruct_hyp h
+  | _ ∧ _ =>
+      let h2 := Fresh.in_goal @H in
+      (* pat := [ h2 h ] *)
+      let pat :=
+        Std.IntroAndPattern
+          [ Std.IntroNaming (Std.IntroIdentifier h2);
+            Std.IntroNaming (Std.IntroIdentifier h) ]
+      in
+      destruct_as h pat;
+      destruct_hyp h2;
+      destruct_hyp h
+  | False =>
+      let pat :=
+        Std.IntroAndPattern []
+      in
+      destruct_as h pat
+  | _ ∨ _ =>
+      (* We only destruct an [or] pattern if we are able to solve one
+         of the two generated subgoals. *)
+      Control.plus
+        (fun _ =>
+           (* pat := [ h | h ] *)
+           let pat :=
+             Std.IntroOrPattern
+               [ [ Std.IntroNaming (Std.IntroIdentifier h) ];
+                 [ Std.IntroNaming (Std.IntroIdentifier h) ] ]
+           in
+           destruct_as h pat;
+           (* Solve one of the two subgoals. *)
+           Control.plus
+             (fun _ => Control.focus 1 1 (fun _ => complete (fun _ => destruct_hyp h)))
+             (fun _ => Control.focus 2 2 (fun _ => complete (fun _ => destruct_hyp h)));
+           destruct_hyp h)
+        (fun _ => ())
+  | ?a = ?b =>
+      (* If the hypothesis is a tautology, remove it. *)
+      if Constr.equal a b then clear h else
+        (* If the equality is of the form [x = ...] *)
+        if (Int.equal (get_arity a) 0) then
+          let hyp := Control.hyp h in
+          try (rewrite $hyp in *; clear h)
+        (* If the equality is of the form [c ... = ...] *)
+        else
+          inversion h; subst; try ltac1:(congruence)
+  | _ => try ltac1:(congruence)
+  end.
+
+Ltac2 destruct_hyps (hs : ident list) :=
+  List.iter destruct_hyp hs.
+
 Local Ltac strip_disjunction :=
   match goal with
   | H : _ \/ _ |- _ =>
@@ -788,15 +881,22 @@ Ltac resolve_no_match :=
 Ltac2 post_process_pats (b : bool) (hs : ident list) :=
   (* Use the [pattern_match] tactic on every goal but the last one. *)
   Control.extend [] pattern_match [(fun _ => ())];
-  if b then
-    Control.extend [] (fun _ => Std.clear hs) [(fun _ => ())]
-  else ();
-  (* Only after finishing our matches do we substitute our newly
-     learnt equalities *)
-  subst;
-  (* Afterwards, use [resolve_no_match] to perform congruence on the
-     remaining False goal *)
-  ltac1:(resolve_no_match).
+  (* Wait for all patterns to be instantiated before substituting. *)
+  Control.extend []
+    (fun _ => subst; if b then Std.clear hs else ())
+    [(fun _ =>
+       match! goal with
+       | [ |- False ] =>
+           normalize_hyps (hs);
+           (* Only after finishing our matches do we substitute our newly
+              learnt equalities *)
+           subst;
+           (* Afterwards, use [resolve_no_match] to perform congruence on the
+              remaining False goal *)
+           ltac1:(resolve_no_match)
+       | [ |- _ ] => ()
+       end)].
+
 
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
