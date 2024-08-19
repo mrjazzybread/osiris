@@ -573,7 +573,7 @@ Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   in
   let clause :=
     { Std.on_hyps := Some hyp_clauses;
-                     Std.on_concl := Std.NoOccurrences }
+      Std.on_concl := Std.NoOccurrences }
   in
   let rw :=
     { Std.rew_orient := Some Std.LTR;
@@ -673,12 +673,12 @@ Ltac2 patterns () :=
    [pattern_match] tactic tries to solve this goal and elaborate
    the uninstantiated success and failure postconditions. *)
 
-Ltac2 rec pattern_match0 () :=
+Ltac2 rec pattern_match_aux () :=
   (* If the goal is of the form [patterns ...] we either
      - reduce to a [pattern ...] with [pats_PCons_unary],
      - solve the goal with [pats_PNil]. *)
   let continue_matching :=
-    fun _ => if goal_is_pattern () then pattern_match0 () else ()
+    fun _ => if goal_is_pattern () then pattern_match_aux () else ()
   in
   Control.enter
     (fun _ =>
@@ -705,24 +705,24 @@ Ltac2 rec pattern_match0 () :=
                                  | intros ->; continue_matching () ]
            | pCons _ _ =>
                eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | intros ???; continue_matching () ]
+                                  | intros ??->; continue_matching () ]
            | PData "::" _ =>
                eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | intros ???; continue_matching () ]
+                                  | intros ??->; continue_matching () ]
            | PXData _ _ =>
                Control.plus
-                 (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match0 () ])
+                 (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
                  (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
            | PConstant _ =>
                Control.plus
                  (fun _ => eapply pat_PConst_eq; continue_matching ())
                  (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
            | POr _ _ =>
-               apply pat_POr > [ pattern_match0 () | pattern_match0 () ]
+               apply pat_POr > [ pattern_match_aux () | pattern_match_aux () ]
            | PTuple _ =>
                ltac1:(pat_PTuple); continue_matching ()
            | PAlias _ _ =>
-               apply pat_PAlias; pattern_match0 ()
+               apply pat_PAlias; pattern_match_aux ()
            | PAny =>
                apply pat_PAny; continue_matching ()
            | _ =>
@@ -730,17 +730,18 @@ Ltac2 rec pattern_match0 () :=
            end
        end).
 
-Ltac2 pattern_match () :=
+Ltac2 pattern_match0 () :=
+  Control.enter (fun _ =>
   lazy_match! goal with
-  | [ |- pattern _ ?p _ _ ?ψ ] => pattern_match0 ()
+  | [ |- pattern _ ?p _ _ ?ψ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
            (Some
               (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
-  end.
+  end).
 
-Ltac2 Notation "pattern_match" := pattern_match ().
+Ltac2 Notation "pattern_match" := pattern_match0 ().
 Tactic Notation "pattern_match" := ltac2:(pattern_match).
 
 (* [post_process_pats] is expected to be used on multiple goals of the
@@ -795,10 +796,7 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
       destruct_hyp h2;
       destruct_hyp h
   | False =>
-      let pat :=
-        Std.IntroAndPattern []
-      in
-      destruct_as h pat
+      destruct_as h (Std.IntroOrPattern [])
   | _ ∨ _ =>
       (* We only destruct an [or] pattern if we are able to solve one
          of the two generated subgoals. *)
@@ -820,13 +818,15 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
   | ?a = ?b =>
       (* If the hypothesis is a tautology, remove it. *)
       if Constr.equal a b then clear h else
-        (* If the equality is of the form [x = ...] *)
-        if (Int.equal (get_arity a) 0) then
-          let hyp := Control.hyp h in
-          try (rewrite $hyp in *; clear h)
-        (* If the equality is of the form [c ... = ...] *)
-        else
-          inversion h; subst; try ltac1:(congruence)
+      (* If the equality is of the form [x = ...] *)
+      if (Int.equal (get_arity a) 0) then
+        match Constr.Unsafe.kind a with
+        | Constr.Unsafe.Var id => try (Std.subst [@id])
+        | _ => ()
+        end
+      (* If the equality is of the form [c ... = ...] *)
+      else
+        inversion h; subst; try ltac1:(congruence)
   | _ => try ltac1:(congruence)
   end.
 
@@ -879,8 +879,6 @@ Ltac resolve_no_match :=
     | inject_eq ].
 
 Ltac2 post_process_pats (b : bool) (hs : ident list) :=
-  (* Use the [pattern_match] tactic on every goal but the last one. *)
-  Control.extend [] pattern_match [(fun _ => ())];
   (* Wait for all patterns to be instantiated before substituting. *)
   Control.extend []
     (fun _ => subst; if b then Std.clear hs else ())
@@ -904,27 +902,27 @@ Ltac2 post_process_pats (b : bool) (hs : ident list) :=
    form [pattern _ _ _ (λ n', pure (eval η' _) _ _) _] and one subgoal of
    the form [False]. *)
 
-Ltac2 rec pure_match_branches0 () : ident list :=
+Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
   | [ |- pure_match _ ?bs _ _ ] =>
       lazy_match! (Std.eval_hnf bs) with
-      | [_] =>
-          eapply pure_match_single;
-          let m := Control.focus 1 1 specify_cpattern in
-          Control.focus (Int.add m 1) (Int.add m 1)
-            (fun _ =>
-               let no_match := Fresh.in_goal @no_match in
-               intros $no_match; [no_match])
       | _ :: _ =>
           eapply pure_match_cons;
-          let m := Control.focus 1 1 specify_cpattern in
+          let m := Control.focus 1 1
+                     (fun _ =>
+                        let m := specify_cpattern () in
+                        let () := Control.focus 1 m pattern_match0 in
+                        m)
+          in
           Control.focus (Int.add m 1) (Int.add m 1)
             (fun _ =>
                let no_match := Fresh.in_goal @no_match in
                intros $no_match;
-               (no_match :: pure_match_branches0 ()))
+               destruct_hyp no_match;
+               destruct_hyps hyps;
+               pure_match_branches0 (no_match :: hyps))
       | [] =>
-          eapply pure_match_nil; []
+          eapply pure_match_nil; try (ltac1:(congruence))
       end
   | [ |- _ ] =>
       Control.throw
@@ -933,17 +931,7 @@ Ltac2 rec pure_match_branches0 () : ident list :=
               (Message.of_string "Expected goal of the form [pure_match η bs o φ]")))
   end.
 
-Ltac2 pure_match_branches () : ident list := pure_match_branches0 ().
+Ltac2 pure_match0 () := pure_match_branches0 [].
 
-(* [pure_match] expects a goal of the form [pure_match _ _ _ _], and
-   produces subgoals corresponding to the successful match and entry
-   of each branch. *)
-
-Ltac2 pure_match0 (b : bool) :=
-  let no_match_hypotheses := pure_match_branches () in
-  post_process_pats b no_match_hypotheses.
-
-Ltac2 Notation "pure_match_verbose" := pure_match0 false.
-Ltac2 Notation "pure_match" := pure_match0 true.
+Ltac2 Notation "pure_match" := pure_match0 ().
 Tactic Notation "pure_match" := ltac2:(pure_match).
-Tactic Notation "pure_match_verbose" := ltac2:(pure_match_verbose).
