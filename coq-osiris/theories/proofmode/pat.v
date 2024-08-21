@@ -712,7 +712,8 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
       in
       destruct_as h pat;
       destruct_hyp h;
-      destruct_hyp h2
+      (* We need [Control.enter] in case [destruct_hyp h] solves the goal. *)
+      Control.enter (fun _ => destruct_hyp h2)
   | False =>
       destruct_as h (Std.IntroOrPattern [])
   | _ ∨ _ =>
