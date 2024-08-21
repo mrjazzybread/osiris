@@ -32,6 +32,16 @@ Proof.
   eapply total_consequence; eauto.
 Qed.
 
+Lemma pats_PCons_unary_false η p ps v vs φ :
+  pattern η p v (λ η, patterns η ps vs φ False) False ->
+  patterns η (p :: ps) (v :: vs) φ False.
+Proof.
+  intros.
+  assert (False \/ False -> False) as HFalse by tauto.
+  eapply pats_consequence_psi; [ clear HFalse | exact HFalse ].
+  by apply pats_PCons_unary.
+Qed.
+
 Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
   pattern η p v φ' ψ1 →
   (∀ η, φ' η → patterns η ps vs φ ψ2) →
@@ -640,11 +650,141 @@ Ltac2 rec solve_lookup_path () :=
         [ solve_lookup_name () | solve_lookup_path () ]
   end.
 
-Ltac2 goal_is_pattern () :=
-  match! goal with
-  | [ |- pattern _ _ _ _ _ ] => true
-  | [ |- patterns _ _ _ _ _ ] => true
-  | [ |- _ ] => false
+Ltac2 rec is_pattern (c : constr) :=
+  lazy_match! c with
+  | pattern _ _ _ _ _  => true
+  | patterns _ _ _ _ _ => true
+  | _ => false
+  end.
+
+
+Ltac2 constr_at_ident (h : ident) : constr :=
+  let (_, _, x) :=
+    List.find (fun (id, _, _) => Ident.equal h id) (Control.hyps ())
+  in
+  x.
+
+Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
+  let cl :=
+        { Std.indcl_arg := Std.ElimOnIdent h;
+          Std.indcl_eqn := None;
+          Std.indcl_as := Some p;
+          Std.indcl_in := None }
+  in
+  Std.destruct false [cl] None.
+
+Ltac2 rec get_arity (c : constr) :=
+  match! c with
+  | ?a _ => (Int.add 1 (get_arity a))
+  | _ => 0
+  end.
+
+Ltac2 rec get_constructor (c : constr) :=
+  match! c with
+  | ?a _ => get_constructor a
+  | _ => match Constr.Unsafe.kind c with
+        | Constr.Unsafe.Constructor _ _ => Some c
+        | _ => None
+        end
+  end.
+
+Ltac2 rec destruct_hyp (h : ident) : unit :=
+  normalize_hyp h;
+  let x := constr_at_ident h in
+  lazy_match! x with
+  | exists x, _ =>
+      (* pat := [ ? h ] *)
+      let pat :=
+        Std.IntroAndPattern
+          [Std.IntroNaming Std.IntroAnonymous;
+           Std.IntroNaming (Std.IntroIdentifier h)]
+      in
+      destruct_as h pat;
+      (* Recursive call in case [h] is a nested existential. *)
+      destruct_hyp h
+  | _ ∧ _ =>
+      let h2 := Fresh.in_goal h in
+      (* pat := [ h h2 ] *)
+      let pat :=
+        Std.IntroAndPattern
+          [ Std.IntroNaming (Std.IntroIdentifier h);
+            Std.IntroNaming (Std.IntroIdentifier h2) ]
+      in
+      destruct_as h pat;
+      destruct_hyp h;
+      destruct_hyp h2
+  | False =>
+      destruct_as h (Std.IntroOrPattern [])
+  | _ ∨ _ =>
+      (* We only destruct an [or] pattern if we are able to solve one
+         of the two generated subgoals. *)
+      Control.plus
+        (fun _ =>
+           (* pat := [ h | h ] *)
+           let pat :=
+             Std.IntroOrPattern
+               [ [ Std.IntroNaming (Std.IntroIdentifier h) ];
+                 [ Std.IntroNaming (Std.IntroIdentifier h) ] ]
+           in
+           destruct_as h pat;
+           (* Solve one of the two subgoals. *)
+           Control.plus
+             (fun _ => Control.focus 1 1 (fun _ => complete (fun _ => destruct_hyp h)))
+             (fun _ => Control.focus 2 2 (fun _ => complete (fun _ => destruct_hyp h)));
+           destruct_hyp h)
+        (fun _ => ())
+  | ?a = ?b =>
+      (* If the hypothesis is a tautology, remove it. *)
+      if Constr.equal a b then clear h else
+        (* If the equality is of the form [c ... = ...] *)
+      (if (Int.gt (get_arity a) 0) then
+         let hyp := Control.hyp h in
+         inversion $hyp
+       else ());
+      subst;
+      try ltac1:(congruence)
+  | ?a <> ?b =>
+      (* An inequality between two terms with different constructors
+         is trivial, so we clear such a hypothesis if we find one. *)
+      match get_constructor a, get_constructor b with
+      | Some c1, Some c2 =>
+          if Bool.neg (Constr.equal c1 c2) then Std.clear [h] else ()
+      | _, _ => ()
+      end
+  | _ => try ltac1:(congruence)
+  end.
+
+(* We don't use [List.iter] because we don't want to keep iterating
+   after solving the goal. *)
+
+Ltac2 destruct_hyps (hs : ident list) :=
+  let rec iter :=
+    fun f ls =>
+      match ls with
+      | [] => ()
+      | h :: hs =>
+          f h; (Control.enter (fun _ => iter f hs))
+      end
+  in
+  iter destruct_hyp hs.
+
+Ltac2 rec do_intros () :=
+  lazy_match! goal with
+  | [ |- ?h -> ?g ] =>
+      (* If [h] is a proposition. *)
+      (if Constr.equal (Constr.type h) constr:(Prop) then
+         (* Give [h] a nice name. *)
+         let match_hyp := Fresh.in_goal ident:(match_hyp) in
+         intros $match_hyp;
+         (* Try and use the information in [h]. *)
+         destruct_hyp match_hyp
+       (* If [h] is not a proposition then it is presumably a variable. *)
+       else
+         intros ?);
+      do_intros ()
+  | [ |- forall x, _ ] =>
+      intros ?; do_intros ()
+  | [ |- _ ] => ()
   end.
 
 Ltac2 set_postcondition_to_false () :=
@@ -658,10 +798,24 @@ Ltac2 set_postcondition_to_false () :=
       if Constr.is_evar ψ then unify $ψ False else ()
   end.
 
+Ltac2 massage_term (c : constr) :=
+  lazy_match! c with
+  | ?ψ ?arg  =>
+      if Constr.is_evar ψ then
+        let t := Constr.type arg in
+        let u := open_constr:(fun x => _) in
+        unify $ψ $u
+      else ()
+  | _ => ()
+  end.
+
 Ltac2 patterns () :=
   lazy_match! goal with
-  | [ |- patterns _ (_ :: _) _ _ _ ] =>
-      eapply pats_PCons_unary
+  | [ |- patterns _ (_ :: _) _ _ ?ψ ] =>
+      if (Constr.equal ψ constr:(False)) then
+        eapply pats_PCons_unary_false
+      else
+        eapply pats_PCons_unary
   | [ |- patterns _ [] _ _ ?ψ ] =>
       if (Constr.is_evar ψ) then
         eapply pats_PNil
@@ -678,13 +832,15 @@ Ltac2 rec pattern_match_aux () :=
      - reduce to a [pattern ...] with [pats_PCons_unary],
      - solve the goal with [pats_PNil]. *)
   let continue_matching :=
-    fun _ => if goal_is_pattern () then pattern_match_aux () else ()
+    fun _ => do_intros ();
+          if is_pattern (Control.goal ()) then pattern_match_aux () else ()
   in
   Control.enter
     (fun _ =>
        lazy_match! goal with
        | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
        | [ |- pattern _ ?p _ _ ?ψ ] =>
+           massage_term ψ;
            match! p with
            | PVar _ =>
                set_postcondition_to_false ();
@@ -696,19 +852,19 @@ Ltac2 rec pattern_match_aux () :=
                eapply pat_PInt > [ ltac1:(representable)
                                  | ltac1:(representable)
                                  | ltac1:(encode)
-                                 | intros ?; continue_matching () ]
+                                 | continue_matching () ]
            | pNil =>
                eapply pat_pNil > [ solve [ ltac1:(encode) ]
-                                 | intros ->; continue_matching () ]
+                                 | continue_matching () ]
            | PConstant "[]" =>
                eapply pat_pNil > [ solve [ ltac1:(encode) ]
-                                 | intros ->; continue_matching () ]
+                                 | continue_matching () ]
            | pCons _ _ =>
                eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | intros ??->; continue_matching () ]
+                                  | continue_matching () ]
            | PData "::" _ =>
                eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | intros ??->; continue_matching () ]
+                                  | continue_matching () ]
            | PXData _ _ =>
                Control.plus
                  (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
@@ -748,90 +904,6 @@ Tactic Notation "pattern_match" := ltac2:(pattern_match).
    form [pattern η p v ?φ ?ψ] and one goal of the form [False]. It performs
    pattern matching on the pat goals and then tries to prove the
    non-matching (False) goal. *)
-
-Ltac2 constr_at_ident (h : ident) : constr :=
-  let (_, _, x) :=
-    List.find (fun (id, _, _) => Ident.equal h id) (Control.hyps ())
-  in
-  x.
-
-Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
-  let cl :=
-        { Std.indcl_arg := Std.ElimOnIdent h;
-          Std.indcl_eqn := None;
-          Std.indcl_as := Some p;
-          Std.indcl_in := None }
-  in
-  Std.destruct false [cl] None.
-
-Ltac2 rec get_arity (c : constr) :=
-  match! c with
-  | ?a _ => (Int.add 1 (get_arity a))
-  | _ => 0
-  end.
-
-Ltac2 rec destruct_hyp (h : ident) : unit :=
-  normalize_hyp h;
-  let x := constr_at_ident h in
-  lazy_match! x with
-  | exists x, _ =>
-      (* pat := [ ? h ] *)
-      let pat :=
-        Std.IntroAndPattern
-          [Std.IntroNaming Std.IntroAnonymous;
-           Std.IntroNaming (Std.IntroIdentifier h)]
-      in
-      destruct_as h pat;
-      (* Recursive call in case [h] is a nested existential. *)
-      destruct_hyp h
-  | _ ∧ _ =>
-      let h2 := Fresh.in_goal @H in
-      (* pat := [ h2 h ] *)
-      let pat :=
-        Std.IntroAndPattern
-          [ Std.IntroNaming (Std.IntroIdentifier h2);
-            Std.IntroNaming (Std.IntroIdentifier h) ]
-      in
-      destruct_as h pat;
-      destruct_hyp h2;
-      destruct_hyp h
-  | False =>
-      destruct_as h (Std.IntroOrPattern [])
-  | _ ∨ _ =>
-      (* We only destruct an [or] pattern if we are able to solve one
-         of the two generated subgoals. *)
-      Control.plus
-        (fun _ =>
-           (* pat := [ h | h ] *)
-           let pat :=
-             Std.IntroOrPattern
-               [ [ Std.IntroNaming (Std.IntroIdentifier h) ];
-                 [ Std.IntroNaming (Std.IntroIdentifier h) ] ]
-           in
-           destruct_as h pat;
-           (* Solve one of the two subgoals. *)
-           Control.plus
-             (fun _ => Control.focus 1 1 (fun _ => complete (fun _ => destruct_hyp h)))
-             (fun _ => Control.focus 2 2 (fun _ => complete (fun _ => destruct_hyp h)));
-           destruct_hyp h)
-        (fun _ => ())
-  | ?a = ?b =>
-      (* If the hypothesis is a tautology, remove it. *)
-      if Constr.equal a b then clear h else
-      (* If the equality is of the form [x = ...] *)
-      if (Int.equal (get_arity a) 0) then
-        match Constr.Unsafe.kind a with
-        | Constr.Unsafe.Var id => try (Std.subst [@id])
-        | _ => ()
-        end
-      (* If the equality is of the form [c ... = ...] *)
-      else
-        inversion h; subst; try ltac1:(congruence)
-  | _ => try ltac1:(congruence)
-  end.
-
-Ltac2 destruct_hyps (hs : ident list) :=
-  List.iter destruct_hyp hs.
 
 Local Ltac strip_disjunction :=
   match goal with
@@ -895,6 +967,7 @@ Ltac2 post_process_pats (b : bool) (hs : ident list) :=
        | [ |- _ ] => ()
        end)].
 
+Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
@@ -908,23 +981,29 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
       lazy_match! (Std.eval_hnf bs) with
       | _ :: _ =>
           eapply pure_match_cons;
-          let m := Control.focus 1 1
-                     (fun _ =>
-                        let m := specify_cpattern () in
-                        let () := Control.focus 1 m pattern_match0 in
-                        m)
-          in
-          Control.focus (Int.add m 1) (Int.add m 1)
+          Control.focus 1 1
+            (fun _ =>
+               (* [specify_cpattern ()] introduces m new subgoals. *)
+               let m := specify_cpattern () in
+               (* We pattern match the new subgoals and simplify the
+                  non-matching hypotheses. *)
+               Control.focus 1 m (fun _ => pattern_match0 (); destruct_hyps hyps));
+          last
             (fun _ =>
                let no_match := Fresh.in_goal @no_match in
                intros $no_match;
-               destruct_hyp no_match;
-               destruct_hyps hyps;
-               pure_match_branches0 (no_match :: hyps))
+               destruct_hyps (no_match :: hyps);
+               let remaining_hyps :=
+                 List.filter (fun id => Control.plus
+                                       (fun _ => let _ := Control.hyp id in true)
+                                       (fun _ => false)) (no_match :: hyps)
+               in
+               (Control.enter (fun _ => pure_match_branches0 (remaining_hyps))))
       | [] =>
           eapply pure_match_nil; try (ltac1:(congruence))
       end
-  | [ |- _ ] =>
+  | [ |- ?g ] =>
+      let () := Message.print (Message.of_constr g) in
       Control.throw
         (Tactic_failure
            (Some

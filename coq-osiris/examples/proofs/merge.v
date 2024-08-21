@@ -204,8 +204,8 @@ Proof.
   eapply pure_eval_match.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
-
   pure_match.
+
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
@@ -216,6 +216,7 @@ Proof.
     (* Establish postcondition *)
     unfold merge_post, merge_pre in *; destruct_hyps.
     rewrite app_nil_r. auto. }
+
   (* Second branch of match *)
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
@@ -285,9 +286,9 @@ Proof.
   (* pure_rec l (@wf_list_length A). *)
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
+  pure_match.
 
   (* First branch of match *)
-  pure_match; abstract_env.
   { (* Case: l matches [] *)
     apply pure_eval_pair. trivial_pure.
     (* Establish the (trivial) postcondition *)
@@ -306,6 +307,7 @@ Proof.
     { (* Use induction hypothesis *)
       apply IH.
       { (* Justify use of induction hypothesis *)
+        simpl.
         eauto with arith. }
       { (* Show the precondition. *)
         reflexivity. } }
@@ -316,12 +318,12 @@ Proof.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     subst.
-    destruct Hpost as (H1 & H2 & ?).
+    destruct Hpost as (Hlength1 & Hlength2 & ?).
     split; [ | split ].
     { (* Subgoal: the length of l1 is half the length of xs *)
-      destruct (Nat.even _); rewrite H1; eauto with arith. }
+      destruct (Nat.even _); rewrite Hlength1; eauto with arith. }
     { (* Subgoal: the length of l2 is half the length of xs *)
-      rewrite H2; eauto with arith. }
+      rewrite Hlength2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
       rewrite_permutation xs'0.
       apply Permutation_skip.
@@ -350,13 +352,9 @@ Proof.
   { pure_data. auto. }  (* Branch: "[x]" *)
 
   (* Branch: "_" *)
-  assert (exists m, length l = S (S m)) as [m Heql].
-  { (* TODO: too difficult to acquire knowledge from not matching on
-       previous branches *)
-    destruct no_match0 as [ | no_match0 ]; [ congruence | ].
-    destruct no_match0 as (?&tail&?&[?|?]); [ contradiction | ]; subst.
-    destruct tail; [ contradiction | simpl; eauto with arith]. }
-  { eapply pure_eval_let_pair.
+  { assert (exists m, length (x0) = S m) as [m Heql].
+    { subst. destruct x0; [ congruence | eauto ]. }
+    eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
     eapply pure_eval_path. simpl. rewrite Hsplit.
@@ -406,7 +404,7 @@ Proof.
     unfold mergesort_post, merge_post in *.
     destruct_hyps.
     split; [ assumption | ].
-    rewrite_permutation l'. rewrite_permutation l.
+    rewrite_permutation l'. rewrite_permutation (x :: x0).
     rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
 Qed.

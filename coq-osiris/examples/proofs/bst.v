@@ -149,8 +149,8 @@ Ltac pat_pNode :=
 
 Ltac pattern_hook ::=
   first
-    [ pat_pLeaf; intros
-    | pat_pNode; intros
+    [ pat_pLeaf
+    | pat_pNode
     ].
 
 (* -------------------------------------------------------------------------- *)
