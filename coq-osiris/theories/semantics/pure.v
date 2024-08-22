@@ -4,7 +4,7 @@ From osiris.semantics Require Import code eval step simplification pure_wp.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The judgement [pure m φ] asserts that the computation [m] can be simplified
+(* The judgement [pure m φ] asserts that the computation [m] will reduce
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
 Definition pure `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
