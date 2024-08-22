@@ -123,7 +123,7 @@ Lemma pure_par `{Encode A1, Encode A2, Encode A} {X Y}
 Proof.
   intros Hm1 Hm2 Hentail. rewrite <- try_par.
   eapply pure_wpv_try_compat.
-  { eapply pure_wp__par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
+  { eapply pure_wp_par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
     simpl. intros v1 v2 ? ?.
     destruct_encode_image a2. destruct_encode_image a1.
     eauto. }
@@ -138,7 +138,7 @@ Lemma pure_par' `{Encode A1, Encode A2, Encode A} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ) →
   pure (X := Y) (Par m1 m2 k) φ.
 Proof.
-  intros. eapply pure_wp_par_compat; eauto; firstorder subst; eauto.
+  intros. eapply pure_wp_Par_compat; eauto; firstorder subst; eauto.
 Qed.
 
 (* Sequentializations of previous lemmas, considering the LHS first *)
@@ -153,7 +153,7 @@ Lemma pure_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
   pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1.
-  apply pure_wp_par_vals_left.
+  apply pure_wp_Par_vals_left.
   eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
   eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
   eauto.
@@ -166,7 +166,7 @@ Lemma pure_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
   pure (X := Y) (Par m1 m2 k) φ.
 Proof.
   intros Hm1.
-  apply pure_wp_par_vals_left.
+  apply pure_wp_Par_vals_left.
   eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
   eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
   eauto.

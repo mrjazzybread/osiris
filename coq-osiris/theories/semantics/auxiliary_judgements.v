@@ -390,7 +390,7 @@ Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
 Proof.
   unfold bindings. simpl. intros Hpure Hbs Hcov.
   simpl_eval_bindings.
-  apply pure_wp_par_vals_left.
+  apply pure_wp_Par_vals_left.
   apply (pure_wp_mono_ret _ Hpure). intros v (a & -> & Ha).
   apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
   eapply pure_wp_widen, pure_wp_try_compat. by apply Hcov.

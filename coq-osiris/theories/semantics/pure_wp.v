@@ -714,7 +714,7 @@ Qed.
 
 (* [pure_wp] preserved by [Par] : linking postconditions with implications *)
 
-Lemma pure_wp_par_compat {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
+Lemma pure_wp_Par_compat {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1 φ1 ψ1 →
   pure_wp m2 φ2 ψ2 →
@@ -747,24 +747,24 @@ Proof.
 Qed.
 
 (* TODO many lemma should be called [Par], not [par] *)
-Lemma pure_wp__par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) ψ :
+Lemma pure_wp_par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) ψ :
   pure_wp m1 φ1 ψ →
   pure_wp m2 φ2 ψ →
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   pure_wp (par m1 m2) φ ψ.
 Proof.
-  intros; eapply pure_wp_par_compat; firstorder eauto using pure_wp_ret, pure_wp_throw.
+  intros; eapply pure_wp_Par_compat; firstorder eauto using pure_wp_ret, pure_wp_throw.
 Qed.
 
 (* simpler version disallowing exceptions *)
-Lemma pure_wp_par_compat_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
+Lemma pure_wp_Par_compat_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1 φ1 (λ _, False) →
   pure_wp m2 φ2 (λ _, False) →
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure_wp (continue k (a1, a2)) φ (λ _, False)) →
   pure_wp (Par m1 m2 k) φ (λ _, False).
 Proof.
-  intros; eapply pure_wp_par_compat; eauto; tauto.
+  intros; eapply pure_wp_Par_compat; eauto; tauto.
 Qed.
 
 (* [pure_wp] preserved by [Par], stated by giving [m1] a [pure_wp m2]
@@ -774,7 +774,7 @@ proving correct both sequentializations [m1; m2] and [m2; m1]. Both are needed
 since exceptions introduce nondeterminism. For example with [m1 = Throw e] and
 [m2 = Crash] we have [pure_wp m1 (λ _, False) (λ _, True)]. *)
 
-Lemma pure_wp_par {A E A1 A2 E'} m1 m2 φ ψ
+Lemma pure_wp_Par {A E A1 A2 E'} m1 m2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1
     (λ a1,
@@ -827,7 +827,7 @@ Qed.
 (* If [m1] cannot raise exceptions, then it is enough to prove that [m1]
 satisfies [pure_wp] with the corresponding [pure_wp m2] in postcondition *)
 
-Lemma pure_wp_par_val_left {A E A1 A2 E'} m1 m2 φ ψ
+Lemma pure_wp_Par_val_left {A E A1 A2 E'} m1 m2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1
     (λ a1,
@@ -877,7 +877,7 @@ Qed.
 (* Slightly simpler case when none of the parties involved ([m1], [m2], [k]) can
    throw exceptions *)
 
-Lemma pure_wp_par_vals_left {A E A1 A2 E'} m1 m2 φ
+Lemma pure_wp_Par_vals_left {A E A1 A2 E'} m1 m2 φ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1
     (λ a1,
@@ -888,7 +888,7 @@ Lemma pure_wp_par_vals_left {A E A1 A2 E'} m1 m2 φ
   pure_wp (Par m1 m2 k) φ (λ _, False).
 Proof.
   intros H1.
-  apply pure_wp_par_val_left.
+  apply pure_wp_Par_val_left.
   eapply pure_wp_mono; eauto. simpl. intros.
   eapply pure_wp_mono; firstorder eauto.
 Qed.
@@ -902,7 +902,7 @@ Lemma pure_wpv_Par_left_compat {A E A1 A2 E' m1 m2 φ φ1}
   pure_wpv (Par m1 m2 k) φ.
 Proof.
   intros H1 H2.
-  apply pure_wp_par_vals_left.
+  apply pure_wp_Par_vals_left.
   eapply pure_wp_mono; eauto.
 Qed.
 
@@ -982,7 +982,7 @@ Proof.
   by intros ? ?%invert_pure_wp_throw.
 Qed.
 
-Lemma invert_pure_wp_par_ret_left {A E A1 A2 E' φ ψ} a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ} a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp (Par (ret a1) m2 k) φ ψ →
   pure_wp m2
     (λ a2, pure_wp (continue k (a1, a2)) φ ψ)
@@ -997,7 +997,7 @@ Proof.
   - constructor; eauto with may.
 Qed.
 
-Lemma invert_pure_wp_par_left {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+Lemma invert_pure_wp_Par_left {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp (Par m1 m2 k) φ ψ →
   pure_wp m1
     (λ a1,
@@ -1011,12 +1011,12 @@ Proof.
   destruct (may_cases m1) as [-> | [ | [ | Hm1 ]]].
   - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
   - assert (PP : pure_wp (Par m1 m2 k) φ ψ) by by constructor.
-    firstorder. subst. constructor. by eapply invert_pure_wp_par_ret_left.
+    firstorder. subst. constructor. by eapply invert_pure_wp_Par_ret_left.
   - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
   - constructor; eauto with may.
 Qed.
 
-Lemma invert_pure_wp_par_ret_right {A E A1 A2 E' φ ψ} m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
+Lemma invert_pure_wp_Par_ret_right {A E A1 A2 E' φ ψ} m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp (Par m1 (ret a2) k) φ ψ →
   pure_wp m1
     (λ a1, pure_wp (continue k (a1, a2)) φ ψ)
@@ -1031,7 +1031,7 @@ Proof.
   - constructor; eauto with may.
 Qed.
 
-Lemma invert_pure_wp_par_right {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+Lemma invert_pure_wp_Par_right {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp (Par m1 m2 k) φ ψ →
   pure_wp m2
     (λ a2,
@@ -1045,7 +1045,7 @@ Proof.
   destruct (may_cases m2) as [-> | [ | [ | Hm2 ]]].
   - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
   - assert (PP : pure_wp (Par m1 m2 k) φ ψ) by by constructor.
-    firstorder. subst. constructor. by eapply invert_pure_wp_par_ret_right.
+    firstorder. subst. constructor. by eapply invert_pure_wp_Par_ret_right.
   - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
   - constructor; eauto with may.
 Qed.
@@ -1081,8 +1081,8 @@ Proof.
     + edestruct IHm; eauto with may.
   - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
     destruct c; try tauto; inv Hstep; split; auto; constructor.
-  - pose proof invert_pure_wp_par_left _ _ _ Hm as Hm1.
-    pose proof invert_pure_wp_par_right _ _ _ Hm as Hm2.
+  - pose proof invert_pure_wp_Par_left _ _ _ Hm as Hm1.
+    pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
     inv Hstep; try (split; [ | tauto ]).
     all: try by constructor.
     + by apply invert_pure_wp_stop in Hm1.
@@ -1096,8 +1096,8 @@ Qed.
 (* One proof of the preservation of [pure_wp] under [step]s. It may be removed
 since it is a consequence of [pure_wp_step_may] and [pure_wp_may_forward],
 however it is a demonstration that we can split a [pure_wp] on a [Par] into two
-with [invert_pure_wp_par_*] and recombine them with
-[pure_wp_par_sequentialization] after a step on either side. This technique is
+with [invert_pure_wp_Par_*] and recombine them with
+[pure_wp_Par_sequentialization] after a step on either side. This technique is
 also useful for [pure_wp_simp]. *)
 
 Lemma pure_wp_preservation_duplicate {A E : Type} {φ : A → Prop} {ψ : E → Prop} {m σ m' σ'} :
@@ -1118,19 +1118,19 @@ Proof.
   - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
     destruct c; try tauto; inv Hstep; split; auto;
       eapply pure_wp_may_forward; eauto; constructor.
-  - pose proof invert_pure_wp_par_left _ _ _ Hm as Hm1.
-    pose proof invert_pure_wp_par_right _ _ _ Hm as Hm2.
+  - pose proof invert_pure_wp_Par_left _ _ _ Hm as Hm1.
+    pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
     inv Hstep; try (split; [ | tauto ]).
     all: eauto using pure_wp_may_forward with may.
     + by apply invert_pure_wp_stop in Hm1.
     + by apply invert_pure_wp_stop in Hm2.
     + edestruct IHm1 as [IHm1' ->]; eauto. split; auto.
-      eapply pure_wp_par. apply IHm1'.
+      eapply pure_wp_Par. apply IHm1'.
       eapply pure_wp_mono_ret; eauto. simpl.
       intros a2 Hm1'.
       eapply (IHm1 _ _ _ _ _ Hm1'); eauto.
     + edestruct IHm2 as [IHm2' ->]; eauto. split; auto.
-      eapply pure_wp_par. 2: apply IHm2'.
+      eapply pure_wp_Par. 2: apply IHm2'.
       eapply pure_wp_mono_ret; eauto. simpl.
       intros a1 Hm2'.
       eapply (IHm2 _ _ _ _ _ Hm2'); eauto.
@@ -1177,19 +1177,19 @@ Proof.
   - intros P. constructor. eauto with may.
     intros m' [-> | ->]%invert_may_choose; eauto using invert_pure_wp_try2, pure_wp_try2.
   - intros P%invert_pure_wp_try2.
-    apply pure_wp_par.
+    apply pure_wp_Par.
     + by constructor.
     + eapply pure_wp_mono_ret; eauto. by constructor.
   - intros P%invert_pure_wp_try2.
-    apply pure_wp_par.
+    apply pure_wp_Par.
     + eapply pure_wp_mono_ret; eauto. by constructor.
     + by constructor.
   - intros P.
-    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
-    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
-    apply pure_wp_par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
+    pose proof IHS1 _ _ (invert_pure_wp_Par_left _ _ _ P).
+    pose proof IHS2 _ _ (invert_pure_wp_Par_right _ _ _ P).
+    apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree *)
-    intros P. apply pure_wp_par; eauto with pure_wp.
+    intros P. apply pure_wp_Par; eauto with pure_wp.
   - (* Stop CPerform is impure *)
     intros []%invert_pure_wp_stop.
   - intros P. apply pure_wp_handle, IHS. by constructor.
@@ -1207,14 +1207,14 @@ Proof.
   - intros P.
     eapply pure_wp_may_forward in P; [ | constructor ].
     apply pure_wp_try2, IHS1, invert_pure_wp_try2, P.
-  - intros P%invert_pure_wp_par_ret_left. by apply pure_wp_try2.
-  - intros P%invert_pure_wp_par_ret_right. by apply pure_wp_try2.
+  - intros P%invert_pure_wp_Par_ret_left. by apply pure_wp_try2.
+  - intros P%invert_pure_wp_Par_ret_right. by apply pure_wp_try2.
   - intros P.
-    pose proof IHS1 _ _ (invert_pure_wp_par_left _ _ _ P).
-    pose proof IHS2 _ _ (invert_pure_wp_par_right _ _ _ P).
-    apply pure_wp_par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
+    pose proof IHS1 _ _ (invert_pure_wp_Par_left _ _ _ P).
+    pose proof IHS2 _ _ (invert_pure_wp_Par_right _ _ _ P).
+    apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
   - (* SimpParThrowAgree uses only one hyp *)
-    by intros P%invert_pure_wp_par_left%IHS1%invert_pure_wp_throw.
+    by intros P%invert_pure_wp_Par_left%IHS1%invert_pure_wp_throw.
   - intros []%invert_pure_wp_stop.
   - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
   - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
@@ -1303,7 +1303,7 @@ Proof.
   - apply Forall2_cons_inv_l in Hes. simpl.
     destruct Hes as (φ & φs & He & Hes & ->).
     simpl_evals.
-    eapply pure_wp_par_compat.
+    eapply pure_wp_Par_compat.
     + apply He.
     + apply IHes, Hes.
     + intros v vs Hv Hvs. repeat constructor; eauto.
@@ -1322,7 +1322,7 @@ Proof.
   - constructor; inv Hes; auto.
   - apply Forall2_cons_inv_l in Hes. simpl.
     destruct Hes as (v & vs & He & Hes & ->).
-    eapply pure_wp_par_compat.
+    eapply pure_wp_Par_compat.
     + apply He.
     + apply IHes, Hes.
     + intros _ _ -> ->. repeat constructor; eauto.
