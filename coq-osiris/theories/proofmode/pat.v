@@ -523,19 +523,25 @@ From Ltac2 Require Import Ltac2.
 
 Ltac2 rec specify_cpattern () : int :=
   lazy_match! goal with
-  | [ |- cpattern _ (CVal _) (O3Ret _) _ _ ] =>
-      apply cpat_CVal; 1
-  | [ |- cpattern _ (CExc _) (O3Throw _) _ _ ] =>
-      apply cpat_CExc; 1
-  | [ |- cpattern _ (CEff _ _) (O3Perform _ _) _ _ ] =>
-      apply cpat_CEff; 1
-  | [ |- cpattern _ (COr _ _) _ _ _ ] =>
-      eapply cpat_COr;
-      let n := Control.focus 1 1 specify_cpattern in
-      let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
-      Int.add n m
-  | [ |- cpattern _ _ _ _ _ ] =>
-      eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+  | [ |- cpattern _ ?cp ?o _ _ ] =>
+      (* We simplify terms because of things like coercions. *)
+      let cp := Std.eval_hnf cp in
+      let o := Std.eval_hnf o in
+      lazy_match! '($cp, $o) with
+      | (CVal _, O3Ret _) =>
+          apply cpat_CVal; 1
+      | (CExc _, O3Throw _) =>
+          apply cpat_CExc; 1
+      | (CEff _ _, O3Perform _ _) =>
+          apply cpat_CEff; 1
+      | (COr _ _, _) =>
+          eapply cpat_COr;
+          let n := Control.focus 1 1 specify_cpattern in
+          let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+          Int.add n m
+      | _ =>
+          eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+      end
   end.
 
 Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
@@ -1001,7 +1007,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
                in
                (Control.enter (fun _ => pure_match_branches0 (remaining_hyps))))
       | [] =>
-          eapply pure_match_nil; try (ltac1:(congruence))
+          eapply pure_match_nil; ltac1:(resolve_no_match)
       end
   | [ |- ?g ] =>
       let () := Message.print (Message.of_constr g) in

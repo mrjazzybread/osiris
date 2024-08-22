@@ -339,6 +339,21 @@ Section handler_proof.
     - iApply ewp_throw; simpl. iApply ("Hcov" $! Hφ).
   Qed.
 
+  Lemma deep_handle_cons_unary η o cp e bs E ψ Φ Q φ :
+    cpattern η cp o (λ δ, Q -∗ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ ->
+    Q -∗
+    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
+  Proof.
+    unfold cpattern. simpl_deep_eval_match.
+    destruct 1 as [(δ & Hsimp & Hewp) | (exc & Hsimp & Hewp)];
+      iIntros "Q Hno_match";
+      iApply ewp_try;
+      iApply (ewp_simp _ _ _ _ _ Hsimp).
+    { iApply ewp_value; simpl. iApply (Hewp with "Q"). }
+    { iApply ewp_throw; simpl. iApply ("Hno_match" $! Hewp). }
+  Qed.
+
   Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
     valid_cpattern_match cp o = false ->
     EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }} -∗
