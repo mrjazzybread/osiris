@@ -485,9 +485,9 @@ Qed.
 
 (** [pure_wp] is preserved by binds *)
 
-(* The _compat format is slightly easier to prove and is easier to use in cases
+(* The _conseq format is slightly easier to prove and is easier to use in cases
   where a result is in hypothesis *)
-Lemma pure_wp_try2_compat {A' A E E' φ ψ φ' ψ'} m (f : outcome2 A E → micro A' E') :
+Lemma pure_wp_try2_conseq {A' A E E' φ ψ φ' ψ'} m (f : outcome2 A E → micro A' E') :
   pure_wp m φ ψ →
   (∀ a, φ a → pure_wp (continue f a) φ' ψ') →
   (∀ e, ψ e → pure_wp (discontinue f e) φ' ψ') →
@@ -506,7 +506,7 @@ Lemma pure_wp_try2 {A' A E E' φ ψ} m (f : outcome2 A E → micro A' E') :
   pure_wp m (λ a, pure_wp (continue f a) φ ψ) (λ e, pure_wp (discontinue f e) φ ψ) →
   pure_wp (try2 m f) φ ψ.
 Proof.
-  intros P. eapply pure_wp_try2_compat; eauto.
+  intros P. eapply pure_wp_try2_conseq; eauto.
 Qed.
 
 Lemma pure_wp_bind {A' A E φ ψ} m (k : A → micro A' E) :
@@ -534,7 +534,7 @@ Proof.
   intro. rewrite continue_glue2. by constructor.
 Qed.
 
-Lemma pure_wp_bind_compat {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
+Lemma pure_wp_bind_conseq {A' A E} (φ : A → Prop) (ψ : E → Prop) (φ' : A' → Prop) m k :
   pure_wp m φ ψ →
   (∀ a, φ a → pure_wp (k a) φ' ψ) →
   pure_wp (bind m k) φ' ψ.
@@ -542,7 +542,7 @@ Proof.
   intros. eapply pure_wp_bind, pure_wp_mono_ret; eauto.
 Qed.
 
-Lemma pure_wp_try_compat {A' A E E' φ ψ φ' ψ'} m (f : A → micro A' E') (h : E → micro A' E') :
+Lemma pure_wp_try_conseq {A' A E E' φ ψ φ' ψ'} m (f : A → micro A' E') (h : E → micro A' E') :
   pure_wp m φ ψ →
   (∀ a, φ a → pure_wp (f a) φ' ψ') →
   (∀ e, ψ e → pure_wp (h e) φ' ψ') →
@@ -554,33 +554,33 @@ Qed.
 
 (** Versions with [pure_wpv] *)
 
-Lemma pure_wpv_try2_compat {A' A E E' φ φ'} m (f : outcome2 A E → micro A' E') :
+Lemma pure_wpv_try2_conseq {A' A E E' φ φ'} m (f : outcome2 A E → micro A' E') :
   pure_wpv m φ →
   (∀ a, φ a → pure_wpv (continue f a) φ') →
   pure_wpv (try2 m f) φ'.
 Proof.
-  intros; eapply pure_wp_try2_compat; eauto. intros _ [].
+  intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma pure_wpv_try2 {A' A E E' φ} m (f : outcome2 A E → micro A' E') :
   pure_wpv m (λ a, pure_wpv (continue f a) φ) →
   pure_wpv (try2 m f) φ.
 Proof.
-  intros; eapply pure_wp_try2_compat; eauto. intros _ [].
+  intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma pure_wpv_bind {A' A E φ} m (k : A → micro A' E) :
   pure_wpv m (λ a, pure_wpv (k a) φ) →
   pure_wpv (bind m k) φ.
 Proof.
-  intros; eapply pure_wp_bind_compat; eauto.
+  intros; eapply pure_wp_bind_conseq; eauto.
 Qed.
 
 Lemma pure_wpv_try {A' A E E' φ} m (f : A → micro A' E') (h : E → micro A' E') :
   pure_wpv m (λ a, pure_wpv (f a) φ) →
   pure_wpv (try m f h) φ.
 Proof.
-  intros; eapply pure_wp_try2_compat; eauto. intros _ [].
+  intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma pure_wpv_orelse {A E} (m1 m2 : micro A E) φ :
@@ -590,20 +590,20 @@ Proof.
   intros; eapply pure_wp_orelse; eauto. intros _ [].
 Qed.
 
-Lemma pure_wpv_bind_compat {A' A E} (φ : A → Prop) (φ' : A' → Prop) (m : micro A E) k :
+Lemma pure_wpv_bind_conseq {A' A E} (φ : A → Prop) (φ' : A' → Prop) (m : micro A E) k :
   pure_wpv m φ →
   (∀ a, φ a → pure_wpv (k a) φ') →
   pure_wpv (bind m k) φ'.
 Proof.
-  intros; eapply pure_wp_bind_compat; eauto.
+  intros; eapply pure_wp_bind_conseq; eauto.
 Qed.
 
-Lemma pure_wpv_try_compat {A' A E E' φ φ'} m (f : A → micro A' E') (h : E → micro A' E') :
+Lemma pure_wpv_try_conseq {A' A E E' φ φ'} m (f : A → micro A' E') (h : E → micro A' E') :
   pure_wpv m φ →
   (∀ a, φ a → pure_wpv (f a) φ') →
   pure_wpv (try m f h) φ'.
 Proof.
-  intros; eapply pure_wp_try_compat; eauto. intros _ [].
+  intros; eapply pure_wp_try_conseq; eauto. intros _ [].
 Qed.
 
 
@@ -714,7 +714,7 @@ Qed.
 
 (* [pure_wp] preserved by [Par] : linking postconditions with implications *)
 
-Lemma pure_wp_Par_compat {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
+Lemma pure_wp_Par_conseq {A E A1 A2 E'} m1 m2 φ1 φ2 ψ1 ψ2 φ ψ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1 φ1 ψ1 →
   pure_wp m2 φ2 ψ2 →
@@ -753,18 +753,18 @@ Lemma pure_wp_par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) 
   (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
   pure_wp (par m1 m2) φ ψ.
 Proof.
-  intros; eapply pure_wp_Par_compat; firstorder eauto using pure_wp_ret, pure_wp_throw.
+  intros; eapply pure_wp_Par_conseq; firstorder eauto using pure_wp_ret, pure_wp_throw.
 Qed.
 
 (* simpler version disallowing exceptions *)
-Lemma pure_wp_Par_compat_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
+Lemma pure_wp_Par_conseq_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
   (k : outcome2 (A1 * A2) E' → micro A E) :
   pure_wp m1 φ1 (λ _, False) →
   pure_wp m2 φ2 (λ _, False) →
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure_wp (continue k (a1, a2)) φ (λ _, False)) →
   pure_wp (Par m1 m2 k) φ (λ _, False).
 Proof.
-  intros; eapply pure_wp_Par_compat; eauto; tauto.
+  intros; eapply pure_wp_Par_conseq; eauto; tauto.
 Qed.
 
 (* [pure_wp] preserved by [Par], stated by giving [m1] a [pure_wp m2]
@@ -895,7 +895,7 @@ Qed.
 
 (* The binary/compat style is common *)
 
-Lemma pure_wpv_Par_left_compat {A E A1 A2 E' m1 m2 φ φ1}
+Lemma pure_wpv_Par_left_conseq {A E A1 A2 E' m1 m2 φ φ1}
   {k : outcome2 (A1 * A2) E' → micro A E} :
   pure_wpv m1 φ1 →
   (∀ a1, φ1 a1 → pure_wpv m2 (λ a2, pure_wpv (continue k (a1, a2)) φ)) →
@@ -1303,7 +1303,7 @@ Proof.
   - apply Forall2_cons_inv_l in Hes. simpl.
     destruct Hes as (φ & φs & He & Hes & ->).
     simpl_evals.
-    eapply pure_wp_Par_compat.
+    eapply pure_wp_Par_conseq.
     + apply He.
     + apply IHes, Hes.
     + intros v vs Hv Hvs. repeat constructor; eauto.
@@ -1322,7 +1322,7 @@ Proof.
   - constructor; inv Hes; auto.
   - apply Forall2_cons_inv_l in Hes. simpl.
     destruct Hes as (v & vs & He & Hes & ->).
-    eapply pure_wp_Par_compat.
+    eapply pure_wp_Par_conseq.
     + apply He.
     + apply IHes, Hes.
     + intros _ _ -> ->. repeat constructor; eauto.
@@ -1437,7 +1437,7 @@ Lemma pure_wp_as_bool (m : microvx) (φ : bool → Prop) ψ :
   pure_wp (as_bool m) φ ψ.
 Proof.
   intro H.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros [] ([] & E & Hb); discriminate || rewrite E; by constructor.
 Qed.
 
@@ -1450,6 +1450,6 @@ Proof.
   simpl.
   intros Hb Ht Hf.
   simpl_eval.
-  eapply pure_wp_bind_compat. apply pure_wp_as_bool. apply Hb.
+  eapply pure_wp_bind_conseq. apply pure_wp_as_bool. apply Hb.
   intros []; auto.
 Qed.

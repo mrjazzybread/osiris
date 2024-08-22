@@ -88,7 +88,7 @@ Lemma cpat_CEff η peff pk v k φ ψ1 ψ2 :
   cpattern η (CEff peff pk) (O3Perform v k) φ (ψ1 \/ ψ2).
 Proof.
   unfold cpattern, pattern; intros. simpl.
-  eapply pure_wp_bind_compat; [ eapply pure_wp_mono; eauto | ].
+  eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
   simpl; intros δ ?.
   eauto using pure_wp_mono.
 Qed.
@@ -204,7 +204,7 @@ Lemma structs_cons ηδ item items φ ψ :
 Proof.
   unfold struct_items, struct_item. intros.
   simpl_eval_sitems.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
 Qed.
 
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
@@ -215,7 +215,7 @@ Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILet bs) φ.
 Proof.
   unfold struct_item; simpl_eval_sitem; intros.
-  eapply pure_wp_bind_compat; eauto using pure_wp_ret.
+  eapply pure_wp_bind_conseq; eauto using pure_wp_ret.
 Qed.
 
 Lemma struct_letrec η δ rbs (φ : envs -> Prop) ψ :
@@ -237,7 +237,7 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
 Proof.
   intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
   eapply pure_wp_simp. { simpl. apply SimpParRetRight. }
-  eapply pure_wp_try2_compat; eauto. 2: intros _ [].
+  eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
   simpl; intros ? (? & -> & Hextend).
   unfold irrefutably_extend; simpl_extend.
   eapply pure_wp_ret; eauto.
@@ -250,12 +250,12 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
 Proof.
   intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
   eapply pure_wp_simp. { simpl. apply SimpParRetRight. }
-  eapply pure_wp_try2_compat; eauto. 2: intros _ [].
+  eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
   simpl; intros v (? & -> & Hextend).
-  eapply pure_wp_bind_compat.
+  eapply pure_wp_bind_conseq.
   { unfold pattern in Hextend. unfold irrefutably_extend; cbn.
     apply pure_wp_widen.
-    eapply pure_wp_try_compat; eauto. 2: intros _ [].
+    eapply pure_wp_try_conseq; eauto. 2: intros _ [].
     eauto using pure_wp_ret. }
   auto using pure_wp_ret.
 Qed.
@@ -281,7 +281,7 @@ Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros []; try contradiction; eauto using pure_wp_ret.
 Qed.
 
@@ -292,9 +292,9 @@ Lemma struct_open η δ me (φ : envs -> Prop) (φ' : env -> Prop) :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_compat.
+  eapply pure_wp_bind_conseq.
   { unfold as_struct.
-    eapply pure_wp_bind_compat; eauto.
+    eapply pure_wp_bind_conseq; eauto.
     intros [] Hx; try contradiction. apply pure_wp_widen;
     eauto using pure_wp_ret. }
   eauto using pure_wp_ret.
@@ -308,9 +308,9 @@ Lemma struct_include η δ me (φ : envs -> Prop) module_spec :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_compat.
+  eapply pure_wp_bind_conseq.
   { unfold as_struct.
-    eapply pure_wp_bind_compat; eauto.
+    eapply pure_wp_bind_conseq; eauto.
     intros [] Hx; try contradiction; apply pure_wp_widen;
       eauto using pure_wp_ret. }
   eauto using pure_wp_ret.
@@ -337,7 +337,7 @@ Lemma module_struct η sitems φ :
 Proof.
   intros; unfold eval_module.
   simpl_eval_mexpr.
-  eapply pure_wp_bind_compat; [ eassumption | ].
+  eapply pure_wp_bind_conseq; [ eassumption | ].
   intros [??]; auto using pure_wp_ret.
 Qed.
 
@@ -373,7 +373,7 @@ Lemma module_coercion η me c φ :
 Proof.
   intros; unfold eval_module.
   simpl_eval_mexpr.
-  eapply pure_wp_bind_compat; [ eassumption | ].
+  eapply pure_wp_bind_conseq; [ eassumption | ].
   intros [] Hx; try contradiction; apply pure_wp_widen;
     unfold coerces in *; auto.
 Qed.
@@ -393,7 +393,7 @@ Proof.
   apply pure_wp_Par_vals_left.
   apply (pure_wp_mono_ret _ Hpure). intros v (a & -> & Ha).
   apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
-  eapply pure_wp_widen, pure_wp_try_compat. by apply Hcov.
+  eapply pure_wp_widen, pure_wp_try_conseq. by apply Hcov.
   intros. by apply pure_wp_ret. intros _ [].
 Qed.
 

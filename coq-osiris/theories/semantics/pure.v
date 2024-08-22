@@ -67,7 +67,7 @@ Lemma pure_try2 A X Y (_ : Encode A) B (_ : Encode B)
   (∀ a, φ a → pure (continue h #a) ψ) →
   pure (X := Y) (try2 m h) ψ.
 Proof.
-  intros. eapply pure_wpv_try2_compat; eauto.
+  intros. eapply pure_wpv_try2_conseq; eauto.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
 
@@ -122,7 +122,7 @@ Lemma pure_par `{Encode A1, Encode A2, Encode A} {X Y}
   pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1 Hm2 Hentail. rewrite <- try_par.
-  eapply pure_wpv_try_compat.
+  eapply pure_wpv_try_conseq.
   { eapply pure_wp_par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
     simpl. intros v1 v2 ? ?.
     destruct_encode_image a2. destruct_encode_image a1.
@@ -138,7 +138,7 @@ Lemma pure_par' `{Encode A1, Encode A2, Encode A} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ) →
   pure (X := Y) (Par m1 m2 k) φ.
 Proof.
-  intros. eapply pure_wp_Par_compat; eauto; firstorder subst; eauto.
+  intros. eapply pure_wp_Par_conseq; eauto; firstorder subst; eauto.
 Qed.
 
 (* Sequentializations of previous lemmas, considering the LHS first *)

@@ -23,7 +23,7 @@ Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
   patterns η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
   unfold patterns, patterns. intros Hp; simpl_extends.
-  eapply pure_wp_bind_compat.
+  eapply pure_wp_bind_conseq.
   { eapply pure_wp_mono.
     - eassumption.
     - simpl; intros. eapply pure_wp_mono; eauto.
@@ -174,9 +174,9 @@ Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ
 Proof.
   intros; subst.
   unfold pattern. simpl_extend.
-  eapply pure_wp_bind_compat; [ eapply pure_wp_mono; eauto | ].
+  eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
   simpl; intros. rewrite bind_ret_right.
-  eapply pure_wp_bind_compat; [ eapply pure_wp_mono; eauto | ].
+  eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
   auto using pure_wp_ret.
 Qed.
 

@@ -23,9 +23,9 @@ Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
 Proof.
   intros Hfm Hga.
   apply invert_pure_wp_bind in Hfm.
-  eapply pure_wp_bind_compat; eauto. simpl.
+  eapply pure_wp_bind_conseq; eauto. simpl.
   intros a' Ha'.
-  eapply pure_wp_bind_compat; eauto. simpl.
+  eapply pure_wp_bind_conseq; eauto. simpl.
   intros _v (_a & -> & ->).
   eapply pure_wp_mono; eauto.
 Qed.
@@ -41,9 +41,9 @@ Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
 Proof.
   intros Hm Hga.
   apply invert_pure_wp_bind in Hm.
-  eapply pure_wp_bind_compat; eauto. simpl.
+  eapply pure_wp_bind_conseq; eauto. simpl.
   intros v Hv.
-  eapply pure_wp_bind_compat; eauto. simpl.
+  eapply pure_wp_bind_conseq; eauto. simpl.
   intros _ (y & -> & Hy).
   eapply pure_wp_mono_ret.
   - apply Hga, Hy.
@@ -79,7 +79,7 @@ Lemma pure_bind_as_int `{Encode Y}
   (* This is [@bind int val]. *)
 Proof.
   intros Hm%pure_as_int Hf.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros _ (i & -> & Hi).
   eapply (pure_wp_mono_ret _ (Hf i Hi)); auto.
 Qed.
@@ -95,7 +95,7 @@ Lemma pure_bind_as_loc `{Encode Y}
 Proof.
   intros Hm Hf.
   apply pure_wp_bind.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros _ (l & -> & Hl). apply pure_wp_ret, Hf, Hl.
 Qed.
 
@@ -110,7 +110,7 @@ Lemma pure_bind_as_struct Y (_ : Encode Y)
 Proof.
   intros Hm Hf.
   apply pure_wp_bind.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros _ (_ & -> & (env & -> & Henv)).
   apply pure_wp_ret, Hf, Henv.
 Qed.
@@ -127,7 +127,7 @@ Proof.
   (* same exact proof script *)
   intros Hm Hf.
   apply pure_wp_bind.
-  eapply pure_wp_bind_compat; eauto.
+  eapply pure_wp_bind_conseq; eauto.
   intros _ (_ & -> & (env & -> & Henv)).
   apply pure_wp_ret, Hf, Henv.
 Qed.
