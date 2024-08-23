@@ -8,7 +8,7 @@ From osiris.semantics Require Import code eval step simplification pure_wp.
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
 Definition pure_enc `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
-  pure_wp m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
+  pure m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -32,7 +32,7 @@ Lemma pure_enc_ret `{Encode A} {X} (φ : A → Prop) v a :
   φ a →
   pure_enc (X := X) (ret v) φ.
 Proof.
-  unfold pure_enc; eauto using pure_wp_ret.
+  unfold pure_enc; eauto using pure_ret.
 Qed.
 
 (* A reasoning rule for ret that can instantiate the goal when it is an evar *)
@@ -51,7 +51,7 @@ Lemma pure_enc_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
   (∀ a, φ a → ψ a) →
   pure_enc (X := X) m ψ.
 Proof.
-  intros. eapply pure_wp_mono_ret; [ eauto |].
+  intros. eapply pure_mono_ret; [ eauto |].
   firstorder.
 Qed.
 
@@ -67,7 +67,7 @@ Lemma pure_enc_try2 A X Y (_ : Encode A) B (_ : Encode B)
   (∀ a, φ a → pure_enc (continue h #a) ψ) →
   pure_enc (X := Y) (try2 m h) ψ.
 Proof.
-  intros. eapply pure_wpv_try2_conseq; eauto.
+  intros. eapply purev_try2_conseq; eauto.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
 
@@ -122,8 +122,8 @@ Lemma pure_enc_par `{Encode A1, Encode A2, Encode A} {X Y}
   pure_enc (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1 Hm2 Hentail. rewrite <- try_par.
-  eapply pure_wpv_try_conseq.
-  { eapply pure_wp_par with (φ := λ v, pure_enc (k v) φ); [ eauto | eauto |].
+  eapply purev_try_conseq.
+  { eapply pure_par with (φ := λ v, pure_enc (k v) φ); [ eauto | eauto |].
     simpl. intros v1 v2 ? ?.
     destruct_encode_image a2. destruct_encode_image a1.
     eauto. }
@@ -138,7 +138,7 @@ Lemma pure_enc_par' `{Encode A1, Encode A2, Encode A} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → pure_enc (continue k (#a1, #a2)) φ) →
   pure_enc (X := Y) (Par m1 m2 k) φ.
 Proof.
-  intros. eapply pure_wp_Par_conseq; eauto; firstorder subst; eauto.
+  intros. eapply pure_Par_conseq; eauto; firstorder subst; eauto.
 Qed.
 
 (* Sequentializations of previous lemmas, considering the LHS first *)
@@ -153,9 +153,9 @@ Lemma pure_enc_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
   pure_enc (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1.
-  apply pure_wp_Par_vals_left.
-  eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
-  eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
+  apply pure_Par_vals_left.
+  eapply (pure_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
+  eapply (pure_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
   eauto.
 Qed.
 
@@ -166,9 +166,9 @@ Lemma pure_enc_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
   pure_enc (X := Y) (Par m1 m2 k) φ.
 Proof.
   intros Hm1.
-  apply pure_wp_Par_vals_left.
-  eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
-  eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
+  apply pure_Par_vals_left.
+  eapply (pure_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
+  eapply (pure_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
   eauto.
 Qed.
 
@@ -179,7 +179,7 @@ Lemma pure_enc_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
   pure_enc m2 φ →
   pure_enc (choose m1 m2) φ.
 Proof.
-  apply pure_wp_choose.
+  apply pure_choose.
 Qed.
 
 (* The infinitary intersection rule. *)
@@ -215,9 +215,9 @@ Lemma invert_pure_enc_bind `{Encode A, Encode B} X m k (φ : B → Prop) :
   pure_enc m (λ (a : A), True) →
   pure_enc (X := X) m (λ (a : A), pure_enc (k #a) φ).
 Proof.
-  intros Hmk%invert_pure_wp_bind Hm.
-  pose proof pure_wp_binary_intersection _ Hmk Hm as I.
-  eapply (pure_wp_mono _ I); firstorder subst; eauto.
+  intros Hmk%invert_pure_bind Hm.
+  pose proof pure_binary_intersection _ Hmk Hm as I.
+  eapply (pure_mono _ I); firstorder subst; eauto.
 Qed.
 
 (* That said, if we take the type [A] to be [val], then -- because [encode]
@@ -229,6 +229,6 @@ Lemma invert_pure_enc_bind' `{Encode B} {X} m k (φ : B → Prop) :
   pure_enc (bind m k) φ →
   pure_enc (X := X) m (λ (v : val), pure_enc (k v) φ).
 Proof.
-  intros Hmk%invert_pure_wp_bind.
-  eapply pure_wp_mono; eauto.
+  intros Hmk%invert_pure_bind.
+  eapply pure_mono; eauto.
 Qed.

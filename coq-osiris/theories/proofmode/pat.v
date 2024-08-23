@@ -15,7 +15,7 @@ Lemma pats_PNil η φ :
 Proof.
   unfold patterns.
   simpl_extends.
-  eauto using pure_wp_ret.
+  eauto using pure_ret.
 Qed.
 
 Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
@@ -23,13 +23,13 @@ Lemma pats_PCons_unary η p ps v vs φ ψ1 ψ2 :
   patterns η (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
 Proof.
   unfold patterns, patterns. intros Hp; simpl_extends.
-  eapply pure_wp_bind_conseq.
-  { eapply pure_wp_mono.
+  eapply pure_bind_conseq.
+  { eapply pure_mono.
     - eassumption.
-    - simpl; intros. eapply pure_wp_mono; eauto.
+    - simpl; intros. eapply pure_mono; eauto.
     - tauto. }
   simpl; intros. rewrite bind_ret_right.
-  eapply pure_wp_mono; eauto.
+  eapply pure_mono; eauto.
 Qed.
 
 Lemma pats_PCons η p ps v vs φ' φ ψ1 ψ2 :
@@ -89,14 +89,14 @@ Lemma pat_PAny η v φ :
   φ η →
   pattern η PAny v φ False.
 Proof.
-  unfold pattern. simpl_extend. eauto using pure_wp_ret.
+  unfold pattern. simpl_extend. eauto using pure_ret.
 Qed.
 
 Lemma pat_PVar η x v φ :
   φ ((x, v) :: η) →
   pattern η (PVar x) v φ False.
 Proof.
-  unfold pattern. simpl_extend. eauto using pure_wp_ret.
+  unfold pattern. simpl_extend. eauto using pure_ret.
 Qed.
 
 (* Given a goal of the form [pattern η (PVar x) v ?φ False],
@@ -120,8 +120,8 @@ Lemma pat_PAlias η p x v φ ψ :
   pattern η (PAlias p x) v φ ψ.
 Proof.
   unfold pattern. simpl_extend; intros.
-  apply pure_wp_bind.
-  eauto using pure_wp_mono, pure_wp_ret.
+  apply pure_bind.
+  eauto using pure_mono, pure_ret.
 Qed.
 
 (* TODO generalize to [(φ1 η → pattern η p2 v φ ψ2)] and see if it is useful *)
@@ -133,7 +133,7 @@ Lemma pat_POr η p1 p2 v φ ψ1 ψ2 :
        disjunction pattern to fail, both sides must fail. *)
 Proof.
   unfold pattern. simpl_extend; intros.
-  eauto using pure_wp_orelse, pure_wp_mono.
+  eauto using pure_orelse, pure_mono.
 Qed.
 
 Lemma pat_PUnit η v φ :
@@ -142,7 +142,7 @@ Lemma pat_PUnit η v φ :
   pattern η PUnit v φ False.
 Proof.
   unfold pattern. intros ? ->; simpl_extend.
-  eauto using pure_wp_ret.
+  eauto using pure_ret.
 Qed.
 
 Lemma pat_PTuple `{Encode A} η ps (a : A) vs φ ψ :
@@ -174,10 +174,10 @@ Lemma pat_PPair `{Encode A, Encode B} η p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ
 Proof.
   intros; subst.
   unfold pattern. simpl_extend.
-  eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
+  eapply pure_bind_conseq; [ eapply pure_mono; eauto | ].
   simpl; intros. rewrite bind_ret_right.
-  eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
-  auto using pure_wp_ret.
+  eapply pure_bind_conseq; [ eapply pure_mono; eauto | ].
+  auto using pure_ret.
 Qed.
 
 Lemma pat_PData η c p c' v φ ψ :
@@ -187,7 +187,7 @@ Lemma pat_PData η c p c' v φ ψ :
        is not statically known. *)
 Proof.
   unfold pattern; intros. simpl_extend.
-  destruct_string_eqb; eauto using pure_wp_throw, pure_wp_mono.
+  destruct_string_eqb; eauto using pure_throw, pure_mono.
 Qed.
 
 Lemma pat_PData_eq η c p v φ ψ :
@@ -196,7 +196,7 @@ Lemma pat_PData_eq η c p v φ ψ :
     (* This form is useful when [c = c'] is statically known. *)
 Proof.
   unfold pattern; intros. simpl_extend.
-  destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
+  destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
 Qed.
 
 Lemma pat_PData_neq η c p c' v φ :
@@ -205,7 +205,7 @@ Lemma pat_PData_neq η c p c' v φ :
     (* This form is useful when [c ≠ c'] is statically known. *)
 Proof.
   unfold pattern; intros. simpl_extend.
-  destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
+  destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
 Qed.
 
 Lemma pat_PXData_eq η c p c' v φ ψ :
@@ -234,7 +234,7 @@ Proof.
   destruct l1, l2; simpl in *.
   replace (address0 =? address) with false;
     last by apply eq_sym; apply Z.eqb_neq.
-  by apply pure_wp_throw.
+  by apply pure_throw.
 Qed.
 
 Lemma pat_PXData_neq' η π p l1 l2 v :
@@ -250,7 +250,7 @@ Proof.
   destruct l1, l2; simpl in *.
   replace (address0 =? address) with false;
     last by apply eq_sym; apply Z.eqb_neq.
-  by apply pure_wp_throw.
+  by apply pure_throw.
 Qed.
 
 Lemma pat_PConst η c c' φ :
@@ -332,8 +332,8 @@ Proof.
   unfold pattern; simpl_extend.
   rewrite eq_repr_repr; auto.
   destruct (_ =? _) eqn:E.
-  - apply pure_wp_ret. apply Hφ. by apply Z.eqb_eq.
-  - apply pure_wp_throw. by apply Z.eqb_neq.
+  - apply pure_ret. apply Hφ. by apply Z.eqb_eq.
+  - apply pure_throw. by apply Z.eqb_neq.
 Qed.
 
 Ltac pat_PInt :=
@@ -448,11 +448,11 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
 Proof.
   unfold pure_match; intros Heval Hmatch. simpl.
   simpl_eval.
-  apply pure_wp_handle.
-  apply (pure_wp_mono _ Heval). 2: intros _ [].
+  apply pure_handle.
+  apply (pure_mono _ Heval). 2: intros _ [].
   intros ? (? & -> & ->).
   simpl_install_deep_eval_match.
-  apply (pure_wp_mono _ Hmatch); eauto.
+  apply (pure_mono _ Hmatch); eauto.
 Qed.
 
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
@@ -462,11 +462,11 @@ Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -
 Proof.
   unfold pure_match; intros Heval Hmatch. simpl.
   simpl_eval.
-  apply pure_wp_handle.
-  apply (pure_wp_mono _ Heval). 2: intros _ [].
+  apply pure_handle.
+  apply (pure_mono _ Heval). 2: intros _ [].
   intros ? (a & -> & Ha).
   simpl_install_deep_eval_match.
-  apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
+  apply (pure_mono _ (Hmatch _ Ha)); eauto.
 Qed.
 
 (* Currently unused *)
@@ -477,7 +477,7 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
 Proof.
   unfold pure_match; unfold pattern.
   intros; simpl_deep_eval_match.
-  apply pure_wp_try; auto.
+  apply pure_try; auto.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
@@ -487,7 +487,7 @@ Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
 Proof.
   intros.
   apply pure_match_cons_unary.
-  unfold cpattern in *; eauto using pure_wp_mono.
+  unfold cpattern in *; eauto using pure_mono.
 Qed.
 
 (* Not matching is an error. *)

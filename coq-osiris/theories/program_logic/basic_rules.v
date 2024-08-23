@@ -1023,8 +1023,8 @@ Section ewp_val_rules.
     iModIntro; iApply ("IH" with "[//] Hwp").
   Qed.
 
-  Lemma pure_wp_ewp {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
-    pure_wp m φ ψ →
+  Lemma pure_ewp {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
+    pure m φ ψ →
     ⊢ EWP m @ E' <| Ψ |> {{ | RET a => ⌜φ a⌝; | EXN e => ⌜ψ e⌝ }}.
   Proof.
     iIntros (Hm).
@@ -1036,24 +1036,24 @@ Section ewp_val_rules.
       destruct h as [ a | e | eff f ].
       + (* [ret]'s satisfy [φ] *)
         destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
-        by eapply invert_pure_wp_ret in Hm.
+        by eapply invert_pure_ret in Hm.
       + (* [throw]'s satisfy [ψ] *)
         destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
-        by eapply invert_pure_wp_throw in Hm.
+        by eapply invert_pure_throw in Hm.
       + (* [perform]'s are not immediately pure *)
         destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
-        by apply invert_pure_wp_stop in Hm.
+        by apply invert_pure_stop in Hm.
 
     - (* [m] is not handleable *)
       intro_state.
       ewp_mask_intro "Hmod".
       iSplit.
-      + (* so [m] can step because it is [pure_wp] *)
-        destruct (pure_wp_progress m Hm) as [(a, ->)|[(e, ->)|]]; auto; discriminate.
-      + (* and no step can change [σ] or escape [pure_wp] *)
+      + (* so [m] can step because it is [pure] *)
+        destruct (pure_progress m Hm) as [(a, ->)|[(e, ->)|]]; auto; discriminate.
+      + (* and no step can change [σ] or escape [pure] *)
         intro_step.
         ewp_cleanup_mod. ewp_mask_elim.
-        destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
+        destruct (pure_preservation Hm Hstep) as (Hm' & <-).
         iFrame.
         by iApply "IH".
   Qed.
@@ -1064,7 +1064,7 @@ Section ewp_val_rules.
   Proof.
     iIntros (W).
     iApply ewp_mono.
-    iApply pure_wp_ewp. eassumption. iIntros ([]); eauto.
+    iApply pure_ewp. eassumption. iIntros ([]); eauto.
   Qed.
 
 End ewp_val_rules.

@@ -320,7 +320,7 @@ Section handler_proof.
     iIntros (Hpat) "Heval Hcov /=".
     simpl_deep_eval_match.
     iApply ewp_try.
-    iApply ewp_mono. by iApply pure_wp_ewp.
+    iApply ewp_mono. by iApply pure_ewp.
     iIntros ([|] Ho) "/=".
     - by iApply "Heval".
     - by iApply "Hcov".
@@ -335,7 +335,7 @@ Section handler_proof.
     iIntros (Hpat) "Hcov". simpl.
     simpl_deep_eval_match.
     iApply ewp_try.
-    iApply ewp_mono. by iApply pure_wp_ewp.
+    iApply ewp_mono. by iApply pure_ewp.
     iIntros ([|] Ho) "/=".
     - iApply Ho.
     - by iApply "Hcov".

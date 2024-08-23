@@ -3,7 +3,7 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality notations pure_eval.
 
-(* Because the relation [pure_wp] is inductively defined, the [pure] judgement
+(* Because the relation [pure] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
    for pure computations. *)
 
@@ -22,12 +22,12 @@ Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
         g v2) φ.
 Proof.
   intros Hfm Hga.
-  apply invert_pure_wp_bind in Hfm.
-  eapply pure_wp_bind_conseq; eauto. simpl.
+  apply invert_pure_bind in Hfm.
+  eapply pure_bind_conseq; eauto. simpl.
   intros a' Ha'.
-  eapply pure_wp_bind_conseq; eauto. simpl.
+  eapply pure_bind_conseq; eauto. simpl.
   intros _v (_a & -> & ->).
-  eapply pure_wp_mono; eauto.
+  eapply pure_mono; eauto.
 Qed.
 
 Lemma pure_enc_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
@@ -40,12 +40,12 @@ Lemma pure_enc_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
         g v2) φ.
 Proof.
   intros Hm Hga.
-  apply invert_pure_wp_bind in Hm.
-  eapply pure_wp_bind_conseq; eauto. simpl.
+  apply invert_pure_bind in Hm.
+  eapply pure_bind_conseq; eauto. simpl.
   intros v Hv.
-  eapply pure_wp_bind_conseq; eauto. simpl.
+  eapply pure_bind_conseq; eauto. simpl.
   intros _ (y & -> & Hy).
-  eapply pure_wp_mono_ret.
+  eapply pure_mono_ret.
   - apply Hga, Hy.
   - intros _ (x & -> & Hx). eauto.
 Qed.
@@ -79,9 +79,9 @@ Lemma pure_enc_bind_as_int `{Encode Y}
   (* This is [@bind int val]. *)
 Proof.
   intros Hm%pure_as_int Hf.
-  eapply pure_wp_bind_conseq; eauto.
+  eapply pure_bind_conseq; eauto.
   intros _ (i & -> & Hi).
-  eapply (pure_wp_mono_ret _ (Hf i Hi)); auto.
+  eapply (pure_mono_ret _ (Hf i Hi)); auto.
 Qed.
 
 (* [bind] composed with [as_loc]. *)
@@ -94,9 +94,9 @@ Lemma pure_enc_bind_as_loc `{Encode Y}
   (* This is [@bind loc val]. *)
 Proof.
   intros Hm Hf.
-  apply pure_wp_bind.
-  eapply pure_wp_bind_conseq; eauto.
-  intros _ (l & -> & Hl). apply pure_wp_ret, Hf, Hl.
+  apply pure_bind.
+  eapply pure_bind_conseq; eauto.
+  intros _ (l & -> & Hl). apply pure_ret, Hf, Hl.
 Qed.
 
 (* [bind] composed with [as_struct]. *)
@@ -109,10 +109,10 @@ Lemma pure_enc_bind_as_struct Y (_ : Encode Y)
   (* This is [@bind env val]. *)
 Proof.
   intros Hm Hf.
-  apply pure_wp_bind.
-  eapply pure_wp_bind_conseq; eauto.
+  apply pure_bind.
+  eapply pure_bind_conseq; eauto.
   intros _ (_ & -> & (env & -> & Henv)).
-  apply pure_wp_ret, Hf, Henv.
+  apply pure_ret, Hf, Henv.
 Qed.
 
 (* [bind] composed with [as_record]. *)
@@ -126,10 +126,10 @@ Lemma pure_enc_bind_as_record Y (_ : Encode Y)
 Proof.
   (* same exact proof script *)
   intros Hm Hf.
-  apply pure_wp_bind.
-  eapply pure_wp_bind_conseq; eauto.
+  apply pure_bind.
+  eapply pure_bind_conseq; eauto.
   intros _ (_ & -> & (env & -> & Henv)).
-  apply pure_wp_ret, Hf, Henv.
+  apply pure_ret, Hf, Henv.
 Qed.
 
 (* TODO add similar lemmas for other constructs *)
@@ -182,7 +182,7 @@ Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
   @pure_enc X _ Y (Stop CEval (η, e) k) φ.
 Proof.
   intros.
-  eapply pure_wp_simp; [ apply SimpEval | assumption ].
+  eapply pure_simp; [ apply SimpEval | assumption ].
 Qed.
 
 Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :
@@ -192,7 +192,7 @@ Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :
 Proof.
   intros Hlookup Hpure.
   simpl; rewrite Hlookup.
-  eapply pure_wp_CEval; rewrite try2_ret_right.
+  eapply pure_CEval; rewrite try2_ret_right.
   done.
 Qed.
 
@@ -203,7 +203,7 @@ Proof.
   intros Hcall.
   unfold call in Hcall.
   destruct f; simpl in Hcall;
-    ((exfalso; by eapply invert_pure_wp_crash) || eauto).
+    ((exfalso; by eapply invert_pure_crash) || eauto).
 Qed.
 
 (* - [X] is the type of the argument.
@@ -223,7 +223,7 @@ Proof.
   intros Hwf HPx Hrec.
   generalize dependent a.
   induction x as [x IH] using (well_founded_induction Hwf); intros.
-  simpl; rewrite String.eqb_refl; apply pure_wp_CEval; rewrite try2_ret_right.
+  simpl; rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
   apply Hrec; [ intros a2 y HR HPy | assumption ].
   apply IH; auto.
 Qed.
@@ -306,7 +306,7 @@ Proof.
   revert HP. generalize a. clear a.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   unfold pure_call2; simpl;
-    rewrite String.eqb_refl; apply pure_wp_CEval; rewrite try2_ret_right.
+    rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
   apply Hrec; [ intros a2 x2 y2 HR HP2 | rewrite <- surjective_pairing; apply HP ].
   apply (IH (x2, y2)); auto.
   rewrite surjective_pairing; apply HR.

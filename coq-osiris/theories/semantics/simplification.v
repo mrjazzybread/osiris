@@ -31,7 +31,7 @@ Local Open Scope nat_scope.
    - It can be used to write specifications for pure programs. Indeed, if a
      program is pure (that is, does not involve divergence, non-determinism,
      or mutable state) then it should have a specification of the form [∃ a,
-     simp m (ret a) ∧ φ a]. See [pure_wp] for specifications allowing
+     simp m (ret a) ∧ φ a]. See [pure] for specifications allowing
      non-determinism. *)
 
 (* -------------------------------------------------------------------------- *)

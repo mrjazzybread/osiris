@@ -61,9 +61,9 @@ Section ewp_rules_expr.
   Proof.
     iIntros (He) "H".
     iApply ewp_mono.
-    { iApply (@pure_wp_ewp _ _ _ _ _ _ _ (λ _, False)).
-      eapply pure_wp_widen, pure_wp_simp. apply He.
-      apply pure_wp_ret_eq. }
+    { iApply (@pure_ewp _ _ _ _ _ _ _ (λ _, False)).
+      eapply pure_widen, pure_simp. apply He.
+      apply pure_ret_eq. }
     by iIntros ([|] []).
   Qed.
 
