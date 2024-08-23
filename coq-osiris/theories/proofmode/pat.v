@@ -432,19 +432,19 @@ Ltac pat_pCons :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) φ].
+(* [pure_match η v bs φ] is sugar for [pure_enc (eval_match η v bs) φ].
 
    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
 Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) :=
-  pure (deep_eval_match η bs o) φ.
+  pure_enc (deep_eval_match η bs o) φ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
 Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
-  pure (eval η e) (λ x, x = a) ->
+  pure_enc (eval η e) (λ x, x = a) ->
   pure_match η bs (O3Ret #a) φ ->
-  pure (eval η (EMatch e bs)) φ.
+  pure_enc (eval η (EMatch e bs)) φ.
 Proof.
   unfold pure_match; intros Heval Hmatch. simpl.
   simpl_eval.
@@ -456,9 +456,9 @@ Proof.
 Qed.
 
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
-  pure (eval η e) φ' ->
+  pure_enc (eval η e) φ' ->
   (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
-  pure (eval η (EMatch e bs)) φ.
+  pure_enc (eval η (EMatch e bs)) φ.
 Proof.
   unfold pure_match; intros Heval Hmatch. simpl.
   simpl_eval.
@@ -472,7 +472,7 @@ Qed.
 (* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
-  cpattern η p v (λ η', pure (eval η' e) φ) (pure_match η bs v φ) ->
+  cpattern η p v (λ η', pure_enc (eval η' e) φ) (pure_match η bs v φ) ->
   pure_match η ((Branch p e) :: bs) v φ.
 Proof.
   unfold pure_match; unfold pattern.
@@ -481,7 +481,7 @@ Proof.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
-  cpattern η p v (λ η', pure (eval η' e) φ) ψ ->
+  cpattern η p v (λ η', pure_enc (eval η' e) φ) ψ ->
   (ψ -> (pure_match η bs v φ)) ->
   pure_match η ((Branch p e) :: bs) v φ.
 Proof.
@@ -497,7 +497,7 @@ Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) :
 Proof. contradiction. Qed.
 
 Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
-  cpattern η p v (λ η' : env, pure (eval η' e) φ) ψ →
+  cpattern η p v (λ η' : env, pure_enc (eval η' e) φ) ψ →
   (ψ -> False) ->
   pure_match η [Branch p e] v φ.
 Proof.
@@ -611,7 +611,7 @@ Ltac post_process_pats :=
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
    successively applies [pure_match_cons], creating n subgoals of the
-   form [pattern _ _ _ (λ n', pure (eval η' _) _ _) _] and one subgoal of
+   form [pattern _ _ _ (λ n', pure_enc (eval η' _) _ _) _] and one subgoal of
    the form [False]. *)
 
 Ltac pure_match_branches :=

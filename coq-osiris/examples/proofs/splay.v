@@ -513,14 +513,14 @@ Ltac pattern_hook ::=
 Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-    pure
+    pure_enc
       (call splay #(l, x, r, ctx))
       (λ t', fringe t' = fringe (fill ctx (Node l x r))).
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
-    pure
+    pure_enc
       (call splay_leaf #ctx)
       (λ t', fringe t' = fringe (fill ctx Leaf)).
 
@@ -530,7 +530,7 @@ Definition zlookup_spec :=
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
-      pure
+      pure_enc
         (call zlookup #(t, x, ctx))
         (λ '(oy, t'),
           member le x (fringe t) oy ∧
@@ -678,7 +678,7 @@ Proof.
   apply pair_eq in Heqtup as [Heqtup <-].
   apply pair_eq in Heqtup as [<- <-].
   match goal with
-  | |- pure _ ?φ =>
+  | |- pure_enc _ ?φ =>
       let h := fresh in
       set (h := φ);
       pattern tup in h;

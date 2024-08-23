@@ -1059,7 +1059,7 @@ Section ewp_val_rules.
   Qed.
 
   Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
-    pure m φ ->
+    pure_enc m φ ->
     ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
   Proof.
     iIntros (W).

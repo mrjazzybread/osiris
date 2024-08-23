@@ -123,10 +123,10 @@ Local Hint Unfold merge_pre : core.
 Definition merge_spec (merge : val) : Prop :=
   ∀ (l1 l2 : list Z),
     merge_pre l1 l2 ->
-    pure
+    pure_enc
       (call merge #l1)
       (fun c =>
-         pure (call c #l2) (merge_post l1 l2)).
+         pure_enc (call c #l2) (merge_post l1 l2)).
 
 
 (* Specification for [split l]. *)
@@ -139,7 +139,7 @@ Local Definition split_post {A} :=
 
 Definition split_spec (split : val) : Prop :=
   ∀ A `(_ : Encode A) (l : list A),
-    pure
+    pure_enc
       (call split #l)
       (split_post l).
 
@@ -154,7 +154,7 @@ Local Hint Unfold mergesort_pre : core.
 Definition mergesort_spec (mergesort : val) : Prop :=
   ∀ (l : list Z),
     mergesort_pre l ->
-    pure
+    pure_enc
       (call mergesort #l)
       (mergesort_post l).
 

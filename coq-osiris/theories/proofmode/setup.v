@@ -95,6 +95,6 @@ Global Opaque
   type_mismatch
 
   (* Judgements. *)
-  pure
+  pure_enc
 
 .

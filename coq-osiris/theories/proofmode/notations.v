@@ -203,17 +203,17 @@ Goal (trivial
 Abort.
 
 Notation "'pure' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
-  (pure (call f arg1)
-     (λ c, pure (call c arg2)
-             (.. (λ c, pure (call c argn) ψ) ..)))
+  (pure_enc (call f arg1)
+     (λ c, pure_enc (call c arg2)
+             (.. (λ c, pure_enc (call c argn) ψ) ..)))
     (at level 200,
       only printing,
     format "'pure'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
 
 Goal (trivial
-        (pure (call (VString "F") (VString "X"))
-           (λ c, pure (call c (VString "Y"))
-                   (λ c, pure (call c (VString "Z"))
+        (pure_enc (call (VString "F") (VString "X"))
+           (λ c, pure_enc (call c (VString "Y"))
+                   (λ c, pure_enc (call c (VString "Z"))
                            (λ v : val, True))))).
 Abort.
 
@@ -361,13 +361,13 @@ Global Arguments eval _ _%expr_scope.
 (* Notation for osiris contexts on pure propositions *)
 
 (* Notation "Γ '--------------------------------------env' e { Q }" := *)
-(*   (pure (eval Γ e%expr) Q) *)
+(*   (pure_enc (eval Γ e%expr) Q) *)
 (*   (only printing, at level 100, *)
 (*       format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
 
 
 (* Notation "'--------------------------------------env' e { Q }" := *)
-(*   (pure e Q) *)
+(*   (pure_enc e Q) *)
 (*   (only printing, at level 100, *)
 (*       format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
 

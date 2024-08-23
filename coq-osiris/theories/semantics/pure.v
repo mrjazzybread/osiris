@@ -4,10 +4,10 @@ From osiris.semantics Require Import code eval step simplification pure_wp.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The judgement [pure m φ] asserts that the computation [m] will reduce
+(* The judgement [pure_enc m φ] asserts that the computation [m] will reduce
    to [ret #a], where [a] is a (logical) value so that [φ a] holds. *)
 
-Definition pure `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
+Definition pure_enc `{Encode A} {X} (m : micro val X) (φ : A → Prop) :=
   pure_wp m (λ v, ∃ a, v = #a ∧ φ a) (λ _, False).
 
 (* -------------------------------------------------------------------------- *)
@@ -30,15 +30,15 @@ Ltac destruct_encode_image a :=
 Lemma pure_enc_ret `{Encode A} {X} (φ : A → Prop) v a :
   v = #a →
   φ a →
-  pure (X := X) (ret v) φ.
+  pure_enc (X := X) (ret v) φ.
 Proof.
-  unfold pure; eauto using pure_wp_ret.
+  unfold pure_enc; eauto using pure_wp_ret.
 Qed.
 
 (* A reasoning rule for ret that can instantiate the goal when it is an evar *)
 
 Lemma pure_enc_ret_eq `{Encode A} {X : Type} (a : A) :
-  pure (X := X) (ret #a) (λ a', a' = a).
+  pure_enc (X := X) (ret #a) (λ a', a' = a).
 Proof.
   intros.
   eapply pure_enc_ret; eauto.
@@ -47,9 +47,9 @@ Qed.
 (* The consequence rule. *)
 
 Lemma pure_enc_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
-  pure m φ →
+  pure_enc m φ →
   (∀ a, φ a → ψ a) →
-  pure (X := X) m ψ.
+  pure_enc (X := X) m ψ.
 Proof.
   intros. eapply pure_wp_mono_ret; [ eauto |].
   firstorder.
@@ -63,9 +63,9 @@ Qed.
 Lemma pure_enc_try2 A X Y (_ : Encode A) B (_ : Encode B)
   (m : micro val X) h (φ : A → Prop) (ψ : B → Prop)
   :
-  pure m φ →
-  (∀ a, φ a → pure (continue h #a) ψ) →
-  pure (X := Y) (try2 m h) ψ.
+  pure_enc m φ →
+  (∀ a, φ a → pure_enc (continue h #a) ψ) →
+  pure_enc (X := Y) (try2 m h) ψ.
 Proof.
   intros. eapply pure_wpv_try2_conseq; eauto.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
@@ -76,9 +76,9 @@ Qed.
 Corollary pure_enc_try A X Y (_ : Encode A) B (_ : Encode B)
   (m : micro val X) k z (φ : A → Prop) (ψ : B → Prop)
 :
-  pure m φ →
-  (∀ a, φ a → pure (k #a) ψ) →
-  pure (X := Y) (try m k z) ψ.
+  pure_enc m φ →
+  (∀ a, φ a → pure_enc (k #a) ψ) →
+  pure_enc (X := Y) (try m k z) ψ.
 Proof.
   intros; eapply pure_enc_try2; eauto.
 Qed.
@@ -91,9 +91,9 @@ Qed.
 Lemma pure_enc_bind A X (_ : Encode A) B (_ : Encode B)
   m k (φ : A → Prop) (ψ : B → Prop)
 :
-  pure m φ →
-  (∀ a, φ a → pure (k #a) ψ) →
-  pure (X := X) (bind m k) ψ.
+  pure_enc m φ →
+  (∀ a, φ a → pure_enc (k #a) ψ) →
+  pure_enc (X := X) (bind m k) ψ.
 Proof.
   rewrite bind_as_try. eauto using pure_enc_try.
 Qed.
@@ -101,8 +101,8 @@ Qed.
 Lemma pure_enc_bind_unary A X (_ : Encode A) B (_ : Encode B)
   m k (ψ : B → Prop)
 :
-  pure m (λ (a : A), pure (k #a) ψ) →
-  pure (X := X) (bind m k) ψ.
+  pure_enc m (λ (a : A), pure_enc (k #a) ψ) →
+  pure_enc (X := X) (bind m k) ψ.
 Proof.
   eauto using pure_enc_bind.
 Qed.
@@ -116,14 +116,14 @@ Qed.
 Lemma pure_enc_par `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
-  pure (X := X) m1 φ1 →
-  pure m2 φ2 →
-  (∀ a1 a2, φ1 a1 → φ2 a2 → pure (k (#a1, #a2)) φ) →
-  pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
+  pure_enc (X := X) m1 φ1 →
+  pure_enc m2 φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → pure_enc (k (#a1, #a2)) φ) →
+  pure_enc (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1 Hm2 Hentail. rewrite <- try_par.
   eapply pure_wpv_try_conseq.
-  { eapply pure_wp_par with (φ := λ v, pure (k v) φ); [ eauto | eauto |].
+  { eapply pure_wp_par with (φ := λ v, pure_enc (k v) φ); [ eauto | eauto |].
     simpl. intros v1 v2 ? ?.
     destruct_encode_image a2. destruct_encode_image a1.
     eauto. }
@@ -133,10 +133,10 @@ Qed.
 Lemma pure_enc_par' `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
 :
-  pure (X := X) m1 φ1 →
-  pure m2 φ2 →
-  (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ) →
-  pure (X := Y) (Par m1 m2 k) φ.
+  pure_enc (X := X) m1 φ1 →
+  pure_enc m2 φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → pure_enc (continue k (#a1, #a2)) φ) →
+  pure_enc (X := Y) (Par m1 m2 k) φ.
 Proof.
   intros. eapply pure_wp_Par_conseq; eauto; firstorder subst; eauto.
 Qed.
@@ -149,8 +149,8 @@ Qed.
 Lemma pure_enc_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
-  pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (k (#a1, #a2)) φ)) →
-  pure (X := Y) (Par m1 m2 (glue2 k z)) φ.
+  pure_enc (X := X) m1 (λ a1 : A1, pure_enc m2 (λ a2 : A2, pure_enc (k (#a1, #a2)) φ)) →
+  pure_enc (X := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
   intros Hm1.
   apply pure_wp_Par_vals_left.
@@ -162,8 +162,8 @@ Qed.
 Lemma pure_enc_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
 :
-  pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (continue k (#a1, #a2)) φ)) →
-  pure (X := Y) (Par m1 m2 k) φ.
+  pure_enc (X := X) m1 (λ a1 : A1, pure_enc m2 (λ a2 : A2, pure_enc (continue k (#a1, #a2)) φ)) →
+  pure_enc (X := Y) (Par m1 m2 k) φ.
 Proof.
   intros Hm1.
   apply pure_wp_Par_vals_left.
@@ -175,9 +175,9 @@ Qed.
 (* A reasoning rule for [choose]. *)
 
 Lemma pure_enc_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
-  pure (X := X) m1 φ →
-  pure m2 φ →
-  pure (choose m1 m2) φ.
+  pure_enc (X := X) m1 φ →
+  pure_enc m2 φ →
+  pure_enc (choose m1 m2) φ.
 Proof.
   apply pure_wp_choose.
 Qed.
@@ -202,18 +202,18 @@ Qed.
 
 (* This is the reciprocal bind rule for [pure]. *)
 
-(* Because [pure m _] requires the result of [m] to lie in the image of the
+(* Because [pure_enc m _] requires the result of [m] to lie in the image of the
    function [encode], and because this image cannot include every inhabitant
-   of the type [val], we cannot expect that [pure (bind m k) φ] implies
-   [pure m _]. Thus, we can establish the reciprocal bind rule only under
-   the side condition [pure m (λ a, True)], which means that the result of
+   of the type [val], we cannot expect that [pure_enc (bind m k) φ] implies
+   [pure_enc m _]. Thus, we can establish the reciprocal bind rule only under
+   the side condition [pure_enc m (λ a, True)], which means that the result of
    the computation [m] lies in the image of the function [encode] at type
    [A]. *)
 
 Lemma invert_pure_enc_bind `{Encode A, Encode B} X m k (φ : B → Prop) :
-  pure (bind m k) φ →
-  pure m (λ (a : A), True) →
-  pure (X := X) m (λ (a : A), pure (k #a) φ).
+  pure_enc (bind m k) φ →
+  pure_enc m (λ (a : A), True) →
+  pure_enc (X := X) m (λ (a : A), pure_enc (k #a) φ).
 Proof.
   intros Hmk%invert_pure_wp_bind Hm.
   pose proof pure_wp_binary_intersection _ Hmk Hm as I.
@@ -226,8 +226,8 @@ Qed.
    side condition. *)
 
 Lemma invert_pure_enc_bind' `{Encode B} {X} m k (φ : B → Prop) :
-  pure (bind m k) φ →
-  pure (X := X) m (λ (v : val), pure (k v) φ).
+  pure_enc (bind m k) φ →
+  pure_enc (X := X) m (λ (v : val), pure_enc (k v) φ).
 Proof.
   intros Hmk%invert_pure_wp_bind.
   eapply pure_wp_mono; eauto.

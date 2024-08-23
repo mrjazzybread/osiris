@@ -14,10 +14,10 @@ From osiris.proofmode Require Import equality notations pure_eval.
 (* -------------------------------------------------------------------------- *)
 Lemma pure_prove_bind_bind `{Encode A} `{Encode X} {E} m (a : A)
   (f : A -> _) (g : val -> _) (φ : X -> Prop) :
-  pure ('c ← m;
+  pure_enc ('c ← m;
         f c) (λ x, x = #a) ->
-  pure (g #a) φ ->
-  pure (X := E) ('v1 ← m;
+  pure_enc (g #a) φ ->
+  pure_enc (X := E) ('v1 ← m;
         'v2 ← f v1;
         g v2) φ.
 Proof.
@@ -32,10 +32,10 @@ Qed.
 
 Lemma pure_enc_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
-  pure ('x ← m;
+  pure_enc ('x ← m;
         f x) ψ ->
-  (forall y, ψ y -> pure (g #y) φ) ->
-  pure ('v1 ← m;
+  (forall y, ψ y -> pure_enc (g #y) φ) ->
+  pure_enc ('v1 ← m;
         v2 ← f v1;
         g v2) φ.
 Proof.
@@ -52,9 +52,9 @@ Qed.
 
 Lemma pure_enc_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
-  pure m (fun x => pure (f x) ψ) ->
-  (forall y, ψ y -> pure (g #y) φ) ->
-  pure ('x ← m;
+  pure_enc m (fun x => pure_enc (f x) ψ) ->
+  (forall y, ψ y -> pure_enc (g #y) φ) ->
+  pure_enc ('x ← m;
         y ← f x;
         g y) φ.
 Proof.
@@ -73,9 +73,9 @@ Qed.
 
 Lemma pure_enc_bind_as_int `{Encode Y}
   m (f : int → microvx) (φ : Z → Prop) (ψ : Y → Prop) :
-  pure m φ →
-  (∀ (x : Z), φ x → pure (f (repr x)) ψ) →
-  pure (bind (as_int m) f) ψ.
+  pure_enc m φ →
+  (∀ (x : Z), φ x → pure_enc (f (repr x)) ψ) →
+  pure_enc (bind (as_int m) f) ψ.
   (* This is [@bind int val]. *)
 Proof.
   intros Hm%pure_as_int Hf.
@@ -88,9 +88,9 @@ Qed.
 
 Lemma pure_enc_bind_as_loc `{Encode Y}
   m (f : loc → microvx) (φ : loc → Prop) (ψ : Y → Prop) :
-  pure m φ →
-  (∀ (x : loc), φ x → pure (f x) ψ) →
-  pure (bind (as_loc m) f) ψ.
+  pure_enc m φ →
+  (∀ (x : loc), φ x → pure_enc (f x) ψ) →
+  pure_enc (bind (as_loc m) f) ψ.
   (* This is [@bind loc val]. *)
 Proof.
   intros Hm Hf.
@@ -103,9 +103,9 @@ Qed.
 
 Lemma pure_enc_bind_as_struct Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
-  pure m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
-  (∀ (x : env), φ (VStruct x) → pure (f x) ψ) →
-  pure (bind (as_struct m) f) ψ.
+  pure_enc m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
+  (∀ (x : env), φ (VStruct x) → pure_enc (f x) ψ) →
+  pure_enc (bind (as_struct m) f) ψ.
   (* This is [@bind env val]. *)
 Proof.
   intros Hm Hf.
@@ -119,9 +119,9 @@ Qed.
 
 Lemma pure_enc_bind_as_record Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
-  pure m (λ y : val, exists y', y = VRecord y' /\ φ y) →
-  (∀ (x : env), φ (VRecord x) → pure (f x) ψ) →
-  pure (bind (as_record m) f) ψ.
+  pure_enc m (λ y : val, exists y', y = VRecord y' /\ φ y) →
+  (∀ (x : env), φ (VRecord x) → pure_enc (f x) ψ) →
+  pure_enc (bind (as_record m) f) ψ.
   (* This is also [@bind env val]. *)
 Proof.
   (* same exact proof script *)
@@ -147,8 +147,8 @@ Qed.
 Lemma pure_call `{Encode X} `{Encode Y}
   (φ : Y → Prop) v1 v'2 (x : X) :
   v'2 = #x →
-  pure (call v1 #x) φ →
-  pure (call v1 v'2) φ.
+  pure_enc (call v1 #x) φ →
+  pure_enc (call v1 v'2) φ.
 Proof.
   intros. subst. eauto.
 Qed.
@@ -158,9 +158,9 @@ Qed.
 Lemma pure_call_consequence `{Encode X} `{Encode Y}
   (φ ψ : Y → Prop) v1 v'2 (x : X) :
   v'2 = #x →
-  pure (call v1 #x) φ →
+  pure_enc (call v1 #x) φ →
   (∀ y, φ y → ψ y) →
-  pure (call v1 v'2) ψ.
+  pure_enc (call v1 v'2) ψ.
 Proof.
   eauto using pure_enc_consequence, pure_call.
 Qed.
@@ -171,15 +171,15 @@ Qed.
    the call. *)
 
 Lemma pure_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) :
-  pure (acall η a v2) φ ->
-  pure (call (VClo η a) v2) φ.
+  pure_enc (acall η a v2) φ ->
+  pure_enc (call (VClo η a) v2) φ.
 Proof.
   tauto.
 Qed.
 
 Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
-  pure (try2 (eval η e) k) φ ->
-  @pure X _ Y (Stop CEval (η, e) k) φ.
+  pure_enc (try2 (eval η e) k) φ ->
+  @pure_enc X _ Y (Stop CEval (η, e) k) φ.
 Proof.
   intros.
   eapply pure_wp_simp; [ apply SimpEval | assumption ].
@@ -187,8 +187,8 @@ Qed.
 
 Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :
   lookup_rec_bindings rbs g = ret (AnonFun x e)  ->
-  pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ->
-  pure (call (VCloRec η rbs g) v2) φ.
+  pure_enc (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ->
+  pure_enc (call (VCloRec η rbs g) v2) φ.
 Proof.
   intros Hlookup Hpure.
   simpl; rewrite Hlookup.
@@ -197,7 +197,7 @@ Proof.
 Qed.
 
 Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
-  pure (call f v) φ ->
+  pure_enc (call f v) φ ->
   (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g.
 Proof.
   intros Hcall.
@@ -216,9 +216,9 @@ Lemma pure_rec_call `{Encode X, Encode Y} {A}
   well_founded R ->
   P a x ->
   (∀ vf x,
-      (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) (φ a)) ->
-      (∀ (a : A), P a x -> pure (eval (arg ~> #x; f ~> vf; η) e1) (φ a))) ->
-  pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) (φ a).
+      (∀ (a : A) (y : X), R y x -> P a y -> pure_enc (call vf #y) (φ a)) ->
+      (∀ (a : A), P a x -> pure_enc (eval (arg ~> #x; f ~> vf; η) e1) (φ a))) ->
+  pure_enc (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) (φ a).
 Proof.
   intros Hwf HPx Hrec.
   generalize dependent a.
@@ -239,15 +239,15 @@ Lemma pure_letrec `{Encode X, Encode Y} {A}
      Assuming that any recursive call of [f] on a smaller argument
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
-      (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) (φf a)) ->
-      ∀ (a : A), P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a)) ->
+      (∀ (a : A) (y : X), R y x -> P a y -> pure_enc (call vf #y) (φf a)) ->
+      ∀ (a : A), P a x -> pure_enc (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a)) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
-      (∀ a x, P a x -> pure (call vf #x) (φf a)) ->
-      pure (eval ((f, vf) :: η) e2) φ) ->
-  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ.
+      (∀ a x, P a x -> pure_enc (call vf #x) (φf a)) ->
+      pure_enc (eval ((f, vf) :: η) e2) φ) ->
+  pure_enc (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ.
 Proof.
   intros Hwf He1 He2.
   simpl_eval. apply He2. clear He2.
@@ -263,15 +263,15 @@ Lemma pure_rec_call_no_pre `{Encode X} `{Encode Y}
      Assuming that any recursive call of [f] on a smaller argument
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
-      (∀ (y : X), R y x -> pure (call vf #y) φf) ->
-      pure (eval ((arg, #x) :: (f, vf) :: η) e1) φf) ->
+      (∀ (y : X), R y x -> pure_enc (call vf #y) φf) ->
+      pure_enc (eval ((arg, #x) :: (f, vf) :: η) e1) φf) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
-      (∀ (x : X), pure (call vf #x) φf) ->
-      pure (eval ((f, vf) :: η) e2) φ) ->
-  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ.
+      (∀ (x : X), pure_enc (call vf #x) φf) ->
+      pure_enc (eval ((f, vf) :: η) e2) φ) ->
+  pure_enc (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ.
 Proof.
   intros Hwf He1 He2.
   simpl_eval. apply He2. clear He2.
@@ -280,8 +280,8 @@ Proof.
 Qed.
 
 Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
-  pure (call vf arg1) (fun c =>
-                         pure (call c arg2) φ).
+  pure_enc (call vf arg1) (fun c =>
+                         pure_enc (call c arg2) φ).
 
 Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} {A}
   η f arg e1 (x : X) (y : Y) (a : A) (φ : A -> W -> Prop)
@@ -296,7 +296,7 @@ Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} {A}
           pure_call2 vf #x2 #y2 (φ a)) ->
       (∀ (a : A),
           P a (x1, y1) ->
-          pure (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure (call c #y1) (φ a)))) ->
+          pure_enc (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure_enc (call c #y1) (φ a)))) ->
   pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ a).
 Proof.
   intros Hwf HP Hrec.
