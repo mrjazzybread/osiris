@@ -3,44 +3,6 @@ From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import simp_tactics.
 
-(* Paths. *)
-
-Lemma pure_wp_eval_path η π v :
-  lookup_path η π = ret v →
-  pure_wpv (eval η (EPath π)) (λ x, x = v).
-Proof.
-  intros Hlookup. simpl_eval. rewrite Hlookup. by constructor.
-Qed.
-
-(* Tuples. *)
-
-(* TODO can we give a generic definition of the encoding of n-tuples? *)
-
-(* This special case at arity 2 does mention the encoding function. *)
-(* TODO can we give a similar lemma at arity [n]? *)
-
-Lemma pure_wp_eval_pair `{Encode A1, Encode A2} η e1 e2 (a1 : A1) (a2 : A2) :
-  pure_wpv (eval η e1) (λ x, x = #a1) →
-  pure_wpv (eval η e2) (λ x, x = #a2) →
-  pure_wpv (eval η (EPair e1 e2)) (λ x, x = #(a1, a2)).
-Proof.
-  intros He1 He2. simpl.
-  simpl_eval.
-  eapply pure_wp_Par_conseq_ret; eauto.
-  eapply pure_wp_Par_conseq_ret; eauto.
-  apply pure_wp_val.
-  intros _ _ -> ->. apply pure_wp_val.
-  intros _ _ -> ->. apply pure_wp_val.
-Qed.
-
-Lemma pure_wp_tuple' η es vs :
-  pure_wpv (evals η es) (λ x, x = vs) →
-  pure_wpv (eval η (ETuple es)) (λ x, x = VTuple vs).
-Proof.
-  intros. simpl_eval. apply pure_wp_bind. apply (pure_wp_mono_ret _ H).
-  by constructor; congruence.
-Qed.
-
 (* Tuples. *)
 
 (* A special case at arity 2. *)
@@ -114,16 +76,6 @@ Proof.
   eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
   eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
   repeat apply pure_wp_ret. eauto with encode.
-Qed.
-
-Lemma pure_eval_tuple η es vs (ψ : val -> Prop) :
-  simp (evals η es) (ret vs) ->
-  ψ (VTuple vs) ->
-  pure (eval η (ETuple es)) ψ.
-Proof.
-  intros.
-  eapply pure_wp_simp. simp.
-  eapply pure_enc_ret; eauto.
 Qed.
 
 (* TODO: comment *)
@@ -406,23 +358,14 @@ Qed.
 
 (* Helper lemmas for operations on Booleans. *)
 
-Lemma pure_as_bool m (φ : bool → Prop) :
-  pure m φ →
-  pure_wp (as_bool m) φ (λ _, False).
-Proof.
-  intros Hm. force_unfold as_bool. apply pure_wp_bind.
-  apply (pure_wp_mono_ret _ Hm). intros ? (b & -> & Hb).
-  destruct b; force_unfold val_as_bool; apply pure_wp_ret; eauto.
-Qed.
-
 Lemma pure_enc_bind_as_bool {A} m (φ : bool → Prop) (ψ : A → Prop) (k : bool → micro A exn) :
   pure m φ →
   (∀ b : bool, φ b → pure_wp (k b) ψ (λ _, False)) →
   pure_wp (bind (as_bool m) k) ψ (λ _, False).
 Proof.
-  intros Hm Hp. apply pure_wp_bind, pure_as_bool.
+  intros Hm Hp. apply pure_wp_bind, pure_wp_as_bool.
   apply (pure_wp_mono_ret _ Hm). intros ? (b & -> & Hb).
-  destruct b; force_unfold val_as_bool; eauto.
+  destruct b; force_unfold val_as_bool; unfold encode_pred; eauto.
 Qed.
 
 (* Primitive operations on Booleans. *)
@@ -443,7 +386,7 @@ Lemma pure_eval_not η e (φ ψ : Prop → Prop) :
 Proof.
   intros He Hp. simpl_eval.
   eapply pure_wp_bind.
-  eapply pure_as_bool.
+  eapply pure_wp_as_bool.
   eapply pure_wp_mono_ret. apply He. intros ? (P & -> & HP).
   exists (truth P). split; auto. apply pure_wp_ret. eexists. split; eauto with encode.
   unfold encode, Encode_Prop. rewrite truth_neg. auto.
