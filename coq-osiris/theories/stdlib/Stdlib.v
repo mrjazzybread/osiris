@@ -239,7 +239,7 @@ Lemma Stdlib__gt_spec :
                                        (* avoid [Z.gt] *)
 Proof.
   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
-  eapply pure_consequence.
+  eapply pure_enc_consequence.
   eapply pure_eval_EOpGt_bool; try (pure_path); auto.
   simpl; intros b ->; apply Z.gt_lt_iff.
 Qed.
@@ -249,7 +249,7 @@ Lemma Stdlib__ge_spec :
                                        (* avoid [Z.ge] *)
 Proof.
   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter.
-  eapply pure_consequence.
+  eapply pure_enc_consequence.
   eapply pure_eval_EOpGe_bool; try (pure_path); auto.
   simpl; intros b ->; apply Z.ge_le_iff.
 Qed.

@@ -153,7 +153,7 @@ Proof.
   intros. subst. eauto.
 Qed.
 
-(* This lemma combines [pure_consequence] and [pure_call]. *)
+(* This lemma combines [pure_enc_consequence] and [pure_call]. *)
 
 Lemma pure_call_consequence `{Encode X} `{Encode Y}
   (φ ψ : Y → Prop) v1 v'2 (x : X) :
@@ -162,7 +162,7 @@ Lemma pure_call_consequence `{Encode X} `{Encode Y}
   (∀ y, φ y → ψ y) →
   pure (call v1 v'2) ψ.
 Proof.
-  eauto using pure_consequence, pure_call.
+  eauto using pure_enc_consequence, pure_call.
 Qed.
 
 (* The following two lemmas paraphrase the definition of [call] in eval.v.

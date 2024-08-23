@@ -302,7 +302,7 @@ Proof.
     eapply pure_eval_let_pair.
     eapply pure_eval_app. pure_path. pure_path.
     (* Call vf #xs *)
-    eapply pure_consequence.
+    eapply pure_enc_consequence.
     { (* Use induction hypothesis *)
       apply IH.
       { (* Justify use of induction hypothesis *)
@@ -363,7 +363,7 @@ Proof.
     pure_enc_ret.
     pure_path.
     (* Use knowledge that [split] ⊨ [split_spec] *)
-    eapply pure_consequence. { apply _split_spec. }
+    eapply pure_enc_consequence. { apply _split_spec. }
     intros [l1 l2] (Hl1 & Hl2 & Hperm); simpl in *.
     unfold mergesort_pre in Hpre;
       rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].

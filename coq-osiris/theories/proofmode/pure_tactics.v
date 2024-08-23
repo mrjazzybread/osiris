@@ -443,7 +443,7 @@ Create HintDb pure_specs.
 Ltac pure_call :=
   first [
     simple eapply pure_call; [ solve [encode] | solve [eauto with pure_specs] ]
-  | simple eapply pure_consequence; [
+  | simple eapply pure_enc_consequence; [
       simple eapply pure_call; [ solve [encode] | eauto with pure_specs ]
     | cbn ]
   ].

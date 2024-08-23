@@ -46,7 +46,7 @@ Qed.
 
 (* The consequence rule. *)
 
-Lemma pure_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
+Lemma pure_enc_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
   pure m φ →
   (∀ a, φ a → ψ a) →
   pure (X := X) m ψ.

@@ -244,9 +244,9 @@ Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
 Proof.
   intros.
   eapply pure_eval_app2; eauto.
-  eapply pure_consequence; first eassumption.
+  eapply pure_enc_consequence; first eassumption.
   simpl; intros.
-  eapply pure_consequence; eauto.
+  eapply pure_enc_consequence; eauto.
 Qed.
 
 (* Helper lemmas for arithmetic operations. *)
@@ -837,7 +837,7 @@ Proof.
   intros He Hy.
   simpl_eval.
   eapply pure_bind_unary; eauto.
-  eapply pure_consequence; eauto.
+  eapply pure_enc_consequence; eauto.
   intros ? A.
   eapply pure_enc_ret; eauto; auto.
 Qed.
