@@ -94,7 +94,4 @@ Global Opaque
   structural_ordering_error
   type_mismatch
 
-  (* Judgements. *)
-  pure_enc
-
 .

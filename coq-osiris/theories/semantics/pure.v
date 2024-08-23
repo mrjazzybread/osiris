@@ -346,9 +346,10 @@ Inductive pure {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :=
 
 Global Hint Constructors pure : pure.
 
-(* Definition disallowing exceptions *)
-Definition purev {A E} (m : micro A E) φ := pure m φ (λ _, False).
+(* Bottom instance for predicates, so we can write [⊥] for [λ _, False],
+typically for disallowing exceptions *)
 
+Global Instance Pred_bottom {A} : Bottom (A → Prop) := λ _, False.
 
 (** [pure] is monotonic *)
 
@@ -369,21 +370,6 @@ Lemma pure_mono_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
 Proof.
   induction 1; constructor; auto.
 Qed.
-
-Lemma purev_mono {A E} {φ φ' : _ → Prop} (m : micro A E) :
-  purev m φ → (∀ a, φ a → φ' a) → purev m φ'.
-Proof.
-  apply pure_mono_ret.
-Qed.
-
-(* Often, the exceptional postcondition is not syntactically [λ _, False]
-because it is wrapped in a continuation *)
-Lemma purev_mono' {A E} {φ φ' ψ : _ → Prop} (m : micro A E) :
-  purev m φ → (∀ a, φ a → φ' a) → pure m φ' ψ.
-Proof.
-  intros; eapply pure_mono; eauto. intros _ [].
-Qed.
-
 
 
 (* Postconditions can be strengthened since final states must be reachable *)
@@ -552,56 +538,57 @@ Proof.
 Qed.
 
 
-(** Versions with [purev] *)
+(** [pure_bind]-like lemmas disallowing exceptions are occasionally useful, they
+are named [purev_] for "values" *)
 
 Lemma purev_try2_conseq {A' A E E' φ φ'} m (f : outcome2 A E → micro A' E') :
-  purev m φ →
-  (∀ a, φ a → purev (continue f a) φ') →
-  purev (try2 m f) φ'.
+  pure m φ ⊥ →
+  (∀ a, φ a → pure (continue f a) φ' ⊥) →
+  pure (try2 m f) φ' ⊥.
 Proof.
   intros; eapply pure_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma purev_try2 {A' A E E' φ} m (f : outcome2 A E → micro A' E') :
-  purev m (λ a, purev (continue f a) φ) →
-  purev (try2 m f) φ.
+  pure m (λ a, pure (continue f a) φ ⊥) ⊥ →
+  pure (try2 m f) φ ⊥.
 Proof.
   intros; eapply pure_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma purev_bind {A' A E φ} m (k : A → micro A' E) :
-  purev m (λ a, purev (k a) φ) →
-  purev (bind m k) φ.
+  pure m (λ a, pure (k a) φ ⊥) ⊥ →
+  pure (bind m k) φ ⊥.
 Proof.
   intros; eapply pure_bind_conseq; eauto.
 Qed.
 
 Lemma purev_try {A' A E E' φ} m (f : A → micro A' E') (h : E → micro A' E') :
-  purev m (λ a, purev (f a) φ) →
-  purev (try m f h) φ.
+  pure m (λ a, pure (f a) φ ⊥) ⊥ →
+  pure (try m f h) φ ⊥.
 Proof.
   intros; eapply pure_try2_conseq; eauto. intros _ [].
 Qed.
 
 Lemma purev_orelse {A E} (m1 m2 : micro A E) φ :
-  purev m1 φ →
-  purev (orelse m1 m2) φ.
+  pure m1 φ ⊥ →
+  pure (orelse m1 m2) φ ⊥.
 Proof.
   intros; eapply pure_orelse; eauto. intros _ [].
 Qed.
 
 Lemma purev_bind_conseq {A' A E} (φ : A → Prop) (φ' : A' → Prop) (m : micro A E) k :
-  purev m φ →
-  (∀ a, φ a → purev (k a) φ') →
-  purev (bind m k) φ'.
+  pure m φ ⊥ →
+  (∀ a, φ a → pure (k a) φ' ⊥) →
+  pure (bind m k) φ' ⊥.
 Proof.
   intros; eapply pure_bind_conseq; eauto.
 Qed.
 
 Lemma purev_try_conseq {A' A E E' φ φ'} m (f : A → micro A' E') (h : E → micro A' E') :
-  purev m φ →
-  (∀ a, φ a → purev (f a) φ') →
-  purev (try m f h) φ'.
+  pure m φ ⊥ →
+  (∀ a, φ a → pure (f a) φ' ⊥) →
+  pure (try m f h) φ' ⊥.
 Proof.
   intros; eapply pure_try_conseq; eauto. intros _ [].
 Qed.
@@ -678,8 +665,8 @@ Proof.
 Qed.
 
 Lemma pure_sequentialize {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ1 φ2 :
-  pure m1 (λ a1, pure m2 (λ a2, φ1 a1 ∧ φ2 a2) (λ _, False)) (λ _, False) →
-  pure m1 φ1 (λ _, False) ∧ pure m2 φ2 (λ _, False).
+  pure m1 (λ a1, pure m2 (λ a2, φ1 a1 ∧ φ2 a2) ⊥) ⊥ →
+  pure m1 φ1 ⊥ ∧ pure m2 φ2 ⊥.
 Proof.
   intros Hm1. split.
   - apply (pure_mono_ret _ Hm1).
@@ -759,12 +746,12 @@ Qed.
 (* simpler version disallowing exceptions *)
 Lemma pure_Par_conseq_ret {A E A1 A2 E'} m1 m2 φ1 φ2 φ
   (k : outcome2 (A1 * A2) E' → micro A E) :
-  pure m1 φ1 (λ _, False) →
-  pure m2 φ2 (λ _, False) →
-  (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (a1, a2)) φ (λ _, False)) →
-  pure (Par m1 m2 k) φ (λ _, False).
+  pure m1 φ1 ⊥ →
+  pure m2 φ2 ⊥ →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (a1, a2)) φ ⊥) →
+  pure (Par m1 m2 k) φ ⊥.
 Proof.
-  intros; eapply pure_Par_conseq; eauto; tauto.
+  intros; eapply pure_Par_conseq; eauto; firstorder.
 Qed.
 
 (* [pure] preserved by [Par], stated by giving [m1] a [pure m2]
@@ -834,7 +821,7 @@ Lemma pure_Par_val_left {A E A1 A2 E'} m1 m2 φ ψ
       pure m2
         (λ a2, pure (continue k (a1, a2)) φ ψ)
         (λ e, pure (discontinue k e) φ ψ))
-    (λ _, False) →
+    ⊥ →
   pure (Par m1 m2 k) φ ψ.
 Proof.
   intros H1.
@@ -879,13 +866,8 @@ Qed.
 
 Lemma pure_Par_vals_left {A E A1 A2 E'} m1 m2 φ
   (k : outcome2 (A1 * A2) E' → micro A E) :
-  pure m1
-    (λ a1,
-      pure m2
-        (λ a2, pure (continue k (a1, a2)) φ (λ _, False))
-        (λ _, False))
-    (λ _, False) →
-  pure (Par m1 m2 k) φ (λ _, False).
+  pure m1 (λ a1, pure m2 (λ a2, pure (continue k (a1, a2)) φ ⊥) ⊥) ⊥ →
+  pure (Par m1 m2 k) φ ⊥.
 Proof.
   intros H1.
   apply pure_Par_val_left.
@@ -893,13 +875,13 @@ Proof.
   eapply pure_mono; firstorder eauto.
 Qed.
 
-(* The binary/compat style is common *)
+(* The binary/conseq style is common *)
 
 Lemma purev_Par_left_conseq {A E A1 A2 E' m1 m2 φ φ1}
   {k : outcome2 (A1 * A2) E' → micro A E} :
-  purev m1 φ1 →
-  (∀ a1, φ1 a1 → purev m2 (λ a2, purev (continue k (a1, a2)) φ)) →
-  purev (Par m1 m2 k) φ.
+  pure m1 φ1 ⊥ →
+  (∀ a1, φ1 a1 → pure m2 (λ a2, pure (continue k (a1, a2)) φ ⊥) ⊥) →
+  pure (Par m1 m2 k) φ ⊥.
 Proof.
   intros H1 H2.
   apply pure_Par_vals_left.
@@ -1252,7 +1234,7 @@ Qed.
 (** Compatibility with [widen] *)
 
 Lemma pure_widen {A E} (m : micro A void) φ ψ :
-  pure m φ (λ _, False) → pure (E := E) (widen m) φ ψ.
+  pure m φ ⊥ → pure (E := E) (widen m) φ ψ.
 Proof.
   unfold widen.
   intros P. apply pure_try2, (pure_mono _ P); try intros [].
@@ -1351,7 +1333,7 @@ Qed.
 
 (** Hoare reasoning rules, no encode *)
 
-Lemma pure_val {A E} a : @pure A E (ret a) (λ b, b = a) (λ _, False).
+Lemma pure_val {A E} a : @pure A E (ret a) (λ b, b = a) ⊥.
 Proof.
   by constructor.
 Qed.
@@ -1398,7 +1380,7 @@ Qed.
 Lemma pure_check_div_by_zero z :
   representable z →
   (z ≠ 0)%Z →
-  pure (check_div_by_zero (repr z)) (λ v, v = ()) (λ _, False).
+  pure (check_div_by_zero (repr z)) (λ v, v = ()) ⊥.
 Proof.
   intros.
   unfold check_div_by_zero.
@@ -1420,36 +1402,4 @@ Proof.
   unfold if_in_shift_range, in_shift_range_b.
   rewrite signed_repr by eauto using in_shift_range_representable.
   by rewrite in_shift_range_b_spec.
-Qed.
-
-(** Encode compatibility *)
-
-Definition encode_pred `{Encode A} (φ : A → Prop) := λ v, ∃ a, v = #a ∧ φ a.
-
-Definition pure_encode `{Encode A} {E} (m : micro val E) (φ : A → Prop) (ψ : E → Prop) :=
-  pure m (encode_pred φ) ψ.
-
-
-(** Hoare reasoning rules, with encode *)
-
-Lemma pure_as_bool (m : microvx) (φ : bool → Prop) ψ :
-  pure_encode m φ ψ →
-  pure (as_bool m) φ ψ.
-Proof.
-  intro H.
-  eapply pure_bind_conseq; eauto.
-  intros [] ([] & E & Hb); discriminate || rewrite E; by constructor.
-Qed.
-
-Lemma pure_ifthenelse_bool η e e1 e2 φ φb ψ :
-  pure_encode (eval η e) φb ψ →
-  (φb true  → pure (eval η e1) φ ψ) →
-  (φb false → pure (eval η e2) φ ψ) →
-  pure (eval η (EIfThenElse e e1 e2)) φ ψ.
-Proof.
-  simpl.
-  intros Hb Ht Hf.
-  simpl_eval.
-  eapply pure_bind_conseq. apply pure_as_bool. apply Hb.
-  intros []; auto.
 Qed.

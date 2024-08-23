@@ -228,7 +228,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  pure_enc (eval η e) spec ->
+  pure (eval η e) ##spec ⊥ ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -244,7 +244,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure_enc (eval η e) (λ v, pattern [] p v ψ False) ->
+  pure (eval η e) ##(λ v, pattern [] p v ψ False) ⊥ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -322,13 +322,13 @@ Qed.
 
 Lemma pure_module η me φ :
   eval_module η me φ ->
-  pure_enc (eval_mexpr η me) (λ v, match v with
+  pure (eval_mexpr η me) ##(λ v, match v with
                                | VStruct η => φ η
                                | _ => False
-                               end).
+                               end) ⊥.
 Proof.
   intros.
-  eapply pure_mono; eauto.
+  eapply pure_mono; eauto with encode.
 Qed.
 
 Lemma module_struct η sitems φ :
@@ -383,7 +383,7 @@ Qed.
 (* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
 
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
-  pure_enc (eval η e) ψ ->
+  pure (eval η e) ##ψ ⊥ ->
   bindings η bs φ' ->
   (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
@@ -405,7 +405,7 @@ Proof.
 Qed.
 
 Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
-  pure_enc (eval η e) ψ ->
+  pure (eval η e) ##ψ ⊥ ->
   bindings η bs φ' ->
   bindings η
     (Binding (PVar v) e :: bs)
@@ -420,7 +420,7 @@ Qed.
 
 Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
-  pure_enc (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ->
+  pure (eval η e) ##(λ '(a, b), ψ1 a /\ ψ2 b) ⊥->
   bindings η bs φ' ->
   (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.

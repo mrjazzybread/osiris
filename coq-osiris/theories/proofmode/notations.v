@@ -203,18 +203,18 @@ Goal (trivial
 Abort.
 
 Notation "'pure' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
-  (pure_enc (call f arg1)
-     (λ c, pure_enc (call c arg2)
-             (.. (λ c, pure_enc (call c argn) ψ) ..)))
+  (pure (call f arg1)
+     (λ c, pure (call c arg2)
+             (.. (λ c, pure (call c argn) ##ψ ⊥) ..) ⊥) ⊥)
     (at level 200,
       only printing,
     format "'pure'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
 
 Goal (trivial
-        (pure_enc (call (VString "F") (VString "X"))
-           (λ c, pure_enc (call c (VString "Y"))
-                   (λ c, pure_enc (call c (VString "Z"))
-                           (λ v : val, True))))).
+        (pure (call (VString "F") (VString "X"))
+           (λ c, pure (call c (VString "Y"))
+                   (λ c, pure (call c (VString "Z"))
+                           ##(λ v : val, True) ⊥) ⊥) ⊥)).
 Abort.
 
 Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=

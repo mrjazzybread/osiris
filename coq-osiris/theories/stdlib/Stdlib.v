@@ -150,13 +150,13 @@ Definition decide_spec `{Encode A}
 :=
   ∀ (x : A),
     P x →
-    pure_enc (call decide #x) (λ v,
+    pure (call decide #x) ##(λ v,
       ∀ (y : A),
       P y →
-      pure_enc (call v #y) (λ (b : bool),
+      pure (call v #y) ##(λ (b : bool),
         b ↔ R x y
-      )
-    ).
+      ) ⊥
+    ) ⊥.
 
 (* The above specification states that an application of [decide] to just
    one argument returns a closure. As a sanity check, we verify that this
@@ -168,11 +168,11 @@ Local Lemma decide_spec' `{Encode A}
 :
   decide_spec decide P R →
   ∀ (x y : A), P x → P y →
-  pure_enc
+  pure
     (bind (call decide #x) (λ v, call v #y))
-    (λ (b : bool),
+    ##(λ (b : bool),
       b ↔ R x y
-    ).
+    ) ⊥.
 Proof.
   intros Hspec x y Hx Hy.
   eapply pure_enc_bind; [ eauto | intros v; cbn; intros Hv ].
@@ -192,14 +192,14 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
   ∀ (x y : A),
-    pure_enc (call compare #x) (λ v,
-        pure_enc (call v #y) (λ (c : Z),
+    pure (call compare #x) ##(λ v,
+        pure (call v #y) ##(λ (c : Z),
             representable c ∧
               (c < 0 ↔ lt x y)%Z ∧
               (c = 0 ↔ eq x y)%Z ∧
               (0 < c ↔ lt y x)%Z
-          )
-      ).
+          ) ⊥
+      ) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -210,7 +210,7 @@ Proof.
   pure_enter. simpl_eval. pure_enc_ret.
   intros y Hy.
   pure_enter.
-  eapply pure_eval_EOpEq_bool; try (pure_path); auto.
+  eapply pure_eval_EOpEq_bool; try (pure_path); auto with encode.
 Qed.
 
 Lemma Stdlib__ne_spec :
@@ -296,13 +296,13 @@ Qed.
    first argument is pure, so its specification is expressed using pure. *)
 
 Lemma Stdlib__store__spec (l : loc) (v v' : val) :
-  pure_enc
+  pure
     (call Stdlib__store #l)
-    (λ c,
+    ##(λ c,
       {{{ l ↦ V v }}}
         call c v'
       {{{ (v : val), RET #tt; l ↦ V v' }}}
-    ).
+    ) ⊥.
 Proof.
   pure_simp.
   iIntros (φ) "Hl Hpost".
