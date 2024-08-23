@@ -96,16 +96,16 @@ Ltac2 get_expr_from_eval (m : constr) :=
                  "Expected term of the form [eval η e]")))
   end.
 
-(* [pure_ret] expects a goal of the form [pure (ret v) φ]. It applies
-   the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
+(* [pure_enc_ret] expects a goal of the form [pure (ret v) φ]. It applies
+   the lemma [pure_enc_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
-Ltac2 pure_ret0 () :=
+Ltac2 pure_enc_ret0 () :=
   let (m, φ) := decompose_pure () in
   match! (Std.eval_vm None m) with
   | ret ?v =>
-      (* [pure_ret : v = #a → φ a → pure (ret v) φ] *)
-      eapply pure_ret;
+      (* [pure_enc_ret : v = #a → φ a → pure (ret v) φ] *)
+      eapply pure_enc_ret;
       (* We solve [v = #a] differently depending on the type of [a]. *)
       let solve_encoding : unit -> unit :=
         fun _ =>
@@ -123,12 +123,12 @@ Ltac2 pure_ret0 () :=
       Control.dispatch [ solve_encoding ; beta ]
   end.
 
-Ltac2 Notation "pure_ret" := Control.enter pure_ret0.
-Tactic Notation "pure_ret" := ltac2:(pure_ret).
+Ltac2 Notation "pure_enc_ret" := Control.enter pure_enc_ret0.
+Tactic Notation "pure_enc_ret" := ltac2:(pure_enc_ret).
 
 (* [pure_path] expects a goal of the form [pure (eval η (EPath x)) φ]. It applies
    the lemma [pure_eval_path], asks Coq to compute the lookup in the environment,
-   and, assuming that the lookup succeeds, calls pure_ret on the result. *)
+   and, assuming that the lookup succeeds, calls pure_enc_ret on the result. *)
 
 Ltac2 pure_path0 () : unit :=
   let (m, φ) := decompose_pure () in
@@ -144,9 +144,9 @@ Ltac2 pure_path0 () : unit :=
       | [ h_ident : lookup_name ?η ?π = ret _
           |- pure (lookup_name ?η ?π) _ ] =>
           let h := Control.hyp h_ident in
-          rewrite [$h]; pure_ret
-      (* If the lookup has reduced to a result, use [pure_ret]. *)
-      | [ |- pure (ret _) _ ] => pure_ret
+          rewrite [$h]; pure_enc_ret
+      (* If the lookup has reduced to a result, use [pure_enc_ret]. *)
+      | [ |- pure (ret _) _ ] => pure_enc_ret
       end
   end.
 
@@ -402,7 +402,7 @@ Local Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
 Proof. apply pure_wp_simp. Qed.
 
 Ltac2 pure_simp () :=
-  eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
+  eapply pure_simp > [ ltac1:(simp_really) | try (pure_enc_ret) ].
 
 Ltac2 Notation "pure_simp" := pure_simp ().
 Tactic Notation "pure_simp" := ltac2:(pure_simp).

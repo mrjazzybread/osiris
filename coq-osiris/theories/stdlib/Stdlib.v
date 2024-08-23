@@ -207,7 +207,7 @@ Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
 Proof.
   intros x Hx.
-  pure_enter. simpl_eval. pure_ret.
+  pure_enter. simpl_eval. pure_enc_ret.
   intros y Hy.
   pure_enter.
   eapply pure_eval_EOpEq_bool; try (pure_path); auto.
@@ -216,7 +216,7 @@ Qed.
 Lemma Stdlib__ne_spec :
   decide_spec Stdlib__ne representable (λ x y, x ≠ y).
 Proof.
-  intros x Hx. pure_enter. simpl_eval. pure_ret. intros y Hy. pure_enter.
+  intros x Hx. pure_enter. simpl_eval. pure_enc_ret. intros y Hy. pure_enter.
   eapply pure_eval_EOpNe_bool; try (pure_path); auto.
 Qed.
 

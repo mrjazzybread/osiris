@@ -360,7 +360,7 @@ Proof.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
     eapply pure_eval_path. simpl. rewrite Hsplit.
-    pure_ret.
+    pure_enc_ret.
     pure_path.
     (* Use knowledge that [split] ⊨ [split_spec] *)
     eapply pure_consequence. { apply _split_spec. }
@@ -388,7 +388,7 @@ Proof.
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)
-      eapply pure_eval_path. simpl. rewrite Hmerge. pure_ret. reflexivity. }
+      eapply pure_eval_path. simpl. rewrite Hmerge. pure_enc_ret. reflexivity. }
     { pure_path. reflexivity. }
     { pure_path. reflexivity. }
     (* Use the knowledge that [merge] ⊨ [_merge_spec] *)

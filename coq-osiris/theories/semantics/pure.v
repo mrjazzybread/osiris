@@ -27,7 +27,7 @@ Ltac destruct_encode_image a :=
    more widely applicable. A subgoal of the form [v = #a], where [a] is
    a Coq metavariable, can be solved by the tactic [encode]. *)
 
-Lemma pure_ret `{Encode A} {X} (φ : A → Prop) v a :
+Lemma pure_enc_ret `{Encode A} {X} (φ : A → Prop) v a :
   v = #a →
   φ a →
   pure (X := X) (ret v) φ.
@@ -37,11 +37,11 @@ Qed.
 
 (* A reasoning rule for ret that can instantiate the goal when it is an evar *)
 
-Lemma pure_ret_eq `{Encode A} {X : Type} (a : A) :
+Lemma pure_enc_ret_eq `{Encode A} {X : Type} (a : A) :
   pure (X := X) (ret #a) (λ a', a' = a).
 Proof.
   intros.
-  eapply pure_ret; eauto.
+  eapply pure_enc_ret; eauto.
 Qed.
 
 (* The consequence rule. *)
