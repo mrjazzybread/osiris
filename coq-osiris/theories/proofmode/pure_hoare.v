@@ -30,7 +30,7 @@ Proof.
   eapply pure_wp_mono; eauto.
 Qed.
 
-Lemma pure_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
+Lemma pure_enc_bind_bind `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
   pure ('x ← m;
         f x) ψ ->
@@ -50,7 +50,7 @@ Proof.
   - intros _ (x & -> & Hx). eauto.
 Qed.
 
-Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
+Lemma pure_enc_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
   (φ : X -> Prop) (ψ : Y -> Prop) :
   pure m (fun x => pure (f x) ψ) ->
   (forall y, ψ y -> pure (g #y) φ) ->
@@ -59,19 +59,19 @@ Lemma pure_bind_binary `{Encode X} `{Encode Y} (m : micro val void) f g
         g y) φ.
 Proof.
   intros.
-  eapply pure_bind_bind; last done.
-  eapply pure_bind; eauto.
+  eapply pure_enc_bind_bind; last done.
+  eapply pure_enc_bind; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Variants of the Bind rule. *)
 
-(* [pure_bind_as_bool] is already in [pure_eval.v] but it is useful there *)
+(* [pure_enc_bind_as_bool] is already in [pure_eval.v] but it is useful there *)
 
 (* [bind] composed with [as_int]. *)
 
-Lemma pure_bind_as_int `{Encode Y}
+Lemma pure_enc_bind_as_int `{Encode Y}
   m (f : int → microvx) (φ : Z → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : Z), φ x → pure (f (repr x)) ψ) →
@@ -86,7 +86,7 @@ Qed.
 
 (* [bind] composed with [as_loc]. *)
 
-Lemma pure_bind_as_loc `{Encode Y}
+Lemma pure_enc_bind_as_loc `{Encode Y}
   m (f : loc → microvx) (φ : loc → Prop) (ψ : Y → Prop) :
   pure m φ →
   (∀ (x : loc), φ x → pure (f x) ψ) →
@@ -101,7 +101,7 @@ Qed.
 
 (* [bind] composed with [as_struct]. *)
 
-Lemma pure_bind_as_struct Y (_ : Encode Y)
+Lemma pure_enc_bind_as_struct Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
   pure m (λ y : val, (exists y', y = VStruct y' /\ φ y)) →
   (∀ (x : env), φ (VStruct x) → pure (f x) ψ) →
@@ -117,7 +117,7 @@ Qed.
 
 (* [bind] composed with [as_record]. *)
 
-Lemma pure_bind_as_record Y (_ : Encode Y)
+Lemma pure_enc_bind_as_record Y (_ : Encode Y)
   m (f : env → microvx) (φ : val → Prop) (ψ : Y → Prop) :
   pure m (λ y : val, exists y', y = VRecord y' /\ φ y) →
   (∀ (x : env), φ (VRecord x) → pure (f x) ψ) →

@@ -60,7 +60,7 @@ Qed.
 (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
    so the handler [z] is dead and no proof obligation bears on it. *)
 
-Lemma pure_try2 A X Y (_ : Encode A) B (_ : Encode B)
+Lemma pure_enc_try2 A X Y (_ : Encode A) B (_ : Encode B)
   (m : micro val X) h (φ : A → Prop) (ψ : B → Prop)
   :
   pure m φ →
@@ -71,16 +71,16 @@ Proof.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
 
-(* A reasoning rule for [try]; corollary of [pure_try2] *)
+(* A reasoning rule for [try]; corollary of [pure_enc_try2] *)
 
-Corollary pure_try A X Y (_ : Encode A) B (_ : Encode B)
+Corollary pure_enc_try A X Y (_ : Encode A) B (_ : Encode B)
   (m : micro val X) k z (φ : A → Prop) (ψ : B → Prop)
 :
   pure m φ →
   (∀ a, φ a → pure (k #a) ψ) →
   pure (X := Y) (try m k z) ψ.
 Proof.
-  intros; eapply pure_try2; eauto.
+  intros; eapply pure_enc_try2; eauto.
 Qed.
 
 (* A reasoning rule for [bind]. *)
@@ -88,23 +88,23 @@ Qed.
 (* This is [@bind val val]. Attempting to apply this lemma to [@bind A B]
    where [A] and [B] are types other than [val] will not work! *)
 
-Lemma pure_bind A X (_ : Encode A) B (_ : Encode B)
+Lemma pure_enc_bind A X (_ : Encode A) B (_ : Encode B)
   m k (φ : A → Prop) (ψ : B → Prop)
 :
   pure m φ →
   (∀ a, φ a → pure (k #a) ψ) →
   pure (X := X) (bind m k) ψ.
 Proof.
-  rewrite bind_as_try. eauto using pure_try.
+  rewrite bind_as_try. eauto using pure_enc_try.
 Qed.
 
-Lemma pure_bind_unary A X (_ : Encode A) B (_ : Encode B)
+Lemma pure_enc_bind_unary A X (_ : Encode A) B (_ : Encode B)
   m k (ψ : B → Prop)
 :
   pure m (λ (a : A), pure (k #a) ψ) →
   pure (X := X) (bind m k) ψ.
 Proof.
-  eauto using pure_bind.
+  eauto using pure_enc_bind.
 Qed.
 
 (* A reasoning rule for [Par m1 m2 k z]. *)
@@ -113,7 +113,7 @@ Qed.
    [micro (val * val)], not [micro val]. However, we can give a rule
    for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
-Lemma pure_par `{Encode A1, Encode A2, Encode A} {X Y}
+Lemma pure_enc_par `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
   pure (X := X) m1 φ1 →
@@ -130,7 +130,7 @@ Proof.
   { intros v. tauto. }
 Qed.
 
-Lemma pure_par' `{Encode A1, Encode A2, Encode A} {X Y}
+Lemma pure_enc_par' `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
 :
   pure (X := X) m1 φ1 →
@@ -146,7 +146,7 @@ Qed.
 (* TODO: I do not seem to be able to use those, for example in pure_eval.v's
 [pure_eval_pair] *)
 
-Lemma pure_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
+Lemma pure_enc_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
   pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (k (#a1, #a2)) φ)) →
@@ -159,7 +159,7 @@ Proof.
   eauto.
 Qed.
 
-Lemma pure_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
+Lemma pure_enc_par_seq' `{Encode A1, Encode A2, Encode A} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
 :
   pure (X := X) m1 (λ a1 : A1, pure m2 (λ a2 : A2, pure (continue k (#a1, #a2)) φ)) →
@@ -174,7 +174,7 @@ Qed.
 
 (* A reasoning rule for [choose]. *)
 
-Lemma pure_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
+Lemma pure_enc_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
   pure (X := X) m1 φ →
   pure m2 φ →
   pure (choose m1 m2) φ.
@@ -210,7 +210,7 @@ Qed.
    the computation [m] lies in the image of the function [encode] at type
    [A]. *)
 
-Lemma invert_pure_bind `{Encode A, Encode B} X m k (φ : B → Prop) :
+Lemma invert_pure_enc_bind `{Encode A, Encode B} X m k (φ : B → Prop) :
   pure (bind m k) φ →
   pure m (λ (a : A), True) →
   pure (X := X) m (λ (a : A), pure (k #a) φ).
@@ -225,7 +225,7 @@ Qed.
    trivial, and we can prove a version of the rule that does not have this
    side condition. *)
 
-Lemma invert_pure_bind' `{Encode B} {X} m k (φ : B → Prop) :
+Lemma invert_pure_enc_bind' `{Encode B} {X} m k (φ : B → Prop) :
   pure (bind m k) φ →
   pure (X := X) m (λ (v : val), pure (k v) φ).
 Proof.

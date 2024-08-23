@@ -260,7 +260,7 @@ Proof.
   apply pure_wp_ret. eauto.
 Qed.
 
-Lemma pure_par_as_int m1 m2 (φ1 φ2 φ : Z → Prop) k :
+Lemma pure_enc_par_as_int m1 m2 (φ1 φ2 φ : Z → Prop) k :
   pure m1 φ1 →
   pure m2 φ2 →
   (∀ z1 z2 : Z, φ1 z1 → φ2 z2 → pure (k (repr z1, repr z2)) φ) →
@@ -282,7 +282,7 @@ Lemma pure_eval_add η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 + z2)) →
   pure (eval η (EIntAdd e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -292,7 +292,7 @@ Lemma pure_eval_sub η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 - z2)) →
   pure (eval η (EIntSub e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -302,7 +302,7 @@ Lemma pure_eval_mul η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 * z2)) →
   pure (eval η (EIntMul e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -315,7 +315,7 @@ Lemma pure_eval_div η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 ÷ z2)) →
   pure (eval η (EIntDiv e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_wp_bind, pure_wp_mono_ret.
   apply pure_wp_check_div_by_zero; eauto.
   intros [] _.
@@ -341,7 +341,7 @@ Lemma pure_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) →
   pure (eval η (EIntLand e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -351,7 +351,7 @@ Lemma pure_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) →
   pure (eval η (EIntLor e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -361,7 +361,7 @@ Lemma pure_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) →
   pure (eval η (EIntLxor e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   eapply pure_enc_ret; eauto with encode.
 Qed.
 
@@ -373,7 +373,7 @@ Lemma pure_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) →
   pure (eval η (EIntLsl e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   apply pure_wp_if_in_shift_range; auto.
   eapply pure_enc_ret; eauto with encode.
 Qed.
@@ -386,7 +386,7 @@ Lemma pure_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
   pure (eval η (EIntLsr e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   apply pure_wp_if_in_shift_range; auto.
   eapply pure_enc_ret; eauto with encode.
 Qed.
@@ -399,7 +399,7 @@ Lemma pure_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) :
   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
   pure (eval η (EIntAsr e1 e2)) φ.
 Proof.
-  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  intros. simpl_eval. eapply pure_enc_par_as_int; eauto. intros.
   apply pure_wp_if_in_shift_range; auto.
   eapply pure_enc_ret; eauto with encode.
 Qed.
@@ -415,7 +415,7 @@ Proof.
   destruct b; force_unfold val_as_bool; apply pure_wp_ret; eauto.
 Qed.
 
-Lemma pure_bind_as_bool {A} m (φ : bool → Prop) (ψ : A → Prop) (k : bool → micro A exn) :
+Lemma pure_enc_bind_as_bool {A} m (φ : bool → Prop) (ψ : A → Prop) (k : bool → micro A exn) :
   pure m φ →
   (∀ b : bool, φ b → pure_wp (k b) ψ (λ _, False)) →
   pure_wp (bind (as_bool m) k) ψ (λ _, False).
@@ -433,7 +433,7 @@ Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
   pure (eval η (EBoolNeg e)) ψ.
 Proof.
   intros He Hp. simpl_eval.
-  eapply pure_bind_as_bool; eauto. intros b Hb. apply pure_wp_ret. eauto with encode.
+  eapply pure_enc_bind_as_bool; eauto. intros b Hb. apply pure_wp_ret. eauto with encode.
 Qed.
 
 Lemma pure_eval_not η e (φ ψ : Prop → Prop) :
@@ -836,7 +836,7 @@ Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) :
 Proof.
   intros He Hy.
   simpl_eval.
-  eapply pure_bind_unary; eauto.
+  eapply pure_enc_bind_unary; eauto.
   eapply pure_enc_consequence; eauto.
   intros ? A.
   eapply pure_enc_ret; eauto; auto.

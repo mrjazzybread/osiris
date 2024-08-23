@@ -175,7 +175,7 @@ Local Lemma decide_spec' `{Encode A}
     ).
 Proof.
   intros Hspec x y Hx Hy.
-  eapply pure_bind; [ eauto | intros v; cbn; intros Hv ].
+  eapply pure_enc_bind; [ eauto | intros v; cbn; intros Hv ].
   eauto.
 Qed.
 
