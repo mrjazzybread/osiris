@@ -234,30 +234,30 @@ Section handler_proof.
       iApply ("IH" with "Hsh"). }
   Qed.
 
-  Lemma deep_handle_nil_ret η v ψ Φ :
-   EWP match_failure () <|ψ|> {{ Φ }} -∗
-   EWP (deep_eval_match η [] (O3Ret v)) <|ψ|> {{ Φ }}.
+  Lemma deep_handle_nil_ret η v E ψ Φ :
+   EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
+   EWP (deep_eval_match η [] (O3Ret v)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_deep_eval_match.
   Qed.
 
-  Lemma shallow_handle_nil_ret η v all_bs ψ Φ :
-   EWP match_failure () <|ψ|> {{ Φ }} -∗
-   EWP (shallow_eval_match η [] all_bs (O3Ret v)) <|ψ|> {{ Φ }}.
+  Lemma shallow_handle_nil_ret η v all_bs E ψ Φ :
+   EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
+   EWP (shallow_eval_match η [] all_bs (O3Ret v)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_shallow_eval_match.
   Qed.
 
-  Lemma deep_handle_nil_throw η e ψ Φ :
-   EWP throw e <|ψ|> {{ Φ }} -∗
-   EWP (deep_eval_match η [] (O3Throw e)) <|ψ|> {{ Φ }}.
+  Lemma deep_handle_nil_throw η e E ψ Φ :
+   EWP throw e @ E <|ψ|> {{ Φ }} -∗
+   EWP (deep_eval_match η [] (O3Throw e)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_deep_eval_match.
   Qed.
 
-  Lemma shallow_handle_nil_throw η all_bs e ψ Φ :
-    EWP throw e <|ψ|> {{ Φ }} -∗
-    EWP (shallow_eval_match η [] all_bs (O3Throw e)) <|ψ|> {{ Φ }}.
+  Lemma shallow_handle_nil_throw η all_bs e E ψ Φ :
+    EWP throw e @ E <|ψ|> {{ Φ }} -∗
+    EWP (shallow_eval_match η [] all_bs (O3Throw e)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_shallow_eval_match.
   Qed.
@@ -340,18 +340,32 @@ Section handler_proof.
   Qed.
 
   Lemma deep_handle_cons_unary η o cp e bs E ψ Φ Q φ :
-    cpattern η cp o (λ δ, Q -∗ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ ->
     Q -∗
-    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
+    ⌜cpattern η cp o (λ δ, Q ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
+    (Q -∗ ⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
     EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
   Proof.
-    unfold cpattern. simpl_deep_eval_match.
-    destruct 1 as [(δ & Hsimp & Hewp) | (exc & Hsimp & Hewp)];
-      iIntros "Q Hno_match";
+    simpl_deep_eval_match.
+    iIntros "Q" ([(δ & Hsimp & Hewp) | (exc & Hsimp & Hewp)]) "Hno_match";
       iApply ewp_try;
       iApply (ewp_simp _ _ _ _ _ Hsimp).
     { iApply ewp_value; simpl. iApply (Hewp with "Q"). }
-    { iApply ewp_throw; simpl. iApply ("Hno_match" $! Hewp). }
+    { iApply ewp_throw; simpl. iApply ("Hno_match" with "Q").
+      iPureIntro; assumption. }
+  Qed.
+
+  Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
+    ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
+    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
+  Proof.
+    simpl_deep_eval_match.
+    iIntros ([(δ & Hsimp & Hewp) | (exc & Hsimp & Hewp)]) "Hno_match";
+      iApply ewp_try;
+      iApply (ewp_simp _ _ _ _ _ Hsimp).
+    { iApply ewp_value; simpl. iApply Hewp. }
+    { iApply ewp_throw; simpl. iApply "Hno_match".
+      iPureIntro; assumption. }
   Qed.
 
   Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
