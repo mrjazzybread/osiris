@@ -70,6 +70,17 @@ Qed.
 Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
 Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+Ltac prove_simple_match :=
+  iApply ewp_EMatch;
+  iApply (ewp_deep_handler _ _ (ieq ?[y]));
+  [ |
+    prove_handler_spec;
+    [
+    | let Hf := iFresh in
+      iIntros (??) Hf;
+        by iPoseProof (upcl_bottom with Hf) as "?" ];
+    iIntros (?) "->"
+  ].
 
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
@@ -104,8 +115,6 @@ Proof.
   iIntros "H1 H2". iFrame.
 Qed.
 
-From iris Require Import string_ident.
-
 Ltac to_ident_list env acc :=
   match env with
   | environments.Enil => constr:(acc)
@@ -130,16 +139,6 @@ Ltac all_spatial_hyps :=
           to_ident_list env_spatial (@nil ident)
       end
   end.
-
-Fixpoint not_mem (a : ident) (l : list ident) :=
-  match l with
-  | [] => true
-  | h :: t =>
-      if ident_beq h a then false else not_mem a t
-  end.
-
-Definition hyp_different initial excluding :=
-  List.filter (fun hyp => not_mem hyp excluding) initial.
 
 Ltac conj_hyps hyps :=
   match hyps with
@@ -313,75 +312,77 @@ Proof.
 
     (* Cases on if the suffix is empty or not. *)
     iApply ewp_call_nonrec; iNext.
-    iApply ewp_EMatch.
-    iApply (ewp_deep_handler _ _ (ieq ?[y])). { Simp; Ret; equality. }
+    prove_simple_match.
+    (* The head of the match is trivial. *)
+    { Simp; Ret; equality. }
 
-    prove_handler_spec; last first.
-    (* No effects are used, so the effectful case is discarded,
-         we definitely want to automate this. *)
-    { iIntros (??) "HF".
-      by iPoseProof (upcl_bottom with "HF") as "F". }
-
-    iIntros (o) "->".
+    (* We are now facing the branches of the match. *)
     apply_deep_handle_cons_unary.
-
-    { Simp; Ret; simpl.
+    { (* Entering the first branch where [l] is a nil. *)
+      iApply ewp_EUnit_exn; simpl.
       (* Subgoal: show the postcondition when we return unit. *)
       iSplit; [ equality | ].
       (* If the suffix is empty, then the prefix is the whole list. *)
-      rewrite app_nil_r.
-      iApply "HI". }
+      rewrite app_nil_r. iApply "HI". }
 
+    (* As we continue to the next branch, we learn that we did not
+       match the first branch. *)
     iIntros (no_match1).
+
     apply_deep_handle_cons_unary.
-
-    { iApply (ewp_ESeq_exn with "[HI]").
-      { Simp. iApply "Hf".
+    { (* Entering the second branch, where [l] is a cons. *)
+      iApply (ewp_ESeq_exn with "[HI]").
+      { (* Application of f to the head of the list. *)
+        Simp. iApply "Hf".
+        (* Subgoal 1: we are still withing a prefix of the original list. *)
         - iPureIntro. instantiate (1 := lpre).
-          apply prefix_app. apply prefix_cons. apply prefix_nil.
+          apply prefix_app, prefix_cons, prefix_nil.
+        (* Subgoal 2: the invariant [I] is preserved. *)
         - iApply "HI". }
-      simpl.
-      iIntros (e) "[Hφ HI]". iFrame.
-      iExists lpre. iFrame.
-      iPureIntro.
-      replace lpre with (lpre ++ []) at 1 by (rewrite app_nil_r; reflexivity).
-      apply prefix_app, prefix_nil.
 
-      { iIntros (vu); simpl.
-        iIntros "[-> HI]". fold eval.
+      (* We now have two cases after applying [f],
+         either an exception was raised or a value was returned. *)
 
+      - (* Case 1: applying [f] caused an exception to be raised. *)
+        simpl. iIntros (e) "[Hφ HI]". iFrame.
+        iExists lpre. iFrame. iPureIntro.
+        rewrite <- (app_nil_r lpre) at 1.
+        apply prefix_app, prefix_nil.
+
+      - (* Case 2: applying [f] returned a value. *)
+        iIntros (vu); simpl; fold eval.
+        iIntros "[-> HI]".
+
+        (* We massage our goal until we get it into a shape where we
+           can apply our induction hypothesis. *)
         iApply ewp_EApp.
         { iApply ewp_EApp; try (iApply ewp_EPath; Ret; equality).
           iApply ewp_call_rec; [ reflexivity | ].
           Simp. Ret. equality. }
         { iApply ewp_EPath; Ret; equality. }
 
-        iApply (ewp_mono with "[HI]").
-        { iApply "IH".
-          { iPureIntro.
-            instantiate (1 := lpre ++ [x]).
-            rewrite (cons_middle x lpre xs').
-            by rewrite app_assoc. }
+        (* We are now ready to use the induction hypothesis. *)
+        iApply ("IH" with "[] Hf HI").
 
-          { iIntros "!>" (Xs X) "Hpref HI".
-            iApply (ewp_mono with "[-]").
-            iApply ("Hf" with "Hpref HI").
-            iIntros (?) "?". iAssumption. }
+        (* Subgoal: show that the new prefix concatenated with
+           the new suffix is still equal to the original list. *)
+        iPureIntro.
+        rewrite (cons_middle _ lpre xs').
+        by rewrite app_assoc. }
 
-          { iApply "HI". } }
-
-        iIntros (?) "?". iAssumption. } }
-
+    (* As we have now traversed all branches, we can use the
+       no_matching hypotheses to show a contradiction. *)
     iIntros (no_match2).
     iApply deep_handle_nil_ret.
-    ltac2:(destruct_hyps [@no_match1; @no_match2]). }
+    ltac2:(destruct_hyp @no_match2). }
 
-    iIntros ([δ η]).
-    iIntros "(%iter & Hiter & -> & ->)".
+  (* We can now show the module specification. *)
+  iIntros ([δ η]).
+  iIntros "(%iter & Hiter & -> & ->)".
 
-    iApply ewp_sitems_nil. simpl.
-    unfold module_spec; intros.
-    iExists _; iSplit; [ equality | simpl ].
-    iSplit; [ | done ].
-    iExists _; iSplit; [ equality | iAssumption ].
+  iApply ewp_sitems_nil. simpl.
+  unfold module_spec; intros.
+  iExists _; iSplit; [ equality | simpl ].
+  iSplit; [ | done ].
+  iExists _; iSplit; [ equality | iAssumption ].
 Qed.
