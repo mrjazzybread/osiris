@@ -23,65 +23,6 @@ Definition isListIter (iter : val) : iProp Σ :=
       {{ | RET v => ⌜ v = VUnit ⌝ ∗ I l;
          | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
 
-Lemma ewp_module η sitems (Q : val -> iProp Σ) :
-  EWP (eval_sitems (η, []) sitems) {{ RET ηδ, let '(_, δ) := ηδ in Q (VStruct δ) }} -∗
-  EWP (eval_mexpr η (MStruct sitems)) {{ RET v, Q v }}.
-Proof.
-  iIntros "Hsitems".
-  simpl_eval_mexpr. Bind.
-  iApply (ewp_mono with "Hsitems").
-  iIntros ([ ηδ | e ]); [ simpl | done ].
-  destruct ηδ; iIntros "HQ".
-  by Ret.
-Qed.
-
-Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
-    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
-    (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
-    EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hsitem Hcov". simpl_eval_sitems.
-    Bind.
-    iApply (ewp_mono with "Hsitem").
-    iIntros ([ηδ'|]); [ simpl | done ].
-    iApply "Hcov".
-  Qed.
-
-Lemma ewp_sitems_nil ηδ E ψ Q :
-  Q (O2Ret ηδ) -∗
-    EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
-Proof.
-  simpl_eval_sitems.
-  by iApply ewp_value.
-Qed.
-
-Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E ψ :
-    spec (VCloRec η [RecBinding x af] x) -∗
-    EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| ψ |>
-    {{ RET ηδ, let '(η0, δ0) := ηδ in
-               ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
-    }}.
-Proof.
-  iIntros "Hspec".
-  simpl_eval_sitem. Ret. simpl.
-  iExists _. iFrame. equality.
-Qed.
-
-Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
-
-Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
-Ltac prove_simple_match :=
-  iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ (ieq ?[y]));
-  [ |
-    prove_handler_spec;
-    [
-    | let Hf := iFresh in
-      iIntros (??) Hf;
-        by iPoseProof (upcl_bottom with Hf) as "?" ];
-    iIntros (?) "->"
-  ].
-
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 

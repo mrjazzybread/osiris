@@ -253,6 +253,11 @@ Ltac2 iapply (lem : constr) (sel : constr option) :=
 Ltac2 Notation "iApply" "(" lem(constr) "with" sel(constr) ")" := iapply lem (Some sel).
 Ltac2 Notation "iApply" lem(constr) := iapply lem None.
 
+Ltac2 iintros (pat : constr) :=
+  ltac1:(pat |- iIntros pat) (Ltac1.of_constr pat).
+
+Ltac2 Notation "iIntros" pat(constr) := iintros pat.
+
 Ltac2 enter_branch0 (intro_pat : constr option) :=
   match intro_pat with
   | None => iApply deep_handle_cons
@@ -269,3 +274,41 @@ Ltac2 Notation "enter_branch" := enter_branch0 None.
      entering a branch on match. *)
 Ltac red_match := repeat (ltac2:(skip_branch ()); [ idtac ]);
                   ltac2:(enter_branch with "[-]").
+
+Ltac2 iris_goal () :=
+  lazy_match! goal with
+  | [ |- environments.envs_entails _ ?g ] => g
+  | [ |- _ ] => Control.throw (Tactic_failure None)
+  end.
+
+Ltac2 rec strip_laters (g : constr) :=
+  lazy_match! g with
+  | bi_later ?c => strip_laters c
+  | _ => g
+  end.
+
+Ltac2 red_match () :=
+  let g := strip_laters (iris_goal ()) in
+  lazy_match! g with
+  | ewp_def _ (deep_eval_match _ (?b :: _) ?o) _ _ =>
+      iApply deep_handle_cons;
+      Control.focus 1 1
+        (fun _ =>
+           let m := specify_cpattern () in
+           Control.focus 1 m pattern_match0)
+  | _ => ()
+  end.
+
+
+Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+Ltac prove_simple_match :=
+  iApply ewp_EMatch;
+  iApply (ewp_deep_handler _ _ (ieq ?[y]));
+  [ |
+    prove_handler_spec;
+    [
+    | let Hf := iFresh in
+      iIntros (??) Hf;
+        by iPoseProof (upcl_bottom with Hf) as "?" ];
+    iIntros (?) "->"
+  ].

@@ -1035,3 +1035,128 @@ Section ewp_val_rules.
   Qed.
 
 End ewp_val_rules.
+
+Section ewp_eval.
+
+  Context `{!osirisGS Σ}.
+
+  Lemma ewp_module η sitems (Q : val -> iProp Σ) :
+    EWP (eval_sitems (η, []) sitems) {{ RET ηδ, let '(_, δ) := ηδ in Q (VStruct δ) }} -∗
+      EWP (eval_mexpr η (MStruct sitems)) {{ RET v, Q v }}.
+  Proof.
+    iIntros "Hsitems".
+    simpl_eval_mexpr. iApply ewp_bind.
+    iApply (ewp_mono with "Hsitems").
+    iIntros ([ ηδ | e ]); [ simpl | done ].
+    destruct ηδ; iIntros "HQ".
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
+    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
+      (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
+      EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hsitem Hcov".
+    simpl_eval_sitems. iApply ewp_bind.
+    iApply (ewp_mono with "Hsitem").
+    iIntros ([ηδ'|]); [ simpl | done ].
+    iApply "Hcov".
+  Qed.
+
+  Lemma ewp_sitems_nil ηδ E ψ Q :
+    Q (O2Ret ηδ) -∗
+      EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
+  Proof.
+    simpl_eval_sitems.
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E ψ :
+    spec (VCloRec η [RecBinding x af] x) -∗
+      EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| ψ |>
+      {{ RET ηδ, let '(η0, δ0) := ηδ in
+                 ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
+      }}.
+  Proof.
+    iIntros "Hspec".
+    simpl_eval_sitem. iApply ewp_value. simpl.
+    iExists _. iFrame.
+    iSplit; iPureIntro; reflexivity.
+  Qed.
+
+  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
+
+  Lemma ewp_struct_let η δ bs Q Ψ :
+    EWP (eval_bindings η bs) {{ RET η, Ψ η }} -∗
+      (∀ η', Ψ η' -∗ Q (O2Ret (η' ++ η, η' ++ δ))) -∗
+      EWP (eval_sitem (η, δ) (ILet bs)) {{ Q }}.
+  Proof.
+    iIntros "Hbindings Hmono".
+    simpl_eval_sitem. iApply ewp_bind.
+    iApply (ewp_mono with "Hbindings").
+    iIntros ([ | ]); [ simpl | done ].
+    iIntros. iApply ewp_value.
+    by iApply "Hmono".
+  Qed.
+
+  Lemma prove_ewp_par {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2) X' -> micro A X) φ1 φ2 E ψ Q :
+    EWP m1 @ E <|ψ|> {{ RET v, φ1 v }} -∗
+    EWP m2 @ E <|ψ|> {{ RET v, φ2 v }} -∗
+    (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ EWP k (O2Ret (v1, v2)) @ E <|ψ|> {{ Q }}) -∗
+    EWP (Par m1 m2 k) @ E <|ψ|> {{ Q }}.
+  Proof.
+    iIntros "Hm1 Hm2 Hk".
+    iApply (ewp_Par with "Hm1 Hm2"); simpl; try iIntros (e) "[]".
+    iApply "Hk".
+  Qed.
+
+  Lemma ewp_struct_let_single spec η δ name e :
+    EWP (eval η e) {{ RET v, spec v }} -∗
+      EWP (eval_sitem (η, δ) (ILet [Binding (PVar name) e]))
+      {{ RET ηδ,
+          let '(η', δ') := ηδ in
+          ∃ v : val, spec v ∧ ⌜η' = (name, v) :: η ∧ δ' = (name, v) :: δ⌝
+      }}.
+  Proof.
+    iIntros "Hspec".
+    simpl_eval_sitem; simpl_eval_bindings. iApply ewp_bind.
+    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
+    { by iApply ewp_value. }
+    iIntros (v ?) "Hspec ->". simpl_extend; unfold widen; simpl.
+    rewrite try_ret. iApply ewp_value. simpl. iApply ewp_value.
+    iExists v.
+    iFrame. iPureIntro; auto.
+  Qed.
+
+  Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
+    EWP eval_type_extensions es @ E <| ψ |>
+      {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
+      EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
+  Proof.
+    iIntros "Hes".
+    simpl_eval_sitem. iApply ewp_bind.
+    iApply (ewp_mono with "Hes").
+    iIntros ([|]); [ simpl; iIntros "HQ" | done ].
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_sitems_extend sitems η δ x E ψ Q :
+    (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
+              EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+      EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hcov".
+    iApply (ewp_sitems_cons).
+    { iApply (ewp_sitem_extend).
+      iApply ewp_alloc.
+      iIntros "!>" (l) "Hl".
+      rewrite /continue. iApply ewp_value.
+      Unshelve.
+      2: (apply (λ ηδ,
+              (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ V VUnit)%I)).
+      iExists l; iFrame. iPureIntro; reflexivity. }
+    iApply "Hcov".
+  Qed.
+
+End ewp_eval.
