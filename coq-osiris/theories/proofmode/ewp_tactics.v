@@ -301,6 +301,31 @@ Ltac2 red_match () :=
 
 
 Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+
+Ltac prove_match0_spec spec :=
+  iApply ewp_EMatch;
+  iApply (ewp_deep_handler _ _ spec);
+  [ |
+    prove_handler_spec;
+    [
+    | let Hf := iFresh in
+      iIntros (??) Hf;
+        by iPoseProof (upcl_bottom with Hf) as "?" ]
+  ].
+
+Ltac prove_match :=
+  iApply ewp_EMatch;
+  iApply ewp_deep_handler;
+  [ |
+    prove_handler_spec;
+    [
+    | let Hf := iFresh in
+      iIntros (??) Hf;
+        by iPoseProof (upcl_bottom with Hf) as "?" ]
+  ].
+
+Tactic Notation "prove_match" "with" ident(spec) := prove_match0_spec spec.
+
 Ltac prove_simple_match :=
   iApply ewp_EMatch;
   iApply (ewp_deep_handler _ _ (ieq ?[y]));

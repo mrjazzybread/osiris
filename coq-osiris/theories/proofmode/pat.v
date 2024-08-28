@@ -649,11 +649,12 @@ Proof. intros ->; reflexivity. Qed.
 
 Ltac2 rec solve_lookup_path () :=
   simpl;
-  match! goal with
+  lazy_match! goal with
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
   | [ |- bind (lookup_name ?η ?c) _ = _ ] =>
       erewrite -> (rewrite_bind (lookup_name $η $c)) >
         [ solve_lookup_name () | solve_lookup_path () ]
+  | [ |- ret _ = ret _ ] => reflexivity
   end.
 
 Ltac2 rec is_pattern (c : constr) :=
