@@ -67,19 +67,17 @@ Proof.
       iApply deep_handle_cons_no_resources.
       { iPureIntro; specify_cpattern. apply I. }
       iIntros "_".
-      iApply deep_handle_cons_no_resources.
-      { iPureIntro; specify_cpattern; pattern_match; iStartProof.
-        Simp. iApply ewp_value. iApply ewp_value. simpl.
+      apply_deep_handle_cons_unary.
+      { Simp. iApply ewp_value. iApply ewp_value. simpl.
         iExists (Some h0). equality. }
       { iIntros "[]". } }
     { (* Exception case. *)
       iIntros "[-> ->]".
-      iApply deep_handle_cons_no_resources.
-      { iPureIntro; specify_cpattern; pattern_match.
-        iStartProof; fold eval.
+      apply_deep_handle_cons_unary.
+      { fold eval.
         iApply ewp_EConstant. iApply ewp_value.
         iExists (None). done. }
-      iIntros "!> []". } }
+      iIntros "[]". } }
 
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
 

@@ -515,6 +515,78 @@ Qed.
 
 (* Pattern proofmode tactics *)
 
+
+Definition is_not_O3Throw {A X} (o : outcome3 A X) :=
+  match o with
+  | O3Throw _ => False
+  | _ => True
+  end.
+
+Definition is_not_O3Ret {A X} (o : outcome3 A X) :=
+  match o with
+  | O3Ret _ => False
+  | _ => True
+  end.
+
+Definition is_not_O3Perform {A X} (o : outcome3 A X) :=
+  match o with
+  | O3Perform _ _ => False
+  | _ => True
+  end.
+
+Lemma cpat_CExc_abst η p o φ ψ :
+  (forall e, o = O3Throw e -> pattern η p e φ ψ) ->
+  cpattern η (CExc p) o φ (is_not_O3Throw o ∨ ψ).
+Proof.
+  intros Hpat.
+  unfold cpattern.
+  destruct o; simpl.
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+  - eapply total_consequence; [ apply Hpat | auto | auto ].
+    reflexivity.
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+Qed.
+
+Lemma cpat_CVal_abst η p o φ ψ :
+  (forall v, o = O3Ret v -> pattern η p v φ ψ) ->
+  cpattern η (CVal p) o φ (is_not_O3Ret o ∨ ψ).
+Proof.
+  intros Hpat.
+  unfold cpattern.
+  destruct o; simpl.
+  - eapply total_consequence; [ apply Hpat | auto | auto ].
+    reflexivity.
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+Qed.
+
+Lemma cpat_CEff_abst η peff pk o φ ψ1 ψ2 :
+  (forall eff k,
+      o = O3Perform eff k ->
+      pattern η peff eff (λ δ, pattern δ pk (VCont k) φ ψ2) ψ1) ->
+  cpattern η (CEff peff pk) o φ (is_not_O3Perform o ∨ ψ1 ∨ ψ2).
+Proof.
+  intros Hpat.
+  unfold cpattern.
+  destruct o; simpl.
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+  - eapply total_bind.
+    { eapply total_consequence; [ apply Hpat; reflexivity | | auto ].
+      intros δ Hpat2. apply Hpat2. }
+    intros δ Hpat2. eapply total_consequence; [ apply Hpat2 | auto | auto ].
+Qed.
+
+Lemma cpat_CEff_impossible η peff pk (o : outcome2 val exn) φ :
+  cpattern η (CEff peff pk) o φ True.
+Proof.
+  unfold cpattern.
+  destruct o; simpl.
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+  - right. exists tt. split; [ apply SimpReflexive | auto ].
+Qed.
+
+
 From Ltac2 Require Import Ltac2.
 
 (* [specify_cpattern] takes a goal of the form [cpattern η cp o3 φ ψ]
@@ -527,20 +599,39 @@ Ltac2 rec specify_cpattern () : int :=
       (* We simplify terms because of things like coercions. *)
       let cp := Std.eval_hnf cp in
       let o := Std.eval_hnf o in
-      lazy_match! '($cp, $o) with
-      | (CVal _, O3Ret _) =>
-          apply cpat_CVal; 1
-      | (CExc _, O3Throw _) =>
-          apply cpat_CExc; 1
-      | (CEff _ _, O3Perform _ _) =>
-          apply cpat_CEff; 1
-      | (COr _ _, _) =>
-          eapply cpat_COr;
-          let n := Control.focus 1 1 specify_cpattern in
-          let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
-          Int.add n m
+      match Constr.Unsafe.kind o with
+      | Constr.Unsafe.App _ _ =>
+          (* If we know what kind of outcome [o] is. *)
+          lazy_match! '($cp, $o) with
+          | (CVal _, O3Ret _) =>
+              apply cpat_CVal; 1
+          | (CExc _, O3Throw _) =>
+              apply cpat_CExc; 1
+          | (CEff _ _, O3Perform _ _) =>
+              apply cpat_CEff; 1
+          | (COr _ _, _) =>
+              eapply cpat_COr;
+              let n := Control.focus 1 1 specify_cpattern in
+              let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+              Int.add n m
+          | _ =>
+              eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+          end
       | _ =>
-          eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+          (* If [o] is not a concrete outcome. *)
+          lazy_match! cp with
+          | CVal _ => eapply cpat_CVal_abst; intros ??; 1
+          | CExc _ => eapply cpat_CExc_abst; intros ??; 1
+          | CEff _ _ => Control.plus
+                         (fun _ => apply cpat_CEff_impossible)
+                         (fun _ => eapply cpat_CEff_abst; intros ???); 1
+          | COr _ _ =>
+              eapply cpat_COr;
+              let n := Control.focus 1 1 specify_cpattern in
+              let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+              Int.add n m
+          end
+
       end
   end.
 

@@ -225,12 +225,25 @@ Section verification.
     Proof.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
-      rewrite deep_handler_spec_unfold /deep_handler_spec_pre.
-      iSplit.
+      prove_handler_spec.
+
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        destruct o; red_match; Simp; Ret; by iPureIntro. }
+        apply_deep_handle_cons_unary.
+        { Simp. Ret. by iPureIntro. }
+
+        iIntros "%no_match".
+        apply_deep_handle_cons_unary.
+        { Simp. Ret. by iPureIntro. }
+
+        iIntros "%no_match1".
+        apply_deep_handle_cons_unary.
+
+        iIntros "%no_match3".
+        destruct o; simpl in *;
+          ltac2:(Control.enter (fun _ => destruct_hyps [@no_match1; @no_match])). }
+
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -287,15 +300,10 @@ Section verification.
       Call.
       (* [fun iter -> ...] has been translated as
          [fun x -> match x with | iter -> ...]. *)
-      iApply ewp_EMatch.
-      iApply (ewp_deep_handler _ ⊥ (ieq ?[y])).
-      { Simp. by Ret. }
-      rewrite deep_handler_spec_unfold; iSplit; last first.
-      (* Trivially discard the effect case. *)
-      { iIntros "!#" (??) "HF".
-        by iPoseProof (upcl_bottom with "HF") as "F". }
-      iIntros (? ->) "!> !>".
-      red_match.
+      iModIntro.
+      prove_simple_match. { Simp. Ret. equality. }
+      iModIntro.
+      apply_deep_handle_cons_unary; [ | iIntros "[]" ].
 
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.

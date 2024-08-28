@@ -45,8 +45,6 @@ Ltac2 prepare_pattern_post () :=
       unify $φ (fun δ => δ = $η)
   end.
 
-From iris Require Import  spec_patterns.
-
 Lemma bi_sep_intro (P Q : iProp Σ) :
   P -∗
   Q -∗

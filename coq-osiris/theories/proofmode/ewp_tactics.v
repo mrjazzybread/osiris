@@ -1,4 +1,4 @@
-From iris.proofmode Require Import base proofmode classes environments.
+From iris.proofmode Require Import proofmode environments ltac_tactics.
 From iris.base_logic.lib Require Import fancy_updates.
 From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
@@ -13,6 +13,21 @@ From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import simp_tactics specifications pat expr_rules.
 
 (** *Utility *)
+
+Section helper_lemmas.
+
+Context `{!osirisGS Σ}.
+
+Lemma bi_sep_intro (P Q : iProp Σ) :
+  P -∗
+  Q -∗
+  P ∗ Q.
+Proof.
+  iIntros "H1 H2".
+  iFrame.
+Qed.
+
+End helper_lemmas.
 
 Create HintDb osiris.
 
@@ -324,8 +339,6 @@ Ltac prove_match :=
         by iPoseProof (upcl_bottom with Hf) as "?" ]
   ].
 
-Tactic Notation "prove_match" "with" ident(spec) := prove_match0_spec spec.
-
 Ltac prove_simple_match :=
   iApply ewp_EMatch;
   iApply (ewp_deep_handler _ _ (ieq ?[y]));
@@ -337,3 +350,128 @@ Ltac prove_simple_match :=
         by iPoseProof (upcl_bottom with Hf) as "?" ];
     iIntros (?) "->"
   ].
+
+Context `{!osirisGS Σ}.
+
+
+Tactic Notation "prove_match" "with" ident(spec) := prove_match0_spec spec.
+
+Ltac to_ident_list env acc :=
+  match env with
+  | environments.Enil => constr:(acc)
+  | environments.Esnoc ?env ?h _ =>
+      to_ident_list env (h::acc)
+  end.
+
+Ltac all_intuitionistic_hyps :=
+  match goal with
+  | |- environments.envs_entails ?env _ =>
+      match env with
+      | environments.Envs ?env_intuitionistic _ _ =>
+          to_ident_list env_intuitionistic (@nil ident)
+      end
+  end.
+
+Ltac all_spatial_hyps :=
+  match goal with
+  | |- environments.envs_entails ?env _ =>
+      match env with
+      | environments.Envs _ ?env_spatial _ =>
+          to_ident_list env_spatial (@nil ident)
+      end
+  end.
+
+Ltac conj_hyps hyps :=
+  match hyps with
+  | [] => idtac
+  | [?hyp] => idtac
+  | ?h1 :: ?h2 :: ?hyps =>
+      let h := iFresh in
+      iPoseProof (bi_sep_intro) as h;
+      iSpecialize (h with h1);
+      iSpecialize (h with h2);
+      iRename h into h1;
+      conj_hyps (h1 :: hyps)
+  end.
+
+Ltac unconj_hyps_aux hyp_name hyps :=
+  match hyps with
+  | [] => idtac
+  | [_] => idtac
+  | ?h1 :: ?t =>
+      _iDestruct0 hyp_name
+        (intro_patterns.IList [[intro_patterns.IIdent hyp_name;
+                                intro_patterns.IIdent h1]]);
+      unconj_hyps_aux hyp_name t
+
+  end.
+
+Ltac unconj_hyps hyps :=
+  match hyps with | [] => idtac | ?hyp_name :: _ =>
+  let hyps := (eval vm_compute in (List.rev hyps)) in
+  unconj_hyps_aux hyp_name hyps
+  end.
+
+Ltac revert_intuitionistic hyps :=
+  match hyps with
+  | [] => idtac
+  | ?h :: ?t =>
+      iRevert h; iIntros h; revert_intuitionistic t
+  end.
+
+Ltac unrevert_intuitionistic hyps :=
+  match hyps with
+  | [] => idtac
+  | ?h :: ?t =>
+      iRevert h;
+      _iIntros0 (intro_patterns.IIntuitionistic (intro_patterns.IIdent h));
+      unrevert_intuitionistic t
+  end.
+
+Ltac reintroduce_env intuitionistic_hyps spatial_hyps :=
+  match intuitionistic_hyps with
+  | ?h1 :: _ =>
+      iIntros h1;
+      match spatial_hyps with
+      | ?h2 :: _ => unconj_hyps [h1; h2]
+      | _ => idtac
+      end
+  | _ =>
+      match spatial_hyps with
+      | ?h2 :: _ =>
+          iIntros h2
+      | _ => idtac
+      end
+  end;
+  unconj_hyps intuitionistic_hyps;
+  unrevert_intuitionistic intuitionistic_hyps;
+  unconj_hyps spatial_hyps.
+
+Ltac apply_deep_handle_cons_unary :=
+  let intuitionistic_hyps := all_intuitionistic_hyps in
+  let spatial_hyps := all_spatial_hyps in
+  conj_hyps spatial_hyps;
+  revert_intuitionistic intuitionistic_hyps;
+  conj_hyps intuitionistic_hyps;
+  match intuitionistic_hyps with
+  | ?h1 :: _ =>
+      match spatial_hyps with
+      | ?h2 :: _ => conj_hyps [h1; h2]
+      | _ => idtac
+      end
+  | _ => idtac
+  end;
+  match intuitionistic_hyps with
+  | ?h1 :: _ =>
+      iApply (deep_handle_cons_unary with h1)
+  | _ => match spatial_hyps with
+        | ?h2 :: _ => iApply (deep_handle_cons_unary with h2)
+        | _ => iApply deep_handle_cons_no_resources
+        end
+  end;
+  [ iPureIntro;
+    specify_cpattern;
+    pattern_match;
+    iStartProof
+  | try iModIntro ];
+  reintroduce_env intuitionistic_hyps spatial_hyps.
