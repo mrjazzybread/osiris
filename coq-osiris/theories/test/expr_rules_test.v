@@ -309,6 +309,7 @@ Proof.
   rewrite deep_handler_spec_unfold; iSplit.
 
   - iIntros (?) "->". iNext. red_match.
+    representable.
     Simp. Ret. by iExists true.
 
   - iIntros (e k) "Hp".
@@ -336,7 +337,7 @@ Proof.
   - iIntros (?) "->". iNext.
     iApply deep_handle_cons. (* TODO: Improve red_match to manage this case. *)
     + specify_cpattern.
-      pattern_match.
+      eapply pat_PInt; [ | | encode |]; [ representable | representable | ].
       discriminate.
     + iIntros (δ) "[]".
     + iIntros (?). red_match.
@@ -368,15 +369,12 @@ Proof.
 
   - iIntros (?) "->". iNext.
     iApply deep_handle_cons.
-    + specify_cpattern.
-      pattern_match.
-      discriminate.
+    + specify_cpattern. pattern_match.
     + iIntros (δ) "[]".
     + iIntros (_).
       iApply deep_handle_cons.
       * specify_cpattern.
         pattern_match.
-        discriminate.
       * iIntros (δ) "[]".
       * iIntros (_).
         iApply deep_handle_cons.
@@ -405,35 +403,19 @@ Lemma simple_true_true_match env :
        Branch (CVal (PConstant "[]")) (EInt 2)])
     {{ RET #r, ⌜r = 2⌝ }}.
 Proof.
-  iApply ewp_EMatch.
-  iApply (ewp_deep_handler _ iEff_bottom).
-  { iApply ewp_EConstant. iApply goal_eq_emp. reflexivity. }
+  prove_simple_match. { iApply ewp_EConstant. equality. }
 
-  rewrite deep_handler_spec_unfold; iSplit.
+  iNext.
+  apply_deep_handle_cons_unary.
+  iIntros "%no_match1".
+  apply_deep_handle_cons_unary.
+  { iApply ewp_EInt. by iExists 2. }
+  iIntros "%F". congruence.
 
-  - iIntros (?) "->". iNext.
-    iApply deep_handle_cons.
-    + specify_cpattern.
-      pattern_match.
-      discriminate.
-    + iIntros (δ) "[]".
-    + iIntros "_".
-      iApply deep_handle_cons.
-      * specify_cpattern.
-        pattern_match.
-        apply eq_refl.
-      * iIntros (δ) "_".
-        iApply ewp_EInt.
-        by iExists 2.
-      * by iIntros (?).
-
-  - iIntros (e k) "Hp".
-    unfold iEff_bottom in *.
-    unfold prot in *.
-    rewrite upcl_bottom.
-    done.
-    Unshelve.
-2,4: apply Encode_unit.
+  Unshelve.
+  apply nat.
+  1,2: apply (fun _ => True).
+  1,3: apply Encode_nat.
 (* check that the meaning of the lemma does not depend on the encoded type *)
 Qed.
 

@@ -265,38 +265,54 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %Hag.
 
        (* Skip the return, exception, and [Get] branches. *)
-       iNext. red_match.
+       iNext.
+       iApply deep_handle_cons_no_resources.
+       { iPureIntro. specify_cpattern. apply I. }
+       iIntros "no_match".
+       iApply deep_handle_cons_no_resources.
+       { iPureIntro. specify_cpattern. apply I. }
+       iIntros "no_match1".
+       iApply deep_handle_cons_no_resources.
+       { iPureIntro. specify_cpattern.
+         eapply pat_PXData_neq. simpl. eassumption.
+         assumption. }
+       iIntros "no_match2".
+       apply_deep_handle_cons_unary.
 
-       (* EWP Goal: [var := y; continue k ()]. *)
-       iApply ewp_ESeq.
+       { (* EWP Goal: [var := y; continue k ()]. *)
+         iApply ewp_ESeq.
 
-       (* EWP Subgoal: [var := y]. *)
-       iApply (ewp_mono with "[Hl]").
-       { iApply (ewp_EStore_simple).
-         { iApply ewp_EPath; by Ret. }
-         { iApply ewp_EPath. Ret. by iFrame. } }
-       iIntros ([|]) "Hl"; simpl;
-         [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
+         (* EWP Subgoal: [var := y]. *)
+         iApply (ewp_mono with "[Hl]").
+         { iApply (ewp_EStore_simple).
+           { iApply ewp_EPath; by Ret. }
+           { iApply ewp_EPath. Ret. by iFrame. } }
+         iIntros ([|]) "Hl"; simpl;
+           [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
 
-       (* EWP Subgoal: [continue k ()]. *)
-       iDestruct "H" as "(Hauth & Hx)".
+         (* EWP Subgoal: [continue k ()]. *)
+         iDestruct "H" as "(Hauth & Hx)".
 
-       iApply ewp_fupd.
-       iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
-       iModIntro.
+         iApply ewp_fupd.
+         iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
+         iModIntro.
 
-       iSpecialize ("H_WRITE" with "Hx").
-       iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
+         iSpecialize ("H_WRITE" with "Hx").
+         iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
-       { rewrite /as_cont; iApply ewp_bind.
-         iApply ewp_EPath. Ret. by Ret. }
-       { by iApply ewp_EConstant. }
+         iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+         { rewrite /as_cont; iApply ewp_bind.
+           iApply ewp_EPath. Ret. by Ret. }
+         { by iApply ewp_EConstant. }
 
-       (* Resume the continuation. *)
-       iApply "H_WRITE". iNext.
-       rewrite /deep_handler_spec seal_eq.
-       iApply ("IH" with "Hauth Hl"). }
+         (* Resume the continuation. *)
+         iApply "H_WRITE". iNext.
+         rewrite /deep_handler_spec seal_eq.
+         iApply ("IH" with "Hauth Hl"). }
+
+       iIntros "%no_match3".
+       ltac2:(destruct_hyp @no_match3). }
+       Unshelve. apply True.
    Qed.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
