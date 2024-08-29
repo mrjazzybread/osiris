@@ -348,7 +348,7 @@ Proof.
 Qed.
 
 Ltac pat_PInt :=
-  eapply pat_PInt; [ | | encode | ]; representable; intros.
+  eapply pat_PInt; [ | | solve [ encode ] | ]; [ representable | representable | ]; intros.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -880,7 +880,7 @@ Ltac2 rec do_intros () :=
        (* If [h] is not a proposition then it is presumably a variable. *)
        else
          intros ?);
-      do_intros ()
+      Control.enter do_intros
   | [ |- forall x, _ ] =>
       intros ?; do_intros ()
   | [ |- _ ] => ()
@@ -932,7 +932,8 @@ Ltac2 rec pattern_match_aux () :=
      - solve the goal with [pats_PNil]. *)
   let continue_matching :=
     fun _ => do_intros ();
-          if is_pattern (Control.goal ()) then pattern_match_aux () else ()
+          Control.enter (fun _ =>
+          if is_pattern (Control.goal ()) then pattern_match_aux () else ())
   in
   Control.enter
     (fun _ =>
@@ -948,10 +949,14 @@ Ltac2 rec pattern_match_aux () :=
                  (fun _ => eapply pat_PVar;
                         continue_matching ())
            | PInt _ =>
-               eapply pat_PInt > [ ltac1:(representable)
-                                 | ltac1:(representable)
-                                 | ltac1:(encode)
-                                 | continue_matching () ]
+               eapply pat_PInt >
+                 [
+                 |
+                 | solve [ ltac1:(encode) ]
+                 | ] >
+                 [ ltac1:(representable)
+                 | ltac1:(representable)
+                 | continue_matching () ]
            | pNil =>
                eapply pat_pNil > [ solve [ ltac1:(encode) ]
                                  | continue_matching () ]
