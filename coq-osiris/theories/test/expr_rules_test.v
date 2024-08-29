@@ -201,7 +201,7 @@ Proof.
       iApply (ewp_mono with "[Hy]").
       by iApply (example_incr with "Hy").
       (* !y *)
-      iIntros ([v_|]) "H". 2: done.
+      iIntros_RET (v) "H".
       iApply ewp_ELoad.
       * Simp. iApply ewp_ret_eq_emp.
       * iDestruct "H" as "(-> & H)".
@@ -396,27 +396,25 @@ Qed.
 (* checking now whether pat_pNil works with
 match [] with _ :: _ -> 1 | _ -> 2 *)
 
-Lemma simple_true_true_match env :
+
+
+Lemma simple_true_true_match `{Encode A} env :
   ⊢ EWP eval env
     (EMatch (EData "[]" (ETuple []))
       [Branch (CVal (PData "::" (PTuple [ PAny; PAny ]))) (EInt 1);
        Branch (CVal (PConstant "[]")) (EInt 2)])
     {{ RET #r, ⌜r = 2⌝ }}.
 Proof.
-  prove_simple_match. { iApply ewp_EConstant. equality. }
+  prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
+  { iApply ewp_EConstant. encode. }
 
-  iNext.
+  iIntros_RET "->".
   apply_deep_handle_cons_unary.
+  instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).
   iIntros "%no_match1".
   apply_deep_handle_cons_unary.
   { iApply ewp_EInt. by iExists 2. }
   iIntros "%F". congruence.
-
-  Unshelve.
-  apply nat.
-  1,2: apply (fun _ => True).
-  1,3: apply Encode_nat.
-(* check that the meaning of the lemma does not depend on the encoded type *)
 Qed.
 
 End test_expr_rules.

@@ -287,8 +287,7 @@ Section verification.
          { iApply (ewp_EStore_simple).
            { iApply ewp_EPath; by Ret. }
            { iApply ewp_EPath. Ret. by iFrame. } }
-         iIntros ([|]) "Hl"; simpl;
-           [ iDestruct "Hl" as "[-> Hl]" | iDestruct "Hl" as "[]" ].
+         iIntros_RET "[-> Hl]".
 
          (* EWP Subgoal: [continue k ()]. *)
          iDestruct "H" as "(Hauth & Hx)".

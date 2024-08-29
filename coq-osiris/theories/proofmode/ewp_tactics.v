@@ -354,7 +354,16 @@ Ltac prove_simple_match :=
 Context `{!osirisGS Σ}.
 
 
-Tactic Notation "prove_match" "with" ident(spec) := prove_match0_spec spec.
+Tactic Notation "prove_match" "with" constr(spec) := prove_match0_spec spec.
+
+Tactic Notation "iIntros_RET" :=
+  iIntros ([|]); [ simpl | iIntros "[]" ].
+Tactic Notation "iIntros_RET" constr(pat) :=
+  iIntros ([|]); [ simpl; iIntros pat | iIntros "[]" ].
+Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" :=
+  iIntros ([ v |]); [ simpl | iIntros "[]" ].
+Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" constr(pat) :=
+  iIntros ([ v |]); [ simpl; iIntros pat | iIntros "[]" ].
 
 Ltac to_ident_list env acc :=
   match env with
