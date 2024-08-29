@@ -1159,4 +1159,70 @@ Section ewp_eval.
     iApply "Hcov".
   Qed.
 
+  Lemma ewp_sitem_open η δ me E ψ Q φ δ' :
+    EWP eval_mexpr η me @ E <| ψ |> {{ RET v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
+    ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
+    EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hme Hcov". simpl_eval_sitem.
+    iApply ewp_bind. iApply ewp_bind.
+    iApply (ewp_mono with "Hme").
+    iIntros ([|]); [ simpl | done ].
+    iIntros "[-> Hφ]".
+    iApply ewp_try. repeat iApply ewp_value.
+    iApply ("Hcov" with "Hφ").
+  Qed.
+
+  Lemma ewp_type_extension_cons e es E ψ Q :
+    ▷ (∀ l, l ↦ V #() -∗
+          EWP eval_type_extensions es @ E <| ψ |>
+            {{ RET δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
+    EWP eval_type_extensions (e :: es) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "Hes". simpl.
+    iApply ewp_alloc.
+    iModIntro.
+    iIntros "%l Hl".
+    iApply ewp_bind. iApply ewp_value. iApply ewp_bind.
+    iSpecialize ("Hes" with "Hl").
+    iApply (ewp_mono with "Hes").
+    iIntros ([|]); [ simpl | done ]; iIntros "HQ".
+    by iApply ewp_value.
+  Qed.
+
+  Lemma ewp_type_extension_nil E ψ Q :
+    Q (O2Ret []) -∗
+    EWP eval_type_extensions [] @ E <| ψ |> {{ Q }}.
+  Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
+
+  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+      (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
+      EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He HQ".
+    simpl_eval_sitem. simpl_eval_bindings.
+    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    { iApply ewp_value. iPureIntro; reflexivity. }
+    iIntros (v1 v2) "Hspec ->".
+    simpl_extend. iApply ewp_value.
+    by iApply "HQ".
+  Qed.
+
+  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
+    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+      (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
+                EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
+      EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
+  Proof.
+    iIntros "He Hcov".
+    simpl_eval_sitems; simpl_eval_bindings; simpl.
+    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    { iApply ewp_value. iPureIntro; reflexivity. }
+    iIntros (v1 v2) "Hspec ->".
+    unfold widen; simpl_extend; simpl.
+    iApply "Hcov".
+    iExists v1; by iFrame.
+  Qed.
+
 End ewp_eval.

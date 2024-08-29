@@ -542,7 +542,8 @@ Section ewp_rules_expr.
       by iApply ewp_value.
   Qed.
 
-  Lemma ewp_EOpEq η e1 e2 φ1 φ2 φ E Ψ :
+  Lemma ewp_EOpEq η e1 e2 (φ1 φ2 : val -> iProp Σ)
+    (φ : outcome2 val exn -> iProp Σ) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ RET v1, φ1 v1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ v1 v2, φ1 v1 ∗ φ2 v2 -∗
@@ -596,7 +597,7 @@ Section ewp_rules_expr.
     - iApply ("E" with "H").
   Qed.
 
-  Lemma ewp_ELet {η bs e} φ' φ E Ψ :
+  Lemma ewp_ELet {η bs e} (φ' : env -> iProp Σ) φ E Ψ :
     EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φ' v }} -∗
     (∀ δ, φ' δ -∗ EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet bs e) @ E <|Ψ|> {{ φ }}.
@@ -611,7 +612,7 @@ Section ewp_rules_expr.
   (* Specialized [ELet] lemmas *)
 
   (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
-  Corollary ewp_ELet_singleton_total {η p e e'} Φ φ E Ψ:
+  Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
@@ -629,7 +630,7 @@ Section ewp_rules_expr.
   Qed.
 
   (* Special case of [let x = e' in e] *)
-  Lemma ewp_ELet_PVar_1 {η x e e'} Φ φ E Ψ:
+  Lemma ewp_ELet_PVar_1 {η x e e'} (Φ : val -> iProp Σ) φ E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗ EWP eval ((x, v) :: η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [Binding (PVar x) e'] e) @ E <|Ψ|> {{ φ }}.

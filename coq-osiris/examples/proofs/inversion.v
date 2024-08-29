@@ -276,21 +276,6 @@ Section verification.
 
     Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
-
-    Lemma ewp_ELet_singleton_var spec η x e e' ψ Q :
-      EWP eval η e <| ψ |> {{ RET v, spec v }} -∗
-      (∀ v, spec v -∗ EWP eval ((x, v) :: η) e' <| ψ |> {{ Q }}) -∗
-      EWP eval η (ELet [Binding (PVar x) e] e') <| ψ |> {{ Q }}.
-    Proof.
-      iIntros "He He'". simpl_eval.
-      Par. Bind.
-      iApply (ewp_mono with "He").
-      iIntros ([|]); [ simpl | done ].
-      iIntros "Hspec".
-      simpl_extend.
-      by iApply "He'".
-    Qed.
-
     Lemma ewp_invert : ⊢ invert_spec invert.
       iIntros (iter) "Hiter".
       (* Initialise handler view and iterator view. *)
@@ -313,7 +298,7 @@ Section verification.
       iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
       (* [let yield x = ...] *)
-      iApply (ewp_ELet_singleton_var
+      iApply (ewp_ELet_PVar_1
                 (λ v,
                   □ ∀ (Xs : list A) (X : A),
                     iterView γ Xs -∗

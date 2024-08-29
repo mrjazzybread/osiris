@@ -277,7 +277,7 @@ Proof.
 
   iIntros_RET "->".
   apply_deep_handle_cons_unary; [ | iIntros "[]" ].
-  iApply ewp_EConstant. encode.
+  iApply ewp_EConstant. iExists true. auto.
 Qed.
 
 (*
@@ -300,7 +300,7 @@ Proof.
   iIntros_RET "-> !>".
 
   apply_deep_handle_cons_unary.
-  - iApply ewp_EConstant; encode.
+  - iApply ewp_EConstant; iExists true; auto.
   - iIntros "%no_match". congruence.
 Qed.
 
@@ -318,7 +318,7 @@ Proof.
   iIntros_RET "-> !>".
   apply_deep_handle_cons_unary. iIntros "_".
   apply_deep_handle_cons_unary; [ | iIntros "[]" ].
-  iApply ewp_EConstant; encode.
+  iApply ewp_EConstant; iExists false; auto.
 Qed.
 
 (* match 2 with 0 -> 0 | 1 -> 1 | 2 -> 2 *)
@@ -356,7 +356,7 @@ Proof.
   prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
   { iApply ewp_EConstant. encode. }
 
-  iIntros_RET "->".
+  iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
   apply_deep_handle_cons_unary.
   instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).
   iIntros "%no_match1".

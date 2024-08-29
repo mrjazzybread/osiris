@@ -316,132 +316,6 @@ Section verification.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
 
-  Lemma ewp_mexpr_MStruct η sitems E ψ Q :
-    EWP eval_sitems (η, []) sitems @ E <| ψ |> {{ RET ηδ, let '(_, δ) := ηδ in Q (O2Ret (VStruct δ)) }} -∗
-    EWP (eval_mexpr η (MStruct sitems)) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hsitems". simpl_eval_mexpr.
-    Bind.
-    iApply (ewp_mono with "Hsitems").
-    iIntros ([ηδ|]); [ simpl; iIntros "HQ" | done ].
-    destruct ηδ; by iApply ewp_value.
-  Qed.
-
-  Lemma ewp_sitem_open η δ me E ψ Q φ δ' :
-    EWP eval_mexpr η me @ E <| ψ |> {{ RET v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
-    ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
-    EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hme Hcov". simpl_eval_sitem.
-    Bind. Bind.
-    iApply (ewp_mono with "Hme").
-    iIntros ([|]); [ simpl | done ].
-    iIntros "[-> Hφ]".
-    iApply ewp_try. Ret.
-    iApply ("Hcov" with "Hφ").
-  Qed.
-
-  Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
-    EWP eval_type_extensions es @ E <| ψ |>
-      {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
-    EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
-  Proof.
-    iIntros "Hes". Simp.
-    Bind. iApply (ewp_mono with "Hes").
-    iIntros ([|]); [ simpl; by iIntros "HQ" | done ].
-  Qed.
-
-  Lemma ewp_type_extension_cons e es E ψ Q :
-    ▷ (∀ l, l ↦ V #() -∗
-          EWP eval_type_extensions es @ E <| ψ |>
-            {{ RET δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
-    EWP eval_type_extensions (e :: es) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hes". simpl.
-    iApply ewp_alloc.
-    iModIntro.
-    iIntros "%l Hl".
-    rewrite /continue; simpl. Bind.
-    iSpecialize ("Hes" with "Hl").
-    iApply (ewp_mono with "Hes").
-    iIntros ([|]); [ simpl | done ]; iIntros "HQ".
-    by iApply ewp_value.
-  Qed.
-
-  Lemma ewp_type_extension_nil E ψ Q :
-    Q (O2Ret []) -∗
-    EWP eval_type_extensions [] @ E <| ψ |> {{ Q }}.
-  Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
-
-  Lemma ewp_sitems_nil ηδ E ψ Q :
-    Q (O2Ret ηδ) -∗
-    EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
-  Proof.
-    simpl_eval_sitems.
-    by iApply ewp_value.
-  Qed.
-
-  Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
-    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
-    (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
-    EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hsitem Hcov". simpl_eval_sitems.
-    Bind.
-    iApply (ewp_mono with "Hsitem").
-    iIntros ([ηδ'|]); [ simpl | done ].
-    iApply "Hcov".
-  Qed.
-
-  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
-    (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
-    EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "He HQ".
-    simpl_eval_sitem. simpl_eval_bindings.
-    Bind. Par. Bind.
-    iApply (ewp_mono with "He").
-    iIntros ([|]); [ simpl | done ].
-    iIntros "Hspec".
-    simpl_extend. Ret.
-    by iApply "HQ".
-  Qed.
-
-  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
-    (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
-                   EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
-    EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "He Hcov".
-    simpl_eval_sitems; simpl_eval_bindings; simpl.
-    Par. Bind.
-    iApply (ewp_mono with "He").
-    iIntros ([v|]); [ simpl; iIntros "Hspec" | done ].
-    Simp.
-    iApply "Hcov".
-    iExists v; by iFrame.
-  Qed.
-
-  Lemma ewp_sitems_extend sitems η δ x E ψ Q :
-    (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
-      EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
-    EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| ψ |> {{ Q }}.
-  Proof.
-    iIntros "Hcov".
-    iApply (ewp_sitems_cons).
-    { iApply (ewp_sitem_extend).
-      iApply ewp_alloc.
-      iIntros "!>" (l) "Hl".
-      rewrite /continue. Ret.
-      Unshelve.
-      2: (apply (λ ηδ,
-              (∃ l, ⌜ηδ = (x ~> VLoc l; η, x ~> VLoc l; δ)⌝ ∗ l ↦ V VUnit)%I)).
-      iExists l; iFrame. equality. }
-    iApply "Hcov".
-  Qed.
-
   Lemma lemmaname (Q : val -> iProp Σ) :
     ⊢ EWP (eval_mexpr dummy_env __main)
       {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
@@ -449,7 +323,7 @@ Section verification.
                               ∃ rl wl, run_spec rl wl run }}.
   Proof.
     iIntros. rewrite /__main.
-    iApply ewp_mexpr_MStruct.
+    iApply ewp_module.
     iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])).
 
     (* [open Effect] *)
