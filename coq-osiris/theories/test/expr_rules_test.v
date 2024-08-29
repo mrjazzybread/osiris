@@ -272,19 +272,12 @@ Lemma simple_PAny_match env :
       [Branch (CVal PAny) (EConstant "true")])
     {{ RET #r, ⌜r = true⌝ }}.
 Proof.
-  iApply ewp_EMatch.
-  iApply (ewp_deep_handler _ iEff_bottom).
-  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+  prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #1⌝))%I.
+  { iApply ewp_EInt. encode. }
 
-  rewrite deep_handler_spec_unfold; iSplit.
-
-  - iIntros (?) "->". iNext. Simp. Ret. by iExists true.
-
-  - iIntros (e k) "Hp".
-    unfold iEff_bottom in *.
-    unfold prot in *.
-    rewrite upcl_bottom.
-    done.
+  iIntros_RET "->".
+  apply_deep_handle_cons_unary; [ | iIntros "[]" ].
+  iApply ewp_EConstant. encode.
 Qed.
 
 (*
@@ -302,21 +295,13 @@ Lemma simple_PInt_eq_match env :
        Branch (CVal  PAny   ) (EConstant "false")])
     {{ RET #r, ⌜r = true⌝ }}.
 Proof.
-  iApply ewp_EMatch.
-  iApply (ewp_deep_handler _ iEff_bottom).
-  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
+  prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #(1)%Z⌝))%I.
+  { iApply ewp_EInt. encode. }
+  iIntros_RET "-> !>".
 
-  rewrite deep_handler_spec_unfold; iSplit.
-
-  - iIntros (?) "->". iNext. red_match.
-    representable.
-    Simp. Ret. by iExists true.
-
-  - iIntros (e k) "Hp".
-    unfold iEff_bottom in *.
-    unfold prot in *.
-    rewrite upcl_bottom.
-    done.
+  apply_deep_handle_cons_unary.
+  - iApply ewp_EConstant; encode.
+  - iIntros "%no_match". congruence.
 Qed.
 
 (* match 2 with 1 -> true | _ -> false *)
@@ -328,27 +313,12 @@ Lemma simple_PInt_neq_match env :
        Branch (CVal  PAny   ) (EConstant "false")])
     {{ RET #r, ⌜r = false⌝ }}.
 Proof.
-  iApply ewp_EMatch.
-  iApply (ewp_deep_handler _ iEff_bottom).
-  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
-
-  rewrite deep_handler_spec_unfold; iSplit.
-
-  - iIntros (?) "->". iNext.
-    iApply deep_handle_cons. (* TODO: Improve red_match to manage this case. *)
-    + specify_cpattern.
-      eapply pat_PInt; [ | | encode |]; [ representable | representable | ].
-      discriminate.
-    + iIntros (δ) "[]".
-    + iIntros (?). red_match.
-      iApply ewp_EConstant.
-      by iExists false.
-
-  - iIntros (e k) "Hp".
-    unfold iEff_bottom in *.
-    unfold prot in *.
-    rewrite upcl_bottom.
-    done.
+  prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
+  { iApply ewp_EInt; encode. }
+  iIntros_RET "-> !>".
+  apply_deep_handle_cons_unary. iIntros "_".
+  apply_deep_handle_cons_unary; [ | iIntros "[]" ].
+  iApply ewp_EConstant; encode.
 Qed.
 
 (* match 2 with 0 -> 0 | 1 -> 1 | 2 -> 2 *)
@@ -361,36 +331,14 @@ Lemma simple_PInt_012_match env :
        Branch (CVal (PInt 2)) (EInt 2)])
     {{ RET #r, ⌜r = 2⌝ }}.
 Proof.
-  iApply ewp_EMatch.
-  iApply (ewp_deep_handler _ iEff_bottom).
-  { iApply ewp_EInt. iApply goal_eq_emp. reflexivity. }
-
-  rewrite deep_handler_spec_unfold; iSplit.
-
-  - iIntros (?) "->". iNext.
-    iApply deep_handle_cons.
-    + specify_cpattern. pattern_match.
-    + iIntros (δ) "[]".
-    + iIntros (_).
-      iApply deep_handle_cons.
-      * specify_cpattern.
-        pattern_match.
-      * iIntros (δ) "[]".
-      * iIntros (_).
-        iApply deep_handle_cons.
-        -- specify_cpattern.
-           pattern_match.
-           apply eq_refl.
-        -- iIntros (δ) "_".
-           iApply ewp_EInt.
-           by iExists 2.
-        -- by iIntros (?).
-
-  - iIntros (e k) "Hp".
-    unfold iEff_bottom in *.
-    unfold prot in *.
-    rewrite upcl_bottom.
-    done.
+  prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
+  { iApply ewp_EInt; encode. }
+  iIntros_RET "-> !>".
+  apply_deep_handle_cons_unary. iIntros "_".
+  apply_deep_handle_cons_unary. iIntros "_".
+  apply_deep_handle_cons_unary.
+  { iApply ewp_EInt. iExists 2. auto. }
+  iIntros "%no_match"; congruence.
 Qed.
 
 (* checking now whether pat_pNil works with
@@ -414,7 +362,7 @@ Proof.
   iIntros "%no_match1".
   apply_deep_handle_cons_unary.
   { iApply ewp_EInt. by iExists 2. }
-  iIntros "%F". congruence.
+  iIntros "%no_match2". congruence.
 Qed.
 
 End test_expr_rules.
