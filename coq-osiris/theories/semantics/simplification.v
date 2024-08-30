@@ -52,7 +52,7 @@ Local Open Scope nat_scope.
 
    [SimpPar] allows simplification to take place under a [Par] constructor.
 
-   [SimpParThrowAgree] allows simplification of the same exception on both
+   [SimpParThrowAgree] combines simplifications to the same exception on both
    sides of a [Par] constructor
 
    [SimpPerform] allows simplification in the continuation of [perform e].

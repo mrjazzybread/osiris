@@ -853,7 +853,7 @@ Section ewp_rules.
 
   (* Non-deterministic Choose: note the use of non-separating conjunction *)
   Lemma ewp_Choose {E B Y} (m1 m2 : micro B Y) (k: outcome2 B Y → micro A X) {φ} Ψ :
-      ▷(EWP try2 m1 k  @ E <| Ψ |> {{ φ }} ∧ EWP try2 m2 k  @ E <| Ψ |> {{ φ }})
+      ▷(EWP try2 m1 k @ E <| Ψ |> {{ φ }} ∧ EWP try2 m2 k @ E <| Ψ |> {{ φ }})
       ⊢ EWP (Choose m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
@@ -864,6 +864,15 @@ Section ewp_rules.
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
     { iApply (bi.and_elim_l with "H"). }
     { iApply (bi.and_elim_r with "H"). }
+  Qed.
+
+  Lemma ewp_choose {E} (m1 m2 : micro A X) {φ} Ψ :
+      ▷(EWP m1 @ E <| Ψ |> {{ φ }} ∧ EWP m2 @ E <| Ψ |> {{ φ }})
+      ⊢ EWP (choose m1 m2) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply ewp_Choose.
+    by rewrite !try2_ret_right.
   Qed.
 
     (* The following lemmas offer reasoning rules for each of the system calls,

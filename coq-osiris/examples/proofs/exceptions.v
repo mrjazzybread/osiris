@@ -51,7 +51,7 @@ Proof.
     { Ret. simpl. eauto. } }
   intros [??] (head & Hhead & -> & ->); simpl.
 
-  (* Struct item: [let cath_head l = ...] *)
+  (* Struct item: [let catch_head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.

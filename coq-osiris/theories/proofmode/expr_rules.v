@@ -920,11 +920,10 @@ Section ewp_rules_expr.
     ⊢ EWP eval η (EAssert e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H /=". simpl_eval.
-    iApply ewp_Choose.
+    iApply ewp_choose.
     iNext. iSplit.
     - iApply ewp_value. iApply (bi.and_elim_l with "H").
     - iPoseProof (bi.and_elim_r with "H") as "(H & E & P)".
-      iApply ewp_try.
       iApply ewp_bind_exn.
       iApply ewp_bind_exn.
       iApply (ewp_mono with "H").
@@ -933,7 +932,7 @@ Section ewp_rules_expr.
         assert (val_as_bool VTrue = ret true) as -> by reflexivity.
         repeat iApply ewp_value.
         iApply "H".
-      * iApply ewp_throw. iApply ("E" with "H").
+      * iApply ("E" with "H").
   Qed.
 
   (* TODO: is this version indeed simpler to use? (&is it less general?) *)
@@ -945,10 +944,9 @@ Section ewp_rules_expr.
     ⊢ EWP eval η (EAssert e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "(R & H & He & P) /=". simpl_eval.
-    iApply ewp_Choose.
+    iApply ewp_choose.
     iNext. iSplit. by iApply ewp_value.
     iSpecialize ("H" with "R").
-    iApply ewp_try.
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "H").
@@ -956,7 +954,7 @@ Section ewp_rules_expr.
     - iDestruct ("P" with "H") as "(-> & H)".
         assert (val_as_bool VTrue = ret true) as -> by reflexivity.
         by repeat iApply ewp_value.
-    - iApply ewp_throw. iApply ("He" with "H").
+    - iApply ("He" with "H").
   Qed.
 
   Lemma ewp_EAssert η e R E Ψ :

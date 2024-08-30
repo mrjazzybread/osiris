@@ -1462,6 +1462,13 @@ Ltac simpl_eval_match :=
   rewrite ?fold_pre_eval_match)
   || fail "Unable to simplify application of eval_match".
 
+Ltac simpl_eval_trywith :=
+  (unfold eval_trywith;
+   rewrite seal_eq;
+   (progress simpl pre_eval_trywith);
+  rewrite ?fold_pre_eval_trywith)
+  || fail "Unable to simplify application of eval_trywith".
+
 Ltac simpl_shallow_eval_match :=
   (unfold shallow_eval_match;
    rewrite seal_eq;
@@ -1544,7 +1551,7 @@ Ltac fold_all :=
                | rewrite fold_pre_evals
                | rewrite fold_pre_evalfs
                | rewrite fold_pre_eval_match
-               | rewrite fold_pre_eval_match
+               | rewrite fold_pre_eval_trywith
                | rewrite fold_pre_deep_eval_match
                | rewrite fold_pre_install_deep_eval_match
                | rewrite fold_pre_shallow_eval_match
