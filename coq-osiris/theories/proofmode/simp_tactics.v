@@ -171,22 +171,20 @@ Proof.
   rewrite bind_as_try. eauto with simp.
 Qed.
 
-Lemma advance_SimpChooseAgree {A B E' E} m1 m2 m (k : outcome2 A E' → micro B E) m' :
-  simp m1 m →
-  simp m2 m →
-  simp (try2 m k) m' →
-  simp (Choose m1 m2 k) m'.
+Lemma advance_SimpFlipAgree {B E} u (k : _ → micro B E) m' :
+  simp (continue k true) m' →
+  simp (continue k false) m' →
+  simp (Stop CFlip u k) m'.
 Proof.
   eauto with simp.
 Qed.
 
-Lemma advance_simp_choose {A E} (m1 m2 : micro A E) m' :
+Lemma advance_simp_choose {A} (m1 m2 : micro A exn) m' :
   simp m1 m' →
   simp m2 m' →
   simp (choose m1 m2) m'.
 Proof.
-  intros. eapply advance_SimpChooseAgree; eauto.
-  rewrite try2_ret_right. eauto with simp.
+  intros. eapply advance_SimpFlipAgree; eauto.
 Qed.
 
 Lemma advance_SimpBind {A B E} m1 m2 (f : A → micro B E) m' :
@@ -672,6 +670,10 @@ with simp1 :=
       (* We do not deal with [choose] in its full generality. Instead,
          we provide ad hoc support for [EAssert] expressions, which
          currently are the only place where [choose] is used. *)
+      (* Update: there is in fact some support for [choose]/[CFlip] in
+         [simp1_inspect], without which [ESeq (EAssert ETrue) EFalse]
+         would not be simplified fully, this is because [simp1_inspect]
+         uses [simpl_eval] in the case for [eval]. *)
     (* Handle [val_as_bool], which is opaque. *)
   | simple eapply advance_simp_val_as_bool_VTrue; simp0
   | simple eapply advance_simp_val_as_bool_VFalse; simp0
@@ -807,10 +809,9 @@ with simp1_inspect :=
           (* Attempt 2. Reduce m to a throw. *)
           simple eapply advance_SimpHandleThrow; [ simp0; simp_close | simp0; simp_close ]
         ]
-  | Choose ?m1 ?m2 ?k =>
-      simple eapply advance_SimpChooseAgree; [ simp0; simp_close
-                                             | simp0; simp_close
-                                             | simp0; simp_close ]
+  | Stop CFlip ?u ?k =>
+      simple eapply advance_SimpFlipAgree; [ simp0; simp_close
+                                           | simp0; simp_close ]
   end end
 
 (* [simp_enter] expects a goal of the form [simp (call _ _) _] and steps

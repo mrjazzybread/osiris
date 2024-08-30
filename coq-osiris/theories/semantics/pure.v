@@ -33,7 +33,7 @@ Other differences with [simp]:
 - transitivity is not included, which makes the relation simpler to reason
   about. Transitivity is necessary for [simp] to be able to ignore intermediate
   steps in case of temporary nondeterminism, for example in the different
-  components of a [Choose].
+  continuations of a [Stop CFlip].
 
 - if [m] is impure it can reach [crash] in some number of [may] steps, and so
   [pure] computations are guaranteed to be pure. *)
@@ -47,6 +47,14 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CLoop (η, x, i1, i2, e) k)
     (try2 (loop η x i1 i2 e) k)
+| MayFlipTrue u k :
+  may
+    (Stop CFlip u k)
+    (continue k true)
+| MayFlipFalse u k :
+  may
+    (Stop CFlip u k)
+    (continue k false)
 | MayAlloc v k :
   may
     (Stop CAlloc v k)
@@ -71,14 +79,6 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CPerform e k)
     crash
-| MayChooseLeft {B E'} m1 m2 (k : outcome2 B E' → _) :
-  may
-    (Choose m1 m2 k)
-    (try2 m1 k)
-| MayChooseRight {B E'} m1 m2 (k : outcome2 B E' → _) :
-  may
-    (Choose m1 m2 k)
-    (try2 m2 k)
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par crash m2 k)
@@ -247,6 +247,15 @@ Proof.
   apply Stop_inj in Heq. destruct Heq as [[=] <-]. congruence.
 Qed.
 
+Lemma invert_may_flip {A E} (m' : micro A E) u k:
+  may (Stop CFlip u k) m' →
+  ∃ b, m' = continue k b.
+Proof.
+  remember (Stop _ _ _); intros M; revert u k Heqm.
+  inversion M; subst; intros [] k_ Heq; try solve [inversion Heq];
+    apply Stop_inj in Heq; destruct Heq as [-> <-]; eauto.
+Qed.
+
 Lemma invert_may_perform {A E} (m' : micro A E) e h:
   may (Stop CPerform e h) m' → m' = crash.
 Proof.
@@ -261,13 +270,6 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ e1, m1 = throw e1 ∧ m' = discontinue k e1) ∨
   (∃ e2, m2 = throw e2 ∧ m' = discontinue k e2) ∨
   ((m1 = crash ∨ m2 = crash) ∧ m' = crash).
-Proof.
-  inversion 1; subst; eq_dep_inj; subst; eauto 15.
-Qed.
-
-Lemma invert_may_choose {A E B E'} (k : outcome2 B E' → micro A E) m1 m2 m' :
-  may (Choose m1 m2 k) m' →
-  m' = try2 m1 k ∨ m' = try2 m2 k.
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
@@ -302,11 +304,6 @@ Proof.
     firstorder; subst.
     all: try solve [repeat (econstructor; eauto)]; repeat econstructor.
     all: rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2; auto.
-  - (* Choose *)
-    simpl. intros [-> | ->]%invert_may_choose; left; eexists; split.
-    1: apply MayChooseLeft.
-    2: apply MayChooseRight.
-    1,2 : rewrite ?try2_try2; auto.
 Qed.
 
 Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro B E) :
@@ -324,7 +321,7 @@ Qed.
 
 
 Global Hint Resolve invert_may_ret invert_may_throw invert_may_crash
-  invert_may_eval invert_may_par invert_may_choose
+  invert_may_eval invert_may_par
   invert_may_try2 invert_may_bind
   : invert_may.
 
@@ -460,7 +457,7 @@ Proof.
 Qed.
 
 Lemma invert_pure_stop {A E X Y E'} (φ : A → Prop) (ψ : E → Prop) (c : code X Y E') (x : X) k :
-  pure (Stop c x k) φ ψ → match c with CEval | CLoop => True | _ => False end.
+  pure (Stop c x k) φ ψ → match c with CEval | CLoop | CFlip => True | _ => False end.
 Proof.
   intros S. inversion S; subst.
   destruct H as (m', Hm'). assert (Wm' : pure m' φ ψ) by eauto.
@@ -889,7 +886,7 @@ Proof.
 Qed.
 
 
-(** [pure] is preserved by [Handle] and [Choose] *)
+(** [pure] is preserved by [Handle] *)
 
 Lemma pure_handle {A E} m φ ψ (h : _ → micro A E) :
   pure m
@@ -908,23 +905,25 @@ Proof.
     + firstorder.
 Qed.
 
-Lemma pure_Choose {A B E E' φ ψ} m1 m2 (k : outcome2 B E' → micro A E) :
-  pure (try2 m1 k) φ ψ →
-  pure (try2 m2 k) φ ψ →
-  pure (Choose m1 m2 k) φ ψ.
+
+(** [pure] is preserved by [Flip] and [choose] *)
+
+Lemma pure_Flip {A E φ ψ} u (k : outcome2 bool exn → micro A E) :
+  pure (continue k true) φ ψ →
+  pure (continue k false) φ ψ →
+  pure (Stop CFlip u k) φ ψ.
 Proof.
   intros H1 H2. constructor. eauto with may.
   intros m' M. by inv M.
 Qed.
 
-Lemma pure_choose {A E φ ψ} (m1 m2 : micro A E) :
+Lemma pure_choose {A φ ψ} (m1 m2 : micro A exn) :
   pure m1 φ ψ →
   pure m2 φ ψ →
   pure (choose m1 m2) φ ψ.
 Proof.
   intros H1 H2.
-  apply pure_Choose; eapply pure_try2; eapply pure_mono; eauto.
-  all: by constructor.
+  apply pure_Flip; auto.
 Qed.
 
 
@@ -1062,7 +1061,7 @@ Proof.
     + by apply invert_pure_stop in Hm.
     + edestruct IHm; eauto with may.
   - pose proof invert_pure_stop _ _ _ _ _ Hm.
-    destruct c; try tauto; inv Hstep; split; auto; constructor.
+    destruct c; try tauto; inv Hstep; split; auto; try destruct b; constructor.
   - pose proof invert_pure_Par_left _ _ _ Hm as Hm1.
     pose proof invert_pure_Par_right _ _ _ Hm as Hm2.
     inv Hstep; try (split; [ | tauto ]).
@@ -1071,7 +1070,6 @@ Proof.
     + by apply invert_pure_stop in Hm2.
     + edestruct IHm1; eauto with may.
     + edestruct IHm2; eauto with may.
-  - inv Hstep; repeat constructor.
 Qed.
 
 
@@ -1099,7 +1097,7 @@ Proof.
       eapply pure_handle; eauto.
   - pose proof invert_pure_stop _ _ _ _ _ Hm.
     destruct c; try tauto; inv Hstep; split; auto;
-      eapply pure_may_forward; eauto; constructor.
+      eapply pure_may_forward; eauto; try destruct b; constructor.
   - pose proof invert_pure_Par_left _ _ _ Hm as Hm1.
     pose proof invert_pure_Par_right _ _ _ Hm as Hm2.
     inv Hstep; try (split; [ | tauto ]).
@@ -1116,7 +1114,6 @@ Proof.
       eapply pure_mono_ret; eauto. simpl.
       intros a1 Hm2'.
       eapply (IHm2 _ _ _ _ _ Hm2'); eauto.
-  - inv Hstep; split; auto; eapply pure_may_forward; eauto with may.
 Qed.
 
 
@@ -1134,7 +1131,6 @@ Proof.
     apply invert_pure_stop in Hm.
     destruct c; auto.
   - eauto using can_step_par.
-  - eauto using can_step_choose.
 Qed.
 
 Lemma pure_preservation {A E : Type} {φ : A → Prop} {ψ : E → Prop} {m σ m' σ'} :
@@ -1157,7 +1153,7 @@ Proof.
   - apply pure_det_may_backward. repeat constructor. by intros z M%invert_may_loop.
   (* Most cases are now simple uses of inversion and compatibility lemmas *)
   - intros P. constructor. eauto with may.
-    intros m' [-> | ->]%invert_may_choose; eauto using invert_pure_try2, pure_try2.
+    intros m' [[] ->]%invert_may_flip; eauto using invert_pure_try2, pure_try2.
   - intros P%invert_pure_try2.
     apply pure_Par.
     + by constructor.
@@ -1188,7 +1184,7 @@ Proof.
   - intro; eapply pure_may_forward; eauto. constructor.
   - intros P.
     eapply pure_may_forward in P; [ | constructor ].
-    apply pure_try2, IHS1, invert_pure_try2, P.
+    apply IHS1, P.
   - intros P%invert_pure_Par_ret_left. by apply pure_try2.
   - intros P%invert_pure_Par_ret_right. by apply pure_try2.
   - intros P.

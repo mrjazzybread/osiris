@@ -175,8 +175,8 @@ Qed.
 
 (* A reasoning rule for [choose]. *)
 
-Lemma pure_enc_choose `{Encode A} {X} m1 m2 (φ : A → Prop) :
-  pure (E := X) m1 ##φ ⊥ →
+Lemma pure_enc_choose `{Encode A} m1 m2 (φ : A → Prop) :
+  pure m1 ##φ ⊥ →
   pure m2 ##φ ⊥ →
   pure (choose m1 m2) ##φ ⊥.
 Proof.

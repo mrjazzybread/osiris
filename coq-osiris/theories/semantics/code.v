@@ -22,9 +22,9 @@ Definition eff := val.
    call is allowed to throw an exception of type [exn]. Some system
    calls can indeed throw such an exception: this includes [CEval],
    [CLoop], [CPerform], [CContinue], and [CDiscontinue]. Some system
-   calls, such as [CAlloc], [CLoad], and [CStore], cannot throw an
-   exception. Describing them with the type [exn], as opposed to
-   [void], is a (convenient) over-approximation. *)
+   calls, such as [CFlip], [CAlloc], [CLoad], and [CStore], cannot
+   throw an exception. Describing them with the type [exn], as opposed
+   to [void], is a (convenient) over-approximation. *)
 
 (* [Eval (η, e)] is a request for the computation [eval η e].
    The function [eval] is defined in eval.v.
@@ -34,6 +34,8 @@ Definition eff := val.
    [loop η x v1 v2 e].
    The function [loop] is defined in eval.v.
    The result is a value (or an exception). *)
+
+(* [Flip] is a request to flip a Boolean coin. *)
 
 (* [Alloc v], [Load l], [Store (l, v)] are requests to allocate, read,
    and write a memory location in the heap.
@@ -62,14 +64,10 @@ Definition eff := val.
     The handler is given by [bs] (list of branches), and is evaluated with
     the environment [η].  *)
 
-(* We used to have a [Flip] effect that would flip a Boolean coin. This has
-   been removed and replaced with a primitive [Choose] construct in the
-   [micro] monad. See [invert_stack_try_ret] in simplification.v for an
-   explanation. *)
-
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
+| CFlip : code unit bool exn
 | CAlloc : code val loc exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) unit exn
@@ -123,6 +121,19 @@ Notation "' x ← y ; z" :=
   (bind y (λ x : _, z))
   (at level 20, x pattern, y at level 100, z at level 200,
   format "'[v' ' x  '←'  y ';' '/' z ']'").
+
+(* ------------------------------------------------------------------------ *)
+
+(* [flip] flips a coin. *)
+
+Definition flip : micro bool exn :=
+  stop CFlip ().
+
+(* [choose m1 m2] performs a non-deterministic choice between [m1] and
+   [m2] and runs the chosen computation, producing a single result. *)
+
+Definition choose {A} (m1 m2 : micro A exn) : micro A exn :=
+  b ← flip ; if (b : bool) then m1 else m2.
 
 (* ------------------------------------------------------------------------ *)
 

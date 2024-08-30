@@ -850,10 +850,10 @@ Section ewp_rules.
       iApply ewp_value. iApply ("Hr" with "Hφ1 Hφ2"). }
   Qed.
 
-  (* Non-deterministic Choose: note the use of non-separating conjunction *)
-  Lemma ewp_Choose {E B Y} (m1 m2 : micro B Y) (k: outcome2 B Y → micro A X) {φ} Ψ :
-      ▷(EWP try2 m1 k @ E <| Ψ |> {{ φ }} ∧ EWP try2 m2 k @ E <| Ψ |> {{ φ }})
-      ⊢ EWP (Choose m1 m2 k) @ E <| Ψ |> {{ φ }}.
+  (* Non-deterministic choose: note the use of non-separating conjunction *)
+  Lemma ewp_flip {E} u (k: _ → micro A X) {φ} Ψ :
+      ▷(EWP continue k true @ E <| Ψ |> {{ φ }} ∧ EWP continue k false @ E <| Ψ |> {{ φ }})
+      ⊢ EWP (Stop CFlip u k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head.
@@ -861,22 +861,11 @@ Section ewp_rules.
     ewp_mask_intro "Hmod".
     construct_wp_nonret; destruct_step; cbn; iMod "Hmod" as "_"; cbn;
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+    destruct b.
     { iApply (bi.and_elim_l with "H"). }
     { iApply (bi.and_elim_r with "H"). }
   Qed.
 
-  Lemma ewp_choose {E} (m1 m2 : micro A X) {φ} Ψ :
-      ▷(EWP m1 @ E <| Ψ |> {{ φ }} ∧ EWP m2 @ E <| Ψ |> {{ φ }})
-      ⊢ EWP (choose m1 m2) @ E <| Ψ |> {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply ewp_Choose.
-    by rewrite !try2_ret_right.
-  Qed.
-
-    (* The following lemmas offer reasoning rules for each of the system calls,
-    that is, for computations of the form [Stop c x y]. They are simple
-    consequences of the operational behavior of these system calls. *)
 End ewp_rules.
 
 (* Rules that deal with microvx directly. *)
@@ -912,6 +901,18 @@ Section ewp_val_rules.
     iIntros "Hwp".
     iApply ewp_eval.
     iNext. iApply (ewp_mono with "Hwp"); iIntros (?) "H"; done.
+  Qed.
+
+  Lemma ewp_choose {A} E (m1 m2 : micro A exn) {φ} Ψ :
+      ▷(EWP m1 @ E <| Ψ |> {{ φ }} ∧ EWP m2 @ E <| Ψ |> {{ φ }})
+      ⊢ EWP (choose m1 m2) @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply ewp_bind_exn.
+    iApply ewp_flip.
+    iSplit; iApply ewp_value.
+    - iApply (bi.and_elim_l with "H").
+    - iApply (bi.and_elim_r with "H").
   Qed.
 
   Lemma ewp_simp {A X} E (m : micro A X) ms Ψ φ:
@@ -1043,13 +1044,13 @@ Section ewp_val_rules.
     - (* [m] is handleable *)
       destruct h as [ a | e | eff f ].
       + (* [ret]'s satisfy [φ] *)
-        destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
+        destruct m as [| | | |???[]|]; discriminate || injection R as ->.
         by eapply invert_pure_ret in Hm.
       + (* [throw]'s satisfy [ψ] *)
-        destruct m as [| | | |???[]| |]; discriminate || injection R as ->.
+        destruct m as [| | | |???[]|]; discriminate || injection R as ->.
         by eapply invert_pure_throw in Hm.
       + (* [perform]'s are not immediately pure *)
-        destruct m as [| | | |???[]| |]; discriminate || injection R as -> ->.
+        destruct m as [| | | |???[]|]; discriminate || injection R as -> ->.
         by apply invert_pure_stop in Hm.
 
     - (* [m] is not handleable *)
