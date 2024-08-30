@@ -47,10 +47,10 @@ Qed.
 
 (* The consequence rule. *)
 
-Lemma pure_enc_consequence `{Encode A} {X} m (φ ψ : A → Prop) :
-  pure m ##φ ⊥ →
+Lemma pure_enc_consequence `{Encode A} {X} m (φ ψ : A → Prop) ζ :
+  pure m ##φ ζ →
   (∀ a, φ a → ψ a) →
-  pure (E := X) m ##ψ ⊥.
+  pure (E := X) m ##ψ ζ.
 Proof.
   intros. eapply pure_mono_ret; [ eauto |].
   firstorder.
@@ -72,6 +72,20 @@ Proof.
   simpl. intros v Hv. destruct_encode_image a. firstorder.
 Qed.
 
+(* Less degenerate rule allowing exceptions *)
+
+Lemma pure_enc_try2_exn A X Y (_ : Encode A) B (_ : Encode B)
+  (m : micro val X) h (φ : A → Prop) (ψ : B → Prop) (ζ : X → Prop) (ζ' : Y → Prop)
+  :
+  pure m ##φ ζ →
+  (∀ a, φ a → pure (continue h #a) ##ψ ζ') →
+  (∀ e, ζ e → pure (discontinue h e) ##ψ ζ') →
+  pure (E := Y) (try2 m h) ##ψ ζ'.
+Proof.
+  intros. eapply pure_try2_conseq; eauto.
+  simpl. intros v Hv. destruct_encode_image a. firstorder.
+Qed.
+
 (* A reasoning rule for [try]; corollary of [pure_enc_try2] *)
 
 Corollary pure_enc_try A X Y (_ : Encode A) B (_ : Encode B)
@@ -84,26 +98,37 @@ Proof.
   intros; eapply pure_enc_try2; eauto.
 Qed.
 
+Corollary pure_enc_try_exn A X Y (_ : Encode A) B (_ : Encode B)
+  (m : micro val X) k z (φ : A → Prop) (ψ : B → Prop) (ζ : X → Prop) (ζ' : Y → Prop)
+:
+  pure m ##φ ζ →
+  (∀ a, φ a → pure (k #a) ##ψ ζ') →
+  (∀ e, ζ e → pure (z e) ##ψ ζ') →
+  pure (E := Y) (try m k z) ##ψ ζ'.
+Proof.
+  intros; eapply pure_enc_try2_exn; eauto.
+Qed.
+
 (* A reasoning rule for [bind]. *)
 
 (* This is [@bind val val]. Attempting to apply this lemma to [@bind A B]
    where [A] and [B] are types other than [val] will not work! *)
 
 Lemma pure_enc_bind A X (_ : Encode A) B (_ : Encode B)
-  m k (φ : A → Prop) (ψ : B → Prop)
+  m k (φ : A → Prop) (ψ : B → Prop) (ζ : X → Prop)
 :
-  pure m ##φ ⊥ →
-  (∀ a, φ a → pure (k #a) ##ψ ⊥) →
-  pure (E := X) (bind m k) ##ψ ⊥.
+  pure m ##φ ζ →
+  (∀ a, φ a → pure (k #a) ##ψ ζ) →
+  pure (E := X) (bind m k) ##ψ ζ.
 Proof.
-  rewrite bind_as_try. eauto using pure_enc_try.
+  rewrite bind_as_try. eauto using pure_enc_try_exn with pure.
 Qed.
 
 Lemma pure_enc_bind_unary A X (_ : Encode A) B (_ : Encode B)
-  m k (ψ : B → Prop)
+  m k (ψ : B → Prop) (ζ : X → Prop)
 :
-  pure m ##(λ (a : A), pure (k #a) ##ψ ⊥) ⊥ →
-  pure (E := X) (bind m k) ##ψ ⊥.
+  pure m ##(λ (a : A), pure (k #a) ##ψ ζ) ζ →
+  pure (E := X) (bind m k) ##ψ ζ.
 Proof.
   eauto using pure_enc_bind.
 Qed.

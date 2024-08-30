@@ -459,8 +459,7 @@ Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
   pure_match η bs (O3Ret #a) φ ->
   pure (eval η (EMatch e bs)) ##φ ⊥.
 Proof.
-  unfold pure_match; intros Heval Hmatch. simpl.
-  simpl_eval.
+  intros Heval Hmatch. simpl_eval.
   apply pure_handle.
   apply (pure_mono _ Heval). 2: intros _ [].
   intros ? (? & -> & ->).
@@ -473,13 +472,47 @@ Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -
   (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
   pure (eval η (EMatch e bs)) ##φ ⊥.
 Proof.
-  unfold pure_match; intros Heval Hmatch. simpl.
-  simpl_eval.
+  intros Heval Hmatch. simpl_eval.
   apply pure_handle.
   apply (pure_mono _ Heval). 2: intros _ [].
   intros ? (a & -> & Ha).
   simpl_install_deep_eval_match.
   apply (pure_mono _ (Hmatch _ Ha)); eauto.
+Qed.
+
+Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ :
+  pure (eval η e) ##φ' ζ ->
+  (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
+  (∀ (ex : exn), ζ ex -> pure_match η bs (O3Throw ex) φ) ->
+  pure (eval η (EMatch e bs)) ##φ ⊥.
+Proof.
+  intros He Hφ' Hζ.
+  simpl_eval.
+  apply pure_handle.
+  apply (pure_mono _ He).
+  - intros _v (a & -> & Ha).
+    simpl_install_deep_eval_match.
+    by apply Hφ'.
+  - intros ex Hex.
+    simpl_install_deep_eval_match.
+    by apply Hζ.
+Qed.
+
+Lemma pure_eval_trywith `{Encode A} η e bs (φ : A -> Prop) ζ ζ' :
+  pure (eval η e) ##φ ζ ->
+  (∀ ex, ζ ex -> pure (eval_trywith η ex bs) ##φ ζ') ->
+  pure (eval η (ETryWith e bs)) ##φ ζ'.
+Proof.
+  intros Heval Htryw. simpl_eval.
+  eapply pure_try, pure_mono; eauto with pure.
+Qed.
+
+Lemma pure_eval_try_with_cons `{Encode A} η ex p e bs (φ : A -> Prop) ζ :
+  pattern η p ex (λ η', pure (eval η' e) ##φ ζ) (pure (eval_trywith η ex bs) ##φ ζ) ->
+  pure (eval_trywith η ex (Branch (CExc p) e :: bs)) ##φ ζ.
+Proof.
+  intros Hpat. simpl_eval_trywith.
+  eapply pure_try, pure_mono; eauto.
 Qed.
 
 (* Currently unused *)

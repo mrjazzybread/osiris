@@ -368,6 +368,11 @@ Proof.
   induction 1; constructor; auto.
 Qed.
 
+Lemma pure_noexn_weaken {A E} {φ ψ : _ → Prop} {m : micro A E} :
+  pure m φ ⊥ → pure m φ ψ.
+Proof.
+  intro; eapply pure_mono_throw; firstorder eauto.
+Qed.
 
 (* Postconditions can be strengthened since final states must be reachable *)
 
@@ -855,6 +860,51 @@ Proof.
       * eauto using pure_may_forward.
     + destruct M as (e1 & -> & ->). apply invert_pure_throw in H1; tauto.
     + destruct M as (e2 & -> & ->). eapply invert_pure_throw in H2; eauto.
+    + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_crash; eauto.
+Qed.
+
+Lemma pure_Par_val_right {A E A1 A2 E'} m1 m2 φ ψ
+  (k : outcome2 (A1 * A2) E' → micro A E) :
+  pure m2
+    (λ a2,
+      pure m1
+        (λ a1, pure (continue k (a1, a2)) φ ψ)
+        (λ e, pure (discontinue k e) φ ψ))
+    ⊥ →
+  pure (Par m1 m2 k) φ ψ.
+Proof.
+  intros H2.
+  assert (H1 : pure m1 (λ _, True) (λ e, pure (discontinue k e) φ ψ)). {
+    apply pure_exists_ret_or_throw in H2.
+    destruct H2 as [(a & _ & P) | (e & _ & [])].
+    eapply pure_mono; eauto.
+  }
+  pose proof either_Acc _ _ _ _ (pure_sn _ H1) (pure_sn _ H2) as SN.
+  remember (m1, m2) as p.
+  revert m1 m2 Heqp H1 H2.
+  induction SN as [(m1, m2) SN IH].
+  intros ? ? [=<-<-] H1 H2.
+  constructor.
+  - (* progress *)
+    inversion H1; subst.
+    + (* ret *) inversion H2; subst; eauto with may. firstorder. eexists. by eapply MayParRight.
+    + (* throw *) eauto with may.
+    + firstorder. eexists. by eapply MayParLeft.
+  - (* preservation *)
+    intros m' M.
+    apply invert_may_par in M.
+    repeat (destruct M as [M | M]).
+    + destruct M as (? & ? & -> & -> & ->). do 2 apply invert_pure_ret in H2; auto.
+    + destruct M as (m1' & M1 & ->). eapply (IH (m1', m2)); auto.
+      * constructor; apply M1.
+      * eauto using pure_may_forward.
+      * eapply pure_mono_ret; eauto.
+        intros; eapply pure_may_forward; eauto; eauto.
+    + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto.
+      * constructor; apply M2.
+      * eauto using pure_may_forward.
+    + destruct M as (e1 & -> & ->). apply invert_pure_throw in H1; tauto.
+    + destruct M as (e2 & -> & ->). eapply invert_pure_throw in H2; tauto.
     + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_crash; eauto.
 Qed.
 

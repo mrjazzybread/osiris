@@ -170,25 +170,25 @@ Qed.
    a concrete closure (as opposed to a rigid metavariable), they step into
    the call. *)
 
-Lemma pure_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) :
-  pure (acall η a v2) ##φ ⊥ ->
-  pure (call (VClo η a) v2) ##φ ⊥.
+Lemma pure_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) ψ :
+  pure (acall η a v2) ##φ ψ ->
+  pure (call (VClo η a) v2) ##φ ψ.
 Proof.
   tauto.
 Qed.
 
-Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) :
-  pure (try2 (eval η e) k) ##φ ⊥ ->
-  pure (E := Y) (Stop CEval (η, e) k) ##φ ⊥.
+Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) ψ :
+  pure (try2 (eval η e) k) ##φ ψ ->
+  pure (E := Y) (Stop CEval (η, e) k) ##φ ψ.
 Proof.
   intros.
   eapply pure_simp; [ apply SimpEval | assumption ].
 Qed.
 
-Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) :
-  lookup_rec_bindings rbs g = ret (AnonFun x e)  ->
-  pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) ##φ ⊥ ->
-  pure (call (VCloRec η rbs g) v2) ##φ ⊥.
+Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
+  lookup_rec_bindings rbs g = ret (AnonFun x e) ->
+  pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) ##φ ψ ->
+  pure (call (VCloRec η rbs g) v2) ##φ ψ.
 Proof.
   intros Hlookup Hpure.
   simpl; rewrite Hlookup.

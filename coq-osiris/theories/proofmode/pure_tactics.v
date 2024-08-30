@@ -394,12 +394,12 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* [pure_simp] expects a goal of the form [pure m ##φ ⊥]. It simplifies
-   [m] into [m'], if possible, and leaves the goal [pure m' ##φ ⊥]. *)
+(* [pure_simp] expects a goal of the form [pure m φ ψ]. It simplifies
+   [m] into [m'], if possible, and leaves the goal [pure m' φ ψ]. *)
 
-Local Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
-  simp m m' → pure (E := X) m' ##φ ⊥ → pure (E := X) m ##φ ⊥.
-Proof. apply pure_simp. Qed.
+(* Local Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) : *)
+(*   simp m m' → pure (E := X) m' ##φ ⊥ → pure (E := X) m ##φ ⊥. *)
+(* Proof. apply pure_simp. Qed. *)
 
 Ltac2 pure_simp () :=
   eapply pure_simp > [ ltac1:(simp_really) | try (pure_enc_ret) ].

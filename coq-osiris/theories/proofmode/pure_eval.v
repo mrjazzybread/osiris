@@ -91,14 +91,14 @@ Qed.
 
 (* Function applications. *)
 
-Lemma pure_eval_anonfun `{Encode A, Encode A1} η v e (φ : A1 -> Prop) (ψ : val -> Prop) :
-  (∀ (x : A), pure (eval ((v, #x) :: η) e) ##φ ⊥) ->
-  (∀ (vf : val), (∀ (x : A), pure (call vf #x) ##φ ⊥) -> ψ vf) ->
-  pure (eval η (EAnonFun (AnonFun v e))) ##ψ ⊥.
+Lemma pure_eval_anonfun `{Encode A, Encode A1} η v e (φ : A1 -> Prop) (ψ : val -> Prop) ζ :
+  (∀ (x : A), pure (eval ((v, #x) :: η) e) ##φ ζ) ->
+  (∀ (vf : val), (∀ (x : A), pure (call vf #x) ##φ ζ) -> ψ vf) ->
+  pure (eval η (EAnonFun (AnonFun v e))) ##ψ ζ.
 Proof.
   intros Hcall Hcov. specialize (Hcov (VClo η (AnonFun v e))).
   eapply pure_simp; [ simp | eauto ].
-  eapply pure_enc_ret; first solve [encode].
+  eapply pure_ret. eexists. split. by encode.
   apply Hcov.
   intros. eapply pure_simp; [ simp | apply Hcall ].
 Qed.
@@ -130,34 +130,42 @@ Proof.
   specialize (Hcall x); generalize Hcall; by simpl_deep_eval_match.
 Qed.
 
-Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) :
+(* this sequentialized lemma create only one [pure] goal but assumes [e1] cannot
+throw exceptions *)
+Lemma pure_eval_app `{Encode A1, Encode A} η e1 e2 (ψ : A → Prop) ζ :
   pure (eval η e1)
     ##(λ f : val,
         pure (eval η e2)
           ##(λ arg : A1,
-              pure (call f #arg) ##ψ ⊥) ⊥) ⊥ →
-  pure (eval η (EApp e1 e2)) ##ψ ⊥.
+              pure (call f #arg) ##ψ ζ) ζ) ⊥ →
+  pure (eval η (EApp e1 e2)) ##ψ ζ.
 Proof.
   intros He1. simpl_eval.
-  apply pure_Par_vals_left.
+  apply pure_Par_val_left.
   eapply (pure_mono_ret _ He1). intros ? (v & -> & He2).
-  eapply (pure_mono_ret _ He2). intros ? (a2 & -> & Hcall).
-  apply Hcall.
+  eapply (pure_mono _ He2).
+  - intros ? (a2 & -> & Hcall). apply Hcall.
+  - apply pure_throw.
 Qed.
 
 Lemma pure_eval_app_conseq `{Encode A, Encode B} η e1 e2
-  (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop)
+  (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop) ζ
 :
-  pure (eval η e1) ##φ1 ⊥ →
-  pure (eval η e2) ##φ2 ⊥ →
-  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call v1 #v2) ##ψ ⊥) →
-  pure (eval η (EApp e1 e2)) ##ψ ⊥.
+  pure (eval η e1) ##φ1 ζ →
+  pure (eval η e2) ##φ2 ζ →
+  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call v1 #v2) ##ψ ζ) →
+  pure (eval η (EApp e1 e2)) ##ψ ζ.
 Proof.
   intros He1 He2 Hp. simpl_eval.
-  apply pure_Par_vals_left.
-  eapply (pure_mono_ret _ He1). intros ? (v1 & -> & Hv1).
-  eapply (pure_mono_ret _ He2). intros ? (a & -> & Ha).
-  apply Hp; eauto with encode.
+  apply pure_Par.
+  - eapply (pure_mono _ He1). 2: apply pure_throw.
+    intros ? (v1 & -> & Hv1).
+    eapply (pure_mono _ He2). 2: apply pure_throw.
+    intros ? (a & -> & Ha). apply Hp; eauto with encode.
+  - eapply (pure_mono _ He2). 2: apply pure_throw.
+    intros ? (v2 & -> & Hv2).
+    eapply (pure_mono _ He1). 2: apply pure_throw.
+    intros ? (a & -> & Ha). apply Hp; eauto with encode.
 Qed.
 
 (* TODO redundant with pure_hoare.v's pure_call2? *)
@@ -796,35 +804,36 @@ Proof.
   eauto using pure_ret with encode.
 Qed.
 
-Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) :
-  pure (eval η e) ##(λ v', VData c v' = #y) ⊥ ->
+Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
+  pure (eval η e) ##(λ v', VData c v' = #y) ζ ->
   ψ y ->
-  pure (eval η (EData c e)) ##ψ ⊥.
+  pure (eval η (EData c e)) ##ψ ζ.
 Proof.
   intros He Hy.
   simpl_eval.
-  eapply pure_enc_bind_unary; eauto.
+  eapply pure_enc_bind_unary.
   eapply pure_enc_consequence; eauto.
   intros ? A.
-  eapply pure_enc_ret; eauto; auto.
+  eapply pure_noexn_weaken, pure_enc_ret; eauto; auto.
 Qed.
 
 Class CRel1 {A : Type} (X : Type) `{Encode A, Encode X}
   (c : string) (C : A -> X) := { }.
 
-Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ :
   pure (eval η e)
     ##(λ x,
-      VData c (VTuple1 #x) = #(C x) /\ ψ (C x)) ⊥ ->
-  pure (eval η (EData c (ETuple [e]))) ##ψ ⊥.
+      VData c (VTuple1 #x) = #(C x) /\ ψ (C x)) ζ ->
+  pure (eval η (EData c (ETuple [e]))) ##ψ ζ.
 Proof.
   intros He.
   simpl_eval.
-  apply pure_Par_vals_left.
-  eapply (pure_mono_ret _ He).
-  intros _ (? & -> & ? & ?).
-  repeat apply pure_ret || apply pure_bind.
-  eauto with encode.
+  apply pure_Par_val_right, pure_ret.
+  eapply (pure_mono _ He).
+  - intros _ (? & -> & ? & ?).
+    repeat apply pure_ret || apply pure_bind.
+    eauto with encode.
+  - apply pure_throw.
 Qed.
 
 Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
@@ -834,11 +843,11 @@ Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
    notation "[# _; _; _]" for vectors. Unfortunately, using "Disable Notation"
    does not to remove the vector notation from Coq's parser. *)
 
-Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+Lemma pure_eval_data2 `{CRel2 A1 A2 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ :
   pure (eval η e)
     ##(λ '(x, y),
-      VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ⊥ ->
-  pure (eval η (EData c e)) ##ψ ⊥.
+      VData c (VTuple [encode x; #y]) = #(C x y) /\ ψ (C x y)) ζ ->
+  pure (eval η (EData c e)) ##ψ ζ.
 Proof.
   intros He.
   simpl_eval. apply pure_bind.
@@ -856,11 +865,11 @@ Qed.
 Class CRel3 {A1 A2 A3 : Type} (X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
   (c : string) (C : A1 -> A2 -> A3 -> X) := { }.
 
-Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ :
   pure (eval η e)
     ##(λ '(x, y, z),
-      VData c (VTuple ([encode x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ⊥ ->
-  pure (eval η (EData c e)) ##ψ ⊥.
+      VData c (VTuple ([encode x; #y; #z])) = #(C x y z) /\ ψ (C x y z)) ζ ->
+  pure (eval η (EData c e)) ##ψ ζ.
 Proof.
   intros He.
   simpl_eval. apply pure_bind.
@@ -873,11 +882,11 @@ Qed.
 Class CRel4 (A1 A2 A3 A4 X : Type) `{Encode A1, Encode A2, Encode A3, Encode A4, Encode X}
   (c : string) (C : A1 -> A2 -> A3 -> A4 -> X) := { }.
 
-Lemma pure_eval_data4 `{CRel4 A1 A2 A3 A4 X c C} (η : env) (e : expr) (ψ : X → Prop) :
+Lemma pure_eval_data4 `{CRel4 A1 A2 A3 A4 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ :
   pure (eval η e)
     ##(λ '(x, y, z, w),
-      VData c (VTuple ([encode x; #y; #z; #w])) = #(C x y z w) /\ ψ (C x y z w)) ⊥ ->
-  pure (eval η (EData c e)) ##ψ ⊥.
+      VData c (VTuple ([encode x; #y; #z; #w])) = #(C x y z w) /\ ψ (C x y z w)) ζ ->
+  pure (eval η (EData c e)) ##ψ ζ.
 Proof.
   intros He.
   simpl_eval. apply pure_bind.
