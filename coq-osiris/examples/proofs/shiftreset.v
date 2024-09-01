@@ -4,7 +4,7 @@ From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
-From osiris.examples Require Import og_shiftreset localstate.
+From osiris.examples Require Import og_shiftreset.
 
 (* Reasoning about delimited control via [shift/reset].
 
@@ -118,18 +118,27 @@ Section verification.
     by Simp.
   Qed.
 
-  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
   Lemma ewp_shift b e Ψ Φ Q : shift_spec b e Ψ Φ Q.
   Proof.
     iIntros "Hshift". unfold Shift.
+    remember (VClo env _) as f eqn:Heqf; clear Heqf.
 
-    Call. iNext. rewrite /deco.
+    Call. iNext.
 
     iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
-    { (* TODO: Add expr-level rule for EXdata. *)
-      Simp; by Ret. }
-    iIntros (? ->).
+    { (* TODO: There must be a better way... *)
+      iApply ewp_EXData; [ reflexivity | | ].
+      iApply big_sepL2_cons. iSplit; [ | by iApply big_sepL2_nil ].
+      { iApply ewp_EPath. iApply ewp_value. equality. }
+      iIntros (vs) "Hargs".
+      iPoseProof (big_sepL2_cons_inv_r with "Hargs") as "Hargs".
+      iDestruct "Hargs" as "(%v & %l & -> & -> & Hargs)".
+      iPoseProof (big_sepL2_nil_inv_r with "Hargs") as "Hargs".
+      iDestruct "Hargs" as "->".
+      iPureIntro; reflexivity. }
+
+    iIntros (?) "->".
     iApply ewp_perform.
 
     rewrite /prot upcl_SHIFT.
