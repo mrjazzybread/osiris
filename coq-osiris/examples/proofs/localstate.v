@@ -117,8 +117,6 @@ Section verification.
         iApply (ewp_ELet_PVar_1 Φ)
     end.
 
-  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
-
   Lemma confront_addresses l1 l2 :
     ∀ v1 v2,
       (l1 ↦ v1) -∗
@@ -213,7 +211,7 @@ Section verification.
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
 
-      red_match.
+      apply_deep_handle_cons_unary; [ | iIntros "[]" ].
 
       iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
@@ -237,7 +235,15 @@ Section verification.
        iCombine "Hstate Hx" as "H".
        iDestruct (ghost_var_agree with "H") as %->.
 
-       iNext. red_match.
+       iNext.
+       iApply deep_handle_cons_no_resources.
+       { iPureIntro; specify_cpattern. apply I. }
+       iIntros "_".
+       iApply deep_handle_cons_no_resources.
+       { iPureIntro; specify_cpattern. apply I. }
+       iIntros "_".
+       apply_deep_handle_cons_unary; last by iIntros "[ [] | [] ]".
+       fold eval.
 
        (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".

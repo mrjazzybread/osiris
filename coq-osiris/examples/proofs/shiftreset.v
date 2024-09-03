@@ -100,8 +100,9 @@ Section verification.
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?). iIntros "!> H !>"; destruct o; try done.
-      red_match.
-      iApply ewp_EPath. by Ret. }
+      apply_deep_handle_cons_unary.
+      - iApply ewp_EPath. by Ret.
+      - iIntros "[]". }
 
     iIntros "!>" (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
@@ -113,9 +114,13 @@ Section verification.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
 
-    red_match.
-
-    by Simp.
+    iApply deep_handle_cons_no_resources. { iPureIntro. specify_cpattern. apply I. }
+    iIntros "_".
+    iApply deep_handle_cons_no_resources. { iPureIntro. specify_cpattern. apply I. }
+    iIntros "_".
+    apply_deep_handle_cons_unary.
+    { by Simp. }
+    iIntros "%F". tauto.
   Qed.
 
 

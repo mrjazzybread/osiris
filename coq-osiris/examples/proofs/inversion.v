@@ -256,7 +256,15 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        red_match.
+        iApply deep_handle_cons_no_resources.
+        { iPureIntro; specify_cpattern; apply I. }
+        iIntros "_".
+        iApply deep_handle_cons_no_resources.
+        { iPureIntro; specify_cpattern; apply I. }
+        iIntros "_".
+        apply_deep_handle_cons_unary; last first.
+        { iIntros "%Hf". ltac2:(destruct_hyp @Hf). }
+        fold eval.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         Simp; Ret; simpl.
@@ -273,8 +281,6 @@ Section verification.
     Qed.
 
     Definition invert := __fun9.
-
-    Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
     Lemma ewp_invert : ⊢ invert_spec invert.
       iIntros (iter) "Hiter".
@@ -331,7 +337,7 @@ Section verification.
       { iIntros "!>" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
       iIntros (? ->) "!> !>".
-      red_match.
+      apply_deep_handle_cons_unary; [ | iIntros "[]" ].
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.
