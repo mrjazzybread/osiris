@@ -67,13 +67,13 @@ Proof.
       iApply deep_handle_cons_no_resources.
       { iPureIntro; specify_cpattern. apply I. }
       iIntros "_".
-      apply_deep_handle_cons_unary.
+      handle_cons.
       { Simp. iApply ewp_value. iApply ewp_value. simpl.
         iExists (Some h0). equality. }
       { iIntros "[]". } }
     { (* Exception case. *)
       iIntros "[-> ->]".
-      apply_deep_handle_cons_unary.
+      handle_cons.
       { fold eval.
         iApply ewp_EConstant. iApply ewp_value.
         iExists (None). done. }

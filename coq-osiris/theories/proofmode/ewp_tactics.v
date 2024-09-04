@@ -51,6 +51,28 @@ Ltac2 iDestruct (lem : constr) (pat : constr) :=
     (Ltac1.of_constr lem) (Ltac1.of_constr pat).
 Ltac2 Notation "iDestruct" "(" lem(constr) ")" "as" pat(constr) := iDestruct lem pat.
 
+Ltac2 iRevert (h : constr) :=
+  ltac1:(h |- iRevert h) (Ltac1.of_constr h).
+Ltac2 Notation "iRevert" h(constr) := iRevert h.
+
+Ltac2 iPureIntro () := ltac1:(iPureIntro).
+Ltac2 Notation "iPureIntro" := iPureIntro ().
+
+Ltac2 iStartProof () := ltac1:(iStartProof).
+Ltac2 Notation "iStartProof" := iStartProof ().
+
+Ltac2 iModIntro () := ltac1:(iModIntro).
+Ltac2 Notation "iModIntro" := iModIntro ().
+
+Tactic Notation "iIntros_RET" :=
+  iIntros ([|]); [ simpl | iIntros "[]" ].
+Tactic Notation "iIntros_RET" constr(pat) :=
+  iIntros ([|]); [ simpl; iIntros pat | iIntros "[]" ].
+Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" :=
+  iIntros ([ v |]); [ simpl | iIntros "[]" ].
+Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" constr(pat) :=
+  iIntros ([ v |]); [ simpl; iIntros pat | iIntros "[]" ].
+
 
 (** *Utility *)
 
@@ -76,6 +98,40 @@ Proof.
 Qed.
 
 End helper_lemmas.
+
+Ltac2 all (tac : unit -> unit) :=
+  Control.extend [] tac [].
+
+(* [iris_goal] gives the current iris goal. *)
+
+Ltac2 iris_goal () : constr :=
+  lazy_match! goal with
+  | [ |- environments.envs_entails _ ?g ] => g
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected an iris proofmode goal")))
+  end.
+
+Ltac2 iris_env () : constr :=
+  lazy_match! goal with
+  | [ |- environments.envs_entails ?env _ ] => env
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected an iris proofmode goal")))
+  end.
+
+(* Given a constr of the form [▷^n c] (where [n] might equal 0),
+   [strip_laters] returns [c]. *)
+
+Ltac2 rec strip_laters (g : constr) :=
+  lazy_match! g with
+  | bi_later ?c => strip_laters c
+  | _ => g
+  end.
 
 Create HintDb osiris.
 
@@ -239,37 +295,17 @@ Ltac Call :=
   end.
 
 
-
 (* -------------------------------------------------------------------------- *)
 
-(** *Entering and Skipping Handler Branches *)
+(** *Proving Handlers and Matches *)
 
-Ltac2 iris_goal () :=
-  lazy_match! goal with
-  | [ |- environments.envs_entails _ ?g ] => g
-  | [ |- _ ] => Control.throw (Tactic_failure None)
-  end.
-
-Ltac2 rec strip_laters (g : constr) :=
-  lazy_match! g with
-  | bi_later ?c => strip_laters c
-  | _ => g
-  end.
-
-Ltac2 red_match () :=
-  let g := strip_laters (iris_goal ()) in
-  lazy_match! g with
-  | ewp_def _ (deep_eval_match _ (?b :: _) ?o) _ _ =>
-      iApply deep_handle_cons;
-      Control.focus 1 1
-        (fun _ =>
-           let m := specify_cpattern () in
-           Control.focus 1 m pattern_match0)
-  | _ => ()
-  end.
-
+(* Proving that a handler satisfies its specification involves proving
+   the effectful case and the return/exceptional case. *)
 
 Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+
+(* Proving an [EMatch] expression boils down to proving a handler where
+   the effectful case is trivial. *)
 
 Ltac prove_match0_spec spec :=
   iApply ewp_EMatch;
@@ -308,131 +344,156 @@ Ltac prove_simple_match :=
 
 Tactic Notation "prove_match" "with" constr(spec) := prove_match0_spec spec.
 
-Tactic Notation "iIntros_RET" :=
-  iIntros ([|]); [ simpl | iIntros "[]" ].
-Tactic Notation "iIntros_RET" constr(pat) :=
-  iIntros ([|]); [ simpl; iIntros pat | iIntros "[]" ].
-Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" :=
-  iIntros ([ v |]); [ simpl | iIntros "[]" ].
-Tactic Notation "iIntros_RET" "(" simple_intropattern(v) ")" constr(pat) :=
-  iIntros ([ v |]); [ simpl; iIntros pat | iIntros "[]" ].
 
-Ltac to_ident_list env acc :=
-  match env with
-  | environments.Enil => constr:(acc)
+(* -------------------------------------------------------------------------- *)
+
+(** *Entering and Skipping Handler Branches *)
+
+(* Takes an iris environment and returns an ltac list containing the
+   idents present in the environment. *)
+
+Ltac2 rec to_ident_list (env : constr) (acc : constr list) :=
+  lazy_match! env with
+  | environments.Enil => acc
   | environments.Esnoc ?env ?h _ =>
-      to_ident_list env (h::acc)
+      to_ident_list env (h :: acc)
   end.
 
-Ltac all_intuitionistic_hyps :=
-  match goal with
-  | |- environments.envs_entails ?env _ =>
-      match env with
-      | environments.Envs ?env_intuitionistic _ _ =>
-          to_ident_list env_intuitionistic (@nil ident)
-      end
+Ltac2 all_intuitionistic_hyps () :=
+  let env := iris_env () in
+  lazy_match! env with
+  | environments.Envs ?intuitionistic_env _ _ =>
+      to_ident_list intuitionistic_env []
   end.
 
-Ltac all_spatial_hyps :=
-  match goal with
-  | |- environments.envs_entails ?env _ =>
-      match env with
-      | environments.Envs _ ?env_spatial _ =>
-          to_ident_list env_spatial (@nil ident)
-      end
+Ltac2 all_spatial_hyps () :=
+  let env := iris_env () in
+  lazy_match! env with
+  | environments.Envs _ ?spatial_env _ =>
+      to_ident_list spatial_env []
   end.
 
-Ltac conj_hyps hyps :=
+(* [conj_hyps] makes a single conjunction from list of iris hypotheses.
+   The new conjunction has the name of the head of the original list. *)
+
+Ltac2 rec conj_hyps (hyps : constr list) :=
   match hyps with
-  | [] => idtac
-  | [?hyp] => idtac
-  | ?h1 :: ?h2 :: ?hyps =>
+  | [] | [_] => ()
+  | h1 :: (h2 :: hyps) =>
+      ltac1:(h1 h2 |-
       let h := iFresh in
       iPoseProof (bi_sep_intro) as h;
       iSpecialize (h with h1);
       iSpecialize (h with h2);
-      iRename h into h1;
+      iRename h into h1) (Ltac1.of_constr h1) (Ltac1.of_constr h2);
       conj_hyps (h1 :: hyps)
   end.
 
-Ltac unconj_hyps_aux hyp_name hyps :=
+(* Given a list of hypotheses that has been turned into a single
+   conjuction, [unconj_hyps] reestablishes the original hypotheses. *)
+
+Ltac2 rec unconj_hyps_aux (hyp_name : constr) (hyps : constr list) :=
   match hyps with
-  | [] => idtac
-  | [_] => idtac
-  | ?h1 :: ?t =>
+  | [] | [_] => ()
+  | h1 :: t =>
+      ltac1:(h1 hyp_name |-
       _iDestruct0 hyp_name
         (intro_patterns.IList [[intro_patterns.IIdent hyp_name;
-                                intro_patterns.IIdent h1]]);
+                                intro_patterns.IIdent h1]]))
+              (Ltac1.of_constr h1) (Ltac1.of_constr hyp_name);
       unconj_hyps_aux hyp_name t
-
   end.
 
-Ltac unconj_hyps hyps :=
-  match hyps with | [] => idtac | ?hyp_name :: _ =>
-  let hyps := (eval vm_compute in (List.rev hyps)) in
+Ltac2 unconj_hyps (hyps : constr list) :=
+  match hyps with | [] => () | hyp_name :: _ =>
+  let hyps := List.rev hyps in
   unconj_hyps_aux hyp_name hyps
   end.
 
-Ltac revert_intuitionistic hyps :=
+(* [revert_intuitionistic] takes a list of persisent (intuitionistic)
+   hypotheses and turns them into hypotheses of the form ["H" : □ P]. *)
+
+Ltac2 rec revert_intuitionistic (hyps : constr list) :=
   match hyps with
-  | [] => idtac
-  | ?h :: ?t =>
-      iRevert h; iIntros h; revert_intuitionistic t
+  | [] => ()
+  | h :: t =>
+      iRevert $h; iIntros $h; revert_intuitionistic t
   end.
 
-Ltac unrevert_intuitionistic hyps :=
+(* [unrevert_intuitionistic] takes a list of hypotheses of the form
+   ["H" : □ P] and (re)introduces them into the intuitionistic
+   environment. *)
+
+Ltac2 rec unrevert_intuitionistic (hyps : constr list) :=
   match hyps with
-  | [] => idtac
-  | ?h :: ?t =>
-      iRevert h;
-      _iIntros0 (intro_patterns.IIntuitionistic (intro_patterns.IIdent h));
+  | [] => ()
+  | h :: t =>
+      iRevert $h;
+      ltac1:(h |- _iIntros0 (intro_patterns.IIntuitionistic (intro_patterns.IIdent h)))
+      (Ltac1.of_constr h);
       unrevert_intuitionistic t
   end.
 
-Ltac reintroduce_env intuitionistic_hyps spatial_hyps :=
+(* Given a goal of the form [(□ H1 ∗ ⋯ ∗ □ Hn) ∗ (P1 ∗ ⋯ ∗ Pm) -∗ G],
+   a list of the persistent hypotheses [H1, ⋯, Hn], and a list of the
+   spatial hypotheses [P1, ⋯, Pm], introduce the hypotheses. *)
+
+Ltac2 reintroduce_env (intuitionistic_hyps : constr list) (spatial_hyps : constr list) :=
   match intuitionistic_hyps with
-  | ?h1 :: _ =>
-      iIntros h1;
+  | h1 :: _ =>
+      iIntros $h1;
       match spatial_hyps with
-      | ?h2 :: _ => unconj_hyps [h1; h2]
-      | _ => idtac
+      | h2 :: _ => unconj_hyps [h1; h2]
+      | _ => ()
       end
   | _ =>
       match spatial_hyps with
-      | ?h2 :: _ =>
-          iIntros h2
-      | _ => idtac
+      | h2 :: _ =>
+          iIntros $h2
+      | _ => ()
       end
   end;
   unconj_hyps intuitionistic_hyps;
   unrevert_intuitionistic intuitionistic_hyps;
   unconj_hyps spatial_hyps.
 
-Ltac apply_deep_handle_cons_unary :=
-  let intuitionistic_hyps := all_intuitionistic_hyps in
-  let spatial_hyps := all_spatial_hyps in
+(* [apply_deep_handle_cons_unary] expects an iris goal of the form
+   [EWP deep_eval_match η (b :: bs) ...]. It applies the
+   [deep_handle_cons_unary] lemma before progressing through the
+   pattern matching.
+
+   It is the iris proofmode analog of [pure_match] in the pure mode. *)
+
+Ltac2 apply_deep_handle_cons_unary () :=
+  let intuitionistic_hyps := all_intuitionistic_hyps () in
+  let spatial_hyps := all_spatial_hyps () in
   conj_hyps spatial_hyps;
   revert_intuitionistic intuitionistic_hyps;
   conj_hyps intuitionistic_hyps;
   match intuitionistic_hyps with
-  | ?h1 :: _ =>
+  | h1 :: _ =>
       match spatial_hyps with
-      | ?h2 :: _ => conj_hyps [h1; h2]
-      | _ => idtac
+      | h2 :: _ => conj_hyps [h1; h2]
+      | _ => ()
       end
-  | _ => idtac
+  | _ => ()
   end;
   match intuitionistic_hyps with
-  | ?h1 :: _ =>
-      iApply (deep_handle_cons_unary with h1)
+  | h1 :: _ =>
+      iApply (deep_handle_cons_unary with $h1)
   | _ => match spatial_hyps with
-        | ?h2 :: _ => iApply (deep_handle_cons_unary with h2)
+        | h2 :: _ => iApply (deep_handle_cons_unary with $h2)
         | _ => iApply deep_handle_cons_no_resources
         end
   end;
-  [ iPureIntro;
-    specify_cpattern;
-    pattern_match;
-    iStartProof
-  | try iModIntro ];
-  reintroduce_env intuitionistic_hyps spatial_hyps.
+  Control.focus 1 1 (fun _ => iPureIntro;
+                           let n := specify_cpattern () in
+                           if (Int.gt n 0)
+                           then
+                             Control.focus 1 n (fun _ => pattern_match; iStartProof)
+                           else ());
+  last (fun _ => try0 iModIntro);
+  all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps).
+
+Ltac2 Notation "handle_cons" := apply_deep_handle_cons_unary ().
+Tactic Notation "handle_cons" := ltac2:(handle_cons).

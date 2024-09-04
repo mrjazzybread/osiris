@@ -210,8 +210,7 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
-
-      apply_deep_handle_cons_unary; [ | iIntros "[]" ].
+      handle_cons; [ | iIntros "[]" ].
 
       iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
@@ -242,7 +241,7 @@ Section verification.
        iApply deep_handle_cons_no_resources.
        { iPureIntro; specify_cpattern. apply I. }
        iIntros "_".
-       apply_deep_handle_cons_unary; last by iIntros "[ [] | [] ]".
+       handle_cons; last by iIntros "[ [] | [] ]".
        fold eval.
 
        (* EWP Goal: [continue k (!var : t)]. *)
@@ -283,7 +282,7 @@ Section verification.
          eapply pat_PXData_neq. simpl. eassumption.
          assumption. }
        iIntros "no_match2".
-       apply_deep_handle_cons_unary.
+       handle_cons.
 
        { (* EWP Goal: [var := y; continue k ()]. *)
          iApply ewp_ESeq.

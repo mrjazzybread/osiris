@@ -100,7 +100,7 @@ Section verification.
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?). iIntros "!> H !>"; destruct o; try done.
-      apply_deep_handle_cons_unary.
+      handle_cons.
       - iApply ewp_EPath. by Ret.
       - iIntros "[]". }
 
@@ -118,7 +118,7 @@ Section verification.
     iIntros "_".
     iApply deep_handle_cons_no_resources. { iPureIntro. specify_cpattern. apply I. }
     iIntros "_".
-    apply_deep_handle_cons_unary.
+    handle_cons.
     { by Simp. }
     iIntros "%F". tauto.
   Qed.

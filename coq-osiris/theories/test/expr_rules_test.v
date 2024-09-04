@@ -276,7 +276,7 @@ Proof.
   { iApply ewp_EInt. encode. }
 
   iIntros_RET "->".
-  apply_deep_handle_cons_unary; [ | iIntros "[]" ].
+  handle_cons; [ | iIntros "[]" ].
   iApply ewp_EConstant. iExists true. auto.
 Qed.
 
@@ -299,7 +299,7 @@ Proof.
   { iApply ewp_EInt. encode. }
   iIntros_RET "-> !>".
 
-  apply_deep_handle_cons_unary.
+  handle_cons.
   - iApply ewp_EConstant; iExists true; auto.
   - iIntros "%no_match". congruence.
 Qed.
@@ -316,8 +316,8 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-  apply_deep_handle_cons_unary. iIntros "_".
-  apply_deep_handle_cons_unary; [ | iIntros "[]" ].
+  handle_cons. iIntros "_".
+  handle_cons; [ | iIntros "[]" ].
   iApply ewp_EConstant; iExists false; auto.
 Qed.
 
@@ -334,9 +334,9 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-  apply_deep_handle_cons_unary. iIntros "_".
-  apply_deep_handle_cons_unary. iIntros "_".
-  apply_deep_handle_cons_unary.
+  handle_cons. iIntros "_".
+  handle_cons. iIntros "_".
+  handle_cons.
   { iApply ewp_EInt. iExists 2. auto. }
   iIntros "%no_match"; congruence.
 Qed.
@@ -357,10 +357,10 @@ Proof.
   { iApply ewp_EConstant. encode. }
 
   iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
-  apply_deep_handle_cons_unary.
+  handle_cons.
   instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).
   iIntros "%no_match1".
-  apply_deep_handle_cons_unary.
+  handle_cons.
   { iApply ewp_EInt. by iExists 2. }
   iIntros "%no_match2". congruence.
 Qed.
