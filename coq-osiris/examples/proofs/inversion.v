@@ -241,9 +241,7 @@ Section verification.
         apply_deep_handle_cons_unary.
 
         iIntros "%no_match3".
-        destruct o; simpl in *;
-          ltac2:(Control.enter (fun _ => destruct_hyps [@no_match1; @no_match])). }
-
+        destruct o; simpl in *; destruct_hyps no_match1 no_match. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -263,7 +261,7 @@ Section verification.
         { iPureIntro; specify_cpattern; apply I. }
         iIntros "_".
         apply_deep_handle_cons_unary; last first.
-        { iIntros "%Hf". ltac2:(destruct_hyp @Hf). }
+        { iIntros "%Hf". destruct_hyp Hf. }
         fold eval.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)

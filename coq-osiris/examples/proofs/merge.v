@@ -14,13 +14,6 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 
 (* WIP: Tactics used in local proof scripts. *)
 
-Local Ltac destruct_hyps :=
-  repeat (
-  match goal with
-  | [ h : _ /\ _ |- _ ] =>
-      destruct h
-  end).
-
 Local Ltac rewrite_permutation t :=
   lazymatch goal with
   | H : t ≡ₚ _ |- _ => rewrite H || (revert H; rewrite_permutation t)
@@ -209,12 +202,12 @@ Proof.
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; destruct_hyps.
+    unfold merge_post, merge_pre in *; destruct_hyp Hpre.
     rewrite app_nil_l. auto. }
   (* Match against "l, []" *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; destruct_hyps.
+    unfold merge_post, merge_pre in *; destruct_hyp Hpre.
     rewrite app_nil_r. auto. }
 
   (* Second branch of match *)
@@ -235,11 +228,12 @@ Proof.
         { (* Subgoal: t1 and l2 satisfy merge's precondition *)
           repeat split;
           unfold merge_pre in Hpre;
-          destruct_hyps; all_inversions; auto. } }
+          destruct_hyp Hpre; all_inversions; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost.
+      subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
         constructor; [ assumption | ].
@@ -256,12 +250,13 @@ Proof.
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. }
         { (* Subgoal: l1 and t2 satisfy merge's precondition *)
-          unfold merge_pre in *.
-          destruct_hyps; all_inversions; repeat split; auto. } }
+          unfold merge_pre in *; destruct_hyp Hpre.
+          all_inversions; repeat split; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost.
+      subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
         constructor; [ auto | ].
@@ -393,7 +388,7 @@ Proof.
     { apply _merge_spec.
       (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
       unfold mergesort_pre, mergesort_post in *.
-      destruct_hyps.
+      destruct_hyps IHl1' IHl2'.
       split; [ by rewrite_permutation l1'
              | split;
                [ by rewrite_permutation l2'
@@ -402,7 +397,7 @@ Proof.
     intros l' IH.
     (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
     unfold mergesort_post, merge_post in *.
-    destruct_hyps.
+    destruct_hyps IHl1' IHl2' IH.
     split; [ assumption | ].
     rewrite_permutation l'. rewrite_permutation (x :: x0).
     rewrite_permutation l1'. rewrite_permutation l2'.

@@ -350,6 +350,7 @@ Qed.
 Ltac pat_PInt :=
   eapply pat_PInt; [ | | solve [ encode ] | ]; [ representable | representable | ]; intros.
 
+
 (* -------------------------------------------------------------------------- *)
 
 (* Syntax-directed reasoning for data *)
@@ -587,6 +588,8 @@ Proof.
 Qed.
 
 
+(* -------------------------------------------------------------------------- *)
+
 From Ltac2 Require Import Ltac2.
 
 (* [specify_cpattern] takes a goal of the form [cpattern η cp o3 φ ψ]
@@ -636,6 +639,8 @@ Ltac2 rec specify_cpattern () : int :=
   end.
 
 Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
+
+(* -------------------------------------------------------------------------- *)
 
 Ltac2 tauto0 () := ltac1:(tauto).
 Ltac2 Notation tauto := tauto0 ().
@@ -853,8 +858,8 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
   | _ => try ltac1:(congruence)
   end.
 
-(* We don't use [List.iter] because we don't want to keep iterating
-   after solving the goal. *)
+(* We build our own recursor instead of [List.iter] because we don't
+   want to keep iterating after solving the goal. *)
 
 Ltac2 destruct_hyps (hs : ident list) :=
   let rec iter :=
@@ -866,6 +871,23 @@ Ltac2 destruct_hyps (hs : ident list) :=
       end
   in
   iter destruct_hyp hs.
+
+Tactic Notation "destruct_hyp" ident(hyp) :=
+  let destr_hyp := ltac2:(hyp |-
+                            let hyp := Option.get (Ltac1.to_ident hyp) in
+                            destruct_hyp hyp)
+  in
+  destr_hyp hyp.
+
+Tactic Notation "destruct_hyps" ident_list(hyps) :=
+  let destr_hyps := ltac2:(hyps |-
+                             let hyps := Option.get (Ltac1.to_list hyps) in
+                             let hyps := List.map (fun hyp => Option.get (Ltac1.to_ident hyp)) hyps in
+                             destruct_hyps hyps)
+  in
+  destr_hyps hyps.
+
+(* -------------------------------------------------------------------------- *)
 
 Ltac2 rec do_intros () :=
   lazy_match! goal with
@@ -908,87 +930,109 @@ Ltac2 massage_term (c : constr) :=
   | _ => ()
   end.
 
+(* [patterns] expects a goal of the form [patterns ...] and either
+   - reduces to a [pattern ...] with [pats_PCons_unary],
+   - solves the goal with [pats_PNil]. *)
+
 Ltac2 patterns () :=
   lazy_match! goal with
   | [ |- patterns _ (_ :: _) _ _ ?ψ ] =>
+      (* If [Ψ] is an evar, [pats_PCons_unary] instantiates it as
+         [Ψ := ?Ψ1 ∨ ?Ψ2]. Currently (09/2024), the only other case
+         is that [Ψ] is already instantiated to [False]. *)
       if (Constr.equal ψ constr:(False)) then
         eapply pats_PCons_unary_false
       else
         eapply pats_PCons_unary
   | [ |- patterns _ [] _ _ ?ψ ] =>
+      (* If [Ψ] is an evar then we instantiate it to [False], otherwise we
+         use [pats_consequence_psi] and the fact that [∀ P, ⊥ -> P]. *)
       if (Constr.is_evar ψ) then
         eapply pats_PNil
       else
         eapply pats_consequence_psi > [ eapply pats_PNil | intros [] ]
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [patterns η ps vs φ ψ]")))
   end.
 
-(* Assuming a goal of the form [pattern(s) η p v ?φ ?ψ], the
-   [pattern_match] tactic tries to solve this goal and elaborate
-   the uninstantiated success and failure postconditions. *)
+(* [pattern_match_aux] expects a goal of the form [patterns ...] or
+   [pattern ...] and progresses by matching the pattern(s) to the
+   variable(s). This is done by applying the appropriate lemma for
+   each pattern, for example [pat_PInt] if the pattern is a [PInt]. *)
+
+(* If we don't match on any known pattern, we try to use an extensible
+   Ltac1 tactic called [pattern_hook].
+   This allows users to extend pattern matching to new data structures. *)
 
 Ltac2 rec pattern_match_aux () :=
-  (* If the goal is of the form [patterns ...] we either
-     - reduce to a [pattern ...] with [pats_PCons_unary],
-     - solve the goal with [pats_PNil]. *)
+  (* [continue_matching] is used after solving one pattern. It
+     introduces new information before deciding whether to continue
+     pattern-matching or whether we are done. *)
   let continue_matching :=
     fun _ => do_intros ();
+          (* Use [Control.enter] here because [do_intros] may solve the goal. *)
           Control.enter (fun _ =>
           if is_pattern (Control.goal ()) then pattern_match_aux () else ())
   in
-  Control.enter
-    (fun _ =>
-       lazy_match! goal with
-       | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
-       | [ |- pattern _ ?p _ _ ?ψ ] =>
-           massage_term ψ;
-           match! p with
-           | PVar _ =>
-               set_postcondition_to_false ();
-               Control.plus
-                 (fun _ => eapply pat_PVar2)
-                 (fun _ => eapply pat_PVar;
-                        continue_matching ())
-           | PInt _ =>
-               eapply pat_PInt >
-                 [
-                 |
-                 | solve [ ltac1:(encode) ]
-                 | ] >
-                 [ ltac1:(representable)
-                 | ltac1:(representable)
-                 | continue_matching () ]
-           | pNil =>
-               eapply pat_pNil > [ solve [ ltac1:(encode) ]
-                                 | continue_matching () ]
-           | PConstant "[]" =>
-               eapply pat_pNil > [ solve [ ltac1:(encode) ]
-                                 | continue_matching () ]
-           | pCons _ _ =>
-               eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | continue_matching () ]
-           | PData "::" _ =>
-               eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                  | continue_matching () ]
-           | PXData _ _ =>
-               Control.plus
-                 (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
-                 (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
-           | PConstant _ =>
-               Control.plus
-                 (fun _ => eapply pat_PConst_eq; continue_matching ())
-                 (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
-           | POr _ _ =>
-               apply pat_POr > [ pattern_match_aux () | pattern_match_aux () ]
-           | PTuple _ =>
-               ltac1:(pat_PTuple); continue_matching ()
-           | PAlias _ _ =>
-               apply pat_PAlias; pattern_match_aux ()
-           | PAny =>
-               apply pat_PAny; continue_matching ()
-           | _ =>
-               ltac1:(pattern_hook); continue_matching ()
-           end
-       end).
+  lazy_match! goal with
+  | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
+  | [ |- pattern _ ?p _ _ ?ψ ] =>
+      (* [massage_term] is black magic to help Rocq's unification engine. *)
+      massage_term ψ;
+      match! p with
+      | PVar _ =>
+          (* We assume that a [PVar] pattern never fails. *)
+          set_postcondition_to_false ();
+          (* It may be the case that [pat_PVar2] can entirely solve the goal. *)
+          Control.plus
+            (fun _ => eapply pat_PVar2)
+            (fun _ => eapply pat_PVar;
+                   continue_matching ())
+      | PInt _ =>
+          eapply pat_PInt;
+          (* First solve the encoding to ensure that all values are instantiated. *)
+          Control.focus 3 3 (fun _ => solve [ ltac1:(encode) ]);
+          Control.extend [] (fun _ => ltac1:(representable)) [continue_matching]
+      | pNil =>
+          eapply pat_pNil > [ solve [ ltac1:(encode) ]
+                            | continue_matching () ]
+      | PConstant "[]" =>
+          eapply pat_pNil > [ solve [ ltac1:(encode) ]
+                            | continue_matching () ]
+      | pCons _ _ =>
+          eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                             | continue_matching () ]
+      | PData "::" _ =>
+          eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                             | continue_matching () ]
+      | PXData _ _ =>
+          Control.plus
+            (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
+            (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
+      | PConstant _ =>
+          Control.plus
+            (fun _ => eapply pat_PConst_eq; continue_matching ())
+            (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
+      | POr _ _ =>
+          apply pat_POr > [ pattern_match_aux () | pattern_match_aux () ]
+      | PTuple _ =>
+          ltac1:(pat_PTuple); continue_matching ()
+      | PAlias _ _ =>
+          apply pat_PAlias; pattern_match_aux ()
+      | PAny =>
+          apply pat_PAny; continue_matching ()
+      (* If we haven't matched any known pattern, try and use the hook. *)
+      | _ =>
+          ltac1:(pattern_hook); continue_matching ()
+      end
+  end.
+
+(* Assuming a goal of the form [⊢ pattern(s) η p v ?φ ?ψ], the
+   [pattern_match] tactic tries to reduce the goal to [⊢ φ] while
+   elaborating the failure postcondition [Ψ]. *)
 
 Ltac2 pattern_match0 () :=
   Control.enter (fun _ =>
@@ -1004,10 +1048,12 @@ Ltac2 pattern_match0 () :=
 Ltac2 Notation "pattern_match" := pattern_match0 ().
 Tactic Notation "pattern_match" := ltac2:(pattern_match).
 
-(* [post_process_pats] is expected to be used on multiple goals of the
-   form [pattern η p v ?φ ?ψ] and one goal of the form [False]. It performs
-   pattern matching on the pat goals and then tries to prove the
-   non-matching (False) goal. *)
+(* -------------------------------------------------------------------------- *)
+
+(* [resolve_no_match] attempts to prove by contradiction that
+   not matching on any branch of a pattern match is impossible.e Its
+   tactics implicitly target the "no_match" hypotheses that are
+   generated by [pure_match_branches] and instantiated by [pattern_match]. *)
 
 Local Ltac strip_disjunction :=
   match goal with
@@ -1034,44 +1080,25 @@ Local Ltac elim_exists :=
   lazymatch goal with
   | H : exists _, _ |- _ => destruct H as [? H]
   end.
-Local Ltac destruct_hyp :=
+Local Ltac elim_conj :=
   match goal with
   | H : _ /\ _ |- _ => destruct H
   end.
-
-(* [resolve_no_match] attempts to prove by contradiction that
-   not matching on any branch of a pattern match is impossible. Its
-   tactics target the "no_match" hypotheses that are generated by
-   [pure_match_branches] and instantiated by [pattern_match]. *)
 
 Ltac resolve_no_match :=
   repeat first
     [ strip_disjunction
     | elim_exists
-    | destruct_hyp
+    | elim_conj
     | congruence
     | remove_tauto
     | subst_eq
     | inject_eq ].
 
-Ltac2 post_process_pats (b : bool) (hs : ident list) :=
-  (* Wait for all patterns to be instantiated before substituting. *)
-  Control.extend []
-    (fun _ => subst; if b then Std.clear hs else ())
-    [(fun _ =>
-       match! goal with
-       | [ |- False ] =>
-           normalize_hyps (hs);
-           (* Only after finishing our matches do we substitute our newly
-              learnt equalities *)
-           subst;
-           (* Afterwards, use [resolve_no_match] to perform congruence on the
-              remaining False goal *)
-           ltac1:(resolve_no_match)
-       | [ |- _ ] => ()
-       end)].
-
+Ltac2 first tac := Control.extend [tac] (fun _ => ()) [].
 Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
+
+(* -------------------------------------------------------------------------- *)
 
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
@@ -1082,28 +1109,46 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
   | [ |- pure_match _ ?bs _ _ ] =>
+      (* Match on [bs] to decide whether to apply [pure_match_cons]
+         or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with
       | _ :: _ =>
+          (* [pure_match_cons] produces two subgoals :
+             - one of the form [cpattern ...]
+             - one of the form [Ψ -> pure_match ...] *)
           eapply pure_match_cons;
+          (* In the first subgoal, apply the [specify_cpattern] tactic
+             followed by the [pattern_match] tactic. *)
           Control.focus 1 1
             (fun _ =>
                (* [specify_cpattern ()] introduces m new subgoals. *)
                let m := specify_cpattern () in
-               (* We pattern match the new subgoals and simplify the
-                  non-matching hypotheses. *)
-               Control.focus 1 m (fun _ => pattern_match0 (); destruct_hyps hyps));
+               Control.focus 1 m pattern_match0);
+          (* In the second subgoal, introduce the new hypothesis [ψ]
+             and recursively apply [pure_match_branches0]. *)
           last
             (fun _ =>
                let no_match := Fresh.in_goal @no_match in
                intros $no_match;
+               (* Simplify the hypotheses we've generated so far. *)
                destruct_hyps (no_match :: hyps);
+               (* Filter to only keep the hypotheses which still exist
+                  after simplification. *)
                let remaining_hyps :=
                  List.filter (fun id => Control.plus
                                        (fun _ => let _ := Control.hyp id in true)
                                        (fun _ => false)) (no_match :: hyps)
                in
-               (Control.enter (fun _ => pure_match_branches0 (remaining_hyps))))
+               (* We use [Control.enter] so the tactic doesn't fail in
+                  the case where the goal was solved by the hypothesis
+                  simplification. *)
+               Control.enter (fun _ => pure_match_branches0 (remaining_hyps)))
       | [] =>
+          (* We have to show that every pattern match is exhaustive.
+             If we reach this point, then we can assume that an early
+             use of [destruct_hyps] was not powerful enough to solve
+             this goal. We thus use the more brute-force
+             [resolve_no_match] tactic. *)
           eapply pure_match_nil; ltac1:(resolve_no_match)
       end
   | [ |- ?g ] =>
