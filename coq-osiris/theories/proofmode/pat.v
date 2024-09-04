@@ -626,8 +626,8 @@ Ltac2 rec specify_cpattern () : int :=
           | CVal _ => eapply cpat_CVal_abst; intros ??; 1
           | CExc _ => eapply cpat_CExc_abst; intros ??; 1
           | CEff _ _ => Control.plus
-                         (fun _ => apply cpat_CEff_impossible)
-                         (fun _ => eapply cpat_CEff_abst; intros ???); 1
+                         (fun _ => apply cpat_CEff_impossible; 0)
+                         (fun _ => eapply cpat_CEff_abst; intros ???; 1)
           | COr _ _ =>
               eapply cpat_COr;
               let n := Control.focus 1 1 specify_cpattern in
@@ -1121,9 +1121,11 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
              followed by the [pattern_match] tactic. *)
           Control.focus 1 1
             (fun _ =>
-               (* [specify_cpattern ()] introduces m new subgoals. *)
+               (* [specify_cpattern ()] introduces m subgoals. *)
                let m := specify_cpattern () in
-               Control.focus 1 m pattern_match0);
+               if (Int.gt m 0) then
+                 Control.focus 1 m pattern_match0
+               else ());
           (* In the second subgoal, introduce the new hypothesis [ψ]
              and recursively apply [pure_match_branches0]. *)
           last
