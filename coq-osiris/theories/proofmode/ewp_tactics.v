@@ -12,11 +12,53 @@ From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import simp_tactics specifications pat expr_rules.
 
+From Ltac2 Require Import Ltac2.
+
+(* -------------------------------------------------------------------------- *)
+
+(** *Ltac2 bindings for Iris Proofmode tactics *)
+
+Ltac2 iapply (lem : constr) (sel : constr option) :=
+  match sel with
+  | None => ltac1:(lem |- iApply lem) (Ltac1.of_constr lem)
+  | Some sel =>
+      ltac1:(lem sel |- iApply (lem with sel))
+              (Ltac1.of_constr lem) (Ltac1.of_constr sel)
+  end.
+
+Ltac2 Notation "iApply" "(" lem(constr) "with" sel(constr) ")" := iapply lem (Some sel).
+Ltac2 Notation "iApply" lem(constr) := iapply lem None.
+
+Ltac2 iintros (pat : constr) :=
+  ltac1:(pat |- iIntros pat) (Ltac1.of_constr pat).
+
+Ltac2 Notation "iIntros" pat(constr) := iintros pat.
+
+Ltac2 iFrame () := ltac1:(iFrame).
+Ltac2 Notation "iFrame" := iFrame ().
+
+Ltac2 iSplit () := ltac1:(iSplit).
+Ltac2 Notation "iSplit" := iSplit ().
+
+Ltac2 iSplitL (selpat : constr) := ltac1:(selpat |- iSplitL selpat) (Ltac1.of_constr selpat).
+Ltac2 Notation "iSplitL" pat(constr) := iSplitL pat.
+
+Ltac2 iSplitR (selpat : constr) := ltac1:(selpat |- iSplitR selpat) (Ltac1.of_constr selpat).
+Ltac2 Notation "iSplitR" pat(constr) := iSplitR pat.
+
+Ltac2 iDestruct (lem : constr) (pat : constr) :=
+  ltac1:(lem pat |- iDestruct (lem) as pat)
+    (Ltac1.of_constr lem) (Ltac1.of_constr pat).
+Ltac2 Notation "iDestruct" "(" lem(constr) ")" "as" pat(constr) := iDestruct lem pat.
+
+
 (** *Utility *)
 
 Section helper_lemmas.
 
 Context `{!osirisGS Σ}.
+
+Set Default Proof Mode "Classic".
 
 Lemma bi_sep_intro (P Q : iProp Σ) :
   P -∗
@@ -25,6 +67,12 @@ Lemma bi_sep_intro (P Q : iProp Σ) :
 Proof.
   iIntros "H1 H2".
   iFrame.
+Qed.
+
+Lemma bi_emp_intro :
+  ⊢ @bi_emp (iProp Σ).
+Proof.
+  done.
 Qed.
 
 End helper_lemmas.
@@ -191,104 +239,10 @@ Ltac Call :=
   end.
 
 
+
 (* -------------------------------------------------------------------------- *)
 
 (** *Entering and Skipping Handler Branches *)
-
-From Ltac2 Require Import Ltac2.
-
-Ltac2 get_outcome_from_match (e : constr) : constr :=
-  let o :=
-    lazy_match! e with
-    | (deep_eval_match _ _ ?o) => o
-    | (shallow_eval_match _ _ _ ?o) => o
-    | (eval_match _ _ ?o) => o
-    | _ =>
-        Control.throw
-          (Tactic_failure
-             (Some
-                (Message.of_string "Expected a match")))
-    end
-  in
-  (* We evaluate to get rid of coercions, such as [outcome2_inject]. *)
-  Std.eval_hnf o.
-
-Ltac2 trivial_post_instantiation (e : constr) : constr :=
-  lazy_match! (get_outcome_from_match e) with
-  | O3Ret _ => constr:(True)
-  | O3Throw _ => constr:(True)
-  | O3Perform _ _ => constr:(True \/ True)
-  end.
-
-Ltac2 skip_matching_branch (e : constr) :=
-  let φ2 := trivial_post_instantiation e in
-  ltac1:(φ2 |- iApply (deep_handle_cons _ _ _ _ _ _ _ _ (λ _, False) φ2);
-         [ specify_cpattern; pattern_match
-         | iIntros (? [])
-         | iIntros (_) ]) (Ltac1.of_constr φ2).
-
-Ltac2 skip_non_matching_branch () :=
-  ltac1:(iApply deep_handle_cons_skip) > [ reflexivity | ].
-
-Ltac2 get_expr_from_ewp () :=
-  match! goal with
-  | [ |- envs_entails _ ?e ] =>
-      let rec strip_laters e :=
-        lazy_match! e with
-        | bi_later ?e => strip_laters e
-        | _ => e
-        end
-      in
-      lazy_match! strip_laters e with
-      | ewp_def _ ?e _ _ => e
-      end
-  | [ |- _ ] =>
-      Control.throw
-        (Tactic_failure
-           (Some
-              (Message.of_string "Expected goal of the form [EWP m @ E <|Ψ|> {{ Q}}]")))
-  end.
-
-Ltac2 skip_branch () :=
-  let e := get_expr_from_ewp () in
-  Control.plus
-    (* Try to skip a branch that doesn't match the pattern type. *)
-    (fun _ => skip_non_matching_branch ())
-    (* Enter the branch and *)
-    (fun _ => skip_matching_branch e).
-
-Ltac2 iapply (lem : constr) (sel : constr option) :=
-  match sel with
-  | None => ltac1:(lem |- iApply lem) (Ltac1.of_constr lem)
-  | Some sel =>
-      ltac1:(lem sel |- iApply (lem with sel))
-              (Ltac1.of_constr lem) (Ltac1.of_constr sel)
-  end.
-
-Ltac2 Notation "iApply" "(" lem(constr) "with" sel(constr) ")" := iapply lem (Some sel).
-Ltac2 Notation "iApply" lem(constr) := iapply lem None.
-
-Ltac2 iintros (pat : constr) :=
-  ltac1:(pat |- iIntros pat) (Ltac1.of_constr pat).
-
-Ltac2 Notation "iIntros" pat(constr) := iintros pat.
-
-Ltac2 enter_branch0 (intro_pat : constr option) :=
-  match intro_pat with
-  | None => iApply deep_handle_cons
-  | Some intro_pat => iApply (deep_handle_cons with $intro_pat)
-  end >
-    [ ltac1:(specify_cpattern; pattern_match); try (apply eq_refl)
-    | ltac1:(iIntros (? ->) || iIntros (? <-))
-    | ltac1:(let F := fresh in iIntros (F); try tauto) ].
-
-Ltac2 Notation "enter_branch" "with" intro_pat(constr) := enter_branch0 (Some intro_pat).
-Ltac2 Notation "enter_branch" := enter_branch0 None.
-
-(* Try to reduce a [match] expression by skipping all branches seen and then
-     entering a branch on match. *)
-Ltac red_match := repeat (ltac2:(skip_branch ()); [ idtac ]);
-                  ltac2:(enter_branch with "[-]").
 
 Ltac2 iris_goal () :=
   lazy_match! goal with
@@ -350,8 +304,6 @@ Ltac prove_simple_match :=
         by iPoseProof (upcl_bottom with Hf) as "?" ];
     iIntros (?) "->"
   ].
-
-Context `{!osirisGS Σ}.
 
 
 Tactic Notation "prove_match" "with" constr(spec) := prove_match0_spec spec.
