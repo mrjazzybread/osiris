@@ -4,7 +4,7 @@ From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
-From osiris.examples Require Import og_shiftreset localstate.
+From osiris.examples Require Import og_shiftreset.
 
 (* Reasoning about delimited control via [shift/reset].
 
@@ -100,8 +100,9 @@ Section verification.
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?). iIntros "!> H !>"; destruct o; try done.
-      red_match.
-      iApply ewp_EPath. by Ret. }
+      handle_cons.
+      - iApply ewp_EPath. by Ret.
+      - iIntros "[]". }
 
     iIntros "!>" (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
@@ -113,23 +114,89 @@ Section verification.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
 
-    red_match.
-
-    by Simp.
+    iApply deep_handle_cons_no_resources. { iPureIntro. specify_cpattern. apply I. }
+    iIntros "_".
+    iApply deep_handle_cons_no_resources. { iPureIntro. specify_cpattern. apply I. }
+    iIntros "_".
+    handle_cons.
+    { by Simp. }
+    iIntros "%F". tauto.
   Qed.
 
-  Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
+  From Ltac2 Require Import Ltac2.
+  Set Default Proof Mode "Classic".
+
+  Ltac2 rec unfold_big_sep () :=
+    let igoal := iris_goal () in
+    lazy_match! igoal with
+    | big_sepL2 _ [] _ =>
+        iApply @big_sepL2_nil; iApply @bi_emp_intro
+    | big_sepL2 _ (_ :: _) _ =>
+        iApply @big_sepL2_cons; iSplit;
+        Control.focus 2 2 unfold_big_sep
+    | _ => Message.print (Message.of_constr igoal)
+    end.
+
+  Ltac2 invert_big_sep_nil (hypname : constr) :=
+    ltac1:(hypname |-
+             let pat := constr:(intro_patterns.IIdent hypname) in
+             _iDestruct0 (@big_sepL2_nil_inv_r with hypname) pat;
+             _iDestruct0 hypname (intro_patterns.IRewrite Right))
+            (Ltac1.of_constr hypname).
+
+  (* For now we hardcode the argument name. This is very bad and will
+     not work when there is more than one argument. *)
+
+  Ltac2 invert_big_sep_cons (hypname : constr) :=
+    let rewrite_or_fresh :=
+      Control.plus
+        (fun _ => '(intro_patterns.IRewrite Right))
+        (fun _ =>
+           Control.plus
+             (fun _ => '(intro_patterns.IPure intro_patterns.IGallinaAnon))
+             (fun _ => '(intro_patterns.IIdent (INamed "HData_arg"))))
+    in
+    let pat := Std.eval_red
+                 constr:(intro_patterns.intro_pat.big_conj
+                    [intro_patterns.IPure intro_patterns.IGallinaAnon;
+                     intro_patterns.IPure intro_patterns.IGallinaAnon;
+                     intro_patterns.IRewrite Right;
+                     $rewrite_or_fresh;
+                     intro_patterns.IIdent (INamed $hypname)])
+    in
+    ltac1:(hypname pat |-
+             let h1 := iFresh in
+             _iDestruct0 (@big_sepL2_cons_inv_r with hypname) pat)
+            (Ltac1.of_constr hypname) (Ltac1.of_constr pat).
+
+  Ltac2 rec invert_big_sep (hypname : constr) :=
+    Control.plus
+      (fun _ => invert_big_sep_nil hypname)
+      (fun _ => invert_big_sep_cons hypname; invert_big_sep hypname).
+
+
+  Ltac2 eXData () :=
+    iApply ewp_EXData > [ reflexivity
+                        | unfold_big_sep ()
+                        | ltac1:(iIntros (?) "HData_args_hyp");
+                          invert_big_sep '"HData_args_hyp" ].
+
+  Ltac2 Notation "EXData" := eXData ().
+  Tactic Notation "EXData" := ltac2:(EXData).
 
   Lemma ewp_shift b e Ψ Φ Q : shift_spec b e Ψ Φ Q.
   Proof.
     iIntros "Hshift". unfold Shift.
+    remember (VClo env _) as f eqn:Heqf; clear Heqf.
 
-    Call. iNext. rewrite /deco.
+    Call. iNext.
 
     iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
-    { (* TODO: Add expr-level rule for EXdata. *)
-      Simp; by Ret. }
-    iIntros (? ->).
+    { EXData. (* TODO: Improve *)
+      - iApply ewp_EPath. iApply ewp_value. equality.
+      - iRewrite "HData_arg". equality. }
+
+    iIntros (?) "->".
     iApply ewp_perform.
 
     rewrite /prot upcl_SHIFT.

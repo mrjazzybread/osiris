@@ -14,13 +14,6 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
 
 (* WIP: Tactics used in local proof scripts. *)
 
-Local Ltac destruct_hyps :=
-  repeat (
-  match goal with
-  | [ h : _ /\ _ |- _ ] =>
-      destruct h
-  end).
-
 Local Ltac rewrite_permutation t :=
   lazymatch goal with
   | H : t ≡ₚ _ |- _ => rewrite H || (revert H; rewrite_permutation t)
@@ -204,18 +197,19 @@ Proof.
   eapply pure_eval_match.
   { eapply pure_eval_pair. trivial_pure.
     reflexivity. }
-
   pure_match.
+
   (* First branch of match *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; destruct_hyps.
+    unfold merge_post, merge_pre in *; destruct_hyp Hpre.
     rewrite app_nil_l. auto. }
   (* Match against "l, []" *)
   { pure_path.
     (* Establish postcondition *)
-    unfold merge_post, merge_pre in *; destruct_hyps.
+    unfold merge_post, merge_pre in *; destruct_hyp Hpre.
     rewrite app_nil_r. auto. }
+
   (* Second branch of match *)
   { eapply pure_eval_ifthenelse.
     { (* Evaluate expression "h1 <= h2" *)
@@ -234,11 +228,12 @@ Proof.
         { (* Subgoal: t1 and l2 satisfy merge's precondition *)
           repeat split;
           unfold merge_pre in Hpre;
-          destruct_hyps; all_inversions; auto. } }
+          destruct_hyp Hpre; all_inversions; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost.
+      subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
         constructor; [ assumption | ].
@@ -255,12 +250,13 @@ Proof.
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. }
         { (* Subgoal: l1 and t2 satisfy merge's precondition *)
-          unfold merge_pre in *.
-          destruct_hyps; all_inversions; repeat split; auto. } }
+          unfold merge_pre in *; destruct_hyp Hpre.
+          all_inversions; repeat split; auto. } }
       intros l Hpost.
       split; auto.
       (* Establish the postcondition *)
-      unfold merge_post, merge_pre in *; destruct_hyps; subst; all_inversions.
+      unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost.
+      subst; all_inversions.
       split.
       { (* Subgoal: the output is sorted *)
         constructor; [ auto | ].
@@ -285,9 +281,9 @@ Proof.
   (* pure_rec l (@wf_list_length A). *)
   (* Goal: eval match on l *)
   eapply pure_eval_match. { pure_path. apply eq_refl. }
+  pure_match.
 
   (* First branch of match *)
-  pure_match; abstract_env.
   { (* Case: l matches [] *)
     apply pure_eval_pair. trivial_pure.
     (* Establish the (trivial) postcondition *)
@@ -306,6 +302,7 @@ Proof.
     { (* Use induction hypothesis *)
       apply IH.
       { (* Justify use of induction hypothesis *)
+        simpl.
         eauto with arith. }
       { (* Show the precondition. *)
         reflexivity. } }
@@ -316,12 +313,12 @@ Proof.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     subst.
-    destruct Hpost as (H1 & H2 & ?).
+    destruct Hpost as (Hlength1 & Hlength2 & ?).
     split; [ | split ].
     { (* Subgoal: the length of l1 is half the length of xs *)
-      destruct (Nat.even _); rewrite H1; eauto with arith. }
+      destruct (Nat.even _); rewrite Hlength1; eauto with arith. }
     { (* Subgoal: the length of l2 is half the length of xs *)
-      rewrite H2; eauto with arith. }
+      rewrite Hlength2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
       rewrite_permutation xs'0.
       apply Permutation_skip.
@@ -350,13 +347,9 @@ Proof.
   { pure_data. auto. }  (* Branch: "[x]" *)
 
   (* Branch: "_" *)
-  assert (exists m, length l = S (S m)) as [m Heql].
-  { (* TODO: too difficult to acquire knowledge from not matching on
-       previous branches *)
-    destruct no_match0 as [ | no_match0 ]; [ congruence | ].
-    destruct no_match0 as (?&tail&?&[?|?]); [ contradiction | ]; subst.
-    destruct tail; [ contradiction | simpl; eauto with arith]. }
-  { eapply pure_eval_let_pair.
+  { assert (exists m, length (x0) = S m) as [m Heql].
+    { subst. destruct x0; [ congruence | eauto ]. }
+    eapply pure_eval_let_pair.
     eapply pure_eval_app.
     (* Use knowledge that [split] ∈ [η] *)
     eapply pure_eval_path. simpl. rewrite Hsplit.
@@ -395,7 +388,7 @@ Proof.
     { apply _merge_spec.
       (* Show that [l1'], [l2'] ⊨ [merge_pre] *)
       unfold mergesort_pre, mergesort_post in *.
-      destruct_hyps.
+      destruct_hyps IHl1' IHl2'.
       split; [ by rewrite_permutation l1'
              | split;
                [ by rewrite_permutation l2'
@@ -404,9 +397,9 @@ Proof.
     intros l' IH.
     (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
     unfold mergesort_post, merge_post in *.
-    destruct_hyps.
+    destruct_hyps IHl1' IHl2' IH.
     split; [ assumption | ].
-    rewrite_permutation l'. rewrite_permutation l.
+    rewrite_permutation l'. rewrite_permutation (x :: x0).
     rewrite_permutation l1'. rewrite_permutation l2'.
     reflexivity. }
 Qed.

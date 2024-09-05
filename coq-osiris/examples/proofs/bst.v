@@ -149,8 +149,8 @@ Ltac pat_pNode :=
 
 Ltac pattern_hook ::=
   first
-    [ pat_pLeaf; intros
-    | pat_pNode; intros
+    [ pat_pLeaf
+    | pat_pNode
     ].
 
 (* -------------------------------------------------------------------------- *)
@@ -220,17 +220,13 @@ Local Instance Eq_z : Eq Z := { eqb x y := Z.eqb x y }.
 
 (* Proof *)
 
-(* The [toplevel] relation takes a module expression, and asserts
-   that after evaluating it in the environment comprising of the
-   standard library, we learn some postcondition on the environment
-   contained in the resulting module structure. *)
-
 (* [env_has_pspecs : list (var * (val -> Prop)) -> env -> Prop] states that
    a given environment certain values, with names and specifications
    given in an association list. *)
 
+
 Lemma ModuleSpec :
-  toplevel __main
+  eval_module stdlib_env __main
     (env_has_pspecs [("insert", insert_spec); ("member", member_spec)]).
 Proof.
   (* Evaluating a [MStruct] boils down to evaluating the structure items one by one. *)
@@ -410,9 +406,8 @@ Proof.
   intros [??] (insert & Hinsert & -> & ->).
 
 
-  eapply structs_cons.
+  next_item with member_spec.
   { (* Proceed with [let rec member = ...] *)
-    eapply struct_letrec_single with (spec := member_spec).
     unfold member_spec.
     intros x t Ht.
 
@@ -502,6 +497,7 @@ Proof.
 
   (* We have now traversed the whole module, all that remains is
      to show the module specification.*)
-  apply structs_nil.
+  finished_struct.
+
   simpl. auto.
 Admitted.

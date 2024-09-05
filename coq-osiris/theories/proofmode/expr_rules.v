@@ -282,14 +282,15 @@ Section ewp_rules_expr.
   Proof. done. Qed.
 
   Lemma ewp_list_cons η e es φ φs E Ψ :
-    ([∗ list] ei;φi ∈ (e :: es);(φ :: φs), EWP eval η ei @ E <|Ψ|> {{ φi }}) ⊣⊢
-    EWP eval η e @ E <|Ψ|> {{ φ }} ∗ [∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <|Ψ|> {{ φi }}.
-  Proof. done. Qed.
+    EWP eval η e @ E <|Ψ|> {{ φ }} -∗
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <|Ψ|> {{ φi }}) -∗
+    ([∗ list] ei;φi ∈ (e :: es);(φ :: φs), EWP eval η ei @ E <|Ψ|> {{ φi }}).
+  Proof. iIntros "He Hlist". simpl. iFrame. Qed.
 
   Lemma ewp_list_singleton η e φ E Ψ :
-    ([∗ list] ei;φi ∈ [e]; [φ], EWP eval η ei @ E <|Ψ|> {{ φi }}) ⊣⊢
-    EWP eval η e @ E <|Ψ|> {{ φ }}.
-  Proof. iSplit. iIntros "($ & _)". iIntros "$ //". Qed.
+    EWP eval η e @ E <|Ψ|> {{ φ }} -∗
+    ([∗ list] ei;φi ∈ [e]; [φ], EWP eval η ei @ E <|Ψ|> {{ φi }}).
+  Proof. iIntros "He". simpl. iFrame. Qed.
 
   Lemma ewp_ETuple η es φs φ E Ψ :
     ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v, φi v }}) -∗
@@ -389,18 +390,36 @@ Section ewp_rules_expr.
     (φ2 : outcome2 B E → iProp Σ) : iProp Σ :=
     (∀ a, φ1 (O2Ret a) -∗ φ2 (O2Ret (f a)))%I.
 
-  Lemma ewp_EData η c e E Ψ φ1 φ :
-    EWP eval η e @ E <|Ψ|> {{ φ1 }} -∗
-    propagate_exn φ1 φ -∗
-    propagate_ret_fmap (λ v, VData c v) φ1 φ -∗
-    EWP eval η (EData c e) @ E <|Ψ|> {{ φ }}.
+  Lemma ewp_EData_exn η c es E ψ φs φ :
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <|ψ|> {{ φi }}) -∗
+    (∀ vs, ([∗ list] vi;φi ∈ vs;φs, φi (O2Ret vi)) -∗ φ (O2Ret (VData c (VTuple vs)))) -∗
+    ([∗ list] φi ∈ φs, ∀ e, φi (O2Throw e) -∗ φ (O2Throw e)) -∗
+    EWP eval η (EData c (ETuple es)) @ E <|ψ|> {{ φ }}.
   Proof.
-    iIntros "He E R /=". simpl_eval.
-    iApply ewp_bind_exn. iApply (ewp_mono with "He").
-    iIntros ([]) "H /=".
-    - iApply ewp_value. iApply "R". auto.
-    - iApply "E". auto.
+    iIntros "He Hv Hexn /=". simpl_eval.
+    iApply ewp_bind_exn.
+    replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
+    { simpl_eval; reflexivity. }
+    iApply (ewp_ETuple_exn with "He [Hv]").
+    - iIntros (args) "Hargs". iApply ewp_value.
+      iApply ("Hv" with "Hargs").
+    - iApply "Hexn".
   Qed.
+
+  Lemma ewp_EData η c es E ψ φs φ :
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗
+    (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VData c (VTuple vs))) -∗
+    EWP eval η (EData c (ETuple es)) @ E <|ψ|> {{ RET v, φ v }}.
+  Proof.
+    iIntros "Hes Hmon /=". simpl_eval.
+    iApply ewp_bind.
+    replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
+    { simpl_eval; reflexivity. }
+    iApply (ewp_ETuple with "Hes").
+    iIntros (args) "Hargs". iApply ewp_value.
+    iApply ("Hmon" with "Hargs").
+  Qed.
+
 
   (* E/VConstant is a macro for E/VData *)
   Lemma ewp_EConstant η c E Ψ φ :
@@ -411,6 +430,38 @@ Section ewp_rules_expr.
   Qed.
 
   (** * EXData : data → expr → expr *)
+  Lemma ewp_EXData_exn η π l e E ψ φ1 φ :
+    lookup_path η π = ret (VLoc l) ->
+    EWP eval η e @ E <|ψ|> {{ φ1 }} -∗
+    propagate_exn φ1 φ -∗
+    propagate_ret_fmap (λ v, VXData l v) φ1 φ -∗
+    EWP eval η (EXData π e) @ E <|ψ|> {{ φ }}.
+  Proof.
+    iIntros (Hlookup) "He Hexn Hret".
+    simpl_eval. rewrite Hlookup. simpl.
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "He").
+    iIntros ([|]) "Hφ".
+    - iApply ewp_value. by iApply "Hret".
+    - by iApply "Hexn".
+  Qed.
+
+  Lemma ewp_EXData η π l es E ψ φs φ :
+    lookup_path η π = ret (VLoc l) ->
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗
+    (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VXData l (VTuple vs))) -∗
+    EWP eval η (EXData π (ETuple es)) @ E <|ψ|> {{ RET v, φ v }}.
+  Proof.
+    iIntros (Hlookup) "He Hmon".
+    simpl_eval. rewrite Hlookup. simpl.
+    iApply ewp_bind.
+    replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
+    {  simpl_eval; reflexivity. }
+    iApply (ewp_ETuple with "He").
+    iIntros (args) "Hargs". iApply ewp_value.
+    by iApply "Hmon".
+  Qed.
+
   (** * ERecord : list fexpr → expr *)
   (** * ERecordUpdate : expr → list fexpr → expr *)
   (** * ERecordAccess : expr → field → expr *)
@@ -544,7 +595,8 @@ Section ewp_rules_expr.
       by iApply ewp_value.
   Qed.
 
-  Lemma ewp_EOpEq η e1 e2 φ1 φ2 φ E Ψ :
+  Lemma ewp_EOpEq η e1 e2 (φ1 φ2 : val -> iProp Σ)
+    (φ : outcome2 val exn -> iProp Σ) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ RET v1, φ1 v1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ v1 v2, φ1 v1 ∗ φ2 v2 -∗
@@ -598,7 +650,7 @@ Section ewp_rules_expr.
     - iApply ("E" with "H").
   Qed.
 
-  Lemma ewp_ELet {η bs e} φ' φ E Ψ :
+  Lemma ewp_ELet {η bs e} (φ' : env -> iProp Σ) φ E Ψ :
     EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φ' v }} -∗
     (∀ δ, φ' δ -∗ EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet bs e) @ E <|Ψ|> {{ φ }}.
@@ -613,7 +665,7 @@ Section ewp_rules_expr.
   (* Specialized [ELet] lemmas *)
 
   (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
-  Corollary ewp_ELet_singleton_total {η p e e'} Φ φ E Ψ:
+  Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
@@ -631,7 +683,7 @@ Section ewp_rules_expr.
   Qed.
 
   (* Special case of [let x = e' in e] *)
-  Lemma ewp_ELet_PVar_1 {η x e e'} Φ φ E Ψ:
+  Lemma ewp_ELet_PVar_1 {η x e e'} (Φ : val -> iProp Σ) φ E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗ EWP eval ((x, v) :: η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [Binding (PVar x) e'] e) @ E <|Ψ|> {{ φ }}.

@@ -225,12 +225,23 @@ Section verification.
     Proof.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
-      rewrite deep_handler_spec_unfold /deep_handler_spec_pre.
-      iSplit.
+      prove_handler_spec.
+
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        destruct o; red_match; Simp; Ret; by iPureIntro. }
+        handle_cons.
+        { Simp. Ret. by iPureIntro. }
+
+        iIntros "%no_match".
+        handle_cons.
+        { Simp. Ret. by iPureIntro. }
+
+        iIntros "%no_match1".
+        handle_cons.
+
+        iIntros "%no_match3".
+        destruct o; simpl in *; destruct_hyps no_match1 no_match. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -243,7 +254,15 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        red_match.
+        iApply deep_handle_cons_no_resources.
+        { iPureIntro; specify_cpattern; apply I. }
+        iIntros "_".
+        iApply deep_handle_cons_no_resources.
+        { iPureIntro; specify_cpattern; apply I. }
+        iIntros "_".
+        handle_cons; last first.
+        { iIntros "%Hf". destruct_hyp Hf. }
+        fold eval.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         Simp; Ret; simpl.
@@ -261,23 +280,6 @@ Section verification.
 
     Definition invert := __fun9.
 
-    Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
-
-
-    Lemma ewp_ELet_singleton_var spec η x e e' ψ Q :
-      EWP eval η e <| ψ |> {{ RET v, spec v }} -∗
-      (∀ v, spec v -∗ EWP eval ((x, v) :: η) e' <| ψ |> {{ Q }}) -∗
-      EWP eval η (ELet [Binding (PVar x) e] e') <| ψ |> {{ Q }}.
-    Proof.
-      iIntros "He He'". simpl_eval.
-      Par. Bind.
-      iApply (ewp_mono with "He").
-      iIntros ([|]); [ simpl | done ].
-      iIntros "Hspec".
-      simpl_extend.
-      by iApply "He'".
-    Qed.
-
     Lemma ewp_invert : ⊢ invert_spec invert.
       iIntros (iter) "Hiter".
       (* Initialise handler view and iterator view. *)
@@ -287,15 +289,10 @@ Section verification.
       Call.
       (* [fun iter -> ...] has been translated as
          [fun x -> match x with | iter -> ...]. *)
-      iApply ewp_EMatch.
-      iApply (ewp_deep_handler _ ⊥ (ieq ?[y])).
-      { Simp. by Ret. }
-      rewrite deep_handler_spec_unfold; iSplit; last first.
-      (* Trivially discard the effect case. *)
-      { iIntros "!#" (??) "HF".
-        by iPoseProof (upcl_bottom with "HF") as "F". }
-      iIntros (? ->) "!> !>".
-      enter_branch.
+      iModIntro.
+      prove_simple_match. { Simp. Ret. equality. }
+      iModIntro.
+      handle_cons; [ | iIntros "[]" ].
 
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.
@@ -305,7 +302,7 @@ Section verification.
       iExists _; iSplit; [ iPureIntro; reflexivity | ].
 
       (* [let yield x = ...] *)
-      iApply (ewp_ELet_singleton_var
+      iApply (ewp_ELet_PVar_1
                 (λ v,
                   □ ∀ (Xs : list A) (X : A),
                     iterView γ Xs -∗
@@ -338,7 +335,7 @@ Section verification.
       { iIntros "!>" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
       iIntros (? ->) "!> !>".
-      enter_branch.
+      handle_cons; [ | iIntros "[]" ].
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.

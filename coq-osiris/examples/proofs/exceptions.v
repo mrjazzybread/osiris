@@ -57,26 +57,28 @@ Proof.
     pure_simp; unfold catch_head_spec; intros.
     iIntros.
     iApply ewp_eval. iModIntro.
-    iApply ewp_EMatch.
-    iApply ewp_handle.
+    prove_match.
     { (* Call to [head]. *)
       Simp. iApply Hhead. }
-    { (* Show that h satisfies shallow_handler_spec *)
-      iSplit.
-      { (* Value/exception case. *)
-        iIntros (o) "Ho"; simpl.
-        iModIntro.
-        destruct o; cbn.
-        { Simp. iApply ewp_value. iApply ewp_value. cbn.
-          iDestruct "Ho" as "(%h & %t & -> & ->)".
-          iPureIntro. exists (Some h). eauto. }
-        { iDestruct "Ho" as "(-> & ->)".
-          Simp. iApply ewp_value. iApply ewp_value. cbn.
-          iPureIntro. exists None. eauto. } }
-      { (* Effect performing case. *)
-        iIntros (v k) "Hperform".
-        iPoseProof (upcl_bottom with "Hperform") as "F".
-        done. } } }
+    iIntros ([h|e]).
+    { (* Value case. *)
+      iIntros "(%h0 & %t & -> & ->)".
+      iModIntro.
+      iApply deep_handle_cons_no_resources.
+      { iPureIntro; specify_cpattern. apply I. }
+      iIntros "_".
+      handle_cons.
+      { Simp. iApply ewp_value. iApply ewp_value. simpl.
+        iExists (Some h0). equality. }
+      { iIntros "[]". } }
+    { (* Exception case. *)
+      iIntros "[-> ->]".
+      handle_cons.
+      { fold eval.
+        iApply ewp_EConstant. iApply ewp_value.
+        iExists (None). done. }
+      iIntros "[]". } }
+
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
 
   (* Struct item: [let catch_head2 l = ...] *)

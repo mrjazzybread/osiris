@@ -502,11 +502,11 @@ Qed.
 
 Ltac pattern_hook ::=
   first
-    [ pat_pRoot; intros
-    | pat_pNodeL; intros
-    | pat_pNodeR; intros
-    | pat_pLeaf; intros
-    | pat_pNode; intros
+    [ pat_pRoot
+    | pat_pNodeL
+    | pat_pNodeR
+    | pat_pLeaf
+    | pat_pNode
     ].
 
 (* Specification for each function *)
@@ -573,7 +573,7 @@ Proof.
 
   (* Match on [ctx] *)
   eapply pure_eval_match. { pure_path. reflexivity. }
-  pure_match; abstract_env. (* Was very slow, now just slow *)
+  pure_match. (* Very slow. *)
 
   (* Case: [ctx] matches [Root] *)
   { pure_data.
@@ -587,8 +587,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (l, x, Node r a (Node t0 a0 t1), z'0)).
-      eapply IH; unfold zlt; subst; auto with arith. }
+    { eapply IH; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
 
@@ -596,8 +595,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (Node t1 a0 l, x, Node r a t0, z'0)).
-      eapply IH; unfold zlt; subst; auto with arith. }
+    { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 
@@ -610,8 +608,7 @@ Proof.
     pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     pure_call.
-    { specialize (IH (Node t0 a l, x, Node r a0 t1, z'0)).
-      eapply IH; unfold zlt; subst; auto with arith. }
+    { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 
@@ -619,8 +616,7 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     pure_call.
-    { specialize (IH (Node (Node t1 a0 t0) a l, x, r, z'0)).
-      eapply IH; unfold zlt; subst; auto with arith. }
+    { eapply IH; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
 Qed.
