@@ -3,7 +3,7 @@ From stdpp Require Import relations.
 From osiris Require Import base lang syntax.
 From osiris.semantics Require Import code eval step simplification.
 
-(** [may] relation : reduction steps for pure computations *)
+(** [may] relation: reduction steps for pure computations *)
 
 (* The [may] relation represents reduction steps to reason about pure
 computations. It is similar to [step] reductions that do not mention the store,
@@ -733,7 +733,7 @@ Proof.
     + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_crash; eauto.
 Qed.
 
-(* TODO many lemma should be called [Par], not [par] *)
+(* Simpler version for the macro [par] *)
 Lemma pure_par {A1 A2 E} (m1 m2 : micro _ E) φ1 φ2 (φ : A1 * A2 → Prop) ψ :
   pure m1 φ1 ψ →
   pure m2 φ2 ψ →
