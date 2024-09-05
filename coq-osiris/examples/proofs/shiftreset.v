@@ -123,6 +123,68 @@ Section verification.
     iIntros "%F". tauto.
   Qed.
 
+  From Ltac2 Require Import Ltac2.
+  Set Default Proof Mode "Classic".
+
+  Ltac2 rec unfold_big_sep () :=
+    let igoal := iris_goal () in
+    lazy_match! igoal with
+    | big_sepL2 _ [] _ =>
+        iApply @big_sepL2_nil; iApply @bi_emp_intro
+    | big_sepL2 _ (_ :: _) _ =>
+        iApply @big_sepL2_cons; iSplit;
+        Control.focus 2 2 unfold_big_sep
+    | _ => Message.print (Message.of_constr igoal)
+    end.
+
+  Eval hnf in (intro_patterns.intro_pat.parse "->").
+
+  Ltac2 invert_big_sep_nil (hypname : constr) :=
+    ltac1:(hypname |-
+             let pat := constr:(intro_patterns.IIdent hypname) in
+             _iDestruct0 (@big_sepL2_nil_inv_r with hypname) pat;
+             _iDestruct0 hypname (intro_patterns.IRewrite Right))
+            (Ltac1.of_constr hypname).
+
+  (* For now we hardcode the argument name. This is very bad and will
+     not work when there is more than one argument. *)
+
+  Ltac2 invert_big_sep_cons (hypname : constr) :=
+    let rewrite_or_fresh :=
+      Control.plus
+        (fun _ => '(intro_patterns.IRewrite Right))
+        (fun _ =>
+           Control.plus
+             (fun _ => '(intro_patterns.IPure intro_patterns.IGallinaAnon))
+             (fun _ => '(intro_patterns.IIdent (INamed "HData_arg"))))
+    in
+    let pat := Std.eval_red
+                 constr:(intro_patterns.intro_pat.big_conj
+                    [intro_patterns.IPure intro_patterns.IGallinaAnon;
+                     intro_patterns.IPure intro_patterns.IGallinaAnon;
+                     intro_patterns.IRewrite Right;
+                     $rewrite_or_fresh;
+                     intro_patterns.IIdent (INamed $hypname)])
+    in
+    ltac1:(hypname pat |-
+             let h1 := iFresh in
+             _iDestruct0 (@big_sepL2_cons_inv_r with hypname) pat)
+            (Ltac1.of_constr hypname) (Ltac1.of_constr pat).
+
+  Ltac2 rec invert_big_sep (hypname : constr) :=
+    Control.plus
+      (fun _ => invert_big_sep_nil hypname)
+      (fun _ => invert_big_sep_cons hypname; invert_big_sep hypname).
+
+
+  Ltac2 eXData () :=
+    iApply ewp_EXData > [ reflexivity
+                        | unfold_big_sep ()
+                        | ltac1:(iIntros (?) "HData_args_hyp");
+                          invert_big_sep '"HData_args_hyp" ].
+
+  Ltac2 Notation "EXData" := eXData ().
+  Tactic Notation "EXData" := ltac2:(EXData).
 
   Lemma ewp_shift b e Ψ Φ Q : shift_spec b e Ψ Φ Q.
   Proof.
@@ -132,16 +194,9 @@ Section verification.
     Call. iNext.
 
     iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
-    { (* TODO: There must be a better way... *)
-      iApply ewp_EXData; [ reflexivity | | ].
-      iApply big_sepL2_cons. iSplit; [ | by iApply big_sepL2_nil ].
-      { iApply ewp_EPath. iApply ewp_value. equality. }
-      iIntros (vs) "Hargs".
-      iPoseProof (big_sepL2_cons_inv_r with "Hargs") as "Hargs".
-      iDestruct "Hargs" as "(%v & %l & -> & -> & Hargs)".
-      iPoseProof (big_sepL2_nil_inv_r with "Hargs") as "Hargs".
-      iDestruct "Hargs" as "->".
-      iPureIntro; reflexivity. }
+    { EXData. (* TODO: Improve *)
+      - iApply ewp_EPath. iApply ewp_value. equality.
+      - iRewrite "HData_arg". equality. }
 
     iIntros (?) "->".
     iApply ewp_perform.
