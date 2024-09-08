@@ -9,7 +9,6 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
 From osiris.semantics Require Import step code simplification pure.
-From osiris Require Import util.order.
 
 (** *Basic rules on the program logic
 

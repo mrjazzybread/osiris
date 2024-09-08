@@ -418,8 +418,6 @@ Proof.
   tauto.
 Qed.
 
-(* This lemma replaces [eval] with [eval'] at the root of the goal. *)
-
 Lemma advance_SimpEvalEAssert η e :
   simp (eval η e) (ret #true) →
   simp (eval η (EAssert e)) ok.
