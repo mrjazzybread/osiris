@@ -64,20 +64,15 @@ Proof.
     { (* Value case. *)
       iIntros "(%h0 & %t & -> & ->)".
       iModIntro.
-      iApply deep_handle_cons_no_resources.
-      { iPureIntro; specify_cpattern. apply I. }
-      iIntros "_".
+      handle_cons.
       handle_cons.
       { Simp. iApply ewp_value. iApply ewp_value. simpl.
-        iExists (Some h0). equality. }
-      { iIntros "[]". } }
+        iExists (Some h0). equality. } }
     { (* Exception case. *)
       iIntros "[-> ->]".
-      handle_cons.
-      { fold eval.
-        iApply ewp_EConstant. iApply ewp_value.
-        iExists (None). done. }
-      iIntros "[]". } }
+      handle_cons; fold eval.
+      iApply ewp_EConstant. iApply ewp_value.
+      iExists (None). done. } }
 
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
 

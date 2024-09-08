@@ -624,7 +624,11 @@ Ltac2 rec specify_cpattern () : int :=
               let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
               Int.add n m
           | _ =>
-              eapply cpat_mismatch > [ cbn; reflexivity | ]; 0
+              eapply cpat_mismatch > [ cbn; reflexivity | ];
+              if Constr.is_evar (Control.goal ()) then
+                apply I; 0
+              else
+                1
           end
       | _ =>
           (* If [o] is not a concrete outcome. *)

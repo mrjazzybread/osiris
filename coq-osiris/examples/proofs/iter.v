@@ -23,198 +23,6 @@ Definition isListIter (iter : val) : iProp Σ :=
       {{ | RET v => ⌜ v = VUnit ⌝ ∗ I l;
          | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
 
-From Ltac2 Require Import Ltac2.
-Set Default Proof Mode "Classic".
-
-Ltac2 iris_goal () :=
-  lazy_match! goal with
-  | [ |- environments.envs_entails _ ?g ] => g
-  | [ |- _ ] => Control.throw (Tactic_failure None)
-  end.
-
-Ltac2 rec strip_laters (g : constr) :=
-  lazy_match! g with
-  | bi_later ?c => strip_laters c
-  | _ => g
-  end.
-
-Ltac2 prepare_pattern_post () :=
-  lazy_match! goal with
-  | [ |- pattern _ _ _ ?φ _ ] =>
-      let η := open_constr:(_:env) in
-      unify $φ (fun δ => δ = $η)
-  end.
-
-Lemma bi_sep_intro (P Q : iProp Σ) :
-  P -∗
-  Q -∗
-  P ∗ Q.
-Proof.
-  iStartProof.
-  iIntros "H1 H2". iFrame.
-Qed.
-
-Ltac to_ident_list env acc :=
-  match env with
-  | environments.Enil => constr:(acc)
-  | environments.Esnoc ?env ?h _ =>
-      to_ident_list env (h::acc)
-  end.
-
-Ltac all_intuitionistic_hyps :=
-  match goal with
-  | |- environments.envs_entails ?env _ =>
-      match env with
-      | environments.Envs ?env_intuitionistic _ _ =>
-          to_ident_list env_intuitionistic (@nil ident)
-      end
-  end.
-
-Ltac all_spatial_hyps :=
-  match goal with
-  | |- environments.envs_entails ?env _ =>
-      match env with
-      | environments.Envs _ ?env_spatial _ =>
-          to_ident_list env_spatial (@nil ident)
-      end
-  end.
-
-Ltac conj_hyps hyps :=
-  match hyps with
-  | [] => idtac
-  | [?hyp] => idtac
-  | ?h1 :: ?h2 :: ?hyps =>
-      let h := iFresh in
-      iPoseProof (bi_sep_intro) as h;
-      iSpecialize (h with h1);
-      iSpecialize (h with h2);
-      iRename h into h1;
-      conj_hyps (h1 :: hyps)
-  end.
-
-Ltac unconj_hyps_aux hyp_name hyps :=
-  match hyps with
-  | [] => idtac
-  | [_] => idtac
-  | ?h1 :: ?t =>
-      _iDestruct0 hyp_name
-        (intro_patterns.IList [[intro_patterns.IIdent hyp_name;
-                                intro_patterns.IIdent h1]]);
-      unconj_hyps_aux hyp_name t
-
-  end.
-
-Ltac unconj_hyps hyps :=
-  match hyps with | [] => idtac | ?hyp_name :: _ =>
-  let hyps := (eval vm_compute in (List.rev hyps)) in
-  unconj_hyps_aux hyp_name hyps
-  end.
-
-Ltac revert_intuitionistic hyps :=
-  match hyps with
-  | [] => idtac
-  | ?h :: ?t =>
-      iRevert h; iIntros h; revert_intuitionistic t
-  end.
-
-Ltac unrevert_intuitionistic hyps :=
-  match hyps with
-  | [] => idtac
-  | ?h :: ?t =>
-      iRevert h;
-      _iIntros0 (intro_patterns.IIntuitionistic (intro_patterns.IIdent h));
-      unrevert_intuitionistic t
-  end.
-
-Ltac reintroduce_env intuitionistic_hyps spatial_hyps :=
-  match intuitionistic_hyps with
-  | ?h1 :: _ =>
-      iIntros h1;
-      match spatial_hyps with
-      | ?h2 :: _ => unconj_hyps [h1; h2]
-      | _ => idtac
-      end
-  | _ =>
-      match spatial_hyps with
-      | ?h2 :: _ =>
-          iIntros h2
-      | _ => idtac
-      end
-  end;
-  unconj_hyps intuitionistic_hyps;
-  unrevert_intuitionistic intuitionistic_hyps;
-  unconj_hyps spatial_hyps.
-
-Ltac apply_deep_handle_cons_unary :=
-  let intuitionistic_hyps := all_intuitionistic_hyps in
-  let spatial_hyps := all_spatial_hyps in
-  conj_hyps spatial_hyps;
-  revert_intuitionistic intuitionistic_hyps;
-  conj_hyps intuitionistic_hyps;
-  match intuitionistic_hyps with
-  | ?h1 :: _ =>
-      match spatial_hyps with
-      | ?h2 :: _ => conj_hyps [h1; h2]
-      | _ => idtac
-      end
-  | _ => idtac
-  end;
-  match intuitionistic_hyps with
-  | ?h1 :: _ =>
-      iApply (deep_handle_cons_unary with h1)
-  | _ => match spatial_hyps with
-        | ?h2 :: _ => iApply (deep_handle_cons_unary with h2)
-        | _ => iApply deep_handle_cons_no_resources
-        end
-  end;
-  [ iPureIntro;
-    specify_cpattern;
-    pattern_match;
-    iStartProof
-  | try iModIntro ];
-  reintroduce_env intuitionistic_hyps spatial_hyps.
-
-(* Ltac hyps_from_selpat selpat := *)
-(*   let pats := spec_pat.parse selpat in *)
-(*   let pat := match pats with [?x] => x end in *)
-(*   match pat with *)
-(*   | SGoal (SpecGoal _ false _ ?hyps _) => hyps *)
-(*   | SGoal (SpecGoal _ true _ ?hyps _) => *)
-(*       let starting_hyps := all_hyps in *)
-(*       let hyps := (eval vm_compute in (hyp_different starting_hyps hyps)) in *)
-(*       hyps *)
-(*   end. *)
-
-(* Lemma trivial_goal : @bi_emp_valid (iProp Σ) ⌜ True ⌝. *)
-(* Proof. done. Qed. *)
-
-(* Ltac2 red_match (intropat : constr) := *)
-(*   let g := strip_laters (iris_goal ()) in *)
-(*   lazy_match! g with *)
-(*   | ewp_def _ (deep_eval_match _ ?bs ?o) _ _ => *)
-(*       lazy_match! Std.eval_hnf bs with *)
-(*       | _ :: _ => *)
-(*           ltac1:(selpat |- *)
-(*                    let hyps := hyps_from_selpat selpat in *)
-(*                    conj_hyps hyps; *)
-(*                    match hyps with *)
-(*                    | [] => iApply (deep_handle_cons_unary); [ iApply trivial_goal | | ] *)
-(*                    | ?h :: _ => iApply (deep_handle_cons_unary with h) *)
-(*                    end *)
-(*                 ) (Ltac1.of_constr intropat); *)
-(*           Control.focus 1 1 *)
-(*             (fun _ => *)
-(*                ltac1:(iPureIntro); *)
-(*                let m := specify_cpattern () in *)
-(*                Control.focus 1 m (fun _ => pattern_match0 ())); *)
-(*             Control.focus 2 2 (fun _ => *)
-(*                                  let no_match := Fresh.in_goal @no_match in *)
-(*                                  ltac1:(no_match |- iIntros (no_match)) (Ltac1.of_ident no_match)) *)
-(*       | _ => () *)
-(*       end *)
-(*   | _ => Message.print (Message.of_constr g) *)
-(*   end. *)
-
 Lemma iter_module :
   ⊢ EWP (eval_mexpr stdlib_env __main)
     {{ RET m, module_spec [("iter", isListIter)] m}}.
@@ -256,7 +64,7 @@ Proof.
     { Simp; Ret; equality. }
 
     (* We are now facing the branches of the match. *)
-    apply_deep_handle_cons_unary.
+    iModIntro; handle_cons.
     { (* Entering the first branch where [l] is a nil. *)
       iApply ewp_EUnit_exn; simpl.
       (* Subgoal: show the postcondition when we return unit. *)
@@ -265,10 +73,9 @@ Proof.
       rewrite app_nil_r. iApply "HI". }
 
     (* As we continue to the next branch, we learn that we did not
-       match the first branch. *)
-    iIntros (no_match1).
+       match the first branch, see [H0]. *)
 
-    apply_deep_handle_cons_unary.
+    handle_cons.
     { (* Entering the second branch, where [l] is a cons. *)
       iApply (ewp_ESeq_exn with "[HI]").
       { (* Application of f to the head of the list. *)
@@ -311,9 +118,8 @@ Proof.
 
     (* As we have now traversed all branches, we can use the
        no_matching hypotheses to show a contradiction. *)
-    iIntros (no_match2).
     iApply deep_handle_nil_ret.
-    ltac2:(destruct_hyp @no_match2). }
+    destruct_hyp H1. }
 
   (* We can now show the module specification. *)
   iIntros ([δ η]).

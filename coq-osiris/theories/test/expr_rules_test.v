@@ -276,7 +276,7 @@ Proof.
   { iApply ewp_EInt. encode. }
 
   iIntros_RET "->".
-  handle_cons; [ | iIntros "[]" ].
+  handle_cons.
   iApply ewp_EConstant. iExists true. auto.
 Qed.
 
@@ -301,7 +301,7 @@ Proof.
 
   handle_cons.
   - iApply ewp_EConstant; iExists true; auto.
-  - iIntros "%no_match". congruence.
+  - congruence.
 Qed.
 
 (* match 2 with 1 -> true | _ -> false *)
@@ -316,8 +316,8 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-  handle_cons. iIntros "_".
-  handle_cons; [ | iIntros "[]" ].
+  handle_cons.
+  handle_cons.
   iApply ewp_EConstant; iExists false; auto.
 Qed.
 
@@ -334,11 +334,11 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-  handle_cons. iIntros "_".
-  handle_cons. iIntros "_".
+  handle_cons.
+  handle_cons.
   handle_cons.
   { iApply ewp_EInt. iExists 2. auto. }
-  iIntros "%no_match"; congruence.
+  congruence.
 Qed.
 
 (* checking now whether pat_pNil works with
@@ -358,11 +358,12 @@ Proof.
 
   iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
   handle_cons.
+  revert H0.
   instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).
   iIntros "%no_match1".
   handle_cons.
   { iApply ewp_EInt. by iExists 2. }
-  iIntros "%no_match2". congruence.
+  congruence.
 Qed.
 
 End test_expr_rules.

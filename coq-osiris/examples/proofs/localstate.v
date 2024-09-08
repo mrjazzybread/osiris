@@ -210,7 +210,7 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
-      handle_cons; [ | iIntros "[]" ].
+      handle_cons.
 
       iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
@@ -235,13 +235,9 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %->.
 
        iNext.
-       iApply deep_handle_cons_no_resources.
-       { iPureIntro; specify_cpattern. apply I. }
-       iIntros "_".
-       iApply deep_handle_cons_no_resources.
-       { iPureIntro; specify_cpattern. apply I. }
-       iIntros "_".
-       handle_cons; last by iIntros "[ [] | [] ]".
+       handle_cons.
+       handle_cons.
+       handle_cons; last tauto. (* Hard to guess that the last goal is trivial. *)
        fold eval.
 
        (* EWP Goal: [continue k (!var : t)]. *)
@@ -271,14 +267,13 @@ Section verification.
 
        (* Skip the return, exception, and [Get] branches. *)
        iNext.
-       iApply deep_handle_cons_no_resources.
-       { iPureIntro. specify_cpattern. apply I. }
-       iIntros "no_match".
-       iApply deep_handle_cons_no_resources.
-       { iPureIntro. specify_cpattern. apply I. }
-       iIntros "no_match1".
+       handle_cons.
+       handle_cons.
+       (* handle_cons. *)
        iApply deep_handle_cons_no_resources.
        { iPureIntro. specify_cpattern.
+         (* This causes a Match_failure, why?
+         pattern_match. *)
          eapply pat_PXData_neq. simpl. eassumption.
          assumption. }
        iIntros "no_match2".
@@ -314,9 +309,8 @@ Section verification.
          rewrite /deep_handler_spec seal_eq.
          iApply ("IH" with "Hauth Hl"). }
 
-       iIntros "%no_match3".
-       ltac2:(destruct_hyp @no_match3). }
-       Unshelve. apply True.
+       tauto.
+       Unshelve. apply True. }
    Qed.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.

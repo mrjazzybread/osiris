@@ -457,6 +457,23 @@ Ltac2 reintroduce_env (intuitionistic_hyps : constr list) (spatial_hyps : constr
   unrevert_intuitionistic intuitionistic_hyps;
   unconj_hyps spatial_hyps.
 
+Ltac2 do_iintros () :=
+  try (iModIntro);
+  let igoal := iris_goal () in
+  lazy_match! igoal with
+  | bi_wand ?h _ =>
+      lazy_match! h with
+      | ⌜True⌝%I => iIntros "_"
+      | True => iIntros "_"
+      | ⌜False⌝%I => iIntros "[]"
+      | False => iIntros "[]"
+      | ⌜_⌝%I =>
+          ltac1:(_iIntros0 (intro_patterns.IPure (intro_patterns.IGallinaAnon)))
+      | _ => iIntros "?"
+      end
+  | _ => ()
+  end.
+
 (* [apply_deep_handle_cons_unary] expects an iris goal of the form
    [EWP deep_eval_match η (b :: bs) ...]. It applies the
    [deep_handle_cons_unary] lemma before progressing through the
@@ -490,10 +507,18 @@ Ltac2 apply_deep_handle_cons_unary () :=
                            let n := specify_cpattern () in
                            if (Int.gt n 0)
                            then
-                             Control.focus 1 n (fun _ => pattern_match; iStartProof)
+                             Control.focus 1 n
+                               (fun _ =>
+                                  match! goal with
+                                  | [ |- ?g ] => if Constr.is_evar g then
+                                                 apply I
+                                               else
+                                                 pattern_match; iStartProof
+                                  end)
                            else ());
-  last (fun _ => try0 iModIntro);
-  all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps).
+  all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps);
+  last (do_iintros).
+
 
 Ltac2 Notation "handle_cons" := apply_deep_handle_cons_unary ().
 Tactic Notation "handle_cons" := ltac2:(handle_cons).
