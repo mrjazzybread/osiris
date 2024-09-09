@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp_tactics.
+From osiris.program_logic Require Import simp_tactics.
 
 (* Tuples. *)
 

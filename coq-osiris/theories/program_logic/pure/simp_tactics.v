@@ -3,7 +3,6 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.proofmode Require Import equality.
-From osiris.proofmode Require Import specifications.
 
 (* A pure computation is terminating, deterministic, and does not use
    mutable state. *)
@@ -330,39 +329,42 @@ Proof.
   rewrite val_as_bool_VBool. tauto.
 Qed.
 
-Lemma advance_simp_pure_spec_val_as_struct `{Σ: iprop.gFunctors} v a l P :
-  @pure_spec Σ val (SpecModule a l P) v →
-  simp (val_as_struct v) (Ret (val_as_struct_total v)).
-Proof.
-  intros H. pose proof H as (?&->&_).
-  by erewrite pure_spec_val_as_struct.
-Qed.
+(* Commented out during refactoring because it was painful to make
+   this file a dependency of [specifications.v]. *)
 
-Lemma advance_simp_is_module_val_as_struct v Λ :
-  is_module Λ v →
-  simp (val_as_struct v) (Ret (val_as_struct_total v)).
-Proof. intros?. by erewrite is_module_val_of_struct. Qed.
+(* Lemma advance_simp_pure_spec_val_as_struct `{Σ: iprop.gFunctors} v a l P : *)
+(*   @pure_spec Σ val (SpecModule a l P) v → *)
+(*   simp (val_as_struct v) (Ret (val_as_struct_total v)). *)
+(* Proof. *)
+(*   intros H. pose proof H as (?&->&_). *)
+(*   by erewrite pure_spec_val_as_struct. *)
+(* Qed. *)
+
+(* Lemma advance_simp_is_module_val_as_struct v Λ : *)
+(*   is_module Λ v → *)
+(*   simp (val_as_struct v) (Ret (val_as_struct_total v)). *)
+(* Proof. intros?. by erewrite is_module_val_of_struct. Qed. *)
 
 
-Lemma advance_simp_is_module_lookup_name v Λ n :
-  is_module Λ v →
-  In n Λ →
-  simp (lookup_name (val_as_struct_total v) n)
-       (Ret (lookup_name_total (val_as_struct_total v) n)).
-Proof.
-  intros??.
-  by erewrite is_module_lookup_name_total.
-Qed.
+(* Lemma advance_simp_is_module_lookup_name v Λ n : *)
+(*   is_module Λ v → *)
+(*   In n Λ → *)
+(*   simp (lookup_name (val_as_struct_total v) n) *)
+(*        (Ret (lookup_name_total (val_as_struct_total v) n)). *)
+(* Proof. *)
+(*   intros??. *)
+(*   by erewrite is_module_lookup_name_total. *)
+(* Qed. *)
 
-Lemma advance_simp_pure_spec_lookup_name `{Σ : iprop.gFunctors} v a l P n :
-  @pure_spec Σ val (SpecModule a l P) v →
-  In n (List.map fst l) →
-  simp (lookup_name (val_as_struct_total v) n)
-       (Ret (lookup_name_total (val_as_struct_total v) n)).
-Proof.
-  intros H?. pose proof H as (?&->&_).
-  by erewrite pure_spec_lookup_total.
-Qed.
+(* Lemma advance_simp_pure_spec_lookup_name `{Σ : iprop.gFunctors} v a l P n : *)
+(*   @pure_spec Σ val (SpecModule a l P) v → *)
+(*   In n (List.map fst l) → *)
+(*   simp (lookup_name (val_as_struct_total v) n) *)
+(*        (Ret (lookup_name_total (val_as_struct_total v) n)). *)
+(* Proof. *)
+(*   intros H?. pose proof H as (?&->&_). *)
+(*   by erewrite pure_spec_lookup_total. *)
+(* Qed. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -679,13 +681,13 @@ with simp1 :=
   | simple eapply advance_simp_val_as_bool_VFalse; simp0
   | simple eapply advance_simp_val_as_bool_VBool; simp0
 
-  | simple eapply advance_simp_is_module_val_as_struct; done
-  | simple eapply advance_simp_is_module_lookup_name;
-    [ done | by eauto using in_eq, in_cons ]
+  (* | simple eapply advance_simp_is_module_val_as_struct; done *)
+  (* | simple eapply advance_simp_is_module_lookup_name; *)
+  (*   [ done | by eauto using in_eq, in_cons ] *)
 
-  | simple eapply advance_simp_pure_spec_val_as_struct; done
-  | simple eapply advance_simp_pure_spec_lookup_name;
-    [ done | by eauto using in_eq, in_cons ]
+  (* | simple eapply advance_simp_pure_spec_val_as_struct; done *)
+  (* | simple eapply advance_simp_pure_spec_lookup_name; *)
+  (*   [ done | by eauto using in_eq, in_cons ] *)
 
   (* TODO the following 4 rules are useful only in pre/postconditions,
      not in [simp] goals *)

@@ -1,12 +1,7 @@
 From osiris.proofmode Require Export
   equality
-  simp_tactics
-  pure_hoare
-  pure_eval
-  pat
   pure_tactics
   ewp_tactics
-  expr_rules
   notations
   specifications
 .

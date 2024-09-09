@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import equality notations pure_eval.
+From osiris.program_logic Require Import pure_eval.
 
 (* Because the relation [pure] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness
@@ -217,7 +217,7 @@ Lemma pure_rec_call `{Encode X, Encode Y} {A}
   P a x ->
   (∀ vf x,
       (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) ##(φ a) ⊥) ->
-      (∀ (a : A), P a x -> pure (eval (arg ~> #x; f ~> vf; η) e1) ##(φ a) ⊥)) ->
+      (∀ (a : A), P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φ a) ⊥)) ->
   pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) ##(φ a) ⊥.
 Proof.
   intros Hwf HPx Hrec.

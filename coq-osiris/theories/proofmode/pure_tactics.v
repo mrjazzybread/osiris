@@ -1,7 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import simp_tactics pure_eval pure_hoare.
+From osiris.program_logic Require Import simp_tactics pure_eval pure_hoare.
+
 From Ltac2 Require Ltac2.
 
 (* This file contains tactics intended for use during hoare-style proofs of pure

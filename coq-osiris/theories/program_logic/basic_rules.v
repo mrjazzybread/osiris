@@ -7,7 +7,7 @@ From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics.
+From osiris.program_logic Require Import ewp tactics simp_tactics.
 From osiris.semantics Require Import step code simplification pure.
 
 (** *Basic rules on the program logic
@@ -1268,3 +1268,38 @@ Section ewp_eval.
   Qed.
 
 End ewp_eval.
+
+
+(** *General tactics *)
+(* These tactics are declared here because they depende on
+   1. Lemmas defined in [basic_rules.v] such as [ewp_value]
+   2. The [simp] tactic, which is defined in [simp_tactics.v]  *)
+
+(* Start proof mode. *)
+Ltac Start_proof := iStartProof.
+
+(* Try to simplify the goal using the [simp] relation *)
+Ltac Simp :=
+  iApply ewp_simp; first try solve [simp].
+
+(* Hoare-style rules that correspond to [rule] lemmas *)
+Ltac Try := iApply ewp_try.
+
+Ltac Ret := repeat iApply ewp_value.
+
+Ltac Throw := iApply ewp_throw.
+
+Ltac Par :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- environments.envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- environments.envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
+      iApply ewp_simp; first simp
+  | |- environments.envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
+      iApply ewp_Par
+  | _ => fail "The goal must be a par to apply [ewp_par]."
+  end; try done.
+
+Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
