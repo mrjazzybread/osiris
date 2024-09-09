@@ -250,18 +250,17 @@ Proof.
     match goal with
     | |- pure_call2 _ _ _ ?φ =>
         change φ with
-        ((fun '(y, t) =>
+        ((fun y t =>
             fun t' =>
               ∀ x, lookup x t' = (if eqb x y then true else lookup x t))
-           (y, t))
+           y t)
     end.
 
     (* We can now apply our lemma for recursive calls with two arguments.
        Note that we need to state the relation between the initial
        arguments and the precondition through the relation [P]. *)
     eapply pure_rec_call2 with
-      (P := fun '(x1, t1) '(x2, t2) =>
-              x1 = x2 /\ t1 = t2 /\ bst t2).
+      (P := fun _ t2 => bst t2).
     (* Subgoal: the relation we use for induction is well-founded. *)
     { apply proj_tlt_wf. }
     (* Subgoal: the precondition is met of the initial arguments. *)
@@ -271,7 +270,7 @@ Proof.
        abstracting away the initial arguments.
        This makes us do a little bookeeping before we can proceed. *)
     clear dependent t y.
-    intros insert x t IH [??] (-> & -> & Htree).
+    intros insert x t IH Htree.
 
     (* FIXME: Hoare rule for evaluating anonfuns [pure_eval_anonfun] is broken. *)
     pure_simp.
@@ -326,7 +325,7 @@ Proof.
         eapply pure_eval_app2_conseq; try (pure_path; reflexivity).
         { (* We can now use our induction hypothesis, specialized to
              our new arguments. *)
-          eapply IH with (a := (x, t1)).
+          eapply IH.
           { (* Subgoal: show that the well-founded measure decreases. *)
             unfold proj_tlt, tlt. simpl. lia. }
           { (* Subgoal: show the precondition holds on these arguments. *)
@@ -370,7 +369,7 @@ Proof.
           pure_path. pure_path.
           eapply pure_eval_app2_conseq; try (pure_path; reflexivity).
           { (* Apply the induction hypothesis. *)
-            eapply IH with (a := (x, t2)).
+            eapply IH.
             { unfold proj_tlt, tlt; simpl; lia. }
             { repeat split; by inversion Htree. } }
           intros t' Htree'; simpl in Htree'.
@@ -416,15 +415,14 @@ Proof.
        [pure_rec_call2] lemma to be correctly applied. *)
     match goal with
     | |- pure_call2 _ _ _ ?φ =>
-        change φ with ((fun '(x, t) b => b = lookup x t) (x, t))
+        change φ with ((fun x t b => b = lookup x t) x t)
     end.
     (* The precondition is that the second argument is a BST. *)
-    eapply pure_rec_call2 with (P := fun '(x1, t1) '(x2, t2) =>
-                                       x1 = x2 /\ t1 = t2 /\ bst t2).
+    eapply pure_rec_call2 with (P := fun _ t2 => bst t2).
     { apply proj_tlt_wf. }
     { repeat split; assumption. }
     clear dependent x t.
-    intros member x t IH [??] (-> & -> & Ht).
+    intros member x t IH Ht.
 
     pure_simp.
     pure_enter.
@@ -449,7 +447,7 @@ Proof.
       { intros Hlt; simpl in Hlt.
         eapply pure_eval_app2_conseq; try (pure_path; reflexivity).
         { (*Apply the induction hypothesis. *)
-          eapply IH with (a := (x, t1)).
+          eapply IH.
           { (* Subgoal: the measure is decreasing on the arguments. *)
             unfold proj_tlt, tlt; simpl; lia. }
           { (* Subgoal: show the arguments satisfy the precondition. *)
@@ -472,7 +470,7 @@ Proof.
         { intros Hlt; simpl in Hlt.
           eapply pure_eval_app2_conseq; try (pure_path; reflexivity).
           { (* Apply the induction hypothesis. *)
-            eapply IH with (a := (x, t2)).
+            eapply IH.
             { (* Subgoal: show the measure is decreasing on the arguments. *)
               unfold proj_tlt, tlt; simpl; lia. }
             { (* Subgoal: show the arguments satify the precondition. *)

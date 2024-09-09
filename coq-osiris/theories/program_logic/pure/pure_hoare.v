@@ -210,104 +210,103 @@ Qed.
    - [Y] is the type of result.
    - [a : A] is an auxiliary variable used to relate the pre and post. *)
 
-Lemma pure_rec_call `{Encode X, Encode Y} {A}
-  (η : env) (f : var) arg e1 (a : A) (x : X)
-  (P : A -> X -> Prop) (φ : A -> Y -> Prop) (R : X -> X -> Prop) :
+Lemma pure_rec_call `{Encode X, Encode Y}
+  (η : env) (f : var) arg e1 (x : X)
+  (P : X -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
-  P a x ->
+  P x ->
   (∀ vf x,
-      (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) ##(φ a) ⊥) ->
-      (∀ (a : A), P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φ a) ⊥)) ->
-  pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) ##(φ a) ⊥.
+      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φ y) ⊥) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φ x) ⊥)) ->
+  pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) ##(φ x) ⊥.
 Proof.
   intros Hwf HPx Hrec.
-  generalize dependent a.
   induction x as [x IH] using (well_founded_induction Hwf); intros.
   simpl; rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
-  apply Hrec; [ intros a2 y HR HPy | assumption ].
+  apply Hrec; [ intros y HR HPy | assumption ].
   apply IH; auto.
 Qed.
 
 (* - [φ] is the toplevel specification.
    - [φf] is the specification of the function [f]. *)
 
-Lemma pure_letrec `{Encode X, Encode Y} {A}
-  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : A -> Y -> Prop)
-  (P : A -> X -> Prop) (R : X -> X -> Prop) :
+Lemma pure_letrec `{Encode X, Encode Y}
+  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : X -> Y -> Prop)
+  (P : X -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   (* Subgoal:
      Assuming that any recursive call of [f] on a smaller argument
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
-      (∀ (a : A) (y : X), R y x -> P a y -> pure (call vf #y) ##(φf a) ⊥) ->
-      ∀ (a : A), P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φf a) ⊥) ->
+      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φf y) ⊥) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φf x) ⊥)) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
-      (∀ a x, P a x -> pure (call vf #x) ##(φf a) ⊥) ->
+      (∀ x, P x -> pure (call vf #x) ##(φf x) ⊥) ->
       pure (eval ((f, vf) :: η) e2) ##φ ⊥) ->
   pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) ##φ ⊥.
 Proof.
   intros Hwf He1 He2.
   simpl_eval. apply He2. clear He2.
-  intros a y HPy.
+  intros y HPy.
   eapply pure_rec_call; eauto.
 Qed.
 
 Lemma pure_rec_call_no_pre `{Encode X} `{Encode Y}
-  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : Y -> Prop)
+  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : X -> Y -> Prop)
   (R : X -> X -> Prop) :
   well_founded R ->
   (* Subgoal:
      Assuming that any recursive call of [f] on a smaller argument
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
-      (∀ (y : X), R y x -> pure (call vf #y) ##φf ⊥) ->
-      pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##φf ⊥) ->
+      (∀ (y : X), R y x -> pure (call vf #y) ##(φf y) ⊥) ->
+      pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φf x) ⊥) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
-      (∀ (x : X), pure (call vf #x) ##φf ⊥) ->
+      (∀ (x : X), pure (call vf #x) ##(φf x) ⊥) ->
       pure (eval ((f, vf) :: η) e2) ##φ ⊥) ->
   pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) ##φ ⊥.
 Proof.
   intros Hwf He1 He2.
   simpl_eval. apply He2. clear He2.
-  intros y. change φf with ((fun (x : unit) => φf) ()).
-  eapply pure_rec_call with (P := fun _ _ => True); eauto.
+  intros y.
+  eapply pure_rec_call with (P := fun _ => True); eauto.
 Qed.
 
 Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
   pure (call vf arg1) ##(fun c =>
                          pure (call c arg2) ##φ ⊥) ⊥.
 
-Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} {A}
-  η f arg e1 (x : X) (y : Y) (a : A) (φ : A -> W -> Prop)
-  (R : (X * Y) -> (X * Y) -> Prop) (P : A -> (X * Y) -> Prop)
+Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
+  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop)
+  (R : (X * Y) -> (X * Y) -> Prop) (P : X -> Y -> Prop)
   :
   well_founded R ->
-  P a (x, y) ->
+  P x y ->
   (∀ vf x1 y1,
-      (∀ (a : A) (x2 : X) (y2 : Y),
+      (∀ (x2 : X) (y2 : Y),
           R (x2, y2) (x1, y1) ->
-          P a (x2, y2) ->
-          pure_call2 vf #x2 #y2 (φ a)) ->
-      (∀ (a : A),
-          P a (x1, y1) ->
-          pure (eval ((arg, #x1) :: (f, vf) :: η) e1) ##(λ c, pure (call c #y1) ##(φ a) ⊥) ⊥)) ->
-  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ a).
+          P x2 y2 ->
+          pure_call2 vf #x2 #y2 (φ x2 y2)) ->
+      (
+        P x1 y1 ->
+        pure (eval ((arg, #x1) :: (f, vf) :: η) e1) ##(λ c, pure (call c #y1) ##(φ x1 y1) ⊥) ⊥)) ->
+  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ x y).
 Proof.
   intros Hwf HP Hrec.
   remember (x, y) as p eqn:Hpeq.
   rewrite (surjective_pairing p) in Hpeq.
   apply pair_eq in Hpeq as [<- <-].
-  revert HP. generalize a. clear a.
+  revert HP.
   induction p as [p IH] using (well_founded_induction Hwf); intros.
   unfold pure_call2; simpl;
     rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
-  apply Hrec; [ intros a2 x2 y2 HR HP2 | rewrite <- surjective_pairing; apply HP ].
+  apply Hrec; [ intros x2 y2 HR HP2 | apply HP ].
   apply (IH (x2, y2)); auto.
   rewrite surjective_pairing; apply HR.
 Qed.

@@ -182,13 +182,10 @@ Proof.
 
   (* TODO: automate application of [pure_rec_call2]. *)
 
-  change (merge_post l1 l2) with ((fun '(l1, l2) => merge_post l1 l2) (l1, l2)).
-  eapply pure_rec_call2 with (P := fun '(l1, l2) '(l3, l4) => l1 = l3 /\ l2 = l4 /\ merge_pre l3 l4).
-
-
+  eapply pure_rec_call2 with (P := fun l1 l2 => merge_pre l1 l2).
   { apply wf_double_list_length. }
   { auto. }
-  simpl. intros merge x1 y1 IH [l3 l4] (-> & -> & Hpre). fold eval.
+  simpl. intros merge x1 y1 IH Hpre. fold eval.
   abstract_env.
   (* FIXME: rule for pure_eval_EAnonFun is incorrect. *)
   pure_simp.
@@ -222,7 +219,7 @@ Proof.
       (* Evaluate "merge t1 l2" under the cons *)
       pure_eval_app2_conseq.
       { (* Use induction hypothesis on [call merge t1 l2] *)
-        eapply (IH (xs', x0::xs'0)).
+        eapply IH.
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. }
         { (* Subgoal: t1 and l2 satisfy merge's precondition *)
@@ -246,7 +243,7 @@ Proof.
       (* Evaluate "merge l1 t2" under the cons *)
       pure_eval_app2_conseq.
       (* Use induction hypothesis on [call merge l1 t2] *)
-      { eapply (IH (x::xs', xs'0)).
+      { eapply IH.
         { (* Subgoal: justify the recursive call with a size argument *)
           auto with arith. }
         { (* Subgoal: l1 and t2 satisfy merge's precondition *)
@@ -272,11 +269,11 @@ Lemma Split_spec' η :
 Proof.
   unfold split_spec. intros.
 
-  eapply pure_rec_call with (P := fun l1 l2 => l1 = l2).
+  eapply pure_rec_call with (P := fun _ => True).
   { apply wf_list_length. }
   { reflexivity. }
   clear l.
-  intros split ? IH ? ->.
+  intros split ? IH _.
 
   (* pure_rec l (@wf_list_length A). *)
   (* Goal: eval match on l *)
@@ -335,11 +332,11 @@ Proof.
   destruct 1 as (split&Hsplit&_split_spec).
   destruct 1 as (merge&Hmerge&_merge_spec).
   unfold mergesort_spec; intros l ?.
-  eapply pure_rec_call with (P := fun a x => a = x /\ mergesort_pre x).
+  eapply pure_rec_call with (P := mergesort_pre).
   { apply wf_list_length. }
-  { split; [ reflexivity | assumption ]. }
+  { assumption. }
   clear H l.
-  intros mergesort l IH ? (-> & Hpre).
+  intros mergesort l IH Hpre.
 
   eapply pure_eval_match. { pure_path. reflexivity. }
   pure_match; abstract_env.
@@ -368,7 +365,7 @@ Proof.
       { (* Subgoal: show [length l1 < length l ] *)
         rewrite Heql; rewrite Heql in Hl1. apply div2_lt_succ; auto. }
       { (* Subgoal: show that [l1] ⊨ [mergesort_pre] *)
-        split; [ reflexivity | assumption ]. } }
+        assumption. } }
     intros l1' IHl1'.
     eapply pure_eval_let.
     { eapply pure_eval_app. pure_path. pure_path.
@@ -377,7 +374,7 @@ Proof.
       { (* Subgoal: show [length l2 < length l] *)
         rewrite Hl2 Heql. auto with arith. }
       { (* Subgoal: show that [l2] ⊨ [mergesort_pre] *)
-        split; [ reflexivity | assumption ]. } }
+        assumption. } }
     intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
     eapply pure_eval_app2_conseq.
     { (* Use the knowledge that [merge] ∈ [η] *)

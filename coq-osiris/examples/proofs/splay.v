@@ -564,8 +564,8 @@ Proof.
     with
     ((fun t t' => fringe t' = fringe (fill t.2 (Node t.1.1.1 t.1.1.2 t.1.2))) t).
 
-  eapply pure_rec_call with (P := fun a x => a = x). apply splay_wf. reflexivity.
-  intros splay [[[l x] r] ctx] IH a ->; simpl.
+  eapply pure_rec_call with (P := fun _ => True). apply splay_wf. reflexivity.
+  intros splay [[[l x] r] ctx] IH _; simpl.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. reflexivity. }
@@ -681,11 +681,11 @@ Proof.
       subst h
   end.
 
-  eapply pure_rec_call with (a := tup) (x := tup) (P := fun a x => a = x /\ _ x.1.1).
+  eapply pure_rec_call with (x := tup) (P := fun x => bst (strict le) x.1.1).
   { apply zlookup_wf. }
-  { split; [ reflexivity | exact Hbst ]. }
+  { exact Hbst. }
   clear Hbst tup.
-  intros zlookup [[t x] ctx] IH ? [-> Hpre]. simpl in *. fold eval.
+  intros zlookup [[t x] ctx] IH Hpre. simpl in *. fold eval.
 
   (* Match on tuple argument *)
   eapply pure_eval_match. { pure_path. reflexivity. }
@@ -747,7 +747,7 @@ Proof.
         pure_call.
         { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
           { unfold tlt, tree_depth; lia. }
-          { split; [ reflexivity | auto ]. } }
+          { auto. } }
         intros [oy t'] [??]; simpl in *.
         split.
         - apply bst_member_right; representable.
