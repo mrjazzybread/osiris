@@ -570,11 +570,6 @@ Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
 Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
   pure_rec_tac arg constr:(Some pre) Hwf.
 
-
-Definition lift_rel {X Y} (R : (X * Y) -> (X * Y) -> Prop) (y : Y) : X -> X -> Prop :=
-  fun x1 x2 => R (x1, y) (x2, y).
-
-
 (* Automatically apply [pure_nested_call] on a goal of the form [pure m ##φ ⊥] *)
 Ltac pure_nested_tac arg1 arg2 pre Hwf :=
   match goal with
@@ -612,57 +607,3 @@ Tactic Notation "pure_nested" constr(arg1) constr(arg2) constr(Hwf) :=
 Tactic Notation "pure_nested" constr(arg1) constr(arg2)
   constr(pre) constr(Hwf) :=
   pure_nested_tac arg1 arg2 constr:(Some pre) Hwf.
-
-(* -------------------------------------------------------------------------- *)
-
-Module Tac.
-  Import Ltac2.
-
-  Ltac2 eta_post' (arg : constr list) :=
-    lazy_match! goal with
-    | [ |- pure _ ##?φ ⊥ ] =>
-        let post := Fresh.in_goal @post in
-        set ($post := $φ);
-        Std.pattern (List.map (fun x => (x, Std.AllOccurrences)) arg)
-          { Std.on_hyps := Some [(post, Std.AllOccurrences, Std.InHyp)];
-                           Std.on_concl := Std.NoOccurrences };
-        cbv delta [&post];
-        clear $post
-    end.
-
-  Import Constr.Unsafe.
-
-  Ltac2 eta_post'' (arg : Ltac1.t) :=
-    let arg := Option.get (Ltac1.to_list arg) in
-    let arg := List.map (fun x => Option.get (Ltac1.to_constr x)) arg in
-    eta_post' arg.
-
-  Ltac eta_post arg :=
-    let f := ltac2:(arg |- eta_post'' arg) in
-    f arg.
-
-  Tactic Notation "eta_post" constr_list(arg) :=
-    let f := ltac2:(arg |- eta_post'' arg) in
-    f arg.
-
-  Ltac2 eta_tuple_aux t :=
-    let rec aux t :=
-      lazy_match! t with
-      | pair ?x ?y =>
-          let l := aux x in
-          List.append l [y]
-      | ?single => [single]
-      end
-    in
-    let arg_list := aux t in
-    eta_post' arg_list.
-
-  Ltac2 eta_tuple_aux_interface (arg : Ltac1.t) :=
-    let arg := Option.get (Ltac1.to_constr arg) in
-    eta_tuple_aux arg.
-
-  Tactic Notation "eta_tuple" constr(arg) :=
-    let f := ltac2:(arg |- eta_tuple_aux_interface arg) in
-    f arg.
-
-End Tac.
