@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
+From osiris.program_logic Require Import auxiliary_judgements pure_wp pure_encode.
 
 Implicit Type φ : env -> Prop.
 Implicit Type ψ : Prop.

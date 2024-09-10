@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics basic_rules.
+From osiris.program_logic Require Import ewp tactics basic_rules auxiliary_judgements.
 From osiris.semantics Require Import code.
 
 (* -------------------------------------------------------------------------- *)

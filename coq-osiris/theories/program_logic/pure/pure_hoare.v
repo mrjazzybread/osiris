@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import pure_eval.
+From osiris.program_logic Require Import pure_wp pure_encode pure_eval.
 
 (* Because the relation [pure] is inductively defined, the [pure] judgement
    implies that [m] terminates. This forms a Hoare logic of total correctness

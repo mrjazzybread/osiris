@@ -17,18 +17,19 @@ The Rocq development can be found under `osiris/coq-osiris`
   - `code.v` specializes the `stop` micro construct to OCaml
   - `eval.v` our monadic definitional interpreter with type `env -> expr -> micro val exc`
   - `step.v` operational semantics over the `micro` monad
-  - `pure.v` a subset of pure reduction steps, and the pure weakest precondition
-  - `pure_encode.v` predicate wrapper for postconditions over encodable types
-  - `auxiliary_judgements.v` the `pattern` judgement, which wraps the `extend` function found in `eval.v`
+  - `pure.v` a subset of pure reduction steps
   - `simplification.v` confluent and pure reductions steps, the basis of symbolic execution (see `simp_tactics.v`)
 
 ### Proofmode
 
 - `osiris/coq-osiris/theories/program_logic`
   - `orisis/coq-osiris/theories/program_logic/pure/`
+    - `pure_wp.v` the pure judgment and weakest precondition
+    - `pure_encode.v` predicate wrapper for postconditions over encodable types
     - `pure_hoare.v` pure reasoning rules over the micro monad
     - `pure_eval.v` pure reasoning rules over language expressions
-    - `simp_tactics.v` 
+    - `simp_tactics.v` the `simp` tactic, as well as old tactics such as `simp_specify`
+    - `auxiliary_judgements.v` the `pattern` judgement, which wraps the `extend` function found in `eval.v`
   - `pat.v` reasoning rules and tactics for pattern matching
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
   - `basic_rules.v`, `handler_rules.v` reasoning rules over the effectful weakest precondition

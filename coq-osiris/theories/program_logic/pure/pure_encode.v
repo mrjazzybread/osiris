@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval step simplification pure.
+From osiris.semantics Require Import semantics.
+From osiris.program_logic Require Import pure_wp.
 
 (* Predicate wrapper for postconditions ranging over an encodable type *)
 

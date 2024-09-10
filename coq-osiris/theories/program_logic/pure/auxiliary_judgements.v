@@ -1,6 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
-From osiris.semantics Require Import code eval simplification pure pure_encode.
+From osiris.semantics Require Import semantics.
+From osiris.program_logic Require Import pure_wp pure_encode.
 
 (* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)

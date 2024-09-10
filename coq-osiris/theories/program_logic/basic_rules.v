@@ -1,5 +1,4 @@
 Require Import Coq.Program.Equality.
-
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
 From iris.proofmode Require Import proofmode.
 
@@ -7,8 +6,9 @@ From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics simp_tactics.
-From osiris.semantics Require Import step code simplification pure.
+From osiris.semantics Require Import semantics.
+From osiris.program_logic Require Import ewp tactics simp_tactics pure_wp pure_encode.
+
 
 (** *Basic rules on the program logic
 
@@ -283,7 +283,7 @@ Section handler_specifications.
   (** * Shallow handler specification. *)
 
   Definition shallow_handler_spec E Ψ (Φ : outcome2 val exn -d> iProp Σ)
-    (h : outcome3 val exn -> microvx)
+    (h : code.outcome3 val exn -> microvx)
     Ψ' Φ' :=
     ((* [Return] and [Exception] branch *)
     (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
