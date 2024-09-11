@@ -210,7 +210,7 @@ Section verification.
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
-      handle_cons.
+      next_branch.
 
       iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
@@ -235,9 +235,9 @@ Section verification.
        iDestruct (ghost_var_agree with "H") as %->.
 
        iNext.
-       handle_cons.
-       handle_cons.
-       handle_cons; last tauto. (* Hard to guess that the last goal is trivial. *)
+       next_branch.
+       next_branch.
+       next_branch; last tauto. (* Hard to guess that the last goal is trivial. *)
        fold eval.
 
        (* EWP Goal: [continue k (!var : t)]. *)
@@ -267,9 +267,9 @@ Section verification.
 
        (* Skip the return, exception, and [Get] branches. *)
        iNext.
-       handle_cons.
-       handle_cons.
-       (* handle_cons. *)
+       next_branch.
+       next_branch.
+       (* next_branch. *)
        iApply deep_handle_cons_no_resources.
        { iPureIntro. specify_cpattern.
          (* This causes a Match_failure, why?
@@ -277,7 +277,7 @@ Section verification.
          eapply pat_PXData_neq. simpl. eassumption.
          assumption. }
        iIntros "no_match2".
-       handle_cons.
+       next_branch.
 
        { (* EWP Goal: [var := y; continue k ()]. *)
          iApply ewp_ESeq.

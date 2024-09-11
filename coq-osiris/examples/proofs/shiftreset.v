@@ -164,7 +164,7 @@ Section verification.
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?). iIntros "!> H !>"; destruct o; try done.
-      handle_cons.
+      next_branch.
       iApply ewp_EPath. by Ret. }
 
 
@@ -177,9 +177,9 @@ Section verification.
       rewrite /deep_handler_spec seal_eq.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
-    handle_cons.
-    handle_cons.
-    handle_cons.
+    next_branch.
+    next_branch.
+    next_branch.
     { by Simp. }
     tauto.
   Qed.

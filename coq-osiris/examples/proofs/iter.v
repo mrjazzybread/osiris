@@ -64,7 +64,7 @@ Proof.
     { Simp; Ret; equality. }
 
     (* We are now facing the branches of the match. *)
-    iModIntro; handle_cons.
+    iModIntro; next_branch.
     { (* Entering the first branch where [l] is a nil. *)
       iApply ewp_EUnit_exn; simpl.
       (* Subgoal: show the postcondition when we return unit. *)
@@ -75,7 +75,7 @@ Proof.
     (* As we continue to the next branch, we learn that we did not
        match the first branch, see [H0]. *)
 
-    handle_cons.
+    next_branch.
     { (* Entering the second branch, where [l] is a cons. *)
       iApply (ewp_ESeq_exn with "[HI]").
       { (* Application of f to the head of the list. *)

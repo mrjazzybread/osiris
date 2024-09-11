@@ -474,14 +474,14 @@ Ltac2 do_iintros () :=
   | _ => ()
   end.
 
-(* [apply_deep_handle_cons_unary] expects an iris goal of the form
+(* [apply_deep_handle_cons] expects an iris goal of the form
    [EWP deep_eval_match η (b :: bs) ...]. It applies the
    [deep_handle_cons_unary] lemma before progressing through the
    pattern matching.
 
    It is the iris proofmode analog of [pure_match] in the pure mode. *)
 
-Ltac2 apply_deep_handle_cons_unary () :=
+Ltac2 apply_deep_handle_cons () :=
   let intuitionistic_hyps := all_intuitionistic_hyps () in
   let spatial_hyps := all_spatial_hyps () in
   conj_hyps spatial_hyps;
@@ -497,9 +497,9 @@ Ltac2 apply_deep_handle_cons_unary () :=
   end;
   match intuitionistic_hyps with
   | h1 :: _ =>
-      iApply (deep_handle_cons_unary with $h1)
+      iApply (deep_handle_cons with $h1)
   | _ => match spatial_hyps with
-        | h2 :: _ => iApply (deep_handle_cons_unary with $h2)
+        | h2 :: _ => iApply (deep_handle_cons with $h2)
         | _ => iApply deep_handle_cons_no_resources
         end
   end;
@@ -520,5 +520,5 @@ Ltac2 apply_deep_handle_cons_unary () :=
   last (do_iintros).
 
 
-Ltac2 Notation "handle_cons" := apply_deep_handle_cons_unary ().
-Tactic Notation "handle_cons" := ltac2:(handle_cons).
+Ltac2 Notation "next_branch" := apply_deep_handle_cons ().
+Tactic Notation "next_branch" := ltac2:(next_branch).
