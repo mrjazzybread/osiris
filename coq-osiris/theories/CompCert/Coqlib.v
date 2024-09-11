@@ -1052,7 +1052,7 @@ Proof.
     elim H4. apply in_or_app. tauto.
     auto.
   induction a; simpl; intros.
-  rewrite <- app_nil_end. auto.
+  rewrite app_nil_r. auto.
   inversion H0. apply H. auto.
   red; intro; elim H3. apply in_or_app. tauto.
   red; intro; elim H3. apply in_or_app. tauto.

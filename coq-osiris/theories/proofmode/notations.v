@@ -30,7 +30,7 @@ Notation "'ocaml' decoration" := (deco decoration _)
 (* A notation scope for [expr], includes arithmetic and booleans *)
 
 Declare Scope expr_scope.
-Delimit Scope expr_scope with expr.
+Delimit Scope expr_scope with E.
 
 Notation "- e" := (EIntNeg e) : expr_scope.
 Infix "+" := EIntAdd : expr_scope.
@@ -56,7 +56,7 @@ Definition Z_of_EInt e :=
 
 Number Notation expr EInt_of_Z Z_of_EInt : expr_scope.
 
-Open Scope expr.
+Open Scope expr_scope.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -355,7 +355,7 @@ Notation "{ r 'with' fds }" :=
 (* -------------------------------------------------------------------------- *)
 (* Hoare-style judgements. *)
 
-Close Scope expr.
+Close Scope expr_scope.
 
 Global Arguments eval _ _%expr_scope.
 
