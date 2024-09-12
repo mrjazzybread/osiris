@@ -450,28 +450,28 @@ Ltac pat_pCons :=
 
    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
-Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) :=
-  pure (deep_eval_match η bs o) ##φ ⊥.
+Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) Ψ :=
+  pure (deep_eval_match η bs o) ##φ Ψ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
-Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) :
+Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) Ψ :
   pure (eval η e) ##(λ x, x = a) ⊥ ->
-  pure_match η bs (O3Ret #a) φ ->
-  pure (eval η (EMatch e bs)) ##φ ⊥.
+  pure_match η bs (O3Ret #a) φ Ψ ->
+  pure (eval η (EMatch e bs)) ##φ Ψ.
 Proof.
   intros Heval Hmatch. simpl_eval.
   apply pure_handle.
-  apply (pure_mono _ Heval). 2: intros _ [].
+  apply (pure_mono _ Heval); [ | intros _ [] ].
   intros ? (? & -> & ->).
   simpl_install_deep_eval_match.
   apply (pure_mono _ Hmatch); eauto.
 Qed.
 
-Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) :
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
   pure (eval η e) ##φ' ⊥ ->
-  (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
-  pure (eval η (EMatch e bs)) ##φ ⊥.
+  (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ Ψ) ->
+  pure (eval η (EMatch e bs)) ##φ Ψ.
 Proof.
   intros Heval Hmatch. simpl_eval.
   apply pure_handle.
@@ -481,11 +481,11 @@ Proof.
   apply (pure_mono _ (Hmatch _ Ha)); eauto.
 Qed.
 
-Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ :
+Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
   pure (eval η e) ##φ' ζ ->
-  (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ) ->
-  (∀ (ex : exn), ζ ex -> pure_match η bs (O3Throw ex) φ) ->
-  pure (eval η (EMatch e bs)) ##φ ⊥.
+  (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ Ψ) ->
+  (∀ (ex : exn), ζ ex -> pure_match η bs (O3Throw ex) φ Ψ) ->
+  pure (eval η (EMatch e bs)) ##φ Ψ.
 Proof.
   intros He Hφ' Hζ.
   simpl_eval.
@@ -518,19 +518,19 @@ Qed.
 
 (* Currently unused *)
 
-Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) :
-  cpattern η p v (λ η', pure (eval η' e) ##φ ⊥) (pure_match η bs v φ) ->
-  pure_match η ((Branch p e) :: bs) v φ.
+Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
+  cpattern η p v (λ η', pure (eval η' e) ##φ Ψ) (pure_match η bs v φ Ψ) ->
+  pure_match η ((Branch p e) :: bs) v φ Ψ.
 Proof.
   unfold pure_match; unfold pattern.
   intros; simpl_deep_eval_match.
-  apply pure_try; auto.
+  apply pure_try. eassumption.
 Qed.
 
-Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ :
-  cpattern η p v (λ η', pure (eval η' e) ##φ ⊥) ψ ->
-  (ψ -> (pure_match η bs v φ)) ->
-  pure_match η ((Branch p e) :: bs) v φ.
+Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
+  cpattern η p v (λ η', pure (eval η' e) ##φ ζ) ψ ->
+  (ψ -> (pure_match η bs v φ ζ)) ->
+  pure_match η ((Branch p e) :: bs) v φ ζ.
 Proof.
   intros.
   apply pure_match_cons_unary.
@@ -539,14 +539,14 @@ Qed.
 
 (* Not matching is an error. *)
 
-Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) :
-  False -> pure_match η [] v φ.
+Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) Ψ :
+  False -> pure_match η [] v φ Ψ.
 Proof. contradiction. Qed.
 
-Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ :
-  cpattern η p v (λ η' : env, pure (eval η' e) ##φ ⊥) ψ →
+Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
+  cpattern η p v (λ η' : env, pure (eval η' e) ##φ ζ) ψ →
   (ψ -> False) ->
-  pure_match η [Branch p e] v φ.
+  pure_match η [Branch p e] v φ ζ.
 Proof.
   intros.
   eapply pure_match_cons; eauto.
@@ -1152,7 +1152,7 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
-  | [ |- pure_match _ ?bs _ _ ] =>
+  | [ |- pure_match _ ?bs _ _ _ ] =>
       (* Match on [bs] to decide whether to apply [pure_match_cons]
          or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with

@@ -192,7 +192,7 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
   ∀ (x y : A),
-    pure (call compare #x) ##(λ v,
+    pure (call compare #x) (λ v,
         pure (call v #y) ##(λ (c : Z),
             representable c ∧
               (c < 0 ↔ lt x y)%Z ∧
