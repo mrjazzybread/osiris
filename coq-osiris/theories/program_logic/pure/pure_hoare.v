@@ -278,10 +278,6 @@ Proof.
   eapply pure_rec_call with (P := fun _ => True); eauto.
 Qed.
 
-Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
-  pure (call vf arg1) (fun c =>
-                         pure (call c arg2) ##φ Ψ) Ψ.
-
 Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
   η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) Ψ
   (R : (X * Y) -> (X * Y) -> Prop) (P : X -> Y -> Prop)

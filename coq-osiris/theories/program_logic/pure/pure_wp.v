@@ -584,16 +584,27 @@ Proof.
     + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_crash; eauto.
 Qed.
 
-(* Slightly simpler case when none of the parties involved ([m1], [m2], [k]) can
+(* Slightly simpler case when none of the parties involved ([m1], [m2]) can
    throw exceptions *)
 
-Lemma pure_Par_vals_left {A E A1 A2 E'} m1 m2 φ
+Lemma pure_Par_vals_left {A E A1 A2 E'} m1 m2 φ ζ
   (k : outcome2 (A1 * A2) E' → micro A E) :
-  pure m1 (λ a1, pure m2 (λ a2, pure (continue k (a1, a2)) φ ⊥) ⊥) ⊥ →
-  pure (Par m1 m2 k) φ ⊥.
+  pure m1 (λ a1, pure m2 (λ a2, pure (continue k (a1, a2)) φ ζ) ⊥) ⊥ →
+  pure (Par m1 m2 k) φ ζ.
 Proof.
   intros H1.
   apply pure_Par_val_left.
+  eapply pure_mono; eauto. simpl. intros.
+  eapply pure_mono; firstorder eauto.
+Qed.
+
+Lemma pure_Par_vals_right {A E A1 A2 E'} m1 m2 φ ζ
+  (k : outcome2 (A1 * A2) E' → micro A E) :
+  pure m2 (λ a2, pure m1 (λ a1, pure (continue k (a1, a2)) φ ζ) ⊥) ⊥ →
+  pure (Par m1 m2 k) φ ζ.
+Proof.
+  intros H2.
+  apply pure_Par_val_right.
   eapply pure_mono; eauto. simpl. intros.
   eapply pure_mono; firstorder eauto.
 Qed.

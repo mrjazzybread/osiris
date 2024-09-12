@@ -205,12 +205,12 @@ Definition insert_spec `{Encode A, Ord A, Eq A} insert :=
   ∀ (y : A) (t : tree A),
     bst t ->
     pure_call2 insert #y #t (λ (t' : tree A),
-        ∀ x, lookup x t' = if eqb x y then true else lookup x t).
+        ∀ x, lookup x t' = if eqb x y then true else lookup x t) ⊥.
 
 Definition member_spec `{Encode A, Ord A, Eq A} member :=
   ∀ (x : A) (t : tree A),
     bst t ->
-    pure_call2 member #x #t (λ (b : bool), b = lookup x t).
+    pure_call2 member #x #t (λ (b : bool), b = lookup x t) ⊥.
 
 Local Instance Ord_Z : Ord Z := { lt x y := (x <? y)%Z }.
 Local Instance Eq_z : Eq Z := { eqb x y := Z.eqb x y }.
@@ -248,7 +248,7 @@ Proof.
        properly link the arguments to the postcondition. *)
 
     match goal with
-    | |- pure_call2 _ _ _ ?φ =>
+    | |- pure_call2 _ _ _ ?φ _ =>
         change φ with
         ((fun y t =>
             fun t' =>
@@ -273,7 +273,7 @@ Proof.
     intros insert x t IH Htree.
 
     (* FIXME: Hoare rule for evaluating anonfuns [pure_eval_anonfun] is broken. *)
-    pure_simp.
+    pure_simp. eapply pure_ret.
     pure_enter.
 
     (* [insert] is defined by using the [function] keyword, which is
@@ -414,7 +414,7 @@ Proof.
        and we have to change the shape of the goal for the
        [pure_rec_call2] lemma to be correctly applied. *)
     match goal with
-    | |- pure_call2 _ _ _ ?φ =>
+    | |- pure_call2 _ _ _ ?φ _ =>
         change φ with ((fun x t b => b = lookup x t) x t)
     end.
     (* The precondition is that the second argument is a BST. *)
@@ -424,7 +424,7 @@ Proof.
     clear dependent x t.
     intros member x t IH Ht.
 
-    pure_simp.
+    pure_simp. eapply pure_ret.
     pure_enter.
     eapply pure_eval_match. { pure_path; reflexivity. }
     pure_match.

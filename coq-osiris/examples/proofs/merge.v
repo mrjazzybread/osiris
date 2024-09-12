@@ -118,7 +118,7 @@ Definition merge_spec (merge : val) : Prop :=
     merge_pre l1 l2 ->
     pure
       (call merge #l1)
-      ##(fun c =>
+      (fun c =>
          pure (call c #l2) ##(merge_post l1 l2) ⊥) ⊥.
 
 
@@ -188,7 +188,7 @@ Proof.
   simpl. intros merge x1 y1 IH Hpre. fold eval.
   abstract_env.
   (* FIXME: rule for pure_eval_EAnonFun is incorrect. *)
-  pure_simp.
+  pure_simp. eapply pure_ret.
   pure_enter. abstract_env.
 
   eapply pure_eval_match.

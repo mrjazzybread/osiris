@@ -3,6 +3,10 @@ From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import simp_tactics pure_wp pure_encode.
 
+Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
+  pure (call vf arg1) (fun c =>
+                         pure (call c arg2) ##φ Ψ) Ψ.
+
 (* Tuples. *)
 
 (* A special case at arity 2. *)
@@ -168,44 +172,41 @@ Proof.
     intros ? (a & -> & Ha). apply Hp; eauto with encode.
 Qed.
 
-(* TODO redundant with pure_hoare.v's pure_call2? *)
-Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
-  pure (call vf arg1)
-    ##(λ c, pure (call c arg2) ##φ ⊥) ⊥.
 
 Lemma pure_eval_app2 `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
-  (arg1 : A) (arg2 : B) (ψ : C → Prop)
+  (arg1 : A) (arg2 : B) (ψ : C → Prop) ζ
   :
   pure (eval η e1) ##(λ vf', vf' = vf) ⊥ ->
   pure (eval η e2) ##(λ arg1', arg1' = arg1) ⊥ ->
   pure (eval η e3) ##(λ arg2', arg2' = arg2) ⊥ ->
-  pure_call2 vf #arg1 #arg2 ψ ->
-  pure (eval η (EApp (EApp e1 e2) e3)) ##ψ ⊥.
+  pure_call2 vf #arg1 #arg2 ψ ζ ->
+  pure (eval η (EApp (EApp e1 e2) e3)) ##ψ ζ.
 Proof.
   intros He1 He2 He3 Hcall.
   eapply pure_simp; [ simp | eauto ].
-  apply pure_Par_vals_left.
+  apply pure_Par_val_right.
+  apply (pure_mono_ret _ He3). intros ? (? & -> & ->).
   apply pure_Par_vals_left.
   apply (pure_mono_ret _ He1). intros ? (? & -> & <-).
   apply (pure_mono_ret _ He2). intros ? (? & -> & ->).
-  apply (pure_mono_ret _ Hcall). intros ? (c & -> & Hc).
-  apply (pure_mono_ret _ He3). intros ? (? & -> & ->).
-  auto with encode.
+  unfold continue. simpl.
+  apply (pure_mono _ Hcall). auto.
+  intros ??; unfold discontinue; simpl; auto using pure_throw.
 Qed.
 
 Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C} η e1 e2 e3 vf
-  (arg1 : A) (arg2 : B) (φ ψ : C → Prop)
+  (arg1 : A) (arg2 : B) (φ ψ : C → Prop) ζ
   :
   pure (eval η e1) ##(λ vf', vf' = vf) ⊥ ->
   pure (eval η e2) ##(λ arg1', arg1' = arg1) ⊥ ->
   pure (eval η e3) ##(λ arg2', arg2' = arg2) ⊥ ->
-  pure_call2 vf #arg1 #arg2 φ ->
+  pure_call2 vf #arg1 #arg2 φ ζ ->
   (∀ a, φ a → ψ a) →
-  pure (eval η (EApp (EApp e1 e2) e3)) ##ψ ⊥.
+  pure (eval η (EApp (EApp e1 e2) e3)) ##ψ ζ.
 Proof.
   intros.
   eapply pure_eval_app2; eauto.
-  eapply pure_enc_consequence; first eassumption.
+  eapply pure_mono; first eassumption; last auto.
   simpl; intros.
   eapply pure_enc_consequence; eauto.
 Qed.
