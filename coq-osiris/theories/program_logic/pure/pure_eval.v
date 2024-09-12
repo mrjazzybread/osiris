@@ -756,6 +756,15 @@ Proof.
   apply (pure_mono_ret _ He2). intuition.
 Qed.
 
+Lemma pure_eval_seq_exn `{Encode A} η e1 e2 (Ψ : A -> Prop) ζ :
+  pure (eval η e1) ##(λ _ : val, pure (eval η e2) ##Ψ ζ) ζ ->
+  pure (eval η (ESeq e1 e2)) ##Ψ ζ.
+Proof.
+  intros Hpure. apply pure_seq.
+  eapply (pure_mono _ Hpure); last auto.
+  by intros ? (? & ? & ?).
+Qed.
+
 Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
   simp (eval_sitems (η, []) items) (ret (whatenv, δ)) ->
   ψ (VStruct δ) ->
@@ -778,26 +787,26 @@ Proof.
   apply Hc.
 Qed.
 
-Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) :
+Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) :
   pure (lookup_path η π) ##ψ ⊥ ->
-  pure (eval η (EPath π)) ##ψ ⊥.
+  pure (eval η (EPath π)) ##ψ ζ.
 Proof.
   simpl_eval.
   apply pure_widen.
 Qed.
 
-Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) :
-  pure (eval (δ ++ η) e) ##ψ ⊥ ->
+Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) ζ :
+  pure (eval (δ ++ η) e) ##ψ ζ ->
   pure (θ ← ret (δ ++ η);
-        eval θ e) ##ψ ⊥.
+        eval θ e) ##ψ ζ.
 Proof.
   tauto.
 Qed.
 
-Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) :
+Lemma pure_eval_const `{Encode X} η c x (ψ : X -> Prop) ζ :
   VConstant c = #x ->
   ψ x ->
-  pure (eval η (EConstant c)) ##ψ ⊥.
+  pure (eval η (EConstant c)) ##ψ ζ.
 Proof.
   intros.
   eapply pure_simp. simp.

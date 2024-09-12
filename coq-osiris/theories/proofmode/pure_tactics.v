@@ -82,7 +82,7 @@ Tactic Notation "abstract_env" := ltac2:(abstract_env).
 
 Ltac2 decompose_pure () : (constr * constr) :=
   match! goal with
-  | [ |- pure ?m ##?φ ⊥ ] => (m, φ)
+  | [ |- pure ?m ##?φ _ ] => (m, φ)
   end.
 
 Ltac2 get_expr_from_eval (m : constr) :=

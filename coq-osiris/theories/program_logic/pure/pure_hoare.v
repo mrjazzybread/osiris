@@ -211,14 +211,14 @@ Qed.
    - [a : A] is an auxiliary variable used to relate the pre and post. *)
 
 Lemma pure_rec_call `{Encode X, Encode Y}
-  (η : env) (f : var) arg e1 (x : X)
+  (η : env) (f : var) arg e1 (x : X) Ψ
   (P : X -> Prop) (φ : X -> Y -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   P x ->
   (∀ vf x,
-      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φ y) ⊥) ->
-      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φ x) ⊥)) ->
-  pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) ##(φ x) ⊥.
+      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φ y) Ψ) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φ x) Ψ)) ->
+  pure (call (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x) ##(φ x) Ψ.
 Proof.
   intros Hwf HPx Hrec.
   induction x as [x IH] using (well_founded_induction Hwf); intros.
@@ -231,22 +231,22 @@ Qed.
    - [φf] is the specification of the function [f]. *)
 
 Lemma pure_letrec `{Encode X, Encode Y}
-  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : X -> Y -> Prop)
+  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : X -> Y -> Prop) Ψ
   (P : X -> Prop) (R : X -> X -> Prop) :
   well_founded R ->
   (* Subgoal:
      Assuming that any recursive call of [f] on a smaller argument
      satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
   (∀ vf (x : X),
-      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φf y) ⊥) ->
-      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φf x) ⊥)) ->
+      (∀ (y : X), R y x -> P y -> pure (call vf #y) ##(φf y) Ψ) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) ##(φf x) Ψ)) ->
   (* Subogal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
-      (∀ x, P x -> pure (call vf #x) ##(φf x) ⊥) ->
-      pure (eval ((f, vf) :: η) e2) ##φ ⊥) ->
-  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) ##φ ⊥.
+      (∀ x, P x -> pure (call vf #x) ##(φf x) Ψ) ->
+      pure (eval ((f, vf) :: η) e2) ##φ Ψ) ->
+  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) ##φ Ψ.
 Proof.
   intros Hwf He1 He2.
   simpl_eval. apply He2. clear He2.
@@ -278,12 +278,12 @@ Proof.
   eapply pure_rec_call with (P := fun _ => True); eauto.
 Qed.
 
-Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) :=
-  pure (call vf arg1) ##(fun c =>
-                         pure (call c arg2) ##φ ⊥) ⊥.
+Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
+  pure (call vf arg1) (fun c =>
+                         pure (call c arg2) ##φ Ψ) Ψ.
 
 Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
-  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop)
+  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) Ψ
   (R : (X * Y) -> (X * Y) -> Prop) (P : X -> Y -> Prop)
   :
   well_founded R ->
@@ -292,11 +292,11 @@ Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
       (∀ (x2 : X) (y2 : Y),
           R (x2, y2) (x1, y1) ->
           P x2 y2 ->
-          pure_call2 vf #x2 #y2 (φ x2 y2)) ->
+          pure_call2 vf #x2 #y2 (φ x2 y2) Ψ) ->
       (
         P x1 y1 ->
-        pure (eval ((arg, #x1) :: (f, vf) :: η) e1) ##(λ c, pure (call c #y1) ##(φ x1 y1) ⊥) ⊥)) ->
-  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ x y).
+        pure (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure (call c #y1) ##(φ x1 y1) Ψ) Ψ)) ->
+  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ x y) Ψ.
 Proof.
   intros Hwf HP Hrec.
   remember (x, y) as p eqn:Hpeq.
