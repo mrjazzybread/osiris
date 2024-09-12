@@ -140,7 +140,7 @@ Definition pure_isListIter (iter : val) : Prop :=
         I Xs ->
         pure (call f #X) ##(λ v, v = () ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
       I [] ->
-      pure_hoare.pure_call2 iter f #l
+      pure_call2 iter f #l
         (λ v, v = () ∧ I l)
         (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
 
