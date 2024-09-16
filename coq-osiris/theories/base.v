@@ -68,3 +68,13 @@ Ltac destruct_string_eqb :=
     [ rewrite String.eqb_eq in Heq
     | rewrite String.eqb_neq in Heq ]
   end.
+
+From Coq Require Import Logic.Classical_Prop.
+
+Ltac eq_dep_inj :=
+  repeat match goal with
+    | H : existT ?A ?x = existT ?A ?y |- _ =>
+        apply Classical_Prop.EqdepTheory.inj_pair2 in H
+    end.
+
+Ltac inv H := inversion H; subst; eq_dep_inj; subst.
