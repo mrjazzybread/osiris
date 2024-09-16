@@ -7,5 +7,4 @@ From osiris.semantics Require Export
   step
   simplification
   may
-  auxiliary_judgements
 .
