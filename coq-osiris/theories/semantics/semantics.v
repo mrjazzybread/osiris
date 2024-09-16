@@ -6,7 +6,6 @@ From osiris.semantics Require Export
   eval
   step
   simplification
-  pure
+  may
   auxiliary_judgements
-  pure_encode
 .

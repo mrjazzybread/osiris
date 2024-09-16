@@ -8,8 +8,10 @@ From iris.base_logic.lib Require Import own.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics.
-From osiris.semantics Require Import step code simplification pure.
+From osiris.semantics Require Import step code simplification.
 From osiris Require Import util.order.
+
+From osiris.program_logic.pure Require Import pure.
 
 (** *Basic rules on the program logic
 
@@ -1068,7 +1070,7 @@ Section ewp_val_rules.
   Qed.
 
   Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
-    pure m ##φ ⊥ ->
+    { m ensures φ } ->
     ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
   Proof.
     iIntros (W).

@@ -5,6 +5,8 @@ From osiris.lang Require Import lang.
 From osiris.program_logic Require Import ewp tactics basic_rules.
 From osiris.semantics Require Import code.
 
+From osiris.program_logic.pure Require Import pure.
+
 (* -------------------------------------------------------------------------- *)
 (** *Shallow and deep handlers *)
 

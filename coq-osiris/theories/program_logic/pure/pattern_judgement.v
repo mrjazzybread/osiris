@@ -1,6 +1,8 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar.
-From osiris.semantics Require Import code eval simplification pure pure_encode.
+From osiris.semantics Require Import code eval simplification.
+
+From osiris.program_logic.pure Require Import pure_rules.
 
 (* This file defines judgements for Hoare-style reasoning on
    the auxiliary functions in [semantics/eval.v]. *)
@@ -22,7 +24,6 @@ Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
 
 Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
   pure (extends η ps vs) φ (λ (_ : unit), ψ).
-
 
 (* A consequence rule. *)
 
@@ -228,7 +229,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  pure (eval η e) ##spec ⊥ ->
+  { η ⊢ e ensures spec } ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -244,7 +245,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure (eval η e) ##(λ v, pattern [] p v ψ False) ⊥ ->
+  { η ⊢ e ensures (λ v, pattern [] p v ψ False)} ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -320,15 +321,19 @@ Qed.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [module]. *)
 
+#[export]
+  Hint Extern 1 (returns _ _) => unfold returns; by firstorder : pure.
+
+
 Lemma pure_module η me φ :
   eval_module η me φ ->
-  pure (eval_mexpr η me) ##(λ v, match v with
+  { eval_mexpr η me ensures (λ v, match v with
                                | VStruct η => φ η
                                | _ => False
-                               end) ⊥.
+                               end)}.
 Proof.
-  intros.
-  eapply pure_mono; eauto with encode.
+  repeat intro.
+  eapply pure_mono; intros; eauto with pure.
 Qed.
 
 Lemma module_struct η sitems φ :
@@ -383,7 +388,7 @@ Qed.
 (* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
 
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
-  pure (eval η e) ##ψ ⊥ ->
+  jm (eval η e) ψ ->
   bindings η bs φ' ->
   (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
@@ -405,7 +410,7 @@ Proof.
 Qed.
 
 Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
-  pure (eval η e) ##ψ ⊥ ->
+  jm (eval η e) ψ ->
   bindings η bs φ' ->
   bindings η
     (Binding (PVar v) e :: bs)
@@ -420,7 +425,7 @@ Qed.
 
 Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
-  pure (eval η e) ##(λ '(a, b), ψ1 a /\ ψ2 b) ⊥->
+  jm (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ->
   bindings η bs φ' ->
   (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.
