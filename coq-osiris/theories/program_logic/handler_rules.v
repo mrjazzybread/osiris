@@ -321,7 +321,7 @@ Section handler_proof.
     simpl_deep_eval_match.
     iIntros "Q %Hpure Hmono".
     iApply ewp_try.
-    iApply ewp_mono. { iApply pure_ewp; eassumption. }
+    iApply ewp_mono. { iApply pure_ewp. by apply cpattern_equals_cpat. }
     iIntros ([|]); simpl.
     - iIntros "%HmonQ". iApply (HmonQ with "Q").
     - iApply ("Hmono" with "Q").
@@ -335,24 +335,24 @@ Section handler_proof.
     simpl_deep_eval_match.
     iIntros "%Hpure Hmono".
     iApply ewp_try.
-    iApply ewp_mono. { iApply pure_ewp; eassumption.  }
+    iApply ewp_mono. { iApply pure_ewp; by apply cpattern_equals_cpat. }
     iIntros ([|]); simpl.
     - iIntros "%Heval"; iApply Heval.
     - iApply "Hmono".
   Qed.
 
-  Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
-    valid_cpattern_match cp o = false ->
-    EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }} -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
-  Proof.
-    iIntros (Hvalid) "Hmatch".
-    iAssert (bi_pure True) as "Htrue". done.
-    iApply deep_handle_cons_no_resources.
-    { iPureIntro. unfold cpattern.
-      rewrite invert_valid_match; [ | assumption ].
-      constructor. apply I. }
-    { iIntros "_". iApply "Hmatch". }
-  Qed.
+  (* Lemma deep_handle_cons_skip η o cp e bs E ψ Φ : *)
+  (*   valid_cpattern_match cp o = false -> *)
+  (*   EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }} -∗ *)
+  (*   EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}. *)
+  (* Proof. *)
+  (*   iIntros (Hvalid) "Hmatch". *)
+  (*   iAssert (bi_pure True) as "Htrue". done. *)
+  (*   iApply deep_handle_cons_no_resources. *)
+  (*   { iPureIntro. unfold cpattern. *)
+  (*     rewrite invert_valid_match; [ | assumption ]. *)
+  (*     constructor. apply I. } *)
+  (*   { iIntros "_". iApply "Hmatch". } *)
+  (* Qed. *)
 
 End handler_proof.

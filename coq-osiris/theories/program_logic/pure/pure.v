@@ -5,7 +5,7 @@ From osiris.program_logic.pure Require Export
      pure_rules
      total_rules
      eval_rules
-     pattern_match
+     pattern_rules
      struct_rules
      simp_tactics
      .

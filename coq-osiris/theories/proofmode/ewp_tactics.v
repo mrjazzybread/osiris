@@ -513,7 +513,7 @@ Ltac2 apply_deep_handle_cons () :=
                                   | [ |- ?g ] => if Constr.is_evar g then
                                                  apply I
                                                else
-                                                 pattern_match; iStartProof
+                                                 iStartProof
                                   end)
                            else ());
   all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps);

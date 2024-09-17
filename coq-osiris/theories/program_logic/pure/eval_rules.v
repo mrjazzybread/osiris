@@ -1151,3 +1151,125 @@ Section eval_rules.
   (* Qed. *)
 
 End eval_rules.
+
+From osiris.program_logic.pure Require Import pattern_rules.
+
+Section match_rules.
+
+  (* -------------------------------------------------------------------------- *)
+
+  (* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) ##φ ⊥].
+
+    [eval_match] is used by [eval] when evaluating an [EMatch]. *)
+
+  Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) Ψ :=
+    pure (deep_eval_match η bs o) φ Ψ.
+
+  Arguments pure_match {A} {H} _ _ _ _.
+
+  Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) Ψ :
+    total (eval η e) (λ x, x = a) ->
+    pure_match η bs (O3Ret #a) φ Ψ ->
+    pure (eval η (EMatch e bs)) φ Ψ.
+  Proof.
+    intros Heval Hmatch. simpl_eval.
+    apply pure_wp_handle.
+    apply (pure_wp_mono _ Heval); [ | intros _ [] ].
+    intros ? (? & -> & ->).
+    simpl_install_deep_eval_match.
+    apply (pure_wp_mono _ Hmatch); eauto with pure.
+  Qed.
+
+  Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
+    total (eval η e) φ' ->
+    (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ Ψ) ->
+    pure (eval η (EMatch e bs)) φ Ψ.
+  Proof.
+    intros Heval Hmatch. simpl_eval.
+    apply pure_wp_handle.
+    apply (pure_wp_mono _ Heval). 2: intros _ [].
+    intros ? (a & -> & Ha).
+    simpl_install_deep_eval_match.
+    apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
+  Qed.
+
+  Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
+    pure (eval η e) φ' ζ ->
+    (∀ (a : A), φ' a -> pure_match η bs (O3Ret #a) φ Ψ) ->
+    (∀ (ex : exn), ζ ex -> pure_match η bs (O3Throw ex) φ Ψ) ->
+    pure (eval η (EMatch e bs)) φ Ψ.
+  Proof.
+    intros He Hφ' Hζ.
+    simpl_eval.
+    apply pure_wp_handle.
+    apply (pure_wp_mono _ He).
+    - intros _v (a & -> & Ha).
+      simpl_install_deep_eval_match.
+      by apply Hφ'.
+    - intros ex Hex.
+      simpl_install_deep_eval_match.
+      by apply Hζ.
+  Qed.
+
+  Lemma pure_eval_trywith `{Encode A} η e bs (φ : A -> Prop) ζ ζ' :
+    pure (eval η e) φ ζ ->
+    (∀ ex, ζ ex -> pure (eval_trywith η ex bs) φ ζ') ->
+    pure (eval η (ETryWith e bs)) φ ζ'.
+  Proof.
+    intros Heval Htryw. simpl_eval.
+    eapply pure_wp_try, pure_wp_mono; eauto with pure.
+  Qed.
+
+  Lemma pure_eval_try_with_cons `{Encode A} η ex p e bs (φ : A -> Prop) ζ :
+    pattern η p ex (λ η', pure (eval η' e) φ ζ) (pure (eval_trywith η ex bs) φ ζ) ->
+    pure (eval_trywith η ex (Branch (CExc p) e :: bs)) φ ζ.
+  Proof.
+    intros Hpat. simpl_eval_trywith.
+    eapply pure_wp_try, pure_wp_mono; eauto.
+    apply pattern_equals_pat; eauto.
+    all: intros; eauto.
+  Qed.
+
+  (* Currently unused *)
+
+  Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
+    cpattern η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η bs v φ Ψ) ->
+    pure_match η ((Branch p e) :: bs) v φ Ψ.
+  Proof.
+    unfold pure_match.
+    intros; simpl_deep_eval_match.
+    apply pure_wp_try. by apply cpattern_equals_cpat.
+  Qed.
+
+  Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
+    cpattern η p v (λ η', pure (eval η' e) φ ζ) ψ ->
+    (ψ -> (pure_match η bs v φ ζ)) ->
+    pure_match η ((Branch p e) :: bs) v φ ζ.
+  Proof.
+    intros.
+    apply pure_match_cons_unary.
+    apply cpattern_equals_cpat.
+    eapply pure_wp_mono.
+    by apply cpattern_equals_cpat.
+    all: intros; eauto.
+  Qed.
+
+  (* Not matching is an error. *)
+
+  Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) Ψ :
+    False -> pure_match η [] v φ Ψ.
+  Proof. contradiction. Qed.
+
+  Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
+    cpattern η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
+    (ψ -> False) ->
+    pure_match η [Branch p e] v φ ζ.
+  Proof.
+    intros.
+    eapply pure_match_cons; eauto.
+    tauto.
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
+End match_rules.

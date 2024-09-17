@@ -1,5 +1,10 @@
-(* -------------------------------------------------------------------------- *)
+From osiris Require Import base.
+From osiris.lang Require Import syntax encode sugar locations.
+From osiris.semantics Require Import semantics.
 
+From osiris.program_logic.pure Require Import pure_rules pattern_rules.
+
+(* -------------------------------------------------------------------------- *)
 
 (* A judgement for the evaluation of structure items. *)
 
@@ -123,9 +128,11 @@ Proof.
   eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
   simpl; intros v (? & -> & Hextend).
   eapply pure_wp_bind_conseq.
-  { unfold pattern in Hextend. unfold irrefutably_extend; cbn.
+  { unfold irrefutably_extend; cbn.
     apply pure_wp_widen.
-    eapply pure_wp_try_conseq; eauto. 2: intros _ [].
+    eapply pure_wp_try_conseq; eauto.
+    apply pattern_equals_pat; eauto.
+    2: intros _ [].
     eauto using pure_wp_ret. }
   auto using pure_wp_ret.
 Qed.
@@ -268,8 +275,9 @@ Proof.
   apply pure_wp_Par_vals_left.
   apply (pure_wp_mono_ret _ Hpure_wp). intros v (a & -> & Ha).
   apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
-  eapply pure_wp_widen, pure_wp_try_conseq. by apply Hcov.
-  intros. by apply pure_wp_ret. intros _ [].
+  eapply pure_wp_widen, pure_wp_try_conseq.
+  apply pattern_equals_pat; eauto. 2 : intros _ [].
+  intros. by apply pure_wp_ret.
 Qed.
 
 Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :
@@ -287,10 +295,8 @@ Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
     (λ η,
       ∃ a η', ψ a /\ φ' η' /\ η = (v, #a) :: η').
 Proof.
-  intros.
-  eapply bindings_cons; eauto.
-  intros; unfold pattern. simpl_extend.
-  apply pure_wp_ret; eauto.
+  intros; eapply bindings_cons; eauto.
+  intros; constructor; firstorder.
 Qed.
 
 Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
@@ -302,6 +308,5 @@ Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
 Proof.
   intros Hpure_wp Hbs Hpat.
   eapply bindings_cons; eauto.
-  intros [a b] η' [Hψ1 Hψ2] Hη'.
-  auto.
+  intros [a b] η' [Hψ1 Hψ2] Hη'. auto.
 Qed.

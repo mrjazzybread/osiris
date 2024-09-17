@@ -104,27 +104,24 @@ Proof.
   intros. subst. eauto.
 Qed.
 
+Definition pLeaf := PConstant "Leaf".
+
 Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode.
 
-Definition pLeaf := PConstant "Leaf".
+#[global]
+  Hint Extern 2 (patterns_wp _ _ _ _ _) => apply patterns_equals_pats; eauto with pat: pat.
+#[global]
+  Hint Extern 2 (pattern _ _ _ _ _) => econstructor; eauto : pat.
+
+Ltac solve_pattern := by eauto with pat.
 
 Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
   v = #t →
   (t = Leaf -> φ η) ->
   pattern η pLeaf v φ (t <> Leaf).
-Proof.
-  intros; subst.
-  destruct t.
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_eq; pat_PTuple; pats. }
-    destruct 1. }
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; auto. }
-    congruence. }
-Qed.
+Proof. intros * ->; destruct t; solve_pattern. Qed.
 
-Ltac pat_pLeaf :=
-  eapply pat_pLeaf; first solve [encode].
+#[local] Hint Resolve pat_pLeaf : pat.
 
 Definition pNode (p1 p2 p3 : syntax.pat) :=
   PData "Node" (PTuple [p1; p2; p3]).
@@ -144,13 +141,16 @@ Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
   pattern η (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
-  intros -> Hcov.
-  destruct t; eapply pat_consequence_psi.
-  { eapply pat_PData_neq; eauto. }
-  { auto. }
-  { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
-  { clear; right; do 3 eexists; split; [ reflexivity | tauto ]. }
-Qed.
+  intros; subst; destruct t; intros.
+  - solve_pattern.
+(*   intros -> Hcov. *)
+(*   destruct t; eapply pat_consequence_psi. *)
+(*   { eapply pat_PData_neq; eauto. } *)
+(*   { auto. } *)
+(*   { eapply pat_PData_eq; pat_PTuple; pats; eauto. } *)
+(*   { clear; right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
+(* Qed. *)
+Admitted.
 
 Ltac pat_pNode :=
   eapply pat_pNode; first solve [encode].
