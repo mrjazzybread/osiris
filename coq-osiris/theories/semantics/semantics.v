@@ -6,5 +6,4 @@ From osiris.semantics Require Export
   eval
   step
   simplification
-  may
-.
+  pure.

@@ -1,9 +1,10 @@
 (* This file summarizes the content of the pure/ subdirectory. *)
 
 From osiris.program_logic.pure Require Export
-     pure_judgement
-     pure_notation
+     notation
      pure_rules
-     pure_eval_rules
+     total_rules
+     eval_rules
      pattern_judgement
+     simp_tactics
      .

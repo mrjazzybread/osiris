@@ -286,7 +286,7 @@ may eventually produce a value.</p>
 <p>For instance, evaluating the OCaml expression <code>42</code>
 in the empty environment <code class="highlight coq"><span class="n">ε</span></code>
 yields the OCaml value <code>42</code>:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= unseal <span class="kp">eval</span>.eval_aux ε <span class="mi">42</span>%expr
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk5" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk5"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε (EInt <span class="mi">42</span>)).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= unseal <span class="kp">eval</span>.eval_aux ε <span class="mi">42</span>%E
 : microvx</blockquote></div></div></small></span></pre><p>Coq finds that this computation is equal to
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">VInt</span> <span class="o">(</span><span class="n">int</span><span class="o">.</span><span class="n">repr</span> <span class="mi">42</span><span class="o">))</span></code>.</p>
 <p>The data constructor <code class="highlight coq"><span class="n">ret</span></code> is the <code class="highlight coq"><span class="kr">return</span></code> combinator
@@ -392,7 +392,7 @@ to decide what step to take next,
 and to resume the interpreter.</p>
 <p>This can be observed by asking Coq to evaluate the OCaml expression
 <code class="highlight coq"><span class="mi">24</span> <span class="o">+</span> <span class="mi">18</span></code>:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε add_24_plus_18).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= unseal <span class="kp">eval</span>.eval_aux ε (<span class="mi">24</span> + <span class="mi">18</span>)%expr
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chkb" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chkb"><span class="kn">Eval</span> <span class="nb">cbn</span> <span class="kr">in</span> (<span class="kp">eval</span> ε add_24_plus_18).</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">= unseal <span class="kp">eval</span>.eval_aux ε (<span class="mi">24</span> + <span class="mi">18</span>)%E
 : microvx</blockquote></div></div></small><span class="alectryon-wsp">
 </span></span></pre><p>The interpreter hits a <code class="highlight coq"><span class="n">Par</span></code> combinator whose branches are
 <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">repr</span> <span class="mi">24</span><span class="o">)</span></code> and <code class="highlight coq"><span class="n">ret</span> <span class="o">(</span><span class="n">repr</span> <span class="mi">18</span><span class="o">)</span></code>
@@ -469,7 +469,7 @@ parallel.</p>
 <p><code class="highlight coq"><span class="n">choose</span> <span class="n">m1</span> <span class="n">m2</span></code> is a non-deterministic choice between the computations <code class="highlight coq"><span class="n">m1</span></code>
 and <code class="highlight coq"><span class="n">m2</span></code>. One of them is executed; the other is discarded.</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk13" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk13"><span class="kn">Check</span> @choose.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@choose
-     : <span class="kr">∀</span> <span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>, micro A E → micro A E → micro A E</blockquote></div></div></small></span></pre><p>In our interpreter, <code class="highlight coq"><span class="n">choose</span></code> is used to model OCaml's runtime
+     : <span class="kr">∀</span> <span class="nv">A</span>, micro A exn → micro A exn → micro A exn</blockquote></div></div></small></span></pre><p>In our interpreter, <code class="highlight coq"><span class="n">choose</span></code> is used to model OCaml's runtime
 assertion construct, <code class="highlight coq"><span class="nb">assert</span></code>. Depending on a command line
 switch, the OCaml compiler can be instructed to either keep
 this dynamic test or erase it. We want our semantics to be
@@ -485,8 +485,7 @@ an exception, or stop on a system call, and Coq's execution engine can
   | Crash : micro A E
   | Handle : micro C.val C.exn → (code.outcome3 C.val C.exn → micro A E) → micro A E
   | Stop : <span class="kr">∀</span> <span class="nv">X</span> <span class="nv">Y</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, C.code X Y E&#39; → X → (outcome2 Y E&#39; → micro A E) → micro A E
-  | Par : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, micro A1 E&#39; → micro A2 E&#39; → (outcome2 (A1 * A2) E&#39; → micro A E) → micro A E
-  | Choose : <span class="kr">∀</span> <span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, micro B E&#39; → micro B E&#39; → (outcome2 B E&#39; → micro A E) → micro A E.
+  | Par : <span class="kr">∀</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>, micro A1 E&#39; → micro A2 E&#39; → (outcome2 (A1 * A2) E&#39; → micro A E) → micro A E.
 
 <span class="kn">Arguments</span> micro (A E)%type_scope
 <span class="kn">Arguments</span> Ret {A E}%type_scope a
@@ -494,10 +493,9 @@ an exception, or stop on a system call, and Coq's execution engine can
 <span class="kn">Arguments</span> Crash {A E}%type_scope
 <span class="kn">Arguments</span> Handle {A E}%type_scope m h%function_scope
 <span class="kn">Arguments</span> Stop {A E X Y E&#39;}%type_scope c x k%function_scope
-<span class="kn">Arguments</span> Par {A E A1 A2 E&#39;}%type_scope m1 m2 k%function_scope
-<span class="kn">Arguments</span> Choose {A E B E&#39;}%type_scope m1 m2 k%function_scope</blockquote></div></div></small></span></pre><p>The <code class="highlight coq"><span class="kp">try</span></code> combinator is not a constructor;
+<span class="kn">Arguments</span> Par {A E A1 A2 E&#39;}%type_scope m1 m2 k%function_scope</blockquote></div></div></small></span></pre><p>The <code class="highlight coq"><span class="kp">try</span></code> combinator is not a constructor;
 it is a function. This is made possible by building <code class="highlight coq"><span class="kp">try</span></code> into the
-constructors <code class="highlight coq"><span class="n">Stop</span></code>, <code class="highlight coq"><span class="n">Par</span></code>, and <code class="highlight coq"><span class="n">Choose</span></code>. Indeed, the continuations <code class="highlight coq"><span class="n">k</span></code>
+constructors <code class="highlight coq"><span class="n">Stop</span></code> and <code class="highlight coq"><span class="n">Par</span></code>. Indeed, the continuations <code class="highlight coq"><span class="n">k</span></code>
 and <code class="highlight coq"><span class="n">z</span></code> carried by these constructors correspond to two arms of a <code class="highlight coq"><span class="kp">try</span></code>
 construct.</p>
 <p>Expert readers may note that the definition of this monad is
@@ -533,6 +531,7 @@ uses the following set of codes:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk16" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk16"><span class="kn">Print</span> code.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message"><span class="kn">Inductive</span> <span class="nf">code</span> : <span class="kt">Type</span> → <span class="kt">Type</span> → <span class="kt">Type</span> → <span class="kt">Set</span> :=
     CEval : code (env * expr) val exn
   | CLoop : code (env * var * int * int * expr) val exn
+  | CFlip : code () bool exn
   | CAlloc : code val loc exn
   | CLoad : code loc val exn
   | CStore : code (loc * val) () exn
@@ -542,7 +541,9 @@ uses the following set of codes:</p>
 
 <span class="kn">Arguments</span> code (_ _ _)%type_scope</blockquote></div></div></small></span></pre><p>The code <code class="highlight coq"><span class="n">CEval</span></code>, which we have encountered earlier, is used to request
 a recursive invocation of the function <code class="highlight coq"><span class="kp">eval</span></code>. The code <code class="highlight coq"><span class="n">CLoop</span></code> plays a
-similar role, but is used in the interpretation of <code class="highlight coq"><span class="kr">for</span></code> loops.
+similar role, but is used in the interpretation of <code class="highlight coq"><span class="kr">for</span></code> loops. The
+code <code class="highlight coq"><span class="n">Flip</span></code> is used to request a Boolean value from the system: it is
+used to encode a binary non-deterministic choice combinator, <code class="highlight coq"><span class="n">choose</span></code>.
 The codes <code class="highlight coq"><span class="n">CAlloc</span></code>, <code class="highlight coq"><span class="n">CLoad</span></code>, and <code class="highlight coq"><span class="n">CStore</span></code> are requests to allocate, read,
 write a memory location in the heap.</p>
 </div>
@@ -572,6 +573,7 @@ takes us from one pause to the next pause.</p>
                  step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)
   | StepLoop : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">x</span> <span class="nv">i1</span> <span class="nv">i2</span> <span class="nv">e</span> (<span class="nv">k</span> : outcome2 val exn → micro A E),
                  step (σ, Stop CLoop (η, x, i1, i2, e) k) (σ, try2 (loop η x i1 i2 e) k)
+  | StepFlip : <span class="kr">∀</span> <span class="nv">b</span> (<span class="nv">σ</span> : store) (<span class="nv">x</span> : ()) (<span class="nv">k</span> : outcome2 bool exn → micro A E), step (σ, Stop CFlip x k) (σ, continue k b)
   | StepAlloc : <span class="kr">∀</span> (<span class="nv">σ</span> : store) <span class="nv">v</span> (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 loc exn → micro A E),
                   σ !! l = None → step (σ, Stop CAlloc v k) (&lt;[l:=V v]&gt; σ, continue k l)
   | StepLoad : <span class="kr">∀</span> (<span class="nv">σ</span> : store) (<span class="nv">l</span> : loc) (<span class="nv">k</span> : outcome2 val exn → micro A E) (<span class="nv">c&#39;</span> : store * micro A E),
@@ -630,15 +632,12 @@ takes us from one pause to the next pause.</p>
   | StepParRight : <span class="kr">∀</span> (<span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) 
                      (<span class="nv">m1</span> : micro A1 E&#39;) (<span class="nv">m2</span> <span class="nv">m&#39;2</span> : micro A2 E&#39;) 
                      (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
-                     step (σ, m2) (σ&#39;, m&#39;2) → step (σ, Par m1 m2 k) (σ&#39;, Par m1 m&#39;2 k)
-  | StepChooseLeft : <span class="kr">∀</span> (<span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : outcome2 B E&#39; → micro A E),
-                       step (σ, Choose m1 m2 k) (σ, try2 m1 k)
-  | StepChooseRight : <span class="kr">∀</span> (<span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : outcome2 B E&#39; → micro A E),
-                        step (σ, Choose m1 m2 k) (σ, try2 m2 k).
+                     step (σ, m2) (σ&#39;, m&#39;2) → step (σ, Par m1 m2 k) (σ&#39;, Par m1 m&#39;2 k).
 
 <span class="kn">Arguments</span> step {A E}%type_scope _ _
 <span class="kn">Arguments</span> StepEval {A E}%type_scope σ η e k%function_scope
 <span class="kn">Arguments</span> StepLoop {A E}%type_scope σ η x i1 i2 e k%function_scope
+<span class="kn">Arguments</span> StepFlip {A E}%type_scope b%bool_scope σ x k%function_scope
 <span class="kn">Arguments</span> StepAlloc {A E}%type_scope σ v l k%function_scope _
 <span class="kn">Arguments</span> StepLoad {A E}%type_scope σ l k%function_scope c&#39; _
 <span class="kn">Arguments</span> StepStore {A E}%type_scope σ l v&#39; k%function_scope c&#39; _
@@ -657,34 +656,29 @@ takes us from one pause to the next pause.</p>
 <span class="kn">Arguments</span> StepParPerformLeft {A E A1 A2 E&#39;}%type_scope σ m2 e (k h)%function_scope
 <span class="kn">Arguments</span> StepParPerformRight {A E A1 A2 E&#39;}%type_scope σ m1 e (k h)%function_scope
 <span class="kn">Arguments</span> StepParLeft {A E A1 A2 E&#39;}%type_scope σ σ&#39; m1 m&#39;1 m2 k%function_scope _
-<span class="kn">Arguments</span> StepParRight {A E A1 A2 E&#39;}%type_scope σ σ&#39; m1 m2 m&#39;2 k%function_scope _
-<span class="kn">Arguments</span> StepChooseLeft {A E B E&#39;}%type_scope σ m1 m2 k%function_scope
-<span class="kn">Arguments</span> StepChooseRight {A E B E&#39;}%type_scope σ m1 m2 k%function_scope</blockquote></div></div></small></span></pre><p>Let us look at some of the cases in this definition.
+<span class="kn">Arguments</span> StepParRight {A E A1 A2 E&#39;}%type_scope σ σ&#39; m1 m2 m&#39;2 k%function_scope _</blockquote></div></div></small></span></pre><p>Let us look at some of the cases in this definition.
 An <code class="highlight coq"><span class="n">CEval</span></code> request steps to an invocation of <code class="highlight coq"><span class="kp">eval</span></code>:</p>
 <pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk19" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk19"><span class="kn">Check</span> @StepEval.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepEval
      : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) <span class="nv">η</span> <span class="nv">e</span> (<span class="nv">k</span> : outcome2 val exn → micro A E),
-         step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)</blockquote></div></div></small></span></pre><p>Under a parallel composition constructor <code class="highlight coq"><span class="n">Par</span></code>,
+         step (σ, Stop CEval (η, e) k) (σ, try2 (<span class="kp">eval</span> η e) k)</blockquote></div></div></small></span></pre><p>A <code class="highlight coq"><span class="n">Flip</span></code> request returns a Boolean result <code class="highlight coq"><span class="n">b</span></code>,
+which may either <code class="highlight coq"><span class="n">true</span></code> or <code class="highlight coq"><span class="n">false</span></code>.
+This makes the relation <code class="highlight coq"><span class="n">step</span></code> non-deterministic:</p>
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1a" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1a"><span class="kn">Check</span> @StepFlip.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepFlip
+     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> : <span class="kt">Type</span>) <span class="nv">b</span> (<span class="nv">σ</span> : store) (<span class="nv">x</span> : ()) (<span class="nv">k</span> : outcome2 bool exn → micro A E),
+         step (σ, Stop CFlip x k) (σ, continue k b)</blockquote></div></div></small></span></pre><p>Under a parallel composition constructor <code class="highlight coq"><span class="n">Par</span></code>,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
 may take a step:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1a" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1a"><span class="kn">Check</span> @StepParLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParLeft
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1b" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1b"><span class="kn">Check</span> @StepParLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParLeft
      : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> <span class="nv">σ&#39;</span> : store) (<span class="nv">m1</span> <span class="nv">m&#39;1</span> : micro A1 E&#39;) 
          (<span class="nv">m2</span> : micro A2 E&#39;) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
          step (σ, m1) (σ&#39;, m&#39;1) → step (σ, Par m1 m2 k) (σ&#39;, Par m&#39;1 m2 k)</blockquote></div></div></small></span></pre><p>If both threads have reached a result, then
 the parallel composition disappears.
 The continuation <code class="highlight coq"><span class="n">k</span></code> is applied to the pair <code class="highlight coq"><span class="o">(</span><span class="n">v1</span><span class="o">,</span> <span class="n">v2</span><span class="o">)</span></code>
 of the results:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1b" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1b"><span class="kn">Check</span> @StepParRetRet.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParRetRet
+<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1c" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1c"><span class="kn">Check</span> @StepParRetRet.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepParRetRet
      : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">A1</span> <span class="nv">A2</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">v1</span> : A1) (<span class="nv">v2</span> : A2) (<span class="nv">k</span> : outcome2 (A1 * A2) E&#39; → micro A E),
-         step (σ, Par (ret v1) (ret v2) k) (σ, continue k (v1, v2))</blockquote></div></div></small></span></pre><p>The constructor <code class="highlight coq"><span class="n">Choose</span></code>
-makes a non-deterministic choice
-among its two branches:</p>
-<pre class="alectryon-io highlight"><!-- Generator: Alectryon --><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1c" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1c"><span class="kn">Check</span> @StepChooseLeft.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepChooseLeft
-     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : outcome2 B E&#39; → micro A E),
-         step (σ, Choose m1 m2 k) (σ, try2 m1 k)</blockquote></div></div></small><span class="alectryon-wsp">
-</span></span><span class="alectryon-sentence"><input checked="checked" class="alectryon-toggle" id="tutorial-v-chk1d" style="display: none" type="checkbox"><label class="alectryon-input" for="tutorial-v-chk1d"><span class="kn">Check</span> @StepChooseRight.</label><small class="alectryon-output"><div><div class="alectryon-messages"><blockquote class="alectryon-message">@StepChooseRight
-     : <span class="kr">∀</span> (<span class="nv">A</span> <span class="nv">E</span> <span class="nv">B</span> <span class="nv">E&#39;</span> : <span class="kt">Type</span>) (<span class="nv">σ</span> : store) (<span class="nv">m1</span> <span class="nv">m2</span> : micro B E&#39;) (<span class="nv">k</span> : outcome2 B E&#39; → micro A E),
-         step (σ, Choose m1 m2 k) (σ, try2 m2 k)</blockquote></div></div></small></span></pre><p>There are more reduction rules, not shown.</p>
+         step (σ, Par (ret v1) (ret v2) k) (σ, continue k (v1, v2))</blockquote></div></div></small></span></pre><p>There are more reduction rules, not shown.</p>
 <p>We sometimes refer to this semantics as the «scheduler»,
 because it appears to make scheduling decisions;
 however, it is in fact non-deterministic.</p>

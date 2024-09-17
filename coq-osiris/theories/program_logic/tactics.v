@@ -1,6 +1,6 @@
 From iris.proofmode Require Import tactics.
 
-From osiris Require Import program_logic.ewp.
+From osiris.program_logic Require Import ewp.
 From osiris.semantics Require Import step code.
 
 (** *Local tactics for [ewp] rules *)

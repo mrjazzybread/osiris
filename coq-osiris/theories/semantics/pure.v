@@ -1,4 +1,5 @@
-From osiris Require Import base lang syntax.
+From Coq Require Import FunctionalExtensionality.
+From osiris Require Import base.
 From osiris.semantics Require Import code eval simplification.
 
 (** [may] relation: reduction steps for pure computations *)
@@ -31,7 +32,7 @@ Other differences with [simp]:
 - transitivity is not included, which makes the relation simpler to reason
   about. Transitivity is necessary for [simp] to be able to ignore intermediate
   steps in case of temporary nondeterminism, for example in the different
-  components of a [Choose].
+  continuations of a [Stop CFlip].
 
 - if [m] is impure it can reach [crash] in some number of [may] steps, and so
   [pure] computations are guaranteed to be pure. *)
@@ -45,6 +46,14 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CLoop (η, x, i1, i2, e) k)
     (try2 (loop η x i1 i2 e) k)
+| MayFlipTrue u k :
+  may
+    (Stop CFlip u k)
+    (continue k true)
+| MayFlipFalse u k :
+  may
+    (Stop CFlip u k)
+    (continue k false)
 | MayAlloc v k :
   may
     (Stop CAlloc v k)
@@ -69,14 +78,6 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CPerform e k)
     crash
-| MayChooseLeft {B E'} m1 m2 (k : outcome2 B E' → _) :
-  may
-    (Choose m1 m2 k)
-    (try2 m1 k)
-| MayChooseRight {B E'} m1 m2 (k : outcome2 B E' → _) :
-  may
-    (Choose m1 m2 k)
-    (try2 m2 k)
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par crash m2 k)
@@ -198,6 +199,14 @@ Qed.
    property [inj_pair2], which is a consequence of the axiom of the excluded
    middle. *)
 
+Ltac eq_dep_inj :=
+  repeat match goal with
+    | H : existT ?A ?x = existT ?A ?y |- _ =>
+        apply Classical_Prop.EqdepTheory.inj_pair2 in H
+    end.
+
+Ltac inv H := inversion H; subst; eq_dep_inj; subst.
+
 Lemma Stop_inj {A E X Y E'} (c : C.code X Y E') x1 x2 (k1 k2 : _ → micro A E) :
   Stop c x1 k1 = Stop c x2 k2 → x1 = x2 ∧ k1 = k2.
 Proof.
@@ -237,6 +246,15 @@ Proof.
   apply Stop_inj in Heq. destruct Heq as [[=] <-]. congruence.
 Qed.
 
+Lemma invert_may_flip {A E} (m' : micro A E) u k:
+  may (Stop CFlip u k) m' →
+  ∃ b, m' = continue k b.
+Proof.
+  remember (Stop _ _ _); intros M; revert u k Heqm.
+  inversion M; subst; intros [] k_ Heq; try solve [inversion Heq];
+    apply Stop_inj in Heq; destruct Heq as [-> <-]; eauto.
+Qed.
+
 Lemma invert_may_perform {A E} (m' : micro A E) e h:
   may (Stop CPerform e h) m' → m' = crash.
 Proof.
@@ -251,13 +269,6 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ e1, m1 = throw e1 ∧ m' = discontinue k e1) ∨
   (∃ e2, m2 = throw e2 ∧ m' = discontinue k e2) ∨
   ((m1 = crash ∨ m2 = crash) ∧ m' = crash).
-Proof.
-  inversion 1; subst; eq_dep_inj; subst; eauto 15.
-Qed.
-
-Lemma invert_may_choose {A E B E'} (k : outcome2 B E' → micro A E) m1 m2 m' :
-  may (Choose m1 m2 k) m' →
-  m' = try2 m1 k ∨ m' = try2 m2 k.
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
@@ -292,11 +303,6 @@ Proof.
     firstorder; subst.
     all: try solve [repeat (econstructor; eauto)]; repeat econstructor.
     all: rewrite ?try2_try2, ?pftry2_join1, ?pftry2_join2; auto.
-  - (* Choose *)
-    simpl. intros [-> | ->]%invert_may_choose; left; eexists; split.
-    1: apply MayChooseLeft.
-    2: apply MayChooseRight.
-    1,2 : rewrite ?try2_try2; auto.
 Qed.
 
 Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro B E) :
@@ -314,9 +320,6 @@ Qed.
 
 
 Global Hint Resolve invert_may_ret invert_may_throw invert_may_crash
-  invert_may_eval invert_may_par invert_may_choose
+  invert_may_eval invert_may_par
   invert_may_try2 invert_may_bind
   : invert_may.
-
-
-

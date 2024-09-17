@@ -230,14 +230,14 @@ Section verification.
       (* Value and Exception case: *)
       { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        iModIntro. (* FIXME: [handle_cons] fails if we don't use iModIntro before. *)
-        handle_cons.
+        iModIntro. (* FIXME: [next_branch] fails if we don't use iModIntro before. *)
+        next_branch.
         { Simp. Ret. by iPureIntro. }
 
-        handle_cons.
+        next_branch.
         { Simp. Ret. by iPureIntro. }
 
-        handle_cons.
+        next_branch.
 
         destruct o; simpl in *; destruct_hyps H1 H2. }
 
@@ -252,9 +252,9 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        handle_cons.
-        handle_cons.
-        handle_cons; last tauto.
+        next_branch.
+        next_branch.
+        next_branch; last tauto.
         fold eval.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
@@ -285,7 +285,7 @@ Section verification.
       iModIntro.
       prove_simple_match. { Simp. Ret. equality. }
       iModIntro.
-      handle_cons.
+      next_branch.
 
       (* [let open struct ...] *)
       iApply ewp_ELetOpen.
@@ -328,7 +328,7 @@ Section verification.
       { iIntros "!>" (??) "HF".
         by iPoseProof (upcl_bottom with "HF") as "F". }
       iIntros (? ->) "!> !>".
-      handle_cons.
+      next_branch.
 
       (* [match_with iter yield { ...] *)
       iApply ewp_EMatch.

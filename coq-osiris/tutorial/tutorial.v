@@ -430,7 +430,7 @@ Print micro.
 (*|
 The `try` combinator is not a constructor;
 it is a function. This is made possible by building `try` into the
-constructors `Stop`, `Par`, and `Choose`. Indeed, the continuations `k`
+constructors `Stop` and `Par`. Indeed, the continuations `k`
 and `z` carried by these constructors correspond to two arms of a `try`
 construct.
 |*)
@@ -487,7 +487,9 @@ Print code. (* .unfold *)
 (*|
 The code `CEval`, which we have encountered earlier, is used to request
 a recursive invocation of the function `eval`. The code `CLoop` plays a
-similar role, but is used in the interpretation of `for` loops.
+similar role, but is used in the interpretation of `for` loops. The
+code `Flip` is used to request a Boolean value from the system: it is
+used to encode a binary non-deterministic choice combinator, `choose`.
 The codes `CAlloc`, `CLoad`, and `CStore` are requests to allocate, read,
 write a memory location in the heap.
 |*)
@@ -536,6 +538,14 @@ An `CEval` request steps to an invocation of `eval`:
 Check @StepEval. (* .unfold *)
 
 (*|
+A `Flip` request returns a Boolean result `b`,
+which may either `true` or `false`.
+This makes the relation `step` non-deterministic:
+|*)
+
+Check @StepFlip. (* .unfold *)
+
+(*|
 Under a parallel composition constructor `Par`,
 either thread is allowed to take a step.
 The following reduction rule shows that the left-hand thread
@@ -552,15 +562,6 @@ of the results:
 |*)
 
 Check @StepParRetRet. (* .unfold *)
-
-(*|
-The constructor `Choose`
-makes a non-deterministic choice
-among its two branches:
-|*)
-
-Check @StepChooseLeft. (* .unfold *)
-Check @StepChooseRight. (* .unfold *)
 
 (*|
 There are more reduction rules, not shown.

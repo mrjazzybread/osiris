@@ -1,7 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode proofmode.environments.
 From osiris Require Import lang.
-From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import notations simp_tactics.
+From osiris.program_logic Require Import ewp basic_rules handler_rules tactics simp_tactics.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)
@@ -15,36 +14,6 @@ Notation "'RET=' v" :=
   (lift_ret_spec (λ v', (bi_pure (v' = v) ∗ emp)%I))
     (at level 20, v at level 200,
       format "'RET='  v") : bi_scope.
-
-(** *General tactics *)
-(* Start proof mode. *)
-Ltac Start_proof := iStartProof.
-
-(* Try to simplify the goal using the [simp] relation *)
-Ltac Simp :=
-  iApply ewp_simp; first try solve [simp].
-
-(* Hoare-style rules that correspond to [rule] lemmas *)
-Ltac Try := iApply ewp_try.
-
-Ltac Ret := repeat iApply ewp_value.
-
-Ltac Throw := iApply ewp_throw.
-
-Ltac Par :=
-  lazymatch goal with
-  | |- envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
-      iApply ewp_Par
-  | _ => fail "The goal must be a par to apply [ewp_par]."
-  end; try done.
-
-Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].
 
 Section ewp_rules_expr.
 
@@ -62,8 +31,8 @@ Section ewp_rules_expr.
     iIntros (He) "H".
     iApply ewp_mono.
     { iApply (@pure_ewp _ _ _ _ _ _ _ (λ _, False)).
-      eapply pure_widen, pure_simp. apply He.
-      apply pure_ret_eq. }
+      eapply pure_wp_widen, pure_wp_simp. apply He.
+      by apply (pure_wp_ret (fun x => v = x)). }
     by iIntros ([|] []).
   Qed.
 

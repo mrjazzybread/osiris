@@ -37,7 +37,7 @@ Local Notation crashes e :=
 (* The construct [EAssert e] is evaluated as a choice between skipping the
    dynamic test and performing the dynamic test (eval.v). Here, we want the
    dynamic tests to be performed, so we choose the right-hand side. This is
-   done by using [StepChooseRight]. It is brittle, but should do for now. *)
+   done by using [StepFlip false]. It is brittle, but should do for now. *)
 
 Lemma is_fresh :
   ∀ (σ : store), σ !! (fresh (dom σ)) = None.
@@ -51,7 +51,7 @@ Local Ltac step :=
   first [
       eapply StepEval
     | eapply StepLoop
-    | eapply StepChooseRight
+    | eapply (StepFlip false)
     | eapply StepParRetRet
     | eapply StepParLeft; [ step ]
     | eapply StepParRight; [ step ]
@@ -478,7 +478,7 @@ Proof. reduces. reduces. Qed.
 
 Lemma test_handle_compute_head :
   let e :=
-      (21 + EPerform (EXData ["Choose"] (ETuple [])))%expr
+      (21 + EPerform (EXData ["Choose"] (ETuple [])))%E
   in
   let m :=
     EMatch e
@@ -496,7 +496,7 @@ Proof. reduces. Qed.
 
 Lemma test_handle_compute_branch :
   let e :=
-    (20 + EPerform (EXData ["Choose"] (ETuple [])))%expr
+    (20 + EPerform (EXData ["Choose"] (ETuple [])))%E
   in
   let m :=
     EMatch e
@@ -505,7 +505,7 @@ Lemma test_handle_compute_branch :
           (CEff PAny (PVar "k"))
           (ELet1 (PVar "y")
              (EContinue (EVar "k") (EInt 21))
-             (EVar "y" + 1)%expr);
+             (EVar "y" + 1)%E);
         (* | x -> x *)
         Branch
           (CVal (PVar "x"))
@@ -523,7 +523,7 @@ Lemma test_handle_reinstall_ret :
       [ (* | x -> 21 + x *)
         Branch
           (CVal (PVar "x"))
-          (21 + EVar "x")%expr]
+          (21 + EVar "x")%E]
   in
   let m :=
     EMatch e2
@@ -581,7 +581,7 @@ Lemma test_nested_handlers :
   let e :=
     ELet1 (PVar "y")
       (EPerform (EXData ["Get20"] (ETuple [])))
-      (EVar "y" + EPerform (EXData ["Get22"] (ETuple [])))%expr
+      (EVar "y" + EPerform (EXData ["Get22"] (ETuple [])))%E
   in
   let m1 :=
     EMatch e
@@ -609,7 +609,7 @@ Proof. intros. subst e m1 m2. reduces. reduces. Qed.
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
   let e :=
-    (EPerform (EXData ["Get21"] (ETuple [])) + EPerform (EXData ["Get21"] (ETuple [])))%expr
+    (EPerform (EXData ["Get21"] (ETuple [])) + EPerform (EXData ["Get21"] (ETuple [])))%E
   in
   let m :=
     EMatch e
@@ -629,7 +629,7 @@ Lemma test_shallow_ret_reinstall :
   let η := [("Get32", (VLoc (Loc 32))); ("Get10", (VLoc (Loc 10)))] in
   let e := (ELet1 (PVar "x")
               (EPerform (EXData ["Get32"] (ETuple [])))
-              (EVar "x" + EPerform (EXData ["Get10"] (ETuple []))))%expr
+              (EVar "x" + EPerform (EXData ["Get10"] (ETuple []))))%E
   in
   let bs :=
     [ (* | effect Get10, k -> continue k 10 *)

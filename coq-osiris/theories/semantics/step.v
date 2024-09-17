@@ -12,7 +12,7 @@ From iris.prelude Require Import prelude options.
 (* The definition of the relation [step] gives meaning to system calls, that
    is, to [Stop] events. For example, a [Stop CEval] event is interpreted as a
    request for a recursive invocation of the evaluator. It also gives meaning
-   to the monad's non-standard constructs, namely [Handle], [Par], [Choose]. *)
+   to the monad's non-standard constructs, namely [Handle] and [Par]. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -262,6 +262,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CLoop (η, x, i1, i2, e) k)
         (σ, try2 (loop η x i1 i2 e) k)
 
+  (* [stop CFlip ()] returns either [false] or [true]. *)
+  | StepFlip :
+      ∀ b σ x k,
+      step
+        (σ, Stop CFlip x k)
+        (σ, continue k b)
+
   (* [stop CAlloc v] allocates a fresh location in the heap,
      initializes it with the value [v], and returns this location. *)
   | StepAlloc :
@@ -417,20 +424,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Par m1 m2 k)
         (σ', Par m1 m'2 k)
-
-  (* [choose] steps to either side. *)
-  | StepChooseLeft :
-      ∀ {B E'} σ m1 m2 (k : outcome2 B E' → _),
-      step
-        (σ, Choose m1 m2 k)
-        (σ, try2 m1 k)
-
-  | StepChooseRight :
-      ∀ {B E'} σ m1 m2 (k : outcome2 B E' → _),
-      step
-        (σ, Choose m1 m2 k)
-        (σ, try2 m2 k)
-
 .
 
 Global Hint Constructors step : step.
@@ -733,8 +726,10 @@ Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
   (* Get rid of [CPerform]. *)
   first [ tauto | intros _ ];
-  (* Deal with all remaining cases except [CAlloc]. *)
+  (* Deal with all remaining cases except [CFlip], [CAlloc], [CInstall]. *)
   eauto using StepLoad with step.
+  (* [StepFlip] needs to be told which Boolean to use *)
+  { econstructor. apply (StepFlip true). }
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
   { set (l := fresh (dom σ)).
@@ -828,17 +823,8 @@ Proof.
   eauto using can_step_handle_par.
 Qed.
 
-(* [Choose] can step. *)
-
-Lemma can_step_choose :
-  ∀ {A B E' E} σ m1 m2 (k : outcome2 A E' → _),
-  can_step ((σ, Choose m1 m2 k) : config B E).
-Proof.
-  eauto with step.
-Qed.
-
 Global Hint Resolve
-  can_step_handle can_step_par can_step_choose
+  can_step_handle can_step_par
 : step.
 
 (* Stepping in the left-hand side of [try2] is permitted. *)
@@ -854,6 +840,7 @@ Proof.
   simpl try2;
   rewrite ?try2_try2;
   eauto with step algebraic f_equal.
+  rewrite try2_continue; constructor.
 Qed.
 
 (* As special cases, stepping under [try] or [bind] is also permitted. *)

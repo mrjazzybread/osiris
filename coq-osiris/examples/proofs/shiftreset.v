@@ -164,7 +164,7 @@ Section verification.
     iLöb as "IH".
     rewrite {2}deep_handler_spec_unfold; iSplit.
     { iIntros (?). iIntros "!> H !>"; destruct o; try done.
-      handle_cons.
+      next_branch.
       iApply ewp_EPath. by Ret. }
 
 
@@ -177,9 +177,9 @@ Section verification.
       rewrite /deep_handler_spec seal_eq.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
-    handle_cons.
-    handle_cons.
-    handle_cons.
+    next_branch.
+    next_branch.
+    next_branch.
     { by Simp. }
     tauto.
   Qed.
@@ -190,16 +190,16 @@ Section verification.
     remember (VClo env _) as f eqn:Heqf; clear Heqf.
 
     Call. iNext.
-
+    unfold deco.
     iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
     { EXData. (* TODO: Improve *)
       - iApply ewp_EPath. iApply ewp_value. equality.
       - iRewrite "HData_arg". equality. }
 
     iIntros (?) "->".
-    iApply ewp_perform.
+    iApply ewp_perform. (* TODO: bake into ewp_EPerform. *)
 
-    rewrite /prot upcl_SHIFT.
+    rewrite /prot upcl_SHIFT. (* Investigate if this is automatable. *)
     iExists _, Q. iSplit; [ done | ]. iFrame.
     by iIntros (w) "Hw".
   Qed.

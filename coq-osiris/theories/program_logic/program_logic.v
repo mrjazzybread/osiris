@@ -1,11 +1,11 @@
 (* This file summarizes the content of program_logic/ directory. *)
 
-From osiris.program_logic.pure Require Export
-     pure.
-
 From osiris.program_logic Require Export
-     ewp
-     basic_rules
-     handler_rules
-     adequacy
+  ewp
+  basic_rules
+  handler_rules
+  expr_rules
+  adequacy
 .
+
+From osiris.program_logic.pure Require Export pure.

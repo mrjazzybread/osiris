@@ -64,7 +64,7 @@ Proof.
     { Simp; Ret; equality. }
 
     (* We are now facing the branches of the match. *)
-    iModIntro; handle_cons.
+    iModIntro; next_branch.
     { (* Entering the first branch where [l] is a nil. *)
       iApply ewp_EUnit_exn; simpl.
       (* Subgoal: show the postcondition when we return unit. *)
@@ -75,7 +75,7 @@ Proof.
     (* As we continue to the next branch, we learn that we did not
        match the first branch, see [H0]. *)
 
-    handle_cons.
+    next_branch.
     { (* Entering the second branch, where [l] is a cons. *)
       iApply (ewp_ESeq_exn with "[HI]").
       { (* Application of f to the head of the list. *)
@@ -130,4 +130,84 @@ Proof.
   iExists _; iSplit; [ equality | simpl ].
   iSplit; [ | done ].
   iExists _; iSplit; [ equality | iAssumption ].
+Qed.
+
+
+Definition pure_isListIter (iter : val) : Prop :=
+  ∀ (I : list A → Prop) φ (f : val) (l : list A),
+    (∀ (Xs : list A) (X : A),
+        (Xs ++ [X]) `prefix_of` l ->
+        I Xs ->
+        pure (call f #X) ##(λ v, v = () ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
+      I [] ->
+      pure_call2 iter f #l
+        (λ v, v = () ∧ I l)
+        (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
+
+Require Import Coq.Wellfounded.Inverse_Image.
+
+Lemma wf_list_length {A B : Type} :
+  well_founded (fun (l1 l2 : (B * list A)) => (length l1.2 < length l2.2)%nat).
+Proof.
+  apply wf_inverse_image. apply lt_wf.
+Qed.
+
+Lemma iter_module_pure :
+  toplevel __main
+    (env_has_pspecs [("iter", pure_isListIter)]).
+Proof.
+  apply module_struct.
+  next_item with pure_isListIter; last first.
+  { intros [??] (iter & Hiter & -> & ->).
+    by finished_struct. }
+
+  unfold pure_isListIter.
+  intros I φ f l Hf HI.
+
+  assert ([] ++ l = l) as Heql by (rewrite app_nil_l; auto); revert Heql HI.
+  (* We generalize the initial prefix (the empty list)
+     in [[] ++ l = l] and in [I []]. *)
+  generalize (@nil A) at 1 2; intro lpre.
+  (* We generalize the initial suffix (the whole list)
+     in [lpre ++ l = l] and in [EWP call clo #l]. *)
+  generalize l at 1 3; intro lsuf.
+  intros Heql HI.
+
+  change f with #f.
+  eapply pure_rec_call2 with
+    (P := λ func lsuf, func = f ∧ ∃ lpref, lpref ++ lsuf = l ∧ I lpref)
+    (φ := (λ _ _ v, v = () ∧ I l)).
+  { apply wf_list_length. }
+  { split; eauto. }
+
+  clear Heql lsuf.
+
+  intros iter ? lsuf IH [-> (lpref & Heql & HIpre)].
+  (* Need to do better. *)
+  pure_simp. apply pure_ret. pure_enter.
+
+ eapply pure_eval_match. { pure_path. reflexivity. }
+ pure_match.
+
+ { pure_const. by rewrite app_nil_r. }
+
+ { eapply pure_eval_seq_exn.
+   eapply pure_eval_app. pure_path. pure_path.
+   eapply pure_mono.
+   { apply Hf.
+     - rewrite (cons_middle _ lpref xs'). apply prefix_app.
+       rewrite <- (app_nil_r [x]) at 1. apply prefix_app. apply prefix_nil.
+     - apply HIpre. }
+   intros ? (? & _ & _ & HIx).
+   exists a. split; auto.
+
+   pure_simp.
+   eapply pure_mono. eapply pure_bind. eapply IH.
+   { simpl. lia. }
+   { split; first done. exists (lpref ++ [x]). split; last done.
+     rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
+   - intros ? (? & -> & -> & ?). exists (). repeat split. assumption.
+   - intros e [Hφ He]. split; assumption.
+   - intros e [Hφ HIe]. split; first assumption.
+     exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1. apply prefix_app. apply prefix_nil. }
 Qed.

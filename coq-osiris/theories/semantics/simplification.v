@@ -41,11 +41,11 @@ Local Open Scope nat_scope.
 (* [SimpEval] and [SimpLoop] allow certain [Stop] events to be replaced with
    their meaning.
 
-   [SimpChooseAgree] requires that the computations [m1] and [m2] can both
-   be simplified to a common computation [m]. Thus, this rule is applicable
-   only in the special case where the final outcome of the computation is
-   independent of the coin flip. This is useful; e.g., it allows OCaml's
-   [assert] construct to be regarded as pure.
+   [SimpFlipAgree] requires that the computations [continue k true] and
+   [continue k false] can both be simplified to a common computation [m]. Thus,
+   this rule is applicable only in the special case where the final outcome of
+   the computation is independent of the coin flip. This is useful; e.g., it
+   allows OCaml's [assert] construct to be regarded as pure.
 
    [SimpParRetLeft] and [SimpParRetRight] simplify a [par] construct
    where at least one side is [ret _].
@@ -79,13 +79,13 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
     simp
       (Stop CLoop (η, x, i1, i2, e) k)
       (try2 (loop η x i1 i2 e) k)
-| SimpChooseAgree :
-    ∀ {B E'} m m1 m2 (k : outcome2 B E' → _),
-    simp m1 m →
-    simp m2 m →
+| SimpFlipAgree :
+    ∀ m x k,
+    simp (continue k true) m →
+    simp (continue k false) m →
     simp
-      (Choose m1 m2 k)
-      (try2 m k)
+      (Stop CFlip x k)
+      m
 | SimpParRetLeft:
     ∀ {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _),
     simp
@@ -248,13 +248,13 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
     simplify 1
       (Stop CLoop p k)
       (try2 (loop η x i1 i2 e) k)
-| SimplifyChooseAgree :
-    ∀ {B E'} n1 n2 m m1 m2 (k : outcome2 B E' → _),
-    simplify n1 m1 m →
-    simplify n2 m2 m →
+| SimplifyFlipAgree :
+    ∀ n1 n2 m x k,
+    simplify n1 (continue k true) m →
+    simplify n2 (continue k false) m →
     simplify (n1 + n2 + 1)
-      (Choose m1 m2 k)
-      (try2 m k)
+      (Stop CFlip x k)
+      m
 (* The following two rules have cost 2. *)
 | SimplifyParRetLeft:
     ∀ {A1 A2 E'} a1 m2 (k : outcome2 (A1 * A2) E' → _),
@@ -731,8 +731,8 @@ Proof.
   { destruct_step. search. }
   (* SimplifyLoop *)
   { destruct_step. search. }
-  (* SimplifyChooseAgree *)
-  { destruct_step; search. }
+  (* SimplifyFlipAgree *)
+  { destruct_step. destruct b; search. }
   (* SimplifyParRetLeft *)
   (* This case is the reason why [SimplifyPerform] is needed. *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
@@ -943,8 +943,8 @@ Proof.
   { destruct_step. simp_search. }
   (* SimpLoop *)
   { destruct_step. simp_search. }
-  (* SimpChooseAgree *)
-  { destruct_step; simp_search. }
+  (* SimpFlipAgree *)
+  { destruct_step; destruct b; simp_search. }
   (* SimpParRetLeft *)
   (* This case is the reason why [SimpPerform] is needed. *)
    { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.

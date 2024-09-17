@@ -126,10 +126,7 @@ Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
    an exception, then this exception can be propagated upwards. If either
    side performs an effect, then this effect can be propagated upwards,
    thereby capturing the other side of the [par] construct in its
-   continuation.
-
-   [choose m1 m2] is a non-deterministic choice between the computations
-   [m1] and [m2]. One of them is executed; the other is discarded. *)
+   continuation. *)
 
 (* The type [micro A] is inductive: every computation terminates.
    Non-terminating computations can be represented, but must (infinitely
@@ -137,7 +134,7 @@ Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
 
 (* Internally, [bind] and [try] are special cases of [try2]. The
    combinator [try2] is not a constructor: instead, the constructors
-   [Handle], [Stop], [Par] and [Choose] contain a built-in [try2]. This
+   [Handle], [Stop], and [Par] contain a built-in [try2]. This
    explains why each of these constructors carries a handler, which in the
    case of [Handle] has three arms, and otherwise has only two arms. This
    representation can be viewed as an implementation detail; however, this
@@ -161,9 +158,6 @@ Inductive micro A E :=
   | Par {A1 A2 E'}
       (m1 : micro A1 E') (m2 : micro A2 E')
       (k : outcome2 (A1 * A2) E' → micro A E)
-  | Choose {B E'}
-      (m1 m2 : micro B E')
-      (k : outcome2 B E' → micro A E)
 .
 
 (* Make [A] and [E] implicit arguments of the constructors. *)
@@ -174,12 +168,11 @@ Arguments Crash     {A E}.
 Arguments Handle    {A E}.
 Arguments Stop      {A E X Y E'} c x k.
 Arguments Par       {A E A1 A2 E'} m1 m2 k.
-Arguments Choose    {A E B E'} m1 m2 k.
 
 (* ------------------------------------------------------------------------ *)
 
 (* The following combinators are public: [ret], [throw], [crash], [stop],
-   [par], [choose]. *)
+   [par]. *)
 
 Notation ret :=
   (Ret).
@@ -214,19 +207,13 @@ Definition par {A1 A2 E} (m1 : micro A1 E) (m2 : micro A2 E)
 : micro (A1 * A2) E :=
   Par m1 m2 inject2.
 
-(* [choose m1 m2] performs a non-deterministic choice between [m1] and
-   [m2] and runs the chosen computation, producing a single result. *)
-
-Definition choose {A E} (m1 m2 : micro A E) : micro A E :=
-  Choose m1 m2 inject2.
-
 (* ------------------------------------------------------------------------ *)
 
 (* The monadic combinators [bind], [try2], and [try]. *)
 
 (* [bind m f] sequences the computations [m] and [f]. *)
 
-(* In the cases of [Handle], [Stop], [Par], [Choose], the existing
+(* In the cases of [Handle], [Stop], [Par], the existing
    handler [h] is composed with the continuation [f]. The notation
    [pfbind h f] is later introduced to express this. *)
 
@@ -244,8 +231,6 @@ Fixpoint bind {A B E} (m : micro A E) (f : A → micro B E) : micro B E :=
       Stop c x (λ o, bind (h o) f)
   | Par m1 m2 h =>
       Par m1 m2 (λ o, bind (h o) f)
-  | Choose m1 m2 h =>
-      Choose m1 m2 (λ o, bind (h o) f)
   end.
 
 Global Arguments bind A B E !m f : simpl nomatch.
@@ -259,7 +244,7 @@ Global Arguments fmap A B E f m : simpl nomatch.
 
 (* [try2 m f] runs the computation [m] under the two-armed handler [f]. *)
 
-(* In the cases of [Handle], [Stop], [Par], [Choose], the existing
+(* In the cases of [Handle], [Stop], [Par], the existing
    handler [h] is composed with the continuation [f]. The notation
    [pftry2 h f] is later introduced to express this. *)
 
@@ -279,8 +264,6 @@ Fixpoint try2 {A B E' E}
       Stop c x (λ o, try2 (h o) f)
   | Par m1 m2 h =>
       Par m1 m2 (λ o, try2 (h o) f)
-  | Choose m1 m2 h =>
-      Choose m1 m2 (λ o, try2 (h o) f)
   end.
 
 (* [try] is defined in terms of [try2]. It expects the two arms of the
@@ -442,14 +425,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_choose {A B C E' E}
-  (m1 m2 : micro A E') k (f : B → micro C E) :
-  bind (Choose m1 m2 k) f =
-  Choose m1 m2 (pfbind k f).
-Proof.
-  reflexivity.
-Qed.
-
 (* Analogous laws for [try]. *)
 
 Lemma try_ret {A B E' E} (a : A) (f : A → micro B E) (z : E' → micro B E) :
@@ -495,15 +470,6 @@ Lemma try2_Par {A1 A2 A B E' E F}
   (h : outcome2 A E → micro B F) :
   try2 (Par m1 m2 k) h =
   Par m1 m2 (pftry2 k h).
-Proof.
-  reflexivity.
-Qed.
-
-Lemma try_Choose {A B C E' E F}
-  (m1 m2 : micro A E') (k : _ → micro B E)
-  (f : B → micro C F) (h : E → micro C F) :
-  try (Choose m1 m2 k) f h =
-  Choose m1 m2 (pftry k f h).
 Proof.
   reflexivity.
 Qed.
@@ -569,16 +535,8 @@ Proof.
   intros. f_equal; eauto using functional_extensionality.
 Qed.
 
-Lemma eq_choose_choose {A B E E'} m1 m2
-  (k k' : outcome2 B E' → micro A E) :
-  (∀ o, k o = k' o) →
-  Choose m1 m2 k = Choose m1 m2 k'.
-Proof.
-  intros. f_equal; eauto using functional_extensionality.
-Qed.
-
 Local Hint Resolve
-  eq_handle_handle eq_stop_stop eq_par_par eq_choose_choose
+  eq_handle_handle eq_stop_stop eq_par_par
 : eq.
 
 (* ------------------------------------------------------------------------ *)
@@ -667,9 +625,8 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-(* The constructors [Stop], [Par], and [Choose] can be viewed as
-   applications of [stop], [par], and [choose],
-   wrapped in [try2]. *)
+(* The constructors [Stop] and [Par] can be viewed as
+   applications of [stop] and [par], wrapped in [try2]. *)
 
 (* TODO [try_stop], etc. may become unused *)
 
@@ -695,18 +652,6 @@ Lemma try_par {A1 A2 A E E'} m1 m2 (k : A1 * A2 → micro A E) (z : E' → micro
   try (par m1 m2) k z = Par m1 m2 (glue2 k z).
 Proof.
   eapply try2_par.
-Qed.
-
-Lemma try2_choose {A B E E'} m1 m2 (k : outcome2 A E' → micro B E) :
-  try2 (choose m1 m2) k = Choose m1 m2 k.
-Proof.
-  simpl. eauto using eq_choose_choose, try2_inject2.
-Qed.
-
-Lemma try_choose {A B E E'} m1 m2 (k : A → micro B E) (z : E' → micro B E) :
-  try (choose m1 m2) k z = Choose m1 m2 (glue2 k z).
-Proof.
-  eapply try2_choose.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -815,33 +760,6 @@ Ltac invert_try2_eq_par :=
   | h: Par _ _ _ = try2 _ _ |- _ =>
       symmetry in h;
       invert_try2_eq_par
-  end.
-
-Lemma invert_try2_eq_choose {A B C E E' E''}
-  {m : micro A E'} {f m1 m2} {k : outcome2 C E'' → micro B E}
-:
-  try2 m f = Choose m1 m2 k →
-  (∀ a, m = ret a → False) →
-  (∀ e, m = throw e → False) →
-  ∃ k',
-  m = Choose m1 m2 k' ∧
-  k = pftry2 k' f.
-Proof.
-  destruct m; simpl; try solve [ congruence | intros; exfalso; eauto ].
-  intros H. dependent destruction H.
-  intros _ _. eauto.
-Qed.
-
-Ltac invert_try2_eq_choose :=
-  match goal with
-  | h: try2 _ _ = Choose _ _ ?k |- _ =>
-      apply invert_try2_eq_choose in h; [| eauto | eauto ];
-      let k' := fresh k in
-      destruct h as (k' & ? & ?);
-      subst k; rename k' into k
-  | h: Choose _ _ _ = try2 _ _ |- _ =>
-      symmetry in h;
-      invert_try2_eq_choose
   end.
 
 Lemma invert_try2_eq_handle

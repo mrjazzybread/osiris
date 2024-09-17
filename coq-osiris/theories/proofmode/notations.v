@@ -1,8 +1,9 @@
 From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
 From osiris Require Import base.
-From osiris.semantics Require Import semantics.
 From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
+From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import specifications.
 
 (* Cf.
@@ -29,7 +30,7 @@ Notation "'ocaml' decoration" := (deco decoration _)
 (* A notation scope for [expr], includes arithmetic and booleans *)
 
 Declare Scope expr_scope.
-Delimit Scope expr_scope with expr.
+Delimit Scope expr_scope with E.
 
 Notation "- e" := (EIntNeg e) : expr_scope.
 Infix "+" := EIntAdd : expr_scope.
@@ -55,7 +56,7 @@ Definition Z_of_EInt e :=
 
 Number Notation expr EInt_of_Z Z_of_EInt : expr_scope.
 
-Open Scope expr.
+Open Scope expr_scope.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -202,19 +203,19 @@ Goal (trivial
          (EString "arg3"))).
 Abort.
 
-Notation "'pure' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
-  (pure (call f arg1)
-     (λ c, pure (call c arg2)
-             (.. (λ c, pure (call c argn) ##ψ ⊥) ..) ⊥) ⊥)
+Notation "'total' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
+  (total (call f arg1)
+     (λ c, total (call c arg2)
+             (.. (λ c, total (call c argn) ψ) ..)))
     (at level 200,
       only printing,
-    format "'pure'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
+    format "'total'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
 
 Goal (trivial
-        (pure (call (VString "F") (VString "X"))
-           (λ c, pure (call c (VString "Y"))
-                   (λ c, pure (call c (VString "Z"))
-                           ##(λ v : val, True) ⊥) ⊥) ⊥)).
+        (total (call (VString "F") (VString "X"))
+           (λ c, total (call c (VString "Y"))
+                   (λ c, total (call c (VString "Z"))
+                           (λ v : val, True))))).
 Abort.
 
 Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
@@ -354,7 +355,7 @@ Notation "{ r 'with' fds }" :=
 (* -------------------------------------------------------------------------- *)
 (* Hoare-style judgements. *)
 
-Close Scope expr.
+Close Scope expr_scope.
 
 Global Arguments eval _ _%expr_scope.
 

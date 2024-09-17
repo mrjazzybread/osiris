@@ -263,6 +263,13 @@ Qed.
 (* Examples that involve assertions. *)
 
 Goal let e :=
+  EAssert ETrue
+  in simp (eval ε e) (ret VUnit).
+Proof.
+  intros. super_simp.
+Qed.
+
+Goal let e :=
   ESeq (EAssert ETrue) EFalse
   in simp (eval ε e) (ret VFalse).
 Proof.
@@ -278,10 +285,12 @@ Goal let e :=
 Proof.
   intros.
   super_simp.
-  eapply SimpTransitive; [ apply SimpChooseAgree |]; simp. (* Fixme *)
+  eapply SimpTransitive; [ apply SimpFlipAgree |]; simp. (* Fixme *)
   simp.
     (* Look Ma, the assertions are automatically verified! *)
-Admitted.
+  (* I'm not sure what the desired effect was, but it was probably lost
+     when switching back from Choose to FLip *)
+Abort.
 
 (* -------------------------------------------------------------------------- *)
 

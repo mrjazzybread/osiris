@@ -64,13 +64,13 @@ Proof.
     { (* Value case. *)
       iIntros "(%h0 & %t & -> & ->)".
       iModIntro.
-      handle_cons.
-      handle_cons.
+      next_branch.
+      next_branch.
       { Simp. iApply ewp_value. iApply ewp_value. simpl.
         iExists (Some h0). equality. } }
     { (* Exception case. *)
       iIntros "[-> ->]".
-      handle_cons; fold eval.
+      next_branch; fold eval.
       iApply ewp_EConstant. iApply ewp_value.
       iExists (None). done. } }
 
