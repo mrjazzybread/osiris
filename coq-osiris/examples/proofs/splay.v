@@ -1,11 +1,7 @@
-Require Import Coq.Wellfounded.Inverse_Image.
-
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_splay.
-
-(* -------------------------------------------------------------------------- *)
 
 (* The algebraic data type ['a tree]. *)
 
@@ -21,29 +17,6 @@ Fixpoint tree_depth {A} (t : tree A) : nat :=
   | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
   end.
 
-(* -------------------------------------------------------------------------- *)
-
-(* Reflect the algebraic data type ['a tree]. *)
-#[local]
-  Program Canonical Structure tree_wf {A} : WellFounded (tree A) :=
-  {| wf_relation := (fun t1 t2 => tree_depth t1 < tree_depth t2)%nat |}.
-Next Obligation.
-  intros. eapply wf_inverse_image. eapply lt_wf.
-Qed.
-
-Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
-  match t with
-  | Leaf =>
-      VConstant "Leaf"
-  | Node t1 x t2 =>
-      VData "Node" [encode_tree t1; #x; encode_tree t2]
-  end.
-
-Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
-  { encode := encode_tree }.
-
-(* -------------------------------------------------------------------------- *)
-
 (* The algebraic data type ['a zipper]. *)
 
 Inductive zipper (A : Type) : Type :=
@@ -54,123 +27,6 @@ Inductive zipper (A : Type) : Type :=
 Arguments Root  {A}.
 Arguments NodeL {A} z1 x t2.
 Arguments NodeR {A} t1 x z2.
-
-Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
-  match z with
-  | Root =>
-      VConstant "Root"
-  | NodeL z1 x t2 =>
-      VData "NodeL" [encode_zipper z1; #x; #t2]
-  | NodeR t1 x z2 =>
-      VData "NodeR" [ #t1; #x; encode_zipper z2]
-  end.
-
-Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
-  { encode := encode_zipper }.
-
-Local Instance CRel3NodeL `{Encode A} :
-  CRel3 (zipper A) "NodeL" NodeL := {}.
-
-Global Instance CRel3NodeR `{Encode A} :
-  CRel3 (zipper A) "NodeR" NodeR := {}.
-
-Lemma encode_zipper_is_encode `{Encode A} :
-  ∀ (z : zipper A),
-  encode_zipper z = #z.
-Proof.
-  eauto.
-Qed.
-
-Local Hint Resolve encode_zipper_is_encode : encode.
-
-Lemma solve_encode_Root `{Encode A} (z : zipper A) :
-  Root = z →
-  VConstant "Root" = #z.
-Proof.
-  intros. subst. eauto.
-Qed.
-
-Lemma solve_encode_NodeL `{Encode A} z1 x t2 (z : zipper A) vz1 vx vt2 :
-  NodeL z1 x t2 = z →
-  vz1 = #z1 →
-  vx = #x →
-  vt2 = #t2 →
-  VData "NodeL" [vz1; vx; vt2] = #z.
-Proof.
-  intros. subst. eauto.
-Qed.
-
-Lemma solve_encode_NodeR `{Encode A} t1 x z2 (z : zipper A) vt1 vx vz2 :
-  NodeR t1 x z2 = z →
-  vt1 = #t1 →
-  vx = #x →
-  vz2 = #z2 →
-  VData "NodeR" [vt1; vx; vz2] = #z.
-Proof.
-  intros. subst. eauto.
-Qed.
-
-Local Hint Resolve
-  solve_encode_Root solve_encode_NodeL solve_encode_NodeR
-  : encode.
-
-Notation pRoot := (PConstant "Root").
-Notation pNodeL p1 p2 p3 := (PData "NodeL" [p1; p2; p3]).
-Notation pNodeR p1 p2 p3 := (PData "NodeR" [p1; p2; p3]).
-
-Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
-  v = #z →
-  (z = Root -> φ η) ->
-  pattern η pRoot v φ (z <> Root).
-Proof. intros; subst; destruct z; solve_pattern. Qed.
-
-Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
-  (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
-  (ψ1 : zipper A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
-  :
-  v = #z ->
-  (∀ (z' : zipper A) (a : A) (t : tree A),
-      z = NodeL z' a t →
-      pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
-  pattern η (pNodeL p1 p2 p3) v φ (z = Root \/
-                                 (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
-                                 (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
-Proof.
-Admitted.
-
-Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
-  (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
-  (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : zipper A -> Prop)
-  :
-  v = #z ->
-  (∀ (t : tree A) (a : A) (z' : zipper A),
-      z = NodeR t a z' →
-      pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
-  pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
-                                 (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
-                                 (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
-Proof. Admitted.
-
-(* -------------------------------------------------------------------------- *)
-
-(* The depth of a zipper. *)
-
-Fixpoint zipper_depth {A} (z : zipper A) : nat :=
-  match z with
-  | Root =>
-      0
-  | NodeL z1 x t2 =>
-      1 + zipper_depth z1
-  | NodeR t1 x z2 =>
-      1 + zipper_depth z2
-  end.
-
-Definition zlt {A} (z1 z2 : zipper A) :=
-  (zipper_depth z1 < zipper_depth z2)%nat.
-
-#[local] Instance zlt_WF {A} : WellFoundedRel (@zipper A) zlt.
-constructor. unfold zlt. apply wf_inverse_image. eapply lt_wf.
-Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -185,8 +41,6 @@ Fixpoint fill {A} (z : zipper A) (t : tree A) :=
   | NodeR t1 x z2 =>
       fill z2 (Node t1 x t)
   end.
-
-(* -------------------------------------------------------------------------- *)
 
 (* The fringe of a tree. *)
 
@@ -220,31 +74,41 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
       rfringe z2
   end.
 
-(* The fringe of [fill z t] can be characterized as follows. *)
+(* -------------------------------------------------------------------------- *)
 
-Lemma fringe_fill {A} : ∀ (z : zipper A) (t : tree A),
-  fringe (fill z t) = lfringe z ++ fringe t ++ rfringe z.
-Proof.
-  induction z; simpl; intros.
-  + rewrite app_nil_r. eauto.
-  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
-  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
+(* Well-formedness *)
+
+Require Import Coq.Wellfounded.Inverse_Image.
+
+#[local]
+  Program Canonical Structure tree_wf {A} : WellFounded (tree A) :=
+  {| wf_relation := (fun t1 t2 => tree_depth t1 < tree_depth t2)%nat |}.
+Next Obligation.
+  intros; eapply wf_inverse_image; eapply lt_wf.
 Qed.
 
-(* This tactic proves an equality between two fringes. *)
+(* Encodings *)
+Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
+  match t with
+  | Leaf =>
+      VConstant "Leaf"
+  | Node t1 x t2 =>
+      VData "Node" [encode_tree t1; #x; encode_tree t2]
+  end.
+Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
+  { encode := encode_tree }.
 
-#[export] Hint Rewrite @fringe_fill @app_nil_l @app_nil_r @app_assoc : fringe.
-
-Local Ltac prove_same_fringe :=
-  rewrite -> ?fringe_fill;
-  simpl fringe ;
-  simpl lfringe ;
-  simpl rfringe ;
-  rewrite ?app_nil_l ;
-  rewrite ?app_nil_r ;
-  repeat (rewrite <- ?app_comm_cons ;
-          rewrite <- ?app_assoc) ;
-  eauto.
+Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
+  match z with
+  | Root =>
+      VConstant "Root"
+  | NodeL z1 x t2 =>
+      VData "NodeL" [encode_zipper z1; #x; #t2]
+  | NodeR t1 x z2 =>
+      VData "NodeR" [ #t1; #x; encode_zipper z2]
+  end.
+Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
+  { encode := encode_zipper }.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -261,54 +125,19 @@ Local Ltac prove_same_fringe :=
 
 Section BST.
 
-Context {A : Type}.
-Context (lt : A → A → Prop).
-Context {Tlt : Transitive lt}.
+  Context {A : Type} (lt : A → A → Prop) {Tlt : Transitive lt}.
 
-(* A tree is a BST if and only if its fringe is sorted. *)
+  (* A tree is a BST if and only if its fringe is sorted. *)
 
-Definition bst (t : tree A) :=
-  Sorted lt (fringe t).
-
-Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
-
-(* The following lemmas provide an alternative characterization of binary *)
-(*    search trees. If the predicate [bst t] was inductively defined, then *)
-(*    these two statements would correspond the two constructors (and their *)
-(*    inversion principle). *)
-
-Lemma bst_Leaf_iff :
-  bst Leaf ↔ True.
-Proof.
-  unfold bst. simpl fringe. rewrite Sorted_empty_iff. auto.
-Qed.
-
-Lemma cons_is_app x (l1 : list A) : x :: l1 = [x] ++ l1. Proof. auto. Qed.
-
-Lemma bst_Node_iff l x r :
-  bst (Node l x r) ↔
-  bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
-Proof.
-  unfold bst. simpl fringe.
-  repeat (first [ rewrite Sorted_app_iff
-                | rewrite Sorted_singleton_iff
-                | rewrite cons_is_app; rewrite Sorted_app_iff
-                | rewrite pairwise_app_right_iff]).
-  pose proof (@pairwise_transitive_singleton _ lt _ (fringe l) x (fringe r)).
-  tauto.
-Qed.
+  Definition bst (t : tree A) :=
+    Sorted lt (fringe t).
 
 End BST.
 
-(* Ltac destruct_bst_Node := *)
-(*   lazymatch goal with h: bst _ (Node _ _ _) |- _ => *)
-(*     rewrite bst_Node_iff in h; try typeclasses eauto; *)
-(*     destruct h as (?&?&?&?) *)
-(*   end. *)
-
 (* -------------------------------------------------------------------------- *)
 
-(* Specification for each function *)
+(** *Specification *)
+
 Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
@@ -337,6 +166,55 @@ Definition zlookup_spec :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* The depth of a zipper. *)
+
+Fixpoint zipper_depth {A} (z : zipper A) : nat :=
+  match z with
+  | Root =>
+      0
+  | NodeL z1 x t2 =>
+      1 + zipper_depth z1
+  | NodeR t1 x z2 =>
+      1 + zipper_depth z2
+  end.
+
+(* Well-founded relation on zipper depth. *)
+
+Definition zlt {A} (z1 z2 : zipper A) :=
+  (zipper_depth z1 < zipper_depth z2)%nat.
+
+#[local] Instance zlt_WF {A} : WellFoundedRel (@zipper A) zlt.
+  constructor; unfold zlt; apply wf_inverse_image, lt_wf.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The fringe of [fill z t] can be characterized as follows. *)
+
+Lemma fringe_fill {A} : ∀ (z : zipper A) (t : tree A),
+  fringe (fill z t) = lfringe z ++ fringe t ++ rfringe z.
+Proof.
+  induction z; simpl; intros.
+  + rewrite app_nil_r. eauto.
+  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
+  + rewrite IHz. simpl. rewrite <- !app_assoc. eauto.
+Qed.
+
+(* This tactic proves an equality between two fringes. *)
+
+#[export] Hint Rewrite @fringe_fill @app_nil_l @app_nil_r @app_assoc : fringe.
+
+Local Ltac prove_same_fringe :=
+  rewrite -> ?fringe_fill;
+  simpl fringe ;
+  simpl lfringe ;
+  simpl rfringe ;
+  rewrite ?app_nil_l ;
+  rewrite ?app_nil_r ;
+  repeat (rewrite <- ?app_comm_cons ;
+          rewrite <- ?app_assoc) ;
+  eauto.
+
 (* Specification of [splay]. *)
 
 Section splay_proofs.
@@ -353,7 +231,7 @@ Proof.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { admit. }
-  (* ure_path. reflexivity. } *)
+  (* pure_path. reflexivity. } *)
   pure_match.
 
   (* Match on [ctx] *)
@@ -577,3 +455,45 @@ Proof.
 Qed.
 
 End splay_proofs.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Notation pRoot := (PConstant "Root"). *)
+(* Notation pNodeL p1 p2 p3 := (PData "NodeL" [p1; p2; p3]). *)
+(* Notation pNodeR p1 p2 p3 := (PData "NodeR" [p1; p2; p3]). *)
+
+(* Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) : *)
+(*   v = #z → *)
+(*   (z = Root -> φ η) -> *)
+(*   pattern η pRoot v φ (z <> Root). *)
+(* Proof. intros; subst; destruct z; solve_pattern. Qed. *)
+
+(* Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A) *)
+(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
+(*   (ψ1 : zipper A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop) *)
+(*   : *)
+(*   v = #z -> *)
+(*   (∀ (z' : zipper A) (a : A) (t : tree A), *)
+(*       z = NodeL z' a t → *)
+(*       pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) -> *)
+(*   pattern η (pNodeL p1 p2 p3) v φ (z = Root \/ *)
+(*                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/ *)
+(*                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))). *)
+(* Proof. *)
+(* Admitted. *)
+
+(* Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A) *)
+(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
+(*   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : zipper A -> Prop) *)
+(*   : *)
+(*   v = #z -> *)
+(*   (∀ (t : tree A) (a : A) (z' : zipper A), *)
+(*       z = NodeR t a z' → *)
+(*       pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) -> *)
+(*   pattern η (pNodeR p1 p2 p3) v φ (z = Root \/ *)
+(*                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/ *)
+(*                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))). *)
+(* Proof. Admitted. *)
+
+(* -------------------------------------------------------------------------- *)
