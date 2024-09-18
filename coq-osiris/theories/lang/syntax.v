@@ -84,11 +84,11 @@ Inductive pat :=
   (* A tuple pattern. *)
   | PTuple (ps : list pat)
   (* A data constructor pattern in an ordinary algebraic data type. *)
-  | PData (c : data) (p : pat)
+  | PData (c : data) (p : list pat)
   (* A data constructor pattern in an extensible algebraic data type.
      In [PXData (π, p)], the path [π] is expected to denote a memory
      location, which serves as a dynamically-allocated name. *)
-  | PXData (π : path) (p : pat)
+  | PXData (π : path) (p : list pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
@@ -170,8 +170,8 @@ Inductive expr :=
 
   (* Data constructor application: [A (e)]. *)
   (* Every data constructor is considered unary. *)
-  | EData (c : data) (e : expr)
-  | EXData (π : path) (e : expr)
+  | EData (c : data) (e : list expr)
+  | EXData (π : path) (e : list expr)
 
   (* Record construction: [{ fs = es }]. *)
   | ERecord (fes : list fexpr)
@@ -386,12 +386,12 @@ Inductive val :=
   (* A tuple. *)
   | VTuple (vs : list val)
   (* A data constructor value. *)
-  | VData (c : data) (v : val)
+  | VData (c : data) (v : list val)
   (* A data constructor value for an extensible type. *)
   (* Extension constructors are dynamically alocated to the heap.
      [l] is the location of the constructor. Extensible types can
      alias by having two constructors point to the same location. *)
-  | VXData (l : loc) (v : val)
+  | VXData (l : loc) (v : list val)
   (* A record. *)
   (* A list of field-value pairs is the same thing as an environment,
      so, for the moment at least, we identify these concepts. *)
@@ -422,24 +422,24 @@ Definition env := list (var * val).
 (* Unit. *)
 
 Notation PUnit :=
-  (PData "()" $ PTuple []).
+  (PData "()" $ []).
 
 Notation EUnit :=
-  (EData "()" $ ETuple []).
+  (EData "()" $ []).
 
 Notation VUnit :=
-  (VData "()" $ VTuple []).
+  (VData "()" $ []).
 
 (* Constant constructors, that is, constructors of arity 0. *)
 
 Notation PConstant c :=
-  (PData c $ PTuple []).
+  (PData c $ []).
 
 Notation EConstant c :=
-  (EData c $ ETuple []).
+  (EData c $ []).
 
 Notation VConstant c :=
-  (VData c $ VTuple []).
+  (VData c $ []).
 
 (* The Boolean constants. *)
 

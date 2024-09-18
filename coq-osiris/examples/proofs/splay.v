@@ -6,19 +6,6 @@ From osiris.examples Require Import og_splay.
 
 (* -------------------------------------------------------------------------- *)
 
-(* WIP *)
-
-Local Ltac unpack :=
-  repeat (lazymatch goal with [ h: _ ∧ _ |- _ ] => destruct h end).
-
-(* Notation "'<closure>'" := (VCloRec _ _ _) (only printing). *)
-(* Notation "'<closure>'" := (VClo _ _) (only printing). *)
-Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
-  (cons x _ (.. (cons z _ nil) ..))
- (only printing).
-
-(* -------------------------------------------------------------------------- *)
-
 (* Boilerplate: reflect the algebraic data type ['a tree]. *)
 
 Local Transparent encode.
@@ -61,6 +48,14 @@ Qed.
 
 Local Hint Extern 1 (tree_depth _ < tree_depth _)%nat => (simpl; lia) : pure_specs.
 
+Notation PData c l := (PData c $ PTuple l).
+
+Goal forall p1 p2 p3, PData "Node" [p1; p2; p3] = PAny.
+Notation "'PData' s l" := (PData s (PTuple l)) (at level 100).
+
+  (* (PConstant s) (at level 20, format "'pattern_' s"). *)
+Notation "pNode p1 p2 p3" := (PData "Node" (PTuple [p1; p2; p3])) (at level 30).
+
 Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
@@ -72,88 +67,67 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode := encode_tree }.
 
-Local Instance CRel3Node `{Encode A} :
-  CRel3 (tree A) "Node" Node := {}.
+(* Local Instance CRel3Node `{Encode A} : *)
+(*   CRel3 (tree A) "Node" Node := {}. *)
 
-Local Instance CRel1Some `{Encode A} :
-  CRel1 (option A) "Some" Some := {}.
+(* Local Instance CRel1Some `{Encode A} : *)
+(*   CRel1 (option A) "Some" Some := {}. *)
 
-Lemma encode_tree_is_encode `{Encode A} :
-  ∀ (t : tree A),
-  encode_tree t = #t.
-Proof.
-  eauto.
-Qed.
-
-Local Hint Resolve encode_tree_is_encode : encode.
-
-Lemma solve_encode_Leaf `{Encode A} (t : tree A) :
-  Leaf = t →
-  VConstant "Leaf" = #t.
-Proof.
-  intros. subst. eauto.
-Qed.
-
-Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
-  Node t1 x t2 = t →
-  vt1 = #t1 →
-  vx = #x →
-  vt2 = #t2 →
-  VData "Node" (VTuple3 vt1 vx vt2) = #t.
-Proof.
-  intros. subst. eauto.
-Qed.
-
-Definition pLeaf := PConstant "Leaf".
-
-Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode.
-
-#[global]
-  Hint Extern 2 (patterns_wp _ _ _ _ _) => apply patterns_equals_pats; eauto with pat: pat.
-#[global]
-  Hint Extern 2 (pattern _ _ _ _ _) => econstructor; eauto : pat.
-
-Ltac solve_pattern := by eauto with pat.
-
-Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
-  v = #t →
-  (t = Leaf -> φ η) ->
-  pattern η pLeaf v φ (t <> Leaf).
-Proof. intros * ->; destruct t; solve_pattern. Qed.
-
-#[local] Hint Resolve pat_pLeaf : pat.
-
-Definition pNode (p1 p2 p3 : syntax.pat) :=
-  PData "Node" (PTuple [p1; p2; p3]).
-
-Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
-  (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
-  (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
-  :
-  v = #t ->
-  (∀ (t1 : tree A) (a : A) (t2 : tree A),
-      t = Node t1 a t2 →
-      pattern η p1 #t1
-        (λ η', pattern η' p2 #a
-            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
-            (ψ2 a))
-        (ψ1 t1)) ->
-  pattern η (pNode p1 p2 p3) v φ
-    (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
-Proof.
-  intros; subst; destruct t; intros.
-  - solve_pattern.
-(*   intros -> Hcov. *)
-(*   destruct t; eapply pat_consequence_psi. *)
-(*   { eapply pat_PData_neq; eauto. } *)
-(*   { auto. } *)
-(*   { eapply pat_PData_eq; pat_PTuple; pats; eauto. } *)
-(*   { clear; right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
+(* Lemma encode_tree_is_encode `{Encode A} : *)
+(*   ∀ (t : tree A), *)
+(*   encode_tree t = #t. *)
+(* Proof. *)
+(*   eauto. *)
 (* Qed. *)
-Admitted.
 
-Ltac pat_pNode :=
-  eapply pat_pNode; first solve [encode].
+(* Local Hint Resolve encode_tree_is_encode : encode. *)
+
+(* (* TODO: Automate *) *)
+(* Lemma solve_encode_Leaf `{Encode A} (t : tree A) : *)
+(*   Leaf = t → *)
+(*   VConstant "Leaf" = #t. *)
+(* Proof. *)
+(*   intros. subst. eauto. *)
+(* Qed. *)
+
+(* Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 : *)
+(*   Node t1 x t2 = t → *)
+(*   vt1 = #t1 → *)
+(*   vx = #x → *)
+(*   vt2 = #t2 → *)
+(*   VData "Node" (VTuple3 vt1 vx vt2) = #t. *)
+(* Proof. *)
+(*   intros. subst. eauto. *)
+(* Qed. *)
+
+(* Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode. *)
+
+(* Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) : *)
+(*   v = #t → *)
+(*   (t = Leaf -> φ η) -> *)
+(*   pattern η pLeaf v φ (t <> Leaf). *)
+(* Proof. intros * ->; destruct t; solve_pattern. Qed. *)
+
+(* (* #[local] Hint Resolve pat_pLeaf : pat. *) *)
+
+(* Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A) *)
+(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
+(*   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop) *)
+(*   : *)
+(*   v = #t -> *)
+(*   (∀ (t1 : tree A) (a : A) (t2 : tree A), *)
+(*       t = Node t1 a t2 → *)
+(*       pattern η p1 #t1 *)
+(*         (λ η', pattern η' p2 #a *)
+(*             (λ η', pattern η' p3 #t2 φ (ψ3 t2)) *)
+(*             (ψ2 a)) *)
+(*         (ψ1 t1)) -> *)
+(*   pattern η (pNode p1 p2 p3) v φ *)
+(*     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))). *)
+(* Proof. *)
+(*   intros; subst; destruct t; intros. *)
+(*   - solve_pattern. *)
+(* Admitted. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -233,19 +207,7 @@ Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
   v = #z →
   (z = Root -> φ η) ->
   pattern η pRoot v φ (z <> Root).
-Proof.
-  intros; subst.
-  destruct z.
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_eq; pat_PTuple; pats. }
-    destruct 1. }
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; auto. }
-    congruence. }
-  { eapply pat_consequence_psi.
-    { eapply pat_PData_neq; auto. }
-    congruence. }
-Qed.
+Proof. intros; subst; destruct z; solve_pattern. Qed.
 
 Ltac pat_pRoot :=
   eapply pat_pRoot; first solve [encode].
@@ -265,15 +227,16 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
-  intros -> Hcov.
-  destruct z; eapply pat_consequence_psi.
-  { eapply pat_PData_neq; eauto. }
-  { auto. }
-  { eapply pat_PData_eq; pat_PTuple; pats; eauto. }
-  { clear; do 2 right; do 3 eexists; split; [ reflexivity | tauto ]. }
-  { eapply pat_PData_neq; eauto. }
-  { right; left; eauto. }
-Qed.
+Admitted.
+(*   intros -> Hcov. *)
+(*   destruct z; eapply pat_consequence_psi. *)
+(*   { eapply pat_PData_neq; eauto. } *)
+(*   { auto. } *)
+(*   { eapply pat_PData_eq; pat_PTuple; pats; eauto. } *)
+(*   { clear; do 2 right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
+(*   { eapply pat_PData_neq; eauto. } *)
+(*   { right; left; eauto. } *)
+(* Qed. *)
 
 Ltac pat_pNodeL :=
   eapply pat_pNodeL; first solve [encode].
@@ -293,19 +256,16 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
-  intros -> Hcov.
-  destruct z; eapply pat_consequence_psi.
-  { eapply pat_PData_neq; eauto. }
-  { auto. }
-  { eapply pat_PData_neq; eauto. }
-  { right; left; eauto. }
-  { eapply pat_PData_eq; pat_PTuple; pats. }
-  { clear; right; right; do 3 eexists; split; [ reflexivity | tauto ]. }
-Qed.
-
-Ltac pat_pNodeR :=
-  eapply pat_pNodeR; first solve [encode].
-
+(*   intros -> Hcov. *)
+(*   destruct z; eapply pat_consequence_psi. *)
+(*   { eapply pat_PData_neq; eauto. } *)
+(*   { auto. } *)
+(*   { eapply pat_PData_neq; eauto. } *)
+(*   { right; left; eauto. } *)
+(*   { eapply pat_PData_eq; pat_PTuple; pats. } *)
+(*   { clear; right; right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
+(* Qed. *)
+Admitted.
 Local Opaque encode.
 
 (* -------------------------------------------------------------------------- *)
@@ -500,29 +460,20 @@ Proof.
   intros. rewrite Z.ltb_ge. lia.
 Qed.
 
-Ltac pattern_hook ::=
-  first
-    [ pat_pRoot
-    | pat_pNodeL
-    | pat_pNodeR
-    | pat_pLeaf
-    | pat_pNode
-    ].
-
 (* Specification for each function *)
 Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-    pure
+    total
       (call splay #(l, x, r, ctx))
-      ##(λ t', fringe t' = fringe (fill ctx (Node l x r))) ⊥.
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))).
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
-    pure
+    total
       (call splay_leaf #ctx)
-      ##(λ t', fringe t' = fringe (fill ctx Leaf)) ⊥.
+      (λ t', fringe t' = fringe (fill ctx Leaf)).
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
@@ -530,11 +481,11 @@ Definition zlookup_spec :=
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
-      pure
+      total
         (call zlookup #(t, x, ctx))
-        ##(λ '(oy, t'),
+        (λ '(oy, t'),
           member le x (fringe t) oy ∧
-          fringe t' = fringe (fill ctx t)) ⊥.
+          fringe t' = fringe (fill ctx t)).
 
 (* -------------------------------------------------------------------------- *)
 

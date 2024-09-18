@@ -326,7 +326,7 @@ Section handler_proof.
     - iIntros "%HmonQ". iApply (HmonQ with "Q").
     - iApply ("Hmono" with "Q").
   Qed.
-
+  
   Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
     ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
     (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗

@@ -61,7 +61,7 @@ Definition VNone :=
   (VConstant "None").
 
 Definition VSome v :=
-  (VData "Some" (VTuple1 v)).
+  (VData "Some" [ v ]).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -71,19 +71,19 @@ Definition pNil :=
   (PConstant "[]").
 
 Definition pCons p1 p2 :=
-  (PData "::" (PPair p1 p2)).
+  (PData "::" [p1; p2]).
 
 Definition eNil :=
   (EConstant "[]").
 
 Definition eCons e1 e2 :=
-  (EData "::" (EPair e1 e2)).
+  (EData "::" [e1; e2]).
 
 Definition VNil :=
   (VConstant "[]").
 
 Definition VCons v1 v2 :=
-  (VData "::" (VPair v1 v2)).
+  (VData "::" [v1; v2]).
 
 (* ------------------------------------------------------------------------ *)
 

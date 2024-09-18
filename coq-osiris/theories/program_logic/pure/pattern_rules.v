@@ -224,18 +224,30 @@ Section pattern_wp_rules.
     auto using pure_wp_ret.
   Qed.
 
-  Lemma pat_PData η c p c' v φ ψ :
-    (c = c' → pattern_wp η p v φ ψ) →
+  Lemma pat_PData_nil η c c' φ ψ :
+    (c = c' -> φ η) ->
+    pattern_wp η (PData c nil) (VData c' nil) φ (ψ ∨ c ≠ c').
+      (* This form is useful when the truth of the equality [c = c']
+        is not statically known. *)
+  Proof.
+    unfold pattern_wp; intros. simpl_extend.
+    destruct_string_eqb;
+      eauto using pure_wp_throw, pure_wp_mono, pure_wp_ret.
+  Qed.
+
+  Lemma pat_PData η c c' p v φ ψ :
+    (c = c' -> patterns_wp η p v φ ψ) ->
     pattern_wp η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
     unfold pattern_wp; intros. simpl_extend.
-    destruct_string_eqb; eauto using pure_wp_throw, pure_wp_mono.
+    destruct_string_eqb; eauto using pure_wp_throw.
+    eapply pure_wp_mono; first apply H; eauto.
   Qed.
 
   Lemma pat_PData_eq η c p v φ ψ :
-    pattern_wp η p v φ ψ →
+    patterns_wp η p v φ ψ →
     pattern_wp η (PData c p) (VData c v) φ ψ.
       (* This form is useful when [c = c'] is statically known. *)
   Proof.
@@ -254,7 +266,7 @@ Section pattern_wp_rules.
 
   Lemma pat_PXData_eq η c p c' v φ ψ :
     lookup_path η c = ret (VLoc c') ->
-    pattern_wp η p v φ ψ →
+    patterns_wp η p v φ ψ →
     pattern_wp η (PXData c p) (VXData c' v) φ ψ.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
@@ -345,11 +357,6 @@ Section pattern_wp_rules.
 
   (* -------------------------------------------------------------------------- *)
 
-  Local Ltac pat_PTuple :=
-    first [
-        eapply pat_PTuple; first solve [ encode ]
-      | rewrite 1 ?encode_encode'; simpl; eapply pat_PTuple_val ].
-
   Local Ltac pats :=
     repeat first [
         eapply pats_PNil; [ eauto ]
@@ -366,7 +373,7 @@ Section pattern_wp_rules.
     eapply pattern_wp_mono.
     { eapply pat_PData.
       intros Hc; specialize (Hφ Hc).
-      pat_PTuple; pats. }
+      pats. }
     { tauto. }
     { tauto. }
   Qed.
@@ -567,8 +574,7 @@ Section pattern_wp_rules.
       { by apply pat_PData_neq. }
       tauto. }
     { eapply pattern_wp_exn_mono.
-      { eapply pat_PData_eq; pat_PTuple.
-        pats.  }
+      { eapply pat_PData_eq; pats.  }
       right; do 2 eexists; split; [ reflexivity | tauto ]. }
   Qed.
 
@@ -589,8 +595,7 @@ Section pattern_wp_rules.
     destruct xs; eapply pattern_wp_exn_mono.
     { by apply pat_PData_neq. }
     { tauto. }
-    { eapply pat_PData_eq; pat_PTuple.
-      pats. }
+    { eapply pat_PData_eq; pats. }
     { clear; right; do 2 eexists; split; [ reflexivity | tauto ]. }
   Qed.
 
@@ -724,19 +729,19 @@ Inductive pattern : env -> pat -> val -> (env -> Prop) -> Prop -> Prop :=
       (forall η', φ' η' -> pattern η' p2 #x2 φ ψ2) ->
       pattern η p1 #x1 φ' ψ1 →
       pattern η (PPair p1 p2) (VPair v1 v2) φ (ψ1 ∨ ψ2)
-  | pattern_PData c p c' v φ ψ η :
-      (c = c' → pattern η p v φ ψ) →
-      pattern η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c')
   | pattern_PData_eq c p v φ ψ η :
-      pattern η p v φ ψ →
+      patterns_wp η p v φ ψ →
       pattern η (PData c p) (VData c v) φ ψ
   | pattern_PData_neq c p c' v φ η ψ:
       c ≠ c' →
       ψ ->
       pattern η (PData c p) (VData c' v) φ ψ
+  | pattern_PData c p c' v φ ψ η :
+      (c = c' → patterns_wp η p v φ ψ) →
+      pattern η (PData c p) (VData c' v) φ (ψ ∨ c ≠ c')
   | pattern_PXData_eq π p (c c' : loc) v φ ψ η :
       lookup_path η π = ret (VLoc c') →
-      pattern η p v φ ψ →
+      patterns_wp η p v φ ψ →
       pattern η (PXData π p) (VXData c' v) φ ψ
   | pattern_PXData_neq π p l1 l2 v φ η ψ:
       lookup_path η π = ret (VLoc l1) →
@@ -837,3 +842,10 @@ Global Hint Resolve pattern_PAny pattern_PVar pattern_PVar2 pattern_PAlias patte
 Global Hint Resolve cpattern_CVal cpattern_CExc cpattern_COr cpattern_CEff : pat.
 Global Hint Resolve patterns_PNil patterns_PCons_unary_or patterns_PCons_unary_false patterns_PCons : pat.
 
+
+#[global]
+  Hint Extern 2 (patterns_wp _ _ _ _ _) => apply patterns_equals_pats; eauto with pat: pat.
+#[global]
+  Hint Extern 2 (pattern _ _ _ _ _) => econstructor; eauto : pat.
+
+Ltac solve_pattern := by eauto with pat.

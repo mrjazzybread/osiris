@@ -319,7 +319,7 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = PTuple (translate_pats pats) in
+     let tuple = translate_pats pats in
      if is_extensible constructor_desc then
        PXData (translate_longident (txt id), tuple)
      else
@@ -427,7 +427,7 @@ let rec translate_expr (e: expression) : expr =
   | Texp_construct (id, constructor_desc, es) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = ETuple (translate_exprs es) in
+     let tuple = translate_exprs es in
      if is_extensible constructor_desc then
        EXData (translate_longident (txt id), tuple)
      else
@@ -829,8 +829,8 @@ and translate_branch_to_effect_branch b =
       | EData ("None", _) ->
          None
       | EData (_, e) ->
-         (match (undecorate e) with
-          | ETuple [ e ] ->
+         (match e with
+          | [ e ] ->
              (match (undecorate e) with
               (* | p -> Some (fun k -> e) *)
               | EAnonFun (AnonFun (k, e)) ->
@@ -839,7 +839,7 @@ and translate_branch_to_effect_branch b =
               | EAnonFun (AnonFunction [Branch (CVal pk, e)]) ->
                  Some (Branch (CEff (peff, pk), e))
               | _ -> assert false)
-          | ETuple [] ->
+          | [] ->
              None
           | _ -> assert false)
       | _ -> assert false)

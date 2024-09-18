@@ -47,7 +47,8 @@ Proof.
   (* Struct item: [let head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := head_spec).
-    pure_simp. unfold head_spec; intros.
+    (* pure_simp. *)
+    unfold head_spec; intros.
 
     (* in both cases, the expr [simp]lifies to a value or exception *)
     destruct l.

@@ -28,12 +28,12 @@ Class PureJudgement :=
 Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
   (total (eval η e) Φ)
    (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢' '/' '{'  '/' e  '/' 'ensures'  Φ  '}' ']'").
+     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 Notation "η ⊢ '{' e 'ensures' Φ 'catches' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢' '/'  '{'  '/' e  '/' 'ensures'  Φ  'catches'  ψ  '}' ']'").
+     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'catches'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ '}' " :=
   (total e Φ)

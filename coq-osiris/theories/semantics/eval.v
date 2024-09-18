@@ -101,7 +101,7 @@ Definition if_in_shift_range {A E} (i : int) (m : micro A E) :=
 (* [ok] is an inert computation. It produces the value [VUnit]. *)
 
 Notation ok :=
-  (ret (VData "()" $ VTuple [])).
+  (ret (VData "()" [])).
 
 (* ------------------------------------------------------------------------ *)
 (* ------------------------------------------------------------------------ *)
@@ -451,13 +451,13 @@ Local Fixpoint pre_extend δ p v : micro env unit :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then extend δ p v else throw ()
+      if c =? c' then extends δ p v else throw ()
   | PXData π p, VXData l v =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
       l' ← as_loc (widen (lookup_path δ π)) ;
-      if (locations.eqb l l') then extend δ p v else throw()
+      if (locations.eqb l l') then extends δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
@@ -642,7 +642,7 @@ Fixpoint eq_val v1 v2 : micro bool exn :=
       eq_vals vs1 vs2
   | VData c1 v1, VData c2 v2 =>
       let b := c1 =? c2 in
-      b' ← eq_val v1 v2 ;
+      b' ← eq_vals v1 v2 ;
       ret (b && b')
   | _, _ =>
       structural_equality_error "invalid or unsupported arguments"
@@ -1106,11 +1106,11 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       vs ← evals η es ;
       ret (VTuple vs)
   | EData c e =>
-      v ← eval η e ;
+      v ← evals η e ;
       ret (VData c v)
   | EXData π e =>
       l ← as_loc (widen (lookup_path η π)) ;
-      v ← eval η e ;
+      v ← evals η e ;
       ret (VXData l v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)

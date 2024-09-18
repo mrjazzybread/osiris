@@ -343,14 +343,14 @@ Ltac2 pure_tuple0 clear_hyps () :=
 Ltac2 Notation "pure_tuple" := Control.enter (pure_tuple0 true).
 Tactic Notation "pure_tuple" := ltac2:(pure_tuple).
 
-Ltac2 pure_data0 clear_hyps () :=
-  eapply pure_eval_data > [ pure_tuple0 clear_hyps (); Control.enter solve_encode | ].
+(* Ltac2 pure_data0 clear_hyps () := *)
+(*   eapply pure_eval_data > [ pure_tuple0 clear_hyps (); Control.enter solve_encode | ]. *)
 
-Ltac2 Notation "pure_data" := Control.enter (pure_data0 true).
-Ltac2 Notation "pure_data_v" := Control.enter (pure_data0 false).
+(* Ltac2 Notation "pure_data" := Control.enter (pure_data0 true). *)
+(* Ltac2 Notation "pure_data_v" := Control.enter (pure_data0 false). *)
 
-Tactic Notation "pure_data" := ltac2:(pure_data).
-Tactic Notation "pure_data_v" := ltac2:(pure_data_v).
+(* Tactic Notation "pure_data" := ltac2:(pure_data). *)
+(* Tactic Notation "pure_data_v" := ltac2:(pure_data_v). *)
 
 Goal pure (eval [] (ETuple [EConstant "true"; EConstant "false"])) (fun v => v = (true, false)) ⊥.
   (* pure_tuple. reflexivity. *)

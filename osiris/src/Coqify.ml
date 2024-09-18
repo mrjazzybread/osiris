@@ -97,10 +97,10 @@ let rec pat (p : pat) =
       clist "PTuple" (map pat ps)
 
   | PData (d, p) ->
-      c "PData" [ data d; pat p ]
+      c "PData" [ data d ; list (map pat p) ]
 
   | PXData (pi, p) ->
-      c "PXData" [ path pi; pat p ]
+      c "PXData" [ path pi ; list (map pat p) ]
 
   | PRecord fps ->
       c "PRecord" [ fpats fps ]
@@ -180,10 +180,10 @@ let rec expr (e : expr) =
       clist "ETuple" (exprs es)
 
   | EData (d, e) ->
-      c "EData" [ data d; expr e ]
+      c "EData" [ data d ; list (exprs e) ]
 
   | EXData (pi, e) ->
-     c "EXData" [ path pi; expr e ]
+      c "EXData" [ path pi ; list (exprs e) ]
 
   | ERecord fs ->
       c "ERecord" [ fexprs fs ]

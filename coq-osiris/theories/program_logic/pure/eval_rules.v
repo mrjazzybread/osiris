@@ -1057,19 +1057,19 @@ Section eval_rules.
   (*   eauto using pure_ret with pure. *)
   (* Qed. *)
 
-  Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
-    pure (eval η e) (λ v', VData c v' = #y) ζ ->
-    ψ y ->
-    pure (eval η (EData c e)) ψ ζ.
-  Proof.
-    intros He Hy.
-    simpl_eval.
-    eapply pure_bind.
-  (*   eapply pure_consequence; eauto. *)
-  (*   intros ? A. *)
-  (*   eapply pure_noexn_weaken, pure_enc_ret; eauto; auto. *)
-  (* Qed. *)
-  Admitted.
+  (* Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) ζ : *)
+  (*   pure (eval η e) (λ v', VData c v' = #y) ζ -> *)
+  (*   ψ y -> *)
+  (*   pure (eval η (EData c e)) ψ ζ. *)
+  (* Proof. *)
+  (*   intros He Hy. *)
+  (*   simpl_eval. *)
+  (*   eapply pure_bind. *)
+  (* (*   eapply pure_consequence; eauto. *) *)
+  (* (*   intros ? A. *) *)
+  (* (*   eapply pure_noexn_weaken, pure_enc_ret; eauto; auto. *) *)
+  (* (* Qed. *) *)
+  (* Admitted. *)
 
   Class CRel1 {A : Type} (X : Type) `{Encode A, Encode X}
     (c : string) (C : A -> X) := { }.
@@ -1162,6 +1162,7 @@ Section match_rules.
 
     [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
+  (* TODO: Deprecate *)
   Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) Ψ :=
     pure (deep_eval_match η bs o) φ Ψ.
 

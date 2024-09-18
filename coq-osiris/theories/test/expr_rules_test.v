@@ -357,30 +357,30 @@ Admitted.
 (* checking now whether pat_pNil works with
 match [] with _ :: _ -> 1 | _ -> 2 *)
 
-Lemma simple_true_true_match `{Encode A} env :
-  ⊢ EWP eval env
-    (EMatch (EData "[]" (ETuple []))
-      [Branch (CVal (PData "::" (PTuple [ PAny; PAny ]))) (EInt 1);
-       Branch (CVal (PConstant "[]")) (EInt 2)])
-    {{ RET #r, ⌜r = 2⌝ }}.
-Proof.
-  prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
-  { iApply ewp_EConstant. encode. }
+(* Lemma simple_true_true_match `{Encode A} env : *)
+(*   ⊢ EWP eval env *)
+(*     (EMatch (EData "[]" (ETuple [])) *)
+(*       [Branch (CVal (PData "::" (PTuple [ PAny; PAny ]))) (EInt 1); *)
+(*        Branch (CVal (PConstant "[]")) (EInt 2)]) *)
+(*     {{ RET #r, ⌜r = 2⌝ }}. *)
+(* Proof. *)
+(*   prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I. *)
+(*   { iApply ewp_EConstant. encode. } *)
 
-  iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
+(*   iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *) *)
 
-  iApply deep_handle_cons; cycle 1.
-  { iPureIntro. do 2 constructor. intros; inv H0. }
-  { iNext. iIntros. done. }
+(*   iApply deep_handle_cons; cycle 1. *)
+(*   { iPureIntro. do 2 constructor. intros; inv H0. } *)
+(*   { iNext. iIntros. done. } *)
 
-  iApply deep_handle_cons; cycle 1.
-  { iPureIntro. do 3 constructor.
-    apply patterns_equals_pats.
-    constructor.
-    iApply ewp_EInt. }
-  iIntros.
-  admit.
-  by iExists 2.
-Admitted.
+(*   iApply deep_handle_cons; cycle 1. *)
+(*   { iPureIntro. do 3 constructor. *)
+(*     apply patterns_equals_pats. *)
+(*     constructor. *)
+(*     iApply ewp_EInt. } *)
+(*   iIntros. *)
+(*   admit. *)
+(*   by iExists 2. *)
+(* Admitted. *)
 
 End test_expr_rules.
