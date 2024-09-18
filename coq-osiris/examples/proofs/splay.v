@@ -23,7 +23,6 @@ Inductive zipper (A : Type) : Type :=
 | Root  : zipper A
 | NodeL : zipper A → A → tree A → zipper A
 | NodeR : tree A → A → zipper A → zipper A.
-
 Arguments Root  {A}.
 Arguments NodeL {A} z1 x t2.
 Arguments NodeR {A} t1 x z2.
@@ -87,18 +86,21 @@ Next Obligation.
   intros; eapply wf_inverse_image; eapply lt_wf.
 Qed.
 
+Section encodings.
+
 (* Encodings *)
-Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
+Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
       VConstant "Leaf"
   | Node t1 x t2 =>
       VData "Node" [encode_tree t1; #x; encode_tree t2]
   end.
-Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
-  { encode := encode_tree }.
 
-Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
+#[global] Instance Encode_tree `{Encode A} : Encode (tree A).
+Proof. constructor; eapply encode_tree. Qed.
+
+Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   match z with
   | Root =>
       VConstant "Root"
@@ -107,8 +109,12 @@ Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   | NodeR t1 x z2 =>
       VData "NodeR" [ #t1; #x; encode_zipper z2]
   end.
-Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
-  { encode := encode_zipper }.
+
+#[global] Instance Encode_zipper `{Encode A} : Encode (zipper A).
+Proof. constructor; eapply encode_zipper. Defined.
+
+End encodings.
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -215,7 +221,10 @@ Local Ltac prove_same_fringe :=
           rewrite <- ?app_assoc) ;
   eauto.
 
-(* Specification of [splay]. *)
+(* TODO: Move *)
+Ltac pure_match :=
+  eapply pure_match_cons; first solve_pattern; last intuition.
+Ltac pure_path := by eapply pure_eval_path, total_ret.
 
 Section splay_proofs.
 
@@ -226,63 +235,70 @@ Lemma Splay_spec :
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
 Proof.
   intros A H ctx l x r.
+
   recursion with zlt { measure snd }.
+
   intros splay [[[l' x'] r'] ctx'] IH.
 
   (* Match to destruct the argument tuple *)
-  eapply pure_eval_match. { admit. }
-  (* pure_path. reflexivity. } *)
+  eapply pure_eval_match; first pure_path.
+
   pure_match.
 
   (* Match on [ctx] *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
-  pure_match. (* Very slow. *)
+  eapply pure_eval_match; first pure_path.
 
-  (* Case: [ctx] matches [Root] *)
-  { pure_data.
-    prove_same_fringe. }
+  (* Note: No longer slow ! *)
+  destruct ctx' eqn: Hctx'; pure_match.
+  { (* Case: [ctx] matches [Root] *)
+    prove_same_fringe. admit. }
 
-  (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
-  { pure_data.
-    prove_same_fringe. }
+  {
+    (* destruct z eqn: Hz. *)
+    (* pure_match. *)
+    admit.
+    (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
+    (* { pure_data. *)
+    (*   prove_same_fringe. } *)
 
-  (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    simpl; intros ? ->.
-    prove_same_fringe. }
+    (* (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *) *)
+    (* { eapply pure_eval_app. pure_path. *)
+    (*   eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path. *)
+    (*   pure_call. *)
+    (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
+    (*   simpl; intros ? ->. *)
+    (*   prove_same_fringe. } *)
 
-  (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
+    (* (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *) *)
+    (* { eapply pure_eval_app. pure_path. *)
+    (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path. *)
+    (*   pure_call. *)
+    (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
+    (*   intros ? ->. *)
+    (*   prove_same_fringe. } } *) }
 
-  (* Case: [ctx] matches [NodeR (ly, y, Root)] *)
-  { pure_data.
-    prove_same_fringe. }
+  { admit. }
+  (* (* Case: [ctx] matches [NodeR (ly, y, Root)] *) *)
+  (* { pure_data. *)
+  (*   prove_same_fringe. } *)
 
-  (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
-  { eapply pure_eval_app.
-    pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
+  (* (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *) *)
+  (* { eapply pure_eval_app. *)
+  (*   pure_path. *)
+  (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path. *)
+  (*   pure_call. *)
+  (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
+  (*   intros ? ->. *)
+  (*   prove_same_fringe. } *)
 
-  (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
-  { eapply pure_eval_app. pure_path.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
-    pure_call.
-    { eapply IH; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
-Qed.
+  (* (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *) *)
+  (* { eapply pure_eval_app. pure_path. *)
+  (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path. *)
+  (*   pure_call. *)
+  (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
+  (*   intros ? ->. *)
+  (*   prove_same_fringe. } *)
+Admitted.
 
 
 Lemma Splay_leaf_spec splay :

@@ -842,10 +842,32 @@ Global Hint Resolve pattern_PAny pattern_PVar pattern_PVar2 pattern_PAlias patte
 Global Hint Resolve cpattern_CVal cpattern_CExc cpattern_COr cpattern_CEff : pat.
 Global Hint Resolve patterns_PNil patterns_PCons_unary_or patterns_PCons_unary_false patterns_PCons : pat.
 
-
 #[global]
   Hint Extern 2 (patterns_wp _ _ _ _ _) => apply patterns_equals_pats; eauto with pat: pat.
 #[global]
   Hint Extern 2 (pattern _ _ _ _ _) => econstructor; eauto : pat.
 
-Ltac solve_pattern := by eauto with pat.
+Ltac eauto_pattern := by eauto with pat.
+
+Ltac normalize_pattern :=
+  try
+  match goal with
+  | |- pattern_wp _ _ _ _ _ => apply pattern_equals_pat
+  | |- patterns_wp _ _ _ _ _ => apply patterns_equals_pats
+  | |- cpattern_wp _ _ _ _ _ => apply cpattern_equals_cpat
+  end.
+
+Ltac solve_pattern :=
+  repeat
+    match goal with
+    | |- cpattern _ _ _ _ _ => econstructor; eauto
+    | |- pattern _ _ _ _ _ => econstructor; eauto
+    | |- patterns _ (_ :: _) (_ :: _) _ _ =>
+        let η := fresh "η" in
+        eapply patterns_PCons; [ eauto_pattern | .. ];
+          intros η ->
+    | |- patterns _ [] [] _ _ =>
+        try (apply (patterns_PNil _ False); last done)
+    | |- patterns_wp _ _ _ _ _ => apply patterns_equals_pats
+    end;
+  normalize_pattern.
