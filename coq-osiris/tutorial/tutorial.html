@@ -36,8 +36,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | PAlias : pat → var → pat
   | POr : pat → pat → pat
   | PTuple : list pat → pat
-  | PData : data → pat → pat
-  | PXData : path → pat → pat
+  | PData : data → list pat → pat
+  | PXData : path → list pat → pat
   | PRecord : list (<span class="bp">field</span> * pat) → pat
   | PInt : Z → pat
   | PChar : char → pat
@@ -47,8 +47,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> PAlias p x
 <span class="kn">Arguments</span> POr p1 p2
 <span class="kn">Arguments</span> PTuple ps%list_scope
-<span class="kn">Arguments</span> PData c p
-<span class="kn">Arguments</span> PXData π p
+<span class="kn">Arguments</span> PData c p%list_scope
+<span class="kn">Arguments</span> PXData π p%list_scope
 <span class="kn">Arguments</span> PRecord fps%list_scope
 <span class="kn">Arguments</span> PInt i%Z_scope
 <span class="kn">Arguments</span> PChar c
@@ -59,8 +59,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
   | EAnonFun : anonfun → expr
   | EApp : expr → expr → expr
   | ETuple : list expr → expr
-  | EData : data → expr → expr
-  | EXData : path → expr → expr
+  | EData : data → list expr → expr
+  | EXData : path → list expr → expr
   | ERecord : list fexpr → expr
   | ERecordUpdate : expr → list fexpr → expr
   | ERecordAccess : expr → <span class="bp">field</span> → expr
@@ -136,8 +136,8 @@ two syntactic categories, <em>patterns</em> and <em>expressions</em>.</p>
 <span class="kn">Arguments</span> EAnonFun a
 <span class="kn">Arguments</span> EApp e1 e2
 <span class="kn">Arguments</span> ETuple es%list_scope
-<span class="kn">Arguments</span> EData c e
-<span class="kn">Arguments</span> EXData π e
+<span class="kn">Arguments</span> EData c e%list_scope
+<span class="kn">Arguments</span> EXData π e%list_scope
 <span class="kn">Arguments</span> ERecord fes%list_scope
 <span class="kn">Arguments</span> ERecordUpdate e fes%list_scope
 <span class="kn">Arguments</span> ERecordAccess e f
@@ -233,8 +233,8 @@ expressions. For instance, a closure is a value, not an expression.</p>
   | VInt : int → val
   | VFloat : float → val
   | VTuple : list val → val
-  | VData : data → val → val
-  | VXData : loc → val → val
+  | VData : data → list val → val
+  | VXData : loc → list val → val
   | VRecord : list (var * val) → val
   | VLoc : loc → val
   | VCont : loc → val
@@ -249,8 +249,8 @@ expressions. For instance, a closure is a value, not an expression.</p>
 <span class="kn">Arguments</span> VInt i
 <span class="kn">Arguments</span> VFloat f%float_scope
 <span class="kn">Arguments</span> VTuple vs%list_scope
-<span class="kn">Arguments</span> VData c v
-<span class="kn">Arguments</span> VXData l v
+<span class="kn">Arguments</span> VData c v%list_scope
+<span class="kn">Arguments</span> VXData l v%list_scope
 <span class="kn">Arguments</span> VRecord fvs%list_scope
 <span class="kn">Arguments</span> VLoc l
 <span class="kn">Arguments</span> VCont k

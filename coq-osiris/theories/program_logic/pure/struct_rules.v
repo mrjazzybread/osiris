@@ -103,7 +103,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  η ⊢ { e ensures spec } ->
+  total (eval η e) spec ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -119,7 +119,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  η ⊢ { e ensures (λ v, pattern [] p v ψ False)} ->
+  total (eval η e) (λ v, pattern [] p v ψ False) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -203,10 +203,10 @@ Qed.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->
-  { eval_mexpr η me ensures (λ v, match v with
+  total (eval_mexpr η me) (λ v, match v with
                                | VStruct η => φ η
                                | _ => False
-                               end)}.
+                               end).
 Proof.
   repeat intro.
   eapply pure_wp_mono; intros; eauto with pure_wp.

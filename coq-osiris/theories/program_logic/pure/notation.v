@@ -64,21 +64,14 @@ Ltac returns_eauto :=
 
 #[export]
   Hint Extern 1 (pure_wp _ (returns _) _) => returns_eauto; by firstorder : pure.
-
 #[export]
-  Hint Extern 1 ({ _ ensures _ }) => returns_eauto : pure.
-
+  Hint Extern 1 (total _ _) => returns_eauto; by firstorder : pure.
 #[export]
-  Hint Extern 1 ({ _ ensures _ catches _ }) => returns_eauto : pure.
-
+  Hint Extern 1 (pure _ _ _) => returns_eauto; by firstorder : pure.
 #[export]
-  Hint Extern 1 ({ throw _ ensures _ catches _ }) =>
-  apply pure_wp_throw : pure.
-
+  Hint Extern 1 (pure (throw _) _ _) => apply pure_wp_throw : pure.
 #[export]
-  Hint Extern 1 ({ ret _ ensures _ catches _ }) =>
-  apply pure_wp_ret : pure.
-
+  Hint Extern 1 (pure (ret _) _ _) => apply pure_wp_ret : pure.
 #[export]
   Hint Extern 1 (returns _ _) => unfold returns; by firstorder : pure.
 

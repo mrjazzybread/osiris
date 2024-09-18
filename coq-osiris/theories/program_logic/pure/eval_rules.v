@@ -26,6 +26,8 @@ Section eval_rules.
     eauto using pure_ret, pure_throw.
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
+
   (** Evaluating tuples, or several expressions in parallel *)
 
   (* (* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic *)
@@ -1152,6 +1154,80 @@ Section eval_rules.
 
 End eval_rules.
 
+
+(* -------------------------------------------------------------------------- *)
+(* Call rules *)
+
+Structure WellFounded (A : Type) : Type :=
+  { wf_relation : (A -> A -> Prop);
+    wf_def : @well_founded A wf_relation }.
+
+Arguments wf_relation {_ WF} : rename.
+Arguments wf_def {_ WF} : rename.
+
+Class WellFoundedRel (A : Type) (R : A -> A -> Prop) :=
+  { wf_rel_def : @well_founded A R }.
+
+Definition WellFoundedRel_WellFounded {A} R {wfr: WellFoundedRel A R} : WellFounded A :=
+  {| wf_relation := R; wf_def := wf_rel_def |}.
+
+Lemma pure_rec_call `{Encode X, Encode Y} (WF_x : WellFounded X)
+  (η : env) (f : var) arg e (x : X) Ψ (P : X -> Prop) (φ : X -> Y -> Prop):
+  P x ->
+  (∀ vf x,
+      (∀ (y : X), wf_relation (WF := WF_x) y x -> P y -> pure (call vf #y) (φ y) Ψ) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e) (φ x) Ψ)) ->
+  pure (call (VCloRec η [RecBinding f (AnonFun arg e)] f) #x) (φ x) Ψ.
+Proof.
+  intros HPx Hrec.
+  induction x as [x IH] using (well_founded_induction wf_def); intros.
+  do 2 red.
+  simpl. rewrite String.eqb_refl.
+  apply pure_wp_bind, pure_wp_ret. simpl.
+  apply pure_CEval; rewrite try2_ret_right.
+  apply Hrec; [ intros y HR HPy | assumption ].
+  apply IH; eauto.
+Qed.
+
+Lemma pure_rec_call_simple `{Encode X, Encode Y} (WF_x : WellFounded X)
+  (η : env) (f : var) arg e (x : X) Ψ (φ : X -> Y -> Prop):
+  (∀ vf x,
+    (∀ (y : X), wf_relation (WF := WF_x) y x -> pure (call vf #y) (φ y) Ψ) ->
+    (pure (eval ((arg, #x) :: (f, vf) :: η) e) (φ x) Ψ)) ->
+  pure (call (VCloRec η [RecBinding f (AnonFun arg e)] f) #x) (φ x) Ψ.
+Proof. intros; eapply pure_rec_call with (P := fun _ => True); eauto. Qed.
+
+Lemma pure_rec_call_measure `{Encode X, Encode Y} {M}
+  (measure : X -> M) (WF_x : WellFounded M)
+  (η : env) (f : var) arg e Ψ (φ : Y -> Prop):
+  (∀ vf (y' : X),
+    (∀ (y : X),
+        wf_relation (WF := WF_x) (measure y) (measure y') ->
+        pure (call vf #y) φ Ψ) ->
+    (pure (eval ((arg, #y') :: (f, vf) :: η) e) φ Ψ)) ->
+  forall (x : X),
+    pure (call (VCloRec η [RecBinding f (AnonFun arg e)] f) #x) φ Ψ.
+Proof.
+  intros Hrec x.
+  remember (measure x). revert x Heqm.
+  induction m as [mx IH] using (well_founded_induction wf_def); intros.
+  Unshelve. 2 : eauto.
+  simpl; rewrite String.eqb_refl.
+  apply pure_wp_bind, pure_wp_ret. simpl.
+  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply Hrec. intros; subst.
+  specialize (IH _ H1). eapply IH; done.
+Qed.
+
+Tactic Notation "recursion" constr(t) :=
+  (eapply (pure_rec_call (X := t) _)).
+Tactic Notation "recursion" "with" uconstr(R) :=
+  (eapply (pure_rec_call_simple (WellFoundedRel_WellFounded R))).
+Tactic Notation "recursion" uconstr(H) "with" uconstr(R) :=
+  (eapply (pure_rec_call (WellFoundedRel_WellFounded R)) with (P := H)).
+Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}" :=
+  (eapply (pure_rec_call_measure measure (WellFoundedRel_WellFounded R))).
+
 From osiris.program_logic.pure Require Import pattern_rules.
 
 Section match_rules.
@@ -1256,10 +1332,6 @@ Section match_rules.
   Qed.
 
   (* Not matching is an error. *)
-
-  Lemma pure_match_nil `{Encode A} η v (φ : A -> Prop) Ψ :
-    False -> pure_match η [] v φ Ψ.
-  Proof. contradiction. Qed.
 
   Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
     cpattern η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →

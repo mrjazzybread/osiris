@@ -307,6 +307,7 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* -------------------------------------------------------------------------- *)
 (* This trivial lemma gives the user a chance to prove that the actual
    argument [v'2] is in fact the encoding of some value [x]. The subgoal
    [v'2 = #x] is typically solved by the tactic [encode]. Solving this

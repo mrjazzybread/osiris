@@ -1,4 +1,5 @@
 Require Import Coq.Wellfounded.Inverse_Image.
+
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
@@ -6,14 +7,11 @@ From osiris.examples Require Import og_splay.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Boilerplate: reflect the algebraic data type ['a tree]. *)
-
-Local Transparent encode.
+(* The algebraic data type ['a tree]. *)
 
 Inductive tree (A : Type) : Type :=
 | Leaf: tree A
 | Node: tree A → A → tree A → tree A.
-
 Arguments Leaf {A}.
 Arguments Node {A} t1 x t2.
 
@@ -23,115 +21,30 @@ Fixpoint tree_depth {A} (t : tree A) : nat :=
   | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
   end.
 
-Definition tlt {A} (t1 t2 : tree A) :=
-  (tree_depth t1 < tree_depth t2)%nat.
+(* -------------------------------------------------------------------------- *)
 
-Lemma tlt_wf {A} :
-  well_founded (@tlt A).
-Proof.
-  unfold tlt. eapply wf_inverse_image. eapply lt_wf.
+(* Reflect the algebraic data type ['a tree]. *)
+#[local]
+  Program Canonical Structure tree_wf {A} : WellFounded (tree A) :=
+  {| wf_relation := (fun t1 t2 => tree_depth t1 < tree_depth t2)%nat |}.
+Next Obligation.
+  intros. eapply wf_inverse_image. eapply lt_wf.
 Qed.
-
-Lemma zlookup_wf {A B C} :
-  well_founded (
-      fun (t1 t2 : tree A * B * C) =>
-        @tlt A
-          (match t1 with
-           | (tree1,_,_) => tree1
-           end)
-          (match t2 with
-           | (tree2,_,_) => tree2
-           end)).
-Proof.
-  apply wf_inverse_image. apply tlt_wf.
-Qed.
-
-Local Hint Extern 1 (tree_depth _ < tree_depth _)%nat => (simpl; lia) : pure_specs.
-
-Notation PData c l := (PData c $ PTuple l).
-
-Goal forall p1 p2 p3, PData "Node" [p1; p2; p3] = PAny.
-Notation "'PData' s l" := (PData s (PTuple l)) (at level 100).
-
-  (* (PConstant s) (at level 20, format "'pattern_' s"). *)
-Notation "pNode p1 p2 p3" := (PData "Node" (PTuple [p1; p2; p3])) (at level 30).
 
 Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
       VConstant "Leaf"
   | Node t1 x t2 =>
-      VData "Node" (VTuple3 (encode_tree t1) #x (encode_tree t2))
+      VData "Node" [encode_tree t1; #x; encode_tree t2]
   end.
 
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode := encode_tree }.
 
-(* Local Instance CRel3Node `{Encode A} : *)
-(*   CRel3 (tree A) "Node" Node := {}. *)
-
-(* Local Instance CRel1Some `{Encode A} : *)
-(*   CRel1 (option A) "Some" Some := {}. *)
-
-(* Lemma encode_tree_is_encode `{Encode A} : *)
-(*   ∀ (t : tree A), *)
-(*   encode_tree t = #t. *)
-(* Proof. *)
-(*   eauto. *)
-(* Qed. *)
-
-(* Local Hint Resolve encode_tree_is_encode : encode. *)
-
-(* (* TODO: Automate *) *)
-(* Lemma solve_encode_Leaf `{Encode A} (t : tree A) : *)
-(*   Leaf = t → *)
-(*   VConstant "Leaf" = #t. *)
-(* Proof. *)
-(*   intros. subst. eauto. *)
-(* Qed. *)
-
-(* Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 : *)
-(*   Node t1 x t2 = t → *)
-(*   vt1 = #t1 → *)
-(*   vx = #x → *)
-(*   vt2 = #t2 → *)
-(*   VData "Node" (VTuple3 vt1 vx vt2) = #t. *)
-(* Proof. *)
-(*   intros. subst. eauto. *)
-(* Qed. *)
-
-(* Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode. *)
-
-(* Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) : *)
-(*   v = #t → *)
-(*   (t = Leaf -> φ η) -> *)
-(*   pattern η pLeaf v φ (t <> Leaf). *)
-(* Proof. intros * ->; destruct t; solve_pattern. Qed. *)
-
-(* (* #[local] Hint Resolve pat_pLeaf : pat. *) *)
-
-(* Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A) *)
-(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
-(*   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop) *)
-(*   : *)
-(*   v = #t -> *)
-(*   (∀ (t1 : tree A) (a : A) (t2 : tree A), *)
-(*       t = Node t1 a t2 → *)
-(*       pattern η p1 #t1 *)
-(*         (λ η', pattern η' p2 #a *)
-(*             (λ η', pattern η' p3 #t2 φ (ψ3 t2)) *)
-(*             (ψ2 a)) *)
-(*         (ψ1 t1)) -> *)
-(*   pattern η (pNode p1 p2 p3) v φ *)
-(*     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))). *)
-(* Proof. *)
-(*   intros; subst; destruct t; intros. *)
-(*   - solve_pattern. *)
-(* Admitted. *)
-
 (* -------------------------------------------------------------------------- *)
 
-(* Boilerplate: reflect the algebraic data type ['a zipper]. *)
+(* The algebraic data type ['a zipper]. *)
 
 Inductive zipper (A : Type) : Type :=
 | Root  : zipper A
@@ -147,9 +60,9 @@ Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   | Root =>
       VConstant "Root"
   | NodeL z1 x t2 =>
-      VData "NodeL" (VTuple3 (encode_zipper z1) #x #t2)
+      VData "NodeL" [encode_zipper z1; #x; #t2]
   | NodeR t1 x z2 =>
-      VData "NodeR" (VTuple3 #t1 #x (encode_zipper z2))
+      VData "NodeR" [ #t1; #x; encode_zipper z2]
   end.
 
 Local Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
@@ -182,7 +95,7 @@ Lemma solve_encode_NodeL `{Encode A} z1 x t2 (z : zipper A) vz1 vx vt2 :
   vz1 = #z1 →
   vx = #x →
   vt2 = #t2 →
-  VData "NodeL" (VTuple3 vz1 vx vt2) = #z.
+  VData "NodeL" [vz1; vx; vt2] = #z.
 Proof.
   intros. subst. eauto.
 Qed.
@@ -192,7 +105,7 @@ Lemma solve_encode_NodeR `{Encode A} t1 x z2 (z : zipper A) vt1 vx vz2 :
   vt1 = #t1 →
   vx = #x →
   vz2 = #z2 →
-  VData "NodeR" (VTuple3 vt1 vx vz2) = #z.
+  VData "NodeR" [vt1; vx; vz2] = #z.
 Proof.
   intros. subst. eauto.
 Qed.
@@ -201,19 +114,15 @@ Local Hint Resolve
   solve_encode_Root solve_encode_NodeL solve_encode_NodeR
   : encode.
 
-Definition pRoot := PConstant "Root".
+Notation pRoot := (PConstant "Root").
+Notation pNodeL p1 p2 p3 := (PData "NodeL" [p1; p2; p3]).
+Notation pNodeR p1 p2 p3 := (PData "NodeR" [p1; p2; p3]).
 
 Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
   v = #z →
   (z = Root -> φ η) ->
   pattern η pRoot v φ (z <> Root).
 Proof. intros; subst; destruct z; solve_pattern. Qed.
-
-Ltac pat_pRoot :=
-  eapply pat_pRoot; first solve [encode].
-
-Definition pNodeL (p1 p2 p3 : syntax.pat) :=
-  PData "NodeL" (PTuple [p1; p2; p3]).
 
 Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
@@ -228,21 +137,6 @@ Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
 Admitted.
-(*   intros -> Hcov. *)
-(*   destruct z; eapply pat_consequence_psi. *)
-(*   { eapply pat_PData_neq; eauto. } *)
-(*   { auto. } *)
-(*   { eapply pat_PData_eq; pat_PTuple; pats; eauto. } *)
-(*   { clear; do 2 right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
-(*   { eapply pat_PData_neq; eauto. } *)
-(*   { right; left; eauto. } *)
-(* Qed. *)
-
-Ltac pat_pNodeL :=
-  eapply pat_pNodeL; first solve [encode].
-
-Definition pNodeR (p1 p2 p3 : syntax.pat) :=
-  PData "NodeR" (PTuple [p1; p2; p3]).
 
 Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
@@ -255,18 +149,7 @@ Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
   pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
-Proof.
-(*   intros -> Hcov. *)
-(*   destruct z; eapply pat_consequence_psi. *)
-(*   { eapply pat_PData_neq; eauto. } *)
-(*   { auto. } *)
-(*   { eapply pat_PData_neq; eauto. } *)
-(*   { right; left; eauto. } *)
-(*   { eapply pat_PData_eq; pat_PTuple; pats. } *)
-(*   { clear; right; right; do 3 eexists; split; [ reflexivity | tauto ]. } *)
-(* Qed. *)
-Admitted.
-Local Opaque encode.
+Proof. Admitted.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -285,27 +168,9 @@ Fixpoint zipper_depth {A} (z : zipper A) : nat :=
 Definition zlt {A} (z1 z2 : zipper A) :=
   (zipper_depth z1 < zipper_depth z2)%nat.
 
-Lemma zlt_wf {A} :
-  well_founded (@zlt A).
-Proof.
-  unfold zlt. eapply wf_inverse_image. eapply lt_wf.
+#[local] Instance zlt_WF {A} : WellFoundedRel (@zipper A) zlt.
+constructor. unfold zlt. apply wf_inverse_image. eapply lt_wf.
 Qed.
-
-Lemma splay_wf {A B C D} :
-  well_founded (
-      fun (t1 t2 : B * C * D * zipper A) =>
-        @zlt A
-          (match t1 with
-           | (_,_,_,ctx1) => ctx1
-           end)
-          (match t2 with
-           | (_,_,_,ctx2) => ctx2
-           end)).
-Proof.
-  apply wf_inverse_image. apply zlt_wf.
-Qed.
-
-Local Hint Extern 1 (zipper_depth _ < zipper_depth _)%nat => (simpl; lia) : pure_specs.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -407,10 +272,10 @@ Definition bst (t : tree A) :=
 
 Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 
-(* The following lemmas provide an alternative characterization of binary
-   search trees. If the predicate [bst t] was inductively defined, then
-   these two statements would correspond the two constructors (and their
-   inversion principle). *)
+(* The following lemmas provide an alternative characterization of binary *)
+(*    search trees. If the predicate [bst t] was inductively defined, then *)
+(*    these two statements would correspond the two constructors (and their *)
+(*    inversion principle). *)
 
 Lemma bst_Leaf_iff :
   bst Leaf ↔ True.
@@ -435,30 +300,13 @@ Qed.
 
 End BST.
 
-Ltac destruct_bst_Node :=
-  lazymatch goal with h: bst _ (Node _ _ _) |- _ =>
-    rewrite bst_Node_iff in h; try typeclasses eauto;
-    destruct h as (?&?&?&?)
-  end.
+(* Ltac destruct_bst_Node := *)
+(*   lazymatch goal with h: bst _ (Node _ _ _) |- _ => *)
+(*     rewrite bst_Node_iff in h; try typeclasses eauto; *)
+(*     destruct h as (?&?&?&?) *)
+(*   end. *)
 
 (* -------------------------------------------------------------------------- *)
-
-Open Scope Z.
-
-(* TODO move these lemmas *)
-Lemma ltb_true (n m : Z) :
-  n < m →
-  (n <? m) = true.
-Proof.
-  intros. rewrite Z.ltb_lt. assumption.
-Qed.
-
-Lemma ltb_false (n m : Z) :
-  m ≤ n →
-  (n <? m) = false.
-Proof.
-  intros. rewrite Z.ltb_ge. lia.
-Qed.
 
 (* Specification for each function *)
 Definition splay_spec :=
@@ -499,27 +347,13 @@ Lemma Splay_spec :
   splay_spec
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
 Proof.
-  unfold splay_spec.
   intros A H ctx l x r.
-  (* TODO: Add the following pattern into pure_rec_call *)
-  remember (l, x, r, ctx) as t.
-  rewrite (surjective_pairing t) in Heqt.
-  rewrite (surjective_pairing t.1) in Heqt.
-  rewrite (surjective_pairing t.1.1) in Heqt.
-  apply pair_eq in Heqt as [Heqt <-].
-  apply pair_eq in Heqt as [Heqt <-].
-  apply pair_eq in Heqt as [<- <-].
-
-  change
-    (λ t' : tree A, fringe t' = fringe (fill t.2 (Node t.1.1.1 t.1.1.2 t.1.2)))
-    with
-    ((fun t t' => fringe t' = fringe (fill t.2 (Node t.1.1.1 t.1.1.2 t.1.2))) t).
-
-  eapply pure_rec_call with (P := fun _ => True). apply splay_wf. reflexivity.
-  intros splay [[[l x] r] ctx] IH _; simpl.
+  recursion with zlt { measure snd }.
+  intros splay [[[l' x'] r'] ctx'] IH.
 
   (* Match to destruct the argument tuple *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
+  eapply pure_eval_match. { admit. }
+  (* ure_path. reflexivity. } *)
   pure_match.
 
   (* Match on [ctx] *)

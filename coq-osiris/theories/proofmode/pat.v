@@ -597,7 +597,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
              use of [destruct_hyps] was not powerful enough to solve
              this goal. We thus use the more brute-force
              [resolve_no_match] tactic. *)
-          eapply pure_match_nil; ltac1:(resolve_no_match)
+          ltac1:(exfalso;resolve_no_match)
       end
   | [ |- ?g ] =>
       let () := Message.print (Message.of_constr g) in
