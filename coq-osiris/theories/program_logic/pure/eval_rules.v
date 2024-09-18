@@ -1033,13 +1033,13 @@ Section eval_rules.
   (*   apply Hc. *)
   (* Qed. *)
 
-  (* Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) : *)
-  (*   total (lookup_path η π) ψ -> *)
-  (*   pure (eval η (EPath π)) ψ ζ. *)
-  (* Proof. *)
-  (*   simpl_eval. *)
-  (*   apply pure_widen. *)
-  (* Qed. *)
+  Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) :
+    total (lookup_path η π) ψ ->
+    pure (eval η (EPath π)) ψ ζ.
+  Proof.
+    simpl_eval.
+    (* apply _widen. *)
+  Admitted.
 
   (* Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) ζ : *)
   (*   pure (eval (δ ++ η) e) ##ψ ζ -> *)
@@ -1073,9 +1073,6 @@ Section eval_rules.
   (* (* Qed. *) *)
   (* Admitted. *)
 
-  Class CRel1 {A : Type} (X : Type) `{Encode A, Encode X}
-    (c : string) (C : A -> X) := { }.
-
   (* Lemma pure_eval_data1 `{CRel1 A1 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ : *)
   (*   pure (eval η e) *)
   (*     (λ x, *)
@@ -1091,9 +1088,6 @@ Section eval_rules.
   (*     eauto with pure. *)
   (*   - apply pure_throw. *)
   (* Qed. *)
-
-  Class CRel2 (A1 A2 X : Type) `{Encode A1, Encode A2, Encode X}
-    (c : string) (C : A1 -> A2 -> X) := { }.
 
   (* We write "[encode x; #y]" instead of "[#x; #y]" because stdpp imports the *)
   (*    notation "[# _; _; _]" for vectors. Unfortunately, using "Disable Notation" *)
@@ -1115,12 +1109,6 @@ Section eval_rules.
 
   (* Example usage of the CRel typeclasses: *)
 
-  Global Instance CRel2Cons `{Encode A} :
-    CRel2 A (list A) (list A) "::" cons := {}.
-
-  Class CRel3 {A1 A2 A3 : Type} (X : Type) `{Encode A1, Encode A2, Encode A3, Encode X}
-    (c : string) (C : A1 -> A2 -> A3 -> X) := { }.
-
   (* Lemma pure_eval_data3 `{CRel3 A1 A2 A3 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ : *)
   (*   pure (eval η e) *)
   (*     (λ '(x, y, z), *)
@@ -1134,9 +1122,6 @@ Section eval_rules.
   (*   repeat apply pure_ret || apply pure_bind. *)
   (*   eauto with pure. *)
   (* Qed. *)
-
-  Class CRel4 (A1 A2 A3 A4 X : Type) `{Encode A1, Encode A2, Encode A3, Encode A4, Encode X}
-    (c : string) (C : A1 -> A2 -> A3 -> A4 -> X) := { }.
 
   (* Lemma pure_eval_data4 `{CRel4 A1 A2 A3 A4 X c C} (η : env) (e : expr) (ψ : X → Prop) ζ : *)
   (*   pure (eval η e) *)
@@ -1238,15 +1223,14 @@ Section match_rules.
 
     [eval_match] is used by [eval] when evaluating an [EMatch]. *)
 
-  (* TODO: Deprecate *)
   Definition pure_match `{Encode A} (η : env) bs (o : outcome3 val exn) (φ : A -> Prop) Ψ :=
     pure (deep_eval_match η bs o) φ Ψ.
 
   Arguments pure_match {A} {H} _ _ _ _.
 
-  Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) Ψ :
+  Lemma pure_eval_match `{Encode B} η e bs (a : val) (φ : B -> Prop) Ψ :
     total (eval η e) (λ x, x = a) ->
-    pure_match η bs (O3Ret #a) φ Ψ ->
+    pure_match η bs (O3Ret a) φ Ψ ->
     pure (eval η (EMatch e bs)) φ Ψ.
   Proof.
     intros Heval Hmatch. simpl_eval.
