@@ -111,6 +111,41 @@ Next Obligation. constructor; unfold zlt; apply wf_inverse_image, lt_wf. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Fun with data constructors: we can know the destructor as long as we
+   have the signature of the algebraic datatype. *)
+
+(* The type of a data constructor can be built from the list of
+   constructor argument types. *)
+Fixpoint data_constructor A (x : list Type) : Type :=
+  match x with
+    | nil => A
+    | hd :: tl => hd -> data_constructor A tl
+  end.
+
+(* Data types is a map from string (constructor name) to the type signatures
+  of the constructors. *)
+Class DataType (A : Type) :=
+  { data_signature : gmap string { x & data_constructor A x }; }.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Datatype instance for [tree] *)
+
+(* LATER: Can this be generated during translation? *)
+
+Definition Leaf_ {A} : sigT (data_constructor (tree A)) :=
+  existT [] Leaf.
+
+Definition Node_ {A} : sigT (data_constructor (tree A)) :=
+  existT [tree A; A; tree A] Node.
+
+#[global] Instance tree_datatype `{Encode A} : DataType (tree A) :=
+  { data_signature :=
+      <["Leaf" := Leaf_ (A := A) ]>
+        (<["Node" := Node_ (A := A) ]> ∅) }.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Encodings *)
 
 Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
@@ -225,17 +260,102 @@ Section splay_proofs.
 
 (* Top-level environment of [splay]. *)
 
+Set Implicit Arguments.
+
+Inductive hlist (A : Type) (B : A -> Type) : list A -> Type :=
+| HNil : hlist B nil
+| HCons : forall (x : A) (ls : list A), B x -> hlist B ls -> hlist B (x :: ls).
+
+(* declare a bit more implicit arguments than the one automatically detected by Implicit Arguments *)
+Arguments HNil {A B}.
+Arguments HCons {A B x ls}.
+
+From Equations Require Import Equations.
+
+Equations app (A B : list Type) :
+  hlist (fun T : Type => T) A ->
+  hlist (fun T : Type => T) B ->
+  hlist (fun T : Type => T) (A ++ B) :=
+app HNil m := m;
+app (HCons a l1) m := HCons a (app l1 m).
+
+Definition build_constructor {A}
+  (x : list Type)
+  (constr : data_constructor A x)
+  (a : hlist (fun T : Type => T) x)
+  : A.
+Proof.
+  induction x; eauto.
+  cbn in *. inv a.
+  specialize (constr X).
+  exact (IHx constr X0).
+Defined.
+
+Fixpoint build_data {A X} η
+  (φ : A -> Prop) ψ
+  (v : list expr)
+  (t : list Type)
+  (constr : data_constructor A X)
+  (acc_t : list Type)
+  (acc : hlist (fun T : Type => T) acc_t)
+  : Prop :=
+  match v, t with
+  | hd :: tl, hd_t :: tl_t =>
+      ∃ (EncX : Encode hd_t) x,
+      pure
+        (eval η hd)
+        (fun y : hd_t =>
+          y = x /\
+          @build_data _ _ η φ ψ tl
+            tl_t
+            constr
+            (acc_t ++ [hd_t])
+            (app acc (HCons x HNil))) ψ
+  | nil, nil =>
+      exists (eq_X : acc_t = X),
+      φ (@build_constructor _ acc_t
+           (eq_rect_r
+              (fun X => data_constructor A X)
+              constr eq_X) acc)
+  | _ , _ => False
+end.
+
+Lemma pure_eval_data {A} `{Encode A, DataType A} η
+  c hd tl (φ : _ -> Prop) ψ
+  (signature : sigT (data_constructor A)) :
+  data_signature !! c = Some signature ->
+  @build_data _ _ η φ ψ
+    (hd :: tl)
+    (projT1 signature)
+    (projT2 signature)
+    nil HNil ->
+  pure (A := A) (eval η (EData c (hd :: tl))) φ ψ.
+Proof. Admitted.
+
+Lemma total_ret_eq_and `{Encode A} {X : Type} (a : A) (ψ : Prop):
+  ψ →
+  total (E := X) (ret #a) (λ a', a' = a /\ ψ).
+Proof.
+  intros. eapply total_mono. apply total_ret_eq.
+  cbn. intros; by subst.
+Qed.
+
+Ltac pure_eval_path :=
+  eexists _, _; eapply pure_eval_path; eapply total_ret_eq_and.
+
 Lemma Splay_spec :
   splay_spec
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
 Proof.
   intros A H ctx l x r.
+
+  (* We need to massage the postcondition so we can generalize the argument for the
+     recursive call. *)
   change (λ t', fringe t' = fringe (fill ctx (Node l x r))) with
     ((λ '(l, x, r, ctx) t', fringe t' = fringe (fill ctx (Node l x r))) (l, x, r, ctx)).
 
   (* Recursion, with decreasing depth of zipper. *)
-  recursion with zlt { measure snd } ∀ (l, x, r, ctx).
-  (* FYI: recursion { measure snd } ∀ (l, x, r, ctx). also works. *)
+  recursion { measure snd } ∀ (l, x, r, ctx).
 
   clear l x r ctx; intros splay [[[l x] r] ctx] IH.
 
@@ -248,8 +368,10 @@ Proof.
   destruct ctx eqn: Hctx. (* FIXME: Generate custom match cases like before *)
   { (* Case: [ctx] matches [Root] *)
     pure_match.
-    build ( (Node l x r) : [tree A; A; tree A] ).
-    prove_same_fringe. }
+    eapply pure_eval_data; first try done.
+    repeat pure_eval_path.
+    exists eq_refl. prove_same_fringe. }
+
 Admitted.
 
 Lemma Splay_leaf_spec splay :
