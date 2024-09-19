@@ -86,6 +86,7 @@ Next Obligation.
   intros; eapply wf_inverse_image; eapply lt_wf.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
 Section encodings.
 
 (* Encodings *)
@@ -97,8 +98,41 @@ Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
       VData "Node" [encode_tree t1; #x; encode_tree t2]
   end.
 
+Class Decode (A : Type) `{Encode A} :=
+  { decode : val → option A;
+    decode_encode : forall x, decode (encode.encode x) = Some x}.
+
 #[global] Instance Encode_tree `{Encode A} : Encode (tree A).
-Proof. constructor; eapply encode_tree. Qed.
+Proof. constructor; eapply encode_tree. Defined.
+
+Local Fixpoint decode_tree `{Decode A} val : option (tree A) :=
+  match val with
+  | VConstant s => if (s =? "Leaf")%string then Some Leaf else None
+  | VData s [x;y;z] =>
+      if (s =? "Node")%string then
+        match decode_tree x, decode y, decode_tree z with
+        | Some x, Some y, Some z => Some (Node x y z)
+        | _, _, _ => None
+        end
+      else None
+  | _ => None
+  end.
+
+Lemma decode_encode_tree `{Decode A}
+  : forall (x : tree A), decode_tree (encode_tree x) = Some x.
+Proof.
+  intros. induction x; cbn. econstructor.
+  rewrite IHx1 IHx2.
+  by rewrite decode_encode.
+Defined.
+
+#[global] Program Instance Decode_tree `{Decode A} : Decode (tree A) :=
+  { decode := decode_tree }.
+Next Obligation.
+  intros. induction x; cbn. econstructor.
+  rewrite IHx1 IHx2.
+  by rewrite decode_encode.
+Qed.
 
 Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   match z with
@@ -114,7 +148,6 @@ Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
 Proof. constructor; eapply encode_zipper. Defined.
 
 End encodings.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -160,7 +193,7 @@ Definition splay_leaf_spec :=
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
-    ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
+    ∀ A `(_ : Decode A) (le : A → A → Prop) `(_ : PreOrder _ le),
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
@@ -225,6 +258,48 @@ Local Ltac prove_same_fringe :=
 Ltac pure_match :=
   eapply pure_match_cons; first solve_pattern; last intuition.
 Ltac pure_path := by eapply pure_eval_path, total_ret.
+Ltac eval_match :=
+  eapply pure_eval_match; first pure_path.
+
+Lemma pure_eval_data_eq `{Encode Y} `{Decode Y}
+  η c e (ψ : Y -> Prop) ζ y:
+  pure_wp
+    (evals η e)
+    (λ v', match (decode (VData c v')) with
+            | Some v => y = v
+            | None => False
+            end) ζ ->
+  ψ y ->
+  pure (eval η (EData c e)) ψ ζ.
+Proof. Admitted.
+
+
+Lemma pure_eval_data `{Encode Y} `{Decode Y}
+  η c e (ψ : Y -> Prop) ζ :
+  pure_wp
+    (evals η e)
+    (λ v', match (decode (VData c v')) with
+            | Some v => ψ v
+            | None => False
+            end) ζ ->
+  pure (eval η (EData c e)) ψ ζ.
+Proof. Admitted.
+
+Lemma pure_eval_tuple `{Encode A, Encode B} η x tl (φ : B -> Prop) ψ v:
+  pure (A := A)
+    (eval η x)
+    (fun v' : A =>
+       pure_wp (evals η tl) (fun x => v = # v' :: x) ψ) ψ ->
+  pure (A := B) (eval η (ETuple (x :: tl))) φ ψ.
+Proof.
+Admitted.
+
+Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) ψ :
+  pure (A := A) (eval η hd)
+    (fun x =>
+       pure_wp (evals η tl) (fun v => φ (# x :: v)) ψ) ψ ->
+  pure_wp (A := list val) (evals η (hd :: tl)) φ ψ.
+Proof. Admitted.
 
 Section splay_proofs.
 
@@ -235,23 +310,41 @@ Lemma Splay_spec :
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
 Proof.
   intros A H ctx l x r.
+  change (λ t', fringe t' = fringe (fill ctx (Node l x r))) with
+    ((λ '(l, x, r, ctx) t', fringe t' = fringe (fill ctx (Node l x r))) (l, x, r, ctx)).
 
-  recursion with zlt { measure snd }.
+  recursion with zlt { measure snd } ∀ (l, x, r, ctx).
 
   intros splay [[[l' x'] r'] ctx'] IH.
 
   (* Match to destruct the argument tuple *)
-  eapply pure_eval_match; first pure_path.
-
-  pure_match.
+  eval_match. pure_match.
 
   (* Match on [ctx] *)
-  eapply pure_eval_match; first pure_path.
+  eval_match.
 
-  (* Note: No longer slow ! *)
-  destruct ctx' eqn: Hctx'; pure_match.
+  destruct ctx' eqn: Hctx'; pure_match. (* Note: No longer slow ! *)
   { (* Case: [ctx] matches [Root] *)
-    prove_same_fringe. admit. }
+
+    eapply (@pure_eval_data_eq (tree A) _ _ Decode_tree).
+    { eapply (@pure_evals_cons (tree A)).
+      eapply pure_eval_path; cbn -[evals].
+      apply pure_wp_ret; eexists l'; split; first done.
+
+      eapply (@pure_evals_cons A).
+      eapply pure_eval_path; cbn -[evals].
+      apply pure_wp_ret; eexists x'; split; first done.
+
+      eapply (@pure_evals_cons (tree A)).
+      eapply pure_eval_path; cbn -[evals].
+      apply pure_wp_ret; eexists r'; split; first done.
+
+      simpl_evals.
+      apply pure_wp_ret.
+      rewrite !decode_encode_tree decode_encode; reflexivity. }
+
+    cbn.
+    prove_same_fringe. }
 
   {
     (* destruct z eqn: Hz. *)
@@ -472,44 +565,3 @@ Qed.
 
 End splay_proofs.
 
-
-(* -------------------------------------------------------------------------- *)
-
-(* Notation pRoot := (PConstant "Root"). *)
-(* Notation pNodeL p1 p2 p3 := (PData "NodeL" [p1; p2; p3]). *)
-(* Notation pNodeR p1 p2 p3 := (PData "NodeR" [p1; p2; p3]). *)
-
-(* Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) : *)
-(*   v = #z → *)
-(*   (z = Root -> φ η) -> *)
-(*   pattern η pRoot v φ (z <> Root). *)
-(* Proof. intros; subst; destruct z; solve_pattern. Qed. *)
-
-(* Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A) *)
-(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
-(*   (ψ1 : zipper A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop) *)
-(*   : *)
-(*   v = #z -> *)
-(*   (∀ (z' : zipper A) (a : A) (t : tree A), *)
-(*       z = NodeL z' a t → *)
-(*       pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) -> *)
-(*   pattern η (pNodeL p1 p2 p3) v φ (z = Root \/ *)
-(*                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/ *)
-(*                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))). *)
-(* Proof. *)
-(* Admitted. *)
-
-(* Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A) *)
-(*   (p1 p2 p3 : syntax.pat) (φ : env -> Prop) *)
-(*   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : zipper A -> Prop) *)
-(*   : *)
-(*   v = #z -> *)
-(*   (∀ (t : tree A) (a : A) (z' : zipper A), *)
-(*       z = NodeR t a z' → *)
-(*       pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) -> *)
-(*   pattern η (pNodeR p1 p2 p3) v φ (z = Root \/ *)
-(*                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/ *)
-(*                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))). *)
-(* Proof. Admitted. *)
-
-(* -------------------------------------------------------------------------- *)

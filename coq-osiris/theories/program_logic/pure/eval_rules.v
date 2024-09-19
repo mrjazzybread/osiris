@@ -1204,6 +1204,27 @@ Proof.
   specialize (IH _ H1). eapply IH; done.
 Qed.
 
+Lemma pure_rec_call_measure_gen `{Encode X, Encode Y} {M}
+  (measure : X -> M) (WF_x : WellFounded M) x
+  (η : env) (f : var) arg e Ψ (φ : X -> Y -> Prop):
+  (∀ vf (y' : X),
+    (∀ (y : X),
+        wf_relation (WF := WF_x) (measure y) (measure y') ->
+        pure (call vf #y) (φ y) Ψ) ->
+    (pure (eval ((arg, #y') :: (f, vf) :: η) e) (φ y') Ψ)) ->
+    pure (call (VCloRec η [RecBinding f (AnonFun arg e)] f) #x) (φ x) Ψ.
+Proof.
+  intros Hrec.
+  remember (measure x). revert x Heqm.
+  induction m as [mx IH] using (well_founded_induction wf_def); intros.
+  Unshelve. 2 : eauto.
+  simpl; rewrite String.eqb_refl.
+  apply pure_wp_bind, pure_wp_ret. simpl.
+  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply Hrec. intros; subst.
+  specialize (IH _ H1). eapply IH; done.
+Qed.
+
 Tactic Notation "recursion" constr(t) :=
   (eapply (pure_rec_call (X := t) _)).
 Tactic Notation "recursion" "with" uconstr(R) :=
@@ -1212,6 +1233,8 @@ Tactic Notation "recursion" uconstr(H) "with" uconstr(R) :=
   (eapply (pure_rec_call (WellFoundedRel_WellFounded R)) with (P := H)).
 Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}" :=
   (eapply (pure_rec_call_measure measure (WellFoundedRel_WellFounded R))).
+Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}" "∀" uconstr(g) :=
+  (eapply (pure_rec_call_measure_gen measure (WellFoundedRel_WellFounded R) g)).
 
 From osiris.program_logic.pure Require Import pattern_rules.
 
