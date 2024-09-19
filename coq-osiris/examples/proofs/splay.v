@@ -11,12 +11,6 @@ Inductive tree (A : Type) : Type :=
 Arguments Leaf {A}.
 Arguments Node {A} t1 x t2.
 
-Fixpoint tree_depth {A} (t : tree A) : nat :=
-  match t with
-  | Leaf => 0
-  | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
-  end.
-
 (* The algebraic data type ['a zipper]. *)
 
 Inductive zipper (A : Type) : Type :=
@@ -79,6 +73,12 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
 
 Require Import Coq.Wellfounded.Inverse_Image.
 
+Fixpoint tree_depth {A} (t : tree A) : nat :=
+  match t with
+  | Leaf => 0
+  | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
+  end.
+
 #[local]
   Program Canonical Structure tree_wf {A} : WellFounded (tree A) :=
   {| wf_relation := (fun t1 t2 => tree_depth t1 < tree_depth t2)%nat |}.
@@ -98,41 +98,8 @@ Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
       VData "Node" [encode_tree t1; #x; encode_tree t2]
   end.
 
-Class Decode (A : Type) `{Encode A} :=
-  { decode : val → option A;
-    decode_encode : forall x, decode (encode.encode x) = Some x}.
-
-#[global] Instance Encode_tree `{Encode A} : Encode (tree A).
-Proof. constructor; eapply encode_tree. Defined.
-
-Local Fixpoint decode_tree `{Decode A} val : option (tree A) :=
-  match val with
-  | VConstant s => if (s =? "Leaf")%string then Some Leaf else None
-  | VData s [x;y;z] =>
-      if (s =? "Node")%string then
-        match decode_tree x, decode y, decode_tree z with
-        | Some x, Some y, Some z => Some (Node x y z)
-        | _, _, _ => None
-        end
-      else None
-  | _ => None
-  end.
-
-Lemma decode_encode_tree `{Decode A}
-  : forall (x : tree A), decode_tree (encode_tree x) = Some x.
-Proof.
-  intros. induction x; cbn. econstructor.
-  rewrite IHx1 IHx2.
-  by rewrite decode_encode.
-Defined.
-
-#[global] Program Instance Decode_tree `{Decode A} : Decode (tree A) :=
-  { decode := decode_tree }.
-Next Obligation.
-  intros. induction x; cbn. econstructor.
-  rewrite IHx1 IHx2.
-  by rewrite decode_encode.
-Qed.
+#[global] Instance Encode_tree `{Encode A} : Encode (tree A) :=
+  { encode := encode_tree }.
 
 Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   match z with
@@ -144,8 +111,8 @@ Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
       VData "NodeR" [ #t1; #x; encode_zipper z2]
   end.
 
-#[global] Instance Encode_zipper `{Encode A} : Encode (zipper A).
-Proof. constructor; eapply encode_zipper. Defined.
+#[global] Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
+  { encode := encode_zipper }.
 
 End encodings.
 
@@ -193,7 +160,7 @@ Definition splay_leaf_spec :=
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
-    ∀ A `(_ : Decode A) (le : A → A → Prop) `(_ : PreOrder _ le),
+    ∀ A `(_ : Encode A) (le : A → A → Prop) `(_ : PreOrder _ le),
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
@@ -254,53 +221,6 @@ Local Ltac prove_same_fringe :=
           rewrite <- ?app_assoc) ;
   eauto.
 
-(* TODO: Move *)
-Ltac pure_match :=
-  eapply pure_match_cons; first solve_pattern; last intuition.
-Ltac pure_path := by eapply pure_eval_path, total_ret.
-Ltac eval_match :=
-  eapply pure_eval_match; first pure_path.
-
-Lemma pure_eval_data_eq `{Encode Y} `{Decode Y}
-  η c e (ψ : Y -> Prop) ζ y:
-  pure_wp
-    (evals η e)
-    (λ v', match (decode (VData c v')) with
-            | Some v => y = v
-            | None => False
-            end) ζ ->
-  ψ y ->
-  pure (eval η (EData c e)) ψ ζ.
-Proof. Admitted.
-
-
-Lemma pure_eval_data `{Encode Y} `{Decode Y}
-  η c e (ψ : Y -> Prop) ζ :
-  pure_wp
-    (evals η e)
-    (λ v', match (decode (VData c v')) with
-            | Some v => ψ v
-            | None => False
-            end) ζ ->
-  pure (eval η (EData c e)) ψ ζ.
-Proof. Admitted.
-
-Lemma pure_eval_tuple `{Encode A, Encode B} η x tl (φ : B -> Prop) ψ v:
-  pure (A := A)
-    (eval η x)
-    (fun v' : A =>
-       pure_wp (evals η tl) (fun x => v = # v' :: x) ψ) ψ ->
-  pure (A := B) (eval η (ETuple (x :: tl))) φ ψ.
-Proof.
-Admitted.
-
-Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) ψ :
-  pure (A := A) (eval η hd)
-    (fun x =>
-       pure_wp (evals η tl) (fun v => φ (# x :: v)) ψ) ψ ->
-  pure_wp (A := list val) (evals η (hd :: tl)) φ ψ.
-Proof. Admitted.
-
 Section splay_proofs.
 
 (* Top-level environment of [splay]. *)
@@ -315,44 +235,24 @@ Proof.
 
   recursion with zlt { measure snd } ∀ (l, x, r, ctx).
 
-  intros splay [[[l' x'] r'] ctx'] IH.
+  clear l x r ctx; intros splay [[[l x] r] ctx] IH.
 
   (* Match to destruct the argument tuple *)
-  eval_match. pure_match.
+  eval_match; pure_match.
 
   (* Match on [ctx] *)
   eval_match.
 
-  destruct ctx' eqn: Hctx'; pure_match. (* Note: No longer slow ! *)
+  destruct ctx eqn: Hctx.
   { (* Case: [ctx] matches [Root] *)
-
-    eapply (@pure_eval_data_eq (tree A) _ _ Decode_tree).
-    { eapply (@pure_evals_cons (tree A)).
-      eapply pure_eval_path; cbn -[evals].
-      apply pure_wp_ret; eexists l'; split; first done.
-
-      eapply (@pure_evals_cons A).
-      eapply pure_eval_path; cbn -[evals].
-      apply pure_wp_ret; eexists x'; split; first done.
-
-      eapply (@pure_evals_cons (tree A)).
-      eapply pure_eval_path; cbn -[evals].
-      apply pure_wp_ret; eexists r'; split; first done.
-
-      simpl_evals.
-      apply pure_wp_ret.
-      rewrite !decode_encode_tree decode_encode; reflexivity. }
-
-    cbn.
+    pure_match.
+    build ( (Node l x r) : [tree A; A; tree A] ).
     prove_same_fringe. }
 
-  {
-    (* destruct z eqn: Hz. *)
-    (* pure_match. *)
-    admit.
+  { destruct z eqn: Hz.
     (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
-    (* { pure_data. *)
-    (*   prove_same_fringe. } *)
+    { (* More work to do for match *)
+      (* prove_same_fringe. } *)
 
     (* (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *) *)
     (* { eapply pure_eval_app. pure_path. *)
@@ -368,7 +268,7 @@ Proof.
     (*   pure_call. *)
     (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
     (*   intros ? ->. *)
-    (*   prove_same_fringe. } } *) }
+    (*   prove_same_fringe. } } *) admit. }
 
   { admit. }
   (* (* Case: [ctx] matches [NodeR (ly, y, Root)] *) *)

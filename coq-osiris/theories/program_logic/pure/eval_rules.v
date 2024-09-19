@@ -204,26 +204,6 @@ Section eval_rules.
       + intros exn []; repeat constructor; eauto.
   Qed.
 
-  Lemma pure_eval_tuple η es φs ψ :
-    Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
-    pure (eval η (ETuple es)) (λ x, ∃ vs, x = VTuple vs ∧ Forall2 id φs vs) ψ.
-  Proof.
-    intros H%pure_wp_evals. simpl_eval.
-    apply pure_wp_bind.
-    apply (pure_wp_mono _ H); try done.
-    intros. apply pure_wp_ret; eexists _; eauto.
-  Qed.
-
-  Lemma pure_eval_tuple_eq η es vs ψ :
-    Forall2 (λ e v, pure (eval η e) (λ x, x = v) ψ) es vs →
-    pure (eval η (ETuple es)) (λ x, x = VTuple vs) ψ.
-  Proof.
-    intros H%pure_wp_evals_eq. simpl_eval.
-    apply pure_wp_bind.
-    apply (pure_wp_mono_ret _ H). intros; apply pure_wp_ret; subst; try congruence.
-    eexists _; eauto.
-  Qed.
-
   (** Hoare reasoning rules *)
 
   Lemma pure_ifthenelse η e e1 e2 φ (ψ : exn -> Prop) :
@@ -1033,14 +1013,6 @@ Section eval_rules.
   (*   apply Hc. *)
   (* Qed. *)
 
-  Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) :
-    total (lookup_path η π) ψ ->
-    pure (eval η (EPath π)) ψ ζ.
-  Proof.
-    simpl_eval.
-    (* apply _widen. *)
-  Admitted.
-
   (* Lemma pure_eval_ret_concat `{Encode A} e δ η (ψ : A -> Prop) ζ : *)
   (*   pure (eval (δ ++ η) e) ##ψ ζ -> *)
   (*   pure (θ ← ret (δ ++ η); *)
@@ -1353,3 +1325,56 @@ Section match_rules.
   (* -------------------------------------------------------------------------- *)
 
 End match_rules.
+
+(* TODO: More testing, clean up, comment. *)
+
+Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) :
+  total (lookup_path η π) ψ ->
+  pure (eval η (EPath π)) ψ ζ.
+Proof.
+  simpl_eval.
+  (* apply _widen. *)
+Admitted.
+
+Lemma pure_eval_data_eq `{Encode Y} y
+  η c e (ψ : Y -> Prop) ζ:
+  pure_wp
+    (evals η e)
+    (λ v', # y = VData c v') ζ ->
+  ψ y ->
+  pure (eval η (EData c e)) ψ ζ.
+Proof. Admitted.
+
+Lemma pure_eval_tuple `{Encode A, Encode B} η x tl (φ : B -> Prop) ψ v:
+  pure (A := A)
+    (eval η x)
+    (fun v' : A =>
+      pure_wp (evals η tl) (fun x => v = # v' :: x) ψ) ψ ->
+  pure (A := B) (eval η (ETuple (x :: tl))) φ ψ.
+Proof.
+Admitted.
+
+Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) ψ :
+  pure (A := A) (eval η hd)
+    (fun x =>
+      pure_wp (evals η tl) (fun v => φ (# x :: v)) ψ) ψ ->
+  pure_wp (A := list val) (evals η (hd :: tl)) φ ψ.
+Proof. Admitted.
+
+Ltac pure_match :=
+  eapply pure_match_cons; first solve_pattern; last intuition.
+Ltac pure_path := by eapply pure_eval_path, total_ret.
+Ltac eval_match :=
+  eapply pure_eval_match; first pure_path.
+Ltac match_signature hd :=
+  eapply (@pure_evals_cons hd);
+  eapply pure_eval_path; cbn -[evals];
+  apply pure_wp_ret; eexists _; split; first done.
+Ltac match_signatures l :=
+  match l with
+  | cons ?hd ?tl => match_signature hd;
+                    match_signatures tl
+  | nil => simpl_evals; apply pure_wp_ret; auto
+  end.
+Tactic Notation "build" "(" constr(x) ":" constr(l) ")":=
+  apply (pure_eval_data_eq x); first match_signatures l.

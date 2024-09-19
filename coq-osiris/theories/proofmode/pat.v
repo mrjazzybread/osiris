@@ -38,7 +38,7 @@ From Ltac2 Require Import Ltac2.
 
 Ltac2 rec specify_cpattern () : int :=
   lazy_match! goal with
-  | [ |- cpattern _ ?cp ?o _ _ ] =>
+  | [ |- cpattern_wp _ ?cp ?o _ _ ] =>
       (* We simplify terms because of things like coercions. *)
       let cp := Std.eval_hnf cp in
       let o := Std.eval_hnf o in

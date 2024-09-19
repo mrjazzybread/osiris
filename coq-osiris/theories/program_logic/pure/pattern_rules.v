@@ -729,6 +729,9 @@ Inductive pattern : env -> pat -> val -> (env -> Prop) -> Prop -> Prop :=
       (forall η', φ' η' -> pattern η' p2 #x2 φ ψ2) ->
       pattern η p1 #x1 φ' ψ1 →
       pattern η (PPair p1 p2) (VPair v1 v2) φ (ψ1 ∨ ψ2)
+  | pattern_PData_nil c φ η :
+    φ η ->
+    pattern η (PData c nil) (VData c nil) φ False
   | pattern_PData_eq c p v φ ψ η :
       patterns_wp η p v φ ψ →
       pattern η (PData c p) (VData c v) φ ψ
@@ -765,8 +768,7 @@ Proof.
   intros; induction H; eauto with pat.
   eapply pat_PPair; eauto.
   eapply pattern_wp_mono; eauto.
-  all: eapply pattern_wp_mono; eauto with pat.
-  firstorder.
+  all: eapply pattern_wp_mono; eauto with pat; try firstorder.
 Qed.
 
 Inductive cpattern : env -> cpat -> outcome.outcome3 val loc val val -> (env -> Prop) -> Prop -> Prop :=
