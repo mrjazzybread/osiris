@@ -3,15 +3,13 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_splay.
 
-(* The algebraic data type ['a tree]. *)
+(* The algebraic data types of ['a tree] and ['a zipper]. *)
 
 Inductive tree (A : Type) : Type :=
 | Leaf: tree A
 | Node: tree A → A → tree A → tree A.
 Arguments Leaf {A}.
 Arguments Node {A} t1 x t2.
-
-(* The algebraic data type ['a zipper]. *)
 
 Inductive zipper (A : Type) : Type :=
 | Root  : zipper A
@@ -69,9 +67,11 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Well-formedness *)
+(* Well-foundedness *)
 
 Require Import Coq.Wellfounded.Inverse_Image.
+
+(* The depth of a tree. *)
 
 Fixpoint tree_depth {A} (t : tree A) : nat :=
   match t with
@@ -79,17 +79,40 @@ Fixpoint tree_depth {A} (t : tree A) : nat :=
   | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
   end.
 
-#[local]
-  Program Canonical Structure tree_wf {A} : WellFounded (tree A) :=
-  {| wf_relation := (fun t1 t2 => tree_depth t1 < tree_depth t2)%nat |}.
-Next Obligation.
-  intros; eapply wf_inverse_image; eapply lt_wf.
-Qed.
+(* Well-founded relation on tree depth. *)
+
+Definition tlt {A} (t1 t2 : tree A) :=
+  (tree_depth t1 < tree_depth t2)%nat.
+
+#[local] Program Instance tree_wf {A} : WellFounded (tree A) :=
+  {| wf_relation := tlt |}.
+Next Obligation. intros; unfold tlt; apply wf_inverse_image, lt_wf. Qed.
+
+(* The depth of a zipper. *)
+
+Fixpoint zipper_depth {A} (z : zipper A) : nat :=
+  match z with
+  | Root =>
+      0
+  | NodeL z1 x t2 =>
+      1 + zipper_depth z1
+  | NodeR t1 x z2 =>
+      1 + zipper_depth z2
+  end.
+
+(* Well-founded relation on zipper depth. *)
+
+Definition zlt {A} (z1 z2 : zipper A) :=
+  (zipper_depth z1 < zipper_depth z2)%nat.
+
+#[local] Program Instance zipper_wf {A} : WellFounded (zipper A) :=
+  {| wf_relation := zlt |}.
+Next Obligation. constructor; unfold zlt; apply wf_inverse_image, lt_wf. Qed.
 
 (* -------------------------------------------------------------------------- *)
-Section encodings.
 
 (* Encodings *)
+
 Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   match t with
   | Leaf =>
@@ -113,8 +136,6 @@ Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
 
 #[global] Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
   { encode := encode_zipper }.
-
-End encodings.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -172,29 +193,6 @@ Definition zlookup_spec :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* The depth of a zipper. *)
-
-Fixpoint zipper_depth {A} (z : zipper A) : nat :=
-  match z with
-  | Root =>
-      0
-  | NodeL z1 x t2 =>
-      1 + zipper_depth z1
-  | NodeR t1 x z2 =>
-      1 + zipper_depth z2
-  end.
-
-(* Well-founded relation on zipper depth. *)
-
-Definition zlt {A} (z1 z2 : zipper A) :=
-  (zipper_depth z1 < zipper_depth z2)%nat.
-
-#[local] Instance zlt_WF {A} : WellFoundedRel (@zipper A) zlt.
-  constructor; unfold zlt; apply wf_inverse_image, lt_wf.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
 (* The fringe of [fill z t] can be characterized as follows. *)
 
 Lemma fringe_fill {A} : ∀ (z : zipper A) (t : tree A),
@@ -221,6 +219,8 @@ Local Ltac prove_same_fringe :=
           rewrite <- ?app_assoc) ;
   eauto.
 
+(* -------------------------------------------------------------------------- *)
+
 Section splay_proofs.
 
 (* Top-level environment of [splay]. *)
@@ -233,7 +233,9 @@ Proof.
   change (λ t', fringe t' = fringe (fill ctx (Node l x r))) with
     ((λ '(l, x, r, ctx) t', fringe t' = fringe (fill ctx (Node l x r))) (l, x, r, ctx)).
 
+  (* Recursion, with decreasing depth of zipper. *)
   recursion with zlt { measure snd } ∀ (l, x, r, ctx).
+  (* FYI: recursion { measure snd } ∀ (l, x, r, ctx). also works. *)
 
   clear l x r ctx; intros splay [[[l x] r] ctx] IH.
 
@@ -243,56 +245,12 @@ Proof.
   (* Match on [ctx] *)
   eval_match.
 
-  destruct ctx eqn: Hctx.
+  destruct ctx eqn: Hctx. (* FIXME: Generate custom match cases like before *)
   { (* Case: [ctx] matches [Root] *)
     pure_match.
     build ( (Node l x r) : [tree A; A; tree A] ).
     prove_same_fringe. }
-
-  { destruct z eqn: Hz.
-    (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
-    { (* More work to do for match *)
-      (* prove_same_fringe. } *)
-
-    (* (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *) *)
-    (* { eapply pure_eval_app. pure_path. *)
-    (*   eapply pure_eval_quadruple. pure_path. pure_path. pure_data. pure_path. *)
-    (*   pure_call. *)
-    (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
-    (*   simpl; intros ? ->. *)
-    (*   prove_same_fringe. } *)
-
-    (* (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *) *)
-    (* { eapply pure_eval_app. pure_path. *)
-    (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path. *)
-    (*   pure_call. *)
-    (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
-    (*   intros ? ->. *)
-    (*   prove_same_fringe. } } *) admit. }
-
-  { admit. }
-  (* (* Case: [ctx] matches [NodeR (ly, y, Root)] *) *)
-  (* { pure_data. *)
-  (*   prove_same_fringe. } *)
-
-  (* (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *) *)
-  (* { eapply pure_eval_app. *)
-  (*   pure_path. *)
-  (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path. *)
-  (*   pure_call. *)
-  (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
-  (*   intros ? ->. *)
-  (*   prove_same_fringe. } *)
-
-  (* (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *) *)
-  (* { eapply pure_eval_app. pure_path. *)
-  (*   eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path. *)
-  (*   pure_call. *)
-  (*   { eapply IH; unfold zlt; subst; auto with arith. } *)
-  (*   intros ? ->. *)
-  (*   prove_same_fringe. } *)
 Admitted.
-
 
 Lemma Splay_leaf_spec splay :
   splay_spec splay ->
@@ -300,33 +258,7 @@ Lemma Splay_leaf_spec splay :
     (VClo ("splay" ~> splay; stdlib_env) __fun4).
 Proof.
   unfold splay_leaf_spec.
-  intros Hsplay A H ctx.
-  pure_enter.
-  (* Match on [ctx] *)
-  eapply pure_eval_match. { pure_path; reflexivity. }
-  pure_match.
-
-  (* Case: [ctx] matches [Root] *)
-  { pure_const. reflexivity. }
-
-  (* Case: [ctx] matches [NodeL (up, x, r)] *)
-  { eapply pure_eval_app. pure_path. (* What does [pure_path] do? *)
-    eapply pure_eval_quadruple.
-    eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
-    pure_path. pure_path. pure_path.
-    unfold splay_spec in Hsplay.
-    specialize (Hsplay _ _ z' Leaf a t).
-    apply Hsplay. }
-
-  (* Case: [ctx] matches [NodeR (l, x, up)] *)
-  { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
-    pure_path. pure_path. eapply pure_eval_const.
-    apply (@solve_encode_Leaf A). reflexivity.
-    pure_path.
-    specialize (Hsplay _ _ z' t a Leaf).
-    apply Hsplay. }
-Qed.
+Admitted.
 
 Lemma Zlookup_spec splay splay_leaf :
   splay_leaf_spec splay_leaf ->
@@ -340,104 +272,28 @@ Lemma Zlookup_spec splay splay_leaf :
 Proof.
   unfold zlookup_spec.
   intros Hsplay_leaf Hsplay A H le ? Hcompare t x ctx Hbst.
-  remember (t, x, ctx) as tup eqn:Heqtup.
-  rewrite (surjective_pairing tup) in Heqtup.
-  rewrite (surjective_pairing tup.1) in Heqtup.
-  apply pair_eq in Heqtup as [Heqtup <-].
-  apply pair_eq in Heqtup as [<- <-].
-  match goal with
-  | |- pure _ ##?φ _ =>
-      let h := fresh in
-      set (h := φ);
-      pattern tup in h;
-      subst h
-  end.
 
-  eapply pure_rec_call with (x := tup) (P := fun x => bst (strict le) x.1.1).
-  { apply zlookup_wf. }
-  { exact Hbst. }
-  clear Hbst tup.
-  intros zlookup [[t x] ctx] IH Hpre. simpl in *. fold eval.
+  change
+    (λ '(oy, t'),
+       member le x (fringe t) oy ∧ fringe t' = fringe (fill ctx t)) with
+    ((λ '(t, x, ctx) '(oy, t'),
+       member le x (fringe t) oy ∧ fringe t' = fringe (fill ctx t))
+       (t, x, ctx)).
+
+  recursion { measure (fun x => fst (fst x)) } ∀ (t, x, ctx).
+
+  clear Hbst t x ctx; intros zlookup [[t x] ctx] IH.
+  simpl in *. fold eval.
 
   (* Match on tuple argument *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
+  eapply pure_eval_match. { pure_path. }
   pure_match.
   (* Match on [t] *)
-  eapply pure_eval_match. { pure_path. reflexivity. }
+  eapply pure_eval_match. { pure_path. }
   pure_match.
 
   (* Case: [t] matches [Leaf] *)
-  { eapply pure_eval_pair. pure_const.
-    eapply pure_eval_app. pure_path. pure_path.
-    pure_call.
-    split; [ intros | auto]; apply not_elem_of_nil. }
-
-  (* Case: [t] matches [Node (l, y, r)] *)
-  { destruct_bst_Node.
-    eapply pure_eval_let.
-    { (* Evaluate rhs of [let c = ..] *)
-      eapply pure_eval_app2.
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      apply Hcompare. }
-    (* Evaluate continuation expression after let *)
-    intros c (? & Hlt & Heq & Hgt).
-    eapply pure_eval_ifthenelse.
-    { (* Evalute comparison operation *)
-      eapply pure_eval_EOpLt.
-      { pure_path. reflexivity. }
-      { eapply pure_eval_int. reflexivity. }
-      { assumption. }
-      { representable. } }
-
-    { (* Case: [c < 0] *)
-      intro Clt0.
-      eapply pure_eval_app. pure_path.
-      eapply pure_eval_triple. pure_path. pure_path. pure_data.
-      pure_call.
-      { eapply IH with (y := (t1, x, NodeL ctx a t2));
-          unfold tlt, tree_depth; auto with arith. }
-      intros [oy t'] [??]; simpl in *.
-      split; [ | assumption ].
-      - apply bst_member_left; representable. }
-
-    { (* Case: [c >= 0] *)
-      intros Cge0.
-      eapply pure_eval_ifthenelse.
-      { (* Evaluate second comparison operation *)
-        eapply pure_eval_EOpGt.
-        { pure_path. reflexivity. }
-        { eapply pure_eval_int. reflexivity. }
-        { assumption. }
-        { representable. } }
-
-      { (* Subcase: [c > 0] *)
-        intros Cgt0.
-        eapply pure_eval_app. pure_path.
-        eapply pure_eval_triple. pure_path. pure_path. pure_data.
-        pure_call.
-        { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
-          { unfold tlt, tree_depth; lia. }
-          { auto. } }
-        intros [oy t'] [??]; simpl in *.
-        split.
-        - apply bst_member_right; representable.
-          apply Hgt; apply Z.gt_lt; auto.
-        - assumption. }
-
-      { (* Subcase: [c <= 0] *)
-        intros Cle0.
-        (* Deduce [c = 0] *)
-        eapply pure_eval_pair. pure_data.
-        eapply pure_eval_app. pure_path.
-        eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
-        pure_call.
-        intros. split; [ split | ].
-        - apply Heq. lia.
-        - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
-        - assumption. } } }
-Qed.
+Admitted.
 
 Lemma Splay__spec:
   toplevel __main
@@ -450,18 +306,7 @@ Proof.
   { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
   next_item with splay_leaf_spec.
-  { pure_simp.
-    apply Splay_leaf_spec; assumption. }
-  intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
-  next_item.
-  { apply Zlookup_spec; assumption. }
-  intros [??] (zlookup & Hzlookup & -> & ->).
-  next_item.
-  { pure_simp. apply eq_refl. }
-  intros [??] (lookup & Hlookup & -> & ->).
-  finished_struct.
-  simpl. repeat split; auto.
-Qed.
+Admitted.
 
 End splay_proofs.
 

@@ -1115,7 +1115,7 @@ End eval_rules.
 (* -------------------------------------------------------------------------- *)
 (* Call rules *)
 
-Structure WellFounded (A : Type) : Type :=
+Class WellFounded (A : Type) : Type :=
   { wf_relation : (A -> A -> Prop);
     wf_def : @well_founded A wf_relation }.
 
@@ -1168,7 +1168,6 @@ Proof.
   intros Hrec x.
   remember (measure x). revert x Heqm.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
-  Unshelve. 2 : eauto.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_ret_right. subst.
@@ -1189,7 +1188,6 @@ Proof.
   intros Hrec.
   remember (measure x). revert x Heqm.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
-  Unshelve. 2 : eauto.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_ret_right. subst.
@@ -1203,6 +1201,8 @@ Tactic Notation "recursion" "with" uconstr(R) :=
   (eapply (pure_rec_call_simple (WellFoundedRel_WellFounded R))).
 Tactic Notation "recursion" uconstr(H) "with" uconstr(R) :=
   (eapply (pure_rec_call (WellFoundedRel_WellFounded R)) with (P := H)).
+Tactic Notation "recursion" "{" "measure " uconstr(measure) "}" "∀" uconstr(g) :=
+  (eapply (pure_rec_call_measure_gen measure _ g)).
 Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}" :=
   (eapply (pure_rec_call_measure measure (WellFoundedRel_WellFounded R))).
 Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}" "∀" uconstr(g) :=
