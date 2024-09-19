@@ -122,10 +122,92 @@ Fixpoint data_constructor A (x : list Type) : Type :=
     | hd :: tl => hd -> data_constructor A tl
   end.
 
+(* A signature for a constructor that builds type [A]. *)
+Definition signature {A} : Type := sigT (data_constructor A).
+
 (* Data types is a map from string (constructor name) to the type signatures
   of the constructors. *)
 Class DataType (A : Type) :=
-  { data_signature : gmap string { x & data_constructor A x }; }.
+  { data_signature : gmap string (@signature A); }.
+
+(* -------------------------------------------------------------------------- *)
+
+Set Implicit Arguments.
+
+(* Heterogeneous list *)
+
+Inductive hlist (A : Type) (B : A -> Type) : list A -> Type :=
+| HNil : hlist B nil
+| HCons : forall (x : A) (ls : list A), B x -> hlist B ls -> hlist B (x :: ls).
+Arguments HNil {A B}.
+Arguments HCons {A B x ls}.
+
+From Equations Require Import Equations.
+
+(* Append for heterogeneous lists. *)
+
+Equations happ (A B : list Type) :
+  hlist (fun T : Type => T) A ->
+  hlist (fun T : Type => T) B ->
+  hlist (fun T : Type => T) (A ++ B) :=
+happ HNil m := m;
+happ (HCons a l1) m := HCons a (happ l1 m).
+
+(* -------------------------------------------------------------------------- *)
+
+(* Construct a data type [A] given its signature, data constructor and arguments. *)
+
+Equations build_constructor {A}
+  (Σ : list Type)
+  (constr : data_constructor A Σ)
+  (data : hlist (fun T : Type => T) Σ)
+  : A :=
+  (* When there are no arguments left, the construction is immediate. *)
+  @build_constructor _ nil constr HNil := constr;
+
+  (* Peel off an argument of the signature and apply to the constructor. *)
+  @build_constructor _ (τ :: tl) constr (HCons v vtl) :=
+    (build_constructor (Σ := tl) (constr v) vtl).
+
+(* TODO Comment *)
+
+Fixpoint eval_data_aux {A X}
+  (v : list expr)
+  (η : env)
+  (φ : A -> Prop) (ψ : exn -> Prop)
+  (t : list Type)
+  (constr : data_constructor A X)
+  (acc_t : list Type)
+  (acc : hlist (fun T : Type => T) acc_t)
+  : Prop :=
+  match v, t with
+  | hd :: tl, hd_t :: tl_t =>
+      ∃ (EncX : Encode hd_t) x,
+      pure
+        (eval η hd)
+        (fun y : hd_t =>
+          y = x /\
+          @eval_data_aux _ _ tl η φ ψ
+            tl_t
+            constr
+            (acc_t ++ [hd_t])
+            (happ acc (HCons x HNil))) ψ
+  | nil, nil =>
+      exists (eq_X : acc_t = X),
+      φ (@build_constructor _ acc_t
+           (eq_rect_r
+              (fun X => data_constructor A X)
+              constr eq_X) acc)
+  | _ , _ => False
+end.
+
+Arguments eval_data_aux {A X} _ _ _ _ _ _ _ _.
+
+(* Evaluate a list of expressions into a data type according to the signature. *)
+
+Definition eval_data {A}
+  (e : list expr) (η : env) (φ : A -> Prop) (ψ : exn -> Prop) (Σ : @splay.signature A)
+  := @eval_data_aux A _ e η φ ψ (projT1 Σ) (projT2 Σ) nil HNil.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -260,78 +342,18 @@ Section splay_proofs.
 
 (* Top-level environment of [splay]. *)
 
-Set Implicit Arguments.
+(* -------------------------------------------------------------------------- *)
 
-Inductive hlist (A : Type) (B : A -> Type) : list A -> Type :=
-| HNil : hlist B nil
-| HCons : forall (x : A) (ls : list A), B x -> hlist B ls -> hlist B (x :: ls).
-
-(* declare a bit more implicit arguments than the one automatically detected by Implicit Arguments *)
-Arguments HNil {A B}.
-Arguments HCons {A B x ls}.
-
-From Equations Require Import Equations.
-
-Equations app (A B : list Type) :
-  hlist (fun T : Type => T) A ->
-  hlist (fun T : Type => T) B ->
-  hlist (fun T : Type => T) (A ++ B) :=
-app HNil m := m;
-app (HCons a l1) m := HCons a (app l1 m).
-
-Definition build_constructor {A}
-  (x : list Type)
-  (constr : data_constructor A x)
-  (a : hlist (fun T : Type => T) x)
-  : A.
-Proof.
-  induction x; eauto.
-  cbn in *. inv a.
-  specialize (constr X).
-  exact (IHx constr X0).
-Defined.
-
-Fixpoint build_data {A X} η
-  (φ : A -> Prop) ψ
-  (v : list expr)
-  (t : list Type)
-  (constr : data_constructor A X)
-  (acc_t : list Type)
-  (acc : hlist (fun T : Type => T) acc_t)
-  : Prop :=
-  match v, t with
-  | hd :: tl, hd_t :: tl_t =>
-      ∃ (EncX : Encode hd_t) x,
-      pure
-        (eval η hd)
-        (fun y : hd_t =>
-          y = x /\
-          @build_data _ _ η φ ψ tl
-            tl_t
-            constr
-            (acc_t ++ [hd_t])
-            (app acc (HCons x HNil))) ψ
-  | nil, nil =>
-      exists (eq_X : acc_t = X),
-      φ (@build_constructor _ acc_t
-           (eq_rect_r
-              (fun X => data_constructor A X)
-              constr eq_X) acc)
-  | _ , _ => False
-end.
-
+(* TODO : Move and prove. *)
 Lemma pure_eval_data {A} `{Encode A, DataType A} η
   c hd tl (φ : _ -> Prop) ψ
   (signature : sigT (data_constructor A)) :
   data_signature !! c = Some signature ->
-  @build_data _ _ η φ ψ
-    (hd :: tl)
-    (projT1 signature)
-    (projT2 signature)
-    nil HNil ->
+  eval_data (hd :: tl) η φ ψ signature ->
   pure (A := A) (eval η (EData c (hd :: tl))) φ ψ.
 Proof. Admitted.
 
+(* TODO: Tweak this definition. *)
 Lemma total_ret_eq_and `{Encode A} {X : Type} (a : A) (ψ : Prop):
   ψ →
   total (E := X) (ret #a) (λ a', a' = a /\ ψ).
@@ -341,7 +363,14 @@ Proof.
 Qed.
 
 Ltac pure_eval_path :=
-  eexists _, _; eapply pure_eval_path; eapply total_ret_eq_and.
+  eexists _, _;
+  eapply pure_eval_path, total_ret_eq_and.
+Ltac pure_data :=
+  eapply pure_eval_data;
+  first try done;
+  repeat pure_eval_path; exists eq_refl.
+
+(* -------------------------------------------------------------------------- *)
 
 Lemma Splay_spec :
   splay_spec
@@ -365,13 +394,12 @@ Proof.
   (* Match on [ctx] *)
   eval_match.
 
-  destruct ctx eqn: Hctx. (* FIXME: Generate custom match cases like before *)
+  destruct ctx eqn: Hctx.
   { (* Case: [ctx] matches [Root] *)
-    pure_match.
-    eapply pure_eval_data; first try done.
-    repeat pure_eval_path.
-    exists eq_refl. prove_same_fringe. }
+    pure_match. pure_data.
+    prove_same_fringe. }
 
+  (* TODO: Generate custom match cases like before *)
 Admitted.
 
 Lemma Splay_leaf_spec splay :
