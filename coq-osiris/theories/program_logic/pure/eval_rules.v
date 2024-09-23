@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval.
+From osiris.semantics Require Import code eval simplification.
 
 From osiris.program_logic.pure Require Import wp notation total_rules.
 
@@ -124,7 +124,7 @@ Fixpoint eval_data_aux {A X}
             tl_t
             constr
             (acc_t ++ [hd_t])
-            (happ acc (HCons x HNil))) ψ
+            (happ acc (HCons x HNil))) ⊥
   | nil, nil =>
       exists (eq_X : acc_t = X),
       φ (@build_constructor _ acc_t
@@ -144,14 +144,21 @@ Definition eval_data {A}
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma pure_eval_data_eq `{Encode Y} y
-  η c e (ψ : Y -> Prop) ζ:
+Lemma pure_eval_data_eq `{Encode A} a η c e (ψ : A -> Prop) ζ:
   pure_wp
     (evals η e)
-    (λ v', # y = VData c v') ζ ->
-  ψ y ->
+    (λ x, # a = VData c x) ζ ->
+  ψ a ->
   pure (eval η (EData c e)) ψ ζ.
-Proof. Admitted.
+Proof.
+  intros Hwp Hψ.
+  simpl_eval.
+  eapply pure_wp_bind.
+  eapply pure_wp_mono; eauto.
+  intros l <-; apply pure_wp_ret. eauto with pure.
+Qed.
+
+Require Import Coq.Logic.EqdepFacts.
 
 Lemma pure_eval_data {A} `{Encode A, DataType A} η
   c hd tl (φ : _ -> Prop) ψ
@@ -160,7 +167,52 @@ Lemma pure_eval_data {A} `{Encode A, DataType A} η
   eval_data (hd :: tl) η φ ψ signature ->
   pure (A := A) (eval η (EData c (hd :: tl))) φ ψ.
 Proof.
-  intros. cbn.
+  intros Hsig Heval.
+  simpl_eval.
+  unfold eval_data in Heval.
+  simp eval_data_aux in Heval.
+  destruct signature as (t & constr); clear Hsig.
+
+  (* Case analysis on the list type *)
+  destruct t.
+  { simpl in Heval. done. }
+
+  revert constr Heval.
+  induction t.
+
+  { (* Base case *)
+    intros constr Heval.
+    destruct Heval as (?&?&?).
+    eapply pure_wp_Par_val_left, pure_wp_mono; eauto.
+    intros a' Hret; red in Hret; destruct Hret as (?&?&?&?).
+    simpl in H4; subst.
+    destruct tl; simp eval_data_aux in H4; cycle 1.
+    { unfold eval_data_aux in H4; done. }
+
+    cbn; simpl_evals; do 2 apply pure_wp_ret.
+    cbn in *; destruct H4 as (?&?).
+    simp happ in H2.
+
+    simp build_constructor in H2.
+    red; eexists _; split; eauto; unfold eq_rect_r.
+    rewrite <- Eqdep.EqdepTheory.eq_rect_eq.
+
+    (* TODO: Customize the instance for [Encode A]. *)
+    (* VData c [#x0] = #(constr x0) *)
+    admit. }
+
+  (* Inductive case *)
+
+  intros constr Heval.
+  destruct Heval as (?&?&?).
+  eapply pure_wp_Par_val_left, pure_wp_mono; eauto.
+  intros a' Hret; red in Hret; destruct Hret as (?&?&?&?).
+  simpl in H4. subst. destruct tl; simp eval_data_aux in H4.
+  { by unfold eval_data_aux in H4. }
+
+  cbn. simpl_evals.
+  eapply pure_wp_mono.
+
 Admitted.
 
 (* -------------------------------------------------------------------------- *)
