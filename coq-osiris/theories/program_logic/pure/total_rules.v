@@ -6,6 +6,16 @@ From osiris.program_logic.pure Require Export pure_rules.
 
 Section total_rules.
 
+(* The consequence rule. *)
+
+Lemma total_mono `{Encode A} {X} m (φ ψ : A → Prop) :
+  total m φ →
+  (∀ a, φ a → ψ a) →
+  total (E := X) m ψ.
+Proof.
+  intros; by eapply pure_mono.
+Qed.
+
 (* A reasoning rule for [ret]. *)
 
 (* The subgoal [v = #a] is explicitly isolated so as to make this lemma
@@ -28,22 +38,20 @@ Proof.
   intros; eapply total_ret; eauto.
 Qed.
 
+Lemma total_ret_eq_and `{Encode A} {X : Type} (a : A) (ψ : Prop):
+  ψ →
+  total (E := X) (ret #a) (λ a', a' = a /\ ψ).
+Proof.
+  intros. eapply total_mono. apply total_ret_eq.
+  cbn. intros; by subst.
+Qed.
+
 Lemma total_returns `{Encode A} {X : Type}
   (a : val) (k : val -> micro val X) (φ : A -> Prop):
   total (E := X) (k a) φ ->
   returns (λ v : val, total (k v) φ) a.
 Proof.
   intros; eauto with pure.
-Qed.
-
-(* The consequence rule. *)
-
-Lemma total_mono `{Encode A} {X} m (φ ψ : A → Prop) :
-  total m φ →
-  (∀ a, φ a → ψ a) →
-  total (E := X) m ψ.
-Proof.
-  intros; by eapply pure_mono.
 Qed.
 
 (* A reasoning rule for [try2]. *)
@@ -476,5 +484,48 @@ Qed.
 (*   apply (IH (x2, y2)); auto. *)
 (*   rewrite surjective_pairing; apply HR. *)
 (* Qed. *)
+
+(* TODO See if this is necessary *)
+
+Lemma total_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 * A2 * A3 -> Prop) :
+  total (eval η e1) (λ a1 : A1,
+        total (eval η e2) (λ a2 : A2,
+              total (eval η e3) (λ a3 : A3,
+                    ψ (a1, a2, a3)))) ->
+  total (eval η (ETuple [e1; e2; e3])) ψ.
+Proof.
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  repeat apply pure_wp_ret.
+  eauto with pure.
+Qed.
+
+Lemma total_pair_val η e1 e2 (ψ : val → Prop) :
+  total (eval η e1) (λ a1 : val, total (eval η e2) (λ a2 : val, ψ (VPair a1 a2))) →
+  total (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  repeat apply pure_wp_ret.
+  eauto with pure.
+Qed.
+
+Lemma total_pair_conseq `{Encode A1, Encode A2} η e1 e2
+  (φ1 : A1 → Prop) (φ2 : A2 → Prop) (ψ : A1 * A2 → Prop)
+:
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ a1 a2, φ1 a1 → φ2 a2 → ψ (a1, a2)) →
+  total (eval η (EPair e1 e2)) ψ.
+Proof.
+  intros. simpl_eval.
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
+  repeat apply pure_wp_ret. eauto 10 with pure.
+Qed.
+
 
 End total_rules.
