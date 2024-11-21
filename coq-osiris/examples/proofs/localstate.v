@@ -15,8 +15,8 @@ Section localstate_example.
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
 Definition state := Z.
 
-Definition read rl : val := VXData rl (VTuple []).
-Definition write wl (v : state) : val := VXData wl (VTuple [ # v]).
+Definition read rl : val := VXData rl [].
+Definition write wl (v : state) : val := VXData wl [ # v].
 
 Definition READ {Σ} rl (St : state -> _) : iEff Σ :=
   (>> x  >> ! (read rl) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
