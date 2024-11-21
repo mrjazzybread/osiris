@@ -22,7 +22,7 @@ Definition head_spec head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
     ⊢ ewp_def top (call head #l) ⊥
       (| RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝ ;
-       | EXN e => ⌜e = VXData (Loc 0) (VTuple []) /\ l = []⌝ )%I.
+       | EXN e => ⌜e = VXData (Loc 0) [] /\ l = []⌝ )%I.
 
 (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
    or returns [None] when [l = []]. *)

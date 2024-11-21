@@ -99,38 +99,29 @@ Proof.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.
     pure_enter.
+    (* FIXME: This proof was not so pretty to begin with; but
+     we can do better here. *)
+    (* TODO: Refactor. *)
     eapply (pure_eval_trywith _ _ _ _ (λ ex, l = [] ∧ ex = VXData (Loc 0) [])).
     - (* matched value (or exn) *)
-      eapply pure_mono.
-      eapply (@pure_eval_data' A _ (option A)).
-      (* TODO: fix [pure_data] -- START *)
-      + eapply pure_wp_mono_ret.
-        { eapply (@pure_evals_eq A).
-          eapply List.Forall2_cons; eauto.
-          (* fix [pure_data] -- END *)
-          eapply pure_eval_app. pure_path.
-          pure_path; first encode.
-          eapply pure_strong_mono.
-          eapply Hhead.
-          - intros ? (h&?); destruct l; inversion H0.
-            (* FIXME Automate; this shouldn't happen here. *)
-            Unshelve. 4 : { exact (match l with
-                                    | nil => #(@None A)
-                                    | hd :: tl => #hd end). }
-            cbn. reflexivity. shelve. exact (List.head l).
-          - intros ? (->&->). auto. }
+      eapply (@pure_eval_data' A _ (option A)); last done.
+      (* TODO: fix [pure_data] *)
+      simpl_evals. fold eval. eapply pure_wp_Par_conseq.
+      + eapply pure_eval_app. pure_path. pure_path.
+      + eapply pure_wp_ret_eq.
+      + intros; returns_eauto. cbn in *.
+        eapply pure_wp_ret; subst. destruct Ha_ensures; subst.
+        eexists [v]; tauto.
+      + intros ? [ (-> & ->)| ]; cbn.
+        * eapply pure_wp_throw; eauto.
+        * eapply pure_wp_throw; eauto. Unshelve. eapply H0.
 
-        intros ex ?. cbn in *. subst.
-        eexists _. split; eauto. encode.
-  (*       eauto with returns. *)
-  (*   cbn in *. subst. destruct l; eauto; cbn; eauto. *)
-  (*   apply pure_eval_try_with_cons, pat_PXData_eq; auto. *)
-  (*   apply pat_PTuple_val, pure_noexn_weaken, pats_PNil. *)
-  (*   eapply pure_eval_const; eauto with encode. *)
-  (* } *)
-  (* intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl. *)
+    - intros ? (->&->).
+    apply pure_eval_try_with_cons, pat_PXData_eq; auto.
+    ltac2: (patterns ()). pure_data; done. }
+  intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
 
-  (* (* We have gone though all of the struct items, time to conclude. *) *)
-  (* eapply structs_nil. *)
-  (* done. *)
-Admitted.
+  (* We have gone though all of the struct items, time to conclude. *)
+  eapply structs_nil.
+  done.
+Qed.
