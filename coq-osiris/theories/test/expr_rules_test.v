@@ -275,14 +275,10 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #1⌝))%I.
   { iApply ewp_EInt. encode. }
 
-  iIntros_RET "->".
-  iApply deep_handle_cons; cycle 1.
-  { iPureIntro. do 2 constructor.
-    iApply ewp_EConstant. }
-  { iNext. iIntros. done. }
-   iExists true. auto.
+  iIntros_RET "->". fold deep_eval_match.
+  next_branch.
+  iApply ewp_EConstant. iExists true. auto.
 Qed.
-
 (*
 a few examples for EMatch, for now more than necessary
 we should remove most of them once EMatch rules are well understood.
@@ -302,12 +298,10 @@ Proof.
   { iApply ewp_EInt. encode. }
   iIntros_RET "-> !>".
 
-  iApply deep_handle_cons; cycle 1.
-  { iPureIntro. constructor.
-  (* next_branch. *)
-  (* - iApply ewp_EConstant; iExists true; auto. *)
-  (* - congruence. *)
-Admitted.
+  next_branch.
+  - iApply ewp_EConstant; iExists true; auto.
+  - congruence.
+Qed.
 
 (* match 2 with 1 -> true | _ -> false *)
 
@@ -321,17 +315,10 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-
-(*   iApply deep_handle_cons; cycle 1. *)
-(*   { iPureIntro. constructor. *)
-(*   (* next_branch. *) *)
-(*   (* - iApply ewp_EConstant; iExists true; auto. *) *)
-  
-(*   next_branch. *)
-(*   next_branch. *)
-(*   iApply ewp_EConstant; iExists false; auto. *)
-(* Qed. *)
-Admitted.
+  next_branch.
+  next_branch.
+  iApply ewp_EConstant; iExists false; auto.
+Qed.
 
 (* match 2 with 0 -> 0 | 1 -> 1 | 2 -> 2 *)
 
@@ -346,41 +333,36 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
   iIntros_RET "-> !>".
-(*   next_branch. *)
-(*   next_branch. *)
-(*   next_branch. *)
-(*   { iApply ewp_EInt. iExists 2. auto. } *)
-(*   congruence. *)
-(* Qed. *)
-Admitted.
+  next_branch.
+  next_branch.
+  next_branch.
+  { iApply ewp_EInt. iExists 2. auto. }
+  congruence.
+Qed.
 
 (* checking now whether pat_pNil works with
 match [] with _ :: _ -> 1 | _ -> 2 *)
 
-(* Lemma simple_true_true_match `{Encode A} env : *)
-(*   ⊢ EWP eval env *)
-(*     (EMatch (EData "[]" (ETuple [])) *)
-(*       [Branch (CVal (PData "::" (PTuple [ PAny; PAny ]))) (EInt 1); *)
-(*        Branch (CVal (PConstant "[]")) (EInt 2)]) *)
-(*     {{ RET #r, ⌜r = 2⌝ }}. *)
-(* Proof. *)
-(*   prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I. *)
-(*   { iApply ewp_EConstant. encode. } *)
 
-(*   iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *) *)
 
-(*   iApply deep_handle_cons; cycle 1. *)
-(*   { iPureIntro. do 2 constructor. intros; inv H0. } *)
-(*   { iNext. iIntros. done. } *)
+Lemma simple_true_true_match `{Encode A} env :
+  ⊢ EWP eval env
+    (EMatch (EData "[]" [])
+      [Branch (CVal (PData "::" [ PAny; PAny ])) (EInt 1);
+       Branch (CVal (PConstant "[]")) (EInt 2)])
+    {{ RET #r, ⌜r = 2⌝ }}.
+Proof.
+  prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
+  { iApply ewp_EConstant. encode. }
 
-(*   iApply deep_handle_cons; cycle 1. *)
-(*   { iPureIntro. do 3 constructor. *)
-(*     apply patterns_equals_pats. *)
-(*     constructor. *)
-(*     iApply ewp_EInt. } *)
-(*   iIntros. *)
-(*   admit. *)
-(*   by iExists 2. *)
-(* Admitted. *)
+  iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
+  next_branch.
+  revert H0.
+  instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).
+  iIntros "%no_match1".
+  next_branch.
+  { iApply ewp_EInt. by iExists 2. }
+  congruence.
+Qed.
 
 End test_expr_rules.

@@ -507,14 +507,22 @@ Ltac2 apply_deep_handle_cons () :=
                            let n := specify_cpattern () in
                            if (Int.gt n 0)
                            then
-                             Control.focus 1 n
-                               (fun _ =>
-                                  match! goal with
-                                  | [ |- ?g ] => if Constr.is_evar g then
-                                                 apply I
-                                               else
-                                                 iStartProof
-                                  end)
+        (* FIXME: Ugly. [specify_cpattern] resolves
+          a [cpattern] and leaves behind a [pattern] which needs
+          to be solved with a [pattern_match0] here;
+          and since [pattern_match0] does not return an integer
+          of how many goals are left, we must use [try] which is not
+          ideal. *)
+                             Control.focus 1 n pattern_match0;
+                             try (Control.focus 1 n
+                                  (fun _ =>
+                                      match! goal with
+                                      | [ |- ?g ] =>
+                                          if Constr.is_evar g then
+                                              apply I
+                                          else
+                                              iStartProof
+                                      end))
                            else ());
   all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps);
   last (do_iintros).

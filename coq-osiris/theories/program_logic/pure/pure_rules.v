@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval.
+From osiris.semantics Require Import code eval simplification.
 
 From osiris.program_logic.pure Require Export wp notation.
 
@@ -95,6 +95,12 @@ Section pure_rules.
     pure m φ ψ'.
   Proof.
     intros; eapply pure_strong_mono ; eauto.
+  Qed.
+
+  Lemma pure_simp {φ ψ} (m m' : micro A E) :
+    simp m m' → pure m' φ ψ → pure m φ ψ.
+  Proof.
+    by eapply pure_wp_simp.
   Qed.
 
   (* A reasoning rule for [try2]. *)
