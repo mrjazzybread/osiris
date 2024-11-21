@@ -723,14 +723,14 @@ Section eval_rules.
 
   (* TODO: comment *)
 
-  Lemma total_eval_int η i (ψ : Z -> Prop) :
-    ψ i ->
-    total (eval η (EInt i)) ψ.
+  Lemma pure_eval_int η i (φ : _ -> Prop) ψ :
+    φ i ->
+    pure (eval η (EInt i)) φ ψ.
   Proof.
     intros.
-    eapply pure_wp_simp.
-    simp.
-    eapply total_ret; eauto.
+    eapply pure_wp_simp. simp.
+    eapply pure_wp_ret; eauto.
+    by repeat econstructor.
   Qed.
 
   (* Function applications. *)

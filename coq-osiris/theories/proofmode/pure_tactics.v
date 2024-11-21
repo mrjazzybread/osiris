@@ -717,6 +717,8 @@ Ltac2 pure_ret0 () :=
       eapply pure_ret; eauto (* LATER : Control this [eauto] *)
   | [ |- total (ret _) (λ _ , _) ] =>
       eapply pure_ret; eauto
+  | [ |- pure_wp (ret _) _ _ ] =>
+      eapply pure_ret; eauto
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
@@ -961,12 +963,9 @@ Tactic Notation "pure_data" := ltac2:(pure_data).
 (* [pure_simp] expects a goal of the form [pure m φ ψ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ ψ]. *)
 
-Local Lemma pure_simp `{Encode A} {X} m m' (φ : A → Prop) :
-  simp m m' → pure (E := X) m' φ ⊥ → pure (E := X) m φ ⊥.
-Proof. apply pure_wp_simp. Qed.
-
 Ltac2 pure_simp () :=
-  eapply pure_simp > [ ltac1:(simp_really) | try (pure_ret) ].
+  eapply pure_wp_simp > [ ltac1:(simp_really) | ];
+  Control.enter pure_ret0.
 
 Ltac2 Notation "pure_simp" := pure_simp ().
 Tactic Notation "pure_simp" := ltac2:(pure_simp).

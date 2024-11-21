@@ -459,6 +459,8 @@ Ltac pattern_hook ::=
     | pat_pNode
     ].
 
+(* -------------------------------------------------------------------------- *)
+
 Lemma solve_encode_Leaf `{Encode A} (t : tree A) :
   Leaf = t →
   VConstant "Leaf" = #t.
@@ -508,6 +510,8 @@ Qed.
 Local Hint Resolve
   solve_encode_Root solve_encode_NodeL solve_encode_NodeR
   : encode.
+
+(* -------------------------------------------------------------------------- *)
 
 Lemma Splay_spec :
   splay_spec
@@ -674,7 +678,7 @@ Proof.
     { (* Evalute comparison operation *)
       eapply pure_eval_EOpLt.
       { pure_path. }
-      { eapply total_eval_int. reflexivity. }
+      { eapply pure_eval_int. reflexivity. }
       { assumption. }
       { representable. } }
 
@@ -695,7 +699,6 @@ Proof.
       { (* Evaluate second comparison operation *)
         eapply pure_eval_EOpGt.
         { pure_path. }
-        (* TODO *)
         { eapply pure_eval_int. reflexivity. }
         { assumption. }
         { representable. } }
@@ -704,9 +707,9 @@ Proof.
         intros Cgt0.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
-        pure_call.
+        eapply pure_mono.
         { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
-          { unfold tlt, tree_depth; lia. }
+          { cbn; unfold tlt. cbn. lia. }
           { auto. } }
         intros [oy t'] [??]; simpl in *.
         split.
@@ -720,29 +723,37 @@ Proof.
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
-        pure_call.
+        by change (encode_zipper ctx) with (# ctx).
+        eapply pure_mono. eapply Hsplay.
         intros. split; [ split | ].
         - apply Heq. lia.
         - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
         - assumption. } } }
 Qed.
 
-
-  (* Case: [t] matches [Leaf] *)
-Admitted.
-
 Lemma Splay__spec:
   toplevel __main
     (env_has_pspecs [("splay", splay_spec);
-                            ("splay_leaf", splay_leaf_spec);
-                            ("zlookup", zlookup_spec)]).
+                     ("splay_leaf", splay_leaf_spec);
+                     ("zlookup", zlookup_spec)]).
 Proof.
   apply module_struct.
   next_item.
   { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
   next_item with splay_leaf_spec.
-Admitted.
+  { pure_simp.
+    apply Splay_leaf_spec; assumption. }
+  intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
+  next_item.
+  { apply Zlookup_spec; assumption. }
+  intros [??] (zlookup & Hzlookup & -> & ->).
+  next_item.
+  { pure_simp. apply eq_refl. }
+  intros [??] (lookup & Hlookup & -> & ->).
+  finished_struct.
+  simpl. repeat split; auto.
+Qed.
 
 End splay_proofs.
 
