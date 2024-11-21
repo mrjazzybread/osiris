@@ -11,6 +11,29 @@ Section pure_rules.
   Implicit Type φ : A -> Prop.
   Implicit Type ψ : E -> Prop.
 
+  (** *Basic properties about [returns]. *)
+
+  (* [returns] is idempotent. *)
+
+  Lemma returns_idem (ψ : A -> Prop):
+    ∀ a : val, returns ψ a <-> returns (returns ψ) a.
+  Proof.
+    intros; split; intros (?&->&?).
+    - by repeat econstructor.
+    - destruct H as (?&->&?); by repeat econstructor.
+  Qed.
+
+  (* [returns] is monotone. *)
+
+  Lemma returns_mono (φ ψ : A -> Prop):
+    (forall a, φ a -> ψ a) ->
+    ∀ a : val, returns φ a  -> returns ψ a.
+  Proof.
+    intros ? * (?&->&?); repeat econstructor; eauto.
+  Qed.
+
+  (** *Basic reasoning rules for [pure]. *)
+
   (* A reasoning rule for [ret]. *)
 
   (* The subgoal [v = #a] is explicitly isolated so as to make this lemma
@@ -288,3 +311,86 @@ Section pure_rules.
   Qed.
 
 End pure_rules.
+
+Section pure_rules_variant.
+
+  Lemma pure_ret_eq_val {E} {A} `{EncA: Encode A} (a : A) ψ :
+    pure (E := E) (ret #a) (λ a', a' = a) ψ.
+  Proof.
+    intros; eapply pure_ret; eauto.
+  Qed.
+
+  Lemma pure_ret_eq_val' {E} {A} `{EncA: Encode A} (a : A) ψ :
+    pure (E := E) (ret #a) (λ a' : val, a' = # a) ψ.
+  Proof.
+    intros; eapply pure_ret; eauto.
+  Qed.
+
+End pure_rules_variant.
+
+
+(* Rules about [pure] related to effectful computations, i.e. computations
+   using [Stop] *)
+Section pure_eff.
+
+  (* The following two lemmas paraphrase the definition of [call] in eval.v.
+      When applied to a goal of the form [simp (call v1 v2) _] where [v1] is
+      a concrete closure (as opposed to a rigid metavariable), they step into
+      the call. *)
+
+  Lemma pure_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) ψ :
+    pure (acall η a v2) φ ψ ->
+    pure (call (VClo η a) v2) φ ψ.
+  Proof.
+    tauto.
+  Qed.
+
+  Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) ψ :
+    pure (try2 (eval η e) k) φ ψ ->
+    pure (E := Y) (Stop CEval (η, e) k) φ ψ.
+  Proof.
+    intros.
+    eapply pure_wp_simp; [ apply simplification.SimpEval | assumption ].
+  Qed.
+
+  (** [CEval] evaluation *)
+
+  Lemma pure_CEval `{Encode A} {E η e k} (φ : A → Prop) (ψ : E → Prop) :
+    pure (try2 (eval η e) k) φ ψ →
+    pure (Stop CEval (η, e) k) φ ψ.
+  Proof.
+    intros. eapply pure_wp_det_may_backward; eauto. repeat constructor.
+    by intros m' ->%pure.invert_may_eval.
+  Qed.
+
+  Lemma pure_CEval_inject2 `{Encode A} {η e φ ψ} :
+    pure (A := A) (eval η e) φ ψ →
+    pure (Stop CEval (η, e) inject2) φ ψ.
+  Proof.
+    intros He. eapply pure_CEval, pure_try2; try done;
+    eauto using pure_ret, pure_throw.
+  Qed.
+
+  Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
+    lookup_rec_bindings rbs g = ret (AnonFun x e) ->
+    pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ψ ->
+    pure (call (VCloRec η rbs g) v2) φ ψ.
+  Proof.
+    intros Hlookup Hpure.
+    simpl; rewrite Hlookup.
+    cbn.
+    eapply pure_CEval; rewrite try2_ret_right.
+    done.
+  Qed.
+
+  Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
+    pure (call f v) φ ⊥ ->
+    (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g.
+  Proof.
+    intros Hcall.
+    unfold call in Hcall.
+    destruct f; simpl in Hcall;
+      ((exfalso; by eapply invert_pure_wp_crash) || eauto).
+  Qed.
+
+End pure_eff.

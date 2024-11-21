@@ -20,7 +20,7 @@ Definition head_spec head :=
     pure
       (call head #l)
       (λ h, ∃ t, l = h :: t)
-      (λ e, e = VXData (Loc 0) (VTuple []) ∧ l = []).
+      (λ e, e = VXData (Loc 0) [VTuple []] ∧ l = []).
 
 (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
    or returns [None] when [l = []]. *)

@@ -131,7 +131,6 @@ Proof.
   { unfold irrefutably_extend; cbn.
     apply pure_wp_widen.
     eapply pure_wp_try_conseq; eauto.
-    apply pattern_equals_pat; eauto.
     2: intros _ [].
     eauto using pure_wp_ret. }
   auto using pure_wp_ret.
@@ -275,9 +274,8 @@ Proof.
   apply pure_wp_Par_vals_left.
   apply (pure_wp_mono_ret _ Hpure_wp). intros v (a & -> & Ha).
   apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
-  eapply pure_wp_widen, pure_wp_try_conseq.
-  apply pattern_equals_pat; eauto. 2 : intros _ [].
-  intros. by apply pure_wp_ret.
+  eapply pure_wp_widen, pure_wp_try_conseq. by apply Hcov.
+  intros. by apply pure_wp_ret. intros _ [].
 Qed.
 
 Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :
@@ -295,8 +293,10 @@ Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
     (λ η,
       ∃ a η', ψ a /\ φ' η' /\ η = (v, #a) :: η').
 Proof.
-  intros; eapply bindings_cons; eauto.
-  intros; constructor; firstorder.
+  intros.
+  eapply bindings_cons; eauto.
+  intros; unfold pattern. simpl_extend.
+  apply pure_wp_ret; eauto.
 Qed.
 
 Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
@@ -306,7 +306,8 @@ Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.
 Proof.
-  intros Hpure_wp Hbs Hpat.
+    intros Hpure Hbs Hpat.
   eapply bindings_cons; eauto.
-  intros [a b] η' [Hψ1 Hψ2] Hη'. auto.
+  intros [a b] η' [Hψ1 Hψ2] Hη'.
+  auto.
 Qed.

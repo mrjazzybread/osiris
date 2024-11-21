@@ -28,6 +28,13 @@ Global Instance Pred_bottom {A} : Bottom (A → Prop) := λ _, False.
 
 Section pure_wp_rules.
 
+  (* TODO Comment *)
+  Lemma pure_wp_ret_eq {A E} (a : A) ψ :
+    pure_wp (E := E) (ret a) (λ a', a' = a) ψ.
+  Proof.
+    intros; eapply pure_wp_ret; eauto.
+  Qed.
+
   (** [pure_wp] is monotonic *)
 
   Lemma pure_wp_mono {A E} {φ φ' ψ ψ' : _ -> Prop} (m : micro A E) :

@@ -13,23 +13,34 @@ Definition returns {A} `{Encode A} (φ : A -> Prop):=
 
 (* Class of judgements over [micro] expressions, which are lifted over encodable
   values. *)
-Class TotalJudgement :=
-  total : forall {A E} `{Encode A}, micro val E -> (A -> Prop)-> Prop.
+Class TotalJudgement {A} {EncA : Encode A} {A'} :=
+  total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
 
-#[global] Instance TotalJudgement_ : TotalJudgement :=
-  fun _ _ _ a Φ => pure_wp a (returns Φ) ⊥.
+#[global] Instance TotalJudgement_val {A} {EncA : Encode A} :
+  @TotalJudgement A EncA val | 10 :=
+  fun _ a Φ => pure_wp a (returns Φ) ⊥.
 
-Class PureJudgement :=
-  pure : forall {A E} `{Encode A}, micro val E -> (A -> Prop) -> (E -> Prop) -> Prop.
+#[global] Instance TotalJudgement_poly {A} {EncA : Encode A} :
+  @TotalJudgement A EncA A | 100 :=
+  fun _ a Φ => pure_wp a Φ ⊥.
 
-#[global] Instance PureJudgement_ : PureJudgement :=
-  fun _ _ _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
+Class PureJudgement {A} {EncA : Encode A} {A'} :=
+  pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
+
+#[global] Instance PureJudgement_val {A} {EncA : Encode A} :
+  @PureJudgement A EncA val | 10 :=
+  fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
+
+#[global] Instance PureJudgement_poly {A} {EncA : Encode A} :
+  @PureJudgement A EncA A | 100 :=
+  fun _ a Φ Ψ => pure_wp a Φ Ψ.
 
 Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
   (total (eval η e) Φ)
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
+(* FIXME: [catches] => [raises] *)
 Notation "η ⊢ '{' e 'ensures' Φ 'catches' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
@@ -45,8 +56,10 @@ Notation "'{' e 'ensures' Φ 'catches' ψ '}'" :=
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'catches'  ψ  '}' ']'").
 
-Opaque TotalJudgement_.
-Opaque PureJudgement.
+Opaque TotalJudgement_val.
+Opaque TotalJudgement_poly.
+Opaque PureJudgement_val.
+Opaque PureJudgement_poly.
 Opaque pure.
 Opaque total.
 

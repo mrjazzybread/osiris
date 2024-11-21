@@ -53,17 +53,11 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   | Leaf =>
       VConstant "Leaf"
   | Node t1 x t2 =>
-      VData "Node" (VTuple3 (encode_tree t1) #x (encode_tree t2))
+      VData "Node" [encode_tree t1; #x; encode_tree t2]
   end.
 
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode := encode_tree }.
-
-Local Instance CRel3Node `{Encode A} :
-  CRel3 (tree A) "Node" Node := {}.
-
-Local Instance CRel1Some `{Encode A} :
-  CRel1 (option A) "Some" Some := {}.
 
 Lemma encode_tree_is_encode `{Encode A} :
   ∀ (t : tree A),
@@ -86,7 +80,7 @@ Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
   vt1 = #t1 →
   vx = #x →
   vt2 = #t2 →
-  VData "Node" (VTuple3 vt1 vx vt2) = #t.
+  VData "Node" [vt1; vx; vt2] = #t.
 Proof.
   intros. subst. eauto.
 Qed.
@@ -101,7 +95,7 @@ Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode.
 Definition pLeaf := PConstant "Leaf".
 
 Definition pNode (p1 p2 p3 : syntax.pat) :=
-  PData "Node" (PTuple [p1; p2; p3]).
+  PData "Node" $ [p1; p2; p3].
 
 Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
   v = #t →
