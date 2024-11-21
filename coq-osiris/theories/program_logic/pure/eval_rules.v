@@ -1487,5 +1487,33 @@ Proof.
   intros ? ?; eapply pure_wp_noexn_weaken. eauto with pure.
 Qed.
 
+(* TODO Comment and clean up. *)
+#[global] Instance PureJudgement_poly' {A A'} {EncA : Encode A} `{Encode A'}:
+  @PureJudgement A EncA A' | 200 :=
+  fun _ a Φ Ψ => pure_wp a (fun x => returns Φ #x) Ψ.
 
+Lemma pure_eval_data' `{Encode Y} `{Encode A} η c e y (ψ : A -> Prop) ζ :
+  pure (evals η e) (λ (v' : list Y), VData c (map encode.encode v') = #y) ζ ->
+  ψ y ->
+  pure (eval η (EData c e)) ψ ζ.
+Proof.
+  intros He Hy.
+  simpl_eval.
+  eapply pure_wp_bind.
+  eapply pure_wp_mono; eauto.
+  intros ? ?; eapply pure_wp_noexn_weaken.
+  eapply pure_wp_ret. cbn in *.
+  destruct a; cbn in *; returns_eauto; eauto with pure.
+  { destruct v; inv H0.
+    - inversion Ha_ensures; subst; eauto with pure.
+    - inv H1. }
+  { destruct v0; inv H0.
+    inversion Ha_ensures; subst; eauto with pure.
+    eexists _; split; eauto.
+    inv H1. inv Ha_ensures.
+    do 2 f_equiv. clear -H4.
+    revert a v0 H4.
+    induction a; intros; destruct v0; inv H4; eauto.
+    cbn. f_equiv. eapply IHa; eauto. }
+Qed.
 

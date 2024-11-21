@@ -321,7 +321,7 @@ End pure_rules.
 
 Section pure_rules_variant.
 
-  (* When a [val] is returned, there is no need for [encode]. *)
+  (* When a [val] is returned, there is no need for [encode]. FIXME *)
   Lemma pure_ret_val `{Encode A} {E} (a : val) (ϕ : A -> Prop) ψ :
     returns ϕ a ->
     pure (E := E) (ret a) ϕ ψ.

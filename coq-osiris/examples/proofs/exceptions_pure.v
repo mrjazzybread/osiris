@@ -19,8 +19,8 @@ Definition head_spec head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
     pure
       (call head #l)
-      (λ h, ∃ t, l = h :: t)
-      (λ e, e = VXData (Loc 0) [VTuple []] ∧ l = []).
+      (λ h : A, exists t, l = h :: t)
+      (λ e, e = VXData (Loc 0) [] ∧ l = []).
 
 (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
    or returns [None] when [l = []]. *)
@@ -31,12 +31,37 @@ Definition catch_head_spec catch_head :=
       (call catch_head #l)
       (λ hopt, hopt = list.head l).
 
+(* TODO: MOVE? *)
 Ltac set_pure_postcondition φ :=
   match goal with
     |- @pure ?A ?E ?m ?_φ ?ψ =>
       let H := fresh in
       cut (@pure A E m φ ψ); [ intro H; exact H | ]
   end.
+
+(* TODO MOVE *)
+Local Lemma pure_wp_evals_eq `{Encode A} η es vs ψ :
+  Forall2 (λ e v, pure (eval η e) (λ x : A, # x = v) ψ) es vs →
+  pure_wp (evals η es) (λ x, x = vs) ψ.
+Proof.
+  revert vs.
+  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
+  - constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (v & vs & He & Hes & ->).
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros _ _ (?&->&->) ->. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
+Lemma pure_evals_eq `{Encode A} η es vs ψ :
+  Forall2 (λ e v, pure (eval η e) (λ x : A, # x = v) ψ) es vs →
+  pure (evals η es) (λ x, x = vs) ψ.
+Proof.
+  apply pure_wp_evals_eq.
+Qed.
 
 Lemma example :
   eval_module stdlib_with_notfound __main (λ η, True).
@@ -47,24 +72,24 @@ Proof.
   (* Struct item: [let head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := head_spec).
-    (* pure_simp. *)
-    unfold head_spec; intros.
+    pure_simp; unfold head_spec; intros.
 
     (* in both cases, the expr [simp]lifies to a value or exception *)
     destruct l.
-    - pure_simp. apply pure_throw. auto.
-    - pure_simp. apply pure_ret. eauto with encode.
-  }
+    - eapply pure_wp_simp; first by simp_really. apply pure_wp_throw.
+      split; eauto.
+    - pure_simp. }
   intros [??] (head & Hhead & -> & ->); simpl.
 
-  (* Struct item: [let cath_head l = ...] *)
+  (* Struct item: [let catch_head l = ...] *)
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.
     pure_enter.
     eapply pure_eval_match'_exn.
-    - pure_simp. apply Hhead.
-    - intros h (t & ->). pure_simp. reflexivity.
+    - eapply pure_eval_app. pure_path. pure_path.
+    - intros h (t & ?). pure_simp.
+      destruct l; inv H0; eauto.
     - intros e (-> & ->). pure_simp. reflexivity.
   }
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
@@ -74,31 +99,38 @@ Proof.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.
     pure_enter.
-    eapply (pure_eval_trywith _ _ _ _ (λ ex, l = [] ∧ ex = VXData (Loc 0) (VTuple []))).
+    eapply (pure_eval_trywith _ _ _ _ (λ ex, l = [] ∧ ex = VXData (Loc 0) [])).
     - (* matched value (or exn) *)
-      eapply pure_eval_data1, pure_eval_app_conseq.
-      + set_pure_postcondition ##(λ a, a = head).
-        eapply pure_noexn_weaken. (* remove after adapting pure_path to exn *)
-        pure_path.
-        auto.
-      + set_pure_postcondition ##(λ a, a = l).
-        eapply pure_noexn_weaken. (* remove after adapting pure_path to exn *)
-        pure_path.
-        auto.
-      + intros ? ? -> ->.
-        eapply pure_mono. apply Hhead.
-        * intros ? (h&->&t&->). eauto 20 with encode.
-        * intros ? (->&->). auto.
+      eapply pure_mono.
+      eapply (@pure_eval_data' A _ (option A)).
+      (* TODO: fix [pure_data] -- START *)
+      + eapply pure_wp_mono_ret.
+        { eapply (@pure_evals_eq A).
+          eapply List.Forall2_cons; eauto.
+          (* fix [pure_data] -- END *)
+          eapply pure_eval_app. pure_path.
+          pure_path; first encode.
+          eapply pure_strong_mono.
+          eapply Hhead.
+          - intros ? (h&?); destruct l; inversion H0.
+            (* FIXME Automate; this shouldn't happen here. *)
+            Unshelve. 4 : { exact (match l with
+                                    | nil => #(@None A)
+                                    | hd :: tl => #hd end). }
+            cbn. reflexivity. shelve. exact (List.head l).
+          - intros ? (->&->). auto. }
 
-      Unshelve. constructor.
-    - intros ex (-> & ->).
-      apply pure_eval_try_with_cons, pat_PXData_eq; auto.
-      apply pat_PTuple_val, pure_noexn_weaken, pats_PNil.
-      eapply pure_eval_const; eauto with encode.
-  }
-  intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
+        intros ex ?. cbn in *. subst.
+        eexists _. split; eauto. encode.
+  (*       eauto with returns. *)
+  (*   cbn in *. subst. destruct l; eauto; cbn; eauto. *)
+  (*   apply pure_eval_try_with_cons, pat_PXData_eq; auto. *)
+  (*   apply pat_PTuple_val, pure_noexn_weaken, pats_PNil. *)
+  (*   eapply pure_eval_const; eauto with encode. *)
+  (* } *)
+  (* intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl. *)
 
-  (* We have gone though all of the struct items, time to conclude. *)
-  eapply structs_nil.
-  done.
-Qed.
+  (* (* We have gone though all of the struct items, time to conclude. *) *)
+  (* eapply structs_nil. *)
+  (* done. *)
+Admitted.

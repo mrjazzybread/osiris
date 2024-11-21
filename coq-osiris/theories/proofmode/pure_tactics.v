@@ -703,8 +703,9 @@ Definition type_of {T : Type} (x : T) := T.
 Ltac2 solve_returns () :=
   match! goal with
     | [ |- returns _ _ ] =>
-        ltac1:(solve
-        [eauto with pure | eexists ; split; eauto with pure ])
+        ltac1:(
+          first [ solve [eauto with pure ] |
+          eexists _; split; eauto with pure ])
   end.
 
 Ltac2 match_type (x:constr) (t:constr) :=
@@ -717,13 +718,13 @@ Ltac2 match_type (x:constr) (t:constr) :=
 
 Ltac2 pure_ret0 () :=
   match! goal with
-  | [ |- pure (ret ?v) (λ _ : _, _) _ ] =>
+  | [ |- pure (ret ?v) _ _ ] =>
       if match_type v constr:(val) then
         eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
         solve_returns ()
       else
         eapply pure_ret; eauto
-  | [ |- total (ret ?v) (λ _ : val, _) ] =>
+  | [ |- total (ret ?v) _ ] =>
       if match_type v constr:(val) then
         eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
         solve_returns ()
