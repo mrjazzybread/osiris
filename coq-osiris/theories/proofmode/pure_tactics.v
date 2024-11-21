@@ -696,18 +696,45 @@ Ltac2 get_expr_from_eval (m : constr) :=
                  "Expected term of the form [eval η e]")))
   end.
 
+(* TODO: Move; utility. Definition by Michael Soegtrop *)
+
+Definition type_of {T : Type} (x : T) := T.
+
+Ltac2 solve_returns () :=
+  match! goal with
+    | [ |- returns _ _ ] =>
+        ltac1:(solve
+        [eauto with pure | eexists ; split; eauto with pure ])
+  end.
+
+Ltac2 match_type (x:constr) (t:constr) :=
+  let tx:=eval cbv in (type_of $x) in
+  Constr.equal tx t.
+
 (* [pure_ret] expects a goal of the form [pure (ret v) ##φ ⊥]. It applies
    the lemma [pure_ret], solves the subgoal [v = #x], and leaves just
    the subgoal [φ x], which it simplifies. *)
 
 Ltac2 pure_ret0 () :=
   match! goal with
+  | [ |- pure (ret ?v) (λ _ : _, _) _ ] =>
+      if match_type v constr:(val) then
+        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
+        solve_returns ()
+      else
+        eapply pure_ret; eauto
+  | [ |- total (ret ?v) (λ _ : val, _) ] =>
+      if match_type v constr:(val) then
+        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
+        solve_returns ()
+      else
+        eapply pure_ret; eauto
   | [ |- pure (ret ?v) (λ _ : val, _) _ ] =>
-      try (change ?v with (#_));
-      (* [pure_ret : v = #a → φ a → pure (ret v) φ ⊥] *)
-      solve [
-        eapply pure_ret_eq_val; eauto |
-        eapply pure_ret_eq_val'; eauto ]
+        try (change ?v with (#_));
+        (* [pure_ret : v = #a → φ a → pure (ret v) φ ⊥] *)
+        solve [
+          eapply pure_ret_eq_val; eauto |
+          eapply pure_ret_eq_val'; eauto ]
   | [ |- total (ret ?v) (λ _ : val, _) ] =>
       try (change ?v with (#_));
       solve [

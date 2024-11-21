@@ -7,70 +7,6 @@ From osiris.program_logic.pure Require Import simp_tactics
 (* FIXME : Why is the import weird here? *)
 Tactic Notation "simp" := (simp).
 
-Section ceval_rules.
-
-End ceval_rules.
-
-(* -------------------------------------------------------------------------- *)
-(** *Evaluating data and data types*)
-(* -------------------------------------------------------------------------- *)
-
-(* Fun with data constructors: we can know the destructor as long as we
-   have the signature of the algebraic datatype. *)
-
-(* An encodable type. *)
-Definition encodable : Type := sigT Encode.
-Notation π1 := (projT1).
-Notation π2 := (projT2).
-
-(* -------------------------------------------------------------------------- *)
-
-(* Utility *)
-
-(** *Heterogeneous list *)
-
-From Equations Require Import Equations.
-
-Section hlist.
-  Set Implicit Arguments.
-
-  (* FIXME : [A] -> [U];
-             [B] -> [el] *)
-  Inductive hlist (A : Type) (B : A -> Type) : list A -> Type :=
-  | HNil : hlist B nil
-  | HCons : forall (x : A) (ls : list A), B x -> hlist B ls -> hlist B (x :: ls).
-
-  Arguments HNil {A B}.
-  Arguments HCons {A B x ls}.
-
-  Equations happ (A B : list encodable) :
-    hlist π1 A ->
-    hlist π1 B ->
-    hlist π1 (A ++ B) :=
-  happ HNil m := m;
-  happ (HCons a l1) m := HCons a (happ l1 m).
-
-End hlist.
-
-Arguments HNil {A B}.
-Arguments HCons {A B x ls}.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Construct a data type [A] given its signature, data constructor and arguments. *)
-
-Equations build_constructor
-  (Σ : list (sigT Encode))
-  (* (constr : data_constructor s Σ) *)
-  (data : hlist π1 Σ) : list val :=
-  (* When there are no arguments left, the construction is immediate. *)
-  @build_constructor nil HNil := [];
-
-  (* Peel off an argument of the signature and apply to the constructor. *)
-  @build_constructor (τ :: tl) (HCons v vtl) :=
-    encode (Encode := π2 τ) v ::
-      (build_constructor (Σ := tl) vtl).
-
 (* -------------------------------------------------------------------------- *)
 (** * Evaluation of Datatypes *)
 (* -------------------------------------------------------------------------- *)
@@ -80,20 +16,6 @@ Lemma pure_eval_data_eq `{Encode A} a η c e (ψ : A -> Prop) ζ:
     (evals η e)
     (λ x, # a = VData c x) ζ ->
   ψ a ->
-  pure (eval η (EData c e)) ψ ζ.
-Proof.
-  intros Hwp Hψ.
-  simpl_eval.
-  eapply pure_wp_bind.
-  eapply pure_wp_mono; eauto.
-  intros l <-; apply pure_wp_ret. eauto with pure.
-Qed.
-
-Lemma pure_eval_data_eq2 Σ a η c e (ψ : val -> Prop) ζ:
-  pure_wp
-    (evals η e)
-    (λ x, VData c (@build_constructor Σ a) = VData c x) ζ ->
-  ψ (VData c (@build_constructor Σ a)) ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
   intros Hwp Hψ.
@@ -186,7 +108,7 @@ Class WellFoundedRel (A : Type) (R : A -> A -> Prop) :=
   { wf_rel_def : @well_founded A R }.
 
 Definition WellFoundedRel_WellFounded {A} (R : A -> A -> Prop)
-  {wfr: WellFoundedRel R} : WellFounded A :=
+  {wfr: WellFoundedRel _ R} : WellFounded A :=
   {| wf_relation := R; wf_def := wf_rel_def |}.
 
 (* -------------------------------------------------------------------------- *)
@@ -321,6 +243,121 @@ Tactic Notation "recursion" "with" uconstr(R) "{" "measure " uconstr(measure) "}
   (eapply (pure_rec_call_measure_gen measure (WellFoundedRel_WellFounded R) g)).
 
 (* -------------------------------------------------------------------------- *)
+
+(* - [φ] is the toplevel specification.
+   - [φf] is the specification of the function [f]. *)
+
+Lemma pure_letrec `{Encode X, Encode Y} {A} (WF_x : WellFounded X)
+  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : A -> X -> Y -> Prop) Ψ
+  (P : A -> X -> Prop) (R : X -> X -> Prop) :
+  (* Subgoal:
+     Assuming that any recursive call of [f] on a smaller argument
+     satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
+  (∀ vf (x : X) a,
+      (∀ (y : X),
+          wf_relation (WF := WF_x) y x ->
+          R y x -> P a y -> pure (call vf #y) (φf a y) Ψ) ->
+      (P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a x) Ψ)) ->
+  (* Subogal:
+     Proceed with the right hand of the [let rec],
+     assuming f satisfies its spec. *)
+  (∀ vf,
+      (∀ a x, P a x -> pure (call vf #x) (φf a x) Ψ) ->
+      pure (eval ((f, vf) :: η) e2) φ Ψ) ->
+  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ Ψ.
+Proof.
+  intros He1 He2.
+  simpl_eval. apply He2; clear He2.
+  intros a y HPy.
+  eapply pure_rec_call; eauto.
+Qed.
+
+Lemma pure_letrec_simple `{Encode X, Encode Y} (WF_x : WellFounded X)
+  (η : env) (f arg : var) e1 e2 (φ : val -> Prop) (φf : X -> Y -> Prop) Ψ
+  (P : X -> Prop) (R : X -> X -> Prop) :
+  (* Subgoal:
+     Assuming that any recursive call of [f] on a smaller argument
+     satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
+  (∀ vf (x : X),
+      (∀ (y : X),
+          wf_relation (WF := WF_x) y x ->
+          R y x -> P y -> pure (call vf #y) (φf y) Ψ) ->
+      (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf x) Ψ)) ->
+  (* Subogal:
+     Proceed with the right hand of the [let rec],
+     assuming f satisfies its spec. *)
+  (∀ vf,
+      (∀ x, P x -> pure (call vf #x) (φf x) Ψ) ->
+      pure (eval ((f, vf) :: η) e2) φ Ψ) ->
+  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ Ψ.
+Proof.
+  intros He1 He2.
+  simpl_eval. apply He2; clear He2.
+  intros y HPy.
+  eapply pure_rec_call; eauto.
+Qed.
+
+Lemma pure_rec_call_no_pre `{Encode X} `{Encode Y} `{WF_x: WellFounded X}
+  (η : env) (f arg : var) e1 e2 (φ : X -> Prop) (φf : X -> Y -> Prop)
+  (R : X -> X -> Prop) :
+  (* Subgoal:
+     Assuming that any recursive call of [f] on a smaller argument
+     satisfies [φf], show that evaluating [e1] satisfies [φf]. *)
+  (∀ vf (x : X),
+      (∀ (y : X),
+          wf_relation (WF := WF_x) y x ->
+          R y x -> pure (call vf #y) (φf y) ⊥) ->
+      pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf x) ⊥) ->
+  (* Subogal:
+     Proceed with the right hand of the [let rec],
+     assuming f satisfies its spec. *)
+  (∀ vf,
+      (∀ (x : X), pure (call vf #x) (φf x) ⊥) ->
+      pure (eval ((f, vf) :: η) e2) φ ⊥) ->
+  pure (eval η (ELetRec [RecBinding f (AnonFun arg e1)] e2)) φ ⊥.
+Proof.
+  intros He1 He2.
+  simpl_eval. apply He2. clear He2.
+  intros y.
+  eapply pure_rec_call with (P := fun _ => True); eauto.
+Qed.
+
+(* FIXME : Is there a better way to formulate this? (either more general,
+       or less cumbersome..) *)
+Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
+  pure (call vf arg1)
+    (λ c, pure (call c arg2) φ Ψ) Ψ.
+
+Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
+  `{WF_x: WellFounded (X * Y)}
+  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) Ψ
+  (R : (X * Y) -> (X * Y) -> Prop) (P : X -> Y -> Prop)
+  :
+  P x y ->
+  (∀ vf x1 y1,
+      (∀ (x2 : X) (y2 : Y),
+          wf_relation (WF := WF_x) (x2, y2) (x1, y1) ->
+          R (x2, y2) (x1, y1) ->
+          P x2 y2 ->
+          pure_call2 vf #x2 #y2 (φ x2 y2) Ψ) ->
+      (P x1 y1 ->
+        pure (eval ((arg, #x1) :: (f, vf) :: η) e1) (λ c, pure (call c #y1) (φ x1 y1) Ψ) Ψ)) ->
+  pure_call2 (VCloRec η [RecBinding f (AnonFun arg e1)] f) #x #y (φ x y) Ψ.
+Proof.
+  intros HP Hrec.
+  remember (x, y) as p eqn:Hpeq.
+  rewrite (surjective_pairing p) in Hpeq.
+  apply pair_eq in Hpeq as [<- <-].
+  revert HP.
+  induction p as [p IH] using (well_founded_induction wf_def); intros.
+  unfold pure_call2; simpl;
+    rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
+  eapply pure_mono.
+  - apply Hrec; [ intros x2 y2 HR HP2 | apply HP ].
+    apply (IH (x2, y2)); auto.
+    rewrite surjective_pairing; apply HR.
+  - auto.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (** *Evaluating pattern matches *)
@@ -822,10 +859,6 @@ Section eval_rules.
         last apply pure_wp_throw.
       intros ? (a & -> & Ha). apply Hp; eauto with encode.
   Qed.
-
-  (* TODO : move or remove *)
-  Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
-    pure (call vf arg1) (fun c => pure (call c arg2) φ Ψ) Ψ.
 
   Lemma pure_eval_app2 `{Encode A, Encode B, Encode C}
     η e1 e2 e3 vf

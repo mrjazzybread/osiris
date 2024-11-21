@@ -656,7 +656,6 @@ Proof.
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
-    change (encode_zipper ctx) with (# ctx); done.
     simple eapply pure_mono; first eapply Hsplay_leaf.
     split; [ intros | auto]. repeat intro; by eapply not_elem_of_nil. }
 
@@ -723,7 +722,6 @@ Proof.
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
-        by change (encode_zipper ctx) with (# ctx).
         eapply pure_mono. eapply Hsplay.
         intros. split; [ split | ].
         - apply Heq. lia.
