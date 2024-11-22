@@ -61,7 +61,10 @@ Section pure_wp_rules.
   (** [pure_wp] is monotonic *)
 
   Lemma pure_wp_mono {A E} {φ φ' ψ ψ' : _ -> Prop} (m : micro A E) :
-    pure_wp m φ ψ → (∀ a, φ a → φ' a) → (∀ e, ψ e → ψ' e) → pure_wp m φ' ψ'.
+    pure_wp m φ ψ →
+    (∀ a, φ a → φ' a) →
+    (∀ e, ψ e → ψ' e) →
+    pure_wp m φ' ψ'.
   Proof.
     induction 1; constructor; auto.
   Qed.
