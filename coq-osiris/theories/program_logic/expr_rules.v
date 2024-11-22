@@ -400,37 +400,37 @@ Section ewp_rules_expr.
   Qed.
 
   (** * EXData : data → expr → expr *)
-  (* Lemma ewp_EXData_exn η π l e E ψ φ1 φ : *)
-  (*   lookup_path η π = ret (VLoc l) -> *)
-  (*   EWP eval η e @ E <|ψ|> {{ φ1 }} -∗ *)
-  (*   propagate_exn φ1 φ -∗ *)
-  (*   propagate_ret_fmap (λ v, VXData l v) φ1 φ -∗ *)
-  (*   EWP eval η (EXData π e) @ E <|ψ|> {{ φ }}. *)
-  (* Proof. *)
-  (*   iIntros (Hlookup) "He Hexn Hret". *)
-  (*   simpl_eval. rewrite Hlookup. simpl. *)
-  (*   iApply ewp_bind_exn. *)
-  (*   iApply (ewp_mono with "He"). *)
-  (*   iIntros ([|]) "Hφ". *)
-  (*   - iApply ewp_value. by iApply "Hret". *)
-  (*   - by iApply "Hexn". *)
-  (* Qed. *)
+  Lemma ewp_EXData_exn η π l e E ψ φ1 φ :
+    lookup_path η π = ret (VLoc l) ->
+    EWP evals η e @ E <|ψ|> {{ φ1 }} -∗
+    propagate_exn φ1 φ -∗
+    propagate_ret_fmap (λ v : list val, VXData l v) φ1 φ -∗
+    EWP eval η (EXData π e) @ E <|ψ|> {{ φ }}.
+  Proof.
+    iIntros (Hlookup) "He Hexn Hret".
+    simpl_eval. rewrite Hlookup. simpl.
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "He").
+    iIntros ([|]) "Hφ".
+    - iApply ewp_value. by iApply "Hret".
+    - by iApply "Hexn".
+  Qed.
 
-  (* Lemma ewp_EXData η π l es E ψ φs φ : *)
-  (*   lookup_path η π = ret (VLoc l) -> *)
-  (*   ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗ *)
-  (*   (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VXData l (VTuple vs))) -∗ *)
-  (*   EWP eval η (EXData π (ETuple es)) @ E <|ψ|> {{ RET v, φ v }}. *)
-  (* Proof. *)
-  (*   iIntros (Hlookup) "He Hmon". *)
-  (*   simpl_eval. rewrite Hlookup. simpl. *)
-  (*   iApply ewp_bind. *)
-  (*   replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first. *)
-  (*   {  simpl_eval; reflexivity. } *)
-  (*   iApply (ewp_ETuple with "He"). *)
+  Lemma ewp_EXData η π l es E ψ φs φ :
+    lookup_path η π = ret (VLoc l) ->
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗
+    (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VXData l vs)) -∗
+    EWP eval η (EXData π es) @ E <|ψ|> {{ RET v, φ v }}.
+  Proof.
+    iIntros (Hlookup) "He Hmon".
+    simpl_eval. rewrite Hlookup. simpl.
+    iApply ewp_bind.
+    replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
+    {  simpl_eval; reflexivity. }
   (*   iIntros (args) "Hargs". iApply ewp_value. *)
   (*   by iApply "Hmon". *)
   (* Qed. *)
+  Admitted.
 
   (** * ERecord : list fexpr → expr *)
   (** * ERecordUpdate : expr → list fexpr → expr *)

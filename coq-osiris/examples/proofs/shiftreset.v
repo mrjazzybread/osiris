@@ -23,7 +23,7 @@ Context (shift_eff : loc).
 Section shift_protocol.
   Context `{!osirisGS Σ}.
 
-  Definition shift h : val := VXData shift_eff (VTuple [h]).
+  Definition shift h : val := VXData shift_eff [h].
 
   Definition is_shift
     (Ψ : iEff Σ) (Φ Q : val → iPropO Σ) (h : val) : iProp Σ :=

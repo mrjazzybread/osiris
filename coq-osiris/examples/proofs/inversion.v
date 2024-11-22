@@ -55,10 +55,10 @@ Section lazy_sequences.
            :  iEff Σ -d> val -d> list A -d> iPropO Σ  :=
     λ Ψ h Xs,
       match h with
-      | VData "Nil" (VTuple [])       =>
+      | VData "Nil" [] =>
           ⌜ complete Xs ⌝
       | VData "Cons" p =>
-          ∃ X k, ⌜ p = #(X, k) ⌝ ∧
+          ∃ (X : A) k, ⌜ p = [ #X; #k]⌝ ∧
                  ⌜ permitted (Xs ++ [X]) ⌝ ∗ ▷ isSeq Ψ k (Xs ++ [X])
       | _ =>
           False
@@ -101,7 +101,7 @@ End lazy_sequences.
 (* ========================================================================== *)
 (** * Protocol. *)
 
-Definition yield l x : val := VXData l (VTuple [x]).
+Definition yield l x : val := VXData l [x].
 
 (* This protocol describes the effects performed by [yield]. *)
 
