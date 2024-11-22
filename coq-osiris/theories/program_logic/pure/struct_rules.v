@@ -3,7 +3,7 @@ From osiris.lang Require Import syntax encode sugar locations.
 From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Import
-  pure_rules pattern_rules eval_rules.
+  pure_rules pattern_rules expr_rules.
 (* TODO Comment *)
 
 (* -------------------------------------------------------------------------- *)

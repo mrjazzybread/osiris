@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval simplification.
 
-From osiris.program_logic.pure Require Export wp notation.
+From osiris.program_logic.pure Require Export wp judgements.
 
 Section pure_rules.
 

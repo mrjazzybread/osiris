@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import
-  wp notation total_rules pattern_rules.
+  wp judgements total_rules pattern_rules.
 
 (* TODO Comment *)
 

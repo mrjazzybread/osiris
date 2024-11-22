@@ -19,26 +19,29 @@ The Rocq development can be found under `osiris/coq-osiris`
   - `step.v` operational semantics over the `micro` monad
   - `pure.v` a subset of pure reduction steps
   - `simplification.v` confluent and pure reductions steps, the basis of symbolic execution (see `simp_tactics.v`)
+  - `simp_tactics.v` the `simp` tactic, as well as old tactics such as `simp_specify`
 
 ### Proofmode
 
 - `osiris/coq-osiris/theories/program_logic`
   - `orisis/coq-osiris/theories/program_logic/pure/`
-    - `pure_wp.v` the pure judgment and weakest precondition
-    - `pure_encode.v` predicate wrapper for postconditions over encodable types
-    - `pure_eval.v` pure reasoning rules over language expressions
-    - `simp_tactics.v` the `simp` tactic, as well as old tactics such as `simp_specify`
-    - `auxiliary_judgements.v` the `pattern` judgement, which wraps the `extend` function found in `eval.v`
-  - `pat.v` reasoning rules and tactics for pattern matching
+    - `wp.v` the [pure_wp] definition, which is the base definition for pure judgements.
+    - `judgements.v` the [total] and [pure] judgements, and relevant notations.
+    - `pure_rules.v` reasoning rules over [pure] judgements.
+    - `total_rules.v` reasoning rules over [total] judgements.
+    - `expr_rules.v` reasoning rules about evaluation of expressions for pure judgements
+    - `pattern_rules.v` reasoning rules about pattern matching
+    - `struct_rules.v` reasoning rules about structs
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
-  - `basic_rules.v`, `handler_rules.v` reasoning rules over the effectful weakest precondition
+  - `basic_rules.v` reasoning rules over the effectful weakest precondition
+  - `handler_rules.v` reasoning rules over handlers
+  - `expr_rules.v` reasoning rules over evaluation of expressions
   - `adequacy.v` adequacy theorem that follows from Iris' built-in adequacy theorem over our operational semantics
   - `tactics.v` modality and mask tactics
 
 - `osiris/coq-osiris/theoris/proofmode`
   - `equality.v` a tactic to prove equality goals
   - `pure_tactics.v` tactics that are meant to be used while proving pure goals
-  - `expr_rules.v` effectful reasoning rules over language expressions
   - `ewp_tactics.v` tactics that are meant to be used while proving Iris goals
   - `notations.v` notations for goal pretty-printing
   - `setup.v` configuration for controlling opacity and general proofmode settings
