@@ -306,6 +306,28 @@ Proof.
   eapply pure_wp_mono; intros; eauto with pure_wp.
 Qed.
 
+Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
+  simp (eval_sitems (η, []) items) (ret (whatenv, δ)) ->
+  ψ (VStruct δ) ->
+  pure (eval_mexpr η (MStruct items)) ψ ⊥.
+Proof.
+  intros. simpl_eval_mexpr.
+  eapply pure_wp_simp; [ simp | eauto using pure_wp_ret with pure ].
+Qed.
+
+(* Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop): *)
+(*   simp (eval_mexpr η me) (ret v) -> *)
+(*   pure (coerce c v) ψ ⊥ -> *)
+(*   pure (eval_mexpr η (MCoercion me c)) ψ ⊥. *)
+(* Proof. *)
+(*   intros Hme Hc. simpl_eval_mexpr. eapply pure_bind. *)
+(*   eapply pure_wp_simp; eauto. *)
+(*   eapply pure_wp_mono_ret. eapply pure_wp_ret_eq. *)
+(*   intros _ ->. eauto with pure *)
+(*   rewrite pure_wp_widen'. *)
+(*   apply Hc. *)
+(* Qed. *)
+
 Lemma module_struct η sitems φ :
   struct_items (η, []) sitems (λ '(η, δ), φ δ) ->
   eval_module η (MStruct sitems) φ.
