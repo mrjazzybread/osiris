@@ -138,19 +138,26 @@ Definition pure_isListIter (iter : val) : Prop :=
     (∀ (Xs : list A) (X : A),
         (Xs ++ [X]) `prefix_of` l ->
         I Xs ->
-        pure (call f #X) ##(λ v, v = () ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
+        pure (call f #X)
+          (λ v : val,
+              v = #() ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
       I [] ->
       pure_call2 iter f #l
         (λ v, v = () ∧ I l)
         (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
 
+(* -------------------------------------------------------------------------- *)
+
+(* Well-foundedness *)
+
 Require Import Coq.Wellfounded.Inverse_Image.
 
-Lemma wf_list_length {A B : Type} :
-  well_founded (fun (l1 l2 : (B * list A)) => (length l1.2 < length l2.2)%nat).
-Proof.
-  apply wf_inverse_image. apply lt_wf.
-Qed.
+(* FIXME use the measure function to only have a WF condition on lists *)
+#[local] Program Instance list_tuple_wf {A B} : WellFounded (B * list A) :=
+  {| wf_relation := (fun x y => (length x.2 < length y.2)%nat )|}.
+Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
+
+(* -------------------------------------------------------------------------- *)
 
 Lemma iter_module_pure :
   toplevel __main
@@ -176,38 +183,52 @@ Proof.
   change f with #f.
   eapply pure_rec_call2 with
     (P := λ func lsuf, func = f ∧ ∃ lpref, lpref ++ lsuf = l ∧ I lpref)
-    (φ := (λ _ _ v, v = () ∧ I l)).
-  { apply wf_list_length. }
+    (φ := (λ _ _ v, v = () ∧ I l))
+    (R := fun _ _ => True).
   { split; eauto. }
 
   clear Heql lsuf.
 
   intros iter ? lsuf IH [-> (lpref & Heql & HIpre)].
-  (* Need to do better. *)
-  pure_simp. apply pure_ret. pure_enter.
+  (* Need to do better. TODO replace with [pure_enter_anonfun]. *)
+  pure_simp. pure_enter.
 
- eapply pure_eval_match. { pure_path. reflexivity. }
- pure_match.
+  eapply pure_eval_match. { pure_path. }
+  pure_match.
 
- { pure_const. by rewrite app_nil_r. }
+  { pure_const. by rewrite app_nil_r. }
 
- { eapply pure_eval_seq_exn.
-   eapply pure_eval_app. pure_path. pure_path.
-   eapply pure_mono.
-   { apply Hf.
-     - rewrite (cons_middle _ lpref xs'). apply prefix_app.
-       rewrite <- (app_nil_r [x]) at 1. apply prefix_app. apply prefix_nil.
-     - apply HIpre. }
-   intros ? (? & _ & _ & HIx).
-   exists a. split; auto.
+  eapply pure_eval_seq_exn.
+  eapply pure_eval_app. pure_path. pure_path.
+  eapply pure_strong_mono.
 
-   pure_simp.
-   eapply pure_mono. eapply pure_bind. eapply IH.
-   { simpl. lia. }
-   { split; first done. exists (lpref ++ [x]). split; last done.
-     rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
-   - intros ? (? & -> & -> & ?). exists (). repeat split. assumption.
-   - intros e [Hφ He]. split; assumption.
-   - intros e [Hφ HIe]. split; first assumption.
-     exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1. apply prefix_app. apply prefix_nil. }
+  { eapply Hf.
+    - rewrite (cons_middle _ lpref xs'). apply prefix_app.
+      rewrite <- (app_nil_r [x]) at 1. apply prefix_app.
+      apply prefix_nil.
+    - apply HIpre. }
+
+  (* TODO: Clean up this portion. *)
+  { cbn. intros ? (?&?); subst. fold eval.
+    eapply pure_eval_app2; try pure_path.
+
+    (* FIXME [pure_path] BEGIN *)
+    Unshelve. (* FIXME: Remove this mess. *)
+    6: exact f. 6 : typeclasses eauto.
+    encode. 4: exact xs'. encode.
+    (* [pure_path] END *)
+
+    eapply pure_strong_mono.
+    eapply IH.
+    { simpl; eauto. }
+    { done. }
+    { split; first done. exists (lpref ++ [x]). split; last done.
+      rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
+    { cbn. intros ? ?. done. }
+    { cbn. done. } }
+
+  { cbn. intros ? (?&?). split; eauto.
+    exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1.
+    apply prefix_app. apply prefix_nil. }
 Qed.
+
