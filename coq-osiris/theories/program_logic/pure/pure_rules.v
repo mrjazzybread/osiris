@@ -74,7 +74,7 @@ Section pure_rules.
 
   (* The consequence rule. *)
 
-  Lemma pure_strong_mono m φ φ' ψ ψ' :
+  Lemma pure_mono m φ φ' ψ ψ' :
     pure m φ ψ →
     (∀ a, φ a → φ' a) →
     (∀ a, ψ a → ψ' a) →
@@ -83,12 +83,12 @@ Section pure_rules.
     intros; eapply pure_wp_mono; [ eauto | |]; firstorder.
   Qed.
 
-  Lemma pure_mono m φ φ' ψ :
+  Lemma pure_ret_mono m φ φ' ψ :
     pure m φ ψ →
     (∀ a, φ a → φ' a) →
     pure m φ' ψ.
   Proof.
-    intros; eapply pure_strong_mono ; eauto.
+    intros; eapply pure_mono ; eauto.
   Qed.
 
   Lemma pure_exn_mono m φ ψ ψ':
@@ -96,7 +96,7 @@ Section pure_rules.
     (∀ a, ψ a → ψ' a) →
     pure m φ ψ'.
   Proof.
-    intros; eapply pure_strong_mono ; eauto.
+    intros; eapply pure_mono ; eauto.
   Qed.
 
   Lemma pure_simp φ ψ m m' :
@@ -166,18 +166,18 @@ Section pure_rules.
 
   (* A reasoning rule for [Par m1 m2 k z]. *)
 
-  Lemma pure_Par {E'} m1 m2 φ ψ
+  Lemma pure_Par `{Encode B1, Encode B2} {E'} m1 m2 φ ψ
     (k : outcome2 (val * val) E' → micro val E) :
     pure m1
-      (λ a1,
+      (λ a1 : B1,
         pure m2
-          (λ a2, pure (continue k (a1, a2)) φ ψ)
+          (λ a2 : B2, pure (continue k (#a1, #a2)) φ ψ)
           (λ e, pure (discontinue k e) φ ψ))
       (λ e, pure (discontinue k e) φ ψ) →
     pure m2
-      (λ a2,
+      (λ a2 : B2,
         pure m1
-          (λ a1, pure (continue k (a1, a2)) φ ψ)
+          (λ a1 : B1, pure (continue k (#a1, #a2)) φ ψ)
           (λ e, pure (discontinue k e) φ ψ))
       (λ e, pure (discontinue k e) φ ψ) →
     pure (Par m1 m2 k) φ ψ.

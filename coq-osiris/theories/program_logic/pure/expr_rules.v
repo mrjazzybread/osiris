@@ -81,10 +81,11 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** *Function application: [e1 e2]. *)
+
 (* EApp (e1 e2 : expr) *)
 
-(* this sequentialized lemma create only one [pure] goal but assumes [e1] cannot *)
-(* throw exceptions *)
+(* This sequentialized lemma create only one [pure] goal but assumes [e1] cannot
+   throw exceptions. *)
 Lemma pure_eval_app {A A1}
   {EncA: Encode A} {EncA1:Encode A1}
   η e1 e2 (ψ : A → Prop) ζ :
@@ -99,33 +100,32 @@ Proof.
   eapply pure_mono; first eapply He1; by cbn; intros.
 Qed.
 
-(* FIXME BOOKMARK *)
-(* TODO: Remove all uses of [pure_wp]. *)
-
 Lemma pure_eval_app_conseq {A B}
-  {EncA: Encode A} {EncB: Encode B} η e1 e2
-  (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop) ζ
+  {EncA: Encode A} {EncB: Encode B} `{Encode C} η e1 e2
+  (φ1 : A → Prop) (φ2 : B → Prop) (ψ : C → Prop) ζ
 :
   pure (eval η e1) φ1 ζ →
   pure (eval η e2) φ2 ζ →
-  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call v1 #v2) ψ ζ) →
+  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call #v1 #v2) ψ ζ) →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros He1 He2 Hp. simpl_eval.
-  apply pure_Par.
-  - eapply pure_mono; first apply He1;
+  eapply pure_Par.
+  - eapply pure_mono; first eapply He1;
       last apply pure_throw.
-    intros ? (v1 & -> & Hv1).
-    eapply pure_mono; first apply He2;
+    intros ? ?.
+    eapply pure_mono; first eapply He2;
       last apply pure_throw.
-    intros ? (a & -> & Ha). apply Hp; eauto with encode.
-  - eapply pure_mono; first apply He2;
+    intros ? ?. cbn; eauto.
+  - eapply pure_mono; first eapply He2;
       last apply pure_throw.
-    intros ? (v1 & -> & Hv2).
-    eapply pure_mono; first apply He1;
+    intros ? ?.
+    eapply pure_mono; first eapply He1;
       last apply pure_throw.
-    intros ? (a & -> & Ha). apply Hp; eauto with encode.
+    intros ? ?. cbn; eauto.
 Qed.
+
+(* TODO BOOKMARK *)
 
 Lemma pure_eval_app2 `{Encode A, Encode B, Encode C}
   η e1 e2 e3 vf

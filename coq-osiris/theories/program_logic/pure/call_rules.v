@@ -233,7 +233,7 @@ Proof.
   induction p as [p IH] using (well_founded_induction wf_def); intros.
   unfold pure_call2; simpl;
     rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
-  eapply pure_mono.
+  eapply pure_ret_mono.
   - apply Hrec; [ intros x2 y2 HR HP2 | apply HP ].
     apply (IH (x2, y2)); auto.
     rewrite surjective_pairing; apply HR.
