@@ -1,6 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode proofmode.environments.
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp basic_rules handler_rules tactics simp_tactics.
+From osiris.program_logic Require Import ewp basic_rules handler_rules tactics.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)

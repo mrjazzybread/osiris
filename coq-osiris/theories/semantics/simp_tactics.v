@@ -1,7 +1,7 @@
 From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
+From osiris.semantics Require Import code simplification eval.
 From osiris.proofmode Require Import equality.
 
 (* A pure computation is terminating, deterministic, and does not use

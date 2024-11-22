@@ -4,7 +4,6 @@ From osiris.program_logic.pure Require Export
      notation
      pure_rules
      total_rules
-     simp_tactics
      eval_rules
      pattern_rules
      struct_rules

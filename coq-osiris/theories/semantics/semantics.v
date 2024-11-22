@@ -6,4 +6,5 @@ From osiris.semantics Require Export
   eval
   step
   simplification
-  pure.
+  pure
+  simp_tactics.
