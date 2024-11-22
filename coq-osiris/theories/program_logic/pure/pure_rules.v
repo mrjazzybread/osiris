@@ -201,23 +201,7 @@ Section pure_rules.
 
   (* Sequentializations of previous lemmas, considering the LHS first *)
 
-  (* TODO: I do not seem to be able to use those, for example in pure_wp_eval.v's
-  [pure_wp_eval_pair] *)
-
-  Lemma pure_par_seq `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ z
-  :
-    total (E := X) m1 (λ a1 : A,
-      total m2 (λ a2 : B, pure (k (#a1, #a2)) φ ψ)) →
-    pure (Par m1 m2 (glue2 k z)) φ ψ.
-  Proof.
-    intros Hm1.
-    apply pure_wp_Par_vals_left.
-    eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
-    eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
-    eauto.
-  Qed.
-
-  Lemma pure_par_seq_cont `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ
+  Lemma pure_par_seq `{Encode B} {X} m1 m2 k (φ : A → Prop) ψ
   :
     total (E := X) m1 (λ a1 : A,
       total m2 (λ a2 : B, pure (continue k (#a1, #a2)) φ ψ)) →

@@ -135,24 +135,13 @@ Qed.
 
 (* Sequentializations of previous lemmas, considering the LHS first *)
 
-(* TODO: I do not seem to be able to use those, for example in pure_eval.v's
-[pure_eval_pair] *)
-
 Lemma total_par_seq `{Encode A1, Encode A2, Encode A} {X Y}
-  m1 m2 k (φ : A1 * A2 → Prop) z
-:
-  total (E := X) m1 (λ a1 : A1,
-    total m2 (λ a2 : A2, total (k (#a1, #a2)) φ)) →
-  total (E := Y) (Par m1 m2 (glue2 k z)) φ.
-Proof. apply pure_par_seq. Qed.
-
-Lemma total_par_seq_cont `{Encode A1, Encode A2, Encode A} {X Y}
-  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+  m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 → Prop)
 :
   total (E := X) m1 (λ a1 : A1,
     total m2 (λ a2 : A2, total (continue k (#a1, #a2)) φ)) →
   total (E := Y) (Par m1 m2 k) φ.
-Proof. apply pure_par_seq_cont. Qed.
+Proof. apply pure_par_seq. Qed.
 
 (* A reasoning rule for [choose]. *)
 
