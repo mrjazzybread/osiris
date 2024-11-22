@@ -554,7 +554,7 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
-  | [ |- pure_match _ ?bs _ _ _ ] =>
+  | [ |- pure_match _ _ ?bs _ _ ] =>
       (* Match on [bs] to decide whether to apply [pure_match_cons]
          or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with
@@ -677,6 +677,19 @@ Ltac2 Notation "abstract_env" := abstract_env ().
 Tactic Notation "abstract_env" := ltac2:(abstract_env).
 
 (* -------------------------------------------------------------------------- *)
+
+ Ltac2 solve_encoding () : unit :=
+   Control.plus
+     (fun _ =>
+        Control.plus
+          (fun _ => complete (fun _ => ltac1:(encode)))
+          (fun _ => rewrite <- solve_encode_val; reflexivity))
+     (fun _ =>
+        Control.throw
+          (Tactic_failure
+             (Some
+                (Message.of_string
+                   "Was not able to solve encoding")))).
 
 Ltac2 decompose_pure () : (constr * constr) :=
   match! goal with
@@ -1007,3 +1020,250 @@ Ltac2 pure_enter () :=
 
 Ltac2 Notation "pure_enter" := Control.enter pure_enter.
 Tactic Notation "pure_enter" := ltac2:(pure_enter).
+
+Ltac2 pure_enter_anonfun () :=
+  eapply pure_eval_anonfun; pure_enter.
+
+Ltac2 Notation "pure_enter_anonfun" := pure_enter_anonfun ().
+Tactic Notation "pure_enter_anonfun" := ltac2:(pure_enter_anonfun).
+
+(* It is debatable in which order the two premises of the lemma [pure_call]
+   should be attacked. The premise [v'2 = #x] may seem easy to solve (this
+   is the job of the tactic [encode]) so one may wish to solve it first.
+   This offers the advantage of instantiating [x] immediately, so [x] is
+   known when we try to prove that the call is permitted -- which may
+   involve proving that a precondition holds.
+
+   However, solving [v'2 = #x] can involve guessing some types (e.g., the
+   type of an empty list), and we have used [Hint Mode] in encode.v to
+   forbid this. So, it can also be preferable to first solve the premise
+   [pure (call v1 #x) ##φ ⊥]. Doing so can allow us to instantiate these types
+   in a correct way.
+
+   One might wish to try both approaches in sequence, but waiting until
+   [encode] fails is very slow (several seconds).
+
+   One might also wish to do a bit of both: that is, first apply some lemma
+   [L] to the subgoal [pure (call v1 #x) ##φ ⊥], then solve [v'2 = #x], then
+   attack the proof obligations created by applying the lemma [L]. *)
+
+Create HintDb pure_specs.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Dummy proposition with one constructor *)
+Inductive BLOCK := block.
+
+(* Tranform a goal of the form [H1 -> H2 -> ... -> BLOCK -> G] into
+   [H1 /\ H2 /\ ... -> G] *)
+Ltac conj_until_BLOCK b :=
+  lazymatch goal with
+  | |- BLOCK -> _ =>
+      intros _; let H := fresh in
+               pose proof (H := I); revert H
+  | |- _ -> BLOCK -> _ =>
+      let H1 := fresh in
+      intros H1 _; revert H1
+  | |- ?A -> ?B -> _ =>
+      let H1 := fresh in
+      let H2 := fresh in
+      let H3 := fresh in
+      intros H1 H2; pose proof (H3 := conj H2 H1);
+      revert H3;
+      match b with
+      | true => clear H1; conj_until_BLOCK true
+      | false => conj_until_BLOCK true
+      end
+  end.
+
+(* Given a tuple (or single term), move all hypotheses depending on elements
+   of the tuple (or single term) into the goal *)
+Ltac generalize_tuple t :=
+  match t with
+  | pair ?x ?y =>
+      generalize dependent y; intro;
+      generalize_tuple x
+  | _ => generalize dependent t; intro
+  end.
+
+(* Given a term (or tuple of terms), move all hypotheses depending on this term
+   (or tuple of terms) into the goal as a single conjunction *)
+Ltac capture_hypotheses_aux arg :=
+  generalize (block);
+  generalize_tuple arg;
+  conj_until_BLOCK false.
+
+Tactic Notation "capture_hypotheses" constr(arg1) :=
+  capture_hypotheses_aux arg1.
+
+Tactic Notation "capture_hypotheses" constr(arg1) "as" simple_intropattern(x) :=
+  capture_hypotheses_aux arg1; intros x.
+
+Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) :=
+  capture_hypotheses_aux (arg1, arg2).
+
+Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intropattern(x) :=
+  capture_hypotheses_aux (arg1, arg2); intros x.
+
+Ltac2 eta_expand (arg : constr) (f : constr) : constr :=
+  Std.eval_pattern [(arg, Std.AllOccurrences)] f.
+
+Ltac2 pure_rec_subgoals hwf pre () := ().
+
+Ltac2 pure_rec0 arg pre hwf :=
+  let expanded_post :=
+    lazy_match! goal with
+    | [ |- pure (call _ _) ##?φ ⊥ ] =>
+        Std.eval_pattern [(arg, Std.AllOccurrences)] φ
+    (* TODO: Standardize error messages. *)
+    | [ |- _ ] =>
+        Control.throw
+          (Tactic_failure
+             (Some
+                (Message.of_string
+                   "[pure_rec] expects a goal of the form [pure (call f x) ##φ ⊥]")))
+    end
+  in
+  match! pre with
+  | None =>
+      eapply pure_rec_call_no_pre with (v := $arg)
+  | Some ?pre =>
+      eapply pure_rec_call with (v := $arg) (P := $pre)
+  end;
+  Control.focus 1 1 (fun _ => apply $hwf).
+
+(* Automatically apply [pure_rec_call] on a goal of the form [pure m ##φ ⊥] *)
+Ltac pure_rec_tac arg pre Hwf :=
+  (* Eta-expand the postcondition *)
+  match goal with
+  | |- pure _ ##?H ⊥ =>
+      let post := fresh in
+      set (post := H); pattern arg in post; cbv delta [post]; clear post
+  end;
+  (* Apply [pure_rec_call], possibly with an explicit precondition *)
+  match pre with
+  | None =>
+      eapply pure_rec_call with (v:=arg)
+  | Some ?pre =>
+      eapply pure_rec_call with (v:=arg) (P:=pre)
+  end;
+  (* Try and solve subgoals generated by [pure_rec_call] *)
+  [ apply Hwf
+  | lazymatch pre with
+    | None =>
+        capture_hypotheses arg;
+        let HPre := fresh in intros HPre;
+        pattern arg in HPre;
+        exact HPre
+    | Some _ =>
+        subst; auto; fail
+    end
+  | ];
+  clear dependent arg; (* [pure_rec_call] deprecates the original argument *)
+  let HP := fresh "HP" in
+  let IH := fresh "IH" in
+  simpl; intros vf arg HP IH.
+
+Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
+  pure_rec_tac arg constr:(@None False) Hwf.
+
+Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
+  pure_rec_tac arg constr:(Some pre) Hwf.
+
+
+Definition lift_rel {X Y} (R : (X * Y) -> (X * Y) -> Prop) (y : Y) : X -> X -> Prop :=
+  fun x1 x2 => R (x1, y) (x2, y).
+
+
+(* Automatically apply [pure_nested_call] on a goal of the form [pure m ##φ ⊥] *)
+Ltac pure_nested_tac arg1 arg2 pre Hwf :=
+  match goal with
+  | |- pure _ ##(fun c => pure _ ##?H ⊥) ⊥ =>
+      let post := fresh in
+      set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
+      lazymatch pre with
+      | None =>
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2)
+      | Some ?pre =>
+          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2) (P:=pre)
+      end;
+      [ reflexivity
+      | simpl_eval; reflexivity
+      | apply Hwf
+      | lazymatch pre with
+          None =>
+            capture_hypotheses arg1 arg2;
+            let HPre := fresh in intros HPre;
+                                 pattern arg1, arg2 in HPre;
+                                 exact HPre
+        | Some _ =>
+            auto
+        end
+      | ];
+      let HP := fresh "HP" in
+      let IH := fresh "IH" in
+      clear dependent arg1 arg2;
+      simpl; intros vf arg1 arg2 HP IH
+  end.
+
+Tactic Notation "pure_nested" constr(arg1) constr(arg2) constr(Hwf) :=
+  pure_nested_tac arg1 arg2 constr:(@None False) Hwf.
+
+Tactic Notation "pure_nested" constr(arg1) constr(arg2)
+  constr(pre) constr(Hwf) :=
+  pure_nested_tac arg1 arg2 constr:(Some pre) Hwf.
+
+(* -------------------------------------------------------------------------- *)
+
+Module Tac.
+  Import Ltac2.
+
+  Ltac2 eta_post' (arg : constr list) :=
+    lazy_match! goal with
+    | [ |- pure _ ##?φ ⊥ ] =>
+        let post := Fresh.in_goal @post in
+        set ($post := $φ);
+        Std.pattern (List.map (fun x => (x, Std.AllOccurrences)) arg)
+          { Std.on_hyps := Some [(post, Std.AllOccurrences, Std.InHyp)];
+                           Std.on_concl := Std.NoOccurrences };
+        cbv delta [&post];
+        clear $post
+    end.
+
+  Import Constr.Unsafe.
+
+  Ltac2 eta_post'' (arg : Ltac1.t) :=
+    let arg := Option.get (Ltac1.to_list arg) in
+    let arg := List.map (fun x => Option.get (Ltac1.to_constr x)) arg in
+    eta_post' arg.
+
+  Ltac eta_post arg :=
+    let f := ltac2:(arg |- eta_post'' arg) in
+    f arg.
+
+  Tactic Notation "eta_post" constr_list(arg) :=
+    let f := ltac2:(arg |- eta_post'' arg) in
+    f arg.
+
+  Ltac2 eta_tuple_aux t :=
+    let rec aux t :=
+      lazy_match! t with
+      | pair ?x ?y =>
+          let l := aux x in
+          List.append l [y]
+      | ?single => [single]
+      end
+    in
+    let arg_list := aux t in
+    eta_post' arg_list.
+
+  Ltac2 eta_tuple_aux_interface (arg : Ltac1.t) :=
+    let arg := Option.get (Ltac1.to_constr arg) in
+    eta_tuple_aux arg.
+
+  Tactic Notation "eta_tuple" constr(arg) :=
+    let f := ltac2:(arg |- eta_tuple_aux_interface arg) in
+    f arg.
+
+End Tac.

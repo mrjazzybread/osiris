@@ -198,9 +198,9 @@ Qed.
 
 Definition step_install_1 σ l (deep : bool) η bs l' :=
   if deep then
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs))]> σ
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, deep_match η o bs))]> σ
   else
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs))]> σ.
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))]> σ.
 
 Definition step_install_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
@@ -685,7 +685,8 @@ Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
   @step A E (σ, Stop CInstall (true, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs)) ]> σ ∧
+    σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
+                            (λ o, deep_match η o bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
@@ -697,7 +698,8 @@ Lemma invert_step_install_shallow {A E} σ σ' l η bs k m' :
   @step A E (σ, Stop CInstall (false, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-  σ' = <[ l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs)) ]> σ ∧
+    σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
+                            (λ o, shallow_match η o bs bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.

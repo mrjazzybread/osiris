@@ -39,8 +39,7 @@ Proof.
        Unfortunately, n-ary calls do not play well with proofs by
        induction, so we reduce the [ncall] until we have a call to
        a single closure.  *)
-    Bind. iApply ewp_call_rec; [ reflexivity | iNext ].
-    simpl_eval. Ret. simpl. (* TODO: expr lemma for [EAnonFun]. *)
+    simpl; Bind.
 
     (* We generalize the goal to strengthen the induction. We want the
        invariant [I] to hold over the visited prefix of [l], and we
@@ -58,6 +57,7 @@ Proof.
     iLöb as "IH" forall (lsuf lpre Heql) "Hf HI".
 
     (* Cases on if the suffix is empty or not. *)
+                   iApply ewp_call_rec; first reflexivity; iNext. Simp. Ret. simpl.
     iApply ewp_call_nonrec; iNext.
     prove_simple_match.
     (* The head of the match is trivial. *)
@@ -101,20 +101,15 @@ Proof.
 
         (* We massage our goal until we get it into a shape where we
            can apply our induction hypothesis. *)
-        iApply ewp_EApp.
+        iApply (ewp_EApp' with "[HI]").
         { iApply ewp_EApp; try (iApply ewp_EPath; Ret; equality).
-          iApply ewp_call_rec; [ reflexivity | ].
-          Simp. Ret. equality. }
-        { iApply ewp_EPath; Ret; equality. }
+          iApply ("IH" with "[] Hf HI").
 
-        (* We are now ready to use the induction hypothesis. *)
-        iApply ("IH" with "[] Hf HI").
+          iPureIntro. rewrite (cons_middle _ lpre xs').
+          by rewrite app_assoc. }
 
-        (* Subgoal: show that the new prefix concatenated with
-           the new suffix is still equal to the original list. *)
-        iPureIntro.
-        rewrite (cons_middle _ lpre xs').
-        by rewrite app_assoc. }
+        iApply ewp_EPath. Ret. equality.
+        iIntros (partial_iter l) "Hpart ->". auto. }
 
     (* As we have now traversed all branches, we can use the
        no_matching hypotheses to show a contradiction. *)
@@ -132,7 +127,6 @@ Proof.
   iExists _; iSplit; [ equality | iAssumption ].
 Qed.
 
-
 Definition pure_isListIter (iter : val) : Prop :=
   ∀ (I : list A → Prop) φ (f : val) (l : list A),
     (∀ (Xs : list A) (X : A),
@@ -143,7 +137,7 @@ Definition pure_isListIter (iter : val) : Prop :=
               v = #() ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
       I [] ->
       pure_call2 iter f #l
-        (λ v, v = () ∧ I l)
+        (λ (v : ()), I l)
         (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
 
 (* -------------------------------------------------------------------------- *)
@@ -183,7 +177,7 @@ Proof.
   change f with #f.
   eapply pure_rec_call2 with
     (P := λ func lsuf, func = f ∧ ∃ lpref, lpref ++ lsuf = l ∧ I lpref)
-    (φ := (λ _ _ v, v = () ∧ I l))
+    (φ := (λ _ _ _, I l))
     (R := fun _ _ => True).
   { split; eauto. }
 

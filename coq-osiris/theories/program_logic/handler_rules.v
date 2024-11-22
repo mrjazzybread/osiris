@@ -16,7 +16,7 @@ From osiris.program_logic.pure Require Import pure.
     If not, the handler is installed around the captured continuation. *)
 
 Definition shallow_handler η e bs :=
-  Handle (eval η e) (shallow_eval_match η bs bs).
+  Handle (eval η e) (λ o, shallow_match η o bs bs).
 
 (* Deep handlers are installed permanently;
    Regardless of whether the handled expression performs an effect
@@ -24,7 +24,7 @@ Definition shallow_handler η e bs :=
    continuation. *)
 
 Definition deep_handler η e bs :=
-  Handle (eval η e) (install_deep_eval_match η bs).
+  Handle (eval η e) (λ o, deep_match η o bs).
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
@@ -156,7 +156,7 @@ Section handler_proof.
   Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
-    shallow_handler_spec E Ψ Φ (shallow_eval_match η bs bs) Ψ' Φ' -∗
+    shallow_handler_spec E Ψ Φ (λ o, shallow_match η o bs bs) Ψ' Φ' -∗
     EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     iIntros "He Hspec".
@@ -169,7 +169,7 @@ Section handler_proof.
   Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E Ψ Φ (deep_eval_match η bs) Ψ' Φ' -∗
+    deep_handler_spec E Ψ Φ (λ o, deep_match_go η o bs) Ψ' Φ' -∗
     EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
@@ -192,7 +192,7 @@ Section handler_proof.
       iDestruct "Hsh" as "[Hsh _]";
       iSpecialize ("Hsh" with "HΦ");
       try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim;
-      by simpl_install_deep_eval_match.
+      by simpl_deep_match.
 
     { (* [StepHandlePerform] *)
       iDestruct "Hsh" as "[_ Hsh]".
@@ -204,7 +204,7 @@ Section handler_proof.
       iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi")
         as ">[Hsi [HH _]]"; [ exact H | ].
 
-      iFrame. simpl_install_deep_eval_match; rewrite !fold_pre_install_deep_eval_match.
+      iFrame. simpl_deep_match; rewrite !fold_pre_deep_match.
       (* Install the handler around the location [l]. *)
       iApply ewp_install_deep.
       ewp_mask_intro "Hmod".
@@ -238,30 +238,30 @@ Section handler_proof.
 
   Lemma deep_handle_nil_ret η v E ψ Φ :
    EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
-   EWP (deep_eval_match η [] (O3Ret v)) @ E <|ψ|> {{ Φ }}.
+   EWP (deep_match_go η (O3Ret v) []) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_deep_eval_match.
+    by iIntros; simpl_deep_match_go.
   Qed.
 
   Lemma shallow_handle_nil_ret η v all_bs E ψ Φ :
    EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
-   EWP (shallow_eval_match η [] all_bs (O3Ret v)) @ E <|ψ|> {{ Φ }}.
+   EWP (shallow_match η (O3Ret v) [] all_bs) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_shallow_eval_match.
+    by iIntros; simpl_shallow_match.
   Qed.
 
   Lemma deep_handle_nil_throw η e E ψ Φ :
    EWP throw e @ E <|ψ|> {{ Φ }} -∗
-   EWP (deep_eval_match η [] (O3Throw e)) @ E <|ψ|> {{ Φ }}.
+   EWP (deep_match_go η (O3Throw e) []) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_deep_eval_match.
+    by iIntros; simpl_deep_match_go.
   Qed.
 
   Lemma shallow_handle_nil_throw η all_bs e E ψ Φ :
     EWP throw e @ E <|ψ|> {{ Φ }} -∗
-    EWP (shallow_eval_match η [] all_bs (O3Throw e)) @ E <|ψ|> {{ Φ }}.
+    EWP (shallow_match η (O3Throw e) [] all_bs) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_shallow_eval_match.
+    by iIntros; simpl_shallow_match.
   Qed.
 
   Lemma deep_handle_nil_perform η eff k ψ sk Φ :
@@ -269,10 +269,10 @@ Section handler_proof.
     ψ allows perform eff
     << λ o,
       ▷ (k ↦ Shot -∗ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
-    EWP (deep_eval_match η [] (O3Perform eff k)) <|ψ|> {{ Φ }}.
+    EWP (deep_match_go η (O3Perform eff k) []) <|ψ|> {{ Φ }}.
   Proof.
     iIntros "Hl Hperf".
-    simpl_deep_eval_match. iApply ewp_stop_perform.
+    simpl_deep_match_go. iApply ewp_stop_perform.
     rewrite /prot /iEff_car.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
@@ -287,10 +287,10 @@ Section handler_proof.
     ψ allows perform eff
     << λ o,
       ▷ EWP Handle (sk o) (λ o,
-          shallow_eval_match η all_branches all_branches o) <|ψ|> {{ Φ }} >> -∗
-    EWP (shallow_eval_match η [] all_branches (O3Perform eff k)) <|ψ|> {{ Φ }}.
+          shallow_match η o all_branches all_branches) <|ψ|> {{ Φ }} >> -∗
+    EWP (shallow_match η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
-    iIntros "Hk Hperf". simpl_shallow_eval_match.
+    iIntros "Hk Hperf". simpl_shallow_match.
     iApply ewp_install_shallow.
 
     iIntros (l) "Hl". iNext. cbn.
@@ -315,10 +315,10 @@ Section handler_proof.
   Lemma deep_handle_cons η o cp e bs E ψ Φ Q φ :
     Q -∗
     ⌜cpattern η cp o (λ δ, Q ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
-    (Q -∗ ⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
+    (Q -∗ ⌜φ⌝ -∗ EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_match_go η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
   Proof.
-    simpl_deep_eval_match.
+    simpl_deep_match_go.
     iIntros "Q %Hpure Hmono".
     iApply ewp_try.
     iApply ewp_mono; first by iApply pure_ewp.
@@ -329,10 +329,10 @@ Section handler_proof.
   
   Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
     ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
-    (⌜φ⌝ -∗ EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }}) -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
+    (⌜φ⌝ -∗ EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }}) -∗
+    EWP (deep_match_go η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
   Proof.
-    simpl_deep_eval_match.
+    simpl_deep_match_go.
     iIntros "%Hpure Hmono".
     iApply ewp_try.
     iApply ewp_mono; first iApply pure_ewp; try done.
@@ -343,8 +343,8 @@ Section handler_proof.
 
   Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
     valid_cpattern_match cp o = false ->
-    EWP (deep_eval_match η bs o) @ E <|ψ|> {{ Φ }} -∗
-    EWP (deep_eval_match η (Branch cp e :: bs) o) @ E <|ψ|> {{ Φ }}.
+    EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }} -∗
+    EWP (deep_match_go η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
   Proof.
     iIntros (Hvalid) "Hmatch".
     iAssert (bi_pure True) as "Htrue". done.

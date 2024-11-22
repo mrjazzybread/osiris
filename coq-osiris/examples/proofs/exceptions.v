@@ -13,8 +13,6 @@ Context `{!osirisGS Σ}.
 Definition stdlib_with_notfound :=
   ("Not_found", (VLoc (Loc 0))) :: stdlib_env.
 
-Local Transparent extend evals eval_match call.
-
 (* Calling [head #l] either returns [#h] when [l = h :: t],
    or throws an exception when [l = []]. *)
 
@@ -55,8 +53,8 @@ Proof.
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.
-    iIntros.
-    iApply ewp_eval. iModIntro.
+    iIntros. iApply ewp_call_nonrec.
+    iModIntro.
     prove_match.
     { (* Call to [head]. *)
       Simp. iApply Hhead. }
@@ -66,12 +64,12 @@ Proof.
       iModIntro.
       next_branch.
       next_branch.
-      { Simp. iApply ewp_value. iApply ewp_value. simpl.
+      { Simp. iApply ewp_value. simpl.
         iExists (Some h0). equality. } }
     { (* Exception case. *)
       iIntros "[-> ->]".
       next_branch; fold eval.
-      iApply ewp_EConstant. iApply ewp_value.
+      iApply ewp_EConstant.
       iExists (None). done. } }
 
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
@@ -80,8 +78,7 @@ Proof.
   eapply structs_cons.
   { apply struct_let_single with (spec := catch_head_spec).
     pure_simp; unfold catch_head_spec; intros.
-    iIntros.
-    iApply ewp_eval.
+    iIntros. iApply ewp_call_nonrec.
     iModIntro.
     Simp. Simp.
     (* Reshape the goal to get [EWP try (o ← call head #l; ...)] *)
@@ -89,11 +86,11 @@ Proof.
     (* Call to head. *)
     iApply ewp_mono. { iApply Hhead. }
     iIntros ([]) "Ho"; cbn.
-    { iApply ewp_value. iApply ewp_value. cbn.
+    { iApply ewp_value. cbn.
       iDestruct "Ho" as "(%h & %t & -> & ->)".
       iPureIntro. exists (Some h). eauto.  }
     { iDestruct "Ho" as "(-> & ->)".
-      Simp. iApply ewp_value. iApply ewp_value.
+      Simp. iApply ewp_value. 
       iPureIntro. exists None. eauto. } }
   intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
 

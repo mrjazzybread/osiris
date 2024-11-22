@@ -26,7 +26,6 @@ The Rocq development can be found under `osiris/coq-osiris`
   - `orisis/coq-osiris/theories/program_logic/pure/`
     - `pure_wp.v` the pure judgment and weakest precondition
     - `pure_encode.v` predicate wrapper for postconditions over encodable types
-    - `pure_hoare.v` pure reasoning rules over the micro monad
     - `pure_eval.v` pure reasoning rules over language expressions
     - `simp_tactics.v` the `simp` tactic, as well as old tactics such as `simp_specify`
     - `auxiliary_judgements.v` the `pattern` judgement, which wraps the `extend` function found in `eval.v`

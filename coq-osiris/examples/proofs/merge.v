@@ -10,6 +10,19 @@ Notation "'Environment'  'composed'  'of'  [ x ; .. ; z ]" :=
   (cons x _ (.. (cons z _ nil) ..))
  (only printing).
 
+(* TODO Move *)
+(* [call_spec] is the type of specifications over function calls. It
+   depends on two arguments: the argument of the function call, and the
+   computation resulting from the function call on that argument. *)
+
+Definition call_spec {X : Type} := X -> microvx -> Prop.
+
+(* [Spec c P] states that given a closure [c], the specification [P]
+   holds for a call of [c] on any argument. *)
+
+Definition Spec `{Encode X} (c : val) (P : call_spec) :=
+  ∀ (arg : X), P arg (call c #arg).
+
 (* -------------------------------------------------------------------------- *)
 
 (* WIP: Tactics used in local proof scripts. *)
@@ -121,11 +134,7 @@ Local Hint Unfold merge_pre : core.
 Definition merge_spec (merge : val) : Prop :=
   ∀ (l1 l2 : list Z),
     merge_pre l1 l2 ->
-    pure
-      (call merge #l1)
-      (fun c =>
-         pure (call c #l2) (merge_post l1 l2) ⊥) ⊥.
-
+    pure_call2 merge #l1 #l2 (merge_post l1 l2) ⊥.
 
 (* Specification for [split l]. *)
 
@@ -149,12 +158,9 @@ Local Definition mergesort_post := (fun l l' => Sorted Z.le l' /\ Permutation l'
 Local Hint Unfold mergesort_post : core.
 Local Hint Unfold mergesort_pre : core.
 
-Definition mergesort_spec (mergesort : val) : Prop :=
-  ∀ (l : list Z),
-    mergesort_pre l ->
-    pure
-      (call mergesort #l)
-      (mergesort_post l) ⊥.
+Definition mergesort_spec' (l : list Z) (e : microvx) : Prop :=
+  mergesort_pre l ->
+  pure e (mergesort_post l) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -180,94 +186,6 @@ Local Ltac pure_EOpLe :=
 Lemma Merge_spec' η:
   merge_spec (VCloRec η __bindings4 "merge" ).
 Proof. Admitted.
-(*   unfold merge_spec. *)
-(*   intros. *)
-
-(*   (* TODO: automate application of [pure_rec_call2]. *) *)
-
-(*   eapply pure_rec_call2 with (P := fun l1 l2 => merge_pre l1 l2). *)
-(*   { auto. } *)
-(*   simpl. intros merge x1 y1 IH Hpre. fold eval. *)
-(*   abstract_env. *)
-
-(*   (* FIXME: rule for pure_eval_EAnonFun is incorrect. *) *)
-(*   pure_simp. *)
-(*   pure_enter. abstract_env. *)
-
-(*   eapply pure_eval_match. *)
-(*   { pose proof @pure_eval_pair. cbn in H0. *)
-(*     cbn; eapply H0. *)
-(*     trivial_pure. *)
-(*     reflexivity. } *)
-(*   pure_match. *)
-
-(*   (* First branch of match *) *)
-(*   { pure_path. *)
-(*     (* Establish postcondition *) *)
-(*     unfold merge_post, merge_pre in *; destruct_hyp Hpre. *)
-(*     rewrite app_nil_l. auto. } *)
-(*   (* Match against "l, []" *) *)
-(*   { pure_path. *)
-(*     (* Establish postcondition *) *)
-(*     unfold merge_post, merge_pre in *; destruct_hyp Hpre. *)
-(*     rewrite app_nil_r. auto. } *)
-
-(*   (* Second branch of match *) *)
-(*   { eapply pure_eval_ifthenelse. *)
-(*     { (* Evaluate expression "h1 <= h2" *) *)
-(*       pure_EOpLe; destruct Hpre as (? & ? & ?); *)
-(*       repeat (Forall_inversion); auto. } *)
-(*     { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *) *)
-(*       intros. *)
-(*       eapply pure_eval_data2. *)
-(*       eapply pure_eval_pair. pure_path. *)
-(*       (* Evaluate "merge t1 l2" under the cons *) *)
-(*       pure_eval_app2_conseq. *)
-(*       { (* Use induction hypothesis on [call merge t1 l2] *) *)
-(*         eapply IH. *)
-(*         { (* Subgoal: justify the recursive call with a size argument *) *)
-(*           auto with arith. } *)
-(*         { (* Subgoal: t1 and l2 satisfy merge's precondition *) *)
-(*           repeat split; *)
-(*           unfold merge_pre in Hpre; *)
-(*           destruct_hyp Hpre; all_inversions; auto. } } *)
-(*       intros l Hpost. *)
-(*       split; auto. *)
-(*       (* Establish the postcondition *) *)
-(*       unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost. *)
-(*       subst; all_inversions. *)
-(*       split. *)
-(*       { (* Subgoal: the output is sorted *) *)
-(*         constructor; [ assumption | ]. *)
-(*         eapply HdRel_Sorted_Permutation; eauto with zarith. } *)
-(*       { (* Subgoal: the output is a permutation of the inputs *) *)
-(*         by rewrite_permutation l. } } *)
-(*     { (* Evaluate expression "h2 :: (merge l1 t2)" knowing  (h1 > h2) *) *)
-(*       simpl; intros. fold eval. *)
-(*       eapply pure_eval_data2. eapply pure_eval_pair; pure_path. *)
-(*       (* Evaluate "merge l1 t2" under the cons *) *)
-(*       pure_eval_app2_conseq. *)
-(*       (* Use induction hypothesis on [call merge l1 t2] *) *)
-(*       { eapply IH. *)
-(*         { (* Subgoal: justify the recursive call with a size argument *) *)
-(*           auto with arith. } *)
-(*         { (* Subgoal: l1 and t2 satisfy merge's precondition *) *)
-(*           unfold merge_pre in *; destruct_hyp Hpre. *)
-(*           all_inversions; repeat split; auto. } } *)
-(*       intros l Hpost. *)
-(*       split; auto. *)
-(*       (* Establish the postcondition *) *)
-(*       unfold merge_post, merge_pre in *; destruct_hyps Hpre Hpost. *)
-(*       subst; all_inversions. *)
-(*       split. *)
-(*       { (* Subgoal: the output is sorted *) *)
-(*         constructor; [ auto | ]. *)
-(*         eapply HdRel_Sorted_Permutation; eauto with zarith. } *)
-(*       { (* Subgoal: the output is a permutation of the inputs *) *)
-(*         rewrite_permutation l. *)
-(*         apply Permutation_sym. apply Permutation_middle. } } } *)
-(* Qed. *)
-
 
 Lemma Split_spec' η :
   split_spec (VCloRec η __bindings7 "split").
@@ -338,7 +256,36 @@ Proof.
       apply Permutation_middle. } }
 Qed.
 
-Lemma MergeSort_spec' η :
+Section merge.
+
+Variable η : env.
+
+Variable split : val.
+Hypothesis _split_spec : split_spec split.
+Hypothesis Hsplit : lookup_name η "split" = ret split.
+
+Variable merge : val.
+Hypothesis _merge_spec : merge_spec merge.
+Hypothesis Hmerge : lookup_name η "merge" = ret merge.
+
+Lemma mergesort_mkspec mergesort l :
+  (lookup_name η "l" = ret #l) ->
+  (lookup_name η "merge_sort" = ret mergesort) ->
+  Spec mergesort (λ l' m, length l' < length l -> mergesort_spec' l' m) ->
+  mergesort_spec' l (eval η (EMatch (EPath ["l"]) __branches11)).
+Proof. Admitted.
+
+End merge.
+
+Definition mergesort_spec (mergesort : val) : Prop :=
+  ∀ (l : list Z),
+    mergesort_pre l ->
+    pure
+      (call mergesort #l)
+      (mergesort_post l) ⊥.
+
+
+Lemma MergeSort_spec η:
   (exists split, lookup_name η "split" = ret split /\ split_spec split) ->
   (exists merge, lookup_name η "merge" = ret merge /\ merge_spec merge) ->
   mergesort_spec (VCloRec η __bindings12 "merge_sort").
@@ -430,10 +377,10 @@ Qed.
 Lemma Module__spec' :
   toplevel __main
     (env_has_pspecs [("merge", merge_spec);
-                     ("split", split_spec);
-                     ("merge_sort", mergesort_spec)]).
+                     ("split", split_spec)
+                     (* ("merge_sort", mergesort_spec) *)]).
 Proof.
-  apply module_struct.
+    apply module_struct.
   next_item.
   (* Evaluate "merge" letrec *)
   { apply Merge_spec'. }
@@ -444,7 +391,7 @@ Proof.
   intros [??] (split & Hsplit & -> & ->).
   next_item.
   (* Evaluate "merge_sort" letrec *)
-  { apply MergeSort_spec'; eauto. }
+  { apply MergeSort_spec; eauto. }
   intros [??] (mergesort & Hmergesort & -> & ->).
   (* We have now evaluated the whole struct. *)
   finished_struct.

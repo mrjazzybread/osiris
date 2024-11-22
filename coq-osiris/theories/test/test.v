@@ -571,7 +571,7 @@ Lemma test_shallow_handle :
   in
   let m :=
     Handle (eval η e)
-      (shallow_eval_match η bs bs)
+      (λ o, shallow_match η o bs bs)
   in
   ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
 Proof. do 2 eexists. reduces. Qed.
@@ -639,11 +639,11 @@ Lemma test_shallow_ret_reinstall :
   in
   let m1 :=
     Handle (eval η e)
-      (shallow_eval_match η bs bs)
+      (λ o, shallow_match η o bs bs)
   in
   let m2 :=
     Handle m1
-      (deep_eval_match η
+      (λ o, deep_match_go η o
          [ (* | effect Get32, k -> continue k 32 *)
            Branch
              (CEff (PXData ["Get32"] []) (PVar "k"))

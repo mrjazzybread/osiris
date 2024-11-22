@@ -893,22 +893,13 @@ Section ewp_rules_expr.
     by iIntros "H"; simpl_eval.
   Qed.
 
-  (* TODO: remove? probably handled by Simp *)
-  Lemma ewp_eval_match_nil η a φ E Ψ :
-    (∃ e, ⌜a = O2Throw e⌝ ∗ φ (O2Throw e)) -∗
-      EWP eval_match η [] a @ E <|Ψ|>{{ φ }}.
-  Proof.
-    iIntros "(%e & -> & H)".
-    simpl_eval_match.
-    iApply (ewp_throw with "H").
-  Qed.
 
   (** * ETryWith : expr → list branch → expr *)
 
   Lemma ewp_ETryWith η e bs φ E Ψ :
     EWP eval η e
-      @ E <|Ψ|>{{  | RET v => EWP ret v @ E <|Ψ|>{{ φ }};
-               | EXN v => EWP eval_trywith η v bs @ E <|Ψ|>{{ φ }} }} -∗
+      @ E <|Ψ|> {{ | RET v => EWP ret v @ E <|Ψ|>{{ φ }};
+                   | EXN e => EWP match_exn η e bs @ E <|Ψ|>{{ φ }} }} -∗
     EWP eval η (ETryWith e bs) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "?". simpl_eval. by iApply ewp_try.

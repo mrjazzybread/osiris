@@ -1003,8 +1003,8 @@ and translate_structure_item (item : structure_item) : sitem option =
   | Tstr_typext { tyext_constructors = tys; _} ->
       Some (IExtend (map (fun c -> txt c.ext_name) tys))
 
-  | Tstr_exception _ ->
-      ounsupported loc "exception declaration"
+  | Tstr_exception { tyexn_constructor = ty; _} ->
+      Some (IExtend [ txt ty.ext_name ] )
 
   | Tstr_module { mb_id = Some id; mb_expr = me; _} ->
       let m = Ident.name id in

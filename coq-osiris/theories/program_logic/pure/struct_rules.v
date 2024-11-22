@@ -2,7 +2,9 @@ From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar locations.
 From osiris.semantics Require Import semantics.
 
-From osiris.program_logic.pure Require Import pure_rules pattern_rules.
+From osiris.program_logic.pure Require Import
+  pure_rules pattern_rules eval_rules.
+(* TODO Comment *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -93,7 +95,7 @@ Proof.
   eapply pure_wp_bind_conseq; eauto using pure_wp_ret.
 Qed.
 
-Lemma struct_letrec η δ rbs (φ : envs -> Prop) ψ :
+Lemma unfold_struct_letrec η δ rbs (φ : envs -> Prop) ψ :
   ψ (eval_rec_bindings η rbs) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILetRec rbs) φ.
@@ -191,6 +193,97 @@ Proof.
       eauto using pure_wp_ret. }
   eauto using pure_wp_ret.
 Qed.
+
+(* Rec *)
+
+Lemma struct_letrec_function `{Encode X, Encode Y}
+  `{WF_x : WellFounded X}
+  η δ f bs
+  (φf : X -> Y -> Prop)
+  (Ψ : envs -> Prop)
+  (R : X -> X -> Prop)
+  (P : X -> Prop)
+  ζ :
+  (∀ vf x,
+    (∀ y,
+        wf_relation (WF := WF_x) y x ->
+        R y x ->
+        P y ->
+        pure (call vf #y) (φf y) ζ) ->
+      P x ->
+      pure_match (("__osiris_anonymous_arg", #x) :: (f, vf) :: η) (O3Ret #x) bs (φf x) ζ) ->
+  (∀ vf, (∀ x, P x -> pure (call vf #x) (φf x) ζ) -> Ψ ((f, vf) :: η, (f, vf) :: δ)) ->
+  struct_item (η, δ) (ILetRec [RecBinding f (AnonFunction bs)]) Ψ.
+Proof.
+  intros Hvf Hnext.
+  eapply unfold_struct_letrec. cbn.
+  apply eq_refl.
+  intros ? <-. eapply Hnext.
+  intros x HP.
+  eapply pure_rec_call; eauto.
+  intros ????.
+  eapply pure_eval_match. { eapply pure_eval_path; eapply pure_ret; encode. }
+  eauto.
+Qed.
+
+Lemma struct_letrec2 `{Encode X, Encode Y, Encode W} `{WF_xy : WellFounded (X * Y)} (A : Type)
+  η δ f arg1 arg2 e
+  (Ψ : envs -> Prop)
+  (φf : A -> X -> Y -> W -> Prop)
+  (R : (X * Y) -> (X * Y) -> Prop)
+  (P : A -> X -> Y -> Prop)
+  (ζ : A -> exn -> Prop) :
+  (∀ vf x1 y1 a,
+      (∀ x2 y2,
+          wf_relation (WF := WF_xy) (x2, y2) (x1, y1) ->
+          R (x2, y2) (x1, y1) ->
+          P a x2 y2 ->
+          pure_call2 vf #x2 #y2 (φf a x2 y2) (ζ a)) ->
+      P a x1 y1 ->
+      pure (eval ((arg2, #y1) :: (arg1, #x1) :: (f, vf) :: η) e)
+        (φf a x1 y1) (ζ a)) ->
+  (∀ vf,
+      (∀ a x y, P a x y -> pure_call2 vf #x #y (φf a x y) (ζ a)) ->
+      Ψ ((f, vf) :: η, (f, vf) :: δ)) ->
+  struct_item (η, δ) (ILetRec [RecBinding f (AnonFun arg1 (EAnonFun (AnonFun arg2 e)))]) Ψ.
+Proof.
+  intros Hvf Hnext.
+  eapply unfold_struct_letrec. cbn.
+  apply eq_refl.
+  intros ? <-. eapply Hnext.
+  intros a x y HP.
+  eapply pure_rec_call2; eauto.
+  intros ?????.
+  eapply pure_eval_anonfun. simpl. apply pure_stop_eval.
+  rewrite try2_ret_right.
+  eauto.
+Qed.
+
+Lemma struct_letrec `{Encode X, Encode Y} `{WF_x : WellFounded X}
+  η δ f arg e1
+  (φf : X -> Y -> Prop)
+  (Ψ : envs -> Prop)
+  (R : X -> X -> Prop)
+  (P : X -> Prop) ζ :
+  (∀ vf x,
+      (∀ y,
+          wf_relation (WF := WF_x) y x ->
+          R y x ->
+          P y ->
+          pure (call vf #y) (φf y) ζ) ->
+      P x ->
+      pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf x) ζ) ->
+  (∀ vf, (∀ x, P x -> pure (call vf #x) (φf x) ζ) -> Ψ ((f, vf) :: η, (f, vf) :: δ)) ->
+  struct_item (η, δ) (ILetRec [RecBinding f (AnonFun arg e1)]) Ψ.
+Proof.
+  intros Hvf Hnext.
+  eapply unfold_struct_letrec. cbn.
+  apply eq_refl.
+  intros ? <-. eapply Hnext.
+  intros x HP.
+  eapply pure_rec_call; eauto.
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 

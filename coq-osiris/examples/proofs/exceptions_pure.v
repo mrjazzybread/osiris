@@ -87,11 +87,9 @@ Proof.
     pure_simp; unfold catch_head_spec; intros.
     pure_enter.
     eapply pure_eval_match'_exn.
-    - eapply pure_eval_app. pure_path. pure_path.
-    - intros h (t & ?). pure_simp.
-      destruct l; inv H0; eauto.
-    - intros e (-> & ->). pure_simp. reflexivity.
-  }
+    - eapply pure_simp. simp. apply Hhead.
+    - intros h (t & ->). pure_simp. reflexivity.
+    - intros e (-> & ->). pure_simp. reflexivity.  }
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
 
   (* Struct item: [let catch_head2 l = ...] *)

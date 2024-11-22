@@ -718,7 +718,7 @@ Section ewp_rules.
   Lemma ewp_install_deep {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
       l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (install_deep_eval_match η bs))) -∗
+        (K (λ o, Handle (stop CResume (l, o)) (λ o, deep_match η o bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CInstall (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -740,7 +740,7 @@ Section ewp_rules.
   Lemma ewp_install_shallow {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
       l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (shallow_eval_match η bs bs))) -∗
+        (K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CInstall (false, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
