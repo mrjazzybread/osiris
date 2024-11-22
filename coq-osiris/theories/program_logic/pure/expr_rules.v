@@ -188,55 +188,41 @@ Proof.
   eauto with pure.
 Qed.
 
-(* A special case at arity 2. *)
+(* A special case at amity 2. *)
 
-(* TODO can we give a similar lemma at arity [n]? *)
+(* LATER: Generalize these lemmas. *)
+
+Local Ltac solve_eval_tuple :=
+  intros; simpl_eval;
+  repeat (
+    eapply pure_wpv_Par_left_conseq;
+    eauto; intros ? (? & -> & ?));
+  repeat apply pure_wp_ret; eauto with pure.
 
 Lemma total_eval_pair `{Encode A1, Encode A2}
   η e1 e2 (ψ : A1 * A2 → Prop) :
   total (eval η e1)
     (λ a1 : A1, total (eval η e2) (λ a2 : A2, ψ (a1, a2)))→
   total (eval η (EPair e1 e2)) ψ.
-Proof.
-  intros. simpl_eval.
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  repeat apply pure_wp_ret.
-  eauto with pure.
-Qed.
+Proof. solve_eval_tuple. Qed.
 
 Lemma total_eval_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 * A2 * A3 -> Prop) :
   total (eval η e1) (λ a1 : A1,
-        total (eval η e2) (λ a2 : A2,
-              total (eval η e3) (λ a3 : A3,
-                    ψ (a1, a2, a3)))) ->
+      total (eval η e2) (λ a2 : A2,
+          total (eval η e3) (λ a3 : A3,
+              ψ (a1, a2, a3)))) ->
   total (eval η (ETuple [e1; e2; e3])) ψ.
-Proof.
-  intros. simpl_eval.
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  repeat apply pure_wp_ret.
-  eauto with pure.
-Qed.
+Proof. solve_eval_tuple. Qed.
 
 Lemma total_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4} (η : env) (e1 e2 e3 e4 : expr)
   (ψ : A1 * A2 * A3 * A4 → Prop) :
   total (eval η e1) (λ a1 : A1,
-        total (eval η e2) (λ a2 : A2,
-              total (eval η e3) (λ a3 : A3,
-                    total (eval η e4) (λ a4 : A4,
-                          ψ (a1, a2, a3, a4))))) ->
+      total (eval η e2) (λ a2 : A2,
+          total (eval η e3) (λ a3 : A3,
+              total (eval η e4) (λ a4 : A4,
+                  ψ (a1, a2, a3, a4))))) ->
   total (eval η (ETuple [e1; e2; e3; e4])) ψ.
-Proof.
-  intros. simpl_eval.
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  eapply pure_wpv_Par_left_conseq; eauto. intros ? (? & -> & ?).
-  repeat apply pure_wp_ret.
-  eauto with pure.
-Qed.
+Proof. solve_eval_tuple. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
