@@ -166,11 +166,34 @@ Section pure_rules.
 
   (* A reasoning rule for [Par m1 m2 k z]. *)
 
+  Lemma pure_Par {E'} m1 m2 φ ψ
+    (k : outcome2 (val * val) E' → micro val E) :
+    pure m1
+      (λ a1,
+        pure m2
+          (λ a2, pure (continue k (a1, a2)) φ ψ)
+          (λ e, pure (discontinue k e) φ ψ))
+      (λ e, pure (discontinue k e) φ ψ) →
+    pure m2
+      (λ a2,
+        pure m1
+          (λ a1, pure (continue k (a1, a2)) φ ψ)
+          (λ e, pure (discontinue k e) φ ψ))
+      (λ e, pure (discontinue k e) φ ψ) →
+    pure (Par m1 m2 k) φ ψ.
+  Proof.
+    intros; eapply pure_wp_Par;
+      eapply pure_wp_mono; eauto;
+      intros; returns_eauto; eauto;
+      eapply pure_wp_mono; eauto;
+      intros; returns_eauto; eauto.
+  Qed.
+
   (* We cannot give a reasoning rule for [par m1 m2] because its type is
     [micro (val * val)], not [micro val]. However, we can give a rule
     for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
-  Lemma pure_par `{Encode B} {X Y}
+  Lemma pure_par_glue2 `{Encode B} {X Y}
     m1 m2 k (φ1 : A → Prop) (φ2 : B → Prop) (φ : A * B → Prop)
     (ψ : X -> Prop) (ψ' : Y -> Prop) z :
     pure (E := X) m1 φ1 ψ →

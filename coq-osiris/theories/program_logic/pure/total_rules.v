@@ -107,11 +107,31 @@ Qed.
 
 (* A reasoning rule for [Par m1 m2 k z]. *)
 
+Lemma total_Par {E E'}
+  (m1 : micro val E') (m2 : micro val E') (φ : val * val -> Prop)
+  (k : outcome2 (val * val) E' → micro val E) :
+  total (E := E') m1
+    (λ a1,
+      total m2
+        (λ a2, total (continue k (a1, a2)) φ)) →
+  total m2
+    (λ a2,
+      total m1
+        (λ a1, total (continue k (a1, a2)) φ)) →
+  total (Par m1 m2 k) φ.
+Proof.
+  intros; eapply pure_wp_Par;
+    eapply pure_wp_mono; eauto;
+    intros; returns_eauto; eauto;
+    eapply pure_wp_mono; eauto;
+    intros; returns_eauto; eauto; try done.
+Qed.
+
 (* We cannot give a reasoning rule for [par m1 m2] because its type is
    [micro (val * val)], not [micro val]. However, we can give a rule
    for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
-Lemma total_par `{Encode A1, Encode A2} {X Y}
+Lemma total_par_glue2 `{Encode A1, Encode A2} {X Y}
   m1 m2 k (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop) z
 :
   total (E := X) m1 φ1 →
@@ -119,7 +139,7 @@ Lemma total_par `{Encode A1, Encode A2} {X Y}
   (∀ a1 a2, φ1 a1 → φ2 a2 → total (k (#a1, #a2)) φ) →
   total (E := Y) (Par m1 m2 (glue2 k z)) φ.
 Proof.
-  intros; eapply pure_par; by eauto.
+  intros; eapply pure_par_glue2; by eauto.
 Qed.
 
 Lemma total_par_cont `{Encode A1, Encode A2} {X Y}
