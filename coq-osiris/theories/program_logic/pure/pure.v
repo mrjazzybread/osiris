@@ -6,5 +6,5 @@ From osiris.program_logic.pure Require Export
      total_rules
      expr_rules
      pattern_rules
-     struct_rules
+     toplevel_rules
      .

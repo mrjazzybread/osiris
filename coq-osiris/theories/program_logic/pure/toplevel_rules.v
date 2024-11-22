@@ -4,7 +4,9 @@ From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Import
   pure_rules pattern_rules expr_rules.
-(* TODO Comment *)
+
+(* This file defines contains reasoning rules about top-level definitions,
+   such as struct items, bindings, and modules. *)
 
 (* -------------------------------------------------------------------------- *)
 

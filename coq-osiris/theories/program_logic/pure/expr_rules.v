@@ -4,10 +4,8 @@ From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import
   wp judgements total_rules pattern_rules.
 
-(* TODO Comment *)
-
-(* FIXME : Why is the import weird here? *)
-Tactic Notation "simp" := (simp).
+(* This file defines contains reasoning rules about evaluation of
+    expressions for pure judgements *)
 
 (* TODO: Move *)
 (* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) ##φ ⊥].
@@ -21,7 +19,6 @@ Arguments pure_match {A} {H} _ _ _ _.
 
 (* -------------------------------------------------------------------------- *)
 (** * Evaluation of Datatypes *)
-(* -------------------------------------------------------------------------- *)
 
 Lemma pure_eval_data_eq `{Encode A} a η c e (ψ : A -> Prop) ζ:
   pure_wp
@@ -37,11 +34,9 @@ Proof.
   intros l <-; apply pure_wp_ret. eauto with pure.
 Qed.
 
-(* -------------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------------- *)
 (** *Evaluating function calls *)
-(* -------------------------------------------------------------------------- *)
 
 (* This trivial lemma gives the user a chance to prove that the actual
    argument [v'2] is in fact the encoding of some value [x]. The subgoal

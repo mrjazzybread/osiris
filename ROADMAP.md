@@ -31,7 +31,8 @@ The Rocq development can be found under `osiris/coq-osiris`
     - `total_rules.v` reasoning rules over [total] judgements.
     - `expr_rules.v` reasoning rules about evaluation of expressions for pure judgements
     - `pattern_rules.v` reasoning rules about pattern matching
-    - `struct_rules.v` reasoning rules about structs
+    - `toplevel_rules.v` reasoning rules about top-level definitions, such as
+       struct items, bindings, and modules.
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
   - `basic_rules.v` reasoning rules over the effectful weakest precondition
   - `handler_rules.v` reasoning rules over handlers

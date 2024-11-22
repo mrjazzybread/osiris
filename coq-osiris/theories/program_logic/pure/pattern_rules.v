@@ -1,7 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import syntax encode sugar locations.
 From osiris.semantics Require Import semantics.
-
 From osiris.program_logic.pure Require Import pure_rules.
 
 Open Scope Z_scope.
@@ -26,18 +25,6 @@ Definition pattern η p v (φ : env -> Prop) (ψ : Prop) :=
 
 Definition patterns η ps vs (φ : env -> Prop) (ψ : Prop) :=
   pure_wp (extends η ps vs) φ (λ (_ : unit), ψ).
-
-(* -------------------------------------------------------------------------- *)
-
-(* cpattern : env → cpat → outcome.outcome3 val locations.loc val val → (env → Prop) → Prop → Prop *)
-(* pattern : env → pat → val → (env → Prop) → Prop → Prop *)
-(* patterns : env → list pat → list val → (env → Prop) → Prop → Prop *)
-
-(* Class pattern_template := *)
-(*   { pattern_shape : Type; pattern_outcome : Type }. *)
-
-(* Class pat {P : pattern_template} := *)
-(*   pat_ : env -> pattern_shape -> pattern_outcome -> (env -> Prop) -> Prop -> Prop. *)
 
 (* -------------------------------------------------------------------------- *)
 
