@@ -5,16 +5,24 @@ From osiris.program_logic.pure Require Import wp.
 
 (** This file defines the judgements for pure computations. *)
 
+(* TODO: Comment -- Explain encode *)
+
+(* -------------------------------------------------------------------------- *)
 (* Value predicates, which are predicates over carrier type [A], which are
     encodable types. *)
 Definition returns {A} `{Encode A} (φ : A -> Prop):=
   λ v, ∃ a, v = #a ∧ φ a.
 
-(* Class of judgements over [micro] expressions, which are lifted over encodable
-  values. *)
+(* -------------------------------------------------------------------------- *)
+(** The [total] judgement *)
+
+(* [total m φ] states that [m] is a pure computation that will reduce to a
+    value satisfying the predicate [φ]. It is total in the sense that
+    the computation may not raise any exceptions. *)
 Class TotalJudgement {A} {EncA : Encode A} {A'} :=
   total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
 
+(* TODO Comment *)
 #[global] Instance TotalJudgement_val {A} {EncA : Encode A} :
   @TotalJudgement A EncA val | 10 :=
   fun _ a Φ => pure_wp a (returns Φ) ⊥.
@@ -23,9 +31,16 @@ Class TotalJudgement {A} {EncA : Encode A} {A'} :=
   @TotalJudgement A EncA A | 100 :=
   fun _ a Φ => pure_wp a Φ ⊥.
 
+(* -------------------------------------------------------------------------- *)
+(** The [pure] judgement *)
+
+(* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
+    value satisfying the predicate [φ], or it may throw an exception and
+    satisfy [ψ]. *)
 Class PureJudgement {A} {EncA : Encode A} {A'} :=
   pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
 
+(* TODO Comment *)
 #[global] Instance PureJudgement_val {A} {EncA : Encode A} :
   @PureJudgement A EncA val | 10 :=
   fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
@@ -33,6 +48,9 @@ Class PureJudgement {A} {EncA : Encode A} {A'} :=
 #[global] Instance PureJudgement_poly {A} {EncA : Encode A} :
   @PureJudgement A EncA A | 100 :=
   fun _ a Φ Ψ => pure_wp a Φ Ψ.
+
+(* -------------------------------------------------------------------------- *)
+(* Notations *)
 
 Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
   (total (eval η e) Φ)
