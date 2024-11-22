@@ -1,8 +1,9 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval simplification.
-
 From osiris.program_logic.pure Require Export wp judgements.
+
+(** This file defines basic reasoning rules over [pure] judgements. *)
 
 Section pure_rules.
 
@@ -186,7 +187,7 @@ Section pure_rules.
     { intros v. tauto. }
   Qed.
 
-  Lemma pure_par' `{Encode B} {X Y}
+  Lemma pure_par_cont `{Encode B} {X Y}
     m1 m2 k (φ1 : A → Prop) (φ2 : B → Prop) (φ : A * B → Prop)
     (ψ : X -> Prop) (ψ' : Y -> Prop):
     pure (E := X) m1 φ1 ψ →
@@ -216,7 +217,7 @@ Section pure_rules.
     eauto.
   Qed.
 
-  Lemma pure_par_seq' `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ
+  Lemma pure_par_seq_cont `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ
   :
     total (E := X) m1 (λ a1 : A,
       total m2 (λ a2 : B, pure (continue k (#a1, #a2)) φ ψ)) →
@@ -264,7 +265,7 @@ Section pure_rules.
     trivial, and we can prove a version of the rule that does not have this
     side condition. *)
 
-  Lemma invert_pure_bind' m k (φ : A → Prop) ψ:
+  Lemma invert_pure_bind_unary m k (φ : A → Prop) ψ:
     pure (bind m k) φ ψ →
     pure m (λ (v : val), pure (k v) φ ψ) ψ.
   Proof.
