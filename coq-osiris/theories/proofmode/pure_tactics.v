@@ -993,7 +993,7 @@ Ltac2 pure_data () :=
       eapply pure_wp_mono_ret;
       first (fun _ => eapply pure_evals_eq;
         unfold_Forall2 (); try0 (fun _ => pure_path));
-    ltac1:(cbn; intros; subst; encode)
+    ltac1:(cbn; rewrite /singleton; intros; subst; encode)
     | ]; ltac1:(try encode).
 
 Ltac2 Notation "pure_data" := Control.enter (fun _ => repeat0 pure_data).

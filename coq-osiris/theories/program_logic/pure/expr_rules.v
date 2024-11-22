@@ -379,7 +379,7 @@ Qed.
 Section match_rules.
 
   Lemma pure_eval_match `{Encode B} η e bs (a : val) (φ : B -> Prop) Ψ :
-    total (eval η e) (λ x, x = a) ->
+    total (eval η e) (singleton a) ->
     pure_match η (O3Ret a) bs φ Ψ ->
     pure (eval η (EMatch e bs)) φ Ψ.
   Proof.
@@ -614,8 +614,8 @@ Section eval_rules.
   final values *)
 
   Local Lemma pure_wp_evals_eq η es vs ψ :
-    Forall2 (λ e v, pure (eval η e) (λ x, x = v) ψ) es vs →
-    pure_wp (evals η es) (λ x, x = vs) ψ.
+    Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
+    pure_wp (evals η es) (singleton vs) ψ.
   Proof.
     revert vs.
     induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
@@ -630,8 +630,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_evals_eq η es vs ψ :
-    Forall2 (λ e v, pure (eval η e) (λ x, x = v) ψ) es vs →
-    pure (evals η es) (λ x, x = vs) ψ.
+    Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
+    pure (evals η es) (singleton vs) ψ.
   Proof.
     apply pure_wp_evals_eq.
   Qed.
@@ -750,8 +750,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_assert η e ψ :
-    pure (eval η e) (λ v, v = #true) ψ →
-    pure (eval η (EAssert e)) (λ v, v = #()) ψ.
+    pure (eval η e) (singleton #true) ψ →
+    pure (eval η (EAssert e)) (singleton #()) ψ.
   Proof.
     intros He. simpl_eval.
     apply pure_choose. eapply pure_ret; eauto.
@@ -878,9 +878,9 @@ Section eval_rules.
     η e1 e2 e3 vf
     (arg1 : A) (arg2 : B) (ψ : C → Prop) ζ
     :
-    total (eval η e1) (λ vf', vf' = vf) ->
-    total (eval η e2) (λ arg1', arg1' = arg1) ->
-    total (eval η e3) (λ arg2', arg2' = arg2) ->
+    total (eval η e1) (singleton vf) ->
+    total (eval η e2) (singleton arg1) ->
+    total (eval η e3) (singleton arg2) ->
     pure_call2 vf #arg1 #arg2 ψ ζ ->
     pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
   Proof.
@@ -902,9 +902,9 @@ Section eval_rules.
     η e1 e2 e3 vf
     (arg1 : A) (arg2 : B) (φ ψ : C → Prop) ζ
     :
-    total (eval η e1) (λ vf', vf' = vf) ->
-    total (eval η e2) (λ arg1', arg1' = arg1) ->
-    total (eval η e3) (λ arg2', arg2' = arg2) ->
+    total (eval η e1) (singleton vf) ->
+    total (eval η e2) (singleton arg1) ->
+    total (eval η e3) (singleton arg2) ->
     pure_call2 vf #arg1 #arg2 φ ζ ->
     (∀ a, φ a → ψ a) →
     pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
@@ -1168,7 +1168,7 @@ Section eval_rules.
     simpl_eval.
     eapply pure_wp_Par_conseq_ret.
     - eauto.
-    - eapply pure_wp_simp. simp. apply pure_wp_ret_eq.
+    - eapply pure_wp_simp. simp. apply pure_wp_ret_singleton.
     - intros _v _η (a1 & -> & Ha1) ->.
       apply pure_wp_bind, pure_wp_bind, pure_wp_ret.
       unfold irrefutably_extend.
@@ -1179,7 +1179,7 @@ Section eval_rules.
 
   Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
     (a1 : A1) (ψ : B → Prop) :
-    pure (eval η e1) (λ x, x = a1) ⊥ →
+    pure (eval η e1) (singleton a1) ⊥ →
     pure (eval ((x, #a1) :: η) e) ψ ⊥ →
     pure (eval η (ELet1Var x e1 e)) ψ ⊥.
   Proof.
@@ -1192,8 +1192,8 @@ Section eval_rules.
 
   Lemma pure_eval_comparison_operator `{Encode A}
     η e1 e2 (x1 x2 : Z) (f : val → val → micro bool exn) b a (φ : A → Prop) :
-    pure (eval η e1) (λ x1' : Z, x1' = x1) ⊥ →
-    pure (eval η e2) (λ x2' : Z, x2' = x2) ⊥ →
+    pure (eval η e1) (singleton x1) ⊥ →
+    pure (eval η e2) (singleton x2) ⊥ →
     f #x1 #x2 = ret b →
     #a = #b →
     φ a →
@@ -1211,8 +1211,8 @@ Section eval_rules.
   (* Boolean operations *)
 
   Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1225,8 +1225,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpLe_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     representable x1 ->
     representable x2 ->
     pure (eval η (EOpLe e1 e2)) (λ (b : bool), b <-> (x1 <= x2)) ⊥.
@@ -1236,8 +1236,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpLt η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1250,8 +1250,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpLt_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1262,8 +1262,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpGt η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1276,8 +1276,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpGt_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1288,8 +1288,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpGe η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1302,8 +1302,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpGe_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1314,8 +1314,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpEq η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1328,8 +1328,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpEq_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1340,8 +1340,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpNe η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1354,8 +1354,8 @@ Section eval_rules.
   Qed.
 
   Lemma pure_eval_EOpNe_bool η e1 e2 (x1 x2 : Z) :
-    pure (eval η e1) (λ x1', x1' = x1) ⊥ ->
-    pure (eval η e2) (λ x2', x2' = x2) ⊥ ->
+    pure (eval η e1) (singleton x1) ⊥ ->
+    pure (eval η e2) (singleton x2) ⊥ ->
     (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
     representable x1 ->
     representable x2 ->
@@ -1368,7 +1368,7 @@ Section eval_rules.
   (* Runtime assertions. *)
 
   Lemma pure_eval_assert_bool η e :
-    pure (eval η e) (λ b, b = true) ⊥ →
+    pure (eval η e) (singleton true) ⊥ →
     pure (eval η (EAssert e)) (λ (_ : unit), True) ⊥.
   Proof.
     intros He.

@@ -1,13 +1,12 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import code eval.
-
 From osiris.program_logic.pure Require Import wp.
 
-(** Notational typeclasses for pure hoare triples. *)
+(** This file defines the judgements for pure computations. *)
 
-(* Value predicates, which are predicates over carrier type [A], which are *)
-(*    encodable types. *)
+(* Value predicates, which are predicates over carrier type [A], which are
+    encodable types. *)
 Definition returns {A} `{Encode A} (φ : A -> Prop):=
   λ v, ∃ a, v = #a ∧ φ a.
 
@@ -40,21 +39,20 @@ Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
-(* FIXME: [catches] => [raises] *)
-Notation "η ⊢ '{' e 'ensures' Φ 'catches' ψ '}'" :=
+Notation "η ⊢ '{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'catches'  ψ  '}' ']'").
+     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ '}' " :=
   (total e Φ)
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
-Notation "'{' e 'ensures' Φ 'catches' ψ '}'" :=
+Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure e Φ ψ)
    (at level 80, e, Φ at level 100,
-     format "'[hv' '{'  e  '/' 'ensures'  Φ  'catches'  ψ  '}' ']'").
+     format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Opaque TotalJudgement_val.
 Opaque TotalJudgement_poly.

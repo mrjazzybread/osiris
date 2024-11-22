@@ -2,6 +2,9 @@ From osiris Require Import base lang.
 From stdpp Require Import relations.
 From osiris.semantics Require Import code step eval simplification pure.
 
+(** This file defines the [pure_wp] predicate and its properties, which is used
+  to state judgements about pure computations. *)
+
 (* -------------------------------------------------------------------------- *)
 (** The [pure_wp] predicate *)
 
@@ -21,16 +24,36 @@ Inductive pure_wp {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :
 Global Hint Constructors pure_wp : pure.
 
 (* -------------------------------------------------------------------------- *)
+(** Specifications *)
+
+(* Predicate type *)
+Notation pred A := (A -> Prop).
+
+(* [singleton x] is equivalent to a singleton set containing the element [x]. *)
+Definition singleton {A} (a : A) : pred A := λ x, x = a.
+
+Lemma singleton_eq {A} (a : A) :
+  singleton a a.
+Proof. reflexivity. Qed.
+
+Global Hint Resolve singleton_eq : core.
+
 (* Bottom instance for predicates, so we can write [⊥] for [λ _, False],
 typically for disallowing exceptions *)
 
-Global Instance Pred_bottom {A} : Bottom (A → Prop) := λ _, False.
+Global Instance Pred_bottom {A} : Bottom (pred A) := λ _, False.
+
+(* -------------------------------------------------------------------------- *)
+
+(** *Basic properties about [pure_wp]. *)
+
 
 Section pure_wp_rules.
 
-  (* TODO Comment *)
-  Lemma pure_wp_ret_eq {A E} (a : A) ψ :
-    pure_wp (E := E) (ret a) (λ a', a' = a) ψ.
+  (* Returning a single element satisfies the [singleton] predicate that
+     contains the same element. *)
+  Lemma pure_wp_ret_singleton {A E} (a : A) ψ :
+    pure_wp (E := E) (ret a) (singleton a) ψ.
   Proof.
     intros; eapply pure_wp_ret; eauto.
   Qed.
@@ -109,7 +132,6 @@ Section pure_wp_rules.
   Proof.
     intros (M, MF) P. constructor. eauto. firstorder congruence.
   Qed.
-
 
   (** Inversion lemmas on [pure_wp] *)
 
@@ -941,7 +963,6 @@ Section pure_wp_rules.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
   Qed.
-
 
   (** Intersection rule *)
 

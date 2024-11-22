@@ -39,30 +39,6 @@ Ltac set_pure_postcondition φ :=
       cut (@pure A E m φ ψ); [ intro H; exact H | ]
   end.
 
-(* TODO MOVE *)
-Local Lemma pure_wp_evals_eq `{Encode A} η es vs ψ :
-  Forall2 (λ e v, pure (eval η e) (λ x : A, # x = v) ψ) es vs →
-  pure_wp (evals η es) (λ x, x = vs) ψ.
-Proof.
-  revert vs.
-  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
-  - constructor; inv Hes; auto.
-  - apply Forall2_cons_inv_l in Hes. simpl.
-    destruct Hes as (v & vs & He & Hes & ->).
-    eapply pure_wp_Par_conseq.
-    + apply He.
-    + apply IHes, Hes.
-    + intros _ _ (?&->&->) ->. repeat constructor; eauto.
-    + intros exn []; repeat constructor; eauto.
-Qed.
-
-Lemma pure_evals_eq `{Encode A} η es vs ψ :
-  Forall2 (λ e v, pure (eval η e) (λ x : A, # x = v) ψ) es vs →
-  pure (evals η es) (λ x, x = vs) ψ.
-Proof.
-  apply pure_wp_evals_eq.
-Qed.
-
 Lemma example :
   eval_module stdlib_with_notfound __main (λ η, True).
 Proof.
@@ -106,9 +82,10 @@ Proof.
       (* TODO: fix [pure_data] *)
       simpl_evals. fold eval. eapply pure_wp_Par_conseq.
       + eapply pure_eval_app. pure_path. pure_path.
-      + eapply pure_wp_ret_eq.
+      + eapply pure_wp_ret_singleton.
       + intros; returns_eauto. cbn in *.
         eapply pure_wp_ret; subst. destruct Ha_ensures; subst.
+        red in H1; subst.
         eexists [v]; tauto.
       + intros ? [ (-> & ->)| ]; cbn.
         * eapply pure_wp_throw; eauto.
