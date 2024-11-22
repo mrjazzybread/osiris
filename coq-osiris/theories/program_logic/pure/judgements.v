@@ -19,17 +19,13 @@ Definition returns {A} `{Encode A} (φ : A -> Prop):=
 (* [total m φ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ]. It is total in the sense that
     the computation may not raise any exceptions. *)
-Class TotalJudgement {A} {EncA : Encode A} {A'} :=
+Class TotalJudgement {A A'} :=
   total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
 
 (* TODO Comment *)
-#[global] Instance TotalJudgement_val {A} {EncA : Encode A} :
-  @TotalJudgement A EncA val | 10 :=
+#[global] Instance TotalJudgement_val `{Encode A}:
+  @TotalJudgement A val :=
   fun _ a Φ => pure_wp a (returns Φ) ⊥.
-
-#[global] Instance TotalJudgement_poly {A} {EncA : Encode A} :
-  @TotalJudgement A EncA A | 100 :=
-  fun _ a Φ => pure_wp a Φ ⊥.
 
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
@@ -37,17 +33,13 @@ Class TotalJudgement {A} {EncA : Encode A} {A'} :=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-Class PureJudgement {A} {EncA : Encode A} {A'} :=
+Class PureJudgement {A A'} :=
   pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
 
 (* TODO Comment *)
 #[global] Instance PureJudgement_val {A} {EncA : Encode A} :
-  @PureJudgement A EncA val | 10 :=
+  @PureJudgement A val :=
   fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
-
-#[global] Instance PureJudgement_poly {A} {EncA : Encode A} :
-  @PureJudgement A EncA A | 100 :=
-  fun _ a Φ Ψ => pure_wp a Φ Ψ.
 
 (* -------------------------------------------------------------------------- *)
 (* Notations *)
@@ -73,9 +65,9 @@ Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Opaque TotalJudgement_val.
-Opaque TotalJudgement_poly.
+(* Opaque TotalJudgement_poly. *)
 Opaque PureJudgement_val.
-Opaque PureJudgement_poly.
+(* Opaque PureJudgement_poly. *)
 Opaque pure.
 Opaque total.
 

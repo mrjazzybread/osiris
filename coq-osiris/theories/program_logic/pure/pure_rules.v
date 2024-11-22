@@ -99,7 +99,7 @@ Section pure_rules.
     intros; eapply pure_strong_mono ; eauto.
   Qed.
 
-  Lemma pure_simp {φ ψ} (m m' : micro A E) :
+  Lemma pure_simp φ ψ m m' :
     simp m m' → pure m' φ ψ → pure m φ ψ.
   Proof.
     by eapply pure_wp_simp.
@@ -407,6 +407,17 @@ Section pure_eff.
     unfold call in Hcall.
     destruct f; simpl in Hcall;
       ((exfalso; by eapply invert_pure_wp_crash) || eauto).
+  Qed.
+
+  (** Compatibility with [widen] *)
+
+  Lemma pure_widen `{Encode A} {E} (m : micro val void) φ ψ :
+    pure m φ ⊥ → @pure A val _ E (widen m) φ ψ.
+  Proof.
+    unfold widen.
+    intros P. eapply pure_try2. eapply P.
+    - intros. cbn. eapply pure_ret; done.
+    - by intros.
   Qed.
 
 End pure_eff.
