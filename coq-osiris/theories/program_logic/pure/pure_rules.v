@@ -57,7 +57,6 @@ Section pure_rules.
     intros; eapply pure_ret; eauto.
   Qed.
 
-
   Lemma pure_returns (a : val) (k : val -> micro val E) φ ψ:
     pure (k a) φ ψ ->
     returns (λ v : val, pure (k v) φ ψ) a.
@@ -327,29 +326,30 @@ Section pure_rules.
 
 End pure_rules.
 
-Section pure_rules_variant.
+(* TODO *)
+(* Section pure_rules_variant. *)
 
-  (* When a [val] is returned, there is no need for [encode]. FIXME *)
-  Lemma pure_ret_val `{Encode A} {E} (a : val) (ϕ : A -> Prop) ψ :
-    returns ϕ a ->
-    pure (E := E) (ret a) ϕ ψ.
-  Proof.
-    intros. returns_eauto. by eapply pure_ret.
-  Qed.
+(*   (* When a [val] is returned, there is no need for [encode]. FIXME *) *)
+(*   Lemma pure_ret_val `{Encode A} {E} (a : val) (ϕ : A -> Prop) ψ : *)
+(*     returns ϕ a -> *)
+(*     pure (E := E) (ret a) ϕ ψ. *)
+(*   Proof. *)
+(*     intros. returns_eauto. by eapply pure_ret. *)
+(*   Qed. *)
 
-  Lemma pure_ret_eq_val {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a', a' = a) ψ.
-  Proof.
-    intros; eapply pure_ret; eauto.
-  Qed.
+(*   Lemma pure_ret_eq_val {E} {A} `{EncA: Encode A} (a : A) ψ : *)
+(*     pure (E := E) (ret #a) (λ a', a' = a) ψ. *)
+(*   Proof. *)
+(*     intros; eapply pure_ret; eauto. *)
+(*   Qed. *)
 
-  Lemma pure_ret_eq_val' {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a' : val, a' = # a) ψ.
-  Proof.
-    intros; eapply pure_ret; eauto.
-  Qed.
+(*   Lemma pure_ret_eq_val' {E} {A} `{EncA: Encode A} (a : A) ψ : *)
+(*     pure (E := E) (ret #a) (λ a' : val, a' = # a) ψ. *)
+(*   Proof. *)
+(*     intros; eapply pure_ret; eauto. *)
+(*   Qed. *)
 
-End pure_rules_variant.
+(* End pure_rules_variant. *)
 
 
 (* Rules about [pure] related to effectful computations, i.e. computations

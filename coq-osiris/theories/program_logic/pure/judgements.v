@@ -8,15 +8,27 @@ From osiris.program_logic.pure Require Import wp.
 (* TODO: Comment -- Explain encode *)
 
 (* -------------------------------------------------------------------------- *)
-(* Value predicates, which are predicates over carrier type [A], which are
-    encodable types. *)
-Definition returns {A} `{Encode A} (φ : A -> Prop):=
-  λ v, ∃ a, v = #a ∧ φ a.
 
 (* TODO Comment *)
-Definition returns_list {A} `{Encode A} (φ : list A -> Prop) :=
-  λ (v : list val),
-    ∃ a, v = map encode.encode a ∧ φ a.
+Class Encode_eval A V : Type :=
+  { encode_eval : A -> V }.
+
+Global Instance encode_eval_id :
+  @Encode_eval val val | 10000 :=
+  {| encode_eval := id |}.
+
+Global Instance encode_eval_encode {A} `{Encode A}:
+  @Encode_eval A val :=
+  {| encode_eval := encode |}.
+
+Global Instance encode_eval_list {A} `{Encode A}:
+  @Encode_eval (list A) (list val) :=
+  {| encode_eval := (map encode.encode) |}.
+
+(* Value predicates, which are predicates over carrier type [A], which are
+    encodable types. *)
+Definition returns {A V} `{Encode_eval A V} (φ : A -> Prop):=
+  λ v, ∃ a, v = encode_eval a ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
 (** The [total] judgement *)
@@ -28,15 +40,9 @@ Class TotalJudgement {A A'} :=
   total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
 
 (* TODO Comment *)
-#[global] Instance TotalJudgement_val `{Encode A}:
-  @TotalJudgement A val :=
+#[global] Instance TotalJudgement_val `{Encode_eval A A'}:
+  @TotalJudgement A A' :=
   fun _ a Φ => pure_wp a (returns Φ) ⊥.
-
-(* Useful for lifting [total (evals η e) φ]. TODO: Explain *)
-
-#[global] Instance TotalJudgement_list `{Encode A}:
-  @TotalJudgement (list A) (list val) :=
-  fun _ a Φ => pure_wp a (returns_list Φ) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
@@ -48,13 +54,9 @@ Class PureJudgement {A A'} :=
   pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
 
 (* TODO Comment *)
-#[global] Instance PureJudgement_val {A} {EncA : Encode A} :
-  @PureJudgement A val :=
+#[global] Instance PureJudgement_val `{Encode_eval A A'} :
+  @PureJudgement A A' :=
   fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
-
-#[global] Instance PureJudgement_list `{Encode A}:
-  @PureJudgement (list A) (list val) :=
-  fun _ a Φ Ψ => pure_wp a (returns_list Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
 (* Notations *)

@@ -169,15 +169,18 @@ Qed.
 
 (* ETuple (es : list expr) *)
 
-Lemma total_eval_tuple_cons `{Encode A} η hd tl (φ : val -> Prop) v:
+Lemma total_eval_tuple_cons `{Encode A} η hd tl v
+  (φ : list A -> Prop) :
   total (A := A)
     (eval η hd)
-    (fun v' : A =>
-      total (evals η tl)
-        (fun x => v = # v' :: x /\ φ (VTuple (# v' :: x)))) ->
+      (fun v' : A =>
+        total (A := list A)
+          (evals η tl)
+            (fun x => v = v' :: x /\ φ (v' :: x))) ->
   total (eval η (ETuple (hd :: tl))) φ.
 Proof.
   intros. simpl_eval.
+  eapply pure_Par.
   eapply pure_wpv_Par_left_conseq; first done. intros ? (? & -> & ?).
   eapply pure_mono; try done.
   intros * (->&?). apply pure_ret.
