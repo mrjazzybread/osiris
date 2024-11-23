@@ -84,48 +84,69 @@ Qed.
 
 (* EApp (e1 e2 : expr) *)
 
-(* This sequentialized lemma create only one [pure] goal but assumes [e1] cannot
-   throw exceptions. *)
-Lemma pure_eval_app {A A1}
-  {EncA: Encode A} {EncA1:Encode A1}
-  η e1 e2 (ψ : A → Prop) ζ :
-  pure (eval η e1)
-    (λ f : A,
-        pure (eval η e2)
-          (λ arg : A1,
-              pure (call #f #arg) ψ ζ) ⊥) ⊥ →
-  pure (eval η (EApp e1 e2)) ψ ζ.
-Proof.
-  intros He1. simpl_eval. eapply pure_par_seq.
-  eapply pure_mono; first eapply He1; by cbn; intros.
-Qed.
-
-Lemma pure_eval_app_conseq {A B}
-  {EncA: Encode A} {EncB: Encode B} `{Encode C} η e1 e2
-  (φ1 : A → Prop) (φ2 : B → Prop) (ψ : C → Prop) ζ
-:
+Lemma pure_eval_app `{Encode A, Encode B, Encode C}
+  η e1 e2
+  (φ1 : A → Prop) (φ2 : B → Prop) (ψ : C → Prop)
+  ζ :
   pure (eval η e1) φ1 ζ →
   pure (eval η e2) φ2 ζ →
   (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call #v1 #v2) ψ ζ) →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros He1 He2 Hp. simpl_eval.
-  eapply pure_Par.
-  - eapply pure_mono; first eapply He1;
-      last apply pure_throw.
-    intros ? ?.
-    eapply pure_mono; first eapply He2;
-      last apply pure_throw.
-    intros ? ?. cbn; eauto.
-  - eapply pure_mono; first eapply He2;
-      last apply pure_throw.
-    intros ? ?.
-    eapply pure_mono; first eapply He1;
-      last apply pure_throw.
-    intros ? ?. cbn; eauto.
+  eapply pure_Par;
+    (do 2 (eapply pure_mono;
+           [ done | | apply pure_throw];
+           intros ??);
+     cbn; eauto ).
 Qed.
 
-Lemma pure_eval_app2 `{Encode A, Encode B, Encode C}
+(* Simple version : the expressions must evaluate to a singleton
+   value. This lemma is useful for practical instances where
+   the value postcondition is an evar for the [e1, e2] expressions. *)
+
+Lemma pure_eval_app_simple `{Encode A, Encode B}
+  η e1 e2
+  (f : A) (arg : B) (ψ : A → Prop)
+  ζ :
+  pure (eval η e1) (singleton f) ζ →
+  pure (eval η e2) (singleton arg) ζ →
+  pure (call #f #arg) ψ ζ →
+  pure (eval η (EApp e1 e2)) ψ ζ.
+Proof.
+  intros; eapply pure_eval_app; eauto; by intros ??->->.
+Qed.
+
+Lemma pure_eval_app_seq {A A1}
+  {EncA: Encode A} {EncA1:Encode A1}
+  η e1 e2
+  (ψ : A → Prop)
+  ζ :
+  total (eval η e1) (λ f : A,
+    total (eval η e2) (λ arg : A1,
+      pure (call #f #arg) ψ ζ)) →
+  pure (eval η (EApp e1 e2)) ψ ζ.
+Proof.
+  intros He1. simpl_eval. eapply pure_par_seq.
+  eapply pure_mono; first eapply He1; by cbn; intros.
+Qed.
+
+Lemma pure_eval_app2 `{Encode A, Encode B, Encode C, Encode D}
+  η e1 e2 e3
+  (φ1 : A → Prop) (φ2 : B → Prop) (φ3 : B → Prop) (ψ : C → Prop)
+  ζ :
+  pure (eval η e1) φ1 ζ ->
+  pure (eval η e2) φ2 ζ ->
+  pure (eval η e3) φ3 ζ ->
+  (∀ v1 v2 v3,
+    φ1 v1 → φ2 v2 → φ3 v3 ->
+      pure_call2 #v1 #v2 #v3 ψ ζ) ->
+  pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
+Proof.
+  intros He1 He2 He3 Hp.
+Abort. (* TODO : Come back after generalizing [call_rules]. *)
+
+Lemma pure_eval_app2_simple `{Encode A, Encode B, Encode C}
   η e1 e2 e3 vf
   (arg1 : A) (arg2 : B) (ψ : C → Prop)
   ζ :
@@ -136,30 +157,10 @@ Lemma pure_eval_app2 `{Encode A, Encode B, Encode C}
   pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
 Proof.
   intros He1 He2 He3 Hcall.
-  eapply pure_eval_app_conseq; eauto.
-  - eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app ; eauto.
+  - eapply pure_eval_app ; eauto.
     by intros * -> ->.
   - by intros * ? ->.
-Qed.
-
-(* TODO BOOKMARK *)
-
-Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C}
-  η e1 e2 e3 vf
-  (arg1 : A) (arg2 : B) (φ ψ : C → Prop) ζ
-  :
-  total (eval η e1) (singleton vf) ->
-  total (eval η e2) (singleton arg1) ->
-  total (eval η e3) (singleton arg2) ->
-  pure_call2 vf #arg1 #arg2 φ ζ ->
-  (∀ a, φ a → ψ a) →
-  pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
-Proof.
-  intros.
-  eapply pure_eval_app2; eauto.
-  eapply pure_mono; first eassumption; last auto.
-  simpl; intros.
-  eapply pure_mono; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
