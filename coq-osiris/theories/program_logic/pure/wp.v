@@ -27,7 +27,7 @@ Global Hint Constructors pure_wp : pure.
 (** Specifications *)
 
 (* Predicate type *)
-Notation pred A := (A -> Prop).
+Definition pred A := (A -> Prop).
 
 (* [singleton x] is equivalent to a singleton set containing the element [x]. *)
 Definition singleton {A} (a : A) : pred A := λ x, x = a.

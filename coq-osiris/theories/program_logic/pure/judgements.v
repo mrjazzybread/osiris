@@ -13,6 +13,11 @@ From osiris.program_logic.pure Require Import wp.
 Definition returns {A} `{Encode A} (φ : A -> Prop):=
   λ v, ∃ a, v = #a ∧ φ a.
 
+(* TODO Comment *)
+Definition returns_list {A} `{Encode A} (φ : list A -> Prop) :=
+  λ (v : list val),
+    ∃ a, v = map encode.encode a ∧ φ a.
+
 (* -------------------------------------------------------------------------- *)
 (** The [total] judgement *)
 
@@ -27,6 +32,12 @@ Class TotalJudgement {A A'} :=
   @TotalJudgement A val :=
   fun _ a Φ => pure_wp a (returns Φ) ⊥.
 
+(* Useful for lifting [total (evals η e) φ]. TODO: Explain *)
+
+#[global] Instance TotalJudgement_list `{Encode A}:
+  @TotalJudgement (list A) (list val) :=
+  fun _ a Φ => pure_wp a (returns_list Φ) ⊥.
+
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
 
@@ -40,6 +51,10 @@ Class PureJudgement {A A'} :=
 #[global] Instance PureJudgement_val {A} {EncA : Encode A} :
   @PureJudgement A val :=
   fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
+
+#[global] Instance PureJudgement_list `{Encode A}:
+  @PureJudgement (list A) (list val) :=
+  fun _ a Φ Ψ => pure_wp a (returns_list Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
 (* Notations *)
