@@ -125,31 +125,24 @@ Proof.
     intros ? ?. cbn; eauto.
 Qed.
 
-(* TODO BOOKMARK *)
-
 Lemma pure_eval_app2 `{Encode A, Encode B, Encode C}
   η e1 e2 e3 vf
-  (arg1 : A) (arg2 : B) (ψ : C → Prop) ζ
-  :
-  total (eval η e1) (singleton vf) ->
-  total (eval η e2) (singleton arg1) ->
-  total (eval η e3) (singleton arg2) ->
+  (arg1 : A) (arg2 : B) (ψ : C → Prop)
+  ζ :
+  pure (eval η e1) (singleton vf) ζ ->
+  pure (eval η e2) (singleton arg1) ζ ->
+  pure (eval η e3) (singleton arg2) ζ ->
   pure_call2 vf #arg1 #arg2 ψ ζ ->
   pure (eval η (EApp (EApp e1 e2) e3)) ψ ζ.
 Proof.
   intros He1 He2 He3 Hcall.
-  eapply pure_simp; [ simp | eauto ].
-  apply pure_Par_val_right.
-  apply (pure_mono_ret _ He3). intros ? (? & -> & ->).
-  apply pure_Par_vals_left.
-  apply (pure_mono_ret _ He1). intros ? (? & -> & <-).
-  apply (pure_mono_ret _ He2). intros ? (? & -> & ->).
-  unfold continue. simpl.
-  apply (pure_mono _ Hcall). auto.
-  intros ? (?&?&?); unfold discontinue; subst; simpl.
-  eapply pure_mono; first apply H3; eauto.
-  intros; cbn; auto using pure_throw.
+  eapply pure_eval_app_conseq; eauto.
+  - eapply pure_eval_app_conseq; eauto.
+    by intros * -> ->.
+  - by intros * ? ->.
 Qed.
+
+(* TODO BOOKMARK *)
 
 Lemma pure_eval_app2_conseq `{Encode A, Encode B, Encode C}
   η e1 e2 e3 vf
@@ -208,7 +201,8 @@ Lemma total_eval_pair `{Encode A1, Encode A2}
   total (eval η (EPair e1 e2)) ψ.
 Proof. solve_eval_tuple. Qed.
 
-Lemma total_eval_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 * A2 * A3 -> Prop) :
+Lemma total_eval_triple `{Encode A1, Encode A2, Encode A3}
+  η e1 e2 e3 (ψ : A1 * A2 * A3 -> Prop) :
   total (eval η e1) (λ a1 : A1,
       total (eval η e2) (λ a2 : A2,
           total (eval η e3) (λ a3 : A3,
@@ -216,7 +210,8 @@ Lemma total_eval_triple `{Encode A1, Encode A2, Encode A3} η e1 e2 e3 (ψ : A1 
   total (eval η (ETuple [e1; e2; e3])) ψ.
 Proof. solve_eval_tuple. Qed.
 
-Lemma total_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4} (η : env) (e1 e2 e3 e4 : expr)
+Lemma total_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4}
+  (η : env) (e1 e2 e3 e4 : expr)
   (ψ : A1 * A2 * A3 * A4 → Prop) :
   total (eval η e1) (λ a1 : A1,
       total (eval η e2) (λ a2 : A2,
