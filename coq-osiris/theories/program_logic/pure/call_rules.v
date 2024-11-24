@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import
-  wp judgements total_rules pattern_rules.
+  judgements pure_rules pattern_rules.
 
 (* This file defines contains reasoning rules about function calls. *)
 
@@ -101,7 +101,6 @@ Lemma pure_rec_call `{Encode X, Encode Y} (WF_x : WellFounded X)
 Proof.
   intros HPx Hrec.
   induction x as [x IH] using (well_founded_induction wf_def); intros.
-  do 2 red.
   simpl. rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_ret_right.

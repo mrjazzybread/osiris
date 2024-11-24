@@ -3,7 +3,6 @@
 From osiris.program_logic.pure Require Export
      judgements
      pure_rules
-     total_rules
      call_rules
      expr_rules
      pattern_rules

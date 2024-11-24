@@ -11,13 +11,17 @@ From osiris.program_logic.pure Require Import wp.
 
 (* Given an encodable value of type [A], it can be observed as a particular
    value [V]. *)
-Class Observe A {EncA: Encode A} V : Type :=
+Class Observe A (EncA: Encode A) V : Type :=
   { observe : A -> V }.
+
+Arguments Observe A {EncA} V.
+Arguments observe {_ _ _ _}.
 
 Global Instance observe_encode {A} `{Encode A}:
   Observe A val :=
   {| observe := encode |}.
 
+(* Useful for [pure (evals η _) φ ψ]. *)
 Global Instance observe_list {A} `{Encode A}:
   Observe (list A) (list val) | 100 :=
   {| observe := (map encode.encode) |}.
@@ -28,10 +32,41 @@ Global Instance observe_list {A} `{Encode A}:
 
 Notation "♯ x" := (observe x) (at level 5).
 
+(* -------------------------------------------------------------------------- *)
+
+(* TODO Comment *)
+
+Lemma solve_observe_nil A (Enc:Encode A) :
+  forall (xs : list A),
+    [] = xs →
+    nil = ♯xs.
+Proof. intros; subst; cbn; eauto. Qed.
+
+Lemma solve_observe_cons {A} {Enc: Encode A} :
+  forall (v : val) (a : A) tl vtl (x : list A),
+    a :: tl = x ->
+    v = # a ->
+    vtl = ♯ tl ->
+    v :: vtl = ♯ x.
+Proof.
+  induction tl; intros; subst; eauto.
+Qed.
+
+Lemma encode_encode `{Encode A} :
+  ∀ (a : A), # a = # a.
+Proof. tauto. Qed.
+
+Global Hint Extern 0 (_ :: _ = ♯ _) =>
+  simple eapply solve_observe_cons : encode.
+Global Hint Extern 100 ([] = ♯ _) =>
+  simple eapply solve_observe_nil: encode.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Value predicates, which are predicates over carrier type [A], which are
     encodable types. *)
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
-  λ v, ∃ a, v = observe a ∧ φ a.
+  λ (v : V), ∃ a, v = observe a ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
@@ -39,13 +74,13 @@ Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-Class PureJudgement {A V} :=
-  pure : forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop.
+(* Class PureJudgement {A V} := *)
+(*   pure : forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop. *)
 
 (* TODO Comment *)
-#[global] Instance PureJudgement_val `{Observe A V} :
-  @PureJudgement A V :=
-  fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
+Definition pure `{Observe A V} :
+  forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop :=
+    fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
 (* Notations *)
@@ -69,9 +104,6 @@ Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
   (pure (eval η e) Φ ⊥)
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
-
-Opaque PureJudgement_val.
-Opaque pure.
 
 (* -------------------------------------------------------------------------- *)
 
