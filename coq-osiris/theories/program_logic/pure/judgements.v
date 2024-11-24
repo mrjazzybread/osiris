@@ -9,40 +9,29 @@ From osiris.program_logic.pure Require Import wp.
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO Comment *)
-Class Encode_eval A V : Type :=
-  { encode_eval : A -> V }.
+(* Given an encodable value of type [A], it can be observed as a particular
+   value [V]. *)
+Class Observe A {EncA: Encode A} V : Type :=
+  { observe : A -> V }.
 
-Global Instance encode_eval_id {A} :
-  @Encode_eval A A | 10000 :=
-  {| encode_eval := id |}.
+Global Instance observe_encode {A} `{Encode A}:
+  Observe A val :=
+  {| observe := encode |}.
 
-Global Instance encode_eval_encode {A} `{Encode A}:
-  @Encode_eval A val :=
-  {| encode_eval := encode |}.
+Global Instance observe_list {A} `{Encode A}:
+  Observe (list A) (list val) | 100 :=
+  {| observe := (map encode.encode) |}.
 
-Global Instance encode_eval_list {A} `{Encode A}:
-  @Encode_eval (list A) (list val) | 100 :=
-  {| encode_eval := (map encode.encode) |}.
+(* NOTE : Do not declare an instance of [Observe val val], as it will
+   instantiate evars eagerly to this instance when it is not desired.
+   (Even if its weight is very high.) *)
+
+Notation "♯ x" := (observe x) (at level 5).
 
 (* Value predicates, which are predicates over carrier type [A], which are
     encodable types. *)
-Definition returns {A V} `{Encode_eval A V} (φ : A -> Prop):=
-  λ v, ∃ a, v = encode_eval a ∧ φ a.
-
-(* -------------------------------------------------------------------------- *)
-(** The [total] judgement *)
-
-(* [total m φ] states that [m] is a pure computation that will reduce to a
-    value satisfying the predicate [φ]. It is total in the sense that
-    the computation may not raise any exceptions. *)
-Class TotalJudgement {A A'} :=
-  total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
-
-(* TODO Comment *)
-#[global] Instance TotalJudgement_val `{Encode_eval A A'}:
-  @TotalJudgement A A' :=
-  fun _ a Φ => pure_wp a (returns Φ) ⊥.
+Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
+  λ v, ∃ a, v = observe a ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
@@ -50,43 +39,39 @@ Class TotalJudgement {A A'} :=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-Class PureJudgement {A A'} :=
-  pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
+Class PureJudgement {A V} :=
+  pure : forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop.
 
 (* TODO Comment *)
-#[global] Instance PureJudgement_val `{Encode_eval A A'} :
-  @PureJudgement A A' :=
+#[global] Instance PureJudgement_val `{Observe A V} :
+  @PureJudgement A V :=
   fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
 (* Notations *)
-
-Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
-  (total (eval η e) Φ)
-   (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 Notation "η ⊢ '{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
-Notation "'{' e 'ensures' Φ '}' " :=
-  (total e Φ)
-   (at level 80, e, Φ at level 100,
-     format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
-
 Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure e Φ ψ)
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
-Opaque TotalJudgement_val.
-(* Opaque TotalJudgement_poly. *)
+Notation "'{' e 'ensures' Φ '}'" :=
+  (pure e Φ ⊥)
+   (at level 80, e, Φ at level 100,
+     format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
+
+Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
+  (pure (eval η e) Φ ⊥)
+   (at level 80, e, Φ at level 100,
+     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
+
 Opaque PureJudgement_val.
-(* Opaque PureJudgement_poly. *)
 Opaque pure.
-Opaque total.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -102,8 +87,6 @@ Ltac returns_eauto :=
 
 #[export]
   Hint Extern 1 (pure_wp _ (returns _) _) => returns_eauto; by firstorder : pure.
-#[export]
-  Hint Extern 1 (total _ _) => returns_eauto; by firstorder : pure.
 #[export]
   Hint Extern 1 (pure _ _ _) => returns_eauto; by firstorder : pure.
 #[export]
