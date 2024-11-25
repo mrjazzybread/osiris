@@ -1,9 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-
-Definition not_pure (s : string) : Prop := False.
-
 From osiris.program_logic.pure Require Import
   judgements pure_rules pattern_rules call_rules.
 
@@ -1225,6 +1222,10 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+
+(* TODO: For impure expressions that fell under the hood, we should provide
+   some "trivial" lemmas that warn the users that something has gone wrong. *)
+(* Definition not_pure (s : string) : Prop := False. *)
 
 (* Reference allocation: [ref e]. *)
 (* TODO ERef (e: expr) *)
