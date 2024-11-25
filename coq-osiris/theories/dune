@@ -6,6 +6,5 @@
     stdpp
     iris
     Ltac2
-    Equations
   )
 )
