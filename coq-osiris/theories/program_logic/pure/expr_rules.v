@@ -91,9 +91,6 @@ Qed.
 
 (** Evaluating tuples, or several expressions in parallel *)
 
-(* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
-  analogous to [pats]. *)
-
 Lemma pure_evals_cons `{Encode A}
   η (hd : expr) tl (φ : list val -> Prop) ψ:
   pure (A := A) (eval η hd)
@@ -110,6 +107,14 @@ Proof.
   cbn in H2; eapply pure_ret; eauto.
   cbn; f_equiv.
   intros; cbn. by apply pure_throw.
+Qed.
+
+Lemma pure_evals_nil η (φ : list val -> Prop) ψ:
+  φ [] ->
+  pure (evals η nil) φ ψ.
+Proof.
+  intros. simpl_evals.
+  eapply pure_ret; encode.
 Qed.
 
 Local Lemma pure_evals `{Encode A} η es φs ψ :
