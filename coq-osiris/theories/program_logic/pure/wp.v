@@ -732,7 +732,8 @@ Section pure_wp_rules.
     by intros ? ?%invert_pure_wp_throw.
   Qed.
 
-  Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ} a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ}
+    a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par (ret a1) m2 k) φ ψ →
     pure_wp m2
       (λ a2, pure_wp (continue k (a1, a2)) φ ψ)
@@ -747,7 +748,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_left {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_left {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 m2 k) φ ψ →
     pure_wp m1
       (λ a1,
@@ -766,7 +768,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_ret_right {A E A1 A2 E' φ ψ} m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_ret_right {A E A1 A2 E' φ ψ}
+    m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 (ret a2) k) φ ψ →
     pure_wp m1
       (λ a1, pure_wp (continue k (a1, a2)) φ ψ)
@@ -781,7 +784,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_right {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_right {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 m2 k) φ ψ →
     pure_wp m2
       (λ a2,
@@ -798,6 +802,28 @@ Section pure_wp_rules.
       firstorder. subst. constructor. by eapply invert_pure_wp_Par_ret_right.
     - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
     - constructor; eauto with may.
+  Qed.
+
+  Corollary invert_pure_wp_Par {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+    pure_wp (Par m1 m2 k) φ ψ →
+    pure_wp m1
+      (λ a1,
+        pure_wp m2
+          (λ a2, pure_wp (continue k (a1, a2)) φ ψ)
+          (λ e, pure_wp (discontinue k e) φ ψ))
+      (λ e, pure_wp (discontinue k e) φ ψ) /\
+    pure_wp m2
+      (λ a2,
+        pure_wp m1
+          (λ a1, pure_wp (continue k (a1, a2)) φ ψ)
+          (λ e, pure_wp (discontinue k e) φ ψ))
+      (λ e, pure_wp (discontinue k e) φ ψ).
+  Proof.
+    intros H.
+    pose proof (invert_pure_wp_Par_left _ _ _ H).
+    pose proof (invert_pure_wp_Par_right _ _ _ H).
+    done.
   Qed.
 
   Lemma invert_pure_wp_handle {A E φ ψ} m (k : _ → micro A E) :
