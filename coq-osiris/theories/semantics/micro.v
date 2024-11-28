@@ -9,7 +9,8 @@ From osiris Require Export semantics.outcome.
 (* This monad explicitly supports crashes, exceptions, delimited control
    effects (that is, effect handlers), a form of parallelism, and a form
    of non-deterministic choice. It implicitly offers support for other
-   effects, such as divergence and global state, via "system calls". *)
+   effects, such as another form of non-deterministic choice, divergence,
+   and global state, via "system calls". *)
 
 (* ------------------------------------------------------------------------ *)
 
