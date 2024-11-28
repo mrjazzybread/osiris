@@ -71,18 +71,18 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
 
 Require Import Coq.Wellfounded.Inverse_Image.
 
-(* The depth of a tree. *)
+(* The size of a tree. *)
 
-Fixpoint tree_depth {A} (t : tree A) : nat :=
+Fixpoint tree_size {A} (t : tree A) : nat :=
   match t with
   | Leaf => 0
-  | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
+  | Node t1 _ t2 => 1 + (tree_size t1) + (tree_size t2)
   end.
 
-(* Well-founded relation on tree depth. *)
+(* Well-founded relation on tree size. *)
 
 Definition tlt {A} (t1 t2 : tree A) :=
-  (tree_depth t1 < tree_depth t2)%nat.
+  (tree_size t1 < tree_size t2)%nat.
 
 #[local] Program Instance tree_wf {A} : WellFounded (tree A) :=
   {| wf_relation := tlt |}.
@@ -687,7 +687,7 @@ Proof.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       eapply pure_mono.
       { eapply IH with (y := (t1, x, NodeL ctx a t2));
-          unfold tlt, tree_depth; auto with arith. }
+          unfold tlt, tree_size; auto with arith. }
       intros [oy t'] [??]; simpl in *.
       split; [ | assumption ].
       - apply bst_member_left; representable. }

@@ -17,14 +17,14 @@ Arguments Node {A} t1 x t2.
 
 (* Provide a well-founded ordering for wf induction on trees. *)
 
-Fixpoint tree_depth {A} (t : tree A) : nat :=
+Fixpoint tree_size {A} (t : tree A) : nat :=
   match t with
   | Leaf => 0
-  | Node t1 _ t2 => 1 + (tree_depth t1) + (tree_depth t2)
+  | Node t1 _ t2 => 1 + (tree_size t1) + (tree_size t2)
   end.
 
 Definition tlt {A} (t1 t2 : tree A) :=
-  (tree_depth t1 < tree_depth t2)%nat.
+  (tree_size t1 < tree_size t2)%nat.
 
 Lemma tlt_wf {A} :
   well_founded (@tlt A).
@@ -41,7 +41,7 @@ Proof.
   unfold proj_tlt. eapply wf_inverse_image. eapply tlt_wf.
 Qed.
 
-Local Hint Extern 1 (tree_depth _ < tree_depth _)%nat => (simpl; lia) : pure_specs.
+Local Hint Extern 1 (tree_size _ < tree_size _)%nat => (simpl; lia) : pure_specs.
 
 
 (* -------------------------------------------------------------------------- *)
