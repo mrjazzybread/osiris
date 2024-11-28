@@ -274,15 +274,33 @@ Section pure_rules.
     apply pure_wp_choose.
   Qed.
 
+  (* Inversion lemmas on [pure]. *)
+
+  Lemma invert_pure_ret `{Observe A V} {E}
+    (v : V) (φ : A → Prop) ψ :
+    pure (E := E) (ret v) φ ψ →
+    returns φ v.
+  Proof.
+    intros Hv; by apply invert_pure_wp_ret in Hv.
+  Qed.
+
+  Lemma invert_pure_throw `{Observe A V} {E}
+    (e : E) (φ : A → Prop) ψ :
+    pure (E := E) (throw e) φ ψ →
+    ψ e.
+  Proof.
+    intros Hv; by apply invert_pure_wp_throw in Hv.
+  Qed.
+
   (* This is the reciprocal bind rule for [pure_wp]. *)
 
-  (* Because [pure_wp m ##_ ⊥] requires the result of [m] to lie in the image of the *)
-(*     function [encode], and because this image cannot include every inhabitant *)
-(*     of the type [val], we cannot expect that [pure_wp (bind m k) ##φ ⊥] implies *)
-(*     [pure_wp m ##_ ⊥]. Thus, we can establish the reciprocal bind rule only under *)
-(*     the side condition [pure_wp m ##(λ a, True) ⊥], which means that the result of *)
-(*     the computation [m] lies in the image of the function [encode] at type *)
-(*     [A]. *)
+  (* Because [pure_wp m ##_ ⊥] requires the result of [m] to lie in the image of the
+    function [encode], and because this image cannot include every inhabitant
+    of the type [val], we cannot expect that [pure_wp (bind m k) ##φ ⊥] implies
+    [pure_wp m ##_ ⊥]. Thus, we can establish the reciprocal bind rule only under
+    the side condition [pure_wp m ##(λ a, True) ⊥], which means that the result of
+    the computation [m] lies in the image of the function [encode] at type
+    [A]. *)
 
   Lemma invert_pure_bind `{Observe A V} {E}
     m k (φ : A → Prop) ψ :
@@ -295,10 +313,10 @@ Section pure_rules.
     eapply (pure_wp_mono _ I); firstorder subst; eauto.
   Qed.
 
-  (* That said, if we take the type [A] to be [val], then -- because [encode] *)
-(*     at type [val] is the identity function -- this side condition becomes *)
-(*     trivial, and we can prove a version of the rule that does not have this *)
-(*     side condition. *)
+  (* That said, if we take the type [A] to be [val], then -- because [encode]
+    at type [val] is the identity function -- this side condition becomes
+    trivial, and we can prove a version of the rule that does not have this
+    side condition. *)
 
   Lemma invert_pure_bind_unary `{Observe A V} {E}
     m k (φ : A → Prop) ψ:
