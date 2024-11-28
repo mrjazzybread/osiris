@@ -1253,13 +1253,12 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       (* OCaml runtime assertions are erased when a module is compiled with
          the compiler flag [-noassert]; they are retained otherwise. We do not
          wish to depend on this flag, so we make a non-deterministic choice:
-         either the runtime test is executed, or it is skipped. This forces
+         either the runtime test is skipped, or it is executed. This forces
          the user to prove that the program is safe in both scenarios. *)
-      let test : microvx :=
+      choose ok (
         success ← as_bool (eval η e) ;
         if (success : bool) then ok else assertion_failure
-      in
-      choose ok test
+      )
   | ERef e =>
       v ← eval η e ;
       l ← stop CAlloc v ;
