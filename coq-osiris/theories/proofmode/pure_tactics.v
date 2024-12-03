@@ -3,7 +3,7 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
-Ltac pat_PTuple :=
+Local Ltac pat_PTuple :=
   first [
       eapply pat_PTuple; first solve [ encode ]
     | rewrite 1 ?encode_encode'; simpl -[eval];
@@ -12,12 +12,18 @@ Ltac pat_PTuple :=
 From Ltac2 Require Ltac2.
 Import Ltac2.
 
+(* -------------------------------------------------------------------------- *)
+
 (* This file contains tactics intended for use during hoare-style proofs of pure
    programs. These range from symbolic execution to tactics designed to aid
    the application of single lemmas. *)
 
-(* -------------------------------------------------------------------------- *)
+(* NOTE: The user-facing tactics are analogous to the user facing rules in
+   [program_logic/pure/expr_rules].
 
+   To avoid confusion, the [Local] tag controls the visibility of tactics. *)
+
+(* -------------------------------------------------------------------------- *)
 
 (* [specify_cpattern] takes a goal of the form [cpattern η cp o3 φ ψ]
    and turns it into [n] goals of the form [pattern η p v φ ψ],
@@ -69,48 +75,72 @@ Ltac2 rec specify_cpattern () : int :=
       end
   end.
 
-Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
+Local Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 tauto0 () := ltac1:(tauto).
+(* Custom tauto tactic. *)
+
+Local Ltac2 tauto0 () := ltac1:(tauto).
 Ltac2 Notation tauto := tauto0 ().
 
-(* Lemmas to help prune pattern no_match hypotheses. *)
+(* -------------------------------------------------------------------------- *)
 
-Lemma false_or_r P :
+(* Utility lemmas to help prune pattern no_match hypotheses. *)
+
+Local Lemma false_or_r P :
   P \/ False <-> P.
 Proof. tauto. Qed.
 
-Lemma false_or_l P :
+Local Lemma false_or_l P :
   False \/ P <-> P.
 Proof. tauto. Qed.
 
-Lemma true_or_r P :
+Local Lemma true_or_r P :
   P \/ True <-> True.
 Proof. tauto. Qed.
 
-Lemma true_or_l P :
+Local Lemma true_or_l P :
   True \/ P <-> True.
 Proof. tauto. Qed.
 
-Lemma false_and_r P :
+Local Lemma false_and_r P :
   P /\ False <-> False.
 Proof. tauto. Qed.
 
-Lemma false_and_l P :
+Local Lemma false_and_l P :
   False /\ P <-> False.
 Proof. tauto. Qed.
 
-Lemma true_and_r P :
+Local Lemma true_and_r P :
   P /\ True <-> P.
 Proof. tauto. Qed.
 
-Lemma true_and_l P :
+Local Lemma true_and_l P :
   True /\ P <-> P.
 Proof. tauto. Qed.
 
-Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
+
+(* In hypotheses [hyps], rewrite (left-to-right) using the equation defined in
+   [rw].
+
+    H1 : A
+    H2 : B > A
+    EQ : A = C
+    ---------
+    ...
+
+   [rewrite_in_hyps EQ [H1; H2]] will result in:
+
+    H1 : C
+    H2 : B > C
+    EQ : A = C
+    ---------
+    ...
+
+    LATER: Factor this out as a general utility lemma. *)
+
+Local Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   let hyp_clauses :=
     List.map (fun id => (id, Std.AllOccurrences, Std.InHyp)) hyps
   in
@@ -125,7 +155,10 @@ Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   in
   Std.rewrite false [rw] clause None.
 
-Ltac2 normalize_hyps (hyps : ident list) :=
+(* Normalize (i.e. remove extraneous ⊥ and ⊤ appearances, or reduce to ⊥ or ⊤
+   when possible) hypotheses in [hyps]. *)
+
+Local Ltac2 normalize_hyps (hyps : ident list) :=
   let lemma_list :=
     [ 'false_or_r;
       'false_or_l;
@@ -137,13 +170,20 @@ Ltac2 normalize_hyps (hyps : ident list) :=
       'true_and_l ]
   in
   let thunk_list :=
-    List.map (fun l => (fun () => rewrite_in_hyps l hyps)) lemma_list
+    List.map (fun l _ => rewrite_in_hyps l hyps) lemma_list
   in
   repeat (first0 thunk_list).
 
-Ltac2 normalize_hyp (h : ident) :=
+(* Normalize hypothesis [h]. *)
+
+Local Ltac2 normalize_hyp (h : ident) :=
   normalize_hyps [h].
 
+(* [pattern_hook] is an extensible lemma that the users will add their custom
+   patterns to.
+
+   This is useful when a user defines their custom ADT with certain destruct
+   patterns. (Used in [pure_match].) *)
 Ltac pattern_hook := fail.
 
 (* [pattern_match] expects a goal in the form of a [pattern] or [patterns] judgement.
@@ -169,12 +209,14 @@ Ltac2 rec solve_lookup_name () :=
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
   end.
 
-Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
+(* LATER: Move? *)
+
+Local Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
   m = ret a ->
   bind m f = f a.
 Proof. intros ->; reflexivity. Qed.
 
-Ltac2 rec solve_lookup_path () :=
+Local Ltac2 rec solve_lookup_path () :=
   simpl;
   lazy_match! goal with
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
@@ -184,21 +226,20 @@ Ltac2 rec solve_lookup_path () :=
   | [ |- ret _ = ret _ ] => reflexivity
   end.
 
-Ltac2 rec is_pattern (c : constr) :=
+Local Ltac2 rec is_pattern (c : constr) :=
   lazy_match! c with
   | pattern _ _ _ _ _  => true
   | patterns _ _ _ _ _ => true
   | _ => false
   end.
 
-
-Ltac2 constr_at_ident (h : ident) : constr :=
+Local Ltac2 constr_at_ident (h : ident) : constr :=
   let (_, _, x) :=
     List.find (fun (id, _, _) => Ident.equal h id) (Control.hyps ())
   in
   x.
 
-Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
+Local Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
   let cl :=
         { Std.indcl_arg := Std.ElimOnIdent h;
           Std.indcl_eqn := None;
@@ -207,13 +248,13 @@ Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
   in
   Std.destruct false [cl] None.
 
-Ltac2 rec get_arity (c : constr) :=
+Local Ltac2 rec get_arity (c : constr) :=
   match! c with
   | ?a _ => (Int.add 1 (get_arity a))
   | _ => 0
   end.
 
-Ltac2 rec get_constructor (c : constr) :=
+Local Ltac2 rec get_constructor (c : constr) :=
   match! c with
   | ?a _ => get_constructor a
   | _ => match Constr.Unsafe.kind c with
@@ -222,7 +263,7 @@ Ltac2 rec get_constructor (c : constr) :=
         end
   end.
 
-Ltac2 rec destruct_hyp (h : ident) : unit :=
+Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   normalize_hyp h;
   let x := constr_at_ident h in
   lazy_match! x with
@@ -292,7 +333,7 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
 (* We build our own recursor instead of [List.iter] because we don't
    want to keep iterating after solving the goal. *)
 
-Ltac2 destruct_hyps (hs : ident list) :=
+Local Ltac2 destruct_hyps (hs : ident list) :=
   let rec iter :=
     fun f ls =>
       match ls with
@@ -303,14 +344,14 @@ Ltac2 destruct_hyps (hs : ident list) :=
   in
   iter destruct_hyp hs.
 
-Tactic Notation "destruct_hyp" ident(hyp) :=
+Local Tactic Notation "destruct_hyp" ident(hyp) :=
   let destr_hyp := ltac2:(hyp |-
                             let hyp := Option.get (Ltac1.to_ident hyp) in
                             destruct_hyp hyp)
   in
   destr_hyp hyp.
 
-Tactic Notation "destruct_hyps" ident_list(hyps) :=
+Local Tactic Notation "destruct_hyps" ident_list(hyps) :=
   let destr_hyps := ltac2:(hyps |-
                              let hyps := Option.get (Ltac1.to_list hyps) in
                              let hyps := List.map (fun hyp => Option.get (Ltac1.to_ident hyp)) hyps in
@@ -320,7 +361,7 @@ Tactic Notation "destruct_hyps" ident_list(hyps) :=
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 rec do_intros () :=
+Local Ltac2 rec do_intros () :=
   lazy_match! goal with
   | [ |- ?h -> ?g ] =>
       (* If [h] is a proposition. *)
@@ -339,7 +380,7 @@ Ltac2 rec do_intros () :=
   | [ |- _ ] => ()
   end.
 
-Ltac2 set_postcondition_to_false () :=
+Local Ltac2 set_postcondition_to_false () :=
   lazy_match! goal with
   | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
@@ -350,7 +391,7 @@ Ltac2 set_postcondition_to_false () :=
       if Constr.is_evar ψ then unify $ψ False else ()
   end.
 
-Ltac2 set_postcondition_to_true () :=
+Local Ltac2 set_postcondition_to_true () :=
   lazy_match! goal with
   | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
@@ -361,7 +402,7 @@ Ltac2 set_postcondition_to_true () :=
       if Constr.is_evar ψ then unify $ψ True else ()
   end.
 
-Ltac2 massage_term (c : constr) :=
+Local Ltac2 massage_term (c : constr) :=
   lazy_match! c with
   | ?ψ ?arg  =>
       if Constr.is_evar ψ then
@@ -376,7 +417,7 @@ Ltac2 massage_term (c : constr) :=
    - reduces to a [pattern ...] with [pats_PCons_unary],
    - solves the goal with [pats_PNil]. *)
 
-Ltac2 patterns () :=
+Local Ltac2 patterns () :=
   lazy_match! goal with
   | [ |- patterns _ (_ :: _) _ _ ?ψ ] =>
       (* If [Ψ] is an evar, [pats_PCons_unary] instantiates it as
@@ -410,7 +451,7 @@ Ltac2 patterns () :=
    Ltac1 tactic called [pattern_hook].
    This allows users to extend pattern matching to new data structures. *)
 
-Ltac2 rec pattern_match_aux () :=
+Local Ltac2 rec pattern_match_aux () :=
   (* [continue_matching] is used after solving one pattern. It
      introduces new information before deciding whether to continue
      pattern-matching or whether we are done. *)
@@ -991,6 +1032,7 @@ Tactic Notation "pure_data" := ltac2:(pure_data).
 
 Ltac2 pure_simp () :=
   eapply pure_wp_simp > [ ltac1:(simp_really) | ];
+  (* Why does it always go to [ret]? *)
   Control.enter pure_ret0.
 
 Ltac2 Notation "pure_simp" := pure_simp ().
