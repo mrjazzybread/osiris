@@ -1015,7 +1015,7 @@ End Eval.
 
    A hard failure reflects a dynamic type error (a crash).
 
-   A soft failure is impossible.
+   A soft failure reflects an exception, which can be caught.
 
    No substitutions are involved; this is an environment-based semantics.
 
