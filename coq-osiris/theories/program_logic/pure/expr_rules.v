@@ -278,6 +278,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(** *Record construction, update, access. *)
+
 (* TODO *)
 (** Record construction: [{ fs = es }]. *)
 (* ERecord (fes : list fexpr) *)
@@ -289,8 +291,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** *Boolean conjunction, disjunction, and negation. *)
-(* EBoolConj (e1 e2 : expr) TODO *)
-(* EBoolDisj (e1 e2 : expr) TODO *)
 
 (* Some special cases. *)
 
@@ -321,6 +321,70 @@ Proof.
   intros []; force_unfold val_as_bool; eauto with pure.
 Qed.
 
+(* EBoolConj (e1 e2 : expr) *)
+
+Lemma pure_eval_conj η e1 e2 (φ1 φ2 ψ : bool -> Prop) :
+  pure (eval η e1) φ1 ⊥ →
+  pure (eval η e2) φ2 ⊥ →
+  (φ1 true -> forall b, φ2 b -> ψ b) ->
+  (φ1 false -> ψ false) ->
+  pure (eval η (EBoolConj e1 e2)) ψ ⊥.
+Proof.
+  intros He1 He2 Ht Hf. simpl_eval.
+  eapply pure_bind_as_bool; eauto.
+  intros [] Hb.
+  { specialize (Ht Hb).
+    eapply pure_ret_mono; eauto. }
+  { eapply pure_ret; eauto with encode. }
+Qed.
+
+(* Sequentialized version. *)
+
+Lemma pure_eval_conj_seq η e1 e2 (φ1 φ2 ψ : bool -> Prop) :
+  pure (eval η e1)
+    (fun b : bool =>
+      if b then pure (eval η e2) ψ ⊥
+      else ψ false) ⊥ ->
+  pure (eval η (EBoolConj e1 e2)) ψ ⊥.
+Proof.
+  intros He. simpl_eval.
+  eapply pure_bind_as_bool; eauto.
+  intros [] Hb; eauto.
+  eapply pure_ret; eauto with encode.
+Qed.
+
+(* EBoolDisj (e1 e2 : expr) *)
+
+Lemma pure_eval_disj η e1 e2 (φ1 φ2 ψ : bool -> Prop) :
+  pure (eval η e1) φ1 ⊥ →
+  pure (eval η e2) φ2 ⊥ →
+  (φ1 true -> ψ true) ->
+  (φ1 false -> forall b, φ2 b -> ψ b) ->
+  pure (eval η (EBoolDisj e1 e2)) ψ ⊥.
+Proof.
+  intros He1 He2 Ht Hf. simpl_eval.
+  eapply pure_bind_as_bool; eauto.
+  intros [] Hb.
+  { eapply pure_ret; eauto with encode. }
+  { specialize (Hf Hb).
+    eapply pure_ret_mono; eauto. }
+Qed.
+
+(* Sequentialized version. *)
+
+Lemma pure_eval_disj_seq η e1 e2 (φ1 φ2 ψ : bool -> Prop) :
+  pure (eval η e1)
+    (fun b : bool =>
+      if b then ψ true
+      else pure (eval η e2) ψ ⊥) ⊥ ->
+  pure (eval η (EBoolDisj e1 e2)) ψ ⊥.
+Proof.
+  intros He. simpl_eval.
+  eapply pure_bind_as_bool; eauto.
+  intros [] Hb; eauto.
+  eapply pure_ret; eauto with encode.
+Qed.
+
 (* EBoolNeg (e : expr) *)
 
 Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
@@ -346,22 +410,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** *Integer literals. *)
-(* EInt (i : Z) *)
-(* EMaxInt TODO *)
-(* EMinInt TODO *)
-
-Lemma pure_eval_int η i (φ : _ -> Prop) ψ :
-  φ i ->
-  pure (eval η (EInt i)) φ ψ.
-Proof.
-  intros.
-  eapply pure_simp. simp.
-  eapply pure_ret; eauto.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(** *Integer arithmetic. *)
 
 (* Helper lemmas for arithmetic operations. *)
 
@@ -377,6 +425,39 @@ Proof.
   intros Hm; eapply pure_bind; eauto.
   intros; eapply pure_ret; eauto.
 Qed.
+
+(* EInt (i : Z) *)
+
+Lemma pure_eval_int η i (φ : _ -> Prop) ψ :
+  φ i ->
+  pure (eval η (EInt i)) φ ψ.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
+
+(* EMaxInt *)
+
+Lemma pure_eval_maxint η ψ :
+  pure (eval η EMaxInt) (fun i => i = int.repr int.max_signed) ψ.
+Proof.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
+
+(* EMinInt *)
+
+Lemma pure_eval_minint η ψ :
+  pure (eval η EMinInt) (fun i => i = int.repr int.min_signed) ψ.
+Proof.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(** *Integer arithmetic. *)
 
 Lemma pure_par_as_int m1 m2 (φ1 φ2 φ : Z → Prop) k :
   pure m1 φ1 ⊥ →
@@ -411,7 +492,19 @@ Qed.
 
 (* Primitive arithmetic operations. *)
 
-(* TODO EIntNeg (e : expr) *)
+(* EIntNeg (e : expr) *)
+Lemma pure_eval_neg η e (φ φe : Z -> Prop) :
+  pure (eval η e) φe ⊥ ->
+  (forall z, φe z -> φ (- z)) ->
+  pure (eval η (EIntNeg e)) φ ⊥.
+Proof.
+  intros. simpl_eval.
+  eapply pure_bind.
+  eapply pure_as_int; eauto.
+  intros ? (?&?&?); subst; eapply pure_ret;
+    eauto with encode.
+  cbn. f_equiv; apply neg_repr.
+Qed.
 
 (* EIntAdd (e1 e2 : expr) *)
 Lemma pure_eval_add η e1 e2 (φ1 φ2 φ : Z → Prop) :
@@ -466,7 +559,24 @@ Proof.
     eexists _; split; eauto. encode.
 Qed.
 
-(* TODO EIntMod (e1 e2 : expr) *)
+(* EIntMod (e1 e2 : expr) *)
+Lemma pure_eval_mod η e1 e2 (φ1 φ2 φ : Z -> Prop) :
+  pure (eval η e1) φ1 ⊥ ->
+  pure (eval η e2) φ2 ⊥ ->
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → representable z2) →
+  (∀ z2, φ2 z2 → z2 ≠ 0) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (z1 `rem` z2)) →
+  pure (eval η (EIntMod e1 e2)) φ ⊥.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  eapply pure_wp_bind.
+  - eapply pure_wp_mono_ret.
+    eapply pure_wp_check_div_by_zero; eauto.
+    cbn; intros;subst.
+    eapply pure_wp_ret.
+    eexists _; split; eauto. encode.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
