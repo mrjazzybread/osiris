@@ -696,13 +696,40 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** Floating-point literals. *)
-(* TODO EFloat (f : float) *)
+
+(* EFloat (f : float) *)
+Lemma pure_eval_float η f (φ : _ -> Prop) :
+  φ f ->
+  pure (eval η (EFloat f)) φ ⊥.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
 
 (** Character literals. *)
-(* TODO EChar (c: char) *)
+
+(* EChar (c: char) *)
+Lemma pure_eval_char η c (φ : _ -> Prop) :
+  φ c ->
+  pure (eval η (EChar c)) φ ⊥.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
 
 (** String literals. *)
-(* TODO EString (s: string) *)
+
+(* EString (s: string) *)
+Lemma pure_eval_string η s (φ : _ -> Prop) :
+  φ s ->
+  pure (eval η (EString s)) φ ⊥.
+Proof.
+  intros.
+  eapply pure_simp. simp.
+  eapply pure_ret; eauto.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -352,6 +352,20 @@ Global Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
+(* Floats. *)
+
+Global Instance Encode_float : Encode PrimFloat.float :=
+  { encode := λ f, VFloat f }.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Char. *)
+
+Global Instance Encode_char: Encode char :=
+  { encode := λ f, VChar f }.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Options. *)
 
 Global Instance Encode_option `{Encode A} : Encode (option A) :=
