@@ -3,3 +3,4 @@
 .\#*
 _build
 .lia.cache
+*.html
