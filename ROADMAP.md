@@ -10,6 +10,7 @@ The Rocq development can be found under `osiris/coq-osiris`
   - `syntax.v` expressions, modules expressions, values, patterns.
   - `sugar.v` shorthand for specific expressions and values (e.g. `EPair e1 e2 := ETuple [e1; e2]`)
   - `encode.v` the `Encode A` typeclass, which provides a function from `A -> val`
+  - `arg_types.v` heteregenous lists over encodable types
 
 - `osiris/coq-osiris/theories/semantics`
   - `micro.v` defines the `micro` monad which models computations over expressions, `code.v` specializes the monad to some of OCaml's features
@@ -33,6 +34,7 @@ The Rocq development can be found under `osiris/coq-osiris`
     - `pattern_rules.v` reasoning rules about pattern matching
     - `toplevel_rules.v` reasoning rules about top-level definitions, such as
        struct items, bindings, and modules.
+    - `fun_spec.v` [Spec] abstraction for reasoning about n-ary function calls
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
   - `basic_rules.v` reasoning rules over the effectful weakest precondition
   - `handler_rules.v` reasoning rules over handlers
