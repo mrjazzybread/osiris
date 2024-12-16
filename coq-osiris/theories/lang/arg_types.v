@@ -1,7 +1,12 @@
+(** This file is a based off of stdpp's implementation of telescopes.
+    The original can be found at [https://plv.mpi-sws.org/coqdoc/stdpp/stdpp.telescopes.html] *)
+
 From stdpp Require Import base tactics.
 From stdpp Require Import options.
 
 From osiris.lang Require Import syntax encode.
+
+From Coq Require Import Wellfounded.Inverse_Image.
 
 Local Set Universe Polymorphism.
 Local Set Polymorphic Inductive Cumulativity.
@@ -66,8 +71,8 @@ Global Arguments arg_to_type _ : simpl never.
  *)
 
 Notation TArg1 a := (a : arg_to_type (Arg1 _)) (only parsing).
-(* The casts and annotations are necessary for Coq to typecheck nested [TargS]
-   as well as the final [TargO] in a chain of [TargS]. *)
+(* The casts and annotations are necessary for Coq to typecheck nested [TArgS]
+   as well as the final [TArg1] in a chain of [TArgS]. *)
 Notation TArgS a b :=
   (@ArgCons _ (arg_to_type _) a b : (arg_to_type (ArgS _ _))) (only parsing).
 Coercion arg_to_type : arg_type >-> Sortclass.
@@ -88,11 +93,9 @@ Fixpoint arg_app {arg_τ : arg_type} {U} : (arg_τ -#> U) -> arg_τ → U :=
   | ArgS _ r => λ (F : ArgS _ r -#> U) '(ArgCons x b),
       arg_app (F x) b
   end.
-(* The bidirectionality hint [&] simplifies defining tele_app-based notation
+(* The bidirectionality hint [&] simplifies defining arg_app-based notation
 such as the atomic updates and atomic triples in Iris. *)
 Global Arguments arg_app {!_ _} & _ !_ /.
-
-(* This is a local coercion because otherwise, the "λ#" notation stops working. *)
 Global Coercion arg_app : args_fun >-> Funclass.
 
 (** Inversion lemma for [arg_to_type] *)
@@ -108,7 +111,7 @@ Lemma arg_S_inv `{H : Encode X} {arg_τ : arg_type} (a : @ArgS _ H arg_τ) :
   ∃ x a', a = TArgS x a'.
 Proof. exact (arg_inv a). Qed.
 
-(** Map below a etele_fun *)
+(** Map below a [args_fun] *)
 Fixpoint args_map {T U} {arg_τ : arg_type} : (T → U) → (arg_τ -#> T) → arg_τ -#> U :=
   match arg_τ as arg_τ return (T → U) → (arg_τ -#> T) → arg_τ -#> U with
   | Arg1 X => λ (F : T → U) (f : X -> T) (x : X), F (f x)
@@ -132,7 +135,7 @@ Lemma args_fmap_app {T U} {arg_τ : arg_type} (F : T → U) (t : arg_τ -#> T) (
   (F <$> t) x = F (t x).
 Proof. apply args_map_app. Qed.
 
-(** Operate below [args_fun]s with argument etelescope [arg_τ]. *)
+(** Operate below [args_fun]s with argument [arg_τ]. *)
 Fixpoint arg_bind {U} {arg_τ : arg_type} : (arg_τ → U) → arg_τ -#> U :=
   match arg_τ as arg_τ return (arg_τ → U) → arg_τ -#> U with
   | Arg1 X => λ F (x : X), F x
@@ -151,7 +154,7 @@ Proof.
     rewrite IH. done.
 Qed.
 
-(** We can define the identity function and composition of the [-t>] function
+(** We can define the identity function and composition of the [-#>] function
 space. *)
 Definition args_fun_id {arg_τ : arg_type} : arg_τ -#> arg_τ := arg_bind id.
 
@@ -255,6 +258,8 @@ Proof.
   split; intros HP x; by apply (forallArgs_forall).
 Qed.
 
+(* TODO: Add requirement that individual arguments types are inhabited. *)
+
 Lemma etele_inhabited (arg_τ : arg_type) :
   Inhabited arg_τ.
 Proof.
@@ -269,29 +274,35 @@ Proof.
   - apply IH.
 Admitted.
 
-Fixpoint to_tuple_type_aux (arg_τ : arg_type) : Type -> Type :=
+
+(** [to_tuple_type] is a mapping from an argument type [arg_τ] to an
+    equivalent product type. *)
+
+Fixpoint to_product_type_aux (arg_τ : arg_type) : Type -> Type :=
   match arg_τ with
   | Arg1 X => λ Y, prod Y X
-  | ArgS X arg_τ' => λ Y, (to_tuple_type_aux arg_τ') (prod Y X)
+  | ArgS X arg_τ' => λ Y, (to_product_type_aux arg_τ') (prod Y X)
   end.
 
-Arguments to_tuple_type_aux / arg_τ.
-
-Definition to_tuple_type (arg_τ : arg_type) : Type :=
+Definition to_product_type (arg_τ : arg_type) : Type :=
   match arg_τ with
   | Arg1 X => X
-  | ArgS X arg_τ' => (to_tuple_type_aux arg_τ') X
+  | ArgS X arg_τ' => (to_product_type_aux arg_τ') X
   end.
 
-Arguments to_tuple_type / arg_τ.
+Arguments to_product_type_aux / arg_τ.
+Arguments to_product_type / arg_τ.
 
 Lemma ttt_eq2 `{Encode X, Encode Y} (arg_τ : arg_type) :
-  to_tuple_type (ArgS (X * Y) arg_τ) -> to_tuple_type (ArgS X (ArgS Y arg_τ)).
+  to_product_type (ArgS (X * Y) arg_τ) -> to_product_type (ArgS X (ArgS Y arg_τ)).
 Proof. done. Defined.
 
+(** [to_tuple] maps an argument of type [arg_τ] to a tuple of type
+    [to_product_type arg_τ]. *)
+
 Fixpoint to_tuple_aux `{Encode Y} {arg_τ : arg_type}
-  (args : arg_τ) : Y -> to_tuple_type (ArgS Y arg_τ) :=
-  match arg_τ return arg_τ -> Y -> to_tuple_type (ArgS Y arg_τ) with
+  (args : arg_τ) : Y -> to_product_type (ArgS Y arg_τ) :=
+  match arg_τ return arg_τ -> Y -> to_product_type (ArgS Y arg_τ) with
   | Arg1 X => λ (args : X) (y : Y),
       (y, args)
   | ArgS X arg_τ' =>
@@ -301,10 +312,8 @@ Fixpoint to_tuple_aux `{Encode Y} {arg_τ : arg_type}
       ttt_eq2 _ ((to_tuple_aux args) (y, x))
   end args.
 
-Arguments to_tuple_aux {_ _ !_} args /.
-
-Definition to_tuple {arg_τ : arg_type} (args : arg_τ) : to_tuple_type arg_τ :=
-  match arg_τ return arg_τ -> to_tuple_type arg_τ with
+Definition to_tuple {arg_τ : arg_type} (args : arg_τ) : to_product_type arg_τ :=
+  match arg_τ return arg_τ -> to_product_type arg_τ with
   | Arg1 X => λ (x : X), x
   | ArgS X arg_τ' =>
       λ args,
@@ -313,11 +322,13 @@ Definition to_tuple {arg_τ : arg_type} (args : arg_τ) : to_tuple_type arg_τ :
       (to_tuple_aux args) x
   end args.
 
+Arguments to_tuple_aux {_ _ !_} args /.
 Arguments to_tuple {!_} args /.
 
-From Coq Require Import Wellfounded.Inverse_Image.
+(* [wf_argTuples] lifts a well-founded order on a product type to the
+   equivalent argument type. *)
 
-Lemma wf_argTuples {arg_τ : arg_type} (R : to_tuple_type arg_τ -> to_tuple_type arg_τ -> Prop) :
+Lemma wf_argTuples {arg_τ : arg_type} (R : to_product_type arg_τ -> to_product_type arg_τ -> Prop) :
   well_founded R ->
   well_founded (λ (arg1 arg2 : arg_τ), R (to_tuple arg1) (to_tuple arg2)).
 Proof. intros. by apply wf_inverse_image. Qed.
