@@ -7,4 +7,5 @@ From osiris.program_logic.pure Require Export
      expr_rules
      pattern_rules
      toplevel_rules
+     fun_spec
      .

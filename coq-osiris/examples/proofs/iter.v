@@ -175,10 +175,10 @@ Proof.
   intros Heql HI.
 
   change f with #f.
-  eapply pure_rec_call2 with
+  eapply expr_rules.pure_rec_call2 with
     (P := λ func lsuf, func = f ∧ ∃ lpref, lpref ++ lsuf = l ∧ I lpref)
     (φ := (λ _ _ _, I l))
-    (R := fun _ _ => True).
+    (R := (λ _ _, True)).
   { split; eauto. }
 
   clear Heql lsuf.
@@ -225,4 +225,3 @@ Proof.
     exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1.
     apply prefix_app. apply prefix_nil. }
 Qed.
-

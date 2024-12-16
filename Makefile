@@ -51,4 +51,5 @@ init:
 	opam pin --switch=osiris --yes coq-serapi 8.17.0+0.17.2
 	opam pin --switch=osiris --yes coq-stdpp --dev-repo 1.9.0
 	opam pin --switch=osiris --yes coq-iris --dev-repo 4.1.0
+	opam pin --switch=osiris --yes coq-equations 1.3+8.17
 	python3 -m pip install alectryon
