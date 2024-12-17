@@ -49,9 +49,9 @@ Local Definition call f x :=
   | _ => type_mismatch "closure expected"
   end.
 
-Lemma pure_bind_mono {A E} `{Encode B} (m : micro A E) (f g : A -> micro B E) φ ζ :
-  (∀ a, pure (f a) φ ζ -> pure (g a) φ ζ) ->
-  pure (bind m f) φ ζ -> pure (bind m g) φ ζ.
+Lemma pure_bind_mono {A E} `{Encode B, Observe B B} (m : micro A E) (f g : A -> micro B E) φ ζ :
+  (∀ a, pure_wp (f a) φ ζ -> pure_wp (g a) φ ζ) ->
+  pure_wp (bind m f) φ ζ -> pure_wp (bind m g) φ ζ.
 Proof.
   intros Hmono Hf.
   apply invert_pure_wp_bind in Hf.
@@ -562,7 +562,7 @@ Lemma pure_EApp_partial `{Encode X} (arg_τ: arg_type) η e e1 ζ
   pure (eval η (EApp e e1)) (λ c, ∃ v1, φ1 v1 ∧ Spec c (P v1)) ζ.
 Proof.
   intros.
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   intros c v1 Hc Hv1.
   apply pure_call_equiv. simpl in Hc.
   eapply pure_wp_mono. simp Spec in Hc.
@@ -589,7 +589,7 @@ Lemma pure_EApp_partial_alt `{Encode X} (arg_τ : arg_type) η e e1 ζ
     ζ.
 Proof.
   intros.
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   intros c v1 Hc Hv1.
   apply pure_call_equiv. simpl in Hc.
   eapply pure_wp_mono. simp Spec in Hc.
@@ -618,7 +618,7 @@ Local Lemma pure_EApp_prop2 `{Encode A, Encode B, Encode C} η e e1 e2 (Ψ : C -
   pure (eval η (EApp (EApp e e1) e2)) Ψ ζ.
 Proof.
   intros He He1 He2 Hmono.
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   eapply pure_EApp_partial; eauto. simpl.
   intros c v2 (v1 & HP & Hv1) Hv2.
   apply pure_call_equiv.
@@ -635,7 +635,7 @@ Local Lemma pure_EApp_prop3 `{Encode A, Encode B, Encode C, Encode D} η e e1 e2
   pure (eval η (EApp (EApp (EApp e e1) e2) e3)) Ψ ζ.
 Proof.
   intros He He1 He2 He3 Hmono.
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   eapply pure_EApp_partial_alt; eauto.
   eapply pure_EApp_partial_alt; eauto.
   intros c v3 HSpec Hv3; simpl in HSpec.
@@ -721,7 +721,7 @@ Local Lemma pure_EApp_predetermined1 `{Encode X, Encode Y} η e e2
   pure (eval η (EApp e e2)) Ψ ζ.
 Proof.
   apply forallArgs_forall; intros args He He2 Hmono.
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   intros c x Hc ->.
   apply pure_call_equiv.
   apply Hmono. apply Hc.
@@ -810,7 +810,7 @@ Proof with Spec_auto.
   revert e.
   induction arg_τ as [ X HX | X HX TT IH]; intros e...
   { intros ex Hex He Hmono.
-    eapply pure_eval_app_conseq; eauto.
+    eapply pure_eval_app; eauto.
     intros c y HP ->.
     apply pure_call_equiv; auto. }
 
@@ -827,7 +827,7 @@ Proof with Spec_auto.
   intros Hpure He Hmono.
   apply Hpure; [ | apply Hmono ].
 
-  eapply pure_eval_app_conseq; eauto.
+  eapply pure_eval_app; eauto.
   intros c ? Hc ->.
   eapply pure_call_equiv.
   simpl in Hc |-*... rewrite args_app_bind in Hc.
@@ -907,7 +907,7 @@ Proof.
 
   { (* Base case. *)
     intros Hmono; simpl in Hmono.
-    eapply pure_eval_app_conseq; eauto.
+    eapply pure_eval_app; eauto.
     intros c x Hc Hφx. apply pure_call_equiv.
     eapply Hmono; [ apply Hφx | ].
     simpl in Hc; simp Spec in Hc; apply Hc. }
@@ -935,7 +935,7 @@ Proof.
   eapply pure_EApp_mono; [ eapply IH | ].
 
   { (* Subgoal: [ pure (eval η (EApp e ex)) (λ c, Spec c P') ζ ]. *)
-    eapply pure_eval_app_conseq; eauto.
+    eapply pure_eval_app; eauto.
     intros c x Hc Hφx. eapply pure_call_equiv.
     eapply pure_wp_mono. simpl in Hc; simp Spec in Hc; apply Hc.
     - intros c' HSpec'; cbn beta in HSpec'.
@@ -956,21 +956,6 @@ Proof.
   specialize (Hmon x Hφx). rewrite args_app_bind in Hmon.
   eapply Hmon; eauto.
 Defined.
-
-
-Local Definition pSpec (k : Z) (n : nat) (m : microvx) :=
-  k > 0 -> (n > 0)%nat -> pure m (λ _, True) ⊥.
-
-Goal @pure_EApp_prop tele[Z; nat] [] (EPath ["f"]) (λ _, True) (λ _, False) pSpec.
-  simpl.
-  intros HSpec e1 φ1 He1 e2 φ2 He2.
-  intros Hmono.
-  eapply (pure_EApp tele[Z; nat]) with (P := pSpec).
-  - apply HSpec.
-  - apply He1.
-  - apply He2.
-  - simpl. apply Hmono.
-Qed.
 
 Lemma structs_letrec (arg_τ : arg_type)
   (R : to_product_type arg_τ -> to_product_type arg_τ -> Prop)
