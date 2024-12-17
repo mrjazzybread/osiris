@@ -138,7 +138,10 @@
   crash) in OCaml+magic. And **this is false** for data constructors: e.g.
   comparing `A 3` with `A 3` returns `true` in our semantics, but can return
   `false` in OCaml+magic if these two values originate in two distinct
-  algebraic data types. To fix this, we could:
+  algebraic data types.
+  As another (similar, but more striking) example, `0 = false` returns
+  `false` in our semantics, but returns `true` in the real-world OCaml+magic.
+  To fix this, we could:
   + remove `Obj.magic`,
   + abandon polymorphic equality at algebraic data types, or
   + change our encoding of algebraic data types,
