@@ -1,5 +1,6 @@
 (** This file is a based off of stdpp's implementation of telescopes.
-    The original can be found at [https://plv.mpi-sws.org/coqdoc/stdpp/stdpp.telescopes.html] *)
+    The original can be found at
+    [https://plv.mpi-sws.org/coqdoc/stdpp/stdpp.telescopes.html] *)
 
 From stdpp Require Import base tactics.
 From stdpp Require Import options.
@@ -7,14 +8,6 @@ From stdpp Require Import options.
 From osiris.lang Require Import syntax encode.
 
 From Coq Require Import Wellfounded.Inverse_Image.
-
-Local Set Universe Polymorphism.
-Local Set Polymorphic Inductive Cumulativity.
-
-(** Without this flag, Coq minimizes some universes to [Set] when they
-    should not be, e.g. in [texist_exist].
-    See the [texist_exist_universes] test. *)
-Local Unset Universe Minimization ToSet.
 
 (** Heterogeneous non-empty lists over encodable (non-empty) types. *)
 
@@ -57,7 +50,7 @@ Global Arguments arg_tail {_ _} _.
 
 (** A sigma-like type for an "element" of a telescope, i.e. the data it
   takes to get a [T] from a [TT -t> T]. *)
-Fixpoint arg_to_type@{u u0} (t : arg_type@{u u0}) : Type@{u} :=
+Fixpoint arg_to_type (t : arg_type) : Type :=
   match t with
   | Arg1 X => X
   | ArgS X arg_τ => arg_cons X (arg_to_type arg_τ)
