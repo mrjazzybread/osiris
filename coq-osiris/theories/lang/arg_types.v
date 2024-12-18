@@ -251,23 +251,6 @@ Proof.
   split; intros HP x; by apply (forallArgs_forall).
 Qed.
 
-(* TODO: Add requirement that individual arguments types are inhabited. *)
-
-Lemma etele_inhabited (arg_τ : arg_type) :
-  Inhabited arg_τ.
-Proof.
-  induction arg_τ as [ | X HX TT IH ].
-  { constructor.
-    assert (Inhabited X) as [inhabitant] by admit.
-    apply inhabitant. }
-  constructor.
-  constructor.
-  - assert (Inhabited X) as [inhabitant] by admit.
-    apply inhabitant.
-  - apply IH.
-Admitted.
-
-
 (** [to_tuple_type] is a mapping from an argument type [arg_τ] to an
     equivalent product type. *)
 
@@ -320,6 +303,8 @@ Arguments to_tuple {!_} args /.
 
 (* [wf_argTuples] lifts a well-founded order on a product type to the
    equivalent argument type. *)
+
+(* TODO Move *)
 
 Lemma wf_argTuples {arg_τ : arg_type} (R : to_product_type arg_τ -> to_product_type arg_τ -> Prop) :
   well_founded R ->

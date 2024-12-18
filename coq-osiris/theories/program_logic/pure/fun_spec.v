@@ -49,7 +49,9 @@ Local Definition call f x :=
   | _ => type_mismatch "closure expected"
   end.
 
-Lemma pure_bind_mono {A E} `{Encode B, Observe B B} (m : micro A E) (f g : A -> micro B E) φ ζ :
+(* TODO: Move *)
+
+Lemma pure_wp_bind_mono {A B E} (m : micro A E) (f g : A -> micro B E) φ ζ :
   (∀ a, pure_wp (f a) φ ζ -> pure_wp (g a) φ ζ) ->
   pure_wp (bind m f) φ ζ -> pure_wp (bind m g) φ ζ.
 Proof.
@@ -63,7 +65,7 @@ Lemma pure_call_equiv `{Encode A} f v (φ : A -> Prop) ζ :
   pure (eval.call f v) φ ζ <-> pure (fun_spec.call f v) φ ζ.
 Proof.
   destruct f; try done; [ apply pure_acall_equiv | ].
-  split; apply pure_bind_mono; intros; simpl; by apply pure_acall_equiv.
+  split; apply pure_wp_bind_mono; intros; simpl; by apply pure_acall_equiv.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -261,7 +263,8 @@ Proof.
   apply IH. apply HSpec'.
 Qed.
 
-Lemma aSpec_Spec (arg_τ : arg_type) (c : val) (P : arg_τ -#> microvx -> Prop) :
+Lemma aSpec_Spec (arg_τ : arg_type) (c : val) (P : arg_τ -#> microvx -> Prop)
+  `{Inhabited arg_τ}:
   (∀ args, (aSpec c P) args) ->
   Spec c P.
 Proof.
@@ -271,10 +274,11 @@ Proof.
   { specialize (HSpec x); apply HSpec. }
 
   rewrite spec_once_tele in HSpec; specialize (HSpec x).
+  assert (Inhabited arg_τ).
+  { inversion H; inv inhabitant; constructor; eauto. }
   eapply pure_wp_mono_ret; last first.
-  { intros c' HSpec'. apply IH.
+  { intros c' HSpec'. apply IH; eauto.
     apply HSpec'. }
-  pose proof (etele_inhabited (arg_τ)).
   eapply pure_wp_intersection.
   intros args.
   specialize (HSpec args).
@@ -365,7 +369,9 @@ Fixpoint call_tele {arg_τ : arg_type} (m : microvx) : arg_τ -#> microvx :=
       λ (x : X), @call_tele arg_τ' (bind m (λ c, call c #x))
   end.
 
-Lemma prove_Spec_rec (arg_τ : arg_type)
+Lemma prove_Spec_rec
+  (arg_τ : arg_type)
+  {Inh_arg_τ: Inhabited arg_τ}
   (R : arg_τ -> arg_τ -> Prop) c
   (P : arg_τ -#> microvx -> Prop) :
   wf R ->
@@ -375,7 +381,7 @@ Lemma prove_Spec_rec (arg_τ : arg_type)
   @Spec arg_τ c P.
 Proof.
   intros Hwf HP.
-  apply aSpec_Spec.
+  apply aSpec_Spec; eauto.
   intros args.
 
   induction args as [args IHR] using (well_founded_induction Hwf); clear Hwf.
@@ -495,7 +501,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma pure_eval_letrec `{Encode X} (arg_τ : arg_type)
+Lemma pure_eval_letrec `{Encode X}
+  (arg_τ : arg_type) `{Inhabited arg_τ}
   (P : arg_τ -#> microvx -> Prop)
   (R : to_product_type arg_τ -> to_product_type arg_τ -> Prop) η f (x : var) e
   e2 (φ : X -> Prop) ζ :
@@ -512,8 +519,7 @@ Lemma pure_eval_letrec `{Encode X} (arg_τ : arg_type)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
   intros Hwf Hmkspec He2. simpl_eval. eapply He2.
-  eapply prove_Spec_rec.
-  apply wf_argTuples. apply Hwf.
+  eapply prove_Spec_rec; eauto.
   apply by_unfold_spec.
   apply Hmkspec.
 Qed.
@@ -697,10 +703,10 @@ Section pure_EApp_prop_aux_def.
 
 End pure_EApp_prop_aux_def.
 
-Definition pure_EApp_prop (arg_τ : arg_type) (η : env) (e0 : expr) (Ψ : val -> Prop)
+Definition pure_EApp_prop (arg_τ : arg_type) (η : env) (e : expr) (Ψ : val -> Prop)
   (ζ : exn -> Prop) (P : arg_τ -#> microvx -> Prop) : Prop :=
-  pure (eval η e0) (λ c, Spec c P) ζ ->
-  pure_EApp_prop_aux η ζ e0 (λ e, pure (eval η e) Ψ ζ)
+  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure_EApp_prop_aux η ζ e (λ e, pure (eval η e) Ψ ζ)
     arg_τ
     []
     (arg_bind (λ (tt : arg_τ) (B : Prop),
@@ -957,7 +963,7 @@ Proof.
   eapply Hmon; eauto.
 Defined.
 
-Lemma structs_letrec (arg_τ : arg_type)
+Lemma structs_letrec (arg_τ : arg_type) `{Inhabited arg_τ}
   (R : to_product_type arg_τ -> to_product_type arg_τ -> Prop)
   η δ f (x : var) e (P : arg_τ -#> microvx -> Prop) sitems φ :
   wf R ->
@@ -968,12 +974,12 @@ Proof.
   intros Hwf Hmkspec He2.
   unfold struct_items. simpl_eval_sitems.
   eapply He2.
-  eapply prove_Spec_rec.
-  { apply wf_argTuples. apply Hwf. }
+  eapply prove_Spec_rec; eauto.
   apply by_unfold_spec.
   apply Hmkspec.
 Qed.
 
+(* TODO: What is this lemma doing here? *)
 Local Lemma structs_letrec_single `{Encode X} (R : X -> X -> Prop) η δ f (x : var) e
   (P : X -> microvx -> Prop)
   sitems φ :
