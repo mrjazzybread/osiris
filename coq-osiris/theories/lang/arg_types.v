@@ -301,6 +301,12 @@ Definition to_tuple {arg_τ : arg_type} (args : arg_τ) : to_product_type arg_τ
 Arguments to_tuple_aux {_ _ !_} args /.
 Arguments to_tuple {!_} args /.
 
+Fixpoint arg_cat arg1 arg2 :=
+  match arg1 with
+  | Arg1 X => ArgS X arg2
+  | ArgS X arg1' => ArgS X (arg_cat arg1' arg2)
+  end.
+
 (* [wf_argTuples] lifts a well-founded order on a product type to the
    equivalent argument type. *)
 

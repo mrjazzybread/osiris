@@ -203,6 +203,36 @@ Proof.
   rewrite spec_once in Hmono. apply Hmono.
 Qed.
 
+Definition eq_partial_arg_app {arg_τ1 arg_τ2 arg_τ A} :
+  arg_τ = arg_cat arg_τ1 arg_τ2 ->
+  (arg_τ -#> A) ->
+  (arg_τ1) ->
+  (arg_τ2 -#> A).
+Proof.
+  intros -> P args.
+  induction arg_τ1 as [ X | X ? arg_τ1 IH ].
+  - auto.
+  - destruct args. apply IH; auto.
+Defined.
+
+Lemma decompose_Spec (arg_τ1 arg_τ2 arg_τ : arg_type) (c : val) P
+  (Heqargs : arg_τ = arg_cat arg_τ1 arg_τ2) :
+  @Spec arg_τ c P ->
+  @Spec arg_τ1 c
+    (arg_bind (λ args m,
+         let P' := eq_partial_arg_app Heqargs P args in
+         pure_wp m (λ c, @Spec arg_τ2 c P') ⊥)).
+Proof.
+  subst.
+  revert c; induction arg_τ1 as [ X | X ? arg_τ1 IH ]; intros c.
+  { simpl. simp Spec. }
+  simpl; simp Spec.
+  intros Hwp x.
+  eapply pure_wp_mono_ret; eauto.
+  intros c' HSpec'.
+  apply IH; apply HSpec'.
+Qed.
+
 (** [aSpec] is a restatement of [Spec], but with all of the
     arguments quantified before the nested calls.
 
