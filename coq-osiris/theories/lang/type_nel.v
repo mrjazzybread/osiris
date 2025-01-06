@@ -1,13 +1,14 @@
-(** This file is a based off of stdpp's implementation of telescopes.
-    The original can be found at
-    [https://plv.mpi-sws.org/coqdoc/stdpp/stdpp.telescopes.html] *)
-
 From stdpp Require Import base tactics.
 From stdpp Require Import options.
 
 From osiris.lang Require Import syntax encode.
 
 From Coq Require Import Wellfounded.Inverse_Image.
+
+(** This file defines [type_nel] (synonym: [types]), the type used for the
+    argument on encoded function types.
+
+    TODO Update comment. *)
 
 (* A heteregeneous and non-empty list over encodable types.
    ("nel" for non-empty list.)
