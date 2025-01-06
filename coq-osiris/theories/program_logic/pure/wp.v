@@ -850,6 +850,19 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
+  Lemma invert_pure_wp_eval η e φ ζ :
+    pure_wp (stop CEval (η, e)) φ ζ ->
+    pure_wp (eval η e) φ ζ.
+  Proof.
+    intros Hstop.
+    inversion Hstop; subst.
+    destruct H as [m' Hmay].
+    specialize (H0 m' Hmay) as Hwp.
+    pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
+    rewrite try2_ret_right in Hwp.
+    apply Hwp.
+  Qed.
+  
 
   (** Steps from pure_wp computations necessarily are [may] and preserve the store *)
 
