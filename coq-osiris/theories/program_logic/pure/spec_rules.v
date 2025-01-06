@@ -59,20 +59,18 @@ Qed.
   depends on two arguments: the argument of the function call, and the
   computation resulting from calling the function on that argument. *)
 
-Local Definition call_spec_unary {A : Type} := A -> microvx -> Prop.
-
-(* [Spec_Unary c P] states that given a closure [c], the spec_unaryification [P]
+(* [Spec_Unary c P] states that given a closure [ρ], the spec_unaryification [P]
   holds for any call of [c] on an argument. *)
 
-Local Definition Spec_Unary `{Encode X} (c : val) (P : call_spec_unary) :=
-  ∀ (x : X), P x (call c #x).
+Local Definition Spec_Unary `{Encode X} (ρ : val) (P : X -> microvx -> Prop) :=
+  ∀ (x : X), P x (call ρ #x).
 
 (* Consider for example the spec_unaryification of a function [sort]:
   [ Spec_Unary sort (λ l m, pure m (λ l', Sorted l' ∧ l' ≡ l) ⊥) ] *)
 
 (* Example of a reasoning rule, for the creation of a [Spec_Unary c P]. *)
 
-Local Lemma pure_eval_anon_unary `{Encode X} (P : call_spec_unary) η (xvar : var) e ζ :
+Local Lemma pure_eval_anon_unary `{Encode X} (P : X -> microvx -> Prop) η (xvar : var) e ζ :
   (∀ (x : X),
       P x (eval ((xvar, #x) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun xvar e))) (λ c, Spec_Unary c P) ζ.
@@ -87,17 +85,17 @@ Proof. intros; simpl_eval; by eapply pure_ret; eauto. Qed.
   In the second subgoal, we prove [e2] while abstracting over [e]. *)
 
 Local Lemma pure_eval_letrec_unary `{Encode X, Encode Y}
-  (P : call_spec_unary) η f (x : var) e
+  (P : _ -> microvx -> Prop) η f (x : var) e
   e2 (φ : Y -> Prop) ζ
   (* Show that the relation on which arguments are decreasing is well-founded. *)
   {WF_x : WellFounded X} :
-  (* Show the spec_unaryification [P] holds over a call to any argument
+  (* Show the specification [P] holds over a call to any argument
     [arg], under the assumption that [P] holds to a call over any
     argument [yval] smaller than [arg]. *)
   (∀ c (arg : X),
       Spec_Unary c (λ yval m, wf_relation (WF := WF_x) yval arg -> P yval m) ->
       P arg (eval ((x, #arg) :: (f, c) :: η) e)) ->
-  (* Continue with [f] bound to [c], and [c] spec_unaryified by [P]. *)
+  (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec_Unary c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
@@ -122,13 +120,38 @@ From Equations Require Import Equations.
 (* [Spec args c P] should be read as "[c] is a function value, with
    arguments described by [args], and with specification [P]." *)
 
-Equations Spec (A : types) (c : val) (P : A -#> microvx -> Prop) : Prop :=
-| Tbase X, c, P :=
-    ∀ (x : X), P x (call c #x)
-| Tcons X TT, c, P :=
-    ∀ (x : X), pure_wp (call c #x) (λ c, Spec TT c (P x)) ⊥.
+Fixpoint lookup_rec_bindings rbs g : option anonfun :=
+  match rbs with
+  | RecBinding g' a :: rbs =>
+      if (g =? g')%string then Some a else lookup_rec_bindings rbs g
+  | [] =>
+      None
+  end.
 
-Arguments Spec {A} c P.
+Definition closure f : option (env * anonfun) :=
+   match f with
+  | VClo η a => Some (η, a)
+  | VCloRec η rbs g =>
+      let δ := eval_rec_bindings η rbs in
+      let η0 := δ ++ η in
+      match lookup_rec_bindings rbs g with
+      | Some a => Some (η0, a)
+      | None => None
+      end
+  | _ => None
+  end.
+
+Equations Spec (A : types) (η : env) (f : anonfun) (P : A -#> microvx -> Prop) : Prop :=
+| Tbase X, η, f, P :=
+    ∀ (x : X), P x (acall η f #x)
+| Tcons X TT, η, f, P :=
+    ∀ (x : X),
+      pure_wp (acall η f #x)
+        (λ c, match closure c with
+                | None => False
+                | Some (η, f) => Spec TT η f (P x) end) ⊥.
+
+Arguments Spec {A} η f P.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -136,18 +159,19 @@ Arguments Spec {A} c P.
 
 (* [Spec_mono] states that [Spec] is monotonic over specifications. *)
 
-Lemma Spec_mono {A : types} (P P' : A -#> microvx -> Prop) c :
-  Spec c P ->
-  (∀# args, ∀ m, (P args) m -> (P' args) m) ->
-  Spec c P'.
+Lemma Spec_mono {A : types} (P P' : A -#> microvx -> Prop) η f :
+  Spec η f P ->
+  (∀# args, ∀ m, P args m -> P' args m) ->
+  Spec η f P'.
 Proof.
-  revert c.
-  induction A as [ | X HX arg_τ IH ]; intros c HP Hmono.
+  revert η f.
+  induction A as [ | X HX arg_τ IH ]; intros η f HP Hmono.
   { simp Spec in HP |-*. intros x.
     apply Hmono. apply HP. }
   simp Spec in HP |-*; intros x.
   eapply pure_wp_mono_ret; [ apply HP | ].
-  intros c' HSpec'.
+  cbn ; intros c' HSpec'. destruct (closure c') eqn: Hn; eauto.
+  destruct p; subst.
   apply IH with (P := P x); [ apply HSpec' | ].
   rewrite tforall_unroll in Hmono. apply Hmono.
 Qed.
@@ -201,9 +225,8 @@ Proof.
   simpl in HP; specialize (HP x); simpl.
   destruct e; try (destruct A; contradiction);
     destruct a as [arg2 e2].
-  (* Goal: [ P (x, args) (call_tele (ret (VClo η ..)) (x, args)) ]. *)
+  (* Goal: [ P (x, args) (ret (VClo η ..)) (x, args)) ]. *)
   specialize (IH e2); simpl in IH.
-  (* We reduce [call_tele] and its internal evaluations. *)
   simpl; simpl_eval; simpl. apply pure_wp_ret.
   (* Apply the induction hypothesis. *)
   apply IH; [ lia | apply HP ].
@@ -222,30 +245,19 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-(* [call_tele] is a function that takes a closure [c] and arguments
-   described by a telescope [arg_τ], and returns the computation obtained
-   by successively calling [c] on the arguments. *)
-
-Fixpoint call_tele {arg_τ : arg_type} (m : microvx) : arg_τ -#> microvx :=
-  match arg_τ with
-  | Arg1 X => λ (x : X), bind m (λ c, call c #x)
-  | @ArgS X H arg_τ' =>
-      λ (x : X), @call_tele arg_τ' (bind m (λ c, call c #x))
-  end.
 
 (* [prove_Spec_rec] gives an induction principle for [Spec] by
    well-foundedness over the argument type. *)
 
 Lemma prove_Spec_rec
-  (arg_τ : arg_type)
-  {Inh_arg_τ: Inhabited arg_τ}
-  (R : arg_τ -> arg_τ -> Prop) c
-  (P : arg_τ -#> microvx -> Prop) :
-  wf R ->
-  (∀# (args : arg_τ),
-    (∀# sargs, R sargs args -> aSpec c P sargs) ->
-    aSpec c P args)->
-  @Spec arg_τ c P.
+  {A : types}
+  (R : A -> A -> Prop) ρ
+  (P : A -#> microvx -> Prop) :
+  WellFounded R ->
+  (∀# (args : A),
+    (∀# sargs, R sargs args -> Spec ρ P sargs) ->
+    Spec ρ P args)->
+  Spec ρ P.
 Proof.
   intros Hwf HP.
   apply aSpec_Spec; eauto.
