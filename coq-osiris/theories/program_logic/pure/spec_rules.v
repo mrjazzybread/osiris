@@ -128,7 +128,7 @@ Fixpoint lookup_rec_bindings rbs g : option anonfun :=
       None
   end.
 
-Definition closure f : option (env * anonfun) :=
+Definition closure (f : val) : option (env * anonfun) :=
    match f with
   | VClo η a => Some (η, a)
   | VCloRec η rbs g =>
@@ -151,7 +151,16 @@ Equations Spec (A : types) (η : env) (f : anonfun) (P : A -#> microvx -> Prop) 
                 | None => False
                 | Some (η, f) => Spec TT η f (P x) end) ⊥.
 
+(* [Spec] lifted to propositions over values. *)
+
+Definition Spec_val (A : types) (c : val) (P : A -#> microvx -> Prop) :=
+  match closure c with
+    | None => False
+    | Some (η, f) => Spec A η f P
+  end.
+
 Arguments Spec {A} η f P.
+Arguments Spec_val {A} c P.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -208,7 +217,7 @@ Qed.
 
 Local Lemma pure_anonfun_Spec (A : types) η x e (P : A -#> microvx -> Prop) :
   pure_anonfun η (EAnonFun (AnonFun x e)) P ->
-  @Spec A (VClo η (AnonFun x e)) P.
+  @Spec A η (AnonFun x e) P.
 Proof.
   revert dependent x; revert η; revert dependent A.
   (* We do induction on the depth of the number or arguments that the function takes.*)
@@ -236,7 +245,7 @@ Qed.
 
 Lemma pure_eval_anonfun (A : types) (P : A -#> microvx -> Prop) η (x : var) e ζ :
   pure_anonfun η (EAnonFun (AnonFun x e)) P ->
-  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
+  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec_val c P) ζ.
 Proof.
   intros HP.
   simpl_eval; apply pure_wp_ret.
