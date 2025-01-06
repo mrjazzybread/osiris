@@ -11,14 +11,6 @@ Local Definition acall η a v :=
   let 'AnonFun x e := a in
   eval ((x, v) :: η) e.
 
-Lemma pure_acall_equiv `{Encode A} η a v φ ζ :
-  pure (A := A) (eval.acall η a v) φ ζ <->
-  pure (acall η a v) φ ζ.
-Proof.
-  destruct a; split;
-    [ apply invert_pure_wp_eval | apply pure_CEval_inject2 ].
-Qed.
-
 Local Definition call f x :=
    match f with
   | VClo η a => acall η a x
@@ -30,6 +22,18 @@ Local Definition call f x :=
   | _ => type_mismatch "closure expected"
   end.
 
+(* -------------------------------------------------------------------------- *)
+
+(** Properties about [acall], [call]. *)
+
+Local Lemma pure_acall_equiv `{Encode A} η a v φ ζ :
+  pure (A := A) (eval.acall η a v) φ ζ <->
+  pure (acall η a v) φ ζ.
+Proof.
+  destruct a; split;
+    [ apply invert_pure_wp_eval | apply pure_CEval_inject2 ].
+Qed.
+
 (* TODO Move *)
 Corollary pure_wp_bind_mono {A B E} (m : micro A E) (f g : A -> micro B E) φ ζ :
   (∀ a, pure_wp (f a) φ ζ -> pure_wp (g a) φ ζ) ->
@@ -39,7 +43,7 @@ Proof.
   eapply pure_wp_bind, pure_wp_mono; eauto.
 Qed.
 
-Lemma pure_call_equiv `{Encode A} f v φ ζ :
+Local Lemma pure_call_equiv `{Encode A} f v φ ζ :
   pure (A := A) (eval.call f v) φ ζ <->
   pure (call f v) φ ζ.
 Proof.
@@ -68,7 +72,7 @@ Local Definition Spec_Unary `{Encode X} (c : val) (P : call_spec_unary) :=
 
 (* Example of a reasoning rule, for the creation of a [Spec_Unary c P]. *)
 
-Local Lemma pure_eval_anon `{Encode X} (P : call_spec_unary) η (xvar : var) e ζ :
+Local Lemma pure_eval_anon_unary `{Encode X} (P : call_spec_unary) η (xvar : var) e ζ :
   (∀ (x : X),
       P x (eval ((xvar, #x) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun xvar e))) (λ c, Spec_Unary c P) ζ.
@@ -82,7 +86,7 @@ Proof. intros; simpl_eval; by eapply pure_ret; eauto. Qed.
   [R]) are well-behaved.
   In the second subgoal, we prove [e2] while abstracting over [e]. *)
 
-Local Lemma pure_eval_letrec `{Encode X, Encode Y}
+Local Lemma pure_eval_letrec_unary `{Encode X, Encode Y}
   (P : call_spec_unary) η f (x : var) e
   e2 (φ : Y -> Prop) ζ
   (* Show that the relation on which arguments are decreasing is well-founded. *)
@@ -109,223 +113,60 @@ Qed.
 
 From Equations Require Import Equations.
 
-(* We want to be able to reason on n-ary functions. We thus generalize
-   [Spec] to take a list of arguments described by an [arg_type]. *)
+(** Specification over function calls. *)
 
-(* [Spec] matches on the list of argument types [arg_τ], producing a
+(* [Spec] matches on the list of argument types [args], producing a
    series of nested calls, where the base case is identical to the
    definition of [Spec_Unary]. *)
 
 (* [Spec args c P] should be read as "[c] is a function value, with
    arguments described by [args], and with specification [P]." *)
 
-Equations Spec (args : types) (c : val) (P : args -#> microvx -> Prop) : Prop :=
+Equations Spec (A : types) (c : val) (P : A -#> microvx -> Prop) : Prop :=
 | Tbase X, c, P :=
     ∀ (x : X), P x (call c #x)
 | Tcons X TT, c, P :=
     ∀ (x : X), pure_wp (call c #x) (λ c, Spec TT c (P x)) ⊥.
 
-Arguments Spec {args} c P.
+Arguments Spec {A} c P.
 
-(* We can check on a simple example that [Spec] generalizes [Spec']. *)
+(* -------------------------------------------------------------------------- *)
 
-Local Lemma pure_eval_anon_single `{Encode X} (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ :
-  (∀ (v : X), P v (eval ((x, #v) :: η) e)) ->
-  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
-Proof.
-  intros HP; simpl_eval; eapply pure_ret; encode.
-Qed.
+(** Basic properties about [Spec]. *)
 
 (* [Spec_mono] states that [Spec] is monotonic over specifications. *)
 
-Lemma Spec_mono (args : types) (P P' : args -#> microvx -> Prop) c :
+Lemma Spec_mono {A : types} (P P' : A -#> microvx -> Prop) c :
   Spec c P ->
   (∀# args, ∀ m, (P args) m -> (P' args) m) ->
   Spec c P'.
 Proof.
   revert c.
-  induction args as [ | X HX arg_τ IH ]; intros c HP Hmono.
+  induction A as [ | X HX arg_τ IH ]; intros c HP Hmono.
   { simp Spec in HP |-*. intros x.
     apply Hmono. apply HP. }
   simp Spec in HP |-*; intros x.
   eapply pure_wp_mono_ret; [ apply HP | ].
   intros c' HSpec'.
   apply IH with (P := P x); [ apply HSpec' | ].
-  rewrite spec_once in Hmono. apply Hmono.
-Qed.
-
-Definition eq_partial_arg_app {arg_τ1 arg_τ2 arg_τ A} :
-  arg_τ = arg_cat arg_τ1 arg_τ2 ->
-  (arg_τ -#> A) ->
-  (arg_τ1) ->
-  (arg_τ2 -#> A).
-Proof.
-  intros -> P args.
-  induction arg_τ1 as [ X | X ? arg_τ1 IH ].
-  - auto.
-  - destruct args. apply IH; auto.
-Defined.
-
-Lemma decompose_Spec (arg_τ1 arg_τ2 arg_τ : arg_type) (c : val) P
-  (Heqargs : arg_τ = arg_cat arg_τ1 arg_τ2) :
-  @Spec arg_τ c P ->
-  @Spec arg_τ1 c
-    (arg_bind (λ args m,
-         let P' := eq_partial_arg_app Heqargs P args in
-         pure_wp m (λ c, @Spec arg_τ2 c P') ⊥)).
-Proof.
-  subst.
-  revert c; induction arg_τ1 as [ X | X ? arg_τ1 IH ]; intros c.
-  { simpl. simp Spec. }
-  simpl; simp Spec.
-  intros Hwp x.
-  eapply pure_wp_mono_ret; eauto.
-  intros c' HSpec'.
-  apply IH; apply HSpec'.
-Qed.
-
-(** [aSpec] is a restatement of [Spec], but with all of the
-    arguments quantified before the nested calls.
-
-    We then have the following equivalence:
-    [Spec c P <-> ∀ args, aSpec c P args]. *)
-
-Equations aSpec_aux (arg_τ : arg_type) (c : val)
-  (P : arg_τ -#> microvx -> Prop) (args : arg_τ)
-  : Prop :=
-| Arg1 X, c, P, x :=
-    P x (call c #x);
-| ArgS X args_τ', c, P, {| arg_head := x; arg_tail := args'; |} :=
-    pure_wp (call c #x)
-      (λ c', aSpec_aux args_τ' c' (P x) args') ⊥
-.
-
-Definition aSpec {args_τ : arg_type} (c : val)
-  (P : args_τ -#> microvx -> Prop) : args_τ -#> Prop :=
-  arg_bind (aSpec_aux args_τ c P).
-
-Ltac args_app_bind :=
-  repeat match goal with
-    | |- context[(arg_app (arg_bind _))] =>
-        rewrite args_app_bind
-    | |- context[(fun _ => arg_app (arg_bind _) _)] =>
-        repeat f_equal;
-        (* LATER: Fix this *)
-        apply functional_extensionality; intros;
-        by rewrite args_app_bind
-  end.
-
-Lemma unfold_aSpec `{Encode X} {arg_τ : arg_type} c (P : (ArgS X arg_τ) -#> microvx -> Prop) (args : arg_τ) x :
-  arg_app (aSpec c P x) args =
-    pure_wp (call c #x) (λ c', (aSpec c' (P x)) args) ⊥.
-Proof.
-  unfold aSpec; cbn.
-  args_app_bind; simp aSpec_aux; args_app_bind.
-Qed.
-
-Ltac aSpec_simpl := unfold aSpec; simpl; simp aSpec_aux.
-Tactic Notation "aSpec_simpl" "in" hyp(H) :=
-  unfold aSpec in H; simpl in H; simp aSpec_aux in H.
-
-Ltac Spec_hyp_normalize :=
-  args_app_bind;
-  match goal with
-    | [ H : arg_to_type (ArgS _ _) |- _] => destruct H
-    | [ H : arg_cons _ _ |- _] => destruct H
-    | [ H : context[ arg_app (aSpec _ _) _] |- _] =>
-        unfold aSpec in H; simpl in H;
-        rewrite args_app_bind in H
-    | [ H : context[ arg_app (aSpec _ _ _ _) _] |- _] =>
-        unfold aSpec in H; simpl in H;
-        rewrite args_app_bind in H
-    | [ H : aSpec _ _ _ |- _] =>
-        aSpec_simpl in H
-    | [ H : aSpec_aux _ _ _ _ _ |- _] =>
-        aSpec_simpl in H
-  end.
-
-Ltac Spec_auto :=
-  repeat Spec_hyp_normalize ; try aSpec_simpl;
-  rewrite ?args_app_bind.
-
-Lemma Spec_aSpec (arg_τ : arg_type) (c : val) (P : arg_τ -#> microvx -> Prop) :
-  Spec c P ->
-  (∀ args, aSpec c P args).
-Proof.
-  revert c.
-  induction arg_τ as [ | X HX arg_τ IH ].
-  { intros c HSpec. aSpec_simpl.
-    simp Spec in HSpec; apply HSpec. }
-  intros c HSpec args.
-
-  destruct args; simpl. rewrite unfold_aSpec.
-
-  eapply pure_wp_mono_ret; [ simp Spec in HSpec; apply HSpec | ].
-  intros c' HSpec'.
-  apply IH. apply HSpec'.
-Qed.
-
-Lemma aSpec_Spec (arg_τ : arg_type) (c : val) (P : arg_τ -#> microvx -> Prop)
-  `{Inhabited arg_τ}:
-  (∀ args, (aSpec c P) args) ->
-  Spec c P.
-Proof.
-  revert c.
-  induction arg_τ as [ | X HX arg_τ IH ];
-    intros c HSpec; simp Spec; intros x.
-  { specialize (HSpec x); apply HSpec. }
-
-  rewrite spec_once_tele in HSpec; specialize (HSpec x).
-  assert (Inhabited arg_τ).
-  { inversion H; inv inhabitant; constructor; eauto. }
-  eapply pure_wp_mono_ret; last first.
-  { intros c' HSpec'. apply IH; eauto.
-    apply HSpec'. }
-  eapply pure_wp_intersection.
-  intros args.
-  specialize (HSpec args).
-  simpl in HSpec.
-  rewrite unfold_aSpec in HSpec.
-  apply HSpec.
-Qed.
-
-Lemma aSpec_mono (arg_τ : arg_type) (P P' : arg_τ -#> microvx -> Prop) c args :
-  aSpec c P args ->
-  (∀ m, (P args) m -> (P' args) m) ->
-  aSpec c P' args.
-Proof.
-  unfold aSpec; rewrite !args_app_bind.
-  revert c.
-  induction arg_τ as [ | X HX arg_τ IH ]; intros c HP Hmono.
-  { simp aSpec_aux in HP |-*.
-    apply Hmono. apply HP. }
-  destruct args as [x args].
-  simp aSpec_aux in HP |-*.
-  eapply pure_wp_mono_ret; [ apply HP | ].
-  intros c' HSpec'.
-  apply IH with (P := P x); [ apply HSpec' | ].
-  apply Hmono.
+  rewrite tforall_unroll in Hmono. apply Hmono.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We want to generalize this reasoning rule over arbitrary telescopes.
-   We could give a lemma that simply requires the user to prove [Spec c P],
-   but this would expose the nested calls created by [call_tele]. *)
+(* [pure_call] specifies the nested call on expression [e] under environment [η]
+   with specification [P]. *)
 
-(* Instead, we define [build_prop], which fetches the function body
-   from a series of nested [EAnonFun], at a depth equal to the number
-   of arguments specified by the telescope.  *)
-
-Equations build_prop (arg_τ : arg_type) (η : env) (e : expr) (P : arg_τ -#> microvx -> Prop) : Prop :=
-| Arg1 X, η, EAnonFun (AnonFun arg e), P :=
+Equations pure_anonfun (A : types) (η : env) (e : expr) (P : A -#> microvx -> Prop) : Prop :=
+| Tbase X, η, EAnonFun (AnonFun arg e), P :=
     ∀ (x : X), P x (eval ((arg, #x) :: η) e)
-| ArgS X arg_τ', η, (EAnonFun (AnonFun arg e)), P :=
-    ∀ (x : X), build_prop arg_τ' ((arg, #x) :: η) e (P x)
+| Tcons X A', η, EAnonFun (AnonFun arg e), P :=
+    ∀ (x : X), pure_anonfun A' ((arg, #x) :: η) e (P x)
 (* If the expression isn't an [EAnonFun] we produce an unprovable proposition. *)
 | _, _, _, _ := False.
 
-Transparent build_prop.
+Transparent pure_anonfun.
+Arguments pure_anonfun {A} η e P.
 
 Fixpoint AnonFun_depth e : nat :=
   match e with
@@ -333,21 +174,24 @@ Fixpoint AnonFun_depth e : nat :=
   | _ => 0
   end.
 
-Local Lemma afun_wf :
-  wf (λ e1 e2, AnonFun_depth e1 < AnonFun_depth e2)%nat.
+Local Instance afun_wf :
+  WellFoundedRel _ (λ e1 e2, AnonFun_depth e1 < AnonFun_depth e2)%nat.
 Proof.
-  eapply wf_inverse_image. apply Nat.lt_wf_0.
+  constructor. eapply Inverse_Image.wf_inverse_image. apply Nat.lt_wf_0.
 Qed.
 
-Local Lemma prove_Spec (arg_τ : arg_type) η x e (P : arg_τ -#> microvx -> Prop) :
-  build_prop arg_τ η (EAnonFun (AnonFun x e)) P ->
-  @Spec arg_τ (VClo η (AnonFun x e)) P.
+(* TODO Comment *)
+
+Local Lemma pure_anonfun_Spec (A : types) η x e (P : A -#> microvx -> Prop) :
+  pure_anonfun η (EAnonFun (AnonFun x e)) P ->
+  @Spec A (VClo η (AnonFun x e)) P.
 Proof.
-  revert dependent x; revert η; revert dependent arg_τ.
+  revert dependent x; revert η; revert dependent A.
   (* We do induction on the depth of the number or arguments that the function takes.*)
-  induction e as [e IH] using (well_founded_induction afun_wf).
-  intros arg_τ P η arg HP.
-  destruct arg_τ.
+  induction e as [e IH] using
+    (well_founded_induction (wf_def (WF := @WellFoundedRel_WellFounded _ _ afun_wf))).
+  intros A P η arg HP.
+  destruct A.
   (* Case: the tuple has size 1. *)
   { apply HP. }
   simp Spec; intros x.
@@ -355,7 +199,7 @@ Proof.
   (* Because the tuple has size greater than 1, we must have that the
      function body [e] is equal to [EAnonFun a] for some [a]. *)
   simpl in HP; specialize (HP x); simpl.
-  destruct e; try (destruct arg_τ; contradiction);
+  destruct e; try (destruct A; contradiction);
     destruct a as [arg2 e2].
   (* Goal: [ P (x, args) (call_tele (ret (VClo η ..)) (x, args)) ]. *)
   specialize (IH e2); simpl in IH.
@@ -367,18 +211,17 @@ Qed.
 
 (* The reasoning rule for an n-ary non-recursive function. *)
 
-Lemma pure_eval_anon (arg_τ : arg_type) (P : arg_τ -#> microvx -> Prop) η (x : var) e ζ :
-  build_prop arg_τ η (EAnonFun (AnonFun x e)) P ->
+Lemma pure_eval_anonfun (A : types) (P : A -#> microvx -> Prop) η (x : var) e ζ :
+  pure_anonfun η (EAnonFun (AnonFun x e)) P ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
 Proof.
   intros HP.
   simpl_eval; apply pure_wp_ret.
   unfold returns; eexists; split; [ reflexivity | ].
-  by apply prove_Spec.
+  by apply pure_anonfun_Spec.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-
 (* [call_tele] is a function that takes a closure [c] and arguments
    described by a telescope [arg_τ], and returns the computation obtained
    by successively calling [c] on the arguments. *)
@@ -646,7 +489,7 @@ Proof with Spec_auto.
 
   (* Generalize (TeleS X TT) where it doesn't participate in the
      recursion. This is exactly where [TTog] appears in the definition
-     of [build_prop_rec_aux]. *)
+     of [Spec_AnonFun_rec_aux]. *)
   intros IHargs Hclo HP.
 
   remember P as Pog in HP at 1, IHargs; clear HeqPog.
@@ -738,7 +581,7 @@ Lemma pure_eval_letrec_nonrec `{Encode X} (arg_τ : arg_type)
   (P : arg_τ -#> microvx -> Prop) η f x e e2 (φ : X -> Prop) ζ :
   let v := VCloRec η [RecBinding f (AnonFun x e)] f in
   (* Show the specification [P] holds over a call to any argument. *)
-  (build_prop arg_τ ((f, v) :: η) (EAnonFun (AnonFun x e)) P) ->
+  (Spec_AnonFun arg_τ ((f, v) :: η) (EAnonFun (AnonFun x e)) P) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
