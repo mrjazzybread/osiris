@@ -531,146 +531,144 @@ Proof with Spec_auto.
   simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
 Qed.
 
-Definition is_VCloRec v e :=
-  ∃ η f x, v = VCloRec η [ RecBinding f (AnonFun x e) ] f.
+(* [is_lambda_of_depth e arg_τ] states that [e] is a series of nested
+   [EAnonFun _] of depth ≥ to the length of [arg_τ]. *)
 
-Fixpoint is_lambda_of_depth e (arg_τ : arg_type) : Prop :=
-  match arg_τ with
-  | Arg1 _ =>
-      exists x ebody,
-      e = EAnonFun (AnonFun x ebody)
-  | ArgS _ arg_τ' =>
-      exists x e',
-      e = EAnonFun (AnonFun x e') ∧ is_lambda_of_depth e' arg_τ'
-  end.
+Fixpoint is_lambda_of_depth (e : expr) (arg_τ : arg_type) : Prop :=
+  exists x e',
+    e = EAnonFun (AnonFun x e') ∧
+      match arg_τ with
+      | Arg1 _ => True
+      | ArgS _ arg_τ' =>
+          is_lambda_of_depth e' arg_τ'
+      end.
+
+Lemma unfold_is_lambda_of_depth e arg_τ :
+  is_lambda_of_depth e arg_τ =
+  exists x e', e = EAnonFun (AnonFun x e') ∧
+                 match arg_τ with
+                 | Arg1 _ => True
+                 | ArgS _ arg_τ' =>
+                     is_lambda_of_depth e' arg_τ'
+                 end.
+Proof. destruct arg_τ; tauto. Qed.
 
 Definition is_VCloRec_of_depth v arg_τ :=
   exists η f x e,
     v = VCloRec η [ RecBinding f (AnonFun x e) ] f ∧
+      (* The [RecBinding] has one initial binding. *)
       match arg_τ with
       | Arg1 _ => True
       | ArgS _ arg_τ' =>
           is_lambda_of_depth e arg_τ'
       end.
 
-Lemma guarded_Spec_equiv (arg_τ arg_τ_og : arg_type) c
-  (R : arg_τ_og -> arg_τ -> Prop) (P : arg_τ_og -#> microvx -> Prop) (args : arg_τ) :
-  is_VCloRec_of_depth c arg_τ_og ->
-  Spec c (arg_bind(λ sargs m,
-              R sargs args ->
-              P sargs m)) <->
-  (∀# sargs, R sargs args -> aSpec c P sargs).
+(* If [c] is a lambda of depth [arg_τ], then
+   [Spec c (λ args, Q args -> P args)] is equivalent to
+   [∀ args, Q args -> aSpec c P args] *)
+
+Lemma guarded_aSpec_Spec c (arg_τ : arg_type)
+  (Q : arg_τ -> Prop) (P : arg_τ -#> microvx -> Prop) :
+  is_VCloRec_of_depth c arg_τ ->
+  (∀# args, Q args -> aSpec c P args) ->
+  Spec c (arg_bind(λ args m, Q args -> P args m)).
 Proof.
-  intros Hclo.
-  split; [ clear Hclo | ].
-  { revert c.
-    induction arg_τ_og as [ X H | X H arg_τ_og IH ]; intros c.
-    - unfold aSpec; simp Spec.
-      intros Hcall x HR.
-      rewrite args_app_bind.
-      simp aSpec_aux. apply Hcall. apply HR.
-    - intros HSpec.
-      rewrite spec_once; intros sx.
-      simp Spec in HSpec; specialize (HSpec sx).
+  intros (η & f & x & e & -> & He) HaSpec.
+  (* The nature of the proof involves a growing environment [η]. We
+     need to generalise over this environment for the induction to go
+     through.
 
-      apply forallArgs_forall; intros sargs HR.
-      unfold aSpec; rewrite args_app_bind; simp aSpec_aux.
-      eapply pure_wp_mono_ret; [ apply HSpec | ].
-      intros c' HSpec'.
-      specialize (IH (λ t1 t2, R (ArgCons sx t1) t2)).
-      specialize (IH (P sx)).
-      specialize (IH c').
-      specialize (IH HSpec').
-      rewrite forallArgs_forall in IH; specialize (IH sargs HR).
-      unfold aSpec in IH; rewrite args_app_bind in IH.
-      apply IH. }
-
-  intros HaSpec.
-
-  destruct Hclo as (η & f & x & e & -> & He).
-  assert (∀# sargs, R sargs args -> aSpec (VClo ((f, (VCloRec η [ RecBinding f (AnonFun x e)] f)) :: η) (AnonFun x e)) P sargs) as HSpec.
-  { apply forallArgs_forall; intros sargs HR.
-    rewrite forallArgs_forall in HaSpec; specialize (HaSpec sargs HR).
-    rewrite <- aSpec_equiv. apply HaSpec. }
-  clear HaSpec.
+     We could step through the first [VCloRec] manually to reach the
+     underlying [VClo]s, but we have an equivalence between [VCloRec]
+     and [VClo] under [Spec] which is cleaner. *)
   rewrite Spec_equiv.
-
+  assert
+    (∀# args,
+      Q args ->
+      aSpec
+        (VClo
+           ((f, (VCloRec η [ RecBinding f (AnonFun x e)] f)) :: η)
+           (AnonFun x e))
+        P
+        args) as HSpec; [ | clear HaSpec ].
+  { apply forallArgs_forall; intros sargs HR.
+    rewrite <- aSpec_equiv.
+    rewrite forallArgs_forall in HaSpec; by apply HaSpec. }
   generalize dependent ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η).
-  revert dependent e.
-  revert x.
-  induction arg_τ_og as [ X H | X H arg_τ_og IH ]; intros x e He η0 HSpec.
+
+  (* Proceed by induction over the argument type. *)
+  revert dependent e; revert x.
+  induction arg_τ as [ X H | X H arg_τ IH ]; intros x e He η0 HSpec.
+
+  (* Base case: the argument is unary. *)
   { simp Spec; intros vx HR.
-    specialize (HSpec vx HR).
-    unfold aSpec in HSpec; rewrite args_app_bind in HSpec.
-    apply HSpec. }
+    specialize (HSpec vx HR). apply HSpec. }
 
-  simp Spec; intros sx. simpl.
+  (* Inductive case: the argument has a head [vx] of type [X]. *)
+  simp Spec; intros vx; simpl.
 
-  destruct arg_τ_og.
-  { inversion He as (y & e' & ->).
-    simpl_eval. apply pure_wp_ret.
-    simp Spec; intros vy HR.
-    specialize (HSpec sx vy HR). simpl in HSpec.
-    unfold aSpec in HSpec.
-    cbv in HSpec. simp aSpec_aux in HSpec.
-    simpl in HSpec.
-    unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
-    apply invert_pure_wp_ret in HSpec.
-    apply HSpec. }
+  (* Invert [He] to conclude that [e] is an [EAnonFun], then step
+     through its (trivial) evaluation. *)
+  rewrite unfold_is_lambda_of_depth in He.
+  destruct He as (y & e' & -> & He').
+  simpl_eval; apply pure_wp_ret.
 
-  inversion He as (y & e' & -> & He').
-  simpl_eval. apply pure_wp_ret.
+  (* Apply the induction hypothesis. *)
+  apply IH; [ | clear IH He' ]. { apply He'. }
 
-  specialize (IH (λ t1 t2, R (ArgCons sx t1) t2)).
-  specialize (IH (P sx)).
-  specialize (IH y e' He').
-  specialize (IH ((x, #sx) :: η0)).
-  apply IH.
-
-  rewrite spec_once in HSpec; specialize (HSpec sx).
   apply forallArgs_forall; intros sargs HR.
+  rewrite spec_once in HSpec; specialize (HSpec vx).
   rewrite forallArgs_forall in HSpec; specialize (HSpec sargs HR).
-  unfold aSpec in HSpec. rewrite args_app_bind in HSpec.
-  simp aSpec_aux in HSpec.
-  simpl in HSpec.
+  (* Subgoal (morally): show [aSpec (VClo e') (P vx) args] using
+     [aSpec (VClo (EAnonFun x e')) P (vx args)]. *)
+  simpl in HSpec; rewrite unfold_aSpec in HSpec; simpl in HSpec.
   unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
-  apply invert_pure_wp_ret in HSpec.
-  unfold aSpec; rewrite args_app_bind.
-  apply HSpec.
+  by apply invert_pure_wp_ret in HSpec.
+Qed.
+
+(* Show that knowing [unfold_spec arg_τ η f x e ...] implies
+   [is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) arg_τ]. *)
+
+Lemma invert_unfold_spec_aux (arg_τ arg_τ_og : arg_type) (args : arg_τ)
+  η x e R Pog P v :
+  unfold_spec_aux arg_τ_og Pog v arg_τ
+    η
+    (EAnonFun (AnonFun x e)) P R ->
+  match arg_τ with
+  | tele[_] => True
+  | ArgS _ arg_τ' => is_lambda_of_depth e arg_τ'
+  end.
+Proof.
+  revert dependent e. revert x η.
+  induction arg_τ as [ Y HY | Y HY arg_τ' IH ]; intros x η0 e Huspec. done.
+
+  destruct args as [vx args].
+  destruct e;
+    try (specialize (Huspec vx); destruct arg_τ'; contradiction);
+    destruct a as [y e'].
+
+  rewrite unfold_is_lambda_of_depth.
+  eexists _, _; split; [ reflexivity | ].
+  eapply (IH args) with (R := (λ t1 t2, R t1 (ArgCons vx t2))).
+  apply Huspec.
 Qed.
 
 Lemma invert_unfold_spec (arg_τ : arg_type) (args : arg_τ) η f x e R P :
   unfold_spec arg_τ η f x e R P ->
   is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) arg_τ.
 Proof.
-  intros Huspec.
-  specialize (Huspec (VCloRec η [RecBinding f (AnonFun x e)] f)).
+  intros Huspec;
+    specialize (Huspec (VCloRec η [RecBinding f (AnonFun x e)] f)).
+  (* Generalize the first [arg_τ] in [unfold_spec_aux]. *)
   remember P as Pog in Huspec at 1; clear HeqPog.
-  remember arg_τ as TTog in R at 1, Pog, Huspec at 1; clear HeqTTog.
+  remember arg_τ as arg_τ_og in R at 1, Pog, Huspec at 1; clear Heqarg_τ_og.
 
   eexists _, _, _, _; split; [ reflexivity | ].
-  destruct arg_τ as [ | X HX arg_τ ]; [ done | ].
-  destruct args as [vx args]. revert Huspec.
-  generalize ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η); intros η0.
-  generalize (VCloRec η [RecBinding f (AnonFun x e)] f) as v; intros v Huspec.
+  generalize dependent ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η).
+  generalize (VCloRec η [RecBinding f (AnonFun x e)] f).
+  intros v η0 Huspec.
 
-  revert dependent e. revert dependent X. revert x η0.
-  induction arg_τ as [ Y HY | Y HY arg_τ' IH ]; intros x η0 X HX vx R P e Huspec.
-  { destruct e; try (specialize (Huspec vx); contradiction).
-    destruct a as [y e'].
-    eexists _, _; reflexivity. }
-
-  destruct e; try (specialize (Huspec vx); contradiction); destruct a as [y e'].
-  destruct args as [vy args].
-  specialize (IH args y ((x, #vx) :: η0) Y HY vy).
-  specialize (IH (λ t1 t2, R t1 (ArgCons vx t2)) (P vx)).
-  specialize (IH e').
-  eexists _, _; split; [ reflexivity | ].
-  apply IH.
-  simpl in Huspec. specialize (Huspec vx).
-  intros vyy.
-  simpl. specialize (Huspec vyy).
-  apply Huspec.
+  eapply (invert_unfold_spec_aux). apply args. apply Huspec.
 Qed.
 
 Lemma by_unfold_spec (arg_τ : arg_type) η f x e R P :
@@ -708,9 +706,7 @@ Proof with Spec_auto.
 
   (* Base case: the telescope is empty. *)
   { cbv... apply Hbp.
-    apply <- (guarded_Spec_equiv (tele[X]) TTog _ R Pog args Hclo).
-
-    apply IHargs. }
+    apply guarded_aSpec_Spec; [ apply Hclo | apply IHargs ]. }
 
   (* Induction step: the telescope has some head type [Y]. *)
   destruct args as [vx args].
@@ -957,7 +953,7 @@ Section pure_EApp_prop_aux_def.
 
 End pure_EApp_prop_aux_def.
 
-Definition pure_EApp_prop (arg_τ : arg_type) (η : env) (e : expr) (Ψ : val -> Prop)
+Definition pure_EApp_prop `{Encode A} (arg_τ : arg_type) (η : env) (e : expr) (Ψ : A -> Prop)
   (ζ : exn -> Prop) (P : arg_τ -#> microvx -> Prop) : Prop :=
   pure (eval η e) (λ c, Spec c P) ζ ->
   pure_EApp_prop_aux η ζ e (λ e, pure (eval η e) Ψ ζ)
@@ -966,7 +962,7 @@ Definition pure_EApp_prop (arg_τ : arg_type) (η : env) (e : expr) (Ψ : val ->
     (arg_bind (λ (tt : arg_τ) (B : Prop),
          B -> ∀ m, (arg_app P tt) m -> pure m Ψ ζ)).
 
-Arguments pure_EApp_prop !arg_τ /.
+Arguments pure_EApp_prop {_ _} !arg_τ /.
 Transparent pure_EApp_prop.
 
 (* We always want [pure_EApp_prop] to unfold, the user should only be
@@ -1032,7 +1028,7 @@ Proof.
   apply Happlied. apply Hx.
 Qed.
 
-Lemma pure_EApp (arg_τ : arg_type) η e Ψ ζ (P : arg_τ -#> microvx -> Prop) :
+Lemma pure_EApp `{Encode A} (arg_τ : arg_type) η e (Ψ : A -> Prop) ζ (P : arg_τ -#> microvx -> Prop) :
   pure_EApp_prop arg_τ η e Ψ ζ P.
 Proof.
   (* Unfold [pure_EApp_prop]. *)
@@ -1112,6 +1108,7 @@ Local Lemma pure_EApp_aSpec1 `{Encode X, Encode Y} η e e2
   (∀ m, P sargs m -> pure m Ψ ζ) ->
   pure (eval η (EApp e e2)) Ψ ζ.
 Proof.
+  Set Printing All.
   apply forallArgs_forall; intros args He He2 Hmono.
   eapply pure_eval_app; eauto.
   intros c x Hc ->.
