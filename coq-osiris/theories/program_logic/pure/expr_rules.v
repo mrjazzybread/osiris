@@ -263,15 +263,14 @@ Proof.
 Qed.
 
 (* TODO Fix automation on [pure_data] *)
-Lemma pure_eval_data `{Encode Y} `{Encode A} η c e y (ψ : A -> Prop) ζ :
-  pure (evals η e) (λ (v' : list Y), VData c (map encode.encode v') = #y) ζ ->
-  ψ y ->
+Lemma pure_eval_data `{Encode Y} `{Encode A} η c e (ψ : A -> Prop) ζ :
+  pure (evals η e) (λ (v' : list Y), ∃ y, VData c (map encode.encode v') = #y ∧ ψ y) ζ ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
-  intros He Hy.
+  intros He.
   simpl_eval.
   eapply pure_bind. eapply pure_mono; eauto.
-  intros ? ?. eapply pure_ret. cbn in *.
+  intros ? (y & Henc & HΨ). eapply pure_ret. cbn in *.
   destruct a; cbn in *; returns_eauto; eauto with pure.
   done.
 Qed.
@@ -1326,9 +1325,9 @@ Qed.
 
 (* EMatch (e : expr) (bs : list branch) *)
 
-Lemma pure_eval_match `{Encode B} η e bs (a : val) (φ : B -> Prop) Ψ :
+Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) Ψ :
   pure (eval η e) (singleton a) ⊥ ->
-  pure_match η (O3Ret a) bs φ Ψ ->
+  pure_match η (O3Ret #a) bs φ Ψ ->
   pure (eval η (EMatch e bs)) φ Ψ.
 Proof.
   intros Heval Hmatch. simpl_eval.
