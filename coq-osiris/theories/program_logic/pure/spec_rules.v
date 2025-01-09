@@ -166,8 +166,6 @@ Arguments aSpec_val {A} c P.
 (*   eval ((x, v) :: η) e. *)
 
 (* -------------------------------------------------------------------------- *)
-
-
 Equations Spec (A : types) (ρ : val) (P : A -#> microvx -> Prop) : Prop :=
 | Tbase X, ρ, P :=
     ∀ (x : X), P x (call ρ #x)
@@ -293,57 +291,112 @@ Qed.
 
 From osiris Require Import program_logic.pure.toplevel_rules.
 
-Lemma pure_eval_letrec (A : types)
-  (R : A -> A -> Prop) (* LATER : State that this relation is well-founded *)
+(* TODO Rename (formerly [aSpec]) *)
+(* (spec with the argument) *)
+Definition Spec' {A : types} vf (P : A -#> microvx -> Prop) x : Prop :=
+  Spec vf (tbind (fun (x' : A) (m : microvx) => x' = x -> P x' m)).
+
+Lemma Spec_forall
+  (A : types) `{Inhabited A}
+  (c : val) (P : A -#> microvx -> Prop) :
+  (∀ x, Spec' c P x) ->
+  Spec c P.
+Proof.
+  revert c.
+  induction A as [ | X HX A IH ];
+    intros c HSpec; simp Spec; intros x.
+  { specialize (HSpec x). unfold Spec' in HSpec.
+    simp Spec in HSpec.
+    by apply HSpec. }
+
+  rewrite forall_unroll in HSpec; specialize (HSpec x).
+  assert (Inhabited A).
+  { inversion H; inv inhabitant; constructor; eauto. }
+  eapply pure_wp_mono_ret; last first.
+  { intros c' HSpec'. apply IH; eauto.
+    apply HSpec'. }
+  eapply pure_wp_intersection.
+  intros args.
+  specialize (HSpec args).
+  simpl in HSpec. unfold Spec' in HSpec.
+  simp Spec in HSpec; cbn in HSpec.
+  eapply pure_wp_mono_ret. eapply HSpec;
+  eapply HSpec.
+  intros; eauto. cbn in *.
+  eapply Spec_mono; eauto.
+  rewrite tforall_equiv; intros.
+  rewrite tapp_bind in *.
+  intros; subst; eauto.
+Qed.
+
+Lemma Spec_forall2
+  (A : types) (c : val) (P : A -#> microvx -> Prop) :
+  Spec c P ->
+  forall x, Spec' c P x.
+Proof.
+  revert c.
+  induction A as [ | X HX arg_τ IH ].
+  { intros c HSpec. unfold Spec'. simp Spec.
+    intros. specialize (HSpec (TBase x)).
+    simp Spec in HSpec. cbn in *.
+    simp Spec. intros; subst; done. }
+  intros c HSpec. intros args. unfold Spec'.
+  simp Spec.
+  intros x'.
+
+  eapply pure_wp_mono_ret; [ simp Spec in HSpec; apply HSpec | ].
+  intros c' HSpec'. cbn in *.
+  specialize (IH _ _ HSpec').
+
+  eapply Spec_mono; eauto.
+  rewrite tforall_equiv; intros; eauto. rewrite tapp_bind in *.
+  intros; by subst.
+Qed.
+
+
+(* [prove_Spec_rec] gives an induction principle for [Spec] by
+   well-foundedness over the argument type. *)
+
+Lemma prove_Spec_rec
+  (A : types) `{IA: Inhabited A} {WF: call_rules.WellFounded A}
+  c (P : A -#> microvx -> Prop) :
+  (∀# (args : A),
+    (∀# sargs, wf_relation sargs args ->
+      Spec c
+        (tbind (fun (x' : A) (m : microvx) => x' = sargs -> P x' m))) ->
+    Spec c
+        (tbind (fun (x' : A) (m : microvx) => x' = args -> P x' m))) ->
+  @Spec A c P.
+Proof.
+  intros HP.
+  apply Spec_forall; eauto.
+  intros a.
+  induction a as [a IHR] using (@well_founded_induction _ wf_relation wf_def).
+  rewrite tforall_equiv in HP; specialize (HP a).
+  rewrite tforall_equiv in HP. eapply HP.
+  intros; eapply IHR; eauto.
+Qed.
+
+(* For [ELetRec], it's not necessary to evaluate the expression; the function
+  is only added to the closure environment. *)
+Lemma pure_eval_letrec (A : types) `{Inhabited A} `{Encode X}
+  {Wf: call_rules.WellFounded A}
   (P : A -#> microvx -> Prop)
-  (f : var) η e φ δ :
-  (forall vf (x' : A),
-    (forall x,
-      R x x' ->
-      Spec vf
-        (tbind (fun (x' : A) (m : microvx) => x' = x /\ P x' m))) ->
-     Spec (VCloRec ((f, vf) :: η) [RecBinding f e] f) P) ->
-  struct_items (η, δ) [ILetRec [RecBinding f e]] φ.
+  (f : var) η e1 (e2 : expr) (φ : X -> Prop) ψ :
+  (forall (x' : A) vf,
+     (forall x, wf_relation x x' -> Spec' vf P x) ->
+      Spec (VCloRec η [RecBinding f e1] f) P) ->
+  (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ψ) ->
+  pure (eval η (ELetRec [RecBinding f e1] e2)) φ ψ.
 Proof.
-Admitted.
+  intros Hmkspec He2; simpl_eval. eapply He2.
+  eapply prove_Spec_rec; eauto.
+  rewrite tforall_equiv. intros.
 
-Local Lemma pure_eval_letrec' `{Encode X, Encode Y}
-  (P : call_spec') (R : X -> X -> Prop) η f (x : var) e
-  e2 (φ : Y -> Prop) ζ :
-  (* Show that the relation on which arguments are decreasing is well-founded. *)
-  wf R ->
-  (* Show the specification [P] holds over a call to any argument
-    [arg], under the assumption that [P] holds to a call over any
-    argument [yval] smaller than [arg]. *)
-  (∀ c (arg : X),
-      Spec' c (λ yval m, R yval arg -> P yval m) ->
-      P arg (eval ((x, #arg) :: (f, c) :: η) e)) ->
-  (* Continue with [f] bound to [c], and [c] specified by [P]. *)
-  (∀ c, Spec' c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
-  (* When facing an expression of the form [let rec f x = e in e2]. *)
-  pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
-Proof.
-
-
-(* (* [prove_Spec_rec] gives an induction principle for [Spec] by *)
-(*    well-foundedness over the argument type. *) *)
-
-(* Lemma prove_Spec_rec {A : types} *)
-(*   (R : A -> A -> Prop) c *)
-(*   (P : A -#> microvx -> Prop) : *)
-(*   WellFounded R -> *)
-(*   (∀# (args : A), *)
-(*     (∀# sargs, R sargs args -> Spec c P) -> *)
-(*     Spec c P)-> *)
-(*   Spec c P. *)
-(* Proof. *)
-(*   intros Hwf HP. *)
-(*   apply aSpec_Spec; eauto. *)
-(*   intros args. *)
-
-(*   induction args as [args IHR] using (well_founded_induction Hwf); clear Hwf. *)
-
-(*   rewrite forallArgs_forall in HP. specialize (HP args). *)
-(*   apply HP. *)
-(*   apply forallArgs_forall; apply IHR. *)
-(* Qed. *)
+  eapply Spec_mono.
+  { eapply Hmkspec.
+    intros; rewrite tforall_equiv in H1.
+    by apply H1. }
+  { rewrite tforall_equiv. intros; eauto.
+    rewrite tapp_bind. intros; eauto. }
+Qed.
