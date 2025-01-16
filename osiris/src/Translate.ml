@@ -773,7 +773,12 @@ and translate_exception_case (case : value case) : branch =
   translate_case (fun p -> CExc (translate_pat p)) case
 
 and translate_effect_case (case : value case) : branch =
-  translate_case (fun p -> CEff ((translate_pat p), (PVar "k"))) case
+  let cont_pat =
+    match case.c_cont with 
+    | None -> PAny
+    | Some k -> PVar (Ident.name k)
+  in
+  translate_case (fun p -> CEff ((translate_pat p), cont_pat)) case
 
 and translate_exception_cases cases =
   map translate_exception_case cases
