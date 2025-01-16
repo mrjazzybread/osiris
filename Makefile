@@ -42,14 +42,13 @@ clean:
 
 .PHONY: init
 init:
-	opam switch create osiris 5.2.0
-	opam pin --switch=osiris --yes dune 3.11.0
-	opam install --switch=osiris --yes pprint ocaml-compiler-libs
-	opam repo --switch=osiris add coq-released https://coq.inria.fr/opam/released
-	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin --switch=osiris --yes coq 8.17.1
-	opam pin --switch=osiris --yes coq-serapi 8.17.0+0.17.2
-	opam pin --switch=osiris --yes coq-stdpp --dev-repo 1.9.0
-	opam pin --switch=osiris --yes coq-iris --dev-repo 4.1.0
-	opam pin --switch=osiris --yes coq-equations 1.3+8.17
+	opam switch create osiris5 5.3.0
+	opam pin --switch=osiris5 --yes dune 3.11.0
+	opam install --switch=osiris5 --yes pprint ocaml-compiler-libs
+	opam repo --switch=osiris5 add coq-released https://coq.inria.fr/opam/released
+	opam repo --switch=osiris5 add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	opam pin --switch=osiris5 --yes coq 8.17.1
+	opam pin --switch=osiris5 --yes coq-stdpp --dev-repo 1.9.0
+	opam pin --switch=osiris5 --yes coq-iris --dev-repo 4.1.0
+	opam pin --switch=osiris5 --yes coq-equations 1.3+8.17
 	python3 -m pip install alectryon

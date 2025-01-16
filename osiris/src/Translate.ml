@@ -168,10 +168,6 @@ let decorate (loc : Location.t) (e : expr) : expr =
       (* If we are unable to produce a decoration, forget about it. *)
       e
 
-let rec undecorate : expr -> expr = function
-  | EDecorate (_, e) -> undecorate e
-  | e -> e
-
 (* -------------------------------------------------------------------------- *)
 
 (* Stripping off a location. *)
@@ -415,11 +411,15 @@ let rec translate_expr (e: expression) : expr =
   | Texp_apply (e, args) ->
       translate_application loc e args
 
-  | Texp_match (e, cases, _partial) ->
-      EMatch (translate_expr e, translate_computation_cases cases)
+  | Texp_match (e, comp_cases, eff_cases, _partial) ->
+      let comp_branches = translate_computation_cases comp_cases in
+      let eff_branches = translate_effect_cases eff_cases in
+      EMatch (translate_expr e, List.append comp_branches eff_branches)
 
-  | Texp_try (e, cases) ->
-      ETryWith (translate_expr e, translate_exception_cases cases)
+  | Texp_try (e, exn_cases, eff_cases) ->
+      let exn_branches = translate_exception_cases exn_cases in
+      let eff_branches = translate_effect_cases eff_cases in
+      ETryWith (translate_expr e, List.append exn_branches eff_branches)
 
   | Texp_tuple es ->
       ETuple (translate_exprs es)
@@ -532,51 +532,9 @@ and translate_application loc e args =
   try
     translate_special_application loc e args
   with Unrecognized ->
-    let e = translate_expr e in
-    match undecorate e with
-
-    (* Recognize [match_with f arg e] as primitive. *)
-    | EPath [ "match_with" ]  ->
-       assert (List.length args = 3);
-       (match args with
-        | [(Nolabel, Some f); (Nolabel, Some arg); (Nolabel, Some e)] ->
-           (* We expect the body to be a record *)
-           (match e.exp_desc with
-            | Texp_record
-              { fields; representation = _; extended_expression = None } ->
-               EMatch (
-                   EApp (translate_expr f, translate_expr arg),
-                   translate_record_fields_as_branches fields
-                 )
-            | _ ->
-               eunsupported loc "Syntax error in [match_with] body")
-        | _ ->
-           assert false)
-
-    (* Recognize [try_with f arg e] as primitive. *)
-    | EPath [ "try_with" ]  ->
-       assert (List.length args = 3);
-       (match args with
-        | [(Nolabel, Some f); (Nolabel, Some arg); (Nolabel, Some e)] ->
-           (* We expect the body to be a record *)
-           (match e.exp_desc with
-            | Texp_record
-              { fields; representation = _; extended_expression = None } ->
-               let bs = translate_record_fields_as_branches fields in
-               (* [try_with] carries two implicit branches,
-                  these branches propagate return values and exceptions. *)
-               let bs = Branch (CVal (PVar "x"), EPath [ "x" ]) ::
-                          Branch (CExc (PVar "x"), ERaise (EPath [ "x" ])) ::
-                            bs in
-               EMatch (EApp (translate_expr f, translate_expr arg), bs)
-            | _ ->
-               eunsupported loc "Syntax error in [match_with] body")
-        | _ ->
-           assert false)
-
     (* Default case: [e args]. *)
-    | _ ->
-       apply e (translate_labeled_arguments loc args)
+    let e = translate_expr e in
+    apply e (translate_labeled_arguments loc args)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -772,83 +730,6 @@ and translate_function params body : expr =
 
 (* -------------------------------------------------------------------------- *)
 
-(* Expressions: fields in the body of a [match_with] application. *)
-
-and translate_record_fields_as_branches fields =
-  List.concat_map translate_record_field_as_branches (Array.to_list fields)
-
-(* We restrict the syntax of the body of a match_with. We expect
-   the value and exception fields to be of the form [fun v -> e].
-   The effect field should be of the form [fun v -> match v with bs].  *)
-
-and translate_record_field_as_branches (_, label_def) : branch list =
-  match label_def with
-  | Kept _ ->
-     (* This field is omitted. This can occur only in a record update
-        expression. *)
-     []
-  | Overridden (id, e) when (Longident.flatten id.txt) = ["retc"] ->
-     (match undecorate (translate_expr e) with
-      | EAnonFun (AnonFunction bs) ->
-         (List.map (function
-                Branch ((CVal p), e) -> Branch ((CExc p), e)
-              | _ -> assert false) bs)
-      | EAnonFun (AnonFun (v, e)) -> [Branch (CVal (PVar v), e)]
-      | _ -> assert false)
-
-  | Overridden (id, e) when (Longident.flatten id.txt) = ["exnc"] ->
-     (match undecorate (translate_expr e) with
-      | EAnonFun (AnonFunction bs) -> bs
-      | EAnonFun (AnonFun (v, e)) -> [Branch (CExc (PVar v), e)]
-      | _ -> assert false)
-
-  | Overridden (id, e) when (Longident.flatten id.txt) = ["effc"] ->
-     (match undecorate (translate_expr e) with
-      (* For now, we ignore the pattern matching on the arguments bound
-         by the anonymous function.
-
-         Due to the signature of [handler] in Effect.Deep, we know that
-         there is only one argument to this anonymous function. *)
-      | EAnonFun (AnonFunction [Branch (_, e)])
-      | EAnonFun (AnonFun (_, e)) ->
-         (match undecorate e with
-          | EMatch (_, bs) ->
-             translate_branches_to_effect_branches bs
-          | _ -> assert false)
-      | _ -> assert false)
-  | _ -> []
-
-(* We expect the branches in our effect field to be of the following form:
-   [ | Eff -> Some (fun k -> e) ]. *)
-
-and translate_branch_to_effect_branch b =
-  match b with
-
-  | Branch (CVal peff, e) ->
-     (match (undecorate e) with
-      | EData ("None", _) ->
-         None
-      | EData (_, e) ->
-         (match e with
-          | [ e ] ->
-             (match (undecorate e) with
-              (* | p -> Some (fun k -> e) *)
-              | EAnonFun (AnonFun (k, e)) ->
-                 Some (Branch (CEff (peff, PVar k), e))
-              (* | peff -> Some (fun pk -> e) *)
-              | EAnonFun (AnonFunction [Branch (CVal pk, e)]) ->
-                 Some (Branch (CEff (peff, pk), e))
-              | _ -> assert false)
-          | [] ->
-             None
-          | _ -> assert false)
-      | _ -> assert false)
-  | _ ->
-     Some (Branch (CEff (PAny, PAny), EUnsupported))
-
-and translate_branches_to_effect_branches bs =
-  List.filter_map translate_branch_to_effect_branch bs
-
 (* Expressions: actual arguments in applications. *)
 
 and translate_labeled_arguments loc args =
@@ -891,8 +772,14 @@ and translate_value_cases cases =
 and translate_exception_case (case : value case) : branch =
   translate_case (fun p -> CExc (translate_pat p)) case
 
+and translate_effect_case (case : value case) : branch =
+  translate_case (fun p -> CEff ((translate_pat p), (PVar "k"))) case
+
 and translate_exception_cases cases =
   map translate_exception_case cases
+
+and translate_effect_cases cases =
+  map translate_effect_case cases
 
 and translate_computation_case (case : computation case) : branch =
   translate_case translate_computation_pattern case
