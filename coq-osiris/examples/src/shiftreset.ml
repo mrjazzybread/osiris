@@ -7,14 +7,7 @@ open Effect.Deep
 type _ Effect.t += Shift : (('a, int) continuation -> int) -> 'a t
 
 let shift f = perform (Shift f)
-let reset f = match_with f () {
-  retc = (fun res -> res);
-  exnc = (fun e -> raise e);
-  effc =
-    (fun (type a) (e : a Effect.t) ->
-      match e with
-      | Shift f -> Some (fun k -> f k)
-      | _ -> None)
-}
+let reset f = try f () with
+  | effect (Shift g), k -> g k
 
 let main = reset (fun _ -> shift (fun k -> continue k 0 + 1) + 3)
