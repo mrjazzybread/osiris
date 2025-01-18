@@ -12,7 +12,7 @@ let set y = perform (Set y)
 
 let run (type a) init main : t * a =
   let var = ref init in
-  match main with
+  match main () with
   | res -> (!var, res)
   | effect Get, k -> continue k (!var)
   | effect (Set y), k -> var := y; continue k ()

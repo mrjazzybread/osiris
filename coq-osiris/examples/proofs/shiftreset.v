@@ -167,7 +167,6 @@ Section verification.
       next_branch.
       iApply ewp_EPath. by Ret. }
 
-
     iIntros "!>" (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
     iDestruct "Hprot" as (t Q) "[-> [Hshift Hk]]".
@@ -178,9 +177,7 @@ Section verification.
       by iSpecialize ("Hk" $! _ _ with "IH"). }
     iModIntro.
     next_branch.
-    next_branch.
-    next_branch.
-    { by Simp. }
+    next_branch. { by Simp. }
     tauto.
   Qed.
 

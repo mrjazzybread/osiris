@@ -188,7 +188,8 @@ Section verification.
     iApply ewp_EMatch.
 
     iApply (ewp_deep_handler with "[Hpoints_to Hmain]").
-    { (* 3A. Call to [main] in the handled expression *)
+    {
+      (* 3A. Call to [main] in the handled expression *)
       iApply (ewp_EApp with "[] [] [Hmain Hpoints_to]"); last first.
       { iApply ("Hmain" $! (fun init => points_to γ (# init)) with "Hpoints_to"). }
       { Simp; by Ret. }
@@ -237,8 +238,6 @@ Section verification.
        iNext.
        next_branch.
        next_branch.
-       next_branch; last tauto. (* Hard to guess that the last goal is trivial. *)
-       fold eval.
 
        (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
@@ -256,7 +255,9 @@ Section verification.
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
        { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
-       iApply "H_READ". }
+       iApply "H_READ".
+
+       (* Hard to guess that this is trivial. *) tauto. }
 
     (* -------------------------------------------------------------------------- *)
      { (* WRITE case *)
@@ -267,7 +268,6 @@ Section verification.
 
        (* Skip the return, exception, and [Get] branches. *)
        iNext.
-       next_branch.
        next_branch.
        (* next_branch. *)
        iApply deep_handle_cons_no_resources.
