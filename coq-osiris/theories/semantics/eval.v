@@ -958,6 +958,46 @@ Definition pre_deep_match η o bs :=
       pre_deep_match_go η o bs
   end.
 
+Fixpoint pre_deep_match_exn_go η (o : outcome3 val exn) (bs : list branch) :=
+  match bs with
+  | [] =>
+      (* If we have exhausted the branches of the match. *)
+      (match o with
+       | O3Ret v =>
+           (* A try on a value propagates the value. *)
+           ret v
+       | O3Throw e =>
+           (* An uncaught exception gets re-thrown. *)
+           throw e
+       | O3Perform e l =>
+           (* [l] is the location at which the continuation of the
+              perform is stored. If an effect goes uncaught, we
+              reperform it with that same continuation *)
+           Stop CPerform e (fun o => stop CResume (l, o))
+       end)
+  | Branch cp e :: bs =>
+      (* If we are facing a branch [| cp -> e ]. *)
+      try
+        (* We try to match the pattern [cp] against the computational
+           outcome [o]. *)
+        (cextend η cp o)
+        (* If the match is succesful, we evaluate [e] in an environment
+           extended by the match. *)
+        (λ δ, eval δ e)
+        (* If the match fails, we continue matching on the remaining
+           branches. *)
+        (fun tt => pre_deep_match_exn_go η o bs)
+  end.
+
+Definition pre_deep_match_exn η o bs :=
+  match o with
+  | O3Perform e k =>
+      k ← install true k η bs ;
+      pre_deep_match_exn_go η (O3Perform e k) bs
+  | _ =>
+      pre_deep_match_exn_go η o bs
+  end.
+
 (* A shallow handler must discharge itself only when it is consumed by
    an effect, thus [all_branches] keep track of all the branches in
    order to install the handler if it has not been consumed. *)
@@ -983,26 +1023,6 @@ Fixpoint pre_shallow_match η o bs all_bs :=
         (cextend η cp o)
         (λ δ, eval δ e)
         (fun tt => pre_shallow_match η o bs all_bs)
-  end.
-
-(* [match_exn η ex bs] matches the exception [ex] against the [bs]. It
-   occurs in the right-hand-side of a [try_with] expression.  *)
-
-Fixpoint pre_match_exn (η : env) (ex : exn) (bs : list branch) : microvx :=
-  match bs with
-  | [] =>
-      (* Uncaught exceptions get propagated. *)
-      throw ex
-  | Branch (CExc p) e :: bs =>
-      try
-        (extend η p ex)
-        (λ δ, eval δ e)
-        (λ tt, pre_match_exn η ex bs)
-  (* [COr] patterns in [try ... with ...] constructs get flattened
-     into individual branches during translation, so we expect to only
-     see [CExc] patterns. *)
-  | _ =>
-      type_mismatch "exception pattern expected"
   end.
 
 End Eval.
@@ -1038,7 +1058,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let deep_match := pre_deep_match eval in
-  let match_exn := pre_match_exn eval in
+  (* let deep_match_exn := pre_deep_match_exn eval in *)
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -1215,12 +1235,6 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          the scrutinee under a [Handle] delimiter, and then match the
          outcome of that computation against the branches [bs]. *)
       Handle (eval η e) (λ o, deep_match η o bs)
-  | ETryWith e bs =>
-      (* TODO: Comment. *)
-      try
-        (eval η e)
-        Ret
-        (λ ex, match_exn η ex bs)
   | ERaise e =>
       exn ← eval η e ;
       throw exn
@@ -1330,13 +1344,13 @@ Notation "'shallow_match' η o bs" :=
   (shallow_match η o bs _)
     (at level 8, only printing).
 
-Local Definition match_exn_aux : seal (pre_match_exn eval).
+Local Definition deep_match_exn_aux : seal (pre_deep_match_exn eval).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_trywith] *)
-Definition match_exn := match_exn_aux.(unseal).
-Lemma fold_pre_match_exn :
-  pre_match_exn eval = match_exn.
-Proof. unfold match_exn; by rewrite seal_eq. Qed.
+Definition deep_match_exn := deep_match_exn_aux.(unseal).
+Lemma fold_pre_deep_match_exn :
+  pre_deep_match_exn eval = deep_match_exn.
+Proof. unfold deep_match_exn; by rewrite seal_eq. Qed.
 
 Local Definition eval_bindings_aux : seal (pre_eval_bindings eval).
 Proof. by eexists. Qed.
@@ -1382,7 +1396,7 @@ Ltac simpl_eval :=
      ?fold_pre_evals,
      ?fold_pre_evalfs,
      ?fold_pre_deep_match,
-     ?fold_pre_match_exn,
+     ?fold_pre_deep_match_exn,
      ?fold_pre_eval_bindings,
      ?fold_pre_eval_mexpr)
   || fail "Unable to simplify application of eval".
@@ -1400,11 +1414,11 @@ Ltac simpl_evalfs :=
    (progress simpl pre_evalfs))
   || fail "Unable to simplify application of evalfs".
 
-Ltac simpl_match_exn :=
-  (unfold match_exn;
+Ltac simpl_deep_match_exn :=
+  (unfold deep_match_exn;
    rewrite seal_eq;
-   (progress simpl pre_match_exn);
-  rewrite ?fold_pre_match_exn)
+   (progress simpl pre_deep_match_exn);
+  rewrite ?fold_pre_deep_match_exn)
   || fail "Unable to simplify application of eval_trywith".
 
 Ltac simpl_shallow_match :=
@@ -1488,7 +1502,7 @@ Ltac fold_all :=
   repeat first [ rewrite fold_pre_eval
                | rewrite fold_pre_evals
                | rewrite fold_pre_evalfs
-               | rewrite fold_pre_match_exn
+               | rewrite fold_pre_deep_match_exn
                | rewrite fold_pre_deep_match_go
                | rewrite fold_pre_deep_match
                | rewrite fold_pre_shallow_match

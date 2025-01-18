@@ -417,9 +417,11 @@ let rec translate_expr (e: expression) : expr =
       EMatch (translate_expr e, List.append comp_branches eff_branches)
 
   | Texp_try (e, exn_cases, eff_cases) ->
+      (* We desugar [try e with bs] intro [match e with (v -> v :: bs)] *)
+      let val_branch = Branch (CVal (PVar "__osiris_anonymous_arg"), EPath ["__osiris_anonymous_arg"]) in
       let exn_branches = translate_exception_cases exn_cases in
       let eff_branches = translate_effect_cases eff_cases in
-      ETryWith (translate_expr e, List.append exn_branches eff_branches)
+      EMatch (translate_expr e, val_branch :: (List.append exn_branches eff_branches))
 
   | Texp_tuple es ->
       ETuple (translate_exprs es)
@@ -774,7 +776,7 @@ and translate_exception_case (case : value case) : branch =
 
 and translate_effect_case (case : value case) : branch =
   let cont_pat =
-    match case.c_cont with 
+    match case.c_cont with
     | None -> PAny
     | Some k -> PVar (Ident.name k)
   in

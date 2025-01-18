@@ -245,8 +245,6 @@ Inductive expr :=
   (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : list branch)
 
-  (* Catching an exception: [try e with bs]. *)
-  | ETryWith (e : expr) (bs : list branch)
   (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)
 

@@ -237,8 +237,6 @@ type expr =
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
 
-  (* Catching an exception: [try e with bs]. *)
-  | ETryWith of expr * branches
   (* Raising an exception: [raise e]. *)
   | ERaise of expr
 
