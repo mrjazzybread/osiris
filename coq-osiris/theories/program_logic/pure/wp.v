@@ -993,7 +993,7 @@ Section pure_wp_rules.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
   Qed.
 
-  (** Intersection rule *)
+  (** Intersection rules *)
 
   Lemma pure_wp_intersection {A E} `{Inhabited X} {φ ψ} (m : micro A E) :
     (∀ x : X, pure_wp m (φ x) ψ) →
@@ -1002,6 +1002,16 @@ Section pure_wp_rules.
     intros Hm.
     induction (Hm inhabitant); constructor; eauto using pure_wp_may_forward.
     intros x. apply (invert_pure_wp_ret _ _ _ (Hm x)).
+  Qed.
+
+  Lemma pure_wp_intersection_exn {A E} `{Inhabited X} `{Inhabited Y} {φ ψ} (m : micro A E) :
+    (∀ (x : X) (y : Y), pure_wp m (φ x) (ψ y)) →
+    pure_wp m (λ a, ∀ x, φ x a) (λ e, ∀ y, ψ y e).
+  Proof.
+    intros Hm.
+    induction (Hm inhabitant inhabitant); constructor; eauto using pure_wp_may_forward.
+    - intros x; apply (invert_pure_wp_ret _ _ _ (Hm x inhabitant)).
+    - intros y; apply (invert_pure_wp_throw _ _ _ (Hm inhabitant y)).
   Qed.
 
   Lemma pure_wp_binary_intersection {A E φ1 φ2 ψ} (m : micro A E) :
