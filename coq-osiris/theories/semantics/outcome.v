@@ -17,12 +17,15 @@ Inductive outcome2 A E :=
 Arguments O2Ret     {A E}.
 Arguments O2Throw   {A E}.
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
-(* The type [outcome3 A E] also represents the outcome of a computation,
-   but has three branches: an outcome is a result of type [A], an
-   exception of type [E], or a pair of an effect and a continuation, whose
-   types [eff] and [continuation] are fixed. *)
+(* The type [outcome3 eff continuation A E] also represents the outcome of a
+   computation, but has three branches: an outcome is a result of type [A],
+   an exception of type [E], or a pair of an effect and a continuation,
+   whose types are [eff] and [continuation]. *)
+
+(* In the semantics of OCaml, we instantiate [eff] and [continuation] with
+   [val] and [loc]. *)
 
 Inductive outcome3 eff continuation A E :=
   | O3Ret (a : A)
@@ -42,7 +45,7 @@ Definition outcome2_inject {eff continuation A X} (o : outcome2 A X)
   | O2Throw e => O3Throw e
   end.
 
-(* ------------------------------------------------------------------------ *)
+(* -------------------------------------------------------------------------- *)
 
 (* Auxiliary functions for [outcome2]. *)
 
