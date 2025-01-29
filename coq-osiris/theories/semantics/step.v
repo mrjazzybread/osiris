@@ -190,11 +190,7 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* [step_install σ l deep η bs l' k] is the right-hand side of the reduction
-   rule [StepInstall].
-
-   TODO change these definitions to *not* read [σ !! l] now;
-        instead, replace [sk o] with [stop CResume (l, o)]
-   TODO comment. *)
+   rule [StepInstall]. *)
 
 Definition step_install_1 σ l (deep : bool) η bs l' :=
   if deep then
