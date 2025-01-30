@@ -657,10 +657,10 @@ Section pure_wp_rules.
 
   (** [pure_wp] is preserved by [Handle] *)
 
-  Lemma pure_wp_handle {A E} m φ ψ (h : _ → micro A E) :
+  Lemma pure_wp_handle {A E} m φ ψ (h : outcome3 _ _ → micro A E) :
     pure_wp m
-      (λ a, pure_wp (h (O3Ret a)) φ ψ)
-      (λ e, pure_wp (h (O3Throw e)) φ ψ) →
+      (λ a, pure_wp (continue h a) φ ψ)
+      (λ e, pure_wp (discontinue h e) φ ψ) →
     pure_wp (Handle m h) φ ψ.
   Proof.
     intros Hm. dependent induction Hm; constructor; eauto with may.

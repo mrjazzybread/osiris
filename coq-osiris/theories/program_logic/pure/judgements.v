@@ -7,6 +7,9 @@ From osiris.program_logic.pure Require Import wp.
 
 (* TODO: Comment -- Explain encode *)
 
+(* One justification for [Observe] appears in pure_rules.v, to generalize
+   [pure_bind] to more than just [@bind val val] *)
+
 (* -------------------------------------------------------------------------- *)
 
 (* Given an encodable value of type [A], it can be observed as a particular

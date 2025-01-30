@@ -1334,6 +1334,7 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ Heval); [ | intros _ [] ].
   intros ? (? & -> & ->).
+  unfold continue.
   simpl_deep_match.
   apply (pure_wp_mono _ Hmatch); eauto.
 Qed.
@@ -1348,6 +1349,7 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ Heval). 2: intros _ [].
   intros ? (a & -> & Ha).
+  unfold continue.
   simpl_deep_match.
   apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
 Qed.
@@ -1364,9 +1366,11 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ He).
   - intros _v (a & -> & Ha).
+    unfold continue.
     simpl_deep_match.
     by apply Hφ'.
   - intros ex Hex.
+    unfold discontinue.
     simpl_deep_match.
     by apply Hζ.
 Qed.
