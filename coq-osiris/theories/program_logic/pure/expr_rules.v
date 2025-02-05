@@ -1012,10 +1012,10 @@ Qed.
 (* ELet (bs : list binding) (e : expr) *)
 
 Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
-  (φ1 : A1 → Prop) (ψ : B → Prop) :
-  pure (eval η e1) φ1 ⊥ →
-  (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ ⊥) →
-  pure (eval η (ELet1Var x e1 e)) ψ ⊥.
+  (φ1 : A1 → Prop) (ψ : B → Prop) ζ :
+  pure (eval η e1) φ1 ζ →
+  (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ ζ) →
+  pure (eval η (ELet1Var x e1 e)) ψ ζ.
 Proof.
   intros He1 He.
   simpl_eval. eapply pure_simp; first simp.
@@ -1025,10 +1025,10 @@ Proof.
 Qed.
 
 Lemma pure_eval_let_simple `{Encode A1, Encode B} η x e1 e
-  (a1 : A1) (ψ : B → Prop) :
-  pure (eval η e1) (singleton a1) ⊥ →
-  pure (eval ((x, #a1) :: η) e) ψ ⊥ →
-  pure (eval η (ELet1Var x e1 e)) ψ ⊥.
+  (a1 : A1) (ψ : B → Prop) ζ :
+  pure (eval η e1) (singleton a1) ζ →
+  pure (eval ((x, #a1) :: η) e) ψ ζ →
+  pure (eval η (ELet1Var x e1 e)) ψ ζ.
 Proof.
   intros He1 He2.
   eapply pure_eval_let; eauto.
@@ -1036,14 +1036,14 @@ Proof.
 Qed.
 
 Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
-  p1 p2 e1 e2 η (ψ : X -> Prop) :
+  p1 p2 e1 e2 η (ψ : X -> Prop) ζ :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
           δ ← widen (irrefutably_extend [] p1 #v1);
           θ ← widen (irrefutably_extend δ p2 #v2);
           eval (θ ++ η) e2
-        ) ψ ⊥) ⊥ ->
-  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ⊥.
+        ) ψ ζ) ζ ->
+  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ζ.
 Proof. (* LATER: Clean up this proof. *)
   (* This proof is a long rewriting sequence, which makes some sense as it is *)
 (*   not the standard method to prove a let binding, but rather a way to reduce the *)
