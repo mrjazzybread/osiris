@@ -173,7 +173,7 @@ Lemma merge_mkspec merge (l1 l2 : list Z) :
   (lookup_name η "l1" = ret #l1) ->
   (lookup_name η "l2" = ret #l2) ->
   (lookup_name η "merge" = ret merge) ->
-  @Spec tele[list Z; list Z] merge
+  @Spec τ[list Z; list Z] merge
     (λ (x1 x2 : list Z) (m : microvx),
       (length x1 + length x2 < length l1 + length l2)%nat
       → merge_spec x1 x2 m)
@@ -206,12 +206,12 @@ Proof.
      eapply @pure_evals_cons with (A := list Z).
 
      (* Evaluate "merge t1 l2" under the cons *)
-     eapply (pure_EApp tele[list Z; list Z]).
+     eapply (pure_EApp τ[list Z; list Z]).
      { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
      { pure_path. apply eq_refl. }
      { eapply pure_eval_path; simpl; rewrite Hl2; eapply pure_ret.
        encode. apply eq_refl. }
-     simpl; unfold arg_app.
+     simpl; unfold tapp.
      intros t1 l2 -> Ht1.
      intros m Hm.
      unfold merge_spec in Hm.
@@ -238,13 +238,13 @@ Proof.
      eapply @pure_evals_cons with (A := list Z).
 
      (* Evaluate "merge l1 t2" under the cons *)
-     eapply (pure_EApp tele[list Z; list Z]).
+     eapply (pure_EApp τ[list Z; list Z]).
      { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
      { eapply pure_eval_path. simpl; rewrite Hl1; eapply pure_ret.
        encode. apply eq_refl. }
      { pure_path. apply eq_refl. }
 
-     unfold arg_bind, arg_app.
+     unfold tbind, tapp.
      intros ? ? <- <-.
      intros m Hm.
      eapply pure_ret_mono.
@@ -272,15 +272,15 @@ Qed.
 Section merge.
 
 Variable merge : val.
-Hypothesis _merge_spec : @Spec tele[list Z; list Z] merge merge_spec.
+Hypothesis _merge_spec : @Spec τ[list Z; list Z] merge merge_spec.
 Hypothesis Hmerge : lookup_name η "merge" = ret merge.
 
 Lemma split_mkspec split (l : list Z) :
   (lookup_name η "l" = ret #l) ->
   (lookup_name η "split" = ret split) ->
   Spec split
-    (arg_bind
-       (λ (x : tele[list Z]) (m : microvx),
+    (tbind
+       (λ (x : τ[list Z]) (m : microvx),
          (length x < length l)%nat → split_spec x m)) ->
   split_spec l (eval η (EMatch (EPath ["l"]) __branches6)).
 Proof.
@@ -312,10 +312,10 @@ Proof.
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
-    eapply (pure_EApp tele[list Z]).
+    eapply (pure_EApp τ[list Z]).
     { eapply pure_eval_path; simpl; rewrite Hsplit. pure_ret. }
     { pure_path. apply eq_refl. }
-    unfold arg_bind.
+    unfold tbind.
     intros l -> m Hm.
     unfold split_spec in Hm.
     eapply pure_ret_mono. { apply Hm. simpl; lia. }
@@ -354,13 +354,13 @@ Qed.
 Section split.
 
 Variable split : val.
-Hypothesis _split_spec : @Spec tele[list Z] split split_spec.
+Hypothesis _split_spec : @Spec τ[list Z] split split_spec.
 Hypothesis Hsplit : lookup_name η "split" = ret split.
 
 Lemma mergesort_mkspec mergesort (l : list Z) :
   (lookup_name η "l" = ret #l) ->
   (lookup_name η "merge_sort" = ret mergesort) ->
-  (Spec mergesort (@arg_bind _ tele[list Z] (λ x m,
+  (Spec mergesort (@tbind _ τ[list Z] (λ x m,
        (length x < length l)%nat ->
        mergesort_spec x m))) ->
   mergesort_spec l (eval η (EMatch (EPath ["l"]) __branches11)).
@@ -385,12 +385,12 @@ Proof.
   simpl in IH. rewrite Heql in IH.
   eapply pure_eval_let_pair.
   (* Use knowledge that [split] ⊨ [split_spec] *)
-  eapply (pure_EApp tele[list Z]).
+  eapply (pure_EApp τ[list Z]).
   { eapply pure_eval_path. simpl. rewrite Hsplit.
     pure_ret. }
   { eapply pure_eval_path. simpl. rewrite Hl.
     eapply pure_ret. encode. apply eq_refl. }
-  unfold arg_bind.
+  unfold tbind.
   intros l <- ms Hsplitm.
   eapply pure_ret_mono. { apply Hsplitm. }
   intros [l1 l2] (Hl1 & Hl2 & Hperm).
@@ -398,10 +398,10 @@ Proof.
   simpl_extend; simpl.
 
   eapply pure_eval_let.
-  { eapply (pure_EApp tele[list Z]).
+  { eapply (pure_EApp τ[list Z]).
     eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
     eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
-    unfold arg_bind.
+    unfold tbind.
     intros l -> mm Hcall.
     apply Hcall.
     - simpl in Hperm, Hl1, Hl2.
@@ -411,10 +411,10 @@ Proof.
 
   intros l1' IHl1'.
   eapply pure_eval_let.
-  { eapply (pure_EApp tele[list Z]).
+  { eapply (pure_EApp τ[list Z]).
     eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
     eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
-    unfold arg_bind.
+    unfold tbind.
     intros ? -> mm Hcall. apply Hcall.
     - rewrite Hl2. simpl. destruct (length x0); auto with arith.
       inversion Heql. auto with arith.
@@ -422,12 +422,12 @@ Proof.
 
   intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
   abstract_env.
-  eapply (pure_EApp tele[list Z; list Z]).
+  eapply (pure_EApp τ[list Z; list Z]).
   - (* Use the knowledge that [merge] ∈ [η] *)
     eapply pure_eval_path. simpl; rewrite Hmerge. pure_ret.
   - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
   - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
-  - simpl. intros ? ? <-. unfold arg_app. intros <- m Hmerge'.
+  - simpl. intros ? ? <-. unfold tapp. intros <- m Hmerge'.
     unfold merge_spec in Hmerge'.
     simpl in IHl1', IHl2'; destruct IHl1' as [??]; destruct IHl2' as [??].
     eapply pure_ret_mono. apply Hmerge'.
@@ -454,7 +454,7 @@ Lemma Module__spec' :
 Proof.
   apply module_struct.
   (* Proof that [merge] satisfies [merge_spec]. *)
-  eapply (@structs_letrec tele[list Z; list Z]) with
+  eapply (@structs_letrec τ[list Z; list Z]) with
     (P := merge_spec). repeat constructor.
   { apply wf_double_list_length. }
   { unfold unfold_spec; simpl.
@@ -463,7 +463,7 @@ Proof.
   intros merge Hmerge.
 
   (* Proof that [split] satisfies [split_spec]. *)
-  eapply (structs_letrec tele[list Z]) with
+  eapply (structs_letrec τ[list Z]) with
     (P := split_spec).
   { apply list_wf. }
   { intros split l IH.
@@ -471,7 +471,7 @@ Proof.
   intros split Hsplit.
 
   (* Proof that [merge_sort] satisfies [mergesort_spec]. *)
-  eapply (@structs_letrec tele[list Z]) with
+  eapply (@structs_letrec τ[list Z]) with
     (P := mergesort_spec). repeat constructor.
   { apply list_wf. }
   { unfold unfold_spec; simpl.
