@@ -6,9 +6,7 @@ From osiris.lang Require Import syntax encode.
 From Coq Require Import Wellfounded.Inverse_Image.
 
 (** This file defines [type_nel] (synonym: [types]), the type used for the
-    argument on encoded function types.
-
-    TODO Update comment. *)
+    argument on encoded function types. *)
 
 (* A heteregeneous and non-empty list over encodable types.
    ("nel" for non-empty list.)
@@ -43,10 +41,7 @@ Definition tfold {X Y} {τ : types}
   (step : ∀ {A : Type}, (A → Y) → Y)
   (base : X → Y)
   : (τ -#> X) → Y :=
-(*  We use a [fix] because, for some reason, that makes stuff print nicer
-    in the proofs in iris:bi/lib/telescopes.v
-
-    FIXME Update this comment. *)
+(*  We use a [fix] because, for better term-printing in proofs. *)
   (fix rec {τ} : (τ -#> X) → Y :=
      match τ with
      | Tbase T =>

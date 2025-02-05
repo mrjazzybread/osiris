@@ -167,18 +167,18 @@ From Equations Require Import Equations.
 (* [Spec arg_τ c P] should be read as "[c] is a function value, with
    arguments described by [arg_τ], and with specification [P]." *)
 
-Equations Spec (arg_τ : arg_type)
-  (c : val) (P : arg_τ -#> microvx -> Prop) : Prop :=
-| Arg1 X, c, P :=
+Equations Spec (τ : types)
+  (c : val) (P : τ -#> microvx -> Prop) : Prop :=
+| Tbase X, c, P :=
     ∀ (x : X), P x (call c #x)
-| ArgS X TT, c, P :=
+| Tcons X TT, c, P :=
     ∀ (x : X), pure_wp (call c #x) (λ c, Spec TT c (P x)) ⊥.
 
-Arguments Spec {arg_τ} c P.
+Arguments Spec {τ} c P.
 
 (* We can check on a simple example that [Spec] generalizes [Spec']. *)
 
-Local Lemma pure_eval_anon_single `{Encode X} (P : tele[X] -#> microvx -> Prop) η (x : var) e ζ :
+Local Lemma pure_eval_anon_single `{Encode X} (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ :
   (∀ (v : X), P v (eval ((x, #v) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
 Proof.
@@ -187,20 +187,20 @@ Qed.
 
 (* [Spec_mono] states that [Spec] is monotonic over specifications. *)
 
-Lemma Spec_mono (arg_τ : arg_type) (P P' : arg_τ -#> microvx -> Prop) c :
+Lemma Spec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c :
   Spec c P ->
   (∀# args, ∀ m, (P args) m -> (P' args) m) ->
   Spec c P'.
 Proof.
   revert c.
-  induction arg_τ as [ | X HX arg_τ IH ]; intros c HP Hmono.
+  induction τ as [ | X HX arg_τ IH ]; intros c HP Hmono.
   { simp Spec in HP |-*. intros x.
     apply Hmono. apply HP. }
   simp Spec in HP |-*; intros x.
   eapply pure_wp_mono_ret; [ apply HP | ].
   intros c' HSpec'.
   apply IH with (P := P x); [ apply HSpec' | ].
-  rewrite spec_once in Hmono. apply Hmono.
+  rewrite tforall_unroll in Hmono. apply Hmono.
 Qed.
 
 Definition eq_partial_arg_app {arg_τ1 arg_τ2 arg_τ A} :

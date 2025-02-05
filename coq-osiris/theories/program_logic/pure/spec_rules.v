@@ -353,7 +353,6 @@ Proof.
   intros; by subst.
 Qed.
 
-
 (* [prove_Spec_rec] gives an induction principle for [Spec] by
    well-foundedness over the argument type. *)
 
@@ -362,41 +361,49 @@ Lemma prove_Spec_rec
   c (P : A -#> microvx -> Prop) :
   (∀# (args : A),
     (∀# sargs, wf_relation sargs args ->
-      Spec c
-        (tbind (fun (x' : A) (m : microvx) => x' = sargs -> P x' m))) ->
-    Spec c
-        (tbind (fun (x' : A) (m : microvx) => x' = args -> P x' m))) ->
+      Spec' c P sargs) ->
+    Spec' c P args) ->
   @Spec A c P.
 Proof.
   intros HP.
   apply Spec_forall; eauto.
   intros a.
-  induction a as [a IHR] using (@well_founded_induction _ wf_relation wf_def).
+  induction a as [a IHR]
+    using (@well_founded_induction _ wf_relation wf_def).
   rewrite tforall_equiv in HP; specialize (HP a).
   rewrite tforall_equiv in HP. eapply HP.
   intros; eapply IHR; eauto.
 Qed.
+
+Lemma Spec'_equiv (arg_τ : types) η f x e (P : arg_τ -#> _) args :
+  Spec' (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
+  Spec' (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e))
+    P args.
+Proof. Admitted.
 
 (* For [ELetRec], it's not necessary to evaluate the expression; the function
   is only added to the closure environment. *)
 Lemma pure_eval_letrec (A : types) `{Inhabited A} `{Encode X}
   {Wf: call_rules.WellFounded A}
   (P : A -#> microvx -> Prop)
-  (f : var) η e1 (e2 : expr) (φ : X -> Prop) ψ :
+  (f : var) η x e (e2 : expr) (φ : X -> Prop) ψ :
+  (* TODO: Add "Calls go well" *)
   (forall (x' : A) vf,
-     (forall x, wf_relation x x' -> Spec' vf P x) ->
-      Spec (VCloRec η [RecBinding f e1] f) P) ->
+      (forall x, wf_relation x x' -> Spec' vf P x) ->
+      Spec' (VClo ((f, vf) :: η) (AnonFun x e)) P x') ->
   (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ψ) ->
-  pure (eval η (ELetRec [RecBinding f e1] e2)) φ ψ.
+  pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ψ.
 Proof.
   intros Hmkspec He2; simpl_eval. eapply He2.
   eapply prove_Spec_rec; eauto.
   rewrite tforall_equiv. intros.
 
   eapply Spec_mono.
-  { eapply Hmkspec.
-    intros; rewrite tforall_equiv in H1.
-    by apply H1. }
+  {
+    eapply Spec_forall; eauto. intros. rewrite Spec'_equiv.
+    eapply Hmkspec.
+    intros. rewrite tforall_equiv in H1. apply H1. admit. }
+    (* by apply H1. } *)
   { rewrite tforall_equiv. intros; eauto.
     rewrite tapp_bind. intros; eauto. }
-Qed.
+Admitted.
