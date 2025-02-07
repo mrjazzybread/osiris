@@ -1,4 +1,5 @@
 PWD := $(shell pwd)
+OCAML_VERSION := 5.3.0
 
 .PHONY: all
 all:
@@ -32,7 +33,7 @@ clean:
 # [make init] creates an opam switch named [osiris]
 # and installs the necessary libraries and tools in it.
 
-# It also installs Alectryon.
+# It no longer installs Alectryon.
 
 # This command can take about 12 minutes of real time
 # on a multi-core desktop machine.
@@ -41,14 +42,31 @@ clean:
 # with those found in the file coq-osiris/dune-project.
 
 .PHONY: init
-init:
-	opam switch create osiris5 5.3.0
-	opam pin --switch=osiris5 --yes dune 3.11.0
-	opam install --switch=osiris5 --yes pprint ocaml-compiler-libs
-	opam repo --switch=osiris5 add coq-released https://coq.inria.fr/opam/released
-	opam repo --switch=osiris5 add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin --switch=osiris5 --yes coq 8.17.1
-	opam pin --switch=osiris5 --yes coq-stdpp --dev-repo 1.9.0
-	opam pin --switch=osiris5 --yes coq-iris --dev-repo 4.1.0
-	opam pin --switch=osiris5 --yes coq-equations 1.3+8.17
-	python3 -m pip install alectryon
+init: install pin
+
+.PHONY: install
+install:
+	opam switch create osiris $(OCAML_VERSION)
+
+# [make upgrade] acts on an existing opam switch name [osiris],
+# pinning all opam packages to their up-to date versions.
+
+.PHONY: upgrade
+upgrade: upgrade_base pin
+
+.PHONY: upgrade_base
+upgrade_base:
+	opam pin --switch=osiris --yes --update-invariants ocaml $(OCAML_VERSION)
+
+.PHONY: pin
+pin:
+	opam pin --switch=osiris --yes dune 3.11.0
+	opam install --switch=osiris --yes pprint ocaml-compiler-libs
+	opam repo --switch=osiris add coq-released https://coq.inria.fr/opam/released
+	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	opam pin --switch=osiris --yes coq 8.17.1
+	opam pin --switch=osiris --yes coq-stdpp --dev-repo 1.9.0
+	opam pin --switch=osiris --yes coq-iris --dev-repo 4.1.0
+	opam pin --switch=osiris --yes coq-equations 1.3+8.17
+	opam pin --switch=osiris --yes ppx_sexp_conv v0.17.0
+	opam pin --switch=osiris --yes ppx_deriving 6.0.3
