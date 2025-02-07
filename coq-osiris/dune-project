@@ -20,8 +20,10 @@
   (synopsis "An instance of the Iris verification framework for OCaml")
   (depends
      dune
+     (coq)
      (coq-stdpp (= 1.9.0))
      (coq-iris  (= 4.1.0))
+     (coq-equations)
   )
 )
 
