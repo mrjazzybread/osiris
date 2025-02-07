@@ -41,11 +41,15 @@ init:
 	opam switch create osiris $(OCAML_VERSION)
 	$(MAKE) pin
 
+# Short-hands for opam commands.
+
+ADD     := opam repo add --switch=osiris --yes
+PIN     := opam pin      --switch=osiris --yes
+INSTALL := opam install  --switch=osiris --yes
+
 # [make upgrade] updates the OCaml compiler
 # in the existing opam switch named [osiris]
 # and invokes [make pin].
-
-PIN := opam pin --switch=osiris --yes
 
 .PHONY: upgrade
 upgrade:
@@ -67,9 +71,10 @@ upgrade:
 .PHONY: pin
 pin:
 	$(PIN) dune 3.17.2
-	opam install pprint ocaml-compiler-libs
-	opam repo add coq-released https://coq.inria.fr/opam/released
-	opam repo add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	$(INSTALL) tuareg merlin ocp-indent # for comfort
+	$(INSTALL) pprint ocaml-compiler-libs
+	$(ADD) coq-released https://coq.inria.fr/opam/released
+	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
 	$(PIN) coq 8.17.1
 	$(PIN) coq-stdpp 1.9.0
 	$(PIN) coq-iris 4.1.0
