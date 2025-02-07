@@ -1,5 +1,4 @@
 PWD := $(shell pwd)
-OCAML_VERSION := 5.3.0
 
 .PHONY: all
 all:
@@ -30,8 +29,30 @@ all:
 clean:
 	@ git clean -fdX .
 
+# This is the desired version of OCaml.
+
+OCAML_VERSION := 5.3.0
+
 # [make init] creates an opam switch named [osiris]
-# and installs the necessary libraries and tools in it.
+# and invokes [make pin].
+
+.PHONY: init
+init:
+	opam switch create osiris $(OCAML_VERSION)
+	$(MAKE) pin
+
+# [make upgrade] updates the OCaml compiler
+# in the existing opam switch named [osiris]
+# and invokes [make pin].
+
+PIN := opam pin --switch=osiris --yes
+
+.PHONY: upgrade
+upgrade:
+	$(PIN) --update-invariant ocaml $(OCAML_VERSION)
+	$(MAKE) pin
+
+# [make pin] installs the packages listed below in the opam switch [osiris].
 
 # It no longer installs Alectryon.
 
@@ -39,34 +60,19 @@ clean:
 # on a multi-core desktop machine.
 
 # The version numbers listed below should be kept in sync
-# with those found in the file coq-osiris/dune-project.
-
-.PHONY: init
-init: install pin
-
-.PHONY: install
-install:
-	opam switch create osiris $(OCAML_VERSION)
-
-# [make upgrade] acts on an existing opam switch name [osiris],
-# pinning all opam packages to their up-to date versions.
-
-.PHONY: upgrade
-upgrade: upgrade_base pin
-
-.PHONY: upgrade_base
-upgrade_base:
-	opam pin --switch=osiris --yes --update-invariant ocaml $(OCAML_VERSION)
+# with those found in the files
+# osiris/dune-project and
+# coq-osiris/dune-project.
 
 .PHONY: pin
 pin:
-	opam pin --switch=osiris --yes dune 3.17.2
-	opam install --switch=osiris --yes pprint ocaml-compiler-libs
-	opam repo --switch=osiris add coq-released https://coq.inria.fr/opam/released
-	opam repo --switch=osiris add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam pin --switch=osiris --yes coq 8.17.1
-	opam pin --switch=osiris --yes coq-stdpp --dev-repo 1.9.0
-	opam pin --switch=osiris --yes coq-iris --dev-repo 4.1.0
-	opam pin --switch=osiris --yes coq-equations 1.3+8.17
-	opam pin --switch=osiris --yes ppx_sexp_conv v0.17.0
-	opam pin --switch=osiris --yes ppx_deriving 6.0.3
+	$(PIN) dune 3.17.2
+	opam install pprint ocaml-compiler-libs
+	opam repo add coq-released https://coq.inria.fr/opam/released
+	opam repo add iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
+	$(PIN) coq 8.17.1
+	$(PIN) coq-stdpp 1.9.0
+	$(PIN) coq-iris 4.1.0
+	$(PIN) coq-equations 1.3+8.17
+	$(PIN) ppx_sexp_conv v0.17.0
+	$(PIN) ppx_deriving 6.0.3
