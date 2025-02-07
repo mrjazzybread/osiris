@@ -318,6 +318,9 @@ Global Hint Resolve solve_encode_nat : encode.
 Global Instance Encode_Z : Encode Z :=
   { encode := λ n, VInt (repr n) }.
 
+Global Instance Encode_int : Encode int :=
+  { encode := λ n, VInt n }.
+
 Lemma solve_encode_int i z :
   i = repr z →
   VInt i = #z.
