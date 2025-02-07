@@ -1,6 +1,9 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
+
+Definition not_pure (s : string) : Prop := False.
+
 From osiris.program_logic.pure Require Import
   judgements pure_rules pattern_rules call_rules.
 
@@ -78,11 +81,13 @@ Lemma pure_eval_app_seq `{Encode A, Encode B}
   ζ :
   pure (eval η e1) (λ f : A,
     pure (eval η e2) (λ arg : B,
-      pure (call #f #arg) ψ ζ) ⊥) ⊥ →
+      pure (call #f #arg) ψ ζ) ζ) ⊥ →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros He1. simpl_eval. eapply pure_par_seq.
-  eapply pure_mono; first eapply He1; cbn; intros; try done.
+  eapply pure_ret_mono; first eapply He1; cbn; intros; try done.
+  eapply pure_mono; first eapply H1; cbn; intros; try done.
+  eapply pure_throw; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -92,21 +97,22 @@ Qed.
 (* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
   analogous to [pats]. *)
 
-(* FIXME *)
-Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) :
+Lemma pure_evals_cons `{Encode A}
+  η (hd : expr) tl (φ : list val -> Prop) ψ:
   pure (A := A) (eval η hd)
     (fun x =>
-      pure (evals η tl) (fun v => φ (# x :: v)) ⊥) ⊥ ->
-  pure (evals η (hd :: tl)) φ ⊥.
+      pure (evals η tl) (fun v => φ (# x :: v)) ψ) ⊥  ->
+  pure (evals η (hd :: tl)) φ ψ.
 Proof.
   intros. simpl_evals.
   eapply pure_par_seq.
-  eapply pure_mono; try done.
+  eapply pure_ret_mono; try done.
   intros * ?.
   eapply pure_mono; first eapply H1; eauto.
   intros * ?. eapply pure_simp; first simp; eauto.
   cbn in H2; eapply pure_ret; eauto.
   cbn; f_equiv.
+  intros; cbn. by apply pure_throw.
 Qed.
 
 Local Lemma pure_evals `{Encode A} η es φs ψ :
@@ -378,8 +384,9 @@ Proof.
   intros Hm1 Hm2 Hk.
   eapply pure_par_seq.
   do 2 (eapply pure_mono; first eapply pure_as_int; eauto;
-        intros ? (?&->&?)).
-  eapply pure_simp; [ simp | ]; by apply Hk.
+        intros ? ?); try done.
+  destruct H as (?&->&?); destruct H0 as (?&->&?).
+  eapply pure_simp; [ simp | ]. eauto.
 Qed.
 
 (* If [z] is representable and [z ≠ 0] then the runtime check *)
@@ -604,7 +611,8 @@ Lemma pure_eval_comparison_operator `{Encode A}
 Proof.
   intros He1 He2 Ef Ea Ha.
   eapply pure_par_seq.
-  do 2 (eapply pure_mono; eauto; intros * ->).
+  do 2 (eapply pure_mono; eauto; try intros * ->;
+   try contradiction).
   eapply pure_simp; [ simp | ].
   eapply pure_bind. setoid_rewrite Ef.
   eapply (pure_ret (fun b => #a = #b /\ φ a)); eauto.

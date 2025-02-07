@@ -192,7 +192,7 @@ Section pure_rules.
 
   (* Sequentializations of previous lemmas, considering the LHS first *)
 
-  Lemma pure_par_seq
+  Lemma pure_par_seq_strong
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
     (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E')
     (φ : A3 → Prop) ψ
@@ -204,6 +204,26 @@ Section pure_rules.
   Proof.
     intros Hm1.
     apply pure_wp_Par_vals_left.
+    eapply (pure_wp_mono_ret _ Hm1); intros ? (a1 & -> & Hm2).
+    eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
+    eauto.
+  Qed.
+
+  Lemma pure_par_seq
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
+    (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E')
+    (φ : A3 → Prop) ψ
+  :
+    pure (E := E) m1
+      (λ a1,
+        pure m2
+          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ψ)
+          (λ e : E, pure (discontinue k e) φ ψ))
+      ⊥ →
+    pure (E := E') (Par m1 m2 k) φ ψ.
+  Proof.
+    intros Hm1.
+    apply pure_wp_Par_val_left.
     eapply (pure_wp_mono_ret _ Hm1); intros ? (a1 & -> & Hm2).
     eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
     eauto.

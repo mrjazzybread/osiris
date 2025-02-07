@@ -731,9 +731,18 @@ Ltac2 match_type (x:constr) (t:constr) :=
 
 Ltac2 pure_ret0 () :=
   match! goal with
+  | [ |- pure_wp (ret ?v) _ _ ] =>
+      if match_type v constr:(val) then
+        first
+          [ eapply pure_ret_eq_val; eauto with encode |
+            eapply pure_ret; eauto with encode ]
+      else
+        eapply pure_ret; eauto with encode
   | [ |- pure (ret ?v) _ _ ] =>
       if match_type v constr:(val) then
-        eapply pure_ret_eq_val; eauto with encode
+        first
+          [ eapply pure_ret_eq_val; eauto with encode |
+            eapply pure_ret; eauto with encode ]
       else
         eapply pure_ret; eauto with encode
   | [ |- _ ] =>
