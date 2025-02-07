@@ -3,7 +3,7 @@ From osiris.lang Require Import syntax encode sugar locations.
 From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Import
-  pure_rules pattern_rules expr_rules.
+  pure_rules pattern_rules call_rules expr_rules.
 
 (* This file defines contains reasoning rules about top-level definitions,
    such as struct items, bindings, and modules. *)
