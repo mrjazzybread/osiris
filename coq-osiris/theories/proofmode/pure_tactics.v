@@ -717,7 +717,7 @@ Ltac2 solve_returns () :=
   match! goal with
     | [ |- returns _ _ ] =>
         ltac1:(
-          first [ solve [eauto with pure ] |
+          first [ solve [ eauto with pure ] |
           eexists _; split; eauto with pure ])
   end.
 
@@ -733,33 +733,9 @@ Ltac2 pure_ret0 () :=
   match! goal with
   | [ |- pure (ret ?v) _ _ ] =>
       if match_type v constr:(val) then
-        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
-        solve_returns ()
+        eapply pure_ret_eq_val; eauto with encode
       else
-        eapply pure_ret; eauto
-  | [ |- total (ret ?v) _ ] =>
-      if match_type v constr:(val) then
-        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
-        solve_returns ()
-      else
-        eapply pure_ret; eauto
-  | [ |- pure (ret ?v) (λ _ : val, _) _ ] =>
-        try (change ?v with (#_));
-        (* [pure_ret : v = #a → φ a → pure (ret v) φ ⊥] *)
-        solve [
-          eapply pure_ret_eq_val; eauto |
-          eapply pure_ret_eq_val'; eauto ]
-  | [ |- total (ret ?v) (λ _ : val, _) ] =>
-      try (change ?v with (#_));
-      solve [
-        eapply pure_ret_eq_val; eauto |
-        eapply pure_ret_eq_val'; eauto ]
-  | [ |- pure (ret _) (λ _ , _) _ ] =>
-      eapply pure_ret; eauto (* LATER : Control this [eauto] *)
-  | [ |- total (ret _) (λ _ , _) ] =>
-      eapply pure_ret; eauto
-  | [ |- pure_wp (ret _) _ _ ] =>
-      eapply pure_ret; eauto
+        eapply pure_ret; eauto with encode
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure

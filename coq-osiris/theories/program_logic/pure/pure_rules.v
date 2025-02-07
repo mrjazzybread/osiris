@@ -347,7 +347,7 @@ End pure_rules.
 (* LATER: See if generalization to [Observe] is useful. *)
 Section pure_rules_variant.
 
-  (* When a [val] is returned, there is no need for [encode]. FIXME *)
+  (* When a [val] is returned, there is no need for [encode]. *)
   Lemma pure_ret_val `{Encode A} {E} (a : val) (ϕ : A -> Prop) ψ :
     returns ϕ a ->
     pure (E := E) (ret a) ϕ ψ.
@@ -355,14 +355,8 @@ Section pure_rules_variant.
     intros. returns_eauto. by eapply pure_ret.
   Qed.
 
-  Lemma pure_ret_eq_val {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a', a' = a) ψ.
-  Proof.
-    intros; eapply pure_ret; eauto.
-  Qed.
-
-  Lemma pure_ret_eq_val' {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a' : val, a' = # a) ψ.
+  Lemma pure_ret_eq_val {E} (a : val) ψ :
+    pure (E := E) (ret a) (λ a', a' = a) ψ.
   Proof.
     intros; eapply pure_ret; eauto.
   Qed.

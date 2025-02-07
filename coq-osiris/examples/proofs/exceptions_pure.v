@@ -27,9 +27,9 @@ Definition head_spec head :=
 
 Definition catch_head_spec catch_head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
-    total
+   pure
       (call catch_head #l)
-      (λ hopt, hopt = list.head l).
+      (λ hopt, hopt = list.head l) ⊥.
 
 (* TODO: MOVE? *)
 Ltac set_pure_postcondition φ :=

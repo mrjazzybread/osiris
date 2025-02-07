@@ -27,9 +27,8 @@ The Rocq development can be found under `osiris/coq-osiris`
 - `osiris/coq-osiris/theories/program_logic`
   - `orisis/coq-osiris/theories/program_logic/pure/`
     - `wp.v` the [pure_wp] definition, which is the base definition for pure judgements.
-    - `judgements.v` the [total] and [pure] judgements, and relevant notations.
+    - `judgements.v` the [pure] judgements, and relevant notations.
     - `pure_rules.v` reasoning rules over [pure] judgements.
-    - `total_rules.v` reasoning rules over [total] judgements.
     - `expr_rules.v` reasoning rules about evaluation of expressions for pure judgements
     - `pattern_rules.v` reasoning rules about pattern matching
     - `toplevel_rules.v` reasoning rules about top-level definitions, such as

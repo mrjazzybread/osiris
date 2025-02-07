@@ -52,10 +52,6 @@ Proof.
   induction tl; intros; subst; eauto.
 Qed.
 
-Lemma encode_encode `{Encode A} :
-  ∀ (a : A), # a = # a.
-Proof. tauto. Qed.
-
 Global Hint Extern 0 (_ :: _ = ♯ _) =>
   simple eapply solve_observe_cons : encode.
 Global Hint Extern 100 ([] = ♯ _) =>
@@ -63,8 +59,8 @@ Global Hint Extern 100 ([] = ♯ _) =>
 
 (* -------------------------------------------------------------------------- *)
 
-(* Value predicates, which are predicates over carrier type [A], which are
-    encodable types. *)
+(* TODO Comment *)
+
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
 
@@ -74,15 +70,15 @@ Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-(* Class PureJudgement {A V} := *)
-(*   pure : forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop. *)
 
 (* TODO Comment *)
+
 Definition pure `{Observe A V} :
   forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop :=
     fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
+
 (* Notations *)
 
 Notation "η ⊢ '{' e 'ensures' Φ 'raises' ψ '}'" :=
