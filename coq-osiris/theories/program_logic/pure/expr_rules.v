@@ -91,6 +91,26 @@ Qed.
 
 (** Evaluating tuples, or several expressions in parallel *)
 
+Lemma pure_evals `{Encode A} η es φs ψ :
+  Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
+  pure (A := list A) (evals η es) (Forall2 id φs) ψ.
+Proof.
+  revert φs.
+  induction es as [ | e es IHes]; intros φs' Hes.
+  - simpl_evals. constructor; inv Hes; auto.
+    eexists nil; encode.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (φ & φs & He & Hes & ->).
+    simpl_evals.
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros v vs Hv Hvs. repeat constructor; eauto.
+      red. returns_eauto.
+      eexists _; split; encode.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
 Lemma pure_evals_cons `{Encode A}
   η (hd : expr) tl (φ : list val -> Prop) ψ:
   pure (A := A) (eval η hd)
@@ -115,26 +135,6 @@ Lemma pure_evals_nil η (φ : list val -> Prop) ψ:
 Proof.
   intros. simpl_evals.
   eapply pure_ret; encode.
-Qed.
-
-Local Lemma pure_evals `{Encode A} η es φs ψ :
-  Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
-  pure (A := list A) (evals η es) (Forall2 id φs) ψ.
-Proof.
-  revert φs.
-  induction es as [ | e es IHes]; intros φs' Hes.
-  - simpl_evals. constructor; inv Hes; auto.
-    eexists nil; encode.
-  - apply Forall2_cons_inv_l in Hes. simpl.
-    destruct Hes as (φ & φs & He & Hes & ->).
-    simpl_evals.
-    eapply pure_wp_Par_conseq.
-    + apply He.
-    + apply IHes, Hes.
-    + intros v vs Hv Hvs. repeat constructor; eauto.
-      red. returns_eauto.
-      eexists _; split; encode.
-    + intros exn []; repeat constructor; eauto.
 Qed.
 
 (* The following [_eq] versions should be simpler to use in cases we know the
@@ -246,8 +246,9 @@ Proof.
   eauto using pure_ret with pure.
 Qed.
 
-Lemma pure_eval_data `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
-  pure (evals η e) (λ v', VData c v' = #y) ζ ->
+(* TODO Comment *)
+Lemma pure_eval_data_val `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
+  pure (evals η e) (λ v', VData c v' = #y) ζ -> (* LATER: Should we clean this up? *)
   ψ y ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
@@ -261,8 +262,8 @@ Proof.
   clear. induction a; cbn; try f_equiv; eauto.
 Qed.
 
-(* TODO RENAME *)
-Lemma pure_eval_data' `{Encode Y} `{Encode A} η c e y (ψ : A -> Prop) ζ :
+(* TODO Fix automation on [pure_data] *)
+Lemma pure_eval_data `{Encode Y} `{Encode A} η c e y (ψ : A -> Prop) ζ :
   pure (evals η e) (λ (v' : list Y), VData c (map encode.encode v') = #y) ζ ->
   ψ y ->
   pure (eval η (EData c e)) ψ ζ.
@@ -365,7 +366,7 @@ Qed.
 (* Helper lemmas for arithmetic operations. *)
 
 (* For [pure (as_int _) φ ψ]. *)
-Global Instance observe_int : Observe int int :=
+Local Instance observe_int : Observe int int :=
   {| observe := id |}.
 
 Local Lemma pure_as_int m (φ : Z → Prop) ψ:
