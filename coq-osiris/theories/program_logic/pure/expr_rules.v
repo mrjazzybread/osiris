@@ -7,6 +7,18 @@ From osiris.program_logic.pure Require Import
 (* This file defines contains reasoning rules about evaluation of expressions
   for pure judgements. *)
 
+(* TODO only one or two bindings, for now *)
+(* TODO Comment *)
+
+Lemma pure_eval_ret_concat `{Encode A}
+  e δ η (ψ : A -> Prop) ζ :
+  pure (eval (δ ++ η) e) ψ ζ ->
+  pure (θ ← ret (δ ++ η);
+        eval θ e) ψ ζ.
+Proof.
+  tauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (** EPath (x : path) *)
@@ -227,7 +239,19 @@ Proof. solve_eval_tuple. Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** *Data constructor application: [A (e)]. *)
+
 (* EData (c : data) (e : list expr) *)
+
+Lemma pure_eval_const `{Encode A}
+  η c x (ψ : A -> Prop) ζ :
+  VConstant c = #x ->
+  ψ x ->
+  pure (eval η (EConstant c)) ψ ζ.
+Proof.
+  intros.
+  eapply pure_wp_simp. simp.
+  eauto using pure_ret with pure.
+Qed.
 
 Lemma pure_eval_data_eq `{Encode A} a η c e (ψ : A -> Prop) ζ:
   pure_wp
@@ -311,10 +335,11 @@ Local Lemma pure_as_bool (m : microvx) (φ : bool → Prop) ψ :
       with_strategy transparent [val_as_bool] by constructor.
 Qed.
 
-Local Lemma pure_enc_bind_as_bool {A} {EncA: Encode A} m (φ : bool → Prop) (ψ : A → Prop) (k : bool → micro A exn) :
-  pure m φ ⊥ →
-  (∀ b : bool, φ b → pure (k b) ψ ⊥) →
-  pure (bind (as_bool m) k) ψ ⊥.
+Local Lemma total_enc_bind_as_bool {A} {EncA: Encode A}
+  m (φ : bool → Prop) (ψ : A → Prop) (k : bool → micro A exn) :
+  total m φ →
+  (∀ b : bool, φ b → total (k b) ψ) →
+  total (bind (as_bool m) k) ψ.
 Proof.
   intros Hm Hp. apply pure_wp_bind, pure_as_bool.
   apply (pure_wp_mono_ret _ Hm). intros ? (b & -> & Hb).
@@ -323,20 +348,20 @@ Qed.
 
 (* EBoolNeg (e : expr) *)
 
-Lemma pure_eval_negb η e (φ ψ : bool → Prop) :
-  pure (eval η e) φ ⊥ →
+Lemma total_eval_negb η e (φ ψ : bool → Prop) :
+  total (eval η e) φ →
   (∀ b, φ b → ψ (negb b)) →
-  pure (eval η (EBoolNeg e)) ψ ⊥.
+  total (eval η (EBoolNeg e)) ψ.
 Proof.
   intros He Hp. simpl_eval.
-  eapply pure_enc_bind_as_bool; eauto. intros b Hb. apply pure_wp_ret.
+  eapply total_enc_bind_as_bool; eauto. intros b Hb. apply pure_wp_ret.
   eauto with pure.
 Qed.
 
-Lemma pure_eval_not η e (φ ψ : Prop → Prop) :
-  pure (eval η e) φ ⊥ →
+Lemma total_eval_not η e (φ ψ : Prop → Prop) :
+  total (eval η e) φ →
   (∀ P, φ P → ψ (¬P)) →
-  pure (eval η (EBoolNeg e)) ψ ⊥.
+  total (eval η (EBoolNeg e)) ψ.
 Proof.
   intros He Hp. simpl_eval.
   eapply pure_wp_bind.
@@ -476,99 +501,118 @@ Qed.
 
 (** Integer logical operations. *)
 
+(* Helper lemma for primitive arithmetic operations. *)
+
+Local Lemma pure_if_in_shift_range {A E} `{Encode A}
+  z (m : micro A E) φ ψ :
+  in_shift_range z →
+  pure m φ ψ →
+  pure (if_in_shift_range (repr z) m) φ ψ.
+Proof.
+  intros.
+  unfold if_in_shift_range, in_shift_range_b.
+  rewrite signed_repr by eauto using in_shift_range_representable.
+  by rewrite in_shift_range_b_spec.
+Qed.
+
 (* Primitive logical operations on machine integers. *)
 
-(* | EIntLand (e1 e2 : expr) *)
-(* Lemma pure_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) → *)
-(*   pure (eval η (EIntLand e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLand (e1 e2 : expr) *)
 
-(* | EIntLor  (e1 e2 : expr) *)
+Lemma total_eval_land η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.land z1 z2)) →
+  total (eval η (EIntLand e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  eapply pure_ret; eauto with encode.
+Qed.
 
-(* Lemma pure_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) → *)
-(*   pure (eval η (EIntLor e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLor  (e1 e2 : expr) *)
 
-(* | EIntLxor (e1 e2 : expr) *)
+Lemma total_eval_lor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lor z1 z2)) →
+  total (eval η (EIntLor e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  eapply pure_ret; eauto with encode.
+Qed.
 
-(* Lemma pure_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) → *)
-(*   pure (eval η (EIntLxor e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLxor (e1 e2 : expr) *)
 
-(* | EIntLnot (e : expr) *)
+Lemma total_eval_lxor η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.lxor z1 z2)) →
+  total (eval η (EIntLxor e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  eapply pure_ret; eauto with encode.
+Qed.
 
-(* Lemma pure_eval_lnot η e1 (φ1 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   (∀ z1, φ1 z1 → φ (Z.lnot z1)) → *)
-(*   pure (eval η (EIntLnot e1)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros He1%pure_as_int Hp. simpl_eval. *)
-(*   eapply pure_bind_conseq; eauto. intros ? (z & -> & Hz). *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLnot (e : expr) *)
 
+Lemma total_eval_lnot η e1 (φ1 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  (∀ z1, φ1 z1 → φ (Z.lnot z1)) →
+  total (eval η (EIntLnot e1)) φ.
+Proof.
+  intros He1%pure_as_int Hp. simpl_eval.
+  eapply pure_wp_bind_conseq; eauto. intros ? (z & -> & Hz).
+  eapply pure_wp_ret; eauto with pure.
+  eexists _; split; encode.
+Qed.
 
-(* | EIntLsl  (e1 e2 : expr) *)
-(* Lemma pure_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1, φ1 z1 → representable z1) → *)
-(*   (∀ z2, φ2 z2 → in_shift_range z2) → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) → *)
-(*   pure (eval η (EIntLsl e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   apply pure_if_in_shift_range; auto. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLsl  (e1 e2 : expr) *)
 
-(* | EIntLsr  (e1 e2 : expr) *)
-(* Lemma pure_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1, φ1 z1 → urepresentable z1) → *)
-(*   (∀ z2, φ2 z2 → in_shift_range z2) → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) → *)
-(*   pure (eval η (EIntLsr e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   apply pure_if_in_shift_range; auto. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+Lemma total_eval_lsl η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftl z1 z2)) →
+  total (eval η (EIntLsl e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  apply pure_if_in_shift_range; auto.
+  eapply pure_ret; eauto with encode.
+Qed.
 
-(* | EIntAsr  (e1 e2 : expr) *)
-(* Lemma pure_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) : *)
-(*   pure (eval η e1) ##φ1 ⊥ → *)
-(*   pure (eval η e2) ##φ2 ⊥ → *)
-(*   (∀ z1, φ1 z1 → representable z1) → *)
-(*   (∀ z2, φ2 z2 → in_shift_range z2) → *)
-(*   (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) → *)
-(*   pure (eval η (EIntAsr e1 e2)) ##φ ⊥. *)
-(* Proof. *)
-(*   intros. simpl_eval. eapply pure_par_as_int; eauto. intros. *)
-(*   apply pure_if_in_shift_range; auto. *)
-(*   eapply pure_ret; eauto with encode. *)
-(* Qed. *)
+(* EIntLsr  (e1 e2 : expr) *)
+
+Lemma total_eval_lsr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → urepresentable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  total (eval η (EIntLsr e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  apply pure_if_in_shift_range; auto.
+  eapply pure_ret; eauto with encode.
+Qed.
+
+(* EIntAsr  (e1 e2 : expr) *)
+
+Lemma total_eval_asr η e1 e2 (φ1 φ2 φ : Z → Prop) :
+  total (eval η e1) φ1 →
+  total (eval η e2) φ2 →
+  (∀ z1, φ1 z1 → representable z1) →
+  (∀ z2, φ2 z2 → in_shift_range z2) →
+  (∀ z1 z2, φ1 z1 → φ2 z2 → φ (Z.shiftr z1 z2)) →
+  total (eval η (EIntAsr e1 e2)) φ.
+Proof.
+  intros. simpl_eval. eapply pure_par_as_int; eauto. intros.
+  apply pure_if_in_shift_range; auto.
+  eapply pure_ret; eauto with encode.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
+
 (** Floating-point literals. *)
 (* TODO EFloat (f : float) *)
 
@@ -578,14 +622,202 @@ Qed.
 (** String literals. *)
 (* TODO EString (s: string) *)
 
+(* -------------------------------------------------------------------------- *)
+
 (** Polymorphic comparison operators. *)
+
 (* TODO EOpPhysEq (e1 e2 : expr) *)
-(* TODO EOpEq (e1 e2 : expr) *)
-(* TODO EOpNe (e1 e2 : expr) *)
+
+(* Helper lemma for Boolean operations *)
+
+Lemma pure_eval_comparison_operator `{Encode A}
+  η e1 e2 (x1 x2 : Z) (f : val → val → micro bool exn) b a (φ : A → Prop) :
+  pure (eval η e1) (singleton x1) ⊥ →
+  pure (eval η e2) (singleton x2) ⊥ →
+  f #x1 #x2 = ret b →
+  #a = #b →
+  φ a →
+  pure (Par (eval η e1) (eval η e2) (pfbind inject2 (λ '(v1, v2), 'b ← f v1 v2; ret (VBool b)))) φ ⊥.
+Proof.
+  intros He1 He2 Ef Ea Ha.
+  eapply pure_wp_Par_conseq_ret; eauto.
+  intros _ _ (_ & -> & ->) (_ & -> & ->).
+  apply pure_wp_bind, pure_wp_ret, pure_wp_bind.
+  rewrite Ef.
+  apply pure_wp_ret, pure_wp_ret.
+  eauto with pure.
+Qed.
+
+(* Boolean operations *)
+
+(* EOpEq (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpEq η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpEq e1 e2)) (λ P, P <-> (x1 = x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite eq_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpEq_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpEq e1 e2)) (λ (b : bool), b <-> (x1 = x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpEq; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
+
+(* EOpNe (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpNe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpNe e1 e2)) (λ P, P <-> (x1 <> x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite eq_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpNe_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpNe e1 e2)) (λ (b : bool), b <-> (x1 <> x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpNe; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
+
 (* TODO EOpLt (e1 e2 : expr) *)
-(* TODO EOpLe (e1 e2 : expr) *)
-(* TODO EOpGt (e1 e2 : expr) *)
-(* TODO EOpGe (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpLt η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLt e1 e2)) (λ P, P <-> (x1 < x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite lt_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpLt_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLt e1 e2)) (λ (b : bool), b <-> (x1 < x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpLt; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
+
+(* EOpLe (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpLe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLe e1 e2)) (λ P, P <-> (x1 <= x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite lt_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpLe_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpLe e1 e2)) (λ (b : bool), b <-> (x1 <= x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpLe; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
+
+
+(* EOpGt (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpGt η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGt e1 e2)) (λ P, P <-> (x1 > x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite lt_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpGt_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGt e1 e2)) (λ (b : bool), b <-> (x1 > x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpGt; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
+
+
+(* EOpGe (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpGe η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGe e1 e2)) (λ P, P <-> (x1 >= x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator; eauto.
+  rewrite lt_repr_repr; auto.
+  simpl. f_equal. f_equal. apply truth_eq_true. lia.
+Qed.
+
+Lemma pure_eval_EOpGe_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton x1) ⊥ ->
+  pure (eval η e2) (singleton x2) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpGe e1 e2)) (λ (b : bool), b <-> (x1 >= x2)) ⊥.
+Proof.
+  intros. eapply pure_wp_mono_ret. eapply pure_eval_EOpGe; eauto.
+  intros _ (P & -> & HP). exists (truth P). by rewrite <-HP, encode_truth, Is_true_truth.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -593,11 +825,11 @@ Qed.
 
 (* ELet (bs : list binding) (e : expr) *)
 
-Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
+Lemma total_eval_let `{Encode A1, Encode B} η x e1 e
   (φ1 : A1 → Prop) (ψ : B → Prop) :
-  pure (eval η e1) φ1 ⊥ →
-  (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ ⊥) →
-  pure (eval η (ELet1Var x e1 e)) ψ ⊥.
+  total (eval η e1) φ1 →
+  (∀ a1, φ1 a1 → total (eval ((x, #a1) :: η) e) ψ) →
+  total (eval η (ELet1Var x e1 e)) ψ.
 Proof.
   intros He1 He.
   simpl_eval.
@@ -612,26 +844,27 @@ Proof.
     apply pure_wp_try, pure_wp_ret, pure_wp_ret, He, Ha1.
 Qed.
 
-Lemma pure_eval_let' `{Encode A1, Encode B} η x e1 e
+(* TODO Rename *)
+Lemma total_eval_let' `{Encode A1, Encode B} η x e1 e
   (a1 : A1) (ψ : B → Prop) :
-  pure (eval η e1) (singleton a1) ⊥ →
-  pure (eval ((x, #a1) :: η) e) ψ ⊥ →
-  pure (eval η (ELet1Var x e1 e)) ψ ⊥.
+  total (eval η e1) (singleton a1) →
+  total (eval ((x, #a1) :: η) e) ψ →
+  total (eval η (ELet1Var x e1 e)) ψ.
 Proof.
   intros He1 He2.
-  eapply pure_eval_let; eauto.
+  eapply total_eval_let; eauto.
   congruence.
 Qed.
 
-Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
+Lemma total_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) :
-  pure (eval η e1) (λ '((v1, v2) : A1 * A2),
-      pure (
+  total (eval η e1) (λ '((v1, v2) : A1 * A2),
+      total (
           δ ← widen (irrefutably_extend [] p1 #v1);
           θ ← widen (irrefutably_extend δ p2 #v2);
           eval (θ ++ η) e2
-        ) ψ ⊥) ⊥ ->
-  pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ⊥.
+        ) ψ) ->
+  total (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ.
 Proof.
   (* This proof is a long rewriting sequence, which makes some sense as it is *)
 (*   not the standard method to prove a let binding, but rather a way to reduce the *)
@@ -767,11 +1000,11 @@ Proof.
   intros ? (?&?&?); subst; try done.
 Qed.
 
-Lemma pure_eval_seq' `{Encode A}
+Lemma total_eval_seq `{Encode A}
   η e1 e2 (ψ : A -> Prop) :
-  pure (eval η e1) (λ _, True) ⊥ ->
-  pure (eval η e2) ψ ⊥ ->
-  pure (eval η (ESeq e1 e2)) ψ ⊥.
+  total (eval η e1) (λ _, True) ->
+  total (eval η e2) ψ ->
+  total (eval η (ESeq e1 e2)) ψ.
 Proof.
   intros He1 He2.
   apply pure_seq.
@@ -780,11 +1013,12 @@ Proof.
   apply returns_idem.
 Qed.
 
-Lemma pure_eval_seq `{Encode A, Encode B}
+(* TODO Rename *)
+Lemma total_eval_seq' `{Encode A, Encode B}
   η e1 e2 (ψ : A -> Prop) :
-  pure (eval η e1) (λ _ : B, True) ⊥ ->
-  pure (eval η e2) ψ ⊥ ->
-  pure (eval η (ESeq e1 e2)) ψ ⊥.
+  total (eval η e1) (λ _ : B, True) ->
+  total (eval η e2) ψ ->
+  total (eval η (ESeq e1 e2)) ψ.
 Proof.
   intros He1 He2.
   apply pure_seq.
@@ -806,54 +1040,72 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-(* TODO: Bookmark *)
-(* (* Conditional: [if e then e1] and [if e then e1 else e2]. *) *)
-(* | EIfThen (e e1 : expr) *)
-(* | EIfThenElse (e e1 e2 : expr) *)
 
-(* (* Pattern matching: [match e with bs]. *) *)
-(* | EMatch (e : expr) (bs : list branch) *)
+(** Conditional: [if e then e1] and [if e then e1 else e2]. *)
 
-(* (* Catching an exception: [try e with bs]. *) *)
-(* | ETryWith (e : expr) (bs : list branch) *)
-(* (* Raising an exception: [raise e]. *) *)
-(* | ERaise (e : expr) *)
+(* TODO EIfThen (e e1 : expr) *)
 
-(* (* Performing an effect: [perform e]. *) *)
-(* | EPerform (e : expr) *)
-(* (* Continuing a continuation: [continue e1 e2]. *) *)
-(* | EContinue (e1 : expr) (e2 : expr) *)
-(* (* Discontinuing a continuation: [discontinue e1 e2]. *) *)
-(* | EDiscontinue (e1 : expr) (e2 : expr) *)
+Lemma pure_ifthenelse `{EncA: Encode A}
+  η e e1 e2 φ (ψ : exn -> Prop) :
+  pure (A := bool) (eval η e)
+    (λ v : bool, pure (eval η (if v then e1 else e2)) φ ψ) ψ →
+  pure (A := A) (eval η (EIfThenElse e e1 e2)) φ ψ.
+Proof.
+  intros He. simpl_eval.
+  eapply pure_wp_bind, pure_wp_bind, (pure_wp_mono _ He); auto.
+  intros _v ([] & -> & H).
+  all: eapply pure_wp_simp; [ simp | ];
+  apply pure_wp_ret, H.
+Qed.
 
-(* (* Loop: [while e do body done]. *) *)
-(* | EWhile (e body : expr) *)
-(* (* Loop: [for x = e1 to e2 do e done]. *) *)
-(* | EFor (x : var) (e1 e2 e : expr) *)
+(* EIfThenElse (e e1 e2 : expr) *)
 
-(* (* Fatal error: [assert false]. *) *)
-(* (* We model OCaml's unreachable construct [.] in this way, too. *) *)
-(* | EAssertFalse *)
+(* TODO fix inconsistent naming *)
+Lemma pure_ifthenelse_bool `{EncA: Encode A}
+  η e e1 e2 (φ : A -> _) φb ψ :
+  pure (eval η e) φb ψ →
+  (φb true  → pure (eval η e1) φ ψ) →
+  (φb false → pure (eval η e2) φ ψ) →
+  pure (eval η (EIfThenElse e e1 e2)) φ ψ.
+Proof.
+  simpl.
+  intros Hb Ht Hf.
+  simpl_eval.
+  eapply pure_wp_bind_conseq. apply pure_as_bool. apply Hb.
+  intros [] ?; eauto with pure.
+Qed.
 
-(* (* Runtime assertion: [assert(e)]. *) *)
-(* | EAssert (e : expr) *)
+Lemma total_eval_ifthenelse `{EncA: Encode A}
+  η e e1 e2 (P : Prop) (ψ : A → Prop) :
+  total (eval η e) (λ P', P' <-> P) →
+  (P → total (eval η e1) ψ) →
+  (~ P → total (eval η e2) ψ) →
+  total (eval η (EIfThenElse e e1 e2)) ψ.
+Proof.
+  intros He He1 He2.
+  eapply pure_ifthenelse.
+  eapply (pure_wp_mono_ret _ He).
+  intros _v (_ & -> & ->%iff_encode). exists (truth P).
+  rewrite encode_truth. split; auto.
+  generalize (truth_elim P).
+  destruct (truth P); eauto.
+Qed.
 
-(* (* Reference allocation: [ref e]. *) *)
-(* | ERef (e: expr) *)
-(* (* Reference lookup: [!e]. *) *)
-(* | ELoad (e: expr) *)
-(* (* Reference assignment: [e1 := e2]. *) *)
-(* | EStore (e1 e2: expr) *)
+(* TODO Rename *)
+(* Lemma pure_ifthenelse' η e e1 e2 φ ψ : *)
+(*   pure (eval η e) (λ v, ∃ b : bool, v = #b ∧ pure (eval η (if b then e1 else e2)) φ ψ) ψ → *)
+(*   pure (eval η (EIfThenElse e e1 e2)) φ ψ. *)
+(* Proof. *)
+(*   simpl. *)
+(*   intros He. simpl_eval. *)
+(*   eapply pure_wp_bind, pure_wp_bind, (pure_wp_mono _ He); auto. *)
+(*   intros _v ([] & -> & H). apply pure_wp_ret, H. *)
+(* Qed. *)
 
-
-(* - [φ] is the toplevel specification.
-   - [φf] is the specification of the function [f]. *)
 (* -------------------------------------------------------------------------- *)
-(** *Evaluating pattern matches *)
-(* -------------------------------------------------------------------------- *)
 
+(** Pattern matching: [match e with bs]. *)
 
-(* TODO: Move *)
 (* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) ##φ ⊥].
 
   [eval_match] is used by [eval] when evaluating an [EMatch]. *)
@@ -863,201 +1115,266 @@ Definition pure_match `{Encode A} (η : env) (o : outcome3 val exn) bs (φ : A -
 
 Arguments pure_match {A} {H} _ _ _ _.
 
-Section match_rules.
+(* Properties about [pure_match] *)
 
-  Lemma pure_eval_match `{Encode B} η e bs (a : val) (φ : B -> Prop) Ψ :
-    total (eval η e) (singleton a) ->
-    pure_match η (O3Ret a) bs φ Ψ ->
-    pure (eval η (EMatch e bs)) φ Ψ.
-  Proof.
-    intros Heval Hmatch. simpl_eval.
-    apply pure_wp_handle.
-    apply (pure_wp_mono _ Heval); [ | intros _ [] ].
-    intros ? (? & -> & ->).
+Lemma pure_eval_try_with_cons `{Encode A} η ex p e bs (φ : A -> Prop) ζ :
+  pattern η p ex (λ η', pure (eval η' e) φ ζ) (pure (match_exn η ex bs) φ ζ) ->
+  pure (match_exn η ex (Branch (CExc p) e :: bs)) φ ζ.
+Proof.
+  intros Hpat. simpl_match_exn.
+  eapply pure_wp_try, pure_wp_mono; eauto.
+Qed.
+
+(* Currently unused *)
+
+Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
+  cpattern η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η v bs φ Ψ) ->
+  pure_match η v ((Branch p e) :: bs) φ Ψ.
+Proof.
+  unfold pure_match.
+  intros; simpl_deep_match_go.
+  apply pure_wp_try. eassumption.
+Qed.
+
+Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
+  cpattern η p v (λ η', pure (eval η' e) φ ζ) ψ ->
+  (ψ -> (pure_match η v bs φ ζ)) ->
+  pure_match η v ((Branch p e) :: bs) φ ζ.
+Proof.
+  intros.
+  apply pure_match_cons_unary.
+  by eapply pure_wp_mono.
+Qed.
+
+(* Not matching is an error. *)
+
+Lemma pure_match_nil `{Encode A} η o (φ : A -> Prop) Ψ :
+  False -> pure_match η o nil φ Ψ.
+Proof. contradiction. Qed.
+
+Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
+  cpattern η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
+  (ψ -> False) ->
+  pure_match η v [Branch p e] φ ζ.
+Proof.
+  intros.
+  eapply pure_match_cons; eauto.
+  tauto.
+Qed.
+
+(* EMatch (e : expr) (bs : list branch) *)
+
+Lemma pure_eval_match `{Encode B} η e bs (a : val) (φ : B -> Prop) Ψ :
+  total (eval η e) (singleton a) ->
+  pure_match η (O3Ret a) bs φ Ψ ->
+  pure (eval η (EMatch e bs)) φ Ψ.
+Proof.
+  intros Heval Hmatch. simpl_eval.
+  apply pure_wp_handle.
+  apply (pure_wp_mono _ Heval); [ | intros _ [] ].
+  intros ? (? & -> & ->).
+  simpl_deep_match.
+  apply (pure_wp_mono _ Hmatch); eauto.
+Qed.
+
+(* TODO Rename *)
+Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
+  total (eval η e) φ' ->
+  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
+  pure (eval η (EMatch e bs)) φ Ψ.
+Proof.
+  intros Heval Hmatch. simpl_eval.
+  apply pure_wp_handle.
+  apply (pure_wp_mono _ Heval). 2: intros _ [].
+  intros ? (a & -> & Ha).
+  simpl_deep_match.
+  apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
+Qed.
+
+(* TODO Rename *)
+Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
+  pure (eval η e) φ' ζ ->
+  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
+  (∀ (ex : exn), ζ ex -> pure_match η (O3Throw ex) bs φ Ψ) ->
+  pure (eval η (EMatch e bs)) φ Ψ.
+Proof.
+  intros He Hφ' Hζ.
+  simpl_eval.
+  apply pure_wp_handle.
+  apply (pure_wp_mono _ He).
+  - intros _v (a & -> & Ha).
     simpl_deep_match.
-   apply (pure_wp_mono _ Hmatch); eauto.
-  Qed.
-
-  Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
-    total (eval η e) φ' ->
-    (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
-    pure (eval η (EMatch e bs)) φ Ψ.
-  Proof.
-    intros Heval Hmatch. simpl_eval.
-    apply pure_wp_handle.
-    apply (pure_wp_mono _ Heval). 2: intros _ [].
-    intros ? (a & -> & Ha).
+    by apply Hφ'.
+  - intros ex Hex.
     simpl_deep_match.
-    apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
-  Qed.
-
-  Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
-    pure (eval η e) φ' ζ ->
-    (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
-    (∀ (ex : exn), ζ ex -> pure_match η (O3Throw ex) bs φ Ψ) ->
-    pure (eval η (EMatch e bs)) φ Ψ.
-  Proof.
-    intros He Hφ' Hζ.
-    simpl_eval.
-    apply pure_wp_handle.
-    apply (pure_wp_mono _ He).
-    - intros _v (a & -> & Ha).
-      simpl_deep_match.
-      by apply Hφ'.
-    - intros ex Hex.
-      simpl_deep_match.
-      by apply Hζ.
-  Qed.
-
-  (* Currently unused *)
-
-  Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
-    cpattern η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η v bs φ Ψ) ->
-    pure_match η v ((Branch p e) :: bs) φ Ψ.
-  Proof.
-    unfold pure_match.
-    intros; simpl_deep_match_go.
-    apply pure_wp_try. eassumption.
-  Qed.
-
-  Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
-    cpattern η p v (λ η', pure (eval η' e) φ ζ) ψ ->
-    (ψ -> (pure_match η v bs φ ζ)) ->
-    pure_match η v ((Branch p e) :: bs) φ ζ.
-  Proof.
-    intros.
-    apply pure_match_cons_unary.
-    by eapply pure_wp_mono.
-  Qed.
-
-  (* Not matching is an error. *)
-
-  Lemma pure_match_nil `{Encode A} η o (φ : A -> Prop) Ψ :
-    False -> pure_match η o nil φ Ψ.
-  Proof. contradiction. Qed.
-
-  Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
-    cpattern η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
-    (ψ -> False) ->
-    pure_match η v [Branch p e] φ ζ.
-  Proof.
-    intros.
-    eapply pure_match_cons; eauto.
-    tauto.
-  Qed.
+    by apply Hζ.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-End match_rules.
+(** Catching an exception: [try e with bs]. *)
 
+(* ETryWith (e : expr) (bs : list branch) *)
 
-(* TODO Comment. *)
+Lemma pure_eval_trywith `{Encode A} η e bs (φ : A -> Prop) ζ ζ' :
+  pure (eval η e) φ ζ ->
+  (∀ ex, ζ ex -> pure (match_exn η ex bs) φ ζ') ->
+  pure (eval η (ETryWith e bs)) φ ζ'.
+Proof.
+  intros Heval Htryw. simpl_eval.
+  eapply pure_wp_try, pure_wp_mono; eauto with pure.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
-(** *Evaluation of expressions *)
+
+(* Raising an exception: [raise e]. *)
+(* TODO ERaise (e : expr) *)
+
+(* Performing an effect: [perform e]. *)
+(* TODO EPerform (e : expr) *)
+
+(* Continuing a continuation: [continue e1 e2]. *)
+(* TODO EContinue (e1 : expr) (e2 : expr) *)
+
+(* Discontinuing a continuation: [discontinue e1 e2]. *)
+(* TODO EDiscontinue (e1 : expr) (e2 : expr) *)
+
+(* Loop: [while e do body done]. *)
+(* TODO EWhile (e body : expr) *)
+(* Loop: [for x = e1 to e2 do e done]. *)
+(* TODO EFor (x : var) (e1 e2 e : expr) *)
+
+(* Fatal error: [assert false]. *)
+(* We model OCaml's unreachable construct [.] in this way, too. *)
+(* TODO EAssertFalse *)
+
 (* -------------------------------------------------------------------------- *)
 
-Section eval_rules.
+(** Runtime assertion: [assert(e)]. *)
 
-  (* Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) ψ : *)
-  (*   pure (A := A) (eval η hd) *)
-  (*     (fun x => *)
-  (*       pure_wp (evals η tl) (fun v => φ (# x :: v)) ψ) ψ -> *)
-  (*   pure_wp (A := list val) (evals η (hd :: tl)) φ ψ. *)
-  (* Proof. *)
-  (*   intros. simpl_evals. *)
-  (*   eapply pure_wpv_Par_left_conseq; first done. intros ? (? & -> & ?). *)
-  (*   eapply pure_wp_mono; try done. *)
-  (*   intros * (->&?). apply pure_wp_ret. *)
-  (*   eauto with pure. *)
-  (* Qed. *)
-  (* Admitted. *)
+(* EAssert (e : expr) *)
 
-  (* -------------------------------------------------------------------------- *)
+(* Runtime assertions. *)
 
-  (** Evaluating tuples, or several expressions in parallel *)
+Lemma pure_assert η e ψ :
+  pure (eval η e) (singleton #true) ψ →
+  pure (eval η (EAssert e)) (singleton #()) ψ.
+Proof.
+  intros He. simpl_eval.
+  apply pure_choose. eapply pure_ret; eauto.
+  apply pure_wp_bind, pure_wp_bind.
+  apply (pure_wp_mono _ He); auto.
+  intros _ (?&->&->).
+  eapply pure_wp_simp; [ simp | ];
+  repeat econstructor.
+Qed.
 
-  (* Lemma pure_ifthenelse η e e1 e2 φ ψ : *)
-  (*   pure (eval η e) (λ v, ∃ b : bool, v = #b ∧ pure (eval η (if b then e1 else e2)) φ ψ) ψ → *)
-  (*   pure (eval η (EIfThenElse e e1 e2)) φ ψ. *)
-  (* Proof. *)
-  (*   simpl. *)
-  (*   intros He. simpl_eval. *)
-  (*   eapply pure_bind, pure_bind, (pure_wp_mono _ He); auto. *)
-  (*   intros _v ([] & -> & H); apply pure_ret, H. *)
-  (* Qed. *)
+Lemma pure_eval_assert_bool η e :
+  pure (eval η e) (singleton true) ⊥ →
+  pure (eval η (EAssert e)) (λ (_ : unit), True) ⊥.
+Proof.
+  intros He.
+  eapply pure_wp_mono_ret.
+  eapply pure_assert.
+  eapply pure_wp_mono_ret.
+  eapply He.
+  all:intros _ (V & -> & ->); repeat econstructor.
+Qed.
 
-  (* Lemma pure_assert η e ψ : *)
-  (*   pure (eval η e) (λ v, v = #true) ψ → *)
-  (*   pure (eval η (EAssert e)) (λ v, v = #()) ψ. *)
-  (* Proof. *)
-  (*   intros He. simpl_eval. *)
-  (*   apply pure_choose. by apply pure_ret. *)
-  (*   apply pure_bind, pure_bind. *)
-  (*   apply (pure_mono _ He); auto. *)
-  (*   intros _ ->. *)
-  (*   repeat econstructor. *)
-  (* Qed. *)
+Lemma pure_eval_assert_Prop η e :
+  pure (eval η e) (λ P : Prop, P) ⊥ →
+  pure (eval η (EAssert e)) (λ (_ : unit), True) ⊥.
+Proof.
+  intros He.
+  eapply pure_wp_mono_ret.
+  eapply pure_assert.
+  eapply pure_wp_mono_ret.
+  eapply He.
+  - intros _ (P & -> & HP).
+    unfold encode, Encode_bool, Encode_Prop. rewrite truth_true; eauto.
+    repeat econstructor.
+  - intros _ (V & -> & ->); repeat econstructor.
+Qed.
 
-  (* (* Helper lemma for primitive arithmetic operations. *) *)
+(* -------------------------------------------------------------------------- *)
 
-  (* Lemma pure_if_in_shift_range {A E} z (m : micro A E) φ ψ : *)
-  (*   in_shift_range z → *)
-  (*   pure m φ ψ → *)
-  (*   pure (if_in_shift_range (repr z) m) φ ψ. *)
-  (* Proof. *)
-  (*   intros. *)
-  (*   unfold if_in_shift_range, in_shift_range_b. *)
-  (*   rewrite signed_repr by eauto using in_shift_range_representable. *)
-  (*   by rewrite in_shift_range_b_spec. *)
-  (* Qed. *)
+(* Reference allocation: [ref e]. *)
+(* TODO ERef (e: expr) *)
+(* Reference lookup: [!e]. *)
+(* TODO ELoad (e: expr) *)
+(* Reference assignment: [e1 := e2]. *)
+(* TODO EStore (e1 e2: expr) *)
 
-  (* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
-    analogous to [pats]. *)
+(* -------------------------------------------------------------------------- *)
 
-  Local Lemma pure_wp_evals η es φs ψ :
-    Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
-    pure_wp (evals η es) (Forall2 id φs) ψ.
-  Proof.
-    revert φs.
-    induction es as [ | e es IHes]; intros φs' Hes.
-    - simpl_evals. constructor; inv Hes; auto.
-    - apply Forall2_cons_inv_l in Hes. simpl.
-      destruct Hes as (φ & φs & He & Hes & ->).
-      simpl_evals.
-      eapply pure_wp_Par_conseq.
-      + apply He.
-      + apply IHes, Hes.
-      + intros v vs Hv Hvs. repeat constructor; eauto.
-        red. destruct Hv as (?&?&?); subst; done.
-      + intros exn []; repeat constructor; eauto.
-  Qed.
+(* - [φ] is the toplevel specification.
+   - [φf] is the specification of the function [f]. *)
 
-  (* The following [_eq] versions should be simpler to use in cases we know the
+(* -------------------------------------------------------------------------- *)
+
+(** Evaluating tuples, or several expressions in parallel *)
+
+(* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
+  analogous to [pats]. *)
+
+(* FIXME *)
+(* Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) ψ : *)
+(*   pure (A := A) (eval η hd) *)
+(*     (fun x => *)
+(*       pure_wp (evals η tl) (fun v => φ (# x :: v)) ψ) ψ -> *)
+(*   pure_wp (A := list val) (evals η (hd :: tl)) φ ψ. *)
+(* Proof. *)
+(*   intros. simpl_evals. *)
+(*   eapply pure_wpv_Par_left_conseq; first done. intros ? (? & -> & ?). *)
+(*   eapply pure_wp_mono; try done. *)
+(*   intros * (->&?). apply pure_wp_ret. *)
+(*   eauto with pure. *)
+(* Qed. *)
+(* Admitted. *)
+
+Local Lemma pure_wp_evals η es φs ψ :
+  Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
+  pure_wp (evals η es) (Forall2 id φs) ψ.
+Proof.
+  revert φs.
+  induction es as [ | e es IHes]; intros φs' Hes.
+  - simpl_evals. constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (φ & φs & He & Hes & ->).
+    simpl_evals.
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros v vs Hv Hvs. repeat constructor; eauto.
+      red. destruct Hv as (?&?&?); subst; done.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
+(* The following [_eq] versions should be simpler to use in cases we know the
   final values *)
 
-  Local Lemma pure_wp_evals_eq η es vs ψ :
-    Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
-    pure_wp (evals η es) (singleton vs) ψ.
-  Proof.
-    revert vs.
-    induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
-    - constructor; inv Hes; auto.
-    - apply Forall2_cons_inv_l in Hes. simpl.
-      destruct Hes as (v & vs & He & Hes & ->).
-      eapply pure_wp_Par_conseq.
-      + apply He.
-      + apply IHes, Hes.
-      + intros _ _ (?&->&->) ->. repeat constructor; eauto.
-      + intros exn []; repeat constructor; eauto.
-  Qed.
+Local Lemma pure_wp_evals_eq η es vs ψ :
+  Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
+  pure_wp (evals η es) (singleton vs) ψ.
+Proof.
+  revert vs.
+  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
+  - constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (v & vs & He & Hes & ->).
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros _ _ (?&->&->) ->. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
 
-  Lemma pure_evals_eq η es vs ψ :
-    Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
-    pure (evals η es) (singleton vs) ψ.
-  Proof.
-    apply pure_wp_evals_eq.
-  Qed.
+Lemma pure_evals_eq η es vs ψ :
+  Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
+  pure (evals η es) (singleton vs) ψ.
+Proof.
+  apply pure_wp_evals_eq.
+Qed.
 
   (* -------------------------------------------------------------------------- *)
   (** Hoare reasoning rules *)
