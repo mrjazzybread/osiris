@@ -440,7 +440,7 @@ Qed.
 (* EMaxInt *)
 
 Lemma pure_eval_maxint η ψ :
-  pure (eval η EMaxInt) (fun i => i = int.repr int.max_signed) ψ.
+  pure (eval η EMaxInt) (singleton (int.repr int.max_signed)) ψ.
 Proof.
   eapply pure_simp. simp.
   eapply pure_ret; eauto.
@@ -449,7 +449,7 @@ Qed.
 (* EMinInt *)
 
 Lemma pure_eval_minint η ψ :
-  pure (eval η EMinInt) (fun i => i = int.repr int.min_signed) ψ.
+  pure (eval η EMinInt) (singleton (int.repr int.min_signed)) ψ.
 Proof.
   eapply pure_simp. simp.
   eapply pure_ret; eauto.
@@ -735,8 +735,6 @@ Qed.
 
 (** Polymorphic comparison operators. *)
 
-(* TODO EOpPhysEq (e1 e2 : expr) *)
-
 (* Helper lemma for Boolean operations *)
 
 Lemma pure_eval_comparison_operator `{Encode A}
@@ -759,7 +757,83 @@ Proof.
   intros ? (?&?). eapply pure_ret; eauto.
 Qed.
 
+Lemma pure_eval_comparison_operator_val `{Encode A}
+  η e1 e2 (x1 x2 : val) (f : val → val → micro bool exn) b a (φ : A → Prop) :
+  pure (eval η e1) (singleton x1) ⊥ →
+  pure (eval η e2) (singleton x2) ⊥ →
+  f #x1 #x2 = ret b →
+  #a = #b →
+  φ a →
+  pure (Par (eval η e1) (eval η e2)
+          (pfbind inject2 (λ '(v1, v2), 'b ← f v1 v2; ret (VBool b)))) φ ⊥.
+Proof.
+  intros He1 He2 Ef Ea Ha.
+  eapply pure_par_seq.
+  do 2 (eapply pure_mono; eauto; try intros * ->;
+   try contradiction).
+  eapply pure_simp; [ simp | ].
+  eapply pure_bind. setoid_rewrite Ef.
+  eapply (pure_ret (fun b => #a = #b /\ φ a)); eauto.
+  intros ? (?&?). eapply pure_ret; eauto.
+Qed.
+
 (* Boolean operations *)
+
+(* EOpPhysEq (e1 e2 : expr) *)
+
+Lemma pure_eval_EOpPhysEq_loc η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton (VLoc (Loc x1))) ⊥ ->
+  pure (eval η e2) (singleton (VLoc (Loc x2))) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpPhysEq e1 e2)) (λ P, P <-> (x1 = x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator_val; eauto.
+  simpl. f_equal. f_equal. apply truth_eq_true.
+  unfold eqb; cbn. lia.
+Qed.
+
+Lemma pure_eval_EOpPhysEq_cont η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton (VCont (Loc x1))) ⊥ ->
+  pure (eval η e2) (singleton (VCont (Loc x2))) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpPhysEq e1 e2)) (λ P, P <-> (x1 = x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator_val; eauto.
+  simpl. f_equal. f_equal. apply truth_eq_true.
+  unfold eqb; cbn. lia.
+Qed.
+
+Lemma pure_eval_EOpPhysEq_loc_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton (VLoc (Loc x1))) ⊥ ->
+  pure (eval η e2) (singleton (VLoc (Loc x2))) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpPhysEq e1 e2)) (λ b : bool, b <-> (x1 = x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator_val; eauto.
+  unfold eqb; cbn; apply Zeq_spec.
+Qed.
+
+Lemma pure_eval_EOpPhysEq_cont_bool η e1 e2 (x1 x2 : Z) :
+  pure (eval η e1) (singleton (VCont (Loc x1))) ⊥ ->
+  pure (eval η e2) (singleton (VCont (Loc x2))) ⊥ ->
+  (* Representability hypotheses last for [x1] and [x2] evar initialisation *)
+  representable x1 ->
+  representable x2 ->
+  pure (eval η (EOpPhysEq e1 e2)) (λ b : bool, b <-> (x1 = x2)%Z) ⊥.
+Proof.
+  intros He1 He2 Hx1 Hx2. simpl_eval.
+  eapply pure_eval_comparison_operator_val; eauto.
+  unfold eqb; cbn; apply Zeq_spec.
+Qed.
 
 (* EOpEq (e1 e2 : expr) *)
 
@@ -819,7 +893,7 @@ Proof.
   rewrite eq_repr_repr; auto. apply Zne_spec.
 Qed.
 
-(* TODO EOpLt (e1 e2 : expr) *)
+(* EOpLt (e1 e2 : expr) *)
 
 Lemma pure_eval_EOpLt η e1 e2 (x1 x2 : Z) :
   pure (eval η e1) (singleton x1) ⊥ ->
@@ -1129,7 +1203,22 @@ Qed.
 
 (** Conditional: [if e then e1] and [if e then e1 else e2]. *)
 
-(* TODO EIfThen (e e1 : expr) *)
+(* EIfThen (e e1 : expr) *)
+
+(* LATER: More variants, analogous to [EIfThenElse] rules ? *)
+Lemma pure_ifthen
+  η e e1 φ (ψ : exn -> Prop) :
+  pure (A := bool) (eval η e)
+    (λ v : bool, if v then pure (eval η e1) φ ψ else φ tt) ψ →
+  pure (eval η (EIfThen e e1)) φ ψ.
+Proof.
+  intros He. simpl_eval.
+  eapply pure_bind. eapply pure_as_bool; eauto.
+  cbn; intros * H. destruct a; eauto.
+  eapply pure_ret; eauto with encode.
+Qed.
+
+(* EIfThenElse (e e1 e2 : expr) *)
 
 Lemma pure_ifthenelse `{EncA: Encode A}
   η e e1 e2 φ (ψ : exn -> Prop) :
@@ -1141,8 +1230,6 @@ Proof.
   eapply pure_bind. eapply pure_as_bool; eauto.
   cbn; intros * H. destruct a; eauto.
 Qed.
-
-(* EIfThenElse (e e1 e2 : expr) *)
 
 (* TODO fix inconsistent naming *)
 Lemma pure_ifthenelse_bool `{EncA: Encode A}
@@ -1302,26 +1389,121 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Raising an exception: [raise e]. *)
-(* TODO ERaise (e : expr) *)
+(** Raising an exception: [raise e]. *)
 
-(* Performing an effect: [perform e]. *)
-(* TODO EPerform (e : expr) *)
+(* ERaise (e : expr) *)
 
-(* Continuing a continuation: [continue e1 e2]. *)
-(* TODO EContinue (e1 : expr) (e2 : expr) *)
+Lemma pure_eval_raise η e (φ : _ -> Prop) ζ :
+  pure (eval η e) ζ ⊥ ->
+  pure (A := exn) (eval η (ERaise e)) φ ζ.
+Proof.
+  intros Heval. simpl_eval.
+  eapply pure_bind.
+  eapply pure_exn_mono; eauto. intros; contradiction.
+  intros. cbn. by apply pure_throw.
+Qed.
 
-(* Discontinuing a continuation: [discontinue e1 e2]. *)
-(* TODO EDiscontinue (e1 : expr) (e2 : expr) *)
+(* -------------------------------------------------------------------------- *)
 
-(* Loop: [while e do body done]. *)
-(* TODO EWhile (e body : expr) *)
+(** *Effectful expressions on [pure]. *)
+
+(* For impure expressions that fell under the hood, we provide some
+  "trivial" lemmas that warn the users that something has gone wrong. *)
+
+(* LATER: Rename? *)
+Definition NOT_PURE (s : string) : Prop := False.
+
+(** Performing an effect: [perform e]. *)
+
+(* EPerform (e : expr) *)
+Lemma pure_eval_perform `{Encode A} η e (φ : _ -> Prop) ζ :
+  NOT_PURE "[EPerform] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (EPerform e)) φ ζ.
+Proof. done. Qed.
+
+(** Continuing a continuation: [continue e1 e2]. *)
+
+(* EContinue (e1 : expr) (e2 : expr) *)
+Lemma pure_eval_continue `{Encode A} η e1 e2 (φ : _ -> Prop) ζ :
+  NOT_PURE "[EContinue] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (EContinue e1 e2)) φ ζ.
+Proof. done. Qed.
+
+(** Discontinuing a continuation: [discontinue e1 e2]. *)
+
+(* EDiscontinue (e1 : expr) (e2 : expr) *)
+Lemma pure_eval_discontinue `{Encode A} η e1 e2 (φ : _ -> Prop) ζ :
+  NOT_PURE "[EDiscontinue] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (EDiscontinue e1 e2)) φ ζ.
+Proof. done. Qed.
+
+(** Loop: [while e do body done]. *)
+(* EWhile (e body : expr) *)
+
 (* Loop: [for x = e1 to e2 do e done]. *)
-(* TODO EFor (x : var) (e1 e2 e : expr) *)
+
+Lemma pure_eval_loop_false η e body (φ : _ -> Prop) ζ :
+  φ () ->
+  pure (eval η e) (singleton false) ζ ->
+  pure (eval η (EWhile e body)) φ ζ.
+Proof.
+  intros Hφ Hfalse. simpl_eval.
+  eapply pure_bind.
+  { by apply pure_as_bool. }
+  intros * ->; cbn; eauto.
+  eapply pure_ret; cbn; eauto with pure.
+  reflexivity.
+Qed.
+
+Lemma pure_eval_loop_true η e body (φ : _ -> Prop) ζ :
+  NOT_PURE "[EWhile] with a true guard is effectful; cannot be resolved with [pure]" ->
+  pure (eval η e) (singleton true) ζ ->
+  pure (A := unit) (eval η (EWhile e body)) φ ζ.
+Proof. done. Qed.
+
+(* EFor (x : var) (e1 e2 e : expr) *)
+
+Lemma pure_eval_for η x e1 e2 e (φ : _ -> Prop) ζ :
+  NOT_PURE "[EFor] is effectful; cannot be resolved with [pure]" ->
+  pure (A := unit) (eval η (EFor x e1 e2 e)) φ ζ.
+Proof. done. Qed.
 
 (* Fatal error: [assert false]. *)
 (* We model OCaml's unreachable construct [.] in this way, too. *)
-(* TODO EAssertFalse *)
+
+(* EAssertFalse *)
+
+Lemma pure_eval_assertfalse η (φ : _ -> Prop) ζ :
+  NOT_PURE "[EAssertFalse] : Program has crashed" ->
+  pure (A := unit) (eval η EAssertFalse) φ ζ.
+Proof. done. Qed.
+
+(* Reference allocation: [ref e]. *)
+
+(* ERef (e: expr) *)
+
+Lemma pure_eval_ref `{Encode A} η e (φ : _ -> Prop) ζ :
+  NOT_PURE "[ERef] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (ERef e)) φ ζ.
+Proof. done. Qed.
+
+(* Reference lookup: [!e]. *)
+
+(* ELoad (e: expr) *)
+
+Lemma pure_eval_load `{Encode A} η e (φ : _ -> Prop) ζ :
+  NOT_PURE "[ELoad] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (ELoad e)) φ ζ.
+Proof. done. Qed.
+
+(* Reference assignment: [e1 := e2]. *)
+
+(* EStore (e1 e2: expr) *)
+
+Lemma pure_eval_store `{Encode A} η e1 e2 (φ : _ -> Prop) ζ :
+  NOT_PURE "[EStore] is effectful; cannot be resolved with [pure]" ->
+  pure (A := A) (eval η (EStore e1 e2)) φ ζ.
+Proof. done. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
