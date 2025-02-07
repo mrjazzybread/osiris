@@ -56,7 +56,7 @@ upgrade: upgrade_base pin
 
 .PHONY: upgrade_base
 upgrade_base:
-	opam pin --switch=osiris --yes --update-invariants ocaml $(OCAML_VERSION)
+	opam pin --switch=osiris --yes --update-invariant ocaml $(OCAML_VERSION)
 
 .PHONY: pin
 pin:
