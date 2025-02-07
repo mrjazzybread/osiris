@@ -203,21 +203,6 @@ Goal (trivial
          (EString "arg3"))).
 Abort.
 
-Notation "'total' '(' call '(' f ')' '(' arg1 ',' arg2 ',' .. ',' argn ')' ψ" :=
-  (total (call f arg1)
-     (λ c, total (call c arg2)
-             (.. (λ c, total (call c argn) ψ) ..)))
-    (at level 200,
-      only printing,
-    format "'total'  '(' call  '(' f ')'  '/' '(' '[' arg1 ','  '/' arg2 ','  '/' .. ','  '/' argn ']' ')'  ψ").
-
-Goal (trivial
-        (total (call (VString "F") (VString "X"))
-           (λ c, total (call c (VString "Y"))
-                   (λ c, total (call c (VString "Z"))
-                           (λ v : val, True))))).
-Abort.
-
 Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
   (wp s E (call f v1)
       (fun v => wp s E (call v v2)

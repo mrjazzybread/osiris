@@ -87,14 +87,104 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(** Evaluating tuples, or several expressions in parallel *)
+
+(* TODO avoid [Forall2] just by showing nil and cons lemmas; offer tactic
+  analogous to [pats]. *)
+
+(* FIXME *)
+Lemma pure_evals_cons `{Encode A} η (hd : expr) tl (φ : list val -> Prop) :
+  pure (A := A) (eval η hd)
+    (fun x =>
+      pure (evals η tl) (fun v => φ (# x :: v)) ⊥) ⊥ ->
+  pure (evals η (hd :: tl)) φ ⊥.
+Proof.
+  intros. simpl_evals.
+  eapply pure_par_seq.
+  eapply pure_mono; try done.
+  intros * ?.
+  eapply pure_mono; first eapply H1; eauto.
+  intros * ?. eapply pure_simp; first simp; eauto.
+  cbn in H2; eapply pure_ret; eauto.
+  cbn; f_equiv.
+Qed.
+
+Local Lemma pure_evals `{Encode A} η es φs ψ :
+  Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
+  pure (A := list A) (evals η es) (Forall2 id φs) ψ.
+Proof.
+  revert φs.
+  induction es as [ | e es IHes]; intros φs' Hes.
+  - simpl_evals. constructor; inv Hes; auto.
+    eexists nil; encode.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (φ & φs & He & Hes & ->).
+    simpl_evals.
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros v vs Hv Hvs. repeat constructor; eauto.
+      red. returns_eauto.
+      eexists _; split; encode.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
+(* The following [_eq] versions should be simpler to use in cases we know the
+  final values *)
+
+Lemma pure_evals_eq η es vs ψ :
+  Forall2 (λ e v, pure (eval η e) (singleton v) ψ) es vs →
+  pure_wp (evals η es) (singleton vs) ψ.
+Proof.
+  revert vs.
+  induction es as [ | e es IHes]; intros vs' Hes; simpl_evals.
+  - constructor; inv Hes; auto.
+  - apply Forall2_cons_inv_l in Hes. simpl.
+    destruct Hes as (v & vs & He & Hes & ->).
+    eapply pure_wp_Par_conseq.
+    + apply He.
+    + apply IHes, Hes.
+    + intros _ _ (?&->&->) ->. repeat constructor; eauto.
+    + intros exn []; repeat constructor; eauto.
+Qed.
+
+Lemma prove_evals η es vs :
+  Forall2 (fun e v => simp (eval η e) (ret v)) es vs ->
+  simp (evals η es) (ret vs).
+Proof.
+  generalize vs. induction es; intros.
+  - apply Forall2_nil_inv_l in H; rewrite H.
+    by simpl_evals.
+  - apply Forall2_cons_inv_l in H.
+    destruct H as (v & vs' & Heval & H & ->).
+    simpl_evals.
+    eapply simp_par. apply Heval.
+    apply IHes. apply H.
+    unfold continue; apply SimpReflexive.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (** *Tuple construction: [(e1, e2, ...)]. *)
 
 (* ETuple (es : list expr) *)
 
-(* A special case at arity [2,3,4]. *)
+Lemma pure_eval_tuple `{Encode A} η es a vs (ψ : A -> Prop)  :
+  Forall2 (fun e v => simp (eval η e) (ret v)) es vs ->
+  VTuple vs = #a ->
+  ψ a ->
+  pure (eval η (ETuple es)) ψ ⊥.
+Proof.
+  intros Hevals Henc Hψ.
+  simpl_eval.
+  eapply pure_simp.
+  eapply prove_simp_bind.
+  - apply prove_evals. apply Hevals.
+  - apply SimpReflexive.
+  - eapply pure_ret; eauto with encode.
+Qed.
 
-(* LATER: Generalize these lemmas.
-  (Need to generalize [encode] instances as well.) *)
+(* A special case at arity [2,3,4]. *)
 
 (* LATER: Abstraction is broken; don't use [pure_wp] here. *)
 Local Ltac solve_eval_tuple :=
