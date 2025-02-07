@@ -13,8 +13,8 @@ From osiris.program_logic.pure Require Import wp.
 Class Encode_eval A V : Type :=
   { encode_eval : A -> V }.
 
-Global Instance encode_eval_id :
-  @Encode_eval val val | 10000 :=
+Global Instance encode_eval_id {A} :
+  @Encode_eval A A | 10000 :=
   {| encode_eval := id |}.
 
 Global Instance encode_eval_encode {A} `{Encode A}:
@@ -22,7 +22,7 @@ Global Instance encode_eval_encode {A} `{Encode A}:
   {| encode_eval := encode |}.
 
 Global Instance encode_eval_list {A} `{Encode A}:
-  @Encode_eval (list A) (list val) :=
+  @Encode_eval (list A) (list val) | 100 :=
   {| encode_eval := (map encode.encode) |}.
 
 (* Value predicates, which are predicates over carrier type [A], which are
