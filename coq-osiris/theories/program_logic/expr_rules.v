@@ -893,18 +893,6 @@ Section ewp_rules_expr.
     by iIntros "H"; simpl_eval.
   Qed.
 
-
-  (** * ETryWith : expr → list branch → expr *)
-
-  Lemma ewp_ETryWith η e bs φ E Ψ :
-    EWP eval η e
-      @ E <|Ψ|> {{ | RET v => EWP ret v @ E <|Ψ|>{{ φ }};
-                   | EXN e => EWP match_exn η e bs @ E <|Ψ|>{{ φ }} }} -∗
-    EWP eval η (ETryWith e bs) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "?". simpl_eval. by iApply ewp_try.
-  Qed.
-
   (** * ERaise : expr → expr *)
 
   Lemma ewp_ERaise η e φ E Ψ :

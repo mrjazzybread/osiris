@@ -284,9 +284,6 @@ let rec expr (e : expr) =
   | EMatch (e, bs) ->
       c "EMatch" [ expr e; branches bs ]
 
-  | ETryWith (e, bs) ->
-     c "ETryWith" [ expr e; branches bs ]
-
   | ERaise e ->
      c "ERaise" [ expr e ]
 

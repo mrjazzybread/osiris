@@ -76,24 +76,25 @@ Proof.
     (* FIXME: This proof was not so pretty to begin with; but
      we can do better here. *)
     (* TODO: Refactor. *)
-    eapply (pure_eval_trywith _ _ _ _ (λ ex, l = [] ∧ ex = VXData (Loc 0) [])).
-    - (* matched value (or exn) *)
-      eapply (@pure_eval_data' A _ (option A)); last done.
-      (* TODO: fix [pure_data] *)
+    eapply pure_eval_match'_exn with (φ' := λ a, a = #(list.head l)) (ζ := λ e, l = [] ∧ e = VXData (Loc 0) []).
+    { eapply pure_eval_data'; last done.
       simpl_evals. fold eval. eapply pure_wp_Par_conseq.
       + eapply pure_eval_app. pure_path. pure_path.
       + eapply pure_wp_ret_singleton.
       + intros; returns_eauto. cbn in *.
         eapply pure_wp_ret; subst. destruct Ha_ensures; subst.
         red in H1; subst.
-        eexists [v]; tauto.
+        exists [v]; tauto.
       + intros ? [ (-> & ->)| ]; cbn.
         * eapply pure_wp_throw; eauto.
-        * eapply pure_wp_throw; eauto. Unshelve. eapply H0.
+        * Unshelve.
+          2 : { apply (λ e, l = [] ∧ e = VXData (Loc 0) []). }
+          eapply pure_wp_throw; eauto. }
+    { intros ? ->.
+      pure_match.
+      pure_path. }
+    { intros ? [-> ->]. pure_match. pure_data. encode. } }
 
-    - intros ? (->&->).
-    apply pure_eval_try_with_cons, pat_PXData_eq; auto.
-    ltac2: (patterns ()). pure_data; done. }
   intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
 
   (* We have gone though all of the struct items, time to conclude. *)

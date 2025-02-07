@@ -7,16 +7,10 @@ let invert (type elt) (iter : (elt -> unit) -> unit) : elt Seq.t =
   in
   let yield x = perform (Yield x) in
   fun () ->
-  match_with iter yield {
-      retc = (fun _ -> Seq.Nil);
-      exnc = (fun _ -> Seq.Nil);
-      effc =
-        (fun (type b) (e : b Effect.t) ->
-          match e with
-          | Yield x ->
-             Some (fun (k : (b, _) continuation) ->
-                 (* We currently have to eta-expand [continue k]
-                    for it to be recognized by the translator. *)
-                 Seq.Cons (x, fun () -> continue k ()))
-          | _ -> None)
-    }
+  match iter yield with
+  | _ -> Seq.Nil
+  | exception _ -> Seq.Nil
+  | effect (Yield x), k ->
+      Seq.Cons (x, fun () -> continue k ())
+      (* We have to eta-expand [continue k] to [fun () -> continue k ()] because continue is
+	 translated to [EContinue e1 e2], and there is no representation for a partially applied continue. *)

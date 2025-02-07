@@ -80,18 +80,34 @@ Proof.
     pure_simp; unfold catch_head_spec; intros.
     iIntros. iApply ewp_call_nonrec.
     iModIntro.
-    Simp. Simp.
-    (* Reshape the goal to get [EWP try (o ← call head #l; ...)] *)
-    iApply ewp_try.
-    (* Call to head. *)
-    iApply ewp_mono. { iApply Hhead. }
-    iIntros ([]) "Ho"; cbn.
-    { iApply ewp_value. cbn.
-      iDestruct "Ho" as "(%h & %t & -> & ->)".
-      iPureIntro. exists (Some h). eauto.  }
-    { iDestruct "Ho" as "(-> & ->)".
-      Simp. iApply ewp_value. 
-      iPureIntro. exists None. eauto. } }
+    prove_match.
+    { Simp. iApply ewp_bind_exn.
+      iApply ewp_mono. { iApply Hhead. }
+      iIntros ([ v | ex ]) "Houtcome".
+      - simpl.
+        iApply (ewp_value _ _ (| RET v => bi_pure(_ v); | EXN e => bi_pure(_ e))%I).
+        iDestruct "Houtcome" as "(%h & %t & -> & ->)".
+        iPureIntro.
+        instantiate (1 := (λ v, ∃ h t, l = h :: t ∧ v = (#(Some h)))).
+        simpl. eexists; eauto.
+      - simpl.
+        iDestruct "Houtcome" as "(%Hex & %Hl)".
+        iPureIntro.
+        instantiate (1 := (λ e, e = VXData {| address := 0 |} [] ∧ l = [])).
+        simpl; eauto. }
+
+    iIntros ([h|e]).
+    { (* Value case. *)
+      iIntros "(%h0 & %t & -> & ->)".
+      iModIntro.
+      next_branch.
+      iApply ewp_EPath. iApply ewp_value. iPureIntro. eauto. }
+    { (* Exception case. *)
+      iIntros "[-> ->]".
+      next_branch. next_branch.
+      iApply ewp_EConstant.
+      iExists (None). done. } }
+
   intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
 
   (* We have gone though all of the struct items, time to conclude. *)
