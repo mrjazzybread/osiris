@@ -8,9 +8,11 @@ bug-reports: "francois.pottier@inria.fr"
 depends: [
   "ocaml"
   "dune" {>= "3.8"}
-  "ocaml-compiler-libs" {= "4.14.1"}
+  "ocaml-compiler-libs" {>= "5.3.0"}
   "pprint"
   "base"
+  "ppx_sexp_conv"
+  "ppx_deriving"
   "csexp"
   "odoc" {with-doc}
 ]

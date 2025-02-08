@@ -13,8 +13,10 @@ homepage: "https://gitlab.inria.fr/fpottier/osiris/"
 bug-reports: "francois.pottier@inria.fr"
 depends: [
   "dune" {>= "3.8"}
+  "coq"
   "coq-stdpp" {= "1.9.0"}
   "coq-iris" {= "4.1.0"}
+  "coq-equations"
   "odoc" {with-doc}
 ]
 build: [
