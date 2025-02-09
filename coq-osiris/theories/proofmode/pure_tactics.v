@@ -31,7 +31,7 @@ Import Ltac2.
 
 Ltac2 rec specify_cpattern () : int :=
   lazy_match! goal with
-  | [ |- cpattern _ ?cp ?o _ _ ] =>
+  | [ |- cpattern _ _ ?cp ?o _ _ ] =>
       (* We simplify terms because of things like coercions. *)
       let cp := Std.eval_hnf cp in
       let o := Std.eval_hnf o in
@@ -228,8 +228,8 @@ Local Ltac2 rec solve_lookup_path () :=
 
 Local Ltac2 rec is_pattern (c : constr) :=
   lazy_match! c with
-  | pattern _ _ _ _ _  => true
-  | patterns _ _ _ _ _ => true
+  | pattern _ _ _ _ _ _  => true
+  | patterns _ _ _ _ _ _ => true
   | _ => false
   end.
 
@@ -382,23 +382,23 @@ Local Ltac2 rec do_intros () :=
 
 Local Ltac2 set_postcondition_to_false () :=
   lazy_match! goal with
-  | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
+  | [ |- pattern _ _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
         let t := Constr.type arg in
         unify $ψ (fun (_ : $t) => False)
       else ()
-  | [ |- pattern _ _ _ _ ?ψ ] =>
+  | [ |- pattern _ _ _ _ _ ?ψ ] =>
       if Constr.is_evar ψ then unify $ψ False else ()
   end.
 
 Local Ltac2 set_postcondition_to_true () :=
   lazy_match! goal with
-  | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
+  | [ |- pattern _ _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
         let t := Constr.type arg in
         unify $ψ (fun (_ : $t) => True)
       else ()
-  | [ |- pattern _ _ _ _ ?ψ ] =>
+  | [ |- pattern _ _ _ _ _ ?ψ ] =>
       if Constr.is_evar ψ then unify $ψ True else ()
   end.
 
@@ -419,7 +419,7 @@ Local Ltac2 massage_term (c : constr) :=
 
 Local Ltac2 patterns () :=
   lazy_match! goal with
-  | [ |- patterns _ (_ :: _) _ _ ?ψ ] =>
+  | [ |- patterns _ _ (_ :: _) _ _ ?ψ ] =>
       (* If [Ψ] is an evar, [pats_PCons_unary] instantiates it as
          [Ψ := ?Ψ1 ∨ ?Ψ2]. Currently (09/2024), the only other case
          is that [Ψ] is already instantiated to [False]. *)
@@ -427,7 +427,7 @@ Local Ltac2 patterns () :=
         eapply pats_PCons_unary_false
       else
         eapply pats_PCons_unary
-  | [ |- patterns _ nil _ _ ?ψ ] =>
+  | [ |- patterns _ _ nil _ _ ?ψ ] =>
       (* If [Ψ] is an evar then we instantiate it to [False], otherwise we
          use [pats_consequence_psi] and the fact that [∀ P, ⊥ -> P]. *)
       if (Constr.is_evar ψ) then
@@ -438,7 +438,7 @@ Local Ltac2 patterns () :=
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [patterns η ps vs φ ψ]")))
+              (Message.of_string "Expected goal of the form [patterns η δ ps vs φ ψ]")))
   end.
 
 
@@ -462,8 +462,8 @@ Local Ltac2 rec pattern_match_aux () :=
           if is_pattern (Control.goal ()) then pattern_match_aux () else ())
   in
   lazy_match! goal with
-  | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
-  | [ |- pattern _ ?p _ _ ?ψ ] =>
+  | [ |- patterns _ _ _ _ _ _ ] => patterns (); continue_matching ()
+  | [ |- pattern _ _ ?p _ _ ?ψ ] =>
       (* [massage_term] is black magic to help Rocq's unification engine. *)
       massage_term ψ;
       match! p with
@@ -514,21 +514,21 @@ Local Ltac2 rec pattern_match_aux () :=
       end
   end.
 
-(* Assuming a goal of the form [⊢ pattern(s) η p v ?φ ?ψ], the
+(* Assuming a goal of the form [⊢ pattern(s) η δ p v ?φ ?ψ], the
    [pattern_match] tactic tries to reduce the goal to [⊢ φ] while
    elaborating the failure postcondition [Ψ]. *)
 
 Ltac2 pattern_match0 () :=
   Control.enter (fun _ =>
   lazy_match! goal with
-  | [ |- pattern _ ?p (#?x) _ ?ψ ] =>
+  | [ |- pattern _ _ ?p (#?x) _ ?ψ ] =>
       rewrite 1 ?encode_encode'; pattern_match_aux ()
-  | [ |- pattern _ ?p _ _ ?ψ ] => pattern_match_aux ()
+  | [ |- pattern _ _ ?p _ _ ?ψ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
+              (Message.of_string "Expected goal of the form [pattern η δ p v φ ψ]")))
   end).
 
 Ltac2 Notation "pattern_match" := pattern_match0 ().
@@ -589,7 +589,7 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
    successively applies [pure_match_cons], creating n subgoals of the
-   form [pattern _ _ _ (λ n', pure (eval η' _) ##_ ⊥) _] and one subgoal of
+   form [pattern _ _ _ _ (λ n', pure (eval η' _) ##_ ⊥) _] and one subgoal of
    the form [False]. *)
 
 

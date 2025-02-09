@@ -38,9 +38,9 @@ Arguments val_as_struct !v /.
 Arguments lookup_name !η !x : simpl nomatch.
 Arguments eval.remove !f !fvs : simpl nomatch. (* FIXME *)
 Arguments update !fvs !fvs' : simpl nomatch.
-Arguments extend δ !p v.
-Arguments extends δ !ps !vs.
-Arguments extendfs δ !fps !fvs.
+Arguments extend η δ !p v.
+Arguments extends η δ !ps !vs.
+Arguments extendfs η δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.

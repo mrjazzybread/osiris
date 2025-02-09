@@ -348,14 +348,15 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
 
 Section Extend.
 
-Variable extend : env → pat → val → micro env unit.
+Variable extend : env → env → pat → val → micro env unit.
 
 (* ------------------------------------------------------------------------ *)
 
-(* [extends δ ps vs] matches the values [vs] against the patterns [ps].
+(* [extends η δ ps vs] matches the values [vs] against the patterns [ps].
 
-   In case of success, the result is an extension of the environment
-   fragment [δ] with bindings for the bound variables of the patterns [ps].
+   In case of success, the result is an extension of the environment (or
+   environment fragment) [δ] with bindings for the bound variables of the
+   patterns [ps].
 
    In case of failure, a (meta-level) exception is raised. This is why the
    exceptional result type of [extends] is [unit].
@@ -367,14 +368,14 @@ Variable extend : env → pat → val → micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Fixpoint pre_extends (δ : env) ps vs : micro env unit :=
+Fixpoint pre_extends (η δ : env) ps vs : micro env unit :=
   let extends := pre_extends in
   match ps, vs with
   | [], [] =>
       ret δ
   | p::ps, v::vs =>
-      δ ← extend δ p v ;
-      δ ← extends δ ps vs ;
+      δ ← extend η δ p v ;
+      δ ← extends η δ ps vs ;
       ret δ
   | _::_, [] =>
       length_mismatch "longer tuple expected"
@@ -382,33 +383,33 @@ Fixpoint pre_extends (δ : env) ps vs : micro env unit :=
       length_mismatch "shorter tuple expected"
  end.
 
-(* [extendfs δ fps fvs] matches the field-indexed values [fvs] against the
+(* [extendfs η δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
 
    In case of success, the result is an extension of the environment
-   fragment [δ] with bindings for the bound variables of
+   (or environment fragment) [δ] with bindings for the bound variables of
    the patterns [fps].
 
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Fixpoint pre_extendfs (δ : env) fps fvs : micro env unit :=
+Fixpoint pre_extendfs (η δ : env) fps fvs : micro env unit :=
   let extendfs := pre_extendfs in
   match fps with
   | [] => ret δ
   | (f, p) :: fps =>
       v ← widen (lookup_name fvs f) ;
-      δ ← extend δ p v ;
-      δ ← extendfs δ fps fvs ;
+      δ ← extend η δ p v ;
+      δ ← extendfs η δ fps fvs ;
       ret δ
   end.
 
 End Extend.
 
-(* [extend_value δ p v] matches the value [v] against the pattern [p].
+(* [extend η δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
-   fragment [δ] with bindings for the bound variables of the pattern [p].
+   (or fragment) [δ] with bindings for the bound variables of the pattern [p].
 
    A (meta-level) exception is raised if [p] does not match [v], e.g., if [p]
    selects a data constructor [c] but [v] carries a distinct data constructor
@@ -416,12 +417,16 @@ End Extend.
 
    A hard failure takes place if [p] and [v] have incompatible types,
    e.g., if [p] is a tuple pattern and [v] is not a tuple value or
-   is a tuple value of an incorrect arity. *)
+   is a tuple value of an incorrect arity.
+
+   [η] is the current environment, it is only used to look up the location
+   corresponding to a path [π] in the pattern [PXData π _] for extensible
+   variant types *)
 
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Local Fixpoint pre_extend δ p v : micro env unit :=
+Local Fixpoint pre_extend η δ p v : micro env unit :=
   let extend := pre_extend in
   let extends := pre_extends extend in
   let extendfs := pre_extendfs extend in
@@ -438,30 +443,30 @@ Local Fixpoint pre_extend δ p v : micro env unit :=
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
-      δ ← extend δ p v ;
+      δ ← extend η δ p v ;
       ret ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
-      orelse (extend δ p1 v) (extend δ p2 v)
+      orelse (extend η δ p1 v) (extend η δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
-      extends δ ps vs
+      extends η δ ps vs
   | PData c p, VData c' v =>
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then extends δ p v else throw ()
+      if c =? c' then extends η δ p v else throw ()
   | PXData π p, VXData l v =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
-      l' ← as_loc (widen (lookup_path δ π)) ;
-      if (locations.eqb l l') then extends δ p v else throw()
+      l' ← as_loc (widen (lookup_path η π)) ;
+      if (locations.eqb l l') then extends η δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
-      extendfs δ fps fvs
+      extendfs η δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then ret δ else throw ()
@@ -506,25 +511,25 @@ Proof. by eexists. Qed.
 (* Top-level definition for [extendfs] *)
 Definition extendfs := extendfs_aux.(unseal).
 
-(* [cextend η cp o] matches the outcome [o] against
+(* [cextend η δ cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
 
-Fixpoint cextend δ cp o : micro env unit :=
+Fixpoint cextend η δ cp o : micro env unit :=
   match cp, o with
   | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
-      extend δ p v
+      extend η δ p v
   | CExc p, O3Throw v =>
       (* An exception pattern matches a throw. *)
-      extend δ p v
+      extend η δ p v
   | CEff pe pk, O3Perform e k =>
-      δ ← extend δ pe e ;
+      δ ← extend η δ pe e ;
       (* [pk] is a pattern for the continuation [k].
          It can only be a [PVar] or a [PAny]. *)
-      extend δ pk (VCont k)
+      extend η δ pk (VCont k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
-      orelse (cextend δ cp1 o) (cextend δ cp2 o)
+      orelse (cextend η δ cp1 o) (cextend η δ cp2 o)
   | _, _ =>
       (* If [o] and [cp] don't match, we throw a meta-level exception
          and continue to the next branch.*)
@@ -533,8 +538,8 @@ Fixpoint cextend δ cp o : micro env unit :=
 
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
-Definition irrefutably_extend δ p v : micro env void :=
-  try (extend δ p v) ret match_failure.
+Definition irrefutably_extend η δ p v : micro env void :=
+  try (extend η δ p v) ret match_failure.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -862,7 +867,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
          evaluate the bindings [bs], yielding an environment fragment [δ]. *)
       '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
        (* Match the value [v] against the pattern [p], extending [δ]. *)
-      widen (irrefutably_extend δ p v)
+      widen (irrefutably_extend η δ p v)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -933,7 +938,7 @@ Fixpoint pre_deep_match_go η (o : outcome3 val exn) (bs : list branch) :=
       try
         (* We try to match the pattern [cp] against the computational
            outcome [o]. *)
-        (cextend η cp o)
+        (cextend η η cp o)
         (* If the match is succesful, we evaluate [e] in an environment
            extended by the match. *)
         (λ δ, eval δ e)
@@ -980,7 +985,7 @@ Fixpoint pre_deep_match_exn_go η (o : outcome3 val exn) (bs : list branch) :=
       try
         (* We try to match the pattern [cp] against the computational
            outcome [o]. *)
-        (cextend η cp o)
+        (cextend η η cp o)
         (* If the match is succesful, we evaluate [e] in an environment
            extended by the match. *)
         (λ δ, eval δ e)
@@ -1020,7 +1025,7 @@ Fixpoint pre_shallow_match η o bs all_bs :=
        end)
   | Branch cp e :: bs =>
       try
-        (cextend η cp o)
+        (cextend η η cp o)
         (λ δ, eval δ e)
         (fun tt => pre_shallow_match η o bs all_bs)
   end.

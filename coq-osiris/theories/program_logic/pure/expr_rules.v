@@ -1039,8 +1039,8 @@ Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
   p1 p2 e1 e2 η (ψ : X -> Prop) ζ :
   pure (eval η e1) (λ '((v1, v2) : A1 * A2),
       pure (
-          δ ← widen (irrefutably_extend [] p1 #v1);
-          θ ← widen (irrefutably_extend δ p2 #v2);
+          δ ← widen (irrefutably_extend η [] p1 #v1);
+          θ ← widen (irrefutably_extend η δ p2 #v2);
           eval (θ ++ η) e2
         ) ψ ζ) ζ ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ζ.
@@ -1281,7 +1281,7 @@ Arguments pure_match {A} {H} _ _ _ _.
 (* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
-  cpattern η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η v bs φ Ψ) ->
+  cpattern η η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η v bs φ Ψ) ->
   pure_match η v ((Branch p e) :: bs) φ Ψ.
 Proof.
   unfold pure_match.
@@ -1290,7 +1290,7 @@ Proof.
 Qed.
 
 Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
-  cpattern η p v (λ η', pure (eval η' e) φ ζ) ψ ->
+  cpattern η η p v (λ η', pure (eval η' e) φ ζ) ψ ->
   (ψ -> (pure_match η v bs φ ζ)) ->
   pure_match η v ((Branch p e) :: bs) φ ζ.
 Proof.
@@ -1306,7 +1306,7 @@ Lemma pure_match_nil `{Encode A} η o (φ : A -> Prop) Ψ :
 Proof. contradiction. Qed.
 
 Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
-  cpattern η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
+  cpattern η η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
   (ψ -> False) ->
   pure_match η v [Branch p e] φ ζ.
 Proof.

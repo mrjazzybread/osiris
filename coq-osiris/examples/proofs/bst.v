@@ -97,27 +97,27 @@ Definition pLeaf := PConstant "Leaf".
 Definition pNode (p1 p2 p3 : syntax.pat) :=
   PData "Node" $ [p1; p2; p3].
 
-Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
+Lemma pat_pLeaf `{Encode A} η δ v (t : tree A) (φ : env -> Prop) :
   v = #t →
-  (t = Leaf -> φ η) ->
-  pattern η pLeaf v φ (t <> Leaf).
+  (t = Leaf -> φ δ) ->
+  pattern η δ pLeaf v φ (t <> Leaf).
 Proof.
   intros; destruct t; subst.
 Admitted.
 
-Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
+Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
   :
   v = #t ->
   (∀ (t1 : tree A) (a : A) (t2 : tree A),
       t = Node t1 a t2 →
-      pattern η p1 #t1
-        (λ η', pattern η' p2 #a
-            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
+      pattern η δ p1 #t1
+        (λ δ', pattern η δ' p2 #a
+            (λ η', pattern η δ' p3 #t2 φ (ψ3 t2))
             (ψ2 a))
         (ψ1 t1)) ->
-  pattern η (pNode p1 p2 p3) v φ
+  pattern η δ (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros; destruct t; subst.

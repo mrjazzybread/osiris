@@ -324,10 +324,10 @@ Ltac pats :=
 
 Definition pLeaf := PConstant "Leaf".
 
-Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
+Lemma pat_pLeaf `{Encode A} η δ v (t : tree A) (φ : env -> Prop) :
   v = #t →
-  (t = Leaf -> φ η) ->
-  pattern η pLeaf v φ (t <> Leaf).
+  (t = Leaf -> φ δ) ->
+  pattern η δ pLeaf v φ (t <> Leaf).
 Proof.
   intros; subst.
   destruct t.
@@ -345,19 +345,19 @@ Ltac pat_pLeaf :=
 Definition pNode (p1 p2 p3 : syntax.pat) :=
   PData "Node" [p1; p2; p3].
 
-Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
+Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
   :
   v = #t ->
   (∀ (t1 : tree A) (a : A) (t2 : tree A),
       t = Node t1 a t2 →
-      pattern η p1 #t1
-        (λ η', pattern η' p2 #a
-            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
+      pattern η δ p1 #t1
+        (λ δ', pattern η δ' p2 #a
+            (λ δ', pattern η δ' p3 #t2 φ (ψ3 t2))
             (ψ2 a))
         (ψ1 t1)) ->
-  pattern η (pNode p1 p2 p3) v φ
+  pattern η δ (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros -> Hcov.
@@ -373,10 +373,10 @@ Ltac pat_pNode :=
 
 Definition pRoot := PConstant "Root".
 
-Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
+Lemma pat_pRoot `{Encode A} η δ v (z : zipper A) (φ : env -> Prop) :
   v = #z →
-  (z = Root -> φ η) ->
-  pattern η pRoot v φ (z <> Root).
+  (z = Root -> φ δ) ->
+  pattern η δ pRoot v φ (z <> Root).
 Proof.
   intros; subst.
   destruct z.
@@ -397,15 +397,15 @@ Ltac pat_pRoot :=
 Definition pNodeL (p1 p2 p3 : syntax.pat) :=
   PData "NodeL" [p1; p2; p3].
 
-Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
+Lemma pat_pNodeL `{Encode A} (η δ : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : zipper A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
   :
   v = #z ->
   (∀ (z' : zipper A) (a : A) (t : tree A),
       z = NodeL z' a t →
-      pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
-  pattern η (pNodeL p1 p2 p3) v φ (z = Root \/
+      pattern η δ p1 #z' (λ δ', pattern η δ' p2 #a (λ δ', pattern η δ' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
+  pattern η δ (pNodeL p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
@@ -425,15 +425,15 @@ Ltac pat_pNodeL :=
 Definition pNodeR (p1 p2 p3 : syntax.pat) :=
   PData "NodeR" [p1; p2; p3].
 
-Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
+Lemma pat_pNodeR `{Encode A} (η δ : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : zipper A -> Prop)
   :
   v = #z ->
   (∀ (t : tree A) (a : A) (z' : zipper A),
       z = NodeR t a z' →
-      pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
-  pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
+      pattern η δ p1 #t (λ δ', pattern η δ' p2 #a (λ δ', pattern η δ' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
+  pattern η δ (pNodeR p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.

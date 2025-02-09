@@ -314,7 +314,7 @@ Section handler_proof.
 
   Lemma deep_handle_cons η o cp e bs E ψ Φ Q φ :
     Q -∗
-    ⌜cpattern η cp o (λ δ, Q ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
+    ⌜cpattern η η cp o (λ δ, Q ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
     (Q -∗ ⌜φ⌝ -∗ EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }}) -∗
     EWP (deep_match_go η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
   Proof.
@@ -328,7 +328,7 @@ Section handler_proof.
   Qed.
   
   Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
-    ⌜cpattern η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
+    ⌜cpattern η η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
     (⌜φ⌝ -∗ EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }}) -∗
     EWP (deep_match_go η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
   Proof.

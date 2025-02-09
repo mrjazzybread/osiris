@@ -123,7 +123,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure (eval η e) (λ v, pattern [] p v ψ False) ⊥ ->
+  pure (eval η e) (λ v, pattern η [] p v ψ False) ⊥ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -383,7 +383,7 @@ Qed.
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   pure (eval η e) ψ ⊥ ->
   bindings η bs φ' ->
-  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
+  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η η' p #x φ False) ->
   bindings η ((Binding p e) :: bs) φ.
 Proof.
   unfold bindings. simpl. intros Hpure_wp Hbs Hcov.
@@ -420,7 +420,7 @@ Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
   (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
   pure (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ⊥ ->
   bindings η bs φ' ->
-  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
+  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η η' (PPair p1 p2) #(a, b) φ False) ->
   bindings η (Binding (PPair p1 p2) e :: bs) φ.
 Proof.
     intros Hpure Hbs Hpat.

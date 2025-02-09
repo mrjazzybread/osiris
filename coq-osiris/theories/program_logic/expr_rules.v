@@ -41,7 +41,7 @@ Section ewp_rules_expr.
     EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
     EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φs v }} -∗
     (∀ v δ, φ1 v -∗ φs δ -∗
-       ∃ δ', ⌜simp (irrefutably_extend δ p v) (ret δ')⌝
+       ∃ δ', ⌜simp (irrefutably_extend η δ p v) (ret δ')⌝
                ∗ φ (O2Ret δ')) -∗
     EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -59,7 +59,7 @@ Section ewp_rules_expr.
     EWP eval η e @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
-          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝
+          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝
            ∗ φ (O2Ret δ)) -∗
     EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -78,7 +78,7 @@ Section ewp_rules_expr.
     (∀ v : exn, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v : exn, φs (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v δ, φ1 (O2Ret v) ∗ φs (O2Ret δ) -∗
-      EWP widen (irrefutably_extend δ p v)  @ E <|Ψ|> {{ φ }}) -∗
+      EWP widen (irrefutably_extend η δ p v)  @ E <|Ψ|> {{ φ }}) -∗
     EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval_bindings.
@@ -639,7 +639,7 @@ Section ewp_rules_expr.
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
-          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝ ∗
+          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝ ∗
           EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> {{ φ }}.
   Proof.
