@@ -56,7 +56,8 @@ Section ewp_basic_rules.
   Proof.
     ewp_unfold (@crash A X).
     iIntros "Hsi HCrash".
-    spec_state. destruct Hred, x; spec_step.
+    spec_state.
+    destruct Hstep, x; spec_step.
     inversion H.
   Qed.
 
@@ -542,7 +543,7 @@ Section ewp_rules.
     iModIntro. construct_wp_nonret.
 
     (* Get more information out of [e2]; *)
-    apply invert_step_try2 in Hstep; auto; destruct Hstep as (?&Hstep&->).
+    apply invert_step_try2 in Hstep0; auto; destruct Hstep0 as (?&Hstep0&->).
 
     (* Can use information from above to get [wp] about stepped computation *)
     spec_step.

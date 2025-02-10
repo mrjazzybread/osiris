@@ -134,6 +134,14 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma advance_please η e m' :
+  simp (eval η e) m' →
+  simp (please_eval η e) m'.
+Proof.
+  intros.
+  apply advance_SimpEval. rewrite try2_ret_right. assumption.
+Qed.
+
 Lemma advance_SimpEvalThrow {A} η e (k : val → micro A exn) m' :
   simp (bind (eval η e) k) m' →
   simp (Stop CEval (η, e) (glue2 k throw)) m'.
@@ -666,6 +674,7 @@ with simp1 :=
   | simple eapply advance_SimpEvalRetThrow; simp0
   | simple eapply advance_SimpEvalThrow; simp0
   | simple eapply advance_SimpEval; simp0
+  | simple eapply advance_please; simp0
       (*| simple eapply advance_SimpLoopThrow; simp0 *)
       (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0

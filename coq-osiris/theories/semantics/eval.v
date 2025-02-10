@@ -554,7 +554,7 @@ Definition acall η a v : microvx :=
   let η := (x, v) :: η in
   (* Then, evaluate the function body [e]. A recursive call to [eval] cannot
      be used, so evaluation of [e] is requested via a [stop] effect. *)
-  stop CEval (η, e).
+  please_eval η e.
 
 (* [call v1 v2] evaluates the function call [v1 v2]. *)
 
@@ -760,7 +760,7 @@ Fixpoint eval_type_extensions (cs : list name) :=
   match cs with
   | [] => ret []
   | c :: cs =>
-      l ← stop CAlloc VUnit;
+      l ← alloc VUnit;
       η ← eval_type_extensions cs;
       ret ((c, VLoc l) :: η)
   end.
@@ -931,7 +931,7 @@ Fixpoint pre_deep_match_go η (o : outcome3 val exn) (bs : list branch) :=
            (* [l] is the location at which the continuation of the
               perform is stored. If an effect goes uncaught, we
               reperform it with that same continuation *)
-           Stop CPerform e (fun o => stop CResume (l, o))
+           try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
       (* If we are facing a branch [| cp -> e ]. *)
@@ -978,7 +978,7 @@ Fixpoint pre_deep_match_exn_go η (o : outcome3 val exn) (bs : list branch) :=
            (* [l] is the location at which the continuation of the
               perform is stored. If an effect goes uncaught, we
               reperform it with that same continuation *)
-           Stop CPerform e (fun o => stop CResume (l, o))
+           try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
       (* If we are facing a branch [| cp -> e ]. *)
@@ -1021,7 +1021,7 @@ Fixpoint pre_shallow_match η o bs all_bs :=
               the [false] flag. We then reperform the effect with the
               same continuation it had initially. *)
            l ← install false l η all_bs;
-           Stop CPerform e (fun o => stop CResume (l, o))
+           try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
       try
@@ -1249,23 +1249,23 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EContinue e1 e2 =>
       l ← as_cont (eval η e1) ;
       v ← eval η e2 ;
-      stop CResume (l, O2Ret v)
+      resume l (O2Ret v)
   | EDiscontinue e1 e2 =>
       l ← as_cont (eval η e1) ;
       exn ← eval η e2 ;
-      stop CResume (l, O2Throw exn)
+      resume l (O2Throw exn)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
         _ ← eval η body ;
-        stop CEval (η, EWhile e body)
+        please_eval η (EWhile e body)
       else
         ok
   | EFor x e1 e2 e =>
       (* The bounds are evaluated first. *)
       '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
       (* Then, the loop is executed. *)
-      stop CLoop (η, x, i1, i2, e)
+      loop η x i1 i2 e
   | EAssertFalse =>
       assertion_failure
   | EAssert e =>
@@ -1280,14 +1280,14 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       )
   | ERef e =>
       v ← eval η e ;
-      l ← stop CAlloc v ;
+      l ← alloc v ;
       ret (VLoc l)
   | ELoad e =>
       l ← as_loc (eval η e) ;
-      stop CLoad l
+      load l
   | EStore e1 e2 =>
       '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
-      _ ← stop CStore (l, v) ;
+      _ ← store l v ;
       ok
   end.
 

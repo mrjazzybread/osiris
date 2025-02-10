@@ -98,6 +98,13 @@ Notation microvx :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* The combinator [please_eval] is a request to evaluate the [e]. *)
+
+Definition please_eval η e :=
+  stop CEval (η, e).
+
+(* ------------------------------------------------------------------------ *)
+
 (* The computation [perform v] performs the effect [v]. *)
 
 Definition perform (v : eff) : microvx :=
@@ -108,6 +115,27 @@ Definition perform (v : eff) : microvx :=
 
 Definition install deep k η bs : micro loc exn :=
   stop CInstall (deep, k, η, bs).
+
+Definition resume (l : loc) (o : outcome2 val exn) :=
+  stop CResume (l, o).
+
+(* ------------------------------------------------------------------------ *)
+
+(* [alloc v] allocates a new ref cell with initial value [v] and returns the
+   ref cell's location. *)
+
+Definition alloc (v : val) :=
+  stop CAlloc v.
+
+(* [load l] loads the value stored at location [l]. *)
+
+Definition load (l : loc) :=
+  stop CLoad l.
+
+(* [store l v] updates the ref cell at location [l] with the value [v]. *)
+
+Definition store (l : loc) (v : val) :=
+  stop CStore (l, v).
 
 (* ------------------------------------------------------------------------ *)
 
@@ -134,6 +162,14 @@ Definition flip : micro bool exn :=
 
 Definition choose {A} (m1 m2 : micro A exn) : micro A exn :=
   b ← flip ; if (b : bool) then m1 else m2.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The combinator [loop] is a request to evaluate the [e]. *)
+
+Definition loop (η : env) (x : var) (i1 : int) (i2 : int) (e : expr) :=
+  stop CLoop (η, x, i1, i2, e).
+
 
 (* ------------------------------------------------------------------------ *)
 

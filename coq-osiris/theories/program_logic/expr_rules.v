@@ -1133,7 +1133,7 @@ Section ewp_rules_expr.
     EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
   Proof.
     iIntros "Hk Hv Hmon".
-    Simp.
+    simpl_eval.
     iApply ewp_bind.
     iApply (ewp_mono with "Hk").
     iIntros ([|]) "Hφ1"; [ simpl | done ].

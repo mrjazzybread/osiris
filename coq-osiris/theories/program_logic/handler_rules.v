@@ -278,6 +278,7 @@ Section handler_proof.
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
       iModIntro.
+      rewrite try2_inject2.
       iApply "Hcov". rewrite try2_ret_right. iApply "H". }
     done.
   Qed.
@@ -301,7 +302,7 @@ Section handler_proof.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
-      iNext. iApply "Hcov". rewrite try2_ret_right.
+      iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_ret_right.
       iApply (bi.later_mono with "H").
       iIntros "H _".
       iApply "H". }
@@ -326,7 +327,7 @@ Section handler_proof.
     - iIntros "%HmonQ". iApply (HmonQ with "Q").
     - iApply ("Hmono" with "Q").
   Qed.
-  
+
   Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
     ⌜cpattern η η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
     (⌜φ⌝ -∗ EWP (deep_match_go η o bs) @ E <|ψ|> {{ Φ }}) -∗
