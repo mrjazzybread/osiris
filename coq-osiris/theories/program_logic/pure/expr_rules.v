@@ -427,7 +427,7 @@ Qed.
 
 (* EInt (i : Z) *)
 
-Lemma pure_eval_int η i (φ : _ -> Prop) ψ :
+Lemma pure_eval_int η i (φ : Z -> Prop) ψ :
   φ i ->
   pure (eval η (EInt i)) φ ψ.
 Proof.
@@ -1011,23 +1011,14 @@ Qed.
 
 (* ELet (bs : list binding) (e : expr) *)
 
-Lemma pure_wp_irrefutably_extend η δ p v φ ψ :
-  pure_wp (extend η δ p v) φ ⊥ →
-  pure_wp (irrefutably_extend η δ p v) φ ψ.
-Proof.
-  intros H.
-  apply pure_wp_try, (pure_wp_mono _ H);
-    firstorder eauto with pure.
-Qed.
-
 Lemma pure_eval_let `{Encode A} η bs e (φ : A → Prop) ψ :
-  bindings η bs (λ δ, pure (eval (δ ++ η) e) φ ψ) →
+  bindings η bs (λ δ, pure (eval (δ ++ η) e) φ ψ) ψ →
   pure (eval η (ELet bs e)) φ ψ.
 Proof.
   intros Hbs.
   simpl_eval.
   eapply pure_wp_bind.
-  eapply (pure_wp_mono _ Hbs); eauto. tauto.
+  eapply (pure_wp_mono _ Hbs); eauto.
 Qed.
 
 Lemma pure_eval_let1 `{Encode A, Encode B} η p e1 e (φ : B → Prop) ψ :
@@ -1249,7 +1240,7 @@ Qed.
 Lemma pure_ifthen
   η e e1 φ (ψ : exn -> Prop) :
   pure (A := bool) (eval η e)
-    (λ v : bool, if v then pure (eval η e1) φ ψ else φ tt) ψ →
+    (λ b : bool, if b then pure (eval η e1) φ ψ else φ tt) ψ →
   pure (eval η (EIfThen e e1)) φ ψ.
 Proof.
   intros He. simpl_eval.
@@ -1263,7 +1254,7 @@ Qed.
 Lemma pure_ifthenelse `{EncA: Encode A}
   η e e1 e2 φ (ψ : exn -> Prop) :
   pure (A := bool) (eval η e)
-    (λ v : bool, pure (eval η (if v then e1 else e2)) φ ψ) ψ →
+    (λ b : bool, pure (eval η (if b then e1 else e2)) φ ψ) ψ →
   pure (A := A) (eval η (EIfThenElse e e1 e2)) φ ψ.
 Proof.
   intros He. simpl_eval.

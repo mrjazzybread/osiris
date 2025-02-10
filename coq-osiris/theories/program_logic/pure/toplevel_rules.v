@@ -83,7 +83,7 @@ Qed.
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
 
 Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
-  bindings η bs ψ ->
+  bindings η bs ψ ⊥ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet bs) φ.
 Proof.
@@ -333,7 +333,7 @@ Proof.
 Qed.
 
 Lemma module_struct_let η bs sitems φ ψ :
-  bindings η bs ψ ->
+  bindings η bs ψ ⊥ ->
   (∀ η', ψ η' ->
          struct_items (η' ++ η, η') sitems (λ '(_, δ), φ  δ)) ->
   eval_module η (MStruct ((ILet bs) :: sitems)) φ.
