@@ -13,19 +13,29 @@ Definition bindings η bs (φ : env -> Prop) :=
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
 
+Lemma bindings_cons_unary `{Encode A} η p e bs φ :
+  pure (eval η e) (λ a : A, bindings η bs (λ η', pattern η η' p #a φ False)) ⊥ ->
+  bindings η (Binding p e :: bs) φ.
+Proof.
+  unfold bindings. simpl. intros He.
+  simpl_eval_bindings.
+  apply pure_wp_Par_vals_left.
+  apply (pure_wp_mono_ret _ He). intros v (a & -> & Ha).
+  apply (pure_wp_mono_ret _ Ha). intros η' Hη'.
+  eapply pure_wp_widen, pure_wp_try_conseq. eauto.
+  intros. by apply pure_wp_ret. intros _ [].
+Qed.
+
 Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
   pure (eval η e) ψ ⊥ ->
   bindings η bs φ' ->
   (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η η' p #x φ False) ->
-  bindings η ((Binding p e) :: bs) φ.
+  bindings η (Binding p e :: bs) φ.
 Proof.
-  unfold bindings. simpl. intros Hpure_wp Hbs Hcov.
-  simpl_eval_bindings.
-  apply pure_wp_Par_vals_left.
-  apply (pure_wp_mono_ret _ Hpure_wp). intros v (a & -> & Ha).
-  apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
-  eapply pure_wp_widen, pure_wp_try_conseq. by apply Hcov.
-  intros. by apply pure_wp_ret. intros _ [].
+  intros He Hbs Hp.
+  eapply bindings_cons_unary.
+  apply (pure_wp_mono_ret _ He). intros v (a & -> & Ha). exists a. split; auto.
+  apply (pure_wp_mono_ret _ Hbs). eauto.
 Qed.
 
 Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :

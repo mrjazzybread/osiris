@@ -151,6 +151,14 @@ Section pure_wp_rules.
     induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
   Qed.
 
+  Lemma invert_pure_wp_rtc_may_ret {A E : Type} (φ : A → Prop) (ψ : E → Prop) m a :
+    pure_wp m φ ψ → rtc may m (ret a) → φ a.
+  Proof.
+    intros P S.
+    eapply invert_pure_wp_ret.
+    eapply pure_wp_rtc_may_forward; eauto.
+  Qed.
+
   Lemma invert_pure_wp_throw {A E : Type} (φ : A → Prop) (ψ : E → Prop) e :
     pure_wp (throw e) φ ψ → ψ e.
   Proof.
@@ -1050,6 +1058,16 @@ Section pure_wp_rules.
       + apply (Hpost true).
       + apply (Hpost false). }
     { tauto. }
+  Qed.
+
+  Lemma pure_wp_intersection_pred {A E X} (P : X → Prop) {φ ψ} (m : micro A E) :
+    (∃ x, P x) →
+    (∀ x : X, P x → pure_wp m (φ x) ψ) →
+    pure_wp m (λ a, ∀ x, P x → φ x a) ψ.
+  Proof.
+    intros (x, Px) Hm.
+    induction (Hm x Px); constructor; eauto using pure_wp_may_forward.
+    intros y Py. apply (invert_pure_wp_ret _ _ _ (Hm y Py)).
   Qed.
 
   (** Compatibility with [widen] *)
