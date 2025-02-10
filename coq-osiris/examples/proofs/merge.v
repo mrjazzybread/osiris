@@ -397,7 +397,7 @@ Proof.
   rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
   simpl_extend; simpl.
 
-  eapply pure_eval_let.
+  eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
     eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
     eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
@@ -410,7 +410,7 @@ Proof.
     - assumption. }
 
   intros l1' IHl1'.
-  eapply pure_eval_let.
+  eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
     eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
     eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.

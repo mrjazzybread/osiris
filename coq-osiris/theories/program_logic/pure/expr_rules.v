@@ -2,7 +2,7 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import
-  judgements pure_rules pattern_rules call_rules.
+  judgements pure_rules pattern_rules binding_rules call_rules.
 
 (* This file defines contains reasoning rules about evaluation of expressions
   for pure judgements. *)
@@ -1020,6 +1020,16 @@ Proof.
     firstorder eauto with pure.
 Qed.
 
+Lemma pure_eval_let `{Encode A} η bs e (φ : A → Prop) ψ :
+  bindings η bs (λ δ, pure (eval (δ ++ η) e) φ ψ) →
+  pure (eval η (ELet bs e)) φ ψ.
+Proof.
+  intros Hbs.
+  simpl_eval.
+  eapply pure_wp_bind.
+  eapply (pure_wp_mono _ Hbs); eauto. tauto.
+Qed.
+
 Lemma pure_eval_let1 `{Encode A, Encode B} η p e1 e (φ : B → Prop) ψ :
   pure (eval η e1) (λ a : A, pattern η [] p #a (λ δ, pure (eval (δ ++ η) e) φ ψ) False) ψ →
   pure (eval η (ELet1 p e1 e)) φ ψ.
@@ -1042,7 +1052,7 @@ Proof.
   eapply pure_mono; eauto.
 Qed.
 
-Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
+Lemma pure_eval_let1var `{Encode A1, Encode B} η x e1 e
   (φ1 : A1 → Prop) (ψ : B → Prop) ζ :
   pure (eval η e1) φ1 ζ →
   (∀ a1, φ1 a1 → pure (eval ((x, #a1) :: η) e) ψ ζ) →
@@ -1062,7 +1072,7 @@ Lemma pure_eval_let_simple `{Encode A1, Encode B} η x e1 e
   pure (eval η (ELet1Var x e1 e)) ψ ζ.
 Proof.
   intros He1 He2.
-  eapply pure_eval_let; eauto.
+  eapply pure_eval_let1var; eauto.
   congruence.
 Qed.
 

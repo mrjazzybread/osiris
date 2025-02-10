@@ -662,7 +662,7 @@ Proof.
   (* Case: [t] matches [Node (l, y, r)] *)
   { destruct_bst_Node.
 
-    eapply pure_eval_let.
+    eapply pure_eval_let1var.
     { (* Evaluate rhs of [let c = ..] *)
       eapply pure_eval_app2.
       { pure_path; reflexivity. }
