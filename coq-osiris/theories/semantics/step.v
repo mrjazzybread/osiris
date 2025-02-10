@@ -198,7 +198,9 @@ Qed.
 
 Definition step_install_1 σ l (deep : bool) η bs l' :=
   if deep then
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, deep_match η o bs))]> σ
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, @bind _ val _
+                                                         (wrap_outcome η bs o)
+                                                         (λ o, deep_match η o bs)))]> σ
   else
     <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))]> σ.
 
@@ -686,7 +688,9 @@ Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
   ∃ l',
   σ !! l' = None ∧
     σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
-                            (λ o, deep_match η o bs)) ]> σ ∧
+                            (λ o, bind
+                                    (wrap_outcome η bs o)
+                                    (λ o, deep_match η o bs))) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.

@@ -909,14 +909,14 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* ------------------------------------------------------------------------ *)
 
-(* [deep_match_go η o bs] matches the computational outcome [o] against
+(* [deep_match η o bs] matches the computational outcome [o] against
    the branches [bs]. *)
 
  (* This function assumes that the handler defined by the branches [bs]
     has already been reinstalled over the continuation of [o], if [o]
     is a performed effect.  *)
 
-Fixpoint pre_deep_match_go η (o : outcome3 val exn) (bs : list branch) :=
+Fixpoint pre_deep_match η (o : outcome3 val exn) (bs : list branch) :=
   match bs with
   | [] =>
       (* If we have exhausted the branches of the match. *)
@@ -944,23 +944,24 @@ Fixpoint pre_deep_match_go η (o : outcome3 val exn) (bs : list branch) :=
         (λ δ, eval δ e)
         (* If the match fails, we continue matching on the remaining
            branches. *)
-        (fun tt => pre_deep_match_go η o bs)
+        (fun tt => pre_deep_match η o bs)
   end.
 
 
-(* [deep_match η o bs] matches the computational outcome [o] against
-   the branches [bs] with deep handling of effects. It depends on the
-   auxiliary function [deep_match_go]. *)
+(* [wrap_outcome η bs o] matches on the computation outcome [o].
+   If that outcome is a perfomed effect, we reinstall the handler
+   described by the branches [bs] over the continuation of the
+   outcome.  *)
 
-Definition pre_deep_match η o bs :=
+Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
   match o with
   | O3Perform e k =>
       (* If we are matching on an effect, we reinstall the handler on
          top of that effect's continuation. *)
       k ← install true k η bs ;
-      pre_deep_match_go η (O3Perform e k) bs
+      ret (O3Perform e k)
   | _ =>
-      pre_deep_match_go η o bs
+      ret o
   end.
 
 Fixpoint pre_deep_match_exn_go η (o : outcome3 val exn) (bs : list branch) :=
@@ -1239,7 +1240,8 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          have branches of the form [| effect ... -> ...]. We compute
          the scrutinee under a [Handle] delimiter, and then match the
          outcome of that computation against the branches [bs]. *)
-      Handle (eval η e) (λ o, deep_match η o bs)
+      Handle (eval η e) (λ o, o ← wrap_outcome η bs o ;
+                              deep_match η o bs)
   | ERaise e =>
       exn ← eval η e ;
       throw exn
@@ -1319,13 +1321,6 @@ Definition evalfs := evalfs_aux.(unseal).
 Lemma fold_pre_evalfs :
   pre_evalfs eval = evalfs.
 Proof. unfold evalfs; by rewrite seal_eq. Qed.
-
-Local Definition deep_match_go_aux : seal (pre_deep_match_go eval).
-Proof. by eexists. Qed.
-Definition deep_match_go := deep_match_go_aux.(unseal).
-Lemma fold_pre_deep_match_go :
-  pre_deep_match_go eval = deep_match_go.
-Proof. unfold deep_match_go; by rewrite seal_eq. Qed.
 
 Local Definition deep_match_aux : seal (pre_deep_match eval).
 Proof. by eexists. Qed.
@@ -1431,21 +1426,14 @@ Ltac simpl_shallow_match :=
    rewrite seal_eq;
    (progress simpl pre_shallow_match);
   rewrite ?fold_pre_shallow_match)
-  || fail "Unable to simplify application of shallow_eval_match".
-
-Ltac simpl_deep_match_go :=
-  (unfold deep_match_go;
-   rewrite seal_eq;
-   (progress simpl pre_deep_match_go);
-   rewrite ?fold_pre_deep_match_go)
-  || fail "Unable to simplify application of deep_eval_match".
+  || fail "Unable to simplify application of shallow_match".
 
 Ltac simpl_deep_match :=
   (unfold deep_match;
    rewrite seal_eq;
    (progress simpl pre_deep_match);
-   rewrite ?fold_pre_deep_match_go)
-  || fail "Unable to simplify application of install_deep_eval_match".
+   rewrite ?fold_pre_deep_match)
+  || fail "Unable to simplify application of deep_match".
 
 Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
@@ -1498,7 +1486,7 @@ Ltac simpl_extend :=
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,
-    deep_match_go, deep_match, shallow_match,
+    deep_match, shallow_match,
     eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
     extends, irrefutably_extend, extend;
   rewrite ?seal_eq.
@@ -1508,7 +1496,6 @@ Ltac fold_all :=
                | rewrite fold_pre_evals
                | rewrite fold_pre_evalfs
                | rewrite fold_pre_deep_match_exn
-               | rewrite fold_pre_deep_match_go
                | rewrite fold_pre_deep_match
                | rewrite fold_pre_shallow_match
                | rewrite fold_pre_eval_bindings

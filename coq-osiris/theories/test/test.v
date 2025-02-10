@@ -200,7 +200,7 @@ Lemma test_match_integer :
   ] in
   let v := VInt (repr 13) in
   reduces e v.
-Proof. reduces. reduces. Qed.
+Proof. reduces. simpl. reduces. Qed.
 
 Lemma test_match_integer_and_alias_pattern :
   let e := EInt 0 in
@@ -210,7 +210,7 @@ Lemma test_match_integer_and_alias_pattern :
   ] in
   let v := VInt (repr 0) in
   reduces e v.
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
@@ -220,7 +220,7 @@ Lemma test_match_integer_and_disjunction_pattern :
 ] in
   let v := VInt (repr 2) in
   reduces e v.
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_call :
   let e :=
@@ -244,7 +244,7 @@ Lemma test_EFunction :
   in
   let v := VInt (repr 34) in
   reduces e v.
-Proof. reduces. reduces. Qed.
+Proof. reduces. simpl. reduces. Qed.
 
 Lemma test_EFun :
   let e :=
@@ -262,7 +262,7 @@ Lemma test_EFun :
   in
   let v := VInt (repr 50) in
   reduces e v.
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in
@@ -474,7 +474,7 @@ Lemma test_handle :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_handle_compute_head :
   let e :=
@@ -537,7 +537,7 @@ Lemma test_handle_reinstall_ret :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_handle_exception :
   let e :=
@@ -556,7 +556,7 @@ Lemma test_handle_exception :
   in
   ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
                            ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. reduces. Qed.
+Proof. reduces. Qed.
 
 Lemma test_shallow_handle :
   let η := [("Choose", (VLoc (Loc 0)))] in
@@ -604,7 +604,7 @@ Lemma test_nested_handlers :
         Branch (CVal (PVar "x")) (EVar "x") ]
   in
   ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. reduces. Qed.
+Proof. intros. subst e m1 m2. reduces. Qed.
 
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
@@ -643,13 +643,14 @@ Lemma test_shallow_ret_reinstall :
   in
   let m2 :=
     Handle m1
-      (λ o, deep_match_go η o
-         [ (* | effect Get32, k -> continue k 32 *)
-           Branch
-             (CEff (PXData ["Get32"] []) (PVar "k"))
-             (EContinue (EVar "k") (EInt 32));
-           (* | x -> x *)
-           Branch (CVal (PVar "x")) (EVar "x")])
+      (λ o,
+        deep_match η o
+          [ (* | effect Get32, k -> continue k 32 *)
+            Branch
+              (CEff (PXData ["Get32"] []) (PVar "k"))
+              (EContinue (EVar "k") (EInt 32));
+            (* | x -> x *)
+            Branch (CVal (PVar "x")) (EVar "x")])
   in
   ∃ n σ, steps n (∅, m2) (σ, ret (VInt (repr 42))).
 Proof. intros. subst e m1 m2. reduces. Qed.

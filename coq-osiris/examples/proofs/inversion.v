@@ -213,7 +213,7 @@ Section verification.
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-        (λ o, deep_match_go
+        (λ o, deep_match
            ("__osiris_anonymous_arg" ~> VUnit;
             "yield" ~> yield;
             "Yield" ~> VLoc l;
@@ -240,7 +240,7 @@ Section verification.
 
         next_branch.
 
-        destruct o; simpl in *; destruct_hyps H1 H2. }
+        destruct o; simpl in *; by destruct H1; destruct H2. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".

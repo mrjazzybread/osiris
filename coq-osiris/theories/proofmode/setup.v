@@ -46,7 +46,6 @@ Arguments evals η !es /.
 Arguments evalfs η !fes /.
 Arguments shallow_match η o !bs all_bs.
 Arguments deep_match η !o bs.
-Arguments deep_match_go η o !bs /.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.
 Arguments eval_sitem ηδ !item /.

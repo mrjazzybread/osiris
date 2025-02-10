@@ -1272,7 +1272,7 @@ Qed.
 
 Definition pure_match `{Encode A}
   (η : env) (o : outcome3 val exn) bs (φ : A -> Prop) Ψ :=
-  pure (deep_match_go η o bs) φ Ψ.
+  pure (deep_match η o bs) φ Ψ.
 
 Arguments pure_match {A} {H} _ _ _ _.
 
@@ -1285,7 +1285,7 @@ Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
   pure_match η v ((Branch p e) :: bs) φ Ψ.
 Proof.
   unfold pure_match.
-  intros; simpl_deep_match_go.
+  intros; simpl_deep_match.
   apply pure_wp_try. eassumption.
 Qed.
 
@@ -1326,8 +1326,7 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ Heval); [ | intros _ [] ].
   intros ? (? & -> & ->).
-  unfold continue.
-  simpl_deep_match.
+  unfold continue. simpl.
   apply (pure_wp_mono _ Hmatch); eauto.
 Qed.
 
@@ -1341,8 +1340,7 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ Heval). 2: intros _ [].
   intros ? (a & -> & Ha).
-  unfold continue.
-  simpl_deep_match.
+  unfold continue. simpl.
   apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
 Qed.
 
@@ -1358,12 +1356,10 @@ Proof.
   apply pure_wp_handle.
   apply (pure_wp_mono _ He).
   - intros _v (a & -> & Ha).
-    unfold continue.
-    simpl_deep_match.
+    unfold continue. simpl.
     by apply Hφ'.
   - intros ex Hex.
-    unfold discontinue.
-    simpl_deep_match.
+    unfold discontinue. simpl.
     by apply Hζ.
 Qed.
 
@@ -1538,8 +1534,3 @@ Qed.
 (* TODO ELoad (e: expr) *)
 (* Reference assignment: [e1 := e2]. *)
 (* TODO EStore (e1 e2: expr) *)
-
-(* -------------------------------------------------------------------------- *)
-
-(* - [φ] is the toplevel specification.
-   - [φf] is the specification of the function [f]. *)
