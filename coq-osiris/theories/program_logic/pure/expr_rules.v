@@ -1011,6 +1011,37 @@ Qed.
 
 (* ELet (bs : list binding) (e : expr) *)
 
+Lemma pure_wp_irrefutably_extend η δ p v φ ψ :
+  pure_wp (extend η δ p v) φ ⊥ →
+  pure_wp (irrefutably_extend η δ p v) φ ψ.
+Proof.
+  intros H.
+  apply pure_wp_try, (pure_wp_mono _ H);
+    firstorder eauto with pure.
+Qed.
+
+Lemma pure_eval_let1 `{Encode A, Encode B} η p e1 e (φ : B → Prop) ψ :
+  pure (eval η e1) (λ a : A, pattern η [] p #a (λ δ, pure (eval (δ ++ η) e) φ ψ) False) ψ →
+  pure (eval η (ELet1 p e1 e)) φ ψ.
+Proof.
+  intros He1.
+  simpl_eval.
+  eapply pure_simp; first simp.
+  eapply pure_bind; eauto.
+  intros a Ha.
+  apply pure_wp_bind, pure_wp_widen, pure_wp_irrefutably_extend, Ha.
+Qed.
+
+Lemma pure_eval_let1_conseq `{Encode A, Encode B} η p e1 e (φ1 : A → Prop) (φ : B → Prop) ψ :
+  pure (eval η e1) φ1 ψ →
+  (∀ a : A, φ1 a → pattern η [] p #a (λ δ, pure (eval (δ ++ η) e) φ ψ) False) →
+  pure (eval η (ELet1 p e1 e)) φ ψ.
+Proof.
+  intros He1 Hp.
+  eapply pure_eval_let1.
+  eapply pure_mono; eauto.
+Qed.
+
 Lemma pure_eval_let `{Encode A1, Encode B} η x e1 e
   (φ1 : A1 → Prop) (ψ : B → Prop) ζ :
   pure (eval η e1) φ1 ζ →
