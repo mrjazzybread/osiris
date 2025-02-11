@@ -1126,7 +1126,7 @@ Lemma pure_letrec `{Encode X, Encode Y} {A} (WF_x : WellFounded X)
           wf_relation (WF := WF_x) y x ->
           R y x -> P a y -> pure (call vf #y) (φf a y) Ψ) ->
       (P a x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf a x) Ψ)) ->
-  (* Subogal:
+  (* Subgoal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
@@ -1151,7 +1151,7 @@ Lemma pure_letrec_simple `{Encode X, Encode Y} (WF_x : WellFounded X)
           wf_relation (WF := WF_x) y x ->
           R y x -> P y -> pure (call vf #y) (φf y) Ψ) ->
       (P x -> pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf x) Ψ)) ->
-  (* Subogal:
+  (* Subgoal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
@@ -1176,7 +1176,7 @@ Lemma pure_rec_call_no_pre `{Encode X} `{Encode Y} `{WF_x: WellFounded X}
           wf_relation (WF := WF_x) y x ->
           R y x -> pure (call vf #y) (φf y) ⊥) ->
       pure (eval ((arg, #x) :: (f, vf) :: η) e1) (φf x) ⊥) ->
-  (* Subogal:
+  (* Subgoal:
      Proceed with the right hand of the [let rec],
      assuming f satisfies its spec. *)
   (∀ vf,
