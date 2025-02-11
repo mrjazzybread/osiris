@@ -949,7 +949,7 @@ Fixpoint pre_deep_match η (o : outcome3 val exn) (bs : list branch) :=
 
 
 (* [wrap_outcome η bs o] matches on the computation outcome [o].
-   If that outcome is a perfomed effect, we reinstall the handler
+   If that outcome is a performed effect, we reinstall the handler
    described by the branches [bs] over the continuation of the
    outcome.  *)
 
