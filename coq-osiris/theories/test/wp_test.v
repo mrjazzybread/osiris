@@ -10,7 +10,7 @@ From osiris.proofmode Require Import ewp_tactics.
 Context `{!osirisGS Σ} `{protocol_wf Σ}.
 
 Local Transparent eval eval_mexpr eval_sitem eval_sitems
-  eval_bindings evals extend extends encode.
+  eval_bindings evals eval_pat eval_cpat encode.
 
 (* ---------------------------------------------------------------------------*)
 (* Examples. *)

@@ -720,7 +720,7 @@ Section ewp_rules.
     (∀ l',
       l'↦
         (K (λ o, Handle (stop CResume (l, o)) (λ o, o ← wrap_outcome η bs o ;
-                                                    deep_match η o bs))) -∗
+                                                    eval_branches η o bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CInstall (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -1168,7 +1168,7 @@ Section ewp_eval.
     simpl_eval_sitem; simpl_eval_bindings. iApply ewp_bind.
     iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
     { by iApply ewp_value. }
-    iIntros (v ?) "Hspec ->". simpl_extend; unfold widen; simpl.
+    iIntros (v ?) "Hspec ->". simpl_eval_pat; unfold widen; simpl.
     rewrite try_ret. iApply ewp_value. simpl. iApply ewp_value.
     iExists v.
     iFrame. iPureIntro; auto.
@@ -1250,7 +1250,7 @@ Section ewp_eval.
     iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
-    simpl_extend. iApply ewp_value.
+    simpl_eval_pat. iApply ewp_value.
     by iApply "HQ".
   Qed.
 
@@ -1265,7 +1265,7 @@ Section ewp_eval.
     iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
-    unfold widen; simpl_extend; simpl.
+    unfold widen; simpl_eval_pat; simpl.
     iApply "Hcov".
     iExists v1; by iFrame.
   Qed.

@@ -346,13 +346,13 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
 (* This section defines the auxiliary functions that are mutually recursive
    with [extend]. *)
 
-Section Extend.
+Section EvalPat.
 
-Variable extend : env → env → pat → val → micro env unit.
+Variable eval_pat : env → env → pat → val → micro env unit.
 
 (* ------------------------------------------------------------------------ *)
 
-(* [extends η δ ps vs] matches the values [vs] against the patterns [ps].
+(* [eval_pats η δ ps vs] matches the values [vs] against the patterns [ps].
 
    In case of success, the result is an extension of the environment (or
    environment fragment) [δ] with bindings for the bound variables of the
@@ -368,14 +368,14 @@ Variable extend : env → env → pat → val → micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Fixpoint pre_extends (η δ : env) ps vs : micro env unit :=
-  let extends := pre_extends in
+Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
+  let eval_pats := pre_eval_pats in
   match ps, vs with
   | [], [] =>
       ret δ
   | p::ps, v::vs =>
-      δ ← extend η δ p v ;
-      δ ← extends η δ ps vs ;
+      δ ← eval_pat η δ p v ;
+      δ ← eval_pats η δ ps vs ;
       ret δ
   | _::_, [] =>
       length_mismatch "longer tuple expected"
@@ -383,7 +383,7 @@ Fixpoint pre_extends (η δ : env) ps vs : micro env unit :=
       length_mismatch "shorter tuple expected"
  end.
 
-(* [extendfs η δ fps fvs] matches the field-indexed values [fvs] against the
+(* [eval_fpats η δ fps fvs] matches the field-indexed values [fvs] against the
    field-indexed patterns [fps].
 
    In case of success, the result is an extension of the environment
@@ -393,27 +393,27 @@ Fixpoint pre_extends (η δ : env) ps vs : micro env unit :=
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Fixpoint pre_extendfs (η δ : env) fps fvs : micro env unit :=
-  let extendfs := pre_extendfs in
+Fixpoint pre_eval_fpats (η δ : env) fps fvs : micro env unit :=
+  let eval_fpats := pre_eval_fpats in
   match fps with
   | [] => ret δ
   | (f, p) :: fps =>
       v ← widen (lookup_name fvs f) ;
-      δ ← extend η δ p v ;
-      δ ← extendfs η δ fps fvs ;
+      δ ← eval_pat η δ p v ;
+      δ ← eval_fpats η δ fps fvs ;
       ret δ
   end.
 
-End Extend.
+End EvalPat.
 
-(* [extend η δ p v] matches the value [v] against the pattern [p].
+(* [eval_pat η δ p v] matches the value [v] against the pattern [p].
 
    In case of success, the result is an extension of the environment
    (or fragment) [δ] with bindings for the bound variables of the pattern [p].
 
    A (meta-level) exception is raised if [p] does not match [v], e.g., if [p]
    selects a data constructor [c] but [v] carries a distinct data constructor
-   [c']. This is why the exceptional result type of [extends] is [unit].
+   [c']. This is why the exceptional result type of [eval_pats] is [unit].
 
    A hard failure takes place if [p] and [v] have incompatible types,
    e.g., if [p] is a tuple pattern and [v] is not a tuple value or
@@ -426,10 +426,10 @@ End Extend.
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Local Fixpoint pre_extend η δ p v : micro env unit :=
-  let extend := pre_extend in
-  let extends := pre_extends extend in
-  let extendfs := pre_extendfs extend in
+Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
+  let eval_pat := pre_eval_pat in
+  let eval_pats := pre_eval_pats eval_pat in
+  let eval_fpats := pre_eval_fpats eval_pat in
   match p, v with
   | PUnsupported, _ =>
       unsupported_construct
@@ -443,30 +443,30 @@ Local Fixpoint pre_extend η δ p v : micro env unit :=
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
-      δ ← extend η δ p v ;
+      δ ← eval_pat η δ p v ;
       ret ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
-      orelse (extend η δ p1 v) (extend η δ p2 v)
+      orelse (eval_pat η δ p1 v) (eval_pat η δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
-      extends η δ ps vs
+      eval_pats η δ ps vs
   | PData c p, VData c' v =>
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then extends η δ p v else throw ()
+      if c =? c' then eval_pats η δ p v else throw ()
   | PXData π p, VXData l v =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
       l' ← as_loc (widen (lookup_path η π)) ;
-      if (locations.eqb l l') then extends η δ p v else throw()
+      if (locations.eqb l l') then eval_pats η δ p v else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
-      extendfs η δ fps fvs
+      eval_fpats η δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then ret δ else throw ()
@@ -490,46 +490,45 @@ Local Fixpoint pre_extend η δ p v : micro env unit :=
       type_mismatch "string expected"
   end.
 
-Local Definition extend_aux : seal (pre_extend).
+Local Definition eval_pat_aux : seal (pre_eval_pat).
 Proof. by eexists. Qed.
-Definition extend := extend_aux.(unseal).
-Lemma fold_pre_extend :
-  pre_extend = extend.
-Proof. unfold extend; by rewrite seal_eq. Qed.
+Definition eval_pat := eval_pat_aux.(unseal).
+Lemma fold_pre_eval_pat :
+  pre_eval_pat = eval_pat.
+Proof. unfold eval_pat; by rewrite seal_eq. Qed.
 
-Local Definition extends_aux : seal (pre_extends extend).
+Local Definition eval_pats_aux : seal (pre_eval_pats eval_pat).
 Proof. by eexists. Qed.
 (* Top-level definition for [extends] *)
-Definition extends := extends_aux.(unseal).
-Lemma fold_pre_extends :
-  pre_extends extend = extends.
-Proof. unfold extends; by rewrite seal_eq. Qed.
+Definition eval_pats := eval_pats_aux.(unseal).
+Lemma fold_pre_eval_pats :
+  pre_eval_pats eval_pat = eval_pats.
+Proof. unfold eval_pats; by rewrite seal_eq. Qed.
 
-
-Local Definition extendfs_aux : seal (pre_extendfs extend).
+Local Definition eval_fpats_aux : seal (pre_eval_fpats eval_pat).
 Proof. by eexists. Qed.
 (* Top-level definition for [extendfs] *)
-Definition extendfs := extendfs_aux.(unseal).
+Definition eval_fpats := eval_fpats_aux.(unseal).
 
-(* [cextend η δ cp o] matches the outcome [o] against
+(* [eval_cpat η δ cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
 
-Fixpoint cextend η δ cp o : micro env unit :=
+Fixpoint eval_cpat η δ cp o : micro env unit :=
   match cp, o with
   | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
-      extend η δ p v
+      eval_pat η δ p v
   | CExc p, O3Throw v =>
       (* An exception pattern matches a throw. *)
-      extend η δ p v
+      eval_pat η δ p v
   | CEff pe pk, O3Perform e k =>
-      δ ← extend η δ pe e ;
+      δ ← eval_pat η δ pe e ;
       (* [pk] is a pattern for the continuation [k].
          It can only be a [PVar] or a [PAny]. *)
-      extend η δ pk (VCont k)
+      eval_pat η δ pk (VCont k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
-      orelse (cextend η δ cp1 o) (cextend η δ cp2 o)
+      orelse (eval_cpat η δ cp1 o) (eval_cpat η δ cp2 o)
   | _, _ =>
       (* If [o] and [cp] don't match, we throw a meta-level exception
          and continue to the next branch.*)
@@ -539,7 +538,7 @@ Fixpoint cextend η δ cp o : micro env unit :=
 (* This variant of [extend] crashes if [p] does not match [v]. *)
 
 Definition irrefutably_extend η δ p v : micro env void :=
-  try (extend η δ p v) ret match_failure.
+  try (eval_pat η δ p v) ret match_failure.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -909,14 +908,14 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
 
 (* ------------------------------------------------------------------------ *)
 
-(* [deep_match η o bs] matches the computational outcome [o] against
+(* [eval_branches η o bs] matches the computational outcome [o] against
    the branches [bs]. *)
 
  (* This function assumes that the handler defined by the branches [bs]
     has already been reinstalled over the continuation of [o], if [o]
     is a performed effect.  *)
 
-Fixpoint pre_deep_match η (o : outcome3 val exn) (bs : list branch) :=
+Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) :=
   match bs with
   | [] =>
       (* If we have exhausted the branches of the match. *)
@@ -935,16 +934,19 @@ Fixpoint pre_deep_match η (o : outcome3 val exn) (bs : list branch) :=
        end)
   | Branch cp e :: bs =>
       (* If we are facing a branch [| cp -> e ]. *)
-      try
+      try2
         (* We try to match the pattern [cp] against the computational
            outcome [o]. *)
-        (cextend η η cp o)
-        (* If the match is succesful, we evaluate [e] in an environment
-           extended by the match. *)
-        (λ δ, eval δ e)
-        (* If the match fails, we continue matching on the remaining
-           branches. *)
-        (fun tt => pre_deep_match η o bs)
+        (eval_cpat η η cp o)
+        (λ (oenv : outcome2 env unit),
+          match oenv with
+          (* If the match is succesful, we evaluate [e] in an environment
+             extended by the match. *)
+          | O2Ret δ => eval δ e
+          (* If the match fails, we continue matching on the remaining
+             branches. *)
+          | O2Throw _ => pre_eval_branches η o bs
+          end)
   end.
 
 
@@ -962,46 +964,6 @@ Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
       ret (O3Perform e k)
   | _ =>
       ret o
-  end.
-
-Fixpoint pre_deep_match_exn_go η (o : outcome3 val exn) (bs : list branch) :=
-  match bs with
-  | [] =>
-      (* If we have exhausted the branches of the match. *)
-      (match o with
-       | O3Ret v =>
-           (* A try on a value propagates the value. *)
-           ret v
-       | O3Throw e =>
-           (* An uncaught exception gets re-thrown. *)
-           throw e
-       | O3Perform e l =>
-           (* [l] is the location at which the continuation of the
-              perform is stored. If an effect goes uncaught, we
-              reperform it with that same continuation *)
-           try2 (perform e) (λ o, resume l o)
-       end)
-  | Branch cp e :: bs =>
-      (* If we are facing a branch [| cp -> e ]. *)
-      try
-        (* We try to match the pattern [cp] against the computational
-           outcome [o]. *)
-        (cextend η η cp o)
-        (* If the match is succesful, we evaluate [e] in an environment
-           extended by the match. *)
-        (λ δ, eval δ e)
-        (* If the match fails, we continue matching on the remaining
-           branches. *)
-        (fun tt => pre_deep_match_exn_go η o bs)
-  end.
-
-Definition pre_deep_match_exn η o bs :=
-  match o with
-  | O3Perform e k =>
-      k ← install true k η bs ;
-      pre_deep_match_exn_go η (O3Perform e k) bs
-  | _ =>
-      pre_deep_match_exn_go η o bs
   end.
 
 (* A shallow handler must discharge itself only when it is consumed by
@@ -1026,7 +988,7 @@ Fixpoint pre_shallow_match η o bs all_bs :=
        end)
   | Branch cp e :: bs =>
       try
-        (cextend η η cp o)
+        (eval_cpat η η cp o)
         (λ δ, eval δ e)
         (fun tt => pre_shallow_match η o bs all_bs)
   end.
@@ -1063,8 +1025,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let eval := pre_eval in
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
-  let deep_match := pre_deep_match eval in
-  (* let deep_match_exn := pre_deep_match_exn eval in *)
+  let eval_branches := pre_eval_branches eval in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -1241,7 +1202,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          the scrutinee under a [Handle] delimiter, and then match the
          outcome of that computation against the branches [bs]. *)
       Handle (eval η e) (λ o, o ← wrap_outcome η bs o ;
-                              deep_match η o bs)
+                              eval_branches η o bs)
   | ERaise e =>
       exn ← eval η e ;
       throw exn
@@ -1322,12 +1283,12 @@ Lemma fold_pre_evalfs :
   pre_evalfs eval = evalfs.
 Proof. unfold evalfs; by rewrite seal_eq. Qed.
 
-Local Definition deep_match_aux : seal (pre_deep_match eval).
+Local Definition eval_branches_aux : seal (pre_eval_branches eval).
 Proof. by eexists. Qed.
-Definition deep_match := deep_match_aux.(unseal).
-Lemma fold_pre_deep_match :
-  pre_deep_match eval = deep_match.
-Proof. unfold deep_match; by rewrite seal_eq. Qed.
+Definition eval_branches := eval_branches_aux.(unseal).
+Lemma fold_pre_eval_branches :
+  pre_eval_branches eval = eval_branches.
+Proof. unfold eval_branches; by rewrite seal_eq. Qed.
 
 Local Definition shallow_match_aux : seal (pre_shallow_match eval).
 Proof. by eexists. Qed.
@@ -1343,14 +1304,6 @@ Lemma fold_pre_shallow_match :
 Notation "'shallow_match' η o bs" :=
   (shallow_match η o bs _)
     (at level 8, only printing).
-
-Local Definition deep_match_exn_aux : seal (pre_deep_match_exn eval).
-Proof. by eexists. Qed.
-(* Top-level definition for [eval_trywith] *)
-Definition deep_match_exn := deep_match_exn_aux.(unseal).
-Lemma fold_pre_deep_match_exn :
-  pre_deep_match_exn eval = deep_match_exn.
-Proof. unfold deep_match_exn; by rewrite seal_eq. Qed.
 
 Local Definition eval_bindings_aux : seal (pre_eval_bindings eval).
 Proof. by eexists. Qed.
@@ -1395,8 +1348,7 @@ Ltac simpl_eval :=
    rewrite ?fold_pre_eval,
      ?fold_pre_evals,
      ?fold_pre_evalfs,
-     ?fold_pre_deep_match,
-     ?fold_pre_deep_match_exn,
+     ?fold_pre_eval_branches,
      ?fold_pre_eval_bindings,
      ?fold_pre_eval_mexpr)
   || fail "Unable to simplify application of eval".
@@ -1414,13 +1366,6 @@ Ltac simpl_evalfs :=
    (progress simpl pre_evalfs))
   || fail "Unable to simplify application of evalfs".
 
-Ltac simpl_deep_match_exn :=
-  (unfold deep_match_exn;
-   rewrite seal_eq;
-   (progress simpl pre_deep_match_exn);
-  rewrite ?fold_pre_deep_match_exn)
-  || fail "Unable to simplify application of eval_trywith".
-
 Ltac simpl_shallow_match :=
   (unfold shallow_match;
    rewrite seal_eq;
@@ -1428,12 +1373,12 @@ Ltac simpl_shallow_match :=
   rewrite ?fold_pre_shallow_match)
   || fail "Unable to simplify application of shallow_match".
 
-Ltac simpl_deep_match :=
-  (unfold deep_match;
+Ltac simpl_eval_branches :=
+  (unfold eval_branches;
    rewrite seal_eq;
-   (progress simpl pre_deep_match);
-   rewrite ?fold_pre_deep_match)
-  || fail "Unable to simplify application of deep_match".
+   (progress simpl pre_eval_branches);
+   rewrite ?fold_pre_eval_branches)
+  || fail "Unable to simplify application of eval_branches".
 
 Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
@@ -1469,41 +1414,40 @@ Ltac simpl_eval_mexpr :=
   fold eval_bindings)
   || fail "Unable to simplify application of eval_mexpr".
 
-Ltac simpl_extends :=
-  (unfold extends;
+Ltac simpl_eval_pats :=
+  (unfold eval_pats;
    rewrite seal_eq;
-   (progress simpl pre_extends);
-   rewrite ?fold_pre_extends)
-  || fail "Unable to simplify application of extends".
+   (progress simpl pre_eval_pats);
+   rewrite ?fold_pre_eval_pats)
+  || fail "Unable to simplify application of eval_pats".
 
-Ltac simpl_extend :=
+Ltac simpl_eval_pat :=
   (unfold irrefutably_extend;
-   unfold extend;
+   unfold eval_pat;
    rewrite seal_eq;
-   (progress simpl pre_extend);
-   rewrite ?fold_pre_extend, ?fold_pre_extends)
-  || fail "Unable to simplify application of extend".
+   (progress simpl pre_eval_pat);
+   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats)
+  || fail "Unable to simplify application of eval_pat".
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,
-    deep_match, shallow_match,
+    eval_branches, shallow_match,
     eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
-    extends, irrefutably_extend, extend;
+    eval_pats, irrefutably_extend, eval_pat;
   rewrite ?seal_eq.
 
 Ltac fold_all :=
   repeat first [ rewrite fold_pre_eval
                | rewrite fold_pre_evals
                | rewrite fold_pre_evalfs
-               | rewrite fold_pre_deep_match_exn
-               | rewrite fold_pre_deep_match
+               | rewrite fold_pre_eval_branches
                | rewrite fold_pre_shallow_match
                | rewrite fold_pre_eval_bindings
                | rewrite fold_pre_eval_mexpr
                | rewrite fold_pre_eval_sitem
                | rewrite fold_pre_eval_sitems
-               | rewrite fold_pre_extend
-               | rewrite fold_pre_extends
+               | rewrite fold_pre_eval_pat
+               | rewrite fold_pre_eval_pats
     ].
 
 (* -------------------------------------------------------------------------- *)

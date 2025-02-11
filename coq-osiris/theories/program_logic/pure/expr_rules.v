@@ -1089,7 +1089,7 @@ Proof. (* LATER: Clean up this proof. *)
   apply pure_wp_bind.
   apply pure_wp_ret.
   unfold widen, irrefutably_extend in *.
-  rewrite !try_try in *. simpl_extend.
+  rewrite !try_try in *. simpl_eval_pat.
   rewrite !bind_as_try, !try_try in *.
   apply pure_wp_try2.
   apply invert_pure_wp_try2 in Hpure_wp.
@@ -1302,29 +1302,29 @@ Qed.
 
 (* LATER: Revisit the [pure_wp] use cases. (necessary due to [pattern].) *)
 
-Definition pure_match `{Encode A}
+Definition branches `{Encode A}
   (η : env) (o : outcome3 val exn) bs (φ : A -> Prop) Ψ :=
-  pure (deep_match η o bs) φ Ψ.
+  pure (eval_branches η o bs) φ Ψ.
 
-Arguments pure_match {A} {H} _ _ _ _.
+Arguments branches {A} {H} _ _ _ _.
 
 (* Properties about [pure_match] *)
 
 (* Currently unused *)
 
 Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
-  cpattern η η p v (λ η', pure (eval η' e) φ Ψ) (pure_match η v bs φ Ψ) ->
-  pure_match η v ((Branch p e) :: bs) φ Ψ.
+  cpattern η η p v (λ η', pure (eval η' e) φ Ψ) (branches η v bs φ Ψ) ->
+  branches η v ((Branch p e) :: bs) φ Ψ.
 Proof.
-  unfold pure_match.
-  intros; simpl_deep_match.
-  apply pure_wp_try. eassumption.
+  unfold branches.
+  intros; simpl_eval_branches.
+  apply pure_wp_try. eauto.
 Qed.
 
-Lemma pure_match_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
+Lemma branches_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
   cpattern η η p v (λ η', pure (eval η' e) φ ζ) ψ ->
-  (ψ -> (pure_match η v bs φ ζ)) ->
-  pure_match η v ((Branch p e) :: bs) φ ζ.
+  (ψ -> (branches η v bs φ ζ)) ->
+  branches η v ((Branch p e) :: bs) φ ζ.
 Proof.
   intros.
   apply pure_match_cons_unary.
@@ -1333,17 +1333,17 @@ Qed.
 
 (* Not matching is an error. *)
 
-Lemma pure_match_nil `{Encode A} η o (φ : A -> Prop) Ψ :
-  False -> pure_match η o nil φ Ψ.
+Lemma branches_nil `{Encode A} η o (φ : A -> Prop) Ψ :
+  False -> branches η o nil φ Ψ.
 Proof. contradiction. Qed.
 
-Lemma pure_match_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
+Lemma branches_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
   cpattern η η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
   (ψ -> False) ->
-  pure_match η v [Branch p e] φ ζ.
+  branches η v [Branch p e] φ ζ.
 Proof.
   intros.
-  eapply pure_match_cons; eauto.
+  eapply branches_cons; eauto.
   tauto.
 Qed.
 
@@ -1351,7 +1351,7 @@ Qed.
 
 Lemma pure_eval_match `{Encode A, Encode B} η e bs (a : A) (φ : B -> Prop) Ψ :
   pure (eval η e) (singleton a) ⊥ ->
-  pure_match η (O3Ret #a) bs φ Ψ ->
+  branches η (O3Ret #a) bs φ Ψ ->
   pure (eval η (EMatch e bs)) φ Ψ.
 Proof.
   intros Heval Hmatch. simpl_eval.
@@ -1365,7 +1365,7 @@ Qed.
 (* TODO Rename *)
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
   pure (eval η e) φ' ⊥ ->
-  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
+  (∀ (a : A), φ' a -> branches η (O3Ret #a) bs φ Ψ) ->
   pure (eval η (EMatch e bs)) φ Ψ.
 Proof.
   intros Heval Hmatch. simpl_eval.
@@ -1379,8 +1379,8 @@ Qed.
 (* TODO Rename *)
 Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
   pure (eval η e) φ' ζ ->
-  (∀ (a : A), φ' a -> pure_match η (O3Ret #a) bs φ Ψ) ->
-  (∀ (ex : exn), ζ ex -> pure_match η (O3Throw ex) bs φ Ψ) ->
+  (∀ (a : A), φ' a -> branches η (O3Ret #a) bs φ Ψ) ->
+  (∀ (ex : exn), ζ ex -> branches η (O3Throw ex) bs φ Ψ) ->
   pure (eval η (EMatch e bs)) φ Ψ.
 Proof.
   intros He Hφ' Hζ.

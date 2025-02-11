@@ -595,7 +595,7 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
-  | [ |- pure_match _ _ ?bs _ _ ] =>
+  | [ |- branches _ _ ?bs _ _ ] =>
       (* Match on [bs] to decide whether to apply [pure_match_cons]
          or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with
@@ -603,7 +603,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
           (* [pure_match_cons] produces two subgoals :
              - one of the form [cpattern ...]
              - one of the form [Ψ -> pure_match ...] *)
-          eapply pure_match_cons;
+          eapply branches_cons;
           (* In the first subgoal, apply the [specify_cpattern] tactic
              followed by the [pattern_match] tactic. *)
           Control.focus 1 1
@@ -638,7 +638,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
              use of [destruct_hyps] was not powerful enough to solve
              this goal. We thus use the more brute-force
              [resolve_no_match] tactic. *)
-          eapply pure_match_nil; ltac1:(resolve_no_match)
+          eapply branches_nil; ltac1:(resolve_no_match)
       end
   | [ |- ?g ] =>
       Control.throw

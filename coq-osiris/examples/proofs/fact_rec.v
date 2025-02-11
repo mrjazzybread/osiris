@@ -5,7 +5,7 @@ From osiris Require Import osiris lang.
 From osiris.examples Require Import og_fact_rec.
 
 (* TODO: should we not rely on computation here? *)
-Local Transparent eval_mexpr eval_bindings evals extend encode.
+Local Transparent eval_mexpr eval_bindings eval_pats eval_pat encode.
 
 Open Scope nat_scope.
 

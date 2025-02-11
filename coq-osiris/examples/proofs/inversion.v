@@ -213,7 +213,7 @@ Section verification.
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-        (λ o, deep_match
+        (λ o, eval_branches
            ("__osiris_anonymous_arg" ~> VUnit;
             "yield" ~> yield;
             "Yield" ~> VLoc l;

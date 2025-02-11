@@ -321,7 +321,7 @@ Proof.
     eapply pure_ret_mono. { apply Hm. simpl; lia. }
     intros [l1 l2] Hpost; clear IH; simpl.
     (* FIXME. *)
-    simpl_extend; simpl. fold eval. abstract_env.
+    simpl_eval_pat; simpl; fold eval. abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.
     eapply pure_eval_data. eapply pure_evals_cons. pure_path.
@@ -395,7 +395,7 @@ Proof.
   eapply pure_ret_mono. { apply Hsplitm. }
   intros [l1 l2] (Hl1 & Hl2 & Hperm).
   rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
-  simpl_extend; simpl.
+  simpl_eval_pat; simpl; fold eval.
 
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).

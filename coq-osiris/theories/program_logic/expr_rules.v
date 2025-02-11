@@ -662,7 +662,7 @@ Section ewp_rules_expr.
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
     iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
     - iApply ("P" with "Hv").
   Qed.
 
@@ -688,7 +688,7 @@ Section ewp_rules_expr.
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
     iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
     - iApply ("P" with "Hv").
   Qed.
 

@@ -18,13 +18,13 @@ Open Scope Z_scope.
    or fails (by reducing to [throw ()]) and guarantees [ψ]. *)
 
 Definition cpattern η δ p o (φ : env -> Prop) (ψ : Prop) :=
-  pure_wp (cextend η δ p o) φ (λ (_ : unit), ψ).
+  pure_wp (eval_cpat η δ p o) φ (λ (_ : unit), ψ).
 
 Definition pattern η δ p v (φ : env -> Prop) (ψ : Prop) :=
-  pure_wp (extend η δ p v) φ (λ (_ : unit), ψ).
+  pure_wp (eval_pat η δ p v) φ (λ (_ : unit), ψ).
 
 Definition patterns η δ ps vs (φ : env -> Prop) (ψ : Prop) :=
-  pure_wp (extends η δ ps vs) φ (λ (_ : unit), ψ).
+  pure_wp (eval_pats η δ ps vs) φ (λ (_ : unit), ψ).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -125,14 +125,14 @@ Section pattern_rules.
     φ δ →
     pattern η δ PAny v φ False.
   Proof.
-    unfold pattern. simpl_extend. eauto using pure_wp_ret.
+    unfold pattern. simpl_eval_pat. eauto using pure_wp_ret.
   Qed.
 
   Lemma pat_PVar η δ x v φ :
     φ ((x, v) :: δ) →
     pattern η δ (PVar x) v φ False.
   Proof.
-    unfold pattern. simpl_extend. eauto using pure_wp_ret.
+    unfold pattern. simpl_eval_pat. eauto using pure_wp_ret.
   Qed.
 
   (* Given a goal of the form [pattern η (PVar x) v ?φ False],
@@ -155,7 +155,7 @@ Section pattern_rules.
     pattern η δ p v (λ δ, φ ((x, v) :: δ)) ψ →
     pattern η δ (PAlias p x) v φ ψ.
   Proof.
-    unfold pattern. simpl_extend; intros.
+    unfold pattern. simpl_eval_pat; intros.
     apply pure_wp_bind.
     eauto using pure_wp_mono, pure_wp_ret.
   Qed.
@@ -168,7 +168,7 @@ Section pattern_rules.
       (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
         disjunction pattern to fail, both sides must fail. *)
   Proof.
-    unfold pattern. simpl_extend; intros.
+    unfold pattern. simpl_eval_pat; intros.
     eauto using pure_wp_orelse, pure_wp_mono.
   Qed.
 
@@ -177,7 +177,7 @@ Section pattern_rules.
     v = #() →
     pattern η δ PUnit v φ False.
   Proof.
-    unfold pattern. intros ? ->; simpl_extend.
+    unfold pattern. intros ? ->; simpl_eval_pat.
     eauto using pure_wp_ret.
   Qed.
 
@@ -187,14 +187,14 @@ Section pattern_rules.
     pattern η δ (PTuple ps) #a φ ψ.
   Proof.
     unfold patterns, pattern.
-    intros ->. by simpl_extend.
+    intros ->. by simpl_eval_pat.
   Qed.
 
   Lemma pat_PTuple_val δ η ps vs φ ψ :
     patterns δ η ps vs φ ψ ->
     pattern δ η (PTuple ps) (VTuple vs) φ ψ.
   Proof.
-    unfold pattern. by simpl_extend.
+    unfold pattern. by simpl_eval_pat.
   Qed.
 
   Lemma pat_PPair `{Encode A, Encode B} η δ p1 p2 v1 v2 (x1 : A) (x2 : B) φ ψ1 ψ2 :
@@ -204,7 +204,7 @@ Section pattern_rules.
     pattern η δ (PPair p1 p2) (VPair v1 v2) φ (ψ1 \/ ψ2).
   Proof.
     intros; subst.
-    unfold pattern. simpl_extend.
+    unfold pattern. simpl_eval_pat.
     eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
     simpl; intros. rewrite bind_ret_right.
     eapply pure_wp_bind_conseq; [ eapply pure_wp_mono; eauto | ].
@@ -217,7 +217,7 @@ Section pattern_rules.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
-    unfold pattern; intros. simpl_extend.
+    unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb;
       eauto using pure_wp_throw, pure_mono, pure_wp_ret.
   Qed.
@@ -228,7 +228,7 @@ Section pattern_rules.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
-    unfold pattern; intros. simpl_extend.
+    unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb; eauto using pure_wp_throw.
     eapply pure_wp_mono; first apply H; eauto.
   Qed.
@@ -238,7 +238,7 @@ Section pattern_rules.
     pattern η δ (PData c p) (VData c v) φ ψ.
       (* This form is useful when [c = c'] is statically known. *)
   Proof.
-    unfold pattern; intros. simpl_extend.
+    unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
@@ -247,7 +247,7 @@ Section pattern_rules.
     pattern η δ (PData c p) (VData c' v) φ True.
       (* This form is useful when [c ≠ c'] is statically known. *)
   Proof.
-    unfold pattern; intros. simpl_extend.
+    unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
@@ -256,7 +256,7 @@ Section pattern_rules.
     (c = c' -> patterns η δ p v' φ True) ->
     pattern η δ (PData c p) v φ True.
   Proof.
-    unfold pattern; intros. simpl_extend. subst.
+    unfold pattern; intros. simpl_eval_pat. subst.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
@@ -268,7 +268,7 @@ Section pattern_rules.
         is not statically known. *)
   Proof.
     unfold pattern; intros Hlookup Hpat.
-    simpl_extend; rewrite Hlookup. cbn; rewrite bind_ret.
+    simpl_eval_pat; rewrite Hlookup. cbn; rewrite bind_ret.
     unfold locations.eqb; destruct c'; cbn.
     by rewrite Z.eqb_refl.
   Qed.
@@ -280,7 +280,7 @@ Section pattern_rules.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
-    unfold pattern; intros Hlookup Heq; simpl_extend.
+    unfold pattern; intros Hlookup Heq; simpl_eval_pat.
     rewrite Hlookup. cbn; rewrite bind_ret.
     unfold locations.eqb; simpl.
     destruct l1, l2; simpl in *.
@@ -296,7 +296,7 @@ Section pattern_rules.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
-    unfold pattern; intros Hlookup Heq; simpl_extend.
+    unfold pattern; intros Hlookup Heq; simpl_eval_pat.
     rewrite Hlookup. cbn; rewrite bind_ret.
     unfold locations.eqb; simpl.
     destruct l1, l2; simpl in *.
@@ -314,7 +314,7 @@ Section pattern_rules.
     patterns η δ [] [] φ False.
   Proof.
     unfold patterns.
-    simpl_extends.
+    simpl_eval_pats.
     eauto using pure_wp_ret.
   Qed.
 
@@ -322,7 +322,7 @@ Section pattern_rules.
     pattern η δ p v (λ δ, patterns η δ ps vs φ ψ2) ψ1 →
     patterns η δ (p :: ps) (v :: vs) φ (ψ1 \/ ψ2).
   Proof.
-    unfold patterns, patterns. intros Hp; simpl_extends.
+    unfold patterns, patterns. intros Hp; simpl_eval_pats.
     eapply pure_wp_bind_conseq.
     { eapply pure_wp_mono.
       - eassumption.
@@ -388,7 +388,7 @@ Section pattern_rules.
     pattern η δ (PConstant c) (VData c' e) (λ _, False) ψ.
   Proof.
     intros Hneq Hψ.
-    unfold pattern. simpl_extend.
+    unfold pattern. simpl_eval_pat.
     apply String.eqb_neq in Hneq as ->.
     by apply pure_wp_throw.
   Qed.
@@ -439,7 +439,7 @@ Section pattern_rules.
     pattern η δ (PInt i) v φ (i <> j).
   Proof.
     intros Hi Hj -> Hφ.
-    unfold pattern; simpl_extend.
+    unfold pattern; simpl_eval_pat.
     rewrite int.eq_repr_repr; auto.
     destruct (_ =? _) eqn:E.
     - apply pure_wp_ret. apply Hφ. by apply Z.eqb_eq.
@@ -496,7 +496,7 @@ Section pattern_rules.
 
   Lemma invert_valid_match cp o :
     valid_cpattern_match cp o = false ->
-    ∀ η δ, cextend η δ cp o = throw ().
+    ∀ η δ, eval_cpat η δ cp o = throw ().
   Proof.
     intros Hvalid η δ.
     induction cp; destruct o; simpl in *; try congruence;
