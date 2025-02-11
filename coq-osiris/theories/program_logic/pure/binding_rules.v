@@ -1,5 +1,6 @@
+From Coq.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
-From osiris.lang Require Import syntax encode sugar.
+From osiris.lang Require Import lang ind.
 From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Import wp judgements pattern_rules.
@@ -10,7 +11,7 @@ Definition bindings η bs (φ : env -> Prop) (ψ : exn -> Prop) :=
   pure_wp (eval_bindings η bs) φ ψ.
 
 Lemma pure_wp_irrefutably_extend η δ p v φ ψ :
-  pure_wp (extend η δ p v) φ ⊥ →
+  pure_wp (eval_pat η δ p v) φ ⊥ →
   pure_wp (irrefutably_extend η δ p v) φ ψ.
 Proof.
   intros H.
@@ -67,7 +68,7 @@ Lemma bindings_var `{Encode A} η v e bs (φ : A -> Prop) φ' ψ :
 Proof.
   intros.
   eapply bindings_cons; eauto.
-  intros; unfold pattern. simpl_extend.
+  intros; unfold pattern. simpl_eval_pat.
   apply pure_wp_ret; eauto.
 Qed.
 
@@ -82,4 +83,68 @@ Proof.
   eapply bindings_cons; eauto.
   intros [a b] η' [Hψ1 Hψ2] Hη'.
   auto.
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* More flexible cons rule *)
+
+Section eval_pat_app.
+  Local Ltac rew := repeat (unfold orelse, try, glue2, continue || rewrite ?bind_as_try, ?try2_try2; simpl).
+  Local Ltac ext x := let o := fresh "o" in f_equal; extensionality o; destruct o as [ x | ]; auto.
+
+  Lemma eval_pat_app p v η δ : eval_pat η δ p v = 'δ' ← eval_pat η [] p v; ret (δ' ++ δ).
+  Proof.
+    revert p v δ.
+    apply (pat_ind
+             (λ p, ∀ v δ, eval_pat η δ p v = bind (eval_pat η [] p v) (λ δ', ret (δ' ++ δ)))
+             (λ ps, ∀ vs δ, eval_pats η δ ps vs = bind (eval_pats η [] ps vs) (λ δ', ret (δ' ++ δ)))
+             (λ fps, ∀ vs δ, pre_eval_fpats eval_pat η δ fps vs = bind (pre_eval_fpats eval_pat η [] fps vs) (λ δ', ret (δ' ++ δ)))
+          ); intros ? ?; intros; simpl_eval_pat || simpl_eval_pats || idtac; simpl; auto.
+    - rewrite IHp. rewrite !bind_bind. reflexivity.
+    - rewrite IHp1, IHp2. rew. ext δ'.
+    - destruct v; auto.
+    - destruct v; auto. destruct (_ =? _)%string; auto.
+    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (eqb _ _); auto.
+    - destruct v; auto.
+    - destruct v; auto. destruct (int.eq _ _); auto.
+    - destruct v; auto. destruct (_ =? _)%char; auto.
+    - destruct v; auto. destruct (_ =? _)%string; auto.
+    - destruct vs; auto.
+    - destruct vs; auto. rewrite IHp. rew. ext δ1. rew.
+      rewrite (IHps _ δ1), (IHps _ (δ1 ++ _)).
+      rew. ext δ2. rewrite app_assoc. auto.
+    - rew. ext v.
+      rewrite IHp. rew. ext δ1.
+      rewrite IHfps. rew.
+      rewrite (IHfps _ (δ1 ++ _)). rew.
+      ext δ2. rewrite app_assoc. auto.
+  Qed.
+End eval_pat_app.
+
+Lemma pattern_app η δ p v φ ψ :
+  pattern η δ p v φ ψ ↔ pattern η [] p v (λ δ', φ (δ' ++ δ)) ψ.
+Proof.
+  unfold pattern.
+  rewrite eval_pat_app, <-pure_wp_reversible_bind.
+  apply pure_wp_ret_equiv; intros δ'.
+  by rewrite <-pure_wp_reversible_ret.
+Qed.
+
+Definition binding `{Encode A} η p e φ ψ :=
+  pure (eval η e) (λ a : A, pattern η [] p #a φ False) ψ.
+
+Lemma binding_bindings `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
+  binding (A := A) η p e φ1 ψ →
+  bindings η bs φ2 ψ →
+  (∀ δ η', φ1 δ → φ2 η' → φ (δ ++ η')) →
+  bindings η (Binding p e :: bs) φ ψ.
+Proof.
+  intros He Hbs Hp.
+  eapply bindings_cons; eauto.
+  intros a η' Hpa Hη'.
+  apply pattern_app.
+  apply (pure_wp_mono_ret _ Hpa).
+  eauto.
 Qed.

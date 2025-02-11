@@ -75,11 +75,18 @@ Section pure_wp_rules.
     induction 1; constructor; auto.
   Qed.
 
+  Lemma pure_wp_ret_equiv {A E φ φ' ψ} (m : micro A E) :
+    (∀ a, φ a ↔ φ' a) → pure_wp m φ ψ ↔ pure_wp m φ' ψ.
+  Proof.
+    intros; split; intros; eapply pure_wp_mono_ret; firstorder eauto.
+  Qed.
+
   Lemma pure_wp_mono_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
     pure_wp m φ ψ → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ'.
   Proof.
     induction 1; constructor; auto.
   Qed.
+
   Lemma pure_wp_noexn_weaken {A E} {φ ψ : _ -> Prop} (m : micro A E):
     pure_wp m φ ⊥ → pure_wp m φ ψ.
   Proof.

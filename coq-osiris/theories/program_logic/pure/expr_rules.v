@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import locations lang.
+From osiris.lang Require Import lang ind.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import
   judgements pure_rules pattern_rules binding_rules call_rules.
@@ -1040,6 +1040,27 @@ Lemma pure_eval_let1_conseq `{Encode A, Encode B} η p e1 e (φ1 : A → Prop) (
 Proof.
   intros He1 Hp.
   eapply pure_eval_let1.
+  eapply pure_mono; eauto.
+Qed.
+
+(* slightly nicer versions for let1 where there is no environment concatenation *)
+Lemma pure_eval_let1_extend `{Encode A, Encode B} η p e1 e (φ : B → Prop) ψ :
+  pure (eval η e1) (λ a : A, pattern η η p #a (λ η', pure (eval η' e) φ ψ) False) ψ →
+  pure (eval η (ELet1 p e1 e)) φ ψ.
+Proof.
+  intros He1.
+  eapply pure_eval_let1, (pure_ret_mono _ _ _ _ He1); intros a Ha.
+  rewrite pattern_app in Ha.
+  assumption.
+Qed.
+
+Lemma pure_eval_let1_extend_conseq `{Encode A, Encode B} η p e1 e (φ1 : A → Prop) (φ : B → Prop) ψ :
+  pure (eval η e1) φ1 ψ →
+  (∀ a : A, φ1 a → pattern η η p #a (λ η', pure (eval η' e) φ ψ) False) →
+  pure (eval η (ELet1 p e1 e)) φ ψ.
+Proof.
+  intros He1 Hp.
+  eapply pure_eval_let1_extend.
   eapply pure_mono; eauto.
 Qed.
 
