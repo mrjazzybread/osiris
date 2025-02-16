@@ -1317,9 +1317,9 @@ Qed.
 
 (** Pattern matching: [match e with bs]. *)
 
-(* [pure_match η v bs φ] is sugar for [pure (eval_match η v bs) ##φ ⊥].
+(* [branches η v bs φ] is sugar for [pure (eval_branches η v bs) ##φ ⊥].
 
-  [eval_match] is used by [eval] when evaluating an [EMatch]. *)
+  [eval_branches] is used by [eval] when evaluating an [EMatch]. *)
 
 (* LATER: Revisit the [pure_wp] use cases. (necessary due to [pattern].) *)
 
@@ -1329,11 +1329,11 @@ Definition branches `{Encode A}
 
 Arguments branches {A} {H} _ _ _ _.
 
-(* Properties about [pure_match] *)
+(* Properties about [branches] *)
 
 (* Currently unused *)
 
-Lemma pure_match_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
+Lemma branches_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
   cpattern η η p v (λ η', pure (eval η' e) φ Ψ) (branches η v bs φ Ψ) ->
   branches η v ((Branch p e) :: bs) φ Ψ.
 Proof.
@@ -1348,7 +1348,7 @@ Lemma branches_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
   branches η v ((Branch p e) :: bs) φ ζ.
 Proof.
   intros.
-  apply pure_match_cons_unary.
+  apply branches_cons_unary.
   eapply pure_wp_mono; eauto.
 Qed.
 
