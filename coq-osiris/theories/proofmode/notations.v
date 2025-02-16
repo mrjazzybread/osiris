@@ -249,11 +249,11 @@ Goal (trivial
         (EMatch (EPath ["l"]) [Branch (CVal PAny) (EInt 1); Branch (CVal PAny) 2])).
 Abort.
 
-Notation "'|' pat '->' e" :=
-  (Branch pat e)
+Notation "'|' cpat '->' e" :=
+  (Branch cpat e)
     (at level 80,
       only printing,
-      format "'|'  pat  '->'  '[' '/' e ']'").
+      format "'|'  cpat  '->'  '[' '/' e ']'").
 
 Goal (trivial (EMatch (EPath ["l"]) [Branch (CVal PAny) (EInt 1)])). Abort.
 

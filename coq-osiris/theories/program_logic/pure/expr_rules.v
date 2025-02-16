@@ -1333,22 +1333,23 @@ Arguments branches {A} {H} _ _ _ _.
 
 (* Currently unused *)
 
-Lemma branches_cons_unary `{Encode A} η v p e bs (φ : A -> Prop) Ψ :
-  cpattern η η p v (λ η', pure (eval η' e) φ Ψ) (branches η v bs φ Ψ) ->
-  branches η v ((Branch p e) :: bs) φ Ψ.
+Lemma branches_cons_unary `{Encode A} η v cp e bs (φ : A -> Prop) Ψ :
+  cpattern η η cp v (λ η', pure (eval η' e) φ Ψ) (branches η v bs φ Ψ) ->
+  branches η v ((Branch cp e) :: bs) φ Ψ.
 Proof.
   unfold branches.
   intros; simpl_eval_branches.
   apply pure_wp_try. eauto.
 Qed.
 
-Lemma branches_cons `{Encode A} η v p e bs (φ : A -> Prop) ψ ζ :
-  cpattern η η p v (λ η', pure (eval η' e) φ ζ) ψ ->
+Lemma branches_cons `{Encode A} η v cp e bs (φ : A -> Prop) ψ ζ :
+  cpattern η η cp v (λ η', pure (eval η' e) φ ζ) ψ ->
   (ψ -> (branches η v bs φ ζ)) ->
-  branches η v ((Branch p e) :: bs) φ ζ.
+  branches η v ((Branch cp e) :: bs) φ ζ.
 Proof.
   intros.
   apply branches_cons_unary.
+
   eapply pure_wp_mono; eauto.
 Qed.
 
@@ -1358,10 +1359,10 @@ Lemma branches_nil `{Encode A} η o (φ : A -> Prop) Ψ :
   False -> branches η o nil φ Ψ.
 Proof. contradiction. Qed.
 
-Lemma branches_single `{Encode A} η v p e (φ : A -> Prop) ψ ζ :
-  cpattern η η p v (λ η' : env, pure (eval η' e) φ ζ) ψ →
+Lemma branches_single `{Encode A} η v cp e (φ : A -> Prop) ψ ζ :
+  cpattern η η cp v (λ η' : env, pure (eval η' e) φ ζ) ψ →
   (ψ -> False) ->
-  branches η v [Branch p e] φ ζ.
+  branches η v [Branch cp e] φ ζ.
 Proof.
   intros.
   eapply branches_cons; eauto.

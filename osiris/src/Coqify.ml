@@ -340,8 +340,8 @@ and anonfun = function
       c "AnonFunction" [ branches bs ]
 
 and branch = function
-  | Branch (p, e) ->
-      c "Branch" [ cpat p; expr e ]
+  | Branch (cp, e) ->
+      c "Branch" [ cpat cp; expr e ]
 
 and branches (bs : branches) =
   cut "branches" (list (map branch bs))

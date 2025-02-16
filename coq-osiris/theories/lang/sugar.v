@@ -20,8 +20,8 @@ Definition deco {A} (decoration : string) (a : A) :=
 
 (* Branches *)
 
-Definition Branch1 p e : list branch :=
-  [Branch p e].
+Definition Branch1 cp e : list branch :=
+  [Branch cp e].
 
 (* ------------------------------------------------------------------------ *)
 
@@ -142,11 +142,11 @@ Definition EFunction (bs : list branch) :=
 
 (* It is a special case of the previous sugar. *)
 
-Definition AnonFun1Pat (p : cpat) (e : expr) : anonfun :=
-  AnonFunction [Branch p e].
+Definition AnonFun1Pat (cp : cpat) (e : expr) : anonfun :=
+  AnonFunction [Branch cp e].
 
-Definition EFun1Pat (p : cpat) (e : expr) :=
-  EAnonFun (AnonFun1Pat p e).
+Definition EFun1Pat (cp : cpat) (e : expr) :=
+  EAnonFun (AnonFun1Pat cp e).
 
 (* [fun ps -> e]. *)
 

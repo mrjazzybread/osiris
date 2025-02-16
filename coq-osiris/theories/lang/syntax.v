@@ -283,7 +283,7 @@ with fexpr :=
    where [cp] is a computation pattern. *)
 
 with branch :=
-  | Branch (p : cpat) (e : expr)
+  | Branch (cp : cpat) (e : expr)
 
 (* A binding is of the form [p = e]. *)
 
