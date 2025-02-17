@@ -135,7 +135,7 @@ Qed.
 Definition binding `{Encode A} η p e φ ψ :=
   pure (eval η e) (λ a : A, pattern η [] p #a φ False) ψ.
 
-Lemma binding_bindings `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
+Lemma binding_bindings_conseq `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
   binding (A := A) η p e φ1 ψ →
   bindings η bs φ2 ψ →
   (∀ δ η', φ1 δ → φ2 η' → φ (δ ++ η')) →
@@ -147,4 +147,24 @@ Proof.
   apply pattern_app.
   apply (pure_wp_mono_ret _ Hpa).
   eauto.
+Qed.
+
+(* May be easier to use but assumes [e] cannot raise exceptions *)
+Lemma binding_bindings `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
+  binding (A := A) η p e (λ δ, bindings η bs (λ η', φ (δ ++ η')) ψ) ⊥ →
+  bindings η (Binding p e :: bs) φ ψ.
+Proof.
+  intros He.
+  unfold bindings.
+  simpl_eval_bindings.
+  apply pure_wp_Par_val_left.
+  apply (pure_wp_mono_ret _ He). intros v (a & -> & Hpa).
+  apply pure_wp_invert_order in Hpa.
+  apply (pure_wp_mono _ Hpa). 2: now apply pure_wp_throw.
+  intros η' Hη'. unfold continue. simpl.
+  eapply pure_wp_widen, pure_wp_irrefutably_extend.
+  rewrite eval_pat_app.
+  apply pure_wp_bind.
+  apply (pure_wp_mono_ret _ Hη').
+  intros. by apply pure_wp_ret.
 Qed.

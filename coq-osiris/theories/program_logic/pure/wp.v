@@ -400,6 +400,17 @@ Section pure_wp_rules.
       eapply (pure_wp_mono_ret _ Hm2). firstorder.
   Qed.
 
+  Lemma pure_wp_invert_order {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ ψ :
+    pure_wp m1 (λ a1, pure_wp m2 (λ a2, φ a1 a2) ψ) ⊥ →
+    pure_wp m2 (λ a2, pure_wp m1 (λ a1, φ a1 a2) ⊥) ψ.
+  Proof.
+    intros Hm1.
+    destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & m1a1 & Ha1) | (? & ? & [])].
+    apply (pure_wp_mono_reachable _ Ha1); auto. intros.
+    apply (pure_wp_mono_reachable _ Hm1); auto. intros.
+    eapply invert_pure_wp_ret, pure_wp_rtc_may_forward; eauto.
+  Qed.
+
 
   (** [Par] preserves [pure_wp] *)
 
