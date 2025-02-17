@@ -96,11 +96,11 @@ let rec pat (p : pat) =
   | PTuple ps ->
       clist "PTuple" (map pat ps)
 
-  | PData (d, p) ->
-      c "PData" [ data d ; list (map pat p) ]
+  | PData (d, ps) ->
+      c "PData" [ data d ; list (map pat ps) ]
 
-  | PXData (pi, p) ->
-      c "PXData" [ path pi ; list (map pat p) ]
+  | PXData (pi, ps) ->
+      c "PXData" [ path pi ; list (map pat ps) ]
 
   | PRecord fps ->
       c "PRecord" [ fpats fps ]

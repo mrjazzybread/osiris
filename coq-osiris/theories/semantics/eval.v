@@ -452,17 +452,17 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       eval_pats η δ ps vs
-  | PData c p, VData c' v =>
+  | PData c ps, VData c' vs =>
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then eval_pats η δ p v else throw ()
-  | PXData π p, VXData l v =>
+      if c =? c' then eval_pats η δ ps vs else throw ()
+  | PXData π ps, VXData l vs =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
       l' ← as_loc (widen (lookup_path η π)) ;
-      if (locations.eqb l l') then eval_pats η δ p v else throw()
+      if (locations.eqb l l') then eval_pats η δ ps vs else throw()
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)

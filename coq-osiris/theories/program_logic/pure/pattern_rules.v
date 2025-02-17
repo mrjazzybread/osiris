@@ -77,25 +77,25 @@ Section pattern_rules.
     pattern η δ p v φ ψ'.
   Proof. intros; by eapply pattern_mono. Qed.
 
-  Lemma patterns_mono η δ p v (φ φ' : env -> Prop) (ψ ψ' : Prop) :
-    patterns η δ p v φ ψ →
+  Lemma patterns_mono η δ ps vs (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+    patterns η δ ps vs φ ψ →
     (∀ η, φ η → φ' η) →
     (ψ → ψ') →
-    patterns η δ p v φ' ψ'.
+    patterns η δ ps vs φ' ψ'.
   Proof.
     unfold patterns; eauto using pure_wp_mono.
   Qed.
 
-  Lemma patterns_env_mono η δ p v (φ φ' : env -> Prop) (ψ : Prop) :
-    patterns η δ p v φ ψ →
+  Lemma patterns_env_mono η δ ps vs (φ φ' : env -> Prop) (ψ : Prop) :
+    patterns η δ ps vs φ ψ →
     (∀ δ, φ δ → φ' δ) →
-    patterns η δ p v φ' ψ.
+    patterns η δ ps vs φ' ψ.
   Proof. intros; by eapply patterns_mono. Qed.
 
-  Lemma patterns_exn_mono η δ p v (φ : env -> Prop) (ψ ψ': Prop) :
-    patterns η δ p v φ ψ →
+  Lemma patterns_exn_mono η δ ps vs (φ : env -> Prop) (ψ ψ': Prop) :
+    patterns η δ ps vs φ ψ →
     (ψ → ψ') →
-    patterns η δ p v φ ψ'.
+    patterns η δ ps vs φ ψ'.
   Proof. intros; by eapply patterns_mono. Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -221,9 +221,9 @@ Section pattern_rules.
       eauto using pure_wp_throw, pure_mono, pure_wp_ret.
   Qed.
 
-  Lemma pat_PData_or η δ c c' p v φ ψ :
-    (c = c' -> patterns η δ p v φ ψ) ->
-    pattern η δ (PData c p) (VData c' v) φ (ψ ∨ c ≠ c').
+  Lemma pat_PData_or η δ c c' ps vs φ ψ :
+    (c = c' -> patterns η δ ps vs φ ψ) ->
+    pattern η δ (PData c ps) (VData c' vs) φ (ψ ∨ c ≠ c').
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
@@ -232,28 +232,28 @@ Section pattern_rules.
     eapply pure_wp_mono; first apply H; eauto.
   Qed.
 
-  Lemma pat_PData_eq η δ c p v φ ψ :
-    patterns η δ p v φ ψ →
-    pattern η δ (PData c p) (VData c v) φ ψ.
+  Lemma pat_PData_eq η δ c ps vs φ ψ :
+    patterns η δ ps vs φ ψ →
+    pattern η δ (PData c ps) (VData c vs) φ ψ.
       (* This form is useful when [c = c'] is statically known. *)
   Proof.
     unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
-  Lemma pat_PData_neq η δ c p c' v φ :
+  Lemma pat_PData_neq η δ c ps c' vs φ :
     c ≠ c' →
-    pattern η δ (PData c p) (VData c' v) φ True.
+    pattern η δ (PData c ps) (VData c' vs) φ True.
       (* This form is useful when [c ≠ c'] is statically known. *)
   Proof.
     unfold pattern; intros. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
-  Lemma pat_PData η δ c p c' v v' φ :
-    v = VData c' v' ->
-    (c = c' -> patterns η δ p v' φ True) ->
-    pattern η δ (PData c p) v φ True.
+  Lemma pat_PData η δ c ps c' v vs φ :
+    v = VData c' vs ->
+    (c = c' -> patterns η δ ps vs φ True) ->
+    pattern η δ (PData c ps) v φ True.
   Proof.
     unfold pattern; intros. simpl_eval_pat. subst.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
@@ -273,10 +273,10 @@ Section pattern_rules.
     - rewrite <-pure_wp_reversible_throw. auto.
   Qed.
 
-  Lemma pat_PXData_eq η δ π p l v φ ψ :
+  Lemma pat_PXData_eq η δ π ps l vs φ ψ :
     lookup_path η π = ret (VLoc l) ->
-    patterns η δ p v φ ψ →
-    pattern η δ (PXData π p) (VXData l v) φ ψ.
+    patterns η δ ps vs φ ψ →
+    pattern η δ (PXData π ps) (VXData l vs) φ ψ.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
@@ -286,10 +286,10 @@ Section pattern_rules.
     by rewrite Z.eqb_refl.
   Qed.
 
-  Lemma pat_PXData_neq η δ π p l1 l2 v φ :
+  Lemma pat_PXData_neq η δ π ps l1 l2 vs φ :
     lookup_path η π = ret (VLoc l1) ->
     (address l1 <> address l2) ->
-    pattern η δ (PXData π p) (VXData l2 v) φ True.
+    pattern η δ (PXData π ps) (VXData l2 vs) φ True.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
@@ -302,10 +302,10 @@ Section pattern_rules.
     by apply pure_wp_throw.
   Qed.
 
-  Lemma pat_PXData_neq' η δ π p l1 l2 v :
+  Lemma pat_PXData_neq' η δ π ps l1 l2 vs :
     lookup_path η π = ret (VLoc l1) ->
     (address l1 <> address l2) ->
-    pattern η δ (PXData π p) (VXData l2 v) (λ _, False) True.
+    pattern η δ (PXData π ps) (VXData l2 vs) (λ _, False) True.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
