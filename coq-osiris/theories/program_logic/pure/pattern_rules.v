@@ -160,10 +160,9 @@ Section pattern_rules.
     eauto using pure_wp_mono, pure_wp_ret.
   Qed.
 
-  (* TODO generalize to [(φ1 η → pattern η p2 v φ ψ2)] and see if it is useful *)
   Lemma pat_POr η δ p1 p2 v φ ψ1 ψ2 :
     pattern η δ p1 v φ ψ1 →
-    pattern η δ p2 v φ ψ2 →
+    (ψ1 → pattern η δ p2 v φ ψ2) →
     pattern η δ (POr p1 p2) v φ (ψ1 ∧ ψ2).
       (* The conjunction [ψ1 ∧ ψ2] reflects the fact that, for the
         disjunction pattern to fail, both sides must fail. *)
@@ -260,16 +259,30 @@ Section pattern_rules.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
-  Lemma pat_PXData_eq η δ c p c' v φ ψ :
-    lookup_path η c = ret (VLoc c') ->
+  (* This more general version is not used in tactics at the moment *)
+  Lemma pat_PXData η δ π ps l l' vs φ ψ :
+    lookup_path η π = ret (VLoc l') →
+    (l = l' → patterns η δ ps vs φ ψ) →
+    pattern η δ (PXData π ps) (VXData l vs) φ (ψ ∨ l ≠ l').
+  Proof.
+    unfold pattern. simpl_eval_pat. intros ->.
+    change (as_loc (widen (ret (VLoc l')))) with (@ret _ unit l').
+    rewrite bind_ret.
+    destruct (eqb_spec l l').
+    - firstorder eauto using pure_wp_mono_throw.
+    - rewrite <-pure_wp_reversible_throw. auto.
+  Qed.
+
+  Lemma pat_PXData_eq η δ π p l v φ ψ :
+    lookup_path η π = ret (VLoc l) ->
     patterns η δ p v φ ψ →
-    pattern η δ (PXData c p) (VXData c' v) φ ψ.
+    pattern η δ (PXData π p) (VXData l v) φ ψ.
       (* This form is useful when the truth of the equality [c = c']
         is not statically known. *)
   Proof.
     unfold pattern; intros Hlookup Hpat.
     simpl_eval_pat; rewrite Hlookup. cbn; rewrite bind_ret.
-    unfold locations.eqb; destruct c'; cbn.
+    unfold locations.eqb; destruct l; cbn.
     by rewrite Z.eqb_refl.
   Qed.
 
@@ -464,7 +477,7 @@ Section pattern_rules.
 
   Lemma cpat_COr η δ cp1 cp2 o φ ψ1 ψ2 :
     cpattern η δ cp1 o φ ψ1 ->
-    cpattern η δ cp2 o φ ψ2 ->
+    (ψ1 → cpattern η δ cp2 o φ ψ2) ->
     cpattern η δ (COr cp1 cp2) o φ (ψ1 /\ ψ2).
   Proof.
     unfold cpattern. intros.

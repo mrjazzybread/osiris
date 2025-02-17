@@ -1219,6 +1219,25 @@ Proof.
   - apply invert_pure_wp_try2.
 Qed.
 
+Lemma pure_wp_reversible_try {A' E'} m f g :
+  pure_wp m (λ a : A', pure_wp (f a) φ ψ) (λ e : E', pure_wp (g e) φ ψ)
+  <->
+  pure_wp (try m f g) φ ψ.
+Proof.
+  unfold try.
+  by rewrite <-pure_wp_reversible_try2.
+Qed.
+
+Lemma pure_wp_reversible_orelse m1 m2 :
+  pure_wp m1 φ (λ _, pure_wp m2 φ ψ)
+  <->
+  pure_wp (orelse m1 m2) φ ψ.
+Proof.
+  unfold orelse.
+  rewrite <-pure_wp_reversible_try.
+  apply pure_wp_ret_equiv, pure_wp_reversible_ret.
+Qed.
+
 Lemma pure_wp_reversible_bind {A'} m (k : A' → micro A E) :
   pure_wp m (λ a, pure_wp (k a) φ ψ) ψ
   <->
