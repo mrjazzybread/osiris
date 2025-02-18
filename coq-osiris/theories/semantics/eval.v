@@ -1213,10 +1213,12 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       eff ← eval η e ;
       perform eff
   | EContinue e1 e2 =>
+      (* TODO use [par], as in the paper *)
       l ← as_cont (eval η e1) ;
       v ← eval η e2 ;
       resume l (O2Ret v)
   | EDiscontinue e1 e2 =>
+      (* TODO use [par], as in the paper *)
       l ← as_cont (eval η e1) ;
       v ← eval η e2 ;
       resume l (O2Throw v)
