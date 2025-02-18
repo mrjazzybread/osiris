@@ -915,7 +915,7 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
     has already been reinstalled over the continuation of [o], if [o]
     is a performed effect.  *)
 
-Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) :=
+Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) : microvx :=
   match bs with
   | [] =>
       (* If we have exhausted the branches of the match. *)
