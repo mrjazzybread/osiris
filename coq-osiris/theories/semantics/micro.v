@@ -359,7 +359,7 @@ Global Hint Extern 1 (_ = _) => rewrite try_as_fmap : try_as_fmap.
 (* [orelse m1 m2] runs [m1] first. If [m1] succeeds, its result is
    transmitted. If [m1] fails, then [m2] is run. *)
 
-Definition orelse {A E} (m1 m2 : micro A E) : micro A E :=
+Definition orelse {A E E'} (m1 : micro A E') (m2 : micro A E) : micro A E :=
   try m1 ret (λ _, m2).
 
 (* ------------------------------------------------------------------------ *)

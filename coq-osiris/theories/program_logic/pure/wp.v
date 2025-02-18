@@ -1228,7 +1228,7 @@ Proof.
   by rewrite <-pure_wp_reversible_try2.
 Qed.
 
-Lemma pure_wp_reversible_orelse m1 m2 :
+Lemma pure_wp_reversible_orelse {E'} (m1 : micro _ E') m2 :
   pure_wp m1 φ (λ _, pure_wp m2 φ ψ)
   <->
   pure_wp (orelse m1 m2) φ ψ.
