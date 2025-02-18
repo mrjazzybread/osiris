@@ -1200,12 +1200,14 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       b ← as_bool (eval η e) ;
       if (b : bool) then eval η e1 else eval η e2
   | EMatch e bs =>
-      (* We consider all matches to handle effects because they could
-         have branches of the form [| effect ... -> ...]. We compute
-         the scrutinee under a [Handle] delimiter, and then match the
-         outcome of that computation against the branches [bs]. *)
-      Handle (eval η e) (λ o, o ← wrap_outcome η bs o ;
-                              eval_branches η o bs)
+      (* This [EMatch] construct may have effect-handling branches of the form
+         [| effect ... -> ...]. We execute the expression [e] under a handler,
+         which inspects the outcome of this computation using the branches
+         [bs]. *)
+      Handle (eval η e) (λ o,
+        o ← wrap_outcome η bs o ;
+        eval_branches η o bs
+      )
   | ERaise e =>
       exn ← eval η e ;
       throw exn
