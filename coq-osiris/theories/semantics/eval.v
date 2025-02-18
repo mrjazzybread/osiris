@@ -1218,8 +1218,8 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       resume l (O2Ret v)
   | EDiscontinue e1 e2 =>
       l ← as_cont (eval η e1) ;
-      exn ← eval η e2 ;
-      resume l (O2Throw exn)
+      v ← eval η e2 ;
+      resume l (O2Throw v)
   | EWhile e body =>
       b ← as_bool (eval η e) ;
       if (b : bool) then
