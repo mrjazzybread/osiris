@@ -923,28 +923,31 @@ Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) :=
        | O3Ret _ =>
            (* A non-exhaustive match on a value is a crash. *)
            match_failure()
-       | O3Throw e =>
-           (* An uncaught exception gets re-thrown. *)
-           throw e
-       | O3Perform e l =>
-           (* [l] is the location at which the continuation of the
-              perform is stored. If an effect goes uncaught, we
-              reperform it with that same continuation *)
-           try2 (perform e) (λ o, resume l o)
+       | O3Throw v =>
+           (* An unhandled exception is propagated upwards. *)
+           throw v
+       | O3Perform v l =>
+           (* An unhandled effect is propagated upwards. *)
+           (* [l] is a stored continuation: that is, it is a heap address
+              where a semantic continuation is stored.
+              By writing [λ o, resume l o], we convert it back to
+              a semantic continuation,
+              which forms a suitable argument for [try2].
+              In summary, we perform the same effect again,
+              with the same continuation. *)
+           try2 (perform v) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
       (* If we are facing a branch [| cp -> e ]. *)
       try2
-        (* We try to match the pattern [cp] against the computational
-           outcome [o]. *)
+        (* We attempt to match the outcome [o] against the pattern [cp]. *)
         (eval_cpat η η cp o)
         (λ (oenv : outcome2 env unit),
           match oenv with
-          (* If the match is succesful, we evaluate [e] in an environment
-             extended by the match. *)
-          | O2Ret δ => eval δ e
-          (* If the match fails, we continue matching on the remaining
-             branches. *)
+          (* In case of success, we evaluate [e] in an environment
+             that has been extended by [eval_cpat]. *)
+          | O2Ret η'  => eval η' e
+          (* If case of failure, we move on to the remaining branches. *)
           | O2Throw _ => pre_eval_branches η o bs
           end)
   end.
@@ -979,9 +982,9 @@ Fixpoint pre_shallow_match η o bs all_bs :=
        | O3Throw e =>
            throw e
        | O3Perform e l =>
-           (* If we don't catch the effet, we reinstall the handler on
+           (* If we don't catch the effect, we reinstall the handler on
               top of the continuation (using a shallow install, notice
-              the [false] flag. We then reperform the effect with the
+              the [false] flag). We then reperform the effect with the
               same continuation it had initially. *)
            l ← install false l η all_bs;
            try2 (perform e) (λ o, resume l o)
