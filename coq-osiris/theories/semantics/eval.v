@@ -969,9 +969,9 @@ Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
       ret o
   end.
 
-(* A shallow handler must discharge itself only when it is consumed by
-   an effect, thus [all_branches] keep track of all the branches in
-   order to install the handler if it has not been consumed. *)
+(* A shallow handler must allow itself to vanish only if it is consumed by an
+   effect. [all_branches] keeps track of all the branches in order to
+   re-install the handler if it has not been consumed. *)
 
 Fixpoint pre_shallow_match η o bs all_bs :=
   match bs with
