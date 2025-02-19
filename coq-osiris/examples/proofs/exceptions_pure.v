@@ -84,9 +84,8 @@ Proof.
         intros ?? <- ->. apply Hhead.
       + eapply pure_wp_ret_singleton.
       + intros; returns_eauto. cbn in *.
-        eapply pure_wp_ret; subst. destruct Ha_ensures; subst.
-        red in H1; subst.
-        exists [ #v ]; tauto.
+        eapply pure_wp_ret. destruct Ha_ensures; subst.
+        red in H1; subst. encode.
       + intros ? [ (-> & ->)| ]; cbn.
         * eapply pure_wp_throw; eauto.
         * Unshelve.
