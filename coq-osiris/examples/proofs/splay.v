@@ -257,16 +257,16 @@ Ltac destruct_bst_Node :=
 Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-    total
+    pure
       (call splay #(l, x, r, ctx))
-      (λ t', fringe t' = fringe (fill ctx (Node l x r))).
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))) ⊥.
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
-    total
+    pure
       (call splay_leaf #ctx)
-      (λ t', fringe t' = fringe (fill ctx Leaf)).
+      (λ t', fringe t' = fringe (fill ctx Leaf)) ⊥.
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
@@ -274,11 +274,11 @@ Definition zlookup_spec :=
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
-      total
+      pure
         (call zlookup #(t, x, ctx))
         (λ '(oy, t'),
           member le x (fringe t) oy ∧
-          fringe t' = fringe (fill ctx t)).
+          fringe t' = fringe (fill ctx t)) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -513,6 +513,11 @@ Local Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
+Lemma invert_singleton {A} (a b : A) :
+  singleton a b ->
+  a = b.
+Proof. rewrite /singleton. by intros ->. Qed.
+
 Lemma Splay_spec :
   splay_spec
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
@@ -549,7 +554,9 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple.
     pure_path. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -557,7 +564,9 @@ Proof.
   (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -570,7 +579,9 @@ Proof.
   { eapply pure_eval_app.
     pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -578,7 +589,9 @@ Proof.
   (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -607,6 +620,8 @@ Proof.
     apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
 
     pure_path. pure_path. pure_path.
+    apply eq_refl.
+    intros ? ? -> <-.
     unfold splay_spec in Hsplay.
     specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
@@ -616,6 +631,8 @@ Proof.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
+    apply eq_refl.
+    intros ? ? -> <-.
     specialize (Hsplay _ _ z' t a Leaf).
     apply Hsplay. }
 Qed.
@@ -656,7 +673,8 @@ Proof.
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
-    simple eapply pure_mono; first eapply Hsplay_leaf.
+    intros ? ? -> ->.
+    simple eapply pure_ret_mono; first eapply Hsplay_leaf.
     split; [ intros | auto]. repeat intro; by eapply not_elem_of_nil. }
 
   (* Case: [t] matches [Node (l, y, r)] *)
@@ -664,13 +682,13 @@ Proof.
 
     eapply pure_eval_let1var.
     { (* Evaluate rhs of [let c = ..] *)
-      eapply pure_eval_app2.
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      unfold pure_call2.
-      unfold compare_spec in Hcompare.
-      eapply Hcompare. }
+      eapply pure_eval_app.
+      { eapply pure_eval_app. pure_path. pure_path.
+        intros ? ? -> ->.
+        eapply Hcompare. }
+      pure_path.
+      intros ? ? Hcall ->.
+      eapply Hcall. }
     (* Evaluate continuation expression after let *)
     intros c (? & Hlt & Heq & Hgt).
     eapply pure_eval_ifthenelse.
@@ -685,7 +703,9 @@ Proof.
       intro Clt0.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
-      eapply pure_mono.
+      apply eq_refl.
+      intros ? ? -> <-.
+      eapply pure_ret_mono.
       { eapply IH with (y := (t1, x, NodeL ctx a t2));
           unfold tlt, tree_size; auto with arith. }
       intros [oy t'] [??]; simpl in *.
@@ -706,7 +726,9 @@ Proof.
         intros Cgt0.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
-        eapply pure_mono.
+        apply eq_refl.
+        intros ? ? -> <-.
+        eapply pure_ret_mono.
         { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
           { cbn; unfold tlt. cbn. lia. }
           { auto. } }
@@ -721,8 +743,12 @@ Proof.
         (* Deduce [c = 0] *)
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
-        eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
-        eapply pure_mono. eapply Hsplay.
+        eapply pure_eval_quadruple. pure_path. pure_path. pure_path.
+        rewrite <- (encode_encode' Encode_zipper).
+        pure_path.
+        eapply eq_refl.
+        intros ? ? -> <-.
+        eapply pure_ret_mono. eapply Hsplay.
         intros. split; [ split | ].
         - apply Heq. lia.
         - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
@@ -747,11 +773,10 @@ Proof.
   { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
   next_item.
-  { pure_simp. apply eq_refl. }
+  { pure_simp. }
   intros [??] (lookup & Hlookup & -> & ->).
   finished_struct.
   simpl. repeat split; auto.
 Qed.
 
 End splay_proofs.
-

@@ -39,13 +39,13 @@ Qed.
 
 (* EApp (e1 e2 : expr) *)
 
-Lemma pure_eval_app `{Encode A, Encode B, Encode C}
+Lemma pure_eval_app `{Encode A, Encode B}
   η e1 e2
-  (φ1 : A → Prop) (φ2 : B → Prop) (ψ : C → Prop)
+  (φ1 : val → Prop) (φ2 : A → Prop) (ψ : B → Prop)
   ζ :
   pure (eval η e1) φ1 ζ →
   pure (eval η e2) φ2 ζ →
-  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call #v1 #v2) ψ ζ) →
+  (∀ v1 v2, φ1 v1 → φ2 v2 → pure (call v1 #v2) ψ ζ) →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros He1 He2 Hp. simpl_eval.
@@ -60,30 +60,30 @@ Qed.
    value. This lemma is useful for practical instances where
    the value postcondition is an evar for the [e1, e2] expressions. *)
 
-Lemma pure_eval_app_simple `{Encode A, Encode B}
+Lemma pure_eval_app_simple `{Encode A}
   η e1 e2
-  (f : A) (arg : B) (ψ : A → Prop)
+  (f : val) (arg : A) (ψ : val → Prop)
   ζ :
   pure (eval η e1) (singleton f) ζ →
   pure (eval η e2) (singleton arg) ζ →
-  pure (call #f #arg) ψ ζ →
+  pure (call f #arg) ψ ζ →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros; eapply pure_eval_app; eauto; by intros ??->->.
 Qed.
 
-Lemma pure_eval_app_seq `{Encode A, Encode B}
+Lemma pure_eval_app_seq `{Encode A}
   η e1 e2
-  (ψ : A → Prop)
+  (ψ : val → Prop)
   ζ :
-  pure (eval η e1) (λ f : A,
-    pure (eval η e2) (λ arg : B,
-      pure (call #f #arg) ψ ζ) ζ) ⊥ →
+  pure (eval η e1) (λ f : val,
+    pure (eval η e2) (λ arg : A,
+      pure (call f #arg) ψ ζ) ζ) ⊥ →
   pure (eval η (EApp e1 e2)) ψ ζ.
 Proof.
   intros He1. simpl_eval. eapply pure_par_seq.
-  eapply pure_ret_mono; first eapply He1; cbn; intros; try done.
-  eapply pure_mono; first eapply H1; cbn; intros; try done.
+  eapply pure_ret_mono; first eapply He1; cbn; intros f Hf; try done.
+  eapply pure_mono; first eapply Hf; cbn; intros; try done.
   eapply pure_throw; eauto.
 Qed.
 
@@ -248,31 +248,35 @@ Qed.
 
 (* TODO Comment *)
 Lemma pure_eval_data_val `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
-  pure (evals η e) (λ v', VData c v' = #y) ζ -> (* LATER: Should we clean this up? *)
+  pure_wp (evals η e) (λ v', VData c v' = #y) ζ -> (* LATER: Should we clean this up? *)
   ψ y ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
   intros He Hy.
   simpl_eval.
   eapply pure_bind.
-  eapply pure_mono; eauto.
-  intros ? ?. eapply pure_ret; eauto.
-  (* LATER: Automate *)
-  cbn in *; rewrite <-H0; repeat f_equiv.
-  clear. induction a; cbn; try f_equiv; eauto.
+  eapply pure_wp_mono_ret; [ eassumption | ].
+  { intros vs Hvs. simpl in Hvs.
+    unfold returns. exists vs. split.
+    - instantiate (1 := observe_list).
+      simpl; rewrite map_id; reflexivity.
+    - pattern vs in Hvs. apply Hvs. }
+  intros vs Hvs.
+  eapply pure_ret.
+  simpl. rewrite map_id. apply Hvs. apply Hy.
 Qed.
 
 (* TODO Fix automation on [pure_data] *)
-Lemma pure_eval_data `{Encode Y} `{Encode A} η c e (ψ : A -> Prop) ζ :
-  pure (evals η e) (λ (v' : list Y), ∃ y, VData c (map encode.encode v') = #y ∧ ψ y) ζ ->
+Lemma pure_eval_data `{Encode A} η c e (ψ : A -> Prop) ζ :
+  pure (evals η e) (λ (v' : list val), ∃ y, VData c v' = #y ∧ ψ y) ζ ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
   intros He.
   simpl_eval.
   eapply pure_bind. eapply pure_mono; eauto.
-  intros ? (y & Henc & HΨ). eapply pure_ret. cbn in *.
-  destruct a; cbn in *; returns_eauto; eauto with pure.
-  done.
+  intros ? (y & Henc & HΨ).
+  eapply pure_ret; last done.
+  cbn; by rewrite map_id.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
