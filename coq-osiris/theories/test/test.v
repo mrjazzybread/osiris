@@ -57,8 +57,8 @@ Local Ltac step :=
     | eapply StepParRight; [ step ]
     | eapply StepParPerformLeft
     | eapply StepParPerformRight
-    | eapply StepHandleRet
-    | eapply StepHandleThrow
+    | eapply StepHandleRet; simpl_wrap_eval_branches
+    | eapply StepHandleThrow; simpl_wrap_eval_branches
     | match goal with
       | |- step (?σ, Stop CAlloc _ _) _ =>
           eapply StepAlloc with (l := fresh (dom σ));
@@ -82,7 +82,7 @@ Local Ltac step :=
           [ apply is_fresh | by cbn ]
       end
     | eapply StepHandleLeft; [ step ]
-    | eapply StepResume; by cbn
+    | eapply StepResume; (try simpl_wrap_eval_branches); by cbn
     ].
 
 (* The tactic [steps] solves a goal of the form [steps ?n e v]. *)
@@ -210,7 +210,7 @@ Lemma test_match_integer_and_alias_pattern :
   ] in
   let v := VInt (repr 0) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_match_integer_and_disjunction_pattern :
   let e := EInt 1 in
@@ -220,7 +220,7 @@ Lemma test_match_integer_and_disjunction_pattern :
 ] in
   let v := VInt (repr 2) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_call :
   let e :=
@@ -262,7 +262,7 @@ Lemma test_EFun :
   in
   let v := VInt (repr 50) in
   reduces e v.
-Proof. reduces. Qed.
+Proof. reduces. reduces. Qed.
 
 Lemma test_divergent_while_loop :
   let e := EWhile ETrue EUnit in

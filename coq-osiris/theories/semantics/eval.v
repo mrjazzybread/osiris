@@ -1000,6 +1000,18 @@ End Eval.
 
 (* ------------------------------------------------------------------------ *)
 
+Section EvalBranches.
+
+Variable eval_branches : env -> (outcome3 val exn) -> list branch -> microvx.
+
+Definition pre_wrap_eval_branches η bs (o : outcome3 val exn) : microvx :=
+  o ← wrap_outcome η bs o ;
+  eval_branches η o bs.
+
+End EvalBranches.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [eval η e] evaluates the expression [e] in environment [η].
 
    In case of success, the result is a value.
@@ -1029,6 +1041,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let evals := pre_evals eval in
   let evalfs := pre_evalfs eval in
   let eval_branches := pre_eval_branches eval in
+  let wrap_eval_branches := pre_wrap_eval_branches eval_branches in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -1204,10 +1217,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          [| effect ... -> ...]. We execute the expression [e] under a handler,
          which inspects the outcome of this computation using the branches
          [bs]. *)
-      Handle (eval η e) (λ o,
-        o ← wrap_outcome η bs o ;
-        eval_branches η o bs
-      )
+      Handle (eval η e) (wrap_eval_branches η bs)
   | ERaise e =>
       exn ← eval η e ;
       throw exn
@@ -1297,6 +1307,13 @@ Lemma fold_pre_eval_branches :
   pre_eval_branches eval = eval_branches.
 Proof. unfold eval_branches; by rewrite seal_eq. Qed.
 
+Local Definition eval_wrap_branches_aux : seal (pre_wrap_eval_branches eval_branches).
+Proof. by eexists. Qed.
+Definition wrap_eval_branches := eval_wrap_branches_aux.(unseal).
+Lemma fold_pre_wrap_eval_branches :
+  pre_wrap_eval_branches eval_branches = wrap_eval_branches.
+Proof. unfold wrap_eval_branches; by rewrite seal_eq. Qed.
+
 Local Definition shallow_match_aux : seal (pre_shallow_match eval).
 Proof. by eexists. Qed.
 Definition shallow_match := shallow_match_aux.(unseal).
@@ -1357,7 +1374,8 @@ Ltac simpl_eval :=
      ?fold_pre_evalfs,
      ?fold_pre_eval_branches,
      ?fold_pre_eval_bindings,
-     ?fold_pre_eval_mexpr)
+     ?fold_pre_eval_mexpr,
+     ?fold_pre_wrap_eval_branches)
   || fail "Unable to simplify application of eval".
 
 Ltac simpl_evals :=
@@ -1386,6 +1404,13 @@ Ltac simpl_eval_branches :=
    (progress simpl pre_eval_branches);
    rewrite ?fold_pre_eval_branches)
   || fail "Unable to simplify application of eval_branches".
+
+Ltac simpl_wrap_eval_branches :=
+  (unfold wrap_eval_branches;
+   rewrite seal_eq;
+   (progress unfold pre_wrap_eval_branches; simpl);
+   rewrite ?fold_pre_wrap_eval_branches)
+  || fail "Unable to simplify application of wrap_eval_branches".
 
 Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
@@ -1448,6 +1473,7 @@ Ltac fold_all :=
                | rewrite fold_pre_evals
                | rewrite fold_pre_evalfs
                | rewrite fold_pre_eval_branches
+               | rewrite fold_pre_wrap_eval_branches
                | rewrite fold_pre_shallow_match
                | rewrite fold_pre_eval_bindings
                | rewrite fold_pre_eval_mexpr

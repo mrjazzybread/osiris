@@ -24,8 +24,7 @@ Definition shallow_handler η e bs :=
    continuation. *)
 
 Definition deep_handler η e bs :=
-  Handle (eval η e) (λ o, o ← wrap_outcome η bs o ;
-                          eval_branches η o bs).
+  Handle (eval η e) (wrap_eval_branches η bs).
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning about effect handlers *)
@@ -189,11 +188,11 @@ Section handler_proof.
       rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
+      simpl_wrap_eval_branches;
       ewp_invert; iFrame;
       iDestruct "Hsh" as "[Hsh _]";
       iSpecialize ("Hsh" with "HΦ");
     try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
-
 
     { (* [StepHandlePerform] *)
       iDestruct "Hsh" as "[_ Hsh]".
@@ -207,7 +206,7 @@ Section handler_proof.
 
       iFrame.
       (* Install the handler around the location [l]. *)
-      iApply ewp_install_deep.
+      simpl_wrap_eval_branches; iApply ewp_install_deep.
       ewp_mask_intro "Hmod".
       ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
                              but not in "Hsh", so we lose; FIXME *)
@@ -223,7 +222,7 @@ Section handler_proof.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
         iNext. iIntros "H".
-        by rewrite try2_ret_right. }
+        by rewrite try2_ret_right; simpl_wrap_eval_branches. }
       done. }
 
     { (* [StepHandleCrash] *)

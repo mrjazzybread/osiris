@@ -292,6 +292,14 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma unfold_SimpWrapEvalBranches m2 η bs (o : outcome3 val exn) :
+  simp (o ← wrap_outcome η bs o;
+        eval_branches η o bs) m2 ->
+  simp (wrap_eval_branches η bs o) m2.
+Proof.
+  simpl_wrap_eval_branches; eauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* More lemmas for use by the tactics that follow. *)
@@ -820,6 +828,8 @@ with simp1_inspect :=
           (* Attempt 2. Reduce m to a throw. *)
           simple eapply advance_SimpHandleThrow; [ simp0; simp_close | simp0; simp_close ]
         ]
+  | wrap_eval_branches _ _ _ =>
+      simple eapply unfold_SimpWrapEvalBranches; simp0
   | Stop CFlip ?u ?k =>
       simple eapply advance_SimpFlipAgree; [ simp0; simp_close
                                            | simp0; simp_close ]
