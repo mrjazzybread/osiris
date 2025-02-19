@@ -271,7 +271,7 @@ Section verification.
        next_branch.
        (* next_branch. *)
        iApply deep_handle_cons_no_resources.
-       { iPureIntro. specify_cpattern.
+       { iPureIntro. ltac2:(specify_cpattern ()).
          (* This causes a Match_failure, why?
          pattern_match. *)
          eapply pat_PXData_neq. simpl. eassumption.
