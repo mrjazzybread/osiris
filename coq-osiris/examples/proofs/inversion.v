@@ -28,11 +28,11 @@ Section iteration_methods.
       □ (∀ (Xs : list A) (X : A),
            ⌜ permitted (Xs ++ [X]) ⌝ -∗
            I Xs -∗
-           EWP (call f #X) @ E <| ψ |> {{ λ _, I (Xs ++ [X]) }})
+           EWP (call f #X) @ E <| ψ |> {{ RET _, I (Xs ++ [X]) }})
       -∗
       I [] -∗
       EWP (call iter f) @E <| ψ |>
-        {{ λ _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
+        {{ RET _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
 
 End iteration_methods.
 
@@ -212,7 +212,7 @@ Section verification.
     Lemma yield_handler_correct l (iter yield : val) γ (Ys : list A) :
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
-        (λ _ : outcome2 val exn, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
+        (RET _, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o, eval_branches
            ("__osiris_anonymous_arg" ~> VUnit;
             "yield" ~> yield;
@@ -229,18 +229,12 @@ Section verification.
       prove_handler_spec.
 
       (* Value and Exception case: *)
-      { iIntros (o) "[%Xs [HiterView %Hcomplete]]".
+      { iIntros ([o | ?]); [ | iIntros "[]"].
+        iIntros "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro. (* FIXME: [next_branch] fails if we don't use iModIntro before. *)
         next_branch.
-        { Simp. Ret. by iPureIntro. }
-
-        next_branch.
-        { Simp. Ret. by iPureIntro. }
-
-        next_branch.
-
-        destruct o; simpl in *; by destruct H1; destruct H2. }
+        Simp. Ret. by iPureIntro. }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
@@ -254,9 +248,7 @@ Section verification.
           as "[HhandlerView HiterView]";
           iModIntro.
         next_branch.
-        next_branch.
         next_branch; last tauto.
-        fold eval.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         Simp; Ret; simpl.
@@ -302,7 +294,7 @@ Section verification.
                     iterView γ Xs -∗
                     ⌜permitted (Xs ++ [X])⌝ -∗
                     EWP call v #X <| ψ_yield l (iterView γ) |>
-                      {{ λ _, iterView γ (Xs ++ [X]) }} )%I).
+                      {{ RET _, iterView γ (Xs ++ [X]) }} )%I).
       { Simp; Ret; simpl.
         iIntros "!>" (Xs X) "Hiter Hpermitted".
         iApply ewp_call_nonrec.
@@ -337,7 +329,7 @@ Section verification.
                 (* Handlee's protocol: *)
                 (ψ_yield l (iterView γ))
                 (* Handlee's postcondition: *)
-                (λ _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
+                (RET _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
                with "[Hiter HiterView] [HhandlerView]").
 
       (* Subgoal: The body of the match [iter yield] produces
