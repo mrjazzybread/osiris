@@ -114,7 +114,7 @@ Proof.
     (* As we have now traversed all branches, we can use the
        no_matching hypotheses to show a contradiction. *)
     iApply deep_handle_nil_ret.
-    destruct_hyp H1. }
+    resolve_no_match. }
 
   (* We can now show the module specification. *)
   iIntros ([δ η]).
@@ -175,7 +175,7 @@ Proof.
   intros Heql HI.
 
   change f with #f.
-  eapply expr_rules.pure_rec_call2 with
+  eapply pure_rec_call2 with
     (P := λ func lsuf, func = f ∧ ∃ lpref, lpref ++ lsuf = l ∧ I lpref)
     (φ := (λ _ _ _, I l))
     (R := (λ _ _, True)).
@@ -194,9 +194,10 @@ Proof.
 
   eapply pure_eval_seq_exn.
   eapply pure_eval_app. pure_path. pure_path.
-  eapply pure_strong_mono.
+  intros ? ? -> ->.
+  eapply pure_mono.
 
-  { eapply Hf.
+  { simpl. eapply Hf.
     - rewrite (cons_middle _ lpref xs'). apply prefix_app.
       rewrite <- (app_nil_r [x]) at 1. apply prefix_app.
       apply prefix_nil.
@@ -204,22 +205,17 @@ Proof.
 
   (* TODO: Clean up this portion. *)
   { cbn. intros ? (?&?); subst. fold eval.
-    eapply pure_eval_app2; try pure_path.
-
-    (* FIXME [pure_path] BEGIN *)
-    Unshelve. (* FIXME: Remove this mess. *)
-    6: exact f. 6 : typeclasses eauto.
-    encode. 4: exact xs'. encode.
-    (* [pure_path] END *)
-
-    eapply pure_strong_mono.
-    eapply IH.
-    { simpl; eauto. }
-    { done. }
-    { split; first done. exists (lpref ++ [x]). split; last done.
-      rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
-    { cbn. intros ? ?. done. }
-    { cbn. done. } }
+    eapply pure_eval_app; [ | pure_path | ].
+    { eapply pure_eval_app; try pure_path.
+      intros ? ? -> ->.
+      eapply IH with (y2 := xs').
+      - simpl; eauto.
+      - done.
+      - split; first done.
+        exists (lpref ++ [x]). split; last done.
+        rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
+    intros ? ? Hcall ->.
+    eapply Hcall. }
 
   { cbn. intros ? (?&?). split; eauto.
     exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1.
