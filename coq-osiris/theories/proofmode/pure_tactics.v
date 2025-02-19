@@ -48,7 +48,12 @@ Ltac2 rec specify_cpattern () : int :=
           | (COr _ _, _) =>
               eapply cpat_COr;
               let n := Control.focus 1 1 specify_cpattern in
-              let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+              let m := Control.focus (Int.add n 1) (Int.add n 1)
+                         (fun () =>
+                            let match_hyp := Fresh.in_goal ident:(match_hyp) in
+                            intros $match_hyp;
+                            specify_cpattern ())
+              in
               Int.add n m
           | _ =>
               eapply cpat_mismatch > [ cbn; reflexivity | ];
