@@ -3,7 +3,6 @@ From stdpp Require Import gmap relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval.
-From iris.prelude Require Import prelude options.
 
 (* This file equips the [micro] monad with an operational semantics, that is,
    a reduction semantics of the form [step c c'] where [c] and [c'] are pairs
