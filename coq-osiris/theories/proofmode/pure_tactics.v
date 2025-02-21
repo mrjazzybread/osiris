@@ -600,7 +600,7 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
-  | [ |- branches _ _ ?bs _ _ ] =>
+  | [ |- branches _ ?o ?bs _ _ ] =>
       (* Match on [bs] to decide whether to apply [pure_match_cons]
          or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with
@@ -638,18 +638,27 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
                   simplification. *)
                Control.enter (fun _ => pure_match_branches0 (remaining_hyps)))
       | [] =>
-          (* We have to show that every pattern match is exhaustive.
-             If we reach this point, then we can assume that an early
-             use of [destruct_hyps] was not powerful enough to solve
-             this goal. We thus use the more brute-force
-             [resolve_no_match] tactic. *)
-          eapply branches_nil; ltac1:(resolve_no_match)
+          (* We have to show that every pattern match is exhaustive. *)
+          lazy_match! (Std.eval_hnf o) with
+          | O3Ret _ =>
+              (* If we reach this point, then we can assume that an early
+                 use of [destruct_hyps] was not powerful enough to solve
+                 this goal. We thus use the more brute-force
+                 [resolve_no_match] tactic. *)
+              eapply branches_val_nil; ltac1:(resolve_no_match)
+          | O3Throw _ =>
+              (* If we didn't catch an exception, we propagate it. *)
+              eapply branches_exn_nil
+          | _ =>
+              (* [o] could be abstract, in which case we try to say we have been exhaustive. *)
+              ltac1:(resolve_no_match)
+          end
       end
   | [ |- ?g ] =>
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [pure_match η o bs φ]")))
+              (Message.of_string "Expected goal of the form [branches η o bs φ Ψ]")))
   end.
 
 Ltac2 pure_match0 () := pure_match_branches0 [].

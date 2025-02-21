@@ -1357,11 +1357,21 @@ Proof.
   eapply pure_wp_mono; eauto.
 Qed.
 
-(* Not matching is an error. *)
+(* Not matching a value is an error. *)
 
-Lemma branches_nil `{Encode A} η o (φ : A -> Prop) Ψ :
-  False -> branches η o nil φ Ψ.
+Lemma branches_val_nil `{Encode A} η v (φ : A -> Prop) Ψ :
+  False -> branches η (O2Ret v) nil φ Ψ.
 Proof. contradiction. Qed.
+
+(* Not matching an exception propagates the exception. *)
+
+Lemma branches_exn_nil `{Encode A} η e (φ : A -> Prop) (Ψ : exn -> Prop) :
+  Ψ e ->
+  branches η (O2Throw e) nil φ Ψ.
+Proof.
+  unfold branches. simpl_eval_branches.
+  eapply pure_throw.
+Qed.
 
 Lemma branches_single `{Encode A} η v cp e (φ : A -> Prop) ψ ζ :
   cpattern η η cp v (λ η' : env, pure (eval η' e) φ ζ) ψ →
