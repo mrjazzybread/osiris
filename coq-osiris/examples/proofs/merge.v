@@ -200,7 +200,7 @@ Proof.
      intros.
      eapply pure_eval_data. eapply pure_evals_cons.
      pure_path.
-     (* FIXME (IY): Automation for encode is broken.
+     (* FIXME: Automation for encode is broken.
          Probably encode shouldn't unfold here? *)
      unfold observe, observe_encode. encode.
      eapply @pure_evals_cons with (A := list Z).

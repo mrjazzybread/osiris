@@ -51,7 +51,7 @@ Definition tfold {X Y} {τ : types}
      end) τ.
 Global Arguments tfold {_ _ !_} _ _ /.
 
-(* IY: Do we want this to be the default inductive principle? *)
+(* TODO: Do we want this to be the default inductive principle? *)
 
 Lemma τs_ind (P : ∀ τs : types, Prop) :
   (∀ T (H : Encode T), P (Tbase T)) →
