@@ -323,7 +323,7 @@ Section handler_proof.
     iIntros "Q %Hpure Hmono".
     iApply ewp_try.
     iApply ewp_mono; first by iApply pure_ewp.
-    iIntros ([|]); simpl.
+    iIntros ([|[]]); simpl.
     - iIntros "%HmonQ". iApply (HmonQ with "Q").
     - iApply ("Hmono" with "Q").
   Qed.
@@ -337,7 +337,7 @@ Section handler_proof.
     iIntros "%Hpure Hmono".
     iApply ewp_try.
     iApply ewp_mono; first iApply pure_ewp; try done.
-    iIntros ([|]); simpl.
+    iIntros ([|[]]); simpl.
     - iIntros "%Heval"; iApply Heval.
     - iApply "Hmono".
   Qed.

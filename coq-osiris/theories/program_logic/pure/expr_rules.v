@@ -1343,7 +1343,8 @@ Lemma branches_cons_unary `{Encode A} η o cp e bs (φ : A -> Prop) ψ :
 Proof.
   unfold branches.
   intros; simpl_eval_branches.
-  apply pure_wp_try. eauto.
+  apply pure_wp_try.
+  eapply pure_wp_mono; eauto. intros []; auto.
 Qed.
 
 Lemma branches_cons `{Encode A} η o cp e bs (φ : A -> Prop) ψ' ψ :

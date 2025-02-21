@@ -948,7 +948,7 @@ Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) : microv
              that has been extended by [eval_cpat]. *)
           | O2Ret η'  => eval η' e
           (* If case of failure, we move on to the remaining branches. *)
-          | O2Throw _ => pre_eval_branches η o bs
+          | O2Throw () => pre_eval_branches η o bs
           end)
   end.
 
