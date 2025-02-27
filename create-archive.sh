@@ -19,6 +19,7 @@ rm -rf $ARCHIVE/.git
 rm     $ARCHIVE/.git*
 rm     $ARCHIVE/AUTHORS.md
 rm     $ARCHIVE/TODO.md
+rm     $ARCHIVE/create-archive.sh
 rm -r  $ARCHIVE/misc
 rm     $ARCHIVE/osiris/osiris.opam
 rm     $ARCHIVE/coq-osiris/coq-osiris.opam
