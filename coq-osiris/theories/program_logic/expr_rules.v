@@ -1125,7 +1125,7 @@ Section ewp_rules_expr.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Lemma ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+  Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
     EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
@@ -1141,6 +1141,26 @@ Section ewp_rules_expr.
     iApply (ewp_mono with "Hv").
     iIntros ([|]) "Hφ2"; [ simpl | done ].
     iApply ("Hmon" with "Hφ1 Hφ2").
+  Qed.
+
+  Corollary ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
+    EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    (∀ k v, φ1 k -∗ φ2 v -∗
+       ∃ sk, k ↦ K sk ∗
+        (k ↦ Shot -∗
+            ▷ EWP (sk (O2Ret v)) @ E <|ψ|> {{ φ }})) -∗
+    EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 H3".
+    iApply (ewp_EContinue' with "H1 H2").
+    iIntros (??) "H1 H2".
+    iSpecialize ("H3" with "H1 H2").
+    iDestruct "H3" as (?) "(H1 & H2)".
+    iApply (ewp_resume with "H1").
+    iIntros "H1".
+    iSpecialize ("H2" with "H1"). iNext.
+    by rewrite try2_ret_right.
   Qed.
 
 End ewp_rules_expr.

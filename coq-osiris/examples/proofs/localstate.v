@@ -244,7 +244,7 @@ Section verification.
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-       iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
+       iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
          [ | | iIntros (?? ->) ].
        { rewrite /as_cont; iApply ewp_bind.
          iApply ewp_EPath. Ret. by Ret. }
@@ -299,7 +299,7 @@ Section verification.
          iSpecialize ("H_WRITE" with "Hx").
          iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
 
-         iApply (ewp_EContinue _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+         iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
          { rewrite /as_cont; iApply ewp_bind.
            iApply ewp_EPath. Ret. by Ret. }
          { by iApply ewp_EConstant. }

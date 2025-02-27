@@ -134,10 +134,7 @@ Local Ltac ewp_invert :=
           iMod (ewp_ret_inv with "[$]") as "HΦ"
       (* EWP crash *)
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
-          match goal with
-          | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
-            iMod (ewp_crash_inv with "[$][$]") as "%"
-          end
+          iMod (ewp_crash_inv with "[$]") as "HΦ"
       end
   end.
 
@@ -221,7 +218,7 @@ Section handler_proof.
         iApply (ewp_resume with "Hl").
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
-        iNext. iIntros "H".
+        iIntros "H".
         by rewrite try2_ret_right; simpl_wrap_eval_branches. }
       done. }
 
@@ -268,7 +265,7 @@ Section handler_proof.
     k ↦ K sk -∗
     ψ allows perform eff
     << λ o,
-      ▷ (k ↦ Shot -∗ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
+      (k ↦ Shot -∗ ▷ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
     EWP (eval_branches η (O3Perform eff k) []) <|ψ|> {{ Φ }}.
   Proof.
     iIntros "Hl Hperf".
@@ -303,8 +300,9 @@ Section handler_proof.
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
       iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_ret_right.
+      iIntros "_".
       iApply (bi.later_mono with "H").
-      iIntros "H _".
+      iIntros "H".
       iApply "H". }
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hk]").
     { iIntros (o) "H".

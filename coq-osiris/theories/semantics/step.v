@@ -678,6 +678,18 @@ Proof.
   eauto.
 Qed.
 
+Lemma invert_step_resume_shot {A E} σ σ' l o k m' :
+  σ !! l = Some Shot →
+  @step A E (σ, Stop CResume (l, o) k) (σ', m') →
+  σ = σ' /\
+  m' = crash.
+Proof.
+  intros Heq Hstep.
+  destruct_step.
+  unfold step_resume_1, step_resume_2. rewrite Heq.
+  eauto.
+Qed.
+
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
 Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :

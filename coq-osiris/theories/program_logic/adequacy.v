@@ -27,6 +27,7 @@ Section ewp_wp.
       destruct e; inversion Heqo; subst; eauto. }
     rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
     ewp_case_is_handleable e ;inversion Heqo.
+    { iMod "Hwp". done. }
     iMod "Hwp".
     { rewrite /prot; rewrite upcl_bottom; done. }
     intro_state. iMod ("Hwp" with "Hsi") as "[% H]".
