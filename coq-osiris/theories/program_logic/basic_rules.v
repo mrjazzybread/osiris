@@ -876,6 +876,16 @@ Section ewp_rules.
       iApply ewp_value. iApply ("Hr" with "Hφ1 Hφ2"). }
   Qed.
 
+  Lemma ewp_par_same_exn {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ ψ} φ1 φ2 Ψ :
+    EWP m1 @ E <| Ψ |> {{ | RET v => φ1 v ; | EXN e => ψ e }} -∗
+    EWP m2 @ E <| Ψ |> {{ | RET v => φ2 v ; | EXN e => ψ e }} -∗
+    (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ φ (v1, v2)) -∗
+    EWP (par m1 m2) @ E <| Ψ |> {{ | RET v => φ v ; | EXN e => ψ e }}.
+  Proof.
+    iIntros "Hm1 Hm2 Hφ".
+    iApply (ewp_par with "Hm1 Hm2"); auto.
+  Qed.
+
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma ewp_flip {E} u (k: _ → micro A X) {φ} Ψ :
       ▷(EWP continue k true @ E <| Ψ |> {{ φ }} ∧ EWP continue k false @ E <| Ψ |> {{ φ }})
@@ -1086,7 +1096,7 @@ Section ewp_val_rules.
 
     destruct (is_handleable m) as [ h | ] eqn:R.
     - (* [m] is handleable *)
-      destruct h as [ a | e | c | eff f ].
+      destruct h as [ a | e | | eff f ].
       + (* [ret]'s satisfy [φ] *)
         destruct m as [| | | |???[]|]; discriminate || injection R as ->.
         by eapply invert_pure_wp_ret in Hm.
@@ -1189,7 +1199,7 @@ Section ewp_eval.
     by iApply "Hmono".
   Qed.
 
-  Lemma prove_ewp_par {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2) X' -> micro A X) φ1 φ2 E ψ Q :
+  Lemma prove_ewp_Par {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2) X' -> micro A X) φ1 φ2 E ψ Q :
     EWP m1 @ E <|ψ|> {{ RET v, φ1 v }} -∗
     EWP m2 @ E <|ψ|> {{ RET v, φ2 v }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ EWP k (O2Ret (v1, v2)) @ E <|ψ|> {{ Q }}) -∗
@@ -1210,7 +1220,7 @@ Section ewp_eval.
   Proof.
     iIntros "Hspec".
     simpl_eval_sitem; simpl_eval_bindings. iApply ewp_bind.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
     { by iApply ewp_value. }
     iIntros (v ?) "Hspec ->". simpl_eval_pat; unfold widen; simpl.
     rewrite try_ret. iApply ewp_value. simpl. iApply ewp_value.
@@ -1291,7 +1301,7 @@ Section ewp_eval.
   Proof.
     iIntros "He HQ".
     simpl_eval_sitem. simpl_eval_bindings.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
     simpl_eval_pat. iApply ewp_value.
@@ -1306,7 +1316,7 @@ Section ewp_eval.
   Proof.
     iIntros "He Hcov".
     simpl_eval_sitems; simpl_eval_bindings; simpl.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
     unfold widen; simpl_eval_pat; simpl.
