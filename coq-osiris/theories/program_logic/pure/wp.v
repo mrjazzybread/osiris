@@ -1158,6 +1158,16 @@ Proof.
   - intros; eapply invert_pure_wp_ret; eauto.
 Qed.
 
+Lemma pure_wp_reversible_intersection {A E} `{Inhabited X} {φ ψ} (m : micro A E) :
+  (∀ x : X, pure_wp m (φ x) ψ)
+  <->
+  pure_wp m (λ a, ∀ x, φ x a) ψ.
+Proof.
+  split.
+  - apply pure_wp_intersection.
+  - intros P x. eapply pure_wp_mono_ret; eauto.
+Qed.
+
 Context {A E} (φ : A → Prop) (ψ : E → Prop).
 
 Lemma pure_wp_reversible_ret a : φ a <-> pure_wp (ret a) φ ψ.
