@@ -71,7 +71,7 @@ Inductive code : Type → Type → Type → Type :=
 | CAlloc : code val loc exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) unit exn
-| CPerform  : code val val exn
+| CPerform  : code eff val exn
 | CResume : code (loc * outcome2 val exn) val exn
 | CInstall : code (bool * loc * env * handler) loc exn
 .
