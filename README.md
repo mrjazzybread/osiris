@@ -83,6 +83,8 @@ The count is without comments, counted with the `coqwc` tool.
 * Definition of impure__# -> theories/program_logic/ewp.v (lifting notation)
 * Definition of deep-handler -> theories/program_logic/handler_rules.v
 
+We provide an overview of the structure of the whole project in `ROADMAP.md`
+
 ## Compilation
 
 ### Dependencies
