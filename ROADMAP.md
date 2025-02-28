@@ -25,8 +25,7 @@ The Rocq development can be found under `osiris/coq-osiris`
 ### Proofmode
 
 - `osiris/coq-osiris/theories/program_logic`
-  Horus
-  - `orisis/coq-osiris/theories/program_logic/pure/`
+  - `orisis/coq-osiris/theories/program_logic/pure/`: Horus
     - `wp.v` the [pure_wp] definition, which is the base definition for pure judgements.
     - `judgements.v` the [pure] judgements, and relevant notations.
     - `pure_rules.v` reasoning rules over [pure] judgements.
@@ -36,7 +35,6 @@ The Rocq development can be found under `osiris/coq-osiris`
        struct items, bindings, and modules.
     - `fun_spec.v` [Spec] abstraction for reasoning about n-ary function calls
     - `adequacy.v` An adequacy statement over the pure Hoare-style logic
-  Osiris
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
   - `basic_rules.v` reasoning rules over the effectful weakest precondition
   - `handler_rules.v` reasoning rules over handlers
