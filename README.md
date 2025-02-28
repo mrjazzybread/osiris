@@ -7,12 +7,11 @@
 The following is the count for lines of code (`osiris/src`) for the
 OCaml-to-Gallina translator, written in OCaml.
 
-
 The count is without comments, counted with `cloc` (`cloc --include-lang=OCaml`)
 
-                    |  total
------------------------------
-translator (src/)   |  1762
+                    |  total (without comments)
+--------------------|--------------------------
+translator (src/)   |  1762 LOC
 
 
 ### Mechanization
@@ -23,7 +22,7 @@ mechanization (specification and proofs), written in Rocq.
 The count is without comments, counted with the `coqwc` tool.
 
                                |  spec    | proof      |  total (without comments)
----------------------------------------------------------------------------------
+-------------------------------|----------|------------|-------------------------
 base definitions    (toplevel) |  38      |  21        |  59
 language definition    (lang/) |  869     |  261       |  1130
 semantics         (semantics/) |  2850    |  1036      |  3886
@@ -34,7 +33,7 @@ testing harness        (test/) |  806     |  442       |  1248
 Integer library    (CompCert/) |  1953    |  3352      |  5305
 protocol library      (Hazel/) |  407     |  328       |  735
 stdlib               (stdlib/) |  245     |  16        |  261
----------------------------------------------------------------------------------
+-------------------------------|----------|------------|-------------------------
 total                          |  12909   |  9684      |  22593 LOC
 
 
