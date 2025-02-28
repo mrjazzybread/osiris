@@ -118,7 +118,3 @@ the right version.
 ### Build
 
 Run `make`.
-
-## Tutorial
-
-The tutorial is not currently available.
