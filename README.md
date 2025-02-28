@@ -5,7 +5,7 @@
 ### Translator
 
 The following is the count for lines of code (`osiris/src`) for the
-OCaml-to-Gallina translator, written in OCaml.
+OCaml-to-Gallina (OLang) translator, written in OCaml.
 
 The count is without comments, counted with `cloc` (`cloc --include-lang=OCaml`)
 
