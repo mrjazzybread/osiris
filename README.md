@@ -9,9 +9,9 @@ OCaml-to-Gallina translator, written in OCaml.
 
 The count is without comments, counted with `cloc` (`cloc --include-lang=OCaml`)
 
-                    |  total (without comments)
---------------------|--------------------------
-translator (src/)   |  1762 LOC
+|                    | Total (without comments) |
+|--------------------|-------------------------|
+| translator (src/) | 1762 LOC                 |
 
 
 ### Mechanization
@@ -21,20 +21,19 @@ mechanization (specification and proofs), written in Rocq.
 
 The count is without comments, counted with the `coqwc` tool.
 
-                               |  spec    | proof      |  total (without comments)
--------------------------------|----------|------------|-------------------------
-base definitions    (toplevel) |  38      |  21        |  59
-language definition    (lang/) |  869     |  261       |  1130
-semantics         (semantics/) |  2850    |  1036      |  3886
-program logic (program_logic/) |  3704    |  3715      |  7419
-proof mode        (proofmode/) |  1822    |  250       |  2072
-logic-related utility (logic/) |  215     |  263       |  478
-testing harness        (test/) |  806     |  442       |  1248
-Integer library    (CompCert/) |  1953    |  3352      |  5305
-protocol library      (Hazel/) |  407     |  328       |  735
-stdlib               (stdlib/) |  245     |  16        |  261
--------------------------------|----------|------------|-------------------------
-total                          |  12909   |  9684      |  22593 LOC
+| Component                        | Spec   | Proof  | Total (without comments) |
+|----------------------------------|--------|--------|-------------------------|
+| Base definitions (toplevel)      | 38     | 21     | 59                      |
+| Language definition (lang/)      | 869    | 261    | 1130                    |
+| Semantics (semantics/)           | 2850   | 1036   | 3886                    |
+| Program logic (program_logic/)   | 3704   | 3715   | 7419                    |
+| Proof mode (proofmode/)          | 1822   | 250    | 2072                    |
+| Logic-related utility (logic/)   | 215    | 263    | 478                     |
+| Testing harness (test/)          | 806    | 442    | 1248                    |
+| Integer library (CompCert/)      | 1953   | 3352   | 5305                    |
+| Protocol library (Hazel/)        | 407    | 328    | 735                     |
+| Stdlib (stdlib/)                 | 245    | 16     | 261                     |
+| **Total**                        | 12909  | 9684   | **22593 LOC**           |
 
 
 ## Correspondence with the paper
