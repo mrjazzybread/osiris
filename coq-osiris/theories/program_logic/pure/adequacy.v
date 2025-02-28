@@ -78,6 +78,30 @@ Proof.
     + right. apply can_step_reducible, can_step_par.
 Qed.
 
+(* Special case with no exception allowed *)
+
+Theorem pure_wp_adequacy_ret {A E} (m : micro A E) φ σ :
+  pure_wp m φ ⊥ → adequate NotStuck m σ (λ o σ', ∃ a, o = O2Ret a ∧ σ' = σ ∧ φ a).
+Proof.
+  intros P.
+  apply adequate_alt.
+  intros _tr _σ (σ' & m' & [=->->] & S)%invert_rtc_erased_step.
+  destruct (pure_wp_steps _ _ _ _ S P) as [Heq P']. simpl in *; subst.
+  split.
+  - intros [a | e] [ | ]; try discriminate; injection 1 as ->.
+    + eexists; split; eauto. by eapply invert_pure_wp_ret in P'.
+    + by eapply invert_pure_wp_throw in P'.
+  - intros _ _ ->%elem_of_list_singleton.
+    destruct m'.
+    + left; eauto.
+    + left; eauto.
+    + by eapply invert_pure_wp_crash in P'.
+    + right. apply can_step_reducible, can_step_handle.
+    + right. apply can_step_reducible, can_step_stop.
+      apply invert_pure_wp_stop in P'. destruct c; auto.
+    + right. apply can_step_reducible, can_step_par.
+Qed.
+
 
 (** Termination *)
 
