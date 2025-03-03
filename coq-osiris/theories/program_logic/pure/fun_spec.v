@@ -61,7 +61,7 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [is_lambda_of_depth e arg_τ] states that [e] is a series of nested
+(* [is_lambda_of_depth e arg_τ] asserts that [e] is a series of nested
    [EAnonFun _] of depth ≥ to the length of [arg_τ]. *)
 
 Fixpoint is_lambda_of_depth (e : expr) (τ : types) : Prop :=
@@ -83,47 +83,78 @@ Lemma unfold_is_lambda_of_depth e τ :
                  end.
 Proof. destruct τ; tauto. Qed.
 
-Definition is_VCloRec_of_depth v arg_τ :=
+(* [is_VCloRec_of_depth v arg_τ] asserts that the value [v] is
+   a (non-mutually) recursive function with
+   a number of arguments ≥ to the number of types in [arg_τ]. *)
+
+Definition is_VCloRec_of_depth v τ :=
   exists η f x e,
     v = VCloRec η [ RecBinding f (AnonFun x e) ] f ∧
-      (* The [RecBinding] has one initial binding. *)
-      match arg_τ with
+      match τ with
+      | Tbase _ =>
+          (* The base case is true since there is always
+             at least one binding, namely [x]. *)
+          True
+      | Tcons _ τ' =>
+          is_lambda_of_depth e τ'
+      end.
+
+Definition is_VClo_of_depth v τ :=
+  exists η x e,
+    v = VClo η (AnonFun x e) ∧
+      match τ with
       | Tbase _ => True
-      | Tcons _ arg_τ' =>
-          is_lambda_of_depth e arg_τ'
+      | Tcons _ τ' =>
+          is_lambda_of_depth e τ'
       end.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We want to be able to reason on n-ary functions. We thus generalize
-   [Spec'] to take a list of arguments described by an [arg_type]. *)
-
-(* [Spec] matches on the list of argument types [arg_τ], producing a
-   series of nested calls, where the base case is identical to the
-   definition of [Spec']. *)
+(* To reason about curried n-ary function, and give them natural specifications
+   (i.e. specifications over the function when fully applied)
+   We introduce the predicate [Spec arg_τ c P]. *)
 
 (* [Spec arg_τ c P] should be read as "[c] is a function value, with
    arguments described by [arg_τ], and with specification [P]." *)
+
+(* [Spec] matches on the list of argument types [arg_τ], producing a series of
+   nested calls, where the base case asserts [P] over the full call. *)
 
 Equations Spec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) : Prop :=
 | Tbase X, c, P :=
     ∀ (x : X), P x (call c #x)
-| Tcons X TT, c, P :=
-    ∀ (x : X), pure_wp (call c #x) (λ c, Spec TT c (P x)) ⊥.
+| Tcons X τ', c, P :=
+    ∀ (x : X), pure_wp (call c #x) (λ c, Spec τ' c (P x)) ⊥.
 
 Arguments Spec {τ} c P.
 
-(* We can check on a simple example that [Spec] generalizes [Spec']. *)
+(* As a sanity check, we can check on simple examples that we get
+   the expected premise when we want to show that
+   a function satisfies a given specification [P]. *)
 
-Local Lemma pure_eval_anon_single `{Encode X} (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ :
+Local Lemma pure_eval_anon_unary `{Encode X}
+  (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ
+  :
   (∀ (v : X), P v (eval ((x, #v) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
 Proof.
   intros HP; simpl_eval; eapply pure_ret; encode.
 Qed.
 
-(* [Spec_mono] states that [Spec] is monotonic over specifications. *)
+Local Lemma pure_eval_anon_binary `{Encode X, Encode Y}
+  (P : τ[X; Y] -#> microvx -> Prop) η (x y : var) e ζ
+  :
+  (∀ (vx : X) (vy : Y), P vx vy (eval ((y, #vy) :: (x, #vx) :: η) e)) ->
+  pure (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) (λ c, Spec c P) ζ.
+Proof.
+  intros HP.
+  simpl_eval; eapply pure_ret; [ encode | ].
+  rewrite Spec_equation_2; intros vx; simpl; simpl_eval; eapply pure_wp_ret.
+  rewrite Spec_equation_1; intros vy; apply HP.
+Qed.
+
+(* [Spec] is monotonic over specification predicates. *)
 
 Lemma Spec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c :
   Spec c P ->
@@ -147,30 +178,16 @@ Qed.
     We then have the following equivalence:
     [Spec c P <-> ∀ args, aSpec c P args]. *)
 
-Equations aSpec_aux (τ : types) (c : val)
-  (P : τ -#> microvx -> Prop) (args : τ)
-  : Prop :=
+Equations aSpec_aux (τ : types)
+  (c : val) (P : τ -#> microvx -> Prop) (args : τ) : Prop :=
 | Tbase X, c, P, x :=
     P x (call c #x);
-| Tcons X args_τ', c, P, (x, args') :=
-    pure_wp (call c #x)
-      (λ c', aSpec_aux args_τ' c' (P x) args') ⊥
-.
+| Tcons X τ', c, P, (x, args') :=
+    pure_wp (call c #x) (λ c', aSpec_aux τ' c' (P x) args') ⊥.
 
-Definition aSpec {τ : types} (c : val)
-  (P : τ -#> microvx -> Prop) : τ -#> Prop :=
+Definition aSpec {τ : types}
+  (c : val) (P : τ -#> microvx -> Prop) : τ -#> Prop :=
   tbind (aSpec_aux τ c P).
-
-Ltac tapp_bind :=
-  repeat match goal with
-    | |- context[(tapp (tbind _))] =>
-        rewrite tapp_bind
-    | |- context[(fun _ => tapp (tbind _) _)] =>
-        repeat f_equal;
-        (* LATER: Fix this *)
-        apply functional_extensionality; intros;
-        by rewrite tapp_bind
-  end.
 
 Lemma unfold_aSpec `{Encode X}
   {τ : types}
@@ -181,33 +198,32 @@ Lemma unfold_aSpec `{Encode X}
   tapp (aSpec c P x) args =
     pure_wp (call c #x) (λ c', (aSpec c' (P x)) args) ⊥.
 Proof.
-  unfold aSpec; cbn.
-  tapp_bind; simp aSpec_aux; tapp_bind.
+  unfold aSpec; simpl.
+  rewrite tapp_bind; simp aSpec_aux.
+  f_equal; apply functional_extensionality; intros.
+  by rewrite tapp_bind.
 Qed.
 
-Ltac aSpec_simpl := unfold aSpec; simpl; simp aSpec_aux.
-Tactic Notation "aSpec_simpl" "in" hyp(H) :=
-  unfold aSpec in H; simpl in H; simp aSpec_aux in H.
+Lemma aSpec_equiv (τ : types) η f x e (P : τ -#> _) args :
+  aSpec (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
+  aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args.
+Proof.
+  destruct τ.
+  { cbv; simp aSpec_aux.
+    simpl; rewrite String.eqb_refl; simpl. reflexivity. }
+  unfold aSpec; rewrite !tapp_bind; destruct args; simp aSpec_aux.
+  simpl; rewrite String.eqb_refl; simpl. reflexivity.
+Qed.
 
-Ltac Spec_hyp_normalize :=
-  tapp_bind;
-  match goal with
-    | [ H : coerce_to_type (Tcons _ _) |- _] => destruct H
-    | [ H : context[ tapp (aSpec _ _) _] |- _] =>
-        unfold aSpec in H; simpl in H;
-        rewrite tapp_bind in H
-    | [ H : context[ tapp (aSpec _ _ _ _) _] |- _] =>
-        unfold aSpec in H; simpl in H;
-        rewrite tapp_bind in H
-    | [ H : aSpec _ _ _ |- _] =>
-        aSpec_simpl in H
-    | [ H : aSpec_aux _ _ _ _ _ |- _] =>
-        aSpec_simpl in H
-  end.
-
-Ltac Spec_auto :=
-  repeat Spec_hyp_normalize ; try aSpec_simpl;
-  rewrite ?tapp_bind.
+Lemma Spec_equiv (τ : types) η f x e (P : τ -#> _) :
+  Spec (VCloRec η [RecBinding f (AnonFun x e)] f) P =
+    Spec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P.
+Proof.
+  destruct τ.
+  { cbv; simp Spec.
+    simpl; rewrite String.eqb_refl; reflexivity. }
+  simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
+Qed.
 
 Lemma Spec_aSpec (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
   Spec c P ->
@@ -215,7 +231,7 @@ Lemma Spec_aSpec (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
 Proof.
   revert c.
   induction τ as [ | X HX arg_τ IH ].
-  { intros c HSpec. aSpec_simpl.
+  { intros c HSpec.
     simp Spec in HSpec; apply HSpec. }
   intros c HSpec args.
 
@@ -226,28 +242,40 @@ Proof.
   apply IH. apply HSpec'.
 Qed.
 
-Lemma aSpec_Spec (τ : types) (c : val) (P : τ -#> microvx -> Prop)
-  `{Inhabited τ}:
+Lemma aSpec_Spec (τ : types) (c : val) (P : τ -#> microvx -> Prop):
+  is_VCloRec_of_depth c τ ->
   (∀ args, (aSpec c P) args) ->
   Spec c P.
 Proof.
-  revert c.
-  induction τ as [ | X HX τ IH ];
-    intros c HSpec; simp Spec; intros x.
-  { specialize (HSpec x); apply HSpec. }
+  intros (η & f & x & e & -> & Hlambda) HaSpec'.
+  assert (is_VClo_of_depth (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) τ).
+  { unfold is_VClo_of_depth. repeat eexists. apply Hlambda. }
+  clear Hlambda.
+  rewrite Spec_equiv.
+  assert (∀# args : τ, aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args) as HaSpec.
+  { apply tforall_equiv; intros args; rewrite <- aSpec_equiv; apply HaSpec'. }
+  clear HaSpec'.
 
-  rewrite forall_unroll in HSpec; specialize (HSpec x).
-  assert (Inhabited τ).
-  { inversion H; inv inhabitant; constructor; eauto. }
-  eapply pure_wp_mono_ret; last first.
-  { intros c' HSpec'. apply IH; eauto.
-    apply HSpec'. }
-  eapply pure_wp_intersection.
-  intros args.
-  specialize (HSpec args).
-  simpl in HSpec.
-  rewrite unfold_aSpec in HSpec.
-  apply HSpec.
+  generalize dependent (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)).
+  clear f x e η.
+  induction τ as [ X HX | X HX τ IH ];
+    intros c is_VClo HSpec; simp Spec; intros vx.
+  { specialize (HSpec vx); apply HSpec. }
+
+  inversion is_VClo as (η & x & e & -> & Hlambda).
+  rewrite unfold_is_lambda_of_depth in Hlambda.
+  destruct Hlambda as (y & e' & -> & Hlambda).
+  simpl; simpl_eval. eapply pure_wp_ret.
+  apply IH.
+  - repeat eexists. apply Hlambda.
+  - rewrite tforall_equiv; intros args.
+    rewrite tforall_unroll in HSpec; specialize (HSpec vx).
+    rewrite tforall_equiv in HSpec; specialize (HSpec args).
+    unfold aSpec in HSpec; rewrite tapp_bind in HSpec.
+    simp aSpec_aux in HSpec. simpl in HSpec.
+    unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
+    eapply invert_pure_wp_ret in HSpec.
+    unfold aSpec; rewrite tapp_bind. apply HSpec.
 Qed.
 
 Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
@@ -354,28 +382,28 @@ Qed.
    described by a telescope [arg_τ], and returns the computation obtained
    by successively calling [c] on the arguments. *)
 
-Fixpoint call_tele {τ : types} (m : microvx) : τ -#> microvx :=
-  match τ with
-  | Tbase X => λ (x : X), bind m (λ c, call c #x)
-  | @Tcons X H arg_τ' =>
-      λ (x : X), @call_tele arg_τ' (bind m (λ c, call c #x))
-  end.
+(* Fixpoint call_tele {τ : types} (m : microvx) : τ -#> microvx := *)
+(*   match τ with *)
+(*   | Tbase X => λ (x : X), bind m (λ c, call c #x) *)
+(*   | @Tcons X H arg_τ' => *)
+(*       λ (x : X), @call_tele arg_τ' (bind m (λ c, call c #x)) *)
+(*   end. *)
 
 (* [prove_Spec_rec] gives an induction principle for [Spec] by
    well-foundedness over the argument type. *)
 
 Lemma prove_Spec_rec
   (τ : types)
-  {Inh_arg_τ: Inhabited τ}
   (R : τ -> τ -> Prop) c
   (P : τ -#> microvx -> Prop) :
+  is_VCloRec_of_depth c τ ->
   wf R ->
   (∀# (args : τ),
     (∀# sargs, R sargs args -> aSpec c P sargs) ->
     aSpec c P args)->
   @Spec τ c P.
 Proof.
-  intros Hwf HP.
+  intros is_VCloRec Hwf HP.
   apply aSpec_Spec; eauto.
   intros args.
 
@@ -434,26 +462,6 @@ Definition unfold_spec (τ : types) η f x e
 Arguments unfold_spec τ /.
 Strategy transparent [ unfold_spec ].
 
-Lemma aSpec_equiv (τ : types) η f x e (P : τ -#> _) args :
-  aSpec (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
-  aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args.
-Proof with Spec_auto.
-  destruct τ...
-  { cbv; simp aSpec_aux.
-    simpl; rewrite String.eqb_refl; simpl. reflexivity. }
-  cbn...
-  simpl; rewrite String.eqb_refl; simpl. reflexivity.
-Qed.
-
-Lemma Spec_equiv (τ : types) η f x e (P : τ -#> _) :
-  Spec (VCloRec η [RecBinding f (AnonFun x e)] f) P =
-    Spec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P.
-Proof with Spec_auto.
-  destruct τ.
-  { cbv; simp Spec.
-    simpl; rewrite String.eqb_refl; reflexivity. }
-  simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
-Qed.
 
 (* If [c] is a lambda of depth [arg_τ], then
    [Spec c (λ args, Q args -> P args)] is equivalent to
@@ -569,7 +577,7 @@ Lemma by_unfold_spec (τ : types) η f x e R P :
   (∀# args,
     (∀# sargs, R sargs args -> aSpec c P sargs) ->
     aSpec c P args).
-Proof with Spec_auto.
+Proof.
   unfold unfold_spec; intros HP.
   apply tforall_equiv; intros args IHargs.
   pose proof (invert_unfold_spec τ args η f x e R P HP) as Hclo.
@@ -597,7 +605,7 @@ Proof with Spec_auto.
   induction τ as [ X HX | X HX arg_τ IH]; intros x e η0 Hbp Hclo.
 
   (* Base case: the telescope is empty. *)
-  { cbv... apply Hbp.
+  { cbv. simp aSpec_aux. apply Hbp.
     apply guarded_aSpec_Spec; [ apply Hclo | apply IHargs ]. }
 
   (* Induction step: the telescope has some head type [Y]. *)
@@ -616,12 +624,12 @@ Proof with Spec_auto.
   specialize (IH IHargs).
   specialize (IH y e' ((x, #vx) :: η0)).
   (* We now step forward by evaluating [pure (eval .. (EAnonFun y e')) (λ c', ..)]. *)
-  simpl... simp aSpec_aux.
+  unfold aSpec; rewrite tapp_bind; simp aSpec_aux.
   simpl; simpl_eval; simpl.
   apply pure_wp_ret.
 
-  apply IH. apply Hbp.
-  apply Hclo.
+  unfold aSpec in IH; rewrite tapp_bind in IH.
+  apply IH; [ apply Hbp | apply Hclo ].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -663,6 +671,7 @@ Lemma pure_eval_letrec `{Encode X} (τ : types) `{Inhabited τ}
 Proof.
   intros Hwf Hmkspec He2. simpl_eval. eapply He2.
   eapply prove_Spec_rec; eauto.
+  { eapply invert_unfold_spec; eauto. by inversion H0. }
   apply by_unfold_spec.
   apply Hmkspec.
 Qed.
@@ -974,6 +983,7 @@ Proof.
   unfold struct_items. simpl_eval_sitems.
   eapply He2.
   eapply prove_Spec_rec; eauto.
+  { eapply invert_unfold_spec; eauto. by inversion H. }
   apply by_unfold_spec.
   apply Hmkspec.
 Qed.
