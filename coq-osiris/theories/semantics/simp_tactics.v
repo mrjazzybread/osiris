@@ -134,6 +134,14 @@ Proof.
   eauto with simp.
 Qed.
 
+Lemma advance_please η e m' :
+  simp (eval η e) m' →
+  simp (please_eval η e) m'.
+Proof.
+  intros.
+  apply advance_SimpEval. rewrite try2_ret_right. assumption.
+Qed.
+
 Lemma advance_SimpEvalThrow {A} η e (k : val → micro A exn) m' :
   simp (bind (eval η e) k) m' →
   simp (Stop CEval (η, e) (glue2 k throw)) m'.
@@ -282,6 +290,14 @@ Lemma advance_SimpHandleThrow {A E}
   simp (Handle m1 k) m2.
 Proof.
   eauto with simp.
+Qed.
+
+Lemma unfold_SimpWrapEvalBranches m2 η bs (o : outcome3 val exn) :
+  simp (o ← wrap_outcome η bs o;
+        eval_branches η o bs) m2 ->
+  simp (wrap_eval_branches η bs o) m2.
+Proof.
+  simpl_wrap_eval_branches; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -666,6 +682,7 @@ with simp1 :=
   | simple eapply advance_SimpEvalRetThrow; simp0
   | simple eapply advance_SimpEvalThrow; simp0
   | simple eapply advance_SimpEval; simp0
+  | simple eapply advance_please; simp0
       (*| simple eapply advance_SimpLoopThrow; simp0 *)
       (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0
@@ -811,6 +828,8 @@ with simp1_inspect :=
           (* Attempt 2. Reduce m to a throw. *)
           simple eapply advance_SimpHandleThrow; [ simp0; simp_close | simp0; simp_close ]
         ]
+  | wrap_eval_branches _ _ _ =>
+      simple eapply unfold_SimpWrapEvalBranches; simp0
   | Stop CFlip ?u ?k =>
       simple eapply advance_SimpFlipAgree; [ simp0; simp_close
                                            | simp0; simp_close ]

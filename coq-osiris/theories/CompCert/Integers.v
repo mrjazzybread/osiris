@@ -95,14 +95,14 @@ Remark half_modulus_power : half_modulus = two_p (zwordsize - 1).
   reflexivity.
 Qed.
 
-(* rseassau *)
+(* result added for osiris *)
 Lemma le_half_two_p n : (n <= 2 ^ (n - 1))%nat.
 Proof.
   induction n; [ lia | ].
   destruct n; simpl in *; rewrite ?Nat.sub_0_r in IHn; lia.
 Qed.
 
-(* rseassau *)
+(* result added for osiris *)
 Remark zwordsize_le_half_modulus: zwordsize <= half_modulus.
 Proof.
   rewrite half_modulus_power; unfold zwordsize, wordsize.
@@ -113,7 +113,7 @@ Proof.
   apply inj_le, le_half_two_p.
 Qed.
 
-(* rseassau *)
+(* result added for osiris *)
 Lemma tl_suc_two_p n : (n > 1 -> S n < 2 ^ n)%nat.
 Proof.
   do 2 (destruct n; [ lia | intros ]).
@@ -124,7 +124,7 @@ Proof.
   lia.
 Qed.
 
-(* rseassau *)
+(* result added for osiris *)
 Lemma lt_half_two_p n : (n > 2 -> n < 2 ^ (n - 1))%nat.
 Proof.
   do 2 (destruct n; [ lia | intros ]).
@@ -132,7 +132,7 @@ Proof.
   apply tl_suc_two_p; lia.
 Qed.
 
-(* rseassau *)
+(* result added for osiris *)
 Remark zwordsize_lt_half_modulus: zwordsize > 2 -> zwordsize < half_modulus.
 Proof.
   rewrite half_modulus_power; unfold zwordsize, wordsize.
@@ -399,7 +399,7 @@ Proof.
   generalize wordsize_pos; lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma div2_le_self x :
   0 <= x ->
   x / 2 <= x.
@@ -407,7 +407,7 @@ Proof.
   intros. generalize (Z.mul_div_le x 2). lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma div2_lt_self x :
   0 < x ->
   x / 2 < x.
@@ -448,7 +448,7 @@ Proof.
   unfold max_signed. generalize half_modulus_pos. lia.
 Qed.
 
-(* fpottier & rseassau *)
+(* result added for osiris *)
 Remark wordsize_max_signed: zwordsize > 2 -> zwordsize <= max_signed.
 Proof.
   unfold max_signed. generalize zwordsize_lt_half_modulus. lia.
@@ -472,19 +472,19 @@ Proof.
   generalize half_modulus_pos. lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Remark max_signed_half_modulus: max_signed < half_modulus.
 Proof. unfold max_signed. lia. Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Remark half_modulus_le_modulus: half_modulus <= modulus.
 Proof. generalize modulus_pos. rewrite !half_modulus_modulus. lia. Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Remark max_signed_modulus: max_signed < modulus.
 Proof. generalize max_signed_half_modulus, half_modulus_le_modulus. lia. Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Remark half_modulus_max_unsigned:
   half_modulus <= max_unsigned.
 Proof.
@@ -494,7 +494,7 @@ Proof.
   lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Remark max_unsigned_modulus: max_unsigned < modulus.
 Proof. unfold max_unsigned. lia. Qed.
 
@@ -800,7 +800,7 @@ Proof.
   elim H. rewrite <- (repr_signed x). rewrite <- (repr_signed y). congruence.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma eq_repr_repr z1 z2 :
   min_signed <= z1 <= max_signed ->
   min_signed <= z2 <= max_signed ->
@@ -813,7 +813,7 @@ Proof.
   try reflexivity; lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma eq_repr_repr_unsigned z1 z2 :
   0 <= z1 <= max_unsigned ->
   0 <= z2 <= max_unsigned ->
@@ -901,7 +901,7 @@ Proof.
   rewrite unsigned_one. right; lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Addition of machine integers corresponds to addition of ideal integers. *)
 Lemma add_repr_repr (i j : Z) :
   add (repr i) (repr j) = repr (i + j).
@@ -1006,7 +1006,7 @@ Proof.
   rewrite unsigned_zero. apply Zmod_unique with 0. lia. lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Subtraction of machine integers corresponds to subtraction of ideal integers. *)
 Lemma sub_repr_repr (i j : Z) :
   sub (repr i) (repr j) = repr (i - j).
@@ -1101,7 +1101,7 @@ Proof.
   apply eqm_mult; apply eqm_sym; apply eqm_signed_unsigned.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Multiplication of machine integers corresponds to multiplication
    of ideal integers. *)
 Lemma mul_repr_repr (i j : Z) :
@@ -1288,7 +1288,7 @@ Proof.
   unfold Q, R; rewrite H2; auto.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Signed division of machine integers corresponds to Round-Toward-Zero
    Euclidean division, also known as [Z.quot] and [÷]. *)
 Lemma divs_repr_repr x y :
@@ -1299,7 +1299,7 @@ Proof.
   intros. unfold divs. rewrite !signed_repr by assumption. reflexivity.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Signed remainder of machine integers corresponds to Round-Toward-Zero
    Euclidean remainder, also known as [Z.rem]. *)
 Lemma mods_repr_repr x y :
@@ -1473,7 +1473,7 @@ Proof.
   intros. unfold and. rewrite testbit_repr; auto. rewrite Z.land_spec; intuition.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma and_repr_repr x y :
   and (repr x) (repr y) = repr (Z.land x y).
 Proof.
@@ -1490,7 +1490,7 @@ Proof.
   intros. unfold or. rewrite testbit_repr; auto. rewrite Z.lor_spec; intuition.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma or_repr_repr x y :
   or (repr x) (repr y) = repr (Z.lor x y).
 Proof.
@@ -1507,7 +1507,7 @@ Proof.
   intros. unfold xor. rewrite testbit_repr; auto. rewrite Z.lxor_spec; intuition.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma xor_repr_repr x y :
   xor (repr x) (repr y) = repr (Z.lxor x y).
 Proof.
@@ -1524,7 +1524,7 @@ Proof.
   intros. unfold not. rewrite bits_xor; auto. rewrite bits_mone; auto.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma not_repr x :
   not (repr x) = repr (Z.lnot x).
 Proof.
@@ -1917,7 +1917,7 @@ Proof.
   apply Z.shiftl_spec_high. lia. lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma shl_repr_repr' x y :
   0 <= y <= max_unsigned ->
   shl (repr x) (repr y) = repr (Z.shiftl x y).
@@ -1936,7 +1936,7 @@ Proof.
     eapply eqm_unsigned_repr. }
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Local Lemma a_fortiori y :
   0 <= y <= zwordsize ->
   0 <= y <= max_unsigned.
@@ -1944,7 +1944,7 @@ Proof.
   generalize zwordsize_le_max_unsigned; intro. lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Same lemma as above, with a stronger assumption about [y]. *)
 Lemma shl_repr_repr x y :
   0 <= y <= zwordsize ->
@@ -1967,7 +1967,7 @@ Proof.
   lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* This lemma requires [x] to be nonnegative. Indeed, if [x] is negative
    then the lemma is false. [shru] introduces zeroes on the left, whereas
    [Z.shiftr x] inserts ones if [x] is negative. *)
@@ -1990,7 +1990,7 @@ Proof.
     fold modulus. generalize max_unsigned_modulus; intro. lia. }
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Same lemma as above, with a stronger assumption about [y]. *)
 Lemma shru_repr_repr x y :
   0 <= x <= max_unsigned ->
@@ -2012,7 +2012,7 @@ Proof.
   lia.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 Lemma shr_repr_repr' x y :
   min_signed <= x <= max_signed ->
   0 <= y <= max_unsigned ->
@@ -2027,7 +2027,7 @@ Proof.
   reflexivity.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* Same lemma as above, with a stronger assumption about [y]. *)
 Lemma shr_repr_repr x y :
   min_signed <= x <= max_signed ->
@@ -3604,7 +3604,7 @@ Proof.
   intros. rewrite <- negb_orb. rewrite <- not_ltu. rewrite negb_involutive. auto.
 Qed.
 
-(* fpottier *)
+(* result added for osiris *)
 (* If [x] and [y] are representable as signed integers, then comparing
    them is the same as comparing their representations. *)
 Lemma lt_repr_repr x y :

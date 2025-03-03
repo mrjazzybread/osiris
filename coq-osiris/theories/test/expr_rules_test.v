@@ -275,7 +275,7 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #1⌝))%I.
   { iApply ewp_EInt. encode. }
 
-  iIntros_RET "->". fold deep_match.
+  iIntros_RET "->".
   next_branch.
   iApply ewp_EConstant. iExists true. auto.
 Qed.

@@ -7,29 +7,65 @@ From osiris.program_logic.pure Require Import wp.
 
 (* TODO: Comment -- Explain encode *)
 
-(* -------------------------------------------------------------------------- *)
-(* Value predicates, which are predicates over carrier type [A], which are
-    encodable types. *)
-Definition returns {A} `{Encode A} (φ : A -> Prop):=
-  λ v, ∃ a, v = #a ∧ φ a.
+(* One justification for [Observe] appears in pure_rules.v, to generalize
+   [pure_bind] to more than just [@bind val val] *)
 
 (* -------------------------------------------------------------------------- *)
-(** The [total] judgement *)
 
-(* [total m φ] states that [m] is a pure computation that will reduce to a
-    value satisfying the predicate [φ]. It is total in the sense that
-    the computation may not raise any exceptions. *)
-Class TotalJudgement {A} {EncA : Encode A} {A'} :=
-  total : forall {E}, micro A' E -> (A -> Prop)-> Prop.
+(* Given an encodable value of type [A], it can be observed as a particular
+   value [V]. *)
+Class Observe A (EncA: Encode A) V : Type :=
+  { observe : A -> V }.
+
+Arguments Observe A {EncA} V.
+Arguments observe {_ _ _ _}.
+
+Global Instance observe_encode {A} `{Encode A}:
+  Observe A val :=
+  {| observe := encode |}.
+
+(* Useful for [pure (evals η _) φ ψ]. *)
+Global Instance observe_list {A} `{Encode A}:
+  Observe (list A) (list val) | 100 :=
+  {| observe := (map encode.encode) |}.
+
+(* NOTE : Do not declare an instance of [Observe val val], as it will
+   instantiate evars eagerly to this instance when it is not desired.
+   (Even if its weight is very high.) *)
+
+Notation "♯ x" := (observe x) (at level 5).
+
+(* -------------------------------------------------------------------------- *)
 
 (* TODO Comment *)
-#[global] Instance TotalJudgement_val {A} {EncA : Encode A} :
-  @TotalJudgement A EncA val | 10 :=
-  fun _ a Φ => pure_wp a (returns Φ) ⊥.
 
-#[global] Instance TotalJudgement_poly {A} {EncA : Encode A} :
-  @TotalJudgement A EncA A | 100 :=
-  fun _ a Φ => pure_wp a Φ ⊥.
+Lemma solve_observe_nil A (Enc:Encode A) :
+  forall (xs : list A),
+    [] = xs →
+    nil = ♯xs.
+Proof. intros; subst; cbn; eauto. Qed.
+
+Lemma solve_observe_cons {A} {Enc: Encode A} :
+  forall (v : val) (a : A) tl vtl (x : list A),
+    a :: tl = x ->
+    v = # a ->
+    vtl = ♯ tl ->
+    v :: vtl = ♯ x.
+Proof.
+  induction tl; intros; subst; eauto.
+Qed.
+
+Global Hint Extern 0 (_ :: _ = ♯ _) =>
+  simple eapply solve_observe_cons : encode.
+Global Hint Extern 100 ([] = ♯ _) =>
+  simple eapply solve_observe_nil: encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* TODO Comment *)
+
+Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
+  λ (v : V), ∃ a, v = observe a ∧ φ a.
 
 (* -------------------------------------------------------------------------- *)
 (** The [pure] judgement *)
@@ -37,47 +73,36 @@ Class TotalJudgement {A} {EncA : Encode A} {A'} :=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-Class PureJudgement {A} {EncA : Encode A} {A'} :=
-  pure : forall {E}, micro A' E -> (A -> Prop) -> (E -> Prop) -> Prop.
 
 (* TODO Comment *)
-#[global] Instance PureJudgement_val {A} {EncA : Encode A} :
-  @PureJudgement A EncA val | 10 :=
-  fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
 
-#[global] Instance PureJudgement_poly {A} {EncA : Encode A} :
-  @PureJudgement A EncA A | 100 :=
-  fun _ a Φ Ψ => pure_wp a Φ Ψ.
+Definition pure `{Observe A V} :
+  forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop :=
+    fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
 
 (* -------------------------------------------------------------------------- *)
-(* Notations *)
 
-Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
-  (total (eval η e) Φ)
-   (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
+(* Notations *)
 
 Notation "η ⊢ '{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
-Notation "'{' e 'ensures' Φ '}' " :=
-  (total e Φ)
-   (at level 80, e, Φ at level 100,
-     format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
-
 Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure e Φ ψ)
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
-Opaque TotalJudgement_val.
-Opaque TotalJudgement_poly.
-Opaque PureJudgement_val.
-Opaque PureJudgement_poly.
-Opaque pure.
-Opaque total.
+Notation "'{' e 'ensures' Φ '}'" :=
+  (pure e Φ ⊥)
+   (at level 80, e, Φ at level 100,
+     format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
+
+Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
+  (pure (eval η e) Φ ⊥)
+   (at level 80, e, Φ at level 100,
+     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 (* -------------------------------------------------------------------------- *)
 
@@ -93,8 +118,6 @@ Ltac returns_eauto :=
 
 #[export]
   Hint Extern 1 (pure_wp _ (returns _) _) => returns_eauto; by firstorder : pure.
-#[export]
-  Hint Extern 1 (total _ _) => returns_eauto; by firstorder : pure.
 #[export]
   Hint Extern 1 (pure _ _ _) => returns_eauto; by firstorder : pure.
 #[export]

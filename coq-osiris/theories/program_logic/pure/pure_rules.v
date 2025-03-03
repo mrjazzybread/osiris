@@ -7,32 +7,6 @@ From osiris.program_logic.pure Require Export wp judgements.
 
 Section pure_rules.
 
-  Context {A E : Type} {EncA : Encode A}.
-
-  Implicit Type φ : A -> Prop.
-  Implicit Type ψ : E -> Prop.
-
-  (** *Basic properties about [returns]. *)
-
-  (* [returns] is idempotent. *)
-
-  Lemma returns_idem (ψ : A -> Prop):
-    ∀ a : val, returns ψ a <-> returns (returns ψ) a.
-  Proof.
-    intros; split; intros (?&->&?).
-    - by repeat econstructor.
-    - destruct H as (?&->&?); by repeat econstructor.
-  Qed.
-
-  (* [returns] is monotone. *)
-
-  Lemma returns_mono (φ ψ : A -> Prop):
-    (forall a, φ a -> ψ a) ->
-    ∀ a : val, returns φ a  -> returns ψ a.
-  Proof.
-    intros ? * (?&->&?); repeat econstructor; eauto.
-  Qed.
-
   (** *Basic reasoning rules for [pure]. *)
 
   (* A reasoning rule for [ret]. *)
@@ -41,8 +15,9 @@ Section pure_rules.
     more widely applicable. A subgoal of the form [v = #a], where [a] is
     a Coq metavariable, can be solved by the tactic [encode]. *)
 
-  Lemma pure_ret (φ : A → Prop) ψ v a :
-    v = #a →
+  Lemma pure_ret `{Observe A V} {E}
+    (φ : A → Prop) ψ (v : V) a :
+    v = ♯ a →
     φ a →
     pure (E := E) (ret v) φ ψ.
   Proof.
@@ -51,56 +26,64 @@ Section pure_rules.
 
   (* A reasoning rule for ret that can instantiate the goal when it is an evar *)
 
-  Lemma pure_ret_eq (a : A) ψ :
-    pure (ret #a) (λ a', a' = a) ψ.
+  Lemma pure_ret_eq `{Observe A V} {E}
+    (a : A) ψ :
+    pure (E := E) (V := V) (ret ♯a) (λ a', a' = a) ψ.
   Proof.
     intros; eapply pure_ret; eauto.
   Qed.
 
-
-  Lemma pure_returns (a : val) (k : val -> micro val E) φ ψ:
-    pure (k a) φ ψ ->
-    returns (λ v : val, pure (k v) φ ψ) a.
+  Lemma pure_returns `{Observe A V} {E}
+    (a : val) (k : val -> micro V E) (φ : A -> _) ψ:
+    pure (V := V) (k a) φ ψ ->
+    returns (V := val) (λ v , pure (k v) φ ψ) a.
   Proof.
     intros; eauto with pure.
   Qed.
 
-  Lemma pure_throw φ ψ e :
+  Lemma pure_throw `{Observe A V} {E}
+    (φ : A -> _) (ψ : _ -> Prop) e :
     ψ e →
-    pure (E := E) (throw e) φ ψ.
+    pure (E := E) (V := V) (throw e) φ ψ.
   Proof.
     intros; by apply pure_wp_throw.
   Qed.
 
   (* The consequence rule. *)
 
-  Lemma pure_strong_mono m φ φ' ψ ψ' :
-    pure m φ ψ →
+  Lemma pure_mono `{Observe A V} {E}
+    m (φ φ' : A -> Prop) (ψ ψ' : _ -> Prop) :
+    pure (E := E) m φ ψ →
     (∀ a, φ a → φ' a) →
     (∀ a, ψ a → ψ' a) →
-    pure m φ' ψ'.
+    pure (V := V) m φ' ψ'.
   Proof.
     intros; eapply pure_wp_mono; [ eauto | |]; firstorder.
   Qed.
 
-  Lemma pure_mono m φ φ' ψ :
-    pure m φ ψ →
+  Lemma pure_ret_mono `{Observe A V} {E}
+    m (φ φ' : A -> Prop) (ψ : _ -> Prop) :
+    pure (E := E) m φ ψ →
     (∀ a, φ a → φ' a) →
-    pure m φ' ψ.
+    pure (V := V) m φ' ψ.
   Proof.
-    intros; eapply pure_strong_mono ; eauto.
+    intros; eapply pure_mono ; eauto.
   Qed.
 
-  Lemma pure_exn_mono m φ ψ ψ':
-    pure m φ ψ →
+  Lemma pure_exn_mono `{Observe A V} {E}
+    m (φ : A -> Prop) (ψ ψ' : _ -> Prop) :
+    pure (E := E) m φ ψ →
     (∀ a, ψ a → ψ' a) →
-    pure m φ ψ'.
+    pure (V := V) m φ ψ'.
   Proof.
-    intros; eapply pure_strong_mono ; eauto.
+    intros; eapply pure_mono ; eauto.
   Qed.
 
-  Lemma pure_simp {φ ψ} (m m' : micro A E) :
-    simp m m' → pure m' φ ψ → pure m φ ψ.
+  Lemma pure_simp `{Observe A V} {E}
+    (φ : A -> Prop) ψ m m' :
+    simp m m' →
+    pure m' φ ψ →
+    pure (E := E) (V := V) m φ ψ.
   Proof.
     by eapply pure_wp_simp.
   Qed.
@@ -110,12 +93,14 @@ Section pure_rules.
   (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
     so the handler [z] is dead and no proof obligation bears on it. *)
 
-  Lemma pure_try2 {B E'} `{Encode B} (m : micro val _) (h : outcome2 val E' -> micro val E)
-    φ (φ' : B -> _) ψ (ψ' : E' -> Prop):
+  (* TODO Comment on generalization *)
+  Lemma pure_try2 `{Observe A1 V1} `{Observe A2 V2} {E1 E2}
+    (m : micro V1 _) (h : outcome2 V1 E1 -> micro V2 E2)
+    (φ : A2 -> _) (φ' : A1 -> _) ψ (ψ' : E1 -> Prop):
     pure m φ' ψ' →
-    (∀ a, φ' a → pure (continue h #a) φ ψ) →
+    (∀ a, φ' a → pure (continue h ♯a) φ ψ) →
     (∀ a, ψ' a → pure (discontinue h a) φ ψ) →
-    pure (try2 m h) φ ψ.
+    pure (V := V2) (try2 m h) φ ψ.
   Proof.
     intros; eapply pure_wp_try2_conseq; eauto;
     simpl; intros v Hv; eauto with pure.
@@ -123,32 +108,39 @@ Section pure_rules.
 
   (* A reasoning rule for [try]; corollary of [pure_try2] *)
 
-  Corollary pure_try {B} `{Encode B} (m : micro val _) k z φ (φ' : B -> _)  ψ :
+  Corollary pure_try `{Observe A1 V1} `{Observe A2 V2} {E}
+    (m : micro V1 _) k z (φ : A2 -> _) (φ' : A1 -> _)  ψ :
     pure m φ' ψ →
-    (∀ a, φ' a → pure (k #a) φ ψ) →
+    (∀ a, φ' a → pure (k ♯a) φ ψ) →
     (∀ a, ψ a → pure (z a) φ ψ) →
-    pure (try m k z) φ ψ.
+    pure (E := E) (V := V2) (try m k z) φ ψ.
   Proof.
     intros; eapply pure_try2; eauto.
   Qed.
 
   (* A reasoning rule for [bind]. *)
 
-  (* This is [@bind val val]. Attempting to apply this lemma to [@bind A B]
-    where [A] and [B] are types other than [val] will not work! *)
+  (* Without [Observe], this bind type was restricted (it would be [@bind val val]).
+    Attempting to apply this lemma to [@bind A1 A2] where [A1] and [A2] are types other
+    than [val] did not work. Thanks to [Observe], now we can vary the Value types
+    and the injection from [A1] and [A2]. *)
 
-  Lemma pure_bind {B} `{Encode B} m k φ (φ' : B -> _) ψ :
-    pure m φ' ψ →
-    (∀ a, φ' a → pure (k #a) φ ψ) →
-    pure (bind m k) φ ψ.
+  (* TODO Comment on generalization *)
+  Lemma pure_bind `{Observe A1 V1} `{Observe A2 V2} {E}
+    m (k : V1 -> micro V2 _) (φ : A2 -> _) (φ' : A1 -> _) ψ :
+    pure (V := V1) (E := E) m φ' ψ →
+    (∀ a, φ' a → pure (V := V2) (k ♯a) φ ψ) →
+    pure (V := V2) (bind m k) φ ψ.
   Proof.
     rewrite bind_as_try.
     intros; eapply pure_try; intros; eauto with pure.
   Qed.
 
-  Lemma pure_strong_bind {B} `{Encode B} m k φ (φ' : B -> _) ψ ψ' :
-    pure m φ' ψ' →
-    (∀ a, φ' a → pure (k #a) φ ψ) →
+  Lemma pure_strong_bind `{Observe A1 V1} `{Observe A2 V2} {E}
+    m (k : V1 -> micro V2 _)
+    (φ : A2 -> _) (φ' : A1 -> _) ψ ψ' :
+    pure (E := E) m φ' ψ' →
+    (∀ a, φ' a → pure (k ♯ a) φ ψ) →
     (∀ a, ψ' a → ψ a) →
     pure (bind m k) φ ψ.
   Proof.
@@ -157,27 +149,98 @@ Section pure_rules.
     eapply pure_wp_mono; eauto.
   Qed.
 
-  Lemma pure_bind_unary m k (φ : A -> Prop) ψ :
-    total m (λ (a : A), pure (k #a) φ ψ) →
-    pure (bind m k) φ ψ.
+  Lemma pure_bind_unary `{Observe A V} {E}
+    m (k : V -> micro V _) (φ : A -> Prop) ψ :
+    pure m (λ (a : A), pure (k ♯ a) φ ψ) ⊥ →
+    pure (E := E) (bind m k) φ ψ.
   Proof.
     intros; eapply pure_strong_bind; eauto; done.
   Qed.
-
-  (* A reasoning rule for [Par m1 m2 k z]. *)
 
   (* We cannot give a reasoning rule for [par m1 m2] because its type is
     [micro (val * val)], not [micro val]. However, we can give a rule
     for [Par m1 m2 k z] if [k] transforms [val * val] into [val]. *)
 
-  Lemma pure_par `{Encode B} {X Y}
-    m1 m2 k (φ1 : A → Prop) (φ2 : B → Prop) (φ : A * B → Prop)
-    (ψ : X -> Prop) (ψ' : Y -> Prop) z :
-    pure (E := X) m1 φ1 ψ →
-    pure (E := X) m2 φ2 ψ →
-    (∀ a1 a2, φ1 a1 → φ2 a2 → pure (k (#a1, #a2)) φ ψ') →
+  (* A reasoning rule for [Par m1 m2 k z]. *)
+
+  (* TODO Comment on generalization *)
+  Lemma pure_Par
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
+    (m1 : micro V1 _) (m2 : micro V2 _)
+    (φ : A3 -> Prop) ψ
+    (k : outcome2 (V1 * V2) E' → micro V3 E) :
+    pure m1
+      (λ a1 : A1,
+        pure m2
+          (λ a2 : A2,
+              pure (continue k (♯ a1, ♯ a2)) φ ψ)
+          (λ e, pure (discontinue k e) φ ψ))
+      (λ e, pure (discontinue k e) φ ψ) →
+    pure m2
+      (λ a2 : A2,
+        pure m1
+          (λ a1 : A1,
+              pure (continue k (♯ a1, ♯ a2)) φ ψ)
+          (λ e, pure (discontinue k e) φ ψ))
+      (λ e, pure (discontinue k e) φ ψ) →
+    pure (Par m1 m2 k) φ ψ.
+  Proof.
+    intros; eapply pure_wp_Par;
+      do 2 (eapply pure_wp_mono; eauto;
+      intros; returns_eauto; eauto).
+  Qed.
+
+  (* Sequentializations of previous lemmas, considering the LHS first *)
+
+  Lemma pure_par_seq_strong
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
+    (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E')
+    (φ : A3 → Prop) ψ
+  :
+    pure (E := E) m1 (λ a1 : A1,
+      pure m2 (λ a2 : A2,
+        pure (continue k (♯ a1, ♯ a2)) φ ψ) ⊥) ⊥ →
+    pure (E := E') (Par m1 m2 k) φ ψ.
+  Proof.
+    intros Hm1.
+    apply pure_wp_Par_vals_left.
+    eapply (pure_wp_mono_ret _ Hm1); intros ? (a1 & -> & Hm2).
+    eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
+    eauto.
+  Qed.
+
+  Lemma pure_par_seq
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
+    (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E')
+    (φ : A3 → Prop) ψ
+  :
+    pure (E := E) m1
+      (λ a1,
+        pure m2
+          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ψ)
+          (λ e : E, pure (discontinue k e) φ ψ))
+      ⊥ →
+    pure (E := E') (Par m1 m2 k) φ ψ.
+  Proof.
+    intros Hm1.
+    apply pure_wp_Par_val_left.
+    eapply (pure_wp_mono_ret _ Hm1); intros ? (a1 & -> & Hm2).
+    eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
+    eauto.
+  Qed.
+
+  Lemma pure_par_glue2
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
+    (m1 : micro V1 E1) (m2 : micro V2 E1) (k : V1 * V2 -> micro V3 E2)
+    (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A3 → Prop)
+    (ψ : E1 -> Prop) (ψ' : E2 -> Prop) (z : E1 -> micro V3 E2) :
+    pure (E := E1) m1 φ1 ψ ->
+    pure (E := E1) m2 φ2 ψ ->
+    (∀ (a1 : A1) (a2 : A2),
+        φ1 a1 → φ2 a2 →
+        pure (V := V3) (k (♯ a1, ♯ a2)) φ ψ') ->
     (∀ e, ψ e → pure (z e) φ ψ') ->
-    pure (E := Y) (Par m1 m2 (glue2 k z)) φ ψ'.
+    pure (E := E2) (Par m1 m2 (glue2 k z)) φ ψ'.
   Proof.
     intros Hm1 Hm2 Hentail1 Hentail2. rewrite <- try_par.
     eapply pure_wp_try_conseq; eauto.
@@ -187,57 +250,46 @@ Section pure_rules.
     { intros v. tauto. }
   Qed.
 
-  Lemma pure_par_cont `{Encode B} {X Y}
-    m1 m2 k (φ1 : A → Prop) (φ2 : B → Prop) (φ : A * B → Prop)
-    (ψ : X -> Prop) (ψ' : Y -> Prop):
-    pure (E := X) m1 φ1 ψ →
+  Lemma pure_par_cont
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
+    m1 m2 k
+    (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
+    (ψ : E1 -> Prop) (ψ' : E2 -> Prop):
+    pure (E := E1) m1 φ1 ψ →
     pure m2 φ2 ψ →
-    (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (#a1, #a2)) φ ψ') →
+    (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (♯ a1, ♯ a2)) φ ψ') →
     (forall e, ψ e -> pure (discontinue k e) φ ψ') ->
-    pure (E := Y) (Par m1 m2 k) φ ψ'.
+    pure (E := E2) (Par m1 m2 k) φ ψ'.
   Proof.
     intros. eapply pure_wp_Par_conseq; eauto; firstorder subst; eauto.
   Qed.
 
-  (* Sequentializations of previous lemmas, considering the LHS first *)
-
-  (* TODO: I do not seem to be able to use those, for example in pure_wp_eval.v's
-  [pure_wp_eval_pair] *)
-
-  Lemma pure_par_seq `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ z
-  :
-    total (E := X) m1 (λ a1 : A,
-      total m2 (λ a2 : B, pure (k (#a1, #a2)) φ ψ)) →
-    pure (Par m1 m2 (glue2 k z)) φ ψ.
-  Proof.
-    intros Hm1.
-    apply pure_wp_Par_vals_left.
-    eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
-    eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
-    eauto.
-  Qed.
-
-  Lemma pure_par_seq_cont `{Encode B} {X} m1 m2 k (φ : A * B → Prop) ψ
-  :
-    total (E := X) m1 (λ a1 : A,
-      total m2 (λ a2 : B, pure (continue k (#a1, #a2)) φ ψ)) →
-    pure (Par m1 m2 k) φ ψ.
-  Proof.
-    intros Hm1.
-    apply pure_wp_Par_vals_left.
-    eapply (pure_wp_mono_ret _ Hm1). intros ? (a1 & -> & Hm2).
-    eapply (pure_wp_mono_ret _ Hm2). intros ? (a2 & -> & Hk).
-    eauto.
-  Qed.
-
   (* A reasoning rule for [choose]. *)
 
-  Lemma pure_choose m1 m2 (φ : A → Prop) (ψ : exn -> Prop) :
-    pure m1 φ ψ →
+  Lemma pure_choose `{Observe A V} m1 m2 (φ : A → Prop) (ψ : exn -> Prop) :
+    pure (V := V) m1 φ ψ →
     pure m2 φ ψ →
     pure (choose m1 m2) φ ψ.
   Proof.
     apply pure_wp_choose.
+  Qed.
+
+  (* Inversion lemmas on [pure]. *)
+
+  Lemma invert_pure_ret `{Observe A V} {E}
+    (v : V) (φ : A → Prop) ψ :
+    pure (E := E) (ret v) φ ψ →
+    returns φ v.
+  Proof.
+    intros Hv; by apply invert_pure_wp_ret in Hv.
+  Qed.
+
+  Lemma invert_pure_throw `{Observe A V} {E}
+    (e : E) (φ : A → Prop) ψ :
+    pure (E := E) (throw e) φ ψ →
+    ψ e.
+  Proof.
+    intros Hv; by apply invert_pure_wp_throw in Hv.
   Qed.
 
   (* This is the reciprocal bind rule for [pure_wp]. *)
@@ -250,10 +302,11 @@ Section pure_rules.
     the computation [m] lies in the image of the function [encode] at type
     [A]. *)
 
-  Lemma invert_pure_bind `{Encode B} m k (φ : B → Prop) ψ :
-    pure (bind m k) φ ψ →
+  Lemma invert_pure_bind `{Observe A V} {E}
+    m k (φ : A → Prop) ψ :
+    pure (V := V) (bind m k) φ ψ →
     pure m (λ (a : A), True) ψ →
-    pure m (λ (a : A), pure (k #a) φ ψ) ψ.
+    pure (V := V) m (λ (a : A), pure (E := E) (k ♯a) φ ψ) ψ.
   Proof.
     intros Hmk%invert_pure_wp_bind Hm.
     pose proof pure_wp_binary_intersection _ Hmk Hm as I.
@@ -265,8 +318,9 @@ Section pure_rules.
     trivial, and we can prove a version of the rule that does not have this
     side condition. *)
 
-  Lemma invert_pure_bind_unary m k (φ : A → Prop) ψ:
-    pure (bind m k) φ ψ →
+  Lemma invert_pure_bind_unary `{Observe A V} {E}
+    m k (φ : A → Prop) ψ:
+    pure (V := V) (E := E) (bind m k) φ ψ →
     pure m (λ (v : val), pure (k v) φ ψ) ψ.
   Proof.
     intros Hmk%invert_pure_wp_bind.
@@ -276,21 +330,24 @@ Section pure_rules.
 
   (* -------------------------------------------------------------------------- *)
 
-  (* Because the relation [pure_wp] is inductively defined, the [pure_wp] judgement
-    implies that [m] terminates. This forms a Hoare logic of pure correctness
-    for pure_wp computations. *)
+  (* Because the relation [pure_wp] is inductively defined, the [pure_wp] judgement *)
+(*     implies that [m] terminates. This forms a Hoare logic of pure correctness *)
+(*     for pure_wp computations. *)
 
-  (* This file offers lemmas and tactics that help work with [pure_wp] goals.
-    These lemmas and tactics form a simple "proof mode" for pure_wp
-    computations. *)
+  (* This file offers lemmas and tactics that help work with [pure_wp] goals. *)
+(*     These lemmas and tactics form a simple "proof mode" for pure_wp *)
+(*     computations. *)
 
   (* -------------------------------------------------------------------------- *)
-  Lemma pure_prove_bind_bind `{Encode X} m (a : A)
-    (f : A -> _) (g : val -> _) (φ : X -> Prop) ψ:
-    pure ('c ← m;
-          f c) (λ x, x = #a) ψ ->
-    pure (g #a) φ ψ ->
-    pure ('v1 ← m;
+  (* TODO Comment on generalization *)
+  Lemma pure_prove_bind_bind `{Observe A1 V1, Observe A2 V2} {E}
+    (m : micro A1 E) (a : A2)
+    (f : A1 -> micro V2 E) (g : V2 -> micro V2 E)
+    (φ : A2 -> Prop) ψ:
+    pure ('c ← m; f c) (singleton a) ψ ->
+    pure (g ♯ a) φ ψ ->
+    pure (E := E)
+         ('v1 ← m;
           'v2 ← f v1;
           g v2) φ ψ.
   Proof.
@@ -302,9 +359,14 @@ Section pure_rules.
     by intros _v (_a & -> & ->).
   Qed.
 
-  Lemma pure_bind_bind `{Encode E} (m : micro val _) f g φ ψ :
-    pure ('x ← m; f x) φ ψ ->
-    (forall y, φ y -> pure (g #y) φ ψ) ->
+  Lemma pure_bind_bind `{Observe A V} {E}
+    (m : micro A E)
+    (f : A -> micro V E)
+    (g : V -> micro V E)
+    (φ : A -> Prop) ψ :
+    pure (E := E)
+      ('x ← m; f x) φ ψ ->
+    (forall y, φ y -> pure (g ♯ y) φ ψ) ->
     pure ('v1 ← m;
           v2 ← f v1;
           g v2) φ ψ.
@@ -320,9 +382,10 @@ Section pure_rules.
 
 End pure_rules.
 
+(* LATER: See if generalization to [Observe] is useful. *)
 Section pure_rules_variant.
 
-  (* When a [val] is returned, there is no need for [encode]. FIXME *)
+  (* When a [val] is returned, there is no need for [encode]. *)
   Lemma pure_ret_val `{Encode A} {E} (a : val) (ϕ : A -> Prop) ψ :
     returns ϕ a ->
     pure (E := E) (ret a) ϕ ψ.
@@ -330,14 +393,8 @@ Section pure_rules_variant.
     intros. returns_eauto. by eapply pure_ret.
   Qed.
 
-  Lemma pure_ret_eq_val {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a', a' = a) ψ.
-  Proof.
-    intros; eapply pure_ret; eauto.
-  Qed.
-
-  Lemma pure_ret_eq_val' {E} {A} `{EncA: Encode A} (a : A) ψ :
-    pure (E := E) (ret #a) (λ a' : val, a' = # a) ψ.
+  Lemma pure_ret_eq_val {E} (a : val) ψ :
+    pure (E := E) (ret a) (λ a', a' = a) ψ.
   Proof.
     intros; eapply pure_ret; eauto.
   Qed.
@@ -363,7 +420,7 @@ Section pure_eff.
 
   Lemma pure_stop_eval {Y} `{Encode X} η e k (φ : X -> Prop) ψ :
     pure (try2 (eval η e) k) φ ψ ->
-    pure (E := Y) (Stop CEval (η, e) k) φ ψ.
+    pure (V := val) (E := Y) (Stop CEval (η, e) k) φ ψ.
   Proof.
     intros.
     eapply pure_wp_simp; [ apply simplification.SimpEval | assumption ].
@@ -373,7 +430,7 @@ Section pure_eff.
 
   Lemma pure_CEval `{Encode A} {E η e k} (φ : A → Prop) (ψ : E → Prop) :
     pure (try2 (eval η e) k) φ ψ →
-    pure (Stop CEval (η, e) k) φ ψ.
+    pure (V := val) (Stop CEval (η, e) k) φ ψ.
   Proof.
     intros. eapply pure_wp_det_may_backward; eauto. repeat constructor.
     by intros m' ->%pure.invert_may_eval.
@@ -384,7 +441,7 @@ Section pure_eff.
     pure (Stop CEval (η, e) inject2) φ ψ.
   Proof.
     intros He. eapply pure_CEval, pure_try2; try done;
-    eauto using pure_ret, pure_throw.
+    intros; eauto using pure_ret, pure_throw.
   Qed.
 
   Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
@@ -409,4 +466,17 @@ Section pure_eff.
       ((exfalso; by eapply invert_pure_wp_crash) || eauto).
   Qed.
 
+  (** Compatibility with [widen] *)
+
+  Lemma pure_widen `{Encode A} {E} (m : micro val void) φ ψ :
+    pure m φ ⊥ → @pure A _ val _ E (widen m) φ ψ.
+  Proof.
+    unfold widen.
+    intros P. eapply pure_try2. eapply P.
+    - intros. cbn. eapply pure_ret; done.
+    - by intros.
+  Qed.
+
 End pure_eff.
+
+

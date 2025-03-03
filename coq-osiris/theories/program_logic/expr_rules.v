@@ -41,7 +41,7 @@ Section ewp_rules_expr.
     EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
     EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φs v }} -∗
     (∀ v δ, φ1 v -∗ φs δ -∗
-       ∃ δ', ⌜simp (irrefutably_extend δ p v) (ret δ')⌝
+       ∃ δ', ⌜simp (irrefutably_extend η δ p v) (ret δ')⌝
                ∗ φ (O2Ret δ')) -∗
     EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -59,7 +59,7 @@ Section ewp_rules_expr.
     EWP eval η e @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
-          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝
+          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝
            ∗ φ (O2Ret δ)) -∗
     EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -78,7 +78,7 @@ Section ewp_rules_expr.
     (∀ v : exn, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v : exn, φs (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v δ, φ1 (O2Ret v) ∗ φs (O2Ret δ) -∗
-      EWP widen (irrefutably_extend δ p v)  @ E <|Ψ|> {{ φ }}) -∗
+      EWP widen (irrefutably_extend η δ p v)  @ E <|Ψ|> {{ φ }}) -∗
     EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval_bindings.
@@ -639,7 +639,7 @@ Section ewp_rules_expr.
     EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
-          ⌜simp (irrefutably_extend nil p v) (ret δ)⌝ ∗
+          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝ ∗
           EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -662,7 +662,7 @@ Section ewp_rules_expr.
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
     iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
     - iApply ("P" with "Hv").
   Qed.
 
@@ -688,7 +688,7 @@ Section ewp_rules_expr.
     iApply (ewp_ELet_singleton_total with "H").
     iIntros (v) "Hv".
     iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_extend; constructor.
+    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
     - iApply ("P" with "Hv").
   Qed.
 
@@ -1125,7 +1125,7 @@ Section ewp_rules_expr.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Lemma ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+  Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
     EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
@@ -1133,7 +1133,7 @@ Section ewp_rules_expr.
     EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
   Proof.
     iIntros "Hk Hv Hmon".
-    Simp.
+    simpl_eval.
     iApply ewp_bind.
     iApply (ewp_mono with "Hk").
     iIntros ([|]) "Hφ1"; [ simpl | done ].
@@ -1141,6 +1141,26 @@ Section ewp_rules_expr.
     iApply (ewp_mono with "Hv").
     iIntros ([|]) "Hφ2"; [ simpl | done ].
     iApply ("Hmon" with "Hφ1 Hφ2").
+  Qed.
+
+  Corollary ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
+    EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    (∀ k v, φ1 k -∗ φ2 v -∗
+       ∃ sk, k ↦ K sk ∗
+        (k ↦ Shot -∗
+            ▷ EWP (sk (O2Ret v)) @ E <|ψ|> {{ φ }})) -∗
+    EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 H3".
+    iApply (ewp_EContinue' with "H1 H2").
+    iIntros (??) "H1 H2".
+    iSpecialize ("H3" with "H1 H2").
+    iDestruct "H3" as (?) "(H1 & H2)".
+    iApply (ewp_resume with "H1").
+    iIntros "H1".
+    iSpecialize ("H2" with "H1"). iNext.
+    by rewrite try2_ret_right.
   Qed.
 
 End ewp_rules_expr.

@@ -91,19 +91,22 @@ Notation "l ↦ v" := (mapsto l (DfracOwn 1) v)
 
       Either
       (1) a pure computation with result of type A,
-      (2) an exception of type [E], or
-      (3) a perform effect that performs effect of type [C.eff] and the
+      (2) an exception of type [E],
+      (3) a crash, or
+      (4) a perform effect that performs effect of type [C.eff] and the
           rest of its computation.  *)
 
 Inductive handleable (A E : Type) : Type :=
   HRet : A → handleable A E
 | HThrow : E → handleable A E
+| HCrash : handleable A E
 | HPerform : C.eff -> (outcome2 syntax.val exn -> micro A E) → handleable A E.
 
 Arguments handleable {A E}.
 
 Arguments HRet {A E}.
 Arguments HThrow {A E}.
+Arguments HCrash {A E}.
 Arguments HPerform {A E}.
 
 (* Check whether a computation is [handleable]. *)
@@ -111,6 +114,7 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
   match m with
   | Ret v => Some (HRet v)
   | Throw e => Some (HThrow e)
+  | Crash => Some HCrash
   | Stop CPerform e k => Some (HPerform e k)
   | _ => None
   end.
@@ -138,6 +142,7 @@ Section ewp.
       (* [EWP1]: Pure and exceptional values *)
       | Some (HRet v) => |={E}=> φ (O2Ret v)
       | Some (HThrow v) => |={E}=> φ (O2Throw v)
+      | Some HCrash => |={E}=> False
       (* [EWP2]: Effectful case
             The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k] with the

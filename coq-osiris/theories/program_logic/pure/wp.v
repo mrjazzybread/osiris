@@ -27,7 +27,7 @@ Global Hint Constructors pure_wp : pure.
 (** Specifications *)
 
 (* Predicate type *)
-Notation pred A := (A -> Prop).
+Definition pred A := (A -> Prop).
 
 (* [singleton x] is equivalent to a singleton set containing the element [x]. *)
 Definition singleton {A} (a : A) : pred A := λ x, x = a.
@@ -61,7 +61,10 @@ Section pure_wp_rules.
   (** [pure_wp] is monotonic *)
 
   Lemma pure_wp_mono {A E} {φ φ' ψ ψ' : _ -> Prop} (m : micro A E) :
-    pure_wp m φ ψ → (∀ a, φ a → φ' a) → (∀ e, ψ e → ψ' e) → pure_wp m φ' ψ'.
+    pure_wp m φ ψ →
+    (∀ a, φ a → φ' a) →
+    (∀ e, ψ e → ψ' e) →
+    pure_wp m φ' ψ'.
   Proof.
     induction 1; constructor; auto.
   Qed.
@@ -72,11 +75,18 @@ Section pure_wp_rules.
     induction 1; constructor; auto.
   Qed.
 
+  Lemma pure_wp_ret_equiv {A E φ φ' ψ} (m : micro A E) :
+    (∀ a, φ a ↔ φ' a) → pure_wp m φ ψ ↔ pure_wp m φ' ψ.
+  Proof.
+    intros; split; intros; eapply pure_wp_mono_ret; firstorder eauto.
+  Qed.
+
   Lemma pure_wp_mono_throw {A E} {φ ψ ψ' : _ → Prop} (m : micro A E) :
     pure_wp m φ ψ → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ'.
   Proof.
     induction 1; constructor; auto.
   Qed.
+
   Lemma pure_wp_noexn_weaken {A E} {φ ψ : _ -> Prop} (m : micro A E):
     pure_wp m φ ⊥ → pure_wp m φ ψ.
   Proof.
@@ -146,6 +156,14 @@ Section pure_wp_rules.
   Proof.
     intros S; remember (ret a) as m; revert a Heqm.
     induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
+  Qed.
+
+  Lemma invert_pure_wp_rtc_may_ret {A E : Type} (φ : A → Prop) (ψ : E → Prop) m a :
+    pure_wp m φ ψ → rtc may m (ret a) → φ a.
+  Proof.
+    intros P S.
+    eapply invert_pure_wp_ret.
+    eapply pure_wp_rtc_may_forward; eauto.
   Qed.
 
   Lemma invert_pure_wp_throw {A E : Type} (φ : A → Prop) (ψ : E → Prop) e :
@@ -380,6 +398,17 @@ Section pure_wp_rules.
       intros a1 []%pure_wp_exists_ret_or_throw; firstorder.
     - destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & M & Hm2)| ]; firstorder.
       eapply (pure_wp_mono_ret _ Hm2). firstorder.
+  Qed.
+
+  Lemma pure_wp_invert_order {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ ψ :
+    pure_wp m1 (λ a1, pure_wp m2 (λ a2, φ a1 a2) ψ) ⊥ →
+    pure_wp m2 (λ a2, pure_wp m1 (λ a1, φ a1 a2) ⊥) ψ.
+  Proof.
+    intros Hm1.
+    destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & m1a1 & Ha1) | (? & ? & [])].
+    apply (pure_wp_mono_reachable _ Ha1); auto. intros.
+    apply (pure_wp_mono_reachable _ Hm1); auto. intros.
+    eapply invert_pure_wp_ret, pure_wp_rtc_may_forward; eauto.
   Qed.
 
 
@@ -654,7 +683,7 @@ Section pure_wp_rules.
 
   (** [pure_wp] is preserved by [Handle] *)
 
-  Lemma pure_wp_handle {A E} m φ ψ (h : _ → micro A E) :
+  Lemma pure_wp_handle {A E} m φ ψ (h : outcome3 _ _ → micro A E) :
     pure_wp m
       (λ a, pure_wp (h (O3Ret a)) φ ψ)
       (λ e, pure_wp (h (O3Throw e)) φ ψ) →
@@ -671,6 +700,15 @@ Section pure_wp_rules.
       + firstorder.
   Qed.
 
+  (** on [Stop CEval] *)
+
+  Lemma pure_wp_Eval {A E} η e k (φ : A → Prop) (ψ : E → Prop) :
+    pure_wp (try2 (eval η e) k) φ ψ →
+    pure_wp (Stop CEval (η, e) k) φ ψ.
+  Proof.
+    intros. eapply pure_wp_det_may_backward; eauto. repeat constructor.
+    by intros m' ->%pure.invert_may_eval.
+  Qed.
 
   (** [pure_wp] is preserved by [Flip] and [choose] *)
 
@@ -729,7 +767,8 @@ Section pure_wp_rules.
     by intros ? ?%invert_pure_wp_throw.
   Qed.
 
-  Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ} a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ}
+    a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par (ret a1) m2 k) φ ψ →
     pure_wp m2
       (λ a2, pure_wp (continue k (a1, a2)) φ ψ)
@@ -744,7 +783,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_left {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_left {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 m2 k) φ ψ →
     pure_wp m1
       (λ a1,
@@ -763,7 +803,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_ret_right {A E A1 A2 E' φ ψ} m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_ret_right {A E A1 A2 E' φ ψ}
+    m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 (ret a2) k) φ ψ →
     pure_wp m1
       (λ a1, pure_wp (continue k (a1, a2)) φ ψ)
@@ -778,7 +819,8 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_Par_right {A E A1 A2 E' φ ψ} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  Lemma invert_pure_wp_Par_right {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par m1 m2 k) φ ψ →
     pure_wp m2
       (λ a2,
@@ -797,6 +839,28 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
+  Corollary invert_pure_wp_Par {A E A1 A2 E' φ ψ}
+    m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+    pure_wp (Par m1 m2 k) φ ψ →
+    pure_wp m1
+      (λ a1,
+        pure_wp m2
+          (λ a2, pure_wp (continue k (a1, a2)) φ ψ)
+          (λ e, pure_wp (discontinue k e) φ ψ))
+      (λ e, pure_wp (discontinue k e) φ ψ) /\
+    pure_wp m2
+      (λ a2,
+        pure_wp m1
+          (λ a1, pure_wp (continue k (a1, a2)) φ ψ)
+          (λ e, pure_wp (discontinue k e) φ ψ))
+      (λ e, pure_wp (discontinue k e) φ ψ).
+  Proof.
+    intros H.
+    pose proof (invert_pure_wp_Par_left _ _ _ H).
+    pose proof (invert_pure_wp_Par_right _ _ _ H).
+    done.
+  Qed.
+
   Lemma invert_pure_wp_handle {A E φ ψ} m (k : _ → micro A E) :
     pure_wp (Handle m k) φ ψ →
     pure_wp m
@@ -812,6 +876,19 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
+  Lemma invert_pure_wp_eval η e φ ζ :
+    pure_wp (stop CEval (η, e)) φ ζ ->
+    pure_wp (eval η e) φ ζ.
+  Proof.
+    intros Hstop.
+    inversion Hstop; subst.
+    destruct H as [m' Hmay].
+    specialize (H0 m' Hmay) as Hwp.
+    pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
+    rewrite try2_ret_right in Hwp.
+    apply Hwp.
+  Qed.
+  
 
   (** Steps from pure_wp computations necessarily are [may] and preserve the store *)
 
@@ -964,7 +1041,7 @@ Section pure_wp_rules.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
   Qed.
 
-  (** Intersection rule *)
+  (** Intersection rules *)
 
   Lemma pure_wp_intersection {A E} `{Inhabited X} {φ ψ} (m : micro A E) :
     (∀ x : X, pure_wp m (φ x) ψ) →
@@ -973,6 +1050,16 @@ Section pure_wp_rules.
     intros Hm.
     induction (Hm inhabitant); constructor; eauto using pure_wp_may_forward.
     intros x. apply (invert_pure_wp_ret _ _ _ (Hm x)).
+  Qed.
+
+  Lemma pure_wp_intersection_exn {A E} `{Inhabited X} `{Inhabited Y} {φ ψ} (m : micro A E) :
+    (∀ (x : X) (y : Y), pure_wp m (φ x) (ψ y)) →
+    pure_wp m (λ a, ∀ x, φ x a) (λ e, ∀ y, ψ y e).
+  Proof.
+    intros Hm.
+    induction (Hm inhabitant inhabitant); constructor; eauto using pure_wp_may_forward.
+    - intros x; apply (invert_pure_wp_ret _ _ _ (Hm x inhabitant)).
+    - intros y; apply (invert_pure_wp_throw _ _ _ (Hm inhabitant y)).
   Qed.
 
   Lemma pure_wp_binary_intersection {A E φ1 φ2 ψ} (m : micro A E) :
@@ -989,6 +1076,16 @@ Section pure_wp_rules.
       + apply (Hpost true).
       + apply (Hpost false). }
     { tauto. }
+  Qed.
+
+  Lemma pure_wp_intersection_pred {A E X} (P : X → Prop) {φ ψ} (m : micro A E) :
+    (∃ x, P x) →
+    (∀ x : X, P x → pure_wp m (φ x) ψ) →
+    pure_wp m (λ a, ∀ x, P x → φ x a) ψ.
+  Proof.
+    intros (x, Px) Hm.
+    induction (Hm x Px); constructor; eauto using pure_wp_may_forward.
+    intros y Py. apply (invert_pure_wp_ret _ _ _ (Hm y Py)).
   Qed.
 
   (** Compatibility with [widen] *)
@@ -1012,3 +1109,153 @@ Section pure_wp_rules.
   Qed.
 
 End pure_wp_rules.
+
+
+
+Section pure_wp_reversible_rules.
+
+Lemma pure_wp_reversible_Par {A E A1 A2 E'} m1 m2 (k : outcome2 (A1 * A2) E' → micro A E) φ ψ :
+  (∃ φ1 φ2 ψ1 ψ2,
+      pure_wp m1 φ1 ψ1 ∧
+      pure_wp m2 φ2 ψ2 ∧
+      (∀ a1 a2, φ1 a1 → φ2 a2 → pure_wp (continue k (a1, a2)) φ ψ) ∧
+      (∀ e, ψ1 e ∨ ψ2 e → pure_wp (discontinue k e) φ ψ))
+  <->
+  pure_wp (Par m1 m2 k) φ ψ.
+Proof.
+  split.
+  { firstorder eauto using pure_wp_Par_conseq. }
+  intros P.
+  pose proof invert_pure_wp_Par _ _ _ P as (P1 & P2).
+  apply pure_wp_strengthen_reachable in P1.
+  apply pure_wp_strengthen_reachable in P2.
+  eexists _, _, _, _.
+  split; eauto.
+  split; eauto.
+  split. 2: firstorder.
+  intros a1 a2 (S1, Hm1) (S2, Hm2).
+  eapply pure_wp_rtc_may_forward; eauto.
+  apply rtc_transitive with (Par (ret a1) (ret a2) k). 2: repeat econstructor.
+  apply rtc_transitive with (Par (ret a1) m2 k).
+  - clear -S1. induction S1. done. econstructor; eauto. constructor; auto.
+  - clear -S2. induction S2. done. econstructor; eauto. constructor; auto.
+Qed.
+
+Lemma pure_wp_reversible_par {A1 A2 E} m1 m2  (φ : A1 * A2 → Prop) (ψ : E → Prop) :
+  (∃ φ1 φ2,
+      pure_wp m1 φ1 ψ ∧
+      pure_wp m2 φ2 ψ ∧
+      (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)))
+  <->
+  pure_wp (par m1 m2) φ ψ.
+Proof.
+  split.
+  { firstorder eauto using pure_wp_par. }
+  intros (φ1 & φ2 & ψ1 & ψ2 & P1 & P2 & Ha & He)%pure_wp_reversible_Par.
+  eexists φ1, φ2. split; [ | split ].
+  - eapply pure_wp_mono_throw; eauto. intros; eapply invert_pure_wp_throw; eauto.
+  - eapply pure_wp_mono_throw; eauto. intros; eapply invert_pure_wp_throw; eauto.
+  - intros; eapply invert_pure_wp_ret; eauto.
+Qed.
+
+Lemma pure_wp_reversible_intersection {A E} `{Inhabited X} {φ ψ} (m : micro A E) :
+  (∀ x : X, pure_wp m (φ x) ψ)
+  <->
+  pure_wp m (λ a, ∀ x, φ x a) ψ.
+Proof.
+  split.
+  - apply pure_wp_intersection.
+  - intros P x. eapply pure_wp_mono_ret; eauto.
+Qed.
+
+Context {A E} (φ : A → Prop) (ψ : E → Prop).
+
+Lemma pure_wp_reversible_ret a : φ a <-> pure_wp (ret a) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_ret.
+  - apply invert_pure_wp_ret.
+Qed.
+
+Lemma pure_wp_reversible_throw e : ψ e <-> pure_wp (throw e) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_throw.
+  - apply invert_pure_wp_throw.
+Qed.
+
+Lemma pure_wp_reversible_handle m (h : outcome3 _ _ → _) :
+  pure_wp m
+    (λ a, pure_wp (h (O3Ret a)) φ ψ)
+    (λ e, pure_wp (h (O3Throw e)) φ ψ)
+  <->
+  pure_wp (Handle m h) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_handle.
+  - apply invert_pure_wp_handle.
+Qed.
+
+Lemma pure_wp_reversible_Stop_eval η e k :
+  pure_wp (try2 (eval η e) k) φ ψ
+  <->
+  pure_wp (Stop CEval (η, e) k) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_simp. constructor.
+  - apply pure_wp_complexify. constructor.
+Qed.
+
+Lemma pure_wp_reversible_choose m1 m2 ζ :
+  pure_wp m1 φ ζ ∧
+  pure_wp m2 φ ζ
+  <->
+  pure_wp (choose m1 m2) φ ζ.
+Proof.
+  split.
+  - intros []; by apply pure_wp_choose.
+  - intros P; split; eapply pure_wp_may_forward; eauto; constructor.
+Qed.
+
+Lemma pure_wp_reversible_try2 {A' E'} m (f : outcome2 A' E' → _) :
+  pure_wp m
+    (λ a, pure_wp (continue f a) φ ψ)
+    (λ e, pure_wp (discontinue f e) φ ψ)
+  <->
+  pure_wp (try2 m f) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_try2.
+  - apply invert_pure_wp_try2.
+Qed.
+
+Lemma pure_wp_reversible_try {A' E'} m f g :
+  pure_wp m (λ a : A', pure_wp (f a) φ ψ) (λ e : E', pure_wp (g e) φ ψ)
+  <->
+  pure_wp (try m f g) φ ψ.
+Proof.
+  unfold try.
+  by rewrite <-pure_wp_reversible_try2.
+Qed.
+
+Lemma pure_wp_reversible_orelse {E'} (m1 : micro _ E') m2 :
+  pure_wp m1 φ (λ _, pure_wp m2 φ ψ)
+  <->
+  pure_wp (orelse m1 m2) φ ψ.
+Proof.
+  unfold orelse.
+  rewrite <-pure_wp_reversible_try.
+  apply pure_wp_ret_equiv, pure_wp_reversible_ret.
+Qed.
+
+Lemma pure_wp_reversible_bind {A'} m (k : A' → micro A E) :
+  pure_wp m (λ a, pure_wp (k a) φ ψ) ψ
+  <->
+  pure_wp (bind m k) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_bind.
+  - apply invert_pure_wp_bind.
+Qed.
+
+End pure_wp_reversible_rules.

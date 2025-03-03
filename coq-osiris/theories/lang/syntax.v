@@ -84,11 +84,11 @@ Inductive pat :=
   (* A tuple pattern. *)
   | PTuple (ps : list pat)
   (* A data constructor pattern in an ordinary algebraic data type. *)
-  | PData (c : data) (p : list pat)
+  | PData (c : data) (ps : list pat)
   (* A data constructor pattern in an extensible algebraic data type.
-     In [PXData (π, p)], the path [π] is expected to denote a memory
+     In [PXData (π, ps)], the path [π] is expected to denote a memory
      location, which serves as a dynamically-allocated name. *)
-  | PXData (π : path) (p : list pat)
+  | PXData (π : path) (ps : list pat)
   (* A record pattern. *)
   | PRecord (fps : list (field * pat))
   (* A literal integer pattern. *)
@@ -283,7 +283,7 @@ with fexpr :=
    where [cp] is a computation pattern. *)
 
 with branch :=
-  | Branch (p : cpat) (e : expr)
+  | Branch (cp : cpat) (e : expr)
 
 (* A binding is of the form [p = e]. *)
 

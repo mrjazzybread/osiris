@@ -121,7 +121,7 @@ Module ewp_rules_tactics.
     lazymatch goal with
     | |- context
           [environments.Esnoc _ ?Hwp
-             (bi_forall (fun σ1 : store =>
+             (bi_forall (fun σ1 : step.store =>
               bi_forall (fun _ : nat =>
               bi_forall (fun κ : list nat =>
               bi_forall (fun _ : list nat =>
@@ -129,9 +129,9 @@ Module ewp_rules_tactics.
         match goal with
         | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! σ 0%nat nil nil 0%nat with SI);
+            iSpecialize (Hwp $! σ 0%nat (@nil nat) (@nil nat) 0%nat with SI);
             try (iMod Hwp;
-                 iDestruct Hwp as (Hred) Hwp)
+                 iDestruct Hwp as (Hstep) Hwp)
         end
     end.
 

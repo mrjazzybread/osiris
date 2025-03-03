@@ -150,10 +150,10 @@ Definition decide_spec `{Encode A}
 :=
   ∀ (x : A),
     P x →
-    total (call decide #x) (λ v,
+    pure (call decide #x) (λ v,
       ∀ (y : A),
       P y →
-      total (call v #y) (λ (b : bool), b ↔ R x y)).
+      pure (call v #y) (λ (b : bool), b ↔ R x y) ⊥) ⊥.
 
 (* The above specification states that an application of [decide] to just
    one argument returns a closure. As a sanity check, we verify that this
@@ -165,13 +165,13 @@ Local Lemma decide_spec' `{Encode A}
 :
   decide_spec decide P R →
   ∀ (x y : A), P x → P y →
-  total
+  pure
     (bind (call decide #x) (λ v, call v #y))
     (λ (b : bool),
-      b ↔ R x y).
+      b ↔ R x y) ⊥.
 Proof.
   intros Hspec x y Hx Hy.
-  eapply total_bind; [ eauto | intros v; cbn; intros Hv ].
+  eapply pure_bind; [ eauto | intros v; cbn; intros Hv ].
   eauto.
 Qed.
 
@@ -188,13 +188,13 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
   ∀ (x y : A),
-    total (call compare #x) (λ v,
-        total (call v #y) (λ (c : Z),
+    pure (call compare #x) (λ v,
+        pure (call v #y) (λ (c : Z),
             representable c ∧
               (c < 0 ↔ lt x y)%Z ∧
               (c = 0 ↔ eq x y)%Z ∧
               (0 < c ↔ lt y x)%Z
-          )).
+          ) ⊥) ⊥.
 (* -------------------------------------------------------------------------- *)
 
 Lemma Stdlib__eq_spec :

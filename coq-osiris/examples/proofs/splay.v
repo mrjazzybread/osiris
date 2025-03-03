@@ -257,16 +257,16 @@ Ltac destruct_bst_Node :=
 Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
-    total
+    pure
       (call splay #(l, x, r, ctx))
-      (λ t', fringe t' = fringe (fill ctx (Node l x r))).
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))) ⊥.
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
-    total
+    pure
       (call splay_leaf #ctx)
-      (λ t', fringe t' = fringe (fill ctx Leaf)).
+      (λ t', fringe t' = fringe (fill ctx Leaf)) ⊥.
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
@@ -274,11 +274,11 @@ Definition zlookup_spec :=
       compare_spec Stdlib__compare le →
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
-      total
+      pure
         (call zlookup #(t, x, ctx))
         (λ '(oy, t'),
           member le x (fringe t) oy ∧
-          fringe t' = fringe (fill ctx t)).
+          fringe t' = fringe (fill ctx t)) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -324,10 +324,10 @@ Ltac pats :=
 
 Definition pLeaf := PConstant "Leaf".
 
-Lemma pat_pLeaf `{Encode A} η v (t : tree A) (φ : env -> Prop) :
+Lemma pat_pLeaf `{Encode A} η δ v (t : tree A) (φ : env -> Prop) :
   v = #t →
-  (t = Leaf -> φ η) ->
-  pattern η pLeaf v φ (t <> Leaf).
+  (t = Leaf -> φ δ) ->
+  pattern η δ pLeaf v φ (t <> Leaf).
 Proof.
   intros; subst.
   destruct t.
@@ -345,19 +345,19 @@ Ltac pat_pLeaf :=
 Definition pNode (p1 p2 p3 : syntax.pat) :=
   PData "Node" [p1; p2; p3].
 
-Lemma pat_pNode `{Encode A} (η : env) (v : val) (t : tree A)
+Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
   :
   v = #t ->
   (∀ (t1 : tree A) (a : A) (t2 : tree A),
       t = Node t1 a t2 →
-      pattern η p1 #t1
-        (λ η', pattern η' p2 #a
-            (λ η', pattern η' p3 #t2 φ (ψ3 t2))
+      pattern η δ p1 #t1
+        (λ δ', pattern η δ' p2 #a
+            (λ δ', pattern η δ' p3 #t2 φ (ψ3 t2))
             (ψ2 a))
         (ψ1 t1)) ->
-  pattern η (pNode p1 p2 p3) v φ
+  pattern η δ (pNode p1 p2 p3) v φ
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros -> Hcov.
@@ -373,10 +373,10 @@ Ltac pat_pNode :=
 
 Definition pRoot := PConstant "Root".
 
-Lemma pat_pRoot `{Encode A} η v (z : zipper A) (φ : env -> Prop) :
+Lemma pat_pRoot `{Encode A} η δ v (z : zipper A) (φ : env -> Prop) :
   v = #z →
-  (z = Root -> φ η) ->
-  pattern η pRoot v φ (z <> Root).
+  (z = Root -> φ δ) ->
+  pattern η δ pRoot v φ (z <> Root).
 Proof.
   intros; subst.
   destruct z.
@@ -397,15 +397,15 @@ Ltac pat_pRoot :=
 Definition pNodeL (p1 p2 p3 : syntax.pat) :=
   PData "NodeL" [p1; p2; p3].
 
-Lemma pat_pNodeL `{Encode A} (η : env) (v : val) (z : zipper A)
+Lemma pat_pNodeL `{Encode A} (η δ : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : zipper A -> Prop) (ψ2 : A -> Prop) (ψ3 : tree A -> Prop)
   :
   v = #z ->
   (∀ (z' : zipper A) (a : A) (t : tree A),
       z = NodeL z' a t →
-      pattern η p1 #z' (λ η', pattern η' p2 #a (λ η', pattern η' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
-  pattern η (pNodeL p1 p2 p3) v φ (z = Root \/
+      pattern η δ p1 #z' (λ δ', pattern η δ' p2 #a (λ δ', pattern η δ' p3 #t φ (ψ3 t)) (ψ2 a)) (ψ1 z')) ->
+  pattern η δ (pNodeL p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeR a1 a2 a3) \/
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
@@ -425,15 +425,15 @@ Ltac pat_pNodeL :=
 Definition pNodeR (p1 p2 p3 : syntax.pat) :=
   PData "NodeR" [p1; p2; p3].
 
-Lemma pat_pNodeR `{Encode A} (η : env) (v : val) (z : zipper A)
+Lemma pat_pNodeR `{Encode A} (η δ : env) (v : val) (z : zipper A)
   (p1 p2 p3 : syntax.pat) (φ : env -> Prop)
   (ψ1 : tree A -> Prop) (ψ2 : A -> Prop) (ψ3 : zipper A -> Prop)
   :
   v = #z ->
   (∀ (t : tree A) (a : A) (z' : zipper A),
       z = NodeR t a z' →
-      pattern η p1 #t (λ η', pattern η' p2 #a (λ η', pattern η' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
-  pattern η (pNodeR p1 p2 p3) v φ (z = Root \/
+      pattern η δ p1 #t (λ δ', pattern η δ' p2 #a (λ δ', pattern η δ' p3 #z' φ (ψ3 z')) (ψ2 a)) (ψ1 t)) ->
+  pattern η δ (pNodeR p1 p2 p3) v φ (z = Root \/
                                  (exists a1 a2 a3, z = NodeL a1 a2 a3) \/
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
@@ -513,6 +513,11 @@ Local Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
+Lemma invert_singleton {A} (a b : A) :
+  singleton a b ->
+  a = b.
+Proof. rewrite /singleton. by intros ->. Qed.
+
 Lemma Splay_spec :
   splay_spec
     (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
@@ -549,7 +554,9 @@ Proof.
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple.
     pure_path. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -557,7 +564,9 @@ Proof.
   (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     simpl; intros ? ->.
     prove_same_fringe. }
@@ -570,7 +579,9 @@ Proof.
   { eapply pure_eval_app.
     pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -578,7 +589,9 @@ Proof.
   (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
   { eapply pure_eval_app. pure_path.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
-    eapply pure_mono.
+    apply eq_refl.
+    intros ? ? -> <-.
+    eapply pure_ret_mono.
     { eapply IH; cbn; unfold zlt; subst; auto with arith. }
     intros ? ->.
     prove_same_fringe. }
@@ -607,6 +620,8 @@ Proof.
     apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
 
     pure_path. pure_path. pure_path.
+    apply eq_refl.
+    intros ? ? -> <-.
     unfold splay_spec in Hsplay.
     specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
@@ -616,6 +631,8 @@ Proof.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
+    apply eq_refl.
+    intros ? ? -> <-.
     specialize (Hsplay _ _ z' t a Leaf).
     apply Hsplay. }
 Qed.
@@ -656,21 +673,22 @@ Proof.
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
     eapply pure_eval_app. pure_path. pure_path.
-    simple eapply pure_mono; first eapply Hsplay_leaf.
+    intros ? ? -> ->.
+    simple eapply pure_ret_mono; first eapply Hsplay_leaf.
     split; [ intros | auto]. repeat intro; by eapply not_elem_of_nil. }
 
   (* Case: [t] matches [Node (l, y, r)] *)
   { destruct_bst_Node.
 
-    eapply pure_eval_let.
+    eapply pure_eval_let1var.
     { (* Evaluate rhs of [let c = ..] *)
-      eapply pure_eval_app2.
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      { pure_path; reflexivity. }
-      unfold pure_call2.
-      unfold compare_spec in Hcompare.
-      eapply Hcompare. }
+      eapply pure_eval_app.
+      { eapply pure_eval_app. pure_path. pure_path.
+        intros ? ? -> ->.
+        eapply Hcompare. }
+      pure_path.
+      intros ? ? Hcall ->.
+      eapply Hcall. }
     (* Evaluate continuation expression after let *)
     intros c (? & Hlt & Heq & Hgt).
     eapply pure_eval_ifthenelse.
@@ -685,7 +703,9 @@ Proof.
       intro Clt0.
       eapply pure_eval_app. pure_path.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
-      eapply pure_mono.
+      apply eq_refl.
+      intros ? ? -> <-.
+      eapply pure_ret_mono.
       { eapply IH with (y := (t1, x, NodeL ctx a t2));
           unfold tlt, tree_size; auto with arith. }
       intros [oy t'] [??]; simpl in *.
@@ -706,7 +726,9 @@ Proof.
         intros Cgt0.
         eapply pure_eval_app. pure_path.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
-        eapply pure_mono.
+        apply eq_refl.
+        intros ? ? -> <-.
+        eapply pure_ret_mono.
         { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
           { cbn; unfold tlt. cbn. lia. }
           { auto. } }
@@ -721,8 +743,12 @@ Proof.
         (* Deduce [c = 0] *)
         eapply pure_eval_pair. pure_data.
         eapply pure_eval_app. pure_path.
-        eapply pure_eval_quadruple. pure_path. pure_path. pure_path. pure_path.
-        eapply pure_mono. eapply Hsplay.
+        eapply pure_eval_quadruple. pure_path. pure_path. pure_path.
+        rewrite <- (encode_encode' Encode_zipper).
+        pure_path.
+        eapply eq_refl.
+        intros ? ? -> <-.
+        eapply pure_ret_mono. eapply Hsplay.
         intros. split; [ split | ].
         - apply Heq. lia.
         - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
@@ -747,11 +773,10 @@ Proof.
   { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
   next_item.
-  { pure_simp. apply eq_refl. }
+  { pure_simp. }
   intros [??] (lookup & Hlookup & -> & ->).
   finished_struct.
   simpl. repeat split; auto.
 Qed.
 
 End splay_proofs.
-

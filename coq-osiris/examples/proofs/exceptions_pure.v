@@ -27,9 +27,9 @@ Definition head_spec head :=
 
 Definition catch_head_spec catch_head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
-    total
+    pure
       (call catch_head #l)
-      (λ hopt, hopt = list.head l).
+      (λ hopt, hopt = list.head l) ⊥.
 
 (* TODO: MOVE? *)
 Ltac set_pure_postcondition φ :=
@@ -64,8 +64,8 @@ Proof.
     pure_enter.
     eapply pure_eval_match'_exn.
     - eapply pure_simp. simp. apply Hhead.
-    - intros h (t & ->). pure_simp. reflexivity.
-    - intros e (-> & ->). pure_simp. reflexivity.  }
+    - intros h (t & ->). pure_simp.
+    - intros e (-> & ->). pure_simp. }
   intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
 
   (* Struct item: [let catch_head2 l = ...] *)
@@ -77,14 +77,15 @@ Proof.
      we can do better here. *)
     (* TODO: Refactor. *)
     eapply pure_eval_match'_exn with (φ' := λ a, a = #(list.head l)) (ζ := λ e, l = [] ∧ e = VXData (Loc 0) []).
-    { eapply pure_eval_data'; last done.
+    { eapply pure_eval_data_val; last done.
       simpl_evals. fold eval. eapply pure_wp_Par_conseq.
       + eapply pure_eval_app. pure_path. pure_path.
+        unfold head_spec in Hhead.
+        intros ?? <- ->. apply Hhead.
       + eapply pure_wp_ret_singleton.
       + intros; returns_eauto. cbn in *.
-        eapply pure_wp_ret; subst. destruct Ha_ensures; subst.
-        red in H1; subst.
-        exists [v]; tauto.
+        eapply pure_wp_ret. destruct Ha_ensures; subst.
+        red in H1; subst. encode.
       + intros ? [ (-> & ->)| ]; cbn.
         * eapply pure_wp_throw; eauto.
         * Unshelve.
@@ -93,7 +94,7 @@ Proof.
     { intros ? ->.
       pure_match.
       pure_path. }
-    { intros ? [-> ->]. pure_match. pure_data. encode. } }
+    { intros ? [-> ->]. pure_match. pure_simp. } }
 
   intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
 

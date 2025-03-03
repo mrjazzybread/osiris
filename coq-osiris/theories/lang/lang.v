@@ -8,5 +8,5 @@ From osiris.lang Require Export
   syntax
   sugar
   encode
-  arg_types
+  type_nel
 .

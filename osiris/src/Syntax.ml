@@ -65,10 +65,10 @@ type pat =
   (* A tuple pattern. *)
   | PTuple of pats
   (* A data constructor pattern in an ordinary algebraic data type.
-     In [PData (d, p)], the data constructor [d] is a fixed string. *)
+     In [PData (d, ps)], the data constructor [d] is a fixed string. *)
   | PData of data * pats
   (* A data constructor pattern in an extensible algebraic data type.
-     In [PXData (π, p)], the path [π] is expected to denote a memory
+     In [PXData (π, ps)], the path [π] is expected to denote a memory
      location, which serves as a dynamically-allocated name. *)
   | PXData of path * pats
   (* A record pattern. *)

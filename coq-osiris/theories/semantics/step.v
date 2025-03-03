@@ -3,7 +3,6 @@ From stdpp Require Import gmap relations.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval.
-From iris.prelude Require Import prelude options.
 
 (* This file equips the [micro] monad with an operational semantics, that is,
    a reduction semantics of the form [step c c'] where [c] and [c'] are pairs
@@ -194,7 +193,7 @@ Qed.
 
 Definition step_install_1 σ l (deep : bool) η bs l' :=
   if deep then
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, deep_match η o bs))]> σ
+    <[l' := K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ
   else
     <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))]> σ.
 
@@ -675,6 +674,18 @@ Proof.
   eauto.
 Qed.
 
+Lemma invert_step_resume_shot {A E} σ σ' l o k m' :
+  σ !! l = Some Shot →
+  @step A E (σ, Stop CResume (l, o) k) (σ', m') →
+  σ = σ' /\
+  m' = crash.
+Proof.
+  intros Heq Hstep.
+  destruct_step.
+  unfold step_resume_1, step_resume_2. rewrite Heq.
+  eauto.
+Qed.
+
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
 Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
@@ -682,7 +693,7 @@ Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
   ∃ l',
   σ !! l' = None ∧
     σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
-                            (λ o, deep_match η o bs)) ]> σ ∧
+                            (wrap_eval_branches η bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.

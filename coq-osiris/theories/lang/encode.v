@@ -318,6 +318,9 @@ Global Hint Resolve solve_encode_nat : encode.
 Global Instance Encode_Z : Encode Z :=
   { encode := λ n, VInt (repr n) }.
 
+Global Instance Encode_int : Encode int :=
+  { encode := λ n, VInt n }.
+
 Lemma solve_encode_int i z :
   i = repr z →
   VInt i = #z.
@@ -346,6 +349,20 @@ Global Hint Resolve
 : encode.
 
 (* TODO add hints that help prove [representable z]. *)
+
+(* -------------------------------------------------------------------------- *)
+
+(* Floats. *)
+
+Global Instance Encode_float : Encode PrimFloat.float :=
+  { encode := λ f, VFloat f }.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Char. *)
+
+Global Instance Encode_char: Encode char :=
+  { encode := λ f, VChar f }.
 
 (* -------------------------------------------------------------------------- *)
 

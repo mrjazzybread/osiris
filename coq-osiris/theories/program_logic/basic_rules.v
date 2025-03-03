@@ -50,14 +50,11 @@ Section ewp_basic_rules.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) σ:
-    state_interp σ -∗
+  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _):
     EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
     ewp_unfold (@crash A X).
-    iIntros "Hsi HCrash".
-    spec_state. destruct Hred, x; spec_step.
-    inversion H.
+    iIntros "Hsi". done.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
@@ -114,6 +111,9 @@ Section ewp_basic_rules.
     ewp_case_is_handleable m.
     (* Case: [m] is a [HRet] or a [HThrow]. We easily conclude. *)
     1, 2 : iMod "Hwp"; iModIntro; iApply ("Hmon" with "[$]").
+
+    (* Case: [m] is a [HCrash]. *)
+    done.
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
       iMod "Hwp"; iModIntro.
@@ -177,6 +177,7 @@ Section ewp_basic_rules.
     ewp_unfold m.
     ewp_case_is_handleable m.
     1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
+    - by iApply (fupd_mask_mono E _).
     - iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro.
       iApply (monotonic_prot with "[] He").
@@ -229,7 +230,7 @@ Section ewp_basic_rules.
     iIntros "SI Hwp".
     ewp_unfold_all.
     ewp_case_is_handleable m.
-    1-3: try iMod "Hwp";
+    1-4: try iMod "Hwp";
         try (iApply fupd_mask_intro; first set_solver);
         iIntros "_"; iPureIntro; right; eauto.
 
@@ -266,7 +267,7 @@ Local Ltac ewp_invert :=
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
           match goal with
           | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
-            iMod (ewp_crash_inv with "[$][$]") as "%"
+            iMod (ewp_crash_inv with "[$]") as "%"
           end
       end
   end.
@@ -526,6 +527,10 @@ Section ewp_rules.
     (* Case : [m1] is [throw _]; trivial  *)
     { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
 
+    (* Case : [m1] is [crash]; trivial  *)
+    { iClear "IH".
+      by setoid_rewrite (ewp_unfold crash); rewrite /ewp_pre /=. }
+
     (* Case : [m1] is [Perform _ _]. *)
     { cbn.
       ewp_unfold_all. iMod "Hwp"; iModIntro.
@@ -542,7 +547,7 @@ Section ewp_rules.
     iModIntro. construct_wp_nonret.
 
     (* Get more information out of [e2]; *)
-    apply invert_step_try2 in Hstep; auto; destruct Hstep as (?&Hstep&->).
+    apply invert_step_try2 in Hstep0; auto; destruct Hstep0 as (?&Hstep0&->).
 
     (* Can use information from above to get [wp] about stepped computation *)
     spec_step.
@@ -691,8 +696,8 @@ Section ewp_rules.
 
   Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
     mapsto l (DfracOwn 1) (K sk) ⊢
-    ▷ (mapsto l (DfracOwn 1) (Shot) -∗
-       EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
+    (mapsto l (DfracOwn 1) (Shot) -∗
+     ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hwp".
@@ -706,8 +711,28 @@ Section ewp_rules.
 
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    ewp_mask_elim. iFrame.
-    by iSpecialize ("Hwp" with "Hl").
+    iSpecialize ("Hwp" with "Hl").
+    ewp_mask_elim.
+    iFrame.
+  Qed.
+
+  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
+    mapsto l (DfracOwn 1) Shot -∗
+    EWP Crash @ E <| ψ |> {{ φ }} -∗
+    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+  Proof.
+    iIntros "Hl Hcrash".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    eapply invert_step_resume_shot in Hstep; eauto. destruct Hstep; subst.
+
+    (* Update the ghost heap. *)
+    ewp_mask_elim.
+    iFrame.
   Qed.
 
   (* [CInstall]. *)
@@ -718,7 +743,7 @@ Section ewp_rules.
   Lemma ewp_install_deep {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
       l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (λ o, deep_match η o bs))) -∗
+        (K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CInstall (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -851,6 +876,16 @@ Section ewp_rules.
       iApply ewp_value. iApply ("Hr" with "Hφ1 Hφ2"). }
   Qed.
 
+  Lemma ewp_par_same_exn {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ ψ} φ1 φ2 Ψ :
+    EWP m1 @ E <| Ψ |> {{ | RET v => φ1 v ; | EXN e => ψ e }} -∗
+    EWP m2 @ E <| Ψ |> {{ | RET v => φ2 v ; | EXN e => ψ e }} -∗
+    (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ φ (v1, v2)) -∗
+    EWP (par m1 m2) @ E <| Ψ |> {{ | RET v => φ v ; | EXN e => ψ e }}.
+  Proof.
+    iIntros "Hm1 Hm2 Hφ".
+    iApply (ewp_par with "Hm1 Hm2"); auto.
+  Qed.
+
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma ewp_flip {E} u (k: _ → micro A X) {φ} Ψ :
       ▷(EWP continue k true @ E <| Ψ |> {{ φ }} ∧ EWP continue k false @ E <| Ψ |> {{ φ }})
@@ -978,6 +1013,24 @@ Section ewp_val_rules.
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "[//] Hwp"). }
 
+    (* Case : [ms] is [crash _]. *)
+    { (* Prove that [m] is a final step in the diagram. *)
+      ewp_unfold_head. rewrite Hmh.
+      intro_state. ewp_mask_intro "Hmod".
+      iSplit.
+      { iPureIntro.
+        epose proof (invert_simp_final _ Hsimp) as [|];
+          [ by prove_final |
+            subst; try destruct_is_ret; try destruct_is_throw |
+            eauto with can_step ].
+        inversion Hmh. }
+      intro_step.
+      eapply simp_final_step_diagram in Hsimp; eauto; last done.
+      destruct Hsimp; subst; iFrame.
+      ewp_mask_elim.
+      (* We are then able to use the induction hypothesis. *)
+      iApply ("IH" with "[//] Hwp"). }
+
     (* Case : [ms] is [Perform _]. *)
     { ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
@@ -1043,13 +1096,16 @@ Section ewp_val_rules.
 
     destruct (is_handleable m) as [ h | ] eqn:R.
     - (* [m] is handleable *)
-      destruct h as [ a | e | eff f ].
+      destruct h as [ a | e | | eff f ].
       + (* [ret]'s satisfy [φ] *)
         destruct m as [| | | |???[]|]; discriminate || injection R as ->.
         by eapply invert_pure_wp_ret in Hm.
       + (* [throw]'s satisfy [ψ] *)
         destruct m as [| | | |???[]|]; discriminate || injection R as ->.
         by eapply invert_pure_wp_throw in Hm.
+      + (* [crash]'s satisfy [ψ] *)
+        destruct m as [| | | |???[]|]; try discriminate.
+        by eapply invert_pure_wp_crash in Hm.
       + (* [perform]'s are not immediately pure *)
         destruct m as [| | | |???[]|]; discriminate || injection R as -> ->.
         by apply invert_pure_wp_stop in Hm.
@@ -1143,7 +1199,7 @@ Section ewp_eval.
     by iApply "Hmono".
   Qed.
 
-  Lemma prove_ewp_par {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2) X' -> micro A X) φ1 φ2 E ψ Q :
+  Lemma prove_ewp_Par {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2) X' -> micro A X) φ1 φ2 E ψ Q :
     EWP m1 @ E <|ψ|> {{ RET v, φ1 v }} -∗
     EWP m2 @ E <|ψ|> {{ RET v, φ2 v }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ EWP k (O2Ret (v1, v2)) @ E <|ψ|> {{ Q }}) -∗
@@ -1164,9 +1220,9 @@ Section ewp_eval.
   Proof.
     iIntros "Hspec".
     simpl_eval_sitem; simpl_eval_bindings. iApply ewp_bind.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
     { by iApply ewp_value. }
-    iIntros (v ?) "Hspec ->". simpl_extend; unfold widen; simpl.
+    iIntros (v ?) "Hspec ->". simpl_eval_pat; unfold widen; simpl.
     rewrite try_ret. iApply ewp_value. simpl. iApply ewp_value.
     iExists v.
     iFrame. iPureIntro; auto.
@@ -1245,10 +1301,10 @@ Section ewp_eval.
   Proof.
     iIntros "He HQ".
     simpl_eval_sitem. simpl_eval_bindings.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
-    simpl_extend. iApply ewp_value.
+    simpl_eval_pat. iApply ewp_value.
     by iApply "HQ".
   Qed.
 
@@ -1260,10 +1316,10 @@ Section ewp_eval.
   Proof.
     iIntros "He Hcov".
     simpl_eval_sitems; simpl_eval_bindings; simpl.
-    iApply (prove_ewp_par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_value. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
-    unfold widen; simpl_extend; simpl.
+    unfold widen; simpl_eval_pat; simpl.
     iApply "Hcov".
     iExists v1; by iFrame.
   Qed.

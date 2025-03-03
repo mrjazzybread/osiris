@@ -32,3 +32,13 @@ Proof.
 Defined.
 
 (* TODO: comment why defined. *)
+
+(* Usage: [destruct (eqb_spec l1 l2)] will replace [eqb l1 l2] with [true] and
+   add the hypothesis [l1 = l2] in a first subgoal, and the same with [false]
+   and [l1 ≠ l2] in a second subgoal. *)
+Lemma eqb_spec l1 l2 : reflect (l1 = l2) (eqb l1 l2).
+Proof.
+  apply iff_reflect.
+  unfold eqb. rewrite Z.eqb_eq.
+  destruct l1, l2; simpl; split; congruence.
+Qed.

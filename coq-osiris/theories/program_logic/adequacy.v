@@ -16,17 +16,18 @@ Section ewp_wp.
 
   Lemma ewp_imp_wp {Σ} {A X}
     {irisGen: irisGS_gen HasNoLc (@osiris_lang A X) Σ}
-    E (e : micro A X) (Φ : outcome2 A X -> _) :
-    EWP e @ E <| ⊥ |> {{ Φ }} -∗ WP e @ NotStuck; E {{ Φ }} : iProp Σ.
+    E (m : micro A X) (Φ : outcome2 A X -> _) :
+    EWP m @ E <| ⊥ |> {{ Φ }} -∗ WP m @ NotStuck; E {{ Φ }} : iProp Σ.
   Proof.
-    iLöb as "IH" forall (e).
+    iLöb as "IH" forall (m).
     iIntros "Hwp".
-    destruct (to_val e) as [ v         |] eqn:?.
+    destruct (to_val m) as [ v         |] eqn:?.
     (* [e] is an outcome2 (either [ret _] or [throw _]). *)
     { rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
-      destruct e; inversion Heqo; subst; eauto. }
+      destruct m; inversion Heqo; subst; eauto. }
     rewrite ewp_unfold /ewp_pre wp_unfold /wp_pre /= Heqo.
-    ewp_case_is_handleable e ;inversion Heqo.
+    ewp_case_is_handleable m ;inversion Heqo.
+    { iMod "Hwp". done. }
     iMod "Hwp".
     { rewrite /prot; rewrite upcl_bottom; done. }
     intro_state. iMod ("Hwp" with "Hsi") as "[% H]".
@@ -56,12 +57,12 @@ Section adequacy.
   Context `{!osirisGpreS Σ}.
 
   (* ------------------------------------------------------------------------ *)
-  (** Adequacy Theorem for [EWP], for closed programs. *)
+  (** Adequacy Theorem for [EWP] for computations. *)
 
-  Theorem ewp_adequacy e σ φ :
+  Theorem ewp_adequacy m σ φ :
   (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
-    ⊢ EWP e @ ⊤ <| ⊥ |> {{ fun v =>  ⌜ φ v ⌝ }}) →
-    adequate NotStuck e σ (λ v _, φ v).
+    ⊢ EWP m @ ⊤ <| ⊥ |> {{ fun o =>  ⌜ φ o ⌝ }}) →
+    adequate NotStuck m σ (λ o _, φ o).
   Proof.
     intros Hwp.
     eapply (wp_adequacy_gen HasNoLc Σ _).
@@ -71,6 +72,26 @@ Section adequacy.
       (λ σ κs, gen_heap_interp σ),
       (λ _, True%I). iFrame.
     iApply ewp_imp_wp. iApply Hwp.
+  Qed.
+
+  (* Consequence: programs proved with the empty protocol cannot perform
+  unhandled effects *)
+  Corollary no_unhandled_effect m σ φ :
+  (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
+    ⊢ EWP m @ ⊤ <| ⊥ |> {{ fun o => ⌜ φ o ⌝ }}) →
+    ∀ m' t σ',
+      rtc erased_step ([m], σ) (t, σ') →
+      m' ∈ t →
+      ∀ e k, m' ≠ Stop CPerform e k.
+  Proof.
+    intros [_ H]%(ewp_adequacy _ σ).
+    intros m' t σ' S I e k Heq. subst m'.
+    specialize (H t σ' _ eq_refl S I).
+    destruct H.
+    - destruct H. discriminate.
+    - destruct H as (? & ? & ? & ? & Hstep).
+      inversion Hstep as [Hstep' ->].
+      inversion Hstep'.
   Qed.
 
 End adequacy.

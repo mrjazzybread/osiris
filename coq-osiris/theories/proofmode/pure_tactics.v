@@ -3,7 +3,7 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
-Ltac pat_PTuple :=
+Local Ltac pat_PTuple :=
   first [
       eapply pat_PTuple; first solve [ encode ]
     | rewrite 1 ?encode_encode'; simpl -[eval];
@@ -12,12 +12,18 @@ Ltac pat_PTuple :=
 From Ltac2 Require Ltac2.
 Import Ltac2.
 
+(* -------------------------------------------------------------------------- *)
+
 (* This file contains tactics intended for use during hoare-style proofs of pure
    programs. These range from symbolic execution to tactics designed to aid
    the application of single lemmas. *)
 
-(* -------------------------------------------------------------------------- *)
+(* NOTE: The user-facing tactics are analogous to the user facing rules in
+   [program_logic/pure/expr_rules].
 
+   To avoid confusion, the [Local] tag controls the visibility of tactics. *)
+
+(* -------------------------------------------------------------------------- *)
 
 (* [specify_cpattern] takes a goal of the form [cpattern η cp o3 φ ψ]
    and turns it into [n] goals of the form [pattern η p v φ ψ],
@@ -25,7 +31,7 @@ Import Ltac2.
 
 Ltac2 rec specify_cpattern () : int :=
   lazy_match! goal with
-  | [ |- cpattern _ ?cp ?o _ _ ] =>
+  | [ |- cpattern _ _ ?cp ?o _ _ ] =>
       (* We simplify terms because of things like coercions. *)
       let cp := Std.eval_hnf cp in
       let o := Std.eval_hnf o in
@@ -42,7 +48,12 @@ Ltac2 rec specify_cpattern () : int :=
           | (COr _ _, _) =>
               eapply cpat_COr;
               let n := Control.focus 1 1 specify_cpattern in
-              let m := Control.focus (Int.add n 1) (Int.add n 1) specify_cpattern in
+              let m := Control.focus (Int.add n 1) (Int.add n 1)
+                         (fun () =>
+                            let match_hyp := Fresh.in_goal ident:(match_hyp) in
+                            intros $match_hyp;
+                            specify_cpattern ())
+              in
               Int.add n m
           | _ =>
               eapply cpat_mismatch > [ cbn; reflexivity | ];
@@ -69,48 +80,72 @@ Ltac2 rec specify_cpattern () : int :=
       end
   end.
 
-Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
+Local Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () in ()).
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 tauto0 () := ltac1:(tauto).
+(* Custom tauto tactic. *)
+
+Local Ltac2 tauto0 () := ltac1:(tauto).
 Ltac2 Notation tauto := tauto0 ().
 
-(* Lemmas to help prune pattern no_match hypotheses. *)
+(* -------------------------------------------------------------------------- *)
 
-Lemma false_or_r P :
+(* Utility lemmas to help prune pattern no_match hypotheses. *)
+
+Local Lemma false_or_r P :
   P \/ False <-> P.
 Proof. tauto. Qed.
 
-Lemma false_or_l P :
+Local Lemma false_or_l P :
   False \/ P <-> P.
 Proof. tauto. Qed.
 
-Lemma true_or_r P :
+Local Lemma true_or_r P :
   P \/ True <-> True.
 Proof. tauto. Qed.
 
-Lemma true_or_l P :
+Local Lemma true_or_l P :
   True \/ P <-> True.
 Proof. tauto. Qed.
 
-Lemma false_and_r P :
+Local Lemma false_and_r P :
   P /\ False <-> False.
 Proof. tauto. Qed.
 
-Lemma false_and_l P :
+Local Lemma false_and_l P :
   False /\ P <-> False.
 Proof. tauto. Qed.
 
-Lemma true_and_r P :
+Local Lemma true_and_r P :
   P /\ True <-> P.
 Proof. tauto. Qed.
 
-Lemma true_and_l P :
+Local Lemma true_and_l P :
   True /\ P <-> P.
 Proof. tauto. Qed.
 
-Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
+
+(* In hypotheses [hyps], rewrite (left-to-right) using the equation defined in
+   [rw].
+
+    H1 : A
+    H2 : B > A
+    EQ : A = C
+    ---------
+    ...
+
+   [rewrite_in_hyps EQ [H1; H2]] will result in:
+
+    H1 : C
+    H2 : B > C
+    EQ : A = C
+    ---------
+    ...
+
+    LATER: Factor this out as a general utility lemma. *)
+
+Local Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   let hyp_clauses :=
     List.map (fun id => (id, Std.AllOccurrences, Std.InHyp)) hyps
   in
@@ -125,7 +160,10 @@ Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   in
   Std.rewrite false [rw] clause None.
 
-Ltac2 normalize_hyps (hyps : ident list) :=
+(* Normalize (i.e. remove extraneous ⊥ and ⊤ appearances, or reduce to ⊥ or ⊤
+   when possible) hypotheses in [hyps]. *)
+
+Local Ltac2 normalize_hyps (hyps : ident list) :=
   let lemma_list :=
     [ 'false_or_r;
       'false_or_l;
@@ -137,13 +175,20 @@ Ltac2 normalize_hyps (hyps : ident list) :=
       'true_and_l ]
   in
   let thunk_list :=
-    List.map (fun l => (fun () => rewrite_in_hyps l hyps)) lemma_list
+    List.map (fun l _ => rewrite_in_hyps l hyps) lemma_list
   in
   repeat (first0 thunk_list).
 
-Ltac2 normalize_hyp (h : ident) :=
+(* Normalize hypothesis [h]. *)
+
+Local Ltac2 normalize_hyp (h : ident) :=
   normalize_hyps [h].
 
+(* [pattern_hook] is an extensible lemma that the users will add their custom
+   patterns to.
+
+   This is useful when a user defines their custom ADT with certain destruct
+   patterns. (Used in [pure_match].) *)
 Ltac pattern_hook := fail.
 
 (* [pattern_match] expects a goal in the form of a [pattern] or [patterns] judgement.
@@ -169,12 +214,14 @@ Ltac2 rec solve_lookup_name () :=
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
   end.
 
-Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
+(* LATER: Move? *)
+
+Local Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
   m = ret a ->
   bind m f = f a.
 Proof. intros ->; reflexivity. Qed.
 
-Ltac2 rec solve_lookup_path () :=
+Local Ltac2 rec solve_lookup_path () :=
   simpl;
   lazy_match! goal with
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
@@ -184,21 +231,20 @@ Ltac2 rec solve_lookup_path () :=
   | [ |- ret _ = ret _ ] => reflexivity
   end.
 
-Ltac2 rec is_pattern (c : constr) :=
+Local Ltac2 rec is_pattern (c : constr) :=
   lazy_match! c with
-  | pattern _ _ _ _ _  => true
-  | patterns _ _ _ _ _ => true
+  | pattern _ _ _ _ _ _  => true
+  | patterns _ _ _ _ _ _ => true
   | _ => false
   end.
 
-
-Ltac2 constr_at_ident (h : ident) : constr :=
+Local Ltac2 constr_at_ident (h : ident) : constr :=
   let (_, _, x) :=
     List.find (fun (id, _, _) => Ident.equal h id) (Control.hyps ())
   in
   x.
 
-Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
+Local Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
   let cl :=
         { Std.indcl_arg := Std.ElimOnIdent h;
           Std.indcl_eqn := None;
@@ -207,13 +253,13 @@ Ltac2 destruct_as (h : ident) (p : Std.or_and_intro_pattern) :=
   in
   Std.destruct false [cl] None.
 
-Ltac2 rec get_arity (c : constr) :=
+Local Ltac2 rec get_arity (c : constr) :=
   match! c with
   | ?a _ => (Int.add 1 (get_arity a))
   | _ => 0
   end.
 
-Ltac2 rec get_constructor (c : constr) :=
+Local Ltac2 rec get_constructor (c : constr) :=
   match! c with
   | ?a _ => get_constructor a
   | _ => match Constr.Unsafe.kind c with
@@ -222,7 +268,7 @@ Ltac2 rec get_constructor (c : constr) :=
         end
   end.
 
-Ltac2 rec destruct_hyp (h : ident) : unit :=
+Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   normalize_hyp h;
   let x := constr_at_ident h in
   lazy_match! x with
@@ -292,7 +338,7 @@ Ltac2 rec destruct_hyp (h : ident) : unit :=
 (* We build our own recursor instead of [List.iter] because we don't
    want to keep iterating after solving the goal. *)
 
-Ltac2 destruct_hyps (hs : ident list) :=
+Local Ltac2 destruct_hyps (hs : ident list) :=
   let rec iter :=
     fun f ls =>
       match ls with
@@ -303,14 +349,14 @@ Ltac2 destruct_hyps (hs : ident list) :=
   in
   iter destruct_hyp hs.
 
-Tactic Notation "destruct_hyp" ident(hyp) :=
+Local Tactic Notation "destruct_hyp" ident(hyp) :=
   let destr_hyp := ltac2:(hyp |-
                             let hyp := Option.get (Ltac1.to_ident hyp) in
                             destruct_hyp hyp)
   in
   destr_hyp hyp.
 
-Tactic Notation "destruct_hyps" ident_list(hyps) :=
+Local Tactic Notation "destruct_hyps" ident_list(hyps) :=
   let destr_hyps := ltac2:(hyps |-
                              let hyps := Option.get (Ltac1.to_list hyps) in
                              let hyps := List.map (fun hyp => Option.get (Ltac1.to_ident hyp)) hyps in
@@ -320,7 +366,7 @@ Tactic Notation "destruct_hyps" ident_list(hyps) :=
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 rec do_intros () :=
+Local Ltac2 rec do_intros () :=
   lazy_match! goal with
   | [ |- ?h -> ?g ] =>
       (* If [h] is a proposition. *)
@@ -339,29 +385,29 @@ Ltac2 rec do_intros () :=
   | [ |- _ ] => ()
   end.
 
-Ltac2 set_postcondition_to_false () :=
+Local Ltac2 set_postcondition_to_false () :=
   lazy_match! goal with
-  | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
+  | [ |- pattern _ _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
         let t := Constr.type arg in
         unify $ψ (fun (_ : $t) => False)
       else ()
-  | [ |- pattern _ _ _ _ ?ψ ] =>
+  | [ |- pattern _ _ _ _ _ ?ψ ] =>
       if Constr.is_evar ψ then unify $ψ False else ()
   end.
 
-Ltac2 set_postcondition_to_true () :=
+Local Ltac2 set_postcondition_to_true () :=
   lazy_match! goal with
-  | [ |- pattern _ _ _ _ (?ψ ?arg) ] =>
+  | [ |- pattern _ _ _ _ _ (?ψ ?arg) ] =>
       if Constr.is_evar ψ then
         let t := Constr.type arg in
         unify $ψ (fun (_ : $t) => True)
       else ()
-  | [ |- pattern _ _ _ _ ?ψ ] =>
+  | [ |- pattern _ _ _ _ _ ?ψ ] =>
       if Constr.is_evar ψ then unify $ψ True else ()
   end.
 
-Ltac2 massage_term (c : constr) :=
+Local Ltac2 massage_term (c : constr) :=
   lazy_match! c with
   | ?ψ ?arg  =>
       if Constr.is_evar ψ then
@@ -376,9 +422,9 @@ Ltac2 massage_term (c : constr) :=
    - reduces to a [pattern ...] with [pats_PCons_unary],
    - solves the goal with [pats_PNil]. *)
 
-Ltac2 patterns () :=
+Local Ltac2 patterns () :=
   lazy_match! goal with
-  | [ |- patterns _ (_ :: _) _ _ ?ψ ] =>
+  | [ |- patterns _ _ (_ :: _) _ _ ?ψ ] =>
       (* If [Ψ] is an evar, [pats_PCons_unary] instantiates it as
          [Ψ := ?Ψ1 ∨ ?Ψ2]. Currently (09/2024), the only other case
          is that [Ψ] is already instantiated to [False]. *)
@@ -386,7 +432,7 @@ Ltac2 patterns () :=
         eapply pats_PCons_unary_false
       else
         eapply pats_PCons_unary
-  | [ |- patterns _ nil _ _ ?ψ ] =>
+  | [ |- patterns _ _ nil _ _ ?ψ ] =>
       (* If [Ψ] is an evar then we instantiate it to [False], otherwise we
          use [pats_consequence_psi] and the fact that [∀ P, ⊥ -> P]. *)
       if (Constr.is_evar ψ) then
@@ -397,7 +443,7 @@ Ltac2 patterns () :=
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [patterns η ps vs φ ψ]")))
+              (Message.of_string "Expected goal of the form [patterns η δ ps vs φ ψ]")))
   end.
 
 
@@ -410,7 +456,7 @@ Ltac2 patterns () :=
    Ltac1 tactic called [pattern_hook].
    This allows users to extend pattern matching to new data structures. *)
 
-Ltac2 rec pattern_match_aux () :=
+Local Ltac2 rec pattern_match_aux () :=
   (* [continue_matching] is used after solving one pattern. It
      introduces new information before deciding whether to continue
      pattern-matching or whether we are done. *)
@@ -421,8 +467,8 @@ Ltac2 rec pattern_match_aux () :=
           if is_pattern (Control.goal ()) then pattern_match_aux () else ())
   in
   lazy_match! goal with
-  | [ |- patterns _ _ _ _ _ ] => patterns (); continue_matching ()
-  | [ |- pattern _ ?p _ _ ?ψ ] =>
+  | [ |- patterns _ _ _ _ _ _ ] => patterns (); continue_matching ()
+  | [ |- pattern _ _ ?p _ _ ?ψ ] =>
       (* [massage_term] is black magic to help Rocq's unification engine. *)
       massage_term ψ;
       match! p with
@@ -473,21 +519,21 @@ Ltac2 rec pattern_match_aux () :=
       end
   end.
 
-(* Assuming a goal of the form [⊢ pattern(s) η p v ?φ ?ψ], the
+(* Assuming a goal of the form [⊢ pattern(s) η δ p v ?φ ?ψ], the
    [pattern_match] tactic tries to reduce the goal to [⊢ φ] while
    elaborating the failure postcondition [Ψ]. *)
 
 Ltac2 pattern_match0 () :=
   Control.enter (fun _ =>
   lazy_match! goal with
-  | [ |- pattern _ ?p (#?x) _ ?ψ ] =>
+  | [ |- pattern _ _ ?p (#?x) _ ?ψ ] =>
       rewrite 1 ?encode_encode'; pattern_match_aux ()
-  | [ |- pattern _ ?p _ _ ?ψ ] => pattern_match_aux ()
+  | [ |- pattern _ _ ?p _ _ ?ψ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [pattern η p v φ ψ]")))
+              (Message.of_string "Expected goal of the form [pattern η δ p v φ ψ]")))
   end).
 
 Ltac2 Notation "pattern_match" := pattern_match0 ().
@@ -548,13 +594,13 @@ Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 (* [pure_match_branches] expects a goal of the form
    [pure_match _ _ bs _] where [bs] is a list of n branches. It
    successively applies [pure_match_cons], creating n subgoals of the
-   form [pattern _ _ _ (λ n', pure (eval η' _) ##_ ⊥) _] and one subgoal of
+   form [pattern _ _ _ _ (λ n', pure (eval η' _) ##_ ⊥) _] and one subgoal of
    the form [False]. *)
 
 
 Ltac2 rec pure_match_branches0 (hyps : ident list) :=
   lazy_match! goal with
-  | [ |- pure_match _ _ ?bs _ _ ] =>
+  | [ |- branches _ ?o ?bs _ _ ] =>
       (* Match on [bs] to decide whether to apply [pure_match_cons]
          or [pure_match_nil]. *)
       lazy_match! (Std.eval_hnf bs) with
@@ -562,7 +608,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
           (* [pure_match_cons] produces two subgoals :
              - one of the form [cpattern ...]
              - one of the form [Ψ -> pure_match ...] *)
-          eapply pure_match_cons;
+          eapply branches_cons;
           (* In the first subgoal, apply the [specify_cpattern] tactic
              followed by the [pattern_match] tactic. *)
           Control.focus 1 1
@@ -592,18 +638,27 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
                   simplification. *)
                Control.enter (fun _ => pure_match_branches0 (remaining_hyps)))
       | [] =>
-          (* We have to show that every pattern match is exhaustive.
-             If we reach this point, then we can assume that an early
-             use of [destruct_hyps] was not powerful enough to solve
-             this goal. We thus use the more brute-force
-             [resolve_no_match] tactic. *)
-          eapply pure_match_nil; ltac1:(resolve_no_match)
+          (* We have to show that every pattern match is exhaustive. *)
+          lazy_match! (Std.eval_hnf o) with
+          | O3Ret _ =>
+              (* If we reach this point, then we can assume that an early
+                 use of [destruct_hyps] was not powerful enough to solve
+                 this goal. We thus use the more brute-force
+                 [resolve_no_match] tactic. *)
+              eapply branches_val_nil; ltac1:(resolve_no_match)
+          | O3Throw _ =>
+              (* If we didn't catch an exception, we propagate it. *)
+              eapply branches_exn_nil
+          | _ =>
+              (* [o] could be abstract, in which case we try to say we have been exhaustive. *)
+              ltac1:(resolve_no_match)
+          end
       end
   | [ |- ?g ] =>
       Control.throw
         (Tactic_failure
            (Some
-              (Message.of_string "Expected goal of the form [pure_match η o bs φ]")))
+              (Message.of_string "Expected goal of the form [branches η o bs φ Ψ]")))
   end.
 
 Ltac2 pure_match0 () := pure_match_branches0 [].
@@ -717,7 +772,7 @@ Ltac2 solve_returns () :=
   match! goal with
     | [ |- returns _ _ ] =>
         ltac1:(
-          first [ solve [eauto with pure ] |
+          first [ solve [ eauto with pure ] |
           eexists _; split; eauto with pure ])
   end.
 
@@ -731,35 +786,20 @@ Ltac2 match_type (x:constr) (t:constr) :=
 
 Ltac2 pure_ret0 () :=
   match! goal with
+  | [ |- pure_wp (ret ?v) _ _ ] =>
+      if match_type v constr:(val) then
+        first
+          [ eapply pure_ret_eq_val; eauto with encode |
+            eapply pure_ret; eauto with encode ]
+      else
+        eapply pure_ret; eauto with encode
   | [ |- pure (ret ?v) _ _ ] =>
       if match_type v constr:(val) then
-        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
-        solve_returns ()
+        first
+          [ eapply pure_ret_eq_val; eauto with encode |
+            eapply pure_ret; eauto with encode ]
       else
-        eapply pure_ret; eauto
-  | [ |- total (ret ?v) _ ] =>
-      if match_type v constr:(val) then
-        eapply pure_ret_val; first (fun _ => ltac1:(returns_eauto));
-        solve_returns ()
-      else
-        eapply pure_ret; eauto
-  | [ |- pure (ret ?v) (λ _ : val, _) _ ] =>
-        try (change ?v with (#_));
-        (* [pure_ret : v = #a → φ a → pure (ret v) φ ⊥] *)
-        solve [
-          eapply pure_ret_eq_val; eauto |
-          eapply pure_ret_eq_val'; eauto ]
-  | [ |- total (ret ?v) (λ _ : val, _) ] =>
-      try (change ?v with (#_));
-      solve [
-        eapply pure_ret_eq_val; eauto |
-        eapply pure_ret_eq_val'; eauto ]
-  | [ |- pure (ret _) (λ _ , _) _ ] =>
-      eapply pure_ret; eauto (* LATER : Control this [eauto] *)
-  | [ |- total (ret _) (λ _ , _) ] =>
-      eapply pure_ret; eauto
-  | [ |- pure_wp (ret _) _ _ ] =>
-      eapply pure_ret; eauto
+        eapply pure_ret; eauto with encode
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
@@ -986,14 +1026,17 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 pure_data () :=
+Ltac2 rec pure_data () :=
   (* Simplify all elements of the tuple to a value using [simp]. *)
-  eapply pure_eval_data >
+  eapply pure_eval_data_val >
     [ (* Use the assumption generated by [simp_tuple_args]. *)
       eapply pure_wp_mono_ret;
       first (fun _ => eapply pure_evals_eq;
-        unfold_Forall2 (); try0 (fun _ => pure_path));
-    ltac1:(cbn; rewrite /singleton; intros; subst; encode)
+                      unfold_Forall2 ();
+                      try0 (fun _ => Control.plus
+                                       (fun _ => pure_path)
+                                       (fun _ => pure_data ())));
+    ltac1:(rewrite /singleton; intros ? ->; encode)
     | ]; ltac1:(try encode).
 
 Ltac2 Notation "pure_data" := Control.enter (fun _ => repeat0 pure_data).
@@ -1006,6 +1049,7 @@ Tactic Notation "pure_data" := ltac2:(pure_data).
 
 Ltac2 pure_simp () :=
   eapply pure_wp_simp > [ ltac1:(simp_really) | ];
+  (* Why does it always go to [ret]? *)
   Control.enter pure_ret0.
 
 Ltac2 Notation "pure_simp" := pure_simp ().

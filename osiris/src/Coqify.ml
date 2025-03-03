@@ -96,11 +96,11 @@ let rec pat (p : pat) =
   | PTuple ps ->
       clist "PTuple" (map pat ps)
 
-  | PData (d, p) ->
-      c "PData" [ data d ; list (map pat p) ]
+  | PData (d, ps) ->
+      c "PData" [ data d ; list (map pat ps) ]
 
-  | PXData (pi, p) ->
-      c "PXData" [ path pi ; list (map pat p) ]
+  | PXData (pi, ps) ->
+      c "PXData" [ path pi ; list (map pat ps) ]
 
   | PRecord fps ->
       c "PRecord" [ fpats fps ]
@@ -340,8 +340,8 @@ and anonfun = function
       c "AnonFunction" [ branches bs ]
 
 and branch = function
-  | Branch (p, e) ->
-      c "Branch" [ cpat p; expr e ]
+  | Branch (cp, e) ->
+      c "Branch" [ cpat cp; expr e ]
 
 and branches (bs : branches) =
   cut "branches" (list (map branch bs))

@@ -3,7 +3,7 @@ From osiris.lang Require Import syntax encode sugar locations.
 From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Import
-  pure_rules pattern_rules expr_rules.
+  pure_rules pattern_rules binding_rules call_rules expr_rules.
 
 (* This file defines contains reasoning rules about top-level definitions,
    such as struct items, bindings, and modules. *)
@@ -26,12 +26,6 @@ Definition eval_module η me (φ : env -> Prop) :=
                                  | VStruct η' => φ η'
                                  | _ => False
                                  end) (λ _, False).
-
-
-(* A judgement for the evaluation of let bindings. *)
-
-Definition bindings η bs (φ : env -> Prop) :=
-  pure_wp (eval_bindings η bs) φ (λ _, False).
 
 
 (* A judgement for module coercion. *)
@@ -89,7 +83,7 @@ Qed.
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
 
 Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
-  bindings η bs ψ ->
+  bindings η bs ψ ⊥ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet bs) φ.
 Proof.
@@ -107,7 +101,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  total (eval η e) spec ->
+  pure (eval η e) spec ⊥ ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -118,12 +112,12 @@ Proof.
   eapply pure_wp_simp. { simpl. apply SimpParRetRight. }
   eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
   simpl; intros ? (? & -> & Hextend).
-  unfold irrefutably_extend; simpl_extend.
+  unfold irrefutably_extend; simpl_eval_pat.
   eapply pure_wp_ret; eauto.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  total (eval η e) (λ v, pattern [] p v ψ False) ->
+  pure (eval η e) (λ v, pattern η [] p v ψ False) ⊥ ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -213,7 +207,7 @@ Lemma struct_letrec_function `{Encode X, Encode Y}
         P y ->
         pure (call vf #y) (φf y) ζ) ->
       P x ->
-      pure_match (("__osiris_anonymous_arg", #x) :: (f, vf) :: η) (O3Ret #x) bs (φf x) ζ) ->
+      branches (("__osiris_anonymous_arg", #x) :: (f, vf) :: η) (O3Ret #x) bs (φf x) ζ) ->
   (∀ vf, (∀ x, P x -> pure (call vf #x) (φf x) ζ) -> Ψ ((f, vf) :: η, (f, vf) :: δ)) ->
   struct_item (η, δ) (ILetRec [RecBinding f (AnonFunction bs)]) Ψ.
 Proof.
@@ -297,14 +291,36 @@ Qed.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->
-  total (eval_mexpr η me) (λ v, match v with
+  pure (eval_mexpr η me) (λ v, match v with
                                | VStruct η => φ η
                                | _ => False
-                               end).
+                               end) ⊥.
 Proof.
   repeat intro.
   eapply pure_wp_mono; intros; eauto with pure_wp.
 Qed.
+
+Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
+  simp (eval_sitems (η, []) items) (ret (whatenv, δ)) ->
+  ψ (VStruct δ) ->
+  pure (eval_mexpr η (MStruct items)) ψ ⊥.
+Proof.
+  intros. simpl_eval_mexpr.
+  eapply pure_wp_simp; [ simp | eauto using pure_wp_ret with pure ].
+Qed.
+
+(* Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop): *)
+(*   simp (eval_mexpr η me) (ret v) -> *)
+(*   pure (coerce c v) ψ ⊥ -> *)
+(*   pure (eval_mexpr η (MCoercion me c)) ψ ⊥. *)
+(* Proof. *)
+(*   intros Hme Hc. simpl_eval_mexpr. eapply pure_bind. *)
+(*   eapply pure_wp_simp; eauto. *)
+(*   eapply pure_wp_mono_ret. eapply pure_wp_ret_eq. *)
+(*   intros _ ->. eauto with pure *)
+(*   rewrite pure_wp_widen'. *)
+(*   apply Hc. *)
+(* Qed. *)
 
 Lemma module_struct η sitems φ :
   struct_items (η, []) sitems (λ '(η, δ), φ δ) ->
@@ -317,7 +333,7 @@ Proof.
 Qed.
 
 Lemma module_struct_let η bs sitems φ ψ :
-  bindings η bs ψ ->
+  bindings η bs ψ ⊥ ->
   (∀ η', ψ η' ->
          struct_items (η' ++ η, η') sitems (λ '(_, δ), φ  δ)) ->
   eval_module η (MStruct ((ILet bs) :: sitems)) φ.
@@ -351,58 +367,4 @@ Proof.
   eapply pure_wp_bind_conseq; [ eassumption | ].
   intros [] Hx; try contradiction; apply pure_wp_widen;
     unfold coerces in *; auto.
-Qed.
-
-
-(* -------------------------------------------------------------------------- *)
-
-(* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
-
-Lemma bindings_cons `{Encode A} η p e bs φ φ' (ψ : A -> Prop) :
-  total (eval η e) ψ ->
-  bindings η bs φ' ->
-  (∀ (x : A) (η' : env), ψ x -> φ' η' -> pattern η' p #x φ False) ->
-  bindings η ((Binding p e) :: bs) φ.
-Proof.
-  unfold bindings. simpl. intros Hpure_wp Hbs Hcov.
-  simpl_eval_bindings.
-  apply pure_wp_Par_vals_left.
-  apply (pure_wp_mono_ret _ Hpure_wp). intros v (a & -> & Ha).
-  apply (pure_wp_mono_ret _ Hbs). intros η' Hη'.
-  eapply pure_wp_widen, pure_wp_try_conseq. by apply Hcov.
-  intros. by apply pure_wp_ret. intros _ [].
-Qed.
-
-Lemma bindings_nil `{Encode A} η (φ : env -> Prop) :
-  φ [] ->
-  bindings η [] φ.
-Proof.
-  unfold bindings. simpl_eval_bindings. apply pure_wp_ret.
-Qed.
-
-Lemma bindings_var `{Encode A} η v e bs φ' (ψ : A -> Prop) :
-  total (eval η e) ψ ->
-  bindings η bs φ' ->
-  bindings η
-    (Binding (PVar v) e :: bs)
-    (λ η,
-      ∃ a η', ψ a /\ φ' η' /\ η = (v, #a) :: η').
-Proof.
-  intros.
-  eapply bindings_cons; eauto.
-  intros; unfold pattern. simpl_extend.
-  apply pure_wp_ret; eauto.
-Qed.
-
-Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ φ'
-  (ψ1 : A -> Prop) (ψ2 : B -> Prop) :
-  total (eval η e) (λ '(a, b), ψ1 a /\ ψ2 b) ->
-  bindings η bs φ' ->
-  (∀ a b η', ψ1 a -> ψ2 b -> φ' η' -> pattern η' (PPair p1 p2) #(a, b) φ False) ->
-  bindings η (Binding (PPair p1 p2) e :: bs) φ.
-Proof.
-    intros Hpure Hbs Hpat.
-  eapply bindings_cons; eauto.
-  intros [a b] η' [Hψ1 Hψ2] Hη'.
-  auto.
 Qed.

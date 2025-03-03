@@ -9,7 +9,6 @@ let invert (type elt) (iter : (elt -> unit) -> unit) : elt Seq.t =
   fun () ->
   match iter yield with
   | _ -> Seq.Nil
-  | exception _ -> Seq.Nil
   | effect (Yield x), k ->
       Seq.Cons (x, fun () -> continue k ())
       (* We have to eta-expand [continue k] to [fun () -> continue k ()] because continue is
