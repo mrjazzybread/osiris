@@ -1307,9 +1307,9 @@ Lemma fold_pre_eval_branches :
   pre_eval_branches eval = eval_branches.
 Proof. unfold eval_branches; by rewrite seal_eq. Qed.
 
-Local Definition eval_wrap_branches_aux : seal (pre_wrap_eval_branches eval_branches).
+Local Definition wrap_eval_branches_aux : seal (pre_wrap_eval_branches eval_branches).
 Proof. by eexists. Qed.
-Definition wrap_eval_branches := eval_wrap_branches_aux.(unseal).
+Definition wrap_eval_branches := wrap_eval_branches_aux.(unseal).
 Lemma fold_pre_wrap_eval_branches :
   pre_wrap_eval_branches eval_branches = wrap_eval_branches.
 Proof. unfold wrap_eval_branches; by rewrite seal_eq. Qed.
