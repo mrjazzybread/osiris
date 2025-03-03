@@ -8,62 +8,30 @@ From osiris.program_logic Require Import pure.toplevel_rules.
 
 From stdpp Require Import well_founded.
 From Coq Require Import Wellfounded.Inverse_Image.
+From Equations Require Import Equations.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We locally redefine [call] and [acall] to bypass a [stop CEval ..]. *)
+(* We locally redefine [call] and [acall] to bypass a [please_eval ..]. *)
 
 (** Original definition:
 
     Definition acall η a v :=
     let 'AnonFun x e := a in
     let η0 := (x, v) :: η in
-    stop CEval (η0, e).
+    please_eval (η0, e).
  *)
 
 (* Local redefinition: *)
 
 Local Definition acall η a v :=
   let 'AnonFun x e := a in
-  eval ((x, v) :: η) e.
-
-(* TODO: Move. *)
-
-Lemma invert_pure_wp_eval η e φ ζ :
-  pure_wp (stop CEval (η, e)) φ ζ -> pure_wp (eval η e) φ ζ.
-Proof.
-  intros Hstop.
-  inversion Hstop; subst.
-  destruct H as [m' Hmay].
-  specialize (H0 m' Hmay) as Hwp.
-  pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
-  rewrite try2_ret_right in Hwp.
-  apply Hwp.
-Qed.
-
-Lemma pure_wp_CEval_inject2 η e φ Ψ :
-  pure_wp (eval η e) φ Ψ ->
-  pure_wp (stop CEval (η, e)) φ Ψ.
-Proof.
-  intros.
-  constructor; eauto using MayEval.
-  intros m' Hmay.
-  pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
-  by rewrite try2_ret_right.
-Qed.
-
-Lemma pure_acall_equiv η a v φ ζ :
-  pure_wp (eval.acall η a v) φ ζ <-> pure_wp (fun_spec.acall η a v) φ ζ.
-Proof.
-  destruct a; simpl.
-  split.
-  { apply invert_pure_wp_eval. }
-  { apply pure_wp_CEval_inject2. }
-Qed.
+  let η0 := (x, v) :: η in
+  eval η0 e.
 
 Local Definition call f x :=
-   match f with
-  | VClo η a => acall η a x
+  match f with
+  | VClo η a => fun_spec.acall η a x
   | VCloRec η rbs g =>
       let δ := eval_rec_bindings η rbs in
       let η0 := δ ++ η in
@@ -72,16 +40,16 @@ Local Definition call f x :=
   | _ => type_mismatch "closure expected"
   end.
 
-(* TODO: Move *)
+(* When under a [pure_wp], [eval.call] and [fun_spec.call] are equivalent. *)
 
-Lemma pure_wp_bind_mono {A B E} (m : micro A E) (f g : A -> micro B E) φ ζ :
-  (∀ a, pure_wp (f a) φ ζ -> pure_wp (g a) φ ζ) ->
-  pure_wp (bind m f) φ ζ -> pure_wp (bind m g) φ ζ.
+Lemma pure_acall_equiv η a v φ ζ :
+  pure_wp (eval.acall η a v) φ ζ <-> pure_wp (fun_spec.acall η a v) φ ζ.
 Proof.
-  intros Hmono Hf.
-  apply invert_pure_wp_bind in Hf.
-  apply pure_wp_bind.
-  eapply pure_wp_mono; eauto.
+  destruct a; simpl.
+  split.
+  { apply invert_pure_wp_eval. }
+  { intros. apply pure_wp_Eval.
+    by rewrite try2_ret_right. }
 Qed.
 
 Lemma pure_call_equiv f v φ ζ :
@@ -93,69 +61,39 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-Section unary_spec.
+(* [is_lambda_of_depth e arg_τ] states that [e] is a series of nested
+   [EAnonFun _] of depth ≥ to the length of [arg_τ]. *)
 
-  (* As an example, we define [Spec'] as a way to specify unary functions. *)
+Fixpoint is_lambda_of_depth (e : expr) (τ : types) : Prop :=
+  exists x e',
+    e = EAnonFun (AnonFun x e') ∧
+      match τ with
+      | Tbase _ => True
+      | Tcons _ τ' =>
+          is_lambda_of_depth e' τ'
+      end.
 
-  (* [call_spec] is the type of specifications over function calls. It
-   depends on two arguments: the argument of the function call, and the
-   computation resulting from calling the function on that argument. *)
+Lemma unfold_is_lambda_of_depth e τ :
+  is_lambda_of_depth e τ =
+  exists x e', e = EAnonFun (AnonFun x e') ∧
+                 match τ with
+                 | Tbase _ => True
+                 | Tcons _ τ' =>
+                     is_lambda_of_depth e' τ'
+                 end.
+Proof. destruct τ; tauto. Qed.
 
-  Local Definition call_spec' {X : Type} := X -> microvx -> Prop.
-
-  (* [Spec' c P] states that given a closure [c], the specification [P]
-   holds for any call of [c] on an argument. *)
-
-  Local Definition Spec' `{Encode X} (c : val) (P : call_spec') :=
-    ∀ (x : X), P x (call c #x).
-
-  (* Consider for example the specification of a function [sort]:
-   [ Spec' sort (λ l m, pure m (λ l', Sorted l' ∧ l' ≡ l) ⊥) ] *)
-
-  (* Example of a reasoning rule, for the creation of a [Spec' c P]. *)
-
-  Local Lemma pure_eval_anon' `{Encode X} (P : call_spec') η (xvar : var) e ζ :
-    (∀ (x : X),
-        P x (eval ((xvar, #x) :: η) e)) ->
-    pure (eval η (EAnonFun (AnonFun xvar e))) (λ c, Spec' c P) ζ.
-  Proof. by intros; simpl_eval; eapply pure_ret. Qed.
-
-  (* [pure_eval_letrec'] allows us to prove that the body [e] of a letrec
-   expression satisfies a specification given by [P].
-
-   In a first subgoal, we prove that any function call satisfies [P],
-   under the assumption that calls to smaller arguments (according to
-   [R]) are well-behaved.
-   In the second subgoal, we prove [e2] while abstracting over [e]. *)
-
-  Local Lemma pure_eval_letrec' `{Encode X, Encode Y}
-    (P : call_spec') (R : X -> X -> Prop) η f (x : var) e
-    e2 (φ : Y -> Prop) ζ :
-    (* Show that the relation on which arguments are decreasing is well-founded. *)
-    wf R ->
-    (* Show the specification [P] holds over a call to any argument
-     [arg], under the assumption that [P] holds to a call over any
-     argument [yval] smaller than [arg]. *)
-    (∀ c (arg : X),
-        Spec' c (λ yval m, R yval arg -> P yval m) ->
-        P arg (eval ((x, #arg) :: (f, c) :: η) e)) ->
-    (* Continue with [f] bound to [c], and [c] specified by [P]. *)
-    (∀ c, Spec' c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
-    (* When facing an expression of the form [let rec f x = e in e2]. *)
-    pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
-  Proof.
-    intros Hwf Hmkspec He2. simpl_eval. eapply He2.
-    unfold Spec'. intros v.
-    induction v as [v IH] using (well_founded_induction Hwf); intros.
-    simpl; rewrite String.eqb_refl; simpl.
-    eapply Hmkspec. intros y. intros HR. by apply IH.
-  Qed.
-
-End unary_spec.
+Definition is_VCloRec_of_depth v arg_τ :=
+  exists η f x e,
+    v = VCloRec η [ RecBinding f (AnonFun x e) ] f ∧
+      (* The [RecBinding] has one initial binding. *)
+      match arg_τ with
+      | Tbase _ => True
+      | Tcons _ arg_τ' =>
+          is_lambda_of_depth e arg_τ'
+      end.
 
 (* -------------------------------------------------------------------------- *)
-
-From Equations Require Import Equations.
 
 (* We want to be able to reason on n-ary functions. We thus generalize
    [Spec'] to take a list of arguments described by an [arg_type]. *)
@@ -517,38 +455,6 @@ Proof with Spec_auto.
   simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
 Qed.
 
-(* [is_lambda_of_depth e arg_τ] states that [e] is a series of nested
-   [EAnonFun _] of depth ≥ to the length of [arg_τ]. *)
-
-Fixpoint is_lambda_of_depth (e : expr) (τ : types) : Prop :=
-  exists x e',
-    e = EAnonFun (AnonFun x e') ∧
-      match τ with
-      | Tbase _ => True
-      | Tcons _ τ' =>
-          is_lambda_of_depth e' τ'
-      end.
-
-Lemma unfold_is_lambda_of_depth e τ :
-  is_lambda_of_depth e τ =
-  exists x e', e = EAnonFun (AnonFun x e') ∧
-                 match τ with
-                 | Tbase _ => True
-                 | Tcons _ τ' =>
-                     is_lambda_of_depth e' τ'
-                 end.
-Proof. destruct τ; tauto. Qed.
-
-Definition is_VCloRec_of_depth v arg_τ :=
-  exists η f x e,
-    v = VCloRec η [ RecBinding f (AnonFun x e) ] f ∧
-      (* The [RecBinding] has one initial binding. *)
-      match arg_τ with
-      | Tbase _ => True
-      | Tcons _ arg_τ' =>
-          is_lambda_of_depth e arg_τ'
-      end.
-
 (* If [c] is a lambda of depth [arg_τ], then
    [Spec c (λ args, Q args -> P args)] is equivalent to
    [∀ args, Q args -> aSpec c P args] *)
@@ -780,19 +686,6 @@ Proof.
   destruct τ;
     simp Spec;
     simpl in *; rewrite String.eqb_refl; apply HSpec.
-Qed.
-
-
-(* [pure_call_spec'] illustrates how we may want to use a [Spec c P]
-   specification. *)
-
-Local Lemma pure_call_spec' `{Encode X, Encode Y} (P : X -> microvx -> Prop) c v (φ : Y -> Prop) ζ :
-  Spec' c P ->
-  (∀ m, P v m -> pure m φ ζ) ->
-  pure (eval.call c #v) φ ζ.
-Proof.
-  intros HSpec Hmon. eapply pure_call_equiv.
-  apply Hmon. apply HSpec.
 Qed.
 
 (* [pure_EApp_partial] is a lemma for partial application. *)
@@ -1083,24 +976,4 @@ Proof.
   eapply prove_Spec_rec; eauto.
   apply by_unfold_spec.
   apply Hmkspec.
-Qed.
-
-(* TODO: What is this lemma doing here? *)
-Local Lemma structs_letrec_single `{Encode X} (R : X -> X -> Prop) η δ f (x : var) e
-  (P : X -> microvx -> Prop)
-  sitems φ :
-  wf R ->
-  (∀ c v',
-      Spec' c (λ v m, R v v' -> P v m) ->
-      P v' (eval ((x, #v') :: (f, c) :: η) e)) ->
-  (∀ c, Spec' c P ->
-       struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
-  struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.
-Proof.
-  intros Hwf Hmkspec He2.
-  unfold struct_items; simpl_eval_sitems.
-  eapply He2. intros v.
-  induction v as [v IH] using (well_founded_induction Hwf); intros.
-  simpl; rewrite String.eqb_refl; simpl.
-  by eapply Hmkspec.
 Qed.

@@ -767,6 +767,16 @@ Section pure_wp_rules.
     by intros ? ?%invert_pure_wp_throw.
   Qed.
 
+  Corollary pure_wp_bind_mono {A B E} (m : micro A E) (f g : A -> micro B E) φ ζ :
+    (∀ a, pure_wp (f a) φ ζ -> pure_wp (g a) φ ζ) ->
+    pure_wp (bind m f) φ ζ -> pure_wp (bind m g) φ ζ.
+  Proof.
+    intros Hmono Hf.
+    apply invert_pure_wp_bind in Hf.
+    apply pure_wp_bind.
+    eapply pure_wp_mono; eauto.
+  Qed.
+
   Lemma invert_pure_wp_Par_ret_left {A E A1 A2 E' φ ψ}
     a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
     pure_wp (Par (ret a1) m2 k) φ ψ →
@@ -888,7 +898,7 @@ Section pure_wp_rules.
     rewrite try2_ret_right in Hwp.
     apply Hwp.
   Qed.
-  
+
 
   (** Steps from pure_wp computations necessarily are [may] and preserve the store *)
 
