@@ -242,40 +242,66 @@ Proof.
   apply IH. apply HSpec'.
 Qed.
 
+(* We proceed by induction over the list of types. During the induction
+   step, we want the statement to hold over the generated intermediate
+   closure.
+
+   Because this closure will be a [VClo], we need to use the [Spec]
+   equivalences between [VClo] and [VCloRec] to generalise our goal
+   before we can start the induction.
+
+   This gives rise to the intermediate lemma [aSpec_Spec_VClo],
+   which we use in the proof of [aSpec_Spec]. *)
+
+Lemma aSpec_Spec_VClo (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
+  is_VClo_of_depth c τ ->
+  (∀ args, (aSpec c P) args) ->
+  Spec c P.
+Proof.
+  generalize dependent c.
+  induction τ as [ X HX | X HX τ' IH ];
+    intros c is_VClo HSpec; simp Spec; intros vx.
+  (* Base case: [aSpec] and [Spec] unfold to the same thing. *)
+  { specialize (HSpec vx); apply HSpec. }
+  (* Inductive case: step through the call in [Spec] and the call
+     in [aSpec] thanks to the knowledge that [c] is a closure. *)
+  inversion is_VClo as (η & x & e & -> & Hlambda).
+  rewrite unfold_is_lambda_of_depth in Hlambda.
+  destruct Hlambda as (y & e' & -> & Hlambda).
+  simpl; simpl_eval. eapply pure_wp_ret.
+  apply IH.
+  - (* Goal: The next intermediate closure is of depth [τ']. *)
+    repeat eexists. apply Hlambda.
+  - (* Goal: The closure satisfies [aSpec]. *)
+    intros args.
+    (* Step through the [call] in HSpec. *)
+    rewrite forall_unroll in HSpec; specialize (HSpec vx args);
+      simpl in HSpec.
+    rewrite unfold_aSpec in HSpec.
+    simpl in HSpec;
+      unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
+    eapply invert_pure_wp_ret in HSpec.
+    apply HSpec.
+Qed.
+
 Lemma aSpec_Spec (τ : types) (c : val) (P : τ -#> microvx -> Prop):
   is_VCloRec_of_depth c τ ->
   (∀ args, (aSpec c P) args) ->
   Spec c P.
 Proof.
   intros (η & f & x & e & -> & Hlambda) HaSpec'.
-  assert (is_VClo_of_depth (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) τ).
+  set (v := VClo
+              ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η)
+              (AnonFun x e)).
+  (* Restate our hypotheses in terms of [VClo]. *)
+  assert (is_VClo_of_depth v τ).
   { unfold is_VClo_of_depth. repeat eexists. apply Hlambda. }
-  clear Hlambda.
+    assert (∀ args : τ, aSpec v P args) as HaSpec.
+  { intros args; subst v; rewrite <- aSpec_equiv; apply HaSpec'. }
+  (* Restate our goal in terms of [VClo]. *)
   rewrite Spec_equiv.
-  assert (∀# args : τ, aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args) as HaSpec.
-  { apply tforall_equiv; intros args; rewrite <- aSpec_equiv; apply HaSpec'. }
-  clear HaSpec'.
-
-  generalize dependent (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)).
-  clear f x e η.
-  induction τ as [ X HX | X HX τ IH ];
-    intros c is_VClo HSpec; simp Spec; intros vx.
-  { specialize (HSpec vx); apply HSpec. }
-
-  inversion is_VClo as (η & x & e & -> & Hlambda).
-  rewrite unfold_is_lambda_of_depth in Hlambda.
-  destruct Hlambda as (y & e' & -> & Hlambda).
-  simpl; simpl_eval. eapply pure_wp_ret.
-  apply IH.
-  - repeat eexists. apply Hlambda.
-  - rewrite tforall_equiv; intros args.
-    rewrite tforall_unroll in HSpec; specialize (HSpec vx).
-    rewrite tforall_equiv in HSpec; specialize (HSpec args).
-    unfold aSpec in HSpec; rewrite tapp_bind in HSpec.
-    simp aSpec_aux in HSpec. simpl in HSpec.
-    unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
-    eapply invert_pure_wp_ret in HSpec.
-    unfold aSpec; rewrite tapp_bind. apply HSpec.
+  (* Apply the auxiliary lemma, and use our restated hypotheses. *)
+  apply aSpec_Spec_VClo; auto.
 Qed.
 
 Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
