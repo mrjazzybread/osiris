@@ -172,11 +172,23 @@ Proof.
   rewrite tforall_unroll in Hmono. apply Hmono.
 Qed.
 
-(** [aSpec] is a restatement of [Spec], but with all of the
-    arguments quantified before the nested calls.
+(* Under a [Spec], a [VCloRec] [c] is equivalent to a [VClo],
+   where [c] is in the captured environment. *)
 
-    We then have the following equivalence:
-    [Spec c P <-> ∀ args, aSpec c P args]. *)
+Lemma Spec_equiv (τ : types) η f x e (P : τ -#> microvx -> Prop) :
+  Spec (VCloRec η [RecBinding f (AnonFun x e)] f) P =
+    Spec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P.
+Proof.
+  destruct τ.
+  { cbv; simp Spec.
+    simpl; rewrite String.eqb_refl; reflexivity. }
+  simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(** [aSpec] is a restatement of [Spec], but with all of the
+    arguments quantified before the nested calls. *)
 
 Equations aSpec_aux (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) (args : τ) : Prop :=
@@ -204,6 +216,24 @@ Proof.
   by rewrite tapp_bind.
 Qed.
 
+Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
+  aSpec c P args ->
+  (∀ m, (P args) m -> (P' args) m) ->
+  aSpec c P' args.
+Proof.
+  unfold aSpec; rewrite !tapp_bind.
+  revert c.
+  induction τ as [ | X HX τ IH ]; intros c HP Hmono.
+  { simp aSpec_aux in HP |-*.
+    apply Hmono. apply HP. }
+  destruct args as [x args].
+  simp aSpec_aux in HP |-*.
+  eapply pure_wp_mono_ret; [ apply HP | ].
+  intros c' HSpec'.
+  apply IH with (P := P x); [ apply HSpec' | ].
+  apply Hmono.
+Qed.
+
 Lemma aSpec_equiv (τ : types) η f x e (P : τ -#> _) args :
   aSpec (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
   aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args.
@@ -215,15 +245,17 @@ Proof.
   simpl; rewrite String.eqb_refl; simpl. reflexivity.
 Qed.
 
-Lemma Spec_equiv (τ : types) η f x e (P : τ -#> _) :
-  Spec (VCloRec η [RecBinding f (AnonFun x e)] f) P =
-    Spec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P.
-Proof.
-  destruct τ.
-  { cbv; simp Spec.
-    simpl; rewrite String.eqb_refl; reflexivity. }
-  simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
-Qed.
+(* -------------------------------------------------------------------------- *)
+
+(*  We want to show the following equivalence:
+    [Spec c P <-> ∀ args, aSpec c P args]. *)
+
+(* This equivalence holds as long as one of the following two conditions holds:
+   - the type of arguments is inhabited
+   - the closure represents a function of arity equal to
+     the number of parameters *)
+
+(* The direction [Spec] -> [aSpec] is true without any condition. *)
 
 Lemma Spec_aSpec (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
   Spec c P ->
@@ -241,6 +273,10 @@ Proof.
   intros c' HSpec'.
   apply IH. apply HSpec'.
 Qed.
+
+(* The direction [aSpec] -> [Spec] necessitates one of the conditions.
+   We elect to enforce that the closure is of an appropriate depth.
+   This is because the alternative uses the lemma [pure_wp_intersection]. *)
 
 (* We proceed by induction over the list of types. During the induction
    step, we want the statement to hold over the generated intermediate
@@ -302,24 +338,6 @@ Proof.
   rewrite Spec_equiv.
   (* Apply the auxiliary lemma, and use our restated hypotheses. *)
   apply aSpec_Spec_VClo; auto.
-Qed.
-
-Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
-  aSpec c P args ->
-  (∀ m, (P args) m -> (P' args) m) ->
-  aSpec c P' args.
-Proof.
-  unfold aSpec; rewrite !tapp_bind.
-  revert c.
-  induction τ as [ | X HX τ IH ]; intros c HP Hmono.
-  { simp aSpec_aux in HP |-*.
-    apply Hmono. apply HP. }
-  destruct args as [x args].
-  simp aSpec_aux in HP |-*.
-  eapply pure_wp_mono_ret; [ apply HP | ].
-  intros c' HSpec'.
-  apply IH with (P := P x); [ apply HSpec' | ].
-  apply Hmono.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
