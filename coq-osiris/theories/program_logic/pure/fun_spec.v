@@ -187,19 +187,21 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(** [aSpec] is a restatement of [Spec], but with all of the
-    arguments quantified before the nested calls. *)
+(* [aSpec] is a restatement of [Spec], but with all of the
+   arguments quantified before the nested calls. *)
 
-Equations aSpec_aux (τ : types)
+(* [aSpec] is used when we want to do induction over all arguments at
+   once. The user is NOT exposed to it, we only use it in our
+   intermediary lemma [prove_aSpec_rec]. *)
+
+Equations aSpec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) (args : τ) : Prop :=
 | Tbase X, c, P, x :=
     P x (call c #x);
 | Tcons X τ', c, P, (x, args') :=
-    pure_wp (call c #x) (λ c', aSpec_aux τ' c' (P x) args') ⊥.
+    pure_wp (call c #x) (λ c', aSpec τ' c' (P x) args') ⊥.
 
-Definition aSpec {τ : types}
-  (c : val) (P : τ -#> microvx -> Prop) : τ -#> Prop :=
-  tbind (aSpec_aux τ c P).
+Arguments aSpec {τ} c P args.
 
 Lemma unfold_aSpec `{Encode X}
   {τ : types}
@@ -207,13 +209,10 @@ Lemma unfold_aSpec `{Encode X}
   (P : (Tcons X τ) -#> microvx -> Prop)
   (args : τ)
   x :
-  tapp (aSpec c P x) args =
+  aSpec c P (x, args) =
     pure_wp (call c #x) (λ c', (aSpec c' (P x)) args) ⊥.
 Proof.
-  unfold aSpec; simpl.
-  rewrite tapp_bind; simp aSpec_aux.
-  f_equal; apply functional_extensionality; intros.
-  by rewrite tapp_bind.
+  simp aSpec. reflexivity.
 Qed.
 
 Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
@@ -221,13 +220,12 @@ Lemma aSpec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c args :
   (∀ m, (P args) m -> (P' args) m) ->
   aSpec c P' args.
 Proof.
-  unfold aSpec; rewrite !tapp_bind.
   revert c.
   induction τ as [ | X HX τ IH ]; intros c HP Hmono.
-  { simp aSpec_aux in HP |-*.
+  { simp aSpec in HP |-*.
     apply Hmono. apply HP. }
   destruct args as [x args].
-  simp aSpec_aux in HP |-*.
+  simp aSpec in HP |-*.
   eapply pure_wp_mono_ret; [ apply HP | ].
   intros c' HSpec'.
   apply IH with (P := P x); [ apply HSpec' | ].
@@ -238,11 +236,9 @@ Lemma aSpec_equiv (τ : types) η f x e (P : τ -#> _) args :
   aSpec (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
   aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args.
 Proof.
-  destruct τ.
-  { cbv; simp aSpec_aux.
-    simpl; rewrite String.eqb_refl; simpl. reflexivity. }
-  unfold aSpec; rewrite !tapp_bind; destruct args; simp aSpec_aux.
-  simpl; rewrite String.eqb_refl; simpl. reflexivity.
+  destruct τ; [ | destruct args ];
+    simp aSpec;
+    simpl; rewrite String.eqb_refl; reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -342,34 +338,37 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We want to generalize this reasoning rule over arbitrary telescopes.
-   We could give a lemma that simply requires the user to prove [Spec c P],
-   but this would expose the nested calls created by [call_tele]. *)
+(* We define [predicate_over_function_body τ P η e], which fetches the
+   function body from a series of nested [EAnonFun] in [e], at a depth
+   equal to the number of arguments specified by [τ], and asserts [P]
+   over the evaluation of that function body. *)
 
-(* Instead, we define [build_prop], which fetches the function body
-   from a series of nested [EAnonFun], at a depth equal to the number
-   of arguments specified by the telescope.  *)
+(* In particular, [predicate_over_function_body] can be used to prove
+   a goal of the form [Spec τ c P]. *)
 
-Equations build_prop
+Equations predicate_over_function_body
   (τ : types)
+  (P : τ -#> microvx -> Prop)
   (η : env)
   (e : expr)
-  (P : τ -#> microvx -> Prop) : Prop :=
-| Tbase X, η, EAnonFun (AnonFun arg e), P :=
+  : Prop :=
+| Tbase X, P, η, EAnonFun (AnonFun arg e) :=
     ∀ (x : X), P x (eval ((arg, #x) :: η) e)
-| Tcons X arg_τ', η, (EAnonFun (AnonFun arg e)), P :=
-    ∀ (x : X), build_prop arg_τ' ((arg, #x) :: η) e (P x)
+| Tcons X arg_τ', P, η, (EAnonFun (AnonFun arg e)) :=
+    ∀ (x : X), predicate_over_function_body arg_τ' (P x) ((arg, #x) :: η) e
 (* If the expression isn't an [EAnonFun] we produce an unprovable proposition. *)
 | _, _, _, _ := False.
 
-Transparent build_prop.
+(* We always want to unfold [predicate_over_function_body] until only a
+   statement of the form [∀ x, P x (eval η e)] remains. *)
+Transparent predicate_over_function_body.
 
+(* The following proof proceeds by induction over the depth of a lambda. *)
 Fixpoint AnonFun_depth e : nat :=
   match e with
   | EAnonFun (AnonFun _ e) => 1 + AnonFun_depth e
   | _ => 0
   end.
-
 Local Lemma afun_wf :
   wf (λ e1 e2, AnonFun_depth e1 < AnonFun_depth e2)%nat.
 Proof.
@@ -377,7 +376,7 @@ Proof.
 Qed.
 
 Local Lemma prove_Spec (τ : types) η x e (P : τ -#> microvx -> Prop) :
-  build_prop τ η (EAnonFun (AnonFun x e)) P ->
+  predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) ->
   @Spec τ (VClo η (AnonFun x e)) P.
 Proof.
   revert dependent x; revert η; revert dependent τ.
@@ -411,7 +410,7 @@ Lemma pure_eval_anon
   (x : var)
   e
   ζ :
-  build_prop τ η (EAnonFun (AnonFun x e)) P ->
+  predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
 Proof.
   intros HP.
@@ -422,21 +421,12 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [call_tele] is a function that takes a closure [c] and arguments
-   described by a telescope [arg_τ], and returns the computation obtained
-   by successively calling [c] on the arguments. *)
+(* We can also use [Spec] to specify and reason about recursive functions. *)
 
-(* Fixpoint call_tele {τ : types} (m : microvx) : τ -#> microvx := *)
-(*   match τ with *)
-(*   | Tbase X => λ (x : X), bind m (λ c, call c #x) *)
-(*   | @Tcons X H arg_τ' => *)
-(*       λ (x : X), @call_tele arg_τ' (bind m (λ c, call c #x)) *)
-(*   end. *)
+(* [prove_aSpec_rec τ R c P] gives an induction principle for [Spec] by
+   well-foundedness over the arguments. *)
 
-(* [prove_Spec_rec] gives an induction principle for [Spec] by
-   well-foundedness over the argument type. *)
-
-Lemma prove_Spec_rec
+Lemma prove_aSpec_rec
   (τ : types)
   (R : τ -> τ -> Prop) c
   (P : τ -#> microvx -> Prop) :
@@ -457,7 +447,7 @@ Proof.
   apply tforall_equiv; apply IHR.
 Qed.
 
-(* We would like to provide a [prove_Spec_rec]-like reasoning rule to
+(* We would like to provide a [prove_aSpec_rec]-like reasoning rule to
    the user. We can then improve the user experience by stepping
    through the nested calls that result from the unfolding of
    [aSpec c P args].
@@ -649,7 +639,7 @@ Proof.
   induction τ as [ X HX | X HX arg_τ IH]; intros x e η0 Hbp Hclo.
 
   (* Base case: the telescope is empty. *)
-  { cbv. simp aSpec_aux. apply Hbp.
+  { simp aSpec. apply Hbp.
     apply guarded_aSpec_Spec; [ apply Hclo | apply IHargs ]. }
 
   (* Induction step: the telescope has some head type [Y]. *)
@@ -668,12 +658,11 @@ Proof.
   specialize (IH IHargs).
   specialize (IH y e' ((x, #vx) :: η0)).
   (* We now step forward by evaluating [pure (eval .. (EAnonFun y e')) (λ c', ..)]. *)
-  unfold aSpec; rewrite tapp_bind; simp aSpec_aux.
+  simp aSpec.
   simpl; simpl_eval; simpl.
   apply pure_wp_ret.
 
-  unfold aSpec in IH; rewrite tapp_bind in IH.
-  apply IH; [ apply Hbp | apply Hclo ].
+  simp aSpec in IH.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -714,7 +703,7 @@ Lemma pure_eval_letrec `{Encode X} (τ : types) `{Inhabited τ}
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
   intros Hwf Hmkspec He2. simpl_eval. eapply He2.
-  eapply prove_Spec_rec; eauto.
+  eapply prove_aSpec_rec; eauto.
   { eapply invert_unfold_spec; eauto. by inversion H0. }
   apply by_unfold_spec.
   apply Hmkspec.
@@ -728,7 +717,7 @@ Lemma pure_eval_letrec_nonrec `{Encode X} (τ : types)
   (P : τ -#> microvx -> Prop) η f x e e2 (φ : X -> Prop) ζ :
   let v := VCloRec η [RecBinding f (AnonFun x e)] f in
   (* Show the specification [P] holds over a call to any argument. *)
-  (build_prop τ ((f, v) :: η) (EAnonFun (AnonFun x e)) P) ->
+  predicate_over_function_body τ P ((f, v) :: η) (EAnonFun (AnonFun x e)) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
@@ -1026,7 +1015,7 @@ Proof.
   intros Hwf Hmkspec He2.
   unfold struct_items. simpl_eval_sitems.
   eapply He2.
-  eapply prove_Spec_rec; eauto.
+  eapply prove_aSpec_rec; eauto.
   { eapply invert_unfold_spec; eauto. by inversion H. }
   apply by_unfold_spec.
   apply Hmkspec.
