@@ -207,9 +207,11 @@
   + Must allow spurious CAS failures
     or restrict CAS to simple values (VBool, VInt, VLoc);
     what does HeapLang do?
-  + weak memory (Cosmo)
-  + Should we distinguish between threads and domains,
-    and model [the subtle semantics of safe points](https://discuss.ocaml.org/t/using-poll-error-attribute-to-implement-systhread-safe-data-structures/12804)?
+  + Weak memory (Cosmo)
+  + Thread-local storage
+  + Should we distinguish between threads and domains?
+    - Domain-local storage
+  + Should we model [the subtle semantics of safe points](https://discuss.ocaml.org/t/using-poll-error-attribute-to-implement-systhread-safe-data-structures/12804)?
 * What is "function arity" in OCaml? Is our semantics correct?
   + Careful: the change log for OCaml 5.2 says:
     *Function arity [...] is now based solely on the source program's
@@ -232,6 +234,7 @@
 * Immutable recursive values other than functions
 * Labeled arguments
 * Optional arguments and default values
+* Advanced GC features (weak pointers; ephemerons; finalizers)
 * Unix signal handling
 
 ## Miscellaneous notes
