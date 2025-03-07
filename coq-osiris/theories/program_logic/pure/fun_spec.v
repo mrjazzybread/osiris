@@ -131,7 +131,7 @@ Arguments Spec {τ} c P.
 
 (* As a sanity check, we can check on simple examples that we get
    the expected premise when we want to show that
-   a function satisfies a given specification [P]. *)
+   a function satisfies some specification [P]. *)
 
 Local Lemma pure_eval_anon_unary `{Encode X}
   (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ
@@ -172,17 +172,16 @@ Proof.
   rewrite tforall_unroll in Hmono. apply Hmono.
 Qed.
 
-(* Under a [Spec], a [VCloRec] [c] is equivalent to a [VClo],
-   where [c] is in the captured environment. *)
+(* Under a [Spec], a [VCloRec] [c] is equivalent to a [VClo] where [c]
+   is in the captured environment. *)
 
 Lemma Spec_equiv (τ : types) η f x e (P : τ -#> microvx -> Prop) :
-  Spec (VCloRec η [RecBinding f (AnonFun x e)] f) P =
-    Spec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P.
+  let f_value := VCloRec η [RecBinding f (AnonFun x e)] f in
+  Spec f_value P =
+  Spec (VClo ((f, f_value) :: η) (AnonFun x e)) P.
 Proof.
-  destruct τ.
-  { cbv; simp Spec.
-    simpl; rewrite String.eqb_refl; reflexivity. }
-  simp Spec; simpl; rewrite String.eqb_refl; reflexivity.
+  destruct τ; simpl; simp Spec;
+    simpl; rewrite String.eqb_refl; reflexivity.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -233,10 +232,11 @@ Proof.
 Qed.
 
 Lemma aSpec_equiv (τ : types) η f x e (P : τ -#> _) args :
-  aSpec (VCloRec η [RecBinding f (AnonFun x e)] f) P args =
-  aSpec (VClo ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η) (AnonFun x e)) P args.
+  let f_value := VCloRec η [RecBinding f (AnonFun x e)] f in
+  aSpec f_value P args =
+  aSpec (VClo ((f, f_value) :: η) (AnonFun x e)) P args.
 Proof.
-  destruct τ; [ | destruct args ];
+  destruct τ; [ | destruct args ]; simpl;
     simp aSpec;
     simpl; rewrite String.eqb_refl; reflexivity.
 Qed.
@@ -421,9 +421,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We can also use [Spec] to specify and reason about recursive functions. *)
-
-(* [prove_aSpec_rec τ R c P] gives an induction principle for [Spec] by
+(* We can also use [Spec] to specify and reason about recursive functions.
+   [prove_aSpec_rec τ R c P] gives an induction principle for [Spec] by
    well-foundedness over the arguments. *)
 
 Lemma prove_aSpec_rec
@@ -448,12 +447,9 @@ Proof.
 Qed.
 
 (* We would like to provide a [prove_aSpec_rec]-like reasoning rule to
-   the user. We can then improve the user experience by stepping
-   through the nested calls that result from the unfolding of
-   [aSpec c P args].
-
-   This is done by [unfold_spec], which syntactically fetches the body
-   of the function [c]. *)
+   the user. But there are two ergonomic improvements we can make:
+   (1) We can hide the use of [aSpec].
+   (2) We can unfold the goal so that we step into the function's body. *)
 
 Section unfold_spec_aux_def.
 
