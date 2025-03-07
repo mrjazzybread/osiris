@@ -446,56 +446,9 @@ Proof.
   apply tforall_equiv; apply IHR.
 Qed.
 
-(* We would like to provide a [prove_aSpec_rec]-like reasoning rule to
-   the user. But there are two ergonomic improvements we can make:
-   (1) We can hide the use of [aSpec].
-   (2) We can unfold the goal so that we step into the function's body. *)
-
-Section unfold_spec_aux_def.
-
-  Context (og_τ : types).
-  Context (Pog : og_τ -#> microvx -> Prop).
-  Context (c : val).
-
-  Equations unfold_spec_aux (τ : types)
-    (η : env) (e : expr)
-    (P : τ -#> microvx -> Prop) (R : og_τ -> τ -> Prop)
-    : Prop :=
-  | Tbase X, η, (EAnonFun (AnonFun arg e)), P, R :=
-      ∀ (x : X),
-        Spec c (tbind(λ sargs m,
-                    R sargs x ->
-                    Pog sargs m)) ->
-        P x (eval ((arg, #x) :: η) e)
-  | Tcons X τ', η, (EAnonFun (AnonFun arg e)), P, R :=
-      ∀ (x : X),
-        let η := (arg, #x) :: η in
-        let P := P x in
-        let R :=
-          λ (sargs : og_τ) (args : τ'), R sargs (x, args)
-        in
-        unfold_spec_aux τ' η e P R
-  | _, _, _, _, _ := False.
-
-End unfold_spec_aux_def.
-
-Strategy transparent [ unfold_spec_aux ].
-
-Definition unfold_spec (τ : types) η f x e
-  (R : τ -> τ -> Prop)
-  (P : τ -#> microvx -> Prop) :=
-  (∀ c, unfold_spec_aux τ P c τ
-          ((f, c) :: η)
-          (EAnonFun (AnonFun x e))
-          P R).
-
-Arguments unfold_spec τ /.
-Strategy transparent [ unfold_spec ].
-
-
 (* If [c] is a lambda of depth [arg_τ], then
-   [Spec c (λ args, Q args -> P args)] is equivalent to
-   [∀ args, Q args -> aSpec c P args] *)
+   [∀ args, Q args -> aSpec c P args] is equivalent to
+   [Spec c (λ args, Q args -> P args)] *)
 
 Lemma guarded_aSpec_Spec c (τ : types)
   (Q : τ -> Prop) (P : τ -#> microvx -> Prop) :
@@ -556,61 +509,84 @@ Proof.
   by apply invert_pure_wp_ret in HSpec.
 Qed.
 
-(* Show that knowing [unfold_spec arg_τ η f x e ...] implies
-   [is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) arg_τ]. *)
+(* -------------------------------------------------------------------------- *)
 
-Lemma invert_unfold_spec_aux (τ τ_og : types) (args : τ)
-  η x e R Pog P v :
-  unfold_spec_aux τ_og Pog v τ
-    η
-    (EAnonFun (AnonFun x e)) P R ->
-  match τ with
-  | τ[_] => True
-  | Tcons _ τ' => is_lambda_of_depth e τ'
-  end.
-Proof.
-  revert dependent e. revert x η.
-  induction τ as [ Y HY | Y HY arg_τ' IH ]; intros x η0 e Huspec. done.
+(* We would like to provide a [prove_aSpec_rec]-like reasoning rule to
+   the user. But there are two ergonomic improvements we can make:
+   (1) We can hide the use of [aSpec].
+   (2) We can unfold the goal so that we step into the function's body. *)
 
-  destruct args as [vx args].
-  destruct e;
-    try (specialize (Huspec vx); destruct arg_τ'; contradiction);
-    destruct a as [y e'].
+(* [predicate_over_function_body_with_hyp] is a restatement of
+   [predicate_over_function_body] that is parameterised by a hypothesis
+   that can depend on the arguments. *)
 
-  rewrite unfold_is_lambda_of_depth.
-  eexists _, _; split; [ reflexivity | ].
-  eapply (IH args) with (R := (λ t1 t2, R t1 (TCons vx t2))).
-  apply Huspec.
-Qed.
+Equations predicate_over_function_body_with_hyp
+  (τ : types)
+  (P : τ -#> microvx -> Prop)
+  (H : τ -> Prop)
+  (η : env) (e : expr)
+  : Prop :=
+| Tbase X, P, H, η, (EAnonFun (AnonFun arg e)) :=
+    ∀ (x : X),
+      H x ->
+      P x (eval ((arg, #x) :: η) e)
+| Tcons X τ', P, H, η, (EAnonFun (AnonFun arg e)) :=
+    ∀ (x : X),
+      let η_x := (arg, #x) :: η in
+      let H_x := λ args, H (x, args) in
+      predicate_over_function_body_with_hyp τ' (P x) H_x η_x e
+| _, _, _, _, _ := False.
 
-Lemma invert_unfold_spec (τ : types) (args : τ) η f x e R P :
-  unfold_spec τ η f x e R P ->
-  is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) τ.
-Proof.
-  intros Huspec;
-    specialize (Huspec (VCloRec η [RecBinding f (AnonFun x e)] f)).
-  (* Generalize the first [arg_τ] in [unfold_spec_aux]. *)
-  remember P as Pog in Huspec at 1; clear HeqPog.
-  remember τ as arg_τ_og in R at 1, Pog, Huspec at 1; clear Heqarg_τ_og.
+Transparent predicate_over_function_body_with_hyp.
+Strategy transparent [ predicate_over_function_body_with_hyp ].
 
-  eexists _, _, _, _; split; [ reflexivity | ].
-  generalize dependent ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η).
-  generalize (VCloRec η [RecBinding f (AnonFun x e)] f).
-  intros v η0 Huspec.
+(* [unfolded_spec_with_rec_assumption] generates a [Prop] of the form
+   [Spec c (R x y -> P x) -> P y c], and is used to prove a goal of
+   the form [Spec c P]. *)
 
-  eapply (invert_unfold_spec_aux). apply args. apply Huspec.
-Qed.
+(* We introduce this auxiliary definition in order to decouple the type
+   over which we will perform proofs by induction [τ] and the "original"
+   type [τ_og] that is used in the generated induction hypothesis. *)
+
+Definition unfolded_spec_with_rec_assumption_aux (τ τ_og : types) η f x e
+  (R : τ_og -> τ -> Prop)
+  (P : τ -#> microvx -> Prop)
+  (Pog : τ_og -#> microvx -> Prop) :=
+  (∀ c, predicate_over_function_body_with_hyp τ
+          P
+          (λ args, @Spec τ_og c (tbind(λ sargs m,
+                                     R sargs args ->
+                                     Pog sargs m)))
+          ((f, c) :: η)
+          (EAnonFun (AnonFun x e))).
+
+Arguments unfolded_spec_with_rec_assumption_aux τ /.
+Transparent unfolded_spec_with_rec_assumption_aux.
+Strategy transparent [ unfolded_spec_with_rec_assumption_aux ].
+
+Definition unfolded_spec_with_rec_assumption (τ : types) η f x e
+  (R : τ -> τ -> Prop)
+  (P : τ -#> microvx -> Prop) :=
+  unfolded_spec_with_rec_assumption_aux τ τ η f x e R P P.
+
+Arguments unfolded_spec_with_rec_assumption τ /.
+Transparent unfolded_spec_with_rec_assumption.
+Strategy transparent [ unfolded_spec_with_rec_assumption ].
 
 Lemma by_unfold_spec (τ : types) η f x e R P :
   let c := VCloRec η [RecBinding f (AnonFun x e)] f in
-  @unfold_spec τ η f x e R P ->
+  is_VCloRec_of_depth c τ ->
+  unfolded_spec_with_rec_assumption τ η f x e R P ->
   (∀# args,
     (∀# sargs, R sargs args -> aSpec c P sargs) ->
     aSpec c P args).
 Proof.
-  unfold unfold_spec; intros HP.
+  intros c isVCloRec HP; subst c.
   apply tforall_equiv; intros args IHargs.
-  pose proof (invert_unfold_spec τ args η f x e R P HP) as Hclo.
+  unfold unfolded_spec_with_rec_assumption in HP.
+  remember P as Pog in HP at 2, IHargs; clear HeqPog.
+  remember τ as TTog in R at 1, Pog, HP at 2, IHargs, isVCloRec; clear HeqTTog.
+
   specialize (HP (VCloRec η [RecBinding f (AnonFun x e)] f)).
 
   (* Generalize all instances of [(f, c) :: η]. *)
@@ -618,7 +594,7 @@ Proof.
   revert HP.
   generalize ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η); intros η0.
   (* Generalize the [VCloRec] used in the recursive call. *)
-  revert IHargs Hclo.
+  revert IHargs isVCloRec.
   generalize (VCloRec η [RecBinding f (AnonFun x e)] f); intros v.
 
   (* Generalize (TeleS X TT) where it doesn't participate in the
@@ -626,21 +602,18 @@ Proof.
      of [build_prop_rec_aux]. *)
   intros IHargs Hclo HP.
 
-  remember P as Pog in HP at 1, IHargs; clear HeqPog.
-  remember τ as TTog in R at 1, Pog, HP at 1, IHargs, Hclo; clear HeqTTog.
-
   (* Generalize the statement for the induction. Notably, generalize
      over the head type of the telescope. *)
   revert x e η0 HP Hclo.
   induction τ as [ X HX | X HX arg_τ IH]; intros x e η0 Hbp Hclo.
 
   (* Base case: the telescope is empty. *)
-  { simp aSpec. apply Hbp.
+  { simp aSpec. simp predicate_over_function_body_with_hyp in Hbp. apply Hbp.
     apply guarded_aSpec_Spec; [ apply Hclo | apply IHargs ]. }
 
   (* Induction step: the telescope has some head type [Y]. *)
   destruct args as [vx args].
-  simpl in Hbp. specialize (Hbp vx).
+  simp predicate_over_function_body_with_hyp in Hbp. specialize (Hbp vx).
 
   (* We know that [e = EAnonFun (AnonFun y e')] by inversion on Hbp. *)
   destruct e;
@@ -682,49 +655,77 @@ Qed.
 
 *)
 
-Lemma pure_eval_letrec `{Encode X} (τ : types) `{Inhabited τ}
+Lemma lambda_depth_to_vclorec (τ : types) η f x e :
+  is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
+  is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) τ.
+Proof.
+  intros Hlambda; rewrite unfold_is_lambda_of_depth in Hlambda.
+  destruct Hlambda as (? & ? & Heq & Hlambda').
+  inversion Heq; subst.
+  repeat eexists; assumption.
+Qed.
+
+Lemma pure_eval_letrec `{Encode X} (τ : types)
   (P : τ -#> microvx -> Prop)
   (R : τ -> τ -> Prop) η f (x : var) e
   e2 (φ : X -> Prop) ζ :
+  is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
   (* Show that the relation on which arguments are decreasing is well-founded. *)
   wf R ->
   (* Show the specification [P] holds over a call to any arguments,
      under the assumption that [P] holds to a call over any
      smaller arguments. *)
-  unfold_spec τ η f x e
-    (λ arg1 arg2, R arg1 arg2) P ->
+  unfolded_spec_with_rec_assumption τ η f x e R P ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
-  intros Hwf Hmkspec He2. simpl_eval. eapply He2.
+  intros isLambda Hwf Hmkspec He2.
+  eapply lambda_depth_to_vclorec in isLambda.
+  simpl_eval. eapply He2.
   eapply prove_aSpec_rec; eauto.
-  { eapply invert_unfold_spec; eauto. by inversion H0. }
-  apply by_unfold_spec.
-  apply Hmkspec.
+  apply by_unfold_spec; eauto.
 Qed.
 
+Lemma structs_letrec (τ : types)
+  (R : τ -> τ -> Prop)
+  η δ f (x : var) e (P : τ -#> microvx -> Prop) sitems φ :
+  is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
+  wf R ->
+  unfolded_spec_with_rec_assumption τ η f x e R P ->
+  (∀ c, Spec c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
+  struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.
+Proof.
+  intros isLambda Hwf Hmkspec He2.
+  eapply lambda_depth_to_vclorec in isLambda.
+  unfold struct_items. simpl_eval_sitems.
+  eapply He2.
+  eapply prove_aSpec_rec; eauto.
+  apply by_unfold_spec; eauto.
+Qed.
 
 (* [pure_eval_anonfun_nonrec] is to be used when a letrec expression
    defines a non-recursive function.  *)
 
 Lemma pure_eval_letrec_nonrec `{Encode X} (τ : types)
   (P : τ -#> microvx -> Prop) η f x e e2 (φ : X -> Prop) ζ :
-  let v := VCloRec η [RecBinding f (AnonFun x e)] f in
   (* Show the specification [P] holds over a call to any argument. *)
-  predicate_over_function_body τ P ((f, v) :: η) (EAnonFun (AnonFun x e)) ->
+  (∀ v, predicate_over_function_body τ P ((f, v) :: η) (EAnonFun (AnonFun x e))) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
-  intros v Hmkspec He2. simpl_eval. eapply He2.
+  intros Hmkspec He2. simpl_eval. eapply He2.
+  specialize (Hmkspec (VCloRec η [RecBinding f (AnonFun x e)] f)).
   pose proof (prove_Spec _ _ _ _ _ Hmkspec) as HSpec.
   destruct τ;
     simp Spec;
     simpl in *; rewrite String.eqb_refl; apply HSpec.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
 
 (* [pure_EApp_partial] is a lemma for partial application. *)
 
@@ -997,22 +998,3 @@ Proof.
   specialize (Hmon x Hφx). rewrite tapp_bind in Hmon.
   eapply Hmon; eauto.
 Defined.
-
-(* -------------------------------------------------------------------------- *)
-
-Lemma structs_letrec (τ : types) `{Inhabited τ}
-  (R : τ -> τ -> Prop)
-  η δ f (x : var) e (P : τ -#> microvx -> Prop) sitems φ :
-  wf R ->
-  unfold_spec τ η f x e R P ->
-  (∀ c, Spec c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
-  struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.
-Proof.
-  intros Hwf Hmkspec He2.
-  unfold struct_items. simpl_eval_sitems.
-  eapply He2.
-  eapply prove_aSpec_rec; eauto.
-  { eapply invert_unfold_spec; eauto. by inversion H. }
-  apply by_unfold_spec.
-  apply Hmkspec.
-Qed.

@@ -456,8 +456,9 @@ Proof.
   (* Proof that [merge] satisfies [merge_spec]. *)
   eapply (@structs_letrec τ[list Z; list Z]) with
     (P := merge_spec). repeat constructor.
+  { repeat eexists. }
   { apply wf_double_list_length. }
-  { unfold unfold_spec; simpl.
+  { simpl.
     intros merge l1 l2 IH.
     eapply merge_mkspec; eauto. }
   intros merge Hmerge.
@@ -465,6 +466,7 @@ Proof.
   (* Proof that [split] satisfies [split_spec]. *)
   eapply (structs_letrec τ[list Z]) with
     (P := split_spec).
+  { repeat eexists. }
   { apply list_wf. }
   { intros split l IH.
     eapply split_mkspec; eauto. }
@@ -473,8 +475,9 @@ Proof.
   (* Proof that [merge_sort] satisfies [mergesort_spec]. *)
   eapply (@structs_letrec τ[list Z]) with
     (P := mergesort_spec). repeat constructor.
+  { repeat eexists. }
   { apply list_wf. }
-  { unfold unfold_spec; simpl.
+  { simpl.
     intros mergesort l IH.
     eapply mergesort_mkspec; eauto. }
   intros mergesort Hmergesort.
