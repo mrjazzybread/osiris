@@ -1067,12 +1067,12 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       (* The tuple components are evaluated in parallel. *)
       vs ← evals η es ;
       ret (VTuple vs)
-  | EData c e =>
-      v ← evals η e ;
+  | EData c es =>
+      v ← evals η es ;
       ret (VData c v)
-  | EXData π e =>
+  | EXData π es =>
       l ← as_loc (widen (lookup_path η π)) ;
-      v ← evals η e ;
+      v ← evals η es ;
       ret (VXData l v)
   | ERecord fes =>
       (* The record components are evaluated in parallel. *)
