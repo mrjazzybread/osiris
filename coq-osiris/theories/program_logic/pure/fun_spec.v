@@ -454,7 +454,7 @@ Lemma guarded_aSpec_Spec c (τ : types)
   (Q : τ -> Prop) (P : τ -#> microvx -> Prop) :
   is_VCloRec_of_depth c τ ->
   (∀# args, Q args -> aSpec c P args) ->
-  Spec c (tbind(λ args m, Q args -> P args m)).
+  Spec c (λ# args m, Q args -> P args m).
 Proof.
   intros (η & f & x & e & -> & He) HaSpec.
   (* The nature of the proof involves a growing environment [η]. We
@@ -554,9 +554,9 @@ Definition unfolded_spec_with_rec_assumption_aux (τ τ_og : types) η f x e
   (Pog : τ_og -#> microvx -> Prop) :=
   (∀ c, predicate_over_function_body_with_hyp τ
           P
-          (λ args, @Spec τ_og c (tbind(λ sargs m,
+          (λ args, @Spec τ_og c (λ# sargs m,
                                      R sargs args ->
-                                     Pog sargs m)))
+                                     Pog sargs m))
           ((f, c) :: η)
           (EAnonFun (AnonFun x e))).
 
@@ -640,25 +640,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [pure_eval_letrec] is the user-facing lemma for reasoning about an
-   n-ary letrec. Its statement makes use of [unfold_spec] to generate
-   an appropriate lemma for every arity. *)
-
-(** For example, if we have [arg_τ := tele[ list Z; Nat ] ],
-    [pure_eval_letrec] becomes equal to
-
-    Lemma pure_eval_letrec (P : list Z -> Nat -> microvx -> Prop)
-    (R : (list Z * Nat) -> (list Z * Nat) -> Prop)
-    η f x e e2 φ ζ :
-    wf R ->
-    (∀ c (l : list Z) (n : Nat),
-       (∀ (l' : list Z) (n' : Nat), R (l', n') (l, n) -> aSpec c P l' n') ->
-       P l n (eval ((y, n) :: (x, l) :: (f, c) :: η) e)) ->
-    (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
-    pure (eval η (ELetRec [RecBinding f (AnonFun x (EAnonFun (AnonFun y e)))] e2)) φ ζ.
-
-*)
-
 Lemma lambda_depth_to_vclorec (τ : types) η f x e :
   is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
   is_VCloRec_of_depth (VCloRec η [RecBinding f (AnonFun x e)] f) τ.
@@ -668,6 +649,24 @@ Proof.
   inversion Heq; subst.
   repeat eexists; assumption.
 Qed.
+
+(* [pure_eval_letrec] is the user-facing lemma for reasoning about an
+   n-ary letrec. Its statement makes use of [unfold_spec] to generate
+   an appropriate lemma for every arity. *)
+
+(** For example, if we have [ τ := τ[list Z; Nat] ],
+    [pure_eval_letrec] becomes equal to
+
+    Lemma pure_eval_letrec (P : list Z -> Nat -> microvx -> Prop)
+    (R : (list Z * Nat) -> (list Z * Nat) -> Prop)
+    η f x e e2 φ ζ :
+    wf R ->
+    (∀ c (l : list Z) (n : Nat),
+       Spec c (λ l' n' m, R (l', n') (l, n) -> P l' n' m) ->
+       P l n (eval ((y, n) :: (x, l) :: (f, c) :: η) e)) ->
+    (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
+    pure (eval η (ELetRec [RecBinding f (AnonFun x (EAnonFun (AnonFun y e)))] e2)) φ ζ.
+*)
 
 Lemma pure_eval_letrec `{Encode X} (τ : types)
   (P : τ -#> microvx -> Prop)
@@ -691,6 +690,8 @@ Proof.
   eapply prove_aSpec_rec; eauto.
   apply by_unfold_spec; eauto.
 Qed.
+
+(* Restatement of the lemma for module-level let-recs. *)
 
 Lemma structs_letrec (τ : types)
   (R : τ -> τ -> Prop)
@@ -721,12 +722,9 @@ Lemma pure_eval_letrec_nonrec `{Encode X} (τ : types)
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
-  intros Hmkspec He2. simpl_eval. eapply He2.
-  specialize (Hmkspec (VCloRec η [RecBinding f (AnonFun x e)] f)).
-  pose proof (prove_Spec _ _ _ _ _ Hmkspec) as HSpec.
-  destruct τ;
-    simp Spec;
-    simpl in *; rewrite String.eqb_refl; apply HSpec.
+  intros Hmkspec He2. simpl_eval.
+  apply He2.
+  rewrite Spec_equiv. apply prove_Spec. apply Hmkspec.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -749,16 +747,18 @@ Proof.
   - intros ? [].
 Qed.
 
+(* This alternative formulation may look heaver, but it easier to use
+   for an n-ary partial application. *)
+
 Lemma pure_EApp_partial_alt `{Encode X} (τ : types) η e e1 ζ
   (φ1 : X -> Prop) (P : Tcons X τ -#> microvx -> Prop) :
   pure (eval η e) (λ c, Spec c P) ζ ->
   pure (eval η e1) φ1 ζ ->
   pure (eval η (EApp e e1))
     (λ c,
-      Spec c (tbind (λ (tt : τ) m,
-                  ∃ (x : X),
-                      tapp P (x, tt) m /\
-                      φ1 x)))
+      Spec c (λ# (tt : τ) m,
+                  ∃ (x : X), φ1 x ∧
+                      (tapp (P x) tt) m))
     ζ.
 Proof.
   intros.
@@ -770,7 +770,7 @@ Proof.
     eapply Spec_mono; [ apply Hc' | ].
     rewrite tforall_equiv; intros args m HP.
     rewrite tapp_bind.
-    exists v1. split; [ apply HP | apply Hv1 ].
+    exists v1. split; [ apply Hv1 | apply HP ].
   - intros ? [].
 Qed.
 
@@ -813,7 +813,8 @@ Proof.
   eapply pure_EApp_partial_alt; eauto.
   eapply pure_EApp_partial_alt; eauto.
   intros c v3 HSpec Hv3; simpl in HSpec.
-  destruct (HSpec v3) as (v2 & (v1 & HP & Hv2) & HH).
+  simp Spec in HSpec.
+  destruct (HSpec v3) as (v2 & Hv2 & (v1 & Hv1 & HP)).
   apply pure_call_equiv.
   eapply Hmono; eauto.
 Qed.
@@ -821,8 +822,11 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* We provide a gallina function [pure_EApp_prop], which computes a
-   proposition from an argument type. This proposition generalises
+   proposition from an argument type, which generalises
    [pure_EApp_prop2] to n-ary applications. *)
+
+(* Given a list of expressions [es := [e_1; ..; e_n]], [app_exprs e es] builds the term
+   [EApp (EApp (EApp e e_n) ..) e_1]. *)
 
 Fixpoint app_exprs e (es : list expr) :=
   match es with
@@ -833,83 +837,93 @@ Fixpoint app_exprs e (es : list expr) :=
 
 Section pure_EApp_prop_aux_def.
 
-  Context (η : env) (ζ : exn -> Prop).
-  Context (expr_base : expr) (goal_hyp : expr -> Prop).
+  (* We use sectioning here to avoid having to write out the following
+     arguments which are static from the point of view of the
+     auxiliary function.*)
 
-  Equations pure_EApp_prop_aux (τ : types)
-    (es : list expr) (mon_acc : τ -#> Prop -> Prop) : Prop :=
-  | Tbase X, es, mon_acc :=
+  Context (η : env) (ζ : exn -> Prop).
+  Context (expr_base : expr) (goal_prop : expr -> Prop).
+
+  Equations accumulate_argument_premises_and_build_consequence_hyp
+    (τ : types) (es : list expr) (conseq_acc : τ -#> Prop -> Prop) :
+    Prop :=
+  | Tbase X, es, conseq_acc :=
       ∀ (e : expr) (φ : X -> Prop),
         pure (eval η e) φ ζ ->
-        let Hmono := ∀ (x : X), mon_acc x (φ x) in
-        (* [nested_eapp] is the nested application from [expr_base] and [exprs]. *)
+        (* [Hmono] is the consequence premise that we have built over
+           all parameters and their postconditions. *)
+        let Hconseq := ∀ (x : X), conseq_acc x (φ x) in
+        (* [nested_eapp] is the nested application of the function
+           [expr_base] to the paremeters [exprs]. *)
         let nested_eapp := app_exprs expr_base (e :: es) in
-        (* we want to prove [goal_hyp], i.e. that evaluating the nested
-           application satisfies [Ψ]. *)
-        let goal_hyp := goal_hyp nested_eapp in
-        (* [all_hyps] is the list of all hypotheses that we will chain with [->] arrows. *)
-        Hmono -> goal_hyp
-  | Tcons X arg_τ', es, mon_acc :=
+        Hconseq -> goal_prop (nested_eapp)
+  | Tcons X τ', es, conseq_acc :=
       (* Quantify over the expression of a new argument and its postcondition. *)
       ∀ (e : expr) (φ : X -> Prop),
         pure (eval η e) φ ζ ->
-        (* Add [e] to our list of expressions. *)
-        let es' := e :: es in
         (* Add the hypothesis that evaluating [e] produces a value
             over which [φ] holds to our list of hypotheses. *)
-        let mon_acc :=
-          tbind (λ (tt : arg_τ') (B : Prop),
+        let conseq_acc :=
+          (λ# (tt : τ') (B : Prop),
               ∀ (x : X),
                 φ x ->
-                (tapp mon_acc (x, tt) B))
+                (tapp (conseq_acc x) tt) B)
         in
-        pure_EApp_prop_aux arg_τ' es' mon_acc.
+        accumulate_argument_premises_and_build_consequence_hyp
+          τ' (e :: es) conseq_acc.
 
-  Arguments pure_EApp_prop_aux !τ /.
-  Transparent pure_EApp_prop_aux.
+  Arguments accumulate_argument_premises_and_build_consequence_hyp !τ /.
+  Transparent accumulate_argument_premises_and_build_consequence_hyp.
+  Strategy transparent [ accumulate_argument_premises_and_build_consequence_hyp ].
+
+  (* The lemmas generated by [pure_EApp_prop] are monotonic in the
+   consequence hypothesis. *)
+
+  Local Lemma pure_EApp_mono (τ : types) es (Hmon' Hmon : τ -#> Prop -> Prop) :
+  accumulate_argument_premises_and_build_consequence_hyp τ es Hmon' ->
+  (∀ args (P : Prop), Hmon args P -> Hmon' args P) ->
+  accumulate_argument_premises_and_build_consequence_hyp τ es Hmon.
+  Proof.
+    revert es.
+    induction τ as [ X HX | X HX τ IH ];
+      intros es HEApp' Hmono; simpl; intros ex φx Hex.
+    { intros Hx.
+      eapply HEApp'.
+      - apply Hex.
+      - intros x; apply Hmono; apply Hx. }
+
+    eapply IH; [ apply HEApp'; apply Hex | ].
+    intros args P; rewrite !tapp_bind.
+    intros Hx x Hφ.
+    rewrite forall_unroll in Hmono.
+    apply Hmono. apply Hx. apply Hφ.
+  Qed.
 
 End pure_EApp_prop_aux_def.
+
+(* Ensures that evaluating an expression `e` under `η` results in a value `c`
+   that satisfies a specification `P`, and ultimately, that `pure m Ψ ζ` holds
+   for the final result.
+*)
 
 Definition pure_EApp_prop `{Encode A} (τ : types) : Prop :=
   ∀ (η : env) (e : expr) (Ψ : A -> Prop)
   (ζ : exn -> Prop) (P : τ -#> microvx -> Prop),
   pure (eval η e) (λ c, Spec c P) ζ ->
-  pure_EApp_prop_aux η ζ e (λ e, pure (eval η e) Ψ ζ)
-    τ
-    []
-    (tbind (λ (tt : τ) (B : Prop),
-         B -> ∀ m, (tapp P tt) m -> pure m Ψ ζ)).
-
-Arguments pure_EApp_prop {_ _} !τ /.
-Transparent pure_EApp_prop.
+  accumulate_argument_premises_and_build_consequence_hyp
+    η ζ e
+    (* The goal we want to prove: *) (λ e, pure (eval η e) Ψ ζ)
+    (* The list of types of the parameters: *) τ
+    (* The list of expressions we build: *) []
+    (* The consequence hypothesis we build up: *)
+    (λ# (tt : τ) (B : Prop),
+         B -> ∀ m, (tapp P tt) m -> pure m Ψ ζ).
 
 (* We always want [pure_EApp_prop] to unfold, the user should only be
    exposed to the generated lemma. *)
-
-Strategy transparent [ pure_EApp_prop pure_EApp_prop_aux ].
-
-(* The lemmas generated by [pure_EApp_prop] are monotonic in the
-   consequence hypothesis. *)
-
-Local Lemma pure_EApp_mono (τ : types) (η : env) ζ e fe es
-  (Hmon' Hmon : τ -#> Prop -> Prop) :
-  pure_EApp_prop_aux η ζ e fe τ es Hmon' ->
-  (∀ args P, Hmon args P -> Hmon' args P) ->
-  pure_EApp_prop_aux η ζ e fe τ es Hmon.
-Proof.
-  revert es.
-  induction τ as [ X HX | X HX TT IH ];
-    intros es HEApp' Hmono; simpl; intros ex φx Hex.
-  { intros Hx.
-    simp pure_EApp_prop_aux in HEApp'.
-    eapply HEApp'. apply Hex.
-    intros x; apply Hmono; apply Hx. }
-
-  eapply IH; [ apply HEApp' | ]. apply Hex.
-  intros args P; rewrite !tapp_bind.
-  intros Hx x Hφ.
-  apply Hmono. apply Hx. apply Hφ.
-Qed.
+Arguments pure_EApp_prop {_ _} !τ /.
+Transparent pure_EApp_prop.
+Strategy transparent [ pure_EApp_prop ].
 
 Local Lemma pure_EApp_prop_induction_step
   (τ : types)
@@ -918,12 +932,14 @@ Local Lemma pure_EApp_prop_induction_step
   (ζ : exn -> Prop) f :
   ∀ (Hmono : τ -#> Prop -> Prop) (es : list expr) (ei : expr),
     app_exprs (EApp e ei) es = app_exprs e (es ++ [ei]) ->
-    pure_EApp_prop_aux η ζ
+    accumulate_argument_premises_and_build_consequence_hyp
+    η ζ
       (EApp e ei)
       (λ e0, f e0) τ
       es
       Hmono ->
-    pure_EApp_prop_aux η ζ
+    accumulate_argument_premises_and_build_consequence_hyp
+    η ζ
       e
       (λ e0, f e0) τ
       (es ++ [ei])
@@ -935,10 +951,10 @@ Proof.
 
   intros ex φx Hx; cbn zeta.
   simp pure_EApp_prop_aux in Happlied.
-  specialize (IH (tbind (λ (tt : TT) (B : Prop),
+  specialize (IH (λ# (tt : TT) (B : Prop),
             ∀ x : X,
               φx x →
-              tapp Hmono (x, tt) B))).
+              tapp Hmono (x, tt) B)).
   specialize (IH (ex :: es) ei).
   apply IH; [ simpl; f_equal; apply HeqEApp | ].
   apply Happlied. apply Hx.
@@ -971,10 +987,10 @@ Proof.
      [P' : TeleS Y TT -#> microvx -> Prop] such that
      [pure (eval η (EApp e ex)) (λ c, Spec c P')] and
      [∀# args, ∀ B, P' args B -> (∀ x, φ x -> B -> ∀ m, (P x) args m -> pure m Ψ ζ)]. *)
-  specialize (IH (tbind (λ (tt : τ) m,
+  specialize (IH (λ# (tt : τ) m,
                       ∃ x,
                         φx x ∧
-                        tapp P (x, tt) m))).
+                        tapp P (x, tt) m)).
   specialize (IH (EApp e ex)).
 
   (* Use the induction hypothesis. *)
@@ -999,6 +1015,7 @@ Proof.
        ∀ m, (P x) arg m -> pure m Ψ ζ ]. *)
   intros args B.
   rewrite !tapp_bind. intros Hmon HB m (x & Hφx & HP).
-  specialize (Hmon x Hφx). rewrite tapp_bind in Hmon.
+  specialize (Hmon x Hφx).
+  simpl in Hmon; rewrite tapp_bind in Hmon.
   eapply Hmon; eauto.
 Defined.

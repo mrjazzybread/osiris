@@ -193,7 +193,7 @@ Notation "'τ[' x ]" := (Tbase x)
    binder so that, after simplifying, this matches the way we typically write
    notations involving telescopes. *)
 Notation "'λ#' x .. y , e" :=
-  (tapp (tbind (λ x, .. (tapp (tbind (λ y, e))) .. )))
+  (tbind (λ x, .. ((λ y, e)) .. ))
   (at level 200, x binder, y binder, right associativity,
    format "'[  ' 'λ#'  x  ..  y ']' ,  e") : stdpp_scope.
 
@@ -260,4 +260,3 @@ Proof.
   rewrite <- (tforall_equiv P). rewrite tforall_unroll.
   split; intros HP x; by apply (tforall_equiv).
 Qed.
-
