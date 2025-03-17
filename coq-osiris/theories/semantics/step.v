@@ -188,30 +188,30 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_install σ l deep η bs l' k] is the right-hand side of the reduction
-   rule [StepInstall]. *)
+(* [step_wrap σ l deep η bs l' k] is the right-hand side of the reduction
+   rule [StepWrap]. *)
 
-Definition step_install_1 σ l (deep : bool) η bs l' :=
+Definition step_wrap_1 σ l (deep : bool) η bs l' :=
   if deep then
     <[l' := K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ
   else
     <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))]> σ.
 
-Definition step_install_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
+Definition step_wrap_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
 
-Notation step_install σ l deep η bs l' k :=
-  (step_install_1 σ l deep η bs l', step_install_2 l' k).
+Notation step_wrap σ l deep η bs l' k :=
+  (step_wrap_1 σ l deep η bs l', step_wrap_2 l' k).
 
 (* Installing is an algebraic effect. *)
 
-Lemma try2_step_install_2 {A B E F} l'
+Lemma try2_step_wrap_2 {A B E F} l'
   (k : _ → micro A E)
   (k' : outcome2 A E → micro B F)
 :
-  step_install_2 l' (pftry2 k k') = try2 (step_install_2 l' k) k'.
+  step_wrap_2 l' (pftry2 k k') = try2 (step_wrap_2 l' k) k'.
 Proof.
-  unfold step_install_2. eauto.
+  unfold step_wrap_2. eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -222,7 +222,7 @@ Local Hint Resolve
   try2_step_load_2
   try2_step_store_2
   try2_step_resume_2
-  try2_step_install_2
+  try2_step_wrap_2
 : algebraic.
 
 (* -------------------------------------------------------------------------- *)
@@ -342,16 +342,16 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CResume (l, o) k)
         c'
 
-  (* [stop CInstall (deep, l, η, bs)] wraps the continuation that is currently
+  (* [stop CWrap (deep, l, η, bs)] wraps the continuation that is currently
      stored at address [l] in an effect handler described by [deep], [η], and
      [bs]. This results in a new continuation, which is stored in the heap at
      a fresh location [l']. This location is returned. *)
-  | StepInstall :
+  | StepWrap :
       ∀ σ deep l η bs k l' c',
       σ !! l' = None →
-      c' = step_install σ l deep η bs l' k →
+      c' = step_wrap σ l deep η bs l' k →
       step
-        (σ, Stop CInstall (deep, l, η, bs) k)
+        (σ, Stop CWrap (deep, l, η, bs) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -688,8 +688,8 @@ Qed.
 
 (* [stop CInstall (deep, l, η, bs)] can step in only one way. *)
 
-Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
-  @step A E (σ, Stop CInstall (true, l, η, bs) k) (σ', m') →
+Lemma invert_step_wrap_deep {A E} σ σ' l η bs k m' :
+  @step A E (σ, Stop CWrap (true, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
     σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
@@ -697,12 +697,12 @@ Lemma invert_step_install_deep {A E} σ σ' l η bs k m' :
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
-  unfold step_install_1, step_install_2.
+  unfold step_wrap_1, step_wrap_2.
   eauto.
 Qed.
 
-Lemma invert_step_install_shallow {A E} σ σ' l η bs k m' :
-  @step A E (σ, Stop CInstall (false, l, η, bs) k) (σ', m') →
+Lemma invert_step_wrap_shallow {A E} σ σ' l η bs k m' :
+  @step A E (σ, Stop CWrap (false, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
     σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
@@ -710,7 +710,7 @@ Lemma invert_step_install_shallow {A E} σ σ' l η bs k m' :
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
-  unfold step_install_1, step_install_2.
+  unfold step_wrap_1, step_wrap_2.
   eauto.
 Qed.
 
@@ -748,7 +748,7 @@ Proof.
      that is not in the domain of [σ]. *)
   { set (l' := fresh (dom σ)).
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
-    eauto using StepInstall with step. }
+    eauto using StepWrap with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.

@@ -963,7 +963,7 @@ Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
   | O3Perform e k =>
       (* If we are matching on an effect, we reinstall the handler on
          top of that effect's continuation. *)
-      k ← install true k η bs ;
+      k ← wrap true k η bs ;
       ret (O3Perform e k)
   | _ =>
       ret o
@@ -986,7 +986,7 @@ Fixpoint pre_shallow_match η o bs all_bs :=
               top of the continuation (using a shallow install, notice
               the [false] flag). We then reperform the effect with the
               same continuation it had initially. *)
-           l ← install false l η all_bs;
+           l ← wrap false l η all_bs;
            try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>

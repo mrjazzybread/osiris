@@ -70,9 +70,9 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CResume lo k)
     crash
-| MayInstall t k :
+| MayWrap t k :
   may
-    (Stop CInstall t k)
+    (Stop CWrap t k)
     crash
 | MayPerform e k :
   may

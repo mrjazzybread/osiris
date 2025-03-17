@@ -203,7 +203,7 @@ Section handler_proof.
 
       iFrame.
       (* Install the handler around the location [l]. *)
-      simpl_wrap_eval_branches; iApply ewp_install_deep.
+      simpl_wrap_eval_branches; iApply ewp_wrap_deep.
       ewp_mask_intro "Hmod".
       ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
                              but not in "Hsh", so we lose; FIXME *)
@@ -289,7 +289,7 @@ Section handler_proof.
     EWP (shallow_match η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
   Proof.
     iIntros "Hk Hperf". simpl_shallow_match.
-    iApply ewp_install_shallow.
+    iApply ewp_wrap_shallow.
 
     iIntros (l) "Hl". iNext. cbn.
 

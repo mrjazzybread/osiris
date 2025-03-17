@@ -77,8 +77,8 @@ Local Ltac step :=
           apply is_fresh
       end
     | match goal with
-      | |- step (?σ, Stop CInstall _ _) _ =>
-          eapply StepInstall;
+      | |- step (?σ, Stop CWrap _ _) _ =>
+          eapply StepWrap;
           [ apply is_fresh | by cbn ]
       end
     | eapply StepHandleLeft; [ step ]
