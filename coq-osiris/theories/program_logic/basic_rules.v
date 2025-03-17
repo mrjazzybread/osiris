@@ -646,7 +646,7 @@ Section ewp_rules.
     mapsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         mapsto l (DfracOwn 1) (V v') -∗
-        EWP (continue k tt) @ E <| Ψ |> {{ φ }}
+        EWP (continue k #()) @ E <| Ψ |> {{ φ }}
       ) -∗
     EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
   Proof.

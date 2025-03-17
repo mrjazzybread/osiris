@@ -70,7 +70,7 @@ Inductive code : Type → Type → Type → Type :=
 | CFlip : code unit bool exn
 | CAlloc : code val loc exn
 | CLoad  : code loc val exn
-| CStore : code (loc * val) unit exn
+| CStore : code (loc * val) val exn
 | CPerf  : code eff val exn
 | CResume : code (loc * outcome2 val exn) val exn
 | CWrap : code (bool * loc * env * handler) loc exn

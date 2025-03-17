@@ -1267,8 +1267,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       load l
   | EStore e1 e2 =>
       '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
-      _ ← store l v ;
-      ok
+      store l v
   end.
 
 

@@ -129,9 +129,9 @@ Definition step_store_1 σ l v' : store :=
   | _          => σ
   end.
 
-Definition step_store_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :=
+Definition step_store_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (V v) => continue k ()
+  | Some (V v) => continue k VUnit
   | _          => crash
   end.
 
@@ -141,7 +141,7 @@ Notation step_store σ l v' k :=
 (* Storing is an algebraic effect. *)
 
 Lemma try2_step_store_2 {A B E F} σ l
-  (k : outcome2 unit val → micro A E)
+  (k : outcome2 val exn → micro A E)
   (k' : outcome2 A E → micro B F)
 :
   step_store_2 σ l (pftry2 k k') = try2 (step_store_2 σ l k) k'.
@@ -446,11 +446,11 @@ Proof.
   intros Heq. econstructor. unfold step_load_2. rewrite Heq. eauto.
 Qed.
 
-Lemma StepStoreSuccess {A E} σ l v v' (k : outcome2 unit exn → micro A E) :
+Lemma StepStoreSuccess {A E} σ l v v' (k : outcome2 val exn → micro A E) :
   σ !! l = Some (V v) →
   step
     (σ, Stop CStore (l, v') k)
-    (<[ l := V v' ]> σ, continue k ()).
+    (<[ l := V v' ]> σ, continue k VUnit).
 Proof.
   intros Heq. econstructor. unfold step_store_1, step_store_2.
   rewrite Heq. eauto.
@@ -653,7 +653,7 @@ Lemma invert_step_store {A E} σ l v' v k σ' m' :
   σ !! l = Some (V v) →
   @step A E (σ, Stop CStore (l, v') k) (σ', m') →
   σ' = <[ l := V v' ]> σ ∧
-  m' = continue k ().
+  m' = continue k VUnit.
 Proof.
   intros Heq Hstep. destruct_step.
   unfold step_store_1, step_store_2. rewrite Heq.
