@@ -76,7 +76,7 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
     crash
 | MayPerform e k :
   may
-    (Stop CPerform e k)
+    (Stop CPerf e k)
     crash
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
   may
@@ -256,7 +256,7 @@ Proof.
 Qed.
 
 Lemma invert_may_perform {A E} (m' : micro A E) e h:
-  may (Stop CPerform e h) m' → m' = crash.
+  may (Stop CPerf e h) m' → m' = crash.
 Proof.
   by inversion 1.
 Qed.

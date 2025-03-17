@@ -233,7 +233,7 @@ Local Hint Resolve
 
 (* [Crash] cannot step. *)
 
-(* [Stop CPerform e k] cannot step by itself. If it appears in the scope of
+(* [Stop CPerf e k] cannot step by itself. If it appears in the scope of
    [Handle] then it can step. *)
 
 (* The reduction rules are designed so that [Handle] and [Par] can always
@@ -316,7 +316,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
       ∀ σ e k h l,
       σ !! l = None →
       step
-        (σ, Handle (Stop CPerform e k) h)
+        (σ, Handle (Stop CPerf e k) h)
         (<[l := K k]>σ, h (O3Perform e l))
 
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
@@ -396,14 +396,14 @@ Inductive step {A E} : config A E → config A E → Prop :=
   | StepParPerformLeft :
       ∀ {A1 A2 E'} σ m2 e k (h : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par (Stop CPerform e k) m2 h)
-        (σ, Stop CPerform e (λ o, Par (k o) m2 h))
+        (σ, Par (Stop CPerf e k) m2 h)
+        (σ, Stop CPerf e (λ o, Par (k o) m2 h))
 
   | StepParPerformRight :
       ∀ {A1 A2 E'} σ m1 e k (h : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par m1 (Stop CPerform e k) h)
-        (σ, Stop CPerform e (λ o, Par m1 (k o) h))
+        (σ, Par m1 (Stop CPerf e k) h)
+        (σ, Stop CPerf e (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
@@ -725,15 +725,15 @@ Proof.
   destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* If [c] is not [CPerform _], then [Stop c x k] can step. *)
+(* If [c] is not [CPerf _], then [Stop c x k] can step. *)
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerform => False | _ => True end →
+  match c with CPerf => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
-  (* Get rid of [CPerform]. *)
+  (* Get rid of [CPerf]. *)
   first [ tauto | intros _ ];
   (* Deal with all remaining cases except [CFlip], [CAlloc], [CInstall]. *)
   eauto using StepLoad with step.
@@ -990,10 +990,10 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-(* [Stop CPerform e k] is stuck. *)
+(* [Stop CPerf e k] is stuck. *)
 
 Lemma stuck_Perform {A E} σ e k :
-  stuck ((σ, Stop CPerform e k) : config A E).
+  stuck ((σ, Stop CPerf e k) : config A E).
 Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
@@ -1002,7 +1002,7 @@ Qed.
 
 Lemma only_crash_and_throw_and_perform_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  m = Crash ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerform e k).
+  m = Crash ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerf e k).
 Proof.
   intros.
   destruct m; try solve [
@@ -1025,7 +1025,7 @@ Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
   | Ret _
   | Crash
   | Throw _
-  | Stop CPerform _ _ =>
+  | Stop CPerf _ _ =>
       True
   | _ =>
       can_step (σ, m)

@@ -110,8 +110,8 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
      ∀ e k k',
      (∀ o, simp (k o) (k' o)) →
      simp
-       (Stop CPerform e k)
-       (Stop CPerform e k')
+       (Stop CPerf e k)
+       (Stop CPerf e k')
 | SimpHandleRet:
      ∀ m v k,
      simp m (Ret v) ->
@@ -281,8 +281,8 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
      ∀ e k k',
      (∀ o, simp (k o) (k' o)) →
      simplify 1
-       (Stop CPerform e k)
-       (Stop CPerform e k')
+       (Stop CPerf e k)
+       (Stop CPerf e k')
 | SimplifyHandleRet:
      ∀ v n m k,
      simplify n m (Ret v) ->
@@ -314,8 +314,8 @@ Global Hint Constructors simplify : simplify.
 Lemma SimplifyPerformParRetLeft
   {A E A1 A2 E'} e a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
   simplify 1
-    (Stop CPerform e (λ o, Par (Ret a1) (m2 o) k))
-    (Stop CPerform e (λ o, try2 (m2 o) (join1 a1 k))).
+    (Stop CPerf e (λ o, Par (Ret a1) (m2 o) k))
+    (Stop CPerf e (λ o, try2 (m2 o) (join1 a1 k))).
 Proof.
   eauto with simplify simp.
 Qed.
@@ -323,8 +323,8 @@ Qed.
 Lemma SimplifyPerformParRetRight
   {A E A1 A2 E'} e m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
   simplify 1
-    (Stop CPerform e (λ o, Par (m1 o) (Ret a2) k))
-    (Stop CPerform e (λ o, try2 (m1 o) (join2 a2 k))).
+    (Stop CPerf e (λ o, Par (m1 o) (Ret a2) k))
+    (Stop CPerf e (λ o, try2 (m1 o) (join2 a2 k))).
 Proof.
   eauto with simplify simp.
 Qed.
@@ -334,8 +334,8 @@ Lemma SimplifyPerformParLeft
   (∀ o, simp (m1 o) (m'1 o)) →
   simp m2 m'2 →
   simplify 1
-    (Stop CPerform e (λ o, Par (m1 o) m2 k))
-    (Stop CPerform e (λ o, Par (m'1 o) m'2 k)).
+    (Stop CPerf e (λ o, Par (m1 o) m2 k))
+    (Stop CPerf e (λ o, Par (m'1 o) m'2 k)).
 Proof.
   eauto with simplify simp.
 Qed.
@@ -345,8 +345,8 @@ Lemma SimplifyPerformParRight
   simp m1 m'1 →
   (∀ o, simp (m2 o) (m'2 o)) →
   simplify 1
-    (Stop CPerform e (λ o, Par m1 (m2 o) k))
-    (Stop CPerform e (λ o, Par m'1 (m'2 o) k)).
+    (Stop CPerf e (λ o, Par m1 (m2 o) k))
+    (Stop CPerf e (λ o, Par m'1 (m'2 o) k)).
 Proof.
   eauto with simplify simp.
 Qed.
@@ -535,9 +535,9 @@ Qed.
    No other simplification is possible. *)
 
 Lemma destruct_simplify_perform {A E} n e k (m' : micro A E) :
-  simplify n (Stop CPerform e k) m' →
+  simplify n (Stop CPerf e k) m' →
   ∃ k',
-  m' = Stop CPerform e k' ∧
+  m' = Stop CPerf e k' ∧
   ∀ o, simp (k o) (k' o).
 Proof.
   intros h; dependent induction h; eauto with simp.
@@ -548,9 +548,9 @@ Proof.
 Qed.
 
 Lemma destruct_simp_perform {A E} e k (m' : micro A E) :
-  simp (Stop CPerform e k) m' →
+  simp (Stop CPerf e k) m' →
   ∃ k',
-  m' = Stop CPerform e k' ∧
+  m' = Stop CPerf e k' ∧
   ∀ o, simp (k o) (k' o).
 Proof.
   intros (n & ?)%simp_simplify. eauto using destruct_simplify_perform.
@@ -563,7 +563,7 @@ Ltac clarify_simplify :=
   | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
   | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
   | h: simplify _ (throw _) ?m |- _ => apply destruct_simplify_throw in h
-  | h: simplify _ (Stop CPerform _ _) ?m' |- _ =>
+  | h: simplify _ (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simplify_perform in h;
       destruct h as (? & ? & ?)
   end; simplify_eq.
@@ -573,7 +573,7 @@ Ltac clarify_simp :=
   | h: simp (ret _) ?m |- _ => apply destruct_simp_ret in h
   | h: simp crash ?m |- _ => apply destruct_simp_crash in h
   | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
-  | h: simp (Stop CPerform _ _) ?m' |- _ =>
+  | h: simp (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simp_perform in h;
       destruct h as (? & ? & ?)
   end; simplify_eq.
@@ -1027,12 +1027,12 @@ Qed.
 
 Lemma simp_perform_step_diagram {A E} {m : micro A E} {σ σ' m'} v k:
   (* If there is a simplification step of [m] to a perform, *)
-  simp m (Stop CPerform v k) →
+  simp m (Stop CPerf v k) →
   (* if there is also a reduction step out of [m], *)
   step (σ, m) (σ', m') →
   (* then this reduction step does not prevent us from reaching the perform. *)
   σ' = σ ∧
-    simp m' (Stop CPerform v k).
+    simp m' (Stop CPerf v k).
 Proof.
   intros Hsimp Hstep.
   simp_step_diagram; eauto.
@@ -1100,14 +1100,14 @@ Proof.
   { eauto using invert_simp_can_step. }
 Qed.
 
-(* If [m] can be simplified into a [Stop CPerform v k] then
-   either [m] is a [Stop CPerform v k'] where k' can be simplified to k or
+(* If [m] can be simplified into a [Stop CPerf v k] then
+   either [m] is a [Stop CPerf v k'] where k' can be simplified to k or
    or [m] can step. *)
 
 Lemma invert_simp_perform {A E} {m : micro A E} σ v k :
-  simp m (Stop CPerform v k) →
+  simp m (Stop CPerf v k) →
   match m with
-  | Stop CPerform v' k' => v = v' /\ (forall o, simp (k' o) (k o))
+  | Stop CPerf v' k' => v = v' /\ (forall o, simp (k' o) (k o))
   | _ => False
   end ∨
     can_step (σ, m).

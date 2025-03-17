@@ -313,7 +313,7 @@ Section wp_handler_rules.
 
   Lemma ewp_stop_perform {B X'} E Ψ v Φ (k : _ -> micro B X'):
     Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }} >> -∗
-    EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }}.
+    EWP (Stop CPerf v k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HP".
     iPoseProof (monotonic_prot with "[] HP") as "H"; cycle 1.
@@ -331,7 +331,7 @@ Section wp_handler_rules.
   Qed.
 
   Lemma ewp_perform_inv {B X'} E Ψ v Φ (k : _ -> micro B X'):
-    EWP (Stop CPerform v k) @ E <| Ψ |> {{ Φ }} ={E}=∗
+    EWP (Stop CPerf v k) @ E <| Ψ |> {{ Φ }} ={E}=∗
     Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }} >>.
   Proof.
     iIntros "HP".

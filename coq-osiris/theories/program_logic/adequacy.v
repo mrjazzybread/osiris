@@ -82,7 +82,7 @@ Section adequacy.
     ∀ m' t σ',
       rtc erased_step ([m], σ) (t, σ') →
       m' ∈ t →
-      ∀ e k, m' ≠ Stop CPerform e k.
+      ∀ e k, m' ≠ Stop CPerf e k.
   Proof.
     intros [_ H]%(ewp_adequacy _ σ).
     intros m' t σ' S I e k Heq. subst m'.

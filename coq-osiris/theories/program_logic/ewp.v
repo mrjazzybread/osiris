@@ -115,7 +115,7 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
   | Ret v => Some (HRet v)
   | Throw e => Some (HThrow e)
   | Crash => Some HCrash
-  | Stop CPerform e k => Some (HPerform e k)
+  | Stop CPerf e k => Some (HPerform e k)
   | _ => None
   end.
 

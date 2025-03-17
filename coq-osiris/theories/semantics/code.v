@@ -21,7 +21,7 @@ Definition eff := val.
 (* In the definition of the type [code], which follows, every system
    call is allowed to throw an exception of type [exn]. Some system
    calls can indeed throw such an exception: this includes [CEval],
-   [CLoop], [CPerform], [CContinue], and [CDiscontinue]. Some system
+   [CLoop], [CPerf], [CContinue], and [CDiscontinue]. Some system
    calls, such as [CFlip], [CAlloc], [CLoad], and [CStore], cannot
    throw an exception. Describing them with the type [exn], as opposed
    to [void], is a (convenient) over-approximation. *)
@@ -43,11 +43,11 @@ Definition eff := val.
    The result of [Load l] is a value.
    The result of [CStore (l, v)] is unit. *)
 
-(* [CPerform e] is a request to perform a delimited control effect,
+(* [CPerf e] is a request to perform a delimited control effect,
    carrying the value [e] as a payload.
    The result is a value (or an exception).
-   Indeed, the value returned by [CPerform e],
-   or the exception raised by [CPerform e],
+   Indeed, the value returned by [CPerf e],
+   or the exception raised by [CPerf e],
    is determined by whomever decides to continue or discontinue
    the continuation that is captured when this effect is performed. *)
 
@@ -71,7 +71,7 @@ Inductive code : Type → Type → Type → Type :=
 | CAlloc : code val loc exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) unit exn
-| CPerform  : code eff val exn
+| CPerf  : code eff val exn
 | CResume : code (loc * outcome2 val exn) val exn
 | CInstall : code (bool * loc * env * handler) loc exn
 .
@@ -108,7 +108,7 @@ Definition please_eval η e :=
 (* The computation [perform v] performs the effect [v]. *)
 
 Definition perform (v : eff) : microvx :=
-  stop CPerform v.
+  stop CPerf v.
 
 (* The computation [install η k bs] installs a handler [bs] for the continuation
   stored at [k], and returns a new location which stores this installation. *)

@@ -1021,7 +1021,7 @@ Section pure_wp_rules.
       apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
     - (* SimpParThrowAgree *)
       intros P. apply pure_wp_Par; eauto with pure.
-    - (* Stop CPerform is impure_wp *)
+    - (* Stop CPerf is impure_wp *)
       intros []%invert_pure_wp_stop.
     - intros P. apply pure_wp_handle, IHS. by constructor.
     - intros P. apply pure_wp_handle, IHS. by constructor.
