@@ -514,7 +514,7 @@ Inductive threadpool_step :
     threadpool_step (σ, ts1 ++ [m] ++ ts2) (σ', ts1 ++ [m'] ++ ts2)
 | ForkS :
   ∀ v1 v2 k σ ts1 ts2,
-    (* Generate a thread id, corresponding to the thread's index in the threadpool. *)
+    (* Generate a thread id equal to the new thread's index in the threadpool. *)
     let num_threads := (List.length ts1 + List.length ts2 + 1)%nat in
     let th_id := int.repr (Z.of_nat num_threads) in
     threadpool_step
