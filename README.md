@@ -19,10 +19,10 @@ It is known to compile with the following versions of the packages:
 | `pprint`    | -       | -                                            |
 | `ocaml-compiler-libs` | -  | -                                       |
 | `dune`      | 3.17.2  | -                                            |
-| `coq`       | 8.17.1  | https://coq.inria.fr/opam/released           |
-| `coq-iris`  | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `coq-stdpp` | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `coq-equations` | 1.3+8.17 | -                                       |
+| `coq`       | 8.20.1  | https://coq.inria.fr/opam/released           |
+| `coq-iris`  | 4.3.0   | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `coq-stdpp` | 1.11.0  | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `coq-equations` | 1.3.1+8.20 | -                                       |
 | `ppx_sexp_conv` | v0.17.0 | -                                        |
 | `ppx_deriving` | 6.0.3 | -                                           |
 | `coq-serapi` | >=8.10.0+0.7.0 | -                                    |
