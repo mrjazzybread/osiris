@@ -29,12 +29,12 @@ Local Lemma may_pure_step {A E} (m : micro A E) :
   ∀ m', may m m' <-> forall σ, step (σ, m) (σ, m').
 Proof.
   intros P; split; intros S.
-  - induction S; intros σ; try constructor; inv P; eauto.
+  - induction S; intros σ; try constructor; invdep P; auto.
   - specialize (S ∅).
     remember (∅, m) as c.
     remember (∅, m') as c'.
     revert m m' Heqc Heqc' P.
-    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; inv P; try constructor; eauto.
+    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
     destruct b; constructor.
     inv H3. inv H8.
 Qed.
@@ -46,12 +46,12 @@ Local Lemma may_pure_step' {A E} (m : micro A E) :
   ∀ m', may m m' <-> exists σ, step (σ, m) (σ, m').
 Proof.
   intros P; split; intros S.
-  - exists ∅; induction S; try constructor; inv P; eauto.
+  - exists ∅; induction S; try constructor; invdep P; eauto.
   - destruct S as (σ, S).
     remember (σ, m) as c.
     remember (σ, m') as c'.
     revert σ m m' Heqc Heqc' P.
-    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; inv P; try constructor; eauto.
+    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
     destruct b; constructor.
     inv H3. inv H3. inv H8.
 Qed.
@@ -63,7 +63,7 @@ Proof.
   - destruct IHm. repeat constructor; auto. right; intros P; inv P. auto.
   - destruct c; solve [repeat constructor] || right; intros P; inv P.
   - destruct IHm1, IHm2. repeat constructor; auto.
-    all: right; intros P; inv P; auto.
+    all: right; intros P; invdep P; auto.
 Qed.
 
 (** Non-immediately-pure computations can reduce to [Crash] *)

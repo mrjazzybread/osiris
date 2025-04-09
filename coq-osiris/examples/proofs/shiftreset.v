@@ -15,7 +15,7 @@ From osiris.examples Require Import og_shiftreset.
 (** * Protocol. *)
 
 (* Location for the shift eff *)
-Context (shift_eff : loc).
+#[local] Parameter (shift_eff : loc).
 
 (* ------------------------------------------------------------------------ *)
 (** Shift Protocol. *)

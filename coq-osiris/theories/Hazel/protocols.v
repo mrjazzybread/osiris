@@ -165,7 +165,7 @@ Program Definition upcl {Σ} (m : mode) (Ψ : iEff Σ) : iEff Σ :=
 Next Obligation.
   intros ????????. by destruct m; simpl; repeat f_equiv.
 Defined.
-Arguments upcl _ _%ieff.
+Arguments upcl _ _%_ieff.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -236,7 +236,7 @@ Definition iEffPre_base_aux : seal (@iEffPre_base_def). by eexists. Qed.
 Definition iEffPre_base := iEffPre_base_aux.(unseal).
 Definition iEffPre_base_eq : @iEffPre_base = @iEffPre_base_def :=
   iEffPre_base_aux.(seal_eq).
-Arguments iEffPre_base {_} _ _ _%I _%ieff.
+Arguments iEffPre_base {_} _ _ _%_I _%_ieff.
 Global Instance: Params (@iEffPre_base) 4 := {}.
 
 (* Close a protocol with an existential quantifier. *)
@@ -247,13 +247,13 @@ Definition iEffPre_exist_aux : seal (@iEffPre_exist_def). by eexists. Qed.
 Definition iEffPre_exist := iEffPre_exist_aux.(unseal).
 Definition iEffPre_exist_eq : @iEffPre_exist = @iEffPre_exist_def :=
   iEffPre_exist_aux.(seal_eq).
-Arguments iEffPre_exist {_ _} _%ieff.
+Arguments iEffPre_exist {_ _} _%_ieff.
 Global Instance: Params (@iEffPre_exist) 3 := {}.
 
 (* Iterate the existential closure. *)
 Definition iEffPre_texist {Σ} {TT : tele} (e : TT → iEff Σ) : iEff Σ :=
   tele_fold (@iEffPre_exist Σ) (λ x, x) (tele_bind e).
-Arguments iEffPre_texist {_ _} _%ieff /.
+Arguments iEffPre_texist {_ _} _%_ieff /.
 
 (* Construct a predicate from a pair of a value [w] and an assertion [Q]. *)
 Definition iEffPost_base_def {Σ} (w : outcome2 val exn) (Q : iProp Σ) :
@@ -263,7 +263,7 @@ Definition iEffPost_base_aux : seal (@iEffPost_base_def). by eexists. Qed.
 Definition iEffPost_base := iEffPost_base_aux.(unseal).
 Definition iEffPost_base_eq : @iEffPost_base = @iEffPost_base_def :=
   iEffPost_base_aux.(seal_eq).
-Arguments iEffPost_base {_} _ _%I.
+Arguments iEffPost_base {_} _ _%_I.
 Global Instance: Params (@iEffPost_base) 2 := {}.
 
 (* Close a predicate with an existential quantifier. *)
@@ -274,13 +274,13 @@ Definition iEffPost_exist_aux : seal (@iEffPost_exist_def). by eexists. Qed.
 Definition iEffPost_exist := iEffPost_exist_aux.(unseal).
 Definition iEffPost_exist_eq : @iEffPost_exist = @iEffPost_exist_def :=
   iEffPost_exist_aux.(seal_eq).
-Arguments iEffPost_exist {_ _} _%ieff.
+Arguments iEffPost_exist {_ _} _%_ieff.
 Global Instance: Params (@iEffPost_exist) 2 := {}.
 
 Definition iEffPost_texist {Σ} {TT : tele}
   (e : TT → (outcome2 val exn -d> iPropO Σ)) : outcome2 val exn -d> iPropO Σ :=
   tele_fold (@iEffPost_exist Σ) (λ x, x) (tele_bind e).
-Arguments iEffPost_texist {_ _} _%ieff /.
+Arguments iEffPost_texist {_ _} _%_ieff /.
 
 (* Protocol marked by a function [f]. *)
 Program Definition iEff_marker_def {Σ} (f : val → val) (e : iEff Σ) : iEff Σ :=
@@ -290,7 +290,7 @@ Definition iEff_marker_aux : seal (@iEff_marker_def). by eexists. Qed.
 Definition iEff_marker := iEff_marker_aux.(unseal).
 Definition iEff_marker_eq : @iEff_marker = @iEff_marker_def :=
   iEff_marker_aux.(seal_eq).
-Arguments iEff_marker {_} _ _%ieff.
+Arguments iEff_marker {_} _ _%_ieff.
 Global Instance: Params (@iEff_marker) 3 := {}.
 
 (* Extend a given protocol with the constraint
@@ -302,7 +302,7 @@ Definition iEff_filter_aux : seal (@iEff_filter_def). by eexists. Qed.
 Definition iEff_filter := iEff_filter_aux.(unseal).
 Definition iEff_filter_eq : @iEff_filter = @iEff_filter_def :=
   iEff_filter_aux.(seal_eq).
-Arguments iEff_filter {_} _ _%ieff.
+Arguments iEff_filter {_} _ _%_ieff.
 Global Instance: Params (@iEff_marker) 3 := {}.
 
 (* Protocol sum. *)
@@ -313,7 +313,7 @@ Definition iEff_sum_aux : seal (@iEff_sum_def). by eexists. Qed.
 Definition iEff_sum := iEff_sum_aux.(unseal).
 Definition iEff_sum_eq : @iEff_sum = @iEff_sum_def :=
   iEff_sum_aux.(seal_eq).
-Arguments iEff_sum {_} _%ieff _%ieff.
+Arguments iEff_sum {_} _%_ieff _%_ieff.
 Global Instance: Params (@iEff_sum) 3 := {}.
 
 
@@ -330,22 +330,22 @@ Notation "'?' w {{ Q } }" := (iEffPost_base w Q)
   (at level 200, w at level 20, right associativity,
    format "'?' w  {{  Q  } }") : ieff_scope.
 
-Notation ">> x .. y >> e" := 
+Notation ">> x .. y >> e" :=
   (iEffPre_exist (λ x, .. (iEffPre_exist (λ y, e)) .. )%ieff)
   (at level 200, x binder, y binder, right associativity,
    format ">>  x  ..  y >>  e") : ieff_scope.
 
-Notation "<< x .. y << e" := 
+Notation "<< x .. y << e" :=
   (iEffPost_exist (λ x, .. (iEffPost_exist (λ y, e)) .. )%ieff)
   (at level 200, x binder, y binder, right associativity,
    format "<<  x  ..  y <<  e") : ieff_scope.
 
-Notation "'>>..' x .. y >> e" := 
+Notation "'>>..' x .. y >> e" :=
   (iEffPre_texist (λ x, .. (iEffPre_texist (λ y, e)) .. )%ieff)
   (at level 200, x binder, y binder, right associativity,
    format ">>..  x  ..  y >>  e") : ieff_scope.
 
-Notation "'<<..' x .. y << e" := 
+Notation "'<<..' x .. y << e" :=
   (iEffPost_texist (λ x, .. (iEffPost_texist (λ y, e)) .. )%ieff)
   (at level 200, x binder, y binder, right associativity,
    format "<<..  x  ..  y <<  e") : ieff_scope.
@@ -661,7 +661,7 @@ Section protocol_operators_properties.
     iIntros "[%x [%Heq [HP #HΦ']]]". iExists x.
     iFrame. iSplit; [done|]. iIntros "!#" (y) "HQ".
     iApply "HΦ". by iApply "HΦ'".
-  Qed.  
+  Qed.
 
 
   (* Properties related to the upward closure. *)
@@ -774,7 +774,7 @@ Section protocol_operators_properties.
   Proof.
     rewrite /upcl iEff_marker_eq.
     iIntros "H". iDestruct "H" as (Q) "[He HQ]".
-    iExists Q. iFrame. iExists v. by iFrame.
+    iExists Q. iFrame. done.
   Qed.
 
   Lemma upcl_marker_elim f {Hf: Inj (=) (=) f} m v Ψ Φ :
@@ -884,7 +884,7 @@ Section protocol_ordering_properties.
   Proof.
     intros ????. apply equiv_dist=>n; apply iEff_le_ne; by apply equiv_dist.
   Qed.
- 
+
   (* (⊑) is a preorder. *)
   Lemma iEff_le_refl Ψ : ⊢ (Ψ ⊑ Ψ)%ieff.
   Proof. iModIntro. by iIntros (v Φ) "H". Qed.

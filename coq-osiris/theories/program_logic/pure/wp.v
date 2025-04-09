@@ -718,7 +718,7 @@ Section pure_wp_rules.
     pure_wp (Stop CFlip u k) φ ψ.
   Proof.
     intros H1 H2. constructor. eauto with may.
-    intros m' M. by inv M.
+    intros m' M. by invdep M.
   Qed.
 
   Lemma pure_wp_choose {A φ ψ} (m1 m2 : micro A exn) :
@@ -914,10 +914,10 @@ Section pure_wp_rules.
       + by apply invert_pure_wp_stop in Hm.
       + edestruct IHm; eauto with may.
     - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
-      destruct c; try tauto; inv Hstep; split; auto; try destruct b; constructor.
+      destruct c; try tauto; invdep Hstep; split; auto; try destruct b; constructor.
     - pose proof invert_pure_wp_Par_left _ _ _ Hm as Hm1.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
-      inv Hstep; try (split; [ | tauto ]).
+      invdep Hstep; try (split; [ | tauto ]).
       all: try by constructor.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
@@ -949,11 +949,11 @@ Section pure_wp_rules.
       + edestruct IHm as [IH ->]; eauto. split; auto.
         eapply pure_wp_handle; eauto.
     - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
-      destruct c; try tauto; inv Hstep; split; auto;
+      destruct c; try tauto; invdep Hstep; split; auto;
         eapply pure_wp_may_forward; eauto; try destruct b; constructor.
     - pose proof invert_pure_wp_Par_left _ _ _ Hm as Hm1.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
-      inv Hstep; try (split; [ | tauto ]).
+      invdep Hstep; try (split; [ | tauto ]).
       all: eauto using pure_wp_may_forward with may.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.

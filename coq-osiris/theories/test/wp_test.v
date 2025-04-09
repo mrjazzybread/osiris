@@ -7,6 +7,8 @@ Import uPred.
 From osiris Require Import osiris.
 From osiris.proofmode Require Import ewp_tactics.
 
+Section tests.
+
 Context `{!osirisGS Σ} `{protocol_wf Σ}.
 
 Local Transparent eval eval_mexpr eval_sitem eval_sitems
@@ -304,3 +306,5 @@ Definition simple_module_spec: val → iProp Σ :=
     ("h", spec_id)
   ]
 .
+
+End tests.

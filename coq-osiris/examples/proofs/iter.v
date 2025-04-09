@@ -6,9 +6,12 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_iter.
 
-Context `{!osirisGS Σ}.
+Require Import Coq.Wellfounded.Inverse_Image.
 
-Context (A : Type) `{Encode A}.
+Section iris_proof.
+
+Context `{!osirisGS Σ}.
+Context `{Encode A}.
 
 Definition isListIter (iter : val) : iProp Σ :=
   ∀ (ψ : iEff Σ) E (I : list A → iProp Σ) φ (f : val) (l : list A),
@@ -91,7 +94,7 @@ Proof.
 
       - (* Case 1: applying [f] caused an exception to be raised. *)
         simpl. iIntros (e) "[Hφ HI]". iFrame.
-        iExists lpre. iFrame. iPureIntro.
+        iPureIntro.
         rewrite <- (app_nil_r lpre) at 1.
         apply prefix_app, prefix_nil.
 
@@ -108,7 +111,7 @@ Proof.
           iPureIntro. rewrite (cons_middle _ lpre xs').
           by rewrite app_assoc. }
 
-        iApply ewp_EPath. Ret. equality.
+        iApply ewp_EPath. iApply ewp_value. done.
         iIntros (partial_iter l) "Hpart ->". auto. }
 
     (* As we have now traversed all branches, we can use the
@@ -127,6 +130,12 @@ Proof.
   iExists _; iSplit; [ equality | iAssumption ].
 Qed.
 
+End iris_proof.
+
+Section pure_proof.
+
+Context `{Encode A}.
+
 Definition pure_isListIter (iter : val) : Prop :=
   ∀ (I : list A → Prop) φ (f : val) (l : list A),
     (∀ (Xs : list A) (X : A),
@@ -143,8 +152,6 @@ Definition pure_isListIter (iter : val) : Prop :=
 (* -------------------------------------------------------------------------- *)
 
 (* Well-foundedness *)
-
-Require Import Coq.Wellfounded.Inverse_Image.
 
 (* FIXME use the measure function to only have a WF condition on lists *)
 #[local] Program Instance list_tuple_wf {A B} : WellFounded (B * list A) :=
@@ -213,7 +220,7 @@ Proof.
       - done.
       - split; first done.
         exists (lpref ++ [x]). split; last done.
-        rewrite (cons_middle x lpref xs'). apply app_assoc_reverse. }
+        rewrite (cons_middle x lpref xs'). by rewrite app_assoc. }
     intros ? ? Hcall ->.
     eapply Hcall. }
 
@@ -221,3 +228,5 @@ Proof.
     exists lpref. split; first assumption. rewrite <- (app_nil_r lpref) at 1.
     apply prefix_app. apply prefix_nil. }
 Qed.
+
+End pure_proof.

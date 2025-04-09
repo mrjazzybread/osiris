@@ -5,8 +5,6 @@ From osiris.program_logic Require Import pure_rules.
 From osiris.program_logic Require Import pure.toplevel_rules.
 From osiris.program_logic Require Import pure.fun_spec.
 
-From stdpp Require Import well_founded.
-
 (** This file is to be used as motivation for the [Spec] predicate.
     As an example, we define [Spec'] as a way to specify unary functions.
 
@@ -66,7 +64,7 @@ Local Lemma pure_eval_letrec' `{Encode X, Encode Y}
   (P : call_spec') (R : X -> X -> Prop) η f (x : var) e
   e2 (φ : Y -> Prop) ζ :
   (* Show that the relation on which arguments are decreasing is well-founded. *)
-  wf R ->
+  well_founded R ->
   (* Show the specification [P] holds over a call to any argument
      [arg], under the assumption that [P] holds to a call over any
      argument [yval] smaller than [arg]. *)
@@ -92,7 +90,7 @@ Qed.
 Local Lemma structs_letrec' `{Encode X} (R : X -> X -> Prop) η δ f (x : var) e
   (P : X -> microvx -> Prop)
   sitems φ :
-  wf R ->
+  well_founded R ->
   (∀ c v',
       Spec' c (λ v m, R v v' -> P v m) ->
       P v' (eval ((x, #v') :: (f, c) :: η) e)) ->

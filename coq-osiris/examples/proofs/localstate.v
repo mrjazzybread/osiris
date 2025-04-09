@@ -124,7 +124,7 @@ Section verification.
       ⌜address l1 ≠ address l2⌝.
   Proof.
     iIntros (v1 v2) "Hl1 Hl2".
-    iPoseProof (gen_heap.mapsto_ne with "Hl1 Hl2") as "%Hne".
+    iPoseProof (gen_heap.pointsto_ne with "Hl1 Hl2") as "%Hne".
     iPureIntro. destruct l1, l2. simpl.
     intros ->. by apply Hne.
   Qed.
@@ -171,7 +171,7 @@ Section verification.
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      iApply ewp_ERef. { iApply ewp_EPath; by Ret. }
+      iApply ewp_ERef. { iApply ewp_EPath. iApply ewp_value. done. }
       iIntros (? -> ?) "?".
       by iApply val_points_to_unfold. }
 

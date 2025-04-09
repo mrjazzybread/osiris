@@ -279,7 +279,12 @@ Section LargeConstruction.
   Proof.
     intros x y z ? ?.
     split; intro;
-    eauto 6 using strict_order_irreflexive, equivalent'_lt_compat, symmetry.
+      last eauto 6 using strict_order_irreflexive, equivalent'_lt_compat.
+    assert (y < z) as Hyz.
+    { eapply equivalent'_lt_compat; last eassumption. by symmetry. }
+    eapply strict_order_irreflexive; [ apply Slt | ].
+    eapply equivalent'_lt_compat; [ | apply Hyz ].
+    by symmetry.
   Qed.
 
   Global Instance : Reflexive large.

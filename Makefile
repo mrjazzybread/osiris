@@ -32,20 +32,21 @@ clean:
 # This is the desired version of OCaml.
 
 OCAML_VERSION := 5.3.0
+SWITCH_NAME = osiris
 
 # [make init] creates an opam switch named [osiris]
 # and invokes [make pin].
 
 .PHONY: init
 init:
-	opam switch create osiris $(OCAML_VERSION)
+	opam switch create $(SWITCH_NAME) $(OCAML_VERSION)
 	$(MAKE) pin
 
 # Short-hands for opam commands.
 
-ADD     := opam repo add --switch=osiris --yes
-PIN     := opam pin      --switch=osiris --yes
-INSTALL := opam install  --switch=osiris --yes
+ADD     := opam repo add --switch=$(SWITCH_NAME) --yes
+PIN     := opam pin      --switch=$(SWITCH_NAME) --yes
+INSTALL := opam install  --switch=$(SWITCH_NAME) --yes
 
 # [make upgrade] updates the OCaml compiler
 # in the existing opam switch named [osiris]
@@ -75,9 +76,9 @@ pin:
 	$(INSTALL) pprint ocaml-compiler-libs
 	$(ADD) coq-released https://coq.inria.fr/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	$(PIN) coq 8.17.1
-	$(PIN) coq-stdpp 1.9.0
-	$(PIN) coq-iris 4.1.0
-	$(PIN) coq-equations 1.3+8.17
+	$(PIN) coq 8.20.1
+	$(PIN) coq-stdpp 1.11.0
+	$(PIN) coq-iris 4.3.0
+	$(PIN) coq-equations 1.3.1+8.20
 	$(PIN) ppx_sexp_conv v0.17.0
 	$(PIN) ppx_deriving 6.0.3

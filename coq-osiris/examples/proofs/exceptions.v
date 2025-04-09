@@ -6,12 +6,14 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_exception.
 
-Context `{!osirisGS Σ}.
-
 (* TODO: We manually add exceptions to the environment. *)
 
 Definition stdlib_with_notfound :=
   ("Not_found", (VLoc (Loc 0))) :: stdlib_env.
+
+Section proof.
+
+Context `{!osirisGS Σ}.
 
 (* Calling [head #l] either returns [#h] when [l = h :: t],
    or throws an exception when [l = []]. *)
@@ -114,3 +116,5 @@ Proof.
   eapply structs_nil.
   done.
 Qed.
+
+End proof.

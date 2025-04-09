@@ -63,7 +63,7 @@ Open Scope expr_scope.
 (* Store-related notations. *)
 
 Notation "l ↦ v" :=
-  (mapsto l (DfracOwn 1) v) (at level 20).
+  (pointsto l (DfracOwn 1) v) (at level 20).
 
 (* -------------------------------------------------------------------------- *)
 (* Notations used to handle n-ary calls. *)
@@ -72,8 +72,6 @@ Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
       (fun v => wp s E (call v v2)
                    (.. (fun v =>  wp s E (call v vn) φ ) ..)))
   (only printing).
-
-
 
 (* -------------------------------------------------------------------------- *)
 (* Specific cases of the weakest precondition assertions. *)
@@ -342,7 +340,7 @@ Notation "{ r 'with' fds }" :=
 
 Close Scope expr_scope.
 
-Global Arguments eval _ _%expr_scope.
+Global Arguments eval _ _%_expr_scope.
 
 (* Notation for osiris contexts on pure propositions *)
 

@@ -985,7 +985,7 @@ Section ewp_rules_expr.
   Lemma ewp_ERef_exn η e φ1 φ E Ψ :
     EWP eval η e @ E <|Ψ|> {{ φ1 }} -∗
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φ1 (O2Ret v) -∗ ∀ l, mapsto l (DfracOwn 1) (V v) -∗ φ (O2Ret (VLoc l))) -∗
+    (∀ v, φ1 (O2Ret v) -∗ ∀ l, l ↦ (V v) -∗ φ (O2Ret (VLoc l))) -∗
     EWP eval η (ERef e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H E P". simpl_eval.
@@ -1002,7 +1002,7 @@ Section ewp_rules_expr.
 
   Lemma ewp_ERef η e φ1 φ E Ψ :
     EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
-    (∀ v, φ1 v -∗ ∀ l, mapsto l (DfracOwn 1) (V v) -∗ φ (VLoc l)) -∗
+    (∀ v, φ1 v -∗ ∀ l, l ↦ (V v) -∗ φ (VLoc l)) -∗
     EWP eval η (ERef e) @ E <|Ψ|> {{ RET v, φ v }}.
   Proof.
     iIntros "H P".
@@ -1013,7 +1013,7 @@ Section ewp_rules_expr.
     EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
       EWP eval η (ERef e) @ E <|Ψ|>
       {{ RET r, ∃ l v,
-          ⌜r = VLoc l⌝ ∗ mapsto l (DfracOwn 1) (V v) ∗ φ1 v }}.
+          ⌜r = VLoc l⌝ ∗ l ↦ (V v) ∗ φ1 v }}.
   Proof.
     iIntros "H".
     iApply (ewp_ERef with "H").
@@ -1027,7 +1027,7 @@ Section ewp_rules_expr.
   Lemma ewp_ELoad_exn η e φ1 φ E Ψ :
     EWP as_loc (eval η e) @ E <|Ψ|> {{ φ1 }} -∗
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ l, φ1 (O2Ret l) -∗ ∃ q v, mapsto l q (V v) ∗ ▷(mapsto l q (V v) -∗ φ (O2Ret v))) -∗
+    (∀ l, φ1 (O2Ret l) -∗ ∃ q v, pointsto l q (V v) ∗ ▷(pointsto l q (V v) -∗ φ (O2Ret v))) -∗
     EWP eval η (ELoad e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H E P /=". simpl_eval.
@@ -1044,7 +1044,7 @@ Section ewp_rules_expr.
 
   Lemma ewp_ELoad η e φ1 φ E Ψ :
     EWP as_loc (eval η e) @ E <|Ψ|> {{ RET l, φ1 l }} -∗
-    (∀ l, φ1 l -∗ ∃ q v, mapsto l q (V v) ∗ ▷(mapsto l q (V v) -∗ φ v)) -∗
+    (∀ l, φ1 l -∗ ∃ q v, pointsto l q (V v) ∗ ▷(pointsto l q (V v) -∗ φ v)) -∗
     EWP eval η (ELoad e) @ E <|Ψ|> {{ RET v, φ v }}.
   Proof.
     iIntros "H P".
@@ -1053,7 +1053,7 @@ Section ewp_rules_expr.
 
   Lemma ewp_ELoad_simple η e (l : loc) q (v : val) E Ψ :
     EWP eval η e @ E <|Ψ|> {{ RET= #l }} -∗
-    mapsto l q (V v) -∗ EWP eval η (ELoad e) @ E <|Ψ|> {{ RET= v, mapsto l q (V v) }}.
+    pointsto l q (V v) -∗ EWP eval η (ELoad e) @ E <|Ψ|> {{ RET= v, pointsto l q (V v) }}.
   Proof.
     iIntros "H Hl". iApply (ewp_ELoad _ _ (λ l1, ⌜l = l1⌝%I) with "[H]").
     - iApply ewp_bind. iApply (ewp_mono_ret with "H").
@@ -1069,7 +1069,7 @@ Section ewp_rules_expr.
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ l1 v2, φ1 (O2Ret l1) ∗ φ2 (O2Ret v2) -∗
-      ∃ v1, mapsto l1 (DfracOwn 1) (V v1) ∗ ▷(mapsto l1 (DfracOwn 1) (V v2) -∗ φ (O2Ret VUnit))) -∗
+      ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ (O2Ret VUnit))) -∗
     EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval.
@@ -1088,7 +1088,7 @@ Section ewp_rules_expr.
     EWP as_loc (eval η e1) @ E <|Ψ|> {{ RET l1, φ1 l1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ RET v2, φ2 v2 }} -∗
     (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
-      ∃ v1, mapsto l1 (DfracOwn 1) (V v1) ∗ ▷(mapsto l1 (DfracOwn 1) (V v2) -∗ φ VUnit)) -∗
+      ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ VUnit)) -∗
     EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ RET v, φ v }}.
   Proof.
     iIntros "H1 H2 P".
@@ -1100,8 +1100,8 @@ Section ewp_rules_expr.
      [(!r := 1; r) := 2]) *)
   Lemma ewp_EStore_simple η e1 e2 (l : loc) (v v' : val) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ RET= #l }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET= v', mapsto l (DfracOwn 1) (V v) }} -∗
-    EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ RET= #(), mapsto l (DfracOwn 1) (V v') }}.
+    EWP eval η e2 @ E <|Ψ|> {{ RET= v', l ↦ (V v) }} -∗
+    EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ RET= #(), l ↦ (V v') }}.
   Proof.
     iIntros "H1 H2".
     iApply (ewp_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").

@@ -6,7 +6,6 @@ From osiris.program_logic Require Import judgements pattern_rules pure.expr_rule
 From osiris.program_logic Require Import pure_rules.
 From osiris.program_logic Require Import pure.toplevel_rules.
 
-From stdpp Require Import well_founded.
 From Coq Require Import Wellfounded.Inverse_Image.
 From Equations Require Import Equations.
 
@@ -370,7 +369,7 @@ Fixpoint AnonFun_depth e : nat :=
   | _ => 0
   end.
 Local Lemma afun_wf :
-  wf (λ e1 e2, AnonFun_depth e1 < AnonFun_depth e2)%nat.
+  well_founded (λ e1 e2, AnonFun_depth e1 < AnonFun_depth e2)%nat.
 Proof.
   eapply wf_inverse_image. apply Nat.lt_wf_0.
 Qed.
@@ -379,7 +378,7 @@ Local Lemma prove_Spec (τ : types) η x e (P : τ -#> microvx -> Prop) :
   predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) ->
   @Spec τ (VClo η (AnonFun x e)) P.
 Proof.
-  revert dependent x; revert η; revert dependent τ.
+  generalize dependent x; revert η; generalize dependent τ.
   (* We do induction on the depth of the number or arguments that the function takes.*)
   induction e as [e IH] using (well_founded_induction afun_wf).
   intros arg_τ P η arg HP.
@@ -430,7 +429,7 @@ Lemma prove_aSpec_rec
   (R : τ -> τ -> Prop) c
   (P : τ -#> microvx -> Prop) :
   is_VCloRec_of_depth c τ ->
-  wf R ->
+  well_founded R ->
   (∀# (args : τ),
     (∀# sargs, R sargs args -> aSpec c P sargs) ->
     aSpec c P args)->
@@ -480,7 +479,7 @@ Proof.
   generalize dependent ((f, VCloRec η [RecBinding f (AnonFun x e)] f) :: η).
 
   (* Proceed by induction over the argument type. *)
-  revert dependent e; revert x.
+  generalize dependent e; revert x.
   induction τ as [ X H | X H arg_τ IH ]; intros x e He η0 HSpec.
 
   (* Base case: the argument is unary. *)
@@ -635,7 +634,7 @@ Proof.
   simpl; simpl_eval; simpl.
   apply pure_wp_ret.
 
-  simp aSpec in IH.
+  apply IH; auto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -674,7 +673,7 @@ Lemma pure_eval_letrec `{Encode X} (τ : types)
   e2 (φ : X -> Prop) ζ :
   is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
   (* Show that the relation on which arguments are decreasing is well-founded. *)
-  wf R ->
+  well_founded R ->
   (* Show the specification [P] holds over a call to any arguments,
      under the assumption that [P] holds to a call over any
      smaller arguments. *)
@@ -697,7 +696,7 @@ Lemma structs_letrec (τ : types)
   (R : τ -> τ -> Prop)
   η δ f (x : var) e (P : τ -#> microvx -> Prop) sitems φ :
   is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
-  wf R ->
+  well_founded R ->
   unfolded_spec_with_rec_assumption τ η f x e R P ->
   (∀ c, Spec c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
   struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.

@@ -194,19 +194,6 @@ Qed.
 
 (** Inversion lemmas *)
 
-(* The first inversion lemmas are simple but useful since because of dependent
-   equality [inversion] is tedious to use by itself. We use the classical
-   property [inj_pair2], which is a consequence of the axiom of the excluded
-   middle. *)
-
-Ltac eq_dep_inj :=
-  repeat match goal with
-    | H : existT ?A ?x = existT ?A ?y |- _ =>
-        apply Classical_Prop.EqdepTheory.inj_pair2 in H
-    end.
-
-Ltac inv H := inversion H; subst; eq_dep_inj; subst.
-
 Lemma Stop_inj {A E X Y E'} (c : C.code X Y E') x1 x2 (k1 k2 : _ → micro A E) :
   Stop c x1 k1 = Stop c x2 k2 → x1 = x2 ∧ k1 = k2.
 Proof.

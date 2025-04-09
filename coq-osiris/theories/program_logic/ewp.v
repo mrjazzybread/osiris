@@ -68,7 +68,7 @@ Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
 (* Notations *)
-Notation "l ↦ v" := (mapsto l (DfracOwn 1) v)
+Notation "l ↦ v" := (pointsto l (DfracOwn 1) v)
   (at level 20, format "l  ↦  v") : bi_scope.
 
 (* -------------------------------------------------------------------------- *)

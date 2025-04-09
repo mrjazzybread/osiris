@@ -612,7 +612,7 @@ Section ewp_rules.
 
   Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
-          mapsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
+          pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
           EWP (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
       EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
   Proof.
@@ -628,7 +628,7 @@ Section ewp_rules.
 
   Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
-          mapsto l (DfracOwn 1) (V v) -∗
+          pointsto l (DfracOwn 1) (V v) -∗
           EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
     EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
   Proof.
@@ -643,9 +643,9 @@ Section ewp_rules.
   (* The standard memory write rule of Separation Logic. *)
 
   Lemma ewp_store {B Y} E l v v' (k : _ → micro B Y) φ Ψ :
-    mapsto l (DfracOwn 1) (V v) ⊢
+    pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (
-        mapsto l (DfracOwn 1) (V v') -∗
+        pointsto l (DfracOwn 1) (V v') -∗
         EWP (continue k #()) @ E <| Ψ |> {{ φ }}
       ) -∗
     EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
@@ -670,9 +670,9 @@ Section ewp_rules.
   (* The standard memory load rule of Separation Logic. *)
 
   Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
-    mapsto l dq (V v) ⊢
+    pointsto l dq (V v) ⊢
     ▷ (
-        mapsto l dq (V v) -∗
+        pointsto l dq (V v) -∗
         EWP (continue k v) @ E <| Ψ |> {{ φ }}
       ) -∗
     EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
@@ -695,8 +695,8 @@ Section ewp_rules.
   (* Resuming a continuation from a location in the store. *)
 
   Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    mapsto l (DfracOwn 1) (K sk) ⊢
-    (mapsto l (DfracOwn 1) (Shot) -∗
+    pointsto l (DfracOwn 1) (K sk) ⊢
+    (pointsto l (DfracOwn 1) (Shot) -∗
      ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -717,7 +717,7 @@ Section ewp_rules.
   Qed.
 
   Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
-    mapsto l (DfracOwn 1) Shot -∗
+    pointsto l (DfracOwn 1) Shot -∗
     EWP Crash @ E <| ψ |> {{ φ }} -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.

@@ -6,7 +6,7 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_mem.
 
-Context `{!osirisGS Σ}.
+
 
 From Coq Require Import List.
 
@@ -21,6 +21,10 @@ Fixpoint memb `{Eq A} (x : A) l :=
   | y :: l =>
       if eqb x y then true else memb y l
   end.
+
+Section proof.
+
+Context `{!osirisGS Σ}.
 
 Definition mem_spec mem :=
   (∀ (A : Type) (H : Encode A) (H0 : Eq) (x : A) (l : list A),
@@ -78,3 +82,5 @@ Proof.
   iSplit; [ | trivial ].
   eauto.
 Admitted.
+
+End proof.

@@ -52,7 +52,7 @@ Local Hint Resolve even_false_odd_true : arith.
 (* We implicitly use the following lemma when we prove that the list returned
    by [split l] are smaller than l *)
 
-Lemma suc_div2_lt_suc n :
+Lemma div2_lt_Sn n :
     (Nat.div2 n < S n)%nat.
 Proof.
  destruct (Nat.even n) eqn:Hn.
@@ -62,11 +62,13 @@ Proof.
    - apply Nat.even_spec. assumption. }
  { (* Case: n is odd *)
    apply Nat.succ_lt_mono.
-   rewrite Nat.Odd_div2; auto with arith.
-   apply Nat.odd_spec. apply even_false_odd_true. assumption. }
+   rewrite Nat.Odd_div2.
+   - apply PeanoNat.le_lt_n_Sm.
+     transitivity n; [ apply Nat.le_div2 | auto ].
+   - apply Nat.odd_spec. by apply even_false_odd_true. }
 Qed.
 
-Local Hint Resolve suc_div2_lt_suc : arith.
+Local Hint Resolve div2_lt_Sn : arith.
 
 Lemma div2_lt_succ n m :
   (if Nat.even m
@@ -78,8 +80,9 @@ Proof.
   { (* Case: m is even *)
     auto with arith. }
   { (* Case: m is odd *)
-    rewrite Nat.Odd_div2; auto with arith.
-    apply Nat.odd_spec. apply even_false_odd_true. assumption. }
+    rewrite Nat.Odd_div2.
+    + apply -> Nat.succ_lt_mono. apply Nat.lt_div2. lia.
+    + apply Nat.odd_spec. by apply even_false_odd_true. }
 Qed.
 
 (* Make a library of commonly used well founded relations? *)
