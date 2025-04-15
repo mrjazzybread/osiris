@@ -184,12 +184,12 @@ Section ewp.
      | None =>
          match is_concurrent m with
          | Some (CFork m k) =>
-             ∀ t φ',
-               ▷ ewp E m ⊥ φ' ∗
-               ▷ ((∀ E Ψ k, ewp E (Stop code.CJoin t k) Ψ φ') -∗
+             |={E}=> ▷ ∀ t φ',
+               ewp E m ⊥ φ' ∗
+               ((∀ E Ψ k, ewp E (Stop code.CJoin t k) Ψ φ') -∗
                  ewp E (k (O2Ret (VInt t))) Ψ φ)
          | Some (CJoin i k) =>
-             ▷ ewp E (k (O2Ret (VUnit))) Ψ φ
+             |={E}=> ▷ ewp E (k (O2Ret (VUnit))) Ψ φ
          | None =>
              ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
                 ⌜can_step (σ, m)⌝ ∗

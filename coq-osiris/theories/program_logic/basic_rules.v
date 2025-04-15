@@ -91,7 +91,9 @@ Section ewp_basic_rules.
     intro Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
-    ewp_case_is_handleable m; spec_state; spec_step.
+    ewp_case_is_handleable m.
+    ewp_case_is_concurrent m.
+    spec_state; spec_step.
     by ewp_mask_elim.
   Qed.
 
@@ -150,6 +152,19 @@ Section ewp_basic_rules.
       iIntros (w) "Hewp"; iNext.
       by iApply ("IH" with "Hewp Hmon"). }
 
+    ewp_case_is_concurrent m.
+    { (* Case: [m] is a [CFork]. *)
+      iMod "Hwp"; iIntros "!> !>" (t φ'').
+      iDestruct ("Hwp" $! t φ'') as "[Hcall Hk]".
+      iFrame.
+      iIntros "Hjoin".
+      iApply ("IH" with "[Hk Hjoin] Hmon").
+      by iApply "Hk". }
+
+    { (* Case: [m] is a [CJoin]. *)
+      iMod "Hwp"; iModIntro; iModIntro.
+      iApply ("IH" with "Hwp Hmon"). }
+
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
     spec_step. ewp_mask_elim.
@@ -185,6 +200,19 @@ Section ewp_basic_rules.
       iIntros (?) "HΦ". iSpecialize ("HΨ" with "HΦ").
       iNext; iApply ("IH" with "Hmono HΨ"). }
 
+    ewp_case_is_concurrent m.
+    { (* Case: [m] is a [CFork]. *)
+      iMod "Hwp"; iIntros "!> !>" (t φ').
+      iDestruct ("Hwp" $! t φ') as "[Hcall Hk]".
+      iFrame.
+      iIntros "Hjoin".
+      iApply ("IH" with "Hmono").
+      by iApply "Hk". }
+
+    { (* Case: [m] is a [CJoin]. *)
+      iMod "Hwp"; iModIntro; iModIntro.
+      iApply ("IH" with "Hmono Hwp"). }
+
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
     spec_step. ewp_mask_elim.
@@ -199,23 +227,40 @@ Section ewp_basic_rules.
     □ (∀ v, Φ v ={E'}=∗ Φ' v) -∗
     EWP m @ E' <| Ψ |> {{ Φ' }}.
   Proof.
-    iIntros (HE) "He #HΦ".
-    iLöb as "IH" forall (m).
+    iIntros (HE) "He".
+    iLöb as "IH" forall (m Ψ Φ Φ').
+    iIntros "#HΦ".
     ewp_unfold m.
     ewp_case_is_handleable m.
     1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
-    - by iApply (fupd_mask_mono E _).
-    - iApply (fupd_mask_mono E _); first done.
+    { by iApply (fupd_mask_mono E _). }
+    { iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro.
       iApply (monotonic_prot with "[] He").
       iIntros (?) "Hewp". iNext.
-      iApply ("IH" with "Hewp").
-    - intro_state.
-      iMod (fupd_mask_subseteq E) as "Hclose"; first done.
-      spec_state. iModIntro. construct_wp_nonret.
-      spec_step. ewp_mask_elim.
-      iDestruct "He" as ">(SI & H)"; iFrame.
-      iMod "Hclose"; iApply ("IH" with "H").
+      iApply ("IH" with "Hewp HΦ"). }
+
+    ewp_case_is_concurrent m.
+    { iApply (fupd_mask_mono E _); first done.
+      iMod "He"; iIntros "!> !>" (t φ').
+      iDestruct ("He" $! t φ') as "[Hcall Hk]".
+      iSplitL "Hcall".
+      { iApply ("IH" with "Hcall").
+        iIntros "!>" (v1) "Hφ"; done. }
+      iIntros "Hjoin".
+      iApply ("IH" with "[Hk Hjoin] HΦ").
+      by iApply "Hk". }
+
+    { iApply (fupd_mask_mono E _); first done.
+      iMod "He"; iModIntro; iModIntro.
+      iApply ("IH" with "He HΦ"). }
+
+    intro_state.
+    iMod (fupd_mask_subseteq E) as "Hclose"; first done.
+    spec_state. iModIntro. construct_wp_nonret.
+    spec_step. ewp_mask_elim.
+    iDestruct "He" as ">(SI & H)"; iFrame.
+    iMod "Hclose"; iApply ("IH" with "H HΦ").
   Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
@@ -244,6 +289,8 @@ Section ewp_basic_rules.
     iIntros "He".
     ewp_unfold_all. destruct (is_handleable m).
     { destruct h; iMod "He"; done. }
+    destruct (is_concurrent m).
+    { destruct c; iMod "He"; iMod "He"; done. }
     intro_state. iMod "He".
     spec_state. by iFrame.
   Qed.
@@ -251,7 +298,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step {σ} Ψ φ m E:
     state_interp σ -∗
     EWP m @ E <| Ψ |> {{ φ }} ={E, ∅}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None ∨ is_concurrent m <> None⌝.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
@@ -260,13 +307,18 @@ Section ewp_basic_rules.
         try (iApply fupd_mask_intro; first set_solver);
         iIntros "_"; iPureIntro; right; eauto.
 
+    ewp_case_is_concurrent m.
+    1-2: iMod "Hwp";
+        iApply fupd_mask_intro; first set_solver;
+        iIntros "_"; iPureIntro; right; eauto.
+
     spec_state. iModIntro. iPureIntro; auto.
   Qed.
 
   Lemma ewp_can_step' {σ} Ψ φ m E:
     state_interp σ -∗
     EWP m @ E <| Ψ |> {{ φ }} ={E}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None⌝.
+    ⌜can_step (σ, m) ∨ is_handleable m  <> None ∨ is_concurrent m <> None⌝.
   Proof.
     iIntros.
     iPoseProof (ewp_can_step with "[$][$]") as "?".
