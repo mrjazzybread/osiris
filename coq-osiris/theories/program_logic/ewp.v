@@ -138,17 +138,34 @@ From osiris.Hazel Require Export protocols.
 
 (* -------------------------------------------------------------------------- *)
 
+Inductive concurrent (A E : Type) : Type :=
+| CFork : microvx -> (outcome2 syntax.val exn -> micro A E) -> concurrent A E
+| CJoin : int -> (outcome2 syntax.val exn -> micro A E) -> concurrent A E.
+
+Arguments concurrent {A E}.
+
+Arguments CFork {A E}.
+Arguments CJoin {A E}.
+
+(* Check whether a computation is concurrent. *)
+Definition is_concurrent {A X} (m : micro A X) : option concurrent :=
+  match m with
+  | Stop code.CJoin i k => Some (CJoin i k)
+  | Stop code.CFork (v1, v2) k => Some (CFork (call v1 v2) k)
+  | _ => (@None concurrent)
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (** *Definition of the effectful weakest precondition *)
 
 Section ewp.
 
-  Context {A X : Type}.
-
-  Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
+  Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 
   Definition ewp_pre
-    (ewp: coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+    (ewp: coPset -d> micro val exn -d> iEff Σ -d> (outcome2 val exn -d> iPropO Σ) -d> iPropO Σ) :
+    coPset -d> micro val exn -d> iEff Σ -d> (outcome2 val exn -d> iPropO Σ) -d> iPropO Σ :=
     λ E m Ψ φ,
     (match is_handleable m with
       (* [EWP1]: Pure and exceptional values *)
@@ -164,11 +181,21 @@ Section ewp.
          |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp E (k w) Ψ φ >>
       (* [EWP3]: Non-effectful step of computation;
               this portion follows to the typical weakest precondition for Iris *)
-      | None =>
-          ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
-            ⌜can_step (σ, m)⌝ ∗
-            (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-              (state_interp σ' (S ns) κs n ∗ ewp E m' Ψ φ))
+     | None =>
+         match is_concurrent m with
+         | Some (CFork m k) =>
+             ∀ t φ',
+               ▷ ewp E m ⊥ φ' ∗
+               ▷ ((∀ E Ψ k, ewp E (Stop code.CJoin t k) Ψ φ') -∗
+                 ewp E (k (O2Ret (VInt t))) Ψ φ)
+         | Some (CJoin i k) =>
+             ▷ ewp E (k (O2Ret (VUnit))) Ψ φ
+         | None =>
+             ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
+                ⌜can_step (σ, m)⌝ ∗
+                (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
+                   (state_interp σ' (S ns) κs n ∗ ewp E m' Ψ φ))
+         end
       end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
@@ -204,18 +231,18 @@ Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
 
 Section ewp_properties.
 
-Context {A X P : Type}.
+Context {P : Type}.
 
-Context `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ}.
+Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 Implicit Type P : iEff Σ.
-Implicit Type φ : outcome2 A X → iProp Σ.
-Implicit Type a : A.
-Implicit Type m : micro A X.
+Implicit Type φ : outcome2 val exn → iProp Σ.
+Implicit Type a : val.
+Implicit Type m : micro val exn.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
 Lemma ewp_unfold {E} m Ψ {φ} :
-  EWP m @ E <| Ψ |> {{ φ }} ⊣⊢ ewp_pre ewp_def E m Ψ φ.
+  ewp_def E m Ψ φ ⊣⊢ ewp_pre ewp_def E m Ψ φ.
 Proof. rewrite /ewp_def; apply (@fixpoint_unfold _ _ _ ewp_pre). Qed.
 
 Local Ltac ewp_unfold_all :=
@@ -251,7 +278,7 @@ Global Instance ewp_contractive E m n Ψ:
     (ewp_def E m Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
-  do 23 (f_contractive || f_equiv). auto.
+  do 24 (f_contractive || f_equiv). auto.
 Qed.
 
 End ewp_properties.
