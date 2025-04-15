@@ -598,10 +598,20 @@ Section ewp_rules.
     destruct c; inversion H0; done.
   Qed.
 
+  Lemma is_concurrent_try2_None {A X B X'} (m : micro A X)
+    (f : outcome2 A X -> micro B X'):
+    is_handleable m = None ∧ is_concurrent m = None ->
+    is_concurrent (try2 m f) = None.
+  Proof.
+    intros Hm. destruct m; inversion Hm; try done.
+    destruct_code; simpl in *; try done.
+    destruct x. try done.
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
   (** *Try rule *)
 
-  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
+  Lemma ewp_try2 E m f Ψ Φ :
     EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
     EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -627,9 +637,32 @@ Section ewp_rules.
       iIntros (?) "HΨ"; iNext;
       by iSpecialize ("IH" with "HΨ"). }
 
-    (* Since [m] is not handleable, [try m f h] is not handleable, either. *)
-    ewp_unfold_all; rewrite Hhm.
-    apply (is_handleable_try2_None m f) in Hhm; rewrite Hhm.
+    ewp_case_is_concurrent m.
+    (* Case: [m1] is [Fork _ _]. *)
+    { cbn.
+      ewp_unfold_all. iMod "Hwp".
+      iIntros "!> !>" (t φ').
+      iDestruct ("Hwp" $! t φ') as "[Hcall Hk]".
+      iFrame.
+      iIntros "Hjoin".
+      iApply "IH".
+      by iApply "Hk". }
+
+    (* Case: [m1] is [Join _ _]. *)
+    { cbn.
+      ewp_unfold_all. iMod "Hwp".
+      iIntros "!> !>".
+      iApply ("IH" with "Hwp"). }
+
+    (* Since [m] is neither handleable nor concurrent,
+       neither is [try m f h]. *)
+    pose proof (is_handleable_try2_None m f Hhm) as Hhandletry2.
+    pose proof (conj Hhm Hhm0) as Hconj.
+    pose proof (is_concurrent_try2_None m f Hconj) as Hconctry2.
+
+    ewp_unfold_all.
+    rewrite Hhm; rewrite Hhandletry2.
+    rewrite Hhm0; rewrite Hconctry2.
 
     (* Process a step of computation. *)
     intro_state. spec_state.
