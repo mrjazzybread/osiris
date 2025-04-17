@@ -289,11 +289,10 @@ Section ewp_basic_rules.
       iDestruct ("He" $! t) as "[Hcall Hk]".
       iSplitL "Hcall".
       { iApply (pre_ewp_def_ewp E' ⊥).
+        iPoseProof (pre_ewp_def_ewp with "Hcall") as "Hcall".
         iApply ("IH" with "Hcall").
         iIntros "!>" (v1) "Hφ"; done. }
-      iIntros "Hjoin".
-      iApply ("IH" with "[Hk Hjoin] HΦ").
-      by iApply "Hk". }
+      iApply ("IH" with "Hk HΦ"). }
 
     { iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro; iModIntro.
@@ -642,7 +641,7 @@ Section ewp_rules.
     destruct c; inversion H0; done.
   Qed.
 
-  Lemma is_concurrent_try2_None {A X B X'} (m : micro A X)
+  Lemma is_concurrent_try2_None {B X'} (m : micro A X)
     (f : outcome2 A X -> micro B X'):
     is_handleable m = None ∧ is_concurrent m = None ->
     is_concurrent (try2 m f) = None.
@@ -655,7 +654,7 @@ Section ewp_rules.
   (* ------------------------------------------------------------------------ *)
   (** *Try rule *)
 
-  Lemma ewp_try2 E m f Ψ Φ :
+  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
     EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
     EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -685,10 +684,12 @@ Section ewp_rules.
     (* Case: [m1] is [Fork _ _]. *)
     { cbn.
       ewp_unfold_all. iMod "Hwp".
-      iIntros "!> !>" (t φ').
-      iDestruct ("Hwp" $! t φ') as "[Hcall Hk]".
-      iFrame.
-      iIntros "Hjoin".
+      iIntros "!> !>" (t).
+      iDestruct ("Hwp" $! t) as "[Hcall Hk]".
+      iSplitL "Hcall".
+      { iPoseProof (pre_ewp_def_ewp with "Hcall") as "Hcall".
+        iApply pre_ewp_def_ewp.
+        iApply "Hcall". }
       iApply "IH".
       by iApply "Hk". }
 
