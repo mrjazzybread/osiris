@@ -466,6 +466,47 @@ Section wp_handler_rules.
     iIntros (?) "HΦ"; by iNext.
   Qed.
 
+  Lemma ewp_stop_fork {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
+    (∀ t, EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} ∗
+          EWP (k (O2Ret (VInt t))) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hass".
+    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /=.
+    iIntros "!> !>" (t).
+    iDestruct ("Hass" $! t) as "[Hcall Hk]"; iFrame.
+    iApply (pre_ewp_def_ewp with "Hcall").
+  Qed.
+
+  Lemma ewp_fork E Ψ v1 v2 Φ :
+    EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} -∗
+    (∀ t, Φ (O2Ret (VInt t))) -∗
+    EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hcall HΦ".
+    iApply ewp_stop_fork.
+    iIntros (t); iFrame.
+    iApply ewp_value. iApply "HΦ".
+  Qed.
+
+  Lemma ewp_stop_join {B X'} E Ψ i Φ (k : _ -> micro B X') :
+    EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }} -∗
+    EWP (Stop CJoin i k) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hk".
+    rewrite {1}(ewp_unfold (Stop CJoin i k)) /=.
+    iApply "Hk".
+  Qed.
+
+  Lemma ewp_join E Ψ i Φ :
+    Φ (O2Ret (VUnit)) -∗
+    EWP (join i) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "HΦ".
+    iApply ewp_stop_join.
+    iApply ewp_value. iApply "HΦ".
+  Qed.
+
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle E Ψ Φ Ψ' Φ' e h:
     EWP e @ E <| Ψ |> {{ Φ }} -∗
@@ -1158,6 +1199,13 @@ Section ewp_val_rules.
       iApply (monotonic_prot with "[] Hwp").
       iIntros (w) "Hw". iNext.
       iApply ("IH" $! _ _ (H1 w) with "Hw"). }
+
+    destruct (is_concurrent m) eqn: Hmc.
+    { destruct m; inversion Hmh; inversion Hmc; subst; try solve [inversion Hsimp];
+        clarify_simp; subst; try done.
+      destruct c0; inversion H0; subst; try discriminate.
+      - clarify_simp.
+
 
     (* Examine [ms] on whether it is a [ret]. *)
     ewp_case_is_handleable ms.
