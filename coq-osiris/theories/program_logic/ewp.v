@@ -211,15 +211,15 @@ Section ewp.
              | Some (HRet v) => |={E}=> φ (O2Ret v)
              | Some (HThrow v) => |={E}=> φ (O2Throw v)
              | Some HCrash => |={E}=> False
-             (* [EWP2]: Effectful case *)
-  (*               The effect [e] satisfies protocol Ψ and the permitted replies *)
-  (*               satisfy the [ewp] when continued with the continuation [k] with the *)
-  (*               same protocol. *)
-  (*             *)
+             (* [EWP2]: Effectful case
+                The effect [e] satisfies protocol Ψ and the permitted replies
+                satisfy the [ewp] when continued with the continuation [k] with the
+                same protocol.
+             *)
              | Some (HPerform e k) =>
                  |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp E (inl (k w)) Ψ φ >>
-             (* [EWP3]: Non-effectful step of computation; *)
-  (*             this portion follows to the typical weakest precondition for Iris *)
+             (* [EWP3]: Non-effectful step of computation;
+                this portion follows to the typical weakest precondition for Iris *)
              | None =>
                  match is_concurrent m with
                  | Some (CFork m k) =>
