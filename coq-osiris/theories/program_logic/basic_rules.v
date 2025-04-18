@@ -525,10 +525,16 @@ Section wp_handler_rules.
       unfold cont; simpl. iApply "Hsh". }
 
     { (* [StepHandleFork] *)
-      admit. }
+      ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
+      destruct x.
+      ewp_unfold_all. iMod "He". iIntros "!> !>" (t).
+      iDestruct ("He" $! t) as "[Hcall Hk]". iFrame.
+      iApply ("IH" with "Hk Hsh"). }
 
     { (* [StepHandleJoin] *)
-      admit. }
+      ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
+      ewp_unfold_all. iMod "He". iIntros "!> !>".
+      iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -537,7 +543,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
       ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
       iApply ("IH" with "H Hsh"). }
-  Admitted.
+  Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle_ret E Ψ (Φ : outcome2 A X -> _) (a : val) h:
