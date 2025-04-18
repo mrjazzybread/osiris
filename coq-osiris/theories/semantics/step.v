@@ -506,34 +506,75 @@ Ltac destruct_step :=
 
 (* -------------------------------------------------------------------------- *)
 
-Inductive threadpool_step :
-  (store * list (micro val exn)) -> (store * list (micro val exn)) -> Prop :=
-| BaseS :
-  ∀ m σ m' σ' ts1 ts2,
-    step (σ, m) (σ', m') ->
-    threadpool_step (σ, ts1 ++ [m] ++ ts2) (σ', ts1 ++ [m'] ++ ts2)
-| ForkS :
-  ∀ v1 v2 k σ ts1 ts2,
-    (* Generate a thread id equal to the new thread's index in the threadpool. *)
-    let num_threads := (List.length ts1 + List.length ts2 + 1)%nat in
-    let th_id := int.repr (Z.of_nat num_threads) in
-    threadpool_step
-      (σ, ts1 ++ [Stop CFork (v1, v2) k] ++ ts2)
-      (σ, ts1 ++ [k (O2Ret (VInt th_id))] ++ ts2 ++ [call v1 v2])
-| JoinS :
-  ∀ i k σ ts1 ts2,
-    (* Pick the [i]th thread, crashing if we try to join a thread with
-       an invalid id. *)
-    let thread := List.nth
-                    (Z.to_nat (M.intval i))
-                    (ts1 ++ [Stop CJoin i k] ++ ts2)
-                    crash
-    in
-    match thread with | Ret _ | Throw _ | Stop CPerf _ _ => True | _ => False end ->
-    threadpool_step
-      (σ, ts1 ++ [Stop CJoin i k] ++ ts2)
-      (σ, ts1 ++ [k (O2Ret (VUnit))] ++ ts2).
+Section threadpool.
 
+  Inductive live_thread : Type :=
+  | Active : micro val exn -> live_thread
+  | Dead : live_thread.
+
+  Definition thpool : Type :=
+    gmap thread live_thread.
+
+  Implicit Type π : thpool.
+  Implicit Type ι : thread.
+
+  Local Instance insert_thread : Insert thread (microvx) (thpool).
+  Proof.
+    split.
+    eapply (gmap.gmap_dep_fmap (λ m, Active m)).
+    apply GEmpty.
+  Qed.
+
+  Definition active_thread ι π :=
+    match π !! ι with
+    | Some (Active m) => Some m
+    | _ => None
+    end.
+
+  Definition stuck_thread ι π :=
+    match π !! ι with
+    | Some (Active m) =>
+        match m with
+        | Ret _ | Throw _ | Stop CPerf _ _ => True
+        | _ => False
+        end
+    | _ => False
+    end.
+
+  Definition done_thread ι π :=
+    match π !! ι with
+    | Some Die => True
+    | _ => False
+    end.
+
+  Definition tconfig := (store * thpool)%type.
+
+  Inductive threadpool_step : tconfig -> tconfig -> Prop :=
+  | BaseS :
+    ∀ ι π m σ m' σ',
+      active_thread ι π = Some m ->
+      step (σ, m) (σ', m') ->
+      threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
+  | TerminateS :
+    ∀ ι π σ,
+      stuck_thread ι π ->
+      threadpool_step (σ, π) (σ, <[ ι := Dead ]> π)
+  | ForkS :
+    ∀ ι π ι' v1 v2 k σ,
+      active_thread ι π = Some (Stop CFork (v1, v2) k) ->
+      π !! ι' = None ->
+      threadpool_step
+        (σ, π)
+        (σ, <[ ι' := call v1 v2 ]>(<[ ι := k (O2Ret (VThread ι')) ]>π))
+  | JoinS :
+    ∀ ι π ι' k σ,
+      active_thread ι π = Some (Stop CJoin ι' k) ->
+      done_thread ι' π ->
+      threadpool_step
+        (σ, π)
+        (σ, <[ ι := k (O2Ret (VUnit))]> π).
+
+End threadpool.
 
 (* -------------------------------------------------------------------------- *)
 

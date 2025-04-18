@@ -2,7 +2,57 @@ From iris.base_logic.lib Require Import own gen_heap.
 From iris.algebra Require Import gmap_view dfrac.
 From iris.program_logic Require Export weakestpre.
 
-From osiris Require Export syntax semantics.
+From osiris Require Export thread_ids syntax semantics.
+
+Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
+
+Section discrete_fun2.
+
+  Context {A B : Type} {C : A -> B -> ofe}.
+  Implicit Types f g : discrete_fun2 C.
+
+  Global Instance discrete_fun2_dist : Dist (discrete_fun2 C) :=
+    λ n (f g : discrete_fun2 C), ∀ (x : A) (y : B), f x y ≡{n}≡ g x y.
+
+  Global Instance discrete_fun2_equiv : Equiv (discrete_fun2 C) :=
+    λ (f g : discrete_fun2 C), ∀ (x : A) (y : B), f x y ≡ g x y.
+
+  Definition discrete_fun2_ofe_mixin : OfeMixin (discrete_fun2 C).
+  Proof.
+    split.
+    - split; [ intros Hequiv n | intros Hdist ].
+      + rewrite /dist /discrete_fun2_dist.
+        intros x' y'. specialize (Hequiv x' y'). by rewrite Hequiv.
+      + rewrite /equiv /discrete_fun2_equiv.
+        intros x' y'. apply equiv_dist. intros n.
+        specialize (Hdist n x' y'). apply Hdist.
+    - intros n. rewrite /dist. split.
+      + intros f x y. auto.
+      + intros f g Hdist x y.
+        symmetry.
+        apply Hdist.
+      + intros f g h Hdistfg Hdistgh.
+        rewrite /discrete_fun2_dist in Hdistfg Hdistgh |-*.
+        intros x y.
+        transitivity (g x y); auto.
+    - intros n m f g Hdist Hlt.
+      rewrite /dist /discrete_fun2_dist. intros x y.
+      eapply dist_le. apply Hdist. lia.
+  Qed.
+
+  Canonical Structure discrete_fun2O : ofe := Ofe (discrete_fun2 C) discrete_fun2_ofe_mixin.
+
+  Program Definition discrete_fun2_chain (c : chain discrete_fun2O)
+    (x : A) (y : B) : chain (C x y) := {| chain_car n := c n x y |}.
+  Next Obligation. intros c x y n i ?. by apply (chain_cauchy c). Qed.
+  Global Program Instance discrete_fun2_cofe `{∀ x y, Cofe (C x y)} : Cofe discrete_fun2O :=
+    { compl c x y := compl (discrete_fun2_chain c x y) }.
+  Next Obligation. intros ? n c x y. apply (conv_compl n (discrete_fun2_chain c x y)). Qed.
+
+  Global Instance discrete_fun2_inhabited `{∀ x y, Inhabited (C x y)} : Inhabited discrete_fun2O :=
+    populate (λ _, inhabitant).
+
+End discrete_fun2.
 
 (* ========================================================================== *)
 
@@ -140,7 +190,7 @@ From osiris.Hazel Require Export protocols.
 
 Inductive concurrent (A E : Type) : Type :=
 | CFork : micro val exn -> (outcome2 val exn -> micro A E) -> concurrent A E
-| CJoin : int -> (outcome2 syntax.val exn -> micro A E) -> concurrent A E.
+| CJoin : thread -> (outcome2 syntax.val exn -> micro A E) -> concurrent A E.
 
 Arguments concurrent {A E}.
 
@@ -161,117 +211,59 @@ Definition is_concurrent {A X} (m : micro A X) : option concurrent :=
 
 Section ewp.
 
-  Context {A X : Type}.
   Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 
-
-  (* Definition ewp_pre *)
-  (*   (ewp : ∀ A' X', coPset -d> micro A' X' -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) : *)
-  (*   coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ := *)
-  (*   λ E m Ψ φ, *)
-  (*     (match is_handleable m with *)
-  (*      (* [EWP1]: Pure and exceptional values *) *)
-  (*      | Some (HRet v) => |={E}=> φ (O2Ret v) *)
-  (*      | Some (HThrow v) => |={E}=> φ (O2Throw v) *)
-  (*      | Some HCrash => |={E}=> False *)
-  (*      (* [EWP2]: Effectful case *)
-  (*               The effect [e] satisfies protocol Ψ and the permitted replies *)
-  (*               satisfy the [ewp] when continued with the continuation [k] with the *)
-  (*               same protocol. *)
-  (*       *) *)
-  (*      | Some (HPerform e k) => *)
-  (*          |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) Ψ φ >> *)
-  (*      (* [EWP3]: Non-effectful step of computation; *)
-  (*             this portion follows to the typical weakest precondition for Iris *) *)
-  (*      | None => *)
-  (*          match is_concurrent m with *)
-  (*          | Some (CFork m k) => *)
-  (*              |={E}=> ▷ ∀ t, *)
-  (*                          ewp syntax.val exn E m ⊥ (λ _, True) ∗ *)
-  (*                          ewp A X E (k (O2Ret (VInt t))) Ψ φ *)
-
-  (*          | Some (CJoin i k) => *)
-  (*              |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ *)
-  (*          | None => *)
-  (*              ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗ *)
-  (*                ⌜can_step (σ, m)⌝ ∗ *)
-  (*                (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=> *)
-  (*                   (state_interp σ' (S ns) κs n ∗ ewp A X E m' Ψ φ)) *)
-  (*          end *)
-  (*      end)%I. *)
-
   Definition ewp_pre
-    (ewp : coPset -d> (micro A X + micro val exn) -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    coPset -d> (micro A X + micro val exn) -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
-    λ E m Ψ φ,
-      match m with
-        | inl m =>
-            (match is_handleable m with
-             (* [EWP1]: Pure and exceptional values *)
-             | Some (HRet v) => |={E}=> φ (O2Ret v)
-             | Some (HThrow v) => |={E}=> φ (O2Throw v)
-             | Some HCrash => |={E}=> False
-             (* [EWP2]: Effectful case
-                The effect [e] satisfies protocol Ψ and the permitted replies
-                satisfy the [ewp] when continued with the continuation [k] with the
-                same protocol.
-             *)
-             | Some (HPerform e k) =>
-                 |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp E (inl (k w)) Ψ φ >>
-             (* [EWP3]: Non-effectful step of computation;
-                this portion follows to the typical weakest precondition for Iris *)
-             | None =>
-                 match is_concurrent m with
-                 | Some (CFork m k) =>
-                     |={E}=> ▷ ∀ t, ewp E (inr m) ⊥ (λ _, True) ∗
-                                  ewp E (inl (k (O2Ret (VInt t)))) Ψ φ
-                 | Some (CJoin i k) =>
-                     |={E}=> ▷ ewp E (inl (k (O2Ret (VUnit)))) Ψ φ
-                 | None =>
-                     ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
-                       ⌜can_step (σ, m)⌝ ∗
-                       (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                          (state_interp σ' (S ns) κs n ∗ ewp E (inl m') Ψ φ))
-                 end
-             end)%I
-      | inr m =>
-          (match is_handleable m with
-           | Some (HRet v) => |={E}=> True
-           | Some (HThrow v) => |={E}=> True
-           | Some HCrash => |={E}=> False
-           | Some (HPerform e k) =>
-               |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp E (inr (k w)) Ψ φ >>
+    (ewp : ∀ A' X', coPset -d> micro A' X' -d> iEff Σ -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
+    (∀ (A X : Type),
+        coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X E m Ψ φ,
+      (match is_handleable m with
+       (* [EWP1]: Pure and exceptional values *)
+       | Some (HRet v) => |={E}=> φ (O2Ret v)
+       | Some (HThrow v) => |={E}=> φ (O2Throw v)
+       | Some HCrash => |={E}=> False
+       (* [EWP2]: Effectful case
+          The effect [e] satisfies protocol Ψ and the permitted replies
+          satisfy the [ewp] when continued with the continuation [k] with the
+          same protocol. *)
+       | Some (HPerform e k) =>
+           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) Ψ φ >>
+       | None =>
+           match is_concurrent m with
+           (* [EWP4]: A fork system call. *)
+           | Some (CFork m k) =>
+               |={E}=> ▷ ∀ t,
+                           ewp syntax.val exn E m ⊥ (λ _, True) ∗
+                           ewp A X E (k (O2Ret (VInt t))) Ψ φ
+           (* [EWP5]: A join system call. *)
+           | Some (CJoin i k) =>
+               |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ
+           (* [EWP3]: Non-effectful step of computation;
+              this portion follows to the typical weakest precondition for Iris *)
            | None =>
-               match is_concurrent m with
-               | Some (CFork m k) =>
-                   |={E}=> ▷ ∀ t , ewp E (inr m) ⊥ (λ _, True) ∗
-                                 ewp E (inr (k (O2Ret (VInt t)))) Ψ φ
-               | Some (CJoin i k) =>
-                   |={E}=> ▷ ewp E (inr (k (O2Ret (VUnit)))) Ψ φ
-               | None =>
-                   ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
-                     ⌜can_step (σ, m)⌝ ∗
-                     (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                        (state_interp σ' (S ns) κs n ∗ ewp E (inr m') Ψ φ))
-               end
-           end)%I
-      end.
+               ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
+                 ⌜can_step (σ, m)⌝ ∗
+                 (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
+                    (state_interp σ' (S ns) κs n ∗ ewp A X E m' Ψ φ))
+           end
+       end)%I.
 
+  Global Arguments ewp_pre _ {A X}.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
   Proof.
-    rewrite /ewp_pre /= => n wp wp' Hwp E m Φ.
+    rewrite /ewp_pre /= => n wp wp' Hwp A X E m Φ.
     repeat intro.
     repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
 
     repeat intro. f_contractive. apply Hwp.
-    repeat intro. f_contractive. apply Hwp.
   Qed.
 
-  Definition pre_ewp_def := fixpoint ewp_pre.
+  Definition ewp_def : ∀ A X, coPset -> micro A X -> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+    @fixpoint _ discrete_fun2_cofe _ ewp_pre ewp_pre_contractive.
 
-  Definition ewp_def : coPset -d> (micro A X) -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
-    λ E m Ψ φ, pre_ewp_def E (inl m) Ψ φ%I.
+  Global Arguments ewp_def {A X}.
 
   Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
   Definition ewp' := ewp_aux.(unseal).
@@ -304,17 +296,11 @@ Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
-Lemma pre_ewp_unfold {E} (m : micro A X + micro val exn) Ψ {φ} :
-  pre_ewp_def E m Ψ φ ⊣⊢ ewp_pre pre_ewp_def E m Ψ φ.
+Lemma ewp_unfold {E} (m : micro A X) Ψ {φ} :
+  ewp_def E m Ψ φ ⊣⊢ ewp_pre (@ewp_def _ _) E m Ψ φ.
 Proof.
-  rewrite {1}/pre_ewp_def.
-  apply (@fixpoint_unfold _ _ _ ewp_pre).
-Qed.
-
-Lemma ewp_unfold {E} m Ψ {φ} :
-  ewp_def E m Ψ φ ⊣⊢ ewp_pre pre_ewp_def E (inl m) Ψ φ.
-Proof.
-  rewrite {1}/ewp_def. apply pre_ewp_unfold.
+  rewrite {1}/ewp_def.
+  apply (@fixpoint_unfold _ discrete_fun2_cofe _ ewp_pre).
 Qed.
 
 Local Ltac ewp_unfold_all :=

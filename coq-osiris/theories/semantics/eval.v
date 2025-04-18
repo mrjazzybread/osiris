@@ -146,6 +146,24 @@ Definition as_loc {E} (m : micro val E) : micro loc E :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [val_as_thread v] checks that the value [v] is a language-level thread
+   value and returns its meta-level value. *)
+
+Definition val_as_thread {E} (v : val) : micro thread E :=
+  match v with
+  | VThread t =>
+      ret t
+  | _ =>
+      type_mismatch "location value expected"
+  end.
+
+Definition as_thread {E} (m : micro val E) : micro thread E :=
+  v ← m ;
+  val_as_thread v.
+
+
+(* ------------------------------------------------------------------------ *)
+
 (* [val_as_cont v] checks that the value [v] is a language-level continuation
    value and returns its meta-level value. *)
 
@@ -1278,8 +1296,8 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       '(f, v) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       fork f v
   | EJoin e =>
-      i ← as_int (eval η e) ;
-      join i
+      t ← as_thread (eval η e) ;
+      join t
 end.
 
 

@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import locations lang.
+From osiris.lang Require Import locations thread_ids lang.
 From osiris.semantics Require Export outcome micro.
 
 (* This module fixes the specific set of codes that are needed in the Osiris
@@ -78,7 +78,7 @@ Inductive code : Type → Type → Type → Type :=
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
-| CJoin : code int val exn
+| CJoin : code thread val exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -155,8 +155,8 @@ Definition store (l : loc) (v : val) :=
 Definition fork (v1 v2 : val) :=
   stop CFork (v1, v2).
 
-Definition join (i : int) :=
-  stop CJoin i.
+Definition join (t : thread) :=
+  stop CJoin t.
 
 (* ------------------------------------------------------------------------ *)
 

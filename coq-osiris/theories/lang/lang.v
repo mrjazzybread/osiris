@@ -5,6 +5,7 @@ From osiris.lang Require Export
   int
   char
   locations
+  thread_ids
   syntax
   notations
   encode
