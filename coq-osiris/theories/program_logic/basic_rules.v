@@ -29,50 +29,6 @@ Section ewp_basic_rules.
   Context `{!osirisGS Σ}.
   Import ewp_rules_tactics.
 
-  Lemma pre_ewp_def_ewp {A X : Type}
-    E Ψ (m : microvx) :
-    ewp_def E m Ψ (λ _, True) ⊣⊢
-    @pre_ewp_def A X _ _ E (inr m) Ψ (λ _, True).
-  Proof.
-    iLöb as "IH" forall (A X m Ψ).
-    rewrite pre_ewp_unfold ewp_unfold /=.
-    ewp_case_is_handleable m; try auto.
-    { iSplit; iIntros "Hprot"; iMod "Hprot"; iModIntro.
-      - iApply (monotonic_prot with "[] Hprot").
-        iIntros (o) "Hk !>".
-        iApply ("IH" with "Hk").
-      - iApply (@monotonic_prot _ (upcl OS Ψ) with "[] Hprot").
-        iIntros (o) "Hwp !>".
-        iApply ("IH" with "Hwp"). }
-
-    ewp_case_is_concurrent m.
-    { iSplit; iIntros "Hwp"; iMod "Hwp"; iModIntro;
-        iIntros "!>" (t);
-        iDestruct ("Hwp" $! t) as "[Hcall Hk]".
-        - iSplitL "Hcall".
-          { iApply "IH".
-            iPoseProof ("IH" with "Hcall") as "Hcall".
-            iApply "Hcall". }
-          iApply ("IH" with "Hk").
-        - iSplitL "Hcall".
-          { iApply "IH".
-            iPoseProof ("IH" with "Hcall") as "Hcall".
-            iApply "Hcall". }
-          iApply ("IH" with "Hk"). }
-
-    { iSplit; iIntros "Hwp";
-        iMod "Hwp"; iModIntro; iModIntro.
-      iApply ("IH" with "Hwp").
-      iPoseProof ("IH" with "Hwp") as "Hwp".
-      iApply "Hwp". }
-
-    iSplit; iIntros "Hwp"; intro_state; spec_state;
-      iModIntro; construct_wp_nonret; spec_step;
-      iIntros "!> !>"; iMod "Hwp"; iModIntro;
-      iDestruct "Hwp" as "[Hsi Hwp]"; iFrame;
-      iApply ("IH" with "Hwp").
-  Qed.
-
   Context {A X : Type}.
 
   Implicit Type m : micro A X.
@@ -288,10 +244,8 @@ Section ewp_basic_rules.
       iMod "He"; iIntros "!> !>" (t).
       iDestruct ("He" $! t) as "[Hcall Hk]".
       iSplitL "Hcall".
-      { iApply (pre_ewp_def_ewp E' ⊥).
-        iPoseProof (pre_ewp_def_ewp with "Hcall") as "Hcall".
-        iApply ("IH" with "Hcall").
-        iIntros "!>" (v1) "Hφ"; done. }
+      { iApply ("IH" with "Hcall").
+        trivial. }
       iApply ("IH" with "Hk HΦ"). }
 
     { iApply (fupd_mask_mono E _); first done.
@@ -475,7 +429,6 @@ Section wp_handler_rules.
     rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /=.
     iIntros "!> !>" (t).
     iDestruct ("Hass" $! t) as "[Hcall Hk]"; iFrame.
-    iApply (pre_ewp_def_ewp with "Hcall").
   Qed.
 
   Lemma ewp_fork E Ψ v1 v2 Φ :
@@ -726,13 +679,8 @@ Section ewp_rules.
     { cbn.
       ewp_unfold_all. iMod "Hwp".
       iIntros "!> !>" (t).
-      iDestruct ("Hwp" $! t) as "[Hcall Hk]".
-      iSplitL "Hcall".
-      { iPoseProof (pre_ewp_def_ewp with "Hcall") as "Hcall".
-        iApply pre_ewp_def_ewp.
-        iApply "Hcall". }
-      iApply "IH".
-      by iApply "Hk". }
+      iDestruct ("Hwp" $! t) as "[Hcall Hk]"; iFrame.
+      iApply ("IH" with "Hk"). }
 
     (* Case: [m1] is [Join _ _]. *)
     { cbn.
