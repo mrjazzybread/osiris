@@ -106,7 +106,7 @@ Section eval_pat_app.
     - rewrite IHp1, IHp2. rew. ext δ'.
     - destruct v; auto.
     - destruct v; auto. destruct (_ =? _)%string; auto.
-    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (eqb _ _); auto.
+    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (locations.eqb _ _); auto.
     - destruct v; auto.
     - destruct v; auto. destruct (int.eq _ _); auto.
     - destruct v; auto. destruct (_ =? _)%char; auto.

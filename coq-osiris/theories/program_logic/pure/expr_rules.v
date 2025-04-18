@@ -93,7 +93,7 @@ Qed.
 
 Lemma pure_evals `{Encode A} η es φs ψ :
   Forall2 (λ e φ, pure (eval η e) φ ψ) es φs →
-  pure (A := list A) (evals η es) (Forall2 id φs) ψ.
+  pure (A := list A) (evals η es) (Forall2 ssrfun.id φs) ψ.
 Proof.
   revert φs.
   induction es as [ | e es IHes]; intros φs' Hes.
@@ -286,7 +286,7 @@ Qed.
 
 (* For [pure (as_bool _) φ ψ]. *)
 Local Instance observe_bool : Observe bool bool :=
-  {| observe := id |}.
+  {| observe := ssrfun.id |}.
 
 Local Lemma pure_as_bool (m : microvx) (φ : bool → Prop) ψ :
   pure m φ ψ →
@@ -405,7 +405,7 @@ Qed.
 
 (* For [pure (as_int _) φ ψ]. *)
 Local Instance observe_int : Observe int int :=
-  {| observe := id |}.
+  {| observe := ssrfun.id |}.
 
 Local Lemma pure_as_int m (φ : Z → Prop) ψ:
   pure m φ ψ →
@@ -782,7 +782,7 @@ Proof.
   intros He1 He2 Hx1 Hx2. simpl_eval.
   eapply pure_eval_comparison_operator_val; eauto.
   simpl. f_equal. f_equal. apply truth_eq_true.
-  unfold eqb; cbn. lia.
+  unfold locations.eqb; cbn. lia.
 Qed.
 
 Lemma pure_eval_EOpPhysEq_cont η e1 e2 (x1 x2 : Z) :
@@ -796,7 +796,7 @@ Proof.
   intros He1 He2 Hx1 Hx2. simpl_eval.
   eapply pure_eval_comparison_operator_val; eauto.
   simpl. f_equal. f_equal. apply truth_eq_true.
-  unfold eqb; cbn. lia.
+  unfold locations.eqb; cbn. lia.
 Qed.
 
 Lemma pure_eval_EOpPhysEq_loc_bool η e1 e2 (x1 x2 : Z) :
