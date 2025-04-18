@@ -422,7 +422,7 @@ Section wp_handler_rules.
 
   Lemma ewp_stop_fork {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
     (∀ t, EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} ∗
-          EWP (k (O2Ret (VInt t))) @ E <| Ψ |> {{ Φ }}) -∗
+          EWP (k (O2Ret (VThread t))) @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hass".
@@ -433,13 +433,23 @@ Section wp_handler_rules.
 
   Lemma ewp_fork E Ψ v1 v2 Φ :
     EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} -∗
-    (∀ t, Φ (O2Ret (VInt t))) -∗
+    (∀ t, Φ (O2Ret (VThread t))) -∗
     EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hcall HΦ".
     iApply ewp_stop_fork.
     iIntros (t); iFrame.
     iApply ewp_value. iApply "HΦ".
+  Qed.
+
+  Lemma ewp_fork_inv {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
+    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }} -∗
+    |={E}=> ▷ (∀ t, EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} ∗
+          EWP (k (O2Ret (VThread t))) @ E <| Ψ |> {{ Φ }}).
+  Proof.
+    iIntros "HF".
+    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /ewp_pre /=.
+    iApply "HF".
   Qed.
 
   Lemma ewp_stop_join {B X'} E Ψ i Φ (k : _ -> micro B X') :
@@ -1125,6 +1135,19 @@ Section ewp_val_rules.
     - iApply (bi.and_elim_r with "H").
   Qed.
 
+  Lemma nh_nc_can_step {A E} (m : micro A E) σ :
+    is_handleable m = None ->
+    is_concurrent m = None ->
+    can_step (σ, m).
+  Proof.
+    intros Hh Hc.
+    destruct m; try discriminate Hh; try discriminate Hc.
+    - apply can_step_handle.
+    - apply can_step_stop. destruct c; try discriminate Hh; try done.
+      destruct x; discriminate Hc.
+    - apply can_step_par.
+  Qed.
+
   Lemma ewp_simp {A X} E (m : micro A X) ms Ψ φ:
     simp m ms →
     EWP ms @ E <| Ψ |> {{ φ }} ⊢
@@ -1139,10 +1162,7 @@ Section ewp_val_rules.
     { destruct m; inversion Hmh; subst; try solve [inversion Hsimp];
         clarify_simp; subst; try done.
       inversion Hmh. destruct c; inversion H0; subst.
-      clarify_simp.
-      iApply ewp_fupd.
-      iApply ewp_stop_perform.
-      iPoseProof (ewp_perform_inv with "Hwp") as "Hwp".
+      clarify_simp. ewp_unfold_all.
       iMod "Hwp"; iModIntro.
       iApply (monotonic_prot with "[] Hwp").
       iIntros (w) "Hw". iNext.
@@ -1153,22 +1173,31 @@ Section ewp_val_rules.
         clarify_simp; subst; try done.
       destruct c0; inversion H0; subst; try discriminate.
       - clarify_simp.
+        destruct x.
+        ewp_unfold_all.
+        iMod "Hwp". iModIntro. iNext.
+        iIntros (t).
+        iDestruct ("Hwp" $! t) as "[Hcall Hk]"; iFrame.
+        iApply ("IH" with "[] Hk").
+        iPureIntro. apply H1.
+      - clarify_simp.
+        ewp_unfold_all.
+        iMod "Hwp"; iModIntro; iNext.
+        iApply ("IH" with "[] Hwp").
+        iPureIntro. apply H1. }
 
+    assert (∀ σ, can_step (σ, m)) as Hcanstep.
+    { intros σ; apply nh_nc_can_step; auto. }
 
     (* Examine [ms] on whether it is a [ret]. *)
     ewp_case_is_handleable ms.
 
     (* Case: [ms] is [ret _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh.
+      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
-      { iPureIntro.
-        epose proof (invert_simp_final _ Hsimp) as [|];
-          [ by prove_final |
-            subst; try destruct_is_ret; try destruct_is_throw |
-            eauto with can_step ].
-        inversion Hmh. }
+      { iPureIntro. apply Hcanstep. }
       intro_step.
       eapply simp_final_step_diagram in Hsimp; eauto; last done.
       destruct Hsimp; subst; iFrame.
@@ -1178,15 +1207,10 @@ Section ewp_val_rules.
 
     (* Case : [ms] is [throw _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh.
+      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
-      { iPureIntro.
-        epose proof (invert_simp_final _ Hsimp) as [|];
-          [ by prove_final |
-            subst; try destruct_is_ret; try destruct_is_throw |
-            eauto with can_step ].
-        inversion Hmh. }
+      { iPureIntro. apply Hcanstep. }
       intro_step.
       eapply simp_final_step_diagram in Hsimp; eauto; last done.
       destruct Hsimp; subst; iFrame.
@@ -1196,15 +1220,10 @@ Section ewp_val_rules.
 
     (* Case : [ms] is [crash _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh.
+      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
-      { iPureIntro.
-        epose proof (invert_simp_final _ Hsimp) as [|];
-          [ by prove_final |
-            subst; try destruct_is_ret; try destruct_is_throw |
-            eauto with can_step ].
-        inversion Hmh. }
+      { iPureIntro. apply Hcanstep. }
       intro_step.
       eapply simp_final_step_diagram in Hsimp; eauto; last done.
       destruct Hsimp; subst; iFrame.
@@ -1213,14 +1232,10 @@ Section ewp_val_rules.
       iApply ("IH" with "[//] Hwp"). }
 
     (* Case : [ms] is [Perform _]. *)
-    { ewp_unfold_head. rewrite Hmh.
+    { ewp_unfold_head. rewrite Hmh. rewrite Hmc.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
-      { iPureIntro.
-        epose proof (invert_simp_perform _ _ _ Hsimp) as [|];
-          [subst; try destruct_is_ret; try destruct_is_throw |
-            eauto with can_step ].
-        destruct m; try done; destruct c; try done. }
+      { iPureIntro. apply Hcanstep. }
       intro_step.
 
       eapply simp_perform_step_diagram in Hsimp; eauto.
@@ -1229,7 +1244,32 @@ Section ewp_val_rules.
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "[//] Hwp"). }
 
-    ewp_unfold_head. rewrite Hmh.
+    rename Hhm into Hmsh.
+    ewp_case_is_concurrent ms.
+    (* Case: [ms] is [Fork _]. *)
+    { ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+      intro_state. ewp_mask_intro "Hmod".
+      iSplit.
+      { iPureIntro. apply Hcanstep. }
+      intro_step.
+      eapply simp_fork_step_diagram in Hsimp; eauto.
+      destruct Hsimp; subst; iFrame.
+      ewp_mask_elim.
+      iApply ("IH" with "[//] Hwp"). }
+
+    (* Case: [ms] is [Join _] *)
+    { ewp_unfold_head; rewrite Hmh; rewrite Hmc.
+      intro_state. ewp_mask_intro "Hmod".
+      iSplit.
+      { iPureIntro. apply Hcanstep. }
+      intro_step.
+      eapply simp_join_step_diagram in Hsimp; eauto.
+      destruct Hsimp; subst; iFrame.
+      ewp_mask_elim.
+      iApply ("IH" with "[//] Hwp"). }
+
+    rename Hhm into Hmsc.
+    ewp_unfold_head. rewrite Hmh. rewrite Hmc.
     intro_state.
 
     iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
@@ -1244,10 +1284,7 @@ Section ewp_val_rules.
       iIntros "[??]".
       iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
 
-      iModIntro; iPureIntro; destruct Hdisj.
-      { eauto using invert_simp_can_step. }
-
-      tauto. }
+      iModIntro; iPureIntro; apply nh_nc_can_step; auto. }
 
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -1261,7 +1298,7 @@ Section ewp_val_rules.
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
     carefully avoided up to this point. *)
-    ewp_unfold ms. rewrite Hhm. iMod "Hmod". spec_state. spec_step.
+    ewp_unfold ms. rewrite Hmsh. rewrite Hmsc. iMod "Hmod". spec_state. spec_step.
     ewp_mask_elim.
     iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
     iModIntro; iApply ("IH" with "[//] Hwp").

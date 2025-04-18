@@ -1218,6 +1218,34 @@ Proof.
   inversion Hstep.
 Qed.
 
+Lemma simp_fork_step_diagram {A E} {m : micro A E} {σ σ' m'} p k:
+  (* If there is a simplification step of [m] to a perform, *)
+  simp m (Stop CFork p k) →
+  (* if there is also a reduction step out of [m], *)
+  step (σ, m) (σ', m') →
+  (* then this reduction step does not prevent us from reaching the perform. *)
+  σ' = σ ∧
+    simp m' (Stop CFork p k).
+Proof.
+  intros Hsimp Hstep.
+  simp_step_diagram; eauto.
+  inversion Hstep.
+Qed.
+
+Lemma simp_join_step_diagram {A E} {m : micro A E} {σ σ' m'} t k:
+  (* If there is a simplification step of [m] to a perform, *)
+  simp m (Stop CJoin t k) →
+  (* if there is also a reduction step out of [m], *)
+  step (σ, m) (σ', m') →
+  (* then this reduction step does not prevent us from reaching the perform. *)
+  σ' = σ ∧
+    simp m' (Stop CJoin t k).
+Proof.
+  intros Hsimp Hstep.
+  simp_step_diagram; eauto.
+  inversion Hstep.
+Qed.
+
 Ltac simp_final_step_diagram :=
   match goal with
     Hsimp: simp ?m1 ?m2,

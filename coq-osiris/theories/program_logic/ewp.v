@@ -235,7 +235,7 @@ Section ewp.
            | Some (CFork m k) =>
                |={E}=> ▷ ∀ t,
                            ewp syntax.val exn E m ⊥ (λ _, True) ∗
-                           ewp A X E (k (O2Ret (VInt t))) Ψ φ
+                           ewp A X E (k (O2Ret (VThread t))) Ψ φ
            (* [EWP5]: A join system call. *)
            | Some (CJoin i k) =>
                |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ
