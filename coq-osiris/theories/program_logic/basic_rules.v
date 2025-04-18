@@ -452,22 +452,31 @@ Section wp_handler_rules.
     iApply "HF".
   Qed.
 
-  Lemma ewp_stop_join {B X'} E Ψ i Φ (k : _ -> micro B X') :
+  Lemma ewp_stop_join {B X'} E Ψ t Φ (k : _ -> micro B X') :
     EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }} -∗
-    EWP (Stop CJoin i k) @ E <| Ψ |> {{ Φ }}.
+    EWP (Stop CJoin t k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hk".
-    rewrite {1}(ewp_unfold (Stop CJoin i k)) /=.
+    rewrite {1}(ewp_unfold (Stop CJoin t k)) /=.
     iApply "Hk".
   Qed.
 
-  Lemma ewp_join E Ψ i Φ :
+  Lemma ewp_join E Ψ t Φ :
     Φ (O2Ret (VUnit)) -∗
-    EWP (join i) @ E <| Ψ |> {{ Φ }}.
+    EWP (join t) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HΦ".
     iApply ewp_stop_join.
     iApply ewp_value. iApply "HΦ".
+  Qed.
+
+  Lemma ewp_join_inv {B X'} E Ψ t (k : _ -> micro B X') Φ :
+    EWP (Stop CJoin t k) @ E <| Ψ |> {{ Φ }} -∗
+    |={E}=> ▷ EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hk".
+    rewrite {1}(ewp_unfold (Stop CJoin t k)) /ewp_pre /=.
+    iApply "Hk".
   Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
@@ -1022,19 +1031,36 @@ Section ewp_rules.
 
     { (* [StepParForkLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      admit. }
+      destruct x.
+      iPoseProof (ewp_fork_inv with "H1") as "H1".
+      ewp_unfold_head.
+      iMod "H1". iIntros "!> !>" (t).
+      iDestruct ("H1" $! t) as "[Hcall Hk]".
+      iFrame. iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
+
 
     { (* [StepParForkRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      admit. }
+      destruct x.
+      iPoseProof (ewp_fork_inv with "H2") as "H2".
+      ewp_unfold_head.
+      iMod "H2". iIntros "!> !>" (t).
+      iDestruct ("H2" $! t) as "[Hcall Hk]".
+      iFrame. iApply ("IH" with "H1 Hk Hexn1 Hexn2 Hjoin"). }
 
     { (* [StepParJoinLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      admit. }
+      iPoseProof (ewp_join_inv with "H1") as "H1".
+      ewp_unfold_head.
+      iMod "H1". iIntros "!> !>".
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [StepParJoinRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      admit. }
+      iPoseProof (ewp_join_inv with "H2") as "H2".
+      ewp_unfold_head.
+      iMod "H2". iIntros "!> !>".
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [ParLeft] *)
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H1") as ">H1".
@@ -1045,7 +1071,7 @@ Section ewp_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
-  Admitted.
+  Qed.
 
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ} φ1 φ2 Ψ :
     EWP m1 @ E <| Ψ |> {{ φ1 }} -∗
