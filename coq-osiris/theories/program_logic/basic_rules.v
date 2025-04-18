@@ -1329,6 +1329,11 @@ Section ewp_val_rules.
         by apply invert_pure_wp_stop in Hm.
 
     - (* [m] is not handleable *)
+      destruct (is_concurrent m) as [ c | ] eqn:R'.
+      (* [m] is concurrent: *)
+      { destruct m as [| | | |???[]|]; try discriminate;
+          by apply invert_pure_wp_stop in Hm. }
+      (* [m] is not concurrent *)
       intro_state.
       ewp_mask_intro "Hmod".
       iSplit.
