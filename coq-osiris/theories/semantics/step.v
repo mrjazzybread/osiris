@@ -531,7 +531,7 @@ Section threadpool.
     | _ => None
     end.
 
-  Definition stuck_thread ι π :=
+  Definition is_done_thread ι π :=
     match π !! ι with
     | Some (Active m) =>
         match m with
@@ -541,13 +541,17 @@ Section threadpool.
     | _ => False
     end.
 
-  Definition done_thread ι π :=
-    match π !! ι with
-    | Some Die => True
-    | _ => False
-    end.
-
   Definition tconfig := (store * thpool)%type.
+
+  Definition attempt_join {A E} ι π (k : outcome2 val exn -> micro A E) :=
+    match π !! ι with
+    (* Joining a thread which has terminated succeeds. *)
+    | Some Dead => Some (continue k VUnit)
+    (* We do not step while attempting to join a thread a valid thread. *)
+    | Some (Active _) => None
+    (* Attempting to join an invalid thread results in a [crash]. *)
+    | None => Some crash
+    end.
 
   Inductive threadpool_step : tconfig -> tconfig -> Prop :=
   | BaseS :
@@ -557,7 +561,7 @@ Section threadpool.
       threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
   | TerminateS :
     ∀ ι π σ,
-      stuck_thread ι π ->
+      is_done_thread ι π ->
       threadpool_step (σ, π) (σ, <[ ι := Dead ]> π)
   | ForkS :
     ∀ ι π ι' v1 v2 k σ,
@@ -565,14 +569,14 @@ Section threadpool.
       π !! ι' = None ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι' := call v1 v2 ]>(<[ ι := k (O2Ret (VThread ι')) ]>π))
+        (σ, <[ ι' := call v1 v2 ]>(<[ ι := continue k (VThread ι') ]>π))
   | JoinS :
-    ∀ ι π ι' k σ,
+    ∀ ι π ι' k m σ,
       active_thread ι π = Some (Stop CJoin ι' k) ->
-      done_thread ι' π ->
+      attempt_join ι' π k = Some m ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι := k (O2Ret (VUnit))]> π).
+        (σ, <[ ι := m]> π).
 
 End threadpool.
 
