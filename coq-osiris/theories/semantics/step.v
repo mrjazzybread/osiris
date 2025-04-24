@@ -591,10 +591,6 @@ Section threadpool.
       active_thread ι π = Some m ->
       step (σ, m) (σ', m') ->
       threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
-  | TerminateS :
-    ∀ ι π o k σ,
-      active_thread ι π = Some (Stop CDie o k) ->
-      threadpool_step (σ, π) (σ, <[ ι := Dead o ]> π)
   | ForkS :
     ∀ ι π ι' v1 v2 k σ,
       active_thread ι π = Some (Stop CFork (v1, v2) k) ->
@@ -608,13 +604,17 @@ Section threadpool.
       attempt_join ι' π k = Some m ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι := m]> π)
+        (σ, <[ ι := m ]> π)
   | SelfS :
     ∀ ι π k σ,
       active_thread ι π = Some (Stop CSelf () k) ->
       threadpool_step
         (σ, π)
         (σ, <[ ι := continue k (VThread ι) ]> π)
+  | DieS :
+    ∀ ι π o k σ,
+      active_thread ι π = Some (Stop CDie o k) ->
+      threadpool_step (σ, π) (σ, <[ ι := Dead o ]> π)
   .
 
 End threadpool.
