@@ -154,16 +154,16 @@ Section ewp_basic_rules.
       by iApply ("IH" with "Hewp Hmon"). }
 
     { (* Case: [m] is a [CFork]. *)
-      iMod "Hwp"; iIntros "!> !>" (ι') "Hactive".
-      iDestruct ("Hwp" $! ι' with "Hactive") as "[Hcall Hk]".
-      iFrame.
+      intro_thread. spec_thread.
+      iModIntro. iSplitR. { iPureIntro; apply Hstep. }
+      iNext. iMod "Hwp" as "(Hsi & Hcall & Hk)". iModIntro. iFrame.
       iApply ("IH" with "Hk Hmon"). }
 
     { (* Case: [m] is a [CJoin]. *)
-      iMod "Hwp"; iModIntro.
-      iDestruct "Hwp" as "[Hvalid Hcontinue]"; iFrame.
+      intro_thread. spec_thread.
+      iMod "Hwp" as "[Hthread Hcontinue]"; iModIntro; iFrame.
+      iModIntro. iMod "Hcontinue" as "[Hti Hcontinue]". iModIntro. iFrame.
       iIntros "Hdead"; iSpecialize ("Hcontinue" with "Hdead").
-      iNext.
       iApply ("IH" with "Hcontinue Hmon"). }
 
     { (* Case: [m] is a [CSelf]. *)
@@ -209,16 +209,17 @@ Section ewp_basic_rules.
       iNext; iApply ("IH" with "Hmono HΨ"). }
 
     { (* Case: [m] is a [CFork]. *)
-      iMod "Hwp"; iIntros "!> !>" (ι') "Hactive".
-      iDestruct ("Hwp" $! ι' with "Hactive") as "[Hcall Hk]".
-      iFrame.
-      iApply ("IH" with "Hmono Hk"). }
+      intro_thread. spec_thread.
+      iModIntro; iSplitR. { iPureIntro; eassumption. }
+      iNext.
+      iMod "Hwp" as "(Hti & Hcall & Hcontinue)"; iFrame.
+      iApply ("IH" with "Hmono Hcontinue"). }
 
     { (* Case: [m] is a [CJoin]. *)
-      iMod "Hwp"; iModIntro.
-      iDestruct "Hwp" as "[Hvalid Hwp]"; iFrame.
-      iIntros "Hdead"; iSpecialize ("Hwp" with "Hdead").
-      iNext.
+      intro_thread. spec_thread.
+      iMod "Hwp" as "[? Hwp]"; iModIntro; iFrame.
+      iNext; iMod "Hwp" as "[? Hwp]"; iFrame.
+      iIntros "!> Hdead"; iSpecialize ("Hwp" with "Hdead").
       iApply ("IH" with "Hmono Hwp"). }
 
     { (* Case: [m] is a [CSelf]. *)
@@ -252,7 +253,10 @@ Section ewp_basic_rules.
       iIntros (?) "Hewp". iNext.
       iApply ("IH" with "Hewp HΦ"). }
 
-    { iApply (fupd_mask_mono E _); first done.
+    { intro_thread.
+      iMod (fupd_mask_subseteq E) as "Hclose"; first done.
+      spec_thread. iModIntro; iSplitR. { iPureIntro; eassumption. }
+      ewp_mask_elim.
       iMod "He"; iIntros "!> !>" (ι') "Halive".
       iDestruct ("He" $! ι' with "Halive") as "[Hcall Hk]".
       iSplitL "Hcall".

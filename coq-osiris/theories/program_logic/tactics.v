@@ -19,7 +19,9 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ] and [state_interp σ]. *)
 
-  Ltac intro_state := iIntros (σ????) "Hsi".
+  Ltac intro_state := iIntros (σ) "Hsi".
+
+  Ltac intro_thread := iIntros (π); try iIntros (ι'); iIntros "Hsi".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -96,8 +98,6 @@ Module ewp_rules_tactics.
     (* Introduce a hypothetical step: *)
     intro_step.
 
-  Ltac inv H := inversion H; subst; clear H.
-
   Ltac destruct_stop_code :=
     match goal with
     | [H: is_ewp_case (Stop ?c ?x _) = Some _ |- _] =>
@@ -130,18 +130,43 @@ Module ewp_rules_tactics.
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ1 : step.store =>
-              bi_forall (fun _ : nat =>
-              bi_forall (fun κ : list nat =>
-              bi_forall (fun _ : list nat =>
-              bi_forall (fun _ : nat => bi_wand (osiris_state_interp σ1) _))))))]  =>
+              bi_wand (osiris_state_interp σ1) _))]  =>
         match goal with
         | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! σ 0%nat (@nil nat) (@nil nat) 0%nat with SI);
+            iSpecialize (Hwp $! σ with SI);
             try (iMod Hwp;
                  iDestruct Hwp as (Hstep) Hwp)
         end
     end.
+
+  Ltac spec_thread :=
+    lazymatch goal with
+    | |- context
+           [environments.Esnoc _ ?Hwp
+              (bi_forall (fun π1 : gmap thread thread_state =>
+                            bi_forall (fun ι' : thread =>
+                                         bi_wand (osiris_thread_interp π1) _)))]  =>
+        match goal with
+        | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
+            let Hstep := fresh "Hstep" in
+            iSpecialize (Hwp $! π with SI);
+            try (iMod Hwp;
+                 iDestruct Hwp as (Hstep) Hwp)
+        end
+    | |- context
+           [environments.Esnoc _ ?Hwp
+              (bi_forall (fun π1 : gmap thread thread_state =>
+                                         bi_wand (osiris_thread_interp π1) _))]  =>
+        match goal with
+        | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
+            let Hstep := fresh "Hstep" in
+            iSpecialize (Hwp $! π with SI);
+            try (iMod Hwp;
+                 iDestruct Hwp as (Hstep) Hwp)
+        end
+    end.
+
 
   (* Specialize hypothesis that expects a [step] relation and extract out
     information *)
