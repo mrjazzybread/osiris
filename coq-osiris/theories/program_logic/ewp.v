@@ -242,18 +242,17 @@ Section ewp.
        (* [EWP4]: A fork system call. *)
        | Some (EFork m k) =>
            ∀ π ι', osiris_thread_interp π ={E, ∅}=∗
-                   ⌜π !! ι' = None⌝ ∗
+                   ⌜π !! ι' = None⌝ -∗
                    ▷ |={∅, E}=> (osiris_thread_interp (<[ι':=Alive]> π) ∗
                                  ewp val exn E (try2 m die) (ι', ⊥) (λ _, True) ∗
                                  ewp A X E (continue k (VThread ι')) ιΨ φ)
        (* [EWP5]: A join system call. *)
        | Some (EJoin ι k) =>
-           ∀ π, osiris_thread_interp π ={E, ∅}=∗
+           ∀ π o, osiris_thread_interp π ={E, ∅}=∗
                 valid_thread ι ∗
-                |={∅, E}=> ▷ ∀ o,
-                               is_dead ι o -∗
-                               (osiris_thread_interp (<[ι:=Dead o]> π) ∗
-                               (ewp A X E (k o) ιΨ φ))
+                ▷ |={∅, E}=> is_dead ι o -∗
+                              (osiris_thread_interp (<[ι:=Dead o]> π) ∗
+                              (ewp A X E (k o) ιΨ φ))
        (* [EWP6]: A request for the thread's own handle. *)
        | Some (ESelf k) =>
            let (ι, _) := ιΨ in
@@ -344,8 +343,8 @@ Proof.
       f_contractive. f_equiv. f_equiv. f_equiv.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
-    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_contractive. f_equiv. f_equiv. f_equiv. f_equiv.
+    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      f_contractive. f_equiv. f_equiv. f_equiv.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
     + f_equiv. f_contractive.

@@ -21,7 +21,7 @@ Module ewp_rules_tactics.
 
   Ltac intro_state := iIntros (σ) "Hsi".
 
-  Ltac intro_thread := iIntros (π); try iIntros (ι'); iIntros "Hsi".
+  Ltac intro_thread := iIntros (π); try iIntros (?); iIntros "Hti".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -145,8 +145,8 @@ Module ewp_rules_tactics.
     | |- context
            [environments.Esnoc _ ?Hwp
               (bi_forall (fun π1 : gmap thread thread_state =>
-                            bi_forall (fun ι' : thread =>
-                                         bi_wand (osiris_thread_interp π1) _)))]  =>
+               bi_forall (fun ι' : thread =>
+               bi_wand (osiris_thread_interp π1) _)))]  =>
         match goal with
         | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
             let Hstep := fresh "Hstep" in
@@ -157,7 +157,8 @@ Module ewp_rules_tactics.
     | |- context
            [environments.Esnoc _ ?Hwp
               (bi_forall (fun π1 : gmap thread thread_state =>
-                                         bi_wand (osiris_thread_interp π1) _))]  =>
+               bi_forall (fun o : outcome2 _ _ =>
+               bi_wand (osiris_thread_interp π1) _)))]  =>
         match goal with
         | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
             let Hstep := fresh "Hstep" in
