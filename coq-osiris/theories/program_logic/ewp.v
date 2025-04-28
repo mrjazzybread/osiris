@@ -98,8 +98,8 @@ Section ghost_instances.
 
   (* Flag stating whether a thread has terminated or not. *)
   Inductive thread_state :=
-  | Alive
-  | Dead.
+  | Alive : thread_state
+  | Dead : outcome2 val exn -> thread_state.
 
   Context (Σ : gFunctors).
 
@@ -216,11 +216,11 @@ Section ewp.
 
   Context `{!osirisGS Σ}.
 
-  Definition valid_thread (ι : thread) := (∃ s df, pointsto ι df s)%I.
+  Definition valid_thread (ι : thread) := (∃ s, pointsto ι (DfracOwn 1) s)%I.
 
   Definition is_active (ι : thread) := pointsto ι (DfracOwn 1) Alive.
 
-  Definition is_dead (ι : thread) := pointsto ι DfracDiscarded Dead.
+  Definition is_dead (ι : thread) o := pointsto ι DfracDiscarded (Dead o).
 
   Definition ewp_pre
     (ewp : ∀ A' X', coPset -d> micro A' X' -d> (thread * iEff Σ) -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
@@ -249,9 +249,11 @@ Section ewp.
        (* [EWP5]: A join system call. *)
        | Some (EJoin ι k) =>
            ∀ π, osiris_thread_interp π ={E, ∅}=∗
-                (∃ s, ι ↦ s) ∗
-                ▷ |={∅, E}=> (osiris_thread_interp (<[ι:=Dead]> π) ∗
-                               (is_dead ι -∗ ewp A X E (continue k VUnit) ιΨ φ))
+                valid_thread ι ∗
+                |={∅, E}=> ▷ ∀ o,
+                               is_dead ι o -∗
+                               (osiris_thread_interp (<[ι:=Dead o]> π) ∗
+                               (ewp A X E (k o) ιΨ φ))
        (* [EWP6]: A request for the thread's own handle. *)
        | Some (ESelf k) =>
            let (ι, _) := ιΨ in
@@ -342,8 +344,8 @@ Proof.
       f_contractive. f_equiv. f_equiv. f_equiv.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
-    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_contractive. f_equiv. f_equiv. f_equiv.
+    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      f_contractive. f_equiv. f_equiv. f_equiv. f_equiv.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
     + f_equiv. f_contractive.
