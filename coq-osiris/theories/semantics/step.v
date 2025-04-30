@@ -575,7 +575,7 @@ Section threadpool.
     | Some (Dead o) =>
         match o with
         (* If the joined thread terminated sucessfully, continue with unit. *)
-        | O2Ret _ => Some (continue k VUnit)
+        | O2Ret v => Some (continue k v)
         (* If the joined thread raised an exception, re-raise the exception. *)
         | O2Throw ex => Some (discontinue k ex)
         end
@@ -597,7 +597,8 @@ Section threadpool.
       π !! ι' = None ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι' := try2 (call v1 v2) die ]>(<[ ι := continue k (VThread ι') ]>π))
+        (σ, <[ ι' := try2 (call v1 v2) die ]>
+              (<[ ι := continue k (VThread ι') ]>π))
   | JoinS :
     ∀ ι π ι' k m σ,
       active_thread ι π = Some (Stop CJoin ι' k) ->
