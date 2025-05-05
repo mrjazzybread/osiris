@@ -178,17 +178,6 @@ Section ewp.
   Definition local_thread (ℓ : locals) := ℓ.1.
   Definition local_prot (ℓ : locals) := ℓ.2.
 
-
-  Definition bi_opt {A : Type} (μ : option A) (P : A -> iProp Σ) :=
-    match μ with
-    | None => True%I
-    | Some A => (P A)%I
-    end.
-
-  Notation "'[∗' 'opt]' x ∈ μ , P" :=
-    (bi_opt μ (fun x => P)) (at level 200, x binder, right associativity,
-        format "[∗ opt]  x ∈ μ ,  P").
-
   Definition ewp_pre
     (ewp : ∀ A' X', coPset -d> micro A' X' -d> locals -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
     (∀ (A X : Type),

@@ -654,15 +654,20 @@ Section prim_step.
       prim_step
         (σ, π, Stop CSelf u k, ι)
         (σ, π, continue k (VThread ι), [])
-  | DiesS :
-    ∀ σ π ι o k,
-      π !! ι = Some (Alive) ->
-      prim_step
-        (σ, π, Stop CDie o k, ι)
-        (σ, <[ ι := Dead o ]> π, Stop CDie o k, [])
   .
 
 End prim_step.
+
+Ltac destruct_prim_step :=
+  (* For some reason, [dependent destruction] does not like it when
+     the argument [x] of [Stop] is not a variable. *)
+  try match goal with h: prim_step (?σ, ?π, Stop ?c ?x ?k, ?ι) ?m' |- _ =>
+                        remember x
+    end;
+  match goal with h: prim_step ?m ?m' |- _ =>
+                    dependent destruction h
+  end;
+  try destruct_step.
 
 (* -------------------------------------------------------------------------- *)
 
