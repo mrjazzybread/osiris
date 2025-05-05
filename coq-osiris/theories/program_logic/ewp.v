@@ -201,7 +201,7 @@ Section ewp.
           this portion follows to the typical weakest precondition for Iris *)
        | EStep =>
            ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
-             ⌜can_prim_step (σ, m)⌝ ∗
+             ⌜can_prim_step (σ, π, m, (local_thread ℓ))⌝ ∗
              (∀ σ' π' m' μ, ⌜prim_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 (state_interp (σ', π') ∗
                  ewp A X E m' ℓ φ ∗
