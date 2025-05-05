@@ -1367,7 +1367,7 @@ Section prim_step.
         (σ, <[ ι := Alive ]> π, continue k (VThread ι), [ (ι', try2 (call v1 v2) die)])
   | JoinS :
     ∀ σ π ι k o ι',
-      π !! ι = Some (Dead o) ->
+      π !! ι' = Some (Dead o) ->
       prim_step
         (σ, π, Stop CJoin ι' k, ι)
         (σ, π, k o, [])
