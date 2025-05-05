@@ -3,6 +3,8 @@ From iris.proofmode Require Import tactics.
 From osiris.program_logic Require Import ewp.
 From osiris.semantics Require Import step code.
 
+From Ltac2 Require Import Ltac2.
+
 (** *Local tactics for [ewp] rules *)
 Module ewp_rules_tactics.
 
@@ -98,89 +100,86 @@ Module ewp_rules_tactics.
     (* Introduce a hypothetical step: *)
     intro_step.
 
-  Ltac destruct_stop_code :=
-    match goal with
-    | [H: is_ewp_case (Stop ?c ?x _) = Some _ |- _] =>
-        destruct c;
-        try (match goal with | [x: val * val |- _] => destruct x as [??] end);
-        try done
+  Ltac2 destruct_stop_code () :=
+    match! goal with
+    | [ _ : is_ewp_case (Stop ?c _ _) = _ |- _] =>
+        destruct $c;
+        Control.enter
+          (fun _ =>
+             try (match! goal with
+                  | [ x: val * val |- _] =>
+                      let x_hyp := Control.hyp x in
+                      destruct $x_hyp as [??]
+                  end);
+             try ltac1:(done))
     end.
 
-  Ltac destruct_thread_prot :=
-    match goal with
-    | [ιΨ : thread * iEff _ |- _] =>
-        destruct ιΨ as [??]
+  Ltac2 destruct_thread_prot () :=
+    match! goal with
+    | [ ℓ : locals |- _ ] =>
+        let ℓ_hyp := Control.hyp ℓ in
+        destruct $ℓ_hyp
     end.
 
-  Tactic Notation "ewp_case" constr(x) ident(Hhm) :=
-    case_eq (is_ewp_case x);
-    [ intros ? Hhm; destruct x;
-      try destruct_thread_prot;
-      try destruct_stop_code;
-      try (inversion Hhm; subst; clear Hhm);
-      try solve [by destruct_step] |
-      intros Hhm ].
+  Ltac2 rec intros_until_ewp_case (hm : ident) :=
+    match! goal with
+    | [ |- is_ewp_case _ = _ -> _ ] =>
+        intros $hm
+    | [ |- _ ] =>
+        intros ?; intros_until_ewp_case hm
+    end.
 
-  Tactic Notation "ewp_case" constr(x) :=
-    let Hhm := fresh "Hhm" in
-    ewp_case x Hhm.
+  Ltac2 destruct_prim_step () := ltac1:(destruct_prim_step).
+
+  Ltac2 ewp_case (m : constr)  :=
+    ltac1:(m |- case_eq (is_ewp_case m)) (Ltac1.of_constr m);
+    Control.extend []
+      (fun _ =>
+         let hm := Fresh.in_goal @Hhm in
+         intros_until_ewp_case hm;
+         Control.enter
+           (fun _ =>
+              try0 destruct_thread_prot;
+              destruct $m; try0 destruct_stop_code; try discriminate;
+              Control.enter
+                (fun _ =>
+                   try (complete destruct_prim_step))))
+      [ fun _ => let hm := Fresh.in_goal @Hhm in intros $hm ].
+
+  Tactic Notation "ewp_case" constr(x)  :=
+    let f := ltac2:(x |- ewp_case (Option.get (Ltac1.to_constr x))) in
+    f x.
 
   Ltac spec_state :=
     lazymatch goal with
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ1 : step.store =>
-              bi_wand (osiris_state_interp σ1) _))]  =>
+              bi_forall (fun π1 : step.threadpool => _)))] =>
         match goal with
-        | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
+        | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (osiris_thread_interp ?π))] =>
             let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! σ with SI);
+            iSpecialize (Hwp $! σ π with SI);
             try (iMod Hwp;
                  iDestruct Hwp as (Hstep) Hwp)
         end
     end.
-
-  Ltac spec_thread :=
-    lazymatch goal with
-    | |- context
-           [environments.Esnoc _ ?Hwp
-              (bi_forall (fun π1 : gmap thread thread_state =>
-               bi_forall (fun ι' : thread =>
-               bi_wand (osiris_thread_interp π1) _)))]  =>
-        match goal with
-        | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
-            let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! π with SI);
-            try (iMod Hwp;
-                 iDestruct Hwp as (Hstep) Hwp)
-        end
-    | |- context
-           [environments.Esnoc _ ?Hwp
-              (bi_forall (fun π1 : gmap thread thread_state =>
-               bi_forall (fun o : outcome2 _ _ =>
-               bi_wand (osiris_thread_interp π1) _)))]  =>
-        match goal with
-        | |- context [environments.Esnoc _ ?SI (osiris_thread_interp ?π)] =>
-            let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! π with SI);
-            try (iMod Hwp;
-                 iDestruct Hwp as (Hstep) Hwp)
-        end
-    end.
-
 
   (* Specialize hypothesis that expects a [step] relation and extract out
     information *)
   Ltac spec_step :=
     match goal with
-    | |- context[environments.Esnoc _ ?Hwp
-        (bi_forall (fun σ'0 =>
-        bi_forall (fun m' =>
-        bi_wand (bi_pure (step (pair ?σ ?m) _)) _)))] =>
+    | |- context
+          [environments.Esnoc _ ?Hwp
+             (bi_forall (fun σ'0 =>
+              bi_forall (fun π'0 =>
+              bi_forall (fun m' =>
+              bi_forall (fun μ0 =>
+              bi_wand (bi_pure ((prim_step (pair (pair (pair ?σ ?π) ?m) ?ι) _))) _)))))] =>
         match goal with
-        | [Hstep : step (σ, m) _ |- _] =>
+        | [Hstep : prim_step (σ, π, m, ι) _ |- _] =>
             (* Specialize step relation *)
-            iSpecialize (Hwp $! _ _ Hstep);
+            iSpecialize (Hwp $! _ _ _ _ Hstep);
             (* Destruct the hypothesis *)
             iMod Hwp
         end
