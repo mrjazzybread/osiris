@@ -54,40 +54,6 @@ Section discrete_fun2.
 
 End discrete_fun2.
 
-(* ========================================================================== *)
-
-(** *Iris [Language] instance for Osiris *)
-
-(* [osiris] is an instance of an Iris [Language], i.e. it has a small-step
-   semantics and notion of values (here, we use [outcome2]). *)
-
-(* With this instance, the default [wp] (Iris weakest precondition) can be
-   derived. We define our custom [ewp] later in this file to reason about
-   effectful programs. *)
-
-(* Section lang_instance. *)
-
-(*   Context {res exn : Type}. *)
-
-(*   (* N.B.: We ignore the observation and list of expressions for now. *) *)
-(*   Definition prim_step *)
-(*     (e : micro res exn) (σ : store) (obs : list nat) *)
-(*     (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop := *)
-(*     step.step (σ, e) (σ', e') /\ exprs = []. *)
-
-(*   Definition osiris_lang_mixin : *)
-(*     LanguageMixin inject2 outcome2_opt prim_step. *)
-(*   Proof. *)
-(*     constructor; auto. *)
-(*     { apply outcome2_opt_inject2. } *)
-(*     { intros * Ho; destruct e; inversion Ho; auto. } *)
-(*     { intros * Ho; destruct e; inversion Ho; auto; subst; inversion H. } *)
-(*   Defined. *)
-
-(*   Canonical Structure osiris_lang := Language (osiris_lang_mixin). *)
-
-(* End lang_instance. *)
-
 (* -------------------------------------------------------------------------- *)
 
 (** *Basic resource algebra for Osiris *)
@@ -95,11 +61,6 @@ End discrete_fun2.
 (* The store is viewed as an authorative ghost map. *)
 
 Section ghost_instances.
-
-  (* Flag stating whether a thread has terminated or not. *)
-  Inductive thread_state :=
-  | Alive : thread_state
-  | Dead : outcome2 val exn -> thread_state.
 
   Context (Σ : gFunctors).
 
@@ -127,8 +88,6 @@ Definition osiris_state_interp {Σ H} (σ : store) :=
 
 Definition osiris_thread_interp {Σ H} (π : gmap thread thread_state) :=
   @gen_heap_interp thread_ids.thread _ _ thread_state Σ H π.
-
-Definition threadpool : Type := gmap thread thread_state.
 
 Definition state_interp {Σ Hs Ht} : (store * threadpool) -> iProp Σ :=
   (λ '(σ, π), @osiris_state_interp Σ Hs σ ∗ @osiris_thread_interp Σ Ht π)%I.
@@ -219,32 +178,6 @@ Section ewp.
   Definition local_thread (ℓ : locals) := ℓ.1.
   Definition local_prot (ℓ : locals) := ℓ.2.
 
-  Definition th_config A X : Type := store * threadpool * micro A X * thread.
-  Definition th_config_step A X : Type := store * threadpool * micro A X * option (thread * microvx).
-
-  Inductive prim_step {A X} : th_config A X -> th_config_step A X -> Prop :=
-  | BaseS :
-    ∀ m σ m' σ' π ι,
-      step (σ, m) (σ', m') ->
-      prim_step (σ, π, m, ι) (σ', π, m', None)
-  | ForkS :
-    ∀ σ π ι v1 v2 k ι',
-      π !! ι' = None ->
-      prim_step
-        (σ, π, (Stop CFork (v1, v2) k), ι)
-        (σ, <[ ι := Alive ]> π, continue k (VThread ι), (Some (ι', try2 (call v1 v2) die)))
-  | JoinS :
-    ∀ σ π ι k o ι',
-      π !! ι = Some (Dead o) ->
-      prim_step
-        (σ, π, Stop CJoin ι' k, ι)
-        (σ, π, k o, None)
-  | SelfS :
-    ∀ σ π ι u k,
-      prim_step
-        (σ, π, Stop CSelf u k, ι)
-        (σ, π, continue k (VThread ι), None)
-  .
 
   Definition bi_opt {A : Type} (μ : option A) (P : A -> iProp Σ) :=
     match μ with
@@ -283,7 +216,7 @@ Section ewp.
              (∀ σ' π' m' μ, ⌜prim_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 (state_interp (σ', π') ∗
                  ewp A X E m' ℓ φ ∗
-                 [∗ opt] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True)))
+                 [∗ list] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True)))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
@@ -295,11 +228,11 @@ Section ewp.
     f_equiv.
     { repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
       repeat intro. f_contractive. apply Hwp. }
-    do 17 f_equiv. f_contractive. f_equiv. f_equiv.
-    f_equiv. apply Hwp.
-
-    destruct a4; simpl. f_equiv. apply Hwp.
-    f_equiv.
+    do 17 f_equiv. f_contractive.
+    f_equiv. f_equiv. f_equiv.
+    - apply Hwp.
+    - f_equiv. f_equiv. f_equiv.
+      destruct a6; simpl. apply Hwp.
   Qed.
 
   Definition ewp_def : ∀ A X, coPset -> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=

@@ -546,7 +546,7 @@ Section threadpool.
 
   Inductive live_thread : Type :=
   | Active : micro val exn -> live_thread
-  | Dead : outcome2 val exn -> live_thread.
+  | Terminated : outcome2 val exn -> live_thread.
 
   Definition thpool : Type :=
     gmap thread live_thread.
@@ -572,7 +572,7 @@ Section threadpool.
   Definition attempt_join {A E} ι π (k : outcome2 val exn -> micro A E) :=
     match π !! ι with
     (* Joining a thread which has terminated. *)
-    | Some (Dead o) =>
+    | Some (Terminated o) =>
         match o with
         (* If the joined thread terminated sucessfully, continue with unit. *)
         | O2Ret v => Some (continue k v)
@@ -586,12 +586,12 @@ Section threadpool.
     end.
 
   Inductive threadpool_step : tconfig -> tconfig -> Prop :=
-  | BaseS :
+  | BaseTS :
     ∀ ι π m σ m' σ',
       active_thread ι π = Some m ->
       step (σ, m) (σ', m') ->
       threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
-  | ForkS :
+  | ForkTS :
     ∀ ι π ι' v1 v2 k σ,
       active_thread ι π = Some (Stop CFork (v1, v2) k) ->
       π !! ι' = None ->
@@ -599,26 +599,70 @@ Section threadpool.
         (σ, π)
         (σ, <[ ι' := try2 (call v1 v2) die ]>
               (<[ ι := continue k (VThread ι') ]>π))
-  | JoinS :
+  | JoinTS :
     ∀ ι π ι' k m σ,
       active_thread ι π = Some (Stop CJoin ι' k) ->
       attempt_join ι' π k = Some m ->
       threadpool_step
         (σ, π)
         (σ, <[ ι := m ]> π)
-  | SelfS :
+  | SelfTS :
     ∀ ι π k σ,
       active_thread ι π = Some (Stop CSelf () k) ->
       threadpool_step
         (σ, π)
         (σ, <[ ι := continue k (VThread ι) ]> π)
-  | DieS :
+  | DieTS :
     ∀ ι π o k σ,
       active_thread ι π = Some (Stop CDie o k) ->
-      threadpool_step (σ, π) (σ, <[ ι := Dead o ]> π)
+      threadpool_step (σ, π) (σ, <[ ι := Terminated o ]> π)
   .
 
 End threadpool.
+
+Section prim_step.
+
+  (* Flag stating whether a thread has terminated or not. *)
+  Inductive thread_state :=
+  | Alive : thread_state
+  | Dead : outcome2 val exn -> thread_state.
+
+  Definition threadpool : Type := gmap thread thread_state.
+
+  Definition th_config A X : Type := store * threadpool * micro A X * thread.
+  Definition th_config_step A X : Type := store * threadpool * micro A X * list (thread * microvx).
+
+  Inductive prim_step {A X} : th_config A X -> th_config_step A X -> Prop :=
+  | BaseS :
+    ∀ m σ m' σ' π ι,
+      step (σ, m) (σ', m') ->
+      prim_step (σ, π, m, ι) (σ', π, m', [])
+  | ForkS :
+    ∀ σ π ι v1 v2 k ι',
+      π !! ι' = None ->
+      prim_step
+        (σ, π, (Stop CFork (v1, v2) k), ι)
+        (σ, <[ ι := Alive ]> π, continue k (VThread ι), [ (ι', try2 (call v1 v2) die)])
+  | JoinS :
+    ∀ σ π ι k o ι',
+      π !! ι = Some (Dead o) ->
+      prim_step
+        (σ, π, Stop CJoin ι' k, ι)
+        (σ, π, k o, [])
+  | SelfS :
+    ∀ σ π ι u k,
+      prim_step
+        (σ, π, Stop CSelf u k, ι)
+        (σ, π, continue k (VThread ι), [])
+  | DiesS :
+    ∀ σ π ι o k,
+      π !! ι = Some (Alive) ->
+      prim_step
+        (σ, π, Stop CDie o k, ι)
+        (σ, <[ ι := Dead o ]> π, Stop CDie o k, [])
+  .
+
+End prim_step.
 
 (* -------------------------------------------------------------------------- *)
 
