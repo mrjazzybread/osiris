@@ -2,6 +2,7 @@ From iris.base_logic.lib Require Import own gen_heap.
 From iris.algebra Require Import gmap_view dfrac.
 From iris.program_logic Require Export weakestpre.
 
+From osiris.program_logic Require Import wp_step.
 From osiris Require Export thread_ids syntax semantics.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
@@ -201,8 +202,8 @@ Section ewp.
           this portion follows to the typical weakest precondition for Iris *)
        | EStep =>
            ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
-             ⌜can_prim_step (σ, π, m, (local_thread ℓ))⌝ ∗
-             (∀ σ' π' m' μ, ⌜prim_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+             ⌜can_wp_step (σ, π, m, (local_thread ℓ))⌝ ∗
+             (∀ σ' π' m' μ, ⌜wp_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 (state_interp (σ', π') ∗
                  ewp A X E m' ℓ φ ∗
                  [∗ list] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True)))
