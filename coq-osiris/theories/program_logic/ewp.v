@@ -140,7 +140,6 @@ Inductive ewp_case (A E : Type) : Type :=
 | EThrow : E → ewp_case A E
 | ECrash : ewp_case A E
 | EPerform : C.eff -> (outcome2 val exn -> micro A E) → ewp_case A E
-| EDie : outcome2 val exn -> ewp_case A E
 | EStep : ewp_case A E.
 
 Arguments ewp_case {A E}.
@@ -149,7 +148,6 @@ Arguments ERet {A E}.
 Arguments EThrow {A E}.
 Arguments ECrash {A E}.
 Arguments EPerform {A E}.
-Arguments EDie {A E}.
 Arguments EStep {A E}.
 
 (* Check whether a computation is a special [ewp_case]. *)
@@ -159,7 +157,6 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | Throw e => EThrow e
   | Crash _ => ECrash
   | Stop CPerf e k => EPerform e k
-  | Stop CDie o k => EDie o
   | _ => EStep
   end.
 
@@ -195,14 +192,11 @@ Section ewp.
           same protocol. *)
        | EPerform e k =>
            |={E}=> (local_prot ℓ) allows perform e << λ o, ▷ ewp A X E (k o) ℓ φ >>
-       | EDie o =>
-           ∀ σ π, state_interp (σ, π) ={ E }▷=∗
-             state_interp (σ, <[ local_thread ℓ := Dead o ]> π)
        (* [EWP3]: Non-effectful step of computation;
           this portion follows to the typical weakest precondition for Iris *)
        | EStep =>
            ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
-             ⌜can_wp_step (σ, π, m, (local_thread ℓ))⌝ ∗
+             ⌜not_stuck (σ, π, m, (local_thread ℓ))⌝ ∗
              (∀ σ' π' m' μ, ⌜wp_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 (state_interp (σ', π') ∗
                  ewp A X E m' ℓ φ ∗
