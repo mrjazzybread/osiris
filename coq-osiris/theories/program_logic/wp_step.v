@@ -37,6 +37,8 @@ Inductive wp_step {A X} : th_config A X -> th_config_step A X -> Prop :=
       (σ, π, continue k (VThread ι), [])
 .
 
+From iris.bi Require Import bi.
+
 Ltac destruct_wp_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
@@ -46,22 +48,26 @@ Ltac destruct_wp_step :=
   match goal with h: wp_step ?m ?m' |- _ =>
                     dependent destruction h
   end;
-  try destruct_step
-.
+  try destruct_step;
+  (* We will often conclude that the list of forked threads is empty. *)
+  try rewrite bi.sep_emp.
+
 
 (* -------------------------------------------------------------------------- *)
 
-Definition not_stuck {A E} (c : th_config A E) :=
+Definition can_progress {A E} (c : th_config A E) :=
   match c with
   | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
   | (_, _, Stop CDie o _, _) => True
   | _ => ∃ c', wp_step c c'
-  end.
+end.
 
-Lemma can_step_not_stuck {A E} σ (m : micro A E) :
+Arguments can_progress : simpl never.
+
+Lemma can_step_can_progress {A E} σ (m : micro A E) :
   ∀ π ι,
     can_step (σ, m) ->
-    not_stuck (σ, π, m, ι).
+    can_progress (σ, π, m, ι).
 Proof.
   intros π ι ([σ' m'] & Hstep).
   destruct_step;
@@ -70,8 +76,8 @@ Proof.
   Unshelve. apply b.
 Qed.
 
-Lemma not_stuck_fork {A E} σ π x (k : _ -> micro A E) ι :
-  not_stuck (σ, π, (Stop CFork x k), ι).
+Lemma can_progress_fork {A E} σ π x (k : _ -> micro A E) ι :
+  can_progress (σ, π, (Stop CFork x k), ι).
 Proof.
   destruct x.
   assert (exists ι', π !! ι' = None) as [ι' Hι'].
@@ -82,22 +88,22 @@ Proof.
   apply Hι'.
 Qed.
 
-Lemma not_stuck_join {A E} σ π ι' (k : _ -> micro A E) ι o :
+Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι o :
   π !! ι' = Some o ->
-  not_stuck (σ, π, (Stop CJoin ι' k), ι).
+  can_progress (σ, π, (Stop CJoin ι' k), ι).
 Proof.
   intros Hπ; simpl.
   apply elem_of_dom.
   exists o; assumption.
 Qed.
 
-Lemma not_stuck_self {A E} σ π u (k : _ -> micro A E) ι :
-  not_stuck (σ, π, (Stop CSelf u k), ι) .
+Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) ι :
+  can_progress (σ, π, (Stop CSelf u k), ι) .
 Proof.
   eexists. apply SelfS.
 Qed.
 
-Global Hint Resolve not_stuck_join not_stuck_fork not_stuck_self : not_stuck.
+Global Hint Resolve can_progress_join can_progress_fork can_progress_self : can_progress.
 
 Lemma invert_wp_step_resume {A E : Type} (σ σ' : store) π π' ι μ (l : loc) (o : outcome2 val exn)
   (k : outcome2 val exn → micro A E)

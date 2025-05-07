@@ -196,7 +196,7 @@ Section ewp.
           this portion follows to the typical weakest precondition for Iris *)
        | EStep =>
            ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
-             ⌜not_stuck (σ, π, m, (local_thread ℓ))⌝ ∗
+             ⌜can_progress (σ, π, m, (local_thread ℓ))⌝ ∗
              (∀ σ' π' m' μ, ⌜wp_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 (state_interp (σ', π') ∗
                  ewp A X E m' ℓ φ ∗
