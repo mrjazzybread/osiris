@@ -91,13 +91,13 @@ Module ewp_rules_tactics.
         iSplitL ""; [ | iPureIntro; by tac ]
     end.
 
-  Ltac prove_can_wp_step :=
-    (auto with step can_wp_step) ||
-    (apply can_step_wp_step; auto with step can_step).
+  Ltac prove_can_progress :=
+    (auto with step can_progress) ||
+    (apply can_step_can_progress; auto with step can_step).
 
   Ltac construct_wp_nonret :=
     (* Prove [can_step]: *)
-    (discharge_pure prove_can_wp_step);
+    (discharge_pure prove_can_progress);
     (* Introduce a hypothetical step: *)
     intro_step.
 
