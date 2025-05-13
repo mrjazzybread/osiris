@@ -84,14 +84,75 @@ End ghost_instances.
 
 #[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
 
-Definition osiris_state_interp {Σ H} (σ : store) :=
-  @gen_heap_interp locations.loc _ _ step.block Σ H σ.
+Section ghost_resources.
 
-Definition osiris_thread_interp {Σ H} (π : gmap thread thread_state) :=
-  @gen_heap_interp thread_ids.thread _ _ thread_state Σ H π.
+  Context `{!osirisGS Σ}.
 
-Definition state_interp {Σ Hs Ht} : (store * threadpool) -> iProp Σ :=
-  (λ '(σ, π), @osiris_state_interp Σ Hs σ ∗ @osiris_thread_interp Σ Ht π)%I.
+  Definition osiris_state_interp (σ : store) :=
+    @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
+
+  Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ. (*  := *)
+  (* @gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π. *)
+  Admitted.
+
+  Definition state_interp : (store * threadpool) -> iProp Σ :=
+    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
+
+  Definition valid_thread : thread -> iProp Σ. Admitted.
+  Definition dead_thread : thread -> outcome2 val exn -> iProp Σ. Admitted.
+  Definition live_thread : thread -> iProp Σ. Admitted.
+
+  Lemma validthread_persistent ι :
+    Persistent (valid_thread ι).
+  Proof.
+  Admitted.
+
+  Lemma deadthread_persistent ι o :
+    Persistent (dead_thread ι o).
+  Proof.
+  Admitted.
+
+  Lemma valid_thread_valid π ι :
+    osiris_thread_interp π -∗
+    valid_thread ι -∗
+    ⌜is_Some (π !! ι)⌝.
+  Proof.
+  Admitted.
+
+  Lemma dead_thread_valid π ι o :
+    osiris_thread_interp π -∗
+    dead_thread ι o -∗
+    ⌜π !! ι = Some (Dead o)⌝.
+  Proof.
+  Admitted.
+
+  Lemma live_thread_valid π ι :
+    osiris_thread_interp π -∗
+    live_thread ι -∗
+    ⌜π !! ι = Some Alive⌝.
+  Proof.
+  Admitted.
+
+  Lemma thread_alloc π ι :
+    π !! ι = None ->
+    osiris_thread_interp π ==∗ osiris_thread_interp (<[ ι := Alive ]> π) ∗ live_thread ι ∗ valid_thread ι.
+  Proof.
+  Admitted.
+
+  Lemma thread_update π ι o :
+    osiris_thread_interp π -∗
+    live_thread ι ==∗ osiris_thread_interp (<[ ι := Dead o ]> π) ∗ dead_thread ι o.
+  Proof.
+  Admitted.
+
+  Lemma recognize_dead_thread (π : threadpool) ι o :
+    π !! ι = Some (Dead o) ->
+    valid_thread ι -∗
+    dead_thread ι o.
+  Proof.
+  Admitted.
+
+End ghost_resources.
 
 
 (* Notations for ghost resouces. *)
@@ -125,7 +186,7 @@ Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
 
 (** *Effect-aware Weakest Precondition *)
 
-(* The type [handleable A E] represents computations that can be handled by a
+(* The type [ewp_case A E] represents computations that can be handled by a
    match-expression:
 
       Either

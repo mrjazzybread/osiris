@@ -35,6 +35,12 @@ Inductive wp_step {A X} : th_config A X -> th_config_step A X -> Prop :=
     wp_step
       (σ, π, Stop CSelf u k, ι)
       (σ, π, continue k (VThread ι), [])
+| DieS :
+  ∀ σ π ι o k,
+    π !! ι = Some Alive ->
+    wp_step
+      (σ, π, Stop CDie o k, ι)
+      (σ, <[ ι := Dead o ]> π, Stop CDie o k, [])
 .
 
 Global Hint Constructors wp_step : wp_step.
@@ -60,14 +66,14 @@ Ltac destruct_wp_step :=
 Definition can_progress {A E} (c : th_config A E) :=
   match c with
   | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
-  | (_, _, Stop CDie o _, _) => True
+  | (_, π, Stop CDie o _, ι) => ι ∈ dom π
   | _ => ∃ c', wp_step c c'
 end.
 
 Lemma invert_can_progress {A E} σ π m ι :
   @can_progress A E (σ, π, m, ι) ->
   (∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
-  (∃ o k, m = Stop CDie o k) ∨
+  (∃ o k, m = Stop CDie o k ∧ ι ∈ dom π) ∨
   (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
   (∃ u k, m = Stop CSelf u k) ∨
   (can_step (σ, m)).
@@ -81,7 +87,7 @@ Proof.
   - left; repeat eexists. apply Hcp.
   - right; right; right; left.
     repeat eexists.
-  - right; left. repeat eexists.
+  - right; left. repeat eexists. apply Hcp.
 Qed.
 
 Arguments can_progress : simpl never.
@@ -110,13 +116,13 @@ Proof.
   apply Hι'.
 Qed.
 
-Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι o :
-  π !! ι' = Some o ->
+Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι s :
+  π !! ι' = Some s ->
   can_progress (σ, π, (Stop CJoin ι' k), ι).
 Proof.
   intros Hπ; simpl.
   apply elem_of_dom.
-  exists o; assumption.
+  exists s; assumption.
 Qed.
 
 Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) ι :
@@ -125,10 +131,13 @@ Proof.
   eexists. apply SelfS.
 Qed.
 
-Lemma can_progress_die {A E} σ π o (k : _ -> micro A E) ι :
+Lemma can_progress_die {A E} σ π o (k : _ -> micro A E) ι s :
+  π !! ι = Some s ->
   can_progress (σ, π, (Stop CDie o k), ι).
 Proof.
-  exists.
+  intros Hπ.
+  apply elem_of_dom.
+  exists s; assumption.
 Qed.
 
 Global Hint Resolve

@@ -544,12 +544,12 @@ Ltac destruct_step :=
 
 Section threadpool.
 
-  Inductive live_thread : Type :=
-  | Active : micro val exn -> live_thread
-  | Terminated : outcome2 val exn -> live_thread.
+  Inductive thread_status : Type :=
+  | Active : micro val exn -> thread_status
+  | Terminated : outcome2 val exn -> thread_status.
 
   Definition thpool : Type :=
-    gmap thread live_thread.
+    gmap thread thread_status.
 
   Implicit Type π : thpool.
   Implicit Type ι : thread.
@@ -829,6 +829,13 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+Lemma invert_can_step_die {A E} σ o (k : _ -> micro A E) :
+  can_step (σ, (Stop CDie o k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
@@ -837,6 +844,7 @@ Global Hint Resolve
   invert_can_step_fork
   invert_can_step_join
   invert_can_step_self
+  invert_can_step_die
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
