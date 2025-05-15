@@ -8,7 +8,6 @@ From osiris.program_logic Require Export
   handler_rules
   fun_spec
   expr_rules
-  adequacy
 .
 
 From osiris.program_logic.pure Require Export pure.
