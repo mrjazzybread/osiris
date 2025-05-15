@@ -221,6 +221,14 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => EStep
   end.
 
+Lemma wp_step_is_EStep {A X} σ1 π1 (m : micro A X) ι σ2 π2 m' ιms :
+  wp_step (σ1, π1, m, ι) (σ2, π2, m', ιms) ->
+  is_ewp_case m = EStep.
+Proof.
+  intros Hwp.
+  destruct_wp_step; reflexivity.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Definition of protocols, inherited from [Hazel] *)
