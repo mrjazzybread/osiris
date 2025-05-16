@@ -1,115 +1,170 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap.
-From iris.program_logic Require Import weakestpre adequacy.
 
 From osiris.program_logic Require Import wp_step ewp basic_rules tactics.
-From osiris.adequacy.satisfiable Require Import satisfiable.
+From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
 
-Definition WPTP `{!osirisGS Σ} (t : list (thread * micro val exn)) Φs : iProp Σ :=
-  ([∗ list] '(ι, e);Φ ∈ t;Φs, EWP e @ ⊤ <| (ι, ⊥) |> {{ Φ }}).
+Definition WPTP `{!osirisGS Σ} (t : thpool) Φs : iProp Σ :=
+  ([∗ map] ι ↦ e;Φ ∈ t;Φs,
+     match e with
+     | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
+     | Terminated o => Φ o
+     end).
+
+Definition is_ret_or_throw {A E} (m : micro A E) : Prop :=
+  match m with
+  | Ret _ | Throw _ => True
+  | _ => False
+  end.
+
+Definition not_stuck {A E} (m : micro A E) s ι :=
+  is_ret_or_throw m ∨ can_progress (s.1, s.2, m, ι).
 
 Lemma wp_wptp `{!osirisGS Σ} ι e Φ:
-  EWP e @ ⊤ <| (ι, ⊥) |> {{ Φ }} ⊢ WPTP [(ι, e)] [Φ].
-Proof. by rewrite /WPTP big_sepL2_singleton. Qed.
+  match e with
+  | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
+  | Terminated o => Φ o
+  end ⊢ WPTP {[ι := e]} {[ι := Φ]}.
+Proof. by rewrite /WPTP big_sepM2_singleton. Qed.
+
+Include ewp_rules_tactics.
 
 (* Compositional Lemmas for Adequacy *)
 Section satisfiability_weakest_pre.
   Context `{!osirisGS Σ}.
 
-  Lemma wp_step {A X} m F E ι Ψ (e1 : micro A X) σ1 π1 e2 σ2 π2 efs Φ :
-    wp_step.wp_step (σ1, π1, e1, ι) (σ2, π2, e2, efs) →
-    SAT m F []
+  Lemma wp_step {A X} m F E ι Ψ (e1 : micro A X) σ1 π1 e2 σ2 π2 efs Φ n :
+    wp_step (σ1, π1, e1, ι) (σ2, π2, e2, efs) →
+    SAT m F [view E; supply n]
       (state_interp (σ1, π1) ∗ EWP e1 @ E <| (ι, Ψ) |> {{ Φ }}) →
-    SAT m F []
-      (state_interp (σ2, π2) ∗ EWP e2 @ E <| (ι, Ψ) |> {{ Φ }} ∗ ([∗ list] '(ι', e) ∈ efs, EWP e @ ⊤ <| (ι', ⊥) |> {{ λ _, True }})).
+    ∃ n', SAT m F [view E; supply n']
+      (state_interp (σ2, π2) ∗ EWP e2 @ E <| (ι, Ψ) |> {{ Φ }} ∗ ([∗ list] '(ι', e) ∈ efs, EWP e @ E <| (ι', ⊥) |> {{ λ _, True }})).
   Proof.
-    intros Hstep Hsat. eapply SAT_mono in Hsat. eapply SAT_mono in Hsat; last first.
+    intros Hstep Hsat. eapply SAT_mono in Hsat; last first.
     { iIntros "[HSI Hwp]". rewrite ewp_unfold /ewp_pre.
       rewrite (wp_step_is_EStep _ _ _ _ _ _ _ _ Hstep).
       iSpecialize ("Hwp" with "HSI").
-
-      ewp_case e1.
-      rewrite (val_stuck e1 σ1 κ e2 σ2 efs) //.
-      iSpecialize ("Hwp" $! σ1 ns κ κs nt with "HSI").
       iExact "Hwp". }
     eapply SAT_fupd in Hsat.
     eapply SAT_mono in Hsat; last first.
-    { iIntros "[_ Hwp]". iSpecialize ("Hwp" $! e2 σ2 efs Hstep). iExact "Hwp". }
+    { iIntros "[_ Hwp]". iSpecialize ("Hwp" $! _ _ _ _ Hstep). iExact "Hwp". }
     eapply (SAT_frame_resource _ (view ∅)) in Hsat; last apply _.
-    eapply SAT_later_credits_credit_wand in Hsat.
     eapply SAT_unframe_resource in Hsat.
-    eapply SAT_elim_iterated in Hsat; last first.
-    { intros Q Hsat'. eapply SAT_fupd, SAT_later, SAT_fupd, Hsat'. }
-    eapply SAT_fupd in Hsat. eexists _. eapply Hsat.
+    eapply SAT_fupd in Hsat.
+    eapply SAT_later in Hsat.
+    eapply SAT_fupd in Hsat.
+    eexists n. apply Hsat.
   Qed.
 
-  Lemma wp_not_stuck m F E e σ Φ ns nt κs n:
-    SAT m F [view E; supply n] (state_interp σ ns κs nt ∗ WP e @ NotStuck; E {{ Φ }}) →
-    not_stuck e σ.
+  Lemma wp_not_stuck {A X} m F E (e : micro A X) ι σ π Φ n:
+    SAT m F [view E; supply n] (state_interp (σ, π) ∗
+                                  EWP e @ E <| (ι, ⊥) |> {{ Φ }}) →
+    not_stuck e (σ, π) ι.
   Proof.
-    intros Hsat. rewrite /not_stuck. destruct (to_val e) eqn: He; first by eauto.
-    right. eapply SAT_mono with (Q := (|={E, ∅}=> ⌜reducible e σ⌝)%I) in Hsat.
-    { eapply SAT_fupd in Hsat. by eapply SAT_elim in Hsat. }
-    iIntros "[SI Hwp]". rewrite wp_unfold /wp_pre.
-    rewrite He. iMod ("Hwp" $! σ ns [] κs nt with "SI") as "[$ _]".
-    by iModIntro.
+    intros Hsat. rewrite /not_stuck.
+    rewrite ewp_unfold /ewp_pre /= in Hsat.
+    ewp_case e; simpl in Hsat.
+    1,2: by left. all: right.
+    - exfalso.
+      apply SAT_frame_cons in Hsat.
+      apply SAT_fupd in Hsat.
+      by apply SAT_elim in Hsat.
+    - exfalso.
+      apply SAT_frame_cons in Hsat.
+      apply SAT_fupd in Hsat.
+      rewrite /prot upcl_bottom in Hsat.
+      by apply SAT_elim in Hsat.
+    - rewrite Hhm in Hsat.
+      eapply SAT_mono with (Q := (|={E, ∅}=> ⌜can_progress (σ, π, e, ι)⌝)%I)
+                           in Hsat.
+      { eapply SAT_fupd in Hsat. by apply SAT_elim in Hsat. }
+      iIntros "[Hsi Hwp]".
+      spec_state. iModIntro.
+      iPureIntro; assumption.
   Qed.
 
-  Lemma wp_postcondition m F E s e Φ v n:
-    SAT m F [view E; supply n] (WP e @ s; E {{ Φ }}) →
-    to_val e = Some v →
+  Lemma wp_postcondition {A X} m F E ι Ψ (e : micro A X) (Φ : outcome2 A X -> iProp Σ) v n:
+    SAT m F [view E; supply n] (EWP e @ E <| (ι, Ψ) |> {{ Φ }}) →
+    outcome2_opt e = Some v →
     SAT m F [view E; supply n] (Φ v).
   Proof.
     intros Hsat Hval. eapply SAT_mono in Hsat; last first.
-    { iIntros "Hwp". rewrite wp_unfold /wp_pre Hval. iExact "Hwp". }
+    { iIntros "Hwp".
+      destruct e; try discriminate Hval; inversion Hval.
+      - iPoseProof (ewp_ret_inv with "Hwp") as "Hret".
+        rewrite H0. iApply "Hret".
+      - iPoseProof (ewp_throw_inv with "Hwp") as "Hthrow".
+        iApply "Hthrow". }
     by eapply SAT_fupd in Hsat.
   Qed.
 
-
-
-  Lemma wptp_length m F s Rs es Φs :
-    SAT m F Rs (WPTP s es Φs) → length es = length Φs.
+  Lemma wptp_length m F Rs es Φs :
+    SAT m F Rs (WPTP es Φs) → dom es = dom Φs.
   Proof.
-    intros Hsat. eapply SAT_elim, SAT_mono, Hsat. rewrite /WPTP. by iApply big_sepL2_length.
+    intros Hsat. eapply SAT_elim, SAT_mono, Hsat. rewrite /WPTP. by iApply big_sepM2_dom.
   Qed.
 
-  Lemma wptp_extract_wp m F Rs s es1 e es2 Φs :
-    SAT m F Rs (WPTP s (es1 ++ e :: es2) Φs) →
-    ∃ Φ1s Φ2s Φ, Φs = Φ1s ++ Φ :: Φ2s ∧ length Φ1s = length es1 ∧ length Φ2s = length es2 ∧
-      SAT m F Rs (WP e @ s; ⊤ {{ Φ }} ∗ WPTP s (es1 ++ es2) (Φ1s ++ Φ2s)).
+  (* Lemma wptp_extract_wp m (F : iProp Σ) Rs es1 e es2 Φs : *)
+  (*   SAT m F Rs (WPTP (es1 ++ e :: es2) Φs) → *)
+  (*   ∃ Φ1s Φ2s Φ, Φs = Φ1s ++ Φ :: Φ2s ∧ length Φ1s = length es1 ∧ length Φ2s = length es2 ∧ *)
+  (*     SAT m F Rs (EWP e.2 @ ⊤ <| (e.1, ⊥) |> {{ Φ }} ∗ WPTP (es1 ++ es2) (Φ1s ++ Φ2s)). *)
+  (* Proof. *)
+  (*   intros Hsat. eapply wptp_length in Hsat as Hlen. symmetry in Hlen. *)
+  (*   specialize (lookup_lt_is_Some_2 Φs (length es1)) as [Φ Hrest]. *)
+  (*   { rewrite Hlen app_length /=. lia. } *)
+  (*   eapply take_drop_middle in Hrest as Hsplit. *)
+  (*   eexists _, _, _. split_and!; first done. *)
+  (*   - rewrite length_take Hlen app_length /=. lia. *)
+  (*   - rewrite length_drop Hlen app_length /=. lia. *)
+  (*   - eapply SAT_mono, Hsat. rewrite -{1}Hsplit. *)
+  (*     rewrite /WPTP. iIntros "Hx". *)
+  (*     iDestruct (big_sepL2_app_inv with "Hx") as "[Hx1 Hx2]". *)
+  (*     { rewrite length_take Hlen app_length /=. lia. } *)
+  (*     destruct e; simpl. *)
+  (*     iDestruct "Hx2" as "[$ Hx2]". *)
+  (*     iApply (big_sepL2_app with "Hx1 Hx2"). *)
+  (* Qed. *)
+
+  Lemma step_EStep {A X} σ (m : micro A X) σ' m' :
+    step (σ, m) (σ', m') -> is_ewp_case m = EStep.
   Proof.
-    intros Hsat. eapply wptp_length in Hsat as Hlen. symmetry in Hlen.
-    specialize (lookup_lt_is_Some_2 Φs (length es1)) as [Φ Hrest].
-    { rewrite Hlen app_length /=. lia. }
-    eapply take_drop_middle in Hrest as Hsplit.
-    eexists _, _, _. split_and!; first done.
-    - rewrite take_length Hlen app_length /=. lia.
-    - rewrite drop_length Hlen app_length /=. lia.
-    - eapply SAT_mono, Hsat. rewrite -{1}Hsplit.
-      rewrite /WPTP. iIntros "Hx". iDestruct (big_sepL2_app_inv with "Hx") as "[$ Hx2]".
-      { rewrite take_length Hlen app_length /=. lia. }
-      iDestruct "Hx2" as "[$ $]".
+    intros Hstep.
+    inversion Hstep; subst; reflexivity.
   Qed.
 
-  Lemma wptp_step m F n s es1 es2 σ1 σ2 κ κs Φs ns nt :
-    SAT m F [view ⊤; supply n] (state_interp σ1 ns (κ ++ κs) nt ∗ WPTP s es1 Φs) →
-    step (es1,σ1) κ (es2, σ2) →
-    ∃ n' nt', SAT m F [view ⊤; supply n'] (state_interp σ2 (S ns) κs (nt + nt') ∗ WPTP s es2 (Φs ++ replicate nt' fork_post)).
+  Lemma wptp_step m F n es1 es2 σ1 σ2 Φs :
+    SAT m F [view ⊤; supply n] (osiris_state_interp σ1 ∗ WPTP es1 Φs) →
+    threadpool_step (σ1, es1) (σ2, es2) →
+    ∃ n', SAT m F [view ⊤; supply n'] (osiris_state_interp σ2 ∗ WPTP es2 Φs).
   Proof.
-    intros Hsat Hstep. destruct Hstep as [e1' σ1' e2' σ2' efs t2' t3 Hstep]; simplify_eq/=.
-    rewrite -SAT_frame_cons in Hsat.
-    eapply wptp_extract_wp in Hsat as (Φ1s & Φ2s & Φ & -> & Hlen1 & Hlen2 & Hsat).
-    rewrite SAT_frame_cons in Hsat.
+    intros Hsat Hstep.
+    (* rewrite -SAT_frame_cons in Hsat. *)
+    (* eapply wptp_extract_wp in Hsat as (Φ1s & Φ2s & Φ & -> & Hlen1 & Hlen2 & Hsat). *)
+    (* rewrite SAT_frame_cons in Hsat. *)
     eapply SAT_mono in Hsat; last first.
-    { iIntros "(SI & Hwp & Hwps)". iCombine "Hwps SI Hwp" as "Hx". iExact "Hx". }
-    rewrite -SAT_frame_cons in Hsat.
-    eapply wp_step in Hsat as (n' & Hsat); last done.
-    rewrite SAT_frame_cons in Hsat.
-    eexists _, _. eapply SAT_mono, Hsat.
-    iIntros "(Hwps & SI & Hwp & Hforks)". rewrite Nat.add_comm. iFrame "SI".
-    iDestruct (big_sepL2_app_inv with "Hwps") as "[Hwps1 Hwps2]"; first auto.
-    rewrite -app_assoc /=. rewrite /WPTP. iFrame.
-    rewrite big_sepL2_replicate_r //.
+    { iIntros "[Hsi Hwps]". instantiate (1 := WPTP es2 Φs).
+      inversion Hstep.
+      - assert ((∃ Φ, (Φs !! ι) = Some Φ) ∧ es1 !! ι = Some (Active m0))
+                 as ([Φ HΦ] & Hm0).
+        { apply SAT_frame_cons in Hsat.
+          apply wptp_length in Hsat.
+          rewrite /active_thread in H2; subst.
+          case_eq (es1 !! ι); last (intros Heq; rewrite Heq in H2; discriminate).
+          intros [? | ?] Heq; rewrite Heq in H2; subst; last discriminate.
+          split.
+          - apply elem_of_dom.
+            rewrite -Hsat.
+            apply elem_of_dom. exists (Active m1). apply Heq.
+          - inversion H2; subst. reflexivity. }
+        rewrite /WPTP.
+        replace Φs with (<[ ι:=Φ ]> Φs) at 2; last first.
+        { apply insert_id. assumption. }
+        iPoseProof (big_sepM2_insert_acc with "Hwps") as "Hwps".
+        { apply Hm0. } { apply HΦ. }
+        iDestruct "Hwps" as "[Hwp Hwps]".
+
+        iSpecialize ("Hwps" $! (Active m') Φ).
+        iApply "Hwps".
   Qed.
 
   Lemma wptp_steps m F n k s es1 es2 σ1 σ2 κs κs' Φs ns nt :

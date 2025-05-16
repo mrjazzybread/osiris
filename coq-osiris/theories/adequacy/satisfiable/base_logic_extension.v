@@ -127,8 +127,7 @@ Proof.
   by exists (InvG _ _ Hwsat Hlc).
 Qed.
 
-
-Lemma SAT_fupd `{!invGS Σ} E1 E2 m n F P:
+Lemma SAT_fupd `{!invGS_gen H Σ} E1 E2 m n F P:
   SAT m F [view E1; supply n] (|={E1,E2}=> P) →
   SAT m F [view E2; supply n] P.
 Proof.
@@ -136,7 +135,11 @@ Proof.
   eapply SAT_except_0, SAT_later_credits_upd_elim, SAT_mono, Hsat.
   iIntros "[Hview HP]".
   rewrite fancy_updates.uPred_fupd_unseal /fancy_updates.uPred_fupd_def.
-  rewrite /view /le_upd_if /= -bi.sep_assoc //. by iApply "HP".
+  rewrite /view /le_upd_if /= -bi.sep_assoc //.
+  destruct H.
+  - by iApply "HP".
+  - iMod ("HP" with "Hview") as "HP".
+    iApply "HP".
 Qed.
 
 
@@ -171,7 +174,8 @@ Qed.
 (* Gen Heaps *)
 From iris.base_logic.lib Require Import gen_heap ghost_map.
 
-Local Notation "l ↦ v" := (gen_heap.mapsto l (DfracOwn 1) v) (at level 20) : bi_scope.
+Local Notation "l ↦ v" := (gen_heap.pointsto l (DfracOwn 1) v) (at level 20) : bi_scope.
+
 Lemma SAT_gen_heap_init `{Countable L, !gen_heapGpreS L V Σ} σ F P:
   SAT Alloc F [] P →
   ∃ _: gen_heapGS L V Σ,
