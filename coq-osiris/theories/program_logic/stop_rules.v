@@ -115,10 +115,9 @@ Section ewp_stop.
 
   Lemma ewp_stop_die {B Y} o (k : _ -> micro B Y) E ι Ψ Φ :
     live_thread ι -∗
-    EWP (k o) @ E <| (ι, Ψ) |> {{ Φ }} -∗
     EWP (Stop CDie o k) @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
-    iIntros "Hι Hk".
+    iIntros "Hι".
     ewp_unfold_head.
     intro_state.
     iPoseProof (live_thread_valid with "Hti Hι") as "%".
@@ -127,17 +126,12 @@ Section ewp_stop.
     construct_wp_nonret. destruct_wp_step.
     iMod (thread_update with "Hti Hι") as "[Hti Hι]".
     ewp_mask_elim. iFrame.
-  Qed.
-
-  Lemma ewp_die o E ι Ψ Φ :
-    live_thread ι -∗
-    Φ o -∗
-    EWP die o @ E <| (ι, Ψ) |> {{ Φ }}.
-  Proof.
-    iIntros "Hι HΦ".
-    iApply (ewp_stop_die with "Hι").
-    iApply ewp_outcome2.
-    iApply "HΦ".
+    ewp_unfold_head.
+    clear dependent π. clear σ'.
+    intro_state. ewp_mask_intro "Hmod".
+    iPoseProof (dead_thread_valid with "Hti Hι") as "%".
+    construct_wp_nonret. destruct_wp_step.
+    rewrite H in H0. discriminate.
   Qed.
 
   (* When forking a thread, we must prove that the forked thread is
@@ -161,8 +155,7 @@ Section ewp_stop.
     iApply ewp_try2.
     iApply (ewp_mono with "Hcall").
     iIntros (o) "_".
-    iApply (ewp_die with "Hlive").
-    done.
+    iApply (ewp_stop_die with "Hlive").
   Qed.
 
   Lemma ewp_fork E Ψ v1 v2 Φ :

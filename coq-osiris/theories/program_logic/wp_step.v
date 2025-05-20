@@ -40,7 +40,7 @@ Inductive wp_step {A X} : th_config A X -> th_config_step A X -> Prop :=
     π !! ι = Some Alive ->
     wp_step
       (σ, π, Stop CDie o k, ι)
-      (σ, <[ ι := Dead o ]> π, k o, [])
+      (σ, <[ ι := Dead o ]> π, Stop CDie o k, [])
 .
 
 Global Hint Constructors wp_step : wp_step.

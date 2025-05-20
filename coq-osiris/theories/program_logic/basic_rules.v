@@ -373,24 +373,24 @@ Section wp_handler_rules.
     iIntros (?) "HΦ"; by iNext.
   Qed.
 
-  (* Lemma ewp_die_mono {B Y C X'} o (k : _ -> micro B Y) (h : _ -> micro C X') E ι Ψ Ψ' Φ Φ' : *)
-  (*   EWP (Stop CDie o k) @ E <| (ι, Ψ) |> {{ Φ }} -∗ *)
-  (*   EWP (Stop CDie o h) @ E <| (ι, Ψ') |> {{ Φ' }}. *)
-  (* Proof. *)
-  (*   iIntros "Hwp". *)
-  (*   iLöb as "IH". *)
-  (*   rewrite {2}ewp_unfold /ewp_pre /=. *)
-  (*   ewp_unfold_head. *)
-  (*   intro_state. spec_state. *)
-  (*   iModIntro. *)
-  (*   discharge_pure (apply Hstep). *)
-  (*   intro_step. destruct_wp_step. *)
-  (*   epose proof (DieS _ _ _ _ _ H) as Hdie. *)
-  (*   iSpecialize ("Hwp" $! _ _ _ _ Hdie). *)
-  (*   ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)". *)
-  (*   iModIntro. *)
-  (*   iApply ("IH" with "Hwp"). *)
-  (* Qed. *)
+  Lemma ewp_die_mono {B Y C X'} o (k : _ -> micro B Y) (h : _ -> micro C X') E ι Ψ Ψ' Φ Φ' :
+    EWP (Stop CDie o k) @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    EWP (Stop CDie o h) @ E <| (ι, Ψ') |> {{ Φ' }}.
+  Proof.
+    iIntros "Hwp".
+    iLöb as "IH".
+    rewrite {2}ewp_unfold /ewp_pre /=.
+    ewp_unfold_head.
+    intro_state. spec_state.
+    iModIntro.
+    discharge_pure (apply Hstep).
+    intro_step. destruct_wp_step.
+    epose proof (DieS _ _ _ _ _ H) as Hdie.
+    iSpecialize ("Hwp" $! _ _ _ _ Hdie).
+    ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)".
+    iModIntro.
+    iApply ("IH" with "Hwp").
+  Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle E ι Ψ Φ Ψ' Φ' e h:
@@ -488,12 +488,7 @@ Section wp_handler_rules.
 
     { (* [StepHandleDie] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      ewp_unfold_all. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (DieS _ _ _ _ _ H) as Hdie.
-      iSpecialize ("He" $! _ _ _ _ Hdie).
-      iMod "He". ewp_mask_elim. iMod "He" as "($ & He & _)". iModIntro.
-      iApply ("IH" with "He Hsh"). }
+      iApply (ewp_die_mono with "He"). }
 
     { (* [StepHandleCrash] *)
       iPoseProof (ewp_crash_inv with "[$]") as "HF".
@@ -676,8 +671,8 @@ Section ewp_rules.
       epose proof (DieS _ _ _ _ _ H).
       iSpecialize ("Hwp" $! _ _ _ _ H0).
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)".
-      iModIntro.
-      iApply ("IH" with "Hwp"). }
+      iModIntro. destruct Ψ.
+      iApply (ewp_die_mono with "Hwp"). }
 
     destruct Hstep as [ Hstep | Hstep ].
     { (* Case: [m1] is [Fork _] *)
@@ -1133,23 +1128,11 @@ Section ewp_stop.
 
     { (* [StepParDieLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      ewp_unfold (Stop CDie o k0). ewp_unfold_head.
-      intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (DieS _ _ _ _ _ H) as Hdie.
-      iSpecialize ("H1" $! _ _ _ _ Hdie).
-      ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      iApply (ewp_die_mono with "H1"). }
 
     { (* [StepParDieRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      ewp_unfold (Stop CDie o k0). ewp_unfold_head.
-      intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (DieS _ _ _ _ _ H) as Hdie.
-      iSpecialize ("H2" $! _ _ _ _ Hdie).
-      ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      iApply (ewp_die_mono with "H2"). }
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.
