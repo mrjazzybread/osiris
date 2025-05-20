@@ -270,7 +270,14 @@ Section handler_proof.
 
     { (* StepHandleDie] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
-      iApply (ewp_die_mono with "He"). }
+      rewrite ewp_unfold /ewp_pre /=. ewp_unfold_head.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_wp_step.
+      epose proof (DieS _ _ _ _ _ H) as Hstep0.
+      iSpecialize ("He" $! _ _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "($ & He & _)".
+      iModIntro.
+      iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
