@@ -287,7 +287,46 @@ Section satisfiability_weakest_pre.
       iPoseProof (big_sepM2_insert_delete _ es1 Φs ι) as "[_ Hwpwp]". iFrame.
       iApply "Hwpwp". by iFrame.
 
+    - iExists None.
+      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
+
+      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
+        as "[Hwp Hwps]".
+
+
+      rewrite ewp_unfold /ewp_pre /=. spec_state.
+      rewrite /can_progress in Hstep0.
+      assert (∃ o, forget_active_threads es1 !! ι' = Some (Dead o) ∧ m = k o) as (o & Hdead & ->).
+      { rewrite /attempt_join in H4.
+        case_eq (es1 !! ι'); last first.
+        - intros Hlookup. apply elem_of_dom in Hstep0 as (s&Hlookup1).
+          rewrite /forget_active_threads in Hlookup1.
+          rewrite lookup_fmap in Hlookup1. rewrite Hlookup in Hlookup1. discriminate.
+        - intros [F|o] Hlookup.
+          + rewrite Hlookup in H4; discriminate.
+          + exists o.
+            rewrite /forget_active_threads. rewrite lookup_fmap.
+            rewrite Hlookup. split; first reflexivity.
+            rewrite Hlookup in H4.
+            destruct o; by inversion H4. }
+
+      pose proof (JoinS σ2 (forget_active_threads es1) ι k o ι' Hdead) as Hjoin.
+      iSpecialize ("Hwp" $! _ _ _ _ Hjoin).
+
+      replace (forget_active_threads (<[ι:=k o]>es1)) with (forget_active_threads es1); last first.
+      { rewrite /forget_active_threads /=.
+        rewrite unfold_micro_insert.
+        rewrite fmap_insert. symmetry. apply insert_id.
+        rewrite lookup_fmap. apply invert_some_active_thread in H2.
+        rewrite H2. reflexivity. }
+
+      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp & _)".
+
+
+      iApply "Hwps". iApply "Hwp".
+
     -
+
 
 
   Lemma wptp_step m F n es1 es2 σ1 σ2 π Φs :
