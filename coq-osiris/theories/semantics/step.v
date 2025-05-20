@@ -554,12 +554,8 @@ Section threadpool.
   Implicit Type π : thpool.
   Implicit Type ι : thread.
 
-  Local Instance insert_thread : Insert thread (microvx) (thpool).
-  Proof.
-    split.
-    eapply (gmap.gmap_dep_fmap (λ m, Active m)).
-    apply GEmpty.
-  Qed.
+  Local Instance insert_thread : Insert thread (microvx) (thpool) :=
+    λ ι m π, map_insert ι (Active m) π.
 
   Definition active_thread ι π :=
     match π !! ι with

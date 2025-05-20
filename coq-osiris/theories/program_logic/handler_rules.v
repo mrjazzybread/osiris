@@ -279,7 +279,7 @@ Section handler_proof.
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
-      ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
+      iMod "H". ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
       iSpecialize ("IH" with "H").
       iApply ("IH" with "Hsh"). }
   Qed.

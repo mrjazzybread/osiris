@@ -85,15 +85,18 @@ Section ewp_basic_rules.
   Lemma ewp_step {ι σ π σ' π'} E m n μ {φ} Ψ:
     wp_step (σ, π, m, ι) (σ', π', n, μ) →
     state_interp (σ, π) -∗
-     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E,∅}=∗ |={∅}▷=> |={∅,E}=>
-          state_interp (σ', π') ∗ EWP n @ E <| (ι, Ψ) |> {{ φ }} ∗
-          ([∗ list] '(ι', m') ∈ μ, EWP m' @ E <| (ι', ⊥) |> {{ λ _, True }}).
+    EWP m @ E <| (ι, Ψ) |> {{ φ }} ==∗
+    |={E}[∅]▷=>
+        state_interp (σ', π') ∗
+        EWP n @ E <| (ι, Ψ) |> {{ φ }} ∗
+        ([∗ list] '(ι', m') ∈ μ, EWP m' @ E <| (ι', ⊥) |> {{ λ _, True }}).
   Proof.
-    intro Hstep.
+    intros Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
     ewp_case m.
-    spec_state. spec_step.
+    spec_state. iModIntro. iMod "Hwp" as "[%Hprog Hwp]".
+    spec_step.
     by ewp_mask_elim.
   Qed.
 
@@ -496,7 +499,7 @@ Section wp_handler_rules.
       { apply BaseS. eassumption. }
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
-      ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
+      iMod "H". ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
       iApply ("IH" with "H Hsh"). }
   Qed.
 
@@ -1135,14 +1138,14 @@ Section ewp_stop.
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi H1") as ">H1".
-      ewp_mask_elim. iMod "H1" as "($ & H1 & _)". iModIntro.
+      iMod "H1". ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [ParRight] *)
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi H2") as ">H2".
-      ewp_mask_elim. iMod "H2" as "($ & H2 & _)". iModIntro.
+      iMod "H2". ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
   Qed.
 
