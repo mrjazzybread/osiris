@@ -8,7 +8,7 @@ Definition WPTP `{!osirisGS Σ} (t : thpool) Φs : iProp Σ :=
   ([∗ map] ι ↦ e;Φ ∈ t;Φs,
      match e with
      | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
-     | Terminated o => Φ o
+     | Terminated o => EWP Stop CDie o inject2 @ ⊤ <| (ι, ⊥) |> {{ Φ }}
      end).
 
 Definition is_ret_or_throw {A E} (m : micro A E) : Prop :=
@@ -23,7 +23,7 @@ Definition not_stuck {A E} (m : micro A E) s ι :=
 Lemma wp_wptp `{!osirisGS Σ} ι e Φ:
   match e with
   | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
-  | Terminated o => Φ o
+  | Terminated o => EWP Stop CDie o inject2 @ ⊤ <| (ι, ⊥) |> {{ Φ }}
   end ⊢ WPTP {[ι := e]} {[ι := Φ]}.
 Proof. by rewrite /WPTP big_sepM2_singleton. Qed.
 
@@ -325,9 +325,60 @@ Section satisfiability_weakest_pre.
 
       iApply "Hwps". iApply "Hwp".
 
-    -
+    - iExists None.
+      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
+      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
+
+      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
+        as "[Hwp Hwps]".
 
 
+      rewrite ewp_unfold /ewp_pre /=. spec_state.
+      rewrite /can_progress in Hstep0.
+
+      pose proof (SelfS σ2 (forget_active_threads es1) ι () k) as Hself.
+      iSpecialize ("Hwp" $! _ _ _ _ Hself).
+
+      replace (forget_active_threads (<[ι:=continue k (VThread ι)]>es1)) with (forget_active_threads es1); last first.
+      { rewrite /forget_active_threads /=.
+        rewrite unfold_micro_insert.
+        rewrite fmap_insert. symmetry. apply insert_id.
+        rewrite lookup_fmap. apply invert_some_active_thread in H0.
+        rewrite H0. reflexivity. }
+
+      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp & _)".
+
+
+      iApply "Hwps". iApply "Hwp".
+
+    - iExists None.
+      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
+      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
+
+      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
+        as "[Hwp Hwps]".
+
+
+      rewrite ewp_unfold /ewp_pre /=. spec_state.
+      rewrite /can_progress in Hstep0.
+
+      assert ((forget_active_threads es1) !! ι = Some Alive) as Halive.
+      { rewrite /forget_active_threads lookup_fmap.
+        rewrite Hm0. reflexivity. }
+      pose proof (DieS σ2 (forget_active_threads es1) ι o k Halive) as Hdie.
+      iSpecialize ("Hwp" $! _ _ _ _ Hdie).
+
+      replace (forget_active_threads (<[ι:=Terminated o]>es1)) with (<[ι := Dead o]> (forget_active_threads es1));
+        last first.
+      { rewrite /forget_active_threads fmap_insert. reflexivity. }
+
+      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "(Hsi & Hwp & _)".
+
+      destruct_wp_step; subst.
+      iFrame.
+      iApply "Hwps".
+      iApply (ewp_die_mono with "Hwp").
+  Qed.
 
   Lemma wptp_step m F n es1 es2 σ1 σ2 π Φs :
     SAT m F [view ⊤; supply n] (state_interp (σ1, π) ∗ WPTP es1 Φs) →
