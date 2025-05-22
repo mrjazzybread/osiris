@@ -8,7 +8,7 @@ Definition WPTP `{!osirisGS Σ} (t : thpool) Φs : iProp Σ :=
   ([∗ map] ι ↦ e;Φ ∈ t;Φs,
      match e with
      | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
-     | Terminated o => EWP Stop CDie o inject2 @ ⊤ <| (ι, ⊥) |> {{ Φ }}
+     | Terminated o => True
      end).
 
 Definition is_ret_or_throw {A E} (m : micro A E) : Prop :=
@@ -23,7 +23,7 @@ Definition not_stuck {A E} (m : micro A E) s ι :=
 Lemma wp_wptp `{!osirisGS Σ} ι e Φ:
   match e with
   | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ Φ }}
-  | Terminated o => EWP Stop CDie o inject2 @ ⊤ <| (ι, ⊥) |> {{ Φ }}
+  | Terminated o => True
   end ⊢ WPTP {[ι := e]} {[ι := Φ]}.
 Proof. by rewrite /WPTP big_sepM2_singleton. Qed.
 
@@ -104,27 +104,6 @@ Section satisfiability_weakest_pre.
     intros Hsat. eapply SAT_elim, SAT_mono, Hsat. rewrite /WPTP. by iApply big_sepM2_dom.
   Qed.
 
-  (* Lemma wptp_extract_wp m (F : iProp Σ) Rs es1 e es2 Φs : *)
-  (*   SAT m F Rs (WPTP (es1 ++ e :: es2) Φs) → *)
-  (*   ∃ Φ1s Φ2s Φ, Φs = Φ1s ++ Φ :: Φ2s ∧ length Φ1s = length es1 ∧ length Φ2s = length es2 ∧ *)
-  (*     SAT m F Rs (EWP e.2 @ ⊤ <| (e.1, ⊥) |> {{ Φ }} ∗ WPTP (es1 ++ es2) (Φ1s ++ Φ2s)). *)
-  (* Proof. *)
-  (*   intros Hsat. eapply wptp_length in Hsat as Hlen. symmetry in Hlen. *)
-  (*   specialize (lookup_lt_is_Some_2 Φs (length es1)) as [Φ Hrest]. *)
-  (*   { rewrite Hlen app_length /=. lia. } *)
-  (*   eapply take_drop_middle in Hrest as Hsplit. *)
-  (*   eexists _, _, _. split_and!; first done. *)
-  (*   - rewrite length_take Hlen app_length /=. lia. *)
-  (*   - rewrite length_drop Hlen app_length /=. lia. *)
-  (*   - eapply SAT_mono, Hsat. rewrite -{1}Hsplit. *)
-  (*     rewrite /WPTP. iIntros "Hx". *)
-  (*     iDestruct (big_sepL2_app_inv with "Hx") as "[Hx1 Hx2]". *)
-  (*     { rewrite length_take Hlen app_length /=. lia. } *)
-  (*     destruct e; simpl. *)
-  (*     iDestruct "Hx2" as "[$ Hx2]". *)
-  (*     iApply (big_sepL2_app with "Hx1 Hx2"). *)
-  (* Qed. *)
-
   Lemma step_EStep {A X} σ (m : micro A X) σ' m' :
     step (σ, m) (σ', m') -> is_ewp_case m = EStep.
   Proof.
@@ -164,11 +143,13 @@ Section satisfiability_weakest_pre.
     - inversion Hactive; subst. reflexivity.
   Qed.
 
+  Definition erase_computation := λ s, match s with
+                                       | Active m => Alive
+                                       | Terminated o => Dead o
+                                       end.
+
   Definition forget_active_threads (m : gmap thread thread_status) : gmap thread thread_state :=
-    fmap (λ s, match s with
-               | Active m => Alive
-               | Terminated o => Dead o
-               end) m.
+    fmap erase_computation m.
 
   Lemma invert_some_active_thread ι π m :
     active_thread ι π = Some m ->
@@ -181,6 +162,57 @@ Section satisfiability_weakest_pre.
       by inversion Hactive.
     - intros Hlookup.
       rewrite Hlookup in Hactive; discriminate.
+  Qed.
+
+  Lemma forget_insert_alive (π : thpool) ι (m : microvx) :
+    forget_active_threads (@insert _ _ _ insert_thread ι m π) = <[ ι := Alive ]> (forget_active_threads π).
+  Proof.
+    rewrite /forget_active_threads.
+    rewrite fmap_insert. reflexivity.
+  Qed.
+
+  Lemma forget_insert_dead (π : thpool) ι o :
+    forget_active_threads (<[ι:=Terminated o]> π) = <[ ι := Dead o ]> (forget_active_threads π).
+  Proof.
+    rewrite /forget_active_threads.
+    rewrite fmap_insert. reflexivity.
+  Qed.
+
+  Lemma lookup_forget_active π ι m :
+    π !! ι = Some (Active m) ->
+    forget_active_threads π !! ι = Some Alive.
+  Proof.
+    intros Hlookup.
+    rewrite /forget_active_threads lookup_fmap.
+    by rewrite Hlookup.
+  Qed.
+
+  Lemma lookup_forget_terminated π ι o :
+    π !! ι = Some (Terminated o) ->
+    forget_active_threads π !! ι = Some (Dead o).
+  Proof.
+    intros Hlookup.
+    rewrite /forget_active_threads lookup_fmap.
+    by rewrite Hlookup.
+  Qed.
+
+  Lemma lookup_forget_fresh π ι :
+    π !! ι = None <-> forget_active_threads π !! ι = None.
+  Proof.
+    rewrite /forget_active_threads.
+    etransitivity.
+    - symmetry. apply not_elem_of_dom.
+    - erewrite <- dom_fmap. apply not_elem_of_dom.
+  Qed.
+
+  Lemma forget_active_insert_id π ι m m' :
+    π !! ι = Some (Active m') ->
+    forget_active_threads (@insert _ _ _ insert_thread ι m π) = forget_active_threads π.
+  Proof.
+    intros Hlookup.
+    rewrite forget_insert_alive.
+    apply insert_id.
+    eapply lookup_forget_active. apply Hlookup.
   Qed.
 
   Lemma not_elem_of_lookup {K} `{FinMapDom K M D} {A} (ι ι' : K) (π : M A) (m : A) :
@@ -203,7 +235,7 @@ Section satisfiability_weakest_pre.
     reflexivity.
   Qed.
 
-  Lemma name es1 Φs ι m Φ :
+  Lemma wptp_extract_wp es1 Φs ι m Φ :
     ⌜active_thread ι es1 = Some m⌝ -∗
     ⌜Φs !! ι = Some Φ⌝ -∗
     WPTP es1 Φs -∗
@@ -217,167 +249,205 @@ Section satisfiability_weakest_pre.
     iFrame.
   Qed.
 
-  Lemma wptp_step es1 es2 σ1 σ2 Φs :
-    (state_interp (σ1, forget_active_threads es1) ∗ WPTP es1 Φs) -∗
-    ⌜threadpool_step (σ1, es1) (σ2, es2)⌝ →
-    ∃ ιo, |={⊤}[∅]▷=> state_interp (σ2, forget_active_threads es2) ∗
+  Lemma attempt_join_some_inv {A X} ι π k s (m : micro A X) :
+    π !! ι = Some s ->
+    attempt_join ι π k = Some m ->
+    ∃ o, forget_active_threads π !! ι = Some (Dead o) ∧ m = k o.
+  Proof.
+    intros Hlookup Hattempt.
+    rewrite /attempt_join in Hattempt.
+    destruct s; rewrite Hlookup in Hattempt; [ discriminate | ].
+    exists o.
+    rewrite (lookup_forget_terminated _ _ _ Hlookup).
+    destruct o; by inversion Hattempt.
+  Qed.
+
+  Lemma lookup_forget_some π ι s :
+    forget_active_threads π !! ι = Some s ->
+    ∃ m, π !! ι = Some m.
+  Proof.
+    intros Hlookup.
+    rewrite /forget_active_threads in Hlookup.
+    epose proof (lookup_fmap_Some erase_computation π ι s) as [P _].
+    specialize (P Hlookup) as (m & Hf & Hm).
+    by exists m.
+  Qed.
+
+  Lemma ewp_fork_inv {A X} σ π ι ι' v1 v2 (k : _ -> micro A X) E Ψ Φ :
+    ⌜π !! ι' = None⌝ -∗
+    state_interp (σ, π) -∗
+    EWP Stop CFork (v1, v2) k @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    |={E}[∅]▷=> EWP try2 (call v1 v2) die @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+    EWP (continue k (VThread ι')) @ E <| (ι, Ψ) |> {{ Φ }} ∗ state_interp (σ, <[ ι' := Alive ]> π).
+  Proof.
+    iIntros "%Hlookup Hsi Hfork".
+    rewrite ewp_unfold /ewp_pre /=.
+    spec_state.
+    epose proof (ForkS _ π ι v1 v2 k ι' Hlookup) as Hfstep.
+    iSpecialize ("Hfork" $! _ _ _ _ Hfstep).
+    ewp_mask_elim.
+    iMod "Hfork" as "(Hsi & Hcontinue & Hfork)".
+    simpl; iDestruct "Hfork" as "[Hfork _]".
+    by iFrame.
+  Qed.
+
+  Lemma ewp_join_inv {A X} σ π ι' k (m : micro A X) ι Ψ Φ E :
+    ⌜attempt_join ι' π k = Some m⌝ -∗
+    state_interp (σ, forget_active_threads π) -∗
+    EWP Stop CJoin ι' k @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    |={E}[∅]▷=> state_interp (σ, forget_active_threads π) ∗ EWP m @ E <| (ι, Ψ) |> {{ Φ }}.
+  Proof.
+    iIntros "%Hjoin Hsi Hwp".
+    rewrite ewp_unfold /ewp_pre /=. spec_state.
+    rewrite /can_progress in Hstep. apply elem_of_dom in Hstep as [s Hstep].
+    apply lookup_forget_some in Hstep as (ss & Hlookup).
+    apply (attempt_join_some_inv _ _ _ _ _ Hlookup) in Hjoin
+        as (o & Hdead & ->).
+    epose proof (JoinS _ _ _ _ _ _ Hdead) as Hstep.
+    iSpecialize ("Hwp" $! _ _ _ _ Hstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+  Qed.
+
+  Lemma ewp_self_inv {A X} σ π ι (k : _ -> micro A X) Ψ Φ E :
+    state_interp (σ, π) -∗
+    EWP Stop CSelf () k @ E <|(ι, Ψ)|> {{ Φ }} -∗
+    |={E}[∅]▷=> state_interp (σ, π) ∗ EWP (continue k (VThread ι)) @ E <| (ι, Ψ) |> {{ Φ }}.
+  Proof.
+    iIntros "Hsi Hwp".
+    ewp_unfold (Stop CSelf () k). spec_state.
+    epose proof (SelfS _ _ _ _ _) as Hwpstep.
+    iSpecialize ("Hwp" $! _ _ _ _ Hwpstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+  Qed.
+
+  Lemma ewp_die_inv {A X} σ π ι o (k : _ -> micro A X) Ψ Φ E :
+    ⌜π !! ι = Some Alive⌝ -∗
+    state_interp (σ, π) -∗
+    EWP Stop CDie o k @ E <|(ι, Ψ)|> {{ Φ }} -∗
+    |={E}[∅]▷=> state_interp (σ, <[ ι := Dead o ]> π) ∗ EWP Stop CDie o k @ E <| (ι, Ψ) |> {{ Φ }}.
+  Proof.
+    iIntros "%Hlookup Hsi Hwp".
+    rewrite {1}ewp_unfold /ewp_pre /=. spec_state.
+    epose proof (DieS _ _ _ _ _ Hlookup) as Hwpstep.
+    iSpecialize ("Hwp" $! _ _ _ _ Hwpstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+  Qed.
+
+  (* One could be tempted to related [threadpool_step] and [wp_step] with a
+     lemma of the following shape.
+
+     Lemma threadpool_wp_step σ1 σ2 π1 π2 :
+       threadpool_step (σ1, π1) (σ2, π2) ->
+       ∃ ι m m' l π2',
+         active_thread ι π1 = Some m ∧
+         wp_step.wp_step (σ1, forget_active_threads π1, m, ι) (σ2, π2', m', l) ∧
+         (match l with
+          | [] => forget_active_threads π2 = π2'
+          | [(  ι', _)] => <[ ι' := Alive ]> (forget_active_threads π2) = π2'
+          end).
+
+     However, threadpool_step allows [CJoin]s to crash, whereas [wp_step] only allows
+     joining a valid, dead thread. *)
+
+  Lemma wptp_step π1 π2 σ1 σ2 Φs :
+    (state_interp (σ1, forget_active_threads π1) ∗ WPTP π1 Φs) -∗
+    ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ →
+    ∃ ιo, |={⊤}[∅]▷=> state_interp (σ2, forget_active_threads π2) ∗
                         match ιo with
-                        | None => WPTP es2 Φs
-                        | Some ι => WPTP es2 (<[ ι := (λ _, True) ]> Φs)
+                        | None => WPTP π2 Φs
+                        | Some ι => WPTP π2 (<[ ι := (λ _, True) ]> Φs)
                         end.
   Proof.
     iIntros "[Hsi Hwps] %Hstep".
     inversion Hstep;
       iPoseProof (invert_active_thread_in_wp with "Hwps") as "Hwps";
       try iDestruct ("Hwps" $! H2) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
-    - iExists None.
-      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
-
-      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
-        as "[Hwp Hwps]".
-
+    - (* Taking a step does not create a new thread. *)
+      iExists None.
+      (* Simplify the threadpool in the goal. *)
+      rewrite (forget_active_insert_id _ _ _ _ Hm0).
+      (* Get the [EWP] judgment for the active thread. *)
+      iPoseProof (wptp_extract_wp $! H2 HΦ with "Hwps") as "[Hwp Hwps]".
+      (* Get [EWP m'] judgment from the facts that [EWP m] and [m -> m']. *)
       iPoseProof (ewp_step with "Hsi Hwp") as "Hwp"; first eassumption.
-
-      replace (forget_active_threads (<[ι:=m']>es1)) with (forget_active_threads es1); last first.
-      { rewrite /forget_active_threads /=.
-        rewrite unfold_micro_insert.
-        rewrite fmap_insert. symmetry. apply insert_id.
-        rewrite lookup_fmap. apply invert_some_active_thread in H2.
-        rewrite H2. reflexivity. }
       iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "[$ Hwp]".
+      (* Recombine [EWP m'] with [WPTP]. *)
+      rewrite -{2}(insert_id Φs ι Φ HΦ).
+      iApply big_sepM2_insert_delete.
+      by iFrame.
 
+    - (* Forking a thread creates a new thread indexed by [ι']. *)
+      iExists (Some ι').
+      (* Simplify the threadpool in the goal. *)
+      rewrite (forget_insert_alive) (forget_active_insert_id _ _ _ _ Hm0).
+      (* Assertions about the fresh thread index [ι']. *)
+      assert (ι' ≠ ι) as Hfresh. { intro Heq; rewrite Heq in H4; rewrite H4 in Hm0; discriminate. }
+      iAssert (⌜Φs !! ι' = None⌝)%I as "%Hι'".
+      { iPoseProof (big_sepM2_dom with "Hwps") as "%Hdom"; iPureIntro.
+        apply not_elem_of_dom. rewrite -Hdom. by apply not_elem_of_dom. }
 
-      iApply "Hwps". iApply "Hwp".
-
-    - iExists (Some ι').
-      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
-      iPoseProof (big_sepM2_dom with "Hwps") as "%Hdom".
-      assert (Φs !! ι' = None) as Hι'.
-      { apply not_elem_of_dom. apply not_elem_of_dom in H4.
-        by rewrite <- Hdom. }
-
-      pose proof (invert_some_active_thread _ _ _ H2) as Hι.
-
-      iPoseProof (name $! H2 HΦ with "Hwps") as "[Hfork Hwps]".
-      rewrite ewp_unfold /ewp_pre /=. spec_state.
-      assert (forget_active_threads es1 !! ι' = None) as Hforgot.
-      { by rewrite /forget_active_threads lookup_fmap H4. }
-      epose proof (ForkS _ (forget_active_threads es1) ι v1 v2 k ι' Hforgot) as Hfstep.
-      iSpecialize ("Hfork" $! _ _ _ _ Hfstep).
-      ewp_mask_elim. iMod "Hfork" as "(Hsi & Hcontinue & Hforked)". iModIntro.
-      rewrite /big_opL. iDestruct "Hforked" as "[Hforked _]".
-
-      iSplitL "Hsi".
-      { rewrite /forget_active_threads.
-        do 2 (rewrite unfold_micro_insert;
-              rewrite fmap_insert).
-        replace (<[ι:=Alive]> (forget_active_threads es1)) with (forget_active_threads es1); [ iFrame | ].
-        symmetry. apply insert_id.
-        rewrite /forget_active_threads. rewrite lookup_fmap.
-        rewrite Hι. reflexivity. }
-
+      (* Get the [EWP] judgment for the active thread. *)
+      iPoseProof (wptp_extract_wp $! H2 HΦ with "Hwps") as "[Hfork Hwps]".
+      (* Inversion on [EWP Stop CFork]. *)
+      apply lookup_forget_fresh in H4 as Hforgot.
+      iPoseProof (ewp_fork_inv $! Hforgot with "Hsi Hfork") as "Hfork".
+      (* Framing. *)
+      iMod "Hfork"; ewp_mask_elim; iMod "Hfork" as "(Hforked & Hcontinue & $)"; iModIntro.
+      (* Recombine [EWP]s into one big [WPTP]. *)
+      rewrite -{2}(insert_id Φs ι Φ HΦ).
       iApply big_sepM2_insert.
-      { rewrite unfold_micro_insert. apply not_elem_of_lookup.
-        + intro Heq; rewrite Heq in H4; rewrite H4 in Hι; discriminate.
-        + assumption. }
-      { apply not_elem_of_lookup.
-        + intros Heq. rewrite Heq in Hι'; rewrite Hι' in HΦ; discriminate.
-        + assumption. }
-
-      iPoseProof (big_sepM2_insert_delete _ es1 Φs ι) as "[_ Hwpwp]". iFrame.
-      iApply "Hwpwp". by iFrame.
-
-    - iExists None.
-      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
-
-      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
-        as "[Hwp Hwps]".
-
-
-      rewrite ewp_unfold /ewp_pre /=. spec_state.
-      rewrite /can_progress in Hstep0.
-      assert (∃ o, forget_active_threads es1 !! ι' = Some (Dead o) ∧ m = k o) as (o & Hdead & ->).
-      { rewrite /attempt_join in H4.
-        case_eq (es1 !! ι'); last first.
-        - intros Hlookup. apply elem_of_dom in Hstep0 as (s&Hlookup1).
-          rewrite /forget_active_threads in Hlookup1.
-          rewrite lookup_fmap in Hlookup1. rewrite Hlookup in Hlookup1. discriminate.
-        - intros [F|o] Hlookup.
-          + rewrite Hlookup in H4; discriminate.
-          + exists o.
-            rewrite /forget_active_threads. rewrite lookup_fmap.
-            rewrite Hlookup. split; first reflexivity.
-            rewrite Hlookup in H4.
-            destruct o; by inversion H4. }
-
-      pose proof (JoinS σ2 (forget_active_threads es1) ι k o ι' Hdead) as Hjoin.
-      iSpecialize ("Hwp" $! _ _ _ _ Hjoin).
-
-      replace (forget_active_threads (<[ι:=k o]>es1)) with (forget_active_threads es1); last first.
-      { rewrite /forget_active_threads /=.
-        rewrite unfold_micro_insert.
-        rewrite fmap_insert. symmetry. apply insert_id.
-        rewrite lookup_fmap. apply invert_some_active_thread in H2.
-        rewrite H2. reflexivity. }
-
-      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp & _)".
-
-
-      iApply "Hwps". iApply "Hwp".
-
-    - iExists None.
-      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
-      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
-
-      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
-        as "[Hwp Hwps]".
-
-
-      rewrite ewp_unfold /ewp_pre /=. spec_state.
-      rewrite /can_progress in Hstep0.
-
-      pose proof (SelfS σ2 (forget_active_threads es1) ι () k) as Hself.
-      iSpecialize ("Hwp" $! _ _ _ _ Hself).
-
-      replace (forget_active_threads (<[ι:=continue k (VThread ι)]>es1)) with (forget_active_threads es1); last first.
-      { rewrite /forget_active_threads /=.
-        rewrite unfold_micro_insert.
-        rewrite fmap_insert. symmetry. apply insert_id.
-        rewrite lookup_fmap. apply invert_some_active_thread in H0.
-        rewrite H0. reflexivity. }
-
-      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp & _)".
-
-
-      iApply "Hwps". iApply "Hwp".
-
-    - iExists None.
-      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
-      replace Φs with (<[ ι:=Φ ]> Φs) at 2 by (apply insert_id; assumption).
-
-      iPoseProof (big_sepM2_insert_acc _ _ _ _ _ _ Hm0 HΦ with "Hwps")
-        as "[Hwp Hwps]".
-
-
-      rewrite ewp_unfold /ewp_pre /=. spec_state.
-      rewrite /can_progress in Hstep0.
-
-      assert ((forget_active_threads es1) !! ι = Some Alive) as Halive.
-      { rewrite /forget_active_threads lookup_fmap.
-        rewrite Hm0. reflexivity. }
-      pose proof (DieS σ2 (forget_active_threads es1) ι o k Halive) as Hdie.
-      iSpecialize ("Hwp" $! _ _ _ _ Hdie).
-
-      replace (forget_active_threads (<[ι:=Terminated o]>es1)) with (<[ι := Dead o]> (forget_active_threads es1));
-        last first.
-      { rewrite /forget_active_threads fmap_insert. reflexivity. }
-
-      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "(Hsi & Hwp & _)".
-
-      destruct_wp_step; subst.
+      { rewrite unfold_micro_insert; apply not_elem_of_lookup; assumption. }
+      { apply not_elem_of_lookup; [ assumption | apply Hι' ]. }
       iFrame.
-      iApply "Hwps".
-      iApply (ewp_die_mono with "Hwp").
+      iApply big_sepM2_insert_delete.
+      iFrame.
+
+    - (* Joining a thread does not create a new thread. *)
+      iExists None.
+      (* Simplify the threadpool in the goal. *)
+      rewrite (forget_active_insert_id _ _ _ _ Hm0).
+      (* Get the [EWP] jugment for the active thread. *)
+      iPoseProof (wptp_extract_wp $! H2 HΦ with "Hwps") as "[Hjoin Hwps]".
+      (* Invert the [EWP Stop CJoin]. *)
+      iPoseProof (ewp_join_inv $! H4 with "Hsi Hjoin") as "Hwp".
+      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp)".
+      (* Recombine the [EWP] and [WPTP] judgments. *)
+      rewrite -{2}(insert_id _ _ _ HΦ).
+      iApply big_sepM2_insert_delete.
+      by iFrame.
+
+    - (* Getting one's own thread id does not create a new thread. *)
+      iExists None.
+      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
+      (* Simplify the threadpool in the goal. *)
+      rewrite (forget_active_insert_id _ _ _ _ Hm0).
+      (* Geth the [EWP] judgment for the active thread. *)
+      iPoseProof (wptp_extract_wp $! H0 HΦ with "Hwps") as "[Hself Hwps]".
+      (* Invert the [EWP Stop CSelf]. *)
+      iPoseProof (ewp_self_inv with "Hsi Hself") as "Hwp".
+      iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp)".
+      (* Recombine the [EWP] and [WPTP] judgments. *)
+      rewrite -{2}(insert_id _ _ _ HΦ).
+      iApply big_sepM2_insert_delete.
+      by iFrame.
+
+    - (* Dying does not create a new thread. *)
+      iExists None.
+      iDestruct ("Hwps" $! H0) as "(([%Φ %HΦ] & %Hm0) & Hwps)".
+      (* Simplify the threadpool in the goal. *)
+      rewrite forget_insert_dead.
+      (* Get the [EWP] judgment for the active thread. *)
+      iPoseProof (wptp_extract_wp $! H0 HΦ with "Hwps") as "[Hdie Hwps]".
+      (* Inversion on [EWP Stop CDie] to get the updated state interp. *)
+      apply lookup_forget_active in Hm0.
+      iPoseProof (ewp_die_inv $! Hm0 with "Hsi Hdie") as "Hwp".
+      iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "($ & _)".
+      (* No need to recombine the [EWP] and [WPTP] because the definition of
+         [WPTP] does not require anything on terminated threads.  *)
+      rewrite -{2}(insert_id _ _ _ HΦ).
+      iApply big_sepM2_insert_delete.
+      iFrame.
+      done.
   Qed.
 
   Lemma wptp_step m F n es1 es2 σ1 σ2 π Φs :
