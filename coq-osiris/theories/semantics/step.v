@@ -614,6 +614,8 @@ Section threadpool.
       threadpool_step (σ, π) (σ, <[ ι := Terminated o ]> π)
   .
 
+  Definition threadpool_steps := @nsteps tconfig threadpool_step.
+
 End threadpool.
 
 (* -------------------------------------------------------------------------- *)
