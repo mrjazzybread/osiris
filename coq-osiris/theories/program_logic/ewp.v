@@ -76,7 +76,7 @@ Section ghost_instances.
       osiris_invGS :: invGS_gen HasNoLc Σ;
       (* This gives us a heap, which maps locations to values. *)
       osiris_heapGS :: gen_heapGS locations.loc step.block Σ;
-      (* This gives us a heap, which maps threads to their aliveness. *)
+      (* This gives us a threadpool, which maps threads to their aliveness. *)
       thread_heapGS :: gen_heapGS thread_ids.thread thread_state Σ;
     }.
 

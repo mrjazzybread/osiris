@@ -20,11 +20,8 @@ Definition is_ret_or_throw {A E} (m : micro A E) : Prop :=
 Definition not_stuck {A E} (m : micro A E) s ι :=
   is_ret_or_throw m ∨ can_progress (s.1, s.2, m, ι).
 
-Lemma wp_wptp `{!osirisGS Σ} ι e :
-  match e with
-  | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}
-  | Terminated o => True
-  end ⊢ WPTP {[ι := e]}.
+Lemma wp_wptp `{!osirisGS Σ} ι m :
+  EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }} ⊢ WPTP {[ι := Active m]}.
 Proof. by rewrite /WPTP big_sepM_singleton. Qed.
 
 Include ewp_rules_tactics.
@@ -417,87 +414,66 @@ Section satisfiability_weakest_pre.
     iPureIntro. apply Hstep.
   Qed.
 
-  (* Lemma wptp_steps m F n k s es1 es2 σ1 σ2 κs κs' Φs ns nt : *)
-  (*   SAT m F [view ⊤; supply n] (state_interp σ1 ns (κs ++ κs') nt ∗ WPTP s es1 Φs) → *)
-  (*   language.nsteps k (es1, σ1) κs (es2, σ2) → *)
-  (*   ∃ n' nt', SAT m F [view ⊤; supply n'] (state_interp σ2 (ns + k) κs' (nt + nt') ∗ WPTP s es2 (Φs ++ replicate nt' fork_post)). *)
-  (* Proof. *)
-  (*   induction k as [|k IH] in  n, es1, σ1, ns, κs, nt, Φs |-*; intros Hsat Hsteps. *)
-  (*   - revert Hsat. inversion_clear Hsteps. exists n, 0. rewrite !right_id !Nat.add_0_r //. *)
-  (*   - revert Hsat. inversion_clear Hsteps as [|?? [t1' σ1']]. rewrite -app_assoc. intros Hsat. *)
-  (*     eapply wptp_step in Hsat as (n' & nt' & Hsat); last done. *)
-  (*     eapply IH in Hsat as (n'' & nt'' & Hsat); last done. *)
-  (*     exists n'', (nt' + nt''). rewrite !Nat.add_assoc. *)
-  (*     revert Hsat. rewrite -app_assoc replicate_add //= Nat.add_succ_r //. *)
-  (* Qed. *)
+  Lemma wptp_steps m F n k π1 π2 σ1 σ2  :
+    SAT m F [view ⊤; supply n] (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) →
+    threadpool_steps k (σ1, π1) (σ2, π2) →
+    ∃ n', SAT m F [view ⊤; supply n'] (state_interp (σ2, to_local_view <$> π2) ∗ WPTP π2).
+  Proof.
+    induction k as [|k IH] in  n, π1, σ1 |-*; intros Hsat Hsteps.
+    - revert Hsat. inversion_clear Hsteps. exists n.
+      apply Hsat.
+    - revert Hsat. inversion_clear Hsteps as [|?? [σ1' π1']]. intros Hsat.
+      eapply wptp_step in Hsat as (n' & Hsat); last done.
+      apply SAT_fupd in Hsat. apply SAT_later in Hsat. apply SAT_fupd in Hsat.
+      eapply IH in Hsat as (n'' & Hsat); last done.
+      exists n''. apply Hsat.
+  Qed.
 
-  Lemma wptp_not_stuck m F n e es ι σ π Φs:
-    SAT m F [view ⊤; supply n] (state_interp (σ, π) ∗ WPTP es Φs) →
+  Lemma wptp_not_stuck m F n e es ι σ π:
+    SAT m F [view ⊤; supply n] (state_interp (σ, π) ∗ WPTP es) →
     es !! ι = Some (Active e) →
     not_stuck e (σ, π) ι.
   Proof.
     intros Hsat Hlookup.
     rewrite -SAT_frame_cons in Hsat.
-    eapply SAT_wptp_extract_wp in Hsat as (Φ & Hsat); last eassumption.
+    eapply SAT_wptp_extract_wp in Hsat; last eassumption.
     eapply SAT_mono in Hsat; last first.
     { iIntros "[_ Hwp]". iApply "Hwp". }
     rewrite SAT_frame_cons in Hsat.
     by eapply wp_not_stuck in Hsat.
   Qed.
 
-  (* Definition to_outcome_option (e : thread_status) := *)
-  (*   match e with *)
-  (*   | Active m => outcome2_opt m *)
-  (*   | Terminated o => None *)
-  (*   end. *)
-
-  (* Lemma wptp_postconditions m F n es Φs: *)
-  (*   SAT m F [view ⊤; supply n] (WPTP es Φs) → *)
-  (*   SAT m F [view ⊤; supply n] ([∗ map] ι ↦ e;Φ ∈ es; Φs, from_option Φ (EWP e <| (ι, ⊤) |> {{ Φ }}) (to_outcome_option e)). *)
-  (* Proof. *)
-  (*   induction es as [|e es IH] in Φs, F |-*; intros Hsat. *)
-  (*   - eapply wptp_length in Hsat as Hlen. destruct Φs; last done. eapply Hsat. *)
-  (*   - eapply wptp_length in Hsat as Hlen. destruct Φs as [|Φ Φs]; first done. *)
-  (*     revert Hsat. rewrite /WPTP /=. intros Hsat. *)
-  (*     rewrite -SAT_frame_cons. eapply IH. rewrite SAT_frame_cons. *)
-  (*     rewrite bi.sep_comm. revert Hsat. rewrite bi.sep_comm. *)
-  (*     rewrite -!SAT_frame_cons. destruct (to_val e) eqn:Heq. *)
-  (*     + intros Hsat. eapply SAT_mono, wp_postcondition; eauto. *)
-  (*     + eapply SAT_mono. by iIntros "$". *)
-  (* Qed. *)
-
-
   (* composing the adequacy lemmas *)
-  Lemma wptp_adequacy m F n k s es1 es2 σ1 π1 σ2 Φs:
-    SAT m F [view ⊤; supply n] (state_interp (σ1, π1) ∗ WPTP es1 Φs) →
-    (nsteps tconfig threadpool_step) k (es1, σ1) (es2, σ2) →
-    ∃ n' nt', SAT m F [view ⊤; supply n']
-      (state_interp (σ2 (ns + k) κs' (nt + nt') ∗ ([∗ list] e;Φ ∈ es2; (Φs ++ replicate nt' fork_post), from_option Φ (WP e @ s; ⊤ {{ Φ }}) (to_val e)))
-    ∧ (∀ e, s = NotStuck → e ∈ es2 → not_stuck e σ2).
+  Lemma wptp_adequacy m F n k σ1 π1 σ2 π2:
+    SAT m F [view ⊤; supply n] (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) →
+    threadpool_steps k (σ1, π1) (σ2, π2) →
+    ∀ ι m,
+      π2 !! ι = Some (Active m) ->
+      not_stuck m (σ2, to_local_view <$> π2) ι.
   Proof.
-    intros Hsat Hsteps. eapply wptp_steps in Hsat as (n' & nt' & Hsat); last done.
-    eexists _, _. split.
-    - rewrite -SAT_frame_cons in Hsat. eapply wptp_postconditions in Hsat.
-      rewrite SAT_frame_cons in Hsat. eauto using wptp_not_stuck.
-    - intros e -> Hel. eapply wptp_not_stuck; eauto.
+    intros Hsat Hsteps. eapply wptp_steps in Hsat as (n' & Hsat); last done.
+    intros ι e Hlookup.
+    eauto using wptp_not_stuck.
   Qed.
 
 
-  Lemma wp_adequacy m F n κs s e es σ1 σ2 φ nt ns k :
+  Lemma wp_adequacy m F n ι e σ1 σ2 π2 k :
     (* if we can prove satisfiable of a weakest pre and the state interpretation *)
-    SAT m F [view ⊤; supply n] (state_interp σ1 nt κs ns ∗ WP e @ s; ⊤ {{ v, ⌜φ v⌝%I }}) →
+    SAT m F [view ⊤; supply n]
+      (state_interp (σ1, {[ ι := Alive ]}) ∗
+       EWP e @ ⊤ <| (ι, ⊥) |> {{ λ _, True%I }}) →
     (* and we take a k-step execution to [e'] and some forked of threads *)
-    language.nsteps k ([e], σ1) κs (es, σ2) →
+    threadpool_steps k (σ1, {[ι := Active e]}) (σ2, π2) →
     (* then no thread is stuck and if the main thread terminates in a value, it satisfies the postcondition *)
-    (∀ v es', es = language.of_val v :: es' → φ v) ∧
-    (∀ e, s = NotStuck → e ∈ es → not_stuck e σ2).
+    (* (∀ o, π2 !! ι = Some (Terminated o) → φ o) ∧ *)
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
   Proof.
     intros Hsat Hsteps. rewrite wp_wptp in Hsat.
-    replace κs with (κs ++ []) in Hsat by rewrite app_nil_r //.
-    eapply wptp_adequacy in Hsat as (n' & nt' & Hsat); eauto.
-    destruct Hsat as (Hsat & Hnstuck). split; last eapply Hnstuck.
-    intros v es' ->; simpl in *. rewrite to_of_val /= in Hsat.
-    eapply SAT_elim, SAT_mono, Hsat. iIntros "(_ & $ & _)".
+    rewrite -insert_empty in Hsat.
+    replace (<[ι:=Alive]> ∅) with (@fmap (gmap thread) _ _ _ to_local_view (<[ι:=Active e]> ∅)) in Hsat;
+      last first.
+    { rewrite fmap_insert. reflexivity. }
+    eapply wptp_adequacy; eauto.
   Qed.
 
 End satisfiability_weakest_pre.
@@ -513,19 +489,18 @@ End satisfiability_weakest_pre.
 
   Then you obtain the result of [wp_adequacy] for your choice of [X] and [I]. *)
 Local Existing Instance invGS_wsat.
-Lemma SAT_wp_adequacy {Λ} `{!invGpreS Σ} (X: Type) (I: X → irisGS Λ Σ) κs σ1 σ2 ns nt n s e es φ k P:
+Lemma SAT_wp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 π1 σ2 π2 ι e n k P:
   (* allocate the initial state interpretation *)
   (∀ (iv: invGS Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
    ∃ (x: X),
-    let i: irisGS Λ Σ := I x in
+    let i: osirisGS Σ := I x in
     let inv: invGS Σ := iris_invGS in (* we ensure that all inferences of [invGS] point to this instance *)
-    SAT Alloc F [view ⊤; supply n] (state_interp σ1 nt κs ns ∗ P x)) →
+    SAT Alloc F [view ⊤; supply n] (state_interp (σ1, to_local_view <$> π1) ∗ P x)) →
   (* prove the weakest precondition for all choices of [X] *)
-  (∀ x, let i: irisGS Λ Σ := I x in P x ⊢ WP e @ s; ⊤ {{ v, ⌜φ v⌝%I }}) →
+  (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}) →
   (* then any k-step execution is safe: *)
-  language.nsteps k ([e], σ1) κs (es, σ2) →
-  (∀ v es', es = language.of_val v :: es' → φ v) ∧
-  (∀ e, s = NotStuck → e ∈ es → not_stuck e σ2).
+  threadpool_steps k (σ1, π1) (σ2, π2) →
+  (∀ ι m, π2 !! ι = Some (Active m) → not_stuck e (σ2, to_local_view <$> π2) ι).
 Proof.
   intros Halloc Hwp Hsteps.
   pose proof (SAT_intro (Σ := Σ)) as Hsat.
