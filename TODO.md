@@ -7,7 +7,6 @@
 
 ### Irene's TODO's
 
-- Repair expr_rules.v
 - Repair bst.v
 - Merge exceptions.v into exceptions_pure.v into one file
 - Remove fact_rec.v
