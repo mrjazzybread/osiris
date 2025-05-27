@@ -111,6 +111,30 @@ Section ewp_rules_expr.
   Qed.
 
   (** * EAnonFun : anonfun → expr *)
+
+  Lemma ewp_EAnonFun `{Encode A} η x e φ E Ψ P :
+    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ RET v, φ v }}) -∗
+    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ RET v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ RET v, φ v}} }}.
+  Proof.
+    iIntros "H". simpl_eval.
+    iApply ewp_value. simpl.
+    iIntros (vx) "HP".
+    iApply ewp_please. iModIntro.
+    by iApply "H".
+  Qed.
+
+  Lemma ewp_EAnonFun_partial `{Encode A, Encode B} η x e (φ : B -> iProp Σ) E Ψ P :
+    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ RET #v, φ v }}) -∗
+    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ RET v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ RET #v, φ v}} }}.
+  Proof.
+    iIntros "H". simpl_eval.
+    iApply ewp_value. simpl.
+    iIntros (vx) "HP".
+    iApply ewp_please. iModIntro.
+    by iApply "H".
+  Qed.
+
+
   (** * EApp : expr → expr → expr *)
 
   Lemma ewp_EApp_exn η e1 e2 φ1 φ2 φ E Ψ :

@@ -4,6 +4,7 @@ From osiris.program_logic Require Export
   ewp
   basic_rules
   handler_rules
+  fun_spec
   expr_rules
   adequacy
 .
