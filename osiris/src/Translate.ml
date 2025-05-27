@@ -17,8 +17,13 @@ open Typedtree
 
 (* Osiris: *)
 open Fail
-open Settings
 open Syntax
+
+module Make (M :  sig
+  val warnings : bool
+  val debug : ('a, out_channel, unit) format -> 'a
+end) = struct
+open M
 
 (* -------------------------------------------------------------------------- *)
 
@@ -975,3 +980,5 @@ end (* Run *)
 let unit source str =
   let open Run(struct let source = source end) in
   translate_structure str
+
+end

@@ -42,7 +42,7 @@ Local Definition call f x :=
 (* When under a [pure_wp], [eval.call] and [fun_spec.call] are equivalent. *)
 
 Lemma pure_acall_equiv η a v φ ζ :
-  pure_wp (eval.acall η a v) φ ζ <-> pure_wp (fun_spec.acall η a v) φ ζ.
+  pure_wp (eval.E.acall η a v) φ ζ <-> pure_wp (fun_spec.acall η a v) φ ζ.
 Proof.
   destruct a; simpl.
   split.
@@ -52,7 +52,7 @@ Proof.
 Qed.
 
 Lemma pure_call_equiv f v φ ζ :
-  pure_wp (eval.call f v) φ ζ <-> pure_wp (fun_spec.call f v) φ ζ.
+  pure_wp (eval.E.call f v) φ ζ <-> pure_wp (fun_spec.call f v) φ ζ.
 Proof.
   destruct f; try done; [ apply pure_acall_equiv | ].
   split; apply pure_wp_bind_mono; intros; simpl; by apply pure_acall_equiv.

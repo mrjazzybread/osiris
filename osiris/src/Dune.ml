@@ -44,6 +44,17 @@ type filename =
    descriptions. *)
 
 let rec extract_module_descriptions (e : Base.Sexp.t) accu =
+  (* Hard-coded, fragile, patterns to avoid generating AST files for Osiris's
+     own ml files when they are in [coq_osiris]. *)
+  (* TODO: support having different modules with the same name. *)
+  match e with
+  | List (Atom "executables" :: [List (List (Atom "names" :: [List [Atom "interp"]]) :: _)]) ->
+    Printf.fprintf stderr "Warning: extract_module_descriptions: skipping S-expression (executables ((names (interp)) ...))\n";
+    accu
+  | List [Atom "library"; List (List [Atom "name"; Atom ("translatorlib" | "extracted" as name)] :: _)] ->
+    Printf.fprintf stderr "Warning: extract_module_descriptions: skipping S-expression (library ((name %s) ...))\n" name;
+    accu
+  | _ ->
   match [%of_sexp: module_description] e with
   | mdesc ->
       (* Success: this node is a module description. *)

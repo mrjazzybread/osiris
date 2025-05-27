@@ -44,7 +44,7 @@ Proof. by intros; simpl_eval; eapply pure_ret. Qed.
 Local Lemma pure_call_spec' `{Encode X, Encode Y} (P : X -> microvx -> Prop) c v (φ : Y -> Prop) ζ :
   Spec' c P ->
   (∀ m, P v m -> pure m φ ζ) ->
-  pure (eval.call c #v) φ ζ.
+  pure (eval.E.call c #v) φ ζ.
 Proof.
   intros HSpec Hmon. eapply pure_call_equiv.
   apply Hmon. apply HSpec.

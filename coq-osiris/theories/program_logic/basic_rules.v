@@ -50,10 +50,10 @@ Section ewp_basic_rules.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _):
-    EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
+  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) s :
+    EWP (Crash s : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
-    ewp_unfold (@crash A X).
+    ewp_unfold (@crash A X s).
     iIntros "Hsi". done.
   Qed.
 
@@ -264,7 +264,7 @@ Local Ltac ewp_invert :=
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
           iMod (ewp_ret_inv with "[$]") as "HΦ"
       (* EWP crash *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
           match goal with
           | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
             iMod (ewp_crash_inv with "[$]") as "%"
@@ -529,7 +529,7 @@ Section ewp_rules.
 
     (* Case : [m1] is [crash]; trivial  *)
     { iClear "IH".
-      by setoid_rewrite (ewp_unfold crash); rewrite /ewp_pre /=. }
+      by setoid_rewrite (ewp_unfold (crash _)); rewrite /ewp_pre /=. }
 
     (* Case : [m1] is [Perform _ _]. *)
     { cbn.
@@ -716,9 +716,9 @@ Section ewp_rules.
     iFrame.
   Qed.
 
-  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
+  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ :
     pointsto l (DfracOwn 1) Shot -∗
-    EWP Crash @ E <| ψ |> {{ φ }} -∗
+    (∀ s, EWP (Crash s) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hcrash".
@@ -728,11 +728,12 @@ Section ewp_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume_shot in Hstep; eauto. destruct Hstep; subst.
+    eapply invert_step_resume_shot in Hstep; eauto. destruct Hstep as (-> & s & ->).
 
     (* Update the ghost heap. *)
     ewp_mask_elim.
     iFrame.
+    eauto.
   Qed.
 
   (* [CWrap]. *)

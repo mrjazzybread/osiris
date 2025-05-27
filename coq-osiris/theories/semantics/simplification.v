@@ -500,16 +500,16 @@ Qed.
 
 (* [crash] cannot be simplified. *)
 
-Lemma destruct_simplify_crash {A E} n (m2 : micro A E) :
-  simplify n crash m2 →
-  m2 = crash.
+Lemma destruct_simplify_crash {A E} n (m2 : micro A E) s :
+  simplify n (crash s) m2 →
+  m2 = crash s.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
 
-Lemma destruct_simp_crash {A E} (m2 : micro A E) :
-  simp crash m2 →
-  m2 = crash.
+Lemma destruct_simp_crash {A E} (m2 : micro A E) s :
+  simp (crash s) m2 →
+  m2 = crash s.
 Proof.
   intro h; dependent induction h; eauto.
 Qed.
@@ -561,7 +561,7 @@ Qed.
 Ltac clarify_simplify :=
   repeat match goal with
   | h: simplify _ (ret _) ?m |- _ => apply destruct_simplify_ret in h
-  | h: simplify _ crash ?m |- _ => apply destruct_simplify_crash in h
+  | h: simplify _ (crash _) ?m |- _ => apply destruct_simplify_crash in h
   | h: simplify _ (throw _) ?m |- _ => apply destruct_simplify_throw in h
   | h: simplify _ (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simplify_perform in h;
@@ -571,7 +571,7 @@ Ltac clarify_simplify :=
 Ltac clarify_simp :=
   repeat match goal with
   | h: simp (ret _) ?m |- _ => apply destruct_simp_ret in h
-  | h: simp crash ?m |- _ => apply destruct_simp_crash in h
+  | h: simp (crash _) ?m |- _ => apply destruct_simp_crash in h
   | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
   | h: simp (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simp_perform in h;
@@ -585,8 +585,8 @@ Ltac clarify_simp :=
 
 Definition final {A E} (m : micro A E) :=
   match m with
-  | Ret _ | Throw _ | Crash => True
-  | _                       => False
+  | Ret _ | Throw _ | Crash _ => True
+  | _                         => False
   end.
 
 Lemma destruct_simplify_final {A E n} {m1 m2 : micro A E} :
@@ -829,7 +829,7 @@ Proof.
     eauto with rtc. }
   (* Case: [m1] is stuck. *)
   { apply only_crash_and_throw_and_perform_are_stuck in Hm1.
-    destruct Hm1 as [| [(e & ?) | (e & k & ?)]]; subst m1; simpl in Hfinal;
+    destruct Hm1 as [(s & ?) | [(e & ?) | (e & k & ?)]]; subst m1; simpl in Hfinal;
     clarify_simplify; solve [ eauto with rtc | tauto ]. }
 Qed.
 

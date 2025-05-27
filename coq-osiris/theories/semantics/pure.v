@@ -57,35 +57,35 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayAlloc v k :
   may
     (Stop CAlloc v k)
-    crash
+    (crash "impure")
 | MayLoad lv k :
   may
     (Stop CLoad lv k)
-    crash
+    (crash "impure")
 | MayStore l k :
   may
     (Stop CStore l k)
-    crash
+    (crash "impure")
 | MayResume lo k :
   may
     (Stop CResume lo k)
-    crash
+    (crash "impure")
 | MayWrap t k :
   may
     (Stop CWrap t k)
-    crash
+    (crash "impure")
 | MayPerform e k :
   may
     (Stop CPerf e k)
-    crash
-| MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
+    (crash "impure")
+| MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) s :
   may
-    (Par crash m2 k)
-    crash
-| MayParCrashRight {A1 A2 E'} m1 (k : outcome2 (A1 * A2) E' → _) :
+    (Par (crash s) m2 k)
+    (crash s)
+| MayParCrashRight {A1 A2 E'} m1 (k : outcome2 (A1 * A2) E' → _) s :
   may
-    (Par m1 crash k)
-    crash
+    (Par m1 (crash s) k)
+    (crash s)
 | MayParRetRet {A1 A2 E'} a1 a2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par (Ret a1) (Ret a2) k)
@@ -117,10 +117,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Handle (Throw e) h)
     (discontinue h e)
-| MayHandleCrash h :
+| MayHandleCrash h s :
   may
-    (Handle crash h)
-    crash
+    (Handle (crash s) h)
+    (crash s)
 | MayHandle m m' h :
   may m m' →
   may
@@ -153,7 +153,7 @@ that are [pure] *)
 (** Computations are either final or may reduce *)
 
 Lemma may_cases {A E} (m : micro A E) :
-  m = crash ∨ (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
+  (∃ s, m = crash s) ∨ (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
 Proof.
   induction m; eauto with may;
     firstorder; subst; eauto 10 with may.
@@ -201,7 +201,7 @@ Proof.
   by eq_dep_inj.
 Qed.
 
-Lemma invert_may_crash A E (m : micro A E) : may crash m → False.
+Lemma invert_may_crash A E (m : micro A E) s : may (crash s) m → False.
 Proof.
   inversion 1.
 Qed.
@@ -243,9 +243,9 @@ Proof.
 Qed.
 
 Lemma invert_may_perform {A E} (m' : micro A E) e h:
-  may (Stop CPerf e h) m' → m' = crash.
+  may (Stop CPerf e h) m' → ∃ s, m' = crash s.
 Proof.
-  by inversion 1.
+  by inversion 1; eauto.
 Qed.
 
 Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1 m2 m' :
@@ -255,7 +255,7 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ m2', may m2 m2' ∧ m' = Par m1 m2' k) ∨
   (∃ e1, m1 = throw e1 ∧ m' = discontinue k e1) ∨
   (∃ e2, m2 = throw e2 ∧ m' = discontinue k e2) ∨
-  ((m1 = crash ∨ m2 = crash) ∧ m' = crash).
+  (∃ s, (m1 = crash s ∨ m2 = crash s) ∧ m' = crash s).
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
@@ -296,7 +296,7 @@ Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro 
   may (bind m k) m1 →
   (∃ m', may m m' ∧ m1 = bind m' k) ∨
   (∃ a, m = ret a ∧ may (k a) m1) ∨
-  m1 = crash.
+  (∃ s, m1 = crash s).
 Proof.
   rewrite bind_as_try2.
   intros [(m' & Hm & ->)|[(a & -> & Ha)|(e & -> & He)]]%invert_may_try2.

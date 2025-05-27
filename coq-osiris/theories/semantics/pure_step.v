@@ -12,7 +12,7 @@ repository) in terms of the normal step relation *)
 at toplevel *)
 
 Inductive ipure : forall {A E}, micro A E → Prop :=
-  | ipure_crash A E : @ipure A E Crash (* proofs work with or without this line  *)
+  | ipure_crash A E s : @ipure A E (Crash s) (* proofs work with or without this line  *)
   | ipure_ret A E v : @ipure A E (Ret v)
   | ipure_throw A E e : @ipure A E (Throw e)
   | ipure_handle A E m (h : _ → micro A E) : ipure m → ipure (Handle m h)
@@ -68,25 +68,27 @@ Qed.
 
 (** Non-immediately-pure computations can reduce to [Crash] *)
 
-Local Lemma not_ipure_crash {A E} (m : micro A E) : ~ipure m → rtc may m Crash.
+Local Lemma not_ipure_crash {A E} (m : micro A E) : ~ipure m → ∃ s, rtc may m (Crash s).
 Proof.
   induction m; intros N.
   - destruct N. constructor.
   - destruct N. constructor.
-  - constructor.
-  - ospecialize (IHm _). by intros P; destruct N; constructor.
-    apply rtc_r with (Handle Crash h). 2:constructor.
+  - exists msg. constructor.
+  - ospecialize (IHm _). by intros P; destruct N; constructor. destruct IHm as [s IHm].
+    exists s. apply rtc_r with (Handle (Crash s) h). 2:constructor.
     clear -IHm. induction IHm; econstructor; eauto with may.
   - destruct c.
     all: try (destruct N; constructor).
-    all: apply rtc_once; constructor.
+    all: eexists; apply rtc_once; constructor.
   - destruct (ipure_dec m1) as [P1 | N1].
     + destruct (ipure_dec m2) as [P2 | N2].
       * destruct N; constructor; auto.
       * specialize (IHm2 N2).
-        apply rtc_r with (Par m1 crash k). 2:constructor.
+        destruct IHm2 as [s IHm2]. exists s.
+        apply rtc_r with (Par m1 (crash s) k). 2:constructor.
         clear -IHm2. induction IHm2; econstructor; eauto with may.
     + specialize (IHm1 N1).
-      apply rtc_r with (Par crash m2 k). 2:constructor.
+      destruct IHm1 as [s IHm1]. exists s.
+      apply rtc_r with (Par (crash s) m2 k). 2:constructor.
       clear -IHm1. induction IHm1; econstructor; eauto with may.
 Qed.

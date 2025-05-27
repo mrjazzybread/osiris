@@ -9,7 +9,7 @@ all:
 
 .PHONY: clean
 clean:
-	@ git clean -fdX .
+	dune clean
 
 .PHONY: lint
 lint:

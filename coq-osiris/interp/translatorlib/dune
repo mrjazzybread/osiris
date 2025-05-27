@@ -1,0 +1,20 @@
+(library
+ (name translatorlib)
+ (libraries
+   ocaml-compiler-libs.bytecomp
+ )
+ (preprocess (pps ppx_deriving.show))
+ (flags :standard "-w" "A-4-27-32-40-42-70")
+)
+
+; All modules are imported from the osiris translator. They are not imported
+; directly in the parent directory because the Syntax.ml file conflicts with the
+; syntax.ml file extracted from syntax.v
+
+(rule (copy ../../../osiris/src/ErrorReports.ml  ErrorReports.ml  ))
+(rule (copy ../../../osiris/src/ErrorReports.mli ErrorReports.mli ))
+(rule (copy ../../../osiris/src/Fail.ml          Fail.ml          ))
+(rule (copy ../../../osiris/src/Fail.mli         Fail.mli         ))
+(rule (copy ../../../osiris/src/Syntax.ml        Syntax.ml        ))
+(rule (copy ../../../osiris/src/Translate.ml     Translate.ml     ))
+(rule (copy ../../../osiris/src/Translate.mli    Translate.mli    ))

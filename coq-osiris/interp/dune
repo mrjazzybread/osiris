@@ -1,0 +1,8 @@
+(executable
+  (package osiris-interpreter)
+  (public_name osiris-interpreter)
+  (name interp)
+  ; TODO make flags more specific, e.g. to extracted code or conversion modules
+  (flags :standard "-w" "A-40-41-42-44-45")
+  (libraries translatorlib extracted)
+)
