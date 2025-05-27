@@ -22,7 +22,7 @@ Local Definition call_spec' {X : Type} := X -> microvx -> Prop.
    holds for any call of [c] on an argument. *)
 
 Local Definition Spec' `{Encode X} (c : val) (P : call_spec') :=
-  ∀ (x : X), P x (fun_spec.call c #x).
+  ∀ (x : X), P x (fun_spec.im_call c #x).
 
 (* -------------------------------------------------------------------------- *)
 

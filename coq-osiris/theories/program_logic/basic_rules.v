@@ -97,6 +97,37 @@ Section ewp_basic_rules.
     by ewp_mask_elim.
   Qed.
 
+  Lemma ewp_please E η e φ Ψ :
+    ▷ EWP eval η e @ E <| Ψ |> {{ φ }} -∗
+    EWP please_eval η e @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Heval".
+    ewp_unfold_head.
+    intro_state.
+    ewp_mask_intro "Hclose".
+    rewrite /please_eval.
+    iSplitR. { iPureIntro. eexists _. apply StepEval. }
+    intro_step.
+    iModIntro. ewp_mask_elim.
+    iAssert (⌜m' =  eval η e⌝)%I as "->".
+    { iPureIntro.
+      simple inversion Hstep; try discriminate.
+      apply pair_eq in H as [_ H].
+      remember (η0, e0) as p0.
+
+      replace η0 with p0.1 in *; last first.
+      { by rewrite Heqp0. }
+      replace e0 with p0.2 in *; last first.
+      { by rewrite Heqp0. }
+
+      dependent destruction H.
+      apply pair_eq in H0 as [_ H0].
+      rewrite try2_ret_right in H0.
+      by rewrite H0. }
+
+    dependent destruction Hstep. iFrame.
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
 
   (** Monotonicity. *)
@@ -1125,13 +1156,26 @@ Section ewp_val_rules.
         by iApply "IH".
   Qed.
 
-  Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
-    { m ensures φ } ->
-    ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
+  Lemma ewp_pure_wp {A X} (m : micro A X) E Ψ (φ : A -> Prop) :
+    pure_wp m φ ⊥ ->
+    ⊢ EWP m @ E <| Ψ |> {{ RET v, ⌜φ v⌝ }}.
   Proof.
     iIntros (W).
     iApply ewp_mono.
     iApply pure_ewp. eassumption. iIntros ([]); eauto.
+  Qed.
+
+  Lemma ewp_pure `{Encode A} {X} (m : micro val X) E Ψ (φ : A -> Prop) :
+    pure m φ ⊥ ->
+      ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }} .
+  Proof.
+    iIntros (Hpure).
+    iApply ewp_mono.
+    iApply ewp_pure_wp. apply Hpure.
+    iIntros ([v|]); [ | iIntros ([]) ].
+    iIntros "(%a & %Henc & %Ha)".
+    iPureIntro.
+    exists a. auto.
   Qed.
 
 End ewp_val_rules.
@@ -1322,7 +1366,7 @@ Section ewp_eval.
     iIntros (v1 v2) "Hspec ->".
     unfold widen; simpl_eval_pat; simpl.
     iApply "Hcov".
-    iExists v1; by iFrame.
+    iExists v1. by iFrame.
   Qed.
 
 End ewp_eval.
