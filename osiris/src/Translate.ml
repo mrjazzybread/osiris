@@ -619,6 +619,8 @@ and translate_primitive_application loc path p args =
 
   (* Integers. *)
 
+  | ["Stdlib"; "~+"], "%identity", [e] ->
+      e
   | _, "%negint", [e] ->
       EIntNeg e
   | _, "%addint", [e1; e2] ->
