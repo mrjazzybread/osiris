@@ -637,6 +637,18 @@ and translate_primitive_application loc path p args =
       EIntSub (e, EInt 1)
   | _, "%succint", [e] ->
       EIntAdd (e, EInt 1)
+  | _, "%andint", [e1; e2] ->
+      EIntLand (e1, e2)
+  | _, "%orint", [e1; e2] ->
+      EIntLor  (e1, e2)
+  | _, "%xorint", [e1; e2] ->
+      EIntLxor (e1, e2)
+  | _, "%lslint", [e1; e2] ->
+      EIntLsl  (e1, e2)
+  | _, "%lsrint", [e1; e2] ->
+      EIntLsr  (e1, e2)
+  | _, "%asrint", [e1; e2] ->
+      EIntAsr  (e1, e2)
 
   (* Structural equality and comparison. *)
 

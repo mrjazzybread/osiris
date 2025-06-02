@@ -230,6 +230,27 @@ let rec expr (e : expr) =
   | EIntMod (e1, e2) ->
       c "EIntMod" [ expr e1; expr e2 ]
 
+  | EIntLand (e1, e2) ->
+      c "EIntLand" [expr e1; expr e2]
+
+  | EIntLor  (e1, e2) ->
+      c "EIntLor" [expr e1; expr e2]
+
+  | EIntLxor (e1, e2) ->
+      c "EIntLxor" [expr e1; expr e2]
+
+  | EIntLnot e ->
+      c "EIntLnot" [expr e]
+
+  | EIntLsl  (e1, e2) ->
+      c "EIntLsl" [expr e1; expr e2]
+
+  | EIntLsr  (e1, e2) ->
+      c "EIntLsr" [expr e1; expr e2]
+
+  | EIntAsr  (e1, e2) ->
+      c "EIntAsr" [expr e1; expr e2]
+
   | EFloat f ->
       c "EFloat" [ plain (sprintf "(%s)%%float" f)]
 

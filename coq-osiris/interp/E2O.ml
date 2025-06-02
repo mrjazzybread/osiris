@@ -99,9 +99,13 @@ let rec expr : E.expr -> O.expr = function
   | EIntMul (e1, e2) -> EIntMul (expr e1, expr e2)
   | EIntDiv (e1, e2) -> EIntDiv (expr e1, expr e2)
   | EIntMod (e1, e2) -> EIntMod (expr e1, expr e2)
-  | EIntLand _ | EIntLor _ | EIntLxor _ | EIntLnot _
-  | EIntLsl _ | EIntLsr _ | EIntAsr _ ->
-    failwith "Bitwise operations not supported -- TODO"
+  | EIntLand (e1, e2) -> EIntLand (expr e1, expr e2)
+  | EIntLor (e1, e2) -> EIntLor (expr e1, expr e2)
+  | EIntLxor (e1, e2) -> EIntLxor (expr e1, expr e2)
+  | EIntLnot e -> EIntLnot (expr e)
+  | EIntLsl (e1, e2) -> EIntLsl (expr e1, expr e2)
+  | EIntLsr (e1, e2) -> EIntLsr (expr e1, expr e2)
+  | EIntAsr (e1, e2) -> EIntAsr (expr e1, expr e2)
   | EFloat s -> EFloat (string_of_float s)
   | EChar c -> EChar (char c)
   | EString s -> EString (string s)
