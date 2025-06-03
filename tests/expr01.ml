@@ -1,3 +1,4 @@
+let print_bool b = print_string (if b then "true" else "false")
 let print n = print_int n; print_newline ()
 
 let () =
@@ -13,23 +14,43 @@ let () =
   print (109 mod 11)
 
 let () =
-  (* TODO: max_int; abs; land, ^, int_of_char, etc  *)
   for a = -10 to 10 do
+    print (- a);
+    print (+ a);
     print (succ a);
     print (pred a);
     for b = -10 to 10 do
       print (a + b);
-      print (a * b);
       print (a - b);
-      if b <> 0 then print (a / b);
-      if b <> 0 then print (a mod b);
+      print (a * b);
+      if b <> 0 then (
+        print (a / b);
+        print (a mod b)
+      );
+      print (a land b);
+      print (a lor b);
+      print (a lxor b);
+      if b >= 0 then (
+        print (a lsl b);
+        print (a lsr b);
+        print (a asr b)
+      );
+      print_bool (a = b);
+      print_bool (a <> b);
+      print_bool (a < b);
+      print_bool (a <= b);
+      print_bool (a > b);
+      print_bool (a >= b);
+      print_newline ();
+      let i = ref a in
+      while !i < b do print_int !i; i := !i + 1 done;
+      print_newline ();
     done
   done
 
 let () =
   let f x = (x + 3) * (x / 2) + if x > 2 then 10 else 20 in
   print (f 0 + f 1 + f 10)
-
 
 let f x = (x + 3) * (x / 2) + if x > 2 then 10 else 20
 

@@ -36,3 +36,34 @@ let r = ref 1
 let f () = try perform E with effect E, k -> continue k (1 + !r * perform E)
 let x = try f () with effect E, k -> r := 2; continue k (2 * !r)
 let () = print_int x
+
+
+exception Stop
+
+let () =
+  print_int @@
+  match perform E with
+  | v -> v
+  | effect E, k -> discontinue k Stop
+  | exception Stop -> 4
+
+let () =
+  print_int @@
+  match try perform E with Stop -> 4 with
+  | v -> v
+  | effect E, k -> discontinue k Stop
+
+let () =
+  print_int @@
+  try
+    try perform E with Stop -> 4
+  with effect E, k -> discontinue k Stop
+
+let r = ref 1
+let f () = try perform E with effect E, k -> discontinue k Stop
+let x =
+  print_int @@
+  match f () with
+  | v -> v
+  | effect E, k -> r := 2; continue k (2 * !r)
+  | exception Stop -> 3
