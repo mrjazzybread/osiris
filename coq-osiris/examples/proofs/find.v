@@ -74,7 +74,7 @@ Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
 
 Lemma iter_module_pure :
   ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{ RET m, module_spec [("find_elem", λ find, iSpec τ[list A; val] find find_spec)] m }}.
+    {{ RET m, module_spec [("find_first", λ find, iSpec τ[list A; val] find find_spec)] m }}.
 Proof.
   iApply ewp_module.
   iApply ewp_sitems_cons.
@@ -145,15 +145,12 @@ Proof.
     (* We are done with the effectful part of the program, so we can drop down
        to Horus, the pure program logic. *)
     iApply ewp_pure.
-    (* A [try .. with ..] is just sugar for a match expression. *)
     eapply pure_eval_match'_exn.
-    { (* Subgoal: evaluate the scrutinee [List.iter _ _; None]. *)
-      eapply pure_eval_seq with (φ' := Forall (λ x, ¬ φ x) xs).
-      { (* First evaluate the call to [List.iter]. *)
-        eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp; fold eval).
-        { (* Find iter in the environment. *) pure_path. }
-        2:{ (* find [l] in the environment. *) pure_path; apply eq_refl. }
-        { (* Evaluate the lambda expression we pass to [iter]:
+    { (* Subgoal: evaluate the scrutinee [List.iter _ _]. *)
+      eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp; fold eval).
+      { (* Find iter in the environment. *) pure_path. }
+      2:{ (* find [l] in the environment. *) pure_path; apply eq_refl. }
+      { (* Evaluate the lambda expression we pass to [iter]:
            it is a function with
            - a single argument of type [a]
            - a specification [scan_spec]. *)
@@ -200,17 +197,12 @@ Proof.
         (* Specifiy the invariant that [iter] will maintain. *)
         specialize (Hm (λ Xs, Forall (λ x, ¬ φ x) Xs)).
         apply Hm. apply Hscan. apply Forall_nil. done. }
-      (* Second half of the sequence: evaluate the constant [None]. *)
-      intros Hforall.
-      eapply (@pure_eval_const (option A)). encode.
-      instantiate (1 := λ o, o = None ∧ Forall (λ x, ¬ φ x) xs).
-      simpl. auto. }
 
     (* We have now finished evaluating the scrutinee of the
-       [try .. with ..] expression, we move on to the branches. *)
+       [match .. with ..] expression, we move on to the branches. *)
     - (* Case 1: We returned a value, we don't get caught in the branch *)
-      intros ? (-> & Hforall). pure_match.
-      pure_path.
+      intros () Hforall. pure_match.
+      eapply pure_eval_const.
       instantiate (1 := @None A); apply solve_encode_None; reflexivity.
       apply Hforall.
 
