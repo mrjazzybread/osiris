@@ -166,8 +166,8 @@ Proof.
             eapply (pure_EApp τ[A]);
               [ pure_path | pure_path; apply eq_refl | simpl; unfold tapp ].
             (* We now connect the specs of [pred] and the lambda.
-             They have the same success postcondition, so we only need
-             to exploit the fact that [pred] cannot fail. *)
+               They have the same success postcondition, so we only need
+               to exploit the fact that [pred] cannot fail. *)
             intros ? -> m Hm; eapply pure_exn_mono.
             eapply Hm. contradiction. }
           - (* Case: [pred x] returned true and we learn [φ x]. *)
@@ -179,6 +179,8 @@ Proof.
             apply pure_wp_Par_vals_right.
             eapply pure_wp_ret. eapply pure_wp_widen. eapply pure_wp_ret.
             simpl. pure_ret.
+            (* Prove the failure postcondition of the lambda.
+               That is to say, that [φ] holds for some [x ∈ xs]. *)
             split; try auto.
             exists x; split; first reflexivity.
             split; last assumption.
