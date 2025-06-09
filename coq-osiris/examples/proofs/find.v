@@ -29,7 +29,7 @@ Definition listiter_invariant_spec `{Encode A} (f : val) (lsuf : list A) (m : mi
 
 Definition listiter_spec `{Encode A} (f : val) (l : list A) (m : microvx) : Prop :=
   ∀ (I : list A → Prop) φ,
-    @Spec τ[A] f (λ (X : A) (mf : microvx),
+    Spec τ[A] f (λ (X : A) (mf : microvx),
         ∀ (Xs : list A),
           (Xs ++ [X]) `prefix_of` l ->
           I Xs ->
@@ -46,7 +46,7 @@ Definition scan_spec `{Encode A} ℓ (l : list A) φ (X : A) (m : microvx) : Pro
     Forall (λ x, ¬ (φ x)) Xs ->
     pure m
       (λ (v :()), Forall (λ x, ¬ (φ x)) (Xs ++ [X]))
-      (λ e, (∃ (x : A), e = VXData ℓ [ #x ] ∧ φ x) ∧ Forall (λ x, ¬ (φ x)) Xs).
+      (λ e, (∃ (x : A), e = VXData ℓ [ #x ] ∧ x ∈ l ∧ φ x) ∧ Forall (λ x, ¬ (φ x)) Xs).
 
 Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp Σ :=
   ∀ (φ : A -> Prop),
@@ -57,7 +57,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
     EWP m {{ RET #o, ⌜match o with
-                    | Some x => φ x
+                    | Some x => x ∈ l ∧ φ x
                     | None => Forall (λ x, ¬ (φ x)) l
                     end⌝ }}.
 
@@ -179,6 +179,12 @@ Proof.
             apply pure_wp_Par_vals_right.
             eapply pure_wp_ret. eapply pure_wp_widen. eapply pure_wp_ret.
             simpl. pure_ret.
+            split; try auto.
+            exists x; split; first reflexivity.
+            split; last assumption.
+            eapply elem_of_prefix; last eassumption.
+            apply elem_of_app; right.
+            apply elem_of_list_here.
           - (* Case: [pred x] returned false and we learn [¬ φ x]. *)
             intros Hnφ.
             (* Prove the success postcondition of the lambda.
@@ -199,14 +205,14 @@ Proof.
       simpl. auto. }
 
     (* We have now finished evaluating the scrutinee of the
-       [try .. with ..] expression. *)
-    - (* Case: We returned a value, we don't get caught in the branch *)
+       [try .. with ..] expression, we move on to the branches. *)
+    - (* Case 1: We returned a value, we don't get caught in the branch *)
       intros ? (-> & Hforall). pure_match.
-      eapply pure_eval_path. simpl. eapply pure_ret.
-      instantiate (1 := @None A). apply solve_encode_None. reflexivity.
+      pure_path.
+      instantiate (1 := @None A); apply solve_encode_None; reflexivity.
       apply Hforall.
 
-    - (* Case: We raised an exception, we get caught by the branch. *)
+    - (* Case 2: We raised an exception, we get caught by the branch. *)
       simpl. intros ? [(x & -> & Hx) _].
       pure_match.
       apply pure_eval_data. eapply pure_evals_cons. pure_path. apply pure_evals_nil.
