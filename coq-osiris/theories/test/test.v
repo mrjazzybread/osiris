@@ -1,7 +1,7 @@
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-From osiris.proofmode Require Import notations pure_tactics.
+From osiris.proofmode Require Import pure_tactics.
 From stdpp Require Import relations base gmap.
 
 (* We want to test our semantics, so as to ensure that it seems to be
@@ -246,6 +246,14 @@ Lemma test_EFunction :
   reduces e v.
 Proof. reduces. simpl. reduces. Qed.
 
+Fixpoint EFunMultiPat (ps : list cpat) (e : expr) :=
+  match ps with
+  | [] =>
+      e
+  | p :: ps =>
+      EAnonFun (AnonFunction [Branch p (EFunMultiPat ps e)])
+  end.
+
 Lemma test_EFun :
   let e :=
     ELet1Var "f" (
@@ -255,10 +263,9 @@ Lemma test_EFun :
       ] $
       EIntAdd (EVar "x1") (EVar "y2")
     ) $
-    EMultiApp (EVar "f") [
-      EPair (EInt 10) (EInt 20);
-      EPair (EInt 30) (EInt 40)
-    ]
+    (EVar "f")
+      (EPair (EInt 10) (EInt 20))
+      (EPair (EInt 30) (EInt 40))
   in
   let v := VInt (repr 50) in
   reduces e v.
@@ -356,7 +363,7 @@ Lemma test_open :
                 ILet (Binding1 (PVar "x") (EInt 0));
                 ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
               ];
-            IOpenMkPath ["B"];
+            IOpen (MPath ["B"]);
             ILet (Binding1 (PVar "z") (EPath ["y"]))
           ]
       ) $
@@ -386,7 +393,7 @@ Lemma test_include :
                 ILet (Binding1 (PVar "x") (EInt 0));
                 ILet (Binding1 (PVar "y") (EIntAdd (EVar "x") (EInt 1)))
               ];
-            IIncludeMkPath ["B"];
+            IInclude (MPath ["B"]);
             ILet (Binding1 (PVar "z") (EPath ["y"]))
           ]
       ) $

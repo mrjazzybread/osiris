@@ -1,29 +1,135 @@
-From iris.bi Require Import weakestpre.
-From iris Require Import base_logic.lib.gen_heap.
+From osiris.lang Require int.
 From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import specifications.
+From osiris.lang Require Import syntax.
 
-(* Cf.
-   https://coq.inria.fr/doc/V8.10.2/refman/user-extensions/syntax-extensions.html#displaying-symbolic-notations
-   for information on notation formatting. *)
-
-(* TODO Most of the notation in this file should go away.
-   The rest should be cleaned up and documented. *)
+Coercion EApp : expr >-> Funclass.
 
 (* We use [Goal (trivial e)] to avoid printing notation the notation of [e]
    to stdout when compiling *)
 
-Local Definition trivial {A : Type} := (λ (_ : A), True).
+Local Definition trivial {A : Type} := (fun (_ : A) => True).
 
 (* ------------------------------------------------------------------------ *)
 
+(* Decorations. *)
+
+(* A decoration is a string (typically, a snippet extracted out of the
+   OCaml source file) that has no semantic meaning. *)
 (* When a decoration is present, the underlying AST is not shown. *)
 
+Definition deco {A} (decoration : string) (a : A) :=
+  a.
+
 Notation "'ocaml' decoration" := (deco decoration _)
-  (at level 8, only printing).
+                                   (at level 8, only printing).
+
+(* ------------------------------------------------------------------------ *)
+
+(** Define some derived forms. *)
+
+(* Pairs: pattern, expression, value. *)
+
+Definition PPair p1 p2 :=
+  PTuple [p1; p2].
+
+Definition EPair e1 e2 :=
+  ETuple [e1; e2].
+
+Definition VPair v1 v2 :=
+  VTuple [v1; v2].
+
+
+(* Options: values. *)
+
+Definition VNone :=
+  (VConstant "None").
+
+Definition VSome v :=
+  (VData "Some" [ v ]).
+
+
+(* Lists: patterns, expressions, values. *)
+
+Definition pNil :=
+  (PConstant "[]").
+
+Definition pCons p1 p2 :=
+  (PData "::" [p1; p2]).
+
+Definition eNil :=
+  (EConstant "[]").
+
+Definition eCons e1 e2 :=
+  (EData "::" [e1; e2]).
+
+Definition VNil :=
+  (VConstant "[]").
+
+Definition VCons v1 v2 :=
+  (VData "::" [v1; v2]).
+
+(* Expressions. *)
+
+(* [x]. *)
+
+Definition EVar x :=
+  (EPath [x]).
+
+(* [p = e]. *)
+
+Definition Binding1 (p : pat) (e : expr) : list binding :=
+  [Binding p e].
+
+(* [let p = e1 in e2]. *)
+
+Definition ELet1 (p : pat) (e1 e2 : expr) :=
+  ELet (Binding1 p e1) e2.
+
+(* [let x = e1 in e2]. *)
+
+Definition ELet1Var (x : var) (e1 e2 : expr) :=
+  ELet1 (PVar x) e1 e2.
+
+Definition EFun1Var (x : var) (e : expr) :=
+  EAnonFun (AnonFun x e).
+
+(* [function bs] is sugar for [fun x -> match x with bs]. *)
+
+(* The variable [x] must not occur micro in [bs]. *)
+
+(* We use a reserved name for [x]. Provided end users do not use such a
+   reserved name in their OCaml source code, we can be assured that [x]
+   does not occur micro in [bs]. *)
+
+(* TODO: consider replacing AnonFunction by a Hoare-style reasoning rule
+   allowing us to discard the anonymous argument's name *)
+
+Definition AnonFunction (bs : list branch) : anonfun :=
+  let x := "__osiris_anonymous_arg" in
+  AnonFun x (EMatch (EVar x) bs).
+
+Definition EFunction (bs : list branch) :=
+  EAnonFun (AnonFunction bs).
+
+(* [rec f x = e1]. *)
+
+Definition RecBinding1Var (f x : var) (e1 : expr) : list rec_binding :=
+  [RecBinding f (AnonFun x e1)].
+
+(* [rec f 'p = e] *)
+
+Definition RecBinding1Pat f p e :=
+  [RecBinding f $ AnonFun p e].
+
+(* [rec f = a] *)
+
+Definition RecBinding1 f a :=
+  [RecBinding f a].
+
+(* [let rec f x = e1 in e2]. *)
+
+Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
+  ELetRec (RecBinding1Var f x e1) e2.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -58,13 +164,6 @@ Number Notation expr EInt_of_Z Z_of_EInt : expr_scope.
 
 Open Scope expr_scope.
 
-(* ------------------------------------------------------------------------ *)
-
-(* Store-related notations. *)
-
-Notation "l ↦ v" :=
-  (pointsto l (DfracOwn 1) v) (at level 20).
-
 (* -------------------------------------------------------------------------- *)
 (* Environment-related rules. *)
 
@@ -75,13 +174,15 @@ Notation "l ↦ v" :=
       namen ~> valuen] if line-breaking is necessary,
    - [name1 ~> value1; ...; namen ~> valuen] otherwise. *)
 
-Notation "n1 ~> v1" :=
-  (@pair var val n1 v1)
-    (at level 90, right associativity, format "n1  ~>  v1").
+Notation "n1 ~> v1 ; η" :=
+  (@cons (var * val) (n1, v1) η)
+    (at level 80, η at level 200, right associativity,
+      format "n1  ~>  v1 ;  '//' η").
 
-Notation "p ; η" :=
-  (@cons (var * val) p η)
-    (at level 80, only printing, right associativity, format "p ;  '//' η").
+Notation "n1 ¬> v1" :=
+  (@cons (var * val) (n1, v1) nil)
+    (at level 80, right associativity,
+      format "n1  ¬>  v1").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)
@@ -101,6 +202,7 @@ Goal (trivial (EPath ["base"])). Abort.
 Goal (trivial
         (EPath ["A"; "B"; "C"; "base"])).
 Abort.
+
 
 (* -------------------------------------------------------------------------- *)
 (* Closures, function applications, and function calls. *)
@@ -221,13 +323,6 @@ Abort.
 Goal (trivial (Branch (CVal PAny) 2)). Abort.
 
 (* -------------------------------------------------------------------------- *)
-(* [Stop]-related notations. *)
-
-Notation "'ref' v ';' '...continuations'" := (Stop CAlloc v _ _) (only printing).
-Notation "'!' v ';' '...continuations'" := (Stop CLoad v _ _) (only printing).
-Notation "ℓ ':=' v ';' '...continuations'" := (Stop CStore (ℓ, v) _ _) (at level 70, only printing).
-
-(* -------------------------------------------------------------------------- *)
 (* Records *)
 
 Notation "n1 := v1" :=
@@ -280,33 +375,4 @@ Notation "{ r 'with' fds }" :=
     (only printing,
       format "{  r  'with'  fds  }").
 
-(* -------------------------------------------------------------------------- *)
-(* Hoare-style judgements. *)
-
 Close Scope expr_scope.
-
-Global Arguments eval _ _%_expr_scope.
-
-(* Notation for osiris contexts on pure propositions *)
-
-(* Notation "Γ '--------------------------------------env' e { Q }" := *)
-(*   (pure_enc (eval Γ e%expr) Q) *)
-(*   (only printing, at level 100, *)
-(*       format "'[' Γ '//' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
-
-
-(* Notation "'--------------------------------------env' e { Q }" := *)
-(*   (pure_enc e Q) *)
-(*   (only printing, at level 100, *)
-(*       format "'[' '--------------------------------------env' '//' e '//' '//' {  Q  } ']'"). *)
-
-(* Notation "Γ '--------------------------------------env' module me { Q }" := *)
-(*   (eval_module Γ me Q) *)
-(*     (only printing, at level 100, *)
-(*       format "'[' Γ '//' '--------------------------------------env' '//' module  me '//' '//' {  Q  } ']'"). *)
-
-
-(* Notation "Γ '--------------------------------------env' struct_items bs { Q }" := *)
-(*   (struct_items (Γ, _) bs Q) *)
-(*     (only printing, at level 100, *)
-(*       format "'[' Γ '//' '--------------------------------------env' '//' struct_items  bs '//' '//' {  Q  } ']'"). *)

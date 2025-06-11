@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import syntax encode sugar locations.
+From osiris.lang Require Import syntax encode notations locations.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic.pure Require Import pure_rules.
 

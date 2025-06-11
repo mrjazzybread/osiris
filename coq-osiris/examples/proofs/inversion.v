@@ -28,11 +28,11 @@ Section iteration_methods.
       □ (∀ (Xs : list A) (X : A),
            ⌜ permitted (Xs ++ [X]) ⌝ -∗
            I Xs -∗
-           EWP (call f #X) @ E <| ψ |> {{ RET _, I (Xs ++ [X]) }})
+           EWP (call f #X) @ E <| ψ |> {{ ensures _, I (Xs ++ [X]) }})
       -∗
       I [] -∗
       EWP (call iter f) @E <| ψ |>
-        {{ RET _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
+        {{ ensures _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
 
 End iteration_methods.
 
@@ -73,7 +73,7 @@ Section lazy_sequences.
     (isSeq :  iEff Σ -d> val -d> list A -d> iPropO Σ)
            : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
     λ Ψ k Xs,
-      EWP (call k #()) <| Ψ |> {{ RET h, isHead_pre isSeq Ψ h Xs }}%I.
+      EWP (call k #()) <| Ψ |> {{ ensures h, isHead_pre isSeq Ψ h Xs }}%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
   Local Instance isHead_pre_contractive : Contractive isSeq_pre.
@@ -200,7 +200,7 @@ Section verification.
     Definition invert_spec invert : iProp Σ :=
       ∀ (iter : val),
       isIter iter -∗
-      EWP (call_anonfun env invert [iter]) {{ RET k, isSeq ⊥ k [] }}.
+      EWP (call_anonfun env invert [iter]) {{ ensures k, isSeq ⊥ k [] }}.
 
   End specification.
 
@@ -212,7 +212,7 @@ Section verification.
     Lemma yield_handler_correct l (iter yield : val) γ (Ys : list A) :
       handlerView γ Ys -∗
       deep_handler_spec ⊤ (ψ_yield l (iterView γ))
-        (RET _, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
+        (ensures _, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o, eval_branches
            ("__osiris_anonymous_arg" ~> VUnit;
             "yield" ~> yield;
@@ -222,7 +222,7 @@ Section verification.
             env)
            o
            __branches3)
-        ⊥ (RET h, isHead ⊥ h Ys).
+        ⊥ (ensures h, isHead ⊥ h Ys).
     Proof.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
@@ -294,7 +294,7 @@ Section verification.
                     iterView γ Xs -∗
                     ⌜permitted (Xs ++ [X])⌝ -∗
                     EWP call v #X <| ψ_yield l (iterView γ) |>
-                      {{ RET _, iterView γ (Xs ++ [X]) }} )%I).
+                      {{ ensures _, iterView γ (Xs ++ [X]) }} )%I).
       { Simp; Ret; simpl.
         iIntros "!>" (Xs X) "Hiter Hpermitted".
         iApply ewp_call_nonrec.
@@ -329,7 +329,7 @@ Section verification.
                 (* Handlee's protocol: *)
                 (ψ_yield l (iterView γ))
                 (* Handlee's postcondition: *)
-                (RET _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
+                (ensures _, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
                with "[Hiter HiterView] [HhandlerView]").
 
       (* Subgoal: The body of the match [iter yield] produces

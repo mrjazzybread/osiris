@@ -43,7 +43,7 @@ Integers.ml           Integers.mli           \
 int.ml                int.mli                \
 locations.ml          locations.mli          \
 syntax.ml             syntax.mli             \
-sugar.ml              sugar.mli              \
+notations.ml          notations.mli          \
 outcome.ml            outcome.mli            \
 code.ml               code.mli               \
 Mergesort.ml          Mergesort.mli          \

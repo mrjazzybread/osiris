@@ -38,8 +38,8 @@ Section ewp_rules_expr.
 
   (* TODO: These should all be [simp]-level lemmas *)
   Lemma ewp_eval_bindings_cons_total η p e bs φ1 φs φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
-    EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φs v }} -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
+    EWP eval_bindings η bs @ E <|Ψ|> {{ ensures v, φs v }} -∗
     (∀ v δ, φ1 v -∗ φs δ -∗
        ∃ δ', ⌜simp (irrefutably_extend η δ p v) (ret δ')⌝
                ∗ φ (O2Ret δ')) -∗
@@ -56,7 +56,7 @@ Section ewp_rules_expr.
   Qed.
 
   Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v, Φ v }} -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
           ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝
@@ -100,8 +100,8 @@ Section ewp_rules_expr.
   (** * EPath : path → expr *)
 
   Lemma ewp_EPath η p φ E Ψ :
-    EWP lookup_path η p @ E <|Ψ|> {{ RET v, φ v }} -∗
-    EWP eval η (EPath p) @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP lookup_path η p @ E <|Ψ|> {{ ensures v, φ v }} -∗
+    EWP eval η (EPath p) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H /=". simpl_eval.
     iApply ewp_try.
@@ -113,8 +113,8 @@ Section ewp_rules_expr.
   (** * EAnonFun : anonfun → expr *)
 
   Lemma ewp_EAnonFun `{Encode A} η x e φ E Ψ P :
-    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ RET v, φ v }}) -∗
-    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ RET v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ RET v, φ v}} }}.
+    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ ensures v, φ v }}) -∗
+    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ ensures v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ ensures v, φ v}} }}.
   Proof.
     iIntros "H". simpl_eval.
     iApply ewp_value. simpl.
@@ -124,8 +124,8 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EAnonFun_partial `{Encode A, Encode B} η x e (φ : B -> iProp Σ) E Ψ P :
-    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ RET #v, φ v }}) -∗
-    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ RET v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ RET #v, φ v}} }}.
+    ▷ (∀ (vx : A), P vx -∗ EWP eval ((x, #vx)::η) e @ E <| Ψ |> {{ ensures #v, φ v }}) -∗
+    EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ ensures v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ ensures #v, φ v}} }}.
   Proof.
     iIntros "H". simpl_eval.
     iApply ewp_value. simpl.
@@ -153,8 +153,8 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EApp η e1 e2 v1 v2 φ E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET v, ⌜v = v1⌝ }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET v, ⌜v = v2⌝ }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v, ⌜v = v1⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v, ⌜v = v2⌝ }} -∗
     EWP call v1 v2 @ E <|Ψ|> {{ φ }} -∗
     EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -164,8 +164,8 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EApp' η e1 e2 φ1 φ2 φ E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET v, φ1 v }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET v, φ2 v }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v, φ2 v }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗
        EWP call v1 v2 @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
@@ -216,14 +216,14 @@ Section ewp_rules_expr.
   (** * ETuple : list expr → expr *)
 
   Lemma ewp_ETuple_forward_exn η es φs φe E Ψ :
-    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{| RET v => φi v; | EXN e => φe e }}) -∗
+    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v => φi v; | EXN e => φe e }}) -∗
     EWP eval η (ETuple es) @ E <|Ψ|>
-      {{| RET v => ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi;
+      {{  RET v => ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi;
         | EXN e => φe e }}.
   Proof.
     iIntros "H /=". simpl_eval.
     iApply ewp_bind_exn.
-    iApply (ewp_mono _ _ (| RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
+    iApply (ewp_mono _ _ (  RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
                           | EXN v => φe v) with "[-]")%I.
     2: by iIntros ([]) "A/="; auto; iApply ewp_value; simpl; iExists _; auto.
     iInduction es as [ | ei es ] "IH" forall (φs) "H"; simpl_evals.
@@ -237,9 +237,9 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_ETuple_forward η es φs E Ψ :
-    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v, φi v }}) -∗
+    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ ensures v, φi v }}) -∗
     EWP eval η (ETuple es) @ E <|Ψ|>
-      {{ RET v, ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi }}.
+      {{ ensures v, ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi }}.
   Proof.
     iApply ewp_ETuple_forward_exn.
   Qed.
@@ -286,9 +286,9 @@ Section ewp_rules_expr.
   Proof. iIntros "He". simpl. iFrame. Qed.
 
   Lemma ewp_ETuple η es φs φ E Ψ :
-    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v, φi v }}) -∗
+    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ ensures v, φi v }}) -∗
     (∀ vs, ([∗ list] vi; φi ∈ vs; φs, φi vi) -∗ φ (VTuple vs)) -∗
-    EWP eval η (ETuple es) @ E <|Ψ|> {{ RET vs, φ vs }}.
+    EWP eval η (ETuple es) @ E <|Ψ|> {{ ensures vs, φ vs }}.
   Proof.
     iIntros "H P".
     iApply (ewp_mono_ret with "[H]").
@@ -330,19 +330,19 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EPair_ret η e1 e2 φ1 φ2 E Ψ φ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET v, φ1 v }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET v, φ2 v }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v, φ2 v }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ φ #(v1, v2)) -∗
-    EWP eval η (EPair e1 e2) @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP eval η (EPair e1 e2) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H1 H2 P".
     iApply (ewp_EPair_exn with "H1 H2 [P]"); auto.
   Qed.
 
   Lemma ewp_EPair_ret_encode η e1 e2 `{Encode A} `{Encode B} (v1 : A) (v2 : B) R1 R2 E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET #r, ⌜r = v1⌝ ∗ R1 }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET #r, ⌜r = v2⌝ ∗ R2 }} -∗
-    EWP eval η (EPair e1 e2) @ E <|Ψ|> {{ RET #r, ⌜r = (v1, v2)⌝ ∗ R1 ∗ R2 }}.
+    EWP eval η e1 @ E <|Ψ|> {{ ensures #r, ⌜r = v1⌝ ∗ R1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures #r, ⌜r = v2⌝ ∗ R2 }} -∗
+    EWP eval η (EPair e1 e2) @ E <|Ψ|> {{ ensures #r, ⌜r = (v1, v2)⌝ ∗ R1 ∗ R2 }}.
   Proof.
     iIntros "H1 H2".
     iApply (ewp_mono_ret with "[H1 H2]").
@@ -401,9 +401,9 @@ Section ewp_rules_expr.
   (* Qed. *)
 
   Lemma ewp_EData η c es E ψ φs φ :
-    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ ensures v, φi v }}) -∗
     (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VData c vs)) -∗
-    EWP eval η (EData c es) @ E <|ψ|> {{ RET v, φ v }}.
+    EWP eval η (EData c es) @ E <|ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "Hes Hmon /=". simpl_eval.
     iApply ewp_bind.
@@ -442,9 +442,9 @@ Section ewp_rules_expr.
 
   Lemma ewp_EXData η π l es E ψ φs φ :
     lookup_path η π = ret (VLoc l) ->
-    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ RET v, φi v }}) -∗
+    ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ ensures v, φi v }}) -∗
     (∀ vs : list val, ([∗ list] vi;φi ∈ vs;φs, φi vi) -∗ φ (VXData l vs)) -∗
-    EWP eval η (EXData π es) @ E <|ψ|> {{ RET v, φ v }}.
+    EWP eval η (EXData π es) @ E <|ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros (Hlookup) "He Hmon".
     simpl_eval. rewrite Hlookup. simpl.
@@ -499,10 +499,10 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EIntAdd η e1 e2 φ1 φ2 φ E Ψ :
-    EWP as_int (eval η e1) @ E <|Ψ|> {{ RET n1, φ1 n1 }} -∗
-    EWP as_int (eval η e2) @ E <|Ψ|> {{ RET n2, φ2 n2 }} -∗
+    EWP as_int (eval η e1) @ E <|Ψ|> {{ ensures n1, φ1 n1 }} -∗
+    EWP as_int (eval η e2) @ E <|Ψ|> {{ ensures n2, φ2 n2 }} -∗
     (∀ n1 n2, φ1 n1 ∗ φ2 n2 -∗ φ (VInt (int.M.add n1 n2))) -∗
-    EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ RET n, φ n }}.
+    EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ ensures n, φ n }}.
   Proof.
     iIntros "H1 H2 P".
     iApply (ewp_EIntAdd_exn with "H1 H2"); auto.
@@ -510,10 +510,10 @@ Section ewp_rules_expr.
 
   (* TODO: this may be the preferred style, wait and see *)
   Lemma ewp_EIntAdd' η e1 e2 (φ1 φ2 φ : Z -> iProp Σ) E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET #n1, φ1 n1 }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET #n2, φ2 n2 }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures #n1, φ1 n1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures #n2, φ2 n2 }} -∗
     (∀ n1 n2, φ1 n1 ∗ φ2 n2 -∗ φ (n1 + n2)%Z) -∗
-    EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ RET #n, φ n }}.
+    EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ ensures #n, φ n }}.
   Proof.
     iIntros "H1 H2 P".
     pose φ1' := (λ v, ∃ n, ⌜v = repr n⌝∗ φ1 n)%I.
@@ -574,7 +574,7 @@ Section ewp_rules_expr.
     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
     (∀ v1 v2, φ1 (O2Ret v1) ∗ φ2 (O2Ret v2) -∗
-      EWP eq_val v1 v2 @ E <|Ψ|> {{ RET b, φ (O2Ret (VBool b)) }}) -∗
+      EWP eq_val v1 v2 @ E <|Ψ|> {{ ensures b, φ (O2Ret (VBool b)) }}) -∗
     EWP eval η (EOpEq e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval.
@@ -591,10 +591,10 @@ Section ewp_rules_expr.
 
   Lemma ewp_EOpEq η e1 e2 (φ1 φ2 : val -> iProp Σ)
     (φ : outcome2 val exn -> iProp Σ) E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET v1, φ1 v1 }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET v2, φ2 v2 }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ v1 v2, φ1 v1 ∗ φ2 v2 -∗
-      EWP eq_val v1 v2 @ E <|Ψ|> {{ RET b, φ (O2Ret (VBool b)) }}) -∗
+      EWP eq_val v1 v2 @ E <|Ψ|> {{ ensures b, φ (O2Ret (VBool b)) }}) -∗
     EWP eval η (EOpEq e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H1 H2 P".
@@ -645,7 +645,7 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_ELet {η bs e} (φ' : env -> iProp Σ) φ E Ψ :
-    EWP eval_bindings η bs @ E <|Ψ|> {{ RET v, φ' v }} -∗
+    EWP eval_bindings η bs @ E <|Ψ|> {{ ensures v, φ' v }} -∗
     (∀ δ, φ' δ -∗ EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet bs e) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -660,7 +660,7 @@ Section ewp_rules_expr.
 
   (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
   Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ E Ψ:
-    EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
+    EWP eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
     (∀ v, Φ v -∗
         ∃ δ,
           ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝ ∗
@@ -678,7 +678,7 @@ Section ewp_rules_expr.
 
   (* Special case of [let x = e' in e] *)
   Lemma ewp_ELet_PVar_1 {η x e e'} (Φ : val -> iProp Σ) φ E Ψ:
-    EWP eval η e' @ E <|Ψ|> {{ RET v, Φ v }} -∗
+    EWP eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
     (∀ v, Φ v -∗ EWP eval ((x, v) :: η) e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [Binding (PVar x) e'] e) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -704,7 +704,7 @@ Section ewp_rules_expr.
 
   (* Special case of [let _ = e' in e] *)
   Lemma ewp_ELet_PAny_1 {η e e'} R φ E Ψ:
-    EWP eval η e' @ E <|Ψ|> {{ RET _, R }} -∗
+    EWP eval η e' @ E <|Ψ|> {{ ensures _, R }} -∗
     (R -∗ EWP eval η e @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELet [Binding PAny e'] e) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -755,10 +755,10 @@ Section ewp_rules_expr.
   (* TODO: check if this is actually simpler *)
   Lemma ewp_ELetRec_specced_ret_1 {η f x e1 e2 φ E Ψ} {A} (R : A → val → iProp Σ) φf :
     □(∀ vf,
-     □(∀ a v, R a v -∗ EWP call vf v {{ RET v', φf a v' }}) -∗
-       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 {{ RET v', φf a v' }}) -∗
+     □(∀ a v, R a v -∗ EWP call vf v {{ ensures v', φf a v' }}) -∗
+       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 {{ ensures v', φf a v' }}) -∗
     (∀ vf,
-      □(∀ a v, R a v -∗ EWP call vf v {{ RET v', φf a v' }}) -∗
+      □(∀ a v, R a v -∗ EWP call vf v {{ ensures v', φf a v' }}) -∗
       EWP eval ((f, vf) :: η) e2 @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELetRec [RecBinding f (AnonFun x e1)] e2) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -769,7 +769,7 @@ Section ewp_rules_expr.
 
   (** * ELetOpen : mexpr → expr → expr *)
   Lemma ewp_ELetOpen η me e E ψ φ :
-    EWP eval_mexpr η me @ E <|ψ|> {{ RET m, ∃ δ, ⌜ m = VStruct δ ⌝ ∗
+    EWP eval_mexpr η me @ E <|ψ|> {{ ensures m, ∃ δ, ⌜ m = VStruct δ ⌝ ∗
     EWP eval (δ ++ η) e @ E <|ψ|> {{ φ }} }} -∗
     EWP eval η (ELetOpen me e) @ E <|ψ|> {{ φ }}.
   Proof.
@@ -800,7 +800,7 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_ESeq η e1 e2 φ E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ RET _, EWP eval η e2 @ E <|Ψ|> {{ φ }} }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures _, EWP eval η e2 @ E <|Ψ|> {{ φ }} }} -∗
     EWP eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H". simpl_eval. by iApply ewp_bind.
@@ -846,7 +846,7 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EIfThen η eb e1 φ E Ψ :
-    EWP eval η eb @ E <|Ψ|> {{ RET v,
+    EWP eval η eb @ E <|Ψ|> {{ ensures v,
       (⌜v = VTrue ⌝ ∗ EWP eval η e1 @ E <|Ψ|> {{ φ }})
     ∨ (⌜v = VFalse⌝ ∗ φ (O2Ret VUnit)) }} -∗
     EWP eval η (EIfThen eb e1) @ E <|Ψ|> {{ φ }}.
@@ -897,7 +897,7 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EIfThenElse η eb e1 e2 φ E Ψ :
-    EWP eval η eb @ E <|Ψ|> {{ RET v,
+    EWP eval η eb @ E <|Ψ|> {{ ensures v,
       (⌜v = VTrue ⌝ ∗ EWP eval η e1 @ E <|Ψ|> {{ φ }})
     ∨ (⌜v = VFalse⌝ ∗ EWP eval η e2 @ E <|Ψ|> {{ φ }}) }} -∗
     EWP eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> {{ φ }}.
@@ -920,7 +920,7 @@ Section ewp_rules_expr.
   (** * ERaise : expr → expr *)
 
   Lemma ewp_ERaise η e φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ | RET v => φ (O2Throw v); | EXN v => φ (O2Throw v)}} -∗
+    EWP eval η e @ E <|Ψ|> {{ RET v => φ (O2Throw v); | EXN v => φ (O2Throw v)}} -∗
     EWP eval η (ERaise e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H". simpl_eval.
@@ -983,8 +983,8 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EAssert η e R E Ψ :
-    R ∧ EWP eval η e @ E <|Ψ|> {{ RET v, ⌜v = VTrue⌝ ∗ R }} -∗
-    EWP eval η (EAssert e) @ E <|Ψ|> {{ RET _, R }}.
+    R ∧ EWP eval η e @ E <|Ψ|> {{ ensures v, ⌜v = VTrue⌝ ∗ R }} -∗
+    EWP eval η (EAssert e) @ E <|Ψ|> {{ ensures _, R }}.
   Proof.
     iIntros "H".
     iApply ewp_EAssert_exn.
@@ -997,8 +997,8 @@ Section ewp_rules_expr.
 
   (* TODO: is this version indeed simpler to use? *)
   Lemma ewp_EAssert_sep η e R E Ψ :
-    R ∗ (R -∗ EWP eval η e @ E <|Ψ|> {{ RET v, ⌜v = VTrue⌝ ∗ R }}) -∗
-    EWP eval η (EAssert e) @ E <|Ψ|> {{ RET _, R }}.
+    R ∗ (R -∗ EWP eval η e @ E <|Ψ|> {{ ensures v, ⌜v = VTrue⌝ ∗ R }}) -∗
+    EWP eval η (EAssert e) @ E <|Ψ|> {{ ensures _, R }}.
   Proof.
     iIntros "(? & ?)".
     iApply ewp_EAssert_exn_sep. iFrame. eauto.
@@ -1025,18 +1025,18 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_ERef η e φ1 φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
     (∀ v, φ1 v -∗ ∀ l, l ↦ (V v) -∗ φ (VLoc l)) -∗
-    EWP eval η (ERef e) @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP eval η (ERef e) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H P".
     iApply (ewp_ERef_exn with "H"); auto.
   Qed.
 
   Lemma ewp_ERef' η e φ1 E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
       EWP eval η (ERef e) @ E <|Ψ|>
-      {{ RET r, ∃ l v,
+      {{ ensures r, ∃ l v,
           ⌜r = VLoc l⌝ ∗ l ↦ (V v) ∗ φ1 v }}.
   Proof.
     iIntros "H".
@@ -1067,9 +1067,9 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_ELoad η e φ1 φ E Ψ :
-    EWP as_loc (eval η e) @ E <|Ψ|> {{ RET l, φ1 l }} -∗
+    EWP as_loc (eval η e) @ E <|Ψ|> {{ ensures l, φ1 l }} -∗
     (∀ l, φ1 l -∗ ∃ q v, pointsto l q (V v) ∗ ▷(pointsto l q (V v) -∗ φ v)) -∗
-    EWP eval η (ELoad e) @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP eval η (ELoad e) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H P".
     iApply (ewp_ELoad_exn with "H"); auto.
@@ -1109,11 +1109,11 @@ Section ewp_rules_expr.
   Qed.
 
   Lemma ewp_EStore {η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ) φ E Ψ :
-    EWP as_loc (eval η e1) @ E <|Ψ|> {{ RET l1, φ1 l1 }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ RET v2, φ2 v2 }} -∗
+    EWP as_loc (eval η e1) @ E <|Ψ|> {{ ensures l1, φ1 l1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
       ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ VUnit)) -∗
-    EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H1 H2 P".
     iApply (ewp_EStore_exn with "H1 H2"); auto.
@@ -1137,7 +1137,7 @@ Section ewp_rules_expr.
   (** * EPerform : expr -> expr *)
 
   Lemma ewp_EPerform η e E ψ (φ1 : val -d> iPropO Σ) φ :
-    EWP eval η e @ E <|ψ|> {{ RET v, φ1 v }} -∗
+    EWP eval η e @ E <|ψ|> {{ ensures v, φ1 v }} -∗
     (∀ v, φ1 v -∗ EWP perform v @ E <|ψ|> {{ φ }} ) -∗
     EWP eval η (EPerform e) @ E <|ψ|> {{ φ }}.
   Proof.
@@ -1150,8 +1150,8 @@ Section ewp_rules_expr.
   (** * EContinue : expr -> expr -> expr *)
 
   Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
-    EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
-    EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    EWP as_cont (eval η e1) @ E <|ψ|> {{ ensures k, φ1 k }} -∗
+    EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
                 EWP stop CResume (k, O2Ret v) @ E <|ψ|> {{ φ }}) -∗
     EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
@@ -1168,8 +1168,8 @@ Section ewp_rules_expr.
   Qed.
 
   Corollary ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
-    EWP as_cont (eval η e1) @ E <|ψ|> {{ RET k, φ1 k }} -∗
-    EWP eval η e2 @ E <|ψ|> {{ RET v2, φ2 v2 }} -∗
+    EWP as_cont (eval η e1) @ E <|ψ|> {{ ensures k, φ1 k }} -∗
+    EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
        ∃ sk, k ↦ K sk ∗
         (k ↦ Shot -∗

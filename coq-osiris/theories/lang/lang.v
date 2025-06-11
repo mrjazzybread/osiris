@@ -6,7 +6,7 @@ From osiris.lang Require Export
   char
   locations
   syntax
-  sugar
+  notations
   encode
   type_nel
 .

@@ -1,6 +1,6 @@
 From stdpp Require Import gmap.
 From osiris Require Import base.
-From osiris.lang Require Import syntax locations sugar.
+From osiris.lang Require Import syntax locations notations.
 From osiris.semantics Require Import code step strategy eval.
 From osiris.stdlib Require Import Stdlib.
 

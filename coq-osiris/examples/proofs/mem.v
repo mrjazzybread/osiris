@@ -28,11 +28,11 @@ Context `{!osirisGS Σ}.
 
 Definition mem_spec mem :=
   (∀ (A : Type) (H : Encode A) (H0 : Eq) (x : A) (l : list A),
-      EWP (ncall mem [ #x; #l]) <|⊥|> {{ RET #b, ⌜b = memb x l⌝ }})%I.
+      EWP (ncall mem [ #x; #l]) <|⊥|> {{ ensures #b, ⌜b = memb x l⌝ }})%I.
 
 Lemma mem_module :
   ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{RET m, module_spec [("mem", mem_spec)] m}}.
+    {{ensures m, module_spec [("mem", mem_spec)] m}}.
 Proof.
   iIntros.
   iApply ewp_module.

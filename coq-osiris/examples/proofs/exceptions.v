@@ -21,7 +21,7 @@ Context `{!osirisGS Σ}.
 Definition head_spec head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
     ⊢ ewp_def top (call head #l) ⊥
-      (| RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝ ;
+      (  RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝ ;
        | EXN e => ⌜e = VXData (Loc 0) [] /\ l = []⌝ )%I.
 
 (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
@@ -30,7 +30,7 @@ Definition head_spec head :=
 Definition catch_head_spec catch_head :=
   ∀ (A : Type) (H : Encode A) (l : list A),
     ⊢ ewp_def top (call catch_head #l) ⊥
-      (RET #hopt, ⌜match l with
+      (ensures #hopt, ⌜match l with
                   | [] => hopt = None
                   | h :: _ => hopt = Some h
                   end⌝)%I.
@@ -87,7 +87,7 @@ Proof.
       iApply ewp_mono. { iApply Hhead. }
       iIntros ([ v | ex ]) "Houtcome".
       - simpl.
-        iApply (ewp_value _ _ (| RET v => bi_pure(_ v); | EXN e => bi_pure(_ e))%I).
+        iApply (ewp_value _ _ (RET v => bi_pure(_ v); | EXN e => bi_pure(_ e))%I).
         iDestruct "Houtcome" as "(%h & %t & -> & ->)".
         iPureIntro.
         instantiate (1 := (λ v, ∃ h t, l = h :: t ∧ v = (#(Some h)))).

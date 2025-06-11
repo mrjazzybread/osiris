@@ -73,13 +73,13 @@ Section ewp_spec.
   | Tbase X, c, P :=
       ∀ (x : X), P x (fun_spec.im_call c #x)
   | type_nel.Tcons X τ', c, P :=
-      ∀ (x : X), EWP (call c #x) {{ RET c, iSpec τ' c (P x) }}.
+      ∀ (x : X), EWP (call c #x) {{ ensures c, iSpec τ' c (P x) }}.
 
   Local Lemma ewp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
     :
     (∀ (v : X), P v (eval ((x, #v) :: η) e)) -∗
-    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ RET c, iSpec τ[X] c P }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply ewp_value.
@@ -90,7 +90,7 @@ Section ewp_spec.
     (P : τ[X;Y] -#> microvx -> iProp Σ) η (x y : var) e E Ψ
     :
     (∀ (vx : X) (vy : Y), P vx vy (eval ((y, #vy) :: (x, #vx) :: η) e)) -∗
-    EWP (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <| Ψ |> {{ RET c, iSpec τ[X;Y] c P }}.
+    EWP (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <| Ψ |> {{ ensures c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply ewp_value. simpl; simp iSpec.
@@ -185,7 +185,7 @@ Section ewp_spec.
     (x : var)
     e E Ψ :
     predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
-    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ RET c, iSpec τ c P }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, iSpec τ c P }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply ewp_value; simpl.
