@@ -66,50 +66,6 @@ Notation "l ↦ v" :=
   (pointsto l (DfracOwn 1) v) (at level 20).
 
 (* -------------------------------------------------------------------------- *)
-(* Notations used to handle n-ary calls. *)
-Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
-  (wp s E (call f v1)
-      (fun v => wp s E (call v v2)
-                   (.. (fun v =>  wp s E (call v vn) φ ) ..)))
-  (only printing).
-
-(* -------------------------------------------------------------------------- *)
-(* Specific cases of the weakest precondition assertions. *)
-
-(* [WP Par m1 m2 k z @s; E {{ φ }}] is printed as follows (if breaking lines is
-   required):
-   [ WP Par
-         ( m1 )
-         ( m2 )
-         ...continuations @ s; E
-         {{ φ }} ] *)
-Notation "'WP' 'Par' '(' m1 ')' '(' m2 ')' '...continuations' '@' s ';' E '{{' φ '}}'" :=
-  (wp s E (Par m1 m2 _ _) φ)
-    (only printing, format
-    "'[hv    ' 'WP'  'Par' '/' '(' m1 ')' '/' '(' m2 ')' '/'  '...continuations'  '@' s ';'  E '/'  '{{'  φ  '}}' ']'").
-
-
-(* [WP (bind m k) @s; E {{ φ }}] is printed as follows (if breaking lines is
-   required):
-   [ WP focus
-         m1
-         ...continuation
-         {{ φ }} ]
-  Note that [s] and [E] should not be required before the evaluation of
-  [bind]. This explains why they are hidden. *)
-Notation "'WP' 'focus' m '...continuation' {{ φ }}" :=
-  (wp _ _ (bind m _) φ)
-    (only printing,
-       format "'WP'  '[v  ' 'focus'  m  '//' '...continuation'  '//' {{  '[v ' φ ']'  }} ']'").
-
-Notation "'WP' e {{ v , ... } }" :=
-  (wp NotStuck ⊤ e%E (λ v, wp _ _ _ _))
-    (at level 20, e at level 200,
-       only printing,
-       format "'[hv' 'WP'  e  '/' {{  '[' v ,  '/' '...'  ']' } } ']'") : bi_scope.
-
-
-(* -------------------------------------------------------------------------- *)
 (* Environment-related rules. *)
 
 (* Environments are associative lists.
@@ -119,13 +75,13 @@ Notation "'WP' e {{ v , ... } }" :=
       namen ~> valuen] if line-breaking is necessary,
    - [name1 ~> value1; ...; namen ~> valuen] otherwise. *)
 
-Notation "n1 ~> v1 ; η" :=
-  (@cons (var * val) (n1, v1) η)
-    (at level 80, right associativity, format "n1  ~>  v1 ;  '//' η").
-
 Notation "n1 ~> v1" :=
-  (@cons (var * val) (n1, v1) [])
-    (at level 90, right associativity, format "n1 ~> v1").
+  (@pair var val n1 v1)
+    (at level 90, right associativity, format "n1  ~>  v1").
+
+Notation "p ; η" :=
+  (@cons (var * val) p η)
+    (at level 80, only printing, right associativity, format "p ;  '//' η").
 
 Notation "x  '≈>'  f" :=
   (RecBinding x f)
@@ -134,19 +90,13 @@ Notation "x  '≈>'  f" :=
 (* -------------------------------------------------------------------------- *)
 (* Paths, tuples and ADTs. *)
 
-Notation "'EPath' x1" :=
-  (EPath [x1])
-    (at level 90,
-      only printing,
-      format "'EPath'  x1").
-
-Goal (trivial (EPath ["base"])). Abort.
-
 Notation "'EPath' x1 '.' .. '.' xm" :=
   (EPath (cons x1 (.. (cons xm nil) ..)))
     (at level 200,
       only printing,
        format "'EPath'  x1 '.' .. '.' xm").
+
+Goal (trivial (EPath ["base"])). Abort.
 
 Goal (trivial
         (EPath ["A"; "B"; "C"; "base"])).
@@ -201,18 +151,13 @@ Goal (trivial
          (EString "arg3"))).
 Abort.
 
-Notation "'WP'  'calln' f v1 v2 .. vn @ s ; E {{ φ }}" :=
-  (wp s E (call f v1)
-      (fun v => wp s E (call v v2)
-                   (.. (fun v =>  wp s E (call v vn) φ ) ..)))
-  (only printing).
-
 (* -------------------------------------------------------------------------- *)
 (* Loops and conditionals. *)
 
-Notation "e1 ; e2" :=
+Notation "e1 ;; e2" :=
   (ESeq e1 e2)
-    (only printing, format "e1 ;  '/' e2", at level 80).
+    (at level 100, e2 at level 200,
+      format "'[' '[hv' '[' e1 ']' ;; ']' '/' e2 ']'").
 
 Goal (trivial
         (ESeq
