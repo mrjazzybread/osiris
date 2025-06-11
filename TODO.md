@@ -6,11 +6,10 @@
 
 * Add support for concurrency (SC first; weak memory later).
 
-* Annotate data type constructors
-  with the unique identity of their data type.
-  This is required in order to obtain a faithful semantics of pattern matching.
-  (Otherwise, our semantics might predict success in cases where a crash should
-   be predicted.)
+* Annotate `VData` and `PData` with the unique identity of the data type.
+  During pattern matching, check that the types are equal; otherwise crash.
+  We might otherwise continue normally (with a match success or a match
+  failure) in cases where a crash should occur.
 
 * Improve our current support for tuples and algebraic data types
   (Hoare-style rules for `VTuple`, `VData`, ...).
