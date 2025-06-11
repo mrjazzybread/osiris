@@ -8,7 +8,6 @@
 ### Irene's TODO's
 
 - Repair bst.v
-- Delete the .ml source files that have no correspondences
 
 
 ## Cleanup
