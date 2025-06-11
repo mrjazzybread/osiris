@@ -8,8 +8,6 @@
 ### Irene's TODO's
 
 - Repair bst.v
-- Merge exceptions.v into exceptions_pure.v into one file
-- Remove fact_rec.v
 - Delete the .ml source files that have no correspondences
 
 
