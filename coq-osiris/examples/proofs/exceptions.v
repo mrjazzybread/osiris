@@ -114,7 +114,7 @@ Section proof_effectful.
   (* Calling [head #l] either returns [#h] when [l = h :: t],
     or throws an exception when [l = []]. *)
 
-  Definition head_spec head :=
+  Definition head_eff_spec head :=
     ∀ (A : Type) (H : Encode A) (l : list A),
       ⊢ ewp_def top (call head #l) ⊥
         (| RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝ ;
@@ -123,7 +123,7 @@ Section proof_effectful.
   (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
     or returns [None] when [l = []]. *)
 
-  Definition catch_head_spec catch_head :=
+  Definition catch_head_eff_spec catch_head :=
     ∀ (A : Type) (H : Encode A) (l : list A),
       ⊢ ewp_def top (call catch_head #l) ⊥
         (RET #hopt, ⌜match l with
@@ -131,7 +131,7 @@ Section proof_effectful.
                     | h :: _ => hopt = Some h
                     end⌝)%I.
 
-  Lemma example :
+  Lemma example_eff :
     eval_module stdlib_with_notfound __main (λ η, True).
   Proof.
     unfold __main.
@@ -139,8 +139,8 @@ Section proof_effectful.
 
     (* Struct item: [let head l = ...] *)
     eapply structs_cons.
-    { apply struct_let_single with (spec := head_spec).
-      pure_simp; unfold head_spec; intros.
+    { apply struct_let_single with (spec := head_eff_spec).
+      pure_simp; unfold head_eff_spec; intros.
       iIntros.
       destruct l; Simp.
       { iApply ewp_throw. simpl. equality. }
@@ -149,8 +149,8 @@ Section proof_effectful.
 
     (* Struct item: [let catch_head l = ...] *)
     eapply structs_cons.
-    { apply struct_let_single with (spec := catch_head_spec).
-      pure_simp; unfold catch_head_spec; intros.
+    { apply struct_let_single with (spec := catch_head_eff_spec).
+      pure_simp; unfold catch_head_eff_spec; intros.
       iIntros. iApply ewp_call_nonrec.
       iModIntro.
       prove_match.
@@ -174,8 +174,8 @@ Section proof_effectful.
 
     (* Struct item: [let catch_head2 l = ...] *)
     eapply structs_cons.
-    { apply struct_let_single with (spec := catch_head_spec).
-      pure_simp; unfold catch_head_spec; intros.
+    { apply struct_let_single with (spec := catch_head_eff_spec).
+      pure_simp; unfold catch_head_eff_spec; intros.
       iIntros. iApply ewp_call_nonrec.
       iModIntro.
       prove_match.
