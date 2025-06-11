@@ -6,6 +6,12 @@
 
 * Add support for concurrency (SC first; weak memory later).
 
+* Annotate data type constructors
+  with the unique identity of their data type.
+  This is required in order to obtain a faithful semantics of pattern matching.
+  (Otherwise, our semantics might predict success in cases where a crash should
+   be predicted.)
+
 * Improve our current support for tuples and algebraic data types
   (Hoare-style rules for `VTuple`, `VData`, ...).
   In the long term, figure what kind of boilerplate
@@ -222,6 +228,7 @@
 * `when` clauses (may be easy to handle just by viewing `when e1 e2`
     as an expression that raises `Next` if `e1` evaluates to `false`)
 * Recursive modules? (Used in Sek, for example.)
+* The OCaml FFI.
 * We *could* support `[%extension_constructor X]`,
   although it is so obscure that it is perhaps not worth the trouble.
   See "Built-in extension nodes" in the OCaml manual.
