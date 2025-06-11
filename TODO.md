@@ -5,11 +5,6 @@
 - README for more detailed instructions
 - VM?
 
-### Irene's TODO's
-
-- Repair bst.v
-
-
 ## Cleanup
 
 * Remove dead branches.
