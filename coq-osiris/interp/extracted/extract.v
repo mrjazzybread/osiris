@@ -19,10 +19,10 @@ Extract Inductive list => "list" [ "[]" "(::)" ].
 
 (* Realization of axioms *)
 
-(* int_size is defined to be 63 -- TODO: improve legibility by defining some int_size_63 in int.v *)
+(* int_size is defined to be 63 *)
 Extract Constant int.int_size => "S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))".
 Extract Constant PrimFloat.float => "Float.t".
-(* External compare are currently unsupported -- TODO *)
+(* External compare are currently unsupported *)
 Extract Constant Externals__compare => "VClo ([], AnonFun (EmptyString, EUnsupported))".
 Extract Constant Stdlib__compare => "VClo ([], AnonFun (EmptyString, EUnsupported))".
 
