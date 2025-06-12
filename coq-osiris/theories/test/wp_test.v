@@ -84,7 +84,6 @@ Proof.
   Simp. Par.
   { Bind.
     Apply "Hid"; subst; cbn.
-    (* FIXME *)
     Unshelve.
     2 : exact (fun x => ⌜x = [VConstant "A"]⌝)%I.
     cbn. iPureIntro; done. }

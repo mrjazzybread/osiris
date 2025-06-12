@@ -369,5 +369,4 @@ Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)
 From osiris Require Export syntax.
-(* LATER: import [semantics] after [eval, pure] compiles *)
 From osiris.semantics Require Export code micro step.

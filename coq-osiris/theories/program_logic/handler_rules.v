@@ -121,7 +121,6 @@ Section handler_specifications.
 
 End handler_specifications.
 
-(* LATER: refactor *)
 Local Ltac ewp_invert :=
   match goal with
   | |- context [environments.Esnoc _ ?SI (state_interp _)] =>

@@ -378,7 +378,6 @@ Section pure_rules.
 
 End pure_rules.
 
-(* LATER: See if generalization to [Observe] is useful. *)
 Section pure_rules_variant.
 
   (* When a [val] is returned, there is no need for [encode]. *)

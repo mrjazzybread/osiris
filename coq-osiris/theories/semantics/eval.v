@@ -1497,7 +1497,6 @@ Definition eval_anonfun η fn := eval η (EAnonFun fn).
   a list of arguments [args] in environment [η]. *)
 
 (* N-ary application on function calls *)
-(* LATER: Make this normal form. *)
 Fixpoint nary_call (arg : list val) (acc : microvx) : microvx :=
   match arg with
     | nil => acc

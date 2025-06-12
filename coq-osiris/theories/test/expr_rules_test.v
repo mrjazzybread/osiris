@@ -354,7 +354,7 @@ Proof.
   prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
   { iApply ewp_EConstant. encode. }
 
-  iIntros_RET "->". change (VNil) with (#(@nil A)). (* FIXME: we don't want this change. *)
+  iIntros_RET "->". change (VNil) with (#(@nil A)).
   next_branch.
   revert H0.
   instantiate (1 := (fun _ => False)); instantiate (1 := (fun _ => False)).

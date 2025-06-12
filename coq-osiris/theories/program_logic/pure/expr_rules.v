@@ -194,7 +194,7 @@ Qed.
 
 (* A special case at arity [2,3,4]. *)
 
-(* LATER: Abstraction is broken; don't use [pure_wp] here. *)
+(* Abstraction is broken; don't use [pure_wp] here. *)
 Local Ltac solve_eval_tuple :=
    intros; simpl_eval;
   repeat (
@@ -247,7 +247,7 @@ Proof.
 Qed.
 
 Lemma pure_eval_data_val `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
-  pure_wp (evals η e) (λ v', VData c v' = #y) ζ -> (* LATER: Should we clean this up? *)
+  pure_wp (evals η e) (λ v', VData c v' = #y) ζ ->
   ψ y ->
   pure (eval η (EData c e)) ψ ζ.
 Proof.
@@ -1088,7 +1088,7 @@ Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
           eval (θ ++ η) e2
         ) ψ ζ) ζ ->
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ζ.
-Proof. (* LATER: Clean up this proof. *)
+Proof.
   (* This proof is a long rewriting sequence, which makes some sense as it is *)
 (*   not the standard method to prove a let binding, but rather a way to reduce the *)
 (*   wp of a parallel pair to ordered wps of two binds with error handling *)
@@ -1242,7 +1242,6 @@ Qed.
 
 (* EIfThen (e e1 : expr) *)
 
-(* LATER: More variants, analogous to [EIfThenElse] rules ? *)
 Lemma pure_ifthen
   η e e1 φ (ψ : exn -> Prop) :
   pure (A := bool) (eval η e)
@@ -1322,7 +1321,6 @@ Qed.
 
   [eval_branches] is used by [eval] when evaluating an [EMatch]. *)
 
-(* LATER: Revisit the [pure_wp] use cases. (necessary due to [pattern].) *)
 
 Definition branches `{Encode A}
   (η : env) (o : outcome3 val exn) bs (φ : A -> Prop) Ψ :=
@@ -1450,7 +1448,6 @@ Qed.
 (* For impure expressions that fell under the hood, we provide some
   "trivial" lemmas that warn the users that something has gone wrong. *)
 
-(* LATER: Rename? *)
 Definition NOT_PURE (s : string) : Prop := False.
 
 (** Performing an effect: [perform e]. *)

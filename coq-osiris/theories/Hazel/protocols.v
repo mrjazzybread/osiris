@@ -928,8 +928,7 @@ Section protocol_ordering_properties.
 End protocol_ordering_properties.
 
 (* Custom unfolding setting for [iEff]; we don't want to see the concrete
-   implementation on protocols. LATER: Cleanup to expose only the abstract
-   interface *)
+   implementation on protocols. *)
 
 (* -------------------------------------------------------------------------- *)
 

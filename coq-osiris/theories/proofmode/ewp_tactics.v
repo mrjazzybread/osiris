@@ -507,7 +507,7 @@ Ltac2 apply_deep_handle_cons () :=
                            let n := specify_cpattern () in
                            if (Int.gt n 0)
                            then
-        (* FIXME: Ugly. [specify_cpattern] resolves
+        (* [specify_cpattern] resolves
           a [cpattern] and leaves behind a [pattern] which needs
           to be solved with a [pattern_match0] here;
           and since [pattern_match0] does not return an integer

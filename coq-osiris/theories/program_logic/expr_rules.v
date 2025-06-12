@@ -22,7 +22,6 @@ Section ewp_rules_expr.
   (* -------------------------------------------------------------------------- *)
   (* Auxiliary lemmas that are useful when proving facts about [EWP eval _] *)
 
-  (* LATER: Strange name conflict on [void.void] *)
   Lemma ewp_widen {A E} (e : micro A void.void) v Ψ m φ :
     simp e (ret v) ->
     φ (O2Ret v) -∗

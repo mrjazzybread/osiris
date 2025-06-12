@@ -141,9 +141,7 @@ Proof. tauto. Qed.
     H2 : B > C
     EQ : A = C
     ---------
-    ...
-
-    LATER: Factor this out as a general utility lemma. *)
+    ... *)
 
 Local Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   let hyp_clauses :=
@@ -214,7 +212,6 @@ Ltac2 rec solve_lookup_name () :=
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
   end.
 
-(* LATER: Move? *)
 
 Local Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
   m = ret a ->

@@ -36,7 +36,7 @@ Arguments val_as_struct !v /.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
-Arguments eval.E.remove !f !fvs : simpl nomatch. (* FIXME *)
+Arguments eval.E.remove !f !fvs : simpl nomatch.
 Arguments update !fvs !fvs' : simpl nomatch.
 Arguments eval_pat η δ !p v.
 Arguments eval_pats η δ !ps !vs.

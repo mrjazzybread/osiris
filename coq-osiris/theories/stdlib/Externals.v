@@ -157,7 +157,6 @@ Section ExternalsDef.
      ("%apply", Externals__apply);
      ("%ignore", Externals__ignore);
      ("%identity", Externals__identity);
-     (* FIXME (important): [_ = _] and [_ == _] should differ. *)
      ("%equal", Externals__eq);
      ("%notequal", Externals__ne);
      ("%eq", Externals__eq);
