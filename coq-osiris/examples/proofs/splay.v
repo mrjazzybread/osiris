@@ -531,7 +531,7 @@ Proof.
          (l, x, r, ctx)).
 
   (* Recursion, with decreasing depth of zipper. *)
-  recursion { measure snd } ∀ (l, x, r, ctx). (* FIXME: VCloRec exposure. *)
+  recursion { measure snd } ∀ (l, x, r, ctx).
   clear l x r ctx; intros splay [[[l x] r] ctx] IH.
 
   (* Match to destruct the argument tuple *)
@@ -541,7 +541,7 @@ Proof.
   pure_match.
   eapply pure_eval_match. { pure_path. }
 
-  pure_match. (* Very slow. TODO Profile and fix. *)
+  pure_match. (* Very slow. *)
 
   (* Case: [ctx] matches [Root] *)
   { pure_data. }

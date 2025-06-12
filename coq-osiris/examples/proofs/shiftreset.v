@@ -86,7 +86,6 @@ End reasoning_rules.
 (** Verification. *)
 
 
-(* TODO: Improve and move. *)
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -189,12 +188,12 @@ Section verification.
     Call. iNext.
     unfold deco.
     iApply (ewp_EPerform _ _ _ _ (ieq ?[y])).
-    { EXData. (* TODO: Improve *)
+    { EXData.
       - iApply ewp_EPath. iApply ewp_value. equality.
       - iRewrite "HData_arg". equality. }
 
     iIntros (?) "->".
-    iApply ewp_perform. (* TODO: bake into ewp_EPerform. *)
+    iApply ewp_perform.
 
     rewrite /prot upcl_SHIFT. (* Investigate if this is automatable. *)
     iExists _, Q. iSplit; [ done | ]. iFrame.

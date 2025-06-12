@@ -177,7 +177,6 @@ Section verification.
 
     (* Continuing with the rest of the computation *)
 
-    (* TODO: Cleaner inversion of facts learned from let-bound term. *)
     iNext.
     iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
 
@@ -229,7 +228,6 @@ Section verification.
      iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
 
      { (* READ case *)
-       (* TODO: Notation on [iEff_car] is really ugly.. *)
        cbn; rewrite upcl_read.
        iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
        iCombine "Hstate Hx" as "H".
@@ -254,7 +252,7 @@ Section verification.
        iIntros "[-> Hl]".
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
-       { iNext. by rewrite /deep_handler_spec seal_eq. } (* FIXME: opacity control *)
+       { iNext. by rewrite /deep_handler_spec seal_eq. }
        iApply "H_READ".
 
        (* Hard to guess that this is trivial. *) tauto. }
@@ -355,7 +353,7 @@ Section verification.
       { Simp; Ret; simpl.
         iIntros "!>" (St x) "HSt".
         iApply ewp_call_nonrec. iNext. Simp.
-        rewrite <- solve_encode_unit; simpl; fold eval. (* FIXME: should not have to do this. *)
+        rewrite <- solve_encode_unit; simpl; fold eval.
         Simp.
         iApply ewp_perform.
         rewrite /prot. rewrite upcl_state upcl_read.
@@ -382,7 +380,6 @@ Section verification.
     iApply (ewp_sitems_let_singleton_var (run_spec rl wl)).
     { Simp. Ret. simpl. unfold run_spec.
       iIntros (spec init main) "Hmain".
-      (* TODO: UGLY. *)
       iPoseProof (localstate_run_spec rl wl) as "Hrunspec".
       rewrite /call_anonfun. simpl. rewrite /eval_anonfun.
       unfold eval; rewrite -> (@seal_eq _ pre_eval); simpl.

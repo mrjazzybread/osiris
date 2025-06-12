@@ -168,10 +168,6 @@ Section proof.
 
 Variable η : env.
 
-(* TODO: This is not the level of abstraction that we want to present
-   the user with. It shouldn't be required to write the induction
-   hypothesis or the [EMatch] expression by hand. *)
-
 Lemma merge_mkspec merge (l1 l2 : list Z) :
   (lookup_name η "l1" = ret #l1) ->
   (lookup_name η "l2" = ret #l2) ->
@@ -203,8 +199,6 @@ Proof.
      intros.
      eapply pure_eval_data. eapply pure_evals_cons.
      pure_path.
-     (* FIXME: Automation for encode is broken.
-         Probably encode shouldn't unfold here? *)
      unfold observe, observe_encode. encode.
      eapply @pure_evals_cons with (A := list Z).
 
@@ -236,7 +230,6 @@ Proof.
      simpl; intros. fold eval.
      eapply pure_eval_data. eapply pure_evals_cons.
      pure_path.
-     (* FIXME *)
      unfold observe, observe_encode. encode.
      eapply @pure_evals_cons with (A := list Z).
 
@@ -305,7 +298,7 @@ Proof.
     eapply pure_eval_data. eapply pure_evals_cons.
     pure_path. simpl. encode.
     eapply pure_evals_cons.
-    (* FIXME. *) eapply pure_eval_const with (x := @nil Z). encode.
+    eapply pure_eval_const with (x := @nil Z). encode.
     eapply pure_evals_nil.
     exists ([x]); split; [ encode | ].
     eapply pure_eval_const. encode.
@@ -322,7 +315,6 @@ Proof.
     unfold split_spec in Hm.
     eapply pure_ret_mono. { apply Hm. simpl; lia. }
     intros [l1 l2] Hpost; clear IH; simpl.
-    (* FIXME. *)
     simpl_eval_pat; simpl; fold eval. abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.

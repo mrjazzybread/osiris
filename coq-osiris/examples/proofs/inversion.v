@@ -232,7 +232,7 @@ Section verification.
       { iIntros ([o | ?]); [ | iIntros "[]"].
         iIntros "[%Xs [HiterView %Hcomplete]]".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
-        iModIntro. (* FIXME: [next_branch] fails if we don't use iModIntro before. *)
+        iModIntro.
         next_branch.
         Simp. Ret. by iPureIntro. }
 

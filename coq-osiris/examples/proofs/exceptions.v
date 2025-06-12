@@ -33,7 +33,6 @@ Section proof_pure.
         (call catch_head #l)
         (λ hopt, hopt = list.head l) ⊥.
 
-  (* TODO: MOVE? *)
   Ltac set_pure_postcondition φ :=
     match goal with
       |- @pure ?A ?E ?m ?_φ ?ψ =>
@@ -75,9 +74,6 @@ Section proof_pure.
     { apply struct_let_single with (spec := catch_head_spec).
       pure_simp; unfold catch_head_spec; intros.
       pure_enter.
-      (* FIXME: This proof was not so pretty to begin with; but
-      we can do better here. *)
-      (* TODO: Refactor. *)
       eapply pure_eval_match'_exn with (φ' := λ a, a = #(list.head l)) (ζ := λ e, l = [] ∧ e = VXData (Loc 0) []).
       { eapply pure_eval_data_val; last done.
         simpl_evals. fold eval. eapply pure_wp_Par_conseq.

@@ -65,7 +65,6 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 (* Well-foundedness *)
 
-(* FIXME use the measure function to only have a WF condition on lists *)
 #[local] Program Instance list_tuple_wf {A B} : WellFounded (B * list A) :=
   {| wf_relation := (fun x y => (length x.2 < length y.2)%nat )|}.
 Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
@@ -131,8 +130,6 @@ Proof.
     (* Subgoal: Prove that [find_elem] satisfies its specification. *)
     (* Step into the function's body *)
     iApply (ewp_eval_anon τ[list A; val]).
-    (* FIXME: we can't simplify here to keep a "RET #o" notation folded.
-       This means we have to proceed "blind" here. *)
     (* Introduce the function's arguments. *)
     iIntros (xs pred φ Hpred).
     (* Declare and open a local module. *)
@@ -173,7 +170,6 @@ Proof.
             intros Hx.
             apply pure_eval_raise.
             (* Evaluate the constructor [Found x]. *)
-            (* TODO: better rule, even if a little ad-hoc. *)
             simpl_eval.
             apply pure_wp_Par_vals_right.
             eapply pure_wp_ret. eapply pure_wp_widen. eapply pure_wp_ret.
