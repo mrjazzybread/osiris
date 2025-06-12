@@ -142,8 +142,7 @@ Definition pure_isListIter (iter : val) : Prop :=
         (Xs ++ [X]) `prefix_of` l ->
         I Xs ->
         pure (call f #X)
-          (λ v : val,
-              v = #() ∧ I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
+          (λ v : (), I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
       I [] ->
       pure_call2 iter f #l
         (λ (v : ()), I l)
@@ -211,7 +210,7 @@ Proof.
     - apply HIpre. }
 
   (* TODO: Clean up this portion. *)
-  { cbn. intros ? (?&?); subst. fold eval.
+  { cbn. intros _ ?; subst. fold eval.
     eapply pure_eval_app; [ | pure_path | ].
     { eapply pure_eval_app; try pure_path.
       intros ? ? -> ->.

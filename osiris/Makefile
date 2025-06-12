@@ -4,7 +4,7 @@ all:
 
 .PHONY: clean
 clean:
-	@ git clean -fdX .
+	dune clean
 
 # [make lint] checks that osiris.opam is well-formed.
 .PHONY: lint

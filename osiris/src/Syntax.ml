@@ -196,6 +196,14 @@ type expr =
   | EIntMul of expr * expr
   | EIntDiv of expr * expr
   | EIntMod of expr * expr
+  (* Integer logical operations. *)
+  | EIntLand of expr * expr
+  | EIntLor  of expr * expr
+  | EIntLxor of expr * expr
+  | EIntLnot of expr
+  | EIntLsl  of expr * expr
+  | EIntLsr  of expr * expr
+  | EIntAsr  of expr * expr
 
   (* Floating-point literals. *)
   | EFloat of string

@@ -281,10 +281,9 @@ Hypothesis Hmerge : lookup_name η "merge" = ret merge.
 Lemma split_mkspec split (l : list Z) :
   (lookup_name η "l" = ret #l) ->
   (lookup_name η "split" = ret split) ->
-  Spec split
-    (tbind
-       (λ (x : τ[list Z]) (m : microvx),
-         (length x < length l)%nat → split_spec x m)) ->
+  Spec τ[list Z] split
+       (λ (x : list Z) (m : microvx),
+         (length x < length l)%nat → split_spec x m) ->
   split_spec l (eval η (EMatch (EPath ["l"]) __branches6)).
 Proof.
   intros Hl Hsplit IH.
@@ -363,9 +362,9 @@ Hypothesis Hsplit : lookup_name η "split" = ret split.
 Lemma mergesort_mkspec mergesort (l : list Z) :
   (lookup_name η "l" = ret #l) ->
   (lookup_name η "merge_sort" = ret mergesort) ->
-  (Spec mergesort (@tbind _ τ[list Z] (λ x m,
+  (Spec τ[list Z] mergesort (λ x m,
        (length x < length l)%nat ->
-       mergesort_spec x m))) ->
+       mergesort_spec x m)) ->
   mergesort_spec l (eval η (EMatch (EPath ["l"]) __branches11)).
 Proof.
   intros Hl Hmergesort IH Hpre.

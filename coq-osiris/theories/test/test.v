@@ -28,7 +28,7 @@ Local Notation reduces e v :=
 (* [crashes e] means that the expression [e] can crash. *)
 
 Local Notation crashes e :=
-  (∃ n σ, steps n (∅, eval [] e) (σ, crash)).
+  (∃ n σ s, steps n (∅, eval [] e) (σ, crash s)).
 
 (* -------------------------------------------------------------------------- *)
 

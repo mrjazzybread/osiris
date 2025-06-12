@@ -50,10 +50,10 @@ Section ewp_basic_rules.
     EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _):
-    EWP (Crash : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
+  Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) s :
+    EWP (Crash s : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
-    ewp_unfold (@crash A X).
+    ewp_unfold (@crash A X s).
     iIntros "Hsi". done.
   Qed.
 
@@ -95,6 +95,37 @@ Section ewp_basic_rules.
     ewp_unfold m.
     ewp_case_is_handleable m; spec_state; spec_step.
     by ewp_mask_elim.
+  Qed.
+
+  Lemma ewp_please E η e φ Ψ :
+    ▷ EWP eval η e @ E <| Ψ |> {{ φ }} -∗
+    EWP please_eval η e @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Heval".
+    ewp_unfold_head.
+    intro_state.
+    ewp_mask_intro "Hclose".
+    rewrite /please_eval.
+    iSplitR. { iPureIntro. eexists _. apply StepEval. }
+    intro_step.
+    iModIntro. ewp_mask_elim.
+    iAssert (⌜m' =  eval η e⌝)%I as "->".
+    { iPureIntro.
+      simple inversion Hstep; try discriminate.
+      apply pair_eq in H as [_ H].
+      remember (η0, e0) as p0.
+
+      replace η0 with p0.1 in *; last first.
+      { by rewrite Heqp0. }
+      replace e0 with p0.2 in *; last first.
+      { by rewrite Heqp0. }
+
+      dependent destruction H.
+      apply pair_eq in H0 as [_ H0].
+      rewrite try2_ret_right in H0.
+      by rewrite H0. }
+
+    dependent destruction Hstep. iFrame.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -264,7 +295,7 @@ Local Ltac ewp_invert :=
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
           iMod (ewp_ret_inv with "[$]") as "HΦ"
       (* EWP crash *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
           match goal with
           | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
             iMod (ewp_crash_inv with "[$]") as "%"
@@ -529,7 +560,7 @@ Section ewp_rules.
 
     (* Case : [m1] is [crash]; trivial  *)
     { iClear "IH".
-      by setoid_rewrite (ewp_unfold crash); rewrite /ewp_pre /=. }
+      by setoid_rewrite (ewp_unfold (crash _)); rewrite /ewp_pre /=. }
 
     (* Case : [m1] is [Perform _ _]. *)
     { cbn.
@@ -716,9 +747,9 @@ Section ewp_rules.
     iFrame.
   Qed.
 
-  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
+  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ :
     pointsto l (DfracOwn 1) Shot -∗
-    EWP Crash @ E <| ψ |> {{ φ }} -∗
+    (∀ s, EWP (Crash s) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hcrash".
@@ -728,11 +759,12 @@ Section ewp_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
-    eapply invert_step_resume_shot in Hstep; eauto. destruct Hstep; subst.
+    eapply invert_step_resume_shot in Hstep; eauto. destruct Hstep as (-> & s & ->).
 
     (* Update the ghost heap. *)
     ewp_mask_elim.
     iFrame.
+    eauto.
   Qed.
 
   (* [CWrap]. *)
@@ -1124,13 +1156,26 @@ Section ewp_val_rules.
         by iApply "IH".
   Qed.
 
-  Lemma ewp_pure `{Encode A, X} E (m : micro val X) Ψ (φ : A -> Prop) :
-    { m ensures φ } ->
-    ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }}.
+  Lemma ewp_pure_wp {A X} (m : micro A X) E Ψ (φ : A -> Prop) :
+    pure_wp m φ ⊥ ->
+    ⊢ EWP m @ E <| Ψ |> {{ RET v, ⌜φ v⌝ }}.
   Proof.
     iIntros (W).
     iApply ewp_mono.
     iApply pure_ewp. eassumption. iIntros ([]); eauto.
+  Qed.
+
+  Lemma ewp_pure `{Encode A} {X} (m : micro val X) E Ψ (φ : A -> Prop) :
+    pure m φ ⊥ ->
+      ⊢ EWP m @ E <| Ψ |> {{ RET #v, ⌜φ v⌝ }} .
+  Proof.
+    iIntros (Hpure).
+    iApply ewp_mono.
+    iApply ewp_pure_wp. apply Hpure.
+    iIntros ([v|]); [ | iIntros ([]) ].
+    iIntros "(%a & %Henc & %Ha)".
+    iPureIntro.
+    exists a. auto.
   Qed.
 
 End ewp_val_rules.
@@ -1321,7 +1366,7 @@ Section ewp_eval.
     iIntros (v1 v2) "Hspec ->".
     unfold widen; simpl_eval_pat; simpl.
     iApply "Hcov".
-    iExists v1; by iFrame.
+    iExists v1. by iFrame.
   Qed.
 
 End ewp_eval.

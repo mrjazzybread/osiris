@@ -149,7 +149,7 @@ Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
 Inductive micro A E :=
   | Ret (a : A)
   | Throw (e : E)
-  | Crash
+  | Crash (msg : string)
   | Handle
       (m : micro val exn)
       (h : outcome3 val exn → micro A E)
@@ -224,8 +224,8 @@ Fixpoint bind {A B E} (m : micro A E) (f : A → micro B E) : micro B E :=
       f a
   | Throw e =>
       Throw e
-  | Crash =>
-      Crash
+  | Crash s =>
+      Crash s
   | Handle m h =>
       Handle m (λ o, bind (h o) f)
   | Stop c x h =>
@@ -257,8 +257,8 @@ Fixpoint try2 {A B E' E}
       continue f a
   | Throw e =>
       discontinue f e
-  | Crash =>
-      Crash
+  | Crash s =>
+      Crash s
   | Handle m h =>
       Handle m (λ o, try2 (h o) f)
   | Stop c x h =>
@@ -404,9 +404,9 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_crash {A B E} (f : A → micro B E) :
-  bind crash f =
-  crash.
+Lemma bind_crash {A B E} (f : A → micro B E) s :
+  bind (crash s) f =
+  crash s.
 Proof.
   reflexivity.
 Qed.
@@ -442,9 +442,9 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma try_crash {A B E' E} (f : A → micro B E) (z : E' → micro B E) :
-  try crash f z =
-  crash.
+Lemma try_crash {A B E' E} (f : A → micro B E) (z : E' → micro B E) s :
+  try (crash s) f z =
+  crash s.
 Proof.
   reflexivity.
 Qed.

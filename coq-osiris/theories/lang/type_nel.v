@@ -1,9 +1,7 @@
 From stdpp Require Import base tactics.
 From stdpp Require Import options.
 
-From osiris.lang Require Import syntax encode.
-
-From Coq Require Import Wellfounded.Inverse_Image.
+From osiris.lang Require Import encode.
 
 (** This file defines [type_nel] (synonym: [types]), the type used for the
     argument on encoded function types. *)
@@ -243,12 +241,12 @@ Global Hint Extern 1 (tforall _) =>
 Global Hint Extern 1 (texists _) =>
   progress cbn [texists tfold tbind tapp] : typeclass_instances.
 
-Fixpoint to_vals {τ : types} : τ-#> list val :=
-  match τ with
-  | Tbase H => tbind (λ x, [#x])
-  | @Tcons X H b =>
-      λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt))
-  end.
+(* Fixpoint to_vals {τ : types} : τ-#> list val := *)
+(*   match τ with *)
+(*   | Tbase H => tbind (λ x, [#x]) *)
+(*   | @Tcons X H b => *)
+(*       λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt)) *)
+(*   end. *)
 
 Lemma tforall_unroll `{Encode X} (τ : types) (P : Tcons X τ -> Prop) :
   (∀# (x : Tcons X τ), P x) = (∀ (x : X), ∀# (v : τ), P (x, v)).

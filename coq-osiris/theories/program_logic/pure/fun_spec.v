@@ -23,26 +23,26 @@ From Equations Require Import Equations.
 
 (* Local redefinition: *)
 
-Local Definition acall η a v :=
+Local Definition im_acall η a v :=
   let 'AnonFun x e := a in
   let η0 := (x, v) :: η in
   eval η0 e.
 
-Local Definition call f x :=
+Local Definition im_call f x :=
   match f with
-  | VClo η a => fun_spec.acall η a x
+  | VClo η a => im_acall η a x
   | VCloRec η rbs g =>
       let δ := eval_rec_bindings η rbs in
       let η0 := δ ++ η in
       'a ← lookup_rec_bindings rbs g;
-      acall η0 a x
+      im_acall η0 a x
   | _ => type_mismatch "closure expected"
   end.
 
 (* When under a [pure_wp], [eval.call] and [fun_spec.call] are equivalent. *)
 
 Lemma pure_acall_equiv η a v φ ζ :
-  pure_wp (eval.acall η a v) φ ζ <-> pure_wp (fun_spec.acall η a v) φ ζ.
+  pure_wp (eval.E.acall η a v) φ ζ <-> pure_wp (im_acall η a v) φ ζ.
 Proof.
   destruct a; simpl.
   split.
@@ -52,7 +52,7 @@ Proof.
 Qed.
 
 Lemma pure_call_equiv f v φ ζ :
-  pure_wp (eval.call f v) φ ζ <-> pure_wp (fun_spec.call f v) φ ζ.
+  pure_wp (eval.E.call f v) φ ζ <-> pure_wp (im_call f v) φ ζ.
 Proof.
   destruct f; try done; [ apply pure_acall_equiv | ].
   split; apply pure_wp_bind_mono; intros; simpl; by apply pure_acall_equiv.
@@ -122,11 +122,9 @@ Definition is_VClo_of_depth v τ :=
 Equations Spec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) : Prop :=
 | Tbase X, c, P :=
-    ∀ (x : X), P x (call c #x)
+    ∀ (x : X), P x (im_call c #x)
 | Tcons X τ', c, P :=
     ∀ (x : X), pure_wp (call c #x) (λ c, Spec τ' c (P x)) ⊥.
-
-Arguments Spec {τ} c P.
 
 (* As a sanity check, we can check on simple examples that we get
    the expected premise when we want to show that
@@ -136,7 +134,7 @@ Local Lemma pure_eval_anon_unary `{Encode X}
   (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ
   :
   (∀ (v : X), P v (eval ((x, #v) :: η) e)) ->
-  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
+  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec τ[X] c P) ζ.
 Proof.
   intros HP; simpl_eval; eapply pure_ret; encode.
 Qed.
@@ -145,20 +143,20 @@ Local Lemma pure_eval_anon_binary `{Encode X, Encode Y}
   (P : τ[X; Y] -#> microvx -> Prop) η (x y : var) e ζ
   :
   (∀ (vx : X) (vy : Y), P vx vy (eval ((y, #vy) :: (x, #vx) :: η) e)) ->
-  pure (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) (λ c, Spec c P) ζ.
+  pure (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) (λ c, Spec τ[X; Y] c P) ζ.
 Proof.
   intros HP.
   simpl_eval; eapply pure_ret; [ encode | ].
-  rewrite Spec_equation_2; intros vx; simpl; simpl_eval; eapply pure_wp_ret.
+  rewrite Spec_equation_2; intros vx; simpl; eapply pure_wp_Eval; simpl_eval; eapply pure_wp_ret.
   rewrite Spec_equation_1; intros vy; apply HP.
 Qed.
 
 (* [Spec] is monotonic over specification predicates. *)
 
 Lemma Spec_mono (τ : types) (P P' : τ -#> microvx -> Prop) c :
-  Spec c P ->
+  Spec τ c P ->
   (∀# args, ∀ m, (P args) m -> (P' args) m) ->
-  Spec c P'.
+  Spec τ c P'.
 Proof.
   revert c.
   induction τ as [ | X HX arg_τ IH ]; intros c HP Hmono.
@@ -176,8 +174,8 @@ Qed.
 
 Lemma Spec_equiv (τ : types) η f x e (P : τ -#> microvx -> Prop) :
   let f_value := VCloRec η [RecBinding f (AnonFun x e)] f in
-  Spec f_value P =
-  Spec (VClo ((f, f_value) :: η) (AnonFun x e)) P.
+  Spec τ f_value P =
+  Spec τ (VClo ((f, f_value) :: η) (AnonFun x e)) P.
 Proof.
   destruct τ; simpl; simp Spec;
     simpl; rewrite String.eqb_refl; reflexivity.
@@ -195,7 +193,7 @@ Qed.
 Equations aSpec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) (args : τ) : Prop :=
 | Tbase X, c, P, x :=
-    P x (call c #x);
+    P x (im_call c #x);
 | Tcons X τ', c, P, (x, args') :=
     pure_wp (call c #x) (λ c', aSpec τ' c' (P x) args') ⊥.
 
@@ -253,7 +251,7 @@ Qed.
 (* The direction [Spec] -> [aSpec] is true without any condition. *)
 
 Lemma Spec_aSpec (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
-  Spec c P ->
+  Spec τ c P ->
   (∀ args, aSpec c P args).
 Proof.
   revert c.
@@ -287,7 +285,7 @@ Qed.
 Lemma aSpec_Spec_VClo (τ : types) (c : val) (P : τ -#> microvx -> Prop) :
   is_VClo_of_depth c τ ->
   (∀ args, (aSpec c P) args) ->
-  Spec c P.
+  Spec τ c P.
 Proof.
   generalize dependent c.
   induction τ as [ X HX | X HX τ' IH ];
@@ -299,7 +297,7 @@ Proof.
   inversion is_VClo as (η & x & e & -> & Hlambda).
   rewrite unfold_is_lambda_of_depth in Hlambda.
   destruct Hlambda as (y & e' & -> & Hlambda).
-  simpl; simpl_eval. eapply pure_wp_ret.
+  simpl; eapply pure_wp_Eval; simpl_eval. eapply pure_wp_ret.
   apply IH.
   - (* Goal: The next intermediate closure is of depth [τ']. *)
     repeat eexists. apply Hlambda.
@@ -309,8 +307,8 @@ Proof.
     rewrite forall_unroll in HSpec; specialize (HSpec vx args);
       simpl in HSpec.
     rewrite unfold_aSpec in HSpec.
-    simpl in HSpec;
-      unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
+    simpl in HSpec. eapply invert_pure_wp_eval in HSpec.
+    unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
     eapply invert_pure_wp_ret in HSpec.
     apply HSpec.
 Qed.
@@ -318,7 +316,7 @@ Qed.
 Lemma aSpec_Spec (τ : types) (c : val) (P : τ -#> microvx -> Prop):
   is_VCloRec_of_depth c τ ->
   (∀ args, (aSpec c P) args) ->
-  Spec c P.
+  Spec τ c P.
 Proof.
   intros (η & f & x & e & -> & Hlambda) HaSpec'.
   set (v := VClo
@@ -360,7 +358,9 @@ Equations predicate_over_function_body
 
 (* We always want to unfold [predicate_over_function_body] until only a
    statement of the form [∀ x, P x (eval η e)] remains. *)
+Arguments predicate_over_function_body !τ /.
 Transparent predicate_over_function_body.
+Strategy transparent [ predicate_over_function_body ].
 
 (* The following proof proceeds by induction over the depth of a lambda. *)
 Fixpoint AnonFun_depth e : nat :=
@@ -395,6 +395,7 @@ Proof.
   (* Goal: [ P (x, args) (call_tele (ret (VClo η ..)) (x, args)) ]. *)
   specialize (IH e2); simpl in IH.
   (* We reduce [call_tele] and its internal evaluations. *)
+  eapply pure_wp_Eval.
   simpl; simpl_eval; simpl. apply pure_wp_ret.
   (* Apply the induction hypothesis. *)
   apply IH; [ lia | apply HP ].
@@ -410,7 +411,7 @@ Lemma pure_eval_anon
   e
   ζ :
   predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) ->
-  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec c P) ζ.
+  pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec τ c P) ζ.
 Proof.
   intros HP.
   simpl_eval; apply pure_wp_ret.
@@ -453,7 +454,7 @@ Lemma guarded_aSpec_Spec c (τ : types)
   (Q : τ -> Prop) (P : τ -#> microvx -> Prop) :
   is_VCloRec_of_depth c τ ->
   (∀# args, Q args -> aSpec c P args) ->
-  Spec c (λ# args m, Q args -> P args m).
+  Spec τ c (λ# args m, Q args -> P args m).
 Proof.
   intros (η & f & x & e & -> & He) HaSpec.
   (* The nature of the proof involves a growing environment [η]. We
@@ -493,6 +494,7 @@ Proof.
      through its (trivial) evaluation. *)
   rewrite unfold_is_lambda_of_depth in He.
   destruct He as (y & e' & -> & He').
+  eapply pure_wp_Eval.
   simpl_eval; apply pure_wp_ret.
 
   (* Apply the induction hypothesis. *)
@@ -504,6 +506,7 @@ Proof.
   (* Subgoal (morally): show [aSpec (VClo e') (P vx) args] using
      [aSpec (VClo (EAnonFun x e')) P (vx args)]. *)
   simpl in HSpec; rewrite unfold_aSpec in HSpec; simpl in HSpec.
+  eapply invert_pure_wp_eval in HSpec.
   unfold eval in HSpec; rewrite seal_eq in HSpec; simpl in HSpec.
   by apply invert_pure_wp_ret in HSpec.
 Qed.
@@ -630,7 +633,7 @@ Proof.
   specialize (IH IHargs).
   specialize (IH y e' ((x, #vx) :: η0)).
   (* We now step forward by evaluating [pure (eval .. (EAnonFun y e')) (λ c', ..)]. *)
-  simp aSpec.
+  simp aSpec. eapply pure_wp_Eval.
   simpl; simpl_eval; simpl.
   apply pure_wp_ret.
 
@@ -679,7 +682,7 @@ Lemma pure_eval_letrec `{Encode X} (τ : types)
      smaller arguments. *)
   unfolded_spec_with_rec_assumption τ η f x e R P ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
-  (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
+  (∀ c, Spec τ c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
@@ -692,13 +695,31 @@ Qed.
 
 (* Restatement of the lemma for module-level let-recs. *)
 
+Lemma struct_letrec (τ : types)
+  (R : τ -> τ -> Prop)
+  η δ f (x : var) e (P : τ -#> microvx -> Prop) φ :
+  is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
+  well_founded R ->
+  unfolded_spec_with_rec_assumption τ η f x e R P ->
+  (∀ c, Spec τ c P -> φ ((f, c) :: η, (f, c) :: δ)) ->
+  struct_item (η, δ) (ILetRec [RecBinding f (AnonFun x e)]) φ.
+Proof.
+  intros isLambda Hwf Hmkspec He2.
+  eapply lambda_depth_to_vclorec in isLambda.
+  unfold struct_item. simpl_eval_sitem.
+  eapply pure_wp_ret.
+  eapply He2.
+  eapply prove_aSpec_rec; eauto.
+  apply by_unfold_spec; eauto.
+Qed.
+
 Lemma structs_letrec (τ : types)
   (R : τ -> τ -> Prop)
   η δ f (x : var) e (P : τ -#> microvx -> Prop) sitems φ :
   is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
   well_founded R ->
   unfolded_spec_with_rec_assumption τ η f x e R P ->
-  (∀ c, Spec c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
+  (∀ c, Spec τ c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
   struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.
 Proof.
   intros isLambda Hwf Hmkspec He2.
@@ -717,7 +738,7 @@ Lemma pure_eval_letrec_nonrec `{Encode X} (τ : types)
   (* Show the specification [P] holds over a call to any argument. *)
   (∀ v, predicate_over_function_body τ P ((f, v) :: η) (EAnonFun (AnonFun x e))) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
-  (∀ c, Spec c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
+  (∀ c, Spec τ c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
   pure (eval η (ELetRec [RecBinding f (AnonFun x e)] e2)) φ ζ.
 Proof.
@@ -732,15 +753,14 @@ Qed.
 
 Lemma pure_EApp_partial `{Encode X} (τ: types) η e e1 ζ
   (φ1 : X -> Prop) (P : Tcons X τ -#> microvx -> Prop) :
-  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure (eval η e) (λ c, Spec (Tcons X τ) c P) ζ ->
   pure (eval η e1) φ1 ζ ->
-  pure (eval η (EApp e e1)) (λ c, ∃ v1, φ1 v1 ∧ Spec c (P v1)) ζ.
+  pure (eval η (EApp e e1)) (λ c, ∃ v1, φ1 v1 ∧ Spec τ c (P v1)) ζ.
 Proof.
   intros.
   eapply pure_eval_app; eauto.
   intros c v1 Hc Hv1.
-  apply pure_call_equiv. simpl in Hc.
-  eapply pure_wp_mono. simp Spec in Hc.
+  eapply pure_wp_mono. simpl in Hc. simp Spec in Hc.
   - intros c' Hc'. unfold returns; eexists; split; [ reflexivity | ].
     eauto.
   - intros ? [].
@@ -751,11 +771,11 @@ Qed.
 
 Lemma pure_EApp_partial_alt `{Encode X} (τ : types) η e e1 ζ
   (φ1 : X -> Prop) (P : Tcons X τ -#> microvx -> Prop) :
-  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure (eval η e) (λ c, Spec (Tcons X τ) c P) ζ ->
   pure (eval η e1) φ1 ζ ->
   pure (eval η (EApp e e1))
     (λ c,
-      Spec c (λ# (tt : τ) m,
+      Spec τ c (λ# (tt : τ) m,
                   ∃ (x : X), φ1 x ∧
                       (tapp (P x) tt) m))
     ζ.
@@ -763,7 +783,7 @@ Proof.
   intros.
   eapply pure_eval_app; eauto.
   intros c v1 Hc Hv1.
-  apply pure_call_equiv. simpl in Hc.
+  simpl in Hc.
   eapply pure_wp_mono. simp Spec in Hc.
   - intros c' Hc'. unfold returns; eexists; split; [ reflexivity | ].
     eapply Spec_mono; [ apply Hc' | ].
@@ -783,7 +803,7 @@ Qed.
 
 Local Lemma pure_EApp_prop2 `{Encode A, Encode B, Encode C} η e e1 e2 (Ψ : C -> Prop) ζ
   (φ1 : A -> Prop) (φ2 : B -> Prop) (P : τ[A; B] -#> microvx -> Prop) :
-  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure (eval η e) (λ c, Spec τ[A;B] c P) ζ ->
   pure (eval η e1) φ1 ζ ->
   pure (eval η e2) φ2 ζ ->
   (∀ v1 v2, φ1 v1 -> φ2 v2 -> ∀ m, P v1 v2 m -> pure m Ψ ζ) ->
@@ -799,7 +819,7 @@ Qed.
 
 Local Lemma pure_EApp_prop3 `{Encode A, Encode B, Encode C, Encode D} η e e1 e2 e3 (Ψ : D -> Prop) ζ
   (φ1 : A -> Prop) (φ2 : B -> Prop) (φ3 : C -> Prop) (P : τ[A; B; C] -#> microvx -> Prop) :
-  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure (eval η e) (λ c, Spec τ[A;B;C] c P) ζ ->
   pure (eval η e1) φ1 ζ ->
   pure (eval η e2) φ2 ζ ->
   pure (eval η e3) φ3 ζ ->
@@ -908,7 +928,7 @@ End pure_EApp_prop_aux_def.
 Definition pure_EApp_prop `{Encode A} (τ : types) : Prop :=
   ∀ (η : env) (e : expr) (Ψ : A -> Prop)
   (ζ : exn -> Prop) (P : τ -#> microvx -> Prop),
-  pure (eval η e) (λ c, Spec c P) ζ ->
+  pure (eval η e) (λ c, Spec τ c P) ζ ->
   accumulate_argument_premises_and_build_consequence_hyp
     η ζ e
     (* The goal we want to prove: *) (λ e, pure (eval η e) Ψ ζ)
@@ -1013,7 +1033,7 @@ Proof.
 
   { (* Subgoal: the application satisfies our specification P' *)
     eapply pure_eval_app; eauto.
-    intros c x Hc Hφx. eapply pure_call_equiv.
+    intros c x Hc Hφx.
     eapply pure_wp_mono. simpl in Hc; simp Spec in Hc; apply Hc.
     - intros c' HSpec'; cbn beta in HSpec'.
       eexists; split; [ reflexivity | ].

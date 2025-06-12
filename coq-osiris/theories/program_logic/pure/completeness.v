@@ -89,18 +89,18 @@ Qed.
 
 (** [PXData] but making no such assumption *)
 
-Lemma lookup_name_cases η x : (∃ v, lookup_name η x = ret v) ∨ lookup_name η x = crash.
+Lemma lookup_name_cases η x : (∃ v, lookup_name η x = ret v) ∨ lookup_name η x = crash (String.app "missing_variable_or_field: " x).
 Proof.
   induction η as [ | (y, v) η ]. eauto.
   simpl. destruct (x =? y)%string;eauto.
 Qed.
 
-Lemma lookup_path_cases η π : (∃ v, lookup_path η π = ret v) ∨ lookup_path η π = crash.
+Lemma lookup_path_cases η π : (∃ v, lookup_path η π = ret v) ∨ ∃ s, lookup_path η π = crash s.
 Proof.
   revert η; induction π as [ | x π ]; intros η. eauto. simpl.
   destruct (lookup_name_cases η x) as [(v, ->) | ->]; simpl.
   - destruct π; eauto.
-    destruct v; auto. simpl val_as_struct.
+    destruct v; eauto. simpl val_as_struct.
     rewrite bind_ret.
     destruct (IHπ xvs) as [(v & ->) | ?]; eauto.
   - destruct π; eauto.
@@ -120,7 +120,7 @@ Proof.
     + apply reversible_pat_PXData; eauto.
     + tauto.
   - unfold pattern. simpl_eval_pat.
-    destruct (lookup_path_cases η π) as [[v ->] | ->]. 2: intros []%invert_pure_wp_crash.
+    destruct (lookup_path_cases η π) as [[v ->] | [s ->]]. 2: intros []%invert_pure_wp_crash.
     assert (widen (ret v) = ret v) as -> by reflexivity.
     destruct v; try intros []%invert_pure_wp_crash.
     unfold as_loc; simpl. rewrite bind_ret.

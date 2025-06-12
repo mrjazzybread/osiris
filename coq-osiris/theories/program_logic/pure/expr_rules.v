@@ -279,6 +279,7 @@ Proof.
   cbn; by rewrite map_id.
 Qed.
 
+
 (* -------------------------------------------------------------------------- *)
 
 (** *Record construction, update, access. *)
@@ -1227,8 +1228,8 @@ Qed.
 (* ESeq (e1 e2 : expr) *)
 
 (* Sequencing of pure computations. *)
-Lemma pure_seq `{Encode A, Encode B} (φ : B -> Prop) ψ η e1 e2 :
-  pure (eval η e1) (λ _ : A, pure (eval η e2) φ ψ) ψ →
+Lemma pure_seq `{Encode A} (φ : A -> Prop) ψ η e1 e2 :
+  pure (eval η e1) (λ _ : (), pure (eval η e2) φ ψ) ψ →
   pure (eval η (ESeq e1 e2)) φ ψ.
 Proof.
   simpl_eval.
@@ -1237,19 +1238,20 @@ Proof.
   cbn; intros; eapply pure_mono; done.
 Qed.
 
-Lemma pure_eval_seq `{Encode A, Encode B}
-  η e1 e2 (ψ : B -> Prop) :
-  pure (eval η e1) (λ _ : A, True) ⊥ ->
-  pure (eval η e2) ψ ⊥ ->
-  pure (eval η (ESeq e1 e2)) ψ ⊥.
+Lemma pure_eval_seq `{Encode A}
+  η e1 e2 (φ : A -> Prop) φ' Ψ :
+  pure (eval η e1) (λ _ : (), φ') Ψ ->
+  (φ' -> pure (eval η e2) φ Ψ) ->
+  pure (eval η (ESeq e1 e2)) φ Ψ.
 Proof.
   intros He1 He2.
-  eapply (@pure_seq A _ B); by eapply pure_mono.
+  eapply (@pure_seq A).
+  by eapply pure_mono.
 Qed.
 
 Lemma pure_eval_seq_exn `{Encode A}
   η e1 e2 (Ψ : A -> Prop) ζ :
-  pure (eval η e1) (λ _ : val, pure (eval η e2) Ψ ζ) ζ ->
+  pure (eval η e1) (λ _ : (), pure (eval η e2) Ψ ζ) ζ ->
   pure (eval η (ESeq e1 e2)) Ψ ζ.
 Proof.
   intros; eapply pure_seq; eauto.
@@ -1272,6 +1274,23 @@ Proof.
   eapply pure_bind. eapply pure_as_bool; eauto.
   cbn; intros * H. destruct a; eauto.
   eapply pure_ret; eauto with encode.
+Qed.
+
+Lemma pure_eval_ifthen
+  η e e1 φ (P : Prop) (Ψ : exn -> Prop) :
+  pure (eval η e) (λ P', P' <-> P) Ψ ->
+  (P -> pure (eval η e1) φ Ψ) ->
+  (~ P -> φ tt) ->
+  pure (eval η (EIfThen e e1)) φ Ψ.
+Proof.
+  intros He He1 Hfail.
+  eapply pure_ifthen.
+  eapply pure_wp_mono; eauto.
+  intros; returns_eauto.
+  exists (truth P); cbn; split; auto.
+  do 2 f_equiv; apply iff_truth; done.
+  generalize (truth_elim P).
+  destruct (truth P); eauto; intros; eauto.
 Qed.
 
 (* EIfThenElse (e e1 e2 : expr) *)
@@ -1438,13 +1457,13 @@ Qed.
 
 (* ERaise (e : expr) *)
 
-Lemma pure_eval_raise η e (φ : _ -> Prop) ζ :
-  pure (eval η e) ζ ⊥ ->
-  pure (A := exn) (eval η (ERaise e)) φ ζ.
+Lemma pure_eval_raise `{Encode A} η e (φ : A -> Prop) ζ :
+  pure (eval η e) ζ ζ ->
+  pure (eval η (ERaise e)) φ ζ.
 Proof.
   intros Heval. simpl_eval.
   eapply pure_bind.
-  eapply pure_exn_mono; eauto. intros; contradiction.
+  eapply pure_exn_mono; eauto.
   intros. cbn. by apply pure_throw.
 Qed.
 

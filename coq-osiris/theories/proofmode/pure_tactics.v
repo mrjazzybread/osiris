@@ -755,7 +755,7 @@ Ltac2 decompose_pure () : (constr * constr) :=
 Ltac2 get_expr_from_eval (m : constr) :=
   lazy_match! m with
   | eval _ ?e => eval hnf in $e
-  | unseal eval.eval_aux _ ?e => eval hnf in $e
+  | unseal eval.E.eval_aux _ ?e => eval hnf in $e
   | _ =>
       Control.throw
         (Tactic_failure

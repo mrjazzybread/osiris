@@ -1,6 +1,10 @@
+Require Import Orders Sorting.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import code.
+From osiris.semantics Require Import code strategy.
+
+Module EvalF (Strat : Strategy).
+
 Local Infix "=?" := String.eqb.
 
 (* Conventional metavariables. *)
@@ -40,40 +44,40 @@ Implicit Type items : list sitem.
    structural equality to values of an unsupported type, etc. *)
 
 Definition unsupported_construct {A E} : micro A E :=
-  crash.
+  crash "unsupported_construct".
 
 Definition assertion_failure {A E} : micro A E :=
-  crash.
+  crash "assertion_failure".
 
 Definition division_by_zero {A E} : micro A E :=
-  crash.
+  crash "division_by_zero".
 
 Definition length_mismatch {A E} (msg : string) : micro A E :=
-  crash.
+  crash ("length_mismatch: " ++ msg).
 
 Definition match_failure {A E} (tt : unit) : micro A E :=
-  crash.
+  crash "match_failure".
 
 Definition missing_field {A E} (x : var) : micro A E :=
-  crash.
+  crash ("missing_field: " ++ x).
 
 Definition missing_variable {A E} (x : var) : micro A E :=
-  crash.
+  crash ("missing_variable: " ++ x).
 
 Definition missing_variable_or_field {A E} (x : var) : micro A E :=
-  crash.
+  crash ("missing_variable_or_field: " ++ x).
 
 Definition physical_equality_error {A E} (msg : string) : micro A E :=
-  crash.
+  crash ("physical_equality_error: " ++ msg).
 
 Definition structural_equality_error {A E} (msg : string) : micro A E :=
-  crash.
+  crash ("structural_equality_error: " ++ msg).
 
 Definition structural_ordering_error {A E} (msg : string) : micro A E :=
-  crash.
+  crash ("structural_ordering_error: " ++ msg).
 
 Definition type_mismatch {A E} (msg : string) : micro A E :=
-  crash.
+  crash ("type_mismatch: " ++ msg).
 
 (* The logical operations [lsl], [lsr], and [asr] require their second
    operand [i2] to satisfy [0 <= i2 <= zintsize]. This is perhaps more
@@ -89,7 +93,7 @@ Definition in_shift_range_b (i : int) : bool :=
   (0 <=? signed i) && (signed i <=? int.zintsize).
 
 Definition out_of_shift_range {A E} : micro A E :=
-  crash.
+  crash "out_of_shift_range".
 
 Definition if_in_shift_range {A E} (i : int) (m : micro A E) :=
   if in_shift_range_b i then m else out_of_shift_range.
@@ -289,8 +293,6 @@ Fixpoint update fvs fvs' : micro env exn :=
 
 (* A [sort] function for lists of string-value pairs, also known as
    environments. *)
-
-Require Import Orders Sorting.
 
 Module PairOrder <: TotalLeBool.
   Definition t := prod string val.
@@ -630,9 +632,10 @@ Fixpoint eq_val v1 v2 : micro bool exn :=
   | VTuple vs1, VTuple vs2 =>
       eq_vals vs1 vs2
   | VData c1 v1, VData c2 v2 =>
-      let b := c1 =? c2 in
-      b' ← eq_vals v1 v2 ;
-      ret (b && b')
+      if c1 =? c2 then
+        eq_vals v1 v2
+      else
+        ret false
   | _, _ =>
       structural_equality_error "invalid or unsupported arguments"
 end.
@@ -864,7 +867,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
   | Binding p e :: bs =>
       (* Evaluate the expression [e], yielding a value [v]. In parallel,
          evaluate the bindings [bs], yielding an environment fragment [δ]. *)
-      '(v, δ) ← par (eval η e) (eval_bindings η bs) ;
+      '(v, δ) ← pair_op Strat.let_and_order (eval η e) (eval_bindings η bs);
        (* Match the value [v] against the pattern [p], extending [δ]. *)
       widen (irrefutably_extend η δ p v)
   end.
@@ -874,7 +877,7 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
 (* [evals η es] evaluates the expressions [es] in the environment [η],
    producing values [vs]. The expressions are evaluated in parallel. *)
 
-(* [evals] is used to evaluate tuples. *)
+(* [evals] is used to evaluate tuples and arguments of constructors. *)
 
 Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) exn :=
   let evals := pre_evals in
@@ -882,7 +885,7 @@ Fixpoint pre_evals (η : env) (es : list expr) : micro (list val) exn :=
   | [] =>
       ret []
   | e :: es =>
-      '(v, vs) ← par (eval η e) (evals η es) ;
+      '(v, vs) ← pair_op Strat.tuple_order (eval η e) (evals η es) ;
       ret (v :: vs)
   end.
 
@@ -902,6 +905,8 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
   | [] =>
       ret []
   | (Fexpr f e) :: fes =>
+      (* sequentializing (be it left-to-right or right-to-left) is wrong, here,
+       because it depends on the type declaration *)
       '(v, fvs) ← par (eval η e) (evalfs η fes) ;
       ret ((f, v) :: fvs)
   end.
@@ -1061,10 +1066,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ret (VClo η a)
   | EApp e1 e2 =>
       (* The expressions [e1] and [e2] are evaluated in parallel. *)
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       call v1 v2
   | ETuple es =>
-      (* The tuple components are evaluated in parallel. *)
+      (* The tuple components are evaluated using evals. *)
       vs ← evals η es ;
       ret (VTuple vs)
   | EData c es =>
@@ -1108,73 +1113,73 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       i ← as_int (eval η e) ;
       ret (VInt (int.neg i))
   | EIntAdd e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.add i1 i2))
   | EIntSub e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.sub i1 i2))
   | EIntMul e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.mul i1 i2))
   | EIntDiv e1 e2 =>
       (* Signed division is used. *)
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.divs i1 i2))
   | EIntMod e1 e2 =>
       (* Signed remainder is used. *)
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       '() ← check_div_by_zero i2 ;
       ret (VInt (int.mods i1 i2))
   | EIntLand e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.land i1 i2))
   | EIntLor e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.lor i1 i2))
   | EIntLxor e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       ret (VInt (int.lxor i1 i2))
   | EIntLnot e =>
       i ← as_int (eval η e) ;
       ret (VInt (int.lnot i))
   | EIntLsl e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       if_in_shift_range i2 (ret (VInt (int.lsl i1 i2)))
   | EIntLsr e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       if_in_shift_range i2 (ret (VInt (int.lsr i1 i2)))
   | EIntAsr e1 e2 =>
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.fun_app_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       if_in_shift_range i2 (ret (VInt (int.asr i1 i2)))
   | EFloat f =>
       ret (VFloat f)
   | EOpPhysEq e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← phys_eq_val v1 v2 ;
       ret (VBool b)
   | EOpEq e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← eq_val v1 v2 ;
       ret (VBool b)
   | EOpNe e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← ne_val v1 v2 ;
       ret (VBool b)
   | EOpLt e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← lt_val v1 v2 ;
       ret (VBool b)
   | EOpLe e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← le_val v1 v2 ;
       ret (VBool b)
   | EOpGt e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← gt_val v1 v2 ;
       ret (VBool b)
   | EOpGe e1 e2 =>
-      '(v1, v2) ← par (eval η e1) (eval η e2) ;
+      '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← ge_val v1 v2 ;
       ret (VBool b)
   | EBoolDisj e1 e2 =>
@@ -1243,7 +1248,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
         ok
   | EFor x e1 e2 e =>
       (* The bounds are evaluated first. *)
-      '(i1, i2) ← par (as_int (eval η e1)) (as_int (eval η e2)) ;
+      '(i1, i2) ← pair_op Strat.for_bounds_order (as_int (eval η e1)) (as_int (eval η e2)) ;
       (* Then, the loop is executed. *)
       loop η x i1 i2 e
   | EAssertFalse =>
@@ -1254,10 +1259,12 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          wish to depend on this flag, so we make a non-deterministic choice:
          either the runtime test is skipped, or it is executed. This forces
          the user to prove that the program is safe in both scenarios. *)
-      choose ok (
-        success ← as_bool (eval η e) ;
-        if (success : bool) then ok else assertion_failure
-      )
+      let run_test := success ← as_bool (eval η e); if (success : bool) then ok else assertion_failure in
+      match Strat.run_asserts with
+      | No => ok
+      | Yes => run_test
+      | Unspecified => choose ok run_test
+      end
   | ERef e =>
       v ← eval η e ;
       l ← alloc v ;
@@ -1266,7 +1273,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       l ← as_loc (eval η e) ;
       load l
   | EStore e1 e2 =>
-      '(l, v) ← par (as_loc (eval η e1)) (eval η e2) ;
+      '(l, v) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
       store l v
   end.
 
@@ -1523,3 +1530,8 @@ Definition loop η x i1 i2 e : microvx :=
        easier. *)
     stop CLoop (η, x, int.add i1 int.one, i2, e)
 .
+
+End EvalF.
+
+Module E := EvalF(LiberalStrategy).
+Export E.

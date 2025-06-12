@@ -145,8 +145,8 @@ Section pure_wp_rules.
 
   (** Inversion lemmas on [pure_wp] *)
 
-  Lemma invert_pure_wp_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) :
-    pure_wp crash φ ψ → False.
+  Lemma invert_pure_wp_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) s :
+    pure_wp (crash s) φ ψ → False.
   Proof.
     inversion 1; subst. firstorder eauto with invert_may.
   Qed.
@@ -173,14 +173,14 @@ Section pure_wp_rules.
     induction S; try congruence. intros ? ->. exfalso. firstorder eauto with invert_may.
   Qed.
 
-  Lemma invert_pure_wp_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m :
-    may m crash → pure_wp m φ ψ → False.
+  Lemma invert_pure_wp_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m s :
+    may m (crash s) → pure_wp m φ ψ → False.
   Proof.
     eauto using invert_pure_wp_crash, pure_wp_may_forward.
   Qed.
 
-  Lemma invert_pure_wp_may_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' :
-    may m m' → may m' crash → pure_wp m φ ψ → False.
+  Lemma invert_pure_wp_may_may_crash {A E : Type} (φ : A → Prop) (ψ : E → Prop) m m' s :
+    may m m' → may m' (crash s) → pure_wp m φ ψ → False.
   Proof.
     eauto using invert_pure_wp_crash, pure_wp_may_forward.
   Qed.
@@ -354,14 +354,14 @@ Section pure_wp_rules.
     pure_wp m φ ψ ↔
     sn may m ∧ (∀ a, rtc may m (ret a) → φ a)
             ∧ (∀ e, rtc may m (throw e) → ψ e)
-            ∧ ¬rtc may m crash.
+            ∧ (∀ s, ¬rtc may m (crash s)).
   Proof.
     rewrite pure_wp_long_steps.
     split; intros [S L]; split; auto.
     - split; [|split].
       + intros a M. apply (invert_pure_wp_ret _ _ _ (L _ M I)).
       + intros e M. apply (invert_pure_wp_throw _ _ _ (L _ M I)).
-      + intros M.   apply (invert_pure_wp_crash _ _ (L _ M I)).
+      + intros s M. apply (invert_pure_wp_crash _ _ _ (L _ M I)).
     - intros [] Hm []; constructor; firstorder.
   Qed.
 
@@ -466,7 +466,7 @@ Section pure_wp_rules.
       + destruct M as (m2' & M2 & ->). eapply (IH (m1, m2')); auto. constructor; apply M2. eauto using pure_wp_may_forward.
       + destruct M as (e1 & -> & ->). apply Hthr. left. eapply invert_pure_wp_throw; eauto.
       + destruct M as (e2 & -> & ->). apply Hthr. right. eapply invert_pure_wp_throw; eauto.
-      + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_wp_crash; eauto.
+      + destruct M as [s [[-> | ->] _]]; exfalso; eapply invert_pure_wp_crash; eauto.
   Qed.
 
   (* Simpler version for the macro [par] *)
@@ -542,7 +542,7 @@ Section pure_wp_rules.
         * eauto using pure_wp_may_forward.
       + destruct M as (e1 & -> & ->). apply invert_pure_wp_throw in H1; eauto.
       + destruct M as (e2 & -> & ->). apply invert_pure_wp_throw in H2; eauto.
-      + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_wp_crash; eauto.
+      + destruct M as [s [[-> | ->] _]]; exfalso; eapply invert_pure_wp_crash; eauto.
   Qed.
 
   (** Sequentializations of [Par] for restricted forms of [pure_wp] *)
@@ -594,7 +594,7 @@ Section pure_wp_rules.
         * eauto using pure_wp_may_forward.
       + destruct M as (e1 & -> & ->). apply invert_pure_wp_throw in H1; tauto.
       + destruct M as (e2 & -> & ->). eapply invert_pure_wp_throw in H2; eauto.
-      + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_wp_crash; eauto.
+      + destruct M as [s [[-> | ->] _]]; exfalso; eapply invert_pure_wp_crash; eauto.
   Qed.
 
   Lemma pure_wp_Par_val_right {A E A1 A2 E'} m1 m2 φ ψ
@@ -639,7 +639,7 @@ Section pure_wp_rules.
         * eauto using pure_wp_may_forward.
       + destruct M as (e1 & -> & ->). apply invert_pure_wp_throw in H1; tauto.
       + destruct M as (e2 & -> & ->). eapply invert_pure_wp_throw in H2; tauto.
-      + destruct M as [[-> | ->] _]; exfalso; eapply invert_pure_wp_crash; eauto.
+      + destruct M as [s [[-> | ->] _]]; exfalso; eapply invert_pure_wp_crash; eauto.
   Qed.
 
   (* Slightly simpler case when none of the parties involved ([m1], [m2]) can
@@ -786,8 +786,8 @@ Section pure_wp_rules.
   Proof.
     remember (Par _ m2 k) as m; intros PS; revert a1 m2 Heqm.
     induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m1 m2 ->.
-    destruct (may_cases m2) as [-> | [ | [ | Hm2 ]]].
-    - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    destruct (may_cases m2) as [[s ->] | [ | [ | Hm2 ]]].
+    - now destruct (invert_pure_wp_crash _ _ _ (HF (crash _) ltac:(constructor))).
     - firstorder. subst. constructor. apply HF. constructor.
     - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
     - constructor; eauto with may.
@@ -805,8 +805,8 @@ Section pure_wp_rules.
   Proof.
     remember (Par m1 m2 k) as m; intros PS; revert m1 m2 Heqm.
     induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m1 m2 ->.
-    destruct (may_cases m1) as [-> | [ | [ | Hm1 ]]].
-    - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    destruct (may_cases m1) as [[s ->] | [ | [ | Hm1 ]]].
+    - now destruct (invert_pure_wp_crash _ _ _ (HF (crash _) ltac:(constructor))).
     - assert (PP : pure_wp (Par m1 m2 k) φ ψ) by by constructor.
       firstorder. subst. constructor. by eapply invert_pure_wp_Par_ret_left.
     - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
@@ -822,8 +822,8 @@ Section pure_wp_rules.
   Proof.
     remember (Par _ _ k) as m; intros PS; revert m1 a2 Heqm.
     induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m1 m2 ->.
-    destruct (may_cases m1) as [-> | [ | [ | Hm1 ]]].
-    - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    destruct (may_cases m1) as [[s ->] | [ | [ | Hm1 ]]].
+    - now destruct (invert_pure_wp_crash _ _ _ (HF (crash _) ltac:(constructor))).
     - firstorder. subst. constructor. apply HF. constructor.
     - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
     - constructor; eauto with may.
@@ -841,8 +841,8 @@ Section pure_wp_rules.
   Proof.
     remember (Par m1 m2 k) as m; intros PS; revert m1 m2 Heqm.
     induction PS as [ |  | φ ψ m Hex HF IH]; try discriminate; intros m1 m2 ->.
-    destruct (may_cases m2) as [-> | [ | [ | Hm2 ]]].
-    - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    destruct (may_cases m2) as [[s ->] | [ | [ | Hm2 ]]].
+    - now destruct (invert_pure_wp_crash _ _ _ (HF (crash _) ltac:(constructor))).
     - assert (PP : pure_wp (Par m1 m2 k) φ ψ) by by constructor.
       firstorder. subst. constructor. by eapply invert_pure_wp_Par_ret_right.
     - destruct H as (e, ->). constructor. apply (HF _ ltac:(constructor)).
@@ -879,8 +879,8 @@ Section pure_wp_rules.
   Proof.
     remember (Handle m k) as h; intros PS; revert m Heqh.
     induction PS as [ |  | φ ψ _m Hex HF IH]; try discriminate; intros m ->.
-    destruct (may_cases m) as [-> | [ | [ | Hm ]]].
-    - now destruct (invert_pure_wp_crash _ _ (HF crash ltac:(constructor))).
+    destruct (may_cases m) as [[s ->] | [ | [ | Hm ]]].
+    - now destruct (invert_pure_wp_crash _ _ _ (HF (crash _) ltac:(constructor))).
     - firstorder. subst. constructor. eauto with may.
     - destruct H as (e, ->). constructor. eauto with may.
     - constructor; eauto with may.

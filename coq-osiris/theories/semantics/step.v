@@ -97,7 +97,7 @@ Local Hint Extern 1 (_ = _) =>
 Definition step_load_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
   | Some (V v) => continue k v
-  | _          => crash
+  | _          => crash "load error: unbound location"
   end.
 
 Notation step_load σ l k :=
@@ -132,7 +132,7 @@ Definition step_store_1 σ l v' : store :=
 Definition step_store_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
   | Some (V v) => continue k VUnit
-  | _          => crash
+  | _          => crash "store error: unbound location"
   end.
 
 Notation step_store σ l v' k :=
@@ -168,7 +168,7 @@ Definition step_resume_1 σ l :=
 Definition step_resume_2 {A E} σ l o k : micro A E :=
   match σ !! l with
   | Some (K sk) => try2 (sk o) k
-  | _           => crash
+  | _           => crash "resume error: unbound location"
   end.
 
 Notation step_resume σ l o k :=
@@ -321,10 +321,10 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
-      ∀ σ h,
+      ∀ σ h s,
       step
-        (σ, Handle Crash h)
-        (σ, Crash)
+        (σ, Handle (Crash s) h)
+        (σ, Crash s)
 
   (* Reduction under [Handle _ h] is permitted. *)
   | StepHandleLeft :
@@ -364,16 +364,16 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _),
+      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _) s,
       step
-        (σ, Par Crash m2 k)
-        (σ, Crash)
+        (σ, Par (Crash s) m2 k)
+        (σ, Crash s)
 
   | StepParCrashRight :
-      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _),
+      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _) s,
       step
-        (σ, Par m1 Crash k)
-        (σ, Crash)
+        (σ, Par m1 (Crash s) k)
+        (σ, Crash s)
 
   (* If a soft failure on either side is detected, then
      the failure component of the continuation [k] can be invoked. *)
@@ -549,8 +549,8 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma is_not_throw_crash {A E} :
-  is_not_throw (Crash : micro A E).
+Lemma is_not_throw_crash {A E} s :
+  is_not_throw (Crash s : micro A E).
 Proof.
   reflexivity.
 Qed.
@@ -598,8 +598,8 @@ Qed.
 
 (* [Crash] cannot step. *)
 
-Lemma invert_can_step_Crash {A E} σ :
-  can_step ((σ, Crash) : config A E) →
+Lemma invert_can_step_Crash {A E} σ s :
+  can_step ((σ, Crash s) : config A E) →
   False.
 Proof.
   intros. destruct_can_step. destruct_step.
@@ -678,7 +678,7 @@ Lemma invert_step_resume_shot {A E} σ σ' l o k m' :
   σ !! l = Some Shot →
   @step A E (σ, Stop CResume (l, o) k) (σ', m') →
   σ = σ' /\
-  m' = crash.
+  ∃ s, m' = crash s.
 Proof.
   intros Heq Hstep.
   destruct_step.
@@ -976,8 +976,8 @@ Qed.
 
 (* [Crash] is stuck. *)
 
-Lemma stuck_Crash {A E} σ :
-  stuck ((σ, Crash) : config A E).
+Lemma stuck_Crash {A E} σ s :
+  stuck ((σ, Crash s) : config A E).
 Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
@@ -1002,7 +1002,7 @@ Qed.
 
 Lemma only_crash_and_throw_and_perform_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  m = Crash ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerf e k).
+  (∃ s, m = Crash s) ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerf e k).
 Proof.
   intros.
   destruct m; try solve [
@@ -1023,7 +1023,7 @@ Qed.
 Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _
-  | Crash
+  | Crash _
   | Throw _
   | Stop CPerf _ _ =>
       True
@@ -1043,7 +1043,7 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
 Proof.
   intros Hstuck.
   apply only_crash_and_throw_and_perform_are_stuck in Hstuck.
-  destruct Hstuck as [| [(e & ?) | (e & k & ?)]]; subst m; simpl bind;
+  destruct Hstuck as [(s & ?) | [(e & ?) | (e & k & ?)]]; subst m; simpl bind;
   eauto using stuck_Crash, stuck_Throw, stuck_Perform.
 Qed.
 

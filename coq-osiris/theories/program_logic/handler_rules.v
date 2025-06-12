@@ -133,7 +133,7 @@ Local Ltac ewp_invert :=
       | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
           iMod (ewp_ret_inv with "[$]") as "HΦ"
       (* EWP crash *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
           iMod (ewp_crash_inv with "[$]") as "HΦ"
       end
   end.

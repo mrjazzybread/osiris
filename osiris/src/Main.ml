@@ -44,6 +44,8 @@ let print (out_file : filename) (defs : Coq.defs) =
 
 (* Translating one file. *)
 
+module Translate = Translate.Make(Settings)
+
 let translate ml_file cmt_file out_file =
   assert (is_absolute ml_file);
   assert (is_absolute cmt_file);
