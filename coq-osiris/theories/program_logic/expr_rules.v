@@ -1174,14 +1174,22 @@ Section ewp_rules_expr.
   Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
     EWP (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
-    (∀ k v, φ1 k -∗ φ2 v -∗
+    (∀ (k : cont) v, φ1 k -∗ φ2 v -∗
                 EWP stop CResume (k, O2Ret v) @ E <|ψ|> {{ φ }}) -∗
     EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
   Proof.
     iIntros "Hk Hv Hmon".
     simpl_eval.
-    iApply (ewp_Par with "Hk Hv"); try done.
-    all: iIntros; done.
+    iApply (ewp_Par with "[Hk] Hv"); try done.
+    { unfold as_cont. iApply ewp_bind.
+      iApply (ewp_mono with "Hk").
+      iIntros ([|]); last done.
+      iIntros "(%v & -> & Hφ1)".
+      iApply ewp_value. instantiate (1 := (λ o, match o with O2Ret v => φ1 v | O2Throw _ => False end)%I).
+      iApply "Hφ1". }
+    1-2: simpl; iIntros; try done.
+    simpl; iIntros (k v) "Hφ1 Hφ2".
+    iApply ("Hmon" with "Hφ1 Hφ2").
   Qed.
 
   Corollary ewp_EContinue η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
