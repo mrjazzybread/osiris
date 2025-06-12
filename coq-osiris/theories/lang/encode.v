@@ -348,6 +348,13 @@ Global Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
+(* First-class continuations. *)
+
+Global Instance Encode_cont : Encode cont :=
+  { encode := λ l, VCont l }.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Floats. *)
 
 Global Instance Encode_float : Encode PrimFloat.float :=

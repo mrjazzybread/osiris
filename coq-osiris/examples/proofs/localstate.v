@@ -172,7 +172,7 @@ Section verification.
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
       iApply ewp_ERef. { iApply ewp_EPath. iApply ewp_value. done. }
-      iIntros (? -> ?) "?".
+      iIntros (? <- ?) "?".
       by iApply val_points_to_unfold. }
 
     (* Continuing with the rest of the computation *)
@@ -244,8 +244,8 @@ Section verification.
 
        iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
          [ | | iIntros (?? ->) ].
-       { rewrite /as_cont; iApply ewp_bind.
-         iApply ewp_EPath. Ret. by Ret. }
+       { iApply ewp_EPath. iApply ewp_value. simpl.
+         iExists k; iSplitL; iPureIntro; reflexivity. }
        { iApply (ewp_ELoad_simple with "[] Hl").
          iApply ewp_EPath. by Ret. }
 
@@ -298,8 +298,8 @@ Section verification.
          iSpecialize ("H_WRITE" $! iEff_bottom (ensures #v, Φ v.2))%I.
 
          iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
-         { rewrite /as_cont; iApply ewp_bind.
-           iApply ewp_EPath. Ret. by Ret. }
+         { iApply ewp_EPath. Ret.
+           iExists _; iSplitL; iPureIntro; reflexivity. }
          { by iApply ewp_EConstant. }
 
          (* Resume the continuation. *)

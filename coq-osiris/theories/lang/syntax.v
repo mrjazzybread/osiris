@@ -53,6 +53,13 @@ Definition field :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* First-class continuations. *)
+
+Definition cont :=
+  tc_opaque loc.
+
+(* ------------------------------------------------------------------------ *)
+
 (* Machine integers. *)
 
 Notation int :=
@@ -401,7 +408,7 @@ Inductive val :=
   (* A location. *)
   | VLoc (l: loc)
   (* A continuation; more precisely, a location which stores a continuation. *)
-  | VCont (k: loc)
+  | VCont (k: cont)
   (* A module. *)
   | VStruct (xvs : list (var * val))
   (* A functor. *)

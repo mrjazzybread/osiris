@@ -1171,8 +1171,8 @@ Section ewp_rules_expr.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
-    EWP as_cont (eval η e1) @ E <|ψ|> {{ ensures k, φ1 k }} -∗
+  Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
                 EWP stop CResume (k, O2Ret v) @ E <|ψ|> {{ φ }}) -∗
@@ -1184,12 +1184,12 @@ Section ewp_rules_expr.
     all: iIntros; done.
   Qed.
 
-  Corollary ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
-    EWP as_cont (eval η e1) @ E <|ψ|> {{ ensures k, φ1 k }} -∗
+  Corollary ewp_EContinue η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ k v, φ1 k -∗ φ2 v -∗
-       ∃ sk, k ↦ K sk ∗
-        (k ↦ Shot -∗
+       ∃ sk, isCont k sk ∗
+        (isShot k -∗
             ▷ EWP (sk (O2Ret v)) @ E <|ψ|> {{ φ }})) -∗
     EWP eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
   Proof.

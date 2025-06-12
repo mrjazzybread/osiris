@@ -34,6 +34,29 @@ Definition store : Type :=
 
 Implicit Type σ : store.
 
+Global Instance cont_eq_decision : EqDecision cont.
+Proof. solve_decision. Defined.
+
+Global Instance cont_countable : Countable cont.
+Proof. unfold cont; simpl. apply locations.loc_countable. Defined.
+
+Definition cont_store : Type :=
+  tc_opaque (gmap cont block).
+
+Global Instance lookup_cont : Lookup cont block cont_store :=
+  (@gmap_lookup cont cont_eq_decision cont_countable block).
+
+Global Instance insert_cont : Insert cont block cont_store.
+Proof.
+  unfold cont_store; simpl. unfold cont; simpl.
+  change cont_eq_decision with loc_eq_decision.
+  change cont_countable with loc_countable.
+  apply map_insert.
+Defined.
+
+Lemma store_conversion : cont_store = store.
+Proof. reflexivity. Qed.
+
 (* A configuration is a pair of a computation and a store. *)
 
 Definition config (A E : Type) : Type :=
@@ -94,7 +117,7 @@ Local Hint Extern 1 (_ = _) =>
    the continuation [k]. It fails if this location is not in the domain of [σ]
    or contains something other than a value. *)
 
-Definition step_load_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
+Definition step_load_2 {A E} σ (l : loc) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
   | Some (V v) => continue k v
   | _          => crash "load error: unbound location"
@@ -447,16 +470,17 @@ Ltac destruct_step :=
 
 (* Some derived rules. *)
 
-Lemma StepLoadSuccess {A E} σ l (k : outcome2 val exn → micro A E) v :
+Lemma StepLoadSuccess {A E} σ (l : loc) (k : outcome2 val exn → micro A E) v :
   σ !! l = Some (V v) →
   step
     (σ, Stop CLoad l k)
     (σ, continue k v).
 Proof.
-  intros Heq. econstructor. unfold step_load_2. rewrite Heq. eauto.
+  intros Heq. econstructor. unfold step_load_2.
+  rewrite Heq. eauto.
 Qed.
 
-Lemma StepStoreSuccess {A E} σ l v v' (k : outcome2 val exn → micro A E) :
+Lemma StepStoreSuccess {A E} σ (l : loc) v v' (k : outcome2 val exn → micro A E) :
   σ !! l = Some (V v) →
   step
     (σ, Stop CStore (l, v') k)
@@ -670,18 +694,23 @@ Qed.
 (* If the location [l] exists in the store and contains a continuation,
    then [stop CResume (l, o)] can step in only one way. *)
 
-Lemma invert_step_resume {A E} σ σ' l o k sk m' :
+Lemma invert_step_resume {A E} (σ σ' : cont_store) (l : cont) o k sk m' :
   σ !! l = Some (K sk) →
   @step A E (σ, Stop CResume (l, o) k) (σ', m') →
   σ' = <[ l := Shot ]> σ ∧
   m' = try2 (sk o) k.
 Proof.
   intros Heq Hstep. destruct_step.
-  unfold step_resume_1, step_resume_2. rewrite Heq.
+  unfold step_resume_1, step_resume_2.
+  unfold lookup_cont in Heq.
+  change loc with cont. change store with cont_store.
+  change loc_eq_decision with cont_eq_decision.
+  change loc_countable with cont_countable.
+  rewrite Heq.
   eauto.
 Qed.
 
-Lemma invert_step_resume_shot {A E} σ σ' l o k m' :
+Lemma invert_step_resume_shot {A E} (σ σ' : cont_store) l o k m' :
   σ !! l = Some Shot →
   @step A E (σ, Stop CResume (l, o) k) (σ', m') →
   σ = σ' /\
@@ -689,7 +718,12 @@ Lemma invert_step_resume_shot {A E} σ σ' l o k m' :
 Proof.
   intros Heq Hstep.
   destruct_step.
-  unfold step_resume_1, step_resume_2. rewrite Heq.
+  unfold step_resume_1, step_resume_2.
+  unfold lookup_cont in Heq.
+  change loc with cont. change store with cont_store.
+  change loc_eq_decision with cont_eq_decision.
+  change loc_countable with cont_countable.
+  rewrite Heq.
   eauto.
 Qed.
 

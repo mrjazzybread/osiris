@@ -149,7 +149,7 @@ Definition as_loc {E} (m : micro val E) : micro loc E :=
 (* [val_as_cont v] checks that the value [v] is a language-level continuation
    value and returns its meta-level value. *)
 
-Definition val_as_cont {E} (v : val) : micro loc E :=
+Definition val_as_cont {E} (v : val) : micro cont E :=
   match v with
   | VCont l =>
       ret l
@@ -157,7 +157,7 @@ Definition val_as_cont {E} (v : val) : micro loc E :=
       type_mismatch "continuation value expected"
   end.
 
-Definition as_cont {E} (m : micro val E) : micro loc E :=
+Definition as_cont {E} (m : micro val E) : micro cont E :=
   v ← m ;
   val_as_cont v.
 
@@ -988,9 +988,9 @@ Fixpoint pre_shallow_eval_branches η bs all_bs o :=
            throw e
        | O3Perform e l =>
            (* If we don't catch the effect, we reinstall the handler on
-              top of the continuation (using a shallow install, notice
-              the [false] flag). We then reperform the effect with the
-              same continuation it had initially. *)
+              top of the continuation (using a shallow wrap).
+              We then reperform the effect with the same continuation
+              it had initially. *)
            l ← shallow_wrap l η all_bs;
            try2 (perform e) (λ o, resume l o)
        end)
@@ -1223,9 +1223,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          [| effect ... -> ...]. We execute the expression [e] under a handler,
          which inspects the outcome of this computation using the branches
          [bs]. *)
-      Handle (eval η e) (wrap_eval_branches η bs)
+      Handle (eval η e) (λ o, wrap_eval_branches η bs o)
   | EShallowMatch e bs =>
-      handle (eval η e) (shallow_eval_branches η bs bs)
+      handle (eval η e) (λ o, shallow_eval_branches η bs bs o)
   | ERaise e =>
       exn ← eval η e ;
       throw exn

@@ -7,6 +7,8 @@ From osiris.semantics Require Import code.
 
 From osiris.program_logic.pure Require Import pure.
 
+From Coq Require Import FunctionalExtensionality.
+
 (* -------------------------------------------------------------------------- *)
 (** *Shallow and deep handlers *)
 
@@ -213,15 +215,32 @@ Section handler_proof.
         iApply (monotonic_prot with "[HH Hl] HP").
         iIntros (?) "Hk"; iIntros (??) "H".
         rewrite /deep_handler_spec seal_eq.
-        iApply (ewp_resume with "Hl").
+
+        iPoseProof (ewp_resume E l' w (λ o : outcome2 val exn,
+                          Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) inject2 Φ'' Ψ'' with "Hl") as "Hl".
+        unfold cont; simpl.
+        iApply "Hl".
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
         iIntros "H".
-        by rewrite try2_ret_right; simpl_wrap_eval_branches. }
-      done. }
+        iNext.
+        replace
+          (@Handle val exn
+          (@stop (prod loc (outcome2 val exn)) val exn CResume
+             (@pair C.continuation (outcome2 val exn) l w))
+          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
+           @try2 val val exn exn (wrap_eval_branches η bs o) (@inject2 val exn)))
+          with
+          ((Handle (stop CResume (pair l w))
+          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
+             wrap_eval_branches η bs o))).
+        by simpl_wrap_eval_branches.
+        f_equal. extensionality o. rewrite try2_ret_right. done. }
 
-    { (* [StepHandleCrash] *)
-      by ewp_invert. }
+      { done. } }
+
+      { (* [StepHandleCrash] *)
+        by ewp_invert. }
 
     { (* [StepHandleLeft] *)
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
@@ -260,10 +279,10 @@ Section handler_proof.
   Qed.
 
   Lemma deep_handle_nil_perform η eff k ψ sk Φ :
-    k ↦ K sk -∗
+    isCont k sk -∗
     ψ allows perform eff
     << λ o,
-      (k ↦ Shot -∗ ▷ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
+      (isShot k -∗ ▷ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
     EWP (eval_branches η (O3Perform eff k) []) <|ψ|> {{ Φ }}.
   Proof.
     iIntros "Hl Hperf".
@@ -274,12 +293,13 @@ Section handler_proof.
       iPoseProof (ewp_resume with "Hl") as "Hcov".
       iModIntro.
       rewrite try2_inject2.
-      iApply "Hcov". rewrite try2_ret_right. iApply "H". }
+      iApply "Hcov".
+      rewrite try2_ret_right. iApply "H". }
     done.
   Qed.
 
   Lemma shallow_handle_nil_perform η eff k all_branches ψ sk Φ :
-    k ↦ K sk -∗
+    isCont k sk -∗
     ψ allows perform eff
     << λ o,
       ▷ EWP
@@ -298,14 +318,18 @@ Section handler_proof.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
-      iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_ret_right.
+      iNext. rewrite try2_inject2.
+      iApply "Hcov".
       iIntros "_".
       iApply (bi.later_mono with "H").
       iIntros "H".
+      unfold stop.
+      rewrite try2_ret_right.
       iApply "H". }
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hk]").
     { iIntros (o) "H".
       iPoseProof (ewp_handle_inv with "Hk") as "Hcov".
+      unfold cont; simpl.
       iApply "Hcov". iApply "H". }
     done.
   Qed.

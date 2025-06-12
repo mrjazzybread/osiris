@@ -67,9 +67,21 @@ End ghost_instances.
 Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
-(* Notations *)
-Notation "l ↦ v" := (pointsto l (DfracOwn 1) v)
-  (at level 20, format "l  ↦  v") : bi_scope.
+(* Notations for ghost resouces. *)
+
+Notation "l ↦ v" :=
+  (pointsto l (DfracOwn 1) v)
+    (at level 20, format "l  ↦  v") : bi_scope.
+
+Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont block Σ.
+Proof. unfold cont; simpl. apply osiris_heapGS. assumption. Defined.
+
+Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
+  : iProp Σ :=
+  gen_heap.pointsto k (DfracOwn 1) (K sk).
+
+Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
+  k ↦ Shot.
 
 (* -------------------------------------------------------------------------- *)
 

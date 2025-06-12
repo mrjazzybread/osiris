@@ -419,7 +419,8 @@ Section wp_handler_rules.
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iFrame. }
+      iFrame.
+      unfold cont; simpl. iApply "Hsh". }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -463,7 +464,7 @@ Section wp_handler_rules.
 
   (* Inversion for [Handle] *)
   Lemma ewp_handle_inv {B Y} E k l w (c : _ -> micro B Y) Ψ Φ:
-    l ↦ K k -∗
+    isCont l k -∗
     EWP Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
     EWP Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -722,8 +723,8 @@ Section ewp_rules.
   (* Resuming a continuation from a location in the store. *)
 
   Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    pointsto l (DfracOwn 1) (K sk) ⊢
-    (pointsto l (DfracOwn 1) (Shot) -∗
+    isCont l sk ⊢
+    (isShot l -∗
      ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.

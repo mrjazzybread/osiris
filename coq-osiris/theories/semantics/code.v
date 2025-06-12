@@ -72,8 +72,8 @@ Inductive code : Type → Type → Type → Type :=
 | CLoad  : code loc val exn
 | CStore : code (loc * val) val exn
 | CPerf  : code eff val exn
-| CResume : code (loc * outcome2 val exn) val exn
-| CWrap : code (bool * loc * env * handler) loc exn
+| CResume : code (cont * outcome2 val exn) val exn
+| CWrap : code (bool * cont * env * handler) loc exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -113,16 +113,16 @@ Definition perform (v : eff) : microvx :=
 (* The computation [wrap η k bs] installs a handler [bs] for the continuation
   stored at [k], and returns a new location which stores this installation. *)
 
-Definition wrap k η bs : micro loc exn :=
+Definition wrap (k : cont) η bs : micro loc exn :=
   stop CWrap (true, k, η, bs).
 
 Definition shallow_wrap k η bs : micro loc exn :=
   stop CWrap (false, k, η, bs).
 
-Definition resume (l : loc) (o : outcome2 val exn) :=
+Definition resume (l : cont) (o : outcome2 val exn) :=
   stop CResume (l, o).
 
-(* *)
+(* [handle] is simplify defined as the [Handle] constructor. *)
 
 Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
   Handle m h.
