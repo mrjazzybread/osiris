@@ -10,7 +10,7 @@ Local Infix "=?" := String.eqb.
 (* Conventional metavariables. *)
 
 Implicit Type g x : var.
-Implicit Type c : data. (* or coercion; TODO *)
+Implicit Type c : data.
 Implicit Type f : field.
 Implicit Type p : pat.
 Implicit Type ps : list pat.
@@ -87,7 +87,7 @@ Definition type_mismatch {A E} (msg : string) : micro A E :=
    we adopt a more pessimistic (more permissive) specification and allow
    the result in that case to be a crash. This removes the need for an
    effectful operation that produces an arbitrary integer result. We may
-   revisit this in the future. TODO *)
+   revisit this in the future. *)
 
 Definition in_shift_range_b (i : int) : bool :=
   (0 <=? signed i) && (signed i <=? int.zintsize).
@@ -1233,14 +1233,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       eff ← eval η e ;
       perform eff
   | EContinue e1 e2 =>
-      (* TODO use [par], as in the paper *)
-      l ← as_cont (eval η e1) ;
-      v ← eval η e2 ;
+      '(l, v) ← par (as_cont (eval η e1)) (eval η e2) ;
       resume l (O2Ret v)
   | EDiscontinue e1 e2 =>
-      (* TODO use [par], as in the paper *)
-      l ← as_cont (eval η e1) ;
-      v ← eval η e2 ;
+      '(l, v) ← par (as_cont (eval η e1)) (eval η e2) ;
       resume l (O2Throw v)
   | EWhile e body =>
       b ← as_bool (eval η e) ;

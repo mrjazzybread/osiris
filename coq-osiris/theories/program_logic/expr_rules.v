@@ -36,7 +36,6 @@ Section ewp_rules_expr.
     by iIntros ([|] []).
   Qed.
 
-  (* TODO: These should all be [simp]-level lemmas *)
   Lemma ewp_eval_bindings_cons_total η p e bs φ1 φs φ E Ψ :
     EWP eval η e @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
     EWP eval_bindings η bs @ E <|Ψ|> {{ ensures v, φs v }} -∗
@@ -539,7 +538,6 @@ Section ewp_rules_expr.
     iApply (ewp_EIntAdd_exn with "H1 H2"); auto.
   Qed.
 
-  (* TODO: this may be the preferred style, wait and see *)
   Lemma ewp_EIntAdd' η e1 e2 (φ1 φ2 φ : Z -> iProp Σ) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ ensures #n1, φ1 n1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures #n2, φ2 n2 }} -∗
@@ -564,7 +562,6 @@ Section ewp_rules_expr.
       rewrite M.add_repr_repr. auto.
   Qed.
 
-  (* TODO: this could be better, wait and see *)
   Lemma ewp_EIntAdd_simple η e1 e2 (n1 n2 : Z) (R1 R2 : iProp Σ) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ RET= #n1, R1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ RET= #n2, R2 }} -∗
@@ -633,7 +630,6 @@ Section ewp_rules_expr.
     1,2: iIntros (?) "[]".
   Qed.
 
-  (* TODO generalize (maybe to some Comparable typeclass?) *)
   Lemma ewp_EOpEq_simple_Z η e1 e2 (n1 n2 : Z) (R1 R2 : iProp Σ) E Ψ :
     representable n1 ->
     representable n2 ->
@@ -689,7 +685,6 @@ Section ewp_rules_expr.
 
   (* Specialized [ELet] lemmas *)
 
-  (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
   Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
     (∀ v, Φ v -∗
@@ -783,7 +778,6 @@ Section ewp_rules_expr.
     auto.
   Qed.
 
-  (* TODO: check if this is actually simpler *)
   Lemma ewp_ELetRec_specced_ret_1 {η f x e1 e2 φ E Ψ} {A} (R : A → val → iProp Σ) φf :
     □(∀ vf,
      □(∀ a v, R a v -∗ EWP call vf v {{ ensures v', φf a v' }}) -∗
@@ -991,7 +985,6 @@ Section ewp_rules_expr.
       * iApply ("E" with "H").
   Qed.
 
-  (* TODO: is this version indeed simpler to use? (&is it less general?) *)
   Lemma ewp_EAssert_exn_sep η e φ1 φ E Ψ :
     φ (O2Ret #()) ∗
     (φ (O2Ret #()) -∗ EWP eval η e @ E <|Ψ|> {{ φ1 }}) ∗
@@ -1026,7 +1019,6 @@ Section ewp_rules_expr.
       iSplitL. by iIntros. iIntros (v) "$ //".
   Qed.
 
-  (* TODO: is this version indeed simpler to use? *)
   Lemma ewp_EAssert_sep η e R E Ψ :
     R ∗ (R -∗ EWP eval η e @ E <|Ψ|> {{ ensures v, ⌜v = VTrue⌝ ∗ R }}) -∗
     EWP eval η (EAssert e) @ E <|Ψ|> {{ ensures _, R }}.
@@ -1189,13 +1181,8 @@ Section ewp_rules_expr.
   Proof.
     iIntros "Hk Hv Hmon".
     simpl_eval.
-    iApply ewp_bind.
-    iApply (ewp_mono with "Hk").
-    iIntros ([|]) "Hφ1"; [ simpl | done ].
-    iApply ewp_bind.
-    iApply (ewp_mono with "Hv").
-    iIntros ([|]) "Hφ2"; [ simpl | done ].
-    iApply ("Hmon" with "Hφ1 Hφ2").
+    iApply (ewp_Par with "Hk Hv"); try done.
+    all: iIntros; done.
   Qed.
 
   Corollary ewp_EContinue η e1 e2 E ψ (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
