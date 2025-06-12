@@ -217,9 +217,9 @@ Section ewp_rules_expr.
 
   Lemma ewp_evals η E es φs φe ψ:
     ([∗ list] ei;φi ∈ es;φs,
-       EWP eval η ei @ E <| ψ |> {{ | RET v => φi v; | EXN e => φe e }}) -∗
+       EWP eval η ei @ E <| ψ |> {{ RET v => φi v | EXN e => φe e }}) -∗
     EWP evals η es @ E <| ψ |>
-      {{ | RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
+      {{   RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi
          | EXN e => φe e}}.
   Proof.
     iIntros "Hφ".

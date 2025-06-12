@@ -18,12 +18,12 @@ Definition isListIter (iter : val) : iProp Σ :=
     □ (∀ (Xs : list A) (X : A),
           ⌜ (Xs ++ [X]) `prefix_of` l ⌝ -∗
             I Xs -∗
-            EWP (call f #X) @ E <| ψ |> {{   RET v => ⌜ v = VUnit ⌝ ∗ I (Xs ++ [X]);
+            EWP (call f #X) @ E <| ψ |> {{   RET v => ⌜ v = VUnit ⌝ ∗ I (Xs ++ [X])
                                            | EXN e => φ e ∗ I Xs }})
       -∗
       I [] -∗
       EWP (ncall iter [f; #l] ) @E <| ψ |>
-      {{   RET v => ⌜ v = VUnit ⌝ ∗ I l;
+      {{   RET v => ⌜ v = VUnit ⌝ ∗ I l
          | EXN e => φ e ∗ ∃ Xs, I Xs ∗ ⌜ Xs `prefix_of` l ⌝ }}.
 
 Lemma iter_module :
