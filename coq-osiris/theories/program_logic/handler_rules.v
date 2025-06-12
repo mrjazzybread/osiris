@@ -205,8 +205,7 @@ Section handler_proof.
       (* Install the handler around the location [l]. *)
       simpl_wrap_eval_branches; iApply ewp_wrap_deep.
       ewp_mask_intro "Hmod".
-      ewp_mask_elim. (* TODO this eliminates a ▷ in the goal
-                             but not in "Hsh", so we lose; FIXME *)
+      ewp_mask_elim.
       iIntros (?) "Hl".
       iSpecialize ("Hsh" $! e l').
 

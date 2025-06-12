@@ -123,7 +123,5 @@ Global Hint Resolve
 
 (* Unit tests. *)
 
-(* TODO add more tests; ensure some form of test coverage *)
-
 Goal   VBool (eq (add (repr 0) (repr 1)) (repr 1)) = VTrue.
 Proof. equality. Qed.

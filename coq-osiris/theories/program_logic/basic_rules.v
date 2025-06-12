@@ -195,8 +195,6 @@ Section ewp_basic_rules.
     by iApply ("IH" with "[//] Hwp").
   Qed.
 
-  (* TODO: Strong monotonicity principle over ordering on protocols *)
-
   Lemma ewp_pers_smono E E' Ψ Φ Φ' m :
     E ⊆ E' →
     EWP m @ E <| Ψ |> {{ Φ }} -∗
@@ -241,7 +239,6 @@ Section ewp_basic_rules.
     auto.
   Qed.
 
-  (* TODO: Change to typeclass for modality elimination *)
   Lemma ewp_fupd E m Ψ Φ :
     (|={E}=> EWP m @ E <| Ψ |> {{ Φ }}) -∗
     EWP m @ E <| Ψ |> {{ Φ }}.
@@ -402,7 +399,6 @@ Section wp_handler_rules.
       iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H | ].
 
-      (* TODO redundancy with [ewp_resume]? *)
       iAssert (Ψ allows perform e0
                  << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >>)%I
         with "[HP HH]" as "HΨ".
@@ -861,7 +857,7 @@ Section ewp_rules.
     { (* [ParPerformLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       iPoseProof (ewp_perform_inv with "[$]") as "H1".
-      iApply ewp_fupd. iMod "H1"; iModIntro. (* TODO: cleanup *)
+      iApply ewp_fupd. iMod "H1"; iModIntro.
       iApply ewp_stop_perform.
       iApply (monotonic_prot with "[H2 Hexn1 Hexn2 Hjoin] H1").
       iIntros (?) "Hk".
@@ -871,7 +867,7 @@ Section ewp_rules.
     { (* [ParPerformRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       iPoseProof (ewp_perform_inv with "[$]") as "H2".
-      iApply ewp_fupd. iMod "H2"; iModIntro. (* TODO: cleanup *)
+      iApply ewp_fupd. iMod "H2"; iModIntro.
       iApply ewp_stop_perform.
       iApply (monotonic_prot with "[H1 Hexn1 Hexn2 Hjoin] H2").
       iIntros (?) "H2".

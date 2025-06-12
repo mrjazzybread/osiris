@@ -5,8 +5,6 @@ From osiris.program_logic.pure Require Import wp.
 
 (** This file defines the judgements for pure computations. *)
 
-(* TODO: Comment -- Explain encode *)
-
 (* One justification for [Observe] appears in pure_rules.v, to generalize
    [pure_bind] to more than just [@bind val val] *)
 
@@ -37,8 +35,6 @@ Notation "♯ x" := (observe x) (at level 5).
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO Comment *)
-
 Lemma solve_observe_nil A (Enc:Encode A) :
   forall (xs : list A),
     [] = xs →
@@ -62,8 +58,6 @@ Global Hint Extern 100 ([] = ♯ _) =>
 
 (* -------------------------------------------------------------------------- *)
 
-(* TODO Comment *)
-
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
 
@@ -73,8 +67,6 @@ Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
 (* [pure m φ ψ] states that [m] is a pure computation that will reduce to a
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
-
-(* TODO Comment *)
 
 Definition pure `{Observe A V} :
   forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop :=

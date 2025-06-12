@@ -193,7 +193,6 @@ Module ewp_rules_tactics.
   (* [wp_case_is_ret m Hret] performs a case analysis on [m]: either it is
     of the form [ret a], or it is not. In the second branch, the equality
     [is_ret m = None] appears under the name [Hret]. *)
-  (* TODO cleanup *)
 
   Tactic Notation "wp_case_is_ret" constr(x) ident(Hret) :=
     case_eq (is_ret x);

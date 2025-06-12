@@ -246,7 +246,6 @@ Proof.
   eauto using pure_ret with pure.
 Qed.
 
-(* TODO Comment *)
 Lemma pure_eval_data_val `{Encode Y} η c e y (ψ : Y -> Prop) ζ :
   pure_wp (evals η e) (λ v', VData c v' = #y) ζ -> (* LATER: Should we clean this up? *)
   ψ y ->
@@ -266,7 +265,6 @@ Proof.
   simpl. rewrite map_id. apply Hvs. apply Hy.
 Qed.
 
-(* TODO Fix automation on [pure_data] *)
 Lemma pure_eval_data `{Encode A} η c e (ψ : A -> Prop) ζ :
   pure (evals η e) (λ (v' : list val), ∃ y, VData c v' = #y ∧ ψ y) ζ ->
   pure (eval η (EData c e)) ψ ζ.
@@ -279,18 +277,6 @@ Proof.
   cbn; by rewrite map_id.
 Qed.
 
-
-(* -------------------------------------------------------------------------- *)
-
-(** *Record construction, update, access. *)
-
-(* TODO *)
-(** Record construction: [{ fs = es }]. *)
-(* ERecord (fes : list fexpr) *)
-(** Record update: [{ e with fs = es }]. *)
-(* ERecordUpdate (e : expr) (fes : list fexpr) *)
-(** Record access: [e.f]. *)
-(* ERecordAccess (e : expr) (f : field) *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1217,13 +1203,6 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-(* Local module definition: [let module M = me in e]. *)
-(* TODO ELetModule (M : module) (me : mexpr) (e : expr) *)
-
-(* Local [open] directive: [let open me in e]. *)
-(* TODO ELetOpen (me : mexpr) (e : expr) *)
-
-(* -------------------------------------------------------------------------- *)
 (* Sequence: [e1; e2]. *)
 (* ESeq (e1 e2 : expr) *)
 
@@ -1306,7 +1285,6 @@ Proof.
   cbn; intros * H. destruct a; eauto.
 Qed.
 
-(* TODO fix inconsistent naming *)
 Lemma pure_ifthenelse_bool `{EncA: Encode A}
   η e e1 e2 (φ : A -> _) φb ψ :
   pure (eval η e) φb ψ →
@@ -1418,7 +1396,6 @@ Proof.
   apply (pure_wp_mono _ Hmatch); eauto.
 Qed.
 
-(* TODO Rename *)
 Lemma pure_eval_match' `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) Ψ :
   pure (eval η e) φ' ⊥ ->
   (∀ (a : A), φ' a -> branches η (O3Ret #a) bs φ Ψ) ->
@@ -1432,7 +1409,6 @@ Proof.
   apply (pure_wp_mono _ (Hmatch _ Ha)); eauto.
 Qed.
 
-(* TODO Rename *)
 Lemma pure_eval_match'_exn `{Encode A, Encode B} η e bs (φ : B -> Prop) (φ' : A -> Prop) ζ Ψ :
   pure (eval η e) φ' ζ ->
   (∀ (a : A), φ' a -> branches η (O3Ret #a) bs φ Ψ) ->
@@ -1609,16 +1585,3 @@ Proof.
   intros; returns_eauto; cbn; eauto.
   repeat econstructor. rewrite truth_true; eauto.
 Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* TODO: For impure expressions that fell under the hood, we should provide
-   some "trivial" lemmas that warn the users that something has gone wrong. *)
-(* Definition not_pure (s : string) : Prop := False. *)
-
-(* Reference allocation: [ref e]. *)
-(* TODO ERef (e: expr) *)
-(* Reference lookup: [!e]. *)
-(* TODO ELoad (e: expr) *)
-(* Reference assignment: [e1 := e2]. *)
-(* TODO EStore (e1 e2: expr) *)

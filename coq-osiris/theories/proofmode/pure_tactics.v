@@ -667,7 +667,6 @@ Tactic Notation "pure_match" := ltac2:(pure_match).
 
 (* Tactics. *)
 
-(* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
 Ltac2 beta () := cbn beta.
 
 Goal (forall l : list nat,
@@ -764,7 +763,6 @@ Ltac2 get_expr_from_eval (m : constr) :=
                  "Expected term of the form [eval η e]")))
   end.
 
-(* TODO: Move; utility. Definition by Michael Soegtrop *)
 
 Definition type_of {T : Type} (x : T) := T.
 
@@ -1158,7 +1156,6 @@ Ltac2 pure_rec0 arg pre hwf :=
     lazy_match! goal with
     | [ |- pure (call _ _) ##?φ ⊥ ] =>
         Std.eval_pattern [(arg, Std.AllOccurrences)] φ
-    (* TODO: Standardize error messages. *)
     | [ |- _ ] =>
         Control.throw
           (Tactic_failure

@@ -6,7 +6,6 @@ From osiris.program_logic.pure Require Import
 
 (* This file defines contains reasoning rules about function calls. *)
 
-(* TODO Comment, clean *)
 
 (* -------------------------------------------------------------------------- *)
 (** *Evaluating function calls *)
@@ -178,7 +177,6 @@ Proof.
   specialize (IH _ H1). eapply IH; done.
 Qed.
 
-(* FIXME Clean up *)
 Lemma pure_rec_call_measure_gen' `{Encode X, Encode Y} {M}
   (measure : X -> M) (WF_x : WellFounded M) x P
   (η : env) (f : var) arg e Ψ (φ : X -> Y -> Prop):
@@ -200,13 +198,10 @@ Proof.
   specialize (IH _ H1). eapply IH; done. done.
 Qed.
 
-(* FIXME : Is there a better way to formulate this? (either more general,
-      or less cumbersome..) *)
 Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
   pure (call vf arg1)
     (λ c, pure (call c arg2) φ Ψ) Ψ.
 
-(* TODO Clean *)
 Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
   `{WF_x: WellFounded (X * Y)%type}
   η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) Ψ
@@ -244,7 +239,6 @@ Arguments wf_def {_ WF} : rename.
 
 
 (* Tactics for reasoning about recursive calls. *)
-(* TODO rename and comment *)
 
 Tactic Notation "recursion" constr(t) :=
 (eapply (pure_rec_call (X := t) _)).

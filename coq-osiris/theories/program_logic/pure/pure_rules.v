@@ -93,7 +93,6 @@ Section pure_rules.
   (* The rule is degenerate; [m] is not allowed to reduce to [throw _],
     so the handler [z] is dead and no proof obligation bears on it. *)
 
-  (* TODO Comment on generalization *)
   Lemma pure_try2 `{Observe A1 V1} `{Observe A2 V2} {E1 E2}
     (m : micro V1 _) (h : outcome2 V1 E1 -> micro V2 E2)
     (φ : A2 -> _) (φ' : A1 -> _) ψ (ψ' : E1 -> Prop):
@@ -125,7 +124,6 @@ Section pure_rules.
     than [val] did not work. Thanks to [Observe], now we can vary the Value types
     and the injection from [A1] and [A2]. *)
 
-  (* TODO Comment on generalization *)
   Lemma pure_bind `{Observe A1 V1} `{Observe A2 V2} {E}
     m (k : V1 -> micro V2 _) (φ : A2 -> _) (φ' : A1 -> _) ψ :
     pure (V := V1) (E := E) m φ' ψ →
@@ -163,7 +161,6 @@ Section pure_rules.
 
   (* A reasoning rule for [Par m1 m2 k z]. *)
 
-  (* TODO Comment on generalization *)
   Lemma pure_Par
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
     (m1 : micro V1 _) (m2 : micro V2 _)
@@ -339,7 +336,6 @@ Section pure_rules.
 (*     computations. *)
 
   (* -------------------------------------------------------------------------- *)
-  (* TODO Comment on generalization *)
   Lemma pure_prove_bind_bind `{Observe A1 V1, Observe A2 V2} {E}
     (m : micro A1 E) (a : A2)
     (f : A1 -> micro V2 E) (g : V2 -> micro V2 E)

@@ -603,7 +603,7 @@ Section MutuallyRecursive.
   (* ------------------------------------------------------------------------ *)
 
   (* Main result.
-     [assuming_list] (* TODO: find a better suited name for this lemma. *)
+     [assuming_list]
      states that for any persistent propositions [p1], ..., [pn] and any
      proposition [P] (which does not have to be persistent),
      [
