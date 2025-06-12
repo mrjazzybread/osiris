@@ -84,10 +84,10 @@ Definition pure `{Observe A V} :
 
 (* Notations *)
 
-Notation "η ⊢ '{' e 'ensures' Φ 'raises' ψ '}'" :=
+Notation "η ⊢ₚ '{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure (eval η e) Φ ψ)
    (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
+     format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure e Φ ψ)
@@ -99,10 +99,10 @@ Notation "'{' e 'ensures' Φ '}'" :=
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
-Notation "η ⊢ '{' e 'ensures' Φ '}'" :=
+Notation "η ⊢ₚ '{' e 'ensures' Φ '}'" :=
   (pure (eval η e) Φ ⊥)
    (at level 80, e, Φ at level 100,
-     format "'[hv' η  '⊢'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
+     format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 (* -------------------------------------------------------------------------- *)
 

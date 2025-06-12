@@ -21,7 +21,7 @@ Local Transparent eval eval_mexpr eval_sitem eval_sitems
 
 Goal
   let e := ELet1Var "x" (EConstant "A") $ EVar "y" in
-  ⊢ WP eval [] e @ NotStuck; ⊤ {{ RET v, ⌜v = VConstant "A"⌝ }}.
+  ⊢ WP eval [] e @ NotStuck; ⊤ {{ ensures v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   (* This goal is false: the variable [y] is unbound. *)
   iIntros.
@@ -36,7 +36,7 @@ Definition example :=
 
 (* An example of reasoning about straight-line code. *)
 
-Goal ⊢ EWP (eval [] example) {{ RET v, ⌜v = VConstant "A"⌝ }}.
+Goal ⊢ EWP (eval [] example) {{ ensures v, ⌜v = VConstant "A"⌝ }}.
 Proof.
   do 3 Simp. Ret. iPureIntro. reflexivity.
 Qed.
@@ -51,7 +51,7 @@ Definition example2 :=
 Goal
   ∀ v1 v2,
   let env := [("z1", v1); ("z2", v2)] in
-  ⊢ EWP (eval env example2) {{ RET v, ⌜v = v1⌝ }}.
+  ⊢ EWP (eval env example2) {{ ensures v, ⌜v = v1⌝ }}.
 Proof.
   iIntros.
   do 3 Simp. Ret. cbn.
@@ -76,9 +76,9 @@ Ltac Apply H :=
 
 Lemma spec_example3:
   ∀ (id : val),
-  ⊢ □ (∀ v, EWP (call id v) {{ RET v', ⌜ v' = v⌝ }} ) -∗
+  ⊢ □ (∀ v, EWP (call id v) {{ ensures v', ⌜ v' = v⌝ }} ) -∗
   let env := [("id", id)] in
-  EWP (eval env example3) {{ RET v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+  EWP (eval env example3) {{ ensures v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   iIntros (id) "#Hid".
   Simp. Par.
@@ -106,10 +106,10 @@ Definition identity :=
   EFun1Var "x" (EVar "x").
 
 Definition spec_id (c: val) : iProp Σ :=
-  □ ∀ v, EWP call c v {{ RET v', ⌜ v' = v ⌝ }}.
+  □ ∀ v, EWP call c v {{ ensures v', ⌜ v' = v ⌝ }}.
 
 Goal
-  ⊢ EWP (eval [] identity) {{ RET v, spec_id v }}.
+  ⊢ EWP (eval [] identity) {{ ensures v, spec_id v }}.
 Proof.
   Simp. Ret. cbn. iModIntro. iIntros (?).
   Simp. Ret. done.
@@ -124,7 +124,7 @@ Definition example4 :=
 
 Lemma spec_example4:
   ⊢ EWP (eval [] example4)
-    {{ RET v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
+    {{ ensures v, ⌜v = VPair (VConstant "A") (VConstant "A")⌝ }}.
 Proof.
   unfold example4.
   Simp.
@@ -139,7 +139,7 @@ Definition example5 :=
   ESeq (EAssert ETrue) EFalse.
 
 Lemma spec_example5:
-  ⊢ EWP (eval [] example5) {{ RET v, ⌜v = VFalse⌝ }}.
+  ⊢ EWP (eval [] example5) {{ ensures v, ⌜v = VFalse⌝ }}.
 Proof.
   (* TODO make [choose] opaque somewhere else *)
   (* TODO and prove a [wp] rule for [eval (EAssert _)]
@@ -156,7 +156,7 @@ Definition example4b :=
   EApp (EApp id id) EUnit.
 
 Lemma spec_example4b:
-  ⊢ EWP eval [] example4b {{ RET v, ⌜v = VUnit⌝ }}.
+  ⊢ EWP eval [] example4b {{ ensures v, ⌜v = VUnit⌝ }}.
 Proof.
   unfold example4b.
   Simp. Simp. Ret. done.
@@ -171,7 +171,7 @@ Definition example4c :=
   EApp id (EApp id EUnit).
 
 Lemma spec_example4c:
-  ⊢ EWP eval [] example4c {{ RET v, ⌜v = VUnit⌝}}.
+  ⊢ EWP eval [] example4c {{ ensures v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4c.
 
@@ -187,7 +187,7 @@ Definition example4d :=
     EApp (EApp id id) (EApp id EUnit).
 
 Lemma spec_example4d:
-  ⊢ EWP eval [] example4d {{ RET v, ⌜v = VUnit⌝}}.
+  ⊢ EWP eval [] example4d {{ ensures v, ⌜v = VUnit⌝}}.
 Proof.
   unfold example4d.
 
@@ -224,7 +224,7 @@ Definition walk : list rec_binding :=
 
 Definition spec_walk (walk : val): iProp Σ :=
   □ ∀ (bs : list bool),
-  EWP call walk (encode_list bs) {{ RET v, ⌜v = VUnit⌝ }}.
+  EWP call walk (encode_list bs) {{ ensures v, ⌜v = VUnit⌝ }}.
   (* TODO should always use [encode], not [encode_list] *)
 
 (* This is a subgoal that appears in the proof of
@@ -246,7 +246,7 @@ Definition walk_example e :=
 
 Lemma spec_walk_example_concrete :
   let e := (eCons ETrue (eCons EFalse eNil)) in
-  ⊢ EWP eval [] (walk_example e) {{ RET v, ⌜v = (encode.encode tt : val)⌝ }}.
+  ⊢ EWP eval [] (walk_example e) {{ ensures v, ⌜v = (encode.encode tt : val)⌝ }}.
 Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. do 2 Simp. by Ret.
@@ -272,7 +272,7 @@ Definition length : list rec_binding :=
 Definition spec_length (length : val) :=
   ∀ A (eA : Encode A) (xs : list A),
   ⊢ EWP call length (encode_list xs)
-       {{ RET v, ⌜v = encode.encode (List.length xs)⌝ }}.
+       {{ ensures v, ⌜v = encode.encode (List.length xs)⌝ }}.
 
 Goal
   ∀ η,

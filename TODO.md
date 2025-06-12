@@ -2,6 +2,12 @@
 
 ## TODO for artifact submission
 
+- README for more detailed instructions
+  - Mention that the validation needs `ocamlwc`
+- VM?
+
+## TODO
+
 * Add support for shallow handlers (translator, semantics, reasoning rules).
 
 * Add support for concurrency (SC first; weak memory later).

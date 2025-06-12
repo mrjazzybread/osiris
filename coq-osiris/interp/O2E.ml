@@ -149,7 +149,7 @@ and rec_binding : O.rec_binding -> E.rec_binding = function
 
 and anonfun : O.anonfun -> E.anonfun = function
   | AnonFun (v, e) -> AnonFun (var v, expr e)
-  | AnonFunction bs -> Extracted.Sugar.coq_AnonFunction (branches bs)
+  | AnonFunction bs -> Extracted.Notations.coq_AnonFunction (branches bs)
 
 and mexpr : O.mexpr -> E.mexpr = function
   | MUnsupported -> MUnsupported

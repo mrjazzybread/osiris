@@ -138,14 +138,14 @@ Section verification.
   Definition main_spec main init rl wl spec :=
     (∀ St,
         St init -∗
-        EWP call main #() <| STATE rl wl St |> {{ RET v, spec v }} )%I.
+        EWP call main #() <| STATE rl wl St |> {{ ensures v, spec v }} )%I.
 
   Definition run_spec rl wl run :=
     (∀ (* η *) (spec : val -> iProp Σ) init main,
        (* run_env_requirements η rl wl -∗ *)
        main_spec main init rl wl spec -∗
        EWP c ← (call run #init);
-           call c main {{ RET #v, spec (snd (v : state * val)) }})%I.
+           call c main {{ ensures #v, spec (snd (v : state * val)) }})%I.
 
   Lemma localstate_run_spec rl wl :
     ∀ η (Φ : val -> iProp Σ) init main,
@@ -154,9 +154,9 @@ Section verification.
       ⌜ address rl ≠ address wl ⌝ -∗
       (∀ St,
           St init -∗
-          EWP call main #() <| STATE rl wl St |> {{ RET v, Φ v }} ) -∗
+          EWP call main #() <| STATE rl wl St |> {{ ensures v, Φ v }} ) -∗
       EWP call_anonfun η run [ #init ; main]
-        {{ RET # v, Φ (snd (v : state * val)) }}.
+        {{ ensures #v, Φ (snd (v : state * val)) }}.
   Proof.
     cbn zeta.
     iIntros (env Φ init main HGet HSet Haddr) "Hmain".
@@ -242,7 +242,7 @@ Section verification.
        (* EWP Goal: [continue k (!var : t)]. *)
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
-       iSpecialize ("H_READ" $! iEff_bottom (RET # v, Φ v.2))%I.
+       iSpecialize ("H_READ" $! iEff_bottom (ensures #v, Φ v.2))%I.
 
        iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
          [ | | iIntros (?? ->) ].
@@ -297,7 +297,7 @@ Section verification.
          iModIntro.
 
          iSpecialize ("H_WRITE" with "Hx").
-         iSpecialize ("H_WRITE" $! iEff_bottom (RET # v, Φ v.2))%I.
+         iSpecialize ("H_WRITE" $! iEff_bottom (ensures #v, Φ v.2))%I.
 
          iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
          { rewrite /as_cont; iApply ewp_bind.
@@ -317,7 +317,7 @@ Section verification.
 
   Lemma lemmaname (Q : val -> iProp Σ) :
     ⊢ EWP (eval_mexpr dummy_env __main)
-      {{ RET v, ∃ η, ⌜v = VStruct η⌝ ∧
+      {{ ensures v, ∃ η, ⌜v = VStruct η⌝ ∧
                        ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
                               ∃ rl wl, run_spec rl wl run }}.
   Proof.
@@ -351,7 +351,7 @@ Section verification.
                   □ ∀ St x,
                       St x -∗
                       EWP call v #()  <|STATE rl wl St|>
-                        {{ RET #X, ⌜X = x⌝ }})%I).
+                        {{ ensures #X, ⌜X = x⌝ }})%I).
       { Simp; Ret; simpl.
         iIntros "!>" (St x) "HSt".
         iApply ewp_call_nonrec. iNext. Simp.
@@ -367,7 +367,7 @@ Section verification.
     iApply (ewp_sitems_let_singleton_var (λ v, □ ∀ St x y,
                            St x -∗
                              EWP call v #y  <|STATE rl wl St|>
-                             {{ RET _, St y }})%I ).
+                             {{ ensures _, St y }})%I ).
       { Simp; Ret; simpl.
         iIntros "!>" (St x y) "HSt".
         iApply ewp_call_nonrec. iNext. Simp.

@@ -56,10 +56,10 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     (* Calling [find l pred] returns an option [o] such that
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
-    EWP m {{ RET #o, ⌜match o with
-                    | Some x => x ∈ l ∧ φ x
-                    | None => Forall (λ x, ¬ (φ x)) l
-                    end⌝ }}.
+    EWP m {{ ensures #o, ⌜match o with
+                          | Some x => x ∈ l ∧ φ x
+                          | None => Forall (λ x, ¬ (φ x)) l
+                          end⌝ }}.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -74,7 +74,7 @@ Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
 
 Lemma iter_module_pure :
   ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{ RET m, module_spec [("find_first", λ find, iSpec τ[list A; val] find find_spec)] m }}.
+    {{ ensures m, module_spec [("find_first", λ find, iSpec τ[list A; val] find find_spec)] m }}.
 Proof.
   iApply ewp_module.
   iApply ewp_sitems_cons.
@@ -127,11 +127,13 @@ Proof.
             (* We give [find_elem] the specification [find_spec]. *)
             (λ (find : val), iSpec τ[list A; val] find find_spec)).
 
-  { (* Subgoal: Prove that [find_elem] satisfies its specification. *)
+  { (* START OF THE PROOF FROM THE PAPER *)
+    (* Subgoal: Prove that [find_elem] satisfies its specification. *)
     (* Step into the function's body *)
     iApply (ewp_eval_anon τ[list A; val]).
     (* FIXME: we can't simplify here to keep a "RET #o" notation folded.
        This means we have to proceed "blind" here. *)
+    (* Introduce the function's arguments. *)
     iIntros (xs pred φ Hpred).
     (* Declare and open a local module. *)
     iApply ewp_ELetOpen.

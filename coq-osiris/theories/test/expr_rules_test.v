@@ -46,7 +46,7 @@ Qed.
 (* [ref 1] *)
 
 Lemma example_ref_1 env:
-  ⊢ EWP (eval env (ERef (EInt 1))) {{ RET v, ∃ l : loc, ⌜v = VLoc l⌝ ∗ l ↦ V #1 }}.
+  ⊢ EWP (eval env (ERef (EInt 1))) {{ ensures v, ∃ l : loc, ⌜v = VLoc l⌝ ∗ l ↦ V #1 }}.
 Proof.
   iApply ewp_ERef.
   - (* 1 *)
@@ -59,7 +59,7 @@ Qed.
 (* [!x] *)
 Lemma example_load env x l v :
   lookup_name env x = ret (VLoc l) ->
-  l ↦ V v ⊢ EWP (eval env (ELoad (EVar x))) {{ RET v, l ↦ V v }}.
+  l ↦ V v ⊢ EWP (eval env (ELoad (EVar x))) {{ ensures v, l ↦ V v }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_ELoad.
@@ -74,7 +74,7 @@ Lemma example_store env x l :
   lookup_name env x = ret (VLoc l) ->
   l ↦ V #1
     ⊢ EWP (eval env (EStore (EVar x) (EInt 2)))
-    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V #2 }}.
+    {{ ensures r, ⌜r = VUnit⌝ ∗ l ↦ V #2 }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_EStore.
@@ -94,7 +94,7 @@ Lemma example_2_stores env x l :
             (ESeq
                (EStore (EVar x) (EInt 2))
                (EStore (EVar x) (EInt 4))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ l ↦ V #4 }}.
+    {{ ensures r, ⌜r = VUnit⌝ ∗ l ↦ V #4 }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_ESeq.
@@ -112,9 +112,9 @@ Qed.
 
 (* [!(ref 1)]  *)
 Lemma example_load_ref env :
-  ⊢ EWP (eval env (ELoad (ERef (EInt 1)))) {{ RET r, ⌜r = #1⌝ }}.
+  ⊢ EWP (eval env (ELoad (ERef (EInt 1)))) {{ ensures r, ⌜r = #1⌝ }}.
 Proof.
-  iApply (ewp_ELoad _ _ (λ l, l ↦ V #1)).
+  iApply (ewp_ELoad _ _ (λ l, l ↦ V #1)%I).
   - (* ref 1 *)
     Bind.
     iApply ewp_ERef.
@@ -134,7 +134,7 @@ Lemma example_incr env x lx n :
   lookup_name env x = ret (VLoc lx) ->
   lx ↦ V #n
   ⊢ EWP (eval env (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(1 + n)%Z }}.
+    {{ ensures r, ⌜r = VUnit⌝ ∗ lx ↦ V #(1 + n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (ewp_EStore with "[] [Hx]").
@@ -175,7 +175,7 @@ Lemma example_incr_via_y env x lx y ly n :
   ⊢ EWP (eval env (EStore (EVar x) (ELoad (EVar x) +
          ESeq (EStore (EVar y) (EIntAdd (EInt 1) (ELoad (EVar y)))) (ELoad (EVar y))
        )))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(n + 1)%Z ∗ ly ↦ V #1 }}.
+    {{ ensures r, ⌜r = VUnit⌝ ∗ lx ↦ V #(n + 1)%Z ∗ ly ↦ V #1 }}.
 Proof.
   iIntros (Ex Ey) "(Hx & Hy)".
   iApply (ewp_EStore with "[] [Hx Hy]").
@@ -230,7 +230,7 @@ Lemma example_double env x lx n :
   lookup_name env x = ret (VLoc lx) ->
   lx ↦ V #n
   ⊢ EWP (eval env (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
-    {{ RET r, ⌜r = VUnit⌝ ∗ lx ↦ V #(2 * n)%Z }}.
+    {{ ensures r, ⌜r = VUnit⌝ ∗ lx ↦ V #(2 * n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (ewp_EStore with "[] [Hx]").
@@ -270,7 +270,7 @@ Lemma simple_PAny_match env :
   ⊢ EWP eval env
     (EMatch (EInt 1)
       [Branch (CVal PAny) (EConstant "true")])
-    {{ RET #r, ⌜r = true⌝ }}.
+    {{ ensures #r, ⌜r = true⌝ }}.
 Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #1⌝))%I.
   { iApply ewp_EInt. encode. }
@@ -292,7 +292,7 @@ Lemma simple_PInt_eq_match env :
     (EMatch (EInt 1)
       [Branch (CVal (PInt 1)) (EConstant "true");
        Branch (CVal  PAny   ) (EConstant "false")])
-    {{ RET #r, ⌜r = true⌝ }}.
+    {{ ensures #r, ⌜r = true⌝ }}.
 Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #(1)%Z⌝))%I.
   { iApply ewp_EInt. encode. }
@@ -310,7 +310,7 @@ Lemma simple_PInt_neq_match env :
     (EMatch (EInt 2)
       [Branch (CVal (PInt 1)) (EConstant "true");
        Branch (CVal  PAny   ) (EConstant "false")])
-    {{ RET #r, ⌜r = false⌝ }}.
+    {{ ensures #r, ⌜r = false⌝ }}.
 Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
@@ -328,7 +328,7 @@ Lemma simple_PInt_012_match env :
       [Branch (CVal (PInt 0)) (EInt 0);
        Branch (CVal (PInt 1)) (EInt 1);
        Branch (CVal (PInt 2)) (EInt 2)])
-    {{ RET #r, ⌜r = 2⌝ }}.
+    {{ ensures #r, ⌜r = 2⌝ }}.
 Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #2%Z⌝))%I.
   { iApply ewp_EInt; encode. }
@@ -350,7 +350,7 @@ Lemma simple_true_true_match `{Encode A} env :
     (EMatch (EData "[]" [])
       [Branch (CVal (PData "::" [ PAny; PAny ])) (EInt 1);
        Branch (CVal (PConstant "[]")) (EInt 2)])
-    {{ RET #r, ⌜r = 2⌝ }}.
+    {{ ensures #r, ⌜r = 2⌝ }}.
 Proof.
   prove_match with (@lift_ret_spec Σ val exn (λ v, ⌜v = #(@nil A)⌝))%I.
   { iApply ewp_EConstant. encode. }

@@ -1,4 +1,5 @@
 From Coq Require Import Extraction String Ascii.
+From osiris.lang Require notations.
 From osiris.semantics Require strategy eval run.
 From osiris.stdlib Require Import Stdlib Externals.
 
@@ -27,7 +28,7 @@ Extract Constant Stdlib__compare => "VClo ([], AnonFun (EmptyString, EUnsupporte
 
 Separate Extraction
   ascii_of_N list_ascii_of_string
-  sugar
+  notations
   strategy
   eval
   run

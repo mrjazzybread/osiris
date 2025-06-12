@@ -308,30 +308,39 @@ Section lift_specs.
 
 End lift_specs.
 
+Definition lift_ret_enc_spec {E Σ} `{encode.Encode A} (ϕ : A -d> iProp Σ) : outcome2 val E -d> iProp Σ :=
+    lift_ret_spec (λ (v' : val), (∃ (v : A), ⌜v' = osiris.lang.encode.encode v⌝ ∗ ϕ v)%I).
+
 (* ========================================================================== *)
 
 (** *Notation *)
 
 Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
 Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
-Notation "'|' 'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
+Notation "'RET' x '=>' e '|' 'EXN' y '=>' f " :=
   (ilift (fun x => e) (fun y => f))
+    (at level 200, right associativity,
+      format
+        "'[v '   '['  'RET'  x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+
+Notation "'RET' '#' x '=>' e '|' 'EXN' y '=>' f " :=
+  (ilift (fun x => (∃ v, (bi_pure (x = osiris.lang.encode.encode v)) ∗ e)%I) (fun y => f))
     (at level 200, right associativity, format
-    "'[v ' '['  '|'  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+    "'[v ' '['    'RET'  '#' x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation. *)
-Notation "'RET' v , Q" :=
+Notation "'ensures' v , Q" :=
   (lift_ret_spec (λ v, Q))
-    (at level 20, Q at level 200,
-      format "'RET'  v ,  '/' Q") : bi_scope.
+    (at level 20, Q at level 200, v binder,
+      format "'ensures'  v ,  '/' Q") : bi_scope.
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation of an encoded value. *)
-Notation "'RET' '#' v , Q" :=
-  (lift_ret_spec (λ v', (∃ v, (bi_pure (v' = osiris.lang.encode.encode v)) ∗ Q)%I))
-    (at level 20, Q, v at level 200,
-      format "'RET'  '#' v ,  '/' Q") : bi_scope.
+Notation "'ensures' '#' v , Q" :=
+  (lift_ret_enc_spec (λ v, Q))
+    (at level 20, Q at level 200, v binder,
+      format "'ensures'  '#' v ,  '/' Q") : bi_scope.
 
 (* Notation for [ewp] *)
 
@@ -355,7 +364,7 @@ Notation "'EWP' e {{ Φ } }" :=
 (* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
   pre-existing notation; might be brittle *)
 Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
-  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ EWP e {{ RET v , Φ v }}).
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ EWP e {{ ensures v , Φ v }}).
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)

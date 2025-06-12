@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations syntax sugar.
+From osiris.lang Require Import int locations syntax notations.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
@@ -482,7 +482,7 @@ Global Instance Encode_tuple3
   : Encode (A * B * C)
   | 5 (* higher priority than tuple2; lower priority than tuple3 *)
 :=
-  { encode := λ '(a, b, c), VTuple3 #a #b #c }.
+  { encode := λ '(a, b, c), VTuple [#a; #b; #c] }.
 
 Lemma solve_encode_tuple3
   `{Encode A} `{Encode B} `{Encode C}
@@ -493,7 +493,7 @@ Lemma solve_encode_tuple3
   va = #a →
   vb = #b →
   vc = #c →
-  VTuple3 va vb vc = #t.
+  VTuple [va; vb; vc] = #t.
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_tuple3
@@ -509,7 +509,7 @@ Global Instance Encode_tuple4
   : Encode (A * B * C * D)
   | 0 (* higher priority than tuple2 and tuple3 above *)
 :=
-  { encode := λ '(a, b, c, d), VTuple4 #a #b #c #d }.
+  { encode := λ '(a, b, c, d), VTuple [#a; #b; #c; #d] }.
 
 Lemma solve_encode_tuple4
   `{Encode A} `{Encode B} `{Encode C} `{Encode D}
@@ -521,7 +521,7 @@ Lemma solve_encode_tuple4
   vb = #b →
   vc = #c →
   vd = #d →
-  VTuple4 va vb vc vd = #t.
+  VTuple [va; vb; vc; vd] = #t.
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_tuple4

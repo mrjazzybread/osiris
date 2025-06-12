@@ -117,7 +117,7 @@ Section proof_effectful.
   Definition head_eff_spec head :=
     ∀ (A : Type) (H : Encode A) (l : list A),
       ⊢ ewp_def top (call head #l) ⊥
-        (| RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝ ;
+        ( RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝
         | EXN e => ⌜e = VXData (Loc 0) [] /\ l = []⌝ )%I.
 
   (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
@@ -126,10 +126,10 @@ Section proof_effectful.
   Definition catch_head_eff_spec catch_head :=
     ∀ (A : Type) (H : Encode A) (l : list A),
       ⊢ ewp_def top (call catch_head #l) ⊥
-        (RET #hopt, ⌜match l with
-                    | [] => hopt = None
-                    | h :: _ => hopt = Some h
-                    end⌝)%I.
+        (ensures #hopt, ⌜match l with
+                         | [] => hopt = None
+                         | h :: _ => hopt = Some h
+                         end⌝)%I.
 
   Lemma example_eff :
     eval_module stdlib_with_notfound __main (λ η, True).
@@ -183,7 +183,7 @@ Section proof_effectful.
         iApply ewp_mono. { iApply Hhead. }
         iIntros ([ v | ex ]) "Houtcome".
         - simpl.
-          iApply (ewp_value _ _ (| RET v => bi_pure(_ v); | EXN e => bi_pure(_ e))%I).
+          iApply (ewp_value _ _ (RET v => bi_pure(_ v) | EXN e => bi_pure(_ e))%I).
           iDestruct "Houtcome" as "(%h & %t & -> & ->)".
           iPureIntro.
           instantiate (1 := (λ v, ∃ h t, l = h :: t ∧ v = (#(Some h)))).
@@ -214,4 +214,3 @@ Section proof_effectful.
   Qed.
 
 End proof_effectful.
-
