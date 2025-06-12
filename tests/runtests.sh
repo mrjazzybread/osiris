@@ -10,7 +10,6 @@ do
     echo -ne "test: $test\t"
     ./interp.exe "$test.ml" > "$test.olang"
     #./interp.exe "$test.ml" --detcheck
-    rm -f "$test.ml.cmi" # TODO make this unnecessary then remove
     ocaml "$test.ml" > "$test.ocaml"
     diff "$test.ocaml" "$test.olang" && echo ok || echo NOK
     # # to also test vs ocamlopt (takes twice as much time):

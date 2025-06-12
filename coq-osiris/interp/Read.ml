@@ -1,9 +1,7 @@
 [@@@warning "-27"]
 
 (* This file provides a function that, given the name of an ml file, returns a
-   [Typedtree.implementation] by calling functions from [ocaml-compiler-libs].
-   Note that is also writes, then deletes, a [.cmi] file to disk, we should fix
-   this. *)
+   [Typedtree.implementation] by calling functions from [ocaml-compiler-libs]. *)
 
 (* Reference that is used to store the typed tree *)
 let ref_to_impl : Typedtree.implementation option ref = ref None
@@ -95,6 +93,3 @@ let typedtree_of_filename (filename : string) : Typedtree.implementation =
     match !ref_to_impl with
     | None -> failwith "running main failed to produce a Typedtree.implementation"
     | Some impl -> impl
-
-(** TODO: stop this invocation from writing a [.cmi] file to disk *)
-(* probably by replacing [Compile.interface] with a dummy function *)
