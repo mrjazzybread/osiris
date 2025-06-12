@@ -8,12 +8,14 @@ From osiris.examples Require Import og_find.
 
 Require Import Coq.Wellfounded.Inverse_Image.
 
-Section iris_proof.
+Section pure_specifications.
 
-Context `{!osirisGS Σ}.
-Context `{Encode A}.
+(** Specification for [iter]. *)
 
-Definition listiter_invariant_spec `{Encode A} (f : val) (lsuf : list A) (m : microvx) : Prop :=
+(* We first give a generalized specification for [iter],
+   where we assume that [iter] is being called on the suffix [lsuf] of a larger list. *)
+
+Definition listiter_spec_inv `{Encode A} (f : val) (lsuf : list A) (m : microvx) : Prop :=
   ∀ (lpre l : list A) (I : list A → Prop) φ,
     lpre ++ lsuf = l ->
     @Spec τ[A] f (λ (X : A) (mf : microvx),
@@ -27,26 +29,59 @@ Definition listiter_invariant_spec `{Encode A} (f : val) (lsuf : list A) (m : mi
         (λ (v : ()), I l)
         (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
 
+(* [listiter_spec] is the actual specification of [iter]. *)
+
 Definition listiter_spec `{Encode A} (f : val) (l : list A) (m : microvx) : Prop :=
+  (* For any invariant [I] over the list and exception specification [φ]. *)
   ∀ (I : list A → Prop) φ,
+    (* If [f] is a function taking one argument [X] of type [A]. *)
     Spec τ[A] f (λ (X : A) (mf : microvx),
+        (* Such that for any prefix [Xs] of [l] such that [Xs ++ [X]] is also a prefix of [l]. *)
         ∀ (Xs : list A),
           (Xs ++ [X]) `prefix_of` l ->
+          (* Under the assumption that the invariant holds over the prefix of [l]. *)
           I Xs ->
+          (* Then calling [f] either succeeds and the invariant is extended,
+             or fails with postcondition [φ]. *)
           pure mf
             (λ v : (), I (Xs ++ [X])) (λ e, φ e ∧ I Xs)) ->
-      I [] ->
-      pure m
-        (λ (v : ()), I l)
-        (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
+    (* If the invariant [I] holds over the empty list (base case). *)
+    I [] ->
+    (* Then calling [iter] either succeeds and the invariant holds over the whole list,
+       or fails with postcondition [φ] and invariant holds for some prefix of the list. *)
+    pure m
+      (λ (v : ()), I l)
+      (λ e, φ e ∧ ∃ Xs, I Xs ∧ Xs `prefix_of` l).
 
-Definition scan_spec `{Encode A} ℓ (l : list A) φ (X : A) (m : microvx) : Prop :=
+(* An intermediate specification which holds for the lambda expression used by [iter]. *)
+
+Definition lambda_spec `{Encode A} ℓ (l : list A) φ (X : A) (m : microvx) : Prop :=
   ∀ (Xs : list A),
     (Xs ++ [X]) `prefix_of` l ->
     Forall (λ x, ¬ (φ x)) Xs ->
     pure m
       (λ (v :()), Forall (λ x, ¬ (φ x)) (Xs ++ [X]))
       (λ e, (∃ (x : A), e = VXData ℓ [ #x ] ∧ x ∈ l ∧ φ x) ∧ Forall (λ x, ¬ (φ x)) Xs).
+
+End pure_specifications.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Well-foundedness *)
+
+#[local] Program Instance list_tuple_wf {A B} : WellFounded (B * list A) :=
+  {| wf_relation := (fun x y => (length x.2 < length y.2)%nat )|}.
+Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
+Section iris_proof.
+
+Context `{!osirisGS Σ}.
+Context `{Encode A}.
+
+(* The specification of our [find_first] function. *)
 
 Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp Σ :=
   ∀ (φ : A -> Prop),
@@ -61,65 +96,79 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
                           | None => Forall (λ x, ¬ (φ x)) l
                           end⌝ }}.
 
-(* -------------------------------------------------------------------------- *)
-
-(* Well-foundedness *)
-
-#[local] Program Instance list_tuple_wf {A B} : WellFounded (B * list A) :=
-  {| wf_relation := (fun x y => (length x.2 < length y.2)%nat )|}.
-Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
-
-(* -------------------------------------------------------------------------- *)
+(* Our high level statement:
+   "After evaluation the [__main] module corresponding to the whole
+    [find.ml] file, we get a module with a value in the "find_first"
+    field which is specified by [find_spec]." *)
 
 Lemma iter_module_pure :
   ⊢ EWP (eval_mexpr stdlib_env __main)
     {{ ensures m, module_spec [("find_first", λ find, iSpec τ[list A; val] find find_spec)] m }}.
 Proof.
+  (* Enter the module and face the struct items. *)
   iApply ewp_module.
+  (* Process the first structure item. *)
   iApply ewp_sitems_cons.
+  (* After evaluating the first struct item, we will enrich the scoping
+     environment with some value [iter] such that
+     [Spec τ[val; list A] iter listiter_spec]. *)
   instantiate (1 := (λ (ηδ : envs),
             ⌜∃ iter, ηδ = (("iter", iter) :: stdlib_env, [("iter",iter)]) ∧
-                       @Spec τ[val; list A] iter listiter_spec⌝)%I).
-  { iApply ewp_pure_wp.
-    eapply (@struct_letrec τ[val; list A]) with (P := listiter_invariant_spec).
-    { repeat eexists. }
-    { apply list_tuple_wf. }
-    { simpl.
+                       Spec τ[val; list A] iter listiter_spec⌝)%I).
+  { (* Proof of [iter]. *)
+    iApply ewp_pure_wp.
+    (* Enter the body of the recursive function. *)
+    eapply (@struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
+    { (* Side-condition: the expression is a funciton. *) repeat eexists. }
+    { (* Give the decreasing argument to justify recursive calls *)
+      apply list_tuple_wf. }
+    { (* Enter the body *) simpl.
       intros iter f l IH.
-      intros lpre lsuf I φ Heql Hf HI.
-      fold eval.
+      unfold listiter_spec_inv; fold eval.
+      intros lpre lsuf I φ Heql Hf HI; abstract_env.
 
-      eapply pure_eval_match. { pure_path. }
+      (* Evaluate the [function] expression. *)
+      eapply pure_eval_match. { (* Evaluation the scrutinee. *) pure_path. }
       pure_match.
 
+      (* First branch of the function. *)
       { pure_const. rewrite app_nil_r. apply HI. }
-
+      (* Second branch of the function. *)
       rename xs' into l.
-      eapply pure_seq.
-      eapply (pure_EApp τ[A]). { pure_path. } { pure_path. apply eq_refl. }
-      intros ? <- callsite_f Hcall_f. unfold tapp in Hcall_f.
-      eapply pure_mono. { apply Hcall_f; eauto.
-                          apply prefix_app. apply prefix_cons. apply prefix_nil. }
-      - intros ? HI'.
-        eapply (pure_EApp τ[val; list A]). { pure_path. } { pure_path. } { pure_path. apply eq_refl. }
-        simpl; unfold tapp.
-        intros ?? <-<- m Hm. unfold listiter_spec in Hm.
-        eapply Hm; [ lia | | apply Hf | apply HI'].
-        change (x :: l) with ([x] ++ l); by rewrite app_assoc.
-      - intros e (Hφ & HIpre).
-        split; [ | exists lpre; split ]; eauto.
+      eapply pure_eval_seq.
+      { (* Evaluate [f x]. *)
+        eapply (pure_EApp τ[A]). { pure_path. } { pure_path. apply eq_refl. }
+        unfold tapp; simpl.
+        intros ? <- callsite_f Hcall_f.
+        (* Prove that the exceptional postcondition is of the right form. *)
+        eapply pure_exn_mono.
+        { apply Hcall_f; eauto.
+          apply prefix_app. apply prefix_cons. apply prefix_nil. }
+        intros e (Hφ & _).
+        split; first assumption.
+        exists lpre. split; first assumption.
         replace lpre with (lpre ++ []) at 1 by apply app_nil_r.
         apply prefix_app; apply prefix_nil. }
-    intros iter Hiter.
+      (* Evaluate the second half of the sequence: [iter f l]. *)
+      intros Hlprex.
+      eapply (pure_EApp τ[val; list A]). { pure_path. } { pure_path. } { pure_path. apply eq_refl. }
+      simpl; unfold tapp.
+      intros ?? <-<- m Hm; unfold listiter_spec in Hm.
+      (* Justify the recursive call: the measure has decreased and
+         the preconditions are satisfied. *)
+      eapply Hm; [ lia | | apply Hf | apply Hlprex ].
+      change (x :: l) with ([x] ++ l); by rewrite app_assoc. }
 
+    (* Weaken the invariant specification to [listiter_spec]. *)
+    intros iter Hiter.
     exists iter; split; [ apply eq_refl | ].
     eapply Spec_mono; [ apply Hiter | simpl ].
-    intros f l m Hinvspec.
-    unfold listiter_spec, tapp.
+    intros f l m Hinvspec; unfold listiter_spec, tapp.
     intros I φ Hf HI.
     specialize (Hinvspec [] l).
     apply Hinvspec; auto. }
 
+  (* Introduce our expanded environment which now contains [iter]. *)
   iIntros (?) "(%iter & -> & %Hiter)".
   (* We now face the toplevel definition of [find_elem]. *)
   iApply (ewp_sitems_let_singleton_var
@@ -153,8 +202,8 @@ Proof.
            it is a function with
            - a single argument of type [a]
            - a specification [scan_spec]. *)
-          eapply (pure_eval_anon τ[A]) with (P := scan_spec l xs φ); simpl.
-          unfold scan_spec; fold eval.
+          eapply (pure_eval_anon τ[A]) with (P := lambda_spec l xs φ); simpl.
+          unfold lambda_spec; fold eval.
           (* Prove that the lambda expression satisfies its spec. *)
           intros x Xs Hpref Hforall.
           eapply pure_eval_ifthen.
