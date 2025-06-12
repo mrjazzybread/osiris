@@ -771,8 +771,8 @@ Section ewp_rules.
 
   Lemma ewp_wrap_deep {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
-      l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))) -∗
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CWrap (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -793,8 +793,8 @@ Section ewp_rules.
 
   Lemma ewp_wrap_shallow {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
-      l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs))) -∗
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CWrap (false, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
