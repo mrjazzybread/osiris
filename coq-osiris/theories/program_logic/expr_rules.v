@@ -215,6 +215,25 @@ Section ewp_rules_expr.
 
   (** * ETuple : list expr → expr *)
 
+  Lemma ewp_evals η E es φs φe ψ:
+    ([∗ list] ei;φi ∈ es;φs,
+       EWP eval η ei @ E <| ψ |> {{ | RET v => φi v; | EXN e => φe e }}) -∗
+    EWP evals η es @ E <| ψ |>
+      {{ | RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
+         | EXN e => φe e}}.
+  Proof.
+    iIntros "Hφ".
+    iInduction es as [ | ei es ] "IH" forall (φs) "Hφ"; simpl_evals.
+    - by iApply ewp_value.
+    - iDestruct (big_sepL2_cons_inv_l with "Hφ")
+        as (φi φs') "(-> & Hi & H) /=".
+      iApply (ewp_Par with "Hi [H]").
+      + iApply ("IH" with "H").
+      + iIntros (e) "H /=". by iApply ewp_throw.
+      + iIntros (e) "H /=". by iApply ewp_throw.
+      + iIntros (v1 vs) "H1 H". iApply ewp_value. iFrame.
+  Qed.
+
   Lemma ewp_ETuple_forward_exn η es φs φe E Ψ :
     ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v => φi v | EXN e => φe e }}) -∗
     EWP eval η (ETuple es) @ E <|Ψ|>
@@ -246,15 +265,16 @@ Section ewp_rules_expr.
 
   Lemma ewp_ETuple_exn η es φs φ E Ψ :
     ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ φi }}) -∗
-    (∀ vs, ([∗ list] vi; φi ∈ vs; φs, φi (O2Ret vi)) -∗ φ (O2Ret (VTuple vs))) -∗
+    (∀ vs, ([∗ list] vi; φi ∈ vs; φs, φi (O2Ret vi)) -∗
+       φ (O2Ret (VTuple vs))) -∗
     ([∗ list] φi ∈ φs, ∀ e, φi (O2Throw e) -∗ φ (O2Throw e)) -∗
     EWP eval η (ETuple es) @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H P E".
-    iApply (ewp_mono with "[H E]").
-    - iApply (ewp_ETuple_forward_exn η es ((λ φ v, φ (O2Ret v)) <$> φs) (λ e, φ (O2Throw e))).
-      iPoseProof (big_sepL2_length with "[$]") as "%".
-      rewrite big_sepL2_fmap_r.
+    iIntros "H P E". simpl_eval.
+    iApply ewp_bind_exn.
+    iApply (ewp_mono with "[H E]"); first iApply ewp_evals.
+    - iPoseProof (big_sepL2_length with "[$]") as "%".
+      setoid_rewrite big_sepL2_fmap_r.
       iAssert (
         [∗ list] _;φi ∈ es;φs, ∀ e : exn, φi (O2Throw e) -∗ φ (O2Throw e)
       )%I with "[E]" as "E". by rewrite big_sepL2_const_sepL_r; auto.
@@ -264,7 +284,8 @@ Section ewp_rules_expr.
       iIntros (i ei φi _ Eφi) "H E". iApply (ewp_mono with "H").
       iIntros ([v|e]); auto.
     - iIntros ([v|e]); last auto.
-      simpl. iIntros "H". iDestruct "H" as (vs) "(-> & H)".
+      simpl. iIntros "H".
+      iApply ewp_value.
       iApply "P".
       by rewrite big_sepL2_fmap_r.
   Qed.
@@ -389,16 +410,25 @@ Section ewp_rules_expr.
     ([∗ list] φi ∈ φs, ∀ e, φi (O2Throw e) -∗ φ (O2Throw e)) -∗
     EWP eval η (EData c es) @ E <|ψ|> {{ φ }}.
   Proof.
-    iIntros "He Hv Hexn /=". simpl_eval.
+    iIntros "H P E /=". simpl_eval.
     iApply ewp_bind_exn.
-    replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
-    { simpl_eval; reflexivity. }
-  Admitted.
-  (*   iApply (ewp_ETuple_exn with "He [Hv]"). *)
-  (*   - iIntros (args) "Hargs". iApply ewp_value. *)
-  (*     iApply ("Hv" with "Hargs"). *)
-  (*   - iApply "Hexn". *)
-  (* Qed. *)
+    iApply (ewp_mono with "[H E]"); first iApply ewp_evals.
+    - iPoseProof (big_sepL2_length with "[$]") as "%".
+      setoid_rewrite big_sepL2_fmap_r.
+      iAssert (
+        [∗ list] _;φi ∈ es;φs, ∀ e : exn, φi (O2Throw e) -∗ φ (O2Throw e)
+      )%I with "[E]" as "E". by rewrite big_sepL2_const_sepL_r; auto.
+      iApply (big_sepL2_wand with "E").
+      iApply (big_sepL2_wand with "H").
+      iApply big_sepL2_intro. done. iModIntro.
+      iIntros (i ei φi _ Eφi) "H E". iApply (ewp_mono with "H").
+      iIntros ([v|e]); auto.
+    - iIntros ([v|e]); last auto.
+      simpl. iIntros "H".
+      iApply ewp_value.
+      iApply "P".
+      by rewrite big_sepL2_fmap_r.
+  Qed.
 
   Lemma ewp_EData η c es E ψ φs φ :
     ([∗ list] ei;φi ∈ es;φs, EWP eval η ei @ E <| ψ |> {{ ensures v, φi v }}) -∗
@@ -409,11 +439,11 @@ Section ewp_rules_expr.
     iApply ewp_bind.
     replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
     { simpl_eval; reflexivity. }
-  (*   iApply (ewp_ETuple with "Hes"). *)
-  (*   iIntros (args) "Hargs". iApply ewp_value. *)
-  (*   iApply ("Hmon" with "Hargs"). *)
-  (* Qed. *)
-  Admitted.
+    iApply (ewp_mono with "[Hes]"); first by iApply ewp_evals.
+    iIntros (args) "Hargs". destruct args; try done.
+    iApply ewp_value.
+    iApply ("Hmon" with "Hargs").
+  Qed.
 
   (* E/VConstant is a macro for E/VData *)
   Lemma ewp_EConstant η c E Ψ φ :
@@ -451,10 +481,11 @@ Section ewp_rules_expr.
     iApply ewp_bind.
     replace ('vs ← evals η es; ret (VTuple vs)) with (eval η (ETuple es)); last first.
     {  simpl_eval; reflexivity. }
-  (*   iIntros (args) "Hargs". iApply ewp_value. *)
-  (*   by iApply "Hmon". *)
-  (* Qed. *)
-  Admitted.
+    iApply (ewp_mono with "[He]"); first by iApply ewp_evals.
+    iIntros (args) "Hargs". destruct args; try done.
+    iApply ewp_value.
+    by iApply "Hmon".
+  Qed.
 
   (** * ERecord : list fexpr → expr *)
   (** * ERecordUpdate : expr → list fexpr → expr *)

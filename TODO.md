@@ -1,6 +1,6 @@
 # TODO
 
-## Features
+## TODO for artifact submission
 
 * Add support for shallow handlers (translator, semantics, reasoning rules).
 
@@ -66,71 +66,6 @@
 ## Tutorial
 
 * Create a tutorial for end users.
-
-## OCaml standard library
-
-* Do we apply the translator to all of it?
-  What about unsupported constructs, external primitives, etc.?
-
-## Engineering and proof mode
-
-* How do we want to deal with mutually recursive definitions
-  of several functions?
-
-* We should use `set` every time we extend the environment,
-  so the environment in the goal is always a name and never
-  an explicit list. Can this be automated / made invisible
-  to the end user?
-
-* Make sure that we no longer use the tactic `simp`
-  and the relation `simplify`.
-
-* Experiment with the granularity of Coq toplevel definitions.
-  We could use as few as one per OCaml file
-  and as many as one per AST node.
-  In between, we could use one per OCaml definition,
-  and/or make sure that we use enough to ensure that
-  every Coq definition has bounded size.
-  At the moment, we generate a Coq definition only at certain nodes
-  (see `cut` in `Coqify.ml`).
-
-* Write a `help` tactic that analyzes the goal, explains its shape,
-  explains why we are here and what likely is the next thing to do.
-  (This assumes that we are able to work with a fixed finite set
-  of possible goal shapes.)
-
-## Semantics
-
-* Write down an informal argument of why translating `Obj.magic` to the
-  identity is sound. First, this relies on the assumption that OCaml has a
-  universal representation of values (i.e., every value fits in one word).
-  Therefore it is incompatible with OCaml's special treatment of float arrays.
-  Second, this relies on the property that "if two values have different
-  runtime representations in OCaml then they have different representations in
-  our semantics". Indeed, without this property, a program that uses
-  `Obj.magic` could be correct in our semantics and incorrect in reality. In
-  other words, the runtime representation in OCaml must be a *function* of the
-  Osiris representation. Therefore, we should be able to write a text that
-  describes, for each Osiris value, how it is represented in memory in OCaml.
-
-  The apparent ambiguity between a unary constructor applied to a
-  pair `A (x, y)` and a binary constructor `A (x, y)` is not a problem,
-  because they have different representations in Osiris. The Osiris encoding
-  of data constructors involves a tuple whose arity is the constructor's
-  arity.
-
-  In `VData` and `VXData`, some form of unique identity of the algebraic data
-  type must be added. So `Obj.magic` does not allow casting from one type to
-  a different type.
-
-* The combination of `Obj.magic` and polymorphic equality `=` may be
-  particularly troublesome. It implies that we are giving a semantics to
-  comparisons which in OCaml are forbidden. We may want to have our
-  polymorphic equality crash when it compares two values of distinct types.
-  If the comparison crashes in our semantics, then all is well.
-  If the comparison returns `true` or `false` in our semantics,
-  then we must ascertain that it does the same (and does not crash)
-  in OCaml+magic.
 
 ## Tests and Examples
 
