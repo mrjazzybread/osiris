@@ -326,38 +326,6 @@ Proof.
   intros. simp. simp.
 Qed.
 
-(* The following example illustrates how to reason about a local function.
-   When the environment is about to be extended with a binding of the
-   variable "walk" to a closure, we prove a specification for this closure,
-   then we make this closure opaque. *)
-
-Lemma spec_walk_example_abstract :
-  forall `{Encode X} (xs : list X),
-  let η := [("xs", (# xs))] in
-  simp (eval η (walk_example (EVar "xs"))) ok.
-Proof.
-  intros. simp.
-  (* The environment is about to be extended with a binding of the variable
-     "walk" to a certain closure. Now is the time to prove a specification
-     for this closure; then, we can make this closure opaque. *)
-  simp_specify "walk" spec_walk.
-  (* Subgoal: prove that the closure satisfies [spec_walk]. *)
-  { (* The environment [η] is irrelevant, since the code is in fact closed.
-       Abstract it away. *)
-    generalize η. clear xs η. intros η.
-    unfold spec_walk.
-    (* Prove the spec by induction on the list [bs]. *)
-    induction xs as [| x xs ];
-    simp_enter_and_abstract; intros walk; [| intros Hwalk ].
-    (* The [nil] branch. *)
-    + simp.
-    (* The [cons] branch. *)
-    + simp.
-  }
-  (* The variable "walk" is now bound to an abstract closure [walk]. *)
-  intros walk Hwalk. admit.
-Admitted.
-
 (* ------------------------------------------------------------------------- *)
 
 (* A recursive function that computes the length of a list. *)

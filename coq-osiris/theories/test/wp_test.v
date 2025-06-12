@@ -222,24 +222,6 @@ Definition walk : list rec_binding :=
            (EApp (EVar "walk") (EVar "xs"))
     ].
 
-Definition spec_walk (walk : val): iProp Σ :=
-  □ ∀ (bs : list bool),
-  EWP call walk (encode_list bs) {{ ensures v, ⌜v = VUnit⌝ }}.
-  (* TODO should always use [encode], not [encode_list] *)
-
-(* This is a subgoal that appears in the proof of
-   [spec_walk_example_abstract] below. *)
-Goal
-  ∀ η,
-  ⊢ spec_walk (VCloRec η walk "walk").
-Proof.
-  unfold spec_walk.
-  iIntros (η) "!>%bs".
-  iInduction bs as [| b bs ] "IHbs".
-  { Simp; by Ret. }
-  { cbn. (* TODO *)
-Admitted.
-
 Definition walk_example e :=
   ELetRec walk $
   EApp (EVar "walk") e.
@@ -251,36 +233,6 @@ Proof.
   (* The code is pure and terminating and can be fully evaluated. *)
   iIntros. do 2 Simp. by Ret.
 Qed.
-
-(* ------------------------------------------------------------------------- *)
-
-(* A recursive function that computes the length of a list. *)
-
-(* let rec length xs =
-     match xs with
-     | [] -> 0
-     | x :: xs -> 1 + length xs *)
-
-Definition length : list rec_binding :=
-  RecBinding1Var "length" "xs" $
-  EMatch (EVar "xs") [
-    Branch (CVal pNil) (EInt 0);
-    Branch (CVal (pCons (PVar "x") (PVar "xs")))
-           (EIntAdd (EInt 1) (EApp (EVar "length") (EVar "xs")))
-    ].
-
-Definition spec_length (length : val) :=
-  ∀ A (eA : Encode A) (xs : list A),
-  ⊢ EWP call length (encode_list xs)
-       {{ ensures v, ⌜v = encode.encode (List.length xs)⌝ }}.
-
-Goal
-  ∀ η,
-  spec_length (VCloRec η length "length").
-Proof.
-  unfold spec_length. intros η ?? xs.
-Admitted.
-
 
 (* -------------------------------------------------------------------------- *)
 
