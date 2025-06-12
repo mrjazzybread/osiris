@@ -76,3 +76,20 @@ The translator from OCaml source files to Rocq definitions is under `osiris/osir
   - `Syntax.ml` definition of the Osiris AST, should be in sync with `osiris/coq-osiris/theories/lang/syntax.v`
   - `Translate.ml` transforms OCaml parsetree expressions into the Osiris AST
   - `Coqify.ml` transforms the Osiris AST into the Rocq Osiris AST
+
+## Validation
+
+The interpreter for simulating our semantics is under `osiris/coq-osiris/interp`.
+
+- `osiris/coq-osiris/interp/`
+  + `extracted/` is the receptacle for the extraction of the semantics from Rocq to OCaml, the extraction commands are in `extract.v`
+  + `Read.ml` converts an OCaml file to an OCaml AST
+  + `translatorlib/` converts the OCaml AST into an Osiris AST (it is 'dune copy' of translator files)
+  + `interp.ml` invokes the extracted version of `eval`, steps through the semantics, and intercepts input/output effects to make them actual input/output operations.
+
+The interpreter is then an executable `interp.exe`. It can be run with e.g. `dune exec interp/interp.exe <file.ml>` inside `coq-osiris`.
+
+Tests are in `tests`:
+- `tests/*.ml` are handwritten `.ml` test files
+- `tests/ocaml-testsuite/` contain tests adapted from OCaml's test suite.
+- `tests/runtests.sh`, to be run inside `tests`, checks that for each test file, running `ocaml file.ml` and `./interp.exe file.ml` produces the same output.
