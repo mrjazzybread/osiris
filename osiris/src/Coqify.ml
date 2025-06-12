@@ -305,6 +305,9 @@ let rec expr (e : expr) =
   | EMatch (e, bs) ->
       c "EMatch" [ expr e; branches bs ]
 
+  | EShallowMatch (e, bs) ->
+      c "EShallowMatch" [ expr e; branches bs ]
+
   | ERaise e ->
      c "ERaise" [ expr e ]
 

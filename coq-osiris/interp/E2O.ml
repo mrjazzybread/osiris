@@ -124,6 +124,7 @@ let rec expr : E.expr -> O.expr = function
   | EIfThen (e1, e2) -> EIfThen (expr e1, expr e2)
   | EIfThenElse (e1, e2, e3) -> EIfThenElse (expr e1, expr e2, expr e3)
   | EMatch (e, bs) -> EMatch (expr e, branches bs)
+  | EShallowMatch (e, bs) -> EShallowMatch (expr e, branches bs)
   | ERaise e -> ERaise (expr e)
   | EPerform e -> EPerform (expr e)
   | EContinue (e1, e2) -> EContinue (expr e1, expr e2)

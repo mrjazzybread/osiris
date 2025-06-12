@@ -968,7 +968,7 @@ Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
   | O3Perform e k =>
       (* If we are matching on an effect, we reinstall the handler on
          top of that effect's continuation. *)
-      k ← wrap true k η bs ;
+      k ← wrap k η bs ;
       ret (O3Perform e k)
   | _ =>
       ret o
@@ -978,7 +978,7 @@ Definition wrap_outcome {A E} η bs o : micro (outcome3 A E) exn :=
    effect. [all_branches] keeps track of all the branches in order to
    re-install the handler if it has not been consumed. *)
 
-Fixpoint pre_shallow_match η o bs all_bs :=
+Fixpoint pre_shallow_eval_branches η bs all_bs o :=
   match bs with
   | [] =>
       (match o with
@@ -991,14 +991,14 @@ Fixpoint pre_shallow_match η o bs all_bs :=
               top of the continuation (using a shallow install, notice
               the [false] flag). We then reperform the effect with the
               same continuation it had initially. *)
-           l ← wrap false l η all_bs;
+           l ← shallow_wrap l η all_bs;
            try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
       try
         (eval_cpat η η cp o)
         (λ δ, eval δ e)
-        (fun tt => pre_shallow_match η o bs all_bs)
+        (fun tt => pre_shallow_eval_branches η bs all_bs o)
   end.
 
 End Eval.
@@ -1047,6 +1047,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let evalfs := pre_evalfs eval in
   let eval_branches := pre_eval_branches eval in
   let wrap_eval_branches := pre_wrap_eval_branches eval_branches in
+  let shallow_eval_branches := pre_shallow_eval_branches eval in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
@@ -1223,6 +1224,8 @@ Fixpoint pre_eval η e {struct e} : microvx :=
          which inspects the outcome of this computation using the branches
          [bs]. *)
       Handle (eval η e) (wrap_eval_branches η bs)
+  | EShallowMatch e bs =>
+      handle (eval η e) (shallow_eval_branches η bs bs)
   | ERaise e =>
       exn ← eval η e ;
       throw exn
@@ -1320,19 +1323,19 @@ Lemma fold_pre_wrap_eval_branches :
   pre_wrap_eval_branches eval_branches = wrap_eval_branches.
 Proof. unfold wrap_eval_branches; by rewrite seal_eq. Qed.
 
-Local Definition shallow_match_aux : seal (pre_shallow_match eval).
+Local Definition shallow_eval_branches_aux : seal (pre_shallow_eval_branches eval).
 Proof. by eexists. Qed.
-Definition shallow_match := shallow_match_aux.(unseal).
-Lemma fold_pre_shallow_match :
-  pre_shallow_match eval = shallow_match.
-  Proof. unfold shallow_match; by rewrite seal_eq. Qed.
+Definition shallow_eval_branches := shallow_eval_branches_aux.(unseal).
+Lemma fold_pre_shallow_eval_branches :
+  pre_shallow_eval_branches eval = shallow_eval_branches.
+  Proof. unfold shallow_eval_branches; by rewrite seal_eq. Qed.
 
-(* [shallow_eval_match] needs to keep the initial handler branches around
+(* [shallow_eval_branches] needs to keep the initial handler branches around
    for reinstallation. We use notations to hide this as it busies the
    goal. *)
 
-Notation "'shallow_match' η o bs" :=
-  (shallow_match η o bs _)
+Notation "'shallow_eval_branches' η o bs" :=
+  (shallow_eval_branches η o bs _)
     (at level 8, only printing).
 
 Local Definition eval_bindings_aux : seal (pre_eval_bindings eval).
@@ -1397,12 +1400,12 @@ Ltac simpl_evalfs :=
    (progress simpl pre_evalfs))
   || fail "Unable to simplify application of evalfs".
 
-Ltac simpl_shallow_match :=
-  (unfold shallow_match;
+Ltac simpl_shallow_eval_branches :=
+  (unfold shallow_eval_branches;
    rewrite seal_eq;
-   (progress simpl pre_shallow_match);
-  rewrite ?fold_pre_shallow_match)
-  || fail "Unable to simplify application of shallow_match".
+   (progress simpl pre_shallow_eval_branches);
+  rewrite ?fold_pre_shallow_eval_branches)
+  || fail "Unable to simplify application of shallow_eval_branches".
 
 Ltac simpl_eval_branches :=
   (unfold eval_branches;
@@ -1469,7 +1472,7 @@ Ltac simpl_eval_pat :=
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,
-    eval_branches, shallow_match,
+    eval_branches, shallow_eval_branches,
     eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
     eval_pats, irrefutably_extend, eval_pat;
   rewrite ?seal_eq.
@@ -1480,7 +1483,7 @@ Ltac fold_all :=
                | rewrite fold_pre_evalfs
                | rewrite fold_pre_eval_branches
                | rewrite fold_pre_wrap_eval_branches
-               | rewrite fold_pre_shallow_match
+               | rewrite fold_pre_shallow_eval_branches
                | rewrite fold_pre_eval_bindings
                | rewrite fold_pre_eval_mexpr
                | rewrite fold_pre_eval_sitem

@@ -44,7 +44,7 @@ Arguments eval_fpats η δ !fps !fvs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
-Arguments shallow_match η o !bs all_bs.
+Arguments shallow_eval_branches η !bs all_bs o.
 Arguments eval_branches η !o bs.
 Arguments eval_bindings η !bs /.
 Arguments eval_mexpr η !me /.

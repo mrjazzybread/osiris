@@ -191,17 +191,20 @@ Qed.
 (* [step_wrap σ l deep η bs l' k] is the right-hand side of the reduction
    rule [StepWrap]. *)
 
-Definition step_wrap_1 σ l (deep : bool) η bs l' :=
-  if deep then
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ
-  else
-    <[l' := K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))]> σ.
+Definition step_wrap_1 σ l η bs l' :=
+  <[l' := K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ.
 
 Definition step_wrap_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
 
-Notation step_wrap σ l deep η bs l' k :=
-  (step_wrap_1 σ l deep η bs l', step_wrap_2 l' k).
+Notation step_wrap σ l η bs l' k :=
+  (step_wrap_1 σ l η bs l', step_wrap_2 l' k).
+
+Definition step_shallow_wrap_1 σ l η bs l' :=
+  <[l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs))]> σ.
+
+Notation step_shallow_wrap σ l η bs l' k :=
+  (step_shallow_wrap_1 σ l η bs l', step_wrap_2 l' k).
 
 (* Installing is an algebraic effect. *)
 
@@ -347,11 +350,18 @@ Inductive step {A E} : config A E → config A E → Prop :=
      [bs]. This results in a new continuation, which is stored in the heap at
      a fresh location [l']. This location is returned. *)
   | StepWrap :
-      ∀ σ deep l η bs k l' c',
+      ∀ σ l η bs k l' c',
       σ !! l' = None →
-      c' = step_wrap σ l deep η bs l' k →
+      c' = step_wrap σ l η bs l' k →
       step
-        (σ, Stop CWrap (deep, l, η, bs) k)
+        (σ, Stop CWrap (true, l, η, bs) k)
+        c'
+  | StepShallowWrap :
+      ∀ σ l η bs k l' c',
+      σ !! l' = None →
+      c' = step_shallow_wrap σ l η bs l' k →
+      step
+        (σ, Stop CWrap (false, l, η, bs) k)
         c'
 
   (* If [m1] and [m2] have reached values [v1] and [v2],
@@ -706,7 +716,7 @@ Lemma invert_step_wrap_shallow {A E} σ σ' l η bs k m' :
   ∃ l',
   σ !! l' = None ∧
     σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
-                            (λ o, shallow_match η o bs bs)) ]> σ ∧
+                            (shallow_eval_branches η bs bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
   intros Hstep. destruct_step.
@@ -748,7 +758,8 @@ Proof.
      that is not in the domain of [σ]. *)
   { set (l' := fresh (dom σ)).
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
-    eauto using StepWrap with step. }
+    destruct x;
+      eauto using StepWrap, StepShallowWrap with step. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.

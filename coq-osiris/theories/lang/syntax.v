@@ -244,6 +244,8 @@ Inductive expr :=
 
   (* Pattern matching: [match e with bs]. *)
   | EMatch (e : expr) (bs : list branch)
+  (* Pattern matching with shallow handling of effects. *)
+  | EShallowMatch (e : expr) (bs : list branch)
 
   (* Raising an exception: [raise e]. *)
   | ERaise (e : expr)

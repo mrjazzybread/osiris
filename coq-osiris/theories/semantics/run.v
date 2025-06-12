@@ -116,7 +116,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CLoad l k => Step [step_load σ l k]
   | Stop CStore (l, v') k => Step [step_store σ l v' k]
   | Stop CResume (l, o) k => Step [step_resume σ l o k]
-  | Stop CWrap (deep, l, η, bs) k => Step [step_wrap σ l deep η bs (fresh (dom σ)) k]
+  | Stop CWrap (true, l, η, bs) k => Step [step_wrap σ l η bs (fresh (dom σ)) k]
+  | Stop CWrap (false, l, η, bs) k => Step [step_shallow_wrap σ l η bs (fresh (dom σ)) k]
   | Stop CFlip x k => Step [(σ, continue k false); (σ, continue k true)]
 
   (* [Par] of two [Ret]s is also confluent and results in one possible configuration *)
@@ -331,6 +332,7 @@ Fixpoint string_of_expr (e : expr) : string :=
   | EIfThen e1 e2 => "EIfThen(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EIfThenElse e e1 e2 => "EIfThenElse(" ++ string_of_expr e ++ ", " ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EMatch e bs => "EMatch(" ++ string_of_expr e ++ " with " ++ String.concat " | " (map string_of_branch bs) ++ ")"
+  | EShallowMatch e bs => "EShallowMatch(" ++ string_of_expr e ++ " with " ++ String.concat " | " (map string_of_branch bs) ++ ")"
   | ERaise e => "ERaise(" ++ string_of_expr e ++ ")"
   | EPerform e => "EPerform(" ++ string_of_expr e ++ ")"
   | EContinue e1 e2 => "EContinue(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"

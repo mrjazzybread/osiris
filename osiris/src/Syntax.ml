@@ -244,6 +244,7 @@ type expr =
 
   (* Pattern matching: [match e with bs]. *)
   | EMatch of expr * branches
+  | EShallowMatch of expr * branches
 
   (* Raising an exception: [raise e]. *)
   | ERaise of expr

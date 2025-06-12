@@ -16,7 +16,7 @@ From osiris.program_logic.pure Require Import pure.
     If not, the handler is installed around the captured continuation. *)
 
 Definition shallow_handler η e bs :=
-  Handle (eval η e) (λ o, shallow_match η o bs bs).
+  Handle (eval η e) (shallow_eval_branches η bs bs).
 
 (* Deep handlers are installed permanently;
    Regardless of whether the handled expression performs an effect
@@ -153,7 +153,7 @@ Section handler_proof.
   Corollary ewp_shallow_handler E Ψ Φ Ψ' Φ' η e bs:
     EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The shallow handler specification is met *)
-    shallow_handler_spec E Ψ Φ (λ o, shallow_match η o bs bs) Ψ' Φ' -∗
+    shallow_handler_spec E Ψ Φ (shallow_eval_branches η bs bs) Ψ' Φ' -∗
     EWP (shallow_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     iIntros "He Hspec".
@@ -242,9 +242,9 @@ Section handler_proof.
 
   Lemma shallow_handle_nil_ret η v all_bs E ψ Φ :
    EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
-   EWP (shallow_match η (O3Ret v) [] all_bs) @ E <|ψ|> {{ Φ }}.
+   EWP (shallow_eval_branches η [] all_bs (O3Ret v)) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_shallow_match.
+    by iIntros; simpl_shallow_eval_branches.
   Qed.
 
   Lemma deep_handle_nil_throw η e E ψ Φ :
@@ -256,9 +256,9 @@ Section handler_proof.
 
   Lemma shallow_handle_nil_throw η all_bs e E ψ Φ :
     EWP throw e @ E <|ψ|> {{ Φ }} -∗
-    EWP (shallow_match η (O3Throw e) [] all_bs) @ E <|ψ|> {{ Φ }}.
+    EWP (shallow_eval_branches η [] all_bs (O3Throw e)) @ E <|ψ|> {{ Φ }}.
   Proof.
-    by iIntros; simpl_shallow_match.
+    by iIntros; simpl_shallow_eval_branches.
   Qed.
 
   Lemma deep_handle_nil_perform η eff k ψ sk Φ :
@@ -284,11 +284,12 @@ Section handler_proof.
     k ↦ K sk -∗
     ψ allows perform eff
     << λ o,
-      ▷ EWP Handle (sk o) (λ o,
-          shallow_match η o all_branches all_branches) <|ψ|> {{ Φ }} >> -∗
-    EWP (shallow_match η (O3Perform eff k) [] all_branches) <|ψ|> {{ Φ }}.
+      ▷ EWP
+        Handle (sk o) (shallow_eval_branches η all_branches all_branches)
+        <|ψ|> {{ Φ }} >> -∗
+    EWP (shallow_eval_branches η [] all_branches (O3Perform eff k)) <|ψ|> {{ Φ }}.
   Proof.
-    iIntros "Hk Hperf". simpl_shallow_match.
+    iIntros "Hk Hperf". simpl_shallow_eval_branches.
     iApply ewp_wrap_shallow.
 
     iIntros (l) "Hl". iNext. cbn.

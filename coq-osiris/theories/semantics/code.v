@@ -113,11 +113,19 @@ Definition perform (v : eff) : microvx :=
 (* The computation [wrap η k bs] installs a handler [bs] for the continuation
   stored at [k], and returns a new location which stores this installation. *)
 
-Definition wrap deep k η bs : micro loc exn :=
-  stop CWrap (deep, k, η, bs).
+Definition wrap k η bs : micro loc exn :=
+  stop CWrap (true, k, η, bs).
+
+Definition shallow_wrap k η bs : micro loc exn :=
+  stop CWrap (false, k, η, bs).
 
 Definition resume (l : loc) (o : outcome2 val exn) :=
   stop CResume (l, o).
+
+(* *)
+
+Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
+  Handle m h.
 
 (* ------------------------------------------------------------------------ *)
 

@@ -77,8 +77,11 @@ Local Ltac step :=
           apply is_fresh
       end
     | match goal with
-      | |- step (?σ, Stop CWrap _ _) _ =>
+      | |- step (?σ, Stop CWrap (true, _, _, _) _) _ =>
           eapply StepWrap;
+          [ apply is_fresh | by cbn ]
+      | |- step (?σ, Stop CWrap (false, _, _, _) _) _ =>
+          eapply StepShallowWrap;
           [ apply is_fresh | by cbn ]
       end
     | eapply StepHandleLeft; [ step ]
@@ -481,7 +484,10 @@ Lemma test_handle :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof.
+  reduces. fold (@try2 val).
+  simpl_wrap_eval_branches. simpl_eval_branches. reduces.
+Qed.
 
 Lemma test_handle_compute_head :
   let e :=
@@ -499,7 +505,7 @@ Lemma test_handle_compute_head :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. simpl_wrap_eval_branches. simpl_eval_branches. reduces. Qed.
 
 Lemma test_handle_compute_branch :
   let e :=
@@ -519,7 +525,7 @@ Lemma test_handle_compute_branch :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. simpl_wrap_eval_branches. simpl_eval_branches. reduces. Qed.
 
 Lemma test_handle_reinstall_ret :
   let e1 :=
@@ -544,7 +550,7 @@ Lemma test_handle_reinstall_ret :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval [("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. simpl_wrap_eval_branches. simpl_eval_branches. reduces. Qed.
 
 Lemma test_handle_exception :
   let e :=
@@ -563,7 +569,7 @@ Lemma test_handle_exception :
   in
   ∃ n σ, steps n (∅, eval [("Not_found", (VLoc (Loc 1)));
                            ("Choose", (VLoc (Loc 0)))] m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof. reduces. simpl_wrap_eval_branches. simpl_eval_branches. reduces. Qed.
 
 Lemma test_shallow_handle :
   let η := [("Choose", (VLoc (Loc 0)))] in
@@ -577,11 +583,10 @@ Lemma test_shallow_handle :
         (EContinue (EVar "k") (EInt 42))]
   in
   let m :=
-    Handle (eval η e)
-      (λ o, shallow_match η o bs bs)
+    EShallowMatch e bs
   in
-  ∃ n σ, steps n (∅, m) (σ, ret (VInt (repr 42))).
-Proof. do 2 eexists. reduces. Qed.
+  ∃ n σ, steps n (∅, eval η m) (σ, ret (VInt (repr 42))).
+Proof. do 2 eexists. reduces; unfold handle; reduces. Qed.
 
 Lemma test_nested_handlers :
   let η := [("Get22", (VLoc (Loc 22))); ("Get20", (VLoc (Loc 20)))] in
@@ -611,7 +616,12 @@ Lemma test_nested_handlers :
         Branch (CVal (PVar "x")) (EVar "x") ]
   in
   ∃ n σ, steps n (∅, eval η m2) (σ, ret (VInt (repr 42))).
-Proof. intros. subst e m1 m2. reduces. Qed.
+Proof.
+  intros. subst e m1 m2. reduces.
+  simpl_wrap_eval_branches; simpl_eval_branches.
+  reduces. fold (@try2 val).
+  simpl_wrap_eval_branches. reduces. reduces.
+Qed.
 
 Lemma test_repeat_handle :
   let η :=  [("Get21", (VLoc (Loc 21)))] in
@@ -630,7 +640,11 @@ Lemma test_repeat_handle :
           (EVar "x")]
   in
   ∃ n σ, steps n (∅, eval η m) (σ, ret (VInt (repr 42))).
-Proof. reduces. Qed.
+Proof.
+  reduces.
+  fold (@try2 val). simpl_wrap_eval_branches. simpl_eval_branches. reduces.
+  fold (@try2 val). simpl_wrap_eval_branches. simpl_eval_branches. reduces.
+Qed.
 
 Lemma test_shallow_ret_reinstall :
   let η := [("Get32", (VLoc (Loc 32))); ("Get10", (VLoc (Loc 10)))] in
@@ -646,7 +660,7 @@ Lemma test_shallow_ret_reinstall :
   in
   let m1 :=
     Handle (eval η e)
-      (λ o, shallow_match η o bs bs)
+      (shallow_eval_branches η bs bs)
   in
   let m2 :=
     Handle m1
