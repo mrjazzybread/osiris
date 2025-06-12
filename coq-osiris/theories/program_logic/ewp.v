@@ -317,16 +317,16 @@ Definition lift_ret_enc_spec {E Σ} `{encode.Encode A} (ϕ : A -d> iProp Σ) : o
 
 Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
 Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
-Notation "'RET' x '=>' e ';' '|' 'EXN' y '=>' f " :=
+Notation "'RET' x '=>' e '|' 'EXN' y '=>' f " :=
   (ilift (fun x => e) (fun y => f))
     (at level 200, right associativity,
       format
-        "'[v '     '['  'RET'  x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+        "'[v '   '['  'RET'  x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
-Notation "'RET' '#' x '=>' e ';' '|' 'EXN' y '=>' f " :=
+Notation "'RET' '#' x '=>' e '|' 'EXN' y '=>' f " :=
   (ilift (fun x => (∃ v, (bi_pure (x = osiris.lang.encode.encode v)) ∗ e)%I) (fun y => f))
     (at level 200, right associativity, format
-    "'[v ' '['    'RET'  '#' x  '=>'  e ';' ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+    "'[v ' '['    'RET'  '#' x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
 
 (* Custom notation for hoare triples which state a postcondition only over the
     return continuation. *)

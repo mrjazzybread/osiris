@@ -216,14 +216,14 @@ Section ewp_rules_expr.
   (** * ETuple : list expr → expr *)
 
   Lemma ewp_ETuple_forward_exn η es φs φe E Ψ :
-    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v => φi v; | EXN e => φe e }}) -∗
+    ([∗ list] ei; φi ∈ es; φs, EWP eval η ei @ E <|Ψ|> {{ RET v => φi v | EXN e => φe e }}) -∗
     EWP eval η (ETuple es) @ E <|Ψ|>
-      {{  RET v => ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi;
+      {{  RET v => ∃ vs, ⌜v = VTuple vs⌝ ∗ [∗ list] vi; φi ∈ vs; φs, φi vi
         | EXN e => φe e }}.
   Proof.
     iIntros "H /=". simpl_eval.
     iApply ewp_bind_exn.
-    iApply (ewp_mono _ _ (  RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi;
+    iApply (ewp_mono _ _ (  RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi
                           | EXN v => φe v) with "[-]")%I.
     2: by iIntros ([]) "A/="; auto; iApply ewp_value; simpl; iExists _; auto.
     iInduction es as [ | ei es ] "IH" forall (φs) "H"; simpl_evals.
@@ -920,7 +920,7 @@ Section ewp_rules_expr.
   (** * ERaise : expr → expr *)
 
   Lemma ewp_ERaise η e φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v => φ (O2Throw v); | EXN v => φ (O2Throw v)}} -∗
+    EWP eval η e @ E <|Ψ|> {{ RET v => φ (O2Throw v) | EXN v => φ (O2Throw v)}} -∗
     EWP eval η (ERaise e) @ E <|Ψ|> {{ φ }}.
   Proof.
     iIntros "H". simpl_eval.

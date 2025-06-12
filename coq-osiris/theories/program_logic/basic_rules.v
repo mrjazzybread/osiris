@@ -590,7 +590,7 @@ Section ewp_rules.
   Qed.
 
   Lemma ewp_try {B X'} E m (f : A -> micro B X') (h : X -> micro B X') Ψ Φ :
-    EWP m @ E <| Ψ |> {{  RET v => EWP (f v) @ E <| Ψ |> {{ Φ }};
+    EWP m @ E <| Ψ |> {{  RET v => EWP (f v) @ E <| Ψ |> {{ Φ }}
                         | EXN v => EWP (h v) @ E <| Ψ |> {{ Φ }}}} -∗
     EWP (try m f h) @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -611,7 +611,7 @@ Section ewp_rules.
   Qed.
 
   Lemma ewp_bind_exn {B} E m (k : _ -> micro B X) Ψ Φ :
-    EWP m @ E <| Ψ |> {{  RET v => EWP (k v) @ E <| Ψ |> {{ Φ }};
+    EWP m @ E <| Ψ |> {{  RET v => EWP (k v) @ E <| Ψ |> {{ Φ }}
                         | EXN v => Φ (O2Throw v) }} -∗
     EWP bind m k @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -909,10 +909,10 @@ Section ewp_rules.
   Qed.
 
   Lemma ewp_par_same_exn {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ ψ} φ1 φ2 Ψ :
-    EWP m1 @ E <| Ψ |> {{ RET v => φ1 v ; | EXN e => ψ e }} -∗
-    EWP m2 @ E <| Ψ |> {{ RET v => φ2 v ; | EXN e => ψ e }} -∗
+    EWP m1 @ E <| Ψ |> {{ RET v => φ1 v | EXN e => ψ e }} -∗
+    EWP m2 @ E <| Ψ |> {{ RET v => φ2 v | EXN e => ψ e }} -∗
     (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗ φ (v1, v2)) -∗
-    EWP (par m1 m2) @ E <| Ψ |> {{ RET v => φ v ; | EXN e => ψ e }}.
+    EWP (par m1 m2) @ E <| Ψ |> {{ RET v => φ v | EXN e => ψ e }}.
   Proof.
     iIntros "Hm1 Hm2 Hφ".
     iApply (ewp_par with "Hm1 Hm2"); auto.
@@ -1120,7 +1120,7 @@ Section ewp_val_rules.
 
   Lemma pure_ewp {A E} E' Ψ (φ : A → Prop) (ψ : E → Prop) m :
     pure_wp m φ ψ →
-    ⊢ EWP m @ E' <| Ψ |> {{ RET a => ⌜φ a⌝; | EXN e => ⌜ψ e⌝ }}.
+    ⊢ EWP m @ E' <| Ψ |> {{ RET a => ⌜φ a⌝ | EXN e => ⌜ψ e⌝ }}.
   Proof.
     iIntros (Hm).
     iLöb as "IH" forall (m Hm).
