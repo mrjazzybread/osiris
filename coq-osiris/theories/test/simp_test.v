@@ -1,6 +1,6 @@
 From osiris Require Import osiris.
 
-Local Notation ε := []. (* TODO move *)
+Local Notation ε := [].
 Local Transparent encode.
 
 Local Ltac super_simp := repeat (simp).
@@ -62,22 +62,6 @@ Goal
 Proof.
   intros. simp.
 Qed.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Examples involving operations on Booleans. *)
-
-(* TODO place examples involving Stdlib somewhere else
-Goal ∀ η,
-  lookup_name η "Stdlib" = ret Stdlib →
-  let e := EMultiApp (EMkPath ["Stdlib"; "not"]) [ EFalse ] in
-  simp (eval η e) (ret VTrue).
-Proof.
-  (* [Stdlib.not] is a concrete closure, so the interpreter automatically
-     enters it. *)
-  intros. simp.
-Qed.
- *)
 
 (* -------------------------------------------------------------------------- *)
 

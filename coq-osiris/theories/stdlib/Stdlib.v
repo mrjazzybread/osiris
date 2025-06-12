@@ -143,7 +143,7 @@ Definition toplevel me (φ : env -> Prop) :=
 
 (* This specification is nondeterministic: it uses [pure] and a relation [R]
    of type [A → A → Prop]. One could prefer a deterministic specification
-   that uses [simp] and a function of type [A → A → bool]. TODO: try it. *)
+   that uses [simp] and a function of type [A → A → bool]. *)
 
 Definition decide_spec `{Encode A}
   (decide : val) (P : A → Prop) (R : A → A → Prop)
@@ -182,8 +182,6 @@ Qed.
    code [c] such that the sign of [c] encodes the three possible outcomes
    of the comparison between [x] and [y]. *)
 
-(* TODO contrary to [decide], we do not allow a precondition [P]. *)
-
 Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
   let lt := strict le in
   let eq := equivalent le in
@@ -213,128 +211,3 @@ Proof.
   intros x Hx. pure_enter. simpl_eval. pure_ret. intros y Hy. pure_enter.
   eapply pure_eval_EOpNe_bool; try (pure_path); auto.
 Qed.
-
-(* Lemma Stdlib__lt_spec : *)
-(*   decide_spec Stdlib__lt representable Z.lt. *)
-(* Proof. *)
-(*   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter. *)
-(*   eapply pure_eval_EOpLt_bool; try (pure_path); auto. *)
-(* Qed. *)
-
-(* Lemma Stdlib__le_spec : *)
-(*   decide_spec Stdlib__le representable Z.le. *)
-(* Proof. *)
-(*   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter. *)
-(*   eapply pure_eval_EOpLe_bool; try (pure_path); auto. *)
-(* Qed. *)
-
-(* Lemma Stdlib__gt_spec : *)
-(*   decide_spec Stdlib__gt representable (λ x y, Z.lt y x). *)
-(*                                        (* avoid [Z.gt] *) *)
-(* Proof. *)
-(*   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter. *)
-(*   eapply pure_enc_consequence. *)
-(*   eapply pure_eval_EOpGt_bool; try (pure_path); auto. *)
-(*   simpl; intros b ->; apply Z.gt_lt_iff. *)
-(* Qed. *)
-
-(* Lemma Stdlib__ge_spec : *)
-(*   decide_spec Stdlib__ge representable (λ x y, Z.le y x). *)
-(*                                        (* avoid [Z.ge] *) *)
-(* Proof. *)
-(*   intros x Hx. pure_enter. pure_simp. intros y Hy. pure_enter. *)
-(*   eapply pure_enc_consequence. *)
-(*   eapply pure_eval_EOpGe_bool; try (pure_path); auto. *)
-(*   simpl; intros b ->; apply Z.ge_le_iff. *)
-(* Qed. *)
-
-(* (* -------------------------------------------------------------------------- *) *)
-
-(* (* TODO specify every pure function using [pure], not [WP]. *) *)
-
-(* (* The following specification lemmas are no longer used, *)
-(*    since [simp] now steps into calls to concrete closures. *) *)
-
-(* (* TODO The proofs of these lemmas should be one-liners. *)
-(*         If they are not then our tactics need improvements. *) *)
-
-(* Section Stdlib__specs. *)
-
-(* Set Default Proof Mode "Classic". *)
-
-(* Context `{!osirisGS Σ}. *)
-
-(* Lemma Stdlib__ref__spec (v : val) : *)
-(*   {{{ True }}} *)
-(*     call Stdlib__ref v *)
-(*   {{{ (l : loc), RET #l ; (l ↦ V v : iPropI Σ) }}}. *)
-(* Proof. *)
-(*   iIntros (φ) "_ Hpost". *)
-(*   Simp. Alloc l "Hl". *)
-(*   cbn. Ret. *)
-(*   iApply "Hpost". iFrame. *)
-(* Qed. *)
-
-(* Lemma Stdlib__load__spec l v : *)
-(*   {{{ l ↦ V v }}} *)
-(*     call Stdlib__load #l *)
-(*   {{{ v, RET v ; l ↦ V v }}}. *)
-(* Proof. *)
-(*   iIntros (φ) "Hl Hpost". *)
-(*   Simp. ewp_tactics.Load "Hl". *)
-(*   Ret. *)
-(*   iApply "Hpost". iFrame. *)
-(* Qed. *)
-
-(* (* [Stdlib__store] is a curried binary function. The application to the *)
-(*    first argument is pure, so its specification is expressed using pure. *) *)
-
-(* Lemma Stdlib__store__spec (l : loc) (v v' : val) : *)
-(*   pure *)
-(*     (call Stdlib__store #l) *)
-(*     ##(λ c, *)
-(*       {{{ l ↦ V v }}} *)
-(*         call c v' *)
-(*       {{{ (v : val), RET #tt; l ↦ V v' }}} *)
-(*     ) ⊥. *)
-(* Proof. *)
-(*   pure_simp. *)
-(*   iIntros (φ) "Hl Hpost". *)
-(*   Simp. *)
-(*   Store "Hl". cbn. Ret. *)
-(*   by iSpecialize ("Hpost" $! (VArray nil) with "Hl"). *)
-(* Qed. *)
-
-(* End Stdlib__specs. *)
-
-(* (* -------------------------------------------------------------------------- *) *)
-
-
-(* (* TODO WIP *) *)
-
-(* (* Some pure functions in the standard library (e.g., the arithmetic operators *)
-(*    and the comparison operators) can be given deterministic specifications in *)
-(*    terms of [simp]. So, we seem to have three choices: *)
-(*    - prove a spec in terms of [pure] and make it a lemma in a database; *)
-(*    - prove a spec in terms of [simp] and make it a lemma in a database; *)
-(*      (this approach does not work well for curried binary functions, *)
-(*       as the intermediate value [v] must be existentially quantified) *)
-(*    - let the user exploit the tactic [simp] at the call site, *)
-(*      without stating/proving a lemma. *) *)
-
-(* Local Lemma experiment_add : *)
-(*   ∀ (x y : Z), *)
-(*   simp (bind (call Stdlib__add #x) (λ v, call v #y)) (ret #(Z.add x y)). *)
-(* Proof. *)
-(*   intros. simp. *)
-(*     (* Even though [call] is opaque, the tactic [simp] is able to step *)
-(*        into a call to a concrete closure. Here, it automatically steps *)
-(*        into the two calls in succession. *) *)
-(* Qed. *)
-
-(* Local Lemma experiment_eq : *)
-(*   ∀ (x y : Z), representable x → representable y → *)
-(*   simp (bind (call Stdlib__eq #x) (λ v, call v #y)) (ret #(Z.eqb x y)). *)
-(* Proof. *)
-(*   intros. simp. *)
-(* Qed. *)

@@ -2,8 +2,6 @@ Require Export Coq.Program.Equality.
 From stdpp Require Export base strings.
 From osiris.logic Require Export void.
 
-(* TODO move all of the following to other places? *)
-
 (* Logical tautologies. *)
 
 Lemma share_common_conjunct (P Q Q' : Prop) :

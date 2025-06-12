@@ -128,7 +128,7 @@ Lemma spec_example4:
 Proof.
   unfold example4.
   Simp.
-  iApply spec_example3. (* TODO: Reintroduce [oSpecify]? *)
+  iApply spec_example3.
   iModIntro. iIntros (?). Simp; by Ret.
 Qed.
 
@@ -141,9 +141,6 @@ Definition example5 :=
 Lemma spec_example5:
   ⊢ EWP (eval [] example5) {{ ensures v, ⌜v = VFalse⌝ }}.
 Proof.
-  (* TODO make [choose] opaque somewhere else *)
-  (* TODO and prove a [wp] rule for [eval (EAssert _)]
-          so we do not need to descend to the level of [choose] *)
   Simp. Ret. done.
 Qed.
 
@@ -203,7 +200,7 @@ Definition divergence :=
 Lemma spec_divergence:
   ⊢ WP eval [] divergence {{ λ _, ⌜False⌝ }}.
 Proof.
-Abort. (* TODO now that we have Löb induction, prove this goal *)
+Abort.
 
 (* -------------------------------------------------------------------------- *)
 

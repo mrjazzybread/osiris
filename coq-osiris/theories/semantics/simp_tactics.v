@@ -597,7 +597,6 @@ Create HintDb simp_specs.
 
 Ltac simp_ret :=
   simple eapply prove_simp_ret; [ eauto with encode equality ].
-(* TODO limit search depth? *)
 
 (* The tactic [normalize] attempts to reduce and normalize the goal.
    It is used (as sparingly as possible) by the tactics that follow. *)
@@ -683,8 +682,6 @@ with simp1 :=
   | simple eapply advance_SimpEvalThrow; simp0
   | simple eapply advance_SimpEval; simp0
   | simple eapply advance_please; simp0
-      (*| simple eapply advance_SimpLoopThrow; simp0 *)
-      (*| simple eapply advance_SimpLoop; simp0 *)
   | simple eapply advance_SimpEvalEAssert; simp0
       (* We do not deal with [choose] in its full generality. Instead,
          we provide ad hoc support for [EAssert] expressions, which
@@ -697,23 +694,6 @@ with simp1 :=
   | simple eapply advance_simp_val_as_bool_VTrue; simp0
   | simple eapply advance_simp_val_as_bool_VFalse; simp0
   | simple eapply advance_simp_val_as_bool_VBool; simp0
-
-  (* | simple eapply advance_simp_is_module_val_as_struct; done *)
-  (* | simple eapply advance_simp_is_module_lookup_name; *)
-  (*   [ done | by eauto using in_eq, in_cons ] *)
-
-  (* | simple eapply advance_simp_pure_spec_val_as_struct; done *)
-  (* | simple eapply advance_simp_pure_spec_lookup_name; *)
-  (*   [ done | by eauto using in_eq, in_cons ] *)
-
-  (* TODO the following 4 rules are useful only in pre/postconditions,
-     not in [simp] goals *)
-  (*
-  | rewrite -> Zeq_spec; simp0 (* x =? y ↔ x = y *)
-  | rewrite -> Zne_spec; simp0 (* negb (x =? y) ↔ x ≠ y *)
-  | rewrite -> Zlt_spec; simp0 (* x <? y ↔ x < y *)
-  | rewrite -> Zle_spec; simp0 (* negb (y <? x) ↔ x ≤ y *)
-   *)
     (* If none of the above rules can be applied, then we inspect the syntax
        of the goal and, based on it, we try to do something smart. *)
   | simp1_inspect
@@ -728,7 +708,6 @@ with simp1 :=
        would be too restrictive. Indeed, this reduction step can lead us to a
        situation where a breakpoint is visible and no further simplification
        is possible. *)
-    (* TODO is this a good idea? could this be very expensive? *)
   | progress normalize; simp0
   ]
 
@@ -890,8 +869,6 @@ with simp1_bind :=
      construct, requires rewriting [bind (ret _) _]. To do so, we explicitly
      apply a lemma; this ensures that we fail if the goal is not of the form
      [bind (ret _) _]. *)
-  (* TODO explain that we wish to allow [m] to reduce to [ret _],
-          without violating opacity *)
   first [
     simple eapply advance_simp_bind_ret
   | lazymatch goal with
@@ -937,8 +914,7 @@ with simp1_try :=
       we can use [apply] and directly refer to the shape of the context.
     This is preferable because in some cases, [apply] does not resolve
     the arguments to these lemmas automatically, and [simple eapply] does
-    not work for some reason.
-    TODO propogate this style to other strong [eapply] uses *)
+    not work for some reason. *)
   match goal with
   | |- simp (try ?m ?f ?h) _ =>
       first [
@@ -959,9 +935,6 @@ with simp0_par :=
 with simp1_par :=
   (* Performing at least one simplification step, when the term is a [Par]
      construct, requires applying one of the following rules. *)
-  (* TODO we cut corners and use strong [eapply] here; this is simpler;
-          we need not worry about opacity because breakpoints do not
-          appear under [par] *)
   first [
     (* strong *) eapply advance_SimpParRetRet (* maybe a special case of the following *)
   | (* strong *) eapply advance_SimpParRetLeftThrow

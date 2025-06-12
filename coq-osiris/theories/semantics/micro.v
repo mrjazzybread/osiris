@@ -388,8 +388,6 @@ Definition widen {A E} (m : micro A void) : micro A E :=
 
 (* Paraphrase lemmas. *)
 
-(* TODO Some of these lemmas are unused. Remove them or make them Local. *)
-
 Lemma bind_ret {A B E} (a : A) (f : A → micro B E) :
   bind (ret a) f =
   f a.
@@ -476,8 +474,6 @@ Proof.
 Qed.
 
 Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
-
-(* TODO the following two lemmas are unused. Keep or discard? *)
 
 Lemma try2_continue {A B C E F G}
   a
@@ -628,8 +624,6 @@ Qed.
 
 (* The constructors [Stop] and [Par] can be viewed as
    applications of [stop] and [par], wrapped in [try2]. *)
-
-(* TODO [try_stop], etc. may become unused *)
 
 Lemma try2_stop {A X Y E E'} c (x : X) (k : outcome2 Y E' → micro A E) :
   try2 (stop c x) k = Stop c x k.

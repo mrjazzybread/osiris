@@ -282,7 +282,6 @@ Qed.
 (*
 a few examples for EMatch, for now more than necessary
 we should remove most of them once EMatch rules are well understood.
-TODO: simpler rule/eval function for EMatch with iEff_bottom
 *)
 
 (* match 1 with 1 -> true | _ -> false *)

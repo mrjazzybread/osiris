@@ -44,7 +44,6 @@ Section ExternalsDef.
               "caml_register_named_value" ;
               "register_named_value" ;
 
-              (* TODO: references. *)
               "%makemutable" ; "field0cheat" ; "%setfield0" ; "%incr" ; "%decr"
       ].
 

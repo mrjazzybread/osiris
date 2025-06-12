@@ -87,8 +87,6 @@ deterministic steps), or [Final] if the argument was in fact stuck. *)
   e.g. [None] to make the image of [Par m1 m2 _] depend only of the images of
   [m1] and [m2] instead of depending of [m1] and [m2] themselves. *)
 
-(* TODO maybe [Final] can be avoided by writing some clever pattern-matching *)
-
 Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E :=
   match m with
   (* Already final *)
@@ -399,7 +397,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VCont loc => "VCont(" ++ string_of_Z loc.(address) ++ ")"
   | VRecord fields => "VRecord(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
-  | VFunctor fields v l  => "VFunctor(TODO)"
+  | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
   | VArray l => "VArray(" ++ String.concat "; " (map string_of_val l) ++ ")"
   end.
@@ -456,9 +454,6 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   end.
 
 Definition string_of_microvx := string_of_micro string_of_val string_of_val.
-
-(* TODO can we add some runtime type info to Par so that we can print values?
-Even in the ocaml toplevel they are written as <abstr> *)
 
 Definition string_of_block (b : step.block) : string :=
   match b with

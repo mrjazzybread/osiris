@@ -66,11 +66,8 @@ Local Ltac step :=
       end
     | eapply StepLoadSuccess;
       eauto using lookup_insert
-      (* TODO this seems too restrictive:
-              it will work only if we are reading the reference
-              that was last allocated or updated *)
     | eapply StepStoreSuccess;
-      eauto using lookup_insert (* TODO same as above *)
+      eauto using lookup_insert
     | match goal with
       | |- step (?σ, Handle _ _) _ =>
           eapply StepHandlePerform with (l := fresh (dom σ));

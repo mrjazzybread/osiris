@@ -59,10 +59,8 @@ Local Ltac solve_encode :=
 (* Sometimes a value is reflected as itself at the logical level. *)
 
 (* This may be used, for instance, for functions, or for modules. *)
-(* TODO clarify when/why this instance is used;
-        e.g. because pure builds in [encode],
-             this instance is needed when writing a [pure] judgement
-             about an expression that returns a function. *)
+(* Because pure builds in [encode], this instance is needed when writing a [pure]
+  judgement about an expression that returns a function. *)
 
 (* This instance has low priority because it should be used only
    when there is no other choice. *)
@@ -348,8 +346,6 @@ Global Hint Resolve
   asr_repr_repr
 : encode.
 
-(* TODO add hints that help prove [representable z]. *)
-
 (* -------------------------------------------------------------------------- *)
 
 (* Floats. *)
@@ -422,10 +418,6 @@ Lemma solve_encode_Nil `{Encode A} (xs : list A) :
   [] = xs →
   VNil = #xs.
 Proof. solve_encode. Qed.
-  (* TODO If [xs] and [A] are metavariables then Coq will refuse
-          to apply this lemma because it cannot guess [A].
-          A work-around is to explicitly add [@solve_encode_Nil A]
-          in the context for a specific type [A] of interest. *)
 
 Lemma solve_encode_Cons `{Encode A} (xs : list A) x xs' v1 v2 :
   x :: xs' = xs →

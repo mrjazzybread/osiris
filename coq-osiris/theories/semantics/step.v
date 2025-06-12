@@ -585,9 +585,6 @@ Ltac destruct_can_step :=
 (* A configuration that is not [ret _] and that is unable to step is stuck.
    This includes unhandled exceptions and unhandled effects. *)
 
-(* TODO it may be confusing to characterize unhandled exceptions and
-   effects as "stuck". Could we just remove [stuck] entirely? *)
-
 Definition stuck {A E} (c : config A E) :=
   let '(σ, m) := c in
   is_not_ret m ∧
@@ -1028,9 +1025,6 @@ Proof.
   ].
 Qed.
 
-(* TODO could we use this lemma
-   and avoid reasoning with [stuck],
-   which introduces painful negations? *)
 Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _

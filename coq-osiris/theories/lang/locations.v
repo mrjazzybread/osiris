@@ -31,8 +31,6 @@ Proof.
   by apply infinite.inj_infinite with (f := Loc) (g := λ l, Some (address l)).
 Defined.
 
-(* TODO: comment why defined. *)
-
 (* Usage: [destruct (eqb_spec l1 l2)] will replace [eqb l1 l2] with [true] and
    add the hypothesis [l1 = l2] in a first subgoal, and the same with [false]
    and [l1 ≠ l2] in a second subgoal. *)
