@@ -1,9 +1,7 @@
 [@@@warning "-27"]
 
 (* This file provides a function that, given the name of an ml file, returns a
-   [Typedtree.implementation] by calling functions from [ocaml-compiler-libs].
-   Note that is also writes, then deletes, a [.cmi] file to disk, we should fix
-   this. *)
+   [Typedtree.implementation] by calling functions from [ocaml-compiler-libs]. *)
 
 (* Reference that is used to store the typed tree *)
 let ref_to_impl : Typedtree.implementation option ref = ref None
@@ -14,24 +12,16 @@ let ref_to_impl : Typedtree.implementation option ref = ref None
 
 (* from ocaml/driver/compile_common.ml *)
 
-open Misc
 open Compile_common
 
 let typecheck_impl (i : info) parsetree =
-  parsetree
-  |> Profile.(record typing)
-    (Typemod.type_implementation i.target i.env)
-  |> print_if i.ppf_dump Clflags.dump_typedtree
-    Printtyped.implementation_with_coercion
-  |> print_if i.ppf_dump Clflags.dump_shape
-    (fun fmt {Typedtree.shape; _} -> Shape.print fmt shape)
+  Typemod.type_implementation i.target i.env parsetree
 
 let compile_common__implementation info ~backend =
-  Profile.record_call (Unit_info.source_file info.target) @@ fun () ->
+  Clflags.dont_write_files := true;
   Misc.try_finally ?always:None ?exceptionally:None (fun () ->
       let structure : Parsetree.structure = parse_impl info in
       let impl : Typedtree.implementation = typecheck_impl info structure in
-      (* remove_file (Unit_info.Artifact.filename @@ Unit_info.cmi info.target); -- DELETE CMI FILE *)
       ref_to_impl := Some impl;
     )
 
@@ -46,7 +36,7 @@ let compile__implementation ~start_from ~source_file ~output_prefix : unit (* Ty
     (Unit_info.make
       ~source_file
       Impl
-      source_file (* redundant? *)
+      "osiris_unused_prefix"
     )
   @@ fun info ->
   compile_common__implementation info ~backend:(fun _ _ -> ())
