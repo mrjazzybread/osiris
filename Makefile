@@ -82,3 +82,11 @@ pin:
 	$(PIN) coq-equations 1.3.1+8.20
 	$(PIN) ppx_sexp_conv v0.17.0
 	$(PIN) ppx_deriving 6.0.3
+
+.PHONY: runtests
+runtests:
+	@ cd tests && ./runtests.sh
+
+.PHONY: check-axioms
+check-axioms:
+	@ ./check-axioms.sh
