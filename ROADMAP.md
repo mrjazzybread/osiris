@@ -1,8 +1,15 @@
 # Repo Roadmap
 
+The Osiris project can broadly be divided into three parts:
+- The Rocq development, which can be found under `osiris/coq-osiris`
+- The validation framework, which can be found under `osirs/coq-osiris/inter`
+- The translator, is under `osiris/osiris`
+
 ## Proofmode and Rocq Development
 
-The Rocq development can be found under `osiris/coq-osiris`
+The Rocq development offers:
+- a deep embedding of a fragment of OCaml in Rocq
+- two program logics to reason about OCaml programs
 
 ### Model of the Language
 
@@ -67,16 +74,6 @@ The Rocq development can be found under `osiris/coq-osiris`
   - `proofs/` directory containing our examples' specifications and proofs
 - `osiris/coq-osiris/tutorial/tutorial.v` a web-browser based tutorial for using Osiris (completely outdated)
 
-## Translator
-
-The translator from OCaml source files to Rocq definitions is under `osiris/osiris`.
-
-- `osiris/osiris/README.md` explains how to use the translator
-- `osiris/osiris/src`
-  - `Syntax.ml` definition of the Osiris AST, should be in sync with `osiris/coq-osiris/theories/lang/syntax.v`
-  - `Translate.ml` transforms OCaml parsetree expressions into the Osiris AST
-  - `Coqify.ml` transforms the Osiris AST into the Rocq Osiris AST
-
 ## Validation
 
 The interpreter for simulating our semantics is under `osiris/coq-osiris/interp`.
@@ -93,3 +90,69 @@ Tests are in `tests`:
 - `tests/*.ml` are handwritten `.ml` test files
 - `tests/ocaml-testsuite/` contain tests adapted from OCaml's test suite.
 - `tests/runtests.sh`, to be run inside `tests`, checks that for each test file, running `ocaml file.ml` and `./interp.exe file.ml` produces the same output.
+
+
+## Translator
+
+The translator from OCaml source files to Rocq definitions is under `osiris/osiris`.
+
+- `osiris/osiris/README.md` explains how to use the translator
+- `osiris/osiris/src`
+  - `Syntax.ml` definition of the Osiris AST, should be in sync with `osiris/coq-osiris/theories/lang/syntax.v`
+  - `Translate.ml` transforms OCaml parsetree expressions into the Osiris AST
+  - `Coqify.ml` transforms the Osiris AST into the Rocq Osiris AST
+
+# Correspondence with the paper
+
+We give a correspondence between features the of the paper and their Rocq mechanization.
+
+### Section 3: A Monadic Interpreter
+
+* OCaml expressions and patterns -> theories/lang/syntax.v
+* Translator -> ../osiris
+* OLang's type of values -> theories/lang/syntax.v
+* eval_expr/eval_pat -> theories/semantics/eval.v
+* internals of eval + other auxiliary functions -> theories/semantics/eval.v
+* outcomes -> theories/semantics/outcome.v
+* The micro public interface -> theories/semantics/code.v (and some bits in theories/semantics/micro.v)
+
+### Section 4: The Micro Monad
+
+* The micro monad definition -> theories/semantics/micro.v
+* Codes/system calls -> theories/semantics/code.v
+
+### Section 5: Small-step semantics for the Micro Monad
+
+* Configurations/stores -> theories/semantics/step.v
+* Stepping relation -> theories/semantics/step.v
+
+### Section 6: Validation
+
+* Extraction -> theories/interp/extracted/extract.v
+* OCaml interpreter -> theories/interp/interp.ml
+* Test suite -> ../../tests/
+
+### Section 7: Horus
+
+* Pure reductions -> theories/semantics/pure.v
+* Claims about pure steps -> theories/semantics/pure_step.v
+* Pure wp -> theories/program_logic/pure/wp.v
+* Pure rules for micro -> theories/program_logic/pure/pure_rules.v
+* encoding -> theories/lang/encode.v
+* Definition of pure__# (`pure` in the development) -> theories/program_logic/pure/judgements.v
+* Definition of expr -> theories/program_logic/pure/judgements.v (just notation)
+* Rules for expressions -> theories/program_logic/pure/expr_rules.v
+* Definition of pat -> theories/program_logic/pure/pattern_rules.v
+* Definition of branches -> theories/program_logic/pure/expr_rules.v
+* Definition of spec -> theories/program_logic/pure/fun_spec.v
+* Spec public API -> theories/program_logic/pure/fun_spec.v
+* Merge example -> examples/proofs/merge.v
+* Splay example -> examples/proofs/splay.v
+
+### Section 8: Osiris
+
+* Definition of impure -> theories/program_logic/ewp.v
+* Micro level rules -> theories/program_logic/basic_rules.v
+* Rules for Handle -> theories/program_logic/handler_rules.v
+* Definition of impure__# -> theories/program_logic/ewp.v (lifting notation)
+* Find example -> examples/proofs/find.v
