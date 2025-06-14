@@ -85,9 +85,9 @@ pin:
 
 .PHONY: runtests
 runtests:
+	@ cd coq-osiris/interp && dune build
 	@ cd tests && ./runtests.sh
 
 .PHONY: check-axioms
 check-axioms:
-	@ make --no-print-directory -C coq-osiris
 	@ cd coq-osiris && ./check-axioms.sh
