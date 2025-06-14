@@ -89,4 +89,5 @@ runtests:
 
 .PHONY: check-axioms
 check-axioms:
-	@ ./check-axioms.sh
+	@ make --no-print-directory -C coq-osiris
+	@ cd coq-osiris && ./check-axioms.sh

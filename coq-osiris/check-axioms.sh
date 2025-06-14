@@ -4,8 +4,8 @@ set -e
 
 # Define logical paths
 LOGICAL_PATHS=(
-  "coq-osiris/_build/default/theories=osiris"
-  "coq-osiris/_build/default/examples=osiris.examples"
+  "_build/default/theories=osiris"
+  "_build/default/examples=osiris.examples"
 )
 
 # Collect module names for each path
