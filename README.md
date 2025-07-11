@@ -8,14 +8,12 @@ We provide an overview of the structure of the whole project in `ROADMAP.md`
 
 ## Compilation
 
-### Dependencies
-
 The project requires OCaml's package manager `opam`, and optionally the `ocamlwc` package.
-On debian, these can be installed with
-`sudo apt install opam ocamlwc`
 
 Running `make init` then creates a new `opam` switch with all the required dependencies at
 the right version.
+
+### Dependencies
 
 The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`,
 `iris`, `coq-equations`, and `std++`.
@@ -36,6 +34,7 @@ It is known to compile with the following versions of the packages:
 | `ppx_deriving` | 6.0.3 | -                                           |
 
 **If there is an error while the dependencies are being installed:**
+
 It is recommended to update the list of opam packages with `opam update`,
 and to continue installing with `make pin` to avoid creating a new switch.
 
