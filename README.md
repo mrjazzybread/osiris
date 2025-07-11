@@ -1,6 +1,6 @@
 # Osiris
 
-This is the artifact for the paper titled "Formal Semantics & Program Logics for a Fragment of OCaml".
+This is the artifact for the paper titled "Formal Semantics and Program Logics for a Fragment of OCaml".
 
 ## Project Overview
 
