@@ -72,7 +72,6 @@ upgrade:
 .PHONY: pin
 pin:
 	$(PIN) dune 3.17.2
-	$(INSTALL) tuareg merlin ocp-indent # for comfort
 	$(INSTALL) pprint ocaml-compiler-libs
 	$(ADD) coq-released https://coq.inria.fr/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
@@ -82,6 +81,10 @@ pin:
 	$(PIN) coq-equations 1.3.1+8.20
 	$(PIN) ppx_sexp_conv v0.17.0
 	$(PIN) ppx_deriving 6.0.3
+
+.PHONY: emacs
+emacs:
+	$(INSTALL) tuareg merlin ocp-indent
 
 .PHONY: runtests
 runtests:
