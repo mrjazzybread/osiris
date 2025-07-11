@@ -9,7 +9,7 @@ else
   TAR=tar
 fi
 
-ARCHIVE=osiris-archive
+ARCHIVE=../osiris-archive
 
 rm -rf $ARCHIVE $ARCHIVE.tar.gz
 
@@ -29,8 +29,7 @@ sed -i '/Daby-Seesaram/d' $ARCHIVE/{,coq-}osiris/dune-project
 sed -i '/Madiot/d'        $ARCHIVE/{,coq-}osiris/dune-project
 sed -i '/Seassau/d'       $ARCHIVE/{,coq-}osiris/dune-project
 sed -i '/Yoon/d'          $ARCHIVE/{,coq-}osiris/dune-project
-
-git init .
+git init $ARCHIVE
 
 $TAR cvfz $ARCHIVE.tar.gz \
   --exclude-ignore-recursive=.gitignore \
