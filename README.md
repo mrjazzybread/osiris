@@ -14,6 +14,9 @@ The project requires OCaml's package manager `opam`, and optionally the `ocamlwc
 On debian, these can be installed with
 `sudo apt install opam ocamlwc`
 
+Running `make init` then creates a new `opam` switch with all the required dependencies at
+the right version.
+
 The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`,
 `iris`, `coq-equations`, and `std++`.
 
@@ -32,44 +35,26 @@ It is known to compile with the following versions of the packages:
 | `ppx_sexp_conv` | v0.17.0 | -                                        |
 | `ppx_deriving` | 6.0.3 | -                                           |
 
+**If there is an error while the dependencies are being installed:**
+It is recommended to update the list of opam packages with `opam update`,
+and to continue installing with `make pin` to avoid creating a new switch.
 
-`make init` creates a new `opam` switch with all the required dependencies at
-the right version.
-
-It is equivalent to running the following commands in succession:
-
-```
-opam switch create osiris 5.3.0
-opam pin dune 3.17.2
-opam install tuareg merlin ocp-indent
-opam install pprint ocaml-compiler-libs
-opam repo add coq-released https://coq.inria.fr/opam/released
-opam repo add iris-dev git+https://gitlab.mpi-sws.org/iris/opam.git
-opam pin coq 8.20.1
-opam pin coq-stdpp 1.11.0
-opam pin coq-iris 4.3.0
-opam pin coq-equations 1.3.1+8.20
-opam pin ppx_sexp_conv v0.17.0
-opam pin ppx_deriving 6.0.3
-```
-If there is an error while the dependencies are being installed,
-`make pin` will try to reinstall the dependencies without creating a new switch.
+For comfort, we also provide `make emacs` to install the dependencies necessary to use Emacs as an IDE for OCaml.
 
 ### Build
 
 Running `make` will:
 (1) build the translator,
-(2) compile and run the translator on the example files in `coq-osiris/exampes/src`,
-(3) compile compile all coq files in the project.
+(2) compile the example files in `coq-osiris/examples/src` and run the translator on them
+(3) compile all coq files in the project.
 
 For further details on running the translator manually, consult `osiris/osiris/README.md`.
 
 ## Validation
 
-In order to run the validation of our semantics, it suffices to run
-`make runtests`
+Running `make runtests` executes the validation tests for our semantics.
 
 ## Axioms
 
-Running `make check-axioms` when the project is built will run `coqchk` and print out the axioms used in the Rocq development.
+Running `make check-axioms` when the project is built will run `coqchk` and print out the axioms used in the coq development.
 Note that the script filters out "uninteresting" actions, such as those found in `Coq.Floats.FloatAxioms`.
