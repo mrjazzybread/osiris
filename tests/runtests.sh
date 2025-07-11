@@ -19,6 +19,11 @@ do
 done
 
 # Some statistics
-nfiles=$(find ./* -type f -name '*.ml' | wc -l)
-nloc=$(find ./* -type f -name '*.ml' -exec ocamlwc -c {} + | tail -n1 | grep -o -P '\d*')
-echo "$nfiles files, $nloc lines of code, exluding comments"
+if ! command -v ocamlwc >/dev/null 2>&1
+then
+    exit 0
+else
+    nfiles=$(find ./* -type f -name '*.ml' | wc -l)
+    nloc=$(find ./* -type f -name '*.ml' -exec ocamlwc -c {} + | tail -n1 | grep -o -P '\d*')
+    echo "$nfiles files, $nloc lines of code, exluding comments"
+fi
