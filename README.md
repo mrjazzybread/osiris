@@ -33,8 +33,7 @@ It is known to compile with the following versions of the packages:
 | `ppx_sexp_conv` | v0.17.0 | -                                        |
 | `ppx_deriving` | 6.0.3 | -                                           |
 
-**If there is an error while the dependencies are being installed:**
-
+**If there is an error while the dependencies are being installed:**\
 It is recommended to update the list of opam packages with `opam update`,
 and to continue installing with `make pin` to avoid creating a new switch.
 
