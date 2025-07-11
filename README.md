@@ -27,7 +27,7 @@ It is known to compile with the following versions of the packages:
 | `ocaml`     | 5.3.0   | -                                            |
 | `pprint`    | -       | -                                            |
 | `ocaml-compiler-libs` | -  | -                                       |
-| `dune`      | 3.17.2  | -                                            |
+| `dune`      | 3.19.1  | -                                            |
 | `coq`       | 8.20.1  | https://coq.inria.fr/opam/released           |
 | `coq-iris`  | 4.3.0   | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `coq-stdpp` | 1.11.0  | git+https://gitlab.mpi-sws.org/iris/opam.git |

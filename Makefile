@@ -71,7 +71,7 @@ upgrade:
 
 .PHONY: pin
 pin:
-	$(PIN) dune 3.17.2
+	$(PIN) dune 3.19.1
 	$(INSTALL) pprint ocaml-compiler-libs
 	$(ADD) coq-released https://coq.inria.fr/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
