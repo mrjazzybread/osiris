@@ -128,9 +128,9 @@ We give a correspondence between features the of the paper and their Rocq mechan
 
 ### Section 6: Validation
 
-* Extraction -> theories/interp/extracted/extract.v
-* OCaml interpreter -> theories/interp/interp.ml
-* Test suite -> ../../tests/
+* Extraction -> interp/extracted/extract.v
+* OCaml interpreter -> interp/interp.ml
+* Test suite -> ../tests/
 
 ### Section 7: Horus
 
