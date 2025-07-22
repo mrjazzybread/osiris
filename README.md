@@ -46,8 +46,6 @@ Running `make` will:
 (2) compile the example files in `coq-osiris/examples/src` and run the translator on them
 (3) compile all coq files in the project.
 
-For further details on running the translator manually, consult `osiris/osiris/README.md`.
-
 ## Validation
 
 Running `make runtests` executes the validation tests for our semantics.
@@ -56,3 +54,36 @@ Running `make runtests` executes the validation tests for our semantics.
 
 Running `make check-axioms` when the project is built will run `coqchk` and print out the axioms used in the coq development.
 Note that the script filters out "uninteresting" actions, such as those found in `Coq.Floats.FloatAxioms`.
+
+## Manually Running the Translator
+
+By default, the translator is compiled into
+`osiris/_build/default/src/Main.exe`;
+it can also be registered into the current opam switch with `cd osiris && make pin`.
+
+Then, running
+```
+osiris \
+    --root <project directory> \
+    --out <output directory> \
+    all
+```
+will translate every .ml file in `<project directory>` into a .v file,
+as long as the project directory contains a root `dune-project` file,
+and the .ml files have been compiled with the `-bin-annot` flag.
+
+For a working example, consider the files in
+`coq-osiris/examples/src`.
+
+If we want to specifically translate one file, we can run
+```
+osiris \
+    --root <path-to-this-dir>/coq-osiris/ \
+    --out <path-to-this-dir>/coq-osiris/ \
+    Bst
+```
+
+This will create a `bst.v` file next to `coq-osiris/examples/src/bst.ml`.
+Curcially, `<path-to-this-dir>` needs to be an absolute path, not a relative one.
+
+For further details on running the translator, consult `osiris/README.md`.

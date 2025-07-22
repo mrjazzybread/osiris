@@ -11,8 +11,8 @@ all:
 # Apply the Osiris translator to all of the above OCaml source code.
 # The mark [og_] stands for "Osiris-generated".
 	@ (cd osiris && dune exec src/Main.exe -- \
-	     --root $(PWD)/coq-osiris \
-             --out $(PWD)/coq-osiris \
+	     --root $(PWD)/coq-osiris/ \
+	     --out $(PWD)/coq-osiris/ \
 	     --mark og_ \
 	     --no-warnings \
 	     --decorate \
