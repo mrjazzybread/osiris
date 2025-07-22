@@ -69,7 +69,7 @@ osiris \
     all
 ```
 will translate every .ml file in `<project directory>` into a .v file,
-as long as the project directory contains a root `dune-project` file,
+as long as the project directory contains a **root** `dune-project` file,
 and the .ml files have been compiled with the `-bin-annot` flag (see `coq-osiris/examples/src/dune`).
 
 For a working example, consider the files in
