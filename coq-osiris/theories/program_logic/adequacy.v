@@ -61,8 +61,12 @@ Section adequacy.
 
   Theorem ewp_adequacy m σ φ :
   (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
+    (* If [⊢ ⟨ ⊥ ⟩ impure m (λ v. ⌜φ v⌝)] holds *)
     ⊢ EWP m @ ⊤ <| ⊥ |> {{ fun o =>  ⌜ φ o ⌝ }}) →
-    adequate NotStuck m σ (λ o _, φ o).
+    (* Then executing [m] cannot terminate with an unhandled effect or a crash, *)
+    adequate NotStuck m
+      σ (* in any initial heap, *)
+      (λ o _, φ o) (* and the returned outcome satisfies the postcondition [φ] *).
   Proof.
     intros Hwp.
     eapply (wp_adequacy_gen HasNoLc Σ _).
@@ -73,19 +77,30 @@ Section adequacy.
       (λ _, True%I). iFrame.
     iApply ewp_imp_wp. iApply Hwp.
   Qed.
+  (* In particular, instantiating
+     - [σ] with the empty heap
+     - [φ] with [match o with | O2Ret v => φ' v | O2Throw v => False]
+     Yields theorem 8.1 from the paper.
 
-  (* Consequence: programs proved with the empty protocol cannot perform
-  unhandled effects *)
+     Furthermore, instantiating [m] with [eval η e] yields corollary 8.2 *)
+
+  (* To further substantiate the claim that programs proved with the empty protocol
+     cannot perform unhandled effects, consider the following corollary. *)
   Corollary no_unhandled_effect m σ φ :
   (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
+    (* If [⊢ ⟨ ⊥ ⟩ impure m (λ v. ⌜φ v⌝)] holds *)
     ⊢ EWP m @ ⊤ <| ⊥ |> {{ fun o => ⌜ φ o ⌝ }}) →
-    ∀ m' t σ',
+    (* For any configuration [(t, σ')] *)
+    ∀ t σ',
+      (* reached from the starting configuration [([m], σ)]. *)
       rtc erased_step ([m], σ) (t, σ') →
-      m' ∈ t →
-      ∀ e k, m' ≠ Stop CPerf e k.
+      (* None of the computations in the threadpool are unhandled effects. *)
+      ∀ m',
+        m' ∈ t →
+        ∀ e k, m' ≠ Stop CPerf e k.
   Proof.
     intros [_ H]%(ewp_adequacy _ σ).
-    intros m' t σ' S I e k Heq. subst m'.
+    intros t σ' S m' I e k Heq. subst m'.
     specialize (H t σ' _ eq_refl S I).
     destruct H.
     - destruct H. discriminate.
