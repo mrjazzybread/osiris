@@ -70,7 +70,7 @@ osiris \
 ```
 will translate every .ml file in `<project directory>` into a .v file,
 as long as the project directory contains a root `dune-project` file,
-and the .ml files have been compiled with the `-bin-annot` flag.
+and the .ml files have been compiled with the `-bin-annot` flag (see `coq-osiris/examples/src/dune`).
 
 For a working example, consider the files in
 `coq-osiris/examples/src`.
@@ -84,6 +84,6 @@ osiris \
 ```
 
 This will create a `bst.v` file next to `coq-osiris/examples/src/bst.ml`.
-Curcially, `<path-to-this-dir>` needs to be an absolute path, not a relative one.
+Crucially, `<path-to-this-dir>` needs to be an absolute path, not a relative one.
 
 For further details on running the translator, consult `osiris/README.md`.
