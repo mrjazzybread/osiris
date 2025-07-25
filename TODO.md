@@ -8,6 +8,10 @@
 
 ## TODO
 
+* In the semantics, represent environments using `gmap` instead of
+  association lists. This should make the executable interpreter
+  significantly faster.
+
 * Add support for shallow handlers (translator, semantics, reasoning rules).
 
 * Add support for concurrency (SC first; weak memory later).
