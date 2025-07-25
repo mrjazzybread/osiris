@@ -31,7 +31,7 @@ Module RunF (Strat : Strategy).
 Module M := EvalF Strat. Import M.
 
 (** Perform one step of confluent parallel reductions or returns [None] if there
-is no trivially confluent step. It is used to can eliminate a large part of the
+is no trivially confluent step. It can eliminate a large part of the
 nondeterminism introduced by [Par] constructs *)
 
 Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E) :=
