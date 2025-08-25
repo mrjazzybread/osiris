@@ -351,6 +351,12 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CFork x k) h)
         (σ, Stop CFork x (λ o, Handle (k o) h))
 
+  | StepHandleJoin :
+    ∀ σ i k h,
+      step
+        (σ, Handle (Stop CJoin i k) h)
+        (σ, Stop CJoin i (λ o, Handle (k o) h))
+
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h s,
@@ -458,6 +464,18 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Par m1 (Stop CFork x k) h)
         (σ, Stop CFork x (λ o, Par m1 (k o) h))
 
+  | StepParJoinLeft :
+    ∀ {A1 A2 E'} σ m2 i k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par (Stop CJoin i k) m2 h)
+        (σ, Stop CJoin i (λ o, Par (k o) m2 h))
+
+  | StepParJoinRight :
+    ∀ {A1 A2 E'} σ m1 i k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par m1 (Stop CJoin i k) h)
+        (σ, Stop CJoin i (λ o, Par m1 (k o) h))
+
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
       ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _),
@@ -485,6 +503,37 @@ Ltac destruct_step :=
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+Inductive threadpool_step :
+  (store * list (micro val exn)) -> (store * list (micro val exn)) -> Prop :=
+| BaseS :
+  ∀ m σ m' σ' ts1 ts2,
+    step (σ, m) (σ', m') ->
+    threadpool_step (σ, ts1 ++ [m] ++ ts2) (σ', ts1 ++ [m'] ++ ts2)
+| ForkS :
+  ∀ v1 v2 k σ ts1 ts2,
+    (* Generate a thread id, corresponding to the thread's index in the threadpool. *)
+    let num_threads := (List.length ts1 + List.length ts2 + 1)%nat in
+    let th_id := int.repr (Z.of_nat num_threads) in
+    threadpool_step
+      (σ, ts1 ++ [Stop CFork (v1, v2) k] ++ ts2)
+      (σ, ts1 ++ [k (O2Ret (VInt th_id))] ++ ts2 ++ [call v1 v2])
+| JoinS :
+  ∀ i k σ ts1 ts2,
+    (* Pick the [i]th thread, crashing if we try to join a thread with
+       an invalid id. *)
+    let thread := List.nth
+                    (Z.to_nat (M.intval i))
+                    (ts1 ++ [Stop CJoin i k] ++ ts2)
+                    crash
+    in
+    match thread with | Ret _ | Throw _ | Stop CPerf _ _ => True | _ => False end ->
+    threadpool_step
+      (σ, ts1 ++ [Stop CJoin i k] ++ ts2)
+      (σ, ts1 ++ [k (O2Ret (VUnit))] ++ ts2).
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -790,7 +839,7 @@ Qed.
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerf => False | CFork => False | _ => True end →
+  match c with CPerf => False | CFork => False | CJoin => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -1068,15 +1117,24 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
+(* [Stop CJoin i k] is stuck. *)
+
+Lemma stuck_Join {A E} σ i k :
+  stuck ((σ, Stop CJoin i k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
-Lemma only_crash_and_throw_and_perform_and_fork_are_stuck {A E} σ m :
+Lemma only_crash_and_throw_and_perform_and_fork_and_join_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
   m = Crash ∨
     (∃ e, m = Throw e) ∨
     (∃ e k, m = Stop CPerf e k) ∨
-    (∃ x k, m = Stop CFork x k).
+    (∃ x k, m = Stop CFork x k) ∨
+    (∃ i k, m = Stop CJoin i k).
 Proof.
   intros.
   destruct m; try solve [
@@ -1094,13 +1152,10 @@ Qed.
 (* TODO could we use this lemma
    and avoid reasoning with [stuck],
    which introduces painful negations? *)
-Lemma only_crash_and_throw_and_perform_and_fork_are_stuck' {A E} σ (m : micro A E) :
+Lemma only_crash_and_throw_and_perform_and_fork_and_join_are_stuck' {A E} σ (m : micro A E) :
   match m with
-  | Ret _
-  | Crash _
-  | Throw _
-  | Stop CPerf _ _
-  | Stop CFork _ _ =>
+  | Ret _ | Crash _ | Throw _
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1117,10 +1172,10 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_and_fork_are_stuck in Hstuck.
-  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | (x & k & ?)]]];
+  apply only_crash_and_throw_and_perform_and_fork_and_join_are_stuck in Hstuck.
+  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | (i & k & ?)]]]];
     subst m; simpl bind;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork.
+    eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1152,7 +1207,7 @@ Lemma triplicity {A E} σ (m : micro A E) :
   stuck (σ, m).
 Proof.
   destruct m; try destruct_code;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork with step.
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join with step.
 Qed.
 
 Ltac triplicity σ m H :=

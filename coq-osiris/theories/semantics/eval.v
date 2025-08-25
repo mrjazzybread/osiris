@@ -1277,7 +1277,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EFork e1 e2 =>
       '(f, v) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       fork f v
-  end.
+  | EJoin e =>
+      i ← as_int (eval η e) ;
+      join i
+end.
 
 
 (* -------------------------------------------------------------------------- *)

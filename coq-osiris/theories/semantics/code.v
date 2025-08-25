@@ -78,6 +78,7 @@ Inductive code : Type → Type → Type → Type :=
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
+| CJoin : code int val exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -153,6 +154,9 @@ Definition store (l : loc) (v : val) :=
 
 Definition fork (v1 v2 : val) :=
   stop CFork (v1, v2).
+
+Definition join (i : int) :=
+  stop CJoin i.
 
 (* ------------------------------------------------------------------------ *)
 
