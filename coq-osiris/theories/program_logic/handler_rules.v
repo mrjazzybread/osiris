@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics basic_rules.
+From osiris.program_logic Require Import wp_step ewp tactics basic_rules stop_rules.
 From osiris.semantics Require Import code.
 
 From osiris.program_logic.pure Require Import pure.
@@ -131,18 +131,15 @@ Ltac deep_handler_spec_unfold :=
 (* LATER: refactor *)
 Local Ltac ewp_invert :=
   match goal with
-  | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
-      match goal with
-      (* EWP throw *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (throw _) _ _)] =>
-          iPoseProof (ewp_throw_inv with "[$]") as "HΦ"
-      (* EWP ret *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
-          iMod (ewp_ret_inv with "[$]") as "HΦ"
-      (* EWP crash *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
-          iMod (ewp_crash_inv with "[$]") as "HΦ"
-      end
+  (* EWP throw *)
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (throw _) _ _)] =>
+      iPoseProof (ewp_throw_inv with "[$]") as "HΦ"
+  (* EWP ret *)
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
+      iPoseProof (ewp_ret_inv with "[$]") as "HΦ"
+  (* EWP crash *)
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+      iMod (ewp_crash_inv with "[$]") as "HΦ"
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -187,8 +184,9 @@ Section handler_proof.
     iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
-    construct_wp_nonret; destruct_step;
+    construct_wp_nonret; destruct_wp_step;
       iMod "Hmod" as "_"; try rewrite -x.
+
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       simpl_wrap_eval_branches;
@@ -196,7 +194,7 @@ Section handler_proof.
       deep_handler_spec_unfold;
       iDestruct "Hsh" as "[Hsh _]";
       iSpecialize ("Hsh" with "HΦ");
-    try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
+      iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
 
     { (* [StepHandlePerform] *)
       deep_handler_spec_unfold.
@@ -236,36 +234,52 @@ Section handler_proof.
     { (* [StepHandleFork] *)
       ewp_mask_intro "Hmod".
       iModIntro. ewp_mask_elim. iFrame. destruct x.
+      rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
-      iPoseProof (ewp_fork_inv with "He") as "He".
-      iMod "He". iIntros "!> !>" (ι') "Hactive".
-      iDestruct ("He" $! ι' with "Hactive") as "[Hcall He]"; iFrame.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_wp_step.
+      epose proof (ForkS _ _ _ _ _ _ _ H) as Hstep0.
+      iSpecialize ("He" $! _ _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "($ & He & $)".
+      iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
-      iPoseProof (ewp_join_inv with "He") as "He".
-      ewp_unfold_head. iMod "He" as "[Hvalid He]"; iFrame.
-      iIntros "!> Hdead"; iSpecialize ("He" with "Hdead"); iNext.
+      rewrite ewp_unfold /ewp_pre /=.
+      ewp_unfold_head.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_wp_step.
+      epose proof (JoinS _ _ _ _ _ _ H) as Hstep0.
+      iSpecialize ("He" $! _ _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "($ & He & _)".
+      iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleSelf] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
-      iPoseProof (ewp_self_inv with "He") as "He".
-      iApply ewp_fupd; iMod "He"; iModIntro.
-      iApply ewp_stop_self. iNext.
+      rewrite ewp_unfold /ewp_pre /=.
+      ewp_unfold_head.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_wp_step.
+      epose proof (SelfS _ _ _ _ _) as Hstep0.
+      iSpecialize ("He" $! _ _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "($ & He & _)".
+      iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
     { (* StepHandleDie] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
-      ewp_unfold_head. done. }
+      iApply (ewp_die_mono with "He"). }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
 
     { (* [StepHandleLeft] *)
-      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
-      ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
+      eapply BaseS in H as Hstep.
+      iCombine "Hsi Hti" as "Hsi".
+      iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
+      ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
       iSpecialize ("IH" with "H").
       iApply ("IH" with "Hsh"). }
   Qed.
