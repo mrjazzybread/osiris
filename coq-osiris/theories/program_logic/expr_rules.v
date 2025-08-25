@@ -765,12 +765,12 @@ Section ewp_rules_expr.
   variable one can use to relate pre and postconditions, to be able to describe
   e.g. the state in which the function is called, rather than only depend on the
   variable *)
-  Lemma ewp_ELetRec_specced_1 {η f x e1 e2 φ E Ψ} {A} (R : A → val → iProp Σ) φf :
+  Lemma ewp_ELetRec_specced_1 {η f x e1 e2 φ E Ψ} {A : Type} (R : A → val → iProp Σ) φf :
     □(∀ vf,
-     □(∀ a v, R a v -∗ EWP call vf v {{ φf a }}) -∗
-       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 {{ φf a }}) -∗
+     □(∀ a v, R a v -∗ EWP call vf v <|Ψ|> {{ φf a }}) -∗
+       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 <|Ψ|> {{ φf a }}) -∗
     (∀ vf,
-      □(∀ a v, R a v -∗ EWP call vf v {{ φf a }}) -∗
+      □(∀ a v, R a v -∗ EWP call vf v <|Ψ|> {{ φf a }}) -∗
       EWP eval ((f, vf) :: η) e2 @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELetRec [RecBinding f (AnonFun x e1)] e2) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -789,10 +789,10 @@ Section ewp_rules_expr.
 
   Lemma ewp_ELetRec_specced_ret_1 {η f x e1 e2 φ E Ψ} {A} (R : A → val → iProp Σ) φf :
     □(∀ vf,
-     □(∀ a v, R a v -∗ EWP call vf v {{ ensures v', φf a v' }}) -∗
-       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 {{ ensures v', φf a v' }}) -∗
+     □(∀ a v, R a v -∗ EWP call vf v <|Ψ|> {{ ensures v', φf a v' }}) -∗
+       ∀ a v, R a v -∗ EWP eval ((x, v) :: (f, vf) :: η) e1 <|Ψ|> {{ ensures v', φf a v' }}) -∗
     (∀ vf,
-      □(∀ a v, R a v -∗ EWP call vf v {{ ensures v', φf a v' }}) -∗
+      □(∀ a v, R a v -∗ EWP call vf v <|Ψ|> {{ ensures v', φf a v' }}) -∗
       EWP eval ((f, vf) :: η) e2 @ E <|Ψ|> {{ φ }}) -∗
     EWP eval η (ELetRec [RecBinding f (AnonFun x e1)] e2) @ E <|Ψ|> {{ φ }}.
   Proof.
@@ -813,8 +813,8 @@ Section ewp_rules_expr.
     iApply (ewp_mono with "Hme").
     iIntros ([|]) "Hδ"; [ simpl | done].
     iDestruct "Hδ" as "(%δ & -> & He)".
-    iApply ewp_widen. by simpl.
-    done.
+    iApply ewp_widen. { apply pure_wp_ret; apply eq_refl. }
+    by iIntros (?) "->".
   Qed.
 
   (** * ESeq : expr → expr → expr *)
@@ -1174,7 +1174,7 @@ Section ewp_rules_expr.
     EWP eval η (EPerform e) @ E <|ψ|> {{ φ }}.
   Proof.
     iIntros "He Hv".
-    Simp. iApply ewp_bind.
+    simpl_eval. iApply ewp_bind.
     iApply (ewp_mono with "He").
     iIntros ([|]) "Hφ1"; [ by iApply "Hv" | done ].
   Qed.
