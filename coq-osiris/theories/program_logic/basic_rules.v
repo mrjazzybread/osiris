@@ -428,7 +428,9 @@ Section wp_handler_rules.
       unfold cont; simpl. iApply "Hsh". }
 
     { (* [StepHandleFork] *)
+      admit. }
 
+    { (* [StepHandleJoin] *)
       admit. }
 
     { (* [StepHandleCrash] *)
@@ -890,6 +892,14 @@ Section ewp_rules.
       admit. }
 
     { (* [StepParForkRight] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      admit. }
+
+    { (* [StepParJoinLeft] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      admit. }
+
+    { (* [StepParJoinRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       admit. }
 

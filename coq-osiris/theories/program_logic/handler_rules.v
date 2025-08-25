@@ -229,6 +229,9 @@ Section handler_proof.
     { (* [StepHandleFork] *)
       admit. }
 
+    { (* [StepHandleJoin] *)
+      admit. }
+
     { (* [StepHandleCrash] *)
       by ewp_invert. }
 

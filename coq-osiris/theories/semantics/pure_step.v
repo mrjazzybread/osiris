@@ -28,6 +28,7 @@ Ltac inv_ipure :=
   match goal with
   | h: ipure (Stop CPerf _ _) |- _ => inv h
   | h: ipure (Stop CFork _ _) |- _ => inv h
+  | h: ipure (Stop CJoin _ _) |- _ => inv h
   end.
 
 Local Lemma may_pure_step {A E} (m : micro A E) :
@@ -40,10 +41,11 @@ Proof.
     remember (∅, m) as c.
     remember (∅, m') as c'.
     revert m m' Heqc Heqc' P.
-    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto;
-      (* [Stop CFlip] *)
-      first (destruct b; constructor);
-      inv_ipure.
+    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
+    (* [Stop CFlip] *)
+    destruct b; constructor.
+    (* [fork], [join], and [perform] under [Par] and [Handle]. *)
+    all: inv_ipure.
 Qed.
 
 (** For pure computations [may m m'] is equivalent to [∃ σ  (σ, m) → (σ, m')] *)
