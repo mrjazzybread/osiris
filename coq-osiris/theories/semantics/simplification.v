@@ -112,6 +112,12 @@ Inductive simp {A E : Type} : micro A E → micro A E → Prop :=
      simp
        (Stop CPerf e k)
        (Stop CPerf e k')
+| SimpFork:
+     ∀ x k k',
+     (∀ o, simp (k o) (k' o)) →
+     simp
+       (Stop CFork x k)
+       (Stop CFork x k')
 | SimpHandleRet:
      ∀ m v k,
      simp m (Ret v) ->
@@ -283,6 +289,12 @@ Inductive simplify {A E : Type} : nat → micro A E → micro A E → Prop :=
      simplify 1
        (Stop CPerf e k)
        (Stop CPerf e k')
+| SimplifyFork :
+  ∀ x k k',
+    (∀ o, simp (k o) (k' o)) ->
+    simplify 1
+      (Stop CFork x k)
+      (Stop CFork x k')
 | SimplifyHandleRet:
      ∀ v n m k,
      simplify n m (Ret v) ->
@@ -351,9 +363,54 @@ Proof.
   eauto with simplify simp.
 Qed.
 
+Lemma SimplifyForkParRetLeft
+  {A E A1 A2 E'} x a1 m2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simplify 1
+    (Stop CFork x (λ o, Par (Ret a1) (m2 o) k))
+    (Stop CFork x (λ o, try2 (m2 o) (join1 a1 k))).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyForkParRetRight
+  {A E A1 A2 E'} x m1 a2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simplify 1
+    (Stop CFork x (λ o, Par (m1 o) (Ret a2) k))
+    (Stop CFork x (λ o, try2 (m1 o) (join2 a2 k))).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyForkParLeft
+  {A E A1 A2 E'} x m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  (∀ o, simp (m1 o) (m'1 o)) →
+  simp m2 m'2 →
+  simplify 1
+    (Stop CFork x (λ o, Par (m1 o) m2 k))
+    (Stop CFork x (λ o, Par (m'1 o) m'2 k)).
+Proof.
+  eauto with simplify simp.
+Qed.
+
+Lemma SimplifyForkParRight
+  {A E A1 A2 E'} x m1 m'1 m2 m'2 (k : outcome2 (A1 * A2) E' → micro A E) :
+  simp m1 m'1 →
+  (∀ o, simp (m2 o) (m'2 o)) →
+  simplify 1
+    (Stop CFork x (λ o, Par m1 (m2 o) k))
+    (Stop CFork x (λ o, Par m'1 (m'2 o) k)).
+Proof.
+  eauto with simplify simp.
+Qed.
+
 Global Hint Resolve
   SimplifyPerformParRetLeft SimplifyPerformParRetRight
   SimplifyPerformParLeft SimplifyPerformParRight
+: simplify.
+
+Global Hint Resolve
+  SimplifyForkParRetLeft SimplifyForkParRetRight
+  SimplifyForkParLeft SimplifyForkParRight
 : simplify.
 
 (* -------------------------------------------------------------------------- *)
@@ -556,6 +613,33 @@ Proof.
   intros (n & ?)%simp_simplify. eauto using destruct_simplify_perform.
 Qed.
 
+(* [fork x k] can be simplified
+   by performing simplification inside [k].
+   No other simplification is possible. *)
+
+Lemma destruct_simplify_fork {A E} n x k (m' : micro A E) :
+  simplify n (Stop CFork x k) m' →
+  ∃ k',
+  m' = Stop CFork x k' ∧
+  ∀ o, simp (k o) (k' o).
+Proof.
+  intros h; dependent induction h; eauto with simp.
+  (* SimplifyTransitive *)
+  { destruct (IHh1 _ _ eq_refl) as (k1 & ? & ?). subst.
+    destruct (IHh2 _ _ eq_refl) as (k2 & ? & ?). subst.
+    eauto with simp. }
+Qed.
+
+Lemma destruct_simp_fork {A E} x k (m' : micro A E) :
+  simp (Stop CFork x k) m' →
+  ∃ k',
+  m' = Stop CFork x k' ∧
+  ∀ o, simp (k o) (k' o).
+Proof.
+  intros (n & ?)%simp_simplify. eauto using destruct_simplify_fork.
+Qed.
+
+
 (* These tactics apply the above lemmas, if possible. *)
 
 Ltac clarify_simplify :=
@@ -566,6 +650,9 @@ Ltac clarify_simplify :=
   | h: simplify _ (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simplify_perform in h;
       destruct h as (? & ? & ?)
+  | h: simplify _ (Stop CFork _ _) ?m' |- _ =>
+      apply destruct_simplify_fork in h;
+      destruct h as (? & ? & ?)
   end; simplify_eq.
 
 Ltac clarify_simp :=
@@ -575,6 +662,9 @@ Ltac clarify_simp :=
   | h: simp (throw _) ?m |- _ => apply destruct_simp_throw in h
   | h: simp (Stop CPerf _ _) ?m' |- _ =>
       apply destruct_simp_perform in h;
+      destruct h as (? & ? & ?)
+  | h: simp (Stop CFork _ _) ?m' |- _ =>
+      apply destruct_simp_fork in h;
       destruct h as (? & ? & ?)
   end; simplify_eq.
 
@@ -733,8 +823,8 @@ Proof.
   { destruct_step. search. }
   (* SimplifyFlipAgree *)
   { destruct_step. destruct b; search. }
-  (* SimplifyParRetLeft *)
-  (* This case is the reason why [SimplifyPerform] is needed. *)
+  (* SimplifyParRetLeft, this case is the reason why [SimplifyPerform]
+     is needed. *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
   (* SimplifyParRetRight *)
   { destruct_step; try solve [destruct_step]; clarify_simplify; search. }
@@ -744,6 +834,8 @@ Proof.
   { destruct_step; clarify_simplify; try solve [ search ];
       use_ih; destruct_simplify_step_diagram; try solve [ search ]; inversion H2. }
   (* SimplifyPerform *)
+  { destruct_step. }
+  (* SimplifyFork *)
   { destruct_step. }
   (* SimplifyHandleRet *)
   { destruct_step; clarify_simplify; try solve [ search | use_ih; search ].
@@ -828,8 +920,8 @@ Proof.
     (* IH is used. *)
     eauto with rtc. }
   (* Case: [m1] is stuck. *)
-  { apply only_crash_and_throw_and_perform_are_stuck in Hm1.
-    destruct Hm1 as [(s & ?) | [(e & ?) | (e & k & ?)]]; subst m1; simpl in Hfinal;
+  { apply only_crash_and_throw_and_perform_and_fork_are_stuck in Hm1.
+    destruct Hm1 as [| [(e & ?) | [ (e & k & ?) | (x & k & ?)]]]; subst m1; simpl in Hfinal;
     clarify_simplify; solve [ eauto with rtc | tauto ]. }
 Qed.
 
@@ -947,29 +1039,43 @@ Proof.
   { destruct_step; destruct b; simp_search. }
   (* SimpParRetLeft *)
   (* This case is the reason why [SimpPerform] is needed. *)
-   { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.
-    split.
-    - eauto 8 using step_try2, simp_try2 with steps step simp lia.
-    - split; last lia.
-      eapply SimpTransitive.
-      + eapply SimpPerform.
-        intros; eapply SimpParRetLeft.
-      + cbn. auto with simp. }
+  { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.
+    (* [Stop CPerform] *)
+    - split.
+      + eauto 8 using step_try2, simp_try2 with steps step simp lia.
+      + split; last lia.
+        eapply SimpTransitive.
+        * eapply SimpPerform.
+          intros; eapply SimpParRetLeft.
+        * cbn. auto with simp.
+    (* [Stop CFork] *)
+    - split; last split.
+      2: { eapply SimpFork. intros; eapply SimpParRetLeft. }
+      + cbn. auto with steps.
+      + lia. }
   (* SimpParRetRight *)
   { destruct_step; try solve [destruct_step]; clarify_simp; simp_search.
-    split.
-    - eauto 8 using step_try2, simp_try2 with steps step simp lia.
-    - split; last lia.
-      eapply SimpTransitive.
-      + eapply SimpPerform.
-        intros; eapply SimpParRetRight.
-      + cbn. auto with simp. }
+    (* [Stop CPerform] *)
+    - split.
+      + eauto 8 using step_try2, simp_try2 with steps step simp lia.
+      + split; last lia.
+        eapply SimpTransitive.
+        * eapply SimpPerform.
+          intros; eapply SimpParRetRight.
+        * cbn. auto with simp.
+    (* [Stop CFork] *)
+    - split; last split.
+      2: { eapply SimpFork. intros; eapply SimpParRetRight. }
+      + cbn. auto with steps.
+      + lia. }
   (* SimpPar *)
   { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ]. }
   (* SimpParThrowAgree *)
   { destruct_step; clarify_simp; try solve [ simp_search ];
       simp_use_ih; inversion H2; subst; try solve [ simp_search ]; inversion H5. }
   (* SimpPerform *)
+  { destruct_step. }
+  (* SimpFork *)
   { destruct_step. }
   (* SimpHandleRet *)
   { destruct_step; clarify_simp; try solve [ simp_search | simp_use_ih; simp_search ].
@@ -1075,9 +1181,10 @@ Proof.
      these four cases, the first three are also immediate, because [ret _],
      [throw _], and [crash] cannot be simplified. *)
   induction 1; eauto with step.
-  (* So, only [perform _] remains. This case is also immediate, because
-     [perform _] cannot step. *)
-  intros. destruct_can_step. destruct_step.
+  (* So, only [perform _] and [fork _ _] remains.
+     These cases are immediate, because [perform _] and [fork _ _] cannot step. *)
+  - intros. destruct_can_step. destruct_step.
+  - intros. destruct_can_step. destruct_step.
 Qed.
 
 (* If [m1] can be simplified into a final result [m2] then

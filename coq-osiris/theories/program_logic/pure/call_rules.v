@@ -56,7 +56,7 @@ Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
 Proof.
   intros Hlookup Hpure.
   simpl; rewrite Hlookup.
-  eapply pure_CEval; rewrite try2_ret_right.
+  eapply pure_CEval; rewrite try2_inject2_right.
   done.
 Qed.
 
@@ -102,7 +102,7 @@ Proof.
   induction x as [x IH] using (well_founded_induction wf_def); intros.
   simpl. rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
-  apply pure_CEval; rewrite try2_ret_right.
+  apply pure_CEval; rewrite try2_inject2_right.
   apply Hrec; [ intros y HR HPy | assumption ].
   apply IH; eauto.
 Qed.
@@ -131,7 +131,7 @@ Proof.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
-  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply pure_CEval; rewrite try2_inject2_right. subst.
   apply Hrec. intros; subst.
   specialize (IH _ H1). eapply IH; done.
 Qed.
@@ -151,7 +151,7 @@ Proof.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
-  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply pure_CEval; rewrite try2_inject2_right. subst.
   apply Hrec. intros; subst.
   specialize (IH _ H1). eapply IH; done.
 Qed.
@@ -172,7 +172,7 @@ Proof.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
-  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply pure_CEval; rewrite try2_inject2_right. subst.
   apply Hrec. intros; subst.
   specialize (IH _ H1). eapply IH; done.
 Qed.
@@ -193,7 +193,7 @@ Proof.
   induction m as [mx IH] using (well_founded_induction wf_def); intros.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
-  apply pure_CEval; rewrite try2_ret_right. subst.
+  apply pure_CEval; rewrite try2_inject2_right. subst.
   apply Hrec. intros; subst.
   specialize (IH _ H1). eapply IH; done. done.
 Qed.
@@ -226,7 +226,7 @@ Proof.
   revert HP.
   induction p as [p IH] using (well_founded_induction wf_def); intros.
   unfold pure_call2; simpl;
-    rewrite String.eqb_refl; apply pure_CEval; rewrite try2_ret_right.
+    rewrite String.eqb_refl; apply pure_CEval; rewrite try2_inject2_right.
   eapply pure_ret_mono.
   - apply Hrec; [ intros x2 y2 HR HP2 | apply HP ].
     apply (IH (x2, y2)); auto.

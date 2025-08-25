@@ -1055,7 +1055,7 @@ Ltac2 pure_enter () :=
       eapply pure_enter_call_VClo
     | eapply pure_enter_call_VCloRec
     ];
-  apply pure_stop_eval; try (rewrite ?try2_ret_right).
+  apply pure_stop_eval; try (rewrite ?try2_inject2_right).
 
 Ltac2 Notation "pure_enter" := Control.enter pure_enter.
 Tactic Notation "pure_enter" := ltac2:(pure_enter).

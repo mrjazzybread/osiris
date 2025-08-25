@@ -549,7 +549,7 @@ Proof.
   induction m; simpl; eauto with eq.
 Qed.
 
-Lemma try2_ret_right :
+Lemma try2_inject2_right :
   ∀ {A E} (m : micro A E),
   try2 m inject2 = m.
 Proof.
@@ -560,7 +560,7 @@ Lemma try_ret_right :
   ∀ {A E} (m : micro A E),
   try m ret throw = m.
 Proof.
-  intros. eapply try2_ret_right.
+  intros. eapply try2_inject2_right.
 Qed.
 
 Lemma bind_bind {A B C E} (m : micro A E) (f : A → micro B E) (g : B → micro C E) :

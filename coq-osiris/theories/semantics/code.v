@@ -64,6 +64,9 @@ Definition eff := val.
     The handler is given by [bs] (list of branches), and is evaluated with
     the environment [η].  *)
 
+(* [CFork (f, a) is a request to create a new thread, and to evaluate the
+   application [f a] inside of it. *)
+
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
@@ -74,6 +77,7 @@ Inductive code : Type → Type → Type → Type :=
 | CPerf  : code eff val exn
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
+| CFork : code (val * val) val exn
 .
 
 (* ------------------------------------------------------------------------ *)
@@ -144,6 +148,11 @@ Definition load (l : loc) :=
 
 Definition store (l : loc) (v : val) :=
   stop CStore (l, v).
+
+(* ------------------------------------------------------------------------ *)
+
+Definition fork (v1 v2 : val) :=
+  stop CFork (v1, v2).
 
 (* ------------------------------------------------------------------------ *)
 

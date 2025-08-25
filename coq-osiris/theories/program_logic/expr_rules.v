@@ -1209,7 +1209,7 @@ Section ewp_rules_expr.
     iApply (ewp_resume with "H1").
     iIntros "H1".
     iSpecialize ("H2" with "H1"). iNext.
-    by rewrite try2_ret_right.
+    by rewrite try2_inject2_right.
   Qed.
 
 End ewp_rules_expr.

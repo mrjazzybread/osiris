@@ -345,6 +345,12 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CPerf e k) h)
         (<[l := K k]>σ, h (O3Perform e l))
 
+  | StepHandleFork :
+    ∀ σ x k h,
+      step
+        (σ, Handle (Stop CFork x k) h)
+        (σ, Stop CFork x (λ o, Handle (k o) h))
+
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h s,
@@ -437,6 +443,20 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Par m1 (Stop CPerf e k) h)
         (σ, Stop CPerf e (λ o, Par m1 (k o) h))
+
+  (* If [Stop (fork v1 v2) k] appears under the context [Par _ m2 h] then
+     it similarly captures the evaluation context frame. *)
+  | StepParForkLeft :
+    ∀ {A1 A2 E'} σ m2 x k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par (Stop CFork x k) m2 h)
+        (σ, Stop CFork x (λ o, Par (k o) m2 h))
+
+  | StepParForkRight :
+    ∀ {A1 A2 E'} σ m1 x k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par m1 (Stop CFork x k) h)
+        (σ, Stop CFork x (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
@@ -766,11 +786,11 @@ Proof.
   destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* If [c] is not [CPerf _], then [Stop c x k] can step. *)
+(* If [c] is not [CPerf _] or [CFork _], then [Stop c x k] can step. *)
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerf => False | _ => True end →
+  match c with CPerf => False | CFork => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -818,7 +838,7 @@ Qed.
 
 Lemma can_step_handle_par :
   ∀ {A E} (m : micro A E),
-  match m with Handle _ _ | Par _ _ _ => True | _ => False end →
+    match m with | Handle _ _ | Par _ _ _ => True | _ => False end →
   ∀ σ,
   can_step (σ, m).
 Proof.
@@ -1040,11 +1060,23 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-(* The only stuck terms are [Crash] and [Throw _] and [perform _]. *)
+(* [Stop CFork x k] is stuck. *)
 
-Lemma only_crash_and_throw_and_perform_are_stuck {A E} σ m :
+Lemma stuck_Fork {A E} σ x k :
+  stuck ((σ, Stop CFork x k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
+(* The only stuck terms are
+   [Crash], [Throw _], [perform _], and [fork _ _]. *)
+
+Lemma only_crash_and_throw_and_perform_and_fork_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  (∃ s, m = Crash s) ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerf e k).
+  m = Crash ∨
+    (∃ e, m = Throw e) ∨
+    (∃ e k, m = Stop CPerf e k) ∨
+    (∃ x k, m = Stop CFork x k).
 Proof.
   intros.
   destruct m; try solve [
@@ -1054,17 +1086,21 @@ Proof.
   ].
   (* The case of [Stop] remains. *)
   destruct_code; try solve [
-    eauto
+    eauto 7
   | exfalso; eauto using can_step_not_stuck with step
   ].
 Qed.
 
-Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
+(* TODO could we use this lemma
+   and avoid reasoning with [stuck],
+   which introduces painful negations? *)
+Lemma only_crash_and_throw_and_perform_and_fork_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _
   | Crash _
   | Throw _
-  | Stop CPerf _ _ =>
+  | Stop CPerf _ _
+  | Stop CFork _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1081,9 +1117,10 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_are_stuck in Hstuck.
-  destruct Hstuck as [(s & ?) | [(e & ?) | (e & k & ?)]]; subst m; simpl bind;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform.
+  apply only_crash_and_throw_and_perform_and_fork_are_stuck in Hstuck.
+  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | (x & k & ?)]]];
+    subst m; simpl bind;
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1115,7 +1152,7 @@ Lemma triplicity {A E} σ (m : micro A E) :
   stuck (σ, m).
 Proof.
   destruct m; try destruct_code;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform with step.
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork with step.
 Qed.
 
 Ltac triplicity σ m H :=

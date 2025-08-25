@@ -139,7 +139,7 @@ Lemma advance_please η e m' :
   simp (please_eval η e) m'.
 Proof.
   intros.
-  apply advance_SimpEval. rewrite try2_ret_right. assumption.
+  apply advance_SimpEval. rewrite try2_inject2_right. assumption.
 Qed.
 
 Lemma advance_SimpEvalThrow {A} η e (k : val → micro A exn) m' :

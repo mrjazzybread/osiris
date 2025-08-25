@@ -24,6 +24,12 @@ Inductive ipure : forall {A E}, micro A E → Prop :=
 
 (** For pure computations [may m m'] is equivalent to [∀ σ  (σ, m) → (σ, m')] *)
 
+Ltac inv_ipure :=
+  match goal with
+  | h: ipure (Stop CPerf _ _) |- _ => inv h
+  | h: ipure (Stop CFork _ _) |- _ => inv h
+  end.
+
 Local Lemma may_pure_step {A E} (m : micro A E) :
   ipure m ->
   ∀ m', may m m' <-> forall σ, step (σ, m) (σ, m').
@@ -34,9 +40,10 @@ Proof.
     remember (∅, m) as c.
     remember (∅, m') as c'.
     revert m m' Heqc Heqc' P.
-    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
-    destruct b; constructor.
-    inv H3. inv H8.
+    induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto;
+      (* [Stop CFlip] *)
+      first (destruct b; constructor);
+      inv_ipure.
 Qed.
 
 (** For pure computations [may m m'] is equivalent to [∃ σ  (σ, m) → (σ, m')] *)
@@ -51,9 +58,9 @@ Proof.
     remember (σ, m) as c.
     remember (σ, m') as c'.
     revert σ m m' Heqc Heqc' P.
-    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
-    destruct b; constructor.
-    inv H3. inv H3. inv H8.
+    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto;
+      first (destruct b; constructor);
+      inv_ipure.
 Qed.
 
 Local Lemma ipure_dec {A E} (m : micro A E) : ipure m ∨ ~ipure m.

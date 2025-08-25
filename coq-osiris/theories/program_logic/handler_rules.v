@@ -160,7 +160,7 @@ Section handler_proof.
     iIntros "He Hspec".
     rewrite /shallow_handler.
     (* Follows immediately by the reasoning rule on [Handle]. *)
-    by iApply (ewp_handle with "He").
+    by iApply ((@ewp_handle _ _ A X) with "He").
   Qed.
 
   (* Specification of [deep_handler] at the [expr] level. *)
@@ -223,24 +223,14 @@ Section handler_proof.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
         iIntros "H".
-        iNext.
-        replace
-          (@Handle val exn
-          (@stop (prod loc (outcome2 val exn)) val exn CResume
-             (@pair C.continuation (outcome2 val exn) l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-           @try2 val val exn exn (wrap_eval_branches η bs o) (@inject2 val exn)))
-          with
-          ((Handle (stop CResume (pair l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-             wrap_eval_branches η bs o))).
-        by simpl_wrap_eval_branches.
-        f_equal. extensionality o. rewrite try2_ret_right. done. }
+        by rewrite try2_inject2_right; simpl_wrap_eval_branches. }
+      done. }
 
-      { done. } }
+    { (* [StepHandleFork] *)
+      admit. }
 
-      { (* [StepHandleCrash] *)
-        by ewp_invert. }
+    { (* [StepHandleCrash] *)
+      by ewp_invert. }
 
     { (* [StepHandleLeft] *)
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
@@ -248,7 +238,7 @@ Section handler_proof.
       iSpecialize ("IH" with "H").
       rewrite deep_handler_spec_unfold.
       iApply ("IH" with "Hsh"). }
-  Qed.
+  Admitted.
 
   Lemma deep_handle_nil_ret η v E ψ Φ :
    EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
@@ -293,8 +283,7 @@ Section handler_proof.
       iPoseProof (ewp_resume with "Hl") as "Hcov".
       iModIntro.
       rewrite try2_inject2.
-      iApply "Hcov".
-      rewrite try2_ret_right. iApply "H". }
+      iApply "Hcov". rewrite try2_inject2_right. iApply "H". }
     done.
   Qed.
 
@@ -318,8 +307,7 @@ Section handler_proof.
     iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
-      iNext. rewrite try2_inject2.
-      iApply "Hcov".
+      iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_inject2_right.
       iIntros "_".
       iApply (bi.later_mono with "H").
       iIntros "H".

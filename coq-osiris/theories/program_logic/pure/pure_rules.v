@@ -447,7 +447,7 @@ Section pure_eff.
     intros Hlookup Hpure.
     simpl; rewrite Hlookup.
     cbn.
-    eapply pure_CEval; rewrite try2_ret_right.
+    eapply pure_CEval; rewrite try2_inject2_right.
     done.
   Qed.
 
@@ -473,5 +473,3 @@ Section pure_eff.
   Qed.
 
 End pure_eff.
-
-

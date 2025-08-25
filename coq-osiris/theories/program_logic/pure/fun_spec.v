@@ -48,7 +48,7 @@ Proof.
   split.
   { apply invert_pure_wp_eval. }
   { intros. apply pure_wp_Eval.
-    by rewrite try2_ret_right. }
+    by rewrite try2_inject2_right. }
 Qed.
 
 Lemma pure_call_equiv f v φ ζ :

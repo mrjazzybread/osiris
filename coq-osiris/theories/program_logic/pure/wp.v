@@ -895,10 +895,9 @@ Section pure_wp_rules.
     destruct H as [m' Hmay].
     specialize (H0 m' Hmay) as Hwp.
     pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
-    rewrite try2_ret_right in Hwp.
+    rewrite try2_inject2_right in Hwp.
     apply Hwp.
   Qed.
-
 
   (** Steps from pure_wp computations necessarily are [may] and preserve the store *)
 
@@ -912,6 +911,7 @@ Section pure_wp_rules.
     - apply invert_pure_wp_handle in Hm.
       inv Hstep; eauto with may.
       + by apply invert_pure_wp_stop in Hm.
+      + by apply invert_pure_wp_stop in Hm.
       + edestruct IHm; eauto with may.
     - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
       destruct c; try tauto; invdep Hstep; split; auto; try destruct b; constructor.
@@ -919,6 +919,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: try by constructor.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + edestruct IHm1; eauto with may.
@@ -945,6 +947,7 @@ Section pure_wp_rules.
       + by apply invert_pure_wp_ret in Hm.
       + by apply invert_pure_wp_throw in Hm.
       + by apply invert_pure_wp_stop in Hm.
+      + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_crash in Hm.
       + edestruct IHm as [IH ->]; eauto. split; auto.
         eapply pure_wp_handle; eauto.
@@ -955,6 +958,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: eauto using pure_wp_may_forward with may.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + edestruct IHm1 as [IHm1' ->]; eauto. split; auto.
@@ -1023,6 +1028,8 @@ Section pure_wp_rules.
       intros P. apply pure_wp_Par; eauto with pure.
     - (* Stop CPerf is impure_wp *)
       intros []%invert_pure_wp_stop.
+    - (* Stop CPerf is impure_wp *)
+      intros []%invert_pure_wp_stop.
     - intros P. apply pure_wp_handle, IHS. by constructor.
     - intros P. apply pure_wp_handle, IHS. by constructor.
   Qed.
@@ -1046,6 +1053,7 @@ Section pure_wp_rules.
       apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
     - (* SimpParThrowAgree uses only one hyp *)
       by intros P%invert_pure_wp_Par_left%IHS1%invert_pure_wp_throw.
+    - intros []%invert_pure_wp_stop.
     - intros []%invert_pure_wp_stop.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
     - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.

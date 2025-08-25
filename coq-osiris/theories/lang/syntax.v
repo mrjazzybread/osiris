@@ -277,11 +277,14 @@ Inductive expr :=
   | EAssert (e : expr)
 
   (* Reference allocation: [ref e]. *)
-  | ERef (e: expr)
+  | ERef (e : expr)
   (* Reference lookup: [!e]. *)
-  | ELoad (e: expr)
+  | ELoad (e : expr)
   (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
+
+  (* Creating a thread: [Thread.create f arg]. *)
+  | EFork (e1 e2 : expr)
 
 (* Field-expression pairs. *)
 

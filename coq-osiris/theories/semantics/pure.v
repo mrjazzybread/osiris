@@ -78,6 +78,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CPerf e k)
     (crash "impure")
+| MayFork x k :
+  may
+    (Stop CFork x k)
+    (crash "impure")
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) s :
   may
     (Par (crash s) m2 k)

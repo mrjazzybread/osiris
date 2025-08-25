@@ -251,7 +251,7 @@ Proof.
   eapply pure_rec_call2; eauto.
   intros ?????.
   eapply pure_eval_anonfun. simpl. apply pure_stop_eval.
-  rewrite try2_ret_right.
+  rewrite try2_inject2_right.
   eauto.
 Qed.
 

@@ -297,6 +297,11 @@ Local Ltac ewp_invert :=
           | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
             iMod (ewp_crash_inv with "[$]") as "%"
           end
+      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Stop CFork _ _) _ _)] =>
+          match goal with
+          | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
+              iMod (ewp_crash_inv with "[$]") as "%"
+          end
       end
   end.
 
@@ -412,7 +417,7 @@ Section wp_handler_rules.
         unfold stop.
         construct_wp_nonret.
         eapply invert_step_resume in Hstep; [ destruct Hstep | eexact Hl ]; subst.
-        rewrite try2_ret_right.
+        rewrite try2_inject2_right.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)";
           iFrame.
         by ewp_mask_elim. }
@@ -422,6 +427,10 @@ Section wp_handler_rules.
       iFrame.
       unfold cont; simpl. iApply "Hsh". }
 
+    { (* [StepHandleFork] *)
+
+      admit. }
+
     { (* [StepHandleCrash] *)
       by ewp_invert. }
 
@@ -429,7 +438,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
       ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
       iApply ("IH" with "H Hsh"). }
-  Qed.
+  Admitted.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle_ret E Ψ (Φ : outcome2 A X -> _) (a : val) h:
@@ -482,7 +491,7 @@ Section wp_handler_rules.
     (* Update the ghost heap. *)
     iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     ewp_mask_elim. iFrame.
-    rewrite try2_ret_right. done.
+    rewrite try2_inject2_right. done.
   Qed.
 
   (* Variant inversion rule for [Handle] *)
@@ -506,7 +515,7 @@ Section wp_handler_rules.
     (* Update the ghost heap. *)
     iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     ewp_mask_elim. iFrame.
-    rewrite try2_ret_right.
+    rewrite try2_inject2_right.
     iApply ("H" with "Hl").
   Qed.
 
@@ -826,6 +835,7 @@ Section ewp_rules.
             EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
       EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
+    clear A X.
     (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
     iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
 
@@ -875,6 +885,14 @@ Section ewp_rules.
       iNext.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
+    { (* [StepParForkLeft] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      admit. }
+
+    { (* [StepParForkRight] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      admit. }
+
     { (* [ParLeft] *)
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H1") as ">H1".
       ewp_mask_elim. iMod "H1" as "[$ H1]". iModIntro.
@@ -884,7 +902,7 @@ Section ewp_rules.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H2") as ">H2".
       ewp_mask_elim. iMod "H2" as "[$ H2]". iModIntro.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
-  Qed.
+  Admitted.
 
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ} φ1 φ2 Ψ :
     EWP m1 @ E <| Ψ |> {{ φ1 }} -∗
