@@ -15,59 +15,65 @@ Notation "'RET=' v" :=
     (at level 20, v at level 200,
       format "'RET='  v") : bi_scope.
 
-Section ewp_rules_expr.
+Section ewp_binding_rules.
 
   Context `{!osirisGS Σ}.
 
   (* -------------------------------------------------------------------------- *)
   (* Auxiliary lemmas that are useful when proving facts about [EWP eval _] *)
 
-  Lemma ewp_widen {A E} (e : micro A void.void) v Ψ m φ :
-    simp e (ret v) ->
-    φ (O2Ret v) -∗
-    EWP (widen e : micro A E) @ m <|Ψ|> {{ φ }}.
+  (* LATER: Strange name conflict on [void.void] *)
+  Lemma ewp_widen {A E} (e : micro A void.void) Ψ m φ φ' :
+    pure_wp e φ ⊥ ->
+    (∀ v, ⌜φ v⌝ -∗ φ' (O2Ret v)) -∗
+    EWP (widen e : micro A E) @ m <|Ψ|> {{ φ' }}.
   Proof.
     iIntros (He) "H".
     iApply ewp_mono.
-    { iApply (@pure_ewp _ _ _ _ _ _ _ (λ _, False)).
-      eapply pure_wp_widen, pure_wp_simp. apply He.
-      by apply (pure_wp_ret (fun x => v = x)). }
-    by iIntros ([|] []).
+    { iApply pure_ewp.
+      eapply pure_wp_widen.
+      apply He. }
+    iIntros ([|]); [ iIntros "%Hφ" | iIntros ([]) ].
+    iApply "H". iPureIntro. apply Hφ.
   Qed.
 
-  Lemma ewp_eval_bindings_cons_total η p e bs φ1 φs φ E Ψ :
+  Lemma ewp_eval_bindings_cons_total η p e bs
+    (φ1 : val -> iProp Σ) (φs : val -> env -> Prop) (φ φ' : env -> iProp Σ) E Ψ :
     EWP eval η e @ E <|Ψ|> {{ ensures v, φ1 v }} -∗
-    EWP eval_bindings η bs @ E <|Ψ|> {{ ensures v, φs v }} -∗
-    (∀ v δ, φ1 v -∗ φs δ -∗
-       ∃ δ', ⌜simp (irrefutably_extend η δ p v) (ret δ')⌝
-               ∗ φ (O2Ret δ')) -∗
-    EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ φ }}.
+    EWP eval_bindings η bs @ E <|Ψ|> {{ ensures v, φ v }} -∗
+    (∀ v δ, φ1 v -∗ φ δ -∗ ⌜pure_wp (irrefutably_extend η δ p v) (φs v) ⊥⌝) -∗
+    (∀ v δ, φ1 v -∗  ⌜φs v δ⌝ -∗ φ' δ) -∗
+    EWP eval_bindings η (Binding p e :: bs) @ E <|Ψ|> {{ ensures v, φ' v }}.
   Proof.
-    iIntros "H1 H2 P /=".
+    iIntros "H1 H2 P Hcons /=".
     simpl_eval_bindings.
     iApply (ewp_Par with "H1 H2 [] []");
       [ by iIntros (v) "H" | by iIntros (v) "H" | .. ].
     iIntros (v δ) "H1 H2".
     unfold irrefutably_extend; cbn.
-    iSpecialize ("P" with "H1 H2"); iDestruct "P" as (??) "P".
-    iApply ewp_widen; done.
+    iDestruct ("P" with "H1 H2") as "%P".
+    iApply ewp_widen; first done.
+    iIntros (δ') "Hφs".
+    iApply ("Hcons" with "H1 Hφs" ).
   Qed.
 
-  Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ ensures v, Φ v }} -∗
-    (∀ v, Φ v -∗
-        ∃ δ,
-          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝
-           ∗ φ (O2Ret δ)) -∗
-    EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ φ }}.
+  Lemma ewp_eval_bindings_nil η E Ψ :
+    ⊢ EWP eval_bindings η [] @ E <|Ψ|> {{ RET= [] }}.
   Proof.
-    iIntros "H1 P /=". simpl_eval_bindings.
-    Par. Bind.
-    iApply (ewp_mono with "H1").
-    iIntros (v) "H"; destruct v; try done; cbn.
-    iSpecialize ("P" with "H").
-    iDestruct "P" as (??) "P".
-    iApply ewp_widen; rewrite /irrefutably_extend; done.
+    simpl_eval_bindings; by iApply ewp_value.
+  Qed.
+
+  Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ φs E Ψ :
+    EWP eval η e @ E <|Ψ|> {{ RET v, Φ v }} -∗
+    (∀ v, Φ v -∗ ⌜pure_wp (irrefutably_extend η nil p v) (φs v) ⊥⌝) -∗
+    (∀ v δ, Φ v -∗ ⌜φs v δ⌝ -∗ φ δ) -∗
+    EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ RET v, φ v }}.
+  Proof.
+    iIntros "H1 P /=".
+    iApply (ewp_eval_bindings_cons_total with "H1").
+    { iApply ewp_eval_bindings_nil. }
+    iIntros (v δ) "HΦ [-> _]".
+    by iApply "P".
   Qed.
 
   Lemma ewp_eval_bindings_cons η p e bs φ1 φs φ E Ψ :
@@ -86,11 +92,11 @@ Section ewp_rules_expr.
     - iIntros (v δ) "H1 H2". iApply ("P" $! v δ with "[$]").
   Qed.
 
-  Lemma ewp_eval_bindings_nil η E Ψ :
-    ⊢ EWP eval_bindings η [] @ E <|Ψ|> {{ RET= [] }}.
-  Proof.
-    simpl_eval_bindings; by iApply ewp_value.
-  Qed.
+End ewp_binding_rules.
+
+Section ewp_rules_expr.
+
+  Context `{!osirisGS Σ}.
 
   (* -------------------------------------------------------------------------- *)
   (* Lemmas about [expr]s *)
@@ -684,20 +690,20 @@ Section ewp_rules_expr.
 
   (* Specialized [ELet] lemmas *)
 
-  Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ E Ψ:
+  (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
+  Corollary ewp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ φ' E Ψ:
     EWP eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
-    (∀ v, Φ v -∗
-        ∃ δ,
-          ⌜simp (irrefutably_extend η nil p v) (ret δ)⌝ ∗
-          EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
-    EWP eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> {{ φ }}.
+    (∀ v, Φ v -∗ ⌜pure_wp (irrefutably_extend η nil p v) (φ v) ⊥⌝) -∗
+    (∀ v δ, Φ v -∗ ⌜φ v δ⌝ -∗
+            EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ' }}) -∗
+    EWP eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> {{ φ' }}.
   Proof.
-    iIntros "He HP".
-    iApply (ewp_ELet (λ δ, EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ }})%I
-      with "[He HP]").
-    { iApply (ewp_eval_bindings_singleton_total with "He").
-      iIntros (?) "HΦ"; iSpecialize ("HP" with "HΦ").
-      iDestruct "HP" as (??) "HP"; iExists _; by iSplitL "". }
+    iIntros "He' HP He".
+    iApply (ewp_ELet (λ δ, EWP eval (δ ++ η) e @ E <|Ψ|> {{ φ' }})%I
+      with "[He' HP He]").
+    { iApply (ewp_eval_bindings_singleton_total with "He' HP").
+      iIntros (v δ) "HΦ Hφ".
+      iApply ("He" with "HΦ Hφ"). }
     by iIntros (?) "HΦ".
   Qed.
 
@@ -709,10 +715,12 @@ Section ewp_rules_expr.
   Proof.
     iIntros "H P".
     iApply (ewp_ELet_singleton_total with "H").
-    iIntros (v) "Hv".
-    iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
-    - iApply ("P" with "Hv").
+    iIntros (v) "_".
+    iPureIntro. unfold irrefutably_extend. simpl_eval_pat.
+    apply pure_wp_ret. instantiate (1 := λ v l, l = [(x, v)]).
+    reflexivity.
+    iIntros (v δ) "HΦ ->".
+    by iApply "P".
   Qed.
 
   (* Alternative form *)
@@ -735,10 +743,12 @@ Section ewp_rules_expr.
   Proof.
     iIntros "H P".
     iApply (ewp_ELet_singleton_total with "H").
-    iIntros (v) "Hv".
-    iExists _. iSplit.
-    - iPureIntro; unfold irrefutably_extend; simpl_eval_pat; constructor.
-    - iApply ("P" with "Hv").
+    iIntros (v) "_".
+    iPureIntro. unfold irrefutably_extend. simpl_eval_pat.
+    apply pure_wp_ret. instantiate (1 := λ v l, l = []).
+    reflexivity.
+    iIntros (v δ) "HΦ ->".
+    by iApply "P".
   Qed.
 
   (** * ELetRec : list rec_binding → expr → expr *)
