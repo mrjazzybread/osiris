@@ -923,6 +923,7 @@ Section pure_wp_rules.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
+      + by apply invert_pure_wp_stop in Hm.
       + edestruct IHm; eauto with may.
     - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
       destruct c; try tauto; invdep Hstep; split; auto; try destruct b; constructor.
@@ -930,6 +931,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: try by constructor.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
@@ -958,13 +961,9 @@ Section pure_wp_rules.
     - inv Hstep.
     - inv Hstep.
     - apply invert_pure_wp_handle in Hm.
-      inv Hstep.
+      inv Hstep; try by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_ret in Hm.
       + by apply invert_pure_wp_throw in Hm.
-      + by apply invert_pure_wp_stop in Hm.
-      + by apply invert_pure_wp_stop in Hm.
-      + by apply invert_pure_wp_stop in Hm.
-      + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_crash in Hm.
       + edestruct IHm as [IH ->]; eauto. split; auto.
         eapply pure_wp_handle; eauto.
@@ -975,6 +974,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: eauto using pure_wp_may_forward with may.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.

@@ -79,6 +79,7 @@ Inductive code : Type → Type → Type → Type :=
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
 | CJoin : code thread val exn
+| CSelf : code unit val exn
 | CDie : code (outcome2 val exn) val exn
 .
 
@@ -158,6 +159,9 @@ Definition fork (v1 v2 : val) :=
 
 Definition join (t : thread) :=
   stop CJoin t.
+
+Definition self :=
+  stop CSelf ().
 
 Definition die (o : outcome2 val exn) :=
   stop CDie o.

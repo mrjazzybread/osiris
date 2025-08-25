@@ -85,6 +85,11 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayJoin i k :
   may
     (Stop CJoin i k)
+    crash
+| MaySelf u k :
+  may
+    (Stop CSelf u k)
+    (crash "impure")
 | MayDie o k :
   may
     (Stop CDie o k)

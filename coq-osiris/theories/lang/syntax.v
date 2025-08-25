@@ -283,10 +283,12 @@ Inductive expr :=
   (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
 
-  (* Creating a thread: [Thread.create f arg]. *)
+  (* Creating a thread: ≈ [Thread.create f arg]. *)
   | EFork (e1 e2 : expr)
-  (* Waiting for another thread to terminate: [Thread.join th]. *)
+  (* Waiting for another thread to terminate: ≈ [Domain.join th]. *)
   | EJoin (e : expr)
+  (* A request for one's own thread handle: ≈ [Domain.self ()] *)
+  | ESelf
 
 (* Field-expression pairs. *)
 

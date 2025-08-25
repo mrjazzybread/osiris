@@ -29,6 +29,7 @@ Ltac inv_ipure :=
   | h: ipure (Stop CPerf _ _) |- _ => inv h
   | h: ipure (Stop CFork _ _) |- _ => inv h
   | h: ipure (Stop CJoin _ _) |- _ => inv h
+  | h: ipure (Stop CSelf _ _) |- _ => inv h
   | h: ipure (Stop CDie _ _) |- _ => inv h
   end.
 

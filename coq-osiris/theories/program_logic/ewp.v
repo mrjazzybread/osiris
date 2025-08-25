@@ -162,9 +162,11 @@ Inductive ewp_case (A E : Type) : Type :=
   ERet : A → ewp_case A E
 | EThrow : E → ewp_case A E
 | ECrash : ewp_case A E
-| EPerform : C.eff -> (outcome2 syntax.val exn -> micro A E) → ewp_case A E
+| EPerform : C.eff -> (outcome2 val exn -> micro A E) → ewp_case A E
 | EFork : micro val exn -> (outcome2 val exn -> micro A E) -> ewp_case A E
-| EJoin : thread -> (outcome2 syntax.val exn -> micro A E) -> ewp_case A E.
+| EJoin : thread -> (outcome2 val exn -> micro A E) -> ewp_case A E
+| ESelf : (outcome2 val exn -> micro A E) -> ewp_case A E
+| EDie : outcome2 val exn -> ewp_case A E.
 
 Arguments ewp_case {A E}.
 
@@ -174,6 +176,8 @@ Arguments ECrash {A E}.
 Arguments EPerform {A E}.
 Arguments EFork {A E}.
 Arguments EJoin {A E}.
+Arguments ESelf {A E}.
+Arguments EDie {A E}.
 
 (* Check whether a computation is a special [ewp_case]. *)
 Definition is_ewp_case {A X} (m : micro A X) : option ewp_case :=
@@ -184,6 +188,8 @@ Definition is_ewp_case {A X} (m : micro A X) : option ewp_case :=
   | Stop CPerf e k => Some (EPerform e k)
   | Stop CJoin i k => Some (EJoin i k)
   | Stop CFork (v1, v2) k => Some (EFork (call v1 v2) k)
+  | Stop CSelf _ k => Some (ESelf k)
+  | Stop CDie o k => Some (EDie o)
   | _ => None
   end.
 
@@ -199,10 +205,10 @@ Section ewp.
   Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 
   Definition ewp_pre
-    (ewp : ∀ A' X', coPset -d> micro A' X' -d> iEff Σ -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
+    (ewp : ∀ A' X', coPset -d> micro A' X' -d> thread -d> iEff Σ -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
     (∀ (A X : Type),
-        coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
-    λ A X E m Ψ φ,
+        coPset -d> micro A X -d> thread -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X E m ι Ψ φ,
       (match is_ewp_case m with
        (* [EWP1]: Pure and exceptional values *)
        | Some (ERet v) => |={E}=> φ (O2Ret v)
@@ -213,22 +219,28 @@ Section ewp.
           satisfy the [ewp] when continued with the continuation [k] with the
           same protocol. *)
        | Some (EPerform e k) =>
-           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) Ψ φ >>
+           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) ι Ψ φ >>
        (* [EWP4]: A fork system call. *)
        | Some (EFork m k) =>
-           |={E}=> ▷ ∀ t,
-                       ewp syntax.val exn E m ⊥ (λ _, True) ∗
-                         ewp A X E (k (O2Ret (VThread t))) Ψ φ
+           |={E}=> ▷ ∀ ι',
+                       ewp syntax.val exn E (try2 m die) ι' ⊥ (λ _, True) ∗
+                       ewp A X E (continue k (VThread ι')) ι Ψ φ
        (* [EWP5]: A join system call. *)
        | Some (EJoin i k) =>
-           |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ
+           |={E}=> ▷ ewp A X E (continue k VUnit) ι Ψ φ
+       (* [EWP6]: The current thread has ended. *)
+       | Some (ESelf k) =>
+           |={E}=> ▷ ewp A X E (continue k (VThread ι)) ι Ψ φ
+       (* [EWP7]: A request for the thread's own handle. *)
+       | Some (EDie o) =>
+           |={E}=> True
        (* [EWP3]: Non-effectful step of computation;
               this portion follows to the typical weakest precondition for Iris *)
        | None =>
            ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
              ⌜can_step (σ, m)⌝ ∗
              (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                (state_interp σ' (S ns) κs n ∗ ewp A X E m' Ψ φ))
+                (state_interp σ' (S ns) κs n ∗ ewp A X E m' ι Ψ φ))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
@@ -242,7 +254,7 @@ Section ewp.
     repeat intro. f_contractive. apply Hwp.
   Qed.
 
-  Definition ewp_def : ∀ A X, coPset -> micro A X -> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+  Definition ewp_def : ∀ A X, coPset -> micro A X -d> thread -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     @fixpoint _ discrete_fun2_cofe _ ewp_pre ewp_pre_contractive.
 
   Global Arguments ewp_def {A X}.
@@ -250,7 +262,7 @@ Section ewp.
   Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
   Definition ewp' := ewp_aux.(unseal).
 
-  Global Arguments ewp' {E e Ψ Φ} : rename.
+  Global Arguments ewp' {E e ι Ψ Φ} : rename.
 
 End ewp.
 
@@ -278,8 +290,8 @@ Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
-Lemma ewp_unfold {E} (m : micro A X) Ψ {φ} :
-  ewp_def E m Ψ φ ⊣⊢ ewp_pre (@ewp_def _ _) E m Ψ φ.
+Lemma ewp_unfold {E} (m : micro A X) ι Ψ {φ} :
+  ewp_def E m ι Ψ φ ⊣⊢ ewp_pre (@ewp_def _ _) E m ι Ψ φ.
 Proof.
   rewrite {1}/ewp_def.
   apply (@fixpoint_unfold _ discrete_fun2_cofe _ ewp_pre).
@@ -288,43 +300,49 @@ Qed.
 Local Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
-Global Instance ewp_ne E m n Ψ :
-  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m Ψ).
+Global Instance ewp_ne E m n ι Ψ :
+  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m ι Ψ).
 Proof.
   revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ' HΦ.
   ewp_unfold_all.
-  f_equiv. f_equiv. repeat f_equiv. repeat f_equiv. repeat f_equiv.
-  { repeat intro. f_contractive.
-    specialize (IH m1). eapply IH; eauto.
-    intro; eauto.
-    eapply dist_le; eauto. lia. }
-  { f_equiv. f_contractive. f_equiv. f_equiv. f_equiv.
-    apply IH; auto; intro; auto.
-    eapply dist_le; auto. lia. }
-  { f_equiv. f_contractive. apply IH; auto; intro; auto.
-    eapply dist_le; auto. lia. }
-
-  f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-  f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-  f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-  f_equiv. f_contractive. f_equiv. f_equiv.
-  apply IH; auto.
-  intro. eapply dist_lt; eauto.
+  f_equiv.
+  - f_equiv.
+    + repeat f_equiv.
+    + repeat f_equiv.
+    + repeat f_equiv.
+      intro. f_contractive.
+      apply IH; auto; intro; auto.
+      eapply dist_lt; eauto.
+    + f_equiv. f_contractive. f_equiv. f_equiv. f_equiv.
+      apply IH; auto; intro; auto.
+      eapply dist_lt; auto.
+    + f_equiv. f_contractive.
+      apply IH; auto; intro; auto.
+      eapply dist_lt; auto.
+    + f_equiv. f_contractive.
+      apply IH; auto; intro; auto.
+      eapply dist_lt; eauto.
+  - f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    f_equiv. f_contractive. f_equiv. f_equiv.
+    apply IH; auto.
+    intro; eapply dist_lt; eauto.
 Qed.
 
-Global Instance ewp_proper E m Ψ:
+Global Instance ewp_proper E m ι Ψ:
   Proper
     (pointwise_relation _ (≡) ==> (≡))
-    (ewp_def E m Ψ).
+    (ewp_def E m ι Ψ).
 Proof.
   by intros Φ Φ' ?; apply equiv_dist=>n; apply ewp_ne=>v; apply equiv_dist.
 Qed.
 
-Global Instance ewp_contractive E m n Ψ:
+Global Instance ewp_contractive E m n ι Ψ:
   TCEq (is_ewp_case m) None →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
-    (ewp_def E m Ψ).
+    (ewp_def E m ι Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
   do 19 f_equiv.

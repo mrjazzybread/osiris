@@ -357,6 +357,12 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CJoin ι k) h)
         (σ, Stop CJoin ι (λ o, Handle (k o) h))
 
+  | StepHandleSelf :
+    ∀ σ k u h,
+      step
+        (σ, Handle (Stop CSelf u k) h)
+        (σ, Stop CSelf u (λ o, Handle (k o) h))
+
   | StepHandleDie:
     ∀ σ o k h,
       step
@@ -482,6 +488,18 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Par m1 (Stop CJoin i k) h)
         (σ, Stop CJoin i (λ o, Par m1 (k o) h))
 
+  | StepParSelfLeft :
+    ∀ {A1 A2 E'} σ m2 u k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par (Stop CSelf u k) m2 h)
+        (σ, Stop CSelf u (λ o, Par (k o) m2 h))
+
+  | StepParSelfRight :
+    ∀ {A1 A2 E'} σ m1 u k (h : outcome2 (A1 * A2) E' -> _),
+      step
+        (σ, Par m1 (Stop CSelf u k) h)
+        (σ, Stop CSelf u (λ o, Par m1 (k o) h))
+
   | StepParDieLeft :
     ∀ {A1 A2 E'} σ m2 o k (h : outcome2 (A1 * A2) E' -> _),
       step
@@ -590,7 +608,14 @@ Section threadpool.
       attempt_join ι' π k = Some m ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι := m]> π).
+        (σ, <[ ι := m]> π)
+  | SelfS :
+    ∀ ι π k σ,
+      active_thread ι π = Some (Stop CSelf () k) ->
+      threadpool_step
+        (σ, π)
+        (σ, <[ ι := continue k (VThread ι) ]> π)
+  .
 
 End threadpool.
 
@@ -898,7 +923,7 @@ Qed.
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerf => False | CFork => False | CJoin => False | CDie => False | _ => True end →
+  match c with CPerf => False | CFork => False | CJoin => False | CSelf => False | CDie => False | _ => True end →
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -1184,6 +1209,12 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
+Lemma stuck_Self {A E} σ u k :
+  stuck ((σ, Stop CSelf u k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
 Lemma stuck_Die {A E} σ o k :
   stuck ((σ, Stop CDie o k) : config A E).
 Proof.
@@ -1193,13 +1224,14 @@ Qed.
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
-Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_die_are_stuck {A E} σ m :
+Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
   m = Crash ∨
     (∃ e, m = Throw e) ∨
     (∃ e k, m = Stop CPerf e k) ∨
     (∃ x k, m = Stop CFork x k) ∨
     (∃ i k, m = Stop CJoin i k) ∨
+    (∃ u k, m = Stop CSelf u k) ∨
     (∃ o k, m = Stop CDie o k).
 Proof.
   intros.
@@ -1210,7 +1242,7 @@ Proof.
   ].
   (* The case of [Stop] remains. *)
   destruct_code; try solve [
-    eauto 8
+    eauto 9
   | exfalso; eauto using can_step_not_stuck with step
   ].
 Qed.
@@ -1218,10 +1250,10 @@ Qed.
 (* TODO could we use this lemma
    and avoid reasoning with [stuck],
    which introduces painful negations? *)
-Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_die_are_stuck' {A E} σ (m : micro A E) :
+Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash _ | Throw _
-  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CDie _ _ =>
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ | Stop CDie _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1238,10 +1270,10 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_and_fork_and_join_and_die_are_stuck in Hstuck.
-  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | [ (i & k & ?) | (o & k & ?)]]]]];
+  apply only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck in Hstuck.
+  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | [ (i & k & ?) | [(u & k & ?) | (o & k & ?)]]]]]];
     subst m; simpl bind;
-    eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die.
+    eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1273,7 +1305,7 @@ Lemma triplicity {A E} σ (m : micro A E) :
   stuck (σ, m).
 Proof.
   destruct m; try destruct_code;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die with step.
+  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self with step.
 Qed.
 
 Ltac triplicity σ m H :=
