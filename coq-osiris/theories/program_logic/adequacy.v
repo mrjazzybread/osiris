@@ -15,9 +15,9 @@ Section ewp_wp.
     proof of [Hazel] (de Vilhena & Pottier) *)
 
   Lemma ewp_imp_wp {Σ}
-    {irisGen: irisGS_gen HasNoLc (@osiris_lang val exn) Σ}
-    E (m : micro val exn) (Φ : outcome2 val exn -> _) :
-    EWP m @ E <| ⊥ |> {{ Φ }} -∗ WP m @ NotStuck; E {{ Φ }} : iProp Σ.
+    {osiris : osirisGS Σ}
+    E ι (m : micro val exn) (Φ : outcome2 val exn -> _) :
+    EWP m @ E <| (ι, ⊥) |> {{ Φ }} -∗ WP m @ NotStuck; E {{ Φ }} : iProp Σ.
   Proof.
   Abort.
 
@@ -34,15 +34,15 @@ Section adequacy.
 
   Context {A X : Type} {Σ : gFunctors}.
 
-  Context `{!osirisGpreS Σ}.
+  Context `{!osirisGS Σ}.
 
   (* ------------------------------------------------------------------------ *)
   (** Adequacy Theorem for [EWP] for computations. *)
 
-  Theorem ewp_adequacy (m : micro A X) σ φ :
-  (∀ `{!irisGS_gen HasNoLc (@osiris_lang A X) Σ},
+  Theorem ewp_adequacy (m : micro A X) ι σ φ :
+  (∀ `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ},
     (* If [⊢ ⟨ ⊥ ⟩ impure m (λ v. ⌜φ v⌝)] holds *)
-    ⊢ EWP m @ ⊤ <| ⊥ |> {{ fun o =>  ⌜ φ o ⌝ }}) →
+    ⊢ EWP m @ ⊤ <| (ι, ⊥) |> {{ fun o =>  ⌜ φ o ⌝ }}) →
     (* Then executing [m] cannot terminate with an unhandled effect or a crash, *)
     adequate NotStuck m
       σ (* in any initial heap, *)
