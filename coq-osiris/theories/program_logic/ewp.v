@@ -292,8 +292,6 @@ Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
 
 (* -------------------------------------------------------------------------- *)
 
-From Coq Require Import FunctionalExtensionality.
-
 Section ewp_properties.
 
 Context {A X P : Type}.
@@ -306,11 +304,17 @@ Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
+Lemma pre_ewp_unfold {E} (m : micro A X + micro val exn) Ψ {φ} :
+  pre_ewp_def E m Ψ φ ⊣⊢ ewp_pre pre_ewp_def E m Ψ φ.
+Proof.
+  rewrite {1}/pre_ewp_def.
+  apply (@fixpoint_unfold _ _ _ ewp_pre).
+Qed.
+
 Lemma ewp_unfold {E} m Ψ {φ} :
   ewp_def E m Ψ φ ⊣⊢ ewp_pre pre_ewp_def E (inl m) Ψ φ.
 Proof.
-  rewrite {1}/ewp_def {1}/pre_ewp_def.
-  apply (@fixpoint_unfold _ _ _ ewp_pre).
+  rewrite {1}/ewp_def. apply pre_ewp_unfold.
 Qed.
 
 Local Ltac ewp_unfold_all :=
@@ -366,6 +370,7 @@ Proof.
 Qed.
 
 End ewp_properties.
+
 
 (* ========================================================================== *)
 
