@@ -4,6 +4,7 @@ From osiris.program_logic Require Export
   wp_step
   ewp
   basic_rules
+  stop_rules
   handler_rules
   fun_spec
   expr_rules
