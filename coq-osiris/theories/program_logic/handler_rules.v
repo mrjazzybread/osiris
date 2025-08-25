@@ -123,6 +123,10 @@ Section handler_specifications.
 
 End handler_specifications.
 
+Ltac deep_handler_spec_unfold :=
+  rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
+
+(* LATER: refactor *)
 Local Ltac ewp_invert :=
   match goal with
   | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
@@ -160,7 +164,7 @@ Section handler_proof.
     iIntros "He Hspec".
     rewrite /shallow_handler.
     (* Follows immediately by the reasoning rule on [Handle]. *)
-    by iApply ((@ewp_handle _ _ A X) with "He").
+    by iApply (ewp_handle with "He").
   Qed.
 
   (* Specification of [deep_handler] at the [expr] level. *)
@@ -182,17 +186,18 @@ Section handler_proof.
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
     construct_wp_nonret; destruct_step;
-      iMod "Hmod" as "_"; try rewrite -x;
-      rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
+      iMod "Hmod" as "_"; try rewrite -x.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       simpl_wrap_eval_branches;
       ewp_invert; iFrame;
+      deep_handler_spec_unfold;
       iDestruct "Hsh" as "[Hsh _]";
       iSpecialize ("Hsh" with "HΦ");
     try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
 
     { (* [StepHandlePerform] *)
+      deep_handler_spec_unfold.
       iDestruct "Hsh" as "[_ Hsh]".
 
       (* [Perform e] satisfies the protocol specification *)
@@ -227,10 +232,21 @@ Section handler_proof.
       done. }
 
     { (* [StepHandleFork] *)
-      admit. }
+      ewp_mask_intro "Hmod".
+      iModIntro. ewp_mask_elim. iFrame. destruct x.
+      ewp_unfold_head.
+      iPoseProof (ewp_fork_inv with "He") as "He".
+      iMod "He". iIntros "!> !>" (t).
+      iDestruct ("He" $! t) as "[Hcall He]"; iFrame.
+      iApply ("IH" with "He").
+      iApply "Hsh". }
 
     { (* [StepHandleJoin] *)
-      admit. }
+      ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
+      iPoseProof (ewp_join_inv with "He") as "He".
+      ewp_unfold_head. iMod "He". iModIntro. iModIntro.
+      iApply ("IH" with "He").
+      iApply "Hsh". }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -239,9 +255,8 @@ Section handler_proof.
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
       ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
       iSpecialize ("IH" with "H").
-      rewrite deep_handler_spec_unfold.
       iApply ("IH" with "Hsh"). }
-  Admitted.
+  Qed.
 
   Lemma deep_handle_nil_ret η v E ψ Φ :
    EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
