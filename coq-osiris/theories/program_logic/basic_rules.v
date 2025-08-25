@@ -28,9 +28,7 @@ Section ewp_basic_rules.
 
   Context `{!osirisGS Σ}.
 
-  Context {A X : Type}.
-
-  Implicit Type m : micro A X.
+  Implicit Type m : micro val exn.
   Import ewp_rules_tactics.
 
   (* Values *)
@@ -42,12 +40,12 @@ Section ewp_basic_rules.
     EWP (ret v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Ret v).
   Proof. iIntros "HRet". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_throw E Ψ Φ (v : X) :
-    Φ (O2Throw v) -∗ EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_throw E Ψ Φ (v : exn) :
+    Φ (O2Throw v) -∗ EWP (Throw v) @ E <| Ψ |> {{ Φ }}.
   Proof. iIntros "HΦ". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_throw_inv E Ψ Φ v :
-    EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
+    EWP (Throw v) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) s :
@@ -58,7 +56,7 @@ Section ewp_basic_rules.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
-    Φ v -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
+    Φ v -∗ EWP (inject2 v) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HΦ". destruct v; simpl.
     { by iApply ewp_value. }
@@ -66,7 +64,7 @@ Section ewp_basic_rules.
   Qed.
 
   Lemma ewp_outcome2_inv E Ψ Φ v :
-    EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ v.
+    EWP (inject2 v) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ v.
   Proof.
     iIntros "Hv". destruct v; simpl.
     { by iApply ewp_ret_inv. }
@@ -74,12 +72,12 @@ Section ewp_basic_rules.
   Qed.
 
   Lemma ewp_outcome2_fupd E Ψ Φ v :
-    (|={E}=> Φ v) -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
+    (|={E}=> Φ v) -∗ EWP (inject2 v) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HΦ".
     destruct v; simpl.
-    { by ewp_unfold (@ret A X a). }
-    { by ewp_unfold (@throw A X e). }
+    { by ewp_unfold (@ret val exn a). }
+    { by ewp_unfold (@throw val exn e). }
   Qed.
 
   (* ------------------------------------------------------------------------ *)
