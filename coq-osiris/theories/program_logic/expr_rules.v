@@ -64,10 +64,10 @@ Section ewp_binding_rules.
   Qed.
 
   Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ φs E Ψ :
-    EWP eval η e @ E <|Ψ|> {{ RET v, Φ v }} -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures v, Φ v }} -∗
     (∀ v, Φ v -∗ ⌜pure_wp (irrefutably_extend η nil p v) (φs v) ⊥⌝) -∗
     (∀ v δ, Φ v -∗ ⌜φs v δ⌝ -∗ φ δ) -∗
-    EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ RET v, φ v }}.
+    EWP eval_bindings η [ Binding p e ] @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
     iIntros "H1 P /=".
     iApply (ewp_eval_bindings_cons_total with "H1").

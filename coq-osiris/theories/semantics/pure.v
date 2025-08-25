@@ -85,7 +85,7 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayJoin i k :
   may
     (Stop CJoin i k)
-    crash
+    (crash "impure")
 | MaySelf u k :
   may
     (Stop CSelf u k)
@@ -180,7 +180,7 @@ Qed.
 
 Definition final {A E} (m : micro A E) :=
   match m with
-  | Ret _ | Throw _ | Crash => True
+  | Ret _ | Throw _ | Crash _ => True
   | _                       => False
   end.
 

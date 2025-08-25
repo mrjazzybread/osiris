@@ -233,8 +233,8 @@ Section ewp_stop.
   (* Resuming a continuation from a location in the store. *)
 
   Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    pointsto l (DfracOwn 1) (K sk) ⊢
-    (pointsto l (DfracOwn 1) (Shot) -∗
+    isCont l sk ⊢
+    (isShot l -∗
      ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -255,8 +255,8 @@ Section ewp_stop.
   Qed.
 
   Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
-    pointsto l (DfracOwn 1) Shot -∗
-    EWP Crash @ E <| ψ |> {{ φ }} -∗
+    isShot l -∗
+    EWP (crash "resume error: unbound location") @ E <| ψ |> {{ φ }} -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
     iIntros "Hl Hcrash".
@@ -301,8 +301,8 @@ Section ewp_stop.
 
   Lemma ewp_wrap_shallow {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
     (∀ l',
-      l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (λ o, shallow_match η o bs bs))) -∗
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
      ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CWrap (false, l, η, bs) k) @ E <| ψ |> {{ φ }}.
   Proof.
@@ -317,7 +317,8 @@ Section ewp_stop.
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
     iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim.
-    iFrame.
+    unfold step_wrap_2.
+    by iFrame.
   Qed.
 
   (* Non-deterministic choose: note the use of non-separating conjunction *)
@@ -370,8 +371,8 @@ Section ewp_eval.
   Context `{!osirisGS Σ}.
 
   Lemma ewp_module η sitems E Ψ (Q : val -> iProp Σ) :
-    EWP (eval_sitems (η, []) sitems) @ E <| Ψ |> {{ RET ηδ, let '(_, δ) := ηδ in Q (VStruct δ) }} -∗
-      EWP (eval_mexpr η (MStruct sitems)) @E <| Ψ |> {{ RET v, Q v }}.
+    EWP (eval_sitems (η, []) sitems) @ E <| Ψ |> {{ ensures '(_, δ), Q (VStruct δ) }} -∗
+      EWP (eval_mexpr η (MStruct sitems)) @E <| Ψ |> {{ ensures v, Q v }}.
   Proof.
     iIntros "Hsitems".
     simpl_eval_mexpr. iApply ewp_bind.
@@ -382,7 +383,7 @@ Section ewp_eval.
   Qed.
 
   Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
-    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ RET ηδ, φ ηδ }} -∗
+    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ ensures ηδ, φ ηδ }} -∗
       (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
       EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
   Proof.
@@ -404,8 +405,8 @@ Section ewp_eval.
   Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E ψ :
     spec (VCloRec η [RecBinding x af] x) -∗
       EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| ψ |>
-      {{ RET ηδ, let '(η0, δ0) := ηδ in
-                 ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
+      {{ ensures '(η0, δ0),
+          ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
       }}.
   Proof.
     iIntros "Hspec".
@@ -417,7 +418,7 @@ Section ewp_eval.
   Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
   Lemma ewp_struct_let η δ bs E Ψ Q Q' :
-    EWP (eval_bindings η bs) @ E <| Ψ |> {{ RET η, Q' η }} -∗
+    EWP (eval_bindings η bs) @ E <| Ψ |> {{ ensures η, Q' η }} -∗
       (∀ η', Q' η' -∗ Q (O2Ret (η' ++ η, η' ++ δ))) -∗
       EWP (eval_sitem (η, δ) (ILet bs)) @ E <| Ψ |> {{ Q }}.
   Proof.
@@ -430,10 +431,9 @@ Section ewp_eval.
   Qed.
 
   Lemma ewp_struct_let_single spec η δ name e E Ψ :
-    EWP (eval η e) @ E <| Ψ |> {{ RET v, spec v }} -∗
+    EWP (eval η e) @ E <| Ψ |> {{ ensures v, spec v }} -∗
       EWP (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <| Ψ |>
-      {{ RET ηδ,
-          let '(η', δ') := ηδ in
+      {{ ensures '(η', δ'),
           ∃ v : val, spec v ∧ ⌜η' = (name, v) :: η ∧ δ' = (name, v) :: δ⌝
       }}.
   Proof.
@@ -449,8 +449,8 @@ Section ewp_eval.
 
   Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
     EWP eval_type_extensions es @ E <| ψ |>
-      {{ RET δ', Q (δ' ++ η, δ' ++ δ) }} -∗
-      EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ RET v, Q v }}.
+      {{ ensures δ', Q (δ' ++ η, δ' ++ δ) }} -∗
+      EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ ensures v, Q v }}.
   Proof.
     iIntros "Hes".
     simpl_eval_sitem. iApply ewp_bind.
@@ -478,7 +478,7 @@ Section ewp_eval.
   Qed.
 
   Lemma ewp_sitem_open η δ me E ψ Q φ δ' :
-    EWP eval_mexpr η me @ E <| ψ |> {{ RET v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
+    EWP eval_mexpr η me @ E <| ψ |> {{ ensures v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
     ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
     EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
   Proof.
@@ -494,7 +494,7 @@ Section ewp_eval.
   Lemma ewp_type_extension_cons e es E ψ Q :
     ▷ (∀ l, l ↦ V #() -∗
           EWP eval_type_extensions es @ E <| ψ |>
-            {{ RET δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
+            {{ ensures δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
     EWP eval_type_extensions (e :: es) @ E <| ψ |> {{ Q }}.
   Proof.
     iIntros "Hes". simpl.
@@ -514,7 +514,7 @@ Section ewp_eval.
   Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
 
   Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    EWP eval η e @ E <| ψ |> {{ ensures v, spec v }} -∗
       (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
       EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
   Proof.
@@ -528,7 +528,7 @@ Section ewp_eval.
   Qed.
 
   Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ RET v, spec v }} -∗
+    EWP eval η e @ E <| ψ |> {{ ensures v, spec v }} -∗
       (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
                 EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
       EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.

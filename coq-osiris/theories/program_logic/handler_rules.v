@@ -138,7 +138,7 @@ Local Ltac ewp_invert :=
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
       iPoseProof (ewp_ret_inv with "[$]") as "HΦ"
   (* EWP crash *)
-  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
       iMod (ewp_crash_inv with "[$]") as "HΦ"
   end.
 
@@ -222,13 +222,26 @@ Section handler_proof.
         rewrite /deep_handler_spec seal_eq.
 
         iPoseProof (ewp_resume E l' w (λ o : outcome2 val exn,
-                          Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) inject2 Φ'' Ψ'' with "Hl") as "Hl".
+                          Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) inject2 Φ'' (ι, Ψ'') with "Hl") as "Hl".
         unfold cont; simpl.
         iApply "Hl".
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
         iIntros "H".
-        by rewrite try2_inject2_right; simpl_wrap_eval_branches. }
+        iNext.
+        replace
+          (@Handle val exn
+          (@stop (prod loc (outcome2 val exn)) val exn CResume
+             (@pair C.continuation (outcome2 val exn) l w))
+          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
+           @try2 val val exn exn (wrap_eval_branches η bs o) (@inject2 val exn)))
+          with
+          ((Handle (stop CResume (pair l w))
+          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
+             wrap_eval_branches η bs o))).
+        by simpl_wrap_eval_branches.
+        f_equal. extensionality o. rewrite try2_inject2_right. done. }
+
       done. }
 
     { (* [StepHandleFork] *)
@@ -313,7 +326,7 @@ Section handler_proof.
   Qed.
 
   Lemma deep_handle_nil_perform η eff k ι Ψ sk Φ :
-    isCont K sk -∗
+    isCont k sk -∗
     Ψ allows perform eff
     << λ o,
       (isShot k -∗ ▷ EWP (sk o) <| (ι, Ψ) |> {{ Φ }}) >> -∗
@@ -354,7 +367,6 @@ Section handler_proof.
       iApply (bi.later_mono with "H").
       iIntros "H".
       unfold stop.
-      rewrite try2_ret_right.
       iApply "H". }
     iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hk]").
     { iIntros (o) "H".

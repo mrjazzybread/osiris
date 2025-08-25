@@ -170,6 +170,7 @@ Proof.
   intros Hwpstep Hstep.
   destruct_wp_step; repeat constructor; auto; try solve [ exfalso; eauto with invert_can_step ].
   eapply StepWrap; [ eassumption | reflexivity ].
+  eapply StepShallowWrap; [ eassumption | reflexivity ].
 Qed.
 
 Local Ltac invert_try2 :=

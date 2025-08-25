@@ -578,7 +578,7 @@ Section threadpool.
     (* We do not step while attempting to join an active thread. *)
     | Some (Active _) => None
     (* Attempting to join an invalid thread results in a [crash]. *)
-    | None => Some crash
+    | None => Some (crash "join invalid thread")
     end.
 
   Inductive threadpool_step : tconfig -> tconfig -> Prop :=
@@ -1257,7 +1257,7 @@ Qed.
 
 Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  m = Crash ∨
+  (∃ s, m = Crash s) ∨
     (∃ e, m = Throw e) ∨
     (∃ e k, m = Stop CPerf e k) ∨
     (∃ x k, m = Stop CFork x k) ∨
@@ -1302,7 +1302,7 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
 Proof.
   intros Hstuck.
   apply only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck in Hstuck.
-  destruct Hstuck as [| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | [ (i & k & ?) | [(u & k & ?) | (o & k & ?)]]]]]];
+  destruct Hstuck as [(s & ?)| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | [ (i & k & ?) | [(u & k & ?) | (o & k & ?)]]]]]];
     subst m; simpl bind;
     eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self.
 Qed.

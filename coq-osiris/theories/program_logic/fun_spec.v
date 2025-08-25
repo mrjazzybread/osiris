@@ -73,7 +73,7 @@ Section ewp_spec.
   | Tbase X, c, P :=
       ∀ (x : X), P x (fun_spec.im_call c #x)
   | type_nel.Tcons X τ', c, P :=
-      ∀ (x : X), EWP (call c #x) {{ ensures c, iSpec τ' c (P x) }}.
+      ∀ (x : X), EWP (call c #x) <|({|id := 0|}, ⊥)|> {{ ensures c, iSpec τ' c (P x) }}.
 
   Local Lemma ewp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ

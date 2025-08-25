@@ -268,33 +268,6 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
   | |- envs_entails _ (ewp_def ?E ?m ?Ψ ?Φ) => assert (Φ = φ) as -> by reflexivity
   end.
 
-
-(* -------------------------------------------------------------------------- *)
-
-(** *Calling AnonFuns *)
-
-(* [ewp_call_anonfun] expects a goal of the form
-          [ EWP call_anonfun η (λ args, body) (args ++ [x]) {{ Q }} ]
-      and produces a goal of the form
-          [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
-Ltac ewp_call_anonfun :=
-  (* Unfold [call_anonfun], and get a tower of binds. *)
-  rewrite /call_anonfun; simpl; rewrite ?bind_bind;
-  (* Unfold [eval_anonfun]. *)
-  rewrite /eval_anonfun;
-  (* Simplify the tower of binds,
-        this should elaborate a closure capturing all arguments.  *)
-  repeat (iApply ewp_bind; Simp; Ret);
-  simpl.
-
-(* Non-recursive call. *)
-Ltac Call :=
-  match goal with
-  | |- envs_entails _ (ewp_def _ (call_anonfun _ _ _) _ _) =>
-      ewp_call_anonfun; iApply ewp_call_nonrec
-  end.
-
-
 (* -------------------------------------------------------------------------- *)
 
 (** *Proving Handlers and Matches *)
