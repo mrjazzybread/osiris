@@ -65,28 +65,28 @@ End discrete_fun2.
    derived. We define our custom [ewp] later in this file to reason about
    effectful programs. *)
 
-Section lang_instance.
+(* Section lang_instance. *)
 
-  Context {res exn : Type}.
+(*   Context {res exn : Type}. *)
 
-  (* N.B.: We ignore the observation and list of expressions for now. *)
-  Definition prim_step
-    (e : micro res exn) (σ : store) (obs : list nat)
-    (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop :=
-    step.step (σ, e) (σ', e') /\ exprs = [].
+(*   (* N.B.: We ignore the observation and list of expressions for now. *) *)
+(*   Definition prim_step *)
+(*     (e : micro res exn) (σ : store) (obs : list nat) *)
+(*     (e' : micro res exn) (σ' : store) (exprs : list (micro res exn)) : Prop := *)
+(*     step.step (σ, e) (σ', e') /\ exprs = []. *)
 
-  Definition osiris_lang_mixin :
-    LanguageMixin inject2 outcome2_opt prim_step.
-  Proof.
-    constructor; auto.
-    { apply outcome2_opt_inject2. }
-    { intros * Ho; destruct e; inversion Ho; auto. }
-    { intros * Ho; destruct e; inversion Ho; auto; subst; inversion H. }
-  Defined.
+(*   Definition osiris_lang_mixin : *)
+(*     LanguageMixin inject2 outcome2_opt prim_step. *)
+(*   Proof. *)
+(*     constructor; auto. *)
+(*     { apply outcome2_opt_inject2. } *)
+(*     { intros * Ho; destruct e; inversion Ho; auto. } *)
+(*     { intros * Ho; destruct e; inversion Ho; auto; subst; inversion H. } *)
+(*   Defined. *)
 
-  Canonical Structure osiris_lang := Language (osiris_lang_mixin).
+(*   Canonical Structure osiris_lang := Language (osiris_lang_mixin). *)
 
-End lang_instance.
+(* End lang_instance. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -125,8 +125,13 @@ End ghost_instances.
 Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
 
-Definition osiris_thread_interp {Σ H} (σ : gmap thread thread_state) :=
-  @gen_heap_interp thread_ids.thread _ _ thread_state Σ H σ.
+Definition osiris_thread_interp {Σ H} (π : gmap thread thread_state) :=
+  @gen_heap_interp thread_ids.thread _ _ thread_state Σ H π.
+
+Definition threadpool : Type := gmap thread thread_state.
+
+Definition state_interp {Σ Hs Ht} : (store * threadpool) -> iProp Σ :=
+  (λ '(σ, π), @osiris_state_interp Σ Hs σ ∗ @osiris_thread_interp Σ Ht π)%I.
 
 
 (* Notations for ghost resouces. *)
@@ -175,10 +180,8 @@ Inductive ewp_case (A E : Type) : Type :=
 | EThrow : E → ewp_case A E
 | ECrash : ewp_case A E
 | EPerform : C.eff -> (outcome2 val exn -> micro A E) → ewp_case A E
-| EFork : micro val exn -> (outcome2 val exn -> micro A E) -> ewp_case A E
-| EJoin : thread -> (outcome2 val exn -> micro A E) -> ewp_case A E
-| ESelf : (outcome2 val exn -> micro A E) -> ewp_case A E
-| EDie : outcome2 val exn -> ewp_case A E.
+| EDie : outcome2 val exn -> ewp_case A E
+| EStep : ewp_case A E.
 
 Arguments ewp_case {A E}.
 
@@ -186,23 +189,18 @@ Arguments ERet {A E}.
 Arguments EThrow {A E}.
 Arguments ECrash {A E}.
 Arguments EPerform {A E}.
-Arguments EFork {A E}.
-Arguments EJoin {A E}.
-Arguments ESelf {A E}.
 Arguments EDie {A E}.
+Arguments EStep {A E}.
 
 (* Check whether a computation is a special [ewp_case]. *)
-Definition is_ewp_case {A X} (m : micro A X) : option ewp_case :=
+Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   match m with
-  | Ret v => Some (ERet v)
-  | Throw e => Some (EThrow e)
-  | Crash _ => Some ECrash
-  | Stop CPerf e k => Some (EPerform e k)
-  | Stop CJoin i k => Some (EJoin i k)
-  | Stop CFork (v1, v2) k => Some (EFork (call v1 v2) k)
-  | Stop CSelf _ k => Some (ESelf k)
-  | Stop CDie o k => Some (EDie o)
-  | _ => None
+  | Ret v => ERet v
+  | Throw e => EThrow e
+  | Crash _ => ECrash
+  | Stop CPerf e k => EPerform e k
+  | Stop CDie o k => EDie o
+  | _ => EStep
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -216,57 +214,76 @@ Section ewp.
 
   Context `{!osirisGS Σ}.
 
-  Definition valid_thread (ι : thread) := (∃ s, pointsto ι (DfracOwn 1) s)%I.
+  Definition locals : Type := thread * iEff Σ.
 
-  Definition is_active (ι : thread) := pointsto ι (DfracOwn 1) Alive.
+  Definition local_thread (ℓ : locals) := ℓ.1.
+  Definition local_prot (ℓ : locals) := ℓ.2.
 
-  Definition is_dead (ι : thread) o := pointsto ι DfracDiscarded (Dead o).
+  Definition th_config A X : Type := store * threadpool * micro A X * thread.
+  Definition th_config_step A X : Type := store * threadpool * micro A X * option (thread * microvx).
+
+  Inductive prim_step {A X} : th_config A X -> th_config_step A X -> Prop :=
+  | BaseS :
+    ∀ m σ m' σ' π ι,
+      step (σ, m) (σ', m') ->
+      prim_step (σ, π, m, ι) (σ', π, m', None)
+  | ForkS :
+    ∀ σ π ι v1 v2 k ι',
+      π !! ι' = None ->
+      prim_step
+        (σ, π, (Stop CFork (v1, v2) k), ι)
+        (σ, <[ ι := Alive ]> π, continue k (VThread ι), (Some (ι', try2 (call v1 v2) die)))
+  | JoinS :
+    ∀ σ π ι k o ι',
+      π !! ι = Some (Dead o) ->
+      prim_step
+        (σ, π, Stop CJoin ι' k, ι)
+        (σ, π, k o, None)
+  | SelfS :
+    ∀ σ π ι u k,
+      prim_step
+        (σ, π, Stop CSelf u k, ι)
+        (σ, π, continue k (VThread ι), None)
+  .
+
+  Definition bi_opt {A : Type} (μ : option A) (P : A -> iProp Σ) :=
+    match μ with
+    | None => True%I
+    | Some A => (P A)%I
+    end.
+
+  Notation "'[∗' 'opt]' x ∈ μ , P" :=
+    (bi_opt μ (fun x => P)) (at level 200, x binder, right associativity,
+        format "[∗ opt]  x ∈ μ ,  P").
 
   Definition ewp_pre
-    (ewp : ∀ A' X', coPset -d> micro A' X' -d> (thread * iEff Σ) -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
+    (ewp : ∀ A' X', coPset -d> micro A' X' -d> locals -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
     (∀ (A X : Type),
-        coPset -d> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
-    λ A X E m ιΨ φ,
+        coPset -d> micro A X -d> locals -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X E m ℓ φ,
       (match is_ewp_case m with
        (* [EWP1]: Pure and exceptional values *)
-       | Some (ERet v) => |={E}=> φ (O2Ret v)
-       | Some (EThrow v) => |={E}=> φ (O2Throw v)
-       | Some ECrash => |={E}=> False
+       | ERet v => |={E}=> φ (O2Ret v)
+       | EThrow v => |={E}=> φ (O2Throw v)
+       | ECrash => |={E}=> False
        (* [EWP2]: Effectful case
           The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k] with the
           same protocol. *)
-       | Some (EPerform e k) =>
-           let (_, Ψ) := ιΨ in
-           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) ιΨ φ >>
-       (* [EWP4]: A fork system call. *)
-       | Some (EFork m k) =>
-           ∀ π ι', osiris_thread_interp π ={E, ∅}=∗
-                   ⌜π !! ι' = None⌝ -∗
-                   ▷ |={∅, E}=> (osiris_thread_interp (<[ι':=Alive]> π) ∗
-                                 ewp val exn E (try2 m die) (ι', ⊥) (λ _, True) ∗
-                                 ewp A X E (continue k (VThread ι')) ιΨ φ)
-       (* [EWP5]: A join system call. *)
-       | Some (EJoin ι k) =>
-           ∀ π o, osiris_thread_interp π ={E, ∅}=∗
-                valid_thread ι ∗
-                ▷ |={∅, E}=> is_dead ι o -∗
-                              (osiris_thread_interp (<[ι:=Dead o]> π) ∗
-                              (ewp A X E (k o) ιΨ φ))
-       (* [EWP6]: A request for the thread's own handle. *)
-       | Some (ESelf k) =>
-           let (ι, _) := ιΨ in
-           |={E}=> ▷ ewp A X E (continue k (VThread ι)) ιΨ φ
-       (* [EWP7]: The current thread has ended. *)
-       | Some (EDie o) =>
-           True
+       | EPerform e k =>
+           |={E}=> (local_prot ℓ) allows perform e << λ o, ▷ ewp A X E (k o) ℓ φ >>
+       | EDie o =>
+           ∀ σ π, state_interp (σ, π) ={ E }▷=∗
+             state_interp (σ, <[ local_thread ℓ := Dead o ]> π)
        (* [EWP3]: Non-effectful step of computation;
-              this portion follows to the typical weakest precondition for Iris *)
-       | None =>
-           ∀ σ, osiris_state_interp σ ={E, ∅}=∗
+          this portion follows to the typical weakest precondition for Iris *)
+       | EStep =>
+           ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
              ⌜can_step (σ, m)⌝ ∗
-             (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                (osiris_state_interp σ' ∗ ewp A X E m' ιΨ φ))
+             (∀ σ' π' m' μ, ⌜prim_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+                (state_interp (σ', π') ∗
+                 ewp A X E m' ℓ φ ∗
+                 [∗ opt] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True)))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
@@ -275,9 +292,14 @@ Section ewp.
   Proof.
     rewrite /ewp_pre /= => n wp wp' Hwp A X E m Φ.
     repeat intro.
-    repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
+    f_equiv.
+    { repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
+      repeat intro. f_contractive. apply Hwp. }
+    do 17 f_equiv. f_contractive. f_equiv. f_equiv.
+    f_equiv. apply Hwp.
 
-    repeat intro. f_contractive. apply Hwp.
+    destruct a4; simpl. f_equiv. apply Hwp.
+    f_equiv.
   Qed.
 
   Definition ewp_def : ∀ A X, coPset -> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
@@ -332,29 +354,16 @@ Proof.
   revert m ιΨ. induction (lt_wf n) as [n _ IH]=> m [ι Ψ] Φ Ψ' HΦ.
   ewp_unfold_all.
   f_equiv.
-  - f_equiv.
-    + repeat f_equiv.
-    + repeat f_equiv.
-    + repeat f_equiv.
-      intro. f_contractive.
-      apply IH; auto; intro; auto.
-      eapply dist_lt; eauto.
-    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_contractive. f_equiv. f_equiv. f_equiv.
-      apply IH; auto; intro; auto.
-      eapply dist_lt; auto.
-    + f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_contractive. f_equiv. f_equiv. f_equiv.
-      apply IH; auto; intro; auto.
-      eapply dist_lt; auto.
-    + f_equiv. f_contractive.
-      apply IH; auto; intro; auto.
-      eapply dist_lt; eauto.
-  - f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-    f_contractive. f_equiv. f_equiv.
-    apply IH; auto.
-    intro; eapply dist_lt; eauto.
+  - repeat f_equiv.
+  - repeat f_equiv.
+  - repeat f_equiv.
+    intro. f_contractive.
+    apply IH; auto; intro; auto.
+    eapply dist_lt; eauto.
+  - do 17 f_equiv.
+    f_contractive. f_equiv. f_equiv. f_equiv.
+    apply IH; auto; intro; auto.
+    eapply dist_lt; auto.
 Qed.
 
 Global Instance ewp_proper E m ιΨ:
@@ -366,7 +375,7 @@ Proof.
 Qed.
 
 Global Instance ewp_contractive E m n ιΨ:
-  TCEq (is_ewp_case m) None →
+  TCEq (is_ewp_case m) EStep →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
     (ewp_def E m ιΨ).
