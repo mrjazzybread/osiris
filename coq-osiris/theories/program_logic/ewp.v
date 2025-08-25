@@ -158,26 +158,32 @@ Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
       (4) a perform effect that performs effect of type [C.eff] and the
           rest of its computation.  *)
 
-Inductive handleable (A E : Type) : Type :=
-  HRet : A → handleable A E
-| HThrow : E → handleable A E
-| HCrash : handleable A E
-| HPerform : C.eff -> (outcome2 syntax.val exn -> micro A E) → handleable A E.
+Inductive ewp_case (A E : Type) : Type :=
+  ERet : A → ewp_case A E
+| EThrow : E → ewp_case A E
+| ECrash : ewp_case A E
+| EPerform : C.eff -> (outcome2 syntax.val exn -> micro A E) → ewp_case A E
+| EFork : micro val exn -> (outcome2 val exn -> micro A E) -> ewp_case A E
+| EJoin : thread -> (outcome2 syntax.val exn -> micro A E) -> ewp_case A E.
 
-Arguments handleable {A E}.
+Arguments ewp_case {A E}.
 
-Arguments HRet {A E}.
-Arguments HThrow {A E}.
-Arguments HCrash {A E}.
-Arguments HPerform {A E}.
+Arguments ERet {A E}.
+Arguments EThrow {A E}.
+Arguments ECrash {A E}.
+Arguments EPerform {A E}.
+Arguments EFork {A E}.
+Arguments EJoin {A E}.
 
-(* Check whether a computation is [handleable]. *)
-Definition is_handleable {A X} (m : micro A X) : option handleable :=
+(* Check whether a computation is a special [ewp_case]. *)
+Definition is_ewp_case {A X} (m : micro A X) : option ewp_case :=
   match m with
-  | Ret v => Some (HRet v)
-  | Throw e => Some (HThrow e)
-  | Crash _ => Some HCrash
-  | Stop CPerf e k => Some (HPerform e k)
+  | Ret v => Some (ERet v)
+  | Throw e => Some (EThrow e)
+  | Crash _ => Some ECrash
+  | Stop CPerf e k => Some (EPerform e k)
+  | Stop CJoin i k => Some (EJoin i k)
+  | Stop CFork (v1, v2) k => Some (EFork (call v1 v2) k)
   | _ => None
   end.
 
@@ -185,27 +191,6 @@ Definition is_handleable {A X} (m : micro A X) : option handleable :=
 
 (* Definition of protocols, inherited from [Hazel] *)
 From osiris.Hazel Require Export protocols.
-
-(* -------------------------------------------------------------------------- *)
-
-Inductive concurrent (A E : Type) : Type :=
-| CFork : micro val exn -> (outcome2 val exn -> micro A E) -> concurrent A E
-| CJoin : thread -> (outcome2 syntax.val exn -> micro A E) -> concurrent A E.
-
-Arguments concurrent {A E}.
-
-Arguments CFork {A E}.
-Arguments CJoin {A E}.
-
-(* Check whether a computation is concurrent. *)
-Definition is_concurrent {A X} (m : micro A X) : option concurrent :=
-  match m with
-  | Stop code.CJoin i k => Some (CJoin i k)
-  | Stop code.CFork (v1, v2) k => Some (CFork (call v1 v2) k)
-  | _ => (@None concurrent)
-  end.
-
-(* -------------------------------------------------------------------------- *)
 
 (** *Definition of the effectful weakest precondition *)
 
@@ -218,35 +203,32 @@ Section ewp.
     (∀ (A X : Type),
         coPset -d> micro A X -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
     λ A X E m Ψ φ,
-      (match is_handleable m with
+      (match is_ewp_case m with
        (* [EWP1]: Pure and exceptional values *)
-       | Some (HRet v) => |={E}=> φ (O2Ret v)
-       | Some (HThrow v) => |={E}=> φ (O2Throw v)
-       | Some HCrash => |={E}=> False
+       | Some (ERet v) => |={E}=> φ (O2Ret v)
+       | Some (EThrow v) => |={E}=> φ (O2Throw v)
+       | Some ECrash => |={E}=> False
        (* [EWP2]: Effectful case
           The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k] with the
           same protocol. *)
-       | Some (HPerform e k) =>
+       | Some (EPerform e k) =>
            |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) Ψ φ >>
-       | None =>
-           match is_concurrent m with
-           (* [EWP4]: A fork system call. *)
-           | Some (CFork m k) =>
-               |={E}=> ▷ ∀ t,
-                           ewp syntax.val exn E m ⊥ (λ _, True) ∗
-                           ewp A X E (k (O2Ret (VThread t))) Ψ φ
-           (* [EWP5]: A join system call. *)
-           | Some (CJoin i k) =>
-               |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ
-           (* [EWP3]: Non-effectful step of computation;
+       (* [EWP4]: A fork system call. *)
+       | Some (EFork m k) =>
+           |={E}=> ▷ ∀ t,
+                       ewp syntax.val exn E m ⊥ (λ _, True) ∗
+                         ewp A X E (k (O2Ret (VThread t))) Ψ φ
+       (* [EWP5]: A join system call. *)
+       | Some (EJoin i k) =>
+           |={E}=> ▷ ewp A X E (k (O2Ret (VUnit))) Ψ φ
+       (* [EWP3]: Non-effectful step of computation;
               this portion follows to the typical weakest precondition for Iris *)
-           | None =>
-               ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
-                 ⌜can_step (σ, m)⌝ ∗
-                 (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                    (state_interp σ' (S ns) κs n ∗ ewp A X E m' Ψ φ))
-           end
+       | None =>
+           ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
+             ⌜can_step (σ, m)⌝ ∗
+             (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
+                (state_interp σ' (S ns) κs n ∗ ewp A X E m' Ψ φ))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
@@ -316,10 +298,9 @@ Proof.
     specialize (IH m1). eapply IH; eauto.
     intro; eauto.
     eapply dist_le; eauto. lia. }
-  f_equiv. f_equiv.
-  { f_equiv. f_contractive. f_equiv. f_equiv.
-    f_equiv; apply IH; auto; intro; auto.
-    eapply dist_le; eauto. lia. }
+  { f_equiv. f_contractive. f_equiv. f_equiv. f_equiv.
+    apply IH; auto; intro; auto.
+    eapply dist_le; auto. lia. }
   { f_equiv. f_contractive. apply IH; auto; intro; auto.
     eapply dist_le; auto. lia. }
 
@@ -340,16 +321,12 @@ Proof.
 Qed.
 
 Global Instance ewp_contractive E m n Ψ:
-  TCEq (is_handleable m) None →
+  TCEq (is_ewp_case m) None →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
     (ewp_def E m Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
-  f_equiv. f_equiv.
-  { f_equiv. f_contractive. f_equiv. f_equiv.
-    f_equiv. apply ewp_ne. apply HΦ. }
-  { f_equiv. f_contractive. apply ewp_ne. apply HΦ. }
   do 19 f_equiv.
   f_contractive. f_equiv. f_equiv.
   apply ewp_ne. apply HΦ.

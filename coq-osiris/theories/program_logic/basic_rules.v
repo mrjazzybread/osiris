@@ -94,8 +94,7 @@ Section ewp_basic_rules.
     intro Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
-    ewp_case_is_handleable m.
-    ewp_case_is_concurrent m.
+    ewp_case m.
     spec_state; spec_step.
     by ewp_mask_elim.
   Qed.
@@ -142,7 +141,7 @@ Section ewp_basic_rules.
     iLöb as "IH" forall (m).
     iIntros "Hwp Hmon".
     ewp_unfold m.
-    ewp_case_is_handleable m.
+    ewp_case m.
     (* Case: [m] is a [HRet] or a [HThrow]. We easily conclude. *)
     1, 2 : iMod "Hwp"; iModIntro; iApply ("Hmon" with "[$]").
 
@@ -155,7 +154,6 @@ Section ewp_basic_rules.
       iIntros (w) "Hewp"; iNext.
       by iApply ("IH" with "Hewp Hmon"). }
 
-    ewp_case_is_concurrent m.
     { (* Case: [m] is a [CFork]. *)
       iMod "Hwp"; iIntros "!> !>" (t).
       iDestruct ("Hwp" $! t) as "[Hcall Hk]".
@@ -192,7 +190,7 @@ Section ewp_basic_rules.
     iLöb as "IH" forall (m).
     iIntros "#Hmono Hwp".
     ewp_unfold m.
-    ewp_case_is_handleable m; try done.
+    ewp_case m; try done.
 
     { (* Case: [m] is a [HPerform]. We use [prot_mono]. *)
       iMod "Hwp"; iModIntro.
@@ -201,7 +199,6 @@ Section ewp_basic_rules.
       iIntros (?) "HΦ". iSpecialize ("HΨ" with "HΦ").
       iNext; iApply ("IH" with "Hmono HΨ"). }
 
-    ewp_case_is_concurrent m.
     { (* Case: [m] is a [CFork]. *)
       iMod "Hwp"; iIntros "!> !>" (t).
       iDestruct ("Hwp" $! t) as "[Hcall Hk]".
@@ -230,7 +227,7 @@ Section ewp_basic_rules.
     iLöb as "IH" forall (A X m Ψ Φ Φ').
     iIntros "#HΦ".
     ewp_unfold m.
-    ewp_case_is_handleable m.
+    ewp_case m.
     1,2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
     { by iApply (fupd_mask_mono E _). }
     { iApply (fupd_mask_mono E _); first done.
@@ -239,7 +236,6 @@ Section ewp_basic_rules.
       iIntros (?) "Hewp". iNext.
       iApply ("IH" with "Hewp HΦ"). }
 
-    ewp_case_is_concurrent m.
     { iApply (fupd_mask_mono E _); first done.
       iMod "He"; iIntros "!> !>" (t).
       iDestruct ("He" $! t) as "[Hcall Hk]".
@@ -284,29 +280,20 @@ Section ewp_basic_rules.
     EWP m @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "He".
-    ewp_unfold_all. destruct (is_handleable m).
-    { destruct h; iMod "He"; done. }
-    destruct (is_concurrent m).
-    { destruct c; iMod "He"; iMod "He"; done. }
-    intro_state. iMod "He".
-    spec_state. by iFrame.
+    ewp_unfold_all.
+    ewp_case m; iMod "He"; done.
   Qed.
 
   Lemma ewp_can_step {σ} Ψ φ m E:
     state_interp σ -∗
     EWP m @ E <| Ψ |> {{ φ }} ={E, ∅}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None ∨ is_concurrent m <> None⌝.
+    ⌜can_step (σ, m) ∨ is_ewp_case m  <> None⌝.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
-    ewp_case_is_handleable m.
-    1-4: try iMod "Hwp";
+    ewp_case m.
+    1-6: try iMod "Hwp";
         try (iApply fupd_mask_intro; first set_solver);
-        iIntros "_"; iPureIntro; right; eauto.
-
-    ewp_case_is_concurrent m.
-    1-2: iMod "Hwp";
-        iApply fupd_mask_intro; first set_solver;
         iIntros "_"; iPureIntro; right; eauto.
 
     spec_state. iModIntro. iPureIntro; auto.
@@ -315,7 +302,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step' {σ} Ψ φ m E:
     state_interp σ -∗
     EWP m @ E <| Ψ |> {{ φ }} ={E}=∗
-    ⌜can_step (σ, m) ∨ is_handleable m  <> None ∨ is_concurrent m <> None⌝.
+    ⌜can_step (σ, m) ∨ is_ewp_case m  <> None⌝.
   Proof.
     iIntros.
     iPoseProof (ewp_can_step with "[$][$]") as "?".
@@ -644,30 +631,22 @@ Section ewp_rules.
   Implicit Type m : micro A X.
   Import ewp_rules_tactics.
 
-  Lemma is_handleable_try_None {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
-    is_handleable m = None ->
-    is_handleable (try m f h) = None.
+  Lemma is_ewp_case_try2_None {B X'} m (f : _ -> micro B X'):
+    is_ewp_case m = None ->
+    is_ewp_case (try2 m f) = None.
   Proof.
     intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H0; done.
+    destruct c; inversion H0; try done.
+    destruct x; done.
   Qed.
 
-  Lemma is_handleable_try2_None {B X'} m (f : _ -> micro B X'):
-    is_handleable m = None ->
-    is_handleable (try2 m f) = None.
+  Lemma is_ewp_case_try_None {B X'} m (f : A -> micro B X') (h : X -> micro B X'):
+    is_ewp_case m = None ->
+    is_ewp_case (try m f h) = None.
   Proof.
-    intros Hm. destruct m; inversion Hm; try done.
-    destruct c; inversion H0; done.
-  Qed.
-
-  Lemma is_concurrent_try2_None {B X'} (m : micro A X)
-    (f : outcome2 A X -> micro B X'):
-    is_handleable m = None ∧ is_concurrent m = None ->
-    is_concurrent (try2 m f) = None.
-  Proof.
-    intros Hm. destruct m; inversion Hm; try done.
-    destruct_code; simpl in *; try done.
-    destruct x. try done.
+    intros Hm.
+    unfold try.
+    by apply is_ewp_case_try2_None.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -679,14 +658,14 @@ Section ewp_rules.
   Proof.
     iLöb as "IH" forall (m).
     iIntros "Hwp".
-    ewp_case_is_handleable m.
+    ewp_case m.
     (* Case: [m1] is [ret _]. *)
     (* The result is immediate. *)
     { iPoseProof (ewp_ret_inv with "[$]") as "Hret"; cbn.
       by iApply ewp_fupd. }
 
     (* Case : [m1] is [throw _]; trivial  *)
-    { ewp_unfold (throw (A := A) e); by iApply ewp_fupd. }
+    { ewp_unfold (throw (A := A) e0); by iApply ewp_fupd. }
 
     (* Case : [m1] is [crash]; trivial  *)
     { iClear "IH".
@@ -699,7 +678,6 @@ Section ewp_rules.
       iIntros (?) "HΨ"; iNext;
       by iSpecialize ("IH" with "HΨ"). }
 
-    ewp_case_is_concurrent m.
     (* Case: [m1] is [Fork _ _]. *)
     { cbn.
       ewp_unfold_all. iMod "Hwp".
@@ -715,13 +693,8 @@ Section ewp_rules.
 
     (* Since [m] is neither handleable nor concurrent,
        neither is [try m f h]. *)
-    pose proof (is_handleable_try2_None m f Hhm) as Hhandletry2.
-    pose proof (conj Hhm Hhm0) as Hconj.
-    pose proof (is_concurrent_try2_None m f Hconj) as Hconctry2.
-
-    ewp_unfold_all.
-    rewrite Hhm; rewrite Hhandletry2.
-    rewrite Hhm0; rewrite Hconctry2.
+    pose proof (is_ewp_case_try2_None m f Hhm) as Hhm2.
+    ewp_unfold_all. rewrite Hhm. rewrite Hhm2.
 
     (* Process a step of computation. *)
     intro_state. spec_state.
@@ -1167,16 +1140,15 @@ Section ewp_val_rules.
     - iApply (bi.and_elim_r with "H").
   Qed.
 
-  Lemma nh_nc_can_step {A E} (m : micro A E) σ :
-    is_handleable m = None ->
-    is_concurrent m = None ->
+  Lemma not_ewp_case_can_step {A E} (m : micro A E) σ :
+    is_ewp_case m = None ->
     can_step (σ, m).
   Proof.
-    intros Hh Hc.
-    destruct m; try discriminate Hh; try discriminate Hc.
+    intros Hm.
+    destruct m; try discriminate Hm.
     - apply can_step_handle.
     - apply can_step_stop. destruct c; try discriminate Hh; try done.
-      destruct x; discriminate Hc.
+      destruct x; discriminate Hm.
     - apply can_step_par.
   Qed.
 
@@ -1190,20 +1162,18 @@ Section ewp_val_rules.
     (* Introduce the hypotheses. *)
     iIntros (Hsimp) "Hwp".
 
-    destruct (is_handleable m) eqn: Hmh.
+    destruct (is_ewp_case m) eqn: Hmh.
     { destruct m; inversion Hmh; subst; try solve [inversion Hsimp];
         clarify_simp; subst; try done.
+      (* Case: [m] is a [Stop c _ _]. *)
       inversion Hmh. destruct c; inversion H0; subst.
-      clarify_simp. ewp_unfold_all.
-      iMod "Hwp"; iModIntro.
-      iApply (monotonic_prot with "[] Hwp").
-      iIntros (w) "Hw". iNext.
-      iApply ("IH" $! _ _ (H1 w) with "Hw"). }
-
-    destruct (is_concurrent m) eqn: Hmc.
-    { destruct m; inversion Hmh; inversion Hmc; subst; try solve [inversion Hsimp];
-        clarify_simp; subst; try done.
-      destruct c0; inversion H0; subst; try discriminate.
+      (* Subcase: [m] is a peform. *)
+      - clarify_simp. ewp_unfold_all.
+        iMod "Hwp"; iModIntro.
+        iApply (monotonic_prot with "[] Hwp").
+        iIntros (w) "Hw". iNext.
+        iApply ("IH" $! _ _ (H1 w) with "Hw").
+      (* Case: [m] is a fork. *)
       - clarify_simp.
         destruct x.
         ewp_unfold_all.
@@ -1211,7 +1181,8 @@ Section ewp_val_rules.
         iIntros (t).
         iDestruct ("Hwp" $! t) as "[Hcall Hk]"; iFrame.
         iApply ("IH" with "[] Hk").
-        iPureIntro. apply H1.
+        iPureIntro. apply H2.
+      (* Case: [m] is a join. *)
       - clarify_simp.
         ewp_unfold_all.
         iMod "Hwp"; iModIntro; iNext.
@@ -1219,14 +1190,14 @@ Section ewp_val_rules.
         iPureIntro. apply H1. }
 
     assert (∀ σ, can_step (σ, m)) as Hcanstep.
-    { intros σ; apply nh_nc_can_step; auto. }
+    { intros σ; apply not_ewp_case_can_step; auto. }
 
     (* Examine [ms] on whether it is a [ret]. *)
-    ewp_case_is_handleable ms.
+    ewp_case ms.
 
     (* Case: [ms] is [ret _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+      ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1239,7 +1210,7 @@ Section ewp_val_rules.
 
     (* Case : [ms] is [throw _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+      ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1252,7 +1223,7 @@ Section ewp_val_rules.
 
     (* Case : [ms] is [crash _]. *)
     { (* Prove that [m] is a final step in the diagram. *)
-      ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+      ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1264,7 +1235,7 @@ Section ewp_val_rules.
       iApply ("IH" with "[//] Hwp"). }
 
     (* Case : [ms] is [Perform _]. *)
-    { ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+    { ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1276,10 +1247,8 @@ Section ewp_val_rules.
       (* We are then able to use the induction hypothesis. *)
       iApply ("IH" with "[//] Hwp"). }
 
-    rename Hhm into Hmsh.
-    ewp_case_is_concurrent ms.
     (* Case: [ms] is [Fork _]. *)
-    { ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+    { ewp_unfold_head. rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1290,7 +1259,7 @@ Section ewp_val_rules.
       iApply ("IH" with "[//] Hwp"). }
 
     (* Case: [ms] is [Join _] *)
-    { ewp_unfold_head; rewrite Hmh; rewrite Hmc.
+    { ewp_unfold_head; rewrite Hmh.
       intro_state. ewp_mask_intro "Hmod".
       iSplit.
       { iPureIntro. apply Hcanstep. }
@@ -1301,7 +1270,7 @@ Section ewp_val_rules.
       iApply ("IH" with "[//] Hwp"). }
 
     rename Hhm into Hmsc.
-    ewp_unfold_head. rewrite Hmh. rewrite Hmc.
+    ewp_unfold_head. rewrite Hmh.
     intro_state.
 
     iAssert (|={E}=> ⌜ can_step (σ, m) ⌝
@@ -1316,7 +1285,7 @@ Section ewp_val_rules.
       iIntros "[??]".
       iMod (ewp_can_step' with "[$][$]") as "%Hdisj".
 
-      iModIntro; iPureIntro; apply nh_nc_can_step; auto. }
+      iModIntro; iPureIntro; apply not_ewp_case_can_step; auto. }
 
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -1330,7 +1299,7 @@ Section ewp_val_rules.
     (* Case: the reduction step is preserved through the diagram. *)
     (* We can now commit to stepping [ms] -- a commitment which we have
     carefully avoided up to this point. *)
-    ewp_unfold ms. rewrite Hmsh. rewrite Hmsc. iMod "Hmod". spec_state. spec_step.
+    ewp_unfold ms. rewrite Hmsc. iMod "Hmod". spec_state. spec_step.
     ewp_mask_elim.
     iDestruct "Hwp" as ">(SI & Hwp)"; iFrame.
     iModIntro; iApply ("IH" with "[//] Hwp").
@@ -1343,29 +1312,16 @@ Section ewp_val_rules.
     iIntros (Hm).
     iLöb as "IH" forall (m Hm).
     iApply ewp_unfold; rewrite /ewp_pre /=.
-
-    destruct (is_handleable m) as [ h | ] eqn:R.
-    - (* [m] is handleable *)
-      destruct h as [ a | e | | eff f ].
-      + (* [ret]'s satisfy [φ] *)
-        destruct m as [| | | |???[]|]; discriminate || injection R as ->.
-        by eapply invert_pure_wp_ret in Hm.
-      + (* [throw]'s satisfy [ψ] *)
-        destruct m as [| | | |???[]|]; discriminate || injection R as ->.
-        by eapply invert_pure_wp_throw in Hm.
-      + (* [crash]'s satisfy [ψ] *)
-        destruct m as [| | | |???[]|]; try discriminate.
-        by eapply invert_pure_wp_crash in Hm.
-      + (* [perform]'s are not immediately pure *)
-        destruct m as [| | | |???[]|]; discriminate || injection R as -> ->.
-        by apply invert_pure_wp_stop in Hm.
-
-    - (* [m] is not handleable *)
-      destruct (is_concurrent m) as [ c | ] eqn:R'.
-      (* [m] is concurrent: *)
-      { destruct m as [| | | |???[]|]; try discriminate;
-          by apply invert_pure_wp_stop in Hm. }
-      (* [m] is not concurrent *)
+    ewp_case m.
+    - by eapply invert_pure_wp_ret in Hm.
+    - by eapply invert_pure_wp_throw in Hm.
+    - (* [crash]'s satisfy [ψ] *)
+      by eapply invert_pure_wp_crash in Hm.
+    - (* [perform], [join], and [fork] are not immediately pure *)
+      by apply invert_pure_wp_stop in Hm.
+    - by apply invert_pure_wp_stop in Hm.
+    - by apply invert_pure_wp_stop in Hm.
+    - (* Case: [m] can step *)
       intro_state.
       ewp_mask_intro "Hmod".
       iSplit.

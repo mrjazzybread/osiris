@@ -100,37 +100,23 @@ Module ewp_rules_tactics.
 
   Ltac destruct_stop_code :=
     match goal with
-    | [H: is_handleable (Stop ?c _ _) = Some _ |- _] =>
-        destruct c; try done
-    | [H: is_concurrent (Stop ?c ?x _) = Some _ |- _] =>
+    | [H: is_ewp_case (Stop ?c ?x _) = Some _ |- _] =>
         destruct c;
-        try (match goal with | [X: val * val |- _] => destruct X as [??] end);
+        try (match goal with | [x: val * val |- _] => destruct x as [??] end);
         try done
     end.
 
-  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hhm) :=
-    case_eq (is_handleable x);
+  Tactic Notation "ewp_case" constr(x) ident(Hhm) :=
+    case_eq (is_ewp_case x);
     [ intros ? Hhm; destruct x;
       try destruct_stop_code;
       try (inversion Hhm; subst; clear Hhm);
       try solve [by destruct_step] |
       intros Hhm ].
 
-  Tactic Notation "ewp_case_is_handleable" constr(x) :=
+  Tactic Notation "ewp_case" constr(x) :=
     let Hhm := fresh "Hhm" in
-    ewp_case_is_handleable x Hhm.
-
-  Tactic Notation "ewp_case_is_concurrent" constr(x) ident(Hhm) :=
-    case_eq (is_concurrent x);
-    [ intros ? Hhm; destruct x;
-      try destruct_stop_code;
-      try (inversion Hhm; subst; clear Hhm);
-      try solve [by destruct_step] |
-      intros Hhm ].
-
-  Tactic Notation "ewp_case_is_concurrent" constr(x) :=
-    let Hhm := fresh "Hhm" in
-    ewp_case_is_concurrent x Hhm.
+    ewp_case x Hhm.
 
   Ltac spec_state :=
     lazymatch goal with
