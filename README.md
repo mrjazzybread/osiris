@@ -1,14 +1,16 @@
 # Osiris
 
-This is the artifact for the paper titled "Formal Semantics and Program Logics for a Fragment of OCaml".
+The Osiris project is a mechanized semantics and a formal verification environment for the
+[OCaml](https://ocaml.org/) programming language, implemented in the Rocq proof assistant.
 
-## Project Overview
+The mechanized development is under `coq-osiris`,
+and an automatic translator from OCaml programs to our Rocq embedding is in `osiris`.
 
-We provide an overview of the structure of the whole project in `ROADMAP.md`
+An overview of the structure of the whole project can be found in `ROADMAP.md`
 
 ## Compilation
 
-The project requires OCaml's package manager `opam`, and optionally the `ocamlwc` package.
+The project requires OCaml's package manager `opam`.
 
 Running `make init` then creates a new `opam` switch with all the required dependencies at
 the right version.
@@ -45,6 +47,13 @@ Running `make` will:
 (1) build the translator,
 (2) compile the example files in `coq-osiris/examples/src` and run the translator on them
 (3) compile all coq files in the project.
+
+## Publications
+
+Remy Seassau, Irene Yoon, Jean-Marie Madiot, Francois Pottier.
+Formal Semantics and Program Logics for a Fragment of OCaml.
+ACM ICFP 2025, August 2025.
+[[Paper](https://dl.acm.org/doi/10.1145/3747509)] [[Artifact](https://zenodo.org/records/16327523)]
 
 ## Validation
 
