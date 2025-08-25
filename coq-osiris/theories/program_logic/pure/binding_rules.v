@@ -51,7 +51,7 @@ Proof.
   - intros. eapply pure_wp_bind, pure_wp_throw. tauto.
 Qed.
 
-Lemma bindings_nil `{Encode A} η (φ : env -> Prop) ψ :
+Lemma bindings_nil η (φ : env -> Prop) ψ :
   φ [] ->
   bindings η [] φ ψ.
 Proof.

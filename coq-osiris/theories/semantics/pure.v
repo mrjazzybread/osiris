@@ -1,6 +1,6 @@
 From Coq Require Import FunctionalExtensionality.
 From osiris Require Import base.
-From osiris.semantics Require Import code eval simplification.
+From osiris.semantics Require Import code eval.
 
 (** [may] relation: reduction steps for pure computations *)
 
@@ -170,7 +170,12 @@ Proof.
   - destruct x as [[[[]]]]; eauto with may.
 Qed.
 
-(* using [final] from [simplification] *)
+Definition final {A E} (m : micro A E) :=
+  match m with
+  | Ret _ | Throw _ | Crash => True
+  | _                       => False
+  end.
+
 Lemma final_or_may {A E} (m : micro A E) : final m ∨ ∃ m', may m m'.
 Proof.
   destruct (may_cases m); unfold final; firstorder (subst; eauto).

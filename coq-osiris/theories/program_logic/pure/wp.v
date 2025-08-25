@@ -1,6 +1,6 @@
 From osiris Require Import base lang.
 From stdpp Require Import relations.
-From osiris.semantics Require Import code step eval simplification pure.
+From osiris.semantics Require Import code step eval pure.
 
 (** This file defines the [pure_wp] predicate and its properties, which is used
   to state judgements about pure computations. *)
@@ -886,17 +886,26 @@ Section pure_wp_rules.
     - constructor; eauto with may.
   Qed.
 
-  Lemma invert_pure_wp_eval η e φ ζ :
-    pure_wp (stop CEval (η, e)) φ ζ ->
-    pure_wp (eval η e) φ ζ.
+  Lemma invert_pure_wp_Eval {B X} η e (k : _ -> micro B X) φ ζ :
+    pure_wp (Stop CEval (η, e) k) φ ζ ->
+    pure_wp (try2 (eval η e) k) φ ζ.
   Proof.
     intros Hstop.
     inversion Hstop; subst.
     destruct H as [m' Hmay].
     specialize (H0 m' Hmay) as Hwp.
     pose proof (invert_may_eval _ _ _ Hmay) as ->; simpl in *.
-    rewrite try2_inject2_right in Hwp.
     apply Hwp.
+  Qed.
+
+  Lemma invert_pure_wp_eval η e φ ζ :
+    pure_wp (stop CEval (η, e)) φ ζ ->
+    pure_wp (eval η e) φ ζ.
+  Proof.
+    intros Hstop.
+    apply invert_pure_wp_Eval in Hstop.
+    rewrite try2_inject2_right in Hstop.
+    apply Hstop.
   Qed.
 
   (** Steps from pure_wp computations necessarily are [may] and preserve the store *)
@@ -913,6 +922,7 @@ Section pure_wp_rules.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
+      + by apply invert_pure_wp_stop in Hm.
       + edestruct IHm; eauto with may.
     - pose proof invert_pure_wp_stop _ _ _ _ _ Hm.
       destruct c; try tauto; invdep Hstep; split; auto; try destruct b; constructor.
@@ -920,6 +930,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: try by constructor.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
@@ -952,6 +964,7 @@ Section pure_wp_rules.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_stop in Hm.
+      + by apply invert_pure_wp_stop in Hm.
       + by apply invert_pure_wp_crash in Hm.
       + edestruct IHm as [IH ->]; eauto. split; auto.
         eapply pure_wp_handle; eauto.
@@ -962,6 +975,8 @@ Section pure_wp_rules.
       pose proof invert_pure_wp_Par_right _ _ _ Hm as Hm2.
       invdep Hstep; try (split; [ | tauto ]).
       all: eauto using pure_wp_may_forward with may.
+      + by apply invert_pure_wp_stop in Hm1.
+      + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
       + by apply invert_pure_wp_stop in Hm2.
       + by apply invert_pure_wp_stop in Hm1.
@@ -1003,69 +1018,6 @@ Section pure_wp_rules.
     intros Hm Hstep.
     destruct (pure_wp_step_may Hm Hstep).
     eauto using pure_wp_may_forward.
-  Qed.
-
-
-  (** [pure_wp] is preserved by [simp] *)
-
-  Lemma pure_wp_simp {A E φ ψ} (m m' : micro A E) :
-    simp m m' → pure_wp m' φ ψ → pure_wp m φ ψ.
-  Proof.
-    intros S. revert φ ψ. induction S; eauto; intros φ ψ.
-    (* SimpEval and SimpLoop are deterministic may steps *)
-    - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_eval.
-    - apply pure_wp_det_may_backward. repeat constructor. by intros z M%invert_may_loop.
-    (* Most cases are now simple uses of inversion and compatibility lemmas *)
-    - intros P. constructor. eauto with may.
-      intros m' [[] ->]%invert_may_flip; eauto using invert_pure_wp_try2, pure_wp_try2.
-    - intros P%invert_pure_wp_try2.
-      apply pure_wp_Par.
-      + by constructor.
-      + eapply pure_wp_mono_ret; eauto. by constructor.
-    - intros P%invert_pure_wp_try2.
-      apply pure_wp_Par.
-      + eapply pure_wp_mono_ret; eauto. by constructor.
-      + by constructor.
-    - intros P.
-      pose proof IHS1 _ _ (invert_pure_wp_Par_left _ _ _ P).
-      pose proof IHS2 _ _ (invert_pure_wp_Par_right _ _ _ P).
-      apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
-    - (* SimpParThrowAgree *)
-      intros P. apply pure_wp_Par; eauto with pure.
-    - (* Stop CPerf is impure_wp *)
-      intros []%invert_pure_wp_stop.
-    - (* Stop CFork is impure_wp *)
-      intros []%invert_pure_wp_stop.
-    - (* Stop CJoin is impure_wp *)
-      intros []%invert_pure_wp_stop.
-    - intros P. apply pure_wp_handle, IHS. by constructor.
-    - intros P. apply pure_wp_handle, IHS. by constructor.
-  Qed.
-
-  (* The reverse, less useful, direction also holds *)
-  Lemma pure_wp_complexify {A E} (m m' : micro A E) :
-    simp m m' → ∀ φ ψ, pure_wp m φ ψ → pure_wp m' φ ψ.
-  Proof.
-    intros S. induction S; eauto; intros φ ψ.
-    (* SimpEval and SimpLoop are forward may steps *)
-    - intro; eapply pure_wp_may_forward; eauto. constructor.
-    - intro; eapply pure_wp_may_forward; eauto. constructor.
-    - intros P.
-      eapply pure_wp_may_forward in P; [ | constructor ].
-      apply IHS1, P.
-    - intros P%invert_pure_wp_Par_ret_left. by apply pure_wp_try2.
-    - intros P%invert_pure_wp_Par_ret_right. by apply pure_wp_try2.
-    - intros P.
-      pose proof IHS1 _ _ (invert_pure_wp_Par_left _ _ _ P).
-      pose proof IHS2 _ _ (invert_pure_wp_Par_right _ _ _ P).
-      apply pure_wp_Par; eapply pure_wp_mono_ret; eauto; firstorder eauto.
-    - (* SimpParThrowAgree uses only one hyp *)
-      by intros P%invert_pure_wp_Par_left%IHS1%invert_pure_wp_throw.
-    - intros []%invert_pure_wp_stop.
-    - intros []%invert_pure_wp_stop.
-    - intros []%invert_pure_wp_stop.
-    - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_ret.
-    - by intros P%invert_pure_wp_handle%IHS%invert_pure_wp_throw.
   Qed.
 
   (** Intersection rules *)
@@ -1223,14 +1175,28 @@ Proof.
   - apply invert_pure_wp_handle.
 Qed.
 
+Lemma pure_wp_reversible_try2 {A' E'} m (f : outcome2 A' E' → _) :
+  pure_wp m
+    (λ a, pure_wp (continue f a) φ ψ)
+    (λ e, pure_wp (discontinue f e) φ ψ)
+  <->
+  pure_wp (try2 m f) φ ψ.
+Proof.
+  split.
+  - apply pure_wp_try2.
+  - apply invert_pure_wp_try2.
+Qed.
+
 Lemma pure_wp_reversible_Stop_eval η e k :
   pure_wp (try2 (eval η e) k) φ ψ
   <->
   pure_wp (Stop CEval (η, e) k) φ ψ.
 Proof.
   split.
-  - apply pure_wp_simp. constructor.
-  - apply pure_wp_complexify. constructor.
+  - apply pure_wp_Eval.
+  - intros Hstop.
+    apply invert_pure_wp_Eval in Hstop.
+    apply Hstop.
 Qed.
 
 Lemma pure_wp_reversible_choose m1 m2 ζ :
@@ -1242,18 +1208,6 @@ Proof.
   split.
   - intros []; by apply pure_wp_choose.
   - intros P; split; eapply pure_wp_may_forward; eauto; constructor.
-Qed.
-
-Lemma pure_wp_reversible_try2 {A' E'} m (f : outcome2 A' E' → _) :
-  pure_wp m
-    (λ a, pure_wp (continue f a) φ ψ)
-    (λ e, pure_wp (discontinue f e) φ ψ)
-  <->
-  pure_wp (try2 m f) φ ψ.
-Proof.
-  split.
-  - apply pure_wp_try2.
-  - apply invert_pure_wp_try2.
 Qed.
 
 Lemma pure_wp_reversible_try {A' E'} m f g :

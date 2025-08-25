@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval simplification.
+From osiris.semantics Require Import code eval.
 From osiris.program_logic.pure Require Export wp judgements.
 
 (** This file defines basic reasoning rules over [pure] judgements. *)
@@ -77,15 +77,6 @@ Section pure_rules.
     pure (V := V) m φ ψ'.
   Proof.
     intros; eapply pure_mono ; eauto.
-  Qed.
-
-  Lemma pure_simp `{Observe A V} {E}
-    (φ : A -> Prop) ψ m m' :
-    simp m m' →
-    pure m' φ ψ →
-    pure (E := E) (V := V) m φ ψ.
-  Proof.
-    by eapply pure_wp_simp.
   Qed.
 
   (* A reasoning rule for [try2]. *)
@@ -418,7 +409,7 @@ Section pure_eff.
     pure (V := val) (E := Y) (Stop CEval (η, e) k) φ ψ.
   Proof.
     intros.
-    eapply pure_wp_simp; [ apply simplification.SimpEval | assumption ].
+    by apply pure_wp_Eval.
   Qed.
 
   (** [CEval] evaluation *)
