@@ -33,33 +33,32 @@ Section ewp_basic_rules.
 
   Implicit Type m : micro A X.
 
-
   (* Values *)
   Lemma ewp_value E Ψ Φ v :
-    Φ (O2Ret v) -∗ EWP (ret v : micro A X) @ E <| Ψ |> {{ Φ }}.
+    Φ (O2Ret v) -∗ ewp_def E (ret v : micro A X) Ψ Φ.
   Proof. iIntros "HΦ". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_ret_inv E Ψ Φ v :
-    EWP (ret v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Ret v).
+    ewp_def E (ret v : micro A X) Ψ Φ ={E}=∗ Φ (O2Ret v).
   Proof. iIntros "HRet". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_throw E Ψ Φ (v : X) :
-    Φ (O2Throw v) -∗ EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }}.
+    Φ (O2Throw v) -∗ ewp_def E (Throw v : micro A X) Ψ Φ.
   Proof. iIntros "HΦ". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_throw_inv E Ψ Φ v :
-    EWP (Throw v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ (O2Throw v).
+    ewp_def E (Throw v : micro A X) Ψ Φ ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
   Lemma ewp_crash_inv E (Ψ : iEff Σ) (Φ : outcome2 A X -> _) s :
-    EWP (Crash s : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
+    ewp_def (Crash s : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ False.
   Proof.
     ewp_unfold (@crash A X s).
     iIntros "Hsi". done.
   Qed.
 
   Lemma ewp_outcome2 E Ψ Φ v :
-    Φ v -∗ EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }}.
+    Φ v -∗ ewp_def E (inject2 v : micro A X) Ψ Φ.
   Proof.
     iIntros "HΦ". destruct v; simpl.
     { by iApply ewp_value. }
@@ -67,7 +66,7 @@ Section ewp_basic_rules.
   Qed.
 
   Lemma ewp_outcome2_inv E Ψ Φ v :
-    EWP (inject2 v : micro A X) @ E <| Ψ |> {{ Φ }} ={E}=∗ Φ v.
+    ewp_def E (inject2 v : micro A X) Ψ Φ ={E}=∗ Φ v.
   Proof.
     iIntros "Hv". destruct v; simpl.
     { by iApply ewp_ret_inv. }
@@ -133,10 +132,10 @@ Section ewp_basic_rules.
   (* ------------------------------------------------------------------------ *)
 
   (** Monotonicity. *)
-  Lemma ewp_mono E m φ φ' Ψ:
-    EWP m @ E <| Ψ |> {{ φ }} -∗
+  Lemma ewp_mono E m φ φ' ιΨ:
+    EWP m @ E <| ιΨ |> {{ φ }} -∗
     (∀ a, φ a -∗ φ' a) -∗
-    EWP m @ E <| Ψ |> {{ φ' }}.
+    EWP m @ E <| ιΨ |> {{ φ' }}.
   Proof.
     iLöb as "IH" forall (m).
     iIntros "Hwp Hmon".
@@ -155,14 +154,24 @@ Section ewp_basic_rules.
       by iApply ("IH" with "Hewp Hmon"). }
 
     { (* Case: [m] is a [CFork]. *)
-      iMod "Hwp"; iIntros "!> !>" (t).
-      iDestruct ("Hwp" $! t) as "[Hcall Hk]".
+      iMod "Hwp"; iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("Hwp" $! ι' with "Hactive") as "[Hcall Hk]".
       iFrame.
       iApply ("IH" with "Hk Hmon"). }
 
     { (* Case: [m] is a [CJoin]. *)
+      iMod "Hwp"; iModIntro.
+      iDestruct "Hwp" as "[Hvalid Hcontinue]"; iFrame.
+      iIntros "Hdead"; iSpecialize ("Hcontinue" with "Hdead").
+      iNext.
+      iApply ("IH" with "Hcontinue Hmon"). }
+
+    { (* Case: [m] is a [CSelf]. *)
       iMod "Hwp"; iModIntro; iModIntro.
       iApply ("IH" with "Hwp Hmon"). }
+
+    { (* Case: [m] is a [CDie]. *)
+      iApply "Hwp". }
 
     intro_state. spec_state. iModIntro.
     construct_wp_nonret.
@@ -182,10 +191,10 @@ Section ewp_basic_rules.
     by iIntros ([]).
   Qed.
 
-  Lemma ewp_prot_mono E m φ Ψ Ψ':
+  Lemma ewp_prot_mono E m ι φ Ψ Ψ':
     (Ψ ⊑ Ψ')%ieff -∗
-    EWP m @ E <| Ψ |> {{ φ }} -∗
-    EWP m @ E <| Ψ' |> {{ φ }}.
+    EWP m @ E <| (ι, Ψ) |> {{ φ }} -∗
+    EWP m @ E <| (ι, Ψ') |> {{ φ }}.
   Proof.
     iLöb as "IH" forall (m).
     iIntros "#Hmono Hwp".
@@ -200,12 +209,19 @@ Section ewp_basic_rules.
       iNext; iApply ("IH" with "Hmono HΨ"). }
 
     { (* Case: [m] is a [CFork]. *)
-      iMod "Hwp"; iIntros "!> !>" (t).
-      iDestruct ("Hwp" $! t) as "[Hcall Hk]".
+      iMod "Hwp"; iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("Hwp" $! ι' with "Hactive") as "[Hcall Hk]".
       iFrame.
       iApply ("IH" with "Hmono Hk"). }
 
     { (* Case: [m] is a [CJoin]. *)
+      iMod "Hwp"; iModIntro.
+      iDestruct "Hwp" as "[Hvalid Hwp]"; iFrame.
+      iIntros "Hdead"; iSpecialize ("Hwp" with "Hdead").
+      iNext.
+      iApply ("IH" with "Hmono Hwp"). }
+
+    { (* Case: [m] is a [CSelf]. *)
       iMod "Hwp"; iModIntro; iModIntro.
       iApply ("IH" with "Hmono Hwp"). }
 
@@ -237,16 +253,27 @@ Section ewp_basic_rules.
       iApply ("IH" with "Hewp HΦ"). }
 
     { iApply (fupd_mask_mono E _); first done.
-      iMod "He"; iIntros "!> !>" (t).
-      iDestruct ("He" $! t) as "[Hcall Hk]".
+      iMod "He"; iIntros "!> !>" (ι') "Halive".
+      iDestruct ("He" $! ι' with "Halive") as "[Hcall Hk]".
       iSplitL "Hcall".
       { iApply ("IH" with "Hcall").
         trivial. }
       iApply ("IH" with "Hk HΦ"). }
 
     { iApply (fupd_mask_mono E _); first done.
+      iMod "He"; iModIntro.
+      iDestruct "He" as "[Hvalid He]"; iFrame.
+      iIntros "Hdead"; iSpecialize ("He" with "Hdead").
+      iNext.
+      iApply ("IH" with "He HΦ"). }
+
+    (* Case: [m] is a [CSelf]. *)
+    { iApply (fupd_mask_mono E _); first done.
       iMod "He"; iModIntro; iModIntro.
       iApply ("IH" with "He HΦ"). }
+
+    (* Case: [m] is a [CDie]. *)
+    { iApply "He". }
 
     intro_state.
     iMod (fupd_mask_subseteq E) as "Hclose"; first done.
@@ -281,7 +308,7 @@ Section ewp_basic_rules.
   Proof.
     iIntros "He".
     ewp_unfold_all.
-    ewp_case m; iMod "He"; done.
+    ewp_case m; try iMod "He"; done.
   Qed.
 
   Lemma ewp_can_step {σ} Ψ φ m E:
@@ -292,7 +319,7 @@ Section ewp_basic_rules.
     iIntros "SI Hwp".
     ewp_unfold_all.
     ewp_case m.
-    1-6: try iMod "Hwp";
+    1-8: try iMod "Hwp";
         try (iApply fupd_mask_intro; first set_solver);
         iIntros "_"; iPureIntro; right; eauto.
 
@@ -351,16 +378,16 @@ Section handler_specifications.
 
   (** * Shallow handler specification. *)
 
-  Definition shallow_handler_spec E Ψ (Φ : outcome2 val exn -d> iProp Σ)
+  Definition shallow_handler_spec E ι Ψ (Φ : outcome2 val exn -d> iProp Σ)
     (h : code.outcome3 val exn -> microvx)
     Ψ' Φ' :=
     ((* [Return] and [Exception] branch *)
-    (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+    (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| (ι, Ψ') |> {{ Φ' }}) ∧
 
     (* [Effect] branch *)
     (∀ v k, Ψ allows perform v
-          << fun o => ▷ EWP (stop CResume (k, o)) @ E <| Ψ |> {{ Φ }} >> -∗
-        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
+          << fun o => ▷ EWP (stop CResume (k, o)) @ E <| (ι, Ψ) |> {{ Φ }} >> -∗
+        ▷ EWP (h (O3Perform v k)) @ E <| (ι, Ψ') |> {{ Φ' }}))%I.
 
 End handler_specifications.
 
@@ -375,12 +402,11 @@ Section wp_handler_rules.
   Context {A X : Type}.
 
   Implicit Type m : micro A X.
-  Implicit Type Ψ : iEff Σ.
   Import ewp_rules_tactics.
 
-  Lemma ewp_stop_perform {B X'} E Ψ v Φ (k : _ -> micro B X'):
-    Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }} >> -∗
-    EWP (Stop CPerf v k) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_stop_perform {B X'} E ι Ψ v Φ (k : _ -> micro B X'):
+    Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| (ι, Ψ) |> {{ Φ }} >> -∗
+    EWP (Stop CPerf v k) @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
     iIntros "HP".
     iPoseProof (monotonic_prot with "[] HP") as "H"; cycle 1.
@@ -388,8 +414,8 @@ Section wp_handler_rules.
     iIntros (?) "HΦ". by iNext.
   Qed.
 
-  Lemma ewp_perform E Ψ v Φ:
-    Ψ allows perform v << Φ >> ⊢ EWP (perform v) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_perform E ι Ψ v Φ:
+    Ψ allows perform v << Φ >> ⊢ EWP (perform v) @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
     iIntros "HP". iApply ewp_stop_perform.
     iApply (monotonic_prot with "[] HP").
@@ -397,9 +423,9 @@ Section wp_handler_rules.
     cbn. iApply ewp_outcome2; by cbn.
   Qed.
 
-  Lemma ewp_perform_inv {B X'} E Ψ v Φ (k : _ -> micro B X'):
-    EWP (Stop CPerf v k) @ E <| Ψ |> {{ Φ }} ={E}=∗
-    Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| Ψ |> {{ Φ }} >>.
+  Lemma ewp_perform_inv {B X'} E ι Ψ v Φ (k : _ -> micro B X'):
+    EWP (Stop CPerf v k) @ E <| (ι, Ψ) |> {{ Φ }} ={E}=∗
+    Ψ allows perform v << fun w => ▷ EWP (k w) @ E <| (ι, Ψ) |> {{ Φ }} >>.
   Proof.
     iIntros "HP".
     ewp_unfold_all. iMod "HP"; iModIntro.
@@ -407,70 +433,68 @@ Section wp_handler_rules.
     iIntros (?) "HΦ"; by iNext.
   Qed.
 
-  Lemma ewp_stop_fork {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
-    (∀ t, EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} ∗
-          EWP (k (O2Ret (VThread t))) @ E <| Ψ |> {{ Φ }}) -∗
-    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_stop_join {B X'} E Ψ ι Φ (k : _ -> micro B X') :
+    valid_thread ι -∗
+    (is_dead ι -∗ ▷ EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "Hass".
-    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /=.
-    iIntros "!> !>" (t).
-    iDestruct ("Hass" $! t) as "[Hcall Hk]"; iFrame.
+    rewrite {1}(ewp_unfold (Stop CJoin ι k)) /ewp_pre /=.
+    iIntros "Hvalid Hk !>".
+    iFrame.
   Qed.
 
-  Lemma ewp_fork E Ψ v1 v2 Φ :
-    EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} -∗
-    (∀ t, Φ (O2Ret (VThread t))) -∗
-    EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_join E Ψ ι Φ :
+    valid_thread ι -∗
+    (is_dead ι -∗ Φ (O2Ret (VUnit))) -∗
+    EWP (join ι) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "Hcall HΦ".
-    iApply ewp_stop_fork.
-    iIntros (t); iFrame.
-    iApply ewp_value. iApply "HΦ".
+    iIntros "Hvalid HΦ".
+    iApply (ewp_stop_join with "Hvalid").
+    iIntros "Hdead".
+    iApply ewp_value. by iApply "HΦ".
   Qed.
 
-  Lemma ewp_fork_inv {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
-    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }} -∗
-    |={E}=> ▷ (∀ t, EWP call v1 v2 @ E <| ⊥ |> {{ λ _, True }} ∗
-          EWP (k (O2Ret (VThread t))) @ E <| Ψ |> {{ Φ }}).
-  Proof.
-    iIntros "HF".
-    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /ewp_pre /=.
-    iApply "HF".
-  Qed.
-
-  Lemma ewp_stop_join {B X'} E Ψ t Φ (k : _ -> micro B X') :
-    EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }} -∗
-    EWP (Stop CJoin t k) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_join_inv {B X'} E Ψ ι (k : _ -> micro B X') Φ :
+    EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }} -∗
+    |={E}=> valid_thread ι ∗ (is_dead ι -∗ ▷ EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }}).
   Proof.
     iIntros "Hk".
-    rewrite {1}(ewp_unfold (Stop CJoin t k)) /=.
+    rewrite {1}(ewp_unfold (Stop CJoin ι k)) /ewp_pre /=.
     iApply "Hk".
   Qed.
 
-  Lemma ewp_join E Ψ t Φ :
-    Φ (O2Ret (VUnit)) -∗
-    EWP (join t) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_stop_self {B X'} E Ψ u ι Φ (k : _ -> micro B X') :
+    ▷ EWP (k (O2Ret (VThread ι))) @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    EWP (Stop CSelf u k) @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
-    iIntros "HΦ".
-    iApply ewp_stop_join.
-    iApply ewp_value. iApply "HΦ".
+    rewrite {1}(ewp_unfold (Stop CSelf u k)) /ewp_pre /=.
+    iIntros "Hk !> !>".
+    iFrame.
   Qed.
 
-  Lemma ewp_join_inv {B X'} E Ψ t (k : _ -> micro B X') Φ :
-    EWP (Stop CJoin t k) @ E <| Ψ |> {{ Φ }} -∗
-    |={E}=> ▷ EWP (k (O2Ret VUnit)) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_self E Ψ ι Φ :
+    (Φ (O2Ret (VThread ι))) -∗
+    EWP self @ E <| (ι, Ψ) |> {{ Φ }}.
+  Proof.
+    iIntros "HΦ".
+    iApply ewp_stop_self.
+    iApply ewp_value. by iApply "HΦ".
+  Qed.
+
+  Lemma ewp_self_inv {B X'} E Ψ u ι (k : _ -> micro B X') Φ :
+    EWP (Stop CSelf u k) @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    |={E}=> ▷ EWP (k (O2Ret (VThread ι))) @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
     iIntros "Hk".
-    rewrite {1}(ewp_unfold (Stop CJoin t k)) /ewp_pre /=.
+    rewrite {1}(ewp_unfold (Stop CSelf u k)) /ewp_pre /=.
     iApply "Hk".
   Qed.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
-  Lemma ewp_handle E Ψ Φ Ψ' Φ' e h:
-    EWP e @ E <| Ψ |> {{ Φ }} -∗
-    shallow_handler_spec E Ψ Φ h Ψ' Φ' -∗
-    EWP (Handle e h) @ E <| Ψ' |> {{ Φ' }}.
+  Lemma ewp_handle E ι Ψ Φ Ψ' Φ' e h:
+    EWP e @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    shallow_handler_spec E ι Ψ Φ h Ψ' Φ' -∗
+    EWP (Handle e h) @ E <| (ι, Ψ') |> {{ Φ' }}.
   Proof.
     (* We proceed by Löb-induction after generalizing [e] [h] and [eh]. *)
     iLöb as "IH" forall (e).
@@ -498,7 +522,7 @@ Section wp_handler_rules.
         [ exact H | ].
 
       iAssert (Ψ allows perform e0
-                 << fun o => ▷ EWP (stop CResume (l, o)) @ E <| Ψ |> {{ Φ }} >>)%I
+                 << fun o => ▷ EWP (stop CResume (l, o)) @ E <| (ι, Ψ) |> {{ Φ }} >>)%I
         with "[HP HH]" as "HΨ".
       { iApply (monotonic_prot with "[HH] HP").
         iIntros (?) "Hwp"; cbn. iNext.
@@ -523,14 +547,29 @@ Section wp_handler_rules.
     { (* [StepHandleFork] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       destruct x.
-      ewp_unfold_all. iMod "He". iIntros "!> !>" (t).
-      iDestruct ("He" $! t) as "[Hcall Hk]". iFrame.
+      ewp_unfold_all. iMod "He". iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("He" $! ι' with "Hactive") as "[Hcall Hk]". iFrame.
       iApply ("IH" with "Hk Hsh"). }
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      ewp_unfold_all. iMod "He". iIntros "!> !>".
+      iPoseProof (ewp_join_inv with "He") as "He".
+      iApply ewp_fupd. iMod "He" as "[Hvalid He]".
+      iApply (ewp_stop_join with "Hvalid").
+      iIntros "!> Hdead"; iSpecialize ("He" with "Hdead"); iNext.
       iApply ("IH" with "He Hsh"). }
+
+    { (* [StepHandleSelf] *)
+      ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
+      iPoseProof (ewp_self_inv with "He") as "He".
+      iApply ewp_fupd; iMod "He"; iModIntro.
+      iApply ewp_stop_self. iNext.
+      iApply ("IH" with "He Hsh"). }
+
+
+    { (* [StepHandleDie] *)
+      ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
+      ewp_unfold_all. done. }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -652,7 +691,7 @@ Section ewp_rules.
   (* ------------------------------------------------------------------------ *)
   (** *Try rule *)
 
-  Lemma ewp_try2 {B X'} E m (f : _ -> micro B X') Ψ Φ :
+  Lemma ewp_try2 {B X'} E m (f : _-> micro B X') Ψ Φ :
     EWP m @ E <| Ψ |> {{ fun v => EWP (f v) @ E <| Ψ |> {{ Φ }} }} -∗
     EWP (try2 m f) @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -681,15 +720,24 @@ Section ewp_rules.
     (* Case: [m1] is [Fork _ _]. *)
     { cbn.
       ewp_unfold_all. iMod "Hwp".
-      iIntros "!> !>" (t).
-      iDestruct ("Hwp" $! t) as "[Hcall Hk]"; iFrame.
+      iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("Hwp" $! ι' with "Hactive") as "[Hcall Hk]"; iFrame.
       iApply ("IH" with "Hk"). }
 
-    (* Case: [m1] is [Join _ _]. *)
+    (* Case: [m1] is [Join _]. *)
+    { cbn.
+      ewp_unfold_all. iMod "Hwp" as "[Hvalid Hwp]"; iModIntro; iFrame.
+      iIntros "Hdead"; iSpecialize ("Hwp" with "Hdead"); iNext.
+      iApply ("IH" with "Hwp"). }
+
+    (* Case: [m1] is [Self]. *)
     { cbn.
       ewp_unfold_all. iMod "Hwp".
       iIntros "!> !>".
       iApply ("IH" with "Hwp"). }
+
+    (* Case: [m1] is [Die _]. *)
+    { cbn. ewp_unfold_all. done. }
 
     (* Since [m] is neither handleable nor concurrent,
        neither is [try m f h]. *)
@@ -753,6 +801,17 @@ Section ewp_rules.
     destruct a; last done. cbn.
     iApply ewp_value; by cbn.
   Qed.
+
+End ewp_rules.
+
+Section ewp_stop.
+
+  Context `{!osirisGS Σ}.
+
+  Context {A X : Type}.
+
+  Implicit Type m : micro A X.
+  Import ewp_rules_tactics.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -842,6 +901,49 @@ Section ewp_rules.
 
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
+  Qed.
+
+  Lemma ewp_stop_fork {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
+    (∀ ι',
+        is_active ι' -∗
+        EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+        EWP (k (O2Ret (VThread ι'))) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "Hass".
+    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /=.
+    iIntros "!> !>" (ι) "Halive".
+    iDestruct ("Hass" $! ι with "Halive") as "[Hcall Hk]"; iFrame.
+    iApply (ewp_mono with "[Hcall]").
+    { iApply ewp_try2. iApply (ewp_mono with "Hcall").
+      iIntros (o) "_".
+      ewp_unfold_head. done. }
+    instantiate (1 := λ _, False%I).
+    iIntros (o) "HF"; done.
+  Qed.
+
+  Lemma ewp_fork E Ψ v1 v2 Φ :
+    (∀ ι',
+        is_active ι' -∗
+        EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+        Φ (O2Ret (VThread ι'))) -∗
+    EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "HΦ".
+    iApply ewp_stop_fork.
+    iIntros (ι') "Hactive"; iDestruct ("HΦ" $! ι' with "Hactive") as "[Hcall HΦ]"; iFrame.
+    iApply ewp_value. iApply "HΦ".
+  Qed.
+
+  Lemma ewp_fork_inv {B X'} E Ψ v1 v2 (k : _ -> micro B X') Φ :
+    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }} -∗
+    |={E}=> ▷ (∀ ι', is_active ι' -∗
+               EWP try2 (call v1 v2) die @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+               EWP (k (O2Ret (VThread ι'))) @ E <| Ψ |> {{ Φ }}).
+  Proof.
+    iIntros "HF".
+    rewrite {1}(ewp_unfold (Stop CFork (v1, v2) k)) /ewp_pre /=.
+    iApply "HF".
   Qed.
 
   (* [CResume]. *)
@@ -942,7 +1044,7 @@ Section ewp_rules.
   (* Par combinator *)
 
   Lemma ewp_Par {E A1 A2 A3 X' Y} (m1 : micro A1 X') (m2 : micro A2 X')
-    (k: outcome2 (A1 * A2) X' → micro A3 Y) φ φ1 φ2 (Ψ : iEff Σ) :
+    (k: outcome2 (A1 * A2) X' → micro A3 Y) φ φ1 φ2 Ψ :
     EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
       EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
       (∀ e, φ1 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
@@ -952,7 +1054,7 @@ Section ewp_rules.
             EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
       EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    clear A X.
+    clear A X. destruct Ψ as [ι Ψ].
     (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
     iLöb as "IH" forall (m1 m2); iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
 
@@ -1005,35 +1107,58 @@ Section ewp_rules.
     { (* [StepParForkLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       destruct x.
-      iPoseProof (ewp_fork_inv with "H1") as "H1".
+      rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
       ewp_unfold_head.
-      iMod "H1". iIntros "!> !>" (t).
-      iDestruct ("H1" $! t) as "[Hcall Hk]".
+      iMod "H1". iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("H1" $! ι' with "Hactive") as "[Hcall Hk]".
       iFrame. iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
-
 
     { (* [StepParForkRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       destruct x.
-      iPoseProof (ewp_fork_inv with "H2") as "H2".
+      rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
       ewp_unfold_head.
-      iMod "H2". iIntros "!> !>" (t).
-      iDestruct ("H2" $! t) as "[Hcall Hk]".
+      iMod "H2". iIntros "!> !>" (ι') "Hactive".
+      iDestruct ("H2" $! ι' with "Hactive") as "[Hcall Hk]".
       iFrame. iApply ("IH" with "H1 Hk Hexn1 Hexn2 Hjoin"). }
 
     { (* [StepParJoinLeft] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       iPoseProof (ewp_join_inv with "H1") as "H1".
       ewp_unfold_head.
-      iMod "H1". iIntros "!> !>".
+      iMod "H1" as "[Hvalid H1]"; iFrame.
+      iIntros "!> Hdead"; iSpecialize ("H1" with "Hdead"); iNext.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [StepParJoinRight] *)
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
       iPoseProof (ewp_join_inv with "H2") as "H2".
       ewp_unfold_head.
+      iMod "H2" as "[Hvalid H2]"; iFrame.
+      iIntros "!> Hdead"; iSpecialize ("H2" with "Hdead"); iNext.
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [StepParSelfLeft] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      iPoseProof (ewp_self_inv with "H1") as "H1".
+      ewp_unfold_head.
+      iMod "H1". iIntros "!> !>".
+      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [StepParSelfRight] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      iPoseProof (ewp_self_inv with "H2") as "H2".
+      ewp_unfold_head.
       iMod "H2". iIntros "!> !>".
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+
+    { (* [StepParDieLeft] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      ewp_unfold_all; done. }
+
+    { (* [StepParDieRight] *)
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      ewp_unfold_all; done. }
 
     { (* [ParLeft] *)
       iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi H1") as ">H1".
@@ -1091,7 +1216,7 @@ Section ewp_rules.
     { iApply (bi.and_elim_r with "H"). }
   Qed.
 
-End ewp_rules.
+End ewp_stop.
 
 (* Rules that deal with microvx directly. *)
 
@@ -1168,6 +1293,8 @@ Section ewp_val_rules.
       by apply invert_pure_wp_stop in Hm.
     - by apply invert_pure_wp_stop in Hm.
     - by apply invert_pure_wp_stop in Hm.
+    - by apply invert_pure_wp_stop in Hm.
+    - by apply invert_pure_wp_stop in Hm.
     - (* Case: [m] can step *)
       intro_state.
       ewp_mask_intro "Hmod".
@@ -1210,9 +1337,9 @@ Section ewp_eval.
 
   Context `{!osirisGS Σ}.
 
-  Lemma ewp_module η sitems (Q : val -> iProp Σ) :
-    EWP (eval_sitems (η, []) sitems) {{ ensures '(_, δ), Q (VStruct δ) }} -∗
-      EWP (eval_mexpr η (MStruct sitems)) {{ ensures v, Q v }}.
+  Lemma ewp_module η sitems E Ψ (Q : val -> iProp Σ) :
+    EWP (eval_sitems (η, []) sitems) @ E <|Ψ|> {{ ensures '(_, δ), Q (VStruct δ) }} -∗
+      EWP (eval_mexpr η (MStruct sitems)) @ E <|Ψ|> {{ ensures v, Q v }}.
   Proof.
     iIntros "Hsitems".
     simpl_eval_mexpr. iApply ewp_bind.
@@ -1257,10 +1384,10 @@ Section ewp_eval.
 
   Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
-  Lemma ewp_struct_let η δ bs Q Ψ :
-    EWP (eval_bindings η bs) {{ ensures η, Ψ η }} -∗
-      (∀ η', Ψ η' -∗ Q (O2Ret (η' ++ η, η' ++ δ))) -∗
-      EWP (eval_sitem (η, δ) (ILet bs)) {{ Q }}.
+  Lemma ewp_struct_let η δ bs E Ψ Q Q' :
+    EWP (eval_bindings η bs) @ E <| Ψ |> {{ ensures η, Q' η }} -∗
+      (∀ η', Q' η' -∗ Q (O2Ret (η' ++ η, η' ++ δ))) -∗
+      EWP (eval_sitem (η, δ) (ILet bs)) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hbindings Hmono".
     simpl_eval_sitem. iApply ewp_bind.
@@ -1281,9 +1408,9 @@ Section ewp_eval.
     iApply "Hk".
   Qed.
 
-  Lemma ewp_struct_let_single spec η δ name e :
-    EWP (eval η e) {{ ensures v, spec v }} -∗
-      EWP (eval_sitem (η, δ) (ILet [Binding (PVar name) e]))
+  Lemma ewp_struct_let_single spec η δ name e E Ψ :
+    EWP (eval η e) @ E <| Ψ |> {{ ensures v, spec v }} -∗
+      EWP (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <| Ψ |>
       {{ ensures '(η', δ'),
           ∃ v : val, spec v ∧ ⌜η' = (name, v) :: η ∧ δ' = (name, v) :: δ⌝
       }}.
@@ -1405,28 +1532,11 @@ End ewp_eval.
 (* Start proof mode. *)
 Ltac Start_proof := iStartProof.
 
-(* Try to simplify the goal using the [simp] relation *)
-Ltac Simp :=
-  iApply ewp_simp; first try solve [simp].
-
 (* Hoare-style rules that correspond to [rule] lemmas *)
 Ltac Try := iApply ewp_try.
 
 Ltac Ret := repeat iApply ewp_value.
 
 Ltac Throw := iApply ewp_throw.
-
-Ltac Par :=
-  lazymatch goal with
-  | |- environments.envs_entails _ (ewp_def _ (Par (ret _) (ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- environments.envs_entails _ (ewp_def _ (Par _ (Ret _) _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- environments.envs_entails _ (ewp_def _ (Par (ret _) _ _) _ _) =>
-      iApply ewp_simp; first simp
-  | |- environments.envs_entails _ (ewp_def _ (Par _ _ _) _ _) =>
-      iApply ewp_Par
-  | _ => fail "The goal must be a par to apply [ewp_par]."
-  end; try done.
 
 Ltac Bind := first [ iApply ewp_fmap | iApply ewp_bind ].

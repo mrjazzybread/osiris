@@ -96,6 +96,11 @@ End lang_instance.
 
 Section ghost_instances.
 
+  (* Flag stating whether a thread has terminated or not. *)
+  Inductive thread_state :=
+  | Alive
+  | Dead.
+
   Context (Σ : gFunctors).
 
   Class osirisGpreS := {
@@ -108,11 +113,14 @@ Section ghost_instances.
       (* This gives us fancy updates (without allowing Later Credits). *)
       osiris_invGS :: invGS_gen HasNoLc Σ;
       (* This gives us a heap, which maps locations to values. *)
-      osiris_heapGS :: gen_heapGS locations.loc step.block Σ; }.
+      osiris_heapGS :: gen_heapGS locations.loc step.block Σ;
+      (* This gives us a heap, which maps threads to their aliveness. *)
+      thread_heapGS :: gen_heapGS thread_ids.thread thread_state Σ;
+    }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
 
 Definition osiris_state_interp {Σ H} (σ : store) :=
   @gen_heap_interp locations.loc _ _ step.block Σ H σ.
@@ -202,13 +210,20 @@ From osiris.Hazel Require Export protocols.
 
 Section ewp.
 
+  Context `{!osirisGS Σ}.
   Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 
+  Definition valid_thread (ι : thread) := (∃ s df, pointsto ι df s)%I.
+
+  Definition is_active (ι : thread) := pointsto ι (DfracOwn 1) Alive.
+
+  Definition is_dead (ι : thread) := pointsto ι DfracDiscarded Dead.
+
   Definition ewp_pre
-    (ewp : ∀ A' X', coPset -d> micro A' X' -d> thread -d> iEff Σ -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
+    (ewp : ∀ A' X', coPset -d> micro A' X' -d> (thread * iEff Σ) -d> (outcome2 A' X' -d> iPropO Σ) -d> iPropO Σ) :
     (∀ (A X : Type),
-        coPset -d> micro A X -d> thread -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
-    λ A X E m ι Ψ φ,
+        coPset -d> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X E m ιΨ φ,
       (match is_ewp_case m with
        (* [EWP1]: Pure and exceptional values *)
        | Some (ERet v) => |={E}=> φ (O2Ret v)
@@ -219,28 +234,31 @@ Section ewp.
           satisfy the [ewp] when continued with the continuation [k] with the
           same protocol. *)
        | Some (EPerform e k) =>
-           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) ι Ψ φ >>
+           let (_, Ψ) := ιΨ in
+           |={E}=> Ψ allows perform e << fun w : outcome2 syntax.val exn => ▷ ewp A X E (k w) ιΨ φ >>
        (* [EWP4]: A fork system call. *)
        | Some (EFork m k) =>
            |={E}=> ▷ ∀ ι',
-                       ewp syntax.val exn E (try2 m die) ι' ⊥ (λ _, True) ∗
-                       ewp A X E (continue k (VThread ι')) ι Ψ φ
+                       is_active ι' -∗
+                       ewp syntax.val exn E (try2 m die) (ι', ⊥) (λ _, True) ∗
+                       ewp A X E (continue k (VThread ι')) ιΨ φ
        (* [EWP5]: A join system call. *)
-       | Some (EJoin i k) =>
-           |={E}=> ▷ ewp A X E (continue k VUnit) ι Ψ φ
-       (* [EWP6]: The current thread has ended. *)
+       | Some (EJoin ι k) =>
+           |={E}=> valid_thread ι ∗ (is_dead ι -∗ ▷ ewp A X E (continue k VUnit) ιΨ φ)
+       (* [EWP6]: A request for the thread's own handle. *)
        | Some (ESelf k) =>
-           |={E}=> ▷ ewp A X E (continue k (VThread ι)) ι Ψ φ
-       (* [EWP7]: A request for the thread's own handle. *)
+           let (ι, _) := ιΨ in
+           |={E}=> ▷ ewp A X E (continue k (VThread ι)) ιΨ φ
+       (* [EWP7]: The current thread has ended. *)
        | Some (EDie o) =>
-           |={E}=> True
+           True
        (* [EWP3]: Non-effectful step of computation;
               this portion follows to the typical weakest precondition for Iris *)
        | None =>
            ∀ σ ns κ κs n, state_interp σ ns (κ ++ κs) n ={E, ∅}=∗
              ⌜can_step (σ, m)⌝ ∗
              (∀ σ' m', ⌜step.step (σ, m) (σ', m')⌝ ={∅}=∗ ▷ |={∅,E}=>
-                (state_interp σ' (S ns) κs n ∗ ewp A X E m' ι Ψ φ))
+                (state_interp σ' (S ns) κs n ∗ ewp A X E m' ιΨ φ))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
@@ -254,7 +272,7 @@ Section ewp.
     repeat intro. f_contractive. apply Hwp.
   Qed.
 
-  Definition ewp_def : ∀ A X, coPset -> micro A X -d> thread -d> iEff Σ -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+  Definition ewp_def : ∀ A X, coPset -> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     @fixpoint _ discrete_fun2_cofe _ ewp_pre ewp_pre_contractive.
 
   Global Arguments ewp_def {A X}.
@@ -262,7 +280,7 @@ Section ewp.
   Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
   Definition ewp' := ewp_aux.(unseal).
 
-  Global Arguments ewp' {E e ι Ψ Φ} : rename.
+  Global Arguments ewp' {E e ιΨ Φ} : rename.
 
 End ewp.
 
@@ -281,7 +299,7 @@ Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
 Section ewp_properties.
 
 Context {A X P : Type}.
-
+Context `{osirisGS Σ}.
 Context `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ}.
 Implicit Type P : iEff Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
@@ -290,8 +308,8 @@ Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
-Lemma ewp_unfold {E} (m : micro A X) ι Ψ {φ} :
-  ewp_def E m ι Ψ φ ⊣⊢ ewp_pre (@ewp_def _ _) E m ι Ψ φ.
+Lemma ewp_unfold {E} (m : micro A X) ιΨ {φ} :
+  ewp_def E m ιΨ φ ⊣⊢ ewp_pre (@ewp_def _ _ _) E m ιΨ φ.
 Proof.
   rewrite {1}/ewp_def.
   apply (@fixpoint_unfold _ discrete_fun2_cofe _ ewp_pre).
@@ -300,10 +318,10 @@ Qed.
 Local Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
-Global Instance ewp_ne E m n ι Ψ :
-  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m ι Ψ).
+Global Instance ewp_ne E m n ιΨ :
+  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m ιΨ).
 Proof.
-  revert m. induction (lt_wf n) as [n _ IH]=> m Φ Ψ' HΦ.
+  revert m ιΨ. induction (lt_wf n) as [n _ IH]=> m [ι Ψ] Φ Ψ' HΦ.
   ewp_unfold_all.
   f_equiv.
   - f_equiv.
@@ -313,10 +331,10 @@ Proof.
       intro. f_contractive.
       apply IH; auto; intro; auto.
       eapply dist_lt; eauto.
-    + f_equiv. f_contractive. f_equiv. f_equiv. f_equiv.
+    + f_equiv. f_contractive. f_equiv. f_equiv. f_equiv. f_equiv.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
-    + f_equiv. f_contractive.
+    + f_equiv. f_equiv. f_equiv. f_contractive.
       apply IH; auto; intro; auto.
       eapply dist_lt; auto.
     + f_equiv. f_contractive.
@@ -330,19 +348,19 @@ Proof.
     intro; eapply dist_lt; eauto.
 Qed.
 
-Global Instance ewp_proper E m ι Ψ:
+Global Instance ewp_proper E m ιΨ:
   Proper
     (pointwise_relation _ (≡) ==> (≡))
-    (ewp_def E m ι Ψ).
+    (ewp_def E m ιΨ).
 Proof.
   by intros Φ Φ' ?; apply equiv_dist=>n; apply ewp_ne=>v; apply equiv_dist.
 Qed.
 
-Global Instance ewp_contractive E m n ι Ψ:
+Global Instance ewp_contractive E m n ιΨ:
   TCEq (is_ewp_case m) None →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
-    (ewp_def E m ι Ψ).
+    (ewp_def E m ιΨ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
   do 19 f_equiv.
@@ -459,13 +477,13 @@ Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
-  (ewp_def E e%E iEff_bottom Φ)
+  (ewp_def E e%E (_, iEff_bottom) Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e {{ Φ } }" :=
-  (ewp_def ⊤ e%E iEff_bottom Φ)
+  (ewp_def ⊤ e%E (_, iEff_bottom) Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.

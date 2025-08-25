@@ -106,9 +106,16 @@ Module ewp_rules_tactics.
         try done
     end.
 
+  Ltac destruct_thread_prot :=
+    match goal with
+    | [ιΨ : thread * iEff _ |- _] =>
+        destruct ιΨ as [??]
+    end.
+
   Tactic Notation "ewp_case" constr(x) ident(Hhm) :=
     case_eq (is_ewp_case x);
     [ intros ? Hhm; destruct x;
+      try destruct_thread_prot;
       try destruct_stop_code;
       try (inversion Hhm; subst; clear Hhm);
       try solve [by destruct_step] |
