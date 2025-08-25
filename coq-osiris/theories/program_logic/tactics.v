@@ -20,7 +20,7 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ], [π] and [state_interp (σ, π)]. *)
 
-  Ltac intro_state := iIntros (σ π) "Hsi".
+  Ltac intro_state := iIntros (σ π) "[Hsi Hti]".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -64,7 +64,6 @@ Module ewp_rules_tactics.
       end;
     try_iModIntro.
 
-
   Ltac ewp_mask_elim :=
     ewp_cleanup_mod;
     match goal with
@@ -92,7 +91,7 @@ Module ewp_rules_tactics.
     end.
 
   Ltac prove_can_progress :=
-    (auto with step can_progress) ||
+    (eauto with step can_progress) ||
     (apply can_step_can_progress; auto with step can_step).
 
   Ltac construct_wp_nonret :=
@@ -151,18 +150,34 @@ Module ewp_rules_tactics.
     let f := ltac2:(x |- ewp_case (Option.get (Ltac1.to_constr x))) in
     f x.
 
+  Lemma combine_seps {PROP : bi} (P Q : PROP) :
+    P -∗ Q -∗ P ∗ Q.
+  Proof.
+    ltac1:(iStartProof; iIntros "HP HQ"; iFrame).
+  Qed.
+
   Ltac spec_state :=
     lazymatch goal with
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ1 : step.store =>
               bi_forall (fun π1 : threadpool => _)))] =>
-        match goal with
+        lazymatch goal with
         | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (osiris_thread_interp ?π))] =>
             let Hstep := fresh "Hstep" in
             iSpecialize (Hwp $! σ π with SI);
             try (iMod Hwp;
                  iDestruct Hwp as (Hstep) Hwp)
+        | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
+            lazymatch goal with
+            |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
+              let Hstep := fresh "Hstep" in
+              iPoseProof (combine_seps with SI) as SI;
+              iSpecialize (SI with TI);
+              iSpecialize (Hwp $! σ π with SI);
+              try (iMod Hwp;
+                   iDestruct Hwp as (Hstep) Hwp)
+            end
         end
     end.
 

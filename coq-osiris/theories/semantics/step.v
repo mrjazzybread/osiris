@@ -244,12 +244,12 @@ Qed.
 
 (* A summary of our algebraicity laws. *)
 
-Local Hint Resolve
+Global Hint Resolve
   try2_step_load_2
   try2_step_store_2
   try2_step_resume_2
   try2_step_wrap_2
-: algebraic.
+: try2_algebraic.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -808,11 +808,35 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+Lemma invert_can_step_fork {A E} σ v1 v2 (k : _ -> micro A E) :
+  can_step (σ, (Stop CFork (v1, v2) k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+Lemma invert_can_step_join {A E} σ ι (k : _ -> micro A E) :
+  can_step (σ, (Stop CJoin ι k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+Lemma invert_can_step_self {A E} σ u (k : _ -> micro A E) :
+  can_step (σ, (Stop CSelf u k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
   invert_can_step_Throw
   invert_can_step_perform
+  invert_can_step_fork
+  invert_can_step_join
+  invert_can_step_self
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -1044,7 +1068,7 @@ Proof.
   simplify_eq;
   simpl try2;
   rewrite ?try2_try2;
-  eauto with step algebraic f_equal.
+  eauto with step try2_algebraic f_equal.
   rewrite try2_continue; constructor.
 Qed.
 
@@ -1107,7 +1131,7 @@ Proof.
   try solve [ exfalso; eauto with invert_can_step ];
   (* Every other case: *)
   destruct_step;
-  eauto with step algebraic try_try.
+  eauto with step try2_algebraic try_try.
 Qed.
 
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :
