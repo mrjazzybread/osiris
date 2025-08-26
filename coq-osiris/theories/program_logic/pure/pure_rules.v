@@ -217,6 +217,21 @@ Section pure_rules.
     eauto.
   Qed.
 
+  Lemma pure_par_same_exn
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E}
+    (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E)
+    (φ : A3 → Prop) ζ
+    :
+     pure (E := E) m1
+      (λ a1,
+        pure m2
+          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ζ)
+          (λ e : E, pure (discontinue k e) φ ζ))
+      ζ →
+     pure (Par m1 m2 k) φ ζ.
+  Proof.
+  Admitted.
+
   Lemma pure_par_glue2
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
     (m1 : micro V1 E1) (m2 : micro V2 E1) (k : V1 * V2 -> micro V3 E2)

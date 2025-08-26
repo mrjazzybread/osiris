@@ -304,7 +304,7 @@ Ltac prove_match :=
 
 Ltac prove_simple_match :=
   iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ (ieq ?[y]));
+  iApply (ewp_deep_handler _ _ _ (ieq ?[y]));
   [ |
     prove_handler_spec;
     [

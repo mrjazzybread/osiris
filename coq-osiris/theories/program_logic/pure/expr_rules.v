@@ -112,14 +112,14 @@ Proof.
 Qed.
 
 Lemma pure_evals_cons `{Encode A}
-  η (hd : expr) tl (φ : list val -> Prop) ψ:
+  η (hd : expr) tl (φ : list val -> Prop) Ψ :
   pure (A := A) (eval η hd)
     (fun x =>
-      pure (evals η tl) (fun v => φ (# x :: v)) ψ) ⊥  ->
-  pure (evals η (hd :: tl)) φ ψ.
+      pure (evals η tl) (fun v => φ (# x :: v)) Ψ) Ψ  ->
+  pure (evals η (hd :: tl)) φ Ψ.
 Proof.
   intros. simpl_evals.
-  eapply pure_par_seq.
+  eapply pure_par_same_exn.
   eapply pure_ret_mono; try done.
   intros * ?.
   eapply pure_mono; first eapply H1; eauto.

@@ -766,14 +766,14 @@ Proof.
   { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
   next_item with splay_leaf_spec.
-  { pure_simp.
+  { simpl_eval. pure_ret.
     apply Splay_leaf_spec; assumption. }
   intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
   next_item.
   { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
   next_item.
-  { pure_simp. }
+  { simpl_eval. pure_ret. }
   intros [??] (lookup & Hlookup & -> & ->).
   finished_struct.
   simpl. repeat split; auto.
