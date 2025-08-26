@@ -15,6 +15,19 @@ The project requires OCaml's package manager `opam`.
 Running `make init` then creates a new `opam` switch with all the required dependencies at
 the right version.
 
+**If there is an error while the dependencies are being installed:**\
+It is recommended to update the list of opam packages with `opam update`,
+and to continue installing with `make pin` to avoid creating a new switch.
+
+For comfort, we also provide `make emacs` to install the dependencies necessary to use Emacs as an IDE for OCaml.
+
+### Build
+
+Running `make` will:\
+(1) build the translator,\
+(2) compile the example files in `coq-osiris/examples/src` and run the translator on them,\
+(3) compile all coq files in the project.
+
 ### Dependencies
 
 The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`,
@@ -34,19 +47,6 @@ It is known to compile with the following versions of the packages:
 | `coq-equations` | 1.3.1+8.20 | -                                       |
 | `ppx_sexp_conv` | v0.17.0 | -                                        |
 | `ppx_deriving` | 6.0.3 | -                                           |
-
-**If there is an error while the dependencies are being installed:**\
-It is recommended to update the list of opam packages with `opam update`,
-and to continue installing with `make pin` to avoid creating a new switch.
-
-For comfort, we also provide `make emacs` to install the dependencies necessary to use Emacs as an IDE for OCaml.
-
-### Build
-
-Running `make` will:
-(1) build the translator,
-(2) compile the example files in `coq-osiris/examples/src` and run the translator on them
-(3) compile all coq files in the project.
 
 ## Publications
 
