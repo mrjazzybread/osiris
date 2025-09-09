@@ -110,6 +110,7 @@
 * Unspecified evaluation of `assert` statements ✓
 * `let` operators
 * `Obj.magic`
+  + see discussion of unsafe type casts in the Osiris paper (ICFP 2025)
 * Arrays
   + allow ownership of individual array cells (or slices)
   + see array-based trees in CPP 2024 [Mechanised Reasoning about Array-Based Trees in Separation Logic](https://dl.acm.org/doi/abs/10.1145/3636501.3636944)
@@ -139,6 +140,11 @@
   + `lt_val` should be extended to chars, strings, tuples, records
   + define `compare`, `min`, `max` as library functions,
     based on other primitive operations
+  + physical equality: restricted to memory locations, or more permissive?
+    - read Clément Allain's thoughts on physical equality
+    - the trick of using `magic` to add a sentinel value in an arbitrary type
+      requires allowing a physical equality test between a memory location and
+      an arbitrary value
 * Polymorphic variants (what instance of `Encode`?)
 * Modules, functors, signature ascription
   + Functor application contains an implicit signature ascription
