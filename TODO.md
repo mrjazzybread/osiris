@@ -16,10 +16,14 @@
 
 * Add support for concurrency (SC first; weak memory later).
 
-* Annotate `VData` and `PData` with the unique identity of the data type.
-  During pattern matching, check that the types are equal; otherwise crash.
+* Annotate `VData` and `PData` with a data type identifier. During pattern
+  matching, check that the data type identifiers are equal; otherwise crash.
   We might otherwise continue normally (with a match success or a match
   failure) in cases where a crash should occur.
+  Note that two data types with distinct names can be declared equal; they
+  then should then receive the same identifier. Perhaps the simplest way of
+  achieving this is to make the identifier a function of the structure of
+  the data type.
 
 * Improve our current support for tuples and algebraic data types
   (Hoare-style rules for `VTuple`, `VData`, ...).
