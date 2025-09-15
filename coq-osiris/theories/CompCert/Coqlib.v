@@ -477,7 +477,7 @@ Lemma Zmod_recombine:
   a > 0 -> b > 0 ->
   x mod (a * b) = ((x/b) mod a) * b + (x mod b).
 Proof.
-  intros. rewrite (Z.mul_comm a b). rewrite Z.rem_mul_r by lia. ring. 
+  intros. rewrite (Z.mul_comm a b). rewrite Z.rem_mul_r by lia. ring.
 Qed.
 
 (** Properties of divisibility. *)
@@ -852,7 +852,7 @@ Proof.
   assert (X: rev l2 = rev l2' /\ rev l1 = rev l1').
   { apply list_append_injective_l.
     rewrite <- ! rev_app_distr. congruence.
-    rewrite ! rev_length; auto. }
+    rewrite ! length_rev; auto. }
   rewrite <- (rev_involutive l1), <- (rev_involutive l1'), <- (rev_involutive l2), <- (rev_involutive l2').
   intuition congruence.
 Qed.
