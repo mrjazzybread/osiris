@@ -190,7 +190,7 @@ Definition member_spec '((x, t) : (Z * tree Z)) (m : microvx) :=
 
 (* -------------------------------------------------------------------------- *)
 
-Section Proof.
+Section Proofs.
 
 Variable η : env.
 
@@ -382,7 +382,7 @@ Proof.
       by rewrite Z.eqb_refl. } }
 Qed.
 
-End Proof.
+End Proofs.
 
 (* -------------------------------------------------------------------------- *)
 
