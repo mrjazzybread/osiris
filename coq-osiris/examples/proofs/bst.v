@@ -175,242 +175,251 @@ Fixpoint lookup (x : Z) (t : tree Z) :=
         x =? a
   end.
 
-Definition insert_spec insert :=
-  ∀ (y : Z) (t : tree Z),
-    bst t ->
-    representable y ->
-    pure
-      (call insert #(y, t))
-      (λ (t' : tree Z),
-        ∀ x, lookup x t' = Z.eqb x y || lookup x t) ⊥.
+Definition insert_spec '((y, t) : (Z * tree Z)) (m : microvx) :=
+  bst t ->
+  representable y ->
+  pure m
+    (λ (t' : tree Z),
+      ∀ x, lookup x t' = Z.eqb x y || lookup x t) ⊥.
 
-Definition member_spec member :=
-  ∀ (x : Z) (t : tree Z),
-    bst t ->
-    representable x ->
-    pure
-      (call member #(x, t))
-      (λ (b : bool), b = lookup x t) ⊥.
+Definition member_spec '((x, t) : (Z * tree Z)) (m : microvx) :=
+  bst t ->
+  representable x ->
+  pure m
+    (λ (b : bool), b = lookup x t) ⊥.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Proof *)
+Section Proof.
 
-Lemma Insert_spec :
-  insert_spec
-    (VCloRec stdlib_env
-       [RecBinding
-          "insert"
-          (AnonFunction __branches5)]
-       "insert").
+Variable η : env.
+
+Lemma insert_mkspec insert (x : Z) (t : tree Z) :
+  (lookup_name η "v" = ret #t) ->
+  (lookup_name η "x" = ret #x) ->
+  (lookup_name η "insert" = ret insert) ->
+  bst t ->
+  representable x ->
+  Spec τ[Z * tree Z] insert
+    (λ (x0 : Z * tree Z) (m : microvx),
+      tlt x0.2 (x, t).2 →
+      insert_spec x0 m) ->
+  η ⊢ₚ { EMatch (EPath ["v"]) __branches4
+           ensures λ t' : tree Z, ∀ x0 : Z, lookup x0 t' = (x0 =? x) || lookup x0 t }.
 Proof.
-  unfold insert_spec.
-  intros z t Hbst Hrep.
-
-  (* We need to massage the postcondition so we can generalize the argument for *)
-(*     the recursive call. *)
-  change
-    (λ t' : tree Z,
-       ∀ x : Z,
-        lookup x t' = (Z.eqb x z || lookup x t))
-    with
-    ((λ '(z', t'') (t' : tree Z),
-       ∀ x : Z,
-        lookup x t' = (Z.eqb x z' || lookup x t'')) (z, t)).
-
-  (* Recursion, with decreasing depth of tree. Generalize the hypothesis *)
-(*     that the tree is a bst. *)
-  recursion { measure snd }
-    ∀ (z, t)
-    gen (fun x => bst x.2 /\ representable x.1); first done.
-
-  clear z t Hbst Hrep; intros insert [z t] IH [Hbst Hrep] ;
-    simpl in *; fold eval.
-
-  (* Match to destruct the argument tuple *)
-  eapply pure_eval_match. { pure_path. }
-
-  (* Match on [v] *)
+  intros Hv Hx Hinsert Ht Hrepr IH.
+  eapply @pure_eval_match with (A := tree Z).
+  { apply pure_eval_path. simpl; rewrite Hv. pure_ret. }
   pure_match.
-  eapply pure_eval_match. { pure_path. }
-
-  pure_match.
-
-  (* Case: [v] matches [Leaf] *)
-  { pure_data. cbn. intro.
-    destruct (x <? z) eqn:Hlt; first lia.
-    destruct (z <? x) eqn:Hlt'; first lia.
-    by rewrite orb_false_r. }
-
-  (* If-then-else *)
-  eapply pure_eval_ifthenelse.
-  { inversion Hbst; subst.
-    eapply pure_eval_EOpLt; try pure_path.
-    all: done. }
-
-  (* z < a *)
-  { intros Hlt. apply pure_eval_data.
-    eapply (@pure_evals_cons (tree Z)).
-    eapply (@pure_eval_app (Z * tree Z)).
-    { pure_path. }
-    { eapply (pure_eval_pair _ _ _ (fun '(x,y) => x = z /\ y = t1)).
-      pure_path. pure_path. }
-    intros ? [] -> [-> ->].
-    eapply pure_ret_mono.
-    { eapply IH; cbn.
-      - red; cbn; lia.
-      - inv Hbst; done. }
-
-    intros.
-    eapply (@pure_evals_cons Z). pure_path.
-    eapply (@pure_evals_cons (tree Z)). pure_path.
-    eapply pure_evals_nil.
-
-    exists (Node a0 a t2); split; try done.
-    cbn in *; setoid_rewrite H; intros.
-    destruct (x <? a) eqn:Hla; first done.
-    destruct (a <? x) eqn:Hlt'; try lia.
-    assert (x =? z = false) by lia. rewrite H0; done. }
-
-  (* not (z < a) *)
-  intros Hlt.
-
-  eapply pure_eval_ifthenelse.
-  { inversion Hbst; subst.
-    eapply pure_eval_EOpGt; try pure_path.
-    all: done. }
-
-  (* z > a *)
-  { intros Hgt.
+  - (* Case: [v] matches [Leaf] *)
     apply pure_eval_data.
-    eapply (@pure_evals_cons (tree Z)). pure_path.
-    eapply (@pure_evals_cons Z). pure_path.
-    eapply (@pure_evals_cons (tree Z)).
-    eapply (@pure_eval_app (Z * tree Z)).
-    { pure_path. }
-    { eapply (pure_eval_pair _ _ _ (fun '(x,y) => x = z /\ y = t2)).
-      pure_path. pure_path. }
-    intros ? [] -> [-> ->].
-    eapply pure_ret_mono.
-    { eapply IH; cbn.
-      - red; cbn; lia.
-      - inv Hbst; done. }
+    eapply (@pure_evals_cons (tree Z)). pure_const.
+    eapply (@pure_evals_cons Z).
+    apply pure_eval_path. simpl lookup_path; rewrite Hx. pure_ret.
+    eapply (@pure_evals_cons (tree Z)). pure_const.
+    eapply pure_evals_nil.
+    eexists. split; [ encode | ].
+    intro z; cbn.
+    destruct (z <? x) eqn:Hlt'; first lia.
+    destruct (x <? z) eqn:Hlt; first lia.
+    by rewrite orb_false_r.
+  - (* Case: [v] matches [Node (l, y, r)] *)
+    eapply pure_eval_ifthenelse.
+    { (* Evaluate the condition [x < y] *)
+      inversion Ht; subst.
+      eapply pure_eval_EOpLt; try pure_path.
+      eapply pure_eval_path. simpl; rewrite Hx; pure_ret.
+      assumption. assumption. }
 
-    intros; eapply pure_evals_nil.
+    (* Case: [z < a] *)
+    { intros Hlt.
+      (* Evalute the recursive call under the data construction. *)
+      apply pure_eval_data.
+      eapply (@pure_evals_cons (tree Z)).
+      eapply (pure_EApp τ[(Z * tree Z)]).
+      { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
+      apply pure_eval_pair.
+      { eapply pure_eval_path. simpl lookup_path. rewrite Hx. pure_ret.
+        pure_path. apply eq_refl. }
+      intros [??] Heqp m Hm; fold evals; simpl in Hm.
+      apply pair_equal_spec in Heqp as [-> ->].
+      eapply pure_ret_mono.
+      { apply Hm.
+        - red. cbn. lia.
+        - by inv Ht.
+        - assumption. }
+      intros t' Ht'; simpl in Ht'.
 
-    exists (Node t1 a a0); split; try done.
-    cbn in *; setoid_rewrite H; clear H; intros.
-    destruct (x <? a) eqn:Hla.
-    { assert (x =? z = false) by lia. rewrite H; done. }
-    destruct (a <? x) eqn:Hlx; try lia; done. }
+      eapply (@pure_evals_cons Z). pure_path.
+      eapply (@pure_evals_cons (tree Z)). pure_path.
+      eapply pure_evals_nil.
 
-  (* Last branch. *)
-  intros. assert (z = a) by lia. subst.
-  pure_data. intros. cbn.
-  destruct (x <? a) eqn:Hla.
-  { assert (x =? a = false) by lia; rewrite H0; done. }
-  destruct (a <? x) eqn : Hla'; try lia.
-  assert (x =? a = false) by lia; rewrite H0; done.
+      exists (Node t' a t2); split; try done.
+      cbn; setoid_rewrite Ht'; intros x.
+      destruct (x <? a) eqn:Hla; first done.
+      destruct (a <? x) eqn:Hlt'; try lia.
+      assert (x =? z = false) as Heqf by lia. by rewrite Heqf. }
+
+    (* Case: [¬ (z < a)] *)
+    { intros Hge.
+      eapply pure_eval_ifthenelse.
+      { inversion Ht; subst.
+        eapply pure_eval_EOpGt; try pure_path.
+        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+        assumption. assumption. }
+
+      (* Subcase: [ ¬ (x < a)] *)
+      { intros Hgt.
+        apply pure_eval_data.
+        eapply (@pure_evals_cons (tree Z)). pure_path.
+        eapply (@pure_evals_cons Z). pure_path.
+        eapply (@pure_evals_cons (tree Z)).
+        eapply (pure_EApp τ[(Z * tree Z)%type]).
+        { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
+        { eapply pure_eval_pair.
+          { eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+            pure_path. apply eq_refl. } }
+        intros [??] Heqp m Hm; simpl in Hm.
+        apply pair_equal_spec in Heqp as [-> ->].
+        eapply pure_ret_mono.
+        { apply Hm.
+          - red; cbn; lia.
+          - inv Ht; done.
+          - assumption. }
+        intros t' Ht'; simpl in Ht'.
+        apply pure_evals_nil.
+
+        exists (Node t1 a t'); split; try done.
+        cbn in *; setoid_rewrite Ht'; clear Ht'; intros x.
+        destruct (x <? a) eqn:Hla.
+        { assert (x =? z = false) as Heqf by lia.
+          rewrite Heqf; done. }
+        destruct (a <? x) eqn:Hlx; try lia; done. }
+
+      (* Subcase: [¬ (x > a)] . *)
+      intros. assert (x = a) by lia. subst.
+      pure_data. intros x. cbn.
+      destruct (x <? a) eqn:Hla.
+      { assert (x =? a = false) by lia; rewrite H0; done. }
+      destruct (a <? x) eqn : Hla'; try lia.
+      assert (x =? a = false) by lia; rewrite H0; done. }
 Qed.
 
-Lemma Member_spec insert :
-  insert_spec insert ->
-  member_spec
-    (VCloRec
-       ("insert" ~> insert; stdlib_env)
-       [RecBinding "member" (AnonFunction __branches12)]
-       "member").
+Lemma member_mkspec member (x : Z) (t : tree Z) :
+  (lookup_name η "v" = ret #t) ->
+  (lookup_name η "x" = ret #x) ->
+  (lookup_name η "member" = ret member) ->
+  bst t ->
+  representable x ->
+  Spec τ[Z * tree Z] member
+    (λ (x0 : Z * tree Z) (m : microvx),
+      tlt x0.2 (x, t).2 → member_spec x0 m) ->
+  η ⊢ₚ { EMatch (EPath ["v"]) __branches11
+           ensures λ b : bool, b = lookup x t }.
 Proof.
-  unfold member_spec.
-  intros Hinsert z t Hbst Hrep.
-
-  (* We need to massage the postcondition so we can generalize the argument for *)
-(*     the recursive call. *)
-  change
-    (λ (b : bool), b = lookup z t) with
-    ((λ '(z', t'') (b : bool), b = lookup z' t'') (z, t)).
-
-  (* Recursion, with decreasing depth of tree. Generalize the hypothesis
-     that the tree is a bst. *)
-  recursion { measure snd }
-    ∀ (z, t)
-    gen (fun x => bst x.2 /\ representable x.1);
-    first done.
-
-  clear z t Hbst Hrep; intros member [z t] IH [Hbst Hrep];
-    simpl in *; fold eval.
-
-  (* Match to destruct the argument tuple *)
-  eapply pure_eval_match. { pure_path. }
-
-  (* Match on [v] *)
+  intros Hv Hx Hmember Ht Hrepr IH.
+  eapply pure_eval_match.
+  { eapply pure_eval_path. simpl. rewrite Hv. pure_ret. }
   pure_match.
-  eapply pure_eval_match. { pure_path. }
+  (* The case when [v] is a [Leaf] is trivial. *)
+  pure_data.
 
-  pure_match; first pure_data.
-
-  (* If-then-else *)
+  (* Now we prove that case where [v] is some [Node (l, y, r)] *)
+  rename a into y.
   eapply pure_eval_ifthenelse.
-  { inversion Hbst; subst.
+  { inversion Ht; subst.
     eapply pure_eval_EOpLt; try pure_path.
-    all: done. }
+    eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+    assumption. assumption. }
 
-  (* z < a *)
+  (* Case: [x < y] *)
   { intros Hlt.
-    eapply (@pure_eval_app (Z * tree Z)).
-    { pure_path. }
-    { eapply (pure_eval_pair _ _ _ (fun '(x,y) => x = z /\ y = t1)).
-      pure_path. pure_path. }
-    intros ? [] -> [-> ->].
+    eapply (pure_EApp τ[(Z * tree Z)%type]).
+    { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
+    { eapply pure_eval_pair.
+      eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+      pure_path. apply eq_refl. }
+    intros [??] Heqp m Hm; simpl in Hm.
+    apply pair_equal_spec in Heqp as [-> ->].
     eapply pure_ret_mono.
-    { eapply IH; cbn.
+    { eapply Hm; cbn.
       - red; cbn; lia.
-      - inv Hbst; done. }
-    intros ? ->. cbn. destruct (z <? a) eqn:Hla; first done; lia. }
-
-  (* not (z < a) *)
-  intros Hlt.
-
-  eapply pure_eval_ifthenelse.
-  { inversion Hbst; subst.
-    eapply pure_eval_EOpGt; try pure_path.
-    all: done. }
-
-  (* z > a *)
-  { intros Hgt.
-    eapply (@pure_eval_app (Z * tree Z)).
-    { pure_path. }
-    { eapply (pure_eval_pair _ _ _ (fun '(x,y) => x = z /\ y = t2)).
-      pure_path. pure_path. }
-    intros ? [] -> [-> ->].
-    eapply pure_ret_mono.
-    { eapply IH; cbn.
-      - red; cbn; lia.
-      - inv Hbst; done. }
-
+      - inv Ht; done.
+      - assumption. }
     intros ? ->. cbn.
-    assert (z <? a = false) by lia; rewrite H.
-    assert (a <? z = true) by lia; rewrite H0. done. }
+    destruct (z <? y) eqn:Hla; first done; lia. }
 
-  (* not z > a *)
-  { intros Hgt. pure_data. cbn.
-    assert (z <? a = false /\ a <? z = false /\ z =? a = true) by lia.
-    destruct H as (->&->&->); tauto. }
+  { (* Case: [¬ (x < y)] *)
+    intros Hge.
+    eapply pure_eval_ifthenelse.
+    { inversion Ht; subst.
+      eapply pure_eval_EOpGt; try pure_path.
+      apply pure_eval_path. simpl. rewrite Hx. pure_ret.
+      assumption. assumption. }
+
+    (* Subcase: [x > y] *)
+    { intros Hgt.
+      eapply (pure_EApp τ[(Z * tree Z)]).
+      { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
+      { eapply pure_eval_pair.
+        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+        pure_path. apply eq_refl. }
+      intros [??] Heqp m Hm.
+      apply pair_equal_spec in Heqp as [-> ->].
+      eapply pure_ret_mono.
+      { eapply Hm; cbn.
+        - red; cbn; lia.
+        - inv Ht; done.
+        - assumption. }
+      intros ? ->. cbn.
+      assert (z <? y = false) by lia; rewrite H.
+      assert (y <? z = true) by lia; rewrite H0. done. }
+
+    (* Subcase : [¬ (x > a)] *)
+    { intros Hle. pure_const.
+      assert (x = y) as -> by lia.
+      cbn. rewrite Z.ltb_irrefl.
+      by rewrite Z.eqb_refl. } }
 Qed.
+
+End Proof.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma BstSpec :
-  toplevel __main
-    (env_has_pspecs [("insert", insert_spec); ("member", member_spec)]).
+
+Lemma Module__spec :
+  eval_module stdlib_env __main (λ _, True).
 Proof.
   apply module_struct.
-  next_item.
-  { apply Insert_spec. }
-  intros [??] (insert & Hinsert & -> & ->).
-  next_item with member_spec.
-  { eapply Member_spec. done. }
-  intros [??] (lookup & Hlookup & -> & ->).
+  eapply (@structs_letrec τ[(Z * tree Z)]) with
+    (P := insert_spec).
+  { repeat eexists. }
+  { instantiate (1 := λ a b, tlt (snd a) (snd b)).
+    apply wf_inverse_image.
+    apply tree_wf. }
+  { simpl; fold eval; unfold insert_spec at 2.
+    intros insert [x t] IH Ht Hrepr.
+    eapply @pure_eval_match with (A := (Z * tree Z)%type).
+    { pure_path. eapply solve_encode_tuple2; try encode. }
+    pure_match.
+    eapply insert_mkspec; auto. }
+
+  intros insert Hinsert.
+  eapply (@structs_letrec τ[(Z * tree Z)]) with
+    (P := member_spec).
+  { repeat eexists. }
+  { instantiate (1 := λ a b, tlt (snd a) (snd b)).
+    apply wf_inverse_image.
+    apply tree_wf. }
+  { simpl; fold eval; unfold member_spec at 2.
+    intros member [x t] IH Ht Hrepr.
+    eapply @pure_eval_match with (A := (Z * tree Z)%type).
+    { pure_path. eapply solve_encode_tuple2; try encode. }
+    pure_match.
+    eapply member_mkspec; auto. }
+
+  intros member Hmember.
   finished_struct.
-  simpl. repeat split; auto.
+
+  done.
 Qed.

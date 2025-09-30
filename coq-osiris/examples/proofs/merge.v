@@ -42,9 +42,9 @@ Local Ltac all_inversions :=
 
 Lemma even_false_odd_true n : Nat.even n = false <-> Nat.odd n = true.
 Proof.
-  split;
-    [rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd];
-    [ apply negb_true_iff; auto   | apply negb_false_iff; auto ].
+  split; intros Hn;
+    [ rewrite <- Nat.negb_even | rewrite <- Nat.negb_odd ];
+    by rewrite Hn.
 Qed.
 
 Local Hint Resolve even_false_odd_true : arith.
@@ -119,11 +119,11 @@ Definition merge_spec (l1 : list Z) (l2 : list Z) (m : microvx) : Prop :=
 
 (* Specification for [split l]. *)
 
-Local Definition split_post {A} :=
-  (fun (l : list A) p => (if Nat.even (length l)
-            then length p.1 = Nat.div2 (length l)
-            else length p.1 = S (Nat.div2 (length l)))
-           /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l).
+Local Definition split_post {A} (l : list A) p :=
+  (if Nat.even (length l)
+   then length p.1 = Nat.div2 (length l)
+   else length p.1 = S (Nat.div2 (length l)))
+  /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l.
 
 Definition split_spec `{Encode A} (l : list A) (m : microvx) : Prop :=
   pure m (split_post l) ⊥.
@@ -149,15 +149,6 @@ Definition mergesort_spec' (l : list Z) (e : microvx) : Prop :=
   pure e (mergesort_post l) ⊥.
 
 (* -------------------------------------------------------------------------- *)
-
-Local Ltac trivial_pure := repeat (first [ pure_path | pure_data | pure_const]).
-
-Local Ltac pure_EOpLe :=
-  eapply pure_eval_EOpLe;
-  [ trivial_pure; reflexivity
-  | trivial_pure; reflexivity
-  |
-  | ].
 
 (* Pure, Hoare-Style Specification proofs. *)
 
@@ -194,7 +185,9 @@ Proof.
 
    eapply pure_eval_ifthenelse.
    { (* Evaluate expression "h1 <= h2" *)
-     pure_EOpLe; repeat Forall_inversion; auto. }
+     apply pure_eval_EOpLe. pure_path. pure_path.
+     repeat Forall_inversion; assumption.
+     repeat Forall_inversion; assumption. }
    { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
      intros.
      eapply pure_eval_data. eapply pure_evals_cons.
