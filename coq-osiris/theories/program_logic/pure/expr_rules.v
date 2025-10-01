@@ -129,6 +129,25 @@ Proof.
   intros; cbn. by apply pure_throw.
 Qed.
 
+Lemma pure_evals_singleton `{Encode A}
+  η (e : expr) (φ : list val -> Prop) ψ:
+  pure (A := A) (eval η e) (fun v => φ [#v]) ψ  ->
+  pure (evals η [e]) φ ψ.
+Proof.
+  intro He.
+  simpl_evals.
+  eapply pure_wp_Par_conseq. apply He. apply pure_wp_ret. apply eq_refl.
+  intros v vs Hφ <-.
+  unfold continue; simpl.
+  apply pure_wp_ret. unfold returns.
+  destruct Hφ as (?&?&?).
+  eexists [#x]. simpl. split; [ f_equal | ]; auto.
+  intros ex Hex.
+  unfold discontinue; simpl.
+  apply pure_wp_throw.
+  destruct Hex as [Hex | Hex]; exact Hex.
+Qed.
+
 Lemma pure_evals_nil η (φ : list val -> Prop) ψ:
   φ [] ->
   pure (evals η nil) φ ψ.
