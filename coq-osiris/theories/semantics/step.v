@@ -109,6 +109,15 @@ Local Hint Extern 1 (_ = _) =>
   exploit_location_lookup
 : exploit_location_lookup.
 
+(* [destruct_stuck_cases] destructs the nested disjunction resulting from
+   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
+   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
+   (covering Fork, Join, Self, Die). For the concurrent case, the code must
+   be further destructed to determine which specific concurrent operation it is. *)
+
+Local Ltac destruct_stuck_cases H :=
+  destruct H as [(? & ?)| [(? & ?) | [(? & ? & ?) | (? & ? & ? & ? & ? & ? & (? & ?))]]].
+
 (* -------------------------------------------------------------------------- *)
 
 (* [step_load σ l k] is the right-hand side of the reduction rule [StepLoad].
@@ -462,55 +471,19 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Par m1 (Stop CPerf e k) h)
         (σ, Stop CPerf e (λ o, Par m1 (k o) h))
 
-  (* If [Stop (fork v1 v2) k] appears under the context [Par _ m2 h] then
-     it similarly captures the evaluation context frame. *)
-  | StepParForkLeft :
-    ∀ {A1 A2 E'} σ m2 x k (h : outcome2 (A1 * A2) E' -> _),
+  | StepParConcLeft :
+    ∀ {X Y E A1 A2 E'} σ m2 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
+      is_concurrent_code c ->
       step
-        (σ, Par (Stop CFork x k) m2 h)
-        (σ, Stop CFork x (λ o, Par (k o) m2 h))
+        (σ, Par (Stop c x k) m2 h)
+        (σ, Stop c x (λ o, Par (k o) m2 h))
 
-  | StepParForkRight :
-    ∀ {A1 A2 E'} σ m1 x k (h : outcome2 (A1 * A2) E' -> _),
+  | StepParConcRight :
+    ∀ {X Y E A1 A2 E'} σ m1 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
+      is_concurrent_code c ->
       step
-        (σ, Par m1 (Stop CFork x k) h)
-        (σ, Stop CFork x (λ o, Par m1 (k o) h))
-
-  | StepParJoinLeft :
-    ∀ {A1 A2 E'} σ m2 i k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par (Stop CJoin i k) m2 h)
-        (σ, Stop CJoin i (λ o, Par (k o) m2 h))
-
-  | StepParJoinRight :
-    ∀ {A1 A2 E'} σ m1 i k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par m1 (Stop CJoin i k) h)
-        (σ, Stop CJoin i (λ o, Par m1 (k o) h))
-
-  | StepParSelfLeft :
-    ∀ {A1 A2 E'} σ m2 u k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par (Stop CSelf u k) m2 h)
-        (σ, Stop CSelf u (λ o, Par (k o) m2 h))
-
-  | StepParSelfRight :
-    ∀ {A1 A2 E'} σ m1 u k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par m1 (Stop CSelf u k) h)
-        (σ, Stop CSelf u (λ o, Par m1 (k o) h))
-
-  | StepParDieLeft :
-    ∀ {A1 A2 E'} σ m2 o k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par (Stop CDie o k) m2 h)
-        (σ, Stop CDie o (λ o, Par (k o) m2 h))
-
-  | StepParDieRight :
-    ∀ {A1 A2 E'} σ m1 o k (h : outcome2 (A1 * A2) E' -> _),
-      step
-        (σ, Par m1 (Stop CDie o k) h)
-        (σ, Stop CDie o (λ o, Par m1 (k o) h))
+        (σ, Par m1 (Stop c x k) h)
+        (σ, Stop c x (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
   | StepParLeft :
@@ -950,11 +923,11 @@ Proof.
   destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* If [c] is not [CPerf _] or [CFork _], then [Stop c x k] can step. *)
+(* If [c] is not [CPerf _] or a concurrent step, [Stop c x k] can step. *)
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerf => False | CFork => False | CJoin => False | CSelf => False | CDie => False | _ => True end →
+  match c with | CPerf => False | _ => True end ∧ not (is_concurrent_code c)  ->
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -1036,9 +1009,12 @@ Proof.
     + (* Analyze [m2]. *)
       destruct m2; eauto using can_step_under_par with step.
       (* We are now looking at [Stop] under [Par]. *)
-      destruct c; eauto using can_step_under_par with step.
+      destruct c; eauto 6 using can_step_under_par with step;
+        (* All the remaining codes are concurrent. *)
+        by eexists; eapply StepParConcRight.
     + (* We are now looking at [Stop] under [Par]. *)
-      destruct c; eauto using can_step_under_par with step.
+      destruct c; eauto 6 using can_step_under_par with step;
+        by eexists; eapply StepParConcLeft.
   }
 
 Qed.
@@ -1255,15 +1231,12 @@ Qed.
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
-Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck {A E} σ m :
+Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
   (∃ s, m = Crash s) ∨
     (∃ e, m = Throw e) ∨
     (∃ e k, m = Stop CPerf e k) ∨
-    (∃ x k, m = Stop CFork x k) ∨
-    (∃ i k, m = Stop CJoin i k) ∨
-    (∃ u k, m = Stop CSelf u k) ∨
-    (∃ o k, m = Stop CDie o k).
+    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ is_concurrent_code c).
 Proof.
   intros.
   destruct m; try solve [
@@ -1273,15 +1246,16 @@ Proof.
   ].
   (* The case of [Stop] remains. *)
   destruct_code; try solve [
-    eauto 9
-  | exfalso; eauto using can_step_not_stuck with step
+      eauto 9
+    | exfalso; eauto using can_step_not_stuck with step
+    | do 3 right; repeat eexists
   ].
 Qed.
 
 (* TODO could we use this lemma
    and avoid reasoning with [stuck],
    which introduces painful negations? *)
-Lemma only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck' {A E} σ (m : micro A E) :
+Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash _ | Throw _
   | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ | Stop CDie _ _ =>
@@ -1301,10 +1275,15 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_and_fork_and_join_and_self_and_die_are_stuck in Hstuck.
-  destruct Hstuck as [(s & ?)| [(e & ?) | [ (e & k & ?) | [ (x & k & ?) | [ (i & k & ?) | [(u & k & ?) | (o & k & ?)]]]]]];
-    subst m; simpl bind;
-    eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self.
+  apply only_crash_and_throw_and_perform_and_concurrent_are_stuck in Hstuck.
+  destruct_stuck_cases Hstuck; subst m; simpl bind.
+  - (* Crash *) apply stuck_Crash.
+  - (* Throw *) apply stuck_Throw.
+  - (* Perform *) apply stuck_Perform.
+  - (* Concurrent *)
+    match goal with c: code _ _ _ |- _ => destruct c end;
+    try contradiction; (* eliminate non-concurrent codes *)
+    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Die.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1336,7 +1315,9 @@ Lemma triplicity {A E} σ (m : micro A E) :
   stuck (σ, m).
 Proof.
   destruct m; try destruct_code;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self with step.
+  try solve [left; eauto];  (* Ret case *)
+  try solve [right; left; eauto with step];  (* can_step cases *)
+  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self].  (* stuck cases *)
 Qed.
 
 Ltac triplicity σ m H :=

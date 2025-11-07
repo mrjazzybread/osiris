@@ -83,6 +83,12 @@ Inductive code : Type → Type → Type → Type :=
 | CDie : code (outcome2 val exn) val exn
 .
 
+Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
+  match c with
+  | CFork | CJoin | CSelf | CDie => True
+  | _ => False
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Instantiate the monad with this specific type of codes. *)
