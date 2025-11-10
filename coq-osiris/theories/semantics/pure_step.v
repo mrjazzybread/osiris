@@ -47,7 +47,9 @@ Proof.
     (* [Stop CFlip] *)
     destruct b; constructor.
     (* [fork], [join], and [perform] under [Par] and [Handle]. *)
-    all: inv_ipure.
+    all: try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
 Qed.
 
 (** For pure computations [may m m'] is equivalent to [∃ σ  (σ, m) → (σ, m')] *)
@@ -64,7 +66,9 @@ Proof.
     revert σ m m' Heqc Heqc' P.
     induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto;
       first (destruct b; constructor);
-      inv_ipure.
+      try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
 Qed.
 
 Local Lemma ipure_dec {A E} (m : micro A E) : ipure m ∨ ~ipure m.
