@@ -182,7 +182,7 @@ Section ewp_stop.
     iPoseProof (valid_thread_valid with "Hti Hι") as "%Hvalid".
     discharge_pure (apply elem_of_dom).
     intro_step. destruct_wp_step.
-    iPoseProof (recognize_dead_thread π' ι o H with "Hι") as "Hdead".
+    iDestruct (recognize_dead_thread π' ι o H with "Hti Hι") as "[Hti #Hdead]".
     iModIntro.
 
     ewp_mask_elim. iFrame.

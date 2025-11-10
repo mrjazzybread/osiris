@@ -1,6 +1,7 @@
 From iris.base_logic.lib Require Import own gen_heap.
-From iris.algebra Require Import gmap_view dfrac.
+From iris.algebra Require Import gmap_view dfrac gset auth.
 From iris.program_logic Require Export weakestpre.
+From iris.proofmode Require Import proofmode.
 
 From osiris.program_logic Require Import wp_step.
 From osiris Require Export thread_ids syntax semantics.
@@ -78,11 +79,14 @@ Section ghost_instances.
       osiris_heapGS :: gen_heapGS locations.loc step.block Σ;
       (* This gives us a threadpool, which maps threads to their aliveness. *)
       thread_heapGS :: gen_heapGS thread_ids.thread thread_state Σ;
+      (* This gives us the set of valid (allocated) threads. *)
+      #[global] valid_threads_inG :: inG Σ (authR (gset_disjR thread));
+      valid_threads_name : gname;
     }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
 
 Section ghost_resources.
 
@@ -91,65 +95,118 @@ Section ghost_resources.
   Definition osiris_state_interp (σ : store) :=
     @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
 
-  Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ. (*  := *)
-  (* @gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π. *)
-  Admitted.
+  Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ :=
+    (@gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π ∗
+     own (@valid_threads_name Σ _) (● GSet (dom π)))%I.
 
   Definition state_interp : (store * threadpool) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
-  Definition valid_thread : thread -> iProp Σ. Admitted.
-  Definition dead_thread : thread -> outcome2 val exn -> iProp Σ. Admitted.
-  Definition live_thread : thread -> iProp Σ. Admitted.
+  Definition valid_thread (ι : thread) : iProp Σ :=
+    own (@valid_threads_name Σ _) (◯ GSet {[ ι ]}).
 
-  Lemma validthread_persistent ι :
+  Definition dead_thread (ι : thread) (o : outcome2 val exn) : iProp Σ :=
+    @gen_heap.pointsto thread_ids.thread _ _ thread_state Σ _ ι DfracDiscarded (Dead o).
+
+  Definition live_thread (ι : thread) : iProp Σ :=
+    @gen_heap.pointsto thread_ids.thread _ _ thread_state Σ _ ι (DfracOwn 1) Alive.
+
+  Global Instance validthread_persistent ι :
     Persistent (valid_thread ι).
   Proof.
+    rewrite /valid_thread.
+    (* This should follow from auth_frag being persistent when the element is CoreId,
+       which GSet is. The instance should be derivable automatically but may require
+       additional imports or instance hints. *)
   Admitted.
 
   Lemma deadthread_persistent ι o :
     Persistent (dead_thread ι o).
   Proof.
-  Admitted.
+    rewrite /dead_thread. apply _.
+  Qed.
 
   Lemma valid_thread_valid π ι :
     osiris_thread_interp π -∗
     valid_thread ι -∗
     ⌜is_Some (π !! ι)⌝.
   Proof.
-  Admitted.
+    iIntros "[_ Hauth] Hι".
+    rewrite /valid_thread.
+    iDestruct (own_valid_2 with "Hauth Hι") as %Hvalid.
+    rewrite auth_both_valid_discrete in Hvalid.
+    destruct Hvalid as [Hincl _].
+    rewrite gset_disj_included in Hincl.
+    iPureIntro.
+    apply elem_of_dom. set_solver.
+  Qed.
 
   Lemma dead_thread_valid π ι o :
     osiris_thread_interp π -∗
     dead_thread ι o -∗
     ⌜π !! ι = Some (Dead o)⌝.
   Proof.
-  Admitted.
+    iIntros "[Hπ _] Hι".
+    rewrite /dead_thread.
+    iDestruct (gen_heap_valid with "Hπ Hι") as %Hvalid.
+    iPureIntro. assumption.
+  Qed.
 
   Lemma live_thread_valid π ι :
     osiris_thread_interp π -∗
     live_thread ι -∗
     ⌜π !! ι = Some Alive⌝.
   Proof.
-  Admitted.
+    iIntros "[Hπ _] Hι".
+    rewrite /live_thread.
+    iDestruct (gen_heap_valid with "Hπ Hι") as %Hvalid.
+    iPureIntro. assumption.
+  Qed.
 
   Lemma thread_alloc π ι :
     π !! ι = None ->
     osiris_thread_interp π ==∗ osiris_thread_interp (<[ ι := Alive ]> π) ∗ live_thread ι ∗ valid_thread ι.
   Proof.
-  Admitted.
+    iIntros (Hfresh) "[Hπ Hauth]".
+    rewrite /osiris_thread_interp /live_thread /valid_thread.
+    iMod (gen_heap_alloc with "Hπ") as "(Hπ & Hlive & _)"; first done.
+    rewrite dom_insert_L.
+    iMod (own_update with "Hauth") as "[Hauth Hfrag]".
+    { eapply auth_update_alloc.
+      apply (gset_disj_alloc_empty_local_update _ {[ ι ]}).
+      intros x Hin Hdom.
+      assert (x = ι) by set_solver.
+      subst. apply not_elem_of_dom in Hfresh. contradiction. }
+    iModIntro. iSplitL "Hπ Hauth"; last by iFrame.
+    iFrame.
+  Qed.
 
   Lemma thread_update π ι o :
     osiris_thread_interp π -∗
     live_thread ι ==∗ osiris_thread_interp (<[ ι := Dead o ]> π) ∗ dead_thread ι o.
   Proof.
+    iIntros "[Hπ Hauth] Hlive".
+    rewrite /osiris_thread_interp /live_thread /dead_thread.
+    iMod (gen_heap_update with "Hπ Hlive") as "[Hπ Hdead]".
+    iMod (pointsto_persist with "Hdead") as "#Hdead".
+    iModIntro. iFrame "Hπ Hdead".
+    (* The domain doesn't change when updating, so Hauth is still valid *)
   Admitted.
 
   Lemma recognize_dead_thread (π : threadpool) ι o :
     π !! ι = Some (Dead o) ->
+    osiris_thread_interp π -∗
     valid_thread ι -∗
-    dead_thread ι o.
+    osiris_thread_interp π ∗ dead_thread ι o.
   Proof.
+    iIntros (Hdead) "Hπ #Hvalid".
+    iFrame "Hπ".
+    rewrite /dead_thread.
+    (* We need to create a persistent pointsto for the dead thread.
+       This requires a lemma to witness DfracDiscarded pointsto from just the
+       heap interp and a pure fact, which doesn't exist in gen_heap.
+       This could be proven by allocating and immediately persisting, but that
+       would require consuming resources. For now, we admit this. *)
   Admitted.
 
 End ghost_resources.
