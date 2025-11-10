@@ -823,75 +823,79 @@ Section ewp_rules.
       iNext.
       iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
-    { (* [StepParForkLeft] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      destruct x.
-      rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (ForkS _ _ _ _ _ _ _ H).
-      iSpecialize ("H1" $! _ _ _ _ H0).
-      ewp_mask_elim. iMod "H1" as "($ & H1 & $)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+    { (* [StepParConcLeft]. *)
+      destruct_code.
+      - (* Step then [ForkS]. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        destruct x.
+        rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (ForkS _ _ _ _ _ _ _ H0).
+        iSpecialize ("H1" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H1" as "($ & H1 & $)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParForkRight] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      destruct x.
-      rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (ForkS _ _ _ _ _ _ _ H).
-      iSpecialize ("H2" $! _ _ _ _ H0).
-      ewp_mask_elim. iMod "H2" as "($ & H2 & $)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      - (* Step then [JoinS]. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (JoinS _ _ _ _ _ _ H0).
+        iSpecialize ("H1" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParJoinLeft] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      rewrite (ewp_unfold (Stop CJoin i _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (JoinS _ _ _ _ _ _ H).
-      iSpecialize ("H1" $! _ _ _ _ H0).
-      ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      - (* Step then [SelfS]. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (SelfS _ _ _ _ _).
+        iSpecialize ("H1" $! _ _ _ _ H0).
+        ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParJoinRight] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      rewrite (ewp_unfold (Stop CJoin i _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (JoinS _ _ _ _ _ _ H).
-      iSpecialize ("H2" $! _ _ _ _ H0).
-      ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      - (* Step then die. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        iApply (ewp_die_mono with "H1"). }
 
-    { (* [StepParSelfLeft] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      rewrite (ewp_unfold (Stop CSelf u _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (SelfS _ _ _ _ _).
-      iSpecialize ("H1" $! _ _ _ _ H).
-      ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+    { (* [StepParConcRight]. *)
+      destruct_code.
+      - (* [StepParForkRight] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        destruct x.
+        rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (ForkS _ _ _ _ _ _ _ H0).
+        iSpecialize ("H2" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H2" as "($ & H2 & $)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParSelfRight] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      rewrite (ewp_unfold (Stop CSelf u _)) /ewp_pre /=.
-      ewp_unfold_head. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (SelfS _ _ _ _ _).
-      iSpecialize ("H2" $! _ _ _ _ H).
-      ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      - (* [StepParJoinRight] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (JoinS _ _ _ _ _ _ H0).
+        iSpecialize ("H2" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParDieLeft] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iApply (ewp_die_mono with "H1"). }
+      - (* [StepParSelfRight] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (SelfS _ _ _ _ _).
+        iSpecialize ("H2" $! _ _ _ _ H0).
+        ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
-    { (* [StepParDieRight] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iApply (ewp_die_mono with "H2"). }
+      - (* [StepParDieRight] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        iApply (ewp_die_mono with "H2"). }
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.

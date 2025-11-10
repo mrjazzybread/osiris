@@ -212,7 +212,18 @@ Definition loop (η : env) (x : var) (i1 : int) (i2 : int) (e : expr) :=
    the hypotheses. *)
 
 Ltac destruct_code :=
-  match goal with c: C.code _ _ _ |- _ => destruct c end.
+  match goal with
+  | c: C.code _ _ _ |- _ =>
+      match goal with
+      | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | _ => destruct c
+      end
+  | c: code _ _ _ |- _ =>
+      match goal with
+      | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | _ => destruct c
+      end
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
