@@ -82,11 +82,14 @@ Section ghost_instances.
       (* This gives us the set of valid (allocated) threads. *)
       #[global] valid_threads_GS :: ghost_mapG Σ thread unit;
       valid_threads_name : gname;
+      (* This gives us persistent witnesses for dead threads. *)
+      #[global] dead_threads_GS :: ghost_mapG Σ thread (outcome2 val exn);
+      dead_threads_name : gname;
     }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _ _ _} : assert.
 
 Section ghost_resources.
 
@@ -95,9 +98,15 @@ Section ghost_resources.
   Definition osiris_state_interp (σ : store) :=
     @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
 
+  (* Extract dead threads from threadpool *)
+  Definition dead_threads_of (π : gmap thread thread_state) : gmap thread (outcome2 val exn) :=
+    omap (λ s, match s with Dead o => Some o | Alive => None end) π.
+
   Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ :=
     (@gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π ∗
-     ghost_map_auth (@valid_threads_name Σ _) 1 (gset_to_gmap () (dom π : gset thread)))%I.
+     ghost_map_auth (@valid_threads_name Σ _) 1 (gset_to_gmap () (dom π : gset thread)) ∗
+     ghost_map_auth (@dead_threads_name Σ _) 1 (dead_threads_of π) ∗
+     [∗ map] ι ↦ o ∈ dead_threads_of π, ι ↪[(@dead_threads_name Σ _)]□ o)%I.
 
   Definition state_interp : (store * threadpool) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
@@ -106,7 +115,7 @@ Section ghost_resources.
     ι ↪[(@valid_threads_name Σ _)]□ ().
 
   Definition dead_thread (ι : thread) (o : outcome2 val exn) : iProp Σ :=
-    @gen_heap.pointsto thread_ids.thread _ _ thread_state Σ _ ι DfracDiscarded (Dead o).
+    ι ↪[(@dead_threads_name Σ _)]□ o.
 
   Definition live_thread (ι : thread) : iProp Σ :=
     @gen_heap.pointsto thread_ids.thread _ _ thread_state Σ _ ι (DfracOwn 1) Alive.
@@ -117,7 +126,7 @@ Section ghost_resources.
     rewrite /valid_thread. apply _.
   Qed.
 
-  Lemma deadthread_persistent ι o :
+  Global Instance deadthread_persistent ι o :
     Persistent (dead_thread ι o).
   Proof.
     rewrite /dead_thread. apply _.
@@ -128,7 +137,7 @@ Section ghost_resources.
     valid_thread ι -∗
     ⌜is_Some (π !! ι)⌝.
   Proof.
-    iIntros "[_ Hauth] Hι".
+    iIntros "[_ [Hauth [_ _]]] Hι".
     iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
     iPureIntro.
     apply lookup_gset_to_gmap_Some in Hlookup as [Hin _].
@@ -140,10 +149,15 @@ Section ghost_resources.
     dead_thread ι o -∗
     ⌜π !! ι = Some (Dead o)⌝.
   Proof.
-    iIntros "[Hπ _] Hι".
-    rewrite /dead_thread.
-    iDestruct (gen_heap_valid with "Hπ Hι") as %Hvalid.
-    iPureIntro. assumption.
+    iIntros "[_ [_ [Hauth _]]] Hι".
+    rewrite /dead_thread /dead_threads_of.
+    iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
+    iPureIntro.
+    (* Hlookup : dead_threads_of π !! ι = Some o *)
+    (* Need to show: π !! ι = Some (Dead o) *)
+    apply lookup_omap_Some in Hlookup as [s [Hs Hmatch]].
+    destruct s as [|o']; simpl in Hmatch; [discriminate|].
+    simplify_eq. subst. assumption.
   Qed.
 
   Lemma live_thread_valid π ι :
@@ -161,7 +175,7 @@ Section ghost_resources.
     π !! ι = None ->
     osiris_thread_interp π ==∗ osiris_thread_interp (<[ ι := Alive ]> π) ∗ live_thread ι ∗ valid_thread ι.
   Proof.
-    iIntros (Hfresh) "[Hπ Hauth]".
+    iIntros (Hfresh) "[Hπ [Hauth [Hdead_auth #Hdead_frags]]]".
     rewrite /osiris_thread_interp /live_thread /valid_thread.
     iMod (gen_heap_alloc with "Hπ") as "(Hπ & Hlive & _)"; first done.
     rewrite dom_insert_L.
@@ -169,24 +183,45 @@ Section ghost_resources.
     { rewrite lookup_gset_to_gmap_None. apply not_elem_of_dom. assumption. }
     rewrite gset_to_gmap_union_singleton.
     iMod (ghost_map_elem_persist with "Hfrag") as "#Hfrag".
-    iModIntro. by iFrame.
+    (* dead_threads_of doesn't change when adding Alive *)
+    assert (dead_threads_of (<[ι:=Alive]> π) = dead_threads_of π) as Homap.
+    { rewrite /dead_threads_of. apply map_eq. intros j. rewrite !lookup_omap.
+      destruct (decide (j = ι)) as [->|].
+      - rewrite lookup_insert. rewrite Hfresh. reflexivity.
+      - rewrite lookup_insert_ne //. }
+    rewrite Homap.
+    iModIntro. by iFrame "Hπ Hauth Hlive Hfrag Hdead_auth Hdead_frags".
   Qed.
 
   Lemma thread_update π ι o :
     osiris_thread_interp π -∗
     live_thread ι ==∗ osiris_thread_interp (<[ ι := Dead o ]> π) ∗ dead_thread ι o.
   Proof.
-    iIntros "[Hπ Hauth] Hlive".
+    iIntros "[Hπ [Hvalid [Hdead_auth #Hdead_frags]]] Hlive".
     rewrite /osiris_thread_interp /live_thread /dead_thread.
     iDestruct (gen_heap_valid with "Hπ Hlive") as %Hlookup.
-    iMod (gen_heap_update with "Hπ Hlive") as "[Hπ Hdead]".
-    iMod (pointsto_persist with "Hdead") as "#Hdead".
-    iModIntro. iFrame "Hπ Hdead".
-    (* The domain doesn't change when updating a value, only when inserting/deleting *)
+    iMod (gen_heap_update with "Hπ Hlive") as "[Hπ _]".
+    (* Insert into dead_threads map *)
+    iMod (ghost_map_insert ι o with "Hdead_auth") as "[Hdead_auth Hdead_frag]".
+    { rewrite /dead_threads_of lookup_omap Hlookup /=. reflexivity. }
+    iMod (ghost_map_elem_persist with "Hdead_frag") as "#Hdead_frag".
+    (* Update dead_threads_of and big_sepM *)
+    assert (dead_threads_of (<[ι:=Dead o]> π) = <[ι:=o]> (dead_threads_of π)) as Homap.
+    { rewrite /dead_threads_of. apply map_eq. intros j.
+      destruct (decide (j = ι)) as [->|Hne].
+      - trans (Some o).
+        + rewrite lookup_omap lookup_insert /=. reflexivity.
+        + rewrite lookup_insert. reflexivity.
+      - rewrite lookup_omap lookup_insert_ne //.
+        rewrite lookup_insert_ne //. rewrite lookup_omap. reflexivity. }
+    rewrite Homap.
+    rewrite big_sepM_insert; last first.
+    { rewrite lookup_omap Hlookup /=. reflexivity. }
+    (* The domain doesn't change when updating a value *)
     assert (dom (<[ι:=Dead o]> π) = dom π) as Hdom.
     { apply dom_insert_lookup_L. by eauto. }
     rewrite Hdom.
-    by iFrame.
+    iModIntro. by iFrame "Hdead_frag Hπ Hvalid Hdead_auth Hdead_frags".
   Qed.
 
   Lemma recognize_dead_thread (π : threadpool) ι o :
@@ -195,14 +230,14 @@ Section ghost_resources.
     valid_thread ι -∗
     osiris_thread_interp π ∗ dead_thread ι o.
   Proof.
-    iIntros (Hdead) "Hπ #Hvalid".
-    iFrame "Hπ".
-    rewrite /dead_thread.
-    (* We can witness a persistent pointsto from the heap interp and pure fact.
-       This still requires a witnessing lemma from gen_heap that doesn't exist.
-       The standard approach would be to have an additional ghost state tracking
-       dead threads, or to modify the semantics to maintain persistent witnesses. *)
-  Admitted.
+    iIntros (Hdead) "[Hπ [Hvalid [Hdead_auth #Hdead_frags]]] #_".
+    iFrame "Hπ Hvalid Hdead_auth".
+    rewrite /dead_thread /dead_threads_of.
+    (* Extract the persistent fragment from the big_sepM *)
+    assert (omap (λ s, match s with Dead o => Some o | Alive => None end) π !! ι = Some o) as Hlookup_dead.
+    { rewrite lookup_omap Hdead /=. reflexivity. }
+    iDestruct (big_sepM_lookup with "Hdead_frags") as "#$"; done.
+  Qed.
 
 End ghost_resources.
 
