@@ -11,55 +11,6 @@ From Equations Require Import Equations.
 
 (* -------------------------------------------------------------------------- *)
 
-(* We locally redefine [call] and [acall] to bypass a [please_eval ..]. *)
-
-(** Original definition:
-
-    Definition acall η a v :=
-    let 'AnonFun x e := a in
-    let η0 := (x, v) :: η in
-    please_eval (η0, e).
- *)
-
-(* Local redefinition: *)
-
-Local Definition im_acall η a v :=
-  let 'AnonFun x e := a in
-  let η0 := (x, v) :: η in
-  eval η0 e.
-
-Local Definition im_call f x :=
-  match f with
-  | VClo η a => im_acall η a x
-  | VCloRec η rbs g =>
-      let δ := eval_rec_bindings η rbs in
-      let η0 := δ ++ η in
-      'a ← lookup_rec_bindings rbs g;
-      im_acall η0 a x
-  | _ => type_mismatch "closure expected"
-  end.
-
-(* When under a [pure_wp], [eval.call] and [fun_spec.call] are equivalent. *)
-
-Lemma pure_acall_equiv η a v φ ζ :
-  pure_wp (eval.E.acall η a v) φ ζ <-> pure_wp (im_acall η a v) φ ζ.
-Proof.
-  destruct a; simpl.
-  split.
-  { apply invert_pure_wp_eval. }
-  { intros. apply pure_wp_Eval.
-    by rewrite try2_inject2_right. }
-Qed.
-
-Lemma pure_call_equiv f v φ ζ :
-  pure_wp (eval.E.call f v) φ ζ <-> pure_wp (im_call f v) φ ζ.
-Proof.
-  destruct f; try done; [ apply pure_acall_equiv | ].
-  split; apply pure_wp_bind_mono; intros; simpl; by apply pure_acall_equiv.
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-
 (* [is_lambda_of_depth e arg_τ] asserts that [e] is a series of nested
    [EAnonFun _] of depth ≥ to the length of [arg_τ]. *)
 
@@ -122,7 +73,7 @@ Definition is_VClo_of_depth v τ :=
 Equations Spec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) : Prop :=
 | Tbase X, c, P :=
-    ∀ (x : X), P x (im_call c #x)
+    ∀ (x : X), P x (call c #x)
 | Tcons X τ', c, P :=
     ∀ (x : X), pure_wp (call c #x) (λ c, Spec τ' c (P x)) ⊥.
 
@@ -133,7 +84,7 @@ Equations Spec (τ : types)
 Local Lemma pure_eval_anon_unary `{Encode X}
   (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ
   :
-  (∀ (v : X), P v (eval ((x, #v) :: η) e)) ->
+  (∀ (v : X), P v (please_eval ((x, #v) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec τ[X] c P) ζ.
 Proof.
   intros HP; simpl_eval; eapply pure_ret; encode.
@@ -142,7 +93,7 @@ Qed.
 Local Lemma pure_eval_anon_binary `{Encode X, Encode Y}
   (P : τ[X; Y] -#> microvx -> Prop) η (x y : var) e ζ
   :
-  (∀ (vx : X) (vy : Y), P vx vy (eval ((y, #vy) :: (x, #vx) :: η) e)) ->
+  (∀ (vx : X) (vy : Y), P vx vy (please_eval ((y, #vy) :: (x, #vx) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) (λ c, Spec τ[X; Y] c P) ζ.
 Proof.
   intros HP.
@@ -193,7 +144,7 @@ Qed.
 Equations aSpec (τ : types)
   (c : val) (P : τ -#> microvx -> Prop) (args : τ) : Prop :=
 | Tbase X, c, P, x :=
-    P x (im_call c #x);
+    P x (call c #x);
 | Tcons X τ', c, P, (x, args') :=
     pure_wp (call c #x) (λ c', aSpec τ' c' (P x) args') ⊥.
 
@@ -350,7 +301,7 @@ Equations predicate_over_function_body
   (e : expr)
   : Prop :=
 | Tbase X, P, η, EAnonFun (AnonFun arg e) :=
-    ∀ (x : X), P x (eval ((arg, #x) :: η) e)
+    ∀ (x : X), P x (please_eval ((arg, #x) :: η) e)
 | Tcons X arg_τ', P, η, (EAnonFun (AnonFun arg e)) :=
     ∀ (x : X), predicate_over_function_body arg_τ' (P x) ((arg, #x) :: η) e
 (* If the expression isn't an [EAnonFun] we produce an unprovable proposition. *)
@@ -531,7 +482,7 @@ Equations predicate_over_function_body_with_hyp
 | Tbase X, P, H, η, (EAnonFun (AnonFun arg e)) :=
     ∀ (x : X),
       H x ->
-      P x (eval ((arg, #x) :: η) e)
+      P x (please_eval ((arg, #x) :: η) e)
 | Tcons X τ', P, H, η, (EAnonFun (AnonFun arg e)) :=
     ∀ (x : X),
       let η_x := (arg, #x) :: η in
@@ -813,7 +764,6 @@ Proof.
   eapply pure_eval_app; eauto.
   eapply pure_EApp_partial; eauto. simpl.
   intros c v2 (v1 & HP & Hv1) Hv2.
-  apply pure_call_equiv.
   eapply Hmono; eauto. simp Spec in Hv1.
 Qed.
 
@@ -834,7 +784,6 @@ Proof.
   intros c v3 HSpec Hv3; simpl in HSpec.
   simp Spec in HSpec.
   destruct (HSpec v3) as (v2 & Hv2 & (v1 & Hv1 & HP)).
-  apply pure_call_equiv.
   eapply Hmono; eauto.
 Qed.
 
@@ -1006,7 +955,7 @@ Proof.
   { (* Base case. *)
     intros Hmono; simpl in *.
     eapply pure_eval_app; eauto.
-    intros c x Hc Hφx. apply pure_call_equiv.
+    intros c x Hc Hφx.
     eapply Hmono; [ apply Hφx | ].
     simpl in Hc; simp Spec in Hc; apply Hc. }
 

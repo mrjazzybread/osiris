@@ -71,14 +71,14 @@ Section ewp_spec.
 
   Equations iSpec (τ : types) (c : val) (P : τ -#> microvx -> iProp Σ) : iProp Σ :=
   | Tbase X, c, P :=
-      ∀ (x : X), P x (fun_spec.im_call c #x)
+      ∀ (x : X), P x (call c #x)
   | type_nel.Tcons X τ', c, P :=
       ∀ (x : X), EWP (call c #x) <|({|id := 0|}, ⊥)|> {{ ensures c, iSpec τ' c (P x) }}.
 
   Local Lemma ewp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
     :
-    (∀ (v : X), P v (eval ((x, #v) :: η) e)) -∗
+    (∀ (v : X), P v (please_eval ((x, #v) :: η) e)) -∗
     EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
@@ -89,7 +89,7 @@ Section ewp_spec.
   Local Lemma ewp_eval_anon_binary `{Encode X, Encode Y}
     (P : τ[X;Y] -#> microvx -> iProp Σ) η (x y : var) e E Ψ
     :
-    (∀ (vx : X) (vy : Y), P vx vy (eval ((y, #vy) :: (x, #vx) :: η) e)) -∗
+    (∀ (vx : X) (vy : Y), P vx vy (please_eval ((y, #vy) :: (x, #vx) :: η) e)) -∗
     EWP (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <| Ψ |> {{ ensures c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
@@ -137,7 +137,7 @@ Section ewp_spec.
     (e : expr)
     : iProp Σ :=
   | Tbase X, P, η, EAnonFun (AnonFun arg e) :=
-      ∀ (x : X), P x (eval ((arg, #x) :: η) e)
+      ∀ (x : X), P x (please_eval ((arg, #x) :: η) e)
   | type_nel.Tcons X arg_τ', P, η, (EAnonFun (AnonFun arg e)) :=
       ∀ (x : X), predicate_over_function_body arg_τ' (P x) ((arg, #x) :: η) e
   (* If the expression isn't an [EAnonFun] we produce an unprovable proposition. *)
@@ -254,6 +254,5 @@ Section ewp_spec.
         simpl in HSpec.
         by apply invert_pure_wp_crash in HSpec.
   Qed.
-
 
 End ewp_spec.
