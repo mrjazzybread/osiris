@@ -3,6 +3,8 @@ From iris.proofmode Require Import tactics.
 From osiris.program_logic Require Import ewp.
 From osiris.semantics Require Import step code.
 
+From Ltac2 Require Import Ltac2.
+
 (** *Local tactics for [ewp] rules *)
 Module ewp_rules_tactics.
 
@@ -98,24 +100,47 @@ Module ewp_rules_tactics.
 
   Ltac inv H := inversion H; subst; clear H.
 
-  Ltac destruct_stop_code :=
-    match goal with
-    | [H: is_handleable (Stop ?c _ _) = Some _ |- _] =>
-        destruct c; try done
+  Ltac2 destruct_stop_code () :=
+    match! goal with
+    | [ _ : is_ewp_case (Stop ?c _ _) = _ |- _] =>
+        destruct $c;
+        Control.enter
+          (fun _ =>
+             try (match! goal with
+                  | [ x: val * val |- _] =>
+                      let x_hyp := Control.hyp x in
+                      destruct $x_hyp as [??]
+                  end);
+             try ltac1:(done))
     end.
 
-  Tactic Notation "ewp_case_is_handleable" constr(x) ident(Hhm) :=
-    case_eq (is_handleable x);
-    [ intros ? Hhm; destruct x;
-      try destruct_stop_code;
-      try (inversion Hhm; subst; clear Hhm);
-      try solve [by destruct_step] |
-      intros Hhm ].
+  Ltac2 rec intros_until_ewp_case (hm : ident) :=
+    match! goal with
+    | [ |- is_ewp_case _ = _ -> _ ] =>
+        intros $hm
+    | [ |- _ ] =>
+        intros ?; intros_until_ewp_case hm
+    end.
 
-  Tactic Notation "ewp_case_is_handleable" constr(x) :=
-    let Hhm := fresh "Hhm" in
-    ewp_case_is_handleable x Hhm.
+  Ltac2 destruct_step () := ltac1:(destruct_step).
 
+  Ltac2 ewp_case (m : constr)  :=
+    ltac1:(m |- case_eq (is_ewp_case m)) (Ltac1.of_constr m);
+    Control.extend []
+      (fun _ =>
+         let hm := Fresh.in_goal @Hhm in
+         intros_until_ewp_case hm;
+         Control.enter
+           (fun _ =>
+              destruct $m; try0 destruct_stop_code; try discriminate;
+              Control.enter
+                (fun _ =>
+                   try (complete destruct_step))))
+      [ fun _ => let hm := Fresh.in_goal @Hhm in intros $hm ].
+
+  Tactic Notation "ewp_case" constr(x)  :=
+    let f := ltac2:(x |- ewp_case (Option.get (Ltac1.to_constr x))) in
+    f x.
 
   Ltac spec_state :=
     lazymatch goal with
