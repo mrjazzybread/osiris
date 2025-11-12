@@ -1,6 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode proofmode.environments.
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp basic_rules stop_rules handler_rules tactics.
+From osiris.program_logic Require Import ewp basic_rules stop_rules handler_rules tactics fun_spec.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)
@@ -1220,6 +1220,55 @@ Section ewp_rules_expr.
     iIntros "H1".
     iSpecialize ("H2" with "H1"). iNext.
     by rewrite try2_inject2_right.
+  Qed.
+
+  Lemma ewp_EFork' η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
+    ▷ (∀ ι v1 v2, valid_thread ι -∗ φ1 v1 -∗ φ2 v2 -∗ EWP call v1 v2 @ E <| (ι, ⊥) |> {{ λ _, True }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v }}.
+  Proof.
+    iIntros "H1 H2 Hcall".
+    simpl_eval.
+    iApply (ewp_Par with "H1 H2").
+    { iIntros (e) "[]". }
+    { iIntros (e) "[]". }
+    iIntros (v1 v2) "H1 H2"; simpl.
+    iApply ewp_fork.
+    iIntros "!>" (ι) "#Hvalid".
+    iSplitR ""; [ | ].
+    iApply ("Hcall" with "Hvalid H1 H2").
+    iExists _; iFrame "#"; iPureIntro; reflexivity.
+  Qed.
+
+  Lemma ewp_EFork `{Encode A} P η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
+    EWP eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
+    ▷ (∀ ι v m, valid_thread ι -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ λ _, True }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v }}.
+  Proof.
+    iIntros "H1 H2 Hcall".
+    iApply (ewp_EFork' with "H1 H2").
+    iIntros "!>" (ι f v2) "#Hvalid HSpec (%v & -> & H2)".
+    rewrite iSpec_equation_1.
+    iSpecialize ("HSpec" $! v).
+    iApply ("Hcall" $! ι v (call f #v) with "Hvalid H2 HSpec").
+  Qed.
+
+  Lemma ewp_EJoin e η E Ψ φ ι :
+    valid_thread ι -∗
+    EWP eval η e @ E <|Ψ|> {{ ensures #ι', ⌜ι' = ι⌝ }} -∗
+    ▷ (∀ o, dead_thread ι o -∗ φ o) -∗
+    EWP eval η (EJoin e) @ E <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hvalid Hid Hjoined".
+    simpl_eval.
+    iApply ewp_bind. unfold as_thread. iApply ewp_bind.
+    iApply (ewp_mono with "Hid").
+    iIntros ([ ι' |]); [ iIntros "(%v & -> & ->)" | iIntros "[]" ].
+    iApply ewp_value.
+    simpl.
+    iApply (ewp_join with "Hvalid Hjoined").
   Qed.
 
 End ewp_rules_expr.
