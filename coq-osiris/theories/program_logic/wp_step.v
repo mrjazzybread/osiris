@@ -66,6 +66,7 @@ Ltac destruct_wp_step :=
 Definition can_progress {A E} (c : th_config A E) :=
   match c with
   | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
+  (* Do we really need a special case for [Stop CDie]? *)
   | (_, π, Stop CDie o _, ι) => ι ∈ dom π
   | _ => ∃ c', wp_step c c'
 end.

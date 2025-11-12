@@ -486,6 +486,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop c x (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
+  (* Can these rules be omitted and proved as lemmas? *)
   | StepParLeft :
       ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _),
       step (σ, m1) (σ', m'1) →
