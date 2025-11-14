@@ -23,6 +23,8 @@ Qed.
 Section satisfiability_weakest_pre.
   Context `{!osirisGS Σ}.
 
+  (* Preservation: If a computation steps from [e1] to [e2], then the
+     weakest precondition is preserved across the step. *)
   Lemma ewp_step {A X} m F E Ψ (e1 : micro A X) σ1 e2 σ2 Φ n :
     semantics.step.step (σ1, e1) (σ2, e2) →
     SAT m F [view E; supply n]
@@ -46,6 +48,8 @@ Section satisfiability_weakest_pre.
     eexists _. eapply Hsat.
   Qed.
 
+  (* Progress: If a computation [e] has a weakest precondition, then it is
+     not stuck (i.e., it can either step or is a final value/exception). *)
   Lemma ewp_not_stuck {A X} m F E (e : micro A X) σ Φ n:
     SAT m F [view E; supply n] (state_interp σ ∗
                                   EWP e @ E <|⊥|> {{ Φ }}) →
@@ -69,8 +73,7 @@ Section satisfiability_weakest_pre.
                            in Hsat.
       { (* Get [reducible e σ] from [SAT m F [view E; supply n] (|={E,∅}=> ⌜can_step (σ, e)⌝)]. *)
         eapply SAT_fupd in Hsat. apply SAT_elim in Hsat as [(σ2 & e2) Hstep].
-        eexists [], e2, σ2, []; split; [ apply Hstep | reflexivity ].
-      }
+        eexists [], e2, σ2, []; split; [ apply Hstep | reflexivity ]. }
       iIntros "[Hsi Hwp]".
       spec_state. iModIntro.
       iPureIntro; assumption.
