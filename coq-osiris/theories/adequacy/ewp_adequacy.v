@@ -181,13 +181,6 @@ Proof.
   { iIntros "([$ P] & Hwp)". by iApply "Hwp". }
 Qed.
 
-
-Definition osirisΣ : gFunctors :=
-  #[invΣ; gen_heapΣ locations.loc step.block].
-
-Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
-Proof. solve_inG. Qed.
-
 Lemma osiris_initial_allocation `{!osirisGpreS Σ} σ (_ : invGS_gen HasNoLc Σ) (F : iProp Σ) :
   SAT Alloc F [view ⊤; supply 0] True →
   ∃ (h: osirisGS Σ),
@@ -205,20 +198,38 @@ Proof.
   rewrite /state_interp /=. by iFrame.
 Qed.
 
+(* We show a first adequacy statement, parameterised by some gFunctors [Σ]
+   such that [osirisGpreS Σ] holds. *)
+
 Definition osiris_adequacy Σ `{!osirisGpreS Σ} (e1 : micro val exn) σ1 e2 σ2 φ k :
+  (* If we can show [EWP e1 {{ λ v, φ v }}] with the ghost state provided by [Σ]. *)
   (∀ `{!osirisGS Σ}, ⊢ EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜φ v⌝ }}) →
+  (* Then any k-step execution of [e1] leads to a state such that: *)
   nsteps k (σ1, e1) (σ2, e2) →
+  (* That state is not stuck ∧
+     If that state is final, then it satisfies the postcondition [φ]. *)
   (not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> φ o)).
 Proof.
   intros Hwp.
-  eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True);
-    last apply Hwp.
-  intros.
-  have [h Hsat] := (osiris_initial_allocation σ1 iv F H).
-  exists h.
-  eapply SAT_mono, Hsat.
-  apply bi.sep_True_2.
+  eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True).
+  - intros iv F Hsat_init.
+    have [h Hsat] := (osiris_initial_allocation σ1 iv F Hsat_init).
+    exists h.
+    eapply SAT_mono, Hsat.
+    apply bi.sep_True_2.
+  - apply Hwp.
 Qed.
+
+(* We now show that the previous adequacy statement can be instantiated
+   by providing a minimal [Σ] such that [osirisGpreS Σ] holds.*)
+
+(* Provide the ghost state for invariants and the store. *)
+Definition osirisΣ : gFunctors := #[invΣ; gen_heapΣ loc step.block].
+(* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
+Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
+Proof. solve_inG. Qed.
+
+(* Example of an adequacy statement instantiated with a specific set of [gFunctors]. *)
 
 Definition osiris_adequacy_closed (e1 : micro val exn) σ1 e2 σ2 φ k :
   (∀ `{!osirisGS osirisΣ}, ⊢ EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜φ v⌝ }}) →
