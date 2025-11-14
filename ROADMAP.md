@@ -41,7 +41,6 @@ The Rocq development offers:
     - `toplevel_rules.v` reasoning rules about top-level definitions, such as
        struct items, bindings, and modules.
     - `fun_spec.v` [Spec] abstraction for reasoning about n-ary function calls
-    - `adequacy.v` An adequacy statement over the pure Hoare-style logic
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
   - `basic_rules.v` reasoning rules over the effectful weakest precondition
   - `handler_rules.v` reasoning rules over handlers
@@ -49,13 +48,17 @@ The Rocq development offers:
   - `adequacy.v` adequacy theorem that follows from Iris' built-in adequacy theorem over our operational semantics
   - `tactics.v` modality and mask tactics
 
-- `osiris/coq-osiris/theoris/proofmode`
+- `osiris/coq-osiris/theories/proofmode`
   - `equality.v` a tactic to prove equality goals
   - `pure_tactics.v` tactics that are meant to be used while proving pure goals
   - `ewp_tactics.v` tactics that are meant to be used while proving Iris goals
   - `notations.v` notations for goal pretty-printing
   - `setup.v` configuration for controlling opacity and general proofmode settings
   - `specifications.v` utility to define specifications of modules/functions (mostly unused)
+
+- `osiris/coq-osiris/theories/adequacy`
+  - `adequacy.v` adequacy theorem for Horus
+  - `ewp_adequacy.v` adequacy theorem for Osiris (including closing over the gFunctors)
 
 ### Utility
 
