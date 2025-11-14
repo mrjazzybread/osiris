@@ -1,6 +1,7 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap.
 
+From osiris.lang Require Import locations.
 From osiris.program_logic Require Import ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import satisfiable.
 From osiris.adequacy Require Import base_logic_extension.
@@ -90,15 +91,13 @@ Section satisfiability_weakest_pre.
     by eapply SAT_fupd in Hsat.
   Qed.
 
-  Lemma no_forking {A X} (e1 : micro A X) σ1 κs es σ2 :
-    language.step ([e1], σ1) κs (es, σ2) →
-    ∃ e2, es = [e2].
-  Admitted.
-
-  Lemma no_forkings {A X} k (e1 : micro A X) σ1 κs es σ2 :
-    language.nsteps k ([e1], σ1) κs (es, σ2) →
-    ∃ e2, es = [e2].
-  Admitted.
+  Inductive nsteps {A X} : nat → config A X → config A X → Prop :=
+    nsteps_refl : ∀ ρ : config A X, nsteps 0 ρ ρ
+  | nsteps_l :
+    ∀ (n : nat) (ρ1 ρ2 ρ3 : config A X),
+      step ρ1 ρ2 →
+      nsteps n ρ2 ρ3 →
+      nsteps (S n) ρ1 ρ3.
 
   Lemma singleton_app_cons {A} (x y : A) l1 l2 :
     [x] = l1 ++ y :: l2 ->
@@ -113,44 +112,32 @@ Section satisfiability_weakest_pre.
     by inversion_clear Heq.
   Qed.
 
-  Lemma ewp_steps {A X} m F n k (e1 : micro A X) es σ1 σ2 κs Φ :
+  Lemma ewp_steps {A X} m F n k (e1 e2 : micro A X) σ1 σ2 Φ :
     SAT m F [view ⊤; supply n] (state_interp σ1 ∗ EWP e1 @ ⊤ <|⊥|> {{ Φ }}) →
-    language.nsteps k ([e1], σ1) κs (es, σ2) →
-    ∃ e2, es = [e2] ∧
+    nsteps k (σ1, e1) (σ2, e2) →
     ∃ n', SAT m F [view ⊤; supply n'] (state_interp σ2 ∗ EWP e2 @ ⊤ <|⊥|> {{ Φ }}).
   Proof.
-    induction k as [|k IH] in n, e1, σ1, κs, Φ |-*; intros Hsat Hsteps.
-    - revert Hsat. inversion_clear Hsteps. exists e1. split; [ reflexivity | ].
+    induction k as [|k IH] in n, e1, e2, σ1, Φ |-*; intros Hsat Hsteps.
+    - revert Hsat. inversion_clear Hsteps.
       exists n. apply Hsat.
     - revert Hsat. inversion_clear Hsteps as [|?? [t1' σ1']]. intros Hsat.
-      inversion H. simpl. inversion H1. subst.
-      apply singleton_app_cons in H5 as (-> & -> & ->).
-      simpl in *.
-      destruct (no_forking _ _ _ _ _ H) as (e0' & ->).
-      destruct (no_forkings _ _ _ _ _ _ H0) as (e0'' & ->).
-      exists e0''; split; [ reflexivity | ].
-      inversion H2; subst.
-      clear H1 H2.
-      eapply ewp_step in Hsat as (n' & Hsat); last apply H3.
-      apply (IH _ _ _ κs0 _) in Hsat as (? & Heq & [n'' Hsat]).
-      inversion_clear Heq.
+      eapply ewp_step in Hsat as (n' & Hsat); last apply H.
+      eapply IH in Hsat as [n'' Hsat]; last apply H0.
       exists n''; apply Hsat.
-      assumption.
   Qed.
 
-  Lemma ewp_adequacy {A X} m F n κs (e1 : micro A X) es σ1 σ2 k Φ :
+  Lemma ewp_adequacy {A X} m F n (e1 e2 : micro A X) σ1 σ2 k Φ :
     (* if we can prove satisfiable of a weakest pre and the state interpretation *)
     SAT m F [view ⊤; supply n]
       (state_interp σ1 ∗
        EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜Φ v⌝ }})%I →
-    (* and we take a k-step execution to [e'] and some forked of threads *)
-    @language.nsteps (osiris_lang) k ([e1], σ1) κs (es, σ2) →
+    (* and we take a k-step execution to [e2] and some state [σ2] *)
+    nsteps k (σ1, e1) (σ2, e2) →
     (* then if the computation terminates in a value, it satisfies the postcondition *)
-    (∃ e2, es = [e2] ∧ not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> Φ o)).
+    (not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> Φ o)).
   Proof.
     intros Hsat Hsteps.
-    eapply ewp_steps in Hsat as (e2 & -> & n' & Hsat); last apply Hsteps.
-    exists e2; split; [ reflexivity | ].
+    eapply ewp_steps in Hsat as (n' & Hsat); last apply Hsteps.
     split; [ eapply ewp_not_stuck; apply Hsat | ].
     intros o Ho.
     rewrite -SAT_frame_cons in Hsat.
@@ -169,17 +156,19 @@ End satisfiability_weakest_pre.
 
   Then you obtain the result of [wp_adequacy] for your choice of [X] and [I]. *)
 Local Existing Instance invGS_wsat.
-Lemma SAT_wp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) κs σ1 σ2 (e : micro val exn) es n k P Φ:
+Lemma SAT_ewp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 (e1 e2 : micro val exn) n k P Φ:
   (* allocate the initial state interpretation *)
-  (∀ (iv: invGS Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
+  (∀ (iv: invGS_gen HasNoLc Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
    ∃ (x: X),
+     (* we ensure that all inferences point to the right instances *)
      let i: osirisGS Σ := I x in
-    SAT Alloc F [@view Σ (@invGS_wsat HasNoLc Σ (@osiris_invGS Σ (I x))) ⊤; @supply Σ (@invGS_lc HasNoLc Σ (@osiris_invGS Σ (I x))) n] (state_interp σ1 ∗ P x)) →
+     let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in
+    SAT Alloc F [view ⊤; supply n] (state_interp σ1 ∗ P x)) →
   (* prove the weakest precondition for all choices of [X] *)
-  (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <|⊥|> {{ λ v, ⌜Φ v⌝ }}) →
+  (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜Φ v⌝ }}) →
   (* then any k-step execution is safe: *)
-  language.nsteps k ([e], σ1) κs (es, σ2) →
-  (∃ e2, es = [e2] ∧ not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> Φ o)).
+  nsteps k (σ1, e1) (σ2, e2) →
+  (not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> Φ o)).
 Proof.
   intros Halloc Hwp Hsteps.
   pose proof (SAT_intro (Σ := Σ)) as Hsat.
@@ -193,67 +182,48 @@ Proof.
 Qed.
 
 
-(* Definition of adequacy *)
-Record adequate {Λ} (s : stuckness) (e1 : language.expr Λ) (σ1 : state Λ)
-    (φ : language.val Λ → state Λ → Prop) := {
-  adequate_result t2 σ2 v2 :
-   rtc erased_step ([e1], σ1) (of_val v2 :: t2, σ2) → φ v2 σ2;
-  adequate_not_stuck t2 σ2 e2 :
-   s = NotStuck →
-   rtc erased_step ([e1], σ1) (t2, σ2) →
-   e2 ∈ t2 → not_stuck e2 σ2
-}.
+Definition osirisΣ : gFunctors :=
+  #[invΣ; gen_heapΣ locations.loc step.block].
 
-Lemma adequate_alt {Λ} s e1 σ1 (φ : language.val Λ → state Λ → Prop) :
-  adequate s e1 σ1 φ ↔ ∀ t2 σ2,
-    rtc erased_step ([e1], σ1) (t2, σ2) →
-      (∀ v2 t2', t2 = of_val v2 :: t2' → φ v2 σ2) ∧
-      (∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2).
+Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
+Proof. solve_inG. Qed.
+
+Lemma osiris_initial_allocation `{!osirisGpreS Σ} σ (_ : invGS_gen HasNoLc Σ) (F : iProp Σ) :
+  SAT Alloc F [view ⊤; supply 0] True →
+  ∃ (h: osirisGS Σ),
+    let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in
+    SAT Alloc F [view ⊤; supply 0] (state_interp σ).
 Proof.
-  split.
-  - intros []; naive_solver.
-  - constructor; naive_solver.
+  intros Hsat.
+  eapply SAT_frame_resource with (R := view _) in Hsat; last apply _.
+  eapply SAT_frame_resource with (R := supply _) in Hsat; last apply _.
+  eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
+  do 2 apply SAT_unframe_resource in Hsat.
+  pose (hg := (@OsirisGS Σ _ _ Hgen)). exists hg.
+  eapply SAT_mono; last apply Hsat.
+  iIntros "(Hgen & Hpts & Hmeta & _)".
+  rewrite /state_interp /=. by iFrame.
 Qed.
 
-Lemma SAT_wp_adequate `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 n s (e : micro val exn) φ P:
-  (* allocate the initial state interpretation *)
-  (∀ (iv: invGS Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
-   ∃ (x: X),
-    let i: osirisGS Σ := I x in
-    let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in (* we ensure that all inferences of [invGS] point to this instance *)
-    SAT Alloc F [view ⊤; supply n] (state_interp σ1 ∗ P x)) →
-  (* prove the weakest precondition for all choices of [X] *)
-  (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <|⊥|> {{ λ v, ⌜φ v⌝%I }}) →
-  adequate s e σ1 (λ v _, φ v).
+Definition osiris_adequacy Σ `{!osirisGpreS Σ} (e1 : micro val exn) σ1 e2 σ2 φ k :
+  (∀ `{!osirisGS Σ}, ⊢ EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜φ v⌝ }}) →
+  nsteps k (σ1, e1) (σ2, e2) →
+  (not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> φ o)).
 Proof.
-  intros Halloc Hwp.
-  apply adequate_alt; intros t2 σ2' [k [κs Hsteps]]%erased_steps_nsteps.
-  eapply SAT_wp_adequacy; eauto.
+  intros Hwp.
+  eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True);
+    last apply Hwp.
+  intros.
+  have [h Hsat] := (osiris_initial_allocation σ1 iv F H).
+  exists h.
+  eapply SAT_mono, Hsat.
+  apply bi.sep_True_2.
 Qed.
 
-
-
-(* -------------------------------------------------------------------------- *)
-(** * Adequacy. *)
-
-Section adequacy.
-
-  Context {A X : Type} {Σ : gFunctors}.
-
-  Context `{!osirisGS Σ}.
-
-  (* ------------------------------------------------------------------------ *)
-  (** Adequacy Theorem for [EWP] for computations. *)
-
-  Theorem ewp_adequacy (m : micro A X) ι σ φ :
-  (∀ `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ},
-    (* If [⊢ ⟨ ⊥ ⟩ impure m (λ v. ⌜φ v⌝)] holds *)
-    ⊢ EWP m @ ⊤ <| (ι, ⊥) |> {{ fun o =>  ⌜ φ o ⌝ }}) →
-    (* Then executing [m] cannot terminate with an unhandled effect or a crash, *)
-    adequate NotStuck m
-      σ (* in any initial heap, *)
-      (λ o _, φ o) (* and the returned outcome satisfies the postcondition [φ] *).
-  Proof.
-  Abort.
-
-End adequacy.
+Definition osiris_adequacy_closed (e1 : micro val exn) σ1 e2 σ2 φ k :
+  (∀ `{!osirisGS osirisΣ}, ⊢ EWP e1 @ ⊤ <|⊥|> {{ λ v, ⌜φ v⌝ }}) →
+  nsteps k (σ1, e1) (σ2, e2) →
+  (not_stuck e2 σ2 ∧ (∀ o, outcome2_opt e2 = Some o -> φ o)).
+Proof.
+  intros Hwp. eapply osiris_adequacy, Hwp. apply _.
+Qed.
