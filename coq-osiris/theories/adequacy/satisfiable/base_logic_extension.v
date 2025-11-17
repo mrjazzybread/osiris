@@ -114,9 +114,9 @@ Qed.
 
 (** We combine the allocation of world satisfaction and the later credit supply,
     following the current structure of Iris.                                    *)
-Lemma SAT_alloc_fancy_updates `{!invGpreS Σ} F P:
+Lemma SAT_alloc_fancy_updates `{!invGpreS Σ} F P (HL : has_lc) :
   SAT Alloc F [] P →
-  ∃ _: invGS Σ, SAT Alloc F [view ⊤; supply 0] P.
+  ∃ _: invGS_gen HL Σ, SAT Alloc F [view ⊤; supply 0] P.
 Proof.
   Local Existing Instances invGpreS_wsat invGpreS_lc.
   intros Hsat.
@@ -201,8 +201,8 @@ Qed.
 (* Inv Heaps *)
 From iris.base_logic.lib Require Import gen_inv_heap.
 
-Lemma SAT_inv_heap_init (L V : Type)
-  `{Countable L, !invGS Σ, !gen_heapGS L V Σ, !inv_heapGpreS L V Σ} E n P F :
+Lemma SAT_inv_heap_init (L V : Type) (HL : has_lc)
+  `{Countable L, !invGS_gen HL Σ, !gen_heapGS L V Σ, !inv_heapGpreS L V Σ} E n P F :
   SAT Alloc F [view E; supply n] P →
   ∃ _ : inv_heapGS L V Σ, SAT Alloc F [view E; supply n] (inv_heap_inv L V ∗ P).
 Proof.
