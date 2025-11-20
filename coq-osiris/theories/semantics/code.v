@@ -89,6 +89,12 @@ Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
   | _ => False
   end.
 
+Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
+  match c with
+  | CPerf | CJoin | CFork | CSelf | CDie => True
+  | _ => False
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Instantiate the monad with this specific type of codes. *)
@@ -216,11 +222,13 @@ Ltac destruct_code :=
   | c: C.code _ _ _ |- _ =>
       match goal with
       | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | h: step_through_par_code c |- _ => destruct c; try contradiction h
       | _ => destruct c
       end
   | c: code _ _ _ |- _ =>
       match goal with
       | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | h: step_through_par_code c |- _ => destruct c; try contradiction h
       | _ => destruct c
       end
   end.

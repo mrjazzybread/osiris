@@ -803,28 +803,18 @@ Section ewp_rules.
     try iApply ("Hexn2" with "[$]");
     done.
 
-    { (* [ParPerformLeft] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iPoseProof (ewp_perform_inv with "[$]") as "H1".
-      iApply ewp_fupd. iMod "H1"; iModIntro.
-      iApply ewp_stop_perform.
-      iApply (monotonic_prot with "[H2 Hexn1 Hexn2 Hjoin] H1").
-      iIntros (?) "Hk".
-      iNext.
-      iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin"). }
-
-    { (* [ParPerformRight] *)
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-      iPoseProof (ewp_perform_inv with "[$]") as "H2".
-      iApply ewp_fupd. iMod "H2"; iModIntro.
-      iApply ewp_stop_perform.
-      iApply (monotonic_prot with "[H1 Hexn1 Hexn2 Hjoin] H2").
-      iIntros (?) "H2".
-      iNext.
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
-
-    { (* [StepParConcLeft]. *)
+    { (* [StepThroughParLeft]. *)
       destruct_code.
+      - (* [ParPerformLeft] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        iPoseProof (ewp_perform_inv with "[$]") as "H1".
+        iApply ewp_fupd. iMod "H1"; iModIntro.
+        iApply ewp_stop_perform.
+        iApply (monotonic_prot with "[H2 Hexn1 Hexn2 Hjoin] H1").
+        iIntros (?) "Hk".
+        iNext.
+        iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin").
+
       - (* Step then [ForkS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         destruct x.
@@ -860,8 +850,19 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         iApply (ewp_die_mono with "H1"). }
 
-    { (* [StepParConcRight]. *)
+    { (* [StepThroughParRight]. *)
       destruct_code.
+
+      - (* [StepParPerformRight] *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        iPoseProof (ewp_perform_inv with "[$]") as "H2".
+        iApply ewp_fupd. iMod "H2"; iModIntro.
+        iApply ewp_stop_perform.
+        iApply (monotonic_prot with "[H1 Hexn1 Hexn2 Hjoin] H2").
+        iIntros (?) "H2".
+        iNext.
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+
       - (* [StepParForkRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         destruct x.

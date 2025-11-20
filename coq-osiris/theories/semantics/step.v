@@ -240,12 +240,6 @@ Proof.
   unfold step_wrap_2. eauto.
 Qed.
 
-Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
-  match c with
-  | CPerf | CJoin | CFork | CSelf | CDie => True
-  | _ => False
-  end.
-
 (* -------------------------------------------------------------------------- *)
 
 (* A summary of our algebraicity laws. *)
@@ -456,18 +450,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
      it can capture this evaluation context frame. Thus, it reduces to a
      new term where [Stop (perform e) _] now appears naked and the captured
      evaluation context is [Par (k _) m2 h]. *)
-  | StepParPerformLeft :
-      ∀ {A1 A2 E'} σ m2 e k (h : outcome2 (A1 * A2) E' → _),
-      step
-        (σ, Par (Stop CPerf e k) m2 h)
-        (σ, Stop CPerf e (λ o, Par (k o) m2 h))
-
-  | StepParPerformRight :
-      ∀ {A1 A2 E'} σ m1 e k (h : outcome2 (A1 * A2) E' → _),
-      step
-        (σ, Par m1 (Stop CPerf e k) h)
-        (σ, Stop CPerf e (λ o, Par m1 (k o) h))
-
   | StepThroughParLeft :
     ∀ {X Y E A1 A2 E'} σ m2 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
       step_through_par_code c ->
