@@ -4,11 +4,11 @@ From iris.base_logic.lib Require Import iprop wsat gen_heap.
 From osiris.program_logic Require Import wp_step ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
 
-Definition WPTP `{!osirisGS Σ} (π : thpool) Ψ : iProp Σ :=
-  ([∗ map] ι ↦ s; φ ∈ π; Ψ,
+Definition WPTP `{!osirisGS Σ} (π : thpool) : iProp Σ :=
+  ([∗ map] ι ↦ s ∈ π,
      match s with
-     | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }}
-     | Terminated o => φ o
+     | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}
+     | Terminated o => True
      end).
 
 Definition is_final {A E} (m : micro A E) : Prop :=
@@ -27,8 +27,11 @@ Definition not_stuck {A E} (m : micro A E) s ι :=
   is_final m ∨ can_progress (s.1, s.2, m, ι) ∨ is_join m.
 
 Lemma wp_wptp `{!osirisGS Σ} ι m φ :
-  EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ⊢ WPTP {[ι := (Active m) ]} {[ι := φ ]}.
-Proof. by rewrite /WPTP big_sepM2_singleton. Qed.
+  EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ⊢ WPTP {[ι := (Active m) ]}.
+Proof. rewrite /WPTP big_sepM_singleton.
+       iIntros "Hewp". iApply (ewp_mono with "Hewp").
+       iIntros (o) "Hφ". done.
+Qed.
 
 Include ewp_rules_tactics.
 
@@ -204,41 +207,41 @@ Section satisfiability_weakest_pre.
     reflexivity.
   Qed.
 
-  Lemma wptp_extract_wp π Ψ ι m :
+  Lemma wptp_extract_wp π ι m :
     ⌜π !! ι = Some (Active m) ⌝ -∗
-    WPTP π Ψ -∗
-    ∃ φ, ⌜Ψ !! ι = Some φ⌝ ∗ EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ∗ WPTP (delete ι π) (delete ι Ψ).
+    WPTP π -∗
+    EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }} ∗ WPTP (delete ι π).
   Proof.
     iIntros "%Hactive Hwps".
-    iPoseProof (big_sepM2_delete_l with "Hwps") as "(%φ & [Hwp Hwps])".
+    iPoseProof (big_sepM_delete with "Hwps") as "[Hwp Hwps]".
     { apply Hactive. }
     iFrame.
   Qed.
 
-  Lemma SAT_wptp_extract_wp π Ψ ι e m F Rs :
+  Lemma SAT_wptp_extract_wp π ι e m F Rs :
     π !! ι = Some (Active e) ->
-    SAT m F Rs (WPTP π Ψ) ->
-    SAT m F Rs (WPTP (delete ι π) (delete ι Ψ) ∗ ∃ φ, ⌜Ψ !! ι = Some φ⌝ ∗ EWP e <| (ι, ⊥) |> {{ φ }}).
+    SAT m F Rs (WPTP π) ->
+    SAT m F Rs (WPTP (delete ι π) ∗ EWP e <| (ι, ⊥) |> {{ λ _, True }})%I.
   Proof.
     intros Hlookup Hsat.
     eapply SAT_mono, Hsat.
     iIntros "HWPTP".
     iApply bi.sep_comm'.
-    iPoseProof (wptp_extract_wp $! Hlookup with "HWPTP") as "(%φ & $ & $ & $)".
+    iPoseProof (wptp_extract_wp $! Hlookup with "HWPTP") as "($ & $)".
   Qed.
 
-  (* Lemma attempt_join_some_inv {A X} ι π k s (m : micro A X) : *)
-  (*   π !! ι = Some s -> *)
-  (*   attempt_join ι π k = Some m -> *)
-  (*   ∃ o, (to_local_view <$> π) !! ι = Some (Dead o) ∧ m = k o. *)
-  (* Proof. *)
-  (*   intros Hlookup Hattempt. *)
-  (*   rewrite /attempt_join in Hattempt. *)
-  (*   destruct s; rewrite Hlookup in Hattempt; [ discriminate | ]. *)
-  (*   exists o. *)
-  (*   rewrite lookup_fmap. rewrite Hlookup. *)
-  (*   destruct o; by inversion Hattempt. *)
-  (* Qed. *)
+  Lemma attempt_join_some_inv {A X} ι π k s (m : micro A X) :
+    π !! ι = Some s ->
+    attempt_join ι π k = Some m ->
+    ∃ o, (to_local_view <$> π) !! ι = Some (Dead o) ∧ m = k o.
+  Proof.
+    intros Hlookup Hattempt.
+    rewrite /attempt_join in Hattempt.
+    destruct s; rewrite Hlookup in Hattempt; [ discriminate | ].
+    exists o.
+    rewrite lookup_fmap. rewrite Hlookup.
+    destruct o; by inversion Hattempt.
+  Qed.
 
   Lemma lookup_local_view_Some (π : thpool) ι s :
     (to_local_view <$> π) !! ι = Some s ->
@@ -291,22 +294,22 @@ Section satisfiability_weakest_pre.
     by iFrame.
   Qed.
 
-  (* Lemma ewp_join_inv {A X} σ (π : threadpool) ι' k (m : micro A X) ι Ψ Φ E : *)
-  (*   ⌜attempt_join ι' π k = Some m⌝ -∗ *)
-  (*   state_interp (σ, π) -∗ *)
-  (*   EWP Stop CJoin ι' k @ E <| (ι, Ψ) |> {{ Φ }} -∗ *)
-  (*   |={E}[∅]▷=> state_interp (σ, π) ∗ EWP m @ E <| (ι, Ψ) |> {{ Φ }}. *)
-  (* Proof. *)
-  (*   iIntros "%Hjoin Hsi Hwp". *)
-  (*   rewrite ewp_unfold /ewp_pre /=. spec_state. *)
-  (*   rewrite /can_progress in Hstep. apply elem_of_dom in Hstep as [s Hstep]. *)
-  (*   apply lookup_local_view_Some in Hstep as (ss & Hlookup). *)
-  (*   apply (attempt_join_some_inv _ _ _ _ _ Hlookup) in Hjoin *)
-  (*       as (o & Hdead & ->). *)
-  (*   epose proof (JoinS _ _ _ _ _ _ Hdead) as Hstep. *)
-  (*   iSpecialize ("Hwp" $! _ _ _ _ Hstep). *)
-  (*   ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done. *)
-  (* Qed. *)
+  Lemma ewp_join_inv {A X} σ π ι' k (m : micro A X) ι Ψ Φ E :
+    ⌜attempt_join ι' π k = Some m⌝ -∗
+    state_interp (σ, to_local_view <$> π) -∗
+    EWP Stop CJoin ι' k @ E <| (ι, Ψ) |> {{ Φ }} -∗
+    |={E}[∅]▷=> state_interp (σ, to_local_view <$> π) ∗ EWP m @ E <| (ι, Ψ) |> {{ Φ }}.
+  Proof.
+    iIntros "%Hjoin Hsi Hwp".
+    rewrite ewp_unfold /ewp_pre /=. spec_state.
+    rewrite /can_progress in Hstep. apply elem_of_dom in Hstep as [s Hstep].
+    apply lookup_local_view_Some in Hstep as (ss & Hlookup).
+    apply (attempt_join_some_inv _ _ _ _ _ Hlookup) in Hjoin
+        as (o & Hdead & ->).
+    epose proof (JoinS _ _ _ _ _ _ Hdead) as Hstep.
+    iSpecialize ("Hwp" $! _ _ _ _ Hstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+  Qed.
 
   Lemma ewp_self_inv {A X} σ π ι (k : _ -> micro A X) Ψ Φ E :
     state_interp (σ, π) -∗
@@ -321,10 +324,10 @@ Section satisfiability_weakest_pre.
   Qed.
 
   Lemma ewp_die_inv {A X} σ π ι o (k : _ -> micro A X) Ψ Φ E :
-    ⌜π !! ι = Some Alive⌝ -∗
+    ⌜ι ∈ dom π⌝ -∗
     state_interp (σ, π) -∗
     EWP Stop CDie o k @ E <|(ι, Ψ)|> {{ Φ }} -∗
-    |={E}[∅]▷=> state_interp (σ, <[ ι := Dead o ]> π) ∗ EWP Stop CDie o k @ E <| (ι, Ψ) |> {{ Φ }}.
+    |={E}[∅]▷=> state_interp (σ, <[ ι := Dead o ]> π) ∗ EWP k o @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
     iIntros "%Hlookup Hsi Hwp".
     rewrite {1}ewp_unfold /ewp_pre /=. spec_state.
@@ -349,10 +352,11 @@ Section satisfiability_weakest_pre.
      However, threadpool_step allows [CJoin]s to crash, whereas [wp_step] only allows
      joining a valid, dead thread. *)
 
-  Lemma wptp_step' (π1 π2 : thpool) σ1 σ2 Ψ :
-    (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1 Ψ) -∗
+  Lemma wptp_step' (π1 π2 : thpool) σ1 σ2 :
+    (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) -∗
     ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ →
-    |={⊤}[∅]▷=> state_interp (σ2, to_local_view <$> π2) ∗ WPTP π2 Ψ.
+    |={⊤}[∅]▷=> state_interp (σ2, to_local_view <$> π2) ∗
+                        WPTP π2.
   Proof.
     iIntros "[Hsi Hwps] %Hstep".
     inversion Hstep.
@@ -362,20 +366,19 @@ Section satisfiability_weakest_pre.
       apply invert_some_active_thread in H2 as Hm.
       rewrite (local_view_insert_id π1 ι _ _ Hm).
       (* Get the [EWP] judgment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(%φ & %HΨ & Hwp & Hwps)".
+      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hwp & Hwps)".
       (* Get [EWP m'] judgment from the facts that [EWP m] and [m -> m']. *)
       iPoseProof (ewp_step with "Hsi Hwp") as "Hwp"; first eassumption.
       iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "[$ Hwp]".
       (* Recombine [EWP m'] with [WPTP]. *)
-      rewrite <- (insert_id Ψ ι φ HΨ) at 2.
-      iApply big_sepM2_insert_delete.
+      iApply big_sepM_insert_delete.
       by iFrame.
 
     - apply invert_some_active_thread in H2 as Hm.
       (* Simplify the threadpool in the goal. *)
       rewrite (fmap_insert) (local_view_insert_id _ _ _ _ Hm).
       (* Get the [EWP] judgment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "[Hfork Hwps]".
+      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hfork & Hwps)".
       (* Inversion on [EWP Stop CFork]. *)
       apply lookup_local_fresh in H4 as Hforgot.
       iPoseProof (ewp_fork_inv $! Hforgot with "Hsi Hfork") as "Hfork".
@@ -394,7 +397,7 @@ Section satisfiability_weakest_pre.
       (* Simplify the threadpool in the goal. *)
       rewrite (local_view_insert_id _ _ _ _ Hm).
       (* Get the [EWP] jugment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "[Hjoin Hwps]".
+      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hjoin & Hwps)".
       (* Invert the [EWP Stop CJoin]. *)
       iPoseProof (ewp_join_inv $! H4 with "Hsi Hjoin") as "Hwp".
       iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp)".
@@ -406,7 +409,7 @@ Section satisfiability_weakest_pre.
       (* Simplify the threadpool in the goal. *)
       rewrite (local_view_insert_id _ _ _ _ Hm).
       (* Geth the [EWP] judgment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "[Hself Hwps]".
+      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hself & Hwps)".
       (* Invert the [EWP Stop CSelf]. *)
       iPoseProof (ewp_self_inv with "Hsi Hself") as "Hwp".
       iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp)".
@@ -414,15 +417,17 @@ Section satisfiability_weakest_pre.
       iApply big_sepM_insert_delete.
       by iFrame.
 
-    - apply invert_some_active_thread in H0 as Hm.
+    - subst.
+      apply invert_some_active_thread in H0 as Hm.
       (* Simplify the threadpool in the goal. *)
       rewrite fmap_insert.
       (* Get the [EWP] judgment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "[Hdie Hwps]".
+      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hdie & Hwps)".
       (* Inversion on [EWP Stop CDie] to get the updated state interp. *)
       apply lookup_local_view in Hm.
-      iPoseProof (ewp_die_inv $! Hm with "Hsi Hdie") as "Hwp".
-      iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "($ & _)".
+      eassert (ι ∈ dom _) as Hdom. { eapply elem_of_dom; eexists; apply Hm. }
+      iPoseProof (ewp_die_inv $! Hdom with "Hsi Hdie") as "Hwp".
+      iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "($ & Hwp)".
       (* No need to recombine the [EWP] and [WPTP] because the definition of
          [WPTP] does not require anything on terminated threads.  *)
       iApply big_sepM_insert_delete.
@@ -434,8 +439,8 @@ Section satisfiability_weakest_pre.
     SAT m F [view ⊤; supply n]
       (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) →
     threadpool_step (σ1, π1) (σ2, π2) →
-    ∃ n' , SAT m F [view ⊤; supply n']
-             (|={⊤}[∅]▷=> state_interp (σ2, to_local_view <$> π2) ∗ WPTP π2).
+    ∃ n', SAT m F [view ⊤; supply n']
+             (|={⊤}[∅]▷=> state_interp (σ2, to_local_view <$> π2) ∗ WPTP π2 ).
   Proof.
     intros Hsat Hstep.
     exists n.
@@ -445,7 +450,7 @@ Section satisfiability_weakest_pre.
     iPureIntro. apply Hstep.
   Qed.
 
-  Lemma wptp_steps m F n k π1 π2 σ1 σ2  :
+  Lemma wptp_steps m F n k π1 π2 σ1 σ2 :
     SAT m F [view ⊤; supply n] (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) →
     threadpool_steps k (σ1, π1) (σ2, π2) →
     ∃ n', SAT m F [view ⊤; supply n'] (state_interp (σ2, to_local_view <$> π2) ∗ WPTP π2).
@@ -471,7 +476,7 @@ Section satisfiability_weakest_pre.
     eapply SAT_mono in Hsat; last first.
     { iIntros "[_ Hwp]". iApply "Hwp". }
     rewrite SAT_frame_cons in Hsat.
-    by eapply wp_not_stuck in Hsat.
+    by eapply ewp_not_stuck in Hsat.
   Qed.
 
   (* composing the adequacy lemmas *)
@@ -495,8 +500,7 @@ Section satisfiability_weakest_pre.
        EWP e @ ⊤ <| (ι, ⊥) |> {{ λ _, True%I }}) →
     (* and we take a k-step execution to [e'] and some forked of threads *)
     threadpool_steps k (σ1, {[ι := Active e]}) (σ2, π2) →
-    (* then no thread is stuck and if the main thread terminates in a value, it satisfies the postcondition *)
-    (* (∀ o, π2 !! ι = Some (Terminated o) → φ o) ∧ *)
+    (* then no thread is stuck *)
     (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
   Proof.
     intros Hsat Hsteps. rewrite wp_wptp in Hsat.
