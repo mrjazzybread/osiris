@@ -114,18 +114,10 @@ Section ewp_basic_rules.
     iModIntro. ewp_mask_elim.
     iAssert (⌜m' =  eval η e⌝)%I as "->".
     { iPureIntro.
-      simple inversion Hstep; try discriminate.
-      apply pair_eq in H0 as [_ H].
-      remember (η, e) as p0.
-
-      replace η with p0.1 in *; last first.
-      { by rewrite Heqp0. }
-      replace e with p0.2 in *; last first.
-      { by rewrite Heqp0. }
-
-      destruct_wp_step.
+      dependent destruction Hstep.
+      remember (η, e).
+      destruct_step.
       by rewrite try2_inject2_right. }
-
     destruct_wp_step.
     iFrame.
   Qed.
@@ -372,25 +364,6 @@ Section wp_handler_rules.
     iIntros (?) "HΦ"; by iNext.
   Qed.
 
-  Lemma ewp_die_mono {B Y C X'} o (k : _ -> micro B Y) (h : _ -> micro C X') E ι Ψ Ψ' Φ Φ' :
-    EWP (Stop CDie o k) @ E <| (ι, Ψ) |> {{ Φ }} -∗
-    EWP (Stop CDie o h) @ E <| (ι, Ψ') |> {{ Φ' }}.
-  Proof.
-    iIntros "Hwp".
-    iLöb as "IH".
-    rewrite {2}ewp_unfold /ewp_pre /=.
-    ewp_unfold_head.
-    intro_state. spec_state.
-    iModIntro.
-    discharge_pure (apply Hstep).
-    intro_step. destruct_wp_step.
-    epose proof (DieS _ _ _ _ _ H) as Hdie.
-    iSpecialize ("Hwp" $! _ _ _ _ Hdie).
-    ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)".
-    iModIntro.
-    iApply ("IH" with "Hwp").
-  Qed.
-
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle E ι Ψ Φ Ψ' Φ' e h:
     EWP e @ E <| (ι, Ψ) |> {{ Φ }} -∗
@@ -487,7 +460,17 @@ Section wp_handler_rules.
 
     { (* [StepHandleDie] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      iApply (ewp_die_mono with "He"). }
+      ewp_unfold_all. intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_wp_step.
+      unfold can_progress in Hstep.
+      eassert (wp_step (σ'0, π, Stop CDie o k, ι) _) as Hstep0.
+      { apply DieS. assumption. }
+      iSpecialize ("He" $! _ _ _ _ Hstep0). iMod "He". iIntros "!> !>".
+      iMod "He" as "($ & He & _)". iModIntro.
+      iSpecialize ("IH" with "He Hsh").
+      (* Pretty sure this is true *)
+      clear A X.
+      admit. }
 
     { (* [StepHandleCrash] *)
       iPoseProof (ewp_crash_inv with "[$]") as "HF".
@@ -500,7 +483,7 @@ Section wp_handler_rules.
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
       iMod "H". ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
       iApply ("IH" with "H Hsh"). }
-  Qed.
+  Admitted.
 
   (* Specification for [Handle] follows the specification for shallow handlers. *)
   Lemma ewp_handle_ret E Ψ (Φ : outcome2 A X -> _) (a : val) h:
@@ -665,13 +648,14 @@ Section ewp_rules.
     destruct Hstep as [ Hstep | Hstep ].
     { (* Case: [m1] is [Die]. *)
       destruct Hstep as (o & k & -> & Hdom).
-      simpl try2. construct_wp_nonret.
+      construct_wp_nonret.
       destruct_wp_step.
-      epose proof (DieS _ _ _ _ _ H).
-      iSpecialize ("Hwp" $! _ _ _ _ H0).
+      eassert (wp_step (σ', π, Stop CDie o k, local_thread Ψ) _) as Hstep0.
+      { apply DieS. apply Hdom. }
+      iSpecialize ("Hwp" $! _ _ _ _ Hstep0).
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)".
-      iModIntro. destruct Ψ.
-      iApply (ewp_die_mono with "Hwp"). }
+      iModIntro.
+      iApply ("IH" with "Hwp"). }
 
     destruct Hstep as [ Hstep | Hstep ].
     { (* Case: [m1] is [Fork _] *)
@@ -848,7 +832,13 @@ Section ewp_rules.
 
       - (* Step then die. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-        iApply (ewp_die_mono with "H1"). }
+        rewrite (ewp_unfold (Stop CDie x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (DieS _ _ _ _ _ H0).
+        iSpecialize ("H1" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [StepThroughParRight]. *)
       destruct_code.
@@ -896,7 +886,13 @@ Section ewp_rules.
 
       - (* [StepParDieRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-        iApply (ewp_die_mono with "H2"). }
+        rewrite (ewp_unfold (Stop CDie x _)) /ewp_pre /=.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        construct_wp_nonret. destruct_wp_step.
+        epose proof (DieS _ _ _ _ _ H0).
+        iSpecialize ("H2" $! _ _ _ _ H1).
+        ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
+        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.

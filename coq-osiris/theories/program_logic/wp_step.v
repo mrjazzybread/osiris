@@ -13,35 +13,33 @@ Definition threadpool : Type := gmap thread thread_state.
 Definition th_config A X : Type := store * threadpool * micro A X * thread.
 Definition th_config_step A X : Type := store * threadpool * micro A X * list (thread * microvx).
 
-Inductive wp_step {A X} : th_config A X -> th_config_step A X -> Prop :=
-| BaseS :
-  ∀ m σ m' σ' π ι,
+Inductive wp_step : ∀ A X, th_config A X -> th_config_step A X -> Prop :=
+| BaseS : ∀ {A X} (m : micro A X) σ m' σ' π ι,
     step (σ, m) (σ', m') ->
-    wp_step (σ, π, m, ι) (σ', π, m', [])
-| ForkS :
-  ∀ σ π ι v1 v2 k ι',
+    wp_step A X (σ, π, m, ι) (σ', π, m', [])
+| ForkS : ∀ {A X} σ π ι v1 v2 (k : outcome2 val exn -> micro A X) ι',
     π !! ι' = None ->
-    wp_step
+    wp_step A X
       (σ, π, (Stop CFork (v1, v2) k), ι)
       (σ, <[ ι' := Alive ]> π, continue k (VThread ι'), [ (ι', try2 (call v1 v2) die)])
-| JoinS :
-  ∀ σ π ι k o ι',
+| JoinS : ∀ {A X} σ π ι (k : outcome2 val exn -> micro A X) o ι',
     π !! ι' = Some (Dead o) ->
-    wp_step
+    wp_step A X
       (σ, π, Stop CJoin ι' k, ι)
       (σ, π, k o, [])
-| SelfS :
-  ∀ σ π ι u k,
-    wp_step
+| SelfS : ∀ {A X} σ π ι u (k : outcome2 val exn -> micro A X),
+    wp_step A X
       (σ, π, Stop CSelf u k, ι)
       (σ, π, continue k (VThread ι), [])
 | DieS :
-  ∀ σ π ι o k,
-    π !! ι = Some Alive ->
-    wp_step
+  ∀ {A X} σ π ι o k,
+    ι ∈ dom π ->
+    wp_step A X
       (σ, π, Stop CDie o k, ι)
-      (σ, <[ ι := Dead o ]> π, Stop CDie o k, [])
+      (σ, <[ ι := Dead o ]> π, k o, [])
 .
+
+Arguments wp_step {A X}.
 
 Global Hint Constructors wp_step : wp_step.
 
@@ -80,15 +78,23 @@ Lemma invert_can_progress {A E} σ π m ι :
   (can_step (σ, m)).
 Proof.
   intros Hcp.
-  destruct m; try destruct_code;
-  try by (right; right; right; right; destruct Hcp as ([[[??]?]?] & Hcp); destruct_wp_step; subst;
-       auto with step can_step).
-
+  (* Cases on the micro computation. *)
+  destruct m;
+    (* If that computation is a Stop, destruct the code *)
+    try destruct_code;
+    (* Generally try to invert Hcp *)
+    try (
+       destruct Hcp as ([[[??]?]?] & Hcp);
+       dependent destruction Hcp;
+       destruct_step; auto with step can_step);
+    (* There remains some cases *)
+    try solve [(do 4 right; auto with step can_step)].
+  (* Only the [Stop] case is left. *)
   - right; right; left. destruct x. repeat eexists.
   - left; repeat eexists. apply Hcp.
   - right; right; right; left.
     repeat eexists.
-  - right; left. repeat eexists. apply Hcp.
+  - right; left. repeat eexists; apply Hcp.
 Qed.
 
 Arguments can_progress : simpl never.
@@ -113,7 +119,7 @@ Proof.
   { exists (fresh (dom π)).
     apply fin_map_dom.not_elem_of_dom_1.
     apply fin_sets.is_fresh. }
-  eexists. apply ForkS.
+  eexists. apply (ForkS (A:=A) (X:=E)).
   apply Hι'.
 Qed.
 
@@ -132,11 +138,12 @@ Proof.
   eexists. apply SelfS.
 Qed.
 
-Lemma can_progress_die {A E} σ π o (k : _ -> micro A E) ι s :
+Lemma can_progress_die σ π o (k : _ -> microvx) ι s :
   π !! ι = Some s ->
-  can_progress (σ, π, (Stop CDie o k), ι).
+  @can_progress val exn (σ, π, (Stop CDie o k), ι).
 Proof.
   intros Hπ.
+  repeat constructor.
   apply elem_of_dom.
   exists s; assumption.
 Qed.
@@ -151,7 +158,7 @@ Lemma invert_wp_step_resume {A E : Type} (σ σ' : store) π π' ι μ (l : loc)
   (k : outcome2 val exn → micro A E)
   (sk : outcome2 val exn → microvx) (m' : micro A E) :
   σ !! l = Some (K sk) →
-  wp_step (σ, π, Stop CResume (l, o) k, ι) (σ', π', m', μ) →
+  @wp_step A E (σ, π, Stop CResume (l, o) k, ι) (σ', π', m', μ) →
   σ' = <[l:=Shot]> σ ∧ m' = try2 (sk o) k ∧ π' = π ∧ μ = [].
 Proof.
   intros Hlookup Hstep.
