@@ -109,15 +109,6 @@ Local Hint Extern 1 (_ = _) =>
   exploit_location_lookup
 : exploit_location_lookup.
 
-(* [destruct_stuck_cases] destructs the nested disjunction resulting from
-   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
-   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
-   (covering Fork, Join, Self, Die). For the concurrent case, the code must
-   be further destructed to determine which specific concurrent operation it is. *)
-
-Local Ltac destruct_stuck_cases H :=
-  destruct H as [(? & ?)| [(? & ?) | [(? & ? & ?) | (? & ? & ? & ? & ? & ? & (? & ?))]]].
-
 (* -------------------------------------------------------------------------- *)
 
 (* [step_load σ l k] is the right-hand side of the reduction rule [StepLoad].
@@ -248,6 +239,12 @@ Lemma try2_step_wrap_2 {A B E F} l'
 Proof.
   unfold step_wrap_2. eauto.
 Qed.
+
+Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
+  match c with
+  | CPerf | CJoin | CFork | CSelf | CDie => True
+  | _ => False
+  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -471,16 +468,16 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Par m1 (Stop CPerf e k) h)
         (σ, Stop CPerf e (λ o, Par m1 (k o) h))
 
-  | StepParConcLeft :
+  | StepThroughParLeft :
     ∀ {X Y E A1 A2 E'} σ m2 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
-      is_concurrent_code c ->
+      step_through_par_code c ->
       step
         (σ, Par (Stop c x k) m2 h)
         (σ, Stop c x (λ o, Par (k o) m2 h))
 
-  | StepParConcRight :
+  | StepThroughParRight :
     ∀ {X Y E A1 A2 E'} σ m1 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
-      is_concurrent_code c ->
+      step_through_par_code c ->
       step
         (σ, Par m1 (Stop c x k) h)
         (σ, Stop c x (λ o, Par m1 (k o) h))
@@ -1012,10 +1009,10 @@ Proof.
       (* We are now looking at [Stop] under [Par]. *)
       destruct c; eauto 6 using can_step_under_par with step;
         (* All the remaining codes are concurrent. *)
-        by eexists; eapply StepParConcRight.
+        by eexists; eapply StepThroughParRight.
     + (* We are now looking at [Stop] under [Par]. *)
       destruct c; eauto 6 using can_step_under_par with step;
-        by eexists; eapply StepParConcLeft.
+        by eexists; eapply StepThroughParLeft.
   }
 
 Qed.
@@ -1232,12 +1229,11 @@ Qed.
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
-Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck {A E} σ m :
+Lemma invert_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
   (∃ s, m = Crash s) ∨
     (∃ e, m = Throw e) ∨
-    (∃ e k, m = Stop CPerf e k) ∨
-    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ is_concurrent_code c).
+    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ step_through_par_code c).
 Proof.
   intros.
   destruct m; try solve [
@@ -1245,11 +1241,11 @@ Proof.
   | exfalso; eauto using invert_stuck_ret
   | exfalso; eauto using can_step_not_stuck with step
   ].
-  (* The case of [Stop] remains. *)
+  (* [Stop] *)
   destruct_code; try solve [
       eauto 9
     | exfalso; eauto using can_step_not_stuck with step
-    | do 3 right; repeat eexists
+    | do 2 right; repeat eexists
   ].
 Qed.
 
@@ -1269,6 +1265,46 @@ Proof.
   destruct_code; eauto with step.
 Qed.
 
+(* [destruct_stuck_cases] destructs the nested disjunction resulting from
+   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
+   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
+   (covering Fork, Join, Self, Die). For the concurrent case, the code must
+   be further destructed to determine which specific concurrent operation it is. *)
+
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
+
+(* Recursively destruct all existential quantifiers and a final conjunction *)
+Local Ltac2 rec destruct_existentials_and_conjunction (h : ident) :=
+  let hyp := Control.hyp h in
+  lazy_match! Constr.type hyp with
+  | ex _ =>
+      let x := Fresh.in_goal @_x in
+      destruct $hyp as [$x $h];
+      destruct_existentials_and_conjunction h
+  | _ /\ _ =>
+      let x := Fresh.in_goal @_x in
+      let y := Fresh.in_goal @_y in
+      destruct $hyp as [$x $y]
+  | _ => ()
+  end.
+
+(* Recursively destruct nested disjunctions, then handle existentials *)
+Local Ltac2 rec destruct_nested_disjunction (h : ident) :=
+  let hyp := Control.hyp h in
+  lazy_match! Constr.type hyp with
+  | _ \/ _ =>
+      destruct $hyp as [$h | $h];
+      Control.enter (fun () => destruct_nested_disjunction h)
+  | _ =>
+      destruct_existentials_and_conjunction h
+  end.
+
+(* Main tactic notation *)
+Tactic Notation "destruct_stuck_cases" ident(h) :=
+  let f := ltac2:(h |- destruct_nested_disjunction (Option.get (Ltac1.to_ident h))) in
+  f h.
+
 (* If [m] is stuck then [bind m f] is also stuck. *)
 
 Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
@@ -1276,15 +1312,14 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_and_concurrent_are_stuck in Hstuck.
+  apply invert_stuck in Hstuck.
   destruct_stuck_cases Hstuck; subst m; simpl bind.
   - (* Crash *) apply stuck_Crash.
   - (* Throw *) apply stuck_Throw.
-  - (* Perform *) apply stuck_Perform.
-  - (* Concurrent *)
-    match goal with c: code _ _ _ |- _ => destruct c end;
-    try contradiction; (* eliminate non-concurrent codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Die.
+  - (* Stop *)
+    destruct_code;
+    try contradiction; (* eliminate non-relevant codes *)
+    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Die, stuck_Perform.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
