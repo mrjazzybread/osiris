@@ -23,8 +23,14 @@ Definition is_join {A E} (m : micro A E) : Prop :=
   | _ => False
   end.
 
+Definition to_local_view : (thread_status) → thread_state :=
+  λ s, match s with
+       | Active _ => Alive
+       | Terminated o => Dead o
+       end.
+
 Definition not_stuck {A E} (m : micro A E) s ι :=
-  is_final m ∨ can_progress (s.1, s.2, m, ι) ∨ is_join m.
+  is_final m ∨ can_progress (s.1, to_local_view <$> s.2, m, ι) ∨ is_join m.
 
 Lemma wp_wptp `{!osirisGS Σ} ι m φ :
   EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ⊢ WPTP {[ι := (Active m) ]}.
@@ -40,7 +46,7 @@ Section satisfiability_weakest_pre.
   Context `{!osirisGS Σ}.
 
   Lemma ewp_not_stuck {A X} m F E (e : micro A X) ι σ π Φ n:
-    SAT m F [view E; supply n] (state_interp (σ, π) ∗
+    SAT m F [view E; supply n] (state_interp (σ, to_local_view <$> π) ∗
                                   EWP e @ E <| (ι, ⊥) |> {{ Φ }}) →
     not_stuck e (σ, π) ι.
   Proof.
@@ -58,7 +64,7 @@ Section satisfiability_weakest_pre.
       rewrite /prot upcl_bottom in Hsat.
       by apply SAT_elim in Hsat.
     - rewrite Hhm in Hsat.
-      eapply SAT_mono with (Q := (|={E, ∅}=> ⌜can_progress (σ, π, e, ι)⌝)%I)
+      eapply SAT_mono with (Q := (|={E, ∅}=> ⌜can_progress (σ, to_local_view <$> π, e, ι)⌝)%I)
                            in Hsat.
       { eapply SAT_fupd, SAT_elim in Hsat.
         by left. }
@@ -137,11 +143,6 @@ Section satisfiability_weakest_pre.
   (*   - inversion Hactive; subst. reflexivity. *)
   (* Qed. *)
 
-  Definition to_local_view : (thread_status) → thread_state :=
-    λ s, match s with
-         | Active _ => Alive
-         | Terminated o => Dead o
-         end.
 
   (* Definition to_local_view (π : gmap thread thread_status) : gmap thread thread_state := *)
   (*   fmap erase_active_thread π. *)
@@ -466,7 +467,7 @@ Section satisfiability_weakest_pre.
   Qed.
 
   Lemma wptp_not_stuck m F n e es ι σ π:
-    SAT m F [view ⊤; supply n] (state_interp (σ, π) ∗ WPTP es) →
+    SAT m F [view ⊤; supply n] (state_interp (σ, to_local_view <$> π) ∗ WPTP es) →
     es !! ι = Some (Active e) →
     not_stuck e (σ, π) ι.
   Proof.
@@ -485,7 +486,7 @@ Section satisfiability_weakest_pre.
     threadpool_steps k (σ1, π1) (σ2, π2) →
     ∀ ι m,
       π2 !! ι = Some (Active m) ->
-      not_stuck m (σ2, to_local_view <$> π2) ι.
+      not_stuck m (σ2, π2) ι.
   Proof.
     intros Hsat Hsteps. eapply wptp_steps in Hsat as (n' & Hsat); last done.
     intros ι e Hlookup.
@@ -501,7 +502,7 @@ Section satisfiability_weakest_pre.
     (* and we take a k-step execution to [e'] and some forked of threads *)
     threadpool_steps k (σ1, {[ι := Active e]}) (σ2, π2) →
     (* then no thread is stuck *)
-    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, π2) ι).
   Proof.
     intros Hsat Hsteps. rewrite wp_wptp in Hsat.
     rewrite -insert_empty in Hsat.
@@ -535,7 +536,7 @@ Lemma SAT_ewp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 
   (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}) →
   (* then any k-step execution is safe: *)
   threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
-  (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
+  (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, π2) ι).
 Proof.
   intros Halloc Hwp Hsteps.
   pose proof (SAT_intro (Σ := Σ)) as Hsat.
@@ -602,7 +603,7 @@ Section adequacy.
     (∀ `{!osirisGS Σ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
     (* then any k-step execution is safe: *)
     threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
-    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, π2) ι).
   Proof.
     intros Hwp.
     eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True).
@@ -634,7 +635,7 @@ Section adequacy.
   Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k :
     (∀ `{!osirisGS osirisΣ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
     threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
-    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, π2) ι).
   Proof.
     intros Hwp. eapply osiris_adequacy, Hwp. apply _.
   Qed.
