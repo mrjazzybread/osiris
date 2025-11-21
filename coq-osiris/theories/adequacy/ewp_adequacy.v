@@ -96,21 +96,6 @@ Section satisfiability_weakest_pre.
       nsteps n ρ2 ρ3 →
       nsteps (S n) ρ1 ρ3.
 
-  Lemma wp_postcondition {A X} m F E ι Ψ (e : micro A X) (Φ : outcome2 A X -> iProp Σ) v n:
-    SAT m F [view E; supply n] (EWP e @ E <| (ι, Ψ) |> {{ Φ }}) →
-    outcome2_opt e = Some v →
-    SAT m F [view E; supply n] (Φ v).
-  Proof.
-    intros Hsat Hval. eapply SAT_mono in Hsat; last first.
-    { iIntros "Hwp".
-      destruct e; try discriminate Hval; inversion Hval.
-      - iPoseProof (ewp_ret_inv with "Hwp") as "Hret".
-        rewrite H0. iApply "Hret".
-      - iPoseProof (ewp_throw_inv with "Hwp") as "Hthrow".
-        iApply "Hthrow". }
-    by eapply SAT_fupd in Hsat.
-  Qed.
-
   Lemma ewp_step {A X} σ π (m : micro A X) σ' m' E Ψ Φ :
     step (σ, m) (σ', m') ->
     state_interp (σ, π) -∗
@@ -361,8 +346,6 @@ Section satisfiability_weakest_pre.
   Proof.
     iIntros "[Hsi Hwps] %Hstep".
     inversion Hstep.
-      (* iPoseProof (invert_active_thread_in_wp with "Hwps") as "Hwps"; *)
-      (* try iDestruct ("Hwps" $! H2) as "(([%Φ %HΦ] & %Hm0) & Hwps)". *)
     - (* Simplify the threadpool in the goal. *)
       apply invert_some_active_thread in H2 as Hm.
       rewrite (local_view_insert_id π1 ι _ _ Hm).

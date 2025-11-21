@@ -113,23 +113,6 @@ Section ewp_stop.
     iApply ("Hwp" with "Hl").
   Qed.
 
-  Lemma ewp_stop_die {B Y} o (k : _ -> micro B Y) E ι Ψ Φ :
-    live_thread ι -∗
-    EWP k o @ E <| (ι, Ψ) |> {{ Φ }} -∗
-    EWP (Stop CDie o k) @ E <| (ι, Ψ) |> {{ Φ }}.
-  Proof.
-    iIntros "Hι Hwp".
-    ewp_unfold_head.
-    intro_state.
-    iPoseProof (live_thread_valid with "Hti Hι") as "%".
-    assert (ι ∈ dom π). { apply elem_of_dom. eexists. eassumption. }
-    ewp_mask_intro "Hmod".
-
-    construct_wp_nonret. destruct_wp_step.
-    iMod (thread_update with "Hti Hι") as "[Hti Hι]".
-    ewp_mask_elim. iFrame.
-  Qed.
-
   (* When forking a thread, we must prove that the forked thread is
      safe, and that the parent thread is safe.
      We learn that the forked thread has an address ι' and is initially alive *)
@@ -148,11 +131,7 @@ Section ewp_stop.
     ewp_mask_elim; iFrame.
     iDestruct ("Hfork" with "Hvalid") as "[Hcall $]".
     iApply big_sepL_singleton.
-    iApply ewp_try2.
-    iApply (ewp_mono with "Hcall").
-    iIntros (o) "_".
-    iApply (ewp_stop_die with "Hlive").
-    destruct o; [ iApply ewp_value | iApply ewp_throw ]; done.
+    iApply "Hcall".
   Qed.
 
   Lemma ewp_fork E Ψ v1 v2 Φ :

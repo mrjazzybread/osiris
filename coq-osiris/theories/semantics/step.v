@@ -363,12 +363,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CSelf u k) h)
         (σ, Stop CSelf u (λ o, Handle (k o) h))
 
-  | StepHandleDie:
-    ∀ σ o k h,
-      step
-        (σ, Handle (Stop CDie o k) h)
-        (σ, Stop CDie o (λ o, Handle (k o) h))
-
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h s,
@@ -497,39 +491,26 @@ Ltac destruct_step :=
 
 Section threadpool.
 
-  Inductive thread_status : Type :=
-  | Active : micro val exn -> thread_status
-  | Terminated : outcome2 val exn -> thread_status.
-
   Definition thpool : Type :=
-    gmap thread thread_status.
+    gmap thread (micro val exn).
 
   Implicit Type π : thpool.
   Implicit Type ι : thread.
-
-  Local Instance insert_thread : Insert thread (microvx) (thpool) :=
-    λ ι m π, map_insert ι (Active m) π.
-
-  Definition active_thread ι π :=
-    match π !! ι with
-    | Some (Active m) => Some m
-    | _ => None
-    end.
 
   Definition tconfig := (store * thpool)%type.
 
   Definition attempt_join {A E} ι π (k : outcome2 val exn -> micro A E) :=
     match π !! ι with
     (* Joining a thread which has terminated. *)
-    | Some (Terminated o) =>
-        match o with
+    | Some m =>
+        match m with
         (* If the joined thread terminated sucessfully, continue with unit. *)
-        | O2Ret v => Some (continue k v)
+        | Ret v => Some (continue k v)
         (* If the joined thread raised an exception, re-raise the exception. *)
-        | O2Throw ex => Some (discontinue k ex)
+        | Throw ex => Some (discontinue k ex)
+        (* We do not step while attempting to join an active thread. *)
+        | _ => None
         end
-    (* We do not step while attempting to join an active thread. *)
-    | Some (Active _) => None
     (* Attempting to join an invalid thread results in a [crash]. *)
     | None => Some (crash "join invalid thread")
     end.
@@ -537,34 +518,30 @@ Section threadpool.
   Inductive threadpool_step : tconfig -> tconfig -> Prop :=
   | BaseTS :
     ∀ ι π m σ m' σ',
-      active_thread ι π = Some m ->
+      π !! ι = Some m ->
       step (σ, m) (σ', m') ->
       threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
   | ForkTS :
     ∀ ι π ι' v1 v2 k σ,
-      active_thread ι π = Some (Stop CFork (v1, v2) k) ->
+      π !! ι = Some (Stop CFork (v1, v2) k) ->
       π !! ι' = None ->
       threadpool_step
         (σ, π)
-        (σ, <[ ι' := try2 (call v1 v2) die ]>
+        (σ, <[ ι' := call v1 v2 ]>
               (<[ ι := continue k (VThread ι') ]>π))
   | JoinTS :
     ∀ ι π ι' k m σ,
-      active_thread ι π = Some (Stop CJoin ι' k) ->
+      π !! ι = Some (Stop CJoin ι' k) ->
       attempt_join ι' π k = Some m ->
       threadpool_step
         (σ, π)
         (σ, <[ ι := m ]> π)
   | SelfTS :
     ∀ ι π k σ,
-      active_thread ι π = Some (Stop CSelf () k) ->
+      π !! ι = Some (Stop CSelf () k) ->
       threadpool_step
         (σ, π)
         (σ, <[ ι := continue k (VThread ι) ]> π)
-  | DieTS :
-    ∀ ι π o k σ,
-      active_thread ι π = Some (Stop CDie o k) ->
-      threadpool_step (σ, π) (σ, <[ ι := Terminated o ]> π)
   .
 
   Definition threadpool_steps := @nsteps tconfig threadpool_step.
@@ -780,13 +757,6 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
-Lemma invert_can_step_die {A E} σ o (k : _ -> micro A E) :
-  can_step (σ, (Stop CDie o k)) ->
-  False.
-Proof.
-  intros. destruct_can_step. destruct_step.
-Qed.
-
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
@@ -795,7 +765,6 @@ Global Hint Resolve
   invert_can_step_fork
   invert_can_step_join
   invert_can_step_self
-  invert_can_step_die
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -1202,12 +1171,6 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-Lemma stuck_Die {A E} σ o k :
-  stuck ((σ, Stop CDie o k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
@@ -1237,7 +1200,7 @@ Qed.
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash _ | Throw _
-  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ | Stop CDie _ _ =>
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1301,7 +1264,7 @@ Proof.
   - (* Stop *)
     destruct_code;
     try contradiction; (* eliminate non-relevant codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Die, stuck_Perform.
+    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Perform.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1335,7 +1298,7 @@ Proof.
   destruct m; try destruct_code;
   try solve [left; eauto];  (* Ret case *)
   try solve [right; left; eauto with step];  (* can_step cases *)
-  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Die, stuck_Self].  (* stuck cases *)
+  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Self].  (* stuck cases *)
 Qed.
 
 Ltac triplicity σ m H :=

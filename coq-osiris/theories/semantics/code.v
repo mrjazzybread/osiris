@@ -80,18 +80,17 @@ Inductive code : Type → Type → Type → Type :=
 | CFork : code (val * val) val exn
 | CJoin : code thread val exn
 | CSelf : code unit val exn
-| CDie : code (outcome2 val exn) val exn
 .
 
 Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
   match c with
-  | CFork | CJoin | CSelf | CDie => True
+  | CFork | CJoin | CSelf => True
   | _ => False
   end.
 
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with
-  | CPerf | CJoin | CFork | CSelf | CDie => True
+  | CPerf | CJoin | CFork | CSelf => True
   | _ => False
   end.
 
@@ -174,9 +173,6 @@ Definition join (t : thread) :=
 
 Definition self :=
   stop CSelf ().
-
-Definition die (o : outcome2 val exn) :=
-  stop CDie o.
 
 (* ------------------------------------------------------------------------ *)
 

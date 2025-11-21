@@ -21,7 +21,7 @@ Inductive wp_step : ∀ A X, th_config A X -> th_config_step A X -> Prop :=
     π !! ι' = None ->
     wp_step A X
       (σ, π, (Stop CFork (v1, v2) k), ι)
-      (σ, <[ ι' := Alive ]> π, continue k (VThread ι'), [ (ι', try2 (call v1 v2) die)])
+      (σ, <[ ι' := Alive ]> π, continue k (VThread ι'), [ (ι', call v1 v2)])
 | JoinS : ∀ {A X} σ π ι (k : outcome2 val exn -> micro A X) o ι',
     π !! ι' = Some (Dead o) ->
     wp_step A X
@@ -31,12 +31,6 @@ Inductive wp_step : ∀ A X, th_config A X -> th_config_step A X -> Prop :=
     wp_step A X
       (σ, π, Stop CSelf u k, ι)
       (σ, π, continue k (VThread ι), [])
-| DieS :
-  ∀ {A X} σ π ι o k,
-    ι ∈ dom π ->
-    wp_step A X
-      (σ, π, Stop CDie o k, ι)
-      (σ, <[ ι := Dead o ]> π, k o, [])
 .
 
 Arguments wp_step {A X}.
@@ -65,14 +59,12 @@ Definition can_progress {A E} (c : th_config A E) :=
   match c with
   | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
   (* Do we really need a special case for [Stop CDie]? *)
-  | (_, π, Stop CDie o _, ι) => ι ∈ dom π
   | _ => ∃ c', wp_step c c'
 end.
 
 Lemma invert_can_progress {A E} σ π m ι :
   @can_progress A E (σ, π, m, ι) ->
   (∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
-  (∃ o k, m = Stop CDie o k ∧ ι ∈ dom π) ∨
   (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
   (∃ u k, m = Stop CSelf u k) ∨
   (can_step (σ, m)).
@@ -88,13 +80,11 @@ Proof.
        dependent destruction Hcp;
        destruct_step; auto with step can_step);
     (* There remains some cases *)
-    try solve [(do 4 right; auto with step can_step)].
+    try solve [(do 3 right; auto with step can_step)].
   (* Only the [Stop] case is left. *)
-  - right; right; left. destruct x. repeat eexists.
-  - left; repeat eexists. apply Hcp.
-  - right; right; right; left.
-    repeat eexists.
-  - right; left. repeat eexists; apply Hcp.
+  - right; left. destruct x. repeat eexists.
+  - left. repeat eexists. apply Hcp.
+  - right; right; left. repeat eexists; apply Hcp.
 Qed.
 
 Arguments can_progress : simpl never.
@@ -138,21 +128,10 @@ Proof.
   eexists. apply SelfS.
 Qed.
 
-Lemma can_progress_die σ π o (k : _ -> microvx) ι s :
-  π !! ι = Some s ->
-  @can_progress val exn (σ, π, (Stop CDie o k), ι).
-Proof.
-  intros Hπ.
-  repeat constructor.
-  apply elem_of_dom.
-  exists s; assumption.
-Qed.
-
 Global Hint Resolve
   can_progress_join
   can_progress_fork
-  can_progress_self
-  can_progress_die : can_progress.
+  can_progress_self : can_progress.
 
 Lemma invert_wp_step_resume {A E : Type} (σ σ' : store) π π' ι μ (l : loc) (o : outcome2 val exn)
   (k : outcome2 val exn → micro A E)
