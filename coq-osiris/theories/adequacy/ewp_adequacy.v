@@ -493,7 +493,7 @@ Section satisfiability_weakest_pre.
   Qed.
 
 
-  Lemma wp_adequacy m F n ι e σ1 σ2 π2 k :
+  Lemma ewp_adequacy m F n ι e σ1 σ2 π2 k :
     (* if we can prove satisfiable of a weakest pre and the state interpretation *)
     SAT m F [view ⊤; supply n]
       (state_interp (σ1, {[ ι := Alive ]}) ∗
@@ -524,18 +524,18 @@ End satisfiability_weakest_pre.
 
   Then you obtain the result of [wp_adequacy] for your choice of [X] and [I]. *)
 Local Existing Instance invGS_wsat.
-Lemma SAT_wp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 π1 σ2 π2 ι e n k P:
+Lemma SAT_ewp_adequacy `{!invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 π2 (e : micro val exn) ι n k P:
   (* allocate the initial state interpretation *)
-  (∀ (iv: invGS Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
+  (∀ (iv: invGS_gen HasNoLc Σ) (F: iProp Σ), SAT Alloc F [view ⊤; supply 0] True →
    ∃ (x: X),
     let i: osirisGS Σ := I x in
-    let inv: invGS Σ := iris_invGS in (* we ensure that all inferences of [invGS] point to this instance *)
-    SAT Alloc F [view ⊤; supply n] (state_interp (σ1, to_local_view <$> π1) ∗ P x)) →
+    let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in (* we ensure that all inferences of [invGS] point to this instance *)
+    SAT Alloc F [view ⊤; supply n] (state_interp (σ1, {[ι:=Alive]}) ∗ P x)) →
   (* prove the weakest precondition for all choices of [X] *)
   (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}) →
   (* then any k-step execution is safe: *)
-  threadpool_steps k (σ1, π1) (σ2, π2) →
-  (∀ ι m, π2 !! ι = Some (Active m) → not_stuck e (σ2, to_local_view <$> π2) ι).
+  threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
+  (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
 Proof.
   intros Halloc Hwp Hsteps.
   pose proof (SAT_intro (Σ := Σ)) as Hsat.
@@ -543,48 +543,48 @@ Proof.
   eapply (Halloc Hi True%I) in Hsat as (x & Hsat); eauto; simpl in *.
   eapply SAT_mono in Hsat; last first.
   { iIntros "SI". iPoseProof (Hwp x) as "Hwp". iCombine "SI Hwp" as "Hx". iExact "Hx". }
-  eapply (@wp_adequacy _ Σ (I x)), Hsteps.
+  eapply (@ewp_adequacy Σ (I x)), Hsteps.
   eapply SAT_mono, Hsat.
   { iIntros "([$ P] & Hwp)". by iApply "Hwp". }
 Qed.
 
+Program Definition initial_thread `{!osirisGpreS Σ} : ghost_map.ghost_mapG Σ thread () := _.
+Next Obligation.
+  intros.
+  apply gen_heapGpreS_heap.
+Defined.
 
-(* Definition of adequacy *)
-Record adequate {Λ} (s : stuckness) (e1 : expr Λ) (σ1 : state Λ)
-    (φ : val Λ → state Λ → Prop) := {
-  adequate_result t2 σ2 v2 :
-   rtc erased_step ([e1], σ1) (of_val v2 :: t2, σ2) → φ v2 σ2;
-  adequate_not_stuck t2 σ2 e2 :
-   s = NotStuck →
-   rtc erased_step ([e1], σ1) (t2, σ2) →
-   e2 ∈ t2 → not_stuck e2 σ2
-}.
+Program Definition initial_dead `{!osirisGpreS Σ} : ghost_map.ghost_mapG Σ thread (outcome2 val exn) := _.
+Next Obligation.
+  intros.
+  apply gen_heapGpreS_heap.
+Defined.
 
-Lemma adequate_alt {Λ} s e1 σ1 (φ : val Λ → state Λ → Prop) :
-  adequate s e1 σ1 φ ↔ ∀ t2 σ2,
-    rtc erased_step ([e1], σ1) (t2, σ2) →
-      (∀ v2 t2', t2 = of_val v2 :: t2' → φ v2 σ2) ∧
-      (∀ e2, s = NotStuck → e2 ∈ t2 → not_stuck e2 σ2).
+Lemma osiris_initial_allocation `{!osirisGpreS Σ} (ι : thread) σ (_ : invGS_gen HasNoLc Σ) (F : iProp Σ) :
+  SAT Alloc F [view ⊤; supply 0] True →
+  ∃ (h: osirisGS Σ),
+    let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in
+    SAT Alloc F [view ⊤; supply 0] (state_interp (σ, {[ ι := Alive ]} )).
 Proof.
-  split.
-  - intros []; naive_solver.
-  - constructor; naive_solver.
-Qed.
-
-Lemma SAT_wp_adequate {Λ} `{!invGpreS Σ} (X: Type) (I: X → irisGS Λ Σ) σ1 ns nt n s e φ P:
-  (* allocate the initial state interpretation *)
-  (∀ (iv: invGS Σ) (F: iProp Σ) κs, SAT Alloc F [view ⊤; supply 0] True →
-   ∃ (x: X),
-    let i: irisGS Λ Σ := I x in
-    let inv: invGS Σ := iris_invGS in (* we ensure that all inferences of [invGS] point to this instance *)
-    SAT Alloc F [view ⊤; supply n] (state_interp σ1 nt κs ns ∗ P x)) →
-  (* prove the weakest precondition for all choices of [X] *)
-  (∀ x, let i: irisGS Λ Σ := I x in P x ⊢ WP e @ s; ⊤ {{ v, ⌜φ v⌝%I }}) →
-  adequate s e σ1 (λ v _, φ v).
-Proof.
-  intros Halloc Hwp.
-  apply adequate_alt; intros t2 σ2' [k [κs Hsteps]]%erased_steps_nsteps.
-  eapply SAT_wp_adequacy; eauto.
+  intros Hsat.
+  eapply SAT_frame_resource with (R := view _) in Hsat; last apply _.
+  eapply SAT_frame_resource with (R := supply _) in Hsat; last apply _.
+  eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
+  eapply (@SAT_gen_heap_init thread _ _ thread_state Σ _ {[ ι := Alive ]}) in Hsat as [Hgen' Hsat].
+  eapply (SAT_ghost_map_alloc {[ ι := () ]}) in Hsat as [γ Hsat].
+  eapply (SAT_ghost_map_alloc ∅) in Hsat as [γ' Hsat].
+  do 2 apply SAT_unframe_resource in Hsat.
+  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen' initial_thread γ initial_dead γ')).
+  exists hg.
+  eapply SAT_mono; last apply Hsat.
+  iIntros "(Hdead & Hdeadown & Halive & Haliveown & Hgen' & Hpts' & Hmeta' & Hgen & Hpts & Hmeta)".
+  iFrame.
+  rewrite !big_sepM_singleton.
+  rewrite omap_singleton.
+  unfold dead_threads_of; rewrite omap_singleton_None; [ | reflexivity ].
+  rewrite big_sepM_empty.
+  iSplitR "Hdead"; [ | iSplitL "Hdead"; done ].
+  iApply "Halive".
 Qed.
 
 
@@ -594,22 +594,49 @@ Qed.
 
 Section adequacy.
 
-  Context {A X : Type} {Σ : gFunctors}.
+  (* ------------------------------------------------------------------------ *)
+  (** Adequacy Theorem for [EWP] for computations under open gFunctors [Σ]. *)
 
-  Context `{!osirisGS Σ}.
+  Definition osiris_adequacy Σ `{!osirisGpreS Σ} (e : micro val exn) ι σ1 π2 σ2 k :
+    (* If we can show [EWP e1 {{ True }}] with the ghost state provided by [Σ]. *)
+    (∀ `{!osirisGS Σ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
+    (* then any k-step execution is safe: *)
+    threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
+  Proof.
+    intros Hwp.
+    eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True).
+    - intros iv F Hsat_init.
+      have [h Hsat] := (osiris_initial_allocation ι σ1 iv F Hsat_init).
+      exists h.
+      eapply SAT_mono, Hsat.
+      apply bi.sep_True_2.
+    - apply Hwp.
+  Qed.
 
   (* ------------------------------------------------------------------------ *)
-  (** Adequacy Theorem for [EWP] for computations. *)
+  (** Adequacy Theorem for [EWP] for a closed list of gFunctors. *)
 
-  Theorem ewp_adequacy (m : micro A X) ι σ φ :
-  (∀ `{!irisGS_gen HasNoLc (@osiris_lang val exn) Σ},
-    (* If [⊢ ⟨ ⊥ ⟩ impure m (λ v. ⌜φ v⌝)] holds *)
-    ⊢ EWP m @ ⊤ <| (ι, ⊥) |> {{ fun o =>  ⌜ φ o ⌝ }}) →
-    (* Then executing [m] cannot terminate with an unhandled effect or a crash, *)
-    adequate NotStuck m
-      σ (* in any initial heap, *)
-      (λ o _, φ o) (* and the returned outcome satisfies the postcondition [φ] *).
+  (* Provide a minimal gFunctors for invariants, the store, and threads *)
+  Definition osirisΣ : gFunctors :=
+    #[ invΣ;
+       gen_heapΣ locations.loc step.block;
+       gen_heapΣ thread thread_state;
+       gen_heapΣ thread unit;
+       gen_heapΣ thread (outcome2 val exn)
+      ].
+  (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
+  Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
+  Proof. solve_inG. Qed.
+
+  (* Example of an adequacy statement instantiated with a specific set of [gFunctors]. *)
+
+  Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k :
+    (∀ `{!osirisGS osirisΣ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
+    threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
+    (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, to_local_view <$> π2) ι).
   Proof.
-  Abort.
+    intros Hwp. eapply osiris_adequacy, Hwp. apply _.
+  Qed.
 
 End adequacy.

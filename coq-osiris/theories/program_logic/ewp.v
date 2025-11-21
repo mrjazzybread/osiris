@@ -68,7 +68,10 @@ Section ghost_instances.
 
   Class osirisGpreS := {
       #[global] osirisGpreS_iris :: invGpreS Σ;
-      #[global] osirisGpreS_inG :: gen_heapGpreS locations.loc step.block Σ
+      #[global] osirisGpreS_inG :: gen_heapGpreS locations.loc step.block Σ;
+      #[global] osirisGpreS_thread :: gen_heapGpreS thread thread_state Σ;
+      #[global] osirisGpreS_valid :: gen_heapGpreS thread unit Σ;
+      #[global] osirisGpreS_dead :: gen_heapGpreS thread (outcome2 val exn) Σ
     }.
 
   Class osirisGS := OsirisGS
@@ -104,7 +107,7 @@ Section ghost_resources.
 
   Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ :=
     (@gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π ∗
-     ghost_map_auth (@valid_threads_name Σ _) 1 (gset_to_gmap () (dom π : gset thread)) ∗
+     ghost_map_auth (@valid_threads_name Σ _) 1 (omap (λ _, Some ()) π) ∗
      ghost_map_auth (@dead_threads_name Σ _) 1 (dead_threads_of π) ∗
      [∗ map] ι ↦ o ∈ dead_threads_of π, ι ↪[(@dead_threads_name Σ _)]□ o)%I.
 
@@ -140,8 +143,9 @@ Section ghost_resources.
     iIntros "[_ [Hauth [_ _]]] Hι".
     iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
     iPureIntro.
-    apply lookup_gset_to_gmap_Some in Hlookup as [Hin _].
-    apply elem_of_dom. assumption.
+    apply lookup_omap_Some in Hlookup.
+    destruct Hlookup as (? & _ & Hsome).
+    eexists; eassumption.
   Qed.
 
   Lemma dead_thread_valid π ι o :
@@ -178,10 +182,9 @@ Section ghost_resources.
     iIntros (Hfresh) "[Hπ [Hauth [Hdead_auth #Hdead_frags]]]".
     rewrite /osiris_thread_interp /live_thread /valid_thread.
     iMod (gen_heap_alloc with "Hπ") as "(Hπ & Hlive & _)"; first done.
-    rewrite dom_insert_L.
+    erewrite omap_insert_Some; [ | reflexivity ].
     iMod (ghost_map_insert ι () with "Hauth") as "[Hauth Hfrag]".
-    { rewrite lookup_gset_to_gmap_None. apply not_elem_of_dom. assumption. }
-    rewrite gset_to_gmap_union_singleton.
+    { rewrite lookup_omap Hfresh. reflexivity. }
     iMod (ghost_map_elem_persist with "Hfrag") as "#Hfrag".
     (* dead_threads_of doesn't change when adding Alive *)
     assert (dead_threads_of (<[ι:=Alive]> π) = dead_threads_of π) as Homap.
@@ -218,9 +221,11 @@ Section ghost_resources.
     rewrite big_sepM_insert; last first.
     { rewrite lookup_omap Hlookup /=. reflexivity. }
     (* The domain doesn't change when updating a value *)
-    assert (dom (<[ι:=Dead o]> π) = dom π) as Hdom.
-    { apply dom_insert_lookup_L. by eauto. }
-    rewrite Hdom.
+    rewrite omap_insert.
+    assert (<[ι:=()]> (omap (λ _, Some ()) π) = (omap (λ _, Some ()) π)) as ->.
+    { apply insert_id.
+      apply lookup_omap_Some.
+      exists Alive; auto. }
     iModIntro. by iFrame "Hdead_frag Hπ Hvalid Hdead_auth Hdead_frags".
   Qed.
 
