@@ -1,5 +1,5 @@
-From iris.base_logic.lib Require Import own gen_heap ghost_map.
-From iris.algebra Require Import gmap_view dfrac gset auth.
+From iris.base_logic.lib Require Import own gen_heap ghost_map gen_inv_heap.
+From iris.algebra Require Import gmap_view dfrac gset auth excl.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
@@ -66,12 +66,13 @@ Section ghost_instances.
 
   Context (Σ : gFunctors).
 
+  Definition thread_stateO : ofe := leibnizO thread_state.
+
   Class osirisGpreS := {
-      #[global] osirisGpreS_iris :: invGpreS Σ;
-      #[global] osirisGpreS_inG :: gen_heapGpreS locations.loc step.block Σ;
+      (* #[global] osirisGpreS_iris :: invGpreS Σ; *)
+      #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc step.block Σ;
+      #[global] osiris_inv_GpreS :: inv_heapGS locations.loc step.block Σ;
       #[global] osirisGpreS_thread :: gen_heapGpreS thread thread_state Σ;
-      #[global] osirisGpreS_valid :: gen_heapGpreS thread unit Σ;
-      #[global] osirisGpreS_dead :: gen_heapGpreS thread (outcome2 val exn) Σ
     }.
 
   Class osirisGS := OsirisGS
@@ -79,20 +80,16 @@ Section ghost_instances.
       (* This gives us fancy updates (without allowing Later Credits). *)
       osiris_invGS :: invGS_gen HasNoLc Σ;
       (* This gives us a heap, which maps locations to values. *)
-      osiris_heapGS :: gen_heapGS locations.loc step.block Σ;
-      (* This gives us a threadpool, which maps threads to their aliveness. *)
-      thread_heapGS :: gen_heapGS thread_ids.thread thread_state Σ;
-      (* This gives us the set of valid (allocated) threads. *)
-      #[global] valid_threads_GS :: ghost_mapG Σ thread unit;
-      valid_threads_name : gname;
-      (* This gives us persistent witnesses for dead threads. *)
-      #[global] dead_threads_GS :: ghost_mapG Σ thread (outcome2 val exn);
-      dead_threads_name : gname;
+      osiris_genGS :: gen_heapGS locations.loc step.block Σ;
+      (* This gives us a threadpool, which maps threads to their state. *)
+      osiris_threadGS :: gen_heapGS thread thread_state Σ;
+      osiris_postGS :: ghost_mapG Σ thread (outcome2 val exn -d> iPropO Σ);
+      thread_post_name : gname;
     }.
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
 
 Section ghost_resources.
 
@@ -101,147 +98,108 @@ Section ghost_resources.
   Definition osiris_state_interp (σ : store) :=
     @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
 
-  (* Extract dead threads from threadpool *)
-  Definition dead_threads_of (π : gmap thread thread_state) : gmap thread (outcome2 val exn) :=
-    omap (λ s, match s with Dead o => Some o | Alive => None end) π.
-
-  Definition osiris_thread_interp (π : gmap thread thread_state) : iProp Σ :=
-    (@gen_heap_interp thread_ids.thread _ _ thread_state Σ _ π ∗
-     ghost_map_auth (@valid_threads_name Σ _) 1 (omap (λ _, Some ()) π) ∗
-     ghost_map_auth (@dead_threads_name Σ _) 1 (dead_threads_of π) ∗
-     [∗ map] ι ↦ o ∈ dead_threads_of π, ι ↪[(@dead_threads_name Σ _)]□ o)%I.
+  Definition osiris_thread_interp (π : threadpool)  : iProp Σ :=
+    ∃ (πp : gmap thread (outcome2 val exn -d> iProp Σ)),
+      ⌜dom π ≡ dom πp⌝ ∗
+      gen_heap_interp π ∗
+      ghost_map_auth (@thread_post_name Σ _) 1 πp.
 
   Definition state_interp : (store * threadpool) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
-  Definition valid_thread (ι : thread) : iProp Σ :=
-    ι ↪[(@valid_threads_name Σ _)]□ ().
+  Definition valid_thread (ι : thread) (P : outcome2 val exn -d> iPropO Σ) : iProp Σ :=
+    ι ↪[(@thread_post_name Σ _)]□ P.
 
-  Definition dead_thread (ι : thread) (o : outcome2 val exn) : iProp Σ :=
-    ι ↪[(@dead_threads_name Σ _)]□ o.
-
-  Definition live_thread (ι : thread) : iProp Σ :=
-    @gen_heap.pointsto thread_ids.thread _ _ thread_state Σ _ ι (DfracOwn 1) Alive.
-
-  Global Instance validthread_persistent ι :
-    Persistent (valid_thread ι).
+  Global Instance validthread_persistent ι P :
+    Persistent (valid_thread ι P).
   Proof.
     rewrite /valid_thread. apply _.
   Qed.
 
-  Global Instance deadthread_persistent ι o :
-    Persistent (dead_thread ι o).
-  Proof.
-    rewrite /dead_thread. apply _.
-  Qed.
-
-  Lemma valid_thread_valid π ι :
+  Lemma valid_thread_valid π ι P :
     osiris_thread_interp π -∗
-    valid_thread ι -∗
-    ⌜is_Some (π !! ι)⌝.
+    valid_thread ι P -∗
+    ⌜is_Some (π !! ι)⌝ ∗ ∃ (πp : gmap thread (outcome2 val exn -d> iProp Σ)), ⌜πp !! ι = Some P⌝.
   Proof.
-    iIntros "[_ [Hauth [_ _]]] Hι".
+    iIntros "[%πp [%Hdom [Hgen Hauth]]] Hι".
+    rewrite /valid_thread.
     iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
-    iPureIntro.
-    apply lookup_omap_Some in Hlookup.
-    destruct Hlookup as (? & _ & Hsome).
-    eexists; eassumption.
+    iSplit; [ iPureIntro | ].
+    - apply elem_of_dom. rewrite Hdom.
+      apply elem_of_dom. exists P. assumption.
+    - iExists πp. iPureIntro. assumption.
   Qed.
 
-  Lemma dead_thread_valid π ι o :
-    osiris_thread_interp π -∗
-    dead_thread ι o -∗
-    ⌜π !! ι = Some (Dead o)⌝.
-  Proof.
-    iIntros "[_ [_ [Hauth _]]] Hι".
-    rewrite /dead_thread /dead_threads_of.
-    iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
-    iPureIntro.
-    (* Hlookup : dead_threads_of π !! ι = Some o *)
-    (* Need to show: π !! ι = Some (Dead o) *)
-    apply lookup_omap_Some in Hlookup as [s [Hs Hmatch]].
-    destruct s as [|o']; simpl in Hmatch; [discriminate|].
-    simplify_eq. subst. assumption.
-  Qed.
-
-  Lemma live_thread_valid π ι :
-    osiris_thread_interp π -∗
-    live_thread ι -∗
-    ⌜π !! ι = Some Alive⌝.
-  Proof.
-    iIntros "[Hπ _] Hι".
-    rewrite /live_thread.
-    iDestruct (gen_heap_valid with "Hπ Hι") as %Hvalid.
-    iPureIntro. assumption.
-  Qed.
-
-  Lemma thread_alloc π ι :
+  Lemma thread_alloc π ι (P : outcome2 val exn -d> iPropO Σ) :
     π !! ι = None ->
-    osiris_thread_interp π ==∗ osiris_thread_interp (<[ ι := Alive ]> π) ∗ live_thread ι ∗ valid_thread ι.
+    osiris_thread_interp π ==∗
+      osiris_thread_interp (<[ ι := Alive ]> π) ∗
+      valid_thread ι P.
   Proof.
-    iIntros (Hfresh) "[Hπ [Hauth [Hdead_auth #Hdead_frags]]]".
-    rewrite /osiris_thread_interp /live_thread /valid_thread.
-    iMod (gen_heap_alloc with "Hπ") as "(Hπ & Hlive & _)"; first done.
-    erewrite omap_insert_Some; [ | reflexivity ].
-    iMod (ghost_map_insert ι () with "Hauth") as "[Hauth Hfrag]".
-    { rewrite lookup_omap Hfresh. reflexivity. }
+    iIntros (Hfresh_π) "(%πp & %Hdomeq & Hπ & Hauth)".
+    rewrite /osiris_thread_interp /valid_thread.
+    iMod (gen_heap_alloc with "Hπ") as "[Hπ _]"; first done.
+    iMod (ghost_map_insert ι P with "Hauth") as "[Hauth Hfrag]".
+    { apply not_elem_of_dom. rewrite <- Hdomeq. apply not_elem_of_dom. assumption. }
     iMod (ghost_map_elem_persist with "Hfrag") as "#Hfrag".
-    (* dead_threads_of doesn't change when adding Alive *)
-    assert (dead_threads_of (<[ι:=Alive]> π) = dead_threads_of π) as Homap.
-    { rewrite /dead_threads_of. apply map_eq. intros j. rewrite !lookup_omap.
-      destruct (decide (j = ι)) as [->|].
-      - rewrite lookup_insert. rewrite Hfresh. reflexivity.
-      - rewrite lookup_insert_ne //. }
-    rewrite Homap.
-    iModIntro. by iFrame "Hπ Hauth Hlive Hfrag Hdead_auth Hdead_frags".
+    iModIntro. iFrame "Hπ Hauth". iFrame "#".
+    iPureIntro.
+    rewrite !dom_insert. f_equiv. assumption.
   Qed.
 
-  Lemma thread_update π ι o :
-    osiris_thread_interp π -∗
-    live_thread ι ==∗ osiris_thread_interp (<[ ι := Dead o ]> π) ∗ dead_thread ι o.
+  (* Helper lemmas for tracking postcondition map updates during fork/join *)
+
+  (** ** Pattern for handling Fork and Join operations
+
+      When proving rules that involve fork or join operations, the postcondition
+      map [πp] must be updated to stay in sync with the operational threadpool [π].
+
+      ** Fork pattern:
+      When you have a [ForkS] step that creates a new thread [ι'], you must:
+      1. Use [thread_alloc] or [fork_step_alloc_postcondition] to update [πp]
+      2. Choose an appropriate postcondition [P] for the new thread
+      3. Obtain a [valid_thread ι' P] resource for reasoning about the thread
+
+      Example: When forking a thread with computation [m], typically use
+      postcondition [λ _, True] if you don't care about the thread's result.
+
+      ** Join pattern:
+      When you have a [JoinS] step on thread [ι'], you can:
+      1. Use the [valid_thread ι' P] resource to access the thread's postcondition
+      2. The thread's result [o] should satisfy [P o]
+      3. Use [join_step_get_postcondition] to verify the thread is in both [π] and [πp]
+  *)
+
+  (** When a [ForkS] step occurs, the postcondition map must be updated
+      to include the newly forked thread with its postcondition. *)
+  Lemma fork_step_alloc_postcondition {A X} σ π ι v1 v2
+        (k : outcome2 val exn -> micro A X) ι' m' μ (P : outcome2 val exn -d> iPropO Σ) :
+    π !! ι' = None ->
+    wp_step (σ, π, Stop CFork (v1, v2) k, ι) (σ, <[ ι' := Alive ]> π, m', μ) ->
+    osiris_state_interp σ -∗
+    osiris_thread_interp π ==∗
+      osiris_state_interp σ ∗
+      osiris_thread_interp (<[ ι' := Alive ]> π) ∗
+      valid_thread ι' P.
   Proof.
-    iIntros "[Hπ [Hvalid [Hdead_auth #Hdead_frags]]] Hlive".
-    rewrite /osiris_thread_interp /live_thread /dead_thread.
-    iDestruct (gen_heap_valid with "Hπ Hlive") as %Hlookup.
-    iMod (gen_heap_update with "Hπ Hlive") as "[Hπ _]".
-    (* Insert into dead_threads map *)
-    iMod (ghost_map_insert ι o with "Hdead_auth") as "[Hdead_auth Hdead_frag]".
-    { rewrite /dead_threads_of lookup_omap Hlookup /=. reflexivity. }
-    iMod (ghost_map_elem_persist with "Hdead_frag") as "#Hdead_frag".
-    (* Update dead_threads_of and big_sepM *)
-    assert (dead_threads_of (<[ι:=Dead o]> π) = <[ι:=o]> (dead_threads_of π)) as Homap.
-    { rewrite /dead_threads_of. apply map_eq. intros j.
-      destruct (decide (j = ι)) as [->|Hne].
-      - trans (Some o).
-        + rewrite lookup_omap lookup_insert /=. reflexivity.
-        + rewrite lookup_insert. reflexivity.
-      - rewrite lookup_omap lookup_insert_ne //.
-        rewrite lookup_insert_ne //. rewrite lookup_omap. reflexivity. }
-    rewrite Homap.
-    rewrite big_sepM_insert; last first.
-    { rewrite lookup_omap Hlookup /=. reflexivity. }
-    (* The domain doesn't change when updating a value *)
-    rewrite omap_insert.
-    assert (<[ι:=()]> (omap (λ _, Some ()) π) = (omap (λ _, Some ()) π)) as ->.
-    { apply insert_id.
-      apply lookup_omap_Some.
-      exists Alive; auto. }
-    iModIntro. by iFrame "Hdead_frag Hπ Hvalid Hdead_auth Hdead_frags".
+    iIntros (Hπ Hstep) "Hσ Hti".
+    iFrame "Hσ".
+    iApply (thread_alloc with "Hti"); assumption.
   Qed.
 
-  Lemma recognize_dead_thread (π : threadpool) ι o :
-    π !! ι = Some (Dead o) ->
+  (** When a [JoinS] step occurs on thread [ι'], we can access its postcondition
+      from the ghost map. The thread must already be Dead in the operational
+      threadpool. *)
+  Lemma join_step_get_postcondition {A X} σ π ι ι'
+        (k : outcome2 val exn -> micro A X) o m' μ (P : outcome2 val exn -d> iPropO Σ) :
+    π !! ι' = Some (Dead o) ->
+    wp_step (σ, π, Stop CJoin ι' k, ι) (σ, π, m', μ) ->
     osiris_thread_interp π -∗
-    valid_thread ι -∗
-    osiris_thread_interp π ∗ dead_thread ι o.
+    valid_thread ι' P -∗
+    ⌜is_Some (π !! ι')⌝ ∗ ∃ πp : gmap thread (outcome2 val exn -d> iProp Σ), ⌜πp !! ι' = Some P⌝.
   Proof.
-    iIntros (Hdead) "[Hπ [Hvalid [Hdead_auth #Hdead_frags]]] #_".
-    iFrame "Hπ Hvalid Hdead_auth".
-    rewrite /dead_thread /dead_threads_of.
-    (* Extract the persistent fragment from the big_sepM *)
-    assert (omap (λ s, match s with Dead o => Some o | Alive => None end) π !! ι = Some o) as Hlookup_dead.
-    { rewrite lookup_omap Hdead /=. reflexivity. }
-    iDestruct (big_sepM_lookup with "Hdead_frags") as "#$"; done.
+    iIntros (Hπ Hstep) "Hti #Hvalid".
+    iApply (valid_thread_valid with "Hti Hvalid").
   Qed.
 
 End ghost_resources.
@@ -254,7 +212,7 @@ Notation "l ↦ v" :=
     (at level 20, format "l  ↦  v") : bi_scope.
 
 Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont block Σ.
-Proof. unfold cont; simpl. apply osiris_heapGS. assumption. Defined.
+Proof. unfold cont; simpl. apply osiris_genGS. assumption. Defined.
 
 Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
   : iProp Σ :=
@@ -314,7 +272,7 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   end.
 
 Lemma wp_step_is_EStep {A X} σ1 π1 (m : micro A X) ι σ2 π2 m' ιms :
-  wp_step (σ1, π1, m, ι) (σ2, π2, m', ιms) ->
+  @wp_step A X (σ1, π1, m, ι) (σ2, π2, m', ιms) ->
   is_ewp_case m = EStep.
 Proof.
   intros Hwp.
@@ -356,28 +314,34 @@ Section ewp.
        (* [EWP3]: Non-effectful step of computation;
           this portion follows to the typical weakest precondition for Iris *)
        | EStep =>
-           ∀ σ π, state_interp (σ, π) ={E, ∅}=∗
+           ∀ σ π,
+             state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress (σ, π, m, (local_thread ℓ))⌝ ∗
-             (∀ σ' π' m' μ, ⌜wp_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
-                (state_interp (σ', π') ∗
-                 ewp A X E m' ℓ φ ∗
-                 [∗ list] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True)))
+             (∀ σ' π' m' μ,
+                ⌜wp_step (σ, π, m, local_thread ℓ) (σ', π', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+                  state_interp (σ', π') ∗
+                  ewp A X E m' ℓ φ ∗
+                  [∗ list] '(ι, m) ∈ μ, ewp val exn E m (ι, ⊥) (λ _, True))
        end)%I.
 
   Global Arguments ewp_pre _ {A X}.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
   Proof.
-    rewrite /ewp_pre /= => n wp wp' Hwp A X E m Φ.
+    rewrite /ewp_pre /= => n ewp ewp' Hwp A X E m Φ.
     repeat intro.
     f_equiv.
     { repeat (f_contractive || f_equiv || apply Hwp); cycle 1.
       repeat intro. f_contractive. apply Hwp. }
-    do 17 f_equiv. f_contractive.
-    f_equiv. f_equiv. f_equiv.
+    (* ∀ σ π, state_interp ={E,∅}=∗ ... *)
+    do 17 f_equiv.
+    (* ▷ |={∅,E}=> ... *)
+    f_contractive. do 2 f_equiv.
+    (* ewp A X E m' ... *)
+    f_equiv.
     - apply Hwp.
-    - f_equiv. f_equiv. f_equiv.
-      destruct a6; simpl. apply Hwp.
+    - repeat f_equiv.
+      apply Hwp.
   Qed.
 
   Definition ewp_def : ∀ A X, coPset -> micro A X -d> (thread * iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
@@ -438,10 +402,10 @@ Proof.
     intro. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
-  - do 17 f_equiv.
-    f_contractive. f_equiv. f_equiv. f_equiv.
-    apply IH; auto; intro; auto.
-    eapply dist_lt; auto.
+  - do 21 (f_contractive || f_equiv).
+    apply IH; eauto.
+    f_equiv.
+    eapply dist_lt; eauto.
 Qed.
 
 Global Instance ewp_proper E m ιΨ:

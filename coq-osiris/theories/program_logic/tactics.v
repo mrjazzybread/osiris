@@ -83,7 +83,7 @@ Module ewp_rules_tactics.
 
   (* Discharge pure subgoal that follows immediately by [tac] *)
   Tactic Notation "discharge_pure" tactic(tac) :=
-    match goal with
+    lazymatch goal with
     | |- environments.envs_entails _ (bi_sep (bi_pure _) _) =>
         iSplitL ""; [ iPureIntro; by tac | ]
     | |- environments.envs_entails _ (bi_sep  _ (bi_pure _)) =>

@@ -91,6 +91,7 @@ Section ewp_basic_rules.
         EWP n @ E <| (ι, Ψ) |> {{ φ }} ∗
         ([∗ list] '(ι', m') ∈ μ, EWP m' @ E <| (ι', ⊥) |> {{ λ _, True }}).
   Proof.
+    Opaque can_progress.
     intros Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
@@ -105,21 +106,24 @@ Section ewp_basic_rules.
     EWP please_eval η e @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Heval".
-    ewp_unfold_head.
+    ewp_unfold (please_eval η e).
+    rewrite /please_eval.
     intro_state.
     ewp_mask_intro "Hclose".
-    rewrite /please_eval.
-    iSplitR. { iPureIntro. eexists _. apply BaseS. apply StepEval. }
-    intro_step.
+    iSplitR. { iPureIntro. eexists; constructor. apply StepEval. }
+    iIntros (σ' π' m' μ) "%Hstep".
     iModIntro. ewp_mask_elim.
-    iAssert (⌜m' =  eval η e⌝)%I as "->".
-    { iPureIntro.
-      dependent destruction Hstep.
-      remember (η, e).
+    (* Show that the step gives us eval η e and state is unchanged *)
+    assert (m' = eval η e ∧ σ' = σ ∧ π' = π ∧ μ = []) as (Hm' & Hσ' & Hπ' & Hμ).
+    { dependent destruction Hstep.
+      remember (η, e) as p.
       destruct_step.
-      by rewrite try2_inject2_right. }
-    destruct_wp_step.
-    iFrame.
+      rewrite try2_inject2_right.
+      repeat split; auto. }
+    subst.
+    (* Now we have the state back and need to prove EWP eval η e *)
+    iFrame "Hsi Hti Heval".
+    done.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -148,7 +152,9 @@ Section ewp_basic_rules.
 
     intro_state. spec_state. iModIntro.
     discharge_pure assumption.
-    intro_step. spec_step.
+    clear Hstep.
+    iIntros (σ' π' m' μ) "%Hstep".
+    spec_step.
     ewp_mask_elim. iMod "Hwp" as "(Hsi & Hwp & Hforked)". iFrame.
     iApply ("IH" with "Hwp Hmon").
   Qed.
@@ -181,7 +187,9 @@ Section ewp_basic_rules.
       iNext; iApply ("IH" with "Hmono HΨ"). }
 
     intro_state. spec_state. iModIntro.
-    construct_wp_nonret.
+    discharge_pure prove_can_progress.
+    clear Hstep.
+    iIntros (σ' π' m' μ) "%Hstep".
     spec_step. ewp_mask_elim.
 
     iMod "Hwp" as "($ & Hwp & $)".
@@ -196,7 +204,8 @@ Section ewp_basic_rules.
   Proof.
     iIntros (HE) "He".
     iLöb as "IH" forall (A X m Ψ Φ Φ').
-    iIntros "#HΦ".
+                        iIntros "#HΦ".
+                        Opaque can_progress.
     ewp_unfold m.
     ewp_case m.
     (* Cases: [ERet] and [EThrow] *)
@@ -209,7 +218,6 @@ Section ewp_basic_rules.
       iApply (monotonic_prot with "[] He").
       iIntros (?) "Hewp". iNext.
       iApply ("IH" with "Hewp HΦ"). }
-
     intro_state.
     iMod (fupd_mask_subseteq E) as "Hclose"; first done.
     spec_state. iModIntro. construct_wp_nonret.
@@ -220,7 +228,8 @@ Section ewp_basic_rules.
     - iApply ("IH" with "H HΦ").
     - iApply (big_sepL_impl with "Hforked").
       iIntros "!>" (? [ι' n] _) "Hwp".
-      by iApply ("IH" with "Hwp").
+      iApply ("IH" with "Hwp").
+      iModIntro. iIntros (v) "Hϕ !>". iApply "Hϕ".
   Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
@@ -373,7 +382,8 @@ Section wp_handler_rules.
     (* We proceed by Löb-induction after generalizing [e] [h] and [eh]. *)
     iLöb as "IH" forall (e).
 
-    iIntros "He Hsh".
+                        iIntros "He Hsh".
+                        Opaque can_progress.
     ewp_unfold_head.
     intro_state.
 
@@ -431,21 +441,22 @@ Section wp_handler_rules.
       intro_step. destruct_wp_step.
       eassert (wp_step (σ'0, π, Stop CFork (v, v0) k, ι) _) as Hstep.
       { apply ForkS. eassumption. }
-      iSpecialize ("He" $! _ _ _ _ Hstep).
-      iMod "He"; iIntros "!> !>"; iMod "He" as "($ & Hwp & $)".
+      spec_step.
+      ewp_mask_elim.
+      iMod "He" as "($ & Hwp & $)".
       iModIntro.
       iApply ("IH" with "Hwp Hsh"). }
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
-      rewrite /can_progress in Hstep.
-      discharge_pure assumption.
-      intro_step.
+      apply inv_can_progress_join in Hstep as Hlookup.
+      construct_wp_nonret.
       destruct_wp_step.
       eassert (wp_step (σ'0, π'0, Stop CJoin ι0 k, ι) _) as Hstep0.
       { apply JoinS. eassumption. }
-      iSpecialize ("He" $! _ _ _ _ Hstep0). iMod "He". iIntros "!> !>".
+      spec_step.
+      ewp_mask_elim.
       iMod "He" as "($ & He & _)". iModIntro.
       iApply ("IH" with "He Hsh"). }
 
@@ -454,8 +465,8 @@ Section wp_handler_rules.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_wp_step.
       destruct Hstep as ([[[??]?]?] & Hstep). spec_step.
-      destruct_wp_step.
-      iIntros "!> !>". iMod "He" as "($ & He)".
+      destruct_wp_step. ewp_mask_elim.
+      iMod "He" as "($ & He)".
       iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleCrash] *)
@@ -610,6 +621,7 @@ Section ewp_rules.
     (* Since [m] is neither handleable nor concurrent,
        neither is [try m f h]. *)
     pose proof (is_ewp_case_try2_None m f Hhm) as Hhm2.
+    Opaque can_progress.
     ewp_unfold_all. rewrite Hhm. rewrite Hhm2.
 
     (* Process a step of computation. *)
@@ -636,11 +648,9 @@ Section ewp_rules.
       destruct Hstep as (v1 & v2 & k & ->).
       simpl try2. construct_wp_nonret.
       destruct_wp_step.
-      iAssert (⌜wp_step
-                 (σ', π, Stop CFork (v1, v2) k, local_thread Ψ)
-                 (σ', <[ ι' := Alive ]> π, continue k (VThread ι'), [(ι', call v1 v2)])⌝)%I as "Hstep".
-      { iPureIntro. apply ForkS. assumption. }
-      iSpecialize ("Hwp" with "Hstep").
+      eassert (wp_step (σ', π, Stop CFork (v1, v2) k, local_thread Ψ) _).
+      { apply ForkS. eassumption. }
+      spec_step.
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & $)".
       iModIntro.
       iApply ("IH" with "Hwp"). }
@@ -920,6 +930,7 @@ Section ewp_val_rules.
       EWP (Stop CEval (η, e) k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "Hwp".
+    Opaque can_progress.
     try ewp_unfold_head; try intro_state;
       (* Introduce mask for entering into WP *)
       ewp_mask_intro "Hmod".

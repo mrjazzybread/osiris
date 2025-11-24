@@ -3,37 +3,46 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
 
-(* Flag stating whether a thread has terminated or not. *)
-Inductive thread_state :=
-| Alive : thread_state
-| Dead : outcome2 val exn -> thread_state.
+From iris.base_logic.lib Require Import iprop.
 
-Definition threadpool : Type := gmap thread thread_state.
+Section wp_step.
 
-Definition th_config A X : Type := store * threadpool * micro A X * thread.
-Definition th_config_step A X : Type := store * threadpool * micro A X * list (thread * microvx).
+  Context {Σ : gFunctors}.
 
-Inductive wp_step : ∀ A X, th_config A X -> th_config_step A X -> Prop :=
-| BaseS : ∀ {A X} (m : micro A X) σ m' σ' π ι,
-    step (σ, m) (σ', m') ->
-    wp_step A X (σ, π, m, ι) (σ', π, m', [])
-| ForkS : ∀ {A X} σ π ι v1 v2 (k : outcome2 val exn -> micro A X) ι',
-    π !! ι' = None ->
-    wp_step A X
-      (σ, π, (Stop CFork (v1, v2) k), ι)
-      (σ, <[ ι' := Alive ]> π, continue k (VThread ι'), [ (ι', call v1 v2)])
-| JoinS : ∀ {A X} σ π ι (k : outcome2 val exn -> micro A X) o ι',
-    π !! ι' = Some (Dead o) ->
-    wp_step A X
-      (σ, π, Stop CJoin ι' k, ι)
-      (σ, π, k o, [])
-| SelfS : ∀ {A X} σ π ι u (k : outcome2 val exn -> micro A X),
-    wp_step A X
-      (σ, π, Stop CSelf u k, ι)
-      (σ, π, continue k (VThread ι), [])
-.
+  (* Flag stating whether a thread has terminated or not. *)
+  Inductive thread_state :=
+  | Alive : thread_state
+  | Dead : outcome2 val exn -> thread_state.
 
-Arguments wp_step {A X}.
+  Definition threadpool : Type := gmap thread thread_state.
+  Definition posts : Type := gmap thread (outcome2 val exn -> iProp Σ).
+
+  Definition th_config A X : Type := store * threadpool * micro A X * thread.
+  Definition th_config_step A X : Type := store * threadpool * micro A X * list (thread * microvx).
+
+  Inductive wp_step : ∀ A X, th_config A X -> th_config_step A X -> Prop :=
+  | BaseS : ∀ {A X} (m : micro A X) σ m' σ' π ι,
+      step (σ, m) (σ', m') ->
+      wp_step A X (σ, π, m, ι) (σ', π, m', [])
+  | ForkS : ∀ {A X} σ π ι v1 v2 (k : outcome2 val exn -> micro A X) ι',
+      π !! ι' = None ->
+      wp_step A X
+        (σ, π, (Stop CFork (v1, v2) k), ι)
+        (σ, <[ ι' := Alive ]> π, continue k (VThread ι'), [(ι', call v1 v2)])
+  | JoinS : ∀ {A X} σ π ι (k : outcome2 val exn -> micro A X) o ι',
+      π !! ι' = Some (Dead o) ->
+      wp_step A X
+        (σ, π, Stop CJoin ι' k, ι)
+        (σ, π, k o, [])
+  | SelfS : ∀ {A X} σ π ι u (k : outcome2 val exn -> micro A X),
+      wp_step A X
+        (σ, π, Stop CSelf u k, ι)
+        (σ, π, continue k (VThread ι), [])
+  .
+
+  Global Arguments wp_step {A X}.
+
+End wp_step.
 
 Global Hint Constructors wp_step : wp_step.
 
@@ -53,126 +62,143 @@ Ltac destruct_wp_step :=
   try rewrite bi.sep_emp.
 
 
+Section can_progress.
+
+  Context {Σ : gFunctors}.
+
 (* -------------------------------------------------------------------------- *)
 
-Definition can_progress {A E} (c : th_config A E) :=
-  match c with
-  | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
-  (* Do we really need a special case for [Stop CDie]? *)
-  | _ => ∃ c', wp_step c c'
-end.
+  Definition can_progress {A E} (c : th_config A E) :=
+    match c with
+    | (_, π, Stop CJoin ι' k, _) => ι' ∈ dom π
+    | _ => ∃ c', wp_step c c'
+  end.
 
-Lemma invert_can_progress {A E} σ π m ι :
-  @can_progress A E (σ, π, m, ι) ->
-  (∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
-  (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
-  (∃ u k, m = Stop CSelf u k) ∨
-  (can_step (σ, m)).
-Proof.
-  intros Hcp.
-  (* Cases on the micro computation. *)
-  destruct m;
-    (* If that computation is a Stop, destruct the code *)
-    try destruct_code;
-    (* Generally try to invert Hcp *)
-    try (
-       destruct Hcp as ([[[??]?]?] & Hcp);
-       dependent destruction Hcp;
-       destruct_step; auto with step can_step);
-    (* There remains some cases *)
-    try solve [(do 3 right; auto with step can_step)].
-  (* Only the [Stop] case is left. *)
-  - right; left. destruct x. repeat eexists.
-  - left. repeat eexists. apply Hcp.
-  - right; right; left. repeat eexists; apply Hcp.
-Qed.
+  Lemma invert_can_progress {A E} σ π m ι :
+    @can_progress A E (σ, π, m, ι) ->
+    (∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
+      (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
+      (∃ u k, m = Stop CSelf u k) ∨
+      (can_step (σ, m)).
+  Proof.
+    intros Hcp.
+    (* Cases on the micro computation. *)
+    destruct m;
+      (* If that computation is a Stop, destruct the code *)
+      try destruct_code;
+      (* Generally try to invert Hcp *)
+      try (
+          destruct Hcp as ([[[??]?]?] & Hcp);
+          dependent destruction Hcp;
+          destruct_step; auto with step can_step);
+      (* There remains some cases *)
+      try solve [(do 3 right; auto with step can_step)].
+    (* Only the [Stop] case is left. *)
+    - right; left. destruct x. repeat eexists.
+    - left. repeat eexists. apply Hcp.
+    - right; right; left. repeat eexists; apply Hcp.
+  Qed.
 
-Arguments can_progress : simpl never.
+  Arguments can_progress : simpl never.
 
-Lemma can_step_can_progress {A E} σ (m : micro A E) :
-  ∀ π ι,
+  Lemma can_step_can_progress {A E} σ (m : micro A E) :
+    ∀ π ι,
+      can_step (σ, m) ->
+      can_progress (σ, π, m, ι).
+  Proof.
+    intros π ι ([σ' m'] & Hstep).
+    destruct_step;
+      eexists (_, π, _, []);
+      by (apply BaseS; eauto with step can_step).
+    Unshelve. apply b.
+  Qed.
+
+  Lemma can_progress_fork {A E} σ π x (k : _ -> micro A E) ι :
+    can_progress (σ, π, (Stop CFork x k), ι).
+  Proof.
+    destruct x.
+    assert (exists ι', π !! ι' = None) as [ι' Hι'].
+    { exists (fresh (dom π)).
+      apply fin_map_dom.not_elem_of_dom_1.
+      apply fin_sets.is_fresh. }
+    eexists. apply (ForkS (A:=A) (X:=E)).
+    apply Hι'.
+  Qed.
+
+  Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι s :
+    π !! ι' = Some s ->
+    can_progress (σ, π, (Stop CJoin ι' k), ι).
+  Proof.
+    intros Hπ; simpl.
+    apply elem_of_dom.
+    exists s; assumption.
+  Qed.
+
+  Lemma inv_can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι :
+    can_progress (σ, π, (Stop CJoin ι' k), ι) ->
+    ∃ s, π !! ι' = Some s.
+  Proof.
+    intros Hprog; simpl.
+    apply elem_of_dom.
+    apply Hprog.
+  Qed.
+
+  Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) ι :
+    can_progress (σ, π, (Stop CSelf u k), ι) .
+  Proof.
+    destruct π.
+    eexists; apply SelfS.
+  Qed.
+
+  Lemma invert_wp_step_resume {A E : Type} (σ σ' : store) π π' ι μ (l : loc) (o : outcome2 val exn)
+    (k : outcome2 val exn → micro A E)
+    (sk : outcome2 val exn → microvx) (m' : micro A E) :
+    σ !! l = Some (K sk) →
+    @wp_step A E (σ, π, Stop CResume (l, o) k, ι) (σ', π', m', μ) →
+    σ' = <[l:=Shot]> σ ∧ m' = try2 (sk o) k ∧ π' = π ∧ μ = [].
+  Proof.
+    intros Hlookup Hstep.
+    destruct_wp_step.
+    repeat split; auto.
+    by unfold step_resume_1; rewrite Hlookup.
+    by unfold step_resume_2; rewrite Hlookup.
+  Qed.
+
+  Lemma invert_can_step_wp_step {A E} σ π (m : micro A E) ι π' m' μ σ' :
+    @wp_step A E (σ, π, m, ι) (σ', π', m', μ) ->
     can_step (σ, m) ->
-    can_progress (σ, π, m, ι).
-Proof.
-  intros π ι ([σ' m'] & Hstep).
-  destruct_step;
-  eexists (_, π, _, []);
-    by (apply BaseS; eauto with step can_step).
-  Unshelve. apply b.
-Qed.
+    step (σ, m) (σ', m') ∧
+      π = π' ∧
+      μ = [].
+  Proof.
+    intros Hwpstep Hstep.
+    destruct_wp_step; repeat constructor; auto; try solve [ exfalso; eauto with invert_can_step ].
+    eapply StepWrap; [ eassumption | reflexivity ].
+    eapply StepShallowWrap; [ eassumption | reflexivity ].
+  Qed.
 
-Lemma can_progress_fork {A E} σ π x (k : _ -> micro A E) ι :
-  can_progress (σ, π, (Stop CFork x k), ι).
-Proof.
-  destruct x.
-  assert (exists ι', π !! ι' = None) as [ι' Hι'].
-  { exists (fresh (dom π)).
-    apply fin_map_dom.not_elem_of_dom_1.
-    apply fin_sets.is_fresh. }
-  eexists. apply (ForkS (A:=A) (X:=E)).
-  apply Hι'.
-Qed.
+  Local Ltac invert_try2 :=
+    match goal with
+    | h: step (_, try2 _ _) (_, _) |- _ => apply invert_step_try2 in h as (? & ? & ->)
+    end.
 
-Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι s :
-  π !! ι' = Some s ->
-  can_progress (σ, π, (Stop CJoin ι' k), ι).
-Proof.
-  intros Hπ; simpl.
-  apply elem_of_dom.
-  exists s; assumption.
-Qed.
+  Lemma invert_wp_step_try2 {A B E' E} σ π m (k : outcome2 A E' -> micro B E) ι σ' π' m' μ :
+    @wp_step B E (σ, π, try2 m k, ι) (σ', π', m', μ) ->
+    can_step (σ, m) ->
+    ∃ m'', @wp_step A E' (σ, π, m, ι) (σ', π, m'', []) ∧ m' = try2 m'' k.
+  Proof.
+    intros Hwp Hstep.
+    destruct m; intros;
+      destruct_wp_step;
+      try solve [ exfalso; eauto with invert_can_step ];
+      eexists; (split; [ apply BaseS; eauto with step | eauto with try2_algebraic try_try ]).
+  Qed.
 
-Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) ι :
-  can_progress (σ, π, (Stop CSelf u k), ι) .
-Proof.
-  eexists. apply SelfS.
-Qed.
+End can_progress.
+
+Opaque can_progress.
 
 Global Hint Resolve
   can_progress_join
   can_progress_fork
   can_progress_self : can_progress.
-
-Lemma invert_wp_step_resume {A E : Type} (σ σ' : store) π π' ι μ (l : loc) (o : outcome2 val exn)
-  (k : outcome2 val exn → micro A E)
-  (sk : outcome2 val exn → microvx) (m' : micro A E) :
-  σ !! l = Some (K sk) →
-  @wp_step A E (σ, π, Stop CResume (l, o) k, ι) (σ', π', m', μ) →
-  σ' = <[l:=Shot]> σ ∧ m' = try2 (sk o) k ∧ π' = π ∧ μ = [].
-Proof.
-  intros Hlookup Hstep.
-  destruct_wp_step.
-  repeat split; auto.
-  by unfold step_resume_1; rewrite Hlookup.
-  by unfold step_resume_2; rewrite Hlookup.
-Qed.
-
-Lemma invert_can_step_wp_step {A E} σ π (m : micro A E) ι π' m' μ σ' :
-  wp_step (σ, π, m, ι) (σ', π', m', μ) ->
-  can_step (σ, m) ->
-  step (σ, m) (σ', m') ∧
-    π = π' ∧
-    μ = [].
-Proof.
-  intros Hwpstep Hstep.
-  destruct_wp_step; repeat constructor; auto; try solve [ exfalso; eauto with invert_can_step ].
-  eapply StepWrap; [ eassumption | reflexivity ].
-  eapply StepShallowWrap; [ eassumption | reflexivity ].
-Qed.
-
-Local Ltac invert_try2 :=
-  match goal with
-  | h: step (_, try2 _ _) (_, _) |- _ => apply invert_step_try2 in h as (? & ? & ->)
-  end.
-
-Lemma invert_wp_step_try2 {A B E' E} σ π m (k : outcome2 A E' -> micro B E) ι σ' π' m' μ :
-  wp_step (σ, π, try2 m k, ι) (σ', π', m', μ) ->
-  can_step (σ, m) ->
-  ∃ m'', wp_step (σ, π, m, ι) (σ', π, m'', []) ∧ m' = try2 m'' k.
-Proof.
-  intros Hwp Hstep.
-  destruct m; intros;
-    destruct_wp_step;
-    try solve [ exfalso; eauto with invert_can_step ];
-    eexists; (split; [ apply BaseS; eauto with step | eauto with try2_algebraic try_try ]).
-Qed.

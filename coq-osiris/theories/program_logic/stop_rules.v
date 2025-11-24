@@ -39,6 +39,7 @@ Section ewp_stop.
       EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
+    Opaque can_progress.
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
@@ -117,27 +118,38 @@ Section ewp_stop.
      safe, and that the parent thread is safe.
      We learn that the forked thread has an address ι' and is initially alive *)
 
-  Lemma ewp_stop_fork {B Y} E Ψ v1 v2 (k : _ -> micro B Y) Φ :
+  Lemma ewp_stop_fork {B Y} E Ψ v1 v2 (k : _ -> micro B Y) Φ φ :
     ▷ (∀ ι',
-          valid_thread ι' -∗
-          EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+          valid_thread ι' φ -∗
+          EWP call v1 v2 @ E <| (ι', ⊥) |> {{ φ }} ∗
           EWP (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hfork".
-    ewp_unfold_head. intro_state. ewp_mask_intro "Hmod".
-    construct_wp_nonret. destruct_wp_step.
-    iMod (thread_alloc π ι' H with "Hti") as "(Hti & Hlive & Hvalid)".
-    ewp_mask_elim; iFrame.
+    ewp_unfold_head. intro_state.
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    destruct_wp_step.
+
+    iDestruct "Hti" as "(%πp & %Heqdom & Hti)".
+    iMod (thread_alloc π ι' φ H with "[Hti]") as "(Hti & Hvalid)".
+    { iFrame "%". iFrame. }
+    ewp_mask_elim.
+
+    eassert (wp_step (σ', π, Stop CFork (v1, v2) k, local_thread Ψ) (σ', _, _, _)).
+    { apply ForkS. eassumption. }
+
+    iFrame.
     iDestruct ("Hfork" with "Hvalid") as "[Hcall $]".
     iApply big_sepL_singleton.
-    iApply "Hcall".
+    iApply (ewp_mono with "Hcall").
+    iIntros (o) "Hφ". done.
   Qed.
 
-  Lemma ewp_fork E Ψ v1 v2 Φ :
+  Lemma ewp_fork E Ψ v1 v2 Φ φ :
     ▷ (∀ ι',
-          valid_thread ι' -∗
-          EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
+          valid_thread ι' φ -∗
+          EWP call v1 v2 @ E <| (ι', ⊥) |> {{ φ }} ∗
           Φ (O2Ret (VThread ι'))) -∗
     EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
   Proof.
@@ -147,9 +159,9 @@ Section ewp_stop.
     iApply ewp_value. iApply "HΦ".
   Qed.
 
-  Lemma ewp_stop_join {B X'} E Ψ ι Φ (k : _ -> micro B X') :
-    valid_thread ι -∗
-    ▷ (∀ o, dead_thread ι o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
+  Lemma ewp_stop_join {B X'} E Ψ ι Φ (k : _ -> micro B X') φ :
+    valid_thread ι φ -∗
+    ▷ (∀ o, φ o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hι Hk".
