@@ -491,16 +491,25 @@ Ltac destruct_step :=
 
 Section threadpool.
 
-  Definition thpool : Type :=
-    gmap thread (micro val exn).
+  Definition thpool A X : Type :=
+    gmap thread (micro A X).
 
-  Implicit Type π : thpool.
   Implicit Type ι : thread.
 
-  Definition tconfig := (store * thpool)%type.
+  Global Instance lookup_thpool {A X} : Lookup thread (micro A X) (thpool A X).
+  Proof.
+    apply gmap_lookup.
+  Defined.
 
-  Definition attempt_join {A E} ι π (k : outcome2 val exn -> micro A E) :=
-    match π !! ι with
+  Global Instance insert_thpool {A X} : Insert thread (micro A X) (thpool A X).
+  Proof.
+    apply _.
+  Defined.
+
+  Definition tconfig A X := (store * thpool A X)%type.
+
+  Definition attempt_join {A B E E'} ι π (k : outcome2 B E' -> micro A E) :=
+    match @lookup _ _ _ lookup_thpool ι π with
     (* Joining a thread which has terminated. *)
     | Some m =>
         match m with
@@ -515,36 +524,36 @@ Section threadpool.
     | None => Some (crash "join invalid thread")
     end.
 
-  Inductive threadpool_step : tconfig -> tconfig -> Prop :=
+  Inductive threadpool_step : ∀ A X, tconfig A X -> tconfig A X -> Prop :=
   | BaseTS :
-    ∀ ι π m σ m' σ',
+    ∀ {A X} ι π m σ m' σ',
       π !! ι = Some m ->
       step (σ, m) (σ', m') ->
-      threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
+      threadpool_step A X (σ, π) (σ', <[ ι := m' ]> π)
   | ForkTS :
     ∀ ι π ι' v1 v2 k σ,
       π !! ι = Some (Stop CFork (v1, v2) k) ->
       π !! ι' = None ->
-      threadpool_step
+      threadpool_step val exn
         (σ, π)
-        (σ, <[ ι' := call v1 v2 ]>
-              (<[ ι := continue k (VThread ι') ]>π))
+        (σ, @insert _ _ _ insert_thpool ι' (call v1 v2) (
+                @insert _ _ _ insert_thpool ι (continue k (VThread ι')) π))
   | JoinTS :
     ∀ ι π ι' k m σ,
       π !! ι = Some (Stop CJoin ι' k) ->
       attempt_join ι' π k = Some m ->
-      threadpool_step
+      threadpool_step val exn
         (σ, π)
         (σ, <[ ι := m ]> π)
   | SelfTS :
-    ∀ ι π k σ,
+    ∀ {A X} ι π k σ,
       π !! ι = Some (Stop CSelf () k) ->
-      threadpool_step
+      threadpool_step A X
         (σ, π)
         (σ, <[ ι := continue k (VThread ι) ]> π)
   .
 
-  Definition threadpool_steps := @nsteps tconfig threadpool_step.
+  Definition threadpool_steps A X := @nsteps (tconfig A X) (threadpool_step A X).
 
 End threadpool.
 
