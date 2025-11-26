@@ -225,6 +225,12 @@ Section ghost_resources.
     rewrite !dom_insert. f_equiv. assumption.
   Qed.
 
+End ghost_resources.
+
+Section postcond_udpates.
+
+  Context `{!osirisGS Σ val exn}.
+
   (* Helper lemmas for tracking postcondition map updates during fork/join *)
 
   (** ** Pattern for handling Fork and Join operations
@@ -248,47 +254,35 @@ Section ghost_resources.
       3. Use [join_step_get_postcondition] to verify the thread is in both [π] and [πp]
   *)
 
-  (** When a [ForkS] step occurs, the postcondition map must be updated
-      to include the newly forked thread with its postcondition. *)
-  (* Lemma fork_step_alloc_postcondition {A X} σ π ι v1 v2 *)
-  (*       (k : outcome2 val exn -> micro A X) ι' m' μ (P : outcome2 val exn -d> iPropO Σ) : *)
-  (*   π !! ι' = None -> *)
-  (*   wp_step (σ, π, Stop CFork (v1, v2) k, ι) (σ, <[ ι' := Alive ]> π, m', μ) -> *)
-  (*   osiris_state_interp σ -∗ *)
-  (*   osiris_thread_interp π ==∗ *)
-  (*     osiris_state_interp σ ∗ *)
-  (*     osiris_thread_interp (<[ ι' := Alive ]> π) ∗ *)
-  (*     valid_thread ι' P. *)
-  (* Proof. *)
-  (*   iIntros (Hπ Hstep) "Hσ Hti". *)
-  (*   iFrame "Hσ". *)
-  (*   iApply (thread_alloc with "Hti"); assumption. *)
-  (* Qed. *)
+  (** When a [ForkS] step occurs, allocate a postcondition for the new thread.
+      This lemma focuses on just allocating the new thread ι' with its postcondition.
+      Updating the parent thread ι is handled separately. *)
+  Lemma fork_step_alloc_postcondition π ι' m (P : outcome2 val exn -d> iPropO Σ) :
+    π !! ι' = None →
+    (∀ o, ⌜is_outcome m = Some o⌝ -∗ □ P o) -∗
+    osiris_thread_interp π ==∗
+      osiris_thread_interp (<[ ι' := m ]> π) ∗
+      valid_thread ι' P.
+  Proof.
+    iIntros (Hlookup_ι') "#HP Hti".
+    iApply (thread_alloc with "HP Hti"); done.
+  Qed.
 
   (** When a [JoinS] step occurs on thread [ι'], we can access its postcondition
-      from the ghost map. The thread must already be Dead in the operational
+      from the ghost map. The thread must have reached an outcome in the operational
       threadpool. *)
-  (* Lemma join_step_get_postcondition {A X} σ π ι ι' *)
-  (*       (k : outcome2 val exn -> micro A X) o m' μ (P : outcome2 val exn -d> iPropO Σ) : *)
-  (*   π !! ι' = Some (Dead o) -> *)
-  (*   wp_step (σ, π, Stop CJoin ι' k, ι) (σ, π, m', μ) -> *)
-  (*   osiris_thread_interp π -∗ *)
-  (*   valid_thread ι' P -∗ *)
-  (*   osiris_thread_interp π ∗ ⌜is_Some (π !! ι')⌝ ∗ P o. *)
-  (* Proof. *)
-  (*   iIntros (Hπ Hstep) "Hti #Hvalid". *)
-  (*   iPoseProof (valid_thread_valid with "Hti Hvalid") as *)
-  (*     "($ & %s & %Hlookup & Htinv)". *)
-  (*   iDestruct "Htinv" as "[-> | (%o' & -> & #HP)]". *)
-  (*   { rewrite Hlookup in Hπ. *)
-  (*     discriminate Hπ. } *)
-  (*   rewrite Hlookup in Hπ. *)
-  (*   inversion Hπ; subst. *)
-  (*   iFrame "#". *)
-  (*   iPureIntro. eexists; eauto. *)
-  (* Qed. *)
+  Lemma join_step_get_postcondition π ι' s o (P : outcome2 val exn -d> iPropO Σ) :
+    π !! ι' = Some s →
+    is_outcome s = Some o →
+    osiris_thread_interp π -∗
+    valid_thread ι' P -∗
+    |={⊤}▷=> osiris_thread_interp π ∗ □ P o.
+  Proof.
+    iIntros (Hlookup Houtcome) "Hti #Hvalid".
+    iApply (valid_thread_get_post with "Hti Hvalid"); done.
+  Qed.
 
-End ghost_resources.
+End postcond_udpates.
 
 
 (* Notations for ghost resouces. *)
