@@ -106,13 +106,15 @@ Section ghost_resources.
   Proof. apply _. Qed.
 
   Definition thread_inv (π : thpool A X) (πp : gmap thread (outcome2 A X -d> iPropO Σ)) : iProp Σ :=
-    ∀ ι s, ⌜π !! ι = Some s⌝ -∗
-      ⌜is_Some (πp !! ι)⌝ ∗
-      ∃ N, inv N (∀ o, ⌜is_outcome s = Some o⌝ -∗ ∃ Ψ, ⌜πp !! ι = Some Ψ⌝ ∗ □ Ψ o).
+    ∃ N,
+      inv N (
+          ∀ ι s, ⌜π !! ι = Some s⌝ -∗
+           ⌜is_Some (πp !! ι)⌝ ∗
+           ∀ o, ⌜is_outcome s = Some o⌝ -∗ ∃ Ψ, ⌜πp !! ι = Some Ψ⌝ ∗ □ Ψ o).
 
   Definition osiris_thread_interp (π : thpool A X)  : iProp Σ :=
     (∃ πp : gmap thread (outcome2 A X -d> iPropO Σ),
-      ⌜dom πp = dom π⌝ ∗
+      ⌜dom πp ≡ dom π⌝ ∗
       @gen_heap_interp thread _ _ (micro A X) Σ _ π ∗
       ghost_map_auth (@osiris_thread_post_name _ _ _ _) 1 πp ∗
       thread_inv π πp)%I.
@@ -120,61 +122,108 @@ Section ghost_resources.
   Definition state_interp : (store * thpool A X) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
-  Lemma valid_thread_valid π ι P :
+  (** If we have a [valid_thread] resource, then the thread exists in the threadpool
+      and we can look up its postcondition from the ghost map. *)
+  Lemma valid_thread_lookup π ι P :
     osiris_thread_interp π -∗
     valid_thread ι P -∗
-    osiris_thread_interp π ∗
-    ∃ s, ⌜π !! ι = Some s⌝ ∗
-         (⌜s = Alive⌝ ∨ ∃ (o : outcome2 val exn), ⌜s = Dead o⌝ ∗ □ P o).
+    osiris_thread_interp π ∗ ⌜is_Some (π !! ι)⌝.
   Proof.
-    iIntros "(%πp & %Hdom & Hgen & Hauth & #Htinv) Hι".
+    iIntros "(%πp & %Hdom & Hgen & Hauth & #Htinv) #Hvalid".
     rewrite /valid_thread.
-    iDestruct (ghost_map_lookup with "Hauth Hι") as %Hlookup.
-    assert (is_Some (π !! ι)) as [s Hlookup'].
-    { apply elem_of_dom. rewrite Hdom.
-      apply elem_of_dom. exists P. assumption. }
-    iSplitL. { iFrame. iFrame "%". iFrame "#". }
-    iSpecialize ("Htinv" $! ι s Hlookup').
-    iExists s; iFrame "%".
-    iDestruct "Htinv" as "[$ | (%o & %Ψ & -> & %Hlookupp & HΨ)]".
-    iRight.
-    iExists o.
-    iSplitR; [ iPureIntro; reflexivity | ].
-    rewrite Hlookupp in Hlookup.
-    inversion Hlookup; subst.
+    iDestruct (ghost_map_lookup with "Hauth Hvalid") as %Hlookup.
+    assert (is_Some (π !! ι)) as Hexists.
+    { assert (ι ∈ dom πp) as Hin_πp by (apply elem_of_dom; eexists; eassumption).
+      rewrite Hdom in Hin_πp.
+      apply (proj1 (elem_of_dom π ι)). exact Hin_πp. }
+    iSplitL; last by iPureIntro.
+    iExists πp. iFrame. iFrame "%". iFrame "#".
+  Qed.
+
+  (** When a thread has reached an outcome, we can open the invariant to get
+      the postcondition from [valid_thread]. *)
+  Lemma valid_thread_get_post π ι s P o :
+    π !! ι = Some s →
+    is_outcome s = Some o →
+    osiris_thread_interp π -∗
+    valid_thread ι P -∗
+    |={⊤}▷=> osiris_thread_interp π ∗ □ P o.
+  Proof.
+    iIntros (Hlookup_s Houtcome) "(%πp & %Hdom & Hgen & Hauth & [%N #Htinv]) #Hvalid".
+    rewrite /valid_thread.
+    iDestruct (ghost_map_lookup with "Hauth Hvalid") as %Hlookup_P.
+    iInv "Htinv" as "#Hopen".
+    iModIntro. iFrame "#".
+    iModIntro. iModIntro.
+    iModIntro.
+    iSplitL. { iFrame. iPureIntro; assumption. }
+    iPoseProof ("Hopen" $! ι s Hlookup_s) as "[%Hsome Hinv]".
+    iDestruct ("Hinv" $! o Houtcome) as "(%Ψ & %Hlookup & HΨ)".
+    rewrite Hlookup in Hlookup_P; inversion Hlookup_P; subst Ψ.
     iApply "HΨ".
   Qed.
 
-  (* Lemma thread_alloc π ι (P : outcome2 val exn -d> iPropO Σ) : *)
-  (*   π !! ι = None -> *)
-  (*   osiris_thread_interp π ==∗ *)
-  (*     osiris_thread_interp (<[ ι := Alive ]> π) ∗ *)
-  (*     valid_thread ι P. *)
-  (* Proof. *)
-  (*   iIntros (Hfresh_π) "(%πp & %Hdomeq & Hπ & Hauth & Htinv)". *)
-  (*   rewrite /osiris_thread_interp /valid_thread. *)
-  (*   iMod (gen_heap_alloc with "Hπ") as "[Hπ _]"; first done. *)
-  (*   iMod (ghost_map_insert ι P with "Hauth") as "[Hauth Hfrag]". *)
-  (*   { apply not_elem_of_dom. rewrite <- Hdomeq. apply not_elem_of_dom. assumption. } *)
-  (*   iMod (ghost_map_elem_persist with "Hfrag") as "#Hfrag". *)
-  (*   iModIntro. iFrame "Hπ Hauth". iFrame "#". *)
-  (*   iSplitR; [ iPureIntro; rewrite !dom_insert; f_equiv; assumption | ]. *)
-  (*   iIntros (ι' s Hlookup). *)
-  (*   iSpecialize ("Htinv" $! ι' s). *)
-  (*   apply lookup_insert_Some in Hlookup. *)
-  (*   destruct Hlookup. *)
-  (*   iLeft. { iPureIntro. by destruct H. } *)
-  (*   destruct H as [Hneq Hlookup]. *)
-  (*   iSpecialize ("Htinv" $! Hlookup). *)
-  (*   iDestruct "Htinv" as "[$ | (%o & %Ψ & -> & %Hlookup' & HΨ)]". *)
-  (*   iRight. *)
-  (*   iExists o, Ψ. *)
-  (*   iSplitR; [ iPureIntro; reflexivity | ]. *)
-  (*   iFrame. *)
-  (*   iPureIntro. *)
-  (*   rewrite lookup_insert_ne; last apply Hneq. *)
-  (*   apply Hlookup'. *)
-  (* Qed. *)
+  (** Allocate a new thread in the threadpool with a given postcondition.
+      This gives us a [valid_thread] resource for the new thread.
+
+      This lemma requires additional assumptions about establishing
+      the postcondition P when the thread immediately terminates. *)
+  Lemma thread_alloc π ι m (P : outcome2 A X -d> iPropO Σ) :
+    π !! ι = None →
+    (∀ o, ⌜is_outcome m = Some o⌝ -∗ □ P o) -∗
+    osiris_thread_interp π ==∗
+      osiris_thread_interp (<[ ι := m ]> π) ∗ valid_thread ι P.
+  Proof.
+    intros Hlookup.
+    iIntros "#Himm Hti".
+    iDestruct "Hti" as "(%πp & %Hdom & Hgen & Hauth & [%N #Htinv])".
+
+    (* Step 1: Allocate the thread in gen_heap *)
+    iMod (gen_heap_alloc _ ι m with "Hgen") as "[Hgen _]"; first done.
+
+    (* Step 2: Insert P into the postcondition ghost map *)
+    assert (πp !! ι = None) as Hfresh_πp.
+    { apply (proj1 (not_elem_of_dom πp ι)).
+      rewrite Hdom. apply (proj2 (not_elem_of_dom π ι)). done. }
+    iMod (ghost_map_insert ι P with "Hauth") as "[Hauth Hfrag]"; first done.
+    iMod (ghost_map_elem_persist with "Hfrag") as "#Hfrag".
+
+    iAssert (thread_inv (<[ι:=m]>π) (<[ι:=P]>πp)) as "Hninv".
+    { iExists N.
+      iApply (inv_alter with "Htinv").
+      iModIntro. iModIntro.
+      iIntros "#H".
+      iFrame "#".
+      iSplit; last by (iIntros "HH"; done).
+      iIntros (ι' s' Hlookup').
+
+      (* Case analysis: ι = ι' or ι ≠ ι' *)
+      destruct (decide (ι = ι')) as [-> | Hneq].
+
+      - (* Case: ι = ι' (new thread) *)
+        rewrite lookup_insert in Hlookup'. inversion Hlookup'; subst s'.
+        iSplitR.
+        { iPureIntro. rewrite lookup_insert. eauto. }
+        iIntros (o Ho).
+        iExists P.
+        iSplitR; first (iPureIntro; apply lookup_insert).
+        iApply ("Himm" $! o Ho).
+
+      - (* Case: ι ≠ ι' (existing thread) *)
+        rewrite lookup_insert_ne in Hlookup'; last done.
+        iDestruct ("H" $! ι' s' Hlookup') as "[%Hsome HΨ]".
+        iSplitR.
+        { iPureIntro. rewrite lookup_insert_ne; done. }
+        iIntros (o Ho).
+        iDestruct ("HΨ" $! o Ho) as (Ψ) "[%HΨlookup #HΨpost]".
+        iExists Ψ.
+        iSplitR; last iFrame "#".
+        iPureIntro. rewrite lookup_insert_ne; done. }
+
+    iModIntro. iFrame. iFrame "#".
+    iPureIntro.
+    rewrite !dom_insert. f_equiv. assumption.
+  Qed.
 
   (* Helper lemmas for tracking postcondition map updates during fork/join *)
 
