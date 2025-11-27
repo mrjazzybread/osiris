@@ -9,11 +9,11 @@ open Asttypes
 open Primitive
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/primitive.mli *)
 open Types
-  (* https://github.com/ocaml/ocaml/blob/trunk/typing/types.ml *)
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/types.mli *)
 open Path
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/path.mli *)
 open Typedtree
-  (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.ml *)
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.mli *)
 
 (* Osiris: *)
 open Fail
@@ -217,16 +217,16 @@ let translate_mod_ident path id : path =
    they designate data constructors or record fields. *)
 
 let translate_data_constructor id constructor_desc : data =
-  (* [id] is the record field that appears in the source code, possibly
-     a long identifier. *)
+  (* [id] is the data constructor that appears in the source code,
+     possibly a long identifier. *)
   (* [constructor_desc] is the constructor description constructed by
      the OCaml type-checker. *)
   assert (Longident.last (txt id) = constructor_desc.cstr_name);
   constructor_desc.cstr_name
 
 let translate_record_field id label_desc : field =
-  (* [id] is the record field that appears in the source code, possibly
-     a long identifier. *)
+  (* [id] is the record field that appears in the source code,
+     possibly a long identifier. *)
   (* [label_desc] is the field description constructed by the OCaml
      type-checker. *)
   assert (Longident.last (txt id) = label_desc.lbl_name);
@@ -325,7 +325,7 @@ let rec translate_pat (pat: pattern) : pat =
        PXData (translate_longident (txt id), tuple)
      else
        let data = translate_data_constructor id constructor_desc in
-       PData  (data, tuple)
+       PData (data, tuple)
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -439,7 +439,7 @@ let rec translate_expr (e: expression) : expr =
        EXData (translate_longident (txt id), tuple)
      else
        let data = translate_data_constructor id constructor_desc in
-       EData  (data, tuple)
+       EData (data, tuple)
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
