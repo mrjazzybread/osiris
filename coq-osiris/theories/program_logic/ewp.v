@@ -132,12 +132,12 @@ Section ghost_resources.
   Lemma valid_thread_lookup π ι P :
     osiris_thread_interp π -∗
     valid_thread ι P -∗
-    osiris_thread_interp π ∗ ⌜is_Some (π !! ι)⌝.
+    osiris_thread_interp π ∗ ⌜π !! ι = Some P⌝.
   Proof.
     iIntros "Hti #Hvalid".
     rewrite /valid_thread.
     iDestruct (ghost_map_lookup with "Hti Hvalid") as %Hlookup.
-    iSplitL; last by (iPureIntro; eexists; eassumption).
+    iSplitL; last by (iPureIntro; eassumption).
     iFrame.
   Qed.
 

@@ -39,11 +39,11 @@ Section ewp_stop.
       EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
-    Opaque can_progress.
+    destruct Ψ.
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    destruct_wp_step.
+    destruct_thread_step.
     (* Allocate a new location in the ghost heap. *)
     iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
     ewp_mask_elim. iFrame. by iApply "H"; iFrame.
@@ -73,13 +73,14 @@ Section ewp_stop.
       ) -∗
     EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    destruct_wp_step.
+    destruct_thread_step.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_store_1 /step_store_2 H0.
     ewp_mask_elim. iFrame.
@@ -99,6 +100,7 @@ Section ewp_stop.
       ) -∗
     EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -107,7 +109,7 @@ Section ewp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_wp_step.
+    destruct_thread_step.
 
     rewrite /step_load_2 H0.
     ewp_mask_elim. iFrame.
@@ -118,32 +120,29 @@ Section ewp_stop.
      safe, and that the parent thread is safe.
      We learn that the forked thread has an address ι' and is initially alive *)
 
-  Lemma ewp_stop_fork {B Y} E Ψ v1 v2 (k : _ -> micro B Y) Φ φ :
+  Lemma ewp_stop_fork {B Y} φ E Ψ v1 v2 (k : _ -> micro B Y) Φ :
     ▷ (∀ ι',
           valid_thread ι' φ -∗
           EWP call v1 v2 @ E <| (ι', ⊥) |> {{ φ }} ∗
           EWP (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hfork".
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    destruct_wp_step.
+    destruct_thread_step.
 
-    iDestruct "Hti" as "(%πp & %Heqdom & Hti)".
-    iMod (thread_alloc π ι' φ H with "[Hti]") as "(Hti & Hvalid)".
-    { iFrame "%". iFrame. }
+    iMod (thread_alloc π ι' φ H with "Hti") as "(Hti & Hvalid)".
     ewp_mask_elim.
 
-    eassert (wp_step (σ', π, Stop CFork (v1, v2) k, local_thread Ψ) (σ', _, _, _)).
-    { apply ForkS. eassumption. }
+    (* eassert (thread_step (σ', Stop CFork (v1, v2) k, ι', π) (σ', _, _)). *)
+    (* { apply ForkS. eassumption. } *)
 
     iFrame.
     iDestruct ("Hfork" with "Hvalid") as "[Hcall $]".
-    iApply big_sepL_singleton.
-    iApply (ewp_mono with "Hcall").
-    iIntros (o) "Hφ". done.
+    iApply "Hcall".
   Qed.
 
   Lemma ewp_fork E Ψ v1 v2 Φ φ :
@@ -164,24 +163,19 @@ Section ewp_stop.
     ▷ (∀ o, φ o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "Hι Hk".
+    iIntros "Hι Hk". destruct Ψ.
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
-    iPoseProof (valid_thread_valid with "Hti Hι") as "%Hvalid".
-    discharge_pure (apply elem_of_dom).
-    intro_step. destruct_wp_step.
-    iDestruct (recognize_dead_thread π' ι o H with "Hti Hι") as "[Hti #Hdead]".
-    iModIntro.
-
+    iPoseProof (valid_thread_lookup with "Hti Hι") as "[Hti %Hlookup]".
+    construct_wp_nonret.
+    destruct_thread_step. rewrite Hlookup in H; inversion H; subst.
     ewp_mask_elim. iFrame.
-
-    iApply "Hk".
-    iApply "Hdead".
+    iApply ("Hk" $! o H0).
   Qed.
 
-  Lemma ewp_join E Ψ ι Φ :
-    valid_thread ι -∗
-    ▷ (∀ o, dead_thread ι o -∗ Φ o) -∗
+  Lemma ewp_join E Ψ ι Φ φ :
+    valid_thread ι φ -∗
+    ▷ (∀ o, φ o -∗ Φ o) -∗
     EWP (join ι) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".
@@ -200,11 +194,8 @@ Section ewp_stop.
     rewrite {1}(ewp_unfold (Stop CSelf u k)) /ewp_pre /=.
     intro_state.
     ewp_mask_intro "Hmod".
-    iSplitR. { iPureIntro. eexists. apply SelfS. }
-    intro_step. iIntros "!> !>".
-    iMod "Hmod". iModIntro.
-    destruct_wp_step.
-    iFrame.
+    construct_wp_nonret. destruct_thread_step.
+    ewp_mask_elim. iFrame.
   Qed.
 
   Lemma ewp_self E Ψ ι Φ :
@@ -226,14 +217,14 @@ Section ewp_stop.
      ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
     EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
   Proof.
-    iIntros "Hl Hwp".
+    iIntros "Hl Hwp". destruct ψ.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_wp_step.
+    destruct_thread_step.
 
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
@@ -242,19 +233,19 @@ Section ewp_stop.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
   Qed.
 
-  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) ψ φ:
+  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) Ψ φ:
     isShot l -∗
-    EWP (crash "resume error: unbound location") @ E <| ψ |> {{ φ }} -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
+    EWP (crash "resume error: unbound location") @ E <| Ψ |> {{ φ }} -∗
+    EWP (Stop CResume (l, o) k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Hl Hcrash".
+    iIntros "Hl Hcrash". destruct Ψ.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_wp_step.
+    destruct_thread_step.
 
     (* Update the ghost heap. *)
     ewp_mask_elim.
@@ -266,19 +257,19 @@ Section ewp_stop.
   (* Installing a handler with branches [bs] on top of a continuation
      that is located in the store at location [l]. *)
 
-  Lemma ewp_wrap_deep {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
+  Lemma ewp_wrap_deep {B Y} E l η bs (k: _ -> micro B Y) φ Ψ :
     (∀ l',
       l'↦
         (K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))) -∗
-     ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CWrap (true, l, η, bs) k) @ E <| ψ |> {{ φ }}.
+     ▷ EWP (continue k l') @ E <| Ψ |> {{ φ }}) -∗
+    EWP (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Hwp".
+    iIntros "Hwp". destruct Ψ.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* The reduction step must be a successful step. *)
-    destruct_wp_step.
+    destruct_thread_step.
 
     (* Allocate a new location in the heap. *)
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
@@ -287,19 +278,19 @@ Section ewp_stop.
     iFrame.
   Qed.
 
-  Lemma ewp_wrap_shallow {B Y} E l η bs (k: _ -> micro B Y) φ ψ :
+  Lemma ewp_wrap_shallow {B Y} E l η bs (k: _ -> micro B Y) φ Ψ :
     (∀ l',
       isCont l'
         (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
-     ▷ EWP (continue k l') @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CWrap (false, l, η, bs) k) @ E <| ψ |> {{ φ }}.
+     ▷ EWP (continue k l') @ E <| Ψ |> {{ φ }}) -∗
+    EWP (Stop CWrap (false, l, η, bs) k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Hwp".
+    iIntros "Hwp". destruct Ψ.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
     (* The reduction step must be a successful step. *)
-    destruct_wp_step.
+    destruct_thread_step.
 
     (* Allocate a new location in the heap. *)
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
@@ -314,11 +305,11 @@ Section ewp_stop.
       ▷(EWP continue k true @ E <| Ψ |> {{ φ }} ∧ EWP continue k false @ E <| Ψ |> {{ φ }})
       ⊢ EWP (Stop CFlip u k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "H".
+    iIntros "H". destruct Ψ.
     ewp_unfold_head.
     intro_state.
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_wp_step; cbn; iMod "Hmod" as "_"; cbn;
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn;
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
     destruct b.
     { iApply (bi.and_elim_l with "H"). }
@@ -370,10 +361,10 @@ Section ewp_eval.
     by iApply ewp_value.
   Qed.
 
-  Lemma ewp_sitems_cons ηδ sitem sitems E ψ Q (φ : env * env -> iProp Σ) :
-    EWP eval_sitem ηδ sitem @ E <| ψ |> {{ ensures ηδ, φ ηδ }} -∗
-      (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| ψ |> {{ Q }}) -∗
-      EWP eval_sitems ηδ (sitem :: sitems) @ E <| ψ |> {{ Q }}.
+  Lemma ewp_sitems_cons ηδ sitem sitems E Ψ Q (φ : env * env -> iProp Σ) :
+    EWP eval_sitem ηδ sitem @ E <| Ψ |> {{ ensures ηδ, φ ηδ }} -∗
+      (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP eval_sitems ηδ (sitem :: sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hsitem Hcov".
     simpl_eval_sitems. iApply ewp_bind.
@@ -382,17 +373,17 @@ Section ewp_eval.
     iApply "Hcov".
   Qed.
 
-  Lemma ewp_sitems_nil ηδ E ψ Q :
+  Lemma ewp_sitems_nil ηδ E Ψ Q :
     Q (O2Ret ηδ) -∗
-      EWP eval_sitems ηδ [] @ E <| ψ |> {{ Q }}.
+      EWP eval_sitems ηδ [] @ E <| Ψ |> {{ Q }}.
   Proof.
     simpl_eval_sitems.
     by iApply ewp_value.
   Qed.
 
-  Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E ψ :
+  Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E Ψ :
     spec (VCloRec η [RecBinding x af] x) -∗
-      EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| ψ |>
+      EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| Ψ |>
       {{ ensures '(η0, δ0),
           ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
       }}.
@@ -435,10 +426,10 @@ Section ewp_eval.
     iFrame. iPureIntro; auto.
   Qed.
 
-  Lemma ewp_sitem_extend η δ es E ψ (Q : env * env -> iProp Σ) :
-    EWP eval_type_extensions es @ E <| ψ |>
+  Lemma ewp_sitem_extend η δ es E Ψ (Q : env * env -> iProp Σ) :
+    EWP eval_type_extensions es @ E <| Ψ |>
       {{ ensures δ', Q (δ' ++ η, δ' ++ δ) }} -∗
-      EWP eval_sitem (η, δ) (IExtend es) @ E <| ψ |> {{ ensures v, Q v }}.
+      EWP eval_sitem (η, δ) (IExtend es) @ E <| Ψ |> {{ ensures v, Q v }}.
   Proof.
     iIntros "Hes".
     simpl_eval_sitem. iApply ewp_bind.
@@ -447,10 +438,10 @@ Section ewp_eval.
     by iApply ewp_value.
   Qed.
 
-  Lemma ewp_sitems_extend sitems η δ x E ψ Q :
+  Lemma ewp_sitems_extend sitems η δ x E Ψ Q :
     (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
-              EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
-      EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| ψ |> {{ Q }}.
+              EWP eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hcov".
     iApply (ewp_sitems_cons).
@@ -465,10 +456,10 @@ Section ewp_eval.
     iApply "Hcov".
   Qed.
 
-  Lemma ewp_sitem_open η δ me E ψ Q φ δ' :
-    EWP eval_mexpr η me @ E <| ψ |> {{ ensures v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
+  Lemma ewp_sitem_open η δ me E Ψ Q φ δ' :
+    EWP eval_mexpr η me @ E <| Ψ |> {{ ensures v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
     ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
-    EWP eval_sitem (η, δ) (IOpen me) @ E <| ψ |> {{ Q }}.
+    EWP eval_sitem (η, δ) (IOpen me) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hme Hcov". simpl_eval_sitem.
     iApply ewp_bind. iApply ewp_bind.
@@ -479,11 +470,11 @@ Section ewp_eval.
     iApply ("Hcov" with "Hφ").
   Qed.
 
-  Lemma ewp_type_extension_cons e es E ψ Q :
+  Lemma ewp_type_extension_cons e es E Ψ Q :
     ▷ (∀ l, l ↦ V #() -∗
-          EWP eval_type_extensions es @ E <| ψ |>
+          EWP eval_type_extensions es @ E <| Ψ |>
             {{ ensures δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
-    EWP eval_type_extensions (e :: es) @ E <| ψ |> {{ Q }}.
+    EWP eval_type_extensions (e :: es) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hes". simpl.
     iApply ewp_alloc.
@@ -496,15 +487,15 @@ Section ewp_eval.
     by iApply ewp_value.
   Qed.
 
-  Lemma ewp_type_extension_nil E ψ Q :
+  Lemma ewp_type_extension_nil E Ψ Q :
     Q (O2Ret []) -∗
-    EWP eval_type_extensions [] @ E <| ψ |> {{ Q }}.
+    EWP eval_type_extensions [] @ E <| Ψ |> {{ Q }}.
   Proof. iIntros "HQ". simpl. by iApply ewp_value. Qed.
 
-  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ ensures v, spec v }} -∗
+  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E Ψ Q :
+    EWP eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
       (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
-      EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| ψ |> {{ Q }}.
+      EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "He HQ".
     simpl_eval_sitem. simpl_eval_bindings.
@@ -515,11 +506,11 @@ Section ewp_eval.
     by iApply "HQ".
   Qed.
 
-  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E ψ Q :
-    EWP eval η e @ E <| ψ |> {{ ensures v, spec v }} -∗
+  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E Ψ Q :
+    EWP eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
       (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
-                EWP eval_sitems ηδ' sitems @ E <| ψ |> {{ Q }}) -∗
-      EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| ψ |> {{ Q }}.
+                EWP eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "He Hcov".
     simpl_eval_sitems; simpl_eval_bindings; simpl.
