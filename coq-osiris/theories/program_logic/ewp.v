@@ -209,8 +209,8 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => EStep
   end.
 
-Lemma thread_step_is_EStep {Σ A X} σ (m m' : micro A X) ι σ' μ :
-  @thread_step Σ A X (σ, m, ι) (σ', m', μ) ->
+Lemma thread_step_is_EStep {Σ A X} σ π (m m' : micro A X) ι σ' μ :
+  @thread_step Σ A X (σ, m, ι, π) (σ', m', μ) ->
   is_ewp_case m = EStep.
 Proof.
   intros Hwp.
@@ -254,7 +254,7 @@ Section ewp.
              state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress σ π m ι⌝ ∗
              (∀ σ' m' μ,
-                ⌜thread_step (σ, m, ι) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+                ⌜thread_step (σ, m, ι, π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                   state_interp (σ', π) ∗
                   ewp E m' (ι, Ψ) φ ∗
                   [∗ list] '(ι', m', φ') ∈ μ, ewp E m' (ι', ⊥) φ')

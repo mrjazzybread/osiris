@@ -83,7 +83,7 @@ Section ewp_basic_rules.
   (* ------------------------------------------------------------------------ *)
 
   Lemma ewp_step {ι σ π σ'} E m m' μ {φ} Ψ:
-    thread_step (σ, m, ι) (σ', m', μ) →
+    thread_step (σ, m, ι, π) (σ', m', μ) →
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ==∗
     |={E}[∅]▷=>
@@ -427,11 +427,9 @@ Section wp_handler_rules.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
       destruct Hstep as (? & ? & ? & Hstep).
       destruct_thread_step.
-      iSplitR.
-      { iPureIntro. do 3 eexists. eapply ForkS with (φ := λ _, True%I). eassumption. }
-      clear dependent ι'.
-      intro_step. destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι) _) as Hstep.
+      construct_wp_nonret.
+      destruct_thread_step.
+      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι, π) _) as Hstep.
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
@@ -445,8 +443,8 @@ Section wp_handler_rules.
       apply inv_can_progress_join in Hstep as Hlookup.
       construct_wp_nonret.
       destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CJoin ι0 k, ι) _) as Hstep0.
-      { eapply JoinS. eassumption. eassumption. }
+      eassert (thread_step (σ'0, Stop CJoin ι0 k, ι, π) _) as Hstep0.
+      { eapply JoinS; eassumption. }
       spec_step.
       ewp_mask_elim.
       iMod "He" as "($ & He & _)". iModIntro.
@@ -466,7 +464,7 @@ Section wp_handler_rules.
       by iMod "HF". }
 
     { (* [StepHandleLeft] *)
-      eassert (thread_step (σ, e, ι) _) as Hstep.
+      eassert (thread_step (σ, e, ι, π') _) as Hstep.
       { apply BaseS. eassumption. }
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
@@ -631,7 +629,7 @@ Section ewp_rules.
       simpl try2. construct_wp_nonret.
       destruct_thread_step.
       iAssert (⌜thread_step
-                 (σ', Stop CJoin t k, ι)
+                 (σ', Stop CJoin t k, ι, π)
                  (σ', k o, [])⌝)%I as "Hstep".
       { iPureIntro. eapply JoinS; eassumption. }
       iMod ("Hwp" with "Hstep") as "Hwp".
@@ -644,8 +642,9 @@ Section ewp_rules.
     { (* Case: [m1] is [Fork _] *)
       destruct Hstep as (v1 & v2 & k & ->).
       simpl try2. construct_wp_nonret.
+      remember (v1, v2) as p.
       destruct_thread_step.
-      eassert (thread_step (σ', Stop CFork (v1, v2) k, ι) _).
+      eassert (thread_step (σ', Stop CFork (v1, v2) k, ι, π) _).
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & $)".
@@ -658,7 +657,7 @@ Section ewp_rules.
       simpl try2. construct_wp_nonret.
       destruct_thread_step.
       iAssert (⌜thread_step
-                 (σ', Stop CSelf u0 k, ι)
+                 (σ', Stop CSelf u0 k, ι, π)
                  (σ', continue k (VThread ι), [])⌝)%I as "Hstep".
       { iPureIntro. apply SelfS. }
       iSpecialize ("Hwp" with "Hstep").
@@ -668,7 +667,7 @@ Section ewp_rules.
     (* Get more information out of [e2]; *)
     construct_wp_nonret.
     pose proof (can_step_try2 _ _ f Hstep) as Hstep2.
-    pose proof (invert_can_step_thread_step _ _ _ _ _ _ Hstep0 Hstep2) as (_ & ->).
+    pose proof (invert_can_step_thread_step _ _ _ _ _ _ _ Hstep0 Hstep2) as (_ & ->).
 
     eapply invert_thread_step_try2 in Hstep0; last assumption.
     destruct Hstep0 as (?&->&Hstep0).
@@ -806,7 +805,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
         construct_wp_nonret. destruct_thread_step.
-        epose proof (SelfS _ _ _ _).
+        epose proof (SelfS _ _ _ _ _).
         iSpecialize ("H1" $! _ _ _ H0).
         ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
@@ -850,7 +849,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
         construct_wp_nonret. destruct_thread_step.
-        epose proof (SelfS _ _ _ _).
+        epose proof (SelfS _ _ _ _ _).
         iSpecialize ("H2" $! _ _ _ H0).
         ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
