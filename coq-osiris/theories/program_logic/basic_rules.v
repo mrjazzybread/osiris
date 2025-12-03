@@ -82,16 +82,15 @@ Section ewp_basic_rules.
 
   (* ------------------------------------------------------------------------ *)
 
-  Lemma ewp_step {ι σ π σ' π'} E m n μ {φ} Ψ:
-    wp_step (σ, π, m, ι) (σ', π', n, μ) →
+  Lemma ewp_step {ι σ π σ'} E m m' μ {φ} Ψ:
+    thread_step (σ, m, ι) (σ', m', μ) →
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ==∗
     |={E}[∅]▷=>
-        state_interp (σ', π') ∗
-        EWP n @ E <| (ι, Ψ) |> {{ φ }} ∗
-        ([∗ list] '(ι', m') ∈ μ, EWP m' @ E <| (ι', ⊥) |> {{ λ _, True }}).
+        state_interp (σ', π) ∗
+        EWP m' @ E <| (ι, Ψ) |> {{ φ }} ∗
+        ([∗ list] '(ι', m', φ') ∈ μ, EWP m' @ E <| (ι', ⊥) |> {{ φ' }}).
   Proof.
-    Opaque can_progress.
     intros Hstep.
     iIntros "Hsi Hwp".
     ewp_unfold m.
@@ -107,23 +106,16 @@ Section ewp_basic_rules.
   Proof.
     iIntros "Heval".
     ewp_unfold (please_eval η e).
-    rewrite /please_eval.
+    rewrite /please_eval; destruct Ψ.
     intro_state.
     ewp_mask_intro "Hclose".
-    iSplitR. { iPureIntro. eexists; constructor. apply StepEval. }
-    iIntros (σ' π' m' μ) "%Hstep".
+    iSplitR. { iPureIntro. do 3 eexists. apply BaseS, StepEval. }
+    intro_step.
     iModIntro. ewp_mask_elim.
-    (* Show that the step gives us eval η e and state is unchanged *)
-    assert (m' = eval η e ∧ σ' = σ ∧ π' = π ∧ μ = []) as (Hm' & Hσ' & Hπ' & Hμ).
-    { dependent destruction Hstep.
-      remember (η, e) as p.
-      destruct_step.
-      rewrite try2_inject2_right.
-      repeat split; auto. }
-    subst.
-    (* Now we have the state back and need to prove EWP eval η e *)
-    iFrame "Hsi Hti Heval".
-    done.
+    apply invert_can_step_thread_step in Hstep; last (apply can_step_stop; tauto).
+    destruct Hstep as [Hstep ->].
+    destruct_step.
+    rewrite try2_inject2_right. by iFrame.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -134,6 +126,7 @@ Section ewp_basic_rules.
     (∀ a, φ a -∗ φ' a) -∗
     EWP m @ E <| ιΨ |> {{ φ' }}.
   Proof.
+    destruct ιΨ.
     iLöb as "IH" forall (m).
     iIntros "Hwp Hmon".
     ewp_unfold m.
@@ -153,7 +146,7 @@ Section ewp_basic_rules.
     intro_state. spec_state. iModIntro.
     discharge_pure assumption.
     clear Hstep.
-    iIntros (σ' π' m' μ) "%Hstep".
+    iIntros (σ' m' μ) "%Hstep".
     spec_step.
     ewp_mask_elim. iMod "Hwp" as "(Hsi & Hwp & Hforked)". iFrame.
     iApply ("IH" with "Hwp Hmon").
@@ -189,7 +182,7 @@ Section ewp_basic_rules.
     intro_state. spec_state. iModIntro.
     discharge_pure prove_can_progress.
     clear Hstep.
-    iIntros (σ' π' m' μ) "%Hstep".
+    iIntros (σ' m' μ) "%Hstep".
     spec_step. ewp_mask_elim.
 
     iMod "Hwp" as "($ & Hwp & $)".
@@ -204,11 +197,10 @@ Section ewp_basic_rules.
   Proof.
     iIntros (HE) "He".
     iLöb as "IH" forall (A X m Ψ Φ Φ').
-                        iIntros "#HΦ".
-                        Opaque can_progress.
+    iIntros "#HΦ".
     ewp_unfold m.
     ewp_case m.
-    (* Cases: [ERet] and [EThrow] *)
+    (* Cases: [EOutcome] *)
     1-2: iApply ("HΦ" with "[> -]"); by iApply (fupd_mask_mono E _).
     (* Case: [ECrash] *)
     { by iApply (fupd_mask_mono E _). }
@@ -218,6 +210,8 @@ Section ewp_basic_rules.
       iApply (monotonic_prot with "[] He").
       iIntros (?) "Hewp". iNext.
       iApply ("IH" with "Hewp HΦ"). }
+    (* Case: [EStep] *)
+    destruct Ψ.
     intro_state.
     iMod (fupd_mask_subseteq E) as "Hclose"; first done.
     spec_state. iModIntro. construct_wp_nonret.
@@ -227,7 +221,7 @@ Section ewp_basic_rules.
     iSplitL "H".
     - iApply ("IH" with "H HΦ").
     - iApply (big_sepL_impl with "Hforked").
-      iIntros "!>" (? [ι' n] _) "Hwp".
+      iIntros "!>" (k x Hlookup) "Hwp"; destruct x as ([ι' n] & φ').
       iApply ("IH" with "Hwp").
       iModIntro. iIntros (v) "Hϕ !>". iApply "Hϕ".
   Qed.
@@ -255,7 +249,7 @@ Section ewp_basic_rules.
     (|={E}=> EWP m @ E <| Ψ |> {{ Φ }}) -∗
     EWP m @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "He".
+    destruct Ψ. iIntros "He".
     ewp_unfold_all.
     ewp_case m; try iMod "He"; done.
   Qed.
@@ -263,7 +257,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E, ∅}=∗
-    ⌜can_progress (σ, π, m, ι) ∨ is_ewp_case m <> EStep⌝.
+    ⌜can_progress σ π m ι ∨ is_ewp_case m <> EStep⌝.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
@@ -278,7 +272,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step' {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E}=∗
-    ⌜can_progress (σ, π, m, ι) ∨ is_ewp_case m  <> EStep⌝.
+    ⌜can_progress σ π m ι ∨ is_ewp_case m <> EStep⌝.
   Proof.
     iIntros.
     iPoseProof (ewp_can_step with "[$][$]") as "?".
@@ -382,13 +376,12 @@ Section wp_handler_rules.
     (* We proceed by Löb-induction after generalizing [e] [h] and [eh]. *)
     iLöb as "IH" forall (e).
 
-                        iIntros "He Hsh".
-                        Opaque can_progress.
+    iIntros "He Hsh".
     ewp_unfold_head.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_wp_step; cbn; iMod "Hmod" as "_"; cbn.
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       ewp_invert; iFrame;
@@ -415,10 +408,9 @@ Section wp_handler_rules.
         ewp_unfold_head.
         intro_state. ewp_mask_intro "Hmod".
         iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
-        unfold stop.
         construct_wp_nonret.
-        eapply invert_wp_step_resume in Hstep; [ | eexact Hl ].
-        destruct Hstep as (-> & -> & -> & ->).
+        eapply invert_thread_step_resume in Hstep; [ | eexact Hl ].
+        destruct Hstep as (-> & -> & ->).
         rewrite try2_inject2_right.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)".
         iFrame.
@@ -433,14 +425,14 @@ Section wp_handler_rules.
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       destruct x.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
-      destruct Hstep as ([[[??]?]?] & Hstep).
-      destruct_wp_step.
+      destruct Hstep as (? & ? & ? & Hstep).
+      destruct_thread_step.
       iSplitR.
-      { iPureIntro. eexists. apply ForkS. eassumption. }
+      { iPureIntro. do 3 eexists. eapply ForkS with (φ := λ _, True%I). eassumption. }
       clear dependent ι'.
-      intro_step. destruct_wp_step.
-      eassert (wp_step (σ'0, π, Stop CFork (v, v0) k, ι) _) as Hstep.
-      { apply ForkS. eassumption. }
+      intro_step. destruct_thread_step.
+      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι) _) as Hstep.
+      { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
       iMod "He" as "($ & Hwp & $)".
@@ -452,9 +444,9 @@ Section wp_handler_rules.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
       apply inv_can_progress_join in Hstep as Hlookup.
       construct_wp_nonret.
-      destruct_wp_step.
-      eassert (wp_step (σ'0, π'0, Stop CJoin ι0 k, ι) _) as Hstep0.
-      { apply JoinS. eassumption. }
+      destruct_thread_step.
+      eassert (thread_step (σ'0, Stop CJoin ι0 k, ι) _) as Hstep0.
+      { eapply JoinS. eassumption. eassumption. }
       spec_step.
       ewp_mask_elim.
       iMod "He" as "($ & He & _)". iModIntro.
@@ -463,9 +455,9 @@ Section wp_handler_rules.
     { (* [StepHandleSelf] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      destruct Hstep as ([[[??]?]?] & Hstep). spec_step.
-      destruct_wp_step. ewp_mask_elim.
+      construct_wp_nonret. destruct_thread_step.
+      destruct Hstep as (? & ? & ? & Hstep). spec_step.
+      destruct_thread_step. ewp_mask_elim.
       iMod "He" as "($ & He)".
       iApply ("IH" with "He Hsh"). }
 
@@ -474,7 +466,7 @@ Section wp_handler_rules.
       by iMod "HF". }
 
     { (* [StepHandleLeft] *)
-      eassert (wp_step (σ, π', e, ι) _) as Hstep.
+      eassert (thread_step (σ, e, ι) _) as Hstep.
       { apply BaseS. eassumption. }
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
@@ -487,12 +479,13 @@ Section wp_handler_rules.
     EWP (h (O3Ret a)) @ E <| Ψ |> {{ Φ }} -∗
     EWP (Handle (ret a) h) @ E <| Ψ |> {{ Φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hhandle".
     ewp_unfold_head.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_wp_step; cbn; iMod "Hmod" as "_"; cbn.
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn.
 
     - iFrame. ewp_mask_intro "Hmod"; ewp_mask_elim; done.
     - exfalso. eapply invert_can_step_Ret; unfold can_step; eauto.
@@ -502,12 +495,13 @@ Section wp_handler_rules.
     EWP (h (O3Throw e)) @ E <| Ψ |> {{ Φ }} -∗
     EWP (Handle (throw e) h) @ E <| Ψ |> {{ Φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hhandle".
     ewp_unfold_head.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_wp_step; cbn; iMod "Hmod" as "_"; cbn.
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn.
 
     - iFrame. ewp_mask_intro "Hmod"; ewp_mask_elim; done.
     - exfalso. eapply invert_can_step_Throw; unfold can_step; eauto.
@@ -519,6 +513,7 @@ Section wp_handler_rules.
     EWP Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
     EWP Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hl H".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -526,7 +521,7 @@ Section wp_handler_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
 
-    destruct_wp_step.
+    destruct_thread_step.
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
     (* Thus, the reduction step must be a successful step. *)
 
@@ -543,6 +538,7 @@ Section wp_handler_rules.
         EWP Handle (k w) c <| Ψ |> {{ Φ }}) -∗
     EWP Handle (stop CResume (l, w)) c <| Ψ |> {{ Φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hl H".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -550,7 +546,7 @@ Section wp_handler_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
 
-    destruct_wp_step.
+    destruct_thread_step.
     (* Thus, the reduction step must be a successful step. *)
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
 
@@ -625,6 +621,7 @@ Section ewp_rules.
     ewp_unfold_all. rewrite Hhm. rewrite Hhm2.
 
     (* Process a step of computation. *)
+    destruct Ψ as [ι Ψ].
     intro_state. spec_state.
     iModIntro. apply invert_can_progress in Hstep.
 
@@ -632,11 +629,11 @@ Section ewp_rules.
     { (* Case: [m1] is [Join _]. *)
       destruct Hstep as (ι' & k & -> & Hdom).
       simpl try2. construct_wp_nonret.
-      destruct_wp_step.
-      iAssert (⌜wp_step
-                 (σ', π', Stop CJoin t k, local_thread Ψ)
-                 (σ', π', k o, [])⌝)%I as "Hstep".
-      { iPureIntro. apply JoinS. assumption. }
+      destruct_thread_step.
+      iAssert (⌜thread_step
+                 (σ', Stop CJoin t k, ι)
+                 (σ', k o, [])⌝)%I as "Hstep".
+      { iPureIntro. eapply JoinS; eassumption. }
       iMod ("Hwp" with "Hstep") as "Hwp".
       ewp_mask_elim.
       iMod "Hwp" as "[Hvalid Hwp]"; iModIntro; iFrame.
@@ -647,9 +644,9 @@ Section ewp_rules.
     { (* Case: [m1] is [Fork _] *)
       destruct Hstep as (v1 & v2 & k & ->).
       simpl try2. construct_wp_nonret.
-      destruct_wp_step.
-      eassert (wp_step (σ', π, Stop CFork (v1, v2) k, local_thread Ψ) _).
-      { apply ForkS. eassumption. }
+      destruct_thread_step.
+      eassert (thread_step (σ', Stop CFork (v1, v2) k, ι) _).
+      { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & $)".
       iModIntro.
@@ -659,10 +656,10 @@ Section ewp_rules.
     { (* Case: [m1] is [Self]. *)
       destruct Hstep as (u & k & ->).
       simpl try2. construct_wp_nonret.
-      destruct_wp_step.
-      iAssert (⌜wp_step
-                 (σ', π', Stop CSelf u0 k, local_thread Ψ)
-                 (σ', π', continue k (VThread (local_thread Ψ)), [])⌝)%I as "Hstep".
+      destruct_thread_step.
+      iAssert (⌜thread_step
+                 (σ', Stop CSelf u0 k, ι)
+                 (σ', continue k (VThread ι), [])⌝)%I as "Hstep".
       { iPureIntro. apply SelfS. }
       iSpecialize ("Hwp" with "Hstep").
       ewp_mask_elim. iMod "Hwp" as "($ & Hwp & _)".
@@ -671,10 +668,10 @@ Section ewp_rules.
     (* Get more information out of [e2]; *)
     construct_wp_nonret.
     pose proof (can_step_try2 _ _ f Hstep) as Hstep2.
-    pose proof (invert_can_step_wp_step _ _ _ _ _ _ _ _ Hstep0 Hstep2) as (_ & -> & ->).
+    pose proof (invert_can_step_thread_step _ _ _ _ _ _ Hstep0 Hstep2) as (_ & ->).
 
-    eapply invert_wp_step_try2 in Hstep0; last assumption.
-    destruct Hstep0 as (?&Hstep0&->).
+    eapply invert_thread_step_try2 in Hstep0; last assumption.
+    destruct Hstep0 as (?&->&Hstep0).
 
     (* Can use information from above to get [wp] about stepped computation *)
     spec_step.
@@ -748,7 +745,7 @@ Section ewp_rules.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_wp_step; cbn; iMod "Hmod" as "_"; cbn.
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
 
     { (* Case: [StepParRetRet].. *)
       ewp_invert; iRename "HΦ" into "HΦ2"; ewp_invert; iFrame.
@@ -788,9 +785,9 @@ Section ewp_rules.
         destruct x.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (ForkS _ _ _ _ _ _ _ H0).
-        iSpecialize ("H1" $! _ _ _ _ H1).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (ForkS _ _ _ _ _ _ _ _ H0).
+        iSpecialize ("H1" $! _ _ _ H1).
         ewp_mask_elim. iMod "H1" as "($ & H1 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -798,9 +795,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (JoinS _ _ _ _ _ _ H0).
-        iSpecialize ("H1" $! _ _ _ _ H1).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
+        iSpecialize ("H1" $! _ _ _ H2).
         ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -808,9 +805,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (SelfS _ _ _ _ _).
-        iSpecialize ("H1" $! _ _ _ _ H0).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (SelfS _ _ _ _).
+        iSpecialize ("H1" $! _ _ _ H0).
         ewp_mask_elim. iMod "H1" as "($ & H1 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
@@ -832,9 +829,9 @@ Section ewp_rules.
         destruct x.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (ForkS _ _ _ _ _ _ _ H0).
-        iSpecialize ("H2" $! _ _ _ _ H1).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (ForkS _ _ _ _ _ _ _ _ H0).
+        iSpecialize ("H2" $! _ _ _ H1).
         ewp_mask_elim. iMod "H2" as "($ & H2 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -842,9 +839,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (JoinS _ _ _ _ _ _ H0).
-        iSpecialize ("H2" $! _ _ _ _ H1).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
+        iSpecialize ("H2" $! _ _ _ H2).
         ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -852,9 +849,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CSelf x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_wp_step.
-        epose proof (SelfS _ _ _ _ _).
-        iSpecialize ("H2" $! _ _ _ _ H0).
+        construct_wp_nonret. destruct_thread_step.
+        epose proof (SelfS _ _ _ _).
+        iSpecialize ("H2" $! _ _ _ H0).
         ewp_mask_elim. iMod "H2" as "($ & H2 & _)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
 
@@ -929,15 +926,12 @@ Section ewp_val_rules.
       {{ fun v => EWP (k v) @ E <| Ψ |> {{ φ }} }} ⊢
       EWP (Stop CEval (η, e) k) @ E <| Ψ |> {{ φ }}.
   Proof.
+    destruct Ψ.
     iIntros "Hwp".
-    Opaque can_progress.
-    try ewp_unfold_head; try intro_state;
-      (* Introduce mask for entering into WP *)
-      ewp_mask_intro "Hmod".
-    try construct_wp_nonret; destruct_wp_step.
-    ewp_mask_elim;
-      (* Frame state interp *)
-      try iFrame; cbn.
+    ewp_unfold_head. intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret. destruct_thread_step.
+    ewp_mask_elim.
+    iFrame.
     iApply (ewp_try2 with "Hwp").
   Qed.
 
@@ -966,6 +960,7 @@ Section ewp_val_rules.
     - (* [perform] is not immediately pure *)
       by apply invert_pure_wp_stop in Hm.
     - (* Case: [m] can step *)
+      destruct Ψ.
       intro_state.
       ewp_mask_intro "Hmod".
       assert (∀ σ, can_step (σ, m)) by
@@ -974,8 +969,8 @@ Section ewp_val_rules.
       (* and no step can change [σ] or escape [pure] *)
       ewp_cleanup_mod. ewp_mask_elim.
       specialize (H σ).
-      apply invert_can_step_wp_step in Hstep; last assumption.
-      destruct Hstep as (Hstep & -> & ->).
+      apply invert_can_step_thread_step in Hstep; last assumption.
+      destruct Hstep as (Hstep & ->).
       destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
       iFrame.
       rewrite bi.sep_emp.

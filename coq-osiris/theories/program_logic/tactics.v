@@ -20,7 +20,7 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ], [π] and [state_interp (σ, π)]. *)
 
-  Ltac intro_state := iIntros (σ π) "[Hsi Hti]".
+  Ltac intro_state := iIntros (σ π) "(Hsi & Hti)".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -79,7 +79,7 @@ Module ewp_rules_tactics.
   (* [intro_step] introduces [wp_step] along with the new expression and state *)
   Ltac intro_step :=
     let Hstep := fresh "Hstep" in
-    iIntros (???? Hstep).
+    iIntros (??? Hstep).
 
   (* Discharge pure subgoal that follows immediately by [tac] *)
   Tactic Notation "discharge_pure" tactic(tac) :=
@@ -91,6 +91,7 @@ Module ewp_rules_tactics.
     end.
 
   Ltac prove_can_progress :=
+    unfold stop;
     (eauto with step can_progress) ||
     (apply can_step_can_progress; auto with step can_step).
 
@@ -116,7 +117,7 @@ Module ewp_rules_tactics.
 
   Ltac2 destruct_thread_prot () :=
     match! goal with
-    | [ ℓ : locals |- _ ] =>
+    | [ ℓ : params |- _ ] =>
         let ℓ_hyp := Control.hyp ℓ in
         destruct $ℓ_hyp
     end.
@@ -129,7 +130,7 @@ Module ewp_rules_tactics.
         intros ?; intros_until_ewp_case hm
     end.
 
-  Ltac2 destruct_wp_step () := ltac1:(destruct_wp_step).
+  Ltac2 destruct_thread_step () := ltac1:(destruct_thread_step).
 
   Ltac2 ewp_case (m : constr)  :=
     ltac1:(m |- case_eq (is_ewp_case m)) (Ltac1.of_constr m);
@@ -143,7 +144,7 @@ Module ewp_rules_tactics.
               destruct $m; try0 destruct_stop_code; try discriminate;
               Control.enter
                 (fun _ =>
-                   try (complete destruct_wp_step))))
+                   try (complete destruct_thread_step))))
       [ fun _ => let hm := Fresh.in_goal @Hhm in intros $hm ].
 
   Tactic Notation "ewp_case" constr(x)  :=
@@ -156,28 +157,36 @@ Module ewp_rules_tactics.
     ltac1:(iStartProof; iIntros "HP HQ"; iFrame).
   Qed.
 
+  Lemma combine_pure_sep {PROP : bi} (P : Prop) (Q : PROP) :
+    ⌜P⌝ -∗ Q -∗ ⌜P⌝ ∗ Q.
+  Proof. apply combine_seps. Qed.
+
   Ltac spec_state :=
     lazymatch goal with
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ1 : step.store =>
-              bi_forall (fun π1 : threadpool => _)))] =>
+              bi_forall (fun π1 : post_map _ => _)))] =>
         lazymatch goal with
+        (* When both state interps are in the same hypothesis. *)
         | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (osiris_thread_interp ?π))] =>
             let Hstep := fresh "Hstep" in
             iSpecialize (Hwp $! σ π with SI);
             try (iMod Hwp;
                  iDestruct Hwp as (Hstep) Hwp)
+        (* When the state interps are in two different hypotheses *)
         | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             lazymatch goal with
-            |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
-              let Hstep := fresh "Hstep" in
-              iPoseProof (combine_seps with SI) as SI;
-              iSpecialize (SI with TI);
-              iSpecialize (Hwp $! σ π with SI);
-              try (iMod Hwp;
-                   iDestruct Hwp as (Hstep) Hwp)
+            | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
+                let Hstep := fresh "Hstep" in
+                iPoseProof (combine_seps with SI) as SI;
+                iSpecialize (SI with TI);
+                iSpecialize (Hwp $! σ π with SI);
+                try (iMod Hwp;
+                     iDestruct Hwp as (Hstep) Hwp)
+            | |- _ => fail "Cannot find thread interp hypothesis"
             end
+        | |- _ => fail "Cannot find state interp hypothesis"
         end
     end.
 
@@ -188,14 +197,13 @@ Module ewp_rules_tactics.
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ'0 =>
-              bi_forall (fun π'0 =>
               bi_forall (fun m' =>
               bi_forall (fun μ0 =>
-              bi_wand (bi_pure ((wp_step (pair (pair (pair ?σ ?π) ?m) ?ι) _))) _)))))] =>
+              bi_wand (bi_pure ((thread_step (pair (pair ?σ ?m) ?ι) _))) _))))] =>
         lazymatch goal with
-        | [ Hstep : wp_step (σ, π, m, ι) _ |- _] =>
+        | [ Hstep : thread_step (σ, m, ι) _ |- _] =>
             (* Specialize step relation *)
-            iSpecialize (Hwp $! _ _ _ _ Hstep);
+            iSpecialize (Hwp $! _ _ _ Hstep);
             (* Destruct the hypothesis *)
             iMod Hwp
         end
