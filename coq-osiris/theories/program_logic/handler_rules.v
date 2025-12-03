@@ -184,7 +184,8 @@ Section handler_proof.
     iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
-    construct_wp_nonret; destruct_wp_step;
+    rename π into π'.
+    construct_wp_nonret; destruct_thread_step;
       iMod "Hmod" as "_"; try rewrite -x.
 
 
@@ -250,10 +251,10 @@ Section handler_proof.
       rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
       intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
+      construct_wp_nonret. destruct_thread_step.
       epose proof (ForkS _ _ _ _ _ _ _ H) as Hstep0.
-      iSpecialize ("He" $! _ _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "($ & He & $)".
+      iSpecialize ("He" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "(He & $)".
       iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
@@ -262,10 +263,10 @@ Section handler_proof.
       rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
       intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
-      epose proof (JoinS _ _ _ _ _ _ H) as Hstep0.
-      iSpecialize ("He" $! _ _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "($ & He & _)".
+      construct_wp_nonret. destruct_thread_step.
+      epose proof (JoinS _ _ _ _ _ _ _ H H0) as Hstep0.
+      iSpecialize ("He" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "(He & $)".
       iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
@@ -274,10 +275,10 @@ Section handler_proof.
       rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
       intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_wp_step.
+      construct_wp_nonret. destruct_thread_step.
       epose proof (SelfS _ _ _ _ _) as Hstep0.
-      iSpecialize ("He" $! _ _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "($ & He & _)".
+      iSpecialize ("He" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "He" as "(He & $)".
       iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }
 
@@ -288,7 +289,7 @@ Section handler_proof.
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
-      iMod "H". ewp_mask_elim. iMod "H" as "($ & H & _)". iModIntro.
+      iMod "H". ewp_mask_elim. iMod "H" as "(H & $)". iModIntro.
       iSpecialize ("IH" with "H").
       iApply ("IH" with "Hsh"). }
   Qed.

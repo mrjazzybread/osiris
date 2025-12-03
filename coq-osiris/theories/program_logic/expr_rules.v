@@ -1222,11 +1222,12 @@ Section ewp_rules_expr.
     by rewrite try2_inject2_right.
   Qed.
 
-  Lemma ewp_EFork' η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+  Lemma ewp_EFork' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
-    ▷ (∀ ι v1 v2, valid_thread ι -∗ φ1 v1 -∗ φ2 v2 -∗ EWP call v1 v2 @ E <| (ι, ⊥) |> {{ λ _, True }}) -∗
-    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v }}.
+    ▷ (∀ ι v1 v2, valid_thread ι φ -∗ φ1 v1 -∗ φ2 v2 -∗
+                  EWP call v1 v2 @ E <| (ι, ⊥) |> {{ φ }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     simpl_eval.
@@ -1241,11 +1242,11 @@ Section ewp_rules_expr.
     iExists _; iFrame "#"; iPureIntro; reflexivity.
   Qed.
 
-  Lemma ewp_EFork `{Encode A} P η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
+  Lemma ewp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
-    ▷ (∀ ι v m, valid_thread ι -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ λ _, True }}) -∗
-    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v }}.
+    ▷ (∀ ι v m, valid_thread ι φ -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ φ }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     iApply (ewp_EFork' with "H1 H2").
@@ -1255,19 +1256,18 @@ Section ewp_rules_expr.
     iApply ("Hcall" $! ι v (call f #v) with "Hvalid H2 HSpec").
   Qed.
 
-  Lemma ewp_EJoin e η E Ψ φ ι :
-    valid_thread ι -∗
-    EWP eval η e @ E <|Ψ|> {{ ensures #ι', ⌜ι' = ι⌝ }} -∗
-    ▷ (∀ o, dead_thread ι o -∗ φ o) -∗
-    EWP eval η (EJoin e) @ E <|Ψ|> {{ φ }}.
+  Lemma ewp_EJoin e η E Ψ φ Φ :
+    EWP eval η e @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }} -∗
+    ▷ (∀ o, φ o -∗ Φ o) -∗
+    EWP eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
   Proof.
-    iIntros "Hvalid Hid Hjoined".
+    iIntros "Hid Hjoined".
     simpl_eval.
     iApply ewp_bind. unfold as_thread. iApply ewp_bind.
     iApply (ewp_mono with "Hid").
-    iIntros ([ ι' |]); [ iIntros "(%v & -> & ->)" | iIntros "[]" ].
+    iIntros ([ ι' |]); [ iIntros "Hvalid" | iIntros "[]" ].
+    iDestruct "Hvalid" as "(% & -> & Hvalid)".
     iApply ewp_value.
-    simpl.
     iApply (ewp_join with "Hvalid Hjoined").
   Qed.
 
