@@ -480,8 +480,11 @@ Global Hint Constructors step : step.
 Ltac destruct_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
-  try match goal with h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
-    remember x
+  try match goal with
+    | h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
+          remember x
+    | h: step (?σ, stop ?c ?x) ?m' |- _ =>
+        remember x
   end;
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h

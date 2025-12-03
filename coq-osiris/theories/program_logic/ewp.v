@@ -254,10 +254,12 @@ Section ewp.
              state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress σ π m ι⌝ ∗
              (∀ σ' m' μ,
-                ⌜thread_step (σ, m, ι, π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
-                  state_interp (σ', π) ∗
-                  ewp E m' (ι, Ψ) φ ∗
-                  [∗ list] '(ι', m', φ') ∈ μ, ewp E m' (ι', ⊥) φ')
+                 ⌜thread_step (σ, m, ι, π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+                ewp E m' (ι, Ψ) φ ∗
+                match μ with
+                | None => state_interp (σ', π)
+                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ' ]> π) ∗ ewp E m' (ι', ⊥) φ'
+                end)
        end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
@@ -323,7 +325,7 @@ Proof.
     intro. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
-  - do 19 (f_contractive || f_equiv).
+  - do 18 (f_contractive || f_equiv).
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
