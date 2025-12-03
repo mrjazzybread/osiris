@@ -1,7 +1,7 @@
 (* This file summarizes the content of program_logic/ directory. *)
 
 From osiris.program_logic Require Export
-  wp_step
+  thread_step
   ewp
   basic_rules
   stop_rules

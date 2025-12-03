@@ -1,6 +1,6 @@
 From iris.proofmode Require Import tactics.
 From osiris.semantics Require Import step code.
-From osiris.program_logic Require Import wp_step ewp.
+From osiris.program_logic Require Import thread_step ewp.
 
 From Ltac2 Require Import Ltac2.
 

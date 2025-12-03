@@ -1,7 +1,7 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap.
 
-From osiris.program_logic Require Import wp_step ewp basic_rules tactics.
+From osiris.program_logic Require Import thread_step ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
 
 Definition WPTP `{!osirisGS Σ} (π : thpool) : iProp Σ :=

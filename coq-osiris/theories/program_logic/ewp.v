@@ -3,7 +3,7 @@ From iris.algebra Require Import gmap_view dfrac gset auth excl.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
-From osiris.program_logic Require Import wp_step.
+From osiris.program_logic Require Import thread_step.
 From osiris Require Export thread_ids syntax semantics.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
