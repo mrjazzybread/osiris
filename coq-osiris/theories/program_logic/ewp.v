@@ -258,7 +258,7 @@ Section ewp.
                 ewp E m' (ι, Ψ) φ ∗
                 match μ with
                 | None => state_interp (σ', π)
-                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ' ]> π) ∗ ewp E m' (ι', ⊥) φ'
+                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ' ]> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
                 end)
        end)%I.
 

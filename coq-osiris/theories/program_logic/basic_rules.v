@@ -90,7 +90,7 @@ Section ewp_basic_rules.
         EWP m' @ E <| (ι, Ψ) |> {{ φ }} ∗
           (match μ with
            | None => state_interp (σ', π)
-           | Some (ι', m') => ∃ φ', state_interp (σ', <[ι':=φ']>π) ∗ EWP m' @ E <| (ι', ⊥) |> {{ φ' }}
+           | Some (ι', m') => ∃ φ', state_interp (σ', <[ι':=φ']>π) ∗ EWP m' @ E <| (ι', ⊥) |> {{ λ o, □ φ' o }}
           end).
   Proof.
     intros Hstep.
