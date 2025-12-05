@@ -447,12 +447,19 @@ Section wp_handler_rules.
       apply inv_can_progress_join in Hstep as Hlookup.
       construct_wp_nonret.
       destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CJoin ι0 k, ι, π) _) as Hstep0.
-      { eapply JoinS; eassumption. }
-      spec_step.
-      ewp_mask_elim.
-      iMod "He" as "(He & $)". iModIntro.
-      iApply ("IH" with "He Hsh"). }
+      - eassert (thread_step (σ'0, Stop CJoin ι0 k, ι, π) _) as Hstep0.
+        { eapply JoinS; eassumption. }
+        spec_step.
+        ewp_mask_elim.
+        iMod "He" as "(He & $)". iModIntro.
+        iApply ("IH" with "He Hsh").
+      - eassert (thread_step (σ'0, Stop CJoin ι0 k, ι, π) _) as Hstep0.
+        { eapply JoinCrashS; eassumption. }
+        spec_step.
+        ewp_mask_elim.
+        iMod "He" as "(He & $)".
+        iPoseProof (ewp_crash_inv with "He") as "False".
+        by iMod "False". }
 
     { (* [StepHandleSelf] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
@@ -632,14 +639,24 @@ Section ewp_rules.
       destruct Hstep as (ι' & k & -> & Hdom).
       simpl try2. construct_wp_nonret.
       destruct_thread_step.
-      iAssert (⌜thread_step
+      - iAssert (⌜thread_step
                  (σ', Stop CJoin t k, ι, π)
                  (σ', k o, None)⌝)%I as "Hstep".
-      { iPureIntro. eapply JoinS; eassumption. }
-      iMod ("Hwp" with "Hstep") as "Hwp".
-      ewp_mask_elim.
-      iMod "Hwp" as "[Hwp Hsi]"; iModIntro; iFrame.
-      iApply ("IH" with "Hwp"). }
+        { iPureIntro. eapply JoinS; eassumption. }
+        iMod ("Hwp" with "Hstep") as "Hwp".
+        ewp_mask_elim.
+        iMod "Hwp" as "[Hwp Hsi]"; iModIntro; iFrame.
+        iApply ("IH" with "Hwp").
+
+      - iAssert (⌜thread_step
+                 (σ', Stop CJoin t k, ι, π)
+                 (σ', crash "join error: invalid thread id", None)⌝)%I as "Hstep".
+        { iPureIntro. eapply JoinCrashS; eassumption. }
+        iMod ("Hwp" with "Hstep") as "Hwp".
+        ewp_mask_elim.
+        iMod "Hwp" as "[Hwp Hsi]".
+        iPoseProof (ewp_crash_inv with "Hwp") as "False".
+        by iMod "False". }
 
     destruct Hstep as [ Hstep | Hstep ].
     { (* Case: [m1] is [Fork _] *)
@@ -798,10 +815,15 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
         construct_wp_nonret. destruct_thread_step.
-        epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
-        iSpecialize ("H1" $! _ _ _ H2).
-        ewp_mask_elim. iMod "H1" as "(H1 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        + epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
+          iSpecialize ("H1" $! _ _ _ H2).
+          ewp_mask_elim. iMod "H1" as "(H1 & $)".
+          iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        + epose proof (JoinCrashS _ _ _ _ _ H0).
+          iSpecialize ("H1" $! _ _ _ H1).
+          ewp_mask_elim. iMod "H1" as "(H1 & $)".
+          iPoseProof (ewp_crash_inv with "H1") as "False".
+          by iMod "False".
 
       - (* Step then [SelfS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -842,10 +864,15 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
         construct_wp_nonret. destruct_thread_step.
-        epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
-        iSpecialize ("H2" $! _ _ _ H2).
-        ewp_mask_elim. iMod "H2" as "(H2 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        + epose proof (JoinS _ _ _ _ _ _ _ H0 H1).
+          iSpecialize ("H2" $! _ _ _ H2).
+          ewp_mask_elim. iMod "H2" as "(H2 & $)".
+          iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        + epose proof (JoinCrashS _ _ _ _ _ H0).
+          iSpecialize ("H2" $! _ _ _ H1).
+          ewp_mask_elim. iMod "H2" as "(H2 & $)".
+          iPoseProof (ewp_crash_inv with "H2") as "False".
+          by iMod "False".
 
       - (* [StepParSelfRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.

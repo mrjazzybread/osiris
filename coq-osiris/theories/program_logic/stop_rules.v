@@ -168,9 +168,11 @@ Section ewp_stop.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "[Hti %Hlookup]".
     construct_wp_nonret.
-    destruct_thread_step. rewrite Hlookup in H; inversion H; subst.
-    ewp_mask_elim. iFrame.
-    iApply ("Hk" $! o H0).
+    destruct_thread_step.
+    + rewrite Hlookup in H; inversion H; subst.
+      ewp_mask_elim. iFrame.
+      iApply ("Hk" $! o H0).
+    + rewrite H in Hlookup; discriminate.
   Qed.
 
   Lemma ewp_join E Ψ ι Φ φ :

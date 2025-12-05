@@ -38,6 +38,11 @@ Section thread_step.
       thread_step
         (σ, Stop CJoin ι' k, ι, π)
         (σ, k o, None)
+  | JoinCrashS : ∀ σ ι (π : post_map Σ) (k : outcome2 val exn -> micro A X) ι',
+      π !! ι' = None →
+      thread_step
+        (σ, Stop CJoin ι' k, ι, π)
+        (σ, crash "join error: invalid thread id", None)
   | SelfS : ∀ σ π ι u (k : outcome2 val exn -> micro A X),
       thread_step
         (σ, Stop CSelf u k, ι, π)
@@ -209,18 +214,10 @@ Section can_progress.
     { apply invert_step_try2 in H; last assumption.
       destruct H as (? & Hstep' & ->).
       eexists; split; [ reflexivity | apply BaseS; assumption ]. }
-    - symmetry in x.
+    all: symmetry in x;
       apply invert_try2_eq_stop in x as (k' & -> & ->);
         try (intros ? ->);
       exfalso; eauto with invert_can_step.
-    - symmetry in x.
-      apply invert_try2_eq_stop in x as (k' & -> & ->);
-        try (intros ? ->);
-        exfalso; eauto with invert_can_step.
-    - symmetry in x.
-      apply invert_try2_eq_stop in x as (k' & -> & ->);
-        try (intros ? ->);
-        exfalso; eauto with invert_can_step.
   Qed.
 
 End can_progress.

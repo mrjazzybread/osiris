@@ -264,11 +264,16 @@ Section handler_proof.
       ewp_unfold_head.
       intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_thread_step.
-      epose proof (JoinS _ _ _ _ _ _ _ H H0) as Hstep0.
-      iSpecialize ("He" $! _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "(He & $)".
-      iModIntro. rewrite /continue.
-      iApply ("IH" with "He Hsh"). }
+      + epose proof (JoinS _ _ _ _ _ _ _ H H0) as Hstep0.
+        iSpecialize ("He" $! _ _ _ Hstep0).
+        ewp_mask_elim. iMod "He" as "(He & $)".
+        iModIntro. rewrite /continue.
+        iApply ("IH" with "He Hsh").
+      + epose proof (JoinCrashS _ _ _ _ _ H) as Hstep0.
+        iSpecialize ("He" $! _ _ _ Hstep0).
+        ewp_mask_elim. iMod "He" as "(He & $)".
+        iPoseProof (ewp_crash_inv with "He") as "False".
+        by iMod "False". }
 
     { (* [StepHandleSelf] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
