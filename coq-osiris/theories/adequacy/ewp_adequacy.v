@@ -4,12 +4,8 @@ From iris.base_logic.lib Require Import iprop wsat gen_heap.
 From osiris.program_logic Require Import thread_step ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
 
-Definition WPTP `{!osirisGS Σ} (π : thpool) : iProp Σ :=
-  ([∗ map] ι ↦ s ∈ π,
-     match s with
-     | Active m => EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }}
-     | Terminated o => True
-     end).
+Definition WPTP `{!osirisGS Σ} (π : thpool) (πp : post_map Σ): iProp Σ :=
+  ([∗ map] ι ↦ m; φ ∈ π; πp, EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }}).
 
 Definition is_final {A E} (m : micro A E) : Prop :=
   match m with
@@ -23,21 +19,12 @@ Definition is_join {A E} (m : micro A E) : Prop :=
   | _ => False
   end.
 
-Definition to_local_view : (thread_status) → thread_state :=
-  λ s, match s with
-       | Active _ => Alive
-       | Terminated o => Dead o
-       end.
-
-Definition not_stuck {A E} (m : micro A E) s ι :=
-  is_final m ∨ can_progress (s.1, to_local_view <$> s.2, m, ι) ∨ is_join m.
+Definition not_stuck {Σ A E} (m : micro A E) σ (πp : post_map Σ) ι :=
+  is_final m ∨ can_progress σ πp m ι ∨ is_join m.
 
 Lemma wp_wptp `{!osirisGS Σ} ι m φ :
-  EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ⊢ WPTP {[ι := (Active m) ]}.
-Proof. rewrite /WPTP big_sepM_singleton.
-       iIntros "Hewp". iApply (ewp_mono with "Hewp").
-       iIntros (o) "Hφ". done.
-Qed.
+  EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ⊢ WPTP {[ι := m ]} {[ι := φ]}.
+Proof. by rewrite /WPTP big_sepM2_singleton. Qed.
 
 Include ewp_rules_tactics.
 
@@ -45,10 +32,10 @@ Include ewp_rules_tactics.
 Section satisfiability_weakest_pre.
   Context `{!osirisGS Σ}.
 
-  Lemma ewp_not_stuck {A X} m F E (e : micro A X) ι σ π Φ n:
-    SAT m F [view E; supply n] (state_interp (σ, to_local_view <$> π) ∗
+  Lemma ewp_not_stuck {A X} m F E (e : micro A X) ι σ πp Φ n:
+    SAT m F [view E; supply n] (state_interp (σ, πp) ∗
                                   EWP e @ E <| (ι, ⊥) |> {{ Φ }}) →
-    not_stuck e (σ, π) ι.
+    not_stuck e σ πp ι.
   Proof.
     intros Hsat. rewrite /not_stuck.
     rewrite ewp_unfold /ewp_pre /= in Hsat.
@@ -64,7 +51,7 @@ Section satisfiability_weakest_pre.
       rewrite /prot upcl_bottom in Hsat.
       by apply SAT_elim in Hsat.
     - rewrite Hhm in Hsat.
-      eapply SAT_mono with (Q := (|={E, ∅}=> ⌜can_progress (σ, to_local_view <$> π, e, ι)⌝)%I)
+      eapply SAT_mono with (Q := (|={E, ∅}=> ⌜can_progress σ πp e ι⌝)%I)
                            in Hsat.
       { eapply SAT_fupd, SAT_elim in Hsat.
         by left. }
@@ -96,83 +83,6 @@ Section satisfiability_weakest_pre.
       nsteps n ρ2 ρ3 →
       nsteps (S n) ρ1 ρ3.
 
-  Lemma ewp_step {A X} σ π (m : micro A X) σ' m' E Ψ Φ :
-    step (σ, m) (σ', m') ->
-    state_interp (σ, π) -∗
-    EWP m @ E <| Ψ |> {{ Φ }} -∗
-    |={E}[∅]▷=> state_interp (σ', π) ∗ EWP m' @ E <| Ψ |> {{ Φ }}.
-  Proof.
-    iIntros (Hstep) "Hsi Hwp".
-    destruct Ψ.
-    eapply BaseS in Hstep.
-    iMod (ewp_step _ _ _ _ _ Hstep with "Hsi Hwp") as "Hwp".
-    iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "($ & Hwp & _)".
-    iApply "Hwp".
-  Qed.
-
-  (* Lemma invert_active_thread_in_wp es1 ι m : *)
-  (*   WPTP es1 -∗ *)
-  (*   ⌜active_thread ι es1 = Some m⌝ -∗ *)
-  (*   ⌜es1 !! ι = Some (Active m)⌝ ∗ WPTP es1. *)
-  (* Proof. *)
-  (*   iIntros "Hwps %Hactive". *)
-  (*   iPoseProof (big_sepM2_dom with "Hwps") as "%Hdom". iFrame. *)
-  (*   iPureIntro. *)
-  (*   rewrite /active_thread in Hactive. *)
-  (*   case_eq (es1 !! ι); last (intros Heq; rewrite Heq in Hactive; discriminate). *)
-  (*   intros [? | ?] Heq; rewrite Heq in Hactive; subst; last discriminate. *)
-  (*   split. *)
-  (*   - apply elem_of_dom. *)
-  (*     rewrite -Hdom. *)
-  (*     apply elem_of_dom. exists (Active m0). apply Heq. *)
-  (*   - inversion Hactive; subst. reflexivity. *)
-  (* Qed. *)
-
-
-  (* Definition to_local_view (π : gmap thread thread_status) : gmap thread thread_state := *)
-  (*   fmap erase_active_thread π. *)
-
-  Lemma invert_some_active_thread ι π m :
-    active_thread ι π = Some m ->
-    π !! ι = Some (Active m).
-  Proof.
-    intros Hactive.
-    rewrite /active_thread in Hactive.
-    case_eq (π !! ι).
-    - intros [?|?] Hlookup; rewrite Hlookup in Hactive; try discriminate.
-      by inversion Hactive.
-    - intros Hlookup.
-      rewrite Hlookup in Hactive; discriminate.
-  Qed.
-
-  Lemma lookup_local_view (π : thpool) (ι : thread) s :
-    π !! ι = Some s ->
-    (to_local_view <$> π) !! ι = Some (to_local_view s).
-  Proof.
-    intros Hlookup.
-    rewrite lookup_fmap.
-    by rewrite Hlookup.
-  Qed.
-
-  Lemma lookup_local_fresh (π : thpool) ι :
-    π !! ι = None <-> (to_local_view <$> π) !! ι = None.
-  Proof.
-    etransitivity.
-    - symmetry. exact (not_elem_of_dom π ι).
-    - erewrite <- dom_fmap. apply not_elem_of_dom.
-  Qed.
-
-  Lemma local_view_insert_id (π : thpool) ι m m' :
-    π !! ι = Some (Active m') ->
-    to_local_view <$> (<[ ι := (Active m) ]> π) = to_local_view <$> π.
-  Proof.
-    intros Hlookup.
-    rewrite !fmap_insert; simpl.
-    apply insert_id.
-    rewrite lookup_fmap Hlookup.
-    reflexivity.
-  Qed.
-
   Lemma not_elem_of_lookup {K} `{FinMapDom K M D} {A} (ι ι' : K) (π : M A) (m : A) :
     ι' ≠ ι ->
     π !! ι' = None ->
@@ -187,73 +97,48 @@ Section satisfiability_weakest_pre.
     - apply not_elem_of_dom. apply Hlookup.
   Qed.
 
-  Lemma unfold_micro_insert (π : thpool) ι (m : microvx) :
-    @insert _ _ _ insert_thread ι m π = <[ ι := Active m ]> π.
+  Lemma wptp_extract_wp π πp ι m :
+    ⌜π !! ι = Some m⌝ -∗
+    WPTP π πp -∗
+    ∃ φ, ⌜πp !! ι = Some φ⌝ ∗ EWP m @ ⊤ <| (ι, ⊥) |> {{ φ }} ∗ WPTP (delete ι π) (delete ι πp).
   Proof.
-    reflexivity.
-  Qed.
-
-  Lemma wptp_extract_wp π ι m :
-    ⌜π !! ι = Some (Active m) ⌝ -∗
-    WPTP π -∗
-    EWP m @ ⊤ <| (ι, ⊥) |> {{ λ _, True }} ∗ WPTP (delete ι π).
-  Proof.
-    iIntros "%Hactive Hwps".
-    iPoseProof (big_sepM_delete with "Hwps") as "[Hwp Hwps]".
-    { apply Hactive. }
+    iIntros "%Hlookup Hwps".
+    iPoseProof (big_sepM2_delete_l with "Hwps") as "(%φ & Hlookup_p & Hwp & Hwps)".
+    apply Hlookup.
     iFrame.
   Qed.
 
-  Lemma SAT_wptp_extract_wp π ι e m F Rs :
-    π !! ι = Some (Active e) ->
-    SAT m F Rs (WPTP π) ->
-    SAT m F Rs (WPTP (delete ι π) ∗ EWP e <| (ι, ⊥) |> {{ λ _, True }})%I.
+  Lemma SAT_wptp_extract_wp π πp ι e m F Rs :
+    π !! ι = Some e →
+    SAT m F Rs (WPTP π πp) →
+    SAT m F Rs (∃ φ, ⌜πp !! ι = Some φ⌝ ∗ WPTP (delete ι π) (delete ι πp) ∗ EWP e <| (ι, ⊥) |> {{ φ }})%I.
   Proof.
     intros Hlookup Hsat.
     eapply SAT_mono, Hsat.
     iIntros "HWPTP".
-    iApply bi.sep_comm'.
-    iPoseProof (wptp_extract_wp $! Hlookup with "HWPTP") as "($ & $)".
+    iPoseProof (wptp_extract_wp $! Hlookup with "HWPTP") as "(%φ & $ & $ & $)".
   Qed.
 
-  Lemma attempt_join_some_inv {A X} ι π k s (m : micro A X) :
-    π !! ι = Some s ->
-    attempt_join ι π k = Some m ->
-    ∃ o, (to_local_view <$> π) !! ι = Some (Dead o) ∧ m = k o.
-  Proof.
-    intros Hlookup Hattempt.
-    rewrite /attempt_join in Hattempt.
-    destruct s; rewrite Hlookup in Hattempt; [ discriminate | ].
-    exists o.
-    rewrite lookup_fmap. rewrite Hlookup.
-    destruct o; by inversion Hattempt.
-  Qed.
-
-  Lemma lookup_local_view_Some (π : thpool) ι s :
-    (to_local_view <$> π) !! ι = Some s ->
-    ∃ m, π !! ι = Some m.
-  Proof.
-    intros Hlookup.
-    epose proof (lookup_fmap_Some to_local_view π ι s) as [P _].
-    specialize (P Hlookup) as (m & Hf & Hm).
-    by exists m.
-  Qed.
-
-  Lemma sat_wp_step {A X} m F E ι Ψ (e1 : micro A X) σ1 π1 e2 σ2 π2 efs Φ n :
-    wp_step (σ1, π1, e1, ι) (σ2, π2, e2, efs) →
+  Lemma sat_wp_step {A X} m F E ι Ψ (e1 : micro A X) σ1 πp e2 σ2 μ Φ n :
+    thread_step (σ1, e1, ι, πp) (σ2, e2, μ) →
     SAT m F [view E; supply n]
-      (state_interp (σ1, π1) ∗ EWP e1 @ E <| (ι, Ψ) |> {{ Φ }}) →
+      (state_interp (σ1, πp) ∗ EWP e1 @ E <| (ι, Ψ) |> {{ Φ }}) →
     ∃ n', SAT m F [view E; supply n']
-      (state_interp (σ2, π2) ∗ EWP e2 @ E <| (ι, Ψ) |> {{ Φ }} ∗ ([∗ list] '(ι', e) ∈ efs, EWP e @ E <| (ι', ⊥) |> {{ λ _, True }})).
+            (EWP e2 @ E <| (ι, Ψ) |> {{ Φ }} ∗
+            (match μ with
+             | None => state_interp (σ2, πp)
+             | Some (ι', e') =>
+                 ∃ φ, state_interp (σ2, <[ι':=φ]>πp) ∗ EWP e' @ E <| (ι', ⊥) |> {{ λ o, □ φ o }}
+             end)).
   Proof.
     intros Hstep Hsat. eapply SAT_mono in Hsat; last first.
     { iIntros "[HSI Hwp]". rewrite ewp_unfold /ewp_pre.
-      rewrite (wp_step_is_EStep _ _ _ _ _ _ _ _ Hstep).
+      rewrite (thread_step_is_EStep _ _ _ _ _ _ _ Hstep).
       iSpecialize ("Hwp" with "HSI").
       iExact "Hwp". }
     eapply SAT_fupd in Hsat.
     eapply SAT_mono in Hsat; last first.
-    { iIntros "[_ Hwp]". iSpecialize ("Hwp" $! _ _ _ _ Hstep). iExact "Hwp". }
+    { iIntros "[_ Hwp]". iSpecialize ("Hwp" $! _ _ _ Hstep). iExact "Hwp". }
     eapply (SAT_frame_resource _ (view ∅)) in Hsat; last apply _.
     eapply SAT_unframe_resource in Hsat.
     eapply SAT_fupd in Hsat.
@@ -266,35 +151,31 @@ Section satisfiability_weakest_pre.
     ⌜π !! ι' = None⌝ -∗
     state_interp (σ, π) -∗
     EWP Stop CFork (v1, v2) k @ E <| (ι, Ψ) |> {{ Φ }} -∗
-    |={E}[∅]▷=> EWP try2 (call v1 v2) die @ E <| (ι', ⊥) |> {{ λ _, True }} ∗
-    EWP (continue k (VThread ι')) @ E <| (ι, Ψ) |> {{ Φ }} ∗ state_interp (σ, <[ ι' := Alive ]> π).
+    |={E}[∅]▷=> ∃ φ, EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ o, □ φ o }} ∗
+    EWP (continue k (VThread ι')) @ E <| (ι, Ψ) |> {{ Φ }} ∗ state_interp (σ, <[ ι' := φ ]> π).
   Proof.
     iIntros "%Hlookup Hsi Hfork".
     rewrite ewp_unfold /ewp_pre /=.
     spec_state.
-    epose proof (ForkS _ π ι v1 v2 k ι' Hlookup) as Hfstep.
-    iSpecialize ("Hfork" $! _ _ _ _ Hfstep).
+    epose proof (ForkS _ ι π v1 v2 k ι' Hlookup) as Hfstep.
+    iSpecialize ("Hfork" $! _ _ _ Hfstep).
     ewp_mask_elim.
-    iMod "Hfork" as "(Hsi & Hcontinue & Hfork)".
-    simpl; iDestruct "Hfork" as "[Hfork _]".
+    iMod "Hfork" as "(Hcontinue & %φ & Hsi & Hfork)".
     by iFrame.
   Qed.
 
-  Lemma ewp_join_inv {A X} σ π ι' k (m : micro A X) ι Ψ Φ E :
-    ⌜attempt_join ι' π k = Some m⌝ -∗
-    state_interp (σ, to_local_view <$> π) -∗
+  Lemma ewp_join_inv {A X} φ σ πp ι' (k : _ → micro A X) ι Ψ Φ E o :
+    ⌜πp !! ι' = Some φ⌝ -∗
+    ⌜(⊢ φ o)⌝ -∗
+    state_interp (σ, πp) -∗
     EWP Stop CJoin ι' k @ E <| (ι, Ψ) |> {{ Φ }} -∗
-    |={E}[∅]▷=> state_interp (σ, to_local_view <$> π) ∗ EWP m @ E <| (ι, Ψ) |> {{ Φ }}.
+    |={E}[∅]▷=> state_interp (σ, πp) ∗ EWP k o @ E <| (ι, Ψ) |> {{ Φ }}.
   Proof.
-    iIntros "%Hjoin Hsi Hwp".
-    rewrite ewp_unfold /ewp_pre /=. spec_state.
-    rewrite /can_progress in Hstep. apply elem_of_dom in Hstep as [s Hstep].
-    apply lookup_local_view_Some in Hstep as (ss & Hlookup).
-    apply (attempt_join_some_inv _ _ _ _ _ Hlookup) in Hjoin
-        as (o & Hdead & ->).
-    epose proof (JoinS _ _ _ _ _ _ Hdead) as Hstep.
-    iSpecialize ("Hwp" $! _ _ _ _ Hstep).
-    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+    iIntros "%Hjoin %Hφ Hsi Hwp".
+    rewrite ewp_unfold /ewp_pre /=. spec_state. clear Hstep.
+    epose proof (JoinS _ _ _ _ _ _ _ Hjoin Hφ) as Hstep.
+    iSpecialize ("Hwp" $! _ _ _ Hstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $)". done.
   Qed.
 
   Lemma ewp_self_inv {A X} σ π ι (k : _ -> micro A X) Ψ Φ E :
@@ -305,54 +186,139 @@ Section satisfiability_weakest_pre.
     iIntros "Hsi Hwp".
     ewp_unfold (Stop CSelf () k). spec_state.
     epose proof (SelfS _ _ _ _ _) as Hwpstep.
-    iSpecialize ("Hwp" $! _ _ _ _ Hwpstep).
-    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+    iSpecialize ("Hwp" $! _ _ _ Hwpstep).
+    ewp_mask_elim. iMod "Hwp" as "($ & $)". done.
   Qed.
 
-  Lemma ewp_die_inv {A X} σ π ι o (k : _ -> micro A X) Ψ Φ E :
-    ⌜ι ∈ dom π⌝ -∗
-    state_interp (σ, π) -∗
-    EWP Stop CDie o k @ E <|(ι, Ψ)|> {{ Φ }} -∗
-    |={E}[∅]▷=> state_interp (σ, <[ ι := Dead o ]> π) ∗ EWP k o @ E <| (ι, Ψ) |> {{ Φ }}.
+  Lemma attempt_thread_join_step {A X} ι' π1 k (m : micro A X) σ (πp : post_map Σ) ι :
+    (∀ ι o, π1 !! ι ≫= is_outcome = Some o → ∃ φ, πp !! ι = Some φ ∧ (⊢ φ o)) →
+    dom πp ≡ dom π1 →
+    attempt_join ι' π1 k = Some m →
+    thread_step (σ, Stop CJoin ι' k, ι, πp) (σ, m, None).
   Proof.
-    iIntros "%Hlookup Hsi Hwp".
-    rewrite {1}ewp_unfold /ewp_pre /=. spec_state.
-    epose proof (DieS _ _ _ _ _ Hlookup) as Hwpstep.
-    iSpecialize ("Hwp" $! _ _ _ _ Hwpstep).
-    ewp_mask_elim. iMod "Hwp" as "($ & $ & _)". done.
+    intros Hinv Heqdom Hattempt.
+    unfold attempt_join in Hattempt.
+    case (π1 !! ι') eqn:Heq.
+    - assert (is_Some (πp !! ι')) as (φ & Hlookup_p).
+      { apply (elem_of_dom πp ι'). rewrite Heqdom. apply elem_of_dom.
+        eexists; eassumption. }
+      destruct m0; try discriminate Hattempt;
+        inversion Hattempt; subst;
+        unfold continue, discontinue.
+      + specialize (Hinv ι' (O2Ret a)).
+        destruct Hinv as (? & ? & Hφ). rewrite Heq. reflexivity.
+        eapply JoinS; eassumption.
+      + specialize (Hinv ι' (O2Throw e)).
+        destruct Hinv as (? & ? & Hφ). rewrite Heq. reflexivity.
+        eapply JoinS; eassumption.
+    - inversion Hattempt; subst.
+      apply JoinCrashS.
+      apply (not_elem_of_dom πp ι'). rewrite Heqdom. apply not_elem_of_dom. assumption.
   Qed.
 
-  (* One could be tempted to related [threadpool_step] and [wp_step] with a
-     lemma of the following shape.
+  Lemma threadpool_thread_step (σ1 σ2 : store) (π1 π2 : thpool) πp :
+    (∀ ι o, π1 !! ι ≫= is_outcome = Some o → ∃ φ, πp !! ι = Some φ ∧ (⊢ φ o)) →
+    dom πp ≡ dom π1 →
+    threadpool_step (σ1, π1) (σ2, π2) →
+    ∃ (ι : thread) (m m' : microvx) μ,
+      π1 !! ι = Some m ∧
+      π2 !! ι = Some m' ∧
+        @thread_step Σ val exn (σ1, m, ι, πp) (σ2, m', μ).
+  Proof.
+    intros Hinv Hdomeq.
+    inversion 1.
+    - eapply BaseS in H5.
+      exists ι, m, m', None.
+      split; first assumption.
+      split; first apply lookup_insert.
+      eassumption.
+    - exists ι, (Stop CFork (v1, v2) k), (continue k (VThread ι')), (Some (ι', call v1 v2)).
+      split; first assumption.
+      split; first (rewrite lookup_insert_ne; first apply lookup_insert).
+      intros ->; rewrite H5 in H3; discriminate.
+      apply ForkS.
+      apply (not_elem_of_dom_1 πp ι'). rewrite Hdomeq. apply not_elem_of_dom_2. assumption.
+    - exists ι, (Stop CJoin ι' k), m, None.
+      split; first assumption.
+      split; first apply lookup_insert.
+      eapply attempt_thread_join_step; eassumption.
+    - exists ι, (Stop CSelf () k), (continue k (VThread ι)), None.
+      split; first assumption.
+      split; first apply lookup_insert.
+      apply SelfS.
+  Qed.
 
-     Lemma threadpool_wp_step σ1 σ2 π1 π2 :
-       threadpool_step (σ1, π1) (σ2, π2) ->
-       ∃ ι m m' l π2',
-         active_thread ι π1 = Some m ∧
-         wp_step.wp_step (σ1, forget_active_threads π1, m, ι) (σ2, π2', m', l) ∧
-         (match l with
-          | [] => forget_active_threads π2 = π2'
-          | [(  ι', _)] => <[ ι' := Alive ]> (forget_active_threads π2) = π2'
-          end).
+  Lemma WPTP_insert_delete ι π1 πp m' φ :
+    ⌜πp !! ι = Some φ⌝ -∗
+    WPTP (delete ι π1) (delete ι πp) -∗
+    EWP m' <|(ι, ⊥)|> {{ φ }} -∗
+    WPTP (<[ι:=m']> π1) πp.
+  Proof.
+    iIntros "%Hlookup Hwps Hwp".
+    replace πp with (<[ι:=φ]>πp) by apply (insert_id πp ι φ Hlookup).
+    iApply big_sepM2_insert_delete.
+    replace πp with (<[ι:=φ]>πp) at 2 by apply (insert_id πp ι φ Hlookup).
+    iFrame.
+  Qed.
 
-     However, threadpool_step allows [CJoin]s to crash, whereas [wp_step] only allows
-     joining a valid, dead thread. *)
 
-  Lemma wptp_step' (π1 π2 : thpool) σ1 σ2 :
-    (state_interp (σ1, to_local_view <$> π1) ∗ WPTP π1) -∗
-    ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ →
-    |={⊤}[∅]▷=> state_interp (σ2, to_local_view <$> π2) ∗
-                        WPTP π2.
+    Lemma wptp_step' (π1 : thpool) (πp : post_map Σ) σ1 σ2 m m' ι μ :
+    ⌜π1 !! ι = Some m⌝ -∗
+    (state_interp (σ1, πp) ∗ WPTP π1 πp) -∗
+    ⌜thread_step (σ1, m, ι, πp) (σ2, m', μ)⌝ -∗
+    |={⊤}[∅]▷=> match μ with
+                | None => state_interp (σ2, πp) ∗ WPTP (<[ι:=m']>π1) πp
+                | Some (ι', mforked) => ∃ (φ : outcome2 val exn → iProp Σ),
+                    state_interp (σ2, <[ι':=φ]>πp) ∗ WPTP (<[ι':=mforked]> (<[ι:=m']>π1)) (<[ι':=φ]>πp)
+                end.
+  Proof.
+    iIntros "%Hlookup [Hsi Hwps] %Hstep".
+    iPoseProof (big_sepM2_dom with "Hwps") as "%Hdomeq".
+    assert (dom πp ≡ dom π1) as Hdomequiv by (rewrite Hdomeq; reflexivity).
+    iPoseProof (wptp_extract_wp $! Hlookup with "Hwps") as "(%φ & %Hlookup_p & Hwp & Hwps)".
+    iPoseProof (ewp_step with "Hsi Hwp") as "Hwp". apply Hstep.
+    iMod "Hwp"; ewp_mask_elim; iMod "Hwp". ewp_mask_elim; iMod "Hwp" as "[Hwp Hrest]".
+    iModIntro.
+    inversion Hstep; subst.
+    - iFrame.
+      iApply (WPTP_insert_delete $! Hlookup_p with "Hwps Hwp").
+    - iFrame.
+      iApply big_sepM2_insert_delete. iFrame.
+    destruct Hcases; last first.
+
+    iExists μ. destruct μ as [[ι' mforked] | ].
+    - iDestruct "Hrest" as "(%φ' & $ & Hfork)".
+
+
+  Lemma wptp_step' (π1 π2 : thpool) (πp : post_map Σ) σ1 σ2 :
+    (state_interp (σ1, πp) ∗ WPTP π1 πp) -∗
+    ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ -∗
+    |={⊤}[∅]▷=> ∃ (μ : option (thread * microvx)),
+    match μ with
+    | None => state_interp (σ2, πp) ∗ WPTP π2 πp
+    | Some (ι', m') => ∃ (φ : outcome2 val exn → iProp Σ), state_interp (σ2, <[ι':=φ]>πp) ∗ WPTP π2 (<[ι':=φ]>πp)
+  end.
   Proof.
     iIntros "[Hsi Hwps] %Hstep".
-    inversion Hstep.
+    iPoseProof (big_sepM2_dom with "Hwps") as "%Hdomeq".
+    assert (dom πp ≡ dom π1) as Hdomequiv by (rewrite Hdomeq; reflexivity).
+    have Hsteps := threadpool_thread_step σ1 σ2 π1 π2 πp Hdomequiv Hstep.
+    destruct Hsteps as (ι & m & m' & μ & Hlookup1 & Hlookup2 & Hcases).
+    iPoseProof (wptp_extract_wp $! Hlookup1 with "Hwps") as "(%φ & %Hlookup_p & Hwp & Hwps)".
+    destruct Hcases; last first.
+    iPoseProof (ewp_step with "Hsi Hwp") as "Hwp". apply H.
+    iMod "Hwp"; ewp_mask_elim; iMod "Hwp". ewp_mask_elim; iMod "Hwp" as "[Hwp Hrest]".
+    iModIntro.
+    iExists μ. destruct μ as [[ι' mforked] | ].
+    - iDestruct "Hrest" as "(%φ' & $ & Hfork)".
+
+
+    inversion Hstep; subst.
     - (* Simplify the threadpool in the goal. *)
-      apply invert_some_active_thread in H2 as Hm.
-      rewrite (local_view_insert_id π1 ι _ _ Hm).
       (* Get the [EWP] judgment for the active thread. *)
-      iPoseProof (wptp_extract_wp $! Hm with "Hwps") as "(Hwp & Hwps)".
+      iPoseProof (wptp_extract_wp $! H2 with "Hwps") as "(%φ & %Hlookup_p & Hwp & Hwps)".
       (* Get [EWP m'] judgment from the facts that [EWP m] and [m -> m']. *)
-      iPoseProof (ewp_step with "Hsi Hwp") as "Hwp"; first eassumption.
+      iPoseProof (ewp_step with "Hsi Hwp") as "Hwp".
       iMod "Hwp"; ewp_mask_elim; iMod "Hwp" as "[$ Hwp]".
       (* Recombine [EWP m'] with [WPTP]. *)
       iApply big_sepM_insert_delete.
@@ -585,7 +551,7 @@ Section adequacy.
     (* If we can show [EWP e1 {{ True }}] with the ghost state provided by [Σ]. *)
     (∀ `{!osirisGS Σ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
     (* then any k-step execution is safe: *)
-    threadpool_steps k (σ1, {[ι := (Active e) ]}) (σ2, π2) →
+    threadpool_steps k (σ1, {[ι := (Active e)]}) (σ2, π2) →
     (∀ ι m, π2 !! ι = Some (Active m) → not_stuck m (σ2, π2) ι).
   Proof.
     intros Hwp.
