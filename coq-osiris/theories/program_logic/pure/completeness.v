@@ -95,7 +95,7 @@ Proof.
   simpl. destruct (x =? y)%string;eauto.
 Qed.
 
-Lemma lookup_path_cases η π : (∃ v, lookup_path η π = ret v) ∨ ∃ s, lookup_path η π = crash s.
+Lemma lookup_path_cases η π : (∃ v, lookup_path η π = ret v) ∨ lookup_path η π = Crash.
 Proof.
   revert η; induction π as [ | x π ]; intros η. eauto. simpl.
   destruct (lookup_name_cases η x) as [(v, ->) | ->]; simpl.
@@ -120,7 +120,7 @@ Proof.
     + apply reversible_pat_PXData; eauto.
     + tauto.
   - unfold pattern. simpl_eval_pat.
-    destruct (lookup_path_cases η π) as [[v ->] | [s ->]]. 2: intros []%invert_pure_wp_crash.
+    destruct (lookup_path_cases η π) as [[v ->] | ->]. 2: intros []%invert_pure_wp_crash.
     assert (widen (ret v) = ret v) as -> by reflexivity.
     destruct v; try intros []%invert_pure_wp_crash.
     unfold as_loc; simpl. rewrite bind_ret.

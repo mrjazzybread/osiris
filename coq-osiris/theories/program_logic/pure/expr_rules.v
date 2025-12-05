@@ -1093,6 +1093,7 @@ Proof.
       apply pure_wp_ret. eauto.
     + unfold match_failure. rewrite try_crash. intros. edestruct @invert_pure_wp_crash; eauto.
   - unfold match_failure. rewrite try_crash. intros. edestruct @invert_pure_wp_crash; eauto.
+    by cbn in H2.
   - intros ? Hζ. unfold discontinue; simpl. by apply pure_wp_throw.
 Qed.
 

@@ -149,7 +149,7 @@ Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
 Inductive micro A E :=
   | Ret (a : A)
   | Throw (e : E)
-  | Crash (msg : string)
+  | Crash
   | Handle
       (m : micro val exn)
       (h : outcome3 val exn → micro A E)
@@ -181,8 +181,8 @@ Notation ret :=
 Notation throw :=
   (Throw).
 
-Notation crash :=
-  (Crash).
+Definition crash {A E} (s : string) :=
+  (@Crash A E).
 
 (* This injection of [outcome2] into [micro] represents a trivial
    two-armed (result/exception) handler. *)
@@ -224,8 +224,8 @@ Fixpoint bind {A B E} (m : micro A E) (f : A → micro B E) : micro B E :=
       f a
   | Throw e =>
       Throw e
-  | Crash s =>
-      Crash s
+  | Crash =>
+      Crash
   | Handle m h =>
       Handle m (λ o, bind (h o) f)
   | Stop c x h =>
@@ -257,8 +257,8 @@ Fixpoint try2 {A B E' E}
       continue f a
   | Throw e =>
       discontinue f e
-  | Crash s =>
-      Crash s
+  | Crash =>
+      Crash
   | Handle m h =>
       Handle m (λ o, try2 (h o) f)
   | Stop c x h =>

@@ -365,10 +365,10 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
-      ∀ σ h s,
+      ∀ σ h,
       step
-        (σ, Handle (Crash s) h)
-        (σ, Crash s)
+        (σ, Handle Crash h)
+        (σ, Crash)
 
   (* Reduction under [Handle _ h] is permitted. *)
   | StepHandleLeft :
@@ -415,16 +415,16 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _) s,
+      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par (Crash s) m2 k)
-        (σ, Crash s)
+        (σ, Par Crash m2 k)
+        (σ, Crash)
 
   | StepParCrashRight :
-      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _) s,
+      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par m1 (Crash s) k)
-        (σ, Crash s)
+        (σ, Par m1 Crash k)
+        (σ, Crash)
 
   (* If a soft failure on either side is detected, then
      the failure component of the continuation [k] can be invoked. *)
@@ -676,8 +676,8 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma is_not_throw_crash {A E} s :
-  is_not_throw (Crash s : micro A E).
+Lemma is_not_throw_crash {A E} :
+  is_not_throw (Crash : micro A E).
 Proof.
   reflexivity.
 Qed.
@@ -722,8 +722,8 @@ Qed.
 
 (* [Crash] cannot step. *)
 
-Lemma invert_can_step_Crash {A E} σ s :
-  can_step ((σ, Crash s) : config A E) →
+Lemma invert_can_step_Crash {A E} σ :
+  can_step ((σ, Crash) : config A E) →
   False.
 Proof.
   intros. destruct_can_step. destruct_step.
@@ -1138,8 +1138,8 @@ Qed.
 
 (* [Crash] is stuck. *)
 
-Lemma stuck_Crash {A E} σ s :
-  stuck ((σ, Crash s) : config A E).
+Lemma stuck_Crash {A E} σ :
+  stuck ((σ, Crash) : config A E).
 Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
@@ -1187,7 +1187,7 @@ Qed.
 
 Lemma invert_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  (∃ s, m = Crash s) ∨
+  (m = Crash) ∨
     (∃ e, m = Throw e) ∨
     (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ step_through_par_code c).
 Proof.
@@ -1210,7 +1210,7 @@ Qed.
    which introduces painful negations? *)
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
-  | Ret _ | Crash _ | Throw _
+  | Ret _ | Crash | Throw _
   | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ =>
       True
   | _ =>

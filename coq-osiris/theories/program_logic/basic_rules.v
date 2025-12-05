@@ -48,10 +48,10 @@ Section ewp_basic_rules.
     ewp_def E (Throw v : micro A X) Ψ Φ ={E}=∗ Φ (O2Throw v).
   Proof. iIntros "HThrow". by rewrite ewp_unfold /ewp_pre. Qed.
 
-  Lemma ewp_crash_inv E (Ψ : thread * iEff Σ) (Φ : outcome2 A X -> _) s :
-    ewp_def E (Crash s : micro A X) Ψ Φ ={E}=∗ False.
+  Lemma ewp_crash_inv E (Ψ : thread * iEff Σ) (Φ : outcome2 A X -> _) :
+    ewp_def E (Crash : micro A X) Ψ Φ ={E}=∗ False.
   Proof.
-    ewp_unfold (@crash A X s).
+    ewp_unfold (@Crash A X).
     iIntros "Hsi". done.
   Qed.
 
@@ -298,7 +298,9 @@ Local Ltac ewp_invert :=
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
       iPoseProof (ewp_ret_inv with "[$]") as "HΦ"
   (* EWP crash *)
-  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
+      iMod (ewp_crash_inv with "[$]") as "%"
+  | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (crash _) _ _)] =>
       iMod (ewp_crash_inv with "[$]") as "%"
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Stop CFork _ _) _ _)] =>
       iMod (ewp_crash_inv with "[$]") as "%"
@@ -614,7 +616,7 @@ Section ewp_rules.
 
     (* Case : [m1] is [crash]; trivial  *)
     { iClear "IH".
-      by setoid_rewrite (ewp_unfold (crash _)); rewrite /ewp_pre /=. }
+      by setoid_rewrite (ewp_unfold Crash); rewrite /ewp_pre /=. }
 
     (* Case : [m1] is [Perform _ _]. *)
     { cbn.

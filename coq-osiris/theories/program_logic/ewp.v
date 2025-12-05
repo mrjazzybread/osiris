@@ -204,7 +204,7 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   match m with
   | Ret v => EOutcome (O2Ret v)
   | Throw e => EOutcome (O2Throw e)
-  | Crash _ => ECrash
+  | Crash => ECrash
   | Stop CPerf e k => EPerform e k
   | _ => EStep
   end.
