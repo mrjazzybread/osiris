@@ -122,7 +122,7 @@ Section ewp_stop.
 
   Lemma ewp_stop_fork {B Y} φ E Ψ v1 v2 (k : _ -> micro B Y) Φ :
     ▷ (∀ ι',
-          valid_thread ι' φ -∗
+          valid_thread ι' (λ o, □ φ o) -∗
           EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ o, □ φ o }} ∗
           EWP (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
@@ -134,7 +134,7 @@ Section ewp_stop.
     construct_wp_nonret.
     destruct_thread_step.
 
-    iMod (thread_alloc π ι' φ H with "Hti") as "(Hti & Hvalid)".
+    iMod (thread_alloc π ι' (λ o, □ φ o)%I H with "Hti") as "(Hti & Hvalid)".
     ewp_mask_elim.
 
     (* eassert (thread_step (σ', Stop CFork (v1, v2) k, ι', π) (σ', _, _)). *)
@@ -147,7 +147,7 @@ Section ewp_stop.
 
   Lemma ewp_fork E Ψ v1 v2 Φ φ :
     ▷ (∀ ι',
-          valid_thread ι' φ -∗
+          valid_thread ι' (λ o, □ φ o) -∗
           EWP call v1 v2 @ E <| (ι', ⊥) |> {{ λ o, □ φ o }} ∗
           Φ (O2Ret (VThread ι'))) -∗
     EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
@@ -167,12 +167,12 @@ Section ewp_stop.
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "[Hti %Hlookup]".
-    construct_wp_nonret.
-    destruct_thread_step.
-    + rewrite Hlookup in H; inversion H; subst.
-      ewp_mask_elim. iFrame.
-      iApply ("Hk" $! o H0).
-    + rewrite H in Hlookup; discriminate.
+    assert (ι ∈ dom π) as Hdom by (apply (elem_of_dom π ι); eexists; eassumption).
+    iFrame "%".
+    iIntros (o φ') "[%Hlookup_p Hφ']".
+    ewp_mask_elim. iFrame.
+    rewrite Hlookup_p in Hlookup; inversion Hlookup; subst.
+    iApply ("Hk" with "Hφ'").
   Qed.
 
   Lemma ewp_join E Ψ ι Φ φ :
