@@ -143,9 +143,14 @@ Module ewp_rules_tactics.
               lazy_match! goal with
               | [ _ : is_ewp_case _ = WPStep |- _ ] =>
                   try0 destruct_thread_prot
-              | [ h : is_ewp_case _ = WPOutcome ?o |- _ ] =>
-                  apply inv_is_ewp_case_outcome in $h;
-                  subst m;
+              | [ h : is_ewp_case ?m = WPOutcome ?o |- _ ] =>
+                  (* If the [m] we matched against is a var, substitute it. *)
+                  (match Constr.Unsafe.kind m with
+                  | Constr.Unsafe.Var id =>
+                      apply inv_is_ewp_case_outcome in $h;
+                      subst $id
+                   | _ => ()
+                  end);
                   try (complete (fun () =>
                                    destruct $o;
                                    try discriminate;
