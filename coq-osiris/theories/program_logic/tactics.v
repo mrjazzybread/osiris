@@ -140,12 +140,24 @@ Module ewp_rules_tactics.
          intros_until_ewp_case hm;
          Control.enter
            (fun _ =>
-              try0 destruct_thread_prot;
-              destruct $m; try0 destruct_stop_code; try discriminate;
-              Control.enter
-                (fun _ =>
-                   try (complete destruct_thread_step))))
-      [ fun _ => let hm := Fresh.in_goal @Hhm in intros $hm ].
+              lazy_match! goal with
+              | [ _ : is_ewp_case _ = WPStep |- _ ] =>
+                  try0 destruct_thread_prot
+              | [ h : is_ewp_case _ = WPOutcome ?o |- _ ] =>
+                  apply inv_is_ewp_case_outcome in $h;
+                  subst m;
+                  try (complete (fun () =>
+                                   destruct $o;
+                                   try discriminate;
+                                   Control.enter destruct_thread_step))
+              | [ |- _ ] =>
+                  try0 destruct_thread_prot;
+                  destruct $m; try0 destruct_stop_code; try discriminate;
+                  Control.enter
+                    (fun _ =>
+                       try (complete destruct_thread_step))
+              end))
+      [ ].
 
   Tactic Notation "ewp_case" constr(x)  :=
     let f := ltac2:(x |- ewp_case (Option.get (Ltac1.to_constr x))) in

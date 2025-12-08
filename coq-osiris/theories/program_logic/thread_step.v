@@ -32,17 +32,6 @@ Section thread_step.
       thread_step
         (σ, Stop CFork (v1, v2) k, ι, π)
         (σ, continue k (VThread ι'), Some (ι', call v1 v2))
-  | JoinS : ∀ σ ι (π : post_map Σ) φ (k : outcome2 val exn -> micro A X) o ι',
-      π !! ι' = Some φ →
-      (⊢ φ o) →
-      thread_step
-        (σ, Stop CJoin ι' k, ι, π)
-        (σ, k o, None)
-  | JoinCrashS : ∀ σ ι (π : post_map Σ) (k : outcome2 val exn -> micro A X) ι',
-      π !! ι' = None →
-      thread_step
-        (σ, Stop CJoin ι' k, ι, π)
-        (σ, crash "join error: invalid thread id", None)
   | SelfS : ∀ σ π ι u (k : outcome2 val exn -> micro A X),
       thread_step
         (σ, Stop CSelf u k, ι, π)

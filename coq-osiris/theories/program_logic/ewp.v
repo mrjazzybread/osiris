@@ -187,35 +187,43 @@ End ghost_resources.
       (4) a computation that can take a step *)
 
 Inductive ewp_case (A E : Type) : Type :=
-  EOutcome : (outcome2 A E) → ewp_case A E
-| ECrash : ewp_case A E
-| EPerform : C.eff -> (outcome2 val exn -> micro A E) → ewp_case A E
-| EStep : ewp_case A E.
+  WPOutcome : (outcome2 A E) → ewp_case A E
+| WPCrash : ewp_case A E
+| WPPerform : C.eff -> (outcome2 val exn -> micro A E) → ewp_case A E
+| WPStep : ewp_case A E
+| WPJoin : thread → (outcome2 val exn → micro A E) → ewp_case A E.
 
 Arguments ewp_case {A E}.
 
-Arguments EOutcome {A E}.
-Arguments ECrash {A E}.
-Arguments EPerform {A E}.
-Arguments EStep {A E}.
+Arguments WPOutcome {A E}.
+Arguments WPCrash {A E}.
+Arguments WPPerform {A E}.
+Arguments WPStep {A E}.
+Arguments WPJoin {A E}.
 
 (* Check whether a computation is a special [ewp_case]. *)
 Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   match m with
-  | Ret v => EOutcome (O2Ret v)
-  | Throw e => EOutcome (O2Throw e)
-  | Crash => ECrash
-  | Stop CPerf e k => EPerform e k
-  | _ => EStep
+  | Ret v => WPOutcome (O2Ret v)
+  | Throw e => WPOutcome (O2Throw e)
+  | Crash => WPCrash
+  | Stop CPerf e k => WPPerform e k
+  | Stop CJoin ι k => WPJoin ι k
+  | _ => WPStep
   end.
 
-Lemma thread_step_is_EStep {Σ A X} σ π (m m' : micro A X) ι σ' μ :
+Lemma thread_step_is_WPStep {Σ A X} σ π (m m' : micro A X) ι σ' μ :
   @thread_step Σ A X (σ, m, ι, π) (σ', m', μ) ->
-  is_ewp_case m = EStep.
+  is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
   destruct_thread_step; reflexivity.
 Qed.
+
+Lemma inv_is_ewp_case_outcome {A X} (m : micro A X) o :
+  is_ewp_case m = WPOutcome o →
+  m = inject2 o.
+Proof. destruct m; try by inversion 1. destruct c; discriminate 1. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -238,17 +246,17 @@ Section ewp.
     λ A X E m params φ,
       (match is_ewp_case m with
        (* [EWP1]: Pure and exceptional values *)
-       | EOutcome o => |={E}=> φ o
-       | ECrash => |={E}=> False
+       | WPOutcome o => |={E}=> φ o
+       | WPCrash => |={E}=> False
        (* [EWP2]: Effectful case
           The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k] with the
           same protocol. *)
-       | EPerform e k =>
+       | WPPerform e k =>
            |={E}=> params.2 allows perform e << λ o, ▷ ewp E (k o) params φ >>
        (* [EWP3]: Non-effectful step of computation;
           this portion follows to the typical weakest precondition for Iris *)
-       | EStep =>
+       | WPStep =>
            let '(ι, Ψ) := params in
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
@@ -258,8 +266,15 @@ Section ewp.
                 ewp E m' (ι, Ψ) φ ∗
                 match μ with
                 | None => state_interp (σ', π)
-                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ' ]> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
-                end)
+                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := λ o, □ φ' o ]> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
+              end)
+       | WPJoin ι' k =>
+           ∀ σ π,
+             state_interp (σ, π) ={E, ∅}=∗
+             ⌜ι' ∈ dom π⌝ ∗
+             (∀ o φ',
+                 ⌜π !! ι' = Some φ'⌝ ∗ φ' o ={∅}=∗ ▷ |={∅,E}=>
+                ewp E (k o) params φ ∗ state_interp (σ, π))
        end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
@@ -267,6 +282,7 @@ Section ewp.
     rewrite /ewp_pre /= => n ewp ewp' Hwp A X E m [ι Ψ] φ.
     f_equiv.
     - do 2 f_equiv. intro P. f_contractive. apply Hwp.
+    - repeat (f_contractive || f_equiv || apply Hwp).
     - repeat (f_contractive || f_equiv || apply Hwp).
   Qed.
 
@@ -329,6 +345,10 @@ Proof.
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
+  - do 16 (f_contractive || f_equiv).
+    apply IH; eauto.
+    f_equiv.
+    eapply dist_lt; eauto.
 Qed.
 
 Global Instance ewp_proper E m ιΨ:
@@ -340,7 +360,7 @@ Proof.
 Qed.
 
 Global Instance ewp_contractive E m n ι Ψ:
-  TCEq (is_ewp_case m) EStep →
+  TCEq (is_ewp_case m) WPStep →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
     (ewp_def E m (ι,Ψ)).
