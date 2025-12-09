@@ -168,10 +168,9 @@ Section ewp_stop.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "[Hti %Hlookup]".
     assert (ι ∈ dom π) as Hdom by (apply (elem_of_dom π ι); eexists; eassumption).
-    iFrame "%".
-    iIntros (o φ') "[%Hlookup_p Hφ']".
+    iFrame "%". rewrite Hlookup.
+    iIntros (o) "Hφ'".
     ewp_mask_elim. iFrame.
-    rewrite Hlookup_p in Hlookup; inversion Hlookup; subst.
     iApply ("Hk" with "Hφ'").
   Qed.
 

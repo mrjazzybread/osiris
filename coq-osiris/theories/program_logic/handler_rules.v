@@ -262,8 +262,9 @@ Section handler_proof.
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
       rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
-      intro_state. spec_state. iModIntro.
-      iFrame "%". iIntros (o φ') "HJoin_pre". iSpecialize ("He" with "HJoin_pre").
+      intro_state. spec_state. iMod "He".
+      destruct (π !! ι0); last done.
+      iIntros "!>" (o) "Hφ'". iSpecialize ("He" with "Hφ'").
       ewp_mask_elim. iMod "He" as "(He & $)".
       iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }

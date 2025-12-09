@@ -155,11 +155,10 @@ Section ewp_basic_rules.
       iApply ("IH" with "Hwp Hmon"). }
 
     { (* Case: [m] is a [WPJoin]. *)
-      intro_state. spec_state. iModIntro.
-      discharge_pure assumption.
-      clear Hstep.
-      iIntros (o φ'') "Hjoin_pre".
-      iSpecialize ("Hwp" $! o φ'' with "Hjoin_pre").
+      intro_state. spec_state.
+      iMod "Hwp". iModIntro.
+      destruct (π !! t0) eqn:Hlookup; last done.
+      iIntros (o) "Hφ". iSpecialize ("Hwp" $! o with "Hφ").
       ewp_mask_elim. iMod "Hwp" as "(Hwp & Hforked)". iFrame.
       iApply ("IH" with "Hwp Hmon"). }
   Qed.
@@ -199,10 +198,10 @@ Section ewp_basic_rules.
       by iApply ("IH" with "[//] Hwp"). }
 
     { (* Case: [m] is a [WPJoin]. *)
-      intro_state. spec_state. iModIntro.
-      iFrame "%".
-      iIntros (o φ') "Hjoin_pre".
-      iSpecialize ("Hwp" $! o φ' with "Hjoin_pre").
+      intro_state. spec_state. iMod "Hwp"; iModIntro.
+      destruct (π !! t); last done.
+      iIntros (o) "Hφ".
+      iSpecialize ("Hwp" $! o with "Hφ").
       ewp_mask_elim.
       iMod "Hwp" as "(Hwp & $)".
       by iApply ("IH" with "[//] Hwp"). }
@@ -247,14 +246,14 @@ Section ewp_basic_rules.
     { (* Case: [WPJoin] *)
       intro_state.
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
-      spec_state. iModIntro. iFrame "%".
-      iIntros (o φ') "Hjoin_pre". iSpecialize ("He" $! o φ' with "Hjoin_pre").
-      ewp_mask_elim.
-      iDestruct "He" as ">(H & Hforked)".
-      iMod "Hclose"; iModIntro.
-      iSplitL "H".
-      - iApply ("IH" with "H HΦ").
-      - iFrame. }
+      spec_state. iMod "He"; iModIntro.
+      destruct (π !! t).
+      - iIntros (o) "Hφ". iSpecialize ("He" with "Hφ").
+        ewp_mask_elim.
+        iDestruct "He" as ">(H & Hforked)".
+        iMod "Hclose"; iModIntro. iFrame.
+        iApply ("IH" with "H HΦ").
+      - iMod "He". iMod "Hclose". iModIntro. done. }
   Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
@@ -472,8 +471,9 @@ Section wp_handler_rules.
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      ewp_unfold_all. intro_state. spec_state. iModIntro.
-      iFrame "%". iIntros (o φ') "Hjoin_pre". iSpecialize ("He" $! o φ' with "Hjoin_pre").
+      ewp_unfold_all. intro_state. spec_state. iMod "He". iModIntro.
+      destruct (π !! ι0); last done.
+      iIntros (o) "Hφ'". iSpecialize ("He" with "Hφ'").
       ewp_mask_elim.
       iMod "He" as "(He & $)". iModIntro.
       iApply ("IH" with "He Hsh"). }
@@ -695,8 +695,9 @@ Section ewp_rules.
 
     (* Case: [WPJoin] *)
     { simpl. ewp_unfold_all.
-      intro_state. spec_state.
-      iFrame "%". iIntros "!>" (o φ') "Hjoin_pre". iSpecialize ("Hwp" with "Hjoin_pre").
+      intro_state. spec_state. iMod "Hwp".
+      destruct (π !! x); last done.
+      iIntros "!>" (o) "Hφ'". iSpecialize ("Hwp" with "Hφ'").
       ewp_mask_elim.
       iMod "Hwp" as "[Hwp $]".
       iModIntro.
@@ -815,8 +816,9 @@ Section ewp_rules.
       - (* Step then [JoinS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
-        ewp_unfold_head. intro_state. spec_state. iModIntro.
-        iFrame "%". iIntros (o φ') "HJoin_pre". iSpecialize ("H1" with "HJoin_pre").
+        ewp_unfold_head. intro_state. spec_state. iMod "H1".
+        destruct (π !! x); last done.
+        iIntros "!>" (o) "Hφ'". iSpecialize ("H1" with "Hφ'").
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -857,8 +859,9 @@ Section ewp_rules.
       - (* [StepParJoinRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
-        ewp_unfold_head. intro_state. spec_state. iModIntro.
-        iFrame "%". iIntros (o φ') "HJoin_pre". iSpecialize ("H2" with "HJoin_pre").
+        ewp_unfold_head. intro_state. spec_state. iMod "H2".
+        destruct (π !! x); last done.
+        iIntros "!>" (o) "Hφ'". iSpecialize ("H2" with "Hφ'").
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 

@@ -208,7 +208,7 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | Throw e => WPOutcome (O2Throw e)
   | Crash => WPCrash
   | Stop CPerf e k => WPPerform e k
-  | Stop CJoin ι k => WPJoin ι k
+  | Stop CJoin ι' k => WPJoin ι' k
   | _ => WPStep
   end.
 
@@ -271,10 +271,10 @@ Section ewp.
        | WPJoin ι' k =>
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
-             ⌜ι' ∈ dom π⌝ ∗
-             (∀ o φ',
-                 ⌜π !! ι' = Some φ'⌝ ∗ φ' o ={∅}=∗ ▷ |={∅,E}=>
-                ewp E (k o) params φ ∗ state_interp (σ, π))
+             match π !! ι' with
+             | None => |={∅, E}=> ▷ False
+             | Some φ' => (∀ o, φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
+             end
        end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
@@ -345,7 +345,7 @@ Proof.
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
-  - do 16 (f_contractive || f_equiv).
+  - do 14 (f_contractive || f_equiv).
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
