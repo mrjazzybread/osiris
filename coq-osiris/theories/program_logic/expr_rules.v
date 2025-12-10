@@ -1225,9 +1225,9 @@ Section ewp_rules_expr.
   Lemma ewp_EFork' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
-    ▷ (∀ ι v1 v2, valid_thread ι (λ o, □ φ o) -∗ φ1 v1 -∗ φ2 v2 -∗
+    ▷ (∀ ι v1 v2, valid_thread ι φ -∗ φ1 v1 -∗ φ2 v2 -∗
                   EWP call v1 v2 @ E <| (ι, ⊥) |> {{ λ o, □ φ o }}) -∗
-    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι (λ o, □ φ o) }}.
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     simpl_eval.
@@ -1245,8 +1245,8 @@ Section ewp_rules_expr.
   Lemma ewp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
-    ▷ (∀ ι v m, valid_thread ι (λ o, □ φ o) -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ λ o, □ φ o }}) -∗
-    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v (λ o, □ φ o) }}.
+    ▷ (∀ ι v m, valid_thread ι φ -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ λ o, □ φ o }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     iApply (ewp_EFork' with "H1 H2").

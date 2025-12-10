@@ -266,14 +266,14 @@ Section ewp.
                 ewp E m' (ι, Ψ) φ ∗
                 match μ with
                 | None => state_interp (σ', π)
-                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := λ o, □ φ' o ]> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
+                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ']> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
               end)
        | WPJoin ι' k =>
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
              match π !! ι' with
              | None => |={∅, E}=> ▷ False
-             | Some φ' => (∀ o, φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
+             | Some φ' => (∀ o, □ φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
              end
        end)%I.
 
