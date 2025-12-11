@@ -260,7 +260,7 @@ Section ewp.
            let '(ι, Ψ) := params in
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
-             ⌜can_progress σ π m ι⌝ ∗
+             ⌜can_progress σ π m⌝ ∗
              (∀ σ' m' μ,
                  ⌜thread_step (σ, m, ι, π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 ewp E m' (ι, Ψ) φ ∗

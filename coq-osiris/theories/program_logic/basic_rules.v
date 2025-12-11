@@ -111,8 +111,7 @@ Section ewp_basic_rules.
     rewrite /please_eval; destruct Ψ.
     intro_state.
     ewp_mask_intro "Hclose".
-    iSplitR. { iPureIntro. do 3 eexists. apply BaseS, StepEval. }
-    intro_step.
+    construct_wp_nonret.
     iModIntro. ewp_mask_elim.
     apply invert_can_step_thread_step in Hstep; last (apply can_step_stop; tauto).
     destruct Hstep as [Hstep ->].
@@ -287,7 +286,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E, ∅}=∗
-    ⌜can_progress σ π m ι ∨ is_ewp_case m <> WPStep⌝.
+    ⌜can_progress σ π m ∨ is_ewp_case m <> WPStep⌝.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
@@ -302,7 +301,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step' {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E}=∗
-    ⌜can_progress σ π m ι ∨ is_ewp_case m <> WPStep⌝.
+    ⌜can_progress σ π m ∨ is_ewp_case m <> WPStep⌝.
   Proof.
     iIntros.
     iPoseProof (ewp_can_step with "[$][$]") as "?".
@@ -457,11 +456,11 @@ Section wp_handler_rules.
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       destruct x.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
-      destruct Hstep as (? & ? & ? & Hstep).
+      destruct (Hstep (Thread 0%Z)) as (? & ? & ? & Htstep).
       destruct_thread_step.
       construct_wp_nonret.
       destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι, π) _) as Hstep.
+      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι, π) _) as Htstep.
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
@@ -482,7 +481,7 @@ Section wp_handler_rules.
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_thread_step.
-      destruct Hstep as (? & ? & ? & Hstep). spec_step.
+      destruct (Hstep ι) as (? & ? & ? & Htstep). spec_step.
       destruct_thread_step. ewp_mask_elim.
       iMod "He" as "(He & $)".
       iApply ("IH" with "He Hsh"). }

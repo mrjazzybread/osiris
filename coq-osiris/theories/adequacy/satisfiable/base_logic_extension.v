@@ -142,6 +142,13 @@ Proof.
     iApply "HP".
 Qed.
 
+Lemma SAT_bupd `{!invGS_gen H Σ} m n F P:
+  SAT m F [view ⊤; supply n] (|==> P) →
+  SAT m F [view ⊤; supply n] P.
+Proof.
+  intros Hsat. eapply SAT_mono in Hsat; last apply bupd_fupd.
+  eapply SAT_fupd, Hsat.
+Qed.
 
 (* Global Ghost State Constructions *)
 

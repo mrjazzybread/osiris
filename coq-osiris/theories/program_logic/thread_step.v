@@ -69,15 +69,15 @@ Section can_progress.
 
 (* -------------------------------------------------------------------------- *)
 
-  Definition can_progress {A E} σ (π : post_map Σ) (m : micro A E) ι :=
+  Definition can_progress {A E} σ (π : post_map Σ) (m : micro A E) :=
     match m with
     | Stop CJoin ι' k => ι' ∈ dom π
-    | _ => ∃ σ' m' (μ : option (thread * microvx)),
+    | _ => ∀ ι, ∃ σ' m' (μ : option (thread * microvx)),
       thread_step (σ, m, ι, π) (σ', m', μ)
     end.
 
-  Lemma invert_can_progress {A E} σ π m ι :
-    @can_progress A E σ π m ι ->
+  Lemma invert_can_progress {A E} σ π m :
+    @can_progress A E σ π m ->
     ((∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
       (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
       (∃ u k, m = Stop CSelf u k) ∨
@@ -90,7 +90,7 @@ Section can_progress.
       (* If that computation is a Stop, destruct the code *)
       try destruct_code;
       (* Generally try to invert Hcp *)
-      try (
+      try (specialize (Hcp (Thread 0%Z));
           destruct Hcp as (σ' & m' & μ & Hcp);
           dependent destruction Hcp;
           destruct_step; auto with step can_step);
@@ -106,11 +106,11 @@ Section can_progress.
   Arguments can_progress : simpl never.
 
   Lemma can_step_can_progress {A E} σ (m : micro A E) :
-    ∀ π ι,
+    ∀ π,
       can_step (σ, m) ->
-      can_progress σ π m ι.
+      can_progress σ π m.
   Proof.
-    intros π ι ([σ' m'] & Hstep).
+    intros π ([σ' m'] & Hstep).
     unfold can_progress.
     destruct_step;
       do 3 eexists;
@@ -118,8 +118,8 @@ Section can_progress.
     Unshelve. apply b.
   Qed.
 
-  Lemma can_progress_fork {A E} σ π x (k : _ -> micro A E) ι :
-    can_progress σ π (Stop CFork x k) ι.
+  Lemma can_progress_fork {A E} σ π x (k : _ -> micro A E) :
+    can_progress σ π (Stop CFork x k).
   Proof.
     destruct x.
     unfold can_progress.
@@ -128,9 +128,9 @@ Section can_progress.
     apply is_fresh.
   Qed.
 
-  Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι φ :
+  Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) φ :
     π !! ι' = Some φ ->
-    can_progress σ π (Stop CJoin ι' k) ι.
+    can_progress σ π (Stop CJoin ι' k).
   Proof.
     intros Hπ; simpl.
     unfold can_progress.
@@ -138,8 +138,8 @@ Section can_progress.
     exists φ; assumption.
   Qed.
 
-  Lemma inv_can_progress_join {A E} σ π ι' (k : _ -> micro A E) ι :
-    can_progress σ π (Stop CJoin ι' k) ι ->
+  Lemma inv_can_progress_join {A E} σ π ι' (k : _ -> micro A E) :
+    can_progress σ π (Stop CJoin ι' k) ->
     ∃ φ, π !! ι' = Some φ.
   Proof.
     intros Hprog; simpl.
@@ -148,8 +148,8 @@ Section can_progress.
     apply Hprog.
   Qed.
 
-  Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) ι :
-    can_progress σ π (Stop CSelf u k) ι.
+  Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) :
+    can_progress σ π (Stop CSelf u k).
   Proof.
     unfold can_progress.
     do 3 eexists; apply SelfS with (u := u); eauto.
