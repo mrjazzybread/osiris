@@ -133,13 +133,9 @@ Section ewp_stop.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
     destruct_thread_step.
-
-    iMod (thread_alloc π ι' φ H with "Hti") as "(Hti & Hvalid)".
+    iMod (thread_alloc π ι' φ (not_elem_of_dom_1 _ _ H) with "Hti")
+      as "(Hti & Hvalid)".
     ewp_mask_elim.
-
-    (* eassert (thread_step (σ', Stop CFork (v1, v2) k, ι', π) (σ', _, _)). *)
-    (* { apply ForkS. eassumption. } *)
-
     iFrame.
     iDestruct ("Hfork" with "Hvalid") as "[Hcall $]".
     iApply "Hcall".

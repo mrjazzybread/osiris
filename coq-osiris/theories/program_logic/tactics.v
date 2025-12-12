@@ -216,14 +216,16 @@ Module ewp_rules_tactics.
              (bi_forall (fun σ'0 =>
               bi_forall (fun m' =>
               bi_forall (fun μ0 =>
-              bi_wand (bi_pure ((thread_step (pair (pair (pair ?σ ?m) ?ι) ?π) _))) _))))] =>
+              bi_wand (bi_pure ((thread_step (pair (pair (pair ?σ _) ?ι) _) _))) _))))] =>
         lazymatch goal with
-        | [ Hstep : thread_step (σ, m, ι, π) _ |- _] =>
+        | [ Hstep : thread_step (σ, _, ι, _) _ |- _] =>
             (* Specialize step relation *)
             iSpecialize (Hwp $! _ _ _ Hstep);
             (* Destruct the hypothesis *)
             iMod Hwp
+        | |- _ => fail "Could not find stepping hypothesis"
         end
+    | |- _ => fail "Could not find hypothesis to specialize"
     end.
 
   (* ------------------------------------------------------------------------ *)

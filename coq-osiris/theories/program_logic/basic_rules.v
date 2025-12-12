@@ -83,7 +83,7 @@ Section ewp_basic_rules.
   (* ------------------------------------------------------------------------ *)
 
   Lemma ewp_step {ι σ π σ'} E m m' μ {φ} Ψ:
-    thread_step (σ, m, ι, π) (σ', m', μ) →
+    thread_step (σ, m, ι, dom π) (σ', m', μ) →
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ==∗
     |={E}[∅]▷=>
@@ -286,7 +286,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E, ∅}=∗
-    ⌜can_progress σ π m ∨ is_ewp_case m <> WPStep⌝.
+    ⌜can_progress σ (dom π) m ∨ is_ewp_case m <> WPStep⌝.
   Proof.
     iIntros "SI Hwp".
     ewp_unfold_all.
@@ -301,7 +301,7 @@ Section ewp_basic_rules.
   Lemma ewp_can_step' {σ π} ι Ψ φ m E:
     state_interp (σ, π) -∗
     EWP m @ E <| (ι, Ψ) |> {{ φ }} ={E}=∗
-    ⌜can_progress σ π m ∨ is_ewp_case m <> WPStep⌝.
+    ⌜can_progress σ (dom π) m ∨ is_ewp_case m <> WPStep⌝.
   Proof.
     iIntros.
     iPoseProof (ewp_can_step with "[$][$]") as "?".
@@ -460,7 +460,7 @@ Section wp_handler_rules.
       destruct_thread_step.
       construct_wp_nonret.
       destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι, π) _) as Htstep.
+      eassert (thread_step (σ'0, Stop CFork (v, v0) k, ι, dom π) _) as Htstep.
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
@@ -491,7 +491,7 @@ Section wp_handler_rules.
       by iMod "HF". }
 
     { (* [StepHandleLeft] *)
-      eassert (thread_step (σ, e, ι, π') _) as Hstep.
+      eassert (thread_step (σ, e, ι, dom π') _) as Hstep.
       { apply BaseS. eassumption. }
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
@@ -656,7 +656,7 @@ Section ewp_rules.
         simpl try2. construct_wp_nonret.
         remember (v1, v2) as p.
         destruct_thread_step.
-        eassert (thread_step (σ', Stop CFork (v1, v2) k, t, π) _).
+        eassert (thread_step (σ', Stop CFork (v1, v2) k, t, dom π) _).
         { eapply ForkS. eassumption. }
         spec_step.
         ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
@@ -669,7 +669,7 @@ Section ewp_rules.
         simpl try2. construct_wp_nonret.
         destruct_thread_step.
         iAssert (⌜thread_step
-                   (σ', Stop CSelf u0 k, t, π)
+                   (σ', Stop CSelf u0 k, t, dom π)
                    (σ', continue k (VThread t), None)⌝)%I as "Hstep".
         { iPureIntro. apply SelfS. }
         iSpecialize ("Hwp" with "Hstep").

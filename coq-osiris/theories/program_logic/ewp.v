@@ -69,8 +69,9 @@ Section ghost_instances.
   Context (A X : Type).
 
   Class osirisGpreS := {
-      (* #[global] osirisGpreS_iris :: invGpreS Σ; *)
+      #[global] osirisGpreS_iris :: invGpreS Σ;
       #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc step.block Σ;
+      #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread (outcome2 val exn → iProp Σ) Σ;
     }.
 
   Class osirisGS := OsirisGS
@@ -80,13 +81,13 @@ Section ghost_instances.
       (* This gives us a heap, which maps locations to values. *)
       osiris_genGS :: gen_heapGS locations.loc step.block Σ;
       (* This gives us a ghost map for thread postconditions. *)
-      osiris_thread_postGS :: ghost_mapG Σ thread (outcome2 val exn -d> iPropO Σ);
-      osiris_thread_post_name : gname;
+      osiris_thread_postGS :: gen_heapGS thread (outcome2 val exn -> iProp Σ) Σ;
     }.
+
 
 End ghost_instances.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
 
 (* Notations for ghost resouces. *)
 
@@ -111,18 +112,19 @@ Section ghost_resources.
   Definition osiris_state_interp (σ : store) :=
     @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
 
+  Definition osiris_thread_interp π : iProp Σ :=
+    @gen_heap_interp thread _ _ (outcome2 val exn → iProp Σ) Σ _ π.
+
   (* [valid_thread ι P] is an exclusive token that can be exchanged for
      the postcondition resource P o when thread ι terminates with outcome o.
      This token is one-shot: it can only be used once to claim the resource. *)
   Definition valid_thread (ι : thread) (P : outcome2 val exn -d> iPropO Σ) : iProp Σ :=
-    ι ↪[osiris_thread_post_name Σ]□ P.
+    pointsto ι DfracDiscarded P.
 
   Global Instance valid_thread_persistent ι P :
     Persistent (valid_thread ι P).
   Proof. apply _. Qed.
 
-  Definition osiris_thread_interp π : iProp Σ :=
-    ghost_map_auth (@osiris_thread_post_name Σ _) 1 π.
 
   Definition state_interp : (store * post_map Σ) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
@@ -136,7 +138,7 @@ Section ghost_resources.
   Proof.
     iIntros "Hti #Hvalid".
     rewrite /valid_thread.
-    iDestruct (ghost_map_lookup with "Hti Hvalid") as %Hlookup.
+    iDestruct (gen_heap_valid with "Hti Hvalid") as %Hlookup.
     iSplitL; last by (iPureIntro; eassumption).
     iFrame.
   Qed.
@@ -155,7 +157,8 @@ Section ghost_resources.
   Proof.
     iIntros (Hlookup) "Hauth".
     (* Insert P into the postcondition ghost map and get valid_thread *)
-    iMod (ghost_map_insert_persist ι P with "Hauth") as "[Hauth Hvalid]"; first done.
+    iMod (gen_heap_alloc π ι P with "Hauth") as "(Hauth & Hvalid & Hmt)"; first done.
+    iMod (pointsto_persist with "Hvalid").
     by iFrame.
   Qed.
 
@@ -212,8 +215,8 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => WPStep
   end.
 
-Lemma thread_step_is_WPStep {Σ A X} σ π (m m' : micro A X) ι σ' μ :
-  @thread_step Σ A X (σ, m, ι, π) (σ', m', μ) ->
+Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) ι σ' μ :
+  thread_step (σ, m, ι, π) (σ', m', μ) ->
   is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
@@ -260,9 +263,9 @@ Section ewp.
            let '(ι, Ψ) := params in
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
-             ⌜can_progress σ π m⌝ ∗
+             ⌜can_progress σ (dom π) m⌝ ∗
              (∀ σ' m' μ,
-                 ⌜thread_step (σ, m, ι, π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+                 ⌜thread_step (σ, m, ι, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                 ewp E m' (ι, Ψ) φ ∗
                 match μ with
                 | None => state_interp (σ', π)

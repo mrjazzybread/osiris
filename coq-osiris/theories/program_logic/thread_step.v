@@ -20,15 +20,15 @@ Section thread_step.
   Instance lookup_post_map : Lookup thread (outcome2 val exn -> iProp Σ) (post_map Σ).
   Proof. apply _. Defined.
 
-  Definition th_config A X : Type := store * (micro A X) * thread * (post_map Σ).
+  Definition th_config A X : Type := store * (micro A X) * thread * (gset thread).
   Definition th_config_step A X : Type := store * (micro A X) * option (thread * microvx).
 
   Inductive thread_step {A X} : th_config A X -> th_config_step A X -> Prop :=
   | BaseS : ∀ (m : micro A X) σ ι m' σ' π,
       step (σ, m) (σ', m') ->
       thread_step (σ, m, ι, π) (σ', m', None)
-  | ForkS : ∀ σ ι (π : post_map Σ) v1 v2 (k : outcome2 val exn -> micro A X) ι',
-      π !! ι' = None ->
+  | ForkS : ∀ σ ι (π : gset thread) v1 v2 (k : outcome2 val exn -> micro A X) ι',
+      ι' ∉ π ->
       thread_step
         (σ, Stop CFork (v1, v2) k, ι, π)
         (σ, continue k (VThread ι'), Some (ι', call v1 v2))
@@ -69,16 +69,16 @@ Section can_progress.
 
 (* -------------------------------------------------------------------------- *)
 
-  Definition can_progress {A E} σ (π : post_map Σ) (m : micro A E) :=
+  Definition can_progress {A E} σ (π : gset thread) (m : micro A E) :=
     match m with
-    | Stop CJoin ι' k => ι' ∈ dom π
+    | Stop CJoin ι' k => ι' ∈ π
     | _ => ∀ ι, ∃ σ' m' (μ : option (thread * microvx)),
       thread_step (σ, m, ι, π) (σ', m', μ)
     end.
 
   Lemma invert_can_progress {A E} σ π m :
     @can_progress A E σ π m ->
-    ((∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ dom π) ∨
+    ((∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ π) ∨
       (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
       (∃ u k, m = Stop CSelf u k) ∨
       (can_step (σ, m))).
@@ -124,22 +124,20 @@ Section can_progress.
     destruct x.
     unfold can_progress.
     do 3 eexists. eapply ForkS.
-    apply (not_elem_of_dom_1 π (fresh (dom π))).
     apply is_fresh.
   Qed.
 
-  Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) φ :
-    π !! ι' = Some φ ->
+  Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) :
+    ι' ∈ π ->
     can_progress σ π (Stop CJoin ι' k).
   Proof.
     intros Hπ; simpl.
     unfold can_progress.
-    apply (elem_of_dom π ι').
-    exists φ; assumption.
+    assumption.
   Qed.
 
-  Lemma inv_can_progress_join {A E} σ π ι' (k : _ -> micro A E) :
-    can_progress σ π (Stop CJoin ι' k) ->
+  Lemma inv_can_progress_join {A E} σ (π : post_map Σ) ι' (k : _ -> micro A E) :
+    can_progress σ (dom π) (Stop CJoin ι' k) ->
     ∃ φ, π !! ι' = Some φ.
   Proof.
     intros Hprog; simpl.
@@ -159,7 +157,7 @@ Section can_progress.
     (k : outcome2 val exn → micro A E)
     (sk : outcome2 val exn → microvx) :
     σ !! l = Some (K sk) →
-    @thread_step Σ A E (σ, Stop CResume (l, o) k, ι, π) (σ', m', μ) →
+    thread_step (σ, Stop CResume (l, o) k, ι, π) (σ', m', μ) →
       σ' = <[l:=Shot]> σ ∧
       m' = try2 (sk o) k ∧
       μ = None.
@@ -176,7 +174,7 @@ Section can_progress.
      and [m] can take a sequential step,
      then it took that sequential step which resulted in [m']. *)
   Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) ι m' μ σ' :
-    @thread_step Σ A E (σ, m, ι, π) (σ', m', μ) ->
+    thread_step (σ, m, ι, π) (σ', m', μ) ->
     can_step (σ, m) ->
     step (σ, m) (σ', m') ∧
       μ = None.
@@ -193,9 +191,9 @@ Section can_progress.
     end.
 
   Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) ι σ' μ :
-    @thread_step Σ B E (σ, (try2 m k), ι, π) (σ', m', μ) ->
+    thread_step (σ, (try2 m k), ι, π) (σ', m', μ) ->
     can_step (σ, m) ->
-    ∃ m'', m' = try2 m'' k ∧ @thread_step Σ A E' (σ, m, ι, π) (σ', m'', None).
+    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, ι, π) (σ', m'', None).
   Proof.
     intros Hwp Hstep.
     dependent destruction Hwp;
