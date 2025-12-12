@@ -4,6 +4,8 @@ From iris.base_logic.lib Require Import iprop wsat gen_heap saved_prop.
 From osiris.program_logic Require Import thread_step ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
 
+Require Import Coq.Program.Equality.
+
 Definition WPTP `{!osirisGS Σ} (π : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))): iProp Σ :=
   ([∗ map] ι ↦ m; '(γ, φ) ∈ π; πp, saved_pred_own γ DfracDiscarded φ ∗ EWP m @ ⊤ <| (ι, ⊥) |> {{ λ o, □ φ o }}).
 
@@ -52,23 +54,6 @@ Proof.
   iPoseProof (big_sepM2_dom with "Hwps") as "%Hdomeq".
   iPureIntro. by rewrite Hdomeq.
 Qed.
-
-(* Lemma wptp_extract_wp `{!osirisGS Σ} m F Rs π πp ι e : *)
-(*   π !! ι = Some e → *)
-(*   SAT m F Rs (WPTP π πp) → *)
-(*   ∃ φ, πp !! ι = Some φ ∧ SAT m F Rs (EWP e @ ⊤ <| (ι, ⊥) |> {{ λ o, □ φ o }} ∗ WPTP (delete ι π) (delete ι πp))%I. *)
-(* Proof. *)
-(*   intros Hlookup Hsat. *)
-(*   eapply wptp_dom in Hsat as Hdomeq. *)
-(*   assert (∃ φ, πp !! ι = Some φ) as [φ Hlookup_p]. *)
-(*   { eapply (elem_of_dom πp ι). rewrite Hdomeq. apply elem_of_dom. eexists; eassumption. } *)
-(*   exists φ; split; first assumption. *)
-(*   eapply SAT_mono, Hsat. *)
-(*   iIntros "Hwps". *)
-(*   iPoseProof (big_sepM2_delete _ _ _ _ _ _ Hlookup Hlookup_p with "Hwps") *)
-(*     as "[Hwp Hwps]". *)
-(*   iFrame. *)
-(* Qed. *)
 
 Lemma WPTP_dom `{!osirisGS Σ} π πp :
   WPTP π πp -∗ ⌜dom πp = dom π⌝.
@@ -147,15 +132,18 @@ Section satisfiability_weakest_pre.
     - right. done.
   Qed.
 
-  Lemma EWP_not_stuck {A X} E (e : micro A X) ι σ πp Φ :
+  Lemma EWP_not_stuck_post {A X} E (e : micro A X) ι σ πp Φ :
     state_interp (σ, πp) ∗ EWP e @ E <| (ι, ⊥) |> {{ Φ }} ={E}[∅]▷=∗
-    ⌜not_stuck e σ (dom πp)⌝.
+    ⌜not_stuck e σ (dom πp)⌝ ∗ (∀ o, ⌜e = inject2 o⌝ -∗ Φ o).
   Proof.
     iIntros "(Hsi & Hwp)". rewrite /not_stuck.
     ewp_unfold e.
     ewp_case e; simpl.
-    - ewp_mask_intro "Hmod". iNext. iMod "Hmod". iModIntro.
-      iPureIntro; left; by destruct o.
+    - ewp_mask_intro "Hmod". iNext. iMod "Hmod". iMod "Hwp". iModIntro.
+      iSplitR.
+      + iPureIntro; left; by destruct o.
+      + iIntros (o' Hlookup); unfold inject2 in Hlookup.
+        destruct o; destruct o'; try discriminate Hlookup; inversion Hlookup; iApply "Hwp".
     - by iMod "Hwp".
     - rewrite /prot upcl_bottom.
       by iMod "Hwp".
@@ -167,31 +155,43 @@ Section satisfiability_weakest_pre.
         discriminate Hhm. }
       destruct Hstep as [Hstep|Hstep].
       { destruct Hstep as (v1 & v2 & k & ->).
-        epose proof (ForkS σ ι (dom πp) v1 v2 k (fresh (dom πp)) _).
+        epose proof (ForkS σ ι (dom πp) v1 v2 k (fresh (dom πp)) (is_fresh _)).
         Unshelve.
         spec_step.
         iModIntro. iNext. iMod "Hwp". iModIntro.
-        iPureIntro.
-        right; left.
-        apply can_progress_fork. apply is_fresh. }
+        iSplitR.
+        + iPureIntro.
+          right; left.
+          apply can_progress_fork.
+        + iIntros (o HFalse). destruct o; discriminate HFalse. }
       destruct Hstep as [Hstep|Hstep].
       { destruct Hstep as (u & k & ->).
         epose proof (SelfS σ (dom πp) ι u k).
         spec_step.
         iModIntro. iNext. iMod "Hwp". iModIntro.
-        iPureIntro.
-        right; left.
-        apply can_progress_self. }
+        iSplitR.
+        + iPureIntro.
+          right; left.
+          apply can_progress_self.
+        + iIntros (o HFalse). destruct o; discriminate HFalse. }
       destruct Hstep as ([??] & ?).
       pose proof (BaseS e σ ι m s (dom πp) H).
       spec_step. iModIntro. iNext. iMod "Hwp". iModIntro.
-      iPureIntro.
-      right; left.
-      assumption.
+      iSplitR.
+      + iPureIntro.
+        right; left.
+        assumption.
+      + iIntros (o HFalse).
+        rewrite HFalse in H0.
+        dependent destruction H0.
+        destruct o; dependent destruction H0.
+        destruct o; discriminate x.
     - spec_state.
       ewp_mask_intro "Hmod". iNext. iMod "Hmod". iModIntro.
-      iPureIntro.
-      by right; right.
+      iSplitR.
+      + iPureIntro.
+        by right; right.
+      + iIntros (o HFalse). destruct o; discriminate HFalse.
   Qed.
 
   Lemma ewp_postcondition {A X} m F E Ψ (e : micro A X) (Φ : outcome2 A X -> iProp Σ) v n:
@@ -221,7 +221,6 @@ Section satisfiability_weakest_pre.
     - iPoseProof (ewp_throw_inv with "Hwp") as "Hthrow".
       iApply "Hthrow".
   Qed.
-
 
   Inductive nsteps {A X} : nat → config A X → config A X → Prop :=
     nsteps_refl : ∀ ρ : config A X, nsteps 0 ρ ρ
@@ -415,55 +414,6 @@ Section satisfiability_weakest_pre.
       apply IHl'.
   Qed.
 
-  Require Import Coq.Program.Equality.
-
-
-  (* Lemma wptp_join πγ πp π1 ι ι' k e σ : *)
-  (*   ⌜dom πp ≡ dom πγ⌝ -∗ *)
-  (*   ⌜dom πp ≡ dom π1⌝ -∗ *)
-  (*   ⌜π1 !! ι = Some (Stop CJoin ι' k)⌝ -∗ *)
-  (*   ⌜attempt_join ι' π1 k = Some e⌝ -∗ *)
-  (*   state_interp (σ, πγ) ∗ WPTP π1 πp ={⊤}[∅]▷=∗ *)
-  (*       (state_interp (σ, πγ) ∗ WPTP (<[ι:=e]> π1) πp). *)
-  (* Proof. *)
-  (*   iIntros (Hdomesq Hdomequiv Hlookup Hattempt) "[Hsi Hwp]". *)
-  (*   iPoseProof (WPTP_extract_wp $! Hlookup with "Hwp") as "(%φ & %γ & %Hlookup_p & Hsaved & Hwp & Hwps)". *)
-  (*   case (πp !! ι') eqn:Hlookup_p'. *)
-  (*   + (* Case: the join was successful. *) *)
-  (*     assert (∃ o, π1 !! ι' = Some (inject2 o) ∧ e = k o) as (o & Hlookup' & ->). *)
-  (*     { unfold attempt_join in Hattempt. *)
-  (*       assert (is_Some (π1 !! ι')) as [e' Hlookup']. *)
-  (*       { apply elem_of_dom. rewrite <- Hdomequiv. apply (elem_of_dom πp ι'). eexists; eassumption. } *)
-  (*       rewrite Hlookup' in Hattempt. *)
-  (*       destruct e'; inversion Hattempt; try discriminate; *)
-  (*         rewrite Hlookup'. *)
-  (*       exists (O2Ret a). split; reflexivity. *)
-  (*       exists (O2Throw e0). split; reflexivity. } *)
-  (*     assert (ι ≠ ι') as Hneq. *)
-  (*     { intros ->. rewrite Hlookup' in Hlookup; inversion Hlookup. destruct o; discriminate. } *)
-  (*     assert (delete ι π1 !! ι' = Some (inject2 o)) by (rewrite lookup_delete_ne; assumption). *)
-  (*     iPoseProof (WPTP_extract_wp (delete ι π1) (delete ι πp) ι' $! H with "Hwps") *)
-  (*         as "(%φ' & %γ' & %Hlookup_p'' & Hsaved' & Ho & Hwps)". *)
-  (*     assert (πp !! ι' = Some φ') as Hπp. *)
-  (*     { by rewrite lookup_delete_ne in Hlookup_p''; last apply Hneq. } *)
-  (*     rewrite Hπp in Hlookup_p'; inversion Hlookup_p'; subst u. *)
-  (*     iPoseProof (ewp_outcome2_inv with "Ho") as ">#Ho". *)
-  (*     ewp_unfold (Stop CJoin ι' k). *)
-  (*     spec_state. *)
-  (*     iMod "Hwp". *)
-  (*     assert (∃ γ'', πγ !! ι' = Some γ''). { apply (elem_of_dom πγ). rewrite <- Hdomesq. *)
-  (*                                            apply elem_of_dom. eexists; eassumption. } *)
-  (*     iSpecialize ("Hwp" $! o with "Ho"). *)
-  (*     ewp_mask_elim. iMod "Hwp" as "[Hwp Hsi]". *)
-  (*     iModIntro. iFrame. *)
-  (*     iPoseProof (WPTP_insert_post_delete $! Hlookup_p'' H with "Hwps Ho") as "Hwps". *)
-  (*     iApply (WPTP_insert_delete $! Hlookup_p with "Hwps Hwp"). *)
-  (*   + ewp_unfold (Stop CJoin ι' k). spec_state. *)
-  (*     iMod "Hwp". *)
-  (*     rewrite Hlookup_p'. *)
-  (*     by repeat iMod "Hwp". *)
-  (* Qed. *)
-
   Lemma wptp_step (π1 π2 : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))) σ1 σ2 :
     (state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp) -∗
     ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗
@@ -552,28 +502,13 @@ Section satisfiability_weakest_pre.
       iFrame.
   Qed.
 
-  (* Lemma wptp_not_stuck m F n e ι σ π1 πp: *)
-  (*   SAT m F [view ⊤; supply n] (state_interp (σ, πp) ∗ WPTP π1 πp) → *)
-  (*   π1 !! ι = Some e → *)
-  (*   not_stuck e σ (dom πp). *)
-  (* Proof. *)
-  (*   intros Hsat Hlookup. *)
-  (*   rewrite -SAT_frame_cons in Hsat. *)
-  (*   eapply wptp_extract_wp in Hsat as (φ & Hlookup_p & Hsat); last eassumption. *)
-  (*   eapply SAT_mono in Hsat; last first. *)
-  (*   { iIntros "[Hwp _]". iApply "Hwp". } *)
-  (*   rewrite SAT_frame_cons in Hsat. *)
-  (*   by eapply ewp_not_stuck in Hsat. *)
-  (* Qed. *)
-
   (* composing the adequacy lemmas *)
   Lemma wptp_adequacy k σ1 π1 σ2 π2 πp :
     state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp -∗
     ⌜threadpool_steps k (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗^k
-    ∀ ι e,
-      |={⊤}[∅]▷=>
-      ⌜π2 !! ι = Some e →
-       not_stuck e σ2 (dom π2)⌝.
+    ∀ ι e, ⌜π2 !! ι = Some e⌝ ={⊤}[∅]▷=∗
+      ⌜not_stuck e σ2 (dom π2)⌝ ∗
+      (∀ o, ⌜e = inject2 o⌝ -∗ ∃ γ φ, saved_pred_own γ DfracDiscarded φ ∗ □ φ o).
   Proof.
     iIntros "Hwps %Hsteps".
     iPoseProof (wptp_steps with "Hwps") as "Hwps".
@@ -583,9 +518,15 @@ Section satisfiability_weakest_pre.
     iPoseProof (WPTP_dom with "Hwps") as "%Hdomeq".
     iPoseProof (WPTP_extract_wp $! Hlookup with "Hwps") as "(%γ & %φ & %Hlookup_p & Hsaved & Hwp & Hwps)".
     iCombine "Hsi Hwp" as "Hwp".
-    iPoseProof (EWP_not_stuck with "Hwp") as "Hwp".
+    iPoseProof (EWP_not_stuck_post with "Hwp") as "Hwp".
     rewrite dom_fmap_L Hdomeq.
-    iApply "Hwp".
+    iMod "Hwp". iModIntro. iNext. iMod "Hwp" as "($ & Hpost)".
+
+    iModIntro.
+    iIntros (o ->).
+    iExists γ, φ.
+    iSpecialize ("Hpost" $! o eq_refl).
+    iFrame.
   Qed.
 
   Lemma ewp_adequacy m F n ι e σ1 σ2 π2 k Φ :
@@ -618,8 +559,11 @@ Section satisfiability_weakest_pre.
       by apply SAT_fupd, SAT_later, SAT_fupd in HsatP. }
     intros ι' e' Hlookup.
     eapply SAT_mono in Hsat; last first.
-    { iIntros "Hx". iSpecialize ("Hx" $! ι' e'). iExact "Hx". }
+    { iIntros "Hx". iSpecialize ("Hx" $! ι' e' Hlookup). iExact "Hx". }
     apply SAT_fupd, SAT_later, SAT_fupd in Hsat.
+    eapply SAT_mono in Hsat; last first.
+    { iIntros "[Hns Ho]". iCombine "Ho Hns" as "Hx". iExact "Hx". }
+    rewrite -SAT_frame_cons in Hsat.
     apply SAT_elim in Hsat.
     by apply Hsat.
   Qed.
