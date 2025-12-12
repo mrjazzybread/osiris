@@ -1,5 +1,5 @@
-From iris.base_logic.lib Require Import own gen_heap ghost_map invariants.
-From iris.algebra Require Import gmap_view dfrac gset auth excl.
+From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop.
+From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
@@ -66,13 +66,14 @@ Section ghost_instances.
 
   Context (Σ : gFunctors).
 
-  Context (A X : Type).
-
   Class osirisGpreS := {
       #[global] osirisGpreS_iris :: invGpreS Σ;
       #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc step.block Σ;
-      #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread (outcome2 val exn → iProp Σ) Σ;
+      #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread gname Σ;
+      #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
     }.
+
+  Context (A X : Type).
 
   Class osirisGS := OsirisGS
     { osiris_inG :: osirisGpreS;
@@ -80,12 +81,25 @@ Section ghost_instances.
       osiris_invGS :: invGS_gen HasNoLc Σ;
       (* This gives us a heap, which maps locations to values. *)
       osiris_genGS :: gen_heapGS locations.loc step.block Σ;
-      (* This gives us a ghost map for thread postconditions. *)
-      osiris_thread_postGS :: gen_heapGS thread (outcome2 val exn -> iProp Σ) Σ;
+      (* This gives us a ghost map for thread postconditions (stored as gnames). *)
+      osiris_thread_postGS :: gen_heapGS thread gname Σ;
+      (* savedPropG is inherited from osirisGpreS via osiris_inG *)
     }.
 
-
 End ghost_instances.
+
+(* Provide a minimal gFunctors for invariants, the store, and threads.
+   We use savedPredΣ to handle the recursive occurrence of iProp in postconditions. *)
+Definition osirisΣ : gFunctors :=
+  #[ invΣ;
+     gen_heapΣ locations.loc step.block;
+     gen_heapΣ thread gname;
+     savedPredΣ (outcome2 val exn)
+    ].
+
+(* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
+Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
+Proof. solve_inG. Qed.
 
 #[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
 
@@ -113,13 +127,13 @@ Section ghost_resources.
     @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
 
   Definition osiris_thread_interp π : iProp Σ :=
-    @gen_heap_interp thread _ _ (outcome2 val exn → iProp Σ) Σ _ π.
+    @gen_heap_interp thread _ _ gname Σ _ π.
 
-  (* [valid_thread ι P] is an exclusive token that can be exchanged for
-     the postcondition resource P o when thread ι terminates with outcome o.
-     This token is one-shot: it can only be used once to claim the resource. *)
+  (* [valid_thread ι P] is a persistent token that witnesses thread ι has postcondition P.
+     The postcondition P is stored behind a later modality using saved predicates.
+     This token can be used to extract the postcondition when the thread terminates. *)
   Definition valid_thread (ι : thread) (P : outcome2 val exn -d> iPropO Σ) : iProp Σ :=
-    pointsto ι DfracDiscarded P.
+    ∃ γ, pointsto ι DfracDiscarded γ ∗ saved_pred_own γ DfracDiscarded P.
 
   Global Instance valid_thread_persistent ι P :
     Persistent (valid_thread ι P).
@@ -130,36 +144,39 @@ Section ghost_resources.
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
   (** If we have a [valid_thread] resource, then the thread exists in the threadpool
-      and we can look up its postcondition from the ghost map. *)
+      and we can look up its gname from the ghost map, which points to the postcondition. *)
   Lemma valid_thread_lookup π ι P :
     osiris_thread_interp π -∗
     valid_thread ι P -∗
-    osiris_thread_interp π ∗ ⌜π !! ι = Some P⌝.
+    osiris_thread_interp π ∗ ∃ γ, ⌜π !! ι = Some γ⌝ ∗ saved_pred_own γ DfracDiscarded P.
   Proof.
     iIntros "Hti #Hvalid".
     rewrite /valid_thread.
-    iDestruct (gen_heap_valid with "Hti Hvalid") as %Hlookup.
-    iSplitL; last by (iPureIntro; eassumption).
-    iFrame.
+    iDestruct "Hvalid" as (γ) "[#Hpt #Hsaved]".
+    iDestruct (gen_heap_valid with "Hti Hpt") as %Hlookup.
+    iFrame "Hti". iExists γ. iFrame "Hsaved". iPureIntro. done.
   Qed.
 
 
   (** Allocate a new thread in the threadpool with a given postcondition.
-      This gives us a [valid_thread] resource (exclusive) and an [alive_token] for the new thread.
+      This gives us a [valid_thread] resource that witnesses the thread's postcondition.
 
-      The alive_token must be consumed when the thread terminates to establish
-      the postcondition P in the invariant. The valid_thread can later be exchanged
-      for the postcondition resource P o. *)
+      The postcondition P is stored behind a later modality using saved predicates. *)
   Lemma thread_alloc π ι (P : outcome2 val exn -d> iPropO Σ) :
     π !! ι = None →
     osiris_thread_interp π ==∗
-      osiris_thread_interp (<[ ι := P ]> π) ∗ valid_thread ι P.
+      ∃ γ, osiris_thread_interp (<[ ι := γ ]> π) ∗ pointsto ι DfracDiscarded γ ∗ saved_pred_own γ DfracDiscarded P.
   Proof.
     iIntros (Hlookup) "Hauth".
-    (* Insert P into the postcondition ghost map and get valid_thread *)
-    iMod (gen_heap_alloc π ι P with "Hauth") as "(Hauth & Hvalid & Hmt)"; first done.
-    iMod (pointsto_persist with "Hvalid").
-    by iFrame.
+    (* Allocate a saved predicate for the postcondition P *)
+    iMod (saved_pred_alloc P DfracDiscarded) as (γ) "#Hsaved"; first done.
+    (* Insert γ into the thread ghost map *)
+    iMod (gen_heap_alloc π ι γ with "Hauth") as "(Hauth & Hvalid & _)"; first done.
+    (* Make the pointsto persistent *)
+    iMod (pointsto_persist with "Hvalid") as "#Hvalid".
+    iModIntro. iExists γ. iFrame "Hauth".
+    (* Package up valid_thread *)
+    iFrame "Hvalid Hsaved".
   Qed.
 
 End ghost_resources.
@@ -269,14 +286,17 @@ Section ewp.
                 ewp E m' (ι, Ψ) φ ∗
                 match μ with
                 | None => state_interp (σ', π)
-                | Some (ι', m') => ∃ φ', state_interp (σ', <[ ι' := φ']> π) ∗ ewp E m' (ι', ⊥) ( λ o, □ φ' o)
+                | Some (ι', m') => ∃ φ' γ, state_interp (σ', <[ ι' := γ ]> π) ∗
+                                           saved_pred_own γ DfracDiscarded φ' ∗
+                                           ewp E m' (ι', ⊥) ( λ o, □ φ' o)
               end)
        | WPJoin ι' k =>
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
              match π !! ι' with
              | None => |={∅, E}=> ▷ False
-             | Some φ' => (∀ o, □ φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
+             | Some γ => ∀ φ', saved_pred_own γ DfracDiscarded φ' -∗
+                              (∀ o, □ φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
              end
        end)%I.
 
@@ -348,10 +368,8 @@ Proof.
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
-  - do 14 (f_contractive || f_equiv).
-    apply IH; eauto.
-    f_equiv.
-    eapply dist_lt; eauto.
+  - do 17 (f_contractive || f_equiv).
+    + apply IH; eauto. f_equiv. eapply dist_lt; eauto.
 Qed.
 
 Global Instance ewp_proper E m ιΨ:

@@ -90,7 +90,9 @@ Section ewp_basic_rules.
         EWP m' @ E <| (ι, Ψ) |> {{ φ }} ∗
           (match μ with
            | None => state_interp (σ', π)
-           | Some (ι', m') => ∃ φ', state_interp (σ', <[ι':= φ']>π) ∗ EWP m' @ E <| (ι', ⊥) |> {{ λ o, □ φ' o }}
+           | Some (ι', m') => ∃ φ' γ, state_interp (σ', <[ι':= γ]>π) ∗
+                                        saved_prop.saved_pred_own γ DfracDiscarded φ' ∗
+                                        EWP m' @ E <| (ι', ⊥) |> {{ λ o, □ φ' o }}
           end).
   Proof.
     intros Hstep.
@@ -157,7 +159,8 @@ Section ewp_basic_rules.
       intro_state. spec_state.
       iMod "Hwp". iModIntro.
       destruct (π !! t0) eqn:Hlookup; last done.
-      iIntros (o) "Hφ". iSpecialize ("Hwp" $! o with "Hφ").
+      iIntros (φ'0) "Hφ %o Ho". iSpecialize ("Hwp" with "Hφ").
+      iSpecialize ("Hwp" with "Ho").
       ewp_mask_elim. iMod "Hwp" as "(Hwp & Hforked)". iFrame.
       iApply ("IH" with "Hwp Hmon"). }
   Qed.
@@ -199,8 +202,8 @@ Section ewp_basic_rules.
     { (* Case: [m] is a [WPJoin]. *)
       intro_state. spec_state. iMod "Hwp"; iModIntro.
       destruct (π !! t); last done.
-      iIntros (o) "Hφ".
-      iSpecialize ("Hwp" $! o with "Hφ").
+      iIntros (φ') "Hφ %o Ho".
+      iSpecialize ("Hwp" with "Hφ Ho").
       ewp_mask_elim.
       iMod "Hwp" as "(Hwp & $)".
       by iApply ("IH" with "[//] Hwp"). }
@@ -237,7 +240,7 @@ Section ewp_basic_rules.
       iSplitL "H".
       - iApply ("IH" with "H HΦ").
       - destruct μ as [ [??] | ].
-        + iDestruct "Hforked" as "(%φ' & Hsi & Hwp)".
+        + iDestruct "Hforked" as "(%φ' & %γ & Hsi & Hsaved & Hwp)".
           iFrame.
           iApply ("IH" with "Hwp").
           iModIntro. iIntros (v) "Hϕ !>". iApply "Hϕ".
@@ -247,7 +250,7 @@ Section ewp_basic_rules.
       iMod (fupd_mask_subseteq E) as "Hclose"; first done.
       spec_state. iMod "He"; iModIntro.
       destruct (π !! t).
-      - iIntros (o) "Hφ". iSpecialize ("He" with "Hφ").
+      - iIntros (φ') "Hφ %o Ho". iSpecialize ("He" with "Hφ Ho").
         ewp_mask_elim.
         iDestruct "He" as ">(H & Hforked)".
         iMod "Hclose"; iModIntro. iFrame.
@@ -472,7 +475,7 @@ Section wp_handler_rules.
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       ewp_unfold_all. intro_state. spec_state. iMod "He". iModIntro.
       destruct (π !! ι0); last done.
-      iIntros (o) "Hφ'". iSpecialize ("He" with "Hφ'").
+      iIntros "%φ' Hφ' %o Ho". iSpecialize ("He" with "Hφ' Ho").
       ewp_mask_elim.
       iMod "He" as "(He & $)". iModIntro.
       iApply ("IH" with "He Hsh"). }
@@ -696,7 +699,7 @@ Section ewp_rules.
     { simpl. ewp_unfold_all.
       intro_state. spec_state. iMod "Hwp".
       destruct (π !! x); last done.
-      iIntros "!>" (o) "Hφ'". iSpecialize ("Hwp" with "Hφ'").
+      iIntros "!> %φ' Hφ' %o Ho". iSpecialize ("Hwp" with "Hφ' Ho").
       ewp_mask_elim.
       iMod "Hwp" as "[Hwp $]".
       iModIntro.
@@ -817,7 +820,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iMod "H1".
         destruct (π !! x); last done.
-        iIntros "!>" (o) "Hφ'". iSpecialize ("H1" with "Hφ'").
+        iIntros "!> %φ' Hφ' %o Ho". iSpecialize ("H1" with "Hφ' Ho").
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 
@@ -860,7 +863,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
         ewp_unfold_head. intro_state. spec_state. iMod "H2".
         destruct (π !! x); last done.
-        iIntros "!>" (o) "Hφ'". iSpecialize ("H2" with "Hφ'").
+        iIntros "!> %φ' Hφ' %o Ho". iSpecialize ("H2" with "Hφ' Ho").
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
         iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
 

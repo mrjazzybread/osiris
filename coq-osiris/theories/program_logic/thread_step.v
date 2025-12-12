@@ -3,7 +3,7 @@ From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import code eval step.
 
-From iris.base_logic.lib Require Import iprop.
+From iris.base_logic.lib Require Import iprop own.
 
 Section thread_step.
 
@@ -16,8 +16,8 @@ Section thread_step.
     | _ => None
     end.
 
-  Definition post_map Σ := gmap thread (outcome2 val exn -> iProp Σ).
-  Instance lookup_post_map : Lookup thread (outcome2 val exn -> iProp Σ) (post_map Σ).
+  Definition post_map (_ : gFunctors) := gmap thread gname.
+  Instance lookup_post_map : Lookup thread gname (post_map Σ).
   Proof. apply _. Defined.
 
   Definition th_config A X : Type := store * (micro A X) * thread * (gset thread).

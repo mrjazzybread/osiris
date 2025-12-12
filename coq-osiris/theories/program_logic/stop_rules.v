@@ -134,11 +134,11 @@ Section ewp_stop.
     construct_wp_nonret.
     destruct_thread_step.
     iMod (thread_alloc π ι' φ (not_elem_of_dom_1 _ _ H) with "Hti")
-      as "(Hti & Hvalid)".
+      as "(%γ & Hti & #Hvalid & #Hsaved)".
     ewp_mask_elim.
-    iFrame.
-    iDestruct ("Hfork" with "Hvalid") as "[Hcall $]".
-    iApply "Hcall".
+    iAssert (valid_thread ι' φ) as "Hvalid'". iFrame "#".
+    iDestruct ("Hfork" with "Hvalid'") as "[Hcall $]".
+    iExists φ, γ. iFrame "Hsi Hti Hcall Hsaved".
   Qed.
 
   Lemma ewp_fork E Ψ v1 v2 Φ φ :
@@ -162,12 +162,14 @@ Section ewp_stop.
     iIntros "Hι Hk". destruct Ψ.
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
-    iPoseProof (valid_thread_lookup with "Hti Hι") as "[Hti %Hlookup]".
+    iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
     assert (ι ∈ dom π) as Hdom by (apply (elem_of_dom π ι); eexists; eassumption).
-    iFrame "%". rewrite Hlookup.
-    iIntros (o) "Hφ'".
+    rewrite Hlookup.
+    iIntros "%φ' Hφ' %o #Ho".
+    iPoseProof (saved_prop.saved_pred_agree _ _ _ _ _ o with "Hsaved Hφ'") as "Heq".
     ewp_mask_elim. iFrame.
-    iApply ("Hk" with "Hφ'").
+    iApply "Hk".
+    by iRewrite "Heq".
   Qed.
 
   Lemma ewp_join E Ψ ι Φ φ :
