@@ -295,8 +295,10 @@ Section ewp.
              state_interp (σ, π) ={E, ∅}=∗
              match π !! ι' with
              | None => |={∅, E}=> ▷ False
-             | Some γ => ∀ φ', saved_pred_own γ DfracDiscarded φ' -∗
-                              (∀ o, □ φ' o ={∅}=∗ ▷ |={∅,E}=> ewp E (k o) params φ ∗ state_interp (σ, π))
+             | Some γ =>
+                 ∃ φ', saved_pred_own γ DfracDiscarded φ' ∗
+                       ▷ (∀ o, □ φ' o ={∅}=∗ |={∅,E}=>
+                          ewp E (k o) params φ ∗ state_interp (σ, π))
              end
        end)%I.
 

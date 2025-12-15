@@ -264,7 +264,8 @@ Section handler_proof.
       ewp_unfold_head.
       intro_state. spec_state. iMod "He".
       destruct (π !! ι0); last done.
-      iIntros "!> %φ' Hφ' %o Ho". iSpecialize ("He" with "Hφ' Ho").
+      iDestruct "He" as "(%φ' & $ & He)".
+      iIntros "!> !> %o Ho". iSpecialize ("He" with "Ho").
       ewp_mask_elim. iMod "He" as "(He & $)".
       iModIntro. rewrite /continue.
       iApply ("IH" with "He Hsh"). }

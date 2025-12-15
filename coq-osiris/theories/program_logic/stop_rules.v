@@ -156,7 +156,7 @@ Section ewp_stop.
 
   Lemma ewp_stop_join {B X'} E Ψ ι Φ (k : _ -> micro B X') φ :
     valid_thread ι φ -∗
-    ▷ (∀ o, φ o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
+    ▷ (∀ o, □ φ o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
     EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hι Hk". destruct Ψ.
@@ -165,16 +165,15 @@ Section ewp_stop.
     iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
     assert (ι ∈ dom π) as Hdom by (apply (elem_of_dom π ι); eexists; eassumption).
     rewrite Hlookup.
-    iIntros "%φ' Hφ' %o #Ho".
-    iPoseProof (saved_prop.saved_pred_agree _ _ _ _ _ o with "Hsaved Hφ'") as "Heq".
-    ewp_mask_elim. iFrame.
-    iApply "Hk".
-    by iRewrite "Heq".
+    iFrame.
+    iIntros "!> %o #Ho".
+    ewp_mask_elim.
+    iApply ("Hk" with "Ho").
   Qed.
 
   Lemma ewp_join E Ψ ι Φ φ :
     valid_thread ι φ -∗
-    ▷ (∀ o, φ o -∗ Φ o) -∗
+    ▷ (∀ o, □ φ o -∗ Φ o) -∗
     EWP (join ι) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".

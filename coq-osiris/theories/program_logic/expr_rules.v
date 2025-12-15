@@ -1258,7 +1258,7 @@ Section ewp_rules_expr.
 
   Lemma ewp_EJoin e η E Ψ φ Φ :
     EWP eval η e @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }} -∗
-    ▷ (∀ o, φ o -∗ Φ o) -∗
+    ▷ (∀ o, □ φ o -∗ Φ o) -∗
     EWP eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
   Proof.
     iIntros "Hid Hjoined".

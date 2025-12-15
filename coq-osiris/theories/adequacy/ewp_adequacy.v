@@ -300,7 +300,7 @@ Section satisfiability_weakest_pre.
 
   Lemma ewp_join_inv {A X} γ φ σ πp ι' (k : _ → micro A X) ι Ψ Φ E o :
     ⌜πp !! ι' = Some γ⌝ -∗
-    saved_prop.saved_pred_own γ DfracDiscarded φ -∗
+    saved_pred_own γ DfracDiscarded φ -∗
     □ φ o -∗
     state_interp (σ, πp) -∗
     EWP Stop CJoin ι' k @ E <| (ι, Ψ) |> {{ Φ }} -∗
@@ -308,8 +308,11 @@ Section satisfiability_weakest_pre.
   Proof.
     iIntros "%Hlookup Hsaved Hφ Hsi Hwp".
     rewrite ewp_unfold /ewp_pre /=. spec_state.
-    iMod "Hwp". rewrite Hlookup.
-    iSpecialize ("Hwp" with "Hsaved Hφ").
+    rewrite Hlookup.
+    iMod "Hwp" as "(%φ' & Hsaved' & Hwp)".
+    iPoseProof (saved_pred_agree _ _ _ _ _ o with "Hsaved Hsaved'") as "Hagree".
+    iModIntro. iNext. iRewrite "Hagree" in "Hφ".
+    iSpecialize ("Hwp" with "Hφ").
     ewp_mask_elim. iMod "Hwp" as "($ & $)". done.
   Qed.
 
