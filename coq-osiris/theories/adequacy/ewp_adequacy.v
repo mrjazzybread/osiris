@@ -414,6 +414,28 @@ Section satisfiability_weakest_pre.
       apply IHl'.
   Qed.
 
+  Lemma add_posts_lookup_not_in {A} ι l (πp : gmap thread A) :
+    ι ∉ fst <$> l →
+    add_posts l πp !! ι = πp !! ι.
+  Proof.
+    induction l as [| [ι' a] l IH]; first done.
+    rewrite fmap_cons not_elem_of_cons. simpl.
+    intros [Hneq Hnin].
+    rewrite lookup_insert_ne; first by apply IH.
+    by symmetry.
+  Qed.
+
+  Lemma WPTP_extract_outcome `{!osirisGS Σ} π πp ι o :
+    ⌜π !! ι = Some (inject2 o)⌝ -∗
+    WPTP π πp -∗
+    ∃ γ φ, ⌜πp !! ι = Some (γ, φ)⌝ ∗ saved_pred_own γ DfracDiscarded φ ∗ WPTP (delete ι π) (delete ι πp) ∗ (|={⊤}=> □ φ o).
+  Proof.
+    iIntros "%Hlookup Hwps".
+    iPoseProof (WPTP_extract_wp $! Hlookup with "Hwps") as "(%γ & %φ & %Hlookup_p & #Hsaved & Hwp & Hwps)".
+    iExists γ, φ. iFrame "∗%#".
+    by iApply (ewp_outcome2_inv with "Hwp").
+  Qed.
+
   Lemma wptp_step (π1 π2 : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))) σ1 σ2 :
     (state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp) -∗
     ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗
@@ -459,25 +481,26 @@ Section satisfiability_weakest_pre.
         { unfold attempt_join in Hattempt.
           assert (is_Some (π1 !! ι')) as [e' Hlookup'].
           { apply elem_of_dom. setoid_rewrite <- Hdomeq.
-            apply (elem_of_dom πp ι').
-            eexists; eassumption. }
+            apply (elem_of_dom πp ι'). eexists; eassumption. }
           rewrite Hlookup' in Hattempt.
-          destruct e'; inversion Hattempt; try discriminate;
-            rewrite Hlookup'.
+          destruct e'; inversion Hattempt; try discriminate; rewrite Hlookup'.
           exists (O2Ret a). split; reflexivity.
           exists (O2Throw e0). split; reflexivity. }
         assert (ι ≠ ι') as Hneq.
-        { intros ->. rewrite Hlookup' in Hlookup; inversion Hlookup. destruct o; discriminate. }
-        assert (delete ι π1 !! ι' = Some (inject2 o)) by (rewrite lookup_delete_ne; assumption).
-        iPoseProof (WPTP_extract_wp (delete ι π1) (delete ι πp) ι' $! H with "Hwps")
-          as "(%γ' & %φ' & %Hlookup_p'' & #Hsaved' & Ho & Hwps)".
-        assert (πp !! ι' = Some (γ', φ')) as Hπp.
-        { by rewrite lookup_delete_ne in Hlookup_p''; last apply Hneq. }
-        iPoseProof (ewp_outcome2_inv with "Ho") as ">#Ho".
-        iPoseProof (ewp_join_inv $! _ with "Hsaved' [$] Hsi Hwp") as "Hwp".
+        { intros ->. rewrite Hlookup' in Hlookup. inversion Hlookup. destruct o; discriminate. }
+        destruct p as [γ' φ'].
+        assert (delete ι π1 !! ι' = Some (inject2 o)) as Hlookup_del by (rewrite lookup_delete_ne; assumption).
+        iPoseProof (WPTP_extract_outcome (delete ι π1) (delete ι πp) ι' with "[//] Hwps")
+          as "(%γ'' & %φ'' & %Hlookup_p'' & #Hsaved' & Hwps & Ho)".
+        assert (delete ι πp !! ι' = Some (γ', φ')) as Hlookup_del_p by (rewrite lookup_delete_ne; [exact Hlookup_p' | done]).
+        rewrite Hlookup_del_p in Hlookup_p''. inversion Hlookup_p''; subst γ'' φ''.
+        iMod "Ho" as "#Ho".
+        assert ((fst <$> πp) !! ι' = Some γ') as Hlookup_fmap by (rewrite lookup_fmap Hlookup_p'; reflexivity).
+        iPoseProof (ewp_join_inv $! Hlookup_fmap with "Hsaved' Ho Hsi Hwp") as "Hwp".
         iMod "Hwp". iModIntro. iNext. iMod "Hwp". iModIntro.
         iExists []. simpl. iDestruct "Hwp" as "($ & Hwp)".
-        iPoseProof (WPTP_insert_post_delete $! Hlookup_p'' H with "Hwps Hsaved' Ho") as "Hwps".
+        assert (delete ι π1 !! ι' = Some (inject2 o)) as Hlookup_del' by (rewrite lookup_delete_ne; assumption).
+        iPoseProof (WPTP_insert_post_delete $! Hlookup_del_p Hlookup_del' with "Hwps Hsaved' Ho") as "Hwps".
         iPoseProof (WPTP_insert_delete $! Hlookup_p with "Hwps [$]") as "$".
         iPureIntro. intros ? Hin. by apply not_elem_of_nil in Hin.
       + ewp_unfold (Stop CJoin ι' k). spec_state.
@@ -486,7 +509,6 @@ Section satisfiability_weakest_pre.
         { apply not_elem_of_dom. rewrite dom_fmap. apply not_elem_of_dom. assumption. }
         setoid_rewrite Hnin.
         by repeat iMod "Hwp".
-        Unshelve. rewrite lookup_fmap. rewrite Hπp. reflexivity.
   Qed.
 
   Lemma not_elem_of_add_posts {A} ι l (πp : gmap thread A) :
@@ -564,34 +586,22 @@ Section satisfiability_weakest_pre.
     iPoseProof (EWP_not_stuck_post with "Hwp") as "Hwp".
     rewrite dom_fmap_L Hdomeq.
     iMod "Hwp". iModIntro. iNext. iMod "Hwp" as "($ & Hpost)".
-    assert (add_posts l πp !! ι = Some (γ, (λ o, ⌜Φ o⌝)%I)).
-      { specialize (Hl ι).
-        clear Hdomeq.
-        induction l in Hl |-*.
-        - simpl. rewrite Heqπp lookup_singleton. reflexivity.
-        - destruct a; simpl.
-          assert (ι ≠ t). { intros ->. apply Hl. rewrite fmap_cons elem_of_cons. by left.
-                            rewrite Heqπp dom_singleton. by apply elem_of_singleton.  }
-          rewrite lookup_insert_ne; last (symmetry; assumption).
-          apply IHl. intro Hin. apply Hl.
-          rewrite fmap_cons elem_of_cons. by right. }
+    assert (add_posts l πp !! ι = Some (γ, (λ o, ⌜Φ o⌝)%I)) as Hlookup_orig.
+    { rewrite add_posts_lookup_not_in.
+      - by rewrite Heqπp lookup_singleton.
+      - intros Hin%Hl. rewrite Heqπp dom_singleton in Hin.
+        apply Hin. by apply elem_of_singleton. }
     case (decide (ι' = ι)) as [-> | Hneq].
     - iIntros "!>" (o Hlookup').
-      rewrite H in Hlookup_p.
+      rewrite Hlookup_orig in Hlookup_p.
       rewrite Hlookup' in Hlookup.
-      inversion Hlookup_p; inversion Hlookup; subst.
-      iApply ("Hpost" $! o eq_refl).
-    - iModIntro.
-      iIntros (o Hlookup_og).
-      assert (delete ι' π2 !! ι = Some (inject2 o)).
-      { rewrite lookup_delete_ne; assumption. }
-      iClear "Hsaved Hpost". clear γ' φ' Hlookup e' Hlookup_p.
-      iPoseProof (WPTP_extract_wp $! H0 with "Hwps") as "(%γ' & %φ' & %Hlookup_p & Hsaved & Hwp & Hwps)".
-      assert (delete ι' (add_posts l πp) !! ι = Some (γ, (λ o, ⌜Φ o⌝)%I)).
-      { rewrite lookup_delete_ne; assumption. }
-      rewrite H1 in Hlookup_p.
-      inversion Hlookup_p; subst.
-      iApply (ewp_outcome2_inv with "Hwp").
+      by inversion Hlookup_p; inversion Hlookup; subst; iApply ("Hpost" $! o eq_refl).
+    - iModIntro. iIntros (o Hlookup_og).
+      assert (delete ι' π2 !! ι = Some (inject2 o)) as Hlookup_del_π2 by (rewrite lookup_delete_ne; assumption).
+      iPoseProof (WPTP_extract_outcome (delete ι' π2) (delete ι' (add_posts l πp)) ι with "[//] Hwps")
+        as "(%γ'' & %φ'' & %Hlookup_p' & _ & _ & HΦ)".
+      rewrite lookup_delete_ne in Hlookup_p'; last done.
+      by rewrite Hlookup_orig in Hlookup_p'; inversion Hlookup_p'; subst.
   Qed.
 
   Lemma ewp_adequacy m F n ι e σ1 σ2 π2 k Φ :
