@@ -150,6 +150,14 @@ Proof.
   eapply SAT_fupd, Hsat.
 Qed.
 
+Lemma SAT_pers `{!invGS_gen H Σ} m n F P:
+  SAT m F [view ⊤; supply n] (□ P) →
+  SAT m F [view ⊤; supply n] P.
+Proof.
+  intros Hsat. eapply SAT_mono, Hsat.
+  iIntros "#$".
+Qed.
+
 (* Global Ghost State Constructions *)
 
 (* Ghost Maps *)

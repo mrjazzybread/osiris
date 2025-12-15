@@ -418,6 +418,7 @@ Section satisfiability_weakest_pre.
     (state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp) -∗
     ⌜threadpool_step (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗
     (∃ (l : list (thread * (gname * (outcome2 val exn → iProp Σ)))),
+        ⌜∀ ι', ι' ∈ fst <$> l → ι' ∉ dom (πp)⌝ ∗
         state_interp (σ2, fst <$> (add_posts l πp)) ∗ WPTP π2 (add_posts l πp)).
   Proof.
     iIntros "[Hsi Hwps] %Hstep".
@@ -435,11 +436,19 @@ Section satisfiability_weakest_pre.
         subst π2. iModIntro.
         iDestruct "Hwps" as "(Hsi & Hwps)".
         iExists []. iFrame.
+        iPureIntro. intros ι' Hin. by apply not_elem_of_nil in Hin.
       + (* Subcase: the step results in a forked thread. *)
         destruct Hμ as [Hfresh ->].
         iDestruct "Hwps" as "(%φ' & %γ & Hsi & Hwps)".
-        iExists [(ι', (γ, φ'))]. iModIntro. iFrame.
-        simpl add_posts. by rewrite fmap_insert.
+        iExists [(ι', (γ, φ'))]. iModIntro.
+        simpl add_posts; rewrite fmap_insert.
+        iFrame.
+        iPureIntro. intros ? Hin. apply elem_of_list_singleton in Hin as ->.
+        simpl. rewrite Hdomeq. apply not_elem_of_dom.
+        assert (ι ≠ ι').
+        { intros ->. rewrite lookup_insert in Hfresh. discriminate Hfresh. }
+        rewrite lookup_insert_ne in Hfresh; last assumption.
+        assumption.
     - (* Case: [threadpool_step] is a join. *)
       destruct H as (ι & ι' & k & e & Hlookup & Hattempt & -> & ->).
       iDestruct "Hwps" as "(Hsi & Hwps)".
@@ -469,7 +478,8 @@ Section satisfiability_weakest_pre.
         iMod "Hwp". iModIntro. iNext. iMod "Hwp". iModIntro.
         iExists []. simpl. iDestruct "Hwp" as "($ & Hwp)".
         iPoseProof (WPTP_insert_post_delete $! Hlookup_p'' H with "Hwps Hsaved' Ho") as "Hwps".
-        iApply (WPTP_insert_delete $! Hlookup_p with "Hwps [$]").
+        iPoseProof (WPTP_insert_delete $! Hlookup_p with "Hwps [$]") as "$".
+        iPureIntro. intros ? Hin. by apply not_elem_of_nil in Hin.
       + ewp_unfold (Stop CJoin ι' k). spec_state.
         iMod "Hwp".
         assert ((fst <$> πp) !! ι' = None) as Hnin.
@@ -479,54 +489,109 @@ Section satisfiability_weakest_pre.
         Unshelve. rewrite lookup_fmap. rewrite Hπp. reflexivity.
   Qed.
 
+  Lemma not_elem_of_add_posts {A} ι l (πp : gmap thread A) :
+    ι ∉ dom (add_posts l πp) →
+    ι ∉ fst <$> l ∧ ι ∉ dom πp.
+  Proof.
+    induction l as [| [ι' a] l IH].
+    - simpl.
+      intros Hnin.
+      split; [ apply not_elem_of_nil | assumption ].
+    - simpl. rewrite dom_insert.
+      rewrite not_elem_of_union not_elem_of_singleton.
+      intros [Hnhead Hndom].
+      destruct (IH Hndom) as [Hnlist Hndom'].
+      rewrite not_elem_of_cons.
+      auto.
+  Qed.
+
   Lemma wptp_steps k π1 π2 σ1 σ2 πp :
     state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp -∗
     ⌜threadpool_steps k (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗^k
     (∃ (l : list (thread * (gname * (outcome2 val exn → iProp Σ)))),
+        ⌜∀ ι', ι' ∈ fst <$> l → ι' ∉ dom (πp)⌝ ∗
         state_interp (σ2, fst <$> add_posts l πp) ∗ WPTP π2 (add_posts l πp)).
   Proof.
     induction k as [|k IH] in  πp, π1, σ1 |-*; iIntros "Hwps %Hsteps".
     - inversion_clear Hsteps. simpl.
-      by iExists [].
+      iExists []. iFrame.
+      iPureIntro; simpl; intros ? HF.
+      by apply not_elem_of_nil in HF.
     - inversion_clear Hsteps as [|?? [σ1' π1']].
       simpl.
       iPoseProof (wptp_step with "Hwps") as "Hwps".
       iSpecialize ("Hwps" $! H).
-      iMod "Hwps". iModIntro. iNext. iMod "Hwps" as "(%l & Hwps)". iModIntro.
+      iMod "Hwps". iModIntro. iNext. iMod "Hwps" as "(%l & %Hl & Hwps)". iModIntro.
       iPoseProof (IH with "Hwps") as "Hwps".
       iSpecialize ("Hwps" $! H0).
       iApply (step_fupdN_wand with "Hwps").
-      iIntros "(%l' & Hwps)".
+      iIntros "(%l' & %Hl' & Hwps)".
       iExists (l' ++ l).
       rewrite add_posts_app.
       iFrame.
+      iPureIntro.
+      intros ι' Hin.
+      rewrite fmap_app in Hin; apply elem_of_app in Hin.
+      destruct Hin.
+      + specialize (Hl' ι' H1).
+        apply not_elem_of_add_posts in Hl' as [_ Hndom].
+        assumption.
+      + apply Hl, H1.
   Qed.
 
   (* composing the adequacy lemmas *)
-  Lemma wptp_adequacy k σ1 π1 σ2 π2 πp :
-    state_interp (σ1, fst <$> πp) ∗ WPTP π1 πp -∗
-    ⌜threadpool_steps k (σ1, π1) (σ2, π2)⌝ ={⊤}[∅]▷=∗^k
-    ∀ ι e, ⌜π2 !! ι = Some e⌝ ={⊤}[∅]▷=∗
+  Lemma wptp_adequacy k σ1 σ2 π2 ι e Φ :
+    (∃ γ, state_interp (σ1, {[ι:=γ]}) ∗
+          saved_pred_own γ DfracDiscarded (λ o, ⌜Φ o⌝)%I ∗
+          EWP e @ ⊤ <| (ι, ⊥) |> {{ (λ o, □ ⌜Φ o⌝)%I }}) -∗
+    ⌜threadpool_steps k (σ1, {[ι:=e]}) (σ2, π2)⌝ ={⊤}[∅]▷=∗^k
+    (∀ ι' e, ⌜π2 !! ι' = Some e⌝ ={⊤}[∅]▷=∗
       ⌜not_stuck e σ2 (dom π2)⌝ ∗
-      (∀ o, ⌜e = inject2 o⌝ -∗ ∃ γ φ, saved_pred_own γ DfracDiscarded φ ∗ □ φ o).
+      (∀ o, ⌜π2 !! ι = Some (inject2 o)⌝ -∗ |={⊤}=> □ ⌜Φ o⌝)).
   Proof.
-    iIntros "Hwps %Hsteps".
+    iIntros "(%γ & Hsi & Hwps) %Hsteps".
+    rewrite wp_wptp. iCombine "Hsi Hwps" as "Hwps".
+    remember {[ι := (γ, λ o, ⌜Φ o⌝)%I]} as πp.
+    replace {[ι:=γ]} with (fst <$> πp) by (rewrite Heqπp map_fmap_singleton; reflexivity).
     iPoseProof (wptp_steps with "Hwps") as "Hwps".
     iSpecialize ("Hwps" $! Hsteps).
     iApply (step_fupdN_wand with "Hwps").
-    iIntros "(%l & Hsi & Hwps)" (ι e Hlookup).
+    iIntros "(%l & %Hl & Hsi & Hwps)".
     iPoseProof (WPTP_dom with "Hwps") as "%Hdomeq".
-    iPoseProof (WPTP_extract_wp $! Hlookup with "Hwps") as "(%γ & %φ & %Hlookup_p & Hsaved & Hwp & Hwps)".
+    iIntros (ι' e' Hlookup).
+    iPoseProof (WPTP_extract_wp $! Hlookup with "Hwps") as "(%γ' & %φ' & %Hlookup_p & Hsaved & Hwp & Hwps)".
     iCombine "Hsi Hwp" as "Hwp".
     iPoseProof (EWP_not_stuck_post with "Hwp") as "Hwp".
     rewrite dom_fmap_L Hdomeq.
     iMod "Hwp". iModIntro. iNext. iMod "Hwp" as "($ & Hpost)".
-
-    iModIntro.
-    iIntros (o ->).
-    iExists γ, φ.
-    iSpecialize ("Hpost" $! o eq_refl).
-    iFrame.
+    assert (add_posts l πp !! ι = Some (γ, (λ o, ⌜Φ o⌝)%I)).
+      { specialize (Hl ι).
+        clear Hdomeq.
+        induction l in Hl |-*.
+        - simpl. rewrite Heqπp lookup_singleton. reflexivity.
+        - destruct a; simpl.
+          assert (ι ≠ t). { intros ->. apply Hl. rewrite fmap_cons elem_of_cons. by left.
+                            rewrite Heqπp dom_singleton. by apply elem_of_singleton.  }
+          rewrite lookup_insert_ne; last (symmetry; assumption).
+          apply IHl. intro Hin. apply Hl.
+          rewrite fmap_cons elem_of_cons. by right. }
+    case (decide (ι' = ι)) as [-> | Hneq].
+    - iIntros "!>" (o Hlookup').
+      rewrite H in Hlookup_p.
+      rewrite Hlookup' in Hlookup.
+      inversion Hlookup_p; inversion Hlookup; subst.
+      iApply ("Hpost" $! o eq_refl).
+    - iModIntro.
+      iIntros (o Hlookup_og).
+      assert (delete ι' π2 !! ι = Some (inject2 o)).
+      { rewrite lookup_delete_ne; assumption. }
+      iClear "Hsaved Hpost". clear γ' φ' Hlookup e' Hlookup_p.
+      iPoseProof (WPTP_extract_wp $! H0 with "Hwps") as "(%γ' & %φ' & %Hlookup_p & Hsaved & Hwp & Hwps)".
+      assert (delete ι' (add_posts l πp) !! ι = Some (γ, (λ o, ⌜Φ o⌝)%I)).
+      { rewrite lookup_delete_ne; assumption. }
+      rewrite H1 in Hlookup_p.
+      inversion Hlookup_p; subst.
+      iApply (ewp_outcome2_inv with "Hwp").
   Qed.
 
   Lemma ewp_adequacy m F n ι e σ1 σ2 π2 k Φ :
@@ -538,34 +603,46 @@ Section satisfiability_weakest_pre.
     (* and we take a k-step execution to [e'] and some forked of threads *)
     threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
     (* then no thread is stuck *)
-    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)).
+    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
+    (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
   Proof.
     intros Hsat Hsteps.
     eapply SAT_mono with
-      (Q:=(∃ γ : gname, state_interp (σ1, {[ι := γ]}) ∗ WPTP {[ι:=e]} {[ι:=(γ, (λ o, ⌜Φ o⌝))]})%I) in Hsat; last first.
+      (Q:=(∃ γ : gname, state_interp (σ1, {[ι := γ]}) ∗
+                          saved_pred_own γ DfracDiscarded (λ o : outcome2 val exn, ⌜Φ o⌝) ∗
+                          EWP e <|(ι, ⊥)|> {{ λ o : outcome2 val exn, □ ⌜Φ o⌝ }})%I) in Hsat; last first.
     { iIntros "(%γ & Hsi & Hsaved & Hwp)".
-      iExists γ. iFrame "Hsi".
-      rewrite <- wp_wptp. iFrame "Hsaved".
+      iExists γ. iFrame "Hsi Hsaved".
       iApply (ewp_mono with "Hwp").
       iIntros (o HΦ). iFrame "%". }
     eapply SAT_mono in Hsat; last first.
-    iIntros "(%γ & Hwps)".
-    remember {[ι := (γ, λ o : outcome2 val exn, ⌜Φ o⌝)]}%I as πp.
-    replace {[ι:=γ]} with (fst <$> πp) by (rewrite Heqπp map_fmap_singleton; reflexivity).
-    iPoseProof (wptp_adequacy k σ1 {[ι:=e]} σ2 π2 πp with "Hwps") as "Hx".
+    iIntros "Hwps".
+    iPoseProof (wptp_adequacy k σ1 σ2 π2 with "Hwps") as "Hx".
     iSpecialize ("Hx" $! Hsteps). iExact "Hx".
     apply SAT_elim_iterated in Hsat; last first.
     { intros P HsatP.
       by apply SAT_fupd, SAT_later, SAT_fupd in HsatP. }
-    intros ι' e' Hlookup.
-    eapply SAT_mono in Hsat; last first.
-    { iIntros "Hx". iSpecialize ("Hx" $! ι' e' Hlookup). iExact "Hx". }
-    apply SAT_fupd, SAT_later, SAT_fupd in Hsat.
-    eapply SAT_mono in Hsat; last first.
-    { iIntros "[Hns Ho]". iCombine "Ho Hns" as "Hx". iExact "Hx". }
-    rewrite -SAT_frame_cons in Hsat.
-    apply SAT_elim in Hsat.
-    by apply Hsat.
+    split.
+    - intros ι' e' Hlookup.
+      eapply SAT_mono in Hsat; last first.
+      { iIntros "Hx". iSpecialize ("Hx" $! ι' e' Hlookup). iExact "Hx". }
+      apply SAT_fupd, SAT_later, SAT_fupd in Hsat.
+      eapply SAT_mono in Hsat; last first.
+      { iIntros "[Hns Ho]". iCombine "Ho Hns" as "Hx". iExact "Hx". }
+      rewrite -SAT_frame_cons in Hsat.
+      apply SAT_elim in Hsat.
+      by apply Hsat.
+    - intros o Hlookup.
+      eapply SAT_mono in Hsat; last first.
+      { iIntros "Hx". iSpecialize ("Hx" $! ι (inject2 o) Hlookup). iExact "Hx". }
+      apply SAT_fupd, SAT_later, SAT_fupd in Hsat.
+      rewrite -SAT_frame_cons in Hsat.
+      eapply SAT_mono in Hsat; last first.
+      { iIntros "HΦ".
+        iSpecialize ("HΦ" $! o Hlookup). iExact "HΦ". }
+      apply SAT_fupd, SAT_pers in Hsat.
+      apply SAT_elim in Hsat.
+      by apply Hsat.
   Qed.
 
 End satisfiability_weakest_pre.
@@ -591,7 +668,8 @@ Lemma SAT_ewp_adequacy `{invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 �
   (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP e @ ⊤ <| (ι, ⊥) |> {{ λ o, ⌜Φ o⌝  }}) →
   (* then any k-step execution is safe: *)
   threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
-  (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)).
+  (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
+  (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
 Proof.
   intros Halloc Hwp Hsteps.
   pose proof (SAT_intro (Σ := Σ)) as Hsat.
@@ -641,7 +719,8 @@ Section adequacy.
     (∀ `{!osirisGS Σ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ o, ⌜Φ o⌝ }}) →
     (* then any k-step execution is safe: *)
     threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
-    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)).
+    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
+    (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
   Proof.
     intros Hwp.
     eapply SAT_ewp_adequacy with (X := osirisGS Σ) (P := λ _, bi_pure True).
@@ -658,10 +737,11 @@ Section adequacy.
 
   (* Example of an adequacy statement instantiated with a specific set of [gFunctors]. *)
 
-  Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k :
-    (∀ `{!osirisGS osirisΣ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ _, True }}) →
+  Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k Φ :
+    (∀ `{!osirisGS osirisΣ}, ⊢ EWP e @ ⊤ <|(ι, ⊥)|> {{ λ o, ⌜Φ o⌝ }}) →
     threadpool_steps k (σ1, {[ι :=e]}) (σ2, π2) →
-    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)).
+    (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
+    (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
   Proof.
     intros Hwp. eapply osiris_adequacy, Hwp. apply _.
   Qed.
