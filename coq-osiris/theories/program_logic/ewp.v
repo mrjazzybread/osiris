@@ -60,11 +60,19 @@ End discrete_fun2.
 
 (** *Basic resource algebra for Osiris *)
 
-(* The store is viewed as an authorative ghost map. *)
+(* The store is viewed as an authoritative ghost map. *)
 
 Section ghost_instances.
 
   Context (Σ : gFunctors).
+
+  (* We have to declare ghost state singletons for our global state,
+     which are documented here:
+     https://gitlab.mpi-sws.org/iris/iris/-/blob/master/docs/resource_algebras.md?ref_type=heads#advanced-topic-ghost-state-singletons
+   *)
+
+  (* The [osirisGpreS] typeclass is used for ghost-state initialisation
+     in our proof of adequacy. *)
 
   Class osirisGpreS := {
       #[global] osirisGpreS_iris :: invGpreS Σ;
@@ -73,7 +81,12 @@ Section ghost_instances.
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
     }.
 
-  Context (A X : Type).
+  (* The [osirisGS] typeclass is what we use in our proofs.
+     The "simple" ghost state is inherited from [osirisGpreS].
+
+     The other ghost-state singletons which are stated explicitly are those
+     that require an initialisation lemma in the proof of adequacy,
+     such as [gen_heap_init] for the heap and the postcondition-tracking map. *)
 
   Class osirisGS := OsirisGS
     { osiris_inG :: osirisGpreS;
@@ -83,13 +96,11 @@ Section ghost_instances.
       osiris_genGS :: gen_heapGS locations.loc step.block Σ;
       (* This gives us a ghost map for thread postconditions (stored as gnames). *)
       osiris_thread_postGS :: gen_heapGS thread gname Σ;
-      (* savedPropG is inherited from osirisGpreS via osiris_inG *)
     }.
 
 End ghost_instances.
 
-(* Provide a minimal gFunctors for invariants, the store, and threads.
-   We use savedPredΣ to handle the recursive occurrence of iProp in postconditions. *)
+(* Provide a minimal gFunctors for invariants, the store, and named postconditions for threads. *)
 Definition osirisΣ : gFunctors :=
   #[ invΣ;
      gen_heapΣ locations.loc step.block;
@@ -109,6 +120,7 @@ Notation "l ↦ v" :=
   (pointsto l (DfracOwn 1) v)
     (at level 20, format "l  ↦  v") : bi_scope.
 
+(* We declare that [cont] can be used as keys for pointstos. *)
 Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont block Σ.
 Proof. unfold cont; simpl. apply (osiris_genGS Σ). Defined.
 
@@ -157,11 +169,10 @@ Section ghost_resources.
     iFrame "Hti". iExists γ. iFrame "Hsaved". iPureIntro. done.
   Qed.
 
-
   (** Allocate a new thread in the threadpool with a given postcondition.
-      This gives us a [valid_thread] resource that witnesses the thread's postcondition.
 
-      The postcondition P is stored behind a later modality using saved predicates. *)
+      This gives us a [valid_thread] resource
+      that witnesses the thread's postcondition. *)
   Lemma thread_alloc π ι (P : outcome2 val exn -d> iPropO Σ) :
     π !! ι = None →
     osiris_thread_interp π ==∗
@@ -181,17 +192,6 @@ Section ghost_resources.
 
 End ghost_resources.
 
-(* -------------------------------------------------------------------------- *)
-
-(** *Iris instantiation *)
-(* #[global] Instance osiris_irisG `{!osirisGS Σ} : forall R E, *)
-(*     irisGS_gen HasNoLc (@osiris_lang R E) Σ := { *)
-(*     iris_invGS := osiris_invGS Σ; *)
-(*     state_interp σ _ _ _ := (osiris_state_interp σ)%I; *)
-(*     fork_post _ := True%I; *)
-(*     num_laters_per_step _ := 0; *)
-(*     state_interp_mono _ _ _ _ := fupd_intro _ _ }. *)
-
 (* ========================================================================== *)
 
 (** *Effect-aware Weakest Precondition *)
@@ -200,11 +200,12 @@ End ghost_resources.
    differently by [ewp]:
 
       Either
-      (1) a pure computation with result of type (outcome2 A E),
-      (2) a crash, or
-      (3) a perform effect that performs effect of type [C.eff] and the
-          rest of its computation.
-      (4) a computation that can take a step *)
+      (1) a terminated computation with result of type (outcome2 A E),
+      (2) a crash
+      (3) a performed effect
+      (4) a computation that can take a step
+      (5) a join
+ *)
 
 Inductive ewp_case (A E : Type) : Type :=
   WPOutcome : (outcome2 A E) → ewp_case A E
@@ -221,7 +222,7 @@ Arguments WPPerform {A E}.
 Arguments WPStep {A E}.
 Arguments WPJoin {A E}.
 
-(* Check whether a computation is a special [ewp_case]. *)
+(* Determine which [ewp_case] a given [m] is. *)
 Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   match m with
   | Ret v => WPOutcome (O2Ret v)
@@ -260,36 +261,46 @@ Section ewp.
 
   Definition current_thread (p : params) := p.1.
 
+  (* [ewp] takes four parameters:
+     - [E]: the mask i.e. set of names we may open.
+     - [m]: the ongoing computation, an element of the [micro] monad.
+     - [params]: a pair of
+                 (1) the current thread name and
+                 (2) the current protocol
+     - [φ]: the postcondition
+   *)
+
   Definition ewp_pre
     (ewp : ∀ {A X}, coPset -d> micro A X -d> params -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
     (∀ {A X}, coPset -d> micro A X -d> params -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
     λ A X E m params φ,
       (match is_ewp_case m with
-       (* [EWP1]: Pure and exceptional values *)
+       (* [EWP1]: Returned values and raised exceptions. *)
        | WPOutcome o => |={E}=> φ o
+       (* [EWP2]: Undefined and undesirable behaviour. *)
        | WPCrash => |={E}=> False
-       (* [EWP2]: Effectful case
+       (* [EWP3]: Effectful case
           The effect [e] satisfies protocol Ψ and the permitted replies
-          satisfy the [ewp] when continued with the continuation [k] with the
-          same protocol. *)
+          satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
            |={E}=> params.2 allows perform e << λ o, ▷ ewp E (k o) params φ >>
-       (* [EWP3]: Non-effectful step of computation;
-          this portion follows to the typical weakest precondition for Iris *)
+       (* [EWP4]: [m] is a computation that can take a step. *)
        | WPStep =>
            let '(ι, Ψ) := params in
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
-             (∀ σ' m' μ,
-                 ⌜thread_step (σ, m, ι, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
-                ewp E m' (ι, Ψ) φ ∗
-                match μ with
-                | None => state_interp (σ', π)
-                | Some (ι', m') => ∃ φ' γ, state_interp (σ', <[ ι' := γ ]> π) ∗
-                                           saved_pred_own γ DfracDiscarded φ' ∗
-                                           ewp E m' (ι', ⊥) ( λ o, □ φ' o)
-              end)
+             ∀ σ' m' μ,
+               ⌜thread_step (σ, m, ι, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ewp E m' (ι, Ψ) φ ∗
+               match μ with
+               | None => state_interp (σ', π)
+               | Some (ι', mforked) =>
+                   ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
+                           saved_pred_own γ DfracDiscarded φ' ∗
+                           ewp E mforked (ι', ⊥) (λ o, □ φ' o)
+               end
+       (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
