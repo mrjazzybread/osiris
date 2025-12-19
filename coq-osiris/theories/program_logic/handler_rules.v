@@ -92,23 +92,50 @@ Section handler_specifications.
   Local Definition deep_handler_spec_aux : seal (@deep_handler_spec_def).
   Proof. by eexists. Qed.
   (* Top-level definition for [deep_handler] *)
-  Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
+  Definition deep_handler_spec' := deep_handler_spec_aux.(unseal).
+  Definition deep_handler_spec E Ψ Φ h Ψ' Φ' : iProp Σ := (∀ ι, deep_handler_spec' E ι Ψ Φ h Ψ' Φ')%I.
 
-  Lemma deep_handler_spec_unfold {E} ι Ψ Φ Ψ' Φ' h :
-    deep_handler_spec E ι Ψ Φ h Ψ' Φ' ⊣⊢
-    deep_handler_spec_pre deep_handler_spec_def E ι Ψ Φ h Ψ' Φ'.
+  Lemma forall_equiv {α : Type} (f g : α → iProp Σ) :
+    (∀ x, f x ⊣⊢ g x) →
+    (∀ x, f x) ⊣⊢ (∀ x, g x).
   Proof.
-    rewrite /deep_handler_spec seal_eq /deep_handler_spec_def;
+    intros Hequiv.
+    apply bi.equiv_entails_2.
+    iIntros "Hf %x". by rewrite <- (Hequiv x).
+    iIntros "Hg %x". by rewrite (Hequiv x).
+  Qed.
+
+  Lemma deep_handler_spec_unfold {E} Ψ Φ Ψ' Φ' h :
+    deep_handler_spec E Ψ Φ h Ψ' Φ' ⊣⊢
+    (∀ ι, deep_handler_spec_pre deep_handler_spec_def E ι Ψ Φ h Ψ' Φ').
+  Proof.
+    rewrite /deep_handler_spec /deep_handler_spec' seal_eq /deep_handler_spec_def.
+    apply forall_equiv. intros ι.
     apply (@fixpoint_unfold _ _ _ deep_handler_spec_pre).
   Qed.
 
-  Lemma deep_handler_spec_mono E ι Ψ φ h ψ' φ1 φ2 :
+  Lemma deep_handler_spec_def_unfold {E} ι Ψ Φ Ψ' Φ' h :
+    deep_handler_spec_def E ι Ψ Φ h Ψ' Φ' ≡
+    ((∀ o, Φ o -∗ ▷ EWP[ι] (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+
+      (* [Effect] branch (one-shot) *)
+      (∀ v k, Ψ allows perform v
+          << fun o : outcome2 val exn => ∀ Ψ'' Φ'',
+            ▷ deep_handler_spec_def E ι Ψ Φ h Ψ'' Φ'' -∗
+            EWP[ι] (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+        ▷ EWP[ι] (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
+  Proof.
+    rewrite /deep_handler_spec_def.
+    apply (fixpoint_unfold deep_handler_spec_pre).
+  Qed.
+
+  Lemma deep_handler_spec_mono E Ψ φ h ψ' φ1 φ2 :
     (∀ o, φ1 o -∗ φ2 o) -∗
-    deep_handler_spec E ι Ψ φ h ψ' φ1 -∗
-    deep_handler_spec E ι Ψ φ h ψ' φ2.
+    deep_handler_spec E Ψ φ h ψ' φ1 -∗
+    deep_handler_spec E Ψ φ h ψ' φ2.
   Proof.
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre.
-    iIntros "Hcov Hhandler".
+    iIntros "Hcov Hhandler %ι". iSpecialize ("Hhandler" $! ι).
     iSplit.
     { iIntros (o) "Hφ".
       iDestruct "Hhandler" as "[Hhandler _]".
@@ -153,21 +180,25 @@ Section handler_proof.
   Qed.
 
   (* Specification of [deep_handler] at the [expr] level. *)
-  Lemma ewp_deep_handler E ι Ψ Φ Ψ' Φ' η e bs:
-    EWP[ι] (eval η e) @ E <| Ψ |> {{ Φ }} -∗
+  Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
+    EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E ι Ψ Φ (λ o, eval_branches η o bs) Ψ' Φ' -∗
-    EWP[ι] (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
+    deep_handler_spec E Ψ Φ (λ o, eval_branches η o bs) Ψ' Φ' -∗
+    EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
     rewrite /deep_handler; remember (eval η e); clear.
 
+    iIntros "Hwp Hdh %ι". iSpecialize ("Hwp" $! ι).
+
+    deep_handler_spec_unfold.
+    iSpecialize ("Hdh" $! ι).
     (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
     iLöb as "IH" forall (m η bs Ψ' Φ' E).
 
     (* Expand the definition of [EWP] to inspect the possible steps that
         can result from [deep_handler η e bs]. *)
-    iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
     rename π into π'.
@@ -177,14 +208,12 @@ Section handler_proof.
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       simpl_wrap_eval_branches;
       ewp_invert; iFrame;
-      deep_handler_spec_unfold;
-      iDestruct "Hsh" as "[Hsh _]";
-      iSpecialize ("Hsh" with "HΦ");
-      iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
+      iDestruct "Hdh" as "[Hdh _]";
+      iSpecialize ("Hdh" with "HΦ");
+      iMod "Hdh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
 
     { (* [StepHandlePerform] *)
-      deep_handler_spec_unfold.
-      iDestruct "Hsh" as "[_ Hsh]".
+      iDestruct "Hdh" as "[_ Hdh]".
 
       (* [Perform e] satisfies the protocol specification *)
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
@@ -200,36 +229,28 @@ Section handler_proof.
       ewp_mask_elim.
       iApply ewpi_wrap_deep.
       iIntros (?) "Hl".
-      iSpecialize ("Hsh" $! e l').
+      iSpecialize ("Hdh" $! e l').
 
-      iSpecialize ("Hsh" with "[HP HH Hl]").
-      { rewrite /prot.
-        iApply (monotonic_prot with "[HH Hl] HP").
+      iSpecialize ("Hdh" with "[HP HH Hl]").
+      { iApply (monotonic_prot with "[HH Hl] HP").
         iIntros (?) "Hk"; iIntros (??) "H".
-        rewrite /deep_handler_spec seal_eq.
 
         iPoseProof (ewpi_resume ι E l' w (λ o : outcome2 val exn,
                           Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) inject2 Φ'' Ψ'' with "Hl") as "Hl".
-        unfold cont; simpl.
-        iApply "Hl".
+        simpl.
+        iApply "Hl". iIntros "Hshot !>".
+        rewrite deep_handler_spec_def_unfold.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
-        iIntros "H".
-        iNext.
         replace
-          (@Handle val exn
-          (@stop (prod loc (outcome2 val exn)) val exn CResume
-             (@pair C.continuation (outcome2 val exn) l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-           @try2 val val exn exn (wrap_eval_branches η bs o) (@inject2 val exn)))
+          (Handle (stop CResume (l, w)) (pftry2 (wrap_eval_branches η bs) inject2))
           with
-          ((Handle (stop CResume (pair l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-             wrap_eval_branches η bs o))).
-        by simpl_wrap_eval_branches.
-        f_equal. extensionality o. rewrite try2_inject2_right. done. }
-
-      done. }
+          (Handle (stop CResume (l, w)) (wrap_eval_branches η bs));
+          last first.
+        { f_equal. extensionality o. by rewrite try2_inject2_right. }
+        simpl_wrap_eval_branches.
+        iApply "Hhandle". }
+      iApply "Hdh". }
 
     { (* [StepHandleFork] *)
       ewp_mask_intro "Hmod".
@@ -239,22 +260,22 @@ Section handler_proof.
       intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_thread_step.
       epose proof (ForkS _ _ _ _ _ _ _ H) as Hstep0.
-      iSpecialize ("He" $! _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "(He & $)".
+      iSpecialize ("Hwp" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
       iModIntro. rewrite /continue.
-      iApply ("IH" with "He Hsh"). }
+      iApply ("IH" with "Hwp Hdh"). }
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
       rewrite ewp_unfold /ewp_pre /=.
       ewp_unfold_head.
-      intro_state. spec_state. iMod "He".
+      intro_state. spec_state. iMod "Hwp".
       destruct (π !! ι0); last done.
-      iDestruct "He" as "(%φ' & $ & He)".
-      iIntros "!> !> %o Ho". iSpecialize ("He" with "Ho").
-      ewp_mask_elim. iMod "He" as "(He & $)".
+      iDestruct "Hwp" as "(%φ' & $ & Hwp)".
+      iIntros "!> !> %o Ho". iSpecialize ("Hwp" with "Ho").
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
       iModIntro. rewrite /continue.
-      iApply ("IH" with "He Hsh"). }
+      iApply ("IH" with "Hwp Hdh"). }
 
     { (* [StepHandleSelf] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
@@ -263,10 +284,10 @@ Section handler_proof.
       intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_thread_step.
       epose proof (SelfS _ _ _ _ _) as Hstep0.
-      iSpecialize ("He" $! _ _ _ Hstep0).
-      ewp_mask_elim. iMod "He" as "(He & $)".
+      iSpecialize ("Hwp" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
       iModIntro. rewrite /continue.
-      iApply ("IH" with "He Hsh"). }
+      iApply ("IH" with "Hwp Hdh"). }
 
     { (* [StepHandleCrash] *)
       by ewp_invert. }
@@ -274,10 +295,9 @@ Section handler_proof.
     { (* [StepHandleLeft] *)
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
-      iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi He") as ">H".
-      iMod "H". ewp_mask_elim. iMod "H" as "(H & $)". iModIntro.
-      iSpecialize ("IH" with "H").
-      iApply ("IH" with "Hsh"). }
+      iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi Hwp") as ">Hwp".
+      iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "(Hwp & $)". iModIntro.
+      iApply ("IH" with "Hwp Hdh"). }
   Qed.
 
   Lemma deep_handle_nil_ret η v E ψ Φ :
