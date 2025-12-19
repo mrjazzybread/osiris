@@ -31,6 +31,13 @@ Section ewp_basic_rules.
 
   Implicit Type m : micro A X.
 
+  Lemma ewpi_ewp ι E m Ψ Φ :
+    EWP m @ E <|Ψ|> {{ Φ }} ⊢
+    EWP[ι] m @ E <|Ψ|> {{ Φ }}.
+  Proof.
+    refine (bi.forall_elim ι).
+  Qed.
+
   (* Values *)
   Lemma ewp_ret E Ψ Φ v :
     Φ (O2Ret v) -∗ EWP (ret v : micro A X) @ E <|Ψ|> {{ Φ }}.
@@ -389,7 +396,7 @@ End ewp_basic_rules.
 (* Invert cases where there are premises of the form
           [EWP (ret _) _] [EWP crash _] or [EWP (throw _) _] *)
 
-Local Ltac ewp_invert :=
+Ltac ewp_invert :=
   lazymatch goal with
   (* EWP throw *)
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ _ (throw _) _ _)] =>
@@ -623,13 +630,13 @@ Section wp_handler_rules.
   Qed.
 
   (* Inversion for [Handle] *)
-  Lemma ewp_handle_inv {B Y} E k l w (c : _ -> micro B Y) Ψ Φ:
+  Lemma ewp_handle_inv {B Y} ι E k l w (c : _ -> micro B Y) Ψ Φ:
     isCont l k -∗
-    EWP Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
-    EWP Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
+    EWP[ι] Handle (k w) c @ E <| Ψ |> {{ Φ }} -∗
+    EWP[ι] Handle (stop CResume (l, w)) c @ E <| Ψ |> {{ Φ }}.
   Proof.
     destruct Ψ.
-    iIntros "Hl H %ι".
+    iIntros "Hl H".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 

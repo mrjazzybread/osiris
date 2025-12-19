@@ -60,7 +60,7 @@ Section ewp_binding_rules.
   Lemma ewp_eval_bindings_nil η E Ψ :
     ⊢ EWP eval_bindings η [] @ E <|Ψ|> {{ RET= [] }}.
   Proof.
-    simpl_eval_bindings; by iApply ewp_value.
+    simpl_eval_bindings; by iApply ewp_ret.
   Qed.
 
   Corollary ewp_eval_bindings_singleton_total {η p e} Φ φ φs E Ψ :
@@ -87,8 +87,8 @@ Section ewp_binding_rules.
   Proof.
     iIntros "H1 H2 E1 E2 P /=". simpl_eval_bindings.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
-    - iIntros (v) "H". Throw. iApply ("E1" with "H").
-    - iIntros (v) "H". Throw. iApply ("E2" with "H").
+    - iIntros (v) "H". iApply ewp_throw. iApply ("E1" with "H").
+    - iIntros (v) "H". iApply ewp_throw. iApply ("E2" with "H").
     - iIntros (v δ) "H1 H2". iApply ("P" $! v δ with "[$]").
   Qed.
 
@@ -111,7 +111,7 @@ Section ewp_rules_expr.
     iApply ewp_try.
     iApply (ewp_mono with "H").
     iIntros ([|[]]) "A/=".
-    by iApply ewp_value.
+    by iApply ewp_ret.
   Qed.
 
   (** * EAnonFun : anonfun → expr *)
@@ -121,7 +121,7 @@ Section ewp_rules_expr.
     EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ ensures v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ ensures v, φ v}} }}.
   Proof.
     iIntros "H". simpl_eval.
-    iApply ewp_value. simpl.
+    iApply ewp_ret. simpl.
     iIntros (vx) "HP".
     iApply ewp_please. iModIntro.
     by iApply "H".
@@ -132,7 +132,7 @@ Section ewp_rules_expr.
     EWP eval η (EAnonFun (AnonFun x e)) @ E <| Ψ |> {{ ensures v, ∀ (vx : A), P vx -∗ EWP (call v #vx) @ E <| Ψ |> {{ ensures #v, φ v}} }}.
   Proof.
     iIntros "H". simpl_eval.
-    iApply ewp_value. simpl.
+    iApply ewp_ret. simpl.
     iIntros (vx) "HP".
     iApply ewp_please. iModIntro.
     by iApply "H".
@@ -194,7 +194,7 @@ Section ewp_rules_expr.
     iIntros "H".
     iApply ewp_eval. iNext.
     iApply (ewp_mono with "H").
-    iIntros ([]). iApply ewp_value. iApply ewp_throw.
+    iIntros ([]). iApply ewp_ret. iApply ewp_throw.
   Qed.
 
   Lemma ewp_call_rec η f x body bs v φ E Ψ:
@@ -205,7 +205,7 @@ Section ewp_rules_expr.
     iIntros (Hlk) "H /=". rewrite Hlk /=.
     iApply ewp_eval. iNext.
     iApply (ewp_mono with "H").
-    iIntros ([]). iApply ewp_value. iApply ewp_throw.
+    iIntros ([]). iApply ewp_ret. iApply ewp_throw.
   Qed.
 
   Lemma ewp_call_rec_1 η f x body v φ E Ψ:
@@ -228,14 +228,14 @@ Section ewp_rules_expr.
   Proof.
     iIntros "Hφ".
     iInduction es as [ | ei es ] "IH" forall (φs) "Hφ"; simpl_evals.
-    - by iApply ewp_value.
+    - by iApply ewp_ret.
     - iDestruct (big_sepL2_cons_inv_l with "Hφ")
         as (φi φs') "(-> & Hi & H) /=".
       iApply (ewp_Par with "Hi [H]").
       + iApply ("IH" with "H").
       + iIntros (e) "H /=". by iApply ewp_throw.
       + iIntros (e) "H /=". by iApply ewp_throw.
-      + iIntros (v1 vs) "H1 H". iApply ewp_value. iFrame.
+      + iIntros (v1 vs) "H1 H". iApply ewp_ret. iFrame.
   Qed.
 
   Lemma ewp_ETuple_forward_exn η es φs φe E Ψ :
@@ -248,15 +248,15 @@ Section ewp_rules_expr.
     iApply ewp_bind_exn.
     iApply (ewp_mono _ _ (  RET vs => [∗ list] vi; φi ∈ vs; φs, φi vi
                           | EXN v => φe v) with "[-]")%I.
-    2: by iIntros ([]) "A/="; auto; iApply ewp_value; simpl; iExists _; auto.
+    2: by iIntros ([]) "A/="; auto; iApply ewp_ret; simpl; iExists _; auto.
     iInduction es as [ | ei es ] "IH" forall (φs) "H"; simpl_evals.
-    - by iApply ewp_value.
+    - by iApply ewp_ret.
     - iDestruct (big_sepL2_cons_inv_l with "H") as (φi φs') "(-> & Hi & H) /=".
       iApply (ewp_Par with "Hi [H]").
       + iApply ("IH" with "H").
       + iIntros (e) "H /=". by iApply ewp_throw.
       + iIntros (e) "H /=". by iApply ewp_throw.
-      + iIntros (v1 vs) "H1 H". iApply ewp_value. iFrame.
+      + iIntros (v1 vs) "H1 H". iApply ewp_ret. iFrame.
   Qed.
 
   Lemma ewp_ETuple_forward η es φs E Ψ :
@@ -289,7 +289,7 @@ Section ewp_rules_expr.
       iIntros ([v|e]); auto.
     - iIntros ([v|e]); last auto.
       simpl. iIntros "H".
-      iApply ewp_value.
+      iApply ewp_ret.
       iApply "P".
       by rewrite big_sepL2_fmap_r.
   Qed.
@@ -329,13 +329,13 @@ Section ewp_rules_expr.
     φ (O2Ret VUnit) -∗
     EWP eval η EUnit @ E <|Ψ|> {{ φ }}.
   Proof.
-    simpl_eval; iApply ewp_value.
+    simpl_eval; iApply ewp_ret.
   Qed.
 
   Lemma ewp_EUnit_forward η E Ψ :
     ⊢ EWP eval η EUnit @ E <|Ψ|> {{ RET= #() }}.
   Proof.
-    simpl_eval; by iApply ewp_value.
+    simpl_eval; by iApply ewp_ret.
   Qed.
 
   Lemma ewp_EPair_exn η e1 e2 (φ1 φ2 φ : outcome2 val exn -> _) E Ψ :
@@ -429,7 +429,7 @@ Section ewp_rules_expr.
       iIntros ([v|e]); auto.
     - iIntros ([v|e]); last auto.
       simpl. iIntros "H".
-      iApply ewp_value.
+      iApply ewp_ret.
       iApply "P".
       by rewrite big_sepL2_fmap_r.
   Qed.
@@ -445,7 +445,7 @@ Section ewp_rules_expr.
     { simpl_eval; reflexivity. }
     iApply (ewp_mono with "[Hes]"); first by iApply ewp_evals.
     iIntros (args) "Hargs". destruct args; try done.
-    iApply ewp_value.
+    iApply ewp_ret.
     iApply ("Hmon" with "Hargs").
   Qed.
 
@@ -454,7 +454,7 @@ Section ewp_rules_expr.
     φ (O2Ret (VConstant c)) -∗
     EWP eval η (EConstant c) @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H". simpl_eval. by iApply ewp_value.
+    iIntros "H". simpl_eval. by iApply ewp_ret.
   Qed.
 
   (** * EXData : data → expr → expr *)
@@ -470,7 +470,7 @@ Section ewp_rules_expr.
     iApply ewp_bind_exn.
     iApply (ewp_mono with "He").
     iIntros ([|]) "Hφ".
-    - iApply ewp_value. by iApply "Hret".
+    - iApply ewp_ret. by iApply "Hret".
     - by iApply "Hexn".
   Qed.
 
@@ -487,7 +487,7 @@ Section ewp_rules_expr.
     {  simpl_eval; reflexivity. }
     iApply (ewp_mono with "[He]"); first by iApply ewp_evals.
     iIntros (args) "Hargs". destruct args; try done.
-    iApply ewp_value.
+    iApply ewp_ret.
     by iApply "Hmon".
   Qed.
 
@@ -502,14 +502,14 @@ Section ewp_rules_expr.
   Lemma ewp_EInt_forward η i E Ψ :
     ⊢ EWP eval η (EInt i) @ E <|Ψ|> {{ RET= #i }}.
   Proof.
-    simpl_eval; by iApply ewp_value.
+    simpl_eval; by iApply ewp_ret.
   Qed.
 
   Lemma ewp_EInt η i φ E Ψ :
     φ (O2Ret #i) -∗
     EWP eval η (EInt i) @ E <|Ψ|> {{ φ }}.
   Proof.
-    simpl_eval; by iApply ewp_value.
+    simpl_eval; by iApply ewp_ret.
   Qed.
 
   (** * EMaxInt : expr *)
@@ -529,7 +529,7 @@ Section ewp_rules_expr.
     iApply (ewp_Par with "H1 H2 [E1] [E2]").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E1" with "H").
     - iIntros (v) "H /=". iApply ewp_throw. iApply ("E2" with "H").
-    - iIntros (n1 n2) "H1 H2". iApply ewp_bind. iApply ewp_value. iApply ewp_value.
+    - iIntros (n1 n2) "H1 H2". iApply ewp_bind. iApply ewp_ret. iApply ewp_ret.
       iApply "P". iFrame.
   Qed.
 
@@ -555,10 +555,10 @@ Section ewp_rules_expr.
     iApply (ewp_EIntAdd _ _ _ φ1' φ2' with "[H1] [H2]"); auto.
     - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
       iIntros (v) "H". iDestruct "H" as (?) "(-> & H)".
-      iApply ewp_value. iExists _. by iFrame.
+      iApply ewp_ret. iExists _. by iFrame.
     - iApply ewp_bind. iApply (ewp_mono_ret with "H2").
       iIntros (v) "H". iDestruct "H" as (?) "(-> & H)".
-      iApply ewp_value. iExists _. by iFrame.
+      iApply ewp_ret. iExists _. by iFrame.
     - iIntros (i1 i2) "(H1 & H2)".
       iDestruct "H1" as (n1 ->) "H1".
       iDestruct "H2" as (n2 ->) "H2".
@@ -577,9 +577,9 @@ Section ewp_rules_expr.
               (λ r, ⌜r = repr n1⌝ ∗ R1)
               (λ r, ⌜r = repr n2⌝ ∗ R2) with "[H1] [H2]")%I.
     - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
-      iIntros (?) "(-> & H)". iApply ewp_value. simpl. auto.
+      iIntros (?) "(-> & H)". iApply ewp_ret. simpl. auto.
     - iApply ewp_bind. iApply (ewp_mono_ret with "H2").
-      iIntros (?) "(-> & H)". iApply ewp_value. simpl. auto.
+      iIntros (?) "(-> & H)". iApply ewp_ret. simpl. auto.
     - iIntros (? ?) "((-> & $) & (-> & $))". iPureIntro.
       rewrite M.add_repr_repr //.
   Qed.
@@ -619,7 +619,7 @@ Section ewp_rules_expr.
       iSpecialize ("P" with "[$]").
       iApply (ewp_mono with "P").
       iIntros ([b|v]) "H /=//".
-      by iApply ewp_value.
+      by iApply ewp_ret.
   Qed.
 
   Lemma ewp_EOpEq η e1 e2 (φ1 φ2 : val -> iProp Σ)
@@ -649,7 +649,7 @@ Section ewp_rules_expr.
     - iApply (ewp_mono_ret with "H1"). iIntros (?) "(-> & $) //".
     - iApply (ewp_mono_ret with "H2"). iIntros (?) "(-> & $) //".
     - iIntros (? ?) "((-> & H1) & (-> & H2))".
-      iApply ewp_value. iFrame. iPureIntro. auto.
+      iApply ewp_ret. iFrame. iPureIntro. auto.
       rewrite eq_repr_repr //.
   Qed.
 
@@ -857,7 +857,7 @@ Section ewp_rules_expr.
     iDestruct ("P" with "H") as "[(-> & H) | (-> & H)] /=";
       try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
       try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply ewp_value; auto.
+      repeat iApply ewp_ret; auto.
   Qed.
 
   Lemma ewp_EIfThen_exn η eb e1 φb φ E Ψ :
@@ -876,7 +876,7 @@ Section ewp_rules_expr.
     iDestruct ("P" with "H") as ([]) "(-> & H) /=";
       try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
       try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply ewp_value; auto.
+      repeat iApply ewp_ret; auto.
   Qed.
 
   Lemma ewp_EIfThen η eb e1 φ E Ψ :
@@ -908,7 +908,7 @@ Section ewp_rules_expr.
     iDestruct ("P" with "H") as "[(-> & H) | (-> & H)] /=";
       try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
       try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply ewp_value; auto.
+      repeat iApply ewp_ret; auto.
   Qed.
 
   Lemma ewp_EIfThenElse_exn η eb e1 e2 φb φ E Ψ :
@@ -927,7 +927,7 @@ Section ewp_rules_expr.
     iDestruct ("P" with "H") as ([]) "(-> & H) /=";
       try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
       try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply ewp_value; auto.
+      repeat iApply ewp_ret; auto.
   Qed.
 
   Lemma ewp_EIfThenElse η eb e1 e2 φ E Ψ :
@@ -981,7 +981,7 @@ Section ewp_rules_expr.
     iIntros "H /=". simpl_eval.
     iApply ewp_choose.
     iNext. iSplit.
-    - iApply ewp_value. iApply (bi.and_elim_l with "H").
+    - iApply ewp_ret. iApply (bi.and_elim_l with "H").
     - iPoseProof (bi.and_elim_r with "H") as "(H & E & P)".
       iApply ewp_bind_exn.
       iApply ewp_bind_exn.
@@ -989,7 +989,7 @@ Section ewp_rules_expr.
       iIntros ([v|v]) "H /=".
       * iDestruct ("P" with "H") as "(-> & H)".
         assert (val_as_bool VTrue = ret true) as -> by reflexivity.
-        repeat iApply ewp_value.
+        repeat iApply ewp_ret.
         iApply "H".
       * iApply ("E" with "H").
   Qed.
@@ -1003,7 +1003,7 @@ Section ewp_rules_expr.
   Proof.
     iIntros "(R & H & He & P) /=". simpl_eval.
     iApply ewp_choose.
-    iNext. iSplit. by iApply ewp_value.
+    iNext. iSplit. by iApply ewp_ret.
     iSpecialize ("H" with "R").
     iApply ewp_bind_exn.
     iApply ewp_bind_exn.
@@ -1011,7 +1011,7 @@ Section ewp_rules_expr.
     iIntros ([v|v]) "H /=".
     - iDestruct ("P" with "H") as "(-> & H)".
         assert (val_as_bool VTrue = ret true) as -> by reflexivity.
-        by repeat iApply ewp_value.
+        by repeat iApply ewp_ret.
     - iApply ("He" with "H").
   Qed.
 
@@ -1050,8 +1050,8 @@ Section ewp_rules_expr.
     iIntros ([v|v]) "H".
     - iApply ewp_alloc. iNext. iIntros (l) "Hl".
       iApply ewp_bind.
-      iApply ewp_value.
-      iApply ewp_value.
+      iApply ewp_ret.
+      iApply ewp_ret.
       iApply ("P" with "H"). auto.
     - iApply ("E" with "H").
   Qed.
@@ -1093,7 +1093,7 @@ Section ewp_rules_expr.
     - iSpecialize ("P" with "H1").
       iDestruct "P" as (q v) "(Hl & P)".
       iApply (ewp_load with "Hl"). iNext. iIntros "Hl".
-      iApply ewp_value.
+      iApply ewp_ret.
       iApply ("P" with "Hl").
     - iApply ("E" with "H1").
   Qed.
@@ -1113,7 +1113,7 @@ Section ewp_rules_expr.
   Proof.
     iIntros "H Hl". iApply (ewp_ELoad _ _ (λ l1, ⌜l = l1⌝%I) with "[H]").
     - iApply ewp_bind. iApply (ewp_mono_ret with "H").
-      by iIntros (?) "(-> & ?)"; iApply ewp_value.
+      by iIntros (?) "(-> & ?)"; iApply ewp_ret.
     - iIntros (? ->). iExists _, _; iFrame. auto.
   Qed.
 
@@ -1136,7 +1136,7 @@ Section ewp_rules_expr.
       iSpecialize ("P" $! l1 v2 with "[$]").
       iDestruct "P" as (v1) "(Hl1 & P)".
       iApply (ewp_store with "Hl1"). iNext; iIntros "Hl1".
-      iApply ewp_value.
+      iApply ewp_ret.
       iApply ("P" with "Hl1").
   Qed.
 
@@ -1162,7 +1162,7 @@ Section ewp_rules_expr.
     iIntros "H1 H2".
     iApply (ewp_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
     - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
-      by iIntros (?) "(-> & ?)"; iApply ewp_value.
+      by iIntros (?) "(-> & ?)"; iApply ewp_ret.
     - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.
   Qed.
 
@@ -1195,7 +1195,7 @@ Section ewp_rules_expr.
       iApply (ewp_mono with "Hk").
       iIntros ([|]); last done.
       iIntros "(%v & -> & Hφ1)".
-      iApply ewp_value. instantiate (1 := (λ o, match o with O2Ret v => φ1 v | O2Throw _ => False end)%I).
+      iApply ewp_ret. instantiate (1 := (λ o, match o with O2Ret v => φ1 v | O2Throw _ => False end)%I).
       iApply "Hφ1". }
     1-2: simpl; iIntros; try done.
     simpl; iIntros (k v) "Hφ1 Hφ2".
@@ -1222,11 +1222,11 @@ Section ewp_rules_expr.
     by rewrite try2_inject2_right.
   Qed.
 
-  Lemma ewp_EFork' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+  Lemma ewp_EFork_call φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     ▷ (∀ ι v1 v2, valid_thread ι φ -∗ φ1 v1 -∗ φ2 v2 -∗
-                  EWP call v1 v2 @ E <| (ι, ⊥) |> {{ λ o, □ φ o }}) -∗
+                  EWP[ι] call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
     EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
@@ -1245,15 +1245,49 @@ Section ewp_rules_expr.
   Lemma ewp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
     EWP eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
-    ▷ (∀ ι v m, valid_thread ι φ -∗ φ2 v -∗ P v m -∗ EWP m @ E <| (ι, ⊥) |> {{ λ o, □ φ o }}) -∗
+    ▷ (∀ ι v m, valid_thread ι φ -∗ φ2 v -∗ P v m -∗ EWP[ι] m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
     EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
-    iApply (ewp_EFork' with "H1 H2").
+    iApply (ewp_EFork_call with "H1 H2").
     iIntros "!>" (ι f v2) "#Hvalid HSpec (%v & -> & H2)".
     rewrite iSpec_equation_1.
     iSpecialize ("HSpec" $! v).
     iApply ("Hcall" $! ι v (call f #v) with "Hvalid H2 HSpec").
+  Qed.
+
+  Lemma ewp_EFork_call' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+    EWP eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
+    ▷ (∀ v1 v2, φ1 v1 -∗ φ2 v2 -∗
+                  EWP call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
+  Proof.
+    iIntros "H1 H2 Hcall".
+    simpl_eval.
+    iApply (ewp_Par with "H1 H2").
+    { iIntros (e) "[]". }
+    { iIntros (e) "[]". }
+    iIntros (v1 v2) "H1 H2"; simpl.
+    iApply ewp_fork.
+    iIntros "!>" (ι) "#Hvalid".
+    iSplitR ""; [ | ].
+    iApply ("Hcall" with "H1 H2").
+    iExists _; iFrame "#"; iPureIntro; reflexivity.
+  Qed.
+
+  Lemma ewp_EFork' `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
+    EWP eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
+    ▷ (∀ v m, φ2 v -∗ P v m -∗ EWP m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
+    EWP eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
+  Proof.
+    iIntros "H1 H2 Hcall".
+    iApply (ewp_EFork_call' with "H1 H2").
+    iIntros "!>" (f v2) "HSpec (%v & -> & H2)".
+    rewrite iSpec_equation_1.
+    iSpecialize ("HSpec" $! v).
+    iApply ("Hcall" $! v (call f #v) with "H2 HSpec").
   Qed.
 
   Lemma ewp_EJoin e η E Ψ φ Φ :
@@ -1267,7 +1301,7 @@ Section ewp_rules_expr.
     iApply (ewp_mono with "Hid").
     iIntros ([ ι' |]); [ iIntros "Hvalid" | iIntros "[]" ].
     iDestruct "Hvalid" as "(% & -> & Hvalid)".
-    iApply ewp_value.
+    iApply ewp_ret.
     iApply (ewp_join with "Hvalid Hjoined").
   Qed.
 

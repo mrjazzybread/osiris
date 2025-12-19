@@ -179,22 +179,6 @@ Ltac Auto :=
   autorewrite with osiris;
   auto with osiris.
 
-(* [EWP normal form]
-    An assertion that checks whether the current goal is in normal form, i.e.
-    of the form ewp [..] *)
-(* Turn expression to normal form; (i.e. apply monadic unit/associativity
-  properties) *)
-Ltac Normalize :=
-  (* Normalize monadic [bind] and [ret] *)
-  cbn [bind];
-  repeat
-  match goal with
-  | |- envs_entails _ (ewp_def _ (Par _ _ _ _) _ _) => Par
-  | |- envs_entails _ (ewp_def _ (bind _ _) _ _) => Bind
-  | |- envs_entails _ (ewp_def _ (ret _) _ _) => Ret
-  end;
-  Auto.
-
 (* -------------------------------------------------------------------------- *)
 (* If the branch guard in [if _ then _ else _] can be resolved, we can decide
    which branch to take. *)

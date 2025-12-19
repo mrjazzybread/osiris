@@ -73,7 +73,7 @@ Section ewp_spec.
   | Tbase X, c, P :=
       ∀ (x : X), P x (call c #x)
   | type_nel.Tcons X τ', c, P :=
-      ∀ (x : X), EWP (call c #x) <|({|id := 0|}, ⊥)|> {{ ensures c, iSpec τ' c (P x) }}.
+      ∀ (x : X), EWP (call c #x) <|⊥|> {{ ensures c, iSpec τ' c (P x) }}.
 
   Local Lemma ewp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
@@ -82,7 +82,7 @@ Section ewp_spec.
     EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
-    iApply ewp_value.
+    iApply ewp_ret.
     iApply "HP".
   Qed.
 
@@ -93,7 +93,7 @@ Section ewp_spec.
     EWP (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <| Ψ |> {{ ensures c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
-    iApply ewp_value. simpl; simp iSpec.
+    iApply ewp_ret. simpl; simp iSpec.
     iIntros (vx). simpl.
     iApply ewp_please. iNext.
     iApply ewp_eval_anon_unary.
@@ -171,7 +171,7 @@ Section ewp_spec.
     iSpecialize ("HP" $! vx).
     iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
     simpl. iApply ewp_please. iNext. simpl_eval.
-    iApply ewp_value.
+    iApply ewp_ret.
     simpl.
     iApply ("IH" with "HP").
   Qed.
@@ -188,7 +188,7 @@ Section ewp_spec.
     EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, iSpec τ c P }}.
   Proof.
     iIntros "HP".
-    simpl_eval; iApply ewp_value; simpl.
+    simpl_eval; iApply ewp_ret; simpl.
     by iApply prove_iSpec.
   Qed.
 
