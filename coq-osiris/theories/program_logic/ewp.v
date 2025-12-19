@@ -257,23 +257,18 @@ Section ewp.
 
   Context `{!osirisGS Σ}.
 
-  Definition params : Type := thread * iEff Σ.
-
-  Definition current_thread (p : params) := p.1.
-
   (* [ewp] takes four parameters:
+     - [ι]: the identifier of the current thread
      - [E]: the mask i.e. set of names we may open.
      - [m]: the ongoing computation, an element of the [micro] monad.
-     - [params]: a pair of
-                 (1) the current thread name and
-                 (2) the current protocol
+     - [Ψ]: the current protocol (in the sense of Hazel)
      - [φ]: the postcondition
    *)
 
   Definition ewp_pre
-    (ewp : ∀ {A X}, coPset -d> micro A X -d> params -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    (∀ {A X}, coPset -d> micro A X -d> params -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
-    λ A X E m params φ,
+    (ewp : ∀ {A X}, thread -d> coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
+    (∀ {A X}, thread -d> coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X ι E m Ψ φ,
       (match is_ewp_case m with
        (* [EWP1]: Returned values and raised exceptions. *)
        | WPOutcome o => |={E}=> φ o
@@ -283,22 +278,21 @@ Section ewp.
           The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
-           |={E}=> params.2 allows perform e << λ o, ▷ ewp E (k o) params φ >>
+           |={E}=> Ψ allows perform e << λ o, ▷ ewp ι E (k o) Ψ φ >>
        (* [EWP4]: [m] is a computation that can take a step. *)
        | WPStep =>
-           let '(ι, Ψ) := params in
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
                ⌜thread_step (σ, m, ι, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
-               ewp E m' (ι, Ψ) φ ∗
+               ewp ι E m' Ψ φ ∗
                match μ with
                | None => state_interp (σ', π)
                | Some (ι', mforked) =>
                    ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
-                           ewp E mforked (ι', ⊥) (λ o, □ φ' o)
+                           ewp ι' E mforked ⊥ (λ o, □ φ' o)
                end
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
@@ -309,20 +303,20 @@ Section ewp.
              | Some γ =>
                  ∃ φ', saved_pred_own γ DfracDiscarded φ' ∗
                        ▷ (∀ o, □ φ' o ={∅}=∗ |={∅,E}=>
-                          ewp E (k o) params φ ∗ state_interp (σ, π))
+                          ewp ι E (k o) Ψ φ ∗ state_interp (σ, π))
              end
        end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
   Proof.
-    rewrite /ewp_pre /= => n ewp ewp' Hwp A X E m [ι Ψ] φ.
+    rewrite /ewp_pre /= => n ewp ewp' Hwp A X ι E m Ψ φ.
     f_equiv.
     - do 2 f_equiv. intro P. f_contractive. apply Hwp.
     - repeat (f_contractive || f_equiv || apply Hwp).
     - repeat (f_contractive || f_equiv || apply Hwp).
   Qed.
 
-  Definition ewp_def : ∀ A X, coPset -> micro A X -d> params -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+  Definition ewp_def : ∀ A X, thread -> coPset -> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     @fixpoint _ discrete_fun2_cofe _ ewp_pre ewp_pre_contractive.
 
   Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
@@ -337,8 +331,14 @@ End ewp.
 
 (** Notation. *)
 
+Notation "'EWP[' ι ] e @ E <| Ψ '|' '>' {{ Φ } }" :=
+  (ewp_def ι E e%E Ψ Φ)
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[' 'EWP[' ι ]  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
 Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
-  (ewp_def E e%E Ψ Φ)
+  (bi_forall (fun ι => ewp_def ι E e%E Ψ Φ))
     (at level 20, e, Ψ, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
     : bi_scope.
@@ -349,15 +349,15 @@ Section ewp_properties.
 
 Context {A X P : Type}.
 Context `{osirisGS Σ}.
-Implicit Type P : iEff Σ.
+Implicit Type Ψ : iEff Σ.
 Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : val.
 Implicit Type m : micro A X.
 
 Notation wp := (wp (PROP:=iProp Σ)).
 
-Lemma ewp_unfold {E} (m : micro A X) ιΨ {φ} :
-  ewp_def E m ιΨ φ ⊣⊢ ewp_pre (@ewp_def Σ _) E m ιΨ φ.
+Lemma ewp_unfold {ι} {E} {Ψ} {φ} (m : micro A X)  :
+  ewp_def ι E m Ψ φ ⊣⊢ ewp_pre (@ewp_def Σ _) ι E m Ψ φ.
 Proof.
   rewrite {1}/ewp_def.
   apply (@fixpoint_unfold _ discrete_fun2_cofe _ ewp_pre).
@@ -366,10 +366,10 @@ Qed.
 Local Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
-Global Instance ewp_ne E m n ιΨ :
-  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m ιΨ).
+Global Instance ewp_ne ι E m n Ψ :
+  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def ι E m Ψ).
 Proof.
-  revert m ιΨ. induction (lt_wf n) as [n _ IH]=> m [ι Ψ] Φ Ψ' HΦ.
+  induction (lt_wf n) as [n _ IH] in m, ι, Ψ |-* => Φ Ψ' HΦ.
   ewp_unfold_all.
   f_equiv. f_equiv.
   - do 8 f_equiv.
@@ -385,19 +385,19 @@ Proof.
     + apply IH; eauto. f_equiv. eapply dist_lt; eauto.
 Qed.
 
-Global Instance ewp_proper E m ιΨ:
+Global Instance ewp_proper ι E m Ψ:
   Proper
     (pointwise_relation _ (≡) ==> (≡))
-    (ewp_def E m ιΨ).
+    (ewp_def ι E m Ψ).
 Proof.
   by intros Φ Φ' ?; apply equiv_dist=>n; apply ewp_ne=>v; apply equiv_dist.
 Qed.
 
-Global Instance ewp_contractive E m n ι Ψ:
+Global Instance ewp_contractive ι E m Ψ n:
   TCEq (is_ewp_case m) WPStep →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
-    (ewp_def E m (ι,Ψ)).
+    (ewp_def ι E m Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
   repeat (f_contractive || f_equiv).
@@ -507,20 +507,37 @@ Notation "'ensures' '#' v , Q" :=
 (* Notation for [ewp] *)
 
 Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
-  (ewp_def ⊤ e%E Ψ Φ)
+  (bi_forall (fun ι => ewp_def ι ⊤ e%E Ψ Φ))
     (at level 20, e, Φ at level 200,
       format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
-  (ewp_def E e%E (_, iEff_bottom) Φ)
+  (bi_forall (fun ι => ewp_def ι E e%E iEff_bottom Φ))
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e {{ Φ } }" :=
-  (ewp_def ⊤ e%E (_, iEff_bottom) Φ)
+  (bi_forall (fun ι => ewp_def ι ⊤ e%E iEff_bottom Φ))
     (at level 20, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'EWP[' ι ] e <| Ψ '|' '>' {{ Φ } }" :=
+  (ewp_def ι ⊤ e%E Ψ Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[hv' 'EWP[' ι ]  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
+
+Notation "'EWP[' ι ] e @ E {{ Φ } }" :=
+  (ewp_def ι E e%E iEff_bottom Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'EWP[' ι ]  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'EWP[' ι ] e {{ Φ } }" :=
+  (ewp_def ι ⊤ e%E iEff_bottom Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'EWP[' ι ]  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 (* N.B.: we don't use [bi_scope] here to avoid a notation conflict with

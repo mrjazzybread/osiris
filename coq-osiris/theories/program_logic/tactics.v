@@ -115,13 +115,6 @@ Module ewp_rules_tactics.
              try ltac1:(done))
     end.
 
-  Ltac2 destruct_thread_prot () :=
-    match! goal with
-    | [ ℓ : params |- _ ] =>
-        let ℓ_hyp := Control.hyp ℓ in
-        destruct $ℓ_hyp
-    end.
-
   Ltac2 rec intros_until_ewp_case (hm : ident) :=
     match! goal with
     | [ |- is_ewp_case _ = _ -> _ ] =>
@@ -141,8 +134,7 @@ Module ewp_rules_tactics.
          Control.enter
            (fun _ =>
               lazy_match! goal with
-              | [ _ : is_ewp_case _ = WPStep |- _ ] =>
-                  try0 destruct_thread_prot
+              | [ _ : is_ewp_case _ = WPStep |- _ ] => ()
               | [ h : is_ewp_case ?m = WPOutcome ?o |- _ ] =>
                   (* If the [m] we matched against is a var, substitute it. *)
                   (match Constr.Unsafe.kind m with
@@ -156,7 +148,6 @@ Module ewp_rules_tactics.
                                    try discriminate;
                                    Control.enter destruct_thread_step))
               | [ |- _ ] =>
-                  try0 destruct_thread_prot;
                   destruct $m; try0 destruct_stop_code; try discriminate;
                   Control.enter
                     (fun _ =>
