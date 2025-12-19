@@ -259,7 +259,9 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
 (* Proving that a handler satisfies its specification involves proving
    the effectful case and the return/exceptional case. *)
 
-Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+Ltac prove_handler_spec :=
+  let ι := fresh "ι" in
+  rewrite deep_handler_spec_unfold; iIntros (ι); iSplit.
 
 (* Proving an [EMatch] expression boils down to proving a handler where
    the effectful case is trivial. *)
@@ -269,7 +271,11 @@ Ltac prove_match0_spec spec :=
   iApply (ewp_deep_handler _ _ spec);
   [ |
     prove_handler_spec;
-    [
+    [ let x := fresh "tmp" in
+      let Hf := iFresh in
+      iIntros (x) Hf;
+      iApply ewpi_ewp;
+      iRevert (x) Hf
     | let Hf := iFresh in
       iIntros (??) Hf;
         by iPoseProof (upcl_bottom with Hf) as "?" ]
@@ -291,7 +297,7 @@ Ltac prove_simple_match :=
   iApply (ewp_deep_handler _ _ _ (ieq ?[y]));
   [ |
     prove_handler_spec;
-    [
+    [ iApply ewpi_ewp
     | let Hf := iFresh in
       iIntros (??) Hf;
         by iPoseProof (upcl_bottom with Hf) as "?" ];

@@ -13,7 +13,7 @@ Context `{!osirisGS Σ}.
 Lemma ewp_ret_eq {A E} Ψ (v : A) R : R ⊢ EWP (@Ret A E v) <|Ψ|> {{ (λ x, ⌜x = v⌝%I ∗ R)↑ }}.
 Proof.
   iIntros "H".
-  Ret.
+  iApply ewp_ret.
   iFrame.
   auto.
 Qed.
@@ -21,7 +21,7 @@ Qed.
 (* Simpler case with no useful resource *)
 Lemma ewp_ret_eq_emp {A E} Ψ (v : A) : ⊢ EWP (@Ret A E v) <|Ψ|> {{ (λ x, ⌜x = v⌝%I)↑ }}.
 Proof.
-  Ret.
+  iApply ewp_ret.
   auto.
 Qed.
 
@@ -63,7 +63,7 @@ Lemma example_load env x l v :
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_ELoad.
-  - Simp.
+  - simpl_eval. rewrite Hx.
     iApply ewp_ret_eq_emp.
   - iIntros (?) "->".
     iExists _, _. iFrame. auto.
@@ -78,8 +78,8 @@ Lemma example_store env x l :
 Proof.
   iIntros (Hx) "Hl".
   iApply ewp_EStore.
-  - Simp. iApply ewp_ret_eq_emp.
-  - Simp. iApply ewp_ret_eq_emp.
+  - simpl_eval. rewrite Hx. iApply ewp_ret_eq_emp.
+  - simpl_eval. iApply ewp_ret_eq_emp.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext.
     iIntros "Hl /=".
@@ -99,13 +99,13 @@ Proof.
   iIntros (Hx) "Hl".
   iApply ewp_ESeq.
   iApply ewp_EStore.
-  - Simp. iApply ewp_ret_eq_emp.
-  - Simp. iApply ewp_ret_eq_emp.
+  - simpl_eval. rewrite Hx. iApply ewp_ret_eq_emp.
+  - simpl_eval. iApply ewp_ret_eq_emp.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext. iIntros "Hl /=".
     iApply ewp_EStore.
-    + Simp. iApply ewp_ret_eq_emp.
-    + Simp. iApply ewp_ret_eq_emp.
+    + simpl_eval. rewrite Hx. iApply ewp_ret_eq_emp.
+    + simpl_eval. iApply ewp_ret_eq_emp.
     + iIntros (? ?) "(-> & ->)".
       iExists _. iFrame. iNext. iIntros "$ //".
 Qed.
@@ -116,12 +116,12 @@ Lemma example_load_ref env :
 Proof.
   iApply (ewp_ELoad _ _ (λ l, l ↦ V #1)%I).
   - (* ref 1 *)
-    Bind.
+    iApply ewp_bind.
     iApply ewp_ERef.
-    + Simp. iApply ewp_ret_eq_emp.
-    + iIntros (?) "->".
+    + iApply ewp_EInt. iPureIntro. reflexivity.
+    + iIntros (?) "<-".
       iIntros (l) "Hl /=".
-      by Ret.
+      by iApply ewp_ret.
   - (* load *)
     iIntros (l) "Hl".
     iExists _, _.
@@ -140,16 +140,16 @@ Proof.
   iApply (ewp_EStore with "[] [Hx]").
 
   - (* l-value x *)
-    Simp. iApply ewp_ret_eq_emp.
+    simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
 
   - (* 1 + !x *)
     iApply (ewp_EIntAdd with "[] [Hx]").
     + (* as_int 1 *)
-      Simp. iApply ewp_ret_eq_emp.
+      simpl_eval. iApply ewp_ret_eq_emp.
     + (* as_int !x *)
-      Bind.
+      iApply ewp_bind.
       iApply ewp_ELoad.
-      * Simp. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
       * iIntros (l) "->".
         iExists _, _; iFrame.
         iNext.
@@ -181,21 +181,21 @@ Proof.
   iApply (ewp_EStore with "[] [Hx Hy]").
 
   - (* l-value x *)
-    Simp. iApply ewp_ret_eq_emp.
+    simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
 
   - (* !x + (...) *)
     iApply (ewp_EIntAdd with "[Hx] [Hy]").
     + (* as_int !x *)
-      Bind.
+      iApply ewp_bind.
       iApply ewp_ELoad.
-      * Simp. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
       * iIntros (l) "->".
         iExists _, _. iFrame. iNext.
         iIntros "Hx".
         iApply (ewp_ret_eq with "Hx").
 
     + (* as_int (y := 1 + !y; !y) *)
-      Bind.
+      iApply ewp_bind.
       iApply ewp_ESeq.
       (* y := 1 + !y: use previous example *)
       iApply (ewp_mono with "[Hy]").
@@ -203,7 +203,7 @@ Proof.
       (* !y *)
       iIntros_RET (v) "H".
       iApply ewp_ELoad.
-      * Simp. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ey. iApply ewp_ret_eq_emp.
       * iDestruct "H" as "(-> & H)".
         iIntros (l) "->".
         iExists _, _. iFrame. iNext.
@@ -234,21 +234,21 @@ Lemma example_double env x lx n :
 Proof.
   iIntros (Ex) "Hx".
   iApply (ewp_EStore with "[] [Hx]").
-  { Simp. iApply ewp_ret_eq_emp. }
+  { simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp. }
   - (* !x + !x *)
     iDestruct "Hx" as "(Hx1 & Hx2)".
     iApply (ewp_EIntAdd with "[Hx1] [Hx2]").
     + (* !x *)
-      Bind.
+      iApply ewp_bind.
       iApply (ewp_ELoad).
-      { Simp. iApply ewp_ret_eq_emp. }
+      { simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp. }
       iIntros (l) "->".
       iExists _, _. iFrame. iNext. iIntros "Hx1". simpl.
       iApply (ewp_ret_eq with "Hx1").
     + (* !x *)
-      Bind.
+      iApply ewp_bind.
       iApply (ewp_ELoad).
-      { Simp. iApply ewp_ret_eq_emp. }
+      { simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp. }
       iIntros (l) "->".
       iExists _, _. iFrame. iNext. iIntros "Hx1". simpl.
       iApply (ewp_ret_eq with "Hx1").
@@ -296,7 +296,6 @@ Proof.
   prove_match with (@lift_ret_spec Σ _ exn (λ v, ⌜v = #(1)%Z⌝))%I.
   { iApply ewp_EInt. encode. }
   iIntros_RET "-> !>".
-
   next_branch.
   - iApply ewp_EConstant; iExists true; auto.
   - congruence.
