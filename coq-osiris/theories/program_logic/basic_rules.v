@@ -90,6 +90,12 @@ Section ewp_basic_rules.
     - by iApply ewp_throw.
   Qed.
 
+  Lemma ewpi_outcome2 ι E Ψ Φ v :
+    Φ v -∗ EWP[ι] (inject2 v : micro A X) @ E <|Ψ|> {{ Φ }}.
+  Proof.
+    iIntros "HΦ". iApply (ewp_outcome2 with "HΦ").
+  Qed.
+
   Lemma ewpi_outcome2_inv ι E Ψ Φ v :
     EWP[ι] (inject2 v : micro A X) @ E <|Ψ|> {{ Φ }} ={E}=∗ Φ v.
   Proof.
@@ -151,12 +157,12 @@ Section ewp_basic_rules.
   (* ------------------------------------------------------------------------ *)
 
   (** Monotonicity. *)
-  Lemma ewp_mono E m φ φ' Ψ:
-    EWP m @ E <| Ψ |> {{ φ }} -∗
+  Lemma ewpi_mono ι E m φ φ' Ψ:
+    EWP[ι] m @ E <| Ψ |> {{ φ }} -∗
     (∀ a, φ a -∗ φ' a) -∗
-    EWP m @ E <| Ψ |> {{ φ' }}.
+    EWP[ι] m @ E <| Ψ |> {{ φ' }}.
   Proof.
-    iIntros "Hwp Hmono %ι". iSpecialize ("Hwp" $! ι).
+    iIntros "Hwp Hmono".
     iLöb as "IH" forall (m ι).
     ewp_unfold m.
     ewp_case m.
@@ -191,6 +197,15 @@ Section ewp_basic_rules.
       iApply ("IH" with "Hwp Hmono"). }
   Qed.
 
+  Lemma ewp_mono E m φ φ' Ψ:
+    EWP m @ E <| Ψ |> {{ φ }} -∗
+    (∀ a, φ a -∗ φ' a) -∗
+    EWP m @ E <| Ψ |> {{ φ' }}.
+  Proof.
+    iIntros "Hwp Hmono %ι". iSpecialize ("Hwp" $! ι).
+    iApply (ewpi_mono with "Hwp Hmono").
+  Qed.
+
   Lemma ewp_mono_ret E m φ φ' Ψ:
     EWP m @ E <| Ψ |> {{ ensures a, φ a }} -∗
     (∀ a, φ a -∗ φ' a) -∗
@@ -201,12 +216,12 @@ Section ewp_basic_rules.
     by iIntros ([]).
   Qed.
 
-  Lemma ewp_prot_mono E m φ Ψ Ψ':
+  Lemma ewpi_prot_mono ι E m φ Ψ Ψ':
     (Ψ ⊑ Ψ')%ieff -∗
-    EWP m @ E <| Ψ |> {{ φ }} -∗
-    EWP m @ E <| Ψ' |> {{ φ }}.
+    EWP[ι] m @ E <| Ψ |> {{ φ }} -∗
+    EWP[ι] m @ E <| Ψ' |> {{ φ }}.
   Proof.
-    iIntros "#Hmono Hwp %ι"; iSpecialize ("Hwp" $! ι).
+    iIntros "#Hmono Hwp".
     iLöb as "IH" forall (m ι).
     ewp_unfold m.
     ewp_case m; try done.
@@ -235,13 +250,22 @@ Section ewp_basic_rules.
       by iApply ("IH" with "Hwp"). }
   Qed.
 
-  Lemma ewp_pers_smono E E' Ψ Φ Φ' m :
-    E ⊆ E' →
-    EWP m @ E <| Ψ |> {{ Φ }} -∗
-    □ (∀ v, Φ v ={E'}=∗ Φ' v) -∗
-    EWP m @ E' <| Ψ |> {{ Φ' }}.
+  Lemma ewp_prot_mono E m φ Ψ Ψ':
+    (Ψ ⊑ Ψ')%ieff -∗
+    EWP m @ E <| Ψ |> {{ φ }} -∗
+    EWP m @ E <| Ψ' |> {{ φ }}.
   Proof.
-    iIntros (HE) "He HΦ %ι"; iSpecialize ("He" $! ι).
+    iIntros "#Hmono Hwp %ι"; iSpecialize ("Hwp" $! ι).
+    iApply (ewpi_prot_mono with "Hmono Hwp").
+  Qed.
+
+  Lemma ewpi_pers_smono ι E E' Ψ Φ Φ' m :
+    E ⊆ E' →
+    EWP[ι] m @ E <| Ψ |> {{ Φ }} -∗
+    □ (∀ v, Φ v ={E'}=∗ Φ' v) -∗
+    EWP[ι] m @ E' <| Ψ |> {{ Φ' }}.
+  Proof.
+    iIntros (HE) "He HΦ".
     iRevert "HΦ".
     iLöb as "IH" forall (A X ι m Ψ Φ Φ').
     iIntros "#HΦ".
@@ -284,6 +308,17 @@ Section ewp_basic_rules.
         iMod "Hclose"; iModIntro. iFrame.
         iApply ("IH" with "H HΦ").
       - iMod "He". iMod "Hclose". iModIntro. done. }
+  Qed.
+
+  Lemma ewp_pers_smono E E' Ψ Φ Φ' m :
+    E ⊆ E' →
+    EWP m @ E <| Ψ |> {{ Φ }} -∗
+    □ (∀ v, Φ v ={E'}=∗ Φ' v) -∗
+    EWP m @ E' <| Ψ |> {{ Φ' }}.
+  Proof.
+    iIntros (HE) "He HΦ %ι"; iSpecialize ("He" $! ι).
+    iApply (ewpi_pers_smono with "He HΦ").
+    apply HE.
   Qed.
 
   Corollary ewp_pers_mono E Ψ Φ Φ' m :
