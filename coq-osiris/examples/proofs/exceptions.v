@@ -59,6 +59,7 @@ Section proof_pure.
     { simpl; fold eval.
       unfold head_spec; intros l.
       change encode_list with (@encode.encode (list A) _).
+      apply pure_please_eval.
       eapply pure_eval_match. { eapply pure_eval_path. eapply pure_ret. reflexivity. reflexivity. }
       pure_match.
       - eapply pure_eval_raise.
@@ -71,6 +72,7 @@ Section proof_pure.
     { simpl; fold eval.
       unfold catch_head_spec; intros l.
       change encode_list with (@encode.encode (list A) _).
+      apply pure_please_eval.
       eapply pure_eval_match'_exn.
       - eapply (pure_EApp τ[list A]). pure_path. { pure_path; apply eq_refl. }
         simpl.
@@ -86,6 +88,7 @@ Section proof_pure.
     apply (let_fun τ[list A] catch_head_spec).
     { simpl; fold eval.
       unfold catch_head_spec; intros l.
+      apply pure_please_eval.
       eapply pure_eval_match'_exn.
       { eapply pure_eval_data. eapply pure_evals_cons.
         eapply (pure_EApp τ[list A]). pure_path. pure_path; apply eq_refl.
@@ -110,29 +113,3 @@ Section proof_pure.
   Qed.
 
 End proof_pure.
-
-Section proof_effectful.
-
-  Context `{!osirisGS Σ}.
-
-  (* Calling [head #l] either returns [#h] when [l = h :: t],
-    or throws an exception when [l = []]. *)
-
-  Definition head_eff_spec head :=
-    ∀ (A : Type) (H : Encode A) (l : list A) ι,
-      ⊢ ewp_def top (call head #l) (ι, ⊥)
-        ( RET x => ∃ h t, ⌜l = h :: t /\ x = #h⌝
-        | EXN e => ⌜e = VXData (Loc 0) [] /\ l = []⌝ )%I.
-
-  (* Calling [catch_head #l] either returns [Some #h] when [l = h ::t],
-    or returns [None] when [l = []]. *)
-
-  Definition catch_head_eff_spec catch_head :=
-    ∀ (A : Type) (H : Encode A) (l : list A) ι,
-      ⊢ ewp_def top (call catch_head #l) (ι, ⊥)
-        (ensures #hopt, ⌜match l with
-                         | [] => hopt = None
-                         | h :: _ => hopt = Some h
-                         end⌝)%I.
-
-End proof_effectful.

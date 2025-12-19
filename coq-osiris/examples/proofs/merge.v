@@ -177,11 +177,12 @@ Lemma merge_mkspec merge (l1 l2 : list Z) :
       (length x1 + length x2 < length l1 + length l2)%nat
       → merge_spec x1 x2 m)
   → merge_spec l1 l2
-      (eval η
+      (please_eval η
          (EMatch (ETuple [EPath ["l1"]; EPath ["l2"]]) __branches2)).
 Proof.
    intros Hl1 Hl2 Hmerge IH.
    unfold merge_spec. intros [Hreprl1 Hsortl1] [Hreprl2 Hsortl2].
+   apply pure_please_eval.
    eapply pure_eval_match.
    { eapply pure_eval_pair.
      eapply pure_eval_path. simpl; rewrite Hl1. pure_ret.
@@ -277,10 +278,11 @@ Lemma split_mkspec split (l : list Z) :
   Spec τ[list Z] split
        (λ (x : list Z) (m : microvx),
          (length x < length l)%nat → split_spec x m) ->
-  split_spec l (eval η (EMatch (EPath ["l"]) __branches6)).
+  split_spec l (please_eval η (EMatch (EPath ["l"]) __branches6)).
 Proof.
   intros Hl Hsplit IH.
   unfold split_spec.
+  apply pure_please_eval.
   eapply pure_eval_match.
   { eapply pure_eval_path. simpl. rewrite Hl. pure_ret. }
 
@@ -357,10 +359,10 @@ Lemma mergesort_mkspec mergesort (l : list Z) :
   (Spec τ[list Z] mergesort (λ x m,
        (length x < length l)%nat ->
        mergesort_spec x m)) ->
-  mergesort_spec l (eval η (EMatch (EPath ["l"]) __branches11)).
+  mergesort_spec l (please_eval η (EMatch (EPath ["l"]) __branches11)).
 Proof.
   intros Hl Hmergesort IH Hpre.
-
+  apply pure_please_eval.
   eapply pure_eval_match. { eapply pure_eval_path.
                             simpl. rewrite Hl. pure_ret. }
   pure_match.

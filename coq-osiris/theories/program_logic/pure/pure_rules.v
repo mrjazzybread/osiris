@@ -437,9 +437,9 @@ Section pure_eff.
     by intros m' ->%pure.invert_may_eval.
   Qed.
 
-  Lemma pure_CEval_inject2 `{Encode A} {η e φ ψ} :
+  Lemma pure_please_eval `{Encode A} {η e φ ψ} :
     pure (A := A) (eval η e) φ ψ →
-    pure (Stop CEval (η, e) inject2) φ ψ.
+    pure (please_eval η e) φ ψ.
   Proof.
     intros He. eapply pure_CEval, pure_try2; try done;
     intros; eauto using pure_ret, pure_throw.

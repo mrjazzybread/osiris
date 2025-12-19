@@ -125,7 +125,8 @@ Proof.
     { (* Enter the body *) simpl.
       intros iter f l IH.
       unfold listiter_spec_inv; fold eval.
-      intros lpre lsuf I φ Heql Hf HI; abstract_env.
+      intros lpre lsuf I φ Heql Hf HI.
+      apply pure_please_eval. abstract_env.
 
       (* Evaluate the [function] expression. *)
       eapply pure_eval_match. { (* Evaluation the scrutinee. *) pure_path. }
@@ -182,6 +183,7 @@ Proof.
     (* Introduce the function's arguments. *)
     iIntros (xs pred φ Hpred).
     (* Declare and open a local module. *)
+    iApply ewp_please. iNext.
     iApply ewp_ELetOpen.
     (* Evaluate the module expression. *)
     iApply ewp_module; iApply ewp_sitems_extend;
@@ -206,6 +208,7 @@ Proof.
           unfold lambda_spec; fold eval.
           (* Prove that the lambda expression satisfies its spec. *)
           intros x Xs Hpref Hforall.
+          apply pure_please_eval.
           eapply pure_eval_ifthen.
           { (* Subgoal: evaluate the conditional [pred x]. *)
             eapply (pure_EApp τ[A]);

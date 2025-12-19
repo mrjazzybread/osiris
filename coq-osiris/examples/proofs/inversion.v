@@ -28,10 +28,10 @@ Section iteration_methods.
       □ (∀ (Xs : list A) (X : A),
            ⌜ permitted (Xs ++ [X]) ⌝ -∗
            I Xs -∗
-           (∀ ι, EWP (call f #X) @ E <| (ι, ψ) |> {{ ensures _, I (Xs ++ [X]) }}))
+           (EWP (call f #X) @ E <| ψ |> {{ ensures _, I (Xs ++ [X]) }}))
       -∗
       I [] -∗
-      ∀ ι, EWP (call iter f) @E <| (ι, ψ) |>
+      EWP (call iter f) @E <| ψ |>
         {{ ensures _, ∃ Xs, I Xs ∗ ⌜ complete Xs ⌝ }}.
 
 End iteration_methods.
@@ -73,8 +73,7 @@ Section lazy_sequences.
     (isSeq :  iEff Σ -d> val -d> list A -d> iPropO Σ)
            : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
     λ Ψ k Xs,
-      (∃ ι,
-      EWP (call k #()) <| (ι, Ψ) |> {{ ensures h, isHead_pre isSeq Ψ h Xs }})%I.
+      (EWP (call k #()) <| Ψ |> {{ ensures h, isHead_pre isSeq Ψ h Xs }})%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
   Local Instance isHead_pre_contractive : Contractive isSeq_pre.
@@ -201,7 +200,7 @@ Section verification.
     Definition invert_spec invert : iProp Σ :=
       ∀ (iter : val),
       isIter iter -∗
-      (∀ ι, EWP (call_anonfun env invert [iter]) <|(ι, ⊥)|> {{ ensures k, isSeq ⊥ k [] }}).
+      (EWP (call_anonfun env invert [iter]) <|⊥|> {{ ensures k, isSeq ⊥ k [] }}).
 
   End specification.
 
@@ -212,7 +211,7 @@ Section verification.
 
     Lemma yield_handler_correct l (iter yield : val) γ (Ys : list A) :
       handlerView γ Ys -∗
-      (∀ ι, deep_handler_spec ⊤ ι (ψ_yield l (iterView γ))
+      (deep_handler_spec ⊤ (ψ_yield l (iterView γ))
         (ensures _, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
         (λ o, eval_branches
            ("__osiris_anonymous_arg" ~> VUnit;
@@ -226,7 +225,7 @@ Section verification.
         ⊥ (ensures h, isHead ⊥ h Ys)).
     Proof.
       iLöb as "IH" forall (Ys γ).
-      iIntros "HhandlerView %ι".
+      iIntros "HhandlerView".
       prove_handler_spec.
 
       (* Value and Exception case: *)
