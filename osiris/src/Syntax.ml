@@ -274,6 +274,13 @@ type expr =
   | ELoad of expr
   (* Reference assignment: [e1 := e2]. *)
   | EStore of expr * expr
+
+  (* Forking a new thread: [Domain.spawn f x] *)
+  | EFork of expr * expr
+  (* Joining an existing thread: [Domain.join d] *)
+  | EJoin of expr
+  (* Requesting one's own thread handler: [Domain.self ()] *)
+  | ESelf
                        [@@ deriving show]
 
 (* Lists of expressions. *)

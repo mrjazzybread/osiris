@@ -341,6 +341,15 @@ let rec expr (e : expr) =
   | EStore (e1, e2) ->
       c "EStore" [ expr e1; expr e2 ]
 
+  | EFork (e1, e2) ->
+      c "EFork" [ expr e1; expr e2 ]
+
+  | EJoin e ->
+      c "EJoin" [ expr e ]
+
+  | ESelf ->
+      c "ESelf" []
+
 (* If [e] carries a decoration, then [cut_expr e] takes care of
    cutting below the decoration so the decoration hides the cut in the
    eyes of the end user. (If we cut above the decoration then the end

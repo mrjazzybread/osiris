@@ -9,12 +9,12 @@ Local Open Scope Z_scope.
    and at ordinary integers. For this reason, we use a record type. *)
 
 Record thread :=
-  Thread { id : Z }.
+  Thread { tid : Z }.
 
 (* Equality. *)
 
 Definition eqb (l1 l2 : thread) :=
-  Z.eqb (id l1) (id l2).
+  Z.eqb (tid l1) (tid l2).
 
 (* These instances allow using locations as keys in sets and maps. *)
 
@@ -22,11 +22,11 @@ Global Instance thread_eq_decision : EqDecision thread.
 Proof. solve_decision. Defined.
 
 Global Instance thread_countable : Countable thread.
-Proof. apply (inj_countable' id Thread). intros [?]. eauto. Defined.
+Proof. apply (inj_countable' tid Thread). intros [?]. eauto. Defined.
 
 (* This instance allows us to use [stdpp]'s fresh on [thread]. *)
 
 Global Instance Infinite_thread : Infinite thread.
 Proof.
-  by apply infinite.inj_infinite with (f := Thread) (g := λ l, Some (id l)).
+  by apply infinite.inj_infinite with (f := Thread) (g := λ l, Some (tid l)).
 Defined.
