@@ -45,6 +45,24 @@ Notation "'∃#' x .. y , P" := (bi_texists (λ x, .. (bi_texists (λ y, P)) .. 
                                 (at level 200, x binder, y binder, right associativity,
                                   format "∃#  x  ..  y ,  P") : bi_scope.
 
+Lemma bi_tforall_equiv {Σ} {τ : types} (P : τ → iProp Σ) :
+  (∀# xs, P xs)%I ≡ (∀ xs, P xs)%I.
+Proof.
+  unfold bi_tforall.
+  induction τ as [|X H τ IH].
+  - simpl; done.
+  - apply bi.iff_equiv. apply _. apply _.
+    iStartProof.
+    simpl. iSplit.
+    + iIntros "H".
+      iIntros ([x xs]).
+      iSpecialize ("H" $! x).
+      iApply (IH with "H").
+    + iIntros "H %x".
+      iApply IH. iIntros (xs).
+      iApply "H".
+Qed.
+
 Equations bi_pure_spec (PROP: bi) (τ : types) (f : τ -#> microvx -> Prop) : (τ -#> microvx -> PROP) :=
 | PROP, Tbase T, f :=
     λ x m, bi_pure (f x m)
@@ -255,4 +273,202 @@ Section ewp_spec.
         by apply invert_pure_wp_crash in HSpec.
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
+
+  (* [ewp_EApp_partial] is a lemma for partial application. *)
+
+  Lemma ewp_EApp_partial `{Encode X} (τ: types) η e e1 Ψ
+    (P : type_nel.Tcons X τ -#> microvx -> iProp Σ) :
+    EWP eval η e <|Ψ|> {{ ensures c, iSpec (type_nel.Tcons X τ) c P }} -∗
+    EWP eval η e1 <|Ψ|> {{ ensures v1, ∃ (x : X), ⌜v1 = #x⌝ }} -∗
+    EWP eval η (EApp e e1) <|Ψ|> {{ ensures c, ∃ (x : X), iSpec τ c (P x) }}.
+  Proof.
+    iIntros "He He1". simpl_eval.
+    iApply (ewp_Par with "He He1").
+    - iIntros (?) "[]".
+    - iIntros (?) "[]".
+    - iIntros (c v1) "HSpec [%x ->]". simpl. simp iSpec.
+      iSpecialize ("HSpec" $! x). simpl.
+      iApply ewp_prot_mono; [iApply iEff_le_bottom |].
+      iApply (ewp_mono with "HSpec").
+      iIntros ([c'|]); [| iIntros "[]"].
+      iIntros "HSpec'". iExists x. iApply "HSpec'".
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
+  (* We provide infrastructure for reasoning about n-ary function application,
+     similar to the pure case. *)
+
 End ewp_spec.
+
+(* The following definitions are outside the section to avoid capturing Σ *)
+
+Section ewp_EApp_prop_aux_def.
+
+  Context `{!osirisGS Σ}.
+  Context (η : env) (Ψ : iEff Σ).
+  Context (expr_base : expr) (goal_prop : expr -> iProp Σ).
+
+  (* [accumulate_argument_premises_and_build_consequence_hyp] builds up
+     premises for each argument and a consequence hypothesis. *)
+
+  Equations accumulate_argument_premises_and_build_consequence_hyp
+    (τ : types) (es : list expr) (conseq_acc : τ -#> iProp Σ -> iProp Σ) :
+    iProp Σ :=
+  | Tbase X, es, conseq_acc :=
+      ∀ (e : expr) (φ : X -> iProp Σ),
+        EWP eval η e <|Ψ|> {{ ensures #x, φ x }} -∗
+        (* [Hconseq] is the consequence premise built over all parameters *)
+        let Hconseq := ∀ (x : X), conseq_acc x (φ x) in
+        (* [nested_eapp] is the nested application *)
+        let nested_eapp := app_exprs expr_base (e :: es) in
+        Hconseq -∗ goal_prop (nested_eapp)
+  | type_nel.Tcons X τ', es, conseq_acc :=
+      ∀ (e : expr) (φ : X -> iProp Σ),
+        EWP eval η e <|Ψ|> {{ ensures #x, φ x }} -∗
+        let conseq_acc :=
+          (λ# (tt : τ') (Q : iProp Σ),
+              ∀ (x : X),
+                φ x -∗
+                (tapp (conseq_acc x) tt) Q)
+        in
+        accumulate_argument_premises_and_build_consequence_hyp
+          τ' (e :: es) conseq_acc.
+
+  Arguments accumulate_argument_premises_and_build_consequence_hyp !τ /.
+  Transparent accumulate_argument_premises_and_build_consequence_hyp.
+  Strategy transparent [ accumulate_argument_premises_and_build_consequence_hyp ].
+
+  (* Monotonicity of the accumulator *)
+
+  Lemma ewp_EApp_mono (τ : types) es (Hmon' Hmon : τ -#> iProp Σ -> iProp Σ) :
+    accumulate_argument_premises_and_build_consequence_hyp τ es Hmon' -∗
+    □ (∀ args (P : iProp Σ), Hmon args P -∗ Hmon' args P) -∗
+    accumulate_argument_premises_and_build_consequence_hyp τ es Hmon.
+  Proof.
+    revert es.
+    induction τ as [ X HX | X HX τ IH ]; iIntros (es) "HEApp' #Hmono"; simpl.
+    - iIntros (ex φx) "Hex Hx". cbn zeta.
+      iSpecialize ("HEApp'" $! ex φx with "Hex"). cbn zeta.
+      iApply "HEApp'".
+      iIntros (v). iApply ("Hmono" with "Hx").
+    - iIntros (ex φx) "Hex".
+      iApply (IH with "[HEApp' Hex]").
+      + iApply ("HEApp'" with "Hex").
+      + iModIntro. iIntros (args P). rewrite !tapp_bind.
+        iIntros "Hx" (x) "Hφx".
+        iApply ("Hmono" $! (x, args) P).
+        iApply ("Hx" with "Hφx").
+  Qed.
+
+End ewp_EApp_prop_aux_def.
+
+Section ewp_EApp_def.
+  Context `{!osirisGS Σ}.
+
+  Definition ewp_EApp_prop `{Encode A} (τ : types) : iProp Σ :=
+    ∀ (η : env) (e : expr) (Ψ' : A -> iProp Σ) (Ψ : iEff Σ)
+      (P : τ -#> microvx -> iProp Σ),
+    EWP eval η e <|Ψ|> {{ ensures c, iSpec τ c P }} -∗
+    accumulate_argument_premises_and_build_consequence_hyp
+      η Ψ e
+      (λ e, EWP eval η e <|Ψ|> {{ ensures #v, Ψ' v }})
+      τ
+      []
+      (λ# (tt : τ) (Q : iProp Σ),
+           Q -∗ ∀ m, (tapp P tt) m -∗ EWP m <|Ψ|> {{ ensures #v, Ψ' v }}).
+
+  Arguments ewp_EApp_prop {_ _} !τ /.
+  Transparent ewp_EApp_prop.
+  Strategy transparent [ ewp_EApp_prop ].
+
+  (* Helper lemma for the induction step *)
+
+  Lemma ewp_EApp_prop_induction_step
+    (τ : types) (η : env) (Ψ : iEff Σ) e (g : expr -> iProp Σ) :
+    ∀ (Hconseq : τ -#> iProp Σ -> iProp Σ) (es : list expr) (ei : expr),
+      app_exprs (EApp e ei) es = app_exprs e (es ++ [ei]) →
+      accumulate_argument_premises_and_build_consequence_hyp
+        η Ψ (EApp e ei) g τ es Hconseq -∗
+      accumulate_argument_premises_and_build_consequence_hyp
+        η Ψ e g τ (es ++ [ei]) Hconseq.
+  Proof.
+    induction τ as [ X HX | X HX τ IH ]; iIntros (Hconseq es ei HeqEApp) "Happlied".
+    - (* Base case *)
+      simpl in *. rewrite <- HeqEApp. iApply "Happlied".
+    - (* Inductive case *)
+      iIntros (ex φx) "Hex". cbn zeta.
+      iApply (IH (λ# (tt : τ) (B : iProp Σ),
+                   ∀ x : X,
+                     φx x -∗
+                     tapp Hconseq (x, tt) B)%I
+                 (ex :: es) ei).
+      + simpl. f_equal. apply HeqEApp.
+      + iApply ("Happlied" with "Hex").
+  Qed.
+
+
+
+  (* Main lemma for n-ary function application *)
+
+  Lemma ewp_EApp `{Encode A} (τ : types) :
+    ⊢ @ewp_EApp_prop A _ τ.
+  Proof.
+    induction τ as [ X HX | X HX τ IH].
+    - (* Base case *)
+      unfold ewp_EApp_prop.
+      iIntros (η e Ψ' Ψ P) "HSpec"; iIntros (ex φx) "Hex"; cbn zeta.
+      iIntros "Hmono".
+      simpl_eval.
+      iApply (ewp_Par with "HSpec Hex").
+      + iIntros (?) "[]".
+      + iIntros (?) "[]".
+      + iIntros (c v) "HSpec' Hφx". simpl. simp iSpec.
+        iDestruct "Hφx" as (x) "[-> Hφx]".
+        iApply ("Hmono" with "Hφx HSpec'").
+
+    - (* Inductive case: multi-argument function *)
+      unfold ewp_EApp_prop.
+      iIntros (η e Ψ' Ψ P) "HSpec"; iIntros (ex φx) "Hex".
+      change [ex] with ([] ++ [ex]).
+    iApply (ewp_EApp_prop_induction_step τ η Ψ e
+              (λ e, EWP eval η e <|Ψ|> {{ ensures #x, Ψ' x }})%I); first reflexivity.
+
+    (* Define the intermediate specification P' *)
+    set (P' := (λ# (tt : τ) m,
+                 ∃ x : X,
+                   φx x ∗
+                   tapp P (x, tt) m)%I : τ -#> microvx -> iProp Σ).
+
+    (* Use IH *)
+    iPoseProof IH as "HIH".
+    unfold ewp_EApp_prop.
+    iSpecialize ("HIH" $! η (EApp e ex) _ _ P' with "[HSpec Hex]").
+    { simpl_eval.
+      iApply (prove_ewp_Par with "HSpec Hex").
+      iIntros (??) "HSpec (%x & -> & Hφx) /=".
+      simp iSpec.
+      iIntros (ι).
+      iSpecialize ("HSpec" $! x ι).
+      iPoseProof (ewpi_prot_mono with "[] HSpec") as "HSpec"; last first.
+      iApply (ewpi_mono with "HSpec").
+      iIntros ([|]); [ | iIntros ([]) ].
+      iIntros "HSpec /=".
+      iApply (iSpec_mono with "HSpec").
+      rewrite bi_tforall_equiv.
+      iIntros (xs m) "HP".
+      subst P'. cbn. rewrite tapp_bind.
+      iFrame. iApply iEff_le_bottom. }
+
+    (* Apply monotonicity *)
+    iApply (ewp_EApp_mono with "HIH").
+
+    iIntros "!>" (args Q). rewrite !tapp_bind.
+    iIntros "H HQ %m (%x & Hφx & HP)".
+    iSpecialize ("H" $! x with "Hφx").
+    rewrite tapp_bind.
+    iApply ("H" with "HQ HP").
+  Qed.
+
+End ewp_EApp_def.
