@@ -291,7 +291,7 @@ Section ewp_spec.
       iSpecialize ("HSpec" $! x). simpl.
       iApply ewp_prot_mono; [iApply iEff_le_bottom |].
       iApply (ewp_mono with "HSpec").
-      iIntros ([c'|]); [| iIntros "[]"].
+      iIntros "!>" ([c'|]); [| iIntros "[]"].
       iIntros "HSpec'". iExists x. iApply "HSpec'".
   Qed.
 
@@ -377,7 +377,7 @@ Section ewp_EApp_def.
       τ
       []
       (λ# (tt : τ) (Q : iProp Σ),
-           Q -∗ ∀ m, (tapp P tt) m -∗ EWP m <|Ψ|> {{ ensures #v, Ψ' v }}).
+           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ EWP m <|Ψ|> {{ ensures #v, Ψ' v }}).
 
   Arguments ewp_EApp_prop {_ _} !τ /.
   Transparent ewp_EApp_prop.

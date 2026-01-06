@@ -876,11 +876,11 @@ Section ewp_rules.
     (k: outcome2 (A1 * A2) X' → micro A3 Y) φ φ1 φ2 Ψ :
     EWP[ι] m1 @ E <| Ψ |> {{ φ1 }} ⊢
       EWP[ι] m2 @ E <| Ψ |> {{ φ2 }} -∗
-      (∀ e, φ1 (O2Throw e) -∗ EWP[ι] (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
-      (∀ e, φ2 (O2Throw e) -∗ EWP[ι] (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
+      (∀ e, φ1 (O2Throw e) -∗ ▷ EWP[ι] (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
+      (∀ e, φ2 (O2Throw e) -∗ ▷ EWP[ι] (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
       (∀ a1 a2,
           φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗
-            EWP[ι] (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
+          ▷ EWP[ι] (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
       EWP[ι] (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     clear A X.
@@ -897,8 +897,9 @@ Section ewp_rules.
     { (* Case: [StepParRetRet].. *)
       ewp_invert; iRename "HΦ" into "HΦ2"; ewp_invert; iFrame.
       iMod "HΦ". iMod "HΦ2".
+      iSpecialize ("Hjoin" with "HΦ HΦ2").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iSpecialize ("Hjoin" with "HΦ HΦ2"). iApply "Hjoin". }
+      iApply "Hjoin". }
 
     (* In the four following cases, one of the branches of the [Par] is either a
      [crash] or [throw _].
@@ -908,12 +909,12 @@ Section ewp_rules.
      1-4: ewp_invert; try done.
 
     (* [StepParThrowLeft/Right] *)
-    1,2: iMod "HΦ";
-    ewp_mask_intro "Hmod"; ewp_mask_elim;
-    iFrame;
-    try iApply ("Hexn1" with "[$]");
-    try iApply ("Hexn2" with "[$]");
-    done.
+    { iMod "HΦ".
+      iSpecialize ("Hexn1" with "[$]").
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame. }
+    { iMod "HΦ".
+      iSpecialize ("Hexn2" with "[$]").
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame. }
 
     { (* [StepThroughParLeft]. *)
       destruct_code.
@@ -1021,11 +1022,11 @@ Section ewp_rules.
     (k: outcome2 (A1 * A2) X' → micro A3 Y) φ φ1 φ2 Ψ :
     EWP m1 @ E <| Ψ |> {{ φ1 }} ⊢
     EWP m2 @ E <| Ψ |> {{ φ2 }} -∗
-    (∀ e, φ1 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
-    (∀ e, φ2 (O2Throw e) -∗ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
+    (∀ e, φ1 (O2Throw e) -∗ ▷ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
+    (∀ e, φ2 (O2Throw e) -∗ ▷ EWP (k (O2Throw e)) @ E <| Ψ |> {{ φ }}) -∗
     (∀ a1 a2,
         φ1 (O2Ret a1) -∗ φ2 (O2Ret a2) -∗
-        EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
+        ▷ EWP (k (O2Ret (a1, a2))) @ E <| Ψ |> {{ φ }}) -∗
     EWP (Par m1 m2 k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H1 H2 He1 He2 Hv %ι".
@@ -1033,11 +1034,11 @@ Section ewp_rules.
     - iApply "H1".
     - iApply "H2".
     - iIntros (e) "Hφ".
-      iApply ("He1" with "Hφ").
+      iSpecialize ("He1" with "Hφ"). by iNext.
     - iIntros (e) "Hφ".
-      iApply ("He2" with "Hφ").
+      iSpecialize ("He2" with "Hφ"). by iNext.
     - iIntros (v1 v2) "Hv1 Hv2".
-      iApply ("Hv" with "Hv1 Hv2").
+      iSpecialize ("Hv" with "Hv1 Hv2"). by iNext.
   Qed.
 
   Lemma ewp_par {E A1 A2 X'} (m1 : micro A1 X') (m2 : micro A2 X') {φ} φ1 φ2 Ψ :
@@ -1079,7 +1080,8 @@ Lemma prove_ewp_Par `{!osirisGS Σ} {A X A1 A2 X'} m1 m2 (k : outcome2 (A1 * A2)
 Proof.
   iIntros "Hm1 Hm2 Hk".
   iApply (ewp_Par with "Hm1 Hm2"); simpl; try iIntros (e) "[]".
-  iApply "Hk".
+  iIntros (a1 a2) "? ? !>".
+  iApply ("Hk" with "[$] [$]").
 Qed.
 
 (* Rules that deal with microvx directly. *)

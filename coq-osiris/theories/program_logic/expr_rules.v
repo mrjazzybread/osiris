@@ -53,7 +53,7 @@ Section ewp_binding_rules.
     unfold irrefutably_extend; cbn.
     iDestruct ("P" with "H1 H2") as "%P".
     iApply ewp_widen; first done.
-    iIntros (δ') "Hφs".
+    iIntros "!>" (δ') "Hφs".
     iApply ("Hcons" with "H1 Hφs" ).
   Qed.
 
@@ -619,7 +619,7 @@ Section ewp_rules_expr.
       (* iApply ewp_bind. *)
       iSpecialize ("P" with "[$]").
       iApply (ewp_mono with "P").
-      iIntros ([b|v]) "H /=//".
+      iIntros "!>" ([b|v]) "H /=//".
       by iApply ewp_ret.
   Qed.
 
@@ -1317,7 +1317,7 @@ Section ewp_rules_expr.
     { iIntros (e) "[]". }
     iIntros (v1 v2) "H1 H2"; simpl.
     iApply ewp_fork.
-    iIntros "!>" (ι) "#Hvalid".
+    iIntros "!> !>" (ι) "#Hvalid".
     iSplitR ""; [ | ].
     iApply ("Hcall" with "Hvalid H1 H2").
     iExists _; iFrame "#"; iPureIntro; reflexivity.
@@ -1351,7 +1351,7 @@ Section ewp_rules_expr.
     { iIntros (e) "[]". }
     iIntros (v1 v2) "H1 H2"; simpl.
     iApply ewp_fork.
-    iIntros "!>" (ι) "#Hvalid".
+    iIntros "!> !>" (ι) "#Hvalid".
     iSplitR ""; [ | ].
     iApply ("Hcall" with "H1 H2").
     iExists _; iFrame "#"; iPureIntro; reflexivity.

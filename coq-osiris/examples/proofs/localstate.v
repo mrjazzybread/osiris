@@ -195,7 +195,7 @@ Section verification.
       iSpecialize ("Hmain" with "Hpoints_to").
       iApply (ewp_mono with "Hmain").
       iIntros ([|]); [ | iIntros ([])]; simpl.
-      iIntros "Hspec".
+      iIntros "!> Hspec".
       iExists a; iSplit. by rewrite <- (solve_encode_val a).
       iExact "Hspec". }
 
