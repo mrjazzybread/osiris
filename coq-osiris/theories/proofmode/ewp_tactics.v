@@ -445,50 +445,33 @@ Ltac2 do_iintros () :=
    It is the iris proofmode analog of [pure_match] in the pure mode. *)
 
 Ltac2 apply_deep_handle_cons () :=
-  let intuitionistic_hyps := all_intuitionistic_hyps () in
-  let spatial_hyps := all_spatial_hyps () in
-  conj_hyps spatial_hyps;
-  revert_intuitionistic intuitionistic_hyps;
-  conj_hyps intuitionistic_hyps;
-  match intuitionistic_hyps with
-  | h1 :: _ =>
-      match spatial_hyps with
-      | h2 :: _ => conj_hyps [h1; h2]
-      | _ => ()
-      end
-  | _ => ()
-  end;
-  match intuitionistic_hyps with
-  | h1 :: _ =>
-      iApply (deep_handle_cons with $h1)
-  | _ => match spatial_hyps with
-        | h2 :: _ => iApply (deep_handle_cons with $h2)
-        | _ => iApply deep_handle_cons_no_resources
-        end
-  end;
-  Control.focus 1 1 (fun _ => iPureIntro;
-                           let n := specify_cpattern () in
-                           if (Int.gt n 0)
-                           then
-        (* [specify_cpattern] resolves
-          a [cpattern] and leaves behind a [pattern] which needs
-          to be solved with a [pattern_match0] here;
-          and since [pattern_match0] does not return an integer
-          of how many goals are left, we must use [try] which is not
-          ideal. *)
-                             Control.focus 1 n pattern_match0;
-                             try (Control.focus 1 n
-                                  (fun _ =>
-                                      match! goal with
-                                      | [ |- ?g ] =>
-                                          if Constr.is_evar g then
-                                              apply I
-                                          else
-                                              iStartProof
-                                      end))
-                           else ());
-  all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps);
-  last (do_iintros).
+  (Control.plus
+     (fun _ => iApply deep_handle_cons)
+     (fun _ => iApply ideep_handle_cons));
+  Control.focus 1 1
+    (fun _ =>
+       iPureIntro;
+       let n := specify_cpattern () in
+       if (Int.gt n 0)
+       then
+         (* [specify_cpattern] resolves
+            a [cpattern] and leaves behind a [pattern] which needs
+            to be solved with a [pattern_match0] here;
+            and since [pattern_match0] does not return an integer
+            of how many goals are left, we must use [try] which is not
+            ideal. *)
+         Control.focus 1 n pattern_match0;
+         try (Control.focus 1 n
+                (fun _ =>
+                   match! goal with
+                   | [ |- ?g ] =>
+                       if Constr.is_evar g then
+                         apply I
+                       else
+                         iStartProof
+                   end))
+       else ());
+  last (iSplit; do_iintros).
 
 
 Ltac2 Notation "next_branch" := apply_deep_handle_cons ().

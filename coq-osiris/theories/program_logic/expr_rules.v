@@ -114,6 +114,18 @@ Section ewp_rules_expr.
     by iApply ewp_ret.
   Qed.
 
+  Lemma ewpi_EPath ι η p φ E Ψ :
+    EWP[ι] lookup_path η p @ E <|Ψ|> {{ ensures v, φ v }} -∗
+    EWP[ι] eval η (EPath p) @ E <|Ψ|> {{ ensures v, φ v }}.
+  Proof.
+    iIntros "H /=". simpl_eval.
+    iApply ewpi_try.
+    iApply (ewpi_mono with "H").
+    iIntros ([|[]]) "A/=".
+    by iApply ewpi_ret.
+  Qed.
+
+
   (** * EAnonFun : anonfun → expr *)
 
   Lemma ewp_EAnonFun `{Encode A} η x e φ E Ψ P :
@@ -154,17 +166,6 @@ Section ewp_rules_expr.
     - iIntros (?) "E /= //". iApply ewp_throw. iApply ("E1" with "E").
     - iIntros (?) "E /= //". iApply ewp_throw. iApply ("E2" with "E").
     - iIntros (? ?) "? ? /=". iApply ("P" with "[$] [$]").
-  Qed.
-
-  Lemma ewp_EApp η e1 e2 v1 v2 φ E Ψ :
-    EWP eval η e1 @ E <|Ψ|> {{ ensures v, ⌜v = v1⌝ }} -∗
-    EWP eval η e2 @ E <|Ψ|> {{ ensures v, ⌜v = v2⌝ }} -∗
-    EWP call v1 v2 @ E <|Ψ|> {{ φ }} -∗
-    EWP eval η (EApp e1 e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H1 H2 H".
-    iApply (ewp_EApp_exn with "H1 H2"); try iIntros (?) "[]".
-    iIntros (? ?) "-> -> //".
   Qed.
 
   Lemma ewp_EApp' η e1 e2 φ1 φ2 φ E Ψ :
@@ -840,6 +841,13 @@ Section ewp_rules_expr.
     iIntros "H". simpl_eval. by iApply ewp_bind.
   Qed.
 
+  Lemma ewpi_ESeq ι η e1 e2 φ E Ψ :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures _, EWP[ι] eval η e2 @ E <|Ψ|> {{ φ }} }} -∗
+    EWP[ι] eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H". simpl_eval. by iApply ewpi_bind.
+  Qed.
+
   (** * EIfThen : expr → expr → expr *)
 
   Lemma ewp_EIfThen_exn' η eb e1 φb φ E Ψ :
@@ -1119,6 +1127,27 @@ Section ewp_rules_expr.
 
   (** * EStore : expr → expr → expr *)
 
+  Lemma ewpi_EStore_exn ι η e1 e2 φ1 φ2 φ E Ψ :
+    EWP[ι] as_loc (eval η e1) @ E <|Ψ|> {{ φ1 }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ φ2 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ l1 v2, φ1 (O2Ret l1) ∗ φ2 (O2Ret v2) -∗
+      ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ (O2Ret VUnit))) -∗
+    EWP[ι] eval η (EStore e1 e2) @ E <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
+    iApply (ewpi_Par with "H1 H2 [E1] [E2]").
+    - iIntros (e) "H1". iApply ewpi_throw. iApply ("E1" with "H1").
+    - iIntros (e) "H2". iApply ewpi_throw. iApply ("E2" with "H2").
+    - iIntros (l1 v2) "H1 H2".
+      iSpecialize ("P" $! l1 v2 with "[$]").
+      iDestruct "P" as (v1) "(Hl1 & P)".
+      iApply (ewp_store with "Hl1 [P]"). iNext; iIntros "Hl1".
+      iApply ewp_ret.
+      iApply ("P" with "Hl1").
+  Qed.
+
   Lemma ewp_EStore_exn η e1 e2 φ1 φ2 φ E Ψ :
     EWP as_loc (eval η e1) @ E <|Ψ|> {{ φ1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ φ2 }} -∗
@@ -1128,43 +1157,74 @@ Section ewp_rules_expr.
       ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ (O2Ret VUnit))) -∗
     EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
-    iApply (ewp_Par with "H1 H2 [E1] [E2]").
-    - iIntros (e) "H1". iApply ewp_throw. iApply ("E1" with "H1").
-    - iIntros (e) "H2". iApply ewp_throw. iApply ("E2" with "H2").
-    - iIntros (l1 v2) "H1 H2".
-      iSpecialize ("P" $! l1 v2 with "[$]").
-      iDestruct "P" as (v1) "(Hl1 & P)".
-      iApply (ewp_store with "Hl1"). iNext; iIntros "Hl1".
-      iApply ewp_ret.
-      iApply ("P" with "Hl1").
+    iIntros "H1 H2 E1 E2 P %ι".
+    iApply (ewpi_EStore_exn with "[H1] [H2] [E1] [E2] P").
+    - by iApply ewpi_ewp.
+    - by iApply ewpi_ewp.
+    - iIntros (e) "H1". by iApply "E1".
+    - iIntros (e) "H2". by iApply "E2".
+  Qed.
+
+  Lemma ewpi_EStore {ι η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ) φ E Ψ :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures #l1, φ1 l1 }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
+    (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
+      ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ VUnit)) -∗
+    EWP[ι] eval η (EStore e1 e2) @ E <|Ψ|> {{ ensures v, φ v }}.
+  Proof.
+    iIntros "H1 H2 P".
+    iApply (ewpi_EStore_exn with "[H1] H2").
+    - iApply ewpi_bind; iApply (ewpi_mono with "H1").
+      iIntros ([|]); [ iIntros "H1 /=" | iIntros "[]" ].
+      iDestruct "H1" as "(%v & -> & H1)".
+      iApply ewpi_ret.
+      instantiate (1 := (λ o, match o with | O2Ret l => φ1 l | _ => False end)%I).
+      iApply "H1".
+    - iIntros (? []).
+    - auto.
+    - simpl. iExact "P".
   Qed.
 
   Lemma ewp_EStore {η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : val -d> iPropO Σ) φ E Ψ :
-    EWP as_loc (eval η e1) @ E <|Ψ|> {{ ensures l1, φ1 l1 }} -∗
+    EWP eval η e1 @ E <|Ψ|> {{ ensures #l1, φ1 l1 }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ l1 v2, φ1 l1 ∗ φ2 v2 -∗
       ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ VUnit)) -∗
     EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ ensures v, φ v }}.
   Proof.
-    iIntros "H1 H2 P".
-    iApply (ewp_EStore_exn with "H1 H2"); auto.
+    iIntros "H1 H2 P %ι".
+    iApply (ewpi_EStore with "[H1] [H2] P").
+    by iApply ewpi_ewp.
+    by iApply ewpi_ewp.
   Qed.
 
   (* Here, [l↦v] is threaded through [e2], as one is more likely to use
      ownership of [l] in [e2] than in [e1] (i.e. we rarely write things like
      [(!r := 1; r) := 2]) *)
+  Lemma ewpi_EStore_simple ι η e1 e2 (l : loc) (v v' : val) E Ψ :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ RET= #l }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ RET= v', l ↦ (V v) }} -∗
+    EWP[ι] eval η (EStore e1 e2) @ E <|Ψ|> {{ RET= #(), l ↦ (V v') }}.
+  Proof.
+    iIntros "H1 H2".
+    iApply (ewpi_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
+    - iApply (ewpi_mono with "H1").
+      iIntros ([|]); [ | iIntros "[]" ].
+      iIntros "(-> & _)".
+      iExists l; auto.
+    - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.
+  Qed.
+
   Lemma ewp_EStore_simple η e1 e2 (l : loc) (v v' : val) E Ψ :
     EWP eval η e1 @ E <|Ψ|> {{ RET= #l }} -∗
     EWP eval η e2 @ E <|Ψ|> {{ RET= v', l ↦ (V v) }} -∗
     EWP eval η (EStore e1 e2) @ E <|Ψ|> {{ RET= #(), l ↦ (V v') }}.
   Proof.
-    iIntros "H1 H2".
-    iApply (ewp_EStore (λ l1, ⌜l = l1⌝%I)  with "[H1] H2").
-    - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
-      by iIntros (?) "(-> & ?)"; iApply ewp_ret.
-    - iIntros (? ?) "(-> & -> & Hl)". iExists _. iFrame. auto.
+    iIntros "H1 H2 %ι".
+    iApply (ewpi_EStore_simple with "[H1] [H2]");
+      by iApply ewpi_ewp.
   Qed.
+
 
   (** * EPerform : expr -> expr *)
 
@@ -1181,7 +1241,28 @@ Section ewp_rules_expr.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+  Lemma ewpi_EContinue' ι η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
+    EWP[ι] (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
+    EWP[ι] eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
+    (∀ (k : cont) v, φ1 k -∗ φ2 v -∗
+                EWP[ι] stop CResume (k, O2Ret v) @ E <|ψ|> {{ φ }}) -∗
+    EWP[ι] eval η (EContinue e1 e2) @ E <|ψ|> {{ φ }}.
+  Proof.
+    iIntros "Hk Hv Hmon".
+    simpl_eval.
+    iApply (ewpi_Par with "[Hk] Hv"); try done.
+    { unfold as_cont. iApply ewpi_bind.
+      iApply (ewpi_mono with "Hk").
+      iIntros ([|]); last done.
+      iIntros "(%v & -> & Hφ1)".
+      iApply ewpi_ret. instantiate (1 := (λ o, match o with O2Ret v => φ1 v | O2Throw _ => False end)%I).
+      iApply "Hφ1". }
+    1-2: simpl; iIntros; try done.
+    simpl; iIntros (k v) "Hφ1 Hφ2".
+    iApply ("Hmon" with "Hφ1 Hφ2").
+  Qed.
+
+    Lemma ewp_EContinue' η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ)  φ :
     EWP (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
     EWP eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
     (∀ (k : cont) v, φ1 k -∗ φ2 v -∗
