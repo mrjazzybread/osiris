@@ -32,13 +32,13 @@ Section ewp_stop.
 
   (* The standard memory allocation rule of Separation Logic. *)
 
-  Lemma ewp_alloc' {B Y} E v (k : _ → micro B Y) φ Ψ :
+  Lemma ewp_alloc' {B Y} ι E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
-          EWP (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
-      EWP (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
+          EWP[ι] (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
+      EWP[ι] (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "H %ι".
+    iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
@@ -48,11 +48,11 @@ Section ewp_stop.
     ewp_mask_elim. iFrame. iApply ("H" with "[$]").
   Qed.
 
-  Lemma ewp_alloc {B Y} E v (k : _ → micro B Y) φ Ψ :
+  Lemma ewp_alloc {B Y} ι E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           pointsto l (DfracOwn 1) (V v) -∗
-          EWP (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
-    EWP (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
+          EWP[ι] (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP[ι] (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
   Proof.
     iIntros "H".
     iApply ewp_alloc'; iNext.
@@ -64,15 +64,15 @@ Section ewp_stop.
 
   (* The standard memory write rule of Separation Logic. *)
 
-  Lemma ewp_store {B Y} E l v v' (k : _ → micro B Y) φ Ψ :
+  Lemma ewp_store {B Y} ι E l v v' (k : _ → micro B Y) φ Ψ :
     pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         pointsto l (DfracOwn 1) (V v') -∗
-        EWP (continue k #()) @ E <| Ψ |> {{ φ }}
+        EWP[ι] (continue k #()) @ E <| Ψ |> {{ φ }}
       ) -∗
-    EWP (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
+    EWP[ι] (Stop CStore (l, v') k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Hl Hwp %ι".
+    iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
@@ -90,16 +90,16 @@ Section ewp_stop.
 
   (* The standard memory load rule of Separation Logic. *)
 
-  Lemma ewp_load {B Y} E l v dq (k: _ → micro B Y) φ Ψ:
+  Lemma ewp_load {B Y} ι E l v dq (k: _ → micro B Y) φ Ψ:
     ▷ pointsto l dq (V v) ⊢
     ▷ (
         pointsto l dq (V v) -∗
-        EWP (continue k v) @ E <| Ψ |> {{ φ }}
+        EWP[ι] (continue k v) @ E <| Ψ |> {{ φ }}
       ) -∗
-    EWP (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
+    EWP[ι] (Stop CLoad l k) @ E <| Ψ |> {{ φ }}.
   Proof.
     destruct Ψ.
-    iIntros "Hl Hwp %ι".
+    iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     iIntros "!> !>".
@@ -118,14 +118,14 @@ Section ewp_stop.
      safe, and that the parent thread is safe.
      We learn that the forked thread has an address ι' and is initially alive *)
 
-  Lemma ewp_stop_fork {B Y} φ E Ψ v1 v2 (k : _ -> micro B Y) Φ :
+  Lemma ewp_stop_fork {B Y} φ ι E Ψ v1 v2 (k : _ -> micro B Y) Φ :
     ▷ (∀ ι',
           valid_thread ι' φ -∗
           EWP[ι'] call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }} ∗
-          EWP (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
-    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
+          EWP[ι] (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP[ι] (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "Hfork %ι".
+    iIntros "Hfork".
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -135,14 +135,13 @@ Section ewp_stop.
     ewp_mask_elim.
     iAssert (valid_thread ι' φ) as "Hvalid'". iFrame "#".
     iDestruct ("Hfork" with "Hvalid'") as "[Hcall Hcontinue]".
-    iFrame "∗#".
-    iApply "Hcontinue".
+    by iFrame "#∗ Hcall Hcontinue".
   Qed.
 
-  Lemma ewp_stop_fork' {B Y} φ E Ψ v1 v2 (k : _ -> micro B Y) Φ :
-    ▷ (∀ ι', valid_thread ι' φ -∗ EWP (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
-    ▷ EWP call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }} -∗
-    EWP (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
+  Lemma ewp_stop_fork' {B Y} φ ι E Ψ v1 v2 (k : _ -> micro B Y) Φ :
+    ▷ (∀ ι', valid_thread ι' φ -∗ EWP[ι] (continue k (VThread ι')) @ E <| Ψ |> {{ Φ }}) -∗
+    ▷ (∀ ι', EWP[ι'] call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
+    EWP[ι] (Stop CFork (v1, v2) k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hcontinue Hfork".
     iApply ewp_stop_fork.
@@ -152,25 +151,25 @@ Section ewp_stop.
     - iApply ("Hcontinue" with "Hvalid").
   Qed.
 
-  Lemma ewp_fork E Ψ v1 v2 Φ φ :
+  Lemma ewp_fork ι E Ψ v1 v2 Φ φ :
     ▷ (∀ ι',
           valid_thread ι' φ -∗
           EWP[ι'] call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }} ∗
           Φ (O2Ret (VThread ι'))) -∗
-    EWP (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+    EWP[ι] (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "HΦ".
     iApply ewp_stop_fork.
     iIntros "!>" (ι') "Hvalid"; iDestruct ("HΦ" with "Hvalid") as "[Hcall HΦ]"; iFrame.
-    iApply ewp_ret. iApply "HΦ".
+    iApply (ewp_ret with "HΦ").
   Qed.
 
-  Lemma ewp_stop_join {B X'} E Ψ ι Φ (k : _ -> micro B X') φ :
+  Lemma ewp_stop_join {B X'} ι' E Ψ ι Φ (k : _ -> micro B X') φ :
     valid_thread ι φ -∗
-    ▷ (∀ o, □ φ o -∗ EWP k o @ E <| Ψ |> {{ Φ }}) -∗
-    EWP (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
+    ▷ (∀ o, □ φ o -∗ EWP[ι'] k o @ E <| Ψ |> {{ Φ }}) -∗
+    EWP[ι'] (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
   Proof.
-    iIntros "Hι Hk %ι'".
+    iIntros "Hι Hk".
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
@@ -182,16 +181,16 @@ Section ewp_stop.
     iApply ("Hk" with "Ho").
   Qed.
 
-  Lemma ewp_join E Ψ ι Φ φ :
+  Lemma ewp_join ι' E Ψ ι Φ φ :
     valid_thread ι φ -∗
     ▷ (∀ o, □ φ o -∗ Φ o) -∗
-    EWP (join ι) @ E <| Ψ |> {{ Φ }}.
+    EWP[ι'] (join ι) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".
     iApply (ewp_stop_join with "Hvalid").
     iNext.
     iIntros (o) "Hdead".
-    iApply ewp_outcome2.
+    iApply (ewp_outcome2 with "[HΦ Hdead]").
     iApply ("HΦ" with "Hdead").
   Qed.
 
@@ -218,7 +217,7 @@ Section ewp_stop.
   (* [CResume]. *)
 
   (* Resuming a continuation from a location in the store. *)
-  Lemma ewpi_resume {B Y} ι E l o sk (k: _ → micro B Y) φ ψ :
+  Lemma ewp_resume {B Y} ι E l o sk (k: _ → micro B Y) φ ψ :
     isCont l sk ⊢
     (isShot l -∗
      ▷   EWP[ι] (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
@@ -240,24 +239,12 @@ Section ewp_stop.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
   Qed.
 
-  Lemma ewp_resume {B Y} E l o sk (k: _ → micro B Y) φ ψ :
-    isCont l sk ⊢
-    (isShot l -∗
-     ▷   EWP (try2 (sk o) k) @ E <| ψ |> {{ φ }}) -∗
-    EWP (Stop CResume (l, o) k) @ E <| ψ |> {{ φ }}.
-  Proof.
-    iIntros "Hl Hwp %ι".
-    iApply (ewpi_resume with "Hl").
-    iIntros "Hshot". iSpecialize ("Hwp" with "Hshot").
-    iNext. iApply "Hwp".
-  Qed.
-
-  Lemma ewp_resume_crash {B Y} E l o (k: _ → micro B Y) Ψ φ:
+  Lemma ewp_resume_crash {B Y} ι E l o (k: _ → micro B Y) Ψ φ:
     isShot l -∗
-    EWP (crash "resume error: unbound location") @ E <| Ψ |> {{ φ }} -∗
-    EWP (Stop CResume (l, o) k) @ E <| Ψ |> {{ φ }}.
+    EWP[ι] (crash "resume error: unbound location") @ E <| Ψ |> {{ φ }} -∗
+    EWP[ι] (Stop CResume (l, o) k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Hl Hcrash %ι".
+    iIntros "Hl Hcrash".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
@@ -268,8 +255,7 @@ Section ewp_stop.
 
     (* Update the ghost heap. *)
     ewp_mask_elim.
-    rewrite /step_resume_1 /step_resume_2 H0. iFrame.
-    iApply "Hcrash".
+    rewrite /step_resume_1 /step_resume_2 H0. by iFrame.
   Qed.
 
   (* [CWrap]. *)
@@ -277,7 +263,7 @@ Section ewp_stop.
   (* Installing a handler with branches [bs] on top of a continuation
      that is located in the store at location [l]. *)
 
-  Lemma ewpi_wrap_deep {B Y} ι E l η bs (k: _ -> micro B Y) φ Ψ :
+  Lemma ewp_wrap_deep {B Y} ι E l η bs (k: _ -> micro B Y) φ Ψ :
     (∀ l',
       l'↦
         (K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))) -∗
@@ -297,7 +283,7 @@ Section ewp_stop.
     ewp_mask_elim. iFrame.
   Qed.
 
-  Lemma ewpi_wrap_shallow {B Y} ι E l η bs (k: _ -> micro B Y) φ Ψ :
+  Lemma ewp_wrap_shallow {B Y} ι E l η bs (k: _ -> micro B Y) φ Ψ :
     (∀ l',
       isCont l'
         (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
@@ -320,11 +306,11 @@ Section ewp_stop.
   Qed.
 
   (* Non-deterministic choose: note the use of non-separating conjunction *)
-  Lemma ewp_stop_flip {B Y E} u (k: _ → micro B Y) {φ} Ψ :
-      ▷(EWP continue k true @ E <| Ψ |> {{ φ }} ∧ EWP continue k false @ E <| Ψ |> {{ φ }})
-      ⊢ EWP (Stop CFlip u k) @ E <| Ψ |> {{ φ }}.
+  Lemma ewp_stop_flip {B Y E} ι u (k: _ → micro B Y) {φ} Ψ :
+      ▷(EWP[ι] continue k true @ E <| Ψ |> {{ φ }} ∧ EWP[ι] continue k false @ E <| Ψ |> {{ φ }})
+      ⊢ EWP[ι] (Stop CFlip u k) @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "H %ι".
+    iIntros "H".
     ewp_unfold_head.
     intro_state.
     ewp_mask_intro "Hmod".
@@ -336,9 +322,9 @@ Section ewp_stop.
   Qed.
 
   (* Non-deterministic choose: note the use of non-separating conjunction *)
-  Lemma ewp_flip {E} {φ} Ψ :
+  Lemma ewp_flip {E} {φ} ι Ψ :
       ▷( φ (O2Ret true) ∧ φ (O2Ret false))
-      ⊢ EWP flip @ E <| Ψ |> {{ φ }}.
+      ⊢ EWP[ι] flip @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     iApply ewp_stop_flip. iNext.
@@ -349,9 +335,9 @@ Section ewp_stop.
       by iApply ewp_ret.
   Qed.
 
-  Lemma ewp_choose (m1 m2 : micro A exn) E {φ} Ψ :
-    ▷(EWP m1 @ E <| Ψ |> {{ φ }} ∧ EWP m2 @ E <| Ψ |> {{ φ }})
-      ⊢ EWP (choose m1 m2) @ E <| Ψ |> {{ φ }}.
+  Lemma ewp_choose (m1 m2 : micro A exn) E {φ} ι Ψ :
+    ▷(EWP[ι] m1 @ E <| Ψ |> {{ φ }} ∧ EWP[ι] m2 @ E <| Ψ |> {{ φ }})
+      ⊢ EWP[ι] (choose m1 m2) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     iApply ewp_bind.
@@ -367,23 +353,24 @@ End ewp_stop.
 Section ewp_eval.
 
   Context `{!osirisGS Σ}.
+  Context {ι : thread} {E : coPset} {Ψ : iEff Σ}.
 
-  Lemma ewp_module η sitems E Ψ (Q : val -> iProp Σ) :
-    EWP (eval_sitems (η, []) sitems) @ E <| Ψ |> {{ ensures '(_, δ), Q (VStruct δ) }} -∗
-      EWP (eval_mexpr η (MStruct sitems)) @E <| Ψ |> {{ ensures v, Q v }}.
+  Lemma ewp_module sitems (Q : val -> iProp Σ) η :
+    EWP[ι] (eval_sitems (η, []) sitems) @ E <| Ψ |> {{ ensures '(_, δ), Q (VStruct δ) }} -∗
+      EWP[ι] (eval_mexpr η (MStruct sitems)) @E <| Ψ |> {{ ensures v, Q v }}.
   Proof.
-    iIntros "Hsitems %ι".
-    simpl_eval_mexpr. iApply ewpi_ewp. iApply ewp_bind.
+    iIntros "Hsitems".
+    simpl_eval_mexpr. iApply ewp_bind.
     iApply (ewp_mono with "Hsitems").
-    iIntros ([ ηδ | e ]); [ simpl | done ].
-    destruct ηδ; iIntros "HQ".
+    iIntros ([ ηδ' | e ]); [ simpl | done ].
+    destruct ηδ'; iIntros "HQ".
     by iApply ewp_ret.
   Qed.
 
-  Lemma ewp_sitems_cons ηδ sitem sitems E Ψ Q (φ : env * env -> iProp Σ) :
-    EWP eval_sitem ηδ sitem @ E <| Ψ |> {{ ensures ηδ, φ ηδ }} -∗
-      (∀ ηδ, φ ηδ -∗ EWP eval_sitems ηδ sitems @ E <| Ψ |> {{ Q }}) -∗
-      EWP eval_sitems ηδ (sitem :: sitems) @ E <| Ψ |> {{ Q }}.
+  Lemma ewp_sitems_cons sitem sitems Q (φ : env * env -> iProp Σ) ηδ:
+    EWP[ι] eval_sitem ηδ sitem @ E <| Ψ |> {{ ensures ηδ, φ ηδ }} -∗
+      (∀ ηδ, φ ηδ -∗ EWP[ι] eval_sitems ηδ sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP[ι] eval_sitems ηδ (sitem :: sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hsitem Hcov".
     simpl_eval_sitems. iApply ewp_bind.
@@ -392,17 +379,17 @@ Section ewp_eval.
     iApply "Hcov".
   Qed.
 
-  Lemma ewp_sitems_nil ηδ E Ψ Q :
+  Lemma ewp_sitems_nil Q ηδ :
     Q (O2Ret ηδ) -∗
-      EWP eval_sitems ηδ [] @ E <| Ψ |> {{ Q }}.
+      EWP[ι] eval_sitems ηδ [] @ E <| Ψ |> {{ Q }}.
   Proof.
     simpl_eval_sitems.
     by iApply ewp_ret.
   Qed.
 
-  Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) η δ x af E Ψ :
+  Lemma ewp_sitem_letrec_singleton (spec : val -> iProp Σ) x af η δ :
     spec (VCloRec η [RecBinding x af] x) -∗
-      EWP eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| Ψ |>
+      EWP[ι] eval_sitem (η, δ) (ILetRec [RecBinding x af]) @ E <| Ψ |>
       {{ ensures '(η0, δ0),
           ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
       }}.
@@ -415,30 +402,30 @@ Section ewp_eval.
 
   Definition ieq {PROP : bi} {A : Type} y := λ (x : A), @bi_pure PROP (x = y).
 
-  Lemma ewp_struct_let η δ bs E Ψ Q Q' :
-    EWP (eval_bindings η bs) @ E <| Ψ |> {{ ensures η, Q' η }} -∗
+  Lemma ewp_struct_let bs Q Q' η δ :
+    EWP[ι] (eval_bindings η bs) @ E <| Ψ |> {{ ensures η, Q' η }} -∗
       (∀ η', Q' η' -∗ Q (O2Ret (η' ++ η, η' ++ δ))) -∗
-      EWP (eval_sitem (η, δ) (ILet bs)) @ E <| Ψ |> {{ Q }}.
+      EWP[ι] (eval_sitem (η, δ) (ILet bs)) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hbindings Hmono".
     simpl_eval_sitem. iApply ewp_bind.
     iApply (ewp_mono with "Hbindings").
     iIntros ([ | ]); [ simpl | done ].
     iIntros.
-    iApply ewpi_ewp. iApply ewp_ret.
+    iApply ewp_ret.
     by iApply "Hmono".
   Qed.
 
-  Lemma ewp_struct_let_single spec η δ name e E Ψ :
-    EWP (eval η e) @ E <| Ψ |> {{ ensures v, spec v }} -∗
-      EWP (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <| Ψ |>
+  Lemma ewp_struct_let_single spec name e η δ :
+    EWP[ι] (eval η e) @ E <| Ψ |> {{ ensures v, spec v }} -∗
+      EWP[ι] (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <| Ψ |>
       {{ ensures '(η', δ'),
           ∃ v : val, spec v ∧ ⌜η' = (name, v) :: η ∧ δ' = (name, v) :: δ⌝
       }}.
   Proof.
     iIntros "Hspec".
     simpl_eval_sitem; simpl_eval_bindings. iApply ewp_bind.
-    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
+    iApply (prove_ewp_Par _ _ _ _ _ (λ l, ⌜l = []⌝)%I with "Hspec").
     { by iApply ewp_ret. }
     iIntros (v ?) "Hspec ->". simpl_eval_pat; unfold widen; simpl.
     rewrite try_ret. iApply ewp_ret. simpl. iApply ewp_ret.
@@ -446,10 +433,10 @@ Section ewp_eval.
     iFrame. iPureIntro; auto.
   Qed.
 
-  Lemma ewp_sitem_extend η δ es E Ψ (Q : env * env -> iProp Σ) :
-    EWP eval_type_extensions es @ E <| Ψ |>
+  Lemma ewp_sitem_extend es (Q : env * env -> iProp Σ) η δ :
+    EWP[ι] eval_type_extensions es @ E <| Ψ |>
       {{ ensures δ', Q (δ' ++ η, δ' ++ δ) }} -∗
-      EWP eval_sitem (η, δ) (IExtend es) @ E <| Ψ |> {{ ensures v, Q v }}.
+      EWP[ι] eval_sitem (η,δ) (IExtend es) @ E <| Ψ |> {{ ensures v, Q v }}.
   Proof.
     iIntros "Hes".
     simpl_eval_sitem. iApply ewp_bind.
@@ -458,10 +445,11 @@ Section ewp_eval.
     by iApply ewp_ret.
   Qed.
 
-  Lemma ewp_sitems_extend sitems η δ x E Ψ Q :
-    (∀ ηδ', (∃ l, ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
-              EWP eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
-      EWP eval_sitems (η, δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> {{ Q }}.
+  Lemma ewp_sitems_extend sitems x Q η δ :
+    (∀ ηδ', (∃ l,
+              ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
+              EWP[ι] eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP[ι] eval_sitems (η,δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hcov".
     iApply (ewp_sitems_cons).
@@ -476,10 +464,10 @@ Section ewp_eval.
     iApply "Hcov".
   Qed.
 
-  Lemma ewp_sitem_open η δ me E Ψ Q φ δ' :
-    EWP eval_mexpr η me @ E <| Ψ |> {{ ensures v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
+  Lemma ewp_sitem_open me Q φ η δ δ' :
+    EWP[ι] eval_mexpr η me @ E <| Ψ |> {{ ensures v, ⌜ v = VStruct δ' ⌝ ∗ φ δ' }} -∗
     ( ∀ δ', φ δ' -∗ Q (O2Ret (δ' ++ η, δ)) ) -∗
-    EWP eval_sitem (η, δ) (IOpen me) @ E <| Ψ |> {{ Q }}.
+    EWP[ι] eval_sitem (η, δ) (IOpen me) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hme Hcov". simpl_eval_sitem.
     iApply ewp_bind. iApply ewp_bind.
@@ -490,11 +478,11 @@ Section ewp_eval.
     iApply ("Hcov" with "Hφ").
   Qed.
 
-  Lemma ewp_type_extension_cons e es E Ψ Q :
+  Lemma ewp_type_extension_cons e es Q :
     ▷ (∀ l, l ↦ V #() -∗
-          EWP eval_type_extensions es @ E <| Ψ |>
+          EWP[ι] eval_type_extensions es @ E <| Ψ |>
             {{ ensures δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
-    EWP eval_type_extensions (e :: es) @ E <| Ψ |> {{ Q }}.
+    EWP[ι] eval_type_extensions (e :: es) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "Hes". simpl.
     iApply ewp_alloc.
@@ -507,34 +495,34 @@ Section ewp_eval.
     by iApply ewp_ret.
   Qed.
 
-  Lemma ewp_type_extension_nil E Ψ Q :
+  Lemma ewp_type_extension_nil Q :
     Q (O2Ret []) -∗
-    EWP eval_type_extensions [] @ E <| Ψ |> {{ Q }}.
+    EWP[ι] eval_type_extensions [] @ E <| Ψ |> {{ Q }}.
   Proof. iIntros "HQ". simpl. by iApply ewp_ret. Qed.
 
-  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) η δ x e E Ψ Q :
-    EWP eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
+  Lemma ewp_sitem_let_singleton_var (spec : val -> iProp Σ) x e Q η δ :
+    EWP[ι] eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
       (∀ v, spec v -∗ Q (O2Ret ((x, v) :: η, (x, v) :: δ))) -∗
-      EWP eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| Ψ |> {{ Q }}.
+      EWP[ι] eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "He HQ".
     simpl_eval_sitem. simpl_eval_bindings.
-    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_ret. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
     simpl_eval_pat. iApply ewp_ret.
     by iApply "HQ".
   Qed.
 
-  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems η δ x e E Ψ Q :
-    EWP eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
+  Lemma ewp_sitems_let_singleton_var (spec : val -> iProp Σ) sitems x e Q η δ :
+    EWP[ι] eval η e @ E <| Ψ |> {{ ensures v, spec v }} -∗
       (∀ ηδ', (∃ v, ⌜ηδ' = ((x, v) :: η, (x, v) :: δ)⌝ ∗ spec v) -∗
-                EWP eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
-      EWP eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| Ψ |> {{ Q }}.
+                EWP[ι] eval_sitems ηδ' sitems @ E <| Ψ |> {{ Q }}) -∗
+      EWP[ι] eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| Ψ |> {{ Q }}.
   Proof.
     iIntros "He Hcov".
     simpl_eval_sitems; simpl_eval_bindings; simpl.
-    iApply (prove_ewp_Par _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
+    iApply (prove_ewp_Par _ _ _ _ _ (λ l, ⌜l = []⌝)%I with "He").
     { iApply ewp_ret. iPureIntro; reflexivity. }
     iIntros (v1 v2) "Hspec ->".
     unfold widen; simpl_eval_pat; simpl.

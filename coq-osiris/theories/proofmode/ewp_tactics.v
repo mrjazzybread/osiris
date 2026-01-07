@@ -260,8 +260,7 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
    the effectful case and the return/exceptional case. *)
 
 Ltac prove_handler_spec :=
-  let ι := fresh "ι" in
-  rewrite deep_handler_spec_unfold; iIntros (ι); iSplit.
+  rewrite deep_handler_spec_unfold; iSplit.
 
 (* Proving an [EMatch] expression boils down to proving a handler where
    the effectful case is trivial. *)
@@ -274,7 +273,6 @@ Ltac prove_match0_spec spec :=
     [ let x := fresh "tmp" in
       let Hf := iFresh in
       iIntros (x) Hf;
-      iApply ewpi_ewp;
       iRevert (x) Hf
     | let Hf := iFresh in
       iIntros (??) Hf;
@@ -297,7 +295,7 @@ Ltac prove_simple_match :=
   iApply (ewp_deep_handler _ _ _ (ieq ?[y]));
   [ |
     prove_handler_spec;
-    [ iApply ewpi_ewp
+    [
     | let Hf := iFresh in
       iIntros (??) Hf;
         by iPoseProof (upcl_bottom with Hf) as "?" ];
@@ -445,9 +443,7 @@ Ltac2 do_iintros () :=
    It is the iris proofmode analog of [pure_match] in the pure mode. *)
 
 Ltac2 apply_deep_handle_cons () :=
-  (Control.plus
-     (fun _ => iApply deep_handle_cons)
-     (fun _ => iApply ideep_handle_cons));
+  iApply deep_handle_cons;
   Control.focus 1 1
     (fun _ =>
        iPureIntro;
