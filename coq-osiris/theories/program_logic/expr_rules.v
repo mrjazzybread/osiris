@@ -518,6 +518,58 @@ Section ewp_rules_expr.
   (** * EIntNeg : expr → expr *)
   (** * EIntAdd : expr → expr → expr *)
 
+  Lemma ewpi_EIntAdd_exn ι η e1 e2 φ1 φ2 φ E Ψ :
+    EWP[ι] as_int (eval η e1) @ E <|Ψ|> {{ φ1 }} -∗
+    EWP[ι] as_int (eval η e2) @ E <|Ψ|> {{ φ2 }} -∗
+    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
+    (∀ n1 n2, φ1 (O2Ret n1) ∗ φ2 (O2Ret n2) -∗ φ (O2Ret (VInt (int.M.add n1 n2)))) -∗
+    EWP[ι] eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ φ }}.
+  Proof.
+    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
+    iApply (ewpi_Par with "H1 H2 [E1] [E2]").
+    - iIntros (v) "H /=". iApply ewpi_throw. iApply ("E1" with "H").
+    - iIntros (v) "H /=". iApply ewpi_throw. iApply ("E2" with "H").
+    - iIntros (n1 n2) "H1 H2". iApply ewpi_bind. iApply ewpi_ret. iApply ewpi_ret.
+      iApply "P". iFrame.
+  Qed.
+
+  Lemma ewpi_EIntAdd ι η e1 e2 φ1 φ2 φ E Ψ :
+    EWP[ι] as_int (eval η e1) @ E <|Ψ|> {{ ensures n1, φ1 n1 }} -∗
+    EWP[ι] as_int (eval η e2) @ E <|Ψ|> {{ ensures n2, φ2 n2 }} -∗
+    (∀ n1 n2, φ1 n1 ∗ φ2 n2 -∗ φ (VInt (int.M.add n1 n2))) -∗
+    EWP[ι] eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ ensures n, φ n }}.
+  Proof.
+    iIntros "H1 H2 P".
+    iApply (ewpi_EIntAdd_exn with "H1 H2"); auto.
+  Qed.
+
+  Lemma ewpi_EIntAdd' ι η e1 e2 (φ1 φ2 φ : Z -> iProp Σ) E Ψ :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures #n1, φ1 n1 }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #n2, φ2 n2 }} -∗
+    (∀ n1 n2, φ1 n1 ∗ φ2 n2 -∗ φ (n1 + n2)%Z) -∗
+    EWP[ι] eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ ensures #n, φ n }}.
+  Proof.
+    iIntros "H1 H2 P".
+    pose φ1' := (λ v, ∃ n, ⌜v = repr n⌝∗ φ1 n)%I.
+    pose φ2' := (λ v, ∃ n, ⌜v = repr n⌝∗ φ2 n)%I.
+    iApply (ewpi_EIntAdd ι _ _ _ φ1' φ2' with "[H1] [H2]"); auto.
+    - iApply ewpi_bind. iApply (ewpi_mono with "H1").
+      iIntros ([|]); [ | iIntros ([]) ].
+      iIntros "(%n & -> & H)".
+      iApply ewpi_ret. iExists _. by iFrame.
+    - iApply ewpi_bind. iApply (ewpi_mono with "H2").
+      iIntros ([|]); [ | iIntros ([]) ].
+      iIntros "(%n & -> & H)".
+      iApply ewpi_ret. iExists _. by iFrame.
+    - iIntros (i1 i2) "(H1 & H2)".
+      iDestruct "H1" as (n1 ->) "H1".
+      iDestruct "H2" as (n2 ->) "H2".
+      iSpecialize ("P" with "[$]").
+      iExists _. iFrame.
+      rewrite M.add_repr_repr. auto.
+  Qed.
+
   Lemma ewp_EIntAdd_exn η e1 e2 φ1 φ2 φ E Ψ :
     EWP as_int (eval η e1) @ E <|Ψ|> {{ φ1 }} -∗
     EWP as_int (eval η e2) @ E <|Ψ|> {{ φ2 }} -∗
@@ -526,12 +578,8 @@ Section ewp_rules_expr.
     (∀ n1 n2, φ1 (O2Ret n1) ∗ φ2 (O2Ret n2) -∗ φ (O2Ret (VInt (int.M.add n1 n2)))) -∗
     EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
-    iApply (ewp_Par with "H1 H2 [E1] [E2]").
-    - iIntros (v) "H /=". iApply ewp_throw. iApply ("E1" with "H").
-    - iIntros (v) "H /=". iApply ewp_throw. iApply ("E2" with "H").
-    - iIntros (n1 n2) "H1 H2". iApply ewp_bind. iApply ewp_ret. iApply ewp_ret.
-      iApply "P". iFrame.
+    iIntros "H1 H2 E1 E2 P /= %ι".
+    iApply (ewpi_EIntAdd_exn with "H1 H2 E1 E2 P").
   Qed.
 
   Lemma ewp_EIntAdd η e1 e2 φ1 φ2 φ E Ψ :
@@ -550,22 +598,8 @@ Section ewp_rules_expr.
     (∀ n1 n2, φ1 n1 ∗ φ2 n2 -∗ φ (n1 + n2)%Z) -∗
     EWP eval η (EIntAdd e1 e2) @ E <|Ψ|> {{ ensures #n, φ n }}.
   Proof.
-    iIntros "H1 H2 P".
-    pose φ1' := (λ v, ∃ n, ⌜v = repr n⌝∗ φ1 n)%I.
-    pose φ2' := (λ v, ∃ n, ⌜v = repr n⌝∗ φ2 n)%I.
-    iApply (ewp_EIntAdd _ _ _ φ1' φ2' with "[H1] [H2]"); auto.
-    - iApply ewp_bind. iApply (ewp_mono_ret with "H1").
-      iIntros (v) "H". iDestruct "H" as (?) "(-> & H)".
-      iApply ewp_ret. iExists _. by iFrame.
-    - iApply ewp_bind. iApply (ewp_mono_ret with "H2").
-      iIntros (v) "H". iDestruct "H" as (?) "(-> & H)".
-      iApply ewp_ret. iExists _. by iFrame.
-    - iIntros (i1 i2) "(H1 & H2)".
-      iDestruct "H1" as (n1 ->) "H1".
-      iDestruct "H2" as (n2 ->) "H2".
-      iSpecialize ("P" with "[$]").
-      iExists _. iFrame.
-      rewrite M.add_repr_repr. auto.
+    iIntros "H1 H2 P %ι".
+    iApply (ewpi_EIntAdd' with "H1 H2 P").
   Qed.
 
   Lemma ewp_EIntAdd_simple η e1 e2 (n1 n2 : Z) (R1 R2 : iProp Σ) E Ψ :

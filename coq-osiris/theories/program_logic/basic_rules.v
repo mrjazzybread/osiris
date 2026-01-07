@@ -152,11 +152,11 @@ Section ewp_basic_rules.
     by ewp_mask_elim.
   Qed.
 
-  Lemma ewp_please E η e φ Ψ :
-    ▷ EWP eval η e @ E <| Ψ |> {{ φ }} -∗
-    EWP please_eval η e @ E <| Ψ |> {{ φ }}.
+  Lemma ewpi_please ι E η e φ Ψ :
+    ▷ EWP[ι] eval η e @ E <| Ψ |> {{ φ }} -∗
+    EWP[ι] please_eval η e @ E <| Ψ |> {{ φ }}.
   Proof.
-    iIntros "Heval %ι".
+    iIntros "Heval".
     ewp_unfold (please_eval η e).
     rewrite /please_eval; destruct Ψ.
     intro_state.
@@ -167,6 +167,14 @@ Section ewp_basic_rules.
     destruct Hstep as [Hstep ->].
     destruct_step.
     rewrite try2_inject2_right. by iFrame.
+  Qed.
+
+  Lemma ewp_please E η e φ Ψ :
+    ▷ EWP eval η e @ E <| Ψ |> {{ φ }} -∗
+    EWP please_eval η e @ E <| Ψ |> {{ φ }}.
+  Proof.
+    iIntros "Heval %ι".
+    iApply ewpi_please. iNext. iApply "Heval".
   Qed.
 
   (* ------------------------------------------------------------------------ *)
