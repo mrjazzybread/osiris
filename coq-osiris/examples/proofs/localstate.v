@@ -150,15 +150,14 @@ Section verification.
       ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
       ⌜ address rl ≠ address wl ⌝ -∗
       EWP eval η (EAnonFun __fun7)
-        {{ ensures run, iSpec τ[ state;val] run run_spec }}.
+        {{ ensures run, □ iSpec τ[ state;val] run run_spec }}.
   Proof.
     cbn zeta.
-    iIntros (env HGet HSet Haddr).
+    iIntros (env HGet HSet Haddr ι).
 
     (* Call the anonymous function. *)
-    iApply (ewp_eval_anon τ[ state; val ]); simpl.
-    iIntros (init main); unfold run_spec.
-    iIntros (spec) "Hspec".
+    iApply (ewp_EAnon_pers τ[ state; val ]); simpl.
+    iIntros "!>" (init main spec) "Hspec %ι'".
     iApply ewp_please; iNext.
     iApply ewp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
@@ -210,13 +209,12 @@ Section verification.
     iLöb as "IH" forall (γ main init).
 
     (* Prove that the spec is met. *)
-    iApply prove_deep_handler_spec; iIntros (ι); iSplit.
+    iApply prove_deep_handler_spec; iSplit.
 
     (* -------------------------------------------------------------------------- *)
     { (* Outcome case *)
       iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
       next_branch. iIntros (η ->).
-      iApply ewpi_ewp.
       iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
 
       (* Load from location *)
@@ -247,17 +245,16 @@ Section verification.
        iDestruct "H" as "(Hauth & Hx)".
        iSpecialize ("H_READ" with "Hx").
        iSpecialize ("H_READ" $! iEff_bottom (ensures #v, spec v.2))%I.
-       iApply (ewpi_EContinue' _ _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]");
-         [ | | iIntros (?? ->) ].
-       { iApply ewpi_EPath. iApply ewpi_ret. simpl.
+       iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]").
+       { iApply ewp_EPath. iApply ewp_ret. simpl.
          iExists k; iSplitL; iPureIntro; reflexivity. }
        { iApply (ewp_ELoad_simple with "[] Hl").
          iApply ewp_EPath. by iApply ewp_ret. }
 
-       iIntros "[-> Hl]".
+       iIntros (? ? ->) "[-> Hl]".
        iSpecialize ("IH" with "Hauth Hl").
        iSpecialize ("H_READ" with "[IH]").
-       { iNext. rewrite /deep_handler_spec /deep_handler_spec' seal_eq. iApply "IH". }
+       { iNext. rewrite /deep_handler_spec seal_eq. iApply "IH". }
        iApply "H_READ".
 
        (* Hard to guess that this is trivial. *) tauto. }
@@ -272,7 +269,7 @@ Section verification.
        (* Skip the return, exception, and [Get] branches. *)
        iNext.
        next_branch. iIntros (? []).
-       iApply ideep_handle_cons; [ | iSplit ].
+       iApply deep_handle_cons; [ | iSplit ].
        { iPureIntro. ltac2:(specify_cpattern ()).
          (* This causes a Match_failure, why?
          pattern_match. *)
@@ -283,33 +280,33 @@ Section verification.
        next_branch. iIntros (η ->).
 
        { (* EWP Goal: [var := y; continue k ()]. *)
-         iApply ewpi_ESeq.
+         iApply ewp_ESeq.
 
          (* EWP Subgoal: [var := y]. *)
-         iApply (ewpi_mono with "[Hl]").
-         { iApply (ewpi_EStore_simple).
-           { iApply ewpi_EPath; by iApply ewpi_ret. }
-           { iApply ewpi_EPath. iApply ewpi_ret. by iFrame. } }
+         iApply (ewp_mono with "[Hl]").
+         { iApply (ewp_EStore_simple).
+           { iApply ewp_EPath; by iApply ewp_ret. }
+           { iApply ewp_EPath. iApply ewp_ret. by iFrame. } }
          iIntros_RET "[-> Hl]".
 
          (* EWP Subgoal: [continue k ()]. *)
          iDestruct "H" as "(Hauth & Hx)".
 
-         iApply ewpi_fupd.
+         iApply ewp_fupd.
          iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
          iModIntro.
 
          iSpecialize ("H_WRITE" with "Hx").
          iSpecialize ("H_WRITE" $! iEff_bottom (ensures #v, spec v.2))%I.
 
-         iApply (ewpi_EContinue' _ _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
-         { iApply ewpi_EPath. iApply ewpi_ret.
+         iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
+         { iApply ewp_EPath. iApply ewp_ret.
            iExists _; iSplitL; iPureIntro; reflexivity. }
-         { simpl_eval. by iApply ewpi_ret. }
+         { simpl_eval. by iApply ewp_ret. }
 
          (* Resume the continuation. *)
          iApply "H_WRITE". iNext.
-         rewrite /deep_handler_spec /deep_handler_spec' seal_eq.
+         rewrite /deep_handler_spec seal_eq.
          iApply ("IH" with "Hauth Hl"). }
 
        tauto.
@@ -322,21 +319,21 @@ Section verification.
     ⊢ EWP (eval_mexpr dummy_env __main)
       {{ ensures v, ∃ η, ⌜v = VStruct η⌝ ∧
                        ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
-                              iSpec τ[state; val] run run_spec }}.
+                              □ iSpec τ[state; val] run run_spec }}.
   Proof.
-    iStartProof. rewrite /__main.
+    iIntros (ι).
     iApply ewp_module.
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])).
+    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])).
 
     (* [open Effect] *)
-    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ3])).
+    { iApply (ewp_sitem_open _ _ (ieq ?[φ3])).
       { simpl_eval_mexpr. iApply ewp_ret. equality. }
       iIntros (δ' ->). equality. }
 
     (* [open Effect.Deep] *)
     iIntros (? ->).
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
-    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2]));
+    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
+    { iApply (ewp_sitem_open _ _ (ieq ?[φ2]));
         [ | iIntros (? ->); equality ].
       simpl_eval_mexpr. iApply ewp_ret. equality. }
 
@@ -353,7 +350,7 @@ Section verification.
                 (λ v,
                   □ ∀ St x,
                       St x -∗
-                      EWP call v #()  <|STATE rl wl St|>
+                      EWP[ι] call v #()  <|STATE rl wl St|>
                         {{ ensures #X, ⌜X = x⌝ }})%I).
       { simpl_eval; iApply ewp_ret; simpl.
         iIntros "!>" (St x) "HSt".
@@ -362,10 +359,10 @@ Section verification.
         iApply ewp_deep_handler.
         { simpl_eval. iApply ewp_ret. instantiate (1 := (ensures #v, ⌜v = tt⌝)%I).
           iExists _. iSplit; equality. }
-        iApply prove_deep_handler_spec; iIntros (ι); iSplit.
+        iApply prove_deep_handler_spec; iSplit.
         { iIntros ([|]); [ | iIntros ([]) ].
           iIntros ((? & -> & ->)) "!>".
-          iApply ideep_handle_cons.
+          iApply deep_handle_cons.
           { iPureIntro. ltac2:(specify_cpattern ()).
             apply pat_PUnit. apply eq_refl.
             reflexivity. }
@@ -389,7 +386,7 @@ Section verification.
     iIntros ([η δ]) "[%get [-> get_spec]]"; clear η δ.
     iApply (ewp_sitems_let_singleton_var (λ v, □ ∀ St x y,
                            St x -∗
-                             EWP call v #y  <|STATE rl wl St|>
+                             EWP[ι] call v #y  <|STATE rl wl St|>
                              {{ ensures _, St y }})%I ).
     { simpl_eval; iApply ewp_ret; simpl.
       iIntros "!>" (St x y) "HSt".
@@ -410,8 +407,8 @@ Section verification.
     (* [let run (type a) init maint : t * a =] *)
     iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
     iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddr".
-    iApply (ewp_sitems_let_singleton_var (λ run, iSpec τ[state; val] run run_spec)).
-    { iApply localstate_run_spec; iPureIntro.
+    iApply (ewp_sitems_let_singleton_var (λ run, □ iSpec τ[state; val] run run_spec)%I).
+    { iApply (localstate_run_spec with "[] [] []"); iPureIntro.
       reflexivity.
       reflexivity.
       apply Haddr. }

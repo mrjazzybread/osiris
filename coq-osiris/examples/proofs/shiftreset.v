@@ -81,20 +81,10 @@ End reasoning_rules.
 Section verification.
   Context `{!osirisGS Σ}.
 
-  Lemma ewp_ensures_val {X} (Φ : val → iProp Σ) (m : micro val X) E Ψ :
-    EWP m @ E <|Ψ|> {{ ensures #v, Φ v }} ⊣⊢ EWP m @ E <|Ψ|> {{ ensures v, Φ v }}.
-  Proof.
-    iStartProof; iSplit; iIntros "Hwp"; iApply (ewp_mono with "Hwp");
-      (iIntros ([|]); [ | iIntros ([]) ]).
-    - iIntros "(%v & -> & $)".
-    - iIntros "HΦ". iExists a.
-      iSplit; [ equality | iAssumption ].
-  Qed.
-
-  Lemma ewpi_ensures_val {X} ι (Φ : val → iProp Σ) (m : micro val X) E Ψ :
+  Lemma ewp_ensures_val {X} ι (Φ : val → iProp Σ) (m : micro val X) E Ψ :
     EWP[ι] m @ E <|Ψ|> {{ ensures #v, Φ v }} ⊣⊢ EWP[ι] m @ E <|Ψ|> {{ ensures v, Φ v }}.
   Proof.
-    iStartProof; iSplit; iIntros "Hwp"; iApply (ewpi_mono with "Hwp");
+    iStartProof; iSplit; iIntros "Hwp"; iApply (ewp_mono with "Hwp");
       (iIntros ([|]); [ | iIntros ([]) ]).
     - iIntros "(%v & -> & $)".
     - iIntros "HΦ". iExists a.
@@ -104,12 +94,12 @@ Section verification.
   Lemma establish_shift_spec η (shift_eff : loc) :
     lookup_name η "Shift" = ret (VLoc shift_eff) →
     ⊢ EWP eval η (EAnonFun __fun0)
-      {{ ensures v, iSpec τ[val] v (shift_spec shift_eff) }}.
+      {{ ensures v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
-    intros Hlookup.
-    iApply (ewp_eval_anon τ[val]); simpl.
-    iIntros (f). rewrite /shift_spec.
-    iIntros (Ψ Φ Q) "Hf".
+    iIntros (Hlookup ι).
+    iApply (ewp_EAnon_pers τ[val]); simpl.
+    iIntros "!>" (f). rewrite /shift_spec.
+    iIntros (Ψ Φ Q) "Hf %ι'".
     iApply ewp_please; iNext.
     iApply (ewp_EPerform _ _ _ _ (λ v, ⌜v = VXData shift_eff [f]⌝)%I).
     { simpl_eval. rewrite Hlookup /widen /try /=. iApply prove_ewp_Par.
@@ -127,17 +117,17 @@ Section verification.
   Lemma establish_reset_spec η (shift_eff : loc) :
     lookup_name η "Shift" = ret (VLoc shift_eff) →
     ⊢ EWP eval η (EAnonFun __fun2)
-      {{ ensures v, iSpec τ[val] v (reset_spec shift_eff) }}.
+      {{ ensures v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.
-    intros Hlookup.
-    iApply (ewp_eval_anon τ[val]); simpl.
-    iIntros (f). rewrite /reset_spec.
-    iIntros (Ψ Φ) "Hf".
+    iIntros (Hlookup ι).
+    iApply (ewp_EAnon_pers τ[val]); simpl.
+    iIntros "!>" (f). rewrite /reset_spec.
+    iIntros (Ψ Φ) "Hf %ι'".
     iApply ewp_please; iNext.
 
     iApply ewp_EMatch.
 
-    iApply (ewp_deep_handler _ (SHIFT shift_eff Ψ Φ) (Φ ↑) with "[Hf]").
+    iApply (ewp_deep_handler _ _ (SHIFT shift_eff Ψ Φ) (Φ ↑) with "[Hf]").
     { iApply (ewp_mono with "[-]").
       iApply (ewp_EApp τ[unit] with "[Hf]").
       simpl_eval. iApply ewp_ret. iApply "Hf".
@@ -150,11 +140,11 @@ Section verification.
       iIntros "(%v &-> & $)". }
 
     iLöb as "IH".
-    iApply prove_deep_handler_spec; iIntros (ι); iSplit.
+    iApply prove_deep_handler_spec; iSplit.
 
     (* Base case: we just return the value. *)
     { iIntros (?). iIntros "H !>"; destruct o; try done.
-      iApply ewpi_ewp. next_branch.
+      next_branch.
       iIntros (? ->).
       iApply ewp_EPath. by iApply ewp_ret. }
 
@@ -162,19 +152,19 @@ Section verification.
     iIntros (v k) "Hprot"; rewrite /prot.
     rewrite upcl_SHIFT.
     iDestruct "Hprot" as (g Q) "[-> [Hg Hk]]".
-    iSpecialize ("IH" $! ι). rewrite /deep_handler_spec' seal_eq.
+    rewrite /deep_handler_spec seal_eq.
 
     unfold is_shift.
 
     iModIntro.
     next_branch. iIntros (? []).
     next_branch. iIntros (? ->).
-    iApply ewpi_ensures_val.
-    iApply (ewpi_EApp τ[cont] with "[Hg] []").
-    simpl_eval. iApply ewpi_ret. iAssumption.
-    simpl_eval. iApply ewpi_ret. instantiate (1 := (λ v, ⌜v = k⌝)%I). iExists k; equality.
+    iApply ewp_ensures_val.
+    iApply (ewp_EApp τ[cont] with "[Hg] []").
+    simpl_eval. iApply ewp_ret. iAssumption.
+    simpl_eval. iApply ewp_ret. instantiate (1 := (λ v, ⌜v = k⌝)%I). iExists k; equality.
     iIntros (? -> m) "Hwp". rewrite /tapp.
-    iApply ewpi_ensures_val.
+    iApply ewp_ensures_val.
     iApply "Hwp".
     iIntros (v) "HQ".
     iSpecialize ("Hk" $! (O2Ret v) with "HQ").
@@ -189,35 +179,35 @@ Section verification.
     ⊢ EWP (eval_mexpr dummy_env __main)
       {{ ensures v, ∃ η, ⌜v = VStruct η⌝ ∧ ⌜lookup_name η "main" = ret #4⌝ }}.
   Proof.
-    rewrite /__main.
+    iIntros (ι).
     iApply ewp_module.
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])).
+    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])).
 
     (* [open Effect] *)
-    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ3])).
+    { iApply (ewp_sitem_open _ _ (ieq ?[φ3])).
       { simpl_eval_mexpr. iApply ewp_ret. equality. }
       iIntros (δ' ->). equality. }
 
     (* [open Effect.Deep] *)
     iIntros (? ->).
-    iApply (ewp_sitems_cons _ _ _ _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
-    { iApply (ewp_sitem_open _ _ _ _ _ _ (ieq ?[φ2]));
+    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
+    { iApply (ewp_sitem_open _ _ (ieq ?[φ2]));
         [ | iIntros (? ->); equality ].
       simpl_eval_mexpr. iApply ewp_ret. equality. }
 
     (* [type _ Effect.t += Shift : t Effect.t] *)
     iApply ewp_sitems_extend.
-    iIntros ([η δ]) "[%shift_eff [-> Hshifteff]]"; clear η δ.
+    iIntros ([η δ]) "(%shift_eff & -> & Hshifteff)"; clear η δ.
 
     (* [let shift f = perform (Shift f)] *)
-    iApply (ewp_sitems_let_singleton_var (λ v, iSpec τ[val] v (shift_spec shift_eff))).
+    iApply (ewp_sitems_let_singleton_var (λ v, □ iSpec τ[val] v (shift_spec shift_eff))%I).
     { iApply establish_shift_spec; auto. }
-    iIntros ([η δ]) "[%shift [-> Hshift]]". clear η δ.
+    iIntros ([η δ]) "(%shift & -> & #Hshift)". clear η δ.
 
     (* [let reset f = try f () with ...] *)
-    iApply (ewp_sitems_let_singleton_var (λ v, iSpec τ[val] v (reset_spec shift_eff))).
+    iApply (ewp_sitems_let_singleton_var (λ v, □ iSpec τ[val] v (reset_spec shift_eff))%I).
     { iApply establish_reset_spec; auto. }
-    iIntros ([η δ]) "(%reset & -> & Hreset)". clear η δ.
+    iIntros ([η δ]) "(%reset & -> & #Hreset)". clear η δ.
 
     (* [let main = reset (fun _ -> ...)] *)
     iApply (ewp_sitems_let_singleton_var (λ v, ⌜v = #4⌝)%I with "[Hshift Hreset]").
@@ -233,54 +223,52 @@ Section verification.
       2: { simpl.
            iIntros (v) "Hv %m reset_spec".
            unfold reset_spec, tapp. iNext.
-           iApply "reset_spec".
-           iApply "Hv". }
+           iApply ("reset_spec" with "Hv"). }
 
       iApply ewp_ensures_val.
-      iApply (ewp_eval_anon τ[unit]).
-      iIntros ([]).
-      iApply (ewp_please with "[-]"); iNext.
+      iApply (ewp_EAnon τ[unit]).
+      iIntros ([] ι').
+      iApply (ewp_please); iNext.
       (* [fun _ -> ...] gets translated to [match anon with | _ -> ...] *)
       iApply ewp_EMatch.
       iApply (ewp_deep_handler).
       { simpl_eval. iApply ewp_ret. instantiate (1 := (ensures #v, ⌜v = tt⌝)%I).
         iExists tt; equality. }
       iApply prove_deep_handler_spec.
-      iIntros (ι); iSplit; last first.
+      iSplit; last first.
       { instantiate (1 := ⊥).
         iIntros (??); rewrite /prot upcl_bottom; iIntros ([]). }
-
       iIntros ([|]); [ | iIntros ([]) ].
       iIntros "(%u & -> & ->) !>".
-      iApply ideep_handle_cons; [ iPureIntro | iSplit ].
+
+      iApply deep_handle_cons; [ iPureIntro | iSplit ].
       {  ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
       2: { iIntros ([]). }
       iIntros (? <-).
 
       (* Subgoal: [shift (fun k -> ...) + 3] returns [4]. *)
-      iApply (ewp_EIntAdd' with "[Hshift] [] []"); clear ι.
+      iApply (ewp_EIntAdd'); clear ι.
       { (* Prove that [shift (fun k -> ...)] returns [1]? *)
-        iApply (ewp_EApp τ[val] with "[Hshift]").
+        iApply (ewp_EApp τ[val]).
         { simpl_eval. iApply ewp_ret. iAssumption. }
         2: { iIntros (f) "Hf %m shift_spec".
              unfold shift_spec, tapp.
              iNext.
-             iApply "shift_spec".
-             iApply "Hf". }
+             iApply ("shift_spec" with "Hf"). }
 
         rewrite ewp_ensures_val.
-        iApply (ewp_eval_anon τ[cont]); simpl.
+        iApply (ewp_EAnon τ[cont]); simpl.
 
         iIntros (k ι) "Hresume".
-        iApply ewpi_please; iIntros "!> !>".
+        iApply ewp_please; iIntros "!> !>".
         (* Subgoal: [continue k 0 + 1] retuns [4]. *)
-        iApply (ewpi_EIntAdd' with "[Hresume]").
-        { iApply ewpi_EContinue'.
+        iApply (ewp_EIntAdd' with "[Hresume]").
+        { iApply ewp_EContinue'.
           { (* Evaluate [k]. *)
-            simpl_eval. iApply ewpi_ret.
+            simpl_eval. iApply ewp_ret.
             instantiate (1 := (λ v, ⌜v = k⌝)%I). iExists _; equality. }
           { (* Evalutate [0]. *)
-            simpl_eval. iApply ewpi_ret.
+            simpl_eval. iApply ewp_ret.
             instantiate (1 := (λ v, ⌜v = #0%Z⌝)%I). equality. }
           iIntros (? ? -> ->).
           iApply "Hresume".

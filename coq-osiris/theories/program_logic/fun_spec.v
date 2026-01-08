@@ -194,9 +194,27 @@ Section ewp_spec.
     iApply ("IH" with "HP").
   Qed.
 
+  Local Lemma prove_iSpec_pers (τ : types) η x e (P : τ -#> microvx -> iProp Σ) :
+    □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
+    □ iSpec τ (VClo η (AnonFun x e)) P.
+  Proof.
+    iLöb as "IH" forall (e x η τ P).
+    iIntros "#HP".
+    destruct τ as [ X | X HX τ ].
+    { iApply "HP". }
+    simp iSpec; iIntros (vx) "%ι".
+    simp predicate_over_function_body.
+    iSpecialize ("HP" $! vx).
+    iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
+    simpl. iModIntro. iApply ewp_please. iNext. simpl_eval.
+    iApply ewp_ret.
+    simpl.
+    iApply ("IH" with "HP").
+  Qed.
+
   (* The reasoning rule for an n-ary non-recursive function. *)
 
-  Lemma ewp_eval_anon
+  Lemma ewp_EAnon
     (τ : types)
     (P : τ -#> microvx -> iProp Σ)
     ι
@@ -209,6 +227,21 @@ Section ewp_spec.
     iIntros "HP".
     simpl_eval; iApply ewp_ret; simpl.
     by iApply prove_iSpec.
+  Qed.
+
+  Lemma ewp_EAnon_pers
+    (τ : types)
+    (P : τ -#> microvx -> iProp Σ)
+    ι
+    η
+    (x : var)
+    e E Ψ :
+    □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
+    EWP[ι] (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ ensures c, □ iSpec τ c P }}.
+  Proof.
+    iIntros "HP".
+    simpl_eval; iApply ewp_ret; simpl.
+    by iApply prove_iSpec_pers.
   Qed.
 
   Fixpoint lookup_rec_bindings_opt (rbs : list rec_binding) (g : var) {struct rbs} :
