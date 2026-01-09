@@ -44,7 +44,7 @@ Section proof_pure.
     apply Hmono, HSpec.
   Qed.
 
-  Lemma example `{Encode A} :
+  Lemma example :
     eval_module stdlib_with_notfound __main (λ η, True).
   Proof.
     unfold __main.

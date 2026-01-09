@@ -399,6 +399,7 @@ Proof.
     apply tree_wf. }
   { simpl; fold eval; unfold insert_spec at 2.
     intros insert [x t] IH Ht Hrepr.
+    apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
     { pure_path. eapply solve_encode_tuple2; try encode. }
     pure_match.
@@ -413,6 +414,7 @@ Proof.
     apply tree_wf. }
   { simpl; fold eval; unfold member_spec at 2.
     intros member [x t] IH Ht Hrepr.
+    apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
     { pure_path. eapply solve_encode_tuple2; try encode. }
     pure_match.
