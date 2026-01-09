@@ -267,7 +267,7 @@ Ltac prove_handler_spec :=
 
 Ltac prove_match0_spec spec :=
   iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ spec);
+  iApply (ewp_deep_handler _ _ _ spec);
   [ |
     prove_handler_spec;
     [ let x := fresh "tmp" in
