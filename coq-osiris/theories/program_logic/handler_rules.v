@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import ewp tactics basic_rules.
+From osiris.program_logic Require Import thread_step ewp tactics basic_rules stop_rules.
 From osiris.semantics Require Import code.
 
 From osiris.program_logic.pure Require Import pure.
@@ -52,6 +52,7 @@ Section handler_specifications.
   Definition deep_handler_spec_pre
     (deep_handler_spec:
       coPset -d>
+      thread -d>
       iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       (outcome3 val exn -> microvx) -d>
@@ -59,22 +60,23 @@ Section handler_specifications.
       (outcome2 val exn -d> iPropO Σ) -d>
       iPropI Σ) :
       coPset -d>
+      thread -d>
       iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       (outcome3 val exn -> microvx) -d>
       iEff Σ -d>
       (outcome2 val exn -d> iPropO Σ) -d>
       iPropI Σ :=
-    (λ E Ψ Φ h Ψ' Φ',
+    (λ E ι Ψ Φ h Ψ' Φ',
       ((* [Return] and [Exception] branch *)
-      (∀ o, Φ o -∗ ▷ EWP (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+      (∀ o, Φ o -∗ ▷ EWP[ι] (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
 
       (* [Effect] branch (one-shot) *)
       (∀ v k, Ψ allows perform v
           << fun o : outcome2 val exn => ∀ Ψ'' Φ'',
-            ▷ deep_handler_spec E Ψ Φ h Ψ'' Φ'' -∗
-            EWP (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
-        ▷ EWP (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
+            ▷ deep_handler_spec E ι Ψ Φ h Ψ'' Φ'' -∗
+            EWP[ι] (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+        ▷ EWP[ι] (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }})))%I.
 
   (* Some definition sealing (and auxilliary functions) *)
   Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
@@ -92,18 +94,33 @@ Section handler_specifications.
   (* Top-level definition for [deep_handler] *)
   Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
 
-  Lemma deep_handler_spec_unfold {E} Ψ Φ Ψ' Φ' h :
-    deep_handler_spec E Ψ Φ h Ψ' Φ' ⊣⊢
-    deep_handler_spec_pre deep_handler_spec_def E Ψ Φ h Ψ' Φ'.
+  Lemma deep_handler_spec_unfold {ι E} Ψ Φ Ψ' Φ' h :
+    deep_handler_spec ι E Ψ Φ h Ψ' Φ' ⊣⊢
+    (deep_handler_spec_pre deep_handler_spec_def ι E Ψ Φ h Ψ' Φ').
   Proof.
-    rewrite /deep_handler_spec seal_eq /deep_handler_spec_def;
+    rewrite /deep_handler_spec seal_eq /deep_handler_spec_def.
     apply (@fixpoint_unfold _ _ _ deep_handler_spec_pre).
   Qed.
 
-  Lemma deep_handler_spec_mono E ψ φ h ψ' φ1 φ2 :
+  Lemma deep_handler_spec_def_unfold {E} ι Ψ Φ Ψ' Φ' h :
+    deep_handler_spec_def E ι Ψ Φ h Ψ' Φ' ≡
+    ((∀ o, Φ o -∗ ▷ EWP[ι] (h o) @ E <| Ψ' |> {{ Φ' }}) ∧
+
+      (* [Effect] branch (one-shot) *)
+      (∀ v k, Ψ allows perform v
+          << fun o : outcome2 val exn => ∀ Ψ'' Φ'',
+            ▷ deep_handler_spec_def E ι Ψ Φ h Ψ'' Φ'' -∗
+            EWP[ι] (stop CResume (k, o)) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+        ▷ EWP[ι] (h (O3Perform v k)) @ E <| Ψ' |> {{ Φ' }}))%I.
+  Proof.
+    rewrite /deep_handler_spec_def.
+    apply (fixpoint_unfold deep_handler_spec_pre).
+  Qed.
+
+  Lemma deep_handler_spec_mono ι E Ψ φ h ψ' φ1 φ2 :
     (∀ o, φ1 o -∗ φ2 o) -∗
-    deep_handler_spec E ψ φ h ψ' φ1 -∗
-    deep_handler_spec E ψ φ h ψ' φ2.
+    deep_handler_spec ι E Ψ φ h ψ' φ1 -∗
+    deep_handler_spec ι E Ψ φ h ψ' φ2.
   Proof.
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre.
     iIntros "Hcov Hhandler".
@@ -121,23 +138,38 @@ Section handler_specifications.
       iApply (ewp_mono with "Hhandler Hcov"). }
   Qed.
 
+  Lemma prove_deep_handler_spec ι E Ψ (φ : outcome2 val exn → iProp Σ) (h : outcome3 val exn → microvx) Ψ' φ' :
+    ((∀ o, φ o -∗ ▷ EWP[ι] h o @ E <| Ψ' |> {{ φ' }}) ∧
+      (∀ (v : val) (k : cont),
+      Ψ allows perform v << λ o : outcome2 val exn,
+        ∀ (Ψ'' : iEff Σ) (Φ'' : outcome2 val exn -d> iPropO Σ),
+          ▷ deep_handler_spec_def E ι Ψ φ h Ψ'' Φ'' -∗
+          EWP[ι] stop CResume (k, o) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+      ▷ EWP[ι] h (O3Perform v k) @ E <| Ψ' |> {{ φ' }})) -∗
+   deep_handler_spec E ι Ψ φ h Ψ' φ'.
+  Proof.
+    rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
+    iIntros "$".
+  Qed.
+
+  Lemma inv_deep_handler_spec E ι Ψ φ h Ψ' φ' :
+    deep_handler_spec E ι Ψ φ h Ψ' φ' -∗
+    (∀ o, φ o -∗ ▷ EWP[ι] h o @ E <| Ψ' |> {{ φ' }}) ∧
+    (∀ (v : val) (k : cont),
+      Ψ allows perform v << λ o : outcome2 val exn,
+        ∀ (Ψ'' : iEff Σ) (Φ'' : outcome2 val exn -d> iPropO Σ),
+          ▷ deep_handler_spec_def E ι Ψ φ h Ψ'' Φ'' -∗
+          EWP[ι] stop CResume (k, o) @ E <| Ψ'' |> {{ Φ'' }} >> -∗
+      ▷ EWP[ι] h (O3Perform v k) @ E <| Ψ' |> {{ φ' }}).
+  Proof.
+    iIntros "Hdh".
+    by rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
+  Qed.
+
 End handler_specifications.
 
-Local Ltac ewp_invert :=
-  match goal with
-  | |- context [environments.Esnoc _ ?SI (state_interp _)] =>
-      match goal with
-      (* EWP throw *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (throw _) _ _)] =>
-          iPoseProof (ewp_throw_inv with "[$]") as "HΦ"
-      (* EWP ret *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
-          iMod (ewp_ret_inv with "[$]") as "HΦ"
-      (* EWP crash *)
-      | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (Crash _) _ _)] =>
-          iMod (ewp_crash_inv with "[$]") as "HΦ"
-      end
-  end.
+Ltac deep_handler_spec_unfold :=
+  rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
 
 (* -------------------------------------------------------------------------- *)
 (** *Reasoning rules over effect handlers *)
@@ -164,36 +196,39 @@ Section handler_proof.
   Qed.
 
   (* Specification of [deep_handler] at the [expr] level. *)
-  Lemma ewp_deep_handler E Ψ Φ Ψ' Φ' η e bs:
-    EWP (eval η e) @ E <| Ψ |> {{ Φ }} -∗
+  Lemma ewp_deep_handler ι E Ψ Φ Ψ' Φ' η e bs:
+    EWP[ι] (eval η e) @ E <| Ψ |> {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E Ψ Φ (λ o, eval_branches η o bs) Ψ' Φ' -∗
-    EWP (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
+    deep_handler_spec E ι Ψ Φ (λ o, eval_branches η o bs) Ψ' Φ' -∗
+    EWP[ι] (deep_handler η e bs) @ E <| Ψ' |> {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
     rewrite /deep_handler; remember (eval η e); clear.
 
+    iIntros "Hwp Hdh".
+
+    deep_handler_spec_unfold.
     (* We proceed by Löb-induction after generalizing [η] [m] and [bs]. *)
     iLöb as "IH" forall (m η bs Ψ' Φ' E).
 
     (* Expand the definition of [EWP] to inspect the possible steps that
         can result from [deep_handler η e bs]. *)
-    iIntros "He Hsh"; ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
-    construct_wp_nonret; destruct_step;
-      iMod "Hmod" as "_"; try rewrite -x;
-      rewrite !deep_handler_spec_unfold /deep_handler_spec_pre /=.
+    rename π into π'.
+    construct_wp_nonret; destruct_thread_step;
+      iMod "Hmod" as "_"; try rewrite -x.
 
     1,2: (* [StepHandleRet] and [StepHandleThrow] *)
       simpl_wrap_eval_branches;
       ewp_invert; iFrame;
-      iDestruct "Hsh" as "[Hsh _]";
-      iSpecialize ("Hsh" with "HΦ");
-    try iMod "Hsh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
+      iDestruct "Hdh" as "[Hdh _]";
+      iSpecialize ("Hdh" with "HΦ");
+      iMod "Hdh"; ewp_mask_intro "Hmod"; ewp_mask_elim; done.
 
     { (* [StepHandlePerform] *)
-      iDestruct "Hsh" as "[_ Hsh]".
+      iDestruct "Hdh" as "[_ Hdh]".
 
       (* [Perform e] satisfies the protocol specification *)
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
@@ -204,108 +239,135 @@ Section handler_proof.
 
       iFrame.
       (* Install the handler around the location [l]. *)
-      simpl_wrap_eval_branches; iApply ewp_wrap_deep.
+      simpl_wrap_eval_branches.
       ewp_mask_intro "Hmod".
       ewp_mask_elim.
+      iApply ewp_wrap_deep.
       iIntros (?) "Hl".
-      iSpecialize ("Hsh" $! e l').
+      iSpecialize ("Hdh" $! e l').
 
-      iSpecialize ("Hsh" with "[HP HH Hl]").
-      { rewrite /prot.
-        iApply (monotonic_prot with "[HH Hl] HP").
+      iSpecialize ("Hdh" with "[HP HH Hl]").
+      { iApply (monotonic_prot with "[HH Hl] HP").
         iIntros (?) "Hk"; iIntros (??) "H".
-        rewrite /deep_handler_spec seal_eq.
 
-        iPoseProof (ewp_resume E l' w (λ o : outcome2 val exn,
+        iPoseProof (ewp_resume ι E l' w (λ o : outcome2 val exn,
                           Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) inject2 Φ'' Ψ'' with "Hl") as "Hl".
-        unfold cont; simpl.
-        iApply "Hl".
+        simpl.
+        iApply "Hl". iIntros "Hshot !>".
+        rewrite deep_handler_spec_def_unfold.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (ewp_handle_inv with "HH IH") as "Hhandle".
-        iIntros "H".
-        iNext.
         replace
-          (@Handle val exn
-          (@stop (prod loc (outcome2 val exn)) val exn CResume
-             (@pair C.continuation (outcome2 val exn) l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-           @try2 val val exn exn (wrap_eval_branches η bs o) (@inject2 val exn)))
+          (Handle (stop CResume (l, w)) (pftry2 (wrap_eval_branches η bs) inject2))
           with
-          ((Handle (stop CResume (pair l w))
-          (fun o : outcome.outcome3 C.eff C.continuation C.val C.exn =>
-             wrap_eval_branches η bs o))).
-        by simpl_wrap_eval_branches.
-        f_equal. extensionality o. rewrite try2_ret_right. done. }
+          (Handle (stop CResume (l, w)) (wrap_eval_branches η bs));
+          last first.
+        { f_equal. extensionality o. by rewrite try2_inject2_right. }
+        simpl_wrap_eval_branches.
+        iApply "Hhandle". }
+      iApply "Hdh". }
 
-      { done. } }
+    { (* [StepHandleFork] *)
+      ewp_mask_intro "Hmod".
+      iModIntro. ewp_mask_elim. iFrame. destruct x.
+      rewrite ewp_unfold /ewp_pre /=.
+      ewp_unfold_head.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_thread_step.
+      epose proof (ForkS _ _ _ _ _ _ _ H) as Hstep0.
+      iSpecialize ("Hwp" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
+      iModIntro. rewrite /continue.
+      iApply ("IH" with "Hwp Hdh"). }
 
-      { (* [StepHandleCrash] *)
-        by ewp_invert. }
+    { (* [StepHandleJoin] *)
+      ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
+      rewrite ewp_unfold /ewp_pre /=.
+      ewp_unfold_head.
+      intro_state. spec_state. iMod "Hwp".
+      destruct (π !! ι0); last done.
+      iDestruct "Hwp" as "(%φ' & $ & Hwp)".
+      iIntros "!> !> %o Ho". iSpecialize ("Hwp" with "Ho").
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
+      iModIntro. rewrite /continue.
+      iApply ("IH" with "Hwp Hdh"). }
+
+    { (* [StepHandleSelf] *)
+      ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
+      rewrite ewp_unfold /ewp_pre /=.
+      ewp_unfold_head.
+      intro_state. spec_state. iModIntro.
+      construct_wp_nonret. destruct_thread_step.
+      epose proof (SelfS _ _ _ _ _) as Hstep0.
+      iSpecialize ("Hwp" $! _ _ _ Hstep0).
+      ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
+      iModIntro. rewrite /continue.
+      iApply ("IH" with "Hwp Hdh"). }
+
+    { (* [StepHandleCrash] *)
+      by ewp_invert. }
 
     { (* [StepHandleLeft] *)
-      iPoseProof (ewp_step _ _ _ _ Hstep with "Hsi He") as ">H".
-      ewp_mask_elim. iMod "H" as "[$ H]". iModIntro.
-      iSpecialize ("IH" with "H").
-      rewrite deep_handler_spec_unfold.
-      iApply ("IH" with "Hsh"). }
+      eapply BaseS in H as Hstep.
+      iCombine "Hsi Hti" as "Hsi".
+      iPoseProof (ewp_step _ _ _ _ _ Hstep with "Hsi Hwp") as ">Hwp".
+      iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "(Hwp & $)". iModIntro.
+      iApply ("IH" with "Hwp Hdh"). }
   Qed.
 
-  Lemma deep_handle_nil_ret η v E ψ Φ :
-   EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
-   EWP (eval_branches η (O3Ret v) []) @ E <|ψ|> {{ Φ }}.
+  Lemma deep_handle_nil_ret ι η v E ψ Φ :
+   EWP[ι] match_failure () @ E <|ψ|> {{ Φ }} -∗
+   EWP[ι] (eval_branches η (O3Ret v) []) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_eval_branches.
   Qed.
 
-  Lemma shallow_handle_nil_ret η v all_bs E ψ Φ :
-   EWP match_failure () @ E <|ψ|> {{ Φ }} -∗
-   EWP (shallow_eval_branches η [] all_bs (O3Ret v)) @ E <|ψ|> {{ Φ }}.
+  Lemma shallow_handle_nil_ret ι η v all_bs E ψ Φ :
+   EWP[ι] match_failure () @ E <|ψ|> {{ Φ }} -∗
+   EWP[ι] (shallow_eval_branches η [] all_bs (O3Ret v)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_shallow_eval_branches.
   Qed.
 
-  Lemma deep_handle_nil_throw η e E ψ Φ :
-   EWP throw e @ E <|ψ|> {{ Φ }} -∗
-   EWP (eval_branches η (O3Throw e) []) @ E <|ψ|> {{ Φ }}.
+  Lemma deep_handle_nil_throw ι η e E ψ Φ :
+   EWP[ι] throw e @ E <|ψ|> {{ Φ }} -∗
+   EWP[ι] (eval_branches η (O3Throw e) []) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_eval_branches.
   Qed.
 
-  Lemma shallow_handle_nil_throw η all_bs e E ψ Φ :
-    EWP throw e @ E <|ψ|> {{ Φ }} -∗
-    EWP (shallow_eval_branches η [] all_bs (O3Throw e)) @ E <|ψ|> {{ Φ }}.
+  Lemma shallow_handle_nil_throw ι η all_bs e E ψ Φ :
+    EWP[ι] throw e @ E <|ψ|> {{ Φ }} -∗
+    EWP[ι] (shallow_eval_branches η [] all_bs (O3Throw e)) @ E <|ψ|> {{ Φ }}.
   Proof.
     by iIntros; simpl_shallow_eval_branches.
   Qed.
 
-  Lemma deep_handle_nil_perform η eff k ψ sk Φ :
+  Lemma deep_handle_nil_perform η eff k ι Ψ sk Φ :
     isCont k sk -∗
-    ψ allows perform eff
+    Ψ allows perform eff
     << λ o,
-      (isShot k -∗ ▷ EWP (sk o) <|ψ|> {{ Φ }}) >> -∗
-    EWP (eval_branches η (O3Perform eff k) []) <|ψ|> {{ Φ }}.
+      (isShot k -∗ ▷ EWP[ι] (sk o) <| Ψ |> {{ Φ }}) >> -∗
+    EWP[ι] (eval_branches η (O3Perform eff k) []) <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hl Hperf".
     simpl_eval_branches. iApply ewp_stop_perform.
     rewrite /prot /iEff_car.
-    iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
+    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
       iModIntro.
       rewrite try2_inject2.
-      iApply "Hcov".
-      rewrite try2_ret_right. iApply "H". }
+      iApply "Hcov". rewrite try2_inject2_right. iApply "H". }
     done.
   Qed.
 
-  Lemma shallow_handle_nil_perform η eff k all_branches ψ sk Φ :
+  Lemma shallow_handle_nil_perform η eff k all_branches ι Ψ sk Φ :
     isCont k sk -∗
-    ψ allows perform eff
+    Ψ allows perform eff
     << λ o,
-      ▷ EWP
-        Handle (sk o) (shallow_eval_branches η all_branches all_branches)
-        <|ψ|> {{ Φ }} >> -∗
-    EWP (shallow_eval_branches η [] all_branches (O3Perform eff k)) <|ψ|> {{ Φ }}.
+      ▷ EWP[ι] Handle (sk o) (shallow_eval_branches η all_branches all_branches) <| Ψ |> {{ Φ }} >> -∗
+    EWP[ι] (shallow_eval_branches η [] all_branches (O3Perform eff k)) <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hk Hperf". simpl_shallow_eval_branches.
     iApply ewp_wrap_shallow.
@@ -315,18 +377,16 @@ Section handler_proof.
     iApply ewp_stop_perform.
 
     rewrite /prot /iEff_car.
-    iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hl]").
+    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (ewp_resume with "Hl") as "Hcov".
-      iNext. rewrite try2_inject2.
-      iApply "Hcov".
+      iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_inject2_right.
       iIntros "_".
       iApply (bi.later_mono with "H").
       iIntros "H".
       unfold stop.
-      rewrite try2_ret_right.
       iApply "H". }
-    iApply (monotonic_prot (Ψ:=upcl OS ψ) with "[Hk]").
+    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hk]").
     { iIntros (o) "H".
       iPoseProof (ewp_handle_inv with "Hk") as "Hcov".
       unfold cont; simpl.
@@ -334,47 +394,36 @@ Section handler_proof.
     done.
   Qed.
 
-  Lemma deep_handle_cons η o cp e bs E ψ Φ Q φ :
-    Q -∗
-    ⌜cpattern η η cp o (λ δ, Q ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
-    (Q -∗ ⌜φ⌝ -∗ EWP (eval_branches η o bs) @ E <|ψ|> {{ Φ }}) -∗
-    EWP (eval_branches η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
+  Lemma deep_handle_cons ι η o cp e bs E Ψ Φ Hη φ :
+    ⌜cpattern η η cp o Hη φ⌝ -∗
+    (∀ η, ⌜Hη η⌝ -∗ EWP[ι] (eval η e) @ E <| Ψ |> {{ Φ }}) ∧
+    (⌜φ⌝ -∗ EWP[ι] (eval_branches η o bs) @ E <| Ψ |> {{ Φ }}) -∗
+    EWP[ι] (eval_branches η o (Branch cp e :: bs)) @ E <| Ψ |> {{ Φ }}.
   Proof.
     simpl_eval_branches.
-    iIntros "Q %Hpure Hmono".
+    iIntros "%Hpat Hmono".
     iApply ewp_try.
     iApply ewp_mono; first by iApply pure_ewp.
     iIntros ([|[]]); simpl.
-    - iIntros "%HmonQ". iApply (HmonQ with "Q").
-    - iApply ("Hmono" with "Q").
+    - iDestruct "Hmono" as "[Hmono _]".
+      iApply ("Hmono" $! _).
+    - iDestruct "Hmono" as "[_ $]".
   Qed.
 
-  Lemma deep_handle_cons_no_resources η o cp e bs E ψ Φ φ :
-    ⌜cpattern η η cp o (λ δ, ⊢ EWP (eval δ e) @ E <|ψ|> {{ Φ }}) φ⌝ -∗
-    (⌜φ⌝ -∗ EWP (eval_branches η o bs) @ E <|ψ|> {{ Φ }}) -∗
-    EWP (eval_branches η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
-  Proof.
-    simpl_eval_branches.
-    iIntros "%Hpure Hmono".
-    iApply ewp_try.
-    iApply ewp_mono; first iApply pure_ewp; try done.
-    iIntros ([|[]]); simpl.
-    - iIntros "%Heval"; iApply Heval.
-    - iApply "Hmono".
-  Qed.
-
-  Lemma deep_handle_cons_skip η o cp e bs E ψ Φ :
+  Lemma deep_handle_cons_skip ι η o cp e bs E Ψ Φ :
     valid_cpattern_match cp o = false ->
-    EWP (eval_branches η o bs) @ E <|ψ|> {{ Φ }} -∗
-    EWP (eval_branches η o (Branch cp e :: bs)) @ E <|ψ|> {{ Φ }}.
+    EWP[ι] (eval_branches η o bs) @ E <| Ψ |> {{ Φ }} -∗
+    EWP[ι] (eval_branches η o (Branch cp e :: bs)) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros (Hvalid) "Hmatch".
-    iAssert (bi_pure True) as "Htrue". done.
-    iApply deep_handle_cons_no_resources.
+    iApply deep_handle_cons.
     { iPureIntro. unfold cpattern.
       rewrite invert_valid_match; [ | assumption ].
+      instantiate (1 := True); instantiate (1 := λ _, False).
       constructor. apply I. }
-    { iIntros "_". iApply "Hmatch". }
+    iSplit.
+    - iIntros (?) "[]".
+    - iIntros (_). iApply "Hmatch".
   Qed.
 
 End handler_proof.

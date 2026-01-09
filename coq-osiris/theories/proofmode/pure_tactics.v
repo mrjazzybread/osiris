@@ -141,7 +141,9 @@ Proof. tauto. Qed.
     H2 : B > C
     EQ : A = C
     ---------
-    ... *)
+    ...
+
+    LATER: Factor this out as a general utility lemma. *)
 
 Local Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   let hyp_clauses :=
@@ -196,7 +198,7 @@ Ltac pattern_hook := fail.
 Ltac2 rec solve_lookup_name () :=
   lazy_match! goal with
   (* If a hypothesis matches the lookup we are trying to do, use it. *)
-  | [ h_ident : lookup_name ?_η ?_c = _ |- lookup_name ?_η ?_c = _ ] =>
+  | [ h_ident : lookup_name ?η ?c = _ |- lookup_name ?η ?c = _ ] =>
       let h := Control.hyp h_ident in
       rewrite -> $h
   (* Otherwise just try and compute the lookup. *)
@@ -208,10 +210,11 @@ Ltac2 rec solve_lookup_name () :=
        the form [ret v = ret v].
      - Using a hypothesis has led us to a new lookup *)
   match! goal with
-  | [ |- ?_a = ?_a ] => reflexivity
+  | [ |- ?a = ?a ] => reflexivity
   | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
   end.
 
+(* LATER: Move? *)
 
 Local Lemma rewrite_bind {A B E} (m : micro A E) (f : A -> micro B E) a :
   m = ret a ->
@@ -365,7 +368,7 @@ Local Tactic Notation "destruct_hyps" ident_list(hyps) :=
 
 Local Ltac2 rec do_intros () :=
   lazy_match! goal with
-  | [ |- ?h -> _ ] =>
+  | [ |- ?h -> ?g ] =>
       (* If [h] is a proposition. *)
       (if Constr.equal (Constr.type h) constr:(Prop) then
          (* Give [h] a nice name. *)
@@ -406,8 +409,9 @@ Local Ltac2 set_postcondition_to_true () :=
 
 Local Ltac2 massage_term (c : constr) :=
   lazy_match! c with
-  | ?ψ _  =>
+  | ?ψ ?arg  =>
       if Constr.is_evar ψ then
+        let t := Constr.type arg in
         let u := open_constr:(fun x => _) in
         unify $ψ $u
       else ()
@@ -522,9 +526,9 @@ Local Ltac2 rec pattern_match_aux () :=
 Ltac2 pattern_match0 () :=
   Control.enter (fun _ =>
   lazy_match! goal with
-  | [ |- pattern _ _ _ (#_) _ _ ] =>
+  | [ |- pattern _ _ ?p (#?x) _ ?ψ ] =>
       rewrite 1 ?encode_encode'; pattern_match_aux ()
-  | [ |- pattern _ _ _ _ _ _ ] => pattern_match_aux ()
+  | [ |- pattern _ _ ?p _ _ ?ψ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
@@ -650,7 +654,7 @@ Ltac2 rec pure_match_branches0 (hyps : ident list) :=
               ltac1:(resolve_no_match)
           end
       end
-  | [ |- _ ] =>
+  | [ |- ?g ] =>
       Control.throw
         (Tactic_failure
            (Some
@@ -664,6 +668,7 @@ Tactic Notation "pure_match" := ltac2:(pure_match).
 
 (* Tactics. *)
 
+(* TODO reduce just beta-redexes in the goal (possibly under ∀ and →) *)
 Ltac2 beta () := cbn beta.
 
 Goal (forall l : list nat,
@@ -676,8 +681,7 @@ Qed.
 (* [remove_deco] is used by subsequent tactics when we want to match on an
    expression under a decoration in a goal. *)
 
-Ltac2 remove_deco_tac () := ltac1:(unfold deco).
-Ltac2 Notation remove_deco := remove_deco_tac ().
+Ltac2 notation remove_deco := unfold deco.
 
 (* Remove any local environment definitions. *)
 
@@ -722,7 +726,7 @@ Ltac2 abstract_env () :=
        let η := get_env () in
                    (* Generate a fresh name and use [set] to abstract [η]. *)
        let η0 := Fresh.in_goal @η in
-       set ($η) as $η0).
+       set ($η) as η0).
 
 Ltac2 Notation "abstract_env" := abstract_env ().
 Tactic Notation "abstract_env" := ltac2:(abstract_env).
@@ -760,6 +764,7 @@ Ltac2 get_expr_from_eval (m : constr) :=
                  "Expected term of the form [eval η e]")))
   end.
 
+(* TODO: Move; utility. Definition by Michael Soegtrop *)
 
 Definition type_of {T : Type} (x : T) := T.
 
@@ -811,7 +816,7 @@ Tactic Notation "pure_ret" := ltac2:(pure_ret).
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
 Ltac2 pure_path0 () : unit :=
-  let (m, _) := decompose_pure () in
+  let (m, φ) := decompose_pure () in
   let e := get_expr_from_eval m in
   match! e with
   | (EPath _) =>
@@ -821,8 +826,8 @@ Ltac2 pure_path0 () : unit :=
       simpl lookup_path;
       lazy_match! goal with
       (* If the lookup has not reduced to a result, try and use a hypothesis. *)
-      | [ h_ident : lookup_name ?_η ?_π = ret _
-          |- pure (lookup_name ?_η ?_π) _ _ ] =>
+      | [ h_ident : lookup_name ?η ?π = ret _
+          |- pure (lookup_name ?η ?π) _ _ ] =>
           let h := Control.hyp h_ident in
           rewrite [$h]; pure_ret
       (* If the lookup has reduced to a result, use [pure_ret]. *)
@@ -874,7 +879,7 @@ Ltac2 rec unfold_item (item : constr) : constr :=
          match! item with
          | ILet ?bs => get_ref bs
          | ILetRec ?rbs => get_ref rbs
-         | IModule _ _ => Control.zero Match_failure
+         | IModule ?m ?me => Control.zero Match_failure
          | IOpen ?i => get_ref i
          | IInclude ?me => get_ref me
          | IExtend ?ns => get_ref ns
@@ -911,7 +916,7 @@ Ltac2 init_item (item : constr) (spec : constr option) () :=
 
 Ltac2 next_item0 (spec : constr option) () :=
   lazy_match! goal with
-  | [ |- struct_items _ (?item :: _) _ ] =>
+  | [ |- struct_items _ (?item :: ?items) _ ] =>
       eapply structs_cons;
       Control.focus 1 1 (init_item item spec)
   end.
@@ -936,7 +941,7 @@ Local Open Scope nat.
 
 Ltac2 rec unfold_Forall2 () :=
   match! goal with
-  | [ |- Forall2 _ (_ :: _) _ ] =>
+  | [ |- Forall2 _ (?x :: ?xs) _ ] =>
       apply List.Forall2_cons > [ | unfold_Forall2 () ]
   | [ |- Forall2 _ [] _ ] =>
       apply List.Forall2_nil
@@ -944,8 +949,6 @@ Ltac2 rec unfold_Forall2 () :=
 
 Ltac2 solve_or_silent tac :=
  try (complete tac).
-
-Ltac2 solve_by_simp () := solve_or_silent (fun _ => ltac1:(simp)).
 
 Ltac2 solve_encode () := solve_or_silent (fun _ => ltac1:(encode)).
 
@@ -960,37 +963,6 @@ Ltac2 etuple_args (e : constr) : constr list :=
       in
       aux l
   end.
-
-Ltac2 simp_to_value η e :=
-  let res := Fresh.in_goal @t in
-  let h := Fresh.in_goal @H in
-  epose _ as $res;
-  let ev := Control.hyp res in
-  (* Fixme: surely there's an easier way to create the evar [ev]? *)
-  assert (simp (eval $η $e) (ret $ev)) as $h; subst $res;
-  Control.focus 1 1 (fun _ => complete (fun _ => ltac1:(simp)));
-  h.
-
-Ltac2 simp_tuple_args () :=
-  let (m, _) := decompose_pure () in
-  lazy_match! m with
-  | (eval ?η ?e) =>
-      let args := etuple_args e in
-      List.map (fun e => simp_to_value η e) args
-  end.
-
-Ltac2 pure_tuple0 clear_hyps () :=
-  (* Simplify all elements of the tuple to a value using [simp]. *)
-  let hs := simp_tuple_args () in
-  eapply pure_eval_tuple >
-    [ (* Use the assumption generated by [simp_tuple_args]. *)
-      unfold_Forall2 (); ltac1:(eassumption)
-    | Control.enter solve_encode
-    | ];
-  if clear_hyps then Std.clear hs else ().
-
-Ltac2 Notation "pure_tuple" := Control.enter (pure_tuple0 true).
-Tactic Notation "pure_tuple" := ltac2:(pure_tuple).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1010,7 +982,7 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
          note that this will give you an evar with evar type,
          rather than a typed evar, if you pass it a type that is not a prod. *)
       constr:(@pair $a $b $evar_a $evar_b)
-  | _ =>
+  | ?a =>
       (* This uses base name "t". *)
       let arg_i := Fresh.in_goal @t in
       (* [_] gives a new evar, use ['_] or [open_constr:(_)] in other contexts. *)
@@ -1042,20 +1014,12 @@ Tactic Notation "pure_data" := ltac2:(pure_data).
 (* [pure_simp] expects a goal of the form [pure m φ ψ]. It simplifies
    [m] into [m'], if possible, and leaves the goal [pure m' φ ψ]. *)
 
-Ltac2 pure_simp () :=
-  eapply pure_wp_simp > [ ltac1:(simp_really) | ];
-  (* Why does it always go to [ret]? *)
-  Control.enter pure_ret0.
-
-Ltac2 Notation "pure_simp" := pure_simp ().
-Tactic Notation "pure_simp" := ltac2:(pure_simp).
-
 Ltac2 pure_enter () :=
   first [
       eapply pure_enter_call_VClo
     | eapply pure_enter_call_VCloRec
     ];
-  apply pure_stop_eval; try (rewrite ?try2_ret_right).
+  apply pure_stop_eval; try (rewrite ?try2_inject2_right).
 
 Ltac2 Notation "pure_enter" := Control.enter pure_enter.
 Tactic Notation "pure_enter" := ltac2:(pure_enter).
@@ -1148,11 +1112,14 @@ Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intro
 Ltac2 eta_expand (arg : constr) (f : constr) : constr :=
   Std.eval_pattern [(arg, Std.AllOccurrences)] f.
 
+Ltac2 pure_rec_subgoals hwf pre () := ().
+
 Ltac2 pure_rec0 arg pre hwf :=
-  let _ :=
+  let expanded_post :=
     lazy_match! goal with
     | [ |- pure (call _ _) ##?φ ⊥ ] =>
         Std.eval_pattern [(arg, Std.AllOccurrences)] φ
+    (* TODO: Standardize error messages. *)
     | [ |- _ ] =>
         Control.throw
           (Tactic_failure

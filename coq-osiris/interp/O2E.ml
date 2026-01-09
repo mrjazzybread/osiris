@@ -135,6 +135,9 @@ let rec expr : O.expr -> E.expr = function
   | ERef e -> ERef (expr e)
   | ELoad e -> ELoad (expr e)
   | EStore (e1, e2) -> EStore (expr e1, expr e2)
+  | EFork (e1, e2) -> EFork (expr e1, expr e2)
+  | EJoin e -> EJoin (expr e)
+  | ESelf -> ESelf
 
 and fexpr : O.fexpr -> E.fexpr = function
   Fexpr (f, e) -> Fexpr (field f, expr e)

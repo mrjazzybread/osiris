@@ -1,6 +1,6 @@
 From stdpp Require Import gmap.
 From osiris Require Import base.
-From osiris.lang Require Import syntax locations notations.
+From osiris.lang Require Import syntax locations notations thread_ids.
 From osiris.semantics Require Import code step strategy eval.
 From osiris.stdlib Require Import Stdlib.
 
@@ -10,13 +10,16 @@ perform a [step] reduction. *)
 Inductive final A E :=
   | FRet (a : A)
   | FThrow (e : E)
-  | FCrash (s : string)
-  | FPerform (e : eff) (k : outcome2 val exn → micro A E).
+  | FCrash
+  | FPerform (e : eff) (k : outcome2 val exn → micro A E)
+  | FConcurrent
+.
 
 Arguments FRet {A E}.
 Arguments FThrow {A E}.
 Arguments FCrash {A E}.
 Arguments FPerform {A E}.
+Arguments FConcurrent {A E}.
 
 Inductive step_result A E :=
   | Final (f : final A E)
@@ -37,26 +40,26 @@ nondeterminism introduced by [Par] constructs *)
 Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E) :=
   match m with
   (* Final micros do not step *)
-  | Ret _ | Throw _ | Crash _ => None
+  | Ret _ | Throw _ | Crash => None
   (* Most side effects are not confluent *)
-  | Stop (CFlip | CLoad | CStore | CPerf | CResume | CWrap) _ _ => None
+  | Stop (CFlip | CLoad | CStore | CPerf | CResume | CWrap | CFork | CJoin | CSelf) _ _ => None
   (* [CEval], [CLoop], [CAlloc], [Handle] have only one way to reduce *)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
   | Stop CAlloc v k => let l := fresh (dom σ) in Some (<[l:=V v]> σ, continue k l)
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
-  | Handle (Crash s) h => Some (σ, Crash s)
+  | Handle Crash h => Some (σ, Crash)
   | Handle m h => option_map (λ '(σ', m'), (σ', Handle m' h)) (confluent_step σ m)
   (* Some [Par] configurations also have only one possible [step] *)
   | Par (Ret v1) (Ret v2) k => Some (σ, continue k (v1, v2))
-  | Par (Crash s) (Ret _) _ | Par (Ret _) (Crash s) _ => Some (σ, Crash s)
+  | Par (Crash) (Ret _) _ | Par (Ret _) (Crash) _ => Some (σ, Crash)
   | Par (Throw e) (Ret _) k | Par (Ret _) (Throw e) k => Some (σ, discontinue k e)
   | Par (Stop CPerf e k) (Ret v) h => Some (σ, Stop CPerf e (λ o, Par (k o) (Ret v) h))
   | Par (Ret v) (Stop CPerf e k) h => Some (σ, Stop CPerf e (λ o, Par (Ret v) (k o) h))
   (* Others are necessarily non-deterministic *)
-  | Par (Throw _ | Crash _ | Stop CPerf _ _)
-        (Throw _ | Crash _ | Stop CPerf _ _) _ => None
+  | Par (Throw _ | Crash | Stop CPerf _ _)
+        (Throw _ | Crash | Stop CPerf _ _) _ => None
   (* Other [Par] configurations can step in confluent ways if subterms can *)
   | Par m1 m2 k =>
       match confluent_step σ m1 with
@@ -92,8 +95,11 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   (* Already final *)
   | Ret x => Final (FRet x)
   | Throw x => Final (FThrow x)
-  | Crash s => Final (FCrash s)
+  | Crash => Final (FCrash)
   | Stop CPerf e k => Final (FPerform e k)
+  | Stop CFork m k => Final FConcurrent
+  | Stop CJoin ι' k => Final FConcurrent
+  | Stop CSelf u k => Final FConcurrent
 
   (* Handlers do not introduce nondeterminism *)
   | Handle m1 h =>
@@ -101,7 +107,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
       | Final (FPerform e k) => let l := fresh (dom σ) in Step [(<[l:=K k]> σ, h (O3Perform e l))]
       | Final (FRet v)   => Step [(σ, h (O3Ret v))]
       | Final (FThrow e) => Step [(σ, h (O3Throw e))]
-      | Final (FCrash s) => Step [(σ, Crash s)]
+      | Final (FCrash) => Step [(σ, Crash)]
+      | Final FConcurrent => Step [(σ, Crash)]
       | Step l => Step (map (λ '(σ', m'), (σ', Handle m' h)) l)
       end
 
@@ -135,7 +142,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
             (* In all other cases, control can go to [m1], disregarding [m2] or
                delaying it into a perform's continuation *)
             | FThrow e1 => [(σ, discontinue k e1)]
-            | FCrash s1 => [(σ, Crash s1)]
+            | FCrash => [(σ, Crash)]
+            | FConcurrent => [(σ, Crash)]
             | FPerform e1 k1 => [(σ, Stop CPerf e1 (λ o, Par (k1 o) m2 k))]
             end
         (* [m1] taking a step *)
@@ -149,8 +157,9 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
             match f with
             | FRet _ => []
             | FThrow e2 => [(σ, discontinue k e2)]
-            | FCrash s2 => [(σ, Crash s2)]
+            | FCrash => [(σ, Crash)]
             | FPerform e2 k2 => [(σ, Stop CPerf e2 (λ o, Par m1 (k2 o) k))]
+            | FConcurrent => [(σ, Crash)]
             end
         | Step l => map (λ '(σ2', m2'), (σ2', Par m1 m2' k)) l
         end
@@ -342,6 +351,9 @@ Fixpoint string_of_expr (e : expr) : string :=
   | ERef e => "ERef(" ++ string_of_expr e ++ ")"
   | ELoad e => "ELoad(" ++ string_of_expr e ++ ")"
   | EStore e1 e2 => "EStore(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | EFork e1 e2 => "EFork(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | EJoin e => "EFork(" ++ string_of_expr e ++ ")"
+  | ESelf => "ESelf"
   end
   with string_of_fexpr (x : fexpr) : string :=
   match x with
@@ -394,6 +406,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VData data vs => "VData(" ++ data ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
   | VXData loc vs => "VXData(" ++ string_of_Z loc.(address) ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
   | VLoc loc => "VLoc(" ++ string_of_Z loc.(address) ++ ")"
+  | VThread thread => "VLoc(" ++ string_of_Z thread.(tid) ++ ")"
   | VCont loc => "VCont(" ++ string_of_Z loc.(address) ++ ")"
   | VRecord fields => "VRecord(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
@@ -421,6 +434,9 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CPerf => "CPerf"
   | CResume => "CResume"
   | CWrap => "CWrap"
+  | CFork => "CFork"
+  | CJoin => "CJoin"
+  | CSelf => "CSelf"
   end.
 
 Definition string_of_bool (b : bool) : string :=
@@ -436,7 +452,7 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   match m with
   | Ret a => "Ret(" ++ ppa a ++ ")"
   | Throw e => "Throw(" ++ ppe e ++ ")"
-  | Crash s => "Crash(" ++ s ++ ")"
+  | Crash => "Crash"
   | Stop CEval (η, e) k => "Stop(CEval, " ++ string_of_env η ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CLoop (η, x, a, b, e) k => "Stop(CLoop, (<env>, " ++ x ++ ", " ++ string_of_int a ++ ", " ++ string_of_int b ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CFlip () k => "Stop(CFlip" ++ ", (), <cont>)"
@@ -446,6 +462,9 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CPerf v k => "Stop(CPerf" ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CResume (loc, o2) k => "Stop(CResume" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_outcome2 o2 ++ ", <cont>)"
   | Stop CWrap (d, loc, η, h) k => "Stop(CWrap" ++ ", " ++ string_of_bool d ++ ", " ++ string_of_Z loc.(address) ++ "<env>, <handler>" ++ ", <cont>)"
+  | Stop CFork (v1, v2) k => "Stop(CFork" ++ ", " ++ string_of_val v1 ++ ", " ++ string_of_val v2 ++ ", <cont>)"
+  | Stop CJoin ι' k => "Stop(CFork" ++ ", " ++ string_of_Z ι'.(tid) ++ ", <cont>)"
+  | Stop CSelf u k => "Stop(CSelf, <cont>)"
   | Handle m h => "Handle(" ++ string_of_micro string_of_val string_of_val m ++ ", <handler>)"
   | Par m1 m2 k =>
       "Par(" ++

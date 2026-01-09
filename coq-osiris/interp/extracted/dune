@@ -9,8 +9,8 @@
   (extracted_modules
     Datatypes Specif Decimal Basics Bool Orders List base BinNums BinPosDef
     BinPos BinNat Ascii BinInt ZArith_dec String Zpower option numbers list0
-    countable void infinite fin_sets fin_maps mapset gmap locations PrimFloat
-    Coqlib Zbits Integers int syntax notations outcome code Mergesort strategy
-    eval step DecimalString Externals Stdlib run
+    countable void infinite fin_sets fin_maps mapset gmap locations thread_ids
+    PrimFloat Coqlib Zbits Integers int syntax notations outcome code Mergesort
+    strategy eval step DecimalString Externals Stdlib run
  )
 )

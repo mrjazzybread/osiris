@@ -12,7 +12,7 @@ repository) in terms of the normal step relation *)
 at toplevel *)
 
 Inductive ipure : forall {A E}, micro A E → Prop :=
-  | ipure_crash A E s : @ipure A E (Crash s) (* proofs work with or without this line  *)
+  | ipure_crash A E : @ipure A E Crash (* proofs work with or without this line  *)
   | ipure_ret A E v : @ipure A E (Ret v)
   | ipure_throw A E e : @ipure A E (Throw e)
   | ipure_handle A E m (h : _ → micro A E) : ipure m → ipure (Handle m h)
@@ -23,6 +23,14 @@ Inductive ipure : forall {A E}, micro A E → Prop :=
     ipure m1 → ipure m2 → ipure (Par m1 m2 k).
 
 (** For pure computations [may m m'] is equivalent to [∀ σ  (σ, m) → (σ, m')] *)
+
+Ltac inv_ipure :=
+  match goal with
+  | h: ipure (Stop CPerf _ _) |- _ => inv h
+  | h: ipure (Stop CFork _ _) |- _ => inv h
+  | h: ipure (Stop CJoin _ _) |- _ => inv h
+  | h: ipure (Stop CSelf _ _) |- _ => inv h
+  end.
 
 Local Lemma may_pure_step {A E} (m : micro A E) :
   ipure m ->
@@ -35,8 +43,12 @@ Proof.
     remember (∅, m') as c'.
     revert m m' Heqc Heqc' P.
     induction S; intros m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
+    (* [Stop CFlip] *)
     destruct b; constructor.
-    inv H3. inv H8.
+    (* [fork], [join], and [perform] under [Par] and [Handle]. *)
+    all: try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
 Qed.
 
 (** For pure computations [may m m'] is equivalent to [∃ σ  (σ, m) → (σ, m')] *)
@@ -51,9 +63,11 @@ Proof.
     remember (σ, m) as c.
     remember (σ, m') as c'.
     revert σ m m' Heqc Heqc' P.
-    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto.
-    destruct b; constructor.
-    inv H3. inv H3. inv H8.
+    induction S; intros σ_ m_ m_' [= -> <-] [= TEST] P; subst; invdep P; try constructor; eauto;
+      first (destruct b; constructor);
+      try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
+    destruct c; try contradiction H; try inv_ipure.
 Qed.
 
 Local Lemma ipure_dec {A E} (m : micro A E) : ipure m ∨ ~ipure m.
@@ -68,27 +82,25 @@ Qed.
 
 (** Non-immediately-pure computations can reduce to [Crash] *)
 
-Local Lemma not_ipure_crash {A E} (m : micro A E) : ~ipure m → ∃ s, rtc may m (Crash s).
+Local Lemma not_ipure_crash {A E} (m : micro A E) : ~ipure m → rtc may m (Crash).
 Proof.
   induction m; intros N.
   - destruct N. constructor.
   - destruct N. constructor.
-  - exists msg. constructor.
-  - ospecialize (IHm _). by intros P; destruct N; constructor. destruct IHm as [s IHm].
-    exists s. apply rtc_r with (Handle (Crash s) h). 2:constructor.
+  - constructor.
+  - ospecialize (IHm _). by intros P; destruct N; constructor.
+    apply rtc_r with (Handle (Crash) h). 2:constructor.
     clear -IHm. induction IHm; econstructor; eauto with may.
   - destruct c.
     all: try (destruct N; constructor).
-    all: eexists; apply rtc_once; constructor.
+    all: apply rtc_once; constructor.
   - destruct (ipure_dec m1) as [P1 | N1].
     + destruct (ipure_dec m2) as [P2 | N2].
       * destruct N; constructor; auto.
       * specialize (IHm2 N2).
-        destruct IHm2 as [s IHm2]. exists s.
-        apply rtc_r with (Par m1 (crash s) k). 2:constructor.
+        apply rtc_r with (Par m1 (Crash) k). 2:constructor.
         clear -IHm2. induction IHm2; econstructor; eauto with may.
     + specialize (IHm1 N1).
-      destruct IHm1 as [s IHm1]. exists s.
-      apply rtc_r with (Par (crash s) m2 k). 2:constructor.
+      apply rtc_r with (Par (Crash) m2 k). 2:constructor.
       clear -IHm1. induction IHm1; econstructor; eauto with may.
 Qed.

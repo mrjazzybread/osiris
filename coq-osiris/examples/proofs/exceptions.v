@@ -31,79 +31,77 @@ Section proof_pure.
   Definition catch_head_spec (l : list A) (m : microvx) :=
     pure m (λ hopt, hopt = list.head l) ⊥.
 
-  Lemma example :
+  Lemma let_fun τ P η δ x e f sitems φ :
+    predicate_over_function_body τ P η (EAnonFun (Anon (x => e))) ->
+    (∀ c, Spec τ c P -> struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
+    struct_items (η, δ) ((ILet [Binding (PVar f) (EAnonFun (AnonFun x e))]) :: sitems) φ.
+  Proof.
+    intros Hpred Hmono.
+    eapply structs_cons.
+    { apply struct_let_single.
+      apply pure_eval_anon. apply Hpred. }
+    intros [η' δ'] (clo & HSpec & -> & ->).
+    apply Hmono, HSpec.
+  Qed.
+
+  Lemma example `{Encode A} :
     eval_module stdlib_with_notfound __main (λ η, True).
   Proof.
     unfold __main.
     apply module_struct.
 
     (* Struct item: [let head l = ...] *)
-    eapply structs_cons.
-    apply struct_let_single.
-    apply (pure_eval_anon τ[list A]) with (P := head_spec).
-    { simpl; unfold head_spec; fold eval.
-      intros l.
-      eapply pure_eval_match. { pure_path. }
+    apply (let_fun τ[list A] head_spec).
+    { simpl; fold eval.
+      unfold head_spec; intros l.
+      change encode_list with (@encode.encode (list A) _).
+      apply pure_please_eval.
+      eapply pure_eval_match. { eapply pure_eval_path. eapply pure_ret. reflexivity. reflexivity. }
       pure_match.
-
-      { (* Case: the list is empty *)
-        apply pure_eval_raise.
-        simpl_eval. (* FIXME. *)
-        pure_ret. }
-
-      { (* Case: the list has a head *)
-        pure_path. } }
-
-    intros [??] (head & Hhead & -> & ->); simpl.
+      - eapply pure_eval_raise.
+        simpl_eval. pure_ret.
+      - pure_path. }
+    intros head Hhead.
 
     (* Struct item: [let catch_head l = ...] *)
-    eapply structs_cons.
-    apply struct_let_single.
-    apply (pure_eval_anon τ[list A]) with (P := catch_head_spec).
-    { simpl; unfold catch_head_spec; fold eval.
-      intros l.
+    apply (let_fun τ[list A] catch_head_spec).
+    { simpl; fold eval.
+      unfold catch_head_spec; intros l.
+      change encode_list with (@encode.encode (list A) _).
+      apply pure_please_eval.
       eapply pure_eval_match'_exn.
-      { (* Evaluate the scrutinee [head l] *)
-        eapply (pure_EApp τ[list A]). pure_path. pure_path. apply eq_refl.
-        intros l' <- m Hm. apply Hm. }
-
-      { (* Case: the call to [head] returned a value *)
-        intros x [t ->].
-        pure_match. pure_data. }
-
-      { (* Case: the call to [head] raised an exception *)
-        intros e [-> ->].
-        pure_match. pure_const. reflexivity. } }
-
-    intros [??] (catch_head & Hcatch_head & -> & ->); simpl.
+      - eapply (pure_EApp τ[list A]). pure_path. { pure_path; apply eq_refl. }
+        simpl.
+        intros l' <- m Hm. apply Hm.
+      - intros h (t & ->). pure_match.
+        apply pure_eval_data. eapply pure_evals_cons.
+        pure_path. apply pure_evals_nil. encode.
+      - intros e (-> & ->). pure_match.
+        eapply pure_eval_const. encode. reflexivity. }
+    intros catch_head Hcatch_head.
 
     (* Struct item: [let catch_head2 l = ...] *)
-    eapply structs_cons.
-    apply struct_let_single.
-    apply (pure_eval_anon τ[list A]) with (P := catch_head_spec).
-    { simpl; unfold catch_head_spec; fold eval.
-      intros l.
-
+    apply (let_fun τ[list A] catch_head_spec).
+    { simpl; fold eval.
+      unfold catch_head_spec; intros l.
+      apply pure_please_eval.
       eapply pure_eval_match'_exn.
-      { (* Evaluate the scrutinee [Some (head l)] *)
-        eapply pure_eval_data. eapply pure_evals_singleton.
-        eapply (pure_EApp τ[list A]). pure_path. pure_path. apply eq_refl.
+      { eapply pure_eval_data. eapply pure_evals_cons.
+        eapply (pure_EApp τ[list A]). pure_path. pure_path; apply eq_refl.
+        simpl.
         intros ? <- m Hm.
-        eapply pure_ret_mono; first apply Hm.
-        { intros x [t ->].
-          exists (Some x). split; [ encode | ].
-          instantiate (1 := (λ v, ∃ x t, l = x :: t ∧ v = Some x)).
-          eexists _, _; split; reflexivity. } }
+        eapply pure_ret_mono; [ apply Hm | intros a (t & Ht) ]; fold evals.
+        apply pure_evals_nil.
+        instantiate (4 := (option A)).
+        exists (Some a). split; [ encode | ].
+        instantiate (1 := fun v => ∃ a t, l = a :: t ∧ v = Some a).
+        exists a, t; done. }
+      - intros o (a & t & -> & ->).
+        pure_match. pure_path.
+      - intros e (-> & ->).
+        pure_match. pure_const. reflexivity. }
 
-      { (* Case: the call to [head] returned a value *)
-        intros o Ho. pure_match. pure_path.
-        by destruct Ho as (x & t & -> & ->). }
-
-      { (* Case: the call to [head] raised an exception *)
-        intros e [-> ->].
-        pure_match. pure_const. done. } }
-
-    intros [??] (catch_head2 & Hcatch_head2 & -> & ->); simpl.
+    intros catch_head2 Hcatch_head2.
 
     (* We have gone though all of the struct items, time to conclude. *)
     finished_struct.

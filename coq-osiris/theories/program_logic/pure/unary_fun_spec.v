@@ -22,7 +22,7 @@ Local Definition call_spec' {X : Type} := X -> microvx -> Prop.
    holds for any call of [c] on an argument. *)
 
 Local Definition Spec' `{Encode X} (c : val) (P : call_spec') :=
-  ∀ (x : X), P x (fun_spec.im_call c #x).
+  ∀ (x : X), P x (call c #x).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -33,7 +33,7 @@ Local Definition Spec' `{Encode X} (c : val) (P : call_spec') :=
 
 Local Lemma pure_eval_anon' `{Encode X} (P : call_spec') η (xvar : var) e ζ :
   (∀ (x : X),
-      P x (eval ((xvar, #x) :: η) e)) ->
+      P x (please_eval ((xvar, #x) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun xvar e))) (λ c, Spec' c P) ζ.
 Proof. by intros; simpl_eval; eapply pure_ret. Qed.
 
@@ -46,7 +46,7 @@ Local Lemma pure_call_spec' `{Encode X, Encode Y} (P : X -> microvx -> Prop) c v
   (∀ m, P v m -> pure m φ ζ) ->
   pure (eval.E.call c #v) φ ζ.
 Proof.
-  intros HSpec Hmon. eapply pure_call_equiv.
+  intros HSpec Hmon.
   apply Hmon. apply HSpec.
 Qed.
 
@@ -70,7 +70,7 @@ Local Lemma pure_eval_letrec' `{Encode X, Encode Y}
      argument [yval] smaller than [arg]. *)
   (∀ c (arg : X),
       Spec' c (λ yval m, R yval arg -> P yval m) ->
-      P arg (eval ((x, #arg) :: (f, c) :: η) e)) ->
+      P arg (please_eval ((x, #arg) :: (f, c) :: η) e)) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
   (∀ c, Spec' c P -> pure (eval ((f, c) :: η) e2) φ ζ) ->
   (* When facing an expression of the form [let rec f x = e in e2]. *)
@@ -93,7 +93,7 @@ Local Lemma structs_letrec' `{Encode X} (R : X -> X -> Prop) η δ f (x : var) e
   well_founded R ->
   (∀ c v',
       Spec' c (λ v m, R v v' -> P v m) ->
-      P v' (eval ((x, #v') :: (f, c) :: η) e)) ->
+      P v' (please_eval ((x, #v') :: (f, c) :: η) e)) ->
   (∀ c, Spec' c P ->
        struct_items ((f, c) :: η, (f, c) :: δ) sitems φ) ->
   struct_items (η, δ) (ILetRec [RecBinding f (AnonFun x e)] :: sitems) φ.

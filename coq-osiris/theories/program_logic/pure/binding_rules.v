@@ -51,7 +51,7 @@ Proof.
   - intros. eapply pure_wp_bind, pure_wp_throw. tauto.
 Qed.
 
-Lemma bindings_nil `{Encode A} η (φ : env -> Prop) ψ :
+Lemma bindings_nil η (φ : env -> Prop) ψ :
   φ [] ->
   bindings η [] φ ψ.
 Proof.
@@ -106,7 +106,7 @@ Section eval_pat_app.
     - rewrite IHp1, IHp2. rew. ext δ'.
     - destruct v; auto.
     - destruct v; auto. destruct (_ =? _)%string; auto.
-    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (eqb _ _); auto.
+    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (locations.eqb _ _); auto.
     - destruct v; auto.
     - destruct v; auto. destruct (int.eq _ _); auto.
     - destruct v; auto. destruct (_ =? _)%char; auto.

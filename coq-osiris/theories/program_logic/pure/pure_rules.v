@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval simplification.
+From osiris.semantics Require Import code eval.
 From osiris.program_logic.pure Require Export wp judgements.
 
 (** This file defines basic reasoning rules over [pure] judgements. *)
@@ -77,15 +77,6 @@ Section pure_rules.
     pure (V := V) m φ ψ'.
   Proof.
     intros; eapply pure_mono ; eauto.
-  Qed.
-
-  Lemma pure_simp `{Observe A V} {E}
-    (φ : A -> Prop) ψ m m' :
-    simp m m' →
-    pure m' φ ψ →
-    pure (E := E) (V := V) m φ ψ.
-  Proof.
-    by eapply pure_wp_simp.
   Qed.
 
   (* A reasoning rule for [try2]. *)
@@ -225,6 +216,21 @@ Section pure_rules.
     eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
     eauto.
   Qed.
+
+  Lemma pure_par_same_exn
+    `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E}
+    (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E)
+    (φ : A3 → Prop) ζ
+    :
+     pure (E := E) m1
+      (λ a1,
+        pure m2
+          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ζ)
+          (λ e : E, pure (discontinue k e) φ ζ))
+      ζ →
+     pure (Par m1 m2 k) φ ζ.
+  Proof.
+  Admitted.
 
   Lemma pure_par_glue2
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
@@ -418,7 +424,7 @@ Section pure_eff.
     pure (V := val) (E := Y) (Stop CEval (η, e) k) φ ψ.
   Proof.
     intros.
-    eapply pure_wp_simp; [ apply simplification.SimpEval | assumption ].
+    by apply pure_wp_Eval.
   Qed.
 
   (** [CEval] evaluation *)
@@ -431,9 +437,9 @@ Section pure_eff.
     by intros m' ->%pure.invert_may_eval.
   Qed.
 
-  Lemma pure_CEval_inject2 `{Encode A} {η e φ ψ} :
+  Lemma pure_please_eval `{Encode A} {η e φ ψ} :
     pure (A := A) (eval η e) φ ψ →
-    pure (Stop CEval (η, e) inject2) φ ψ.
+    pure (please_eval η e) φ ψ.
   Proof.
     intros He. eapply pure_CEval, pure_try2; try done;
     intros; eauto using pure_ret, pure_throw.
@@ -447,7 +453,7 @@ Section pure_eff.
     intros Hlookup Hpure.
     simpl; rewrite Hlookup.
     cbn.
-    eapply pure_CEval; rewrite try2_ret_right.
+    eapply pure_CEval; rewrite try2_inject2_right.
     done.
   Qed.
 
@@ -473,5 +479,3 @@ Section pure_eff.
   Qed.
 
 End pure_eff.
-
-

@@ -1,6 +1,6 @@
 From Coq Require Import FunctionalExtensionality.
 From osiris Require Import base.
-From osiris.semantics Require Import code eval simplification.
+From osiris.semantics Require Import code eval.
 
 (** [may] relation: reduction steps for pure computations *)
 
@@ -57,35 +57,47 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayAlloc v k :
   may
     (Stop CAlloc v k)
-    (crash "impure")
+    (Crash)
 | MayLoad lv k :
   may
     (Stop CLoad lv k)
-    (crash "impure")
+    (Crash)
 | MayStore l k :
   may
     (Stop CStore l k)
-    (crash "impure")
+    (Crash)
 | MayResume lo k :
   may
     (Stop CResume lo k)
-    (crash "impure")
+    (Crash)
 | MayWrap t k :
   may
     (Stop CWrap t k)
-    (crash "impure")
+    (Crash)
 | MayPerform e k :
   may
     (Stop CPerf e k)
-    (crash "impure")
-| MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) s :
+    (Crash)
+| MayFork x k :
   may
-    (Par (crash s) m2 k)
-    (crash s)
-| MayParCrashRight {A1 A2 E'} m1 (k : outcome2 (A1 * A2) E' → _) s :
+    (Stop CFork x k)
+    (Crash)
+| MayJoin i k :
   may
-    (Par m1 (crash s) k)
-    (crash s)
+    (Stop CJoin i k)
+    (Crash)
+| MaySelf u k :
+  may
+    (Stop CSelf u k)
+    (Crash)
+| MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
+  may
+    (Par Crash m2 k)
+    (Crash)
+| MayParCrashRight {A1 A2 E'} m1 (k : outcome2 (A1 * A2) E' → _) :
+  may
+    (Par m1 (Crash) k)
+    (Crash)
 | MayParRetRet {A1 A2 E'} a1 a2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par (Ret a1) (Ret a2) k)
@@ -117,10 +129,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Handle (Throw e) h)
     (discontinue h e)
-| MayHandleCrash h s :
+| MayHandleCrash h :
   may
-    (Handle (crash s) h)
-    (crash s)
+    (Handle Crash h)
+    (Crash)
 | MayHandle m m' h :
   may m m' →
   may
@@ -153,7 +165,7 @@ that are [pure] *)
 (** Computations are either final or may reduce *)
 
 Lemma may_cases {A E} (m : micro A E) :
-  (∃ s, m = crash s) ∨ (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
+  (m = Crash) ∨ (∃ a, m = ret a) ∨ (∃ e, m = throw e) ∨ (∃ m', may m m').
 Proof.
   induction m; eauto with may;
     firstorder; subst; eauto 10 with may.
@@ -162,7 +174,12 @@ Proof.
   - destruct x as [[[[]]]]; eauto with may.
 Qed.
 
-(* using [final] from [simplification] *)
+Definition final {A E} (m : micro A E) :=
+  match m with
+  | Ret _ | Throw _ | Crash => True
+  | _                       => False
+  end.
+
 Lemma final_or_may {A E} (m : micro A E) : final m ∨ ∃ m', may m m'.
 Proof.
   destruct (may_cases m); unfold final; firstorder (subst; eauto).
@@ -201,7 +218,7 @@ Proof.
   by eq_dep_inj.
 Qed.
 
-Lemma invert_may_crash A E (m : micro A E) s : may (crash s) m → False.
+Lemma invert_may_crash A E (m : micro A E) : may (Crash) m → False.
 Proof.
   inversion 1.
 Qed.
@@ -243,7 +260,7 @@ Proof.
 Qed.
 
 Lemma invert_may_perform {A E} (m' : micro A E) e h:
-  may (Stop CPerf e h) m' → ∃ s, m' = crash s.
+  may (Stop CPerf e h) m' → m' = Crash.
 Proof.
   by inversion 1; eauto.
 Qed.
@@ -255,7 +272,7 @@ Lemma invert_may_par {A1 A2 E A E'} (k : outcome2 (A1 * A2) E → micro A E') m1
   (∃ m2', may m2 m2' ∧ m' = Par m1 m2' k) ∨
   (∃ e1, m1 = throw e1 ∧ m' = discontinue k e1) ∨
   (∃ e2, m2 = throw e2 ∧ m' = discontinue k e2) ∨
-  (∃ s, (m1 = crash s ∨ m2 = crash s) ∧ m' = crash s).
+  ((m1 = Crash ∨ m2 = Crash) ∧ m' = Crash).
 Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
@@ -296,7 +313,7 @@ Lemma invert_may_bind {A B E} (m : micro A E) (k : A → micro B E) (m1 : micro 
   may (bind m k) m1 →
   (∃ m', may m m' ∧ m1 = bind m' k) ∨
   (∃ a, m = ret a ∧ may (k a) m1) ∨
-  (∃ s, m1 = crash s).
+  (m1 = Crash).
 Proof.
   rewrite bind_as_try2.
   intros [(m' & Hm & ->)|[(a & -> & Ha)|(e & -> & He)]]%invert_may_try2.

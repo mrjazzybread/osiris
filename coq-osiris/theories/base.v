@@ -1,6 +1,6 @@
 Require Export Coq.Program.Equality.
 From stdpp Require Export base strings.
-From osiris.logic Require Export void.
+From osiris.logic Require Export void int_arith.
 
 (* Logical tautologies. *)
 

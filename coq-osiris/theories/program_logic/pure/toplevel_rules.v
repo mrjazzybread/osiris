@@ -108,12 +108,12 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
                    η0 = [(name, clo)] ++ η /\
                    δ0 = [(name, clo)] ++ δ) .
 Proof.
-  intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
-  eapply pure_wp_simp. { simpl. apply SimpParRetRight. }
-  eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
-  simpl; intros ? (? & -> & Hextend).
-  unfold irrefutably_extend; simpl_eval_pat.
-  eapply pure_wp_ret; eauto.
+  intros; unfold struct_item; simpl_eval_sitem.
+  eapply pure_wp_bind.
+  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
+  intros v ? Hspec <-.
+  apply pat_PVar. apply pure_wp_ret.
+  eauto.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
@@ -121,17 +121,14 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
-  intros; unfold struct_item; simpl_eval_sitem; simpl_eval_bindings.
-  eapply pure_wp_simp. { simpl. apply SimpParRetRight. }
-  eapply pure_wp_try2_conseq; eauto. 2: intros _ [].
-  simpl; intros v (? & -> & Hextend).
-  eapply pure_wp_bind_conseq.
-  { unfold irrefutably_extend; cbn.
-    apply pure_wp_widen.
-    eapply pure_wp_try_conseq; eauto.
-    2: intros _ [].
-    eauto using pure_wp_ret. }
-  auto using pure_wp_ret.
+  intros; unfold struct_item; simpl_eval_sitem.
+  eapply pure_wp_bind.
+  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
+  intros v ? Hpat <-.
+  simpl in Hpat.
+  eapply pattern_mono; [ apply Hpat | | auto ].
+  intros η' HΨ.
+  eapply pure_wp_ret. auto.
 Qed.
 
 Lemma struct_letrec_single η δ name af (spec : val -> Prop) :
@@ -251,7 +248,7 @@ Proof.
   eapply pure_rec_call2; eauto.
   intros ?????.
   eapply pure_eval_anonfun. simpl. apply pure_stop_eval.
-  rewrite try2_ret_right.
+  rewrite try2_inject2_right.
   eauto.
 Qed.
 
@@ -299,28 +296,6 @@ Proof.
   repeat intro.
   eapply pure_wp_mono; intros; eauto with pure_wp.
 Qed.
-
-Lemma pure_eval_mexpr_struct (η δ whatenv : env) items (ψ : val -> Prop) :
-  simp (eval_sitems (η, []) items) (ret (whatenv, δ)) ->
-  ψ (VStruct δ) ->
-  pure (eval_mexpr η (MStruct items)) ψ ⊥.
-Proof.
-  intros. simpl_eval_mexpr.
-  eapply pure_wp_simp; [ simp | eauto using pure_wp_ret with pure ].
-Qed.
-
-(* Lemma pure_eval_mexpr_coerc η me c v (ψ : val -> Prop): *)
-(*   simp (eval_mexpr η me) (ret v) -> *)
-(*   pure (coerce c v) ψ ⊥ -> *)
-(*   pure (eval_mexpr η (MCoercion me c)) ψ ⊥. *)
-(* Proof. *)
-(*   intros Hme Hc. simpl_eval_mexpr. eapply pure_bind. *)
-(*   eapply pure_wp_simp; eauto. *)
-(*   eapply pure_wp_mono_ret. eapply pure_wp_ret_eq. *)
-(*   intros _ ->. eauto with pure *)
-(*   rewrite pure_wp_widen'. *)
-(*   apply Hc. *)
-(* Qed. *)
 
 Lemma module_struct η sitems φ :
   struct_items (η, []) sitems (λ '(η, δ), φ δ) ->

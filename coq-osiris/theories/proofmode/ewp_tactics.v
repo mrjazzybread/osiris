@@ -179,22 +179,6 @@ Ltac Auto :=
   autorewrite with osiris;
   auto with osiris.
 
-(* [EWP normal form]
-    An assertion that checks whether the current goal is in normal form, i.e.
-    of the form ewp [..] *)
-(* Turn expression to normal form; (i.e. apply monadic unit/associativity
-  properties) *)
-Ltac Normalize :=
-  (* Normalize monadic [bind] and [ret] *)
-  cbn [bind];
-  repeat
-  match goal with
-  | |- envs_entails _ (ewp_def _ (Par _ _ _ _) _ _) => Par
-  | |- envs_entails _ (ewp_def _ (bind _ _) _ _) => Bind
-  | |- envs_entails _ (ewp_def _ (ret _) _ _) => Ret
-  end;
-  Auto.
-
 (* -------------------------------------------------------------------------- *)
 (* If the branch guard in [if _ then _ else _] can be resolved, we can decide
    which branch to take. *)
@@ -268,33 +252,6 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
   | |- envs_entails _ (ewp_def ?E ?m ?Ψ ?Φ) => assert (Φ = φ) as -> by reflexivity
   end.
 
-
-(* -------------------------------------------------------------------------- *)
-
-(** *Calling AnonFuns *)
-
-(* [ewp_call_anonfun] expects a goal of the form
-          [ EWP call_anonfun η (λ args, body) (args ++ [x]) {{ Q }} ]
-      and produces a goal of the form
-          [ EWP call (VClo (args ++ η) body) x {{ Q }} ] *)
-Ltac ewp_call_anonfun :=
-  (* Unfold [call_anonfun], and get a tower of binds. *)
-  rewrite /call_anonfun; simpl; rewrite ?bind_bind;
-  (* Unfold [eval_anonfun]. *)
-  rewrite /eval_anonfun;
-  (* Simplify the tower of binds,
-        this should elaborate a closure capturing all arguments.  *)
-  repeat (iApply ewp_bind; Simp; Ret);
-  simpl.
-
-(* Non-recursive call. *)
-Ltac Call :=
-  match goal with
-  | |- envs_entails _ (ewp_def _ (call_anonfun _ _ _) _ _) =>
-      ewp_call_anonfun; iApply ewp_call_nonrec
-  end.
-
-
 (* -------------------------------------------------------------------------- *)
 
 (** *Proving Handlers and Matches *)
@@ -302,17 +259,21 @@ Ltac Call :=
 (* Proving that a handler satisfies its specification involves proving
    the effectful case and the return/exceptional case. *)
 
-Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
+Ltac prove_handler_spec :=
+  rewrite deep_handler_spec_unfold; iSplit.
 
 (* Proving an [EMatch] expression boils down to proving a handler where
    the effectful case is trivial. *)
 
 Ltac prove_match0_spec spec :=
   iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ spec);
+  iApply (ewp_deep_handler _ _ _ spec);
   [ |
     prove_handler_spec;
-    [
+    [ let x := fresh "tmp" in
+      let Hf := iFresh in
+      iIntros (x) Hf;
+      iRevert (x) Hf
     | let Hf := iFresh in
       iIntros (??) Hf;
         by iPoseProof (upcl_bottom with Hf) as "?" ]
@@ -331,7 +292,7 @@ Ltac prove_match :=
 
 Ltac prove_simple_match :=
   iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ (ieq ?[y]));
+  iApply (ewp_deep_handler _ _ _ (ieq ?[y]));
   [ |
     prove_handler_spec;
     [
@@ -482,50 +443,31 @@ Ltac2 do_iintros () :=
    It is the iris proofmode analog of [pure_match] in the pure mode. *)
 
 Ltac2 apply_deep_handle_cons () :=
-  let intuitionistic_hyps := all_intuitionistic_hyps () in
-  let spatial_hyps := all_spatial_hyps () in
-  conj_hyps spatial_hyps;
-  revert_intuitionistic intuitionistic_hyps;
-  conj_hyps intuitionistic_hyps;
-  match intuitionistic_hyps with
-  | h1 :: _ =>
-      match spatial_hyps with
-      | h2 :: _ => conj_hyps [h1; h2]
-      | _ => ()
-      end
-  | _ => ()
-  end;
-  match intuitionistic_hyps with
-  | h1 :: _ =>
-      iApply (deep_handle_cons with $h1)
-  | _ => match spatial_hyps with
-        | h2 :: _ => iApply (deep_handle_cons with $h2)
-        | _ => iApply deep_handle_cons_no_resources
-        end
-  end;
-  Control.focus 1 1 (fun _ => iPureIntro;
-                           let n := specify_cpattern () in
-                           if (Int.gt n 0)
-                           then
-        (* [specify_cpattern] resolves
-          a [cpattern] and leaves behind a [pattern] which needs
-          to be solved with a [pattern_match0] here;
-          and since [pattern_match0] does not return an integer
-          of how many goals are left, we must use [try] which is not
-          ideal. *)
-                             Control.focus 1 n pattern_match0;
-                             try (Control.focus 1 n
-                                  (fun _ =>
-                                      match! goal with
-                                      | [ |- ?g ] =>
-                                          if Constr.is_evar g then
-                                              apply I
-                                          else
-                                              iStartProof
-                                      end))
-                           else ());
-  all (fun _ => reintroduce_env intuitionistic_hyps spatial_hyps);
-  last (do_iintros).
+  iApply deep_handle_cons;
+  Control.focus 1 1
+    (fun _ =>
+       iPureIntro;
+       let n := specify_cpattern () in
+       if (Int.gt n 0)
+       then
+         (* [specify_cpattern] resolves
+            a [cpattern] and leaves behind a [pattern] which needs
+            to be solved with a [pattern_match0] here;
+            and since [pattern_match0] does not return an integer
+            of how many goals are left, we must use [try] which is not
+            ideal. *)
+         Control.focus 1 n pattern_match0;
+         try (Control.focus 1 n
+                (fun _ =>
+                   match! goal with
+                   | [ |- ?g ] =>
+                       if Constr.is_evar g then
+                         apply I
+                       else
+                         iStartProof
+                   end))
+       else ());
+  last (iSplit; do_iintros).
 
 
 Ltac2 Notation "next_branch" := apply_deep_handle_cons ().

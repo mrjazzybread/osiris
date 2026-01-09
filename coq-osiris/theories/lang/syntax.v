@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import float int char locations.
+From osiris.lang Require Import float int char locations thread_ids.
 
 (* This file should be in sync with osiris/src/Syntax.ml. *)
 
@@ -277,11 +277,18 @@ Inductive expr :=
   | EAssert (e : expr)
 
   (* Reference allocation: [ref e]. *)
-  | ERef (e: expr)
+  | ERef (e : expr)
   (* Reference lookup: [!e]. *)
-  | ELoad (e: expr)
+  | ELoad (e : expr)
   (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
+
+  (* Creating a thread: ≈ [Thread.create f arg]. *)
+  | EFork (e1 e2 : expr)
+  (* Waiting for another thread to terminate: ≈ [Domain.join th]. *)
+  | EJoin (e : expr)
+  (* A request for one's own thread handle: ≈ [Domain.self ()] *)
+  | ESelf
 
 (* Field-expression pairs. *)
 
@@ -407,6 +414,8 @@ Inductive val :=
   | VRecord (fvs : list (var * val))
   (* A location. *)
   | VLoc (l: loc)
+  (* A thread id. *)
+  | VThread (t: thread)
   (* A continuation; more precisely, a location which stores a continuation. *)
   | VCont (k: cont)
   (* A module. *)

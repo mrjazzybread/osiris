@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import locations lang.
+From osiris.lang Require Import locations thread_ids lang.
 From osiris.semantics Require Export outcome micro.
 
 (* This module fixes the specific set of codes that are needed in the Osiris
@@ -64,6 +64,9 @@ Definition eff := val.
     The handler is given by [bs] (list of branches), and is evaluated with
     the environment [η].  *)
 
+(* [CFork (f, a) is a request to create a new thread, and to evaluate the
+   application [f a] inside of it. *)
+
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
@@ -74,7 +77,22 @@ Inductive code : Type → Type → Type → Type :=
 | CPerf  : code eff val exn
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
+| CFork : code (val * val) val exn
+| CJoin : code thread val exn
+| CSelf : code unit val exn
 .
+
+Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
+  match c with
+  | CFork | CJoin | CSelf => True
+  | _ => False
+  end.
+
+Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
+  match c with
+  | CPerf | CJoin | CFork | CSelf => True
+  | _ => False
+  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -147,6 +165,17 @@ Definition store (l : loc) (v : val) :=
 
 (* ------------------------------------------------------------------------ *)
 
+Definition fork (v1 v2 : val) :=
+  stop CFork (v1, v2).
+
+Definition join (t : thread) :=
+  stop CJoin t.
+
+Definition self :=
+  stop CSelf ().
+
+(* ------------------------------------------------------------------------ *)
+
 (* The left-arrow notation, analogous to Haskell's do notation. *)
 
 Notation "x ← y ; z" :=
@@ -185,7 +214,20 @@ Definition loop (η : env) (x : var) (i1 : int) (i2 : int) (e : expr) :=
    the hypotheses. *)
 
 Ltac destruct_code :=
-  match goal with c: C.code _ _ _ |- _ => destruct c end.
+  match goal with
+  | c: C.code _ _ _ |- _ =>
+      match goal with
+      | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | h: step_through_par_code c |- _ => destruct c; try contradiction h
+      | _ => destruct c
+      end
+  | c: code _ _ _ |- _ =>
+      match goal with
+      | h: is_concurrent_code c |- _ => destruct c; try contradiction h
+      | h: step_through_par_code c |- _ => destruct c; try contradiction h
+      | _ => destruct c
+      end
+  end.
 
 (* ------------------------------------------------------------------------ *)
 

@@ -103,9 +103,10 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 Lemma iter_module_pure :
   ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{ ensures m, module_spec [("find_first", λ find, iSpec τ[list A; val] find find_spec)] m }}.
+    {{ ensures m, module_spec [("find_first", λ find, □ iSpec τ[list A; val] find find_spec)] m }}.
 Proof.
   (* Enter the module and face the struct items. *)
+  iIntros "%ι".
   iApply ewp_module.
   (* Process the first structure item. *)
   iApply ewp_sitems_cons.
@@ -125,7 +126,8 @@ Proof.
     { (* Enter the body *) simpl.
       intros iter f l IH.
       unfold listiter_spec_inv; fold eval.
-      intros lpre lsuf I φ Heql Hf HI; abstract_env.
+      intros lpre lsuf I φ Heql Hf HI.
+      apply pure_please_eval. abstract_env.
 
       (* Evaluate the [function] expression. *)
       eapply pure_eval_match. { (* Evaluation the scrutinee. *) pure_path. }
@@ -173,15 +175,16 @@ Proof.
   (* We now face the toplevel definition of [find_elem]. *)
   iApply (ewp_sitems_let_singleton_var
             (* We give [find_elem] the specification [find_spec]. *)
-            (λ (find : val), iSpec τ[list A; val] find find_spec)).
+            (λ (find : val), □ iSpec τ[list A; val] find find_spec)%I).
 
   { (* START OF THE PROOF FROM THE PAPER *)
     (* Subgoal: Prove that [find_elem] satisfies its specification. *)
     (* Step into the function's body *)
-    iApply (ewp_eval_anon τ[list A; val]).
+    iApply (ewp_EAnon_pers τ[list A; val]).
     (* Introduce the function's arguments. *)
-    iIntros (xs pred φ Hpred).
+    iIntros "!>" (xs pred φ Hpred ι').
     (* Declare and open a local module. *)
+    iApply ewp_please. iNext.
     iApply ewp_ELetOpen.
     (* Evaluate the module expression. *)
     iApply ewp_module; iApply ewp_sitems_extend;
@@ -206,6 +209,7 @@ Proof.
           unfold lambda_spec; fold eval.
           (* Prove that the lambda expression satisfies its spec. *)
           intros x Xs Hpref Hforall.
+          apply pure_please_eval.
           eapply pure_eval_ifthen.
           { (* Subgoal: evaluate the conditional [pred x]. *)
             eapply (pure_EApp τ[A]);

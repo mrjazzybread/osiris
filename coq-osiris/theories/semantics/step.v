@@ -244,12 +244,12 @@ Qed.
 
 (* A summary of our algebraicity laws. *)
 
-Local Hint Resolve
+Global Hint Resolve
   try2_step_load_2
   try2_step_store_2
   try2_step_resume_2
   try2_step_wrap_2
-: algebraic.
+: try2_algebraic.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -345,12 +345,30 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CPerf e k) h)
         (<[l := K k]>σ, h (O3Perform e l))
 
+  | StepHandleFork :
+    ∀ σ x k h,
+      step
+        (σ, Handle (Stop CFork x k) h)
+        (σ, Stop CFork x (λ o, Handle (k o) h))
+
+  | StepHandleJoin :
+    ∀ σ ι k h,
+      step
+        (σ, Handle (Stop CJoin ι k) h)
+        (σ, Stop CJoin ι (λ o, Handle (k o) h))
+
+  | StepHandleSelf :
+    ∀ σ k u h,
+      step
+        (σ, Handle (Stop CSelf u k) h)
+        (σ, Stop CSelf u (λ o, Handle (k o) h))
+
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
-      ∀ σ h s,
+      ∀ σ h,
       step
-        (σ, Handle (Crash s) h)
-        (σ, Crash s)
+        (σ, Handle Crash h)
+        (σ, Crash)
 
   (* Reduction under [Handle _ h] is permitted. *)
   | StepHandleLeft :
@@ -397,16 +415,16 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   (* A hard failure on either side can be propagated up. *)
   | StepParCrashLeft :
-      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _) s,
+      ∀ {A1 A2 E'} σ m2 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par (Crash s) m2 k)
-        (σ, Crash s)
+        (σ, Par Crash m2 k)
+        (σ, Crash)
 
   | StepParCrashRight :
-      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _) s,
+      ∀ {A1 A2 E'} σ m1 (k : outcome2 (A1 * A2) E' → _),
       step
-        (σ, Par m1 (Crash s) k)
-        (σ, Crash s)
+        (σ, Par m1 Crash k)
+        (σ, Crash)
 
   (* If a soft failure on either side is detected, then
      the failure component of the continuation [k] can be invoked. *)
@@ -426,19 +444,22 @@ Inductive step {A E} : config A E → config A E → Prop :=
      it can capture this evaluation context frame. Thus, it reduces to a
      new term where [Stop (perform e) _] now appears naked and the captured
      evaluation context is [Par (k _) m2 h]. *)
-  | StepParPerformLeft :
-      ∀ {A1 A2 E'} σ m2 e k (h : outcome2 (A1 * A2) E' → _),
+  | StepThroughParLeft :
+    ∀ {X Y E A1 A2 E'} σ m2 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
+      step_through_par_code c ->
       step
-        (σ, Par (Stop CPerf e k) m2 h)
-        (σ, Stop CPerf e (λ o, Par (k o) m2 h))
+        (σ, Par (Stop c x k) m2 h)
+        (σ, Stop c x (λ o, Par (k o) m2 h))
 
-  | StepParPerformRight :
-      ∀ {A1 A2 E'} σ m1 e k (h : outcome2 (A1 * A2) E' → _),
+  | StepThroughParRight :
+    ∀ {X Y E A1 A2 E'} σ m1 (c : code X Y E) x k (h : outcome2 (A1 * A2) E' -> _),
+      step_through_par_code c ->
       step
-        (σ, Par m1 (Stop CPerf e k) h)
-        (σ, Stop CPerf e (λ o, Par m1 (k o) h))
+        (σ, Par m1 (Stop c x k) h)
+        (σ, Stop c x (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
+  (* Can these rules be omitted and proved as lemmas? *)
   | StepParLeft :
       ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _),
       step (σ, m1) (σ', m'1) →
@@ -459,12 +480,84 @@ Global Hint Constructors step : step.
 Ltac destruct_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
-  try match goal with h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
-    remember x
+  try match goal with
+    | h: step (?σ, Stop ?c ?x ?k) ?m' |- _ =>
+          remember x
+    | h: step (?σ, stop ?c ?x) ?m' |- _ =>
+        remember x
   end;
   match goal with h: step ?m ?m' |- _ =>
     dependent destruction h
   end.
+
+(* -------------------------------------------------------------------------- *)
+
+Section threadpool.
+
+  Definition thpool : Type := gmap thread (micro val exn).
+
+  Implicit Type ι : thread.
+
+  Global Instance lookup_thpool : Lookup thread (microvx) (thpool).
+  Proof.
+    apply gmap_lookup.
+  Defined.
+
+  Global Instance insert_thpool : Insert thread (microvx) (thpool).
+  Proof.
+    apply _.
+  Defined.
+
+  Definition tconfig := (store * thpool)%type.
+
+  Definition attempt_join {A E} ι π (k : outcome2 val exn -> micro A E) :=
+    match @lookup _ _ _ lookup_thpool ι π with
+    (* Joining a thread which has terminated. *)
+    | Some m =>
+        match m with
+        (* If the joined thread terminated sucessfully, continue with unit. *)
+        | Ret v => Some (continue k v)
+        (* If the joined thread raised an exception, re-raise the exception. *)
+        | Throw ex => Some (discontinue k ex)
+        (* We do not step while attempting to join an active thread. *)
+        | _ => None
+        end
+    (* Attempting to join an invalid thread results in a [crash]. *)
+    | None => Some (crash "join invalid thread")
+    end.
+
+  Inductive threadpool_step : tconfig -> tconfig -> Prop :=
+  | BaseTS :
+    ∀ ι π m σ m' σ',
+      π !! ι = Some m ->
+      step (σ, m) (σ', m') ->
+      threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
+  | ForkTS :
+    ∀ ι π ι' v1 v2 k σ,
+      π !! ι = Some (Stop CFork (v1, v2) k) ->
+      π !! ι' = None ->
+      threadpool_step
+        (σ, π)
+        (σ, @insert _ _ _ insert_thpool ι' (call v1 v2) (
+                @insert _ _ _ insert_thpool ι (continue k (VThread ι')) π))
+  | JoinTS :
+    ∀ ι π ι' k m σ,
+      π !! ι = Some (Stop CJoin ι' k) ->
+      attempt_join ι' π k = Some m ->
+      threadpool_step
+        (σ, π)
+        (σ, <[ ι := m ]> π)
+  | SelfTS :
+    ∀ ι π k σ,
+      π !! ι = Some (Stop CSelf () k) ->
+      threadpool_step
+        (σ, π)
+        (σ, <[ ι := continue k (VThread ι) ]> π)
+  .
+
+  Definition threadpool_steps := @nsteps (tconfig) (threadpool_step).
+
+End threadpool.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -583,8 +676,8 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma is_not_throw_crash {A E} s :
-  is_not_throw (Crash s : micro A E).
+Lemma is_not_throw_crash {A E} :
+  is_not_throw (Crash : micro A E).
 Proof.
   reflexivity.
 Qed.
@@ -629,8 +722,8 @@ Qed.
 
 (* [Crash] cannot step. *)
 
-Lemma invert_can_step_Crash {A E} σ s :
-  can_step ((σ, Crash s) : config A E) →
+Lemma invert_can_step_Crash {A E} σ :
+  can_step ((σ, Crash) : config A E) →
   False.
 Proof.
   intros. destruct_can_step. destruct_step.
@@ -654,11 +747,35 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+Lemma invert_can_step_fork {A E} σ v1 v2 (k : _ -> micro A E) :
+  can_step (σ, (Stop CFork (v1, v2) k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+Lemma invert_can_step_join {A E} σ ι (k : _ -> micro A E) :
+  can_step (σ, (Stop CJoin ι k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
+Lemma invert_can_step_self {A E} σ u (k : _ -> micro A E) :
+  can_step (σ, (Stop CSelf u k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. destruct_step.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
   invert_can_step_Throw
   invert_can_step_perform
+  invert_can_step_fork
+  invert_can_step_join
+  invert_can_step_self
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -766,11 +883,11 @@ Proof.
   destruct m; solve [ exfalso; eauto with invert_can_step | simpl; tauto ].
 Qed.
 
-(* If [c] is not [CPerf _], then [Stop c x k] can step. *)
+(* If [c] is not [CPerf _] or a concurrent step, [Stop c x k] can step. *)
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with CPerf => False | _ => True end →
+  match c with | CPerf => False | _ => True end ∧ not (is_concurrent_code c)  ->
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -818,7 +935,7 @@ Qed.
 
 Lemma can_step_handle_par :
   ∀ {A E} (m : micro A E),
-  match m with Handle _ _ | Par _ _ _ => True | _ => False end →
+    match m with | Handle _ _ | Par _ _ _ => True | _ => False end →
   ∀ σ,
   can_step (σ, m).
 Proof.
@@ -852,9 +969,12 @@ Proof.
     + (* Analyze [m2]. *)
       destruct m2; eauto using can_step_under_par with step.
       (* We are now looking at [Stop] under [Par]. *)
-      destruct c; eauto using can_step_under_par with step.
+      destruct c; eauto 6 using can_step_under_par with step;
+        (* All the remaining codes are concurrent. *)
+        by eexists; eapply StepThroughParRight.
     + (* We are now looking at [Stop] under [Par]. *)
-      destruct c; eauto using can_step_under_par with step.
+      destruct c; eauto 6 using can_step_under_par with step;
+        by eexists; eapply StepThroughParLeft.
   }
 
 Qed.
@@ -890,7 +1010,7 @@ Proof.
   simplify_eq;
   simpl try2;
   rewrite ?try2_try2;
-  eauto with step algebraic f_equal.
+  eauto with step try2_algebraic f_equal.
   rewrite try2_continue; constructor.
 Qed.
 
@@ -953,7 +1073,7 @@ Proof.
   try solve [ exfalso; eauto with invert_can_step ];
   (* Every other case: *)
   destruct_step;
-  eauto with step algebraic try_try.
+  eauto with step try2_algebraic try_try.
 Qed.
 
 Lemma invert_step_try {A B E' E σ} {m} {f : A → micro B E} {h : E' → _} {σ' mm} :
@@ -1018,8 +1138,8 @@ Qed.
 
 (* [Crash] is stuck. *)
 
-Lemma stuck_Crash {A E} σ s :
-  stuck ((σ, Crash s) : config A E).
+Lemma stuck_Crash {A E} σ :
+  stuck ((σ, Crash) : config A E).
 Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
@@ -1040,11 +1160,36 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-(* The only stuck terms are [Crash] and [Throw _] and [perform _]. *)
+(* [Stop CFork x k] is stuck. *)
 
-Lemma only_crash_and_throw_and_perform_are_stuck {A E} σ m :
+Lemma stuck_Fork {A E} σ x k :
+  stuck ((σ, Stop CFork x k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
+(* [Stop CJoin i k] is stuck. *)
+
+Lemma stuck_Join {A E} σ i k :
+  stuck ((σ, Stop CJoin i k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
+Lemma stuck_Self {A E} σ u k :
+  stuck ((σ, Stop CSelf u k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
+(* The only stuck terms are
+   [Crash], [Throw _], [perform _], and [fork _ _]. *)
+
+Lemma invert_stuck {A E} σ m :
   stuck ((σ, m) : config A E) →
-  (∃ s, m = Crash s) ∨ (∃ e, m = Throw e) ∨ (∃ e k, m = Stop CPerf e k).
+  (m = Crash) ∨
+    (∃ e, m = Throw e) ∨
+    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ step_through_par_code c).
 Proof.
   intros.
   destruct m; try solve [
@@ -1052,19 +1197,21 @@ Proof.
   | exfalso; eauto using invert_stuck_ret
   | exfalso; eauto using can_step_not_stuck with step
   ].
-  (* The case of [Stop] remains. *)
+  (* [Stop] *)
   destruct_code; try solve [
-    eauto
-  | exfalso; eauto using can_step_not_stuck with step
+      eauto 9
+    | exfalso; eauto using can_step_not_stuck with step
+    | do 2 right; repeat eexists
   ].
 Qed.
 
-Lemma only_crash_and_throw_and_perform_are_stuck' {A E} σ (m : micro A E) :
+(* TODO could we use this lemma
+   and avoid reasoning with [stuck],
+   which introduces painful negations? *)
+Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
-  | Ret _
-  | Crash _
-  | Throw _
-  | Stop CPerf _ _ =>
+  | Ret _ | Crash | Throw _
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1074,6 +1221,46 @@ Proof.
   destruct_code; eauto with step.
 Qed.
 
+(* [destruct_stuck_cases] destructs the nested disjunction resulting from
+   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
+   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
+   (covering Fork, Join, Self, Die). For the concurrent case, the code must
+   be further destructed to determine which specific concurrent operation it is. *)
+
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
+
+(* Recursively destruct all existential quantifiers and a final conjunction *)
+Local Ltac2 rec destruct_existentials_and_conjunction (h : ident) :=
+  let hyp := Control.hyp h in
+  lazy_match! Constr.type hyp with
+  | ex _ =>
+      let x := Fresh.in_goal @_x in
+      destruct $hyp as [$x $h];
+      destruct_existentials_and_conjunction h
+  | _ /\ _ =>
+      let x := Fresh.in_goal @_x in
+      let y := Fresh.in_goal @_y in
+      destruct $hyp as [$x $y]
+  | _ => ()
+  end.
+
+(* Recursively destruct nested disjunctions, then handle existentials *)
+Local Ltac2 rec destruct_nested_disjunction (h : ident) :=
+  let hyp := Control.hyp h in
+  lazy_match! Constr.type hyp with
+  | _ \/ _ =>
+      destruct $hyp as [$h | $h];
+      Control.enter (fun () => destruct_nested_disjunction h)
+  | _ =>
+      destruct_existentials_and_conjunction h
+  end.
+
+(* Main tactic notation *)
+Tactic Notation "destruct_stuck_cases" ident(h) :=
+  let f := ltac2:(h |- destruct_nested_disjunction (Option.get (Ltac1.to_ident h))) in
+  f h.
+
 (* If [m] is stuck then [bind m f] is also stuck. *)
 
 Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
@@ -1081,9 +1268,14 @@ Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
   stuck (σ, bind m f).
 Proof.
   intros Hstuck.
-  apply only_crash_and_throw_and_perform_are_stuck in Hstuck.
-  destruct Hstuck as [(s & ?) | [(e & ?) | (e & k & ?)]]; subst m; simpl bind;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform.
+  apply invert_stuck in Hstuck.
+  destruct_stuck_cases Hstuck; subst m; simpl bind.
+  - (* Crash *) apply stuck_Crash.
+  - (* Throw *) apply stuck_Throw.
+  - (* Stop *)
+    destruct_code;
+    try contradiction; (* eliminate non-relevant codes *)
+    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Perform.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1115,7 +1307,9 @@ Lemma triplicity {A E} σ (m : micro A E) :
   stuck (σ, m).
 Proof.
   destruct m; try destruct_code;
-  eauto using stuck_Crash, stuck_Throw, stuck_Perform with step.
+  try solve [left; eauto];  (* Ret case *)
+  try solve [right; left; eauto with step];  (* can_step cases *)
+  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Self].  (* stuck cases *)
 Qed.
 
 Ltac triplicity σ m H :=

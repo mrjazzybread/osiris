@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations syntax notations.
+From osiris.lang Require Import int locations thread_ids syntax notations.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
@@ -402,6 +402,21 @@ Lemma solve_encode_loc l :
 Proof. solve_encode. Qed.
 
 Global Hint Resolve solve_encode_loc : encode.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Thread identifiers. *)
+
+(* This instance is needed, for instance, for memory locations. *)
+
+Global Instance Encode_thread : Encode thread :=
+  { encode := λ ι, VThread ι }.
+
+Lemma solve_encode_thread ι :
+  VThread ι = #ι.
+Proof. solve_encode. Qed.
+
+Global Hint Resolve solve_encode_thread : encode.
 
 (* -------------------------------------------------------------------------- *)
 
