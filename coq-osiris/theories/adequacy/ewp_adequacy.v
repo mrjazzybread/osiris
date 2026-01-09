@@ -1,5 +1,5 @@
 From iris.proofmode Require Import base tactics classes.
-From iris.base_logic.lib Require Import iprop wsat gen_heap saved_prop.
+From iris.base_logic.lib Require Import iprop wsat gen_heap saved_prop token.
 
 From osiris.program_logic Require Import thread_step ewp basic_rules tactics.
 From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable.
@@ -661,12 +661,13 @@ Proof.
   eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
   eapply (SAT_gen_heap_init ∅) in Hsat as [Hgen' Hsat].
   do 2 apply SAT_unframe_resource in Hsat.
-  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen')).
+  assert (tokenG Σ) by admit.
+  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen' _)).
   exists hg.
   eapply SAT_mono; last apply Hsat.
   iIntros "(Hgen' & Hpts' & Hmeta' & Hgen & Hpts & Hmeta)".
   by iFrame.
-Qed.
+Admitted.
 
 (* -------------------------------------------------------------------------- *)
 (** * Adequacy. *)

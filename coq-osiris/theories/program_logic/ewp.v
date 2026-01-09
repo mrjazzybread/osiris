@@ -1,4 +1,4 @@
-From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop.
+From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token.
 From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
@@ -96,6 +96,9 @@ Section ghost_instances.
       osiris_genGS :: gen_heapGS locations.loc step.block Σ;
       (* This gives us a ghost map for thread postconditions (stored as gnames). *)
       osiris_thread_postGS :: gen_heapGS thread gname Σ;
+      (* savedPropG is inherited from osirisGpreS via osiris_inG *)
+      (* This gives us tokens, for resource transfer when joining threads *)
+      osiris_tokenG :: tokenG Σ;
     }.
 
 End ghost_instances.
@@ -112,7 +115,7 @@ Definition osirisΣ : gFunctors :=
 Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _} : assert.
 
 (* Notations for ghost resouces. *)
 

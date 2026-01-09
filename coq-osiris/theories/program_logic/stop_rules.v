@@ -6,7 +6,7 @@ From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.program_logic Require Import thread_step ewp tactics basic_rules.
+From osiris.program_logic Require Import thread_step ewp tactics basic_rules escrows.
 From osiris.semantics Require Import semantics.
 
 
@@ -164,16 +164,85 @@ Section ewp_stop.
     iApply (ewp_ret with "HΦ").
   Qed.
 
-  Lemma ewp_stop_join {B X'} ι' E Ψ ι Φ (k : _ -> micro B X') φ :
-    valid_thread ι φ -∗
-    ▷ (∀ o, □ φ o -∗ EWP[ι'] k o @ E <| Ψ |> {{ Φ }}) -∗
-    EWP[ι'] (Stop CJoin ι k) @ E <| Ψ |> {{ Φ }}.
+
+  (* [joinable ι φ] allows one to join on [ι] and to recover the non-necessarily
+  persistent postcondition [φ] (after opening and closing an invariant) *)
+
+  Definition joinN := nroot .@ "join".
+  Definition joinable ι φ := (∃ ψ, valid_thread ι ψ ∗ ∀ o, ψ o ={↑joinN}=∗ ▷ φ)%I.
+
+  (* Rule for fork when the postcondition of the spawned thread is persistent *)
+  Lemma ewp_fork_persistent ι E Ψ v1 v2 Φ φ :
+    ▷ (∀ ι',
+          □ joinable ι' φ -∗
+          EWP[ι'] call v1 v2 @ E <|⊥|> {{ λ _, □ φ }} ∗
+          Φ (O2Ret (VThread ι'))) -∗
+    EWP[ι] (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "HΦ".
+    iApply ewp_fork.
+    iIntros "!> %ι' #Hvalid".
+    iApply "HΦ".
+    iExists _. iFrame "#". auto.
+  Qed.
+
+  (* Rule for fork when the postcondition of the spawned thread is a list of
+  resources that other threads can recover when joining. *)
+  Lemma ewp_fork_resourceful ι E Ψ v1 v2 Φ φs :
+    ▷ (∀ ι',
+          ([∗ list] φ ∈ φs, joinable ι' φ) -∗
+          EWP[ι'] call v1 v2 @ E <|⊥|> {{ λ _, [∗] φs }} ∗
+          Φ (O2Ret (VThread ι'))) -∗
+    EWP[ι] (fork v1 v2) @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "HΦ".
+
+    (* Given [φs], determine a suitable postcondition [ψ] for the spawned
+    thread. This requires the ghost update modality because we allocate
+    tokens that will be used to transfer resources. *)
+    iApply ewp_fupd. iMod (fupd_mask_subseteq ∅) as "Hmod". set_solver.
+    iDestruct (alloc_escrow_list joinN φs) as "> (%φ & #Hescrow_intro & Hescrow_elim)".
+
+    (* In the postcondition of the spawned thread we can transfer the resources
+    [φs] into [ψ] by the escrow mechanism *)
+    iAssert (▷ ∀ ι, ([∗ list] φ ∈ φs, joinable ι φ) -∗
+      EWP[ι] call v1 v2 @ E <| ⊥ |> {{ λ _, □ φ }} ∗ Φ (O2Ret (VThread ι)))%I
+      with "[HΦ]" as "HΦ".
+    {
+      iIntros "!>" (ι') "Hjs".
+      iDestruct ("HΦ" $! ι' with "Hjs") as "(Hcall & $)".
+      iPoseProof (ewp_pers_mono with "Hcall []") as "$".
+      iIntros "!> %o φs".
+      iSpecialize ("Hescrow_intro" with "[φs]"). by rewrite -big_sepL_later.
+      iApply (fupd_mask_mono ∅). set_solver.
+      iMod "Hescrow_intro" as "?". auto.
+    }
+    iClear "Hescrow_intro".
+    iMod "Hmod".
+
+    (* Apply the basic rule for fork, recover [valid_thread] in the post *)
+    iApply ewp_fork.
+    iIntros "!> !> %ι' #Hvalid".
+    iApply ("HΦ" $! ι' with "[Hescrow_elim]").
+
+    (* From the escrow elimination implication we prove the list of [joinable φ]s *)
+    iApply (big_sepL_mono_pers (valid_thread ι' (λ _, φ)) with "[$]").
+    iIntros (k φ' Hk) "(#? & Helim)". iExists (λ _, φ).
+    iSplit; auto.
+    iIntros (_) "Hφ".
+    iApply ("Helim" with "Hφ").
+  Qed.
+
+  Lemma ewp_stop_join {B X'} ι E Ψ ι' Φ (k : _ -> micro B X') φ :
+    valid_thread ι' φ -∗
+    ▷ (∀ o, □ φ o -∗ EWP[ι] k o @ E <| Ψ |> {{ Φ }}) -∗
+    EWP[ι] (Stop CJoin ι' k) @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hι Hk".
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
-    assert (ι ∈ dom π) as Hdom by (apply (elem_of_dom π ι); eexists; eassumption).
+    assert (ι' ∈ dom π) as Hdom by (apply (elem_of_dom π ι'); eexists; eassumption).
     rewrite Hlookup.
     iFrame.
     iIntros "!> %o #Ho".
@@ -181,10 +250,10 @@ Section ewp_stop.
     iApply ("Hk" with "Ho").
   Qed.
 
-  Lemma ewp_join ι' E Ψ ι Φ φ :
-    valid_thread ι φ -∗
+  Lemma ewp_join ι E Ψ ι' Φ φ :
+    valid_thread ι' φ -∗
     ▷ (∀ o, □ φ o -∗ Φ o) -∗
-    EWP[ι'] (join ι) @ E <| Ψ |> {{ Φ }}.
+    EWP[ι] (join ι') @ E <| Ψ |> {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".
     iApply (ewp_stop_join with "Hvalid").
@@ -192,6 +261,27 @@ Section ewp_stop.
     iIntros (o) "Hdead".
     iApply (ewp_outcome2 with "[HΦ Hdead]").
     iApply ("HΦ" with "Hdead").
+  Qed.
+
+  (* Does not actually need to transfer resources, [φ] could be persistent. To
+  be renamed when [joinable] subsumes [valid_thread], i.e. when it can talk
+  about the outcome *)
+  Lemma ewp_join_resourceful ι E Ψ ι' Φ φ :
+    ↑joinN ⊆ E →
+    joinable ι' φ -∗
+    ▷ (∀ o, ▷ φ -∗ Φ o) -∗
+    EWP[ι] (join ι') @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "%Hmask (%ψ & #Hvalid & Hcont) HΦ".
+    iApply ewp_fupd_post.
+    iApply (ewp_join with "[$]").
+    iNext. iIntros "%o Hψ".
+    iApply "HΦ".
+    iSpecialize ("Hcont" with "Hψ").
+    iMod (fupd_mask_subseteq (↑joinN) Hmask) as "O".
+    iMod "Hcont".
+    iMod "O".
+    done.
   Qed.
 
   Lemma ewp_stop_self {B X'} E Ψ u ι Φ (k : _ -> micro B X') :

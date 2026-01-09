@@ -1,6 +1,6 @@
-From iris Require Import gen_heap proofmode.proofmode proofmode.environments.
+From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp basic_rules stop_rules handler_rules tactics fun_spec.
+From osiris.program_logic Require Import ewp basic_rules stop_rules handler_rules tactics fun_spec escrows.
 
 (** Notations for returning a particular value, when it can be determined at the
 time a specification is used, e.g. [EWP eval η (EInt 1 + EInt 2) {{ RET= #3 }}] *)
@@ -1204,7 +1204,7 @@ Section ewp_rules_expr.
     by rewrite try2_inject2_right.
   Qed.
 
-  Lemma ewp_EFork_call φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+  Lemma ewp_EFork' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
     EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
     EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     ▷ (∀ ι' v1 v2, valid_thread ι' φ -∗ φ1 v1 -∗ φ2 v2 -∗
@@ -1213,70 +1213,139 @@ Section ewp_rules_expr.
   Proof.
     iIntros "H1 H2 Hcall".
     simpl_eval.
-    iApply (ewp_Par with "H1 H2").
-    { iIntros (e) "[]". }
-    { iIntros (e) "[]". }
+    iApply (prove_ewp_Par with "H1 H2").
     iIntros (v1 v2) "H1 H2"; simpl.
     iApply ewp_fork.
-    iIntros "!> !>" (ι') "#Hvalid".
+    iIntros "!>" (ι') "#Hvalid".
     iSplitR ""; [ | ].
     iApply ("Hcall" with "Hvalid H1 H2").
     iExists _; iFrame "#"; iPureIntro; reflexivity.
   Qed.
 
-  Lemma ewp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
+  Lemma ewp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
     EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
-    ▷ (∀ ι' v m, valid_thread ι' φ -∗ φ2 v -∗
-                 P v m -∗ EWP[ι'] m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
-    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, valid_thread ι' φ -∗ φ_arg a -∗
+                 P a m -∗ EWP[ι'] m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
-    iApply (ewp_EFork_call with "H1 H2").
-    iIntros "!>" (ι' f v2) "#Hvalid HSpec (%v & -> & H2)".
+    iApply (ewp_EFork' with "H1 H2").
+    iIntros "!>" (ι' f v2) "Hvalid HSpec (%v & -> & H2)".
     rewrite iSpec_equation_1.
     iSpecialize ("HSpec" $! v).
     iApply ("Hcall" $! ι' v (call f #v) with "Hvalid H2 HSpec").
   Qed.
 
-  Lemma ewp_EFork_call' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+  (* Rule for fork when the postcondition of the spawned thread is persistent *)
+  Lemma ewp_EFork_persistent' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
     EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
     EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
     ▷ (∀ ι' v1 v2, φ1 v1 -∗ φ2 v2 -∗
-                  EWP[ι'] call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
-    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
+                  EWP[ι'] call v1 v2 @ E <|⊥|> {{ λ _, □ φ }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', □ joinable ι' φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     simpl_eval.
-    iApply (ewp_Par with "H1 H2").
-    { iIntros (e) "[]". }
-    { iIntros (e) "[]". }
+    iApply (prove_ewp_Par with "H1 H2").
     iIntros (v1 v2) "H1 H2"; simpl.
     iApply ewp_fork.
-    iIntros "!> !>" (ι') "#Hvalid".
+    iIntros "!>" (ι') "#Hvalid".
     iSplitR ""; [ | ].
     iApply ("Hcall" with "H1 H2").
-    iExists _; iFrame "#"; iPureIntro; reflexivity.
+    iExists _; iFrame "#"; iSplit; auto.
   Qed.
 
-  Lemma ewp_EFork' `{Encode A} P φ η e1 e2 E Ψ (φ2 : A -> iProp Σ) :
-    EWP[ι]eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    EWP[ι]eval η e2 @ E <|Ψ|> {{ ensures #v2, φ2 v2 }} -∗
-    ▷ (∀ ι' v m, φ2 v -∗ P v m -∗ EWP[ι'] m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
-    EWP[ι]eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #v, valid_thread v φ }}.
+  Lemma ewp_EFork_persistent φ `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗
+                   P a m -∗ EWP[ι'] m @ E <|⊥|> {{ λ _, □ φ }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', □ joinable ι' φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
-    iApply (ewp_EFork_call' with "H1 H2").
-    iIntros "!>" (ι' f v2) "HSpec (%v & -> & H2)".
+    iApply (ewp_EFork_persistent' with "H1 H2").
+    iIntros "!>" (ι' f v) "HSpec (%a & -> & H2)"; simpl.
+    iApply ("Hcall" with "H2").
     rewrite iSpec_equation_1.
-    iSpecialize ("HSpec" $! v).
-    iApply ("Hcall" $! ι' v (call f #v) with "H2 HSpec").
+    iApply "HSpec".
+  Qed.
+
+  (* Rule for fork when the postcondition of the spawned thread is a list of
+  resources that other threads can recover when joining. *)
+  Lemma ewp_EFork_resourceful_list' φs η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
+    ▷ (∀ ι' v1 v2, φ1 v1 -∗ φ2 v2 -∗
+                  EWP[ι'] call v1 v2 @ E <| ⊥ |> {{ λ _, [∗ list] φ ∈ φs, φ }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', [∗ list] φ ∈ φs, joinable ι' φ }}.
+  Proof.
+    (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
+    iIntros "H1 H2 Hcall".
+    simpl_eval.
+    iApply (prove_ewp_Par with "H1 H2").
+
+    iIntros (v1 v2) "H1 H2 /=".
+    iApply ewp_fork_resourceful.
+    iIntros "!>" (ι') "Hjoinable /=". iFrame.
+    iSplit; last (iPureIntro; reflexivity).
+    iApply ("Hcall" with "H1 H2").
+  Qed.
+
+  Lemma ewp_EFork_resourceful_list φs `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗
+                 P a m -∗ EWP[ι'] m @ E <| ⊥ |> {{ λ _, [∗ list] φ ∈ φs, φ }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', [∗ list] φ ∈ φs, joinable ι' φ }}.
+  Proof.
+    (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
+    iIntros "H1 H2 Hcall".
+    iApply (ewp_EFork_resourceful_list' with "H1 H2").
+    iIntros "!>" (ι' f v) "HSpec (%a & -> & H2)"; simpl.
+    iApply ("Hcall" with "H2").
+    rewrite iSpec_equation_1.
+    iApply "HSpec".
+  Qed.
+
+  (* Specialization for one and two resources instead of a list of resources *)
+
+  Local Lemma ewp_EFork_one_resource φ `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ EWP[ι'] m @ E <| ⊥ |> {{ λ _, φ }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', joinable ι' φ }}.
+  Proof.
+    iIntros "H1 H2 H".
+    iApply (ewp_mono with "[-]").
+    iApply (ewp_EFork_resourceful_list [φ] with "H1 H2 [H]").
+    - iIntros "!> % % % H1 H2".
+      iSpecialize ("H" with "H1 H2").
+      iApply (ewp_mono with "H").
+      iIntros (_) "/= $".
+    - iIntros ([|]) "// (% & -> & $ & ?) //".
+  Qed.
+
+  Local Lemma ewp_EFork_two_resources φ1 φ2 `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
+    EWP[ι] eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
+    EWP[ι] eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ EWP[ι'] m @ E <|⊥|> {{ λ _, φ1 ∗ φ2 }}) -∗
+    EWP[ι] eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', joinable ι' φ1 ∗ joinable ι' φ2 }}.
+  Proof.
+    iIntros "H1 H2 H".
+    iApply (ewp_mono with "[-]").
+    iApply (ewp_EFork_resourceful_list [φ1; φ2] with "H1 H2 [H]").
+    - iIntros "!> % % % H1 H2".
+      iSpecialize ("H" with "H1 H2").
+      iApply (ewp_mono with "H").
+      iIntros (_) "/= ($ & $)".
+    - iIntros ([|]) "// (% & -> & $ & $ & ?) //".
   Qed.
 
   Lemma ewp_EJoin e η E Ψ φ Φ :
-    EWP[ι]eval η e @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }} -∗
+    EWP[ι] eval η e @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }} -∗
     ▷ (∀ o, □ φ o -∗ Φ o) -∗
-    EWP[ι]eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
+    EWP[ι] eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
   Proof.
     iIntros "Hid Hjoined".
     simpl_eval.
@@ -1287,5 +1356,40 @@ Section ewp_rules_expr.
     iApply ewp_ret.
     iApply (ewp_join with "Hvalid Hjoined").
   Qed.
+
+  (* The joinable rule for join is the same for persistent and resourceful posts *)
+  Lemma ewp_EJoin_joinable e η E Ψ φ Φ :
+    ↑joinN ⊆ E →
+    EWP[ι] eval η e @ E <|Ψ|> {{ ensures #ι', joinable ι' φ }} -∗
+    ▷ (∀ o, ▷ φ -∗ Φ o) -∗
+    EWP[ι] eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
+  Proof.
+    iIntros "%Hmask Hid Hjoined".
+    simpl_eval.
+    iApply ewp_bind. unfold as_thread. iApply ewp_bind.
+    iApply (ewp_mono with "Hid").
+    iIntros ([ ι' |]); [ iIntros "Hjoinable" | iIntros "[]" ].
+    iDestruct "Hjoinable" as "(% & -> & Hjoinable)".
+    iApply ewp_ret.
+    iApply ewp_fupd_post.
+    iDestruct "Hjoinable" as "(%ψ & #Hvalid & Hcont)".
+    iApply (ewp_join with "[$]").
+    iNext. iIntros "%o Hψ".
+    iApply "Hjoined".
+    iSpecialize ("Hcont" with "Hψ").
+    iMod (fupd_mask_subseteq (↑joinN) Hmask) as "O".
+    iMod "Hcont".
+    iMod "O".
+    done.
+  Qed.
+
+  (* TODO add a persistent predicate [thread_outcome ι o] so that [joinable] can
+  talk about the outcome of the spawned thread. This is also needed when the
+  spawned thread allocates and returns an address that is joined several times,
+  e.g. by several threads, or even to prove safety of such programs:
+
+  assert Domain.(let d = spawn ref in join d = join d)
+
+  assert Domain.(let d = spawn Random.bool in join d = join d) *)
 
 End ewp_rules_expr.

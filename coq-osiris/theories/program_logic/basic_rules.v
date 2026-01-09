@@ -265,6 +265,25 @@ Section ewp_basic_rules.
       - iMod "He". iMod "Hclose". iModIntro. done. }
   Qed.
 
+  Lemma ewp_pers_mono ι E m Ψ Φ Φ' :
+    EWP[ι] m @ E <|Ψ|> {{ Φ }} -∗
+    □ (∀ v, Φ v ={E}=∗ Φ' v) -∗
+    EWP[ι] m @ E <|Ψ|> {{ Φ' }}.
+  Proof.
+    iIntros "He #HΦ".
+    by iApply (ewp_pers_smono with "He").
+  Qed.
+
+  (* Eliminate update modality in postcondition *)
+  Lemma ewp_fupd_post ι E m Ψ Φ :
+    EWP[ι] m @ E <| Ψ |> {{ λ v, |={E}=> Φ v }} -∗
+    EWP[ι] m @ E <| Ψ |> {{ Φ }}.
+  Proof.
+    iIntros "He".
+    iApply (ewp_pers_mono with "He").
+    auto.
+  Qed.
+
   Lemma ewp_fupd ι E m Ψ Φ :
     (|={E}=> EWP[ι] m @ E <| Ψ |> {{ Φ }}) -∗
     EWP[ι] m @ E <| Ψ |> {{ Φ }}.
