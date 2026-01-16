@@ -459,7 +459,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop c x (λ o, Par m1 (k o) h))
 
   (* Reduction steps on either side are permitted. *)
-  (* Can these rules be omitted and proved as lemmas? *)
   | StepParLeft :
       ∀ {A1 A2 E'} σ σ' m1 m'1 m2 (k : outcome2 (A1 * A2) E' → _),
       step (σ, m1) (σ', m'1) →
@@ -478,10 +477,8 @@ Inductive step {A E} : config A E → config A E → Prop :=
 (* Note: we considered removing the [StepParLeft] and [StepParRight] rules,
    and replacing them with stronger versions of the [StepThroughPar] rules.
 
-   However, this leaves computations like [Par (Handle m k) m2] and
-   [Par (Par m1 m2) m3] stuck. We could try amending this by adding
-   [HandleStepThroughPar] and [ParStepThroughPar] rules, but this seems more
-   complex that just having [StepParLeft] and [StepParRight]. *)
+   However, this would make computations like [Par (Handle m k) m2] and
+   [Par (Par m1 m2) m3] stuck. *)
 
 Global Hint Constructors step : step.
 
