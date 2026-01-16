@@ -475,6 +475,14 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ', Par m1 m'2 k)
 .
 
+(* Note: we considered removing the [StepParLeft] and [StepParRight] rules,
+   and replacing them with stronger versions of the [StepThroughPar] rules.
+
+   However, this leaves computations like [Par (Handle m k) m2] and
+   [Par (Par m1 m2) m3] stuck. We could try amending this by adding
+   [HandleStepThroughPar] and [ParStepThroughPar] rules, but this seems more
+   complex that just having [StepParLeft] and [StepParRight]. *)
+
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
