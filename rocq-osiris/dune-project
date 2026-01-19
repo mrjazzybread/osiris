@@ -1,0 +1,60 @@
+(lang dune 3.21)
+(using rocq 0.11)
+
+(generate_opam_files true)
+
+(package
+  (name rocq-osiris)
+  (authors
+     "François Pottier"
+     "Arnaud Daby-Seesaram"
+     "Jean-Marie Madiot"
+     "Remy Seassau"
+     "Irene Yoon"
+   )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "An instance of the Iris verification framework for OCaml")
+  (depends
+     dune
+     rocq
+     (rocq-stdpp (= 1.9.0))
+     (rocq-iris  (= 4.1.0))
+     rocq-equations
+  )
+)
+
+(package
+  (name rocq-osiris-examples)
+  (authors
+     "François Pottier"
+     "Jean-Marie Madiot"
+     "Remy Seassau"
+     "Irene Yoon"
+   )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "Examples of use of Osiris")
+  (depends
+     dune
+     rocq-stdpp
+     rocq-iris
+     rocq-osiris
+  )
+)
+
+(package
+  (name osiris-interpreter)
+  (authors "Jean-Marie Madiot")
+  (maintainers "Jean-Marie Madiot")
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports jean-marie.madiot@inria.fr)
+  (synopsis "Osiris Interpreter")
+  (depends rocq-osiris)
+)

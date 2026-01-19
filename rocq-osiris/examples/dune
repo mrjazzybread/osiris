@@ -1,0 +1,8 @@
+(include_subdirs qualified)
+(rocq.theory
+  (package rocq-osiris-examples)
+  (name osiris.examples)
+  (theories
+    osiris
+  )
+)
