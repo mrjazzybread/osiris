@@ -5,25 +5,25 @@ all:
 # Build the Osiris translator.
 	@ make --no-print-directory -C osiris
 # Compile the OCaml source code of the OCaml standard library.
-	@ cd coq-osiris/theories/stdlib/src && dune build .
+	@ cd rocq-osiris/theories/stdlib/src && dune build .
 # Compile the OCaml source code of our examples.
-	@ cd coq-osiris/examples/src && dune build .
+	@ cd rocq-osiris/examples/src && dune build .
 # Apply the Osiris translator to all of the above OCaml source code.
 # The mark [og_] stands for "Osiris-generated".
 	@ (cd osiris && dune exec src/Main.exe -- \
-	     --root $(PWD)/coq-osiris/ \
-	     --out $(PWD)/coq-osiris/ \
+	     --root $(PWD)/rocq-osiris/ \
+	     --out $(PWD)/rocq-osiris/ \
 	     --mark og_ \
 	     --no-warnings \
 	     --decorate \
 	     all \
 	  )
-# Copy the translated files to a place where dune and Coq will see them.
-#	@ cd coq-osiris/theories/stdlib && mv src/*.v .  # TODO these files are not yet used
-	@ cd coq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
-	@ cd coq-osiris/examples && mv src/*.v .
-# Now compile all of the Coq code.
-	@ make --no-print-directory -C coq-osiris
+# Copy the translated files to a place where dune and rocq will see them.
+#	@ cd rocq-osiris/theories/stdlib && mv src/*.v .  # TODO these files are not yet used
+	@ cd rocq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
+	@ cd rocq-osiris/examples && mv src/*.v .
+# Now compile all of the rocq code.
+	@ make --no-print-directory -C rocq-osiris
 
 .PHONY: clean
 clean:
@@ -67,20 +67,20 @@ upgrade:
 # The version numbers listed below should be kept in sync
 # with those found in the files
 # osiris/dune-project and
-# coq-osiris/dune-project.
+# rocq-osiris/dune-project.
 
 .PHONY: pin
 pin:
-	$(PIN) dune 3.19.1
+	$(PIN) dune 3.21.0
 	$(INSTALL) pprint ocaml-compiler-libs
-	$(ADD) coq-released https://coq.inria.fr/opam/released
+	$(ADD) rocq-released https://rocq-prover.org/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	$(PIN) coq 8.20.1
-	$(PIN) coq-stdpp 1.11.0
-	$(PIN) coq-iris 4.3.0
-	$(PIN) coq-equations 1.3.1+8.20
-	$(PIN) ppx_sexp_conv v0.17.0
-	$(PIN) ppx_deriving 6.0.3
+	$(PIN) rocq-prover 9.0.0
+	$(PIN) rocq-stdpp https://gitlab.mpi-sws.org/iris/stdpp.git#3c923278
+	$(PIN) rocq-iris https://gitlab.mpi-sws.org/iris/iris.git#f12346d8
+	$(PIN) rocq-equations 1.3.1+9.1
+	$(PIN) ppx_sexp_conv v0.17.1
+	$(PIN) ppx_deriving 6.1.1
 
 .PHONY: emacs
 emacs:
@@ -88,9 +88,9 @@ emacs:
 
 .PHONY: runtests
 runtests:
-	@ cd coq-osiris/interp && dune build
+	@ cd rocq-osiris/interp && dune build
 	@ cd tests && ./runtests.sh
 
 .PHONY: check-axioms
 check-axioms:
-	@ cd coq-osiris && ./check-axioms.sh
+	@ cd rocq-osiris && ./check-axioms.sh
