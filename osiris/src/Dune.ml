@@ -45,7 +45,7 @@ type filename =
 
 let rec extract_module_descriptions (e : Base.Sexp.t) accu =
   (* Hard-coded, fragile, patterns to avoid generating AST files for Osiris's
-     own ml files when they are in [coq_osiris]. *)
+     own ml files when they are in [rocq_osiris]. *)
   (* TODO: support having different modules with the same name. *)
   match e with
   | List (Atom "executables" :: [List (List (Atom "names" :: [List [Atom "interp"]]) :: _)]) ->

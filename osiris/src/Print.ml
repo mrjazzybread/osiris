@@ -1,7 +1,7 @@
 open PPrint
-open Coq
+open Rocq
 
-(* This is a pretty-printer for Coq terms and definitions. *)
+(* This is a pretty-printer for Rocq terms and definitions. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -30,7 +30,7 @@ let commabreak =
 
 (* Terms. *)
 
-(* We organize Coq terms in two precedence levels. Level 0 contains the
+(* We organize Rocq terms in two precedence levels. Level 0 contains the
    atoms, that is, everything except constructor applications. Level 1
    contains everything. *)
 

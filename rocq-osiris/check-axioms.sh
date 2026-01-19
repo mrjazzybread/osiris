@@ -27,5 +27,5 @@ for entry in "${LOGICAL_PATHS[@]}"; do
   R_FLAGS+=("-R" "$PHYS_DIR" "$LOGICAL_NS")
 done
 
-echo "Running coqchk, this may take a minute or two..."
-coqchk -silent -o "${R_FLAGS[@]}" "${MODULES[@]}" 2>&1 | grep -v -E "Coq\.Floats|Coq\.Numbers|Coq\.Reals"
+echo "Running rocqchk, this may take a minute or two..."
+rocqchk -silent -o "${R_FLAGS[@]}" "${MODULES[@]}" 2>&1 | grep -v -E "Corelib\.Floats|Corelib\.Numbers|Stdlib\.Reals"

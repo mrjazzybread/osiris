@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------------- *)
 
-(**A highly minimalistic abstract syntax of Coq expressions. *)
+(**A highly minimalistic abstract syntax of Rocq expressions. *)
 type expression =
 
   (* A plain string; printed literally (without quotes). *)
@@ -10,18 +10,18 @@ type expression =
      printed by preceding each argument with a space. *)
   | CCon of string * expression list
 
-  (* A Coq list; printed with square brackets and semicolons. *)
+  (* A Rocq list; printed with square brackets and semicolons. *)
   | CList of expression list
 
-  (* A Coq tuple; printed with parentheses and commas. *)
+  (* A Rocq tuple; printed with parentheses and commas. *)
   | CTuple of expression list
 
-  (* A mark that suggests that this node should be isolated in a Coq
+  (* A mark that suggests that this node should be isolated in a Rocq
      toplevel definition. This mark is otherwise meaningless. The mark
      carries a string that is used as a base name for this definition. *)
   | CCut of string * expression
 
-(**Coq toplevel definitions. *)
+(**Rocq toplevel definitions. *)
 type def = {
   lhs : string;
   rhs : expression;

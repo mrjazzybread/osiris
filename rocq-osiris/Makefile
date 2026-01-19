@@ -1,4 +1,4 @@
-# This prevents Coq from producing stack backtraces.
+# This prevents Rocq from producing stack backtraces.
 export OCAMLRUNPARAM=
 # This is used to find the script alectryon-custom.
 export PATH:=$(shell pwd)/tutorial/bin:$(PATH)
@@ -16,7 +16,7 @@ lint:
 	@ dune build rocq-osiris.opam
 	@ opam lint rocq-osiris.opam
 
-# [make axioms] looks for suspicious keywords in the Coq sources.
+# [make axioms] looks for suspicious keywords in the Rocq sources.
 
 .PHONY: axioms
 axioms:

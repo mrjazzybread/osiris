@@ -119,11 +119,11 @@
   + allow ownership of individual array cells (or slices)
   + see array-based trees in CPP 2024 [Mechanised Reasoning about Array-Based Trees in Separation Logic](https://dl.acm.org/doi/abs/10.1145/3636501.3636944)
 * Characters and strings
-  + decide how they should be represented in Coq;
-    Coq's `char` type seems needlessly inefficient,
+  + decide how they should be represented in Rocq;
+    Rocq's `char` type seems needlessly inefficient,
     and the model of a string should be a list of characters.
   + do UTF-8 characters in string literals create difficulties?
-    do Coq and OCaml read them in the same way?
+    do Rocq and OCaml read them in the same way?
 * `bigarray`
 * `bytes`
 * `int32`, `int64`, `nativeint`
@@ -201,11 +201,11 @@
 ## Miscellaneous notes
 
 * Integers (rauch-wolff-03, jacobs-03)
-  https://coq.discourse.group/t/best-practices-for-machine-level-representation-of-numbers-and-bitwise-operations/482/6
+  https://discourse.rocq-prover.org/t/best-practices-for-machine-level-representation-of-numbers-and-bitwise-operations/482/6
   coq-nbits (https://troll.iis.sinica.edu.tw/by-publ/recent/coq-qfbv.pdf, Section 4)
   https://github.com/fmlab-iis/coq-nbits
   SInt63:
   https://www.ub.edu/prooftheory/media/sint6320x85.pdf
-  https://coq.github.io/doc/master/stdlib/Coq.Numbers.Cyclic.Int63.Sint63.html
+  https://rocq-prover.org/doc/V9.1.0/stdlib/Stdlib.Numbers.Cyclic.Int63.Cyclic63.html
   Bit sets:
   https://www.irif.fr/~dagand/stuffs/coq-bitset/flops/paper.pdf

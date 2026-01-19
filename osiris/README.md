@@ -6,10 +6,10 @@ This tool translates [OCaml](https://ocaml.org/) source code
 (an `. ml` file)
 into an Osiris abstract syntax tree
 that can be read by
-the [Coq](https://coq.inria.fr/) proof assistant
+the [Rocq](https://rocq-prover.org/) proof assistant
 (a `.v` file).
 
-This allows using Coq
+This allows using Rocq
 and
 [Iris](https://iris-project.org/)
 to specify and verify this OCaml source code.
@@ -51,7 +51,7 @@ this is where the `dune-project` file resides.
 The output directory is where the translated files should be produced.
 An OCaml file whose path relative to the project directory is `foo/bar/baz.ml`
 is translated to
-a Coq file whose path relative to the output directory is `foo/bar/baz.v`.
+a Rocq file whose path relative to the output directory is `foo/bar/baz.v`.
 This file contains the definition of an abstract syntax tree, named `__main`,
 for this OCaml module. (It usually also contains auxiliary definitions
 whose names are not predictable.)

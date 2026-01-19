@@ -1,5 +1,5 @@
 open Printf
-open Coq
+open Rocq
 
 module Make () = struct
 

@@ -3,7 +3,7 @@
 The Osiris project is a mechanized semantics and a formal verification environment for the
 [OCaml](https://ocaml.org/) programming language, implemented in the Rocq proof assistant.
 
-The mechanized development is under `coq-osiris`,
+The mechanized development is under `rocq-osiris`,
 and an automatic translator from OCaml programs to our Rocq embedding is in `osiris`.
 
 An overview of the structure of the whole project can be found in `ROADMAP.md`
@@ -25,13 +25,13 @@ For comfort, we also provide `make emacs` to install the dependencies necessary 
 
 Running `make` will:\
 (1) build the translator,\
-(2) compile the example files in `coq-osiris/examples/src` and run the translator on them,\
-(3) compile all coq files in the project.
+(2) compile the example files in `rocq-osiris/examples/src` and run the translator on them,\
+(3) compile all rocq files in the project.
 
 ### Dependencies
 
-The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `coq`,
-`iris`, `coq-equations`, and `std++`.
+The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `rocq`,
+`iris`, `rocq-equations`, and `std++`.
 
 It is known to compile with the following versions of the packages:
 
@@ -41,7 +41,7 @@ It is known to compile with the following versions of the packages:
 | `pprint`        | -       | -                                            |
 | `ocaml-compiler-libs` | - | -                                            |
 | `dune`          | 3.21.0  | -                                            |
-| `rocq`          | 9.0.0   | https://coq.inria.fr/opam/released           |
+| `rocq`          | 9.0.0   | https://rocq-prover.org/opam/released        |
 | `rocq-iris`     | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `rocq-stdpp`    | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `rocq-equations`| 1.3.1+9.1 | -                                         |
@@ -61,8 +61,8 @@ Running `make runtests` executes the validation tests for our semantics.
 
 ## Axioms
 
-Running `make check-axioms` when the project is built will run `coqchk` and print out the axioms used in the coq development.
-Note that the script filters out "uninteresting" actions, such as those found in `Coq.Floats.FloatAxioms`.
+Running `make check-axioms` when the project is built will run `rocqchk` and print out the axioms used in the rocq development.
+Note that the script filters out "uninteresting" actions, such as those found in `Corelib.Floats.FloatAxioms`.
 
 ## Manually Running the Translator
 
@@ -79,20 +79,20 @@ osiris \
 ```
 will translate every .ml file in `<project directory>` into a .v file,
 as long as the project directory contains a **root** `dune-project` file,
-and the .ml files have been compiled with the `-bin-annot` flag (see `coq-osiris/examples/src/dune`).
+and the .ml files have been compiled with the `-bin-annot` flag (see `rocq-osiris/examples/src/dune`).
 
 For a working example, consider the files in
-`coq-osiris/examples/src`.
+`rocq-osiris/examples/src`.
 
 If we want to specifically translate one file, we can run
 ```
 osiris \
-    --root <path-to-this-dir>/coq-osiris/ \
-    --out <path-to-this-dir>/coq-osiris/ \
+    --root <path-to-this-dir>/rocq-osiris/ \
+    --out <path-to-this-dir>/rocq-osiris/ \
     Bst
 ```
 
-This will create a `bst.v` file next to `coq-osiris/examples/src/bst.ml`.
+This will create a `bst.v` file next to `rocq-osiris/examples/src/bst.ml`.
 Crucially, `<path-to-this-dir>` needs to be an absolute path, not a relative one.
 
 For further details on running the translator, consult `osiris/README.md`.

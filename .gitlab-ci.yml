@@ -1,7 +1,7 @@
 pages:
   script:
     - mkdir public
-    - cp -r coq-osiris/tutorial/* public
+    - cp -r rocq-osiris/tutorial/* public
   artifacts:
     paths:
       # The folder that contains the files to be exposed at the Page URL
@@ -9,4 +9,4 @@ pages:
   rules:
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
       changes:
-      - coq-osiris/tutorial/*
+      - rocq-osiris/tutorial/*

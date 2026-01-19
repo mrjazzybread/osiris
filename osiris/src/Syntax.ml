@@ -1,8 +1,8 @@
 (* The Osiris AST. *)
 
-(* This file should be in sync with coq-osiris/theories/lang/syntax.v. *)
+(* This file should be in sync with rocq-osiris/theories/lang/syntax.v. *)
 
-(* There are a few minor differences between the Coq Osiris AST (syntax.v)
+(* There are a few minor differences between the Rocq Osiris AST (syntax.v)
    and this OCaml Osiris AST. *)
 
 (* -------------------------------------------------------------------------- *)

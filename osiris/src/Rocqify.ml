@@ -1,20 +1,20 @@
 open Printf
 let map = List.map
 open Syntax
-open Coq
+open Rocq
 
-(* This module transforms the Osiris AST into the Coq AST. *)
+(* This module transforms the Osiris AST into the Rocq AST. *)
 
 (* Cut marks are inserted by invoking [cut] in several places: anonymous
    functions, recursive let bindings, branches of conditional constructs,
    right-hand sides of [let] expressions and sequences. This may help
    improve the readability of the generated definitions and reduce the
-   size of the goals that appear while verifying the code in Coq. *)
+   size of the goals that appear while verifying the code in Rocq. *)
 
 (* -------------------------------------------------------------------------- *)
 
 (* Variables, module names, data constructors, and field names are
-   represented in Coq as strings. *)
+   represented in Rocq as strings. *)
 
 (* Because an OCaml identifier cannot contain a double quote character,
    there is no need for escaping of any kind. *)
@@ -45,7 +45,7 @@ let int i =
 
 (* String literals. *)
 
-(* A Coq string literal can contain any character below ASCII 128,
+(* A Rocq string literal can contain any character below ASCII 128,
    with the exception of the double quote character, which must be
    repeated. It can also contain valid UTF8 characters. *)
 
@@ -65,9 +65,9 @@ let string s =
 
 (* Character literals. *)
 
-(* In Coq, a character has type [ascii]. A character is internally represented
+(* In Rocq, a character has type [ascii]. A character is internally represented
    as a tuple of eight Boolean values. However, this information need not be
-   exposed here. Instead, we use Coq's character literal notation. A character
+   exposed here. Instead, we use Rocq's character literal notation. A character
    literal is a string literal followed with the scope annotation [%char]. *)
 
 let char (cc: char) =
@@ -353,7 +353,7 @@ let rec expr (e : expr) =
 (* If [e] carries a decoration, then [cut_expr e] takes care of
    cutting below the decoration so the decoration hides the cut in the
    eyes of the end user. (If we cut above the decoration then the end
-   user would see the Coq toplevel definition created by the cut, and
+   user would see the Rocq toplevel definition created by the cut, and
    would not see the decoration until they unfold this definition.) *)
 
 and cut_expr e =

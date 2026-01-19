@@ -12,7 +12,7 @@
   )
   (homepage https://gitlab.inria.fr/fpottier/osiris/)
   (bug_reports francois.pottier@inria.fr)
-  (synopsis "Osiris translates OCaml to Coq for verification")
+  (synopsis "Osiris translates OCaml to Rocq for verification")
   (depends
     ocaml
     dune

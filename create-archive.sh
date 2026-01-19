@@ -21,14 +21,14 @@ rm     $ARCHIVE/TODO.md
 rm     $ARCHIVE/create-archive.sh
 rm -r  $ARCHIVE/misc
 rm     $ARCHIVE/osiris/osiris.opam
-rm     $ARCHIVE/coq-osiris/coq-osiris.opam
-rm     $ARCHIVE/coq-osiris/coq-osiris-examples.opam
+rm     $ARCHIVE/rocq-osiris/rocq-osiris.opam
+rm     $ARCHIVE/rocq-osiris/rocq-osiris-examples.opam
 sed -i '/[Pp]ottier/d'    $ARCHIVE/README.md
-sed -i '/[Pp]ottier/d'    $ARCHIVE/{,coq-}osiris/dune-project
-sed -i '/Daby-Seesaram/d' $ARCHIVE/{,coq-}osiris/dune-project
-sed -i '/Madiot/d'        $ARCHIVE/{,coq-}osiris/dune-project
-sed -i '/Seassau/d'       $ARCHIVE/{,coq-}osiris/dune-project
-sed -i '/Yoon/d'          $ARCHIVE/{,coq-}osiris/dune-project
+sed -i '/[Pp]ottier/d'    $ARCHIVE/{,rocq-}osiris/dune-project
+sed -i '/Daby-Seesaram/d' $ARCHIVE/{,rocq-}osiris/dune-project
+sed -i '/Madiot/d'        $ARCHIVE/{,rocq-}osiris/dune-project
+sed -i '/Seassau/d'       $ARCHIVE/{,rocq-}osiris/dune-project
+sed -i '/Yoon/d'          $ARCHIVE/{,rocq-}osiris/dune-project
 git init $ARCHIVE
 
 $TAR cvfz $ARCHIVE.tar.gz \
