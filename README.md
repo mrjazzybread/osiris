@@ -35,18 +35,18 @@ The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-lib
 
 It is known to compile with the following versions of the packages:
 
-| Package     | Version | Repo                                         |
-|-------------|:-------:|:--------------------------------------------:|
-| `ocaml`     | 5.3.0   | -                                            |
-| `pprint`    | -       | -                                            |
-| `ocaml-compiler-libs` | -  | -                                       |
-| `dune`      | 3.19.1  | -                                            |
-| `coq`       | 8.20.1  | https://coq.inria.fr/opam/released           |
-| `coq-iris`  | 4.3.0   | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `coq-stdpp` | 1.11.0  | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `coq-equations` | 1.3.1+8.20 | -                                       |
-| `ppx_sexp_conv` | v0.17.0 | -                                        |
-| `ppx_deriving` | 6.0.3 | -                                           |
+| Package         | Version | Repo                                         |
+|-----------------|:-------:|:--------------------------------------------:|
+| `ocaml`         | 5.3.0   | -                                            |
+| `pprint`        | -       | -                                            |
+| `ocaml-compiler-libs` | - | -                                            |
+| `dune`          | 3.21.0  | -                                            |
+| `rocq`          | 9.0.0   | https://coq.inria.fr/opam/released           |
+| `rocq-iris`     | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `rocq-stdpp`    | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `rocq-equations`| 1.3.1+9.1 | -                                         |
+| `ppx_sexp_conv` | v0.17.1 | -                                        |
+| `ppx_deriving`  | 6.1.1   | -                                           |
 
 ## Publications
 
