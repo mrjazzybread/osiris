@@ -37,7 +37,7 @@ It is known to compile with the following versions of the packages:
 
 | Package         | Version | Repo                                         |
 |-----------------|:-------:|:--------------------------------------------:|
-| `ocaml`         | 5.3.0   | -                                            |
+| `ocaml`         | 5.4.0   | -                                            |
 | `pprint`        | -       | -                                            |
 | `ocaml-compiler-libs` | - | -                                            |
 | `dune`          | 3.21.0  | -                                            |
