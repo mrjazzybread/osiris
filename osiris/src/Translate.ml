@@ -14,9 +14,10 @@ open Path
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/path.mli *)
 open Typedtree
   (* https://github.com/ocaml/ocaml/blob/trunk/typing/typedtree.mli *)
+open Data_types
+  (* https://github.com/ocaml/ocaml/blob/trunk/typing/data_types.mli *)
 
 (* Osiris: *)
-open Fail
 open Syntax
 
 module Make (M :  sig
@@ -29,14 +30,9 @@ open M
 
 (* Printers (for debugging only). *)
 
-let rec show_longident (i : Longident.t) =
-  match i with
-  | Lident x ->
-      x
-  | Ldot (i, x) ->
-      sprintf "%s.%s" (show_longident i) x
-  | Lapply (i1, i2) ->
-      sprintf "%s(%s)" (show_longident i1) (show_longident i2)
+let show_longident (i : Longident.t) =
+    Longident.flatten i |>
+    List.fold_left (fun acc s -> acc ^ "." ^ s) String.empty
 
 let rec show_path (p : Path.t) =
   match p with
@@ -184,17 +180,7 @@ let txt (x : 'a loc) : 'a =
 
 (* Long identifiers are preserved when they designate a value or module. *)
 
-let rec translate_longident (i : Longident.t) : path =
-  match i with
-  | Lident x ->
-      [x]
-  | Ldot (i, x) ->
-      translate_longident i @ [x]
-  | Lapply _ ->
-      (* I believe that a functor application inside a path that designates
-         a *value* or *module* are not permitted by OCaml. It is permitted
-         inside a path that designates a *type* or *module type*. *)
-      fail "Error: functor application inside a path: %s\n" (show_longident i)
+let translate_longident (i : Longident.t) : path = Longident.flatten i
 
 let debug_ident kind path id =
   (* [id] is the long identifier that appears in the source code.
@@ -283,13 +269,13 @@ let translate_pat_constant loc (c : constant) : pat =
 
 (* See [types.mli]. *)
 
-let is_extensible constructor_desc =
-  match constructor_desc.cstr_tag with
-  | Cstr_constant _
-  | Cstr_block _
-  | Cstr_unboxed ->
+let is_extensible (constructor_desc : Data_types.constructor_description) =
+  match constructor_desc.Data_types.cstr_tag with
+  | Data_types.Cstr_constant _
+  | Data_types.Cstr_block _
+  | Data_types.Cstr_unboxed ->
       false
-  | Cstr_extension _ ->
+  | Data_types.Cstr_extension _ ->
       true
 
 (* -------------------------------------------------------------------------- *)
@@ -308,14 +294,14 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_var (_, x, _) ->
       PVar (txt x)
 
-  | Tpat_alias (pat, _, x, _) ->
+  | Tpat_alias (pat, _, x, _, _) ->
       PAlias (translate_pat pat, txt x)
 
   | Tpat_constant c ->
       translate_pat_constant loc c
 
   | Tpat_tuple pats ->
-      PTuple (translate_pats pats)
+      PTuple (translate_pats (snd @@ List.split pats))
 
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
@@ -342,7 +328,7 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_or (pat1, pat2, _) ->
      POr (translate_pat pat1, translate_pat pat2)
 
-and translate_pats pats : pats =
+and translate_pats (pats : value general_pattern list) : pats =
   map translate_pat pats
 
 and translate_field_patterns fields : fpats =
@@ -429,7 +415,7 @@ let rec translate_expr (e: expression) : expr =
       EMatch (translate_expr e, val_branch :: (List.append exn_branches eff_branches))
 
   | Texp_tuple es ->
-      ETuple (translate_exprs es)
+      ETuple (translate_exprs (snd @@ List.split es))
 
   | Texp_construct (id, constructor_desc, es) ->
       (* An OCaml data constructor application is always translated as an
@@ -449,6 +435,9 @@ let rec translate_expr (e: expression) : expr =
 
   | Texp_record { fields; representation = _; extended_expression = Some e } ->
       translate_record_update e fields
+
+  | Texp_atomic_loc (_e, _id, _label_desc) ->
+      eunsupported loc "record with atomic field(s)"
 
   | Texp_field (e, id, label_desc) ->
       let field = translate_record_field id label_desc in
@@ -758,7 +747,7 @@ and translate_labeled_arguments loc args =
 
 and translate_labeled_argument loc arg : expr =
   match arg with
-  | Nolabel, Some e ->
+  | Nolabel, Arg e ->
       (* An ordinary unlabeled argument. *)
       translate_expr e
   | _, _ ->
