@@ -88,6 +88,12 @@ Definition min_signed := M.min_signed.
 Definition max_signed := M.max_signed.
 Definition max_unsigned := M.max_unsigned.
 
+(* This constant corresponds to [Sys.max_array_length] in OCaml. *)
+
+Parameter max_array : Z.
+Parameter max_array_positive : (0 < max_array).
+Parameter max_array_length : (max_array < max_signed).
+
 (* -------------------------------------------------------------------------- *)
 
 (* OCaml integers are signed. *)

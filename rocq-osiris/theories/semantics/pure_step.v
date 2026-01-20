@@ -93,7 +93,7 @@ Proof.
     clear -IHm. induction IHm; econstructor; eauto with may.
   - destruct c.
     all: try (destruct N; constructor).
-    all: apply rtc_once; constructor.
+    all: apply rtc_once; destruct x; constructor.
   - destruct (ipure_dec m1) as [P1 | N1].
     + destruct (ipure_dec m2) as [P2 | N2].
       * destruct N; constructor; auto.

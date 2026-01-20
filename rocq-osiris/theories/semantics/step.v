@@ -253,6 +253,14 @@ Global Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
+Fixpoint insertn ls σ v :=
+  match ls with
+  | [] => σ
+  | l :: ls => <[ l := V v]> (insertn ls σ v)
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The relation [step] is defined as follows. *)
 
 (* [Ret a] and [Throw e] cannot step. They are results. *)
@@ -290,14 +298,14 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CFlip x k)
         (σ, continue k b)
 
-  (* [stop CAlloc v] allocates a fresh location in the heap,
-     initializes it with the value [v], and returns this location. *)
+  (* [stop CAllocn v] allocates [n] fresh locations in the heap,
+     initializes them with the value [v], and returns the locations. *)
   | StepAlloc :
-      ∀ σ v l k,
-      σ !! l = None →
+      ∀ σ n v ls k,
+      List.length ls = n ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) →
       step
-        (σ, Stop CAlloc v k)
-        (<[l := V v]>σ, continue k l)
+        (σ, Stop CAllocn (n, v) k)
+        (insertn ls σ v, continue k ls)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -877,6 +885,16 @@ Proof.
   eauto.
 Qed.
 
+Lemma invert_step_allocn {A E} σ σ' n v k m' :
+  @step A E (σ, Stop CAllocn (n, v) k) (σ', m') →
+  ∃ ls,
+  List.length ls = n ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) ∧
+  σ' = insertn ls σ v ∧
+  m' = continue k ls.
+  Proof.
+    intros Hstep. destruct_step. destruct H as (Hlen & Hdup & Hfresh).
+    eexists. eauto.
+  Qed.
 
 (* A term that can step is not [ret _]. *)
 
@@ -904,15 +922,34 @@ Proof.
   { econstructor. apply (StepFlip true). }
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
-  { set (l := fresh (dom σ)).
-    assert (lookup l σ = None) by apply not_elem_of_dom, is_fresh.
-    eauto using StepAlloc with step. }
+  { induction x as [| n IH ].
+    - eexists. apply StepAlloc.
+      refine (conj length_nil (conj NoDup_nil_2 _)).
+      intros l Helem_in. by apply not_elem_of_nil in Helem_in.
+    - destruct IH as ([σ' m'], Hstep).
+      apply invert_step_allocn in Hstep as
+          (ls & Hlen & Hdup & Hmem & -> & ->).
+      set (l := fresh (dom σ ∪ list_to_set ls)).
+      assert (lookup l σ = None ∧ l ∉ @list_to_set _ (gset _) _ _ _ ls) as Hfresh.
+      { rewrite <- (not_elem_of_dom σ l).
+        apply not_elem_of_union.
+        apply is_fresh. }
+      eexists. apply StepAlloc. split; last split.
+      + rewrite length_cons. f_equal. apply Hlen.
+      + apply NoDup_cons. split; last assumption.
+        eapply not_elem_of_list_to_set.
+        destruct Hfresh as [_ Hfresh]; apply Hfresh.
+      + intros l' Hmem'.
+        apply elem_of_cons in Hmem' as [ Heq | Hmem' ].
+        * rewrite Heq. apply Hfresh.
+        * apply Hmem, Hmem'. }
   (* In the case of wrap, we must also exhibit an address [l]
      that is not in the domain of [σ]. *)
   { set (l' := fresh (dom σ)).
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
     destruct x;
       eauto using StepWrap, StepShallowWrap with step. }
+  Unshelve. apply _.
 Qed.
 
 Global Hint Resolve can_step_stop : step.

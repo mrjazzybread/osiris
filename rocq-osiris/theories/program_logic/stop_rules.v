@@ -27,36 +27,83 @@ Section ewp_stop.
      that is, for computations of the form [Stop c x y]. They are simple
      consequences of the operational behavior of these system calls. *)
 
-  (* [CAlloc]. *)
+  (* [CAllocn]. *)
 
   (* The standard memory allocation rule of Separation Logic. *)
-
-  Lemma ewp_alloc' {B Y} ι E v (k : _ → micro B Y) φ Ψ :
-    ▷ (∀ l,
-          pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤ -∗
-          EWP[ι] (continue k l) @ E <| Ψ |> {{ φ }}) ⊢
-      EWP[ι] (Stop CAlloc v k) @ E <| Ψ |> {{ φ }}.
+  Lemma ewp_allocn' {B Y} ι E n v (k : _ → micro B Y) φ Ψ :
+    ▷ (∀ ls,
+          ⌜length ls = n⌝ ∗
+          ([∗ list] l ∈ ls, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
+          EWP[ι] (continue k ls) @ E <| Ψ |> {{ φ }}) ⊢
+      EWP[ι] (Stop CAllocn (n, v) k) @ E <| Ψ |> {{ φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    destruct_thread_step.
-    (* Allocate a new location in the ghost heap. *)
-    iDestruct (gen_heap_alloc with "Hsi") as ">[Hsi [HH HM]]"; first done.
-    ewp_mask_elim. iFrame. iApply ("H" with "[$]").
+    destruct_thread_step. destruct H as (Hlen & Hdup & Hfresh).
+    iDestruct (gen_heap_alloc_big with "Hsi") as ">(Hsi & Hpts & Hmt)".
+    { apply map_disjoint_spec. intros l x y.
+      instantiate (1 := (list_to_map ((λ l, (l, V v)) <$> ls))).
+      intros HF Hlookup.
+      apply elem_of_dom_2 in HF. rewrite dom_list_to_map in HF.
+      apply elem_of_list_to_set in HF.
+      rewrite <- list_fmap_compose in HF.
+      apply list_elem_of_fmap_1 in HF as (l' & -> & HF).
+      apply Hfresh in HF.
+      rewrite Hlookup in HF. discriminate HF. }
+    assert (ls = ((λ l : loc, (l, V v)) <$> ls).*1) as Heqls.
+    { clear Hlen Hdup Hfresh. induction ls. reflexivity.
+      simpl. rewrite -> IHls at 1. reflexivity. }
+    rewrite Heqls in Hdup.
+    iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hpts") as "Hpts".
+    iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hmt") as "Hmt".
+    clear Heqls Hdup Hfresh.
+    ewp_mask_elim. iFrame. iSplitR "Hsi".
+    - iApply "H". iFrame "%".
+      clear Hlen.
+      iInduction ls as [|l ls IH]. done.
+      iApply big_sepL_cons.
+      iPoseProof (big_sepL_cons with "Hpts") as "(Hl & Hpts)".
+      iPoseProof (big_sepL_cons with "Hmt") as "(Htok & Hmt)".
+      iFrame.
+      iApply ("IH" with "Hpts Hmt").
+    - clear Hlen.
+      assert (insertn ls σ v = list_to_map ((λ l : loc, (l, V v)) <$> ls) ∪ σ) as ->.
+      { induction ls as [|l ls IH].
+        - simpl. by rewrite map_empty_union.
+        - simpl. rewrite IH. rewrite insert_union_l.
+          reflexivity. }
+      iFrame.
+  Qed.
+
+  Lemma ewp_allocn {B Y} ι E n v (k : _ → micro B Y) φ Ψ :
+    ▷ (∀ ls,
+          ⌜length ls = n⌝ ∗
+          ([∗ list] l ∈ ls, pointsto l (DfracOwn 1) (V v)) -∗
+          EWP[ι] (continue k ls) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP[ι] (Stop CAllocn (n, v) k) @ E <| Ψ |>  {{ φ }}.
+  Proof.
+    iIntros "H".
+    iApply ewp_allocn'; iNext.
+    iIntros (ls) "(%Hlen & Hls)".
+    iPoseProof (big_sepL_sep with "Hls") as "[Hls _]".
+    iApply "H". iFrame "%". iFrame.
   Qed.
 
   Lemma ewp_alloc {B Y} ι E v (k : _ → micro B Y) φ Ψ :
     ▷ (∀ l,
           pointsto l (DfracOwn 1) (V v) -∗
-          EWP[ι] (continue k l) @ E <| Ψ |>  {{ φ }}) ⊢
-    EWP[ι] (Stop CAlloc v k) @ E <| Ψ |>  {{ φ }}.
+          EWP[ι] (continue k [l]) @ E <| Ψ |>  {{ φ }}) ⊢
+    EWP[ι] (Stop CAllocn (1%nat, v) k) @ E <| Ψ |>  {{ φ }}.
   Proof.
     iIntros "H".
-    iApply ewp_alloc'; iNext.
-    iIntros (l) "(Hl & _)".
-    iApply ("H" with "Hl").
+    iApply ewp_allocn.
+    iIntros "!>" (ls) "(%Hlen & Hls)".
+    destruct ls; first discriminate Hlen.
+    destruct ls; last discriminate Hlen.
+    iApply "H".
+    iDestruct "Hls" as "[$ _]".
   Qed.
 
   (* [CStore]. *)
@@ -544,11 +591,11 @@ Section ewp_eval.
     iApply (ewp_sitems_cons).
     { iApply (ewp_sitem_extend).
       iApply ewp_alloc.
-      iIntros "!>" (l) "Hl".
-      rewrite /continue. iApply ewp_ret.
+      iIntros "!>" (l) "Hl"; simpl; iApply ewp_ret.
       Unshelve.
       2: (apply (λ ηδ,
-              (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ V VUnit)%I)).
+                   (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ V VUnit)%I)).
+      simpl.
       iExists l; iFrame. iPureIntro; reflexivity. }
     iApply "Hcov".
   Qed.
@@ -573,10 +620,9 @@ Section ewp_eval.
             {{ ensures δ, Q (O2Ret ((e, VLoc l) :: δ)) }}) -∗
     EWP[ι] eval_type_extensions (e :: es) @ E <| Ψ |> {{ Q }}.
   Proof.
-    iIntros "Hes". simpl.
+    iIntros "Hes".
     iApply ewp_alloc.
-    iModIntro.
-    iIntros "%l Hl".
+    iIntros "!>" (l) "Hl".
     iApply ewp_bind. iApply ewp_ret. iApply ewp_bind.
     iSpecialize ("Hes" with "Hl").
     iApply (ewp_mono with "Hes").

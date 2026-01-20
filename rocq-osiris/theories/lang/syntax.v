@@ -187,6 +187,15 @@ Inductive expr :=
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
 
+  (* Length of an array: [Array.length a] *)
+  | EArrayLength (e : expr)
+  (* Array access: [Array.get a n] *)
+  | EArrayGet (e1 e2 : expr)
+  (* Array update: [Array.set a n v] *)
+  | EArraySet (e1 e2 e3 : expr)
+  (* Array creation: [Array.make n v] *)
+  | EArrayMake (e1 e2 : expr)
+
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj (e1 e2 : expr)
   | EBoolDisj (e1 e2 : expr)
@@ -412,6 +421,8 @@ Inductive val :=
   (* The fields in a record are always pairwise distinct (this is checked
      by OCaml, not by us) and alphabetically sorted. *)
   | VRecord (fvs : list (var * val))
+  (* An array is represented as the list of locations of its elements. *)
+  | VArray (l : list loc)
   (* A location. *)
   | VLoc (l: loc)
   (* A thread id. *)
@@ -423,7 +434,6 @@ Inductive val :=
   (* A functor. *)
   | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
-  | VArray (c: list val)
 .
 
 Definition env := list (var * val).

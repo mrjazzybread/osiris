@@ -196,6 +196,26 @@ Definition as_int (m : microvx) : micro int exn :=
   v ← m ;
   val_as_int v.
 
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_nat v] checks that the value [v] is a language-level integer
+   value and returns its meta-level value converted to a natural number. *)
+
+Definition val_as_nat (v : val) : micro nat exn :=
+  match v with
+  | VInt i =>
+      if (M.signed i) >=? 0 then
+        ret (Z.to_nat (M.signed i))
+      else
+        type_mismatch "natural number expected"
+  | _ =>
+      type_mismatch "natural number expected"
+  end.
+
+Definition as_nat (m : microvx) : micro nat exn :=
+  v ← m ;
+  val_as_nat v.
+
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
 Definition check_div_by_zero i : micro unit exn :=
@@ -221,6 +241,24 @@ Definition val_as_record (v : val) : micro env exn :=
 Definition as_record (m : microvx) : micro env exn :=
   v ← m ;
   val_as_record v.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_array v] checks that the value [v] is a language-level array
+   value and returns a tuple of the location of the first element,
+   and the length. *)
+
+Definition val_as_array (v : val) : micro (list loc) exn :=
+  match v with
+  | VArray l =>
+      ret l
+  | _ =>
+      type_mismatch "array expected"
+  end.
+
+Definition as_array (m : microvx) : micro (list loc) exn :=
+  v ← m ;
+  val_as_array v.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1114,6 +1152,28 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
       widen (lookup_name fvs f)
+  | EArrayLength e =>
+      ls ← as_array (eval η e) ;
+      ret (VInt (repr (Z.of_nat (List.length ls))))
+  | EArrayGet e1 e2 =>
+      '(ls, i) ← par (as_array (eval η e1)) (as_nat (eval η e2)) ;
+      match List.nth_error ls i with
+      | Some l => load l
+      | None => crash "index out of bounds"
+      end
+  | EArraySet e1 e2 e3 =>
+      '(ls, (i, v)) ← par (as_array (eval η e1))
+                       (par (as_nat (eval η e2)) (eval η e3));
+        match List.nth_error ls i with
+        | Some l => store l v
+        | None => crash "index out of bounds"
+        end
+  | EArrayMake e1 e2 =>
+      '(n, v) ← par (as_nat (eval η e1)) (eval η e2) ;
+      if (Z.of_nat n <? max_array)%Z then
+        ls ← allocn n v;
+        ret (VArray ls)
+      else crash "index out of bounds"
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse

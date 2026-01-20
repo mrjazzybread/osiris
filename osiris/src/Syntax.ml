@@ -180,6 +180,15 @@ type expr =
   (* Record access: [ef]. *)
   | ERecordAccess of expr * field
 
+  (* Length of an array: [Array.length a] *)
+  | EArrayLength of expr
+  (* Array access: [Array.get a n] *)
+  | EArrayGet of expr * expr
+  (* Array update: [Array.set a n v] *)
+  | EArraySet of expr * expr * expr
+  (* Array creation: [Array.make n v] *)
+  | EArrayMake of expr * expr
+
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj of expr * expr
   | EBoolDisj of expr * expr

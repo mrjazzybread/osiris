@@ -37,6 +37,13 @@ Module M := EvalF Strat. Import M.
 is no trivially confluent step. It can eliminate a large part of the
 nondeterminism introduced by [Par] constructs *)
 
+Fixpoint insert_fresh v n (σ : store) ls :=
+  match n with
+  | O => (σ, ls)
+  | S n => let l := fresh (dom σ) in
+           insert_fresh v n (<[l:=V v]> σ) (l :: ls)
+  end.
+
 Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E) :=
   match m with
   (* Final micros do not step *)
@@ -46,7 +53,7 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   (* [CEval], [CLoop], [CAlloc], [Handle] have only one way to reduce *)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
-  | Stop CAlloc v k => let l := fresh (dom σ) in Some (<[l:=V v]> σ, continue k l)
+  | Stop CAllocn (n, v) k => Some (let '(σ, ls) := insert_fresh v n σ [] in (σ, continue k ls))
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
   | Handle Crash h => Some (σ, Crash)
@@ -115,7 +122,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   (* Some [Stop] cases are confluent and covered in the same way as in [confluent_step] *)
   | Stop CEval (η, e) k => Step [(σ, try2 (pre_eval η e) k)]
   | Stop CLoop (η, x, i1, i2, e) k => Step [(σ, try2 (loop η x i1 i2 e) k)]
-  | Stop CAlloc v k => let l := fresh (dom σ) in Step [(<[l:=V v]> σ, continue k l)]
+  | Stop CAllocn (n, v) k => let l := fresh (dom σ) in
+                       Step [(let '(σ, ls) := insert_fresh v n σ [] in (σ, continue k ls))]
 
   (* [Stop] cases involving the store or flips typically break confluence *)
   | Stop CLoad l k => Step [step_load σ l k]
@@ -251,7 +259,7 @@ Definition io_env : env :=
 
 (** Printers may be easier to define in Rocq than in OCaml *)
 
-From Coq Require Import Numbers.DecimalString.
+From Stdlib Require Import Numbers.DecimalString.
 
 Definition string_of_Z (z : Z) : string := NilZero.string_of_int (Z.to_int z).
 
@@ -302,6 +310,10 @@ Fixpoint string_of_expr (e : expr) : string :=
   | ERecord fes => "ERecord( " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
   | ERecordUpdate expr fes => "ERecordUpdate(" ++ string_of_expr expr ++ ", " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
   | ERecordAccess expr field => "ERecordAccess(" ++ string_of_expr expr ++ ", " ++ field ++ ")"
+  | EArrayLength expr => "EArrayLength(" ++ string_of_expr expr ++ ")"
+  | EArrayGet e1 e2 => "EArrayGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | EArraySet e1 e2 e3 => "EArraySet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ", " ++ string_of_expr e3 ++ ")"
+  | EArrayMake e1 e2 => "EArrayMake(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EBoolConj e1 e2 => "EBoolConj(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EBoolDisj e1 e2 => "EBoolDisj(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EBoolNeg e => "EBoolNeg(" ++ string_of_expr e ++ ")"
@@ -412,7 +424,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
-  | VArray l => "VArray(" ++ String.concat "; " (map string_of_val l) ++ ")"
+  | VArray l => "VArray(" ++ String.concat "; " (map (fun l => string_of_Z l.(address)) l) ++ ")"
   end.
 
 Definition string_of_outcome2 (o : outcome2 val exn) : string :=
@@ -428,7 +440,7 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CEval => "CEval"
   | CLoop => "CLoop"
   | CFlip => "CFlip"
-  | CAlloc => "CAlloc"
+  | CAllocn => "CAllocn"
   | CLoad => "CLoad"
   | CStore => "CStore"
   | CPerf => "CPerf"
@@ -456,7 +468,7 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CEval (η, e) k => "Stop(CEval, " ++ string_of_env η ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CLoop (η, x, a, b, e) k => "Stop(CLoop, (<env>, " ++ x ++ ", " ++ string_of_int a ++ ", " ++ string_of_int b ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CFlip () k => "Stop(CFlip" ++ ", (), <cont>)"
-  | Stop CAlloc v k => "Stop(CAlloc" ++ ", " ++ string_of_val v ++ ", <cont>)"
+  | Stop CAllocn (n, v) k => "Stop(CAlloc" ++ ", (" ++ string_of_Z (Z.of_nat n) ++ ", " ++ string_of_val v ++ "), <cont>)"
   | Stop CLoad loc k => "Stop(CLoad" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
   | Stop CStore (loc, v) k => "Stop(CStore" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CPerf v k => "Stop(CPerf" ++ ", " ++ string_of_val v ++ ", <cont>)"

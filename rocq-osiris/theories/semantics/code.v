@@ -22,7 +22,7 @@ Definition eff := val.
    call is allowed to throw an exception of type [exn]. Some system
    calls can indeed throw such an exception: this includes [CEval],
    [CLoop], [CPerf], [CContinue], and [CDiscontinue]. Some system
-   calls, such as [CFlip], [CAlloc], [CLoad], and [CStore], cannot
+   calls, such as [CFlip], [CAllocn], [CLoad], and [CStore], cannot
    throw an exception. Describing them with the type [exn], as opposed
    to [void], is a (convenient) over-approximation. *)
 
@@ -37,9 +37,9 @@ Definition eff := val.
 
 (* [Flip] is a request to flip a Boolean coin. *)
 
-(* [Alloc v], [Load l], [Store (l, v)] are requests to allocate, read,
+(* [Allocn n v], [Load l], [Store (l, v)] are requests to allocate, read,
    and write a memory location in the heap.
-   The result of [CAlloc v] is a memory location.
+   The result of [CAllocn n v] is a list of [n] memory locations.
    The result of [Load l] is a value.
    The result of [CStore (l, v)] is unit. *)
 
@@ -71,7 +71,7 @@ Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
-| CAlloc : code val loc exn
+| CAllocn : code (nat * val) (list loc) exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) val exn
 | CPerf  : code eff val exn
@@ -145,14 +145,6 @@ Definition resume (l : cont) (o : outcome2 val exn) :=
 Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
   Handle m h.
 
-(* ------------------------------------------------------------------------ *)
-
-(* [alloc v] allocates a new ref cell with initial value [v] and returns the
-   ref cell's location. *)
-
-Definition alloc (v : val) :=
-  stop CAlloc v.
-
 (* [load l] loads the value stored at location [l]. *)
 
 Definition load (l : loc) :=
@@ -186,6 +178,24 @@ Notation "' x ← y ; z" :=
   (bind y (λ x : _, z))
   (at level 20, x pattern, y at level 100, z at level 200,
   format "'[v' ' x  '←'  y ';' '/' z ']'").
+
+(* ------------------------------------------------------------------------ *)
+
+(* [allocn n v] allocates [n] new ref cells with initial value [v] and
+   returns the ref cells' locations. *)
+
+Definition allocn (n : nat) (v : val) : micro (list loc) exn :=
+  stop CAllocn (n, v).
+
+(* [alloc v] allocates a new ref cell with initial value [v] and returns the
+   ref cell's location. *)
+
+Definition alloc (v : val) : micro loc exn :=
+  ls ← allocn 1 v ;
+  match ls with
+  | [l] => ret l
+  | _ => Crash
+  end.
 
 (* ------------------------------------------------------------------------ *)
 

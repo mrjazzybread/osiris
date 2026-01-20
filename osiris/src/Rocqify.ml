@@ -194,6 +194,18 @@ let rec expr (e : expr) =
   | ERecordAccess (e, f) ->
       c "ERecordAccess" [ expr e; field f ]
 
+  | EArrayLength e ->
+      c "EArrayLength" [ expr e ]
+
+  | EArrayGet (e1, e2) ->
+      c "EArrayGet" [ expr e1; expr e2 ]
+
+  | EArraySet (e1, e2, e3) ->
+      c "EArraySet" [ expr e1; expr e2; expr e3 ]
+
+  | EArrayMake (e1, e2) ->
+      c "EArrayMake" [ expr e1; expr e2 ]
+
   | EBoolConj (e1, e2) ->
       c "EBoolConj" [ expr e1; expr e2 ]
 

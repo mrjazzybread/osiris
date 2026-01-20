@@ -54,9 +54,9 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CFlip u k)
     (continue k false)
-| MayAlloc v k :
+| MayAlloc n v k :
   may
-    (Stop CAlloc v k)
+    (Stop CAllocn (n, v) k)
     (Crash)
 | MayLoad lv k :
   may
@@ -172,6 +172,7 @@ Proof.
   destruct c; eauto with may.
   - destruct x; eauto with may.
   - destruct x as [[[[]]]]; eauto with may.
+  - destruct x; eauto with may.
 Qed.
 
 Definition final {A E} (m : micro A E) :=
