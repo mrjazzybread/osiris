@@ -53,14 +53,15 @@ Qed.
 (* [ref 1] *)
 
 Lemma example_ref_1 ι η:
-  ⊢ EWP[ι] (eval η (ERef (EInt 1))) {{ ensures v, ∃ l : loc, ⌜v = VLoc l⌝ ∗ l ↦ V #1 }}.
+  ⊢ EWP[ι] (eval η (ERef (EInt 1))) {{ ensures #l, l ↦ V #1 }}.
 Proof.
   iApply ewp_ERef.
   - (* 1 *)
-    by iApply ewp_EInt.
+    instantiate (1 := λ i, (⌜i = 1%Z⌝)%I).
+    iApply ewp_EInt. iExists 1; equality.
   - (* ref *)
-    iIntros (v) "<-".
-    iIntros (l) "?". iExists _. iFrame. auto.
+    iIntros (i l) "-> Hl".
+    iFrame.
 Qed.
 
 (* [!x] *)
@@ -71,7 +72,8 @@ Proof.
   iIntros (Hx) "Hl".
   iApply ewp_ELoad.
   - simpl_eval. rewrite Hx.
-    iApply ewp_ret_eq_emp.
+    instantiate (1 := (λ l', ⌜l' = l ⌝)%I). iApply ewp_ret.
+    iExists _; auto.
   - iIntros (?) "->".
     iExists _, _. iFrame. auto.
 Qed.
@@ -86,7 +88,8 @@ Proof.
   iIntros (Hx) "Hl".
   iApply ewp_EStore.
   - simpl_eval. rewrite Hx. iApply ewp_ret_eq_enc.
-  - simpl_eval. iApply ewp_ret_eq_emp.
+  - iApply ewp_EInt. instantiate (1 := (λ i, ⌜i=2%Z⌝)%I).
+    iExists _. iFrame; eauto.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext.
     iIntros "Hl /=".
@@ -107,12 +110,14 @@ Proof.
   iApply ewp_ESeq.
   iApply ewp_EStore.
   - simpl_eval. rewrite Hx. iApply ewp_ret_eq_enc.
-  - simpl_eval. iApply ewp_ret_eq_emp.
+  - iApply ewp_EInt. instantiate (1 := (λ i, ⌜i=2%Z⌝)%I).
+    iExists 2; auto.
   - iIntros (? ?) "(-> & ->)".
     iExists _. iFrame. iNext. iIntros "Hl /=".
     iApply ewp_EStore.
     + simpl_eval. rewrite Hx. iApply ewp_ret_eq_enc.
-    + simpl_eval. iApply ewp_ret_eq_emp.
+    + iApply ewp_EInt. instantiate (1 := (λ i, ⌜i=4%Z⌝)%I).
+      iExists 4; auto.
     + iIntros (? ?) "(-> & ->)".
       iExists _. iFrame. iNext. iIntros "$ //".
 Qed.
@@ -123,12 +128,10 @@ Lemma example_load_ref ι η :
 Proof.
   iApply (ewp_ELoad _ _ (λ l, l ↦ V #1)%I).
   - (* ref 1 *)
-    iApply ewp_bind.
     iApply ewp_ERef.
-    + iApply ewp_EInt. iPureIntro. reflexivity.
-    + iIntros (?) "<-".
-      iIntros (l) "Hl /=".
-      by iApply ewp_ret.
+    + iApply ewp_EInt. instantiate (1 := (λ i, ⌜i = 1%Z⌝)%I).
+      iExists 1; eauto.
+    + iIntros (i l) "-> $".
   - (* load *)
     iIntros (l) "Hl".
     iExists _, _.
@@ -150,28 +153,29 @@ Proof.
     simpl_eval. rewrite Ex. iApply ewp_ret_eq_enc.
 
   - (* 1 + !x *)
+    instantiate (1 := (λ i, ⌜i = (1 + n)%Z⌝ ∗ lx ↦ V #n)%I).
     iApply (ewp_EIntAdd with "[] [Hx]").
-    + (* as_int 1 *)
-      simpl_eval. iApply ewp_ret_eq_emp.
-    + (* as_int !x *)
-      iApply ewp_bind.
+    + (* 1 *)
+      iApply ewp_EInt. instantiate (1 := (λ i, ⌜i=1%Z⌝)%I).
+      by iExists 1.
+    + (* !x *)
       iApply ewp_ELoad.
-      * simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ex. instantiate (1 := (λ l, ⌜l=lx⌝)%I).
+        iApply ewp_ret. by iExists lx.
       * iIntros (l) "->".
         iExists _, _; iFrame.
         iNext.
-        iIntros "Hx".
-        iApply (ewp_ret_eq with "Hx").
-
+        iIntros "Hx". iExists n; iSplit; first done.
+        instantiate (1 := (λ n', ⌜n' = n⌝ ∗ lx ↦ V #n)%I).
+        iFrame; auto.
     + (* add's postcondition *)
-      iIntros (n1 n2) "(-> & (-> & Hx))".
-      iApply (goal_eq with "Hx"). reflexivity.
+      iIntros (n1 n2) "(-> & -> & $)".
+      auto.
 
   - (* store's postcondition *)
-    iIntros (l1 v2) "(-> & -> & A) /=".
+    iIntros (l1 n2) "(-> & -> & Hlx)".
     iExists _. iFrame. iNext.
-    rewrite M.add_repr_repr.
-    auto.
+    iIntros "$". auto.
 Qed.
 
 (* [x := !x + (y := 1 + !y; !y)] *)
@@ -192,17 +196,18 @@ Proof.
 
   - (* !x + (...) *)
     iApply (ewp_EIntAdd with "[Hx] [Hy]").
-    + (* as_int !x *)
-      iApply ewp_bind.
+    + (* !x *)
       iApply ewp_ELoad.
-      * simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ex. instantiate (1 := (λ l', ⌜l'=lx⌝)%I).
+        iApply ewp_ret. iExists _; auto.
       * iIntros (l) "->".
         iExists _, _. iFrame. iNext.
         iIntros "Hx".
-        iApply (ewp_ret_eq with "Hx").
+        iExists _; iSplit; first auto.
+        instantiate (1 := (λ n', ⌜n' = n⌝ ∗ lx ↦ V #n)%I).
+        iFrame; auto.
 
-    + (* as_int (y := 1 + !y; !y) *)
-      iApply ewp_bind.
+    + (* (y := 1 + !y; !y) *)
       iApply ewp_ESeq.
       (* y := 1 + !y: use previous example *)
       iApply (ewp_mono with "[Hy]").
@@ -210,13 +215,16 @@ Proof.
       (* !y *)
       iIntros_RET (v) "H".
       iApply ewp_ELoad.
-      * simpl_eval. rewrite Ey. iApply ewp_ret_eq_emp.
+      * simpl_eval. rewrite Ey.
+        instantiate (1 := (λ l, ⌜l = ly⌝)%I).
+        iApply ewp_ret. iExists _; auto.
       * iDestruct "H" as "(-> & H)".
         iIntros (l) "->".
         iExists _, _. iFrame. iNext.
         iIntros "Hy". simpl.
-        iApply ewp_ret_eq.
-        iApply "Hy".
+        iExists 1; iSplit; first auto.
+        instantiate (1 := (λ n', ⌜n' = 1%Z⌝ ∗ ly ↦ _)%I).
+        iFrame; auto.
 
     + (* add's postcondition *)
       iIntros (n1 n2) "((-> & Hx) & (-> & Hy))".
@@ -228,8 +236,7 @@ Proof.
     iIntros (l1 v2) "(-> & -> & (Hx & Hy))".
     iExists _. iFrame.
     iNext. iIntros "Hx".
-    rewrite M.add_repr_repr.
-    auto.
+    iFrame; auto.
 Qed.
 
 (* [x := !x + !x] *)
@@ -246,19 +253,23 @@ Proof.
     iDestruct "Hx" as "(Hx1 & Hx2)".
     iApply (ewp_EIntAdd with "[Hx1] [Hx2]").
     + (* !x *)
-      iApply ewp_bind.
       iApply (ewp_ELoad).
-      { simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp. }
+      { simpl_eval. rewrite Ex. instantiate (1 := (λ l, ⌜l=lx⌝)%I).
+        iApply ewp_ret. iExists _; auto. }
       iIntros (l) "->".
       iExists _, _. iFrame. iNext. iIntros "Hx1". simpl.
-      iApply (ewp_ret_eq with "Hx1").
+      iExists _; iSplit; first auto.
+      instantiate (1 := (λ i, ⌜i = n⌝ ∗ pointsto lx _ _)%I).
+      iFrame; auto.
     + (* !x *)
-      iApply ewp_bind.
       iApply (ewp_ELoad).
-      { simpl_eval. rewrite Ex. iApply ewp_ret_eq_emp. }
+      { simpl_eval. rewrite Ex. instantiate (1 := (λ l, ⌜l=lx⌝)%I).
+        iApply ewp_ret. iExists _; auto. }
       iIntros (l) "->".
       iExists _, _. iFrame. iNext. iIntros "Hx1". simpl.
-      iApply (ewp_ret_eq with "Hx1").
+      iExists _; iSplit; first auto.
+      instantiate (1 := (λ i, ⌜i = n⌝ ∗ pointsto lx _ _)%I).
+      iFrame; auto.
     + (* + *)
       iIntros (_n1 _n2) "((-> & Hx1) & (-> & Hx2))".
       iCombine "Hx1" "Hx2" as "Hx".
@@ -266,7 +277,6 @@ Proof.
   - (* := *)
     iIntros (_l1 _v2) "(-> & -> & Hx)".
     iExists _. iFrame. iNext. iIntros "Hx".
-    rewrite M.add_repr_repr.
     replace (n + n)%Z with (2 * n)%Z by lia.
     by iFrame.
 Qed.
