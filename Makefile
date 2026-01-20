@@ -86,6 +86,10 @@ pin:
 emacs:
 	$(INSTALL) tuareg merlin ocp-indent
 
+.PHONY: vscode
+vscode:
+	$(INSTALL) vsrocq-language-server ocamlformat ocaml-lsp-server
+
 .PHONY: runtests
 runtests:
 	@ cd rocq-osiris/interp && dune build
