@@ -247,7 +247,7 @@ Section verification.
       iIntros (? <-).
 
       (* Subgoal: [shift (fun k -> ...) + 3] returns [4]. *)
-      iApply (ewp_EIntAdd'); clear ι.
+      iApply (ewp_EIntAdd); clear ι.
       { (* Prove that [shift (fun k -> ...)] returns [1]? *)
         iApply (ewp_EApp τ[val]).
         { simpl_eval. iApply ewp_ret. iAssumption. }
@@ -262,7 +262,7 @@ Section verification.
         iIntros (k ι) "Hresume".
         iApply ewp_please; iIntros "!> !>".
         (* Subgoal: [continue k 0 + 1] retuns [4]. *)
-        iApply (ewp_EIntAdd' with "[Hresume]").
+        iApply (ewp_EIntAdd with "[Hresume]").
         { iApply ewp_EContinue'.
           { (* Evaluate [k]. *)
             simpl_eval. iApply ewp_ret.

@@ -167,9 +167,11 @@ Section verification.
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      iApply ewp_ERef. { iApply ewp_EPath. iApply ewp_ret. done. }
-      iIntros (? <- ?) "?".
-      by iApply val_points_to_unfold. }
+      iApply ewp_ERef.
+      { iApply ewp_EPath. iApply ewp_ret.
+        iExists init.
+        instantiate (1 := (λ s, ⌜s=init⌝)%I). auto. }
+      iIntros (? ?) "-> $". }
 
     (* Continuing with the rest of the computation *)
 
@@ -284,10 +286,19 @@ Section verification.
 
          (* EWP Subgoal: [var := y]. *)
          iApply (ewp_mono with "[Hl]").
-         { iApply (ewp_EStore_simple).
-           { iApply ewp_EPath; by iApply ewp_ret. }
-           { iApply ewp_EPath. iApply ewp_ret. by iFrame. } }
-         iIntros_RET "[-> Hl]".
+         { iApply (ewp_EStore).
+           { iApply ewp_EPath; iApply ewp_ret.
+             instantiate (1 := (λ l', ⌜l'=l⌝)%I).
+             iExists _; auto. }
+           { iApply ewp_EPath. iApply ewp_ret.
+             instantiate (1 := (λ v, ⌜v=y⌝)%I).
+             iExists _; auto. }
+           iIntros (? ?) "[-> ->]".
+           iExists init. iFrame.
+           iNext; instantiate (1 := (λ v, ⌜v = VUnit⌝ ∗ l ↦ V #y)%I).
+           auto. }
+         iIntros ([|]); [ | iIntros ([]) ].
+         iIntros "(-> & Hl) /=". fold eval.
 
          (* EWP Subgoal: [continue k ()]. *)
          iDestruct "H" as "(Hauth & Hx)".
