@@ -1155,25 +1155,38 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (Z.of_nat (List.length ls))))
-  | EArrayGet e1 e2 =>
+  | EArrayUnsafeGet e1 e2 =>
       '(ls, i) ← par (as_array (eval η e1)) (as_nat (eval η e2)) ;
       match List.nth_error ls i with
       | Some l => load l
       | None => crash "index out of bounds"
       end
-  | EArraySet e1 e2 e3 =>
+  | EArrayUnsafeSet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
                        (par (as_nat (eval η e2)) (eval η e3));
         match List.nth_error ls i with
         | Some l => store l v
         | None => crash "index out of bounds"
         end
+  | EArrayGet e1 e2 =>
+      '(ls, i) ← par (as_array (eval η e1)) (as_nat (eval η e2)) ;
+      match List.nth_error ls i with
+      | Some l => load l
+      | None => throw (invalid_argument "index out of bounds")
+      end
+  | EArraySet e1 e2 e3 =>
+      '(ls, (i, v)) ← par (as_array (eval η e1))
+                       (par (as_nat (eval η e2)) (eval η e3));
+        match List.nth_error ls i with
+        | Some l => store l v
+        | None => throw (invalid_argument "index out of bounds")
+        end
   | EArrayMake e1 e2 =>
       '(n, v) ← par (as_nat (eval η e1)) (eval η e2) ;
       if (Z.of_nat n <? max_array)%Z then
         ls ← allocn n v;
         ret (VArray ls)
-      else crash "index out of bounds"
+      else throw (invalid_argument "Array.make")
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse

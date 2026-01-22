@@ -311,6 +311,8 @@ Fixpoint string_of_expr (e : expr) : string :=
   | ERecordUpdate expr fes => "ERecordUpdate(" ++ string_of_expr expr ++ ", " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
   | ERecordAccess expr field => "ERecordAccess(" ++ string_of_expr expr ++ ", " ++ field ++ ")"
   | EArrayLength expr => "EArrayLength(" ++ string_of_expr expr ++ ")"
+  | EArrayUnsafeGet e1 e2 => "EArrayUnsafeGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | EArrayUnsafeSet e1 e2 e3 => "EArrayUnsafeSet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ", " ++ string_of_expr e3 ++ ")"
   | EArrayGet e1 e2 => "EArrayGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EArraySet e1 e2 e3 => "EArraySet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ", " ++ string_of_expr e3 ++ ")"
   | EArrayMake e1 e2 => "EArrayMake(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
@@ -425,7 +427,26 @@ Fixpoint string_of_val (v : val) : string :=
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
   | VArray l => "VArray(" ++ String.concat "; " (map (fun l => string_of_Z l.(address)) l) ++ ")"
+  | VException e => "VException(" ++ string_of_exception e ++ ")"
+  end
+
+with string_of_exception (e : exception) : string :=
+  match e with
+  | Assert_failure => "Assert_failure"
+  | Bad s => "Bad(" ++ s ++ ")"
+  | Continuation_already_resumed => "Continuation_already_resumed"
+  | Division_by_zero => "Division_by_zero"
+  | EmptyStack => "EmptyStack"
+  | EmptyQueue => "EmptyQueue"
+  | Failure s => "Failure(" ++ s ++ ")"
+  | Finally_raised exn => "Finally_raised(" ++ string_of_val exn ++ ")"
+  | Forced_twice => "Forced_twice"
+  | Invalid_argument s => "Invalid_argument"
+  | Match_failure => "Match_failure"
+  | Not_found => "Not_found"
+  | Unhandled eff => "Unhandled"
   end.
+
 
 Definition string_of_outcome2 (o : outcome2 val exn) : string :=
   match o with

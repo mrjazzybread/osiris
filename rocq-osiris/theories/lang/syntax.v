@@ -189,9 +189,13 @@ Inductive expr :=
 
   (* Length of an array: [Array.length a] *)
   | EArrayLength (e : expr)
-  (* Array access: [Array.get a n] *)
+  (* Array access without bounds check: [Array.unsafe_get a n] *)
+  | EArrayUnsafeGet (e1 e2 : expr)
+  (* Array update without bounds check: [Array.unsafe_set a n v] *)
+  | EArrayUnsafeSet (e1 e2 e3 : expr)
+  (* Array access with bounds check: [Array.get a n] *)
   | EArrayGet (e1 e2 : expr)
-  (* Array update: [Array.set a n v] *)
+  (* Array update with bounds check: [Array.set a n v] *)
   | EArraySet (e1 e2 e3 : expr)
   (* Array creation: [Array.make n v] *)
   | EArrayMake (e1 e2 : expr)
@@ -434,6 +438,23 @@ Inductive val :=
   (* A functor. *)
   | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
+  (* The values of pre-allocated exceptions. *)
+  | VException (e : exception)
+
+with exception :=
+  | Assert_failure
+  | Bad (s : string)
+  | Continuation_already_resumed
+  | Division_by_zero
+  | EmptyStack
+  | EmptyQueue
+  | Failure (s : string)
+  | Finally_raised (exn : val)
+  | Forced_twice
+  | Invalid_argument (s : string)
+  | Match_failure
+  | Not_found
+  | Unhandled (eff : val)
 .
 
 Definition env := list (var * val).
@@ -492,6 +513,10 @@ Notation VFalse :=
 
 Notation VTrue :=
   (VConstant "true").
+
+(* Exceptions. *)
+
+Definition invalid_argument (s : string) := VException (Invalid_argument s).
 
 (* ------------------------------------------------------------------------ *)
 

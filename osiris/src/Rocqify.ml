@@ -203,6 +203,12 @@ let rec expr (e : expr) =
   | EArraySet (e1, e2, e3) ->
       c "EArraySet" [ expr e1; expr e2; expr e3 ]
 
+  | EArrayUnsafeGet (e1, e2) ->
+      c "EArrayUnsafeGet" [ expr e1; expr e2 ]
+
+  | EArrayUnsafeSet (e1, e2, e3) ->
+      c "EArrayUnsafeSet" [ expr e1; expr e2; expr e3 ]
+
   | EArrayMake (e1, e2) ->
       c "EArrayMake" [ expr e1; expr e2 ]
 
