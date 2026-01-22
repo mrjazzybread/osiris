@@ -1,4 +1,4 @@
-Require Import Orders Sorting.
+From Stdlib Require Import Orders Sorting.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import code strategy.
@@ -204,8 +204,8 @@ Definition as_int (m : microvx) : micro int exn :=
 Definition val_as_nat (v : val) : micro nat exn :=
   match v with
   | VInt i =>
-      if (M.signed i) >=? 0 then
-        ret (Z.to_nat (M.signed i))
+      if (signed i) >=? 0 then
+        ret (Z.to_nat (signed i))
       else
         type_mismatch "natural number expected"
   | _ =>

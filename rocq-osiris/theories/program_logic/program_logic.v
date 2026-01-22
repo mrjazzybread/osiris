@@ -7,7 +7,7 @@ From osiris.program_logic Require Export
   stop_rules
   handler_rules
   fun_spec
-  expr_rules
+  reasoning_rules.expr_rules
 .
 
 From osiris.program_logic.pure Require Export pure.

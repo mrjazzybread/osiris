@@ -6,7 +6,7 @@ From osiris.program_logic Require Import judgements pattern_rules pure.expr_rule
 From osiris.program_logic Require Import pure_rules.
 From osiris.program_logic Require Import pure.toplevel_rules.
 
-From Coq Require Import Wellfounded.Inverse_Image.
+From Stdlib Require Import Wellfounded.Inverse_Image.
 From Equations Require Import Equations.
 
 (* -------------------------------------------------------------------------- *)

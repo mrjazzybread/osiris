@@ -1,4 +1,4 @@
-From Coq.Logic Require Import FunctionalExtensionality.
+From Stdlib.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
 From osiris.lang Require Import lang ind.
 From osiris.semantics Require Import semantics.

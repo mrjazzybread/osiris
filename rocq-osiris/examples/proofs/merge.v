@@ -1,4 +1,4 @@
-Require Import Coq.Wellfounded.Inverse_Image.
+From Stdlib Require Import Wellfounded.Inverse_Image.
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.

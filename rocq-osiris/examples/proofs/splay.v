@@ -69,7 +69,7 @@ Fixpoint rfringe {A} (z : zipper A) : list A :=
 
 (* Well-foundedness *)
 
-Require Import Coq.Wellfounded.Inverse_Image.
+From Stdlib Require Import Wellfounded.Inverse_Image.
 
 (* The size of a tree. *)
 

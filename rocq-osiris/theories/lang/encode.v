@@ -122,7 +122,7 @@ Global Hint Resolve solve_encode_false solve_encode_true : encode.
    to the corresponding Boolean value. Defining this function
    requires Hilbert's [ε] operator. *)
 
-Require Import Classical Epsilon.
+From Stdlib Require Import Classical Epsilon.
 
 Definition inh_bool : inhabited bool.
 Proof. constructor. constructor. Qed.

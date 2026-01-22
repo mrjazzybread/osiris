@@ -1,4 +1,4 @@
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 From iris.base_logic.lib Require Import fancy_updates gen_heap.
 From iris.proofmode Require Import proofmode.
 
