@@ -169,7 +169,6 @@ Section ghost_resources.
     Persistent (valid_thread ι P).
   Proof. apply _. Qed.
 
-
   Definition state_interp : (store * post_map Σ) -> iProp Σ :=
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
@@ -271,7 +270,7 @@ From osiris.Hazel Require Export protocols.
 
 (** *Definition of the effectful weakest precondition *)
 
-Section ewp.
+Section ewp_def.
 
   Context `{!osirisGS Σ}.
 
@@ -343,23 +342,7 @@ Section ewp.
   Global Arguments ewp' {E e ιΨ Φ} : rename.
   Global Arguments ewp_def {A X}.
 
-End ewp.
-
-(* -------------------------------------------------------------------------- *)
-
-(** Notation. *)
-
-Notation "'EWP[' ι ] e @ E <| Ψ '|' '>' {{ Φ } }" :=
-  (ewp_def ι E e%E Ψ Φ)
-    (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'EWP[' ι ]  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'EWP' e @ E <| Ψ '|' '>' {{ Φ } }" :=
-  (bi_forall (fun ι => ewp_def ι E e%E Ψ Φ))
-    (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
-    : bi_scope.
+End ewp_def.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -428,51 +411,21 @@ End ewp_properties.
 
 (* Utility functions for writing postconditions on [ewp] *)
 
+From osiris.lang Require Import encode.
+
 Section lift_specs.
 
   Context {Σ : gFunctors}.
 
-  Context {A E : Type}.
-
-  Notation iProp := (iProp Σ).
+  Context {A X : Type}.
 
   (* Lifting specifications in Iris logic. *)
 
-  (* [lift_ret_spec] is especially useful for lifting specifications over pure
-      results to specifications which may handle exceptional results. *)
-  Definition lift_ret_spec (ϕ : A -d> iProp) : outcome2 A E -d> iProp :=
+  Definition ilift (ζ : X -d> iProp Σ) (Φ : A -d> iProp Σ) : outcome2 A X -d> iProp Σ :=
     (λ v, match v with
-          | O2Ret r => ϕ r
-          | _ => False
+          | O2Ret r => Φ r
+          | O2Throw e => ζ e
           end)%I.
-
-  Definition lift_exn_spec (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
-    (λ v, match v with
-          | O2Throw e => ψ e
-          | _ => False
-          end)%I.
-
-  Definition ilift (ϕ : A -d> iProp) (ψ : E -d> iProp) : outcome2 A E -d> iProp :=
-    (λ v, match v with
-          | O2Ret r => ϕ r
-          | O2Throw e => ψ e
-          end)%I.
-
-  Global Instance lift_ret_spec_ne n :
-    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_ret_spec.
-  Proof. repeat intro; subst; destruct y0; eauto. Qed.
-
-  Global Instance lift_ret_spec_proper :
-    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_ret_spec.
-  Proof. repeat intro; subst; destruct y0; eauto. Qed.
-
-  Global Instance lift_exn_spec_ne n :
-    Proper (pointwise_relation _ (dist n) ==> eq ==> (dist n)) lift_exn_spec.
-  Proof. repeat intro; subst; destruct y0; eauto. Qed.
-
-  Global Instance lift_exn_spec_proper :
-    Proper (pointwise_relation _ (≡) ==> eq ==> (≡)) lift_exn_spec.
-  Proof. repeat intro; subst; destruct y0; eauto. Qed.
 
   Global Instance ilift_ne n :
     Proper (pointwise_relation _ (dist n) ==>
@@ -486,82 +439,130 @@ Section lift_specs.
             eq ==> (≡)) ilift.
   Proof. repeat intro; subst; destruct y1; eauto. Qed.
 
+  Definition ireturns {V} `{Observe A V} (Φ : A → iProp Σ) : V → iProp Σ :=
+    λ v, (∃ a : A, ⌜v = ♯ a⌝ ∗ Φ a)%I.
+
 End lift_specs.
 
-Definition lift_ret_enc_spec {E Σ} `{encode.Encode A} (ϕ : A -d> iProp Σ) : outcome2 val E -d> iProp Σ :=
-    lift_ret_spec (λ (v' : val), (∃ (v : A), ⌜v' = osiris.lang.encode.encode v⌝ ∗ ϕ v)%I).
+Definition impure {A V X} `{osirisGS Σ} `{Observe A V}
+  (ι : thread) (E : coPset) (m : micro V X) (Ψ : iEff Σ) (ζ : X → iProp Σ) (Φ : A → iProp Σ) : iProp Σ :=
+  ewp_def ι E m Ψ (ilift ζ (ireturns Φ)).
 
 (* ========================================================================== *)
 
 (** *Notation *)
 
-Notation "ϕ ↑" := (lift_ret_spec ϕ) (at level 20).
-Notation "ψ ⤉ " := (lift_exn_spec ψ) (at level 30).
-Notation "'RET' x '=>' e '|' 'EXN' y '=>' f " :=
-  (ilift (fun x => e) (fun y => f))
-    (at level 200, right associativity,
-      format
-        "'[v '   '['  'RET'  x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+(* Bottom instance for function types, needed for the ⊥ in notations *)
+Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, False%I.
 
-Notation "'RET' '#' x '=>' e '|' 'EXN' y '=>' f " :=
-  (ilift (fun x => (∃ v, (bi_pure (x = osiris.lang.encode.encode v)) ∗ e)%I) (fun y => f))
-    (at level 200, right associativity, format
-    "'[v ' '['    'RET'  '#' x  '=>'  e ']' '/' '[' '|'  'EXN'  y  '=>'  f ']' ']'").
+(* Notation for [impure] *)
 
-(* Custom notation for hoare triples which state a postcondition only over the
-    return continuation. *)
-Notation "'ensures' v , Q" :=
-  (lift_ret_spec (λ v, Q))
-    (at level 20, Q at level 200, v binder,
-      format "'ensures'  v ,  '/' Q") : bi_scope.
+(* Notations with explicit exceptional postcondition.
+   The exception postcondition comes BEFORE the return postcondition
+   so the parser can distinguish from the short form. *)
 
-(* Custom notation for hoare triples which state a postcondition only over the
-    return continuation of an encoded value. *)
-Notation "'ensures' '#' v , Q" :=
-  (lift_ret_enc_spec (λ v, Q))
-    (at level 20, Q at level 200, v binder,
-      format "'ensures'  '#' v ,  '/' Q") : bi_scope.
-
-(* Notation for [ewp] *)
-
-Notation "'EWP' e <| Ψ '|' '>' {{ Φ } }" :=
-  (bi_forall (fun ι => ewp_def ι ⊤ e%E Ψ Φ))
-    (at level 20, e, Φ at level 200,
-      format "'[hv' 'EWP'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
-
-Notation "'EWP' e @ E {{ Φ } }" :=
-  (bi_forall (fun ι => ewp_def ι E e%E iEff_bottom Φ))
-    (at level 20, e, Φ at level 200,
-      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι ⊤ e%E iEff_bottom ζ Φ))
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'EWP' e {{ Φ } }" :=
-  (bi_forall (fun ι => ewp_def ι ⊤ e%E iEff_bottom Φ))
-    (at level 20, e, Φ at level 200,
-      format "'[' 'EWP'  e  '/' '[ '  {{  Φ  } } ']' ']'")
+Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι E e%E iEff_bottom ζ Φ))
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'EWP[' ι ] e <| Ψ '|' '>' {{ Φ } }" :=
-  (ewp_def ι ⊤ e%E Ψ Φ)
-    (at level 20, e, Φ at level 200,
-      format "'[hv' 'EWP[' ι ]  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'") : bi_scope.
-
-Notation "'EWP[' ι ] e @ E {{ Φ } }" :=
-  (ewp_def ι E e%E iEff_bottom Φ)
-    (at level 20, e, Φ at level 200,
-      format "'[' 'EWP[' ι ]  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+Notation "'imp' e <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι ⊤ e%E Ψ ζ Φ))
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[hv' 'imp'  e  '/' <| Ψ '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
-Notation "'EWP[' ι ] e {{ Φ } }" :=
-  (ewp_def ι ⊤ e%E iEff_bottom Φ)
+Notation "'imp' e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι E e%E Ψ ζ Φ))
+    (at level 20, e, Ψ, Φ, ζ at level 200,
+      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (impure ι ⊤ e%E iEff_bottom ζ Φ)
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ ' ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (impure ι E e%E iEff_bottom ζ Φ)
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (impure ι ⊤ e%E Ψ ζ Φ)
+    (at level 20, e, Φ, ζ at level 200,
+      format "'[hv' 'imp^{' ι }  e  '/' <| Ψ '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
+  (impure ι E e%E Ψ ζ Φ)
+    (at level 20, e, Ψ, Φ, ζ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+(* Notations without exceptional postcondition (uses ⊥) *)
+
+Notation "'imp' e {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι ⊤ e%E iEff_bottom Φ ⊥))
     (at level 20, e, Φ at level 200,
-      format "'[' 'EWP[' ι ]  e  '/' '[ '  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ '  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp' e @ E {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι E e%E iEff_bottom ⊥ Φ))
+    (at level 20, e, Φ at level 200,
+      format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp' e <| Ψ '|' '>' {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι ⊤ e%E Ψ ⊥ Φ))
+    (at level 20, e, Φ at level 200,
+      format "'[hv' 'imp'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e {{ Φ } }" :=
+  (impure ι ⊤ e%E iEff_bottom ⊥ Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ '  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e @ E {{ Φ } }" :=
+  (impure ι E e%E iEff_bottom ⊥ Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e <| Ψ '|' '>' {{ Φ } }" :=
+  (impure ι ⊤ e%E Ψ ⊥ Φ)
+    (at level 20, e, Φ at level 200,
+      format "'[hv' 'imp^{' ι }  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'")
+    : bi_scope.
+
+Notation "'imp' e @ E <| Ψ '|' '>' {{ Φ } }" :=
+  (bi_forall (fun ι => impure ι E e%E Ψ ⊥ Φ))
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
+    : bi_scope.
+
+Notation "'imp^{' ι } e @ E <| Ψ '|' '>' {{ Φ } }" :=
+  (impure ι E e%E Ψ ⊥ Φ)
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 (* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
   pre-existing notation; might be brittle *)
 Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
-  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ EWP e {{ ensures v , Φ v }}).
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ imp e {{ Φ }}).
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)

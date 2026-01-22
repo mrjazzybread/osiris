@@ -10,9 +10,10 @@ From Ltac2 Require Import Ltac2.
 Module ewp_rules_tactics.
 
   Ltac ewp_unfold m :=
+    rewrite /impure;
     setoid_rewrite (ewp_unfold m); rewrite /ewp_pre /=.
   Ltac ewp_unfold_all :=
-    rewrite !ewp_unfold /ewp_pre /=.
+    rewrite /impure !ewp_unfold /ewp_pre /=.
   (* This tactic unfolds one occurrence of [ewp] at the head of the goal. *)
   Ltac ewp_unfold_head :=
     iApply ewp_unfold; rewrite /ewp_pre /=.
