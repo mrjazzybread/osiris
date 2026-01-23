@@ -7,7 +7,7 @@ From osiris.adequacy.satisfiable Require Import base_logic_extension satisfiable
 From Stdlib Require Import Program.Equality.
 
 Definition WPTP `{!osirisGS Σ} (π : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))): iProp Σ :=
-  ([∗ map] ι ↦ m; '(γ, φ) ∈ π; πp, saved_pred_own γ DfracDiscarded φ ∗ EWP[ι] m @ ⊤ <| ⊥ |> {{ λ o, □ φ o }}).
+  ([∗ map] ι ↦ m; '(γ, φ) ∈ π; πp, saved_pred_own γ DfracDiscarded φ ∗ ewp_def ι ⊤ m ⊥ (λ o, □ φ o)).
 
 Definition is_final {A E} (m : micro A E) : Prop :=
   match m with
@@ -102,7 +102,7 @@ Qed.
 
 (* [wp_wptp] established the correspondence between [EWP] and [WPTP] over a singleton. *)
 Lemma wp_wptp `{!osirisGS Σ} ι m γ φ :
-  (saved_pred_own γ DfracDiscarded φ ∗ EWP[ι] m @ ⊤ <| ⊥ |> {{ λ o, □ φ o }}) ⊣⊢ WPTP {[ι := m ]} {[ι := (γ, φ)]}.
+  (saved_pred_own γ DfracDiscarded φ ∗ ewp_def ι ⊤ m ⊥ (λ o, □ φ o)) ⊣⊢ WPTP {[ι := m ]} {[ι := (γ, φ)]}.
 Proof.
   unfold WPTP.
   by rewrite big_sepM2_singleton.
@@ -130,7 +130,7 @@ Lemma WPTP_extract_wp `{!osirisGS Σ} π πp ι e :
   WPTP π πp -∗
   ∃ γ φ , ⌜πp !! ι = Some (γ, φ)⌝ ∗
          saved_pred_own γ DfracDiscarded φ ∗
-         EWP[ι] e @ ⊤ <| ⊥ |> {{ λ o, □ φ o }} ∗ WPTP (delete ι π) (delete ι πp).
+         ewp_def ι ⊤ e ⊥ (λ o, □ φ o) ∗ WPTP (delete ι π) (delete ι πp).
 Proof.
   iIntros "%Hlookup Hwps".
   iPoseProof (WPTP_dom with "Hwps") as "%Hdomeq".
@@ -147,7 +147,7 @@ Qed.
 Lemma WPTP_insert_delete `{!osirisGS Σ} ι π1 πp m' γ φ :
   ⌜πp !! ι = Some (γ, φ)⌝ -∗
   WPTP (delete ι π1) (delete ι πp) -∗
-  (saved_pred_own γ DfracDiscarded φ ∗ EWP[ι] m' <|⊥|> {{ λ o, □ φ o }}) -∗
+  (saved_pred_own γ DfracDiscarded φ ∗ ewp_def ι ⊤ m' ⊥ (λ o, □ φ o)) -∗
   WPTP (<[ι:=m']> π1) πp.
 Proof.
   iIntros "%Hlookup Hwps Hwp".
@@ -228,7 +228,7 @@ Section satisfiability_weakest_pre.
   Context `{!osirisGS Σ}.
 
   Lemma EWP_not_stuck_post {A X} E (e : micro A X) ι σ πp Φ :
-    state_interp (σ, πp) ∗ EWP[ι] e @ E <| ⊥ |> {{ Φ }} ={E}[∅]▷=∗
+    state_interp (σ, πp) ∗ ewp_def ι E e ⊥ Φ ={E}[∅]▷=∗
     ⌜not_stuck e σ (dom πp)⌝ ∗ (∀ o, ⌜e = inject2 o⌝ -∗ Φ o).
   Proof.
     iIntros "(Hsi & Hwp)". rewrite /not_stuck.
@@ -302,8 +302,8 @@ Section satisfiability_weakest_pre.
     saved_pred_own γ DfracDiscarded φ -∗
     □ φ o -∗
     state_interp (σ, πp) -∗
-    EWP[ι] Stop CJoin ι' k @ E <| Ψ |> {{ Φ }} -∗
-    |={E}[∅]▷=> state_interp (σ, πp) ∗ EWP[ι] k o @ E <| Ψ |> {{ Φ }}.
+    ewp_def ι E (Stop CJoin ι' k) Ψ Φ -∗
+    |={E}[∅]▷=> state_interp (σ, πp) ∗ ewp_def ι E (k o) Ψ Φ.
   Proof.
     iIntros "%Hlookup Hsaved Hφ Hsi Hwp".
     rewrite ewp_unfold /ewp_pre /=. spec_state.
@@ -523,7 +523,7 @@ Section satisfiability_weakest_pre.
     ⌜threadpool_steps k (σ1, {[ι:=e]}) (σ2, π2)⌝ -∗
     (∃ γ, state_interp (σ1, {[ι:=γ]}) ∗
           saved_pred_own γ DfracDiscarded (λ o, ⌜Φ o⌝)%I ∗
-          EWP[ι] e @ ⊤ <| ⊥ |> {{ (λ o, ⌜Φ o⌝)%I }}) ={⊤}[∅]▷=∗^k
+          ewp_def ι ⊤ e ⊥ (λ o, ⌜Φ o⌝)) ={⊤}[∅]▷=∗^k
     (∀ ι' e, ⌜π2 !! ι' = Some e⌝ ={⊤}[∅]▷=∗
       ⌜not_stuck e σ2 (dom π2)⌝ ∗
       (∀ o, ⌜π2 !! ι = Some (inject2 o)⌝ -∗ |={⊤}=> □ ⌜Φ o⌝)).
@@ -572,7 +572,7 @@ Section satisfiability_weakest_pre.
     SAT m F [view ⊤; supply n]
       (∃ γ, state_interp (σ1, {[ι:=γ]}) ∗
        saved_pred_own γ DfracDiscarded (λ o, ⌜Φ o⌝)%I ∗
-       EWP[ι] e @ ⊤ <| ⊥ |> {{ (λ o, ⌜Φ o⌝)%I }}) →
+       ewp_def ι ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
     (* and we take a k-step execution to [e'] and some forked of threads *)
     threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
     (* then no thread is stuck *)
@@ -627,7 +627,7 @@ Lemma SAT_ewp_adequacy `{invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 �
     let inv: invGS_gen HasNoLc Σ := osiris_invGS Σ in (* we ensure that all inferences of [invGS] point to this instance *)
     SAT Alloc F [view ⊤; supply n] (state_interp (σ1, ∅) ∗ P x)) →
   (* prove the weakest precondition for all choices of [X] *)
-  (∀ x, let i: osirisGS Σ := I x in P x ⊢ EWP[ι] e @ ⊤ <| ⊥ |> {{ λ o, ⌜Φ o⌝  }}) →
+  (∀ x, let i: osirisGS Σ := I x in P x ⊢ ewp_def ι ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
   (* then any k-step execution is safe: *)
   threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
   (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
@@ -661,13 +661,12 @@ Proof.
   eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
   eapply (SAT_gen_heap_init ∅) in Hsat as [Hgen' Hsat].
   do 2 apply SAT_unframe_resource in Hsat.
-  assert (tokenG Σ) by admit.
-  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen' _)).
+  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen')).
   exists hg.
   eapply SAT_mono; last apply Hsat.
   iIntros "(Hgen' & Hpts' & Hmeta' & Hgen & Hpts & Hmeta)".
   by iFrame.
-Admitted.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (** * Adequacy. *)
@@ -679,7 +678,7 @@ Section adequacy.
 
   Lemma osiris_adequacy Σ `{!osirisGpreS Σ} (e : micro val exn) ι σ1 π2 σ2 k Φ :
     (* If we can show [EWP e1 {{ True }}] with the ghost state provided by [Σ]. *)
-    (∀ `{!osirisGS Σ}, ⊢ EWP[ι] e @ ⊤ <|⊥|> {{ λ o, ⌜Φ o⌝ }}) →
+    (∀ `{!osirisGS Σ}, ⊢ ewp_def ι ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
     (* then any k-step execution is safe: *)
     threadpool_steps k (σ1, {[ι := e]}) (σ2, π2) →
     (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
@@ -701,7 +700,7 @@ Section adequacy.
   (* Example of an adequacy statement instantiated with a specific set of [gFunctors]. *)
 
   Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k Φ :
-    (∀ `{!osirisGS osirisΣ}, ⊢ EWP[ι] e @ ⊤ <|⊥|> {{ λ o, ⌜Φ o⌝ }}) →
+    (∀ `{!osirisGS osirisΣ}, ⊢ ewp_def ι ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
     threadpool_steps k (σ1, {[ι :=e]}) (σ2, π2) →
     (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
     (∀ o, π2 !! ι = Some (inject2 o) → Φ o).

@@ -94,6 +94,7 @@ Section ghost_instances.
       #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc step.block Σ;
       #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread gname Σ;
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
+      osiris_tokenG :: tokenG Σ;
     }.
 
   (* The [osirisGS] typeclass is what we use in our proofs.
@@ -113,7 +114,6 @@ Section ghost_instances.
       osiris_thread_postGS :: gen_heapGS thread gname Σ;
       (* savedPropG is inherited from osirisGpreS via osiris_inG *)
       (* This gives us tokens, for resource transfer when joining threads *)
-      osiris_tokenG :: tokenG Σ;
     }.
 
 End ghost_instances.
@@ -123,14 +123,15 @@ Definition osirisΣ : gFunctors :=
   #[ invΣ;
      gen_heapΣ locations.loc step.block;
      gen_heapΣ thread gname;
-     savedPredΣ (outcome2 val exn)
+     savedPredΣ (outcome2 val exn);
+     tokenΣ
     ].
 
 (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
 Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
 
 (* Notations for ghost resouces. *)
 
@@ -462,13 +463,13 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
    so the parser can distinguish from the short form. *)
 
 Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E iEff_bottom ζ Φ))
+  (bi_forall (fun ι => impure ι ⊤ e%E ⊥ ζ Φ))
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E iEff_bottom ζ Φ))
+  (bi_forall (fun ι => impure ι E e%E ⊥ ζ Φ))
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
@@ -486,13 +487,13 @@ Notation "'imp' e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
     : bi_scope.
 
 Notation "'imp^{' ι } e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι ⊤ e%E iEff_bottom ζ Φ)
+  (impure ι ⊤ e%E ⊥ ζ Φ)
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp^{' ι }  e  '/' '[ ' ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'imp^{' ι } e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι E e%E iEff_bottom ζ Φ)
+  (impure ι E e%E ⊥ ζ Φ)
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
@@ -512,13 +513,13 @@ Notation "'imp^{' ι } e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
 (* Notations without exceptional postcondition (uses ⊥) *)
 
 Notation "'imp' e {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E iEff_bottom Φ ⊥))
+  (bi_forall (fun ι => impure ι ⊤ e%E ⊥ Φ ⊥))
     (at level 20, e, Φ at level 200,
       format "'[' 'imp'  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E iEff_bottom ⊥ Φ))
+  (bi_forall (fun ι => impure ι E e%E ⊥ ⊥ Φ))
     (at level 20, e, Φ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
@@ -530,13 +531,13 @@ Notation "'imp' e <| Ψ '|' '>' {{ Φ } }" :=
     : bi_scope.
 
 Notation "'imp^{' ι } e {{ Φ } }" :=
-  (impure ι ⊤ e%E iEff_bottom ⊥ Φ)
+  (impure ι ⊤ e%E ⊥ ⊥ Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'imp^{' ι }  e  '/' '[ '  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'imp^{' ι } e @ E {{ Φ } }" :=
-  (impure ι E e%E iEff_bottom ⊥ Φ)
+  (impure ι E e%E ⊥ ⊥ Φ)
     (at level 20, e, Φ at level 200,
       format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.

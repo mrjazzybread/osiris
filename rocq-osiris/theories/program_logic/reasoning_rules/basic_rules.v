@@ -109,23 +109,6 @@ Section ewp_basic_rules.
     by ewp_mask_elim.
   Qed.
 
-  Lemma ewp_please η e P :
-    ▷ ewp_def ι E (eval η e) Ψ P -∗
-    ewp_def ι E (please_eval η e) Ψ P.
-  Proof.
-    iIntros "Heval".
-    ewp_unfold (please_eval η e).
-    rewrite /please_eval; destruct Ψ.
-    intro_state.
-    ewp_mask_intro "Hclose".
-    construct_wp_nonret.
-    iModIntro. ewp_mask_elim.
-    apply invert_can_step_thread_step in Hstep; last (apply can_step_stop; tauto).
-    destruct Hstep as [Hstep ->].
-    destruct_step.
-    rewrite try2_inject2_right. by iFrame.
-  Qed.
-
   (* ------------------------------------------------------------------------ *)
 
   (** Monotonicity. *)
