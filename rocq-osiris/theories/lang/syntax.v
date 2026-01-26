@@ -395,7 +395,7 @@ Definition handler := list branch.
    expressions. Similarly, environments map both variables to values
    and modules to values. *)
 
-Inductive val :=
+Inductive val : Type :=
   (* A simple (non-recursive) closure. *)
   | VClo (η : list (var * val)) (a : anonfun)
   (* A recursive closure. *)

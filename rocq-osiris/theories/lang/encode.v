@@ -379,6 +379,25 @@ Global Hint Resolve
 Global Instance Encode_cont : Encode cont :=
   { encode := λ l, VCont l }.
 
+Lemma solve_encode_cont (l : cont) :
+  VCont l = #l.
+Proof. solve_encode. Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Environments. *)
+
+Global Instance Encode_env : Encode env :=
+  { encode := λ η, VStruct η }.
+
+Lemma solve_encode_env η :
+  VStruct η = #η.
+Proof. solve_encode. Qed.
+
+Global Hint Resolve solve_encode_env
+| 0 (* higher priority than encoding lists *)
+  : encode.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Floats. *)
@@ -598,11 +617,8 @@ Global Hint Resolve solve_encode_tuple4
 
 (* Strings. *)
 
-Definition encode_string (s : string) :=
-  VString s.
-
 Global Instance Encode_string : Encode string :=
-  {encode := λ s, VString s }.
+  { encode := λ s, VString s }.
 
 Lemma encode_string_is_encode s :
   VString s = #s.

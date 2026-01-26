@@ -823,7 +823,7 @@ Fixpoint eval_type_extensions (cs : list name) :=
       ret ((c, VLoc l) :: η)
   end.
 
-Definition pre_eval_sitem (ηδ : envs) (item : sitem) :=
+Definition pre_eval_sitem (ηδ : envs) (item : sitem) : micro envs exn :=
   let '(η, δ) := ηδ in
   match item with
   | ILet bs =>
@@ -1452,7 +1452,7 @@ Proof. unfold eval_mexpr; by rewrite seal_eq. Qed.
 Local Definition eval_sitem_aux : seal (pre_eval_sitem eval_bindings eval_mexpr).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_sitem] *)
-Definition eval_sitem := eval_sitem_aux.(unseal).
+Definition eval_sitem : envs → sitem → micro envs exn := eval_sitem_aux.(unseal).
 Lemma fold_pre_eval_sitem :
   pre_eval_sitem eval_bindings eval_mexpr = eval_sitem.
 Proof. unfold eval_sitem; by rewrite seal_eq. Qed.
