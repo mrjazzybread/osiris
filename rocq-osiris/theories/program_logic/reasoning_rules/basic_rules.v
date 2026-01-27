@@ -701,14 +701,14 @@ Section ewp_rules.
     (k: outcome2 (A1 * A2) X' → micro A X) Φ1 Φ2 :
     ewp_def ι E m1 Ψ Φ1 -∗
     ewp_def ι E m2 Ψ Φ2 -∗
-    (∀ e, Φ1 (O2Throw e) -∗ ▷ ewp_def ι E (k (O2Throw e)) Ψ Q) -∗
-    (∀ e, Φ2 (O2Throw e) -∗ ▷ ewp_def ι E (k (O2Throw e)) Ψ Q) -∗
+    (∀ e, Φ1 (O2Throw e) -∗ ▷ ewp_def ι E (k (O2Throw e)) Ψ Q) ∧
+    (∀ e, Φ2 (O2Throw e) -∗ ▷ ewp_def ι E (k (O2Throw e)) Ψ Q) ∧
     (∀ v1 v2,
        Φ1 (O2Ret v1) -∗ Φ2 (O2Ret v2) -∗
        ▷ ewp_def ι E (k (O2Ret (v1, v2))) Ψ Q) -∗
     ewp_def ι E (Par m1 m2 k) Ψ Q.
   Proof.
-    iIntros "H1 H2 Hexn1 Hexn2 Hjoin".
+    iIntros "H1 H2 Hjoin".
     (* We proceed by Löb-induction after generalizing [m1] [m2] and [k]. *)
     iLöb as "IH" forall (m1 m2).
 
@@ -734,9 +734,11 @@ Section ewp_rules.
 
     (* [StepParThrowLeft/Right] *)
     { iMod "HΦ".
+      iDestruct "Hjoin" as "[Hexn1 _]".
       iSpecialize ("Hexn1" with "[$]").
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame. }
     { iMod "HΦ".
+      iDestruct "Hjoin" as "[_ [Hexn2 _]]".
       iSpecialize ("Hexn2" with "[$]").
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame. }
 
@@ -747,10 +749,10 @@ Section ewp_rules.
         iPoseProof (ewp_perform_inv with "[$]") as "H1".
         iApply ewp_fupd. iMod "H1"; iModIntro.
         iApply ewp_stop_perform.
-        iApply (monotonic_prot with "[H2 Hexn1 Hexn2 Hjoin] H1").
+        iApply (monotonic_prot with "[H2 Hjoin] H1").
         iIntros (?) "Hk".
         iNext.
-        iApply ("IH" with "Hk H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "Hk H2 Hjoin").
 
       - (* Step then [ForkS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -761,7 +763,7 @@ Section ewp_rules.
         epose proof (ForkS _ _ _ _ _ _ _ H0).
         iSpecialize ("H1" $! _ _ _ H1).
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "H1 H2 Hjoin").
 
       - (* Step then [JoinS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -771,7 +773,7 @@ Section ewp_rules.
         iDestruct "H1" as "(%φ' & $ & H1)".
         iIntros "!> !> %o Ho". iSpecialize ("H1" with "Ho").
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "H1 H2 Hjoin").
 
       - (* Step then [SelfS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -781,7 +783,7 @@ Section ewp_rules.
         epose proof (SelfS _ _ _ _ _).
         iSpecialize ("H1" $! _ _ _ H0).
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+        iApply ("IH" with "H1 H2 Hjoin"). }
 
     { (* [StepThroughParRight]. *)
       destruct_code.
@@ -791,10 +793,10 @@ Section ewp_rules.
         iPoseProof (ewp_perform_inv with "[$]") as "H2".
         iApply ewp_fupd. iMod "H2"; iModIntro.
         iApply ewp_stop_perform.
-        iApply (monotonic_prot with "[H1 Hexn1 Hexn2 Hjoin] H2").
+        iApply (monotonic_prot with "[H1 Hjoin] H2").
         iIntros (?) "H2".
         iNext.
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "H1 H2 Hjoin").
 
       - (* [StepParForkRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -805,7 +807,7 @@ Section ewp_rules.
         epose proof (ForkS _ _ _ _ _ _ _ H0).
         iSpecialize ("H2" $! _ _ _ H1).
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "H1 H2 Hjoin").
 
       - (* [StepParJoinRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -815,7 +817,7 @@ Section ewp_rules.
         iDestruct "H2" as "(%φ' & $ & H2)".
         iIntros "!> !> %o Ho". iSpecialize ("H2" with "Ho").
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin").
+        iApply ("IH" with "H1 H2 Hjoin").
 
       - (* [StepParSelfRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
@@ -825,21 +827,21 @@ Section ewp_rules.
         epose proof (SelfS _ _ _ _ _).
         iSpecialize ("H2" $! _ _ _ H0).
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
-        iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+        iApply ("IH" with "H1 H2 Hjoin"). }
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H1") as ">H1".
       iMod "H1". ewp_mask_elim. iMod "H1" as "(H1 & $)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      iApply ("IH" with "H1 H2 Hjoin"). }
 
     { (* [ParRight] *)
       eapply BaseS in H as Hstep.
       iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H2") as ">H2".
       iMod "H2". ewp_mask_elim. iMod "H2" as "(H2 & $)".
-      iApply ("IH" with "H1 H2 Hexn1 Hexn2 Hjoin"). }
+      iApply ("IH" with "H1 H2 Hjoin"). }
   Qed.
 
 End ewp_rules.

@@ -323,6 +323,7 @@ Section imp_spec.
   Proof.
     iIntros "He He1". simpl_eval.
     iApply (imp_Par with "He He1").
+    iSplit; last iSplit.
     { iIntros (ex) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     { iIntros (ex) "Hζ !>".
@@ -461,6 +462,7 @@ Section imp_EApp_def.
       iIntros "Hmono".
       simpl_eval.
       iApply (imp_Par with "HSpec Hex").
+      iSplit; last iSplit.
       { iIntros (?) "Hζ !>".
         iApply (imp_throw with "Hζ"). }
       { iIntros (?) "Hζ !>".
@@ -487,6 +489,7 @@ Section imp_EApp_def.
     iSpecialize ("HIH" $! ι η (EApp e ex) _ _ _ P' with "[HSpec Hex]").
     { simpl_eval.
       iApply (imp_Par with "HSpec Hex").
+      iSplit; last iSplit.
       { iIntros (?) "Hζ !>".
         iApply (imp_throw with "Hζ"). }
       { iIntros (?) "Hζ !>".

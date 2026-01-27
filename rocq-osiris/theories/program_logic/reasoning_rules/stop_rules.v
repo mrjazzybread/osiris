@@ -667,8 +667,8 @@ Section imp_eval.
   Proof.
     iIntros "He Hbs Hpat".
     simpl_eval_bindings.
-    iApply
-      (imp_Par Φ ζ Q' ζ with "He Hbs").
+    iApply (imp_Par Φ ζ Q' ζ with "He Hbs").
+    iSplit; last iSplit.
     { iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     { iIntros (?) "Hζ !>".
