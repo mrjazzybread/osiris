@@ -23,6 +23,14 @@ Section imp_stop.
   Implicit Type m : micro A X.
   Import ewp_rules_tactics.
 
+  Lemma imp_perform eff k :
+    Ψ allows perform eff << λ o, ▷ imp^{ι} (k o) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} >> -∗
+    imp^{ι} Stop CPerf eff k <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hperf".
+    iApply (ewp_stop_perform with "Hperf").
+  Qed.
+
   (* ------------------------------------------------------------------------ *)
 
   (* The following lemmas offer reasoning rules for each of the system calls,
@@ -669,17 +677,18 @@ Section imp_eval.
     iNext. rewrite /continue. simpl.
     unfold widen.
     iApply (imp_try with "[HΦ Hη Hpat]").
-    3: { iIntros ([]). }
     - unfold irrefutably_extend.
       iSpecialize ("Hpat" with "HΦ Hη").
       iApply (imp_try with "Hpat").
+      iSplit.
       + iIntros (?) "HQ".
         iApply imp_ret. reflexivity. iExact "HQ".
       + iIntros (? []).
-    - iIntros (?) "HQ".
+    - iSplit.
+      iIntros (?) "HQ".
       iApply imp_ret. reflexivity. iExact "HQ".
-      Unshelve.
-      exact (λ _, False)%I.
+      iIntros (?) "Hvoid". instantiate (1 := (λ _, False)%I).
+      done.
   Qed.
 
   Lemma imp_bindings_nil η :
