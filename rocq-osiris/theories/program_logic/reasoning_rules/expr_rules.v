@@ -188,7 +188,7 @@ Section imp_rules_expr.
 
 End imp_rules_expr.
 
-Section imp_rules_exp.
+Section imp_rules_expr.
 
   Context `{!osirisGS Σ}.
   Context {ι : thread} {E : coPset} {Ψ : iEff Σ}.
@@ -852,9 +852,8 @@ Section imp_rules_exp.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Context {A : Type} `{Encode A}.
-
-  Local Lemma imp_EContinue' `{Encode B} {Φ : A → iProp Σ} {ζ} η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
+  Local Lemma imp_EContinue' `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
+    η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ (k : cont) x, Φ1 k -∗ Φ2 x -∗
@@ -879,7 +878,8 @@ Section imp_rules_exp.
       iApply "Hmon".
   Qed.
 
-  Lemma imp_EContinue `{Encode B} {Φ : A → iProp Σ} {ζ} η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
+  Lemma imp_EContinue `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
+    η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ k x, Φ1 k -∗ Φ2 x -∗
@@ -900,7 +900,8 @@ Section imp_rules_exp.
     by rewrite try2_inject2_right.
   Qed.
 
-  Local Lemma imp_EFork' `{Encode B} {ζ} (Φ1 : val → iProp Σ) (Φ2 : B → iProp Σ) μ (φ : A → iProp Σ) η e1 e2 :
+  Local Lemma imp_EFork' `{Encode A, Encode B} {ζ}
+    (Φ1 : val → iProp Σ) (Φ2 : B → iProp Σ) μ (φ : A → iProp Σ) η e1 e2 :
     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     ▷ (∀ ι' f x, isThread ι' μ φ -∗ Φ1 f -∗ Φ2 x -∗
@@ -921,7 +922,8 @@ Section imp_rules_exp.
       iApply ("Hcall" with "Hthread Hf Hx").
   Qed.
 
-  Lemma imp_EFork `{Encode B} {ζ} P μ (φ : A → iProp Σ) η e1 e2 (φ_arg : B → iProp Σ) :
+  Lemma imp_EFork `{Encode A, Encode B} {ζ}
+    P μ (φ : A → iProp Σ) η e1 e2 (φ_arg : B → iProp Σ) :
     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[B] f P }} -∗
     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
     ▷ (∀ ι' a m, isThread ι' μ φ -∗ φ_arg a -∗
@@ -937,34 +939,47 @@ Section imp_rules_exp.
   Qed.
 
   (* Rule for fork when the postcondition of the spawned thread is persistent *)
-  Lemma imp_EFork_persistent' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
-    ▷ (∀ ι' v1 v2, φ1 v1 -∗ φ2 v2 -∗
-                  imp^{ι'} call v1 v2 @ E <|⊥|> {{ λ _, □ φ }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', □ joinable ι' φ }}.
+  Local Lemma imp_EFork_persistent' `{Encode B} {ζ}
+    (Φ1 : val → iProp Σ) (Φ2 : B → iProp Σ) (φ : iProp Σ) η e1 e2 :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    ▷ (∀ ι' v1 v2, Φ1 v1 -∗ Φ2 v2 -∗
+                  imp^{ι'} call v1 #v2 @ E <|⊥|> {{ λ (_ : B), □ φ }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', □ joinable B ι' φ }}.
   Proof.
-    iIntros "H1 H2 Hcall".
-    simpl_eval.
-    iApply (prove_imp_Par with "H1 H2").
-    iIntros (v1 v2) "H1 H2"; simpl.
-    iApply imp_fork.
-    iIntros "!>" (ι') "#Hvalid".
-    iSplitR ""; [ | ].
-    iApply ("Hcall" with "H1 H2").
-    iExists _; iFrame "#"; iSplit; auto.
+    iIntros "H1 H2 Hcall". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(f, v), fork f v)) with "H1 H2").
+    iSplit; last iSplit.
+    - iIntros (?) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (?) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (f x) "Hf Hx !>".
+      rewrite /continue /=.
+      iApply imp_fork.
+      iIntros "!> %ι' #Hthread".
+      iSplitL.
+      + iSpecialize ("Hcall" with "Hf Hx").
+        iApply (imp_mono_throw ⊥ (call f #x) with "Hcall").
+        instantiate (1 := (λ _, False)%I).
+        iIntros (? []).
+      + iFrame "#".
+        iIntros "!>" ([|]); [ | iIntros ([]) ].
+        iIntros "Hφ !> !>".
+        iApply "Hφ".
   Qed.
 
-  Lemma imp_EFork_persistent φ `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+  Lemma imp_EFork_persistent `{Encode A} {ζ}
+    φ P η e1 e2 (φ_arg : A → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ φ_arg }} -∗
     ▷ (∀ ι' a m, φ_arg a -∗
-                   P a m -∗ imp^{ι'} m @ E <|⊥|> {{ λ _, □ φ }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', □ joinable ι' φ }}.
+                 P a m -∗ imp^{ι'} m @ E <|⊥|> {{ λ (_ : A), □ φ }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', □ joinable A ι' φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     iApply (imp_EFork_persistent' with "H1 H2").
-    iIntros "!>" (ι' f v) "HSpec (%a & -> & H2)"; simpl.
+    iIntros "!>" (ι' f v) "HSpec H2"; simpl.
     iApply ("Hcall" with "H2").
     rewrite iSpec_equation_1.
     iApply "HSpec".
@@ -972,36 +987,41 @@ Section imp_rules_exp.
 
   (* Rule for fork when the postcondition of the spawned thread is a list of
   resources that other threads can recover when joining. *)
-  Lemma imp_EFork_resourceful_list' φs η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
-    ▷ (∀ ι' v1 v2, φ1 v1 -∗ φ2 v2 -∗
-                  imp^{ι'} call v1 v2 @ E <| ⊥ |> {{ λ _, [∗ list] φ ∈ φs, φ }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', [∗ list] φ ∈ φs, joinable ι' φ }}.
+  Local Lemma imp_EFork_resourceful_list' `{Encode B} {ζ}
+    (Φ1 : val → iProp Σ) (Φ2 : B → iProp Σ) φs η e1 e2 :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    ▷ (∀ ι' v1 v2, Φ1 v1 -∗ Φ2 v2 -∗
+                  imp^{ι'} call v1 #v2 @ E <|⊥|> {{ λ (_ : B), [∗ list] φ ∈ φs, φ }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', [∗ list] φ ∈ φs, joinable B ι' φ }}.
   Proof.
     (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
-    iIntros "H1 H2 Hcall".
-    simpl_eval.
-    iApply (prove_imp_Par with "H1 H2").
-
-    iIntros (v1 v2) "H1 H2 /=".
-    iApply imp_fork_resourceful.
-    iIntros "!>" (ι') "Hjoinable /=". iFrame.
-    iSplit; last (iPureIntro; reflexivity).
-    iApply ("Hcall" with "H1 H2").
+    iIntros "H1 H2 Hcall". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(f, v), fork f v)) with "H1 H2").
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (f x) "Hf Hx !>".
+      rewrite /continue /=.
+      iApply imp_fork_resourceful.
+      iIntros "!>" (ι') "Hjoinable /=". iFrame.
+      iApply ("Hcall" with "Hf Hx").
   Qed.
 
-  Lemma imp_EFork_resourceful_list φs `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
+  Lemma imp_EFork_resourceful_list `{Encode A} {ζ}
+    φs P η e1 e2 (φ_arg : A → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
     ▷ (∀ ι' a m, φ_arg a -∗
-                 P a m -∗ imp^{ι'} m @ E <| ⊥ |> {{ λ _, [∗ list] φ ∈ φs, φ }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', [∗ list] φ ∈ φs, joinable ι' φ }}.
+                 P a m -∗ imp^{ι'} m @ E <| ⊥ |> {{ λ (_ : A), [∗ list] φ ∈ φs, φ }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', [∗ list] φ ∈ φs, joinable A ι' φ }}.
   Proof.
     (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
     iIntros "H1 H2 Hcall".
     iApply (imp_EFork_resourceful_list' with "H1 H2").
-    iIntros "!>" (ι' f v) "HSpec (%a & -> & H2)"; simpl.
+    iIntros "!>" (ι' f v) "HSpec H2"; simpl.
     iApply ("Hcall" with "H2").
     rewrite iSpec_equation_1.
     iApply "HSpec".
@@ -1009,77 +1029,102 @@ Section imp_rules_exp.
 
   (* Specialization for one and two resources instead of a list of resources *)
 
-  Local Lemma imp_EFork_one_resource φ `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
-    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ imp^{ι'} m @ E <| ⊥ |> {{ λ _, φ }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', joinable ι' φ }}.
+  Local Lemma imp_EFork_one_resource `{Encode A} {ζ}
+    φ P η e1 e2 (φ_arg : A → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ imp^{ι'} m @ E <| ⊥ |> {{ λ (_ : A), φ }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', joinable A ι' φ }}.
   Proof.
     iIntros "H1 H2 H".
-    iApply (imp_mono with "[-]").
+    iApply (imp_mono_ret _ (eval η (EFork e1 e2)) with "[-]").
     iApply (imp_EFork_resourceful_list [φ] with "H1 H2 [H]").
     - iIntros "!> % % % H1 H2".
       iSpecialize ("H" with "H1 H2").
-      iApply (imp_mono with "H").
+      iApply (imp_mono_ret with "H").
       iIntros (_) "/= $".
-    - iIntros ([|]) "// (% & -> & $ & ?) //".
+    - iIntros (ι') "($ & ?)".
   Qed.
 
-  Local Lemma imp_EFork_two_resources φ1 φ2 `{Encode A} P η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
-    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ imp^{ι'} m @ E <|⊥|> {{ λ _, φ1 ∗ φ2 }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι', joinable ι' φ1 ∗ joinable ι' φ2 }}.
+  Local Lemma imp_EFork_two_resources `{Encode A} {ζ}
+    φ1 φ2 P η e1 e2 (φ_arg : A → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, φ_arg a -∗ P a m -∗ imp^{ι'} m @ E <|⊥|> {{ λ (_ : A), φ1 ∗ φ2 }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', joinable A ι' φ1 ∗ joinable A ι' φ2 }}.
   Proof.
     iIntros "H1 H2 H".
-    iApply (imp_mono with "[-]").
+    iApply (imp_mono_ret _ (eval η (EFork e1 e2)) with "[-]").
     iApply (imp_EFork_resourceful_list [φ1; φ2] with "H1 H2 [H]").
     - iIntros "!> % % % H1 H2".
       iSpecialize ("H" with "H1 H2").
-      iApply (imp_mono with "H").
+      iApply (imp_mono_ret with "H").
       iIntros (_) "/= ($ & $)".
-    - iIntros ([|]) "// (% & -> & $ & $ & ?) //".
+    - iIntros (ι') "($ & $ & ?)".
   Qed.
 
-  Lemma imp_EJoin e η E Ψ φ Φ :
-    imp^{ι} eval η e @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }} -∗
-    ▷ (∀ o, □ φ o -∗ Φ o) -∗
-    imp^{ι} eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
+  Lemma imp_EJoin2 `{Encode A} {ζ} e η μ (φ : A → iProp Σ) Φ :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι μ φ }} -∗
+    ▷ (∀ x, □ φ x -∗ Φ x) ∧ ▷ (∀ e : exn, □ μ e -∗ ζ e) -∗
+    imp^{ι} eval η (EJoin e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hid Hjoined". simpl_eval.
+    iApply (imp_bind _ _ (λ t, join t) with "[Hid]").
+    { unfold as_thread.
+      iApply (imp_bind _ _ (λ v, val_as_thread v) with "Hid").
+      iIntros (ι') "Hthread".
+      iApply (imp_ret ι' ι'). instantiate (1 := Build_Observe thread _ thread id). reflexivity.
+      iExact "Hthread". }
+    iIntros (ι') "Hthread".
+    iApply (imp_join with "Hthread Hjoined").
+  Qed.
+
+  Lemma imp_EJoin `{Encode A} {ζ} e η (φ : A → iProp Σ) Φ :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι ⊥ φ }} -∗
+    ▷ (∀ x, □ φ x -∗ Φ x) -∗
+    imp^{ι} eval η (EJoin e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hid Hjoined".
-    simpl_eval.
-    iApply imp_bind. unfold as_thread. iApply imp_bind.
-    iApply (imp_mono with "Hid").
-    iIntros ([ ι' |]); [ iIntros "Hvalid" | iIntros "[]" ].
-    iDestruct "Hvalid" as "(% & -> & Hvalid)".
-    iApply imp_ret.
-    iApply (imp_join with "Hvalid Hjoined").
+    iApply (imp_EJoin2 with "Hid").
+    iSplit; iNext.
+    - iExact "Hjoined".
+    - iIntros (? []).
   Qed.
 
   (* The joinable rule for join is the same for persistent and resourceful posts *)
-  Lemma imp_EJoin_joinable e η E Ψ φ Φ :
+  Lemma imp_EJoin_joinable `{Encode A} {ζ} e η φ (Φ : A → iProp Σ) :
     ↑joinN ⊆ E →
-    imp^{ι} eval η e @ E <|Ψ|> {{ ensures #ι', joinable ι' φ }} -∗
-    ▷ (∀ o, ▷ φ -∗ Φ o) -∗
-    imp^{ι} eval η (EJoin e) @ E <|Ψ|> {{ Φ }}.
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', joinable A ι' φ }} -∗
+    ▷ (∀ x, ▷ φ -∗ Φ x) ∧ ▷ (∀ e, ▷ φ -∗ ζ e) -∗
+    imp^{ι} eval η (EJoin e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "%Hmask Hid Hjoined".
-    simpl_eval.
-    iApply imp_bind. unfold as_thread. iApply imp_bind.
-    iApply (imp_mono with "Hid").
-    iIntros ([ ι' |]); [ iIntros "Hjoinable" | iIntros "[]" ].
-    iDestruct "Hjoinable" as "(% & -> & Hjoinable)".
-    iApply imp_ret.
-    iApply imp_fupd_post.
-    iDestruct "Hjoinable" as "(%ψ & #Hvalid & Hcont)".
+    iIntros "%Hmask Hid Hjoined". simpl_eval.
+    iApply (imp_bind _ _ (λ t, join t) with "[Hid]").
+    { unfold as_thread.
+      iApply (imp_bind _ _ (λ v, val_as_thread v) with "Hid").
+      iIntros (ι') "Hthread".
+      iApply (imp_ret ι' ι'). instantiate (1 := Build_Observe thread _ thread id). reflexivity.
+      iExact "Hthread". }
+    iIntros (ι') "Hjoinable".
+    iDestruct "Hjoinable" as "(% & % & HThread & Hjoinable)".
+    iApply (imp_fupd_post (join ι')).
+    iApply (imp_fupd_post2 (join ι')).
     iApply (imp_join with "[$]").
-    iNext. iIntros "%o Hψ".
-    iApply "Hjoined".
-    iSpecialize ("Hcont" with "Hψ").
-    iMod (fupd_mask_subseteq (↑joinN) Hmask) as "O".
-    iMod "Hcont".
-    iMod "O".
-    done.
+    iSplit; iNext.
+    - iIntros (x) "#Hφ".
+      iDestruct "Hjoined" as "[P _]".
+      iApply "P".
+      iSpecialize ("Hjoinable" $! (O2Ret x) with "Hφ").
+      iMod (fupd_mask_subseteq (↑joinN) Hmask) as "O".
+      iMod "Hjoinable".
+      by iMod "O".
+    - iIntros (ex) "#Hμ".
+      iDestruct "Hjoined" as "[_ P]".
+      iApply "P".
+      iSpecialize ("Hjoinable" $! (O2Throw ex) with "Hμ").
+      iMod (fupd_mask_subseteq (↑joinN) Hmask) as "O".
+      iMod "Hjoinable".
+      by iMod "O".
   Qed.
 
   (* TODO add a persistent predicate [thread_outcome ι o] so that [joinable] can
