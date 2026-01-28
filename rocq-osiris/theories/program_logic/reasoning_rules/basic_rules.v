@@ -857,11 +857,7 @@ Section ewp_val_rules.
 
   Lemma pure_ewp {A X} E ι Ψ (φ : A → Prop) (ζ : X → Prop) m :
     pure_wp m φ ζ →
-    ⊢ ewp_def ι E m Ψ
-        (λ o, match o with
-              | O2Ret v => ⌜φ v⌝
-              | O2Throw e => ⌜ζ e⌝
-              end).
+    ⊢ ewp_def ι E m Ψ (ilift (λ e, ⌜ζ e⌝) (λ v, ⌜φ v⌝)).
   Proof.
     iIntros (Hm).
     iLöb as "IH" forall (m Hm).
@@ -893,7 +889,7 @@ Section ewp_val_rules.
 
   Lemma ewp_pure `{Encode A} {X} (m : micro val X) ι (ζ : X → Prop) (φ : A → Prop) :
     pure m φ ζ →
-    ⊢ imp^{ι} m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ v, ⌜φ v⌝ }} .
+    ⊢ imp^{ι} m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜φ x⌝ }} .
   Proof.
     iIntros (Hpure).
     iApply ewp_mono.

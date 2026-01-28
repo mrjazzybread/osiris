@@ -23,7 +23,7 @@ Section imp_stop.
   Implicit Type m : micro A X.
   Import ewp_rules_tactics.
 
-  Lemma imp_perform eff k :
+  Lemma imp_stop_perform eff k :
     Ψ allows perform eff << λ o, ▷ imp^{ι} (k o) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} >> -∗
     imp^{ι} Stop CPerf eff k <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -583,6 +583,15 @@ Section imp_eval.
 
   Context `{!osirisGS Σ}.
   Context {ι : thread} {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
+
+
+  Lemma imp_perform `{Encode A} {Φ : A → iProp Σ} (v : val) :
+    Ψ allows perform v << (ilift ζ (ireturns Φ)) >> -∗
+    imp^{ι} perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hallows".
+    iApply (ewp_perform with "Hallows").
+  Qed.
 
   Local Instance encode_envs : Encode envs := { encode := λ '(η, δ), VTuple [ #η; #δ] }.
 

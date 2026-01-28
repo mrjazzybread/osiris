@@ -469,307 +469,238 @@ Section imp_rules_exp.
 
   (** * ELet : list binding → expr → expr *)
 
+  Local Instance observe_env : Observe env env := { observe := id }.
+
   (* Intermediate lemma: using [eval_bindings] hypothesis *)
-  Lemma imp_ELet_exn η bs e φ1 φ E Ψ :
-    imp^{ι} eval_bindings η bs @ E <|Ψ|> {{ φ1 }} -∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ δ, φ1 (O2Ret δ) -∗ imp^{ι} eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι} eval η (ELet bs e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ELet `{Encode A} {Φ : A → iProp Σ} {ζ} η bs e Φ1 :
+    imp^{ι} eval_bindings η bs @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ (δ : env), Φ1 δ -∗ imp^{ι} eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (ELet bs e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hη E P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply (imp_mono with "Hη").
-    iIntros ([δ|v]) "H/=".
-    - iApply ("P" with "H").
-    - iApply ("E" with "H").
+    iIntros "Hbindings P /=". simpl_eval.
+    iApply (imp_bind _ _ (λ (δ : env), eval (δ ++ η) e) with "Hbindings").
+    iIntros (δ) "Hδ". change (♯ δ ++ η) with (δ ++ η).
+    iApply ("P" with "Hδ").
   Qed.
 
-  Lemma imp_ELet {η bs e} (φ' : env -> iProp Σ) φ E Ψ :
-    imp^{ι} eval_bindings η bs @ E <|Ψ|> {{ ensures v, φ' v }} -∗
-    (∀ δ, φ' δ -∗ imp^{ι} eval (δ ++ η) e @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι} eval η (ELet bs e) @ E <|Ψ|> {{ φ }}.
+  Local Lemma imp_bindings_cons `{Encode A} {Φ Φ' : env → iProp Σ} {ζ} (Φ1 : A → iProp Σ)
+    η p e bs (φs : val -> env -> Prop) :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval_bindings η bs @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ x δ, Φ1 x -∗ Φ' δ -∗ ⌜pattern η δ p #x (φs #x) False⌝) -∗
+    (∀ x δ, Φ1 x -∗  ⌜φs #x δ⌝ -∗ Φ δ) -∗
+    imp^{ι} eval_bindings η (Binding p e :: bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hη P /=". simpl_eval.
-    iApply imp_bind.
-    iApply (imp_mono with "Hη").
-    iIntros ([δ|v]) "H/="; last done.
-    iApply ("P" with "H").
+    iIntros "H1 H2 P Hcons /=".
+    simpl_eval_bindings.
+    iApply (imp_Par with "H1 H2").
+    iSplit; last iSplit.
+    - iIntros (ex) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (ex) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (x δ) "H1 H2 !>".
+      rewrite /continue /=.
+      iDestruct ("P" with "H1 H2") as "%Hpat".
+      iApply imp_widen. unfold irrefutably_extend.
+      iApply imp_try.
+      iApply ewp_mono.
+      iApply pure_ewp. apply Hpat.
+      { instantiate (1 := (λ η, ⌜φs #x η⌝)%I).
+        instantiate (1 := (λ _, False)%I).
+        iIntros ([|]); [ | iIntros ([]) ].
+        iIntros "%Hφs".
+        iFrame "%". auto. }
+      iSplit.
+      + iIntros (η' Hφs).
+        iApply imp_ret; auto. iApply ("Hcons" with "H1"). iPureIntro; assumption.
+      + iIntros (? []).
+  Qed.
+
+  Lemma imp_bindings_singleton `{Encode A} {ζ} {Φ : env → iProp Σ} (Φ1 : A → iProp Σ) {η p e} φs :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ x, Φ1 x -∗ ⌜pattern η nil p #x (φs #x) False⌝) -∗
+    (∀ x δ, Φ1 x -∗ ⌜φs #x δ⌝ -∗ Φ δ) -∗
+    imp^{ι} eval_bindings η [ Binding p e ] @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 P /=".
+    iApply (imp_bindings_cons with "H1").
+    { iApply imp_bindings_nil. }
+    iIntros (v δ) "HΦ ->".
+    iApply ("P" with "HΦ").
   Qed.
 
   (* Specialized [ELet] lemmas *)
 
   (* TODO: Have *_singleton *_cons lemmas about relevant expr constructs *)
-  Corollary imp_ELet_singleton_total {η p e e'} (Φ : val -> iProp Σ) φ φ' E Ψ:
-    imp^{ι} eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
-    (∀ v, Φ v -∗ ⌜pure_wp (irrefutably_extend η nil p v) (φ v) ⊥⌝) -∗
-    (∀ v δ, Φ v -∗ ⌜φ v δ⌝ -∗
-            imp^{ι} eval (δ ++ η) e @ E <|Ψ|> {{ φ' }}) -∗
-    imp^{ι} eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> {{ φ' }}.
+  Corollary imp_ELet_singleton `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ} {Φ1 : B → iProp Σ} {η p e e'} φ :
+    imp^{ι} eval η e' @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ (x : B), Φ1 x -∗ ⌜pattern η nil p (#x) (φ #x) False⌝) -∗
+    (∀ x δ, Φ1 x -∗ ⌜φ #x δ⌝ -∗
+            imp^{ι} eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (ELet [ Binding p e' ] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He' HP He".
-    iApply (imp_ELet (λ δ, imp^{ι}eval (δ ++ η) e @ E <|Ψ|> {{ φ' }})%I
-      with "[He' HP He]").
-    { iApply (imp_eval_bindings_singleton_total with "He' HP").
-      iIntros (v δ) "HΦ Hφ".
-      iApply ("He" with "HΦ Hφ"). }
-    by iIntros (?) "HΦ".
+    iApply (imp_ELet with "[He' HP He]").
+    iApply (imp_bindings_singleton with "He' HP He").
+    iIntros (δ) "$".
   Qed.
 
   (* Special case of [let x = e' in e] *)
-  Lemma imp_ELet_PVar_1 {η x e e'} (Φ : val -> iProp Σ) φ E Ψ:
-    imp^{ι}eval η e' @ E <|Ψ|> {{ ensures v, Φ v }} -∗
-    (∀ v, Φ v -∗ imp^{ι}eval ((x, v) :: η) e @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ELet [Binding (PVar x) e'] e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ELet_var `{Encode A, Encode B} {ζ} {Φ : A → iProp Σ} (Φ' : B → iProp Σ) {η x e e'} :
+    imp^{ι} eval η e' @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ b, Φ' b -∗ imp^{ι} eval ((x, #b) :: η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι}eval η (ELet [Binding (PVar x) e'] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H P".
-    iApply (imp_ELet_singleton_total with "H").
-    iIntros (v) "_".
-    iPureIntro. unfold irrefutably_extend. simpl_eval_pat.
-    apply pure_wp_ret. instantiate (1 := λ v l, l = [(x, v)]).
-    reflexivity.
+    iApply (imp_ELet_singleton with "H").
+    { iIntros (v) "_".
+      iPureIntro. unfold pattern. simpl_eval_pat.
+      apply pure_wp_ret. instantiate (1 := λ v l, l = [(x, v)]).
+      reflexivity. }
     iIntros (v δ) "HΦ ->".
-    by iApply "P".
-  Qed.
-
-  (* Alternative form *)
-  Lemma imp_ELet_PVar_1_forward {η x e e' v} R φ E Ψ:
-    imp^{ι}eval η e' @ E <|Ψ|> {{ λ v', ⌜v' = v⌝ ∗ R }} -∗
-    (R -∗ imp^{ι}eval ((x, v) :: η) e @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ELet [ Binding (PVar x) e' ] e) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H P".
-    iApply (imp_ELet_PVar_1 with "H").
-    iIntros (_v) "(-> & Hv)".
-    iApply ("P" with "Hv").
+    iApply ("P" with "HΦ").
   Qed.
 
   (* Special case of [let _ = e' in e] *)
-  Lemma imp_ELet_PAny_1 {η e e'} R φ E Ψ:
-    imp^{ι}eval η e' @ E <|Ψ|> {{ ensures _, R }} -∗
-    (R -∗ imp^{ι}eval η e @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ELet [Binding PAny e'] e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ELet_wild `{Encode A, Encode B} {ζ} {Φ : A → iProp Σ} (R : iProp Σ) {η e e'} :
+    imp^{ι} eval η e' @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : B), R }} -∗
+    (R -∗ imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (ELet [Binding PAny e'] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H P".
-    iApply (imp_ELet_singleton_total with "H").
-    iIntros (v) "_".
-    iPureIntro. unfold irrefutably_extend. simpl_eval_pat.
-    apply pure_wp_ret. instantiate (1 := λ v l, l = []).
-    reflexivity.
-    iIntros (v δ) "HΦ ->".
-    by iApply "P".
+    iApply (imp_ELet_singleton with "H").
+    { iIntros (v) "_".
+      iPureIntro. unfold pattern. simpl_eval_pat.
+      apply pure_wp_ret. instantiate (1 := λ v l, l = []).
+      reflexivity. }
+    iIntros (v δ) "HR ->".
+    iApply ("P" with "HR").
+  Qed.
+
+  (* Special case of [let (x, y) = e' in e] *)
+  Lemma imp_ELet_pair `{Encode C, Encode A, Encode B} {ζ} {Φ : C → iProp Σ} (Φ' : A * B → iProp Σ) {η x y e e'} :
+    imp^{ι} eval η e' @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ a b, Φ' (a, b) -∗ imp^{ι} eval ((y, #b) :: (x, #a) :: η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (ELet [Binding (PTuple [PVar x; PVar y]) e'] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H P".
+    iApply (imp_ELet_singleton with "H").
+    { iIntros ([a b]) "_".
+      iPureIntro. unfold pattern, encode_pair. simpl_eval_pat.
+      apply pure_wp_ret. simpl. instantiate (1 := λ v l, match v with
+                                                         | VTuple [a; b] => l = [(y, b); (x, a)]
+                                                         | _ => False
+                                                         end).
+      reflexivity. }
+    iIntros ([a b] δ) "HΦ ->".
+    iApply ("P" with "HΦ").
   Qed.
 
   (** * ELetRec : list rec_binding → expr → expr *)
 
-  Lemma imp_ELetRec η bs e φ E Ψ :
+  Lemma imp_ELetRec `{Encode A} {Φ : A → iProp Σ} {ζ} η bs e :
     let δ := eval_rec_bindings η bs in
-    imp^{ι}eval (δ ++ η) e @ E <|Ψ|> {{ φ }} -∗
-    imp^{ι}eval η (ELetRec bs e) @ E <|Ψ|> {{ φ }}.
+    imp^{ι} eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp^{ι} eval η (ELetRec bs e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     simpl_eval; auto.
-  Qed.
-
-  (** let rec expressions with one function. Here [a : A] is an auxiliary
-  variable one can use to relate pre and postconditions, to be able to describe
-  e.g. the state in which the function is called, rather than only depend on the
-  variable *)
-  Lemma imp_ELetRec_specced_1 {η f x e1 e2 φ E Ψ} {A : Type} (R : A → val → iProp Σ) φf :
-    □(∀ vf,
-     □(∀ a v, R a v -∗ imp^{ι}call vf v <|Ψ|> {{ φf a }}) -∗
-       ∀ a v, R a v -∗ imp^{ι}eval ((x, v) :: (f, vf) :: η) e1 <|Ψ|> {{ φf a }}) -∗
-    (∀ vf,
-      □(∀ a v, R a v -∗ imp^{ι}call vf v <|Ψ|> {{ φf a }}) -∗
-      imp^{ι}eval ((f, vf) :: η) e2 @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ELetRec [RecBinding f (AnonFun x e1)] e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "#He1 He2".
-    iApply imp_ELetRec. simpl.
-    iApply "He2".
-    iLöb as "IH".
-    iModIntro.
-    iIntros (a v) "H".
-    iApply imp_call_rec_1.
-    iNext.
-    iSpecialize ("He1" with "IH H").
-    iApply (imp_mono with "He1").
-    auto.
-  Qed.
-
-  Lemma imp_ELetRec_specced_ret_1 {η f x e1 e2 φ E Ψ} {A} (R : A → val → iProp Σ) φf :
-    □(∀ vf,
-     □(∀ a v, R a v -∗ imp^{ι}call vf v <|Ψ|> {{ ensures v', φf a v' }}) -∗
-       ∀ a v, R a v -∗ imp^{ι}eval ((x, v) :: (f, vf) :: η) e1 <|Ψ|> {{ ensures v', φf a v' }}) -∗
-    (∀ vf,
-      □(∀ a v, R a v -∗ imp^{ι}call vf v <|Ψ|> {{ ensures v', φf a v' }}) -∗
-      imp^{ι}eval ((f, vf) :: η) e2 @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ELetRec [RecBinding f (AnonFun x e1)] e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iApply imp_ELetRec_specced_1.
   Qed.
 
   (** * ELetModule : module → mexpr → expr → expr *)
 
   (** * ELetOpen : mexpr → expr → expr *)
-  Lemma imp_ELetOpen η me e E ψ φ :
-    imp^{ι}eval_mexpr η me @ E <|ψ|> {{ ensures m, ∃ δ, ⌜ m = VStruct δ ⌝ ∗
-    imp^{ι}eval (δ ++ η) e @ E <|ψ|> {{ φ }} }} -∗
-    imp^{ι}eval η (ELetOpen me e) @ E <|ψ|> {{ φ }}.
+  Lemma imp_ELetOpen `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ' : env → iProp Σ) η me e :
+    imp^{ι} eval_mexpr η me @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ δ, Φ' δ -∗ imp^{ι} eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (ELetOpen me e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hme". simpl_eval.
-    iApply imp_bind.
-    rewrite /as_struct. iApply imp_bind.
-    iApply (imp_mono with "Hme").
-    iIntros ([|]) "Hδ"; [ simpl | done].
-    iDestruct "Hδ" as "(%δ & -> & He)".
-    iApply imp_widen. { apply pure_wp_ret; apply eq_refl. }
-    by iIntros (?) "->".
+    iIntros "Hme He". simpl_eval.
+    iApply (imp_bind _ _ (λ δ, eval (δ ++ η) e) with "[Hme]").
+    { rewrite /as_struct.
+      iApply (imp_bind _ _ (λ v, widen (val_as_struct v)) with "Hme").
+      iIntros (δ) "HΦ'".
+      iApply imp_widen. rewrite /val_as_struct /=.
+      iApply (imp_ret δ δ). reflexivity. iExact "HΦ'". }
+    iApply "He".
   Qed.
 
   (** * ESeq : expr → expr → expr *)
 
-  Lemma imp_ESeq_exn η e1 e2 φ1 φ E Ψ :
-    imp^{ι}eval η e1 @ E <|Ψ|> {{ φ1 }} -∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v1, φ1 (O2Ret v1) -∗ imp^{ι}eval η e2 @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι}eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ESeq `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ} (Φ1 : B → iProp Σ) η e1 e2 :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ x, Φ1 x -∗ imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι}eval η (ESeq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H M P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply (imp_mono with "H").
-    iIntros ([v|v]) "/= H1".
-    - iApply ("P" with "H1").
-    - iApply ("M" with "H1").
-  Qed.
-
-  Lemma imp_ESeq η e1 e2 φ E Ψ :
-    imp^{ι}eval η e1 @ E <|Ψ|> {{ ensures _, imp^{ι}eval η e2 @ E <|Ψ|> {{ φ }} }} -∗
-    imp^{ι}eval η (ESeq e1 e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H". simpl_eval. by iApply imp_bind.
+    iIntros "He1 He2 /=". simpl_eval.
+    iApply (imp_bind _ _ (λ (_ : val), eval η e2) with "He1 He2").
   Qed.
 
   (** * EIfThen : expr → expr → expr *)
 
-  Lemma imp_EIfThen_exn' η eb e1 φb φ E Ψ :
-    imp^{ι} eval η eb @ E <|Ψ|> {{ φb }} -∗
-    (∀ v, φb (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φb (O2Ret v) -∗
-      (⌜v = VTrue ⌝ ∗ imp^{ι} eval η e1 @ E <|Ψ|> {{ φ }})
-    ∨ (⌜v = VFalse⌝ ∗ φ (O2Ret VUnit))) -∗
-    imp^{ι} eval η (EIfThen eb e1) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_EIfThen {Φ : unit → iProp Σ} {ζ} η eb e1 (Φb : bool → iProp Σ) :
+    imp^{ι} eval η eb @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φb }} -∗
+    (∀ b, Φb b -∗
+          if b then imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+          else Φ ()) -∗
+    imp^{ι} eval η (EIfThen eb e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hb E P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply imp_bind'.
-    iApply (imp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
-    iDestruct ("P" with "H") as "[(-> & H) | (-> & H)] /=";
-      try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
-      try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply imp_ret; auto.
-  Qed.
-
-  Lemma imp_EIfThen_exn η eb e1 φb φ E Ψ :
-    imp^{ι}eval η eb @ E <|Ψ|> {{ φb }} -∗
-    (∀ v, φb (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φb (O2Ret v) -∗
-      ∃ b, ⌜v = VBool b⌝ ∗
-      if b then imp^{ι}eval η e1 @ E <|Ψ|> {{ φ }}
-           else φ (O2Ret VUnit)) -∗
-    imp^{ι}eval η (EIfThen eb e1) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "Hb E P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply imp_bind'.
-    iApply (imp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
-    iDestruct ("P" with "H") as ([]) "(-> & H) /=";
-      try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
-      try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply imp_ret; auto.
-  Qed.
-
-  Lemma imp_EIfThen η eb e1 φ E Ψ :
-    imp^{ι}eval η eb @ E <|Ψ|> {{ ensures v,
-      (⌜v = VTrue ⌝ ∗ imp^{ι}eval η e1 @ E <|Ψ|> {{ φ }})
-    ∨ (⌜v = VFalse⌝ ∗ φ (O2Ret VUnit)) }} -∗
-    imp^{ι}eval η (EIfThen eb e1) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply (imp_EIfThen_exn' with "H").
-    by iIntros (?) "[]".
-    by iIntros (v) "? //".
+    iIntros "Hb He /=". simpl_eval.
+    iApply (imp_bind _ _ (λ (b : bool), if b then eval η e1 else ret VUnit) with "[Hb]").
+    {  rewrite /as_bool.
+       iApply (imp_bind _ _ (λ v, val_as_bool v) with "Hb").
+       iIntros (b) "HΦb".
+       iPoseProof (imp_ret b b with "HΦb") as "Hb". auto.
+       destruct b; rewrite /val_as_bool /=; iApply "Hb". }
+    iIntros (b) "Hb". change (♯b) with b.
+    iSpecialize ("He" with "Hb").
+    destruct b.
+    - iApply "He".
+    - iApply (imp_ret VUnit ()); auto.
   Qed.
 
   (** * EIfThenElse : expr → expr → expr → expr *)
 
-  Lemma imp_EIfThenElse_exn' η eb e1 e2 φb φ E Ψ :
-    imp^{ι} eval η eb @ E <|Ψ|> {{ φb }} -∗
-    (∀ v, φb (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φb (O2Ret v) -∗
-      (⌜v = VTrue ⌝ ∗ imp^{ι} eval η e1 @ E <|Ψ|> {{ φ }})
-    ∨ (⌜v = VFalse⌝ ∗ imp^{ι} eval η e2 @ E <|Ψ|> {{ φ }})) -∗
-    imp^{ι} eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_EIfThenElse `{Encode A} {Φ : A → iProp Σ} {ζ} η eb e1 e2 (Φb : bool → iProp Σ) :
+    imp^{ι} eval η eb @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φb }} -∗
+    (∀ b, Φb b -∗
+          if b then imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+          else imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hb E P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply imp_bind'.
-    iApply (imp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
-    iDestruct ("P" with "H") as "[(-> & H) | (-> & H)] /=";
-      try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
-      try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply imp_ret; auto.
-  Qed.
-
-  Lemma imp_EIfThenElse_exn η eb e1 e2 φb φ E Ψ :
-    imp^{ι} eval η eb @ E <|Ψ|> {{ φb }} -∗
-    (∀ v, φb (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φb (O2Ret v) -∗
-      ∃ b, ⌜v = VBool b⌝ ∗
-      if b then imp^{ι} eval η e1 @ E <|Ψ|> {{ φ }}
-           else imp^{ι} eval η e2 @ E <|Ψ|> {{ φ }}) -∗
-    imp^{ι} eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "Hb E P". simpl_eval.
-    iApply imp_bind'.
-    iApply imp_bind'.
-    iApply (imp_mono with "Hb"). iIntros ([v|v]) "H /=". 2: by iApply "E".
-    iDestruct ("P" with "H") as ([]) "(-> & H) /=";
-      try assert (val_as_bool VTrue = ret true) as -> by reflexivity;
-      try assert (val_as_bool VFalse = ret false) as -> by reflexivity;
-      repeat iApply imp_ret; auto.
-  Qed.
-
-  Lemma imp_EIfThenElse η eb e1 e2 φ E Ψ :
-    imp^{ι}eval η eb @ E <|Ψ|> {{ ensures v,
-      (⌜v = VTrue ⌝ ∗ imp^{ι}eval η e1 @ E <|Ψ|> {{ φ }})
-    ∨ (⌜v = VFalse⌝ ∗ imp^{ι}eval η e2 @ E <|Ψ|> {{ φ }}) }} -∗
-    imp^{ι}eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "H".
-    iApply (imp_EIfThenElse_exn' with "H").
-    by iIntros (?) "[]".
-    by iIntros (v) "? //".
+    iIntros "Hb He /=". simpl_eval.
+    iApply (imp_bind _ _ (λ (b : bool), if b then eval η e1 else eval η e2) with "[Hb]").
+    {  rewrite /as_bool.
+       iApply (imp_bind _ _ (λ v, val_as_bool v) with "Hb").
+       iIntros (b) "HΦb".
+       iPoseProof (imp_ret b b with "HΦb") as "Hb". auto.
+       destruct b; rewrite /val_as_bool /=; iApply "Hb". }
+    iIntros (b) "Hb". change (♯b) with b.
+    iSpecialize ("He" with "Hb").
+    destruct b; iApply "He".
   Qed.
 
   (** * EMatch : expr → list branch → expr *)
 
-  Lemma imp_EMatch η e bs Ψ E Φ :
-    imp^{ι}deep_handler η e bs @ E <|Ψ|> {{ Φ }} -∗
-    imp^{ι}eval η (EMatch e bs) @ E <|Ψ|> {{ Φ }}.
+  Lemma imp_EMatch `{Encode A} {Φ : A → iProp Σ} {ζ} η e bs :
+    imp^{ι} deep_handler η e bs @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp^{ι} eval η (EMatch e bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     by iIntros "H"; simpl_eval.
   Qed.
 
   (** * ERaise : expr → expr *)
 
-  Lemma imp_ERaise η e φ E Ψ :
-    imp^{ι} eval η e @ E <|Ψ|> {{ RET v => φ (O2Throw v) | EXN v => φ (O2Throw v)}} -∗
-    imp^{ι} eval η (ERaise e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ERaise `{Encode A} {Φ : A → iProp Σ} {ζ} η e :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ ζ }} -∗
+    imp^{ι} eval η (ERaise e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H". simpl_eval.
-    iApply imp_bind'.
-    iApply (imp_mono with "H").
-    iIntros ([]) "/= H //".
-    by iApply imp_throw.
+    iApply (@imp_bind _ _ A val exn _ _
+              ι E Ψ ζ Φ
+              val _ val _ ζ (eval η e) (λ v, throw v) with "H").
+    iIntros (ex) "Hζ". change (♯ex) with ex.
+    iApply (@imp_throw _ _ A val exn with "Hζ").
   Qed.
 
   (** * EWhile : expr → expr → expr *)
@@ -778,313 +709,231 @@ Section imp_rules_exp.
 
   (** * EAssert : expr → expr *)
 
-  Lemma imp_EAssert_exn η e φ1 φ E Ψ :
-    (φ (O2Ret #()))
-     ∧
-    (imp^{ι}eval η e @ E <|Ψ|> {{ φ1 }} ∗
-     (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) ∗
-     (∀ v, φ1 (O2Ret v) -∗ ⌜v = VTrue⌝ ∗ φ (O2Ret #())))
-    ⊢ imp^{ι}eval η (EAssert e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_EAssert {R : iProp Σ} {ζ} η e :
+    R ∧ imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ b, ⌜b = true⌝ ∗ R }} -∗
+    imp^{ι} eval η (EAssert e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), R }}.
   Proof.
     iIntros "H /=". simpl_eval.
-    iApply imp_choose.
-    iNext. iSplit.
-    - iApply imp_ret. iApply (bi.and_elim_l with "H").
-    - iPoseProof (bi.and_elim_r with "H") as "(H & E & P)".
-      iApply imp_bind'.
-      iApply imp_bind'.
-      iApply (imp_mono with "H").
-      iIntros ([v|v]) "H /=".
-      * iDestruct ("P" with "H") as "(-> & H)".
-        assert (val_as_bool VTrue = ret true) as -> by reflexivity.
-        repeat iApply imp_ret.
-        iApply "H".
-      * iApply ("E" with "H").
-  Qed.
-
-  Lemma imp_EAssert_exn_sep η e φ1 φ E Ψ :
-    φ (O2Ret #()) ∗
-    (φ (O2Ret #()) -∗ imp^{ι} eval η e @ E <|Ψ|> {{ φ1 }}) ∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) ∗
-    (∀ v, φ1 (O2Ret v) -∗ ⌜v = VTrue⌝ ∗ φ (O2Ret #()))
-    ⊢ imp^{ι} eval η (EAssert e) @ E <|Ψ|> {{ φ }}.
-  Proof.
-    iIntros "(R & H & He & P) /=". simpl_eval.
-    iApply imp_choose.
-    iNext. iSplit. by iApply imp_ret.
-    iSpecialize ("H" with "R").
-    iApply imp_bind'.
-    iApply imp_bind'.
-    iApply (imp_mono with "H").
-    iIntros ([v|v]) "H /=".
-    - iDestruct ("P" with "H") as "(-> & H)".
-        assert (val_as_bool VTrue = ret true) as -> by reflexivity.
-        by repeat iApply imp_ret.
-    - iApply ("He" with "H").
-  Qed.
-
-  Lemma imp_EAssert η e R E Ψ :
-    R ∧ imp^{ι}eval η e @ E <|Ψ|> {{ ensures v, ⌜v = VTrue⌝ ∗ R }} -∗
-    imp^{ι}eval η (EAssert e) @ E <|Ψ|> {{ ensures _, R }}.
-  Proof.
-    iIntros "H".
-    iApply imp_EAssert_exn.
+    iApply (imp_choose
+              (ret VUnit)
+              ('success ← as_bool (eval η e);
+               if success then ret VUnit else assertion_failure)).
     iSplit.
-    - iApply (bi.and_elim_l with "H").
-    - iPoseProof (bi.and_elim_r with "H") as "H".
-      iSplitL "H". iAssumption.
-      iSplitL. by iIntros. iIntros (v) "$ //".
-  Qed.
-
-  Lemma imp_EAssert_sep η e R E Ψ :
-    R ∗ (R -∗ imp^{ι}eval η e @ E <|Ψ|> {{ ensures v, ⌜v = VTrue⌝ ∗ R }}) -∗
-    imp^{ι}eval η (EAssert e) @ E <|Ψ|> {{ ensures _, R }}.
-  Proof.
-    iIntros "(? & ?)".
-    iApply imp_EAssert_exn_sep. iFrame. eauto.
+    - iApply (imp_ret VUnit ()); auto.
+      iDestruct "H" as "[$ _]".
+    - iDestruct "H" as "[_ H]".
+      iApply (imp_bind _ _ (λ (s : bool), if s then ret VUnit else assertion_failure) with "[H]").
+      { rewrite /as_bool.
+        iApply (imp_bind _ _ (λ v, val_as_bool v) with "H").
+        iIntros (b) "[-> HR]".
+        iApply (imp_ret true true); first encode.
+        instantiate (1 := (λ b, ⌜b = true⌝ ∗ R)%I).
+        simpl. auto. }
+      iIntros (?) "[-> HR]".
+      simpl.
+      iApply (imp_ret VUnit ()); auto.
   Qed.
 
   (** * ERef : expr → expr *)
 
-  Lemma imp_ERef_exn η e φ1 φ E Ψ :
-    imp^{ι} eval η e @ E <|Ψ|> {{ φ1 }} -∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φ1 (O2Ret v) -∗ ∀ l, l ↦ (V v) -∗ φ (O2Ret (VLoc l))) -∗
-    imp^{ι} eval η (ERef e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ERef `{Encode A} {ζ} (Φ : A → iProp Σ) η e :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp^{ι} eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, ∃ a, Φ a ∗ l ↦ (V #a) }}.
   Proof.
-    iIntros "H E P". simpl_eval.
-    iApply imp_bind'.
-    iApply (imp_mono with "H").
-    iIntros ([v|v]) "H".
-    - iApply imp_alloc. iNext. iIntros (l) "Hl".
-      iApply imp_bind.
-      iApply imp_ret.
-      iApply imp_ret.
-      iApply ("P" with "H"). auto.
-    - iApply ("E" with "H").
-  Qed.
-
-  Lemma imp_ERef `{Encode A} η e (φ1 : A → iProp Σ) (φ : loc → iProp Σ) E Ψ :
-    imp^{ι} eval η e @ E <|Ψ|> {{ ensures #a, φ1 a }} -∗
-    (∀ (a : A) (l : loc), φ1 a -∗ l ↦ V #a -∗ φ l) -∗
-    imp^{ι} eval η (ERef e) @ E <|Ψ|> {{ ensures #l, φ l }}.
-  Proof.
-    iIntros "H P".
-    iApply (imp_ERef_exn with "H"); auto.
-    iIntros (v) "(%v' & -> & Hv) %l Hl".
-    iExists l. iSplitR; first (iPureIntro; encode).
-    iApply ("P" with "Hv Hl").
+    iIntros "He". simpl_eval.
+    iApply (imp_bind _ _
+              (λ v, Stop CAllocn (1%nat, v)
+                      (λ o, (l ← ls ← inject2 o;
+                             match ls with | [l] => ret l | _ => Crash end;
+                             ret (VLoc l))))
+             with "He").
+    iIntros (x) "HΦ".
+    iApply (imp_alloc (#x) (λ o, (l ← ls ← inject2 o;
+                             match ls with | [l] => ret l | _ => Crash end;
+                                  ret (VLoc l)))).
+    iIntros "!>" (l) "Hl". rewrite /continue /=.
+    iApply (imp_ret (VLoc l) l); first encode.
+    iFrame.
   Qed.
 
   (** * ELoad : expr → expr *)
 
-  Lemma imp_ELoad_exn η e φ1 φ E Ψ :
-    imp^{ι} as_loc (eval η e) @ E <|Ψ|> {{ φ1 }} -∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ l, φ1 (O2Ret l) -∗ ∃ q v, pointsto l q (V v) ∗ ▷(pointsto l q (V v) -∗ φ (O2Ret v))) -∗
-    imp^{ι} eval η (ELoad e) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_ELoad2 `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : loc → iProp Σ) η e :
+    imp^{ι} (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ l, Φ1 l -∗ ∃ q a, ▷ pointsto l q (V #a) ∗ (pointsto l q (V #a) -∗ Φ a)) -∗
+    imp^{ι} eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H E P /=". simpl_eval.
-    iApply imp_bind'.
-    iApply (imp_mono with "H").
-    iIntros ([l|v]) "H1".
-    - iSpecialize ("P" with "H1").
-      iDestruct "P" as (q v) "(Hl & P)".
-      iApply (imp_load with "Hl"). iNext. iIntros "Hl".
-      iApply imp_ret.
-      iApply ("P" with "Hl").
-    - iApply ("E" with "H1").
+    iIntros "He P". simpl_eval.
+    iApply (imp_bind _ _ (λ l, load l) with "[He]").
+    { rewrite /as_loc.
+      iApply (imp_bind _ _ (λ v, val_as_loc v) with "He").
+      iIntros (l) "HΦ1". simpl.
+      iApply (imp_ret l l).
+      unfold observe. instantiate (1 := Build_Observe loc _ loc id). auto.
+      iExact "HΦ1". }
+    iIntros (l) "HΦ1".
+    iDestruct ("P" with "HΦ1") as "(%q & %a & Hl & P)".
+    change (♯l) with l.
+    iApply (imp_load l (#a) q inject2 with "Hl").
+    iIntros "!> Hl". rewrite /continue /=.
+    iApply (imp_ret #a a); auto.
+    iApply ("P" with "Hl").
   Qed.
 
-  Lemma imp_ELoad η e (φ1 : loc → iProp Σ) φ E Ψ :
-    imp^{ι} (eval η e) @ E <|Ψ|> {{ ensures #l, φ1 l }} -∗
-    (∀ l, φ1 l -∗ ∃ q v, pointsto l q (V v) ∗ ▷(pointsto l q (V v) -∗ φ v)) -∗
-    imp^{ι} eval η (ELoad e) @ E <|Ψ|> {{ ensures v, φ v }}.
+  Lemma imp_ELoad `{Encode A} {Φ : A → iProp Σ} {ζ} η e l q (a : A) :
+    ▷ pointsto l q (V #a) -∗
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp^{ι} eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, ⌜v = a⌝ ∗ pointsto l q (V #a) }}.
   Proof.
-    iIntros "H P".
-    iApply (imp_ELoad_exn with "[H]"); auto.
-    - iApply imp_bind. iApply (imp_mono with "H").
-      iIntros ([|]); [ iIntros "Hl" | iIntros ([])].
-      simpl. iDestruct "Hl" as "(%v & -> & Hφ1)".
-      iApply imp_ret. instantiate (1 := (ensures v, φ1 v)%I). iApply "Hφ1".
-    - iIntros (?) "[]".
-    - iIntros (l) "Hφ1".
-      iApply "P". iApply "Hφ1".
-  Qed.
-
-  Lemma imp_ELoad_simple η e (l : loc) q (v : val) E Ψ :
-    imp^{ι} eval η e @ E <|Ψ|> {{ λ v, ⌜v = #l⌝ }} -∗
-    pointsto l q (V v) -∗ imp^{ι} eval η (ELoad e) @ E <|Ψ|> {{ λ v', ⌜v' = v⌝ ∗ pointsto l q (V v) }}.
-  Proof.
-    iIntros "H Hl". iApply (imp_ELoad _ _ (λ l1, ⌜l = l1⌝%I) with "[H]").
-    - iApply (imp_mono_ret with "H").
-      iIntros (?) "(-> & _)". iExists l; done.
-    - iIntros (? ->). iExists _, _; iFrame. auto.
+    iIntros "Hl He /=".
+    iApply (imp_ELoad2 with "He").
+    iIntros (?) "->". iFrame.
+    iIntros "$". auto.
   Qed.
 
   (** * EStore : expr → expr → expr *)
 
-  Lemma imp_EStore_exn η e1 e2 φ1 φ2 φ E Ψ :
-    imp^{ι} as_loc (eval η e1) @ E <|Ψ|> {{ φ1 }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ φ2 }} -∗
-    (∀ v, φ1 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ v, φ2 (O2Throw v) -∗ φ (O2Throw v)) -∗
-    (∀ l1 v2, φ1 (O2Ret l1) ∗ φ2 (O2Ret v2) -∗
-      ∃ v1, l1 ↦ (V v1) ∗ ▷(l1 ↦ (V v2) -∗ φ (O2Ret VUnit))) -∗
-    imp^{ι} eval η (EStore e1 e2) @ E <|Ψ|> {{ φ }}.
+  Lemma imp_EStore2 `{Encode A} {Φ : unit → iProp Σ} {ζ} η e1 e2 (Φ1 : loc → iProp Σ) (Φ2 : A → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ l a, Φ1 l -∗ Φ2 a -∗
+      ▷ ∃ v1, l ↦ (V v1) ∗ ▷ (l ↦ (V #a) -∗ Φ ())) -∗
+    imp^{ι} eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H1 H2 E1 E2 P /=". simpl_eval.
-    iApply (imp_Par with "H1 H2 [E1] [E2]").
-    - iIntros (e) "H1". iApply imp_throw. iApply ("E1" with "H1").
-    - iIntros (e) "H2". iApply imp_throw. iApply ("E2" with "H2").
-    - iIntros (l1 v2) "H1 H2".
-      iSpecialize ("P" $! l1 v2 with "[$]").
-      iDestruct "P" as (v1) "(Hl1 & P)".
-      iApply (imp_store with "Hl1 [P]"). iNext; iIntros "Hl1".
-      iApply imp_ret.
-      iApply ("P" with "Hl1").
+    iIntros "H1 H2 P /=". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _
+              (pfbind inject2 (λ '(l, v), code.store l v)) with "[H1] H2 [P]").
+    { rewrite /as_loc.
+      iApply (imp_bind _ _ (λ v, val_as_loc v) with "H1").
+      iIntros (l) "HΦ1". iApply (imp_ret l l).
+      instantiate (1 := Build_Observe loc _ loc id). auto.
+      iExact "HΦ1". }
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ unit val exn with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ unit val exn with "Hζ").
+    - iIntros (l x) "H1 H2".
+      iSpecialize ("P" with "H1 H2").
+      iNext. iDestruct "P" as "(%v & Hl & HΦ)".
+      rewrite /continue /=.
+      iApply (imp_store l v #x inject2 with "Hl"). iNext.
+      iIntros "Hl".
+      iApply (imp_ret VUnit ()); first encode.
+      iApply ("HΦ" with "Hl").
   Qed.
 
-  Lemma imp_EStore `{Encode A} {η e1 e2} (φ1 : loc -d> iPropO Σ) (φ2 : A -d> iPropO Σ) φ E Ψ :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures #l, φ1 l }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ2 a }} -∗
-    (∀ l a, φ1 l ∗ φ2 a -∗
-            ∃ (a' : A), l ↦ (V #a') ∗ ▷ (l ↦ (V #a) -∗ φ VUnit)) -∗
-    imp^{ι} eval η (EStore e1 e2) @ E <|Ψ|> {{ ensures v, φ v }}.
+  Lemma imp_EStore `{Encode A} {ζ} (Φ : A → iProp Σ) {η e1 e2} l v :
+    ▷ l ↦ (V v) -∗
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp^{ι} eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), ∃ a, l ↦ (V #a) ∗ Φ a }}.
   Proof.
-    iIntros "H1 H2 P".
-    iApply (imp_EStore_exn with "[H1] H2").
-    - iApply imp_bind; iApply (imp_mono with "H1").
-      iIntros ([|]); [ iIntros "H1 /=" | iIntros "[]" ].
-      iDestruct "H1" as "(%v & -> & H1)".
-      iApply imp_ret.
-      instantiate (1 := (λ o, match o with | O2Ret l => φ1 l | _ => False end)%I).
-      iApply "H1".
-    - iIntros (? []).
-    - auto.
-    - simpl.
-      iIntros (l v) "(Hφ1 & (%a & -> & Hφ2))".
-      iCombine "Hφ1 Hφ2" as "H".
-      iDestruct ("P" with "H") as "(%a' & Hl & Hnext)".
-      iExists #a'; iFrame.
-  Qed.
-
-  (* Here, [l↦v] is threaded through [e2], as one is more likely to use
-     ownership of [l] in [e2] than in [e1] (i.e. we rarely write things like
-     [(!r := 1; r) := 2]) *)
-  Lemma imp_EStore_simple `{Encode A} η e1 e2 (l : loc) (v : A) E Ψ :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ λ v, ⌜v = #l⌝ }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ λ v', ⌜v' = #v⌝ ∗ l ↦ (V #v) }} -∗
-    imp^{ι} eval η (EStore e1 e2) @ E <|Ψ|> {{ λ v', ⌜v' = #()⌝ ∗ l ↦ (V #v) }}.
-  Proof.
-    iIntros "H1 H2".
-    iApply (imp_EStore (λ l1, ⌜l = l1⌝%I) (λ v', ⌜v'=v⌝ ∗ l ↦ V #v)%I  with "[H1] [H2]").
-    - iApply (imp_mono with "H1").
-      iIntros ([|]); [ | iIntros "[]" ].
-      iIntros "(-> & _)".
-      iExists l; auto.
-    - iApply (imp_mono with "H2").
-      iIntros ([|]); [ | iIntros "[]" ].
-      iIntros "(-> & Hl)".
-      iExists v; auto.
-    - iIntros (? ?) "(-> & -> & Hl)". iFrame.
-      auto.
+    iIntros "Hl H1 H2".
+    iApply (imp_EStore2 with "H1 H2").
+    iIntros (? a) "-> HΦ !>".
+    iFrame. iNext.
+    iIntros "$". iApply "HΦ".
   Qed.
 
   (** * EPerform : expr -> expr *)
 
-  Lemma imp_EPerform η e E ψ (φ1 : val -d> iPropO Σ) φ :
-    imp^{ι}eval η e @ E <|ψ|> {{ ensures v, φ1 v }} -∗
-    (∀ v, φ1 v -∗ imp^{ι}perform v @ E <|ψ|> {{ φ }} ) -∗
-    imp^{ι}eval η (EPerform e) @ E <|ψ|> {{ φ }}.
+  Lemma imp_EPerform `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ} (Φ1 : B → iProp Σ) η e :
+    imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    (∀ x, Φ1 x -∗ Ψ allows perform #x << ilift ζ (ireturns Φ) >>) -∗
+    imp^{ι} eval η (EPerform e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "He Hv".
-    simpl_eval. iApply imp_bind.
-    iApply (imp_mono with "He").
-    iIntros ([|]) "Hφ1"; [ by iApply "Hv" | done ].
+    iIntros "He Hv". simpl_eval.
+    iApply (imp_bind _ _ (λ eff, perform eff) with "He").
+    iIntros (x) "HΦ1". change (♯x) with (#x).
+    iApply imp_perform.
+    iApply ("Hv" with "HΦ1").
   Qed.
 
   (** * EContinue : expr -> expr -> expr *)
 
   Context {A : Type} `{Encode A}.
 
-  Lemma imp_EContinue' η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ) ζ (Φ : A → iProp Σ) :
-    imp^{ι} (eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
-    imp^{ι} eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
-    (∀ (k : cont) v, φ1 k -∗ φ2 v -∗
-                imp^{ι} stop CResume (k, O2Ret v) @ E <|ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp^{ι} eval η (EContinue e1 e2) @ E <|ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Local Lemma imp_EContinue' `{Encode B} {Φ : A → iProp Σ} {ζ} η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ (k : cont) x, Φ1 k -∗ Φ2 x -∗
+                ▷ imp^{ι} stop CResume (k, O2Ret #x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp^{ι} eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hk Hv Hmon".
-    simpl_eval.
-    iApply (imp_Par2 with "[Hk] [Hv] [Hmon]").
-    { unfold as_cont. iApply imp_bind.
-      iApply (imp_mono with "Hk").
-      iIntros ([|]); last done.
-      iIntros "(%v & -> & Hφ1)".
-      iApply imp_ret. iExists a.
-      instantiate (1 := observe_cont). iSplitR; first done.
-      iApply "Hφ1". }
-    { iApply (imp_mono with "Hv").
-      iIntros ([|]); last done.
-      iIntros "Hφ2". iExists a.
-      instantiate (1 := observe_val). iSplitR; first done.
-      iApply "Hφ2". }
-    simpl; iIntros (k v) "Hφ1 Hφ2".
-    iApply ("Hmon" with "Hφ1 Hφ2").
+    iIntros "Hk Hv Hmon". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(l, v), resume l (O2Ret v))) with "[Hk] Hv [Hmon]").
+    { unfold as_cont.
+      iApply (imp_bind _ _ (λ v, val_as_cont v) with "Hk").
+      iIntros (k) "HΦ1".
+      iApply (imp_ret k k). instantiate (1 := Build_Observe cont _ cont id). reflexivity.
+      iExact "HΦ1". }
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ A val exn with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ A val exn with "Hζ").
+    - iIntros (k x) "Hk Hx".
+      iSpecialize ("Hmon" with "Hk Hx").
+      iNext. rewrite /continue /=.
+      iApply "Hmon".
   Qed.
 
-  Corollary imp_EContinue η e1 e2 E ψ (φ1 : cont -d> iPropO Σ) (φ2 : val -d> iPropO Σ) ζ (Φ : A → iProp Σ) :
-    imp^{ι}(eval η e1) @ E <|ψ|> {{ ensures #k, φ1 k }} -∗
-    imp^{ι}eval η e2 @ E <|ψ|> {{ ensures v2, φ2 v2 }} -∗
-    (∀ k v, φ1 k -∗ φ2 v -∗
-       ∃ sk, isCont k sk ∗
-        (isShot k -∗
-            ▷ imp^{ι}(sk (O2Ret v)) @ E <|ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }})) -∗
-    imp^{ι}eval η (EContinue e1 e2) @ E <|ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Lemma imp_EContinue `{Encode B} {Φ : A → iProp Σ} {ζ} η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ k x, Φ1 k -∗ Φ2 x -∗
+            ∃ sk, isCont k sk ∗
+                  ▷ (isShot k -∗
+                     ▷ imp^{ι} (sk (O2Ret #x)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }})) -∗
+    imp^{ι} eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 H3".
     iApply (imp_EContinue' with "H1 H2").
     iIntros (??) "H1 H2".
     iSpecialize ("H3" with "H1 H2").
     iDestruct "H3" as (?) "(H1 & H2)".
-    iApply (imp_resume with "H1").
+    iApply (imp_resume k (O2Ret #x) sk inject2 with "H1").
+    iNext.
     iIntros "H1".
-    iSpecialize ("H2" with "H1"). iNext.
+    iSpecialize ("H2" with "H1").
     by rewrite try2_inject2_right.
   Qed.
 
-  Lemma imp_EFork' φ η e1 e2 E Ψ (φ1 φ2 : val -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures v1, φ1 v1 }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures v2, φ2 v2 }} -∗
-    ▷ (∀ ι' v1 v2, valid_thread ι' φ -∗ φ1 v1 -∗ φ2 v2 -∗
-                  imp^{ι'} call v1 v2 @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
+  Local Lemma imp_EFork' `{Encode B} {ζ} (Φ1 : val → iProp Σ) (Φ2 : B → iProp Σ) μ (φ : A → iProp Σ) η e1 e2 :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    ▷ (∀ ι' f x, isThread ι' μ φ -∗ Φ1 f -∗ Φ2 x -∗
+                  imp^{ι'} call f #x @ E <| ⊥ |> ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ x, □ φ x }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι μ φ }}.
   Proof.
-    iIntros "H1 H2 Hcall".
-    simpl_eval.
-    iApply (prove_imp_Par with "H1 H2").
-    iIntros (v1 v2) "H1 H2"; simpl.
-    iApply imp_fork.
-    iIntros "!>" (ι') "#Hvalid".
-    iSplitR ""; [ | ].
-    iApply ("Hcall" with "Hvalid H1 H2").
-    iExists _; iFrame "#"; iPureIntro; reflexivity.
+    iIntros "H1 H2 Hcall". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(f, v), fork f v)) with "H1 H2").
+    iSplit; last iSplit.
+    - iIntros (?) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (?) "Hζ !>".
+      iApply (@imp_throw _ _ thread with "Hζ").
+    - iIntros (f x) "Hf Hx !>".
+      rewrite /continue /=.
+      iApply imp_fork.
+      iIntros "!> %ι' #Hthread". iFrame "#".
+      iApply ("Hcall" with "Hthread Hf Hx").
   Qed.
 
-  Lemma imp_EFork `{Encode A} P φ η e1 e2 E Ψ (φ_arg : A -> iProp Σ) :
-    imp^{ι} eval η e1 @ E <|Ψ|> {{ ensures f, iSpec τ[A] f P }} -∗
-    imp^{ι} eval η e2 @ E <|Ψ|> {{ ensures #a, φ_arg a }} -∗
-    ▷ (∀ ι' a m, valid_thread ι' φ -∗ φ_arg a -∗
-                 P a m -∗ imp^{ι'} m @ E <| ⊥ |> {{ λ o, □ φ o }}) -∗
-    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> {{ ensures #ι, valid_thread ι φ }}.
+  Lemma imp_EFork `{Encode B} {ζ} P μ (φ : A → iProp Σ) η e1 e2 (φ_arg : B → iProp Σ) :
+    imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[B] f P }} -∗
+    imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
+    ▷ (∀ ι' a m, isThread ι' μ φ -∗ φ_arg a -∗
+                 P a m -∗ imp^{ι'} m @ E <| ⊥ |> ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }}) -∗
+    imp^{ι} eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι μ φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
     iApply (imp_EFork' with "H1 H2").
-    iIntros "!>" (ι' f v2) "Hvalid HSpec (%v & -> & H2)".
+    iIntros "!>" (ι' f a) "Hvalid HSpec H2".
     rewrite iSpec_equation_1.
-    iSpecialize ("HSpec" $! v).
-    iApply ("Hcall" $! ι' v (call f #v) with "Hvalid H2 HSpec").
+    iSpecialize ("HSpec" $! a).
+    iApply ("Hcall" $! ι' a (call f #a) with "Hvalid H2 HSpec").
   Qed.
 
   (* Rule for fork when the postcondition of the spawned thread is persistent *)

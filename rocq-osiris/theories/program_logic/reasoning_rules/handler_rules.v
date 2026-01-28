@@ -358,7 +358,7 @@ Section handler_proof.
   Proof.
     iIntros "Hl Hperf".
     simpl_eval_branches.
-    iApply imp_perform.
+    iApply imp_stop_perform.
     rewrite /prot /iEff_car.
     iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
     { iIntros (o) "H".
@@ -381,7 +381,7 @@ Section handler_proof.
 
     iIntros (l) "Hl". iNext. cbn.
 
-    iApply imp_perform.
+    iApply imp_stop_perform.
 
     rewrite /prot /iEff_car.
     iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
