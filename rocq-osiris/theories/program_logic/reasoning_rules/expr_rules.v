@@ -760,7 +760,7 @@ Section imp_rules_expr.
 
   Lemma imp_ELoad2 `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : loc → iProp Σ) η e :
     imp^{ι} (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    (∀ l, Φ1 l -∗ ∃ q a, ▷ pointsto l q (V #a) ∗ (pointsto l q (V #a) -∗ Φ a)) -∗
+    (∀ l, Φ1 l -∗ ∃ q a, ▷ pointsto l q (V #a) ∗ ▷ (pointsto l q (V #a) -∗ Φ a)) -∗
     imp^{ι} eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He P". simpl_eval.
@@ -788,7 +788,7 @@ Section imp_rules_expr.
     iIntros "Hl He /=".
     iApply (imp_ELoad2 with "He").
     iIntros (?) "->". iFrame.
-    iIntros "$". auto.
+    iIntros "!> $". auto.
   Qed.
 
   (** * EStore : expr → expr → expr *)
