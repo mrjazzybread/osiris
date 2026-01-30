@@ -196,26 +196,6 @@ Definition as_int (m : microvx) : micro int exn :=
   v ← m ;
   val_as_int v.
 
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_nat v] checks that the value [v] is a language-level integer
-   value and returns its meta-level value converted to a natural number. *)
-
-Definition val_as_nat (v : val) : micro nat exn :=
-  match v with
-  | VInt i =>
-      if (signed i) >=? 0 then
-        ret (Z.to_nat (signed i))
-      else
-        type_mismatch "natural number expected"
-  | _ =>
-      type_mismatch "natural number expected"
-  end.
-
-Definition as_nat (m : microvx) : micro nat exn :=
-  v ← m ;
-  val_as_nat v.
-
 (* [check_div_by_zero i] checks that the divisor [i] is nonzero. *)
 
 Definition check_div_by_zero i : micro unit exn :=
@@ -1071,6 +1051,9 @@ Definition pre_wrap_eval_branches η bs (o : outcome3 val exn) : microvx :=
 
 End EvalBranches.
 
+Instance list_lookup_Z {A} : Lookup Z A (list A) :=
+    λ (i : Z) l, if (i <? 0) then None else l !! Z.to_nat i.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -1156,35 +1139,36 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ls ← as_array (eval η e) ;
       ret (VInt (repr (Z.of_nat (List.length ls))))
   | EArrayUnsafeGet e1 e2 =>
-      '(ls, i) ← par (as_array (eval η e1)) (as_nat (eval η e2)) ;
-      match List.nth_error ls i with
+      '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
+      match ls !! signed i with
       | Some l => load l
       | None => crash "index out of bounds"
       end
   | EArrayUnsafeSet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
-                       (par (as_nat (eval η e2)) (eval η e3));
-        match List.nth_error ls i with
+                       (par (as_int (eval η e2)) (eval η e3));
+        match ls !! signed i with
         | Some l => store l v
         | None => crash "index out of bounds"
         end
   | EArrayGet e1 e2 =>
-      '(ls, i) ← par (as_array (eval η e1)) (as_nat (eval η e2)) ;
-      match List.nth_error ls i with
+      '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
+      match ls !! signed i with
       | Some l => load l
       | None => throw (invalid_argument "index out of bounds")
       end
   | EArraySet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
-                       (par (as_nat (eval η e2)) (eval η e3));
-        match List.nth_error ls i with
+                       (par (as_int (eval η e2)) (eval η e3));
+        match ls !! signed i with
         | Some l => store l v
         | None => throw (invalid_argument "index out of bounds")
         end
   | EArrayMake e1 e2 =>
-      '(n, v) ← par (as_nat (eval η e1)) (eval η e2) ;
-      if (Z.of_nat n <? max_array)%Z then
-        ls ← allocn n v;
+      '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
+      let i := signed n in
+      if ((0 <=? i) && (i <? max_array)) then
+        ls ← allocn (Z.to_nat i) v;
         ret (VArray ls)
       else throw (invalid_argument "Array.make")
   | EBoolConj e1 e2 =>
