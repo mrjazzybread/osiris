@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import thread_step ewp tactics.
-From osiris.program_logic.reasoning_rules Require Import impure_rules stop_rules.
+From osiris.program_logic.rules Require Import impure_rules stop_rules.
 From osiris.semantics Require Import code.
 
 From osiris.program_logic.pure Require Import pure.

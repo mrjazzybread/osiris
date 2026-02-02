@@ -1,7 +1,7 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
 From osiris.program_logic Require Import ewp tactics fun_spec escrows.
-From osiris.program_logic.reasoning_rules Require Import basic_rules impure_rules stop_rules handler_rules.
+From osiris.program_logic.rules Require Import basic_rules impure_rules stop_rules handler_rules.
 
 Section imp_rules_expr.
 

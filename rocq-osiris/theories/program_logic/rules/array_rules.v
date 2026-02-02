@@ -1,7 +1,7 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
 From osiris.program_logic Require Import ewp.
-From osiris.program_logic.reasoning_rules Require Import impure_rules stop_rules.
+From osiris.program_logic.rules Require Import impure_rules stop_rules.
 
 Section array_resources.
 

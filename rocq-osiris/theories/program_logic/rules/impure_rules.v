@@ -4,7 +4,7 @@ From osiris Require Import base.
 From osiris.semantics Require Import code.
 From osiris.program_logic Require Import ewp tactics.
 
-From osiris.program_logic.reasoning_rules Require Import basic_rules.
+From osiris.program_logic.rules Require Import basic_rules.
 
 From iris.proofmode Require Import proofmode.
 

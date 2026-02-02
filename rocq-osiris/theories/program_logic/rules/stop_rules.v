@@ -10,7 +10,7 @@ From osiris.program_logic Require Import thread_step ewp tactics basic_rules esc
 From osiris.semantics Require Import semantics.
 
 From osiris.program_logic.pure Require Export pure.
-From osiris.program_logic.reasoning_rules Require Import impure_rules.
+From osiris.program_logic.rules Require Import impure_rules.
 
 
 Section imp_stop.
