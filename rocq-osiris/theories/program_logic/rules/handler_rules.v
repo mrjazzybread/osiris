@@ -37,7 +37,7 @@ Section handler_specifications.
 
   Context `{!osirisGS Σ}.
 
-  Context {A A' X : Type} `{Encode A, Encode A'}.
+  Context {A A' B X : Type} `{Encode A, Encode A', Encode B}.
 
   (* -------------------------------------------------------------------------- *)
   (** * Shallow handler specification. *)
@@ -50,13 +50,16 @@ Section handler_specifications.
   (* We follow the deep handler judgment in [hazel] (the one-shot case),
       which reflects the recursive behavior of deep handlers. *)
 
+
+
   Definition deep_handler_spec_pre
     (deep_handler_spec:
       coPset -d>
       iEff Σ -d>
       (exn -d> iPropO Σ) -d>
       (A -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
+      env -d>
+      list branch -d>
       iEff Σ -d>
       (exn -d> iPropO Σ) -d>
       (A' -d> iPropO Σ) -d>
@@ -65,22 +68,23 @@ Section handler_specifications.
       iEff Σ -d>
       (exn -d> iPropO Σ) -d>
       (A -d> iPropO Σ) -d>
-      (outcome3 val exn -> microvx) -d>
+      env -d>
+      list branch -d>
       iEff Σ -d>
       (exn -d> iPropO Σ) -d>
       (A' -d> iPropO Σ) -d>
       iPropI Σ :=
-    (λ E Ψ ζ Φ h Ψ' ζ' Φ',
+    (λ E Ψ ζ Φ η bs Ψ' ζ' Φ',
       ((* [Return] and [Exception] branch *)
-      (∀ a, Φ a -∗ ▷ imp (h (O2Ret #a)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
-      (∀ e, ζ e -∗ ▷ imp (h (O2Throw e)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+      (∀ a, Φ a -∗ ▷ imp (eval_branches η (O3Ret #a) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+      (∀ e, ζ e -∗ ▷ imp (eval_branches η (O2Throw e) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
 
       (* [Effect] branch (one-shot) *)
       (∀ v k, Ψ allows perform v
           << λ o, ∀ Ψ'' ζ'' Φ'',
-            ▷ deep_handler_spec E Ψ ζ Φ h Ψ'' ζ'' Φ'' -∗
+            ▷ deep_handler_spec E Ψ ζ Φ η bs Ψ'' ζ'' Φ'' -∗
             imp (stop CResume (k, o)) @ E <|Ψ''|> ⟨⟨ ζ'' ⟩⟩ {{ Φ'' }} >> -∗
-        ▷ imp (h (O3Perform v k)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }})))%I.
+        ▷ imp (eval_branches η (O3Perform v k) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }})))%I.
 
   (* Some definition sealing (and auxilliary functions) *)
   Local Instance deep_handler_spec_pre_contractive: Contractive deep_handler_spec_pre.
@@ -98,35 +102,41 @@ Section handler_specifications.
   (* Top-level definition for [deep_handler] *)
   Definition deep_handler_spec := deep_handler_spec_aux.(unseal).
 
-  Lemma deep_handler_spec_unfold {E} Ψ ζ Φ Ψ' ζ' Φ' h :
-    deep_handler_spec E Ψ ζ Φ h Ψ' ζ' Φ' ⊣⊢
-    (deep_handler_spec_pre deep_handler_spec_def E Ψ ζ Φ h Ψ' ζ' Φ').
+  Definition may_discontinue e k E Ψ ζ (Φ : A' → iProp Σ) : iProp Σ :=
+    imp (resume k (O2Throw e)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+
+  Definition may_continue (v : val) k E Ψ ζ (Φ : A' → iProp Σ) : iProp Σ :=
+    imp (resume k (O2Ret v)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+
+  Lemma deep_handler_spec_unfold {E} Ψ ζ Φ Ψ' ζ' Φ' η bs :
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ' ⊣⊢
+    (deep_handler_spec_pre deep_handler_spec_def E Ψ ζ Φ η bs Ψ' ζ' Φ').
   Proof.
     rewrite /deep_handler_spec seal_eq /deep_handler_spec_def.
     apply (@fixpoint_unfold _ _ _ _ deep_handler_spec_pre).
   Qed.
 
-  Lemma deep_handler_spec_def_unfold {E} Ψ ζ Φ Ψ' ζ' Φ' h :
-    deep_handler_spec_def E Ψ ζ Φ h Ψ' ζ' Φ' ≡
-      ((∀ x, Φ x -∗ ▷ imp (h (O2Ret #x)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
-       (∀ e, ζ e -∗ ▷ imp (h (O2Throw e)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+  Lemma deep_handler_spec_def_unfold {E} Ψ ζ Φ Ψ' ζ' Φ' η bs :
+    deep_handler_spec_def E Ψ ζ Φ η bs Ψ' ζ' Φ' ≡
+      ((∀ x, Φ x -∗ ▷ imp (eval_branches η (O2Ret #x) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+       (∀ e, ζ e -∗ ▷ imp (eval_branches η (O2Throw e) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
 
       (* [Effect] branch (one-shot) *)
       (∀ v k, Ψ allows perform v
           << fun o : outcome2 val exn => ∀ Ψ'' ζ'' Φ'',
-            ▷ deep_handler_spec_def E Ψ ζ Φ h Ψ'' ζ'' Φ'' -∗
+            ▷ deep_handler_spec_def E Ψ ζ Φ η bs Ψ'' ζ'' Φ'' -∗
             imp (stop CResume (k, o)) @ E <|Ψ''|> ⟨⟨ ζ'' ⟩⟩ {{ Φ'' }} >> -∗
-        ▷ imp (h (O3Perform v k)) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}))%I.
+        ▷ imp (eval_branches η (O3Perform v k) bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}))%I.
   Proof.
     rewrite /deep_handler_spec_def.
     apply (fixpoint_unfold deep_handler_spec_pre).
   Qed.
 
-  Lemma deep_handler_spec_mono E Ψ ζ Φ h Ψ' Φ1 Φ2 ζ1 ζ2 :
+  Lemma deep_handler_spec_mono E Ψ ζ Φ η bs Ψ' Φ1 Φ2 ζ1 ζ2 :
     (∀ a, Φ1 a -∗ Φ2 a) -∗
     (∀ e, ζ1 e -∗ ζ2 e) -∗
-    deep_handler_spec E Ψ ζ Φ h Ψ' ζ1 Φ1 -∗
-    deep_handler_spec E Ψ ζ Φ h Ψ' ζ2 Φ2.
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ1 Φ1 -∗
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ2 Φ2.
   Proof.
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre.
     iIntros "Hmonoret Hmonoexn Hhandler".
@@ -151,31 +161,45 @@ Section handler_specifications.
       iApply (imp_mono with "Hhandler Hmonoret Hmonoexn"). }
   Qed.
 
-  Lemma prove_deep_handler_spec E Ψ ζ (Φ : A → iProp Σ) (h : outcome3 val exn → microvx) Ψ' ζ' Φ' :
-    ((∀ a, Φ a -∗ ▷ imp h (O2Ret #a) @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
-     (∀ e, ζ e -∗ ▷ imp h (O2Throw e) @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+  Lemma prove_deep_handler_spec E Ψ ζ (Φ : A → iProp Σ) η bs Ψ' ζ' Φ' :
+    ((∀ a, Φ a -∗ ▷ imp eval_branches η (O2Ret #a) bs @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+     (∀ e, ζ e -∗ ▷ imp eval_branches η (O2Throw e) bs @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
      (∀ (v : val) (k : cont),
-        Ψ allows perform v << λ o : outcome2 val exn,
-          ∀ (Ψ'' : iEff Σ) ζ'' (Φ'' : A' -d> iPropO Σ),
-          ▷ deep_handler_spec_def E Ψ ζ Φ h Ψ'' ζ'' Φ'' -∗
-          imp stop CResume (k, o) @ E <|Ψ''|> ⟨⟨ ζ'' ⟩⟩ {{ Φ'' }} >> -∗
-        ▷ imp h (O3Perform v k) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }})) -∗
-    deep_handler_spec E Ψ ζ Φ h Ψ' ζ' Φ'.
+        Ψ allows perform v
+          ⟨⟨ λ e, ∀ Ψ'' ζ'' Φ'',
+               ▷ deep_handler_spec E Ψ ζ Φ η bs Ψ'' ζ'' Φ'' -∗
+               may_discontinue e k E Ψ'' ζ'' Φ'' ⟩⟩
+          {{ λ a, ∀ Ψ'' ζ'' Φ'',
+               ▷ deep_handler_spec E Ψ ζ Φ η bs Ψ'' ζ'' Φ'' -∗
+               may_continue a k E Ψ'' ζ'' Φ'' }} -∗
+        ▷ imp eval_branches η (O3Perform v k) bs @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }})) -∗
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ'.
   Proof.
     rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
-    iIntros "$".
+    iIntros "Hdh"; iSplit ; last iSplit.
+    { iDestruct "Hdh" as "[$ _]". }
+    { iDestruct "Hdh" as "[_ [$ _]]". }
+    iDestruct "Hdh" as "[_ [_ Hdh]]".
+    iIntros (v k) "Hprot".
+    rewrite /deep_handler_spec seal_eq.
+    iApply "Hdh".
+    iApply (monotonic_prot with "[] Hprot").
+    iIntros ([v'|e]) "Hresume /=".
+    - iExists v'; iSplit; first (iPureIntro; auto).
+      iApply "Hresume".
+    - iApply "Hresume".
   Qed.
 
-  Lemma inv_deep_handler_spec E Ψ ζ Φ h Ψ' ζ' Φ' :
-    deep_handler_spec E Ψ ζ Φ h Ψ' ζ' Φ' -∗
-    (∀ a, Φ a -∗ ▷ imp h (O2Ret #a) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
-    (∀ e, ζ e -∗ ▷ imp h (O2Throw e) @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+  Lemma inv_deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ' :
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ' -∗
+    (∀ a, Φ a -∗ ▷ imp eval_branches η (O2Ret #a) bs @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
+    (∀ e, ζ e -∗ ▷ imp eval_branches η (O2Throw e) bs @ E <| Ψ' |> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}) ∧
     (∀ (v : val) (k : cont),
-      Ψ allows perform v << λ o : outcome2 val exn,
-       ∀ (Ψ'' : iEff Σ) ζ'' (Φ'' : A' -d> iPropO Σ),
-       ▷ deep_handler_spec_def E Ψ ζ Φ h Ψ'' ζ'' Φ'' -∗
+       Ψ allows perform v << λ o : outcome2 val exn,
+        ∀ (Ψ'' : iEff Σ) ζ'' (Φ'' : A' -d> iPropO Σ),
+       ▷ deep_handler_spec_def E Ψ ζ Φ η bs Ψ'' ζ'' Φ'' -∗
        imp stop CResume (k, o) @ E <|Ψ''|> ⟨⟨ ζ'' ⟩⟩ {{ Φ'' }} >> -∗
-       ▷ imp h (O3Perform v k) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}).
+       ▷ imp eval_branches η (O3Perform v k) bs @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}).
   Proof.
     iIntros "Hdh".
     by rewrite deep_handler_spec_unfold /deep_handler_spec_pre /=.
@@ -201,7 +225,7 @@ Section handler_proof.
   Lemma ewp_deep_handler `{Encode A'} E Ψ ζ (Φ : A → iProp Σ) Ψ' ζ' (Φ' : A' → iProp Σ) η e bs:
     imp (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     (* The deep handler specification is met *)
-    deep_handler_spec E Ψ ζ Φ (λ o, eval_branches η o bs) Ψ' ζ' Φ' -∗
+    deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ' -∗
     imp (deep_handler η e bs) @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}.
   Proof.
     (* We abstract away [eval η e]. *)
@@ -256,13 +280,12 @@ Section handler_proof.
       iSpecialize ("Hdh" $! e l').
 
       iSpecialize ("Hdh" with "[HP HH Hl]").
-      { iDestruct "HP" as "(% & $ & HP)".
+      { iApply (monotonic_prot with "[-HP] HP").
         iIntros (?) "Hk"; iIntros (???) "H".
         iApply (imp_resume with "Hl").
-        iSpecialize ("HP" with "Hk").
         iIntros "Hshot !>".
         rewrite deep_handler_spec_def_unfold.
-        iSpecialize ("IH" with "HP H").
+        iSpecialize ("IH" with "Hk H").
         iPoseProof (basic_rules.ewp_handle_inv with "HH IH") as "Hhandle".
         iApply (imp_try2 with "[Hhandle]"). rewrite /wrap_eval_branches seal_eq /pre_wrap_eval_branches /=.
         iApply "Hhandle". iSplit.
@@ -336,24 +359,18 @@ Section handler_proof.
     by iIntros; simpl_shallow_eval_branches.
   Qed.
 
-  Lemma deep_handle_nil_perform η eff k Ψ sk ζ (Φ : A → iProp Σ) :
-    isCont k sk -∗
+  Lemma deep_handle_nil_perform {E} η eff k Ψ ζ (Φ : A → iProp Σ) :
     Ψ allows perform eff
-    << λ o,
-      (isShot k -∗ ▷ imp (sk o) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) >> -∗
-    imp (eval_branches η (O3Perform eff k) []) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+      ⟨⟨ λ e, ▷ may_discontinue e k E Ψ ζ Φ ⟩⟩
+      {{ λ (a : A), ▷ may_continue #a k E Ψ ζ Φ }} -∗
+    imp (eval_branches η (O3Perform eff k) []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hl Hperf".
-    simpl_eval_branches.
-    iApply imp_stop_perform.
-    rewrite /prot /iEff_car.
-    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
-    { iIntros (o) "H".
-      iPoseProof (imp_resume with "Hl") as "Hcov".
-      iModIntro.
-      rewrite try2_inject2.
-      iApply "Hcov". rewrite try2_inject2_right. iApply "H". }
-    done.
+    iIntros "Hk". simpl_eval_branches.
+    iApply basic_rules.ewp_stop_perform.
+    iApply (monotonic_prot with "[] Hk").
+    iIntros ([v|e]) "Hv !>"; rewrite try2_inject2.
+    - iDestruct "Hv" as "(% & -> & $)".
+    - iApply "Hv".
   Qed.
 
   Lemma shallow_handle_nil_perform η eff k all_branches Ψ sk ζ (Φ : A → iProp Σ) :

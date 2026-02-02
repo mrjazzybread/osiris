@@ -862,12 +862,12 @@ Section imp_rules_expr.
 
   (** * EContinue : expr -> expr -> expr *)
 
-  Local Lemma imp_EContinue' `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
+  Lemma imp_EContinue `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
     η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ (k : cont) x, Φ1 k -∗ Φ2 x -∗
-                ▷ imp stop CResume (k, O2Ret #x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+                ▷ may_continue #x k E Ψ ζ Φ) -∗
     imp eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
@@ -888,7 +888,33 @@ Section imp_rules_expr.
       iApply "Hmon".
   Qed.
 
-  Lemma imp_EContinue `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
+  Lemma imp_EDiscontinue `{Encode A} {Φ : A → iProp Σ} {ζ}
+    η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : exn → iProp Σ) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ (k : cont) e, Φ1 k -∗ Φ2 e -∗
+                ▷ may_discontinue e k E Ψ ζ Φ) -∗
+    imp eval η (EDiscontinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hk Hv Hmon". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(l, v), resume l (O2Throw v))) with "[Hk] Hv [Hmon]").
+    { unfold as_cont.
+      iApply (imp_bind _ _ (λ v, val_as_cont v) with "Hk").
+      iIntros (k) "HΦ1".
+      iApply (imp_ret k k). instantiate (1 := Build_Observe cont _ cont id). reflexivity.
+      iExact "HΦ1". }
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ A val exn with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (@imp_throw _ _ A val exn with "Hζ").
+    - iIntros (k x) "Hk Hx".
+      iSpecialize ("Hmon" with "Hk Hx").
+      iNext. rewrite /continue /=.
+      iApply "Hmon".
+  Qed.
+
+  Local Lemma imp_EContinue' `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ}
     η e1 e2 (Φ1 : cont → iProp Σ) (Φ2 : B → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
@@ -899,7 +925,7 @@ Section imp_rules_expr.
     imp eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 H3".
-    iApply (imp_EContinue' with "H1 H2").
+    iApply (imp_EContinue with "H1 H2").
     iIntros (??) "H1 H2".
     iSpecialize ("H3" with "H1 H2").
     iDestruct "H3" as (?) "(H1 & H2)".

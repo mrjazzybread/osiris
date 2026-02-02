@@ -129,9 +129,9 @@ Section ewp_basic_rules.
     { done. }
 
     { (* Case: [m] is a [WPPerform]. We use [prot_mono]. *)
-      iMod "Hwp" as "(%Φ & $ & Hwp)"; iModIntro.
-      iIntros (w) "Hewp".
-      iSpecialize ("Hwp" with "Hewp"); iNext.
+      iMod "Hwp"; iModIntro.
+      iApply (monotonic_prot with "[-Hwp] Hwp").
+      iIntros (w) "Hwp !>".
       by iApply ("IH" with "Hwp Hmono"). }
 
     { (* Case: [m] is a [WPStep]. *)
@@ -205,10 +205,10 @@ Section ewp_basic_rules.
     { by iApply (fupd_mask_mono E' E). }
     (* Case: [WPPerform] *)
     { iApply (fupd_mask_mono E' E); first done.
-      iMod "He" as "(%Φ & $ & Hewp)"; iModIntro.
-      iIntros (o) "Ho".
-      iSpecialize ("Hewp" with "Ho"); iNext.
-      iApply ("IH" with "Hewp HΦ"). }
+      iMod "He"; iModIntro.
+      iApply (monotonic_prot with "[-He] He").
+      iIntros (o) "Hwp !>".
+      iApply ("IH" with "Hwp HΦ"). }
     { (* Case: [WPStep] *)
       intro_state.
       iMod (fupd_mask_subseteq E') as "Hclose"; first done.
@@ -584,8 +584,9 @@ Section ewp_rules.
     (* Case : [m1] is [Perform _ _]. *)
     { cbn.
       ewp_unfold_all.
-      iMod "Hwp" as "(% & $ & Hwp)"; iModIntro.
-      iIntros (o) "Ho"; iSpecialize ("Hwp" with "Ho"); iNext.
+      iMod "Hwp"; iModIntro.
+      iApply (monotonic_prot with "[-Hwp] Hwp").
+      iIntros (o) "Hwp !>".
       iApply ("IH" with "Hwp"). }
     { (* If [m] can step, then so can [try m f h]. *)
       pose proof (is_ewp_case_try2_None m f Hhm) as Hhm2.

@@ -328,8 +328,7 @@ Section ewp_def.
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
   Proof.
     rewrite /ewp_pre /= => n ewp ewp' Hwp A X E m Ψ φ.
-    f_equiv.
-    - do 7 f_equiv. f_contractive. apply Hwp.
+    f_equiv. do 2 f_equiv. intro o. f_contractive. apply Hwp.
     - repeat (f_contractive || f_equiv || apply Hwp).
     - repeat (f_contractive || f_equiv || apply Hwp).
   Qed.
@@ -375,7 +374,7 @@ Proof.
   ewp_unfold_all.
   f_equiv. f_equiv.
   - do 8 f_equiv.
-  - do 7 f_equiv. f_contractive.
+  - repeat f_equiv. intro o. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
   - do 18 (f_contractive || f_equiv).

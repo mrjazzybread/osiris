@@ -932,20 +932,25 @@ End protocol_ordering_properties.
 
 (* -------------------------------------------------------------------------- *)
 
+Definition prot' {Σ} Ψ v Φ :=
+  (iEff_car (Σ := Σ) (upcl OS Ψ) v Φ).
+
+(** Non-expansiveness of Protocols. *)
+
+Global Instance prot_car_ne {Σ} v m :  NonExpansive (prot' (Σ:=Σ) v m).
+Proof. intros ????. solve_proper. Qed.
+Global Instance prot_car_proper {Σ} : Proper ((≡) ==> (≡)) (iEff_car (Σ:=Σ)).
+Proof. by intros ???. Qed.
+
 Definition prot {Σ} `{Encode A} Ψ v ζ (Φ : A → iProp Σ) :=
   (iEff_car (Σ := Σ) (upcl OS Ψ) v (ilift ζ (ireturns Φ))).
 
 (* -------------------------------------------------------------------------- *)
 
-(** Non-expansiveness of Protocols. *)
-
-Global Instance prot_car_ne {Σ} v m :  NonExpansive (iEff_car (Σ:=Σ) v m).
-Proof. intros ????. solve_proper. Qed.
-Global Instance prot_car_proper {Σ} : Proper ((≡) ==> (≡)) (iEff_car (Σ:=Σ)).
-Proof. by intros ???. Qed.
+(* Notation for protocols. *)
 
 Notation "Ψ 'allows' 'perform' v << Φ >>" :=
-  (iEff_car (upcl OS Ψ) v Φ)
+  (prot' Ψ v Φ)
     (left associativity, Φ at level 200, at level 12,
       format "'[' Ψ  'allows'  'perform'  v   '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
 
@@ -959,6 +964,7 @@ Notation "Ψ 'allows' 'perform' v {{ Φ }}" :=
     (left associativity, Φ at level 200, at level 12,
       format "'[' Ψ  'allows'  'perform'  v  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
 
+Arguments prot' : simpl never.
 Arguments prot : simpl never.
 Arguments iEff_car : simpl never.
 (* -------------------------------------------------------------------------- *)
