@@ -144,7 +144,6 @@ let rec expr : E.expr -> O.expr = function
   | EStore (e1, e2) -> EStore (expr e1, expr e2)
   | EFork (e1, e2) -> EFork (expr e1, expr e2)
   | EJoin e -> EJoin (expr e)
-  | ESelf -> ESelf
 
 
 and fexpr : E.fexpr -> O.fexpr = function

@@ -301,7 +301,7 @@ Inductive expr :=
   (* Waiting for another thread to terminate: ≈ [Domain.join th]. *)
   | EJoin (e : expr)
   (* A request for one's own thread handle: ≈ [Domain.self ()] *)
-  | ESelf
+  (* | ESelf *)
 
 (* Field-expression pairs. *)
 

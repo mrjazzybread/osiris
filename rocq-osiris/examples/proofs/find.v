@@ -91,10 +91,10 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     (* Calling [find l pred] returns an option [o] such that
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
-    EWP m {{ ensures #o, ⌜match o with
-                          | Some x => x ∈ l ∧ φ x
-                          | None => Forall (λ x, ¬ (φ x)) l
-                          end⌝ }}.
+    imp m {{ λ (o : option A), ⌜match o with
+                                | Some x => x ∈ l ∧ φ x
+                                | None => Forall (λ x, ¬ (φ x)) l
+                                end⌝ }}.
 
 (* Our high level statement:
    "After evaluation the [__main] module corresponding to the whole
@@ -102,14 +102,13 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     field which is specified by [find_spec]." *)
 
 Lemma iter_module_pure :
-  ⊢ EWP (eval_mexpr stdlib_env __main)
-    {{ ensures m, module_spec [("find_first", λ find, □ iSpec τ[list A; val] find find_spec)] m }}.
+  ⊢ imp (eval_mexpr stdlib_env __main)
+    {{ λ m, module_spec [("find_first", λ find, □ iSpec τ[list A; val] find find_spec)] m }}.
 Proof.
   (* Enter the module and face the struct items. *)
-  iIntros "%ι".
-  iApply ewp_module.
+  iApply imp_module.
   (* Process the first structure item. *)
-  iApply ewp_sitems_cons.
+  iApply imp_sitems_cons.
   (* After evaluating the first struct item, we will enrich the scoping
      environment with some value [iter] such that
      [Spec τ[val; list A] iter listiter_spec]. *)
@@ -117,10 +116,10 @@ Proof.
             ⌜∃ iter, ηδ = (("iter", iter) :: stdlib_env, [("iter",iter)]) ∧
                        Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
-    iApply ewp_pure_wp.
+    iApply (impure_pure (eval_sitem (stdlib_env, []) (ILetRec __bindings3))).
     (* Enter the body of the recursive function. *)
     eapply (@struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
-    { (* Side-condition: the expression is a funciton. *) repeat eexists. }
+    { (* Side-condition: the expression is a function. *) repeat eexists. }
     { (* Give the decreasing argument to justify recursive calls *)
       apply list_tuple_wf. }
     { (* Enter the body *) simpl.
@@ -163,6 +162,7 @@ Proof.
 
     (* Weaken the invariant specification to [listiter_spec]. *)
     intros iter Hiter.
+    eexists; split; first reflexivity.
     exists iter; split; [ apply eq_refl | ].
     eapply Spec_mono; [ apply Hiter | simpl ].
     intros f l m Hinvspec; unfold listiter_spec, tapp.
@@ -173,29 +173,31 @@ Proof.
   (* Introduce our expanded environment which now contains [iter]. *)
   iIntros (?) "(%iter & -> & %Hiter)".
   (* We now face the toplevel definition of [find_elem]. *)
-  iApply (ewp_sitems_let_singleton_var
+  iApply (imp_sitems_let
             (* We give [find_elem] the specification [find_spec]. *)
             (λ (find : val), □ iSpec τ[list A; val] find find_spec)%I).
 
   { (* START OF THE PROOF FROM THE PAPER *)
     (* Subgoal: Prove that [find_elem] satisfies its specification. *)
     (* Step into the function's body *)
-    iApply (ewp_EAnon_pers τ[list A; val]).
+    iApply (imp_EAnon_pers τ[list A; val]).
     (* Introduce the function's arguments. *)
-    iIntros "!>" (xs pred φ Hpred ι').
+    iIntros "!>" (l pred φ Hpred).
     (* Declare and open a local module. *)
-    iApply ewp_please. iNext.
-    iApply ewp_ELetOpen.
+    iApply imp_please. iNext.
+    iApply imp_ELetOpen.
     (* Evaluate the module expression. *)
-    iApply ewp_module; iApply ewp_sitems_extend;
-      iIntros (?) "(%l & -> & Hl)".
+    iApply imp_module; iApply imp_sitems_extend;
+      iIntros (?) "(%found & -> & Hfound)".
     (* Finish evaluating the local module and enrich the scoping environment. *)
-    iApply ewp_sitems_nil;
-      iExists _; iSplitR; [ iPureIntro; reflexivity | ].
+    iApply imp_sitems_nil.
+    instantiate (1 := (λ δ, ∃ l, ⌜δ = ("Found" ¬> VLoc l)⌝ ∗ l ↦ V #())%I).
+    by iFrame.
 
+    iIntros (δ) "(%found & -> & Hfound)".
     (* We are done with the effectful part of the program, so we can drop down
        to Horus, the pure program logic. *)
-    iApply ewp_pure.
+    iApply impure_pure.
     eapply pure_eval_match'_exn.
     { (* Subgoal: evaluate the scrutinee [List.iter _ _]. *)
       eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp; fold eval).
@@ -205,7 +207,7 @@ Proof.
            it is a function with
            - a single argument of type [a]
            - a specification [scan_spec]. *)
-          eapply (pure_eval_anon τ[A]) with (P := lambda_spec l xs φ); simpl.
+          eapply (pure_eval_anon τ[A]) with (P := lambda_spec found l φ); simpl.
           unfold lambda_spec; fold eval.
           (* Prove that the lambda expression satisfies its spec. *)
           intros x Xs Hpref Hforall.
@@ -265,12 +267,12 @@ Proof.
       assumption. }
 
   (* We conclude: update the environment to add [find_elem] to it. *)
-  iIntros ([??]) "(%find & -> & Hfind)"; iApply ewp_sitems_nil; simpl.
+  iIntros (find) "#Hfind".
+  iApply imp_sitems_nil.
   (* Show that the toplevel module satisfies its spec: it contains a value named
      ["find_elem"] which is specified by [iSpec find find_spec]. *)
-  iExists _; iSplitR; [ iPureIntro; reflexivity | ].
-  simpl; rewrite bi.sep_emp.
-  iExists find. equality.
+  rewrite /module_spec /= bi.sep_emp.
+  iExists find. auto.
 Qed.
 
 End iris_proof.

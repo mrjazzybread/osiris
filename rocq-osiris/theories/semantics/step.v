@@ -365,12 +365,6 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Handle (Stop CJoin ι k) h)
         (σ, Stop CJoin ι (λ o, Handle (k o) h))
 
-  | StepHandleSelf :
-    ∀ σ k u h,
-      step
-        (σ, Handle (Stop CSelf u k) h)
-        (σ, Stop CSelf u (λ o, Handle (k o) h))
-
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
       ∀ σ h,
@@ -560,12 +554,6 @@ Section threadpool.
       threadpool_step
         (σ, π)
         (σ, <[ ι := m ]> π)
-  | SelfTS :
-    ∀ ι π k σ,
-      π !! ι = Some (Stop CSelf () k) ->
-      threadpool_step
-        (σ, π)
-        (σ, <[ ι := continue k (VThread ι) ]> π)
   .
 
   Definition threadpool_steps := @nsteps (tconfig) (threadpool_step).
@@ -774,13 +762,6 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
-Lemma invert_can_step_self {A E} σ u (k : _ -> micro A E) :
-  can_step (σ, (Stop CSelf u k)) ->
-  False.
-Proof.
-  intros. destruct_can_step. destruct_step.
-Qed.
-
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
@@ -788,7 +769,6 @@ Global Hint Resolve
   invert_can_step_perform
   invert_can_step_fork
   invert_can_step_join
-  invert_can_step_self
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -1218,12 +1198,6 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
-Lemma stuck_Self {A E} σ u k :
-  stuck ((σ, Stop CSelf u k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
 (* The only stuck terms are
    [Crash], [Throw _], [perform _], and [fork _ _]. *)
 
@@ -1253,7 +1227,7 @@ Qed.
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash | Throw _
-  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ | Stop CSelf _ _ =>
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1266,7 +1240,7 @@ Qed.
 (* [destruct_stuck_cases] destructs the nested disjunction resulting from
    [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
    four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
-   (covering Fork, Join, Self, Die). For the concurrent case, the code must
+   (covering Fork, Join, Die). For the concurrent case, the code must
    be further destructed to determine which specific concurrent operation it is. *)
 
 From Ltac2 Require Import Ltac2.
@@ -1317,7 +1291,7 @@ Proof.
   - (* Stop *)
     destruct_code;
     try contradiction; (* eliminate non-relevant codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Self, stuck_Perform.
+    eauto using stuck_Fork, stuck_Join, stuck_Perform.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1351,7 +1325,7 @@ Proof.
   destruct m; try destruct_code;
   try solve [left; eauto];  (* Ret case *)
   try solve [right; left; eauto with step];  (* can_step cases *)
-  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Self].  (* stuck cases *)
+  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join].  (* stuck cases *)
 Qed.
 
 Ltac triplicity σ m H :=

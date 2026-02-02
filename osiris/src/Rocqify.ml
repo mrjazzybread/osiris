@@ -365,9 +365,6 @@ let rec expr (e : expr) =
   | EJoin e ->
       c "EJoin" [ expr e ]
 
-  | ESelf ->
-      c "ESelf" []
-
 (* If [e] carries a decoration, then [cut_expr e] takes care of
    cutting below the decoration so the decoration hides the cut in the
    eyes of the end user. (If we cut above the decoration then the end

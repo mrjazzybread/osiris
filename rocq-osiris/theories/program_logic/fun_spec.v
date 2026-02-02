@@ -91,30 +91,30 @@ Section imp_spec.
   | Tbase X, c, P :=
       ∀ (x : X), P x (call c #x)
   | type_nel.Tcons X τ', c, P :=
-      ∀ (x : X), ∀ ι, @impure val val exn Σ _ _ _ ι ⊤ (call c #x) ⊥ ⊥ (λ (c : val), iSpec τ' c (P x)).
+      ∀ (x : X), @impure val val exn Σ _ _ _ ⊤ (call c #x) ⊥ ⊥ (λ (c : val), iSpec τ' c (P x)).
 
-  Local Lemma imp_eval_anon_unary `{Encode X} ι
+  Local Lemma imp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
     :
     (∀ (v : X), P v (please_eval ((x, #v) :: η) e)) -∗
-    imp^{ι} (eval η (EAnonFun (AnonFun x e))) @ E <|Ψ|> {{ λ c, iSpec τ[X] c P }}.
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <|Ψ|> {{ λ c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply imp_ret; auto.
   Qed.
 
-  Local Lemma imp_eval_anon_binary `{Encode X, Encode Y} ι
+  Local Lemma imp_eval_anon_binary `{Encode X, Encode Y}
     (P : τ[X;Y] -#> microvx -> iProp Σ) η (x y : var) e E Ψ
     :
     (∀ (vx : X) (vy : Y), P vx vy (please_eval ((y, #vy) :: (x, #vx) :: η) e)) -∗
-    imp^{ι} (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <|Ψ|> {{ λ c, iSpec τ[X;Y] c P }}.
+    imp (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <|Ψ|> {{ λ c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply imp_ret; first auto.
     simpl; simp iSpec.
-    iIntros (vx) "%ι'". simpl.
+    iIntros (vx). simpl.
     iApply imp_please. iNext.
-    iApply (imp_eval_anon_unary ι').
+    iApply (imp_eval_anon_unary).
     iIntros (vy).
     iApply "HP".
   Qed.
@@ -130,7 +130,7 @@ Section imp_spec.
     induction τ as [ | X HX arg_τ IH ]; iIntros (c) "HP Hmono".
     { simp iSpec. iIntros (x).
       iApply "Hmono". iApply "HP". }
-    simp iSpec; iIntros (x) "%ι".
+    simp iSpec; iIntros (x).
     iApply (imp_mono_ret with "HP").
     iIntros (c') "HSpec'".
     iApply (IH with "HSpec'").
@@ -183,7 +183,7 @@ Section imp_spec.
     iIntros "HP".
     destruct τ as [ X | X HX τ ].
     { iApply "HP". }
-    simp iSpec; iIntros (vx) "%ι".
+    simp iSpec; iIntros (vx).
     simp predicate_over_function_body.
     iSpecialize ("HP" $! vx).
     iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
@@ -200,7 +200,7 @@ Section imp_spec.
     iIntros "#HP".
     destruct τ as [ X | X HX τ ].
     { iApply "HP". }
-    simp iSpec; iIntros (vx) "%ι".
+    simp iSpec; iIntros (vx).
     simp predicate_over_function_body.
     iSpecialize ("HP" $! vx).
     iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
@@ -214,12 +214,11 @@ Section imp_spec.
   Lemma imp_EAnon
     (τ : types)
     (P : τ -#> microvx -> iProp Σ)
-    ι
     η
     (x : var)
     e E Ψ :
     predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
-    imp^{ι} (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, iSpec τ c P }}.
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, iSpec τ c P }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply imp_ret; first reflexivity.
@@ -229,12 +228,11 @@ Section imp_spec.
   Lemma imp_EAnon_pers
     (τ : types)
     (P : τ -#> microvx -> iProp Σ)
-    ι
     η
     (x : var)
     e E Ψ :
     □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
-    imp^{ι} (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ iSpec τ c P }}.
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ iSpec τ c P }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply imp_ret; first reflexivity.
@@ -279,7 +277,7 @@ Section imp_spec.
       iIntros (x).
       iPureIntro.
       apply HSpec. }
-    simp iSpec. iIntros (x) "%ι". simp Spec in HSpec.
+    simp iSpec. iIntros (x). simp Spec in HSpec.
     specialize (HSpec x).
     destruct c; simpl in HSpec; try by apply wp.invert_pure_wp_crash in HSpec.
     - destruct a; simpl in *.
@@ -315,11 +313,11 @@ Section imp_spec.
 
 
   (* For now, we don't allow masks to be opened when proving [e] and [e1] *)
-  Lemma imp_EApp_partial `{Encode X} (τ: types) η e e1 {ι ζ Ψ}
+  Lemma imp_EApp_partial `{Encode X} (τ: types) η e e1 {ζ Ψ}
     (P : type_nel.Tcons X τ -#> microvx -> iProp Σ) :
-    imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec (type_nel.Tcons X τ) c P }} -∗
-    imp^{ι} eval η e1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v1, ∃ (x : X), ⌜v1 = #x⌝ }} -∗
-    imp^{ι} eval η (EApp e e1) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, ∃ (x : X), iSpec τ c (P x) }}.
+    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec (type_nel.Tcons X τ) c P }} -∗
+    imp eval η e1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v1, ∃ (x : X), ⌜v1 = #x⌝ }} -∗
+    imp eval η (EApp e e1) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, ∃ (x : X), iSpec τ c (P x) }}.
   Proof.
     iIntros "He He1". simpl_eval.
     iApply (imp_Par with "He He1").
@@ -331,7 +329,7 @@ Section imp_spec.
     iIntros (c v1) "HSpec [%x ->]". simpl. simp iSpec.
     iSpecialize ("HSpec" $! x).
     iApply (imp_mono_prot with "[HSpec]"); [ | iApply iEff_le_bottom ].
-    iSpecialize ("HSpec" $! ι). rewrite /continue /=.
+    rewrite /continue /=.
     iApply (imp_mono_ret with "[HSpec]").
     iApply (imp_mono_throw with "HSpec"). iIntros (? []).
     iIntros (c') "$".
@@ -349,7 +347,7 @@ End imp_spec.
 Section imp_EApp_prop_aux_def.
 
   Context `{!osirisGS Σ}.
-  Context (ι : thread) (η : env) (Ψ : iEff Σ) (ζ : exn → iProp Σ).
+  Context (η : env) (Ψ : iEff Σ) (ζ : exn → iProp Σ).
   Context (expr_base : expr) (goal_prop : expr -> iProp Σ).
 
   (* [accumulate_argument_premises_and_build_consequence_hyp] builds up
@@ -360,7 +358,7 @@ Section imp_EApp_prop_aux_def.
     iProp Σ :=
   | Tbase X, es, conseq_acc :=
       ∀ (e : expr) (φ : X -> iProp Σ),
-        imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
+        imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
         (* [Hconseq] is the consequence premise built over all parameters *)
         let Hconseq := ∀ (x : X), conseq_acc x (φ x) in
         (* [nested_eapp] is the nested application *)
@@ -368,7 +366,7 @@ Section imp_EApp_prop_aux_def.
         Hconseq -∗ goal_prop (nested_eapp)
   | type_nel.Tcons X τ', es, conseq_acc :=
       ∀ (e : expr) (φ : X -> iProp Σ),
-        imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
+        imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
         let conseq_acc :=
           (λ# (tt : τ') (Q : iProp Σ),
               ∀ (x : X),
@@ -410,16 +408,16 @@ Section imp_EApp_def.
   Context `{!osirisGS Σ}.
 
   Definition imp_EApp_prop `{Encode A} (τ : types) : iProp Σ :=
-    ∀ (ι : thread) (η : env) (e : expr) (Φ' : A -> iProp Σ) (Ψ : iEff Σ) ζ
+    ∀ (η : env) (e : expr) (Φ' : A -> iProp Σ) (Ψ : iEff Σ) ζ
       (P : τ -#> microvx -> iProp Σ),
-    imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec τ c P }} -∗
+    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec τ c P }} -∗
     accumulate_argument_premises_and_build_consequence_hyp
-      ι η Ψ ζ e
-      (λ e, imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }})
+      η Ψ ζ e
+      (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }})
       τ
       []
       (λ# (tt : τ) (Q : iProp Σ),
-           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ imp^{ι} m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }}).
+           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ imp m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }}).
 
   Arguments imp_EApp_prop {_ _} !τ /.
   Transparent imp_EApp_prop.
@@ -428,13 +426,13 @@ Section imp_EApp_def.
   (* Helper lemma for the induction step *)
 
   Lemma imp_EApp_prop_induction_step
-    (τ : types) ι (η : env) (Ψ : iEff Σ) ζ e (g : expr -> iProp Σ) :
+    (τ : types) (η : env) (Ψ : iEff Σ) ζ e (g : expr -> iProp Σ) :
     ∀ (Hconseq : τ -#> iProp Σ -> iProp Σ) (es : list expr) (ei : expr),
       app_exprs (EApp e ei) es = app_exprs e (es ++ [ei]) →
       accumulate_argument_premises_and_build_consequence_hyp
-        ι η Ψ ζ (EApp e ei) g τ es Hconseq -∗
+        η Ψ ζ (EApp e ei) g τ es Hconseq -∗
       accumulate_argument_premises_and_build_consequence_hyp
-        ι η Ψ ζ e g τ (es ++ [ei]) Hconseq.
+        η Ψ ζ e g τ (es ++ [ei]) Hconseq.
   Proof.
     induction τ as [ X HX | X HX τ IH ]; iIntros (Hconseq es ei HeqEApp) "Happlied".
     - (* Base case *)
@@ -458,7 +456,7 @@ Section imp_EApp_def.
     induction τ as [ X HX | X HX τ IH].
     - (* Base case *)
       unfold imp_EApp_prop.
-      iIntros (ι η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex"; cbn zeta.
+      iIntros (η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex"; cbn zeta.
       iIntros "Hmono".
       simpl_eval.
       iApply (imp_Par with "HSpec Hex").
@@ -472,10 +470,10 @@ Section imp_EApp_def.
 
     - (* Inductive case: multi-argument function *)
       unfold imp_EApp_prop.
-      iIntros (ι η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex".
+      iIntros (η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex".
       change [ex] with ([] ++ [ex]).
-      iApply (imp_EApp_prop_induction_step τ ι η Ψ ζ e
-              (λ e, imp^{ι} eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, Φ' x }})%I); first reflexivity.
+      iApply (imp_EApp_prop_induction_step τ η Ψ ζ e
+              (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, Φ' x }})%I); first reflexivity.
 
     (* Define the intermediate specification P' *)
     set (P' := (λ# (tt : τ) m,
@@ -486,7 +484,7 @@ Section imp_EApp_def.
     (* Use IH *)
     iPoseProof IH as "HIH".
     unfold imp_EApp_prop.
-    iSpecialize ("HIH" $! ι η (EApp e ex) _ _ _ P' with "[HSpec Hex]").
+    iSpecialize ("HIH" $! η (EApp e ex) _ _ _ P' with "[HSpec Hex]").
     { simpl_eval.
       iApply (imp_Par with "HSpec Hex").
       iSplit; last iSplit.

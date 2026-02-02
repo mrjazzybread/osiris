@@ -22,22 +22,18 @@ Section thread_step.
   Instance lookup_post_map : Lookup thread gname (post_map Σ).
   Proof. apply _. Defined.
 
-  Definition th_config A X : Type := store * (micro A X) * thread * (gset thread).
+  Definition th_config A X : Type := store * (micro A X) * (gset thread).
   Definition th_config_step A X : Type := store * (micro A X) * option (thread * microvx).
 
   Inductive thread_step {A X} : th_config A X -> th_config_step A X -> Prop :=
-  | BaseS : ∀ (m : micro A X) σ ι m' σ' π,
+  | BaseS : ∀ (m : micro A X) σ m' σ' π,
       step (σ, m) (σ', m') ->
-      thread_step (σ, m, ι, π) (σ', m', None)
-  | ForkS : ∀ σ ι (π : gset thread) v1 v2 (k : outcome2 val exn -> micro A X) ι',
-      ι' ∉ π ->
+      thread_step (σ, m, π) (σ', m', None)
+  | ForkS : ∀ σ ι (π : gset thread) v1 v2 (k : outcome2 val exn -> micro A X),
+      ι ∉ π ->
       thread_step
-        (σ, Stop CFork (v1, v2) k, ι, π)
-        (σ, continue k (VThread ι'), Some (ι', call v1 v2))
-  | SelfS : ∀ σ π ι u (k : outcome2 val exn -> micro A X),
-      thread_step
-        (σ, Stop CSelf u k, ι, π)
-        (σ, continue k (VThread ι), None)
+        (σ, Stop CFork (v1, v2) k, π)
+        (σ, continue k (VThread ι), Some (ι, call v1 v2))
   .
 
   Global Arguments thread_step {A X}.
@@ -51,10 +47,10 @@ From iris.bi Require Import bi.
 Ltac destruct_thread_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
-  try match goal with
-    | h: thread_step (?σ, Stop ?c ?x ?k, ?ι, ?π) ?m' |- _ =>
+  try lazymatch goal with
+    | h: thread_step (?σ, Stop ?c ?x ?k, ?π) ?m' |- _ =>
           remember x
-    | h: thread_step (?σ, stop ?c ?x, ?ι, ?π) ?m' |- _ =>
+    | h: thread_step (?σ, stop ?c ?x, ?π) ?m' |- _ =>
           remember x
     end;
   match goal with h: thread_step ?m ?m' |- _ =>
@@ -74,15 +70,14 @@ Section can_progress.
   Definition can_progress {A E} σ (π : gset thread) (m : micro A E) :=
     match m with
     | Stop CJoin ι' k => ι' ∈ π
-    | _ => ∀ ι, ∃ σ' m' (μ : option (thread * microvx)),
-      thread_step (σ, m, ι, π) (σ', m', μ)
+    | _ => ∃ σ' m' (μ : option (thread * microvx)),
+      thread_step (σ, m, π) (σ', m', μ)
     end.
 
   Lemma invert_can_progress {A E} σ π m :
     @can_progress A E σ π m ->
     ((∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ π) ∨
       (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
-      (∃ u k, m = Stop CSelf u k) ∨
       (can_step (σ, m))).
   Proof.
     intros Hcp.
@@ -92,17 +87,15 @@ Section can_progress.
       (* If that computation is a Stop, destruct the code *)
       try destruct_code;
       (* Generally try to invert Hcp *)
-      try (specialize (Hcp (Thread 0%Z));
-          destruct Hcp as (σ' & m' & μ & Hcp);
-          dependent destruction Hcp;
-          destruct_step; auto with step can_step);
+      try (destruct Hcp as (σ' & m' & μ & Hcp);
+           dependent destruction Hcp;
+           destruct_step; auto with step can_step);
       (* There remains some cases *)
-      try solve [(do 3 right; auto with step can_step)].
+      try solve [(do 2 right; auto with step can_step)].
 
     (* Only the concurrent [Stop] cases are left. *)
     - right; left. destruct x. repeat eexists.
     - left. repeat eexists. apply Hcp.
-    - right; right; left. repeat eexists; apply Hcp.
   Qed.
 
   Arguments can_progress : simpl never.
@@ -148,18 +141,11 @@ Section can_progress.
     apply Hprog.
   Qed.
 
-  Lemma can_progress_self {A E} σ π u (k : _ -> micro A E) :
-    can_progress σ π (Stop CSelf u k).
-  Proof.
-    unfold can_progress.
-    do 3 eexists; apply SelfS with (u := u); eauto.
-  Qed.
-
-  Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) m' ι μ (l : loc) (o : outcome2 val exn)
+  Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) m' μ (l : loc) (o : outcome2 val exn)
     (k : outcome2 val exn → micro A E)
     (sk : outcome2 val exn → microvx) :
     σ !! l = Some (K sk) →
-    thread_step (σ, Stop CResume (l, o) k, ι, π) (σ', m', μ) →
+    thread_step (σ, Stop CResume (l, o) k, π) (σ', m', μ) →
       σ' = <[l:=Shot]> σ ∧
       m' = try2 (sk o) k ∧
       μ = None.
@@ -175,8 +161,8 @@ Section can_progress.
   (* If [m] takes a [thread_step] to some [m'],
      and [m] can take a sequential step,
      then it took that sequential step which resulted in [m']. *)
-  Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) ι m' μ σ' :
-    thread_step (σ, m, ι, π) (σ', m', μ) ->
+  Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) m' μ σ' :
+    thread_step (σ, m, π) (σ', m', μ) ->
     can_step (σ, m) ->
     step (σ, m) (σ', m') ∧
       μ = None.
@@ -192,10 +178,10 @@ Section can_progress.
     | h: step (_, try2 _ _) (_, _) |- _ => apply invert_step_try2 in h as (? & ? & ->)
     end.
 
-  Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) ι σ' μ :
-    thread_step (σ, (try2 m k), ι, π) (σ', m', μ) ->
+  Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) σ' μ :
+    thread_step (σ, (try2 m k), π) (σ', m', μ) ->
     can_step (σ, m) ->
-    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, ι, π) (σ', m'', None).
+    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, π) (σ', m'', None).
   Proof.
     intros Hwp Hstep.
     dependent destruction Hwp;
@@ -215,5 +201,4 @@ Global Opaque can_progress.
 
 Global Hint Resolve
   can_progress_join
-  can_progress_fork
-  can_progress_self : can_progress.
+  can_progress_fork : can_progress.

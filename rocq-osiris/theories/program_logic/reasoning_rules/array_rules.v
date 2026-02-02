@@ -141,11 +141,11 @@ Section array_resources.
 
    Context `{!osirisGS Σ}.
 
-   Context {ι : thread} {η : env} {E : coPset} {Ψ : iEff Σ}.
+   Context {η : env} {E : coPset} {Ψ : iEff Σ}.
 
    Lemma imp_EArrayLength {ζ} (n : Z) e :
-     imp^{ι} eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, isArray a n }} -∗
-     imp^{ι} eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n', ⌜n' = n⌝ }}.
+     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, isArray a n }} -∗
+     imp eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n', ⌜n' = n⌝ }}.
    Proof.
      iIntros "He". simpl_eval.
      iApply (imp_bind _ _ (λ ls, ret (VInt (repr (length ls)))) with "[He]").
@@ -178,14 +178,14 @@ Section array_resources.
 
    Lemma imp_EArrayMake `{Encode A} {ζ} {e1 e2} (n : Z) (Φ : A → iProp Σ) :
      ⌜0 ≤ n < max_array⌝ -∗
-     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
-     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-     imp^{ι} eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+     imp eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
        {{ λ a, ∃ x, Φ x ∗ isArray a n ∗ isSlice (DfracOwn 1) a 0 (repeat x (Z.to_nat n)) }}.
    Proof.
      iIntros (Hbound) "He1 He2". simpl_eval.
      iApply (@imp_Par _ _ val val exn _ _
-               _ _ _ _ _ _ _ _ _ _ _ _ _ _
+               _ _ _ _ _ _ _ _ _ _ _ _ _
                _ _ _ _ (as_int (eval η e1)) _ (pfbind inject2
                (λ '(n0, v),
                   if ((0 <=? signed n0) && (signed n0 <? max_array))%bool
@@ -229,14 +229,14 @@ Section array_resources.
    Qed.
 
    Lemma imp_EArrayUnsafeGet2 `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : val → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 :
-     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, ∃ n, isArray a n ∗ Φ1 a }} -∗
-     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ2 i }} -∗
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, ∃ n, isArray a n ∗ Φ1 a }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ2 i }} -∗
      (∀ a i, Φ1 a -∗ Φ2 i -∗
              ∃ n, isArray a n ∗
              ∃ dq j xs x,
                ▷ (⌜j ≤ i⌝ ∗ isSlice dq a j xs ∗ ⌜xs !! (i - j) = Some x⌝) ∗
                ▷ (isSlice dq a j xs -∗ Φ x)) -∗
-     imp^{ι} eval η (EArrayUnsafeGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+     imp eval η (EArrayUnsafeGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
    Proof.
      iIntros "He1 He2 P". simpl_eval.
      iApply (imp_Par _ _ _ _ _ _ (pfbind inject2
@@ -332,9 +332,9 @@ Section array_resources.
      ⌜xs !! (i - j)%Z = Some x⌝ -∗
      isArray a n -∗
      ▷ isSlice dq a j xs -∗
-     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
-     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-     imp^{ι} eval η (EArrayUnsafeGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
+     imp eval η (EArrayUnsafeGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
            {{ λ v, ⌜v = x⌝ ∗ isSlice dq a j xs }}.
    Proof.
      iIntros (Hi Hlookup) "#Harr Hslice He1 He2".
@@ -354,9 +354,9 @@ Section array_resources.
      ⌜xs !! (i - j)%Z = Some x⌝ -∗
      isArray a n -∗
      ▷ isSlice dq a j xs -∗
-     imp^{ι} eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
-     imp^{ι} eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-     imp^{ι} eval η (EArrayGet e1 e2) @ E <|Ψ|>
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
+     imp eval η (EArrayGet e1 e2) @ E <|Ψ|>
        ⟨⟨ λ e, ζ e ∨ ⌜e = VException (Invalid_argument "index out of bounds")⌝ ∧ ⌜(i < 0 ∨ i >= n)%Z⌝ ⟩⟩
        {{ λ v, ⌜v = x⌝ ∗ isSlice dq a j xs }}.
    Proof.

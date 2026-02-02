@@ -79,18 +79,17 @@ Inductive code : Type → Type → Type → Type :=
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
 | CJoin : code thread val exn
-| CSelf : code unit val exn
 .
 
 Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
   match c with
-  | CFork | CJoin | CSelf => True
+  | CFork | CJoin => True
   | _ => False
   end.
 
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with
-  | CPerf | CJoin | CFork | CSelf => True
+  | CPerf | CJoin | CFork => True
   | _ => False
   end.
 
@@ -162,9 +161,6 @@ Definition fork (v1 v2 : val) :=
 
 Definition join (t : thread) :=
   stop CJoin t.
-
-Definition self :=
-  stop CSelf ().
 
 (* ------------------------------------------------------------------------ *)
 

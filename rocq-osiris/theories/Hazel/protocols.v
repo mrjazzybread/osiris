@@ -13,7 +13,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export lib.iprop.
 
-From osiris Require Import lang.syntax semantics.
+From osiris Require Import lang.syntax semantics encode.
 Set Default Proof Using "Type".
 
 (* ========================================================================== *)
@@ -932,21 +932,32 @@ End protocol_ordering_properties.
 
 (* -------------------------------------------------------------------------- *)
 
-Definition prot {Σ} Ψ v Φ := (iEff_car (Σ := Σ) (upcl OS Ψ) v Φ).
+Definition prot {Σ} `{Encode A} Ψ v ζ (Φ : A → iProp Σ) :=
+  (iEff_car (Σ := Σ) (upcl OS Ψ) v (ilift ζ (ireturns Φ))).
 
 (* -------------------------------------------------------------------------- *)
 
 (** Non-expansiveness of Protocols. *)
 
-Global Instance prot_car_ne {Σ} v m :  NonExpansive (prot (Σ:=Σ) v m).
+Global Instance prot_car_ne {Σ} v m :  NonExpansive (iEff_car (Σ:=Σ) v m).
 Proof. intros ????. solve_proper. Qed.
 Global Instance prot_car_proper {Σ} : Proper ((≡) ==> (≡)) (iEff_car (Σ:=Σ)).
 Proof. by intros ???. Qed.
 
 Notation "Ψ 'allows' 'perform' v << Φ >>" :=
-  (prot Ψ v Φ)
+  (iEff_car (upcl OS Ψ) v Φ)
     (left associativity, Φ at level 200, at level 12,
-      format "'[' Ψ  'allows'  'perform'  v  '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
+      format "'[' Ψ  'allows'  'perform'  v   '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
+
+Notation "Ψ 'allows' 'perform' v ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+  (prot Ψ v ζ Φ)
+    (left associativity, Φ at level 200, at level 12,
+      format "'[' Ψ  'allows'  'perform'  v    '⟨⟨' ζ '⟩⟩'  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
+
+Notation "Ψ 'allows' 'perform' v {{ Φ }}" :=
+  (prot Ψ v ⊥ Φ)
+    (left associativity, Φ at level 200, at level 12,
+      format "'[' Ψ  'allows'  'perform'  v  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
 
 Arguments prot : simpl never.
 Arguments iEff_car : simpl never.

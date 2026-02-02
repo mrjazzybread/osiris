@@ -292,8 +292,6 @@ type expr =
   | EFork of expr * expr
   (* Joining an existing thread: [Domain.join d] *)
   | EJoin of expr
-  (* Requesting one's own thread handler: [Domain.self ()] *)
-  | ESelf
                        [@@ deriving show]
 
 (* Lists of expressions. *)

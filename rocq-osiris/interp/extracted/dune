@@ -7,7 +7,7 @@
   (prelude extract)
   (theories Stdlib stdpp iris Ltac2 osiris Equations)
   (extracted_modules
-    Datatypes Specif Decimal Basics Bool Orders ListDef List base NatDef BinNums PosDef
+    Datatypes Specif Decimal Basics Bool Orders ListDef list_basics List base NatDef BinNums PosDef
     BinPos BinNat Nat Ascii BinInt ZArith_dec String Zpower option numbers
     countable void infinite fin_sets fin_maps mapset list_monad gmap locations thread_ids
     PrimFloat Coqlib Zbits Integers int syntax notations outcome code Mergesort

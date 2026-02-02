@@ -86,10 +86,6 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CJoin i k)
     (Crash)
-| MaySelf u k :
-  may
-    (Stop CSelf u k)
-    (Crash)
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par Crash m2 k)

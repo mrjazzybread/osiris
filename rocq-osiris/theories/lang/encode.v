@@ -1,5 +1,7 @@
 From osiris Require Import base.
-From osiris.lang Require Import int locations thread_ids syntax notations.
+From osiris.semantics Require Import outcome.
+From osiris.lang Require Import syntax.
+From iris.base_logic.lib Require Import iprop.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
    of type [A → val]. This function encodes Coq values of type [A] into
@@ -73,10 +75,46 @@ Global Instance observe_encode {A} `{Encode A}:
    instantiate evars eagerly to this instance when it is not desired.
    (Even if its weight is very high.) *)
 
-Notation "♯ x" := (observe x) (at level 5).
+Notation "♯ x" := (observe x) (at level 5, format "♯ x").
 
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
+
+
+Section lift_specs.
+
+  (* Utility functions for writing postconditions on [ewp] *)
+
+  Context {Σ : gFunctors}.
+
+  Context {A X : Type}.
+
+  (* Lifting specifications in Iris logic. *)
+
+  Definition ilift (ζ : X -d> iProp Σ) (Φ : A -d> iProp Σ) : outcome2 A X -d> iProp Σ :=
+    (λ v, match v with
+          | O2Ret r => Φ r
+          | O2Throw e => ζ e
+          end)%I.
+
+  Global Instance ilift_ne n :
+    Proper (pointwise_relation _ (dist n) ==>
+            pointwise_relation _ (dist n) ==>
+            eq ==> (dist n)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
+
+  Global Instance ilift_proper :
+    Proper (pointwise_relation _ (≡) ==>
+            pointwise_relation _ (≡) ==>
+            eq ==> (≡)) ilift.
+  Proof. repeat intro; subst; destruct y1; eauto. Qed.
+
+  Definition ireturns {V} `{Observe A V} (Φ : A → iProp Σ) : V → iProp Σ :=
+    λ v, (∃ a : A, ⌜v = ♯ a⌝ ∗ Φ a)%I.
+
+End lift_specs.
+
+From osiris.lang Require Import int locations thread_ids notations.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -567,7 +605,7 @@ Global Instance Encode_tuple3
   : Encode (A * B * C)
   | 5 (* higher priority than tuple2; lower priority than tuple3 *)
 :=
-  { encode := λ '(a, b, c), VTuple [#a; #b; #c] }.
+  { encode := λ '(a, b, c), VTuple [ #a; #b; #c] }.
 
 Lemma solve_encode_tuple3
   `{Encode A} `{Encode B} `{Encode C}
@@ -594,7 +632,7 @@ Global Instance Encode_tuple4
   : Encode (A * B * C * D)
   | 0 (* higher priority than tuple2 and tuple3 above *)
 :=
-  { encode := λ '(a, b, c, d), VTuple [#a; #b; #c; #d] }.
+  { encode := λ '(a, b, c, d), VTuple [ #a; #b; #c; #d] }.
 
 Lemma solve_encode_tuple4
   `{Encode A} `{Encode B} `{Encode C} `{Encode D}

@@ -253,24 +253,18 @@ Section Modules.
  Definition spec_env : Type :=
    list (var * (val → iProp Σ)).
 
- (* Last two points of the description of [module_spec] below. *)
- Let module_spec_list (Λ : spec_env) (η: env) : iProp Σ :=
-   [∗ list] '(x, φx) ∈ Λ,
-     ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
-
  (* [module_spec Λ] is a predicate over values which asserts that:
     1. the value represents a module
     2. the module contains least the elements present in [Λ]
     3. every field present in [Λ] satisfy its spec. *)
- Definition module_spec (Λ : spec_env) (v: val) : iProp Σ :=
-   ∃ η, ⌜ v = VStruct η ⌝ ∗ module_spec_list Λ η.
+ Definition module_spec (Λ : spec_env) (η: env) : iProp Σ :=
+   [∗ list] '(x, φx) ∈ Λ,
+     ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
 
  (* [is_module] is the pure counterpart of [module_spec]. It asserts the first
     two points listed above. *)
- Definition is_module (Λ : list name) (v : val) : Prop :=
-   ∃ (η : env),
-     v = VStruct η ∧
-     foldr (λ n P, (∃ (vn : val), lookup_name η n = Ret vn) ∧ P) True Λ.
+ Definition is_module (Λ : list name) η : Prop :=
+   foldr (λ n P, (∃ (vn : val), lookup_name η n = Ret vn) ∧ P) True Λ.
 
  (* -------------------------------------------------------------------------- *)
 
@@ -291,62 +285,48 @@ Section Modules.
    ⌜is_module (spec_env_erase Λ) vmod⌝.
  Proof.
    iInduction Λ as [|[h ?] t] "IHΛ".
-   { iDestruct 1 as "(% & -> & _)". by iExists _. }
+   { iIntros "_". iPureIntro. done. }
 
-   { iDestruct 1 as "(% & -> & H)".
-     iExists _.
-     iSplit; first (iPureIntro; reflexivity).
-     rewrite/module_spec_list/=.
+   { iIntros "H".
+     rewrite/module_spec/=.
      iDestruct "H" as "[(%vname&%Hvname&_) Ht]".
      iSplit; first by iExists vname.
-
-     iAssert (module_spec t (VStruct η)) with "[Ht]" as "Ht".
-     { iExists _; iSplit; [ iPureIntro; reflexivity | iExact "Ht" ]. }
-
-     iPoseProof ("IHΛ" with "Ht") as "[% [%Heq H]]".
-     simplify_eq/=.
-     iExact "H". }
+     iApply ("IHΛ" with "Ht"). }
  Qed.
-
- (* If [is_module _ v] holds, then [val_as_struct v] should succeed. *)
- Lemma is_module_val_of_struct (v : val) (Λ : list name) :
-   is_module Λ v →
-   val_as_struct v = Ret (val_as_struct_total v).
- Proof. intros (?&->&?); reflexivity. Qed.
 
  (* If [is_module Λ v] holds,
     any lookup of an element of [Λ] into the module represented by [v]
     must succeed. *)
- Lemma is_module_lookup_name (v : val) n Λ :
-   is_module Λ v →
+ Lemma is_module_lookup_name η n Λ :
+   is_module Λ η →
    In n Λ →
-   ∃ velt, lookup_name (val_as_struct_total v) n = Ret velt.
+   ∃ velt, lookup_name η n = Ret velt.
  Proof.
    induction Λ as [ | h t];
      first (* Impossible case. *)
        by inversion 2.
 
-   intros (η&->&(vh&Hh)&Ht) [-> |Hin]%in_inv;
+   intros ((vh&Hh)&Ht) [-> |Hin]%in_inv;
      first (exists vh; exact Hh).
    refine (IHt _ Hin).
-   exists η; split; [ reflexivity | exact Ht ].
+   exact Ht.
  Qed.
 
  (* Ditto, except that the value returned by [lookup_name] is known: it is
     the result of the total lookup function. *)
- Lemma is_module_lookup_name_total (v : val) (Λ : list name) (n : name) :
-   is_module Λ v →
+ Lemma is_module_lookup_name_total η (Λ : list name) (n : name) :
+   is_module Λ η →
    In n Λ →
-   lookup_name (val_as_struct_total v) n =
-   Ret (lookup_name_total (val_as_struct_total v) n).
+   lookup_name η n =
+   Ret (lookup_name_total η n).
  Proof.
    induction Λ as [ | h t ];
      first (* Impossible case. *)
        inversion 2.
 
-   intros (η & -> & (vh&Hh) & Ht) [Heq | Hin]%in_inv; last first.
+   intros ((vh&Hh) & Ht) [Heq | Hin]%in_inv; last first.
    { apply IHt; last assumption.
-     eexists _; split; [ reflexivity | assumption ]. }
+     assumption. }
    cbn.
    unfold lookup_name_total, totalify.
    rewrite -Heq Hh; f_equal.
@@ -378,24 +358,19 @@ Section Modules.
  (* Should a module specification be available, one can fetch the specification
     of any symbol described by the spec.
     A dummy value is returned if none is found. *)
- Lemma module_spec_spec (Λ : spec_env) (v : val) (n: name) :
-   module_spec Λ v ⊢
-   (module_spec_fetch Λ n) (lookup_name_total (val_as_struct_total v) n).
+ Lemma module_spec_spec (Λ : spec_env) η (n: name) :
+   module_spec Λ η ⊢
+   (module_spec_fetch Λ n) (lookup_name_total η n).
  Proof.
    iInduction Λ as [ | [n' φ] Λ' ] "IH"; first by iIntros"_".
-   iIntros "(%η&->&H)".
-   change (module_spec_list ((n', φ) :: Λ') η)
-     with ((∃ v : val, ⌜lookup_name η n' = ret v⌝ ∗ φ v) ∗
-           module_spec_list Λ' η)%I.
-   iDestruct "H" as "[(%v0&%Hv0&H0)H]".
+   iIntros "H".
+   rewrite {2}/module_spec. simpl.
+   iDestruct "H" as "((%v & %Hlookup & Hφ) & H2)".
    destruct (decide (n = n')) as [-> | Hneq].
    { cbn. rewrite String.eqb_refl.
-     by rewrite (lookup_name_total_ret _ _ _ Hv0). }
-   { replace (module_spec_fetch ((n', φ) :: Λ') n (lookup_name_total (val_as_struct_total (VStruct η)) n))
-       with (module_spec_fetch Λ' n (lookup_name_total (val_as_struct_total (VStruct η)) n));
-       last (cbn; by apply String.eqb_neq in Hneq as ->).
-     iApply "IH".
-     iExists _; iSplit; [ done | iAssumption ]. }
+     by rewrite (lookup_name_total_ret _ _ _ Hlookup). }
+   { apply String.eqb_neq in Hneq as ->.
+     iApply ("IH" with "H2"). }
  Qed.
 End Modules.
 

@@ -49,7 +49,7 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   (* Final micros do not step *)
   | Ret _ | Throw _ | Crash => None
   (* Most side effects are not confluent *)
-  | Stop (CFlip | CLoad | CStore | CPerf | CResume | CWrap | CFork | CJoin | CSelf) _ _ => None
+  | Stop (CFlip | CLoad | CStore | CPerf | CResume | CWrap | CFork | CJoin) _ _ => None
   (* [CEval], [CLoop], [CAlloc], [Handle] have only one way to reduce *)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
@@ -106,7 +106,6 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CPerf e k => Final (FPerform e k)
   | Stop CFork m k => Final FConcurrent
   | Stop CJoin ι' k => Final FConcurrent
-  | Stop CSelf u k => Final FConcurrent
 
   (* Handlers do not introduce nondeterminism *)
   | Handle m1 h =>
@@ -367,7 +366,6 @@ Fixpoint string_of_expr (e : expr) : string :=
   | EStore e1 e2 => "EStore(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EFork e1 e2 => "EFork(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EJoin e => "EFork(" ++ string_of_expr e ++ ")"
-  | ESelf => "ESelf"
   end
   with string_of_fexpr (x : fexpr) : string :=
   match x with
@@ -469,7 +467,6 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CWrap => "CWrap"
   | CFork => "CFork"
   | CJoin => "CJoin"
-  | CSelf => "CSelf"
   end.
 
 Definition string_of_bool (b : bool) : string :=
@@ -497,7 +494,6 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CWrap (d, loc, η, h) k => "Stop(CWrap" ++ ", " ++ string_of_bool d ++ ", " ++ string_of_Z loc.(address) ++ "<env>, <handler>" ++ ", <cont>)"
   | Stop CFork (v1, v2) k => "Stop(CFork" ++ ", " ++ string_of_val v1 ++ ", " ++ string_of_val v2 ++ ", <cont>)"
   | Stop CJoin ι' k => "Stop(CFork" ++ ", " ++ string_of_Z ι'.(tid) ++ ", <cont>)"
-  | Stop CSelf u k => "Stop(CSelf, <cont>)"
   | Handle m h => "Handle(" ++ string_of_micro string_of_val string_of_val m ++ ", <handler>)"
   | Par m1 m2 k =>
       "Par(" ++

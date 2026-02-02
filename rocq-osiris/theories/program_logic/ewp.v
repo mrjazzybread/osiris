@@ -251,8 +251,8 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => WPStep
   end.
 
-Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) ι σ' μ :
-  thread_step (σ, m, ι, π) (σ', m', μ) ->
+Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ :
+  thread_step (σ, m, π) (σ', m', μ) ->
   is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
@@ -284,9 +284,9 @@ Section ewp_def.
    *)
 
   Definition ewp_pre
-    (ewp : ∀ {A X}, thread -d> coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
-    (∀ {A X}, thread -d> coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
-    λ A X ι E m Ψ φ,
+    (ewp : ∀ {A X}, coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :
+    (∀ {A X}, coPset -d> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ) :=
+    λ A X E m Ψ φ,
       (match is_ewp_case m with
        (* [EWP1]: Returned values and raised exceptions. *)
        | WPOutcome o => |={E}=> φ o
@@ -296,21 +296,21 @@ Section ewp_def.
           The effect [e] satisfies protocol Ψ and the permitted replies
           satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
-           |={E}=> Ψ allows perform e << λ o, ▷ ewp ι E (k o) Ψ φ >>
+           |={E}=> Ψ allows perform e << λ o, ▷ ewp E (k o) Ψ φ >>
        (* [EWP4]: [m] is a computation that can take a step. *)
        | WPStep =>
            ∀ σ π,
              state_interp (σ, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
-               ⌜thread_step (σ, m, ι, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
-               ewp ι E m' Ψ φ ∗
+               ⌜thread_step (σ, m, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ewp E m' Ψ φ ∗
                match μ with
                | None => state_interp (σ', π)
                | Some (ι', mforked) =>
                    ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
-                           ewp ι' E mforked ⊥ (λ o, □ φ' o)
+                           ewp E mforked ⊥ (λ o, □ φ' o)
                end
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
@@ -321,26 +321,26 @@ Section ewp_def.
              | Some γ =>
                  ∃ φ', saved_pred_own γ DfracDiscarded φ' ∗
                        ▷ (∀ o, □ φ' o ={∅}=∗ |={∅,E}=>
-                          ewp ι E (k o) Ψ φ ∗ state_interp (σ, π))
+                          ewp E (k o) Ψ φ ∗ state_interp (σ, π))
              end
        end)%I.
 
   Local Instance ewp_pre_contractive : Contractive ewp_pre.
   Proof.
-    rewrite /ewp_pre /= => n ewp ewp' Hwp A X ι E m Ψ φ.
+    rewrite /ewp_pre /= => n ewp ewp' Hwp A X E m Ψ φ.
     f_equiv.
-    - do 2 f_equiv. intro P. f_contractive. apply Hwp.
+    - do 7 f_equiv. f_contractive. apply Hwp.
     - repeat (f_contractive || f_equiv || apply Hwp).
     - repeat (f_contractive || f_equiv || apply Hwp).
   Qed.
 
-  Definition ewp_def : ∀ A X, thread -> coPset -> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
+  Definition ewp_def : ∀ A X, coPset -> micro A X -d> (iEff Σ) -d> (outcome2 A X -d> iPropO Σ) -d> iPropO Σ :=
     @fixpoint _ _ discrete_fun2_cofe _ ewp_pre ewp_pre_contractive.
 
   Local Definition ewp_aux : seal (@ewp_def). Proof. by eexists. Qed.
   Definition ewp' := ewp_aux.(unseal).
 
-  Global Arguments ewp' {E e ιΨ Φ} : rename.
+  Global Arguments ewp' {E e Ψ Φ} : rename.
   Global Arguments ewp_def {A X}.
 
 End ewp_def.
@@ -356,10 +356,10 @@ Implicit Type φ : outcome2 A X → iProp Σ.
 Implicit Type a : val.
 Implicit Type m : micro A X.
 
-Notation wp := (wp (PROP:=iProp Σ)).
+(* Notation wp := (wp (PROP:=iProp Σ)). *)
 
-Lemma ewp_unfold {ι} {E} {Ψ} {φ} (m : micro A X)  :
-  ewp_def ι E m Ψ φ ⊣⊢ ewp_pre (@ewp_def Σ _) ι E m Ψ φ.
+Lemma ewp_unfold {E} {Ψ} {φ} (m : micro A X)  :
+  ewp_def E m Ψ φ ⊣⊢ ewp_pre (@ewp_def Σ _) E m Ψ φ.
 Proof.
   rewrite {1}/ewp_def.
   apply (@fixpoint_unfold _ _ discrete_fun2_cofe _ ewp_pre).
@@ -368,15 +368,14 @@ Qed.
 Local Ltac ewp_unfold_all :=
   rewrite !ewp_unfold /ewp_pre /=.
 
-Global Instance ewp_ne ι E m n Ψ :
-  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def ι E m Ψ).
+Global Instance ewp_ne E m n Ψ :
+  Proper (pointwise_relation _ (dist n) ==> (dist n)) (ewp_def E m Ψ).
 Proof.
-  induction (lt_wf n) as [n _ IH] in m, ι, Ψ |-* => Φ Ψ' HΦ.
+  induction (lt_wf n) as [n _ IH] in m, Ψ |-* => Φ Ψ' HΦ.
   ewp_unfold_all.
   f_equiv. f_equiv.
   - do 8 f_equiv.
-  - repeat f_equiv.
-    intro. f_contractive.
+  - do 7 f_equiv. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
   - do 18 (f_contractive || f_equiv).
@@ -387,19 +386,19 @@ Proof.
     + apply IH; eauto. f_equiv. eapply dist_lt; eauto.
 Qed.
 
-Global Instance ewp_proper ι E m Ψ:
+Global Instance ewp_proper E m Ψ:
   Proper
     (pointwise_relation _ (≡) ==> (≡))
-    (ewp_def ι E m Ψ).
+    (ewp_def E m Ψ).
 Proof.
   by intros Φ Φ' ?; apply equiv_dist=>n; apply ewp_ne=>v; apply equiv_dist.
 Qed.
 
-Global Instance ewp_contractive ι E m Ψ n:
+Global Instance ewp_contractive E m Ψ n:
   TCEq (is_ewp_case m) WPStep →
   Proper
     (pointwise_relation _ (dist_later n) ==> dist n)
-    (ewp_def ι E m Ψ).
+    (ewp_def E m Ψ).
 Proof.
   intros He Φ Ψ' HΦ. ewp_unfold_all. rewrite He /=.
   repeat (f_contractive || f_equiv).
@@ -410,44 +409,13 @@ End ewp_properties.
 
 (* ========================================================================== *)
 
-(* Utility functions for writing postconditions on [ewp] *)
+
 
 From osiris.lang Require Import encode.
 
-Section lift_specs.
-
-  Context {Σ : gFunctors}.
-
-  Context {A X : Type}.
-
-  (* Lifting specifications in Iris logic. *)
-
-  Definition ilift (ζ : X -d> iProp Σ) (Φ : A -d> iProp Σ) : outcome2 A X -d> iProp Σ :=
-    (λ v, match v with
-          | O2Ret r => Φ r
-          | O2Throw e => ζ e
-          end)%I.
-
-  Global Instance ilift_ne n :
-    Proper (pointwise_relation _ (dist n) ==>
-            pointwise_relation _ (dist n) ==>
-            eq ==> (dist n)) ilift.
-  Proof. repeat intro; subst; destruct y1; eauto. Qed.
-
-  Global Instance ilift_proper :
-    Proper (pointwise_relation _ (≡) ==>
-            pointwise_relation _ (≡) ==>
-            eq ==> (≡)) ilift.
-  Proof. repeat intro; subst; destruct y1; eauto. Qed.
-
-  Definition ireturns {V} `{Observe A V} (Φ : A → iProp Σ) : V → iProp Σ :=
-    λ v, (∃ a : A, ⌜v = ♯ a⌝ ∗ Φ a)%I.
-
-End lift_specs.
-
 Definition impure {A V X} `{osirisGS Σ} `{Observe A V}
-  (ι : thread) (E : coPset) (m : micro V X) (Ψ : iEff Σ) (ζ : X → iProp Σ) (Φ : A → iProp Σ) : iProp Σ :=
-  ewp_def ι E m Ψ (ilift ζ (ireturns Φ)).
+  (E : coPset) (m : micro V X) (Ψ : iEff Σ) (ζ : X → iProp Σ) (Φ : A → iProp Σ) : iProp Σ :=
+  ewp_def E m Ψ (ilift ζ (ireturns Φ)).
 
 (* ========================================================================== *)
 
@@ -462,102 +430,54 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
    The exception postcondition comes BEFORE the return postcondition
    so the parser can distinguish from the short form. *)
 
-Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E ⊥ ζ Φ))
+Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+  (impure ⊤ e%E ⊥ ζ Φ)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E ⊥ ζ Φ))
+Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+  (impure E e%E ⊥ ζ Φ)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E Ψ ζ Φ))
+Notation "'imp' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+  (impure ⊤ e%E Ψ ζ Φ)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
+      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' '}}' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E Ψ ζ Φ))
+Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+  (impure E e%E Ψ ζ Φ)
     (at level 20, e, Ψ, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι ⊤ e%E ⊥ ζ Φ)
-    (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ ' ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι E e%E ⊥ ζ Φ)
-    (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι ⊤ e%E Ψ ζ Φ)
-    (at level 20, e, Φ, ζ at level 200,
-      format "'[hv' 'imp^{' ι }  e  '/' <| Ψ '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e @ E <| Ψ '|' '>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
-  (impure ι E e%E Ψ ζ Φ)
-    (at level 20, e, Ψ, Φ, ζ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 (* Notations without exceptional postcondition (uses ⊥) *)
 
-Notation "'imp' e {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E ⊥ Φ ⊥))
+Notation "'imp' e {{ Φ }}" :=
+  (impure ⊤ e%E ⊥ ⊥ Φ)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ '  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ '  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E ⊥ ⊥ Φ))
+Notation "'imp' e @ E {{ Φ }}" :=
+  (impure E e%E ⊥ ⊥ Φ)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|' '>' {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι ⊤ e%E Ψ ⊥ Φ))
+Notation "'imp' e <| Ψ '|>' {{ Φ }}" :=
+  (impure ⊤ e%E Ψ ⊥ Φ)
     (at level 20, e, Φ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'")
+      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' '}}' ']'")
     : bi_scope.
 
-Notation "'imp^{' ι } e {{ Φ } }" :=
-  (impure ι ⊤ e%E ⊥ ⊥ Φ)
-    (at level 20, e, Φ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ '  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e @ E {{ Φ } }" :=
-  (impure ι E e%E ⊥ ⊥ Φ)
-    (at level 20, e, Φ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e <| Ψ '|' '>' {{ Φ } }" :=
-  (impure ι ⊤ e%E Ψ ⊥ Φ)
-    (at level 20, e, Φ at level 200,
-      format "'[hv' 'imp^{' ι }  e  '/' <| Ψ '|' '>'  {{  '[' Φ  ']' } } ']'")
-    : bi_scope.
-
-Notation "'imp' e @ E <| Ψ '|' '>' {{ Φ } }" :=
-  (bi_forall (fun ι => impure ι E e%E Ψ ⊥ Φ))
+Notation "'imp' e @ E <| Ψ |> {{ Φ }}" :=
+  (impure E e%E Ψ ⊥ Φ)
     (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
-    : bi_scope.
-
-Notation "'imp^{' ι } e @ E <| Ψ '|' '>' {{ Φ } }" :=
-  (impure ι E e%E Ψ ⊥ Φ)
-    (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'imp^{' ι }  e  '/' '[ ' @  E  <|  Ψ  '|' '>'  {{  Φ  } } ']' ']'")
+      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 (* N.B.: we don't use [bi_scope] here to avoid a notation conflict with

@@ -191,23 +191,6 @@ Ltac IfThenElse :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* Store-related tactics. *)
-
-Ltac Alloc l H :=
-  iApply ewp_alloc; iNext; iIntros (l) H.
-Ltac Load H :=
-  iApply (ewp_load with H); iNext; iIntros H.
-Ltac Store H :=
-  iApply (ewp_store with H); iNext; iIntros H.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Apply a [ewp] tactic; maybe we want to add in more checks or normalization
-  here *)
-Tactic Notation "ewp:" tactic(H) := try H.
-
-(* -------------------------------------------------------------------------- *)
-
 (** *Automation *)
 (* Extending the [by] and [done] tactics to solve trivial things in proof mode *)
 
@@ -215,11 +198,6 @@ Tactic Notation "ewp:" tactic(H) := try H.
   reasoning about exceptional continuations *)
 Global Hint Extern 0 (envs_entails _ (bi_forall (fun _ : void => _))) => iIntros (?)
 ; try done : core.
-
-(* Apply general tactics *)
-Global Hint Extern 0 (envs_entails _ (ewp_def _ (ret _) _ _)) => ewp: Ret : core.
-
-Notation "OCAML⟦ x ⟧" := (eval.E.eval (deco x _)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -266,7 +244,7 @@ Ltac prove_handler_spec :=
    the effectful case is trivial. *)
 
 Ltac prove_match0_spec spec :=
-  iApply ewp_EMatch;
+  iApply imp_EMatch;
   iApply (ewp_deep_handler _ _ _ spec);
   [ |
     prove_handler_spec;
@@ -280,7 +258,7 @@ Ltac prove_match0_spec spec :=
   ].
 
 Ltac prove_match :=
-  iApply ewp_EMatch;
+  iApply imp_EMatch;
   iApply ewp_deep_handler;
   [ |
     prove_handler_spec;
@@ -289,19 +267,6 @@ Ltac prove_match :=
       iIntros (??) Hf;
         by iPoseProof (upcl_bottom with Hf) as "?" ]
   ].
-
-Ltac prove_simple_match :=
-  iApply ewp_EMatch;
-  iApply (ewp_deep_handler _ _ _ (ieq ?[y]));
-  [ |
-    prove_handler_spec;
-    [
-    | let Hf := iFresh in
-      iIntros (??) Hf;
-        by iPoseProof (upcl_bottom with Hf) as "?" ];
-    iIntros (?) "->"
-  ].
-
 
 Tactic Notation "prove_match" "with" constr(spec) := prove_match0_spec spec.
 
