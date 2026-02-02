@@ -16,7 +16,7 @@
 
 (** Formalizations of machine integers modulo $2^N$ #2<sup>N</sup>#. *)
 
-Require Import Eqdep_dec Zquot Zwf.
+From Stdlib Require Import Eqdep_dec Zquot Zwf.
 From osiris.CompCert Require Import Coqlib Zbits.
 
 (** Backwards compatibility for Hint Rewrite locality attributes. *)

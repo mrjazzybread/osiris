@@ -1321,7 +1321,7 @@ End DECIDABLE_PREDICATE.
 
 (** * Well-founded orderings *)
 
-Require Import Relations.
+From Stdlib Require Import Relations.
 
 (** A non-dependent version of lexicographic ordering. *)
 

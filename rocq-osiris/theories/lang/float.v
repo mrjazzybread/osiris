@@ -1,1 +1,1 @@
-Require Export Floats.
+From Stdlib Require Export Floats.

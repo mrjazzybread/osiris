@@ -1,1 +1,1 @@
-Require Export Ascii.
+From Stdlib Require Export Ascii.
