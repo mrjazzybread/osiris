@@ -240,36 +240,6 @@ Tactic Notation "set_postcondition" uconstr(φ) :=
 Ltac prove_handler_spec :=
   rewrite deep_handler_spec_unfold; iSplit.
 
-(* Proving an [EMatch] expression boils down to proving a handler where
-   the effectful case is trivial. *)
-
-Ltac prove_match0_spec spec :=
-  iApply imp_EMatch;
-  iApply (ewp_deep_handler _ _ _ spec);
-  [ |
-    prove_handler_spec;
-    [ let x := fresh "tmp" in
-      let Hf := iFresh in
-      iIntros (x) Hf;
-      iRevert (x) Hf
-    | let Hf := iFresh in
-      iIntros (??) Hf;
-        by iPoseProof (upcl_bottom with Hf) as "?" ]
-  ].
-
-Ltac prove_match :=
-  iApply imp_EMatch;
-  iApply ewp_deep_handler;
-  [ |
-    prove_handler_spec;
-    [
-    | let Hf := iFresh in
-      iIntros (??) Hf;
-        by iPoseProof (upcl_bottom with Hf) as "?" ]
-  ].
-
-Tactic Notation "prove_match" "with" constr(spec) := prove_match0_spec spec.
-
 
 (* -------------------------------------------------------------------------- *)
 

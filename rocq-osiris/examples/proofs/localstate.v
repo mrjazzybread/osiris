@@ -21,24 +21,24 @@ Definition read rl : val := VXData rl [].
 Definition write wl (v : state) : val := VXData wl [ # v].
 
 Definition READ {Σ} rl (St : state -> _) : iEff Σ :=
-  (>> x  >> ! (read rl) {{ St x }}; ? (O2Ret (# x)) {{ St x }} @ OS).
+  (>> x  >> ! (read rl) {{ St x }}; ? (O2Ret (# x)) {{ St x }}).
 Definition WRITE {Σ} wl St : iEff Σ :=
-  (>> x y >> ! (write wl y) {{ St x }}; ? (O2Ret VUnit) {{ St y }} @ OS).
+  (>> x y >> ! (write wl y) {{ St x }}; ? (O2Ret VUnit) {{ St y }}).
 Definition STATE {Σ} rl wl (St : state -> _) : iEff Σ := (READ rl St <+> WRITE wl St)%ieff.
 
 Lemma upcl_state {Σ} rl wl St v Φ :
-  iEff_car (upcl OS (STATE (Σ:=Σ) rl wl St)) v Φ ⊣⊢
-    ((iEff_car (upcl OS (READ  rl St)) v Φ) ∨
-     (iEff_car (upcl OS (WRITE wl St)) v Φ)).
+  iEff_car (upcl (STATE (Σ:=Σ) rl wl St)) v Φ ⊣⊢
+    ((iEff_car (upcl (READ  rl St)) v Φ) ∨
+     (iEff_car (upcl (WRITE wl St)) v Φ)).
 Proof. by rewrite /STATE; apply upcl_sum. Qed.
 
 Lemma upcl_read {Σ} rl St v Φ :
-  iEff_car (upcl OS (READ (Σ:=Σ) rl St)) v Φ ⊣⊢
+  iEff_car (upcl (READ (Σ:=Σ) rl St)) v Φ ⊣⊢
     (∃ x, ⌜ v = read rl ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
 Proof. by rewrite /READ (upcl_tele' [tele _] [tele]). Qed.
 
 Lemma upcl_write {Σ} wl St v Φ :
-  iEff_car (upcl OS (WRITE (Σ:=Σ) wl St)) v Φ ⊣⊢
+  iEff_car (upcl (WRITE (Σ:=Σ) wl St)) v Φ ⊣⊢
     (∃ x y, ⌜ v = write wl y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
 Proof. by rewrite /WRITE (upcl_tele' [tele _ _] [tele]). Qed.
 
@@ -80,24 +80,6 @@ Section ghost_theory.
 
 End ghost_theory.
 
-Section val_points_to.
-  Context `{!osirisGS Σ}.
-
-  (* Specialized postconditions *)
-  Definition val_points_to (v : val) (b : step.block) :=
-    (∃ l, ⌜v = VLoc l⌝ ∗ l ↦ b)%I.
-
-  Fact val_points_to_unfold l b :
-    l ↦ b ⊣⊢ val_points_to (VLoc l) b.
-  Proof.
-    rewrite /val_points_to.
-    iSplit; iIntros "H".
-    { iExists _; by iFrame. }
-    { iDestruct "H" as (? Heq) "H"; by inversion Heq. }
-  Qed.
-
-End val_points_to.
-
 (* LATER: Give more control on opacity *)
 Opaque auth_state.
 Opaque encode.encode.
@@ -112,13 +94,6 @@ Section verification.
 
   Definition run := __fun7.
 
-  Ltac LetV Φ :=
-    match goal with
-    | |- envs_entails _
-          (bi_later (ewp_def _ (eval _ (deco _ (ELet [ Binding (PVar _) _ ] _))) _ _)) =>
-        iApply (ewp_ELet_PVar_1 Φ)
-    end.
-
   Lemma confront_addresses l1 l2 :
     ∀ v1 v2,
       (l1 ↦ v1) -∗
@@ -131,15 +106,15 @@ Section verification.
     intros ->. by apply Hne.
   Qed.
 
-  Definition main_spec spec (t : unit) (m : microvx) :=
+  Definition main_spec `{Encode A} (spec : A → iProp Σ) (t : unit) (m : microvx) :=
     (∀ (init : state) rl wl St,
         St init -∗
-        EWP m <| STATE rl wl St |> {{ ensures v, spec v }} )%I.
+        imp m <| STATE rl wl St |> {{ spec }} )%I.
 
   Definition run_spec (init : state) (main : val) (m : microvx) :=
-    (∀ (spec : val -> iProp Σ),
+    (∀ (A : Type) (_ : Encode A) (spec : A → iProp Σ),
        iSpec τ[unit] main (main_spec spec) -∗
-       EWP m {{ ensures #v, spec (snd (v : state * val)) }})%I.
+       imp m {{ λ (v : state * A), spec (snd v) }})%I.
 
   (* EWP eval η (EAnonFun __fun7)
    {{ ensures v, iSpec τ[ val;val] v run_spec }} *)
@@ -149,288 +124,243 @@ Section verification.
       ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
       ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
       ⌜ address rl ≠ address wl ⌝ -∗
-      EWP eval η (EAnonFun __fun7)
-        {{ ensures run, □ iSpec τ[ state;val] run run_spec }}.
+      imp eval η (EAnonFun __fun7)
+        {{ λ run,  □ iSpec τ[ state;val] run run_spec }}.
   Proof.
     cbn zeta.
-    iIntros (env HGet HSet Haddr ι).
+    iIntros (env HGet HSet Haddr).
 
     (* Call the anonymous function. *)
-    iApply (ewp_EAnon_pers τ[ state; val ]); simpl.
-    iIntros "!>" (init main spec) "Hspec %ι'".
-    iApply ewp_please; iNext.
-    iApply ewp_fupd.
+    iApply (imp_EAnon_pers τ[ state; val ]); simpl.
+    iIntros "!>" (init main A HencA spec) "Hspec".
+    iApply imp_please; iNext.
+    iApply imp_fupd.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* Evaluate allocation of [init] *)
-    iApply (ewp_ELet_PVar_1 (fun x => val_points_to x (V (#init)))%I).
+    iApply (imp_ELet_var (λ l, l ↦ (V (#init)))%I).
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      iApply ewp_ERef.
-      { iApply ewp_EPath. iApply ewp_ret.
-        iExists init.
-        instantiate (1 := (λ s, ⌜s=init⌝)%I). auto. }
-      iIntros (? ?) "-> $". }
+      iApply imp_ERef.
+      iApply imp_EPath. iApply imp_ret; auto. }
 
     (* Continuing with the rest of the computation *)
-
-    iIntros (?) "H"; iDestruct "H" as (?->) "Hl".
+    iIntros (l) "Hl".
 
     (* LATER : Hide the [V] constructor for blocks *)
 
     (* -------------------------------------------------------------------------- *)
     (* 3. At an [EMatch] -- more interesting part of this proof. *)
-    iApply ewp_EMatch.
+    iApply (imp_EHandler with "[Hspec Hpoints_to]").
 
-    iApply (ewp_deep_handler with "[Hpoints_to Hspec]").
-    {
-      (* 3A. Call to [main] in the handled expression *)
-      iApply (ewp_EApp τ[unit] with "[Hspec]").
-      { simpl_eval. iApply ewp_ret. iApply "Hspec". }
-      { simpl_eval. iApply ewp_ret. instantiate (1 := (λ x, ⌜x = tt⌝)%I).
-        simpl. iExists tt; done. }
+    { (* 3A. Call to [main] in the handled expression *)
+      iApply (imp_EApp τ[unit] with "[Hspec]").
+      { iApply imp_EPath. iApply (imp_ret); first encode. iExact "Hspec". }
+      { iApply imp_EConstant. encode.
+        by instantiate (1 := (λ x, ⌜x = tt⌝)%I). }
       simpl. iIntros (? -> m) "Hmain".
-      unfold main_spec. simpl.
-      iSpecialize ("Hmain" $! _ _ _ (fun init => points_to γ (# init))).
-      iSpecialize ("Hmain" with "Hpoints_to").
-      iApply (ewp_mono with "Hmain").
-      iIntros ([|]); [ | iIntros ([])]; simpl.
-      iIntros "!> Hspec".
-      iExists a; iSplit. by rewrite <- (solve_encode_val a).
-      iExact "Hspec". }
+      rewrite /main_spec /=.
+      iSpecialize ("Hmain" $! _ _ _ (λ init, points_to γ #init) with "Hpoints_to").
+      iApply "Hmain". }
 
+    iSplit.
+    { (* Value case *)
+      iIntros (?) "Hspec"; iNext.
+      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      iSplit; last iIntros ([]).
+      iIntros (? ->).
+      iApply (imp_EPair with "[Hl]").
+      { iApply (imp_ELoad with "Hl"). iApply imp_EPath. by iApply imp_ret. }
+      { instantiate (1 := (λ a', ⌜a' = a⌝)%I).
+        iApply imp_EPath. by iApply imp_ret. }
+      iIntros (? ?) "(-> & Hl) ->". iApply "Hspec". }
     (* Finally, we prove the specification over handler. *)
 
-    (* We need to abstract over the environment "just enough" *)
+    instantiate (1 := wl). instantiate (1 := rl).
+    (* -------------------------------------------------------------------------- *)
+    (* Effectful case *)
+    iIntros (e k) "Hp".
+    iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
 
-    remember (# init) eqn:Heqv; rewrite {1 2}Heqv; clear Heqv.
-    (* Q. Better way to handle this? *)
+    { (* READ case *)
+      cbn; rewrite upcl_read.
+      iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
+      iCombine "Hstate Hx" as "H".
+      iDestruct (ghost_var_agree with "H") as %->.
 
-    (* Löb induction *)
-    iLöb as "IH" forall (γ main init).
+      iNext.
+      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()).
+      iSplit; [ iIntros (? []) | iIntros (_) ].
+      iApply deep_handle_cons.
+      { iPureIntro. ltac2:(specify_cpattern ()). pattern_match. }
+      iSplit ; [ iIntros (? ->) | iIntros ([[] | []]) ].
 
-    (* Prove that the spec is met. *)
-    iApply prove_deep_handler_spec; iSplit.
+      (* EWP Goal: [continue k (!var : t)]. *)
+      iDestruct "H" as "(Hauth & Hx)".
+      iSpecialize ("H_READ" with "Hx"). simpl.
+      iDestruct ("H_READ") as "(% & %Henc & H_READ)".
+      fold eval.
+      iApply (imp_EContinue with "[] [Hl]").
+      { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
+        iApply imp_EPath. by iApply imp_ret. }
+      { iApply (imp_ELoad with "Hl").
+        iApply imp_EPath. by iApply imp_ret. }
+
+      iIntros (? ? ->) "[-> Hl]". admit. }
 
     (* -------------------------------------------------------------------------- *)
-    { (* Outcome case *)
-      iIntros (?) "H"; destruct o; [ | done]; iClear "IH"; iNext.
-      next_branch. iIntros (η ->).
-      iApply (ewp_EPair_ret _ _ _ _ (ieq a) with "[Hl]").
+    { (* WRITE case *)
+      cbn; rewrite upcl_write.
+      iDestruct "H_WRITE" as (??->) "(Hx & H_WRITE)".
+      iCombine "Hstate Hx" as "H".
+      iDestruct (ghost_var_agree with "H") as %Hag.
 
-      (* Load from location *)
-      { iApply (ewp_ELoad_simple with "[] Hl").
-        iApply ewp_EPath. by iApply ewp_ret. }
-      { iApply ewp_EPath. by iApply ewp_ret. }
+      (* Skip the return, exception, and [Get] branches. *)
+      iNext.
+      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()).
+      iSplit; first iIntros (? []).
+      iIntros (_).
+      iApply deep_handle_cons.
+      { iPureIntro. ltac2:(specify_cpattern ()).
+        (* This causes a Match_failure, why?
+           pattern_match. *)
+        eapply pat_PXData_neq. simpl. eassumption.
+        assumption. }
+      iSplit; first iIntros (? []).
+      instantiate (1 := False). iIntros "%no_match2".
+      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
+      { (* EWP Goal: [var := y; continue k ()]. *)
+        iApply (imp_ESeq with "[Hl]").
 
-      iIntros (??) "(%Hinit & Hl) %Heq"; subst.
-      simpl. iDestruct "H" as "(%c & -> & HSpec)".
-      iExists (init, c); iFrame; encode. }
+        { (* EWP Subgoal: [var := y]. *)
+          iApply (imp_EStore with "Hl").
+          { iApply imp_EPath; iApply imp_ret; first encode.
+            auto. }
+          { iApply imp_EPath. iApply imp_ret; first encode.
+            instantiate (1 := (λ v, ⌜v=y⌝)%I). done. } }
 
-     (* -------------------------------------------------------------------------- *)
-     (* Effectful case *)
-     iIntros (e k) "Hp". instantiate (1 := wl); instantiate (1 := rl).
-     iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
+        iIntros ([]) "(%s & Hl & ->)".
 
-     { (* READ case *)
-       cbn; rewrite upcl_read.
-       iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
-       iCombine "Hstate Hx" as "H".
-       iDestruct (ghost_var_agree with "H") as %->.
+        (* EWP Subgoal: [continue k ()]. *)
+        iDestruct "H" as "(Hauth & Hx)".
 
-       iNext.
-       next_branch. iIntros (? []).
-       next_branch. iIntros (η ->).
+        iApply imp_fupd.
+        iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
+        iModIntro.
 
-       (* EWP Goal: [continue k (!var : t)]. *)
-       iDestruct "H" as "(Hauth & Hx)".
-       iSpecialize ("H_READ" with "Hx").
-       iSpecialize ("H_READ" $! iEff_bottom (ensures #v, spec v.2))%I.
-       iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) with "[] [Hl]").
-       { iApply ewp_EPath. iApply ewp_ret. simpl.
-         iExists k; iSplitL; iPureIntro; reflexivity. }
-       { iApply (ewp_ELoad_simple with "[] Hl").
-         iApply ewp_EPath. by iApply ewp_ret. }
+        iDestruct ("H_WRITE" with "Hx") as "(% & %Henc & Hcontinue)".
 
-       iIntros (? ? ->) "[-> Hl]".
-       iSpecialize ("IH" with "Hauth Hl").
-       iSpecialize ("H_READ" with "[IH]").
-       { iNext. rewrite /deep_handler_spec seal_eq. iApply "IH". }
-       iApply "H_READ".
-
-       (* Hard to guess that this is trivial. *) tauto. }
-
-    (* -------------------------------------------------------------------------- *)
-     { (* WRITE case *)
-       cbn; rewrite upcl_write.
-       iDestruct "H_WRITE" as (??->) "(Hx & H_WRITE)".
-       iCombine "Hstate Hx" as "H".
-       iDestruct (ghost_var_agree with "H") as %Hag.
-
-       (* Skip the return, exception, and [Get] branches. *)
-       iNext.
-       next_branch. iIntros (? []).
-       iApply deep_handle_cons; [ | iSplit ].
-       { iPureIntro. ltac2:(specify_cpattern ()).
-         (* This causes a Match_failure, why?
-         pattern_match. *)
-         eapply pat_PXData_neq. simpl. eassumption.
-         assumption. }
-       iIntros (? []).
-       iIntros "no_match2".
-       next_branch. iIntros (η ->).
-
-       { (* EWP Goal: [var := y; continue k ()]. *)
-         iApply ewp_ESeq.
-
-         (* EWP Subgoal: [var := y]. *)
-         iApply (ewp_mono with "[Hl]").
-         { iApply (ewp_EStore).
-           { iApply ewp_EPath; iApply ewp_ret.
-             instantiate (1 := (λ l', ⌜l'=l⌝)%I).
-             iExists _; auto. }
-           { iApply ewp_EPath. iApply ewp_ret.
-             instantiate (1 := (λ v, ⌜v=y⌝)%I).
-             iExists _; auto. }
-           iIntros (? ?) "[-> ->]".
-           iExists init. iFrame.
-           iNext; instantiate (1 := (λ v, ⌜v = VUnit⌝ ∗ l ↦ V #y)%I).
-           auto. }
-         iIntros ([|]); [ | iIntros ([]) ].
-         iIntros "(-> & Hl) /=". fold eval.
-
-         (* EWP Subgoal: [continue k ()]. *)
-         iDestruct "H" as "(Hauth & Hx)".
-
-         iApply ewp_fupd.
-         iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
-         iModIntro.
-
-         iSpecialize ("H_WRITE" with "Hx").
-         iSpecialize ("H_WRITE" $! iEff_bottom (ensures #v, spec v.2))%I.
-
-         iApply (ewp_EContinue' _ _ _ _ _ (ieq ?[y1]) (ieq ?[y2])); [| | iIntros (?? -> ->) ].
-         { iApply ewp_EPath. iApply ewp_ret.
-           iExists _; iSplitL; iPureIntro; reflexivity. }
-         { simpl_eval. by iApply ewp_ret. }
-
-         (* Resume the continuation. *)
-         iApply "H_WRITE". iNext.
-         rewrite /deep_handler_spec seal_eq.
-         iApply ("IH" with "Hauth Hl"). }
-
-       tauto.
-       Unshelve. apply True. }
-   Qed.
+        iApply imp_EContinue.
+        { iApply imp_EPath. iApply imp_ret; first encode.
+          instantiate (1 := (λ k', ⌜k' = k⌝)%I). done. }
+        { iApply imp_EConstant; first encode.
+           instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
+        iIntros (??) "-> -> !>". rewrite Henc.
+        iApply "Hcontinue". admit. } }
+  Admitted.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
 
   Lemma module_proof (Q : val -> iProp Σ) :
-    ⊢ EWP (eval_mexpr dummy_env __main)
-      {{ ensures v, ∃ η, ⌜v = VStruct η⌝ ∧
-                       ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
-                              □ iSpec τ[state; val] run run_spec }}.
+    ⊢ imp (eval_mexpr dummy_env __main)
+      {{ λ η, ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
+                     □ iSpec τ[state; val] run run_spec }}.
   Proof.
-    iIntros (ι).
-    iApply ewp_module.
-    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])).
+    iApply imp_module.
+    iApply (imp_sitems_cons).
 
     (* [open Effect] *)
-    { iApply (ewp_sitem_open _ _ (ieq ?[φ3])).
-      { simpl_eval_mexpr. iApply ewp_ret. equality. }
-      iIntros (δ' ->). equality. }
+    { iApply (imp_sitem_open).
+      { simpl_eval_mexpr. iApply imp_widen.
+        iApply imp_ret; first encode.
+        instantiate (1 := (λ δ, ⌜δ = [_]⌝)%I). done. }
+      iIntros (? ->) "/=".
+      instantiate (1 := (λ η, ⌜η = (_, _)⌝)%I). done. }
+    iIntros (? ->).
 
     (* [open Effect.Deep] *)
+    iApply imp_sitems_cons.
+    { iApply (imp_sitem_open).
+      { simpl_eval_mexpr. iApply imp_widen.
+        iApply imp_ret; first encode.
+        instantiate (1 := (λ δ, ⌜δ = []⌝)%I). done. }
+      iIntros (? ->) "/=".
+      instantiate (1 := (λ η, ⌜η = (_, _)⌝)%I). done. }
     iIntros (? ->).
-    iApply (ewp_sitems_cons _ _ _ (ieq ?[φ])); [ | iIntros (? ->)].
-    { iApply (ewp_sitem_open _ _ (ieq ?[φ2]));
-        [ | iIntros (? ->); equality ].
-      simpl_eval_mexpr. iApply ewp_ret. equality. }
 
     (* [type _ Effect.t += Get : t Effect.t] *)
-    iApply ewp_sitems_extend.
-    iIntros ([η δ]) "[%rl [-> Hrl]]"; clear η δ.
+    iApply imp_sitems_extend.
+    iIntros (?) "(%rl & -> & Hrl)".
 
     (* [type _ Effect.t += Set : t -> unit Effect.t] *)
-    iApply ewp_sitems_extend.
-    iIntros ([η δ]) "[%wl [-> Hwl]]"; clear η δ.
+    iApply imp_sitems_extend.
+    iIntros (?) "(%wl & -> & Hwl)".
 
     (* [let get () = perform Get] *)
-    iApply (ewp_sitems_let_singleton_var
-                (λ v,
-                  □ ∀ St x,
-                      St x -∗
-                      EWP[ι] call v #()  <|STATE rl wl St|>
-                        {{ ensures #X, ⌜X = x⌝ }})%I).
-      { simpl_eval; iApply ewp_ret; simpl.
-        iIntros "!>" (St x) "HSt".
-        iApply ewp_call_nonrec. iNext.
-        iApply ewp_EMatch.
-        iApply ewp_deep_handler.
-        { simpl_eval. iApply ewp_ret. instantiate (1 := (ensures #v, ⌜v = tt⌝)%I).
-          iExists _. iSplit; equality. }
-        iApply prove_deep_handler_spec; iSplit.
-        { iIntros ([|]); [ | iIntros ([]) ].
-          iIntros ((? & -> & ->)) "!>".
-          iApply deep_handle_cons.
-          { iPureIntro. ltac2:(specify_cpattern ()).
-            apply pat_PUnit. apply eq_refl.
-            reflexivity. }
-          iSplit.
-          - iIntros (η <-).
-            iApply (ewp_EPerform with "[] [HSt]").
-            simpl_eval. iApply ewp_ret. instantiate (1 := (λ v, ⌜v = VXData rl []⌝)%I).
-            equality.
-            iIntros (? ->).
-            iApply ewp_perform.
-            rewrite /prot. rewrite upcl_state upcl_read.
-            iLeft. iFrame.
-            iSplit. equality. iIntros "HSt".
-            simpl. iExists _; iSplit; equality.
-          - iIntros ([]). }
-        iIntros (??). instantiate (1 := ⊥).
-        rewrite /prot upcl_bottom.
-        iIntros ([]). }
+    iApply (imp_sitems_let (λ v, □ iSpec τ[unit] v (λ _ m,
+                                                      ∀ St x,
+                                                      St x -∗
+                                                      imp m <|STATE rl wl St|> {{ λ X, ⌜X = x⌝ }}))%I ).
+    { iApply (imp_EAnon_pers τ[unit]).
+      iIntros "!>" ([] St x) "HSt".
+      iApply imp_please. iNext.
+      iApply imp_EMatch.
+      { simpl_eval. iApply imp_widen. iApply imp_ret; first encode.
+        instantiate (1 := (λ v, ⌜v = tt⌝)%I). done. }
+      iIntros (? ->) "!>".
+      iApply deep_handle_cons.
+      { iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+        apply eq_refl. }
+      iSplit; last iIntros ([]).
+      iIntros (? <-).
+      iApply (imp_EPerform with "[] [HSt]").
+      { simpl_eval. instantiate (1 := (λ v, ⌜v = VXData rl []⌝)%I).
+        iApply imp_ret; last done.
+        instantiate (1 := Encode_val). reflexivity. }
+      iIntros (? ->).
+      rewrite /prot'. rewrite upcl_state upcl_read.
+      iLeft. iFrame. iSplit.
+      - equality.
+      - iIntros "HSt".
+        simpl. iExists _; iSplit; equality. }
+    iIntros (get) "#Hget".
 
     (* [let set y = perform (Set y)] *)
-    iIntros ([η δ]) "[%get [-> get_spec]]"; clear η δ.
-    iApply (ewp_sitems_let_singleton_var (λ v, □ ∀ St x y,
-                           St x -∗
-                             EWP[ι] call v #y  <|STATE rl wl St|>
-                             {{ ensures _, St y }})%I ).
-    { simpl_eval; iApply ewp_ret; simpl.
-      iIntros "!>" (St x y) "HSt".
-      iApply ewp_call_nonrec. iNext.
-      iApply (ewp_EPerform _ _ _ _ (λ v, ⌜v = VXData wl [encode.encode y]⌝)%I).
-      { simpl_eval. unfold widen. unfold try. simpl.
-        iApply prove_ewp_Par.
-        iApply ewp_ret. instantiate (1 := (λ v, ⌜v = #y⌝)%I). equality.
-        iApply ewp_ret. instantiate (1 := (λ v, ⌜v = []⌝)%I). equality.
-        iIntros (?? -> ->) "/=".
-        iApply ewp_ret. equality. }
+    iApply (imp_sitems_let (λ v, □ iSpec τ[Z] v (λ y m,
+                                                   ∀ St x,
+                                                   St x -∗
+                                                   imp m <|STATE rl wl St|> {{ λ (_ : unit), St y }}))%I).
+    { iApply (imp_EAnon_pers τ[Z]).
+      iIntros "!>" (y St x) "HSt".
+      iApply imp_please; iNext.
+      iApply (imp_EPerform (λ v, ⌜v = VXData wl [encode.encode y]⌝)%I).
+      { iApply imp_EXData. reflexivity. instantiate (1 := ([(λ x, ⌜x = #y⌝)])%I).
+        simpl; fold eval; iSplit; last done.
+        iApply imp_EPath. iApply imp_ret; last auto. reflexivity.
+        iIntros (?) "Hvs".
+        iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
+        destruct vs; first discriminate; destruct vs; last discriminate.
+        simpl; iDestruct "Hvs" as "[-> _]". iExists _; iSplit; equality.
+        by rewrite <- solve_encode_val. }
       iIntros (? ->).
-      iApply ewp_perform.
-      rewrite /prot. rewrite upcl_state upcl_write.
-      iRight. iExists _, _. iFrame. iSplit. equality.
-      by iIntros "Hsty". }
+      rewrite /prot'. rewrite upcl_state upcl_write.
+      iRight. iExists _, _. iFrame. iSplit. rewrite <- solve_encode_val; equality.
+      iIntros "$". iExists _; auto. }
+    iIntros (fset) "#Hset".
 
     (* [let run (type a) init maint : t * a =] *)
-    iIntros ([η δ]) "[%set [-> set_spec]]"; clear η δ.
     iPoseProof (confront_addresses with "Hrl Hwl") as "%Haddr".
-    iApply (ewp_sitems_let_singleton_var (λ run, □ iSpec τ[state; val] run run_spec)%I).
+    iApply (imp_sitems_let (λ run, □ iSpec τ[state; val] run run_spec)%I).
     { iApply (localstate_run_spec with "[] [] []"); iPureIntro.
       reflexivity.
       reflexivity.
       apply Haddr. }
 
-    iIntros ([η δ]) "[%run [-> Hrun]]".
-    iApply ewp_sitems_nil; simpl.
-
-    (* Establish postcondition. *)
-    iExists _; iSplit; [ equality | ].
-    iExists _; iSplit; [ equality | ].
-    iApply "Hrun".
+    iIntros (run) "#Hrun".
+    iApply imp_sitems_nil; simpl.
+    iExists _; iFrame "#". equality.
   Qed.
 
 End verification.

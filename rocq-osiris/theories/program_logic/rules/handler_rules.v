@@ -222,7 +222,7 @@ Section handler_proof.
   Import ewp_rules_tactics.
 
   (* Specification of [deep_handler] at the [expr] level. *)
-  Lemma ewp_deep_handler `{Encode A'} E Ψ ζ (Φ : A → iProp Σ) Ψ' ζ' (Φ' : A' → iProp Σ) η e bs:
+  Lemma imp_deep_handler `{Encode A'} E Ψ ζ (Φ : A → iProp Σ) Ψ' ζ' (Φ' : A' → iProp Σ) η e bs:
     imp (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     (* The deep handler specification is met *)
     deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ' Φ' -∗
@@ -388,7 +388,7 @@ Section handler_proof.
     iApply imp_stop_perform.
 
     rewrite /prot /iEff_car.
-    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hl]").
+    iApply (monotonic_prot (Ψ:=upcl Ψ) with "[Hl]").
     { iIntros (o) "H".
       iPoseProof (imp_resume with "Hl") as "Hcov".
       iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_inject2_right.
@@ -397,7 +397,7 @@ Section handler_proof.
       iIntros "H".
       unfold stop.
       iApply "H". }
-    iApply (monotonic_prot (Ψ:=upcl OS Ψ) with "[Hk]").
+    iApply (monotonic_prot (Ψ:=upcl Ψ) with "[Hk]").
     { iIntros (o) "H".
       iPoseProof (basic_rules.ewp_handle_inv with "Hk") as "Hcov".
       unfold cont; simpl.

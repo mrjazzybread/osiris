@@ -17,35 +17,6 @@ From osiris Require Import lang.syntax semantics encode.
 Set Default Proof Using "Type".
 
 (* ========================================================================== *)
-
-(* Mode of capture. *)
-Inductive mode : Set :=
-  (* One-shot. *)
-  | OS
-  (* Multi-shot. *)
-  | MS.
-
-#[global] Instance mode_dec : EqDecision mode.
-Proof. solve_decision. Defined.
-
-#[global] Instance mode_countable : Countable mode.
-Proof.
-  refine (inj_countable'
-    ((* Encoding. *) λ m,
-       match m with OS => false | MS => true end)
-    ((* Decoding. *) λ b,
-       match b with false => OS | true => MS end) _);
-  by intros [].
-Qed.
-
-(* Coercion to allow the syntax "□? m _" where "m" is a mode.
-   This notation is defined in the file [bi/derived_connectives.v]
-   of the Iris project. *)
-Definition mode_to_bool : mode → bool :=
-  λ m, match m with OS => false | MS => true end.
-Coercion mode_to_bool : mode >-> bool.
-
-(* ========================================================================== *)
 (** * Protocols. *)
 
 (* -------------------------------------------------------------------------- *)
@@ -68,7 +39,6 @@ Local Open Scope ieff.
 (** Inhabited. *)
 
 Global Instance iEff_inhabited {Σ} : Inhabited (iEff Σ) := populate (IEff inhabitant).
-
 
 (* -------------------------------------------------------------------------- *)
 (** OFE Structure. *)
@@ -137,7 +107,7 @@ Section protocol_monotonicity.
   (* Persistently Monotonic Protocol. *)
   Class PersMonoProt {Σ} (Ψ : iEff Σ) := {
     pers_monotonic_prot v Φ Φ' :
-      □ (∀ w, Φ w -∗ Φ' w) -∗ Ψ.(iEff_car) v Φ -∗ Ψ.(iEff_car) v Φ'
+      □ (∀ v, Φ v -∗ Φ' v) -∗ Ψ.(iEff_car) v Φ -∗ Ψ.(iEff_car) v Φ'
   }.
 
 End protocol_monotonicity.
@@ -160,10 +130,10 @@ End protocol_monotonicity.
    - [upcl OS Ψ]: Upward closure.
    - [upcl MS Ψ]: Persistent upward closure. *)
 
-Program Definition upcl {Σ} (m : mode) (Ψ : iEff Σ) : iEff Σ :=
-  IEff (λ v, λne Φ', ∃ Φ, iEff_car Ψ v Φ ∗ □? m (∀ w, Φ w -∗ Φ' w))%I.
+Program Definition upcl {Σ} (Ψ : iEff Σ) : iEff Σ :=
+  IEff (λ v, λne Φ', ∃ Φ, iEff_car Ψ v Φ ∗ (∀ w, Φ w -∗ Φ' w))%I.
 Next Obligation.
-  intros ????????. by destruct m; simpl; repeat f_equiv.
+  repeat intro. by repeat f_equiv.
 Defined.
 Arguments upcl _ _%_ieff.
 
@@ -172,49 +142,32 @@ Arguments upcl _ _%_ieff.
 (** Properties of the Upward Closure. *)
 
 (* Non-expansiveness. *)
-Global Instance upcl_ne {Σ} m n : Proper ((dist n) ==> (dist n)) (upcl (Σ:=Σ) m).
+Global Instance upcl_ne {Σ} n : Proper ((dist n) ==> (dist n)) (upcl (Σ:=Σ)).
 Proof. by intros ?? Hne ??; simpl; repeat (apply Hne || f_equiv). Qed.
-Global Instance upcl_proper {Σ} m : Proper ((≡) ==> (≡)) (upcl (Σ:=Σ) m).
+Global Instance upcl_proper {Σ} : Proper ((≡) ==> (≡)) (upcl (Σ:=Σ)).
 Proof.
   intros ????. apply equiv_dist=>n.
   apply upcl_ne; by apply equiv_dist.
 Qed.
 
 (* The upward closure is monotonic. *)
-Global Instance upcl_mono_prot {Σ} (Ψ : iEff Σ) : MonoProt (upcl OS Ψ).
+Global Instance upcl_mono_prot {Σ} (Ψ : iEff Σ) : MonoProt (upcl Ψ).
 Proof.
   constructor.
-  iIntros (v Φ' Φ'') "HΦ'' [%Φ [HΨ HΦ']]".
-  iExists Φ. iFrame. simpl. iIntros (w) "HΦ".
-  by iApply "HΦ''"; iApply "HΦ'".
-Qed.
-
-(* The persistent upward closure is persistently monotonic. *)
-Global Instance pers_upcl_pers_mono_prot {Σ} (Ψ : iEff Σ) : PersMonoProt (upcl MS Ψ).
-Proof.
-  constructor. simpl.
-  iIntros (v Φ' Φ'') "#HΦ'' [%Φ [HΨ #HΦ']]".
-  iExists Φ. iFrame. iIntros "!#" (w) "HΦ".
-  by iApply "HΦ''"; iApply "HΦ'".
+  iIntros (v Φ Φ') "HΦ (% & $ & HΦ')".
+  iIntros (?) "?".
+  by iApply "HΦ"; iApply "HΦ'".
 Qed.
 
 (* The upward closure has no action over monotonic protocols. *)
-Lemma upcl_id {Σ} (Ψ : iEff Σ) `{!MonoProt Ψ} : upcl OS Ψ ≡ Ψ.
+Lemma upcl_id {Σ} (Ψ : iEff Σ) `{!MonoProt Ψ} : upcl Ψ ≡ Ψ.
 Proof.
   iIntros (v Φ'). iSplit.
-  - iIntros "[%Φ [HΨ HΦ']]". by iApply (monotonic_prot with "HΦ'").
-  - iIntros "HΨ". iExists Φ'. iFrame. simpl. by iIntros (w) "Hw".
+  - iIntros "(%Φ & HΨ & HΦ')".
+    by iApply (monotonic_prot with "HΦ'").
+  - iIntros "HΨ".
+    iExists Φ'. iFrame. by iIntros (?) "$".
 Qed.
-
-(* The persistent upward closure has no action over
-   persistently monotonic protocols. *)
-Lemma pers_upcl_id {Σ} (Ψ : iEff Σ) `{!PersMonoProt Ψ} : upcl MS Ψ ≡ Ψ.
-Proof.
-  iIntros (v Φ'). iSplit; simpl.
-  - iIntros "[%Φ [HΨ #HΦ']]". by iApply (pers_monotonic_prot with "HΦ'").
-  - iIntros "HΨ". iExists Φ'. iFrame. by iIntros "!#" (w) "Hw".
-Qed.
-
 
 (* ========================================================================== *)
 (** * Construction of Protocols. *)
@@ -229,14 +182,14 @@ Global Instance iEff_bottom {Σ} : Bottom (iEff Σ) := IEff (λ _, λne _, False
    - Precondition is given by the pair of [v] and [P].
    - Postcondition is given by the predicate [Φ]. *)
 Program Definition iEffPre_base_def {Σ}
-  (m : mode) (v : val) (P : iProp Σ) (Φ : outcome2 val exn -d> iPropO Σ) : iEff Σ :=
-  IEff (λ v', λne Φ', ⌜ v = v' ⌝ ∗ P ∗ □? m (∀ w, Φ w -∗ Φ' w))%I.
-Next Obligation. by intros ??????????; destruct m; simpl; repeat f_equiv. Qed.
+  (v : val) (P : iProp Σ) (Φ : outcome2 val exn -d> iPropO Σ) : iEff Σ :=
+  IEff (λ v', λne Φ', ⌜ v = v' ⌝ ∗ P ∗ (∀ w, Φ w -∗ Φ' w))%I.
+Next Obligation. by repeat intro; simpl; repeat f_equiv. Qed.
 Definition iEffPre_base_aux : seal (@iEffPre_base_def). by eexists. Qed.
 Definition iEffPre_base := iEffPre_base_aux.(unseal).
 Definition iEffPre_base_eq : @iEffPre_base = @iEffPre_base_def :=
   iEffPre_base_aux.(seal_eq).
-Arguments iEffPre_base {_} _ _ _%_I _%_ieff.
+Arguments iEffPre_base {_} _ _%_I _%_ieff.
 Global Instance: Params (@iEffPre_base) 4 := {}.
 
 (* Close a protocol with an existential quantifier. *)
@@ -268,7 +221,7 @@ Global Instance: Params (@iEffPost_base) 2 := {}.
 
 (* Close a predicate with an existential quantifier. *)
 Program Definition iEffPost_exist_def {Σ A}
-  (e : A → (outcome2 val exn -d> iPropO Σ)) : outcome2 val exn -d> iPropO Σ :=
+  (e : A → outcome2 val exn -d> iPropO Σ) : outcome2 val exn -d> iPropO Σ :=
   (λ w', ∃ a, e a w')%I.
 Definition iEffPost_exist_aux : seal (@iEffPost_exist_def). by eexists. Qed.
 Definition iEffPost_exist := iEffPost_exist_aux.(unseal).
@@ -322,9 +275,9 @@ Global Instance: Params (@iEff_sum) 3 := {}.
 
 (* Notation for send/recv protocols. *)
 
-Notation "'!' v {{ P }} ; Q' @ m" := (iEffPre_base m v P Q')
+Notation "'!' v {{ P }} ; Q" := (iEffPre_base v P Q)
   (at level 200, v at level 20, right associativity,
-   format "'!' v {{  P  '}}' ; Q' @ m") : ieff_scope.
+     format "'!' v {{  P  '}}' ; Q") : ieff_scope.
 
 Notation "'?' w {{ Q }}" := (iEffPost_base w Q)
   (at level 200, w at level 20, right associativity,
@@ -392,22 +345,21 @@ Qed.
    existential/universal quantifiers. *)
 Lemma iEff_tele_eq {Σ} {TT1 TT2 : tele}
   (v : TT1 →       val) (P : TT1 →       iProp Σ)
-  (w : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) m v' Φ' :
+  (w : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) v' Φ' :
     iEff_car (>>.. x >> ! (v x  ) {{ P x   }};
-              <<.. y << ? (w x y) {{ Q x y }} @ m) v' Φ'
+              <<.. y << ? (w x y) {{ Q x y }}) v' Φ'
    ⊣⊢
     (∃.. x, ⌜ v x = v' ⌝ ∗ P x ∗
-       □? m (∀.. y, Q x y -∗ Φ' (w x y)))%I.
+       (∀.. y, Q x y -∗ Φ' (w x y)))%I.
 Proof.
   rewrite iEffPre_texist_eq iEffPre_base_eq. do 2 f_equiv.
-  iSplit; iIntros "(-> & HP & HΦ')"; iSplit; try done; iFrame;
-  iApply (bi.intuitionistically_if_mono with "HΦ'").
-  { iIntros "HΦ'" (y) "HQ". iApply "HΦ'". rewrite iEffPost_texist_eq.
+  iSplit; iIntros "(-> & HP & HΦ)"; iSplit; try done; iFrame.
+  { iIntros (y) "HQ".
+    iApply "HΦ". rewrite iEffPost_texist_eq.
     iExists y. rewrite iEffPost_base_eq. by iFrame. }
-  { iIntros "HΦ'" (y) "HQ". rewrite iEffPost_texist_eq iEffPost_base_eq.
-    iDestruct "HQ" as (w') "(<- & HQ)". by iApply "HΦ'". }
+  { iIntros (y) "HQ". rewrite iEffPost_texist_eq iEffPost_base_eq.
+    iDestruct "HQ" as (w') "(<- & HQ)". by iApply "HΦ". }
 Qed.
-
 
 (* -------------------------------------------------------------------------- *)
 (** Properties of Protocol Operators. *)
@@ -418,15 +370,16 @@ Section protocol_operators_properties.
 
   (* Non-expansiveness. *)
 
-  Global Instance iEffPre_base_ne m n :
+  Global Instance iEffPre_base_ne n :
     Proper
-      ((dist n) ==> (dist n) ==> (dist n) ==> (dist n)) (iEffPre_base (Σ:=Σ) m).
+      ((dist n) ==> (dist n) ==> (dist n) ==> (dist n)) (iEffPre_base (Σ:=Σ)).
   Proof.
     intros ?????????. rewrite iEffPre_base_eq /iEffPre_base_def.
-    intros ??. destruct m; simpl; by repeat (apply H || f_equiv).
+    intros ??. simpl.
+    by repeat (apply H || f_equiv).
   Qed.
-  Global Instance iEffPre_base_proper m :
-    Proper ((≡) ==> (≡) ==> (≡) ==> (≡)) (iEffPre_base (Σ:=Σ) m).
+  Global Instance iEffPre_base_proper :
+    Proper ((≡) ==> (≡) ==> (≡) ==> (≡)) (iEffPre_base (Σ:=Σ)).
   Proof.
     intros ?????????.
     apply equiv_dist=>n; apply iEffPre_base_ne; by apply equiv_dist.
@@ -602,14 +555,14 @@ Section protocol_operators_properties.
     - iDestruct "H" as (w') "[-> H]"; by eauto.
   Qed.
 
-  Lemma iEff_marker_tele {TT1 TT2 : tele} m f
+  Lemma iEff_marker_tele {TT1 TT2 : tele} f
   (v : TT1 →       val) (P : TT1 →       iProp Σ)
   (w : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) :
     (f #> (>>.. x >> !    (v x  )  {{ P x }};
-           <<.. y << ?    (w x y)  {{ Q x y }} @ m))
+           <<.. y << ?    (w x y)  {{ Q x y }}))
    ≡
           (>>.. x >> ! (f (v x  )) {{ P x }};
-           <<.. y << ? (  (w x y)) {{ Q x y }} @ m).
+           <<.. y << ? (  (w x y)) {{ Q x y }}).
   Proof.
     intros u' q'. iSplit; rewrite iEff_marker_eq /iEff_marker_def //=.
     { iIntros "H". iDestruct "H" as (u) "[-> H]".
@@ -619,19 +572,19 @@ Section protocol_operators_properties.
       iDestruct "H" as (u) "(<- & HP & Heq)". iExists (v u).
       iSplit; [done|]. rewrite iEffPre_texist_eq. iExists u. by iFrame. }
   Qed.
-  Lemma iEff_marker_tele' (TT1 TT2 : tele) m f
+  Lemma iEff_marker_tele' (TT1 TT2 : tele) f
   (v : TT1 -t>         val) (P : TT1 -t>         iProp Σ)
   (w : TT1 -t> TT2 -t> outcome2 val exn) (Q : TT1 -t> TT2 -t> iProp Σ) :
     (f #> (>>.. x >> !           (tele_app v x)
                      {{          (tele_app P x)   }};
            <<.. y << ? (tele_app (tele_app w x) y)
-                     {{ tele_app (tele_app Q x) y }} @ m))
+                     {{ tele_app (tele_app Q x) y }}))
    ≡
           (>>.. x >> !        (f (tele_app v x))
                      {{          (tele_app P x)   }};
            <<.. y << ? (tele_app (tele_app w x) y)
-                     {{ tele_app (tele_app Q x) y }} @ m).
-  Proof. by rewrite (iEff_marker_tele _ _ (tele_app v) (tele_app P)
+                     {{ tele_app (tele_app Q x) y }}).
+  Proof. by rewrite (iEff_marker_tele _ (tele_app v) (tele_app P)
                   (λ x y, tele_app (tele_app w x) y)
                   (λ x y, tele_app (tele_app Q  x) y)).
   Qed.
@@ -641,7 +594,7 @@ Section protocol_operators_properties.
     (v' : TT1 →       val) (P : TT1 →       iProp Σ)
     (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) :
       MonoProt (>>.. x >> ! (v' x)   {{ P x   }};
-                <<.. y << ? (w' x y) {{ Q x y }} @ OS).
+                <<.. y << ? (w' x y) {{ Q x y }}).
   Proof.
     constructor.
     iIntros (v Φ Φ') "HΦ". rewrite !iEff_tele_eq.
@@ -650,135 +603,76 @@ Section protocol_operators_properties.
     iApply "HΦ". by iApply "HΦ'".
   Qed.
 
-  Global Instance send_recv_pers_mono_prot {TT1 TT2 : tele}
-    (v' : TT1 →       val) (P : TT1 →       iProp Σ)
-    (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) :
-      PersMonoProt (>>.. x >> ! (v' x)   {{ P x   }};
-                    <<.. y << ? (w' x y) {{ Q x y }} @ MS).
-  Proof.
-    constructor.
-    iIntros (v Φ Φ') "#HΦ". rewrite !iEff_tele_eq. simpl.
-    iIntros "[%x [%Heq [HP #HΦ']]]". iExists x.
-    iFrame. iSplit; [done|]. iIntros "!#" (y) "HQ".
-    iApply "HΦ". by iApply "HΦ'".
-  Qed.
-
-
   (* Properties related to the upward closure. *)
 
-  Lemma upcl_bottom m v Φ : iEff_car (upcl m (⊥ : iEff Σ)) v Φ ≡ False%I.
+  Lemma upcl_bottom v Φ : iEff_car (upcl (⊥ : iEff Σ)) v Φ ≡ False%I.
   Proof. by iSplit; [iIntros "[%Q [H _]]"|iIntros "H"]. Qed.
 
-  Lemma upcl_m_tele {TT1 TT2 : tele}
+  Lemma upcl_tele {TT1 TT2 : tele}
     (v' : TT1 →       val) (P : TT1 →       iProp Σ)
-    (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) m v Φ :
-    iEff_car (upcl m
+    (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) v Φ :
+    iEff_car (upcl
       (>>.. x >> ! (v' x)   {{ P x   }};
-       <<.. y << ? (w' x y) {{ Q x y }} @ m)) v Φ ≡
+       <<.. y << ? (w' x y) {{ Q x y }})) v Φ ≡
     (∃.. x, ⌜ v = v' x ⌝ ∗ P x ∗
-      □? m (∀.. y, Q x y -∗ Φ (w' x y)))%I.
+      (∀.. y, Q x y -∗ Φ (w' x y)))%I.
   Proof.
     rewrite /upcl. iSplit.
     - iIntros "H". iDestruct "H" as (Q') "[HP HQ']".
       rewrite iEffPre_texist_eq iEffPre_base_eq /iEffPre_base_def.
       iDestruct "HP" as (x) "(<- & HP & HΦ)". iExists x. iFrame.
       iSplit; [done|].
-      iApply (bi.intuitionistically_if_mono with "[HΦ HQ']");[|
-      by iApply bi.intuitionistically_if_sep_2; iFrame].
-      iIntros "[HΦ HQ']" (y) "HQ".
-      iApply "HΦ". iApply "HQ'".
+      iIntros (y) "HQ".
+      iApply "HQ'". iApply "HΦ".
       rewrite iEffPost_texist_eq iEffPost_base_eq /iEffPost_base_def.
       iExists y. by iFrame.
     - iIntros "H". iDestruct "H" as (x) "(-> & HP & HQ)".
       iExists (<<.. y << ? (w' x y) {{ Q x y }})%ieff.
       rewrite iEffPre_texist_eq. iSplitL "HP".
       + iExists x. rewrite iEffPre_base_eq /iEffPre_base_def //=. iFrame.
-        by destruct m; simpl; auto.
-      + iApply (bi.intuitionistically_if_mono with "HQ").
-        iIntros "HQ" (w) "HQ'".
+        by simpl; auto.
+      + iIntros (w) "HQ'".
         rewrite iEffPost_texist_eq iEffPost_base_eq.
         iDestruct "HQ'" as (y) "[<- HQ']". by iApply "HQ".
   Qed.
-  Lemma upcl_tele {TT1 TT2 : tele}
-    (v' : TT1 →       val) (P : TT1 →       iProp Σ)
-    (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) v Φ :
-    iEff_car (upcl OS
-      (>>.. x >> ! (v' x)   {{ P x   }};
-       <<.. y << ? (w' x y) {{ Q x y }} @ OS)) v Φ ≡
-    (∃.. x, ⌜ v = v' x ⌝ ∗ P x ∗
-      (∀.. y, Q x y -∗ Φ (w' x y)))%I.
-  Proof. by apply (upcl_m_tele _ _ _ _ OS). Qed.
-  Lemma pers_upcl_tele {TT1 TT2 : tele}
-    (v' : TT1 →       val) (P : TT1 →       iProp Σ)
-    (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) v Φ :
-    iEff_car (upcl MS
-      (>>.. x >> ! (v' x)   {{ P x   }};
-       <<.. y << ? (w' x y) {{ Q x y }} @ MS)) v Φ ≡
-    (∃.. x, ⌜ v = v' x ⌝ ∗ P x ∗
-      □ (∀.. y, Q x y -∗ Φ (w' x y)))%I.
-  Proof. by apply (upcl_m_tele _ _ _ _ MS). Qed.
 
-  Lemma upcl_m_tele' (TT1 TT2 : tele)
-    (v' : TT1 -t>         val) (P : TT1 -t>         iProp Σ)
-    (w' : TT1 -t> TT2 -t> outcome2 val exn) (Q : TT1 -t> TT2 -t> iProp Σ) m v Φ :
-    iEff_car (upcl m
-      (>>.. x >> !           (tele_app v' x)
-                 {{          (tele_app P  x)   }};
-       <<.. y << ? (tele_app (tele_app w' x) y)
-                 {{ tele_app (tele_app Q  x) y }} @ m)) v Φ ≡
-    (∃.. x, ⌜ v = tele_app v' x ⌝ ∗ tele_app P x ∗
-       □? m (∀.. y, tele_app (tele_app Q  x) y -∗
-                 Φ (tele_app (tele_app w' x) y)))%I.
-  Proof. by rewrite (upcl_m_tele (tele_app v') (tele_app P)
-                    (λ x y, tele_app (tele_app w' x) y)
-                    (λ x y, tele_app (tele_app Q  x) y)).
-  Qed.
   Lemma upcl_tele' (TT1 TT2 : tele)
     (v' : TT1 -t>         val) (P : TT1 -t>         iProp Σ)
     (w' : TT1 -t> TT2 -t> outcome2 val exn) (Q : TT1 -t> TT2 -t> iProp Σ) v Φ :
-    iEff_car (upcl OS
+    iEff_car (upcl
       (>>.. x >> !           (tele_app v' x)
                  {{          (tele_app P  x)   }};
        <<.. y << ? (tele_app (tele_app w' x) y)
-                 {{ tele_app (tele_app Q  x) y }} @ OS)) v Φ ≡
+                 {{ tele_app (tele_app Q  x) y }})) v Φ ≡
     (∃.. x, ⌜ v = tele_app v' x ⌝ ∗ tele_app P x ∗
-      (∀.. y, tele_app (tele_app Q  x) y -∗
-           Φ (tele_app (tele_app w' x) y)))%I.
-  Proof. by apply upcl_m_tele'. Qed.
-  Lemma pers_upcl_tele' (TT1 TT2 : tele)
-    (v' : TT1 -t>         val) (P : TT1 -t>         iProp Σ)
-    (w' : TT1 -t> TT2 -t> outcome2 val exn) (Q : TT1 -t> TT2 -t> iProp Σ) v Φ :
-    iEff_car (upcl MS
-      (>>.. x >> !           (tele_app v' x)
-                 {{          (tele_app P  x)   }};
-       <<.. y << ? (tele_app (tele_app w' x) y)
-                 {{ tele_app (tele_app Q  x) y }} @ MS)) v Φ ≡
-    (∃.. x, ⌜ v = tele_app v' x ⌝ ∗ tele_app P x ∗
-      □ (∀.. y, tele_app (tele_app Q  x) y -∗
-             Φ (tele_app (tele_app w' x) y)))%I.
-  Proof. by apply upcl_m_tele'. Qed.
+       (∀.. y, tele_app (tele_app Q  x) y -∗
+               Φ (tele_app (tele_app w' x) y)))%I.
+  Proof. by rewrite (upcl_tele (tele_app v') (tele_app P)
+                    (λ x y, tele_app (tele_app w' x) y)
+                    (λ x y, tele_app (tele_app Q  x) y)).
+  Qed.
 
-  Lemma upcl_marker_tele {TT1 TT2 : tele} m f
+  Lemma upcl_marker_tele {TT1 TT2 : tele} f
     (v' : TT1 →       val) (P : TT1 →       iProp Σ)
     (w' : TT1 → TT2 → outcome2 val exn) (Q : TT1 → TT2 → iProp Σ) :
-    upcl m
+    upcl
       (f #> (>>.. x >> !    (v' x  )  {{ P x   }};
-             <<.. y << ?    (w' x y)  {{ Q x y }} @ m)) ≡
-    upcl m
+             <<.. y << ?    (w' x y)  {{ Q x y }})) ≡
+    upcl
             (>>.. x >> ! (f (v' x  )) {{ P x   }};
-             <<.. y << ? (  (w' x y)) {{ Q x y }} @ m).
+             <<.. y << ? (  (w' x y)) {{ Q x y }}).
   Proof. by rewrite iEff_marker_tele. Qed.
 
-  Lemma upcl_marker_intro f m v Ψ Φ :
-    iEff_car (upcl m Ψ) v Φ ⊢ iEff_car (upcl m (f #> Ψ)) (f v) Φ.
+  Lemma upcl_marker_intro f v Ψ Φ :
+    iEff_car (upcl Ψ) v Φ ⊢ iEff_car (upcl (f #> Ψ)) (f v) Φ.
   Proof.
     rewrite /upcl iEff_marker_eq.
     iIntros "H". iDestruct "H" as (Q) "[He HQ]".
     iExists Q. iFrame. done.
   Qed.
 
-  Lemma upcl_marker_elim f {Hf: Inj (=) (=) f} m v Ψ Φ :
-    iEff_car (upcl m (f #> Ψ)) (f v) Φ ⊢ iEff_car (upcl m Ψ) v Φ.
+  Lemma upcl_marker_elim f {Hf: Inj (=) (=) f} v Ψ Φ :
+    iEff_car (upcl (f #> Ψ)) (f v) Φ ⊢ iEff_car (upcl Ψ) v Φ.
   Proof.
     iIntros "H". rewrite iEff_marker_eq /upcl //=.
     iDestruct "H" as (Q) "[HP HQ]".
@@ -786,16 +680,16 @@ Section protocol_operators_properties.
     iExists Q. by iFrame.
   Qed.
 
-  Lemma upcl_marker_elim' f m v Ψ Φ :
-    iEff_car (upcl m (f #> Ψ)) v Φ ⊢ ∃ w, ⌜ v = f w ⌝ ∗ iEff_car (upcl m Ψ) w Φ.
+  Lemma upcl_marker_elim' f v Ψ Φ :
+    iEff_car (upcl (f #> Ψ)) v Φ ⊢ ∃ w, ⌜ v = f w ⌝ ∗ iEff_car (upcl Ψ) w Φ.
   Proof.
     iIntros "H". rewrite iEff_marker_eq /upcl //=.
     iDestruct "H" as (Q) "[HP HQ]". iDestruct "HP" as (w) "[-> HP]".
     iExists w. iSplit; [done|]. iExists Q. by iFrame.
   Qed.
 
-  Lemma upcl_filter m v P Ψ Φ :
-    iEff_car (upcl m (P ?> Ψ)) v Φ ⊣⊢ ⌜ P v ⌝ ∗ iEff_car (upcl m Ψ) v Φ.
+  Lemma upcl_filter v P Ψ Φ :
+    iEff_car (upcl (P ?> Ψ)) v Φ ⊣⊢ ⌜ P v ⌝ ∗ iEff_car (upcl Ψ) v Φ.
   Proof.
     rewrite iEff_filter_eq /upcl //=. iSplit.
     - iIntros "H". iDestruct "H" as (Q) "[[% HP] HQ]".
@@ -804,32 +698,32 @@ Section protocol_operators_properties.
       by eauto with iFrame.
   Qed.
 
-  Lemma upcl_sum_assoc m v Ψ1 Ψ2 Ψ3 Φ :
-    iEff_car (upcl m (Ψ1 <+> (Ψ2 <+> Ψ3))) v Φ ≡
-      iEff_car (upcl m ((Ψ1 <+> Ψ2) <+> Ψ3)) v Φ.
+  Lemma upcl_sum_assoc v Ψ1 Ψ2 Ψ3 Φ :
+    iEff_car (upcl (Ψ1 <+> (Ψ2 <+> Ψ3))) v Φ ≡
+      iEff_car (upcl ((Ψ1 <+> Ψ2) <+> Ψ3)) v Φ.
   Proof. by apply iEff_car_proper; rewrite iEff_sum_assoc. Qed.
 
-  Lemma upcl_sum_comm m v Ψ1 Ψ2 Φ :
-    iEff_car (upcl m (Ψ2 <+> Ψ1)) v Φ ≡ iEff_car (upcl m (Ψ1 <+> Ψ2)) v Φ.
+  Lemma upcl_sum_comm v Ψ1 Ψ2 Φ :
+    iEff_car (upcl (Ψ2 <+> Ψ1)) v Φ ≡ iEff_car (upcl (Ψ1 <+> Ψ2)) v Φ.
   Proof. by apply iEff_car_proper; rewrite iEff_sum_comm. Qed.
 
-  Lemma upcl_sum_intro_l m v Ψ1 Ψ2 Φ :
-    iEff_car (upcl m Ψ1) v Φ ⊢ iEff_car (upcl m (Ψ1 <+> Ψ2)) v Φ.
+  Lemma upcl_sum_intro_l v Ψ1 Ψ2 Φ :
+    iEff_car (upcl Ψ1) v Φ ⊢ iEff_car (upcl (Ψ1 <+> Ψ2)) v Φ.
   Proof.
     rewrite /upcl iEff_sum_eq.
     iIntros "H". iDestruct "H" as (Q) "[He HQ]". iExists Q. by iFrame.
   Qed.
 
-  Lemma upcl_sum_intro_r m v Ψ1 Ψ2 Φ :
-    iEff_car (upcl m Ψ2) v Φ ⊢ iEff_car (upcl m (Ψ1 <+> Ψ2)) v Φ.
+  Lemma upcl_sum_intro_r v Ψ1 Ψ2 Φ :
+    iEff_car (upcl Ψ2) v Φ ⊢ iEff_car (upcl (Ψ1 <+> Ψ2)) v Φ.
   Proof.
     iIntros "H". rewrite upcl_sum_comm.
     by iApply upcl_sum_intro_l.
   Qed.
 
-  Lemma upcl_sum_elim m v Ψ1 Ψ2 Φ :
-    iEff_car (upcl m (Ψ1 <+> Ψ2)) v Φ ⊢
-      (iEff_car (upcl m Ψ1) v Φ) ∨ (iEff_car (upcl m Ψ2) v Φ).
+  Lemma upcl_sum_elim v Ψ1 Ψ2 Φ :
+    iEff_car (upcl (Ψ1 <+> Ψ2)) v Φ ⊢
+      (iEff_car (upcl Ψ1) v Φ) ∨ (iEff_car (upcl Ψ2) v Φ).
   Proof.
     iIntros "H". iDestruct "H" as (Q) "[HP HQ]".
     rewrite iEff_sum_eq. iDestruct "HP" as "[HP|HP]".
@@ -837,9 +731,9 @@ Section protocol_operators_properties.
     { iRight; iExists Q; by iFrame. }
   Qed.
 
-  Lemma upcl_sum m v Ψ1 Ψ2 Φ :
-    iEff_car (upcl m (Ψ1 <+> Ψ2)) v Φ ≡
-      ((iEff_car (upcl m Ψ1) v Φ) ∨ (iEff_car (upcl m Ψ2) v Φ))%I.
+  Lemma upcl_sum v Ψ1 Ψ2 Φ :
+    iEff_car (upcl (Ψ1 <+> Ψ2)) v Φ ≡
+      ((iEff_car (upcl Ψ1) v Φ) ∨ (iEff_car (upcl Ψ2) v Φ))%I.
   Proof.
     iSplit; [iApply upcl_sum_elim|].
     by iIntros "[?|?]"; [iApply upcl_sum_intro_l|iApply upcl_sum_intro_r].
@@ -918,11 +812,10 @@ Section protocol_ordering_properties.
     iExists w. iSplit; [done|]. by iApply "HΨ".
   Qed.
 
-  Lemma iEff_le_upcl m Ψ1 Ψ2 : (Ψ1 ⊑ Ψ2 -∗ (upcl m Ψ1) ⊑ (upcl m Ψ2))%ieff.
+  Lemma iEff_le_upcl Ψ1 Ψ2 : (Ψ1 ⊑ Ψ2 -∗ (upcl Ψ1) ⊑ (upcl Ψ2))%ieff.
   Proof.
     iIntros "#Hle" (v Φ) "!# [%Φ' [HΨ1 HΦ']]".
-    iExists Φ'. iSplitL "HΨ1"; [by iApply "Hle"|].
-    by iApply (bi.intuitionistically_if_mono with "HΦ'").
+    iExists Φ'. iSplitL "HΨ1"; [by iApply "Hle"|by iApply "HΦ'"].
   Qed.
 
 End protocol_ordering_properties.
@@ -933,17 +826,17 @@ End protocol_ordering_properties.
 (* -------------------------------------------------------------------------- *)
 
 Definition prot' {Σ} Ψ v Φ :=
-  (iEff_car (Σ := Σ) (upcl OS Ψ) v Φ).
+  (iEff_car (Σ := Σ) (upcl Ψ) v Φ).
 
 (** Non-expansiveness of Protocols. *)
 
-Global Instance prot_car_ne {Σ} v m :  NonExpansive (prot' (Σ:=Σ) v m).
+Global Instance prot_car_ne {Σ} v P :  NonExpansive (prot' (Σ:=Σ) v P).
 Proof. intros ????. solve_proper. Qed.
 Global Instance prot_car_proper {Σ} : Proper ((≡) ==> (≡)) (iEff_car (Σ:=Σ)).
 Proof. by intros ???. Qed.
 
 Definition prot {Σ} `{Encode A} Ψ v ζ (Φ : A → iProp Σ) :=
-  (iEff_car (Σ := Σ) (upcl OS Ψ) v (ilift ζ (ireturns Φ))).
+  prot' Ψ v (ilift ζ (ireturns Φ)).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -957,7 +850,7 @@ Notation "Ψ 'allows' 'perform' v << Φ >>" :=
 Notation "Ψ 'allows' 'perform' v ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
   (prot Ψ v ζ Φ)
     (left associativity, Φ at level 200, at level 12,
-      format "'[' Ψ  'allows'  'perform'  v    '⟨⟨' ζ '⟩⟩'  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
+      format "'[' Ψ  'allows'  'perform'  v  '⟨⟨'  ζ  '⟩⟩'  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
 
 Notation "Ψ 'allows' 'perform' v {{ Φ }}" :=
   (prot Ψ v ⊥ Φ)
