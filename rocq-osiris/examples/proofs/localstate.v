@@ -27,20 +27,20 @@ Definition WRITE {Σ} wl St : iEff Σ :=
 Definition STATE {Σ} rl wl (St : state -> _) : iEff Σ := (READ rl St <+> WRITE wl St)%ieff.
 
 Lemma upcl_state {Σ} rl wl St v Φ :
-  iEff_car (upcl (STATE (Σ:=Σ) rl wl St)) v Φ ⊣⊢
-    ((iEff_car (upcl (READ  rl St)) v Φ) ∨
-     (iEff_car (upcl (WRITE wl St)) v Φ)).
+  STATE (Σ:=Σ) rl wl St allows perform v << Φ >> ⊣⊢
+    (READ rl St allows perform v << Φ >>) ∨
+     (WRITE wl St allows perform v << Φ >>).
 Proof. by rewrite /STATE; apply upcl_sum. Qed.
 
 Lemma upcl_read {Σ} rl St v Φ :
-  iEff_car (upcl (READ (Σ:=Σ) rl St)) v Φ ⊣⊢
+  READ (Σ:=Σ) rl St allows perform v << Φ >> ⊣⊢
     (∃ x, ⌜ v = read rl ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
-Proof. by rewrite /READ (upcl_tele' [tele _] [tele]). Qed.
+Proof. by rewrite /READ /prot (upcl_tele' [tele _] [tele]). Qed.
 
 Lemma upcl_write {Σ} wl St v Φ :
-  iEff_car (upcl (WRITE (Σ:=Σ) wl St)) v Φ ⊣⊢
+  WRITE (Σ:=Σ) wl St allows perform v << Φ >> ⊣⊢
     (∃ x y, ⌜ v = write wl y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
-Proof. by rewrite /WRITE (upcl_tele' [tele _ _] [tele]). Qed.
+Proof. by rewrite /WRITE /prot (upcl_tele' [tele _ _] [tele]). Qed.
 
 (* ========================================================================== *)
 (** * Verification. *)
@@ -119,6 +119,16 @@ Section verification.
   (* EWP eval η (EAnonFun __fun7)
    {{ ensures v, iSpec τ[ val;val] v run_spec }} *)
 
+  Inductive effects : Type :=
+  | Read
+  | Write (y : Z).
+
+  Local Instance encode_effects rl wl : Encode effects :=
+    { encode eff := match eff with
+                    | Read => VXData rl []
+                    | Write y => VXData wl [ #y ]
+                    end }.
+
   Lemma localstate_run_spec rl wl :
     ∀ η,
       ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
@@ -164,7 +174,11 @@ Section verification.
       iSpecialize ("Hmain" $! _ _ _ (λ init, points_to γ #init) with "Hpoints_to").
       iApply "Hmain". }
 
-    iSplit.
+    generalize (# init) at 3 as init_; intros init_.
+    iLöb as "IH" forall (init).
+    iApply prove_deep_handler_spec.
+    iSplit; last (iSplit; first iIntros (? [])).
+
     { (* Value case *)
       iIntros (?) "Hspec"; iNext.
       iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
@@ -180,11 +194,11 @@ Section verification.
     instantiate (1 := wl). instantiate (1 := rl).
     (* -------------------------------------------------------------------------- *)
     (* Effectful case *)
-    iIntros (e k) "Hp".
-    iDestruct (upcl_sum_elim with "Hp") as "[ H_READ | H_WRITE ]".
+    iIntros (v k) "Hp".
+    iDestruct (upcl_state with "Hp") as "[ H_READ | H_WRITE ]".
 
     { (* READ case *)
-      cbn; rewrite upcl_read.
+      rewrite upcl_read.
       iDestruct "H_READ" as (x ->) "(Hx & H_READ)".
       iCombine "Hstate Hx" as "H".
       iDestruct (ghost_var_agree with "H") as %->.
@@ -199,7 +213,6 @@ Section verification.
       (* EWP Goal: [continue k (!var : t)]. *)
       iDestruct "H" as "(Hauth & Hx)".
       iSpecialize ("H_READ" with "Hx"). simpl.
-      iDestruct ("H_READ") as "(% & %Henc & H_READ)".
       fold eval.
       iApply (imp_EContinue with "[] [Hl]").
       { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
@@ -207,7 +220,8 @@ Section verification.
       { iApply (imp_ELoad with "Hl").
         iApply imp_EPath. by iApply imp_ret. }
 
-      iIntros (? ? ->) "[-> Hl]". admit. }
+      iIntros (? ? ->) "[-> Hl]".
+      iApply "H_READ". iApply ("IH" with "Hauth Hl"). }
 
     (* -------------------------------------------------------------------------- *)
     { (* WRITE case *)
@@ -250,16 +264,15 @@ Section verification.
         iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
         iModIntro.
 
-        iDestruct ("H_WRITE" with "Hx") as "(% & %Henc & Hcontinue)".
-
         iApply imp_EContinue.
         { iApply imp_EPath. iApply imp_ret; first encode.
           instantiate (1 := (λ k', ⌜k' = k⌝)%I). done. }
         { iApply imp_EConstant; first encode.
            instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
-        iIntros (??) "-> -> !>". rewrite Henc.
-        iApply "Hcontinue". admit. } }
-  Admitted.
+        iIntros (??) "-> -> !>".
+        iApply ("H_WRITE" with "Hx").
+        iApply ("IH" with "Hauth Hl"). } }
+  Qed.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
 
@@ -298,6 +311,8 @@ Section verification.
     iApply imp_sitems_extend.
     iIntros (?) "(%wl & -> & Hwl)".
 
+    set enc_eff := encode_effects rl wl.
+
     (* [let get () = perform Get] *)
     iApply (imp_sitems_let (λ v, □ iSpec τ[unit] v (λ _ m,
                                                       ∀ St x,
@@ -316,12 +331,12 @@ Section verification.
       iSplit; last iIntros ([]).
       iIntros (? <-).
       iApply (imp_EPerform with "[] [HSt]").
-      { simpl_eval. instantiate (1 := (λ v, ⌜v = VXData rl []⌝)%I).
-        iApply imp_ret; last done.
-        instantiate (1 := Encode_val). reflexivity. }
+      { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).
+        iApply imp_ret; last done. instantiate (1 := enc_eff).
+        encode. }
       iIntros (? ->).
-      rewrite /prot'. rewrite upcl_state upcl_read.
-      iLeft. iFrame. iSplit.
+      rewrite upcl_state.
+      iLeft. rewrite upcl_read. iFrame. iSplit.
       - equality.
       - iIntros "HSt".
         simpl. iExists _; iSplit; equality. }
@@ -335,7 +350,7 @@ Section verification.
     { iApply (imp_EAnon_pers τ[Z]).
       iIntros "!>" (y St x) "HSt".
       iApply imp_please; iNext.
-      iApply (imp_EPerform (λ v, ⌜v = VXData wl [encode.encode y]⌝)%I).
+      iApply (imp_EPerform (λ eff, ⌜eff = Write y⌝)%I).
       { iApply imp_EXData. reflexivity. instantiate (1 := ([(λ x, ⌜x = #y⌝)])%I).
         simpl; fold eval; iSplit; last done.
         iApply imp_EPath. iApply imp_ret; last auto. reflexivity.
@@ -343,11 +358,12 @@ Section verification.
         iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
         destruct vs; first discriminate; destruct vs; last discriminate.
         simpl; iDestruct "Hvs" as "[-> _]". iExists _; iSplit; equality.
-        by rewrite <- solve_encode_val. }
+        iPureIntro. encode. }
       iIntros (? ->).
-      rewrite /prot'. rewrite upcl_state upcl_write.
-      iRight. iExists _, _. iFrame. iSplit. rewrite <- solve_encode_val; equality.
-      iIntros "$". iExists _; auto. }
+      rewrite upcl_state upcl_write.
+      iRight. iExists x, y. iFrame. iSplit.
+      - iPureIntro. encode.
+      - iIntros "$". iExists _; auto. }
     iIntros (fset) "#Hset".
 
     (* [let run (type a) init maint : t * a =] *)

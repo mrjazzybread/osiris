@@ -682,47 +682,13 @@ Section imp_rules_expr.
 
   (** * EMatch : expr → list branch → expr *)
 
-  Lemma imp_EHandler2 `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} Ψ' ζ' (Φ' : A' → iProp Σ) η e bs :
+  Lemma imp_EHandler `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} Ψ' ζ' (Φ' : A' → iProp Σ) η e bs :
     imp eval η e @ E <|Ψ'|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
-    (∀ a : A', Φ' a -∗ ▷ imp eval_branches η (O2Ret #a) bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ e0 : exn, ζ' e0 -∗ ▷ imp eval_branches η (O2Throw e0) bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ (v : val) (k : cont),
-       Ψ' allows perform v
-         ⟨⟨ λ e0 : exn,
-              ∀ (Ψ'' : iEff Σ) (ζ'' : exn -d> iPropO Σ) (Φ'' : A -d> iPropO Σ),
-              ▷ deep_handler_spec E Ψ' ζ' Φ' η bs Ψ'' ζ'' Φ'' -∗ may_discontinue e0 k E Ψ'' ζ'' Φ'' ⟩⟩
-         {{ λ a : val,
-              ∀ (Ψ'' : iEff Σ) (ζ'' : exn -d> iPropO Σ) (Φ'' : A -d> iPropO Σ),
-              ▷ deep_handler_spec E Ψ' ζ' Φ' η bs Ψ'' ζ'' Φ'' -∗ may_continue a k E Ψ'' ζ'' Φ'' }} -∗
-       ▷ imp eval_branches η (O3Perform v k) bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ) -∗
+    deep_handler_spec E Ψ' ζ' Φ' η bs Ψ ζ Φ -∗
     imp eval η (EMatch e bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He Hbs"; simpl_eval.
-    iApply (imp_deep_handler _ Ψ' ζ' Φ' Ψ ζ Φ η e bs with "He").
-    iApply (prove_deep_handler_spec with "Hbs").
-  Qed.
-
-  Lemma imp_EHandler `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} Ψ' (Φ' : A' → iProp Σ) η e bs :
-    imp eval η e @ E <|Ψ'|> {{ Φ' }} -∗
-    (∀ a : A', Φ' a -∗ ▷ imp eval_branches η (O2Ret #a) bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ (v : val) (k : cont),
-       Ψ' allows perform v
-         ⟨⟨ λ e0 : exn,
-              ∀ (Ψ'' : iEff Σ) (ζ'' : exn -d> iPropO Σ) (Φ'' : A -d> iPropO Σ),
-              ▷ deep_handler_spec E Ψ' ⊥ Φ' η bs Ψ'' ζ'' Φ'' -∗ may_discontinue e0 k E Ψ'' ζ'' Φ'' ⟩⟩
-         {{ λ a : val,
-              ∀ (Ψ'' : iEff Σ) (ζ'' : exn -d> iPropO Σ) (Φ'' : A -d> iPropO Σ),
-              ▷ deep_handler_spec E Ψ' ⊥ Φ' η bs Ψ'' ζ'' Φ'' -∗ may_continue a k E Ψ'' ζ'' Φ'' }} -∗
-       ▷ imp eval_branches η (O3Perform v k) bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ) -∗
-    imp eval η (EMatch e bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "He Hbs"; simpl_eval.
-    iApply (imp_deep_handler _ Ψ' ⊥ Φ' Ψ ζ Φ η e bs with "He").
-    iApply (prove_deep_handler_spec).
-    iSplit; last iSplit.
-    - iDestruct "Hbs" as "[$ _]".
-    - iIntros (? []).
-    - iDestruct "Hbs" as "[_ $]".
+    iApply (imp_deep_handler _ Ψ' ζ' Φ' Ψ ζ Φ η e bs with "He Hbs").
   Qed.
 
   Lemma imp_EMatch2 `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} ζ' (Φ' : A' → iProp Σ) η e bs :
@@ -738,7 +704,7 @@ Section imp_rules_expr.
     - iDestruct "Hbs" as "[$ _]".
     - iDestruct "Hbs" as "[_ $]".
     - iIntros (v k) "HProt".
-      by rewrite /prot /prot' upcl_bottom.
+      by rewrite /prot upcl_bottom.
   Qed.
 
   Lemma imp_EMatch `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} (Φ' : A' → iProp Σ) η e bs :
@@ -753,7 +719,7 @@ Section imp_rules_expr.
     - iApply "Hbs".
     - iIntros (? []).
     - iIntros (v k) "HProt".
-      by rewrite /prot /prot' upcl_bottom.
+      by rewrite /prot upcl_bottom.
   Qed.
 
   (** * ERaise : expr → expr *)
@@ -934,7 +900,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ (k : cont) x, Φ1 k -∗ Φ2 x -∗
-                ▷ may_continue #x k E Ψ ζ Φ) -∗
+                ▷ may_resume (O2Ret #x) k E Ψ ζ Φ) -∗
     imp eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
@@ -960,7 +926,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ (k : cont) e, Φ1 k -∗ Φ2 e -∗
-                ▷ may_discontinue e k E Ψ ζ Φ) -∗
+                ▷ may_resume (O2Throw e) k E Ψ ζ Φ) -∗
     imp eval η (EDiscontinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.

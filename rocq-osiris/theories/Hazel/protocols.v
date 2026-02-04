@@ -296,7 +296,7 @@ Notation "<< x .. y << e" :=
 Notation "'>>..' x .. y >> e" :=
   (iEffPre_texist (λ x, .. (iEffPre_texist (λ y, e)) .. )%ieff)
   (at level 200, x binder, y binder, right associativity,
-   format ">>..  x  ..  y >>  e") : ieff_scope.
+   format ">>..  x  ..  y  >>  e") : ieff_scope.
 
 Notation "'<<..' x .. y << e" :=
   (iEffPost_texist (λ x, .. (iEffPost_texist (λ y, e)) .. )%ieff)
@@ -367,95 +367,6 @@ Qed.
 Section protocol_operators_properties.
   Context {Σ : gFunctors}.
   Implicit Types Ψ : iEff Σ.
-
-  (* Non-expansiveness. *)
-
-  Global Instance iEffPre_base_ne n :
-    Proper
-      ((dist n) ==> (dist n) ==> (dist n) ==> (dist n)) (iEffPre_base (Σ:=Σ)).
-  Proof.
-    intros ?????????. rewrite iEffPre_base_eq /iEffPre_base_def.
-    intros ??. simpl.
-    by repeat (apply H || f_equiv).
-  Qed.
-  Global Instance iEffPre_base_proper :
-    Proper ((≡) ==> (≡) ==> (≡) ==> (≡)) (iEffPre_base (Σ:=Σ)).
-  Proof.
-    intros ?????????.
-    apply equiv_dist=>n; apply iEffPre_base_ne; by apply equiv_dist.
-  Qed.
-
-  Global Instance iEffPost_base_ne n :
-    Proper ((dist n) ==> (dist n) ==> (dist n) ==> (dist n))
-           (iEffPost_base (Σ:=Σ)).
-  Proof.
-    intros ?????????.
-    rewrite iEffPost_base_eq /iEffPost_base_def. solve_proper.
-  Qed.
-  Global Instance iEffPost_base_proper :
-    Proper ((≡) ==> (≡) ==> (≡) ==> (≡)) (iEffPost_base (Σ:=Σ)).
-  Proof.
-    intros ?????????.
-    apply equiv_dist=>n; apply iEffPost_base_ne; by apply equiv_dist.
-  Qed.
-
-  Global Instance iEff_sum_ne n :
-    Proper ((dist n) ==> (dist n) ==> (dist n)) (iEff_sum (Σ:=Σ)).
-  Proof.
-    intros ??????. rewrite iEff_sum_eq /iEff_sum_def.
-    f_equiv=>w' q' //=. f_equiv; by apply iEff_car_ne.
-  Qed.
-  Global Instance iEff_sum_proper :
-    Proper ((≡) ==> (≡) ==> (≡)) (iEff_sum (Σ:=Σ)).
-  Proof.
-    intros ??????.
-    apply equiv_dist=>n; apply iEff_sum_ne; by apply equiv_dist.
-  Qed.
-
-  Global Instance iEff_marker_ne f n :
-    Proper ((dist n) ==> (dist n)) (iEff_marker (Σ:=Σ) f).
-  Proof.
-    intros ???. rewrite iEff_marker_eq /iEff_marker_def.
-    f_equiv=>w' q' //=. f_equiv=> v'. f_equiv; by apply iEff_car_ne.
-  Qed.
-  Global Instance iEff_marker_proper f :
-    Proper ((≡) ==> (≡)) (iEff_marker (Σ:=Σ) f).
-  Proof.
-    intros ???. apply equiv_dist=>n; apply iEff_marker_ne; by apply equiv_dist.
-  Qed.
-
-  Global Instance iEff_filter_ne P n :
-    Proper ((dist n) ==> (dist n)) (iEff_filter (Σ:=Σ) P).
-  Proof.
-    intros ???. rewrite iEff_filter_eq /iEff_filter_def.
-    f_equiv=>v' q' //=. f_equiv; by apply iEff_car_ne.
-  Qed.
-  Global Instance iEff_filter_proper P :
-    Proper ((≡) ==> (≡)) (iEff_filter (Σ:=Σ) P).
-  Proof.
-    intros ???. apply equiv_dist=>n; apply iEff_filter_ne; by apply equiv_dist.
-  Qed.
-
-  Global Instance iEffPre_exist_ne A n :
-    Proper (pointwise_relation _ (dist n) ==> (dist n)) (@iEffPre_exist Σ A).
-  Proof. rewrite iEffPre_exist_eq=> m1 m2 Hm v p /=. f_equiv=> x. apply Hm. Qed.
-  Global Instance iEffPre_exist_proper A :
-    Proper (pointwise_relation _ (≡) ==> (≡)) (@iEffPre_exist Σ A).
-  Proof. rewrite iEffPre_exist_eq=> m1 m2 Hm v p /=. f_equiv=> x. apply Hm. Qed.
-
-  Global Instance iEffPost_exist_ne A n :
-    Proper (pointwise_relation _ (dist n) ==> (dist n)) (@iEffPost_exist Σ A).
-  Proof.
-    rewrite iEffPost_exist_eq /iEffPost_exist_def => m1 m2 Hm w /=.
-    f_equiv=>x. apply Hm.
-  Qed.
-  Global Instance iEffPost_exist_proper A :
-    Proper (pointwise_relation _ (≡) ==> (≡)) (@iEffPost_exist Σ A).
-  Proof.
-    rewrite iEffPost_exist_eq /iEffPost_exist_def => m1 m2 Hm w /=.
-    f_equiv=> x. apply Hm.
-  Qed.
-
 
   (* Algebraic properties. *)
 
@@ -825,39 +736,25 @@ End protocol_ordering_properties.
 
 (* -------------------------------------------------------------------------- *)
 
-Definition prot' {Σ} Ψ v Φ :=
+Definition prot {Σ} Ψ v Φ :=
   (iEff_car (Σ := Σ) (upcl Ψ) v Φ).
 
 (** Non-expansiveness of Protocols. *)
 
-Global Instance prot_car_ne {Σ} v P :  NonExpansive (prot' (Σ:=Σ) v P).
+Global Instance prot_car_ne {Σ} v P :  NonExpansive (prot (Σ:=Σ) v P).
 Proof. intros ????. solve_proper. Qed.
 Global Instance prot_car_proper {Σ} : Proper ((≡) ==> (≡)) (iEff_car (Σ:=Σ)).
 Proof. by intros ???. Qed.
-
-Definition prot {Σ} `{Encode A} Ψ v ζ (Φ : A → iProp Σ) :=
-  prot' Ψ v (ilift ζ (ireturns Φ)).
 
 (* -------------------------------------------------------------------------- *)
 
 (* Notation for protocols. *)
 
 Notation "Ψ 'allows' 'perform' v << Φ >>" :=
-  (prot' Ψ v Φ)
+  (prot Ψ v Φ)
     (left associativity, Φ at level 200, at level 12,
-      format "'[' Ψ  'allows'  'perform'  v   '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
+      format "'[' Ψ  'allows'  'perform'  v  '/' '<<'  '[' Φ  ']' '>>' ']'") : bi_scope.
 
-Notation "Ψ 'allows' 'perform' v ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
-  (prot Ψ v ζ Φ)
-    (left associativity, Φ at level 200, at level 12,
-      format "'[' Ψ  'allows'  'perform'  v  '⟨⟨'  ζ  '⟩⟩'  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
-
-Notation "Ψ 'allows' 'perform' v {{ Φ }}" :=
-  (prot Ψ v ⊥ Φ)
-    (left associativity, Φ at level 200, at level 12,
-      format "'[' Ψ  'allows'  'perform'  v  '{{'  '[' Φ  ']' '}}' ']'") : bi_scope.
-
-Arguments prot' : simpl never.
 Arguments prot : simpl never.
 Arguments iEff_car : simpl never.
 (* -------------------------------------------------------------------------- *)
