@@ -425,7 +425,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
   | VArray l => "VArray(" ++ String.concat "; " (map (fun l => string_of_Z l.(address)) l) ++ ")"
-  end
+  end.
 
 Definition string_of_outcome2 (o : outcome2 val exn) : string :=
   match o with
