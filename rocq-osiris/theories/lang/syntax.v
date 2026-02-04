@@ -300,8 +300,6 @@ Inductive expr :=
   | EFork (e1 e2 : expr)
   (* Waiting for another thread to terminate: ≈ [Domain.join th]. *)
   | EJoin (e : expr)
-  (* A request for one's own thread handle: ≈ [Domain.self ()] *)
-  (* | ESelf *)
 
 (* Field-expression pairs. *)
 
@@ -438,23 +436,6 @@ Inductive val : Type :=
   (* A functor. *)
   | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
-  (* The values of pre-allocated exceptions. *)
-  | VException (e : exception)
-
-with exception :=
-  | Assert_failure
-  | Bad (s : string)
-  | Continuation_already_resumed
-  | Division_by_zero
-  | EmptyStack
-  | EmptyQueue
-  | Failure (s : string)
-  | Finally_raised (exn : val)
-  | Forced_twice
-  | Invalid_argument (s : string)
-  | Match_failure
-  | Not_found
-  | Unhandled (eff : val)
 .
 
 Definition env := list (var * val).
@@ -513,10 +494,6 @@ Notation VFalse :=
 
 Notation VTrue :=
   (VConstant "true").
-
-(* Exceptions. *)
-
-Definition invalid_argument (s : string) := VException (Invalid_argument s).
 
 (* ------------------------------------------------------------------------ *)
 

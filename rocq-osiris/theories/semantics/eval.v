@@ -1155,14 +1155,14 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
       match ls !! signed i with
       | Some l => load l
-      | None => throw (invalid_argument "index out of bounds")
+      | None => crash "invalid_argument: index out of bounds"
       end
   | EArraySet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
                        (par (as_int (eval η e2)) (eval η e3));
         match ls !! signed i with
         | Some l => store l v
-        | None => throw (invalid_argument "index out of bounds")
+        | None => crash "invalid_argument: index out of bounds"
         end
   | EArrayMake e1 e2 =>
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
@@ -1170,7 +1170,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       if ((0 <=? i) && (i <? max_array)) then
         ls ← allocn (Z.to_nat i) v;
         ret (VArray ls)
-      else throw (invalid_argument "Array.make")
+      else crash "invalid_argument: Array.make"
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse

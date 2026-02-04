@@ -192,7 +192,7 @@ Section array_resources.
                   then
                    Stop CAllocn (Z.to_nat (signed n0), v)
                      (pfbind inject2 (λ ls : list loc, ret (VArray ls)))
-                  else throw (invalid_argument "Array.make"))) with "[He1] He2").
+                  else crash "invalid_argument: Array.make")) with "[He1] He2").
      { rewrite /as_int.
        iApply (imp_bind _ _ (λ v, val_as_int v) with "He1").
        iIntros (?) "-> /=".
@@ -349,25 +349,23 @@ Section array_resources.
    Qed.
 
    Lemma imp_EArrayGet `{Encode A} {ζ} a (k n : Z) (i j : Z) dq (xs : list A) x e1 e2 :
-     representable i →
      ⌜j ≤ i⌝ -∗
      ⌜xs !! (i - j)%Z = Some x⌝ -∗
      isArray a n -∗
      ▷ isSlice dq a j xs -∗
      imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
      imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-     imp eval η (EArrayGet e1 e2) @ E <|Ψ|>
-       ⟨⟨ λ e, ζ e ∨ ⌜e = VException (Invalid_argument "index out of bounds")⌝ ∧ ⌜(i < 0 ∨ i >= n)%Z⌝ ⟩⟩
+     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
        {{ λ v, ⌜v = x⌝ ∗ isSlice dq a j xs }}.
    Proof.
-     iIntros (Hrepr Hi Hlookup) "#Harr Hslice He1 He2". simpl_eval.
+     iIntros (Hi Hlookup) "#Harr Hslice He1 He2". simpl_eval.
      iDestruct "Harr" as "(%ls & -> & %Heq & %Hbound)".
 
      iApply (imp_Par _ _ _ _ _ _ (pfbind inject2
                (λ '((ls0, i0) : list loc * int),
                   match ls0 !! signed i0 with
                   | Some l => load l
-                  | None => throw (invalid_argument "index out of bounds")
+                  | None => crash "invalid_argument: index out of bounds"
                   end)) with "[He1] [He2]").
      { rewrite /as_array.
        iApply (imp_bind _ _ (λ v, val_as_array v) with "He1").
@@ -383,81 +381,72 @@ Section array_resources.
        instantiate (1 := (λ i', ⌜i' = i⌝)%I). done. }
      iSplit; last iSplit.
      { iIntros (e) "Hζ !>".
-       iApply (imp_throw with "[Hζ]"). by iLeft. }
+       iApply (imp_throw with "Hζ"). }
      { iIntros (e) "Hζ !>".
-       iApply (imp_throw with "[Hζ]"). by iLeft. }
+       iApply (imp_throw with "Hζ"). }
      iIntros (? ?) "-> -> !>".
      rewrite /continue /= bind_ret.
 
      iDestruct "Hslice" as "(% & %Heq' & %Hlen & Hslice)".
      inversion Heq'; subst ls0; clear Heq'.
 
-     rewrite signed_repr; last assumption.
+     assert (i - j < length xs).
+     { rewrite /lookup /list_lookup_Z in Hlookup.
+       assert (i - j <? 0 = false) as Hsub by lia.
+       rewrite Hsub in Hlookup.
+       pose proof (lookup_lt_Some xs (Z.to_nat (i - j)) _ Hlookup). lia. }
+     rewrite (signed_repr i); last (apply array_size_representable; lia).
 
-     case (decide (0 ≤ i < n)); [ intros in_bounds | intros not_in_bounds ].
-     -
+     (* Decompose [ls] into [lj ++ slice ++ _]. *)
+     pose proof (cut_out_slice j (length xs) ls ltac:(lia) ltac:(lia))
+       as (lj & slice & lextra & Hls & Hj & Hslice).
+     (* Turn [take _ (drop _ ls)] into [slice]. *)
+     replace (Z.to_nat j) with (length lj) by lia.
+     rewrite {1}Hls drop_app_length.
+     replace (length xs) with (length slice) by lia.
+     rewrite take_app_length.
 
-       (* Decompose [ls] into [lj ++ slice ++ _]. *)
-       pose proof (cut_out_slice j (length xs) ls ltac:(lia) ltac:(lia))
-         as (lj & slice & lextra & Hls & Hj & Hslice).
-       (* Turn [take _ (drop _ ls)] into [slice]. *)
-       replace (Z.to_nat j) with (length lj) by lia.
-       rewrite {1}Hls drop_app_length.
-       replace (length xs) with (length slice) by lia.
-       rewrite take_app_length.
+     rewrite /lookup /list_lookup_Z in Hlookup.
+     assert (i - j <? 0 = false) as Heqf by lia.
+     rewrite Heqf in Hlookup.
 
-       rewrite /lookup /list_lookup_Z in Hlookup.
-       assert (i - j <? 0 = false) as Heqf by lia.
-       rewrite Heqf in Hlookup.
+     assert (i - j < length xs).
+     { pose proof (lookup_lt_Some xs (Z.to_nat (i - j)) _ Hlookup). lia. }
 
-       assert (i - j < length xs).
-       { pose proof (lookup_lt_Some xs (Z.to_nat (i - j)) _ Hlookup). lia. }
+     (* [Decompose [xs] intl [xk ++ x :: _]. *)
+     pose proof (list_elem_of_split_length xs (Z.to_nat (i - j)) x Hlookup)
+       as (xk & xrest & Hxs & Hxk).
+     rewrite {1}Hxs.
 
-       (* [Decompose [xs] intl [xk ++ x :: _]. *)
-       pose proof (list_elem_of_split_length xs (Z.to_nat (i - j)) x Hlookup)
-         as (xk & xrest & Hxs & Hxk).
-       rewrite {1}Hxs.
-
-       (* Inversions on [Hslice] gives us that
+     (* Inversions on [Hslice] gives us that
         [slice] = [slicek ++ l :: _]. *)
-       iDestruct (big_sepL2_app_inv_r with "Hslice")
-         as "(%slicek & %slice' & -> & Hslice1 & Hslice2)".
-       iDestruct (big_sepL2_cons_inv_r with "Hslice2") as
-         "(%l & %slicerest & -> & Hl & Hslice2)".
+     iDestruct (big_sepL2_app_inv_r with "Hslice")
+       as "(%slicek & %slice' & -> & Hslice1 & Hslice2)".
+     iDestruct (big_sepL2_cons_inv_r with "Hslice2") as
+       "(%l & %slicerest & -> & Hl & Hslice2)".
 
-       (* We can now prove that [ls !! Z.to_nat i] = [Some l]. *)
-       rewrite /lookup /list_lookup_Z.
-       assert (i <? 0 = false) as -> by lia.
-       rewrite {1}Hls lookup_app_r; last lia.
-       replace (Z.to_nat i - length lj)%nat with (Z.to_nat (i - j)) by lia.
-       rewrite <- app_assoc. iPoseProof (big_sepL2_length with "Hslice1") as "%Hleneq".
-       rewrite list_lookup_middle; last lia.
+     (* We can now prove that [ls !! Z.to_nat i] = [Some l]. *)
+     rewrite /lookup /list_lookup_Z.
+     assert (i <? 0 = false) as -> by lia.
+     rewrite {1}Hls lookup_app_r; last lia.
+     replace (Z.to_nat i - length lj)%nat with (Z.to_nat (i - j)) by lia.
+     rewrite <- app_assoc. iPoseProof (big_sepL2_length with "Hslice1") as "%Hleneq".
+     rewrite list_lookup_middle; last lia.
 
-       iApply (imp_load with "Hl").
-       rewrite /continue; iIntros "!> Hl /=".
-       iApply imp_ret. encode. iSplit; first auto.
-       iCombine ("Hl Hslice2") as "Hslice2".
-       iPoseProof (big_sepL2_cons (λ _ l' x', pointsto l' dq (V #x')) with "Hslice2") as "Hslice2".
-       iPoseProof (big_sepL2_app with "Hslice1 Hslice2") as "Hslice".
-       iExists ls. iSplit; first auto. iSplit.
-       { iPureIntro. lia. }
-       replace (Z.to_nat j) with (length lj) by lia.
-       rewrite {1}Hls drop_app_length.
-       replace (length xs) with (length (slicek ++ l :: slicerest)) by lia.
-       rewrite take_app_length.
-       rewrite Hxs.
-       iApply "Hslice".
-
-     - assert (i < 0 ∨ i >= n) as Hnbounds by lia.
-       rewrite /lookup /list_lookup_Z.
-       destruct Hnbounds.
-       + assert (i <? 0 = true) as -> by lia.
-         iApply imp_throw.
-         iRight. auto.
-       + assert (i <?0 = false) as -> by lia.
-         rewrite lookup_ge_None_2; last lia.
-         iApply imp_throw.
-         iRight. auto.
+     iApply (imp_load with "Hl").
+     rewrite /continue; iIntros "!> Hl /=".
+     iApply imp_ret. encode. iSplit; first auto.
+     iCombine ("Hl Hslice2") as "Hslice2".
+     iPoseProof (big_sepL2_cons (λ _ l' x', pointsto l' dq (V #x')) with "Hslice2") as "Hslice2".
+     iPoseProof (big_sepL2_app with "Hslice1 Hslice2") as "Hslice".
+     iExists ls. iSplit; first auto. iSplit.
+     { iPureIntro. lia. }
+     replace (Z.to_nat j) with (length lj) by lia.
+     rewrite {1}Hls drop_app_length.
+     replace (length xs) with (length (slicek ++ l :: slicerest)) by lia.
+     rewrite take_app_length.
+     rewrite Hxs.
+     iApply "Hslice".
    Qed.
 
 
