@@ -10,37 +10,41 @@ From osiris.examples Require Import og_localstate.
 (* ========================================================================== *)
 (** * Protocol. *)
 
-Section localstate_example.
-
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
 Definition state := Z.
 
 Local Instance : Encode state := { encode := λ z, VInt (repr z) }.
 
-Definition read rl : val := VXData rl [].
-Definition write wl (v : state) : val := VXData wl [ # v].
+Section protocols.
 
-Definition READ {Σ} rl (St : state -> _) : iEff Σ :=
-  (>> x  >> ! (read rl) {{ St x }}; ? (O2Ret (# x)) {{ St x }}).
-Definition WRITE {Σ} wl St : iEff Σ :=
-  (>> x y >> ! (write wl y) {{ St x }}; ? (O2Ret VUnit) {{ St y }}).
-Definition STATE {Σ} rl wl (St : state -> _) : iEff Σ := (READ rl St <+> WRITE wl St)%ieff.
+  Context (rl wl : loc).
 
-Lemma upcl_state {Σ} rl wl St v Φ :
-  STATE (Σ:=Σ) rl wl St allows perform v << Φ >> ⊣⊢
-    (READ rl St allows perform v << Φ >>) ∨
-     (WRITE wl St allows perform v << Φ >>).
-Proof. by rewrite /STATE; apply upcl_sum. Qed.
+  Definition read : val := VXData rl [].
+  Definition write (v : state) : val := VXData wl [ # v].
 
-Lemma upcl_read {Σ} rl St v Φ :
-  READ (Σ:=Σ) rl St allows perform v << Φ >> ⊣⊢
-    (∃ x, ⌜ v = read rl ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
-Proof. by rewrite /READ /prot (upcl_tele' [tele _] [tele]). Qed.
+  Definition READ {Σ} (St : state -> _) : iEff Σ :=
+    (>> x  >> ! (read) {{ St x }}; ? (O2Ret (# x)) {{ St x }}).
+  Definition WRITE {Σ} St : iEff Σ :=
+    (>> x y >> ! (write y) {{ St x }}; ? (O2Ret VUnit) {{ St y }}).
+  Definition STATE {Σ} (St : state -> _) : iEff Σ := (READ St <+> WRITE St)%ieff.
 
-Lemma upcl_write {Σ} wl St v Φ :
-  WRITE (Σ:=Σ) wl St allows perform v << Φ >> ⊣⊢
-    (∃ x y, ⌜ v = write wl y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
-Proof. by rewrite /WRITE /prot (upcl_tele' [tele _ _] [tele]). Qed.
+  Lemma upcl_state {Σ} St v Φ :
+    STATE (Σ:=Σ) St allows perform v << Φ >> ⊣⊢
+    (READ St allows perform v << Φ >>) ∨
+      (WRITE St allows perform v << Φ >>).
+  Proof. by rewrite /STATE; apply upcl_sum. Qed.
+
+  Lemma upcl_read {Σ} St v Φ :
+    READ (Σ:=Σ) St allows perform v << Φ >> ⊣⊢
+    (∃ x, ⌜ v = read ⌝ ∗ St x ∗ (St x -∗ Φ (O2Ret (# x))))%I.
+  Proof. by rewrite /READ /prot (upcl_tele' [tele _] [tele]). Qed.
+
+  Lemma upcl_write {Σ} St v Φ :
+    WRITE (Σ:=Σ) St allows perform v << Φ >> ⊣⊢
+    (∃ x y, ⌜ v = write y ⌝ ∗ St x ∗ (St y -∗ Φ (O2Ret #())))%I.
+  Proof. by rewrite /WRITE /prot (upcl_tele' [tele _ _] [tele]). Qed.
+
+End protocols.
 
 (* ========================================================================== *)
 (** * Verification. *)
@@ -84,15 +88,25 @@ End ghost_theory.
 Opaque auth_state.
 Opaque encode.encode.
 
-Ltac prove_handler_spec := rewrite deep_handler_spec_unfold; iSplit.
-
 (* -------------------------------------------------------------------------- *)
 (** Specification & Verification. *)
 
 Section verification.
   Context `{!osirisGS Σ} `{!inG Σ (excl_authR (leibnizO val))}.
 
-  Definition run := __fun7.
+  Section alloc_effects.
+
+  Context (rl wl : loc).
+
+  Inductive effects : Type :=
+  | Read
+  | Write (y : Z).
+
+  Local Instance encode_effects : Encode effects :=
+    { encode eff := match eff with
+                    | Read => VXData rl []
+                    | Write y => VXData wl [ #y ]
+                    end }.
 
   Lemma confront_addresses l1 l2 :
     ∀ v1 v2,
@@ -116,20 +130,7 @@ Section verification.
        iSpec τ[unit] main (main_spec spec) -∗
        imp m {{ λ (v : state * A), spec (snd v) }})%I.
 
-  (* EWP eval η (EAnonFun __fun7)
-   {{ ensures v, iSpec τ[ val;val] v run_spec }} *)
-
-  Inductive effects : Type :=
-  | Read
-  | Write (y : Z).
-
-  Local Instance encode_effects rl wl : Encode effects :=
-    { encode eff := match eff with
-                    | Read => VXData rl []
-                    | Write y => VXData wl [ #y ]
-                    end }.
-
-  Lemma localstate_run_spec rl wl :
+  Lemma localstate_run_spec :
     ∀ η,
       ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
       ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
@@ -274,6 +275,8 @@ Section verification.
         iApply ("IH" with "Hauth Hl"). } }
   Qed.
 
+  End alloc_effects.
+
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
 
   Lemma module_proof (Q : val -> iProp Σ) :
@@ -380,5 +383,3 @@ Section verification.
   Qed.
 
 End verification.
-
-End localstate_example.
