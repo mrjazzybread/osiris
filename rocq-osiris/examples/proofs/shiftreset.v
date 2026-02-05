@@ -96,7 +96,7 @@ Section verification.
     ⊢ imp eval η (EAnonFun __fun0)
       {{ λ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
-    iIntros (henc Hlookup).
+    iIntros (Hlookup).
     iApply (imp_EAnon_pers τ[val]); simpl.
     iIntros "!>" (f). rewrite /shift_spec.
     iIntros (Ψ Φ Q) "Hf".
@@ -122,7 +122,7 @@ Section verification.
     ⊢ imp eval η (EAnonFun __fun2)
       {{ λ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.
-    iIntros (henc Hlookup).
+    iIntros (Hlookup).
     iApply (imp_EAnon_pers τ[val]); simpl.
     iIntros "!>" (f). rewrite /reset_spec.
     iIntros (Ψ Φ) "Hf".
@@ -142,7 +142,7 @@ Section verification.
 
     (* Base case: we just return the value. *)
     { iIntros (v) "Φ !>".
-      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros ([]) ].
       iApply imp_EPath. iApply (imp_ret with "Φ"); encode. }
 
@@ -153,9 +153,9 @@ Section verification.
 
     unfold is_shift.
 
-    iModIntro. iApply deep_handle_cons. iPureIntro; ltac2:(specify_cpattern ()).
+    iModIntro. iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
     iSplit; [ iIntros (? []) | iIntros (_) ].
-    iApply deep_handle_cons. iPureIntro; ltac2:(specify_cpattern ()). pattern_match.
+    iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match.
     iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
     iApply (imp_EApp τ[cont] with "[Hg] []").
     { iApply imp_EPath. iApply imp_ret; first encode. iApply "Hg". }

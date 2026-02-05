@@ -182,7 +182,7 @@ Section verification.
 
     { (* Value case *)
       iIntros (?) "Hspec"; iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; last iIntros ([]).
       iIntros (? ->).
       iApply (imp_EPair with "[Hl]").
@@ -205,10 +205,10 @@ Section verification.
       iDestruct (ghost_var_agree with "H") as %->.
 
       iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()).
+      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
       iSplit; [ iIntros (? []) | iIntros (_) ].
       iApply deep_handle_cons.
-      { iPureIntro. ltac2:(specify_cpattern ()). pattern_match. }
+      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
       iSplit ; [ iIntros (? ->) | iIntros ([[] | []]) ].
 
       (* EWP Goal: [continue k (!var : t)]. *)
@@ -233,18 +233,18 @@ Section verification.
 
       (* Skip the return, exception, and [Get] branches. *)
       iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()).
+      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
       iSplit; first iIntros (? []).
       iIntros (_).
       iApply deep_handle_cons.
-      { iPureIntro. ltac2:(specify_cpattern ()).
+      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
         (* This causes a Match_failure, why?
            pattern_match. *)
         eapply pat_PXData_neq. simpl. eassumption.
         assumption. }
       iSplit; first iIntros (? []).
       instantiate (1 := False). iIntros "%no_match2".
-      iApply deep_handle_cons. iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
       { (* EWP Goal: [var := y; continue k ()]. *)
         iApply (imp_ESeq with "[Hl]").
@@ -329,7 +329,7 @@ Section verification.
         instantiate (1 := (λ v, ⌜v = tt⌝)%I). done. }
       iIntros (? ->) "!>".
       iApply deep_handle_cons.
-      { iPureIntro. ltac2:(specify_cpattern ()). pattern_match.
+      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
         apply eq_refl. }
       iSplit; last iIntros ([]).
       iIntros (? <-).

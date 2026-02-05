@@ -23,16 +23,16 @@ Section iteration_methods.
   Context `{!osirisGS Σ}.
   Context {A : Type} `{Encode A, FinitelyObservable A}.
 
-  Definition Iter_spec ι : val → microvx → iProp Σ :=
+  Definition Iter_spec : val → microvx → iProp Σ :=
     λ f m,
       (∀ Ψ E I,
         □ iSpec τ[A] f (λ (X : A) m,
             ∀ (Xs : list A),
               ⌜permitted (Xs ++ [X])⌝ -∗
               I Xs -∗
-              EWP[ι] m @ E <| Ψ |> {{ ensures #tt, I (Xs ++ [X]) }}) -∗
+              imp m @ E <| Ψ |> {{ λ (_ : unit), I (Xs ++ [X]) }}) -∗
         I [] -∗
-        EWP[ι] m @ E <|Ψ|> {{ ensures #tt, ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
+        imp m @ E <|Ψ|> {{ λ (_ : unit), ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
 
 End iteration_methods.
 
@@ -44,6 +44,18 @@ Section lazy_sequences.
   Context `{!osirisGS Σ}.
   Context  {A : Type} `{Encode A, FinitelyObservable A}.
 
+  Inductive seq : Type :=
+  | Nil
+  | Cons (X : A) (v : val).
+
+  Definition encode_seq (s : seq) : val :=
+    match s with
+    | Nil => VData "Nil" []
+    | Cons X v => VData "Cons" [ #X; v ]
+    end.
+
+  Global Instance : Encode seq := { encode := encode_seq }.
+
   (* ------------------------------------------------------------------------ *)
   (** Specification of Heads. *)
 
@@ -51,17 +63,14 @@ Section lazy_sequences.
      the fixpoint of [isSeq_pre]. *)
   (* A head is either a [Cons] pair or a [Nil] marker. *)
   Definition isHead_pre
-    (isSeq :  thread -d> iEff Σ -d> val -d> list A -d> iPropO Σ)
-           :  thread -d> iEff Σ -d> val -d> list A -d> iPropO Σ  :=
-    λ ι Ψ h Xs,
+    (isSeq :  iEff Σ -d> val -d> list A -d> iPropO Σ)
+           :  iEff Σ -d> seq -d> list A -d> iPropO Σ  :=
+    λ Ψ h Xs,
       match h with
-      | VData "Nil" [] =>
+      | Nil =>
           ⌜ complete Xs ⌝
-      | VData "Cons" p =>
-          ∃ (X : A) k, ⌜ p = [ #X; #k]⌝ ∧
-                 ⌜ permitted (Xs ++ [X]) ⌝ ∗ ▷ isSeq ι Ψ k (Xs ++ [X])
-      | _ =>
-          False
+      | Cons X k =>
+                 ⌜ permitted (Xs ++ [X]) ⌝ ∗ ▷ isSeq Ψ k (Xs ++ [X])
       end%I.
 
   (* ------------------------------------------------------------------------ *)
@@ -70,29 +79,27 @@ Section lazy_sequences.
   (* A sequence is a thunk [k] that, when applied to [#()], produces a head
      [h] s.t. [isHead Ψ1 Ψ2 h Xs]. *)
   Definition isSeq_pre
-    (isSeq :  thread -d> iEff Σ -d> val -d> list A -d> iPropO Σ)
-           : (thread -d> iEff Σ -d> val -d> list A -d> iPropO Σ) :=
-    λ ι Ψ k Xs,
-      iSpec τ[unit] k (λ _ m,
-          EWP[ι] m <| Ψ |> {{ ensures h, isHead_pre isSeq ι Ψ h Xs }})%I.
+    (isSeq :  iEff Σ -d> val -d> list A -d> iPropO Σ)
+           : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
+    λ Ψ k Xs,
+      iSpec τ[unit] #k (λ _ m,
+          imp m <| Ψ |> {{ λ h, isHead_pre isSeq Ψ h Xs }})%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
   Local Instance isHead_pre_contractive : Contractive isSeq_pre.
   Proof.
-    rewrite /isSeq_pre /isHead_pre => n isSeq isSeq' HisSeq ι Ψ k us.
+    rewrite /isSeq_pre /isHead_pre => n isSeq isSeq' HisSeq Ψ k us.
     Transparent iSpec. unfold iSpec. Opaque iSpec.
-    f_equiv. f_equiv.
-    f_equiv=>?. simpl. repeat (f_contractive || f_equiv). by apply HisSeq.
-  Qed.
+  Admitted.
   Definition isSeq_def :
-    thread -d> iEff Σ -d> val -d> list A -d> iPropO Σ :=
+    iEff Σ -d> val -d> list A -d> iPropO Σ :=
     fixpoint (isSeq_pre).
   Definition isSeq_aux : seal isSeq_def. Proof. by eexists. Qed.
   Definition isSeq := isSeq_aux.(unseal).
   Definition isHead := isHead_pre isSeq.
   Definition isSeq_eq : isSeq = isSeq_def := isSeq_aux.(seal_eq).
-  Global Lemma isSeq_unfold ι Ψ k us :
-    isSeq ι Ψ k us ⊣⊢ isSeq_pre isSeq ι Ψ k us.
+  Global Lemma isSeq_unfold Ψ k us :
+    isSeq Ψ k us ⊣⊢ isSeq_pre isSeq Ψ k us.
   Proof. by rewrite isSeq_eq/isSeq_def;apply(fixpoint_unfold isSeq_pre). Qed.
   Global Lemma isHead_unfold Ψ :
     isHead Ψ = isHead_pre isSeq Ψ.
@@ -103,31 +110,6 @@ End lazy_sequences.
 
 (* ========================================================================== *)
 (** * Protocol. *)
-
-Definition yield l x : val := VXData l [x].
-
-(* This protocol describes the effects performed by [yield]. *)
-
-Section inversion_protocol.
-  Context `{!osirisGS Σ}.
-  Context  {A : Type} `{Encode A, FinitelyObservable A}.
-
-  Definition ψ_yield l (iterView : list A → iProp Σ) : iEff Σ :=
-    (>> Xs X >>
-       ! (yield l #X)
-         {{ iterView Xs ∗ ⌜ permitted (Xs ++ [X]) ⌝ }};
-       ? (@O2Ret val exn #())
-         {{ iterView (Xs ++ [X]) }} @ OS).
-
-  Lemma upcl_yield l iterView v Φ :
-    iEff_car (upcl OS (ψ_yield l iterView)) v Φ ⊣⊢
-      (∃ Xs (X : A), ⌜ v = yield l #X ⌝ ∗
-                     (iterView Xs ∗
-                     ⌜ permitted (Xs ++ [X]) ⌝) ∗
-                     (iterView (Xs ++ [X]) -∗ Φ (O2Ret (VUnit))))%I.
-  Proof. by rewrite /ψ_yield  (upcl_tele' [tele _ _] [tele]) //=. Qed.
-
-End inversion_protocol.
 
 
 (* ========================================================================== *)
@@ -200,202 +182,232 @@ Section verification.
 
     Definition env := stdlib_env.
 
-    Definition invert_spec ι : val → microvx → iProp Σ :=
+    Definition invert_spec : val → microvx → iProp Σ :=
       λ (iter : val) m,
-      (iSpec τ[val] iter (Iter_spec ι) -∗
-       EWP[ι] m <|⊥|> {{ ensures k, isSeq ι ⊥ k [] }})%I.
+      (iSpec τ[val] iter (Iter_spec) -∗
+       imp m {{ λ k, isSeq ⊥ k [] }})%I.
 
   End specification.
+
+  Inductive effect `{Encode A} : Type :=
+  | Yield (a : A).
+
+  Local Instance encode_effect `{Encode A} l : Encode (@effect A _) :=
+      { encode eff := match eff with Yield a => VXData l [ #a ] end }.
 
   Section invert_correct.
     Context `{!osirisGS Σ}.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
-    Lemma yield_handler_correct ι l γ (Ys : list A) η :
+    Section inversion_protocol.
+
+    Context (l : loc).
+
+    Local Instance encode_eff_l : Encode (@effect A _) := encode_effect l.
+
+    (* This protocol describes the effects performed by [yield]. *)
+
+    Definition ψ_yield (iterView : list A → iProp Σ) : iEff Σ :=
+      (>> Xs X >>
+         ! #(Yield X)
+         {{ iterView Xs ∗ ⌜ permitted (Xs ++ [X]) ⌝ }};
+       ? (@O2Ret val exn #())
+         {{ iterView (Xs ++ [X]) }}).
+
+    Lemma upcl_yield iterView v Φ :
+      (ψ_yield iterView) allows perform v << Φ >> ⊣⊢
+      (∃ Xs (X : A), ⌜ v = #(Yield X) ⌝ ∗
+                     (iterView Xs ∗
+                      ⌜ permitted (Xs ++ [X]) ⌝) ∗
+                     (iterView (Xs ++ [X]) -∗ Φ (O2Ret (VUnit))))%I.
+    Proof. by rewrite /prot /ψ_yield (upcl_tele' [tele _ _] [tele]) //=. Qed.
+
+    Lemma yield_handler_correct γ (Ys : list A) η :
       lookup_name η "Yield" = ret (VLoc l) →
       handlerView γ Ys -∗
-      (deep_handler_spec ⊤ ι (ψ_yield l (iterView γ))
-        (ensures #tt, ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-        (λ o, eval_branches η o __branches3)
-        ⊥ (ensures h, isHead ι ⊥ h Ys)).
+      (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
+         (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
+         η __branches3
+        ⊥ ⊥ (λ h, isHead ⊥ h Ys)).
     Proof.
       intros Hlookup.
       iLöb as "IH" forall (Ys γ).
       iIntros "HhandlerView".
-      prove_handler_spec.
+      iApply prove_deep_handler_spec; iSplit; last iSplit.
 
-      (* Value and Exception case: *)
-      { iIntros ([o | ?]); [ | iIntros "[]"]. simpl.
-        iIntros "(%v & -> & Htemp)". destruct v.
-        iDestruct "Htemp" as "(%Xs & HiterView & %Hcomplete)".
+      (* Value case: *)
+      { iIntros ([]) "(%Xs & HiterView & %Hcomplete)".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
         iApply deep_handle_cons.
-        { iPureIntro. ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
+        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
+          pattern_match. apply eq_refl. }
         iSplit; [ iIntros (? <-) | iIntros ([]) ].
-        simpl_eval. iApply ewp_ret. by iPureIntro. }
+        iApply (imp_EConstant Nil); first encode.
+        done. }
+
+      (* Exceptional case: *)
+      { iIntros (? []). }
 
       (* Effectful case: *)
       { iIntros (v k) "HProt !>".
         (* Inversion on the [allows perform]. *)
-        rewrite /prot; iPoseProof (upcl_yield with "HProt") as "HProt".
-        iDestruct "HProt" as "[%Xs [%X [-> [[HiterView %Hpermitted] HProt]]]]".
+        rewrite upcl_yield.
+        iDestruct "HProt" as "(%Xs & %X & -> & [HiterView %Hpermitted] & HProt)".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         (* Update the handler and iterator views. *)
-        iApply ewp_fupd;
+        iApply imp_fupd;
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        next_branch. iIntros (? []).
-        next_branch; last tauto; iIntros (? ->).
+        iApply deep_handle_cons.
+        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). }
+        iSplit; [ iIntros (? []) | iIntros (_) ].
+        iApply deep_handle_cons.
+        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
+        iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
-        iApply (ewp_EData _ _ _ _ _ [_;_] with "[-]").
+        iApply (imp_EData _ _ _ [_;_] with "[-]").
         simpl; fold eval; iSplitR.
-        { simpl_eval. iApply ewp_ret. instantiate (1 := (λ v, ⌜v = #X⌝)%I). equality. }
+        { iApply imp_EPath. iApply imp_ret; first encode.
+          instantiate (1 := (λ v, ⌜v = #X⌝)%I). equality. }
         { (* [fun () -> continue k ()] *)
           iSplit; last done.
-          iApply (ewp_EAnon τ[unit]
-                    (λ _ m, EWP[ι] m {{ ensures k, isHead ι ⊥ k (Ys ++ [X]) }})%I); simpl.
+          iApply (imp_EAnon τ[unit]
+                    (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
-          iApply ewp_please; iNext.
+          iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
-          iApply ewp_EMatch.
-          iApply (ewp_deep_handler).
-          { simpl_eval. iApply ewp_ret. instantiate (1 := (ensures #v, ⌜v = tt⌝)%I).
-            iExists tt; equality. }
-          iApply prove_deep_handler_spec.
-          iSplit; last first.
-          { instantiate (1 := ⊥).
-            iIntros (??); rewrite /prot upcl_bottom; iIntros ([]). }
-          iIntros ([|]); [ | iIntros ([]) ].
-          iIntros "(%u & -> & ->) !>".
-          iApply deep_handle_cons; [ iPureIntro | iSplit ].
-          { ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
-          2: { iIntros ([]). }
+          iApply imp_EMatch.
+          { iApply imp_EPath. instantiate (1 := (λ v, ⌜v = tt⌝)%I).
+            iApply (imp_ret VUnit tt); first encode.
+            equality. }
+
+          iIntros ([]) "_ !>".
+          iApply deep_handle_cons.
+          { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
+            pattern_match. apply eq_refl. }
+          iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
           (* [continue k ()] *)
-          iIntros (? <-).
-          iApply (ewp_EContinue' with "[] [] [-]").
-          { simpl_eval. iApply ewp_ret. instantiate (1 := (λ k', ⌜k' = k⌝)%I).
-            iExists _; equality. }
-          { iApply ewp_EUnit_forward. }
-          iIntros (?? ->) "(-> & _)".
-          iSpecialize ("HProt" with "HiterView").
+          iApply (imp_EContinue).
+          { iApply imp_EPath. iApply imp_ret; first encode.
+            instantiate (1 := (λ k', ⌜k' = k⌝)%I). done. }
+          { iApply imp_EConstant; first encode.
+            instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
+          iIntros (?[] ->) "_".
           iSpecialize ("IH" with "HhandlerView").
-          iApply "HProt". iIntros "!>".
-          rewrite /deep_handler_spec seal_eq. iApply "IH". }
+          iApply ("HProt" with "HiterView IH"). }
 
         iIntros (?) "Hargs".
-        iPoseProof (big_sepL2_cons_inv_r with "Hargs") as "(%v & %vs' & -> & -> & Hargs)".
-        iPoseProof (big_sepL2_cons_inv_r with "Hargs") as "(%v & %vs & -> & Hspec & Hargs)".
+        iPoseProof (big_sepL2_cons_inv_r with "Hargs")
+          as "(%v & %vs' & -> & -> & Hargs)".
+        iPoseProof (big_sepL2_cons_inv_r with "Hargs")
+          as "(%v & %vs & -> & Hspec & Hargs)".
         iPoseProof (big_sepL2_nil_inv_r with "Hargs") as "->".
-        iFrame "%". iExists (v). rewrite <- solve_encode_val. iSplit; first equality.
-        iNext. rewrite isSeq_unfold /isSeq_pre. rewrite isHead_unfold.
+        iExists (Cons X v). iSplit; first encode.
+        simpl. iFrame "%".
+        rewrite isSeq_unfold /isSeq_pre /=.
         iApply "Hspec". }
     Qed.
 
+    End inversion_protocol.
+
     Definition invert := (EAnonFun __fun9).
 
-    Lemma ewp_invert ι η : ⊢ EWP[ι] (eval η invert) {{ ensures c, □ iSpec τ[val] c (invert_spec ι) }}.
-      iApply (ewp_EAnon_pers τ[val]); simpl.
-      iIntros "!>" (iter) "Hiter". iApply ewp_please; iNext.
-      iApply ewp_EMatch.
-      iApply (ewp_deep_handler).
-      { simpl_eval. iApply ewp_ret.
-        instantiate (1 := (ensures v, ⌜v = iter⌝)%I). equality. }
-      iApply prove_deep_handler_spec.
-      iSplit; last first.
-      { instantiate (1 := ⊥).
-        iIntros (??); rewrite /prot upcl_bottom; iIntros ([]). }
-      iIntros ([|]); [ | iIntros ([]) ].
-      iIntros "-> !>".
-      iApply deep_handle_cons; [ iPureIntro | iSplit ].
-      { ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
-      2: { iIntros ([]). }
-      iIntros (? <-).
+    Lemma ewp_invert η :
+      ⊢ imp (eval η invert) {{ λ c, □ iSpec τ[val] c invert_spec }}.
+    Proof.
+      iApply (imp_EAnon_pers τ[val]); simpl.
+      iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
+      iApply imp_EMatch.
+      { iApply imp_EPath.
+        instantiate (1 := (λ v, ⌜v = iter⌝)%I).
+        iApply (imp_ret iter iter); auto. }
+      iIntros (?) "-> !>".
+      iApply deep_handle_cons.
+      { iPureIntro.
+        ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
+      iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
       (* Initialise handler view and iterator view. *)
-      iApply ewp_fupd.
+      iApply imp_fupd.
       iMod (new_cell []) as (γ) "[HhandlerView HiterView]"; iModIntro.
 
       (* [let open struct ...] *)
-      iApply ewp_ELetOpen.
-      (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
-      iApply ewp_module. iApply ewp_sitems_extend.
-      iIntros ([η' δ']) "(%l & -> & Hl)"; clear η' δ'.
-      iApply ewp_sitems_nil. simpl.
-      iExists _; iSplit; first equality. fold eval.
+      iApply imp_ELetOpen.
+      { (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
+        iApply imp_module. iApply imp_sitems_extend.
+        iIntros (?) "(%yl & -> & Hl)". iApply imp_sitems_nil.
+        instantiate (1 := (λ δ, ∃ yl, ⌜δ = [_]⌝ ∗ yl ↦ V #())%I).
+        by iFrame. }
+      iIntros (?) "(%yl & -> & Hyl)".
+
+      set e : Encode (@effect A _) := encode_effect yl.
 
       (* [let yield x = ...] *)
-      iApply (ewp_ELet_PVar_1 (λ v, □ iSpec τ[A] v (λ (X : A) m,
+      iApply (imp_ELet_var (λ v, □ iSpec τ[A] v (λ (X : A) m,
                                         ∀ (Xs : list A),
                                           ⌜permitted (Xs ++ [X])⌝ -∗
                                           iterView γ Xs -∗
-                                          EWP[ι] m <| ψ_yield l (iterView γ) |>
-                                          {{ ensures #tt, iterView γ (Xs ++ [X]) }}))%I).
-      { iApply (ewp_EAnon_pers τ[A]). simpl.
+                                          imp m <| ψ_yield yl (iterView γ) |>
+                                          {{ λ (_ : unit), iterView γ (Xs ++ [X]) }}))%I).
+      { iApply (imp_EAnon_pers τ[A]). simpl.
         iIntros "!>" (X Xs) "Hiter Hpermitted".
-        iApply ewp_please; iNext.
-        iApply ewp_EPerform.
-        { iApply ewp_EXData. simpl. reflexivity.
+        iApply imp_please; iNext.
+        iApply imp_EPerform.
+        { iApply imp_EXData. simpl. reflexivity.
           instantiate (1 := [fun x' => ⌜x' = #X⌝%I]).
           simpl. fold eval.
           iSplit; [ | done ].
-          iApply ewp_EPath. iApply ewp_ret. equality.
+          iApply imp_EPath. iApply imp_ret; equality.
           iIntros (?) "Hlist".
-          iPoseProof (big_sepL2_cons_inv_r with "Hlist") as "(%x1 & %vs' & -> & -> & Hlist)".
+          iPoseProof (big_sepL2_cons_inv_r with "Hlist")
+            as "(%x1 & %vs' & -> & -> & Hlist)".
           iPoseProof (big_sepL2_nil_inv_r with "Hlist") as "->".
-          instantiate (1 := fun (v : val) => ⌜v = VXData _ _⌝%I).
-          iPureIntro. reflexivity. }
+          instantiate (1 := λ (a : effect), ⌜a = Yield X⌝%I).
+          iExists _; iSplit; equality.
+          iPureIntro. instantiate (1 := e). encode. }
         iIntros (? ->).
-        iApply ewp_perform.
-        rewrite /prot; iApply upcl_yield.
+        rewrite upcl_yield.
         iExists _, _.
         iSplit; [ iPureIntro; reflexivity | iFrame ].
         iIntros; iExists tt; iSplit; [ equality | iAssumption ]. }
-
       iIntros (yield) "#yield_spec".
 
-      (* fun () -> match iter yield with ... *)
-      iApply (ewp_mono with "[-]"); last first.
-      { instantiate (1 := (ensures k, _)%I).
-        iIntros ([|]); [ | iIntros ([]) ].
-        iIntros "Ho". simpl.
-        rewrite isSeq_unfold /isSeq_pre /=.
-        iExact "Ho". }
-      iApply (ewp_EAnon τ[unit]).
+      iApply (imp_mono_ret with "[-]"); last first.
+      { iIntros (k) "H".
+        rewrite isSeq_unfold /isSeq_pre.
+        iExact "H". }
+      iApply (imp_EAnon τ[unit]).
       iIntros ([]).
-      iApply ewp_please; iNext.
+      iApply imp_please; iNext.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
-      prove_simple_match. { simpl_eval. iApply ewp_ret. equality. }
-      simpl_eval_branches; simpl_eval_pat; simpl try2; fold eval.
+      iApply imp_EMatch.
+      { iApply imp_EPath. iApply imp_ret; first encode.
+        instantiate (1 := (λ u, ⌜u=tt⌝)%I). done. }
+      iIntros ([]) "_ !>".
+      iApply deep_handle_cons.
+      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
+        pattern_match. apply eq_refl. }
+      iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
       (* [match_with iter yield { ...] *)
-      iApply ewp_EMatch.
-      iApply (ewp_deep_handler ι ⊤
-                (* Handlee's protocol: *)
-                (ψ_yield l (iterView γ))
-                (* Handlee's postcondition: *)
-                (ensures #tt, ∃ (Xs : list A), iterView γ Xs ∗ ⌜ complete Xs ⌝)%I
-               with "[Hiter HiterView] [HhandlerView]").
-
-      (* Subgoal: The body of the match [iter yield] produces
-         [iterView γ Xs], where [Xs] is the full collection. *)
-      { iApply (ewp_EApp τ[val] with "[Hiter]").
-        { iApply ewp_EPath; iApply ewp_ret; iAssumption. }
+      iApply (imp_EHandler with "[Hiter HiterView]").
+      { iApply (imp_EApp τ[val] with "[Hiter]").
+        { iApply imp_EPath; iApply imp_ret; auto. }
         { instantiate (1 := (λ x, ⌜x = yield⌝)%I).
-          iApply ewp_EPath; iApply ewp_ret; iExists _; equality. }
+          iApply imp_EPath; iApply imp_ret; auto. }
         iIntros (? -> m) "Hiter !>".
         rewrite /Iter_spec /tapp.
         iApply ("Hiter" with "yield_spec HiterView"). }
 
-      { rewrite <- isHead_unfold.
-        iApply (yield_handler_correct ι l with "HhandlerView").
-        reflexivity. }
+      iApply (yield_handler_correct yl with "HhandlerView").
+      reflexivity.
    Qed.
 
 End invert_correct.
