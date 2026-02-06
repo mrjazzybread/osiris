@@ -192,6 +192,8 @@ type expr =
   | EArraySet of expr * expr * expr
   (* Array creation: [Array.make n v] *)
   | EArrayMake of expr * expr
+  (* Array literal: [| e1; e2; ... |] *)
+  | EArrayLit of expr list
 
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj of expr * expr

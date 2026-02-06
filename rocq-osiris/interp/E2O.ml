@@ -87,6 +87,7 @@ let rec expr : E.expr -> O.expr = function
   | ERecord fes -> ERecord (fexprs fes)
   | ERecordUpdate (e, fes) -> ERecordUpdate (expr e, fexprs fes)
   | ERecordAccess (e, f) -> ERecordAccess (expr e, field f)
+  | EArrayLit es -> EArrayLit (exprs es)
   | EArrayLength e -> EArrayLength (expr e)
   | EArrayGet (e1, e2) -> EArrayGet (expr e1, expr e2)
   | EArraySet (e1, e2, e3) -> EArraySet (expr e1, expr e2, expr e3)

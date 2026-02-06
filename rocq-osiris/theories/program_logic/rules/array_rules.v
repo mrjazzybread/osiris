@@ -190,7 +190,7 @@ Section array_resources.
                (λ '(n0, v),
                   if ((0 <=? signed n0) && (signed n0 <? max_array))%bool
                   then
-                   Stop CAllocn (Z.to_nat (signed n0), v)
+                   Stop CAllocn (repeat v (Z.to_nat (signed n0)))
                      (pfbind inject2 (λ ls : list loc, ret (VArray ls)))
                   else crash "invalid_argument: Array.make")) with "[He1] He2").
      { rewrite /as_int.
@@ -210,21 +210,27 @@ Section array_resources.
        assert (0 <=? n = true) as -> by lia.
        assert (n <? max_array = true) as -> by lia.
        iApply imp_allocn.
-       iIntros "!>" (ls) "(%Hlen & Hpts)".
+       iIntros "!>" (ls) "Hpts".
+       iPoseProof (big_sepL2_length with "Hpts") as "%Hlen".
        rewrite /continue /=.
        iApply imp_ret. encode.
        iFrame.
-       iSplitR. { iExists ls; auto. }
+       iSplitR.
+       { iExists ls; auto. iPureIntro. split; first reflexivity.
+         split; last assumption.
+         rewrite Hlen. apply repeat_length. }
        iExists ls. iSplit; first done.
-       iSplit; first (iPureIntro; rewrite repeat_length; lia).
-       rewrite drop_0 repeat_length. rewrite <- Hlen, firstn_all.
+       iSplit; first (iPureIntro; rewrite !repeat_length in Hlen |- *; lia).
+       rewrite drop_0 repeat_length.
+       assert (Z.to_nat n = length ls) as ->.
+       { rewrite Hlen. by rewrite repeat_length. }
+       rewrite firstn_all.
        iApply big_sepL2_alt.
        iSplit; first (iPureIntro; by rewrite repeat_length).
        clear Hlen.
        iInduction ls as [|l ls IH].
        + done.
-       + iApply big_sepL_cons.
-         iPoseProof (big_sepL_cons with "Hpts") as "($ & Hpts)".
+       + simpl. iDestruct "Hpts" as "($ & Hpts)".
          iApply ("IH" with "Hpts").
    Qed.
 

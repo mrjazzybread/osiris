@@ -1135,6 +1135,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ERecordAccess e f =>
       fvs ← as_record (eval η e) ;
       widen (lookup_name fvs f)
+  | EArrayLit es =>
+      vs ← evals η es ;
+      ls ← allocn vs;
+      ret (VArray ls)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (Z.of_nat (List.length ls))))
@@ -1168,7 +1172,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
       let i := signed n in
       if ((0 <=? i) && (i <? max_array)) then
-        ls ← allocn (Z.to_nat i) v;
+        ls ← allocn (repeat v (Z.to_nat i) );
         ret (VArray ls)
       else crash "invalid_argument: Array.make"
   | EBoolConj e1 e2 =>

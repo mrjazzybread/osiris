@@ -253,10 +253,11 @@ Global Hint Resolve
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint insertn ls σ v :=
-  match ls with
-  | [] => σ
-  | l :: ls => <[ l := V v]> (insertn ls σ v)
+Fixpoint insertn ls vs σ :=
+  match ls, vs with
+  | [], [] => σ
+  | l :: ls, v :: vs => <[ l := V v]> (insertn ls vs σ)
+  | _, _ => σ
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -301,11 +302,11 @@ Inductive step {A E} : config A E → config A E → Prop :=
   (* [stop CAllocn v] allocates [n] fresh locations in the heap,
      initializes them with the value [v], and returns the locations. *)
   | StepAlloc :
-      ∀ σ n v ls k,
-      List.length ls = n ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) →
+      ∀ σ vs ls k,
+      List.length ls = List.length vs ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) →
       step
-        (σ, Stop CAllocn (n, v) k)
-        (insertn ls σ v, continue k ls)
+        (σ, Stop CAllocn vs k)
+        (insertn ls vs σ, continue k ls)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -865,11 +866,11 @@ Proof.
   eauto.
 Qed.
 
-Lemma invert_step_allocn {A E} σ σ' n v k m' :
-  @step A E (σ, Stop CAllocn (n, v) k) (σ', m') →
+Lemma invert_step_allocn {A E} σ σ' vs k m' :
+  @step A E (σ, Stop CAllocn vs k) (σ', m') →
   ∃ ls,
-  List.length ls = n ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) ∧
-  σ' = insertn ls σ v ∧
+  List.length ls = List.length vs ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) ∧
+  σ' = insertn ls vs σ ∧
   m' = continue k ls.
   Proof.
     intros Hstep. destruct_step. destruct H as (Hlen & Hdup & Hfresh).
@@ -902,7 +903,7 @@ Proof.
   { econstructor. apply (StepFlip true). }
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
-  { induction x as [| n IH ].
+  { induction x as [| v vs IH ].
     - eexists. apply StepAlloc.
       refine (conj length_nil (conj NoDup_nil_2 _)).
       intros l Helem_in. by apply not_elem_of_nil in Helem_in.
@@ -915,7 +916,7 @@ Proof.
         apply not_elem_of_union.
         apply is_fresh. }
       eexists. apply StepAlloc. split; last split.
-      + rewrite length_cons. f_equal. apply Hlen.
+      + rewrite length_cons. simpl. by rewrite Hlen.
       + apply NoDup_cons. split; last assumption.
         eapply not_elem_of_list_to_set.
         destruct Hfresh as [_ Hfresh]; apply Hfresh.

@@ -187,6 +187,8 @@ Inductive expr :=
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
 
+  (* An array literal: [ [|1;2;3|] ] *)
+  | EArrayLit (es : list expr)
   (* Length of an array: [Array.length a] *)
   | EArrayLength (e : expr)
   (* Array access without bounds check: [Array.unsafe_get a n] *)

@@ -40,12 +40,11 @@ Section imp_stop.
   (* [CAllocn]. *)
 
   (* Memory allocation rule for [n] locations at once. *)
-  Lemma imp_allocn' n v (k : _ → micro A X) :
+  Lemma imp_allocn' vs (k : _ → micro A X) :
     ▷ (∀ (ls : list loc),
-          ⌜length ls = n⌝ ∗
-          ([∗ list] l ∈ ls, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
+          ([∗ list] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
           imp (continue k ls) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-      imp (Stop CAllocn (n, v) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+      imp (Stop CAllocn vs k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -54,61 +53,71 @@ Section imp_stop.
     destruct_thread_step. destruct H as (Hlen & Hdup & Hfresh).
     iDestruct (gen_heap_alloc_big with "Hsi") as ">(Hsi & Hpts & Hmt)".
     { apply map_disjoint_spec. intros l x y.
-      instantiate (1 := (list_to_map ((λ l, (l, V v)) <$> ls))).
+      instantiate (1 := (list_to_map ((λ '(l, v), (l, V v)) <$> zip ls vs))).
       intros HF Hlookup.
       apply elem_of_dom_2 in HF. rewrite dom_list_to_map in HF.
       apply elem_of_list_to_set in HF.
       rewrite <- list_fmap_compose in HF.
-      apply list_elem_of_fmap_1 in HF as (l' & -> & HF).
+      apply list_elem_of_fmap_1 in HF as ([l' v'] & -> & HF).
+      apply elem_of_zip_l in HF.
       apply Hfresh in HF.
       rewrite Hlookup in HF. discriminate HF. }
-    assert (ls = ((λ l : loc, (l, V v)) <$> ls).*1) as Heqls.
-    { clear Hlen Hdup Hfresh. induction ls. reflexivity.
-      simpl. rewrite -> IHls at 1. reflexivity. }
+    assert (ls = ((λ '(l,v), (l, V v)) <$> zip ls vs).*1) as Heqls.
+    { clear Hdup Hfresh. generalize dependent vs. induction ls; intros ??. reflexivity.
+      simpl.
+      destruct vs; first discriminate Hlen.
+      rewrite -> IHls at 1.
+      reflexivity. by inversion Hlen. }
     rewrite Heqls in Hdup.
     iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hpts") as "Hpts".
     iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hmt") as "Hmt".
     clear Heqls Hdup Hfresh.
     ewp_mask_elim. iFrame. iSplitR "Hsi".
     - iApply "H". iFrame "%".
-      clear Hlen.
-      iInduction ls as [|l ls IH]. done.
-      iApply big_sepL_cons.
-      iPoseProof (big_sepL_cons with "Hpts") as "(Hl & Hpts)".
-      iPoseProof (big_sepL_cons with "Hmt") as "(Htok & Hmt)".
-      iFrame.
-      iApply ("IH" with "Hpts Hmt").
-    - clear Hlen.
-      assert (insertn ls σ v = list_to_map ((λ l : loc, (l, V v)) <$> ls) ∪ σ) as ->.
-      { induction ls as [|l ls IH].
-        - simpl. by rewrite map_empty_union.
-        - simpl. rewrite IH. rewrite insert_union_l.
-          reflexivity. }
+      iInduction ls as [|l ls IH] forall (vs Hlen).
+      + destruct vs; last discriminate Hlen. done.
+      + destruct vs; first discriminate Hlen.
+        iApply big_sepL2_cons. simpl big_opL.
+        iDestruct "Hpts" as "(Hl & Hpts)".
+        iDestruct "Hmt" as "(Htok & Hmt)".
+        iFrame.
+        iApply ("IH" with "[] Hpts Hmt"). iPureIntro. by inversion Hlen.
+    -
+      assert (insertn ls vs σ = list_to_map ((λ '(l, v), (l, V v)) <$> zip ls vs) ∪ σ) as ->.
+      { generalize dependent vs.
+        induction ls as [|l ls IH]; intros vs Hlen.
+        - simpl.
+          destruct vs; last discriminate Hlen.
+          by rewrite map_empty_union.
+        - simpl.
+          destruct vs; first discriminate Hlen.
+          rewrite IH. rewrite insert_union_l.
+          reflexivity. by inversion Hlen. }
       iFrame.
   Qed.
 
-  Lemma imp_allocn n v (k : _ → micro A X) :
+  Lemma imp_allocn vs (k : _ → micro A X) :
     ▷ (∀ ls,
-          ⌜length ls = n⌝ ∗
-          ([∗ list] l ∈ ls, pointsto l (DfracOwn 1) (V v)) -∗
+          ([∗ list] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v)) -∗
           imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAllocn (n, v) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (Stop CAllocn vs k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_allocn'; iNext.
-    iIntros (ls) "(%Hlen & Hls)".
-    iPoseProof (big_sepL_sep with "Hls") as "[Hls _]".
-    iApply "H". iFrame "%". iFrame.
+    iIntros (ls) "Hls".
+    iPoseProof (big_sepL2_sep with "Hls") as "[Hls _]".
+    iApply "H". iFrame.
   Qed.
 
   Lemma imp_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗
             imp (continue k [l]) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAllocn (1%nat, v) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (Stop CAllocn [v] k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_allocn.
-    iIntros "!>" (ls) "(%Hlen & Hls)".
+    iIntros "!>" (ls) "Hls".
+    iPoseProof (big_sepL2_length with "Hls") as "%Hlen".
     destruct ls; first discriminate Hlen.
     destruct ls; last discriminate Hlen.
     iApply "H".

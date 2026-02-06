@@ -37,9 +37,9 @@ Definition eff := val.
 
 (* [Flip] is a request to flip a Boolean coin. *)
 
-(* [Allocn n v], [Load l], [Store (l, v)] are requests to allocate, read,
+(* [Allocn vs], [Load l], [Store (l, v)] are requests to allocate, read,
    and write a memory location in the heap.
-   The result of [CAllocn n v] is a list of [n] memory locations.
+   The result of [CAllocn vs] is a list of memory locations.
    The result of [Load l] is a value.
    The result of [CStore (l, v)] is unit. *)
 
@@ -71,7 +71,7 @@ Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
-| CAllocn : code (nat * val) (list loc) exn
+| CAllocn : code (list val) (list loc) exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) val exn
 | CPerf  : code eff val exn
@@ -180,14 +180,14 @@ Notation "' x ← y ; z" :=
 (* [allocn n v] allocates [n] new ref cells with initial value [v] and
    returns the ref cells' locations. *)
 
-Definition allocn (n : nat) (v : val) : micro (list loc) exn :=
-  stop CAllocn (n, v).
+Definition allocn (vs : list val) : micro (list loc) exn :=
+  stop CAllocn (vs).
 
 (* [alloc v] allocates a new ref cell with initial value [v] and returns the
    ref cell's location. *)
 
 Definition alloc (v : val) : micro loc exn :=
-  ls ← allocn 1 v ;
+  ls ← allocn [v] ;
   match ls with
   | [l] => ret l
   | _ => Crash

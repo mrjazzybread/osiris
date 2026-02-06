@@ -824,7 +824,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "He". simpl_eval.
     iApply (imp_bind _ _
-              (λ v, Stop CAllocn (1%nat, v)
+              (λ v, Stop CAllocn [v]
                       (λ o, (l ← ls ← inject2 o;
                              match ls with | [l] => ret l | _ => Crash end;
                              ret (VLoc l))))
