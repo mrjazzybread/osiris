@@ -1596,7 +1596,16 @@ Definition ncall fn args := match args with
    in the environment [η]. *)
 
 Definition loop η x i1 i2 e : microvx :=
-  if int.lt i2 i1 then
+  if int.eq i1 i2 then
+    (* If [i1 = i2], then we execute the body once.
+
+       We need to add this test for the case where
+       [i1 = i2 = max_int], and we cannot rely on testing that
+       [i1 + 1 < i2] on the next iteration. *)
+    let η' := (x, (VInt i1)) :: η in
+    _v ← eval η e ;
+    ok
+  else if int.lt i2 i1 then
     (* If [i2 < i1] holds, then there is nothing to do. *)
     ok
   else
