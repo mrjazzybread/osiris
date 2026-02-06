@@ -738,7 +738,56 @@ Section imp_rules_expr.
 
   (** * EWhile : expr → expr → expr *)
   (** * EFor : var → expr → expr → expr → expr *)
+
+  Lemma imp_EFor {ζ} (I : Z → iProp Σ) (i j : Z) x e1 e2 e  η :
+    representable i →
+    representable j →
+    ⌜i ≤ j⌝ -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ j', ⌜j' = j⌝ }} -∗
+    I i -∗
+    (□ ∀ i' : Z, ⌜i ≤ i' ≤ j⌝ -∗ I i' -∗
+                imp eval (x ~> #i'; η) e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ _ : (), I (i' + 1) }}) -∗
+    imp eval η (EFor x e1 e2 e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2 Hle) "He1 He2 HI He". simpl_eval.
+    iApply (imp_Par _ _ _ _ _ _
+              (pfbind inject2 (λ '(i1, i2), loop η x i1 i2 e))
+             with "[He1] [He2]").
+    { rewrite /as_int.
+      iApply (imp_bind _ _ (λ v, val_as_int v) with "He1").
+      iIntros (?) "-> /=".
+      iApply (imp_ret (repr i) i).
+      instantiate (1 := Build_Observe _ _ _ repr). encode.
+      instantiate (1 := (λ i', ⌜i' = i⌝)%I). done. }
+    { rewrite /as_int.
+      iApply (imp_bind _ _ (λ v, val_as_int v) with "He2").
+      iIntros (?) "-> /=".
+      iApply (imp_ret (repr j) j).
+      instantiate (1 := Build_Observe _ _ _ repr). encode.
+      instantiate (1 := (λ i', ⌜i' = j⌝)%I). done. }
+    iSplit; last iSplit.
+    - iIntros (ex) "Hζ !>".
+      rewrite /discontinue /=.
+      iApply (@imp_throw _ _ unit with "Hζ").
+    - iIntros (ex) "Hζ !>".
+      rewrite /discontinue /=.
+      iApply (@imp_throw _ _ unit with "Hζ").
+    - iIntros (??) "-> -> !>".
+      rewrite /continue /=.
+      iApply (imp_loop with "[%] HI He"); try assumption.
+  Qed.
+
   (** * EAssertFalse : expr *)
+
+  Lemma impEAssertFalse {ζ} η :
+    False -∗
+    imp eval η EAssertFalse @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), False }}.
+  Proof.
+    iIntros "HF". simpl_eval.
+    rewrite /assertion_failure.
+    iDestruct "HF" as "[]".
+  Qed.
 
   (** * EAssert : expr → expr *)
 

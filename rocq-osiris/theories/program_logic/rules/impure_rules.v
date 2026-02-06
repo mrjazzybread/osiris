@@ -213,6 +213,93 @@ Section micro_codes.
 
 End micro_codes.
 
+Section ugh.
+
+  Import ewp_rules_tactics.
+
+  Context `{!osirisGS Σ}.
+  Context {V : Type} `{Observe A V}.
+  Context {E : coPset} {Ψ : iEff Σ}.
+
+  Lemma imp_empty_loop {ζ} (R : iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    ⌜(j < i)%Z⌝ -∗
+    R -∗
+    imp loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), R }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2 Hbounds) "HR".
+    rewrite /impure.
+    ewp_unfold_head.
+    intro_state. ewp_mask_intro "Hmod". rewrite /loop.
+    construct_wp_nonret. thread_step.destruct_thread_step.
+    ewp_mask_elim. iFrame.
+    rewrite try2_inject2_right.
+    rewrite /E.loop.
+    rewrite int.lt_repr_repr; try assumption.
+    rewrite int.eq_repr_repr; try assumption.
+    assert (i =? j = false)%Z as -> by lia.
+    assert (j <? i = true)%Z as -> by lia.
+    iApply (imp_ret VUnit ()); first encode.
+    iApply "HR".
+  Qed.
+
+  Lemma imp_loop {ζ} (I : Z → iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    ⌜(i ≤ j)%Z⌝ -∗
+    I i -∗
+    □ (∀ i',
+         ⌜(i ≤ i' ≤ j)%Z⌝ -∗
+         I i' -∗
+         imp (eval ((η, #i') :: x) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
+    imp loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2 Hbounds) "HR #He".
+    iLöb as "IH" forall (i j Hrepr1 Hrepr2 Hbounds) "He".
+    rewrite /impure.
+    ewp_unfold_head.
+    intro_state. ewp_mask_intro "Hmod". rewrite /loop.
+    construct_wp_nonret. thread_step.destruct_thread_step.
+    ewp_mask_elim. iFrame.
+    rewrite try2_inject2_right.
+    rewrite /E.loop.
+    assert (int.lt (int.repr j) (int.repr i) = false) as ->.
+    { rewrite int.lt_repr_repr; first lia; assumption. }
+    iPoseProof ("He" $! i with "[] HR") as "Heapp". iPureIntro; lia.
+    rewrite int.eq_repr_repr; try assumption.
+    case (decide (i = j)%Z); intros Heq.
+    - assert (i =? j = true)%Z as -> by lia.
+      iApply ewp_bind.
+      iApply (ewp_mono with "Heapp").
+      iIntros ([|]) "Ho".
+      + iDestruct "Ho" as "(% & %Henc & HR)".
+        iApply (imp_ret VUnit ()); first encode.
+        rewrite Heq. iApply "HR".
+      + done.
+    - assert (i =? j = false)%Z as -> by lia.
+      iApply ewp_bind.
+      iApply (ewp_mono with "Heapp").
+      iIntros ([|]) "Ho".
+      + iDestruct "Ho" as "(% & %Henc & HR)".
+        iSpecialize ("IH" $! (i + 1)%Z j).
+        iSpecialize ("IH" with "[] [] [] HR").
+        { iPureIntro.
+          rewrite /int.representable in Hrepr1 Hrepr2 |- *.
+          lia. }
+        { iPureIntro; assumption. }
+        { iPureIntro; lia. }
+        replace (int.add (int.repr i) (int.one)) with (int.repr (i + 1)).
+        iApply "IH".
+        iIntros "!>" (?) "%Hbounds' HR".
+        iApply ("He" with "[] HR").
+        iPureIntro. lia.
+        by rewrite int.add_repr_repr.
+      + done.
+  Qed.
+
+End ugh.
+
 Section monotonicity.
 
   Context `{!osirisGS Σ}.
