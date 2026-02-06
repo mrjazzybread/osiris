@@ -1603,7 +1603,7 @@ Definition loop η x i1 i2 e : microvx :=
        [i1 = i2 = max_int], and we cannot rely on testing that
        [i1 + 1 < i2] on the next iteration. *)
     let η' := (x, (VInt i1)) :: η in
-    _v ← eval η e ;
+    _v ← eval η' e ;
     ok
   else if int.lt i2 i1 then
     (* If [i2 < i1] holds, then there is nothing to do. *)
