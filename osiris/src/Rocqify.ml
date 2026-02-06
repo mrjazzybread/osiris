@@ -212,6 +212,9 @@ let rec expr (e : expr) =
   | EArrayMake (e1, e2) ->
       c "EArrayMake" [ expr e1; expr e2 ]
 
+  | EArrayLit es ->
+      c "EArrayLit" [ list (map expr es) ]
+
   | EBoolConj (e1, e2) ->
       c "EBoolConj" [ expr e1; expr e2 ]
 

@@ -446,8 +446,8 @@ let rec translate_expr (e: expression) : expr =
   | Texp_setfield (_e1, _id, _label_desc, _e2) ->
       eunsupported loc "mutable record"
 
-  | Texp_array _ ->
-      eunsupported loc "array expression"
+  | Texp_array (_, es) ->
+      EArrayLit (map translate_expr es)
 
   | Texp_ifthenelse (e1, e2, Some e3) ->
       EIfThenElse (translate_expr e1, translate_expr e2, translate_expr e3)
@@ -687,6 +687,21 @@ and translate_primitive_application loc path p args =
       ELoad e
   | ["Stdlib"; ":="], "%setfield0", [e1; e2] ->
       EStore (e1, e2)
+
+  (* Arrays. *)
+
+  | ["Stdlib"; "Array"; "length"], "%array_length", [e] ->
+      EArrayLength e
+  | ["Stdlib"; "Array"; "get"], "%array_safe_get", [e1; e2] ->
+      EArrayGet (e1, e2)
+  | ["Stdlib"; "Array"; "set"], "%array_safe_set", [e1; e2; e3] ->
+      EArraySet (e1, e2, e3)
+  | ["Stdlib"; "Array"; "unsafe_get"], "%array_unsafe_get", [e1; e2] ->
+      EArrayUnsafeGet (e1, e2)
+  | ["Stdlib"; "Array"; "unsafe_set"], "%array_unsafe_set", [e1; e2; e3] ->
+      EArrayUnsafeSet (e1, e2, e3)
+  | ["Stdlib"; "Array"; "make"], "caml_array_make", [e1; e2] ->
+      EArrayMake (e1, e2)
 
   (* Exceptions. *)
 
