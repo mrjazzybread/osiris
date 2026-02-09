@@ -1,5 +1,6 @@
 From Stdlib Require Import Orders Sorting.
 From osiris Require Import base.
+From osiris.logic Require Import list_z.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import code strategy.
 
@@ -1051,9 +1052,6 @@ Definition pre_wrap_eval_branches η bs (o : outcome3 val exn) : microvx :=
 
 End EvalBranches.
 
-Instance list_lookup_Z {A} : Lookup Z A (list A) :=
-    λ (i : Z) l, if (i <? 0) then None else l !! Z.to_nat i.
-
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -1141,7 +1139,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ret (VArray ls)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
-      ret (VInt (repr (Z.of_nat (List.length ls))))
+      ret (VInt (repr (length ls)))
   | EArrayUnsafeGet e1 e2 =>
       '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
       match ls !! signed i with
@@ -1172,7 +1170,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
       let i := signed n in
       if ((0 <=? i) && (i <? max_array)) then
-        ls ← allocn (repeat v (Z.to_nat i) );
+        ls ← allocn (replicate i v);
         ret (VArray ls)
       else crash "invalid_argument: Array.make"
   | EBoolConj e1 e2 =>
