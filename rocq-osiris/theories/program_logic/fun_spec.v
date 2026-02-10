@@ -91,7 +91,7 @@ Section imp_spec.
   | Tbase X, c, P :=
       ∀ (x : X), P x (call c #x)
   | type_nel.Tcons X τ', c, P :=
-      ∀ (x : X), @impure val val exn Σ _ _ _ ⊤ (call c #x) ⊥ ⊥ (λ (c : val), iSpec τ' c (P x)).
+      ∀ (x : X), @impure val val exn Σ _ _ ⊤ (call c #x) ⊥ ⊥ (λ (c : val), iSpec τ' c (P x)).
 
   Local Lemma imp_eval_anon_unary `{Encode X}
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
@@ -100,7 +100,7 @@ Section imp_spec.
     imp (eval η (EAnonFun (AnonFun x e))) @ E <|Ψ|> {{ λ c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
-    iApply imp_ret; auto.
+    iApply (@imp_ret _ _ val val); auto.
   Qed.
 
   Local Lemma imp_eval_anon_binary `{Encode X, Encode Y}
@@ -110,7 +110,7 @@ Section imp_spec.
     imp (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <|Ψ|> {{ λ c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
-    iApply imp_ret; first auto.
+    iApply (@imp_ret _ _ val val); first auto.
     simpl; simp iSpec.
     iIntros (vx). simpl.
     iApply imp_please. iNext.
@@ -188,7 +188,7 @@ Section imp_spec.
     iSpecialize ("HP" $! vx).
     iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
     simpl. iApply imp_please. iNext. simpl_eval.
-    iApply imp_ret; first reflexivity.
+    iApply (@imp_ret _ _ val val); first reflexivity.
     iApply ("IH" with "HP").
   Qed.
 
@@ -205,7 +205,7 @@ Section imp_spec.
     iSpecialize ("HP" $! vx).
     iPoseProof (invert_predicate_over_body with "HP") as "(%y & %e' & ->)".
     simpl. iModIntro. iApply imp_please. iNext. simpl_eval.
-    iApply imp_ret; first reflexivity.
+    iApply (@imp_ret _ _ val val); first reflexivity.
     iApply ("IH" with "HP").
   Qed.
 
@@ -221,7 +221,7 @@ Section imp_spec.
     imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, iSpec τ c P }}.
   Proof.
     iIntros "HP".
-    simpl_eval; iApply imp_ret; first reflexivity.
+    simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
     by iApply prove_iSpec.
   Qed.
 
@@ -235,7 +235,7 @@ Section imp_spec.
     imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ iSpec τ c P }}.
   Proof.
     iIntros "HP".
-    simpl_eval; iApply imp_ret; first reflexivity.
+    simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
     by iApply prove_iSpec_pers.
   Qed.
 
@@ -282,7 +282,7 @@ Section imp_spec.
     destruct c; simpl in HSpec; try by apply wp.invert_pure_wp_crash in HSpec.
     - destruct a; simpl in *.
       iApply imp_please. iNext.
-      iApply imp_mono_ret.
+      iApply (@imp_mono_ret _ _ val val).
       { iApply impure_pure. apply wp.invert_pure_wp_eval in HSpec.
         unfold judgements.pure.
         eapply (wp.pure_wp_mono_ret _ HSpec).
