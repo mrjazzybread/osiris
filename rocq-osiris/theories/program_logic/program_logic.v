@@ -9,6 +9,7 @@ From osiris.program_logic Require Export
   fun_spec
   rules.expr_rules
   impure_rules
+  rules.array_rules
 .
 
 From osiris.program_logic.pure Require Export pure.
