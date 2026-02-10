@@ -142,12 +142,40 @@ Section array_resources.
      iApply (imp_ret with "HΦ"); encode.
    Qed.
 
+   Lemma imp_EArrayLit `{Encode A} {ζ} (Φs : list (A → iProp Σ)) es :
+     ⌜length Φs = length es ∧ length es ≤ max_array⌝ -∗
+     imp evals η es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ xs, [∗ list] x;Φ ∈ xs;Φs, Φ x }} -∗
+     imp eval η (EArrayLit es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+       {{ λ a, isArray a (length es) ∗ ∃ xs, isSlice (DfracOwn 1) a 0 xs ∗ [∗ list] x;Φ ∈ xs;Φs, Φ x }}.
+   Proof.
+     iIntros "[%Hleneq %Hlenbound] He". simpl_eval.
+     iApply (imp_bind (A1:=list A) with "He").
+     iIntros (xs) "HΦs".
+     iApply (imp_allocn).
+     iIntros "!>" (ls) "Hls".
+     rewrite /continue /=.
+     iApply (imp_ret _ ls); first encode.
+     iPoseProof (big_sepL2_length with "Hls") as "%Hlenls".
+     assert (length ls = length xs).
+     { rewrite length_map in Hlenls. rewrite /length. lia. }
+     iPoseProof (big_sepL2_length with "HΦs") as "%Hlenxs".
+     assert (length xs = length Φs).
+     { rewrite /length. apply inj_eq. assumption. }
+     iSplit.
+     { iPureIntro; length_nonneg es; lia. }
+     iFrame.
+     rewrite /isSlice. iSplit; first (iPureIntro; lia).
+     drop. take.
+     iApply (big_sepL2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
+     iApply "Hls".
+   Qed.
+
    Lemma imp_EArrayLength {ζ} (n : Z) e :
      imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, isArray a n }} -∗
      imp eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n', ⌜n' = n⌝ }}.
    Proof.
      iIntros "He". simpl_eval.
-     iApply (imp_bind _ _ (λ ls, ret (VInt (repr (length ls)))) with "[He]").
+     iApply (imp_bind with "[He]").
      { iApply (imp_as_array with "He"). }
      iIntros (ls) "(%Hlen & %Hbound)".
      change (♯ls) with ls.
@@ -183,22 +211,6 @@ Section array_resources.
      rewrite /length. lia.
    Qed.
 
-   Lemma unroll_replicate {A : Type} (a : A) n :
-     n >= 1 → replicate n a = a :: replicate (n - 1) a.
-   Proof.
-     intros Hgeq.
-     rewrite /replicate /init /list_basics_extra.init.
-     case_decide; first lia.
-     case_decide; first lia.
-     assert (Z.to_nat n = S (Z.to_nat (n - 1))) as -> by lia.
-     generalize (Z.to_nat (n - 1)). intros k. simpl. f_equal.
-     generalize 1%nat. generalize 0%nat.
-     induction k.
-     - done.
-     - intros. simpl.
-       f_equal. apply IHk.
-   Qed.
-
    Lemma imp_EArrayMake `{Encode A} {ζ} {e1 e2} (n : Z) (Φ : A → iProp Σ) :
      ⌜0 ≤ n ≤ max_array⌝ -∗
      imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
@@ -212,9 +224,9 @@ Section array_resources.
      rewrite /continue /discontinue /=.
      iSplit; last iSplit.
      - iIntros (e) "Hζ !>".
-       iApply (@imp_throw _ _ array val with "Hζ").
+       iApply (imp_throw with "Hζ").
      - iIntros (e) "Hζ !>".
-       iApply (@imp_throw _ _ array val with "Hζ").
+       iApply (imp_throw with "Hζ").
      - iIntros (? a) "-> Hφ !> /=".
        rewrite bind_ret.
        rewrite signed_repr; last apply array_size_representable, Hbound.
@@ -235,25 +247,9 @@ Section array_resources.
        iSplit.
        { iPureIntro; rewrite length_replicate. lia. }
        drop. take.
-       iApply big_sepL2_alt.
-       iSplit; first iPureIntro.
-       { pose proof (length_replicate n a) as Hlen_z.
-         pose proof (length_replicate n #a) as Hlen_z'.
-         rewrite /length in Hlen_z, Hlen_z'. lia. }
-       clear Hlen Hlen'.
-       iInduction ls as [|l ls IH] forall (n Hbound).
-       + done.
-       + simpl.
-         iPoseProof (big_sepL2_length with "Hpts") as "%Hlen".
-         assert (n >= 1) as Hgt_1.
-         { pose proof (length_replicate n #a). rewrite /length in H0.
-           rewrite <- Hlen in H0. simpl in H0.
-           lia. }
-         rewrite (unroll_replicate a n Hgt_1).
-         rewrite (unroll_replicate #a n Hgt_1).
-         iDestruct "Hpts" as "($ & Hpts)".
-         iApply ("IH" with "[] Hpts").
-         iPureIntro. lia.
+       iApply (big_sepL2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
+       rewrite fmap_replicate.
+       iApply "Hpts".
    Qed.
 
    Lemma imp_EArrayGet2 `{Encode A, Inhabited A} {Φ : A → iProp Σ} {ζ} (Φ1 : array → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 :
@@ -322,9 +318,9 @@ Section array_resources.
      rewrite <- app_comm_cons.
      rewrite lookup_cons_eq_0.
 
-     iApply (@imp_load _ _ val exn A with "Hl").
+     iApply (imp_load with "Hl").
      rewrite /continue; iIntros "!> Hl /=".
-     iApply (@imp_ret _ _ A val); first encode.
+     iApply imp_ret; first encode.
      rewrite Htotal_lookup. iApply "P".
      iCombine ("Hl Hslice2") as "Hslice2".
      iPoseProof (big_sepL2_cons (λ _ l' x', pointsto l' dq (V #x')) with "Hslice2") as "Hslice2".

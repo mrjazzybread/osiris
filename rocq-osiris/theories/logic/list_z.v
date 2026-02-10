@@ -1,5 +1,5 @@
 From stdpp Require Import options.
-From stdpp Require Import list_basics.
+From stdpp Require Import list_basics list_monad.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -461,6 +461,13 @@ Proof.
     apply Heq. lia. (* phew *)
 Qed.
 
+Lemma length_fmap {A'} xs (g : A → A') :
+  length (g <$> xs) = length xs.
+Proof.
+  unfold length.
+  apply inj_eq. apply length_fmap.
+Qed.
+
 End Length.
 
 Global Hint Rewrite
@@ -804,6 +811,34 @@ Proof.
   intros. unfold seg. rewrite lookup_take_lt, lookup_drop by lia. eauto.
 Qed.
 
+(* Interaction of [lookup] and [fmap] *)
+
+Lemma list_lookup_fmap {B} (f : A → B) (xs : list A) (i : Z) :
+  (f <$> xs) !! i = f <$> (xs !! i).
+Proof.
+  revert i.
+  induction xs; intros i.
+  - simpl; rewrite lookup_nil.
+    unfold lookup, listz_lookup.
+    by case_decide.
+  - rewrite fmap_cons.
+    rewrite !lookup_cons.
+    assert ((f a :: (f <$> xs)) !! i = (if decide (i = 0) then Some (f a) else (f <$> xs) !! (i - 1))) as ->.
+    { unfold lookup, listz_lookup.
+      case_decide.
+      - case_decide; first lia.
+        case_decide; [ reflexivity | lia ].
+      - case_decide.
+        + rewrite H0.
+          rewrite list.lookup_cons. reflexivity.
+        + case_decide; first lia.
+          rewrite list.lookup_cons.
+          assert (Z.to_nat i = S (Z.to_nat (i - 1))) as -> by lia.
+          reflexivity. }
+    case_decide; first done.
+    by rewrite IHxs.
+Qed.
+
 End Lookup.
 
 Global Opaque singleton.
@@ -836,6 +871,7 @@ Global Hint Rewrite
   @lookup_take_ge
   @lookup_drop
   @lookup_seg
+  @list_lookup_fmap
   using (length; lia)
 : lookup.
 
@@ -1576,3 +1612,50 @@ Proof.
 Qed.
 
 End insert.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Properties of [replicate]. *)
+
+Section replicate.
+
+Context {A : Type}.
+Implicit Types x : A.
+
+Lemma unroll_replicate x n :
+  n >= 1 → replicate n x = x :: replicate (n - 1) x.
+Proof.
+  intros Hgeq.
+  unfold replicate, init, list_basics_extra.init.
+  case_decide; first lia.
+  case_decide; first lia.
+  assert (Z.to_nat n = S (Z.to_nat (n - 1))) as -> by lia.
+  generalize (Z.to_nat (n - 1)). intros k. simpl. f_equal.
+  generalize 1%nat. generalize 0%nat.
+  induction k.
+  - done.
+  - intros. simpl.
+    by erewrite IHk.
+Qed.
+
+Lemma fmap_replicate {A'} x n (g : A → A') :
+  g <$> (replicate n x) = replicate n (g x).
+Proof.
+  unfold replicate.
+  case (decide (n < 0)).
+  - intros Hneg.
+    assert (forall {A} (x : A), init n (fun _ => x) = []) as Heqinit.
+    { intros. apply nil_length_inv. rewrite length_init. lia. }
+    rewrite (Heqinit _ x), (Heqinit _ (g x)).
+    reflexivity.
+  - intros Hpos.
+    apply (list_eq_same_length _ _ n).
+    + rewrite length_fmap. rewrite length_init. lia.
+    + rewrite length_init. lia.
+    + intros i Hi.
+      rewrite list_lookup_fmap.
+      do 2 (rewrite lookup_init_lt; last assumption).
+      reflexivity.
+Qed.
+
+End replicate.
