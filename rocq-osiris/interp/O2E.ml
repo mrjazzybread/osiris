@@ -90,8 +90,6 @@ let rec expr : O.expr -> E.expr = function
   | EArrayLength e -> EArrayLength (expr e)
   | EArrayGet (e1, e2) -> EArrayGet (expr e1, expr e2)
   | EArraySet (e1, e2, e3) -> EArraySet (expr e1, expr e2, expr e3)
-  | EArrayUnsafeGet (e1, e2) -> EArrayUnsafeGet (expr e1, expr e2)
-  | EArrayUnsafeSet (e1, e2, e3) -> EArrayUnsafeSet (expr e1, expr e2, expr e3)
   | EArrayMake (e1, e2) -> EArrayMake (expr e1, expr e2)
   | EBoolConj (e1, e2) -> EBoolConj (expr e1, expr e2)
   | EBoolDisj (e1, e2) -> EBoolDisj (expr e1, expr e2)

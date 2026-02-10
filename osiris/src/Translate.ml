@@ -696,10 +696,12 @@ and translate_primitive_application loc path p args =
       EArrayGet (e1, e2)
   | ["Stdlib"; "Array"; "set"], "%array_safe_set", [e1; e2; e3] ->
       EArraySet (e1, e2, e3)
+  (* We currently do not differentiate between safe and
+     unsafe array primitives. *)
   | ["Stdlib"; "Array"; "unsafe_get"], "%array_unsafe_get", [e1; e2] ->
-      EArrayUnsafeGet (e1, e2)
+      EArrayGet (e1, e2)
   | ["Stdlib"; "Array"; "unsafe_set"], "%array_unsafe_set", [e1; e2; e3] ->
-      EArrayUnsafeSet (e1, e2, e3)
+      EArraySet (e1, e2, e3)
   | ["Stdlib"; "Array"; "make"], "caml_array_make", [e1; e2] ->
       EArrayMake (e1, e2)
 

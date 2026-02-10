@@ -1140,37 +1140,24 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (length ls)))
-  | EArrayUnsafeGet e1 e2 =>
-      '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
-      match ls !! signed i with
-      | Some l => load l
-      | None => crash "index out of bounds"
-      end
-  | EArrayUnsafeSet e1 e2 e3 =>
-      '(ls, (i, v)) ← par (as_array (eval η e1))
-                       (par (as_int (eval η e2)) (eval η e3));
-        match ls !! signed i with
-        | Some l => store l v
-        | None => crash "index out of bounds"
-        end
   | EArrayGet e1 e2 =>
       '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
       match ls !! signed i with
       | Some l => load l
-      | None => crash "invalid_argument: index out of bounds"
+      | None => crash "index out of bounds"
       end
   | EArraySet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
                        (par (as_int (eval η e2)) (eval η e3));
         match ls !! signed i with
         | Some l => store l v
-        | None => crash "invalid_argument: index out of bounds"
+        | None => crash "index out of bounds"
         end
   | EArrayMake e1 e2 =>
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
-      let i := signed n in
-      if ((0 <=? i) && (i <? max_array)) then
-        ls ← allocn (replicate i v);
+      let n : Z := signed n in
+      if ((0 <=? n) && (n <=? max_array)) then
+        ls ← allocn (replicate n v);
         ret (VArray ls)
       else crash "invalid_argument: Array.make"
   | EBoolConj e1 e2 =>

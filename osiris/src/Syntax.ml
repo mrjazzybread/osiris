@@ -182,13 +182,11 @@ type expr =
 
   (* Length of an array: [Array.length a] *)
   | EArrayLength of expr
-  (* Array access without bounds check: [Array.unsafe_get a n] *)
-  | EArrayUnsafeGet of expr * expr
-  (* Array update without bounds check: [Array.unsafe_set a n v] *)
-  | EArrayUnsafeSet of expr * expr * expr
-  (* Array access with bounds check: [Array.get a n] *)
+  (* Array access (with or without bounds check):
+     [Array.get a n] and [Array.unsafe_get a n] *)
   | EArrayGet of expr * expr
-  (* Array update with bounds check: [Array.set a n v] *)
+  (* Array update (with or without bounds check):
+     [Array.set a n v] and [Array.unsafe_set a n] *)
   | EArraySet of expr * expr * expr
   (* Array creation: [Array.make n v] *)
   | EArrayMake of expr * expr
