@@ -275,7 +275,7 @@ Section handler_proof.
         rewrite deep_handler_spec_def_unfold.
         iSpecialize ("IH" with "Hk H").
         iPoseProof (basic_rules.ewp_handle_inv with "HH IH") as "Hhandle".
-        iApply (imp_try2 with "[Hhandle]"). rewrite /wrap_eval_branches seal_eq /pre_wrap_eval_branches /=.
+        iApply (imp_try2 (A1:=A') with "[Hhandle]"). rewrite /wrap_eval_branches seal_eq /pre_wrap_eval_branches /=.
         iApply "Hhandle". iSplit.
         - iIntros (a) "HΦ''".
           iApply imp_ret; auto.
@@ -323,7 +323,9 @@ Section handler_proof.
    imp match_failure () @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
    imp (eval_branches η (O3Ret v) []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    by iIntros; simpl_eval_branches.
+    iIntros "Hfail"; simpl_eval_branches.
+    Set Printing All.
+    iApply "Hfail".
   Qed.
 
   Lemma shallow_handle_nil_ret η v all_bs E Ψ ζ (Φ : A → iProp Σ) :
@@ -375,8 +377,8 @@ Section handler_proof.
     rewrite /prot /iEff_car.
     iApply (monotonic_prot (Ψ:=upcl Ψ) with "[Hl]").
     { iIntros (o) "H".
-      iPoseProof (imp_resume with "Hl") as "Hcov".
-      iNext. rewrite try2_inject2. iApply "Hcov". rewrite try2_inject2_right.
+      iNext. rewrite try2_inject2.
+      iApply (imp_resume with "Hl"). rewrite try2_inject2_right.
       iIntros "_".
       iApply (bi.later_mono with "H").
       iIntros "H".
@@ -398,12 +400,12 @@ Section handler_proof.
   Proof.
     simpl_eval_branches.
     iIntros "%Hpat Hmono".
-    iApply (imp_try2 _ _ (eval_cpat η η cp o) with "[] [Hmono]").
+    iApply (imp_try2 (H0:=observe_env) _ _ (eval_cpat η η cp o) with "[] [Hmono]").
     { iApply basic_rules.ewp_mono.
       iApply basic_rules.pure_ewp. apply Hpat.
       iIntros ([|]).
       - iIntros "Hη". iExists a. iSplitR.
-        iPureIntro; instantiate (1 := observe_env); reflexivity.
+        iPureIntro; reflexivity.
         iExact "Hη".
       - iIntros "Hφ". instantiate (1 := (λ _, ⌜φ⌝)%I).
         iExact "Hφ". }

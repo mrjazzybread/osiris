@@ -76,8 +76,8 @@ pin:
 	$(ADD) rocq-released https://rocq-prover.org/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
 	$(PIN) rocq-prover 9.0.0
-	$(PIN) rocq-stdpp https://gitlab.mpi-sws.org/iris/stdpp.git#3c923278
-	$(PIN) rocq-iris https://gitlab.mpi-sws.org/iris/iris.git#f12346d8
+	$(PIN) rocq-stdpp https://gitlab.mpi-sws.org/iris/stdpp.git#f5017975
+	$(PIN) rocq-iris https://gitlab.mpi-sws.org/iris/iris.git#eea849e6
 	$(PIN) rocq-equations 1.3.1+9.1
 	$(PIN) ppx_sexp_conv v0.17.1
 	$(PIN) ppx_deriving 6.1.1

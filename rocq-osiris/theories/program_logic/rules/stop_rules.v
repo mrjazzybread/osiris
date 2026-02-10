@@ -216,7 +216,7 @@ Section imp_stop.
     imp (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hcontinue Hfork".
-    iApply imp_stop_fork'.
+    iApply (imp_stop_fork' (B:=B)).
     iIntros "!> %ι' #Hvalid".
     iSplitL "Hfork".
     - iApply "Hfork".
@@ -300,7 +300,6 @@ Section imp_wrap_flip.
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
     iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim. iFrame.
-    rewrite /step_wrap_2. iApply "Hwp".
   Qed.
 
   Lemma imp_wrap_shallow l η bs (k: _ -> micro A X) :
@@ -383,7 +382,7 @@ Section imp_concurrent.
     imp (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "HΦ".
-    iApply imp_stop_fork'.
+    iApply (imp_stop_fork' (B:=B)).
     iIntros "!>" (ι') "Hvalid"; iDestruct ("HΦ" with "Hvalid") as "[Hcall HΦ]"; iFrame.
     iApply ewp_ret.
     iExists ι'. auto.
@@ -438,7 +437,7 @@ Section imp_concurrent.
     (* In the postcondition of the spawned thread we can transfer the resources
     [φs] into [ψ] by the escrow mechanism *)
     iAssert (▷ ∀ ι, ([∗ list] φ ∈ φs, joinable B ι φ) -∗
-      imp call v1 v2 @ E  {{ λ _, □ φ }} ∗ Φ ι)%I
+      imp call v1 v2 @ E  {{ λ (_ : B), □ φ }} ∗ Φ ι)%I
       with "[HΦ]" as "HΦ".
     {
       iIntros "!>" (ι') "Hjs".
@@ -454,7 +453,7 @@ Section imp_concurrent.
     iMod "Hmod".
 
     (* Apply the basic rule for fork, recover [valid_thread] in the post *)
-    iApply imp_fork.
+    iApply (imp_fork (B:=B)).
     iIntros "!> !> %ι' #Hvalid".
     iDestruct ("HΦ" $! ι' with "[Hescrow_elim]") as "(Hcall & $)".
 

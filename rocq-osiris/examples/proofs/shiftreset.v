@@ -128,7 +128,7 @@ Section verification.
     iIntros (Ψ Φ) "Hf".
     iApply imp_please; iNext.
 
-    iApply (imp_EHandler with "[Hf]").
+    iApply (imp_EHandler (A':=val) with "[Hf]").
     { iApply (imp_EApp τ[unit] with "[Hf]").
       { iApply imp_EPath. iApply imp_ret; first encode.
         iApply "Hf". }

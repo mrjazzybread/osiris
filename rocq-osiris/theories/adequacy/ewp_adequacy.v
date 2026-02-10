@@ -627,7 +627,10 @@ Proof.
   apply SAT_bupd.
   eapply SAT_mono, Hsat.
   { iIntros "(Hsi & Hti & Hwp)".
-    iMod (saved_pred_alloc (λ o, ⌜Φ o⌝)%I DfracDiscarded) as "(%γ & Hsaved)"; first done.
+    iMod (saved_pred_alloc
+            (savedPredG0 := (@osiris_savedPredG Σ (@osiris_inG Σ (I x))))
+            (λ o, ⌜Φ o⌝)%I DfracDiscarded)
+           as "(%γ & Hsaved)"; first done.
     iMod (gen_heap_alloc ∅ ι γ with "Hti") as "(Hti & Hpointsto)"; first apply lookup_empty.
     iModIntro. iFrame. }
 Qed.

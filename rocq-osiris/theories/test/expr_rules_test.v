@@ -64,7 +64,7 @@ Lemma example_store η x l :
     {{ λ (_ : unit), l ↦ #2 }}.
 Proof.
   iIntros (Hx) "Hl".
-  iApply imp_EStore2.
+  iApply (imp_EStore2 (A:=Z)).
   - simpl_eval. rewrite Hx. iApply imp_widen.
     iApply (imp_ret_eq l).
   - iApply imp_EInt.
@@ -84,13 +84,13 @@ Lemma example_2_stores η x l :
       {{ λ (_ : unit), l ↦ #4%Z }}.
 Proof.
   iIntros (Hx) "Hl".
-  iApply (imp_ESeq with "[Hl]").
-  { iApply (imp_EStore with "Hl").
+  iApply (imp_ESeq (B:=unit) with "[Hl]").
+  { iApply (imp_EStore (A:=Z) with "Hl").
     - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
     - iApply imp_EInt. }
   iIntros ([]) "(% & Hl & ->)".
   iApply (imp_mono_ret with "[Hl]").
-  { iApply (imp_EStore with "Hl").
+  { iApply (imp_EStore (A:=Z) with "Hl").
     - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
     - iApply imp_EInt. }
   - iIntros ([]) "(% & Hl & ->)".
@@ -118,7 +118,7 @@ Lemma example_incr η x lx n :
     {{ λ (_ : unit),lx ↦ #(1 + n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
-  iApply (imp_EStore2 with "[] [Hx]").
+  iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
 
   - (* l-value x *)
     iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq.
@@ -148,7 +148,7 @@ Lemma example_double η x lx n :
     {{ λ (_ : unit), lx ↦ #(2 * n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
-  iApply (imp_EStore2 with "[] [Hx]").
+  iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
   { iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq. }
   - (* !x + !x *)
     iDestruct "Hx" as "(Hx1 & Hx2)".
@@ -180,7 +180,7 @@ Lemma simple_PAny_match η :
       [Branch (CVal PAny) (EConstant "true")])
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
-  iApply imp_EMatch. iApply imp_EInt.
+  iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
   iIntros (?) "-> !>".
   iApply deep_handle_cons.
   { iPureIntro; ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
@@ -197,7 +197,7 @@ Lemma simple_PInt_eq_match η :
        Branch (CVal  PAny   ) (EConstant "false")])
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
-  iApply imp_EMatch. iApply imp_EInt.
+  iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
   iIntros (?) "-> !>".
 
   iApply deep_handle_cons.
@@ -217,8 +217,9 @@ Lemma simple_true_true_match `{Encode A} η :
        Branch (CVal (PConstant "[]")) (EInt 2)])
     {{ λ i, ⌜i = 2%Z⌝ }}.
 Proof.
-  iApply imp_EMatch. iApply (imp_EConstant (@nil A)); first encode.
-  instantiate (1 := (λ l, ⌜l=[]⌝)%I). done.
+  iApply (imp_EMatch (A':=list A)).
+  instantiate (1 := (λ l, ⌜l=[]⌝)%I).
+  iApply imp_EConstant; last done. encode.
 
   iIntros (?) "-> !>".
   iApply deep_handle_cons.

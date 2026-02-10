@@ -207,14 +207,7 @@ Section array_resources.
        {{ λ (a : array), ∃ x, Φ x ∗ isArray a n ∗ isSlice (DfracOwn 1) a 0 (replicate n x) }}.
    Proof.
      iIntros (Hbound) "He1 He2". simpl_eval.
-     iApply (imp_Par
-               _ _ _ _ (as_int (eval η e1)) _ (pfbind inject2
-               (λ '(n0, v),
-                  if ((0 <=? signed n0) && (signed n0 <=? max_array))%bool
-                  then
-                   Stop CAllocn (replicate (signed n0) v)
-                     (pfbind inject2 (λ ls : list loc, ret (VArray ls)))
-                  else crash "invalid_argument: Array.make")) with "[He1] He2").
+     iApply (imp_Par (A1:=Z) (A2:=A) with "[He1] He2").
      { iApply (imp_as_int with "He1"). }
      rewrite /continue /discontinue /=.
      iSplit; last iSplit.
@@ -274,19 +267,14 @@ Section array_resources.
      imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
    Proof.
      iIntros "He1 He2 P". simpl_eval.
-     iApply (imp_Par _ _ _ _ _ _ (pfbind inject2
-               (λ '((ls0, i0) : list loc * int),
-                  match ls0 !! signed i0 with
-                  | Some l => load l
-                  | None => crash "index out of bounds"
-                  end)) with "[He1] [He2]").
+     iApply (imp_Par (A1:=array) (A2:=Z) with "[He1] [He2]").
      { iApply (imp_as_array with "He1"). }
      { iApply (imp_as_int with "He2"). }
      iSplit; last iSplit.
      { iIntros (e) "Hζ !>".
-       iApply (@imp_throw _ _ A val with "Hζ"). }
+       iApply (imp_throw with "Hζ"). }
      { iIntros (e) "Hζ !>".
-       iApply (@imp_throw _ _ A val with "Hζ"). }
+       iApply (imp_throw with "Hζ"). }
      iIntros (ls i) "HΦ1 HΦ2".
      iDestruct ("P" with "HΦ1 HΦ2")
        as "(%n & #Harr & %dq & %j & %xs & %x & P)".

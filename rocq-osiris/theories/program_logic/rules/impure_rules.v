@@ -191,19 +191,18 @@ Section micro_codes.
     rewrite try2_inject2_right. by iFrame.
   Qed.
 
-  Lemma imp_choose {V : Type} `{Observe A V} {Φ : A → _} {ζ} (m1 m2 : micro V exn) :
+  Lemma imp_choose {V : Type} `{Observe A V} {Φ : A → iProp Σ} {ζ} (m1 m2 : micro V exn) :
     imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm". rewrite /code.choose /code.flip.
-    iApply (imp_bind (λ (b : bool), True)%I (stop CFlip ())).
+    iApply (imp_bind (H0:=observe_bool) (λ (b : bool), True)%I (stop CFlip ())).
     { rewrite /impure.
       ewp_unfold_head.
       intro_state. ewp_mask_intro "Hmod".
       construct_wp_nonret. thread_step.destruct_thread_step.
       ewp_mask_elim. iFrame. rewrite /continue.
       iApply ewp_ret. simpl.
-      instantiate (1 := observe_bool).
       iExists b; destruct b; auto. }
     iIntros ([|] _) "/=".
     - iDestruct "Hm" as "[$ _]".
@@ -440,7 +439,7 @@ Section dynamic_checks.
 
   Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
 
-  Local Instance : Observe Z int := { observe := int.repr }.
+  Global Instance : Observe Z int := { observe := int.repr }.
 
   Lemma imp_as_int (m : microvx) (Φ : Z → iProp Σ) :
     imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
@@ -453,7 +452,7 @@ Section dynamic_checks.
     iApply (imp_ret with "HΦ"); first encode.
   Qed.
 
-  Local Instance observe_id {A : Type} : Observe A A := { observe := id }.
+  Local Instance observe_id (A : Type) : Observe A A := { observe := id }.
 
   Lemma imp_as_loc (m : microvx) (Φ : locations.loc → iProp Σ) :
     imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗

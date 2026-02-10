@@ -410,8 +410,7 @@ Section wp_handler_rules.
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iFrame.
-      unfold cont; simpl. iApply "Hsh". }
+      iFrame. }
 
     { (* [StepHandleFork] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.

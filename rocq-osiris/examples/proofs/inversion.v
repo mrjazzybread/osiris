@@ -192,7 +192,7 @@ Section verification.
   Inductive effect `{Encode A} : Type :=
   | Yield (a : A).
 
-  Local Instance encode_effect `{Encode A} l : Encode (@effect A _) :=
+  Local Instance encode_effect (A : Type) `{Encode A} l : Encode (@effect A _) :=
       { encode eff := match eff with Yield a => VXData l [ #a ] end }.
 
   Section invert_correct.
@@ -204,7 +204,7 @@ Section verification.
 
     Context (l : loc).
 
-    Local Instance encode_eff_l : Encode (@effect A _) := encode_effect l.
+    Local Instance encode_eff_l : Encode (@effect A _) := encode_effect A l.
 
     (* This protocol describes the effects performed by [yield]. *)
 
@@ -281,7 +281,7 @@ Section verification.
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
-          iApply imp_EMatch.
+          iApply (imp_EMatch (A':=unit)).
           { iApply imp_EPath. instantiate (1 := (λ v, ⌜v = tt⌝)%I).
             iApply (imp_ret VUnit tt); first encode.
             equality. }
@@ -293,7 +293,7 @@ Section verification.
           iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
           (* [continue k ()] *)
-          iApply (imp_EContinue).
+          iApply (imp_EContinue (B:=unit)).
           { iApply imp_EPath. iApply imp_ret; first encode.
             instantiate (1 := (λ k', ⌜k' = k⌝)%I). done. }
           { iApply imp_EConstant; first encode.
@@ -323,7 +323,7 @@ Section verification.
     Proof.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
-      iApply imp_EMatch.
+      iApply (imp_EMatch (A':=val)).
       { iApply imp_EPath.
         instantiate (1 := (λ v, ⌜v = iter⌝)%I).
         iApply (imp_ret iter iter); auto. }
@@ -346,8 +346,6 @@ Section verification.
         by iFrame. }
       iIntros (?) "(%yl & -> & Hyl)".
 
-      set e : Encode (@effect A _) := encode_effect yl.
-
       (* [let yield x = ...] *)
       iApply (imp_ELet_var (λ v, □ iSpec τ[A] v (λ (X : A) m,
                                         ∀ (Xs : list A),
@@ -358,7 +356,7 @@ Section verification.
       { iApply (imp_EAnon_pers τ[A]). simpl.
         iIntros "!>" (X Xs) "Hiter Hpermitted".
         iApply imp_please; iNext.
-        iApply imp_EPerform.
+        iApply (imp_EPerform (H0:=encode_effect A yl)).
         { iApply imp_EXData. simpl. reflexivity.
           instantiate (1 := [fun x' => ⌜x' = #X⌝%I]).
           simpl. fold eval.
@@ -370,7 +368,7 @@ Section verification.
           iPoseProof (big_sepL2_nil_inv_r with "Hlist") as "->".
           instantiate (1 := λ (a : effect), ⌜a = Yield X⌝%I).
           iExists _; iSplit; equality.
-          iPureIntro. instantiate (1 := e). encode. }
+          iPureIntro. encode. }
         iIntros (? ->).
         rewrite upcl_yield.
         iExists _, _.
@@ -387,7 +385,7 @@ Section verification.
       iApply imp_please; iNext.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
-      iApply imp_EMatch.
+      iApply (imp_EMatch (A' := unit)).
       { iApply imp_EPath. iApply imp_ret; first encode.
         instantiate (1 := (λ u, ⌜u=tt⌝)%I). done. }
       iIntros ([]) "_ !>".
@@ -397,7 +395,7 @@ Section verification.
       iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
       (* [match_with iter yield { ...] *)
-      iApply (imp_EHandler with "[Hiter HiterView]").
+      iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").
       { iApply (imp_EApp τ[val] with "[Hiter]").
         { iApply imp_EPath; iApply imp_ret; auto. }
         { instantiate (1 := (λ x, ⌜x = yield⌝)%I).

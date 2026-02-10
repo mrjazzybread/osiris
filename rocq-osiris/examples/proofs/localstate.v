@@ -163,7 +163,7 @@ Section verification.
 
     (* -------------------------------------------------------------------------- *)
     (* 3. At an [EMatch] -- more interesting part of this proof. *)
-    iApply (imp_EHandler with "[Hspec Hpoints_to]").
+    iApply (imp_EHandler (A':=A) with "[Hspec Hpoints_to]").
 
     { (* 3A. Call to [main] in the handled expression *)
       iApply (imp_EApp τ[unit] with "[Hspec]").
@@ -215,7 +215,7 @@ Section verification.
       iDestruct "H" as "(Hauth & Hx)".
       iSpecialize ("H_READ" with "Hx"). simpl.
       fold eval.
-      iApply (imp_EContinue with "[] [Hl]").
+      iApply (imp_EContinue (B:=state) with "[] [Hl]").
       { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
         iApply imp_EPath. by iApply imp_ret. }
       { iApply (imp_ELoad with "Hl").
@@ -247,10 +247,10 @@ Section verification.
       iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
       { (* EWP Goal: [var := y; continue k ()]. *)
-        iApply (imp_ESeq with "[Hl]").
+        iApply (imp_ESeq (B:=unit) with "[Hl]").
 
         { (* EWP Subgoal: [var := y]. *)
-          iApply (imp_EStore with "Hl").
+          iApply (imp_EStore (A:=state) with "Hl").
           { iApply imp_EPath; iApply imp_ret; first encode.
             auto. }
           { iApply imp_EPath. iApply imp_ret; first encode.
@@ -265,7 +265,7 @@ Section verification.
         iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
         iModIntro.
 
-        iApply imp_EContinue.
+        iApply (imp_EContinue (B:=unit)).
         { iApply imp_EPath. iApply imp_ret; first encode.
           instantiate (1 := (λ k', ⌜k' = k⌝)%I). done. }
         { iApply imp_EConstant; first encode.
@@ -324,8 +324,8 @@ Section verification.
     { iApply (imp_EAnon_pers τ[unit]).
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
-      iApply imp_EMatch.
-      { simpl_eval. iApply imp_widen. iApply imp_ret; first encode.
+      iApply (imp_EMatch (A':=unit)).
+      { iApply imp_EPath. iApply imp_ret; first encode.
         instantiate (1 := (λ v, ⌜v = tt⌝)%I). done. }
       iIntros (? ->) "!>".
       iApply deep_handle_cons.
@@ -333,10 +333,9 @@ Section verification.
         apply eq_refl. }
       iSplit; last iIntros ([]).
       iIntros (? <-).
-      iApply (imp_EPerform with "[] [HSt]").
+      iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).
-        iApply imp_ret; last done. instantiate (1 := enc_eff).
-        encode. }
+        iApply imp_ret; last done. encode. }
       iIntros (? ->).
       rewrite upcl_state.
       iLeft. rewrite upcl_read. iFrame. iSplit.
