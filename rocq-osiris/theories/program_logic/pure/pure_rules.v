@@ -253,11 +253,17 @@ Section pure_rules.
     { intros v. tauto. }
   Qed.
 
+  Global Instance observe_pair `{Observe A1 V1, Observe A2 V2} :
+    Observe (A1 * A2) (V1 * V2).
+  Proof. constructor. intros [x y].
+         refine (pair (H.(observe) x) (H0.(observe) y)).
+  Qed.
+
   Lemma pure_par_cont
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
-    m1 m2 k
-    (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A1 * A2 → Prop)
-    (ψ : E1 -> Prop) (ψ' : E2 -> Prop):
+    (m1 : micro V1 E1) (m2 : micro V2 E1) (k : outcome2 (V1 * V2) E1 → micro V3 E2)
+    (φ1 : A1 → Prop) (φ2 : A2 → Prop) (φ : A3 → Prop)
+    (ψ : E1 -> Prop) (ψ' : E2 -> Prop) :
     pure (E := E1) m1 φ1 ψ →
     pure m2 φ2 ψ →
     (∀ a1 a2, φ1 a1 → φ2 a2 → pure (continue k (♯ a1, ♯ a2)) φ ψ') →
@@ -470,7 +476,7 @@ Section pure_eff.
   (** Compatibility with [widen] *)
 
   Lemma pure_widen `{Encode A} {E} (m : micro val void) φ ψ :
-    pure m φ ⊥ → @pure A _ val _ E (widen m) φ ψ.
+    pure m φ ⊥ → @pure A val _ E (widen m) φ ψ.
   Proof.
     unfold widen.
     intros P. eapply pure_try2. eapply P.

@@ -227,7 +227,7 @@ Section imp_rules_expr.
     { iSplit; last iSplit.
       - iIntros (e) "Hζ2 !>".
         rewrite /discontinue /=.
-        iApply (@imp_throw Σ osirisGS0 (list B) (list val) exn _ _ E Ψ ζ2 _ e).
+        iApply (@imp_throw Σ osirisGS0 (list B) (list val) exn _ E Ψ ζ2 _ e).
         iExact "Hζ2".
       - iIntros (e). instantiate (2 := (λ _, False)%I).
         iIntros ([]).
@@ -340,20 +340,8 @@ Section imp_rules_expr.
   Proof.
     iIntros "H1 H2 Hjoin /=". simpl_eval.
     iApply (imp_Par _ ζ1 _ ζ2 (as_int (eval η e1)) (as_int (eval η e2)) with "[H1] [H2]").
-    - unfold as_int.
-      iApply (imp_bind _ _ (λ v, val_as_int v) with "H1").
-      iIntros (i) "HΦ1". simpl.
-      iApply (imp_ret (repr i) i). unfold observe.
-      instantiate (1 := Build_Observe _ _ _ repr).
-      reflexivity.
-      iExact "HΦ1".
-    - unfold as_int.
-      iApply (imp_bind _ _ (λ v, val_as_int v) with "H2").
-      iIntros (i) "HΦ2". simpl.
-      iApply (imp_ret (repr i) i). unfold observe.
-      instantiate (1 := Build_Observe _ _ _ repr).
-      reflexivity.
-      iExact "HΦ2".
+    - iApply (imp_as_int with "H1").
+    - iApply (imp_as_int with "H2").
     - iSplit; last iSplit.
       { iIntros (e) "Hζ1 !>". rewrite /discontinue /=.
         iApply imp_throw.
@@ -617,11 +605,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hme He". simpl_eval.
     iApply (imp_bind _ _ (λ δ, eval (δ ++ η) e) with "[Hme]").
-    { rewrite /as_struct.
-      iApply (imp_bind _ _ (λ v, widen (val_as_struct v)) with "Hme").
-      iIntros (δ) "HΦ'".
-      iApply imp_widen. rewrite /val_as_struct /=.
-      iApply (imp_ret δ δ). reflexivity. iExact "HΦ'". }
+    { iApply (imp_as_struct with "Hme"). }
     iApply "He".
   Qed.
 
@@ -647,11 +631,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hb He /=". simpl_eval.
     iApply (imp_bind _ _ (λ (b : bool), if b then eval η e1 else ret VUnit) with "[Hb]").
-    {  rewrite /as_bool.
-       iApply (imp_bind _ _ (λ v, val_as_bool v) with "Hb").
-       iIntros (b) "HΦb".
-       iPoseProof (imp_ret b b with "HΦb") as "Hb". auto.
-       destruct b; rewrite /val_as_bool /=; iApply "Hb". }
+    {  iApply (imp_as_bool with "Hb"). }
     iIntros (b) "Hb". change (♯b) with b.
     iSpecialize ("He" with "Hb").
     destruct b.
@@ -670,11 +650,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hb He /=". simpl_eval.
     iApply (imp_bind _ _ (λ (b : bool), if b then eval η e1 else eval η e2) with "[Hb]").
-    {  rewrite /as_bool.
-       iApply (imp_bind _ _ (λ v, val_as_bool v) with "Hb").
-       iIntros (b) "HΦb".
-       iPoseProof (imp_ret b b with "HΦb") as "Hb". auto.
-       destruct b; rewrite /val_as_bool /=; iApply "Hb". }
+    { iApply (imp_as_bool with "Hb"). }
     iIntros (b) "Hb". change (♯b) with b.
     iSpecialize ("He" with "Hb").
     destruct b; iApply "He".
@@ -729,9 +705,9 @@ Section imp_rules_expr.
     imp eval η (ERaise e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H". simpl_eval.
-    iApply (@imp_bind _ _ A val exn _ _
+    iApply (@imp_bind _ _ A val exn _
               E Ψ ζ Φ
-              val _ val _ ζ (eval η e) (λ v, throw v) with "H").
+              val val _ ζ (eval η e) (λ v, throw v) with "H").
     iIntros (ex) "Hζ". change (♯ex) with ex.
     iApply (@imp_throw _ _ A val exn with "Hζ").
   Qed.
@@ -743,8 +719,8 @@ Section imp_rules_expr.
     representable i →
     representable j →
     ⌜i ≤ j⌝ -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ j', ⌜j' = j⌝ }} -∗
+    imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
+    imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ j', ⌜j' = j⌝ }} -∗
     I i -∗
     (□ ∀ i' : Z, ⌜i ≤ i' ≤ j⌝ -∗ I i' -∗
                 imp eval (x ~> #i'; η) e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ _ : (), I (i' + 1) }}) -∗
@@ -754,18 +730,8 @@ Section imp_rules_expr.
     iApply (imp_Par _ _ _ _ _ _
               (pfbind inject2 (λ '(i1, i2), loop η x i1 i2 e))
              with "[He1] [He2]").
-    { rewrite /as_int.
-      iApply (imp_bind _ _ (λ v, val_as_int v) with "He1").
-      iIntros (?) "-> /=".
-      iApply (imp_ret (repr i) i).
-      instantiate (1 := Build_Observe _ _ _ repr). encode.
-      instantiate (1 := (λ i', ⌜i' = i⌝)%I). done. }
-    { rewrite /as_int.
-      iApply (imp_bind _ _ (λ v, val_as_int v) with "He2").
-      iIntros (?) "-> /=".
-      iApply (imp_ret (repr j) j).
-      instantiate (1 := Build_Observe _ _ _ repr). encode.
-      instantiate (1 := (λ i', ⌜i' = j⌝)%I). done. }
+    { iApply (imp_as_int with "He1"). }
+    { iApply (imp_as_int with "He2"). }
     iSplit; last iSplit.
     - iIntros (ex) "Hζ !>".
       rewrite /discontinue /=.
@@ -805,12 +771,7 @@ Section imp_rules_expr.
       iDestruct "H" as "[$ _]".
     - iDestruct "H" as "[_ H]".
       iApply (imp_bind _ _ (λ (s : bool), if s then ret VUnit else assertion_failure) with "[H]").
-      { rewrite /as_bool.
-        iApply (imp_bind _ _ (λ v, val_as_bool v) with "H").
-        iIntros (b) "[-> HR]".
-        iApply (imp_ret true true); first encode.
-        instantiate (1 := (λ b, ⌜b = true⌝ ∗ R)%I).
-        simpl. auto. }
+      { iApply (imp_as_bool with "H"). }
       iIntros (?) "[-> HR]".
       simpl.
       iApply (imp_ret VUnit ()); auto.
@@ -820,7 +781,7 @@ Section imp_rules_expr.
 
   Lemma imp_ERef2 `{Encode A} {ζ} (Φ : A → iProp Σ) η e :
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, ∃ a, Φ a ∗ l ↦ (V #a) }}.
+    imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (l : loc), ∃ a, Φ a ∗ l ↦ #a }}.
   Proof.
     iIntros "He". simpl_eval.
     iApply (imp_bind _ _
@@ -840,10 +801,10 @@ Section imp_rules_expr.
 
   Lemma imp_ERef `{Encode A} {ζ} (a : A) η e :
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
-    imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ (V #a) }}.
+    imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (l : loc), l ↦ #a }}.
   Proof.
     iIntros "He".
-    iApply (imp_mono_ret (λ l, ∃ a', ⌜a' = a⌝ ∗ l ↦ (V #a'))%I with "[He]").
+    iApply (imp_mono_ret (λ l, ∃ a', ⌜a' = a⌝ ∗ l ↦ #a')%I with "[He]").
     iApply (imp_ERef2 with "He").
     iIntros (l) "(% & -> & $)".
   Qed.
@@ -857,12 +818,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "He P". simpl_eval.
     iApply (imp_bind _ _ (λ l, load l) with "[He]").
-    { rewrite /as_loc.
-      iApply (imp_bind _ _ (λ v, val_as_loc v) with "He").
-      iIntros (l) "HΦ1". simpl.
-      iApply (imp_ret l l).
-      unfold observe. instantiate (1 := Build_Observe loc _ loc id). auto.
-      iExact "HΦ1". }
+    { iApply (imp_as_loc with "He"). }
     iIntros (l) "HΦ1".
     iDestruct ("P" with "HΦ1") as "(%q & %a & Hl & P)".
     change (♯l) with l.
@@ -889,17 +845,13 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ l a, Φ1 l -∗ Φ2 a -∗
-      ▷ ∃ v1, l ↦ (V v1) ∗ ▷ (l ↦ (V #a) -∗ Φ ())) -∗
+      ▷ ∃ v1, pointsto l (DfracOwn 1) (V v1) ∗ ▷ (l ↦ #a -∗ Φ ())) -∗
     imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 P /=". simpl_eval.
     iApply (imp_Par _ _ _ _ _ _
               (pfbind inject2 (λ '(l, v), code.store l v)) with "[H1] H2 [P]").
-    { rewrite /as_loc.
-      iApply (imp_bind _ _ (λ v, val_as_loc v) with "H1").
-      iIntros (l) "HΦ1". iApply (imp_ret l l).
-      instantiate (1 := Build_Observe loc _ loc id). auto.
-      iExact "HΦ1". }
+    { iApply (imp_as_loc with "H1"). }
     iSplit; last iSplit.
     - iIntros (e) "Hζ !>".
       iApply (@imp_throw _ _ unit val exn with "Hζ").
@@ -916,10 +868,10 @@ Section imp_rules_expr.
   Qed.
 
   Lemma imp_EStore `{Encode A} {ζ} (Φ : A → iProp Σ) {η e1 e2} l v :
-    ▷ l ↦ (V v) -∗
+    ▷ l ↦ v -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), ∃ a, l ↦ (V #a) ∗ Φ a }}.
+    imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), ∃ a, l ↦ #a ∗ Φ a }}.
   Proof.
     iIntros "Hl H1 H2".
     iApply (imp_EStore2 with "H1 H2").
@@ -954,11 +906,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
     iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(l, v), resume l (O2Ret v))) with "[Hk] Hv [Hmon]").
-    { unfold as_cont.
-      iApply (imp_bind _ _ (λ v, val_as_cont v) with "Hk").
-      iIntros (k) "HΦ1".
-      iApply (imp_ret k k). instantiate (1 := Build_Observe cont _ cont id). reflexivity.
-      iExact "HΦ1". }
+    { iApply (imp_as_cont with "Hk"). }
     iSplit; last iSplit.
     - iIntros (e) "Hζ !>".
       iApply (@imp_throw _ _ A val exn with "Hζ").
@@ -980,11 +928,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
     iApply (imp_Par _ _ _ _ _ _ (pfbind inject2 (λ '(l, v), resume l (O2Throw v))) with "[Hk] Hv [Hmon]").
-    { unfold as_cont.
-      iApply (imp_bind _ _ (λ v, val_as_cont v) with "Hk").
-      iIntros (k) "HΦ1".
-      iApply (imp_ret k k). instantiate (1 := Build_Observe cont _ cont id). reflexivity.
-      iExact "HΦ1". }
+    { iApply (imp_as_cont with "Hk"). }
     iSplit; last iSplit.
     - iIntros (e) "Hζ !>".
       iApply (@imp_throw _ _ A val exn with "Hζ").
@@ -1188,11 +1132,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "Hid Hjoined". simpl_eval.
     iApply (imp_bind _ _ (λ t, join t) with "[Hid]").
-    { unfold as_thread.
-      iApply (imp_bind _ _ (λ v, val_as_thread v) with "Hid").
-      iIntros (ι') "Hthread".
-      iApply (imp_ret ι' ι'). instantiate (1 := Build_Observe thread _ thread id). reflexivity.
-      iExact "Hthread". }
+    { iApply (imp_as_thread with "Hid"). }
     iIntros (ι') "Hthread".
     iApply (imp_join with "Hthread Hjoined").
   Qed.
@@ -1218,11 +1158,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "%Hmask Hid Hjoined". simpl_eval.
     iApply (imp_bind _ _ (λ t, join t) with "[Hid]").
-    { unfold as_thread.
-      iApply (imp_bind _ _ (λ v, val_as_thread v) with "Hid").
-      iIntros (ι') "Hthread".
-      iApply (imp_ret ι' ι'). instantiate (1 := Build_Observe thread _ thread id). reflexivity.
-      iExact "Hthread". }
+    { iApply (imp_as_thread with "Hid"). }
     iIntros (ι') "Hjoinable".
     iDestruct "Hjoinable" as "(% & % & HThread & Hjoinable)".
     iApply (imp_fupd_post (join ι')).

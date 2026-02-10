@@ -136,7 +136,7 @@ Proof. solve_inG. Qed.
 (* Notations for ghost resouces. *)
 
 Notation "l ↦ v" :=
-  (pointsto l (DfracOwn 1) v)
+  (pointsto l (DfracOwn 1) (V v))
     (at level 20, format "l  ↦  v") : bi_scope.
 
 (* We declare that [cont] can be used as keys for pointstos. *)
@@ -148,7 +148,7 @@ Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
   gen_heap.pointsto k (DfracOwn 1) (K sk).
 
 Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
-  k ↦ Shot.
+  pointsto k (DfracOwn 1) Shot.
 
 Section ghost_resources.
 
@@ -407,8 +407,6 @@ End ewp_properties.
 
 
 (* ========================================================================== *)
-
-
 
 From osiris.lang Require Import encode.
 

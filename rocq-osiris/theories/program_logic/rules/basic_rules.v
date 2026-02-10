@@ -509,8 +509,8 @@ Section wp_handler_rules.
 
   (* Variant inversion rule for [Handle] *)
   Lemma ewp_handle_inv' k l w (c : _ -> micro A X)  :
-    l ↦ K k -∗
-    ▷ (l ↦ Shot -∗
+    isCont l k -∗
+    ▷ (isShot l -∗
         ewp_def E (Handle (k w) c) Ψ Q) -∗
     ewp_def E (Handle (stop CResume (l, w)) c) Ψ Q.
   Proof.

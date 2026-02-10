@@ -59,13 +59,10 @@ Local Ltac solve_encode :=
 (* One justification for [Observe] appears in pure_rules.v, to generalize
    [pure_bind] to more than just [@bind val val] *)
 
-(* Given an encodable value of type [A], it can be observed as a particular
-   value [V]. *)
-Class Observe A (EncA: Encode A) V : Type :=
+Class Observe A V : Type :=
   { observe : A -> V }.
 
-Arguments Observe A {EncA} V.
-Arguments observe {_ _ _ _}.
+Arguments observe {_ _ _}.
 
 Global Instance observe_encode {A} `{Encode A}:
   Observe A val :=

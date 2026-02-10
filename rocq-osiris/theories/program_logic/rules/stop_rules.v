@@ -284,8 +284,8 @@ Section imp_wrap_flip.
 
   Lemma imp_wrap_deep l η bs (k: _ -> micro A X) :
     (∀ l',
-      l'↦
-        (K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))) -∗
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) -∗
      ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -300,6 +300,7 @@ Section imp_wrap_flip.
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
     iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim. iFrame.
+    rewrite /step_wrap_2. iApply "Hwp".
   Qed.
 
   Lemma imp_wrap_shallow l η bs (k: _ -> micro A X) :
@@ -394,7 +395,7 @@ Section imp_concurrent.
   Definition joinN := nroot .@ "join".
   (* We need the implicit [Encode] to be outside of the existential,
      so that we know the return type when we join thread [ι]. *)
-  Definition joinable B `{Encode B} ι φ :=
+  Definition joinable B `{Observe B val} ι φ :=
     (∃ ζ (Φ : B → iProp Σ),
         isThread ι ζ Φ ∗ ∀ o, ilift ζ Φ o ={↑joinN}=∗ ▷ φ)%I.
 
@@ -507,7 +508,7 @@ Section imp_exn.
 
   Context `{!osirisGS Σ}.
 
-  Context {V : Type} `{Hobs : Observe A V}.
+  Context `{Hobs : Observe A val}.
   Context {E : coPset} {Ψ : iEff Σ} {Φ : A → iProp Σ} {ζ : exn → iProp Σ}.
 
   Lemma imp_join ι' μ φ :
@@ -519,7 +520,7 @@ Section imp_exn.
     iApply (imp_stop_join ι' inject2 with "Hvalid [HΦ]").
     iSplit.
     - iIntros "!>" (x) "#Hφ". rewrite /continue /=.
-      iApply (imp_ret #x). reflexivity. iApply ("HΦ" with "Hφ").
+      iApply (@imp_ret _ _ A val). reflexivity. iApply ("HΦ" with "Hφ").
     - iIntros "!>" (e) "#Hμ". rewrite /discontinue /=.
       iSpecialize ("HΦ" with "Hμ").
       iApply (@imp_throw Σ with "HΦ").
@@ -531,7 +532,7 @@ Section imp_exn.
 
   Context `{!osirisGS Σ}.
 
-  Context {V : Type} `{Hobs : Observe A V}.
+  Context `{Hobs : Observe A val}.
   Context {E : coPset} {Ψ : iEff Σ} {Φ : A → iProp Σ} {ζ : exn → iProp Σ}.
 
   (* Does not actually need to transfer resources, [φ] could be persistent. To
@@ -594,8 +595,8 @@ Section imp_eval.
     (*               _ _ envs _ *)
     (*               _ _ (λ '(_, δ), ret (VStruct δ)) with "Hsitems"). *)
     iApply (
-        @imp_bind Σ osirisGS0 env val exn Encode_env _ E Ψ ζ Q
-                  envs encode_envs envs observe_envs
+        @imp_bind Σ osirisGS0 env val exn _ E Ψ ζ Q
+                  envs envs observe_envs
           _ _ (λ '(_, δ), ret (VStruct δ)) with "Hsitems").
     iIntros ([η' δ']) "HQ".
     iApply (imp_ret with "HQ"). encode.
@@ -621,7 +622,7 @@ Section imp_eval.
 
   Lemma imp_sitem_letrec_singleton (spec : val → iProp Σ) x af (η δ : env) :
     spec (VCloRec η [RecBinding x af] x) -∗
-    @impure envs envs exn Σ _ encode_envs observe_envs E (eval_sitem (η, δ) (ILetRec [RecBinding x af])) Ψ
+    @impure envs envs exn Σ _ observe_envs E (eval_sitem (η, δ) (ILetRec [RecBinding x af])) Ψ
       ζ (λ '(η0, δ0),
           ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
       ).
@@ -643,13 +644,13 @@ Section imp_eval.
     iIntros "Hbindings Hmono".
     simpl_eval_sitem.
     iApply (
-        @imp_bind Σ osirisGS0 envs envs exn encode_envs observe_envs E Ψ ζ Q
-                  env Encode_env env observe_env
+        @imp_bind Σ osirisGS0 envs envs exn observe_envs E Ψ ζ Q
+                  env env observe_env
                   _ _ (λ δ', ret (δ' ++ η, δ' ++ δ)) with "Hbindings").
     iIntros (η') "HQ'".
-    iApply (@imp_ret Σ osirisGS0 envs envs exn encode_envs observe_envs
+    iApply (@imp_ret Σ osirisGS0 envs envs exn observe_envs
               E Ψ ζ Q
-              (@observe env Encode_env env observe_env η' ++ η, @observe env Encode_env env observe_env η' ++ δ) (η' ++ η, η' ++ δ)).
+              (@observe env env observe_env η' ++ η, @observe env env observe_env η' ++ δ) (η' ++ η, η' ++ δ)).
     encode.
     iApply ("Hmono" with "HQ'").
   Qed.
@@ -710,7 +711,7 @@ Section imp_eval.
 
   Lemma imp_struct_let_single `{Encode A} (spec : A → iProp Σ) name e (η δ : env) :
     imp (eval η e) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ spec }} -∗
-    @impure envs envs exn Σ _ encode_envs observe_envs E (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) Ψ
+    @impure envs envs exn Σ _ observe_envs E (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) Ψ
       ζ (λ '(η', δ'),
            ∃ a : A, spec a ∧ ⌜η' = (name, #a) :: η ∧ δ' = (name, #a) :: δ⌝
       ).
@@ -735,7 +736,7 @@ Section imp_eval.
 
   Lemma imp_sitems_extend sitems x Q η δ :
     (∀ ηδ', (∃ l,
-              ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ V #()) -∗
+              ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ #()) -∗
               imp eval_sitems ηδ' sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
       imp eval_sitems (η,δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
@@ -746,7 +747,7 @@ Section imp_eval.
       iIntros "!>" (l) "Hl"; simpl; iApply imp_ret. reflexivity.
       Unshelve.
       2: (apply (λ ηδ,
-                   (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ V VUnit)%I)).
+                   (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ VUnit)%I)).
       simpl.
       iExists l; iFrame. iPureIntro; reflexivity. }
     iApply "Hcov".
@@ -759,19 +760,14 @@ Section imp_eval.
   Proof.
     iIntros "Hme Hcov". simpl_eval_sitem.
     iApply (imp_bind _ _ (λ δ', ret (δ' ++ η, δ)) with "[Hme]").
-    { unfold as_struct.
-      iApply (imp_bind _ _ (λ v, widen (val_as_struct v)) with "Hme").
-      iIntros (η') "Hφ".
-      unfold widen, val_as_struct, observe, observe_encode, encode.encode, Encode_env.
-      rewrite try_ret.
-      iApply imp_ret. encode. iExact "Hφ". }
+    { iApply (imp_as_struct with "Hme"). }
     iIntros (η') "Hφ".
     iApply (imp_ret (♯ η' ++ η, δ) (η' ++ η, δ)). encode.
     iApply ("Hcov" with "Hφ").
   Qed.
 
   Lemma imp_type_extension_cons e es Q :
-    ▷ (∀ l, l ↦ V #() -∗
+    ▷ (∀ l, l ↦ #() -∗
             imp eval_type_extensions es @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ δ, Q ((e, VLoc l) :: δ) }}) -∗
     imp eval_type_extensions (e :: es) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.

@@ -38,7 +38,7 @@ Qed.
 (* [ref 1] *)
 
 Lemma example_ref_1 η:
-  ⊢ imp (eval η (ERef (EInt 1))) {{ λ l, l ↦ V #1%Z }}.
+  ⊢ imp (eval η (ERef (EInt 1))) {{ λ (l : loc), l ↦ #1%Z }}.
 Proof.
   iApply imp_ERef.
   iApply imp_EInt.
@@ -47,7 +47,7 @@ Qed.
 (* [!x] *)
 Lemma example_load η x l v :
   lookup_name η x = ret (VLoc l) ->
-  l ↦ V v ⊢ imp (eval η (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ V v }}.
+  l ↦ v ⊢ imp (eval η (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ v }}.
 Proof.
   iIntros (Hx) "Hl".
   replace v with (#v) at 1 by apply solve_encode_val.
@@ -59,9 +59,9 @@ Qed.
 (* [x := 2] *)
 Lemma example_store η x l :
   lookup_name η x = ret #l ->
-  l ↦ V #1%Z
+  l ↦ #1%Z
     ⊢ imp (eval η (EStore (EVar x) (EInt 2)))
-    {{ λ (_ : unit), l ↦ V #2 }}.
+    {{ λ (_ : unit), l ↦ #2 }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply imp_EStore2.
@@ -76,12 +76,12 @@ Qed.
 (* [x := 2; x := 4] *)
 Lemma example_2_stores η x l :
   lookup_name η x = ret #l ->
-  l ↦ V #1%Z
+  l ↦ #1%Z
   ⊢ imp (eval η
            (ESeq
               (EStore (EVar x) (EInt 2))
               (EStore (EVar x) (EInt 4))))
-      {{ λ (_ : unit), l ↦ V #4%Z }}.
+      {{ λ (_ : unit), l ↦ #4%Z }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply (imp_ESeq with "[Hl]").
@@ -101,7 +101,7 @@ Qed.
 Lemma example_load_ref η :
   ⊢ imp (eval η (ELoad (ERef (EInt 1)))) {{ λ r, ⌜r = 1%Z⌝ }}.
 Proof.
-  iApply (imp_ELoad2 (λ l, l ↦ V #1%Z)%I).
+  iApply (imp_ELoad2 (λ l, l ↦ #1%Z)%I).
   - (* ref 1 *)
     iApply imp_ERef. iApply imp_EInt.
   - (* load *)
@@ -113,9 +113,9 @@ Qed.
 (* [x := 1 + !x] *)
 Lemma example_incr η x lx n :
   lookup_name η x = ret #lx ->
-  lx ↦ V #n
+  lx ↦ #n
   ⊢ imp (eval η (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
-    {{ λ (_ : unit),lx ↦ V #(1 + n)%Z }}.
+    {{ λ (_ : unit),lx ↦ #(1 + n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 with "[] [Hx]").
@@ -124,7 +124,7 @@ Proof.
     iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq.
 
   - (* 1 + !x *)
-    instantiate (1 := (λ i, ⌜i = (1 + n)%Z⌝ ∗ lx ↦ V #n)%I).
+    instantiate (1 := (λ i, ⌜i = (1 + n)%Z⌝ ∗ lx ↦ #n)%I).
     iApply (imp_EIntAdd with "[] [Hx]").
     + (* 1 *)
       iApply imp_EInt.
@@ -143,9 +143,9 @@ Qed.
 (* [x := !x + !x] *)
 Lemma example_double η x lx n :
   lookup_name η x = ret #lx ->
-  lx ↦ V #n
+  lx ↦ #n
   ⊢ imp (eval η (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
-    {{ λ (_ : unit), lx ↦ V #(2 * n)%Z }}.
+    {{ λ (_ : unit), lx ↦ #(2 * n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 with "[] [Hx]").

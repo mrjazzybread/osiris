@@ -149,7 +149,7 @@ Section verification.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* Evaluate allocation of [init] *)
-    iApply (imp_ELet_var (λ l, l ↦ (V (#init)))%I).
+    iApply (imp_ELet_var (λ l, l ↦ #init)%I).
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)

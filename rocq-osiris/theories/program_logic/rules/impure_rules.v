@@ -176,10 +176,9 @@ Section micro_codes.
   Import ewp_rules_tactics.
 
   Context `{!osirisGS Σ}.
-  Context {V : Type} `{Observe A V}.
-  Context {E : coPset} {Ψ : iEff Σ} {Φ : A → iProp Σ}.
+  Context {E : coPset} {Ψ : iEff Σ}.
 
-  Lemma imp_please {ζ} η e :
+  Lemma imp_please `{Observe A val} {Φ : A → iProp Σ} {ζ} η e :
     ▷ imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp please_eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -192,7 +191,7 @@ Section micro_codes.
     rewrite try2_inject2_right. by iFrame.
   Qed.
 
-  Lemma imp_choose {ζ} (m1 m2 : micro V exn) :
+  Lemma imp_choose {V : Type} `{Observe A V} {Φ : A → _} {ζ} (m1 m2 : micro V exn) :
     imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -252,8 +251,8 @@ Section ugh.
     □ (∀ i',
          ⌜(i ≤ i' ≤ j)%Z⌝ -∗
          I i' -∗
-         imp (eval ((η, #i') :: x) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
-    imp loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
+    imp loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
   Proof.
     iIntros (Hrepr1 Hrepr2 Hbounds) "HR #He".
     iLöb as "IH" forall (i j Hrepr1 Hrepr2 Hbounds) "He".
@@ -434,3 +433,77 @@ Proof.
   iIntros "(%v & %Henc & %HΦ)".
   iExists v; iFrame "%".
 Qed.
+
+Section dynamic_checks.
+
+  Context `{!osirisGS Σ}.
+
+  Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
+
+  Local Instance : Observe Z int := { observe := int.repr }.
+
+  Lemma imp_as_int (m : microvx) (Φ : Z → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_int m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    rewrite /as_int.
+    iApply (imp_bind with "Hm").
+    iIntros (i) "HΦ".
+    iApply (imp_ret with "HΦ"); first encode.
+  Qed.
+
+  Local Instance observe_id {A : Type} : Observe A A := { observe := id }.
+
+  Lemma imp_as_loc (m : microvx) (Φ : locations.loc → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_loc m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (l) "HΦ".
+    iApply (imp_ret with "HΦ"); first encode.
+  Qed.
+
+  Lemma imp_as_bool (m : microvx) (Φ : bool → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_bool m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (b) "HΦ".
+    destruct b;
+    iApply (imp_ret with "HΦ"); encode.
+  Qed.
+
+  Lemma imp_as_cont (m : microvx) (Φ : cont → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_cont m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (k) "HΦ".
+    iApply (imp_ret with "HΦ"); encode.
+  Qed.
+
+  Lemma imp_as_thread (m : microvx) (Φ : thread → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_thread m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (k) "HΦ".
+    iApply (imp_ret with "HΦ"); encode.
+  Qed.
+
+  Lemma imp_as_struct (m : microvx) (Φ : env → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_struct m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (k) "HΦ". iApply imp_widen.
+    iApply (imp_ret with "HΦ"); encode.
+  Qed.
+
+End dynamic_checks.
