@@ -257,7 +257,7 @@ Section pure_rules.
     Observe (A1 * A2) (V1 * V2).
   Proof. constructor. intros [x y].
          refine (pair (H.(observe) x) (H0.(observe) y)).
-  Qed.
+  Defined.
 
   Lemma pure_par_cont
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}

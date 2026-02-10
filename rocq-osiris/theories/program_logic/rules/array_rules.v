@@ -361,4 +361,126 @@ Section array_resources.
      iIntros "!> $". done.
    Qed.
 
+   Lemma imp_EArraySet2 `{Encode A, Inhabited A} {Φ : unit → iProp Σ} {ζ}
+     (Φ3 : A → iProp Σ) (Φ1 : array → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 e3 :
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, Φ1 a }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ2 i }} -∗
+     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3  }} -∗
+     (∀ a i y, Φ1 a -∗ Φ2 i -∗ Φ3 y -∗
+             ∃ n, isArray a n ∗
+             ∃ j xs,
+               ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ isSlice (DfracOwn 1) a j xs) ∗
+               ▷ (isSlice (DfracOwn 1) a j (<[i - j := y]> xs) -∗ Φ ())) -∗
+     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+   Proof.
+     iIntros "He1 He2 He3 P". simpl_eval.
+     iApply (imp_Par (A1:=array) (A2:=Z * A) with "[He1] [He2 He3]").
+     { iApply (imp_as_array with "He1"). }
+     { iApply (imp_Par (A1:=Z) (A2:=A) with "[He2] He3").
+       iApply (imp_as_int with "He2").
+       iSplit; last iSplit.
+       - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
+       - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
+       - iIntros (i y) "HΦ2 HΦ3".
+         iApply (imp_ret _ (i, y)); first encode.
+         instantiate (1 := (λ '(i, y), Φ2 i ∗ Φ3 y)%I). iFrame. }
+     iSplit; last iSplit.
+     { iIntros (e) "Hζ !>".
+       iApply (imp_throw with "Hζ"). }
+     { iIntros (e) "Hζ !>".
+       iApply (imp_throw with "Hζ"). }
+     iIntros (a [i y]) "HΦ1 (HΦ2 & HΦ3)".
+     iDestruct ("P" with "HΦ1 HΦ2 HΦ3")
+       as "(%n & #Harr & %j & %xs & P)".
+     rewrite /continue /= bind_ret.
+     iNext.
+     iDestruct "P" as "((%Hle & %Hlt & Hslice) & P)".
+
+     iDestruct "Harr" as "(%Hlen' & %Hbound)".
+     iDestruct "Hslice" as "(%Hlen & Hslice)".
+
+     (* Decompose [ls] into [lj ++ slice ++ _]. *)
+     pose proof (cut_out_slice j (length xs) a ltac:(lia) ltac:(lia))
+       as (lj & slice & lextra & Hls & Hj & Hslice).
+     (* Turn [take _ (drop _ ls)] into [slice]. *)
+     rewrite Hj {1}Hls. drop.
+     rewrite Hslice. take.
+
+     assert (¬ (i - j < 0)) as Heqf by lia.
+
+     rewrite (signed_repr i); last (apply array_size_representable; lia).
+     assert (list_z.valid (i - j) xs) as Hvalid by lia.
+     pose proof (list_lookup_lookup_total_valid xs (i - j) Hvalid) as Hlookup.
+
+     (* [Decompose [xs] intl [xk ++ x :: _]. *)
+     pose proof (list_elem_of_split_length xs (i - j) _ Hlookup)
+       as (xk & xrest & Hxs & Hxk).
+     rewrite {1}Hxs.
+
+     (* Inversions on [Hslice] gives us that
+        [slice] = [slicek ++ l :: _]. *)
+     iDestruct (big_sepL2_app_inv_r with "Hslice")
+       as "(%slicek & %slice' & -> & Hslice1 & Hslice2)".
+     iDestruct (big_sepL2_cons_inv_r with "Hslice2") as
+       "(%l & %slicerest & -> & Hl & Hslice2)".
+
+     (* We can now prove that [ls !! i] = [Some l]. *)
+     rewrite {2}Hls lookup_app_r; last lia.
+     rewrite <- Hj.
+     rewrite <- app_assoc. iPoseProof (big_sepL2_length with "Hslice1") as "%Hleneq".
+     assert (length a = j + length slicek + 1 + length slicerest + length lextra).
+     { rewrite Hls. rewrite !length_app. rewrite length_cons. lia. }
+     assert (length slicek = length xk) by (rewrite /length; lia).
+     rewrite lookup_app_r; last lia.
+     assert (i - j - length slicek = 0) as -> by lia.
+     rewrite <- app_comm_cons.
+     rewrite lookup_cons_eq_0.
+
+     iApply (imp_store with "Hl").
+     rewrite /continue; iIntros "!> Hl /=".
+     iApply imp_ret; first encode.
+     iApply "P".
+     iCombine ("Hl Hslice2") as "Hslice2".
+     iPoseProof (big_sepL2_cons (λ _ l' x', pointsto l' (DfracOwn 1) (V #x')) with "Hslice2") as "Hslice2".
+     iPoseProof (big_sepL2_app with "Hslice1 Hslice2") as "Hslice".
+     iSplit.
+     { iPureIntro. rewrite length_insert. lia. }
+     assert ((xk ++ y :: xrest) = <[i-j:=y]> xs) as ->.
+     { rewrite Hxs.
+       rewrite insert_take_drop.
+       take. drop. reflexivity.
+       split; first lia.
+       rewrite !length_app length_cons /length.
+       rewrite /length in Hxk.
+       lia. }
+     rewrite {1}Hls.
+     rewrite Hj. rewrite drop_app drop_all Z.sub_diag drop_none. simpl.
+     rewrite length_insert.
+     assert (length xs = length (slicek ++ l :: slicerest)) as -> by lia.
+     rewrite take_app_length.
+     iApply "Hslice".
+   Qed.
+
+   Lemma imp_EArraySet `{Encode A, Inhabited A} {ζ}
+     (Φ : A → iProp Σ) (i j n : Z) (a : array) xs e1 e2 e3 :
+     ⌜j ≤ i⌝ -∗
+     ⌜i - j < length xs⌝ -∗
+     isArray a n -∗
+     ▷ isSlice (DfracOwn 1) a j xs -∗
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i'=i⌝ }} -∗
+     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+       {{ λ (_ : unit), ∃ y, Φ y ∗ isSlice (DfracOwn 1) a j (<[i-j:=y]> xs) }}.
+   Proof.
+     iIntros (Hbound Hlen) "#Harr Hslice He1 He2 He3".
+     iApply (imp_EArraySet2 with "He1 He2 He3").
+     iIntros (?? y) "-> -> HΦ".
+     iFrame "#". iFrame.
+     iSplit.
+     - iPureIntro. lia.
+     - iIntros "!> Hslice".
+       iFrame.
+   Qed.
+
 End array_reasoning.

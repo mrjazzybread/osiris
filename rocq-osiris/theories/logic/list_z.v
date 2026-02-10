@@ -1510,3 +1510,69 @@ Global Hint Rewrite
 
 Ltac seg :=
   autorewrite with seg.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Properties of [insert]. *)
+
+Section insert.
+
+Context {A : Type}.
+Implicit Types x : A.
+Implicit Types xs ys zs : list A.
+
+Lemma insert_app xs ys i x :
+  <[i:=x]> (xs ++ ys) =
+  (if decide (i < length xs) then <[i:=x]> xs ++ ys else xs ++ <[i - length xs := x]> ys).
+Proof.
+  unfold insert, listz_insert.
+  length_nonneg xs.
+  case_decide.
+  - case_decide; first reflexivity.
+    lia.
+  - case_decide.
+    + apply insert_app_l.
+      unfold length in H1. lia.
+    + case_decide; first lia.
+      assert (Z.to_nat (i - length xs) = Z.to_nat i - Z.to_nat (length xs))%nat
+        as -> by lia.
+      rewrite insert_app.
+      unfold length in H1, H2.
+      case_decide; try lia.
+      repeat f_equal. unfold length. lia.
+Qed.
+
+Lemma insert_app_l xs ys i x :
+  i < length xs →
+  <[i:=x]> (xs ++ ys) = <[i:=x]> xs ++ ys.
+Proof.
+  intros Hlength.
+  rewrite insert_app.
+  case_decide; [ reflexivity | contradiction ].
+Qed.
+
+Lemma insert_app_r xs ys i x :
+  ¬ (i < length xs) →
+  <[i:=x]> (xs ++ ys) = xs ++ <[i-length xs:=x]> ys.
+Proof.
+  intros Hlength.
+  rewrite insert_app.
+  case_decide; [ contradiction | reflexivity ].
+Qed.
+
+Lemma insert_take_drop xs i x :
+  valid i xs →
+  <[i:=x]> xs = take i xs ++ x :: drop (i + 1) xs.
+Proof.
+  intros Hvalid.
+  unfold insert, listz_insert.
+  case_decide; first lia.
+  rewrite insert_take_drop; last (unfold length in Hvalid; lia).
+  unfold take.
+  case_decide; first lia.
+  unfold drop.
+  case_decide; first lia.
+  repeat f_equal. lia.
+Qed.
+
+End insert.
