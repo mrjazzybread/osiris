@@ -143,6 +143,12 @@ Global Notation clip k i j :=
 
 (* Operations on lists. *)
 
+(* We define a function [singleton], which we (later) declare opaque. We
+   recommend using [singleton x] instead of the notation [ [x] ], which is
+   sugar for [x :: nil]. We recommend using list concatenation rather than
+   [cons], so, for example, [xs ++ singleton y ++ zs] should be preferred to
+   [xs ++ y :: zs]. This is more uniform. *)
+
 Definition singleton {A} (x : A) := [x].
 
 Definition length {A} (xs : list A) : Z :=
@@ -843,8 +849,8 @@ Qed.
 End Lookup.
 
 Global Opaque singleton.
-  (* [singleton x] is not [x :: nil]. *)
-  (* so [cons_is_append] does not affect [singleton] *)
+  (* [singleton x] is not rewritten to [x :: nil], *)
+  (* so [cons_is_append] does not affect [singleton]. *)
 
 Global Hint Rewrite
   @cons_is_append
