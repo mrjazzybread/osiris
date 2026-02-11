@@ -1156,7 +1156,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EArrayMake e1 e2 =>
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
       let n : Z := signed n in
-      if ((0 <=? n) && (n <=? max_array)) then
+      if decide (0 ≤ n ≤ max_array) then
         ls ← allocn (replicate n v);
         ret (VArray ls)
       else crash "invalid_argument: Array.make"

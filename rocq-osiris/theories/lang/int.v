@@ -327,6 +327,23 @@ Proof. apply M.shr_repr_repr. Qed.
 (* The following lemmas and tactics are intended to help prove that certain
    numbers are representable. *)
 
+Lemma array_size_representable i :
+  0 <= i <= max_array ->
+  representable i.
+Proof.
+  intros (Hpos & Hle).
+  constructor.
+  - rewrite min_signed_eq.
+    transitivity 0; auto.
+    apply Z.opp_nonpos_nonneg. apply Z.lt_le_incl, Z.gt_lt.
+    apply Coqlib.two_power_nat_pos.
+  - transitivity (max_array); auto.
+    apply Z.lt_le_incl, max_array_length.
+Qed.
+
+Ltac prove_representable_array :=
+  apply array_size_representable; lia.
+
 Lemma in_shift_range_representable z :
   in_shift_range z ->
   representable z.
@@ -415,7 +432,8 @@ Ltac representable :=
   try solve [ tauto | eauto 2
             | prove_representable_30
             | prove_urepresentable_30
-            | prove_in_shift_range_30 ].
+            | prove_in_shift_range_30
+            | prove_representable_array ].
 
 Global Hint Extern 1 (representable _) => representable : representable.
 

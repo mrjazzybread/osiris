@@ -325,42 +325,48 @@ Section imp_rules_expr.
   (** * EIntNeg : expr → expr *)
   (** * EIntAdd : expr → expr → expr *)
 
-  Lemma imp_EIntAdd2 {ζ ζ1 ζ2} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
-    ▷ (∀ e, ζ1 e -∗ ζ e) ∧
-    ▷ (∀ e, ζ2 e -∗ ζ e) ∧
+  Lemma imp_EIntAdd {ζ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     ▷ (∀ i j, Φ1 i -∗ Φ2 j -∗ Φ (i + j)) -∗
     imp eval η (EIntAdd e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin /=". simpl_eval.
-    iApply (imp_Par _ ζ1 _ ζ2 (as_int (eval η e1)) (as_int (eval η e2)) with "[H1] [H2]").
+    iApply (imp_Par with "[H1] [H2]").
     - iApply (imp_as_int with "H1").
     - iApply (imp_as_int with "H2").
     - iSplit; last iSplit.
-      { iIntros (e) "Hζ1 !>". rewrite /discontinue /=.
-        iApply imp_throw.
-        iApply ("Hjoin" with "Hζ1"). }
-      { iIntros (e) "Hζ2 !>". rewrite /discontinue /=.
-        iApply imp_throw.
-        iApply ("Hjoin" with "Hζ2"). }
+      { iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ"). }
+      { iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ"). }
       iIntros (i j) "HΦ1 HΦ2 !>".
       iApply imp_ret. encode.
       iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
-  Lemma imp_EIntAdd {ζ Φ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) :
+  (** * EIntSub : expr → expr → expr *)
+
+  Lemma imp_EIntSub {ζ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-    ▷ (∀ i j, Φ1 i -∗ Φ2 j -∗ Φ (i + j)%Z) -∗
-    imp eval η (EIntAdd e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ▷ (∀ i j, Φ1 i -∗ Φ2 j -∗ Φ (i - j)) -∗
+    imp eval η (EIntSub e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H1 H2 P".
-    iApply (imp_EIntAdd2 with "H1 H2").
-    iSplit; last iSplit; auto.
+    iIntros "H1 H2 Hjoin /=". simpl_eval.
+    iApply (imp_Par with "[H1] [H2]").
+    - iApply (imp_as_int with "H1").
+    - iApply (imp_as_int with "H2").
+    - iSplit; last iSplit.
+      { iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ"). }
+      { iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ"). }
+      iIntros (i j) "HΦ1 HΦ2 !>".
+      iApply imp_ret. encode.
+      iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
-  (** * EIntSub : expr → expr → expr *)
   (** * EIntMul : expr → expr → expr *)
   (** * EIntDiv : expr → expr → expr *)
   (** * EIntMod : expr → expr → expr *)
@@ -379,32 +385,6 @@ Section imp_rules_expr.
 
   Local Instance observe_bool : Observe bool bool := { observe := id }.
 
-  Lemma imp_EOpEq2 {Φ : bool → iProp Σ} {ζ ζ1 ζ2} η e1 e2 Φ1 Φ2 :
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
-    ▷ (∀ e, ζ1 e -∗ ζ e) ∧
-    ▷ (∀ e, ζ2 e -∗ ζ e) ∧
-    ▷ (∀ v1 v2, Φ1 v1 -∗ Φ2 v2 -∗
-              imp eq_val v1 v2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp eval η (EOpEq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H1 H2 Hjoin". simpl_eval.
-    iApply (imp_Par with "H1 H2 [Hjoin]").
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ1 !>". rewrite /discontinue /=.
-      iApply imp_throw.
-      iApply ("Hjoin" with "Hζ1").
-    - iIntros (e) "Hζ2 !>". rewrite /discontinue /=.
-      iApply imp_throw.
-      iApply ("Hjoin" with "Hζ2").
-    - iIntros (v1 v2) "HΦ1 HΦ2 !>".
-      rewrite /continue /=.
-      iApply (imp_bind with "[-]").
-      iApply ("Hjoin" with "HΦ1 HΦ2").
-      iIntros (b) "HΦ".
-      iApply (imp_ret (VBool b) b with "HΦ"). encode.
-  Qed.
-
   Lemma imp_EOpEq  {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
@@ -413,8 +393,19 @@ Section imp_rules_expr.
          imp eq_val v1 v2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp eval η (EOpEq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H1 H2 P".
-    iApply (imp_EOpEq2 with "H1 H2"); auto.
+    iIntros "H1 H2 P". simpl_eval.
+    iApply (imp_Par with "H1 H2 [P]").
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (v1 v2) "HΦ1 HΦ2 !>".
+      rewrite /continue /=.
+      iApply (imp_bind with "[-]").
+      iApply ("P" with "HΦ1 HΦ2").
+      iIntros (b) "HΦ".
+      iApply (imp_ret (VBool b) b with "HΦ"). encode.
   Qed.
 
   Lemma imp_EOpEq_Z {ζ} η e1 e2 (i j : Z) :
@@ -442,7 +433,56 @@ Section imp_rules_expr.
   Qed.
 
   (** * EOpNe : expr → expr → expr *)
+
   (** * EOpLt : expr → expr → expr *)
+
+  Lemma imp_EOpLt {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    ▷ (∀ v1 v2,
+         Φ1 v1 -∗ Φ2 v2 -∗
+         imp lt_val v1 v2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp eval η (EOpLt e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 P". simpl_eval.
+    iApply (imp_Par with "H1 H2 [P]").
+    iSplit; last iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (v1 v2) "HΦ1 HΦ2 !>".
+      rewrite /continue /=.
+      iApply (imp_bind with "[-]").
+      iApply ("P" with "HΦ1 HΦ2").
+      iIntros (b) "HΦ".
+      iApply (imp_ret (VBool b) b with "HΦ"). encode.
+  Qed.
+
+  Lemma imp_EOpLt_Z {ζ} η e1 e2 (i j : Z) :
+    representable i ->
+    representable j ->
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = i⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = j⌝ }} -∗
+    imp eval η (EOpLt e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ b, ⌜b = (i <? j)%Z⌝ }}.
+  Proof.
+    iIntros (Hn1 Hn2) "H1 H2".
+    iApply (imp_EOpLt with "[H1] [H2]").
+    - iApply (basic_rules.ewp_mono with "H1").
+      iIntros ([|]); [ | iIntros "$" ].
+      iIntros "(%n & %Henc & ->) /=".
+      iExists a. instantiate (1 := (λ a, ⌜ a = #i⌝)%I).
+      auto.
+    - iApply (basic_rules.ewp_mono with "H2").
+      iIntros ([|]); [ | iIntros "$" ].
+      iIntros "(%n & %Henc & ->) /=".
+      iExists a. instantiate (1 := (λ a, ⌜ a = #j⌝)%I).
+      auto.
+    - iIntros "!>" (v1 v2) "-> ->".
+      iApply imp_ret. rewrite lt_repr_repr. reflexivity. auto. auto.
+      iPureIntro. reflexivity.
+  Qed.
+
   (** * EOpLe : expr → expr → expr *)
   (** * EOpGt : expr → expr → expr *)
   (** * EOpGe : expr → expr → expr *)

@@ -1611,6 +1611,14 @@ Proof.
   repeat f_equal. lia.
 Qed.
 
+Lemma insert_singleton i x y :
+  <[i:=y]> (singleton x) = (if decide (i=0) then singleton y else singleton x).
+Proof.
+  case_decide.
+  - rewrite H. reflexivity.
+  - apply insert_invalid. rewrite length_singleton. lia.
+Qed.
+
 End insert.
 
 (* -------------------------------------------------------------------------- *)

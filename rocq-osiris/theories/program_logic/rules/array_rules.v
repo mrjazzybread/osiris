@@ -75,9 +75,9 @@ Section array_resources.
     exists l1, l2, lextra. rewrite app_assoc. auto.
   Qed.
 
-   Lemma split_Slice `{Encode A} dq a (i j : Z) (xs ys zs : list A) :
-     j = i + length ys →
+   Lemma split_Slice `{Encode A} (j : Z) dq a i (xs ys zs : list A) :
      xs = ys ++ zs →
+     j = i + length ys →
      isSlice dq a i xs ⊣⊢ (isSlice dq a i ys ∗ isSlice dq a j zs).
    Proof.
      intros -> ->.
@@ -124,6 +124,14 @@ Section array_resources.
    Definition isArrayCell `{Encode A} dq (a : array) (i : nat) (x : A) : iProp Σ :=
      isSlice dq a i [x].
 
+   Definition ownArray `{Encode A} (a : array) (xs : list A) : iProp Σ :=
+     isArray a (length xs) ∗ isSlice (DfracOwn 1) a 0 xs.
+
+   Lemma slice_of_own `{Encode A} (a : array) (xs : list A) n :
+     n = length xs →
+     ownArray a xs ⊣⊢ isArray a n ∗ isSlice (DfracOwn 1) a 0 xs.
+   Proof. intros ->. done. Qed.
+
  End array_resources.
 
  Section array_reasoning.
@@ -146,7 +154,7 @@ Section array_resources.
      ⌜length Φs = length es ∧ length es ≤ max_array⌝ -∗
      imp evals η es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ xs, [∗ list] x;Φ ∈ xs;Φs, Φ x }} -∗
      imp eval η (EArrayLit es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-       {{ λ a, isArray a (length es) ∗ ∃ xs, isSlice (DfracOwn 1) a 0 xs ∗ [∗ list] x;Φ ∈ xs;Φs, Φ x }}.
+       {{ λ a, ∃ xs, ownArray a xs ∗ [∗ list] x;Φ ∈ xs;Φs, Φ x }}.
    Proof.
      iIntros "[%Hleneq %Hlenbound] He". simpl_eval.
      iApply (imp_bind (A1:=list A) with "He").
@@ -161,13 +169,14 @@ Section array_resources.
      iPoseProof (big_sepL2_length with "HΦs") as "%Hlenxs".
      assert (length xs = length Φs).
      { rewrite /length. apply inj_eq. assumption. }
-     iSplit.
-     { iPureIntro; length_nonneg es; lia. }
+     iExists xs.
+     iSplitL "Hls".
+     { iSplit. iPureIntro; length_nonneg es; lia.
+       rewrite /isSlice. iSplit; first (iPureIntro; lia).
+       drop. take.
+       iApply (big_sepL2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
+       iApply "Hls". }
      iFrame.
-     rewrite /isSlice. iSplit; first (iPureIntro; lia).
-     drop. take.
-     iApply (big_sepL2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
-     iApply "Hls".
    Qed.
 
    Lemma imp_EArrayLength {ζ} (n : Z) e :
@@ -181,20 +190,6 @@ Section array_resources.
      change (♯ls) with ls.
      iApply (imp_ret (VInt (repr (length ls))) (length ls)%Z). encode.
      iPureIntro. lia.
-   Qed.
-
-   Lemma array_size_representable i :
-     0 ≤ i ≤ max_array →
-     representable i.
-   Proof.
-     intros (Hpos & Hle).
-     constructor.
-     - rewrite min_signed_eq.
-       transitivity 0; last assumption.
-       apply Z.opp_nonpos_nonneg. apply Z.lt_le_incl, Z.gt_lt.
-       apply Coqlib.two_power_nat_pos.
-     - transitivity (max_array); auto.
-       apply Z.lt_le_incl, max_array_length.
    Qed.
 
    Lemma list_elem_of_split_length {A : Type} (l : list A) (i : Z) (x : A) :
@@ -216,7 +211,7 @@ Section array_resources.
      imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
      imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
      imp eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-       {{ λ (a : array), ∃ x, Φ x ∗ isArray a n ∗ isSlice (DfracOwn 1) a 0 (replicate n x) }}.
+       {{ λ (a : array), ∃ x, Φ x ∗ ownArray a (replicate n x) }}.
    Proof.
      iIntros (Hbound) "He1 He2". simpl_eval.
      iApply (imp_Par (A1:=Z) (A2:=A) with "[He1] He2").
@@ -229,21 +224,19 @@ Section array_resources.
        iApply (imp_throw with "Hζ").
      - iIntros (? a) "-> Hφ !> /=".
        rewrite bind_ret.
-       rewrite signed_repr; last apply array_size_representable, Hbound.
-       assert (0 <=? n = true) as -> by lia.
-       assert (n <=? max_array = true) as -> by lia.
-       simpl.
-       iApply (imp_allocn _ (pfbind inject2 (λ ls : list loc, ret (VArray ls)))).
+       rewrite signed_repr; last representable.
+       case_decide; last contradiction.
+       iApply imp_allocn.
        iIntros "!>" (ls) "Hpts".
        iPoseProof (big_sepL2_length with "Hpts") as "%Hlen'".
        assert (length ls = n) as Hlen.
        { pose proof (length_replicate n #a) as Hlen_z.
          rewrite /length in Hlen_z |- *. lia. }
        rewrite /continue /=.
-       iApply (imp_ret (VArray ls) ls). encode.
+       iApply imp_ret. encode.
        iFrame.
        iSplitR.
-       { iPureIntro. auto. }
+       { iPureIntro. rewrite length_replicate. lia. }
        iSplit.
        { iPureIntro; rewrite length_replicate. lia. }
        drop. take.
@@ -290,7 +283,7 @@ Section array_resources.
 
      assert (¬ (i - j < 0)) as Heqf by lia.
 
-     rewrite (signed_repr i); last (apply array_size_representable; lia).
+     rewrite (signed_repr i); last representable.
      assert (list_z.valid (i - j) xs) as Hvalid by lia.
      pose proof (list_lookup_lookup_total_valid xs (i - j) Hvalid) as Hlookup.
 
@@ -404,7 +397,7 @@ Section array_resources.
 
      assert (¬ (i - j < 0)) as Heqf by lia.
 
-     rewrite (signed_repr i); last (apply array_size_representable; lia).
+     rewrite (signed_repr i); last representable.
      assert (list_z.valid (i - j) xs) as Hvalid by lia.
      pose proof (list_lookup_lookup_total_valid xs (i - j) Hvalid) as Hlookup.
 
