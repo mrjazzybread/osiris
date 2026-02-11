@@ -247,7 +247,7 @@ Section verification.
       iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
       { (* EWP Goal: [var := y; continue k ()]. *)
-        iApply (imp_ESeq (B:=unit) with "[Hl]").
+        iApply (imp_ESeq with "[Hl]").
 
         { (* EWP Subgoal: [var := y]. *)
           iApply (imp_EStore (A:=state) with "Hl").
@@ -256,7 +256,7 @@ Section verification.
           { iApply imp_EPath. iApply imp_ret; first encode.
             instantiate (1 := (λ v, ⌜v=y⌝)%I). done. } }
 
-        iIntros ([]) "(%s & Hl & ->)".
+        iIntros "(%s & Hl & ->)".
 
         (* EWP Subgoal: [continue k ()]. *)
         iDestruct "H" as "(Hauth & Hx)".

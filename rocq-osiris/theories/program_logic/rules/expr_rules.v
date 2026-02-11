@@ -604,13 +604,14 @@ Section imp_rules_expr.
 
   (** * ESeq : expr → expr → expr *)
 
-  Lemma imp_ESeq `{Encode A, Encode B} {Φ : A → iProp Σ} {ζ} (Φ1 : B → iProp Σ) η e1 e2 :
+  Lemma imp_ESeq `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : unit → iProp Σ) η e1 e2 :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    (∀ x, Φ1 x -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    (Φ1 () -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp eval η (ESeq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 /=". simpl_eval.
-    iApply (imp_bind _ _ (λ (_ : val), eval η e2) with "He1 He2").
+    iApply (imp_bind with "He1 [He2]").
+    iIntros ([]). iExact "He2".
   Qed.
 
   (** * EIfThen : expr → expr → expr *)

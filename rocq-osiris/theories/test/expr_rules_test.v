@@ -84,11 +84,11 @@ Lemma example_2_stores η x l :
       {{ λ (_ : unit), l ↦ #4%Z }}.
 Proof.
   iIntros (Hx) "Hl".
-  iApply (imp_ESeq (B:=unit) with "[Hl]").
+  iApply (imp_ESeq with "[Hl]").
   { iApply (imp_EStore (A:=Z) with "Hl").
     - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
     - iApply imp_EInt. }
-  iIntros ([]) "(% & Hl & ->)".
+  iIntros "(% & Hl & ->)".
   iApply (imp_mono_ret with "[Hl]").
   { iApply (imp_EStore (A:=Z) with "Hl").
     - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
@@ -183,7 +183,7 @@ Proof.
   iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
   iIntros (?) "-> !>".
   iApply deep_handle_cons.
-  { iPureIntro; ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
+  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
   iSplit; [ iIntros (? ->) | iIntros ([]) ].
   iApply imp_EConstant; auto; encode.
 Qed.
@@ -201,7 +201,7 @@ Proof.
   iIntros (?) "-> !>".
 
   iApply deep_handle_cons.
-  { iPureIntro; ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
+  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
   iSplit; [ iIntros (? ->) | iIntros ([]) ].
   - iApply imp_EConstant; auto; encode.
   - auto.
@@ -223,10 +223,10 @@ Proof.
 
   iIntros (?) "-> !>".
   iApply deep_handle_cons.
-  { iPureIntro; ltac2:(specify_cpattern ()). pattern_match. }
+  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
   iSplit; [ iIntros (? []) | iIntros "%no_match1" ].
   iApply deep_handle_cons.
-  { iPureIntro; ltac2:(specify_cpattern ()). pattern_match. apply eq_refl. }
+  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
   iSplit; [ iIntros (? ->) | iIntros ([]); auto ].
   iApply imp_EInt.
   Unshelve.
