@@ -242,7 +242,7 @@ Section ugh.
     iApply "HR".
   Qed.
 
-  Lemma imp_loop {ζ} (I : Z → iProp Σ) i j e x η :
+  Lemma imp_nonempty_loop {ζ} (I : Z → iProp Σ) i j e x η :
     int.representable i →
     int.representable j →
     ⌜(i ≤ j)%Z⌝ -∗
@@ -294,6 +294,28 @@ Section ugh.
         iPureIntro. lia.
         by rewrite int.add_repr_repr.
       + done.
+  Qed.
+
+   Lemma imp_loop {ζ} (I : Z → iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    I i -∗
+    □ (∀ i',
+         ⌜(i ≤ i' ≤ j)%Z⌝ -∗
+         I i' -∗
+         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
+    imp loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ λ (_ : unit), I ((j + 1) `max` i)%Z }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2) "HI #He".
+    case (decide (j < i)%Z); intros Hlt.
+    - iApply imp_empty_loop; try assumption.
+      iPureIntro; assumption.
+      replace ((j + 1) `max` i)%Z with i by lia.
+      iAssumption.
+    - replace ((j + 1) `max` i)%Z with (j + 1)%Z by lia.
+      iApply (imp_nonempty_loop with "[] HI He"); try assumption.
+      iPureIntro; lia.
   Qed.
 
 End ugh.

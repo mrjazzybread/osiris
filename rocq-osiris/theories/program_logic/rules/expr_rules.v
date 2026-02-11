@@ -710,15 +710,17 @@ Section imp_rules_expr.
   Lemma imp_EFor {ζ} (I : Z → iProp Σ) (i j : Z) x e1 e2 e  η :
     representable i →
     representable j →
-    ⌜i ≤ j⌝ -∗
     imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
     imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ j', ⌜j' = j⌝ }} -∗
     I i -∗
-    (□ ∀ i' : Z, ⌜i ≤ i' ≤ j⌝ -∗ I i' -∗
-                imp eval (x ~> #i'; η) e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ _ : (), I (i' + 1) }}) -∗
-    imp eval η (EFor x e1 e2 e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+    (□ ∀ i' : Z,
+       ⌜i ≤ i' ≤ j⌝ -∗ I i' -∗
+       imp eval (x ~> #i'; η) e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩
+         {{ λ _ : (), I (i' + 1) }}) -∗
+    imp eval η (EFor x e1 e2 e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ λ (_ : unit), I ((j + 1) `max` i)%Z }}.
   Proof.
-    iIntros (Hrepr1 Hrepr2 Hle) "He1 He2 HI He". simpl_eval.
+    iIntros (Hrepr1 Hrepr2) "He1 He2 HI He". simpl_eval.
     iApply (imp_Par with "[He1] [He2]").
     { iApply (imp_as_int with "He1"). }
     { iApply (imp_as_int with "He2"). }
@@ -731,7 +733,7 @@ Section imp_rules_expr.
       iApply (imp_throw with "Hζ").
     - iIntros (??) "-> -> !>".
       rewrite /continue /=.
-      iApply (imp_loop with "[%] HI He"); try assumption.
+      iApply (imp_loop with "HI He"); assumption.
   Qed.
 
   (** * EAssertFalse : expr *)
