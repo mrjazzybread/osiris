@@ -52,8 +52,7 @@ Proof.
   iIntros (Hx) "Hl".
   replace v with (#v) at 1 by apply solve_encode_val.
   iApply (imp_ELoad with "Hl").
-  iApply imp_EPath. simpl. rewrite Hx.
-  iApply imp_ret; auto.
+  iApply imp_EPath; auto. assumption.
 Qed.
 
 (* [x := 2] *)
@@ -86,12 +85,12 @@ Proof.
   iIntros (Hx) "Hl".
   iApply (imp_ESeq with "[Hl]").
   { iApply (imp_EStore (A:=Z) with "Hl").
-    - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
+    - iApply imp_EPath; eauto.
     - iApply imp_EInt. }
   iIntros "(% & Hl & ->)".
   iApply (imp_mono_ret with "[Hl]").
   { iApply (imp_EStore (A:=Z) with "Hl").
-    - iApply imp_EPath. rewrite /= Hx. iApply imp_ret_eq.
+    - iApply imp_EPath; eauto.
     - iApply imp_EInt. }
   - iIntros ([]) "(% & Hl & ->)".
     iExact "Hl".
@@ -121,7 +120,8 @@ Proof.
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
 
   - (* l-value x *)
-    iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq.
+    instantiate (1:= (λ l,⌜l=lx⌝)%I).
+    iApply imp_EPath; eauto.
 
   - (* 1 + !x *)
     instantiate (1 := (λ i, ⌜i = (1 + n)%Z⌝ ∗ lx ↦ #n)%I).
@@ -130,7 +130,7 @@ Proof.
       iApply imp_EInt.
     + (* !x *)
       iApply (imp_ELoad with "Hx").
-      iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq.
+      iApply imp_EPath; eauto.
     + (* add's postcondition *)
       iIntros "!>" (n1 n2) "-> (-> & $)".
       auto.
@@ -149,18 +149,16 @@ Lemma example_double η x lx n :
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
-  { iApply imp_EPath. rewrite /= Ex. iApply imp_ret_eq. }
+  { instantiate (1:=(λ l,⌜l=lx⌝)%I). iApply imp_EPath; eauto. }
   - (* !x + !x *)
     iDestruct "Hx" as "(Hx1 & Hx2)".
     iApply (imp_EIntAdd with "[Hx1] [Hx2]").
     + (* !x *)
       iApply (imp_ELoad with "Hx1").
-      { iApply imp_EPath. rewrite /= Ex.
-        iApply imp_ret_eq. }
+      { iApply imp_EPath; eauto. }
     + (* !x *)
       iApply (imp_ELoad with "Hx2").
-      { iApply imp_EPath. rewrite /= Ex.
-        iApply imp_ret_eq. }
+      { iApply imp_EPath; eauto. }
     + (* + *)
       iIntros "!>" (i j) "(-> & Hx1) (-> & Hx2)".
       iCombine "Hx1" "Hx2" as "Hx".

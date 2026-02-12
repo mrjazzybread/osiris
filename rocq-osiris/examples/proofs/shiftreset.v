@@ -104,7 +104,7 @@ Section verification.
     iApply (imp_EPerform (λ eff, ⌜eff = Shift f⌝)%I).
     { iApply imp_EXData. apply Hlookup. instantiate (1:=[(λ v, ⌜v = f⌝)]%I).
       iApply big_sepL2_singleton.
-      iApply imp_EPath. iApply imp_ret; first encode. auto.
+      iApply imp_EPath; auto.
       iIntros (vs) "Hvs".
       iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
       destruct vs; first discriminate; destruct vs; last discriminate.
@@ -130,8 +130,7 @@ Section verification.
 
     iApply (imp_EHandler (A':=val) with "[Hf]").
     { iApply (imp_EApp τ[unit] with "[Hf]").
-      { iApply imp_EPath. iApply imp_ret; first encode.
-        iApply "Hf". }
+      { iApply imp_EPath; auto.  }
       { iApply imp_EConstant; first encode.
         instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
       simpl. iIntros (?) "-> %m $". }
@@ -144,7 +143,7 @@ Section verification.
     { iIntros (v) "Φ !>".
       iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros ([]) ].
-      iApply imp_EPath. iApply (imp_ret with "Φ"); encode. }
+      iApply imp_EPath; auto. }
 
     (* Handler case: an effect is being performed. *)
     iIntros (v k) "Hprot".
@@ -158,9 +157,9 @@ Section verification.
     iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match.
     iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
     iApply (imp_EApp τ[cont] with "[Hg] []").
-    { iApply imp_EPath. iApply imp_ret; first encode. iApply "Hg". }
-    { iApply imp_EPath. iApply imp_ret; first encode.
-      instantiate (1 := (λ v, ⌜v = k⌝)%I). done. }
+    { iApply imp_EPath; auto. }
+    { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
+      iApply imp_EPath; auto. }
     iIntros (? -> m) "Hwp".
     iApply "Hwp".
     iIntros (v) "HQ".

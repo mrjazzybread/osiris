@@ -16,9 +16,12 @@ Section proof.
 
   Definition init_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
-      (∀ `(_ : Encode A) `(_ : Inhabited A) (Φ : Z → A → iProp Σ) ,
+      (∀ (A : Type) (_ : Encode A) (_ : Inhabited A) (Φ : Z → A → iProp Σ) ,
          ⌜0 ≤ n ≤ max_array⌝ -∗
-         □ iSpec τ[Z] f (λ i m, imp m {{ Φ i }}) -∗
+         (* [f] is a function [Z → A], such that [f i] satisfies [Φ i]. *)
+         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ Φ i }}) -∗
+         (* Calling [init f n] returns an array [a] such that [ownArray a xs],
+            and such that [Φ i] holds for the [i]'th element of xs. *)
          imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ ownArray a xs ∗
                                      [∗ list] i↦x ∈ xs, Φ i x }})%I.
 
@@ -36,7 +39,7 @@ Section proof.
     iApply imp_please; iNext.
     iApply imp_EIfThenElse.
     { iApply (imp_EOpEq_Z _ _ _ n 0). representable. representable.
-      - iApply imp_EPath. iApply imp_ret; auto.
+      - iApply imp_EPath; auto.
       - iApply imp_EInt. }
     iIntros ([|]) "%Heq0".
 
@@ -54,7 +57,7 @@ Section proof.
 
     iApply imp_EIfThenElse.
     { iApply (imp_EOpLt_Z _ _ _ n 0). representable. representable.
-      - iApply imp_EPath. iApply imp_ret; auto.
+      - iApply imp_EPath; auto.
       - iApply imp_EInt. }
     iIntros ([|]) "%Hlt0".
 
@@ -64,11 +67,11 @@ Section proof.
     iApply (imp_ELet_var (B:=array)).
     { (* Subgoal: [make l (f 0)] *)
       iApply (imp_EArrayMake (A:=A) n). iPureIntro; assumption.
-      iApply imp_EPath. iApply imp_ret; eauto.
+      iApply imp_EPath; eauto.
       { iApply (imp_EApp τ[Z]).
-        iApply imp_EPath. iApply imp_ret; auto.
+        iApply imp_EPath; auto.
         iApply imp_EInt.
-        iIntros (?) "-> %m $". } }
+        iIntros (?) "-> %m H". iApply "H". iPureIntro; lia. } }
     iIntros (res) "(%x & HΦx & #Harr & Hslice)".
 
     (* Subgoal: [for i = 1 to ... done; res]. *)
@@ -84,7 +87,7 @@ Section proof.
       representable. representable.
       { iApply imp_EInt. }
       { iApply (imp_EIntSub).
-        - instantiate (1:=(λ i,⌜i=n⌝)%I). iApply imp_EPath. iApply imp_ret; auto.
+        - instantiate (1:=(λ i,⌜i=n⌝)%I). iApply imp_EPath; auto.
         - iApply imp_EInt.
         - iIntros "!> %% -> ->". auto. }
       { rewrite unroll_replicate; last lia.
@@ -94,18 +97,14 @@ Section proof.
 
       iIntros "!>" (i' Hbound) "(Hslice1 & %xs & %Hlenxs & Hslice2 & HΦs)".
       iApply (imp_EArraySet2 (A:=A)).
-      { iApply imp_EPath.
-        instantiate (1:=(λ a', ⌜a'=res⌝)%I).
-        iApply imp_ret; auto. }
-      { iApply imp_EPath.
-        instantiate (1:=(λ i, ⌜i = i'⌝)%I).
-        iApply imp_ret; auto. }
+      { instantiate (1:=(λ a', ⌜a'=res⌝)%I).
+        iApply imp_EPath; auto. }
+      { instantiate (1:=(λ i, ⌜i = i'⌝)%I).
+        iApply imp_EPath; auto. }
       { iApply (imp_EApp τ[Z]).
-        iApply imp_EPath. iApply imp_ret; auto.
-        iApply imp_EPath.
-        instantiate (1:=(λ i, ⌜i = i'⌝)%I).
-        iApply imp_ret; auto.
-        iIntros "% -> % $". }
+        iApply imp_EPath; auto.
+        instantiate (1:=(λ i, ⌜i = i'⌝)%I). iApply imp_EPath; auto.
+        iIntros "% -> % H". iApply "H"; iPureIntro; lia. }
 
       iIntros (?? y) "-> -> HΦ".
       iFrame "#".
@@ -118,29 +117,28 @@ Section proof.
       - iPureIntro. rewrite length_app length_replicate.
         lia.
       - iIntros "Hslice".
-        iPoseProof (split_Slice (i'+1) _ _ _ _ (xs ++ [y]) with "Hslice")
-          as "[Hslice0 Hslicei]".
+        iPoseProof (split_Slice (i'+1) _ _ _ _ (xs ++ singleton y)
+                     with "Hslice") as "[Hslice0 Hslicei]".
         { rewrite unroll_replicate; last lia.
-          rewrite cons_is_append. rewrite app_assoc.
-          rewrite insert_app_l; last (rewrite length_app length_singleton; lia).
+          rewrite cons_is_append app_assoc.
+          rewrite insert_app_l; last (length; lia).
           rewrite insert_app_r; last lia.
           rewrite insert_singleton. case_decide; last lia.
           reflexivity. }
-        { rewrite length_app length_singleton. lia. }
-        replace (n - (i' + 1)) with (n - i' -1) by lia.
+        { length. lia. }
+        replace (n - (i' + 1)) with (n - i' - 1) by lia.
         iFrame.
-        iSplit; first (iPureIntro; rewrite length_app length_singleton; lia).
+        iSplit; first (iPureIntro; length; lia).
         take.
         rewrite big_sepL_snoc. iFrame.
         rewrite /length in Hlenxs. rewrite Hlenxs.
         iApply "HΦ". }
 
     iIntros "(Hslempty & %xs & %Hlen & Hslice & HΦs)".
-    iApply imp_EPath. iApply imp_ret; first encode.
+    iApply imp_EPath; first auto.
     take.
-    iFrame. rewrite length_replicate. rewrite Hlen.
+    iFrame. length. rewrite Hlen.
     replace (n - 1 + 1) with n by lia.
-    assert (n `max` 0 = n) as -> by lia.
     assert (n `max` 1 = n) as -> by lia.
     by iFrame "#".
   Qed.

@@ -14,12 +14,14 @@ Section imp_rules_expr.
 
   (** * EPath : path → expr *)
 
-  Lemma imp_EPath {ζ} η p :
-    imp lookup_path η p @ E <|Ψ|> {{ Φ }} -∗
+  Lemma imp_EPath {ζ} (a : A) η p :
+    lookup_path η p = ret #a →
+    Φ a -∗
     imp eval η (EPath p) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H /=". simpl_eval.
-    iApply (imp_widen with "H").
+    iIntros "%Hlookup HΦ". simpl_eval.
+    iApply imp_widen.
+    rewrite Hlookup. iApply imp_ret; auto.
   Qed.
 
   (** * EAnonFun : anonfun → expr *)
