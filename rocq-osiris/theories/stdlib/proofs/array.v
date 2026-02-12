@@ -90,8 +90,7 @@ Section proof.
         - instantiate (1:=(λ i,⌜i=n⌝)%I). iApply imp_EPath; auto.
         - iApply imp_EInt.
         - iIntros "!> %% -> ->". auto. }
-      { rewrite unroll_replicate; last lia.
-        rewrite cons_is_append.
+      { rewrite (unroll_replicate x n 1); last lia.
         iPoseProof (split_Slice 1 with "Hslice") as "[Hslice1 Hslice2]".
         reflexivity. done. iFrame. auto. }
 
@@ -117,14 +116,10 @@ Section proof.
       - iPureIntro. rewrite length_app length_replicate.
         lia.
       - iIntros "Hslice".
-        iPoseProof (split_Slice (i'+1) _ _ _ _ (xs ++ singleton y)
+        iPoseProof (split_Slice (i'+1) _ _ _ _ (xs ++ singleton y) (replicate (n - i' - 1) x)
                      with "Hslice") as "[Hslice0 Hslicei]".
-        { rewrite unroll_replicate; last lia.
-          rewrite cons_is_append app_assoc.
-          rewrite insert_app_l; last (length; lia).
-          rewrite insert_app_r; last lia.
-          rewrite insert_singleton. case_decide; last lia.
-          reflexivity. }
+        { insert. rewrite app_assoc.
+          f_equal. f_equal. lia. }
         { length. lia. }
         replace (n - (i' + 1)) with (n - i' - 1) by lia.
         iFrame.

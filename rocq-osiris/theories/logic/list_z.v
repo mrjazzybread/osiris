@@ -424,6 +424,13 @@ Proof.
   intros. unfold seg. rewrite length_take, length_drop by lia. lia.
 Qed.
 
+Lemma length_fmap {A'} xs (g : A → A') :
+  length (g <$> xs) = length xs.
+Proof.
+  unfold length.
+  apply inj_eq. apply length_fmap.
+Qed.
+
 Lemma app_inj_1 xs1 ys1 xs2 ys2 :
   length xs1 = length ys1 →
   xs1 ++ xs2 = ys1 ++ ys2 →
@@ -461,13 +468,6 @@ Proof.
     apply Heq. lia. (* phew *)
 Qed.
 
-Lemma length_fmap {A'} xs (g : A → A') :
-  length (g <$> xs) = length xs.
-Proof.
-  unfold length.
-  apply inj_eq. apply length_fmap.
-Qed.
-
 End Length.
 
 Global Hint Rewrite
@@ -483,6 +483,7 @@ Global Hint Rewrite
   @length_take
   @length_drop
   @length_seg
+  @length_fmap
 : length.
 
 (* The tactic [length] simplifies applications of the form [length _]
@@ -867,6 +868,7 @@ Global Hint Rewrite
   @list_lookup_insert_ne
   @list_lookup_delete_lt
   @list_lookup_delete_ge
+  @list_lookup_fmap
   @lookup_take_lt
   @lookup_take_ge
   @lookup_drop
@@ -1549,6 +1551,96 @@ Ltac seg :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* Properties of [init]. *)
+
+Section init.
+
+Context {A : Type}.
+Implicit Types x : A.
+Implicit Types f : Z → A.
+
+Lemma init_nil n f :
+  n ≤ 0 →
+  init n f = [].
+Proof.
+  intros Hn.
+  pose proof (length_init n f) as Hlen.
+  assert (n `max` 0 = 0) as Hzero by lia.
+  rewrite Hzero in Hlen.
+  apply nil_length_inv in Hlen as ->.
+  reflexivity.
+Qed.
+
+Lemma init_singleton f :
+  init 1 f = singleton (f 0).
+Proof.
+  unfold init.
+  case_decide; first lia.
+  reflexivity.
+Qed.
+
+End init.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Properties of [replicate]. *)
+
+Section replicate.
+
+Variable A : Type.
+Implicit Types x : A.
+
+Lemma unroll_replicate x n i :
+  0 ≤ i ≤ n  →
+  replicate n x = replicate i x ++ replicate (n - i) x.
+Proof.
+  intros Hbounds.
+  apply (list_eq_same_length _ _ n).
+  - length. lia.
+  - length. lia.
+  - intros i' Hbounds'.
+    case (decide (i' < i)); intros Hi'; by lookup.
+Qed.
+
+Lemma replicate_nil {B : Type} (x : B) n :
+  n ≤ 0 →
+  replicate n x = [].
+Proof.
+  intros Hn.
+  unfold replicate.
+  apply init_nil; assumption.
+Qed.
+
+Lemma replicate_singleton x :
+  replicate 1 x = singleton x.
+Proof.
+  unfold replicate.
+  apply init_singleton.
+Qed.
+
+Lemma fmap_replicate {A'} x n (g : A → A') :
+  g <$> (replicate n x) = replicate n (g x).
+Proof.
+  case (decide (n > 0)).
+  - intros Hpos.
+    apply (list_eq_same_length _ _ n).
+    + length. reflexivity.
+    + length. reflexivity.
+    + intros i Hbounds.
+      lookup. reflexivity.
+  - intros Hneg.
+    rewrite !replicate_nil by lia.
+    reflexivity.
+Qed.
+
+End replicate.
+
+Arguments unroll_replicate {A}.
+Arguments replicate_nil {A} : rename.
+Arguments fmap_replicate {A A'}.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Properties of [insert]. *)
 
 Section insert.
@@ -1619,51 +1711,45 @@ Proof.
   - apply insert_invalid. rewrite length_singleton. lia.
 Qed.
 
+Lemma insert_replicate n i x y :
+  0 ≤ i < n ∧ n > 0 →
+  <[i:=y]> (replicate n x) = replicate i x ++ singleton y ++ replicate (n - i - 1) x.
+Proof.
+  intros Hbound.
+  rewrite (unroll_replicate x n i) by lia.
+  rewrite insert_app.
+  case_decide; rewrite length_replicate in H.
+  - lia.
+  - f_equal. length.
+    rewrite (unroll_replicate x (n - i) 1) by lia.
+    rewrite insert_app_l by (length; lia).
+    rewrite replicate_singleton.
+    rewrite insert_singleton.
+    case_decide; last lia.
+    reflexivity.
+Qed.
+
 End insert.
 
-(* -------------------------------------------------------------------------- *)
+Global Hint Rewrite
+  @cons_is_append
+  @app_nil_r
+  @app_nil_l
+: insert.
 
-(* Properties of [replicate]. *)
+Global Hint Rewrite
+  @lookup_None_invalid_2
+  @insert_app_l
+  @insert_app_r
+  @insert_singleton
+  @insert_replicate
+  @replicate_nil
+  @list_lookup_fmap
+  using (length; lia)
+: insert.
 
-Section replicate.
+(* The tactic [insert] simplifies a lookup [<[i:=x]> xs] when this does not
+   introduce a conditional expression. *)
 
-Context {A : Type}.
-Implicit Types x : A.
-
-Lemma unroll_replicate x n :
-  n >= 1 → replicate n x = x :: replicate (n - 1) x.
-Proof.
-  intros Hgeq.
-  unfold replicate, init, list_basics_extra.init.
-  case_decide; first lia.
-  case_decide; first lia.
-  assert (Z.to_nat n = S (Z.to_nat (n - 1))) as -> by lia.
-  generalize (Z.to_nat (n - 1)). intros k. simpl. f_equal.
-  generalize 1%nat. generalize 0%nat.
-  induction k.
-  - done.
-  - intros. simpl.
-    by erewrite IHk.
-Qed.
-
-Lemma fmap_replicate {A'} x n (g : A → A') :
-  g <$> (replicate n x) = replicate n (g x).
-Proof.
-  unfold replicate.
-  case (decide (n < 0)).
-  - intros Hneg.
-    assert (forall {A} (x : A), init n (fun _ => x) = []) as Heqinit.
-    { intros. apply nil_length_inv. rewrite length_init. lia. }
-    rewrite (Heqinit _ x), (Heqinit _ (g x)).
-    reflexivity.
-  - intros Hpos.
-    apply (list_eq_same_length _ _ n).
-    + rewrite length_fmap. rewrite length_init. lia.
-    + rewrite length_init. lia.
-    + intros i Hi.
-      rewrite list_lookup_fmap.
-      do 2 (rewrite lookup_init_lt; last assumption).
-      reflexivity.
-Qed.
-
-End replicate.
+Global Ltac insert :=
+  autorewrite with insert.
