@@ -149,6 +149,14 @@ Global Notation clip k i j :=
    [cons], so, for example, [xs ++ singleton y ++ zs] should be preferred to
    [xs ++ y :: zs]. This is more uniform. *)
 
+(* We remark that in the case of lists, [insert] is really an update,
+   not an insertion. We keep the name [insert] for compatibility with
+   list_basics; but we name the simplification tactic [update]. *)
+
+(* [take] and [drop] are special cases of [seg]. We advise the user
+   to systematically prefer [seg] to [take] and [drop] so as to work
+   with fewer functions and lemmas. *)
+
 Definition singleton {A} (x : A) := [x].
 
 Definition length {A} (xs : list A) : Z :=
@@ -1754,8 +1762,8 @@ Global Hint Rewrite
   using (length; lia)
 : insert.
 
-(* The tactic [insert] simplifies a lookup [<[i:=x]> xs] when this does not
+(* The tactic [update] simplifies an update [<[i:=x]> xs] when this does not
    introduce a conditional expression. *)
 
-Global Ltac insert :=
+Global Ltac update :=
   autorewrite with insert.
