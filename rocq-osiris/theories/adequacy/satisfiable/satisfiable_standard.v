@@ -43,25 +43,6 @@ Section satisfiable_basic_properties.
     revert HP. by uPred.unseal.
   Qed.
 
-  (** disjunction holds only classically *)
-  Lemma sat_standard_or (P Q: uPred M) :
-    (∀ P, P ∨ ¬ P) →
-    sat_standard (P ∨ Q) → sat_standard P ∨ sat_standard Q.
-  Proof.
-    intros xm Hsat.
-    destruct (xm (∃ n, ∀ r, ✓{n} r → ¬ uPred_holds P n r)) as [HP|HP].
-    - right. intros n. destruct HP as [m HP].
-      destruct (Hsat (max n m)) as [r [Hr HPQ]].
-      revert HPQ. uPred.unseal. intros [HP'|HQ].
-      + exfalso. eapply HP; eauto using uPred_mono, cmra_validN_le with lia.
-        eapply cmra_validN_le. apply Hr. admit.
-      + exists r. constructor; eauto using uPred_mono, cmra_validN_le with lia.
-        eapply cmra_validN_le. apply Hr. admit.
-    - left. intros n. destruct (xm (∃ r : M, ✓{n} r ∧ uPred_holds P n r)) as [|HNP]; first done.
-      exfalso. eapply HP. exists n. intros r Hr HP'. eapply HNP.
-      exists r. split; done.
-  Admitted.
-
   (** resources *)
   Lemma sat_standard_valid_own (r: M) : ✓ r → sat_standard (uPred_ownM r).
   Proof.

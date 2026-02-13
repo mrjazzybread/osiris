@@ -93,14 +93,6 @@ Section satisfiable_properties.
     destruct m; [eapply sat_global_later|eapply sat_standard_later].
   Qed.
 
-  (* NOTE: The disjunction rule can only be used in the [Running] phase. *)
-  Lemma sat_or (P Q: iProp Σ) :
-    (∀ P, P ∨ ¬ P) →
-    sat Running (P ∨ Q) → sat Running P ∨ sat Running Q.
-  Proof.
-    rewrite sat_eq /sat_def. eapply sat_standard_or.
-  Qed.
-
   (* NOTE: This lemma would also hold for the [Running] mode,
      but the lemma [sat_end_alloc] can always be used to transition
      from [Alloc] to [Running] mode. *)
@@ -193,16 +185,6 @@ Section satisfiable_frame_properties.
   Proof.
     rewrite SAT_eq /SAT_def.
     intros Hsat. eapply sat_later, sat_mono, Hsat.
-    iIntros "($ & $ & $)".
-  Qed.
-
-  Lemma SAT_or F Rs (P Q: iProp Σ):
-    (∀ P, P ∨ ¬ P) →
-    SAT Running F Rs (P ∨ Q) → SAT Running F Rs P ∨ SAT Running F Rs Q.
-  Proof.
-    rewrite SAT_eq /SAT_def.
-    intros xm Hsat. eapply sat_or; first apply xm.
-    eapply sat_mono, Hsat.
     iIntros "($ & $ & $)".
   Qed.
 
