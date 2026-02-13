@@ -1664,9 +1664,10 @@ Lemma replicate_nil n x :
   replicate n x = [].
 Proof. unfold replicate. eauto using init_nil. Qed.
 
-Lemma replicate_singleton x :
-  replicate 1 x = singleton x.
-Proof. reflexivity. Qed.
+Lemma replicate_singleton x i :
+  i = 1 →
+  replicate i x = singleton x.
+Proof. intros ->. reflexivity. Qed.
 
 (* Splitting [replicate n x] into two segments. *)
 
@@ -1710,6 +1711,7 @@ Global Hint Rewrite
   Z.sub_0_r Z.sub_diag
   app_nil_l app_nil_r
   @replicate_nil
+  @replicate_singleton
   @insert_replicate
   using (length; lia)
 : replicate.
@@ -1724,7 +1726,7 @@ Lemma insert_replicate_nil {A} n (x y : A) :
   0 < n →
   <[0 := y]> (replicate n x) =
   singleton y ++ replicate (n-1) x.
-Proof. intros. replicate. eauto. Qed.
+Proof. intros. replicate. reflexivity. Qed.
 
 Lemma insert_replicate_last {A} n (x y : A) :
   0 < n →
@@ -1835,6 +1837,7 @@ Global Hint Rewrite
   @insert_app_r
   @insert_replicate
   @replicate_nil
+  @replicate_singleton
   @list_lookup_fmap
   using (length; lia)
 : insert.

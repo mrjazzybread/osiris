@@ -77,11 +77,11 @@ Section proof.
         iApply imp_EInt.
         iIntros (?) "-> %m H". iApply "H". iPureIntro; lia.
       - iIntros (?? ->) "HΦ %m Hm". iApply "Hm"; [ iPureIntro; assumption | iExact "HΦ" ]. }
-    iIntros (res) "(%x & HΦx & #Harr & Hslice)".
+    iIntros (res) "(%x & HΦx & HownArr)".
+    iDestruct "HownArr" as "(#Harr & Hslice)". length.
 
     (* Subgoal: [for i = 1 to ... done; res]. *)
     iApply (imp_ESeq with "[Hslice HΦx]").
-
     { (* Subgoal: [for i = 1 to ... done]. *)
       iApply (imp_EFor
                 (λ i,
@@ -95,12 +95,14 @@ Section proof.
         - instantiate (1:=(λ i,⌜i=n⌝)%I). iApply imp_EPath; auto.
         - iApply imp_EInt.
         - iIntros "!> %% -> ->". auto. }
-      { rewrite (unroll_replicate x n 1); last lia.
+      { (* Prove that the loop invariant holds at index [1]. *)
+        rewrite (split_replicate x n 1); last lia.
         iPoseProof (split_Slice 1 with "Hslice") as "[Hslice1 Hslice2]".
         reflexivity. done. iFrame. auto. }
 
       iIntros "!>" (i' Hbound) "(Hslice2 & %xs & %Hlenxs & Hslice1 & HΦs)".
-      rewrite (unroll_replicate x (n - i') 1); last lia. rewrite replicate_singleton.
+      rewrite (split_replicate x (n - i') 1); last lia.
+      replicate.
       iPoseProof (split_Slice with "Hslice2") as "[Hslice Hslice2]"; first reflexivity.
       length. reflexivity.
       iCombine ("Hslice1 Hslice") as "Hslice1".
@@ -121,7 +123,7 @@ Section proof.
         { iPureIntro; length; lia. }
         iApply (imp_mono_ret with "Hm").
         iIntros "!>" (_) "(% & HΦ & Hslice1)".
-        insert.
+        update.
         replace (n - (i' + 1)) with (n - i' - 1) by lia.
         iFrame. length.
         iSplit; first (iPureIntro; lia).
