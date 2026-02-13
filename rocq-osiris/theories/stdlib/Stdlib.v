@@ -25,14 +25,14 @@ Local Transparent encode.
 
 Local Notation VClo1 body :=
   (
-    VClo [("Externals", Externals)] $
+    VClo [] $
       AnonFun "x" $
       (body (EVar "x"))
   ).
 
 Local Notation VClo2 body :=
   (
-    VClo [("Externals", Externals)] $
+    VClo [] $
       AnonFun "x" $
       EFun1Var "y" $
       (body (EVar "x") (EVar "y"))

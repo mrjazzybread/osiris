@@ -27,7 +27,6 @@ Extract Constant int.max_array_positive => "()".
 Extract Constant int.max_array_length => "()".
 Extract Constant PrimFloat.float => "Float.t".
 (* External compare are currently unsupported *)
-Extract Constant Externals__compare => "VClo ([], AnonFun (EmptyString, EUnsupported))".
 Extract Constant Stdlib__compare => "VClo ([], AnonFun (EmptyString, EUnsupported))".
 
 Separate Extraction

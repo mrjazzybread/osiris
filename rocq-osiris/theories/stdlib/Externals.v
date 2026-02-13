@@ -4,68 +4,89 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-From osiris Require Import osiris.
+From osiris.lang Require Import type_nel encode int notations.
+From osiris.program_logic Require Import program_logic.
+From osiris.logic Require Import list_z.
 
-Local Notation VClo1 body :=
+Local Notation VEta1 body :=
   (
     VClo [] $
          AnonFun "x" $
-         body (EVar "x")
+         body (EPath [ "x" ])
   ).
-Local Notation VClo2 body :=
+Local Notation VEta2 body :=
   (
     VClo [] $
          AnonFun "x" $
-         EFun1Var "y" $
-         (body (EVar "x") (EVar "y"))
+         EAnonFun (AnonFun "y"
+         (body (EPath [ "x" ]) (EPath [ "y" ])))
   ).
-Local Notation dummy := (VClo [] $ AnonFun "_" EUnit).
-
-Local Infix ":::" := (concat).
-
+Local Notation VEta3 body :=
+  (
+    VClo [] $
+         AnonFun "x" $
+         EAnonFun (AnonFun "y" $
+         EAnonFun (AnonFun "z" $
+                     (body (EPath [ "x" ]) (EPath [ "y" ]) (EPath [ "z" ]))))
+  ).
+Local Notation dummy := (VClo [] $ AnonFun "_" EUnsupported).
 
 Section ExternalsDef.
-  (* This section describes the supported and yet to be supported external
-     functions. *)
 
-  (* ------------------------------------------------------------------------ *)
-  (* Real external functions; they are all dummies for now. *)
-  Local Fixpoint mkdummy (l : list string) : env :=
-    match l with
-    | [] => []
-    | h :: l =>
-        (h, dummy) :: (mkdummy l)
-    end.
-
-  (* None of them are supported yet. They are replaced by dummy values. *)
-  Definition externals_real : env :=
-    mkdummy [ "caml_format_int" ;
-              "caml_hash" ;
-              "caml_register_named_value" ;
-              "register_named_value" ;
-
-              "%makemutable" ; "field0cheat" ; "%setfield0" ; "%incr" ; "%decr"
-      ].
-
+  Context `{!osirisGS Σ}.
 
   (* ------------------------------------------------------------------------ *)
   (* Content of Externals used in [stdlib/int.ml]. *)
 
-  Definition Externals__negint : val := VClo1 EIntNeg.
-  Definition Externals__addint : val := VClo2 EIntAdd.
-  Definition Externals__subint : val := VClo2 EIntSub.
-  Definition Externals__mulint : val := VClo2 EIntMul.
-  Definition Externals__divint : val := VClo2 EIntDiv.
-  Definition Externals__modint : val := VClo2 EIntMod.
-  Definition Externals__succint : val :=
-    VClo1 (fun x => EIntAdd x (EInt 1)).
-  Definition Externals__predint : val :=
-    VClo1 (fun x => EIntSub x (EInt 1)).
+  Definition Externals__negint : val := VEta1 EIntNeg.
+  Definition Externals__addint : val := VEta2 EIntAdd.
 
-  Definition Externals__lessthan : val := VClo2 EOpLt.
-  Definition Externals__greaterthan : val := VClo2 EOpGt.
-  Definition Externals__lessequal : val := VClo2 EOpLe.
-  Definition Externals__greaterequal : val := VClo2 EOpGe.
+  Lemma add_spec :
+    ⊢ iSpec τ[Z;Z] Externals__addint (λ i j (m : microvx), imp m {{ λ (n : Z), ⌜(n = i + j)%Z⌝ }}).
+  Proof.
+    rewrite iSpec_equation_2.
+    iIntros (i).
+    iApply imp_please. iNext.
+    iApply imp_EAnon.
+    iIntros (j). iApply imp_please. iNext.
+    iApply imp_EIntAdd.
+    - instantiate (1:=(λ n', ⌜n' = i⌝)%I).
+      iApply imp_EPath; auto.
+    - instantiate (1:=(λ n', ⌜n' = j⌝)%I).
+      iApply imp_EPath; auto.
+    - iIntros "!>" (??) "-> ->". done.
+  Qed.
+
+  Definition Externals__subint : val := VEta2 EIntSub.
+
+  Lemma sub_spec :
+    ⊢ iSpec τ[Z;Z] Externals__subint (λ i j (m : microvx), imp m {{ λ (n : Z), ⌜(n = i - j)%Z⌝ }}).
+  Proof.
+    rewrite iSpec_equation_2.
+    iIntros (i).
+    iApply imp_please. iNext.
+    iApply imp_EAnon.
+    iIntros (j). iApply imp_please. iNext.
+    iApply imp_EIntSub.
+    - instantiate (1:=(λ n', ⌜n' = i⌝)%I).
+      iApply imp_EPath; auto.
+    - instantiate (1:=(λ n', ⌜n' = j⌝)%I).
+      iApply imp_EPath; auto.
+    - iIntros "!>" (??) "-> ->". done.
+  Qed.
+
+  Definition Externals__mulint : val := VEta2 EIntMul.
+  Definition Externals__divint : val := VEta2 EIntDiv.
+  Definition Externals__modint : val := VEta2 EIntMod.
+  Definition Externals__succint : val :=
+    VEta1 (fun x => EIntAdd x (EInt 1)).
+  Definition Externals__predint : val :=
+    VEta1 (fun x => EIntSub x (EInt 1)).
+
+  Definition Externals__lessthan : val := VEta2 EOpLt.
+  Definition Externals__greaterthan : val := VEta2 EOpGt.
+  Definition Externals__lessequal : val := VEta2 EOpLe.
+  Definition Externals__greaterequal : val := VEta2 EOpGe.
 
   (* The following names are used in [stdlib/int.ml], but they are not supported
      yet: - %andint
@@ -77,54 +98,13 @@ Section ExternalsDef.
           - %floatofint
           - %intoffloat
           - caml_format_int
-          - caml_hash
-     They are replaced by a dummy function. *)
-  Definition Externals__andint : val := dummy.
-  Definition Externals__orint : val := dummy.
-  Definition Externals__xorint : val := dummy.
-  Definition Externals__lslint : val := dummy.
-  Definition Externals__asrint : val := dummy.
-  Definition Externals__lsrint : val := dummy.
-  Definition Externals__floatofint : val := dummy.
-  Definition Externals__intoffloat : val := dummy.
-
-  Definition externals_int : env :=
-    [("%negint", Externals__negint);
-     ("%addint", Externals__addint);
-     ("%subint", Externals__subint);
-     ("%mulint", Externals__mulint);
-     ("%divint", Externals__divint);
-     ("%modint", Externals__modint);
-     ("%succint", Externals__succint);
-     ("%predint", Externals__predint);
-     ("%lessthan", Externals__lessthan);
-     ("%greaterthan", Externals__greaterthan);
-     ("%lessequal", Externals__lessequal);
-     ("%greaterequal", Externals__greaterequal);
-     ("%andint", Externals__andint);
-     ("%orint", Externals__orint);
-     ("%xorint", Externals__xorint);
-     ("%lslint", Externals__lslint);
-     ("%asrint", Externals__asrint);
-     ("%lsrint", Externals__lsrint);
-     ("%floatofint", Externals__floatofint);
-     ("%intoffloat", Externals__intoffloat)].
+          - caml_hash *)
 
   (* ------------------------------------------------------------------------ *)
 
   (* On Booleans. *)
 
-  Definition Externals__boolnot : val := VClo1 EBoolNeg.
-
-  Definition externals_bool : env :=
-    [("%boolnot", Externals__boolnot);
-     (* [%seqand], and [%seqor] are *not* real functions!
-        These are dummy values, which will never be used. *)
-
-     (* The translator should replace any calls to [Stdlib!.&&] and [Stdlib!.||]
-        by the correct AST construct, [EBoolConj] (resp. [EBoolDisj]). *)
-     ("%sequand", dummy);
-     ("%sequor", dummy)].
+  Definition Externals__boolnot : val := VEta1 EBoolNeg.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -148,50 +128,106 @@ Section ExternalsDef.
     VClo [] $ AnonFun "_" $ EUnit.
 
   (* Comparison. *)
-  Definition Externals__eq : val := VClo2 EOpEq.
-  Definition Externals__ne : val := VClo2 EOpNe.
-  Axiom Externals__compare : val.
-
-  Definition externals_misc : env :=
-    [("%revapply", Externals__revapply);
-     ("%apply", Externals__apply);
-     ("%ignore", Externals__ignore);
-     ("%identity", Externals__identity);
-     ("%equal", Externals__eq);
-     ("%notequal", Externals__ne);
-     ("%eq", Externals__eq);
-     ("%noteq", Externals__ne);
-     ("%compare", Externals__compare)].
+  Definition Externals__eq : val := VEta2 EOpEq.
+  Definition Externals__ne : val := VEta2 EOpNe.
 
   (* ------------------------------------------------------------------------ *)
 
   (* On constructed types. *)
 
   Definition Externals__field0 : val :=
-    VClo1 (λ (e : expr),
+    VEta1 (λ (e : expr),
              ELet1 (PPair (PVar "x") PAny) e $
                    EVar "x").
 
   Definition Externals__field1 : val :=
-    VClo1 (λ (e : expr),
+    VEta1 (λ (e : expr),
              ELet1 (PPair PAny (PVar "x")) e $
                    EVar "x").
 
-  Definition externals_pairs :=
-    [("%field0", Externals__field0); ("%field1", Externals__field1)].
-
   (* ------------------------------------------------------------------------ *)
+  (* Content of Externals used in [stdlib/array.ml]. *)
 
-  Definition Externals :=
-    VStruct
-      (concat
-         [externals_real;
-          externals_int;
-          externals_bool;
-          externals_misc;
-          externals_pairs]).
+  Definition Externals__array_length : val := VEta1 EArrayLength.
 
-  Definition HasExternals (η : env) : Prop :=
-    lookup_name η "Externals" = Ret Externals.
+  Lemma array_length_spec :
+    ⊢ iSpec τ[array] Externals__array_length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }}).
+  Proof.
+    rewrite iSpec_equation_1.
+    iIntros (a n) "#Harr".
+    iApply imp_please. iNext.
+    iApply imp_EArrayLength. iApply imp_EPath; auto.
+  Qed.
+
+  Definition Externals__array_get : val := VEta2 EArrayGet.
+
+  Lemma array_get_spec :
+    ⊢ iSpec τ[array;Z] Externals__array_get
+        (λ a i m,
+           ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) n dq j (xs : list A),
+           isArray a n -∗
+           ▷ isSlice dq a j xs -∗
+           ⌜j ≤ i⌝ -∗
+           ⌜i - j < length xs⌝ -∗
+           imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ isSlice dq a j xs }}).
+  Proof.
+    rewrite iSpec_equation_2.
+    iIntros (a). iApply imp_please. iNext.
+    iApply imp_EAnon.
+    iIntros (i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
+    iApply imp_please. iNext.
+    iApply (imp_EArrayGet with "[] [] [] Harr Hslice").
+    - iPureIntro; eassumption.
+    - iPureIntro; assumption.
+    - auto.
+    - iApply imp_EPath; auto.
+    - iApply imp_EPath; auto.
+  Qed.
+
+  Definition Externals__array_set : val := VEta3 EArraySet.
+
+  Lemma array_set_spec `{Encode A}:
+    ⊢ iSpec τ[array;Z;A] Externals__array_set
+        (λ a i x m,
+           ∀ n j (xs : list A) Φ,
+           isArray a n -∗
+           ▷ isSlice (DfracOwn 1) a j xs -∗
+           Φ x -∗
+           ⌜j ≤ i⌝ -∗
+           ⌜i - j < length xs⌝ -∗
+           imp m {{ λ (_ : unit), ∃ x, Φ x ∗ isSlice (DfracOwn 1) a j (<[i - j:=x]> xs) }}).
+  Proof.
+    rewrite iSpec_equation_2.
+    iIntros (a). iApply imp_please. iNext.
+    iApply imp_EAnon.
+    iIntros (i x n j xs Φ) "#Harr Hslice HΦ %Hle %Hlt".
+    iApply imp_please. iNext.
+    iApply (imp_EArraySet with "[] [] Harr Hslice").
+    - iPureIntro; eassumption.
+    - iPureIntro; assumption.
+    - iApply imp_EPath; auto.
+    - iApply imp_EPath; auto.
+    - iApply imp_EPath; auto.
+  Qed.
+
+  Definition Externals__array_make : val := VEta2 EArrayMake.
+
+  Lemma array_make_spec `{Encode A} :
+    ⊢ iSpec τ[Z; A] Externals__array_make
+        (λ n x m,
+           ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
+                Φ x -∗
+                imp m {{ λ a, ∃ x, Φ x ∗ ownArray a (replicate n x) }}).
+  Proof.
+    rewrite iSpec_equation_2.
+    iIntros (n). iApply imp_please. iNext.
+    iApply imp_EAnon.
+    iIntros (x Φ) "%hbounds HΦ".
+    iApply imp_please; iNext.
+    iApply imp_EArrayMake.
+    - iPureIntro; assumption.
+    - iApply imp_EPath; auto.
+    - iApply imp_EPath; auto.
+  Qed.
 
 End ExternalsDef.

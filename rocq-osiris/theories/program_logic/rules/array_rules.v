@@ -328,7 +328,7 @@ Section array_resources.
      iApply "Hslice".
    Qed.
 
-   Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} a (k n : Z) (i j : Z) dq (xs : list A) x e1 e2 :
+   Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} a (n : Z) (i j : Z) dq (xs : list A) x e1 e2 :
      ⌜j ≤ i⌝ -∗
      ⌜i - j < length xs⌝ -∗
      ⌜xs !!! (i - j) = x⌝ -∗
@@ -350,7 +350,7 @@ Section array_resources.
      iIntros "!> $". done.
    Qed.
 
-   Lemma imp_EArraySet2 `{Encode A, Inhabited A} {Φ : unit → iProp Σ} {ζ}
+   Lemma imp_EArraySet2 `{Encode A} {Φ : unit → iProp Σ} {ζ}
      (Φ3 : A → iProp Σ) (Φ1 : array → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 e3 :
      imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, Φ1 a }} -∗
      imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ2 i }} -∗
@@ -398,8 +398,7 @@ Section array_resources.
      assert (¬ (i - j < 0)) as Heqf by lia.
 
      rewrite (signed_repr i); last representable.
-     assert (list_z.valid (i - j) xs) as Hvalid by lia.
-     pose proof (list_lookup_lookup_total_valid xs (i - j) Hvalid) as Hlookup.
+     pose proof (lookup_valid_is_Some xs (i - j) ltac:(lia)) as (x & Hlookup).
 
      (* [Decompose [xs] intl [xk ++ x :: _]. *)
      pose proof (list_elem_of_split_length xs (i - j) _ Hlookup)
@@ -450,7 +449,7 @@ Section array_resources.
      iApply "Hslice".
    Qed.
 
-   Lemma imp_EArraySet `{Encode A, Inhabited A} {ζ}
+   Lemma imp_EArraySet `{Encode A} {ζ}
      (Φ : A → iProp Σ) (i j n : Z) (a : array) xs e1 e2 e3 :
      ⌜j ≤ i⌝ -∗
      ⌜i - j < length xs⌝ -∗

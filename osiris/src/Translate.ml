@@ -887,6 +887,151 @@ and translate_record_field_def (label_desc, label_def) : fexpr option =
 
 (* -------------------------------------------------------------------------- *)
 
+(* External declarations. *)
+
+(* [translate_primitive_expr prim_name args] translates a primitive operation
+   applied to given argument expressions. This is used to build the body
+   of external declarations. *)
+
+and translate_primitive_expr prim_name args =
+  match prim_name, args with
+
+  (* Integers. *)
+
+  | "%negint", [e] ->
+      EIntNeg e
+  | "%addint", [e1; e2] ->
+      EIntAdd (e1, e2)
+  | "%subint", [e1; e2] ->
+      EIntSub (e1, e2)
+  | "%mulint", [e1; e2] ->
+      EIntMul (e1, e2)
+  | "%divint", [e1; e2] ->
+      EIntDiv (e1, e2)
+  | "%modint", [e1; e2] ->
+      EIntMod (e1, e2)
+  | "%predint", [e] ->
+      EIntSub (e, EInt 1)
+  | "%succint", [e] ->
+      EIntAdd (e, EInt 1)
+  | "%andint", [e1; e2] ->
+      EIntLand (e1, e2)
+  | "%orint", [e1; e2] ->
+      EIntLor (e1, e2)
+  | "%xorint", [e1; e2] ->
+      EIntLxor (e1, e2)
+  | "%lslint", [e1; e2] ->
+      EIntLsl (e1, e2)
+  | "%lsrint", [e1; e2] ->
+      EIntLsr (e1, e2)
+  | "%asrint", [e1; e2] ->
+      EIntAsr (e1, e2)
+
+  (* Structural equality and comparison. *)
+
+  | "%equal", [e1; e2] ->
+      EOpEq (e1, e2)
+  | "%notequal", [e1; e2] ->
+      EOpNe (e1, e2)
+  | "%lessthan", [e1; e2] ->
+      EOpLt (e1, e2)
+  | "%greaterthan", [e1; e2] ->
+      EOpGt (e1, e2)
+  | "%lessequal", [e1; e2] ->
+      EOpLe (e1, e2)
+  | "%greaterequal", [e1; e2] ->
+      EOpGe (e1, e2)
+
+  (* Physical equality. *)
+
+  | "%eq", [e1; e2] ->
+      EOpPhysEq (e1, e2)
+  | "%noteq", [e1; e2] ->
+      EBoolNeg (EOpPhysEq (e1, e2))
+
+  (* Booleans. *)
+
+  | "%boolnot", [e] ->
+      EBoolNeg e
+  | "%sequand", [e1; e2] ->
+      EBoolConj (e1, e2)
+  | "%sequor", [e1; e2] ->
+      EBoolDisj (e1, e2)
+
+  (* Functions. *)
+
+  | "%apply", [e1; e2] ->
+      EApp (e1, e2)
+  | "%revapply", [e1; e2] ->
+      EApp (e2, e1)
+  | "%identity", [e] ->
+      e
+
+  (* References. *)
+
+  | "%makemutable", [e] ->
+      ERef e
+  | "%setfield0", [e1; e2] ->
+      EStore (e1, e2)
+
+  (* Arrays. *)
+
+  | "%array_length", [e] ->
+      EArrayLength e
+  | "%array_safe_get", [e1; e2] ->
+      EArrayGet (e1, e2)
+  | "%array_safe_set", [e1; e2; e3] ->
+      EArraySet (e1, e2, e3)
+  | "%array_unsafe_get", [e1; e2] ->
+      EArrayGet (e1, e2)
+  | "%array_unsafe_set", [e1; e2; e3] ->
+      EArraySet (e1, e2, e3)
+  | "caml_array_make", [e1; e2] ->
+      EArrayMake (e1, e2)
+
+  (* Exceptions. *)
+
+  | "%raise", [e] ->
+      ERaise e
+
+  (* Effects. *)
+
+  | "%perform", [e] ->
+      EPerform e
+
+  | _, _ ->
+      raise Unrecognized
+
+(* [translate_external loc vd] translates an external declaration. The
+   primitive operation is wrapped in anonymous functions corresponding to
+   its arity. *)
+
+and translate_external loc (vd : Typedtree.value_description) : sitem option =
+  match vd.val_val.val_kind with
+  | Val_prim p ->
+      let x = Ident.name vd.val_id in
+      let arity = p.prim_arity in
+      let vars = List.init arity (fun i ->sprintf "__x%d" i) in
+      let args = map (fun s -> EPath [ s ]) vars in
+      begin try
+        (* Build the body by passing the arguments to the right primitive. *)
+        let body = translate_primitive_expr p.prim_name args in
+        (* Build the "eta-expanded" expression *)
+        let e =
+            List.fold_right
+                (fun s e -> EAnonFun (AnonFun (s, e)))
+                vars body
+        in
+        Some (IExternal (x, e))
+      with Unrecognized ->
+        ounsupported loc
+          (sprintf "external declaration for primitive %s" p.prim_name)
+      end
+  | _ ->
+      ounsupported loc "external declaration without primitive"
+
+(* -------------------------------------------------------------------------- *)
+
 (* Structure items. *)
 
 and translate_structure_item (item : structure_item) : sitem option =
@@ -908,12 +1053,8 @@ and translate_structure_item (item : structure_item) : sitem option =
         ounsupported loc "recursive definition of values"
       end
 
-  | Tstr_primitive _ ->
-      (* Declarations of external primitive operations are skipped. We do not
-         expect ordinary programs to contain such declarations. The OCaml
-         standard library does contain many such declarations; we give it
-         special treatment. *)
-     ounsupported loc "declaration of primitive operation"
+  | Tstr_primitive vd ->
+      translate_external loc vd
 
   | Tstr_type _ ->
       (* A type definition is silently ignored. *)
