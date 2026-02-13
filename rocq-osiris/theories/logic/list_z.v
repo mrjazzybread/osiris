@@ -319,19 +319,25 @@ Qed.
 
 End Valid.
 
-(* [invalid_lookup] proves that a lookup [xs !! i] yields [None]. *)
+(* At this point, [length] does nothing. *)
 
-Local Ltac invalid_lookup_hook :=
-  idtac.
+Global Ltac length :=
+  autorewrite with length.
 
-Local Ltac invalid_lookup :=
-  rewrite lookup_None_invalid_2 by (invalid_lookup_hook; lia).
+(* At this point, [lookup] can prove that a lookup [xs !! i] yields [None]. *)
+
+Global Hint Rewrite
+  @lookup_None_invalid_2
+  using (length; lia)
+: lookup.
+
+Global Ltac lookup :=
+  autorewrite with lookup.
 
 (* We can now improve [arith_refinement_hook]. *)
 
 Local Ltac arith_refinement_hook ::=
-  try subst;
-  repeat invalid_lookup.
+  try subst; lookup.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -441,8 +447,7 @@ Qed.
 Lemma length_fmap {A'} xs (g : A → A') :
   length (g <$> xs) = length xs.
 Proof.
-  unfold length.
-  apply inj_eq. apply length_fmap.
+  unfold length. rewrite length_fmap. eauto.
 Qed.
 
 Lemma app_inj_1 xs1 ys1 xs2 ys2 :
@@ -484,7 +489,20 @@ Qed.
 
 End Length.
 
+(* The tactic [listx i] proves that two lists are equal by checking that
+   they are extensionally equal: same length and same elements.
+   The parameter [i] is the name of the index that is looked up. *)
+
+Global Ltac listx i :=
+  eapply list_eq_same_length;
+  length;
+  [ eauto | eauto with lia | intros i ? ].
+
+(* The tactic [length] simplifies applications of the form [length _]
+   by using the following rewrite rules. *)
+
 Global Hint Rewrite
+  Z.sub_diag
   @length_nil
   @length_cons
   @length_app
@@ -500,21 +518,36 @@ Global Hint Rewrite
   @length_fmap
 : length.
 
-(* The tactic [length] simplifies applications of the form [length _]
-   by using the rewrite rules above. *)
-
-Ltac length :=
-  autorewrite with length.
-
 Global Hint Rewrite
   Z.min_l Z.min_r Z.max_l Z.max_r
   using (length; lia)
 : length.
 
-(* [length] is used to improve [invalid_lookup]. *)
+(* The tactic [lookup] includes the same rewrite rules as [length],
+   plus more. *)
 
-Ltac invalid_lookup_hook ::=
-  length.
+Global Hint Rewrite
+  Z.sub_diag
+  @length_nil
+  @length_cons
+  @length_app
+  @length_singleton
+  @length_alter
+  @length_insert
+  @length_reverse
+  @length_init
+  @length_replicate
+  @length_take
+  @length_drop
+  @length_seg
+  @length_fmap
+: lookup.
+
+Global Hint Rewrite
+  Z.sub_0_r Z.sub_diag
+  Z.min_l Z.min_r Z.max_l Z.max_r
+  using (length; lia)
+: lookup.
 
 (* The tactic [length_nonneg xs] asserts that the length of the list [xs]
    is nonnegative. This can help [lia]. *)
@@ -577,8 +610,8 @@ Lemma lookup_app_r xs ys i :
 Proof.
   length_nonneg xs.
   intros [|].
-  - do 2 invalid_lookup. eauto.
-  - rewrite lookup_app. invalid_lookup. eauto.
+  - lookup. eauto.
+  - rewrite lookup_app. lookup. eauto.
 Qed.
 
 Lemma lookup_app' xs ys i :
@@ -615,7 +648,7 @@ Qed.
 Lemma list_lookup_singleton_ne_0 x i :
   i ≠ 0 → singleton x !! i = None.
 Proof.
-  intros. invalid_lookup. eauto.
+  intros. lookup. eauto.
 Qed.
 
 Lemma list_lookup_singleton x i :
@@ -831,27 +864,8 @@ Qed.
 Lemma list_lookup_fmap {B} (f : A → B) (xs : list A) (i : Z) :
   (f <$> xs) !! i = f <$> (xs !! i).
 Proof.
-  revert i.
-  induction xs; intros i.
-  - simpl; rewrite lookup_nil.
-    unfold lookup, listz_lookup.
-    by case_decide.
-  - rewrite fmap_cons.
-    rewrite !lookup_cons.
-    assert ((f a :: (f <$> xs)) !! i = (if decide (i = 0) then Some (f a) else (f <$> xs) !! (i - 1))) as ->.
-    { unfold lookup, listz_lookup.
-      case_decide.
-      - case_decide; first lia.
-        case_decide; [ reflexivity | lia ].
-      - case_decide.
-        + rewrite H0.
-          rewrite list.lookup_cons. reflexivity.
-        + case_decide; first lia.
-          rewrite list.lookup_cons.
-          assert (Z.to_nat i = S (Z.to_nat (i - 1))) as -> by lia.
-          reflexivity. }
-    case_decide; first done.
-    by rewrite IHxs.
+  unfold lookup, listz_lookup. case_decide'; eauto.
+  rewrite list_lookup_fmap. eauto.
 Qed.
 
 End Lookup.
@@ -860,12 +874,16 @@ Global Opaque singleton.
   (* [singleton x] is not rewritten to [x :: nil], *)
   (* so [cons_is_append] does not affect [singleton]. *)
 
+(* The tactic [lookup] simplifies a lookup [xs !! i] when this does not
+   introduce a conditional expression. *)
+
 Global Hint Rewrite
   @cons_is_append
   @lookup_nil
   @list_lookup_singleton_eq_0
   @list_lookup_alter_eq
   @list_lookup_insert_eq
+  @list_lookup_fmap
 : lookup.
 
 Global Hint Rewrite
@@ -882,20 +900,12 @@ Global Hint Rewrite
   @list_lookup_insert_ne
   @list_lookup_delete_lt
   @list_lookup_delete_ge
-  @list_lookup_fmap
   @lookup_take_lt
   @lookup_take_ge
   @lookup_drop
   @lookup_seg
-  @list_lookup_fmap
   using (length; lia)
 : lookup.
-
-(* The tactic [lookup] simplifies a lookup [xs !! i] when this does not
-   introduce a conditional expression. It subsumes [invalid_lookup]. *)
-
-Global Ltac lookup :=
-  autorewrite with lookup.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1197,20 +1207,13 @@ Qed.
 Lemma take_insert_ge xs n i x :
   0 ≤ n ≤ i →
   take n (<[i:=x]>xs) = take n xs.
-Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros j ?. lookup. eauto.
-Qed.
+Proof. intros. listx j. lookup. eauto. Qed.
 
 Lemma take_insert_lt xs n i x :
   0 ≤ i < n →
   take n (<[i:=x]>xs) = <[i:=x]>(take n xs).
 Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros j ?. lookup.
-  do 2 rewrite list_lookup_insert. repeat case_decide'; eauto.
-  - exfalso. rewrite length_take in * by lia. lia.
-  - lookup. eauto.
+  intros. listx j. lookup. destruct_decide' (i = j); eauto.
 Qed.
 
 (* Interaction of [take] and [init]. *)
@@ -1219,8 +1222,7 @@ Lemma take_init n m (f : Z → A) :
   0 ≤ n → 0 ≤ m →
   take n (init m f) = init (Z.min n m) f.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros j ?. lookup. eauto.
+  intros. listx j. lookup. eauto.
 Qed.
 
 (* Interaction of [take] and [replicate]. *)
@@ -1229,8 +1231,7 @@ Lemma take_replicate n m x :
   0 ≤ n → 0 ≤ m →
   take n (replicate m x) = replicate (Z.min n m) x.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros j ?. lookup. eauto.
+  intros. listx j. lookup. eauto.
 Qed.
 
 End Take.
@@ -1333,6 +1334,13 @@ Proof.
   assert (n = 0) by lia. subst. apply drop_none.
 Qed.
 
+Lemma drop_max n xs : drop (n `max` 0) xs = drop n xs.
+Proof.
+  assert (n ≤ 0 ∨ 0 ≤ n) as [|] by lia.
+  - do 2 rewrite drop_none' by lia. eauto.
+  - f_equal. lia.
+Qed.
+
 Lemma drop_clip n xs : drop (clip n 0 (length xs)) xs = drop n xs.
 Proof.
   assert (n ≤ 0 ∨ 0 ≤ n) as [|] by lia.
@@ -1365,18 +1373,15 @@ Lemma drop_insert_ge xs n i x :
   n ≤ length xs →
   drop n (<[i:=x]>xs) = <[i-n := x]> (drop n xs).
 Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros j ?. lookup.
+  intros. listx j. lookup.
   rewrite !list_lookup_insert. repeat case_decide'; lookup; eauto.
-  - exfalso. rewrite length_drop in * by lia. lia.
 Qed.
 
 Lemma drop_insert_lt xs n i x :
   0 ≤ i < n → n ≤ length xs →
   drop n (<[i:=x]>xs) = drop n xs.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros j ?. lookup. eauto.
+  intros. listx j. lookup. eauto.
 Qed.
 
 (* Interaction of [drop] and [init]. *)
@@ -1385,8 +1390,7 @@ Lemma drop_init n m (f : Z → A) :
   0 ≤ n ≤ m →
   drop n (init m f) = init (m - n) (λ i, f (n + i)).
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros j ?. lookup. eauto.
+  intros. listx j. lookup. eauto.
 Qed.
 
 (* Interaction of [drop] and [replicate]. *)
@@ -1395,8 +1399,7 @@ Lemma drop_replicate n m x :
   0 ≤ n ≤ m →
   drop n (replicate m x) = replicate (m - n) x.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros j ?. lookup. eauto.
+  intros. listx j. lookup. eauto.
 Qed.
 
 End Drop.
@@ -1443,7 +1446,6 @@ Qed.
 
 End TakeDrop.
 
-
 (* -------------------------------------------------------------------------- *)
 
 (* Properties of [seg]. *)
@@ -1453,14 +1455,22 @@ Context {A : Type}.
 Implicit Types x : A.
 Implicit Types xs ys zs : list A.
 
+(* [take] and [drop] are special cases of [seg]. *)
+
 Lemma take_seg n xs : take n xs = seg 0 n xs.
 Proof. unfold seg. drop. rewrite Z.sub_0_r. eauto. Qed.
+
+Lemma drop_seg n xs : drop n xs = seg n (length xs) xs.
+Proof. unfold seg. listx j. lookup. eauto. Qed.
 
 Lemma seg_none i j xs : j ≤ i → seg i j xs = [].
 Proof. intros. unfold seg. take. eauto. Qed.
 
 Lemma seg_all i j xs : i ≤ 0 → length xs ≤ j → seg i j xs = xs.
 Proof. intros. unfold seg. drop. take. eauto. Qed.
+
+Lemma seg_intro xs : xs = seg 0 (length xs) xs.
+Proof. rewrite seg_all by lia. eauto. Qed.
 
 (* Any segment is equal to a valid segment. *)
 
@@ -1470,9 +1480,7 @@ Lemma seg_valid i j xs :
     let j := clip j i (length xs) in
     seg i j xs.
 Proof.
-  unfold seg.
-  eapply list_eq_same_length; length; eauto with lia.
-  intros k ?. lookup. rewrite drop_clip. eauto.
+  unfold seg. listx k. lookup. rewrite drop_max. eauto.
 Qed.
 
 Goal forall i j xs,
@@ -1481,6 +1489,30 @@ Goal forall i j xs,
   valid_seg i j xs.
 Proof.
   intros. length_nonneg xs. lia.
+Qed.
+
+(* A segment can be split anywhere. *)
+
+Lemma split_seg j xs i k :
+  valid_seg i j xs →
+  valid_seg j k xs →
+  seg i k xs = seg i j xs ++ seg j k xs.
+Proof.
+  intros. length_nonneg xs. listx o. lookup.
+  rewrite lookup_app'. length. case_decide'; lookup; eauto.
+  f_equal. lia.
+Qed.
+
+(* A singleton segment is a singleton. *)
+
+Lemma seg_is_singleton `{Inhabited A} i j xs :
+  valid i xs →
+  i + 1 = j →
+  seg i j xs = singleton (xs !!! i).
+Proof.
+  intros. subst. listx k. assert (k = 0) by lia. subst. lookup.
+  rewrite Z.add_0_r.
+  eauto using list_lookup_lookup_total_valid with lia.
 Qed.
 
 (* Interaction of [seg] and [app]. *)
@@ -1492,9 +1524,7 @@ Lemma seg_app i j xs ys :
 Proof.
   length_nonneg xs.
   intros. unfold seg. drop. take. f_equal.
-  eapply list_eq_same_length; [ eauto | |].
-  - length. lia. (* yes! *)
-  - length. intros k ?. lookup. eauto. (* yes! *)
+  listx k. lookup. eauto. (* yes! *)
   (* This is just as good as an SMT solver...! *)
 Qed.
 
@@ -1505,16 +1535,14 @@ Lemma seg_insert_outside xs i j k x :
   ¬ (i ≤ k < j) →
   seg i j (<[k:=x]>xs) = seg i j xs.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros o ?. lookup. eauto.
+  intros. listx o. lookup. eauto.
 Qed.
 
 Lemma seg_insert_inside xs i j k x :
   valid_seg i j xs →
   seg i j (<[k:=x]>xs) = <[k-i:=x]>(seg i j xs).
 Proof.
-  intros. eapply list_eq_same_length; length; eauto.
-  intros o ?. lookup.
+  intros. listx o. lookup.
   rewrite list_lookup_insert. case_decide'; lookup; eauto.
 Qed.
 
@@ -1533,8 +1561,7 @@ Lemma seg_init n i j (f : Z → A) :
   0 ≤ i ≤ j ≤ n →
   seg i j (init n f) = init (j - i) (λ k, f (i + k)).
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros k ?. lookup. eauto.
+  intros. listx k. lookup. eauto.
 Qed.
 
 (* Interaction of [seg] and [replicate]. *)
@@ -1543,13 +1570,24 @@ Lemma seg_replicate n i j x :
   0 ≤ i ≤ j ≤ n →
   seg i j (replicate n x) = replicate (j - i) x.
 Proof.
-  intros. eapply list_eq_same_length; length; eauto with lia.
-  intros k ?. lookup. eauto.
+  intros. listx k. lookup. eauto.
+Qed.
+
+(* Interaction of [seg] with itself. *)
+
+Lemma seg_seg i j k l xs :
+  valid_seg k l xs →
+  valid_seg i j (seg k l xs) →
+  seg i j (seg k l xs) =
+  seg (k + i) (k + j) xs.
+Proof.
+  length_nonneg xs. length. intros. listx o. lookup. f_equal. lia.
 Qed.
 
 End Seg.
 
 Global Hint Rewrite
+  Z.sub_0_r Z.sub_diag
   @seg_none
   @seg_all
   @seg_app
@@ -1557,193 +1595,220 @@ Global Hint Rewrite
   @seg_insert_inside
   @seg_init
   @seg_replicate
+  @seg_seg
   using (length; lia)
 : seg.
 
 Ltac seg :=
   autorewrite with seg.
 
+(* The tactic [lookup_app_split] performs a case split in a situation where
+   the goal contains a lookup in a concatenation [(xs ++ ys) !! i]. *)
+
+Global Ltac lookup_app_split :=
+  rewrite lookup_app'; length; case_decide'; lookup; eauto.
+
+(* The tactic [split_seg j xs] splits a list [xs] or a list segment
+   [seg i k xs] at index [j]. *)
+
+Global Ltac split_seg j xs :=
+  first [
+    (* case: [xs] is already a segment *)
+    rewrite (split_seg j xs) by (length; lia)
+  | (* case: introduce a list segment first *)
+    rewrite (seg_intro xs); length;
+    rewrite (split_seg j xs) by (length; lia)
+  ];
+  seg.
+
 (* -------------------------------------------------------------------------- *)
 
-(* Properties of [init]. *)
+(* Properties of [init] and [replicate]. *)
 
-Section init.
-
+Section Replicate.
 Context {A : Type}.
 Implicit Types x : A.
 Implicit Types f : Z → A.
+Implicit Types xs ys zs : list A.
+
+(* [init] applied to length 0 or 1. *)
 
 Lemma init_nil n f :
   n ≤ 0 →
   init n f = [].
 Proof.
-  intros Hn.
-  pose proof (length_init n f) as Hlen.
-  assert (n `max` 0 = 0) as Hzero by lia.
-  rewrite Hzero in Hlen.
-  apply nil_length_inv in Hlen as ->.
-  reflexivity.
+  unfold init. case_decide'; eauto; intro.
+  assert (n = 0) by lia. subst. reflexivity.
 Qed.
 
 Lemma init_singleton f :
   init 1 f = singleton (f 0).
-Proof.
-  unfold init.
-  case_decide; first lia.
-  reflexivity.
-Qed.
+Proof. reflexivity. Qed.
 
-End init.
+(* [replicate] applied to length 0 or 1. *)
 
-(* -------------------------------------------------------------------------- *)
-
-(* Properties of [replicate]. *)
-
-Section replicate.
-
-Variable A : Type.
-Implicit Types x : A.
-
-Lemma unroll_replicate x n i :
-  0 ≤ i ≤ n  →
-  replicate n x = replicate i x ++ replicate (n - i) x.
-Proof.
-  intros Hbounds.
-  apply (list_eq_same_length _ _ n).
-  - length. lia.
-  - length. lia.
-  - intros i' Hbounds'.
-    case (decide (i' < i)); intros Hi'; by lookup.
-Qed.
-
-Lemma replicate_nil {B : Type} (x : B) n :
+Lemma replicate_nil n x :
   n ≤ 0 →
   replicate n x = [].
-Proof.
-  intros Hn.
-  unfold replicate.
-  apply init_nil; assumption.
-Qed.
+Proof. unfold replicate. eauto using init_nil. Qed.
 
 Lemma replicate_singleton x :
   replicate 1 x = singleton x.
+Proof. reflexivity. Qed.
+
+(* Splitting [replicate n x] into two segments. *)
+
+Lemma split_replicate x n i :
+  0 ≤ i ≤ n  →
+  replicate n x = replicate i x ++ replicate (n - i) x.
 Proof.
-  unfold replicate.
-  apply init_singleton.
+  intros. listx k. destruct_decide' (k < i); eauto.
 Qed.
 
-Lemma fmap_replicate {A'} x n (g : A → A') :
+Goal forall x n i,
+  0 ≤ i ≤ n  →
+  replicate n x = replicate i x ++ replicate (n - i) x.
+Proof.
+  (* An alternate proof, for fun. *)
+  intros. split_seg i (replicate n x). eauto.
+Qed.
+
+(* Interaction of [fmap] and [replicate]. *)
+
+Lemma fmap_replicate {B} x n (g : A → B) :
   g <$> (replicate n x) = replicate n (g x).
 Proof.
-  case (decide (n > 0)).
-  - intros Hpos.
-    apply (list_eq_same_length _ _ n).
-    + length. reflexivity.
-    + length. reflexivity.
-    + intros i Hbounds.
-      lookup. reflexivity.
-  - intros Hneg.
-    rewrite !replicate_nil by lia.
-    reflexivity.
+  listx k. lookup. eauto.
 Qed.
 
-End replicate.
+(* Interaction of [insert] and [replicate]. *)
 
-Arguments unroll_replicate {A}.
-Arguments replicate_nil {A} : rename.
-Arguments fmap_replicate {A A'}.
+Lemma insert_replicate n i x y :
+  0 ≤ i < n →
+  <[i := y]> (replicate n x) =
+  replicate i x ++ singleton y ++ replicate (n - 1 - i) x.
+Proof.
+  intros. listx k.
+  assert (k < i ∨ k = i ∨ i < k) as [|[|]] by lia; try subst; lookup; eauto.
+Qed.
+
+End Replicate.
+
+Global Hint Rewrite
+  Z.sub_0_r Z.sub_diag
+  app_nil_l app_nil_r
+  @replicate_nil
+  @insert_replicate
+  using (length; lia)
+: replicate.
+
+Ltac replicate :=
+  autorewrite with replicate.
+
+(* The following lemmas are optional, as they can be proved on the fly
+   by the tactic [replicate]. *)
+
+Lemma insert_replicate_nil {A} n (x y : A) :
+  0 < n →
+  <[0 := y]> (replicate n x) =
+  singleton y ++ replicate (n-1) x.
+Proof. intros. replicate. eauto. Qed.
+
+Lemma insert_replicate_last {A} n (x y : A) :
+  0 < n →
+  <[n-1 := y]> (replicate n x) =
+  replicate (n-1) x ++ singleton y.
+Proof. intros. replicate. eauto. Qed.
+
+Global Hint Rewrite
+  @insert_replicate_nil
+  @insert_replicate_last
+  using (length; lia)
+: replicate.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Properties of [insert]. *)
 
-Section insert.
-
+Section Insert.
 Context {A : Type}.
 Implicit Types x : A.
 Implicit Types xs ys zs : list A.
 
+(* Interaction of [insert] and [singleton]. *)
+
+Lemma insert_singleton_0 x y i :
+  i = 0 →
+  <[i:=y]> (singleton x) = singleton y.
+Proof. intros. subst. reflexivity. Qed.
+
+Lemma insert_singleton i x y :
+  <[i:=y]> (singleton x) =
+  if decide (i = 0) then singleton y else singleton x.
+Proof.
+  case_decide'; eauto.
+  rewrite insert_invalid by (length; lia). eauto.
+Qed.
+
+(* Interaction of [insert] and [app]. *)
+
 Lemma insert_app xs ys i x :
   <[i:=x]> (xs ++ ys) =
-  (if decide (i < length xs) then <[i:=x]> xs ++ ys else xs ++ <[i - length xs := x]> ys).
+  if decide (i < length xs)
+  then <[i:=x]> xs ++ ys
+  else xs ++ <[i - length xs := x]> ys.
 Proof.
-  unfold insert, listz_insert.
-  length_nonneg xs.
-  case_decide.
-  - case_decide; first reflexivity.
-    lia.
-  - case_decide.
-    + apply insert_app_l.
-      unfold length in H1. lia.
-    + case_decide; first lia.
-      assert (Z.to_nat (i - length xs) = Z.to_nat i - Z.to_nat (length xs))%nat
-        as -> by lia.
-      rewrite insert_app.
-      unfold length in H1, H2.
-      case_decide; try lia.
-      repeat f_equal. unfold length. lia.
+  length_nonneg xs. unfold length in *.
+  unfold insert, listz_insert. repeat case_decide'; eauto.
+  - rewrite insert_app_l by lia. eauto.
+  - rewrite insert_app_r_alt by lia. do 2 f_equal. lia.
 Qed.
 
 Lemma insert_app_l xs ys i x :
   i < length xs →
   <[i:=x]> (xs ++ ys) = <[i:=x]> xs ++ ys.
 Proof.
-  intros Hlength.
-  rewrite insert_app.
-  case_decide; [ reflexivity | contradiction ].
+  intros. rewrite insert_app. case_decide'. eauto.
 Qed.
 
 Lemma insert_app_r xs ys i x :
-  ¬ (i < length xs) →
+  length xs ≤ i →
   <[i:=x]> (xs ++ ys) = xs ++ <[i-length xs:=x]> ys.
 Proof.
-  intros Hlength.
-  rewrite insert_app.
-  case_decide; [ contradiction | reflexivity ].
+  intros. rewrite insert_app. case_decide'. eauto.
 Qed.
+
+(* This lemma is a port of [list_basics.insert_take_drop]. We recommend
+   using [seg] rather than [take] and [drop]; see the next lemma. *)
 
 Lemma insert_take_drop xs i x :
   valid i xs →
   <[i:=x]> xs = take i xs ++ x :: drop (i + 1) xs.
 Proof.
-  intros Hvalid.
-  unfold insert, listz_insert.
-  case_decide; first lia.
-  rewrite insert_take_drop; last (unfold length in Hvalid; lia).
-  unfold take.
-  case_decide; first lia.
-  unfold drop.
-  case_decide; first lia.
+  unfold length.
+  intros.
+  unfold insert, listz_insert. case_decide'.
+  rewrite insert_take_drop by lia.
+  rewrite cons_is_append.
+  unfold take. case_decide'.
+  unfold drop. case_decide'.
   repeat f_equal. lia.
 Qed.
 
-Lemma insert_singleton i x y :
-  <[i:=y]> (singleton x) = (if decide (i=0) then singleton y else singleton x).
+Lemma insert_split_seg xs i x :
+  valid i xs →
+  <[i:=x]> xs =
+  seg 0 i xs ++ singleton x ++ seg (i + 1) (length xs) xs.
 Proof.
-  case_decide.
-  - rewrite H. reflexivity.
-  - apply insert_invalid. rewrite length_singleton. lia.
+  (* One nice proof: *)
+  intros.
+  listx k.
+  rewrite list_lookup_insert. case_decide'.
+  - assert (i = k) by lia. subst. lookup. eauto.
+  - lookup_app_split. f_equal. lia.
 Qed.
 
-Lemma insert_replicate n i x y :
-  0 ≤ i < n ∧ n > 0 →
-  <[i:=y]> (replicate n x) = replicate i x ++ singleton y ++ replicate (n - i - 1) x.
-Proof.
-  intros Hbound.
-  rewrite (unroll_replicate x n i) by lia.
-  rewrite insert_app.
-  case_decide; rewrite length_replicate in H.
-  - lia.
-  - f_equal. length.
-    rewrite (unroll_replicate x (n - i) 1) by lia.
-    rewrite insert_app_l by (length; lia).
-    rewrite replicate_singleton.
-    rewrite insert_singleton.
-    case_decide; last lia.
-    reflexivity.
-Qed.
-
-End insert.
+End Insert.
 
 Global Hint Rewrite
   @cons_is_append
@@ -1752,10 +1817,10 @@ Global Hint Rewrite
 : insert.
 
 Global Hint Rewrite
-  @lookup_None_invalid_2
+  @insert_invalid
+  @insert_singleton_0
   @insert_app_l
   @insert_app_r
-  @insert_singleton
   @insert_replicate
   @replicate_nil
   @list_lookup_fmap
