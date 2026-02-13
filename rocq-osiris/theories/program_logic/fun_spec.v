@@ -517,3 +517,135 @@ Section imp_EApp_def.
   Qed.
 
 End imp_EApp_def.
+
+
+(* We expect that sometimes we will not want to abstract a function and give it a spec.
+   Rather, we will wish to evaluate it down to its body *)
+
+Section transparent_funs.
+
+  Context `{!osirisGS Σ}.
+  Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
+
+ Lemma imp_EAnon_literal η a :
+   ⊢ imp (eval η (EAnonFun a)) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ v, ⌜v = VClo η a⌝ }}.
+ Proof.
+   simpl_eval.
+   iApply imp_ret; auto.
+ Qed.
+
+ Lemma imp_EApp_literal B `{Encode A, Encode B} {Φ : A → iProp Σ} Φ1 η' v e η p e1 :
+   lookup_path η p = ret (VClo η' (AnonFun v e)) →
+   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   (∀ (x : B), Φ1 x -∗
+               ▷ imp (eval ((v, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   imp (eval η (EApp (EPath p) e1)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+ Proof.
+   iIntros (Hlookup) "He Hbody".
+   simpl_eval.
+   iApply (imp_Par (A1:=val) (A2:=B) with "[] He").
+   { iApply imp_widen.
+     instantiate (1 := (λ f, ⌜f = (VClo η' (Anon (v => e)))⌝)%I).
+     rewrite Hlookup. iApply imp_ret; auto. }
+   iSplit; last iSplit.
+   - instantiate (1:= (λ _, False)%I).
+     iIntros (? []).
+   - iIntros (?) "Hζ".
+     iApply (imp_throw with "Hζ").
+   - iIntros (??) "-> HΦ".
+     rewrite /continue /=.
+     iApply imp_please.
+     iApply ("Hbody" with "HΦ").
+ Qed.
+
+ Lemma imp_EApp_literal2 B C `{Encode A, Encode B, Encode C} {Φ : A → iProp Σ} Φ1 Φ2 η' v1 v2 e η p e1 e2 :
+   lookup_path η p = ret (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 e)))) →
+   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+   (∀ (x : B) (y : C), Φ1 x -∗ Φ2 y -∗
+               ▷^2 imp (eval ((v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   imp (eval η (EApp (EApp (EPath p) e1) e2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+ Proof.
+   iIntros (Hlookup) "He1 He2 Hbody". simpl_eval.
+   iApply (imp_Par (A1:=val) (A2:=C) with "[He1] He2").
+   { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
+     { iApply imp_widen.
+       instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
+       rewrite Hlookup. iApply imp_ret; auto. }
+     iSplit; last iSplit.
+     - instantiate (3:= (λ _, False)%I).
+       iIntros (? []).
+     - iIntros (?) "Hζ".
+       iApply (imp_throw with "Hζ").
+     - iIntros (??) "-> HΦ".
+       rewrite /continue /=.
+       iApply imp_please.
+       iApply imp_mono_ret. iApply imp_EAnon_literal.
+       iIntros "!> !>" (v) "Hv". iCombine "Hv HΦ" as "Hv".
+       instantiate (1 := (λ v, ∃ y, ⌜v = VClo (v1 ~> #y;
+                    η') (Anon (v2 => e))⌝ ∗ Φ1 y)%I).
+       simpl. iFrame. }
+   iSplit; last iSplit.
+   - iIntros (?) "Hζ".
+     iApply (imp_throw with "Hζ").
+   - iIntros (?) "Hζ".
+     iApply (imp_throw with "Hζ").
+   - iIntros (??) "(% & -> & HΦ1) HΦ2".
+     rewrite /continue /=.
+     iApply imp_please.
+     iApply ("Hbody" with "HΦ1 HΦ2").
+ Qed.
+
+ Lemma imp_EApp_literal3 B C D `{Encode A, Encode B, Encode C, Encode D} {Φ : A → iProp Σ}
+   Φ1 Φ2 Φ3 η' v1 v2 v3 e η p e1 e2 e3 :
+   lookup_path η p = ret (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 (EAnonFun (AnonFun v3 e)))))) →
+   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+   imp (eval η e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
+   (∀ (x : B) (y : C) (z : D), Φ1 x -∗ Φ2 y -∗ Φ3 z -∗
+               ▷^2 imp (eval ((v3,#z) :: (v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   imp (eval η (EApp (EApp (EApp (EPath p) e1) e2) e3)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+ Proof.
+   iIntros (Hlookup) "He1 He2 He3 Hbody". simpl_eval.
+   iApply (imp_Par (A1:=val) (A2:=D) with "[He1 He2] He3").
+   { iApply (imp_Par (A1:=val) (A2:=C) with "[He1] He2").
+     { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
+       iApply imp_widen.
+       instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
+       rewrite Hlookup. iApply imp_ret; auto.
+       iSplit; last iSplit.
+       - instantiate (3:= (λ _, False)%I).
+         iIntros (? []).
+       - iIntros (?) "Hζ".
+         iApply (imp_throw with "Hζ").
+       - iIntros (??) "-> HΦ".
+         rewrite /continue /=.
+         iApply imp_please.
+         iApply imp_mono_ret. iApply imp_EAnon_literal.
+         iIntros "!> !>" (v) "Hv".
+         instantiate (1 := (λ v, ∃ y, ⌜v = VClo _ _⌝ ∗ Φ1 y)%I).
+         simpl. iFrame. }
+     iSplit; last iSplit.
+     - iIntros (?) "Hζ".
+       iApply (imp_throw with "Hζ").
+     - iIntros (?) "Hζ".
+       iApply (imp_throw with "Hζ").
+     - iIntros (??) "(% & -> & HΦ1) HΦ2".
+       rewrite /continue /=.
+       iApply imp_please.
+       iApply imp_mono_ret. iApply imp_EAnon_literal.
+       iIntros "!> !>" (v) "->".
+       instantiate (1 := (λ v, ∃ y z, ⌜v = VClo _ _⌝ ∗ Φ1 y ∗ Φ2 z)%I).
+       simpl. iFrame. iPureIntro. reflexivity. }
+   iSplit; last iSplit.
+   - iIntros (?) "Hζ".
+     iApply (imp_throw with "Hζ").
+   - iIntros (?) "Hζ".
+     iApply (imp_throw with "Hζ").
+   - iIntros (??) "(% & % & -> & HΦ1 & HΦ2) HΦ3".
+     rewrite /continue /=.
+     iApply imp_please.
+     iApply ("Hbody" with "HΦ1 HΦ2 HΦ3").
+ Qed.
+
+End transparent_funs.
