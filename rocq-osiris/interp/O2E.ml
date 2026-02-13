@@ -172,7 +172,6 @@ and sitem : O.sitem -> E.sitem = function
   | IModule (n, me) -> IModule (name n, mexpr me)
   | IOpen me -> IOpen (mexpr me)
   | IInclude me -> IInclude (mexpr me)
-  | IExternal (v, e) -> IExternal (var v, expr e)
   | IExtend l -> IExtend (list name l)
 
 and sitems l = list sitem l

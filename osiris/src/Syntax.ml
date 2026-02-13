@@ -392,6 +392,4 @@ and sitem =
   (* An [include] directive [include me]. *)
   | IInclude of mexpr
 
-  | IExternal of var * expr
-
   | IExtend of name list

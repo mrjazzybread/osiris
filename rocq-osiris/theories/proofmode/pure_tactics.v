@@ -876,7 +876,6 @@ Ltac2 rec unfold_item (item : constr) : constr :=
          | IModule _ _ => Control.zero Match_failure
          | IOpen ?i => get_ref i
          | IInclude ?me => get_ref me
-         | IExternal _ ?a => get_ref a
          | IExtend ?ns => get_ref ns
          end
        in
@@ -907,11 +906,6 @@ Ltac2 init_item (item : constr) (spec : constr option) () :=
       end
   | ILetRec _ => eapply struct_letrec
   | IModule _ _ => eapply struct_module
-  | IExternal _ _ =>
-      match spec with
-      | None => eapply struct_external
-      | Some spec => eapply struct_external with (spec := $spec)
-      end
   end.
 
 Ltac2 next_item0 (spec : constr option) () :=

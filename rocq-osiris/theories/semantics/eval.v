@@ -800,10 +800,6 @@ Section EvalBindings.
 
 Variable eval_bindings : env → list binding → micro env exn.
 
-Section Eval.
-
-Variable eval : env → expr → microvx.
-
 Section EvalMExpr.
 
 Variable eval_mexpr : env → mexpr → microvx.
@@ -826,9 +822,6 @@ Definition pre_eval_sitem (ηδ : envs) (item : sitem) : micro envs exn :=
   | IInclude me' =>
       δ' ← as_struct (eval_mexpr η me') ;
       ret (δ' ++ η, δ' ++ δ)
-  | IExternal x e =>
-      v ← eval η e;
-      ret ((x, v) :: η, (x, v) :: δ)
   | IExtend cs =>
       δ' ← eval_type_extensions cs;
       ret (δ' ++ η, δ' ++ δ)
@@ -877,8 +870,6 @@ Fixpoint pre_eval_mexpr (η : env) (me : mexpr) : microvx :=
   | MFunctor x items =>
       ret (VFunctor η x items)
   end.
-
-End Eval.
 
 End EvalBindings.
 
@@ -1095,7 +1086,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let wrap_eval_branches := pre_wrap_eval_branches eval_branches in
   let shallow_eval_branches := pre_shallow_eval_branches eval in
   let eval_bindings := pre_eval_bindings eval in
-  let eval_mexpr := pre_eval_mexpr eval_bindings eval in
+  let eval_mexpr := pre_eval_mexpr eval_bindings in
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -1421,28 +1412,28 @@ Lemma fold_pre_eval_bindings :
   pre_eval_bindings eval = eval_bindings.
 Proof. unfold eval_bindings; by rewrite seal_eq. Qed.
 
-Local Definition eval_mexpr_aux : seal (pre_eval_mexpr eval_bindings eval).
+Local Definition eval_mexpr_aux : seal (pre_eval_mexpr eval_bindings).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_mexpr] *)
 Definition eval_mexpr := eval_mexpr_aux.(unseal).
 Lemma fold_pre_eval_mexpr :
-  pre_eval_mexpr eval_bindings eval = eval_mexpr.
+  pre_eval_mexpr eval_bindings = eval_mexpr.
 Proof. unfold eval_mexpr; by rewrite seal_eq. Qed.
 
-Local Definition eval_sitem_aux : seal (pre_eval_sitem eval_bindings eval eval_mexpr).
+Local Definition eval_sitem_aux : seal (pre_eval_sitem eval_bindings eval_mexpr).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_sitem] *)
 Definition eval_sitem : envs → sitem → micro envs exn := eval_sitem_aux.(unseal).
 Lemma fold_pre_eval_sitem :
-  pre_eval_sitem eval_bindings eval eval_mexpr = eval_sitem.
+  pre_eval_sitem eval_bindings eval_mexpr = eval_sitem.
 Proof. unfold eval_sitem; by rewrite seal_eq. Qed.
 
-Local Definition eval_sitems_aux : seal (pre_eval_sitems eval_bindings eval eval_mexpr).
+Local Definition eval_sitems_aux : seal (pre_eval_sitems eval_bindings eval_mexpr).
 Proof. by eexists. Qed.
 (* Top-level definition for [eval_sitems] *)
 Definition eval_sitems := eval_sitems_aux.(unseal).
 Lemma fold_pre_eval_sitems :
-  pre_eval_sitems eval_bindings eval eval_mexpr = eval_sitems.
+  pre_eval_sitems eval_bindings eval_mexpr = eval_sitems.
 Proof. unfold eval_sitems; by rewrite seal_eq. Qed.
 
 (* -------------------------------------------------------------------------- *)
