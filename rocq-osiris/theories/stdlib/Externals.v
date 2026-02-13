@@ -8,28 +8,49 @@ From osiris.lang Require Import type_nel encode int notations.
 From osiris.program_logic Require Import program_logic.
 From osiris.logic Require Import list_z.
 
-Local Notation VEta1 body :=
+Notation VEta1 body :=
   (
     VClo [] $
-         AnonFun "x" $
-         body (EPath [ "x" ])
+         AnonFun "__x0" $
+         body (EPath [ "__x0" ])
   ).
-Local Notation VEta2 body :=
+Notation VEta2 body :=
   (
     VClo [] $
-         AnonFun "x" $
-         EAnonFun (AnonFun "y"
-         (body (EPath [ "x" ]) (EPath [ "y" ])))
+         AnonFun "__x0" $
+         EAnonFun (AnonFun "__x1"
+         (body (EPath [ "__x0" ]) (EPath [ "__x1" ])))
   ).
-Local Notation VEta3 body :=
+Notation VEta3 body :=
   (
     VClo [] $
-         AnonFun "x" $
-         EAnonFun (AnonFun "y" $
-         EAnonFun (AnonFun "z" $
-                     (body (EPath [ "x" ]) (EPath [ "y" ]) (EPath [ "z" ]))))
+         AnonFun "__x0" $
+         EAnonFun (AnonFun "__x1" $
+         EAnonFun (AnonFun "__x2" $
+                     (body (EPath [ "__x0" ]) (EPath [ "__x1" ]) (EPath [ "__x2" ]))))
   ).
-Local Notation dummy := (VClo [] $ AnonFun "_" EUnsupported).
+
+Notation EEta1 body :=
+  (
+    EAnonFun $
+      AnonFun "__x0" $
+      body (EPath [ "__x0" ])
+  ).
+Notation EEta2 body :=
+  (
+    EAnonFun $
+      AnonFun "__x0" $
+      EAnonFun (AnonFun "__x1"
+                  (body (EPath [ "__x0" ]) (EPath [ "__x1" ])))
+  ).
+Notation EEta3 body :=
+  (
+    EAnonFun $
+         AnonFun "__x0" $
+         EAnonFun (AnonFun "__x1" $
+         EAnonFun (AnonFun "__x2" $
+                     (body (EPath [ "__x0" ]) (EPath [ "__x1" ]) (EPath [ "__x2" ]))))
+  ).
 
 Section ExternalsDef.
 
@@ -148,7 +169,23 @@ Section ExternalsDef.
   (* ------------------------------------------------------------------------ *)
   (* Content of Externals used in [stdlib/array.ml]. *)
 
+  Local Instance : Observe envs envs := { observe := id }.
+
+  (** "%array_length" *)
+
   Definition Externals__array_length : val := VEta1 EArrayLength.
+  Definition Externals__array_length_expr := EEta1 EArrayLength.
+
+  Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
+    imp eval_sitems (x ~> Externals__array_length;
+                     η, x ~> Externals__array_length;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    imp eval_sitems (η, δ) (IExternal x Externals__array_length_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hsitems".
+    iApply (imp_sitems_external with "[] Hsitems").
+    { simpl_eval. iApply imp_ret; auto. }
+  Qed.
 
   Lemma array_length_spec :
     ⊢ iSpec τ[array] Externals__array_length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }}).
@@ -159,7 +196,21 @@ Section ExternalsDef.
     iApply imp_EArrayLength. iApply imp_EPath; auto.
   Qed.
 
+  (** "%array_get" and "%array_unsafe_get" *)
+
   Definition Externals__array_get : val := VEta2 EArrayGet.
+  Definition Externals__array_get_expr : expr := EEta2 EArrayGet.
+
+  Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
+    imp eval_sitems (x ~> Externals__array_get;
+                     η, x ~> Externals__array_get;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    imp eval_sitems (η, δ) (IExternal x Externals__array_get_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hsitems".
+    iApply (imp_sitems_external with "[] Hsitems").
+    { simpl_eval. iApply imp_ret; auto. }
+  Qed.
 
   Lemma array_get_spec :
     ⊢ iSpec τ[array;Z] Externals__array_get
@@ -184,7 +235,21 @@ Section ExternalsDef.
     - iApply imp_EPath; auto.
   Qed.
 
+  (** "%array_set" and "%array_unsafe_set" *)
+
   Definition Externals__array_set : val := VEta3 EArraySet.
+  Definition Externals__array_set_expr : expr := EEta3 EArraySet.
+
+  Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
+    imp eval_sitems (x ~> Externals__array_set;
+                     η, x ~> Externals__array_set;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    imp eval_sitems (η, δ) (IExternal x Externals__array_set_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hsitems".
+    iApply (imp_sitems_external with "[] Hsitems").
+    { simpl_eval. iApply imp_ret; auto. }
+  Qed.
 
   Lemma array_set_spec `{Encode A}:
     ⊢ iSpec τ[array;Z;A] Externals__array_set
@@ -210,7 +275,21 @@ Section ExternalsDef.
     - iApply imp_EPath; auto.
   Qed.
 
+  (** "caml_array_make" *)
+
   Definition Externals__array_make : val := VEta2 EArrayMake.
+  Definition Externals__array_make_expr : expr := EEta2 EArrayMake.
+
+  Lemma imp_externals_make {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
+    imp eval_sitems (x ~> Externals__array_make;
+                     η, x ~> Externals__array_make;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    imp eval_sitems (η, δ) (IExternal x Externals__array_make_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hsitems".
+    iApply (imp_sitems_external with "[] Hsitems").
+    { simpl_eval. iApply imp_ret; auto. }
+  Qed.
 
   Lemma array_make_spec `{Encode A} :
     ⊢ iSpec τ[Z; A] Externals__array_make

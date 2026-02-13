@@ -401,6 +401,7 @@ Fixpoint string_of_expr (e : expr) : string :=
   | IModule module mexpr => "IModule(" ++ module ++ ", " ++ string_of_mexpr mexpr ++ ")"
   | IOpen mexpr => "IOpen(" ++ string_of_mexpr mexpr ++ ")"
   | IInclude mexpr => "IInclude(" ++ string_of_mexpr mexpr ++ ")"
+  | IExternal var expr => "IExternal(" ++ var ++ ", " ++ string_of_expr expr ++ ")"
   | IExtend list_name => "IExtend(" ++ String.concat ", " list_name ++ " )"
   end.
 

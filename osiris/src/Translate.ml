@@ -1002,11 +1002,9 @@ and translate_primitive_expr prim_name args =
   | _, _ ->
       raise Unrecognized
 
-(* [translate_external loc vd] translates an external declaration.
-   We treat an external declaration as a let binding,
-   adding the primitive to the environment.
-
-   The primitive operation is wrapped in lambdas corresponding to its arity. *)
+(* [translate_external loc vd] translates an external declaration. The
+   primitive operation is wrapped in anonymous functions corresponding to
+   its arity. *)
 
 and translate_external loc (vd : Typedtree.value_description) : sitem option =
   match vd.val_val.val_kind with
@@ -1024,7 +1022,7 @@ and translate_external loc (vd : Typedtree.value_description) : sitem option =
                 (fun s e -> EAnonFun (AnonFun (s, e)))
                 vars body
         in
-        Some (ILet [Binding (PVar x, e)])
+        Some (IExternal (x, e))
       with Unrecognized ->
         ounsupported loc
           (sprintf "external declaration for primitive %s" p.prim_name)

@@ -69,14 +69,16 @@ Section proof.
 
     iApply (imp_ELet_var (B:=array)).
     { (* Subgoal: [make l (f 0)] *)
-      iApply (imp_EApp τ[Z;A]).
-      - iApply imp_EPath. { simpl; eassumption. } iApply array_make_spec.
+      iApply (imp_EApp_literal2 Z A). { simpl; eassumption. }
       - instantiate (1:=(λ n',⌜n'=n⌝)%I). iApply imp_EPath; auto.
       - iApply (imp_EApp τ[Z]).
         iApply imp_EPath; auto.
         iApply imp_EInt.
         iIntros (?) "-> %m H". iApply "H". iPureIntro; lia.
-      - iIntros (?? ->) "HΦ %m Hm". iApply "Hm"; [ iPureIntro; assumption | iExact "HΦ" ]. }
+      - iIntros (?? ->) "HΦ !> !>".
+        iApply (imp_EArrayMake (A:=A)). iPureIntro; eassumption.
+        iApply imp_EPath; auto.
+        iApply imp_EPath; first auto. iExact "HΦ". }
     iIntros (res) "(%x & HΦx & HownArr)".
     iDestruct "HownArr" as "(#Harr & Hslice)". length.
 
@@ -100,6 +102,9 @@ Section proof.
         iPoseProof (split_Slice 1 with "Hslice") as "[Hslice1 Hslice2]".
         reflexivity. done. iFrame. auto. }
 
+      (* Prove that for any [i'] inside the loop,
+         executing the loop's body produces the loop invariant at index [i' + 1],
+         assuming that the loop invariant holds at index [i']. *)
       iIntros "!>" (i' Hbound) "(Hslice2 & %xs & %Hlenxs & Hslice1 & HΦs)".
       rewrite (split_replicate x (n - i') 1); last lia.
       replicate.
@@ -107,8 +112,8 @@ Section proof.
       length. reflexivity.
       iCombine ("Hslice1 Hslice") as "Hslice1".
       iPoseProof (split_Slice with "Hslice1") as "Hslice1". reflexivity. lia.
-      iApply (imp_EApp τ[array;Z;A]).
-      { iApply imp_EPath. { simpl; eassumption. } iApply array_set_spec. }
+      (* Subgoal: [unsafe_set res i (f i)]. *)
+      iApply (imp_EApp_literal3 array Z A). { simpl; eassumption. }
       { instantiate (1:=(λ a, ⌜a = res⌝)%I).
         iApply imp_EPath; auto. }
       { instantiate (1:=(λ i, ⌜i = i'⌝)%I).
@@ -117,17 +122,18 @@ Section proof.
         iApply imp_EPath; auto.
         instantiate (1:=(λ i, ⌜i = i'⌝)%I). iApply imp_EPath; auto.
         iIntros "% -> % H". iApply "H"; iPureIntro; lia. }
-      { iIntros (y?) "-> %a -> HΦ %m Hm".
-        iSpecialize ("Hm" with "Harr Hslice1 HΦ [] []").
+      { iIntros (? i y) "-> -> HΦ !> !>".
+        iApply (imp_mono_ret with "[Hslice1 HΦ]").
+        iApply (imp_EArraySet _ i' with "[] [] Harr Hslice1").
         { iPureIntro; lia. }
         { iPureIntro; length; lia. }
-        iApply (imp_mono_ret with "Hm").
-        iIntros "!>" (_) "(% & HΦ & Hslice1)".
-        update.
+        { iApply imp_EPath; auto. }
+        { iApply imp_EPath; auto. }
+        { iApply imp_EPath; first auto. iExact "HΦ". }
+        iIntros (_) "(% & HΦ & Hslice1)".
         replace (n - (i' + 1)) with (n - i' - 1) by lia.
-        iFrame. length.
-        iSplit; first (iPureIntro; lia).
-        take.
+        iFrame. length. iSplit; first (iPureIntro; lia).
+        update. take.
         rewrite big_sepL_snoc. iFrame.
         rewrite /length in Hlenxs. rewrite Hlenxs.
         iApply "HΦ". } }
@@ -142,3 +148,234 @@ Section proof.
   Qed.
 
 End proof.
+
+Section module_proof.
+  Context `{!osirisGS Σ}.
+
+  Local Notation "'next_top:' sitem" :=
+    (impure ⊤ (eval_sitems _ (sitem :: _)) ⊥ ⊥ _) (at level 20).
+
+  Lemma module_proof η :
+    ⊢ imp (eval_mexpr η __main)
+      {{ λ η, ∃ init, ⌜lookup_name η "init" = ret init⌝ ∗
+                     □ iSpec τ[Z; val] init init_spec }}.
+  Proof.
+    iApply imp_module.
+    iApply imp_externals_length.
+    iApply imp_externals_get.
+    iApply imp_externals_set.
+    iApply imp_externals_get.
+    iApply imp_externals_set.
+    iApply imp_externals_make.
+
+    iApply (imp_sitems_module).
+    { simpl_eval_mexpr.
+      iApply imp_ret; first encode.
+      instantiate (1 := (λ δ, ⌜δ = []⌝)%I). done. }
+    iIntros (? ->).
+
+    iApply (imp_sitems_let (A:=val)).
+    { iApply imp_init; auto. }
+    iIntros (init) "#Hinit".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (make_matrix) "Hmake_matrix".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (init_matrix) "Hinit_matrix".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (copy) "Hcopy".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (append) "Happend".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (sub) "Hsub".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (fill) "Hfill".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (blit) "Hblit".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (iter) "Hiter".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (iter2) "Hiter2".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (map) "Hmap".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (map_inplace) "Hmap_inplace".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (mapi_inplace) "Hmapi_inplace".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (map2) "Hmap2".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (iteri) "Hiteri".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (mapi) "Hmapi".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (to_list) "Hto_list".
+
+    iApply (imp_sitems_letrec).
+    { admit. }
+    iIntros (list_length) "Hlist_length".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (of_list) "Hof_list".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (equal) "Hequal".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (stdlib_compare) "Hstdlib_compare".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (compare) "Hcompare".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (fold_left) "Hfold_left".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (fold_left_map) "Hfold_left_map".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (fold_right) "Hfold_right".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (fold_right_map) "Hfold_right_map".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (for_all) "Hfor_all".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (for_all2) "Hfor_all2".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (vexists2) "Hexists2".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (mem) "Hmem".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (memq) "Hmemq".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (find_opt) "Hfind_opt".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (find_index) "Hfind_index".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (find_map) "Hfind_map".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (find_mapi) "Hfind_mapi".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (split) "Hsplit".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (combine) "Hcombine".
+
+    iApply (imp_sitems_extend).
+    iIntros (bottom) "Hbottom".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (sort) "Hsort".
+
+    iApply (imp_sitems_let (A:=Z)).
+    { iApply imp_EInt. }
+    iIntros (?) "->".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (unstable_sort) "Hunstable_sort".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (stable_sort_sub) "Hstable_sort_sub".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (stable_sort) "Hstable_sort".
+
+    iApply (imp_sitems_let (A:=val)).
+    { iApply imp_EPath; first auto. admit. }
+    iIntros (fast_sort) "Hfast_sort".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (shuffle_contract_violation) "Hshuffle_contract_violation".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (shuffle) "Hshuffle".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (to_seq) "Hto_seq".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (to_seqi) "Hto_seqi".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (of_rev_list) "Hof_rev_list".
+
+    iApply (imp_sitems_let (A:=val)).
+    { admit. }
+    iIntros (of_seq) "Hof_seq".
+
+    iApply imp_sitems_nil.
+    iExists init. iSplit; [ auto | iFrame "#" ].
+
+  Admitted.
+
+End module_proof.

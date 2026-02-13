@@ -145,6 +145,22 @@ Proof.
   apply pure_wp_ret; eauto.
 Qed.
 
+Lemma struct_external η δ x e (spec : val -> Prop) :
+  pure (eval [] e) spec ⊥ ->
+  struct_item (η, δ) (IExternal x e)
+    (λ '(η0, δ0),
+      ∃ clo, spec clo /\
+                   η0 = [(x, clo)] ++ η /\
+                   δ0 = [(x, clo)] ++ δ).
+Proof.
+  intros; unfold struct_item.
+  simpl_eval_sitem.
+  apply pure_wp_bind.
+  eapply pure_wp_mono_ret. eassumption.
+  intros f (? & -> & ?).
+  apply pure_wp_ret; eauto.
+Qed.
+
 Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
   eval_module η me φ' ->
   (∀ η', φ' η' -> φ ((m, VStruct η') :: η, (m, VStruct η') :: δ)) ->

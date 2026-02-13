@@ -633,6 +633,20 @@ Section imp_eval.
     iSplit; iPureIntro; reflexivity.
   Qed.
 
+  Lemma imp_sitems_letrec sitems (spec : val → iProp Σ) x af (η δ : env) Q :
+    spec (VCloRec η [RecBinding x af] x) -∗
+    (∀ v, spec v -∗ imp (eval_sitems ((x, v) :: η, (x, v) :: δ) sitems) @ E <|Ψ|>
+      ⟨⟨ζ⟩⟩ {{ Q }}) -∗
+    imp (eval_sitems (η, δ) ((ILetRec [RecBinding x af]) :: sitems)) @ E <|Ψ|>
+      ⟨⟨ζ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hspec Hcov".
+    iApply (imp_sitems_cons with "[Hspec]").
+    { iApply (imp_sitem_letrec_singleton with "Hspec"). }
+    iIntros ([??]) "(% & Hspec & [-> ->])".
+    iApply ("Hcov" with "Hspec").
+  Qed.
+
   Local Instance observe_env : Observe env env := { observe := id }.
 
   Lemma imp_struct_let bs (Q : envs → iProp Σ) (Q' : env → iProp Σ) η δ :
@@ -734,10 +748,9 @@ Section imp_eval.
   Qed.
 
   Lemma imp_sitems_extend sitems x Q η δ :
-    (∀ ηδ', (∃ l,
-              ⌜ηδ' = ((x, VLoc l) :: η, (x, VLoc l) :: δ)⌝ ∗ l ↦ #()) -∗
-              imp eval_sitems ηδ' sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-      imp eval_sitems (η,δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    (∀ l, l ↦ #() -∗
+          imp eval_sitems ((x, VLoc l) :: η, (x, VLoc l) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
+    imp eval_sitems (η,δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hcov".
     iApply (imp_sitems_cons).
@@ -749,7 +762,8 @@ Section imp_eval.
                    (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ VUnit)%I)).
       simpl.
       iExists l; iFrame. iPureIntro; reflexivity. }
-    iApply "Hcov".
+    iIntros ([??]) "(% & -> & Hl)".
+    iApply ("Hcov" with "Hl").
   Qed.
 
   Lemma imp_sitem_open me Q φ (η δ : env) :
@@ -758,10 +772,37 @@ Section imp_eval.
     imp eval_sitem (η, δ) (IOpen me) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hme Hcov". simpl_eval_sitem.
-    iApply (imp_bind _ _ (λ δ', ret (δ' ++ η, δ)) with "[Hme]").
+    iApply (imp_bind with "[Hme]").
     { iApply (imp_as_struct with "Hme"). }
     iIntros (η') "Hφ".
-    iApply (imp_ret (♯ η' ++ η, δ) (η' ++ η, δ)). encode.
+    iApply imp_ret; first encode.
+    iApply ("Hcov" with "Hφ").
+  Qed.
+
+  Lemma imp_sitem_module m me Q (φ : env → iProp Σ) (η δ : env) :
+    imp eval_mexpr η me @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
+    ( ∀ δ', φ δ' -∗ Q ((m, #δ') :: η, (m, #δ') :: δ) ) -∗
+    imp eval_sitem (η, δ) (IModule m me) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hme Hcov". simpl_eval_sitem.
+    iApply (imp_bind with "Hme").
+    iIntros (η') "Hφ".
+    iApply imp_ret; first encode.
+    iApply ("Hcov" with "Hφ").
+  Qed.
+
+  Lemma imp_sitems_module {m me sitems Q} (φ : env → iProp Σ) (η δ : env) :
+    imp eval_mexpr η me @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
+    ( ∀ δ', φ δ' -∗ imp eval_sitems ((m, #δ') :: η, (m, #δ') :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
+    imp eval_sitems (η, δ) ((IModule m me) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hme Hcov".
+    iApply (imp_sitems_cons with "[Hme]").
+    { iApply (imp_sitem_module with "Hme").
+      iIntros (δ') "Hφ".
+      instantiate (1 := (λ ηδ, ∃ δ', φ δ' ∗ ⌜ηδ = (_,_)⌝)%I).
+      iFrame. auto. }
+    iIntros (?) "(% & Hφ & ->)".
     iApply ("Hcov" with "Hφ").
   Qed.
 
@@ -808,6 +849,21 @@ Section imp_eval.
     iIntros (a) "Ha". iFrame. auto.
     iIntros (ηδ) "(%a & Ha & ->)".
     iApply ("Hcov" with "Ha").
+  Qed.
+
+  Lemma imp_sitems_external sitems x e Q η δ v :
+    imp eval [] e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ (v' : val), ⌜v'=v⌝ }} -∗
+    (imp eval_sitems ((x, v) :: η, (x, v) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
+    imp eval_sitems (η, δ) ((IExternal x e)::sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "He Hcov".
+    iApply (imp_sitems_cons with "[He]").
+    { simpl_eval_sitem.
+      iApply (imp_bind with "He").
+      iIntros (? ->).
+      iApply imp_ret; first encode.
+      instantiate (1 := (λ ηδ, ⌜ηδ = (x ~> v; η, x ~> v; δ)⌝)%I). done. }
+    iIntros (?) "->". iFrame.
   Qed.
 
 End imp_eval.
