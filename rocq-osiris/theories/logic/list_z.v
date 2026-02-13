@@ -636,6 +636,18 @@ Proof.
     destruct_decide' (i < 0); naive_solver lia.
 Qed.
 
+Lemma lookup_valid_is_Some xs i :
+  valid i xs →
+  is_Some (xs !! i).
+Proof.
+  intros.
+  unfold lookup, listz_lookup.
+  case_decide'.
+  apply lookup_lt_is_Some.
+  unfold length in H.
+  lia.
+Qed.
+
 (* Interaction of [lookup] and [singleton]. *)
 
 Lemma list_lookup_singleton_eq_0 x :
