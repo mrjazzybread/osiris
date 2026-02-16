@@ -339,7 +339,7 @@ Section verification.
       iApply imp_ELetOpen.
       { (* Subgoal: [EWP eval_mexpr η (MStruct []) {{ ... }}]. *)
         iApply imp_module. iApply imp_sitems_extend.
-        iIntros (?) "(%yl & -> & Hl)". iApply imp_sitems_nil.
+        iIntros (yl) "Hyl". iApply imp_sitems_nil.
         instantiate (1 := (λ δ, ∃ yl, ⌜δ = [_]⌝ ∗ yl ↦ #())%I).
         by iFrame. }
       iIntros (?) "(%yl & -> & Hyl)".

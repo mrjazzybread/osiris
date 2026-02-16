@@ -307,11 +307,11 @@ Section verification.
 
     (* [type _ Effect.t += Get : t Effect.t] *)
     iApply imp_sitems_extend.
-    iIntros (?) "(%rl & -> & Hrl)".
+    iIntros (rl) "Hrl".
 
     (* [type _ Effect.t += Set : t -> unit Effect.t] *)
     iApply imp_sitems_extend.
-    iIntros (?) "(%wl & -> & Hwl)".
+    iIntros (wl) "Hwl".
 
     set enc_eff := encode_effects rl wl.
 

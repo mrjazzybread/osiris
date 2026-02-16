@@ -182,7 +182,7 @@ Proof. unfold tcompose. rewrite tapp_bind. done. Qed.
 
 Notation "'τ[' x ; .. ; y ; z ]" :=
   (Tcons x (.. (Tcons y (Tbase z)) ..))
-  (format "'τ['  '[hv' x ; .. ; y ; z ']' ]").
+  (format "'τ[' '[hv' x ; .. ; y ; z ']' ]").
 Notation "'τ[' x ]" := (Tbase x)
   (format "τ[ x ]").
 (* This adds (tapp ∘ tbind), which is an identity function, around every
