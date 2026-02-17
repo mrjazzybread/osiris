@@ -149,4 +149,20 @@ Section verification.
       iPureIntro. rewrite Hacc Hlenxs. reflexivity.
   Qed.
 
+  Lemma module_proof η :
+    lookup_spec η ["Array"] (array_module_spec) -∗
+    lookup_spec η ["+"] (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) -∗
+    imp (eval_mexpr η __main) {{ context [ vSpec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] }}.
+  Proof.
+    iIntros "#Hlookup #Hlookup'".
+    iApply imp_module.
+
+    iApply (imp_sitems_let (A:=val)).
+    { iApply imp_sum; auto. }
+    iIntros (sum) "#Hsum".
+
+    iApply imp_sitems_nil.
+    iFrame "#". simpl. auto.
+  Qed.
+
 End verification.

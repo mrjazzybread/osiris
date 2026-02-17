@@ -1418,7 +1418,7 @@ Section module_proof.
       spec : A → iProp Σ
     }.
 
-  Arguments vSpec {_ _}.
+  Global Arguments vSpec {_ _}.
 
   Definition context (specs : list var_spec) : env → iProp Σ :=
     λ η, ([∗ list] r ∈ specs, @lookup_spec r.(A) r.(HencA) η [ r.(name) ] r.(spec))%I.
