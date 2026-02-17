@@ -531,6 +531,32 @@ Section imp_EApp_def.
     iApply ("H" with "HQ HP").
   Qed.
 
+  Definition imp_EApp_pers_prop `{Encode A} (τ : types) : iProp Σ :=
+    ∀ (η : env) (e : expr) (Φ' : A -> iProp Σ) (Ψ : iEff Σ) ζ
+      (P : τ -#> microvx -> iProp Σ),
+    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, □ iSpec τ c P }} -∗
+    accumulate_argument_premises_and_build_consequence_hyp
+      η Ψ ζ e
+      (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }})
+      τ
+      []
+      (λ# (tt : τ) (Q : iProp Σ),
+           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ imp m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }}).
+
+  Arguments imp_EApp_pers_prop {_ _} !τ /.
+  Transparent imp_EApp_pers_prop.
+  Strategy transparent [ imp_EApp_pers_prop ].
+
+   Lemma imp_EApp_pers `{Encode A} (τ : types) :
+    ⊢ @imp_EApp_pers_prop A _ τ.
+   Proof.
+     unfold imp_EApp_pers_prop.
+     iIntros (η e Φ' Ψ ζ P) "He".
+     iApply imp_EApp.
+     iApply (imp_mono_ret with "He").
+     iIntros (?) "#$".
+   Qed.
+
 End imp_EApp_def.
 
 

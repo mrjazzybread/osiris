@@ -1401,6 +1401,17 @@ Qed.
 Lemma drop_all xs : drop (length xs) xs = [].
 Proof. by apply drop_ge. Qed.
 
+Lemma drop_drop xs i j : 0 ≤ j ∧ 0 ≤ i → drop i (drop j xs) = drop (i + j) xs.
+Proof.
+  intros Hpos.
+  eapply (list_eq_same_length _ _ ((length xs - i - j) `max` 0)).
+  - length. lia.
+  - length. lia.
+  - intros i' Hbounds.
+    lookup.
+    f_equal. lia.
+Qed.
+
 (* Interaction of [drop] and [app]. *)
 
 Lemma drop_app xs ys n :
@@ -1463,6 +1474,7 @@ Global Hint Rewrite
   @drop_insert_ge
   @drop_insert_lt
   @drop_init
+  @drop_drop
   @drop_replicate
   using (length; lia)
 : drop.
