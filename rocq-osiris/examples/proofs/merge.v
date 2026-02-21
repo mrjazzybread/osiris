@@ -160,9 +160,9 @@ Section proof.
 Variable η : env.
 
 Lemma merge_mkspec merge (l1 l2 : list Z) :
-  (lookup_name η "l1" = ret #l1) ->
-  (lookup_name η "l2" = ret #l2) ->
-  (lookup_name η "merge" = ret merge) ->
+  (lookup_name η "l1" = Some #l1) ->
+  (lookup_name η "l2" = Some #l2) ->
+  (lookup_name η "merge" = Some merge) ->
   @Spec τ[list Z; list Z] merge
     (λ (x1 x2 : list Z) (m : microvx),
       (length x1 + length x2 < length l1 + length l2)%nat
@@ -175,13 +175,11 @@ Proof.
    unfold merge_spec. intros [Hreprl1 Hsortl1] [Hreprl2 Hsortl2].
    apply pure_please_eval.
    eapply pure_eval_match.
-   { eapply pure_eval_pair.
-     eapply pure_eval_path. simpl; rewrite Hl1. pure_ret.
-     eapply pure_eval_path. simpl; rewrite Hl2. pure_ret. }
+   { eapply pure_eval_pair. pure_path. pure_path. }
 
    pure_match; abstract_env.
 
-   { pure_path. }
+   { pure_path. auto. }
    { pure_path. split; [ | rewrite app_nil_r ]; auto. }
 
    eapply pure_eval_ifthenelse.
@@ -198,10 +196,9 @@ Proof.
 
      (* Evaluate "merge t1 l2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
-     { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
+     { pure_path. apply IH. }
      { pure_path. apply eq_refl. }
-     { eapply pure_eval_path; simpl; rewrite Hl2; eapply pure_ret.
-       encode. apply eq_refl. }
+     { pure_path. apply eq_refl. }
      simpl; unfold tapp.
      intros t1 l2 -> Ht1.
      intros m Hm.
@@ -229,9 +226,8 @@ Proof.
 
      (* Evaluate "merge l1 t2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
-     { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
-     { eapply pure_eval_path. simpl; rewrite Hl1; eapply pure_ret.
-       encode. apply eq_refl. }
+     { pure_path. apply IH. }
+     { pure_path. apply eq_refl. }
      { pure_path. apply eq_refl. }
 
      unfold tbind, tapp.
@@ -263,11 +259,11 @@ Section merge.
 
 Variable merge : val.
 Hypothesis _merge_spec : @Spec τ[list Z; list Z] merge merge_spec.
-Hypothesis Hmerge : lookup_name η "merge" = ret merge.
+Hypothesis Hmerge : lookup_name η "merge" = Some merge.
 
 Lemma split_mkspec split (l : list Z) :
-  (lookup_name η "l" = ret #l) ->
-  (lookup_name η "split" = ret split) ->
+  (lookup_name η "l" = Some #l) ->
+  (lookup_name η "split" = Some split) ->
   Spec τ[list Z] split
        (λ (x : list Z) (m : microvx),
          (length x < length l)%nat → split_spec x m) ->
@@ -277,7 +273,7 @@ Proof.
   unfold split_spec.
   apply pure_please_eval.
   eapply pure_eval_match.
-  { eapply pure_eval_path. simpl. rewrite Hl. pure_ret. }
+  { pure_path. }
 
   pure_match; abstract_env.
 
@@ -289,38 +285,24 @@ Proof.
     split; simpl; auto. }
   (* Second branch of match *)
   { (* Case: l matches [x] *)
-    apply pure_eval_pair.
-    eapply pure_eval_data. eapply pure_evals_cons.
-    pure_path. simpl. encode.
-    eapply pure_evals_cons.
-    eapply pure_eval_const with (x := @nil Z). encode.
-    eapply pure_evals_nil.
-    exists ([x]); split; [ encode | ].
-    eapply pure_eval_const. encode.
+    apply pure_eval_pair. pure_data. pure_data.
     (* Establish postcondition *)
     split; simpl; auto. }
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
     eapply (pure_EApp τ[list Z]).
-    { eapply pure_eval_path; simpl; rewrite Hsplit. pure_ret. }
+    { pure_path. apply IH. }
     { pure_path. apply eq_refl. }
     unfold tbind.
     intros l -> m Hm.
     unfold split_spec in Hm.
     eapply pure_ret_mono. { apply Hm. simpl; lia. }
-    intros [l1 l2] Hpost; clear IH; simpl.
-    simpl_eval_pat; simpl; fold eval. abstract_env.
+    intros [l1 l2] Hpost; clear IH; simpl. apply Hpost.
+    { intros. pattern_match. }
+    intros l1 l2 ? Hpost ->.
     (* Eval (x1::l1, x2::l2) *)
-    apply pure_eval_pair.
-    eapply pure_eval_data. eapply pure_evals_cons. pure_path.
-    simpl; encode.
-    eapply pure_evals_cons. pure_path. simpl; encode.
-    eapply pure_evals_nil. exists (x1 :: l1); split; [ encode | ].
-    eapply pure_eval_data. eapply pure_evals_cons. pure_path.
-    simpl; encode.
-    eapply pure_evals_cons. pure_path. simpl; encode.
-    eapply pure_evals_nil. exists (x :: l2); split; [ encode | ].
+    apply pure_eval_pair. pure_data. pure_data.
     (* Establish postcondition *)
     unfold split_post in *; simpl in *.
     subst.
@@ -331,7 +313,7 @@ Proof.
     { (* Subgoal: the length of l2 is half the length of xs *)
       rewrite Hlength2; eauto with arith. }
     { (* Subgoal: l1++l2 is a permutation of xs *)
-      rewrite_permutation l.
+      rewrite_permutation xs'0.
       apply Permutation_skip.
       apply Permutation_sym.
       apply Permutation_middle. } }
@@ -344,11 +326,11 @@ Section split.
 
 Variable split : val.
 Hypothesis _split_spec : @Spec τ[list Z] split split_spec.
-Hypothesis Hsplit : lookup_name η "split" = ret split.
+Hypothesis Hsplit : lookup_name η "split" = Some split.
 
 Lemma mergesort_mkspec mergesort (l : list Z) :
-  (lookup_name η "l" = ret #l) ->
-  (lookup_name η "merge_sort" = ret mergesort) ->
+  (lookup_name η "l" = Some #l) ->
+  (lookup_name η "merge_sort" = Some mergesort) ->
   (Spec τ[list Z] mergesort (λ x m,
        (length x < length l)%nat ->
        mergesort_spec x m)) ->
@@ -356,17 +338,12 @@ Lemma mergesort_mkspec mergesort (l : list Z) :
 Proof.
   intros Hl Hmergesort IH Hpre.
   apply pure_please_eval.
-  eapply pure_eval_match. { eapply pure_eval_path.
-                            simpl. rewrite Hl. pure_ret. }
+  eapply pure_eval_match. { pure_path. }
   pure_match.
   (* Branch: "[]"  *)
   { pure_const. auto. }
   (* Branch: "[x]" *)
-  { eapply pure_eval_data. eapply pure_evals_cons.
-    pure_path. simpl; encode.
-    eapply pure_evals_cons. eapply pure_eval_const with (x := @nil Z).
-    encode.
-    eapply pure_evals_nil. exists [x]. split; [ encode | auto ]. }
+  { pure_data. }
 
   (* Branch: "_" *)
   assert (exists m, length (x0) = S m) as [m Heql].
@@ -375,47 +352,54 @@ Proof.
   eapply pure_eval_let_pair.
   (* Use knowledge that [split] ⊨ [split_spec] *)
   eapply (pure_EApp τ[list Z]).
-  { eapply pure_eval_path. simpl. rewrite Hsplit.
-    pure_ret. }
-  { eapply pure_eval_path. simpl. rewrite Hl.
-    eapply pure_ret. encode. apply eq_refl. }
+  { pure_path. eassumption. }
+  { pure_path. apply eq_refl. }
   unfold tbind.
-  intros l <- ms Hsplitm.
+  intros l <- ms Hsplitm. unfold split_spec in Hsplitm.
+  simpl in Hsplitm.
+  instantiate (3:= (split_post (x :: x0))).
   eapply pure_ret_mono. { apply Hsplitm. }
-  intros [l1 l2] (Hl1 & Hl2 & Hperm).
-  rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
-  simpl_eval_pat; simpl; fold eval.
+  intros [l1 l2]; auto.
+  { intros ?? Hsplitpost. pattern_match. }
+  intros l1 l2 ? (Hl1 & Hl2 & Hperm) ->.
+  change (encode' Encode_list l2) with #l2.
+  change (encode' Encode_list l1) with #l1.
+
+  assert (Forall representable l1 ∧ Forall representable l2)
+    as [Hrepr1 Hrepr2].
+  { rewrite <- Hperm in Hpre.
+    by apply Forall_app. }
 
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
-    eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
-    eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    pure_path. apply IH.
+    pure_path. apply eq_refl.
     unfold tbind.
-    intros l -> mm Hcall.
+    intros ? <- mm Hcall.
     apply Hcall.
     - simpl in Hperm, Hl1, Hl2.
       rewrite Heql in Hl1, Hl2 |-*.
       apply div2_lt_succ. apply Hl1.
-    - assumption. }
+    - tauto. }
 
   intros l1' IHl1'.
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
-    eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
-    eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    pure_path. eassumption.
+    pure_path. apply eq_refl.
     unfold tbind.
     intros ? -> mm Hcall. apply Hcall.
     - rewrite Hl2. simpl. destruct (length x0); auto with arith.
       inversion Heql. auto with arith.
-    - assumption. }
+    - tauto. }
 
   intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
   abstract_env.
   eapply (pure_EApp τ[list Z; list Z]).
   - (* Use the knowledge that [merge] ∈ [η] *)
-    eapply pure_eval_path. simpl; rewrite Hmerge. pure_ret.
-  - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
-  - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    pure_path. eassumption.
+  - pure_path. apply eq_refl.
+  - pure_path. apply eq_refl.
   - simpl. intros ? ? <-. unfold tapp. intros <- m Hmerge'.
     unfold merge_spec in Hmerge'.
     simpl in IHl1', IHl2'; destruct IHl1' as [??]; destruct IHl2' as [??].

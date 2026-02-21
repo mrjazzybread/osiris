@@ -202,7 +202,8 @@ Proof.
   pure_enter. simpl_eval. pure_ret.
   intros y Hy.
   pure_enter.
-  eapply pure_eval_EOpEq_bool; try (pure_path); auto with encode.
+  eapply pure_eval_EOpEq_bool; try eassumption.
+  pure_path. pure_path.
 Qed.
 
 Lemma Stdlib__ne_spec :

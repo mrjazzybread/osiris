@@ -29,12 +29,11 @@ Section Modules.
                    end.
 
   Definition val_as_struct_total := totalify val_as_struct [].
-  Definition lookup_name_total η := totalify (lookup_name η) VUnit.
 
   (* Inversion lemma on a lookup: *)
   Local Lemma lookup_name_inv η n v :
     (* If [η !! n = Some v], *)
-    lookup_name η n = ret v →
+    lookup_name η n = Some v →
     (* Then, the environment is not empty, ie. it is an [EnvCons _ _ _] *)
     ∃ n' v' η',
       η = (n', v') :: η'
@@ -42,7 +41,7 @@ Section Modules.
           ( (* - the lookup returned on the first cons ; *)
             v = v' ∧ n = n')
           ∨ ( (* - or not. *)
-              n <> n' ∧ lookup_name η' n = ret v)).
+              n <> n' ∧ lookup_name η' n = Some v)).
   Proof.
     induction η as [ | [n' v'] η' ];
       first (* Impossible case. *)
@@ -66,9 +65,9 @@ Section Modules.
   (* This lemma is equivalent as the one above. The difference is that we do not
     existentially quantify over the arguments to [EnvCons]. *)
   Local Lemma lookup_name_inv' η n n' v v' :
-    lookup_name ((n, v) :: η) n' = ret v' →
+    lookup_name ((n, v) :: η) n' = Some v' →
     (v = v' ∧ n = n')
-    ∨ (n' <> n ∧ lookup_name η n' = ret v').
+    ∨ (n' <> n ∧ lookup_name η n' = Some v').
   Proof.
     intros (n0&v0&η0&Heq&[ [->->] | H ])%lookup_name_inv;
       inversion Heq; simplify_eq/=; [ by left | by right ].
@@ -151,7 +150,7 @@ Section Modules.
                       without proving that the depth of [Λ] is a decreasing
                       argument for the fixpoint. *)
                    foldr (λ '(n, Λn) P,
-                            (∃ vn, ⌜ lookup_name η n = Ret vn ⌝ ∗
+                            (∃ vn, ⌜ lookup_name η n = Some vn ⌝ ∗
                                    satisfies_spec Λn vn) ∗
                             P)
                          P l)%I
@@ -164,7 +163,7 @@ Section Modules.
     | SpecEquality _ v' => λ v, v = v'
     | SpecModule _ l _ =>
         λ v, ∃ η, v = VStruct η ∧
-                   Forall (λ '(n, _), ∃ vn, lookup_name η n = Ret vn) l
+                   Forall (λ '(n, _), ∃ vn, lookup_name η n = Some vn) l
     end.
 
   (* If one knows that an impure interpretation of a specification holds, then
@@ -192,28 +191,8 @@ Section Modules.
      functions. *)
   Lemma pure_spec_val_as_struct a l P v :
     pure_spec (SpecModule a l P) v →
-    val_as_struct v = Ret (val_as_struct_total v).
+    val_as_struct (E:=exn) v = Ret (val_as_struct_total v).
   Proof. intros (η&->&_); reflexivity. Qed.
-
-  (* Should a pure interpretation of a specification [SpecModule l _ v] hold,
-     and should the name [n] of a symbol appear in [l], one could rewrite
-     [lookup_name (val_as_struct_total v) n] as [lookup_name_total (...) n]. *)
-  Lemma pure_spec_lookup_total a l P n v :
-    pure_spec (SpecModule a l P) v →
-    In n (map fst l) →
-    lookup_name (val_as_struct_total v) n =
-    Ret (lookup_name_total (val_as_struct_total v) n).
-  Proof.
-    induction l as [|[??]?]; first inversion 2.
-    intros (?&->&[Hh Ht]%Forall_cons_1) [Hin | Hin]%in_inv; simplify_eq/=.
-    { (* Either the name appears at the top of the module. *)
-      cbn; rewrite/lookup_name_total/totalify.
-      destruct Hh as [?->].
-      reflexivity. }
-    { (* Or it will appear later; use the IH. *)
-      refine (IHl _ Hin).
-      eexists; by split. }
-  Qed.
 
   (* ------------------------------------------------------------------------ *)
 
@@ -225,27 +204,6 @@ Section Modules.
     | [] =>
         (* Dummy result... *) SpecPure NoAuto (λ _, True)
     end.
-
-  Lemma bloupyfetcher a l P (v : val) (n : name):
-    satisfies_spec (SpecModule a l P) v ⊢
-    satisfies_spec (SpecModule_fetch l n)
-                   (lookup_name_total (val_as_struct_total v) n).
-  Proof.
-    iIntros "Hspec"; iInduction l as [|[??]?] "IHl"; first done.
-    destruct (s =? n)%string eqn:e.
-
-    { simpl; rewrite e/lookup_name_total/totalify.
-      iDestruct "Hspec" as "(%&->&(%&%Heq&H)&_)"; cbn.
-      apply String.eqb_eq in e as ->; by rewrite Heq. }
-    { replace (SpecModule_fetch ((s, s0) :: l) n) with (SpecModule_fetch l n);
-        last first.
-      { simpl; rewrite e. reflexivity. }
-
-      iDestruct "Hspec" as "(%&->&_&H)"; cbn.
-      iApply "IHl".
-      iExists _; by iSplit. }
-  Qed.
-
 
   (* ------------------------------------------------------------------------ *)
 
@@ -259,12 +217,12 @@ Section Modules.
     3. every field present in [Λ] satisfy its spec. *)
  Definition module_spec (Λ : spec_env) (η: env) : iProp Σ :=
    [∗ list] '(x, φx) ∈ Λ,
-     ∃ v, ⌜lookup_name η x = Ret v⌝ ∗ φx v.
+     ∃ v, ⌜lookup_name η x = Some v⌝ ∗ φx v.
 
  (* [is_module] is the pure counterpart of [module_spec]. It asserts the first
     two points listed above. *)
  Definition is_module (Λ : list name) η : Prop :=
-   foldr (λ n P, (∃ (vn : val), lookup_name η n = Ret vn) ∧ P) True Λ.
+   foldr (λ n P, (∃ (vn : val), lookup_name η n = Some vn) ∧ P) True Λ.
 
  (* -------------------------------------------------------------------------- *)
 
@@ -300,7 +258,7 @@ Section Modules.
  Lemma is_module_lookup_name η n Λ :
    is_module Λ η →
    In n Λ →
-   ∃ velt, lookup_name η n = Ret velt.
+   ∃ velt, lookup_name η n = Some velt.
  Proof.
    induction Λ as [ | h t];
      first (* Impossible case. *)
@@ -310,37 +268,6 @@ Section Modules.
      first (exists vh; exact Hh).
    refine (IHt _ Hin).
    exact Ht.
- Qed.
-
- (* Ditto, except that the value returned by [lookup_name] is known: it is
-    the result of the total lookup function. *)
- Lemma is_module_lookup_name_total η (Λ : list name) (n : name) :
-   is_module Λ η →
-   In n Λ →
-   lookup_name η n =
-   Ret (lookup_name_total η n).
- Proof.
-   induction Λ as [ | h t ];
-     first (* Impossible case. *)
-       inversion 2.
-
-   intros ((vh&Hh) & Ht) [Heq | Hin]%in_inv; last first.
-   { apply IHt; last assumption.
-     assumption. }
-   cbn.
-   unfold lookup_name_total, totalify.
-   rewrite -Heq Hh; f_equal.
- Qed.
-
- (* If one known that [lookup_name] succeeds, then its result coincides with
-    that of [lookup_name_total]. This follows from the definition of
-    [totalify]. *)
- Lemma lookup_name_total_ret η n v :
-   lookup_name η n = Ret v →
-   lookup_name_total η n = v.
- Proof.
-   unfold lookup_name_total, totalify.
-   intros ->. reflexivity.
  Qed.
 
  (* ------------------------------------------------------------------------- *)
@@ -354,24 +281,6 @@ Section Modules.
        else module_spec_fetch Λ n
    | [] => λ _, emp%I
    end.
-
- (* Should a module specification be available, one can fetch the specification
-    of any symbol described by the spec.
-    A dummy value is returned if none is found. *)
- Lemma module_spec_spec (Λ : spec_env) η (n: name) :
-   module_spec Λ η ⊢
-   (module_spec_fetch Λ n) (lookup_name_total η n).
- Proof.
-   iInduction Λ as [ | [n' φ] Λ' ] "IH"; first by iIntros"_".
-   iIntros "H".
-   rewrite {2}/module_spec. simpl.
-   iDestruct "H" as "((%v & %Hlookup & Hφ) & H2)".
-   destruct (decide (n = n')) as [-> | Hneq].
-   { cbn. rewrite String.eqb_refl.
-     by rewrite (lookup_name_total_ret _ _ _ Hlookup). }
-   { apply String.eqb_neq in Hneq as ->.
-     iApply ("IH" with "H2"). }
- Qed.
 End Modules.
 
 (* -------------------------------------------------------------------------- *)
@@ -389,7 +298,7 @@ Section PureModules.
     | [] => True
     | h::t => let (name, spec) := h in
             match (lookup_name η name) with
-            | ret v' => spec v' /\ env_has_pspecs t η
+            | Some v' => spec v' /\ env_has_pspecs t η
             | _ => False
             end
     end.
@@ -406,7 +315,7 @@ Section PureModules.
   Lemma env_has_pspecs_find {Λ η} x spec :
     env_has_pspecs Λ η →
     In (x, spec) Λ →
-    ∃ v, lookup_name η x = ret v ∧ spec v.
+    ∃ v, lookup_name η x = Some v ∧ spec v.
   Proof.
     intros H1 H2; revert H2 H1.
     induction Λ as [ | (y, sy) Λ IHΛ].

@@ -32,7 +32,7 @@ Arguments val_as_loc _ !v /.
 Arguments val_as_cont _ !v /.
 Arguments val_as_int !v /.
 Arguments val_as_record !v /.
-Arguments val_as_struct !v /.
+Arguments val_as_struct _ !v /.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.

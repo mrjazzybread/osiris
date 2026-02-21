@@ -382,8 +382,11 @@ Definition orelse {A E E'} (m1 : micro A E') (m2 : micro A E) : micro A E :=
    must be converted to the type [micro _ E]. The coercion [widen]
    is used for this purpose. *)
 
-Definition widen {A E} (m : micro A void) : micro A E :=
-  try m ret elim_void.
+Definition widen {A E} (m : option A) : micro A E :=
+  match m with
+  | Some a => ret a
+  | None => Crash
+  end.
 
 (* ------------------------------------------------------------------------ *)
 

@@ -59,8 +59,8 @@ Section init_proof.
   Definition init := (EAnonFun __fun21).
 
   Lemma imp_init η :
-    lookup_name η "make" = ret Externals__array_make →
-    lookup_name η "unsafe_set" = ret Externals__array_set →
+    lookup_name η "make" = Some Externals__array_make →
+    lookup_name η "unsafe_set" = Some Externals__array_set →
     ⊢ imp (eval η init) {{ λ c, □ iSpec τ[Z; val] c init_spec }}.
   Proof.
     iIntros (Hlookup1 Hlookup2).
@@ -206,8 +206,8 @@ Section iter_proof.
   Definition iter := (EAnonFun __fun74).
 
   Lemma imp_iter η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
     ⊢ imp (eval η iter) {{ λ c, □ iSpec τ[val; array] c iter_spec }}.
   Proof.
     iIntros (Hlookup Hlookup').
@@ -330,10 +330,10 @@ Section map_spec.
   Qed.
 
   Lemma imp_map η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
-    lookup_name η "unsafe_set" = ret Externals__array_set →
-    lookup_name η "make" = ret Externals__array_make →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
+    lookup_name η "unsafe_set" = Some Externals__array_set →
+    lookup_name η "make" = Some Externals__array_make →
     ⊢ imp (eval η map) {{ λ c, □ iSpec τ[val; array] c map_spec }}.
   Proof.
     iIntros (Hlength Hget Hset Hmake).
@@ -529,9 +529,9 @@ Section map_inplace_spec.
   Definition map_inplace := (EAnonFun __fun91).
 
   Lemma imp_map_inplace η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
-    lookup_name η "unsafe_set" = ret Externals__array_set →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
+    lookup_name η "unsafe_set" = Some Externals__array_set →
     ⊢ imp (eval η map_inplace) {{ λ c, □ iSpec τ[val; array] c map_inplace_spec }}.
   Proof.
     iIntros (Hlength Hget Hset).
@@ -654,9 +654,9 @@ Section mapi_inplace_spec.
   Definition mapi_inplace := (EAnonFun __fun94).
 
   Lemma imp_mapi_inplace η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
-    lookup_name η "unsafe_set" = ret Externals__array_set →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
+    lookup_name η "unsafe_set" = Some Externals__array_set →
     ⊢ imp (eval η mapi_inplace) {{ λ c, □ iSpec τ[val; array] c mapi_inplace_spec }}.
   Proof.
     iIntros (Hlength Hget Hset).
@@ -812,8 +812,8 @@ Section iteri_spec.
   Definition iteri := (EAnonFun __fun109).
 
   Lemma imp_iteri η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
     ⊢ imp (eval η iteri) {{ λ c, □ iSpec τ[val; array] c iteri_spec }}.
   Proof.
     iIntros (Hlookup Hlookup').
@@ -1007,8 +1007,8 @@ Section fold_left_spec.
   Definition fold_left := (EAnonFun __fun162).
 
   Lemma imp_fold_left η :
-    lookup_name η "length" = ret Externals__array_length →
-    lookup_name η "unsafe_get" = ret Externals__array_get →
+    lookup_name η "length" = Some Externals__array_length →
+    lookup_name η "unsafe_get" = Some Externals__array_get →
     ⊢ imp (eval η fold_left) {{ λ c, ∀ A (_ : Encode A), □ iSpec τ[val; A; array] c (fold_left_spec A) }}.
   Proof.
     iIntros (Hlookup Hlookup').
@@ -1406,7 +1406,7 @@ Section module_proof.
     (impure ⊤ (eval_sitems _ (sitem :: _)) ⊥ ⊥ _) (at level 20).
 
   Definition lookup_spec `{Encode A} η x spec : iProp Σ :=
-    ∃ (v : A), ⌜lookup_path η x = ret #v⌝ ∗ □ spec v.
+    ∃ (v : A), ⌜lookup_path η x = Some #v⌝ ∗ □ spec v.
 
   Global Instance lookup_spec_pers `{Encode A} η x spec : Persistent (@lookup_spec A _ η x spec).
   Proof. apply _. Qed.

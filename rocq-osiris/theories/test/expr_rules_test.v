@@ -46,7 +46,7 @@ Qed.
 
 (* [!x] *)
 Lemma example_load η x l v :
-  lookup_name η x = ret (VLoc l) ->
+  lookup_name η x = Some #l ->
   l ↦ v ⊢ imp (eval η (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ v }}.
 Proof.
   iIntros (Hx) "Hl".
@@ -57,7 +57,7 @@ Qed.
 
 (* [x := 2] *)
 Lemma example_store η x l :
-  lookup_name η x = ret #l ->
+  lookup_name η x = Some #l ->
   l ↦ #1%Z
     ⊢ imp (eval η (EStore (EVar x) (EInt 2)))
     {{ λ (_ : unit), l ↦ #2 }}.
@@ -65,7 +65,7 @@ Proof.
   iIntros (Hx) "Hl".
   iApply (imp_EStore2 (A:=Z)).
   - simpl_eval. rewrite Hx. iApply imp_widen.
-    iApply (imp_ret_eq l).
+    instantiate (1:=(λ l', ⌜l'=l⌝)%I). eauto.
   - iApply imp_EInt.
   - iIntros (? ?) "-> ->".
     iExists _. iFrame.
@@ -74,7 +74,7 @@ Qed.
 
 (* [x := 2; x := 4] *)
 Lemma example_2_stores η x l :
-  lookup_name η x = ret #l ->
+  lookup_name η x = Some #l ->
   l ↦ #1%Z
   ⊢ imp (eval η
            (ESeq
@@ -111,7 +111,7 @@ Qed.
 
 (* [x := 1 + !x] *)
 Lemma example_incr η x lx n :
-  lookup_name η x = ret #lx ->
+  lookup_name η x = Some #lx ->
   lx ↦ #n
   ⊢ imp (eval η (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
     {{ λ (_ : unit),lx ↦ #(1 + n)%Z }}.
@@ -142,7 +142,7 @@ Qed.
 
 (* [x := !x + !x] *)
 Lemma example_double η x lx n :
-  lookup_name η x = ret #lx ->
+  lookup_name η x = Some #lx ->
   lx ↦ #n
   ⊢ imp (eval η (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
     {{ λ (_ : unit), lx ↦ #(2 * n)%Z }}.

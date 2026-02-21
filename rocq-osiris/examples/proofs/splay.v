@@ -331,10 +331,10 @@ Lemma pat_pLeaf `{Encode A} η δ v (t : tree A) (φ : env -> Prop) :
 Proof.
   intros; subst.
   destruct t.
-  { eapply pattern_exn_mono.
+  { eapply pattern_mono_exn.
     { eapply pat_PData_eq; pats. }
     destruct 1. }
-  { eapply pattern_exn_mono.
+  { eapply pattern_mono_exn.
     { eapply pat_PData_neq; auto. }
     congruence. }
 Qed.
@@ -361,7 +361,7 @@ Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros -> Hcov.
-  destruct t; eapply pattern_exn_mono.
+  destruct t; eapply pattern_mono_exn.
   { eapply pat_PData_neq; eauto. }
   { auto. }
   { eapply pat_PData_eq; pats ; eauto. }
@@ -380,13 +380,13 @@ Lemma pat_pRoot `{Encode A} η δ v (z : zipper A) (φ : env -> Prop) :
 Proof.
   intros; subst.
   destruct z.
-  { eapply pattern_exn_mono.
+  { eapply pattern_mono_exn.
     { eapply pat_PData_eq; pats. }
     destruct 1. }
-  { eapply pattern_exn_mono.
+  { eapply pattern_mono_exn.
     { eapply pat_PData_neq; auto. }
     congruence. }
-  { eapply pattern_exn_mono.
+  { eapply pattern_mono_exn.
     { eapply pat_PData_neq; auto. }
     congruence. }
 Qed.
@@ -410,7 +410,7 @@ Lemma pat_pNodeL `{Encode A} (η δ : env) (v : val) (z : zipper A)
                                  (exists z' a t, z = NodeL z' a t /\ (ψ1 z' \/ ψ2 a \/ ψ3 t))).
 Proof.
   intros -> Hcov.
-  destruct z; eapply pattern_exn_mono.
+  destruct z; eapply pattern_mono_exn.
   { eapply pat_PData_neq; eauto. }
   { auto. }
   { eapply pat_PData_eq; pats; eauto. }
@@ -438,7 +438,7 @@ Lemma pat_pNodeR `{Encode A} (η δ : env) (v : val) (z : zipper A)
                                  (exists t a z', z = NodeR t a z' /\ (ψ1 t \/ ψ2 a \/ ψ3 z'))).
 Proof.
   intros -> Hcov.
-  destruct z; eapply pattern_exn_mono.
+  destruct z; eapply pattern_mono_exn.
   { eapply pat_PData_neq; eauto. }
   { auto. }
   { eapply pat_PData_neq; eauto. }
@@ -551,7 +551,7 @@ Proof.
     prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
+  { eapply pure_eval_app. pure_path. apply eq_refl.
     eapply pure_eval_quadruple.
     pure_path. pure_path. pure_data. pure_path.
     apply eq_refl.
@@ -562,7 +562,7 @@ Proof.
     prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
-  { eapply pure_eval_app. pure_path.
+  { eapply pure_eval_app. pure_path. apply eq_refl.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     apply eq_refl.
     intros ? ? -> <-.
@@ -577,7 +577,7 @@ Proof.
 
   (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
   { eapply pure_eval_app.
-    pure_path.
+    pure_path. apply eq_refl.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
     apply eq_refl.
     intros ? ? -> <-.
@@ -587,7 +587,7 @@ Proof.
     prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
-  { eapply pure_eval_app. pure_path.
+  { eapply pure_eval_app. pure_path. apply eq_refl.
     eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
     apply eq_refl.
     intros ? ? -> <-.
@@ -613,8 +613,7 @@ Proof.
   { pure_const. reflexivity. }
 
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
-  { eapply pure_eval_app. pure_path. (* What does [pure_path] do? *)
-    Unshelve.
+  { eapply pure_eval_app. pure_path. apply eq_refl.
     eapply pure_eval_quadruple.
     eapply pure_eval_const.
     apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
@@ -627,7 +626,8 @@ Proof.
     apply Hsplay. }
 
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
-  { eapply pure_eval_app. pure_path. eapply pure_eval_quadruple.
+  { eapply pure_eval_app. pure_path. apply eq_refl.
+    eapply pure_eval_quadruple.
     pure_path. pure_path. eapply pure_eval_const.
     apply (@solve_encode_Leaf A). reflexivity.
     pure_path.
@@ -672,7 +672,7 @@ Proof.
 
   (* Case: [t] matches [Leaf] *)
   { eapply pure_eval_pair. pure_const.
-    eapply pure_eval_app. pure_path. pure_path.
+    eapply pure_eval_app. { pure_path. apply eq_refl. } pure_path. apply eq_refl.
     intros ? ? -> ->.
     simple eapply pure_ret_mono; first eapply Hsplay_leaf.
     split; [ intros | auto]. repeat intro; by eapply not_elem_of_nil. }
@@ -683,10 +683,10 @@ Proof.
     eapply pure_eval_let1var.
     { (* Evaluate rhs of [let c = ..] *)
       eapply pure_eval_app.
-      { eapply pure_eval_app. pure_path. pure_path.
-        intros ? ? -> ->.
+      { eapply pure_eval_app. pure_path. apply eq_refl. pure_path. apply eq_refl.
+        intros ? ? <- <-.
         eapply Hcompare. }
-      pure_path.
+      pure_path. apply eq_refl.
       intros ? ? Hcall ->.
       eapply Hcall. }
     (* Evaluate continuation expression after let *)
@@ -701,7 +701,7 @@ Proof.
 
     { (* Case: [c < 0] *)
       intro Clt0.
-      eapply pure_eval_app. pure_path.
+      eapply pure_eval_app. pure_path. apply eq_refl.
       eapply pure_eval_triple. pure_path. pure_path. pure_data.
       apply eq_refl.
       intros ? ? -> <-.
@@ -724,7 +724,7 @@ Proof.
 
       { (* Subcase: [c > 0] *)
         intros Cgt0.
-        eapply pure_eval_app. pure_path.
+        eapply pure_eval_app. pure_path. apply eq_refl.
         eapply pure_eval_triple. pure_path. pure_path. pure_data.
         apply eq_refl.
         intros ? ? -> <-.
@@ -742,7 +742,7 @@ Proof.
         intros Cle0.
         (* Deduce [c = 0] *)
         eapply pure_eval_pair. pure_data.
-        eapply pure_eval_app. pure_path.
+        eapply pure_eval_app. pure_path. apply eq_refl.
         eapply pure_eval_quadruple. pure_path. pure_path. pure_path.
         rewrite <- (encode_encode' Encode_zipper).
         pure_path.

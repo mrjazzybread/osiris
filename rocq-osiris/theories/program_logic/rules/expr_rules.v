@@ -15,13 +15,13 @@ Section imp_rules_expr.
   (** * EPath : path → expr *)
 
   Lemma imp_EPath {ζ} (a : A) η p :
-    lookup_path η p = ret #a →
+    lookup_path η p = Some #a →
     Φ a -∗
     imp eval η (EPath p) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hlookup HΦ". simpl_eval.
     iApply imp_widen.
-    rewrite Hlookup. iApply imp_ret; auto.
+    rewrite Hlookup. iExists a; auto.
   Qed.
 
   (** * EAnonFun : anonfun → expr *)
@@ -289,7 +289,7 @@ Section imp_rules_expr.
 
   (** * EXData : data → expr → expr *)
   Lemma imp_EXData `{Encode A} {ζ} η π l es (Φs : list (val → iProp Σ)) (Φ : A → iProp Σ) :
-    lookup_path η π = ret (VLoc l) →
+    lookup_path η π = Some #l →
     ([∗ list] ei;Φi ∈ es;Φs,
        imp eval η ei @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φi }}) -∗
     (∀ vs, ([∗ list] vi;Φi ∈ vs;Φs, Φi vi) -∗
@@ -509,34 +509,29 @@ Section imp_rules_expr.
     η p e bs (φs : val -> env -> Prop) :
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval_bindings η bs @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
-    (∀ x δ, Φ1 x -∗ Φ' δ -∗ ⌜pattern η δ p #x (φs #x) False⌝) -∗
-    (∀ x δ, Φ1 x -∗  ⌜φs #x δ⌝ -∗ Φ δ) -∗
+    (∀ x, Φ1 x -∗ ⌜pattern η [] p #x (φs #x) False⌝) -∗
+    (∀ x η' δ, Φ1 x -∗  ⌜φs #x δ⌝ -∗ Φ' η' -∗ Φ (δ ++ η')) -∗
     imp eval_bindings η (Binding p e :: bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 P Hcons /=".
     simpl_eval_bindings.
-    iApply (imp_Par with "H1 H2").
+    iApply (imp_Par with "[H1 P] H2").
+    { iApply (imp_bind with "H1").
+      iIntros (x) "HΦ1".
+      iApply imp_widen. rewrite /pattern /=.
+      iDestruct ("P" with "HΦ1") as "%P".
+      destruct (eval_pat η [] p #x); last contradiction.
+      instantiate (1 := (λ η, ∃ x, Φ1 x ∗ ⌜φs #x η⌝)%I).
+      iFrame "%". iFrame. auto. }
     iSplit; last iSplit.
     - iIntros (ex) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (ex) "Hζ !>".
       iApply (imp_throw with "Hζ").
-    - iIntros (x δ) "H1 H2 !>".
+    - iIntros (η' δ) "(%x & H1 & Hφs) H2 !>".
       rewrite /continue /=.
-      iDestruct ("P" with "H1 H2") as "%Hpat".
-      iApply imp_widen. unfold irrefutably_extend.
-      iApply imp_try.
-      iApply ewp_mono.
-      iApply pure_ewp. apply Hpat.
-      { instantiate (1 := (λ η, ⌜φs #x η⌝)%I).
-        instantiate (1 := (λ _, False)%I).
-        iIntros ([|]); [ | iIntros ([]) ].
-        iIntros "%Hφs".
-        iFrame "%". auto. }
-      iSplit.
-      + iIntros (η' Hφs).
-        iApply imp_ret; auto. iApply ("Hcons" with "H1"). iPureIntro; assumption.
-      + iIntros (? []).
+      iApply imp_ret; first reflexivity.
+      iApply ("Hcons" with "H1 Hφs H2").
   Qed.
 
   Lemma imp_bindings_singleton `{Encode A} {ζ} {Φ : env → iProp Σ} (Φ1 : A → iProp Σ) {η p e} φs :
@@ -545,11 +540,12 @@ Section imp_rules_expr.
     (∀ x δ, Φ1 x -∗ ⌜φs #x δ⌝ -∗ Φ δ) -∗
     imp eval_bindings η [ Binding p e ] @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H1 P /=".
-    iApply (imp_bindings_cons with "H1").
+    iIntros "H1 P Hcov /=".
+    iApply (imp_bindings_cons with "H1 [] P").
     { iApply imp_bindings_nil. }
-    iIntros (v δ) "HΦ ->".
-    iApply ("P" with "HΦ").
+    iIntros (x η' δ) "HΦ Hφs ->".
+    rewrite app_nil_r.
+    iApply ("Hcov" with "HΦ Hφs").
   Qed.
 
   (* Specialized [ELet] lemmas *)
@@ -578,7 +574,7 @@ Section imp_rules_expr.
     iApply (imp_ELet_singleton with "H").
     { iIntros (v) "_".
       iPureIntro. unfold pattern. simpl_eval_pat.
-      apply pure_wp_ret. instantiate (1 := λ v l, l = [(x, v)]).
+      instantiate (1 := λ v l, l = [(x, v)]).
       reflexivity. }
     iIntros (v δ) "HΦ ->".
     iApply ("P" with "HΦ").
@@ -594,7 +590,7 @@ Section imp_rules_expr.
     iApply (imp_ELet_singleton with "H").
     { iIntros (v) "_".
       iPureIntro. unfold pattern. simpl_eval_pat.
-      apply pure_wp_ret. instantiate (1 := λ v l, l = []).
+      instantiate (1 := λ v l, l = []).
       reflexivity. }
     iIntros (v δ) "HR ->".
     iApply ("P" with "HR").
@@ -610,7 +606,7 @@ Section imp_rules_expr.
     iApply (imp_ELet_singleton with "H").
     { iIntros ([a b]) "_".
       iPureIntro. unfold pattern, encode_pair. simpl_eval_pat.
-      apply pure_wp_ret. simpl.
+      simpl.
       instantiate (1 := λ v l, match v with
                                | VTuple [a; b] => l = [(y, b); (x, a)]
                                | _ => False

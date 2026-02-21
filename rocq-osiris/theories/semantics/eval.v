@@ -141,6 +141,14 @@ Definition val_as_loc {E} (v : val) : micro loc E :=
       type_mismatch "location value expected"
   end.
 
+Definition val_as_loc_opt (v : val) : option loc :=
+  match v with
+  | VLoc l =>
+      Some l
+  | _ =>
+      None
+  end.
+
 Definition as_loc {E} (m : micro val E) : micro loc E :=
   v ← m ;
   val_as_loc v.
@@ -246,7 +254,15 @@ Definition as_array (m : microvx) : micro (list loc) exn :=
 (* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
    xvs] and returns its content [xvs]. *)
 
-Definition val_as_struct (v : val) : micro env void :=
+Definition val_as_struct_opt (v : val) : option env :=
+  match v with
+  | VStruct xvs =>
+      Some xvs
+  | _ =>
+      None
+  end.
+
+Definition val_as_struct {E} (v : val) : micro env E :=
   match v with
   | VStruct xvs =>
       ret xvs
@@ -256,10 +272,13 @@ Definition val_as_struct (v : val) : micro env void :=
 
 Definition as_struct {E} (m : micro val E) : micro env E :=
   v ← m ;
-  widen (val_as_struct v).
+  val_as_struct v.
 
 (* ------------------------------------------------------------------------ *)
-(* ------------------------------------------------------------------------ *)
+
+Section LookupEnv.
+
+Local Open Scope stdpp.
 
 (* [lookup_name η x] looks up the name [x] in the environment [env],
    producing a value. A hard failure occurs if [x] is unbound. *)
@@ -267,33 +286,33 @@ Definition as_struct {E} (m : micro val E) : micro env E :=
 (* This function is used also to look up fields in records and module
    components in modules. *)
 
-Fixpoint lookup_name η x : micro val void :=
+Fixpoint lookup_name η x : option val :=
   match η with
   | (x', v) :: η =>
-      if x =? x' then ret v else lookup_name η x
-  | [] =>
-      missing_variable_or_field x
+      if x =? x' then Some v else lookup_name η x
+  | [] => None
   end.
 
 (* ------------------------------------------------------------------------ *)
 
 (* [lookup_path η π] looks up the path [π] in the environment [η]. *)
 
-Fixpoint lookup_path η π : micro val void :=
+Fixpoint lookup_path η π : option val :=
   match π with
-  | [] =>
-      missing_variable "no path base"
+  | [] => None
   | [x] =>
       lookup_name η x
   | x1 :: π =>
       (* We retrieve the value bound to the name [x1] in [η]. *)
       v ← lookup_name η x1 ;
       (* We expect this value to be a structure. *)
-      xvs ← val_as_struct v ;
+      xvs ← val_as_struct_opt v ;
       (* The content of a structure is an environment,
          so we can look up [π] in the environment [xvs]. *)
       lookup_path xvs π
   end.
+
+End LookupEnv.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -387,7 +406,9 @@ Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
 
 Section EvalPat.
 
-Variable eval_pat : env → env → pat → val → micro env unit.
+Local Open Scope stdpp.
+
+Variable eval_pat : env → env → pat → val → option env.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -407,19 +428,19 @@ Variable eval_pat : env → env → pat → val → micro env unit.
    left-hand side of a pair can guarantee the safety of a test in the
    right-hand side of this pair. *)
 
-Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
+Fixpoint pre_eval_pats (η δ : env) ps vs : option env :=
   let eval_pats := pre_eval_pats in
   match ps, vs with
   | [], [] =>
-      ret δ
+      Some δ
   | p::ps, v::vs =>
       δ ← eval_pat η δ p v ;
       δ ← eval_pats η δ ps vs ;
-      ret δ
+      Some δ
   | _::_, [] =>
-      length_mismatch "longer tuple expected"
+      None
   | [], _::_ =>
-      length_mismatch "shorter tuple expected"
+      None
  end.
 
 (* [eval_fpats η δ fps fvs] matches the field-indexed values [fvs] against the
@@ -432,18 +453,22 @@ Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
    A hard failure occurs if a field is present in [fps]
    but absent in [fvs]. *)
 
-Fixpoint pre_eval_fpats (η δ : env) fps fvs : micro env unit :=
+Fixpoint pre_eval_fpats (η δ : env) fps fvs : option env :=
   let eval_fpats := pre_eval_fpats in
   match fps with
-  | [] => ret δ
+  | [] => Some δ
   | (f, p) :: fps =>
-      v ← widen (lookup_name fvs f) ;
+      v ← lookup_name fvs f ;
       δ ← eval_pat η δ p v ;
       δ ← eval_fpats η δ fps fvs ;
-      ret δ
+      Some δ
   end.
 
 End EvalPat.
+
+Section EvalPat.
+
+Local Open Scope stdpp.
 
 (* [eval_pat η δ p v] matches the value [v] against the pattern [p].
 
@@ -465,29 +490,29 @@ End EvalPat.
 (* We assume that the pattern [p] is linear: that is, no variable is
    bound twice. This property is enforced by the OCaml type-checker. *)
 
-Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
+Local Fixpoint pre_eval_pat η δ p v : option env :=
   let eval_pat := pre_eval_pat in
   let eval_pats := pre_eval_pats eval_pat in
   let eval_fpats := pre_eval_fpats eval_pat in
   match p, v with
   | PUnsupported, _ =>
-      unsupported_construct
+      None
   | PAny, _ =>
       (* A wildcard pattern always succeeds. *)
-      ret δ
+      Some δ
   | PVar x, _ =>
       (* A variable pattern always succeeds, and causes the environment
          to be extended. *)
-      ret ((x, v) :: δ)
+      Some ((x, v) :: δ)
   | PAlias p x, _ =>
       (* An alias pattern [p as x] is an intersection pattern: the value
          [v] must match both the pattern [p] and the pattern [x]. *)
       δ ← eval_pat η δ p v ;
-      ret ((x, v) :: δ)
+      Some ((x, v) :: δ)
   | POr p1 p2, _ =>
       (* A disjunction pattern [p1 | p2] requires that the value [v]
          match either [p1] or [p2]. *)
-      orelse (eval_pat η δ p1 v) (eval_pat η δ p2 v)
+      (eval_pat η δ p1 v) ∪ (eval_pat η δ p2 v)
   | PTuple ps, VTuple vs =>
       (* A tuple pattern matches a tuple value. *)
       eval_pats η δ ps vs
@@ -495,38 +520,39 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       (* A data pattern matches a data value, provided the data constructors
          match. If the data constructors do not match, a meta-level exception
          is raised. *)
-      if c =? c' then eval_pats η δ ps vs else throw ()
+      if c =? c' then eval_pats η δ ps vs else None
   | PXData π ps, VXData l vs =>
       (* A data pattern for an extensible data type matches a data value, provided
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
-      l' ← as_loc (widen (lookup_path η π)) ;
-      if (locations.eqb l l') then eval_pats η δ ps vs else throw()
+      vl' ← (lookup_path η π) ;
+      l' ← val_as_loc_opt vl' ;
+      if (locations.eqb l l') then eval_pats η δ ps vs else None
   | PRecord fps, VRecord fvs =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
       eval_fpats η δ fps fvs
   | PInt z, VInt i' =>
       let i := int.repr z in
-      if int.eq i i' then ret δ else throw ()
+      if int.eq i i' then Some δ else None
   | PChar c', VChar c =>
-      if Ascii.eqb c c' then ret δ else throw ()
+      if Ascii.eqb c c' then Some δ else None
   | PString s', VString s =>
-      if s =? s' then ret δ else throw ()
+      if s =? s' then Some δ else None
   | PTuple _, _ =>
-      type_mismatch "tuple expected"
+      None
   | PData _ _, _ =>
-      type_mismatch "algebraic data expected"
+      None
   | PXData _ _, _ =>
-      type_mismatch "extensible algebraic data expected"
+      None
   | PRecord _, _ =>
-      type_mismatch "record expected"
+      None
   | PInt _, _ =>
-      type_mismatch "integer expected"
+      None
   | PChar _, _ =>
-      type_mismatch "char expected"
+      None
   | PString _, _ =>
-      type_mismatch "string expected"
+      None
   end.
 
 Local Definition eval_pat_aux : seal (pre_eval_pat).
@@ -552,7 +578,7 @@ Definition eval_fpats := eval_fpats_aux.(unseal).
 (* [eval_cpat η δ cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
 
-Fixpoint eval_cpat η δ cp o : micro env unit :=
+Fixpoint eval_cpat η δ cp o : option env :=
   match cp, o with
   | CVal p, O3Ret v =>
       (* A value pattern matches a return. *)
@@ -567,17 +593,14 @@ Fixpoint eval_cpat η δ cp o : micro env unit :=
       eval_pat η δ pk (VCont k)
   | COr cp1 cp2, _  =>
       (* A [COr] either matches its first or second branch. *)
-      orelse (eval_cpat η δ cp1 o) (eval_cpat η δ cp2 o)
+      (eval_cpat η δ cp1 o) ∪ (eval_cpat η δ cp2 o)
   | _, _ =>
       (* If [o] and [cp] don't match, we throw a meta-level exception
          and continue to the next branch.*)
-      throw()
+      None
   end.
 
-(* This variant of [extend] crashes if [p] does not match [v]. *)
-
-Definition irrefutably_extend η δ p v : micro env void :=
-  try (eval_pat η δ p v) ret match_failure.
+End EvalPat.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -740,10 +763,14 @@ Implicit Type ηδ : envs.
 
 (* ------------------------------------------------------------------------ *)
 
+Section Coercions.
+
+Local Open Scope stdpp.
+
 Definition pre_coerces coerce :=
-  fix coerces (xcs : list fcoercion ) (xvs : env) : micro env void :=
+  fix coerces (xcs : list fcoercion ) (xvs : env) : option env :=
     match xcs with
-    | [] => ret []
+    | [] => Some []
     | (x, c) :: xcs =>
         (* Fetch the component [x] from [xvs]. *)
         v ← lookup_name xvs x ;
@@ -756,24 +783,26 @@ Definition pre_coerces coerce :=
            names that appear in the coercion should be pairwise distinct,
            so the order in which these fields appear in the new structure
            should be irrelevant. *)
-        ret ((x, v) :: xvs)
+        Some ((x, v) :: xvs)
     end.
 
 (* [coerce c v] applies the module coercion [c] to the module value [v]. *)
 
-Fixpoint coerce (c : coercion) (v : val) : micro val void :=
+Fixpoint coerce (c : coercion) (v : val) : option val :=
   let coerces := pre_coerces coerce in
   match c with
   | CIdentity =>
-      ret v
+      Some v
   | CStruct xcs =>
       (* [v] must be a structure, whose components form a list [xvs]. *)
-      xvs ← val_as_struct v ;
+      xvs ← val_as_struct_opt v ;
       (* From [xvs], fetch the components named in the list [xcs], and
          apply the corresponding coercions to them. *)
       xvs ← coerces xcs xvs ;
-      ret (VStruct xvs)
+      Some (VStruct xvs)
   end.
+
+End Coercions.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -888,6 +917,13 @@ Variable eval : env → expr → microvx.
 
 (* ------------------------------------------------------------------------ *)
 
+(* Evaluate the expression [e], yielding a value [v],
+   and produce an environment fragment [η]. *)
+
+Definition eval_binding η '(Binding p e : binding) : micro env exn :=
+  v ← eval η e;
+  widen (eval_pat η [] p v).
+
 (* [eval_bindings η bs] evaluates the bindings [bs] in the environment [η],
    producing an environment fragment. *)
 
@@ -910,12 +946,14 @@ Fixpoint pre_eval_bindings (η : env) (bs : list binding) : micro env exn :=
   match bs with
   | [] =>
       ret []
-  | Binding p e :: bs =>
-      (* Evaluate the expression [e], yielding a value [v]. In parallel,
-         evaluate the bindings [bs], yielding an environment fragment [δ]. *)
-      '(v, δ) ← pair_op Strat.let_and_order (eval η e) (eval_bindings η bs);
-       (* Match the value [v] against the pattern [p], extending [δ]. *)
-      widen (irrefutably_extend η δ p v)
+  | b :: bs =>
+      '(η, δ) ← pair_op Strat.let_and_order
+        (eval_binding η b)
+        (* In parallel, evaluate the bindings [bs],
+           yielding an environment fragment [δ]. *)
+        (eval_bindings η bs);
+      (* Finally, concatenate the two environment fragments. *)
+      ret (η ++ δ)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -990,17 +1028,14 @@ Fixpoint pre_eval_branches η (o : outcome3 val exn) (bs : list branch) : microv
        end)
   | Branch cp e :: bs =>
       (* If we are facing a branch [| cp -> e ]. *)
-      try2
-        (* We attempt to match the outcome [o] against the pattern [cp]. *)
-        (eval_cpat η η cp o)
-        (λ (oenv : outcome2 env unit),
-          match oenv with
-          (* In case of success, we evaluate [e] in an environment
-             that has been extended by [eval_cpat]. *)
-          | O2Ret η'  => eval η' e
-          (* If case of failure, we move on to the remaining branches. *)
-          | O2Throw () => pre_eval_branches η o bs
-          end)
+      (* We attempt to match the outcome [o] against the pattern [cp]. *)
+      match (eval_cpat η η cp o) with
+      (* In case of success, we evaluate [e] in an environment
+         that has been extended by [eval_cpat]. *)
+      | Some η'  => eval η' e
+      (* If case of failure, we move on to the remaining branches. *)
+      | None => pre_eval_branches η o bs
+      end
   end.
 
 
@@ -1041,10 +1076,10 @@ Fixpoint pre_shallow_eval_branches η bs all_bs o :=
            try2 (perform e) (λ o, resume l o)
        end)
   | Branch cp e :: bs =>
-      try
-        (eval_cpat η η cp o)
-        (λ δ, eval δ e)
-        (fun tt => pre_shallow_eval_branches η bs all_bs o)
+      match (eval_cpat η η cp o) with
+      | Some δ => eval δ e
+      | None => pre_shallow_eval_branches η bs all_bs o
+      end
   end.
 
 End Eval.
@@ -1151,14 +1186,14 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ret (VInt (repr (length ls)))
   | EArrayGet e1 e2 =>
       '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
-      match ls !! signed i with
+      match ls !! (signed i) with
       | Some l => load l
       | None => crash "index out of bounds"
       end
   | EArraySet e1 e2 e3 =>
       '(ls, (i, v)) ← par (as_array (eval η e1))
                        (par (as_int (eval η e2)) (eval η e3));
-        match ls !! signed i with
+        match ls !! (signed i) with
         | Some l => store l v
         | None => crash "index out of bounds"
         end
@@ -1538,8 +1573,7 @@ Ltac simpl_eval_pats :=
   || fail "Unable to simplify application of eval_pats".
 
 Ltac simpl_eval_pat :=
-  (unfold irrefutably_extend;
-   unfold eval_pat;
+  (unfold eval_pat;
    rewrite seal_eq;
    (progress simpl pre_eval_pat);
    rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats)
@@ -1549,7 +1583,7 @@ Ltac unfold_all :=
   unfold eval, evals, evalfs,
     eval_branches, shallow_eval_branches,
     eval_bindings, eval_sitem, eval_sitems, eval_mexpr,
-    eval_pats, irrefutably_extend, eval_pat;
+    eval_pats, eval_pat;
   rewrite ?seal_eq.
 
 Ltac fold_all :=

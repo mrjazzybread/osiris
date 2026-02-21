@@ -576,7 +576,7 @@ Section transparent_funs.
  Qed.
 
  Lemma imp_EApp_literal B `{Encode A, Encode B} {Φ : A → iProp Σ} Φ1 η' v e η p e1 :
-   lookup_path η p = ret (VClo η' (AnonFun v e)) →
+   lookup_path η p = Some (VClo η' (AnonFun v e)) →
    imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
    (∀ (x : B), Φ1 x -∗
                ▷ imp (eval ((v, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
@@ -587,7 +587,7 @@ Section transparent_funs.
    iApply (imp_Par (A1:=val) (A2:=B) with "[] He").
    { iApply imp_widen.
      instantiate (1 := (λ f, ⌜f = (VClo η' (Anon (v => e)))⌝)%I).
-     rewrite Hlookup. iApply imp_ret; auto. }
+     rewrite Hlookup. iExists _; auto. }
    iSplit; last iSplit.
    - instantiate (1:= (λ _, False)%I).
      iIntros (? []).
@@ -600,7 +600,7 @@ Section transparent_funs.
  Qed.
 
  Lemma imp_EApp_literal2 B C `{Encode A, Encode B, Encode C} {Φ : A → iProp Σ} Φ1 Φ2 η' v1 v2 e η p e1 e2 :
-   lookup_path η p = ret (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 e)))) →
+   lookup_path η p = Some (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 e)))) →
    imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
    imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
    (∀ (x : B) (y : C), Φ1 x -∗ Φ2 y -∗
@@ -612,7 +612,7 @@ Section transparent_funs.
    { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
      { iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
-       rewrite Hlookup. iApply imp_ret; auto. }
+       rewrite Hlookup. iExists _; auto. }
      iSplit; last iSplit.
      - instantiate (3:= (λ _, False)%I).
        iIntros (? []).
@@ -639,7 +639,7 @@ Section transparent_funs.
 
  Lemma imp_EApp_literal3 B C D `{Encode A, Encode B, Encode C, Encode D} {Φ : A → iProp Σ}
    Φ1 Φ2 Φ3 η' v1 v2 v3 e η p e1 e2 e3 :
-   lookup_path η p = ret (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 (EAnonFun (AnonFun v3 e)))))) →
+   lookup_path η p = Some (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 (EAnonFun (AnonFun v3 e)))))) →
    imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
    imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
    imp (eval η e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
@@ -653,7 +653,7 @@ Section transparent_funs.
      { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
        iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
-       rewrite Hlookup. iApply imp_ret; auto.
+       rewrite Hlookup. iExists _; auto.
        iSplit; last iSplit.
        - instantiate (3:= (λ _, False)%I).
          iIntros (? []).

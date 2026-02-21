@@ -224,7 +224,7 @@ Section verification.
     Proof. by rewrite /prot /ψ_yield (upcl_tele' [tele _ _] [tele]) //=. Qed.
 
     Lemma yield_handler_correct γ (Ys : list A) η :
-      lookup_name η "Yield" = ret (VLoc l) →
+      lookup_name η "Yield" = Some #l →
       handlerView γ Ys -∗
       (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
          (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
@@ -265,7 +265,9 @@ Section verification.
         { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). }
         iSplit; [ iIntros (? []) | iIntros (_) ].
         iApply deep_handle_cons.
-        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
+        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
+          apply pat_PXData_eq. assumption.
+          apply pats_PCons_unary. pattern_match. }
         iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)

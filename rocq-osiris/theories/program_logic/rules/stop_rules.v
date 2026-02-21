@@ -668,37 +668,33 @@ Section imp_eval.
     iApply ("Hmono" with "HQ'").
   Qed.
 
-  Lemma imp_bindings_cons `{Encode A} (Φ : A → iProp Σ) η e bs Q Q' p :
+  Lemma imp_bindings_cons `{Encode A} (Φ : A → iProp Σ) η e bs Q P p :
     imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval_bindings η bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q' }} -∗
-    (∀ (a : A) (η' : env),
-       Φ a -∗ Q' η' -∗ imp eval_pat η η' p #a @ E <|Ψ|> {{ Q }}) -∗
-    imp eval_bindings η (Binding p e :: bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    (∀ (a : A), Φ a -∗ ⌜pattern η [] p #a (P a) False⌝) -∗
+    imp eval_bindings η bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    imp eval_bindings η (Binding p e :: bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩
+      {{ λ η, ∃ a η' δ', ⌜η = η' ++ δ'⌝ ∗ Φ a ∗ ⌜P a η'⌝ ∗ Q δ' }}.
   Proof.
-    iIntros "He Hbs Hpat".
+    iIntros "He Hpat Hbs".
     simpl_eval_bindings.
-    iApply (imp_Par Φ ζ Q' ζ with "He Hbs").
+    iApply (imp_Par with "[He Hpat] Hbs").
+    { iApply (imp_bind with "He").
+      iIntros (?) "HΦ". iApply imp_widen.
+      iDestruct ("Hpat" with "HΦ") as "%Hpat".
+      unfold pattern in Hpat. simpl.
+      destruct (eval_pat η [] p #x).
+      - instantiate (1 := (λ η, ∃ x, Φ x ∗ ⌜P x η⌝)%I).
+        iFrame. iFrame "%". auto.
+      - contradiction. }
     iSplit; last iSplit.
     { iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     { iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
-    iIntros (x η') "HΦ Hη".
+    iIntros (x η') "(%a & HΦ & HP) Hη".
     iNext. rewrite /continue. simpl.
-    unfold widen.
-    iApply (imp_try with "[HΦ Hη Hpat]").
-    - unfold irrefutably_extend.
-      iSpecialize ("Hpat" with "HΦ Hη").
-      iApply (imp_try with "Hpat").
-      iSplit.
-      + iIntros (?) "HQ".
-        iApply imp_ret. reflexivity. iExact "HQ".
-      + iIntros (? []).
-    - iSplit.
-      iIntros (?) "HQ".
-      iApply imp_ret. reflexivity. iExact "HQ".
-      iIntros (?) "Hvoid". instantiate (1 := (λ _, False)%I).
-      done.
+    iApply imp_ret. reflexivity.
+    iFrame. auto.
   Qed.
 
   Lemma imp_bindings_nil η :
@@ -708,17 +704,20 @@ Section imp_eval.
     iApply imp_ret. reflexivity. auto.
   Qed.
 
-
   Lemma imp_bind_var `{Encode A} (Φ : A → iProp Σ) η e name :
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp eval_bindings η [Binding (PVar name) e] @ E <| Ψ |> ⟨⟨ ζ ⟩⟩
-          {{ λ (η' : env), ∃ a : A, Φ a ∧  ⌜η' = [(name, #a)]⌝ }}.
+          {{ λ (η' : env), ∃ a : A, Φ a ∧ ⌜η' = [(name, #a)]⌝ }}.
   Proof.
     iIntros "HSpec".
-    iApply (imp_bindings_cons with "HSpec").
-    iApply imp_bindings_nil.
-    iIntros (a η') "HΦ ->".
-    simpl_eval_pat. iApply imp_ret. encode.
+    iApply (imp_mono_ret with "[HSpec]").
+    { iApply (imp_bindings_cons with "HSpec").
+      - iIntros (a) "HΦ".
+        iPureIntro; apply pat_PVar.
+        instantiate (1:=(λ a η, η = [(name, #a)])).
+        reflexivity.
+      - iApply imp_bindings_nil. }
+    iIntros (η') "(%a & % & % & -> & HΦ & -> & ->)".
     iFrame. auto.
   Qed.
 

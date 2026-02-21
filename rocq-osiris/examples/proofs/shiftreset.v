@@ -92,7 +92,7 @@ Section verification.
   Local Instance : Encode effect := encode_effect shift_eff.
 
   Lemma establish_shift_spec η :
-    lookup_name η "Shift" = ret (VLoc shift_eff) →
+    lookup_name η "Shift" = Some #shift_eff →
     ⊢ imp eval η (EAnonFun __fun0)
       {{ λ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
@@ -118,7 +118,7 @@ Section verification.
   Qed.
 
   Lemma establish_reset_spec η :
-    lookup_name η "Shift" = ret (VLoc shift_eff) →
+    lookup_name η "Shift" = Some #shift_eff →
     ⊢ imp eval η (EAnonFun __fun2)
       {{ λ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.
@@ -154,7 +154,10 @@ Section verification.
 
     iModIntro. iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
     iSplit; [ iIntros (? []) | iIntros (_) ].
-    iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match.
+    iApply deep_handle_cons.
+    { iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
+      eapply pat_PXData_eq; first eassumption.
+      eapply pats_PCons_unary. pattern_match. }
     iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
     iApply (imp_EApp τ[cont] with "[Hg] []").
     { iApply imp_EPath; auto. }

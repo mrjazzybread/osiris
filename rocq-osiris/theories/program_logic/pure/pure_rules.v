@@ -475,13 +475,15 @@ Section pure_eff.
 
   (** Compatibility with [widen] *)
 
-  Lemma pure_widen `{Encode A} {E} (m : micro val void) φ ψ :
-    pure m φ ⊥ → @pure A val _ E (widen m) φ ψ.
+  Lemma pure_widen `{Encode A} {E} (m : option val) φ ψ :
+    match m with | Some a => (returns φ) a | None => False end →
+    @pure A val _ E (widen m) φ ψ.
   Proof.
     unfold widen.
-    intros P. eapply pure_try2. eapply P.
-    - intros. cbn. eapply pure_ret; done.
-    - by intros.
+    intros P. destruct m.
+    - destruct P as (? & -> & Hφ).
+      eapply pure_ret. reflexivity. done.
+    - contradiction.
   Qed.
 
 End pure_eff.

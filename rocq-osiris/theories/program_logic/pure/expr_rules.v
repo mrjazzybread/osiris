@@ -12,10 +12,12 @@ From osiris.program_logic.pure Require Import
 (* EPath (x : path) *)
 
 Lemma pure_eval_path `{Encode A} η π (ψ : A -> Prop) (ζ : exn -> Prop) :
-  pure (lookup_path η π) ψ ⊥ ->
+  (∃ a, lookup_path η π = Some #a ∧ ψ a) ->
   pure (eval η (EPath π)) ψ ζ.
 Proof.
-  simpl_eval. apply pure_widen.
+  simpl_eval. firstorder. apply pure_wp_widen.
+  exists #x. split; first done. unfold returns.
+  eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1012,10 +1014,11 @@ Proof.
   intros He1.
   eapply pure_eval_let.
   eapply bindings_cons. apply He1.
+  intros a Hpat. apply Hpat.
   eapply bindings_nil. apply eq_refl.
   intros a η'.
   intros Hpat <-.
-  apply Hpat.
+  rewrite app_nil_r. apply Hpat.
 Qed.
 
 Lemma pure_eval_let1_conseq `{Encode A, Encode B} η p e1 e (φ1 : A → Prop) (φ : B → Prop) ψ :
@@ -1057,11 +1060,15 @@ Lemma pure_eval_let1var `{Encode A1, Encode B} η x e1 e
 Proof.
   intros He1 He.
   eapply pure_eval_let.
-  eapply bindings_cons. apply He1.
-  apply bindings_nil. apply eq_refl.
-  intros a η' Hφ1 <-.
-  apply pat_PVar.
-  by apply He.
+  eapply bindings_cons.
+  - apply He1.
+  - intros a Hφ1. apply pat_PVar.
+    instantiate (1:= λ η, ∃ a, η = [(x, #a)] ∧ φ1 a).
+    exists a. auto.
+  - apply bindings_nil. apply eq_refl.
+  - intros a η' (? & -> & Hφ1) <-.
+    rewrite app_nil_r.
+    by apply He.
 Qed.
 
 Lemma pure_eval_let_simple `{Encode A1, Encode B} η x e1 e
@@ -1076,47 +1083,30 @@ Proof.
 Qed.
 
 Lemma pure_eval_let_pair `{Encode A1, Encode A2} `{Encode X}
-  p1 p2 e1 e2 η (ψ : X -> Prop) ζ :
-  pure (eval η e1) (λ '((v1, v2) : A1 * A2),
-      pure (
-          δ ← widen (irrefutably_extend η [] p1 #v1);
-          θ ← widen (irrefutably_extend η δ p2 #v2);
-          eval (θ ++ η) e2
-        ) ψ ζ) ζ ->
+  p1 p2 e1 e2 η φ P (ψ : X -> Prop) ζ :
+  pure (eval η e1) (λ '((v1, v2) : A1 * A2), φ (v1, v2)) ζ →
+  (∀ v1 v2, φ (v1, v2) →
+            pattern η [] p1 #v1 (λ δ, pattern η δ p2 #v2 (P v1 v2) False) False) →
+  (∀ v1 v2 δ, φ (v1, v2) → P v1 v2 δ → pure (eval (δ ++ η) e2) ψ ζ) →
   pure (eval η (ELet1 (PPair p1 p2) e1 e2)) ψ ζ.
 Proof.
-  (* This proof is a long rewriting sequence, which makes some sense as it is *)
-(*   not the standard method to prove a let binding, but rather a way to reduce the *)
-(*   wp of a parallel pair to ordered wps of two binds with error handling *)
-  intros He1.
-  simpl_eval. apply pure_wp_Par_val_right.
+  intros He1 Hpat He2. simpl_eval.
+  apply pure_wp_Par_val_right.
+  unfold continue, discontinue; simpl.
   apply pure_wp_ret.
-  apply (pure_wp_mono _ He1). clear He1.
-  intros ? ([v1 v2] & -> & Hpure_wp).
-  apply pure_wp_bind.
-  apply pure_wp_bind.
-  apply pure_wp_ret.
-  unfold widen, irrefutably_extend in *.
-  rewrite !try_try in *. simpl_eval_pat.
-  rewrite !bind_as_try, !try_try in *.
-  apply pure_wp_try2.
-  apply invert_pure_wp_try2 in Hpure_wp.
-  apply (pure_wp_mono _ Hpure_wp); clear Hpure_wp.
-  - intros δ Hpure_wp.
-    unfold continue in *.
-    unfold glue2 in *.
-    repeat rewrite ?bind_as_try, ?try_try, ?try_ret in *.
-    apply invert_pure_wp_try2 in Hpure_wp.
-    apply pure_wp_try2.
-    apply (pure_wp_mono _ Hpure_wp); clear Hpure_wp.
-    + intros θ Hpure_wp.
-      unfold continue, glue2 in *.
-      repeat rewrite ?bind_as_try, ?try_try, ?try_ret in *.
-      apply pure_wp_ret. eauto.
-    + unfold match_failure. rewrite try_crash. intros. edestruct @invert_pure_wp_crash; eauto.
-  - unfold match_failure. rewrite try_crash. intros. edestruct @invert_pure_wp_crash; eauto.
-    by cbn in H2.
-  - intros ? Hζ. unfold discontinue; simpl. by apply pure_wp_throw.
+  eapply pure_wp_bind.
+  apply (pure_wp_mono _ He1).
+  - clear He1.
+    intros ? ([v1 v2] & -> & Hpure_wp).
+    apply pure_wp_widen_pat.
+    eapply pattern_mono_exn. eapply pat_PPair; try reflexivity.
+    eapply pattern_env_mono. apply Hpat. eassumption.
+    intros ? Hpat2.
+    eapply pattern_env_mono. apply Hpat2.
+    intros δ' HP. rewrite app_nil_r.
+    eapply He2; eauto.
+    tauto.
+  - intros e He. apply pure_wp_throw. assumption.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1334,9 +1324,8 @@ Lemma branches_cons_unary `{Encode A} η o cp e bs (φ : A -> Prop) ψ :
   branches η o (Branch cp e :: bs) φ ψ.
 Proof.
   unfold branches.
-  intros; simpl_eval_branches.
-  apply pure_wp_try.
-  eapply pure_wp_mono; eauto. intros []; auto.
+  intros; simpl_eval_branches. unfold cpattern in H0.
+  destruct (eval_cpat η η cp o); auto.
 Qed.
 
 Lemma branches_cons `{Encode A} η o cp e bs (φ : A -> Prop) ψ' ψ :
@@ -1346,8 +1335,7 @@ Lemma branches_cons `{Encode A} η o cp e bs (φ : A -> Prop) ψ' ψ :
 Proof.
   intros.
   apply branches_cons_unary.
-
-  eapply pure_wp_mono; eauto.
+  eapply cpattern_mono; eauto.
 Qed.
 
 (* Not matching a value is an error. *)

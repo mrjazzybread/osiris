@@ -6,9 +6,9 @@ Local Set Warnings "-abstract-large-number".
 
 Definition do_something (v : val) : micro val void :=
   let η := [("v", v)] in
-  v ← lookup_name η "v" ;
+  v ← widen (lookup_name η "v") ;
   let η := [("x", v)] in
-  v ← lookup_name η "x" ;
+  v ← widen (lookup_name η "x") ;
   ret v.
 
 (* -------------------------------------------------------------------------- *)

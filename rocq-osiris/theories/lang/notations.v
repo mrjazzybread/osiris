@@ -251,20 +251,6 @@ Goal (trivial
 Abort.
 
 (* -------------------------------------------------------------------------- *)
-(* Loops and conditionals. *)
-
-Notation "e1 ;; e2" :=
-  (ESeq e1 e2)
-    (at level 100, e2 at level 200,
-      format "'[' '[hv' '[' e1 ']' ;; ']' '/' e2 ']'").
-
-Goal (trivial
-        (ESeq
-         (EApp (EPath ["f"]) (EPath ["x"]))
-         (EAssert (EOpEq (EPath ["x"]) (EInt 2))))).
-Abort.
-
-(* -------------------------------------------------------------------------- *)
 (* Pattern matching. *)
 
 Notation "'EMatch' '(' x ')' []" :=

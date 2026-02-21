@@ -31,10 +31,10 @@ Definition eval_module η me (φ : env -> Prop) :=
 (* A judgement for module coercion. *)
 
 Definition coerces c η (φ : env -> Prop) :=
-  pure_wp (coerce c (VStruct η)) (λ v, match v with
-                                       | VStruct η' => φ η'
-                                       | _ => False
-                                       end) (λ _, False).
+  match coerce c (VStruct η) with
+  | Some (VStruct η') => φ η'
+  | _ => False
+  end.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -110,9 +110,14 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
 Proof.
   intros; unfold struct_item; simpl_eval_sitem.
   eapply pure_wp_bind.
-  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
-  intros v ? Hspec <-.
-  apply pat_PVar. apply pure_wp_ret.
+  eapply bindings_cons.
+  { eapply H. }
+  { intros a Ha. apply pat_PVar.
+    instantiate (1:=(λ η, ∃ a, η = [(_, _)] ∧ spec a)).
+    exists a; auto. }
+  { apply bindings_nil. apply eq_refl. }
+  intros ?? (? & -> & HSpec) <-.
+  apply pure_wp_ret.
   eauto.
 Qed.
 
@@ -123,12 +128,12 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
 Proof.
   intros; unfold struct_item; simpl_eval_sitem.
   eapply pure_wp_bind.
-  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
-  intros v ? Hpat <-.
-  simpl in Hpat.
-  eapply pattern_mono; [ apply Hpat | | auto ].
-  intros η' HΨ.
-  eapply pure_wp_ret. auto.
+  eapply bindings_cons.
+  { eapply H. }
+  { intros ? Hpat; apply Hpat. }
+  { apply bindings_nil. apply eq_refl. }
+  intros ?? Hpat <-.
+  eapply pure_wp_ret. rewrite app_nil_r. auto.
 Qed.
 
 Lemma struct_letrec_single η δ name af (spec : val -> Prop) :
@@ -182,7 +187,7 @@ Proof.
   eapply pure_wp_bind_conseq.
   { unfold as_struct.
     eapply pure_wp_bind_conseq; eauto.
-    intros [] Hx; try contradiction. apply pure_wp_widen;
+    intros [] Hx; try contradiction.
     eauto using pure_wp_ret. }
   eauto using pure_wp_ret.
 Qed.
@@ -198,7 +203,7 @@ Proof.
   eapply pure_wp_bind_conseq.
   { unfold as_struct.
     eapply pure_wp_bind_conseq; eauto.
-    intros [] Hx; try contradiction; apply pure_wp_widen;
+    intros [] Hx; try contradiction;
       eauto using pure_wp_ret. }
   eauto using pure_wp_ret.
 Qed.
@@ -231,7 +236,7 @@ Proof.
   intros x HP.
   eapply pure_rec_call; eauto.
   intros ????.
-  eapply pure_eval_match. { eapply pure_eval_path; eapply pure_ret; encode. }
+  eapply pure_eval_match. { eapply pure_eval_path; eauto. }
   eauto.
 Qed.
 
@@ -337,15 +342,15 @@ Proof.
 Qed.
 
 Lemma module_path η π φ :
-  pure_wp (lookup_path η π) (λ v, match v with
-                                 | VStruct η => φ η
-                                 | _ => False
-                                 end) (λ _, False) ->
+  match lookup_path η π with
+  | Some (VStruct η) => φ η
+  | _ => False
+  end →
   eval_module η (MPath π) φ.
 Proof.
   unfold eval_module; simpl_eval_mexpr; intros.
   apply pure_wp_widen.
-  eapply pure_wp_mono; eauto.
+  destruct (lookup_path η π); [ eauto | contradiction ].
 Qed.
 
 Lemma module_coercion η me c φ :
@@ -358,4 +363,6 @@ Proof.
   eapply pure_wp_bind_conseq; [ eassumption | ].
   intros [] Hx; try contradiction; apply pure_wp_widen;
     unfold coerces in *; auto.
+  specialize (H0 xvs Hx).
+  destruct (coerce c (VStruct xvs)); [ eauto | contradiction ].
 Qed.

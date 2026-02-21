@@ -25,7 +25,7 @@ Section verification.
   Proof.
     iIntros "(% & %Hpath & #HΦ)".
     simpl_eval.
-    iApply imp_widen. rewrite Hpath. iApply imp_ret; eauto.
+    iApply imp_widen. rewrite Hpath. iExists v; eauto.
   Qed.
 
   Lemma lookup_spec_step {A : Type} `{Encode A} {Φ : A → iProp Σ} {η x p} mspec :
@@ -39,7 +39,7 @@ Section verification.
     simpl. destruct p.
     - simpl in Hlookup'. discriminate Hlookup'.
     - simpl in Hlookup.
-      rewrite Hlookup !bind_ret.
+      rewrite Hlookup /=.
       assumption.
   Qed.
 
@@ -57,7 +57,7 @@ Section verification.
   Qed.
 
   Lemma imp_EPath_var {E Ψ ζ} {A : Type} `{Encode A} {η p} (a : A) :
-    lookup_path η p = ret #a →
+    lookup_path η p = Some #a →
     ⊢ imp (eval η (EPath p)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }}.
   Proof.
     iIntros (Hlookup).

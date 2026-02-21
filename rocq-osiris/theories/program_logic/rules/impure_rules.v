@@ -123,17 +123,18 @@ Section micro_combinators.
       iApply (imp_throw with "Hζ").
   Qed.
 
-  Lemma imp_widen (m : micro V void) :
-    imp m @ E <|Ψ|> {{ Φ }} -∗
+  Lemma imp_widen (m : option V) :
+    match m with
+    | Some a => (ireturns Φ) a
+    | None => False
+    end -∗
     imp (widen m) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
-    unfold widen.
-    iApply (imp_try with "Himp").
-    iSplit.
-    - iIntros (a) "HΦ".
+    unfold widen. destruct m.
+    - iDestruct "Himp" as (a ->) "HΦ".
       iApply (imp_ret with "HΦ"); auto.
-    - iIntros (e []).
+    - done.
   Qed.
 
   Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2} {X'}
@@ -523,7 +524,7 @@ Section dynamic_checks.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
-    iIntros (k) "HΦ". iApply imp_widen.
+    iIntros (k) "HΦ".
     iApply (imp_ret with "HΦ"); encode.
   Qed.
 
