@@ -1009,7 +1009,7 @@ Section fold_left_spec.
   Lemma imp_fold_left η :
     lookup_name η "length" = Some Externals__array_length →
     lookup_name η "unsafe_get" = Some Externals__array_get →
-    ⊢ imp (eval η fold_left) {{ λ c, ∀ A (_ : Encode A), □ iSpec τ[val; A; array] c (fold_left_spec A) }}.
+    ⊢ imp (eval η fold_left) {{ λ c, ∀ `(Encode A), □ iSpec τ[val; A; array] c (fold_left_spec A) }}.
   Proof.
     iIntros (Hlookup Hlookup').
     iApply imp_EAnon_poly_pers.
@@ -1405,34 +1405,84 @@ Section module_proof.
   Local Notation "'next_top:' sitem" :=
     (impure ⊤ (eval_sitems _ (sitem :: _)) ⊥ ⊥ _) (at level 20).
 
-  Definition lookup_spec `{Encode A} η x spec : iProp Σ :=
-    ∃ (v : A), ⌜lookup_path η x = Some #v⌝ ∗ □ spec v.
-
-  Global Instance lookup_spec_pers `{Encode A} η x spec : Persistent (@lookup_spec A _ η x spec).
-  Proof. apply _. Qed.
-
-  Record var_spec := vSpec {
-      A : Type;
-      HencA : Encode A;
-      name : var;
-      spec : A → iProp Σ
-    }.
-
-  Global Arguments vSpec {_ _}.
-
-  Definition context (specs : list var_spec) : env → iProp Σ :=
-    λ η, ([∗ list] r ∈ specs, @lookup_spec r.(A) r.(HencA) η [ r.(name) ] r.(spec))%I.
+  Definition array_module_dom : gset var :=
+    {[ "length";
+        "get";
+        "set";
+        "unsafe_get";
+        "unsafe_set";
+        "make";
+        "unsafe_sub";
+        "append_prim";
+        "concat";
+        "unsafe_blit";
+        "unsafe_fill";
+        "create_float";
+        "Floatarray";
+        "init";
+        "make_matrix";
+        "init_matrix";
+        "copy";
+        "append";
+        "sub";
+        "fill";
+        "blit";
+        "iter";
+        "iter2";
+        "map";
+        "map_inplace";
+        "mapi_inplace";
+        "map2";
+        "iteri";
+        "mapi";
+        "to_list";
+        "list_length";
+        "of_list";
+        "equal";
+        "stdlib_compare";
+        "compare";
+        "fold_left";
+        "fold_left_map";
+        "fold_right";
+        "fold_left2";
+        "fold_right2";
+        "exists";
+        "for_all";
+        "for_all2";
+        "exists2";
+        "mem";
+        "memq";
+        "find_opt";
+        "find_index";
+        "find_map";
+        "find_mapi";
+        "split";
+        "combine";
+        "Bottom";
+        "sort";
+        "cutoff";
+        "unsafe_stable_sort_sub";
+        "stable_sort_sub";
+        "stable_sort";
+        "fast_sort";
+        "shuffle_contract_violation";
+        "shuffle";
+        "to_seq";
+        "to_seqi";
+        "of_rev_list";
+        "of_seq"
+    ]}.
 
   Definition array_module_spec : env → iProp Σ :=
     (context [
-         vSpec "init" (λ init, iSpec τ[Z; val] init init_spec);
-         vSpec "iter" (λ iter, iSpec τ[val;array] iter iter_spec);
-         vSpec "iteri" (λ iteri, iSpec τ[val;array] iteri iteri_spec);
-         vSpec "fold_left" (λ fold_left, ∀ A (HencA : Encode A), iSpec τ[val;A;array] fold_left (fold_left_spec A));
-         vSpec "map" (λ map, iSpec τ[val;array] map map_spec);
-         vSpec "map_inplace" (λ map_inplace, iSpec τ[val;array] map_inplace map_inplace_spec);
-         vSpec "mapi_inplace" (λ mapi_inplace, iSpec τ[val;array] mapi_inplace mapi_inplace_spec)
-      ])%I.
+         Spec "init" (λ init, iSpec τ[Z; val] init init_spec);
+         Spec "iter" (λ iter, iSpec τ[val;array] iter iter_spec);
+         Spec "iteri" (λ iteri, iSpec τ[val;array] iteri iteri_spec);
+         Spec "fold_left" (λ fold_left, ∀ A (HencA : Encode A), iSpec τ[val;A;array] fold_left (fold_left_spec A));
+         Spec "map" (λ map, iSpec τ[val;array] map map_spec);
+         Spec "map_inplace" (λ map_inplace, iSpec τ[val;array] map_inplace map_inplace_spec);
+         Spec "mapi_inplace" (λ mapi_inplace, iSpec τ[val;array] mapi_inplace mapi_inplace_spec)
+      ] array_module_dom)%I.
 
   Global Instance array_spec_pers η : Persistent (array_module_spec η).
   Proof. apply _. Qed.

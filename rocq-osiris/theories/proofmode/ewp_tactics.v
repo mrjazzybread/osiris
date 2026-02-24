@@ -204,22 +204,22 @@ Global Hint Extern 0 (envs_entails _ (bi_forall (fun _ : void => _))) => iIntros
 (** *Fetching specifications of functions*)
 
 (* Returns [spec] for the first occurrence of [(name, spec)] in [specs] *)
-Ltac spec_of_name specs name :=
-  match specs with
-  | (name, ?spec) :: _ => constr:(spec)
-  | _ :: ?l => spec_of_name l name
-  end.
+(* Ltac spec_of_name specs name := *)
+(*   match specs with *)
+(*   | (name, ?spec) :: _ => constr:(spec) *)
+(*   | _ :: ?l => spec_of_name l name *)
+(*   end. *)
 
 (* From [env_has_pspecs Λ η], add to Coq hypotheses [lookup_name η x = ret v]
    and the corresponding specification for [x] *)
-Tactic Notation "get_spec" constr(name) "as" simple_intropattern(Hv) :=
-  match goal with
-    He : env_has_pspecs ?specs ?η |- _ =>
-      let spec := spec_of_name specs name in
-      edestruct (env_has_pspecs_find name spec He) as Hv;
-      [ repeat first [ left; reflexivity | right ] (* solving List.In *)
-      | ]
-  end.
+(* Tactic Notation "get_spec" constr(name) "as" simple_intropattern(Hv) := *)
+(*   match goal with *)
+(*     He : env_has_pspecs ?specs ?η |- _ => *)
+(*       let spec := spec_of_name specs name in *)
+(*       edestruct (env_has_pspecs_find name spec He) as Hv; *)
+(*       [ repeat first [ left; reflexivity | right ] (* solving List.In *) *)
+(*       | ] *)
+(*   end. *)
 
 (** *Set postcondition *)
 

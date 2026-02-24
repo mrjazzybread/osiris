@@ -10,7 +10,6 @@ From osiris.proofmode Require Import specifications.
 
 (* Prevent simplifying string comparisons unless both arguments are known. *)
 Arguments String.eqb !s1 !s2 : simpl nomatch.
-Arguments satisfies_spec : simpl never.
 
 (* Encourage simplifying [continue] and [discontinue], which can often block
    symbolic execution. *)

@@ -19,64 +19,9 @@ Section verification.
 
   Definition esum := EAnonFun __fun2.
 
-  Lemma imp_EPath_spec {E : coPset} {Ψ : iEff Σ} {A : Type} {EncA : Encode A}
-  {Φ : A → iProp Σ} {ζ : exn → iProp Σ} (η : env) (p : path) :
-    lookup_spec η p Φ -∗ imp eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ a, □ Φ a }}.
-  Proof.
-    iIntros "(% & %Hpath & #HΦ)".
-    simpl_eval.
-    iApply imp_widen. rewrite Hpath. iExists v; eauto.
-  Qed.
-
-  Lemma lookup_spec_step {A : Type} `{Encode A} {Φ : A → iProp Σ} {η x p} mspec :
-    lookup_spec η [x] mspec -∗
-    (∀ (δ : env), mspec δ -∗ lookup_spec δ p Φ) -∗
-    lookup_spec η (x :: p) Φ.
-  Proof.
-    iIntros "(%δ & %Hlookup & #Hpost) Hcov".
-    iDestruct ("Hcov" with "Hpost") as "(% & %Hlookup' & #HΦ)".
-    iFrame "#". iPureIntro.
-    simpl. destruct p.
-    - simpl in Hlookup'. discriminate Hlookup'.
-    - simpl in Hlookup.
-      rewrite Hlookup /=.
-      assumption.
-  Qed.
-
-  Lemma lookup_spec_search {A : Type} `{Encode A} {Φ : A → iProp Σ} {η v p} x y :
-    (x =? y)%string = false →
-    lookup_spec ((y, v) :: η) (x :: p) Φ =
-    lookup_spec η (x :: p) Φ.
-  Proof.
-    intros Hneq.
-    unfold lookup_spec. f_equal.
-    extensionality v'. f_equal. f_equal.
-    destruct p; simpl.
-    - unfold lookup_name. rewrite Hneq. reflexivity.
-    - unfold lookup_name. rewrite Hneq. reflexivity.
-  Qed.
-
-  Lemma imp_EPath_var {E Ψ ζ} {A : Type} `{Encode A} {η p} (a : A) :
-    lookup_path η p = Some #a →
-    ⊢ imp (eval η (EPath p)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }}.
-  Proof.
-    iIntros (Hlookup).
-    iApply imp_EPath; eauto.
-  Qed.
-
-  Lemma lookup_spec_mono {A : Type} `{Encode A} {η p} (Φ Φ' : A → iProp Σ) :
-    lookup_spec η p Φ' -∗
-    □ (∀ a, Φ' a -∗ Φ a) -∗
-    lookup_spec η p Φ.
-  Proof.
-    iIntros "(%a & %Hlookup & #HΦ') #Hcov".
-    iExists a; iSplit; first (iPureIntro; assumption).
-    iIntros "!>". iApply ("Hcov" with "HΦ'").
-  Qed.
-
   Lemma imp_sum η :
-    lookup_spec η ["Array"] (array_module_spec) -∗
-    lookup_spec η ["+"] (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) -∗
+    var_spec "Array" array_module_spec η -∗
+    var_spec "+" (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
     imp (eval η esum) {{ λ sum, □ iSpec τ[Z] sum sum_spec }}.
   Proof.
     iIntros "#Hmodule_spec #Hadd".
@@ -86,11 +31,10 @@ Section verification.
     iApply (imp_ELet_var (B:=array)).
     { iApply (imp_EApp_pers τ[Z;val]).
       { iApply imp_EPath_spec.
-        rewrite lookup_spec_search; last reflexivity.
-        iApply (lookup_spec_step with "[$]").
-        iIntros (?) "#Harray_module".
-        unfold array_module_spec at 2. unfold context. simpl.
-        iDestruct "Harray_module" as "($ & _)". }
+        iApply path_module_spec. { iApply var_spec_cons. auto. iAssumption. }
+        iIntros (?) "#Hcontext".
+        iApply path_var_spec.
+        iPoseProof (extract_context [] with "Hcontext") as "(_ & $ & _)". }
       iApply imp_EPath_var; eauto.
       iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
       { iIntros (i) "!>". iApply imp_please; iNext.
@@ -106,18 +50,14 @@ Section verification.
     iIntros (a) "(%xs & %Hlenxs & HownArr & #Hxs)".
     iApply (imp_EApp_pers τ[val;Z;array]).
     { iApply imp_EPath_spec.
-      rewrite lookup_spec_search; last reflexivity.
-      rewrite lookup_spec_search; last reflexivity.
-      iApply (lookup_spec_step with "[$]").
-      iIntros (?) "#Harray_module".
-      unfold array_module_spec at 2. unfold context. simpl.
-      iDestruct "Harray_module" as "(_ & _ & _ & Hfold_left & _)".
-      iApply (lookup_spec_mono with "Hfold_left").
-      iIntros "!>" (init) "Hinit". iApply "Hinit". }
+      iApply path_module_spec. { repeat (iApply var_spec_cons; first auto). iAssumption. }
+      iIntros (?) "#Hcontext". iApply path_var_spec.
+      unfold array_module_spec at 2.
+      iApply var_spec_mono.
+      { iPoseProof (extract_context [_;_;_] with "Hcontext") as "(_ & $ & _)". }
+      auto. }
     { iApply imp_EPath_spec.
-      rewrite lookup_spec_search; last reflexivity.
-      rewrite lookup_spec_search; last reflexivity.
-      iAssumption. }
+      iApply path_var_spec. repeat (iApply var_spec_cons; first auto). iAssumption. }
     { iApply imp_EInt. }
     { iApply imp_EPath_var; auto. }
     iIntros (??) "-> %add #Hadd_ -> %m Hm".
@@ -150,9 +90,9 @@ Section verification.
   Qed.
 
   Lemma module_proof η :
-    lookup_spec η ["Array"] (array_module_spec) -∗
-    lookup_spec η ["+"] (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) -∗
-    imp (eval_mexpr η __main) {{ context [ vSpec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] }}.
+    var_spec "Array" array_module_spec η -∗
+    var_spec "+" (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
+    imp (eval_mexpr η __main) {{ context [ Spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_module.

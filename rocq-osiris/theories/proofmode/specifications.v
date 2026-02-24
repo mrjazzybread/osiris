@@ -14,528 +14,340 @@ From osiris.program_logic Require Import program_logic.
 
 From iris.base_logic Require Import iprop.
 
+Lemma lookup_name_nil name :
+  lookup_name [] name = None.
+Proof. reflexivity. Qed.
+
+Lemma lookup_name_app_l name xs ys a :
+  lookup_name xs name = Some a →
+  lookup_name (xs ++ ys) name = Some a.
+Proof.
+  induction xs as [|[x v] xs IH].
+  - rewrite lookup_name_nil. discriminate 1.
+  - simpl.
+    destruct (name =? x)%string.
+    + inversion 1; by subst.
+    + apply IH.
+Qed.
+
+Lemma lookup_name_app_r name xs ys :
+  lookup_name xs name = None →
+  lookup_name (xs ++ ys) name = lookup_name ys name.
+Proof.
+  induction xs as [|[x v] xs IH].
+  - auto.
+  - simpl.
+    destruct (name =? x)%string.
+    + discriminate 1.
+    + apply IH.
+Qed.
+
 Section Modules.
-  Context {Σ : gFunctors}.
+  Context `{!osirisGS Σ}.
 
-  (* ------------------------------------------------------------------------ *)
-  (* This part of the section defines total applications to convert a value seen
-    as a module-value into its environment and to fetch a value in an
-    environment. *)
+  (* Specification over a whole path. *)
 
-  Let totalify {A B} (f: A → micro B void) (dummy : B) : A → B :=
-        λ (a : A), match f a with
-                   | Ret b => b
-                   | _ => dummy
-                   end.
+  Definition path_spec `{Encode A} (p : path) (spec : A → iProp Σ) (η : env) : iProp Σ :=
+    ∃ x, ⌜lookup_path η p = Some #x⌝ ∗ spec x.
 
-  Definition val_as_struct_total := totalify val_as_struct [].
+  Definition var_spec `{Encode A} (name : var) (spec : A → iProp Σ) (η : env) : iProp Σ :=
+    ∃ x, ⌜lookup_name η name = Some #x⌝ ∗ spec x.
 
-  (* Inversion lemma on a lookup: *)
-  Local Lemma lookup_name_inv η n v :
-    (* If [η !! n = Some v], *)
-    lookup_name η n = Some v →
-    (* Then, the environment is not empty, ie. it is an [EnvCons _ _ _] *)
-    ∃ n' v' η',
-      η = (n', v') :: η'
-      ∧ (* And either: *) (
-          ( (* - the lookup returned on the first cons ; *)
-            v = v' ∧ n = n')
-          ∨ ( (* - or not. *)
-              n <> n' ∧ lookup_name η' n = Some v)).
+  Lemma var_spec_app `{Encode A} x (Φ : A → iProp Σ) δ η :
+    var_spec x Φ δ -∗
+    var_spec x Φ (δ ++ η).
   Proof.
-    induction η as [ | [n' v'] η' ];
-      first (* Impossible case. *)
-        inversion 1.
-
-    destruct (n =? n')%string eqn:E.
-    { unfold lookup_name at 1; rewrite E.
-      inversion 1; simplify_eq/=.
-      eexists _, _, _.
-      split;[ | left ]; split; first reflexivity.
-      by apply String.eqb_eq. }
-    { unfold lookup_name at 1; rewrite E.
-      fold lookup_name.
-      intros Hη'.
-      eexists _, _, _; split; [ reflexivity | right ].
-      split.
-      - by apply String.eqb_neq.
-      - assumption. }
+    iIntros "(% & % & $)".
+    iPureIntro.
+    by apply lookup_name_app_l.
   Qed.
 
-  (* This lemma is equivalent as the one above. The difference is that we do not
-    existentially quantify over the arguments to [EnvCons]. *)
-  Local Lemma lookup_name_inv' η n n' v v' :
-    lookup_name ((n, v) :: η) n' = Some v' →
-    (v = v' ∧ n = n')
-    ∨ (n' <> n ∧ lookup_name η n' = Some v').
+  Lemma var_spec_mono `{Encode A} {Φ : A → iProp Σ} (Φ' : A → iProp Σ) x η :
+    var_spec x Φ' η -∗
+    (∀ a, Φ' a -∗ Φ a) -∗
+    var_spec x Φ η.
   Proof.
-    intros (n0&v0&η0&Heq&[ [->->] | H ])%lookup_name_inv;
-      inversion Heq; simplify_eq/=; [ by left | by right ].
+    iIntros "(%a & % & HΦ') Hmono".
+    iExists a. iSplit; [ iPureIntro; assumption | ].
+    iApply ("Hmono" with "HΦ'").
   Qed.
 
-  (* ------------------------------------------------------------------------ *)
+  Record enc_spec :=
+    Spec
+      {
+        res_type : Type;
+        res_type_enc : Encode res_type;
+        name : var;
+        spec : res_type → iProp Σ;
+      }.
+  (* Make it so [enc_spec] displays as [Spec name Φ]. *)
+  Global Arguments Spec {_ _}.
+  Global Add Printing Constructor enc_spec.
 
-  (* A second attempt at specifying things:
-     Upon specifying a module, one would like to have some symbols rewritten
-     automatically (contants, known closures, ...). Moreover, some
-     specifications are pure and should be made available to the [simp] et
-     al. tactics. The following type is an inductive representing specifications.
-     The constructors are used to annotate the kind of specification that is.
+  Instance dom_env : Dom (env) (gset var) := λ η, list_to_set (η.*1).
 
-     All constructor are paremeterized by an element of type [spec_usage]. This
-     element can be used by tactics to guess whether a specification should eb
-     used automatically or not. *)
+  Definition context (specs : list enc_spec) d : env → iProp Σ :=
+    λ η, (⌜dom η = d⌝ ∗
+           [∗ list] s ∈ specs,
+            @var_spec s.(res_type) s.(res_type_enc) s.(name) (λ res, □ s.(spec) res) η)%I.
 
-  Variant spec_usage :=
-    | Auto
-    | NoAuto.
+  Global Instance context_pers specs d η : Persistent (context specs d η).
+  Proof. apply _. Qed.
 
-  #[private(matching)]
-  Inductive spec : Type → Type :=
-  | SpecPure {A} : spec_usage → (A → Prop) → spec A
-  | SpecImpure {A} : spec_usage → (A → iProp Σ) → spec A
-  | SpecEquality {A} : spec_usage → A → spec A
-  | SpecModule :
-    spec_usage →
-    list (string * spec val) →
-    iProp Σ →
-    spec val
-  .
+  Check
+  context [
+      Spec "+" (λ add, iSpec τ[Z; Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})%I);
+      Spec "-" (λ sub, iSpec τ[Z; Z] sub (λ i j m, imp m {{ λ n, ⌜(n = i - j)%Z⌝ }})%I)
+    ] {["+";"-";"*"]}.
 
-  (* Induction principle on [spec {A}]. *)
-  Fixpoint spec_ind (P : forall A, spec A -> Prop)
-    (HPure :
-      forall A usage Pred, P A (SpecPure usage Pred))
-    (HImpure :
-      forall A usage Pred, P A (SpecImpure usage Pred))
-    (HEquality :
-      forall A usage v, P A (SpecEquality usage v))
-    (HModule :
-      forall usage l Pred,
-       Forall (P val) (map snd l) ->
-       P val (SpecModule usage l Pred))
-    {A} (φ : spec A)
-    : P A φ :=
-    let spec_ind := spec_ind P HPure HImpure HEquality HModule in
-    match φ with
-    | @SpecPure A u Pred => HPure A u Pred
-    | @SpecImpure A u Pred => HImpure A u Pred
-    | @SpecEquality A u v => HEquality A u v
-    | SpecModule usage φl Pred =>
-        let fix inner_ind φl : Forall (P val) (map snd φl) :=
-          match φl with
-          | [] => List.Forall_nil (P val)
-          | (n, φn) :: φtl =>
-              let Pn : P val φn := spec_ind φn in
-              let Ptl : Forall (P val) (map snd φtl) := inner_ind φtl in
-              List.Forall_cons
-                (P val) φn (map snd φtl)
-                Pn (inner_ind φtl)
-          end
-        in
-        HModule usage φl Pred (inner_ind φl)
-    end.
-
-  (* [spec] has no concrete meaning. It is merely descriptive. The two following
-     functions interprete specifications and return predicates over monadic
-     values. *)
-  Fixpoint satisfies_spec {A} (Λ : spec A) : A → iProp Σ :=
-    match Λ in spec A return A → iProp Σ with
-    | SpecPure _ P => λ v, ⌜ P v⌝%I
-    | SpecImpure _ P => P
-    | SpecEquality _ v' => λ v, ⌜ v = v' ⌝%I
-    | SpecModule _ l P =>
-        λ v, (∃ η, ⌜ v = VStruct η ⌝ ∗
-                   (* Using [foldr] instead of [∗ list] allows using [Fixpoint]
-                      without proving that the depth of [Λ] is a decreasing
-                      argument for the fixpoint. *)
-                   foldr (λ '(n, Λn) P,
-                            (∃ vn, ⌜ lookup_name η n = Some vn ⌝ ∗
-                                   satisfies_spec Λn vn) ∗
-                            P)
-                         P l)%I
-    end.
-
-  Definition pure_spec {A} (Λ : spec A) : A → Prop :=
-    match Λ in spec A return A → Prop with
-    | SpecPure _ P => P
-    | SpecImpure _ _ => λ _, True
-    | SpecEquality _ v' => λ v, v = v'
-    | SpecModule _ l _ =>
-        λ v, ∃ η, v = VStruct η ∧
-                   Forall (λ '(n, _), ∃ vn, lookup_name η n = Some vn) l
-    end.
-
-  (* If one knows that an impure interpretation of a specification holds, then
-     the pure interpretation does too. *)
-  Lemma satisfies_pure_spec {A} (Λ : spec A) (v : A) :
-    satisfies_spec Λ v ⊢ ⌜ pure_spec Λ v ⌝.
+  Lemma extract_context `{Encode A} {η} xs ys d name (spec : A → iProp Σ) :
+    context (xs ++ [Spec name spec] ++ ys) d η -∗ var_spec name spec η.
   Proof.
-    destruct Λ; try by (iIntros "?"; done).
-
-    (* Only the module case remains; we proceed by induction on the list of
-       specified symbols in the module. *)
-    induction l as [|[??]?]; simpl; iIntros "(%&->&Hl)".
-    { iPureIntro; by eexists. }
-    { iExists _; iSplit; first by iPureIntro. rewrite Forall_cons.
-      iDestruct "Hl" as "[(%&->&_) Ht]".
-      iSplit; first by iExists _.
-      iPoseProof (IHl with "[-]") as "(%&%&?)"; last by simplify_eq/=.
-      { iExists _; by iSplit. } }
+    unfold context.
+    iIntros "(%Hdom & Hspecs)".
+    iPoseProof (big_sepL_app with "Hspecs") as "(_ & Hspecs)".
+    iPoseProof (big_sepL_app with "Hspecs") as "(Hspec & _)".
+    iDestruct "Hspec" as "[#Hspec _]".
+    iApply (var_spec_mono with "Hspec").
+    iIntros (res) "#Hspec'". iApply "Hspec'".
   Qed.
 
-  (* ------------------------------------------------------------------------ *)
+  (* We immediately reduce [path_spec] to [var_spec] if the path is a singleton. *)
 
-  (* Should a pure interpretation of a specification [SpecModule _ _ v] hold,
-     one could be able to rewrite [val_as_struct v] using the total lookup
-     functions. *)
-  Lemma pure_spec_val_as_struct a l P v :
-    pure_spec (SpecModule a l P) v →
-    val_as_struct (E:=exn) v = Ret (val_as_struct_total v).
-  Proof. intros (η&->&_); reflexivity. Qed.
+  Lemma path_spec_singleton `{Encode A} name (Φ : A → iProp Σ) η :
+    var_spec name Φ η -∗ path_spec [name] Φ η.
+  Proof.
+    unfold var_spec.
+    iIntros "(%x & Hlookup & HΦ)".
+    iExists x. simpl. iFrame.
+  Qed.
 
-  (* ------------------------------------------------------------------------ *)
+  (* If the path is a cons, we find the specification for the module
+     at the head of the path. *)
 
-  Fixpoint SpecModule_fetch (l : list (string * spec val)) (n : string)
-    : spec val :=
-    match l with
-    | (hn, hs) :: t =>
-        if (hn =? n)%string then hs else SpecModule_fetch t n
-    | [] =>
-        (* Dummy result... *) SpecPure NoAuto (λ _, True)
-    end.
+  Lemma path_spec_cons {A : Type} `{Encode A} {Φ : A → iProp Σ} {η x p} mspec :
+    var_spec x mspec η -∗
+    (∀ (δ : env), mspec δ -∗ path_spec p Φ δ) -∗
+    path_spec (x :: p) Φ η.
+  Proof.
+    iIntros "(%δ & %Hlookup & Hpost) Hcov".
+    iDestruct ("Hcov" with "Hpost") as "(% & %Hlookup' & HΦ)".
+    iFrame. iPureIntro.
+    simpl. destruct p.
+    - simpl in Hlookup'. discriminate Hlookup'.
+    - rewrite Hlookup. apply Hlookup'.
+  Qed.
 
-  (* ------------------------------------------------------------------------ *)
 
- (* [spec_env] is the type of module specifications. *)
- Definition spec_env : Type :=
-   list (var * (val → iProp Σ)).
+  (* If the environment is a cons, where the head does not match the
+     name we are looking for, we keep looking in the tail of the
+     environment. *)
 
- (* [module_spec Λ] is a predicate over values which asserts that:
-    1. the value represents a module
-    2. the module contains least the elements present in [Λ]
-    3. every field present in [Λ] satisfy its spec. *)
- Definition module_spec (Λ : spec_env) (η: env) : iProp Σ :=
-   [∗ list] '(x, φx) ∈ Λ,
-     ∃ v, ⌜lookup_name η x = Some v⌝ ∗ φx v.
+  Lemma var_spec_cons {A : Type} `{Encode A} {Φ : A → iProp Σ} {η v} x y :
+    (x =? y)%string = false →
+    var_spec x Φ η -∗
+    var_spec x Φ ((y, v) :: η).
+  Proof.
+    iIntros (Hneq) "(%a & %Hlookup & $)".
+    iPureIntro.
+    simpl lookup_name; rewrite Hneq; apply Hlookup.
+  Qed.
 
- (* [is_module] is the pure counterpart of [module_spec]. It asserts the first
-    two points listed above. *)
- Definition is_module (Λ : list name) η : Prop :=
-   foldr (λ n P, (∃ (vn : val), lookup_name η n = Some vn) ∧ P) True Λ.
+  (* If the environment is a cons, where the head does not match the
+     name we are looking for, we keep looking in the tail of the
+     environment. *)
 
- (* -------------------------------------------------------------------------- *)
+  Lemma var_spec_here {A : Type} `{Encode A} {Φ : A → iProp Σ} {η v} x y :
+    (x =? y)%string = true →
+    Φ v -∗
+    var_spec x Φ ((y, #v) :: η).
+  Proof.
+    iIntros (Heq) "$".
+    iPureIntro.
+    simpl lookup_name; rewrite Heq. reflexivity.
+  Qed.
 
- (* [spec_env_erase] takes a module specification and only keeps the
-    under-approximation of its domain. *)
- Fixpoint spec_env_erase  (Λ : spec_env) : list name :=
-   match Λ with
-   | (n, _) :: Λ => n :: (spec_env_erase Λ)
-   | [] => []
-   end.
+  (* If the environment is an app, where the name we are looking for
+     is not in the first fragment, we keep looking in the second
+     fragment. *)
 
- (* ------------------------------------------------------------------------- *)
+  Lemma var_spec_app_r `{Encode A} {Φ : A → iProp Σ} {η x} δ d mspec :
+    x ∉ d →
+    context mspec d δ -∗
+    var_spec x Φ η -∗
+    var_spec x Φ (δ ++ η).
+  Proof.
+    iIntros (Hnin) "(%Hdom & _) Hη".
+    iInduction δ as [| [y v] δ ] "IH" forall (d Hnin Hdom).
+    - iApply "Hη".
+    - simpl. iApply var_spec_cons.
+      + unfold dom, dom_env in Hdom. simpl in Hdom.
+        rewrite <- Hdom in Hnin.
+        apply not_elem_of_union in Hnin as [Hnin _].
+        apply not_elem_of_singleton in Hnin.
+        apply String.eqb_neq. apply Hnin.
+      + iApply ("IH" $! (dom δ) with "[] [//] Hη").
+        iPureIntro.
+        unfold dom, dom_env in Hdom. simpl in Hdom.
+        rewrite <- Hdom in Hnin.
+        apply not_elem_of_union in Hnin as [_ Hnin].
+        apply Hnin.
+  Qed.
 
- (* If a module satisfies some specification [Λ], it at least defines the domain
-    specified in [Λ]. *)
- Lemma module_spec_is_module vmod  (Λ : spec_env) :
-   module_spec Λ vmod ⊢
-   ⌜is_module (spec_env_erase Λ) vmod⌝.
- Proof.
-   iInduction Λ as [|[h ?] t] "IHΛ".
-   { iIntros "_". iPureIntro. done. }
+  (* If the environment is an app, where the name we are looking for
+     is not in the first fragment, we keep looking in the second
+     fragment. *)
 
-   { iIntros "H".
-     rewrite/module_spec/=.
-     iDestruct "H" as "[(%vname&%Hvname&_) Ht]".
-     iSplit; first by iExists vname.
-     iApply ("IHΛ" with "Ht"). }
- Qed.
+  Lemma var_spec_app_l `{Encode A} {Φ : A → iProp Σ} {η x} δ d xs ys :
+    context (xs ++ [Spec x Φ] ++ ys) d δ -∗
+    var_spec x Φ (δ ++ η).
+  Proof.
+    iIntros "Hcontext".
+    iPoseProof (extract_context with "Hcontext") as "Hspec".
+    iApply var_spec_app. iApply "Hspec".
+  Qed.
 
- (* If [is_module Λ v] holds,
-    any lookup of an element of [Λ] into the module represented by [v]
-    must succeed. *)
- Lemma is_module_lookup_name η n Λ :
-   is_module Λ η →
-   In n Λ →
-   ∃ velt, lookup_name η n = Some velt.
- Proof.
-   induction Λ as [ | h t];
-     first (* Impossible case. *)
-       by inversion 2.
+  (* We can pick out the right specification from a context. *)
 
-   intros ((vh&Hh)&Ht) [-> |Hin]%in_inv;
-     first (exists vh; exact Hh).
-   refine (IHt _ Hin).
-   exact Ht.
- Qed.
+  Lemma var_spec_context `{Encode A} {Φ : A → iProp Σ} {x} δ d specs :
+    Spec x Φ ∈ specs →
+    context specs d δ -∗
+    var_spec x Φ δ.
+  Proof.
+    iIntros (Hin) "Hcontext".
+    apply list_elem_of_split in Hin as (l1 & l2 & ->).
+    iPoseProof (extract_context with "Hcontext") as "$".
+  Qed.
 
- (* ------------------------------------------------------------------------- *)
+  Lemma var_spec_context_mono `{Encode A} {Φ : A → iProp Σ} Φ' {x} δ d specs :
+    Spec x Φ' ∈ specs →
+    context specs d δ -∗
+    (∀ a, Φ' a -∗ Φ a) -∗
+    var_spec x Φ δ.
+  Proof.
+    iIntros (Hin) "Hcontext Hmono".
+    apply list_elem_of_split in Hin as (l1 & l2 & ->).
+    iPoseProof (extract_context with "Hcontext") as "Hspec".
+    iApply (var_spec_mono with "Hspec Hmono").
+  Qed.
 
- (* [module_spec_fetch] retrieves a spec of a given symbol from a [spec_env]. *)
- Fixpoint module_spec_fetch (Λ : spec_env) (n : name) : val → iProp Σ :=
-   match Λ with
-   | (h, φ) :: Λ =>
-       if (n =? h)%string
-       then φ
-       else module_spec_fetch Λ n
-   | [] => λ _, emp%I
-   end.
+  Lemma imp_EPath_spec {E : coPset} {Ψ : iEff Σ} {A : Type} {EncA : Encode A}
+    {Φ : A → iProp Σ} {ζ : exn → iProp Σ} (η : env) (p : path) :
+    path_spec p Φ η -∗
+    imp eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} : iProp Σ.
+  Proof.
+    iIntros "(% & %Hlookup & Hspec)".
+    simpl_eval.
+    iApply imp_widen.
+    rewrite Hlookup.
+    iExists x; auto.
+  Qed.
+
+  Lemma imp_EPath_var {E Ψ ζ} {A : Type} `{Encode A} {η p} (a : A) :
+    lookup_path η p = Some #a →
+    ⊢ imp (eval η (EPath p)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }}.
+  Proof.
+    iIntros (Hlookup).
+    iApply imp_EPath; eauto.
+  Qed.
+
 End Modules.
 
-(* -------------------------------------------------------------------------- *)
-
-(* Simple specifications for modules in pure proofs *)
-Section PureModules.
-
-  (* Type of pure specifications *)
-  Definition pspec : Type := val -> Prop.
-  (* Type of association lists from names to pure specifications *)
-  Definition pspec_assoc := list (var * pspec).
-
-  Fixpoint env_has_pspecs (Λ : pspec_assoc) (η : env) :=
-    match Λ with
-    | [] => True
-    | h::t => let (name, spec) := h in
-            match (lookup_name η name) with
-            | Some v' => spec v' /\ env_has_pspecs t η
-            | _ => False
-            end
-    end.
-
-  (* Postcondition which establishes that a value is a module containing all the
-     vars in [Λ], such that these vars satisfy their spec in the module *)
-  Definition is_module_with_pspecs (Λ : pspec_assoc) : (val -> Prop) :=
-    fun v => match v with
-          | VStruct env => env_has_pspecs Λ env
-          | _ => False
-          end.
-
-  (* Easier fetching of pspecs by tactic *)
-  Lemma env_has_pspecs_find {Λ η} x spec :
-    env_has_pspecs Λ η →
-    In (x, spec) Λ →
-    ∃ v, lookup_name η x = Some v ∧ spec v.
-  Proof.
-    intros H1 H2; revert H2 H1.
-    induction Λ as [ | (y, sy) Λ IHΛ].
-    - done.
-    - intros [ [= -> ->] | ]; simpl.
-      + destruct (lookup_name η x); intros []; eauto.
-      + destruct (lookup_name η y); intros []; eauto.
-  Qed.
-
-End PureModules.
-
-(* -------------------------------------------------------------------------- *)
-
-(* The following section provides helper lemmas to reason on mutually-recursive
-   functions ([let rec ... and ...] and [let ... = ...] constructs). *)
-Section MutuallyRecursive.
+Section TacticTests.
 
   Context `{!osirisGS Σ}.
 
-  (* ------------------------------------------------------------------------ *)
+  Local Open Scope Z.
 
-  (* The idea of this section is to allow to prove goals of the form
-     [wp s E (concatenating ...) φ] and [wp s E (ret_dconcat ...) φ] by
-     proving that it is enough to prove:
-     [ ▷ spec1 v1 -∗ ... -∗ ▷ specn vn -∗ spec1 v1 ],
-      ... ,
-     [ ▷ spec1 v1 -∗ ... -∗ ▷ specn vn -∗ specn vn ], and
-     [ (spec1 v1 -∗ ... -∗ specn vn -∗ P) ],
-     where [P] represents the initial goal to prove.
+  (* We define a short program, [e]:
+     let x = 2 in
+     let y = z in
+     Module1.add (Module2.Module3.sub y x) x *)
 
-     Note: this lemma follows directly from a few tautologies. *)
+  Definition e :=
+    ELet [Binding (PVar "x") (EInt 2)] (
+        ELet [Binding (PVar "y") (EPath ["z"])] (
+            EApp
+              (EApp (EPath ["Module1"; "add"])
+                 (EApp
+                    (EApp (EPath ["Module2";"Module3";"sub"]) (EPath ["y"]))
+                    (EPath ["x"])))
+              (EPath ["x"])
+          )
+      ).
 
-  (* ------------------------------------------------------------------------ *)
+  (* We then verify this program under the assumption that:
+     - [z] is in the environment and is positive
+     - Module1 is in the environment and contains [add]
+     - Module2 is in the environment and contains [Module3],
+       which contains [sub] *)
 
-  (* Definitions to build the lemmas on mutually-recursive functions. *)
+  Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }})%I.
+  Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
 
-  (* [sepn] is similar to the iterated separating conjunction on lists.
-     Using this ad-hoc definition makes the following proofs easier.
-     Note: it would be possible to avoid the [emp] term in the conjunctions, but
-           this would alter the structure of the definition, which has been
-           chosen to mimic that of [wandn] below.
-           As [sepn] should never be exposed to users, this is not an issue. *)
-  Local Definition sepn (pl: list (iProp Σ)) : iProp Σ :=
-    foldr (fun e res => e ∗ res)%I emp%I pl.
+  Definition module3_spec := context [Spec "sub" sub_spec] {["sub"]}.
+  Definition module2_spec := context [Spec "Module3" module3_spec] {["Module3"; "some"; "other"; "stuff"]}.
 
-  (* [wandn] is an iterated magic wand:
-     [wandn [a; b; c] P ] reduces to [a -∗ b -∗ c -∗ P] *)
-  Definition wandn (pl: list (iProp Σ)) (P: iProp Σ) : iProp Σ :=
-    foldr (fun e res => e -∗ res)%I P pl.
-
-  Definition sepn_wand (pl: list (iProp Σ)) (P: iProp Σ) : iProp Σ :=
-    sepn pl -∗ P.
-
-  (* ------------------------------------------------------------------------ *)
-
-  (* Simple lemmas on the above definitions to prepare the main proof. *)
-
-  (* [wandn_sepn_wand_1] and [wandn_sepn_wand_2] state that it is equivalent to
-     have nested wands or a conjunction followed by a wand. *)
-
-  Lemma wandn_sepn_wand_1 (pl: list (iProp Σ)) (P: iProp Σ) :
-    wandn pl P -∗ sepn_wand pl P.
+  Lemma example_proof δ η :
+    var_spec "z" (λ (i : Z), ⌜i > 0⌝) η -∗
+    context [Spec "Module1" (context [Spec "some_other_val" (λ (_ : val), True);
+                                      Spec "add" add_spec] {["add"]})] {["Module1"]} δ -∗
+    context [Spec "Module2" module2_spec] {["Module2"]} η -∗
+    imp (eval (δ ++ η) e) {{ λ (i : Z), ⌜i > 0⌝ }}.
   Proof.
-    iInduction (pl) as [ | p pl ] "IH";
-      unfold wandn; unfold sepn_wand; simpl; auto.
-    iIntros "H_impl [Hp H_conj]".
-    iApply ("IH" with "[H_impl Hp] H_conj").
-    iApply ("H_impl" with "Hp").
+    iIntros "#zspec #δspec #ηspec".
+    iApply (imp_ELet_var (B:=Z)). { iApply imp_EInt. }
+    iIntros (? ->).
+    iApply (imp_ELet_var (B:=Z)).
+    { iApply imp_EPath_spec.
+      iApply path_spec_singleton.
+      iApply var_spec_cons; first auto.
+      iApply (var_spec_app_r with "δspec"). { set_solver. }
+      iAssumption. }
+    iIntros (y) "%yspec".
+    iApply (imp_EApp τ[Z;Z]).
+    { iApply imp_EPath_spec.
+      iApply path_spec_cons.
+      { iApply var_spec_cons; first auto.
+        iApply var_spec_cons; first auto.
+        iApply var_spec_app.
+        iApply (var_spec_context_mono with "δspec"); [ repeat constructor | auto ]. }
+      iIntros (?) "#module1spec".
+      iApply path_spec_singleton.
+      iApply (var_spec_context_mono with "module1spec"); first repeat constructor.
+      auto. }
+    { iApply (imp_EApp τ[Z;Z]).
+      { iApply imp_EPath_spec.
+        iApply path_spec_cons.
+        { iApply var_spec_cons; first auto.
+          iApply var_spec_cons; first auto.
+          iApply (var_spec_app_r with "δspec"). { set_solver. }
+          iApply (var_spec_context with "ηspec"). repeat constructor. }
+        iIntros (?) "#module2spec".
+        iApply path_spec_cons. { iApply (var_spec_context with "module2spec"). repeat constructor. }
+        iIntros (?) "#module3spec".
+        iApply path_spec_singleton.
+        iApply (var_spec_context_mono with "module3spec"); [ repeat constructor | auto ]. }
+      { iApply imp_EPath_spec.
+        iApply path_spec_singleton.
+        iApply var_spec_here; first auto.
+        instantiate (1:=(λ y',⌜y'=y⌝)%I). auto. }
+      { iApply imp_EPath_spec.
+        iApply path_spec_singleton.
+        iApply var_spec_cons; first auto.
+        iApply var_spec_here; first auto.
+        instantiate (1:=(λ y',⌜y'=2⌝)%I). auto. }
+      iIntros (??) "-> -> %m Hm !>".
+      iApply "Hm". }
+    { iApply imp_EPath_spec.
+      iApply path_spec_singleton.
+      iApply var_spec_cons; first auto.
+      iApply var_spec_here; first auto.
+      instantiate (1:=(λ y',⌜y'=2⌝)%I). auto. }
+    iIntros (??) "-> -> %m Hm !>".
+    iApply (imp_mono_ret with "Hm").
+    iIntros (x ->). iPureIntro.
+    lia.
   Qed.
 
-  Lemma wandn_sepn_wand_2 (pl: list (iProp Σ)) (P: iProp Σ) :
-    sepn_wand pl P -∗ wandn pl P.
-  Proof.
-    iInduction (pl) as [ | p pl ] "IH";
-      unfold wandn; unfold sepn_wand; simpl.
-
-    { iIntros "H". iApply ("H" with "[//]"). }
-
-    iIntros "H_sepn Hp".
-    iPoseProof (wand_curry with "H_sepn Hp") as "H_sepn".
-    iApply ("IH" with "H_sepn").
-  Qed.
-
-  (* The [▷] modality can enter inside a separating conjunction. *)
-  Lemma sepn_later_1 (pl: list (iProp Σ)) :
-    ▷ sepn pl -∗ sepn (map (fun e => ▷ e)%I pl).
-  Proof.
-    iInduction pl as [ | p pl ] "IH"; simpl; auto.
-    iIntros "[$ Hpl]".
-    iApply ("IH" with "Hpl").
-  Qed.
-
-  (* The [▷] modality can be factorized in front of a separating conjunction. *)
-  Lemma sepn_later_2 (pl: list (iProp Σ)) :
-    sepn (map (fun e => ▷ e)%I pl) -∗ ▷ sepn pl.
-  Proof.
-    iInduction pl as [ | p pl ] "IH"; simpl; auto.
-    iIntros "[$ Hpl]".
-    iApply ("IH" with "Hpl").
-  Qed.
-
-  (* [sepn_pers] states that the conjunction of persistent propositions is
-     persistent. *)
-  Lemma sepn_pers (pl: list (iProp Σ)) :
-    Forall Persistent pl →
-    Persistent (sepn pl).
-  Proof.
-    induction pl as [ | p pl IH].
-    { simpl. intros. apply emp_persistent. }
-    { intros [Hp Hpl]%Forall_cons.
-      simpl. apply sep_persistent; first exact Hp.
-      exact (IH Hpl). }
-  Qed.
-
-  (* [sepn_löb] paraphrases the Löb-induction principle on conjunctions. *)
-  Lemma sepn_löb pl :
-    (□ (sepn (map (fun e => ▷ e)%I pl) -∗ sepn pl)) -∗
-    sepn pl.
-  Proof.
-    iIntros "#H1".
-    iLöb as "Hl".
-    iApply "H1".
-    iApply (sepn_later_1 with "Hl").
-  Qed.
-
-  (* [wand_sepn_l] states that for any persistent proposition [P], to prove a
-     conjunction under the assumption [P], it suffices to show each element of
-     the conjunction under the assumption [P]. *)
-  Lemma wand_sepn_l (pl: list (iProp Σ)) (P: iProp Σ) :
-    Persistent P →
-    sepn (map (fun p => P -∗ p) pl)%I -∗
-    (P -∗ sepn pl).
-  Proof.
-    intros Hpers.
-    iInduction (pl) as [ | p pl ] "IH"; auto; simpl.
-    iIntros "[Hp Hpl] #HP".
-    iPoseProof ("IH" with "Hpl HP") as "$".
-    iApply ("Hp" with "HP").
-  Qed.
-
-  (* [sepn_persistent_l] states that to prove that a conjunction is persistent,
-     it suffices to show that each proposition of the conjunction is. *)
-  Lemma sepn_persistent_l (pl: list (iProp Σ)) :
-    sepn (map (λ e, □ e)%I pl) -∗ (□ sepn pl).
-  Proof.
-    iInduction (pl) as [ | p pl ] "IH"; auto; simpl.
-    assert (Persistent (sepn (map (λ e, □ e)%I pl))).
-    { apply sepn_pers. induction pl as [ | ? ? IHpl ]; simpl;
-        [ by apply Forall_nil | apply Forall_cons; split].
-      - apply intuitionistically_persistent.
-      - apply IHpl. }
-    iIntros "[#Hp #Hpl]".
-    iSplitL; first by auto.
-    iApply ("IH" with "Hpl").
-  Qed.
-
-  (* [sepn_weaken2] allows to weaken the elements of a conjunction. *)
-  Lemma sepn_weaken2 (f g: iProp Σ → iProp Σ) (pl: list (iProp Σ)) :
-    (forall e, f e -∗ g e) → sepn (map f pl) -∗ sepn (map g pl).
-  Proof.
-    iIntros (Hf).
-    induction pl as [ | p pl IH ]; simpl; auto.
-    iIntros "[Hp Hpl]".
-    iSplitL "Hp".
-    { iApply (Hf with "Hp"). }
-    { iApply (IH with "Hpl"). }
-  Qed.
-
-  (* ------------------------------------------------------------------------ *)
-
-  (* Main result.
-     [assuming_list]
-     states that for any persistent propositions [p1], ..., [pn] and any
-     proposition [P] (which does not have to be persistent),
-     [
-     □ (▷ p1 -∗ ... -∗ ▷ pn -∗ p1) -∗
-       ... -∗
-     □ (▷ p1 -∗ ... -∗ ▷ pn -∗ pn) -∗
-     (p1 -∗ ... -∗ pn -∗ P) -∗
-     P
-     ].
-   *)
-
-
-  Lemma assuming_list_nonrec (pl: list (iProp Σ)) (P: iProp Σ) :
-    ⊢ wandn pl ((wandn pl P) -∗ P).
-  Proof.
-    iApply wandn_sepn_wand_2.
-    iIntros "??".
-    iApply (wandn_sepn_wand_1 with "[$][$]").
-  Qed.
-
-  Lemma assuming_list (pl: list (iProp Σ)) (P: iProp Σ) :
-    Forall Persistent pl → ⊢
-    (wandn
-       (map (λ p, □ p)
-       (map (λ p, wandn (map (λ e : iPropI Σ, ▷ e) pl) p) pl)))%I
-    ((wandn pl P) -∗
-    P).
-  Proof.
-    intros Hpers.
-    iApply wandn_sepn_wand_2.
-    iIntros "Hspecs1 HP"; unfold sepn_wand.
-    iPoseProof (sepn_persistent_l with "Hspecs1") as "#Hspecs3".
-    iPoseProof (wandn_sepn_wand_1 with "HP") as "HP".
-    unfold sepn_wand.
-
-    assert (Persistent (sepn (map (λ e, ▷ e)%I pl))).
-    { apply sepn_pers.
-      induction pl as [ | p pl IH]; first by apply Forall_nil.
-      apply Forall_cons in Hpers as [Hp Hpl].
-      apply Forall_cons; split;
-        [ exact (later_persistent _ Hp)
-        | exact (IH Hpl) ]. }
-    iPoseProof (sepn_weaken2 with "Hspecs3") as "#Hspecs".
-    { iIntros (e) "H".
-      iApply (wandn_sepn_wand_1 with "H"). }
-    iPoseProof ((wand_sepn_l pl (sepn (map (λ e : iPropI Σ, ▷ e)%I pl))
-                              H) with "Hspecs") as "Hspecs2".
-    iPoseProof (sepn_löb with "Hspecs2") as "Hspecs4".
-    iApply ("HP" with "Hspecs4").
-  Qed.
-End MutuallyRecursive.
+End TacticTests.
