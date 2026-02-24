@@ -456,7 +456,7 @@ Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
 Notation "'imp' e {{ Φ }}" :=
   (impure ⊤ e%E ⊥ ⊥ Φ)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ '  {{  Φ  '}}' ']' ']'")
+      format "'[' 'imp'  e  '/' '[ ' {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E {{ Φ }}" :=
