@@ -242,7 +242,7 @@ Global Notation valid_seg i j xs :=
 Global Notation valid i xs :=
   (0 ≤ i < length xs).
 
-Lemma valid_valid_seg {A} (i j : Z) (xs : list A) :
+Lemma valid_valid_seg {A} (i : Z) (xs : list A) :
   valid i xs ↔ valid_seg i (i+1) xs.
 Proof. lia. Qed.
 
