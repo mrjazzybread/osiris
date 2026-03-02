@@ -1,8 +1,8 @@
 From osiris.proofmode Require Export
   equality
   pure_tactics
-  ewp_tactics
-  specifications
+  handler_tactics
+  env_lookups
 .
 (* [setup.v] should be exported last. *)
 From osiris.proofmode Require Export

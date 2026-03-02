@@ -1,16 +1,9 @@
 From iris.proofmode Require Import proofmode environments ltac_tactics.
-From iris.base_logic.lib Require Import fancy_updates.
-From iris.bi Require Import weakestpre.
-From iris.prelude Require Import options.
-Import uPred.
 
-From iris Require Import base_logic.lib.gen_heap.
-
-From osiris Require Import base.
 From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
+
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import specifications pure_tactics.
+From osiris.proofmode Require Import pure_tactics.
 
 From osiris.tactics Require Import tactics.
 
@@ -50,14 +43,6 @@ Global Hint Extern 1 (representable _) => representable : osiris.
 Global Hint Unfold val_as_int : osiris.
 
 (* -------------------------------------------------------------------------- *)
-
-(** *Automation *)
-(* Extending the [by] and [done] tactics to solve trivial things in proof mode *)
-
-(* Useful for goals of the shape (⊢ ∀ (e : void), _), _.) which come up when
-  reasoning about exceptional continuations *)
-Global Hint Extern 0 (envs_entails _ (bi_forall (fun _ : void => _))) => iIntros (?)
-; try done : core.
 
 (** *Set postcondition *)
 

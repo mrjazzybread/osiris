@@ -279,7 +279,7 @@ Ltac2 get_env_spec (η : constr) :=
                         (Some (fprintf "Could not find [context] specification for environment %t" η)))
     | environments.Esnoc ?env ?name ?prop =>
         match! prop with
-        | specifications.context ?_specs ?_domain ?δ =>
+        | env_lookups.context ?_specs ?_domain ?δ =>
             if Constr.equal η δ then
               name
             else

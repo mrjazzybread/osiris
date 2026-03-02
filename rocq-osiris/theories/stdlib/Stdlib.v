@@ -6,7 +6,6 @@ From osiris Require Import osiris.
 From osiris.logic Require Import orders.
 From osiris.stdlib Require Import Externals.
 From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import ewp_tactics pure_tactics.
 
 Local Transparent encode.
 
