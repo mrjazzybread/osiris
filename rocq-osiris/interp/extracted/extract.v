@@ -19,10 +19,10 @@ Extract Inductive list => "list" [ "[]" "(::)" ].
 
 (* Realization of axioms *)
 
-(* int_size is defined to be 63 *)
-Extract Constant int.int_size => "(let rec nat_of_int n = if n <= 0 then O else S (nat_of_int (n - 1)) in nat_of_int 63)".
-(* max_array is defined to be (1 lsl (Sys.word_size - 10) -1) = 2^54 - 1 *)
-Extract Constant int.max_array => "(let rec pos_of_int n = if n <= 1 then Coq_xH else if n mod 2 = 0 then Coq_xO (pos_of_int (n / 2)) else Coq_xI (pos_of_int (n / 2)) in Zpos (pos_of_int 18014398509481983))".
+(* int_size is defined to be `Sys.word_size - 1`, which is usually 63. *)
+Extract Constant int.int_size => "(let rec nat_of_int n = if n <= 0 then O else S (nat_of_int (n - 1)) in nat_of_int (Sys.word_size - 1))".
+(* max_array is defined to be `Sys.max_array_length`, which is usually 2^54 - 1 *)
+Extract Constant int.max_array => "(let rec pos_of_int n = if n <= 1 then Coq_xH else if n mod 2 = 0 then Coq_xO (pos_of_int (n / 2)) else Coq_xI (pos_of_int (n / 2)) in Zpos (pos_of_int Sys.max_array_length))".
 Extract Constant int.max_array_positive => "()".
 Extract Constant int.max_array_length => "()".
 Extract Constant PrimFloat.float => "Float.t".
