@@ -268,7 +268,7 @@ End Modules.
 (* --------------------------------------------------------------------------*)
 (* Implementing the [imp_path] tactic. *)
 
-From Ltac2 Require Import Ltac2 Printf.
+From Ltac2 Require Import Ltac2 Printf Bool.
 
 Ltac2 get_env_spec (η : constr) :=
   let (pers_hyps, spat_hyps) := get_iris_hyps () in
@@ -296,6 +296,29 @@ Ltac2 get_env_spec (η : constr) :=
   Control.plus
     (fun _ => go pers_hyps)
     (fun _ => go spat_hyps).
+
+Ltac2 get_var_spec (x : constr) (η : constr) :=
+  let (pers_hyps, spat_hyps) := get_iris_hyps () in
+  let rec go env :=
+    lazy_match! env with
+    | environments.Enil =>
+        Control.zero (Tactic_failure
+                        (Some (fprintf "Could not find [in_env] specification for name %t" x)))
+    | environments.Esnoc ?env ?name ?prop =>
+        match! prop with
+        | in_env ?y ?_spec ?δ =>
+            if Constr.equal x y && Constr.equal η δ then
+              name
+            else
+              go env
+        | _ => go env
+        end
+    end
+  in
+  Control.plus
+    (fun _ => go pers_hyps)
+    (fun _ => go spat_hyps).
+
 
 Ltac2 var_spec_cons () :=
   iApply var_spec_cons; Control.focus 1 1 (fun _ => reflexivity).
@@ -340,7 +363,11 @@ Ltac2 rec solve_var_spec () :=
                solve_var_spec ())
       | ?η =>
           Control.plus
-            (fun _ => iAssumption)
+            (fun _ =>
+               let spec_name := get_var_spec name η in
+               iApply (var_spec_mono with $spec_name);
+               let ha := iFresh "ha" in
+               iIntros ("% " ++ $ha)%string; try (iApply $ha))
             (fun _ =>
                Control.plus
                  (fun _ =>
@@ -433,7 +460,7 @@ Section TacticTests.
      ```
      let x = 2 in
      let y = z in
-     Module1.add (Module2.Module3.sub y x) x
+     Module1.add (Module2.Module3.sub y x) a
      ```
    *)
 
@@ -445,7 +472,7 @@ Section TacticTests.
                  (EApp
                     (EApp (EPath ["Module2";"Module3";"sub"]) (EPath ["y"]))
                     (EPath ["x"])))
-              (EPath ["x"])
+              (EPath ["a"])
           )
       ).
 
@@ -457,12 +484,14 @@ Section TacticTests.
 
   Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }})%I.
   Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
+  Definition a_spec a : iProp Σ := ∀ (A : Type), □ ⌜a > 2⌝.
 
   Definition module3_spec η := context [has_spec "sub" sub_spec] {["sub"]} η.
   Definition module2_spec η := context [has_spec "Module3" module3_spec] {["Module3"; "some"; "other"; "stuff"]} η.
 
   Lemma example_proof δ η :
     in_env "z" (λ (i : Z), ⌜i > 0⌝) η -∗
+    in_env "a" a_spec η -∗
     context [has_spec
                "Module1"
                (context [has_spec "some_other_val" (λ (_ : val), True);
@@ -471,7 +500,7 @@ Section TacticTests.
     context [has_spec "Module2" module2_spec] {["Module2";"z"]} η -∗
     imp (eval (δ ++ η) e) {{ λ (i : Z), ⌜i > 0⌝ }}.
   Proof.
-    iIntros "#zspec #δspec #ηspec".
+    iIntros "#zspec #aspec #δspec #ηspec".
     (* TODO: imp_let tactic which instantiates
        the return type of the left member with an evar. *)
     evar(B:Type).
@@ -491,9 +520,10 @@ Section TacticTests.
       iIntros (??) "-> -> %m Hm !>".
       iApply "Hm". }
     { imp_path. }
-    iIntros (??) "-> -> %m Hm !>".
+    iIntros (??) "-> #%Ha %m Hm !>".
     iApply (imp_mono_ret with "Hm").
-    iIntros (x ->). iPureIntro.
+    iIntros (y ->). iPureIntro.
+    specialize (Ha unit).
     lia.
   Qed.
 
