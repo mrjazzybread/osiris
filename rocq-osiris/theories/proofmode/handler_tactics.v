@@ -49,14 +49,14 @@ Global Hint Unfold val_as_int : osiris.
 (* Force a postcondition, for example when the postcondition is an evar and one
    wants to perform an induction *)
 Ltac2 set_postcondition_tac (φ : constr) : unit :=
-  lazy_match! get_iris_goal () with
+  lazy_match! strip_laters (get_iris_goal ()) with
   | impure ?_e ?_m ?_Ψ ?_ζ ?Φ =>
       Std.unify Φ φ
   | _ => Control.zero
            (Tactic_failure (Some (Message.of_string "Expected goal of the form [imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}]")))
   end.
-Ltac2 Notation "set_postcondition" φ(constr) := set_postcondition_tac φ.
-Tactic Notation "set_postcondition" uconstr(φ) :=
+Ltac2 Notation "set_postcondition" φ(open_constr) := set_postcondition_tac φ.
+Tactic Notation "set_postcondition" constr(φ) :=
   let tac := ltac2:(φ |- set_postcondition_tac (Option.get (Ltac1.to_constr φ))) in
   tac φ.
 

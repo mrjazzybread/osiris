@@ -850,19 +850,20 @@ Section imp_eval.
     iApply ("Hcov" with "Ha").
   Qed.
 
-  Lemma imp_sitems_external sitems x e Q η δ v :
-    imp eval [] e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ (v' : val), ⌜v'=v⌝ }} -∗
-    (imp eval_sitems ((x, v) :: η, (x, v) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
+  Lemma imp_sitems_external Φ sitems x e Q η δ :
+    imp eval [] e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    (∀ v, Φ v -∗ imp eval_sitems ((x, v) :: η, (x, v) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
     imp eval_sitems (η, δ) ((IExternal x e)::sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "He Hcov".
     iApply (imp_sitems_cons with "[He]").
     { simpl_eval_sitem.
       iApply (imp_bind with "He").
-      iIntros (? ->).
+      iIntros (?) "HΦ".
       iApply imp_ret; first encode.
-      instantiate (1 := (λ ηδ, ⌜ηδ = (x ~> v; η, x ~> v; δ)⌝)%I). done. }
-    iIntros (?) "->". iFrame.
+      instantiate (1 := (λ ηδ, ∃ x0, ⌜ηδ = (x ~> x0; η, x ~> x0; δ)⌝ ∗ Φ x0)%I). by iFrame. }
+    iIntros (?) "(% & -> & HΦ)".
+    iApply ("Hcov" with "HΦ").
   Qed.
 
 End imp_eval.

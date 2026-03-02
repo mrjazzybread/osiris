@@ -6,6 +6,7 @@ Import uPred.
 
 From osiris.lang Require Import type_nel encode int notations.
 From osiris.program_logic Require Import program_logic.
+From osiris.proofmode Require Import env_lookups.
 From osiris.logic Require Import list_z.
 
 Notation VEta1 body :=
@@ -176,24 +177,25 @@ Section ExternalsDef.
   Definition Externals__array_length : val := VEta1 EArrayLength.
   Definition Externals__array_length_expr := EEta1 EArrayLength.
 
+  Definition array_length_spec length : iProp Σ :=
+    □ iSpec τ[array] length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }})%I.
+
   Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
-    imp eval_sitems (x ~> Externals__array_length;
-                     η, x ~> Externals__array_length;
-                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    (∀ length,
+       array_length_spec length -∗
+       imp eval_sitems (x ~> length;
+                     η, x ~> length;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
     imp eval_sitems (η, δ) (IExternal x Externals__array_length_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    { simpl_eval. iApply imp_ret; auto. }
-  Qed.
-
-  Lemma array_length_spec :
-    ⊢ iSpec τ[array] Externals__array_length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }}).
-  Proof.
-    rewrite iSpec_equation_1.
-    iIntros (a n) "#Harr".
-    iApply imp_please. iNext.
-    iApply imp_EArrayLength. iApply imp_EPath; auto.
+    iApply imp_mono_throw.
+    - iApply (imp_EAnon_pers τ[array]).
+      iIntros "!>" (a n) "Harr".
+      iApply imp_please; iNext.
+      iApply imp_EArrayLength. imp_path.
+    - iIntros (? []).
   Qed.
 
   (** "%array_get" and "%array_unsafe_get" *)
@@ -201,38 +203,35 @@ Section ExternalsDef.
   Definition Externals__array_get : val := VEta2 EArrayGet.
   Definition Externals__array_get_expr : expr := EEta2 EArrayGet.
 
+  Definition array_get_spec get : iProp Σ :=
+    □ iSpec τ[array;Z] get
+      (λ a i m,
+         ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) n dq j (xs : list A),
+         isArray a n -∗
+         ▷ isSlice dq a j xs -∗
+         ⌜j ≤ i⌝ -∗
+         ⌜i - j < length xs⌝ -∗
+         imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ isSlice dq a j xs }})%I.
+
   Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
-    imp eval_sitems (x ~> Externals__array_get;
-                     η, x ~> Externals__array_get;
-                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    (∀ get,
+       array_get_spec get -∗
+       imp eval_sitems (x ~> get;
+                     η, x ~> get;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
     imp eval_sitems (η, δ) (IExternal x Externals__array_get_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    { simpl_eval. iApply imp_ret; auto. }
-  Qed.
-
-  Lemma array_get_spec :
-    ⊢ iSpec τ[array;Z] Externals__array_get
-        (λ a i m,
-           ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) n dq j (xs : list A),
-           isArray a n -∗
-           ▷ isSlice dq a j xs -∗
-           ⌜j ≤ i⌝ -∗
-           ⌜i - j < length xs⌝ -∗
-           imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ isSlice dq a j xs }}).
-  Proof.
-    rewrite iSpec_equation_2.
-    iIntros (a). iApply imp_please. iNext.
-    iApply imp_EAnon.
-    iIntros (i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
-    iApply imp_please. iNext.
-    iApply (imp_EArrayGet with "[] [] [] Harr Hslice").
-    - iPureIntro; eassumption.
-    - iPureIntro; assumption.
-    - auto.
-    - iApply imp_EPath; auto.
-    - iApply imp_EPath; auto.
+    iApply imp_mono_throw.
+    - iApply (imp_EAnon_pers).
+      iIntros "!>" (a i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
+      iApply imp_please; iNext.
+      iApply (imp_EArrayGet with "[] [] [] Harr Hslice"); try imp_path.
+      + iPureIntro; eassumption.
+      + iPureIntro; assumption.
+      + auto.
+    - iIntros (? []).
   Qed.
 
   (** "%array_set" and "%array_unsafe_set" *)
@@ -240,39 +239,36 @@ Section ExternalsDef.
   Definition Externals__array_set : val := VEta3 EArraySet.
   Definition Externals__array_set_expr : expr := EEta3 EArraySet.
 
+  Definition array_set_spec set : iProp Σ :=
+    ∀ `(Encode A),
+    □ iSpec τ[array;Z;A] set
+      (λ a i x m,
+         ∀ n j (xs : list A) Φ,
+         isArray a n -∗
+         ▷ isSlice (DfracOwn 1) a j xs -∗
+         Φ x -∗
+         ⌜j ≤ i⌝ -∗
+         ⌜i - j < length xs⌝ -∗
+         imp m {{ λ (_ : unit), ∃ x, Φ x ∗ isSlice (DfracOwn 1) a j (<[i - j:=x]> xs) }})%I.
+
   Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
-    imp eval_sitems (x ~> Externals__array_set;
-                     η, x ~> Externals__array_set;
-                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    (∀ set,
+       array_set_spec set -∗
+       imp eval_sitems (x ~> set;
+                     η, x ~> set;
+                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
     imp eval_sitems (η, δ) (IExternal x Externals__array_set_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    { simpl_eval. iApply imp_ret; auto. }
-  Qed.
-
-  Lemma array_set_spec `{Encode A}:
-    ⊢ iSpec τ[array;Z;A] Externals__array_set
-        (λ a i x m,
-           ∀ n j (xs : list A) Φ,
-           isArray a n -∗
-           ▷ isSlice (DfracOwn 1) a j xs -∗
-           Φ x -∗
-           ⌜j ≤ i⌝ -∗
-           ⌜i - j < length xs⌝ -∗
-           imp m {{ λ (_ : unit), ∃ x, Φ x ∗ isSlice (DfracOwn 1) a j (<[i - j:=x]> xs) }}).
-  Proof.
-    rewrite iSpec_equation_2.
-    iIntros (a). iApply imp_please. iNext.
-    iApply imp_EAnon.
-    iIntros (i x n j xs Φ) "#Harr Hslice HΦ %Hle %Hlt".
-    iApply imp_please. iNext.
-    iApply (imp_EArraySet with "[] [] Harr Hslice").
-    - iPureIntro; eassumption.
-    - iPureIntro; assumption.
-    - iApply imp_EPath; auto.
-    - iApply imp_EPath; auto.
-    - iApply imp_EPath; auto.
+    iApply imp_mono_throw.
+    - iApply imp_EAnon_poly_pers.
+      iIntros (A ?) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
+      iApply imp_please; iNext.
+      iApply (imp_EArraySet with "[] [] Harr Hslice"); try imp_path.
+      + iPureIntro; eassumption.
+      + iPureIntro; assumption.
+    - iIntros (? []).
   Qed.
 
   (** "caml_array_make" *)
@@ -280,33 +276,31 @@ Section ExternalsDef.
   Definition Externals__array_make : val := VEta2 EArrayMake.
   Definition Externals__array_make_expr : expr := EEta2 EArrayMake.
 
+  Definition array_make_spec make : iProp Σ :=
+    ∀ `(Encode A),
+    □ iSpec τ[Z; A] make
+      (λ n x m,
+           ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
+                Φ x -∗
+                imp m {{ λ a, ∃ x, Φ x ∗ ownArray a (replicate n x) }}).
+
   Lemma imp_externals_make {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
-    imp eval_sitems (x ~> Externals__array_make;
-                     η, x ~> Externals__array_make;
-                     δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
+    (∀ make,
+       array_make_spec make -∗
+       imp eval_sitems (x ~> make;
+                        η, x ~> make;
+                        δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
     imp eval_sitems (η, δ) (IExternal x Externals__array_make_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    { simpl_eval. iApply imp_ret; auto. }
-  Qed.
-
-  Lemma array_make_spec `{Encode A} :
-    ⊢ iSpec τ[Z; A] Externals__array_make
-        (λ n x m,
-           ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
-                Φ x -∗
-                imp m {{ λ a, ∃ x, Φ x ∗ ownArray a (replicate n x) }}).
-  Proof.
-    rewrite iSpec_equation_2.
-    iIntros (n). iApply imp_please. iNext.
-    iApply imp_EAnon.
-    iIntros (x Φ) "%hbounds HΦ".
-    iApply imp_please; iNext.
-    iApply imp_EArrayMake.
-    - iPureIntro; assumption.
-    - iApply imp_EPath; auto.
-    - iApply imp_EPath; auto.
+    iApply imp_mono_throw.
+    - iApply imp_EAnon_poly_pers.
+      iIntros (A HencA) "!> %n %y %Φ %hbound HΦ".
+      iApply imp_please; iNext.
+      iApply imp_EArrayMake; try imp_path.
+      + iPureIntro; assumption.
+    - iIntros (? []).
   Qed.
 
 End ExternalsDef.
