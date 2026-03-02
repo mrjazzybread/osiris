@@ -273,8 +273,7 @@ Section verification.
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         iApply (imp_EData _ _ _ [_;_] with "[-]").
         simpl; fold eval; iSplitR.
-        { instantiate (1 := (λ v, ⌜v = #X⌝)%I).
-          iApply imp_EPath; auto. }
+        { imp_path. }
         { (* [fun () -> continue k ()] *)
           iSplit; last done.
           iApply (imp_EAnon τ[unit]
@@ -284,7 +283,7 @@ Section verification.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
           iApply (imp_EMatch (A':=unit)).
-          { instantiate (1 := (λ v, ⌜v = tt⌝)%I).
+          { instantiate (1 := (λ v, ⌜v = tt⌝)%I). (* imp_path. *)
             iApply imp_EPath; auto. reflexivity. }
 
           iIntros ([]) "_ !>".
@@ -295,8 +294,7 @@ Section verification.
 
           (* [continue k ()] *)
           iApply (imp_EContinue (B:=unit)).
-          { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
-            iApply imp_EPath; auto. }
+          { imp_path. }
           { iApply imp_EConstant; first encode.
             instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
           iIntros (?[] ->) "_".
@@ -325,8 +323,7 @@ Section verification.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
       iApply (imp_EMatch (A':=val)).
-      { instantiate (1 := (λ v, ⌜v = iter⌝)%I).
-        iApply imp_EPath; auto. }
+      { imp_path. }
       iIntros (?) "-> !>".
       iApply deep_handle_cons.
       { iPureIntro.
@@ -361,7 +358,7 @@ Section verification.
           instantiate (1 := [fun x' => ⌜x' = #X⌝%I]).
           simpl. fold eval.
           iSplit; [ | done ].
-          iApply imp_EPath; auto.
+          imp_path.
           iIntros (?) "Hlist".
           iPoseProof (big_sepL2_cons_inv_r with "Hlist")
             as "(%x1 & %vs' & -> & -> & Hlist)".
@@ -386,8 +383,7 @@ Section verification.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
       iApply (imp_EMatch (A' := unit)).
-      { instantiate (1 := (λ u, ⌜u=tt⌝)%I).
-        iApply imp_EPath; auto. }
+      { imp_path. }
       iIntros ([]) "_ !>".
       iApply deep_handle_cons.
       { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
@@ -397,9 +393,8 @@ Section verification.
       (* [match_with iter yield { ...] *)
       iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").
       { iApply (imp_EApp τ[val] with "[Hiter]").
-        { iApply imp_EPath; auto. }
-        { instantiate (1 := (λ x, ⌜x = yield⌝)%I).
-          iApply imp_EPath; auto. }
+        { iApply imp_EPath; auto. } (* TODO: should just be a call to imp_path. *)
+        { imp_path. }
         iIntros (? -> m) "Hiter !>".
         rewrite /Iter_spec /tapp.
         iApply ("Hiter" with "yield_spec HiterView"). }

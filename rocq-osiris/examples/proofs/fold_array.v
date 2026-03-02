@@ -20,46 +20,38 @@ Section verification.
   Definition esum := EAnonFun __fun2.
 
   Lemma imp_sum η :
-    var_spec "Array" array_module_spec η -∗
-    var_spec "+" (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
+    in_env "Array" array_module_spec η -∗
+    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
     imp (eval η esum) {{ λ sum, □ iSpec τ[Z] sum sum_spec }}.
   Proof.
     iIntros "#Hmodule_spec #Hadd".
     iApply imp_EAnon_pers.
     iIntros "!>" (n Hpos).
     iApply imp_please; iNext.
+    (* let a = .. *)
     iApply (imp_ELet_var (B:=array)).
-    { iApply (imp_EApp_pers τ[Z;val]).
-      { iApply imp_EPath_spec.
-        iApply path_module_spec. { iApply var_spec_cons. auto. iAssumption. }
-        iIntros (?) "#Hcontext".
-        iApply path_var_spec.
-        iPoseProof (extract_context [] with "Hcontext") as "(_ & $ & _)". }
-      iApply imp_EPath_var; eauto.
-      iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
-      { iIntros (i) "!>". iApply imp_please; iNext.
-        iApply imp_EIntAdd. iApply imp_EPath_var; eauto. iApply imp_EInt.
+    { (* Array.init n (fun i -> i + 1) *)
+      iApply (imp_EApp_pers τ[Z;val]).
+      (* Array.init *) imp_path.
+      (* n *) imp_path.
+      (* (fun i -> i + 1) *)
+      { iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
+        iIntros (i) "!>". iApply imp_please; iNext.
+        iApply imp_EIntAdd. imp_path. iApply imp_EInt.
         iIntros "!>" (? j) "-> ->". auto. }
       iIntros (f ?) "-> #Hf %m Hm".
       iPoseProof (weaken_init_spec with "Hm") as "Hm".
-      iSpecialize ("Hm" $! Z _ _ Hpos).
-      iApply "Hm".
+      iApply ("Hm" $! Z _ _ Hpos).
       iIntros "!> !>".
-      iApply (iSpec_mono with "Hf"). iIntros (i m') "Hm Hbound".
-      iApply "Hm". }
+      iApply (iSpec_mono with "Hf").
+      iIntros (i m') "$ Hbound //". }
     iIntros (a) "(%xs & %Hlenxs & HownArr & #Hxs)".
+    (* Array.fold_left (+) 0 a *)
     iApply (imp_EApp_pers τ[val;Z;array]).
-    { iApply imp_EPath_spec.
-      iApply path_module_spec. { repeat (iApply var_spec_cons; first auto). iAssumption. }
-      iIntros (?) "#Hcontext". iApply path_var_spec.
-      unfold array_module_spec at 2.
-      iApply var_spec_mono.
-      { iPoseProof (extract_context [_;_;_] with "Hcontext") as "(_ & $ & _)". }
-      auto. }
-    { iApply imp_EPath_spec.
-      iApply path_var_spec. repeat (iApply var_spec_cons; first auto). iAssumption. }
-    { iApply imp_EInt. }
-    { iApply imp_EPath_var; auto. }
+    (* Array.fold_left *) imp_path.
+    (* (+) *) imp_path.
+    (* 0 *) iApply imp_EInt.
+    (* a *) imp_path.
     iIntros (??) "-> %add #Hadd_ -> %m Hm".
 
     unfold fold_left_spec, tapp.
@@ -90,9 +82,9 @@ Section verification.
   Qed.
 
   Lemma module_proof η :
-    var_spec "Array" array_module_spec η -∗
-    var_spec "+" (λ add, iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
-    imp (eval_mexpr η __main) {{ context [ Spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
+    in_env "Array" array_module_spec η -∗
+    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
+    imp (eval_mexpr η __main) {{ context [ has_spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_module.

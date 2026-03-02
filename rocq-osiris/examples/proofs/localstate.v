@@ -153,8 +153,7 @@ Section verification.
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      iApply imp_ERef.
-      iApply imp_EPath; auto. }
+      iApply imp_ERef. imp_path. }
 
     (* Continuing with the rest of the computation *)
     iIntros (l) "Hl".
@@ -167,7 +166,7 @@ Section verification.
 
     { (* 3A. Call to [main] in the handled expression *)
       iApply (imp_EApp τ[unit] with "[Hspec]").
-      { iApply imp_EPath; auto. }
+      { imp_path. }
       { iApply imp_EConstant. encode.
         by instantiate (1 := (λ x, ⌜x = tt⌝)%I). }
       simpl. iIntros (? -> m) "Hmain".
@@ -186,9 +185,8 @@ Section verification.
       iSplit; last iIntros ([]).
       iIntros (? ->).
       iApply (imp_EPair with "[Hl]").
-      { iApply (imp_ELoad with "Hl"). iApply imp_EPath; auto. }
-      { instantiate (1 := (λ a', ⌜a' = a⌝)%I).
-        iApply imp_EPath; auto. }
+      { iApply (imp_ELoad with "Hl"). imp_path. }
+      { imp_path. }
       iIntros (? ?) "(-> & Hl) ->". iApply "Hspec". }
     (* Finally, we prove the specification over handler. *)
 
@@ -216,10 +214,8 @@ Section verification.
       iSpecialize ("H_READ" with "Hx"). simpl.
       fold eval.
       iApply (imp_EContinue (B:=state) with "[] [Hl]").
-      { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
-        iApply imp_EPath; auto. }
-      { iApply (imp_ELoad with "Hl").
-        iApply imp_EPath; auto. }
+      { imp_path. }
+      { iApply (imp_ELoad with "Hl"). imp_path. }
 
       iIntros (? ? ->) "[-> Hl]".
       iApply "H_READ". iApply ("IH" with "Hauth Hl"). }
@@ -251,9 +247,8 @@ Section verification.
 
         { (* EWP Subgoal: [var := y]. *)
           iApply (imp_EStore (A:=state) with "Hl").
-          { iApply imp_EPath; auto. }
-          { instantiate (1 := (λ v, ⌜v=y⌝)%I).
-            iApply imp_EPath; auto. } }
+          { imp_path. }
+          { imp_path. } }
 
         iIntros "(%s & Hl & ->)".
 
@@ -265,8 +260,7 @@ Section verification.
         iModIntro.
 
         iApply (imp_EContinue (B:=unit)).
-        { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
-          iApply imp_EPath; auto. }
+        { imp_path. }
         { instantiate (1 := (λ u, ⌜u = tt⌝)%I).
           iApply imp_EConstant; auto; encode. }
         iIntros (??) "-> -> !>".
@@ -324,8 +318,7 @@ Section verification.
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
       iApply (imp_EMatch (A':=unit)).
-      { instantiate (1 := (λ u, ⌜u=tt⌝)%I).
-        iApply imp_EPath; auto. }
+      { imp_path. }
       iIntros (? ->) "!>".
       iApply deep_handle_cons.
       { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
@@ -355,7 +348,7 @@ Section verification.
       { iApply imp_EXData. reflexivity.
         instantiate (1 := ([(λ x, ⌜x = #y⌝)])%I).
         simpl; fold eval; iSplit; last done.
-        iApply imp_EPath; auto. reflexivity.
+        imp_path.
         iIntros (?) "Hvs".
         iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
         destruct vs; first discriminate; destruct vs; last discriminate.

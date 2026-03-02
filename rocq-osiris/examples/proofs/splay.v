@@ -757,9 +757,9 @@ Qed.
 
 Lemma Splay__spec:
   toplevel __main
-    (env_has_pspecs [("splay", splay_spec);
-                     ("splay_leaf", splay_leaf_spec);
-                     ("zlookup", zlookup_spec)]).
+    (pure_context [has_spec "splay" splay_spec;
+                   has_spec "splay_leaf" splay_leaf_spec;
+                   has_spec "zlookup" zlookup_spec] {["lookup";"splay";"splay_leaf";"zlookup"]}).
 Proof.
   apply module_struct.
   next_item.
@@ -776,7 +776,10 @@ Proof.
   { simpl_eval. pure_ret. }
   intros [??] (lookup & Hlookup & -> & ->).
   finished_struct.
-  simpl. repeat split; auto.
+  simpl.
+  split; first auto.
+  repeat (constructor; first try (eexists; split; eauto)).
+  constructor.
 Qed.
 
 End splay_proofs.

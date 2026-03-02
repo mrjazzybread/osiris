@@ -18,7 +18,7 @@ Section pure_specifications.
 Definition listiter_spec_inv `{Encode A} (f : val) (lsuf : list A) (m : microvx) : Prop :=
   ∀ (lpre l : list A) (I : list A → Prop) φ,
     lpre ++ lsuf = l ->
-    @Spec τ[A] f (λ (X : A) (mf : microvx),
+    Spec τ[A] f (λ (X : A) (mf : microvx),
         ∀ (Xs : list A),
           (Xs ++ [X]) `prefix_of` l ->
           I Xs ->
@@ -103,7 +103,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 Lemma iter_module_pure :
   ⊢ imp (eval_mexpr stdlib_env __main)
-    {{ λ (m : env), module_spec [("find_first", λ find, □ iSpec τ[list A; val] find find_spec)] m }}.
+    {{ context [ has_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)] {["find_first";"iter"]} }}.
 Proof.
   (* Enter the module and face the struct items. *)
   iApply imp_module.
@@ -272,8 +272,7 @@ Proof.
   iApply imp_sitems_nil.
   (* Show that the toplevel module satisfies its spec: it contains a value named
      ["find_elem"] which is specified by [iSpec find find_spec]. *)
-  rewrite /module_spec /= bi.sep_emp.
-  iExists find. auto.
+  iFrame "#"; simpl. auto.
 Qed.
 
 End iris_proof.
