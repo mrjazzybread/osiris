@@ -179,6 +179,22 @@ Section array_resources.
      iFrame.
    Qed.
 
+   Lemma imp_EArrayEmpty `{Encode A} {ζ} :
+     ⊢ imp eval η (EArrayLit []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+       {{ λ a, ownArray a (@nil A) }}.
+   Proof.
+     iApply imp_mono_ret.
+     - iApply (imp_EArrayLit (@nil (A → _))  []).
+       iPureIntro; length; split; auto.
+       pose proof (max_array_positive). lia.
+       simpl_evals. iApply imp_ret; [ encode | auto ].
+     - iIntros (a) "(%xs & HownArr & Hxs)".
+       iPoseProof (big_sepL2_length with "Hxs") as "%Hlen".
+       assert (xs = []) as ->.
+       { apply list.nil_length_inv, Hlen. }
+       iApply "HownArr".
+   Qed.
+
    Lemma imp_EArrayLength {ζ} (n : Z) e :
      imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, isArray a n }} -∗
      imp eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n', ⌜n' = n⌝ }}.

@@ -87,13 +87,10 @@ Proof.
   { iApply (imp_EStore (A:=Z) with "Hl").
     - iApply imp_EPath; eauto.
     - iApply imp_EInt. }
-  iIntros "(% & Hl & ->)".
-  iApply (imp_mono_ret with "[Hl]").
-  { iApply (imp_EStore (A:=Z) with "Hl").
-    - iApply imp_EPath; eauto.
-    - iApply imp_EInt. }
-  - iIntros ([]) "(% & Hl & ->)".
-    iExact "Hl".
+  iIntros "Hl".
+  iApply (imp_EStore (A:=Z) with "Hl").
+  - iApply imp_EPath; eauto.
+  - iApply imp_EInt.
 Qed.
 
 (* [!(ref 1)]  *)

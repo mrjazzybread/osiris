@@ -250,7 +250,7 @@ Section verification.
           { imp_path. }
           { imp_path. } }
 
-        iIntros "(%s & Hl & ->)".
+        iIntros "Hl".
 
         (* EWP Subgoal: [continue k ()]. *)
         iDestruct "H" as "(Hauth & Hx)".

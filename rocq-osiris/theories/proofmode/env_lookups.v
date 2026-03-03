@@ -421,22 +421,21 @@ Ltac2 solve_eq_goal () :=
   end.
 
 Ltac2 imp_path_tac () :=
-  iApply imp_EPath_spec;
-  solve_path_spec ().
+    (* Resolve the path. *)
+    iApply imp_EPath_spec;
+    solve_path_spec ();
+    (* If there is a goal remaining. *)
+    Control.enter
+      (fun _ =>
+         if empty_spatial_env () then
+           (* If there are no resources, first try to solve the goal as an equality. *)
+           solve_eq_goal ();
+           (* If that failed, try to frame the persistent resources. *)
+           Control.enter (fun _ => iFrame "#")
+         else
+           try_complete (fun _ => iFrame)).
 
-Ltac2 Notation "imp_path" :=
-  (* Resolve the path. *)
-  imp_path_tac ();
-  (* If there is a goal remaining. *)
-  Control.enter
-    (fun _ =>
-       if empty_spatial_env () then
-         (* If there are no resources, first try to solve the goal as an equality. *)
-         solve_eq_goal ();
-         (* If that failed, try to frame the persistent resources. *)
-         Control.enter (fun _ => iFrame "#")
-       else
-         try_complete (fun _ => iFrame)).
+Ltac2 Notation "imp_path" := imp_path_tac ().
 Tactic Notation "imp_path" := ltac2:(imp_path).
 
 Ltac2 Notation "imp_path_eq" :=

@@ -100,13 +100,11 @@ Section init_proof.
 
     iApply (imp_ELet_var (B:=array) with "[HI]").
     { (* Subgoal: [make l (f 0)] *)
-      iApply (imp_EApp τ[Z;A] with "[] [] [HI]"). imp_path.
-      - imp_path.
-      - iApply (imp_EApp τ[Z]).
-        imp_path.
-        iApply imp_EInt.
-        iIntros (?) "-> %m H". unfold tapp.
-        iApply "H". + iPureIntro; lia. + iPureIntro; apply length_nil. + iFrame.
+      imp_app τ[Z;A] with "[] [] [HI]".
+      - (* (f 0) *)
+        imp_app τ[Z].
+        iIntros (?) "-> %m H !>".
+        iApply ("H" with "[] [] HI"); iPureIntro; length; lia.
       - iIntros (?? ->) "HI %m Hm !>".
         iApply ("Hm" with "[] HI"). iPureIntro; lia. }
     iIntros (res) "(%x & HΦx & HownArr)".
@@ -142,16 +140,11 @@ Section init_proof.
       iCombine ("Hslice1 Hslice") as "Hslice1".
       iPoseProof (split_Slice with "Hslice1") as "Hslice1". reflexivity. lia.
       (* Subgoal: [unsafe_set res i (f i)]. *)
-      iApply (imp_EApp τ[array;Z;A] with "[] [] [] [HI]").
-      imp_path. imp_path. imp_path.
+      imp_app τ[array;Z;A] with "[] [] [] [HI]".
       { (* (f i) *)
-        iApply (imp_EApp τ[Z]).
-        imp_path. imp_path.
-        iIntros "% -> % H". iApply "H".
-        - iPureIntro; lia.
-        - iPureIntro; eassumption.
-        - iApply "HI". }
-      unfold tapp, tbind.
+        imp_app τ[Z].
+        iIntros "% -> % H !>".
+        iApply ("H" with "[] [] HI"); iPureIntro; length; lia. }
       iIntros (y ? -> ? ->) "HI %m Hm !>".
       iSpecialize ("Hm" with "Harr Hslice1 [HI] [] []").
       { instantiate (1:=(λ y, I (xs ++ singleton y))). iFrame. }
@@ -215,22 +208,22 @@ Section iter_proof.
         intros Hnonzero. representable. }
       iApply imp_EInt.
       { iApply imp_EIntSub.
-        - iApply (imp_EApp_pers τ[array]). imp_path. imp_path.
+        - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
         - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
       { iFrame. iPureIntro. split; first by length. apply prefix_nil. }
-
       iIntros "!>" (i') "%Hi' (Hslice & (%Xs & HI & %HlenXs & %Hprefix))".
-      iApply (imp_EApp τ[A] with "[] [Hslice]").
-      imp_path.
-      iApply (imp_EApp_pers τ[array;Z]). imp_path. imp_path. imp_path.
-      iIntros (??) "-> -> %m Hm /=". unfold tapp.
-      iSpecialize ("Hm" $! A with "[] Hslice").
-      { iPureIntro. split; eassumption. }
-      iApply "Hm". iPureIntro; lia. iPureIntro; lia.
-      iIntros (X) "(%Hget & Hslice) %m Hm". unfold tapp.
+      (* Subgoal: f (unsafe_get a i) *)
+      imp_app τ[A] with "[] [Hslice]".
+      { (* unsafe_get a i *)
+        imp_app τ[array;Z].
+        iIntros (??) "-> -> %m Hm /=".
+        iApply ("Hm" $! A with "[] Hslice").
+        { iPureIntro. split; eassumption. }
+        iPureIntro; lia. iPureIntro; lia. }
+      iIntros (X) "(%Hget & Hslice) %m Hm !>".
       assert (Xs ++ singleton X `prefix_of` xs).
       { destruct Hprefix as (xrest & ->).
         assert (0 < length xrest). { rewrite length_app in Hi'. lia. }
@@ -240,13 +233,12 @@ Section iter_proof.
         { seg. rewrite seg_is_singleton; try lia. reflexivity. }
         exists (seg 1 (length xrest) xrest).
         rewrite <- split_seg. seg. reflexivity. lia. lia. }
-      iSpecialize ("Hm" with "[] HI").
-      { iPureIntro. assumption. }
-
+      iSpecialize ("Hm" with "[//] HI").
       iApply (imp_mono_ret with "Hm").
-      iIntros "!>" ([]) "HI". iFrame. iPureIntro. length. split; first lia.
+      iIntros ([]) "HI". iFrame. iPureIntro. length. split; first lia.
       assumption.
-    - iIntros ([]) "(Hslice & %Xs & HI & %HlenXs & %Hprefix)".
+    - iIntros ([]) "($ & %Xs & HI & %HlenXs & %Hprefix)".
+      (* Show that we have covered the full list. *)
       destruct Hprefix as (? & ->).
       assert (x = []) as ->.
       { apply nil_length_inv. rewrite length_app in Hlen, Hbound, HlenXs. lia. }
@@ -330,7 +322,7 @@ Section map_spec.
 
     (* let l = length a in ... *)
     iApply (imp_ELet_var (B:=Z) with "[] [Hslice]").
-    { iApply (imp_EApp_pers τ[array]). imp_path. imp_path.
+    { imp_app τ[array].
       iIntros (?) "-> %m Hm". iApply "Hm".
       iPureIntro; split; eassumption. }
     iIntros (l) "->".
@@ -345,33 +337,20 @@ Section map_spec.
     { (* Case: length xs = 0, so xs = [] *)
       assert (xs = []) as -> by (apply nil_length_inv; lia).
       iApply imp_mono_ret.
-      iApply (imp_EArrayLit (A:=B) []).
-      - iPureIntro; split; [ reflexivity | rewrite length_nil; lia ].
-      - simpl_evals. iApply (imp_ret [] []). reflexivity. done.
-      - iIntros (a') "(%ys & ([%Hlen' %Hbound'] & Hslice') & Hemp)".
-        iPoseProof (big_sepL2_length with "Hemp") as "%Hlen''".
-        apply list.nil_length_inv in Hlen'' as ->.
-        iExists []. simpl. iFrame. length.
-        iSplit; last iSplit.
-        + auto.
-        + iPureIntro. rewrite length_nil in Hlen'. lia.
-        + iPureIntro; rewrite Hlen'; length; lia. }
+      iApply (imp_EArrayEmpty (A:=B)).
+      iIntros (a') "$".
+      simpl. iFrame. auto. }
 
     (* Case: length xs > 0 *)
 
     (* let r = make l (f (unsafe_get a 0)) in ... *)
     iApply (imp_ELet_var (B:=array) with "[Hslice]").
-    { iApply (imp_EApp τ[Z; B] with "[] [] [Hslice]").
-      (* function: make *)
-      imp_path.
-      (* arg 1: l *)
-      imp_path.
-      (* arg 2: f (unsafe_get a 0) *)
-      { iApply (imp_EApp τ[A] with "[] [Hslice]").
+    { imp_app τ[Z; B] with "[] [] [Hslice]".
+      { (* f (unsafe_get a 0) *)
+        imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
-        imp_path.
         (* arg: unsafe_get a 0 *)
-        iApply (imp_EApp τ[array; Z]). imp_path. imp_path. iApply imp_EInt.
+        imp_app τ[array; Z].
         (* continuation for unsafe_get *)
         iIntros (??) "-> -> %m Hm /=".
         iSpecialize ("Hm" $! A with "[%] Hslice").
@@ -384,7 +363,7 @@ Section map_spec.
         iIntros (y) "HΦ". replace (0 - 0) with 0 in Hlookup by lia.
         rewrite Hlookup. iFrame. }
       (* continuation for make *)
-      iIntros (n' y0) "-> (Hslice & HΦy0) %m Hm". unfold tapp.
+      iIntros (n' y0) "-> (Hslice & HΦy0) %m Hm".
       iSpecialize ("Hm" $! (λ y, Φ (xs !!! 0) y)%I with "[%] HΦy0").
       { lia. }
       set_postcondition
@@ -421,24 +400,14 @@ Section map_spec.
 
       (* Loop body: unsafe_set r i (f (unsafe_get a i)) *)
       iIntros "!>" (i') "%Hi' (Hslice & %ys & %Hlenys & HsliceR & HΦs)".
-      iApply (imp_EApp τ[array; Z; B] with "[] [] [] [Hslice HsliceR HΦs]").
-      (* function: unsafe_set *)
-      imp_path.
-      (* arg 1: r *)
-      imp_path.
-      (* arg 2: i *)
-      imp_path.
-      (* arg 3: f (unsafe_get a i) *)
-      { iApply (imp_EApp τ[A] with "[] [Hslice]").
+      imp_app τ[array; Z; B] with "[] [] [] [Hslice HsliceR HΦs]".
+      { (* f (unsafe_get a i) *)
+        imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
-        imp_path.
         (* arg: unsafe_get a i *)
-        iApply (imp_EApp τ[array;Z]).
-        imp_path.
-        imp_path.
-        imp_path.
+        imp_app τ[array;Z].
         (* continuation for unsafe_get on source array a *)
-        iIntros (??) "-> -> %m Hm /=". unfold tapp.
+        iIntros (??) "-> -> %m Hm /=".
         iSpecialize ("Hm" $! A with "[%] Hslice").
         { split; eassumption. }
         iApply "Hm". iPureIntro; lia. iPureIntro; length; lia.
@@ -454,9 +423,9 @@ Section map_spec.
         iIntros (x) "HΦ". replace (i' - 0) with i' in Hlookup by lia.
         rewrite Hlookup. iFrame. }
       (* continuation for unsafe_set *)
-      iIntros (x i) "-> %a' -> (Hslice & HsliceR & HΦy & HΦs) %m Hm". unfold tapp.
+      iIntros (x i) "-> %a' -> (Hslice & HsliceR & HΦy & HΦs) %m Hm".
       iSpecialize ("Hm" $! (length xs) 0 (ys ++ replicate (length xs - i') y) (λ x', ⌜x'=x⌝)%I
-                     with "[%] HsliceR [//] [%] [%]").
+                    with "[%] HsliceR [//] [%] [%]").
       { split; [length; lia | lia]. }
       { lia. }
       { length; lia. }
@@ -536,8 +505,7 @@ Section map_inplace_spec.
         intros Hnonzero. representable. }
       iApply imp_EInt.
       { iApply imp_EIntSub.
-        - iApply (imp_EApp τ[array]). imp_path.
-          imp_path.
+        - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
         - iApply imp_EInt.
@@ -546,29 +514,20 @@ Section map_inplace_spec.
 
       iIntros "!>" (i') "%Hi' (%ys & %Hlenys & Hslice & HΦs)".
       (* unsafe_set a i (f (unsafe_get a i)) *)
-      iApply (imp_EApp τ[array; Z; A] with "[] [] [] [Hslice HΦs]").
-      (* function: unsafe_set *)
-      imp_path.
-      (* arg 1: a *)
-      imp_path.
-      (* arg 2: i *)
-      imp_path.
-      (* arg 3: f (unsafe_get a i) *)
-      { iApply (imp_EApp τ[A] with "[] [Hslice]").
+      imp_app τ[array; Z; A] with "[] [] [] [Hslice HΦs]".
+      { (* arg 3: f (unsafe_get a i) *)
+        imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
-        imp_path.
         (* arg: unsafe_get a i *)
-        iApply (imp_EApp τ[array;Z]).
-        imp_path.
-        imp_path.
-        imp_path.
+        imp_app τ[array;Z].
         (* continuation for unsafe_get *)
-        iIntros (??) "-> -> %m Hm /=". unfold tapp.
-        iSpecialize ("Hm" $! A with "[%] Hslice").
-        { split; eassumption. }
-        iApply "Hm". iPureIntro; lia. iPureIntro; length; lia.
+        { iIntros (??) "-> -> %m Hm /=".
+          iApply ("Hm" $! A with "[%] Hslice").
+          - split; eassumption.
+          - iPureIntro; lia.
+          - iPureIntro; length; lia. }
         (* continuation for f: v = (ys ++ drop i' xs) !!! i', with slice back *)
-        iIntros (v) "(%Hlookup & Hslice) %m Hm". unfold tapp.
+        iIntros (v) "(%Hlookup & Hslice) %m Hm".
         set_postcondition (λ y, isSlice (DfracOwn 1) a 0 (ys ++ drop i' xs) ∗
                                 Φ ((ys ++ drop i' xs) !!! i') y ∗
                                 [∗ list] x;y ∈ (take i' xs);ys, Φ x y)%I.
@@ -576,7 +535,7 @@ Section map_inplace_spec.
         iIntros (y) "HΦy". rewrite Hlookup. iFrame.
         by replace (i' -0) with i' by lia. }
       (* continuation for unsafe_set: all three args resolved *)
-      iIntros (y i) "-> %a' -> (Hslice & HΦy & HΦs) %m Hm". unfold tapp.
+      iIntros (y i) "-> %a' -> (Hslice & HΦy & HΦs) %m Hm !>".
       iSpecialize ("Hm" $! (length xs) 0 (ys ++ drop i' xs) (λ x, ⌜x=y⌝)%I
                      with "[%] Hslice [//] [%] [%]").
       { split; [length; lia | lia]. }
@@ -659,7 +618,7 @@ Section mapi_inplace_spec.
         intros Hnonzero. representable. }
       iApply imp_EInt.
       { iApply imp_EIntSub.
-        - iApply (imp_EApp τ[array]); try imp_path.
+        - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
         - iApply imp_EInt.
@@ -668,38 +627,30 @@ Section mapi_inplace_spec.
 
       iIntros "!>" (i') "%Hi' (%ys & %Hlenys & Hslice & HΦs)".
       (* unsafe_set a i (f i (unsafe_get a i)) *)
-      iApply (imp_EApp τ[array; Z; A] with "[] [] [] [Hslice HΦs]").
-      (* function: unsafe_set *)
-      imp_path.
-      (* arg 1: a *)
-      imp_path.
-      (* arg 2: i *)
-      imp_path.
-      (* arg 3: f i (unsafe_get a i) *)
-      { iApply (imp_EApp τ[Z; A] with "[] [] [Hslice]").
+      imp_app τ[array; Z; A] with "[] [] [] [Hslice HΦs]".
+      { (* arg 3: f i (unsafe_get a i) *)
+        imp_app τ[Z; A] with "[] [] [Hslice]".
         (* function: f *)
-        imp_path.
-        (* arg 1 to f: i *)
-        imp_path.
-        (* arg 2 to f: unsafe_get a i *)
-        iApply (imp_EApp τ[array;Z]).
-        imp_path. imp_path. imp_path.
-        (* continuation for unsafe_get *)
-        iIntros (??) "-> -> %m Hm /=". unfold tapp.
-        iSpecialize ("Hm" $! A with "[%] Hslice").
-        { split; eassumption. }
-        iApply "Hm". iPureIntro; lia. iPureIntro; length; lia.
+        { (* arg 2 to f: unsafe_get a i *)
+          imp_app τ[array;Z].
+          (* continuation for unsafe_get *)
+          iIntros (??) "-> -> %m Hm /= !>".
+          iApply ("Hm" $! A with "[%] Hslice").
+          - split; eassumption.
+          - iPureIntro; lia.
+          - iPureIntro; length; lia. }
         (* continuation for f: gets i' and element *)
         iIntros (v X) "-> (%Hlookup & Hslice) %m Hm". unfold tapp.
         iSpecialize ("Hm" with "[%]"). { lia. }
-        set_postcondition (λ y, isSlice (DfracOwn 1) a 0 (ys ++ drop i' xs) ∗
-                              Φ i' ((ys ++ drop i' xs) !!! i') y ∗
-                              [∗ list] j↦x;y ∈ (take i' xs);ys, Φ j x y)%I.
+        set_postcondition
+          (λ y, isSlice (DfracOwn 1) a 0 (ys ++ drop i' xs) ∗
+                Φ i' ((ys ++ drop i' xs) !!! i') y ∗
+                [∗ list] j↦x;y ∈ (take i' xs);ys, Φ j x y)%I.
         iApply (imp_mono_ret with "Hm [Hslice HΦs]").
         iIntros (y) "HΦy". rewrite Hlookup. iFrame.
         by replace (i' - 0) with i' by lia. }
       (* continuation for unsafe_set: all three args resolved *)
-      iIntros (y i) "-> %a' -> (Hslice & HΦy & HΦs) %m Hm". unfold tapp.
+      iIntros (y i) "-> %a' -> (Hslice & HΦy & HΦs) %m Hm !>".
       iSpecialize ("Hm" $! (length xs) 0 (ys ++ drop i' xs) (λ x, ⌜x=y⌝)%I
                      with "[%] Hslice [//] [%] [%]").
       { split; [length; lia | lia]. }
@@ -804,9 +755,7 @@ Section iteri_spec.
         intros Hnonzero. representable. }
       iApply imp_EInt.
       { iApply imp_EIntSub.
-        - iApply (imp_EApp τ[array]).
-          imp_path.
-          imp_path.
+        - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
         - iApply imp_EInt.
@@ -815,18 +764,14 @@ Section iteri_spec.
 
       iIntros "!>" (i') "%Hi' (Hslice & (%Xs & HI & %HlenXs & %Hprefix))".
       (* f i (unsafe_get a i) *)
-      iApply (imp_EApp τ[Z;A] with "[] [] [Hslice]").
-      (* f *) imp_path.
-      (* i *) imp_path.
+      imp_app τ[Z;A] with "[] [] [Hslice]".
       (* unsafe_get a i *)
-      { iApply (imp_EApp τ[array;Z]).
-        (* unsafe_get *) imp_path.
-        (* a *) imp_path.
-        (* i *) imp_path.
-        iIntros (??) "-> -> %m Hm /=". unfold tapp.
-        iSpecialize ("Hm" $! A with "[] Hslice").
-        { iPureIntro. split; eassumption. }
-        iApply "Hm". iPureIntro; lia. iPureIntro; lia. }
+      { imp_app τ[array;Z].
+        iIntros (??) "-> -> %m Hm !> /=".
+        iApply ("Hm" $! A with "[] Hslice").
+        - iPureIntro. split; eassumption.
+        - iPureIntro; lia.
+        - iPureIntro; lia. }
       iIntros (X?) "-> (%Hget & Hslice) %m Hm". unfold tapp.
       assert (Xs ++ singleton X `prefix_of` xs).
       { destruct Hprefix as (xrest & ->).
@@ -993,8 +938,7 @@ Section fold_left_spec.
 
     (* let r = ref x in ... *)
     iApply (imp_ELet_var (B:=locations.loc)).
-    { iApply (imp_ERef x).
-      imp_path. }
+    { imp_ref x. }
     iIntros (r) "Hr".
 
     (* for i = 0 to length a - 1 do r := f !r (unsafe_get a i) done; !r *)
@@ -1010,10 +954,8 @@ Section fold_left_spec.
         intros Hnonzero. representable. }
       iApply imp_EInt.
       { iApply imp_EIntSub.
-        - iApply (imp_EApp τ[array]).
-          imp_path.
-          imp_path.
-          iIntros (?) "-> %m Hm". iApply "Hm".
+        - imp_app τ[array].
+          iIntros (?) "-> %m Hm !>". iApply "Hm".
           iPureIntro; split; eassumption.
         - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
@@ -1025,19 +967,14 @@ Section fold_left_spec.
       - iApply (imp_EStore2 (A:=A) with "[] [Hr HI Hslice]").
         imp_path.
         + (* f !r (unsafe_get a i) *)
-          iApply (imp_EApp τ[A; B] with "[] [Hr] [Hslice]").
-          imp_path.
-          (* !r *)
-          iApply (imp_ELoad with "Hr"). imp_path.
-          (* unsafe_get a i *)
-          iApply (imp_EApp τ[array;Z]).
-          imp_path.
-          imp_path.
-          imp_path.
-          iIntros (??) "-> -> %m Hm /=". unfold tapp.
-          iSpecialize ("Hm" $! B with "[] Hslice").
-          { iPureIntro. split; eassumption. }
-          iApply "Hm". iPureIntro; lia. iPureIntro; lia.
+          imp_app τ[A; B] with "[] [Hr] [Hslice]".
+          { (* unsafe_get a i *)
+            imp_app τ[array;Z].
+            iIntros (??) "-> -> %m Hm /=".
+            iApply ("Hm" $! B with "[] Hslice").
+            - iPureIntro. split; eassumption.
+            - iPureIntro; lia.
+            - iPureIntro; lia. }
           (* continuation after getting the element *)
           iIntros (X X') "(-> & Hr) (%Hget & Hslice) %m Hm". unfold tapp.
           assert (Xs ++ singleton X `prefix_of` xs).
@@ -1051,8 +988,9 @@ Section fold_left_spec.
             rewrite <- split_seg. seg. reflexivity. lia. lia. }
           iSpecialize ("Hm" with "[] HI").
           { iPureIntro. assumption. }
-          set_postcondition (λ x, ∃ X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
-                                     r ↦ #acc ∗ isSlice dq a 0 xs ∗ I x (Xs ++ singleton X))%I.
+          set_postcondition
+            (λ x, ∃ X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
+                       r ↦ #acc ∗ isSlice dq a 0 xs ∗ I x (Xs ++ singleton X))%I.
           iApply (imp_mono_ret with "Hm").
           iIntros "!>" (acc'') "HI".
           iFrame. iPureIntro; assumption.
@@ -1067,7 +1005,7 @@ Section fold_left_spec.
 
     iIntros "(Hslice & %acc' & %Xs & Hr & HI & %HlenXs & %Hprefix)".
     iApply (imp_mono_ret with "[Hr]").
-    iApply (imp_ELoad  with "Hr"). imp_path.
+    imp_load r.
     iIntros (?) "(-> & Hr)".
     destruct Hprefix as (x0 & ->).
     assert (x0 = []) as ->.
