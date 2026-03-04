@@ -354,6 +354,10 @@ Context {A : Type}.
 Implicit Types x y z : A.
 Implicit Types xs ys zs : list A.
 
+Lemma length_nat xs :
+  Z.of_nat (Datatypes.length xs) = length xs.
+Proof. unfold length. done. Qed.
+
 Lemma length_nonneg xs : 0 ≤ length xs.
 Proof. unfold length. lia. Qed.
 
@@ -666,18 +670,6 @@ Proof.
     destruct_decide' (i < 0); naive_solver lia.
 Qed.
 
-Lemma lookup_valid_is_Some xs i :
-  valid i xs →
-  is_Some (xs !! i).
-Proof.
-  intros.
-  unfold lookup, listz_lookup.
-  case_decide'.
-  apply lookup_lt_is_Some.
-  unfold length in H.
-  lia.
-Qed.
-
 (* Interaction of [lookup] and [singleton]. *)
 
 Lemma list_lookup_singleton_eq_0 x :
@@ -699,6 +691,18 @@ Lemma list_lookup_singleton x i :
 Proof.
   case_decide';
   eauto using list_lookup_singleton_eq_0, list_lookup_singleton_ne_0.
+Qed.
+
+Lemma list_lookup_singleton_Some x i y :
+  singleton x !! i = Some y ↔ i = 0 ∧ x = y.
+Proof.
+  split.
+  - rewrite list_lookup_singleton.
+    case_decide'.
+    + injection 1=>->;auto.
+    + discriminate 1.
+  - intros (-> & ->).
+    by rewrite list_lookup_singleton_eq_0.
 Qed.
 
 (* Interaction of [lookup] and [cons]. *)
@@ -913,6 +917,42 @@ Lemma list_lookup_fmap {B} (f : A → B) (xs : list A) (i : Z) :
 Proof.
   unfold lookup, listz_lookup. case_decide'; eauto.
   rewrite list_lookup_fmap. eauto.
+Qed.
+
+Lemma lookup_valid_is_Some xs i :
+  valid i xs →
+  is_Some (xs !! i).
+Proof.
+  intros.
+  unfold lookup, listz_lookup.
+  case_decide'.
+  apply lookup_lt_is_Some.
+  unfold length in H.
+  lia.
+Qed.
+
+Lemma list_elem_of_lookup xs x :
+  x ∈ xs ↔ ∃ k, xs !! k = Some x.
+Proof.
+  induction xs.
+  - split; first inversion 1.
+    firstorder. rewrite lookup_nil in H. discriminate H.
+  - split.
+    + inversion 1; subst.
+      * exists 0. by rewrite lookup_cons_eq_0.
+      * apply IHxs in H2.
+        destruct H2 as (k & Hlookup).
+        exists (k + 1).
+        rewrite lookup_cons_ne_0; last by (apply lookup_lt_Some in Hlookup; lia).
+        by replace (k + 1 - 1) with k by lia.
+    + intros (k & Hlookup).
+      case (decide (k = 0)).
+      * intros ->.
+        rewrite lookup_cons_eq_0 in Hlookup. injection Hlookup=>->.
+        constructor.
+      * intros Hne_0. rewrite lookup_cons_ne_0 in Hlookup; last assumption.
+        constructor.
+        apply IHxs. exists (k - 1). assumption.
 Qed.
 
 End Lookup.
@@ -1921,6 +1961,25 @@ Proof.
   - lookup_app_split. f_equal. lia.
 Qed.
 
+Lemma insert_id xs i x :
+  xs !! i = Some x → <[i:=x]>xs = xs.
+Proof.
+  unfold lookup, listz_lookup, insert, listz_insert.
+  destruct (decide (i < 0)); [done|].
+  intro H. apply list_insert_id. exact H.
+Qed.
+
+Lemma take_drop_middle xs i x :
+  xs !! i = Some x →
+  take i xs ++ singleton x ++ drop (i + 1) xs = xs.
+Proof.
+  intros Hi.
+  pose proof (lookup_lt_Some xs i x Hi) as Hvalid.
+  rewrite (take_seg i xs), (drop_seg (i + 1) xs).
+  rewrite <- (insert_split_seg xs i x Hvalid).
+  exact (insert_id xs i x Hi).
+Qed.
+
 End Insert.
 
 Global Hint Rewrite
@@ -1938,6 +1997,7 @@ Global Hint Rewrite
   @replicate_nil
   @replicate_singleton
   @list_lookup_fmap
+  @insert_id
   using (length; lia)
 : insert.
 
