@@ -75,6 +75,18 @@ Section big_op.
     ([^o listZ] k ↦ y ∈ l, f k y) ≡ ([^o listZ] k ↦ y ∈ l, g k y).
   Proof. apply big_opLZ_gen_proper; apply _. Qed.
 
+  Lemma big_opLZ_proper_2 `{!Equiv A} f g l1 l2 :
+    l1 ≡ l2 →
+    (∀ k y1 y2,
+      l1 !! k = Some y1 → l2 !! k = Some y2 → y1 ≡ y2 → f k y1 ≡ g k y2) →
+    ([^o listZ] k ↦ y ∈ l1, f k y) ≡ ([^o listZ] k ↦ y ∈ l2, g k y).
+  Proof.
+    intros Hl Hf. apply big_opLZ_gen_proper_2; try (apply _ || done).
+    intros k.
+    assert (l1 !! k ≡@{option A} l2 !! k) as Hlk by (by f_equiv).
+    destruct (l1 !! k) eqn:?, (l2 !! k) eqn:?; inversion Hlk; naive_solver.
+  Qed.
+
   Global Instance big_opLZ_ne' n :
     Proper (pointwise_relation _ (pointwise_relation _ (dist n)) ==> (=) ==> dist n)
            (big_opLZ o (A:=A)).

@@ -159,6 +159,8 @@ Global Notation clip k i j :=
 
 Definition singleton {A} (x : A) := [x].
 
+Lemma singleton_unfold {A} (x : A) : singleton x = [x]. Proof. reflexivity. Qed.
+
 Definition length {A} (xs : list A) : Z :=
   Z.of_nat (length xs).
 
@@ -589,6 +591,18 @@ Global Hint Rewrite
 Ltac length_nonneg xs :=
   generalize (length_nonneg xs); intro.
 
+Lemma Forall2_same_length {A B : Type} (xs : list A) (ys : list B) :
+  Forall2 (λ _ _, True) xs ys ↔ length xs = length ys.
+Proof.
+  unfold length.
+  etransitivity.
+  - apply Forall2_same_length.
+  - split; lia.
+Qed.
+
+Global Instance Z_length_proper `{Equiv A} : Proper ((≡@{list A}) ==> (=)) length.
+Proof. induction 1; length; lia. Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Properties of [lookup]. *)
@@ -934,25 +948,32 @@ Qed.
 Lemma list_elem_of_lookup xs x :
   x ∈ xs ↔ ∃ k, xs !! k = Some x.
 Proof.
-  induction xs.
-  - split; first inversion 1.
-    firstorder. rewrite lookup_nil in H. discriminate H.
-  - split.
-    + inversion 1; subst.
-      * exists 0. by rewrite lookup_cons_eq_0.
-      * apply IHxs in H2.
-        destruct H2 as (k & Hlookup).
-        exists (k + 1).
-        rewrite lookup_cons_ne_0; last by (apply lookup_lt_Some in Hlookup; lia).
-        by replace (k + 1 - 1) with k by lia.
-    + intros (k & Hlookup).
-      case (decide (k = 0)).
-      * intros ->.
-        rewrite lookup_cons_eq_0 in Hlookup. injection Hlookup=>->.
-        constructor.
-      * intros Hne_0. rewrite lookup_cons_ne_0 in Hlookup; last assumption.
-        constructor.
-        apply IHxs. exists (k - 1). assumption.
+  unfold lookup, listz_lookup.
+  split; firstorder.
+  - apply list_elem_of_lookup in H as (i & Hlookup).
+    exists (Z.of_nat i).
+    case_decide'; auto. by rewrite Nat2Z.id.
+  - case_decide'.
+    apply list_elem_of_lookup; eauto.
+Qed.
+
+(* Interaction of [lookup] with [zip_with]. *)
+
+Lemma lookup_zip_with {B C : Type} (f : A → B → C) xs (ys : list B) (i : Z) :
+  zip_with f xs ys !! i = xs !! i ≫= λ x : A, ys !! i ≫= λ y : B, Some (f x y).
+Proof.
+  unfold lookup, listz_lookup. case_decide'; eauto.
+  apply lookup_zip_with.
+Qed.
+
+Lemma lookup_zip_with_Some {B C : Type} (f : A → B → C) xs (ys : list B) (i : Z) (z : C) :
+  zip_with f xs ys !! i = Some z ↔
+  ∃ (x : A) (y : B), (z = f x y ∧ xs !! i = Some x ∧ ys !! i = Some y).
+Proof.
+  unfold lookup, listz_lookup.
+  case_decide'.
+  - split; firstorder; discriminate.
+  - apply lookup_zip_with_Some.
 Qed.
 
 End Lookup.
@@ -992,7 +1013,15 @@ Global Hint Rewrite
   @lookup_drop
   @lookup_seg
   using (length; lia)
-: lookup.
+  : lookup.
+
+Global Instance listz_lookup_proper `{Equiv A} (i : Z) :
+  Proper ((≡@{list A}) ==> (≡)) (lookup i).
+Proof.
+  unfold lookup, listz_lookup. case_decide.
+  - destruct 1; by apply None_equiv_eq.
+  - apply list_lookup_proper.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1290,6 +1319,14 @@ Proof.
   - rewrite take_app. do 2 f_equal. lia.
 Qed.
 
+Lemma take_singleton xs x n :
+  n > 1 →
+  take n (singleton x ++ xs) = singleton x ++ take (n - 1) xs.
+Proof.
+  intros Hstrict_pos. rewrite take_app. length.
+  by rewrite take_ge by (length; lia).
+Qed.
+
 (* Interaction of [take] and [insert]. *)
 
 Lemma take_insert_ge xs n i x :
@@ -1342,6 +1379,7 @@ Global Hint Rewrite
   @take_ge
   @take_insert_ge
   @take_insert_lt
+  @take_singleton
   @take_init
   @take_replicate
   Z.min_l Z.min_r Z.max_l Z.max_r
@@ -1980,12 +2018,22 @@ Proof.
   exact (insert_id xs i x Hi).
 Qed.
 
+(* Interaction of [insert] and [zip_with]. *)
+
+Lemma insert_zip_with {B C : Type} (f : A → B → C) xs (ys : list B) (i : Z) x y :
+  <[i:=f x y]> (zip_with f xs ys) = zip_with f (<[i:=x]> xs) (<[i:=y]> ys).
+Proof.
+  unfold insert, listz_insert.
+  case_decide'; auto using insert_zip_with.
+Qed.
+
 End Insert.
 
 Global Hint Rewrite
   @cons_is_append
   @app_nil_r
   @app_nil_l
+  @insert_zip_with
 : insert.
 
 Global Hint Rewrite
