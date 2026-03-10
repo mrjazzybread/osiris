@@ -198,7 +198,7 @@ Section sep_listZ.
     ([∗ listZ] k↦y ∈ l, Φ k y) ⊢ Φ i x ∗ (Φ i x -∗ ([∗ listZ] k↦y ∈ l, Φ k y)).
   Proof.
     intros.
-    rewrite {1}big_sepLZ_insert_acc // (forall_elim x) list_z.insert_id //.
+    rewrite {1}big_sepLZ_insert_acc // (forall_elim x) list_insert_id //.
   Qed.
 
   Lemma big_sepLZ_lookup Φ l i x
@@ -449,6 +449,13 @@ Section sep_list2.
   Context {A B : Type}.
   Implicit Types Φ Ψ : Z → A → B → PROP.
 
+  Lemma big_sepLZ2_sepL2 (Φ : A → B → PROP) l1 l2 :
+    ([∗ listZ] x;y ∈ l1;l2, Φ x y) ⊣⊢ ([∗ list] x;y ∈ l1;l2, Φ x y).
+  Proof.
+    rewrite big_sepLZ2_alt big_sepL2_alt /length big_opLZ_opL.
+    apply equiv_entails_2; apply and_mono_l, pure_mono; lia.
+  Qed.
+
   Lemma big_sepLZ2_nil Φ : ([∗ listZ] k↦y1;y2 ∈ []; [], Φ k y1 y2) ⊣⊢ emp.
   Proof. done. Qed.
   Lemma big_sepLZ2_nil' P `{!Affine P} Φ : P ⊢ [∗ listZ] k↦y1;y2 ∈ [];[], Φ k y1 y2.
@@ -488,6 +495,31 @@ Section sep_list2.
   Lemma big_sepLZ2_length Φ l1 l2 :
     ([∗ listZ] k↦y1;y2 ∈ l1; l2, Φ k y1 y2) ⊢ ⌜ list_z.length l1 = list_z.length l2 ⌝.
   Proof. by rewrite big_sepLZ2_alt and_elim_l. Qed.
+
+  Lemma big_sepLZ2_singleton_inv_l Φ x1 (l : list B) :
+    ([∗ listZ] k↦y1;y2 ∈ [x1];l, Φ k y1 y2) ⊢ ∃ x2, ⌜l = singleton x2⌝ ∗ Φ 0 x1 x2.
+  Proof.
+    rewrite big_sepLZ2_alt.
+    apply pure_elim_l.
+    destruct l as [|x2 l]; length; first lia.
+    destruct l as [|? l]; length; last (length_nonneg l; lia).
+    intros _. rewrite -(exist_intro x2).
+    rewrite pure_True; last by rewrite singleton_unfold.
+    rewrite /= right_id.
+    apply True_sep_2.
+  Qed.
+  Lemma big_sepLZ2_singleton_inv_r Φ x2 (l : list A) :
+    ([∗ listZ] k↦y1;y2 ∈ l;[x2], Φ k y1 y2) ⊢ ∃ x1, ⌜l = singleton x1⌝ ∗ Φ 0 x1 x2.
+  Proof.
+    rewrite big_sepLZ2_alt.
+    apply pure_elim_l.
+    destruct l as [|x1 l]; length; first lia.
+    destruct l as [|? l]; length; last (length_nonneg l; lia).
+    intros _. rewrite -(exist_intro x1).
+    rewrite pure_True; last by rewrite singleton_unfold.
+    rewrite /= right_id.
+    apply True_sep_2.
+  Qed.
 
   Lemma big_sepLZ2_fst_snd Φ l :
     ([∗ listZ] k↦y1;y2 ∈ l.*1; l.*2, Φ k y1 y2) ⊣⊢
@@ -722,7 +754,7 @@ Section sep_list2.
     Φ i x1 x2 ∗ (Φ i x1 x2 -∗ ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y1 y2)).
   Proof.
     intros. rewrite {1}big_sepLZ2_insert_acc // (forall_elim x1) (forall_elim x2).
-    by rewrite !insert_id.
+    by rewrite !list_insert_id.
   Qed.
 
   Lemma big_sepLZ2_lookup Φ l1 l2 i x1 x2

@@ -8,6 +8,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import thread_step ewp tactics basic_rules escrows.
 From osiris.semantics Require Import semantics.
+From osiris.logic Require Import big_opLZ.
 
 From osiris.program_logic.pure Require Export pure.
 From osiris.program_logic.rules Require Import impure_rules.
@@ -42,7 +43,7 @@ Section imp_stop.
   (* Memory allocation rule for [n] locations at once. *)
   Lemma imp_allocn' vs (k : _ → micro A X) :
     ▷ (∀ (ls : list loc),
-          ([∗ list] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
+          ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
           imp (continue k ls) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
       imp (Stop CAllocn vs k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -77,7 +78,7 @@ Section imp_stop.
       iInduction ls as [|l ls IH] forall (vs Hlen).
       + destruct vs; last discriminate Hlen. done.
       + destruct vs; first discriminate Hlen.
-        iApply big_sepL2_cons. simpl big_opL.
+        iApply big_sepLZ2_cons.
         iDestruct "Hpts" as "(Hl & Hpts)".
         iDestruct "Hmt" as "(Htok & Hmt)".
         iFrame.
@@ -98,14 +99,14 @@ Section imp_stop.
 
   Lemma imp_allocn vs (k : _ → micro A X) :
     ▷ (∀ ls,
-          ([∗ list] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v)) -∗
+          ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v)) -∗
           imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocn vs k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_allocn'; iNext.
     iIntros (ls) "Hls".
-    iPoseProof (big_sepL2_sep with "Hls") as "[Hls _]".
+    iPoseProof (big_sepLZ2_sep with "Hls") as "[Hls _]".
     iApply "H". iFrame.
   Qed.
 
@@ -117,11 +118,11 @@ Section imp_stop.
     iIntros "H".
     iApply imp_allocn.
     iIntros "!>" (ls) "Hls".
-    iPoseProof (big_sepL2_length with "Hls") as "%Hlen".
+    iPoseProof (big_sepLZ2_length with "Hls") as "%Hlen".
     destruct ls; first discriminate Hlen.
-    destruct ls; last discriminate Hlen.
+    destruct ls; last (revert Hlen; length; length_nonneg ls; lia).
     iApply "H".
-    iDestruct "Hls" as "[$ _]".
+    iApply (big_sepLZ2_singleton (λ _ l v, l↦v)%I with "Hls").
   Qed.
 
   (* [CStore]. *)
@@ -355,7 +356,7 @@ Section imp_flip.
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma imp_flip :
       ▷( Φ true ∧ Φ false)
-      ⊢ imp flip @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+      ⊢ imp code.flip @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_stop_flip. iNext.
@@ -513,7 +514,7 @@ Section imp_exn.
   Lemma imp_join ι' μ φ :
     isThread ι' μ φ -∗
     ▷ (∀ x, □ φ x -∗ Φ x) ∧ ▷ (∀ e, □ μ e -∗ ζ e) -∗
-    imp (join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".
     iApply (imp_stop_join ι' inject2 with "Hvalid [HΦ]").
@@ -541,11 +542,11 @@ Section imp_exn.
     ↑joinN ⊆ E →
     joinable A ι' φ -∗
     ▷ (▷ φ -∗ (∀ x, Φ x) ∧ (∀ e, ζ e)) -∗
-    imp (join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hmask (%μ & %φ' & Hthread & Hcont) Hφ".
-    iApply (imp_fupd_post (join ι')).
-    iApply (imp_fupd_post2 (join ι')).
+    iApply (imp_fupd_post (code.join ι')).
+    iApply (imp_fupd_post2 (code.join ι')).
     iApply (imp_join with "Hthread"). iSplit; iNext.
     - iIntros (x) "#Hφ'".
       iSpecialize ("Hcont" $! (O2Ret x) with "Hφ'").

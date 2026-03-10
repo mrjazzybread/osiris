@@ -456,11 +456,13 @@ Proof.
   intros. unfold seg. rewrite length_take, length_drop by lia. lia.
 Qed.
 
-Lemma length_fmap {A'} xs (g : A → A') :
+Lemma length_map {B} xs (g : A → B) :
+  length (map g xs) = length xs.
+Proof. unfold length. by rewrite length_map. Qed.
+
+Lemma length_fmap {B} xs (g : A → B) :
   length (g <$> xs) = length xs.
-Proof.
-  unfold length. rewrite length_fmap. eauto.
-Qed.
+Proof. unfold length. by rewrite length_fmap. Qed.
 
 Lemma app_inj_1 xs1 ys1 xs2 ys2 :
   length xs1 = length ys1 →
@@ -2012,12 +2014,24 @@ Proof.
   - lookup_app_split. f_equal. lia.
 Qed.
 
-Lemma insert_id xs i x :
+Lemma list_insert_id xs i x :
   xs !! i = Some x → <[i:=x]>xs = xs.
 Proof.
   unfold lookup, listz_lookup, insert, listz_insert.
   destruct (decide (i < 0)); [done|].
   intro H. apply list_insert_id. exact H.
+Qed.
+
+Lemma list_insert_total_id `{Inhabited A} (xs : list A) (i : Z) :
+  i < length xs →
+  <[i:=xs !!! i]> xs = xs.
+Proof.
+  intros Hlen.
+  unfold lookup_total, listz_lookup_total, insert, listz_insert.
+  case_decide'; eauto.
+  apply list.list_insert_id.
+  apply list_lookup_lookup_total_lt.
+  unfold length in Hlen. lia.
 Qed.
 
 Lemma take_drop_middle xs i x :
@@ -2028,7 +2042,7 @@ Proof.
   pose proof (lookup_lt_Some xs i x Hi) as Hvalid.
   rewrite (take_seg i xs), (drop_seg (i + 1) xs).
   rewrite <- (insert_split_seg xs i x Hvalid).
-  exact (insert_id xs i x Hi).
+  exact (list_insert_id xs i x Hi).
 Qed.
 
 (* Interaction of [insert] and [zip_with]. *)
@@ -2058,7 +2072,7 @@ Global Hint Rewrite
   @replicate_nil
   @replicate_singleton
   @list_lookup_fmap
-  @insert_id
+  @list_insert_total_id
   using (length; lia)
 : insert.
 
