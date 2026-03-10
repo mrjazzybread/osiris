@@ -1668,6 +1668,16 @@ Proof.
   eauto using list_lookup_lookup_total_valid with lia.
 Qed.
 
+Lemma seg_is_singleton' `{Inhabited A} i xs :
+  valid i xs →
+  seg i (i+1) xs = singleton (xs !!! i).
+Proof.
+  intros. subst. listx k. assert (k = 0) by lia. subst. lookup.
+  rewrite Z.add_0_r.
+  eauto using list_lookup_lookup_total_valid with lia.
+Qed.
+
+
 (* Interaction of [seg] and [app]. *)
 
 Lemma seg_app i j xs ys :
@@ -1757,6 +1767,11 @@ Qed.
 End Seg.
 
 Global Hint Rewrite
+  app_nil_r
+  app_nil_l
+  : seg.
+
+Global Hint Rewrite
   Z.sub_0_r Z.sub_diag
   @seg_none
   @seg_all
@@ -1766,6 +1781,7 @@ Global Hint Rewrite
   @seg_init
   @seg_replicate
   @seg_seg
+  @seg_is_singleton'
   using (length; lia)
 : seg.
 

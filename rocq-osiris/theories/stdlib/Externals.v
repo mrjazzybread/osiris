@@ -240,7 +240,7 @@ Section ExternalsDef.
   Definition Externals__array_set_expr : expr := EEta3 EArraySet.
 
   Definition array_set_spec set : iProp Σ :=
-    ∀ `(Encode A),
+    ∀ `(Encode A, Inhabited A),
     □ iSpec τ[array;Z;A] set
       (λ a i x m,
          ∀ n j (xs : list A) Φ,
@@ -262,8 +262,8 @@ Section ExternalsDef.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
     iApply imp_mono_throw.
-    - iApply imp_EAnon_poly_pers.
-      iIntros (A ?) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
+    - iApply imp_EAnon_poly_inh_pers.
+      iIntros (A ??) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
       iApply imp_please; iNext.
       iApply (imp_EArraySet with "[] [] Harr Hslice"); try imp_path.
       + iPureIntro; eassumption.

@@ -156,7 +156,7 @@ Section TacticTests.
 
   Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }})%I.
   Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
-  Definition a_spec a : iProp Σ := ∀ (A : Type), □ ⌜a > 2⌝.
+  Definition a_spec a : iProp Σ := □ ⌜a > 2⌝.
 
   Definition module3_spec η := context [has_spec "sub" sub_spec] {["sub"]} η.
   Definition module2_spec η := context [has_spec "Module3" module3_spec] {["Module3"; "some"; "other"; "stuff"]} η.
@@ -191,7 +191,6 @@ Section TacticTests.
     iIntros (??) "-> #%Ha %m Hm !>".
     iApply (imp_mono_ret with "Hm").
     iIntros (y ->). iPureIntro.
-    specialize (Ha unit).
     lia.
   Qed.
 

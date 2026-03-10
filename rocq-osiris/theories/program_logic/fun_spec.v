@@ -254,6 +254,22 @@ Section imp_spec.
     by iApply prove_iSpec_pers.
   Qed.
 
+  Lemma imp_EAnon_poly_inh_pers
+    (τ : ∀ A `{Encode A}, types)
+    (P : ∀ A `{Encode A}, τ A -#> microvx -> iProp Σ)
+    η
+    (x : var)
+    e E Ψ :
+    (∀ A `(Encode A, Inhabited A), □ predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, ∀ A `(Encode A, Inhabited A), □ iSpec (τ A) c (P A) }}.
+  Proof.
+    iIntros "HP".
+    simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
+    iIntros (A HencA HinhA).
+    iSpecialize ("HP" $! A HencA HinhA).
+    by iApply prove_iSpec_pers.
+  Qed.
+
   Fixpoint lookup_rec_bindings_opt (rbs : list rec_binding) (g : var) {struct rbs} :
     option anonfun :=
     match rbs with
