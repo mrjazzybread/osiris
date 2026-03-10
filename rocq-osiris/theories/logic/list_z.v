@@ -523,6 +523,12 @@ Global Hint Rewrite
   using (length; lia)
 : length.
 
+Lemma max_idempotent_lr i j :
+  (i `max` j) `max` j = i `max` j.
+Proof.
+  autorewrite with length. eauto.
+Qed.
+
 (* The tactic [lookup] includes the same rewrite rules as [length],
    plus more. *)
 
@@ -855,7 +861,9 @@ Qed.
 
 (* Interaction of [lookup] and [drop]. *)
 
-Lemma lookup_drop xs n i : 0 ≤ n → 0 ≤ i → drop n xs !! i = xs !! (n + i).
+(* The condition [0 ≤ n] is not required. *)
+
+Lemma lookup_drop xs n i : 0 ≤ i → drop n xs !! i = xs !! (n `max` 0 + i).
 Proof.
   intros. unfold drop, lookup, listz_lookup. repeat case_decide'; eauto.
   rewrite lookup_drop. f_equal. lia.
@@ -863,12 +871,15 @@ Qed.
 
 (* Interaction of [lookup] and [seg]. *)
 
+(* The condition [valid_seg i j xs] is not required. *)
+
 Lemma lookup_seg i j xs k :
-  valid_seg i j xs →
-  0 ≤ k < j - i →
-  seg i j xs !! k = xs !! (i + k).
+  valid k (seg i j xs) →
+  seg i j xs !! k = xs !! (i `max` 0 + k).
 Proof.
-  intros. unfold seg. rewrite lookup_take_lt, lookup_drop by lia. eauto.
+  length. intros. unfold seg.
+  rewrite lookup_take_lt, lookup_drop by lia.
+  eauto.
 Qed.
 
 (* Interaction of [lookup] and [fmap] *)
@@ -977,7 +988,7 @@ Proof.
 Qed.
 
 Local Ltac easy :=
-  intros; rewrite !list_lookup_total_alt; lookup; eauto.
+  length; intros; rewrite !list_lookup_total_alt; lookup; eauto.
 
 (* Interaction of [lookup_total] and [nil]. *)
 
@@ -1138,10 +1149,11 @@ Proof. easy. Qed.
 
 (* Interaction of [lookup_total] and [seg]. *)
 
+(* The condition [valid_seg i j xs] is not required. *)
+
 Lemma lookup_total_seg i j xs k :
-  valid_seg i j xs →
-  0 ≤ k < j - i →
-  seg i j xs !!! k = xs !!! (i + k).
+  valid k (seg i j xs) →
+  seg i j xs !!! k = xs !!! (i `max` 0 + k).
 Proof. easy. Qed.
 
 End LookupTotal.
@@ -1492,7 +1504,9 @@ Lemma seg_valid i j xs :
     let j := clip j i (length xs) in
     seg i j xs.
 Proof.
-  unfold seg. listx k. lookup. rewrite drop_max. eauto.
+  unfold seg. listx k. lookup.
+  rewrite max_idempotent_lr.
+  eauto.
 Qed.
 
 Goal forall i j xs,
