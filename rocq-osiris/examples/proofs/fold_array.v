@@ -30,10 +30,8 @@ Section verification.
     iApply imp_please; iNext.
     (* let a = .. *)
     iApply (imp_ELet_var (B:=array)).
-    { (* Array.init n (fun i -> i + 1) *)
-      iApply (imp_EApp_pers τ[Z;val]).
-      (* Array.init *) imp_path.
-      (* n *) imp_path.
+    { (* Array.init n (fun i -> i +) *)
+      imp_app τ[Z;val].
       (* (fun i -> i + 1) *)
       { iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
         iIntros (i) "!>". iApply imp_please; iNext.
@@ -41,42 +39,37 @@ Section verification.
         iIntros "!>" (? j) "-> ->". auto. }
       iIntros (f ?) "-> #Hf %m Hm".
       iPoseProof (weaken_init_spec with "Hm") as "Hm".
-      iApply ("Hm" $! Z _ _ Hpos).
+      iApply ("Hm" $! Z _ _ _ Hpos).
       iIntros "!> !>".
       iApply (iSpec_mono with "Hf").
       iIntros (i m') "$ Hbound //". }
     iIntros (a) "(%xs & %Hlenxs & HownArr & #Hxs)".
     (* Array.fold_left (+) 0 a *)
-    iApply (imp_EApp_pers τ[val;Z;array]).
-    (* Array.fold_left *) imp_path.
-    (* (+) *) imp_path.
-    (* 0 *) iApply imp_EInt.
-    (* a *) imp_path.
+    imp_app τ[val;Z;array].
     iIntros (??) "-> %add #Hadd_ -> %m Hm".
 
-    unfold fold_left_spec, tapp.
     iSpecialize ("Hm" $! Z _ _ _ xs (λ acc elems, let n := length elems in ⌜acc = n * (n + 1) / 2⌝)%I).
-    iApply (imp_mono_ret with "[-]").
     iPoseProof (slice_of_own with "HownArr") as "(#Harr & Hslice)"; first reflexivity.
-    - iApply ("Hm" with "Harr Hslice").
-      { iIntros "!>".
+    iSpecialize ("Hm" with "Harr Hslice").
+    iApply (imp_mono_ret with "[-]").
+
+    - iApply "Hm".
+      + iIntros "!>".
         iApply (iSpec_mono with "Hadd_").
-        iIntros (i j m') "Hm' %Hvisited %Hprefix %Hacc".
+        iIntros (i j m') "Hm' %visited %Hprefix %Hacc".
         iApply (imp_mono_ret with "Hm'").
-        iIntros (? ->).
+        iIntros (? ->). length.
         destruct Hprefix as (ys & ->).
-        iPoseProof (big_sepL_app with "Hxs") as "(Helems & Hys)".
-        iPoseProof (big_sepL_app with "Helems") as "(Hvisited & %Hj)".
-        specialize (Hj 0%nat j (list_lookup_singleton_eq_0 j)).
-        iPureIntro. length. rewrite Hacc Hj. rewrite /length.
-        generalize (Datatypes.length Hvisited).
-        intros n0. replace (n0 + 0)%nat with n0 by lia.
-        replace (n0 + 1 + 1) with (n0 + 2) by lia.
-        replace ((n0 + 1) * (n0 + 2)) with ((n0 + 1) * n0 + (n0 +1) * 2) by lia.
-        replace (((n0 + 1) * n0 + (n0 + 1) * 2) / 2) with (((n0 + 1) * n0) / 2 + (n0 + 1)).
-        rewrite Z.mul_comm. reflexivity.
-        by rewrite Z.div_add; last lia. }
-      { iPureIntro. length. rewrite Z.mul_0_l Zdiv_0_l. reflexivity. }
+        iPoseProof (big_sepLZ_lookup_acc _ _ (length visited) j with "Hxs")
+          as "(%Hvisited & _)"; first by lookup.
+        iPureIntro.
+        (* Painful arithmetic rewriting. *)
+        remember (length visited) as v.
+        replace (v + 1 + 1) with (v + 2) by lia.
+        rewrite -Hvisited in Hacc |-*; rewrite Hacc.
+        replace (j * (v + 2)) with (j * v + j * 2) by lia.
+        rewrite Z.div_add; last lia. rewrite Z.mul_comm. reflexivity.
+      + iPureIntro. length. rewrite Z.mul_0_l Zdiv_0_l. reflexivity.
     - iIntros "!>" (acc) "(%Hacc & Hslice)".
       iPureIntro. rewrite Hacc Hlenxs. reflexivity.
   Qed.
