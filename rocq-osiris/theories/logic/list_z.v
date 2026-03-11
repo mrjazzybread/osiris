@@ -1617,13 +1617,30 @@ Qed.
 
 (* Interaction of [seg] with itself. *)
 
-Lemma seg_seg i j k l xs :
+(* [seg_seg'] is simpler but weaker. *)
+
+Lemma seg_seg' i j k l xs :
   valid_seg k l xs →
   valid_seg i j (seg k l xs) →
   seg i j (seg k l xs) =
   seg (k + i) (k + j) xs.
 Proof.
-  length_nonneg xs. length. intros. listx o. lookup. f_equal. lia.
+  length. intros. listx o. lookup. f_equal. lia.
+Qed.
+
+Lemma seg_seg i j k l xs :
+  seg i j (seg k l xs) =
+  (* The right-hand side could be written like this:
+       let k := k `max` 0 in
+       let n := length (seg k l xs) in
+       seg (k + (clip i 0 n)) (k + (clip j 0 n)) xs
+     But we prefer to avoid introducing [let]s: *)
+  seg
+    (k `max` 0 + (clip i 0 ((l `min` (length xs) - k `max` 0) `max` 0)))
+    (k `max` 0 + (clip j 0 ((l `min` (length xs) - k `max` 0) `max` 0)))
+    xs.
+Proof.
+  listx o. lookup. rewrite Z.add_assoc. eauto. (* not too shabby! *)
 Qed.
 
 End Seg.
