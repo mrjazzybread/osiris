@@ -1934,3 +1934,59 @@ Global Hint Rewrite
 
 Global Ltac update :=
   autorewrite with insert.
+
+(* -------------------------------------------------------------------------- *)
+
+Lemma length_equality {A} (xs ys : list A) :
+  xs = ys →
+  length xs = length ys.
+Proof.
+  congruence.
+Qed.
+
+Lemma prefix_length {A} (xs ys : list A) :
+  xs `prefix_of` ys →
+  length xs ≤ length ys.
+Proof.
+  intros (zs & ?). subst. length. length_nonneg zs. lia.
+Qed.
+
+(* The tactic [lengths] searches for hypotheses of the form [xs = ys] or
+   [xs `prefix_of` ys] and introduces new facts [length xs = length ys]
+   or [length xs ≤ length ys]. These new facts are then simplified using
+   the tactic [length]. *)
+
+(* The tactic [lengths] also looks for variables [xs] of type [list _]
+   and introduces the new facts [0 ≤ length xs]. *)
+
+Global Ltac lengths :=
+  repeat
+    match goal with
+    | h: _ = _ |- _ =>
+        let h' := fresh h in
+        generalize h; revert h; intro h';
+        apply length_equality in h';
+        length in h'
+    | h: _ `prefix_of` _ |- _ =>
+        let h' := fresh h in
+        generalize h; revert h; intro h';
+        apply prefix_length in h';
+        length in h'
+    | xs: list _ |- _ =>
+        generalize (length_nonneg xs);
+        revert xs
+    | h: _ |- _ =>
+        revert h
+    end;
+  intros.
+
+(* A test. *)
+
+Goal ∀ {A} (ws xs ys zs : list A),
+  xs `prefix_of` ys →
+  ws = ys ++ zs →
+  0 ≤ length xs ≤ length ys ≤ length ws.
+Proof.
+  intros ????? Hxs Hws. lengths. (* see? *)
+  lia.
+Qed.
