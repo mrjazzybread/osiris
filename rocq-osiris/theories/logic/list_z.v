@@ -324,6 +324,12 @@ End Valid.
 Global Ltac length :=
   autorewrite with length.
 
+Global Tactic Notation "length" "in" hyp(h) :=
+  autorewrite with length in h.
+
+Global Tactic Notation "length" "in" "*" :=
+  autorewrite with length in *.
+
 (* At this point, [lookup] can prove that a lookup [xs !! i] yields [None]. *)
 
 Global Hint Rewrite
