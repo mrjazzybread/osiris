@@ -523,11 +523,27 @@ Global Hint Rewrite
   using (length; lia)
 : length.
 
+(* [autorewrite] seems to miss some rewriting opportunities,
+   so it is unable to prove these idempotence properties when
+   they appear within a larger context. *)
+
 Lemma max_idempotent_lr i j :
   (i `max` j) `max` j = i `max` j.
 Proof.
   autorewrite with length. eauto.
 Qed.
+
+Lemma sum_of_maxes i j k :
+  0 ≤ k →
+  (i `max` k + j `max` k) `max` k = i `max` k + j `max` k.
+Proof.
+  intros. length. eauto.
+Qed.
+
+Global Hint Rewrite
+  max_idempotent_lr
+  sum_of_maxes
+: length.
 
 (* The tactic [lookup] includes the same rewrite rules as [length],
    plus more. *)
@@ -552,6 +568,8 @@ Global Hint Rewrite
 Global Hint Rewrite
   Z.sub_0_r Z.sub_diag
   Z.min_l Z.min_r Z.max_l Z.max_r
+  max_idempotent_lr
+  sum_of_maxes
   using (length; lia)
 : lookup.
 
@@ -1504,9 +1522,7 @@ Lemma seg_valid i j xs :
     let j := clip j i (length xs) in
     seg i j xs.
 Proof.
-  unfold seg. listx k. lookup.
-  rewrite max_idempotent_lr.
-  eauto.
+  unfold seg. listx k. lookup. eauto.
 Qed.
 
 Goal forall i j xs,
