@@ -432,7 +432,7 @@ Proof.
 Qed.
 
 Lemma length_seg i j xs :
-  length (seg i j xs) = Z.max ((Z.min j (length xs)) - (Z.max i 0)) 0.
+  length (seg i j xs) = (j `min` (length xs) - i `max` 0) `max` 0.
 Proof.
   intros. unfold seg. rewrite length_take, length_drop. lia.
 Qed.
