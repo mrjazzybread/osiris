@@ -555,7 +555,7 @@ Global Hint Rewrite
    plus more. *)
 
 Global Hint Rewrite
-  Z.sub_diag
+  Z.sub_diag Zplus_minus
   @length_nil
   @length_cons
   @length_app
