@@ -1686,6 +1686,40 @@ Global Ltac split_seg j xs :=
   ];
   seg.
 
+(* Interaction of [lookup] and [seg], in reverse. *)
+
+(* If a segment of [xs] is known under the name [ys], and if index [k]
+   falls within this segment, then the lookup [xs !! k] can be viewed
+   as a lookup into [ys]. *)
+
+Lemma lookup_through_seg {A} i j k (xs ys : list A) :
+  seg i j xs = ys →
+  i `max` 0 ≤ k < j `min` length xs →
+  xs !! k = ys !! (k - i `max` 0).
+Proof.
+  intros. subst. lookup. eauto.
+Qed.
+
+Lemma lookup_total_through_seg `{Inhabited A} i j k (xs ys : list A) :
+  seg i j xs = ys →
+  i `max` 0 ≤ k < j `min` length xs →
+  xs !!! k = ys !!! (k - i `max` 0).
+Proof.
+  intros. subst. lookup. eauto.
+Qed.
+
+(* If a segment of [xs] is known under the name [ys],
+   then an attempt to extract a smaller segment of [xs]
+   can be viewed as an attempt to extract a segment of [ys]. *)
+
+Lemma seg_through_seg {A} i j k l (xs ys : list A) :
+  seg i j xs = ys →
+  0 ≤ i ≤ k → l ≤ j →
+  seg k l xs = seg (k - i) (l - i) ys.
+Proof.
+  intros. subst. seg. lookup. listx o. lookup. eauto. (* wow *)
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Properties of [init] and [replicate]. *)
