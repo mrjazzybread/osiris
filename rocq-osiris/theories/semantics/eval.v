@@ -251,8 +251,12 @@ Definition as_array (m : microvx) : micro (list loc) exn :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [val_as_struct v] checks that the value [v] is a value of the form [VStruct
-   xvs] and returns its content [xvs]. *)
+(* [val_as_struct v] checks that the value [v] is a value of the form
+   [VStruct xvs] and returns its content [xvs]. *)
+
+(* It is useful to have [val_as_struct_opt] when performing lookups
+   through modules, and to have [as_struct] when evaluating module
+   expressions. *)
 
 Definition val_as_struct_opt (v : val) : option env :=
   match v with
@@ -278,6 +282,11 @@ Definition as_struct {E} (m : micro val E) : micro env E :=
 
 Section LookupEnv.
 
+(* We locally open the stdpp notation scope to get do-notation for
+   the option monad.
+
+   Opening and then closing the scope results in losing notation access
+   to other useful notations, hence the [Local Open]. *)
 Local Open Scope stdpp.
 
 (* [lookup_name η x] looks up the name [x] in the environment [env],
@@ -368,8 +377,8 @@ Definition sort (η : env) : env := PairSort.sort η.
    environment fragment. Each name [g] is mapped to a recursive closure that
    captures the environment [η] and the bindings [rbs]. *)
 
-(* The parameters [η] and [rbs] are invariant. At the beginning, [rbs']
-   is [rbs], so, in general, [rbs'] is a suffix of [rbs]. *)
+(* The parameters [η] and [rbs] are invariant. Initially, [rbs'] equals [rbs],
+   so [rbs'] is always a suffix of [rbs]. *)
 
 Fixpoint eval_rec_bindings_aux η rbs rbs' : env :=
   match rbs' with
@@ -402,7 +411,7 @@ Fixpoint lookup_rec_bindings rbs g : option anonfun :=
 (* ------------------------------------------------------------------------ *)
 
 (* This section defines the auxiliary functions that are mutually recursive
-   with [extend]. *)
+   with [eval_pat]. *)
 
 Section EvalPat.
 
@@ -418,10 +427,7 @@ Variable eval_pat : env → env → pat → val → option env.
    environment fragment) [δ] with bindings for the bound variables of the
    patterns [ps].
 
-   In case of failure, a (meta-level) exception is raised. This is why the
-   exceptional result type of [extends] is [unit].
-
-   A hard failure occurs when [length ps ≠ length vs]. *)
+   A failure occurs when [length ps ≠ length vs]. *)
 
 (* Pattern matching is sequential and obeys a left-to-right strategy. This
    is important in the presence of GADTs, as the success of a test in the
@@ -450,8 +456,7 @@ Fixpoint pre_eval_pats (η δ : env) ps vs : option env :=
    (or environment fragment) [δ] with bindings for the bound variables of
    the patterns [fps].
 
-   A hard failure occurs if a field is present in [fps]
-   but absent in [fvs]. *)
+   A failure occurs if a field is present in [fps] but absent in [fvs]. *)
 
 Fixpoint pre_eval_fpats (η δ : env) fps fvs : option env :=
   let eval_fpats := pre_eval_fpats in
@@ -475,11 +480,10 @@ Local Open Scope stdpp.
    In case of success, the result is an extension of the environment
    (or fragment) [δ] with bindings for the bound variables of the pattern [p].
 
-   A (meta-level) exception is raised if [p] does not match [v], e.g., if [p]
-   selects a data constructor [c] but [v] carries a distinct data constructor
-   [c']. This is why the exceptional result type of [eval_pats] is [unit].
+   A failure occurs if [p] does not match [v], e.g., if [p] selects a data
+   constructor [c] but [v] carries a distinct data constructor [c'].
 
-   A hard failure takes place if [p] and [v] have incompatible types,
+   A failure takes place if [p] and [v] have incompatible types,
    e.g., if [p] is a tuple pattern and [v] is not a tuple value or
    is a tuple value of an incorrect arity.
 
@@ -595,8 +599,8 @@ Fixpoint eval_cpat η δ cp o : option env :=
       (* A [COr] either matches its first or second branch. *)
       (eval_cpat η δ cp1 o) ∪ (eval_cpat η δ cp2 o)
   | _, _ =>
-      (* If [o] and [cp] don't match, we throw a meta-level exception
-         and continue to the next branch.*)
+      (* If [o] and [cp] don't match, we fail and continue to
+         the next branch.*)
       None
   end.
 
@@ -806,8 +810,19 @@ End Coercions.
 
 (* ------------------------------------------------------------------------ *)
 
-(* [eval_sitem ηδ item] evaluates the structure item [item] in the
-   double environment [ηδ], yielding an updated double environment. *)
+(* [eval_type_extensions xs] takes a list of (names of) constructors for an
+   extensible type, and ties those names to a fresh location.
+
+  For example, if we were evaluating the following type extension:
+  ```
+  type exn +=
+    | New_exception
+    | Not_found
+  ```
+  We would find ourselves with an environment of the form
+  [("Not_found", l2) :: ("New_exception", l1) :: η]
+  with [l1] and [l2] fresh locations, uniquely identifying the new
+  constructors. *)
 
 Fixpoint eval_type_extensions (cs : list name) :=
   match cs with
@@ -837,28 +852,61 @@ Section EvalMExpr.
 
 Variable eval_mexpr : env → mexpr → microvx.
 
+(* [eval_sitem ηδ item] evaluates the structure items [item] in the
+   double environment [ηδ], yielding an updated double environment.
+
+   For an intuitive understand of the double environment, consider
+   the difference between [IOpen me'] and [IInclude me'].
+   Inclusion results in the names of [me'] being exported, while
+   opening doesn't. *)
+
 Definition pre_eval_sitem (ηδ : envs) (item : sitem) : micro envs exn :=
   let '(η, δ) := ηδ in
   match item with
   | ILet bs =>
+      (* Evaluate the left-hand side of a [let], obtain an environment
+         fragment from the new bindings, and add those bindings to
+         both environments.
+         There could be multiple bindings from [let/and]s,
+         or from destructing patterns. *)
       δ' ← eval_bindings η bs;
       ret  (δ' ++ η, δ' ++ δ)
   | ILetRec rbs =>
+      (* Evalute a [let rec], get the resulting environment fragment,
+         and add those bindings to both environments. *)
       let δ' := eval_rec_bindings η rbs in
       ret (δ' ++ η, δ' ++ δ)
   | IModule m me' =>
+      (* Evaluate the module [me'], bind the result to the name [m] in
+         both environments. *)
       v ← eval_mexpr η me' ;
       ret ([(m, v)] ++ η, [(m, v)] ++ δ)
   | IOpen me' =>
+      (* Evaluate the module expression [me'] into an environment
+         fragment. Add that environment fragment only to the current
+         local environment. *)
       δ' ← as_struct (eval_mexpr η me') ;
       ret (δ' ++ η, δ)
   | IInclude me' =>
+      (* Evaluate the module expression [me'] into an environment
+         fragment. Add that environment fragment only to both the
+         current local environment, and the exported environment *)
       δ' ← as_struct (eval_mexpr η me') ;
       ret (δ' ++ η, δ' ++ δ)
   | IExternal x e =>
+      (* We treat external declarations as the binding of the name of
+         the external to the eta-expansion of the corresponding
+         primitive.
+
+         For example,
+         `external array_get : int → array a' → a'`
+         is treated as giving the name ["array_get"] to the
+         eta-expansion of the [EArrayGet] primitive. *)
       v ← eval [] e;
       ret ((x, v) :: η, (x, v) :: δ)
   | IExtend cs =>
+      (* Extend the environments with bindings from each new extensible
+         constructor name in [cs] to a fresh location. *)
       δ' ← eval_type_extensions cs;
       ret (δ' ++ η, δ' ++ δ)
   end.
@@ -920,6 +968,14 @@ Variable eval : env → expr → microvx.
 (* Evaluate the expression [e], yielding a value [v],
    and produce an environment fragment [η]. *)
 
+(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
+   bindings [bs] are evaluated in parallel. The values thus obtained are then
+   matched against the patterns in the left-hand sides. The pattern matching
+   process is sequential. *)
+
+(* Every pattern is considered irrefutable, so if a pattern [p] does not
+   match the corresponding value [v], a crash occurs via [widen]. *)
+
 Definition eval_binding η '(Binding p e : binding) : micro env exn :=
   v ← eval η e;
   widen (eval_pat η [] p v).
@@ -928,14 +984,6 @@ Definition eval_binding η '(Binding p e : binding) : micro env exn :=
    producing an environment fragment. *)
 
 (* [eval_bindings] is used to evaluate the [let/and] construct. *)
-
-(* A binding is a pair [p = e]. The expressions in the right-hand sides of the
-   bindings [bs] are evaluated in parallel. The values thus obtained are then
-   matched against the patterns in the left-hand sides. The pattern matching
-   process is sequential. *)
-
-(* Every pattern is considered irrefutable, so if a pattern [p] does not
-   match the corresponding value [v], a crash occurs. *)
 
 (* If we chose to encode the multiple-let-and construct [let p_i = e_i in e]
    as [let (p_i) = (e_i) in e], using a tuple and a single-let-and construct,
@@ -989,8 +1037,8 @@ Fixpoint pre_evalfs (η : env) (fes : list fexpr) : micro (list (field * val)) e
   | [] =>
       ret []
   | (Fexpr f e) :: fes =>
-      (* sequentializing (be it left-to-right or right-to-left) is wrong, here,
-       because it depends on the type declaration *)
+      (* Sequentializing (be it left-to-right or right-to-left) is wrong here,
+       because the order depends on the type declaration *)
       '(v, fvs) ← par (eval η e) (evalfs η fes) ;
       ret ((f, v) :: fvs)
   end.
