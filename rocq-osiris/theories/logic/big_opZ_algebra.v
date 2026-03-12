@@ -1,5 +1,5 @@
 From stdpp Require Export functions.
-From iris.algebra Require Export monoid.
+From iris.algebra Require Export monoid list big_op.
 From iris.prelude Require Import options.
 Local Existing Instances monoid_ne monoid_assoc monoid_comm
   monoid_left_id monoid_right_id monoid_proper
@@ -35,7 +35,7 @@ Section big_op.
   Implicit Types l : list A.
   Implicit Types f g : Z → A → M.
 
-    Lemma big_opLZ_gen_proper_2 {B} (R : relation M) f (g : Z → B → M) l1 (l2 : list B) :
+  Lemma big_opLZ_gen_proper_2 {B} (R : relation M) f (g : Z → B → M) l1 (l2 : list B) :
     R u u →
     Proper (R ==> R ==> R) o →
     (∀ (k : Z),
@@ -168,6 +168,72 @@ Section big_op.
       by replace (k + 1 - 1) with k by lia.
   Qed.
 
+  Lemma big_opLZ_opL l (f : A → M) :
+    ([^o listZ] x ∈ l, f x) ≡ ([^o list] x ∈ l, f x).
+  Proof.
+    induction l; first done.
+    by rewrite big_opLZ_cons big_opL_cons IHl.
+  Qed.
+
+End big_op.
+
+Section ofe.
+Context {SI : sidx} {A : ofe}.
+
+Global Instance list_lookup_ne i : NonExpansive (lookup (M:=list A) i).
+Proof. intros ????. by apply option_dist_Forall2, Forall2_lookup. Qed.
+
+Lemma big_opLZ_ne_2 {M : ofe}
+    {o : M → M → M} `{!Monoid o u} (f g : Z → A → M) (l1 l2 : list A) n :
+  l1 ≡{n}≡ l2 →
+  (∀ k y1 y2,
+     l1 !! k = Some y1 → l2 !! k = Some y2 → y1 ≡{n}≡ y2 → f k y1 ≡{n}≡ g k y2) →
+  ([^o listZ] k ↦ y ∈ l1, f k y) ≡{n}≡ ([^o listZ] k ↦ y ∈ l2, g k y).
+Proof.
+  intros Hl Hf. apply big_opLZ_gen_proper_2; [ done | apply _ | ].
+  intros k. assert (l1 !! k ≡{n}≡ l2 !! k) as Hlk by (by f_equiv).
+  destruct (l1 !! k) eqn:?, (l2 !! k) eqn:?; inversion Hlk; naive_solver.
+Qed.
+
+End ofe.
+
+Section big_op.
+  Context {SI : sidx} {M : ofe} {o : M → M → M} `{!Monoid o u}.
+  Implicit Types xs : list M.
+  Infix "`o`" := o (at level 50, left associativity).
+  Context {A : Type}.
+  Implicit Types l : list A.
+  Implicit Types f g : Z → A → M.
+
+  Lemma big_opLZ_sep_zip_with {B C : Type} (f : A → B → C) (g1 : C → A) (g2 : C → B)
+    (h1 : Z → A → M) (h2 : Z → B → M) (l1 : list A) (l2 : list B) :
+    (∀ x y, g1 (f x y) = x) →
+    (∀ x y, g2 (f x y) = y) →
+    length l1 = length l2 →
+    ([^o listZ] k↦xy ∈ zip_with f l1 l2, h1 k (g1 xy) `o` h2 k (g2 xy)) ≡
+      ([^o listZ] k↦x ∈ l1, h1 k x) `o` ([^o listZ] k↦y ∈ l2, h2 k y).
+  Proof.
+    intros Hlen Hg1 Hg2. rewrite big_opLZ_op.
+    rewrite -(big_opLZ_fmap g1) -(big_opLZ_fmap g2).
+    rewrite fmap_zip_with_r; [|auto with lia..].
+    by rewrite fmap_zip_with_l; [|auto with lia..].
+  Qed.
+
+  Lemma big_opLZ_sep_zip {B} (h1 : Z → A → M) (h2 : Z → B → M) l1 (l2 : list B) :
+    length l1 = length l2 →
+    ([^o listZ] k↦xy ∈ zip l1 l2, h1 k xy.1 `o` h2 k xy.2) ≡
+      ([^o listZ] k↦x ∈ l1, h1 k x) `o` ([^o listZ] k↦y ∈ l2, h2 k y).
+  Proof. by apply big_opLZ_sep_zip_with. Qed.
+
+  Lemma big_opLZ_opLZ {B} (f : Z → A → Z → B → M) (l1 : list A) (l2 : list B) :
+    ([^o listZ] k1↦x1 ∈ l1, [^o listZ] k2↦x2 ∈ l2, f k1 x1 k2 x2) ≡
+      ([^o listZ] k2↦x2 ∈ l2, [^o listZ] k1↦x1 ∈ l1, f k1 x1 k2 x2).
+  Proof.
+    revert f l2. induction l1 as [|x1 l1 IH]; simpl; intros Φ l2.
+    { by rewrite big_opLZ_unit. }
+    by rewrite IH big_opLZ_op.
+  Qed.
+
 End big_op.
 
 Section homomorphisms.
@@ -186,7 +252,7 @@ Section homomorphisms.
     - apply monoid_homomorphism_unit.
     - by rewrite monoid_homomorphism IH.
   Qed.
-  Lemma big_opL_commute1 {A} (h : M1 → M2) `{!WeakMonoidHomomorphism o1 o2 R h}
+  Lemma big_opLZ_commute1 {A} (h : M1 → M2) `{!WeakMonoidHomomorphism o1 o2 R h}
     (f : Z → A → M1) l :
     l ≠ [] → R (h ([^o1 listZ] k↦x ∈ l, f k x)) ([^o2 listZ] k↦x ∈ l, h (f k x)).
   Proof.

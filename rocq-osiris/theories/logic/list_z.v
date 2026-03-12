@@ -1023,6 +1023,19 @@ Proof.
   - apply list_lookup_proper.
 Qed.
 
+Lemma Forall2_lookup {A B} (P : A → B → Prop) (xs : list A) (ys : list B) :
+  Forall2 P xs ys ↔ ∀ (i : Z), option_Forall2 P (xs !! i) (ys !! i).
+Proof.
+  split; intros.
+  - unfold lookup, listz_lookup. case_decide.
+    + constructor.
+    + apply Forall2_lookup. assumption.
+  - apply Forall2_lookup.
+    intros i. specialize (H (Z.of_nat i)).
+    unfold lookup, listz_lookup in H. case_decide'.
+    by rewrite Nat2Z.id in H.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Properties of [lookup_total]. *)
@@ -2110,3 +2123,31 @@ Proof.
   intros ????? Hxs Hws. lengths. (* see? *)
   lia.
 Qed.
+
+
+Section Zip.
+
+Context {A B : Type}.
+Implicit Types x : A.
+Implicit Types xs : list A.
+Implicit Types ys : list B.
+
+Lemma fmap_zip_with_r {C : Type} (f : A → B → C) (g : C → B) xs ys :
+  (∀ (x : A) (y : B), g (f x y) = y)
+  → (length ys <= length xs) → g <$> zip_with f xs ys = ys.
+Proof. unfold length; intros; apply fmap_zip_with_r; [ auto | lia ]. Qed.
+
+Lemma fmap_zip_with_l {C : Type} (f : A → B → C) (g : C → A) xs ys :
+  (∀ (x : A) (y : B), g (f x y) = x)
+  → (length xs <= length ys) → g <$> zip_with f xs ys = xs.
+Proof. unfold length; intros; apply fmap_zip_with_l; [ auto | lia ]. Qed.
+
+Lemma fst_zip xs ys :
+  length xs <= length ys → (zip xs ys).*1 = xs.
+Proof. unfold length; intros; apply fst_zip; lia. Qed.
+
+Lemma snd_zip xs ys :
+  length ys <= length xs → (zip xs ys).*2 = ys.
+Proof. unfold length; intros; apply snd_zip; lia. Qed.
+
+End Zip.

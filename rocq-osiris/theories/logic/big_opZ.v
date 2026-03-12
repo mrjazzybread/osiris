@@ -1,11 +1,21 @@
 From stdpp Require Import countable fin_sets functions.
-From iris.bi Require Import big_op.
-From iris.bi Require Import derived_laws_later.
+From iris.algebra Require Import list gmap.
+From iris.bi Require Import derived_laws_later big_op.
 From iris.prelude Require Import options.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 From osiris.logic Require Export big_opZ_algebra list_z.
 
 Local Notation length := list_z.length.
+
+Section ofe.
+
+Context {SI : sidx} {A : ofe}.
+Implicit Types l : list A.
+
+Global Instance Z_length_ne  n : Proper (dist n ==> (=)) (@length A).
+Proof. induction 1; length; lia. Qed.
+
+End ofe.
 
 From Stdlib.Logic Require Import FunctionalExtensionality.
 
@@ -62,6 +72,10 @@ Section sep_listZ.
   Context {A : Type}.
   Implicit Types l : list A.
   Implicit Types Φ Ψ : Z → A → PROP.
+
+  Lemma big_sepLZ_sepL l (Φ : A → PROP) :
+    ([∗ listZ] x ∈ l, Φ x) ⊣⊢ ([∗ list] x ∈ l, Φ x).
+  Proof. apply big_opLZ_opL. Qed.
 
   Lemma big_sepLZ_nil Φ : ([∗ listZ] k↦y ∈ nil, Φ k y) ⊣⊢ emp.
   Proof. done. Qed.
@@ -404,6 +418,12 @@ Section sep_listZ.
   Lemma big_sepLZ_laterN_2 Φ n l :
     ([∗ listZ] k↦x ∈ l, ▷^n Φ k x) ⊢ ▷^n [∗ listZ] k↦x ∈ l, Φ k x.
   Proof. by rewrite (big_opLZ_commute _). Qed.
+
+  Lemma big_sepLZ_sep_zip {B : Type} (Φ1 : Z → A → PROP) (Φ2 : Z → B → PROP) (l1 : list A) (l2 : list B) :
+  length l1 = length l2 →
+  ([∗ listZ] k↦xy ∈ zip l1 l2, Φ1 k xy.1 ∗ Φ2 k xy.2) ⊣⊢
+  ([∗ listZ] k↦x ∈ l1, Φ1 k x) ∗ ([∗ listZ] k↦y ∈ l2, Φ2 k y).
+  Proof. apply big_opLZ_sep_zip. Qed.
 
 End sep_listZ.
 
@@ -1024,36 +1044,36 @@ Section sep_list2.
   Proof.
     intros. rewrite -big_sepLZ_sep_zip // big_sepLZ2_alt pure_True // left_id //.
   Qed.
-  Lemma big_sepLZ2_sepL_2 (Φ1 : nat → A → PROP) (Φ2 : nat → B → PROP) l1 l2 :
+  Lemma big_sepLZ2_sepLZ_2 (Φ1 : Z → A → PROP) (Φ2 : Z → B → PROP) l1 l2 :
     length l1 = length l2 →
-    ([∗ listZ] k↦y1 ∈ l1, Φ1 k y1) -∗
+    ([∗ listZ] k↦y1 ∈ l1, Φ1 k y1) ⊢
     ([∗ listZ] k↦y2 ∈ l2, Φ2 k y2) -∗
     [∗ listZ] k↦y1;y2 ∈ l1;l2, Φ1 k y1 ∗ Φ2 k y2.
-  Proof. intros. apply entails_wand, wand_intro_r. by rewrite big_sepLZ2_sepL. Qed.
+  Proof. intros. apply wand_intro_r. by rewrite big_sepLZ2_sepLZ. Qed.
 End sep_list2.
 
-Lemma big_sepLZ2_const_sepL_l {A B} (Φ : nat → A → PROP) (l1 : list A) (l2 : list B) :
+Lemma big_sepLZ2_const_sepLZ_l {A B} (Φ : Z → A → PROP) (l1 : list A) (l2 : list B) :
   ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y1)
   ⊣⊢ ⌜length l1 = length l2⌝ ∧ ([∗ listZ] k↦y1 ∈ l1, Φ k y1).
 Proof.
   rewrite big_sepLZ2_alt.
   trans (⌜length l1 = length l2⌝ ∧ [∗ listZ] k↦y1 ∈ (zip l1 l2).*1, Φ k y1)%I.
-  { rewrite big_sepL_fmap //. }
+  { rewrite big_sepLZ_fmap //. }
   apply (anti_symm (⊢)); apply pure_elim_l=> Hl; rewrite fst_zip;
     rewrite ?Hl //;
     (apply and_intro; [by apply pure_intro|done]).
 Qed.
-Lemma big_sepLZ2_const_sepL_r {A B}  (Φ : nat → B → PROP) (l1 : list A) (l2 : list B) :
+Lemma big_sepLZ2_const_sepLZ_r {A B} (Φ : Z → B → PROP) (l1 : list A) (l2 : list B) :
   ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y2)
   ⊣⊢ ⌜length l1 = length l2⌝ ∧ ([∗ listZ] k↦y2 ∈ l2, Φ k y2).
-Proof. by rewrite big_sepLZ2_flip big_sepLZ2_const_sepL_l (symmetry_iff (=)). Qed.
+Proof. by rewrite big_sepLZ2_flip big_sepLZ2_const_sepLZ_l (symmetry_iff (=)). Qed.
 
-Lemma big_sepLZ2_sep_sepL_l {A B} (Φ : nat → A → PROP)
-    (Ψ : nat → A → B → PROP) l1 l2 :
+Lemma big_sepLZ2_sep_sepLZ_l {A B} (Φ : Z → A → PROP)
+    (Ψ : Z → A → B → PROP) l1 l2 :
   ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y1 ∗ Ψ k y1 y2)
   ⊣⊢ ([∗ listZ] k↦y1 ∈ l1, Φ k y1) ∗ ([∗ listZ] k↦y1;y2 ∈ l1;l2, Ψ k y1 y2).
 Proof.
-  rewrite big_sepLZ2_sep big_sepLZ2_const_sepL_l. apply (anti_symm _).
+  rewrite big_sepLZ2_sep big_sepLZ2_const_sepLZ_l. apply (anti_symm _).
   { rewrite and_elim_r. done. }
   rewrite !big_sepLZ2_alt [(_ ∗ _)%I]comm -!persistent_and_sep_assoc.
   apply pure_elim_l=>Hl. apply and_intro.
@@ -1062,25 +1082,25 @@ Proof.
   apply and_intro; last done.
   apply pure_intro. done.
 Qed.
-Lemma big_sepLZ2_sep_sepL_r {A B} (Φ : nat → A → B → PROP)
-    (Ψ : nat → B → PROP) l1 l2 :
+Lemma big_sepLZ2_sep_sepLZ_r {A B} (Φ : Z → A → B → PROP)
+    (Ψ : Z → B → PROP) l1 l2 :
   ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y1 y2 ∗ Ψ k y2)
   ⊣⊢ ([∗ listZ] k↦y1;y2 ∈ l1;l2, Φ k y1 y2) ∗ ([∗ listZ] k↦y2 ∈ l2, Ψ k y2).
 Proof.
   rewrite !(big_sepLZ2_flip _ _ l1). setoid_rewrite (comm bi_sep).
-  by rewrite big_sepLZ2_sep_sepL_l.
+  by rewrite big_sepLZ2_sep_sepLZ_l.
 Qed.
 
-Lemma big_sepL_sepL2_diag {A} (Φ : nat → A → A → PROP) (l : list A) :
+Lemma big_sepLZ_sepLZ2_diag {A} (Φ : Z → A → A → PROP) (l : list A) :
   ([∗ listZ] k↦y ∈ l, Φ k y y) ⊢
   ([∗ listZ] k↦y1;y2 ∈ l;l, Φ k y1 y2).
 Proof.
   rewrite big_sepLZ2_alt. rewrite pure_True // left_id.
-  rewrite zip_diag big_sepL_fmap /=. done.
+  rewrite zip_diag big_sepLZ_fmap /=. done.
 Qed.
 
 Lemma big_sepLZ2_ne_2 {A B : ofe}
-    (Φ Ψ : nat → A → B → PROP) l1 l2 l1' l2' n :
+    (Φ Ψ : Z → A → B → PROP) l1 l2 l1' l2' n :
   l1 ≡{n}≡ l1' → l2 ≡{n}≡ l2' →
   (∀ k y1 y1' y2 y2',
     l1 !! k = Some y1 → l1' !! k = Some y1' → y1 ≡{n}≡ y1' →
@@ -1089,8 +1109,8 @@ Lemma big_sepLZ2_ne_2 {A B : ofe}
   ([∗ listZ] k ↦ y1;y2 ∈ l1;l2, Φ k y1 y2)%I ≡{n}≡ ([∗ listZ] k ↦ y1;y2 ∈ l1';l2', Ψ k y1 y2)%I.
 Proof.
   intros Hl1 Hl2 Hf. rewrite !big_sepLZ2_alt. f_equiv.
-  { do 2 f_equiv; by apply: length_ne. }
-  apply big_opL_ne_2; [by f_equiv|].
+  { do 2 f_equiv; by apply: Z_length_ne. }
+  apply big_opLZ_ne_2; [by f_equiv|].
   intros k [x1 y1] [x2 y2] (?&?&[=<- <-]&?&?)%lookup_zip_with_Some
     (?&?&[=<- <-]&?&?)%lookup_zip_with_Some [??]; naive_solver.
 Qed.
@@ -1102,6 +1122,10 @@ Section and_listZ.
   Implicit Types Φ Ψ : Z → A → PROP.
   Local Open Scope Z_scope.
 
+  Lemma big_andLZ_andL l (Φ : A → PROP) :
+    ([∧ listZ] x ∈ l, Φ x) ⊣⊢ ([∧ list] x ∈ l, Φ x).
+  Proof. apply big_opLZ_opL. Qed.
+
   Lemma big_andLZ_nil Φ : ([∧ listZ] k↦y ∈ nil, Φ k y) ⊣⊢ True.
   Proof. done. Qed.
   Lemma big_andLZ_nil' P Φ : P ⊢ [∧ listZ] k↦y ∈ nil, Φ k y.
@@ -1109,102 +1133,86 @@ Section and_listZ.
 
   Lemma big_andLZ_cons Φ x l :
     ([∧ listZ] k↦y ∈ x :: l, Φ k y) ⊣⊢ Φ 0 x ∧ [∧ listZ] k↦y ∈ l, Φ (k + 1) y.
-  Proof.
-    unfold big_andLZ. rewrite big_andL_cons /=. f_equiv.
-    apply big_andL_proper. intros k y _. f_equiv. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_cons. Qed.
 
-  Lemma big_andLZ_singleton Φ x : ([∧ listZ] k↦y ∈ [x], Φ k y) ⊣⊢ Φ 0 x.
-  Proof. unfold big_andLZ. by rewrite big_andL_singleton. Qed.
+  Lemma big_andLZ_singleton Φ x : ([∧ listZ] k↦y ∈ singleton x, Φ k y) ⊣⊢ Φ 0 x.
+  Proof. by rewrite big_opLZ_singleton. Qed.
 
   Lemma big_andLZ_app Φ l1 l2 :
     ([∧ listZ] k↦y ∈ l1 ++ l2, Φ k y)
     ⊣⊢ ([∧ listZ] k↦y ∈ l1, Φ k y) ∧ ([∧ listZ] k↦y ∈ l2, Φ (list_z.length l1 + k) y).
-  Proof.
-    unfold big_andLZ. rewrite big_andL_app. f_equiv.
-    apply big_andL_proper. intros k y _. f_equiv. unfold list_z.length. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_app. Qed.
 
   Lemma big_andLZ_snoc Φ l x :
     ([∧ listZ] k↦y ∈ l ++ [x], Φ k y) ⊣⊢ ([∧ listZ] k↦y ∈ l, Φ k y) ∧ Φ (list_z.length l) x.
-  Proof.
-    rewrite big_andLZ_app big_andLZ_singleton. f_equiv. f_equiv. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_snoc. Qed.
 
   Lemma big_andLZ_mono Φ Ψ l :
     (∀ k y, l !! k = Some y → Φ k y ⊢ Ψ k y) →
     ([∧ listZ] k↦y ∈ l, Φ k y) ⊢ [∧ listZ] k↦y ∈ l, Ψ k y.
-  Proof.
-    intros HΦΨ. unfold big_andLZ.
-    apply big_andL_mono. intros k y Hky. apply HΦΨ.
-    revert Hky. unfold lookup, list_z.listz_lookup.
-    by destruct (decide (k < 0)%Z); [|rewrite Nat2Z.id].
-  Qed.
-
+  Proof. apply big_opLZ_gen_proper; apply _. Qed.
   Lemma big_andLZ_proper Φ Ψ l :
     (∀ k y, l !! k = Some y → Φ k y ⊣⊢ Ψ k y) →
     ([∧ listZ] k↦y ∈ l, Φ k y) ⊣⊢ ([∧ listZ] k↦y ∈ l, Ψ k y).
-  Proof. apply big_andL_proper. Qed.
+  Proof. apply big_opLZ_proper. Qed.
 
   Lemma big_andLZ_lookup Φ l i x :
     l !! i = Some x → ([∧ listZ] k↦y ∈ l, Φ k y) ⊢ Φ i x.
   Proof.
-    intros Hi.
-    assert (Hi0 : (0 ≤ i)) by (apply list_z.lookup_lt_Some in Hi; lia).
-    rewrite -(list_z.take_drop_middle l i x Hi) big_andLZ_app /=.
-    rewrite big_andLZ_cons.
-    rewrite list_z.length_take_le; [|apply list_z.lookup_lt_Some in Hi; lia].
-    rewrite (Z2Nat.id _ Hi0) Z.add_0_r.
+    intros. rewrite -(take_drop_middle l i x) // !big_andLZ_app big_andLZ_singleton.
+    apply lookup_lt_Some in H.
+    length. rewrite Z.add_0_r.
     eauto using and_elim_l', and_elim_r'.
   Qed.
 
   Lemma big_andLZ_fmap {B} (f : A → B) (Φ : Z → B → PROP) l :
     ([∧ listZ] k↦y ∈ f <$> l, Φ k y) ⊣⊢ ([∧ listZ] k↦y ∈ l, Φ k (f y)).
-  Proof. unfold big_andLZ. by rewrite big_andL_fmap. Qed.
+  Proof. by rewrite big_opLZ_fmap. Qed.
 
   Lemma big_andLZ_and Φ Ψ l :
     ([∧ listZ] k↦x ∈ l, Φ k x ∧ Ψ k x)
     ⊣⊢ ([∧ listZ] k↦x ∈ l, Φ k x) ∧ ([∧ listZ] k↦x ∈ l, Ψ k x).
-  Proof. unfold big_andLZ. by rewrite big_andL_and. Qed.
+  Proof. by rewrite big_opLZ_op. Qed.
 
   Lemma big_andLZ_persistently Φ l :
     <pers> ([∧ listZ] k↦x ∈ l, Φ k x) ⊣⊢ [∧ listZ] k↦x ∈ l, <pers> (Φ k x).
-  Proof. unfold big_andLZ. apply (big_opL_commute _). Qed.
+  Proof. apply (big_opLZ_commute _). Qed.
 
   Lemma big_andLZ_forall Φ l :
     ([∧ listZ] k↦x ∈ l, Φ k x) ⊣⊢ (∀ k x, ⌜l !! k = Some x⌝ → Φ k x).
   Proof.
-    apply (anti_symm _).
-    { apply forall_intro. intro k. apply forall_intro. intro x.
-      apply impl_intro_l, pure_elim_l. intro ?. by apply: big_andLZ_lookup. }
-    revert Φ. induction l as [|x l IH]; intro Φ; [by auto using big_andLZ_nil'|].
+     apply (anti_symm _).
+    { apply forall_intro=> k; apply forall_intro=> x.
+      apply impl_intro_l, pure_elim_l=> ?; by apply: big_andLZ_lookup. }
+    revert Φ. induction l as [|x l IH]=> Φ; [by auto using big_andLZ_nil'|].
     rewrite big_andLZ_cons. apply and_intro.
-    - rewrite (forall_elim 0) (forall_elim x) pure_True // True_impl. done.
-    - rewrite -IH. apply forall_intro. intro k.
-      rewrite (forall_elim (k + 1)). apply impl_intro_l, pure_elim_l. intro Hkx.
-      rewrite pure_True // True_impl.
-      revert Hkx. unfold lookup, list_z.listz_lookup.
-      by destruct (decide ((k + 1) < 0)); [lia|rewrite Z2Nat.inj_add //; simpl; rewrite Nat2Z.id].
+    - by rewrite (forall_elim 0) (forall_elim x) pure_True // bi.True_impl.
+    - rewrite -IH. apply forall_intro=> k; rewrite (forall_elim (k + 1)).
+      case (decide (k = -1)).
+      + intros ->. lookup.
+        apply forall_intro=>a. rewrite (forall_elim a) impl_mono //.
+        apply pure_mono. discriminate 1.
+      + intros Hneq.
+        lookup. by rewrite Z.add_simpl_r.
   Qed.
 
   Lemma big_andLZ_pure_1 (φ : Z → A → Prop) l :
     ([∧ listZ] k↦x ∈ l, ⌜φ k x⌝) ⊢@{PROP} ⌜∀ k x, l !! k = Some x → φ k x⌝.
   Proof.
-    unfold big_andLZ. rewrite big_andL_pure_1.
-    apply pure_mono. intros H k x Hkx.
-    apply (H (Z.to_nat k) x).
-    revert Hkx. unfold lookup, list_z.listz_lookup.
-    destruct (decide (k < 0)) as [|Hk0]; [done|].
-    rewrite Nat2Z.id. done.
+    induction l as [|x l IH] using rev_ind.
+    { apply pure_intro=>??. by rewrite lookup_nil. }
+    rewrite big_andLZ_snoc // IH -pure_and.
+    f_equiv=>-[Hl Hx] k y /lookup_app_Some =>-[Hy|[Hlen Hy]].
+    - by apply Hl.
+    - apply list_lookup_singleton_Some in Hy as [Hk ->].
+      replace k with (length l) by lia. done.
   Qed.
-
   Lemma big_andLZ_pure_2 (φ : Z → A → Prop) l :
     ⌜∀ k x, l !! k = Some x → φ k x⌝ ⊢@{PROP} ([∧ listZ] k↦x ∈ l, ⌜φ k x⌝).
   Proof.
     rewrite big_andLZ_forall pure_forall_1. f_equiv. intro k.
     rewrite pure_forall_1. f_equiv. intro x. apply pure_impl_1.
   Qed.
-
   Lemma big_andLZ_pure (φ : Z → A → Prop) l :
     ([∧ listZ] k↦x ∈ l, ⌜φ k x⌝) ⊣⊢@{PROP} ⌜∀ k x, l !! k = Some x → φ k x⌝.
   Proof.
@@ -1214,10 +1222,10 @@ Section and_listZ.
 
   Lemma big_andLZ_later Φ l :
     ▷ ([∧ listZ] k↦x ∈ l, Φ k x) ⊣⊢ ([∧ listZ] k↦x ∈ l, ▷ Φ k x).
-  Proof. unfold big_andLZ. apply (big_opL_commute _). Qed.
+  Proof. apply (big_opLZ_commute _). Qed.
   Lemma big_andLZ_laterN Φ n l :
     ▷^n ([∧ listZ] k↦x ∈ l, Φ k x) ⊣⊢ ([∧ listZ] k↦x ∈ l, ▷^n Φ k x).
-  Proof. unfold big_andLZ. apply (big_opL_commute _). Qed.
+  Proof. apply (big_opLZ_commute _). Qed.
 
 End and_listZ.
 
@@ -1227,47 +1235,37 @@ Section or_listZ.
   Implicit Types Φ Ψ : Z → A → PROP.
   Local Open Scope Z_scope.
 
+  Lemma big_orLZ_orL l (Φ : A → PROP) :
+    ([∨ listZ] x ∈ l, Φ x) ⊣⊢ ([∨ list] x ∈ l, Φ x).
+  Proof. apply big_opLZ_opL. Qed.
+
   Lemma big_orLZ_nil Φ : ([∨ listZ] k↦y ∈ nil, Φ k y) ⊣⊢ False.
   Proof. done. Qed.
 
   Lemma big_orLZ_cons Φ x l :
     ([∨ listZ] k↦y ∈ x :: l, Φ k y) ⊣⊢ Φ 0 x ∨ [∨ listZ] k↦y ∈ l, Φ (k + 1) y.
-  Proof.
-    unfold big_orLZ. rewrite big_orL_cons /=. f_equiv.
-    apply big_orL_proper. intros k y _. f_equiv. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_cons. Qed.
 
-  Lemma big_orLZ_singleton Φ x : ([∨ listZ] k↦y ∈ [x], Φ k y) ⊣⊢ Φ 0 x.
-  Proof. unfold big_orLZ. by rewrite big_orL_singleton. Qed.
+  Lemma big_orLZ_singleton Φ x : ([∨ listZ] k↦y ∈ singleton x, Φ k y) ⊣⊢ Φ 0 x.
+  Proof. by rewrite big_opLZ_singleton. Qed.
 
   Lemma big_orLZ_app Φ l1 l2 :
     ([∨ listZ] k↦y ∈ l1 ++ l2, Φ k y)
     ⊣⊢ ([∨ listZ] k↦y ∈ l1, Φ k y) ∨ ([∨ listZ] k↦y ∈ l2, Φ (list_z.length l1 + k) y).
-  Proof.
-    unfold big_orLZ. rewrite big_orL_app. f_equiv.
-    apply big_orL_proper. intros k y _. f_equiv. unfold list_z.length. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_app. Qed.
 
   Lemma big_orLZ_snoc Φ l x :
     ([∨ listZ] k↦y ∈ l ++ [x], Φ k y) ⊣⊢ ([∨ listZ] k↦y ∈ l, Φ k y) ∨ Φ (list_z.length l) x.
-  Proof.
-    rewrite big_orLZ_app big_orLZ_singleton. f_equiv. f_equiv. lia.
-  Qed.
+  Proof. by rewrite big_opLZ_snoc. Qed.
 
   Lemma big_orLZ_mono Φ Ψ l :
     (∀ k y, l !! k = Some y → Φ k y ⊢ Ψ k y) →
     ([∨ listZ] k↦y ∈ l, Φ k y) ⊢ [∨ listZ] k↦y ∈ l, Ψ k y.
-  Proof.
-    intros HΦΨ. unfold big_orLZ.
-    apply big_orL_mono. intros k y Hky. apply HΦΨ.
-    revert Hky. unfold lookup, list_z.listz_lookup.
-    by destruct (decide (k < 0)%Z); [|rewrite Nat2Z.id].
-  Qed.
-
+  Proof. apply big_opLZ_gen_proper; apply _. Qed.
   Lemma big_orLZ_proper Φ Ψ l :
     (∀ k y, l !! k = Some y → Φ k y ⊣⊢ Ψ k y) →
     ([∨ listZ] k↦y ∈ l, Φ k y) ⊣⊢ ([∨ listZ] k↦y ∈ l, Ψ k y).
-  Proof. apply big_orL_proper. Qed.
+  Proof. apply big_opLZ_proper. Qed.
 
   Lemma big_orLZ_intro Φ l i x :
     l !! i = Some x → Φ i x ⊢ ([∨ listZ] k↦y ∈ l, Φ k y).
@@ -1277,22 +1275,22 @@ Section or_listZ.
     rewrite -(list_z.take_drop_middle l i x Hi) big_orLZ_app /=.
     rewrite big_orLZ_cons.
     rewrite list_z.length_take_le; [|apply list_z.lookup_lt_Some in Hi; lia].
-    rewrite (Z2Nat.id _ Hi0) Z.add_0_r.
+    rewrite Z.add_0_r.
     eauto using or_intro_l', or_intro_r'.
   Qed.
 
   Lemma big_orLZ_fmap {B} (f : A → B) (Φ : Z → B → PROP) l :
     ([∨ listZ] k↦y ∈ f <$> l, Φ k y) ⊣⊢ ([∨ listZ] k↦y ∈ l, Φ k (f y)).
-  Proof. unfold big_orLZ. by rewrite big_orL_fmap. Qed.
+  Proof. by rewrite big_opLZ_fmap. Qed.
 
   Lemma big_orLZ_or Φ Ψ l :
     ([∨ listZ] k↦x ∈ l, Φ k x ∨ Ψ k x)
     ⊣⊢ ([∨ listZ] k↦x ∈ l, Φ k x) ∨ ([∨ listZ] k↦x ∈ l, Ψ k x).
-  Proof. unfold big_orLZ. by rewrite big_orL_or. Qed.
+  Proof. by rewrite big_opLZ_op. Qed.
 
   Lemma big_orLZ_persistently Φ l :
     <pers> ([∨ listZ] k↦x ∈ l, Φ k x) ⊣⊢ [∨ listZ] k↦x ∈ l, <pers> (Φ k x).
-  Proof. unfold big_orLZ. apply (big_opL_commute _). Qed.
+  Proof. apply (big_opLZ_commute _). Qed.
 
   Lemma big_orLZ_exist Φ l :
     ([∨ listZ] k↦x ∈ l, Φ k x) ⊣⊢ (∃ k x, ⌜l !! k = Some x⌝ ∧ Φ k x).
@@ -1304,10 +1302,14 @@ Section or_listZ.
       - by rewrite -(exist_intro 0) -(exist_intro x) pure_True // left_id.
       - rewrite IH. apply exist_elim. intro k. rewrite -(exist_intro (k + 1)).
         apply exist_elim. intro y.
-        rewrite -(exist_intro y). apply and_mono_l, pure_mono. intro Hky.
-        revert Hky. unfold lookup, list_z.listz_lookup.
-        by destruct (decide ((k + 1) < 0)); [lia|rewrite Z2Nat.inj_add //; simpl; rewrite Nat2Z.id]. }
-    apply exist_elim. intro k. apply exist_elim. intro x. apply pure_elim_l. intro ?.
+        rewrite -(exist_intro y).
+        case (decide (k = -1)).
+        + intros ->. lookup.
+          rewrite and_mono_l //.
+          apply pure_mono. discriminate 1.
+        + intros Hneq.
+          lookup. by rewrite Z.add_simpl_r. }
+    apply exist_elim. intro k. apply exist_elim. intro x. apply pure_elim_l.
     by apply: big_orLZ_intro.
   Qed.
 
@@ -1325,11 +1327,11 @@ Section or_listZ.
   Lemma big_orLZ_later Φ l :
     l ≠ [] →
     ▷ ([∨ listZ] k↦x ∈ l, Φ k x) ⊣⊢ ([∨ listZ] k↦x ∈ l, ▷ Φ k x).
-  Proof. unfold big_orLZ. apply (big_opL_commute1 _). Qed.
+  Proof.  apply (big_opLZ_commute1 _). Qed.
   Lemma big_orLZ_laterN Φ n l :
     l ≠ [] →
     ▷^n ([∨ listZ] k↦x ∈ l, Φ k x) ⊣⊢ ([∨ listZ] k↦x ∈ l, ▷^n Φ k x).
-  Proof. unfold big_orLZ. apply (big_opL_commute1 _). Qed.
+  Proof. apply (big_opLZ_commute1 _). Qed.
 
 End or_listZ.
 
@@ -1337,6 +1339,6 @@ End or_listZ.
 Lemma big_sepLZ_sepLZ {A B} (Φ : Z → A → Z → B → PROP) (l1 : list A) (l2 : list B) :
   ([∗ listZ] k1↦x1 ∈ l1, [∗ listZ] k2↦x2 ∈ l2, Φ k1 x1 k2 x2) ⊣⊢
   ([∗ listZ] k2↦x2 ∈ l2, [∗ listZ] k1↦x1 ∈ l1, Φ k1 x1 k2 x2).
-Proof. unfold big_sepLZ. apply big_opL_opL. Qed.
+Proof. apply big_opLZ_opLZ. Qed.
 
 End big_op.
