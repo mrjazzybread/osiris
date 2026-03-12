@@ -78,7 +78,7 @@ Section imp_rules_expr.
   Qed.
 
   Lemma imp_call_rec {ζ} η f x body bs v :
-    lookup_rec_bindings bs f = ret (AnonFun x body) ->
+    lookup_rec_bindings bs f = Some (AnonFun x body) ->
     ▷ imp eval ((x, v) :: eval_rec_bindings η bs ++ η) body @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp call (VCloRec η bs f) v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.

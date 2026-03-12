@@ -50,7 +50,7 @@ Proof.
 Qed.
 
 Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
-  lookup_rec_bindings rbs g = ret (AnonFun x e) ->
+  lookup_rec_bindings rbs g = Some (AnonFun x e) ->
   pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ψ ->
   pure (call (VCloRec η rbs g) v2) φ ψ.
 Proof.

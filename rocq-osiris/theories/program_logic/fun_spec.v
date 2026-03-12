@@ -270,33 +270,6 @@ Section imp_spec.
     by iApply prove_iSpec_pers.
   Qed.
 
-  Fixpoint lookup_rec_bindings_opt (rbs : list rec_binding) (g : var) {struct rbs} :
-    option anonfun :=
-    match rbs with
-    | [] => None
-    | RecBinding g' a :: rbs0 =>
-        if (g =? g')%string then Some a else lookup_rec_bindings_opt rbs0 g
-    end.
-
-  Definition lookup_rec_bindings' (rbs : list rec_binding) (g : var) :
-    micro anonfun exn :=
-    match lookup_rec_bindings_opt rbs g with
-    | None => missing_variable g
-    | Some a => ret a
-    end.
-
-  Lemma lookup_rec_bindings_equiv :
-    ∀ rbs g, lookup_rec_bindings' rbs g = lookup_rec_bindings rbs g.
-  Proof.
-    intros rbs g. induction rbs.
-    reflexivity.
-    unfold lookup_rec_bindings'. simpl.
-    rewrite <- IHrbs.
-    destruct a; simpl.
-    case (g =? f)%string. reflexivity.
-    reflexivity.
-  Qed.
-
   Lemma pure_iSpec τ c P :
     ⌜@Spec τ c P⌝ -∗
     iSpec τ c (bi_pure_spec P)%I.
@@ -320,9 +293,8 @@ Section imp_spec.
         intros v Hspec. exists v. split; first reflexivity.
         exact Hspec. }
       iIntros (c); iApply "IH".
-    - simpl. rewrite <- lookup_rec_bindings_equiv in HSpec |- *.
-      unfold lookup_rec_bindings' in HSpec |- *.
-      case_eq (lookup_rec_bindings_opt rbs f).
+    - simpl.
+      case_eq (lookup_rec_bindings rbs f).
       + intros a Heqlookup. rewrite Heqlookup in HSpec.
         simpl in *. destruct a; simpl in *.
         iApply imp_please; iNext.

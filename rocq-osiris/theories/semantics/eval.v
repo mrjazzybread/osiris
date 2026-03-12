@@ -391,12 +391,12 @@ Definition eval_rec_bindings η rbs : env :=
 (* [lookup_rec_bindings rbs g] looks up the function [g] in the recursive
    bindings [rbs]. The right-hand side is an anonymous function [a]. *)
 
-Fixpoint lookup_rec_bindings rbs g : micro anonfun exn :=
+Fixpoint lookup_rec_bindings rbs g : option anonfun :=
   match rbs with
   | RecBinding g' a :: rbs =>
-      if g =? g' then ret a else lookup_rec_bindings rbs g
+      if g =? g' then Some a else lookup_rec_bindings rbs g
   | [] =>
-      missing_variable g
+      None
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -634,7 +634,7 @@ Definition call v1 v2 : microvx :=
       let η := δ ++ η in
       (* Look up the entry point [g] in [rbs], yielding an anonymous
          function [a]. *)
-      a ← lookup_rec_bindings rbs g ;
+      a ← widen (lookup_rec_bindings rbs g) ;
       (* Then, proceed as in the case of a non-recursive closure. *)
       acall η a v2
    | _ =>
