@@ -356,10 +356,6 @@ Context {A : Type}.
 Implicit Types x y z : A.
 Implicit Types xs ys zs : list A.
 
-Lemma length_nat xs :
-  Z.of_nat (Datatypes.length xs) = length xs.
-Proof. unfold length. done. Qed.
-
 Lemma length_nonneg xs : 0 ≤ length xs.
 Proof. unfold length. lia. Qed.
 
