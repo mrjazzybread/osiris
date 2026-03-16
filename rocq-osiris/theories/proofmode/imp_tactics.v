@@ -158,19 +158,19 @@ Section TacticTests.
   Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
   Definition a_spec a : iProp Σ := □ ⌜a > 2⌝.
 
-  Definition module3_spec η := context [has_spec "sub" sub_spec] {["sub"]} η.
-  Definition module2_spec η := context [has_spec "Module3" module3_spec] {["Module3"; "some"; "other"; "stuff"]} η.
+  Definition module3_spec η := context [var_spec "sub" sub_spec] {["sub"]} η.
+  Definition module2_spec η := context [var_spec "Module3" module3_spec] {["Module3"; "some"; "other"; "stuff"]} η.
 
   Lemma example_proof δ η add :
     in_env "z" (λ (i : Z), ⌜i > 0⌝) η -∗
     □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }}) -∗
     in_env "a" a_spec η -∗
-    context [has_spec
+    context [var_spec
                "Module1"
-               (context [has_spec "some_other_val" (λ (_ : val), True);
-                         has_spec "add" add_spec] {["some_other_val";"add"]})
+               (context [var_spec "some_other_val" (λ (_ : val), True);
+                         var_spec "add" add_spec] {["some_other_val";"add"]})
       ] {["Module1"]} δ -∗
-    context [has_spec "Module2" module2_spec] {["Module2";"z"]} η -∗
+    context [var_spec "Module2" module2_spec] {["Module2";"z"]} η -∗
     imp (eval (("add",add)::δ ++ η) e) {{ λ (i : Z), ⌜i > 0⌝ }}.
   Proof.
     iIntros "#zspec #add_spec #aspec #δspec #ηspec".

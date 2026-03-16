@@ -103,7 +103,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 Lemma iter_module_pure :
   ⊢ imp (eval_mexpr stdlib_env __main)
-    {{ context [ has_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)] {["find_first";"iter"]} }}.
+    {{ context [ var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)] {["find_first";"iter"]} }}.
 Proof.
   (* Enter the module and face the struct items. *)
   iApply imp_module.

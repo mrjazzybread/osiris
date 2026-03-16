@@ -757,9 +757,9 @@ Qed.
 
 Lemma Splay__spec:
   toplevel __main
-    (pure_context [has_spec "splay" splay_spec;
-                   has_spec "splay_leaf" splay_leaf_spec;
-                   has_spec "zlookup" zlookup_spec] {["lookup";"splay";"splay_leaf";"zlookup"]}).
+    (pure_context [var_spec "splay" splay_spec;
+                   var_spec "splay_leaf" splay_leaf_spec;
+                   var_spec "zlookup" zlookup_spec] {["lookup";"splay";"splay_leaf";"zlookup"]}).
 Proof.
   apply module_struct.
   next_item.

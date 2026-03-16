@@ -77,7 +77,7 @@ Section verification.
   Lemma module_proof η :
     in_env "Array" array_module_spec η -∗
     in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
-    imp (eval_mexpr η __main) {{ context [ has_spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
+    imp (eval_mexpr η __main) {{ context [ var_spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_module.

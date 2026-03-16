@@ -1356,13 +1356,13 @@ Section module_proof.
 
   Definition array_module_spec : env → iProp Σ :=
     (context [
-         has_spec "init" (λ init, □ iSpec τ[Z; val] init init_spec);
-         has_spec "iter" (λ iter, □ iSpec τ[val;array] iter iter_spec);
-         has_spec "iteri" (λ iteri, □ iSpec τ[val;array] iteri iteri_spec);
-         has_spec "fold_left" (λ fold_left, ∀ A (HencA : Encode A), □ iSpec τ[val;A;array] fold_left (fold_left_spec A));
-         has_spec "map" (λ map, □ iSpec τ[val;array] map map_spec);
-         has_spec "map_inplace" (λ map_inplace, □ iSpec τ[val;array] map_inplace map_inplace_spec);
-         has_spec "mapi_inplace" (λ mapi_inplace, □ iSpec τ[val;array] mapi_inplace mapi_inplace_spec)
+         var_spec "init" (λ init, □ iSpec τ[Z; val] init init_spec);
+         var_spec "iter" (λ iter, □ iSpec τ[val;array] iter iter_spec);
+         var_spec "iteri" (λ iteri, □ iSpec τ[val;array] iteri iteri_spec);
+         var_spec "fold_left" (λ fold_left, ∀ A (HencA : Encode A), □ iSpec τ[val;A;array] fold_left (fold_left_spec A));
+         var_spec "map" (λ map, □ iSpec τ[val;array] map map_spec);
+         var_spec "map_inplace" (λ map_inplace, □ iSpec τ[val;array] map_inplace map_inplace_spec);
+         var_spec "mapi_inplace" (λ mapi_inplace, □ iSpec τ[val;array] mapi_inplace mapi_inplace_spec)
       ] array_module_dom)%I.
 
   Global Instance array_spec_pers η : Persistent (array_module_spec η).
