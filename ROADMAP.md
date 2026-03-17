@@ -15,7 +15,6 @@ The Rocq development offers:
 
 - `osiris/rocq-osiris/theories/lang`
   - `syntax.v` expressions, modules expressions, values, patterns.
-  - `sugar.v` shorthand for specific expressions and values (e.g. `EPair e1 e2 := ETuple [e1; e2]`)
   - `encode.v` the `Encode A` typeclass, which provides a function from `A -> val`
   - `type_nel.v` heteregenous lists over encodable types
 
@@ -26,12 +25,19 @@ The Rocq development offers:
   - `eval.v` our monadic definitional interpreter with type `env -> expr -> micro val exc`
   - `step.v` operational semantics over the `micro` monad
   - `pure.v` a subset of pure reduction steps
-  - `simplification.v` confluent and pure reductions steps, the basis of symbolic execution (see `simp_tactics.v`)
-  - `simp_tactics.v` the `simp` tactic, as well as old tactics such as `simp_specify`
 
 ### Proofmode
 
 - `osiris/rocq-osiris/theories/program_logic`
+  - `thread_step.v` operational semantics from a "local" point of view, used by `ewp.v`
+  - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
+  - `osiris/rocq-osiris/theories/program_logic_rules/`: reasoning rules
+    - `basic_rules.v` reasoning rules over the effectful weakest precondition
+    - `impure_rules.v` reasoning rules over the constructs of the micro monad
+    - `stop_rules.v` reasoning rules over the effects provided by `Stop`
+    - `handler_rules.v` reasoning rules over handlers
+    - `expr_rules.v` reasoning rules over evaluation of expressions
+  - `fun_spec.v` [iSpec] abstraction for reasoning about n-ary function calls
   - `orisis/rocq-osiris/theories/program_logic/pure/`: Horus
     - `wp.v` the [pure_wp] definition, which is the base definition for pure judgements.
     - `judgements.v` the [pure] judgements, and relevant notations.
@@ -41,20 +47,15 @@ The Rocq development offers:
     - `toplevel_rules.v` reasoning rules about top-level definitions, such as
        struct items, bindings, and modules.
     - `fun_spec.v` [Spec] abstraction for reasoning about n-ary function calls
-  - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
-  - `basic_rules.v` reasoning rules over the effectful weakest precondition
-  - `handler_rules.v` reasoning rules over handlers
-  - `expr_rules.v` reasoning rules over evaluation of expressions
-  - `adequacy.v` adequacy theorem that follows from Iris' built-in adequacy theorem over our operational semantics
   - `tactics.v` modality and mask tactics
 
 - `osiris/rocq-osiris/theories/proofmode`
   - `equality.v` a tactic to prove equality goals
   - `pure_tactics.v` tactics that are meant to be used while proving pure goals
-  - `ewp_tactics.v` tactics that are meant to be used while proving Iris goals
-  - `notations.v` notations for goal pretty-printing
+  - `handler_tactics.v` tactics to reason about handlers
+  - `imp_tactics.v` tactics that are meant to be used while proving Iris goals
+  - `env_lookups.v` specifications for modules (environments) and the [imp_path] tactic
   - `setup.v` configuration for controlling opacity and general proofmode settings
-  - `specifications.v` utility to define specifications of modules/functions (mostly unused)
 
 - `osiris/rocq-osiris/theories/adequacy`
   - `adequacy.v` adequacy theorem for Horus
@@ -64,9 +65,12 @@ The Rocq development offers:
 
 - `osiris/rocq-osiris/theories/logic`
   general utilies, currently contains ordering relations, properties of sorted lists, the empty type
+  - `list_z.v` lists with indices in Z
+  - `big_opLZ.v` big ops on lists with indices in Z
 - `osiris/rocq-osiris/theories/CompCert` a lifting of CompCert's treatment of integers
 - `osiris/rocq-osiris/theories/Hazel` a lifting of Hazel's notion of effect protocols
 - `osiris/rocq-osiris/theories/stdlib` a translation of OCaml's standard library
+  - `osiris/rocq-osiris/theories/stdlib/proofs/` proofs of files in OCaml's standard library
 - `osiris/rocq-osiris/base.v` basic imports, a few logical tautologies, a string destroying tactic
 - `osiris/rocq-osiris/test` various manual tests for our operational semantics
 
@@ -155,7 +159,7 @@ We give a correspondence between features the of the paper and their Rocq mechan
 ### Section 8: Osiris
 
 * Definition of impure -> theories/program_logic/ewp.v
-* Micro level rules -> theories/program_logic/basic_rules.v
-* Rules for Handle -> theories/program_logic/handler_rules.v
+* Micro level rules -> theories/program_logic/rules/basic_rules.v
+* Rules for Handle -> theories/program_logic/rules/handler_rules.v
 * Definition of impure__# -> theories/program_logic/ewp.v (lifting notation)
 * Find example -> examples/proofs/find.v
