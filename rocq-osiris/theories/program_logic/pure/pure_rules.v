@@ -447,7 +447,8 @@ Section pure_eff.
     pure (A := A) (eval η e) φ ψ →
     pure (please_eval η e) φ ψ.
   Proof.
-    intros He. eapply pure_CEval, pure_try2; try done;
+    intros He.
+    eapply pure_CEval, pure_try2; try done;
     intros; eauto using pure_ret, pure_throw.
   Qed.
 

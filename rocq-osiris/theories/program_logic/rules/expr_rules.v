@@ -382,8 +382,6 @@ Section imp_rules_expr.
   (** * EOpPhysEq : expr → expr → expr *)
   (** * EOpEq : expr → expr → expr *)
 
-  Local Instance observe_bool : Observe bool bool := { observe := id }.
-
   Lemma imp_EOpEq  {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
@@ -483,8 +481,6 @@ Section imp_rules_expr.
   (** * EOpGe : expr → expr → expr *)
 
   (** * ELet : list binding → expr → expr *)
-
-  Local Instance observe_env : Observe env env := { observe := id }.
 
   (* Intermediate lemma: using [eval_bindings] hypothesis *)
   Lemma imp_ELet `{Encode A} {Φ : A → iProp Σ} {ζ} η bs e Φ1 :

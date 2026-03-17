@@ -277,10 +277,6 @@ Qed.
 
 (* Some special cases. *)
 
-(* For [pure (as_bool _) φ ψ]. *)
-Local Instance observe_bool : Observe bool bool :=
-  {| observe := ssrfun.id |}.
-
 Local Lemma pure_as_bool (m : microvx) (φ : bool → Prop) ψ :
   pure m φ ψ →
   pure (as_bool m) φ ψ.
@@ -395,10 +391,6 @@ Qed.
 (** *Integer literals. *)
 
 (* Helper lemmas for arithmetic operations. *)
-
-(* For [pure (as_int _) φ ψ]. *)
-Local Instance observe_int : Observe int int :=
-  {| observe := ssrfun.id |}.
 
 Local Lemma pure_as_int m (φ : Z → Prop) ψ:
   pure m φ ψ →

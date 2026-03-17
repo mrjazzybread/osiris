@@ -199,7 +199,7 @@ Section micro_codes.
     imp (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm". rewrite /code.choose /code.flip.
-    iApply (imp_bind (H0:=observe_bool) (λ (b : bool), True)%I (stop CFlip ())).
+    iApply (imp_bind (λ (b : bool), True)%I (stop CFlip ())).
     { rewrite /impure.
       ewp_unfold_head.
       intro_state. ewp_mask_intro "Hmod".

@@ -64,19 +64,31 @@ Class Observe A V : Type :=
 
 Arguments observe {_ _ _}.
 
-Global Instance observe_encode {A} `{Encode A}:
-  Observe A val :=
+Global Instance observe_encode `{Encode A} :
+  Observe A val | 0 :=
   {| observe := encode |}.
 
-(* NOTE : Do not declare an instance of [Observe val val], as it will
-   instantiate evars eagerly to this instance when it is not desired.
-   (Even if its weight is very high.) *)
+(* NOTE : Do not declare an instance of [Observe A A], or [Observe val val], as
+   it will instantiate evars eagerly to this instance when it is not desired.
+   (Even if its weight is very high.)
+
+   Instead, we declared a marker class [NotVal], which we manually instantiate
+   for types which we want Observe instances. *)
+
+Class NotVal (A : Type) : Prop := {}.
+Global Hint Mode NotVal + : typeclass_instances.
+Global Instance notval_bool : NotVal bool := {}.
+Global Instance notval_unit : NotVal () := {}.
+Global Instance notval_env : NotVal env := {}.
+Global Instance notval_envs : NotVal envs := {}.
+Global Instance notval_int : NotVal int := {}.
+
+Global Instance observe_refl `{NotVal A} : Observe A A | 1 := { observe := id }.
 
 Notation "♯ x" := (observe x) (at level 5, format "♯ x").
 
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
-
 
 Section lift_specs.
 

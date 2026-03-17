@@ -758,12 +758,7 @@ Definition ge_val v1 v2 : micro bool exn :=
    accumulates the bindings that form the current (incomplete) structure
    that is being built. *)
 
-Definition envs : Type :=
-  (* η: *) env *
-  (* δ: *) env.
-
 Implicit Type ηδ : envs.
-
 
 (* ------------------------------------------------------------------------ *)
 

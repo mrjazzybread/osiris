@@ -347,8 +347,6 @@ Section imp_flip.
 
   Context `{!osirisGS Σ}.
 
-  Local Instance observe_bool : Observe bool bool := {| observe := id |}.
-
   Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ} {Φ : bool → iProp Σ}.
 
   Import ewp_rules_tactics.
@@ -581,23 +579,13 @@ Section imp_eval.
     iApply (ewp_perform with "Hallows").
   Qed.
 
-  Local Instance encode_envs : Encode envs := { encode := λ '(η, δ), VTuple [ #η; #δ] }.
-
-  Local Instance observe_envs : Observe envs envs := { observe := id }.
-
   Lemma imp_module sitems {Q : env -> iProp Σ} η :
     imp (eval_sitems (η, []) sitems) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '((_, δ) : envs), Q δ }} -∗
     imp (eval_mexpr η (MStruct sitems)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     simpl_eval_mexpr.
-    (* iApply (@imp_bind _ _ _ _ _ _ _ _ _ _ _ _ *)
-    (*               _ _ envs _ *)
-    (*               _ _ (λ '(_, δ), ret (VStruct δ)) with "Hsitems"). *)
-    iApply (
-        @imp_bind Σ osirisGS0 env val exn _ E Ψ ζ Q
-                  envs envs observe_envs
-          _ _ (λ '(_, δ), ret (VStruct δ)) with "Hsitems").
+    iApply (imp_bind with "Hsitems").
     iIntros ([η' δ']) "HQ".
     iApply (imp_ret with "HQ"). encode.
   Qed.
@@ -622,10 +610,10 @@ Section imp_eval.
 
   Lemma imp_sitem_letrec_singleton (spec : val → iProp Σ) x af (η δ : env) :
     spec (VCloRec η [RecBinding x af] x) -∗
-    @impure envs envs exn Σ _ observe_envs E (eval_sitem (η, δ) (ILetRec [RecBinding x af])) Ψ
-      ζ (λ '(η0, δ0),
-          ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
-      ).
+    imp (eval_sitem (η, δ) (ILetRec [RecBinding x af])) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{
+          λ '(η0, δ0),
+            ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
+      }}.
   Proof.
     iIntros "Hspec".
     simpl_eval_sitem.
@@ -657,15 +645,9 @@ Section imp_eval.
   Proof.
     iIntros "Hbindings Hmono".
     simpl_eval_sitem.
-    iApply (
-        @imp_bind Σ osirisGS0 envs envs exn observe_envs E Ψ ζ Q
-                  env env observe_env
-                  _ _ (λ δ', ret (δ' ++ η, δ' ++ δ)) with "Hbindings").
+    iApply (imp_bind with "Hbindings").
     iIntros (η') "HQ'".
-    iApply (@imp_ret Σ osirisGS0 envs envs exn observe_envs
-              E Ψ ζ Q
-              (@observe env env observe_env η' ++ η, @observe env env observe_env η' ++ δ) (η' ++ η, η' ++ δ)).
-    encode.
+    iApply imp_ret; first encode.
     iApply ("Hmono" with "HQ'").
   Qed.
 
@@ -722,10 +704,10 @@ Section imp_eval.
 
   Lemma imp_struct_let_single `{Encode A} (spec : A → iProp Σ) name e (η δ : env) :
     imp (eval η e) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ spec }} -∗
-    @impure envs envs exn Σ _ observe_envs E (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) Ψ
-      ζ (λ '(η', δ'),
-           ∃ a : A, spec a ∧ ⌜η' = (name, #a) :: η ∧ δ' = (name, #a) :: δ⌝
-      ).
+    imp (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{
+          λ '(η', δ'),
+            ∃ a : A, spec a ∧ ⌜η' = (name, #a) :: η ∧ δ' = (name, #a) :: δ⌝
+      }}.
   Proof.
     iIntros "Hspec".
     iApply (imp_struct_let with "[Hspec]").

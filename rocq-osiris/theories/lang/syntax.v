@@ -440,7 +440,7 @@ Inductive val : Type :=
 .
 
 Definition env := list (var * val).
-
+Definition envs := (env * env)%type.
 
 (* ------------------------------------------------------------------------ *)
 
