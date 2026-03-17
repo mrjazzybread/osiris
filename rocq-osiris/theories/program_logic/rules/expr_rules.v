@@ -820,7 +820,7 @@ Section imp_rules_expr.
     imp eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He P". simpl_eval.
-    iApply (imp_bind (H0:=@observe_id loc) with "[He]").
+    iApply (imp_bind with "[He]").
     { iApply (imp_as_loc with "He"). }
     iIntros (l) "HΦ1".
     iDestruct ("P" with "HΦ1") as "(%q & %a & Hl & P)".
@@ -918,7 +918,7 @@ Section imp_rules_expr.
     imp eval η (EContinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
-    iApply (imp_Par (H0:=@observe_id cont) (A2 := B) with "[Hk] Hv [Hmon]").
+    iApply (imp_Par (A2 := B) with "[Hk] Hv [Hmon]").
     { iApply (imp_as_cont with "Hk"). }
     iSplit.
     - iIntros (e) "Hζ !>".
@@ -938,7 +938,7 @@ Section imp_rules_expr.
     imp eval η (EDiscontinue e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hk Hv Hmon". simpl_eval.
-    iApply (imp_Par (H0:=@observe_id cont) (A2 := exn) with "[Hk] Hv [Hmon]").
+    iApply (imp_Par (A2 := exn) with "[Hk] Hv [Hmon]").
     { iApply (imp_as_cont with "Hk"). }
     iSplit.
     - iIntros (e) "Hζ !>".
@@ -1134,7 +1134,7 @@ Section imp_rules_expr.
     imp eval η (EJoin e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hid Hjoined". simpl_eval.
-    iApply (imp_bind (H0:=observe_id thread) with "[Hid]").
+    iApply (imp_bind with "[Hid]").
     { iApply (imp_as_thread with "Hid"). }
     iIntros (ι') "Hthread".
     iApply (imp_join with "Hthread Hjoined").
@@ -1160,7 +1160,7 @@ Section imp_rules_expr.
     imp eval η (EJoin e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hmask Hid Hjoined". simpl_eval.
-    iApply (imp_bind (H0:=observe_id thread) with "[Hid]").
+    iApply (imp_bind with "[Hid]").
     { iApply (imp_as_thread with "Hid"). }
     iIntros (ι') "Hjoinable".
     iDestruct "Hjoinable" as "(% & % & HThread & Hjoinable)".

@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.semantics Require Import outcome.
-From osiris.lang Require Import syntax.
+From osiris.lang Require Import syntax locations thread_ids.
 From iris.base_logic.lib Require Import iprop.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
@@ -56,8 +56,11 @@ Local Ltac solve_encode :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* One justification for [Observe] appears in pure_rules.v, to generalize
-   [pure_bind] to more than just [@bind val val] *)
+(* [Observe] generalizes encode, in that the left hand side is not restricted to
+   [val]. [Observe] appears in the definitions of our reasoning judgements, and
+   is used to reason about computations that don't result in values. Typically,
+   these computations are the product of some auxiliary function in the
+   semantics. *)
 
 Class Observe A V : Type :=
   { observe : A -> V }.
@@ -72,8 +75,8 @@ Global Instance observe_encode `{Encode A} :
    it will instantiate evars eagerly to this instance when it is not desired.
    (Even if its weight is very high.)
 
-   Instead, we declared a marker class [NotVal], which we manually instantiate
-   for types which we want Observe instances. *)
+   Instead, we define a marker class [NotVal], which we manually instantiate
+   for types for which we want Observe instances. *)
 
 Class NotVal (A : Type) : Prop := {}.
 Global Hint Mode NotVal + : typeclass_instances.
@@ -82,6 +85,9 @@ Global Instance notval_unit : NotVal () := {}.
 Global Instance notval_env : NotVal env := {}.
 Global Instance notval_envs : NotVal envs := {}.
 Global Instance notval_int : NotVal int := {}.
+Global Instance notval_loc : NotVal loc := {}.
+Global Instance notval_cont : NotVal cont := {}.
+Global Instance notval_thread : NotVal thread := {}.
 
 Global Instance observe_refl `{NotVal A} : Observe A A | 1 := { observe := id }.
 

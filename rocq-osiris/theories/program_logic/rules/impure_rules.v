@@ -1,4 +1,4 @@
-From osiris.lang Require Import encode.
+From osiris.lang Require Import encode locations.
 
 From osiris Require Import base.
 From osiris.semantics Require Import code.
@@ -476,8 +476,6 @@ Section dynamic_checks.
     iIntros (i) "HΦ".
     iApply (imp_ret with "HΦ"); first encode.
   Qed.
-
-  Local Instance observe_id (A : Type) : Observe A A := { observe := id }.
 
   Lemma imp_as_loc (m : microvx) (Φ : locations.loc → iProp Σ) :
     imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
