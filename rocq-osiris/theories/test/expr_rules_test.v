@@ -40,19 +40,15 @@ Qed.
 Lemma example_ref_1 η:
   ⊢ imp (eval η (ERef (EInt 1))) {{ λ (l : loc), l ↦ #1%Z }}.
 Proof.
-  iApply imp_ERef.
-  iApply imp_EInt.
+  imp_ref.
 Qed.
 
 (* [!x] *)
 Lemma example_load η x l v :
-  lookup_name η x = Some #l ->
-  l ↦ v ⊢ imp (eval η (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ v }}.
+  l ↦ #v ⊢ imp (eval (x~>#l; η) (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ v }}.
 Proof.
-  iIntros (Hx) "Hl".
-  replace v with (#v) at 1 by apply solve_encode_val.
-  iApply (imp_ELoad with "Hl").
-  iApply imp_EPath; auto. assumption.
+  iIntros "Hl".
+  imp_load l.
 Qed.
 
 (* [x := 2] *)
@@ -63,13 +59,7 @@ Lemma example_store η x l :
     {{ λ (_ : unit), l ↦ #2 }}.
 Proof.
   iIntros (Hx) "Hl".
-  iApply (imp_EStore2 (A:=Z)).
-  - simpl_eval. rewrite Hx. iApply imp_widen.
-    instantiate (1:=(λ l', ⌜l'=l⌝)%I). eauto.
-  - iApply imp_EInt.
-  - iIntros (? ?) "-> ->".
-    iExists _. iFrame.
-    auto.
+  imp_store l 2%Z.
 Qed.
 
 (* [x := 2; x := 4] *)
@@ -84,13 +74,9 @@ Lemma example_2_stores η x l :
 Proof.
   iIntros (Hx) "Hl".
   iApply (imp_ESeq with "[Hl]").
-  { iApply (imp_EStore (A:=Z) with "Hl").
-    - iApply imp_EPath; eauto.
-    - iApply imp_EInt. }
-  iIntros "Hl".
-  iApply (imp_EStore (A:=Z) with "Hl").
-  - iApply imp_EPath; eauto.
-  - iApply imp_EInt.
+  - imp_store l 2%Z.
+  - iIntros "Hl".
+    imp_store l 4%Z.
 Qed.
 
 (* [!(ref 1)]  *)
@@ -99,10 +85,9 @@ Lemma example_load_ref η :
 Proof.
   iApply (imp_ELoad2 (λ l, l ↦ #1%Z)%I).
   - (* ref 1 *)
-    iApply imp_ERef. iApply imp_EInt.
+    imp_ref.
   - (* load *)
-    iIntros (l) "Hl".
-    iFrame.
+    iIntros (l) "$".
     auto.
 Qed.
 
@@ -117,23 +102,17 @@ Proof.
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
 
   - (* l-value x *)
-    instantiate (1:= (λ l,⌜l=lx⌝)%I).
-    iApply imp_EPath; eauto.
+    imp_path.
 
   - (* 1 + !x *)
-    instantiate (1 := (λ i, ⌜i = (1 + n)%Z⌝ ∗ lx ↦ #n)%I).
-    iApply (imp_EIntAdd with "[] [Hx]").
-    + (* 1 *)
-      iApply imp_EInt.
-    + (* !x *)
-      iApply (imp_ELoad with "Hx").
-      iApply imp_EPath; eauto.
-    + (* add's postcondition *)
-      iIntros "!>" (n1 n2) "-> (-> & $)".
-      auto.
+    set_postcondition (λ i, ⌜(i = 1 + n)%Z⌝ ∗ lx ↦ #n)%I.
+    imp_arith with "[] [Hx]".
+    (* add's postcondition *)
+    iIntros "!>" (n1 n2) "-> (-> & $)".
+    auto.
 
   - (* store's postcondition *)
-    iIntros (l1 n2) "-> (-> & Hlx)".
+    iIntros (n2) "(-> & Hlx)".
     iFrame. auto.
 Qed.
 
@@ -146,25 +125,18 @@ Lemma example_double η x lx n :
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
-  { instantiate (1:=(λ l,⌜l=lx⌝)%I). iApply imp_EPath; eauto. }
+  - imp_path.
   - (* !x + !x *)
     iDestruct "Hx" as "(Hx1 & Hx2)".
-    iApply (imp_EIntAdd with "[Hx1] [Hx2]").
-    + (* !x *)
-      iApply (imp_ELoad with "Hx1").
-      { iApply imp_EPath; eauto. }
-    + (* !x *)
-      iApply (imp_ELoad with "Hx2").
-      { iApply imp_EPath; eauto. }
-    + (* + *)
-      iIntros "!>" (i j) "(-> & Hx1) (-> & Hx2)".
-      iCombine "Hx1" "Hx2" as "Hx".
-      iApply (goal_eq with "Hx"). reflexivity.
+    set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦ #n)%I.
+    imp_arith with "[Hx1] [Hx2]".
+    (* add's postcondition *)
+    iIntros "!>" (i j) "(-> & Hx1) (-> & Hx2)".
+    iCombine "Hx1" "Hx2" as "$".
+    iPureIntro; lia.
   - (* := *)
-    iIntros (l i) "-> (-> & Hx)".
-    iFrame. iIntros "!> !> Hx".
-    replace (n + n)%Z with (2 * n)%Z by lia.
-    by iFrame.
+    iIntros (i) "(-> & Hx)".
+    iFrame. auto.
 Qed.
 
 (* match 1 with _ -> true *)

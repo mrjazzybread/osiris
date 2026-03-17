@@ -9,9 +9,13 @@ Ltac2 all (tac : unit -> unit) :=
 
 Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
 
+Ltac2 lastn tacs := Control.extend [] (fun _ => ()) tacs.
+
 (* [first] applies a tactic to the first subgoal. *)
 
 Ltac2 first tac := Control.extend [tac] (fun _ => ()) [].
+
+Ltac2 firstn tacs := Control.extend tacs (fun _ => ()) [].
 
 (* [try_complete] takes a tactic and either
    solves the goal by running it or does nothing. *)

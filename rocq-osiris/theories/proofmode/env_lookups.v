@@ -299,6 +299,11 @@ Section Context.
     iApply (in_env_mono with "Hspec Hmono").
   Qed.
 
+  Lemma in_env_lookup `{Encode A} {x} (a : A) η :
+    lookup_name η x = Some #a →
+    ⊢ @in_env Σ _ _ x (λ a', ⌜a' = a⌝)%I η.
+  Proof. iIntros (Hlookup). by iExists a. Qed.
+
 End Context.
 
 Section PathRule.
@@ -350,7 +355,7 @@ Ltac2 is_arg_of (arg : constr) (t : constr) : bool :=
    If found, it returns the name (a Gallina term of type [base.ident])
    of that hypothesis. *)
 
-Ltac2 get_env_spec (η : constr) : constr :=
+Ltac2 get_context_spec (η : constr) : constr :=
   let (pers_hyps, spat_hyps) := get_iris_hyps () in
   let rec go env :=
     lazy_match! env with
@@ -426,7 +431,7 @@ Ltac2 in_env_here () :=
   iApply in_env_here;
   (* For this tactic to succeed, it must solve the [x =? y = true]
      condition of [in_env_here]. *)
-  Control.focus 1 1 (fun _ => reflexivity).
+  Control.focus 1 1 (fun _ => apply String.eqb_refl).
 
 Ltac2 in_env_app_l () :=
   iApply in_env_app_l.
@@ -465,11 +470,11 @@ Ltac2 in_env_context hyp :=
    - if [η] is a cons: apply either [in_env_here] or [in_env_cons].
    - if [η] is an app: apply either [in_env_app_r] or [in_env_app_l].
    - otherwise: try and find a hypothesis on [η] in the context.
-*)
+ *)
 
 Ltac2 rec solve_in_env () :=
   lazy_match! get_iris_goal () with
-  | in_env ?name ?_spec ?env =>
+  | in_env ?name _ ?env =>
       (* We use [match!] instead of [lazy_match!] so that we always
          fall back to the last branch in case we have a hypothesis
          over an environment which is an app or a cons. *)
@@ -483,7 +488,7 @@ Ltac2 rec solve_in_env () :=
       | ?δ ++ _ =>
           Control.plus
             (fun _ =>
-               let spec_name := get_env_spec δ in
+               let spec_name := get_context_spec δ in
                in_env_app_r spec_name;
                Control.enter solve_in_env)
             (fun _ =>
@@ -501,11 +506,24 @@ Ltac2 rec solve_in_env () :=
                Control.plus
                  (* Try to find a corresponding [context] hypothesis. *)
                  (fun _ =>
-                    let spec_name := get_env_spec η in
+                    let spec_name := get_context_spec η in
                     in_env_context spec_name)
                  (fun _ =>
-                    Control.zero (Tactic_failure
-                                    (Some (fprintf "Could not solve goal [in_env %t _ %t]" name env)))))
+                    Control.plus
+                      (* Try to find a [lookup_name] hypothesis. *)
+                      (fun _ =>
+                         lazy_match! goal with
+                         | [ h : lookup_name ?δ ?name' = Some #_ |- _ ] =>
+                             if (Constr.equal δ η) && Constr.equal name' name then
+                               let h := Control.hyp h in
+                               let specialized_lemma := open_constr:(in_env_lookup _ _ $h) in
+                               iApply $specialized_lemma
+                             else
+                               Control.zero (Tactic_failure None)
+                         end)
+                      (fun _ =>
+                         Control.zero (Tactic_failure
+                                         (Some (fprintf "Could not solve goal [in_env %t _ %t]" name env))))))
       end
   | _ => Control.zero (Tactic_failure (Some (fprintf "Expected goal to be [in_env]")))
   end.

@@ -69,9 +69,7 @@ Section init_proof.
     iIntros (A HencA HinhA I) "%Hbounds #Hf HI".
     iApply imp_please; iNext.
     iApply imp_EIfThenElse.
-    { iApply (imp_EOpEq_Z _ _ _ n 0). representable. representable.
-      - imp_path.
-      - iApply imp_EInt. }
+    { imp_arith. }
     iIntros ([|]) "%Heq0".
 
     { (* Case: [n = 0]. *)
@@ -80,9 +78,7 @@ Section init_proof.
       iFrame. iPureIntro; length; lia. }
 
     iApply imp_EIfThenElse.
-    { iApply (imp_EOpLt_Z _ _ _ n 0). representable. representable.
-      - imp_path; auto.
-      - iApply imp_EInt. }
+    { imp_arith. }
     iIntros ([|]) "%Hlt0".
 
     { (* Case: [n < 0]. *)
@@ -223,12 +219,11 @@ Section iter_proof.
       { case (decide (length xs = 0)).
         intros ->. representable.
         intros Hnonzero. representable. }
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
+      imp_int.
+      { imp_arith.
         - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
-        - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
       { iFrame. iPureIntro. split; [ by length | apply prefix_nil ]. }
       iIntros "!>" (i') "%Hi' (Hslice & (%Xs & HI & %HlenXs & %Hprefix))".
@@ -340,9 +335,7 @@ Section map_spec.
 
     (* if l = 0 then [||] else ... *)
     iApply imp_EIfThenElse.
-    { iApply (imp_EOpEq_Z _ _ _ (length xs) 0). representable. representable.
-      - imp_path.
-      - iApply imp_EInt. }
+    { imp_arith. }
     iIntros ([|]) "%Heq0".
 
     { (* Case: length xs = 0, so xs = [] *)
@@ -395,11 +388,9 @@ Section map_spec.
                         [∗ listZ] x;y ∈ seg 0 i xs;ys, Φ x y)%I
                 1 (length xs - 1) with "[] [] [Hslice HsliceR HΦy]").
       representable. representable.
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
-        - imp_path.
-        - iApply imp_EInt.
-        - iIntros "!>" (??) "-> ->". auto. }
+      imp_int.
+      { imp_arith.
+        iIntros "!>" (??) "-> ->". auto. }
       { (* Initial invariant at i = 1 *)
         iFrame "Hslice". rewrite (split_Slice 1); last (length; lia).
         seg. setoid_rewrite Slice_app; last reflexivity. length.
@@ -504,12 +495,11 @@ Section map_inplace_spec.
       { case (decide (length xs = 0)).
         intros ->. representable.
         intros Hnonzero. representable. }
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
+      imp_int.
+      { imp_arith.
         - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
-        - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
 
       { (* Establish the invariant for [i = 0]. *)
@@ -610,12 +600,11 @@ Section mapi_inplace_spec.
       { case (decide (length xs = 0)).
         intros ->. representable.
         intros Hnonzero. representable. }
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
+      imp_int.
+      { imp_arith.
         - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
-        - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
 
       { (* Establish the invariant for [i = 0]. *)
@@ -738,12 +727,11 @@ Section iteri_spec.
       { case (decide (length xs = 0)).
         intros ->. representable.
         intros Hnonzero. representable. }
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
+      imp_int.
+      { imp_arith.
         - imp_app τ[array].
           iIntros (?) "-> %m Hm". iApply "Hm".
           iPureIntro; split; eassumption.
-        - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
 
       { (* Establish the invariant when [i = 0]. *)
@@ -931,18 +919,20 @@ Section fold_left_spec.
       { case (decide (length xs = 0)).
         intros ->. representable.
         intros Hnonzero. representable. }
-      iApply imp_EInt.
-      { iApply imp_EIntSub.
+      imp_int.
+      { imp_arith.
         - imp_app τ[array].
           iIntros (?) "-> %m Hm !>". iApply "Hm".
           iPureIntro; split; eassumption.
-        - iApply imp_EInt.
         - iIntros "!>" (i j) "-> ->". auto. }
       { iFrame. iPureIntro. split; first by length. apply prefix_nil. }
 
       iIntros "!>" (i') "%Hi' (Hslice & %acc & %Xs & Hr & HI & %HlenXs & %Hprefix)".
       (* r := f !r (unsafe_get a i) *)
       iApply (imp_mono_ret with "[Hr HI Hslice]").
+      set_postcondition
+        (λ (_ : unit), ∃ x X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
+                                       r ↦ #x ∗ isSlice dq a 0 xs ∗ I x (Xs ++ singleton X))%I.
       - iApply (imp_EStore2 (A:=A) with "[] [Hr HI Hslice]").
         imp_path.
         + (* f !r (unsafe_get a i) *)
@@ -969,10 +959,8 @@ Section fold_left_spec.
           iApply (imp_mono_ret with "Hm").
           iIntros "!>" (acc'') "HI".
           iFrame. iPureIntro; assumption.
-        + iIntros (??) "-> (%acc' & Hpref & Hr & Hslice & HI)".
+        + iIntros (?) "(%acc' & Hpref & Hr & Hslice & HI)".
           iFrame.
-          instantiate (1:=(λ _, ∃ x X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
-                                       r ↦ #x ∗ isSlice dq a 0 xs ∗ I x (Xs ++ singleton X))%I).
           iIntros "!> !> $". iFrame.
       - iIntros ([]) "(% & % & Hpref & Hr & Hslice & HI)".
         iFrame. iPureIntro; length; lia. }
