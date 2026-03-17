@@ -324,9 +324,7 @@ Section imp_spec.
   Proof.
     iIntros "He He1". simpl_eval.
     iApply (imp_Par with "He He1").
-    iSplit; last iSplit.
-    { iIntros (ex) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
+    iSplit.
     { iIntros (ex) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     iIntros (c v1) "HSpec [%x ->]". simpl. simp iSpec.
@@ -463,9 +461,7 @@ Section imp_EApp_def.
       iIntros "Hmono".
       simpl_eval.
       iApply (imp_Par with "HSpec Hex").
-      iSplit; last iSplit.
-      { iIntros (?) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
+      iSplit.
       { iIntros (?) "Hζ !>".
         iApply (imp_throw with "Hζ"). }
       iIntros (c v) "HSpec' Hφx". simpl. simp iSpec.
@@ -490,9 +486,7 @@ Section imp_EApp_def.
     iSpecialize ("HIH" $! η (EApp e ex) _ _ _ P' with "[HSpec Hex]").
     { simpl_eval.
       iApply (imp_Par with "HSpec Hex").
-      iSplit; last iSplit.
-      { iIntros (?) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
+      iSplit.
       { iIntros (?) "Hζ !>".
         iApply (imp_throw with "Hζ"). }
       iIntros (??) "HSpec Hφx /=".
@@ -576,9 +570,7 @@ Section transparent_funs.
    { iApply imp_widen.
      instantiate (1 := (λ f, ⌜f = (VClo η' (Anon (v => e)))⌝)%I).
      rewrite Hlookup. iExists _; auto. }
-   iSplit; last iSplit.
-   - instantiate (1:= (λ _, False)%I).
-     iIntros (? []).
+   iSplit.
    - iIntros (?) "Hζ".
      iApply (imp_throw with "Hζ").
    - iIntros (??) "-> HΦ".
@@ -601,9 +593,7 @@ Section transparent_funs.
      { iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto. }
-     iSplit; last iSplit.
-     - instantiate (3:= (λ _, False)%I).
-       iIntros (? []).
+     iSplit.
      - iIntros (?) "Hζ".
        iApply (imp_throw with "Hζ").
      - iIntros (??) "-> HΦ".
@@ -614,9 +604,7 @@ Section transparent_funs.
        instantiate (1 := (λ v, ∃ y, ⌜v = VClo (v1 ~> #y;
                     η') (Anon (v2 => e))⌝ ∗ Φ1 y)%I).
        simpl. iFrame. }
-   iSplit; last iSplit.
-   - iIntros (?) "Hζ".
-     iApply (imp_throw with "Hζ").
+   iSplit.
    - iIntros (?) "Hζ".
      iApply (imp_throw with "Hζ").
    - iIntros (??) "(% & -> & HΦ1) HΦ2".
@@ -642,9 +630,7 @@ Section transparent_funs.
        iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto.
-       iSplit; last iSplit.
-       - instantiate (3:= (λ _, False)%I).
-         iIntros (? []).
+       iSplit.
        - iIntros (?) "Hζ".
          iApply (imp_throw with "Hζ").
        - iIntros (??) "-> HΦ".
@@ -654,9 +640,7 @@ Section transparent_funs.
          iIntros "!> !>" (v) "Hv".
          instantiate (1 := (λ v, ∃ y, ⌜v = VClo _ _⌝ ∗ Φ1 y)%I).
          simpl. iFrame. }
-     iSplit; last iSplit.
-     - iIntros (?) "Hζ".
-       iApply (imp_throw with "Hζ").
+     iSplit.
      - iIntros (?) "Hζ".
        iApply (imp_throw with "Hζ").
      - iIntros (??) "(% & -> & HΦ1) HΦ2".
@@ -666,9 +650,7 @@ Section transparent_funs.
        iIntros "!> !>" (v) "->".
        instantiate (1 := (λ v, ∃ y z, ⌜v = VClo _ _⌝ ∗ Φ1 y ∗ Φ2 z)%I).
        simpl. iFrame. iPureIntro. reflexivity. }
-   iSplit; last iSplit.
-   - iIntros (?) "Hζ".
-     iApply (imp_throw with "Hζ").
+   iSplit.
    - iIntros (?) "Hζ".
      iApply (imp_throw with "Hζ").
    - iIntros (??) "(% & % & -> & HΦ1 & HΦ2) HΦ3".

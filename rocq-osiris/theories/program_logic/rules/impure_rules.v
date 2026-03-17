@@ -137,7 +137,7 @@ Section micro_combinators.
     - done.
   Qed.
 
-  Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2} {X'}
+  Lemma imp_Par2 `{Observe A1 V1} `{Observe A2 V2} {X'}
     Φ1 ζ1 Φ2 ζ2 m1 m2 (k : outcome2 (V1 * V2) X' → micro V X) :
     imp m1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
     imp m2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
@@ -155,19 +155,21 @@ Section micro_combinators.
       iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
-  Lemma imp_Par2 `{Observe A1 V1} `{Observe A2 V2} {X'}
-    Φ1 Φ2 m1 m2 (k : outcome2 (V1 * V2) X' → micro V X) :
-    imp m1 @ E <|Ψ|> {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> {{ Φ2 }} -∗
+  Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2}
+    Φ1 Φ2 m1 m2 (k : outcome2 (V1 * V2) X → micro V X) :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ e, ζ e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
     (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin".
-    iApply (imp_Par with "H1 H2 [Hjoin]").
+    iApply (ewp_Par with "H1 H2").
     iSplit; last iSplit.
-    - iIntros (? []).
-    - iIntros (? []).
-    - iExact "Hjoin".
+    - iDestruct "Hjoin" as "[$ _]".
+    - iDestruct "Hjoin" as "[$ _]".
+    - iIntros (v1 v2) "(%x & -> & HΦ1) (%y & -> & HΦ2)".
+      iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
 End micro_combinators.

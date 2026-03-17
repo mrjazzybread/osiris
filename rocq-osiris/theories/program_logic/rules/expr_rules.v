@@ -37,7 +37,7 @@ Section imp_rules_expr.
     imp eval η (EApp e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin /=". simpl_eval.
-    iApply (imp_Par with "H1 H2").
+    iApply (imp_Par2 with "H1 H2").
     iSplit; last iSplit.
     - iIntros (?) "E !>".
       iApply imp_throw. iApply ("Hjoin" with "E").
@@ -101,9 +101,7 @@ Section imp_rules_expr.
         as (Φi Φs') "(-> & Hi & H) /=".
       iApply (imp_Par (A1:=val) (A2:=(list val)) with "Hi [H]").
       { iApply ("IH" with "H"). }
-      iSplit; last iSplit.
-      + iIntros (e) "Hζ !>". rewrite /discontinue /=.
-        iApply (imp_throw with "Hζ").
+      iSplit.
       + iIntros (e) "Hζ !>". rewrite /discontinue /=.
         iApply (imp_throw with "Hζ").
       + iIntros (v vs) "HΦi HΦs". rewrite /continue /=.
@@ -217,8 +215,8 @@ Section imp_rules_expr.
     imp eval η (EPair e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin". simpl_eval.
-    iApply (imp_Par (A1:=A) (A2:=list B) with "H1 [H2]").
-    iApply (imp_Par (A1:=B) (A2:=list B) with "H2").
+    iApply (imp_Par2 (A1:=A) (A2:=list B) with "H1 [H2]").
+    iApply (imp_Par2 (A1:=B) (A2:=list B) with "H2").
     { iApply (imp_ret [] []).
       - reflexivity.
       - instantiate (1 := (λ l, ⌜l=[]⌝)%I). done. }
@@ -337,14 +335,12 @@ Section imp_rules_expr.
     iApply (imp_Par with "[H1] [H2]").
     - iApply (imp_as_int with "H1").
     - iApply (imp_as_int with "H2").
-    - iSplit; last iSplit.
-      { iIntros (e) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
-      { iIntros (e) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
-      iIntros (i j) "HΦ1 HΦ2 !>".
-      iApply imp_ret. encode.
-      iApply ("Hjoin" with "HΦ1 HΦ2").
+    - iSplit.
+      + iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ").
+      + iIntros (i j) "HΦ1 HΦ2 !>".
+        iApply imp_ret. encode.
+        iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
   (** * EIntSub : expr → expr → expr *)
@@ -359,17 +355,18 @@ Section imp_rules_expr.
     iApply (imp_Par with "[H1] [H2]").
     - iApply (imp_as_int with "H1").
     - iApply (imp_as_int with "H2").
-    - iSplit; last iSplit.
-      { iIntros (e) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
-      { iIntros (e) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
-      iIntros (i j) "HΦ1 HΦ2 !>".
-      iApply imp_ret. encode.
-      iApply ("Hjoin" with "HΦ1 HΦ2").
+    - iSplit.
+      + iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ").
+      + iIntros (i j) "HΦ1 HΦ2 !>".
+        iApply imp_ret. encode.
+        iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
   (** * EIntMul : expr → expr → expr *)
+
+
+
   (** * EIntDiv : expr → expr → expr *)
   (** * EIntMod : expr → expr → expr *)
   (** * EIntLand : expr → expr → expr *)
@@ -397,9 +394,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "H1 H2 P". simpl_eval.
     iApply (imp_Par with "H1 H2 [P]").
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (v1 v2) "HΦ1 HΦ2 !>".
@@ -448,9 +443,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "H1 H2 P". simpl_eval.
     iApply (imp_Par with "H1 H2 [P]").
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (v1 v2) "HΦ1 HΦ2 !>".
@@ -523,9 +516,7 @@ Section imp_rules_expr.
       destruct (eval_pat η [] p #x); last contradiction.
       instantiate (1 := (λ η, ∃ x, Φ1 x ∗ ⌜φs #x η⌝)%I).
       iFrame "%". iFrame. auto. }
-    iSplit; last iSplit.
-    - iIntros (ex) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (ex) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (η' δ) "(%x & H1 & Hφs) H2 !>".
@@ -762,12 +753,8 @@ Section imp_rules_expr.
     iApply (imp_Par with "[He1] [He2]").
     { iApply (imp_as_int with "He1"). }
     { iApply (imp_as_int with "He2"). }
-    iSplit; last iSplit.
+    iSplit.
     - iIntros (ex) "Hζ !>".
-      rewrite /discontinue /=.
-      iApply (imp_throw with "Hζ").
-    - iIntros (ex) "Hζ !>".
-      rewrite /discontinue /=.
       iApply (imp_throw with "Hζ").
     - iIntros (??) "-> -> !>".
       rewrite /continue /=.
@@ -871,9 +858,7 @@ Section imp_rules_expr.
     iIntros "H1 H2 P /=". simpl_eval.
     iApply (imp_Par (H0:=@observe_id loc) with "[H1] H2 [P]").
     { iApply (imp_as_loc with "H1"). }
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (l x) "H1 H2".
@@ -939,9 +924,7 @@ Section imp_rules_expr.
     iIntros "Hk Hv Hmon". simpl_eval.
     iApply (imp_Par (H0:=@observe_id cont) (A2 := B) with "[Hk] Hv [Hmon]").
     { iApply (imp_as_cont with "Hk"). }
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (k x) "Hk Hx".
@@ -961,9 +944,7 @@ Section imp_rules_expr.
     iIntros "Hk Hv Hmon". simpl_eval.
     iApply (imp_Par (H0:=@observe_id cont) (A2 := exn) with "[Hk] Hv [Hmon]").
     { iApply (imp_as_cont with "Hk"). }
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (k x) "Hk Hx".
@@ -1004,9 +985,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "H1 H2 Hcall". simpl_eval.
     iApply (imp_Par (A1:=val) (A2:=B) with "H1 H2").
-    iSplit; last iSplit.
-    - iIntros (?) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (f x) "Hf Hx !>".
@@ -1043,9 +1022,7 @@ Section imp_rules_expr.
   Proof.
     iIntros "H1 H2 Hcall". simpl_eval.
     iApply (imp_Par with "H1 H2").
-    iSplit; last iSplit.
-    - iIntros (?) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (f x) "Hf Hx !>".
@@ -1092,9 +1069,7 @@ Section imp_rules_expr.
     (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
     iIntros "H1 H2 Hcall". simpl_eval.
     iApply (imp_Par with "H1 H2").
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (f x) "Hf Hx !>".

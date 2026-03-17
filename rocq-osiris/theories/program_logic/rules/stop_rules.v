@@ -687,9 +687,7 @@ Section imp_eval.
       - instantiate (1 := (λ η, ∃ x, Φ x ∗ ⌜P x η⌝)%I).
         iFrame. iFrame "%". auto.
       - contradiction. }
-    iSplit; last iSplit.
-    { iIntros (?) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
+    iSplit.
     { iIntros (?) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     iIntros (x η') "(%a & HΦ & HP) Hη".

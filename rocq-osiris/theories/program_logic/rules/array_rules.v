@@ -162,9 +162,7 @@ Section array_reasoning.
     iApply (imp_Par (A1:=Z) (A2:=A) with "[He1] He2").
     { iApply (imp_as_int with "He1"). }
     rewrite /continue /discontinue /=.
-    iSplit; last iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
+    iSplit.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (? a) "-> Hφ !> /=".
@@ -236,29 +234,27 @@ Section array_reasoning.
     iApply (imp_Par (A1:=array) (A2:=Z) with "[He1] [He2]").
     { iApply (imp_as_array with "He1"). }
     { iApply (imp_as_int with "He2"). }
-    iSplit; last iSplit.
-    { iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
-    { iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
-    iIntros (ls i) "HΦ1 HΦ2".
-    iDestruct ("P" with "HΦ1 HΦ2")
-      as "(%n & #Harr & %dq & %j & %xs & P)".
-    rewrite /continue /= bind_ret.
-    iNext.
-    iDestruct "P" as "((%Hle & %Hlt & Hslice) & P)".
-    iDestruct "Harr" as "(%Hlen' & %Hbound)".
-    iDestruct "Hslice" as "(%Hlen & Hslice)".
-    rewrite signed_repr; last representable.
-    rewrite list_lookup_lookup_total_valid; last lia.
-    iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
-      as "(Hl & Hslice)"; try lia.
-    iApply (imp_load with "Hl").
-    iIntros "!> Hl".
-    iApply imp_ret; first encode.
-    iApply "P".
-    iSplit. { iPureIntro; apply Hlen. }
-    iApply ("Hslice" with "Hl").
+    iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros (ls i) "HΦ1 HΦ2".
+      iDestruct ("P" with "HΦ1 HΦ2")
+        as "(%n & #Harr & %dq & %j & %xs & P)".
+      rewrite /continue /= bind_ret.
+      iNext.
+      iDestruct "P" as "((%Hle & %Hlt & Hslice) & P)".
+      iDestruct "Harr" as "(%Hlen' & %Hbound)".
+      iDestruct "Hslice" as "(%Hlen & Hslice)".
+      rewrite signed_repr; last representable.
+      rewrite list_lookup_lookup_total_valid; last lia.
+      iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
+        as "(Hl & Hslice)"; try lia.
+      iApply (imp_load with "Hl").
+      iIntros "!> Hl".
+      iApply imp_ret; first encode.
+      iApply "P".
+      iSplit. { iPureIntro; apply Hlen. }
+      iApply ("Hslice" with "Hl").
   Qed.
 
   Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} a (n : Z) (i j : Z) dq (xs : list A) x e1 e2 :
@@ -300,15 +296,12 @@ Section array_reasoning.
     { iApply (imp_as_array with "He1"). }
     { iApply (imp_Par (A1:=Z) (A2:=A) with "[He2] He3").
       iApply (imp_as_int with "He2").
-      iSplit; last iSplit.
-      - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
+      iSplit.
       - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
       - iIntros (i y) "HΦ2 HΦ3".
         iApply (imp_ret _ (i, y)); first encode.
         instantiate (1 := (λ '(i, y), Φ2 i ∗ Φ3 y)%I). iFrame. }
-    iSplit; last iSplit.
-    { iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
+    iSplit.
     { iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ"). }
     iIntros (a [i y]) "HΦ1 (HΦ2 & HΦ3)".
