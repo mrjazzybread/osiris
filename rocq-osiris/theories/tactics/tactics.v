@@ -1,1 +1,1 @@
-From osiris.tactics Require Export utils iris_bindings.
+From osiris.tactics Require Export utils osiris_utils iris_bindings.

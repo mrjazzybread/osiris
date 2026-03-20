@@ -1118,17 +1118,18 @@ Section imp_rules_expr.
       iApply ("HΦ" with "Hl").
   Qed.
 
-  Lemma imp_EStore' `{Encode A} {ζ} (Φ : A → iProp Σ) {η e1 e2} l v :
+  Lemma imp_EStore' `{Encode A} {ζ} {Φ} (Φ' : A → iProp Σ) {η e1 e2} l v :
     ▷ l ↦ v -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), ∃ a, l ↦ #a ∗ Φ a }}.
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    ▷ (∀ a, Φ' a -∗ l ↦ #a -∗ Φ) -∗
+    imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), Φ }}.
   Proof.
-    iIntros "Hl H1 H2".
+    iIntros "Hl H1 H2 Hcon".
     iApply (imp_EStore2 with "H1 H2").
-    iIntros (a) "HΦ !>".
-    iFrame. iNext.
-    iIntros "$". iApply "HΦ".
+    iIntros (a) "HΦ' !>".
+    iFrame. iIntros "!> Hl".
+    iApply ("Hcon" with "HΦ' Hl").
   Qed.
 
   Lemma imp_EStore `{Encode A} {ζ} {η e1 e2} l (x : A) v :
@@ -1138,10 +1139,8 @@ Section imp_rules_expr.
     imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ↦ #x }}.
   Proof.
     iIntros "Hl H1 H2".
-    iApply (imp_mono_ret with "[-]").
-    - iApply (imp_EStore' with "Hl H1 H2").
-    - iIntros ([]) "(%a & Hl & ->)".
-      iFrame.
+    iApply (imp_EStore' with "Hl H1 H2").
+    iIntros "!>" (?) "-> $".
   Qed.
 
   (** * EPerform : expr -> expr *)

@@ -1,6 +1,6 @@
 From osiris Require Import base.
 From osiris.semantics Require Import outcome.
-From osiris.lang Require Import syntax locations thread_ids.
+From osiris.lang Require Import syntax locations thread_ids notations.
 From iris.base_logic.lib Require Import iprop.
 
 (* The type class [Encode A] stipulates the existence of a function [encode]
@@ -129,7 +129,10 @@ Section lift_specs.
 
 End lift_specs.
 
-From osiris.lang Require Import int locations thread_ids notations.
+(* FIXME: We have to import [int] after declaring [ilift_ne], or
+   type inference fails for the instance. *)
+
+From osiris.lang Require Import int.
 
 (* -------------------------------------------------------------------------- *)
 

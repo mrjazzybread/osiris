@@ -5,17 +5,21 @@ From Ltac2 Require Import Ltac2 Printf.
 Ltac2 all (tac : unit -> unit) :=
   Control.extend [] tac [].
 
-(* [last] applies a tactic to the last subgoal. *)
-
-Ltac2 last tac := Control.extend [] (fun _ => ()) [tac].
+(* [lastn] applies a list of tactics to the last subgoals (one tactic per subgoal). *)
 
 Ltac2 lastn tacs := Control.extend [] (fun _ => ()) tacs.
 
-(* [first] applies a tactic to the first subgoal. *)
+(* [last] applies a tactic to the last subgoal. *)
 
-Ltac2 first tac := Control.extend [tac] (fun _ => ()) [].
+Ltac2 last tac := lastn [tac].
+
+(* [firstn] applies a list of tactics to the first subgoals (one tactic per subgoal). *)
 
 Ltac2 firstn tacs := Control.extend tacs (fun _ => ()) [].
+
+(* [first] applies a tactic to the first subgoal. *)
+
+Ltac2 first tac := firstn [tac].
 
 (* [try_complete] takes a tactic and either
    solves the goal by running it or does nothing. *)

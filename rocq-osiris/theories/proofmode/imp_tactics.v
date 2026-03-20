@@ -5,16 +5,6 @@ From osiris.proofmode Require Import env_lookups.
 From stdpp Require Import strings.
 From Ltac2 Require Import Ltac2 Printf.
 
-Ltac2 get_expr () :=
-  let g := get_iris_goal () in
-  lazy_match! g with
-  | impure _ (eval _ ?e) ?_Ψ ?_ζ ?_Φ => e
-  | _ =>
-      Control.zero
-        (Tactic_failure
-           (Some (fprintf "Expected goal of the form [imp (eval η e) _]")))
-  end.
-
 Ltac2 imp_int_tac () :=
   let e := get_expr () in
   lazy_match! eval hnf in $e with
@@ -63,6 +53,34 @@ Ltac2 fetch_appropriate_arith_lemma (e : constr) : (constr * arith_type) option 
 
 Ltac2 representable () := ltac1:(int.representable).
 
+(* [mk_evar id ty] introduces a local let-binding [id : ty := ?x] into the
+   proof context, where [?x] is a fresh metavariable.  The head symbol [id]
+   is syntactically rigid, so [Hint Mode Encode +] is satisfied when Coq later
+   searches for [Encode id], while the actual type is still deferred. *)
+Ltac2 mk_evar (id : ident) (ty : constr) :=
+  let v := open_constr:((_ : $ty)) in
+  Std.pose (Some id) v.
+
+Ltac2 get_pointsto (l : constr) : constr * constr :=
+  let (_, spat_hyps) := get_iris_hyps () in
+  let rec go env :=
+    lazy_match! env with
+    | environments.Enil =>
+        Control.zero (Tactic_failure
+                        (Some (fprintf "Could not find hypothesis [%t ↦ _]" l)))
+    | environments.Esnoc ?env ?name ?prop =>
+        match! prop with
+        | (?l' ↦ (#?a))%I =>
+            if Constr.equal l l' then
+              (name, Constr.type a)
+            else
+              go env
+        | _ => go env
+        end
+    end
+  in
+  go spat_hyps.
+
 Ltac2 rec imp_step () :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
@@ -87,7 +105,13 @@ Ltac2 rec imp_step () :=
       | EStore _ _ => Control.plus
                         (fun _ => iApply (imp_EStore with "[$]");
                                   Control.dispatch [imp_step; fun _ => complete imp_step])
-                        (fun _ => iApply (imp_EStore' with "[$]"); try (imp_step ()))
+                        (fun _ =>
+                           mk_evar @imp_store_A 'Type;
+                           let store_a := Control.hyp @imp_store_A in
+                           mk_evar @imp_store_HA open_constr:(Encode $store_a);
+                           let specialized_store := open_constr:(imp_EStore' (A:=$store_a)) in
+                           iApply ($specialized_store with "[$]");
+                           try (imp_step ()))
       | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
       | _ =>
           Control.zero
@@ -126,13 +150,25 @@ Tactic Notation "imp_ref" constr(x) :=
 Tactic Notation "imp_ref" := ltac2:(imp_ref).
 
 Ltac2 imp_store_tac (l : constr) (x : constr option) :=
-  let specialized_store :=
-    match x with
-    | Some x => open_constr:(imp_EStore $l $x)
-    | None => open_constr:(imp_EStore' _ $l)
-    end
-  in
-  iApply ($specialized_store with "[$]"); try (imp_step).
+  let (hl, a) := get_pointsto l in
+  match x with
+  | Some x =>
+      let specialized_store := open_constr:(imp_EStore $l $x) in
+      iApply ($specialized_store with $hl) >
+       [try (imp_step) | try (imp_step) ]
+  | None =>
+      let specialized_store := open_constr:(imp_EStore' (A:=$a) _ $l) in
+      iApply ($specialized_store with $hl) >
+        [try (imp_step) | try (imp_step) |
+          iIntros "!>"; cbn beta;
+          lazy_match! get_iris_goal () with
+          | bi_forall (λ a, bi_wand (bi_pure (a = _)) _) =>
+              let name := match! hl with | base.ident.INamed ?s => s | _ => '"" end in
+              let pat := '("% -> " ++ $name)%string in
+              iIntros $pat; auto
+          end
+        ]
+  end.
 
 Ltac2 imp_store2_tac (l : constr) :=
   let specialized_store2 := open_constr:(imp_EStore2 $l) in

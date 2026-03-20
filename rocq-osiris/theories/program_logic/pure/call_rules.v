@@ -34,7 +34,9 @@ Lemma pure_call_consequence `{Encode X} `{Encode Y}
   (∀ y, φ y → ψ y) →
   pure (call v1 v'2) ψ ⊥.
 Proof.
-  eauto using pure_mono, pure_call.
+  intros -> Hcall1 Hconseq.
+  eapply pure_mono;
+  eauto using pure_call.
 Qed.
 
 (* The following two lemmas paraphrase the definition of [call] in eval.v.

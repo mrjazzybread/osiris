@@ -59,7 +59,7 @@ Lemma example_store η x l :
     {{ λ (_ : unit), l ↦ #2 }}.
 Proof.
   iIntros (Hx) "Hl".
-  imp_store l 2%Z.
+  imp_store l.
 Qed.
 
 (* [x := 2; x := 4] *)
@@ -76,7 +76,7 @@ Proof.
   iApply (imp_ESeq with "[Hl]").
   - imp_store l 2%Z.
   - iIntros "Hl".
-    imp_store l 4%Z.
+    imp_store l.
 Qed.
 
 (* [!(ref 1)]  *)

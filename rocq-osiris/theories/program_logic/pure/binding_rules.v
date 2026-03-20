@@ -82,7 +82,7 @@ Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs φ
   bindings η (Binding (PPair p1 p2) e :: bs) φ ψ.
 Proof.
   intros Hpure Hbs Hpat Hcov.
-  eapply bindings_cons; eauto.
+  eapply (bindings_cons (A:=A*B)); eauto.
   intros [a b] [Hψ1 Hψ2]. apply Hbs; auto.
 Qed.
 

@@ -428,12 +428,40 @@ Qed.
 Ltac prove_in_shift_range_30 :=
   apply prove_in_shift_range_30; lia.
 
+Lemma prove_representable_sub (x y : Z) :
+  0 <= x <= max_signed ->
+  0 <= y <= max_signed ->
+  representable (x - y).
+Proof.
+  intros [??] [??].
+  split.
+  - transitivity (0 - max_signed); [ | lia ].
+    rewrite min_signed_eq, max_signed_eq.
+    pose proof (Coqlib.two_power_nat_pos w); lia.
+  - lia.
+Qed.
+
+(* A more general variant: if [x] and [y] are individually representable
+   and both non-negative, then [x - y] is representable. *)
+
+Lemma representable_sub (x y : Z) :
+  representable x ->
+  0 <= x ->
+  representable y ->
+  0 <= y ->
+  representable (x - y).
+Proof.
+  unfold representable. intros [_ Hxmax] Hxmin [_ Hymax] Hymin.
+  apply prove_representable_sub; lia.
+Qed.
+
 Ltac representable :=
   try solve [ tauto | eauto 2
             | prove_representable_30
             | prove_urepresentable_30
             | prove_in_shift_range_30
-            | prove_representable_array ].
+            | prove_representable_array
+            | (eapply representable_sub; [representable | lia | representable | lia]) ].
 
 Global Hint Extern 1 (representable _) => representable : representable.
 
