@@ -62,13 +62,13 @@ Section verification.
       (* (fun i -> i + 1) *)
       { iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
         iIntros (i) "!>". iApply imp_please; iNext.
-        imp_arith. iIntros "!>" (? j) "-> ->". auto. }
-      iIntros (f ?) "-> #Hf %m Hm".
+        imp_arith. }
+      iIntros "#Hf Hm".
       (* We weaken the spec of [Array.init] to one where the function
          does not depend on the previously initialized elements. *)
       iPoseProof (weaken_init_spec with "Hm") as "Hm".
       iApply ("Hm" $! Z with "[//]").
-      iIntros "!> !>".
+      iIntros "!>".
       iApply (iSpec_mono with "Hf").
       iIntros (i m') "$ Hbound //". }
 
@@ -77,7 +77,7 @@ Section verification.
     (* We now prove the fold which returns the final result:
        [Array.fold_left (+) 0 a]. *)
     imp_app τ[val;Z;array].
-    iIntros (??) "-> %add #Hadd_ -> %m Hm".
+    iIntros "#Hadd_ Hm".
 
     iPoseProof (slice_of_own with "HownArr") as "(#Harr & Hslice)"; first reflexivity.
     iSpecialize ("Hm"
@@ -85,7 +85,7 @@ Section verification.
                   with "Harr Hslice").
     (* Show that we can drop the ownership of the array *)
     iApply (imp_mono_ret (λ v, ⌜v = _⌝ ∗ _)%I with "[-]");
-      last (iIntros "!>" (?) "(-> & _)"; iPureIntro; reflexivity).
+      last (iIntros (?) "(-> & _) //").
 
     iApply "Hm".
     + (* Subgoal: show that adding each successive element preserves the invariant. *)

@@ -89,7 +89,7 @@ Ltac2 rec imp_step () :=
       try (iApply $lemma;
            match arith_kind with
            | Literal => ()
-           | Op => Control.extend [] (fun _ => complete imp_step) [ fun _ => auto ]
+           | Op => Control.extend [] (fun _ => complete imp_step) [ fun _ => simple_intros (); auto ]
            | Comparison =>
                lastn [ (fun _ => complete imp_step); (fun _ => complete imp_step) ];
                firstn [ representable; representable ]
@@ -201,7 +201,7 @@ Ltac2 imp_arith_tac (selpat : constr option) :=
       iApply ($lemma with $s);
       match arith_kind with
       | Literal => ()
-      | Op => try (imp_step)
+      | Op => Control.extend [] (fun _ => try (imp_step)) [ fun _ => simple_intros (); auto ]
       | Comparison =>
           lastn [ (fun _ => imp_step); (fun _ => imp_step) ];
           firstn [ representable; representable ]
@@ -239,7 +239,7 @@ Ltac2 imp_app_tac (types : constr) (sel : constr option) :=
     List.init num_arg_goals (fun _ => (fun _ => try (imp_step)))
   in
   let conseq_tac () :=
-    (unfold tapp, tbind)
+    (unfold tapp, tbind; simple_intros ())
   in
   Control.dispatch (imp_path_tac :: (List.append arg_tacs [conseq_tac])).
 
@@ -255,6 +255,31 @@ Tactic Notation "imp_app" constr(types) "with" constr(sel) :=
                         (Option.get (Ltac1.to_constr types))
                         (Ltac1.to_constr sel)) in
   tac types sel.
+
+Ltac2 imp_for_tac (invariant : constr) (i : constr) (j : constr) (selpat : constr option) :=
+  let specialized_for := '(imp_EFor $invariant $i $j) in
+  match selpat with
+  | None => iApply $specialized_for
+  | Some s => iApply ($specialized_for with $s)
+  end >
+    [ representable () | representable () | try (imp_step) | try (imp_step) | | iIntros "!>" ].
+
+Tactic Notation "imp_for" constr(i) "to" constr(j) "$!" constr(invariant) "with" constr(sel) :=
+  let tac := ltac2:(inv i j sel |-
+                      imp_for_tac
+                        (Option.get (Ltac1.to_constr inv))
+                        (Option.get (Ltac1.to_constr i))
+                        (Option.get (Ltac1.to_constr j))
+                        (Ltac1.to_constr sel)) in
+  tac invariant i j sel.
+Tactic Notation "imp_for" constr(i) "to" constr(j) "$!" constr(invariant) :=
+  let tac := ltac2:(inv i j |-
+                      imp_for_tac
+                        (Option.get (Ltac1.to_constr inv))
+                        (Option.get (Ltac1.to_constr i))
+                        (Option.get (Ltac1.to_constr j))
+                        None) in
+  tac invariant i j.
 
 From iris.proofmode Require Import ltac_tactics.
 
@@ -324,9 +349,9 @@ Section TacticTests.
     iIntros (z) "%yspec".
     imp_app τ[Z;Z].
     { imp_app τ[Z;Z].
-      iIntros (??) "-> -> %m Hm !>".
+      iIntros "Hm".
       iApply "Hm". }
-    iIntros (??) "-> #%Ha %m Hm !>".
+    iIntros "-> #%Ha Hm".
     iApply (imp_mono_ret with "Hm").
     iIntros (y ->). iPureIntro.
     lia.

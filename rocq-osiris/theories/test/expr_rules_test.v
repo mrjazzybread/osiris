@@ -108,7 +108,7 @@ Proof.
     set_postcondition (λ i, ⌜(i = 1 + n)%Z⌝ ∗ lx ↦ #n)%I.
     imp_arith with "[] [Hx]".
     (* add's postcondition *)
-    iIntros "!>" (n1 n2) "-> (-> & $)".
+    iIntros "(-> & $)".
     auto.
 
   - (* store's postcondition *)
@@ -131,7 +131,7 @@ Proof.
     set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦ #n)%I.
     imp_arith with "[Hx1] [Hx2]".
     (* add's postcondition *)
-    iIntros "!>" (i j) "(-> & Hx1) (-> & Hx2)".
+    iIntros "(-> & Hx1) (-> & Hx2)".
     iCombine "Hx1" "Hx2" as "$".
     iPureIntro; lia.
   - (* := *)
