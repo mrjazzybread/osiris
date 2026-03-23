@@ -15,7 +15,7 @@ Section init_proof.
 
   Definition init_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
-      (∀ (A : Type) `(Encode A, Inhabited A) I,
+      (∀ (A : Type) `(Encode A, Inhabited A) (I : list A → iProp Σ),
          ⌜0 ≤ n ≤ max_array⌝ -∗
          (* [f] is a function [Z → A], such that [f i] preserves
             an invariant [I] over the results of all calls to [f i] so far. *)
@@ -69,19 +69,16 @@ Section init_proof.
     unfold init_spec.
     iIntros (A HencA HinhA I) "%Hbounds #Hf HI".
     iApply imp_please; iNext.
-    iApply imp_EIfThenElse.
-    { imp_arith. }
-    iIntros ([|]) "%Heq0".
 
+    (* [if l = 0] *)
+    imp_if.
     { (* Case: [n = 0]. *)
       iApply imp_mono_ret. iApply (imp_EArrayEmpty (A:=A)).
       iIntros (a) "$".
       iFrame. iPureIntro; length; lia. }
 
-    iApply imp_EIfThenElse.
-    { imp_arith. }
-    iIntros ([|]) "%Hlt0".
-
+    (* [if l < 0] *)
+    imp_if.
     { (* Case: [n < 0]. *)
       (* This case is forbidden by the spec. *) lia. }
 
@@ -94,6 +91,7 @@ Section init_proof.
         iApply ("H" with "[] [] HI"); iPureIntro; length; lia.
       - iIntros "HI Hm".
         iApply ("Hm" with "[] HI"). iPureIntro; lia. }
+
     iIntros (res) "(%x & HΦx & HownArr)".
     iDestruct "HownArr" as "(#Harr & Hslice)". length.
 
@@ -125,7 +123,8 @@ Section init_proof.
 
       (* Subgoal: [unsafe_set res i (f i)]. *)
       imp_app τ[array;Z;A] with "[] [] [] [HI]".
-      { (* unsafe_set *) iSpecialize ("ha" $! A HencA HinhA). iAssumption. }
+      { (* unsafe_set *)
+        iSpecialize ("ha" $! A HencA HinhA). iAssumption. }
       { (* (f i) *)
         imp_app τ[Z].
         iIntros "Hm".
@@ -329,10 +328,7 @@ Section map_spec.
     iIntros (l) "->".
 
     (* if l = 0 then [||] else ... *)
-    iApply imp_EIfThenElse.
-    { imp_arith. }
-    iIntros ([|]) "%Heq0".
-
+    imp_if.
     { (* Case: length xs = 0, so xs = [] *)
       iApply imp_mono_ret.
       iApply (imp_EArrayEmpty (A:=B)).
@@ -1513,7 +1509,7 @@ Section module_proof.
     iIntros (sort) "Hsort".
 
     iApply (imp_sitems_let (A:=Z)).
-    { iApply imp_EInt. }
+    { imp_int. }
     iIntros (?) "->".
 
     iApply (imp_sitems_let (A:=val)).

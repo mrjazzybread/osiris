@@ -886,6 +886,19 @@ Section imp_rules_expr.
     - iApply (imp_ret VUnit ()); auto.
   Qed.
 
+  Lemma imp_EIfThen2 {Φ : unit → iProp Σ} {ζ} η eb e1 (Φb : bool → iProp Σ) :
+    imp eval η eb @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φb }} -∗
+    (Φb true -∗
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (Φb false -∗ Φ ()) -∗
+    imp eval η (EIfThen eb e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hb He".
+    iApply (imp_EIfThen with "Hb").
+    iIntros ([|]) "HΦb";
+      iApply ("He" with "HΦb").
+  Qed.
+
   (** * EIfThenElse : expr → expr → expr → expr *)
 
   Lemma imp_EIfThenElse `{Encode A} {Φ : A → iProp Σ} {ζ} η eb e1 e2 (Φb : bool → iProp Σ) :
@@ -901,6 +914,19 @@ Section imp_rules_expr.
     iIntros (b) "Hb". change (♯b) with b.
     iSpecialize ("He" with "Hb").
     destruct b; iApply "He".
+  Qed.
+
+  Lemma imp_EIfThenElse2 `{Encode A} {Φ : A → iProp Σ} {ζ} η eb e1 e2 (Φb : bool → iProp Σ) :
+    imp eval η eb @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φb }} -∗
+    (Φb true -∗
+     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (Φb false -∗
+     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp eval η (EIfThenElse eb e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hb He /=".
+    iApply (imp_EIfThenElse with "Hb").
+    iIntros ([|]) "HΦb"; iApply ("He" with "HΦb").
   Qed.
 
   (** * EMatch : expr → list branch → expr *)

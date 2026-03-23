@@ -281,6 +281,25 @@ Tactic Notation "imp_for" constr(i) "to" constr(j) "$!" constr(invariant) :=
                         None) in
   tac invariant i j.
 
+Ltac2 imp_if_tac (selpat : constr option) :=
+  let specialized_if :=
+    let e := get_expr () in
+    lazy_match! eval hnf in $e with
+    | EIfThen _ _ => 'imp_EIfThen2
+    | EIfThenElse _ _ _ => 'imp_EIfThenElse2
+    end
+  in
+  match selpat with
+  | None => iApply $specialized_if
+  | Some s => iApply ($specialized_if with $s)
+  end >
+    [ try (imp_step) | iSplit; try (iIntros "%") ].
+
+Tactic Notation "imp_if" "with" constr(sel) :=
+  let tac := ltac2:(sel |- imp_if_tac (Ltac1.to_constr sel)) in
+  tac sel.
+Tactic Notation "imp_if" := ltac2:(imp_if_tac None).
+
 From iris.proofmode Require Import ltac_tactics.
 
 Set Default Proof Mode "Classic".
