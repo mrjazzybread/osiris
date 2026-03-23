@@ -57,8 +57,8 @@ Section init_proof.
   Definition init := (EAnonFun __fun21).
 
   Lemma imp_init η :
-    in_env "make" array_make_spec η -∗
-    in_env "unsafe_set" array_set_spec η -∗
+    □ in_env "make" array_make_spec η -∗
+    □ in_env "unsafe_set" array_set_spec η -∗
     imp (eval η init) {{ λ c, □ iSpec τ[Z; val] c init_spec }}.
   Proof.
     iIntros "#Hlookup1 #Hlookup2".
@@ -210,8 +210,8 @@ Section iter_proof.
   Qed.
 
   Lemma imp_iter η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
     imp (eval η iter) {{ λ c, □ iSpec τ[val; array] c iter_spec }}.
   Proof.
     iIntros "#Hlength #Hget".
@@ -309,10 +309,10 @@ Section map_spec.
   Definition map := (EAnonFun __fun88).
 
   Lemma imp_map η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
-    in_env "unsafe_set" array_set_spec η -∗
-    in_env "make" array_make_spec η -∗
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
+    □ in_env "unsafe_set" array_set_spec η -∗
+    □ in_env "make" array_make_spec η -∗
     imp (eval η map) {{ λ c, □ iSpec τ[val; array] c map_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset #Hmake".
@@ -465,9 +465,9 @@ Section map_inplace_spec.
   Definition map_inplace := (EAnonFun __fun91).
 
   Lemma imp_map_inplace η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
-    in_env "unsafe_set" array_set_spec η -∗
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
+    □ in_env "unsafe_set" array_set_spec η -∗
     imp (eval η map_inplace) {{ λ c, □ iSpec τ[val; array] c map_inplace_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset".
@@ -570,9 +570,9 @@ Section mapi_inplace_spec.
   Definition mapi_inplace := (EAnonFun __fun94).
 
   Lemma imp_mapi_inplace η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
-    in_env "unsafe_set" array_set_spec η -∗
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
+    □ in_env "unsafe_set" array_set_spec η -∗
     imp (eval η mapi_inplace) {{ λ c, □ iSpec τ[val; array] c mapi_inplace_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset".
@@ -701,8 +701,8 @@ Section iteri_spec.
   Definition iteri := (EAnonFun __fun109).
 
   Lemma imp_iteri η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
     imp (eval η iteri) {{ λ c, □ iSpec τ[val; array] c iteri_spec }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
@@ -879,9 +879,9 @@ Section fold_left_spec.
   Definition fold_left := (EAnonFun __fun162).
 
   Lemma imp_fold_left η :
-    in_env "length" array_length_spec η -∗
-    in_env "unsafe_get" array_get_spec η -∗
-    imp (eval η fold_left) {{ λ c, ∀ `(Encode A), □ iSpec τ[val; A; array] c (fold_left_spec A) }}.
+    □ in_env "length" array_length_spec η -∗
+    □ in_env "unsafe_get" array_get_spec η -∗
+    imp (eval η fold_left) {{ λ c, □ ∀ `(Encode A), iSpec τ[val; A; array] c (fold_left_spec A) }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_EAnon_poly_pers.
@@ -1327,7 +1327,7 @@ Section module_proof.
          var_spec "init" (λ init, □ iSpec τ[Z; val] init init_spec);
          var_spec "iter" (λ iter, □ iSpec τ[val;array] iter iter_spec);
          var_spec "iteri" (λ iteri, □ iSpec τ[val;array] iteri iteri_spec);
-         var_spec "fold_left" (λ fold_left, ∀ A (HencA : Encode A), □ iSpec τ[val;A;array] fold_left (fold_left_spec A));
+         var_spec "fold_left" (λ fold_left, □ ∀ A (HencA : Encode A), iSpec τ[val;A;array] fold_left (fold_left_spec A));
          var_spec "map" (λ map, □ iSpec τ[val;array] map map_spec);
          var_spec "map_inplace" (λ map_inplace, □ iSpec τ[val;array] map_inplace map_inplace_spec);
          var_spec "mapi_inplace" (λ mapi_inplace, □ iSpec τ[val;array] mapi_inplace mapi_inplace_spec)

@@ -178,11 +178,11 @@ Section ExternalsDef.
   Definition Externals__array_length_expr := EEta1 EArrayLength.
 
   Definition array_length_spec length : iProp Σ :=
-    □ iSpec τ[array] length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }})%I.
+    iSpec τ[array] length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }})%I.
 
   Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ length,
-       array_length_spec length -∗
+       □ array_length_spec length -∗
        imp eval_sitems (x ~> length;
                      η, x ~> length;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
@@ -204,7 +204,7 @@ Section ExternalsDef.
   Definition Externals__array_get_expr : expr := EEta2 EArrayGet.
 
   Definition array_get_spec get : iProp Σ :=
-    □ iSpec τ[array;Z] get
+    iSpec τ[array;Z] get
       (λ a i m,
          ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) n dq j (xs : list A),
          isArray a n -∗
@@ -215,7 +215,7 @@ Section ExternalsDef.
 
   Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ get,
-       array_get_spec get -∗
+       □ array_get_spec get -∗
        imp eval_sitems (x ~> get;
                      η, x ~> get;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
@@ -241,7 +241,7 @@ Section ExternalsDef.
 
   Definition array_set_spec set : iProp Σ :=
     ∀ `(Encode A, Inhabited A),
-    □ iSpec τ[array;Z;A] set
+    iSpec τ[array;Z;A] set
       (λ a i x m,
          ∀ n j (xs : list A) Φ,
          isArray a n -∗
@@ -253,7 +253,7 @@ Section ExternalsDef.
 
   Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ set,
-       array_set_spec set -∗
+       □ array_set_spec set -∗
        imp eval_sitems (x ~> set;
                      η, x ~> set;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
@@ -278,7 +278,7 @@ Section ExternalsDef.
 
   Definition array_make_spec make : iProp Σ :=
     ∀ `(Encode A),
-    □ iSpec τ[Z; A] make
+    iSpec τ[Z; A] make
       (λ n x m,
            ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
                 Φ x -∗
@@ -286,7 +286,7 @@ Section ExternalsDef.
 
   Lemma imp_externals_make {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ make,
-       array_make_spec make -∗
+       □ array_make_spec make -∗
        imp eval_sitems (x ~> make;
                         η, x ~> make;
                         δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗

@@ -245,8 +245,8 @@ Section imp_spec.
     η
     (x : var)
     e E Ψ :
-    (∀ A (_ : Encode A), □ predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, ∀ A (_ : Encode A), □ iSpec (τ A) c (P A) }}.
+    (□ ∀ A (_ : Encode A), predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ ∀ A (_ : Encode A), iSpec (τ A) c (P A) }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
@@ -260,8 +260,8 @@ Section imp_spec.
     η
     (x : var)
     e E Ψ :
-    (∀ A `(Encode A, Inhabited A), □ predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, ∀ A `(Encode A, Inhabited A), □ iSpec (τ A) c (P A) }}.
+    (□ ∀ A `(Encode A, Inhabited A), predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
+    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ ∀ A `(Encode A, Inhabited A), iSpec (τ A) c (P A) }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
