@@ -974,6 +974,33 @@ Proof.
   - apply lookup_zip_with_Some.
 Qed.
 
+(* Interaction of [lookup] with [prefix]. *)
+
+Lemma prefix_lookup_lt xs ys (i : Z) :
+  i < length xs →
+  xs `prefix_of` ys →
+  xs !! i = ys !! i.
+Proof.
+  intros.
+  unfold lookup, listz_lookup.
+  case_decide; first reflexivity.
+  apply prefix_lookup_lt.
+  - unfold length in H. lia.
+  - assumption.
+Qed.
+
+Lemma prefix_lookup_Some xs ys i x :
+  xs !! i = Some x →
+  xs `prefix_of` ys →
+  ys !! i = Some x.
+Proof.
+  intros Hlookup Hpref.
+  assert (valid i xs) by (apply valid_is_Some_1; eauto).
+  unfold lookup, listz_lookup in Hlookup |- *.
+  case_decide; first lia.
+  eapply prefix_lookup_Some; eassumption.
+Qed.
+
 End Lookup.
 
 Global Opaque singleton.
@@ -1259,6 +1286,26 @@ Lemma lookup_total_seg i j xs k :
   valid k (seg i j xs) →
   seg i j xs !!! k = xs !!! (i `max` 0 + k).
 Proof. easy. Qed.
+
+(* Interaction of [lookup_total] and [prefix]. *)
+
+Lemma prefix_lookup_total_lt xs ys (i : Z) :
+  i < length xs →
+  xs `prefix_of` ys →
+  xs !!! i = ys !!! i.
+Proof.
+  intros Hlen Hpref.
+  pose proof (prefix_lookup_lt xs ys i Hlen Hpref) as Hlookup.
+  destruct (xs !! i) eqn:Heq.
+  - rewrite (list_lookup_total_correct xs i a); last assumption.
+    apply eq_sym in Hlookup.
+    rewrite (list_lookup_total_correct ys i a); last assumption.
+    reflexivity.
+  - apply lookup_None_invalid_1 in Heq.
+    apply eq_sym in Hlookup.
+    apply lookup_None_invalid_1 in Hlookup.
+    rewrite !lookup_total_None_invalid_2; auto.
+Qed.
 
 End LookupTotal.
 
@@ -1860,6 +1907,18 @@ Qed.
 Lemma init_singleton f :
   init 1 f = singleton (f 0).
 Proof. reflexivity. Qed.
+
+(* Splitting [init n f] into two segments. *)
+
+Lemma split_init n i f :
+  0 ≤ i ≤ n →
+  list_z.init n f = list_z.init i f ++ list_z.init (n - i) (λ k, f (i + k)).
+Proof.
+  intros Hi.
+  rewrite <- (seg_all 0 n (list_z.init n f)); try (length; lia).
+  rewrite (split_seg i (list_z.init n f) 0 n); try (length; lia).
+  by seg.
+Qed.
 
 (* [replicate] applied to length 0 or 1. *)
 

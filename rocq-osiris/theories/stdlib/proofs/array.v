@@ -6,7 +6,7 @@ From osiris.stdlib Require Import og_array Externals.
 
 From iris Require Import ltac_tactics.
 
-From osiris.logic Require Export big_opLZ.
+From osiris.logic Require Export list_z big_opLZ.
 From osiris.tactics Require Import osiris_utils.
 
 Section init_proof.
@@ -36,7 +36,17 @@ Section init_proof.
             and such that [Φ i] holds for the [i]'th element of xs. *)
          imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ ownArray a xs ∗ [∗ listZ] i↦x ∈ xs, Φ i x }})%I.
 
-  Lemma weaken_init_spec n f m :
+  Definition init_pure_spec : Z → val → microvx → iProp Σ :=
+    λ n f m,
+      (∀ (A : Type) `(Encode A, Inhabited A) (Φ : Z → A),
+         ⌜0 ≤ n ≤ max_array⌝ -∗
+         (* [f] is a function [Z → A], which has a pure model [Φ]. *)
+         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, ⌜x = Φ i⌝ }}) -∗
+         (* Calling [init f n] returns an array [a] such that [ownArray a xs],
+            and such that [Φ i] holds for the [i]'th element of xs. *)
+         imp m {{ λ a, ownArray a (init n Φ) }})%I.
+
+  Lemma init_spec_spec' n f m :
     init_spec n f m -∗ init_spec' n f m.
   Proof.
     iIntros "Hinit" (A HencA HinhA Φ Hbounds) "#Hf".
@@ -52,6 +62,38 @@ Section init_proof.
       rewrite <- Hlenxs; rewrite /length.
       iApply (big_sepLZ_snoc with "HΦs").
     - by iApply big_sepLZ_nil.
+  Qed.
+
+  Lemma init_spec'_pure_spec n f m :
+    init_spec' n f m -∗ init_pure_spec n f m.
+  Proof.
+    iIntros "Hinit" (A HencA HinhA Φ Hbounds) "#Hf".
+    iApply (imp_mono_ret with "[-]").
+    iApply ("Hinit" $! A HencA HinhA (λ i x, ⌜x = Φ i⌝)%I Hbounds with "Hf").
+    iIntros (a) "(%xs & %Hlen & Hown & HlistZ)".
+    iPoseProof (big_sepLZ_pure_1 with "HlistZ") as "%Hlist".
+    iDestruct "Hown" as "(%Harray & Hslice)".
+    iSplitR. { iPureIntro. length. lia. }
+    iAssert (⌜init n Φ = xs⌝)%I as "->".
+    { iPureIntro.
+      eapply list_eq_same_length.
+      - length. apply eq_sym, Hlen.
+      - reflexivity.
+      - intros i Hvalid.
+        lookup.
+        apply lookup_valid_is_Some in Hvalid as [? Hlookup].
+        rewrite Hlookup.
+        apply Hlist in Hlookup as ->.
+        reflexivity. }
+    iFrame.
+  Qed.
+
+  Lemma init_spec_pure_spec n f m :
+    init_spec n f m -∗ init_pure_spec n f m.
+  Proof.
+    iIntros "Hinit".
+    iApply init_spec'_pure_spec.
+    by iApply init_spec_spec'.
   Qed.
 
   Definition init := (EAnonFun __fun21).
@@ -864,7 +906,7 @@ Section fold_left_spec.
   (** [fold_left f init a] computes [f (... (f (f init a.(0)) a.(1)) ...) a.(n-1)]. *)
   Definition fold_left_spec A `{Encode A} : val → A → array → microvx → iProp Σ :=
     λ f x a m,
-      (∀ (B : Type) (_ : Encode B) (_ : Inhabited B)
+      (∀ `(Encode B, Inhabited B)
          dq (xs : list B) (I : A → list B → iProp Σ),
          isArray a (length xs) -∗
          isSlice dq a 0 xs -∗
@@ -875,6 +917,34 @@ Section fold_left_spec.
                               imp m {{ λ (acc' : A), I acc' (visited ++ singleton b) }}) -∗
          I x [] -∗
          imp m {{ λ (r : A), I r xs ∗ isSlice dq a 0 xs }})%I.
+
+  (** [fold_left f init a] computes [f (... (f (f init a.(0)) a.(1)) ...) a.(n-1)]. *)
+  Definition fold_left_pure_spec A `{Encode A} : val → A → array → microvx → iProp Σ :=
+    λ f x a m,
+      (∀ `(Encode B, Inhabited B)
+         dq (xs : list B) (Φ : A → B → A),
+         isArray a (length xs) -∗
+         isSlice dq a 0 xs -∗
+         □ iSpec τ[A; B] f (λ (acc : A) (b : B) m, imp m {{ λ acc', ⌜acc' = Φ acc b⌝ }}) -∗
+         imp m {{ λ (r : A), ⌜r = fold_left Φ xs x⌝ ∗ isSlice dq a 0 xs }})%I.
+
+  Lemma fold_left_spec_pure_spec `{Encode A} f x a m :
+    fold_left_spec A f x a m -∗ fold_left_pure_spec A f x a m.
+  Proof.
+    iIntros "Hflspec".
+    iIntros (B HencB HinhB dq xs Φ) "Harr Hslice #Hf".
+    iApply ("Hflspec" $! B _ _ dq xs (λ acc visited, ⌜acc = fold_left Φ visited x⌝)%I
+             with "Harr Hslice").
+    - iIntros "!>".
+      iApply (iSpec_mono with "Hf").
+      iIntros (acc b m') "Hm' %visited %Hpermitted %HI".
+      iApply (imp_mono_ret with "Hm'").
+      iIntros (acc') "%Hacc'".
+      iPureIntro.
+      rewrite fold_left_app. rewrite <- HI.
+      apply Hacc'.
+    - iPureIntro. done.
+  Qed.
 
   Definition fold_left := (EAnonFun __fun162).
 
