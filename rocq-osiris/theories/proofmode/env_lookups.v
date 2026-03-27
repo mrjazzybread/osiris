@@ -686,7 +686,7 @@ Section TacticTests.
       iApply "Hm". }
     { imp_path. }
     iIntros (??) "-> #%Ha %m Hm !>".
-    iApply (imp_mono_ret with "Hm").
+    iApply (imp_wand with "Hm").
     iIntros (y ->). iPureIntro.
     specialize (Ha unit).
     lia.

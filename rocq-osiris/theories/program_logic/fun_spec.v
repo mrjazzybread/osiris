@@ -131,7 +131,7 @@ Section imp_spec.
     { simp iSpec. iIntros (x).
       iApply "Hmono". iApply "HP". }
     simp iSpec; iIntros (x).
-    iApply (imp_mono_ret with "HP").
+    iApply (imp_wand with "HP").
     iIntros (c') "HSpec'".
     iApply (IH with "HSpec'").
     iApply "Hmono".
@@ -286,7 +286,7 @@ Section imp_spec.
     destruct c; simpl in HSpec; try by apply wp.invert_pure_wp_crash in HSpec.
     - destruct a; simpl in *.
       iApply imp_please. iNext.
-      iApply (@imp_mono_ret _ _ val val).
+      iApply imp_wand.
       { iApply impure_pure. apply wp.invert_pure_wp_eval in HSpec.
         unfold judgements.pure.
         eapply (wp.pure_wp_mono_ret _ HSpec).
@@ -299,7 +299,7 @@ Section imp_spec.
         simpl in *. destruct a; simpl in *.
         iApply imp_please; iNext.
         apply wp.invert_pure_wp_eval in HSpec.
-        iApply imp_mono_ret.
+        iApply imp_wand.
         { iApply impure_pure.
           eapply (wp.pure_wp_mono_ret _ HSpec).
           intros v Hspec. exists v. split; first reflexivity.
@@ -331,8 +331,8 @@ Section imp_spec.
     iSpecialize ("HSpec" $! x).
     iApply (imp_mono_prot with "[HSpec]"); [ | iApply iEff_le_bottom ].
     rewrite /continue /=.
-    iApply (imp_mono_ret with "[HSpec]").
-    iApply (imp_mono_throw with "HSpec"). iIntros (? []).
+    iApply (imp_wand with "[HSpec]").
+    iApply (imp_wand_exn with "HSpec"). iIntros (? []).
     iIntros (c') "$".
   Qed.
 
@@ -493,8 +493,8 @@ Section imp_EApp_def.
       simp iSpec.
       iPoseProof (imp_mono_prot with "HSpec []") as "HSpec"; first iApply iEff_le_bottom.
       iNext. rewrite /continue /=.
-      iApply (imp_mono_ret with "[HSpec]").
-      iApply (imp_mono_throw with "HSpec"); first iIntros (? []).
+      iApply (imp_wand with "[HSpec]").
+      iApply (imp_wand_exn with "HSpec"); first iIntros (? []).
 
       iIntros (c) "HSpec /=".
       iApply (iSpec_mono with "HSpec").
@@ -535,7 +535,7 @@ Section imp_EApp_def.
      unfold imp_EApp_pers_prop.
      iIntros (η e Φ' Ψ ζ P) "He".
      iApply imp_EApp.
-     iApply (imp_mono_ret with "He").
+     iApply (imp_wand with "He").
      iIntros (?) "#$".
    Qed.
 
@@ -599,7 +599,7 @@ Section transparent_funs.
      - iIntros (??) "-> HΦ".
        rewrite /continue /=.
        iApply imp_please.
-       iApply imp_mono_ret. iApply imp_EAnon_literal.
+       iApply imp_wand. iApply imp_EAnon_literal.
        iIntros "!> !>" (v) "Hv". iCombine "Hv HΦ" as "Hv".
        instantiate (1 := (λ v, ∃ y, ⌜v = VClo (v1 ~> #y;
                     η') (Anon (v2 => e))⌝ ∗ Φ1 y)%I).
@@ -636,7 +636,7 @@ Section transparent_funs.
        - iIntros (??) "-> HΦ".
          rewrite /continue /=.
          iApply imp_please.
-         iApply imp_mono_ret. iApply imp_EAnon_literal.
+         iApply imp_wand. iApply imp_EAnon_literal.
          iIntros "!> !>" (v) "Hv".
          instantiate (1 := (λ v, ∃ y, ⌜v = VClo _ _⌝ ∗ Φ1 y)%I).
          simpl. iFrame. }
@@ -646,7 +646,7 @@ Section transparent_funs.
      - iIntros (??) "(% & -> & HΦ1) HΦ2".
        rewrite /continue /=.
        iApply imp_please.
-       iApply imp_mono_ret. iApply imp_EAnon_literal.
+       iApply imp_wand. iApply imp_EAnon_literal.
        iIntros "!> !>" (v) "->".
        instantiate (1 := (λ v, ∃ y z, ⌜v = VClo _ _⌝ ∗ Φ1 y ∗ Φ2 z)%I).
        simpl. iFrame. iPureIntro. reflexivity. }

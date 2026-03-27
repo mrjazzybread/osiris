@@ -1,3 +1,5 @@
+From iris.proofmode Require Export proofmode.
+
 From osiris.proofmode Require Export
   equality
   pure_tactics

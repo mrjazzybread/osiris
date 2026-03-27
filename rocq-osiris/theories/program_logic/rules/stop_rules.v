@@ -189,7 +189,7 @@ Section imp_stop.
   Lemma imp_stop_fork' `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
-         imp call v1 v2 @ E ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }} ∗
+         imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }} ∗
          imp (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -213,7 +213,7 @@ Section imp_stop.
   (* We do not expect that the forked thread needs to know its own postcondition. *)
   Lemma imp_stop_fork `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
     ▷ (∀ ι', isThread ι' μ φ -∗ imp (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    ▷ (imp call v1 v2 @ E ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }}) -∗
+    ▷ (imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }}) -∗
     imp (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hcontinue Hfork".
@@ -376,7 +376,7 @@ Section imp_concurrent.
   Lemma imp_fork `{Encode B} {ζ} {Φ : thread → iProp Σ} μ (φ : B → iProp Σ) v1 v2 :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
-         imp call v1 v2 @ E ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }} ∗
+         imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }} ∗
          Φ ι') -∗
     imp (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -401,7 +401,7 @@ Section imp_concurrent.
   Lemma imp_fork_persistent `{Encode B} {ζ : exn → iProp Σ} {Φ : thread → iProp Σ} φ v1 v2 :
     ▷ (∀ ι',
           □ joinable B ι' φ -∗
-          imp call v1 v2 @ E {{ λ (_ : B), □ φ }} ∗
+          imp call v1 v2 {{ λ (_ : B), □ φ }} ∗
           Φ ι') -∗
     imp (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -421,7 +421,7 @@ Section imp_concurrent.
   Lemma imp_fork_resourceful `{Encode B} {ζ : exn → iProp Σ} {Φ : thread → iProp Σ} φs v1 v2 :
     ▷ (∀ ι',
           ([∗ list] φ ∈ φs, joinable B ι' φ) -∗
-          imp call v1 v2 @ E {{ λ (_ : B), [∗] φs }} ∗
+          imp call v1 v2 {{ λ (_ : B), [∗] φs }} ∗
           Φ ι') -∗
     imp (fork v1 v2) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -430,19 +430,19 @@ Section imp_concurrent.
     (* Given [φs], determine a suitable postcondition [ψ] for the spawned
     thread. This requires the ghost update modality because we allocate
     tokens that will be used to transfer resources. *)
-    iApply ewp_fupd. iMod (fupd_mask_subseteq ∅) as "Hmod". set_solver.
+    iApply fupd_ewp. iMod (fupd_mask_subseteq ∅) as "Hmod". set_solver.
     iDestruct (alloc_escrow_list joinN φs) as "> (%φ & #Hescrow_intro & Hescrow_elim)".
 
     (* In the postcondition of the spawned thread we can transfer the resources
     [φs] into [ψ] by the escrow mechanism *)
     iAssert (▷ ∀ ι, ([∗ list] φ ∈ φs, joinable B ι φ) -∗
-      imp call v1 v2 @ E  {{ λ (_ : B), □ φ }} ∗ Φ ι)%I
+      imp call v1 v2 {{ λ (_ : B), □ φ }} ∗ Φ ι)%I
       with "[HΦ]" as "HΦ".
     {
       iIntros "!>" (ι') "Hjs".
       iDestruct ("HΦ" $! ι' with "Hjs") as "(Hcall & $)".
       iPoseProof (imp_mono_pers with "Hcall []") as "$".
-      iIntros "!> %o φs".
+      iIntros "!>" (_) "φs".
       iSpecialize ("Hescrow_intro" with "[φs]").
       by rewrite -big_sepL_later.
       iApply (fupd_mask_mono ∅). set_solver.
@@ -543,8 +543,8 @@ Section imp_exn.
     imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hmask (%μ & %φ' & Hthread & Hcont) Hφ".
-    iApply (imp_fupd_post (code.join ι')).
-    iApply (imp_fupd_post2 (code.join ι')).
+    iApply (imp_fupd E (code.join ι')).
+    iApply (imp_fupd_exn E (code.join ι')).
     iApply (imp_join with "Hthread"). iSplit; iNext.
     - iIntros (x) "#Hφ'".
       iSpecialize ("Hcont" $! (O2Ret x) with "Hφ'").
@@ -691,7 +691,7 @@ Section imp_eval.
           {{ λ (η' : env), ∃ a : A, Φ a ∧ ⌜η' = [(name, #a)]⌝ }}.
   Proof.
     iIntros "HSpec".
-    iApply (imp_mono_ret with "[HSpec]").
+    iApply (imp_wand with "[HSpec]").
     { iApply (imp_bindings_cons with "HSpec").
       - iIntros (a) "HΦ".
         iPureIntro; apply pat_PVar.
@@ -810,7 +810,7 @@ Section imp_eval.
     imp eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "He HQ".
-    iApply (imp_mono_ret _ (eval_sitem (η, δ) (ILet [Binding (PVar x) e])) with "[He]").
+    iApply (imp_wand _ (eval_sitem (η, δ) (ILet [Binding (PVar x) e])) with "[He]").
     iApply (imp_struct_let_single with "He").
     iIntros ([η' δ']) "(%a & Ha & -> & ->)".
     iApply ("HQ" with "Ha").

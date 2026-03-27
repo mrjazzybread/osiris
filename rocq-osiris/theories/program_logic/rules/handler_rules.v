@@ -130,32 +130,31 @@ Section handler_specifications.
   Qed.
 
   Lemma deep_handler_spec_mono E Ψ ζ Φ η bs Ψ' Φ1 Φ2 ζ1 ζ2 :
-    (∀ a, Φ1 a -∗ Φ2 a) -∗
-    (∀ e, ζ1 e -∗ ζ2 e) -∗
+    (∀ e, ζ1 e -∗ ζ2 e) ∧ (∀ a, Φ1 a -∗ Φ2 a) -∗
     deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ1 Φ1 -∗
     deep_handler_spec E Ψ ζ Φ η bs Ψ' ζ2 Φ2.
   Proof.
     rewrite !deep_handler_spec_unfold /deep_handler_spec_pre.
-    iIntros "Hmonoret Hmonoexn Hhandler".
+    iIntros "Hmono Hhandler".
     iSplit.
     { iIntros (a) "HΦ".
       iDestruct "Hhandler" as "[Hhandler _]".
       iSpecialize ("Hhandler" with "HΦ").
       iModIntro.
-      iApply (imp_mono with "Hhandler Hmonoret Hmonoexn"). }
+      iApply (imp_wand' with "Hhandler Hmono"). }
 
     iSplit.
     { iIntros (e) "Hζ".
       iDestruct "Hhandler" as "[_ [Hhandler _]]".
       iSpecialize ("Hhandler" with "Hζ").
       iNext.
-      iApply (imp_mono with "Hhandler Hmonoret Hmonoexn"). }
+      iApply (imp_wand' with "Hhandler Hmono"). }
 
     { iIntros (v k) "HProt".
       iDestruct "Hhandler" as "[_ [ _ Hhandler]]".
       iSpecialize ("Hhandler" $! v k with "HProt").
       iModIntro.
-      iApply (imp_mono with "Hhandler Hmonoret Hmonoexn"). }
+      iApply (imp_wand' with "Hhandler Hmono"). }
   Qed.
 
   Lemma prove_deep_handler_spec E Ψ ζ (Φ : A → iProp Σ) η bs Ψ' ζ' Φ' :

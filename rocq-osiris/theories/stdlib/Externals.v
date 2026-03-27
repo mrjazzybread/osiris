@@ -190,7 +190,7 @@ Section ExternalsDef.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    iApply imp_mono_throw.
+    iApply imp_wand_exn.
     - iApply (imp_EAnon_pers τ[array]).
       iIntros "!>" (a n) "Harr".
       iApply imp_please; iNext.
@@ -223,7 +223,7 @@ Section ExternalsDef.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    iApply imp_mono_throw.
+    iApply imp_wand_exn.
     - iApply (imp_EAnon_pers).
       iIntros "!>" (a i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
       iApply imp_please; iNext.
@@ -261,7 +261,7 @@ Section ExternalsDef.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    iApply imp_mono_throw.
+    iApply imp_wand_exn.
     - iApply imp_EAnon_poly_inh_pers.
       iIntros (A ??) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
       iApply imp_please; iNext.
@@ -294,7 +294,7 @@ Section ExternalsDef.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
-    iApply imp_mono_throw.
+    iApply imp_wand_exn.
     - iApply imp_EAnon_poly_pers.
       iIntros (A HencA) "!> %n %y %Φ %hbound HΦ".
       iApply imp_please; iNext.

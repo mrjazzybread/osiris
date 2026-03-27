@@ -8,6 +8,321 @@ From osiris.program_logic.rules Require Import basic_rules.
 
 From iris.proofmode Require Import proofmode.
 
+Section monotonicity.
+
+  Context `{!osirisGS Σ}.
+
+  Context {A V X : Type} `{Observe A V}.
+  Implicit Type m : micro V X.
+
+  Lemma imp_strong_mono E1 E2 m Ψ1 Ψ2 ζ1 ζ2 Φ1 Φ2 :
+    E1 ⊆ E2 →
+    impure E1 m Ψ1 ζ1 Φ1 -∗
+    (Ψ1 ⊑ Ψ2)%ieff -∗
+    (∀ e, ζ1 e ={E2}=∗ ζ2 e) ∧ (∀ o, Φ1 o ={E2}=∗ Φ2 o) -∗
+    impure E2 m Ψ2 ζ2 Φ2.
+  Proof.
+    iIntros (HE) "Himp Hprot H".
+    iApply (ewp_strong_mono with "Himp Hprot"); auto.
+    iIntros ([|]).
+    - iIntros "(%v & -> & HΦ1)".
+      by iMod ("H" with "HΦ1") as "$".
+    - iIntros "Hζ1".
+      by iMod ("H" with "Hζ1") as "$".
+  Qed.
+
+  Local Tactic Notation "imp_mono" "with" constr(s) :=
+    iApply (imp_strong_mono with s); auto with iFrame; first iApply iEff_le_refl.
+
+  Lemma imp_mono E m Ψ ζ' ζ (Φ' : A → iProp Σ) Φ :
+    (∀ a, Φ' a ⊢ Φ a) →
+    (∀ e, ζ' e ⊢ ζ e) →
+    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} ⊢
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hmonor Hmonot) "H"; iApply (ewp_mono with "H").
+    iIntros ([|]); last apply Hmonot.
+    iIntros "(%v & -> & H)".
+    iExists v. iSplit. auto.
+    by iApply Hmonor.
+  Qed.
+
+  Lemma imp_mono_val E m Ψ ζ (Φ' : A → iProp Σ) Φ :
+    (∀ a, Φ' a ⊢ Φ a) →
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} ⊢
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hmonor) "H"; iApply (imp_mono with "H"); auto.
+  Qed.
+
+  Lemma imp_mono_exn E m Ψ ζ' ζ Φ :
+    (∀ e, ζ' e ⊢ ζ e) →
+    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ }} ⊢
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hmonot) "H"; iApply (imp_mono with "H"); auto.
+  Qed.
+
+  Lemma imp_mask_mono E1 E2 m Ψ ζ Φ :
+    E1 ⊆ E2 →
+    imp m @ E1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ⊢ imp m @ E2 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof. apply ewp_mask_mono. Qed.
+
+  Global Instance imp_mono' E m Ψ ζ :
+    Proper (pointwise_relation _ (⊢) ==> (⊢)) (impure E m Ψ ζ).
+  Proof. by intros Φ Φ' ?; apply imp_mono. Qed.
+
+  Global Instance imp_flip_mono' E m Ψ ζ :
+    Proper (pointwise_relation _ (CRelationClasses.flip (⊢)) ==> (CRelationClasses.flip (⊢))) (impure E m Ψ ζ).
+  Proof. by intros Φ Φ' ?; apply imp_mono. Qed.
+
+  Lemma imp_frame_l E m Ψ ζ Φ R : R ∗ impure E m Ψ ζ Φ ⊢ impure E m Ψ ζ (λ o, R ∗ Φ o).
+  Proof. iIntros "[? H]". imp_mono with "H". Qed.
+  Lemma imp_frame_r E m Ψ ζ Φ R : impure E m Ψ ζ Φ ∗ R ⊢ impure E m Ψ ζ (λ v, Φ v ∗ R).
+  Proof. iIntros "[H ?]". imp_mono with "H". Qed.
+
+  Lemma imp_wand E m Ψ ζ Q' Q :
+    impure E m Ψ ζ Q' -∗ (∀ v, Q' v -∗ Q v) -∗ impure E m Ψ ζ Q.
+  Proof.
+    iIntros "Hwp H". imp_mono with "Hwp".
+    iSplitR; first auto.
+    iIntros (?) "?". by iApply "H".
+  Qed.
+  Lemma imp_wand' E m Ψ ζ' ζ Q' Q :
+    impure E m Ψ ζ' Q' -∗ (∀ e, ζ' e -∗ ζ e) ∧ (∀ v, Q' v -∗ Q v) -∗ impure E m Ψ ζ Q.
+  Proof.
+    iIntros "Hwp H". imp_mono with "Hwp".
+    iSplit.
+    - iIntros (?) "?". by iApply "H".
+    - iIntros (?) "?". by iApply "H".
+  Qed.
+  Lemma imp_wand_exn E m Ψ ζ' ζ Q :
+    impure E m Ψ ζ' Q -∗ (∀ e, ζ' e -∗ ζ e) -∗ impure E m Ψ ζ Q.
+  Proof.
+    iIntros "Hwp H". imp_mono with "Hwp".
+    iSplitL; last auto.
+    iIntros (?) "?". by iApply "H".
+  Qed.
+  Lemma imp_wand_l E m Ψ ζ Q' Q :
+    (∀ v, Q' v -∗ Q v) ∗ impure E m Ψ ζ Q' ⊢ impure E m Ψ ζ Q.
+  Proof. iIntros "[H Hwp]". iApply (imp_wand with "Hwp H"). Qed.
+  Lemma imp_wand_r E m Ψ ζ Q' Q :
+    impure E m Ψ ζ Q' ∗ (∀ v, Q' v -∗ Q v) ⊢ impure E m Ψ ζ Q.
+  Proof. iIntros "[Hwp H]". iApply (imp_wand with "Hwp H"). Qed.
+  Lemma imp_frame_wand E m Ψ ζ Φ R :
+    R -∗ impure E m Ψ ζ (λ o, R -∗ Φ o) -∗ impure E m Ψ ζ Φ.
+  Proof.
+    iIntros "HR HWP". iApply (imp_wand with "HWP").
+    iIntros (v) "HΦ". by iApply "HΦ".
+  Qed.
+
+  Lemma imp_mono_prot E m Ψ' Ψ ζ Φ :
+    imp m @ E <|Ψ'|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    (Ψ' ⊑ Ψ)%ieff -∗
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Himp Hmono".
+    iApply (ewp_prot_mono with "Hmono Himp").
+  Qed.
+
+  Lemma imp_mono_pers E m Ψ ζ Φ' Φ :
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    □ (∀ x, Φ' x ={E}=∗ Φ x) -∗
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Himp #Hmono".
+    iApply ewp_fupd.
+    iApply (ewp_wand with "Himp").
+    iIntros ([|]); [ | by iIntros "$" ].
+    iIntros "(%v & -> & HΦ)".
+    iSpecialize ("Hmono" with "HΦ").
+    iMod "Hmono". iModIntro.
+    iFrame; auto.
+  Qed.
+
+End monotonicity.
+
+Section updates.
+
+  Context `{!osirisGS Σ}.
+
+  Context {A V X : Type} `{Observe A V}.
+  Implicit Type m : micro V X.
+
+  Lemma fupd_imp E m Ψ ζ Φ :
+    (|={E}=> imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof. iApply fupd_ewp. Qed.
+
+  Lemma imp_fupd E m Ψ ζ Φ :
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, |={E}=> Φ x }} ⊢
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Himp".
+    iApply ewp_fupd.
+    iApply (ewp_wand with "Himp").
+    iIntros ([|]); [ iIntros "(%v & Henc & >HΦ) !>" | by iIntros "$ !>" ].
+    iFrame.
+  Qed.
+
+  Lemma imp_fupd_exn E m Ψ ζ Φ :
+    imp m @ E <|Ψ|> ⟨⟨ λ e, |={E}=> ζ e ⟩⟩ {{ Φ }} -∗
+    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Himp".
+    iApply ewp_fupd.
+    iApply (ewp_wand with "Himp").
+    iIntros ([|]); [ by iIntros "(%v & -> & $) !>" | by iIntros "$ !>" ].
+  Qed.
+
+  Import ewp_rules_tactics.
+
+  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!thread_step.Atomic m} :
+    (* TCEq (to_eff m) None → *)
+    (* TCEq (to_join m) None → *)
+    (|={E,E2}=> impure E2 m Ψ (λ e, |={E2,E}=> ζ e) (λ o, |={E2,E}=> Φ o)) ⊢ impure E m Ψ ζ Φ.
+  Proof.
+    iIntros "He".
+    iApply (ewp_atomic E E2). iMod "He". iModIntro.
+    iApply (ewp_wand with "He").
+    iIntros ([|]); [ iIntros "(% & -> & HΦ)" | iIntros "H" ].
+    - by iMod "HΦ" as "$".
+    - by iMod "H" as "$".
+  Qed.
+
+  Lemma imp_atomic E E2 m Ψ Φ `{!thread_step.Atomic m} :
+    (* TCEq (to_eff m) None → *)
+    (* TCEq (to_join m) None → *)
+    (|={E,E2}=> impure E2 m Ψ ⊥ (λ o, |={E2,E}=> Φ o)) ⊢ impure E m Ψ ⊥ Φ.
+  Proof.
+    iIntros "He".
+    iApply (imp_atomic' E E2). iMod "He". iModIntro.
+    iApply (imp_wand_exn with "He").
+    iIntros (? []).
+  Qed.
+
+End updates.
+
+Section proofmode_classes.
+  Context `{!osirisGS Σ}.
+  Context {A X V : Type} `{Observe A V}.
+  Implicit Types P Q : iProp Σ.
+  Implicit Types Φ : A → iProp Σ.
+  Implicit Types m : micro V X.
+
+  Global Instance frame_imp p E m R Ψ ζ Φ Φ' :
+    (FrameInstantiateExistDisabled → ∀ v, Frame p R (Φ v) (Φ' v)) →
+    Frame p R (impure E m Ψ ζ Φ) (impure E m Ψ ζ Φ') | 2.
+  Proof.
+    rewrite /Frame=> HR. rewrite imp_frame_l. apply imp_mono_val, HR. constructor.
+  Qed.
+
+  Global Instance is_except_0_imp E m Ψ ζ Φ : IsExcept0 (impure E m Ψ ζ Φ).
+  Proof. by rewrite /IsExcept0 -{2}fupd_imp -except_0_fupd -fupd_intro. Qed.
+
+  Global Instance elim_modal_bupd_imp p E m Ψ ζ P Φ :
+    ElimModal True p false (|==> P) P (impure E m Ψ ζ Φ) (impure E m Ψ ζ Φ).
+  Proof.
+    by rewrite /ElimModal bi.intuitionistically_if_elim
+      (bupd_fupd E) fupd_frame_r bi.wand_elim_r fupd_imp.
+  Qed.
+
+  Global Instance elim_modal_fupd_imp p E m Ψ ζ P Φ :
+    ElimModal True p false (|={E}=> P) P (impure E m Ψ ζ Φ) (impure E m Ψ ζ Φ).
+  Proof.
+    by rewrite /ElimModal bi.intuitionistically_if_elim
+      fupd_frame_r bi.wand_elim_r fupd_ewp.
+  Qed.
+  (* Error message instance for non-mask-changing view shifts.
+     Also uses a slightly different error: we cannot apply fupd_mask_subseteq
+     if e is not atomic, so we tell the user to first add a leading fupd and
+     then change the mask of that. *)
+  Global Instance elim_modal_fupd_ewp_wrong_mask p E1 E2 m Ψ ζ P Φ :
+    ElimModal
+      (pm_error "Goal and eliminated modality must have the same mask. Use [iApply fupd_wp; iMod (fupd_mask_subseteq E2)] to adjust the mask of your goal to [E2]")
+      p false
+      (|={E2}=> P) False (impure E1 m Ψ ζ Φ) False | 100.
+  Proof. intros []. Qed.
+
+  Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ :
+    ElimModal (thread_step.Atomic m) p false
+            (|={E1,E2}=> P) P
+            (impure E1 m Ψ ⊥ Φ) (impure E2 m Ψ ⊥ (λ o, |={E2,E1}=> Φ o))%I | 100.
+  Proof.
+    intros ?. by rewrite bi.intuitionistically_if_elim
+      fupd_frame_r bi.wand_elim_r imp_atomic.
+  Qed.
+  Global Instance elim_modal_fupd_imp_atomic' p E1 E2 m Ψ ζ P Φ :
+    ElimModal (thread_step.Atomic m) p false
+            (|={E1,E2}=> P) P
+            (impure E1 m Ψ ζ Φ) (impure E2 m Ψ (λ e, |={E2,E1}=> ζ e) (λ o, |={E2,E1}=> Φ o))%I | 100.
+  Proof.
+    intros ?. by rewrite bi.intuitionistically_if_elim
+      fupd_frame_r bi.wand_elim_r imp_atomic'.
+  Qed.
+  (* Error message instance for mask-changing view shifts. *)
+  Global Instance elim_modal_fupd_imp_atomic_wrong_mask p E1 E2 E2' m Ψ ζ P Φ :
+    ElimModal
+      (pm_error "Goal and eliminated modality must have the same mask. Use [iMod (fupd_mask_subseteq E2)] to adjust the mask of your goal to [E2]")
+      p false
+      (|={E2,E2'}=> P) False
+      (impure E1 m Ψ ζ Φ) False | 200.
+  Proof. intros []. Qed.
+
+  Global Instance add_modal_fupd_imp E m Ψ ζ P Φ :
+    AddModal (|={E}=> P) P (impure E m Ψ ζ Φ).
+  Proof. by rewrite /AddModal fupd_frame_r bi.wand_elim_r fupd_imp. Qed.
+
+
+  Global Instance elim_acc_imp_atomic {Y} E1 E2 α β γ m Ψ Φ :
+    ElimAcc (X:=Y) (thread_step.Atomic m)
+            (fupd E1 E2) (fupd E2 E1)
+            α β γ (impure E1 m Ψ ⊥ Φ)
+            (λ x, impure E2 m Ψ ⊥ (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 100.
+  Proof.
+    iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iApply (imp_mono_exn _ _ _ ⊥). iIntros (? []).
+    iApply (imp_wand with "(Hinner Hα)").
+    iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+  Qed.
+  Global Instance elim_acc_imp_atomic' {Y} E1 E2 α β γ m Ψ ζ Φ :
+    ElimAcc (X:=Y) (thread_step.Atomic m)
+            (fupd E1 E2) (fupd E2 E1)
+            α β γ (impure E1 m Ψ ζ Φ)
+            (λ x, impure E2 m Ψ (λ e, |={E2}=> β x ∗ (γ x -∗? ζ e)) (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 100.
+  Proof.
+    iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iApply (imp_wand' with "(Hinner Hα)").
+    iSplit.
+    - iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+    - iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+  Qed.
+
+  Global Instance elim_acc_imp_nonatomic {Y} E α β γ m Ψ Φ :
+    ElimAcc (X:=Y) True (fupd E E) (fupd E E)
+            α β γ (impure E m Ψ ⊥ Φ)
+            (λ x, impure E m Ψ ⊥ (λ v, |={E}=> β x ∗ (γ x -∗? Φ v)))%I.
+  Proof.
+    iIntros (_) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iApply imp_fupd.
+    iApply (imp_wand with "(Hinner Hα)").
+    iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+  Qed.
+  Global Instance elim_acc_imp_nonatomic' {Y} E α β γ m Ψ ζ Φ :
+    ElimAcc (X:=Y) True (fupd E E) (fupd E E)
+            α β γ (impure E m Ψ ζ Φ)
+            (λ x, impure E m Ψ (λ e, |={E}=> β x ∗ (γ x -∗? ζ e)) (λ v, |={E}=> β x ∗ (γ x -∗? Φ v)))%I.
+  Proof.
+    iIntros (_) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iApply imp_fupd. iApply imp_fupd_exn.
+    iApply (imp_wand' with "(Hinner Hα)").
+    iSplit.
+    - iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+    - iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
+  Qed.
+
+End proofmode_classes.
+
 Section micro_combinators.
 
   Context `{!osirisGS Σ}.
@@ -71,7 +386,7 @@ Section micro_combinators.
   Proof.
     iIntros "Himp Hresume".
     iApply ewp_try2.
-    iApply (ewp_mono with "Himp").
+    iApply (ewp_wand with "Himp").
     iIntros ([|]); [ iIntros "(%v & -> & HΦ)" | iIntros "Hζ" ].
     - iApply ("Hresume" with "HΦ").
     - iApply ("Hresume" with "Hζ").
@@ -241,8 +556,7 @@ Section ugh.
     rewrite int.eq_repr_repr; try assumption.
     assert (i =? j = false)%Z as -> by lia.
     assert (j <? i = true)%Z as -> by lia.
-    iApply (imp_ret VUnit ()); first encode.
-    iApply "HR".
+    iApply (imp_ret VUnit ()); [ encode | auto ].
   Qed.
 
   Lemma imp_nonempty_loop {ζ} (I : Z → iProp Σ) i j e x η :
@@ -280,7 +594,7 @@ Section ugh.
       + done.
     - assert (i =? j = false)%Z as -> by lia.
       iApply ewp_bind.
-      iApply (ewp_mono with "Heapp").
+      iApply (ewp_wand with "Heapp").
       iIntros ([|]) "Ho".
       + iDestruct "Ho" as "(% & %Henc & HR)".
         iSpecialize ("IH" $! (i + 1)%Z j).
@@ -323,116 +637,6 @@ Section ugh.
 
 End ugh.
 
-Section monotonicity.
-
-  Context `{!osirisGS Σ}.
-
-  Context {A V X : Type} `{Observe A V}.
-  Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : A → iProp Σ}.
-
-  Lemma imp_mono (Φ' : A → iProp Σ) (ζ' : X → iProp Σ) m :
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
-    (∀ (x : A), Φ' x -∗ Φ x) -∗
-    (∀ (e : X), ζ' e -∗ ζ e) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp Hmonor Hmonot".
-    iApply (ewp_mono with "Himp").
-    iIntros ([|]).
-    - iIntros "(%v & Henc & HΦ')".
-      iFrame.
-      iApply ("Hmonor" with "HΦ'").
-    - iIntros "Hζ'".
-      iApply ("Hmonot" with "Hζ'").
-  Qed.
-
-  Lemma imp_mono_ret (Φ' : A → iProp Σ) m :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
-    (∀ (x : A), Φ' x -∗ Φ x) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp Hmono".
-    iApply (ewp_mono with "Himp").
-    iIntros ([|]); [ | iIntros "$" ].
-    iIntros "(%v & Henc & HΦ')".
-    iFrame.
-    iApply ("Hmono" with "HΦ'").
-  Qed.
-
-  Lemma imp_mono_throw (ζ' : X → iProp Σ) m :
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ }} -∗
-    (∀ (e : X), ζ' e -∗ ζ e) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp Hmono".
-    iApply (ewp_mono with "Himp").
-    iIntros ([|]); [ iIntros "$" | ].
-    iIntros "Hζ'".
-    iApply ("Hmono" with "Hζ'").
-  Qed.
-
-  Lemma imp_mono_prot Ψ' m :
-    imp m @ E <|Ψ'|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    (Ψ' ⊑ Ψ)%ieff -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp Hmono".
-    iApply (ewp_prot_mono with "Hmono Himp").
-  Qed.
-
-  Lemma imp_mono_pers Φ' m :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
-    □ (∀ x, Φ' x ={E}=∗ Φ x) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp #Hmono".
-    iApply (ewp_pers_mono with "Himp").
-    iIntros "!>" ([|]); [ | by iIntros "$" ].
-    iIntros "(%v & -> & HΦ)".
-    iSpecialize ("Hmono" with "HΦ").
-    iMod "Hmono". iModIntro.
-    iFrame; auto.
-  Qed.
-
-End monotonicity.
-
-Section updates.
-
-  Context `{!osirisGS Σ}.
-
-  Context {A V X : Type} `{Observe A V}.
-  Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : A → iProp Σ}.
-
-  Lemma imp_fupd m :
-    (|={E}=> imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iApply ewp_fupd.
-  Qed.
-
-  Lemma imp_fupd_post m :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, |={E}=> Φ x }} -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp".
-    iApply ewp_fupd_post.
-    iApply (ewp_mono with "Himp").
-    iIntros ([|]); [ iIntros "(%v & Henc & >HΦ) !>" | by iIntros "$ !>" ].
-    iFrame.
-  Qed.
-
-  Lemma imp_fupd_post2 m :
-    imp m @ E <|Ψ|> ⟨⟨ λ e, |={E}=> ζ e ⟩⟩ {{ Φ }} -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Himp".
-    iApply ewp_fupd_post.
-    iApply (ewp_mono with "Himp").
-    iIntros ([|]); [ iIntros "(%v & Henc & HΦ) !>" | by iIntros "$ !>" ].
-    iFrame.
-  Qed.
-
-End updates.
 
 Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} (m : micro V X) ζ Φ :
   pure m Φ ζ →

@@ -131,16 +131,16 @@ Tactic Notation "imp_load" constr(l) :=
 Tactic Notation "imp_load" := ltac2:(imp_load).
 
 Ltac2 imp_ref_tac (x : constr option) :=
-   let specialized_ref :=
-    match x with
-    | Some x => open_constr:(imp_ERef $x)
-    | None => 'imp_ERef
-    end
-  in
-  Control.plus
-    (fun _ => iApply $specialized_ref;
-              complete imp_step)
-    (fun _ => iApply imp_ERef2; try (imp_step)).
+  match x with
+  | Some x =>
+      let spec_ref := open_constr:(imp_ERef $x) in
+      iApply $spec_ref; try (imp_step)
+  | None =>
+      Control.plus
+        (fun _ => iApply imp_ERef;
+                  complete imp_step)
+        (fun _ => iApply imp_ERef2; try (imp_step))
+  end.
 
 Ltac2 Notation "imp_ref" x(constr) := imp_ref_tac (Some x).
 Ltac2 Notation "imp_ref" := imp_ref_tac None.
@@ -371,7 +371,7 @@ Section TacticTests.
       iIntros "Hm".
       iApply "Hm". }
     iIntros "-> #%Ha Hm".
-    iApply (imp_mono_ret with "Hm").
+    iApply (imp_wand with "Hm").
     iIntros (y ->). iPureIntro.
     lia.
   Qed.

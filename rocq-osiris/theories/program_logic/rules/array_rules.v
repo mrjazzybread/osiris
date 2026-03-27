@@ -128,7 +128,7 @@ Section array_reasoning.
     ⊢ imp eval η (EArrayLit []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
         {{ λ a, ownArray a (@nil A) }}.
   Proof.
-    iApply imp_mono_ret.
+    iApply imp_wand.
     - iApply (imp_EArrayLit (@nil (A → _))  []).
       iPureIntro; length; split; auto.
       pose proof (max_array_positive). lia.
@@ -270,7 +270,7 @@ Section array_reasoning.
   Proof.
     iIntros (Hi Hlookup Hlen) "#Harr Hslice He1 He2".
     iApply (imp_EArrayGet2 with "[He1] He2").
-    { iApply (imp_mono_ret with "He1").
+    { iApply (imp_wand with "He1").
       iIntros (?) "->". iFrame "#".
       instantiate (1 := (λ a', ⌜a' = a⌝)%I). done. }
     iIntros (? ?) "-> ->".

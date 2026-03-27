@@ -310,7 +310,7 @@ Section ewp_def.
                | Some (ι', mforked) =>
                    ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
-                           ewp E mforked ⊥ (λ o, □ φ' o)
+                           ewp ⊤ mforked ⊥ (λ o, □ φ' o)
                end
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
@@ -428,25 +428,25 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
    so the parser can distinguish from the short form. *)
 
 Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
-  (impure ⊤ e%E ⊥ ζ Φ)
+  (impure ⊤ e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
-  (impure E e%E ⊥ ζ Φ)
+  (impure E e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 Notation "'imp' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
-  (impure ⊤ e%E Ψ ζ Φ)
+  (impure ⊤ e%E Ψ%I ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
       format "'[hv' 'imp'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' '}}' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
-  (impure E e%E Ψ ζ Φ)
+  (impure E e%E Ψ%I ζ%I Φ%I)
     (at level 20, e, Ψ, Φ, ζ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
     : bi_scope.
@@ -454,25 +454,25 @@ Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
 (* Notations without exceptional postcondition (uses ⊥) *)
 
 Notation "'imp' e {{ Φ }}" :=
-  (impure ⊤ e%E ⊥ ⊥ Φ)
+  (impure ⊤ e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
       format "'[' 'imp'  e  '/' '[ ' {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E {{ Φ }}" :=
-  (impure E e%E ⊥ ⊥ Φ)
+  (impure E e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  '}}' ']' ']'")
     : bi_scope.
 
 Notation "'imp' e <| Ψ '|>' {{ Φ }}" :=
-  (impure ⊤ e%E Ψ ⊥ Φ)
+  (impure ⊤ e%E Ψ%I ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
       format "'[hv' 'imp'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' '}}' ']'")
     : bi_scope.
 
 Notation "'imp' e @ E <| Ψ |> {{ Φ }}" :=
-  (impure E e%E Ψ ⊥ Φ)
+  (impure E e%E Ψ%I ⊥ Φ%I)
     (at level 20, e, Ψ, Φ at level 200,
       format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  '}}' ']' ']'")
     : bi_scope.

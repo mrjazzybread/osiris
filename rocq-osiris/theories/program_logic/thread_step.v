@@ -202,3 +202,18 @@ Global Opaque can_progress.
 Global Hint Resolve
   can_progress_join
   can_progress_fork : can_progress.
+
+Section Atomicity.
+
+  Context {A X : Type}.
+  Implicit Type m : micro A X.
+
+  Definition irreducible m σ :=
+    ∀ π m' σ' μ, ¬ thread_step (σ, m, π) (σ', m', μ).
+
+  Class Atomic m : Prop :=
+    atomic σ π σ' m' μ :
+      thread_step (σ, m, π) (σ', m', μ) →
+      is_Some (is_outcome m').
+
+End Atomicity.

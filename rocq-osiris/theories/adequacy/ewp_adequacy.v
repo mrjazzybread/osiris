@@ -174,7 +174,7 @@ Proof.
   replace πp with (<[ι:=(γ, φ)]>πp) at 2 by apply (insert_id πp ι (γ, φ) Hlookup_p).
   replace π1 with (<[ι:=inject2 o]>π1) at 2 by apply (insert_id π1 ι (inject2 o) Hlookup).
   iFrame.
-  iApply ewp_fupd. iMod "Hwp". iModIntro.
+  iApply fupd_ewp. iMod "Hwp". iModIntro.
   by iApply ewp_outcome2.
 Qed.
 
@@ -511,7 +511,7 @@ Section satisfiability_weakest_pre.
       (∀ o, ⌜π2 !! ι = Some (inject2 o)⌝ -∗ |={⊤}=> □ ⌜Φ o⌝)).
   Proof.
     iIntros "%Hsteps (%γ & Hsi & Hsaved & Hwp)".
-    iPoseProof (ewp_mono with "Hwp []") as "Hwp".
+    iPoseProof (ewp_wand with "Hwp []") as "Hwp".
     { iIntros (o) "%Ho". instantiate (1:=λ o, (□ ⌜Φ o⌝)%I).
       by iModIntro. }
     iCombine "Hsi Hsaved Hwp" as "Hwps".

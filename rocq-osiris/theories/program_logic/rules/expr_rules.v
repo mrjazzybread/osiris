@@ -192,7 +192,7 @@ Section imp_rules_expr.
   Context `{!osirisGS Σ}.
   Context {E : coPset} {Ψ : iEff Σ}.
 
-  Lemma imp_EUnit_exn {Φ ζ} η :
+  Lemma imp_EUnit {Φ ζ} η :
     Φ tt -∗
     imp eval η EUnit @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -276,12 +276,11 @@ Section imp_rules_expr.
   Qed.
 
   (* E/VConstant is a macro for E/VData *)
-  Lemma imp_EConstant `{Encode A} {Φ : A → iProp Σ} {ζ} (a : A) η c :
+  Lemma imp_EConstant `{Encode A} {ζ} (a : A) η c :
     #a = VConstant c →
-    Φ a -∗
-    imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ⊢ imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }}.
   Proof.
-    iIntros (Henc) "H". simpl_eval.
+    iIntros (Henc). simpl_eval.
     by iApply imp_ret.
   Qed.
 
@@ -984,6 +983,29 @@ Section imp_rules_expr.
   Qed.
 
   (** * EWhile : expr → expr → expr *)
+
+  Lemma imp_EWhile {ζ} (I : bool → iProp Σ) η e body :
+    I true -∗
+    □ (I true -∗ imp (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ I }}) -∗
+    □ (I true -∗ imp (eval η body) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ _ : unit, I true }}) -∗
+    imp eval η (EWhile e body) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ _ : unit, I false }}.
+  Proof.
+    iIntros "HP #He #Hbody".
+    simpl_eval.
+    iLöb as "IH".
+    iApply (imp_bind I with "[HP]").
+    { iApply imp_as_bool. iApply ("He" with "HP"). }
+    iIntros (b) "HP_b".
+    destruct b; simpl.
+    - iApply (imp_bind (λ _ : unit, I true)%I with "[HP_b]").
+      { iApply ("Hbody" with "HP_b"). }
+      iIntros (_) "HP_true".
+      iApply imp_please. iNext. simpl_eval.
+      iApply "IH". iExact "HP_true".
+    - iApply (imp_ret VUnit ()); first encode.
+      iApply "HP_b".
+  Qed.
+
   (** * EFor : var → expr → expr → expr → expr *)
 
   Lemma imp_EFor {ζ} (I : Z → iProp Σ) (i j : Z) x e1 e2 e  η :
@@ -1061,7 +1083,7 @@ Section imp_rules_expr.
     imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (l : loc), l ↦ #a }}.
   Proof.
     iIntros "He".
-    iApply (imp_mono_ret (λ l, ∃ a', ⌜a' = a⌝ ∗ l ↦ #a')%I with "[He]").
+    iApply (imp_wand E _ _ _ (λ l, ∃ a', ⌜a' = a⌝ ∗ l ↦ #a')%I with "[He]").
     iApply (imp_ERef2 with "He").
     iIntros (l) "(% & -> & $)".
   Qed.
@@ -1252,7 +1274,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     ▷ (∀ ι' f x, isThread ι' μ φ -∗ Φ1 f -∗ Φ2 x -∗
-                  imp call f #x @ E <| ⊥ |> ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ x, □ φ x }}) -∗
+                  imp call f #x ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ x, □ φ x }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι μ φ }}.
   Proof.
     iIntros "H1 H2 Hcall". simpl_eval.
@@ -1272,7 +1294,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[B] f P }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
     ▷ (∀ ι' a m, isThread ι' μ φ -∗ φ_arg a -∗
-                 P a m -∗ imp m @ E <| ⊥ |> ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }}) -∗
+                 P a m -∗ imp m ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι, isThread ι μ φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
@@ -1289,7 +1311,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     ▷ (∀ v1 v2, Φ1 v1 -∗ Φ2 v2 -∗
-                  imp call v1 #v2 @ E <|⊥|> {{ λ (_ : B), □ φ }}) -∗
+                  imp call v1 #v2 {{ λ (_ : B), □ φ }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', □ joinable B ι' φ }}.
   Proof.
     iIntros "H1 H2 Hcall". simpl_eval.
@@ -1303,7 +1325,7 @@ Section imp_rules_expr.
       iIntros "!> %ι' #Hthread".
       iSplitL.
       + iSpecialize ("Hcall" with "Hf Hx").
-        iApply (imp_mono_throw ⊥ with "Hcall").
+        iApply (imp_wand_exn _ _ _ ⊥ with "Hcall").
         instantiate (1 := (λ _, False)%I).
         iIntros (? []).
       + iFrame "#".
@@ -1317,7 +1339,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ φ_arg }} -∗
     ▷ (∀ a m, φ_arg a -∗
-                 P a m -∗ imp m @ E <|⊥|> {{ λ (_ : A), □ φ }}) -∗
+                 P a m -∗ imp m {{ λ (_ : A), □ φ }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', □ joinable A ι' φ }}.
   Proof.
     iIntros "H1 H2 Hcall".
@@ -1335,7 +1357,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     ▷ (∀ v1 v2, Φ1 v1 -∗ Φ2 v2 -∗
-                  imp call v1 #v2 @ E <|⊥|> {{ λ (_ : B), [∗ list] φ ∈ φs, φ }}) -∗
+                  imp call v1 #v2 {{ λ (_ : B), [∗ list] φ ∈ φs, φ }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', [∗ list] φ ∈ φs, joinable B ι' φ }}.
   Proof.
     (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
@@ -1356,7 +1378,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
     ▷ (∀ a m, φ_arg a -∗
-                 P a m -∗ imp m @ E <| ⊥ |> {{ λ (_ : A), [∗ list] φ ∈ φs, φ }}) -∗
+              P a m -∗ imp m {{ λ (_ : A), [∗ list] φ ∈ φs, φ }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', [∗ list] φ ∈ φs, joinable A ι' φ }}.
   Proof.
     (* TODO reuse the proof from [stop_rules.v] instead of having this one, which is now redundant *)
@@ -1374,15 +1396,15 @@ Section imp_rules_expr.
     φ P η e1 e2 (φ_arg : A → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
-    ▷ (∀ a m, φ_arg a -∗ P a m -∗ imp m @ E <| ⊥ |> {{ λ (_ : A), φ }}) -∗
+    ▷ (∀ a m, φ_arg a -∗ P a m -∗ imp m {{ λ (_ : A), φ }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', joinable A ι' φ }}.
   Proof.
     iIntros "H1 H2 H".
-    iApply (imp_mono_ret with "[-]").
+    iApply (imp_wand with "[-]").
     iApply (imp_EFork_resourceful_list [φ] with "H1 H2 [H]").
     - iIntros "!> % % H1 H2".
       iSpecialize ("H" with "H1 H2").
-      iApply (imp_mono_ret with "H").
+      iApply (imp_wand with "H").
       iIntros (_) "/= $".
     - iIntros (ι') "($ & ?)".
   Qed.
@@ -1391,15 +1413,15 @@ Section imp_rules_expr.
     φ1 φ2 P η e1 e2 (φ_arg : A → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ f, iSpec τ[A] f P }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, φ_arg a }} -∗
-    ▷ (∀ a m, φ_arg a -∗ P a m -∗ imp m @ E <|⊥|> {{ λ (_ : A), φ1 ∗ φ2 }}) -∗
+    ▷ (∀ a m, φ_arg a -∗ P a m -∗ imp m {{ λ (_ : A), φ1 ∗ φ2 }}) -∗
     imp eval η (EFork e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ι', joinable A ι' φ1 ∗ joinable A ι' φ2 }}.
   Proof.
     iIntros "H1 H2 H".
-    iApply (imp_mono_ret with "[-]").
+    iApply (imp_wand with "[-]").
     iApply (imp_EFork_resourceful_list [φ1; φ2] with "H1 H2 [H]").
     - iIntros "!> % % H1 H2".
       iSpecialize ("H" with "H1 H2").
-      iApply (imp_mono_ret with "H").
+      iApply (imp_wand with "H").
       iIntros (_) "/= ($ & $)".
     - iIntros (ι') "($ & $ & ?)".
   Qed.
@@ -1440,8 +1462,8 @@ Section imp_rules_expr.
     { iApply (imp_as_thread with "Hid"). }
     iIntros (ι') "Hjoinable".
     iDestruct "Hjoinable" as "(% & % & HThread & Hjoinable)".
-    iApply (imp_fupd_post (join ι')).
-    iApply (imp_fupd_post2 (join ι')).
+    iApply (imp_fupd E (join ι')).
+    iApply (imp_fupd_exn E (join ι')).
     iApply (imp_join with "[$]").
     iSplit; iNext.
     - iIntros (x) "#Hφ".
