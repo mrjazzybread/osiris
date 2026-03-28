@@ -1,5 +1,6 @@
 From stdpp Require Import options.
 From stdpp Require Import list_basics list_monad.
+From osiris.logic Require Export list_init.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -7,69 +8,9 @@ From stdpp Require Import list_basics list_monad.
 
 Module list_basics_extra.
 
-(** [init_segment i n f] is a list of length [n] whose elements are [f(i)],
-    [f(i+1)], etc., up to [f(i+n-1)]. *)
-Fixpoint init_segment {A} (i : nat) (n : nat) (f : nat → A) : list A :=
-  match n with 0 => [] | S n => f i :: init_segment (i + 1) n f end.
-
-(** [init n f] is a list of length [n] whose elements are [f(0)],
-    [f(1)], etc., up to [f(n-1)]. *)
-Definition init {A} (n : nat) (f : nat → A) : list A :=
-  init_segment 0 n f.
-
-(** ** Properties of [init_segment] and [init] *)
-
 Section general_properties.
 Context {A : Type}.
 Implicit Types l : list A.
-
-Lemma length_init_segment i n (f : nat → A) :
-  length (init_segment i n f) = n.
-Proof.
-  revert i.
-  induction n; simpl; intros.
-  - reflexivity.
-  - rewrite IHn. reflexivity.
-Qed.
-
-Lemma length_init n (f : nat → A) : length (init n f) = n.
-Proof. unfold init. apply length_init_segment. Qed.
-
-Lemma lookup_init_segment_lt i n (f : nat → A) : forall (k : nat),
-  k < n →
-  (init_segment i n f) !! k = Some (f (i + k)).
-Proof.
-  revert i. induction n; simpl; intros.
-  - exfalso. lia.
-  - rewrite lookup_cons. destruct k as [| k].
-    + rewrite Nat.add_0_r. eauto.
-    + rewrite IHn by lia. do 2 f_equal. lia.
-Qed.
-
-Lemma lookup_init_segment_ge i n (f : nat → A) : forall (k : nat),
-  n ≤ k →
-  (init_segment i n f) !! k = None.
-Proof.
-  revert i. induction n; simpl; intros.
-  - eauto.
-  - rewrite lookup_cons. destruct k as [| k].
-    + exfalso. lia.
-    + rewrite IHn by lia. eauto.
-Qed.
-
-Lemma lookup_init_lt n (f : nat → A) : forall (k : nat),
-  k < n →
-  (init n f) !! k = Some (f k).
-Proof.
-  unfold init. intros. rewrite lookup_init_segment_lt by eauto. eauto.
-Qed.
-
-Lemma lookup_init_ge n (f : nat → A) : forall (k : nat),
-  n ≤ k →
-  (init n f) !! k = None.
-Proof.
-  unfold init. intros. rewrite lookup_init_segment_ge by eauto. eauto.
-Qed.
 
 (* Other lemmas *)
 
