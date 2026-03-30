@@ -1427,9 +1427,15 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EStore e1 e2 =>
       '(l, v) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
       store l v
+  | EExchange e1 e2 =>
+      '(l, v) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
+      exchange l v
   | ECAS e1 e2 e3 =>
       '(l, seen, v) ← par (par (as_loc (eval η e1)) (eval η e2)) (eval η e3);
       cas l seen v
+  | EIgnore e =>
+      _ ← eval η e ;
+      ok
   | EFork e1 e2 =>
       '(f, v) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       fork f v

@@ -139,7 +139,7 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_store σ l] is the right-hand side of the reduction rule [StepStore].
+(* [step_store σ l v k] is the right-hand side of the reduction rule [StepStore].
 
    This rule loads a value [v] from the store [σ] at location [l], overwrites
    it with the value [v'], and returns a unit value to the continuation [k].
@@ -171,6 +171,36 @@ Lemma try2_step_store_2 {A B E F} σ l
 Proof.
   unfold step_store_2. intros. case_location_lookup; simplify_eq; eauto.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [step_exchange σ l v k] is the right-hand side of the reduction rule [StepStore].
+
+   This rule loads a value [v] from the store [σ] at location [l], overwrites
+   it with the value [v'], and returns a unit value to the continuation [k].
+   It fails if the location [l] is not in the domain of [σ] or contains
+   something other than a value. *)
+
+Definition step_exchange_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
+  match σ !! l with
+  | Some (V v) => continue k v
+  | _          => crash "exchange error: unbound location"
+  end.
+
+Notation step_exchange σ l v' k :=
+  (step_store_1 σ l v', step_exchange_2 σ l k).
+
+(* Storing is an algebraic effect. *)
+
+Lemma try2_step_exchange_2 {A B E F} σ l
+  (k : outcome2 val exn → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_exchange_2 σ l (pftry2 k k') = try2 (step_exchange_2 σ l k) k'.
+Proof.
+  unfold step_exchange_2. intros. case_location_lookup; simplify_eq; eauto.
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -292,6 +322,7 @@ Qed.
 Global Hint Resolve
   try2_step_load_2
   try2_step_store_2
+  try2_step_exchange_2
   try2_step_cas_2
   try2_step_resume_2
   try2_step_wrap_2
@@ -371,6 +402,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
       c' = step_store σ l v' k →
       step
         (σ, Stop CStore (l, v') k)
+        c'
+
+  | StepExchange :
+      ∀ σ l v' k c',
+      c' = step_exchange σ l v' k →
+      step
+        (σ, Stop CExchange (l, v') k)
         c'
 
   | StepCAS :

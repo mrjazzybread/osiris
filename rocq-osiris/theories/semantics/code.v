@@ -74,6 +74,7 @@ Inductive code : Type → Type → Type → Type :=
 | CAllocn : code (list val) (list loc) exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) val exn
+| CExchange : code (loc * val) val exn
 | CCAS : code (loc * val * val) val exn
 | CPerf  : code eff val exn
 | CResume : code (cont * outcome2 val exn) val exn
@@ -154,6 +155,12 @@ Definition load (l : loc) :=
 
 Definition store (l : loc) (v : val) :=
   stop CStore (l, v).
+
+(* [exchange l v] updates the ref cell at location [l] with the value [v],
+   and returns the previously stored value. *)
+
+Definition exchange (l : loc) (v : val) :=
+  stop CExchange (l, v).
 
 (* [cas l seen v] updates the ref cell at location [l] with the value [v],
    only if that value currently contains [seen]. *)

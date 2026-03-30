@@ -569,6 +569,10 @@ and translate_stdlib_application loc path args =
       EContinue (e1, e2)
   | ["Stdlib"; "Effect"; "Deep"; "discontinue"], [e1; e2] ->
       EDiscontinue (e1, e2)
+  | ["Stdlib"; "Atomic"; "make"], [e] ->
+      ERef e
+  | ["Stdlib"; "Atomic"; "set"], [e1; e2] ->
+      EStore (e1, e2)
   | _, _ ->
       raise Unrecognized
 
@@ -687,6 +691,16 @@ and translate_primitive_application loc path p args =
       ELoad e
   | ["Stdlib"; ":="], "%setfield0", [e1; e2] ->
       EStore (e1, e2)
+
+  (* Atomic references. *)
+  | ["Stdlib"; "Atomic"; "ignore"], "%ignore", [e] ->
+      EIgnore e
+  | ["Stdlib"; "Atomic"; "get"], "%atomic_load_loc", [e] ->
+      ELoad e
+  | ["Stdlib"; "Atomic"; "exchange"], "%atomic_exchange_loc", [e1; e2] ->
+      EExchange (e1, e2)
+  | ["Stdlib"; "Atomic"; "compare_and_set"], "%atomic_cas_loc", [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
 
   (* Arrays. *)
 
