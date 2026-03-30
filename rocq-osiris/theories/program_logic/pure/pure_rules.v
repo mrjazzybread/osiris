@@ -178,6 +178,42 @@ Section pure_rules.
       intros; returns_eauto; eauto).
   Qed.
 
+  Global Instance observe_pair `{Observe A1 V1, Observe A2 V2} :
+    Observe (A1 * A2) (V1 * V2) :=
+    { observe := (λ '(a1, a2), (♯a1, ♯a2)) }.
+
+  Lemma pure_par
+    `{Observe A1 V1, Observe A2 V2} {E}
+    (m1 : micro V1 _) (m2 : micro V2 E)
+    φ1 φ2
+    (φ : A1 * A2 -> Prop) ψ :
+    pure m1 φ1 ψ →
+    pure m2 φ2 ψ →
+    (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
+    pure (par m1 m2) φ ψ.
+  Proof.
+    intros.
+    eapply pure_wp_par; try eassumption.
+    intros a1 a2 (v1 & -> & Hφ1) (v2 & -> & Hφ2).
+    exists (v1, v2); eauto.
+  Qed.
+
+  Lemma pure_par' `{NotVal A1, NotVal A2} {E}
+    (m1 : micro A1 _) (m2 : micro A2 E)
+    φ1 φ2
+    (φ : A1 * A2 -> Prop) ψ :
+    pure m1 φ1 ψ →
+    pure m2 φ2 ψ →
+    (∀ a1 a2, φ1 a1 → φ2 a2 → φ (a1, a2)) →
+    pure (par m1 m2) φ ψ.
+  Proof.
+    intros.
+    eapply pure_wp_par; try eassumption.
+    intros a1 a2 (v1 & -> & Hφ1) (v2 & -> & Hφ2).
+    exists (v1, v2); eauto.
+  Qed.
+
+
   (* Sequentializations of previous lemmas, considering the LHS first *)
 
   Lemma pure_par_seq_strong
@@ -197,7 +233,7 @@ Section pure_rules.
     eauto.
   Qed.
 
-  Lemma pure_par_seq
+  Lemma pure_Par_seq
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E E'}
     (m1 : micro V1 _) (m2 : micro V2 _) (k : _ -> micro V3 E')
     (φ : A3 → Prop) ψ
@@ -216,6 +252,27 @@ Section pure_rules.
     eapply (pure_wp_mono_ret _ Hm2); intros ? (a2 & -> & Hk).
     eauto.
   Qed.
+
+  Lemma pure_par_seq
+    `{Observe A1 V1, Observe A2 V2} {E}
+    (m1 : micro V1 _) (m2 : micro V2 _)
+    φ ψ
+  :
+    pure (E := E) m1
+      (λ a1,
+        pure m2 (λ a2, φ (a1, a2)) ψ)
+      ⊥ →
+    pure (E := E) (par m1 m2) φ ψ.
+  Proof.
+    intros Hm1.
+    apply pure_wp_Par_val_left.
+    eapply (pure_wp_mono_ret _ Hm1); intros ? (a1 & -> & Hm2).
+    eapply (pure_wp_mono _ Hm2).
+    - intros a2 (v2 & -> & Hφ).
+      apply pure_wp_ret. exists (a1, v2); eauto.
+    - intros e He. by apply pure_wp_throw.
+  Qed.
+
 
   Lemma pure_par_same_exn
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E}
@@ -246,18 +303,13 @@ Section pure_rules.
     pure (E := E2) (Par m1 m2 (glue2 k z)) φ ψ'.
   Proof.
     intros Hm1 Hm2 Hentail1 Hentail2. rewrite <- try_par.
-    eapply pure_wp_try_conseq; eauto.
-    { eapply pure_wp_par with (φ := λ v, pure (k v) φ ψ');
+    eapply pure_wp_try_conseq.
+    - eapply pure_wp_par with (φ := λ v, pure (k v) φ ψ');
         [ eauto | eauto |].
-      simpl. intros v1 v2 ? ?. eauto with pure. }
-    { intros v. tauto. }
+      simpl. intros v1 v2 ? ?. eauto with pure.
+    - intros v. tauto.
+    - intros e He. by apply Hentail2.
   Qed.
-
-  Global Instance observe_pair `{Observe A1 V1, Observe A2 V2} :
-    Observe (A1 * A2) (V1 * V2).
-  Proof. constructor. intros [x y].
-         refine (pair (H.(observe) x) (H0.(observe) y)).
-  Defined.
 
   Lemma pure_par_cont
     `{Observe A1 V1, Observe A2 V2, Observe A3 V3} {E1 E2}
@@ -485,6 +537,17 @@ Section pure_eff.
     - destruct P as (? & -> & Hφ).
       eapply pure_ret. reflexivity. done.
     - contradiction.
+  Qed.
+
+  Lemma pure_widen_pat {E} η δ p v φ ψ :
+    pattern_rules.pattern η δ p v φ False →
+    pure (E:=E) (widen (eval_pat η δ p v)) φ ψ.
+  Proof.
+    intros Hpat.
+    apply pure_wp_widen_pat.
+    eapply pattern_rules.pattern_env_mono. apply Hpat.
+    intros δ0 Hφ.
+    exists δ0; eauto.
   Qed.
 
 End pure_eff.

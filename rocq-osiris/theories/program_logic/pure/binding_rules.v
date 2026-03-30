@@ -22,14 +22,13 @@ Lemma bindings_cons_unary `{Encode A} η p e bs φ :
   bindings η (Binding p e :: bs) φ ⊥.
 Proof.
   unfold bindings. simpl. intros He.
-  simpl_eval_bindings.
-  apply pure_wp_Par_vals_left.
-  apply pure_wp_bind.
+  simpl_eval_bindings. apply pure_wp_bind.
+  apply pure_wp_Par_vals_left, pure_wp_bind.
   apply (pure_wp_mono_ret _ He). intros v (a & -> & Ha).
   apply pure_wp_widen_pat. unfold continue; simpl.
   eapply pattern_env_mono. apply Ha. intros δ Hδ.
   apply (pure_wp_mono_ret _ Hδ). intros η' Hη'.
-  apply pure_wp_ret. apply Hη'.
+  apply pure_wp_ret, pure_wp_ret. apply Hη'.
 Qed.
 
 Lemma bindings_cons `{Encode A} η p e bs (φ1 : A -> Prop) φ P Q ψ :
@@ -41,13 +40,13 @@ Lemma bindings_cons `{Encode A} η p e bs (φ1 : A -> Prop) φ P Q ψ :
 Proof.
   intros He Hp Hbs Hcov.
   unfold bindings.
-  simpl_eval_bindings.
+  simpl_eval_bindings. apply pure_wp_bind.
   eapply pure_wp_Par_conseq; eauto.
   - apply pure_wp_bind.
     apply (pure_wp_mono_ret _ He). intros ? (? & -> & Hφ1).
     apply pure_wp_widen_pat, Hp; auto.
   - intros. unfold continue; simpl.
-    apply pure_wp_ret. auto.
+    apply pure_wp_ret, pure_wp_ret. auto.
   - intros exc Hexc. apply pure_wp_throw. tauto.
 Qed.
 
@@ -167,7 +166,7 @@ Lemma binding_bindings `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
 Proof.
   intros He.
   unfold bindings.
-  simpl_eval_bindings.
+  simpl_eval_bindings. apply pure_wp_bind.
   apply pure_wp_Par_val_left.
   eapply pure_wp_bind_conseq; first apply He.
   intros v (a & -> & Hpa).
@@ -176,6 +175,6 @@ Proof.
   eapply pattern_env_mono; first apply Hpa.
   intros δ Hbindings.
   eapply pure_wp_mono; first apply Hbindings.
-  - intros ? Hφ. apply pure_wp_ret; auto.
+  - intros ? Hφ. apply pure_wp_ret, pure_wp_ret; auto.
   - intros exc Hexc. apply pure_wp_throw; auto.
 Qed.

@@ -247,7 +247,7 @@ Section proofmode_classes.
   Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ :
     ElimModal (thread_step.Atomic m) p false
             (|={E1,E2}=> P) P
-            (impure E1 m Ψ ⊥ Φ) (impure E2 m Ψ ⊥ (λ o, |={E2,E1}=> Φ o))%I | 100.
+            (impure E1 m Ψ ⊥ Φ) (impure E2 m Ψ ⊥ (λ o, |={E2,E1}=> Φ o))%I | 99.
   Proof.
     intros ?. by rewrite bi.intuitionistically_if_elim
       fupd_frame_r bi.wand_elim_r imp_atomic.
@@ -278,7 +278,7 @@ Section proofmode_classes.
     ElimAcc (X:=Y) (thread_step.Atomic m)
             (fupd E1 E2) (fupd E2 E1)
             α β γ (impure E1 m Ψ ⊥ Φ)
-            (λ x, impure E2 m Ψ ⊥ (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 100.
+            (λ x, impure E2 m Ψ ⊥ (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 99.
   Proof.
     iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
     iApply (imp_mono_exn _ _ _ ⊥). iIntros (? []).

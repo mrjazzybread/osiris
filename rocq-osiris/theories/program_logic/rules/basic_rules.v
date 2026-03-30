@@ -146,14 +146,31 @@ Section ewp.
       spec_state. iModIntro.
 
       construct_wp_nonret.
-      edestruct H; first eassumption.
       iSpecialize ("Hm" $! σ' m' μ Hstep0).
       ewp_mask_elim. iMod "Hm" as "(Hewp & $)".
       (* Use atomicity. *)
-      destruct m'; try discriminate H0;
-        ewp_unfold_all;
-        by iDestruct "Hewp" as ">>$". }
-    { admit. }
+      edestruct H; first eassumption; rewrite H0.
+      - ewp_unfold_all.
+        by iDestruct "Hewp" as ">>$".
+      - ewp_unfold_all.
+        by iDestruct "Hewp" as ">>$".
+      - ewp_unfold_all.
+        by iDestruct "Hewp" as ">[]". }
+
+    { intro_state.
+      iMod "Hm".
+
+      spec_state. iMod "Hm". iModIntro.
+
+      inversion Hhm; subst.
+      destruct (π !! t).
+      - iDestruct "Hm" as "(%φ' & $ & Hm)".
+        iIntros "!>" (o) "Hφ'".
+        iSpecialize ("Hm" with "Hφ'").
+        ewp_mask_elim. iMod "Hm" as "(Hewp & $)".
+        (* Use atomicity. *)
+        admit.
+      - iMod "Hm" as ">[]". }
   Admitted.
 
   (** Derived rules *)

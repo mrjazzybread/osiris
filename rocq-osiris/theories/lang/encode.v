@@ -83,13 +83,12 @@ Global Hint Mode NotVal + : typeclass_instances.
 Global Instance notval_bool : NotVal bool := {}.
 Global Instance notval_unit : NotVal () := {}.
 Global Instance notval_env : NotVal env := {}.
-Global Instance notval_envs : NotVal envs := {}.
 Global Instance notval_int : NotVal int := {}.
 Global Instance notval_loc : NotVal loc := {}.
 Global Instance notval_cont : NotVal cont := {}.
 Global Instance notval_thread : NotVal thread := {}.
 
-Global Instance observe_refl `{NotVal A} : Observe A A | 1 := { observe := id }.
+Global Instance observe_id `{NotVal A} : Observe A A | 1 := { observe := id }.
 
 Notation "♯ x" := (observe x) (at level 5, format "♯ x").
 

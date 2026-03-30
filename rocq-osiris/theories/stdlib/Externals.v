@@ -170,8 +170,6 @@ Section ExternalsDef.
   (* ------------------------------------------------------------------------ *)
   (* Content of Externals used in [stdlib/array.ml]. *)
 
-  Local Instance : Observe envs envs := { observe := id }.
-
   (** "%array_length" *)
 
   Definition Externals__array_length : val := VEta1 EArrayLength.

@@ -145,14 +145,14 @@ Definition toplevel me (φ : env -> Prop) :=
    that uses [simp] and a function of type [A → A → bool]. *)
 
 Definition decide_spec `{Encode A}
-  (decide : val) (P : A → Prop) (R : A → A → Prop)
+  (decide : val) (P : A → Prop) (R : A → A → bool)
 :=
   ∀ (x : A),
     P x →
     pure (call decide #x) (λ v,
       ∀ (y : A),
       P y →
-      pure (call v #y) (λ (b : bool), b ↔ R x y) ⊥) ⊥.
+      pure (call v #y) (λ (b : bool), b = R x y) ⊥) ⊥.
 
 (* The above specification states that an application of [decide] to just
    one argument returns a closure. As a sanity check, we verify that this
@@ -160,14 +160,14 @@ Definition decide_spec `{Encode A}
    of [decide] to two arguments. *)
 
 Local Lemma decide_spec' `{Encode A}
-  (decide : val) (P : A → Prop) (R : A → A → Prop)
+  (decide : val) (P : A → Prop) (R : A → A → bool)
 :
   decide_spec decide P R →
   ∀ (x y : A), P x → P y →
   pure
     (bind (call decide #x) (λ v, call v #y))
     (λ (b : bool),
-      b ↔ R x y) ⊥.
+      b = R x y) ⊥.
 Proof.
   intros Hspec x y Hx Hy.
   eapply pure_bind; [ eauto | intros v; cbn; intros Hv ].
@@ -195,19 +195,19 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
 (* -------------------------------------------------------------------------- *)
 
 Lemma Stdlib__eq_spec :
-  decide_spec Stdlib__eq representable Logic.eq. (* same as Z.eq *)
+  decide_spec Stdlib__eq representable Z.eqb.
 Proof.
   intros x Hx.
   pure_enter. simpl_eval. pure_ret.
   intros y Hy.
   pure_enter.
-  eapply pure_eval_EOpEq_bool; try eassumption.
+  eapply pure_eval_EOpEq; try eassumption.
   pure_path. pure_path.
 Qed.
 
 Lemma Stdlib__ne_spec :
-  decide_spec Stdlib__ne representable (λ x y, x ≠ y).
+  decide_spec Stdlib__ne representable (λ x y, negb (x =? y)).
 Proof.
   intros x Hx. pure_enter. simpl_eval. pure_ret. intros y Hy. pure_enter.
-  eapply pure_eval_EOpNe_bool; try (pure_path); auto.
+  eapply pure_eval_EOpNe; try (pure_path); auto.
 Qed.

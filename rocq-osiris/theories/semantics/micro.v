@@ -235,8 +235,6 @@ Fixpoint bind {A B E} (m : micro A E) (f : A → micro B E) : micro B E :=
       Par m1 m2 (λ o, bind (h o) f)
   end.
 
-Global Arguments bind A B E !m f : simpl nomatch.
-
 (* [fmap f m] is sequences the computation [m] and the pure function [f]. *)
 
 Definition fmap {A B E} (f : A -> B) (m : micro A E) : micro B E :=
@@ -867,5 +865,7 @@ Lemma outcome2_opt_inject2 {A E} (v : outcome2 A E) :
 Proof.
   destruct v; auto.
 Qed.
+
+Global Arguments bind A B E m f : simpl never.
 
 End Make.

@@ -166,20 +166,26 @@ Section array_reasoning.
     - iIntros (e) "Hζ !>".
       iApply (imp_throw with "Hζ").
     - iIntros (? a) "-> Hφ !> /=".
-      rewrite bind_ret signed_repr; last representable.
+      rewrite signed_repr; last representable.
       case_decide; last contradiction.
-      iApply imp_allocn.
-      iIntros "!>" (ls) "Hpts".
-      iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
-      rewrite length_replicate in Hlen'.
-      rewrite /continue /=.
-      iApply imp_ret; first encode.
-      iFrame.
-      iSplitR. { iPureIntro; length; lia. }
-      iSplit. { iPureIntro; length; lia. }
-      seg.
-      rewrite -fmap_replicate big_sepLZ2_fmap_r.
-      iApply "Hpts".
+      iApply imp_bind.
+      + iApply imp_allocn.
+        iIntros "!>" (ls) "Hpts".
+        iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
+        rewrite length_replicate in Hlen'.
+        rewrite /continue /=.
+        iApply imp_ret; first encode.
+        instantiate (1:= (λ ls, ⌜length ls = n⌝ ∗ _)%I).
+        iSplit; first (iPureIntro; lia).
+        iApply "Hpts".
+      + iIntros (arr) "(%Hlenls & Hpts)".
+        iApply imp_ret; first encode. iFrame.
+        simpl.
+        iSplitR. { iPureIntro; length; lia. }
+        iSplit. { iPureIntro; length; lia. }
+        seg.
+        rewrite -fmap_replicate big_sepLZ2_fmap_r.
+        iApply "Hpts".
   Qed.
 
   Global Instance inhabited_loc : Inhabited loc.
@@ -231,30 +237,37 @@ Section array_reasoning.
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 P". simpl_eval.
-    iApply (imp_Par (A1:=array) (A2:=Z) with "[He1] [He2]").
-    { iApply (imp_as_array with "He1"). }
-    { iApply (imp_as_int with "He2"). }
-    iSplit.
-    - iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ").
-    - iIntros (ls i) "HΦ1 HΦ2".
-      iDestruct ("P" with "HΦ1 HΦ2")
-        as "(%n & #Harr & %dq & %j & %xs & P)".
-      rewrite /continue /= bind_ret.
-      iNext.
-      iDestruct "P" as "((%Hle & %Hlt & Hslice) & P)".
-      iDestruct "Harr" as "(%Hlen' & %Hbound)".
-      iDestruct "Hslice" as "(%Hlen & Hslice)".
-      rewrite signed_repr; last representable.
-      rewrite list_lookup_lookup_total_valid; last lia.
-      iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
-        as "(Hl & Hslice)"; try lia.
-      iApply (imp_load with "Hl").
-      iIntros "!> Hl".
-      iApply imp_ret; first encode.
-      iApply "P".
-      iSplit. { iPureIntro; apply Hlen. }
-      iApply ("Hslice" with "Hl").
+    iApply (imp_bind with "[He1 He2 P]").
+    { (* Subgoal: [par (as_array (eval η e1)) (as_int (eval η e2))] *)
+      iApply (imp_Par (A1:=array) (A2:=Z) with "[He1] [He2]").
+      { iApply (imp_as_array with "He1"). }
+      { iApply (imp_as_int with "He2"). }
+      iSplit.
+      - iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ").
+      - iIntros (ls i) "HΦ1 HΦ2".
+        iApply imp_ret. instantiate (1:=(_,_)). encode.
+        iSpecialize ("P" with "HΦ1 HΦ2").
+        iNext.
+        instantiate (1:= (λ '(ls, i), ∃ x : Z, isArray ls x ∗
+          ∃ (x0 : dfrac) (x1 : Z) (x2 : list A), (⌜x1 ≤ i⌝ ∗ ⌜i - x1 < length x2⌝ ∗ isSlice x0 ls x1 x2) ∗
+            (isSlice x0 ls x1 x2 -∗ Φ (x2 !!! (i - x1))))%I).
+        iExact "P". }
+    iIntros ([a i]) "(%n & #Harr & %dq & %j & %xs & (%Hle & %Hlt & Hslice) & Hlookup)".
+    iDestruct "Harr" as "(%Hlen' & %Hbound)".
+    iDestruct "Hslice" as "(%Hlen & Hslice)".
+    simpl.
+    rewrite signed_repr; last representable.
+    rewrite list_lookup_lookup_total_valid; last lia.
+    (* Subgoal: [load (a !!! i)] *)
+    iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
+      as "(Hl & Hslice)"; try lia.
+    iApply (imp_load with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply "Hlookup".
+    iSplit. { iPureIntro; apply Hlen. }
+    iApply ("Hslice" with "Hl").
   Qed.
 
   Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} a (n : Z) (i j : Z) dq (xs : list A) x e1 e2 :
@@ -292,35 +305,43 @@ Section array_reasoning.
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 He3 P". simpl_eval.
-    iApply (imp_Par (A1:=array) (A2:=Z * A) with "[He1] [He2 He3]").
-    { iApply (imp_as_array with "He1"). }
-    { iApply (imp_Par (A1:=Z) (A2:=A) with "[He2] He3").
-      iApply (imp_as_int with "He2").
+    iApply (imp_bind (A1:=list loc * (Z * A)) with "[-]").
+    { (* Subgoal: [par (as_array (eval η e1) (par (as_int (eval η e2)) (eval η e3))] *)
+      iApply (imp_Par (A1:=array) (A2:=Z * A) with "[He1] [He2 He3]").
+      { iApply (imp_as_array with "He1"). }
+      { iApply (imp_Par (A1:=Z) (A2:=A) with "[He2] He3").
+        iApply (imp_as_int with "He2").
+        iSplit.
+        - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
+        - iIntros (i y) "HΦ2 HΦ3".
+          iApply (imp_ret _ (i, y)); first encode.
+          instantiate (1 := (λ '(i, y), Φ2 i ∗ Φ3 y)%I). iFrame. }
       iSplit.
-      - iIntros (e) "Hζ". iApply (imp_throw with "Hζ").
-      - iIntros (i y) "HΦ2 HΦ3".
-        iApply (imp_ret _ (i, y)); first encode.
-        instantiate (1 := (λ '(i, y), Φ2 i ∗ Φ3 y)%I). iFrame. }
-    iSplit.
-    { iIntros (e) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
-    iIntros (a [i y]) "HΦ1 (HΦ2 & HΦ3)".
-    iDestruct ("P" with "HΦ1 HΦ2 HΦ3")
-      as "(%n & #Harr & %j & %xs & P)".
-    rewrite /continue /= bind_ret.
-    iNext.
-    iDestruct "P" as "((%Hle & %Hlt & Hslice) & P)".
+      { iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ"). }
+      iIntros (a [i y]) "HΦ1 (HΦ2 & HΦ3)".
+      iSpecialize ("P" with "HΦ1 HΦ2 HΦ3").
+      rewrite /continue /=.
+      iApply (imp_ret _ (a, (i, y))). encode.
+      iNext.
+      instantiate (1:= (λ '(a, (i, y)), ∃ x : Z, isArray a x ∗
+          ∃ (x0 : Z) (x1 : list A), (⌜x0 ≤ i⌝ ∗ ⌜i - x0 < length x1⌝ ∗ isSlice (DfracOwn 1) a x0 x1) ∗
+                                    (isSlice (DfracOwn 1) a x0 (<[i - x0:=y]> x1) -∗ Φ ()))%I).
+      iExact "P". }
+    iIntros ((a & (i & y))) "(%n & #Harr & %j & %xs & (%Hle & %Hlt & Hslice) & HΦ)".
     iDestruct "Harr" as "(%Hlen' & %Hbound)".
     iDestruct "Hslice" as "(%Hlen & Hslice)".
+    simpl.
     rewrite signed_repr; last representable.
     rewrite list_lookup_lookup_total_valid; last lia.
+    (* Subogal: [store (a !!! i) #y] *)
     iPoseProof (big_sepLZ2_insert_seg_acc i with "Hslice")
       as "(Hl & Hslice)"; try lia.
 
     iApply (imp_store with "Hl").
     rewrite /continue; iIntros "!> Hl /=".
     iApply imp_ret; first encode.
-    iApply "P".
+    iApply "HΦ".
     iSplit; length. { iPureIntro. apply Hlen. }
     iSpecialize ("Hslice" with "Hl").
     update.

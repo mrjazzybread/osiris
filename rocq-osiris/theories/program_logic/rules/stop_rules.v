@@ -597,7 +597,8 @@ Section imp_eval.
   Proof.
     iIntros "Hsitem Hcov".
     simpl_eval_sitems. iApply (imp_bind with "Hsitem").
-    iApply "Hcov".
+    iIntros ([η' δ']) "Hφ".
+    iApply ("Hcov" with "Hφ").
   Qed.
 
   Lemma imp_sitems_nil Q ηδ :
@@ -605,7 +606,8 @@ Section imp_eval.
     imp eval_sitems ηδ [] @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     simpl_eval_sitems.
-    by iApply imp_ret.
+    iIntros "HQ". destruct ηδ.
+    by iApply (imp_ret with "HQ").
   Qed.
 
   Lemma imp_sitem_letrec_singleton (spec : val → iProp Σ) x af (η δ : env) :
@@ -617,7 +619,7 @@ Section imp_eval.
   Proof.
     iIntros "Hspec".
     simpl_eval_sitem.
-    iApply imp_ret. encode.
+    iApply imp_ret. instantiate (1:=(_,_)). reflexivity.
     iExists _. iFrame.
     iSplit; iPureIntro; reflexivity.
   Qed.
@@ -647,7 +649,7 @@ Section imp_eval.
     simpl_eval_sitem.
     iApply (imp_bind with "Hbindings").
     iIntros (η') "HQ'".
-    iApply imp_ret; first encode.
+    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
     iApply ("Hmono" with "HQ'").
   Qed.
 
@@ -755,7 +757,7 @@ Section imp_eval.
     iApply (imp_bind with "[Hme]").
     { iApply (imp_as_struct with "Hme"). }
     iIntros (η') "Hφ".
-    iApply imp_ret; first encode.
+    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
     iApply ("Hcov" with "Hφ").
   Qed.
 
@@ -767,7 +769,7 @@ Section imp_eval.
     iIntros "Hme Hcov". simpl_eval_sitem.
     iApply (imp_bind with "Hme").
     iIntros (η') "Hφ".
-    iApply imp_ret; first encode.
+    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
     iApply ("Hcov" with "Hφ").
   Qed.
 
@@ -839,10 +841,11 @@ Section imp_eval.
     iIntros "He Hcov".
     iApply (imp_sitems_cons with "[He]").
     { simpl_eval_sitem.
+      instantiate (1 := (λ ηδ, ∃ x0, ⌜ηδ = (x ~> x0; η, x ~> x0; δ)⌝ ∗ Φ x0)%I).
       iApply (imp_bind with "He").
       iIntros (?) "HΦ".
-      iApply imp_ret; first encode.
-      instantiate (1 := (λ ηδ, ∃ x0, ⌜ηδ = (x ~> x0; η, x ~> x0; δ)⌝ ∗ Φ x0)%I). by iFrame. }
+      iApply imp_ret; first (instantiate (1:=(_,_)); encode).
+      by iFrame. }
     iIntros (?) "(% & -> & HΦ)".
     iApply ("Hcov" with "HΦ").
   Qed.

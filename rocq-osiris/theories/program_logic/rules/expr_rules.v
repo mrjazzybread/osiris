@@ -295,7 +295,8 @@ Section imp_rules_expr.
   Proof.
     iIntros (Hlookup) "He Hjoin".
     simpl_eval. rewrite Hlookup. simpl.
-    iApply (imp_bind (A1 := list val) with "[He]").
+    iApply (imp_bind (A1 := loc)). { instantiate (1:= (λ l', ⌜l'=l⌝)%I). by iApply imp_ret. }
+    iIntros (?) "->". iApply (imp_bind (A1:=list val) with "[He]").
     iApply (imp_evals with "He").
     iIntros (vs) "HΦs".
     iDestruct ("Hjoin" $! vs with "HΦs") as "(%a & %Henc & HΦ)".
