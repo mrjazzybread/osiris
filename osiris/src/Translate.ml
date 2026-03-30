@@ -573,6 +573,8 @@ and translate_stdlib_application loc path args =
       ERef e
   | ["Stdlib"; "Atomic"; "set"], [e1; e2] ->
       EStore (e1, e2)
+  | ["Stdlib"; "Atomic"; "compare_and_set"], [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
   | _, _ ->
       raise Unrecognized
 
