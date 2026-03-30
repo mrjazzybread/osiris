@@ -356,6 +356,9 @@ let rec expr (e : expr) =
   | EStore (e1, e2) ->
       c "EStore" [ expr e1; expr e2 ]
 
+  | ECAS (e1, e2, e3) ->
+      c "ECAS" [ expr e1; expr e2; expr e3 ]
+
   | EFork (e1, e2) ->
       c "EFork" [ expr e1; expr e2 ]
 

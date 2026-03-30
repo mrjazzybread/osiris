@@ -203,17 +203,22 @@ Global Hint Resolve
   can_progress_join
   can_progress_fork : can_progress.
 
+From osiris.semantics Require Import pure.
+
 Section Atomicity.
 
   Context {A X : Type}.
   Implicit Type m : micro A X.
 
-  Definition irreducible m σ :=
-    ∀ π m' σ' μ, ¬ thread_step (σ, m, π) (σ', m', μ).
+  Inductive is_outcome3 m : Prop :=
+  | is_ret a : m = Ret a → is_outcome3 m
+  | is_throw e : m = Throw e → is_outcome3 m
+  | is_crash : m = Crash → is_outcome3 m.
 
   Class Atomic m : Prop :=
-    atomic σ π σ' m' μ :
+    atomic :
+      ∀ σ π σ' m' μ,
       thread_step (σ, m, π) (σ', m', μ) →
-      is_Some (is_outcome m').
+      is_outcome3 m'.
 
 End Atomicity.

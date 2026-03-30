@@ -174,6 +174,51 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* [step_cas σ l seen v k] is the right-hand side of the reduction rule [StepCAS].
+
+   This rule loads a value [v] from the store [σ] at location [l], overwrites
+   it with the value [v'], and returns a unit value to the continuation [k].
+   It fails if the location [l] is not in the domain of [σ] or contains
+   something other than a value. *)
+
+Definition step_cas_1 σ l seen (v : val) : store :=
+  match σ !! l with
+  | Some (V v) => match phys_eq_val v seen with
+                  | Some true => <[ l := V v ]> σ
+                  | _ => σ
+                  end
+  | _          => σ
+  end.
+
+Definition step_cas_2 {A E} σ l seen (v : val) (k : outcome2 val exn → _) : micro A E :=
+  match σ !! l with
+  | Some (V v) => match phys_eq_val v seen with
+                  | Some true => continue k VTrue
+                  | Some false => continue k VFalse
+                  | None => physical_equality_error "invalid or unsupported arguments"
+                  end
+  | _          => crash "store error: unbound location"
+  end.
+
+Notation step_cas σ l seen v k :=
+  (step_cas_1 σ l seen v, step_cas_2 σ l seen v k).
+
+(* Comparing-and-setting is an algebraic effect. *)
+
+Lemma try2_step_cas_2 {A B E F} σ l seen v
+  (k : outcome2 val exn → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_cas_2 σ l seen v (pftry2 k k') = try2 (step_cas_2 σ l seen v k) k'.
+Proof.
+  unfold step_cas_2. intros.
+  case_location_lookup; simplify_eq; eauto.
+  destruct (phys_eq_val v0 seen); eauto.
+  destruct b; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [step_resume σ l o] is the right-hand side of the rule [StepResume].
 
    This rule loads a continuation [sk] from the store [σ] at location [l],
@@ -247,6 +292,7 @@ Qed.
 Global Hint Resolve
   try2_step_load_2
   try2_step_store_2
+  try2_step_cas_2
   try2_step_resume_2
   try2_step_wrap_2
 : try2_algebraic.
@@ -325,6 +371,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
       c' = step_store σ l v' k →
       step
         (σ, Stop CStore (l, v') k)
+        c'
+
+  | StepCAS :
+      ∀ σ l seen v k c',
+      c' = step_cas σ l seen v k →
+      step
+        (σ, Stop CCAS (l, seen, v) k)
         c'
 
   (* If [Handle _ h] observes a normal result [ret v] then it reduces to an

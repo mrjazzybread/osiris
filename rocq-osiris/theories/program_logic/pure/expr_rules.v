@@ -824,7 +824,10 @@ Lemma pure_eval_EOpPhysEq_loc η e1 e2 (x1 x2 : loc) :
   pure (eval η (EOpPhysEq e1 e2)) (λ b, b = locations.eqb x1 x2) ⊥.
 Proof.
   intros He1 He2 Hx1 Hx2. simpl_eval.
-  eapply pure_eval_comparison_operator; eauto.
+  eapply pure_bind. instantiate (1:= λ '(a1, a2), singleton x1 a1 ∧ singleton x2 a2).
+  { eapply pure_par; eauto. }
+  intros [??] [-> ->].
+  eapply pure_ret; last reflexivity. encode.
 Qed.
 
 Lemma pure_eval_EOpPhysEq_cont η e1 e2 (x1 x2 : cont) :
@@ -836,7 +839,10 @@ Lemma pure_eval_EOpPhysEq_cont η e1 e2 (x1 x2 : cont) :
   pure (eval η (EOpPhysEq e1 e2)) (λ b, b = locations.eqb x1 x2) ⊥.
 Proof.
   intros He1 He2 Hx1 Hx2. simpl_eval.
-  eapply pure_eval_comparison_operator; eauto.
+  eapply pure_bind. instantiate (1:= λ '(a1, a2), singleton x1 a1 ∧ singleton x2 a2).
+  { eapply pure_par; eauto. }
+  intros [??] [-> ->].
+  eapply pure_ret; last reflexivity. encode.
 Qed.
 
 (* EOpEq (e1 e2 : expr) *)

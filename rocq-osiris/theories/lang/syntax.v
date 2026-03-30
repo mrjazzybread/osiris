@@ -293,6 +293,8 @@ Inductive expr :=
   | ELoad (e : expr)
   (* Reference assignment: [e1 := e2]. *)
   | EStore (e1 e2: expr)
+  (* Compare-and-set: [Atomic.compare_and_set e1 e2 e3]. *)
+  | ECAS (e1 e2 e3 : expr)
 
   (* Creating a thread: ≈ [Thread.create f arg]. *)
   | EFork (e1 e2 : expr)

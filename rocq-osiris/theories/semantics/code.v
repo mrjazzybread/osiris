@@ -74,6 +74,7 @@ Inductive code : Type → Type → Type → Type :=
 | CAllocn : code (list val) (list loc) exn
 | CLoad  : code loc val exn
 | CStore : code (loc * val) val exn
+| CCAS : code (loc * val * val) val exn
 | CPerf  : code eff val exn
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
@@ -153,6 +154,12 @@ Definition load (l : loc) :=
 
 Definition store (l : loc) (v : val) :=
   stop CStore (l, v).
+
+(* [cas l seen v] updates the ref cell at location [l] with the value [v],
+   only if that value currently contains [seen]. *)
+
+Definition cas (l : loc) (seen : val) (v : val) :=
+  stop CCAS (l, seen, v).
 
 (* ------------------------------------------------------------------------ *)
 

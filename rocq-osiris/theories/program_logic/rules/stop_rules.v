@@ -130,7 +130,7 @@ Section imp_stop.
   (* The standard memory write rule of Separation Logic. *)
 
   Lemma imp_store l v v' (k : _ → micro A X) :
-    pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         pointsto l (DfracOwn 1) (V v') -∗
         imp (continue k #()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
@@ -142,7 +142,8 @@ Section imp_stop.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    iIntros "!> !>".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
     destruct_thread_step.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_store_1 /step_store_2 H0.

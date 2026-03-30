@@ -651,14 +651,14 @@ Definition call v1 v2 : microvx :=
 
 (* This operator can be applied to memory locations. *)
 
-Definition phys_eq_val v1 v2 : micro bool exn :=
+Definition phys_eq_val v1 v2 : option bool :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
-      ret (locations.eqb l1 l2)
+      Some (locations.eqb l1 l2)
   | VCont k1, VCont k2 =>
-      ret (locations.eqb k1 k2)
+      Some (locations.eqb k1 k2)
   | _, _ =>
-      physical_equality_error "invalid or unsupported arguments"
+      None
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -1308,8 +1308,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ret (VFloat f)
   | EOpPhysEq e1 e2 =>
       '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
-      b ← phys_eq_val v1 v2 ;
-      ret (VBool b)
+      match phys_eq_val v1 v2 with
+      | Some b => ret (VBool b)
+      | None => physical_equality_error "invalid or unsupported arguments"
+      end
   | EOpEq e1 e2 =>
       '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← eq_val v1 v2 ;
@@ -1425,6 +1427,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EStore e1 e2 =>
       '(l, v) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
       store l v
+  | ECAS e1 e2 e3 =>
+      '(l, seen, v) ← par (par (as_loc (eval η e1)) (eval η e2)) (eval η e3);
+      cas l seen v
   | EFork e1 e2 =>
       '(f, v) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       fork f v

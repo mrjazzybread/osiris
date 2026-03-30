@@ -287,6 +287,8 @@ type expr =
   | ELoad of expr
   (* Reference assignment: [e1 := e2]. *)
   | EStore of expr * expr
+  (* Compare-and-set: [Atomic.compare_and_set e1 e2 e3]. *)
+  | ECAS of expr * expr * expr
 
   (* Forking a new thread: [Domain.spawn f x] *)
   | EFork of expr * expr
