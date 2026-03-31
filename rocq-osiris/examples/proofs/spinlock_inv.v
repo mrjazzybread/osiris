@@ -96,7 +96,7 @@ Proof.
   destruct (phys_eq_val _ _) as [ [|] | ]; by econstructor.
 Qed.
 
-Lemma imp_store_atomic `{Encode A} (E : coPset) N η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) P :
+Lemma imp_store_inv `{Encode A} (E : coPset) N η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) P :
   ↑N ⊆ E →
   inv N P -∗
   impure E (eval η e1) Ψ ζ Φ1 -∗
@@ -130,6 +130,37 @@ Proof.
       iApply "HΦ". }
   iIntros ((l & x)) "Hl /=".
   iApply (imp_atomic' E (E ∖ ↑N)).
+  iMod "Hl" as "(%v & Hl & Hstore)".
+  iApply (imp_store' with "Hl").
+  iApply "Hstore".
+Qed.
+
+Lemma imp_store_atomic `{Encode A} (E1 E2 : coPset) η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) :
+  impure E1 (eval η e1) Ψ ζ Φ1 -∗
+  impure E1 (eval η e2) Ψ ζ Φ2 -∗
+  ▷ (|={E1,E2}=>
+       ∀ l x, Φ1 l -∗ Φ2 x -∗
+              ∃ v, ▷ l ↦ v ∗
+                   ▷ (l ↦ #x -∗ |={E2,E1}=> Φ ())) -∗
+  impure E1 (eval η (EStore e1 e2)) Ψ ζ Φ.
+Proof.
+  iIntros "He1 He2 Hstore".
+  simpl_eval. fold (as_loc (eval η e1)).
+  iApply (imp_bind (A1:=loc * A) with "[-]").
+  set_postcondition
+    (λ '((l, x) : loc * A),
+        |={E1,E2}=> ∃ v, ▷ l ↦ v ∗
+                            ▷ (l ↦ #x -∗ |={E2,E1}=> Φ ()))%I.
+  { iApply (imp_Par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iSplit.
+    - iIntros (e) "He !>". iApply (imp_throw with "He").
+    - iIntros (l x) "HΦ1 HΦ2 !>".
+      iApply imp_ret. instantiate (1:=(_,_)). encode.
+      iMod "Hstore". iModIntro.
+      iDestruct ("Hstore" with "HΦ1 HΦ2") as "(%v & $ & $)". }
+  iIntros ((l & x)) "Hl /=".
+  iApply (imp_atomic' E1 E2).
   iMod "Hl" as "(%v & Hl & Hstore)".
   iApply (imp_store' with "Hl").
   iApply "Hstore".
@@ -271,7 +302,7 @@ Proof.
     iApply imp_please; iNext.
     (* Open invariant non-atomically: get [l ↦ #b] in hand, store [false],
        then close with [l ↦ #false ∗ token γ ∗ ▷R]. *)
-    iApply (imp_store_atomic (A:=bool) with "Hinv"); try imp_step. set_solver.
+    iApply (imp_store_inv (A:=bool) with "Hinv"); try imp_step. set_solver.
     iIntros "!>" (??) "-> -> Hopened".
     iDestruct "Hopened" as "[ $ | ($ & >Htok' & HR') ]".
     - iIntros "!> Hl".
