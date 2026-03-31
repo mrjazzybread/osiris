@@ -4,8 +4,7 @@
 let create () = Atomic.make false
 
 let acquire lk =
-  while not (Atomic.compare_and_set lk false true) do () done;
-  Atomic.set lk true
+  while not (Atomic.compare_and_set lk false true) do () done
 
 let release lk =
   Atomic.set lk false

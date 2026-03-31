@@ -157,48 +157,58 @@ Section imp_stop.
   (* CAS success: the physical equality holds, so the store is updated from
      [seen] to [v'], and the continuation receives [VTrue]. *)
 
-  Lemma imp_stop_cas_suc l seen v v' (k : _ → micro A X) :
-    phys_eq_val v seen = Some true →
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    ▷ (
-        pointsto l (DfracOwn 1) (V v') -∗
-        imp (continue k VTrue) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
-      ) -∗
-    imp (Stop CCAS (l, seen, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Class PhysEqDec A `{Encode A} : Prop :=
+    phys_eq_dec :
+      ∀ (a b : A), is_Some (phys_eq_val #a #b).
+
+  Global Instance phys_eq_dec_loc : PhysEqDec loc.
   Proof.
-    iIntros (Hpe) "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-    iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
-    destruct_thread_step.
-    iMod (gen_heap_update σ l (V v) (V v') with "Hsi Hl") as "[Hsi Hl]".
-    rewrite /step_cas_1 /step_cas_2 H0 Hpe /=.
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
+    intros i j. eauto.
   Qed.
 
-  (* CAS failure: the physical equality does not hold, so the store is
-     unchanged and the continuation receives [VFalse]. Fractional ownership
-     suffices because we do not modify the heap. *)
+  Global Instance phys_eq_dec_cont : PhysEqDec cont.
+  Proof.
+    intros i j. eauto.
+  Qed.
 
-  Lemma imp_stop_cas_fail l seen v' w dq (k : _ → micro A X) (Hpe : phys_eq_val w seen = Some false) :
-    ▷ pointsto l dq (V w) ⊢
+  Global Instance phys_eq_dec_bool : PhysEqDec bool.
+  Proof.
+    intros [|] [|]; eauto.
+  Qed.
+
+  Definition phys_eq_val_ `{Hped : PhysEqDec B} : B → B → bool :=
+    λ a b,
+      @is_Some_proj bool (phys_eq_val #a #b) (Hped a b).
+
+  Lemma phys_eq_val_proj `{Hped : PhysEqDec B} a b :
+    phys_eq_val #a #b = Some (phys_eq_val_ a b).
+  Proof.
+    unfold phys_eq_val_. destruct Hped as [decision ->].
+    reflexivity.
+  Qed.
+
+  Lemma imp_stop_cas `{PhysEqDec B} l (seen v v' : B) (k : _ → micro A X) :
+    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
     ▷ (
-        pointsto l dq (V w) -∗
-        imp (continue k VFalse) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+          l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
+          imp (continue k #(phys_eq_val_ v seen)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CCAS (l, seen, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (Stop CCAS (l, #seen, #v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
-    rewrite /step_cas_1 /step_cas_2 H0 Hpe /=.
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
+    destruct (phys_eq_val_ v seen) eqn:Hpeq.
+    - iMod (gen_heap_update σ l (V #v) (V #v') with "Hsi Hl") as "[Hsi Hl]".
+      rewrite /step_cas_1 /step_cas_2 Hvalid phys_eq_val_proj Hpeq /=.
+      ewp_mask_elim. iFrame.
+      iApply ("Hwp" with "Hl").
+    - rewrite /step_cas_1 /step_cas_2 Hvalid phys_eq_val_proj Hpeq /=.
+      ewp_mask_elim. iFrame.
+      iApply ("Hwp" with "Hl").
   Qed.
 
   (* [CLoad]. *)
@@ -383,14 +393,14 @@ Section imp_combinators.
     iIntros "!> $".
   Qed.
 
-  Lemma imp_cas_suc {E Ψ ζ} {Φ : bool → iProp Σ} l seen v v' :
-    phys_eq_val v seen = Some true →
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ true) -∗
-    imp (cas l seen v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Lemma imp_cas `{PhysEqDec A} {E Ψ ζ} {Φ : bool → iProp Σ} l (seen v v' : A) :
+    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V (if phys_eq_val_ v seen then #v' else #v)) -∗
+       Φ (phys_eq_val_ v seen)) -∗
+    imp (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros (Hpe) "Hl HΦ".
-    iApply (imp_stop_cas_suc with "Hl"). apply Hpe.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_cas with "Hl").
     iIntros "!> Hl".
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").

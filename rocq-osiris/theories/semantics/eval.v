@@ -657,6 +657,8 @@ Definition phys_eq_val v1 v2 : option bool :=
       Some (locations.eqb l1 l2)
   | VCont k1, VCont k2 =>
       Some (locations.eqb k1 k2)
+  | VData c1 [], VData c2 [] =>
+      Some (c1 =? c2)
   | _, _ =>
       None
   end.
