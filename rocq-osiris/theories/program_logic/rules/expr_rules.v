@@ -1073,8 +1073,8 @@ Section imp_rules_expr.
     iIntros "He". simpl_eval.
     iApply (imp_bind with "He").
     iIntros (x) "HΦ".
-    iApply (imp_alloc).
-    iIntros "!>" (l) "Hl". rewrite /continue /=.
+    iApply imp_bind. { iApply imp_alloc. }
+    iIntros (l) "Hl".
     iApply imp_ret; first encode.
     iFrame.
   Qed.
@@ -1102,10 +1102,7 @@ Section imp_rules_expr.
     iIntros (l) "HΦ1".
     iDestruct ("P" with "HΦ1") as "(%q & %a & Hl & P)".
     change (♯l) with l.
-    iApply (imp_load l (#a) q inject2 with "Hl").
-    iIntros "!> Hl". rewrite /continue /=.
-    iApply (imp_ret #a a); auto.
-    iApply ("P" with "Hl").
+    iApply (imp_load' with "Hl P").
   Qed.
 
   Lemma imp_ELoad `{Encode A} {ζ} η e l q (a : A) :
@@ -1138,10 +1135,7 @@ Section imp_rules_expr.
       iSpecialize ("P" with "H1 H2").
       iNext. iDestruct "P" as "(%v & Hl & HΦ)".
       rewrite /continue /=.
-      iApply (imp_store l v #x inject2 with "Hl"). iNext.
-      iIntros "Hl".
-      iApply (imp_ret VUnit ()); first encode.
-      iApply ("HΦ" with "Hl").
+      iApply (imp_store' with "Hl HΦ").
   Qed.
 
   Lemma imp_EStore2 `{Encode A} {Φ : unit → iProp Σ} {ζ} (l : loc) η e1 e2 (Φ1 : A → iProp Σ) :
@@ -1161,10 +1155,7 @@ Section imp_rules_expr.
       iSpecialize ("P" with "H2").
       iNext. iDestruct "P" as "(%v & Hl & HΦ)".
       rewrite /continue /=.
-      iApply (imp_store l v #y inject2 with "Hl"). iNext.
-      iIntros "Hl".
-      iApply (imp_ret VUnit ()); first encode.
-      iApply ("HΦ" with "Hl").
+      iApply (imp_store' with "Hl HΦ").
   Qed.
 
   Lemma imp_EStore' `{Encode A} {ζ} {Φ} (Φ' : A → iProp Σ) {η e1 e2} l v :
@@ -1190,6 +1181,87 @@ Section imp_rules_expr.
     iIntros "Hl H1 H2".
     iApply (imp_EStore' with "Hl H1 H2").
     iIntros "!>" (?) "-> $".
+  Qed.
+
+  (** * ECAS : expr → expr → expr → expr *)
+
+  Lemma imp_ECAS2' `{Encode A} {Φ : bool → iProp Σ} {ζ} η e1 e2 e3 (Φ1 : loc → iProp Σ) (Φ2 Φ3 : A → iProp Σ) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
+    (∀ l seen a,
+       Φ1 l -∗ Φ2 seen -∗ Φ3 a -∗
+       ▷ ∃ v1, pointsto l (DfracOwn 1) (V v1) ∗ ⌜phys_eq_val #v1 #seen = Some true⌝ ∗
+               ▷ (l ↦ #a -∗ Φ true)) -∗
+    imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 H3 P /=". simpl_eval.
+    iApply (imp_Par (A1:=loc*A) with "[H1 H2] H3 [P]").
+    { iApply (imp_Par with "[H1] H2").
+      { iApply (imp_as_loc with "H1"). }
+      iSplit.
+      - iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ").
+      - iIntros (l x) "H1 H2".
+        instantiate (1:= (λ '(l, x), Φ1 l ∗ Φ2 x)%I).
+        iApply (imp_ret _ (l, x)); auto. iFrame. }
+    iSplit.
+    - iIntros (e) "Hζ !>".
+      iApply (imp_throw with "Hζ").
+    - iIntros ((l & x) y) "(H1 & H2) H3".
+      iSpecialize ("P" with "H1 H2 H3").
+      iNext. iDestruct "P" as "(%v & Hl & %Hpeq & HΦ)".
+      rewrite /continue /=.
+      iApply (imp_cas_suc with "Hl HΦ"). assumption.
+  Qed.
+
+  Lemma imp_ECAS2 `{Encode A} {Φ : bool → iProp Σ} {ζ} (l : loc) η e1 e2 e3 (Φ2 Φ3 : A → iProp Σ) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
+    (∀ seen a,
+       Φ2 seen -∗ Φ3 a -∗
+       ▷ ∃ v1, pointsto l (DfracOwn 1) (V v1) ∗ ⌜phys_eq_val #v1 #seen = Some true⌝ ∗
+               ▷ (l ↦ #a -∗ Φ true)) -∗
+    imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 H3 P /=".
+    iApply (imp_ECAS2' with "H1 H2 H3").
+    iIntros (? seen a) "-> HΦ2 HΦ3".
+    iApply ("P" with "HΦ2 HΦ3").
+  Qed.
+
+  Lemma imp_ECAS' `{Encode A} {Φ : bool → iProp Σ} {ζ} (l : loc) v η e1 e2 e3 (Φ2 Φ3 : A → iProp Σ) :
+    l ↦ v -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
+    (∀ seen a,
+       Φ2 seen -∗ Φ3 a -∗
+       ▷ (⌜phys_eq_val #v #seen = Some true⌝ ∗
+       ▷ (l ↦ #a -∗ Φ true))) -∗
+    imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 H2 H3 P".
+    iApply (imp_ECAS2 with "H1 H2 H3").
+    iIntros (seen a) "HΦ2 HΦ3".
+    iSpecialize ("P" with "HΦ2 HΦ3").
+    iFrame.
+  Qed.
+
+  Lemma imp_ECAS `{Encode A} {ζ} (l : loc) v (a : A) η e1 e2 e3 (Φ2 Φ3 : A → iProp Σ) :
+    l ↦ v -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
+    (∀ seen, Φ2 seen -∗ ▷ ⌜phys_eq_val #v #seen = Some true⌝) -∗
+    imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ b, ⌜b = true⌝ ∗ l ↦ #a }}.
+  Proof.
+    iIntros "Hl H1 H2 H3 P".
+    iApply (imp_ECAS' with "Hl H1 H2 H3").
+    iIntros (seen ?) "HΦ2 ->".
+    iDestruct ("P" with "HΦ2") as "$".
+    iIntros "!> !> $ //".
   Qed.
 
   (** * EPerform : expr -> expr *)

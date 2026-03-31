@@ -262,9 +262,8 @@ Section array_reasoning.
     (* Subgoal: [load (a !!! i)] *)
     iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
       as "(Hl & Hslice)"; try lia.
-    iApply (imp_load with "Hl").
+    iApply (imp_load' with "Hl").
     iIntros "!> Hl".
-    iApply imp_ret; first encode.
     iApply "Hlookup".
     iSplit. { iPureIntro; apply Hlen. }
     iApply ("Hslice" with "Hl").
@@ -338,9 +337,8 @@ Section array_reasoning.
     iPoseProof (big_sepLZ2_insert_seg_acc i with "Hslice")
       as "(Hl & Hslice)"; try lia.
 
-    iApply (imp_store with "Hl").
-    rewrite /continue; iIntros "!> Hl /=".
-    iApply imp_ret; first encode.
+    iApply (imp_store' with "Hl").
+    iIntros "!> Hl".
     iApply "HΦ".
     iSplit; length. { iPureIntro. apply Hlen. }
     iSpecialize ("Hslice" with "Hl").

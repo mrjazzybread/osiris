@@ -75,6 +75,11 @@ Ltac2 get_pointsto (l : constr) : constr * constr :=
               (name, Constr.type a)
             else
               go env
+        | (▷ ?l' ↦ (#?a))%I =>
+            if Constr.equal l l' then
+              (name, Constr.type a)
+            else
+              go env
         | _ => go env
         end
     end

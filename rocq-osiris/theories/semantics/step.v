@@ -211,16 +211,16 @@ Qed.
    It fails if the location [l] is not in the domain of [σ] or contains
    something other than a value. *)
 
-Definition step_cas_1 σ l seen (v : val) : store :=
+Definition step_cas_1 σ l seen (v' : val) : store :=
   match σ !! l with
   | Some (V v) => match phys_eq_val v seen with
-                  | Some true => <[ l := V v ]> σ
-                  | _ => σ
-                  end
-  | _          => σ
+                   | Some true => <[ l := V v' ]> σ
+                   | _ => σ
+                   end
+  | _           => σ
   end.
 
-Definition step_cas_2 {A E} σ l seen (v : val) (k : outcome2 val exn → _) : micro A E :=
+Definition step_cas_2 {A E} σ l seen (v' : val) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
   | Some (V v) => match phys_eq_val v seen with
                   | Some true => continue k VTrue
@@ -230,20 +230,20 @@ Definition step_cas_2 {A E} σ l seen (v : val) (k : outcome2 val exn → _) : m
   | _          => crash "store error: unbound location"
   end.
 
-Notation step_cas σ l seen v k :=
-  (step_cas_1 σ l seen v, step_cas_2 σ l seen v k).
+Notation step_cas σ l seen v' k :=
+  (step_cas_1 σ l seen v', step_cas_2 σ l seen v' k).
 
 (* Comparing-and-setting is an algebraic effect. *)
 
-Lemma try2_step_cas_2 {A B E F} σ l seen v
+Lemma try2_step_cas_2 {A B E F} σ l seen v'
   (k : outcome2 val exn → micro A E)
   (k' : outcome2 A E → micro B F)
 :
-  step_cas_2 σ l seen v (pftry2 k k') = try2 (step_cas_2 σ l seen v k) k'.
+  step_cas_2 σ l seen v' (pftry2 k k') = try2 (step_cas_2 σ l seen v' k) k'.
 Proof.
   unfold step_cas_2. intros.
   case_location_lookup; simplify_eq; eauto.
-  destruct (phys_eq_val v0 seen); eauto.
+  destruct (phys_eq_val v seen); eauto.
   destruct b; eauto.
 Qed.
 

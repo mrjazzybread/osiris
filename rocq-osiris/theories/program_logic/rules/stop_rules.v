@@ -110,7 +110,7 @@ Section imp_stop.
     iApply "H". iFrame.
   Qed.
 
-  Lemma imp_alloc v (k : _ → micro A X) :
+  Lemma imp_stop_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗
             imp (continue k [l]) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocn [v] k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -129,7 +129,7 @@ Section imp_stop.
 
   (* The standard memory write rule of Separation Logic. *)
 
-  Lemma imp_store l v v' (k : _ → micro A X) :
+  Lemma imp_stop_store l v v' (k : _ → micro A X) :
     ▷ pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         pointsto l (DfracOwn 1) (V v') -∗
@@ -152,11 +152,60 @@ Section imp_stop.
     iApply ("Hwp" with "Hl").
   Qed.
 
+  (* [CCAS]. *)
+
+  (* CAS success: the physical equality holds, so the store is updated from
+     [seen] to [v'], and the continuation receives [VTrue]. *)
+
+  Lemma imp_stop_cas_suc l seen v v' (k : _ → micro A X) :
+    phys_eq_val v seen = Some true →
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ (
+        pointsto l (DfracOwn 1) (V v') -∗
+        imp (continue k VTrue) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CCAS (l, seen, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hpe) "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    destruct_thread_step.
+    iMod (gen_heap_update σ l (V v) (V v') with "Hsi Hl") as "[Hsi Hl]".
+    rewrite /step_cas_1 /step_cas_2 H0 Hpe /=.
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* CAS failure: the physical equality does not hold, so the store is
+     unchanged and the continuation receives [VFalse]. Fractional ownership
+     suffices because we do not modify the heap. *)
+
+  Lemma imp_stop_cas_fail l seen v' w dq (k : _ → micro A X) (Hpe : phys_eq_val w seen = Some false) :
+    ▷ pointsto l dq (V w) ⊢
+    ▷ (
+        pointsto l dq (V w) -∗
+        imp (continue k VFalse) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CCAS (l, seen, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    destruct_thread_step.
+    rewrite /step_cas_1 /step_cas_2 H0 Hpe /=.
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
   (* [CLoad]. *)
 
   (* The standard memory load rule of Separation Logic. *)
 
-  Lemma imp_load l v dq (k: _ → micro A X) :
+  Lemma imp_stop_load l v dq (k: _ → micro A X) :
     ▷ pointsto l dq (V v) ⊢
     ▷ (
         pointsto l dq (V v) -∗
@@ -269,6 +318,85 @@ Section imp_stop.
   Qed.
 
 End imp_stop.
+
+Section imp_combinators.
+
+  Context `{!osirisGS Σ}.
+
+  Lemma imp_alloc' {E Ψ ζ} {Φ : loc → iProp Σ} v :
+    ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗ Φ l) -∗
+    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iApply imp_stop_alloc.
+    iIntros "!> %l Hl".
+    iApply imp_ret; first encode.
+    iApply ("H" with "Hl").
+  Qed.
+
+  Lemma imp_alloc {E Ψ ζ} v :
+    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, pointsto l (DfracOwn 1) (V v) }}.
+  Proof.
+    iApply imp_alloc'.
+    iIntros "!> %l $".
+  Qed.
+
+  Lemma imp_load' `{Encode A} {E Ψ ζ} {Φ : A → iProp Σ} l a dq :
+    ▷ pointsto l dq (V #a) ⊢
+    ▷ (pointsto l dq (V #a) -∗ Φ a) -∗
+    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_load with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_load `{Encode A} {E Ψ ζ} l (a : A) dq :
+    ▷ pointsto l dq (V #a) ⊢
+    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ pointsto l dq (V #a) }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_load' with "Hl").
+    by iIntros "!> $".
+  Qed.
+
+  Lemma imp_store' {E Ψ ζ} {Φ : unit → iProp Σ} l v v' :
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ ()) -∗
+    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_store with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_store {E Ψ ζ} l v v' :
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), pointsto l (DfracOwn 1) (V v') }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_store' with "Hl").
+    iIntros "!> $".
+  Qed.
+
+  Lemma imp_cas_suc {E Ψ ζ} {Φ : bool → iProp Σ} l seen v v' :
+    phys_eq_val v seen = Some true →
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ true) -∗
+    imp (cas l seen v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hpe) "Hl HΦ".
+    iApply (imp_stop_cas_suc with "Hl"). apply Hpe.
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+End imp_combinators.
 
 Section imp_wrap_flip.
 
@@ -738,8 +866,8 @@ Section imp_eval.
     iIntros "Hcov".
     iApply (imp_sitems_cons).
     { iApply (imp_sitem_extend).
-      iApply imp_alloc.
-      iIntros "!>" (l) "Hl"; simpl; iApply imp_ret. reflexivity.
+      iApply imp_bind. iApply imp_alloc.
+      iIntros (l) "Hl"; simpl; iApply imp_ret. reflexivity.
       Unshelve.
       2: (apply (λ ηδ,
                    (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ VUnit)%I)).
@@ -794,10 +922,12 @@ Section imp_eval.
             imp eval_type_extensions es @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ δ, Q ((e, VLoc l) :: δ) }}) -∗
     imp eval_type_extensions (e :: es) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
-    iIntros "Hes".
-    iApply imp_alloc.
-    iIntros "!>" (l) "Hl".
-    iSpecialize ("Hes" with "Hl").
+    iIntros "Hes". simpl.
+    iApply (imp_bind with "[Hes]").
+    { iApply imp_alloc'. iIntros "!>" (l) "Hl".
+      iSpecialize ("Hes" with "Hl").
+      iExact "Hes". }
+    iIntros (l) "Hes".
     iApply (imp_bind with "Hes").
     iIntros (η) "HQ".
     iApply (imp_ret with "HQ"). reflexivity.
