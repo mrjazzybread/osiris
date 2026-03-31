@@ -96,44 +96,6 @@ Proof.
   destruct (phys_eq_val _ _) as [ [|] | ]; by econstructor.
 Qed.
 
-Lemma imp_store_inv `{Encode A} (E : coPset) N η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) P :
-  ↑N ⊆ E →
-  inv N P -∗
-  impure E (eval η e1) Ψ ζ Φ1 -∗
-  impure E (eval η e2) Ψ ζ Φ2 -∗
-  (▷ ∀ l x, Φ1 l -∗ Φ2 x -∗
-            ▷ P -∗
-            ∃ v, ▷ l ↦ v ∗
-                 ▷ (l ↦ #x -∗ ▷ P ∗ Φ ())) -∗
-  impure E (eval η (EStore e1 e2)) Ψ ζ Φ.
-Proof.
-  iIntros (Hsubset) "#Hinv He1 He2 Hstore".
-  simpl_eval. fold (as_loc (eval η e1)).
-  iApply (imp_bind (A1:=loc * A) with "[-]").
-  set_postcondition
-    (λ '((l, x) : loc * A),
-        |={E,E ∖ ↑N}=> ∃ v, ▷ l ↦ v ∗
-                            ▷ (l ↦ #x -∗ |={E∖↑N,E}=> Φ ()))%I.
-  { iApply (imp_Par with "[He1] He2").
-    { iApply (imp_as_loc with "He1"). }
-    iSplit.
-    - iIntros (e) "He !>". iApply (imp_throw with "He").
-    - iIntros (l x) "HΦ1 HΦ2 !>".
-      iApply imp_ret. instantiate (1:=(_,_)). encode.
-      iPoseProof (inv_acc with "Hinv") as ">[Hopen Hclose]". assumption.
-      iModIntro.
-      iDestruct ("Hstore" with "HΦ1 HΦ2 Hopen") as "(%v & $ & Hstore)".
-      iNext.
-      iIntros "Hl".
-      iDestruct ("Hstore" with "Hl") as "(HP & HΦ)".
-      iMod ("Hclose" with "HP").
-      iApply "HΦ". }
-  iIntros ((l & x)) "Hl /=".
-  iApply (imp_atomic' E (E ∖ ↑N)).
-  iMod "Hl" as "(%v & Hl & Hstore)".
-  iApply (imp_store' with "Hl").
-  iApply "Hstore".
-Qed.
 
 Lemma imp_store_atomic `{Encode A} (E1 E2 : coPset) η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) :
   impure E1 (eval η e1) Ψ ζ Φ1 -∗
@@ -164,6 +126,29 @@ Proof.
   iMod "Hl" as "(%v & Hl & Hstore)".
   iApply (imp_store' with "Hl").
   iApply "Hstore".
+Qed.
+
+Lemma imp_store_inv `{Encode A} (E : coPset) N η e1 e2 Ψ ζ (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) P :
+  ↑N ⊆ E →
+  inv N P -∗
+  impure E (eval η e1) Ψ ζ Φ1 -∗
+  impure E (eval η e2) Ψ ζ Φ2 -∗
+  (▷ ∀ l x, Φ1 l -∗ Φ2 x -∗
+            ▷ P -∗
+            ∃ v, ▷ l ↦ v ∗
+                 ▷ (l ↦ #x -∗ ▷ P ∗ Φ ())) -∗
+  impure E (eval η (EStore e1 e2)) Ψ ζ Φ.
+Proof.
+  iIntros (Hsubset) "#Hinv He1 He2 Hstore".
+  iApply (imp_store_atomic E (E ∖ ↑N) with "He1 He2").
+  iNext.
+  iPoseProof (inv_acc with "Hinv") as ">[HP HClose]". assumption.
+  iIntros "!>" (l x) "HΦ1 HΦ2".
+  iDestruct ("Hstore" with "HΦ1 HΦ2 HP") as "(% & $ & Hstore)".
+  iIntros "!> Hl".
+  iDestruct ("Hstore" with "Hl") as "[HP HΦ]".
+  iMod ("HClose" with "HP").
+  iApply "HΦ".
 Qed.
 
 Lemma imp_CAS_atomic `{PhysEqDec A} N (E : coPset) η e1 e2 e3 Ψ ζ (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) P :
